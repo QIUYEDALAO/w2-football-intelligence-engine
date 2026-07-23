@@ -61,7 +61,7 @@ def test_top_five_and_world_cup_registry_behavior_remains() -> None:
 
 
 def test_registry_defaults_do_not_enable_national_leagues(monkeypatch) -> None:  # type: ignore[no-untyped-def]
-    monkeypatch.delenv("W2_ENVIRONMENT", raising=False)
+    monkeypatch.setenv("W2_ENVIRONMENT", "local")
     monkeypatch.delenv("W2_STAGING_ENABLED_COMPETITIONS", raising=False)
 
     registry = CompetitionRegistry()

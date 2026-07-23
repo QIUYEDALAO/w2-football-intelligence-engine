@@ -11,6 +11,8 @@ from apps.scheduler.main import (
 )
 from apps.worker.celery_app import celery_app
 
+from w2.competitions.seed import set_competition_enabled
+from w2.infrastructure.database import create_engine
 from w2.refresh.matchday_schedule import MatchdayRefreshPolicy, build_matchday_refresh_plan
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -36,8 +38,8 @@ def test_staging_compose_defaults_future_refresh_and_provider_calls_disabled() -
     for path in COMPOSE_PATHS:
         scheduler = env_for(path, "scheduler")
         assert scheduler["W2_FUTURE_FIXTURE_REFRESH_ENABLED"] == "false"
-        assert scheduler["W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID"] == "allsvenskan"
-        assert scheduler["W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS"] == ""
+        assert "W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID" not in scheduler
+        assert "W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS" not in scheduler
         assert scheduler["W2_PROVIDER_CALLS_DISABLED"] == "true"
         assert scheduler["W2_PROVIDER_SCHEDULER_ENABLED"] == "false"
         assert scheduler["W2_PROVIDER_REQUEST_LEDGER_ENABLED"] == "true"
@@ -45,9 +47,7 @@ def test_staging_compose_defaults_future_refresh_and_provider_calls_disabled() -
         assert scheduler["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == "status,fixtures,odds,lineups"
         assert scheduler["W2_PROVIDER_REFRESH_TICK_HARD_CAP"] == "30"
         assert scheduler["W2_PROVIDER_DAILY_HARD_CAP"] == "120"
-        assert scheduler["W2_STAGING_ENABLED_COMPETITIONS"] == (
-            "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien"
-        )
+        assert "W2_STAGING_ENABLED_COMPETITIONS" not in scheduler
         assert scheduler["W2_XG_BACKFILL_ENABLED"] == "false"
         assert scheduler["W2_MARKET_TIMELINE_REFRESH_ENABLED"] == "true"
         assert scheduler["W2_MARKET_TIMELINE_WINDOW"] == "future"
@@ -64,9 +64,7 @@ def test_staging_compose_defaults_future_refresh_and_provider_calls_disabled() -
         assert api["W2_PROVIDER_CALLS_DISABLED"] == "true"
         assert api["W2_PROVIDER_SCHEDULER_ENABLED"] == "false"
         assert api["W2_PROVIDER_DAILY_HARD_CAP"] == "120"
-        assert api["W2_STAGING_ENABLED_COMPETITIONS"] == (
-            "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien"
-        )
+        assert "W2_STAGING_ENABLED_COMPETITIONS" not in api
         for service in ("worker",):
             env = env_for(path, service)
             assert env["W2_PROVIDER_CALLS_DISABLED"] == "true"
@@ -76,28 +74,15 @@ def test_staging_compose_defaults_future_refresh_and_provider_calls_disabled() -
             assert env["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == "status,fixtures,odds,lineups"
             assert env["W2_PROVIDER_REFRESH_TICK_HARD_CAP"] == "30"
             assert env["W2_PROVIDER_DAILY_HARD_CAP"] == "120"
-            assert env["W2_STAGING_ENABLED_COMPETITIONS"] == (
-                "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien"
-            )
+            assert "W2_STAGING_ENABLED_COMPETITIONS" not in env
             assert env["W2_XG_BACKFILL_ENABLED"] == "false"
         for service in ("api", "web", "worker"):
             assert "W2_FUTURE_FIXTURE_REFRESH_ENABLED" not in env_for(path, service)
 
 
-def test_staging_compose_mounts_versioned_policy_for_worker_and_scheduler_only() -> None:
-    expected_sources = {
-        ROOT / "infra/compose/compose.staging.yml": "../../config/policies",
-        ROOT / "infra/compose/staging-lite.override.yml": "./config/policies",
-    }
+def test_staging_compose_does_not_mount_install_seed_policy_as_runtime_authority() -> None:
     for path in COMPOSE_PATHS:
-        for service in ("worker", "scheduler"):
-            mounts = [
-                volume
-                for volume in volumes_for(path, service)
-                if ":/app/config/policies:" in volume
-            ]
-            assert mounts == [f"{expected_sources[path]}:/app/config/policies:ro"]
-        for service in ("api", "web"):
+        for service in ("api", "web", "worker", "scheduler"):
             assert not [
                 volume
                 for volume in volumes_for(path, service)
@@ -113,11 +98,7 @@ def test_staging_compose_mounts_full_config_for_runtime_services() -> None:
     assert (ROOT / "config/competitions/world_cup_2026.v1.json").is_file()
     for path in COMPOSE_PATHS:
         for service in ("api", "worker", "scheduler"):
-            mounts = [
-                volume
-                for volume in volumes_for(path, service)
-                if ":/app/config:" in volume
-            ]
+            mounts = [volume for volume in volumes_for(path, service) if ":/app/config:" in volume]
             assert mounts == [f"{expected_sources[path]}:/app/config:ro"]
 
 
@@ -175,9 +156,7 @@ def test_scheduler_tick_queues_without_running_provider(monkeypatch) -> None:
         sent.append({"name": name, **kwargs})
 
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
-    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "allsvenskan")
     monkeypatch.setenv("W2_ENVIRONMENT", "staging")
-    monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "allsvenskan")
     monkeypatch.setenv("W2_GIT_SHA", "a" * 40)
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setattr(
@@ -211,8 +190,27 @@ def test_scheduler_tick_queues_without_running_provider(monkeypatch) -> None:
         )(),
     )
     monkeypatch.setattr(celery_app, "send_task", fake_send_task)
+    monkeypatch.setattr(
+        "apps.scheduler.main.future_fixture_refresh_competition_ids",
+        lambda: ("allsvenskan",),
+    )
 
-    result = future_fixture_refresh_tick()
+    engine = create_engine()
+    set_competition_enabled(
+        engine,
+        competition_id="allsvenskan",
+        enabled=True,
+        updated_by="contract-test",
+    )
+    try:
+        result = future_fixture_refresh_tick()
+    finally:
+        set_competition_enabled(
+            engine,
+            competition_id="allsvenskan",
+            enabled=False,
+            updated_by="contract-test-cleanup",
+        )
 
     assert result["status"] == "QUEUED"
     assert result["competition_id"] == "allsvenskan"
@@ -224,9 +222,7 @@ def test_health_contract_has_no_dispatch_or_runtime_side_effect(monkeypatch) -> 
         raise AssertionError("health contract must not dispatch")
 
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
-    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "allsvenskan")
     monkeypatch.setenv("W2_ENVIRONMENT", "staging")
-    monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "allsvenskan")
     monkeypatch.setenv("W2_GIT_SHA", "a" * 40)
     monkeypatch.setattr(celery_app, "send_task", forbidden_send_task)
     runtime_path = ROOT / "runtime/future_refresh"
@@ -236,10 +232,14 @@ def test_health_contract_has_no_dispatch_or_runtime_side_effect(monkeypatch) -> 
     assert runtime_path.exists() is before_exists
 
 
-def test_health_contract_fails_closed_when_policy_is_missing(monkeypatch, tmp_path) -> None:
+def test_health_contract_fails_closed_when_database_authority_is_missing(monkeypatch) -> None:
+    from w2.competitions.registry import CompetitionRegistryError
+
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
-    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_ID", "world_cup_2026")
-    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "w2.ingestion.future_refresh.CompetitionRegistry",
+        lambda: (_ for _ in ()).throw(CompetitionRegistryError("DB_UNAVAILABLE")),
+    )
 
     assert not future_fixture_refresh_contract_ready()
 

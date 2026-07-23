@@ -1,8 +1,10 @@
 {
   "competition_id": "primeira_liga",
+  "audit_order": 7,
   "name": "Primeira Liga",
   "country": "Portugal",
   "timezone": "Europe/Lisbon",
+  "audit_cohort": "OFFSEASON",
   "provider_mapping": {
     "api_football_league_id": "94",
     "api_football_season": "2026",

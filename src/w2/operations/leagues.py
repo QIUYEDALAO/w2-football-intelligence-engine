@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(os.getenv("W2_APP_ROOT", Path(__file__).resolve().parents[3])).resolve()
-TOP_FIVE_CONFIG_DIR = ROOT / "config/competitions/top_five"
 STAGE5B_RAW = ROOT / "runtime/stage5b/raw"
 
 
@@ -105,10 +104,14 @@ class SeasonRolloverPlan:
     status: str
 
 
-def load_profiles(config_dir: Path = TOP_FIVE_CONFIG_DIR) -> list[LeagueProfile]:
+def load_profiles() -> list[LeagueProfile]:
+    from w2.competitions.registry import CompetitionRegistry
+
     profiles: list[LeagueProfile] = []
-    for path in sorted(config_dir.glob("*.json")):
-        payload = json.loads(path.read_text(encoding="utf-8"))
+    for entry in CompetitionRegistry().entries().values():
+        if entry.scope_group != "top_five":
+            continue
+        payload = entry.profile_payload
         profiles.append(
             LeagueProfile(
                 competition_id=payload["competition_id"],
@@ -126,6 +129,7 @@ def load_profiles(config_dir: Path = TOP_FIVE_CONFIG_DIR) -> list[LeagueProfile]
                 readiness_requirements=tuple(payload["readiness_requirements"]),
             )
         )
+    profiles.sort(key=lambda profile: profile.competition_id)
     return profiles
 
 

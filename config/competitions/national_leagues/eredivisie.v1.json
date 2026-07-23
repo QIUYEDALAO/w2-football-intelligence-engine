@@ -1,8 +1,10 @@
 {
   "competition_id": "eredivisie",
+  "audit_order": 6,
   "name": "Eredivisie",
   "country": "Netherlands",
   "timezone": "Europe/Amsterdam",
+  "audit_cohort": "OFFSEASON",
   "provider_mapping": {
     "api_football_league_id": "88",
     "api_football_season": "2026",

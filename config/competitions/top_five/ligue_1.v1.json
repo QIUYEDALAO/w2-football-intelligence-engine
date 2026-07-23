@@ -1,5 +1,6 @@
 {
   "competition_id": "ligue_1",
+  "audit_order": 5,
   "name": "Ligue 1",
   "country": "France",
   "timezone": "Europe/Paris",

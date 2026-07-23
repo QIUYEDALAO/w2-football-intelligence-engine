@@ -1,5 +1,6 @@
 {
   "competition_id": "premier_league",
+  "audit_order": 1,
   "name": "Premier League",
   "country": "England",
   "timezone": "Europe/London",

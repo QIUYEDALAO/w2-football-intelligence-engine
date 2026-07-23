@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from typing import Any
 
@@ -23,8 +24,32 @@ from apps.worker.celery_app import (
     xg_history_backfill,
 )
 
+from w2.competitions.seed import set_competition_enabled
 from w2.config import Settings
 from w2.infrastructure.cache import redis_status
+from w2.infrastructure.database import create_engine
+
+
+@contextmanager
+def db_enabled_competitions(*competition_ids: str):  # type: ignore[no-untyped-def]
+    engine = create_engine()
+    for competition_id in competition_ids:
+        set_competition_enabled(
+            engine,
+            competition_id=competition_id,
+            enabled=True,
+            updated_by="runtime-test",
+        )
+    try:
+        yield
+    finally:
+        for competition_id in competition_ids:
+            set_competition_enabled(
+                engine,
+                competition_id=competition_id,
+                enabled=False,
+                updated_by="runtime-test-cleanup",
+            )
 
 
 def test_celery_ping_task_has_no_business_side_effect() -> None:
@@ -255,16 +280,8 @@ def test_scheduler_future_refresh_accepts_staging_competition_list(monkeypatch) 
 
     monkeypatch.setenv("W2_ENVIRONMENT", "staging")
     monkeypatch.setenv("W2_GIT_SHA", "a" * 40)
-    monkeypatch.setenv(
-        "W2_STAGING_ENABLED_COMPETITIONS",
-        "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien",
-    )
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
-    monkeypatch.setenv(
-        "W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS",
-        "world_cup_2026,brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien",
-    )
     monkeypatch.setattr(
         scheduler_main,
         "due_checkpoint_refresh_batch",
@@ -303,7 +320,13 @@ def test_scheduler_future_refresh_accepts_staging_competition_list(monkeypatch) 
         lambda name, **kwargs: sent.append({"name": name, **kwargs}),
     )
 
-    result = future_fixture_refresh_tick()
+    with db_enabled_competitions(
+        "brasileirao_serie_a",
+        "chinese_super_league",
+        "allsvenskan",
+        "eliteserien",
+    ):
+        result = future_fixture_refresh_tick()
 
     assert result["status"] == "QUEUED"
     assert result["queued_count"] == 5
@@ -324,10 +347,8 @@ def test_scheduler_future_refresh_seeds_staging_league_without_local_fixtures(
 
     monkeypatch.setenv("W2_ENVIRONMENT", "staging")
     monkeypatch.setenv("W2_GIT_SHA", "a" * 40)
-    monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "brasileirao_serie_a")
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
-    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS", "brasileirao_serie_a")
     monkeypatch.setattr(
         scheduler_main,
         "due_checkpoint_refresh_batch",
@@ -357,8 +378,14 @@ def test_scheduler_future_refresh_seeds_staging_league_without_local_fixtures(
         "send_task",
         lambda name, **kwargs: sent.append({"name": name, **kwargs}),
     )
+    monkeypatch.setattr(
+        scheduler_main,
+        "future_fixture_refresh_competition_ids",
+        lambda: ("brasileirao_serie_a",),
+    )
 
-    result = future_fixture_refresh_tick()
+    with db_enabled_competitions("brasileirao_serie_a"):
+        result = future_fixture_refresh_tick()
 
     assert result["status"] == "QUEUED"
     assert result["competition_id"] == "brasileirao_serie_a"
@@ -383,10 +410,8 @@ def test_scheduler_future_refresh_does_not_seed_when_local_fixtures_exist(
 
     monkeypatch.setenv("W2_ENVIRONMENT", "staging")
     monkeypatch.setenv("W2_GIT_SHA", "a" * 40)
-    monkeypatch.setenv("W2_STAGING_ENABLED_COMPETITIONS", "brasileirao_serie_a")
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
-    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS", "brasileirao_serie_a")
     monkeypatch.setattr(
         scheduler_main,
         "due_checkpoint_refresh_batch",
@@ -407,8 +432,14 @@ def test_scheduler_future_refresh_does_not_seed_when_local_fixtures_exist(
         "send_task",
         lambda name, **kwargs: sent.append({"name": name, **kwargs}),
     )
+    monkeypatch.setattr(
+        scheduler_main,
+        "future_fixture_refresh_competition_ids",
+        lambda: ("brasileirao_serie_a",),
+    )
 
-    result = future_fixture_refresh_tick()
+    with db_enabled_competitions("brasileirao_serie_a"):
+        result = future_fixture_refresh_tick()
 
     assert result["status"] == "NO_CHECKPOINT_DUE"
     assert result["competition_id"] == "brasileirao_serie_a"
@@ -795,7 +826,8 @@ def test_scheduler_checkpoint_batch_ignores_due_rows_outside_current_fixture_set
         FakeRepository,
     )
 
-    result = due_checkpoint_refresh_batch(now, provider_league_id="71")
+    with db_enabled_competitions("brasileirao_serie_a"):
+        result = due_checkpoint_refresh_batch(now, provider_league_id="71")
 
     assert result["status"] == "NO_CHECKPOINT_DUE"
     assert result["generated_plan_count"] > 0

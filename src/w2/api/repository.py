@@ -112,8 +112,8 @@ from w2.operations.release_evidence import build_release_identity
 from w2.operations.tournament import (
     build_operations_plan,
     load_stage5b_world_cup_fixtures,
-    load_tournament_profile,
     readiness_report,
+    tournament_profile_from_payload,
 )
 from w2.pricing.shadow import build_pricing_shadow
 from w2.providers.quota import api_football_quota_policy, parse_int
@@ -158,7 +158,6 @@ FORWARD_LEDGER_LEGACY_RECOVERY = (
     ROOT / "config/policies/forward_ledger_legacy_recovery.staging.v1.json"
 )
 MAX_PUBLIC_FIXTURES = 512
-WORLD_CUP_PROFILE = ROOT / "config/competitions/world_cup_2026.v1.json"
 WORLD_CUP_FIXTURES = RUNTIME / "stage5b/processed/national_fixtures_cleaned.json"
 BALANCED_MAINLINE_MAX_DISTANCE = 0.06
 BALANCED_MAINLINE_MIN_DELTA = 0.03
@@ -274,7 +273,7 @@ def _optional_truthy_flag(value: Any) -> bool | None:
 def _fixture_neutral_site(item: dict[str, Any]) -> bool:
     league = item.get("league", {}) if isinstance(item.get("league"), dict) else {}
     explicit = _explicit_neutral_site(item)
-    profile = load_json(WORLD_CUP_PROFILE, {})
+    profile = _competition_profile_payload("world_cup_2026")
     policy = str(profile.get("neutral_site_policy") or "")
     if _is_world_cup_2026_item(item, profile=profile, league=league) and policy:
         if "HOST_COUNTRY_MATCHES_ARE_NOT_NEUTRAL_FOR_HOST" in policy:
@@ -286,6 +285,14 @@ def _fixture_neutral_site(item: dict[str, Any]) -> bool:
         if "OTHER_MATCHES_NEUTRAL_BY_VENUE_CONTEXT" in policy:
             return explicit if explicit is not None else True
     return explicit if explicit is not None else False
+
+
+def _competition_profile_payload(competition_id: str) -> dict[str, Any]:
+    try:
+        entry = CompetitionRegistry().entries().get(competition_id)
+    except CompetitionRegistryError:
+        return {}
+    return dict(entry.profile_payload) if entry else {}
 
 
 def _explicit_neutral_site(item: dict[str, Any]) -> bool | None:
@@ -772,11 +779,11 @@ class ReadModelRepository:
         }
 
     def world_cup_profile(self) -> dict[str, Any]:
-        return cast(dict[str, Any], load_json(WORLD_CUP_PROFILE, {}))
+        return _competition_profile_payload("world_cup_2026")
 
     def world_cup_readiness(self) -> dict[str, Any]:
         try:
-            profile = load_tournament_profile(WORLD_CUP_PROFILE)
+            profile = tournament_profile_from_payload(self.world_cup_profile())
             fixtures = load_stage5b_world_cup_fixtures(WORLD_CUP_FIXTURES)
             plan = build_operations_plan(profile, fixtures)
             return readiness_report(profile, plan)

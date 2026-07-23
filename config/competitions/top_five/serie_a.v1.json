@@ -1,5 +1,6 @@
 {
   "competition_id": "serie_a",
+  "audit_order": 4,
   "name": "Serie A",
   "country": "Italy",
   "timezone": "Europe/Rome",

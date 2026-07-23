@@ -8,7 +8,9 @@ from pathlib import Path
 import pytest
 from pydantic import SecretStr
 
+from w2.competitions.seed import set_competition_enabled
 from w2.config import Environment, Settings
+from w2.infrastructure.database import create_engine
 from w2.monitoring.readiness import _artifact_manifest_check, build_readiness_payload
 
 
@@ -114,20 +116,31 @@ def test_matchday_intake_readiness_ready_when_all_gates_pass(
     monkeypatch.setenv("W2_PROVIDER_CALLS_DISABLED", "false")
     monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "status,fixtures,odds,lineups")
     monkeypatch.setenv("W2_FUTURE_REFRESH_PERSISTENCE", "db")
-    monkeypatch.setenv(
-        "W2_FUTURE_FIXTURE_REFRESH_COMPETITION_IDS",
-        "world_cup_2026,allsvenskan",
-    )
     monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "test-key")
 
-    payload = build_readiness_payload(
-        _settings(tmp_path, environment=Environment.STAGING),
-        database_check=_pass,
-        redis_check=_pass,
-        schema_check=_pass,
-        mounts_check=_pass,
-        artifact_check=_artifact_pass,
+    engine = create_engine()
+    set_competition_enabled(
+        engine,
+        competition_id="allsvenskan",
+        enabled=True,
+        updated_by="readiness-test",
     )
+    try:
+        payload = build_readiness_payload(
+            _settings(tmp_path, environment=Environment.STAGING),
+            database_check=_pass,
+            redis_check=_pass,
+            schema_check=_pass,
+            mounts_check=_pass,
+            artifact_check=_artifact_pass,
+        )
+    finally:
+        set_competition_enabled(
+            engine,
+            competition_id="allsvenskan",
+            enabled=False,
+            updated_by="readiness-test-cleanup",
+        )
 
     assert payload.matchday_intake_status == "READY"
     assert payload.matchday_intake.ready is True

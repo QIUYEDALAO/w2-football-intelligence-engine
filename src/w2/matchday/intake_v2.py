@@ -8,9 +8,9 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
-from pathlib import Path
 from typing import Any, Literal
 
+from w2.competitions.registry import CompetitionRegistry
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.domain.recommendation_decision_v3 import (
     build_recommendation_decision_v3,
@@ -170,11 +170,39 @@ class ExecutorResult:
 
 
 def load_matchday_policy(
-    path: Path = Path("config/policies/matchday_intake.v2.json"),
+    registry: CompetitionRegistry | None = None,
 ) -> dict[str, Any]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if payload.get("version") != POLICY_VERSION:
-        raise ValueError("MATCHDAY_POLICY_VERSION_INVALID")
+    policies = []
+    for entry in (registry or CompetitionRegistry()).entries().values():
+        if not isinstance(entry.matchday_policy, dict):
+            continue
+        odds_enabled = entry.refresh_switches.get("odds") is True
+        lineups_enabled = entry.refresh_switches.get("lineups") is True
+        policy = dict(entry.matchday_policy)
+        policy["enabled"] = entry.enabled
+        checkpoints = []
+        for source_checkpoint in _list(policy.get("checkpoints")):
+            checkpoint = dict(source_checkpoint)
+            endpoints = tuple(str(value) for value in _list(checkpoint.get("endpoints")))
+            checkpoint["endpoints"] = [
+                endpoint
+                for endpoint in endpoints
+                if (endpoint != "odds" or odds_enabled)
+                and (endpoint != "lineups" or lineups_enabled)
+            ]
+            checkpoints.append(checkpoint)
+        policy["checkpoints"] = checkpoints
+        endpoint_matrix = {}
+        for key, source_endpoints in _mapping(policy.get("endpoint_matrix")).items():
+            endpoint_matrix[str(key)] = [
+                endpoint
+                for endpoint in (str(value) for value in _list(source_endpoints))
+                if (endpoint != "odds" or odds_enabled)
+                and (endpoint != "lineups" or lineups_enabled)
+            ]
+        policy["endpoint_matrix"] = endpoint_matrix
+        policies.append(policy)
+    payload = {"version": POLICY_VERSION, "competitions": policies}
     competition_ids = {
         str(item.get("competition_id"))
         for item in _list(payload.get("competitions"))
@@ -241,8 +269,8 @@ def require_competition_policy(
     return policy
 
 
-def policy_fingerprint(path: Path = Path("config/policies/matchday_intake.v2.json")) -> str:
-    return sha256_bytes(path.read_bytes())
+def policy_fingerprint(registry: CompetitionRegistry | None = None) -> str:
+    return stable_hash(load_matchday_policy(registry))
 
 
 def build_checkpoint_plans(
@@ -1325,9 +1353,7 @@ def _evaluated_candidate_from_model(model_evidence: Mapping[str, Any]) -> dict[s
             "expected_value": model_evidence.get("expected_value"),
             "uncertainty": model_evidence.get("uncertainty"),
             "comparison": {
-                "analysis_direction_allowed": _truthy(
-                    comparison.get("analysis_direction_allowed")
-                )
+                "analysis_direction_allowed": _truthy(comparison.get("analysis_direction_allowed"))
             },
         },
     }
@@ -1356,9 +1382,7 @@ def _exact_quote_candidate(
         if str(selected_row.get("canonical_selection") or "") != target_selection:
             continue
         observation_ids = [
-            str(row.get("observation_id"))
-            for row in (left, right)
-            if row.get("observation_id")
+            str(row.get("observation_id")) for row in (left, right) if row.get("observation_id")
         ]
         return {
             "fixture_id": selected_row.get("fixture_id"),
@@ -1426,8 +1450,10 @@ def _selected_analysis_candidate(model_evidence: Mapping[str, Any]) -> dict[str,
         score = _decimal_or_none(item.get("decision_score") or item.get("signal_strength"))
         if score is None:
             continue
-        if not item.get("decision") or not item.get("line_status") or not item.get(
-            "market_candidate"
+        if (
+            not item.get("decision")
+            or not item.get("line_status")
+            or not item.get("market_candidate")
         ):
             continue
         quote_age_seconds = item.get("quote_age_seconds")

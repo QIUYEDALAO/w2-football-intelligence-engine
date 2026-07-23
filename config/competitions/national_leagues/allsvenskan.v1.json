@@ -1,8 +1,10 @@
 {
   "competition_id": "allsvenskan",
+  "audit_order": 5,
   "name": "Allsvenskan",
   "country": "Sweden",
   "timezone": "Europe/Stockholm",
+  "audit_cohort": "IN_SEASON",
   "provider_mapping": {
     "api_football_league_id": "113",
     "api_football_season": "2026",

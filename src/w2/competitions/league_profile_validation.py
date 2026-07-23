@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -93,11 +92,7 @@ def validate_league_profile_mapping(
 
 
 def _profile_payload(entry: CompetitionRegistryEntry) -> dict[str, Any]:
-    try:
-        payload = json.loads(entry.config_path.read_text(encoding="utf-8"))
-    except OSError:
-        return {}
-    return payload if isinstance(payload, dict) else {}
+    return entry.profile_payload
 
 
 def _missing_observed_value(value: Any) -> bool:
