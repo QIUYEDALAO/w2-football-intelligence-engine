@@ -1682,11 +1682,14 @@ DROP_MIGRATION_NONEMPTY_GUARD = PRESENT
 ## ARCH-HYGIENE-01：生成审计产物退出 Git
 
 ```text
-Status: IN_PROGRESS
+Status: READY_FOR_EXTERNAL_REVIEW
 Started at: 2026-07-23T18:43:42Z
 Owner: Codex
 Base SHA: db3fd12fedb76e9a9cb074f7a3dcc3294042c2fc
 Branch: codex/arch-hygiene-01-generated-audits-exit-git
+Draft PR: #383
+Implementation head: d34046261db89282a514134625839f06d9c3fd57
+Implementation exact-head CI: 30035995807 (PASS)
 Scope: docs/audits/system_truth 生成产物、相关生成器及双重静态守卫
 Next task: ARCH-HYGIENE-01（合并前不得推进 ARCH-HYGIENE-02）
 ```
@@ -1821,7 +1824,8 @@ STATUS_DOCUMENT_AUTHORITY = THIS_MASTER_CHECKLIST
 - 唯一断链位于人工 `W2_SIMPLIFICATION_PLAN_V1.md`：其原 V1 matrix 文件名
   已改为本总清单权威路径，同时删除已失效的硬编码旧审计 SHA。
 
-提交前预检（最终验收仍以 committed exact head 与 GitHub CI 为准）：
+已提交实现 head `d34046261db89282a514134625839f06d9c3fd57` 的真实生成与
+GitHub CI 证据：
 
 ```text
 TRACKED_GENERATED_AUDIT_FILES = 0
@@ -1833,11 +1837,16 @@ SOURCE_REVIEW_SHA_MATCHES_GENERATION_HEAD = PASS
 PENDING_COMMIT_PLACEHOLDERS = 0
 AUDIT_GENERATION_DIRTIES_GIT = 0
 BROKEN_AUDIT_REFERENCES = 0
-PRELIMINARY_RUNTIME_OUTPUT = 18 JSON + 18 Markdown
+RUNTIME_OUTPUT = 18 JSON + 18 Markdown
+IMPLEMENTATION_EXACT_HEAD_CI = 30035995807
+VERIFY = PASS
+STAGING_PARITY = PASS
+PREDEPLOY_E2E = PASS
 ```
 
-由于本 PR 尚未完成 exact-head GitHub CI、外部审核与合并，本节状态保持
-`IN_PROGRESS`，下列完成框与 PR 合并框均不提前勾选。
+由于本 PR 尚未经过外部审核与合并，本节只到
+`READY_FOR_EXTERNAL_REVIEW`，不写成 `DONE`；按总清单勾选规则，下列完成框与
+PR 合并框均不提前勾选。
 
 - [ ] 逐项区分 `docs/audits/system_truth` 中机器生成文件与人工维护文件，
   形成可复核清单；人工维护文件继续受 Git 管理。

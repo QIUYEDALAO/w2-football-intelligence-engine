@@ -38,7 +38,8 @@ ARCH-HYGIENE-01 -> ARCH-HYGIENE-02
 
 The current and next task is **ARCH-HYGIENE-01: generated audit artifacts exit
 Git**. Its prerequisite checklist-revision PR is merged and implementation is
-in progress. Until its PR is externally reviewed and merged:
+ready for external review in Draft PR #383. Until that PR is externally
+reviewed and merged:
 
 1. Limit the task to its checklist contract: classify generated versus
    human-maintained audit files, move generator defaults out of Git-tracked
