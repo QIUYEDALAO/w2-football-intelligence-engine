@@ -74,7 +74,7 @@ CORE_CONCEPTS = (
 P0_P1_TABLE_DOMAINS = {
     "raw_payload",
     "matchday_endpoint_captures",
-    "future_market_observation",
+    "matchday_market_observations",
     "fixtures",
     "teams",
     "team_identity_crosswalks",
@@ -717,8 +717,6 @@ def _conflict_behavior(table: str) -> str:
 def _replacement_table(table: str) -> str | None:
     if table == "future_refresh_checkpoint_plan":
         return "matchday_checkpoint_plans"
-    if table == "future_market_observation":
-        return "canonical observation target after Phase B"
     return None
 
 

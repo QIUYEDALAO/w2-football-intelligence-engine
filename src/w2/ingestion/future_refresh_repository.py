@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import Engine, desc, func, select
+from sqlalchemy.engine import RowMapping
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -18,7 +19,6 @@ from w2.infrastructure.persistence.factor_model_models import (
     TeamRatingSnapshotModel,
 )
 from w2.infrastructure.persistence.future_refresh_models import (
-    FutureMarketObservationModel,
     FutureRefreshCheckpointAuditModel,
     FutureRefreshCheckpointPlanModel,
     FutureRefreshRunAuditModel,
@@ -31,6 +31,7 @@ from w2.infrastructure.persistence.ingestion_models import (
     ProviderRequestLogModel,
     QuotaUsageModel,
 )
+from w2.infrastructure.persistence.market_projection_view import current_market_projection
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayFixtureIdentityModel,
     MatchdayMarketObservationModel,
@@ -963,24 +964,6 @@ class FutureRefreshDbRepository:
             )
         return players
 
-    def append_observations(self, observations: list[dict[str, Any]]) -> int:
-        try:
-            models = [self._observation_model(row) for row in observations]
-            appended = 0
-            with Session(self.engine) as session:
-                with session.begin():
-                    for model in models:
-                        try:
-                            with session.begin_nested():
-                                session.add(model)
-                                session.flush()
-                            appended += 1
-                        except IntegrityError:
-                            continue
-        except Exception as exc:
-            raise FutureRefreshPersistenceError("OBSERVATION_WRITE_FAILED") from exc
-        return appended
-
     def latest_market_observations(self) -> list[dict[str, Any]]:
         return self._canonical_market_observations_for_fixtures(None)
 
@@ -1213,126 +1196,101 @@ class FutureRefreshDbRepository:
             )
         return projected
 
-    def _canonical_market_observations_for_fixtures(
+    def _projection_observations(
         self,
-        fixture_ids: list[str] | None,
+        *,
+        canonical_fixture_ids: set[str] | None = None,
+        canonical_markets: tuple[str, ...] | None = None,
     ) -> list[dict[str, Any]]:
-        with Session(self.engine) as session:
-            query = select(MatchdayMarketObservationModel).where(
-                MatchdayMarketObservationModel.suspended.is_(False),
-                MatchdayMarketObservationModel.live.is_(False),
-            )
-            if fixture_ids is not None:
-                canonical_ids = {
-                    fixture_id
-                    if fixture_id.startswith("api_football:")
-                    else f"api_football:{fixture_id}"
-                    for fixture_id in fixture_ids
-                }
-                query = query.where(
-                    MatchdayMarketObservationModel.fixture_id.in_(canonical_ids),
-                    MatchdayMarketObservationModel.canonical_market.in_(
-                        ("ASIAN_HANDICAP", "TOTALS")
-                    ),
-                )
-            rows = list(
-                session.scalars(
-                    query.order_by(
-                        MatchdayMarketObservationModel.fixture_id,
-                        MatchdayMarketObservationModel.captured_at,
-                        MatchdayMarketObservationModel.canonical_market,
-                        MatchdayMarketObservationModel.bookmaker_id,
-                        MatchdayMarketObservationModel.canonical_selection,
-                    )
-                )
-            )
-        latest: dict[tuple[str, str, str, str, str | None], dict[str, Any]] = {}
-        for model in rows:
-            row = self._matchday_observation_dict(model)
-            key = (
-                row["fixture_id"],
-                row["canonical_market"],
-                row["bookmaker_id"],
-                row["selection"],
-                row["line"],
-            )
-            current = latest.get(key)
-            if current is None or row["captured_at"] > current["captured_at"]:
-                latest[key] = row
-        latest_rows = sorted(
-            latest.values(),
-            key=lambda row: (
-                row["fixture_id"],
-                row["canonical_market"],
-                row["bookmaker_id"],
-                row["selection"],
-            ),
-        )
-        if fixture_ids is None:
-            return latest_rows
-        bounded: list[dict[str, Any]] = []
-        grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
-        for row in latest_rows:
-            group_key = (str(row["fixture_id"]), str(row["canonical_market"]))
-            grouped.setdefault(group_key, []).append(row)
-        for group_key in sorted(grouped):
-            bounded.extend(grouped[group_key][:SCOPED_OBSERVATION_ROWS_PER_MARKET])
-        return bounded
+        """Read the current-market projection from its only authority.
 
-    def _matchday_observation_dict(self, model: MatchdayMarketObservationModel) -> dict[str, Any]:
+        `current_market_projection` is a view over the canonical history that
+        keeps the latest non-suspended, non-live quote per fixture, market,
+        bookmaker, selection and line. Nothing is recomputed here.
+
+        The order is total: `line` and `observation_id` complete the sort so a
+        caller that bounds rows per market always keeps the same rows. The
+        previous in-memory projection sorted only to `canonical_selection`,
+        which left rows differing by `line` in an arbitrary order.
+        """
+        projection = current_market_projection
+        query = select(projection)
+        if canonical_fixture_ids is not None:
+            query = query.where(projection.c.fixture_id.in_(canonical_fixture_ids))
+        if canonical_markets is not None:
+            query = query.where(projection.c.canonical_market.in_(canonical_markets))
+        query = query.order_by(
+            projection.c.provider,
+            projection.c.projection_fixture_id,
+            projection.c.canonical_market,
+            projection.c.bookmaker_id,
+            projection.c.canonical_selection,
+            projection.c.line,
+            projection.c.observation_id,
+        )
+        with Session(self.engine) as session:
+            rows = list(session.execute(query).mappings())
+        return [self._projection_row_dict(row) for row in rows]
+
+    @staticmethod
+    def _projection_row_dict(row: RowMapping) -> dict[str, Any]:
         return {
-            "observation_id": model.observation_id,
-            "fixture_id": (
-                model.provider_fixture_id or model.fixture_id.removeprefix("api_football:")
-            ),
-            "provider": model.provider,
-            "bookmaker_id": model.bookmaker_id,
-            "bookmaker_name": model.bookmaker_name,
-            "capture_id": model.capture_id,
-            "provider_bet_id": model.provider_bet_id,
-            "raw_market_label": model.raw_market_label,
-            "canonical_market": model.canonical_market,
-            "selection": model.canonical_selection,
-            "line": model.line,
-            "decimal_odds": model.decimal_odds,
-            "suspended": model.suspended,
-            "live": model.live,
-            "provider_last_update": model.provider_updated_at,
-            "captured_at": iso_z(model.captured_at),
-            "ingested_at": iso_z(model.ingested_at),
-            "raw_payload_sha256": model.raw_payload_sha256,
-            "source_revision": model.source_revision,
+            "observation_id": row["observation_id"],
+            "fixture_id": row["projection_fixture_id"],
+            "provider": row["provider"],
+            "bookmaker_id": row["bookmaker_id"],
+            "bookmaker_name": row["bookmaker_name"],
+            "capture_id": row["capture_id"],
+            "provider_bet_id": row["provider_bet_id"],
+            "raw_market_label": row["raw_market_label"],
+            "canonical_market": row["canonical_market"],
+            "selection": row["canonical_selection"],
+            "line": row["line"],
+            "decimal_odds": row["decimal_odds"],
+            "suspended": row["suspended"],
+            "live": row["live"],
+            "provider_last_update": row["provider_updated_at"],
+            "captured_at": iso_z(row["captured_at"]),
+            "ingested_at": iso_z(row["ingested_at"]),
+            "raw_payload_sha256": row["raw_payload_sha256"],
+            "source_revision": row["source_revision"],
             "candidate": False,
             "formal_recommendation": False,
         }
 
-    def _latest_observation_dicts(
+    def _canonical_market_observations_for_fixtures(
         self,
-        rows: list[FutureMarketObservationModel],
+        fixture_ids: list[str] | None,
     ) -> list[dict[str, Any]]:
-        latest: dict[tuple[str, str, str, str, str | None], dict[str, Any]] = {}
-        for model in rows:
-            row = self._observation_dict(model)
-            key = (
-                row["fixture_id"],
-                row["canonical_market"],
-                row["bookmaker_id"],
-                row["selection"],
-                row["line"],
-            )
-            current = latest.get(key)
-            if current is None or str(row["captured_at"]) > str(current["captured_at"]):
-                latest[key] = row
-        return sorted(
-            latest.values(),
-            key=lambda item: (
-                str(item["fixture_id"]),
-                str(item["captured_at"]),
-                str(item["canonical_market"]),
-                str(item["bookmaker_id"]),
-                str(item["selection"]),
-            ),
+        if fixture_ids is None:
+            return self._projection_observations()
+
+        canonical_ids = {
+            fixture_id
+            if fixture_id.startswith("api_football:")
+            else f"api_football:{fixture_id}"
+            for fixture_id in fixture_ids
+        }
+        latest_rows = self._projection_observations(
+            canonical_fixture_ids=canonical_ids,
+            canonical_markets=("ASIAN_HANDICAP", "TOTALS"),
         )
+
+        # Grouped by provider as well: fixture ids are only unique within a
+        # provider, so grouping on the bare id would let two providers share one
+        # bound and truncate each other's quotes.
+        bounded: list[dict[str, Any]] = []
+        grouped: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+        for row in latest_rows:
+            group_key = (
+                str(row["provider"]),
+                str(row["fixture_id"]),
+                str(row["canonical_market"]),
+            )
+            grouped.setdefault(group_key, []).append(row)
+        for group_key in sorted(grouped):
+            bounded.extend(grouped[group_key][:SCOPED_OBSERVATION_ROWS_PER_MARKET])
+        return bounded
 
     def fixture_payloads(self, *, provider_league_id: str | None = None) -> list[dict[str, Any]]:
         fixtures: dict[str, dict[str, Any]] = {}
@@ -2077,50 +2035,3 @@ class FutureRefreshDbRepository:
             int(quota_usage or 0),
         )
 
-    def _observation_model(self, row: dict[str, Any]) -> FutureMarketObservationModel:
-        return FutureMarketObservationModel(
-            observation_id=str(row["observation_id"]),
-            fixture_id=str(row["fixture_id"]),
-            provider=str(row["provider"]),
-            bookmaker_id=str(row["bookmaker_id"]),
-            bookmaker_name=str(row["bookmaker_name"]),
-            provider_bet_id=str(row["provider_bet_id"]),
-            raw_market_label=str(row["raw_market_label"]),
-            canonical_market=str(row["canonical_market"]),
-            selection=str(row["selection"]),
-            line=None if row.get("line") is None else str(row["line"]),
-            decimal_odds=str(row["decimal_odds"]),
-            suspended=bool(row["suspended"]),
-            live=bool(row["live"]),
-            provider_last_update=str(row["provider_last_update"]),
-            captured_at=parse_db_datetime(row["captured_at"]),
-            ingested_at=parse_db_datetime(row["ingested_at"]),
-            raw_payload_sha256=str(row["raw_payload_sha256"]),
-            source_revision=str(row["source_revision"]),
-            candidate=False,
-            formal_recommendation=False,
-        )
-
-    def _observation_dict(self, model: FutureMarketObservationModel) -> dict[str, Any]:
-        return {
-            "observation_id": model.observation_id,
-            "fixture_id": model.fixture_id,
-            "provider": model.provider,
-            "bookmaker_id": model.bookmaker_id,
-            "bookmaker_name": model.bookmaker_name,
-            "provider_bet_id": model.provider_bet_id,
-            "raw_market_label": model.raw_market_label,
-            "canonical_market": model.canonical_market,
-            "selection": model.selection,
-            "line": model.line,
-            "decimal_odds": model.decimal_odds,
-            "suspended": model.suspended,
-            "live": model.live,
-            "provider_last_update": model.provider_last_update,
-            "captured_at": iso_z(model.captured_at),
-            "ingested_at": iso_z(model.ingested_at),
-            "raw_payload_sha256": model.raw_payload_sha256,
-            "source_revision": model.source_revision,
-            "candidate": False,
-            "formal_recommendation": False,
-        }
