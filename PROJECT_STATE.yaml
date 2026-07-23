@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-23T17:06:10Z"
+updated_at: "2026-07-23T17:44:42Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -81,13 +81,26 @@ architecture_convergence:
   governance_contracts:
     dependency_contract:
       id: DEPENDENCY_CONTRACT_V1
-      layer_order: APPS_TO_API_TO_INFRASTRUCTURE_TO_DOMAIN
+      layer_order: APPS_TO_DASHBOARD_PRESENTATION_TO_API_TO_INFRASTRUCTURE_TO_DOMAIN
       enforcement_task: ARCH-P1-04C
+      ast_guard_layers:
+        - W2_DOMAIN
+        - W2_INFRASTRUCTURE
+        - W2_API
+        - W2_DASHBOARD
+        - PRESENTATION
+        - APPS
+      infrastructure_forbidden_dependencies:
+        - W2_API
+        - W2_DASHBOARD
+        - APPS
     documentation_scope:
       ARCH-HYGIENE-01: GENERATED_AUDIT_ARTIFACTS
       ARCH-P2-02: HUMAN_MAINTAINED_DOCUMENTS_ONLY
     audit_generation:
-      source_review_sha: CURRENT_GIT_HEAD_AT_GENERATION
+      audit_generator_sha: GENERATOR_CODE_VERSION
+      source_review_sha: AUDITED_CODE_TREE_GIT_HEAD_AT_GENERATION
+      source_review_sha_validation: MATCHES_GENERATION_HEAD
   pre_approved_order_change:
     task: ARCH-P1-05
     condition: STAGING_ONSITE_BUILD_REPEATEDLY_FAILS

@@ -1681,9 +1681,13 @@ Next task: 本 docs-only 清单修订 PR 合并后开始
 - [ ] 停止生成 V2 兼容别名，并删除既有 V2 别名输出。
 - [ ] 删除生成器、模板和审计产物中的硬编码个人路径及硬编码的旧
   `SOURCE_REVIEW_SHA`。
+- [ ] 明确区分两个版本字段：`audit_generator_sha` 表示生成器代码版本；
+  `source_review_sha` 表示本次被审计代码树版本，两者不得混用。
 - [ ] 生成器每次运行时必须通过 `git rev-parse HEAD` 从当前 Git HEAD
   动态取得完整 `source_review_sha`；不得从静态常量、模板默认值或人工复制值
   读取。
+- [ ] 生成结果必须校验其 `source_review_sha` 等于本次生成开始时取得的 Git
+  HEAD；不一致立即失败，不得输出或提交该审计结果。
 - [ ] 全量扫描并删除所有 `PENDING_COMMIT` 占位，不得把数量写死为“三处”。
 - [ ] 同时在 `.gitignore` 与 `check_tracked_outputs.py` 增加守卫，阻止机器生成
   审计产物再次进入 Git。
@@ -1700,6 +1704,7 @@ V2_ALIAS_OUTPUTS = 0
 HARDCODED_PERSONAL_PATHS = 0
 HARDCODED_SOURCE_REVIEW_SHA = 0
 SOURCE_REVIEW_SHA_SOURCE = CURRENT_GIT_HEAD
+SOURCE_REVIEW_SHA_MATCHES_GENERATION_HEAD = PASS
 PENDING_COMMIT_PLACEHOLDERS = 0
 AUDIT_GENERATION_DIRTIES_GIT = 0
 BROKEN_AUDIT_REFERENCES = 0
@@ -1776,26 +1781,33 @@ KNOWN_DEPENDENCY_CYCLE_BASELINE = api <-> ingestion
 #### `DEPENDENCY_CONTRACT_V1` 分层规则
 
 ```text
-LAYER_ORDER = apps -> api -> infrastructure -> domain
+LAYER_ORDER = apps -> dashboard/presentation -> api -> infrastructure -> domain
 ```
 
-上层可以直接依赖任意更下层；下层不得反向依赖上层。四层合同如下：
+下层不得反向依赖上层；`apps` 只在 composition root 中组装各层。分层合同如下：
 
 - `domain`（`src/w2/domain`）：只承载领域模型、值对象和纯业务合同；除标准库
-  与第三方纯计算依赖外，不得 import `infrastructure`、`api` 或 `apps`。
+  与第三方纯计算依赖外，不得 import `infrastructure`、`api`、
+  `dashboard/presentation` 或 `apps`。
 - `infrastructure`（`src/w2/infrastructure`）：实现持久化和外部系统 adapter，
-  可以 import `domain`，不得 import `api` 或 `apps`，不得把 transport 合同
-  下沉到基础设施层。
+  可以 import `domain`；明确不得 import `w2.api`、`w2.dashboard` 或
+  仓库根目录 `apps`。
 - `api`（`src/w2/api`）：只负责读模型、应用服务编排和 API 合同，可以 import
-  `domain` 与 `infrastructure`，不得 import `apps`；按 `ARCH-P1-04B` 删除
-  对 `ingestion/features/markets/pricing/strategy/simulation` 的读时计算依赖。
+  `domain` 与 `infrastructure`，不得 import `w2.dashboard` 或 `apps`；按
+  `ARCH-P1-04B` 删除对
+  `ingestion/features/markets/pricing/strategy/simulation` 的读时计算依赖。
+- `dashboard/presentation`（`src/w2/dashboard` 及 presentation 代码）：只可
+  依赖 `api` 的公开读/应用合同与 `domain` 值合同，不得依赖
+  `infrastructure` 内部实现或 `apps`，不得形成读时计算权威。
 - `apps`（仓库根目录 `apps/`）：只作为进程入口和 composition root，可以向下
-  import `api`、`infrastructure`、`domain` 并完成依赖注入，不得承载可复用
-  领域规则或另建业务权威；任何 `src/w2` 包均不得反向 import `apps`。
+  import `dashboard/presentation`、`api`、`infrastructure`、`domain` 并完成
+  依赖注入，不得承载可复用领域规则或另建业务权威；任何 `src/w2` 包均不得
+  反向 import `apps`。
 
 `ARCH-P1-04C` 的 AST import graph 守卫必须覆盖普通 import、from import 和
-相对 import，将所有违反上述方向的边归零；不得以宽泛 allowlist 固化违规边，
-并必须阻止新增分层反向依赖或循环。
+相对 import，并显式扫描 `domain`、`infrastructure`、`api`、
+`dashboard/presentation` 与 `apps`；将所有违反上述方向的边归零。不得以宽泛
+allowlist 固化违规边，并必须阻止新增分层反向依赖或循环。
 
 ---
 
@@ -1927,9 +1939,10 @@ LEGACY_DECISION_CONTRACT_LOC = 0
 DECISION_OUTPUT_FORMAT_COUNT = 1
 UNREFERENCED_REPOSITORY_COMPUTE_METHODS = 0
 DEPENDENCY_CONTRACT = DEPENDENCY_CONTRACT_V1
-DOMAIN_TO_INFRASTRUCTURE_API_APPS = 0
-INFRASTRUCTURE_TO_API_APPS = 0
-API_TO_APPS = 0
+DOMAIN_TO_INFRASTRUCTURE_API_DASHBOARD_APPS = 0
+INFRASTRUCTURE_TO_API_DASHBOARD_APPS = 0
+API_TO_DASHBOARD_APPS = 0
+DASHBOARD_PRESENTATION_TO_INFRASTRUCTURE_APPS = 0
 SRC_W2_TO_APPS = 0
 APPS_BUSINESS_AUTHORITY_COUNT = 0
 API_INGESTION_CYCLE_COUNT = 0
