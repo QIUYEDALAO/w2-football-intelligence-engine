@@ -26,6 +26,55 @@
   前置条件；只有真实首发窗口出现时才执行。
 - [x] P0 两周内完成；整体工程参考周期 6–8 周。
 
+### 2026-07-23 老板批准的清单修订（P1 阶段）
+
+ARCH-P1-01 合并后，基于对 `main@76201af8aad43976ffbcd7d2f72726bac4bc8106`
+的系统状态复审，老板批准以下两项决定。本节是这两项决定的唯一权威记录。
+
+**决定一：P1 任务拆分与顺序调整（已生效）**
+
+```text
+ARCH_P1_04_SPLIT = 04A_WRITE_PIPELINE / 04B_READ_SWITCH / 04C_CONTRACT_CLEANUP
+ARCH_P1_03_MOVED_AFTER = ARCH-P1-04C
+ARCH_P1_07_ADDED = COMPETITION_READ_PATH_IMPORT_TIME_FIX
+ARCH_P1_08_ACCEPTANCE_ADDED = 3
+```
+
+- `ARCH-P1-04` 拆为 04A（评估持久化写侧管线）、04B（Dashboard 读切换并删除
+  全部生产 fallback）、04C（合同层与死代码清理）。拆分理由：04B 是行为切换，
+  需要 staging 语义对账；04C 是删除，需要零引用证据；两者回滚粒度不同，
+  按红线第 6 条必须可独立回滚。
+- `ARCH-P1-03` 移到 04 系列之后。理由：身份收敛的对账口径依赖 04A 建立的
+  投影链路；先做投影可让身份不一致以可观测的方式暴露。
+- 新增 `ARCH-P1-07`（竞赛域读路径 import-time 副作用修正），小任务。
+- `ARCH-P1-08` 追加三条验收，见该任务。
+
+新执行顺序：
+
+```text
+ARCH-P1-01 (DONE) -> ARCH-P1-02 -> ARCH-P1-04A -> ARCH-P1-04B
+  -> ARCH-P1-04C -> ARCH-P1-03 -> ARCH-P1-05 -> ARCH-P1-06
+  -> ARCH-P1-07 -> ARCH-P1-08 -> P2
+```
+
+**决定二：ARCH-P1-05 条件提前开关（已批准，触发后无需再次请示）**
+
+```text
+ARCH_P1_05_EARLY_TRIGGER = STAGING_ONSITE_BUILD_REPEATEDLY_FAILS
+ARCH_P1_05_EARLY_POSITION = BEFORE_ARCH_P1_04A
+ARCH_P1_05_EARLY_APPROVAL = PRE_APPROVED_2026_07_23
+```
+
+若 ARCH-P1-04 系列的 staging 验收因服务器现场构建（网络或软件源不稳定）
+反复失败，执行方可直接把 ARCH-P1-05 提到 ARCH-P1-04A 之前执行，无需再次
+请示；提前执行时必须在 ARCH-P1-05 任务下记录触发原因和触发时间。这是本
+清单中唯一的预批准顺序变更。
+
+**唯一允许的顺序回退**
+
+若执行 ARCH-P1-04A 时发现球队/球员身份不一致阻塞投影对账，可向老板申请把
+`ARCH-P1-03` 提前。此项需要单独批准，不属于预批准范围。
+
 ### 唯一允许继续的现有功能工作
 
 在功能冻结期间，只允许：
@@ -69,6 +118,24 @@ REAL LINEUP CANARY AS A SEPARATE OPS ACCEPTANCE TASK
 任务必须严格按顺序执行。ARCH-01 的代码范围已冻结，真实首发 canary
 已移出 P0 前置条件。PR #370 已验证基线经独立 integration PR 接入
 `main` 且 PR #370 关闭后，立即开始 ARCH-P0-01。
+
+P1 阶段的顺序已按第一节"2026-07-23 老板批准的清单修订"调整，当前权威顺序为：
+
+```text
+ARCH-P1-01 (DONE)
+ARCH-P1-02   赔率表收敛
+ARCH-P1-04A  评估持久化——写侧管线
+ARCH-P1-04B  Dashboard 读切换 + 删除全部生产 fallback
+ARCH-P1-04C  合同层与死代码清理
+ARCH-P1-03   球队身份 Crosswalk 收敛
+ARCH-P1-05   CI 构建镜像、服务器 pull-only（有预批准的条件提前开关）
+ARCH-P1-06   Compose 环境变量去重
+ARCH-P1-07   竞赛域读路径修正
+ARCH-P1-08   P1 总验收
+```
+
+本文件中的章节按此顺序排列。任务编号保留历史编号以便追溯，章节先后以本
+顺序为准。
 
 # 阶段 0：冻结、收口 PR #370
 
@@ -448,7 +515,25 @@ P0_ARCHITECTURE_CONVERGENCE_PASS
 
 ## ARCH-P1-01：数据库僵尸表盘点与直接删除
 
-Status: READY_FOR_EXTERNAL_REVIEW
+```text
+Status: DONE
+Branch: codex/arch-p1-01-direct-table-removal
+Merged PR: #379
+Merge SHA: 76201af8aad43976ffbcd7d2f72726bac4bc8106
+Base SHA: d62e335100ebd41856a5b7822938424a511a5fb0
+Final PR head: a40342beadc820527a036df88ee5c29485ba3f36
+Final exact-head CI: 29994028200 (W2 Stage 2 CI, success)
+Implementation exact-head CI: 29993024046 (verify, staging-parity,
+  predeploy-e2e passed)
+Staging acceptance: DEAD_TABLES_EVIDENCE_BACKED_AND_DROPPED
+  (144 -> 66 tables; 0040 -> 0039 -> 0040 roundtrip passed; 20/20 read-only
+  HTTP 200; provider_request_logs delta 0; DML delta 0)
+Completed at: 2026-07-23T09:20:43Z
+Owner: Codex
+Migration head after merge: 0040_drop_empty_fk_components
+Rollback: revert PR #379; downgrade 0040 -> 0039 restores all 35 tables as
+  empty structures, as proven by the executed staging roundtrip.
+```
 
 - [x] 列出全部表及：
   - migration 来源；
@@ -467,7 +552,7 @@ Status: READY_FOR_EXTERNAL_REVIEW
   不通过 rename、archive、backup、兼容 view 或其他隔离结构延后决策。
 - [x] 历史 migration 文件保留；只通过新的可验证 migration 执行正式 drop。
 - [x] migration upgrade/downgrade、完整 CI 和 staging 验收通过。
-- [ ] PR 合并。
+- [x] PR 合并。
 
 ### ARCH-P1-01 本轮直接证据
 
@@ -712,19 +797,19 @@ SQL、任务及报表引用扫描。
 **本轮验收回执**
 
 - 状态流转：外部二次验收修复期间为 `FIX_IN_PROGRESS`；递归组件审计、
-  0040 migration、完整 CI、staging 往返与零写验收全部完成后，当前为
-  `READY_FOR_EXTERNAL_REVIEW`。0039 始终保持不变，追加删除只通过新
-  revision `0040` 执行；
-- PR：`#379`（最终回执 exact-head CI 全绿后转 Ready 并提交外部审核）；
+  0040 migration、完整 CI、staging 往返与零写验收完成后转
+  `READY_FOR_EXTERNAL_REVIEW`；外部审核通过并合并后为 `DONE`。0039 始终
+  保持不变，追加删除只通过新 revision `0040` 执行；
+- PR：`#379`，已于 `2026-07-23T09:20:43Z` 合并，merge SHA
+  `76201af8aad43976ffbcd7d2f72726bac4bc8106`；
 - validated implementation/final code head：
   `d004cd946a42ad2fade0799d297ca31358c2f41e`；
-- PR final receipt head：GitHub canonical `refs/pull/379/head`；该引用必须与
-  本清单回执提交和 GitHub PR `headRefOid` 一致，避免在提交内容中硬编码
-  不可能自引用的 commit SHA；
+- PR final receipt head：合并时 GitHub `headRefOid` =
+  `a40342beadc820527a036df88ee5c29485ba3f36`（合并后可回溯确定，故在此固化）；
 - implementation exact-head CI：run `29993024046`，`verify`、
   `staging-parity`、`predeploy-e2e` 全绿；
-- final receipt exact-head CI：以 PR #379 最新 required checks 为准，提交
-  外部审核前必须全部 `SUCCESS`；
+- final receipt exact-head CI：run `29994028200`（`W2 Stage 2 CI`）在
+  `a40342be` 上 `success`，合并前 required checks 全部通过；
 - staging release SHA：
   `d004cd946a42ad2fade0799d297ca31358c2f41e`；
 - staging migration：
@@ -763,6 +848,33 @@ NO_BUSINESS_HISTORY_DELETED
 
 ## ARCH-P1-02：赔率表收敛
 
+### 现状锚点（2026-07-23 复审）
+
+```text
+CURRENT_PRODUCTION_READ_AUTHORITY = matchday_market_observations
+CURRENT_PRODUCTION_READ_ENTRY =
+  ReadModelRepository.future_market_observations_for_fixtures()
+  (src/w2/api/repository.py)
+LEGACY_TABLE_STILL_WRITTEN = future_market_observation (3840 rows)
+LEGACY_WRITER = src/w2/ingestion/future_refresh_repository.py
+```
+
+ARCH-P0-02 只收敛了读路径，没有处理写入者。本任务处理这两张表的身份收敛：
+读权威已唯一，写权威仍是两套。
+
+### 补充要求：drop migration 必须断言空表
+
+自本任务起，所有 drop migration 的 `upgrade()` 在删除每张表前必须先执行
+`SELECT count(*)`，计数非零即抛错终止，不得静默继续。
+
+背景：`0038`、`0039`、`0040` 只有 `has_table` 守卫，在有数据的环境重放会
+无提示删除数据。历史 revision 保持原样不追溯修改，本要求只对新 revision
+生效。
+
+```text
+DROP_MIGRATION_NONEMPTY_GUARD = REQUIRED_FROM_ARCH_P1_02
+```
+
 - [ ] 从活跃赔率表中选定：
   - 一张唯一 append-only 历史表；
   - 一张当前盘口投影（表或视图）。
@@ -774,6 +886,8 @@ NO_BUSINESS_HISTORY_DELETED
 - [ ] 在同一 PR 使用新 migration drop 已完成迁移且证据充分的旧表；
   不创建 archive、backup、兼容 view 或替代 fallback。
 - [ ] 证据不足的表保持原状并继续调查，不重命名隔离。
+- [ ] 新增 drop migration 的 `upgrade()` 对每张待删表先 `SELECT count(*)`，
+  非零即抛错。
 - [ ] migration upgrade/downgrade、行数/hash 对账、完整 CI 和 staging 验收通过。
 - [ ] PR 合并。
 
@@ -782,11 +896,169 @@ NO_BUSINESS_HISTORY_DELETED
 ```text
 CANONICAL_ODDS_HISTORY_AUTHORITY_COUNT = 1
 CURRENT_MARKET_PROJECTION_AUTHORITY_COUNT = 1
+DROP_MIGRATION_NONEMPTY_GUARD = PRESENT
+```
+
+---
+
+## ARCH-P1-04：Dashboard 单一 Read Model（拆为 04A / 04B / 04C）
+
+老板已决定使用现有 `read_model_checkpoint` 作为唯一页面投影。原 ARCH-P1-04
+按 2026-07-23 批准的决定拆为三个独立 PR，三者合起来等价于原任务范围，且
+每个都可独立回滚：
+
+```text
+ARCH-P1-04A  写侧管线：worker 产出并投影评估，只做影子对账，不切读路径
+ARCH-P1-04B  读切换：Dashboard 只读投影，删除全部生产 fallback
+ARCH-P1-04C  合同层与死代码清理：删除 legacy 决策合同与无调用方计算方法
+```
+
+拆分不放宽任何原验收项；原 ARCH-P1-04 的两条验收在 04B 完成时判定。
+
+---
+
+## ARCH-P1-04A：评估持久化——写侧管线
+
+**独立 PR。本任务不切换任何读路径。**
+
+### 现状锚点（2026-07-23 复审）
+
+```text
+EVALUATION_TABLE            = dynamic_prematch_evaluations (已存在)
+PROJECTION_TABLE            = read_model_checkpoint (已存在)
+REPOSITORY                  = src/w2/prematch/repository.py
+ORM                         = src/w2/infrastructure/persistence/api_models.py
+PROJECTOR                   = src/w2/api/dashboard_read_models.py (已实现但休眠)
+PROJECTOR_ONLY_CALLER_TODAY = scripts/project_stage10b_live_snapshot.py (离线)
+```
+
+两张表和 repository 均已存在，投影器代码也已写好，当前唯一调用方是离线
+脚本。本任务是把已有投影器接入 worker 生产链路，**不新增表**。
+
+- [ ] 审计 `read_model_checkpoint` 的 schema、写入者和当前覆盖。
+- [ ] 确保它可以承载 Boss Console 当前所需全部字段。
+- [ ] worker 在赔率、首发或赛程变化后计算分析卡，落
+  `dynamic_prematch_evaluations`，并投影到 `read_model_checkpoint`。
+- [ ] 投影记录必须带 projection version/hash、source event、
+  last projected time。
+- [ ] 不新增表、不新增配置文件、不新增 fallback。
+- [ ] 影子对账：投影结果与现行读时计算结果逐场 hash 比对，不切换 API
+  读路径。
+- [ ] 投影随赔率/首发变化自动更新，不依赖人工 materialize 或离线脚本。
+- [ ] 完整 CI 与 staging 验收通过。
+- [ ] PR 合并。
+
+**验收**
+
+```text
+PROJECTION_SHADOW_RECONCILIATION = 100_PERCENT_HASH_MATCH
+PROJECTION_TRIGGERED_BY_EVENT = TRUE
+MANUAL_MATERIALIZE_REQUIRED = FALSE
+NEW_TABLES = 0
+```
+
+---
+
+## ARCH-P1-04B：Dashboard 读切换 + 删除全部生产 fallback
+
+**独立 PR。这是行为切换，必须有 staging 语义对账。**
+
+- [ ] 所有 Dashboard 与分析生产端点只读 `read_model_checkpoint` 投影。
+- [ ] 删除：
+  - seed fallback；
+  - legacy fallback；
+  - runtime JSON fallback（含 `prediction_locks.json`、`result_events.json`
+    两处残留）；
+  - reports fallback；
+  - live/frozen 自动选择（`_uses_frozen_public_authority` 链路）；
+  - API 读路径里的特征组装、Poisson 与模拟调用；
+  - 前端市场概率重算。
+- [ ] **fail-closed 语义**：`src/w2/api/repository.py` 在
+  `main@76201af` 上有 25 处 `except Exception`、58 处 `except` 子句，
+  多数静默返回空集。"异常吞成空数据"计入 fallback；数据库故障必须返回
+  `SYSTEM_DEGRADED` 一类的明确状态，不得返回空集冒充"无数据"。逐处分类，
+  并给出改造后各处的返回语义。
+- [ ] 新增静态守卫测试（照 `tests/contract/test_production_report_reads.py`
+  的模式）：禁止 `src/w2/api`、`apps/api` import 特征引擎、pricing 或
+  simulation。
+- [ ] frozen artifact 仅保留内部审计/canary。
+- [ ] API 返回 projection version/hash、source event、last projected time。
+- [ ] old/new 全部当前比赛语义对账。
+- [ ] 15/30 场 Dashboard 行为和视觉不退化。
+- [ ] 完整 CI 与 staging 验收通过。
+- [ ] PR 合并。
+
+**验收**
+
+```text
+DASHBOARD_READ_AUTHORITY = READ_MODEL_CHECKPOINT_ONLY
+PRODUCTION_FALLBACK_COUNT = 0
+IMPLICIT_EMPTY_RESULT_FALLBACK_COUNT = 0
+API_FEATURE_PRICING_SIMULATION_IMPORTS = 0
+```
+
+---
+
+## ARCH-P1-04C：合同层与死代码清理
+
+**独立 PR。这是删除，必须每处附零引用证据。**
+
+与 04B 分开的原因：04B 是行为切换，需要 staging 对账；04C 是删除，需要
+零引用证据；两者回滚粒度不同。
+
+### 现状锚点（2026-07-23 复审）
+
+口径为 `main@76201af8aad43976ffbcd7d2f72726bac4bc8106` 实测。
+
+```text
+LEGACY_SHIM    = src/w2/domain/legacy_decision_shim.py (113 行)
+LEGACY_ADAPTER = src/w2/domain/decision_adapter.py (986 行)
+LEGACY_LOC     = 1099 行合计
+REPOSITORY     = src/w2/api/repository.py
+                 6770 行 / 233 个类方法 / 256 个 def（含嵌套）
+```
+
+- [ ] 删除 `legacy_decision_shim.py` 与 `decision_adapter.py` 中的旧合同
+  转换，使 `RecommendationDecisionV3` 成为投影的唯一输出格式。
+- [ ] 删除 `src/w2/api/repository.py` 中已无调用方的计算方法，使该文件
+  收敛为纯投影读取器体量。
+- [ ] 每一处删除附零引用证据（静态扫描 `src/`、`apps/`、`scripts/`、
+  `tests/`、`config/`、`infra/` 与 CI）。
+- [ ] 不引入替代 shim、兼容层或 adapter。
+- [ ] 完整 CI 与 staging 验收通过。
+- [ ] PR 合并。
+
+**验收**
+
+```text
+LEGACY_DECISION_CONTRACT_LOC = 0
+DECISION_OUTPUT_FORMAT_COUNT = 1
+UNREFERENCED_REPOSITORY_COMPUTE_METHODS = 0
 ```
 
 ---
 
 ## ARCH-P1-03：球队身份 Crosswalk 收敛
+
+**顺序说明**：按 2026-07-23 批准的决定，本任务从 ARCH-P1-02 之后移到
+ARCH-P1-04C 之后。范围不变。
+
+### 现状锚点（2026-07-23 复审）
+
+待收敛组：
+
+```text
+football_data_team_crosswalks
+team_identity_crosswalks
+provider_team_identity_crosswalks
+player_identity_crosswalks
+player_identity_mappings
+```
+
+### 允许的顺序回退
+
+若执行 ARCH-P1-04A 时发现身份不一致阻塞投影对账，向老板申请把本任务提前。
+这是本清单中唯一允许的顺序回退，需要单独批准，不在预批准范围内。
 
 - [ ] 盘点全部球队身份和 provider crosswalk 表。
 - [ ] 指定 canonical team 体系为唯一权威。
@@ -795,6 +1067,8 @@ CURRENT_MARKET_PROJECTION_AUTHORITY_COUNT = 1
   删除代码引用与正式 drop；证据不足的表保持原状继续调查。
 - [ ] provider IDs 仅作 provenance，不再作为模型主身份。
 - [ ] 完成 fixture、history、rating、lineup 读取对账。
+- [ ] 新增 drop migration 的 `upgrade()` 对每张待删表先 `SELECT count(*)`，
+  非零即抛错。
 - [ ] PR 合并。
 
 **验收**
@@ -805,36 +1079,27 @@ CANONICAL_TEAM_IDENTITY_AUTHORITY_COUNT = 1
 
 ---
 
-## ARCH-P1-04：Dashboard 单一 Read Model
+## ARCH-P1-05：部署改为 CI 构建、服务器拉镜像
 
-老板已决定使用现有 `read_model_checkpoint` 作为唯一页面投影。
+### 条件提前开关（2026-07-23 预批准）
 
-- [ ] 审计 `read_model_checkpoint` 的 schema、写入者和当前覆盖。
-- [ ] 确保它可以承载 Boss Console 当前所需全部字段。
-- [ ] 所有 Dashboard 生产端点只读该投影。
-- [ ] 删除：
-  - seed fallback；
-  - legacy fallback；
-  - runtime JSON fallback；
-  - reports fallback；
-  - live/frozen 自动选择；
-  - 前端市场概率重算。
-- [ ] frozen artifact 仅保留内部审计/canary。
-- [ ] API 返回 projection version/hash、source event、last projected time。
-- [ ] old/new 全部当前比赛语义对账。
-- [ ] 15/30 场 Dashboard 行为和视觉不退化。
-- [ ] PR 合并。
-
-**验收**
+若 ARCH-P1-04 系列的 staging 验收因服务器现场构建（网络或软件源不稳定）
+反复失败，执行方可直接把本任务提到 ARCH-P1-04A 之前执行，无需再次请示。
+提前执行时必须在此处记录：
 
 ```text
-DASHBOARD_READ_AUTHORITY = READ_MODEL_CHECKPOINT_ONLY
-PRODUCTION_FALLBACK_COUNT = 0
+EARLY_EXECUTION_TRIGGERED = <yes/no>
+TRIGGER_REASON =
+TRIGGERED_AT =
 ```
 
----
+当前状态：`EARLY_EXECUTION_TRIGGERED = no`。
 
-## ARCH-P1-05：部署改为 CI 构建、服务器拉镜像
+### 范围
+
+当前仓库根有 5 个 Dockerfile：`Dockerfile.api`、`Dockerfile.worker`、
+`Dockerfile.scheduler`、`Dockerfile.migrations`、`Dockerfile.web`。Python 侧
+4 个合并为单镜像多 command，Web 保留独立镜像。
 
 - [ ] 合并 4 个 Python Dockerfile 为 1 个多 target 或单镜像多 command 文件。
 - [ ] API、Worker、Scheduler、Migration 共用同一 Python 镜像。
@@ -882,6 +1147,35 @@ SERVER_DEPENDENCY_INSTALL_COUNT = 0
 
 ---
 
+## ARCH-P1-07：竞赛域读路径修正
+
+**2026-07-23 新增的小任务，独立 PR。**
+
+`src/w2/competitions/league_whitelist_scope.py` 的模块级常量
+（`TOP_FIVE_COMPETITIONS` 等）在 import 时查库，造成两个问题：
+
+1. 导入方在没有已种子数据库的环境直接抛错；
+2. 常量在进程存活期内不随 DB `enabled` 热切换刷新，削弱 ARCH-P0-03
+   "改库即生效"的承诺。
+
+- [ ] 把模块级查库常量改为函数调用，取消 import 时的数据库访问。
+- [ ] 保持 ARCH-P0-03 的 DB 权威语义不变：不引入缓存旁路，不引入新的
+  运行时权威或环境变量覆盖。
+- [ ] 核查 audit/backtest 导入链上的其他 import-time 副作用并一并修正。
+- [ ] 新增回归测试：无数据库连接时 import 成功；DB `enabled` 变更后同一
+  进程内下一次调用即生效。
+- [ ] 完整 CI 与 staging 验收通过。
+- [ ] PR 合并。
+
+**验收**
+
+```text
+IMPORT_TIME_DB_ACCESS_COUNT = 0
+DB_ENABLED_HOT_CHANGE_EFFECTIVE_WITHOUT_RESTART = PASS
+```
+
+---
+
 ## ARCH-P1-08：P1 总验收
 
 - [ ] 一套赔率历史。
@@ -891,6 +1185,9 @@ SERVER_DEPENDENCY_INSTALL_COUNT = 0
 - [ ] CI 镜像发布。
 - [ ] 服务器 pull-only。
 - [ ] 无生产 fallback。
+- [ ] API 层无特征引擎、pricing、simulation import，静态守卫常绿。
+- [ ] 读路径 fail-closed，无隐式空数据 fallback。
+- [ ] legacy 决策合同代码为零。
 - [ ] P1 完整 CI 与 staging 验收通过。
 - [ ] 人工验收。
 
@@ -898,6 +1195,9 @@ SERVER_DEPENDENCY_INSTALL_COUNT = 0
 
 ```text
 P1_ARCHITECTURE_CONVERGENCE_PASS
+API_FEATURE_PRICING_SIMULATION_IMPORTS = 0
+IMPLICIT_EMPTY_RESULT_FALLBACK_COUNT = 0
+LEGACY_DECISION_CONTRACT_LOC = 0
 ```
 
 ---
@@ -944,6 +1244,8 @@ P1_ARCHITECTURE_CONVERGENCE_PASS
 - [ ] `PROJECT_LEDGER.md` 只记录人工决定、批准和拒绝。
 - [ ] `NEXT_ACTION.md` 停止重复记录 SHA/CI/状态，改为链接总清单，或在迁移完成后删除。
 - [ ] GitHub 可查询的 SHA、CI 不再在多份文档重复维护。
+- [ ] 压缩本总清单的任务回执：每个任务只保留 CI run 号、merge SHA 和
+  一行结论，细节留在 PR 描述中（2026-07-23 追加）。
 - [ ] PR 合并。
 
 ---

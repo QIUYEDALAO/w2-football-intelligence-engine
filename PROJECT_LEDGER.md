@@ -491,3 +491,40 @@ Detailed evidence:
   20-read zero-delta probe, reviewed Transfermarkt crosswalk/player identity,
   and as-of valuation materialization remain pending. This is why lineup stays
   advisory-only and all numeric lineup adjustments remain zero.
+
+## 2026-07-23 — Architecture convergence: P0 accepted, P1-01 merged, P1 plan revised
+
+- Feature development is frozen. The single status authority is
+  [W2 architecture convergence master checklist](docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md).
+  PR #370 was closed after its verified baseline reached `main` through PR #374.
+- `ARCH-P0-01` removed every production read of non-existent `reports/*.json`
+  and replaced silent defaults with explicit `NOT_READY` states.
+  `ARCH-P0-02` reduced production odds reads to a single repository entry on
+  `matchday_market_observations`. `ARCH-P0-03` moved competition whitelist and
+  provider mapping authority into `league_profile`/`league_season`, proven by a
+  same-process enable/disable/rollback without deploy. `ARCH-P0-04` accepted P0
+  as `P0_ARCHITECTURE_CONVERGENCE_PASS`.
+- `ARCH-P1-01` merged as `76201af8aad43976ffbcd7d2f72726bac4bc8106` (PR #379,
+  CI run `29994028200`). All 144 staging tables were audited row by row and 78
+  evidence-backed empty tables were dropped through migrations `0038`, `0039`
+  and `0040`; staging went 144 → 66 tables. The `0040 → 0039 → 0040` roundtrip
+  restored and re-dropped all 35 tables, 20 of 20 public reads returned HTTP
+  200, and provider-request and DML deltas were zero. No business history was
+  deleted. Migration head is now `0040_drop_empty_fk_components`.
+- Boss approved two P1 decisions on this date, both recorded in section 一 of
+  the master checklist. First, `ARCH-P1-04` is split into `04A` (evaluation
+  persistence write pipeline), `04B` (Dashboard read switch plus removal of
+  every production fallback, including implicit empty-result exception
+  fallbacks) and `04C` (legacy decision contract and dead-code removal);
+  `ARCH-P1-03` moves after that series; `ARCH-P1-07` is added for the
+  import-time database access in `league_whitelist_scope.py`; and `ARCH-P1-08`
+  gains three acceptance items. Second, `ARCH-P1-05` may be brought forward
+  ahead of `ARCH-P1-04A` without further approval if the `ARCH-P1-04` series'
+  staging acceptance keeps failing because of on-server image builds.
+- From `ARCH-P1-02` onward, every drop migration's `upgrade()` must count rows
+  before dropping and fail on a non-empty table. Migrations `0038`–`0040` only
+  guard on `has_table`, so replaying them against a populated database would
+  drop data silently. Existing revisions are left unchanged; the requirement
+  applies to new ones.
+- `PROJECT_STATE.yaml` and `NEXT_ACTION.md` now point at the master checklist
+  instead of restating architecture status. The next task is `ARCH-P1-02`.

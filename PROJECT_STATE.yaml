@@ -1,6 +1,6 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-22T12:00:00Z"
-authority: GITHUB_DRAFT_PR_WITH_LOCAL_EVIDENCE
+updated_at: "2026-07-23T12:00:00Z"
+authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
   - implemented
@@ -9,6 +9,7 @@ delivery_status_vocabulary:
   - production_approved
 
 context_read_order:
+  - docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
   - PROJECT_STATE.yaml
   - PROJECT_LEDGER.md
   - NEXT_ACTION.md
@@ -23,20 +24,57 @@ context_read_order:
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  pull_request: 370
-  pull_request_mode: DRAFT
-  pull_request_head_branch: codex/w2-factor-model-remediation-master
-  task_baseline_sha: c62fa82d883633f3b33ff44810a5fbc294b215c5
-  local_code_implementation_sha: 81b4dd2bd4a23d6ad8f5782abf05f904a88c38a8
-  local_work_branch: codex/w2-dynamic-ev-lineup-v1
-  github_sync_status: SYNCED_TO_DRAFT_PR
-  github_verified_head_sha: 81b4dd2bd4a23d6ad8f5782abf05f904a88c38a8
+  main_sha: 76201af8aad43976ffbcd7d2f72726bac4bc8106
+  main_migration_head: 0040_drop_empty_fk_components
+  pull_request: 379
+  pull_request_mode: MERGED
+  pull_request_head_branch: codex/arch-p1-01-direct-table-removal
+  task_baseline_sha: d62e335100ebd41856a5b7822938424a511a5fb0
+  local_code_implementation_sha: 76201af8aad43976ffbcd7d2f72726bac4bc8106
+  local_work_branch: codex/arch-p1-01-close-and-checklist-revision
+  github_sync_status: SYNCED_TO_MAIN
+  github_verified_head_sha: 76201af8aad43976ffbcd7d2f72726bac4bc8106
   ci_status: PASS
-  ci_run_id: 29916913849
+  ci_run_id: 29994028200
   ci_checks:
     verify: PASS
     staging-parity: PASS
     predeploy-e2e: PASS
+  closed_pull_requests:
+    370: CLOSED_AFTER_BASELINE_INTEGRATION_PR_374
+
+architecture_convergence:
+  authority_document: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
+  feature_development_freeze: true
+  phase: P1
+  completed:
+    ARCH-00: DONE
+    ARCH-01: DONE
+    ARCH-P0-01: DONE
+    ARCH-P0-02: DONE
+    ARCH-P0-03: DONE
+    ARCH-P0-04: DONE
+    ARCH-P1-01: DONE
+  p0_acceptance: P0_ARCHITECTURE_CONVERGENCE_PASS
+  checklist_revision_approved_at: "2026-07-23"
+  p1_execution_order:
+    - ARCH-P1-02
+    - ARCH-P1-04A
+    - ARCH-P1-04B
+    - ARCH-P1-04C
+    - ARCH-P1-03
+    - ARCH-P1-05
+    - ARCH-P1-06
+    - ARCH-P1-07
+    - ARCH-P1-08
+  next_task: ARCH-P1-02
+  pre_approved_order_change:
+    task: ARCH-P1-05
+    condition: STAGING_ONSITE_BUILD_REPEATEDLY_FAILS
+    new_position: BEFORE_ARCH_P1_04A
+    triggered: false
+  table_count: 66
+  table_count_before_p1_01: 144
 
 current_phase:
   id: W2_DYNAMIC_PREMATCH_V1
@@ -45,6 +83,11 @@ current_phase:
   acceptance_state: STAGING_DEPLOYED_WAITING_REAL_LINEUP_CANARY
   blocker: WAITING_FOR_REAL_LINEUP_WINDOW_AND_POST_LINEUP_FRESH_ODDS
   next_phase: W2_DYNAMIC_PREMATCH_STAGING
+  feature_work_state: FROZEN_BY_ARCHITECTURE_CONVERGENCE
+  freeze_note: >-
+    功能冻结期间不推进本阶段的功能验收。真实首发 canary 已降为独立 ops
+    验收任务，不再阻塞架构收敛。当前唯一在推进的工作是
+    architecture_convergence.next_task。
   checkpoints:
     dynamic_quote_lifecycle: locally_verified
     current_ev_snapshot_semantics: locally_verified
@@ -81,16 +124,18 @@ local_verification:
   migration_sqlite_roundtrip: PASS
 
 staging:
-  deployed_sha: 81b4dd2bd4a23d6ad8f5782abf05f904a88c38a8
-  deployment_status: DEPLOYED_HEALTHY_REUSE_DEPENDENCY_IMAGE
+  deployed_sha: d004cd946a42ad2fade0799d297ca31358c2f41e
+  deployed_sha_source: ARCH-P1-01_STAGING_ACCEPTANCE
+  migration_current: 0040_drop_empty_fk_components
+  deployment_status: DEPLOYED_HEALTHY
   production_deployed: false
   provider_calls: 0
   staging_host: 118.196.30.136
   ssh_preflight: PASS_AS_ROOT
-  attempted_release_sha: 81b4dd2bd4a23d6ad8f5782abf05f904a88c38a8
+  attempted_release_sha: d004cd946a42ad2fade0799d297ca31358c2f41e
   restored_release_sha: null
-  real_lineup_canary: WAITING_FOR_REAL_LINEUP_WINDOW
-  public_read_20x: NOT_RUN
+  real_lineup_canary: DEFERRED_TO_SEPARATE_OPS_ACCEPTANCE
+  public_read_20x: PASS_20_OF_20_HTTP_200_ARCH_P1_01
   public_dashboard_fixture_recovery: PASS_3_LEAGUES_24_FIXTURES
 
 fixture_recovery:
@@ -141,7 +186,9 @@ safety_switches:
   manual_approval_required: true
 
 release_invariants:
-  - PR_370_KEEP_DRAFT
+  - PR_370_CLOSED
+  - FEATURE_DEVELOPMENT_FREEZE
+  - ARCHITECTURE_CONVERGENCE_CHECKLIST_IS_SOLE_STATUS_AUTHORITY
   - FORMAL_DISABLED
   - LOCK_DISABLED
   - PRODUCTION_DISABLED
