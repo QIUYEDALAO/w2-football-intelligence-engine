@@ -26,8 +26,13 @@
 
 ### 0.1 全局进度速览
 
-`main` 顶端 `8af05ddbacf32370303fb0e57e5097d6634c278e`，migration head
-`0040_drop_empty_fk_components`，staging 表数 66。
+`main` 顶端 `8af05ddbacf32370303fb0e57e5097d6634c278e`。
+
+**staging 实际状态（ARCH-P1-02 验收后）**：release
+`1d02a45c6f38c3613ac3dddab784869095bf6804`，migration current
+`0041_converge_odds_history_and_projection`，**65 张表 + 1 个视图**，六个服务
+全部 healthy、restart count 全 0。`main` 的 migration head 仍为 `0040`，
+将在 PR #381 合并后与 staging 一致。
 
 | # | 任务 | PR | Merge SHA | 状态 | 详细记录 |
 |---|---|---|---|---|---|
@@ -39,7 +44,7 @@
 | 6 | ARCH-P0-04 P0 总验收 | #378 | `d62e3351` | 已验收合并 | 见该任务节 |
 | 7 | ARCH-P1-01 僵尸表盘点与删除 | #379 | `76201af8` | 已验收合并 | 见该任务节 |
 | 8 | 第 0 步 P1-01 收口 + 清单修订 | #380 | `8af05dd` | **已合并** | **0.2** |
-| 9 | ARCH-P1-02 赔率表收敛 | #381 | 未合并 | **外部验收不通过，整改中** | **0.3 / 0.4** |
+| 9 | ARCH-P1-02 赔率表收敛 | #381 | 未合并 | **代码复验通过；staging 验收通过；待最终外部验收** | **0.3 / 0.4 / 0.5** |
 
 第 1–7 项由前序会话完成，其回执保留在各自任务节内，本节不重复。第 8、9 项
 为本轮工作，详细变更依据见 0.2 与 0.3。
@@ -55,8 +60,8 @@ P1-06 → P1-07 → P1-08 → P2-01…P2-05。
 | 数据库改动 | 无 | drop 1 表、建 1 视图（migration `0041`） |
 | Dashboard 展示变化 | 无 | 有，**已获老板批准**，见 0.3 三节 |
 | 安全开关 | 未动 | 未动 |
-| 完整 CI | 全绿（run `30002502410`） | 整改前全绿（run `30008088208`）；整改后待重跑 |
-| staging 验收 | 不涉及 | **未做** |
+| 完整 CI | 全绿（run `30002502410`） | 全绿：整改前 `30008088208`、整改后 `30011185720`、exact-head `30011857074` |
+| staging 验收 | 不涉及 | **通过**，见 0.5 |
 | 可否回滚 | 可，revert 即可 | 可，revert + `0041 → 0040` |
 
 ---
@@ -356,9 +361,12 @@ CI 历史：run `30005506955` 的 `verify` 与 `staging-parity` 通过、
 - [x] 0.4 三项代码整改的完整 CI 全绿：run `30011185720` @ `4f137d2`，
       `verify`、`staging-parity`、`predeploy-e2e` 三项均 `success`
       （已核对 run `conclusion` 字段，非仅监听命令退出码）
-- [ ] staging 验收：部署 → migration 至 `0041` → 20 轮只读探测 → 零写证明
-      → 表数 `66 → 65` 核对
-- [ ] 老板对 0.3 与 0.4 逐项验收通过
+- [x] staging 验收通过：部署 exact head `1d02a45` → migration 至 `0041` →
+      20 轮只读探测 80/80 → 零写证明 → 表数 `66 → 65` → `0041→0040→0041`
+      往返通过。完整回执见 0.5
+- [x] exact-head CI：run `30011857074` @ `1d02a45`，`success`
+- [ ] 最终回执提交的完整 CI 全绿（run 号补入本节）
+- [ ] 老板对 0.3、0.4、0.5 逐项最终验收通过
 - [ ] PR 合并，本任务状态翻 `DONE`
 
 #### 九、本轮执行方的自查与更正
@@ -443,7 +451,11 @@ git log --oneline main..HEAD
   | `formal_recommendation = true` | upgrade 失败，`FLAGGED`，表仍在 |
   | 全部行完整覆盖 | upgrade 成功，表被删，投影为 VIEW 而非 TABLE |
 
-  失败用例同时断言**视图未被部分替换**，证明守卫失败时数据库状态未被改动。
+  **表述更正**：本节初稿写"失败用例同时断言视图未被部分替换"，属过度表述——
+  当时只有 1 个用例查了视图，其余 10 个只查了表。已抽出统一断言
+  `_assert_migration_left_database_untouched()`，现在**全部 10 个失败用例**
+  都同时断言三件事：legacy 表仍存在、投影视图不存在、投影也未被建成表。
+  该表述自此与代码一致。
 
 #### 整改三：投影视图的 Provider 命名空间隔离
 
@@ -505,8 +517,93 @@ GUARD_REGRESSION_TESTS           = FIXED (11 tests)
 PROJECTION_PROVIDER_NAMESPACE    = FIXED (view + bounded read grouping)
 CHECKLIST_SYNC                   = FIXED
 POST_REMEDIATION_CI              = PASS (run 30011185720 @ 4f137d2)
-STAGING_ACCEPTANCE               = PENDING（需授权：0041 会 drop 一张 3840 行的表）
+EXACT_HEAD_CI                    = PASS (run 30011857074 @ 1d02a45)
+STAGING_ACCEPTANCE               = PASS (见 0.5)
 ```
+
+---
+
+### 0.5 ARCH-P1-02 真实 staging 验收回执
+
+老板 2026-07-23 授权在 exact head `1d02a45c6f38c3613ac3dddab784869095bf6804`
+上执行真实 staging 验收。全部项目通过。
+
+#### 验收环境
+
+```text
+STAGING_HOST            = 118.196.30.136
+DEPLOYED_RELEASE        = 1d02a45c6f38c3613ac3dddab784869095bf6804
+RELEASE_ENV_W2_GIT_SHA  = 1d02a45c6f38c3613ac3dddab784869095bf6804
+API_CONTAINER_W2_GIT_SHA= 1d02a45c6f38c3613ac3dddab784869095bf6804
+EXACT_HEAD_CI           = 30011857074 (success)
+PREVIOUS_RELEASE        = d004cd946a42ad2fade0799d297ca31358c2f41e
+```
+
+三处 release 标识（symlink、`release.env`、API 容器内环境变量）一致，证明
+运行中的服务确实是 exact head，而非仅仅切了 symlink。
+
+#### 逐项结果
+
+| 验收项 | 期望 | 实测 | 结果 |
+|---|---|---|---|
+| migration current | `0041` | `0041_converge_odds_history_and_projection` | 通过 |
+| staging 表数 | `66 → 65` | 基线 66 → 验收后 65 | 通过 |
+| 视图数 | 1 | 1 | 通过 |
+| `future_market_observation` | 不存在 | `information_schema` 命中 0 | 通过 |
+| `current_market_projection` | `VIEW` 非 `TABLE` | `table_type = VIEW` | 通过 |
+| canonical 行数 | 44644 不减少 | 44644（基线与验收后一致） | 通过 |
+| legacy 扩展语义覆盖 | 0 uncovered / 0 flagged | 迁移前实测 0 / 0；迁移守卫放行 | 通过 |
+| 投影行数 | 10648 | 10648 | 通过 |
+| 投影 hash | `3bf130fc8209be2ac990c3cd212d7622` | 同值 | 通过 |
+| 20 轮真实 HTTP | 全 200、hash 稳定 | 80/80 = 200，distinct hash = 1，`4b8f7f24…` | 通过 |
+| Provider calls | 增量 0 | `provider_request_logs` 162 → 162 | 通过 |
+| DML | 增量 0 | 见下方说明 | 通过 |
+| recommendation / lock / settlement / gate5 | 全 0 | 全 0 | 通过 |
+| `0041 → 0040 → 0041` | 往返通过 | 通过，中间态 66 表 / 0 视图 / legacy 表恢复 | 通过 |
+| 服务健康 | 全 healthy | 6/6 healthy，restart count 全 0 | 通过 |
+| 安全开关 | 不变 | provider_calls_disabled=true，scheduler/recommendation/formal/production 全 false | 通过 |
+
+#### DML 口径说明（重要，避免误读）
+
+`pg_stat_user_tables` 聚合值从基线 `58159/390/0` 变为 `54319/393/0`，
+**insert 看起来减少了 3840**。这不是删数据：
+
+- `-3840` 恰等于被 drop 的 legacy 表行数——该表的每表计数器随表一起消失，
+  从聚合中扣除；
+- `+3` 次 update 全部来自 `alembic_version` 的版本戳（upgrade / downgrade /
+  再 upgrade 各一次）；
+- **`n_tup_del` 全库始终为 0**，逐表核查 `tables_with_any_delete = none`，
+  证明没有任何一行业务数据被删除；
+- 排除 `alembic_version` 后的业务表计数为 `54318/345/0`，与基线业务口径一致。
+
+#### 20 轮 HTTP 的口径说明
+
+首轮探测发现 cycle hash 不稳定，逐字段 diff 后确认**唯一差异是 `request_id`**
+（每次请求生成的 UUID），业务内容完全一致。剔除该字段后重测，20 轮 distinct
+hash = 1。探测前后 DML 均为 `54319/393/0`，80 次读取零写入。
+
+#### 执行过程中发现并纠正的一处问题
+
+首次 `systemctl start` 对已在运行的服务是空操作，容器仍跑着上一版本
+`d004cd94`（容器内不存在 `market_projection_view.py`）。当时那轮 HTTP 探测
+实际验证的是**旧代码 + 新库结构**，不构成本任务的验收证据。已改用
+`systemctl restart` 重建容器，确认 API 容器内 `W2_GIT_SHA` 为 `1d02a45` 后
+重跑全部 HTTP 验收。上表记录的是重跑后的结果。
+
+（附带旁证：旧代码在 legacy 表已删、视图已建的库上仍全部返回 200，说明本次
+schema 变更对上一版本向后兼容。此项不作为验收依据。）
+
+#### 尚待完成
+
+```text
+FINAL_RECEIPT_CI      = 待本回执提交推送后运行
+EXTERNAL_FINAL_REVIEW = PENDING
+MERGE                 = 禁止，待最终外部验收通过
+```
+
+本回执提交只改动文档与测试断言，**不含任何生产代码改动**——生产代码与
+staging 已验收的 `1d02a45` 完全一致，可用
+`git diff 1d02a45 <head> -- src/ apps/ migrations/` 复核为空。
 
 ---
 
@@ -1353,13 +1450,17 @@ PR: #381
 Base SHA: 8af05ddbacf32370303fb0e57e5097d6634c278e
 Started at: 2026-07-23T19:30:00+0800
 Owner: Codex
-Paused at: 2026-07-23，应老板要求暂停，等待逐项验收
-Implementation SHA: 本地 99026d3（尚未推送，force-push 未获放行）
-CI run: 30005506955（verify、staging-parity 通过；predeploy-e2e 失败，已修，待重跑）
-Staging acceptance: 未进行
-Evidence: 逐项变更记录见本文件第零节 0.3
+Validated implementation head: 1d02a45c6f38c3613ac3dddab784869095bf6804
+Exact-head CI: 30011857074 (success)
+CI history: 30005506955 (predeploy-e2e 失败，已修) -> 30008088208 (pass)
+  -> 30011185720 (整改后 pass) -> 30011857074 (exact head, pass)
+Staging acceptance: PASS — release 1d02a45，migration 0041，表数 66 -> 65，
+  投影为 VIEW，canonical 44644 不变，投影 10648 行 hash 3bf130fc，
+  20 轮 HTTP 80/80 且 hash 稳定，Provider 与业务 DML 增量 0，
+  0041 -> 0040 -> 0041 往返通过。完整回执见第零节 0.5
+Evidence: 变更记录 0.3；整改记录 0.4；staging 验收回执 0.5
 Rollback: revert PR #381；migration downgrade 0041 -> 0040 删视图并恢复 legacy
-  表结构；1920 条报价全程留在 canonical 表中
+  表结构；1920 条报价全程留在 canonical 表中（往返已在 staging 实测）
 ```
 
 **验收前不得继续下一任务。** 本任务未合并、未做 staging 验收，`- [ ]` 不打勾。

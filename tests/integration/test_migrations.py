@@ -408,6 +408,14 @@ def _prepare_0040_with_quotes(
     return root, env, database_url
 
 
+def _assert_migration_left_database_untouched(database_url: str) -> None:
+    """A refused drop must leave both objects exactly as 0040 left them."""
+    inspector = inspect(create_engine(database_url))
+    assert "future_market_observation" in inspector.get_table_names()
+    assert "current_market_projection" not in inspector.get_view_names()
+    assert "current_market_projection" not in inspector.get_table_names()
+
+
 def test_arch_p1_02_guard_blocks_a_legacy_quote_with_no_canonical_match(
     tmp_path: Path,
 ) -> None:
@@ -418,9 +426,7 @@ def test_arch_p1_02_guard_blocks_a_legacy_quote_with_no_canonical_match(
 
     assert result.returncode != 0
     assert "ODDS_CONVERGENCE_UNCOVERED_LEGACY_ROWS" in result.stderr
-    inspector = inspect(create_engine(database_url))
-    assert "future_market_observation" in inspector.get_table_names()
-    assert "current_market_projection" not in inspector.get_view_names()
+    _assert_migration_left_database_untouched(database_url)
 
 
 @pytest.mark.parametrize(
@@ -447,7 +453,7 @@ def test_arch_p1_02_guard_blocks_a_price_twin_that_differs_semantically(
 
     assert result.returncode != 0
     assert "ODDS_CONVERGENCE_UNCOVERED_LEGACY_ROWS" in result.stderr
-    assert "future_market_observation" in inspect(create_engine(database_url)).get_table_names()
+    _assert_migration_left_database_untouched(database_url)
 
 
 @pytest.mark.parametrize("flag", ["candidate", "formal_recommendation"])
@@ -459,7 +465,7 @@ def test_arch_p1_02_guard_blocks_flagged_legacy_rows(tmp_path: Path, flag: str) 
 
     assert result.returncode != 0
     assert "ODDS_CONVERGENCE_FLAGGED_LEGACY_ROWS" in result.stderr
-    assert "future_market_observation" in inspect(create_engine(database_url)).get_table_names()
+    _assert_migration_left_database_untouched(database_url)
 
 
 def test_arch_p1_02_drops_the_legacy_table_when_every_row_is_covered(tmp_path: Path) -> None:
