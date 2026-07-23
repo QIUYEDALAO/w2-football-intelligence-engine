@@ -4,7 +4,6 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-import pytest
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
@@ -13,7 +12,6 @@ from w2.api.repository import ReadModelRepository, ReadModelService
 from w2.config import get_settings
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.future_refresh_models import (
-    FutureMarketObservationModel,
     FutureRefreshCheckpointAuditModel,
     FutureRefreshCheckpointPlanModel,
     FutureRefreshRunAuditModel,
@@ -31,7 +29,6 @@ from w2.infrastructure.persistence.matchday_intake_models import (
 from w2.ingestion.future_refresh import deterministic_task_key, run_future_refresh_task
 from w2.ingestion.future_refresh_repository import (
     FutureRefreshDbRepository,
-    FutureRefreshPersistenceError,
 )
 from w2.providers.api_football import LiveApiFootballResponse
 
@@ -202,7 +199,6 @@ def test_db_persistence_completes_with_read_only_runtime_and_is_idempotent(
 
     engine = create_engine(get_settings().database_url.get_secret_value())
     with Session(engine) as session:
-        assert session.scalar(select(func.count()).select_from(FutureMarketObservationModel)) == 0
         assert session.scalar(select(func.count()).select_from(MatchdayMarketObservationModel)) == 1
         assert session.scalar(select(func.count()).select_from(FutureRefreshTaskAuditModel)) == 2
         assert session.scalar(select(func.count()).select_from(FutureRefreshRunAuditModel)) == 1
@@ -328,87 +324,6 @@ def test_endpoint_capture_preserves_request_start_time(
         assert capture is not None
         assert capture.requested_at == requested_at.replace(tzinfo=None)
         assert capture.provider_captured_at == NOW.replace(tzinfo=None)
-
-
-def test_observation_batch_validation_failure_writes_no_partial_rows(
-    tmp_path: Path,
-    monkeypatch: Any,
-) -> None:
-    configure_sqlite_db(monkeypatch, tmp_path)
-    repository = FutureRefreshDbRepository()
-    invalid = observation_row("invalid")
-    invalid.pop("decimal_odds")
-
-    with pytest.raises(FutureRefreshPersistenceError, match="OBSERVATION_WRITE_FAILED"):
-        repository.append_observations([observation_row("valid"), invalid])
-
-    with Session(repository.engine) as session:
-        count = session.scalar(select(func.count()).select_from(FutureMarketObservationModel))
-    assert count == 0
-
-
-def test_legacy_future_observations_remain_append_only_but_are_not_production_reads(
-    tmp_path: Path,
-    monkeypatch: Any,
-) -> None:
-    configure_sqlite_db(monkeypatch, tmp_path)
-    repository = FutureRefreshDbRepository()
-    first = observation_row("capture-one")
-    confirmed = {
-        **observation_row("capture-two"),
-        "captured_at": (NOW + timedelta(minutes=45)).isoformat(),
-        "ingested_at": (NOW + timedelta(minutes=45)).isoformat(),
-    }
-
-    assert repository.append_observations([first]) == 1
-    assert repository.append_observations([first]) == 0
-    assert repository.append_observations([confirmed]) == 1
-
-    latest = repository.latest_market_observations_for_fixtures(["fixture"])
-    assert latest == []
-    with Session(repository.engine) as session:
-        rows = list(
-            session.scalars(
-                select(FutureMarketObservationModel).order_by(
-                    FutureMarketObservationModel.captured_at
-                )
-            )
-        )
-    assert [row.observation_id for row in rows] == ["capture-one", "capture-two"]
-
-
-def test_legacy_future_observation_does_not_report_production_confirmation(
-    tmp_path: Path,
-    monkeypatch: Any,
-) -> None:
-    configure_sqlite_db(monkeypatch, tmp_path)
-    repository = FutureRefreshDbRepository()
-    observation = {
-        **observation_row("confirmed"),
-        "captured_at": (NOW + timedelta(minutes=5)).isoformat(),
-    }
-    plan = {
-        "id": "fixture:T15",
-        "fixture_id": "fixture",
-        "checkpoint": "T15",
-        "kickoff_utc": NOW + timedelta(hours=1),
-        "due_at": NOW + timedelta(minutes=45),
-        "endpoints": ["odds"],
-        "source": "scheduled",
-        "status": "PENDING",
-    }
-    assert repository.append_observations([observation]) == 1
-    assert repository.upsert_checkpoint_plans([plan]) == 0
-
-    assert repository.market_refresh_status_for_fixtures(["fixture"], now=NOW) == {
-        "odds_last_confirmed_at": None,
-        "next_refresh_tick": None,
-    }
-    assert repository.next_market_refresh_by_fixture(["fixture"], now=NOW) == {}
-    assert repository.market_refresh_status_for_fixtures([]) == {
-        "odds_last_confirmed_at": None,
-        "next_refresh_tick": None,
-    }
 
 
 def test_fixture_scoped_market_refresh_status_never_reports_past_tick(
@@ -565,122 +480,6 @@ def test_checkpoint_plan_is_idempotent_and_audited(
         assert (
             session.scalar(select(func.count()).select_from(FutureRefreshCheckpointAuditModel)) == 1
         )
-
-
-def test_fixture_scoped_reader_ignores_legacy_future_observation_population(
-    tmp_path: Path,
-    monkeypatch: Any,
-) -> None:
-    configure_sqlite_db(monkeypatch, tmp_path)
-    engine = create_engine(get_settings().database_url.get_secret_value())
-    common = {
-        "provider": "api_football",
-        "bookmaker_id": "book",
-        "bookmaker_name": "Book",
-        "provider_bet_id": "bet",
-        "raw_market_label": "Goals Over/Under",
-        "canonical_market": "TOTALS",
-        "selection": "Over",
-        "line": "2.5",
-        "decimal_odds": "1.91",
-        "suspended": False,
-        "live": False,
-        "provider_last_update": "2026-07-18T00:00:00Z",
-        "captured_at": NOW,
-        "ingested_at": NOW,
-        "raw_payload_sha256": "a" * 64,
-        "source_revision": "test",
-        "candidate": False,
-        "formal_recommendation": False,
-    }
-    unrelated = [
-        {
-            **common,
-            "observation_id": f"unrelated-{index}",
-            "fixture_id": f"unrelated-{index}",
-        }
-        for index in range(10_000)
-    ]
-    target = [
-        {
-            **common,
-            "observation_id": "target-old",
-            "fixture_id": "target",
-            "captured_at": NOW - timedelta(minutes=1),
-        },
-        {
-            **common,
-            "observation_id": "target-latest",
-            "fixture_id": "target",
-        },
-    ]
-    with Session(engine) as session:
-        session.execute(FutureMarketObservationModel.__table__.insert(), unrelated + target)
-        session.commit()
-
-    rows = FutureRefreshDbRepository(engine=engine).latest_market_observations_for_fixtures(
-        ["target"]
-    )
-
-    assert rows == []
-
-
-def test_fixture_scoped_reader_does_not_use_legacy_future_market_ladder(
-    tmp_path: Path,
-    monkeypatch: Any,
-) -> None:
-    configure_sqlite_db(monkeypatch, tmp_path)
-    engine = create_engine(get_settings().database_url.get_secret_value())
-    rows: list[dict[str, Any]] = []
-    for market, label, sides in (
-        ("ASIAN_HANDICAP", "Asian Handicap", ("Home", "Away")),
-        ("TOTALS", "Goals Over/Under", ("Over", "Under")),
-    ):
-        for bookmaker_index in range(8):
-            for line_index in range(20):
-                line = (line_index + 1) / 4
-                for side_index, side in enumerate(sides):
-                    signed_line = -line if market == "ASIAN_HANDICAP" and side == "Away" else line
-                    rows.append(
-                        {
-                            **observation_row(
-                                f"{market}-{bookmaker_index}-{line_index}-{side_index}"
-                            ),
-                            "fixture_id": "target",
-                            "bookmaker_id": f"book-{bookmaker_index}",
-                            "bookmaker_name": f"Book {bookmaker_index}",
-                            "raw_market_label": label,
-                            "canonical_market": market,
-                            "selection": f"{side} {signed_line:+g}",
-                            "line": str(signed_line),
-                            "decimal_odds": str(1.88 + (line_index % 3) * 0.01),
-                            "provider_last_update": NOW,
-                            "captured_at": NOW,
-                            "ingested_at": NOW,
-                        }
-                    )
-    for index in range(400):
-        rows.append(
-            {
-                **observation_row(f"other-market-{index}"),
-                "fixture_id": "target",
-                "bookmaker_id": f"other-{index}",
-                "raw_market_label": "Goals Over/Under First Half",
-                "canonical_market": "TOTALS",
-                "provider_last_update": NOW,
-                "captured_at": NOW,
-                "ingested_at": NOW,
-            }
-        )
-    with Session(engine) as session:
-        session.execute(FutureMarketObservationModel.__table__.insert(), rows)
-        session.commit()
-
-    scoped = FutureRefreshDbRepository(engine=engine).latest_market_observations_for_fixtures(
-        ["target"]
-    )
-
-    assert scoped == []
 
 
 def test_scoped_raw_payload_and_xg_readers_enforce_fixed_limits(

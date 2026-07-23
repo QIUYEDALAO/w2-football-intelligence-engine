@@ -2,21 +2,27 @@ from __future__ import annotations
 
 import inspect
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy import create_engine, event, func, select
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from w2.api import repository as api_repository
 from w2.infrastructure.database import Base
-from w2.infrastructure.persistence.future_refresh_models import FutureMarketObservationModel
+from w2.infrastructure.persistence.market_projection_view import (
+    PROJECTION_VIEW_NAME,
+    current_market_projection,
+)
 from w2.infrastructure.persistence.matchday_intake_models import MatchdayMarketObservationModel
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 
 AUTHORITY_TABLE = "matchday_market_observations"
+LEGACY_TABLE = "future_market_observation"
 AUTHORITY_METHOD = "future_market_observations_for_fixtures"
 FORBIDDEN_API_ODDS_SOURCES = (
     "stage7e/market_snapshots.json",
@@ -35,7 +41,7 @@ def _engine() -> Any:
     return engine
 
 
-def _seed_authority_and_legacy(engine: Any) -> None:
+def _seed_authority(engine: Any) -> None:
     captured_at = datetime(2026, 7, 23, 1, 2, 3, tzinfo=UTC)
     with Session(engine) as session:
         session.add(
@@ -64,54 +70,6 @@ def _seed_authority_and_legacy(engine: Any) -> None:
                 source_revision="authority-revision",
             )
         )
-        session.add_all(
-            [
-                FutureMarketObservationModel(
-                    observation_id="legacy-conflict",
-                    fixture_id="123",
-                    provider="api_football",
-                    bookmaker_id="legacy-bookmaker",
-                    bookmaker_name="Legacy Bookmaker",
-                    provider_bet_id="4",
-                    raw_market_label="Asian Handicap",
-                    canonical_market="ASIAN_HANDICAP",
-                    selection="HOME",
-                    line="-9.5",
-                    decimal_odds="9.99",
-                    suspended=False,
-                    live=False,
-                    provider_last_update="2026-07-23T01:01:00Z",
-                    captured_at=captured_at,
-                    ingested_at=captured_at,
-                    raw_payload_sha256="b" * 64,
-                    source_revision="legacy-revision",
-                    candidate=False,
-                    formal_recommendation=False,
-                ),
-                FutureMarketObservationModel(
-                    observation_id="legacy-only",
-                    fixture_id="999",
-                    provider="api_football",
-                    bookmaker_id="legacy-bookmaker",
-                    bookmaker_name="Legacy Bookmaker",
-                    provider_bet_id="4",
-                    raw_market_label="Asian Handicap",
-                    canonical_market="ASIAN_HANDICAP",
-                    selection="HOME",
-                    line="-1.0",
-                    decimal_odds="1.88",
-                    suspended=False,
-                    live=False,
-                    provider_last_update="2026-07-23T01:01:00Z",
-                    captured_at=captured_at,
-                    ingested_at=captured_at,
-                    raw_payload_sha256="c" * 64,
-                    source_revision="legacy-only-revision",
-                    candidate=False,
-                    formal_recommendation=False,
-                ),
-            ]
-        )
         session.commit()
 
 
@@ -131,7 +89,7 @@ def _identity(row: dict[str, Any]) -> tuple[Any, ...]:
 
 def test_matchday_observation_is_the_only_database_read_authority() -> None:
     engine = _engine()
-    _seed_authority_and_legacy(engine)
+    _seed_authority(engine)
     repository = FutureRefreshDbRepository(engine=engine)
 
     rows = repository.latest_market_observations_for_fixtures(["123"])
@@ -174,7 +132,7 @@ def test_matchday_observation_is_the_only_database_read_authority() -> None:
 
 def test_twenty_reads_preserve_identity_and_issue_zero_writes() -> None:
     engine = _engine()
-    _seed_authority_and_legacy(engine)
+    _seed_authority(engine)
     repository = FutureRefreshDbRepository(engine=engine)
     writes: list[str] = []
 
@@ -259,3 +217,91 @@ def test_empty_database_returns_empty_odds_without_file_fill(monkeypatch: Any) -
 
     assert repository.market_snapshots() == []
     assert repository.future_market_observations_for_fixtures(["123"]) == []
+
+
+def test_legacy_odds_table_is_fully_removed() -> None:
+    """ARCH-P1-02: one odds history table, no legacy twin left to drift from it."""
+    assert LEGACY_TABLE not in Base.metadata.tables
+
+    # The canonical read method is named `future_market_observations_...`, so the
+    # table name is only a hit when it is not followed by the plural "s".
+    legacy_reference = re.compile(rf"{LEGACY_TABLE}(?!s)")
+    # Deployment scripts and CI query the database directly, so they belong in
+    # the guard: a stale `select ... from future_market_observation` there fails
+    # only at deploy time, not at import time.
+    scanned_roots = (Path("src/w2"), Path("apps"), Path("scripts"), Path("infra"))
+    scanned_suffixes = {".py", ".sh", ".sql", ".yml", ".yaml"}
+    # Asserting the table is gone necessarily names it; that is the opposite of
+    # using it, so those lines are not offenders.
+    absence_assertion = re.compile(r"information_schema|still exists")
+    offenders = sorted(
+        f"{path}:{number}"
+        for root in scanned_roots
+        if root.exists()
+        for path in root.rglob("*")
+        if path.is_file() and path.suffix in scanned_suffixes
+        for number, line in enumerate(
+            path.read_text(encoding="utf-8", errors="ignore").splitlines(), start=1
+        )
+        if legacy_reference.search(line) and not absence_assertion.search(line)
+    )
+    assert offenders == []
+
+
+def test_current_market_projection_is_a_view_over_the_canonical_history() -> None:
+    """ARCH-P1-02: the only current projection is derived, never a second table."""
+    engine = _engine()
+    _seed_authority(engine)
+    inspector = sa_inspect(engine)
+
+    assert PROJECTION_VIEW_NAME in inspector.get_view_names()
+    assert PROJECTION_VIEW_NAME not in inspector.get_table_names()
+    assert PROJECTION_VIEW_NAME not in Base.metadata.tables
+
+    with Session(engine) as session:
+        rows = list(session.execute(select(current_market_projection)).mappings())
+    assert [row["observation_id"] for row in rows] == ["authority-quote-1"]
+    assert rows[0]["projection_fixture_id"] == "123"
+
+
+def test_bounded_projection_read_has_a_total_deterministic_order() -> None:
+    """ARCH-P1-02 option A: rows differing only by line must not sort arbitrarily."""
+    engine = _engine()
+    captured_at = datetime(2026, 7, 23, 1, 2, 3, tzinfo=UTC)
+    with Session(engine) as session:
+        for index, line in enumerate(["-1.5", "-0.5", "0.5", "-0.25"]):
+            session.add(
+                MatchdayMarketObservationModel(
+                    observation_id=f"quote-{index}",
+                    fixture_id="api_football:123",
+                    provider_fixture_id="123",
+                    competition_id="eliteserien",
+                    provider="api_football",
+                    bookmaker_id="bookmaker-7",
+                    bookmaker_name="Bookmaker Seven",
+                    capture_id="capture-1",
+                    provider_bet_id="4",
+                    raw_market_label="Asian Handicap",
+                    canonical_market="ASIAN_HANDICAP",
+                    canonical_selection="HOME",
+                    provider_selection="Home",
+                    line=line,
+                    decimal_odds="1.91",
+                    suspended=False,
+                    live=False,
+                    provider_updated_at="2026-07-23T01:01:00Z",
+                    captured_at=captured_at,
+                    ingested_at=captured_at,
+                    raw_payload_sha256="a" * 64,
+                    source_revision="authority-revision",
+                )
+            )
+        session.commit()
+
+    repository = FutureRefreshDbRepository(engine=engine)
+    reads = [repository.latest_market_observations_for_fixtures(["123"]) for _ in range(5)]
+
+    # Same input, same order, every time - the previous sort stopped at the
+    # selection and left these four rows in an arbitrary order.
+    assert [row["line"] for row in reads[0]] == ["-0.25", "-0.5", "-1.5", "0.5"]
+    assert all(read == reads[0] for read in reads)

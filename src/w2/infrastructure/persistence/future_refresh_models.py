@@ -9,35 +9,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 from w2.infrastructure.database import Base
 
 
-class FutureMarketObservationModel(Base):
-    __tablename__ = "future_market_observation"
-    __table_args__ = (
-        Index("ix_future_market_observation_fixture", "fixture_id"),
-        Index("ix_future_market_observation_captured_at", "captured_at"),
-    )
-
-    observation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    fixture_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    provider: Mapped[str] = mapped_column(String(64), nullable=False)
-    bookmaker_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    bookmaker_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    provider_bet_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    raw_market_label: Mapped[str] = mapped_column(String(255), nullable=False)
-    canonical_market: Mapped[str] = mapped_column(String(64), nullable=False)
-    selection: Mapped[str] = mapped_column(String(128), nullable=False)
-    line: Mapped[str | None] = mapped_column(String(64))
-    decimal_odds: Mapped[str] = mapped_column(String(32), nullable=False)
-    suspended: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    live: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    provider_last_update: Mapped[str] = mapped_column(String(64), nullable=False)
-    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    raw_payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
-    source_revision: Mapped[str] = mapped_column(String(128), nullable=False)
-    candidate: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    formal_recommendation: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-
-
 class FutureRefreshTaskAuditModel(Base):
     __tablename__ = "future_refresh_task_audit"
     __table_args__ = (Index("ix_future_refresh_task_audit_key", "key"),)

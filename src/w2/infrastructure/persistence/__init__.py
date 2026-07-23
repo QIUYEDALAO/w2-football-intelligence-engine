@@ -15,7 +15,6 @@ from w2.infrastructure.persistence.factor_model_models import (
 )
 from w2.infrastructure.persistence.forward_ops_models import ForwardMarketSnapshotModel
 from w2.infrastructure.persistence.future_refresh_models import (
-    FutureMarketObservationModel,
     FutureRefreshCheckpointAuditModel,
     FutureRefreshCheckpointPlanModel,
     FutureRefreshRunAuditModel,
@@ -33,6 +32,10 @@ from w2.infrastructure.persistence.league_models import (
     LeagueProfileModel,
     LeagueReadinessAuditModel,
     LeagueSeasonModel,
+)
+from w2.infrastructure.persistence.market_projection_view import (
+    PROJECTION_VIEW_NAME,
+    current_market_projection,
 )
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
@@ -86,11 +89,12 @@ __all__ = [
     "DynamicPrematchSupersessionModel",
     "FutureRefreshCheckpointAuditModel",
     "FutureRefreshCheckpointPlanModel",
-    "FutureMarketObservationModel",
     "FutureRefreshRunAuditModel",
     "FutureRefreshTaskAuditModel",
     "Gate5RecommendationLockEventModel",
     "ForwardMarketSnapshotModel",
+    "PROJECTION_VIEW_NAME",
+    "current_market_projection",
     "FixtureModel",
     "HistoricalMarketSourceSnapshotModel",
     "IngestionRunModel",

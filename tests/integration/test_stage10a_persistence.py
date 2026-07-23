@@ -6,7 +6,6 @@ from w2.infrastructure.database import Base
 def test_stage10a_read_api_tables_registered() -> None:
     expected = {
         "read_model_checkpoint",
-        "future_market_observation",
         "future_refresh_task_audit",
         "future_refresh_run_audit",
         "raw_payload",

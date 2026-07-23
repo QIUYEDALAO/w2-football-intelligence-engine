@@ -424,9 +424,13 @@ CANONICAL_OBS_COUNT="$(
   docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T postgres \
     psql -U w2_user -d w2 -tAc "select count(*) from matchday_market_observations where provider_fixture_id = '${FIXTURE_ID}';"
 )"
-LEGACY_OBS_COUNT="$(
+LEGACY_TABLE_COUNT="$(
   docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T postgres \
-    psql -U w2_user -d w2 -tAc "select count(*) from future_market_observation where fixture_id = '${FIXTURE_ID}';"
+    psql -U w2_user -d w2 -tAc "select count(*) from information_schema.tables where table_schema = 'public' and table_name = 'future_market_observation';"
+)"
+PROJECTION_VIEW_COUNT="$(
+  docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T postgres \
+    psql -U w2_user -d w2 -tAc "select count(*) from information_schema.views where table_schema = 'public' and table_name = 'current_market_projection';"
 )"
 RAW_ENDPOINT_COUNT="$(
   docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" exec -T postgres \
@@ -456,8 +460,12 @@ if [ "${CANONICAL_OBS_COUNT}" -lt 1 ]; then
   echo "predeploy_e2e FAIL missing canonical DB market observations" >&2
   exit 1
 fi
-if [ "${LEGACY_OBS_COUNT}" -ne 0 ]; then
-  echo "predeploy_e2e FAIL legacy market observations were written" >&2
+if [ "${LEGACY_TABLE_COUNT}" -ne 0 ]; then
+  echo "predeploy_e2e FAIL legacy odds table future_market_observation still exists" >&2
+  exit 1
+fi
+if [ "${PROJECTION_VIEW_COUNT}" -ne 1 ]; then
+  echo "predeploy_e2e FAIL current_market_projection view is missing" >&2
   exit 1
 fi
 if [ "${RAW_ENDPOINT_COUNT}" -ne 1 ]; then

@@ -251,7 +251,7 @@ def test_staging_state_stage9a_head_upgrades_to_future_refresh_head(tmp_path: Pa
     assert second.returncode == 0, second.stderr
     tables = set(inspect(create_engine(env["W2_DATABASE_URL"])).get_table_names())
     assert "shadow_strategy_run" in tables
-    assert "future_market_observation" in tables
+    assert "future_market_observation" not in tables
 
 
 def test_postgres_staging_state_stage9a_head_upgrades_to_future_refresh_head() -> None:
@@ -290,5 +290,5 @@ def test_postgres_staging_state_stage9a_head_upgrades_to_future_refresh_head() -
         assert result.returncode == 0, result.stderr
     tables = set(inspect(create_engine(database_url)).get_table_names())
     assert "shadow_strategy_run" in tables
-    assert "future_market_observation" in tables
+    assert "future_market_observation" not in tables
     assert "matchday_market_observations" in tables

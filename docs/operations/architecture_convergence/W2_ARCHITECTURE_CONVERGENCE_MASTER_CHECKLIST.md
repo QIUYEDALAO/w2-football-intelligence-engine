@@ -7,8 +7,380 @@
 >
 > 后续所有架构收敛 PR 只更新这一份总清单，不再为每个小步骤重复创建大量日期型上下文文档。
 >
+> 第零节是**已完成任务清单与逐项变更记录**，供老板逐项验收；其后各节是总任务、
+> 红线与执行顺序。两者同处本文件，不再分散到第二份文档。
+>
 > **只有完成代码审核、完整 CI、必要的 staging 验收并合并后，才允许把 `[ ]` 改为 `[x]`。**
 > 本地完成、只提交报告、CI 尚未结束、部署尚未验证，都不能打勾。
+
+---
+
+## 零、已完成任务清单与逐项变更记录
+
+> 本节是提交老板验收的入口。它回答"已经做了什么、依据是什么、怎么自行复核"；
+> 后面各节回答"总任务是什么、还剩什么"。每完成一个任务在此追加一节，不新开
+> 日期型文档（红线 13）。
+>
+> 复核方式：逐条读"改动"与"依据"，用附带的"复核命令"自行验证。所有命令都可
+> 在仓库根目录直接执行，不依赖任何会话上下文。
+
+### 0.1 全局进度速览
+
+`main` 顶端 `8af05ddbacf32370303fb0e57e5097d6634c278e`，migration head
+`0040_drop_empty_fk_components`，staging 表数 66。
+
+| # | 任务 | PR | Merge SHA | 状态 | 详细记录 |
+|---|---|---|---|---|---|
+| 1 | ARCH-00 建立总清单 | #371 | `09ca14a9` | 已验收合并 | 见第七节 |
+| 2 | ARCH-01 关闭 PR #370 | #374 | `160a6750` | 已验收合并 | 见该任务节 |
+| 3 | ARCH-P0-01 删除 reports 文件读取 | #375 | `1e9e811d` | 已验收合并 | 见该任务节 |
+| 4 | ARCH-P0-02 赔率读取路径收敛 | #376 | `dae21e59` | 已验收合并 | 见该任务节 |
+| 5 | ARCH-P0-03 联赛白名单数据库化 | #377 | `7bd5088b` | 已验收合并 | 见该任务节 |
+| 6 | ARCH-P0-04 P0 总验收 | #378 | `d62e3351` | 已验收合并 | 见该任务节 |
+| 7 | ARCH-P1-01 僵尸表盘点与删除 | #379 | `76201af8` | 已验收合并 | 见该任务节 |
+| 8 | 第 0 步 P1-01 收口 + 清单修订 | #380 | `8af05dd` | **已合并** | **0.2** |
+| 9 | ARCH-P1-02 赔率表收敛 | #381 | 未合并 | **待老板验收** | **0.3** |
+
+第 1–7 项由前序会话完成，其回执保留在各自任务节内，本节不重复。第 8、9 项
+为本轮工作，详细变更依据见 0.2 与 0.3。
+
+**尚未开始**（顺序见第三节）：ARCH-P1-04A → 04B → 04C → P1-03 → P1-05 →
+P1-06 → P1-07 → P1-08 → P2-01…P2-05。
+
+#### 本轮两项工作的性质对比
+
+| | 第 0 步（#380） | ARCH-P1-02（#381） |
+|---|---|---|
+| 生产代码改动 | 无 | 有 |
+| 数据库改动 | 无 | drop 1 表、建 1 视图（migration `0041`） |
+| Dashboard 展示变化 | 无 | 有，**已获老板批准**，见 0.3 三节 |
+| 安全开关 | 未动 | 未动 |
+| 完整 CI | 全绿（run `30002502410`） | 待重跑，见 0.3 六节 |
+| staging 验收 | 不涉及 | **未做** |
+| 可否回滚 | 可，revert 即可 | 可，revert + `0041 → 0040` |
+
+---
+
+### 0.2 第 0 步：ARCH-P1-01-CLOSE + 清单修订（PR #380，已合并 `8af05dd`）
+
+**性质**：docs-only。零生产代码、零 schema、零配置、零开关变更。
+
+#### 改动 0.1 ARCH-P1-01 收口
+
+- **文件**：`docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md`
+- **改动**：`Status: READY_FOR_EXTERNAL_REVIEW` → `DONE`，补入 Merge SHA
+  `76201af8aad43976ffbcd7d2f72726bac4bc8106`、PR `#379`、final head
+  `a40342beadc820527a036df88ee5c29485ba3f36`、CI run `29994028200`、验收时间
+  `2026-07-23T09:20:43Z`；最后一个未打勾项 `PR 合并` 改为 `[x]`。
+- **依据**：PR #379 已在 GitHub 合并，上述值取自 GitHub API，非人工填写。
+- **复核命令**：
+
+  ```bash
+  gh pr view 379 --json state,mergedAt,mergeCommit,headRefOid
+  ```
+
+#### 改动 0.2 固化原回执里的两处占位
+
+- **改动**：原回执写"PR final receipt head 以 `refs/pull/379/head` 为准""final
+  receipt CI 以最新 required checks 为准"，合并后已可确定，替换为实际值
+  `a40342be` 与 run `29994028200`。
+- **依据**：合并前无法自引用 commit SHA，合并后可回溯确定。
+- **复核命令**：
+
+  ```bash
+  gh run list --commit a40342beadc820527a036df88ee5c29485ba3f36 --json databaseId,conclusion
+  ```
+
+#### 改动 0.3 记录老板批准的两项决定
+
+- **改动**：总清单第一节新增"2026-07-23 老板批准的清单修订"，作为两项决定的
+  唯一权威记录；第三节写入新的 P1 权威顺序。
+- **内容**：① P1-04 拆为 04A/04B/04C，P1-03 后移至 04C 之后，新增 P1-07，
+  P1-08 追加三条验收；② P1-05 条件提前开关（预批准，触发即可执行，无需再次
+  请示，但必须记录触发原因）。
+- **依据**：老板 2026-07-23 口头批准，本节即其落地。
+
+#### 改动 0.4 P1 章节按新顺序重排
+
+- **改动**：`ARCH-P1-04` 拆为三节（04A/04B/04C），`ARCH-P1-03` 物理移动到
+  04C 之后，新增 `ARCH-P1-07` 一节，`ARCH-P1-08` 追加三条验收，`ARCH-P2-04`
+  追加"回执压缩"一项。任务编号保留历史编号以便追溯。
+- **复核命令**：
+
+  ```bash
+  grep -n "^## ARCH-P1-0" docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
+  ```
+
+  预期顺序：01 → 02 → 04(总述) → 04A → 04B → 04C → 03 → 05 → 06 → 07 → 08。
+
+#### 改动 0.5 新增 drop migration 守卫要求
+
+- **改动**：自 ARCH-P1-02 起，所有新 drop migration 的 `upgrade()` 必须先断言
+  再删除，断言不成立即抛错。
+- **依据**：`0038`/`0039`/`0040` 只有 `has_table` 守卫，在有数据的环境重放会
+  无提示删数据。历史 revision 不追溯修改。
+
+#### 改动 0.6 仓库上下文文本同步
+
+三个文件此前仍描述已关闭的 PR #370 与"动态首发"阶段，与实际状态不符：
+
+- `PROJECT_STATE.yaml`：`repository` 块从 PR #370 切到 `main@76201af` /
+  migration `0040`；新增 `architecture_convergence` 块（已完成任务、P1 顺序、
+  `next_task`、预批准顺序变更、表数 144→66）；`staging` 块更新到 P1-01 验收
+  release；`release_invariants` 把 `PR_370_KEEP_DRAFT` 换为 `PR_370_CLOSED` +
+  `FEATURE_DEVELOPMENT_FREEZE`。
+- `NEXT_ACTION.md`：改为指向总清单，不再重复 SHA/CI/状态；点名下一任务与开工
+  前固定动作；真实首发 canary 归入"延后的 ops 工作"。
+- `PROJECT_LEDGER.md`：追加一条 2026-07-23 条目，记录 P0 验收、P1-01 结果、
+  两项批准决定。
+- **约束**：`current_phase` 的 `id/status/next_phase` 未动，因为
+  `tests/contract/test_delivery_status_documentation.py` 会交叉校验它与
+  `NEXT_ACTION.md` 的措辞；改动后该契约仍通过。
+- **复核命令**：
+
+  ```bash
+  .venv/bin/python -m pytest tests/contract/test_delivery_status_documentation.py -q
+  ```
+
+---
+
+### 0.3 ARCH-P1-02：赔率表收敛（PR #381）
+
+**验收目标**：`CANONICAL_ODDS_HISTORY_AUTHORITY_COUNT = 1`、
+`CURRENT_MARKET_PROJECTION_AUTHORITY_COUNT = 1`。
+
+#### 一、事实核查（先于任何改动）
+
+##### 1.1 legacy 表没有生产写入者
+
+- **交接稿的说法**：`future_market_observation` 仍有写入者。
+- **实际**：写方法 `FutureRefreshDbRepository.append_observations()` 全仓库
+  只有测试调用。`src/w2/ingestion/future_refresh.py:1452` 的
+  `ledger.append_observations(...)` 作用于文件版 `MarketObservationLedger`
+  （JSONL），与 DB repository 同名但不是同一个类。DB 持久化分支
+  `_persist_db()` 写的是 `matchday_market_observations`。
+- **数据库佐证**：`pg_stat_user_tables` 上该表
+  `n_tup_ins=3840`、`n_tup_upd=0`、`n_tup_del=0`，全部为历史写入。
+- **结论**：本任务不是拆双写，而是删死路径 + 证明无独有数据 + drop。
+  ARCH-P1-01 矩阵中该表"生产写=有"是把 ORM 写方法的存在当成了可达写路径，
+  已在总清单锚点中更正。
+
+##### 1.2 3840 行 legacy 数据无独有价值
+
+staging 只读对账（release `d004cd94`，migration `0040`，66 表）：
+
+| 指标 | 值 |
+|---|---|
+| legacy 行数 | 3840 |
+| 去重后业务元组 | 1920 |
+| 重复形态 | 1920 条 bare + 1920 条 `api_football:` 前缀 |
+| 完整 quote identity 命中 | 3840 / 3840 |
+| raw payload sha 命中 | 3840 / 3840 |
+| 每元组命中 canonical 行数 | 恰好 1 |
+| legacy 归一化 hash | `f3790cd3162df8e6895b7cdc86408ab7` |
+| canonical 同范围 hash | `f3790cd3162df8e6895b7cdc86408ab7` |
+
+- **结论**：不需要搬运任何业务数据，drop 不删除独有历史，符合红线 7。
+
+#### 二、数据库改动
+
+##### 2.1 新增 migration `0041_converge_odds_history_and_projection`
+
+- **文件**：`migrations/versions/0041_converge_odds_history_and_projection.py`（新增）
+- **upgrade 行为**：
+  1. 若 canonical 表不存在 → 抛 `ODDS_CONVERGENCE_CANONICAL_TABLE_MISSING`；
+  2. 统计 legacy 表中**未被 canonical 按完整 quote identity + raw payload
+     hash 覆盖**的行，非零 → 抛 `ODDS_CONVERGENCE_UNCOVERED_LEGACY_ROWS`
+     并终止，不删除任何数据；
+  3. drop `future_market_observation`；
+  4. 建 `current_market_projection` 视图。
+- **downgrade 行为**：删视图，重建 legacy 表结构与两个索引（空表）。1920 条
+  报价全程留在 canonical 表中，不存在"只能靠回滚找回"的数据。
+- **守卫为何不是"空表断言"**：本表非空但为完全重复，按总清单
+  `DROP_MIGRATION_GUARD_KINDS = EMPTY_TABLE | FULLY_COVERED_DUPLICATE`
+  的第二种。覆盖判定使用完整业务身份，不是只比主键。
+- **复核命令**（守卫确实会拦住）：
+
+  ```bash
+  .venv/bin/python -m pytest tests/integration/test_migrations.py -q
+  ```
+
+  往返复核：
+
+  ```bash
+  W2_DATABASE_URL="sqlite+pysqlite:////tmp/w2check.db" .venv/bin/python -m alembic upgrade head
+  W2_DATABASE_URL="sqlite+pysqlite:////tmp/w2check.db" .venv/bin/python -m alembic downgrade 0040_drop_empty_fk_components
+  W2_DATABASE_URL="sqlite+pysqlite:////tmp/w2check.db" .venv/bin/python -m alembic upgrade head
+  ```
+
+##### 2.2 `current_market_projection` 视图
+
+- **文件**：`src/w2/infrastructure/persistence/market_projection_view.py`（新增）
+- **是什么**：canonical 历史表之上的**视图**，不是第二张事实表，因此不可能与
+  历史漂移。保留每个
+  `(fixture, market, bookmaker, selection, line)` 上最新的、未挂起、非滚球的
+  报价。
+- **为什么是视图**：总清单要求"一张当前盘口投影（表或视图）"，红线 4 禁止新增
+  竞争性事实表。
+- **建立时机**：真实数据库由 migration 建立；测试用的 `create_all` schema 由
+  `Base.metadata` 的 `after_create` 事件建立——两边读同一个对象，测试不会退化
+  成读空表。
+- **不挂在 `Base.metadata` 上**：否则 `create_all` 会把它建成 TABLE。
+- **复核命令**：
+
+  ```bash
+  .venv/bin/python -m pytest tests/contract/test_production_odds_reads.py -q
+  ```
+
+#### 三、读路径改动
+
+##### 3.1 两条读路径都改读视图
+
+- **文件**：`src/w2/ingestion/future_refresh_repository.py`
+- **改动**：`_canonical_market_observations_for_fixtures()` 不再把全部历史行
+  拉进内存做 latest-per-key 去重，改为 `select` 视图。新增
+  `_projection_observations()` 与 `_projection_row_dict()`；删除内存去重循环与
+  `_matchday_observation_dict()`。
+- **语义对账**（staging 全量）：
+
+  | | 旧内存投影 | 视图 |
+  |---|---|---|
+  | 行数 | 10648 | 10648 |
+  | hash | `056069e2ab386b5deae451239f917fb0` | `056069e2ab386b5deae451239f917fb0` |
+
+- **结论**：无界读路径逐行一致，零语义差异。
+
+##### 3.2 有界读路径的确定性排序（**经老板批准的展示变化**）
+
+- **问题**：有界读在每个 `(fixture, market)` 上截断到
+  `SCOPED_OBSERVATION_ROWS_PER_MARKET = 128` 行，但截断前排序键只到
+  `canonical_selection`，**不含 `line`**。仅 `line` 不同的行之间没有 tie-break，
+  旧实现落到 Python dict 插入顺序，即数据库返回行的任意顺序。
+- **后果**：staging 上 45 个 fixture/market 组超过 128 行，涉及 24 场比赛。
+  也就是说**改动前**，两次相同请求即可合法返回不同的 128 条报价。这是既有
+  缺陷，非本任务引入；因此不存在"忠实复现旧顺序"的选项。
+- **决定**：老板 2026-07-23 选定候选 A——排序键补全为
+
+  ```text
+  projection_fixture_id, canonical_market, bookmaker_id,
+  canonical_selection, line, observation_id
+  ```
+
+  128 行上限不变。
+- **影响面**（staging 实测）：
+
+  | 指标 | 值 |
+  |---|---|
+  | 进入范围的投影行 | 9649 |
+  | 上限后保留 | 7812 |
+  | 被上限截掉 | 1837 |
+  | 受影响 fixture/market 组 | 45 |
+  | 受影响比赛 | 24 |
+  | 保留集 hash | `64b9fca07f19c75c9e3d670cda22c399` |
+
+- **收益**：截断结果自此可复现，同一份数据重复请求必然返回同一组。
+- **回归测试**：`test_bounded_projection_read_has_a_total_deterministic_order`
+  钉住该顺序。
+
+#### 四、删除清单（每处附零引用依据）
+
+| 删除对象 | 文件 | 零引用依据 |
+|---|---|---|
+| `FutureMarketObservationModel` | `src/w2/infrastructure/persistence/future_refresh_models.py` | 表已 drop；删除后全仓库无引用 |
+| 该模型的导出 | `src/w2/infrastructure/persistence/__init__.py` | 同上 |
+| `append_observations()` | `src/w2/ingestion/future_refresh_repository.py` | 生产调用方 0，仅测试调用 |
+| `_observation_model()` / `_observation_dict()` | 同上 | 仅被 `append_observations` 使用 |
+| `_latest_observation_dicts()` | 同上 | 全仓库无调用方 |
+| `_matchday_observation_dict()` | 同上 | 内存投影删除后无调用方 |
+| `scripts/clean_w2_legacy_ah_pool.py` | 整文件删除 | 唯一数据源是被 drop 的表，表没了脚本无法运行 |
+| 该脚本的镜像打包与存在性断言 | `Dockerfile.api`、`tests/contract/test_runtime_packaging.py` | 脚本已删除 |
+| 6 个 legacy 专用测试 | `tests/integration/test_future_refresh_db_persistence.py`、`tests/unit/test_legacy_ah_pool_cleanup.py` | 断言对象已不存在；覆盖由新静态守卫接管（更强：表根本不能存在） |
+| 断言 legacy 表存在 | `tests/integration/test_migrations.py`、`tests/integration/test_stage10a_persistence.py` | 改为断言其**不存在** |
+| 直接查 legacy 表的行数检查 | `scripts/run_predeploy_e2e_smoke.sh` | 表已 drop，改为断言"表不存在 + 投影视图存在" |
+| legacy 表列为 P0/P1 权威域 | `scripts/audit_w2_runtime_authorities.py` | 改为 `matchday_market_observations`；删除其"Phase B 后的迁移目标"占位 |
+
+#### 五、新增防回归
+
+| 测试 | 断言 | 文件 |
+|---|---|---|
+| `test_legacy_odds_table_is_fully_removed` | `src/w2` 与 `apps` 下任何模块再引用被删表即失败；模型不在 `Base.metadata` | `tests/contract/test_production_odds_reads.py` |
+| `test_current_market_projection_is_a_view_over_the_canonical_history` | 投影是 view，不是 table，不在 `Base.metadata` | 同上 |
+| `test_bounded_projection_read_has_a_total_deterministic_order` | 重复读取返回完全相同的顺序 | 同上 |
+
+守卫扫描范围为 `src/w2`、`apps`、`scripts`、`infra` 下的
+`.py/.sh/.sql/.yml/.yaml`，按**行**判定，放行"断言该表不存在"的行。
+
+**该守卫是被 CI 反教出来的**：首版只扫 `src/w2` 与 `apps`，遗漏了
+`scripts/run_predeploy_e2e_smoke.sh` 里直接 `select count(*) from
+future_market_observation`，本地测试全过、CI 的 `predeploy-e2e` 才报
+`relation "future_market_observation" does not exist`（run `30005506955`）。
+扩大范围后同类遗漏会在本地即被拦下。
+
+#### 六、本地验证结果
+
+```text
+ruff        PASS
+mypy        PASS (260 files)
+pytest      1445 passed, 4 skipped
+alembic     0041 -> 0040 -> 0041 往返 PASS (SQLite)
+bash -n     scripts/run_predeploy_e2e_smoke.sh PASS
+```
+
+CI 历史：run `30005506955` 的 `verify` 与 `staging-parity` 通过、
+`predeploy-e2e` 失败（原因见五节）；修复后重跑。
+
+唯一失败项 `tests/regression/test_guards.py::test_secret_patterns_are_guarded`
+在**未改动的树上同样失败**（已用 `git stash` 验证），原因是本地
+`.learnings/` 目录触发 secret scan，该目录不在仓库中也不存在于 CI。
+
+#### 七、红线自查
+
+| 红线 | 本任务 |
+|---|---|
+| 不新增表 | 未新增。投影是视图 |
+| 不新增竞争性配置或 fallback | 未新增。反而删掉了第二套投影实现 |
+| 不动模型权重/门槛/安全开关 | 未动 |
+| 不开放 Formal/Lock/Production | 未动 |
+| drop 前证明零读零写零依赖 | 见一、二节 |
+| 历史业务数据不删除 | 3840 行经证明为完全重复，1920 条报价留在 canonical |
+| 一个 PR 只解决一个任务 | 是 |
+| 不以本地测试代替 CI/staging | CI 与 staging 验收另行记录于总清单 |
+
+#### 八、待补（合并前必须完成）
+
+**当前状态：应老板要求暂停，等待逐项验收通过后才继续。**
+
+- [ ] 老板对 0.3 全节逐项验收通过
+- [ ] 分支推送到 GitHub（本地已重做为单提交，摘除两个误提交文件，见九节）
+- [ ] 完整 CI 全绿（run 号补入本节）
+- [ ] staging 验收：部署 → migration 至 `0041` → 20 轮只读探测 → 零写证明
+      → 表数 `66 → 65` 核对
+- [ ] PR 合并，本任务状态翻 `DONE`
+
+#### 九、本轮执行方的自查与更正
+
+以下三项由执行方主动交代，供验收时一并核对：
+
+1. **CI 状态曾被误报。** 执行方一度报告"CI 全绿"，实际 run `30005506955` 的
+   conclusion 是 `failure`：`verify` 与 `staging-parity` 通过、`predeploy-e2e`
+   失败。原因是只看了监听命令的退出码、未核对 run conclusion。
+2. **静态守卫覆盖面不足导致漏删。** 首版守卫只扫 `src/w2` 与 `apps`，遗漏
+   `scripts/run_predeploy_e2e_smoke.sh` 中直接查被删表的语句，本地全过而 CI
+   报 `relation "future_market_observation" does not exist`。已扩大扫描范围
+   （见五节），并把冒烟脚本改为断言"表不存在 + 投影视图存在"。
+3. **两个不应提交的文件曾被带入分支。** `ARCH_EXECUTION_HANDOFF.md`（交接单
+   明写不提交）与 `docs/expert_reviews/W2_SYSTEM_STATE_AND_REFACTOR_REVIEW_2026-07-19.md`
+   （红线 13 的日期型证据文档）因 `git add -A` 被提交。已重做分支摘除，两者
+   保持未跟踪。另有 50 个 `docs/audits/system_truth/*` 产物因运行 audit 脚本
+   被重新生成，已 revert，未进入提交。
+
+**复核命令**：
+
+```bash
+git ls-tree --name-only HEAD ARCH_EXECUTION_HANDOFF.md
+git ls-tree -r --name-only HEAD docs/audits/system_truth/ | head
+git log --oneline main..HEAD
+```
 
 ---
 
@@ -848,32 +1220,169 @@ NO_BUSINESS_HISTORY_DELETED
 
 ## ARCH-P1-02：赔率表收敛
 
-### 现状锚点（2026-07-23 复审）
+```text
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Branch: codex/arch-p1-02-odds-table-convergence
+PR: #381
+Base SHA: 8af05ddbacf32370303fb0e57e5097d6634c278e
+Started at: 2026-07-23T19:30:00+0800
+Owner: Codex
+Paused at: 2026-07-23，应老板要求暂停，等待逐项验收
+Implementation SHA: 本地 99026d3（尚未推送，force-push 未获放行）
+CI run: 30005506955（verify、staging-parity 通过；predeploy-e2e 失败，已修，待重跑）
+Staging acceptance: 未进行
+Evidence: 逐项变更记录见本文件第零节 0.3
+Rollback: revert PR #381；migration downgrade 0041 -> 0040 删视图并恢复 legacy
+  表结构；1920 条报价全程留在 canonical 表中
+```
+
+**验收前不得继续下一任务。** 本任务未合并、未做 staging 验收，`- [ ]` 不打勾。
+
+### 现状锚点（2026-07-23 在 `main@8af05dd` 与 staging 复核）
 
 ```text
-CURRENT_PRODUCTION_READ_AUTHORITY = matchday_market_observations
+CANONICAL_HISTORY_AUTHORITY   = matchday_market_observations (44644 行)
 CURRENT_PRODUCTION_READ_ENTRY =
   ReadModelRepository.future_market_observations_for_fixtures()
   (src/w2/api/repository.py)
-LEGACY_TABLE_STILL_WRITTEN = future_market_observation (3840 rows)
-LEGACY_WRITER = src/w2/ingestion/future_refresh_repository.py
+CANONICAL_WRITE_ENTRY         =
+  MatchdayRuntimeRepository.insert_market_observations()
+  (经 FutureFixtureRefresh._persist_db, src/w2/ingestion/future_refresh.py)
+LEGACY_TABLE                  = future_market_observation (3840 行)
+LEGACY_WRITE_METHOD           =
+  FutureRefreshDbRepository.append_observations()
+  (src/w2/ingestion/future_refresh_repository.py)
+LEGACY_WRITE_PRODUCTION_CALLERS = 0
+CURRENT_MARKET_PROJECTION_OBJECT = 无（读时在 Python 内存去重）
 ```
 
-ARCH-P0-02 只收敛了读路径，没有处理写入者。本任务处理这两张表的身份收敛：
-读权威已唯一，写权威仍是两套。
+**对交接锚点的更正**：legacy 表当前**没有生产写入者**。
+`FutureRefreshDbRepository.append_observations()` 全仓库只有测试调用；
+`src/w2/ingestion/future_refresh.py:1452` 的 `ledger.append_observations(...)`
+作用于文件版 `MarketObservationLedger`（JSONL），与 DB repository 同名但不是
+同一个类。DB 持久化分支 `_persist_db()` 写的是 `matchday_market_observations`。
+`pg_stat_user_tables` 佐证：legacy 表 `n_tup_ins=3840`、`n_tup_upd=0`、
+`n_tup_del=0`，全部为历史写入。
 
-### 补充要求：drop migration 必须断言空表
+因此本任务不是拆双写，而是：删除死写入路径 + 证明 legacy 行无独有数据 +
+drop + 建立唯一当前盘口投影。
 
-自本任务起，所有 drop migration 的 `upgrade()` 在删除每张表前必须先执行
-`SELECT count(*)`，计数非零即抛错终止，不得静默继续。
+### staging identity/hash 对账（只读，2026-07-23）
+
+```text
+STAGING_RELEASE   = d004cd946a42ad2fade0799d297ca31358c2f41e
+STAGING_MIGRATION = 0040_drop_empty_fk_components
+STAGING_TABLES    = 66
+LEGACY_ROWS                    = 3840
+LEGACY_DISTINCT_BUSINESS_TUPLES= 1920
+LEGACY_DUPLICATION_SHAPE       = 1920 bare + 1920 "api_football:" prefixed
+FULL_QUOTE_IDENTITY_MATCH      = 3840 / 3840 (100%)
+  （fixture、bookmaker、market、selection、signed line、odds、captured_at）
+RAW_PAYLOAD_SHA_MATCH          = 3840 / 3840 (100%)
+TUPLE_TO_CANONICAL_CARDINALITY = {1}   （每个 legacy 业务元组恰好命中 1 行）
+LEGACY_NORMALIZED_HASH         = f3790cd3162df8e6895b7cdc86408ab7
+CANONICAL_SUBSET_HASH          = f3790cd3162df8e6895b7cdc86408ab7
+UNIQUE_DATA_IN_LEGACY          = 0
+```
+
+legacy 表的 3840 行是同一 1920 条报价在两种 fixture id 写法下的重复存储，
+且全部被 canonical 表逐字段覆盖。因此**不需要搬运任何业务数据**，drop 不
+删除任何独有历史。
+
+### 补充要求：drop migration 必须先断言再删除
+
+自本任务起，所有 drop migration 的 `upgrade()` 在删除每张表前必须先查询并
+断言，断言不成立即抛错终止，不得静默继续。按删除依据分两种，只能二选一：
+
+- **空表删除**：`SELECT count(*)`，非零即抛错。
+- **重复表删除**：`SELECT count(*)` 统计未被唯一权威表覆盖的行，非零即抛错；
+  覆盖判定必须使用完整 quote/业务身份，不得只比主键。
 
 背景：`0038`、`0039`、`0040` 只有 `has_table` 守卫，在有数据的环境重放会
 无提示删除数据。历史 revision 保持原样不追溯修改，本要求只对新 revision
 生效。
 
 ```text
-DROP_MIGRATION_NONEMPTY_GUARD = REQUIRED_FROM_ARCH_P1_02
+DROP_MIGRATION_GUARD = REQUIRED_FROM_ARCH_P1_02
+DROP_MIGRATION_GUARD_KINDS = EMPTY_TABLE | FULLY_COVERED_DUPLICATE
 ```
+
+### 已解决：有界读路径的截断顺序（老板 2026-07-23 选定候选 A）
+
+```text
+Blocker: BOUNDED_PROJECTION_READ_HAS_NO_DEFINED_TRUNCATION_ORDER
+Resolution: OPTION_A_TOTAL_DETERMINISTIC_ORDER
+Approved by: 老板，2026-07-23
+```
+
+投影读取的排序键补全为：
+
+```text
+projection_fixture_id, canonical_market, bookmaker_id, canonical_selection,
+line, observation_id
+```
+
+这是一次**经批准的 Dashboard 展示变化**，只影响被 128 行上限截断的组合。
+staging 实测影响面：
+
+```text
+SCOPED_PROJECTION_ROWS          = 9649
+ROWS_KEPT_AFTER_BOUND           = 7812
+ROWS_DROPPED_BY_BOUND           = 1837
+AFFECTED_FIXTURE_MARKET_GROUPS  = 45
+AFFECTED_FIXTURES               = 24
+KEPT_SET_HASH                   = 64b9fca07f19c75c9e3d670cda22c399
+```
+
+上限 `SCOPED_OBSERVATION_ROWS_PER_MARKET = 128` 不变。截断结果自此可复现：
+同一份数据重复请求必然返回同一组 `KEPT_SET_HASH`。
+
+无界读路径（`latest_market_observations()` → `market_snapshots()`）切到
+`current_market_projection` 视图，语义在 staging 全量数据上逐行对账一致：
+
+```text
+STAGING_INPUT_ROWS   = 44644
+OLD_PATH_ROWS        = 10648
+VIEW_ROWS            = 10648
+OLD_PATH_HASH        = 056069e2ab386b5deae451239f917fb0
+VIEW_HASH            = 056069e2ab386b5deae451239f917fb0
+UNBOUNDED_READ_PARITY= EXACT
+```
+
+有界读路径（`latest_market_observations_for_fixtures()`）**不能**在本任务
+直接切换。它在每个 `(fixture, market)` 组上截断到
+`SCOPED_OBSERVATION_ROWS_PER_MARKET = 128` 行，而截断前的排序键是
+`(fixture, market, bookmaker, selection)`——不含 `line`。同一排序键下的多个
+line 变体之间**没有任何 tie-break**，现行实现落到 Python dict 的插入顺序，
+即数据库返回行的任意顺序。
+
+证据（staging，只读）：
+
+```text
+OVER_BOUND_FIXTURE_MARKET_GROUPS            = 45    （超过 128 行，截断生效）
+AMBIGUOUS_SORT_GROUPS_SAME_FIRST_SEEN       = 946
+ROWS_INSIDE_OVER_BOUND_FIXTURE_MARKETS      = 7597
+```
+
+即：当前生产读路径对这 45 个 fixture/market 组合是**不确定的**——两次相同
+请求可以合法返回不同的 128 条报价。这是既有缺陷，不是本任务引入的。因此
+不存在"忠实复现旧顺序"这一选项：任何确定性排序都会改变这些组合下
+Dashboard 实际展示的报价子集，触发立即停止条件"Dashboard 语义发生未批准
+变化"。
+
+```text
+Next required decision: 有界投影读取的截断顺序采用哪一种确定性定义。
+候选 A（建议）：order by projection_fixture_id, canonical_market, bookmaker_id,
+  canonical_selection, line, observation_id —— 顺序稳定、可复现、与无界路径
+  同源，代价是这 45 个组合展示的报价子集会变化一次。
+候选 B：提高或取消 128 行上限，使截断不再发生 —— 不改变展示内容，但放大
+  单次响应体积，需要评估 Dashboard 与 API 负载。
+候选 C：维持现状不切换有界路径 —— 当前投影会保留两套实现，与
+  CURRENT_MARKET_PROJECTION_AUTHORITY_COUNT = 1 冲突。
+```
+
+决定作出后，两条读路径都只读该视图，仓库内不再保留第二套投影实现
+（内存去重与 `_matchday_observation_dict` 已删除）。
 
 - [ ] 从活跃赔率表中选定：
   - 一张唯一 append-only 历史表；
