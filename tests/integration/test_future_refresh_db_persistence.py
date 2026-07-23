@@ -285,8 +285,7 @@ def test_endpoint_capture_failure_blocks_normalization(
 
     assert audit.status == "BLOCKED"
     assert any(
-        str(item).startswith("ENDPOINT_CAPTURE_WRITE_FAILED:")
-        for item in audit.result["blockers"]
+        str(item).startswith("ENDPOINT_CAPTURE_WRITE_FAILED:") for item in audit.result["blockers"]
     )
     engine = create_engine(get_settings().database_url.get_secret_value())
     with Session(engine) as session:
@@ -348,7 +347,7 @@ def test_observation_batch_validation_failure_writes_no_partial_rows(
     assert count == 0
 
 
-def test_later_confirmation_is_appended_and_selected_without_rewriting_history(
+def test_legacy_future_observations_remain_append_only_but_are_not_production_reads(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
@@ -366,8 +365,7 @@ def test_later_confirmation_is_appended_and_selected_without_rewriting_history(
     assert repository.append_observations([confirmed]) == 1
 
     latest = repository.latest_market_observations_for_fixtures(["fixture"])
-    assert [row["observation_id"] for row in latest] == ["capture-two"]
-    assert latest[0]["captured_at"] == "2026-06-23T10:45:00Z"
+    assert latest == []
     with Session(repository.engine) as session:
         rows = list(
             session.scalars(
@@ -379,7 +377,7 @@ def test_later_confirmation_is_appended_and_selected_without_rewriting_history(
     assert [row.observation_id for row in rows] == ["capture-one", "capture-two"]
 
 
-def test_fixture_scoped_market_refresh_status_reports_confirmation_and_next_tick(
+def test_legacy_future_observation_does_not_report_production_confirmation(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
@@ -403,7 +401,7 @@ def test_fixture_scoped_market_refresh_status_reports_confirmation_and_next_tick
     assert repository.upsert_checkpoint_plans([plan]) == 0
 
     assert repository.market_refresh_status_for_fixtures(["fixture"], now=NOW) == {
-        "odds_last_confirmed_at": "2026-06-23T10:05:00Z",
+        "odds_last_confirmed_at": None,
         "next_refresh_tick": None,
     }
     assert repository.next_market_refresh_by_fixture(["fixture"], now=NOW) == {}
@@ -522,6 +520,7 @@ def test_api_repository_reads_future_refresh_projection_from_db(
     assert observations[0]["candidate"] is False
     assert observations[0]["formal_recommendation"] is False
     assert snapshots[0]["fixture_id"] == "1489404"
+    assert snapshots[0]["source"] == "matchday_market_observations"
     assert provider["remaining_quota"] == 7000
     assert provider["blockers"] == []
 
@@ -568,7 +567,7 @@ def test_checkpoint_plan_is_idempotent_and_audited(
         )
 
 
-def test_fixture_scoped_reader_ignores_large_unrelated_observation_population(
+def test_fixture_scoped_reader_ignores_legacy_future_observation_population(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
@@ -623,11 +622,10 @@ def test_fixture_scoped_reader_ignores_large_unrelated_observation_population(
         ["target"]
     )
 
-    assert [row["observation_id"] for row in rows] == ["target-latest"]
-    assert {row["fixture_id"] for row in rows} == {"target"}
+    assert rows == []
 
 
-def test_fixture_scoped_reader_stratifies_full_time_ah_and_totals(
+def test_fixture_scoped_reader_does_not_use_legacy_future_market_ladder(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
@@ -682,21 +680,7 @@ def test_fixture_scoped_reader_stratifies_full_time_ah_and_totals(
         ["target"]
     )
 
-    assert len(scoped) <= 256
-    assert {row["canonical_market"] for row in scoped} == {"ASIAN_HANDICAP", "TOTALS"}
-    assert {row["raw_market_label"] for row in scoped} == {
-        "Asian Handicap",
-        "Goals Over/Under",
-    }
-    assert {row["selection"].split()[0] for row in scoped} == {
-        "Home",
-        "Away",
-        "Over",
-        "Under",
-    }
-    selected = ReadModelService()._mainline_market_selection(scoped)
-    assert selected["ASIAN_HANDICAP"]["status"] == "READY"
-    assert selected["TOTALS"]["status"] == "READY"
+    assert scoped == []
 
 
 def test_scoped_raw_payload_and_xg_readers_enforce_fixed_limits(

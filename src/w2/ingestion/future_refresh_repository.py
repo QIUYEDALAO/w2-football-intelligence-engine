@@ -6,7 +6,7 @@ from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import Engine, Float, case, cast, desc, func, select
+from sqlalchemy import Engine, desc, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -568,9 +568,7 @@ class FutureRefreshDbRepository:
                     captain: bool = False,
                     original: dict[str, Any] | None = None,
                     mapping_lookup: dict[str, PlayerIdentityMappingModel] = newest_mapping,
-                    valuation_lookup: dict[
-                        str, PlayerValuationObservationModel
-                    ] = newest_valuation,
+                    valuation_lookup: dict[str, PlayerValuationObservationModel] = newest_valuation,
                     starter_ids: set[str] = starter_api_ids,
                 ) -> dict[str, Any]:
                     result = dict(original or {})
@@ -984,22 +982,7 @@ class FutureRefreshDbRepository:
         return appended
 
     def latest_market_observations(self) -> list[dict[str, Any]]:
-        canonical = self._canonical_market_observations_for_fixtures(None)
-        if canonical:
-            return canonical
-        with Session(self.engine) as session:
-            rows = list(
-                session.scalars(
-                    select(FutureMarketObservationModel).order_by(
-                        FutureMarketObservationModel.fixture_id,
-                        FutureMarketObservationModel.captured_at,
-                        FutureMarketObservationModel.canonical_market,
-                        FutureMarketObservationModel.bookmaker_id,
-                        FutureMarketObservationModel.selection,
-                    )
-                )
-            )
-        return self._latest_observation_dicts(rows)
+        return self._canonical_market_observations_for_fixtures(None)
 
     def latest_market_observations_for_fixtures(
         self,
@@ -1008,127 +991,7 @@ class FutureRefreshDbRepository:
         ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]
         if not ids or len(ids) > 64:
             return []
-        canonical = self._canonical_market_observations_for_fixtures(ids)
-        if canonical:
-            return canonical
-        partition = (
-            FutureMarketObservationModel.fixture_id,
-            FutureMarketObservationModel.canonical_market,
-            FutureMarketObservationModel.bookmaker_id,
-            FutureMarketObservationModel.selection,
-            FutureMarketObservationModel.line,
-        )
-        ranked = (
-            select(
-                FutureMarketObservationModel.observation_id.label("observation_id"),
-                func.row_number()
-                .over(
-                    partition_by=partition,
-                    order_by=FutureMarketObservationModel.captured_at.desc(),
-                )
-                .label("rank"),
-            )
-            .where(FutureMarketObservationModel.fixture_id.in_(ids))
-            .subquery()
-        )
-        side = case(
-            (func.lower(FutureMarketObservationModel.selection).like("home%"), "HOME"),
-            (func.lower(FutureMarketObservationModel.selection).like("away%"), "AWAY"),
-            (func.lower(FutureMarketObservationModel.selection).like("over%"), "OVER"),
-            (func.lower(FutureMarketObservationModel.selection).like("under%"), "UNDER"),
-            else_="OTHER",
-        )
-        full_time_label = func.lower(func.trim(FutureMarketObservationModel.raw_market_label))
-        relevant_latest = (
-            select(
-                FutureMarketObservationModel.observation_id.label("observation_id"),
-                FutureMarketObservationModel.fixture_id.label("fixture_id"),
-                FutureMarketObservationModel.canonical_market.label("canonical_market"),
-                FutureMarketObservationModel.bookmaker_id.label("bookmaker_id"),
-                side.label("side"),
-                func.row_number()
-                .over(
-                    partition_by=(
-                        FutureMarketObservationModel.fixture_id,
-                        FutureMarketObservationModel.canonical_market,
-                        FutureMarketObservationModel.bookmaker_id,
-                        side,
-                    ),
-                    order_by=(
-                        func.abs(cast(FutureMarketObservationModel.decimal_odds, Float) - 1.9),
-                        func.abs(cast(FutureMarketObservationModel.line, Float)),
-                        FutureMarketObservationModel.selection,
-                    ),
-                )
-                .label("side_rank"),
-            )
-            .join(ranked, FutureMarketObservationModel.observation_id == ranked.c.observation_id)
-            .where(
-                ranked.c.rank == 1,
-                FutureMarketObservationModel.suspended.is_(False),
-                FutureMarketObservationModel.live.is_(False),
-                side != "OTHER",
-                (
-                    (FutureMarketObservationModel.canonical_market == "ASIAN_HANDICAP")
-                    & (
-                        (FutureMarketObservationModel.raw_market_label.is_(None))
-                        | (full_time_label.in_(("", "asian handicap", "handicap", "ah")))
-                    )
-                )
-                | (
-                    (FutureMarketObservationModel.canonical_market == "TOTALS")
-                    & (
-                        (FutureMarketObservationModel.raw_market_label.is_(None))
-                        | (
-                            full_time_label.in_(
-                                ("", "goals over/under", "total goals", "over/under")
-                            )
-                        )
-                    )
-                ),
-            )
-            .subquery()
-        )
-        market_ranked = (
-            select(
-                relevant_latest.c.observation_id,
-                func.row_number()
-                .over(
-                    partition_by=(
-                        relevant_latest.c.fixture_id,
-                        relevant_latest.c.canonical_market,
-                    ),
-                    order_by=(
-                        relevant_latest.c.side_rank,
-                        relevant_latest.c.bookmaker_id,
-                        relevant_latest.c.side,
-                    ),
-                )
-                .label("market_rank"),
-            )
-            .where(relevant_latest.c.side_rank <= 12)
-            .subquery()
-        )
-        with Session(self.engine) as session:
-            rows = list(
-                session.scalars(
-                    select(FutureMarketObservationModel)
-                    .join(
-                        market_ranked,
-                        FutureMarketObservationModel.observation_id
-                        == market_ranked.c.observation_id,
-                    )
-                    .where(market_ranked.c.market_rank <= SCOPED_OBSERVATION_ROWS_PER_MARKET)
-                    .order_by(
-                        FutureMarketObservationModel.fixture_id,
-                        FutureMarketObservationModel.canonical_market,
-                        FutureMarketObservationModel.bookmaker_id,
-                        FutureMarketObservationModel.selection,
-                    )
-                    .limit(len(ids) * SCOPED_OBSERVATION_ROWS_PER_MARKET * 2)
-                )
-        )
-        return self._latest_observation_dicts(rows)
+        return self._canonical_market_observations_for_fixtures(ids)
 
     def matchday_fixture_identity(self, fixture_id: str) -> dict[str, Any] | None:
         aliases = _fixture_aliases(fixture_id)
@@ -1420,8 +1283,7 @@ class FutureRefreshDbRepository:
         return {
             "observation_id": model.observation_id,
             "fixture_id": (
-                model.provider_fixture_id
-                or model.fixture_id.removeprefix("api_football:")
+                model.provider_fixture_id or model.fixture_id.removeprefix("api_football:")
             ),
             "provider": model.provider,
             "bookmaker_id": model.bookmaker_id,
@@ -1567,9 +1429,7 @@ class FutureRefreshDbRepository:
         for identity in identity_rows:
             payload = identity.payload
             fixture_id = (
-                str(payload.get("fixture", {}).get("id") or "")
-                if isinstance(payload, dict)
-                else ""
+                str(payload.get("fixture", {}).get("id") or "") if isinstance(payload, dict) else ""
             )
             if fixture_id:
                 fixtures[fixture_id] = payload
@@ -1940,7 +1800,7 @@ class FutureRefreshDbRepository:
                     "snapshot_semantics": "CAPTURED_AT",
                     "bookmaker_count": len(bookmakers),
                     "quality": "READY" if rows else "MARKET_NOT_COMPARABLE",
-                    "source": "future_refresh_db",
+                    "source": "matchday_market_observations",
                     "market_coverage": {market: True for market in sorted(markets)},
                     "candidate": False,
                     "formal_recommendation": False,
@@ -2052,11 +1912,15 @@ class FutureRefreshDbRepository:
         if not ids or len(ids) > 64:
             return {"odds_last_confirmed_at": None, "next_refresh_tick": None}
         reference = parse_db_datetime(now or datetime.now(UTC))
+        canonical_ids = {
+            fixture_id if fixture_id.startswith("api_football:") else f"api_football:{fixture_id}"
+            for fixture_id in ids
+        }
         with Session(self.engine) as session:
             odds_last_confirmed_at = session.scalar(
-                select(func.max(FutureMarketObservationModel.captured_at)).where(
-                    FutureMarketObservationModel.fixture_id.in_(ids),
-                    FutureMarketObservationModel.live.is_(False),
+                select(func.max(MatchdayMarketObservationModel.captured_at)).where(
+                    MatchdayMarketObservationModel.fixture_id.in_(canonical_ids),
+                    MatchdayMarketObservationModel.live.is_(False),
                 )
             )
             next_refresh_tick = session.scalar(

@@ -140,9 +140,7 @@ def test_load_json_treats_unreadable_legacy_runtime_as_missing(tmp_path: Path) -
     target.write_text('{"items": []}', encoding="utf-8")
     blocked.chmod(0)
     try:
-        assert repository.load_json(target, {"items": ["fallback"]}) == {
-            "items": ["fallback"]
-        }
+        assert repository.load_json(target, {"items": ["fallback"]}) == {"items": ["fallback"]}
     finally:
         blocked.chmod(0o700)
 
@@ -169,9 +167,7 @@ def test_public_read_endpoints_schema_and_etag() -> None:
     assert cached.status_code == 304
 
 
-def test_fixture_filters_detail_probabilities_and_errors(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_fixture_filters_detail_probabilities_and_errors(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(repository, "RUNTIME", tmp_path)
     future_kickoff = (datetime.now(UTC) + timedelta(days=180)).replace(microsecond=0)
     monkeypatch.setattr(
@@ -180,9 +176,9 @@ def test_fixture_filters_detail_probabilities_and_errors(
         lambda: FakeFutureRefreshRepository(kickoff=future_kickoff),
     )
     client = TestClient(app)
-    fixtures = client.get(
-        "/v1/fixtures?page_size=1&status=NS&timezone=Asia/Shanghai"
-    ).json()["items"]
+    fixtures = client.get("/v1/fixtures?page_size=1&status=NS&timezone=Asia/Shanghai").json()[
+        "items"
+    ]
     assert fixtures
     fixture_id = fixtures[0]["fixture_id"]
     assert "+08:00" in fixtures[0]["kickoff_display"]
@@ -261,6 +257,17 @@ def test_future_refresh_db_projection_feeds_fixtures_and_provider_status(
                 },
             ]
 
+        def latest_market_observations_for_fixtures(
+            self,
+            fixture_ids: list[str],
+        ) -> list[dict[str, Any]]:
+            allowed = set(fixture_ids)
+            return [
+                row
+                for row in self.latest_market_observations()
+                if str(row.get("fixture_id") or "") in allowed
+            ]
+
         def provider_status(self) -> dict[str, Any]:
             return {
                 "status": "READY",
@@ -276,7 +283,7 @@ def test_future_refresh_db_projection_feeds_fixtures_and_provider_status(
     fixtures = client.get("/v1/fixtures?page_size=10&status=NS&timezone=UTC").json()["items"]
     assert [item["fixture_id"] for item in fixtures] == ["1489404"]
     detail = client.get("/v1/fixtures/1489404").json()
-    assert detail["bookmaker_count"] == 14
+    assert detail["bookmaker_count"] == 2
     assert detail["market_coverage"]["TOTALS"]
     timeline = client.get("/v1/fixtures/1489404/odds-timeline").json()["items"]
     assert timeline[0]["bookmaker"] == "Book A"
