@@ -432,3 +432,22 @@ def test_day_view_rejects_top_level_decision_field_pollution() -> None:
         match="DECISION_CONTRACT_CONFLICT:fixture-1:reason_code",
     ):
         build_dashboard_day_view(payload, environment="staging")
+
+
+def test_day_view_reads_normalized_data_readiness_from_contract() -> None:
+    payload = _payload_with_contract(_non_pick_contract())
+    payload["all"][0]["data_readiness"] = {
+        "source": "raw_collection_evidence",
+        "lineups": False,
+    }
+    payload["all"][0]["decision_contract"]["data_readiness"] = {
+        "source": "w2.readiness.data_gate.v1",
+        "missing_fields": ["lineups"],
+    }
+
+    day_view = build_dashboard_day_view(payload, environment="staging")
+
+    assert day_view["cards"][0]["data_readiness"] == {
+        "source": "w2.readiness.data_gate.v1",
+        "missing_fields": ["lineups"],
+    }

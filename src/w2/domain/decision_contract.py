@@ -33,6 +33,12 @@ CONTRACT_OWNED_FIELDS = frozenset(
     }
 )
 
+# The card-level ``data_readiness`` object is raw collection evidence, while the
+# contract's field is its normalized decision-readiness projection.  DayView
+# must read the normalized field from the contract, but the two objects are not
+# duplicate identities and therefore are not compared as top-level pollution.
+TOP_LEVEL_CONFLICT_FIELDS = CONTRACT_OWNED_FIELDS - {"data_readiness"}
+
 _PICK_TIERS = frozenset({DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND})
 _NON_PICK_TIERS = frozenset(
     {DecisionTier.NOT_READY, DecisionTier.SKIP, DecisionTier.WATCH}
@@ -112,7 +118,7 @@ def validate_decision_contract(
 
     contract = dict(raw)
     if card is not None:
-        for field in sorted(CONTRACT_OWNED_FIELDS):
+        for field in sorted(TOP_LEVEL_CONFLICT_FIELDS):
             if field in card and card[field] != contract.get(field):
                 raise DecisionContractViolation(
                     f"DECISION_CONTRACT_CONFLICT:{identity}:{field}"
