@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-24T08:13:09Z"
+updated_at: "2026-07-24T09:13:17Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -25,20 +25,21 @@ context_read_order:
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  main_sha: 1e252d73d8c9658e6ba60093ed8006dde656db10
+  main_sha: aa59b61d7d60dfda8fb43d293514fcda6beb7664
   main_migration_head: 0041_converge_odds_history_and_projection
   pull_request: 385
-  pull_request_mode: DRAFT
+  pull_request_mode: MERGED
   pull_request_head_branch: codex/arch-p1-04a-write-side-projection
   task_baseline_sha: 1e252d73d8c9658e6ba60093ed8006dde656db10
-  local_work_branch: codex/arch-p1-04a-write-side-projection
-  github_sync_status: PR_OPEN_IMPLEMENTATION_CI_AND_STAGING_ACCEPTED
+  local_work_branch: codex/arch-p1-04a-close
+  github_sync_status: ARCH_P1_04A_MERGED_AND_CHECKLIST_SYNCED
   ci_checks:
     verify: PASS
     staging-parity: PASS
     predeploy-e2e: PASS
   closed_pull_requests:
     370: CLOSED_AFTER_BASELINE_INTEGRATION_PR_374
+    385: MERGED_AFTER_IMPLEMENTATION_AND_STAGING_ACCEPTANCE
 
 architecture_convergence:
   authority_document: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
@@ -53,6 +54,7 @@ architecture_convergence:
     ARCH-P0-04: DONE
     ARCH-P1-01: DONE
     ARCH-P1-02: DONE
+    ARCH-P1-04A: DONE
     ARCH-HYGIENE-01: DONE
     ARCH-HYGIENE-02: DONE
   superseded:
@@ -76,16 +78,20 @@ architecture_convergence:
     - ARCH-P2-04
     - ARCH-P2-06
     - ARCH-P2-05
-  next_task: ARCH-P1-04A
+  next_task: ARCH-P1-04B
   current_task:
     id: ARCH-P1-04A
-    status: READY_FOR_EXTERNAL_REVIEW
+    status: DONE
     started_at: "2026-07-24T04:07:09Z"
+    completed_at: "2026-07-24T08:37:55Z"
     baseline_sha: 1e252d73d8c9658e6ba60093ed8006dde656db10
     branch: codex/arch-p1-04a-write-side-projection
     pull_request: 385
+    final_head: 6b15675ec44269a913096cdb4192c33274fc0cb6
+    merge_sha: aa59b61d7d60dfda8fb43d293514fcda6beb7664
     implementation_head: fd93f083b04c8ac59e3b05ec0bea458606fc0fdc
     implementation_exact_head_ci: 30077831275
+    final_exact_head_ci: 30078195165
     staging_candidate_sha: 72225e63e705aa5c7957eaed556ceb5a26847d41
     staging_rollback_sha: 1d02a45c6f38c3613ac3dddab784869095bf6804
     staging_migration: 0041_converge_odds_history_and_projection
