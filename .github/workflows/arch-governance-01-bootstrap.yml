@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - codex/arch-governance-01-dual-gates
+  pull_request:
+    branches:
+      - main
+    types:
+      - synchronize
 
 permissions:
   contents: write
@@ -12,8 +17,12 @@ jobs:
   bootstrap:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
+    env:
+      TARGET_BRANCH: ${{ github.head_ref || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
       - name: Mark A1 in progress
         run: |
           python3 - <<'PY'
@@ -26,7 +35,7 @@ Queue: QUEUED_NEXT
 Required checks: PRE_MERGE_READINESS_GATE + POST_MERGE_CHECKLIST_CONSISTENCY_GATE"""
           new = """Status: IN_PROGRESS
 Branch: codex/arch-governance-01-dual-gates
-PR: PENDING
+PR: #390
 Base SHA: c6e60ccabc2031fafd871d1444d4cb051b0b6bbf
 Started at: 2026-07-24T16:01:33Z
 Owner: Codex
@@ -42,4 +51,4 @@ Required checks: PRE_MERGE_READINESS_GATE + POST_MERGE_CHECKLIST_CONSISTENCY_GAT
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "docs: start ARCH-GOVERNANCE-01"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git push origin "HEAD:${TARGET_BRANCH}"
