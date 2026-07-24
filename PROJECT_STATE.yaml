@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-24T00:12:04Z"
+updated_at: "2026-07-24T00:14:06Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -9,6 +9,7 @@ delivery_status_vocabulary:
   - production_approved
 
 context_read_order:
+  - docs/operations/architecture_convergence/W2_GITHUB_SECONDARY_REVIEW_PROTOCOL.md
   - docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
   - PROJECT_STATE.yaml
   - PROJECT_LEDGER.md
@@ -90,6 +91,13 @@ architecture_convergence:
     production_behavior_changed: false
     safety_switches_changed: false
   governance_contracts:
+    github_secondary_review:
+      id: GITHUB_SECONDARY_REVIEW_PROTOCOL_V1
+      authority_file: docs/operations/architecture_convergence/W2_GITHUB_SECONDARY_REVIEW_PROTOCOL.md
+      must_read_before_review: true
+      read_ref: PR_EXACT_HEAD_IF_OPEN_ELSE_MAIN
+      review_mode: FULL_CLOSURE_NOT_DELTA_CONFIRMATION
+      remediation_policy: ONE_CONSOLIDATED_INCREMENTAL_INSTRUCTION
     dependency_contract:
       id: DEPENDENCY_CONTRACT_V1
       layer_order: APPS_TO_DASHBOARD_PRESENTATION_TO_API_TO_INFRASTRUCTURE_TO_DOMAIN
@@ -237,6 +245,7 @@ release_invariants:
   - PR_370_CLOSED
   - FEATURE_DEVELOPMENT_FREEZE
   - ARCHITECTURE_CONVERGENCE_CHECKLIST_IS_SOLE_STATUS_AUTHORITY
+  - GITHUB_SECONDARY_REVIEW_PROTOCOL_MUST_BE_READ_FIRST
   - FORMAL_DISABLED
   - LOCK_DISABLED
   - PRODUCTION_DISABLED
