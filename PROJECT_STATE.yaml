@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-24T14:35:00Z"
+updated_at: "2026-07-24T15:03:00Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -25,21 +25,22 @@ context_read_order:
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  main_sha: 46aa8d36d652d31831e7f99543ce16e575b7154d
+  main_sha: 7ffdc0fed42538243be9e6700b8093bb56372920
   main_migration_head: 0041_converge_odds_history_and_projection
   pull_request: 387
-  pull_request_mode: DRAFT
+  pull_request_mode: MERGED
   pull_request_head_branch: codex/arch-p1-04b-dashboard-read-cutover
   task_baseline_sha: 46aa8d36d652d31831e7f99543ce16e575b7154d
-  local_work_branch: codex/arch-p1-04b-dashboard-read-cutover
-  github_sync_status: ARCH_P1_04B_READY_FOR_EXTERNAL_REVIEW
+  local_work_branch: codex/arch-p1-04b-close
+  github_sync_status: ARCH_P1_04B_DONE_ARCH_GOVERNANCE_01_QUEUED
   ci_checks:
-    verify: REQUIRED_AT_PR_EXACT_HEAD
-    staging-parity: REQUIRED_AT_PR_EXACT_HEAD
-    predeploy-e2e: REQUIRED_AT_PR_EXACT_HEAD
+    verify: PASS_30101718744
+    staging-parity: PASS_30101718744
+    predeploy-e2e: PASS_30101718744
   closed_pull_requests:
     370: CLOSED_AFTER_BASELINE_INTEGRATION_PR_374
     385: MERGED_AFTER_IMPLEMENTATION_AND_STAGING_ACCEPTANCE
+    387: MERGED_AFTER_EXTERNAL_REVIEW
 
 architecture_convergence:
   authority_document: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
@@ -55,6 +56,7 @@ architecture_convergence:
     ARCH-P1-01: DONE
     ARCH-P1-02: DONE
     ARCH-P1-04A: DONE
+    ARCH-P1-04B: DONE
     ARCH-HYGIENE-01: DONE
     ARCH-HYGIENE-02: DONE
   superseded:
@@ -79,18 +81,20 @@ architecture_convergence:
     - ARCH-P2-04
     - ARCH-P2-06
     - ARCH-P2-05
-  next_task: ARCH-P1-04B
+  next_task: ARCH-GOVERNANCE-01
   current_task:
     id: ARCH-P1-04B
-    status: READY_FOR_EXTERNAL_REVIEW
+    status: DONE
     started_at: "2026-07-24T09:38:51Z"
     baseline_sha: 46aa8d36d652d31831e7f99543ce16e575b7154d
     branch: codex/arch-p1-04b-dashboard-read-cutover
     pull_request: 387
     validated_implementation_head: bd816803af5e8149dec743b277d8ae495197a0e0
     implementation_exact_head_ci: 30100951746
-    final_head: PR_EXACT_HEAD
-    final_exact_head_ci: REQUIRED_AT_PR_EXACT_HEAD
+    final_head: 31cb01023612c1d938723a0f31d6c643affc9450
+    final_exact_head_ci: 30101718744
+    merge_sha: 7ffdc0fed42538243be9e6700b8093bb56372920
+    completed_at: "2026-07-24T14:51:59Z"
     api_read_authority: READ_MODEL_CHECKPOINT_ONLY
     api_except_exception_count: 0
     api_forbidden_computation_imports: 0
@@ -168,11 +172,15 @@ architecture_convergence:
       heavy_test_owner: GITHUB_CI
     merge_governance:
       task: ARCH-GOVERNANCE-01
-      status: QUEUED_AFTER_ARCH-P1-04B
+      status: NOT_STARTED
+      queue: QUEUED_NEXT
       required_checks:
         - PRE_MERGE_READINESS_GATE
         - POST_MERGE_CHECKLIST_CONSISTENCY_GATE
       implementation_in_current_task: false
+  queued_tasks:
+    ARCH-GOVERNANCE-01: NOT_STARTED_QUEUED_NEXT
+    ARCH-P1-04C: NOT_STARTED
   pre_approved_order_change:
     task: ARCH-P1-05
     condition: STAGING_ONSITE_BUILD_REPEATEDLY_FAILS
