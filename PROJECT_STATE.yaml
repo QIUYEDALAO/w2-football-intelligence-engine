@@ -114,6 +114,15 @@ architecture_convergence:
       read_ref: PR_EXACT_HEAD_IF_OPEN_ELSE_MAIN
       review_mode: FULL_CLOSURE_NOT_DELTA_CONFIRMATION
       remediation_policy: ONE_CONSOLIDATED_INCREMENTAL_INSTRUCTION
+    task_scope_and_review_boundary:
+      id: TASK_SCOPE_AND_REVIEW_BOUNDARY_V1
+      scope_authority: W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
+      current_diff_regression_can_block: true
+      safety_boundary_change_can_block: true
+      out_of_scope_implementation_may_be_removed: true
+      approved_acceptance_gates_may_be_reduced: false
+      implementation_may_be_simplified: true
+      acceptance_procedure_may_be_simplified: false
     dependency_contract:
       id: DEPENDENCY_CONTRACT_V1
       layer_order: APPS_TO_DASHBOARD_PRESENTATION_TO_API_TO_INFRASTRUCTURE_TO_DOMAIN

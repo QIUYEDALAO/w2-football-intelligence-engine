@@ -195,21 +195,29 @@ class DynamicPrematchRepository:
 
     def lifecycle(self, fixture_id: str) -> dict[str, Any]:
         with Session(self.engine) as session:
-            rows = list(
-                session.scalars(
-                    select(DynamicPrematchEvaluationModel)
-                    .where(DynamicPrematchEvaluationModel.fixture_id == fixture_id)
-                    .order_by(DynamicPrematchEvaluationModel.evaluated_at)
+            return self.lifecycle_in_session(session, fixture_id)
+
+    @staticmethod
+    def lifecycle_in_session(
+        session: Session,
+        fixture_id: str,
+    ) -> dict[str, Any]:
+        """Read the lifecycle visible to an existing projection unit-of-work."""
+        rows = list(
+            session.scalars(
+                select(DynamicPrematchEvaluationModel)
+                .where(DynamicPrematchEvaluationModel.fixture_id == fixture_id)
+                .order_by(DynamicPrematchEvaluationModel.evaluated_at)
+            )
+        )
+        supersessions = {
+            row.superseded_evaluation_id: row
+            for row in session.scalars(
+                select(DynamicPrematchSupersessionModel).where(
+                    DynamicPrematchSupersessionModel.fixture_id == fixture_id
                 )
             )
-            supersessions = {
-                row.superseded_evaluation_id: row
-                for row in session.scalars(
-                    select(DynamicPrematchSupersessionModel).where(
-                        DynamicPrematchSupersessionModel.fixture_id == fixture_id
-                    )
-                )
-            }
+        }
         versions: list[dict[str, Any]] = []
         for row in rows:
             payload = dict(row.payload)

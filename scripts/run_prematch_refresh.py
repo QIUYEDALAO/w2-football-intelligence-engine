@@ -5,7 +5,10 @@ import json
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from w2.prematch.read_model_projection import ProjectionSourceEvent
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -74,6 +77,38 @@ def dry_run_payload(args: argparse.Namespace, *, now: datetime, key: str) -> dic
     }
 
 
+def materialize_shadow_projection_events(
+    events: list[ProjectionSourceEvent],
+) -> list[str]:
+    """Manual DB composition adapter with the worker's current-reader semantics."""
+    from w2.api.repository import ReadModelRepository, ReadModelService
+    from w2.prematch.read_model_projection import (
+        ScopedAnalysisRepository,
+        materialize_projection_events,
+    )
+
+    repository = ReadModelRepository()
+
+    def calculate(
+        scoped_repository: ScopedAnalysisRepository,
+        fixture_id: str,
+        evaluated_at: datetime,
+    ) -> dict[str, object] | None:
+        return ReadModelService(
+            repository=cast(ReadModelRepository, scoped_repository)
+        ).public_analysis_card_bounded(
+            fixture_id,
+            evaluation_time=evaluated_at,
+            use_frozen_canary=False,
+        )
+
+    return materialize_projection_events(
+        events,
+        repository=cast(ScopedAnalysisRepository, repository),
+        calculate_analysis_card=calculate,
+    )
+
+
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
@@ -98,6 +133,9 @@ def main() -> int:
         runtime_root=args.runtime_root,
         now=now,
         persistence=args.persistence,
+        materialize_public_artifacts=(
+            materialize_shadow_projection_events if args.persistence == "db" else None
+        ),
     )
     payload = {
         "status": audit.status,

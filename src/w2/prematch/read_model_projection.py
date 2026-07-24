@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from time import monotonic
@@ -61,11 +61,13 @@ class _FrozenScopedInputs:
         fixture_id: str,
         fixture_payload: dict[str, Any],
         observations: list[dict[str, Any]],
+        session: Session | None = None,
     ) -> None:
         self.delegate = delegate
         self.fixture_id = fixture_id
         self.fixture = fixture_payload
         self.observations = observations
+        self.session = session
 
     def fixture_payload(self, fixture_id: str) -> dict[str, Any] | None:
         return self.fixture if fixture_id == self.fixture_id else None
@@ -77,6 +79,17 @@ class _FrozenScopedInputs:
         if fixture_ids != [self.fixture_id]:
             raise FrozenAnalysisError("materializer requested an unexpected fixture scope")
         return [dict(row) for row in self.observations]
+
+    def dynamic_prematch_lifecycle(self, fixture_id: str) -> dict[str, Any]:
+        if fixture_id != self.fixture_id:
+            return {}
+        if self.session is not None:
+            return DynamicPrematchRepository.lifecycle_in_session(
+                self.session,
+                fixture_id,
+            )
+        reader = getattr(self.delegate, "dynamic_prematch_lifecycle", None)
+        return reader(fixture_id) if callable(reader) else {}
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self.delegate, name)
@@ -91,6 +104,16 @@ class FrozenAnalysisArtifact:
     canonical_bytes: bytes
     evaluations: tuple[DynamicEvaluationVersion, ...] = ()
     read_time_reference: dict[str, Any] | None = None
+    projection_event: ProjectionSourceEvent | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
+    projection_materializer: AnalysisCardCanaryMaterializer | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
 
 
 @dataclass(frozen=True)
@@ -242,6 +265,7 @@ class AnalysisCardCanaryMaterializer:
         *,
         evaluated_at: datetime,
         source_event: ProjectionSourceEvent | None = None,
+        session: Session | None = None,
     ) -> FrozenAnalysisArtifact:
         registry = default_metric_registry()
         started = monotonic()
@@ -250,6 +274,7 @@ class AnalysisCardCanaryMaterializer:
                 fixture_id,
                 evaluated_at=evaluated_at,
                 source_event=source_event,
+                session=session,
             )
         except Exception:
             registry.inc(
@@ -273,6 +298,7 @@ class AnalysisCardCanaryMaterializer:
         *,
         evaluated_at: datetime,
         source_event: ProjectionSourceEvent | None,
+        session: Session | None,
     ) -> FrozenAnalysisArtifact:
         key = (
             analysis_card_shadow_key(fixture_id)
@@ -297,6 +323,7 @@ class AnalysisCardCanaryMaterializer:
             fixture_id,
             fixture_payload,
             observations,
+            session,
         )
         card = self.calculate_analysis_card(
             cast(ScopedAnalysisRepository, frozen_inputs),
@@ -307,16 +334,6 @@ class AnalysisCardCanaryMaterializer:
             raise FrozenAnalysisError("analysis-card projection unavailable")
         if str(card.get("fixture_id") or "") != fixture_id:
             raise FrozenAnalysisError("analysis-card fixture identity conflict")
-        read_time_reference = self.calculate_analysis_card(
-            cast(ScopedAnalysisRepository, frozen_inputs),
-            fixture_id,
-            evaluated_at,
-        )
-        if read_time_reference is None:
-            raise FrozenAnalysisError("analysis-card read-time reference unavailable")
-        if str(read_time_reference.get("fixture_id") or "") != fixture_id:
-            raise FrozenAnalysisError("analysis-card read-time fixture identity conflict")
-
         input_manifest = {
             "evaluated_at": evaluation_time,
             "competition_id": str(card.get("competition_id") or identity["competition_id"]),
@@ -337,6 +354,35 @@ class AnalysisCardCanaryMaterializer:
                 else "w2.lineup_market_policy.v1"
             ),
         }
+        evaluations = tuple(_dynamic_evaluations(card, input_manifest))
+        if source_event is None:
+            artifact_body: dict[str, Any] = {
+                "schema_version": ANALYSIS_CARD_CANARY_SCHEMA,
+                "checkpoint_namespace": "public",
+                "fixture_identity": identity,
+                "input_manifest": input_manifest,
+                "analysis_card": card,
+            }
+            artifact_hash = canonical_sha256(artifact_body)
+            payload = {**artifact_body, "artifact_hash": artifact_hash}
+            return FrozenAnalysisArtifact(
+                checkpoint_key=key,
+                source_hash=canonical_sha256(input_manifest),
+                artifact_hash=artifact_hash,
+                payload=payload,
+                canonical_bytes=canonical_json_bytes(payload),
+            )
+
+        read_time_reference = self.calculate_analysis_card(
+            cast(ScopedAnalysisRepository, frozen_inputs),
+            fixture_id,
+            evaluated_at,
+        )
+        if read_time_reference is None:
+            raise FrozenAnalysisError("analysis-card read-time reference unavailable")
+        if str(read_time_reference.get("fixture_id") or "") != fixture_id:
+            raise FrozenAnalysisError("analysis-card read-time fixture identity conflict")
+
         event = source_event or ProjectionSourceEvent.create(
             fixture_id=fixture_id,
             event_type="MANUAL_AUDIT",
@@ -346,8 +392,7 @@ class AnalysisCardCanaryMaterializer:
         )
         if event.fixture_id != fixture_id:
             raise FrozenAnalysisError("projection source event fixture conflict")
-        evaluations = tuple(_dynamic_evaluations(card, input_manifest))
-        if source_event is not None and not evaluations:
+        if not evaluations:
             raise FrozenAnalysisError("dynamic evaluation unavailable")
         primary = min(evaluations, key=lambda item: item.evaluation_id) if evaluations else None
         event_at = _normalize_evaluation_time(event.event_at)
@@ -393,6 +438,8 @@ class AnalysisCardCanaryMaterializer:
             canonical_bytes=canonical_json_bytes(payload),
             evaluations=evaluations,
             read_time_reference=read_time_reference,
+            projection_event=event,
+            projection_materializer=self,
         )
 
 
@@ -466,7 +513,9 @@ def validate_frozen_analysis_payload(
     artifact_body = {key: value for key, value in payload.items() if key != "artifact_hash"}
     if not artifact_hash or canonical_sha256(artifact_body) != artifact_hash:
         raise FrozenAnalysisError("checkpoint artifact hash mismatch")
-    evaluations = tuple(_dynamic_evaluations(card, manifest)) if has_projection_metadata else ()
+    evaluations = (
+        tuple(_dynamic_evaluations(card, manifest)) if has_projection_metadata else ()
+    )
     primary = min(evaluations, key=lambda item: item.evaluation_id) if evaluations else None
     if primary is not None and (
         payload.get("source_evaluation_id") != primary.evaluation_id
@@ -556,23 +605,41 @@ def write_frozen_analysis_artifacts(
 ) -> None:
     if len({artifact.checkpoint_key for artifact in artifacts}) != len(artifacts):
         raise FrozenAnalysisError("duplicate checkpoint identity in write batch")
-    validated = []
-    references: dict[str, dict[str, Any]] = {}
+    validated: list[tuple[FrozenAnalysisArtifact, FrozenAnalysisArtifact]] = []
     for artifact in artifacts:
         fixture_id = _checkpoint_fixture_id(artifact.checkpoint_key)
         candidate = validate_frozen_analysis_payload(fixture_id, artifact.payload)
         if candidate.checkpoint_key != artifact.checkpoint_key:
             raise FrozenAnalysisError("checkpoint namespace conflicts with payload")
-        validated.append(candidate)
-        if artifact.read_time_reference is not None:
-            references[artifact.checkpoint_key] = artifact.read_time_reference
+        validated.append((artifact, candidate))
     repository = DynamicPrematchRepository(engine)
     now = datetime.now(UTC)
     with Session(engine) as session:
         try:
-            for artifact in validated:
-                for evaluation in artifact.evaluations:
+            for original, draft in validated:
+                for evaluation in draft.evaluations:
                     repository.append_evaluation_in_session(session, evaluation)
+                artifact = draft
+                if draft.payload.get("checkpoint_namespace") == "shadow":
+                    materializer = original.projection_materializer
+                    event = original.projection_event
+                    if materializer is None or event is None:
+                        raise FrozenAnalysisError("shadow post-write calculator unavailable")
+                    rebuilt = materializer.build(
+                        event.fixture_id,
+                        evaluated_at=event.event_at,
+                        source_event=event,
+                        session=session,
+                    )
+                    artifact = validate_frozen_analysis_payload(
+                        event.fixture_id,
+                        rebuilt.payload,
+                    )
+                    if (
+                        artifact.checkpoint_key != draft.checkpoint_key
+                        or artifact.source_hash != draft.source_hash
+                    ):
+                        raise FrozenAnalysisError("shadow post-write source identity changed")
                 existing = session.scalar(
                     select(ReadModelCheckpointModel).where(
                         ReadModelCheckpointModel.checkpoint_key == artifact.checkpoint_key
@@ -600,11 +667,19 @@ def write_frozen_analysis_artifacts(
                         existing.payload = artifact.payload
                     else:
                         if current.source_hash == artifact.source_hash:
-                            if current.payload.get("projection_hash") != artifact.payload.get(
-                                "projection_hash"
+                            if artifact.payload.get("checkpoint_namespace") == "shadow" and (
+                                current.payload.get("projection_hash")
+                                != artifact.payload.get("projection_hash")
                             ):
                                 raise FrozenAnalysisError(
                                     "same source produced conflicting projection"
+                                )
+                            if (
+                                artifact.payload.get("checkpoint_namespace") != "shadow"
+                                and current.canonical_bytes != artifact.canonical_bytes
+                            ):
+                                raise FrozenAnalysisError(
+                                    "same source produced conflicting artifact"
                                 )
                         else:
                             existing.source_hash = artifact.source_hash
@@ -614,15 +689,26 @@ def write_frozen_analysis_artifacts(
                 session.expire(existing, ["payload"])
                 persisted_payload = existing.payload
                 persisted_card = persisted_payload.get("analysis_card")
-                reference = references.get(artifact.checkpoint_key)
-                if not isinstance(persisted_card, dict) or reference is None:
-                    if (
-                        reference is None
-                        and artifact.payload.get("checkpoint_namespace") != "shadow"
-                    ):
-                        continue
+                if artifact.payload.get("checkpoint_namespace") != "shadow":
+                    continue
+                materializer = original.projection_materializer
+                event = original.projection_event
+                if (
+                    not isinstance(persisted_card, dict)
+                    or materializer is None
+                    or event is None
+                ):
                     raise FrozenAnalysisError("projection persisted-readback unavailable")
-                reconciliation = _reconcile_analysis_cards(reference, persisted_card)
+                post_write = materializer.build(
+                    event.fixture_id,
+                    evaluated_at=event.event_at,
+                    source_event=event,
+                    session=session,
+                )
+                current_read = post_write.payload.get("analysis_card")
+                if not isinstance(current_read, dict):
+                    raise FrozenAnalysisError("projection post-write current read unavailable")
+                reconciliation = _reconcile_analysis_cards(current_read, persisted_card)
                 if reconciliation != persisted_payload.get("shadow_reconciliation"):
                     raise FrozenAnalysisError(
                         "projection persisted-readback reconciliation mismatch:"

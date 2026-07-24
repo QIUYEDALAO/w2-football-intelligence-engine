@@ -249,10 +249,19 @@ def test_write_is_idempotent_and_reader_verifies_hash(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_projection(monkeypatch)
-    artifact = _materializer(ScopedRepository()).build(
+    materializer = _materializer(ScopedRepository())
+    artifact = materializer.build(
         "1576804",
         evaluated_at=datetime(2026, 7, 18, 5, 0, tzinfo=UTC),
     )
+    replay = materializer.build(
+        "1576804",
+        evaluated_at=datetime(2026, 7, 18, 5, 0, tzinfo=UTC),
+    )
+    assert replay.checkpoint_key == artifact.checkpoint_key
+    assert replay.source_hash == artifact.source_hash
+    assert replay.artifact_hash == artifact.artifact_hash
+    assert replay.canonical_bytes == artifact.canonical_bytes
     engine = _engine()
     registry = default_metric_registry()
     hit_key = ("w2_checkpoint_reads_total", (("status", "HIT"),))
@@ -261,7 +270,7 @@ def test_write_is_idempotent_and_reader_verifies_hash(
     invalid_before = registry.labelled_counters.get(invalid_key, 0)
 
     write_frozen_analysis_artifacts(engine, [artifact])
-    write_frozen_analysis_artifacts(engine, [artifact])
+    write_frozen_analysis_artifacts(engine, [replay])
     loaded = read_frozen_analysis_artifact(engine, "1576804")
 
     assert loaded is not None
@@ -275,7 +284,7 @@ def test_write_is_idempotent_and_reader_verifies_hash(
         row = session.query(ReadModelCheckpointModel).one()
         row.payload = {**row.payload, "analysis_card": {"fixture_id": "1576804"}}
         session.commit()
-    with pytest.raises(FrozenAnalysisError, match="projection hash mismatch"):
+    with pytest.raises(FrozenAnalysisError, match="artifact hash mismatch"):
         read_frozen_analysis_artifact(engine, "1576804")
     assert registry.labelled_counters[invalid_key] == invalid_before + 1
 
@@ -355,7 +364,7 @@ def test_payload_validation_rejects_fixture_identity_conflict(
         validate_frozen_analysis_payload("other", artifact.payload)
 
 
-def test_public_projection_preserves_existing_time_bound_hash_contract(
+def test_public_projection_preserves_original_active_payload_and_hash_contract(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_projection(monkeypatch)
@@ -363,16 +372,25 @@ def test_public_projection_preserves_existing_time_bound_hash_contract(
         "1576804",
         evaluated_at=datetime(2026, 7, 18, 5, 0, tzinfo=UTC),
     )
-    projection_body = {
+    artifact_body = {
         key: value
         for key, value in artifact.payload.items()
-        if key not in {"projection_hash", "artifact_hash"}
+        if key != "artifact_hash"
     }
 
     assert artifact.payload["checkpoint_namespace"] == "public"
-    assert artifact.payload["projection_hash"] == canonical_sha256(projection_body)
+    assert set(artifact.payload) == {
+        "schema_version",
+        "checkpoint_namespace",
+        "fixture_identity",
+        "input_manifest",
+        "analysis_card",
+        "artifact_hash",
+    }
+    assert artifact.source_hash == canonical_sha256(artifact.payload["input_manifest"])
+    assert artifact.payload["artifact_hash"] == canonical_sha256(artifact_body)
     validated = validate_frozen_analysis_payload("1576804", artifact.payload)
-    assert validated.payload["projection_hash"] == artifact.payload["projection_hash"]
+    assert validated.source_hash == artifact.source_hash
     assert validated.artifact_hash == artifact.artifact_hash
 
 
@@ -471,26 +489,32 @@ def test_projection_time_is_completion_time_and_business_hash_ignores_it(
         assert stored.payload["last_projected_at"] == "2026-07-18T05:00:03Z"
 
 
-def test_shadow_reconciliation_reports_real_difference_fields() -> None:
+def test_shadow_reconciliation_reports_real_difference_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_ready_projection(monkeypatch)
     calls = 0
 
     def calculate(
-        _repository: Any,
+        repository: Any,
         fixture_id: str,
         evaluated_at: datetime,
     ) -> dict[str, Any]:
         nonlocal calls
         calls += 1
-        return {
-            "fixture_id": fixture_id,
-            "evaluated_at": evaluated_at.isoformat(),
-            "decision": "SKIP" if calls == 1 else "ANALYSIS_ONLY",
-        }
+        card = _calculate_projection(repository, fixture_id, evaluated_at)
+        assert card is not None
+        card["decision"] = "SKIP" if calls == 1 else "ANALYSIS_ONLY"
+        return card
 
     artifact = AnalysisCardCanaryMaterializer(
         ScopedRepository(),
         calculate_analysis_card=calculate,
-    ).build("1576804", evaluated_at=_event().event_at)
+    ).build(
+        "1576804",
+        evaluated_at=_event().event_at,
+        source_event=_event(),
+    )
 
     assert artifact.payload["shadow_reconciliation"]["match"] is False
     assert artifact.payload["shadow_reconciliation"]["differences"] == ["decision"]
@@ -521,6 +545,110 @@ def test_event_projection_write_is_idempotent_for_evaluation_and_checkpoint(
         checkpoint = session.query(ReadModelCheckpointModel).one()
         assert checkpoint.source_hash == artifact.source_hash
         assert checkpoint.payload["projection_hash"] == artifact.payload["projection_hash"]
+
+
+@pytest.mark.parametrize(
+    "event_type",
+    ["ODDS_CHANGED", "LINEUP_CHANGED", "FIXTURE_CHANGED"],
+)
+def test_single_event_shadow_matches_post_write_current_read_with_lifecycle(
+    monkeypatch: pytest.MonkeyPatch,
+    event_type: str,
+) -> None:
+    _patch_ready_projection(monkeypatch)
+    engine = _engine(dynamic=True)
+
+    class CurrentReadRepository(ScopedRepository):
+        def dynamic_prematch_lifecycle(self, fixture_id: str) -> dict[str, Any]:
+            return DynamicPrematchRepository(engine).lifecycle(fixture_id)
+
+    repository = CurrentReadRepository()
+
+    def calculate(
+        scoped_repository: Any,
+        fixture_id: str,
+        evaluated_at: datetime,
+    ) -> dict[str, Any] | None:
+        card = _calculate_projection(scoped_repository, fixture_id, evaluated_at)
+        assert card is not None
+        lifecycle = scoped_repository.dynamic_prematch_lifecycle(fixture_id)
+        if lifecycle.get("versions"):
+            card["dynamic_prematch"] = lifecycle
+        return card
+
+    event = _event(event_type)
+    materializer = AnalysisCardCanaryMaterializer(
+        repository,
+        calculate_analysis_card=calculate,
+    )
+    artifact = materializer.build(
+        "1576804",
+        evaluated_at=event.event_at,
+        source_event=event,
+    )
+
+    write_frozen_analysis_artifacts(engine, [artifact])
+
+    persisted = read_shadow_analysis_artifact(engine, "1576804")
+    current = calculate(repository, "1576804", event.event_at)
+    assert persisted is not None
+    assert current is not None
+    assert persisted.payload["analysis_card"] == current
+    assert persisted.payload["analysis_card"]["dynamic_prematch"]["versions"]
+    assert persisted.payload["shadow_reconciliation"] == {
+        "read_time_hash": canonical_sha256(current),
+        "projected_hash": canonical_sha256(current),
+        "match": True,
+        "differences": [],
+    }
+    with Session(engine) as session:
+        assert session.query(DynamicPrematchEvaluationModel).count() == 1
+        assert session.query(DynamicPrematchSupersessionModel).count() == 0
+        assert session.query(ReadModelCheckpointModel).count() == 1
+
+
+def test_post_write_current_read_difference_rolls_back_entire_shadow_unit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_ready_projection(monkeypatch)
+    engine = _engine(dynamic=True)
+    calls = 0
+
+    def calculate(
+        scoped_repository: Any,
+        fixture_id: str,
+        evaluated_at: datetime,
+    ) -> dict[str, Any] | None:
+        nonlocal calls
+        calls += 1
+        card = _calculate_projection(scoped_repository, fixture_id, evaluated_at)
+        assert card is not None
+        lifecycle = scoped_repository.dynamic_prematch_lifecycle(fixture_id)
+        if lifecycle.get("versions"):
+            card["dynamic_prematch"] = lifecycle
+        card["decision"] = "ANALYSIS_ONLY" if calls <= 4 else "SKIP"
+        return card
+
+    event = _event()
+    artifact = AnalysisCardCanaryMaterializer(
+        ScopedRepository(),
+        calculate_analysis_card=calculate,
+    ).build(
+        "1576804",
+        evaluated_at=event.event_at,
+        source_event=event,
+    )
+
+    with pytest.raises(
+        FrozenAnalysisError,
+        match="persisted-readback reconciliation mismatch:decision",
+    ):
+        write_frozen_analysis_artifacts(engine, [artifact])
+
+    with Session(engine) as session:
+        assert session.query(DynamicPrematchEvaluationModel).count() == 0
+        assert session.query(DynamicPrematchSupersessionModel).count() == 0
+        assert session.query(ReadModelCheckpointModel).count() == 0
 
 
 def test_projection_failure_after_evaluation_is_repairable_without_duplicate(
