@@ -6,9 +6,9 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from w2.api import repository as api_repository
-from w2.api.repository import ReadModelService
 from w2.dashboard.scorelines import scoreline_picks_from_card, scoreline_reference_from_card
+from w2.prematch import analysis_calculator as api_repository
+from w2.prematch.analysis_calculator import ReadModelService
 
 KICKOFF = datetime.now(UTC) + timedelta(hours=12)
 

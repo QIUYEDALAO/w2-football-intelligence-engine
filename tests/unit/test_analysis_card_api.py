@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
-from w2.api import repository as api_repository
-from w2.api.repository import ReadModelRepository, ReadModelService
+from w2.prematch import analysis_calculator as api_repository
+from w2.prematch.analysis_calculator import ReadModelRepository, ReadModelService
 
 
 class FakeRepository:

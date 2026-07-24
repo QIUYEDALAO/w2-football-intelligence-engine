@@ -7,8 +7,7 @@ from typing import Any
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
-import w2.api.repository as api_repository
-from w2.api.repository import ReadModelRepository, ReadModelService
+import w2.prematch.analysis_calculator as api_repository
 from w2.config import get_settings
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.future_refresh_models import (
@@ -30,6 +29,7 @@ from w2.ingestion.future_refresh import deterministic_task_key, run_future_refre
 from w2.ingestion.future_refresh_repository import (
     FutureRefreshDbRepository,
 )
+from w2.prematch.analysis_calculator import ReadModelRepository, ReadModelService
 from w2.providers.api_football import LiveApiFootballResponse
 
 NOW = datetime(2026, 6, 23, 10, 0, tzinfo=UTC)

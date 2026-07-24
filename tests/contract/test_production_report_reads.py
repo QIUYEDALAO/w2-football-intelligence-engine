@@ -48,6 +48,9 @@ def test_formal_tracking_endpoint_ignores_report_file(tmp_path: Path, monkeypatc
 
 
 class EmptyReadModelRepository:
+    def dashboard_latest_fixtures(self) -> list[dict[str, Any]]:
+        return []
+
     def dashboard_data_health(self) -> None:
         return None
 
@@ -57,23 +60,16 @@ class EmptyReadModelRepository:
     def dashboard_forward_status(self) -> None:
         return None
 
-    def public_fixture_payloads(self, *, limit: int) -> list[dict[str, Any]]:
-        return []
-
-    def forward_locks(self) -> list[dict[str, Any]]:
-        return []
-
-    def result_events(self) -> list[dict[str, Any]]:
+    def operation_payloads(self, name: str) -> list[dict[str, Any]]:
         return []
 
 
-def test_missing_read_models_return_not_ready(monkeypatch) -> None:
-    monkeypatch.setattr(repository, "future_refresh_db_repository", lambda: None)
+def test_missing_read_models_return_explicit_system_degraded() -> None:
     service = repository.ReadModelService(
         repository=EmptyReadModelRepository(),  # type: ignore[arg-type]
     )
 
-    assert service.data_health()["gate4_progress"]["status"] == "NOT_READY"
-    assert service.provider_status()["status"] == "NOT_READY"
-    assert service.forward_status()["status"] == "NOT_READY"
-    assert service.operations_items("tasks")[0]["status"] == "NOT_READY"
+    assert service.data_health()["gate4_progress"]["status"] == "SYSTEM_DEGRADED"
+    assert service.provider_status()["status"] == "SYSTEM_DEGRADED"
+    assert service.forward_status()["status"] == "SYSTEM_DEGRADED"
+    assert service.operations_items("tasks") == []

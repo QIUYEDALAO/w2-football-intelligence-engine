@@ -9,9 +9,9 @@ from apps.api.main import app
 from fastapi.testclient import TestClient
 
 from w2.api import routers
-from w2.api.repository import ReadModelService
 from w2.dashboard.day_view import build_dashboard_day_view
 from w2.domain.recommendation_decision_v3 import validate_decision_v3_identity
+from w2.prematch.analysis_calculator import ReadModelService
 from w2.prematch.read_model_projection import (
     ANALYSIS_CARD_CANARY_SCHEMA,
     FrozenAnalysisArtifact,
@@ -382,7 +382,7 @@ def test_fixture_dashboard_and_day_view_share_frozen_authority(
     repository = PublicRepository(artifact)
     service = ReadModelService(repository=cast(Any, repository))
     monkeypatch.setattr(
-        "w2.api.repository.build_decision_contract_fields",
+        "w2.prematch.analysis_calculator.build_decision_contract_fields",
         lambda **_kwargs: pytest.fail("verified frozen Decision Contract was re-derived"),
     )
     analysis = service.public_analysis_card_bounded("1576804")

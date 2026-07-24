@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-24T09:13:17Z"
+updated_at: "2026-07-24T09:38:51Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -25,14 +25,14 @@ context_read_order:
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  main_sha: aa59b61d7d60dfda8fb43d293514fcda6beb7664
+  main_sha: 46aa8d36d652d31831e7f99543ce16e575b7154d
   main_migration_head: 0041_converge_odds_history_and_projection
-  pull_request: 385
-  pull_request_mode: MERGED
-  pull_request_head_branch: codex/arch-p1-04a-write-side-projection
-  task_baseline_sha: 1e252d73d8c9658e6ba60093ed8006dde656db10
-  local_work_branch: codex/arch-p1-04a-close
-  github_sync_status: ARCH_P1_04A_MERGED_AND_CHECKLIST_SYNCED
+  pull_request: null
+  pull_request_mode: DRAFT
+  pull_request_head_branch: codex/arch-p1-04b-dashboard-read-cutover
+  task_baseline_sha: 46aa8d36d652d31831e7f99543ce16e575b7154d
+  local_work_branch: codex/arch-p1-04b-dashboard-read-cutover
+  github_sync_status: ARCH_P1_04B_IN_PROGRESS
   ci_checks:
     verify: PASS
     staging-parity: PASS
@@ -66,6 +66,7 @@ architecture_convergence:
     - ARCH-HYGIENE-02
     - ARCH-P1-04A
     - ARCH-P1-04B
+    - ARCH-GOVERNANCE-01
     - ARCH-P1-04C
     - ARCH-P1-03
     - ARCH-P1-05
@@ -80,42 +81,22 @@ architecture_convergence:
     - ARCH-P2-05
   next_task: ARCH-P1-04B
   current_task:
-    id: ARCH-P1-04A
-    status: DONE
-    started_at: "2026-07-24T04:07:09Z"
-    completed_at: "2026-07-24T08:37:55Z"
-    baseline_sha: 1e252d73d8c9658e6ba60093ed8006dde656db10
-    branch: codex/arch-p1-04a-write-side-projection
-    pull_request: 385
-    final_head: 6b15675ec44269a913096cdb4192c33274fc0cb6
-    merge_sha: aa59b61d7d60dfda8fb43d293514fcda6beb7664
-    implementation_head: fd93f083b04c8ac59e3b05ec0bea458606fc0fdc
-    implementation_exact_head_ci: 30077831275
-    final_exact_head_ci: 30078195165
-    staging_candidate_sha: 72225e63e705aa5c7957eaed556ceb5a26847d41
-    staging_rollback_sha: 1d02a45c6f38c3613ac3dddab784869095bf6804
-    staging_migration: 0041_converge_odds_history_and_projection
-    shadow_checkpoint_key: analysis-card:shadow:v1:1494222
-    shadow_reconciliation: POST_WRITE_CURRENT_READ_HASH_MATCH
-    post_write_current_read_hash: 1829727a66314fe233dd45ab12fa878a29c2a9a034ad200920403abcb2d6d0b3
-    persisted_shadow_hash: 1829727a66314fe233dd45ab12fa878a29c2a9a034ad200920403abcb2d6d0b3
-    shadow_difference_fields: 0
-    manual_active_replay: DETERMINISTIC_SOURCE_AND_ARTIFACT_HASH
-    manual_active_source_hash: 06c0105a6215d03420f88ccbebab140ea69cd6f04a13f148ceab95127397eb22
-    manual_active_artifact_hash: c6a552af44ba2a4d6cc3134670605eed721101c9e8fa4134537cfbaeafb8e27a
-    active_checkpoint_unchanged: true
-    direct_analysis_card_http: 20_OF_20_200_STABLE_BASELINE_AND_ROLLBACK
-    triggered_event_types:
-      - ODDS_CHANGED
-      - LINEUP_CHANGED
-      - FIXTURE_CHANGED
-    provider_delta: 0
-    recommendation_delta: 0
-    lock_delta: 0
-    settlement_delta: 0
+    id: ARCH-P1-04B
+    status: IN_PROGRESS
+    started_at: "2026-07-24T09:38:51Z"
+    baseline_sha: 46aa8d36d652d31831e7f99543ce16e575b7154d
+    branch: codex/arch-p1-04b-dashboard-read-cutover
+    pull_request: null
+    api_read_authority: READ_MODEL_CHECKPOINT_ONLY
+    api_except_exception_count: 0
+    api_forbidden_computation_imports: 0
+    production_fallback_count: 0
+    implicit_empty_result_fallback_count: 0
+    api_to_ingestion_edges: 0
+    ingestion_to_api_edges: 0
     production_behavior_changed: true
-    api_read_path_changed: false
-    dashboard_read_path_changed: false
+    api_read_path_changed: true
+    dashboard_read_path_changed: true
     safety_switches_changed: false
   governance_contracts:
     github_secondary_review:
@@ -168,6 +149,13 @@ architecture_convergence:
       broken_references: 0
       check_w2_all_direct_children: 19
       heavy_test_owner: GITHUB_CI
+    merge_governance:
+      task: ARCH-GOVERNANCE-01
+      status: QUEUED_AFTER_ARCH-P1-04B
+      required_checks:
+        - PRE_MERGE_READINESS_GATE
+        - POST_MERGE_CHECKLIST_CONSISTENCY_GATE
+      implementation_in_current_task: false
   pre_approved_order_change:
     task: ARCH-P1-05
     condition: STAGING_ONSITE_BUILD_REPEATEDLY_FAILS
@@ -215,7 +203,7 @@ active_workstream:
     t30_validation_snapshot: locally_verified
 
 local_verification:
-  pytest_passed: 1521
+  pytest_passed: 1527
   pytest_skipped: 4
   ruff: PASS
   mypy: PASS

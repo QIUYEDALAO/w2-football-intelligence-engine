@@ -4,12 +4,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
-from w2.api import repository as api_repository
-from w2.api.repository import ReadModelService
 from w2.ingestion.independent_signal_backfill import (
     IndependentSignalBackfillConfig,
     IndependentSignalBackfillService,
 )
+from w2.prematch import analysis_calculator as api_repository
+from w2.prematch.analysis_calculator import ReadModelService
 from w2.providers.api_football import LiveApiFootballResponse
 
 

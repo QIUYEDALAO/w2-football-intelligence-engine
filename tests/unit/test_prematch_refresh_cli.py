@@ -9,7 +9,7 @@ from typing import Any
 import scripts.materialize_analysis_card_canary as canary_cli
 import scripts.run_prematch_refresh as refresh_cli
 
-from w2.api.repository import ReadModelService
+from w2.prematch.analysis_calculator import ReadModelService
 
 
 def test_prematch_refresh_defaults_to_no_provider_call_plan() -> None:

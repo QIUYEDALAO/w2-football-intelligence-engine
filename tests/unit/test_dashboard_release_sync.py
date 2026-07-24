@@ -9,7 +9,7 @@ from apps.api.main import app
 from fastapi.testclient import TestClient
 
 from w2.api import routers
-from w2.api.repository import ReadModelService, _next_future_evaluation
+from w2.prematch.analysis_calculator import ReadModelService, _next_future_evaluation
 
 
 class EmptyReleaseRepository:

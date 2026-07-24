@@ -39,7 +39,8 @@ and is no longer a prerequisite for any architecture task. Lineup remains
 Execute the P1 tasks strictly in the order recorded in the master checklist:
 
 ```text
-ARCH-P1-04B -> ARCH-P1-04C -> ARCH-P1-03 -> ARCH-P1-05 -> ARCH-P1-06
+ARCH-P1-04B -> ARCH-GOVERNANCE-01 -> ARCH-P1-04C -> ARCH-P1-03
+  -> ARCH-P1-05 -> ARCH-P1-06
   -> ARCH-P1-07 -> ARCH-P1-08
 ```
 

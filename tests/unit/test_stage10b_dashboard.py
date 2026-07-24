@@ -201,7 +201,7 @@ def test_projector_validates_and_writes_idempotent_read_model(tmp_path: Path, mo
     assert market["probability_type"] == "market_fair_probability"
     assert model["probability_type"] == "independent_model_probability"
     assert market["probabilities"] == {}
-    assert market["quality"] == "MARKET_NOT_COMPARABLE"
+    assert market["quality"] == "NOT_READY"
     get_settings.cache_clear()
 
 

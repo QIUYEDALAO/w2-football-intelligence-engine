@@ -26,7 +26,7 @@
 
 ### 0.1 全局进度速览
 
-`main` 顶端 `aa59b61d7d60dfda8fb43d293514fcda6beb7664`，migration head
+`main` 顶端 `46aa8d36d652d31831e7f99543ce16e575b7154d`，migration head
 `0041_converge_odds_history_and_projection`。
 
 **staging 实际状态（ARCH-P1-04A 写侧验收并回滚后）**：release
@@ -37,12 +37,13 @@
 
 - [x] ARCH-HYGIENE-02
 - [x] ARCH-P1-04A
-- [ ] ARCH-P1-04B
+- [>] ARCH-P1-04B
 
 **本次状态收口**：`ARCH-P1-04A-CLOSE` 只同步 PR #385 的已合并事实与
 流程偏差。本 docs-only PR 合并前不得开始 ARCH-P1-04B/04C；合并后下一任务
-为 ARCH-P1-04B。后续顺序（见第三节）：ARCH-P1-04B → 04C → P1-03 →
-P1-05 → P1-06 → P1-07 → P1-08 → P2-02 → P2-03 → P2-04 →
+为 ARCH-P1-04B。后续顺序（见第三节）：ARCH-P1-04B →
+ARCH-GOVERNANCE-01 → 04C → P1-03 → P1-05 → P1-06 → P1-07 → P1-08 →
+P2-02 → P2-03 → P2-04 →
 P2-06 → P2-05。原 ARCH-P2-01 已由 ARCH-HYGIENE-02 取代，不再执行。
 
 #### 本轮两项工作的性质对比
@@ -721,6 +722,13 @@ ARCH-P1-01 (DONE) -> ARCH-P1-02 (DONE)
 前置任务。原 `ARCH-P2-01` 的 scripts/archive 方案已由
 `ARCH-HYGIENE-02` 取代，不再执行。
 
+**2026-07-24 治理任务排队决定（本 PR 只记录，不实现）**
+
+ARCH-P1-04A-CLOSE 二次验收后，老板批准把 `ARCH-GOVERNANCE-01` 作为独立
+任务排在 ARCH-P1-04B 之后、ARCH-P1-04C 之前。该任务必须同时实现 pre-merge
+readiness gate 与 post-merge checklist consistency gate；只实现后者无法阻止
+首次提前合并。ARCH-P1-04B 不得包含任何门禁实现。
+
 **决定二：ARCH-P1-05 条件提前开关（已批准，触发后无需再次请示）**
 
 ```text
@@ -792,6 +800,7 @@ ARCH-HYGIENE-01    生成审计产物退出 Git
 ARCH-HYGIENE-02    Scripts 权威盘点与证据化直接删除
 ARCH-P1-04A  评估持久化——写侧管线
 ARCH-P1-04B  Dashboard 读切换 + 删除全部生产 fallback
+ARCH-GOVERNANCE-01  合并前验收就绪 + 合并后清单一致性双门禁
 ARCH-P1-04C  合同层与死代码清理
 ARCH-P1-03   球队身份 Crosswalk 收敛
 ARCH-P1-05   CI 构建镜像、服务器 pull-only（有预批准的条件提前开关）
@@ -2522,8 +2531,16 @@ STAGING_ROLLBACK = PASS
 
 **独立 PR。这是行为切换，必须有 staging 语义对账。**
 
-- [ ] 所有 Dashboard 与分析生产端点只读 `read_model_checkpoint` 投影。
-- [ ] 删除：
+```text
+Status: IN_PROGRESS
+Branch: codex/arch-p1-04b-dashboard-read-cutover
+Base SHA: 46aa8d36d652d31831e7f99543ce16e575b7154d
+Started at: 2026-07-24T09:38:51Z
+Owner: Codex
+```
+
+- [x] 所有 Dashboard 与分析生产端点只读 `read_model_checkpoint` 投影。
+- [x] 删除：
   - seed fallback；
   - legacy fallback；
   - runtime JSON fallback（含 `prediction_locks.json`、`result_events.json`
@@ -2532,22 +2549,54 @@ STAGING_ROLLBACK = PASS
   - live/frozen 自动选择（`_uses_frozen_public_authority` 链路）；
   - API 读路径里的特征组装、Poisson 与模拟调用；
   - 前端市场概率重算。
-- [ ] **fail-closed 语义**：`src/w2/api/repository.py` 在
+- [x] **fail-closed 语义**：`src/w2/api/repository.py` 在
   `main@76201af` 上有 25 处 `except Exception`、58 处 `except` 子句，
   多数静默返回空集。"异常吞成空数据"计入 fallback；数据库故障必须返回
   `SYSTEM_DEGRADED` 一类的明确状态，不得返回空集冒充"无数据"。逐处分类，
   并给出改造后各处的返回语义。
-- [ ] 新增静态守卫测试（照 `tests/contract/test_production_report_reads.py`
+- [x] 新增静态守卫测试（照 `tests/contract/test_production_report_reads.py`
   的模式）：禁止 `src/w2/api`、`apps/api` import 特征引擎、pricing 或
   simulation。
-- [ ] frozen artifact 仅保留内部审计/canary。
-- [ ] API 返回 projection version/hash、source event、last projected time。
-- [ ] 删除 `api -> ingestion/features/markets/pricing/strategy/simulation` 的
+- [x] frozen artifact 仅保留内部审计/canary。
+- [x] API 返回 projection version/hash、source event、last projected time。
+- [x] 删除 `api -> ingestion/features/markets/pricing/strategy/simulation` 的
   全部读时计算依赖。
 - [ ] old/new 全部当前比赛语义对账。
 - [ ] 15/30 场 Dashboard 行为和视觉不退化。
 - [ ] 完整 CI 与 staging 验收通过。
 - [ ] PR 合并。
+
+### 实现与本地直接证据
+
+```text
+BASE_API_EXCEPT_EXCEPTION             = 25
+FINAL_API_EXCEPT_EXCEPTION            = 0
+BASE_API_TO_INGESTION_EDGES            = 1
+FINAL_API_TO_INGESTION_EDGES           = 0
+BASE_INGESTION_TO_API_EDGES            = 1
+FINAL_INGESTION_TO_API_EDGES           = 0
+API_FORBIDDEN_COMPUTATION_IMPORTS      = 0
+API_RUNTIME_JSON_FALLBACKS             = 0
+API_FROZEN_LIVE_AUTO_SELECTION         = 0
+DAY_VIEW_MARKET_PROBABILITY_RECOMPUTE  = 0
+LOCAL_RUFF                             = PASS
+LOCAL_MYPY                             = PASS (261 source files)
+LOCAL_PYTEST                           = 1527 passed, 4 skipped
+LOCAL_CHECK_W2_ALL                     = PASS
+LOCAL_WEB_TYPECHECK_BUILD_E2E          = PASS / PASS / 26 passed
+```
+
+- 原生产 API 读服务移出请求路径；写侧投影生成仍通过 composition root 使用
+  `w2.prematch.analysis_calculator`，生产 API 不 import 或调用该计算器。
+- DB 查询失败抛出 `SystemDegradedError`，路由统一返回 HTTP 503 /
+  `SYSTEM_DEGRADED`；checkpoint 正常但分析投影未就绪时返回显式
+  `SYSTEM_DEGRADED` 卡片，不以空数组冒充无数据。
+- `tests/contract/test_api_projection_read_authority.py` 同时覆盖
+  `src/w2/api`、`apps/api`、`scripts` 与 `infra` 执行面；生产 API 的
+  feature / market / pricing / strategy / simulation import 与已删除
+  fallback identity 均为 0。
+- 已知 `api <-> ingestion` 循环边由 `1 + 1` 降为 `0 + 0`；本任务不声明
+  ARCH-P1-04C 的全仓库依赖合同完成，只把该实际变化记录为 04C 新 baseline。
 
 **验收**
 
@@ -2558,6 +2607,19 @@ IMPLICIT_EMPTY_RESULT_FALLBACK_COUNT = 0
 API_FEATURE_PRICING_SIMULATION_IMPORTS = 0
 API_TO_READ_TIME_COMPUTATION_DEPENDENCIES = 0
 ```
+
+---
+
+## ARCH-GOVERNANCE-01：合并前就绪 + 合并后清单一致性双门禁
+
+```text
+Status: QUEUED_AFTER_ARCH-P1-04B
+Implementation in ARCH-P1-04B: FORBIDDEN
+Required checks: PRE_MERGE_READINESS_GATE + POST_MERGE_CHECKLIST_CONSISTENCY_GATE
+```
+
+本任务是独立治理 PR。前者阻止未获外部验收结论的 PR 提前合并；后者核验已合并
+PR 与唯一总清单的 DONE/merge 坐标一致。两个 required check 缺一不可。
 
 ---
 

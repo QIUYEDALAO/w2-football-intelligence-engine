@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, cast
 
-from w2.api.repository import ReadModelService
+from w2.prematch.analysis_calculator import ReadModelService
 
 
 def _totals_rows(fixture_id: str) -> list[dict[str, Any]]:
