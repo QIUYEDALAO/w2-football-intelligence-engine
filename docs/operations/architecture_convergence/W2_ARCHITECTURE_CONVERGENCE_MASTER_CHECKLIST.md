@@ -40,6 +40,7 @@
 | ARCH-HYGIENE-02 | #384 | `1e252d73` | Scripts 权威盘点与证据化删除（取代 P2-01） |
 | ARCH-P1-04A 评估持久化 | #385 | `aa59b61d` | 事件驱动写侧投影管线（收口 #386 `46aa8d36`） |
 | ARCH-P1-04B Dashboard 读切换 | #387 | `7ffdc0fe` | API 降为 988 行纯投影读取，生产 fallback = 0（收口 #388 `75e49930`） |
+| ARCH-GOVERNANCE-01 双门禁 | #393 | `35fcac0d99573556c5e9f7a41822e153783efa73` | 可信 PRE/POST 门禁落地；独立 closure 收口 |
 
 ---
 
@@ -96,9 +97,12 @@ ARCH-P1-08 通过后，功能冻结部分解除：**仅允许本清单阶段 B �
 #### A1. ARCH-GOVERNANCE-01：合并前就绪 + 合并后清单一致性双门禁
 
 ```text
-Status: IMPLEMENTED_PENDING_ACCEPTANCE
-Branch: codex/arch-governance-01-dual-gates
+Status: DONE
+Branch: codex/arch-governance-01-closure
 PR: #393
+Merge SHA: 35fcac0d99573556c5e9f7a41822e153783efa73
+Closure PR: GITHUB_CLOSURE_PR
+Closure exact head: GITHUB_PR_EXACT_HEAD
 Base SHA: 91c7921574fcca249a9f1a9cf29c8c782e774930
 Started at: 2026-07-24T17:12:33Z
 Owner: Codex
@@ -112,7 +116,18 @@ Implementation SHA: GITHUB_PR_EXACT_HEAD
 Validated remediation head: 6bb10237bfa3d60f138cf76450b25c659f7e697a
 Final receipt head: GitHub PR exact head
 Stage 2 CI: 30116539839
-Bootstrap governance contexts: NOT_AVAILABLE_UNTIL_MAIN_BOOTSTRAP
+Main bootstrap POST run: 30123415474 /
+  FAIL_EXPECTED_MERGED_TASK_NOT_CLOSED:ARCH-GOVERNANCE-01:#393
+Branch protection before API: {"strict":true,"contexts":["verify","staging-parity"],
+  "checks":[{"context":"verify","app_id":15368},{"context":"staging-parity","app_id":15368}]}
+Branch protection after API: {"strict":true,"contexts":["verify","staging-parity",
+  "PRE_MERGE_READINESS_GATE","POST_MERGE_CHECKLIST_CONSISTENCY_GATE"],
+  "checks":[{"context":"verify","app_id":15368},{"context":"staging-parity","app_id":15368},
+  {"context":"PRE_MERGE_READINESS_GATE","app_id":15368},
+  {"context":"POST_MERGE_CHECKLIST_CONSISTENCY_GATE","app_id":15368}]}
+Branch protection rollback: `gh api --method PATCH
+  repos/QIUYEDALAO/w2-football-intelligence-engine/branches/main/protection/required_status_checks
+  -F strict=true -f 'contexts[]=verify' -f 'contexts[]=staging-parity'`
 Staging SHA: NOT_APPLICABLE_GOVERNANCE_ONLY
 Evidence: local 1609 passed / 4 skipped; governance matrix 58 passed; Stage 2 CI
   verify + staging-parity + predeploy-e2e PASS; bootstrap required contexts =
@@ -137,8 +152,8 @@ One-time bootstrap:
 独立治理 PR。前者阻止未获外部验收结论的 PR 提前合并；后者核验已合并 PR 与本清单
 DONE/merge 坐标一致。两个 required check 缺一不可。
 
-- [ ] 双门禁落地为 required checks。
-- [ ] 完整 CI 通过并合并。
+- [x] 双门禁落地为 required checks。
+- [x] 完整 CI 通过并合并。
 
 ---
 
