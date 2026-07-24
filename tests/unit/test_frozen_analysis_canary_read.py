@@ -60,6 +60,12 @@ def _artifact(
             "lock_eligible": False,
             "recommendation_id": None,
             "pick": None,
+            "non_pick": {
+                "reason_code": "MARKET_INCOMPLETE",
+                "reason_human": "盘口数据不完整",
+                "action": "等待完整盘口",
+                "next_eval_at": None,
+            },
             "reason_code": "MARKET_INCOMPLETE",
         },
         "bookmaker_intent": (

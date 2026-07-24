@@ -6,7 +6,26 @@ from w2.dashboard import day_view
 from w2.dashboard.day_view import build_dashboard_day_view
 
 
-def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None:
+
+def _blocked_contract() -> dict[str, object]:
+    """Smallest contract the read path accepts: complete and self-consistent."""
+    return {
+        "decision_tier": "NOT_READY",
+        "data_status": "BLOCKED",
+        "lifecycle_status": "DRAFT",
+        "outcome_tracked": False,
+        "lock_eligible": False,
+        "recommendation_id": None,
+        "pick": None,
+        "non_pick": {
+            "reason_code": "DATA_BLOCKED",
+            "reason_human": "数据未就绪",
+            "action": "等待数据",
+            "next_eval_at": None,
+        },
+    }
+
+def test_day_view_projects_decision_contract_cards() -> None:
     payload = {
         "generated_at": datetime(2026, 7, 5, 1, 2, tzinfo=UTC),
         "page_updated_at": datetime(2026, 7, 5, 1, 2, tzinfo=UTC),
@@ -21,6 +40,7 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
         "all": [
             {
                 "fixture_id": "fixture-1",
+                "decision_contract": _blocked_contract(),
                 "kickoff_utc": "2026-07-05T10:00:00Z",
                 "home_team_name": "Home",
                 "away_team_name": "Away",
@@ -103,13 +123,18 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
                 "decision_contract": {
                     "decision_tier": "WATCH",
                     "data_status": "BLOCKED",
+                    "lifecycle_status": "DRAFT",
+                    "outcome_tracked": False,
+                    "lock_eligible": False,
+                    "recommendation_id": None,
+                    "pick": None,
+                    "non_pick": {
+                        "reason_code": "DATA_BLOCKED",
+                        "reason_human": "数据未就绪",
+                        "action": "等待数据",
+                        "next_eval_at": None,
+                    },
                 },
-            },
-            {
-                "fixture_id": "fixture-2",
-                "kickoff_utc": "2026-07-05T12:00:00Z",
-                "formal_recommendation": True,
-                "recommendation_id": "legacy-rec",
             },
         ],
     }
@@ -125,7 +150,7 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert view["environment_policy"]["policy_version"] == "w2.environment_policy.v1"
     assert view["environment_policy"]["lock_policy"]["name"] == "staging_B"
     assert view["environment_policy"]["lock_policy"]["production_action_allowed"] is False
-    assert view["counts"]["total"] == 2
+    assert view["counts"]["total"] == 1
     assert view["counts"]["analysis_pick"] == 0
     assert view["counts"]["recommend"] == 0
     assert view["counts"]["watch"] == 2
@@ -139,7 +164,8 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert view["counts"]["by_decision_tier"]["WATCH"] == 2
     assert view["counts"]["by_data_status"]["READY"] == 0
     assert view["counts"]["by_data_status"]["BLOCKED"] == 1
-    assert view["counts"]["legacy_fallback"] == 1
+    # the legacy card path is gone: no card may be built without a contract
+    assert view["counts"]["legacy_fallback"] == 0
     assert view["freshness"]["provider_budget_status"] == "OK"
     assert view["freshness"]["page_updated_at"] == "2026-07-05T01:02:00Z"
     assert view["freshness"]["odds_last_confirmed_at"] == "2026-07-05T01:00:00Z"
@@ -178,12 +204,6 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert contract_card["model_market_divergence"]["magnitude"] == 0.12
     assert contract_card["pick"] is None
 
-    legacy_card = view["cards"][1]
-    assert legacy_card["source"] == "legacy_fallback"
-    assert legacy_card["decision_tier"] == "WATCH"
-    assert legacy_card["lock_eligible"] is False
-    assert legacy_card["outcome_tracked"] is False
-    assert legacy_card["recommendation_id"] is None
 
 
 def test_day_view_counts_are_aggregated_from_cards_only() -> None:
@@ -200,6 +220,7 @@ def test_day_view_counts_are_aggregated_from_cards_only() -> None:
         "all": [
             {
                 "fixture_id": "fixture-1",
+                "decision_contract": _blocked_contract(),
                 "decision_tier": "WATCH",
                 "data_status": "PARTIAL",
                 "lifecycle_status": "DRAFT",
@@ -244,6 +265,7 @@ def test_day_view_excludes_started_or_finished_matches_from_l1() -> None:
         "all": [
             {
                 "fixture_id": "finished",
+                "decision_contract": _blocked_contract(),
                 "kickoff_utc": "2026-07-05T06:00:00Z",
                 "status": "FT",
                 "decision_tier": "ANALYSIS_PICK",
@@ -252,6 +274,7 @@ def test_day_view_excludes_started_or_finished_matches_from_l1() -> None:
             },
             {
                 "fixture_id": "future",
+                "decision_contract": _blocked_contract(),
                 "kickoff_utc": "2026-07-05T10:00:00Z",
                 "status": "NS",
                 "decision_tier": "WATCH",
@@ -299,6 +322,7 @@ def test_day_view_degradation_reflects_refreshing_payload() -> None:
             "all": [
                 {
                     "fixture_id": "fixture-1",
+                "decision_contract": _blocked_contract(),
                     "decision_tier": "ANALYSIS_PICK",
                     "data_status": "READY",
                     "lifecycle_status": "DRAFT",

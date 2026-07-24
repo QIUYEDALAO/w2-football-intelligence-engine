@@ -454,6 +454,14 @@ class ReadModelService:
                 "lock_eligible": False,
                 "recommendation_id": None,
                 "pick": None,
+                # NOT_READY asserts a reason, so the degraded card carries its
+                # own non_pick rather than relying on the top-level copy.
+                "non_pick": {
+                    "reason_code": blocker,
+                    "reason_human": "权威读模型投影尚未就绪",
+                    "action": "等待权威读模型投影",
+                    "next_eval_at": None,
+                },
                 "reason_code": blocker,
             },
             "recommendation_decision_v3": {
