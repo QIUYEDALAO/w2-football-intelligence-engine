@@ -43,6 +43,46 @@ CONFIG_PATH_RE = re.compile(
 )
 PYTHON_TOOLS = {"python", "python3", "python3.12"}
 SHELL_TOOLS = {"bash", "sh"}
+SHELL_CONTROL_WORDS = {
+    "if",
+    "then",
+    "else",
+    "elif",
+    "fi",
+    "for",
+    "while",
+    "until",
+    "case",
+    "esac",
+    "do",
+    "done",
+    "{",
+    "}",
+}
+ENV_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=.*$")
+EXPECTED_CHECK_W2_ALL_SCRIPTS = {
+    "script:scripts/check_w2_all.py",
+    "script:scripts/check_w2_stage1_contracts.py",
+    "script:scripts/check_w2_stage3_data_model.py",
+    "script:scripts/check_w2_stage4_ingestion.py",
+    "script:scripts/check_w2_stage4b_live_smoke.py",
+    "script:scripts/check_w2_stage5_asof.py",
+    "script:scripts/check_w2_stage5b.py",
+    "script:scripts/check_w2_stage6_market.py",
+    "script:scripts/check_w2_stage7_models.py",
+    "script:scripts/check_w2_stage8_replay.py",
+    "script:scripts/check_w2_stage7b.py",
+    "script:scripts/check_w2_stage7c.py",
+    "script:scripts/check_w2_stage7d.py",
+    "script:scripts/check_w2_stage7e.py",
+    "script:scripts/check_w2_stage10a.py",
+    "script:scripts/check_w2_stage11a.py",
+    "script:scripts/check_w2_stage12a.py",
+    "script:scripts/check_w2_stage13a.py",
+    "script:scripts/check_w2_stage14a.py",
+    "script:scripts/check_w2_stage15a.py",
+}
+EXPECTED_CHECK_W2_ALL_TOOLS = {"tool:python", "tool:uv"}
 DELETED_MANIFEST = (
     Path("docs/ui/dashboard-v2") / ("DASHBOARD_V2_VISUAL_BASELINE_" + "MANIFEST.json")
 ).as_posix()
@@ -201,6 +241,8 @@ def _configuration_sources(tracked: set[str], root: Path = ROOT) -> list[Path]:
             or Path(relative).name == "package.json"
             or relative.startswith(".github/workflows/")
             or relative.startswith("infra/")
+            or Path(relative).name == "crontab"
+            or Path(relative).suffix == ".cron"
         ):
             sources.append(root / relative)
     return sources
@@ -308,12 +350,19 @@ def _python_api_tool(name: str) -> str | None:
 def _command_segment_nodes(words: list[str], source: Path, root: Path) -> set[str]:
     if not words:
         return set()
+    while words and ENV_ASSIGNMENT_RE.fullmatch(words[0]):
+        words = words[1:]
+    if not words:
+        return {f"{UNRESOLVED_PREFIX}environment-assignment"}
     raw_executable = words[0]
     executable = raw_executable if raw_executable == "." else Path(raw_executable).name
     if executable == "__PYTHON__":
         executable = "python"
     nodes = {f"tool:{executable}"}
     arguments = words[1:]
+
+    if executable in SHELL_CONTROL_WORDS:
+        return {f"{UNRESOLVED_PREFIX}shell-control:{executable}"}
 
     if _contains_dynamic_shell(words):
         nodes.add(f"{UNRESOLVED_PREFIX}dynamic-shell-command")
@@ -429,8 +478,11 @@ def _command_segment_nodes(words: list[str], source: Path, root: Path) -> set[st
                 nodes.add(f"{UNRESOLVED_PREFIX}python-c")
             return nodes
         target = _first_positional(arguments)
-        if target and Path(target).suffix in SCRIPT_SUFFIXES:
-            nodes.update(_script_target_nodes(target, source, root))
+        if target:
+            if _contains_dynamic_shell([target]):
+                nodes.add(f"{UNRESOLVED_PREFIX}python-script-target:{target}")
+            elif Path(target).suffix in SCRIPT_SUFFIXES:
+                nodes.update(_script_target_nodes(target, source, root))
         return nodes
 
     if executable == "uvicorn":
@@ -497,6 +549,8 @@ def _command_segment_nodes(words: list[str], source: Path, root: Path) -> set[st
         return nodes
 
     if executable == "node":
+        if "-e" in arguments or "--eval" in arguments:
+            return nodes
         target = _first_positional(arguments)
         if target:
             nodes.update(_script_target_nodes(target, source, root))
@@ -561,7 +615,9 @@ def _yaml_command_sequences(data: object) -> list[list[str]]:
     sequences: list[list[str]] = []
     if isinstance(data, dict):
         for key, value in data.items():
-            if str(key) in {"run", "command", "entrypoint"}:
+            if str(key) == "healthcheck" and isinstance(value, dict):
+                sequences.extend(_healthcheck_sequences(value.get("test")))
+            elif str(key) in {"run", "command", "entrypoint"}:
                 sequences.extend(_value_sequences(value))
             else:
                 sequences.extend(_yaml_command_sequences(value))
@@ -571,14 +627,51 @@ def _yaml_command_sequences(data: object) -> list[list[str]]:
     return sequences
 
 
+def _healthcheck_sequences(value: object) -> list[list[str]]:
+    sequences: list[list[str]] = []
+    for words in _value_sequences(value):
+        if not words:
+            continue
+        marker = words[0].upper()
+        if marker == "CMD":
+            sequences.append(words[1:])
+        elif marker == "CMD-SHELL":
+            sequences.extend(_shell_command_sequences(" ".join(words[1:])))
+        elif marker == "NONE":
+            continue
+        else:
+            sequences.append(words)
+    return sequences
+
+
 def _dockerfile_command_sequences(text: str) -> list[list[str]]:
     sequences: list[list[str]] = []
     for line in _logical_shell_lines(text):
-        match = re.match(r"^(CMD|ENTRYPOINT|RUN)\s+(.+)$", line, re.IGNORECASE)
+        match = re.match(
+            r"^(CMD|ENTRYPOINT|RUN|HEALTHCHECK)\s+(.+)$",
+            line,
+            re.IGNORECASE,
+        )
         if match is None:
             continue
+        instruction = match.group(1).upper()
         payload = match.group(2).strip()
-        if match.group(1).upper() in {"CMD", "ENTRYPOINT"} and payload.startswith("["):
+        if instruction == "HEALTHCHECK":
+            command_match = re.search(r"(?:^|\s)CMD\s+(.+)$", payload, re.IGNORECASE)
+            if command_match is None:
+                sequences.append([f"{UNRESOLVED_PREFIX}docker-healthcheck"])
+                continue
+            command = command_match.group(1).strip()
+            if command.startswith("["):
+                try:
+                    value = json.loads(command)
+                except json.JSONDecodeError:
+                    sequences.append([f"{UNRESOLVED_PREFIX}docker-healthcheck-json"])
+                else:
+                    sequences.extend(_healthcheck_sequences(["CMD", *value]))
+            else:
+                sequences.extend(_shell_command_sequences(command))
+        elif instruction in {"CMD", "ENTRYPOINT"} and payload.startswith("["):
             try:
                 value = json.loads(payload)
             except json.JSONDecodeError:
@@ -593,9 +686,49 @@ def _dockerfile_command_sequences(text: str) -> list[list[str]]:
 def _systemd_command_sequences(text: str) -> list[list[str]]:
     sequences: list[list[str]] = []
     for line in _logical_shell_lines(text):
-        match = re.match(r"^Exec(?:Start|Stop|Reload)=(.+)$", line)
+        match = re.match(r"^Exec[A-Za-z]*=(.+)$", line)
         if match is not None:
             sequences.extend(_shell_command_sequences(match.group(1)))
+    return sequences
+
+
+def _makefile_command_sequences(text: str) -> list[list[str]]:
+    variables: dict[str, str] = {}
+    command_lines: list[str] = []
+    for raw_line in text.splitlines():
+        if not raw_line.strip() or raw_line.lstrip().startswith("#"):
+            continue
+        if raw_line.startswith("\t"):
+            command_lines.append(raw_line.strip().lstrip("@-+"))
+            continue
+        line = raw_line.strip()
+        assignment = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)\s*[?:]?=\s*(.+)$", line)
+        if assignment is not None:
+            variables[assignment.group(1)] = assignment.group(2)
+    expanded = "\n".join(command_lines)
+    for name, value in variables.items():
+        expanded = expanded.replace(f"$({name})", value).replace(f"${{{name}}}", value)
+    return _shell_command_sequences(expanded)
+
+
+def _cron_command_sequences(text: str) -> list[list[str]]:
+    sequences: list[list[str]] = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("@"):
+            parts = line.split(maxsplit=1)
+            if len(parts) != 2:
+                sequences.append([f"{UNRESOLVED_PREFIX}cron-macro"])
+            else:
+                sequences.extend(_shell_command_sequences(parts[1]))
+            continue
+        parts = line.split(maxsplit=5)
+        if len(parts) != 6:
+            sequences.append([f"{UNRESOLVED_PREFIX}cron-fields"])
+            continue
+        sequences.extend(_shell_command_sequences(parts[5]))
     return sequences
 
 
@@ -618,7 +751,11 @@ def _configuration_command_sequences(source: Path, text: str) -> list[list[str]]
         return _dockerfile_command_sequences(text)
     if source.suffix in {".service", ".timer"}:
         return _systemd_command_sequences(text)
-    if source.name == "Makefile" or source.suffix == ".sh":
+    if source.name == "crontab" or source.suffix == ".cron" or "cron" in source.parts:
+        return _cron_command_sequences(text)
+    if source.name == "Makefile":
+        return _makefile_command_sequences(text)
+    if source.suffix == ".sh":
         return _shell_command_sequences(text)
     if ".github/workflows/" in relative or "/compose/" in relative:
         try:
@@ -659,10 +796,12 @@ def _configured_entrypoints(tracked: set[str], root: Path = ROOT) -> set[str]:
                     f"{UNRESOLVED_PREFIX}python-m:",
                     f"{UNRESOLVED_PREFIX}uvicorn:",
                     f"{UNRESOLVED_PREFIX}celery:",
+                    f"{UNRESOLVED_PREFIX}script-path:",
+                    f"{UNRESOLVED_PREFIX}python-script-target:",
                 )
             ):
                 raise AssertionError(
-                    f"{source.relative_to(root)} has unresolved module target: {node}"
+                    f"{source.relative_to(root)} has unresolved execution target: {node}"
                 )
             if node.startswith("script:"):
                 entrypoints.add(node.removeprefix("script:"))
@@ -725,6 +864,201 @@ def _matrix_rows() -> list[tuple[str, str, str]]:
         decision = columns[7].strip("`")
         rows.append((path, classification, decision))
     return rows
+
+
+def _script_paths(nodes: set[str]) -> set[str]:
+    return {node.removeprefix("script:") for node in nodes if node.startswith("script:")}
+
+
+def _configuration_execution_targets(
+    predicate: Callable[[Path], bool],
+    root: Path = ROOT,
+) -> set[str]:
+    targets: set[str] = set()
+    for source in _configuration_sources(_tracked_files(root), root):
+        if not predicate(source):
+            continue
+        text = source.read_text(encoding="utf-8")
+        targets.update(_script_paths(_command_nodes_from_text(text, source, root)))
+    return targets
+
+
+def _pyproject_entrypoint_targets(root: Path = ROOT) -> set[str]:
+    project_path = root / "pyproject.toml"
+    if not project_path.is_file():
+        return set()
+    project = tomllib.loads(project_path.read_text(encoding="utf-8"))
+    targets: set[str] = set()
+    for target in project.get("project", {}).get("scripts", {}).values():
+        module = str(target).split(":", maxsplit=1)[0]
+        resolved = _resolve_importable_module(module, root)
+        if resolved is not None:
+            targets.add(resolved.path)
+    return targets
+
+
+def _runtime_execution_targets(root: Path = ROOT) -> set[str]:
+    targets = _configuration_execution_targets(
+        lambda source: (
+            source.name.startswith("Dockerfile")
+            or source.name == "docker-compose.yml"
+            or source.name == "package.json"
+            or source.suffix in {".yml", ".yaml"}
+            and "compose" in source.as_posix()
+        ),
+        root,
+    )
+    return targets | _pyproject_entrypoint_targets(root)
+
+
+def _ci_direct_targets(root: Path = ROOT) -> set[str]:
+    return _configuration_execution_targets(
+        lambda source: ".github/workflows/" in source.as_posix(),
+        root,
+    )
+
+
+def _assigned_script_paths(tree: ast.AST) -> dict[str, set[str]]:
+    assignments: dict[str, set[str]] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            continue
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        value = node.value
+        if value is None:
+            continue
+        paths = {
+            child.value.removeprefix("./")
+            for child in ast.walk(value)
+            if isinstance(child, ast.Constant)
+            and isinstance(child.value, str)
+            and Path(child.value).suffix in SCRIPT_SUFFIXES
+        }
+        for target in targets:
+            if isinstance(target, ast.Name) and paths:
+                assignments[target.id] = paths
+    return assignments
+
+
+def _subprocess_script_targets(text: str, root: Path = ROOT) -> set[str]:
+    tree = ast.parse(text)
+    aliases = _import_aliases(tree)
+    assignments = _assigned_script_paths(tree)
+    targets: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        name = _expression_name(node.func, aliases)
+        if name not in {
+            "subprocess.run",
+            "subprocess.Popen",
+            "subprocess.check_call",
+            "subprocess.check_output",
+        }:
+            continue
+        argument = _call_command_argument(node)
+        if argument is None:
+            continue
+        candidates = {
+            child.value.removeprefix("./")
+            for child in ast.walk(argument)
+            if isinstance(child, ast.Constant)
+            and isinstance(child.value, str)
+            and Path(child.value).suffix in SCRIPT_SUFFIXES
+        }
+        candidates.update(
+            path
+            for child in ast.walk(argument)
+            if isinstance(child, ast.Name)
+            for path in assignments.get(child.id, set())
+        )
+        targets.update(path for path in candidates if (root / path).is_file())
+    return targets
+
+
+def _ci_transitive_targets(root: Path = ROOT) -> set[str]:
+    graph = _check_w2_all_graph(root)
+    targets = {
+        node.removeprefix("script:")
+        for node in graph
+        if node.startswith("script:") and node != "script:scripts/check_w2_all.py"
+    }
+    tests_root = root / "tests"
+    if not tests_root.is_dir():
+        return targets
+    for source in tests_root.rglob("*.py"):
+        text = source.read_text(encoding="utf-8")
+        try:
+            targets.update(_script_paths(_python_execution_nodes(text, source, root)))
+            targets.update(_subprocess_script_targets(text, root))
+        except SyntaxError:
+            continue
+    return targets
+
+
+def _release_execution_targets(root: Path = ROOT) -> set[str]:
+    targets = _configuration_execution_targets(
+        lambda source: (
+            source.name.startswith("Dockerfile")
+            or source.name == "package.json"
+            or source.suffix in {".service", ".timer", ".cron"}
+            or source.name == "crontab"
+            or "compose" in source.as_posix()
+        ),
+        root,
+    )
+    scripts_root = root / "scripts"
+    if scripts_root.is_dir():
+        for source in scripts_root.glob("*.sh"):
+            targets.update(
+                _script_paths(
+                    _command_nodes_from_text(
+                        source.read_text(encoding="utf-8"),
+                        source,
+                        root,
+                    )
+                )
+            )
+    runbooks = root / "docs/runbooks"
+    if runbooks.is_dir():
+        for source in runbooks.rglob("*.md"):
+            targets.update(
+                _script_paths(
+                    _command_nodes_from_text(
+                        source.read_text(encoding="utf-8"),
+                        source,
+                        root,
+                    )
+                )
+            )
+    return targets
+
+
+def _migration_execution_targets(root: Path = ROOT) -> set[str]:
+    targets: set[str] = set()
+    alembic_path = root / "alembic.ini"
+    if alembic_path.is_file():
+        match = re.search(
+            r"^script_location\s*=\s*(\S+)\s*$",
+            alembic_path.read_text(encoding="utf-8"),
+            re.MULTILINE,
+        )
+        if match is not None:
+            env_path = Path(match.group(1)) / "env.py"
+            if (root / env_path).is_file():
+                targets.add(env_path.as_posix())
+    versions = root / "migrations/versions"
+    if versions.is_dir():
+        for source in versions.glob("*.py"):
+            targets.update(_subprocess_script_targets(source.read_text(encoding="utf-8"), root))
+    return targets
+
+
+def _classification_paths(
+    rows: list[tuple[str, str, str]],
+    classification: str,
+) -> set[str]:
+    return {path for path, observed, _decision in rows if observed == classification}
 
 
 def _assert_inventory_classified(
@@ -912,6 +1246,26 @@ def _assert_graph_excludes_heavy_tools(graph: dict[str, set[str]]) -> None:
     assert not forbidden, f"reachable heavy test tools: {forbidden}"
 
 
+def _assert_graph_topology(
+    graph: dict[str, set[str]],
+    *,
+    expected_scripts: set[str],
+    expected_tools: set[str],
+) -> None:
+    unresolved = {node for node in graph if node.startswith(UNRESOLVED_PREFIX)}
+    scripts = {node for node in graph if node.startswith("script:")}
+    tools = {node for node in graph if node.startswith("tool:")}
+    assert not unresolved, f"reachable unresolved execution: {sorted(unresolved)}"
+    assert scripts == expected_scripts, (
+        f"unexpected_scripts={sorted(scripts - expected_scripts)} "
+        f"missing_scripts={sorted(expected_scripts - scripts)}"
+    )
+    assert tools == expected_tools, (
+        f"unexpected_tools={sorted(tools - expected_tools)} "
+        f"missing_tools={sorted(expected_tools - tools)}"
+    )
+
+
 def _deletion_identities(path: str) -> set[str]:
     relative = Path(path)
     identities = {
@@ -932,6 +1286,17 @@ def _deletion_closure() -> set[str]:
     dead = {path for path, classification, _decision in _matrix_rows() if classification == "DEAD"}
     assert len(dead) == 8
     return dead | {DELETED_MANIFEST}
+
+
+def _assert_deleted_objects_absent(
+    deleted: set[str],
+    *,
+    tracked: set[str],
+    root: Path,
+) -> None:
+    for path in deleted:
+        assert path not in tracked, f"deleted path is tracked again: {path}"
+        assert not (root / path).exists(), f"deleted path exists again: {path}"
 
 
 def _node_identities(node: str) -> set[str]:
@@ -1007,6 +1372,69 @@ def test_inventory_covers_every_script_exactly_once() -> None:
     }
     assert set(paths) == retained | dead
     _assert_inventory_classified(_inventory_universe(), rows)
+
+
+def test_classification_counts_and_exact_execution_evidence() -> None:
+    rows = _matrix_rows()
+    expected_counts = {
+        "RUNTIME_ENTRYPOINT": 8,
+        "CI_DIRECT": 7,
+        "CI_TRANSITIVE": 30,
+        "DEPLOYMENT": 8,
+        "MANUAL_OPS": 72,
+        "MIGRATION_ONLY": 1,
+        "ONE_TIME_RECOVERY": 11,
+        "DEAD": 8,
+    }
+    observed_counts = {
+        classification: len(_classification_paths(rows, classification))
+        for classification in ALLOWED_CLASSIFICATIONS
+    }
+    assert observed_counts == expected_counts
+    assert sum(observed_counts.values()) == 145
+
+    runtime = _classification_paths(rows, "RUNTIME_ENTRYPOINT")
+    ci_direct = _classification_paths(rows, "CI_DIRECT")
+    ci_transitive = _classification_paths(rows, "CI_TRANSITIVE")
+    deployment = _classification_paths(rows, "DEPLOYMENT")
+    migration = _classification_paths(rows, "MIGRATION_ONLY")
+
+    assert runtime <= _runtime_execution_targets()
+    assert ci_direct == _ci_direct_targets()
+    assert ci_transitive <= _ci_transitive_targets()
+    assert deployment <= _release_execution_targets()
+    assert migration <= _migration_execution_targets()
+
+
+def test_same_named_library_calls_do_not_count_as_script_execution() -> None:
+    worker = ROOT / "apps/worker/celery_app.py"
+    migration = ROOT / "migrations/versions/0037_seed_competition_runtime_authority.py"
+    worker_nodes = _python_execution_nodes(worker.read_text(encoding="utf-8"), worker)
+    migration_nodes = _python_execution_nodes(
+        migration.read_text(encoding="utf-8"),
+        migration,
+    )
+    assert "script:scripts/run_xg_history_backfill.py" not in worker_nodes
+    assert "script:scripts/seed_competition_runtime_authority.py" not in migration_nodes
+    assert "scripts/run_xg_history_backfill.py" not in _runtime_execution_targets()
+    assert "scripts/seed_competition_runtime_authority.py" not in (_migration_execution_targets())
+
+
+def test_checklist_acceptance_claims_match_computed_contracts() -> None:
+    text = MASTER_CHECKLIST.read_text(encoding="utf-8")
+    rows = _matrix_rows()
+    for classification in ALLOWED_CLASSIFICATIONS:
+        count = len(_classification_paths(rows, classification))
+        assert f"{classification} = {count}" in text
+    graph = _check_w2_all_graph()
+    edge_count = sum(len(edges) for edges in graph.values())
+    assert f"EXECUTION_GRAPH = {len(graph)}_NODES_{edge_count}_EDGES" in text
+    assert f"CHECK_W2_ALL_EXACT_SCRIPT_NODES = {len(EXPECTED_CHECK_W2_ALL_SCRIPTS)}" in text
+    assert f"CHECK_W2_ALL_EXACT_TOOL_NODES = {len(EXPECTED_CHECK_W2_ALL_TOOLS)}" in text
+    assert f"DELETION_CLOSURE_OBJECTS = {len(_deletion_closure())}" in text
+    assert "CLASSIFICATION_EVIDENCE_CONTRACT = PASS" in text
+    assert "CONFIGURATION_EXECUTION_SURFACE_CONTRACT = PASS" in text
+    assert "DELETION_CLOSURE_ABSENCE_AND_REFERENCE = PASS" in text
 
 
 def test_unreferenced_root_script_is_unclassified(tmp_path: Path) -> None:
@@ -1185,6 +1613,73 @@ def test_package_json_script_resolves_module(tmp_path: Path) -> None:
     assert {"module:w2.example", "script:src/w2/example.py"} <= nodes
 
 
+def test_systemd_exec_start_post_is_parsed(tmp_path: Path) -> None:
+    script = tmp_path / "scripts/post.sh"
+    script.parent.mkdir(parents=True)
+    script.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    source = tmp_path / "fixture.service"
+    text = "[Service]\nExecStartPost=/bin/bash scripts/post.sh\n"
+    nodes = _command_nodes_from_text(text, source, tmp_path)
+    assert "script:scripts/post.sh" in nodes
+
+
+def test_compose_healthcheck_python_module_is_parsed(tmp_path: Path) -> None:
+    _write_example_module(tmp_path)
+    source = tmp_path / "docker-compose.yml"
+    text = """
+services:
+  api:
+    healthcheck:
+      test: [CMD, python, -m, w2.example]
+"""
+    nodes = _command_nodes_from_text(text, source, tmp_path)
+    assert {"module:w2.example", "script:src/w2/example.py"} <= nodes
+
+
+def test_docker_healthcheck_python_module_is_parsed(tmp_path: Path) -> None:
+    _write_example_module(tmp_path)
+    source = tmp_path / "Dockerfile.api"
+    nodes = _command_nodes_from_text(
+        "HEALTHCHECK CMD python -m w2.example\n",
+        source,
+        tmp_path,
+    )
+    assert {"module:w2.example", "script:src/w2/example.py"} <= nodes
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "* * * * * python scripts/cron_job.py",
+        "@reboot python scripts/cron_job.py",
+    ],
+)
+def test_cron_script_commands_are_parsed(line: str, tmp_path: Path) -> None:
+    script = tmp_path / "scripts/cron_job.py"
+    script.parent.mkdir(parents=True)
+    script.write_text("print('ok')\n", encoding="utf-8")
+    source = tmp_path / "fixture.cron"
+    nodes = _command_nodes_from_text(line + "\n", source, tmp_path)
+    assert "script:scripts/cron_job.py" in nodes
+
+
+def test_environment_assignment_precedes_command(tmp_path: Path) -> None:
+    source = tmp_path / "fixture.sh"
+    nodes = _command_nodes("MODE=test pytest -q", source, tmp_path)
+    assert "tool:pytest" in nodes
+    assert "tool:MODE=test" not in nodes
+
+
+def test_dynamic_configuration_script_target_fails_closed(tmp_path: Path) -> None:
+    source = tmp_path / "docker-compose.yml"
+    text = 'services:\n  job:\n    command: python "$SCRIPT"\n'
+    nodes = _command_nodes_from_text(text, source, tmp_path)
+    assert any(node.startswith(f"{UNRESOLVED_PREFIX}python-script-target:") for node in nodes)
+    source.write_text(text, encoding="utf-8")
+    with pytest.raises(AssertionError, match="unresolved execution target"):
+        _configured_entrypoints({"docker-compose.yml"}, tmp_path)
+
+
 def test_pyproject_entrypoint_uses_exact_importable_module(tmp_path: Path) -> None:
     _write_example_module(tmp_path)
     project = tmp_path / "pyproject.toml"
@@ -1214,7 +1709,9 @@ def test_dead_scripts_are_absent_and_non_dead_scripts_exist() -> None:
 def test_deleted_object_references_are_absent() -> None:
     deleted = _deletion_closure()
     assert len(deleted) == 9
-    for relative in _tracked_files():
+    tracked = _tracked_files()
+    _assert_deleted_objects_absent(deleted, tracked=tracked, root=ROOT)
+    for relative in tracked:
         if relative == MASTER_CHECKLIST.relative_to(ROOT).as_posix():
             continue
         path = ROOT / relative
@@ -1224,6 +1721,18 @@ def test_deleted_object_references_are_absent() -> None:
             continue
         references = _referenced_deleted_paths(path, text, deleted)
         assert not references, f"{relative}: {sorted(references)}"
+
+
+def test_deleted_manifest_cannot_be_recreated(tmp_path: Path) -> None:
+    manifest = tmp_path / DELETED_MANIFEST
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text("{}\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match="exists again"):
+        _assert_deleted_objects_absent(
+            {DELETED_MANIFEST},
+            tracked=set(),
+            root=tmp_path,
+        )
 
 
 @pytest.mark.parametrize(
@@ -1303,6 +1812,73 @@ def test_check_w2_all_transitive_graph_excludes_ruff_mypy_and_pytest() -> None:
     }
     assert len(direct_scripts) == 19
     _assert_graph_excludes_heavy_tools(graph)
+    _assert_graph_topology(
+        graph,
+        expected_scripts=EXPECTED_CHECK_W2_ALL_SCRIPTS,
+        expected_tools=EXPECTED_CHECK_W2_ALL_TOOLS,
+    )
+
+
+def test_graph_rejects_additional_transitive_script(tmp_path: Path) -> None:
+    graph = _write_check_graph_fixture(
+        tmp_path,
+        "import subprocess\nsubprocess.run(['python', 'scripts/manual_ops.py'])\n",
+        extra_files={"scripts/manual_ops.py": "print('manual')\n"},
+    )
+    with pytest.raises(AssertionError, match="unexpected_scripts"):
+        _assert_graph_topology(
+            graph,
+            expected_scripts={
+                "script:scripts/check_w2_all.py",
+                "script:scripts/child.py",
+            },
+            expected_tools=EXPECTED_CHECK_W2_ALL_TOOLS,
+        )
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "make test",
+        "npm test",
+        "MODE=test pytest -q",
+        "unknown-tool --check",
+    ],
+)
+def test_graph_rejects_unapproved_tools(command: str, tmp_path: Path) -> None:
+    graph = _write_check_graph_fixture(
+        tmp_path,
+        f"import os\nos.system({command!r})\n",
+    )
+    with pytest.raises(AssertionError, match="unexpected_tools"):
+        _assert_graph_topology(
+            graph,
+            expected_scripts={
+                "script:scripts/check_w2_all.py",
+                "script:scripts/child.py",
+            },
+            expected_tools=EXPECTED_CHECK_W2_ALL_TOOLS,
+        )
+
+
+def test_graph_rejects_unresolved_shell_control_syntax(tmp_path: Path) -> None:
+    graph = _write_check_graph_fixture(
+        tmp_path,
+        "import subprocess\nsubprocess.run(['bash', 'scripts/control.sh'])\n",
+        extra_files={
+            "scripts/control.sh": "#!/bin/sh\nif true; then pytest -q; fi\n",
+        },
+    )
+    with pytest.raises(AssertionError, match="UNRESOLVED_EXECUTION"):
+        _assert_graph_topology(
+            graph,
+            expected_scripts={
+                "script:scripts/check_w2_all.py",
+                "script:scripts/child.py",
+                "script:scripts/control.sh",
+            },
+            expected_tools=EXPECTED_CHECK_W2_ALL_TOOLS,
+        )
 
 
 def test_graph_rejects_subprocess_uv_pytest(tmp_path: Path) -> None:
