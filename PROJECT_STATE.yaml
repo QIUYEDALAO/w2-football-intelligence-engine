@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-24T03:39:53Z"
+updated_at: "2026-07-24T04:07:09Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -25,16 +25,14 @@ context_read_order:
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  main_sha: 748b50e5c990c6138193810ec319e0e413a7ab25
+  main_sha: 1e252d73d8c9658e6ba60093ed8006dde656db10
   main_migration_head: 0041_converge_odds_history_and_projection
-  pull_request: 384
-  pull_request_mode: DRAFT
-  pull_request_head_branch: codex/arch-hygiene-02-script-authority-convergence
-  task_baseline_sha: 748b50e5c990c6138193810ec319e0e413a7ab25
-  final_implementation_head: PR_EXACT_HEAD
-  local_work_branch: codex/arch-hygiene-02-script-authority-convergence
-  github_sync_status: DRAFT_PR_OPEN_FINAL_EXACT_HEAD_CI_REQUIRED
-  final_exact_head_ci: REQUIRED_AT_PR_EXACT_HEAD
+  pull_request: null
+  pull_request_mode: DRAFT_PLANNED
+  pull_request_head_branch: codex/arch-p1-04a-write-side-projection
+  task_baseline_sha: 1e252d73d8c9658e6ba60093ed8006dde656db10
+  local_work_branch: codex/arch-p1-04a-write-side-projection
+  github_sync_status: LOCAL_BRANCH_PR_NOT_CREATED
   ci_checks:
     verify: REQUIRED_AT_PR_EXACT_HEAD
     staging-parity: REQUIRED_AT_PR_EXACT_HEAD
@@ -56,6 +54,7 @@ architecture_convergence:
     ARCH-P1-01: DONE
     ARCH-P1-02: DONE
     ARCH-HYGIENE-01: DONE
+    ARCH-HYGIENE-02: DONE
   superseded:
     ARCH-P2-01: ARCH-HYGIENE-02
   p0_acceptance: P0_ARCHITECTURE_CONVERGENCE_PASS
@@ -77,16 +76,14 @@ architecture_convergence:
     - ARCH-P2-04
     - ARCH-P2-06
     - ARCH-P2-05
-  next_task: ARCH-HYGIENE-02
+  next_task: ARCH-P1-04A
   current_task:
-    id: ARCH-HYGIENE-02
-    status: READY_FOR_EXTERNAL_REVIEW
-    started_at: "2026-07-24T00:42:35Z"
-    baseline_sha: 748b50e5c990c6138193810ec319e0e413a7ab25
-    branch: codex/arch-hygiene-02-script-authority-convergence
-    pull_request: 384
-    final_implementation_head: PR_EXACT_HEAD
-    final_exact_head_ci: REQUIRED_AT_PR_EXACT_HEAD
+    id: ARCH-P1-04A
+    status: IN_PROGRESS
+    started_at: "2026-07-24T04:07:09Z"
+    baseline_sha: 1e252d73d8c9658e6ba60093ed8006dde656db10
+    branch: codex/arch-p1-04a-write-side-projection
+    pull_request: null
     production_behavior_changed: false
     safety_switches_changed: false
   governance_contracts:

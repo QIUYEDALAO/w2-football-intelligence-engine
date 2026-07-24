@@ -26,7 +26,7 @@
 
 ### 0.1 全局进度速览
 
-`main` 顶端 `748b50e5c990c6138193810ec319e0e413a7ab25`，migration head
+`main` 顶端 `1e252d73d8c9658e6ba60093ed8006dde656db10`，migration head
 `0041_converge_odds_history_and_projection`。
 
 **staging 实际状态（ARCH-P1-02 验收后）**：release
@@ -35,12 +35,12 @@
 `current_market_projection` 视图**，六个服务全部 healthy、restart count
 全 0；`main` 与 staging 的 migration head 已一致。
 
-- [x] ARCH-HYGIENE-01
-- [>] ARCH-HYGIENE-02
-- [ ] ARCH-P1-04A
+- [x] ARCH-HYGIENE-02
+- [>] ARCH-P1-04A
+- [ ] ARCH-P1-04B
 
-**当前执行**：ARCH-HYGIENE-02。后续顺序（见第三节）：ARCH-P1-04A →
-04B → 04C → P1-03 → P1-05 → P1-06 → P1-07 → P1-08 →
+**当前执行**：ARCH-P1-04A。后续顺序（见第三节）：ARCH-P1-04B →
+04C → P1-03 → P1-05 → P1-06 → P1-07 → P1-08 →
 P2-02 → P2-03 → P2-04 → P2-06 → P2-05。原 ARCH-P2-01 已由
 ARCH-HYGIENE-02 取代，不再执行。
 
@@ -1913,14 +1913,16 @@ BROKEN_AUDIT_REFERENCES = 0
 ## ARCH-HYGIENE-02：Scripts 权威盘点与证据化直接删除
 
 ```text
-Status: READY_FOR_EXTERNAL_REVIEW
+Status: DONE
 Branch: codex/arch-hygiene-02-script-authority-convergence
 Base SHA: 748b50e5c990c6138193810ec319e0e413a7ab25
 Started at: 2026-07-24T00:42:35Z
 Owner: Codex
-PR: #384 (DRAFT)
-Final implementation head: PR_EXACT_HEAD
-Final exact-head CI: REQUIRED_AT_PR_EXACT_HEAD
+PR: #384 (MERGED)
+Final head: 7a1e52c0a4644bcd57209a7ea2231402d672a55e
+Final exact-head CI: 30064814812 (PASS)
+Merge SHA: 1e252d73d8c9658e6ba60093ed8006dde656db10
+Completed at: 2026-07-24T03:59:54Z
 Implementation checks: verify / staging-parity / predeploy-e2e = PASS
 Supersedes: ARCH-P2-01
 Deletion policy: DEAD 直接删除；不建立 scripts/archive
@@ -2204,7 +2206,7 @@ SAFETY_SWITCHES_CHANGED = false
 STAGING = NOT_APPLICABLE
 ```
 
-- [ ] PR 经外部审核并合并。
+- [x] PR 经外部审核并合并。
 
 ---
 
@@ -2269,6 +2271,14 @@ allowlist 固化违规边，并必须阻止新增分层反向依赖或循环。
 ---
 
 ## ARCH-P1-04A：评估持久化——写侧管线
+
+```text
+Status: IN_PROGRESS
+Branch: codex/arch-p1-04a-write-side-projection
+Base SHA: 1e252d73d8c9658e6ba60093ed8006dde656db10
+Started at: 2026-07-24T04:07:09Z
+Owner: Codex
+```
 
 **独立 PR。本任务不切换任何读路径。**
 
