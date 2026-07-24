@@ -283,6 +283,14 @@ key = deterministic_task_key(
     now=NOW,
     interval_seconds=900,
 )
+
+
+def materialize_predeploy_events(events: list[Any]) -> list[str]:
+    event_types = {str(event.event_type) for event in events}
+    assert event_types == {"FIXTURE_CHANGED", "LINEUP_CHANGED", "ODDS_CHANGED"}
+    return list(dict.fromkeys(str(event.fixture_id) for event in events))
+
+
 audit = run_future_refresh_task(
     task_id=f"{key}:predeploy-e2e",
     key=key,
@@ -292,6 +300,7 @@ audit = run_future_refresh_task(
     client=fake,
     now=NOW,
     persistence="db",
+    materialize_public_artifacts=materialize_predeploy_events,
 )
 
 assert audit.status == "COMPLETED", audit
@@ -318,15 +327,34 @@ from __future__ import annotations
 import sys
 from datetime import UTC, datetime
 
+from w2.api.repository import ReadModelRepository, ReadModelService
+from w2.infrastructure.database import create_engine
 from w2.prematch.read_model_projection import (
     AnalysisCardCanaryMaterializer,
+    ScopedAnalysisRepository,
     write_frozen_analysis_artifacts,
 )
-from w2.api.repository import ReadModelRepository
-from w2.infrastructure.database import create_engine
 
 fixture_id = sys.argv[1]
-artifact = AnalysisCardCanaryMaterializer(ReadModelRepository()).build(
+repository = ReadModelRepository()
+
+
+def calculate(
+    scoped_repository: ScopedAnalysisRepository,
+    target_fixture_id: str,
+    evaluated_at: datetime,
+) -> dict[str, object] | None:
+    return ReadModelService(repository=scoped_repository).public_analysis_card_bounded(
+        target_fixture_id,
+        evaluation_time=evaluated_at,
+        use_frozen_canary=False,
+    )
+
+
+artifact = AnalysisCardCanaryMaterializer(
+    repository,
+    calculate_analysis_card=calculate,
+).build(
     fixture_id,
     evaluated_at=datetime(2026, 6, 25, 12, 0, tzinfo=UTC),
 )
