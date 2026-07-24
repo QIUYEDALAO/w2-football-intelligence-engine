@@ -1,0 +1,45 @@
+name: ARCH-GOVERNANCE-01 bootstrap
+
+on:
+  push:
+    branches:
+      - codex/arch-governance-01-dual-gates
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Mark A1 in progress
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md")
+          text = path.read_text(encoding="utf-8")
+          old = """Status: NOT_STARTED
+Queue: QUEUED_NEXT
+Required checks: PRE_MERGE_READINESS_GATE + POST_MERGE_CHECKLIST_CONSISTENCY_GATE"""
+          new = """Status: IN_PROGRESS
+Branch: codex/arch-governance-01-dual-gates
+PR: PENDING
+Base SHA: c6e60ccabc2031fafd871d1444d4cb051b0b6bbf
+Started at: 2026-07-24T16:01:33Z
+Owner: Codex
+Required checks: PRE_MERGE_READINESS_GATE + POST_MERGE_CHECKLIST_CONSISTENCY_GATE"""
+          if old not in text:
+              raise SystemExit("A1_NOT_STARTED_BLOCK_NOT_FOUND")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+      - name: Commit bootstrap and remove temporary workflow
+        run: |
+          rm .github/workflows/arch-governance-01-bootstrap.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "docs: start ARCH-GOVERNANCE-01"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
