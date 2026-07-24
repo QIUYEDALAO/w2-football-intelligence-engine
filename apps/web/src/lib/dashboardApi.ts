@@ -1194,7 +1194,6 @@ function normalizeCounts(payload: unknown): DashboardDayViewCounts {
     total: numberValue(record.total),
     lock_eligible: numberValue(record.lock_eligible),
     outcome_tracked: numberValue(record.outcome_tracked),
-    legacy_fallback: numberValue(record.legacy_fallback),
     analysis_pick: numberValue(record.analysis_pick),
     recommend: numberValue(record.recommend),
     watch: numberValue(record.watch),

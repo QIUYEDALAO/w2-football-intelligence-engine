@@ -51,6 +51,14 @@ class RecordingDashboardService:
                     "outcome_tracked": False,
                     "lock_eligible": False,
                     "reason_code": "LINEUPS_PENDING",
+                    "decision_contract": {
+                        "decision_tier": "NOT_READY",
+                        "data_status": "BLOCKED",
+                        "lifecycle_status": "DRAFT",
+                        "outcome_tracked": False,
+                        "lock_eligible": False,
+                        "reason_code": "LINEUPS_PENDING",
+                    },
                     "non_pick": {
                         "reason_code": "LINEUPS_PENDING",
                         "reason_human": "首发未出",
@@ -99,3 +107,29 @@ def test_dashboard_day_view_endpoint_reads_requested_window(
     assert payload["provider_calls"] == 0
     assert payload["db_writes"] == 0
     assert payload["would_write_checkpoint"] is False
+
+
+def test_dashboard_day_view_endpoint_missing_contract_is_system_degraded(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    service = RecordingDashboardService()
+    original_dashboard = service.dashboard
+
+    def dashboard_without_contract(**kwargs: Any) -> dict[str, Any]:
+        payload = original_dashboard(**kwargs)
+        payload["all"][0].pop("decision_contract")
+        return payload
+
+    monkeypatch.setattr(service, "public_dashboard", dashboard_without_contract)
+    monkeypatch.setattr(routers, "service", service)
+    client = TestClient(app, raise_server_exceptions=False)
+
+    response = client.get(
+        "/v1/dashboard/day-view?date=2026-07-05&window=future&timezone=UTC"
+    )
+
+    assert response.status_code == 503
+    assert response.json()["code"] == "SYSTEM_DEGRADED"
+    assert response.json()["message"] == (
+        "DAY_VIEW_DECISION_CONTRACT_MISSING:fixture-1"
+    )

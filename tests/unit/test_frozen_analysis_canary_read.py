@@ -387,6 +387,7 @@ def test_fixture_dashboard_and_day_view_share_frozen_authority(
     )
     analysis = service.public_analysis_card_bounded("1576804")
     detail = service.fixture("1576804", "UTC")
+    assert analysis is not None
     dashboard_card = service._dashboard_card_from_matchday(
         {
             "fixture_id": "1576804",
@@ -406,18 +407,19 @@ def test_fixture_dashboard_and_day_view_share_frozen_authority(
             "timezone": "Asia/Shanghai",
             "window": "today",
             "version": {},
-            "all": [dashboard_card],
+            "all": [analysis],
         },
         environment="staging",
     )
 
-    assert analysis is not None
     assert detail is not None
     expected_hash = artifact.artifact_hash
     assert analysis["frozen_artifact_provenance"]["artifact_hash"] == expected_hash
     assert detail["analysis_card"]["frozen_artifact_provenance"]["artifact_hash"] == (expected_hash)
     assert dashboard_card["artifact_hash"] == expected_hash
-    assert day_view["cards"][0]["artifact_hash"] == expected_hash
+    assert day_view["cards"][0]["frozen_artifact_provenance"]["artifact_hash"] == (
+        expected_hash
+    )
     for card in (analysis, detail["analysis_card"], dashboard_card, day_view["cards"][0]):
         assert card["decision_tier"] == "NOT_READY"
         assert card["pick"] is None

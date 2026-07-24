@@ -11,7 +11,17 @@ from w2.domain.enums import DataStatus, DecisionTier, LifecycleStatus
 from w2.domain.environment_policy import build_environment_policy_stamp
 
 CARD_SOURCE_CONTRACT = "decision_contract"
-CARD_SOURCE_LEGACY = "legacy_fallback"
+REQUIRED_DECISION_CONTRACT_FIELDS = (
+    "decision_tier",
+    "data_status",
+    "lifecycle_status",
+)
+
+
+class DayViewContractError(RuntimeError):
+    """The persisted projection is missing a valid DayView decision contract."""
+
+    code = "SYSTEM_DEGRADED"
 
 
 def build_dashboard_day_view(
@@ -93,10 +103,41 @@ def _is_prematch_card(card: Mapping[str, Any], *, as_of: datetime) -> bool:
 
 
 def _day_view_card(card: Mapping[str, Any]) -> dict[str, Any]:
-    contract = _mapping(card.get("decision_contract"))
-    if _has_contract_fields(card, contract):
-        return _contract_card(card, contract)
-    return _legacy_card(card)
+    contract = _required_decision_contract(card)
+    return _contract_card(card, contract)
+
+
+def _required_decision_contract(card: Mapping[str, Any]) -> Mapping[str, Any]:
+    raw = card.get("decision_contract")
+    fixture_id = _text(card.get("fixture_id"), "UNKNOWN")
+    if not isinstance(raw, Mapping):
+        raise DayViewContractError(
+            f"DAY_VIEW_DECISION_CONTRACT_MISSING:{fixture_id}"
+        )
+    missing = [
+        field
+        for field in REQUIRED_DECISION_CONTRACT_FIELDS
+        if not _optional_text(raw.get(field))
+    ]
+    if missing:
+        raise DayViewContractError(
+            f"DAY_VIEW_DECISION_CONTRACT_INCOMPLETE:{fixture_id}:{','.join(missing)}"
+        )
+    if not _is_decision_tier(str(raw["decision_tier"])):
+        raise DayViewContractError(
+            f"DAY_VIEW_DECISION_CONTRACT_INVALID:{fixture_id}:decision_tier"
+        )
+    if str(raw["data_status"]) not in {status.value for status in DataStatus}:
+        raise DayViewContractError(
+            f"DAY_VIEW_DECISION_CONTRACT_INVALID:{fixture_id}:data_status"
+        )
+    if str(raw["lifecycle_status"]) not in {
+        status.value for status in LifecycleStatus
+    }:
+        raise DayViewContractError(
+            f"DAY_VIEW_DECISION_CONTRACT_INVALID:{fixture_id}:lifecycle_status"
+        )
+    return raw
 
 
 def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict[str, Any]:
@@ -169,49 +210,6 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
     }
 
 
-def _legacy_card(card: Mapping[str, Any]) -> dict[str, Any]:
-    data_status = _text(card.get("data_status"), DataStatus.PARTIAL.value)
-    decision_tier = (
-        DecisionTier.WATCH.value
-        if data_status in {DataStatus.PARTIAL.value, DataStatus.STALE.value}
-        else DecisionTier.NOT_READY.value
-    )
-    return {
-        **_fixture_fields(card),
-        "source": CARD_SOURCE_LEGACY,
-        "decision_tier": decision_tier,
-        "data_status": data_status,
-        "lifecycle_status": _text(card.get("lifecycle_status"), LifecycleStatus.DRAFT.value),
-        "outcome_tracked": False,
-        "lock_eligible": False,
-        "recommendation_id": None,
-        "reason_code": _optional_text(card.get("reason_code")),
-        "action": _optional_text(card.get("action")),
-        "next_eval_at": _format_time(card.get("next_eval_at")),
-        "provider_budget_status": _optional_text(card.get("provider_budget_status")),
-        "probability_source": _optional_text(card.get("probability_source")),
-        "model_market_divergence": _mapping_copy(card.get("model_market_divergence")),
-        "missing_fields": _string_list(card.get("missing_fields")),
-        "stale_fields": _string_list(card.get("stale_fields")),
-        "data_readiness": _mapping_copy(card.get("data_readiness")),
-        **_market_context_fields(card),
-        "pick": None,
-        "secondary_picks": [],
-        "market_selection_audit": [],
-        "lineup_provenance": {},
-        "dynamic_prematch": _mapping_copy(card.get("dynamic_prematch")),
-        "non_pick": _mapping_copy(card.get("non_pick"))
-        if isinstance(card.get("non_pick"), Mapping)
-        else None,
-        "one_liner": _optional_text(card.get("one_liner")),
-        "card_hash": _optional_text(card.get("card_hash")),
-        "quote_identity_audit": _mapping_copy(card.get("quote_identity_audit")),
-        "frozen_artifact_provenance": _mapping_copy(card.get("frozen_artifact_provenance")),
-        "artifact_hash": _optional_text(card.get("artifact_hash")),
-        "recommendation_decision_v3": _mapping_copy(card.get("recommendation_decision_v3")),
-    }
-
-
 def _fixture_fields(card: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "fixture_id": _text(card.get("fixture_id")),
@@ -267,8 +265,6 @@ def _counts(cards: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     by_lifecycle_status = {status.value: 0 for status in LifecycleStatus}
     lock_eligible = 0
     outcome_tracked = 0
-    legacy_fallback = 0
-
     for card in cards:
         decision_tier = _optional_text(card.get("decision_tier"))
         data_status = _optional_text(card.get("data_status"))
@@ -283,14 +279,11 @@ def _counts(cards: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             lock_eligible += 1
         if card.get("outcome_tracked") is True:
             outcome_tracked += 1
-        if card.get("source") == CARD_SOURCE_LEGACY:
-            legacy_fallback += 1
 
     return {
         "total": len(cards),
         "lock_eligible": lock_eligible,
         "outcome_tracked": outcome_tracked,
-        "legacy_fallback": legacy_fallback,
         "analysis_pick": by_decision_tier[DecisionTier.ANALYSIS_PICK.value],
         "recommend": by_decision_tier[DecisionTier.RECOMMEND.value],
         "watch": by_decision_tier[DecisionTier.WATCH.value],
@@ -372,18 +365,6 @@ def _provider_budget_status(
     if statuses:
         return statuses[0]
     return "UNKNOWN"
-
-
-def _has_contract_fields(card: Mapping[str, Any], contract: Mapping[str, Any]) -> bool:
-    return any(
-        value is not None
-        for value in (
-            card.get("decision_tier"),
-            card.get("data_status"),
-            contract.get("decision_tier"),
-            contract.get("data_status"),
-        )
-    )
 
 
 def _field(card: Mapping[str, Any], contract: Mapping[str, Any], key: str) -> Any:

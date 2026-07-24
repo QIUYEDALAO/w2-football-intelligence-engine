@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import pytest
+
 from w2.dashboard import day_view
-from w2.dashboard.day_view import build_dashboard_day_view
+from w2.dashboard.day_view import DayViewContractError, build_dashboard_day_view
 
 
-def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None:
+def test_day_view_projects_valid_decision_contract_card() -> None:
     payload = {
         "generated_at": datetime(2026, 7, 5, 1, 2, tzinfo=UTC),
         "page_updated_at": datetime(2026, 7, 5, 1, 2, tzinfo=UTC),
@@ -103,13 +105,8 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
                 "decision_contract": {
                     "decision_tier": "WATCH",
                     "data_status": "BLOCKED",
+                    "lifecycle_status": "DRAFT",
                 },
-            },
-            {
-                "fixture_id": "fixture-2",
-                "kickoff_utc": "2026-07-05T12:00:00Z",
-                "formal_recommendation": True,
-                "recommendation_id": "legacy-rec",
             },
         ],
     }
@@ -125,21 +122,20 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert view["environment_policy"]["policy_version"] == "w2.environment_policy.v1"
     assert view["environment_policy"]["lock_policy"]["name"] == "staging_B"
     assert view["environment_policy"]["lock_policy"]["production_action_allowed"] is False
-    assert view["counts"]["total"] == 2
+    assert view["counts"]["total"] == 1
     assert view["counts"]["analysis_pick"] == 0
     assert view["counts"]["recommend"] == 0
-    assert view["counts"]["watch"] == 2
+    assert view["counts"]["watch"] == 1
     assert view["counts"]["not_ready"] == 0
     assert view["counts"]["skip"] == 0
     assert view["counts"]["ready"] == 0
-    assert view["counts"]["partial"] == 1
+    assert view["counts"]["partial"] == 0
     assert view["counts"]["stale"] == 0
     assert view["counts"]["blocked"] == 1
     assert view["counts"]["by_decision_tier"]["ANALYSIS_PICK"] == 0
-    assert view["counts"]["by_decision_tier"]["WATCH"] == 2
+    assert view["counts"]["by_decision_tier"]["WATCH"] == 1
     assert view["counts"]["by_data_status"]["READY"] == 0
     assert view["counts"]["by_data_status"]["BLOCKED"] == 1
-    assert view["counts"]["legacy_fallback"] == 1
     assert view["freshness"]["provider_budget_status"] == "OK"
     assert view["freshness"]["page_updated_at"] == "2026-07-05T01:02:00Z"
     assert view["freshness"]["odds_last_confirmed_at"] == "2026-07-05T01:00:00Z"
@@ -157,7 +153,7 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert view["navigation"]["warning"] == (
         "未发现 day_view checkpoint，使用只读 read-model fallback"
     )
-    assert view["degradation"]["state"] == "NO_LOCK_ELIGIBLE"
+    assert view["degradation"]["state"] == "BLOCKED_DAY"
     assert view["degradation"]["source"] == "w2.dashboard.degradation.v1"
 
     contract_card = view["cards"][0]
@@ -178,12 +174,29 @@ def test_day_view_projects_decision_contract_cards_and_legacy_fallback() -> None
     assert contract_card["model_market_divergence"]["magnitude"] == 0.12
     assert contract_card["pick"] is None
 
-    legacy_card = view["cards"][1]
-    assert legacy_card["source"] == "legacy_fallback"
-    assert legacy_card["decision_tier"] == "WATCH"
-    assert legacy_card["lock_eligible"] is False
-    assert legacy_card["outcome_tracked"] is False
-    assert legacy_card["recommendation_id"] is None
+
+
+def test_day_view_missing_decision_contract_fails_closed() -> None:
+    payload = {
+        "generated_at": "2026-07-05T00:00:00Z",
+        "date": "2026-07-05",
+        "selected_football_day": "2026-07-05",
+        "all": [
+            {
+                "fixture_id": "fixture-without-contract",
+                "kickoff_utc": "2026-07-05T10:00:00Z",
+                "decision_tier": "WATCH",
+                "data_status": "PARTIAL",
+                "lifecycle_status": "DRAFT",
+            }
+        ],
+    }
+
+    with pytest.raises(
+        DayViewContractError,
+        match="DAY_VIEW_DECISION_CONTRACT_MISSING:fixture-without-contract",
+    ):
+        build_dashboard_day_view(payload, environment="staging")
 
 
 def test_day_view_counts_are_aggregated_from_cards_only() -> None:
@@ -205,6 +218,13 @@ def test_day_view_counts_are_aggregated_from_cards_only() -> None:
                 "lifecycle_status": "DRAFT",
                 "outcome_tracked": False,
                 "lock_eligible": False,
+                "decision_contract": {
+                    "decision_tier": "WATCH",
+                    "data_status": "PARTIAL",
+                    "lifecycle_status": "DRAFT",
+                    "outcome_tracked": False,
+                    "lock_eligible": False,
+                },
                 "non_pick": {
                     "reason_code": "LINEUPS_PENDING",
                     "reason_human": "首发未出",
@@ -257,6 +277,11 @@ def test_day_view_excludes_started_or_finished_matches_from_l1() -> None:
                 "decision_tier": "WATCH",
                 "data_status": "PARTIAL",
                 "lifecycle_status": "DRAFT",
+                "decision_contract": {
+                    "decision_tier": "WATCH",
+                    "data_status": "PARTIAL",
+                    "lifecycle_status": "DRAFT",
+                },
                 "non_pick": {
                     "reason_code": "LINEUPS_PENDING",
                     "reason_human": "首发未出",
@@ -303,6 +328,12 @@ def test_day_view_degradation_reflects_refreshing_payload() -> None:
                     "data_status": "READY",
                     "lifecycle_status": "DRAFT",
                     "lock_eligible": True,
+                    "decision_contract": {
+                        "decision_tier": "ANALYSIS_PICK",
+                        "data_status": "READY",
+                        "lifecycle_status": "DRAFT",
+                        "lock_eligible": True,
+                    },
                 }
             ],
         },

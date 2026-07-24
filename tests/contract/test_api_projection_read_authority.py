@@ -9,6 +9,11 @@ from w2.api.repository import ReadModelService, SystemDegradedError
 
 API_ROOTS = (Path("src/w2/api"), Path("apps/api"))
 FULL_EXECUTION_SURFACE = (*API_ROOTS, Path("scripts"), Path("infra"))
+PRODUCTION_DAY_VIEW_SURFACE = (
+    *API_ROOTS,
+    Path("src/w2/dashboard"),
+    Path("apps/web/src"),
+)
 FORBIDDEN_API_PACKAGES = {
     "w2.ingestion",
     "w2.features",
@@ -26,6 +31,11 @@ FORBIDDEN_PRODUCTION_FALLBACKS = {
 NON_PRODUCTION_FALLBACK_READERS = {
     Path("scripts/run_stage7i_observer.py"),
     Path("scripts/seed_staging_dashboard.py"),
+}
+FORBIDDEN_DAY_VIEW_FALLBACK_IDENTITIES = {
+    "legacy_fallback",
+    "CARD_SOURCE_LEGACY",
+    "_legacy_card",
 }
 
 
@@ -71,6 +81,20 @@ def test_full_execution_surface_has_no_removed_production_fallback_identity() ->
         if path.is_file() and path.suffix in {".py", ".sh", ".yml", ".yaml"}
         and path not in NON_PRODUCTION_FALLBACK_READERS
         for identity in FORBIDDEN_PRODUCTION_FALLBACKS
+        if identity in path.read_text(encoding="utf-8", errors="ignore")
+    )
+    assert violations == []
+
+
+def test_production_day_view_has_no_legacy_fallback_identity() -> None:
+    assert Path("src/w2/dashboard") in PRODUCTION_DAY_VIEW_SURFACE
+    assert Path("apps/web/src") in PRODUCTION_DAY_VIEW_SURFACE
+    violations = sorted(
+        f"{path}:{identity}"
+        for root in PRODUCTION_DAY_VIEW_SURFACE
+        for path in root.rglob("*")
+        if path.is_file() and path.suffix in {".py", ".ts", ".tsx", ".js", ".mjs"}
+        for identity in FORBIDDEN_DAY_VIEW_FALLBACK_IDENTITIES
         if identity in path.read_text(encoding="utf-8", errors="ignore")
     )
     assert violations == []

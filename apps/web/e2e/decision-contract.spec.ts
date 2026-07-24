@@ -60,7 +60,6 @@ function dayView(scenario: Scenario) {
       total: 1,
       lock_eligible: 0,
       outcome_tracked: 0,
-      legacy_fallback: 0,
       analysis_pick: ready ? 1 : 0,
       recommend: 0,
       watch: scenario === "STALE" ? 1 : 0,

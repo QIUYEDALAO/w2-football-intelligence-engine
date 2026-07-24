@@ -865,7 +865,6 @@ export interface DashboardDayViewCounts {
   total: number;
   lock_eligible: number;
   outcome_tracked: number;
-  legacy_fallback: number;
   analysis_pick: number;
   recommend: number;
   watch: number;
