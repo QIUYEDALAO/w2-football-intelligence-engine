@@ -27,7 +27,7 @@ repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
   main_sha: 35fcac0d99573556c5e9f7a41822e153783efa73
   main_migration_head: 0041_converge_odds_history_and_projection
-  pull_request: GITHUB_CLOSURE_PR
+  pull_request: 394
   pull_request_mode: DRAFT
   pull_request_head_branch: codex/arch-governance-01-closure
   task_baseline_sha: 35fcac0d99573556c5e9f7a41822e153783efa73
@@ -93,7 +93,7 @@ architecture_convergence:
     branch: codex/arch-governance-01-closure
     pull_request: 393
     merge_sha: 35fcac0d99573556c5e9f7a41822e153783efa73
-    closure_pull_request: GITHUB_CLOSURE_PR
+    closure_pull_request: 394
     closure_exact_head: GITHUB_PR_EXACT_HEAD
     protocol_read: GITHUB_SECONDARY_REVIEW_PROTOCOL_V1
     task_scope_contract_read: TASK_SCOPE_AND_REVIEW_BOUNDARY_V1
@@ -205,7 +205,7 @@ architecture_convergence:
       closure:
         implementation_pr: 393
         implementation_merge_sha: 35fcac0d99573556c5e9f7a41822e153783efa73
-        closure_pr: GITHUB_CLOSURE_PR
+        closure_pr: 394
         closure_exact_head: GITHUB_PR_EXACT_HEAD
         path: SEPARATE_CLOSURE_PR_AFTER_IMPLEMENTATION_MERGE
         requires_full_merge_sha: true

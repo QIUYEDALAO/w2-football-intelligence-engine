@@ -101,7 +101,7 @@ Status: DONE
 Branch: codex/arch-governance-01-closure
 PR: #393
 Merge SHA: 35fcac0d99573556c5e9f7a41822e153783efa73
-Closure PR: GITHUB_CLOSURE_PR
+Closure PR: #394
 Closure exact head: GITHUB_PR_EXACT_HEAD
 Base SHA: 91c7921574fcca249a9f1a9cf29c8c782e774930
 Started at: 2026-07-24T17:12:33Z
