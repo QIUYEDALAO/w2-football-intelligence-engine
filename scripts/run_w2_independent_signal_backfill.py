@@ -5,11 +5,11 @@ import json
 from pathlib import Path
 from typing import Any
 
-from w2.api.repository import ReadModelRepository
 from w2.ingestion.independent_signal_backfill import (
     IndependentSignalBackfillConfig,
     IndependentSignalBackfillService,
 )
+from w2.prematch.analysis_calculator import ReadModelRepository
 
 
 def parse_args() -> argparse.Namespace:

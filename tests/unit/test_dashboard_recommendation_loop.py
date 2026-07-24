@@ -5,8 +5,8 @@ import re
 from pathlib import Path
 from typing import Any, cast
 
-from w2.api.repository import ReadModelService
 from w2.api.schemas import DashboardResponse
+from w2.prematch.analysis_calculator import ReadModelService
 from w2.strategy.formal_recommendation import ah_display_contract
 from w2.strategy.simulate import SimulationInputs, run_simulation
 

@@ -21,7 +21,6 @@ _SAFE_DEBUG_KEYS = (
     "environment",
     "environment_policy_source",
     "lock_policy_name",
-    "legacy_fallback",
     "legacy_formal",
     "readiness_source",
     "staging_only",

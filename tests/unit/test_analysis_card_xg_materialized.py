@@ -6,8 +6,8 @@ from typing import Any, cast
 
 import pytest
 
-from w2.api import repository as api_repository
-from w2.api.repository import ReadModelService
+from w2.prematch import analysis_calculator as api_repository
+from w2.prematch.analysis_calculator import ReadModelService
 
 NOW = datetime(2026, 6, 25, 12, 0, tzinfo=UTC)
 KICKOFF = NOW + timedelta(days=1)

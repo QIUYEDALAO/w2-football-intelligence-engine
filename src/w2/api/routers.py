@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from w2.api.cache import read_cache
-from w2.api.repository import ReadModelService
+from w2.api.repository import ReadModelService, SystemDegradedError
 from w2.api.schemas import (
     AnalysisCardResponse,
     BacktestLatestResponse,
@@ -47,6 +47,7 @@ from w2.api.schemas import (
 )
 from w2.config import Environment, get_settings
 from w2.dashboard.day_view import build_dashboard_day_view
+from w2.domain.decision_contract import DecisionContractViolation
 from w2.monitoring.health import HealthPayload, build_health_payload
 from w2.monitoring.readiness import ReadinessPayload, build_readiness_payload
 
@@ -91,7 +92,11 @@ def public_ready(response: Response) -> ReadinessPayload:
 
 async def error_handler(request: Request, exc: Exception) -> JSONResponse:
     rid = request_id(request)
-    if isinstance(exc, HTTPException):
+    if isinstance(exc, SystemDegradedError | DecisionContractViolation):
+        status_code = 503
+        code = exc.code
+        message = str(exc)
+    elif isinstance(exc, HTTPException):
         status_code = exc.status_code
         code = "HTTP_ERROR"
         message = str(exc.detail)

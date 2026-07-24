@@ -176,7 +176,10 @@ def build_snapshot(root: Path) -> Path:
     return snapshot
 
 
-def test_projector_validates_and_writes_idempotent_read_model(tmp_path: Path, monkeypatch) -> None:
+def test_legacy_snapshot_projection_is_not_a_production_read_fallback(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
     root = tmp_path / "snapshots"
     build_snapshot(root)
     projection = MatchdaySnapshotProjector(root).project_latest("1489399")
@@ -192,16 +195,13 @@ def test_projector_validates_and_writes_idempotent_read_model(tmp_path: Path, mo
     write_projection(engine, projection)
     client = TestClient(app)
     fixtures = client.get("/v1/fixtures").json()["items"]
-    assert len(fixtures) == 1
-    assert fixtures[0]["fixture_id"] == "1489399"
-    detail = client.get("/v1/fixtures/1489399").json()
-    assert detail["bookmaker_count"] == 3
-    market = client.get("/v1/fixtures/1489399/market-probabilities").json()
-    model = client.get("/v1/fixtures/1489399/model-probabilities").json()
-    assert market["probability_type"] == "market_fair_probability"
-    assert model["probability_type"] == "independent_model_probability"
-    assert market["probabilities"] == {}
-    assert market["quality"] == "MARKET_NOT_COMPARABLE"
+    assert fixtures == []
+    response = client.get("/v1/fixtures/1489399/analysis-card")
+    assert response.status_code == 200
+    card = response.json()["card"]
+    assert card["fixture_id"] == "1489399"
+    assert card["recommendation_decision_v3"]["outcome"] == "SYSTEM_DEGRADED"
+    assert card["reason_code"] == "ANALYSIS_PROJECTION_NOT_READY"
     get_settings.cache_clear()
 
 

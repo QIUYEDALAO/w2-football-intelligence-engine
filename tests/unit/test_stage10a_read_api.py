@@ -5,11 +5,19 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import pytest
 from apps.api.main import app
 from fastapi.testclient import TestClient
 
-import w2.api.repository as repository
+import w2.prematch.analysis_calculator as repository
+from w2.api import routers
 from w2.config import get_settings
+
+
+@pytest.fixture(autouse=True)
+def legacy_stage10a_service(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep Stage10A's historical calculator checks outside production API wiring."""
+    monkeypatch.setattr(routers, "service", repository.ReadModelService())
 
 
 class FakeFutureRefreshRepository:

@@ -327,16 +327,16 @@ from __future__ import annotations
 import sys
 from datetime import UTC, datetime
 
-from w2.api.repository import ReadModelRepository, ReadModelService
-from w2.infrastructure.database import create_engine
+from w2.prematch.analysis_calculator import ReadModelRepository, ReadModelService
 from w2.prematch.read_model_projection import (
-    AnalysisCardCanaryMaterializer,
+    ProjectionSourceEvent,
     ScopedAnalysisRepository,
-    write_frozen_analysis_artifacts,
+    materialize_projection_events,
 )
 
 fixture_id = sys.argv[1]
 repository = ReadModelRepository()
+evaluated_at = datetime(2026, 6, 25, 12, 0, tzinfo=UTC)
 
 
 def calculate(
@@ -351,15 +351,20 @@ def calculate(
     )
 
 
-artifact = AnalysisCardCanaryMaterializer(
-    repository,
-    calculate_analysis_card=calculate,
-).build(
-    fixture_id,
-    evaluated_at=datetime(2026, 6, 25, 12, 0, tzinfo=UTC),
+event = ProjectionSourceEvent.create(
+    fixture_id=fixture_id,
+    event_type="ODDS_CHANGED",
+    event_id=f"predeploy-e2e:{fixture_id}",
+    event_at=evaluated_at,
+    payload={"fixture_id": fixture_id, "source": "predeploy-e2e"},
 )
-write_frozen_analysis_artifacts(create_engine(), [artifact])
-print(f"predeploy_e2e frozen artifact PASS {artifact.artifact_hash}")
+materialized = materialize_projection_events(
+    [event],
+    repository=repository,
+    calculate_analysis_card=calculate,
+)
+assert materialized == [fixture_id], materialized
+print(f"predeploy_e2e shadow projection PASS {fixture_id}")
 PY
 
 python3 - <<PY
@@ -393,9 +398,12 @@ assert "稳赢" not in text.replace("非稳赢", ""), text
 
 card = payload["card"]
 assert card["fixture_id"] == fixture_id
-assert card["frozen_artifact_provenance"]["status"] == "VERIFIED"
-assert card["frozen_artifact_provenance"]["fixture_identity"]["fixture_id"] == fixture_id
-assert card["frozen_artifact_provenance"]["artifact_hash"]
+projection = card["read_model_projection"]
+assert projection["checkpoint_key"] == f"analysis-card:shadow:v1:{fixture_id}"
+assert projection["projection_version"] == "w2.prematch-read-model-projection.v1"
+assert projection["source_event_type"] == "ODDS_CHANGED"
+assert projection["projection_hash"]
+assert projection["artifact_hash"]
 assert card["candidate"] is False
 assert card["formal_recommendation"] is False
 assert card["lineup_provenance"]["coverage_grade"] == "C"

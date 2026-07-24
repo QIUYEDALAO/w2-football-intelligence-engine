@@ -9,11 +9,11 @@ from typing import Any, cast
 from scripts.check_team_values_mapping import load_mapping, load_team_ids, validate_mapping
 from scripts.export_w2_world_cup_team_ids import collect_team_ids, write_csv
 
-from w2.api import repository as api_repository
-from w2.api.repository import ReadModelService
 from w2.competitions.registry import CoverageProfile
 from w2.features.framework import FeatureContext
 from w2.features.team_factors import squad_value_factor
+from w2.prematch import analysis_calculator as api_repository
+from w2.prematch.analysis_calculator import ReadModelService
 
 AS_OF = datetime(2026, 6, 27, tzinfo=UTC)
 

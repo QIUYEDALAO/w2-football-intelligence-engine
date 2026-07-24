@@ -5,7 +5,6 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
 
-from w2.api.repository import ReadModelRepository
 from w2.ingestion.market_timeline import (
     DEFAULT_TIMELINE_DIR,
     due_checkpoints,
@@ -14,6 +13,7 @@ from w2.ingestion.market_timeline import (
     write_timeline_snapshot,
 )
 from w2.ingestion.quota_budget import independent_signal_quota_decision
+from w2.prematch.analysis_calculator import ReadModelRepository
 
 
 class MarketTimelineRepository(Protocol):

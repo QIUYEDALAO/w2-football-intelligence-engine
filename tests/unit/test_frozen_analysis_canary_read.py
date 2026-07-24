@@ -9,9 +9,9 @@ from apps.api.main import app
 from fastapi.testclient import TestClient
 
 from w2.api import routers
-from w2.api.repository import ReadModelService
 from w2.dashboard.day_view import build_dashboard_day_view
 from w2.domain.recommendation_decision_v3 import validate_decision_v3_identity
+from w2.prematch.analysis_calculator import ReadModelService
 from w2.prematch.read_model_projection import (
     ANALYSIS_CARD_CANARY_SCHEMA,
     FrozenAnalysisArtifact,
@@ -60,6 +60,12 @@ def _artifact(
             "lock_eligible": False,
             "recommendation_id": None,
             "pick": None,
+            "non_pick": {
+                "reason_code": "MARKET_INCOMPLETE",
+                "reason_human": "市场证据不完整",
+                "action": "等待完整市场证据",
+                "next_eval_at": None,
+            },
             "reason_code": "MARKET_INCOMPLETE",
         },
         "bookmaker_intent": (
@@ -222,7 +228,9 @@ def test_frozen_ah_pick_with_opposite_side_line_fails_closed() -> None:
         {
             "decision_tier": "ANALYSIS_PICK",
             "data_status": "READY",
+            "outcome_tracked": True,
             "pick": dict(card["pick"]),
+            "non_pick": None,
         }
     )
 
@@ -382,11 +390,12 @@ def test_fixture_dashboard_and_day_view_share_frozen_authority(
     repository = PublicRepository(artifact)
     service = ReadModelService(repository=cast(Any, repository))
     monkeypatch.setattr(
-        "w2.api.repository.build_decision_contract_fields",
+        "w2.prematch.analysis_calculator.build_decision_contract_fields",
         lambda **_kwargs: pytest.fail("verified frozen Decision Contract was re-derived"),
     )
     analysis = service.public_analysis_card_bounded("1576804")
     detail = service.fixture("1576804", "UTC")
+    assert analysis is not None
     dashboard_card = service._dashboard_card_from_matchday(
         {
             "fixture_id": "1576804",
@@ -406,18 +415,19 @@ def test_fixture_dashboard_and_day_view_share_frozen_authority(
             "timezone": "Asia/Shanghai",
             "window": "today",
             "version": {},
-            "all": [dashboard_card],
+            "all": [analysis],
         },
         environment="staging",
     )
 
-    assert analysis is not None
     assert detail is not None
     expected_hash = artifact.artifact_hash
     assert analysis["frozen_artifact_provenance"]["artifact_hash"] == expected_hash
     assert detail["analysis_card"]["frozen_artifact_provenance"]["artifact_hash"] == (expected_hash)
     assert dashboard_card["artifact_hash"] == expected_hash
-    assert day_view["cards"][0]["artifact_hash"] == expected_hash
+    assert day_view["cards"][0]["frozen_artifact_provenance"]["artifact_hash"] == (
+        expected_hash
+    )
     for card in (analysis, detail["analysis_card"], dashboard_card, day_view["cards"][0]):
         assert card["decision_tier"] == "NOT_READY"
         assert card["pick"] is None

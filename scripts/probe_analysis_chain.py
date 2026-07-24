@@ -15,9 +15,9 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from w2.api.repository import ReadModelService  # noqa: E402
 from w2.domain.recommendation_decision_v3 import validate_decision_v3_identity  # noqa: E402
 from w2.infrastructure.database import create_engine  # noqa: E402
+from w2.prematch.analysis_calculator import ReadModelService  # noqa: E402
 
 AUDIT_TABLES = (
     "provider_request_logs",

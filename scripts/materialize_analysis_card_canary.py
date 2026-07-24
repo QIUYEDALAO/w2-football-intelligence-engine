@@ -5,8 +5,8 @@ import json
 from datetime import datetime
 from typing import cast
 
-from w2.api.repository import ReadModelRepository, ReadModelService
 from w2.infrastructure.database import create_engine
+from w2.prematch.analysis_calculator import ReadModelRepository, ReadModelService
 from w2.prematch.read_model_projection import (
     MAX_PUBLIC_FIXTURES,
     AnalysisCardCanaryMaterializer,

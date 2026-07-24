@@ -32,8 +32,8 @@ celery_app.conf.update(task_always_eager=False, task_ignore_result=False)
 def _materialize_shadow_projection_events(
     events: list[ProjectionSourceEvent],
 ) -> list[str]:
-    """Composition-root adapter for the unchanged 04B read-time calculation."""
-    from w2.api.repository import ReadModelRepository, ReadModelService
+    """Composition-root adapter for write-side projection calculation."""
+    from w2.prematch.analysis_calculator import ReadModelRepository, ReadModelService
     from w2.prematch.read_model_projection import (
         ScopedAnalysisRepository,
         materialize_projection_events,

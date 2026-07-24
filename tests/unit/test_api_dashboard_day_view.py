@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
 from apps.api.main import app
 from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
@@ -51,6 +52,26 @@ class RecordingDashboardService:
                     "outcome_tracked": False,
                     "lock_eligible": False,
                     "reason_code": "LINEUPS_PENDING",
+                    "action": "等官方首发",
+                    "next_eval_at": None,
+                    "decision_contract": {
+                        "decision_tier": "NOT_READY",
+                        "data_status": "BLOCKED",
+                        "lifecycle_status": "DRAFT",
+                        "outcome_tracked": False,
+                        "lock_eligible": False,
+                        "recommendation_id": None,
+                        "pick": None,
+                        "non_pick": {
+                            "reason_code": "LINEUPS_PENDING",
+                            "reason_human": "首发未出",
+                            "action": "等官方首发",
+                            "next_eval_at": None,
+                        },
+                        "reason_code": "LINEUPS_PENDING",
+                        "action": "等官方首发",
+                        "next_eval_at": None,
+                    },
                     "non_pick": {
                         "reason_code": "LINEUPS_PENDING",
                         "reason_human": "首发未出",
@@ -99,3 +120,79 @@ def test_dashboard_day_view_endpoint_reads_requested_window(
     assert payload["provider_calls"] == 0
     assert payload["db_writes"] == 0
     assert payload["would_write_checkpoint"] is False
+
+
+def test_dashboard_day_view_endpoint_missing_contract_is_system_degraded(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    service = RecordingDashboardService()
+    original_dashboard = service.dashboard
+
+    def dashboard_without_contract(**kwargs: Any) -> dict[str, Any]:
+        payload = original_dashboard(**kwargs)
+        payload["all"][0].pop("decision_contract")
+        return payload
+
+    monkeypatch.setattr(service, "public_dashboard", dashboard_without_contract)
+    monkeypatch.setattr(routers, "service", service)
+    client = TestClient(app, raise_server_exceptions=False)
+
+    response = client.get(
+        "/v1/dashboard/day-view?date=2026-07-05&window=future&timezone=UTC"
+    )
+
+    assert response.status_code == 503
+    assert response.json()["code"] == "SYSTEM_DEGRADED"
+    assert response.json()["message"] == (
+        "DECISION_CONTRACT_MISSING:fixture-1"
+    )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "missing_required",
+        "bool_type",
+        "pick_non_pick_conflict",
+        "missing_non_pick",
+        "top_level_pollution",
+    ],
+)
+def test_dashboard_day_view_endpoint_malformed_contract_is_system_degraded(
+    monkeypatch: MonkeyPatch,
+    case: str,
+) -> None:
+    service = RecordingDashboardService()
+    original_dashboard = service.dashboard
+
+    def dashboard_with_malformed_contract(**kwargs: Any) -> dict[str, Any]:
+        payload = original_dashboard(**kwargs)
+        card = payload["all"][0]
+        contract = card["decision_contract"]
+        if case == "missing_required":
+            contract.pop("outcome_tracked")
+        elif case == "bool_type":
+            contract["outcome_tracked"] = "false"
+            card["outcome_tracked"] = "false"
+        elif case == "pick_non_pick_conflict":
+            pick = {"market": "ASIAN_HANDICAP", "selection": "HOME_AH"}
+            contract["pick"] = pick
+            card["pick"] = pick
+        elif case == "missing_non_pick":
+            contract["non_pick"] = None
+            card["non_pick"] = None
+        elif case == "top_level_pollution":
+            card["reason_code"] = "POISONED_TOP_LEVEL_VALUE"
+        return payload
+
+    monkeypatch.setattr(service, "public_dashboard", dashboard_with_malformed_contract)
+    monkeypatch.setattr(routers, "service", service)
+    client = TestClient(app, raise_server_exceptions=False)
+
+    response = client.get(
+        "/v1/dashboard/day-view?date=2026-07-05&window=future&timezone=UTC"
+    )
+
+    assert response.status_code == 503
+    assert response.json()["code"] == "SYSTEM_DEGRADED"
+    assert response.json()["message"].startswith("DECISION_CONTRACT_")

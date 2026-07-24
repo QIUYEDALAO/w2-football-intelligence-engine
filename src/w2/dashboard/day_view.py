@@ -2,18 +2,15 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
-from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from w2.dashboard.date_navigation import build_date_navigation
 from w2.dashboard.degradation import build_dashboard_degradation
-from w2.domain.decision_policy import compute_outcome_tracked
+from w2.domain.decision_contract import validate_decision_contract
 from w2.domain.enums import DataStatus, DecisionTier, LifecycleStatus
 from w2.domain.environment_policy import build_environment_policy_stamp
-from w2.markets.devig import DevigMethod, devig
 
 CARD_SOURCE_CONTRACT = "decision_contract"
-CARD_SOURCE_LEGACY = "legacy_fallback"
 
 
 def build_dashboard_day_view(
@@ -95,24 +92,23 @@ def _is_prematch_card(card: Mapping[str, Any], *, as_of: datetime) -> bool:
 
 
 def _day_view_card(card: Mapping[str, Any]) -> dict[str, Any]:
-    contract = _mapping(card.get("decision_contract"))
-    if _has_contract_fields(card, contract):
-        return _contract_card(card, contract)
-    return _legacy_card(card)
+    contract = validate_decision_contract(
+        card.get("decision_contract"),
+        fixture_id=card.get("fixture_id"),
+        card=card,
+    )
+    return _contract_card(card, contract)
 
 
 def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict[str, Any]:
-    decision_tier = _text(_decision_field(card, contract, "decision_tier"), DecisionTier.SKIP.value)
-    data_status = _text(_decision_field(card, contract, "data_status"), DataStatus.PARTIAL.value)
-    lifecycle_status = _text(
-        _decision_field(card, contract, "lifecycle_status"),
-        LifecycleStatus.DRAFT.value,
-    )
+    decision_tier = str(contract["decision_tier"])
+    data_status = str(contract["data_status"])
+    lifecycle_status = str(contract["lifecycle_status"])
     market_context = _market_context_fields(card)
     if data_status != DataStatus.READY.value or decision_tier == DecisionTier.NOT_READY.value:
         market_context["current_odds"] = {}
         market_context["market_probabilities"] = {}
-    decision_pick = _decision_field(card, contract, "pick")
+    decision_pick = contract["pick"]
     has_directional_pick = decision_tier in {
         DecisionTier.ANALYSIS_PICK.value,
         DecisionTier.RECOMMEND.value,
@@ -126,23 +122,18 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         "decision_tier": decision_tier,
         "data_status": data_status,
         "lifecycle_status": lifecycle_status,
-        "outcome_tracked": _bool_or_default(
-            _decision_field(card, contract, "outcome_tracked"),
-            compute_outcome_tracked(DecisionTier(decision_tier))
-            if _is_decision_tier(decision_tier)
-            else False,
-        ),
-        "lock_eligible": _bool_or_default(_decision_field(card, contract, "lock_eligible"), False),
-        "recommendation_id": _optional_text(_decision_field(card, contract, "recommendation_id")),
-        "reason_code": _optional_text(_field(card, contract, "reason_code")),
-        "action": _optional_text(_field(card, contract, "action")),
-        "next_eval_at": _format_time(_field(card, contract, "next_eval_at")),
-        "provider_budget_status": _optional_text(_field(card, contract, "provider_budget_status")),
-        "probability_source": _optional_text(_field(card, contract, "probability_source")),
-        "model_market_divergence": _mapping_copy(_field(card, contract, "model_market_divergence")),
-        "missing_fields": _string_list(_field(card, contract, "missing_fields")),
-        "stale_fields": _string_list(_field(card, contract, "stale_fields")),
-        "data_readiness": _mapping_copy(_field(card, contract, "data_readiness")),
+        "outcome_tracked": contract["outcome_tracked"],
+        "lock_eligible": contract["lock_eligible"],
+        "recommendation_id": _optional_text(contract["recommendation_id"]),
+        "reason_code": _optional_text(contract.get("reason_code")),
+        "action": _optional_text(contract.get("action")),
+        "next_eval_at": _format_time(contract.get("next_eval_at")),
+        "provider_budget_status": _optional_text(contract.get("provider_budget_status")),
+        "probability_source": _optional_text(contract.get("probability_source")),
+        "model_market_divergence": _mapping_copy(contract.get("model_market_divergence")),
+        "missing_fields": _string_list(contract.get("missing_fields")),
+        "stale_fields": _string_list(contract.get("stale_fields")),
+        "data_readiness": _mapping_copy(contract.get("data_readiness")),
         **market_context,
         "pick": _mapping_copy(decision_pick) if isinstance(decision_pick, Mapping) else None,
         "secondary_picks": [
@@ -159,54 +150,11 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         ],
         "lineup_provenance": _mapping_copy(card.get("lineup_provenance")),
         "dynamic_prematch": _mapping_copy(card.get("dynamic_prematch")),
-        "non_pick": _mapping_copy(_field(card, contract, "non_pick"))
-        if isinstance(_field(card, contract, "non_pick"), Mapping)
+        "non_pick": _mapping_copy(contract["non_pick"])
+        if isinstance(contract["non_pick"], Mapping)
         else None,
-        "one_liner": _optional_text(_field(card, contract, "one_liner")),
-        "card_hash": _optional_text(_field(card, contract, "card_hash")),
-        "quote_identity_audit": _mapping_copy(card.get("quote_identity_audit")),
-        "frozen_artifact_provenance": _mapping_copy(card.get("frozen_artifact_provenance")),
-        "artifact_hash": _optional_text(card.get("artifact_hash")),
-        "recommendation_decision_v3": _mapping_copy(card.get("recommendation_decision_v3")),
-    }
-
-
-def _legacy_card(card: Mapping[str, Any]) -> dict[str, Any]:
-    data_status = _text(card.get("data_status"), DataStatus.PARTIAL.value)
-    decision_tier = (
-        DecisionTier.WATCH.value
-        if data_status in {DataStatus.PARTIAL.value, DataStatus.STALE.value}
-        else DecisionTier.NOT_READY.value
-    )
-    return {
-        **_fixture_fields(card),
-        "source": CARD_SOURCE_LEGACY,
-        "decision_tier": decision_tier,
-        "data_status": data_status,
-        "lifecycle_status": _text(card.get("lifecycle_status"), LifecycleStatus.DRAFT.value),
-        "outcome_tracked": False,
-        "lock_eligible": False,
-        "recommendation_id": None,
-        "reason_code": _optional_text(card.get("reason_code")),
-        "action": _optional_text(card.get("action")),
-        "next_eval_at": _format_time(card.get("next_eval_at")),
-        "provider_budget_status": _optional_text(card.get("provider_budget_status")),
-        "probability_source": _optional_text(card.get("probability_source")),
-        "model_market_divergence": _mapping_copy(card.get("model_market_divergence")),
-        "missing_fields": _string_list(card.get("missing_fields")),
-        "stale_fields": _string_list(card.get("stale_fields")),
-        "data_readiness": _mapping_copy(card.get("data_readiness")),
-        **_market_context_fields(card),
-        "pick": None,
-        "secondary_picks": [],
-        "market_selection_audit": [],
-        "lineup_provenance": {},
-        "dynamic_prematch": _mapping_copy(card.get("dynamic_prematch")),
-        "non_pick": _mapping_copy(card.get("non_pick"))
-        if isinstance(card.get("non_pick"), Mapping)
-        else None,
-        "one_liner": _optional_text(card.get("one_liner")),
-        "card_hash": _optional_text(card.get("card_hash")),
+        "one_liner": _optional_text(contract.get("one_liner")),
+        "card_hash": _optional_text(contract.get("card_hash")),
         "quote_identity_audit": _mapping_copy(card.get("quote_identity_audit")),
         "frozen_artifact_provenance": _mapping_copy(card.get("frozen_artifact_provenance")),
         "artifact_hash": _optional_text(card.get("artifact_hash")),
@@ -260,60 +208,7 @@ def _scoreline_simulations(card: Mapping[str, Any]) -> int | None:
 
 
 def _market_probabilities(card: Mapping[str, Any]) -> dict[str, Any]:
-    explicit = _mapping(card.get("market_probabilities"))
-    if explicit:
-        return dict(explicit)
-    current_odds = _mapping(card.get("current_odds"))
-    markets: dict[str, Any] = {}
-    for key, labels in (
-        ("ah", ("HOME_AH", "AWAY_AH")),
-        ("ou", ("OVER", "UNDER")),
-        ("one_x_two", ("HOME", "DRAW", "AWAY")),
-    ):
-        market = _mapping(current_odds.get(key))
-        prices = _market_prices(market, labels)
-        if len(prices) < 2:
-            continue
-        result = devig(prices, DevigMethod.PROPORTIONAL)
-        markets[key] = {
-            "method": result.method.value,
-            "probabilities": {
-                selection: round(probability, 6)
-                for selection, probability in result.probabilities.items()
-            },
-            "overround": round(result.overround, 6),
-        }
-    return markets
-
-
-def _market_prices(market: Mapping[str, Any], labels: Sequence[str]) -> dict[str, Decimal]:
-    candidates: tuple[tuple[str, str], ...]
-    if labels == ("HOME_AH", "AWAY_AH"):
-        candidates = (("HOME_AH", "home_price"), ("AWAY_AH", "away_price"))
-    elif labels == ("OVER", "UNDER"):
-        candidates = (("OVER", "over_price"), ("UNDER", "under_price"))
-    else:
-        candidates = (
-            ("HOME", "home_price"),
-            ("DRAW", "draw_price"),
-            ("AWAY", "away_price"),
-        )
-    prices: dict[str, Decimal] = {}
-    for label, field in candidates:
-        price = _decimal_price(market.get(field))
-        if price is not None:
-            prices[label] = price
-    return prices
-
-
-def _decimal_price(value: Any) -> Decimal | None:
-    if value is None:
-        return None
-    try:
-        price = Decimal(str(value))
-    except (InvalidOperation, ValueError):
-        return None
-    return price if price > Decimal("1.0") else None
+    return _mapping_copy(card.get("market_probabilities"))
 
 
 def _counts(cards: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
@@ -322,8 +217,6 @@ def _counts(cards: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     by_lifecycle_status = {status.value: 0 for status in LifecycleStatus}
     lock_eligible = 0
     outcome_tracked = 0
-    legacy_fallback = 0
-
     for card in cards:
         decision_tier = _optional_text(card.get("decision_tier"))
         data_status = _optional_text(card.get("data_status"))
@@ -338,14 +231,11 @@ def _counts(cards: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             lock_eligible += 1
         if card.get("outcome_tracked") is True:
             outcome_tracked += 1
-        if card.get("source") == CARD_SOURCE_LEGACY:
-            legacy_fallback += 1
 
     return {
         "total": len(cards),
         "lock_eligible": lock_eligible,
         "outcome_tracked": outcome_tracked,
-        "legacy_fallback": legacy_fallback,
         "analysis_pick": by_decision_tier[DecisionTier.ANALYSIS_PICK.value],
         "recommend": by_decision_tier[DecisionTier.RECOMMEND.value],
         "watch": by_decision_tier[DecisionTier.WATCH.value],
@@ -427,29 +317,6 @@ def _provider_budget_status(
     if statuses:
         return statuses[0]
     return "UNKNOWN"
-
-
-def _has_contract_fields(card: Mapping[str, Any], contract: Mapping[str, Any]) -> bool:
-    return any(
-        value is not None
-        for value in (
-            card.get("decision_tier"),
-            card.get("data_status"),
-            contract.get("decision_tier"),
-            contract.get("data_status"),
-        )
-    )
-
-
-def _field(card: Mapping[str, Any], contract: Mapping[str, Any], key: str) -> Any:
-    value = contract.get(key)
-    if value is not None:
-        return value
-    return card.get(key)
-
-
-def _decision_field(card: Mapping[str, Any], contract: Mapping[str, Any], key: str) -> Any:
-    return contract.get(key) if contract else card.get(key)
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:

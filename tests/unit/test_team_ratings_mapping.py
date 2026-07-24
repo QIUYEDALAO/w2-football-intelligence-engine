@@ -6,9 +6,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
-from w2.api import repository as api_repository
-from w2.api.repository import ReadModelService
 from w2.features.framework import FeatureContext
+from w2.prematch import analysis_calculator as api_repository
+from w2.prematch.analysis_calculator import ReadModelService
 
 ROOT = Path(__file__).resolve().parents[2]
 RATINGS_PATH = ROOT / "config/team_ratings/world_cup_2026.v1.json"

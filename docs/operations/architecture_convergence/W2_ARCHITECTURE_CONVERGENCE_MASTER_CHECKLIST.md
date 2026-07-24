@@ -26,23 +26,27 @@
 
 ### 0.1 全局进度速览
 
-`main` 顶端 `aa59b61d7d60dfda8fb43d293514fcda6beb7664`，migration head
+`main` 顶端 `46aa8d36d652d31831e7f99543ce16e575b7154d`，migration head
 `0041_converge_odds_history_and_projection`。
 
-**staging 实际状态（ARCH-P1-04A 写侧验收并回滚后）**：release
+**staging 实际状态（ARCH-P1-04B 读切换验收并回滚后）**：release
 `1d02a45c6f38c3613ac3dddab784869095bf6804`，migration current
 `0041_converge_odds_history_and_projection`，**65 张表 + 1 个
 `current_market_projection` 视图**，六个服务全部 healthy、restart count
-全 0；`main` 与 staging 的 migration head 已一致。
+全 0；验收临时 shadow/evaluation/supersession 已清零，`main` 与 staging 的
+migration head 已一致。
 
 - [x] ARCH-HYGIENE-02
 - [x] ARCH-P1-04A
-- [ ] ARCH-P1-04B
+- [>] ARCH-P1-04B
 
-**本次状态收口**：`ARCH-P1-04A-CLOSE` 只同步 PR #385 的已合并事实与
-流程偏差。本 docs-only PR 合并前不得开始 ARCH-P1-04B/04C；合并后下一任务
-为 ARCH-P1-04B。后续顺序（见第三节）：ARCH-P1-04B → 04C → P1-03 →
-P1-05 → P1-06 → P1-07 → P1-08 → P2-02 → P2-03 → P2-04 →
+**当前状态**：ARCH-P1-04B 已完成整改实现、implementation exact-head CI 与
+staging 语义验收；final review head 与 final exact-head CI 由 PR 当前坐标和
+GitHub checks 给出。PR #387 保持 Draft，等待外部验收；合并前不得标为 DONE，
+也不得开始后续任务。
+后续顺序（见第三节）：ARCH-P1-04B →
+ARCH-GOVERNANCE-01 → 04C → P1-03 → P1-05 → P1-06 → P1-07 → P1-08 →
+P2-02 → P2-03 → P2-04 →
 P2-06 → P2-05。原 ARCH-P2-01 已由 ARCH-HYGIENE-02 取代，不再执行。
 
 #### 本轮两项工作的性质对比
@@ -721,6 +725,13 @@ ARCH-P1-01 (DONE) -> ARCH-P1-02 (DONE)
 前置任务。原 `ARCH-P2-01` 的 scripts/archive 方案已由
 `ARCH-HYGIENE-02` 取代，不再执行。
 
+**2026-07-24 治理任务排队决定（本 PR 只记录，不实现）**
+
+ARCH-P1-04A-CLOSE 二次验收后，老板批准把 `ARCH-GOVERNANCE-01` 作为独立
+任务排在 ARCH-P1-04B 之后、ARCH-P1-04C 之前。该任务必须同时实现 pre-merge
+readiness gate 与 post-merge checklist consistency gate；只实现后者无法阻止
+首次提前合并。ARCH-P1-04B 不得包含任何门禁实现。
+
 **决定二：ARCH-P1-05 条件提前开关（已批准，触发后无需再次请示）**
 
 ```text
@@ -792,6 +803,7 @@ ARCH-HYGIENE-01    生成审计产物退出 Git
 ARCH-HYGIENE-02    Scripts 权威盘点与证据化直接删除
 ARCH-P1-04A  评估持久化——写侧管线
 ARCH-P1-04B  Dashboard 读切换 + 删除全部生产 fallback
+ARCH-GOVERNANCE-01  合并前验收就绪 + 合并后清单一致性双门禁
 ARCH-P1-04C  合同层与死代码清理
 ARCH-P1-03   球队身份 Crosswalk 收敛
 ARCH-P1-05   CI 构建镜像、服务器 pull-only（有预批准的条件提前开关）
@@ -2522,8 +2534,21 @@ STAGING_ROLLBACK = PASS
 
 **独立 PR。这是行为切换，必须有 staging 语义对账。**
 
-- [ ] 所有 Dashboard 与分析生产端点只读 `read_model_checkpoint` 投影。
-- [ ] 删除：
+```text
+Status: READY_FOR_EXTERNAL_REVIEW
+Branch: codex/arch-p1-04b-dashboard-read-cutover
+Base SHA: 46aa8d36d652d31831e7f99543ce16e575b7154d
+Started at: 2026-07-24T09:38:51Z
+Owner: Codex
+PR: #387 (DRAFT)
+Validated implementation head: bd816803af5e8149dec743b277d8ae495197a0e0
+Implementation exact-head CI: 30100951746 (success)
+Final review head: PR_EXACT_HEAD
+Final exact-head CI: REQUIRED_AT_PR_EXACT_HEAD
+```
+
+- [x] 所有 Dashboard 与分析生产端点只读 `read_model_checkpoint` 投影。
+- [x] 删除：
   - seed fallback；
   - legacy fallback；
   - runtime JSON fallback（含 `prediction_locks.json`、`result_events.json`
@@ -2532,22 +2557,118 @@ STAGING_ROLLBACK = PASS
   - live/frozen 自动选择（`_uses_frozen_public_authority` 链路）；
   - API 读路径里的特征组装、Poisson 与模拟调用；
   - 前端市场概率重算。
-- [ ] **fail-closed 语义**：`src/w2/api/repository.py` 在
+- [x] **fail-closed 语义**：`src/w2/api/repository.py` 在
   `main@76201af` 上有 25 处 `except Exception`、58 处 `except` 子句，
   多数静默返回空集。"异常吞成空数据"计入 fallback；数据库故障必须返回
   `SYSTEM_DEGRADED` 一类的明确状态，不得返回空集冒充"无数据"。逐处分类，
   并给出改造后各处的返回语义。
-- [ ] 新增静态守卫测试（照 `tests/contract/test_production_report_reads.py`
+- [x] 新增静态守卫测试（照 `tests/contract/test_production_report_reads.py`
   的模式）：禁止 `src/w2/api`、`apps/api` import 特征引擎、pricing 或
   simulation。
-- [ ] frozen artifact 仅保留内部审计/canary。
-- [ ] API 返回 projection version/hash、source event、last projected time。
-- [ ] 删除 `api -> ingestion/features/markets/pricing/strategy/simulation` 的
+- [x] frozen artifact 仅保留内部审计/canary。
+- [x] API 返回 projection version/hash、source event、last projected time。
+- [x] 删除 `api -> ingestion/features/markets/pricing/strategy/simulation` 的
   全部读时计算依赖。
-- [ ] old/new 全部当前比赛语义对账。
-- [ ] 15/30 场 Dashboard 行为和视觉不退化。
-- [ ] 完整 CI 与 staging 验收通过。
+- [x] old/new 全部当前比赛语义对账。
+- [x] 15/30 场 Dashboard 行为和视觉不退化。
+- [x] 完整 CI 与 staging 验收通过。
 - [ ] PR 合并。
+
+### 实现与本地直接证据
+
+```text
+BASE_API_EXCEPT_EXCEPTION             = 25
+FINAL_API_EXCEPT_EXCEPTION            = 0
+BASE_API_TO_INGESTION_EDGES            = 1
+FINAL_API_TO_INGESTION_EDGES           = 0
+BASE_INGESTION_TO_API_EDGES            = 1
+FINAL_INGESTION_TO_API_EDGES           = 0
+API_FORBIDDEN_COMPUTATION_IMPORTS      = 0
+API_RUNTIME_JSON_FALLBACKS             = 0
+API_FROZEN_LIVE_AUTO_SELECTION         = 0
+DAY_VIEW_MARKET_PROBABILITY_RECOMPUTE  = 0
+PRODUCTION_DAY_VIEW_LEGACY_FALLBACK    = 0
+DAY_VIEW_MISSING_DECISION_CONTRACT     = FAIL_CLOSED
+DAY_VIEW_DECISION_FIELDS_CONTRACT_ONLY = TRUE
+DAY_VIEW_READ_TIME_DECISION_RECOMPUTE  = 0
+PARTIAL_DECISION_CONTRACT              = FAIL_CLOSED
+CONTRADICTORY_DECISION_CONTRACT        = FAIL_CLOSED
+TOP_LEVEL_DECISION_FIELD_FALLBACK      = 0
+DAY_VIEW_LEGACY_FALLBACK_TESTS         = 0
+STATIC_GUARD_COVERS_PRODUCTION_DAY_VIEW = TRUE
+LOCAL_RUFF                             = PASS
+LOCAL_MYPY                             = PASS (262 source files)
+LOCAL_PYTEST                           = 1559 passed, 4 skipped
+LOCAL_CHECK_W2_ALL                     = PASS
+LOCAL_WEB_TYPECHECK_BUILD_E2E          = PASS / PASS / 26 passed
+IMPLEMENTATION_EXACT_HEAD_CI           = 30100951746 (PASS)
+FINAL_REVIEW_HEAD                      = PR_EXACT_HEAD
+FINAL_EXACT_HEAD_CI                    = REQUIRED_AT_PR_EXACT_HEAD
+```
+
+- 原生产 API 读服务移出请求路径；写侧投影生成仍通过 composition root 使用
+  `w2.prematch.analysis_calculator`，生产 API 不 import 或调用该计算器。
+- DB 查询失败抛出 `SystemDegradedError`，路由统一返回 HTTP 503 /
+  `SYSTEM_DEGRADED`；checkpoint 正常但分析投影未就绪时返回显式
+  `SYSTEM_DEGRADED` 卡片，不以空数组冒充无数据。
+- `tests/contract/test_api_projection_read_authority.py` 同时覆盖
+  `src/w2/api`、`apps/api`、`src/w2/dashboard`、`apps/web/src`、`scripts`
+  与 `infra` 执行面；生产 API/DayView/presentation 的 feature / market /
+  pricing / strategy / simulation import 与已删除 fallback identity 均为 0。
+- DayView 已删除 `CARD_SOURCE_LEGACY`、`_legacy_card` 和缺少
+  `decision_contract` 时的兼容分支；必要合同缺失或不完整时抛出
+  `DecisionContractViolation`，由 API 明确返回 HTTP 503 / `SYSTEM_DEGRADED`，
+  不转换为 `WATCH`、`PARTIAL` 或其他兼容结果。
+- DayView 决策字段只从已持久化 `decision_contract` 读取，不再读取顶层 card
+  fallback，也不在读取时重算 `outcome_tracked` 或默认
+  `lock_eligible`。必需字段、严格 bool、pick/non-pick 互斥与 tier 后置条件
+  由纯 domain validator 校验；顶层重复决策字段冲突同样 fail-closed。顶层
+  `data_readiness` 是原始采集证据，合同内同名字段是规范化决策就绪视图；
+  DayView 只读后者，两者不作为重复身份比较。
+- 已知 `api <-> ingestion` 循环边由 `1 + 1` 降为 `0 + 0`；本任务不声明
+  ARCH-P1-04C 的全仓库依赖合同完成，只把该实际变化记录为 04C 新 baseline。
+
+### staging 语义对账与回滚直接证据
+
+```text
+STAGING_CANDIDATE_SHA                  = bd816803af5e8149dec743b277d8ae495197a0e0
+STAGING_MIGRATION_CURRENT              = 0041_converge_odds_history_and_projection
+STAGING_SERVICES_HEALTHY               = 6 / 6
+MATERIALIZABLE_CURRENT_FIXTURES        = 8
+PERSISTED_READBACK_HASH_MATCH          = 8 / 8
+SHADOW_RECONCILIATION_DIFFERENCES      = 0 / 8 fixtures
+DASHBOARD_HTTP_20X                     = 20 / 20 HTTP 200
+DASHBOARD_HTTP_20X_STABLE_HASH         = 9257c2faf3c504d1751ec823b693e0a40af481be5f3ea87e5f96678b7200e2af
+DAY_VIEW_HTTP_20X                      = 20 / 20 HTTP 200
+DAY_VIEW_HTTP_20X_STABLE_HASH          = 872ccaf64be84db18f6698d8543209382511ca57f6e54de91129b17410db8400
+DAY_VIEW_LEGACY_IDENTITY_COUNT         = 0
+MALFORMED_DECISION_CONTRACT_HTTP       = 503 SYSTEM_DEGRADED
+MALFORMED_DECISION_CONTRACT_MESSAGE    = DECISION_CONTRACT_INCOMPLETE
+VALID_CONTRACT_AFTER_RESTORE           = 20 / 20 HTTP 200, stable hash
+UNPROJECTED_ANALYSIS_STATUS            = SYSTEM_DEGRADED / ANALYSIS_PROJECTION_NOT_READY
+PROVIDER_REQUEST_LOG_DELTA             = 0 (162 -> 162)
+RECOMMENDATION_DELTA                   = 0
+RECOMMENDATION_LOCK_DELTA              = 0
+SETTLEMENT_DELTA                       = 0
+ACCEPTANCE_SHADOW_ROWS_AFTER_CLEANUP   = 0
+ACCEPTANCE_EVALUATIONS_AFTER_CLEANUP   = 0
+ACCEPTANCE_SUPERSESSIONS_AFTER_CLEANUP = 0
+STAGING_RESTORED_SHA                   = 1d02a45c6f38c3613ac3dddab784869095bf6804
+STAGING_ROLLBACK_SERVICES_HEALTHY      = 6 / 6
+```
+
+- 8 个有现行 frozen/市场证据的 fixture 均由写侧计算器生成 shadow，写入后从
+  checkpoint 读回，再与同一事务可见的 current-read 结果逐字段对账；
+  `read_time_hash == projected_hash` 且 `differences=[]` 为 8/8。
+- API 只读 shadow checkpoint；未投影的旧 Dashboard 索引行不再触发读时计算，
+  单场端点明确返回 `SYSTEM_DEGRADED / ANALYSIS_PROJECTION_NOT_READY`，不使用
+  seed/runtime/frozen 文件补值。
+- 15/30 场固定工作区、桌面/移动端可达性与视觉门禁由 26 个 Playwright E2E
+  覆盖并通过；真实 staging 的 Dashboard 与 DayView 各 20 轮 HTTP 读取均为
+  200 且各自 canonical hash 不变，DayView 响应不含任何 legacy identity。
+- 验收结束后只删除本次创建的 8 个 shadow checkpoint 与 16 个 evaluation，
+  supersession 为 0；原 8 个 frozen 审计 checkpoint 保留，staging 恢复既定
+  rollback release，migration 与安全开关不变。
 
 **验收**
 
@@ -2557,7 +2678,22 @@ PRODUCTION_FALLBACK_COUNT = 0
 IMPLICIT_EMPTY_RESULT_FALLBACK_COUNT = 0
 API_FEATURE_PRICING_SIMULATION_IMPORTS = 0
 API_TO_READ_TIME_COMPUTATION_DEPENDENCIES = 0
+STAGING_SEMANTIC_RECONCILIATION = PASS
+STAGING_ROLLBACK = PASS
 ```
+
+---
+
+## ARCH-GOVERNANCE-01：合并前就绪 + 合并后清单一致性双门禁
+
+```text
+Status: QUEUED_AFTER_ARCH-P1-04B
+Implementation in ARCH-P1-04B: FORBIDDEN
+Required checks: PRE_MERGE_READINESS_GATE + POST_MERGE_CHECKLIST_CONSISTENCY_GATE
+```
+
+本任务是独立治理 PR。前者阻止未获外部验收结论的 PR 提前合并；后者核验已合并
+PR 与唯一总清单的 DONE/merge 坐标一致。两个 required check 缺一不可。
 
 ---
 

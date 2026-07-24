@@ -9,13 +9,13 @@ from sqlalchemy import create_engine, select
 from sqlalchemy import event as sa_event
 from sqlalchemy.orm import Session
 
-from w2.api.repository import ReadModelService
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.infrastructure.persistence.dynamic_prematch_models import (
     DynamicPrematchEvaluationModel,
     DynamicPrematchSupersessionModel,
 )
 from w2.operations.observability import default_metric_registry
+from w2.prematch.analysis_calculator import ReadModelService
 from w2.prematch.read_model_projection import (
     ANALYSIS_CARD_CANARY_PREFIX,
     ANALYSIS_CARD_CANARY_SCHEMA,
