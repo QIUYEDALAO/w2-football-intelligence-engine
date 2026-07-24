@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-24T00:42:35Z"
+updated_at: "2026-07-24T01:07:20Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -27,20 +27,20 @@ repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
   main_sha: 748b50e5c990c6138193810ec319e0e413a7ab25
   main_migration_head: 0041_converge_odds_history_and_projection
-  pull_request: null
-  pull_request_mode: DRAFT_PENDING
+  pull_request: 384
+  pull_request_mode: DRAFT
   pull_request_head_branch: codex/arch-hygiene-02-script-authority-convergence
   task_baseline_sha: 748b50e5c990c6138193810ec319e0e413a7ab25
-  local_code_implementation_sha: 748b50e5c990c6138193810ec319e0e413a7ab25
+  local_code_implementation_sha: a8ee4e78c02a6c450066f0e98261bbed467f499e
   local_work_branch: codex/arch-hygiene-02-script-authority-convergence
-  github_sync_status: LOCAL_IN_PROGRESS
-  github_verified_head_sha: 748b50e5c990c6138193810ec319e0e413a7ab25
-  ci_status: NOT_RUN
-  ci_run_id: null
+  github_sync_status: DRAFT_PR_OPEN_IMPLEMENTATION_CI_PASS
+  github_verified_head_sha: a8ee4e78c02a6c450066f0e98261bbed467f499e
+  ci_status: PASS
+  ci_run_id: 30057878147
   ci_checks:
-    verify: PENDING
-    staging-parity: PENDING
-    predeploy-e2e: PENDING
+    verify: PASS
+    staging-parity: PASS
+    predeploy-e2e: PASS
   closed_pull_requests:
     370: CLOSED_AFTER_BASELINE_INTEGRATION_PR_374
 
@@ -82,13 +82,13 @@ architecture_convergence:
   next_task: ARCH-HYGIENE-02
   current_task:
     id: ARCH-HYGIENE-02
-    status: IN_PROGRESS
+    status: READY_FOR_EXTERNAL_REVIEW
     started_at: "2026-07-24T00:42:35Z"
     baseline_sha: 748b50e5c990c6138193810ec319e0e413a7ab25
     branch: codex/arch-hygiene-02-script-authority-convergence
-    pull_request: null
-    implementation_head: null
-    implementation_ci_run_id: null
+    pull_request: 384
+    implementation_head: a8ee4e78c02a6c450066f0e98261bbed467f499e
+    implementation_ci_run_id: 30057878147
     production_behavior_changed: false
     safety_switches_changed: false
   governance_contracts:

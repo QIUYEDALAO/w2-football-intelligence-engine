@@ -1926,11 +1926,15 @@ BROKEN_AUDIT_REFERENCES = 0
 ## ARCH-HYGIENE-02：Scripts 权威盘点与证据化直接删除
 
 ```text
-Status: IN_PROGRESS
+Status: READY_FOR_EXTERNAL_REVIEW
 Branch: codex/arch-hygiene-02-script-authority-convergence
 Base SHA: 748b50e5c990c6138193810ec319e0e413a7ab25
 Started at: 2026-07-24T00:42:35Z
 Owner: Codex
+PR: #384 (DRAFT)
+Implementation head: a8ee4e78c02a6c450066f0e98261bbed467f499e
+Implementation exact-head CI: 30057878147 (PASS)
+Implementation checks: verify / staging-parity / predeploy-e2e = PASS
 Supersedes: ARCH-P2-01
 Deletion policy: DEAD 直接删除；不建立 scripts/archive
 ```
@@ -2236,6 +2240,14 @@ SAFETY_SWITCHES_CHANGED = false
 STAGING = NOT_APPLICABLE
 ```
 
+### 实现 head 回执
+
+`a8ee4e78c02a6c450066f0e98261bbed467f499e` 上的 GitHub Actions run
+`30057878147` 已完成，`verify`、`staging-parity`、`predeploy-e2e` 均为
+`PASS`。其中 GitHub CI 独立执行并通过 Ruff、Mypy、全量 Pytest；
+`check_w2_all.py` 仅执行上述 19 个 W2 stage/contract checker。当前 PR
+保持 Draft，任务在外部审核与合并前不写为 `DONE`，`ARCH-P1-04A` 未开始。
+
 每个脚本必须逐项归入且只能归入以下一种分类：
 
 ```text
@@ -2252,16 +2264,16 @@ DEAD
 只有证据充分的 `DEAD` 脚本可以直接删除。不得以移动到 archive、重命名或
 增加兼容入口代替删除；其他类别必须记录实际调用方和证据。
 
-- [ ] 全量扫描 GitHub CI、`check_w2_all.py`、Dockerfile、Compose、
+- [x] 全量扫描 GitHub CI、`check_w2_all.py`、Dockerfile、Compose、
   systemd/cron、Python `subprocess`、Shell 调用、`pyproject` entrypoint
   以及运维文档。
-- [ ] 为每个脚本记录分类、直接/传递调用方、运行环境、删除或保留决定和
+- [x] 为每个脚本记录分类、直接/传递调用方、运行环境、删除或保留决定和
   证据。
-- [ ] 只有 `DEAD` 可连同无效引用和测试直接删除；不建立
+- [x] 只有 `DEAD` 可连同无效引用和测试直接删除；不建立
   `scripts/archive/`。
-- [ ] `check_w2_all.py` 只运行 W2 stage/contract checker。
-- [ ] GitHub CI 单独负责 Ruff、Mypy、Pytest。
-- [ ] 禁止 `check_w2_all.py` 与 GitHub CI 重复执行 Ruff、Mypy、Pytest
+- [x] `check_w2_all.py` 只运行 W2 stage/contract checker。
+- [x] GitHub CI 单独负责 Ruff、Mypy、Pytest。
+- [x] 禁止 `check_w2_all.py` 与 GitHub CI 重复执行 Ruff、Mypy、Pytest
   三项重测试。
 - [ ] 完整 CI 通过并合并。
 
