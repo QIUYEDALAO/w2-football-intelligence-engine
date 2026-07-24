@@ -137,3 +137,82 @@ def test_prematch_refresh_execute_db_injects_shadow_composition_adapter(
         captured["materialize_public_artifacts"]
         is refresh_cli.materialize_shadow_projection_events
     )
+
+
+def test_prematch_refresh_execute_defaults_to_db_and_injects_shadow_adapter(
+    monkeypatch: Any,
+    capsys: Any,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def run_future_refresh_task(**kwargs: Any) -> SimpleNamespace:
+        captured.update(kwargs)
+        return SimpleNamespace(
+            status="COMPLETED",
+            task_id=kwargs["task_id"],
+            key=kwargs["key"],
+            result={"provider_calls": 0},
+        )
+
+    monkeypatch.delenv("W2_FUTURE_REFRESH_PERSISTENCE", raising=False)
+    monkeypatch.setattr(
+        "w2.ingestion.future_refresh.run_future_refresh_task",
+        run_future_refresh_task,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_prematch_refresh.py",
+            "--execute",
+            "--now-utc",
+            "2026-07-18T05:00:00Z",
+        ],
+    )
+
+    assert refresh_cli.main() == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "COMPLETED"
+    assert captured["persistence"] == "db"
+    assert (
+        captured["materialize_public_artifacts"]
+        is refresh_cli.materialize_shadow_projection_events
+    )
+
+
+def test_prematch_refresh_execute_uses_file_env_without_shadow_adapter(
+    monkeypatch: Any,
+    capsys: Any,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def run_future_refresh_task(**kwargs: Any) -> SimpleNamespace:
+        captured.update(kwargs)
+        return SimpleNamespace(
+            status="COMPLETED",
+            task_id=kwargs["task_id"],
+            key=kwargs["key"],
+            result={"provider_calls": 0},
+        )
+
+    monkeypatch.setenv("W2_FUTURE_REFRESH_PERSISTENCE", "file")
+    monkeypatch.setattr(
+        "w2.ingestion.future_refresh.run_future_refresh_task",
+        run_future_refresh_task,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_prematch_refresh.py",
+            "--execute",
+            "--now-utc",
+            "2026-07-18T05:00:00Z",
+        ],
+    )
+
+    assert refresh_cli.main() == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "COMPLETED"
+    assert captured["persistence"] == "file"
+    assert captured["materialize_public_artifacts"] is None

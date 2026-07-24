@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -125,6 +126,15 @@ def main() -> int:
 
     from w2.ingestion.future_refresh import run_future_refresh_task  # noqa: PLC0415
 
+    resolved_persistence = (
+        args.persistence or os.environ.get("W2_FUTURE_REFRESH_PERSISTENCE", "db")
+    ).lower()
+    if resolved_persistence not in {"db", "file"}:
+        parser.error(
+            "persistence must be 'db' or 'file' "
+            "(via --persistence or W2_FUTURE_REFRESH_PERSISTENCE)"
+        )
+
     audit = run_future_refresh_task(
         task_id=f"{key}:manual",
         key=key,
@@ -132,9 +142,11 @@ def main() -> int:
         competition_id=args.competition_id,
         runtime_root=args.runtime_root,
         now=now,
-        persistence=args.persistence,
+        persistence=resolved_persistence,
         materialize_public_artifacts=(
-            materialize_shadow_projection_events if args.persistence == "db" else None
+            materialize_shadow_projection_events
+            if resolved_persistence == "db"
+            else None
         ),
     )
     payload = {
