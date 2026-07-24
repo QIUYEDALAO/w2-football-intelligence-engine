@@ -371,7 +371,11 @@ class AnalysisCardCanaryMaterializer:
             "analysis_card": card,
             "shadow_reconciliation": reconciliation,
         }
-        projection_hash = _projection_business_hash(artifact_body)
+        projection_hash = (
+            _projection_business_hash(artifact_body)
+            if source_event is not None
+            else canonical_sha256(artifact_body)
+        )
         projected_payload = {**artifact_body, "projection_hash": projection_hash}
         artifact_hash = canonical_sha256(projected_payload)
         payload = {**projected_payload, "artifact_hash": artifact_hash}
@@ -442,7 +446,12 @@ def validate_frozen_analysis_payload(
             for key, value in payload.items()
             if key not in {"projection_hash", "artifact_hash"}
         }
-        if not projection_hash or _projection_business_hash(projection_body) != projection_hash:
+        expected_projection_hash = (
+            _projection_business_hash(projection_body)
+            if payload.get("checkpoint_namespace") == "shadow"
+            else canonical_sha256(projection_body)
+        )
+        if not projection_hash or expected_projection_hash != projection_hash:
             raise FrozenAnalysisError("checkpoint projection hash mismatch")
         shadow = payload.get("shadow_reconciliation")
         if (

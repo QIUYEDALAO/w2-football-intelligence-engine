@@ -355,6 +355,27 @@ def test_payload_validation_rejects_fixture_identity_conflict(
         validate_frozen_analysis_payload("other", artifact.payload)
 
 
+def test_public_projection_preserves_existing_time_bound_hash_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_projection(monkeypatch)
+    artifact = _materializer(ScopedRepository()).build(
+        "1576804",
+        evaluated_at=datetime(2026, 7, 18, 5, 0, tzinfo=UTC),
+    )
+    projection_body = {
+        key: value
+        for key, value in artifact.payload.items()
+        if key not in {"projection_hash", "artifact_hash"}
+    }
+
+    assert artifact.payload["checkpoint_namespace"] == "public"
+    assert artifact.payload["projection_hash"] == canonical_sha256(projection_body)
+    validated = validate_frozen_analysis_payload("1576804", artifact.payload)
+    assert validated.payload["projection_hash"] == artifact.payload["projection_hash"]
+    assert validated.artifact_hash == artifact.artifact_hash
+
+
 @pytest.mark.parametrize(
     "event_type",
     ["ODDS_CHANGED", "LINEUP_CHANGED", "FIXTURE_CHANGED"],
