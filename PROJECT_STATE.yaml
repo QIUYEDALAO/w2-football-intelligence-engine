@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-24T15:03:00Z"
+updated_at: "2026-07-24T17:12:33Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -25,14 +25,14 @@ context_read_order:
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  main_sha: 7ffdc0fed42538243be9e6700b8093bb56372920
+  main_sha: 91c7921574fcca249a9f1a9cf29c8c782e774930
   main_migration_head: 0041_converge_odds_history_and_projection
-  pull_request: 387
-  pull_request_mode: MERGED
-  pull_request_head_branch: codex/arch-p1-04b-dashboard-read-cutover
-  task_baseline_sha: 46aa8d36d652d31831e7f99543ce16e575b7154d
-  local_work_branch: codex/arch-p1-04b-close
-  github_sync_status: ARCH_P1_04B_DONE_ARCH_GOVERNANCE_01_QUEUED
+  pull_request: PENDING_CREATION
+  pull_request_mode: DRAFT_PENDING_CREATION
+  pull_request_head_branch: codex/arch-governance-01-dual-gates
+  task_baseline_sha: 91c7921574fcca249a9f1a9cf29c8c782e774930
+  local_work_branch: codex/arch-governance-01-dual-gates
+  github_sync_status: ARCH_GOVERNANCE_01_IN_PROGRESS
   ci_checks:
     verify: PASS_30101718744
     staging-parity: PASS_30101718744
@@ -83,42 +83,20 @@ architecture_convergence:
     - ARCH-P2-05
   next_task: ARCH-GOVERNANCE-01
   current_task:
-    id: ARCH-P1-04B
-    status: DONE
-    started_at: "2026-07-24T09:38:51Z"
-    baseline_sha: 46aa8d36d652d31831e7f99543ce16e575b7154d
-    branch: codex/arch-p1-04b-dashboard-read-cutover
-    pull_request: 387
-    validated_implementation_head: bd816803af5e8149dec743b277d8ae495197a0e0
-    implementation_exact_head_ci: 30100951746
-    final_head: 31cb01023612c1d938723a0f31d6c643affc9450
-    final_exact_head_ci: 30101718744
-    merge_sha: 7ffdc0fed42538243be9e6700b8093bb56372920
-    completed_at: "2026-07-24T14:51:59Z"
-    api_read_authority: READ_MODEL_CHECKPOINT_ONLY
-    api_except_exception_count: 0
-    api_forbidden_computation_imports: 0
-    production_fallback_count: 0
-    implicit_empty_result_fallback_count: 0
-    api_to_ingestion_edges: 0
-    ingestion_to_api_edges: 0
-    production_behavior_changed: true
-    api_read_path_changed: true
-    dashboard_read_path_changed: true
-    production_day_view_legacy_fallback_count: 0
-    day_view_missing_decision_contract: FAIL_CLOSED
-    day_view_decision_fields_contract_only: true
-    day_view_read_time_decision_recompute_count: 0
-    partial_decision_contract: FAIL_CLOSED
-    contradictory_decision_contract: FAIL_CLOSED
-    top_level_decision_field_fallback_count: 0
-    static_guard_covers_production_day_view: true
+    id: ARCH-GOVERNANCE-01
+    status: IN_PROGRESS
+    started_at: "2026-07-24T17:12:33Z"
+    baseline_sha: 91c7921574fcca249a9f1a9cf29c8c782e774930
+    branch: codex/arch-governance-01-dual-gates
+    pull_request: PENDING_CREATION
+    protocol_read: GITHUB_SECONDARY_REVIEW_PROTOCOL_V1
+    task_scope_contract_read: TASK_SCOPE_AND_REVIEW_BOUNDARY_V1
+    required_checks:
+      - PRE_MERGE_READINESS_GATE
+      - POST_MERGE_CHECKLIST_CONSISTENCY_GATE
+    production_behavior_changed: false
+    database_changed: false
     safety_switches_changed: false
-    staging_semantic_reconciliation: PASS
-    staging_rollback: PASS
-    dashboard_http_reads: PASS_20_OF_20_HTTP_200_STABLE_HASH
-    persisted_readback_hash_match: PASS_8_OF_8
-    unprojected_analysis_status: SYSTEM_DEGRADED_ANALYSIS_PROJECTION_NOT_READY
   governance_contracts:
     github_secondary_review:
       id: GITHUB_SECONDARY_REVIEW_PROTOCOL_V1
@@ -172,14 +150,14 @@ architecture_convergence:
       heavy_test_owner: GITHUB_CI
     merge_governance:
       task: ARCH-GOVERNANCE-01
-      status: NOT_STARTED
-      queue: QUEUED_NEXT
+      status: IN_PROGRESS
+      queue: CURRENT
       required_checks:
         - PRE_MERGE_READINESS_GATE
         - POST_MERGE_CHECKLIST_CONSISTENCY_GATE
-      implementation_in_current_task: false
+      implementation_in_current_task: true
   queued_tasks:
-    ARCH-GOVERNANCE-01: NOT_STARTED_QUEUED_NEXT
+    ARCH-GOVERNANCE-01: IN_PROGRESS
     ARCH-P1-04C: NOT_STARTED
   pre_approved_order_change:
     task: ARCH-P1-05

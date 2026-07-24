@@ -96,9 +96,15 @@ ARCH-P1-08 通过后，功能冻结部分解除：**仅允许本清单阶段 B �
 #### A1. ARCH-GOVERNANCE-01：合并前就绪 + 合并后清单一致性双门禁
 
 ```text
-Status: NOT_STARTED
-Queue: QUEUED_NEXT
+Status: IN_PROGRESS
+Branch: codex/arch-governance-01-dual-gates
+PR: PENDING_CREATION
+Base SHA: 91c7921574fcca249a9f1a9cf29c8c782e774930
+Started at: 2026-07-24T17:12:33Z
+Owner: Codex
 Required checks: PRE_MERGE_READINESS_GATE + POST_MERGE_CHECKLIST_CONSISTENCY_GATE
+Protocol read: GITHUB_SECONDARY_REVIEW_PROTOCOL_V1
+Task scope contract read: TASK_SCOPE_AND_REVIEW_BOUNDARY_V1
 ```
 
 独立治理 PR。前者阻止未获外部验收结论的 PR 提前合并；后者核验已合并 PR 与本清单
@@ -476,6 +482,8 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 ## 八、待议区（记录不实施）
 
 - A2 死代码复核中"证据不足"的疑似项（记录后由后续 P2-06 矩阵裁决）。
+- `PROJECT_STATE.repository.main_sha` 在 PR #392 合并后仍指向上一完成任务坐标；
+  v3 总清单与 GitHub main 为权威，A1 开工时同步到实际 Base SHA。
 
 ---
 
