@@ -102,28 +102,36 @@ PR: #393
 Base SHA: 91c7921574fcca249a9f1a9cf29c8c782e774930
 Started at: 2026-07-24T17:12:33Z
 Owner: Codex
-Required checks: PRE_MERGE_READINESS_GATE + POST_MERGE_CHECKLIST_CONSISTENCY_GATE
+Bootstrap required checks: verify + staging-parity
+Final A1 required checks: verify + staging-parity + PRE_MERGE_READINESS_GATE +
+  POST_MERGE_CHECKLIST_CONSISTENCY_GATE
 Trusted execution: workflow + checker from main/base; PR head checklist is API-read data only
 Protocol read: GITHUB_SECONDARY_REVIEW_PROTOCOL_V1
 Task scope contract read: TASK_SCOPE_AND_REVIEW_BOUNDARY_V1
 Implementation SHA: GITHUB_PR_EXACT_HEAD
-Validated implementation head: c48fd10d4d472380bba37525255f897937a4987b
+Validated remediation head: 6bb10237bfa3d60f138cf76450b25c659f7e697a
 Final receipt head: GitHub PR exact head
-CI run: GitHub Actions exact-head W2 Stage 2 CI + W2 Architecture Governance
-Validated implementation CI: 30114362958 + 30114363059
+Stage 2 CI: 30116539839
+Bootstrap governance contexts: NOT_AVAILABLE_UNTIL_MAIN_BOOTSTRAP
 Staging SHA: NOT_APPLICABLE_GOVERNANCE_ONLY
-Evidence: local 1609 passed / 4 skipped; governance matrix 58 passed; required checks
-  verify + staging-parity + predeploy-e2e + PRE_MERGE_READINESS_GATE +
-  POST_MERGE_CHECKLIST_CONSISTENCY_GATE; branch protection strict preserved;
-  rollback rehearsal PASS; workflow contents-write/self-commit/push count = 0
+Evidence: local 1609 passed / 4 skipped; governance matrix 58 passed; Stage 2 CI
+  verify + staging-parity + predeploy-e2e PASS; bootstrap required contexts =
+  verify + staging-parity; predeploy-e2e remains mandatory full CI but is not a
+  branch-protection required context; branch protection strict = true;
+  workflow contents-write/self-commit/push count = 0
 Rollback: `git revert "$(gh pr view 393 --repo QIUYEDALAO/w2-football-intelligence-engine
   --json mergeCommit --jq .mergeCommit.oid)"`; then `gh api --method PATCH
   repos/QIUYEDALAO/w2-football-intelligence-engine/branches/main/protection/required_status_checks
   -F strict=true -f 'contexts[]=verify' -f 'contexts[]=staging-parity'`
-Closure: implementation PR #393 合并后，从最新 main 创建 `W2_PR_KIND: CLOSURE`
-  的 ARCH-GOVERNANCE-01 closure PR；写入 `Status: DONE`、台账 `#393` 与 GitHub
-  返回的完整 40 位 Merge SHA。closure PR 合并且 main POST 门禁通过前，
-  ARCH-P1-04C 必须保持 `NOT_STARTED`。
+One-time bootstrap:
+  1. #393 仅在原 required checks（verify + staging-parity）与外部验收下合并。
+  2. #393 合并后，workflow/checker 才成为 main 可信代码。
+  3. 随即将 required contexts 更新为 verify + staging-parity +
+     PRE_MERGE_READINESS_GATE + POST_MERGE_CHECKLIST_CONSISTENCY_GATE。
+  4. 从最新 main 创建独立 `W2_PR_KIND: CLOSURE` 的 A1 closure PR，写入
+     `Status: DONE`、台账 `#393` 与 GitHub 返回的完整 40 位 Merge SHA。
+  5. closure PR 必须真实跑通 PRE 与 POST 两个新门禁。
+  6. closure PR 合并且 main POST PASS 前，A1 不得 DONE，A2 不得启动。
 ```
 
 独立治理 PR。前者阻止未获外部验收结论的 PR 提前合并；后者核验已合并 PR 与本清单

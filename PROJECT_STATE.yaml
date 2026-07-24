@@ -34,11 +34,11 @@ repository:
   local_work_branch: codex/arch-governance-01-dual-gates
   github_sync_status: ARCH_GOVERNANCE_01_IMPLEMENTED_PENDING_ACCEPTANCE
   ci_checks:
-    verify: GITHUB_PR_EXACT_HEAD
-    staging-parity: GITHUB_PR_EXACT_HEAD
-    predeploy-e2e: GITHUB_PR_EXACT_HEAD
-    PRE_MERGE_READINESS_GATE: FAIL_EXPECTED_EXTERNAL_ACCEPTANCE_MISSING
-    POST_MERGE_CHECKLIST_CONSISTENCY_GATE: GITHUB_PR_EXACT_HEAD
+    verify: PASS_30116539839
+    staging-parity: PASS_30116539839
+    predeploy-e2e: PASS_30116539839_NOT_BRANCH_PROTECTION_REQUIRED
+    PRE_MERGE_READINESS_GATE: NOT_AVAILABLE_UNTIL_MAIN_BOOTSTRAP
+    POST_MERGE_CHECKLIST_CONSISTENCY_GATE: NOT_AVAILABLE_UNTIL_MAIN_BOOTSTRAP
   closed_pull_requests:
     370: CLOSED_AFTER_BASELINE_INTEGRATION_PR_374
     385: MERGED_AFTER_IMPLEMENTATION_AND_STAGING_ACCEPTANCE
@@ -93,20 +93,32 @@ architecture_convergence:
     pull_request: 393
     protocol_read: GITHUB_SECONDARY_REVIEW_PROTOCOL_V1
     task_scope_contract_read: TASK_SCOPE_AND_REVIEW_BOUNDARY_V1
-    required_checks:
+    bootstrap_required_checks:
+      - verify
+      - staging-parity
+    final_a1_required_checks:
+      - verify
+      - staging-parity
       - PRE_MERGE_READINESS_GATE
       - POST_MERGE_CHECKLIST_CONSISTENCY_GATE
-    validated_implementation_head: c48fd10d4d472380bba37525255f897937a4987b
-    implementation_exact_head_ci:
-      - 30114362958
-      - 30114363059
+    validated_remediation_head: 6bb10237bfa3d60f138cf76450b25c659f7e697a
+    validated_remediation_stage2_ci: 30116539839
+    bootstrap_governance_contexts: NOT_AVAILABLE_UNTIL_MAIN_BOOTSTRAP
     final_head: GITHUB_PR_EXACT_HEAD
     final_exact_head_ci: GITHUB_ACTIONS_EXACT_HEAD_RUN
     staging_sha: NOT_APPLICABLE_GOVERNANCE_ONLY
-    branch_protection_strict: true
+    branch_protection_required_contexts_before_a1:
+      - verify
+      - staging-parity
+    branch_protection_required_contexts_current:
+      - verify
+      - staging-parity
+    branch_protection_strict_before: true
+    branch_protection_strict_current: true
+    predeploy_e2e_branch_protection_required: false
     branch_protection_rollback_rehearsal: PASS
-    local_pytest: 1593_PASSED_4_SKIPPED
-    governance_unit_tests: 34_PASSED
+    local_pytest: 1609_PASSED_4_SKIPPED
+    governance_unit_tests: 58_PASSED
     production_behavior_changed: false
     database_changed: false
     safety_switches_changed: false
@@ -172,9 +184,23 @@ architecture_convergence:
         path: SEPARATE_CLOSURE_PR_AFTER_IMPLEMENTATION_MERGE
         requires_full_merge_sha: true
         next_task_blocked_until_main_post_pass: ARCH-P1-04C
-      required_checks:
+      bootstrap_required_checks:
+        - verify
+        - staging-parity
+      final_required_checks:
+        - verify
+        - staging-parity
         - PRE_MERGE_READINESS_GATE
         - POST_MERGE_CHECKLIST_CONSISTENCY_GATE
+      bootstrap:
+        governance_contexts: NOT_AVAILABLE_UNTIL_MAIN_BOOTSTRAP
+        sequence:
+          - MERGE_393_WITH_ORIGINAL_REQUIRED_CHECKS_AND_EXTERNAL_ACCEPTANCE
+          - WORKFLOW_AND_CHECKER_BECOME_TRUSTED_ON_MAIN
+          - ADD_PRE_AND_POST_TO_ORIGINAL_REQUIRED_CONTEXTS
+          - CREATE_SEPARATE_A1_CLOSURE_PR
+          - CLOSURE_PR_RUNS_PRE_AND_POST
+          - MERGE_CLOSURE_AND_MAIN_POST_PASS_BEFORE_A1_DONE_OR_A2_START
       implementation_in_current_task: true
   queued_tasks:
     ARCH-GOVERNANCE-01: IMPLEMENTED_PENDING_ACCEPTANCE
