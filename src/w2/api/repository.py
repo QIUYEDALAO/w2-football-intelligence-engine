@@ -131,16 +131,19 @@ class ReadModelRepository:
         )
 
     def dashboard_latest_fixtures(self) -> list[dict[str, Any]]:
-        return [
-            {**deepcopy(row.payload), "_read_model_checkpoint": _checkpoint_metadata(row)}
-            for row in self.checkpoints("dashboard:fixture_latest:")
-        ]
+        fixtures: list[dict[str, Any]] = []
+        for row in self.checkpoints(ANALYSIS_CARD_SHADOW_PREFIX):
+            fixture_id = row.key.removeprefix(ANALYSIS_CARD_SHADOW_PREFIX)
+            card = self._analysis_card_from_checkpoint(row, fixture_id)
+            fixtures.append(self._dashboard_fixture_from_projection(card, row))
+        return fixtures
 
     def dashboard_fixture(self, fixture_id: str) -> dict[str, Any] | None:
-        row = self.checkpoint(f"dashboard:fixture_latest:{fixture_id}")
+        row = self.checkpoint(f"{ANALYSIS_CARD_SHADOW_PREFIX}{fixture_id}")
         if row is None:
             return None
-        return {**deepcopy(row.payload), "_read_model_checkpoint": _checkpoint_metadata(row)}
+        card = self._analysis_card_from_checkpoint(row, fixture_id)
+        return self._dashboard_fixture_from_projection(card, row)
 
     def dashboard_provider(self) -> dict[str, Any] | None:
         row = self.checkpoint("dashboard:provider_status")
@@ -158,6 +161,13 @@ class ReadModelRepository:
         row = self.checkpoint(f"{ANALYSIS_CARD_SHADOW_PREFIX}{fixture_id}")
         if row is None:
             return None
+        return self._analysis_card_from_checkpoint(row, fixture_id)
+
+    def _analysis_card_from_checkpoint(
+        self,
+        row: Checkpoint,
+        fixture_id: str,
+    ) -> dict[str, Any]:
         try:
             artifact = validate_frozen_analysis_payload(fixture_id, row.payload)
         except FrozenAnalysisError as exc:
@@ -179,6 +189,24 @@ class ReadModelRepository:
             "last_projected_at": payload["last_projected_at"],
         }
         return card
+
+    @staticmethod
+    def _dashboard_fixture_from_projection(
+        card: dict[str, Any],
+        row: Checkpoint,
+    ) -> dict[str, Any]:
+        return {
+            "fixture_id": str(card.get("fixture_id") or ""),
+            "competition_id": card.get("competition_id"),
+            "competition_name": card.get("competition_name"),
+            "kickoff_utc": card.get("kickoff_utc"),
+            "status": card.get("status"),
+            "home_team_id": card.get("home_team_id"),
+            "home_team_name": card.get("home_team_name") or card.get("home_name"),
+            "away_team_id": card.get("away_team_id"),
+            "away_team_name": card.get("away_team_name") or card.get("away_name"),
+            "_read_model_checkpoint": _checkpoint_metadata(row),
+        }
 
     def operation_payloads(self, name: str) -> list[dict[str, Any]]:
         return [
@@ -697,8 +725,6 @@ class ReadModelService:
         use_frozen_canary: bool = False,
     ) -> dict[str, Any] | None:
         del evaluation_time, use_frozen_canary
-        if self.repository.dashboard_fixture(fixture_id) is None:
-            return None
         return self.repository.analysis_card_projection(fixture_id) or self._system_degraded_card(
             fixture_id, "ANALYSIS_PROJECTION_NOT_READY"
         )

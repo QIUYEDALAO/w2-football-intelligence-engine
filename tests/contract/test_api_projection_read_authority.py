@@ -54,6 +54,12 @@ def test_api_imports_no_read_time_computation_packages() -> None:
     assert violations == []
 
 
+def test_dashboard_uses_existing_shadow_projection_namespace() -> None:
+    source = Path("src/w2/api/repository.py").read_text(encoding="utf-8")
+    assert "dashboard:fixture_latest:" not in source
+    assert "self.checkpoints(ANALYSIS_CARD_SHADOW_PREFIX)" in source
+
+
 def test_full_execution_surface_has_no_removed_production_fallback_identity() -> None:
     # scripts/ and infra/ are intentionally part of this scan so a deployment
     # entrypoint cannot silently reintroduce the removed API fallback. The one
@@ -156,7 +162,7 @@ def test_missing_projection_is_explicit_system_degraded_not_empty() -> None:
 
 
 class FailedProjectionRepository(ProjectionRepository):
-    def dashboard_fixture(self, fixture_id: str) -> dict[str, Any] | None:
+    def analysis_card_projection(self, fixture_id: str) -> dict[str, Any] | None:
         raise SystemDegradedError("READ_MODEL_CHECKPOINT_QUERY_FAILED")
 
 
