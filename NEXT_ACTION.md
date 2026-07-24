@@ -39,26 +39,19 @@ and is no longer a prerequisite for any architecture task. Lineup remains
 Execute the P1 tasks strictly in the order recorded in the master checklist:
 
 ```text
-ARCH-HYGIENE-01 -> ARCH-HYGIENE-02
-  -> ARCH-P1-04A -> ARCH-P1-04B -> ARCH-P1-04C -> ARCH-P1-03
+ARCH-HYGIENE-02 -> ARCH-P1-04A -> ARCH-P1-04B -> ARCH-P1-04C -> ARCH-P1-03
   -> ARCH-P1-05 -> ARCH-P1-06 -> ARCH-P1-07 -> ARCH-P1-08
 ```
 
-The current and next task is **ARCH-HYGIENE-01: generated audit artifacts exit
-Git**. Its prerequisite checklist-revision PR is merged and implementation is
-ready for external review in Draft PR #383. Until that PR is externally
-reviewed and merged:
+The current and next task is **ARCH-HYGIENE-02: Scripts authority inventory
+and evidence-backed direct deletion**. ARCH-HYGIENE-01 has passed external
+review and is merged. Until ARCH-HYGIENE-02 is externally reviewed and merged:
 
-1. Limit the task to its checklist contract: classify generated versus
-   human-maintained audit files, move generator defaults out of Git-tracked
-   paths, record `audit_generator_sha` as the generator-code version, derive
-   `source_review_sha` as the audited-tree version dynamically from the current
-   Git HEAD and verify it matches the generation HEAD, remove compatibility
-   aliases and stale placeholders, and add both ignore and static guards.
-2. A task is finished only when its acceptance counters are zero, generator
-   runs leave Git clean, full CI is green, the PR is merged, and the checklist
-   status is flipped to `DONE`.
-3. Do not begin `ARCH-HYGIENE-02`, modify production behavior, change database
+1. Classify every script into the single allowed authority category recorded
+   in the master checklist; only evidence-backed `DEAD` scripts may be deleted.
+2. Keep `check_w2_all.py` limited to W2 stage/contract checkers; GitHub CI owns
+   Ruff, Mypy and Pytest without duplicate execution through that call graph.
+3. Do not begin `ARCH-P1-04A`, modify production behavior, change database
    state, or alter any safety switch.
 
 `ARCH-P1-05` carries a pre-approved conditional bring-forward: if the

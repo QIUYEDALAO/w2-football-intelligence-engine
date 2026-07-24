@@ -26,7 +26,7 @@
 
 ### 0.1 全局进度速览
 
-`main` 顶端 `db3fd12fedb76e9a9cb074f7a3dcc3294042c2fc`，migration head
+`main` 顶端 `748b50e5c990c6138193810ec319e0e413a7ab25`，migration head
 `0041_converge_odds_history_and_projection`。
 
 **staging 实际状态（ARCH-P1-02 验收后）**：release
@@ -35,24 +35,12 @@
 `current_market_projection` 视图**，六个服务全部 healthy、restart count
 全 0；`main` 与 staging 的 migration head 已一致。
 
-| # | 任务 | PR | Merge SHA | 状态 | 详细记录 |
-|---|---|---|---|---|---|
-| 1 | ARCH-00 建立总清单 | #371 | `09ca14a9` | 已验收合并 | 见第七节 |
-| 2 | ARCH-01 关闭 PR #370 | #374 | `160a6750` | 已验收合并 | 见该任务节 |
-| 3 | ARCH-P0-01 删除 reports 文件读取 | #375 | `1e9e811d` | 已验收合并 | 见该任务节 |
-| 4 | ARCH-P0-02 赔率读取路径收敛 | #376 | `dae21e59` | 已验收合并 | 见该任务节 |
-| 5 | ARCH-P0-03 联赛白名单数据库化 | #377 | `7bd5088b` | 已验收合并 | 见该任务节 |
-| 6 | ARCH-P0-04 P0 总验收 | #378 | `d62e3351` | 已验收合并 | 见该任务节 |
-| 7 | ARCH-P1-01 僵尸表盘点与删除 | #379 | `76201af8` | 已验收合并 | 见该任务节 |
-| 8 | 第 0 步 P1-01 收口 + 清单修订 | #380 | `8af05dd` | **已合并** | **0.2** |
-| 9 | ARCH-P1-02 赔率表收敛 | #381 | `f53b073f` | **DONE / 已验收合并** | **0.3 / 0.4 / 0.5** |
-| 10 | 架构清单顺序与合同修订 | #382 | `db3fd12f` | **已验收合并** | **0.6** |
+- [x] ARCH-HYGIENE-01
+- [>] ARCH-HYGIENE-02
+- [ ] ARCH-P1-04A
 
-第 1–7 项由前序会话完成，其回执保留在各自任务节内，本节不重复。第 8、9 项
-的详细变更依据见 0.2–0.5。
-
-**当前执行**：ARCH-HYGIENE-01。后续顺序（见第三节）：ARCH-HYGIENE-02 →
-ARCH-P1-04A → 04B → 04C → P1-03 → P1-05 → P1-06 → P1-07 → P1-08 →
+**当前执行**：ARCH-HYGIENE-02。后续顺序（见第三节）：ARCH-P1-04A →
+04B → 04C → P1-03 → P1-05 → P1-06 → P1-07 → P1-08 →
 P2-02 → P2-03 → P2-04 → P2-06 → P2-05。原 ARCH-P2-01 已由
 ARCH-HYGIENE-02 取代，不再执行。
 
@@ -1682,18 +1670,22 @@ DROP_MIGRATION_NONEMPTY_GUARD = PRESENT
 ## ARCH-HYGIENE-01：生成审计产物退出 Git
 
 ```text
-Status: READY_FOR_EXTERNAL_REVIEW
+Status: DONE
 Started at: 2026-07-23T18:43:42Z
 Owner: Codex
 Base SHA: db3fd12fedb76e9a9cb074f7a3dcc3294042c2fc
 Branch: codex/arch-hygiene-01-generated-audits-exit-git
-Draft PR: #383
+PR: #383 (MERGED)
 Previous correction head: 47d3fdf9941ddce3f2c9fbe9466c8afa2ce2c53c
 Previous correction exact-head CI: 30054047005 (PASS)
 Implementation head: b6d858d614647d62f5cbc271e1d6f7f7da59303d
 Implementation exact-head CI: 30055030785 (PASS)
+Final head: 48acd4391f7d95c487bd47576532db36cf22fb1c
+Final exact-head CI: 30055670729 (PASS)
+Merge SHA: 748b50e5c990c6138193810ec319e0e413a7ab25
+Completed at: 2026-07-24T00:37:57Z
 Scope: docs/audits/system_truth 生成产物、相关生成器及双重静态守卫
-Next task: ARCH-HYGIENE-01（合并前不得推进 ARCH-HYGIENE-02）
+Next task: ARCH-HYGIENE-02
 ```
 
 本任务只治理生成审计产物的版本控制边界，不修改生产行为或任何安全开关，
@@ -1874,32 +1866,31 @@ STAGING_PARITY = PASS
 PREDEPLOY_E2E = PASS
 ```
 
-由于本 PR 尚未经过外部审核与合并，本节只到
-`READY_FOR_EXTERNAL_REVIEW`，不写成 `DONE`；按总清单勾选规则，下列完成框与
-PR 合并框均不提前勾选。
+外部最终验收与合并已经完成；以下项目均已有上述实现、回归测试、exact-head
+CI 和 merge SHA 的直接证据。
 
-- [ ] 逐项区分 `docs/audits/system_truth` 中机器生成文件与人工维护文件，
+- [x] 逐项区分 `docs/audits/system_truth` 中机器生成文件与人工维护文件，
   形成可复核清单；人工维护文件继续受 Git 管理。
-- [ ] 对已跟踪的机器生成审计产物执行 `git rm`，不删除人工维护证据。
-- [ ] 将所有相关生成器的默认输出迁到 `runtime/` 或临时目录。
-- [ ] 停止生成 V2 兼容别名，并删除既有 V2 别名输出。
-- [ ] 删除生成器、模板和审计产物中的硬编码个人路径及硬编码的旧
+- [x] 对已跟踪的机器生成审计产物执行 `git rm`，不删除人工维护证据。
+- [x] 将所有相关生成器的默认输出迁到 `runtime/` 或临时目录。
+- [x] 停止生成 V2 兼容别名，并删除既有 V2 别名输出。
+- [x] 删除生成器、模板和审计产物中的硬编码个人路径及硬编码的旧
   `SOURCE_REVIEW_SHA`。
-- [ ] 明确区分两个版本字段：`audit_generator_sha` 表示生成器代码版本；
+- [x] 明确区分两个版本字段：`audit_generator_sha` 表示生成器代码版本；
   `source_review_sha` 表示本次被审计代码树版本，两者不得混用。
-- [ ] 生成器每次运行时必须通过 `git rev-parse HEAD` 从当前 Git HEAD
+- [x] 生成器每次运行时必须通过 `git rev-parse HEAD` 从当前 Git HEAD
   动态取得完整 `source_review_sha`；不得从静态常量、模板默认值或人工复制值
   读取。
-- [ ] 生成结果必须校验其 `source_review_sha` 等于本次生成开始时取得的 Git
+- [x] 生成结果必须校验其 `source_review_sha` 等于本次生成开始时取得的 Git
   HEAD；不一致立即失败，不得输出或提交该审计结果。
-- [ ] 全量扫描并删除所有 `PENDING_COMMIT` 占位，不得把数量写死为“三处”。
-- [ ] 同时在 `.gitignore` 与 `check_tracked_outputs.py` 增加守卫，阻止机器生成
+- [x] 全量扫描并删除所有 `PENDING_COMMIT` 占位，不得把数量写死为“三处”。
+- [x] 同时在 `.gitignore` 与 `check_tracked_outputs.py` 增加守卫，阻止机器生成
   审计产物再次进入 Git。
-- [ ] 运行全部相关生成器后，`git status --short` 必须保持干净。
-- [ ] 复核所有保留文档的引用，确保移出 Git 后没有断链。
-- [ ] 完整 exact-head CI 通过；不得在本任务中重写 Git 历史、改变生产行为
+- [x] 运行全部相关生成器后，`git status --short` 必须保持干净。
+- [x] 复核所有保留文档的引用，确保移出 Git 后没有断链。
+- [x] 完整 exact-head CI 通过；不得在本任务中重写 Git 历史、改变生产行为
   或安全开关。
-- [ ] PR 经外部审核并合并。
+- [x] PR 经外部审核并合并。
 
 **验收**
 
@@ -1922,39 +1913,298 @@ BROKEN_AUDIT_REFERENCES = 0
 ## ARCH-HYGIENE-02：Scripts 权威盘点与证据化直接删除
 
 ```text
-Status: NOT_STARTED
+Status: READY_FOR_EXTERNAL_REVIEW
+Branch: codex/arch-hygiene-02-script-authority-convergence
+Base SHA: 748b50e5c990c6138193810ec319e0e413a7ab25
+Started at: 2026-07-24T00:42:35Z
+Owner: Codex
+PR: #384 (DRAFT)
+Final implementation head: PR_EXACT_HEAD
+Final exact-head CI: REQUIRED_AT_PR_EXACT_HEAD
+Implementation checks: verify / staging-parity / predeploy-e2e = PASS
 Supersedes: ARCH-P2-01
 Deletion policy: DEAD 直接删除；不建立 scripts/archive
 ```
 
-每个脚本必须逐项归入且只能归入以下一种分类：
+### 145 行最终分类矩阵
+
+证据代码：`E1` 全仓库调用面；`E2` GitHub CI / `check_w2_all.py`；
+`E3` Docker/Compose/systemd/cron/package/deployment；`E4` 运维文档或
+独立人工 CLI；`E5` 测试；`E6` pyproject/Alembic/migration；`E7` 一次性
+恢复或回填；`D1` 调用面为零；`D2` 依赖产物失效或已有权威替代。
+
+<!-- SCRIPT_AUTHORITY_MATRIX_START -->
+| path | 唯一分类 | 直接调用方 | 传递调用链 | 运行环境 | 部署引用 | 运维文档 | 决定 | 证据 |
+|---|---|---|---|---|---|---|---|---|
+| `apps/api/main.py` | `RUNTIME_ENTRYPOINT` | Dockerfile.api / Compose Uvicorn | config → process | runtime | 是 | 无 | `KEEP` | E3/E5/E6 |
+| `apps/scheduler/main.py` | `RUNTIME_ENTRYPOINT` | Dockerfile.scheduler / Compose `python -m` | config → process | runtime | 是 | 无 | `KEEP` | E3/E5/E6 |
+| `apps/web/scripts/write-meta.mjs` | `DEPLOYMENT` | package.json predev/prebuild | npm → script | build | 是 | 无 | `KEEP` | E3 |
+| `apps/worker/celery_app.py` | `RUNTIME_ENTRYPOINT` | Dockerfile.worker / Compose Celery | config → process | runtime | 是 | 无 | `KEEP` | E3/E5/E6 |
+| `migrations/env.py` | `MIGRATION_ONLY` | alembic.ini / Alembic CLI | Alembic → env | migration | 否 | 无 | `KEEP` | E5/E6 |
+| `scripts/audit_football_data_co_uk.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/audit_formal_ah_historical_sources.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/audit_market_mainline_ladder.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/audit_pr370_totals_quarter_ev.py` | `ONE_TIME_RECOVERY` | 人工审核后重算 | operator → script | offline | 否 | 无 | `KEEP` | E7 |
+| `scripts/audit_transfermarkt_asset.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/audit_w2_runtime_authorities.py` | `MANUAL_OPS` | 人工审计生成；unit test 验证 | operator → script | offline | 否 | 无 | `KEEP` | E4/E5 |
+| `scripts/build_canonical_historical_ah_facts.py` | `ONE_TIME_RECOVERY` | 人工历史重建 | operator → script | offline | 否 | 无 | `KEEP` | E7 |
+| `scripts/build_fah_approval_package.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/build_stage5_demo_datasets.py` | `ONE_TIME_RECOVERY` | 人工历史数据重建 | operator → script | offline | 否 | 无 | `KEEP` | E7 |
+| `scripts/build_stage7i_final_evidence.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/build_stage7i_successor_candidates.py` | `MANUAL_OPS` | 人工 CLI；unit test 验证 | operator → script | offline | 否 | 无 | `KEEP` | E4/E5 |
+| `scripts/capture_runtime_release_evidence.py` | `DEPLOYMENT` | 发布证据人工 CLI | operator → script | staging | 否 | 无 | `KEEP` | E3 |
+| `scripts/capture_stage7i_fixture_lifecycle.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/check_boss_console_baseline.py` | `CI_DIRECT` | ci.yml | GitHub CI → script | CI | 是 | 无 | `KEEP` | E2/E3 |
+| `scripts/check_compose_staging_ports.py` | `DEPLOYMENT` | deploy_stage7h / predeploy smoke | operator/CI → script | staging/CI | 是 | STAGE7H_VPS_STAGING | `KEEP` | E3/E4/E5 |
+| `scripts/check_dashboard_v2_baseline.py` | `DEAD` | 无 | 无 | none | 否 | 无 | `DELETE` | D1/D2 |
+| `scripts/check_public_ingress.py` | `CI_TRANSITIVE` | test_public_ingress_cli.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/check_team_values_mapping.py` | `MANUAL_OPS` | W2_TEAM_VALUES_MAPPING | operator → script | offline | 否 | W2_TEAM_VALUES_MAPPING | `KEEP` | E4/E5 |
+| `scripts/check_tracked_outputs.py` | `CI_DIRECT` | ci.yml | GitHub CI → script | CI | 是 | W2_ACCEPTANCE_RUNBOOK | `KEEP` | E2/E3/E4/E5 |
+| `scripts/check_w2_acceptance.py` | `MANUAL_OPS` | W2_ACCEPTANCE_RUNBOOK | operator → script | local | 否 | W2_ACCEPTANCE_RUNBOOK | `KEEP` | E4/E5 |
+| `scripts/check_w2_all.py` | `CI_DIRECT` | ci.yml | GitHub CI → script | CI | 是 | W2_ACCEPTANCE_RUNBOOK | `KEEP` | E2/E3/E4 |
+| `scripts/check_w2_analysis_governance.py` | `CI_TRANSITIVE` | test_analysis_governance.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/check_w2_formal_tracking.py` | `MANUAL_OPS` | W2_FORMAL_TRACKING | operator → script | ops | 是 | W2_FORMAL_TRACKING | `KEEP` | E3/E4/E5 |
+| `scripts/check_w2_future_refresh_staging_contract.py` | `CI_DIRECT` | ci.yml | GitHub CI → script | CI | 是 | 无 | `KEEP` | E2/E3/E5 |
+| `scripts/check_w2_gate5_preflight.py` | `MANUAL_OPS` | STAGE9B_SHADOW_OPERATIONS | operator → script | offline | 否 | STAGE9B_SHADOW_OPERATIONS | `KEEP` | E4 |
+| `scripts/check_w2_league_remediation_readiness.py` | `MANUAL_OPS` | league remediation doc | operator → script | offline | 否 | league remediation doc | `KEEP` | E4/E5 |
+| `scripts/check_w2_market_timeline.py` | `MANUAL_OPS` | market timeline runbook | operator → script | ops | 是 | W2_MARKET_TIMELINE_LOCK_SNAPSHOTS | `KEEP` | E3/E4/E5 |
+| `scripts/check_w2_production_readiness.py` | `MANUAL_OPS` | API image / packaging test | operator → script | ops | 是 | 无 | `KEEP` | E3/E4/E5 |
+| `scripts/check_w2_s2_readiness.py` | `CI_TRANSITIVE` | test_w2_handicap_walkforward_cli.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/check_w2_stage10a.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | 无 | `KEEP` | E2 |
+| `scripts/check_w2_stage10b.py` | `DEAD` | 无 | 无 | none | 否 | 无 | `DELETE` | D1/D2 |
+| `scripts/check_w2_stage10c.py` | `MANUAL_OPS` | STAGE10C_DAILY_OPERATIONS | operator → script | ops | 否 | STAGE10C_DAILY_OPERATIONS | `KEEP` | E4 |
+| `scripts/check_w2_stage10d.py` | `DEAD` | 无 | 无 | none | 否 | 无 | `DELETE` | D1/D2 |
+| `scripts/check_w2_stage11a.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | 无 | `KEEP` | E2 |
+| `scripts/check_w2_stage12a.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | 无 | `KEEP` | E2 |
+| `scripts/check_w2_stage12b.py` | `DEAD` | 无 | 无 | none | 否 | 无 | `DELETE` | D1/D2 |
+| `scripts/check_w2_stage13a.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | WORLD_CUP_DRY_RUN | `KEEP` | E2/E4 |
+| `scripts/check_w2_stage14a.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | 无 | `KEEP` | E2 |
+| `scripts/check_w2_stage15a.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | LONG_TERM_OPERATIONS | `KEEP` | E2/E4 |
+| `scripts/check_w2_stage1_contracts.py` | `CI_DIRECT` | ci.yml / check_w2_all | CI → script | CI | 是 | LOCAL_DEVELOPMENT | `KEEP` | E2/E3/E4/E5 |
+| `scripts/check_w2_stage3_data_model.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | README | `KEEP` | E2/E4/E5 |
+| `scripts/check_w2_stage4_ingestion.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/check_w2_stage4b_live_smoke.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | LIVE_INGESTION_VERIFIED | `KEEP` | E2/E4 |
+| `scripts/check_w2_stage5_asof.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | 无 | `KEEP` | E2 |
+| `scripts/check_w2_stage5b.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | 无 | `KEEP` | E2 |
+| `scripts/check_w2_stage6_market.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | 无 | `KEEP` | E2 |
+| `scripts/check_w2_stage6b.py` | `DEAD` | 无 | 无 | none | 否 | 无 | `DELETE` | D1/D2 |
+| `scripts/check_w2_stage7_models.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | 无 | `KEEP` | E2 |
+| `scripts/check_w2_stage7b.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | 无 | `KEEP` | E2 |
+| `scripts/check_w2_stage7c.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | FORWARD_HOLDOUT_CYCLE | `KEEP` | E2/E4 |
+| `scripts/check_w2_stage7d.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | FORWARD_HOLDOUT_AUTOMATION | `KEEP` | E2/E4 |
+| `scripts/check_w2_stage7e.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | STAGE7E_AUTORUN_OPERATIONS | `KEEP` | E2/E4 |
+| `scripts/check_w2_stage7f.py` | `DEAD` | 无 | 无 | none | 否 | 无 | `DELETE` | D1/D2 |
+| `scripts/check_w2_stage7g.py` | `DEAD` | 无 | 无 | none | 否 | 无 | `DELETE` | D1/D2 |
+| `scripts/check_w2_stage7h.py` | `DEPLOYMENT` | deploy_stage7h_staging.sh | operator → deploy → script | staging | 是 | STAGE7H_VPS_STAGING | `KEEP` | E3/E4/E5 |
+| `scripts/check_w2_stage7i.py` | `MANUAL_OPS` | 人工 CLI；integration tests 验证 | operator → script | offline | 否 | 无 | `KEEP` | E4/E5 |
+| `scripts/check_w2_stage8_replay.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | 无 | `KEEP` | E2 |
+| `scripts/check_w2_stage9a.py` | `MANUAL_OPS` | STAGE9A_SHADOW_OPERATIONS | operator → script | offline | 否 | STAGE9A_SHADOW_OPERATIONS | `KEEP` | E4 |
+| `scripts/check_w2_stage9b.py` | `DEAD` | 无 | 无 | none | 否 | 无 | `DELETE` | D1/D2 |
+| `scripts/debug_w2_formal_market.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/debug_w2_formal_recommendations.py` | `CI_TRANSITIVE` | test_formal_explainability_audit.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/debug_w2_modeling_sanity.py` | `MANUAL_OPS` | API image / tests | operator → script | ops | 是 | 无 | `KEEP` | E3/E4/E5 |
+| `scripts/debug_w2_s2_calibration_validation.py` | `MANUAL_OPS` | API image / tests | operator → script | ops | 是 | 无 | `KEEP` | E3/E4/E5 |
+| `scripts/deploy_stage7h_staging.sh` | `DEPLOYMENT` | staging runbooks | operator → script | staging | 否 | STAGE7H_VPS_STAGING / HARDENING | `KEEP` | E3/E4/E5 |
+| `scripts/diagnose_staging_runtime.sh` | `DEPLOYMENT` | STAGING_RUNTIME_HARDENING | operator → script | staging | 否 | STAGING_RUNTIME_HARDENING | `KEEP` | E3/E4/E5 |
+| `scripts/export_w2_audit_tables.py` | `MANUAL_OPS` | audit export runbook | operator → script | ops | 是 | w2_audit_table_export | `KEEP` | E3/E4/E5 |
+| `scripts/export_w2_world_cup_team_ids.py` | `MANUAL_OPS` | W2_TEAM_VALUES_MAPPING | operator → script | offline | 否 | W2_TEAM_VALUES_MAPPING | `KEEP` | E4/E5 |
+| `scripts/generate_release_gate_manifest.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/generate_w2_report.py` | `MANUAL_OPS` | HTML dashboard acceptance doc | operator → script | offline | 否 | W2_HTML_DASHBOARD_V3_ACCEPTANCE | `KEEP` | E4/E5 |
+| `scripts/import_stage5b_historical_data.py` | `ONE_TIME_RECOVERY` | 人工历史导入 | operator → script | offline | 否 | 无 | `KEEP` | E7 |
+| `scripts/import_team_identity_crosswalk.py` | `ONE_TIME_RECOVERY` | 人工 crosswalk 导入 | operator → script | offline | 否 | 无 | `KEEP` | E7 |
+| `scripts/ingest_football_data_co_uk.py` | `MANUAL_OPS` | FOOTBALL_DATA_INGEST_TEMPLATE | operator → script | offline | 否 | FOOTBALL_DATA_INGEST_TEMPLATE | `KEEP` | E4 |
+| `scripts/inventory_existing_football_data.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/lmm_coverage_audit.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/lmm_materialize_stored_lineups.py` | `MANUAL_OPS` | API image / tests | operator → script | ops | 是 | 无 | `KEEP` | E3/E4/E5 |
+| `scripts/lmm_transfermarkt_snapshot.py` | `MANUAL_OPS` | API image / tests | operator → script | ops | 是 | 无 | `KEEP` | E3/E4/E5 |
+| `scripts/materialize_analysis_card_canary.py` | `MANUAL_OPS` | API image / tests | operator → script | ops | 是 | 无 | `KEEP` | E3/E4/E5 |
+| `scripts/materialize_captured_matchday_odds.py` | `ONE_TIME_RECOVERY` | 人工 odds 恢复 | operator → script | staging manual | 否 | PR370 closure report | `KEEP` | E4/E7 |
+| `scripts/materialize_team_value_asof.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/preflight_runtime_writable.py` | `DEPLOYMENT` | staging parity tests | CI/operator → script | staging/CI | 否 | 无 | `KEEP` | E3/E5 |
+| `scripts/probe_analysis_chain.py` | `MANUAL_OPS` | PR370 acceptance docs | operator → script | staging read-only | 否 | PR370 acceptance docs | `KEEP` | E4 |
+| `scripts/project_stage10b_live_snapshot.py` | `MANUAL_OPS` | STAGE10B_DASHBOARD_LIVE_WIRING | operator → script | offline | 否 | STAGE10B_DASHBOARD_LIVE_WIRING | `KEEP` | E4 |
+| `scripts/project_stage10c_matchday_read_model.py` | `CI_TRANSITIVE` | test_stage10c_matchday.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/publish_w2_static_report.py` | `MANUAL_OPS` | A-151 static report runbook | operator → script | ops | 是 | A-151_STATIC_REPORT_WEB_ROOT | `KEEP` | E3/E4/E5 |
+| `scripts/reconcile_pr370_validation_ledger.py` | `ONE_TIME_RECOVERY` | 人工 ledger 恢复 | operator → script | staging manual | 否 | 无 | `KEEP` | E7 |
+| `scripts/recover_staging_runtime.sh` | `DEPLOYMENT` | STAGING_RUNTIME_HARDENING | operator → script | staging | 否 | STAGING_RUNTIME_HARDENING | `KEEP` | E3/E4/E5 |
+| `scripts/render_ai_card_text.py` | `MANUAL_OPS` | README / stage1 contract | operator → script | local | 否 | README | `KEEP` | E4/E5 |
+| `scripts/replay_provider_fixture.py` | `MANUAL_OPS` | INGESTION_OFFLINE_REPLAY | operator → script | offline | 否 | INGESTION_OFFLINE_REPLAY | `KEEP` | E4/E5 |
+| `scripts/run_fah_master_pipeline.py` | `MANUAL_OPS` | FAH data handoff | operator → script | offline | 否 | W2_FAH_PRIVATE_DATA_HANDOFF | `KEEP` | E4 |
+| `scripts/run_predeploy_e2e_smoke.sh` | `CI_DIRECT` | ci.yml | GitHub CI → script | CI | 是 | PR370 deployment context | `KEEP` | E2/E3/E4 |
+| `scripts/run_prematch_refresh.py` | `CI_TRANSITIVE` | test_prematch_refresh_cli.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/run_readiness_fault_injection.sh` | `DEPLOYMENT` | hardening test harness | operator/test → script | staging | 否 | 无 | `KEEP` | E3/E5 |
+| `scripts/run_stage10c_daily_cycle.py` | `MANUAL_OPS` | STAGE10C_DAILY_OPERATIONS | operator → script | ops | 否 | STAGE10C_DAILY_OPERATIONS | `KEEP` | E4 |
+| `scripts/run_stage11a_backup_restore_drill.py` | `MANUAL_OPS` | 人工 CLI / stage11 checker reads | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/run_stage12a_migration_dry_run.py` | `MIGRATION_ONLY` | check_w2_stage12a | CI checker → script contract | migration | 否 | 无 | `KEEP` | E6 |
+| `scripts/run_stage12a_shadow_dry_run.py` | `MANUAL_OPS` | 人工 CLI / stage12 checker reads | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/run_stage12b_shadow_comparison.py` | `MANUAL_OPS` | STAGE9B_SHADOW_OPERATIONS | operator → script | offline | 否 | STAGE9B_SHADOW_OPERATIONS | `KEEP` | E4 |
+| `scripts/run_stage13a_world_cup_dry_run.py` | `MANUAL_OPS` | WORLD_CUP_DRY_RUN | operator → script | offline | 否 | WORLD_CUP_DRY_RUN | `KEEP` | E4 |
+| `scripts/run_stage14a_league_audit.py` | `MANUAL_OPS` | whitelist workorder | operator → script | offline | 否 | W2_WHITELIST_TECH_WORKORDER | `KEEP` | E4/E5 |
+| `scripts/run_stage15a_operations_dry_run.py` | `MANUAL_OPS` | LONG_TERM_OPERATIONS | operator → script | offline | 否 | LONG_TERM_OPERATIONS | `KEEP` | E4 |
+| `scripts/run_stage4b_live_smoke.py` | `MANUAL_OPS` | LIVE_INGESTION_VERIFIED | operator → script | ops | 否 | LIVE_INGESTION_VERIFIED | `KEEP` | E4 |
+| `scripts/run_stage6_market_backtest.py` | `MANUAL_OPS` | stage6 checker reads / 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/run_stage7i_observer.py` | `MANUAL_OPS` | 人工 CLI；unit tests | operator → script | offline | 否 | 无 | `KEEP` | E4/E5 |
+| `scripts/run_stage8_replay.py` | `MANUAL_OPS` | stage8 checker reads / 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/run_stage9a_shadow_replay.py` | `MANUAL_OPS` | STAGE9A_SHADOW_OPERATIONS | operator → script | offline | 否 | STAGE9A_SHADOW_OPERATIONS | `KEEP` | E4/E5 |
+| `scripts/run_stage9b_shadow_cycle.py` | `MANUAL_OPS` | STAGE9B_SHADOW_OPERATIONS | operator → script | offline | 否 | STAGE9B_SHADOW_OPERATIONS | `KEEP` | E4 |
+| `scripts/run_w2_ah_formal_evidence.py` | `CI_TRANSITIVE` | test_w2_ah_formal_evidence_cli.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/run_w2_factor_model_remediation.py` | `ONE_TIME_RECOVERY` | 人工 remediation 恢复 | operator → script | staging manual | 否 | 无 | `KEEP` | E7 |
+| `scripts/run_w2_formal_tracking.py` | `MANUAL_OPS` | W2_FORMAL_TRACKING | operator → script | ops | 是 | W2_FORMAL_TRACKING | `KEEP` | E3/E4/E5 |
+| `scripts/run_w2_forward_outcome_ledger.py` | `MANUAL_OPS` | API image / tests | operator → script | ops | 是 | 无 | `KEEP` | E3/E4/E5 |
+| `scripts/run_w2_free_tier_2024_backtest.py` | `MANUAL_OPS` | league evaluation docs | operator → script | offline | 否 | PL/Understat evaluation docs | `KEEP` | E4 |
+| `scripts/run_w2_handicap_walkforward.py` | `MANUAL_OPS` | market timeline runbook | operator → script | ops | 是 | W2_MARKET_TIMELINE_LOCK_SNAPSHOTS | `KEEP` | E3/E4/E5 |
+| `scripts/run_w2_independent_signal_backfill.py` | `ONE_TIME_RECOVERY` | 人工 backfill | operator → script | staging manual | 是 | 无 | `KEEP` | E3/E5/E7 |
+| `scripts/run_w2_league_whitelist_audit.py` | `MANUAL_OPS` | competition README / tests | operator → script | offline | 否 | competition README | `KEEP` | E4/E5 |
+| `scripts/run_w2_market_baseline_eval.py` | `MANUAL_OPS` | architecture review docs | operator → script | offline | 否 | W2_MARKET_BASELINE_EVAL | `KEEP` | E4 |
+| `scripts/run_w2_market_timeline_refresh.py` | `MANUAL_OPS` | market timeline runbook | operator → script | ops | 是 | W2_MARKET_TIMELINE_LOCK_SNAPSHOTS | `KEEP` | E3/E4/E5 |
+| `scripts/run_w2_matchday_refresh_plan.py` | `CI_TRANSITIVE` | test_matchday_refresh_plan_cli.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/run_w2_outcome_result_refresh.py` | `MANUAL_OPS` | 人工 CLI | operator → script | ops | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/run_w2_pro_day1_sprint.py` | `MANUAL_OPS` | S13 odds probe doc | operator → script | offline | 否 | W2_S13_ODDS_PROBE | `KEEP` | E4 |
+| `scripts/run_w2_r2_offline_evaluation.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/run_w2_replay_frontdoor.py` | `CI_TRANSITIVE` | test_replay_frontdoor_cli.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/run_w2_report_runner.py` | `MANUAL_OPS` | API image / tests | operator → script | ops | 是 | 无 | `KEEP` | E3/E4/E5 |
+| `scripts/run_w2_settlement_history.py` | `MANUAL_OPS` | API image / tests | operator → script | ops | 是 | 无 | `KEEP` | E3/E4/E5 |
+| `scripts/run_xg_history_backfill.py` | `ONE_TIME_RECOVERY` | 人工历史 xG 回填 CLI | operator → script | offline recovery | 否 | 无 | `KEEP` | E7 |
+| `scripts/seed_competition_runtime_authority.py` | `MANUAL_OPS` | 人工 competition authority CLI（production 默认值 / `--set-enabled`） | operator → script | ops | 否 | 无 | `KEEP` | E4/E5 |
+| `scripts/seed_staging_dashboard.py` | `ONE_TIME_RECOVERY` | 人工 staging 恢复 | operator → script | staging manual | 否 | W2_RELEASE_SYNC | `KEEP` | E4/E7 |
+| `scripts/select_stage7i_successor.py` | `MANUAL_OPS` | 人工 CLI；unit tests | operator → script | offline | 否 | 无 | `KEEP` | E4/E5 |
+| `scripts/smoke.py` | `MANUAL_OPS` | Makefile | operator → make → script | local | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/summarize_w2_league_audit_diagnosis.py` | `CI_TRANSITIVE` | league evidence tests | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/summarize_w2_league_provider_usage.py` | `MANUAL_OPS` | provider usage doc | operator → script | offline | 否 | W2_PROVIDER_USAGE_RECONCILIATION | `KEEP` | E4/E5 |
+| `scripts/summarize_w2_league_whitelist_scope.py` | `CI_TRANSITIVE` | test_league_whitelist_full_scope.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/verify_release_sync.py` | `DEPLOYMENT` | W2_RELEASE_SYNC | operator → script | staging | 否 | W2_RELEASE_SYNC | `KEEP` | E3/E4 |
+| `scripts/w2_data_asset_registry.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/watch_staging_runtime.sh` | `DEPLOYMENT` | w2-staging-watchdog.service | systemd → script | staging | 是 | 无 | `KEEP` | E3/E5 |
+| `src/w2/gates/gate5_preflight_cli.py` | `RUNTIME_ENTRYPOINT` | pyproject `w2-gate5-preflight` | console → module | runtime CLI | 否 | 无 | `KEEP` | E3/E6 |
+| `src/w2/matchday/cli.py` | `RUNTIME_ENTRYPOINT` | pyproject `w2-matchday` | console → module | runtime CLI | 否 | 无 | `KEEP` | E3/E6 |
+| `src/w2/observability/stage7i_observer_cli.py` | `RUNTIME_ENTRYPOINT` | pyproject `w2-stage7i-observer` | console → module | runtime CLI | 否 | 无 | `KEEP` | E3/E6 |
+| `src/w2/shadow/comparison_import_cli.py` | `RUNTIME_ENTRYPOINT` | pyproject comparison import | console → module | runtime CLI | 否 | 无 | `KEEP` | E3/E6 |
+| `src/w2/strategy/shadow_cycle_cli.py` | `RUNTIME_ENTRYPOINT` | pyproject `w2-shadow-cycle` | console → module | runtime CLI | 否 | 无 | `KEEP` | E3/E6 |
+| `tests/secret_scan.py` | `CI_DIRECT` | ci.yml | GitHub CI → script | CI | 是 | W2_ACCEPTANCE_RUNBOOK | `KEEP` | E2/E3/E4/E5 |
+<!-- SCRIPT_AUTHORITY_MATRIX_END -->
+
+分类汇总：
 
 ```text
-RUNTIME_ENTRYPOINT
-CI_DIRECT
-CI_TRANSITIVE
-DEPLOYMENT
-MANUAL_OPS
-MIGRATION_ONLY
-ONE_TIME_RECOVERY
-DEAD
+RUNTIME_ENTRYPOINT = 8
+CI_DIRECT = 7
+CI_TRANSITIVE = 29
+DEPLOYMENT = 11
+MANUAL_OPS = 69
+MIGRATION_ONLY = 2
+ONE_TIME_RECOVERY = 11
+DEAD = 8
+TOTAL_BASELINE = 145
+TOTAL_RETAINED = 137
+UNCLASSIFIED = 0
+MULTI_CLASSIFIED = 0
 ```
 
-只有证据充分的 `DEAD` 脚本可以直接删除。不得以移动到 archive、重命名或
-增加兼容入口代替删除；其他类别必须记录实际调用方和证据。
+已由真实代码确认的分类事实纠正：
 
-- [ ] 全量扫描 GitHub CI、`check_w2_all.py`、Dockerfile、Compose、
-  systemd/cron、Python `subprocess`、Shell 调用、`pyproject` entrypoint
-  以及运维文档。
-- [ ] 为每个脚本记录分类、直接/传递调用方、运行环境、删除或保留决定和
-  证据。
-- [ ] 只有 `DEAD` 可连同无效引用和测试直接删除；不建立
-  `scripts/archive/`。
-- [ ] `check_w2_all.py` 只运行 W2 stage/contract checker。
-- [ ] GitHub CI 单独负责 Ruff、Mypy、Pytest。
-- [ ] 禁止 `check_w2_all.py` 与 GitHub CI 重复执行 Ruff、Mypy、Pytest
-  三项重测试。
-- [ ] 完整 CI 通过并合并。
+- `scripts/run_xg_history_backfill.py` 改为 `ONE_TIME_RECOVERY`；worker 调用的是
+  `w2.ingestion.xg_backfill.run_xg_history_backfill` 库函数，该脚本只保留
+  人工历史 xG 回填 CLI；
+- `scripts/seed_competition_runtime_authority.py` 改为 `MANUAL_OPS`；0037
+  migration 调用的是 `w2.competitions.seed.seed_competition_runtime_authority`
+  库函数，该脚本是带 production 默认值、`--set-enabled` 和审计输出的独立
+  operator CLI。
+
+### `check_w2_all.py` 最终 19 个 checker
+
+```text
+.github/workflows/ci.yml
+└── scripts/check_w2_all.py
+    ├── scripts/check_w2_stage1_contracts.py
+    ├── scripts/check_w2_stage3_data_model.py
+    ├── scripts/check_w2_stage4_ingestion.py
+    ├── scripts/check_w2_stage4b_live_smoke.py
+    ├── scripts/check_w2_stage5_asof.py
+    ├── scripts/check_w2_stage5b.py
+    ├── scripts/check_w2_stage6_market.py
+    ├── scripts/check_w2_stage7_models.py
+    ├── scripts/check_w2_stage8_replay.py
+    ├── scripts/check_w2_stage7b.py
+    ├── scripts/check_w2_stage7c.py
+    ├── scripts/check_w2_stage7d.py
+    ├── scripts/check_w2_stage7e.py
+    ├── scripts/check_w2_stage10a.py
+    ├── scripts/check_w2_stage11a.py
+    ├── scripts/check_w2_stage12a.py
+    ├── scripts/check_w2_stage13a.py
+    ├── scripts/check_w2_stage14a.py
+    └── scripts/check_w2_stage15a.py
+```
+
+去重前，`check_w2_all.py` 还直接执行 Boss Console、tracked-output、Ruff、
+Mypy、Pytest；去重后前两项仍由 GitHub CI 独立直接执行，后三项唯一重测试
+owner 为 GitHub CI：
+
+```text
+CHECK_W2_ALL_RUFF_INVOCATIONS = 0
+CHECK_W2_ALL_MYPY_INVOCATIONS = 0
+CHECK_W2_ALL_PYTEST_INVOCATIONS = 0
+CI_RUFF_OWNER = GITHUB_CI (.github/workflows/ci.yml:77)
+CI_MYPY_OWNER = GITHUB_CI (.github/workflows/ci.yml:79)
+CI_PYTEST_OWNER = GITHUB_CI (.github/workflows/ci.yml:81)
+```
+
+### DEAD 删除证据
+
+对下列 8 个脚本逐项扫描 Python/import/subprocess、Shell、GitHub CI、
+Dockerfile/Compose、systemd/cron、`pyproject`、tests、运维文档，直接调用
+均为 0；不能只依据“代码引用 0”，第二列同时给出失效业务合同或现行替代：
+
+| DEAD 脚本 | 失效/替代直接证据 |
+|---|---|
+| `scripts/check_dashboard_v2_baseline.py` | 旧 Dashboard V2 manifest 只有该脚本读取；现行 CI 使用 `check_boss_console_baseline.py` 与 Boss Console V2 权威 |
+| `scripts/check_w2_stage6b.py` | 强制读取的 4 个 `reports/W2_STAGE6B_*` 产物全部不存在；reports 已退出生产/CI 权威 |
+| `scripts/check_w2_stage7f.py` | 强制读取的 `archive/scripts/run_stage7f_gate4_checkpoint.py` 与 archive reports 全部不存在 |
+| `scripts/check_w2_stage7g.py` | 强制读取的 `archive/scripts/run_stage7g_continuity_audit.py` 及 Stage7G reports 不存在 |
+| `scripts/check_w2_stage9b.py` | 唯一输入 `reports/W2_STAGE9B_SHADOW_OPERATIONS.json` 不存在 |
+| `scripts/check_w2_stage10b.py` | 无任何执行入口；现行同源/API、打包、正式推荐关闭合同由 Boss Console、runtime entrypoint 与 Stage10 单元/合同测试持续覆盖 |
+| `scripts/check_w2_stage10d.py` | 强制读取的 4 个 `reports/W2_STAGE10D_*` 产物全部不存在；时区/coverage 由 `test_stage10d_beijing_matchday.py` 等当前测试覆盖 |
+| `scripts/check_w2_stage12b.py` | 唯一输入 `reports/W2_STAGE12B_W1_W2_COMPARISON.json` 不存在；生成 CLI 仍按人工 ops 身份保留 |
+
+同时删除只服务旧 Dashboard V2 守卫的
+`docs/ui/dashboard-v2/DASHBOARD_V2_VISUAL_BASELINE_MANIFEST.json`。删除合计
+`9` 个文件、`609` 行、`23630` 字节；其中 DEAD 脚本 `8` 个、`547` 行、
+`21266` 字节。删除后上述 9 个路径在矩阵与静态守卫之外的全仓库引用均为 0。
+
+### 本地实现验收
+
+```text
+SCRIPT_INVENTORY_COVERAGE = 100_PERCENT
+UNCLASSIFIED_SCRIPTS = 0
+MULTI_CLASSIFIED_SCRIPTS = 0
+DEAD_SCRIPTS_RETAINED = 0
+NON_DEAD_SCRIPTS_DELETED = 0
+SCRIPTS_ARCHIVE_DIRECTORIES = 0
+BROKEN_SCRIPT_REFERENCES = 0
+CHECK_W2_ALL_DIRECT_CHILDREN = 19
+CHECK_W2_ALL_TRANSITIVE_CHILDREN = 0
+CHECK_W2_ALL_RUFF_INVOCATIONS = 0
+CHECK_W2_ALL_MYPY_INVOCATIONS = 0
+CHECK_W2_ALL_PYTEST_INVOCATIONS = 0
+CI_RUFF_OWNER = GITHUB_CI
+CI_MYPY_OWNER = GITHUB_CI
+CI_PYTEST_OWNER = GITHUB_CI
+CHECK_W2_ALL = PASS
+DELETION_CLOSURE_OBJECTS = 9
+DELETION_CLOSURE_REFERENCES = 0
+INVENTORY_CONTRACT_TESTS = 8_PASS
+RUFF = PASS
+MYPY = PASS (260 source files)
+PYTEST = 1492_PASS_4_SKIP
+GIT_DIFF_CHECK = PASS
+SHELL_SYNTAX = PASS
+PRODUCTION_BEHAVIOR_CHANGED = false
+DATABASE_SCHEMA_CHANGED = false
+SAFETY_SWITCHES_CHANGED = false
+STAGING = NOT_APPLICABLE
+```
+
+- [ ] PR 经外部审核并合并。
 
 ---
 

@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-24T00:14:06Z"
+updated_at: "2026-07-24T03:39:53Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -25,22 +25,20 @@ context_read_order:
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  main_sha: db3fd12fedb76e9a9cb074f7a3dcc3294042c2fc
+  main_sha: 748b50e5c990c6138193810ec319e0e413a7ab25
   main_migration_head: 0041_converge_odds_history_and_projection
-  pull_request: 383
+  pull_request: 384
   pull_request_mode: DRAFT
-  pull_request_head_branch: codex/arch-hygiene-01-generated-audits-exit-git
-  task_baseline_sha: db3fd12fedb76e9a9cb074f7a3dcc3294042c2fc
-  local_code_implementation_sha: b6d858d614647d62f5cbc271e1d6f7f7da59303d
-  local_work_branch: codex/arch-hygiene-01-generated-audits-exit-git
-  github_sync_status: DRAFT_PR_OPEN_IMPLEMENTATION_CI_PASS
-  github_verified_head_sha: b6d858d614647d62f5cbc271e1d6f7f7da59303d
-  ci_status: PASS
-  ci_run_id: 30055030785
+  pull_request_head_branch: codex/arch-hygiene-02-script-authority-convergence
+  task_baseline_sha: 748b50e5c990c6138193810ec319e0e413a7ab25
+  final_implementation_head: PR_EXACT_HEAD
+  local_work_branch: codex/arch-hygiene-02-script-authority-convergence
+  github_sync_status: DRAFT_PR_OPEN_FINAL_EXACT_HEAD_CI_REQUIRED
+  final_exact_head_ci: REQUIRED_AT_PR_EXACT_HEAD
   ci_checks:
-    verify: PASS
-    staging-parity: PASS
-    predeploy-e2e: PASS
+    verify: REQUIRED_AT_PR_EXACT_HEAD
+    staging-parity: REQUIRED_AT_PR_EXACT_HEAD
+    predeploy-e2e: REQUIRED_AT_PR_EXACT_HEAD
   closed_pull_requests:
     370: CLOSED_AFTER_BASELINE_INTEGRATION_PR_374
 
@@ -57,6 +55,7 @@ architecture_convergence:
     ARCH-P0-04: DONE
     ARCH-P1-01: DONE
     ARCH-P1-02: DONE
+    ARCH-HYGIENE-01: DONE
   superseded:
     ARCH-P2-01: ARCH-HYGIENE-02
   p0_acceptance: P0_ARCHITECTURE_CONVERGENCE_PASS
@@ -78,16 +77,16 @@ architecture_convergence:
     - ARCH-P2-04
     - ARCH-P2-06
     - ARCH-P2-05
-  next_task: ARCH-HYGIENE-01
+  next_task: ARCH-HYGIENE-02
   current_task:
-    id: ARCH-HYGIENE-01
+    id: ARCH-HYGIENE-02
     status: READY_FOR_EXTERNAL_REVIEW
-    started_at: "2026-07-23T18:43:42Z"
-    baseline_sha: db3fd12fedb76e9a9cb074f7a3dcc3294042c2fc
-    branch: codex/arch-hygiene-01-generated-audits-exit-git
-    pull_request: 383
-    implementation_head: b6d858d614647d62f5cbc271e1d6f7f7da59303d
-    implementation_ci_run_id: 30055030785
+    started_at: "2026-07-24T00:42:35Z"
+    baseline_sha: 748b50e5c990c6138193810ec319e0e413a7ab25
+    branch: codex/arch-hygiene-02-script-authority-convergence
+    pull_request: 384
+    final_implementation_head: PR_EXACT_HEAD
+    final_exact_head_ci: REQUIRED_AT_PR_EXACT_HEAD
     production_behavior_changed: false
     safety_switches_changed: false
   governance_contracts:
@@ -123,6 +122,15 @@ architecture_convergence:
       source_tree_input_contract: SHARED_BY_SCANNER_GIT_GUARD_AND_TESTS
       source_tree_inputs_match_git_head: true
       untracked_scanned_non_python_files_accepted: 0
+    script_authority:
+      inventory_baseline: 145
+      retained: 137
+      dead_deleted: 8
+      unclassified: 0
+      multi_classified: 0
+      broken_references: 0
+      check_w2_all_direct_children: 19
+      heavy_test_owner: GITHUB_CI
   pre_approved_order_change:
     task: ARCH-P1-05
     condition: STAGING_ONSITE_BUILD_REPEATEDLY_FAILS
@@ -170,7 +178,7 @@ active_workstream:
     t30_validation_snapshot: locally_verified
 
 local_verification:
-  pytest_passed: 1438
+  pytest_passed: 1492
   pytest_skipped: 4
   ruff: PASS
   mypy: PASS
@@ -178,6 +186,10 @@ local_verification:
   boss_console_protected_baseline: PASS
   web_playwright: 26_PASS
   migration_sqlite_roundtrip: PASS
+  script_inventory_contract_tests: 8_PASS
+  check_w2_all: PASS
+  git_diff_check: PASS
+  shell_syntax: PASS
 
 staging:
   deployed_sha: 1d02a45c6f38c3613ac3dddab784869095bf6804
