@@ -40,8 +40,10 @@ migration head 已一致。
 - [x] ARCH-P1-04A
 - [>] ARCH-P1-04B
 
-**当前状态**：ARCH-P1-04B 已完成实现、exact-head CI 与 staging 语义验收，
-PR #387 保持 Draft，等待外部验收；合并前不得标为 DONE，也不得开始后续任务。
+**当前状态**：ARCH-P1-04B 已完成整改实现、implementation exact-head CI 与
+staging 语义验收；final review head 与 final exact-head CI 由 PR 当前坐标和
+GitHub checks 给出。PR #387 保持 Draft，等待外部验收；合并前不得标为 DONE，
+也不得开始后续任务。
 后续顺序（见第三节）：ARCH-P1-04B →
 ARCH-GOVERNANCE-01 → 04C → P1-03 → P1-05 → P1-06 → P1-07 → P1-08 →
 P2-02 → P2-03 → P2-04 →
@@ -2539,8 +2541,10 @@ Base SHA: 46aa8d36d652d31831e7f99543ce16e575b7154d
 Started at: 2026-07-24T09:38:51Z
 Owner: Codex
 PR: #387 (DRAFT)
-Validated implementation head: 15bbe0cd1e6c77c1bbbc31e3a018bac4d7d5eeb4
-Implementation exact-head CI: 30085880218 (success)
+Validated implementation head: 1c9b500a43fd2ecb6d5ddc0346aa141c93d00fcc
+Implementation exact-head CI: 30092658377 (success)
+Final review head: PR_EXACT_HEAD
+Final exact-head CI: REQUIRED_AT_PR_EXACT_HEAD
 ```
 
 - [x] 所有 Dashboard 与分析生产端点只读 `read_model_checkpoint` 投影。
@@ -2583,12 +2587,18 @@ API_FORBIDDEN_COMPUTATION_IMPORTS      = 0
 API_RUNTIME_JSON_FALLBACKS             = 0
 API_FROZEN_LIVE_AUTO_SELECTION         = 0
 DAY_VIEW_MARKET_PROBABILITY_RECOMPUTE  = 0
+PRODUCTION_DAY_VIEW_LEGACY_FALLBACK    = 0
+DAY_VIEW_MISSING_DECISION_CONTRACT     = FAIL_CLOSED
+DAY_VIEW_LEGACY_FALLBACK_TESTS         = 0
+STATIC_GUARD_COVERS_PRODUCTION_DAY_VIEW = TRUE
 LOCAL_RUFF                             = PASS
 LOCAL_MYPY                             = PASS (261 source files)
-LOCAL_PYTEST                           = 1529 passed, 4 skipped
+LOCAL_PYTEST                           = 1532 passed, 4 skipped
 LOCAL_CHECK_W2_ALL                     = PASS
 LOCAL_WEB_TYPECHECK_BUILD_E2E          = PASS / PASS / 26 passed
-IMPLEMENTATION_EXACT_HEAD_CI           = 30085880218 (PASS)
+IMPLEMENTATION_EXACT_HEAD_CI           = 30092658377 (PASS)
+FINAL_REVIEW_HEAD                      = PR_EXACT_HEAD
+FINAL_EXACT_HEAD_CI                    = REQUIRED_AT_PR_EXACT_HEAD
 ```
 
 - 原生产 API 读服务移出请求路径；写侧投影生成仍通过 composition root 使用
@@ -2597,23 +2607,30 @@ IMPLEMENTATION_EXACT_HEAD_CI           = 30085880218 (PASS)
   `SYSTEM_DEGRADED`；checkpoint 正常但分析投影未就绪时返回显式
   `SYSTEM_DEGRADED` 卡片，不以空数组冒充无数据。
 - `tests/contract/test_api_projection_read_authority.py` 同时覆盖
-  `src/w2/api`、`apps/api`、`scripts` 与 `infra` 执行面；生产 API 的
-  feature / market / pricing / strategy / simulation import 与已删除
-  fallback identity 均为 0。
+  `src/w2/api`、`apps/api`、`src/w2/dashboard`、`apps/web/src`、`scripts`
+  与 `infra` 执行面；生产 API/DayView/presentation 的 feature / market /
+  pricing / strategy / simulation import 与已删除 fallback identity 均为 0。
+- DayView 已删除 `CARD_SOURCE_LEGACY`、`_legacy_card` 和缺少
+  `decision_contract` 时的兼容分支；必要合同缺失或不完整时抛出
+  `DayViewContractError`，由 API 明确返回 HTTP 503 / `SYSTEM_DEGRADED`，
+  不转换为 `WATCH`、`PARTIAL` 或其他兼容结果。
 - 已知 `api <-> ingestion` 循环边由 `1 + 1` 降为 `0 + 0`；本任务不声明
   ARCH-P1-04C 的全仓库依赖合同完成，只把该实际变化记录为 04C 新 baseline。
 
 ### staging 语义对账与回滚直接证据
 
 ```text
-STAGING_CANDIDATE_SHA                  = 15bbe0cd1e6c77c1bbbc31e3a018bac4d7d5eeb4
+STAGING_CANDIDATE_SHA                  = 1c9b500a43fd2ecb6d5ddc0346aa141c93d00fcc
 STAGING_MIGRATION_CURRENT              = 0041_converge_odds_history_and_projection
 STAGING_SERVICES_HEALTHY               = 6 / 6
 MATERIALIZABLE_CURRENT_FIXTURES        = 8
 PERSISTED_READBACK_HASH_MATCH          = 8 / 8
 SHADOW_RECONCILIATION_DIFFERENCES      = 0 / 8 fixtures
 DASHBOARD_HTTP_20X                     = 20 / 20 HTTP 200
-DASHBOARD_HTTP_20X_STABLE_HASH         = ce8dccaad1423d5f0107db0db5aadce87f4fb5ea431701ed036a494e80b54278
+DASHBOARD_HTTP_20X_STABLE_HASH         = e905d2e756b15e2d5bbb990508ca43de291f985abf076d2d90d10693e876322d
+DAY_VIEW_HTTP_20X                      = 20 / 20 HTTP 200
+DAY_VIEW_HTTP_20X_STABLE_HASH          = 19a322b0ab29f29290a1e11f6ea16ff72f76a1adf28244aabbaeb34333610cc9
+DAY_VIEW_LEGACY_IDENTITY_COUNT         = 0
 UNPROJECTED_ANALYSIS_STATUS            = SYSTEM_DEGRADED / ANALYSIS_PROJECTION_NOT_READY
 PROVIDER_REQUEST_LOG_DELTA             = 0 (162 -> 162)
 RECOMMENDATION_DELTA                   = 0
@@ -2633,8 +2650,8 @@ STAGING_ROLLBACK_SERVICES_HEALTHY      = 6 / 6
   单场端点明确返回 `SYSTEM_DEGRADED / ANALYSIS_PROJECTION_NOT_READY`，不使用
   seed/runtime/frozen 文件补值。
 - 15/30 场固定工作区、桌面/移动端可达性与视觉门禁由 26 个 Playwright E2E
-  覆盖并通过；真实 staging 的 20 轮 Dashboard HTTP 读取均为 200 且 canonical
-  hash 不变。
+  覆盖并通过；真实 staging 的 Dashboard 与 DayView 各 20 轮 HTTP 读取均为
+  200 且各自 canonical hash 不变，DayView 响应不含任何 legacy identity。
 - 验收结束后只删除本次创建的 8 个 shadow checkpoint 与 16 个 evaluation，
   supersession 为 0；原 8 个 frozen 审计 checkpoint 保留，staging 恢复既定
   rollback release，migration 与安全开关不变。
