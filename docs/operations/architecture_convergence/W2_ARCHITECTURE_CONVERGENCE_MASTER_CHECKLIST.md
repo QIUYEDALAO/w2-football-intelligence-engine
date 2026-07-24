@@ -33,9 +33,9 @@
 | ARCH-P0-03 联赛白名单入库 | #377 | `7bd5088b` | DB 竞赛权威 + 热切换，JSON/env 业务覆盖删除 |
 | ARCH-P0-04 P0 总验收 | #378 | `d62e3351` | P0_ARCHITECTURE_CONVERGENCE_PASS |
 | ARCH-P1-01 僵尸表删除 | #379 | `76201af8` | 144→66 表，78 张僵尸表证据化删除（0038–0040） |
-| P1-01 收口 + 清单修订 | #380 | `8af05dd6` | P1 顺序调整获批（04 拆分、03 后移、新增 07） |
+| P1-01 收口 + 清单修订 | #380 | `8af05ddb` | P1 顺序调整获批（04 拆分、03 后移、新增 07） |
 | ARCH-P1-02 赔率表收敛 | #381 | `f53b073f` | 唯一 append-only 历史 + 投影视图（0041，断言式 drop） |
-| HYGIENE 清单顺序修正 | #382 | `db3fd128` | 清单序列一致性修正 |
+| HYGIENE 清单顺序修正 | #382 | `db3fd12f` | 清单序列一致性修正 |
 | ARCH-HYGIENE-01 | #383 | `748b50e5` | 生成审计产物退出 Git |
 | ARCH-HYGIENE-02 | #384 | `1e252d73` | Scripts 权威盘点与证据化删除（取代 P2-01） |
 | ARCH-P1-04A 评估持久化 | #385 | `aa59b61d` | 事件驱动写侧投影管线（收口 #386 `46aa8d36`） |
@@ -96,9 +96,42 @@ ARCH-P1-08 通过后，功能冻结部分解除：**仅允许本清单阶段 B �
 #### A1. ARCH-GOVERNANCE-01：合并前就绪 + 合并后清单一致性双门禁
 
 ```text
-Status: NOT_STARTED
-Queue: QUEUED_NEXT
-Required checks: PRE_MERGE_READINESS_GATE + POST_MERGE_CHECKLIST_CONSISTENCY_GATE
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Branch: codex/arch-governance-01-dual-gates
+PR: #393
+Base SHA: 91c7921574fcca249a9f1a9cf29c8c782e774930
+Started at: 2026-07-24T17:12:33Z
+Owner: Codex
+Bootstrap required checks: verify + staging-parity
+Final A1 required checks: verify + staging-parity + PRE_MERGE_READINESS_GATE +
+  POST_MERGE_CHECKLIST_CONSISTENCY_GATE
+Trusted execution: workflow + checker from main/base; PR head checklist is API-read data only
+Protocol read: GITHUB_SECONDARY_REVIEW_PROTOCOL_V1
+Task scope contract read: TASK_SCOPE_AND_REVIEW_BOUNDARY_V1
+Implementation SHA: GITHUB_PR_EXACT_HEAD
+Validated remediation head: 6bb10237bfa3d60f138cf76450b25c659f7e697a
+Final receipt head: GitHub PR exact head
+Stage 2 CI: 30116539839
+Bootstrap governance contexts: NOT_AVAILABLE_UNTIL_MAIN_BOOTSTRAP
+Staging SHA: NOT_APPLICABLE_GOVERNANCE_ONLY
+Evidence: local 1609 passed / 4 skipped; governance matrix 58 passed; Stage 2 CI
+  verify + staging-parity + predeploy-e2e PASS; bootstrap required contexts =
+  verify + staging-parity; predeploy-e2e remains mandatory full CI but is not a
+  branch-protection required context; branch protection strict = true;
+  workflow contents-write/self-commit/push count = 0
+Rollback: `git revert "$(gh pr view 393 --repo QIUYEDALAO/w2-football-intelligence-engine
+  --json mergeCommit --jq .mergeCommit.oid)"`; then `gh api --method PATCH
+  repos/QIUYEDALAO/w2-football-intelligence-engine/branches/main/protection/required_status_checks
+  -F strict=true -f 'contexts[]=verify' -f 'contexts[]=staging-parity'`
+One-time bootstrap:
+  1. #393 仅在原 required checks（verify + staging-parity）与外部验收下合并。
+  2. #393 合并后，workflow/checker 才成为 main 可信代码。
+  3. 随即将 required contexts 更新为 verify + staging-parity +
+     PRE_MERGE_READINESS_GATE + POST_MERGE_CHECKLIST_CONSISTENCY_GATE。
+  4. 从最新 main 创建独立 `W2_PR_KIND: CLOSURE` 的 A1 closure PR，写入
+     `Status: DONE`、台账 `#393` 与 GitHub 返回的完整 40 位 Merge SHA。
+  5. closure PR 必须真实跑通 PRE 与 POST 两个新门禁。
+  6. closure PR 合并且 main POST PASS 前，A1 不得 DONE，A2 不得启动。
 ```
 
 独立治理 PR。前者阻止未获外部验收结论的 PR 提前合并；后者核验已合并 PR 与本清单
@@ -476,6 +509,8 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 ## 八、待议区（记录不实施）
 
 - A2 死代码复核中"证据不足"的疑似项（记录后由后续 P2-06 矩阵裁决）。
+- `PROJECT_STATE.repository.main_sha` 在 PR #392 合并后仍指向上一完成任务坐标；
+  v3 总清单与 GitHub main 为权威，A1 开工时同步到实际 Base SHA。
 
 ---
 
@@ -504,6 +539,7 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 | `scripts/build_stage7i_successor_candidates.py` | `MANUAL_OPS` | 人工 CLI；unit test 验证 | operator → script | offline | 否 | 无 | `KEEP` | E4/E5 |
 | `scripts/capture_runtime_release_evidence.py` | `DEPLOYMENT` | 发布证据人工 CLI | operator → script | staging | 否 | 无 | `KEEP` | E3 |
 | `scripts/capture_stage7i_fixture_lifecycle.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/check_architecture_governance.py` | `CI_DIRECT` | architecture-governance.yml | GitHub CI → script | CI | 是 | 无 | `KEEP` | E2/E3/E5 |
 | `scripts/check_boss_console_baseline.py` | `CI_DIRECT` | ci.yml | GitHub CI → script | CI | 是 | 无 | `KEEP` | E2/E3 |
 | `scripts/check_compose_staging_ports.py` | `DEPLOYMENT` | deploy_stage7h / predeploy smoke | operator/CI → script | staging/CI | 是 | STAGE7H_VPS_STAGING | `KEEP` | E3/E4/E5 |
 | `scripts/check_dashboard_v2_baseline.py` | `DEAD` | 无 | 无 | none | 否 | 无 | `DELETE` | D1/D2 |
