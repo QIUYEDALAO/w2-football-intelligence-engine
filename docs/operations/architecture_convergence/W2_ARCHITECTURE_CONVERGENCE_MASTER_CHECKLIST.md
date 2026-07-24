@@ -476,3 +476,159 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 ## 八、待议区（记录不实施）
 
 - A2 死代码复核中"证据不足"的疑似项（记录后由后续 P2-06 矩阵裁决）。
+
+---
+
+## 九、机器合同附录：Scripts 权威矩阵
+
+> 本附录是 ARCH-HYGIENE-02 已验收的机器可读合同，不是任务状态副本；任务状态仍只由本文件第四节维护。
+
+<!-- SCRIPT_AUTHORITY_MATRIX_START -->
+| path | 唯一分类 | 直接调用方 | 传递调用链 | 运行环境 | 部署引用 | 运维文档 | 决定 | 证据 |
+|---|---|---|---|---|---|---|---|---|
+| `apps/api/main.py` | `RUNTIME_ENTRYPOINT` | Dockerfile.api / Compose Uvicorn | config → process | runtime | 是 | 无 | `KEEP` | E3/E5/E6 |
+| `apps/scheduler/main.py` | `RUNTIME_ENTRYPOINT` | Dockerfile.scheduler / Compose `python -m` | config → process | runtime | 是 | 无 | `KEEP` | E3/E5/E6 |
+| `apps/web/scripts/write-meta.mjs` | `DEPLOYMENT` | package.json predev/prebuild | npm → script | build | 是 | 无 | `KEEP` | E3 |
+| `apps/worker/celery_app.py` | `RUNTIME_ENTRYPOINT` | Dockerfile.worker / Compose Celery | config → process | runtime | 是 | 无 | `KEEP` | E3/E5/E6 |
+| `migrations/env.py` | `MIGRATION_ONLY` | alembic.ini / Alembic CLI | Alembic → env | migration | 否 | 无 | `KEEP` | E5/E6 |
+| `scripts/audit_football_data_co_uk.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/audit_formal_ah_historical_sources.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/audit_market_mainline_ladder.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/audit_pr370_totals_quarter_ev.py` | `ONE_TIME_RECOVERY` | 人工审核后重算 | operator → script | offline | 否 | 无 | `KEEP` | E7 |
+| `scripts/audit_transfermarkt_asset.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/audit_w2_runtime_authorities.py` | `MANUAL_OPS` | 人工审计生成；unit test 验证 | operator → script | offline | 否 | 无 | `KEEP` | E4/E5 |
+| `scripts/build_canonical_historical_ah_facts.py` | `ONE_TIME_RECOVERY` | 人工历史重建 | operator → script | offline | 否 | 无 | `KEEP` | E7 |
+| `scripts/build_fah_approval_package.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/build_stage5_demo_datasets.py` | `ONE_TIME_RECOVERY` | 人工历史数据重建 | operator → script | offline | 否 | 无 | `KEEP` | E7 |
+| `scripts/build_stage7i_final_evidence.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/build_stage7i_successor_candidates.py` | `MANUAL_OPS` | 人工 CLI；unit test 验证 | operator → script | offline | 否 | 无 | `KEEP` | E4/E5 |
+| `scripts/capture_runtime_release_evidence.py` | `DEPLOYMENT` | 发布证据人工 CLI | operator → script | staging | 否 | 无 | `KEEP` | E3 |
+| `scripts/capture_stage7i_fixture_lifecycle.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/check_boss_console_baseline.py` | `CI_DIRECT` | ci.yml | GitHub CI → script | CI | 是 | 无 | `KEEP` | E2/E3 |
+| `scripts/check_compose_staging_ports.py` | `DEPLOYMENT` | deploy_stage7h / predeploy smoke | operator/CI → script | staging/CI | 是 | STAGE7H_VPS_STAGING | `KEEP` | E3/E4/E5 |
+| `scripts/check_dashboard_v2_baseline.py` | `DEAD` | 无 | 无 | none | 否 | 无 | `DELETE` | D1/D2 |
+| `scripts/check_public_ingress.py` | `CI_TRANSITIVE` | test_public_ingress_cli.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/check_team_values_mapping.py` | `MANUAL_OPS` | W2_TEAM_VALUES_MAPPING | operator → script | offline | 否 | W2_TEAM_VALUES_MAPPING | `KEEP` | E4/E5 |
+| `scripts/check_tracked_outputs.py` | `CI_DIRECT` | ci.yml | GitHub CI → script | CI | 是 | W2_ACCEPTANCE_RUNBOOK | `KEEP` | E2/E3/E4/E5 |
+| `scripts/check_w2_acceptance.py` | `MANUAL_OPS` | W2_ACCEPTANCE_RUNBOOK | operator → script | local | 否 | W2_ACCEPTANCE_RUNBOOK | `KEEP` | E4/E5 |
+| `scripts/check_w2_all.py` | `CI_DIRECT` | ci.yml | GitHub CI → script | CI | 是 | W2_ACCEPTANCE_RUNBOOK | `KEEP` | E2/E3/E4 |
+| `scripts/check_w2_analysis_governance.py` | `CI_TRANSITIVE` | test_analysis_governance.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/check_w2_formal_tracking.py` | `MANUAL_OPS` | W2_FORMAL_TRACKING | operator → script | ops | 是 | W2_FORMAL_TRACKING | `KEEP` | E3/E4/E5 |
+| `scripts/check_w2_future_refresh_staging_contract.py` | `CI_DIRECT` | ci.yml | GitHub CI → script | CI | 是 | 无 | `KEEP` | E2/E3/E5 |
+| `scripts/check_w2_gate5_preflight.py` | `MANUAL_OPS` | STAGE9B_SHADOW_OPERATIONS | operator → script | offline | 否 | STAGE9B_SHADOW_OPERATIONS | `KEEP` | E4 |
+| `scripts/check_w2_league_remediation_readiness.py` | `MANUAL_OPS` | league remediation doc | operator → script | offline | 否 | league remediation doc | `KEEP` | E4/E5 |
+| `scripts/check_w2_market_timeline.py` | `MANUAL_OPS` | market timeline runbook | operator → script | ops | 是 | W2_MARKET_TIMELINE_LOCK_SNAPSHOTS | `KEEP` | E3/E4/E5 |
+| `scripts/check_w2_production_readiness.py` | `MANUAL_OPS` | API image / packaging test | operator → script | ops | 是 | 无 | `KEEP` | E3/E4/E5 |
+| `scripts/check_w2_s2_readiness.py` | `CI_TRANSITIVE` | test_w2_handicap_walkforward_cli.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/check_w2_stage10a.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | 无 | `KEEP` | E2 |
+| `scripts/check_w2_stage10b.py` | `DEAD` | 无 | 无 | none | 否 | 无 | `DELETE` | D1/D2 |
+| `scripts/check_w2_stage10c.py` | `MANUAL_OPS` | STAGE10C_DAILY_OPERATIONS | operator → script | ops | 否 | STAGE10C_DAILY_OPERATIONS | `KEEP` | E4 |
+| `scripts/check_w2_stage10d.py` | `DEAD` | 无 | 无 | none | 否 | 无 | `DELETE` | D1/D2 |
+| `scripts/check_w2_stage11a.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | 无 | `KEEP` | E2 |
+| `scripts/check_w2_stage12a.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | 无 | `KEEP` | E2 |
+| `scripts/check_w2_stage12b.py` | `DEAD` | 无 | 无 | none | 否 | 无 | `DELETE` | D1/D2 |
+| `scripts/check_w2_stage13a.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | WORLD_CUP_DRY_RUN | `KEEP` | E2/E4 |
+| `scripts/check_w2_stage14a.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | 无 | `KEEP` | E2 |
+| `scripts/check_w2_stage15a.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | LONG_TERM_OPERATIONS | `KEEP` | E2/E4 |
+| `scripts/check_w2_stage1_contracts.py` | `CI_DIRECT` | ci.yml / check_w2_all | CI → script | CI | 是 | LOCAL_DEVELOPMENT | `KEEP` | E2/E3/E4/E5 |
+| `scripts/check_w2_stage3_data_model.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | README | `KEEP` | E2/E4/E5 |
+| `scripts/check_w2_stage4_ingestion.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/check_w2_stage4b_live_smoke.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | LIVE_INGESTION_VERIFIED | `KEEP` | E2/E4 |
+| `scripts/check_w2_stage5_asof.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | 无 | `KEEP` | E2 |
+| `scripts/check_w2_stage5b.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | 无 | `KEEP` | E2 |
+| `scripts/check_w2_stage6_market.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | 无 | `KEEP` | E2 |
+| `scripts/check_w2_stage6b.py` | `DEAD` | 无 | 无 | none | 否 | 无 | `DELETE` | D1/D2 |
+| `scripts/check_w2_stage7_models.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | 无 | `KEEP` | E2 |
+| `scripts/check_w2_stage7b.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | 无 | `KEEP` | E2 |
+| `scripts/check_w2_stage7c.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | FORWARD_HOLDOUT_CYCLE | `KEEP` | E2/E4 |
+| `scripts/check_w2_stage7d.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | FORWARD_HOLDOUT_AUTOMATION | `KEEP` | E2/E4 |
+| `scripts/check_w2_stage7e.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | STAGE7E_AUTORUN_OPERATIONS | `KEEP` | E2/E4 |
+| `scripts/check_w2_stage7f.py` | `DEAD` | 无 | 无 | none | 否 | 无 | `DELETE` | D1/D2 |
+| `scripts/check_w2_stage7g.py` | `DEAD` | 无 | 无 | none | 否 | 无 | `DELETE` | D1/D2 |
+| `scripts/check_w2_stage7h.py` | `DEPLOYMENT` | deploy_stage7h_staging.sh | operator → deploy → script | staging | 是 | STAGE7H_VPS_STAGING | `KEEP` | E3/E4/E5 |
+| `scripts/check_w2_stage7i.py` | `MANUAL_OPS` | 人工 CLI；integration tests 验证 | operator → script | offline | 否 | 无 | `KEEP` | E4/E5 |
+| `scripts/check_w2_stage8_replay.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | 无 | `KEEP` | E2 |
+| `scripts/check_w2_stage9a.py` | `MANUAL_OPS` | STAGE9A_SHADOW_OPERATIONS | operator → script | offline | 否 | STAGE9A_SHADOW_OPERATIONS | `KEEP` | E4 |
+| `scripts/check_w2_stage9b.py` | `DEAD` | 无 | 无 | none | 否 | 无 | `DELETE` | D1/D2 |
+| `scripts/debug_w2_formal_market.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/debug_w2_formal_recommendations.py` | `CI_TRANSITIVE` | test_formal_explainability_audit.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/debug_w2_modeling_sanity.py` | `MANUAL_OPS` | API image / tests | operator → script | ops | 是 | 无 | `KEEP` | E3/E4/E5 |
+| `scripts/debug_w2_s2_calibration_validation.py` | `MANUAL_OPS` | API image / tests | operator → script | ops | 是 | 无 | `KEEP` | E3/E4/E5 |
+| `scripts/deploy_stage7h_staging.sh` | `DEPLOYMENT` | staging runbooks | operator → script | staging | 否 | STAGE7H_VPS_STAGING / HARDENING | `KEEP` | E3/E4/E5 |
+| `scripts/diagnose_staging_runtime.sh` | `DEPLOYMENT` | STAGING_RUNTIME_HARDENING | operator → script | staging | 否 | STAGING_RUNTIME_HARDENING | `KEEP` | E3/E4/E5 |
+| `scripts/export_w2_audit_tables.py` | `MANUAL_OPS` | audit export runbook | operator → script | ops | 是 | w2_audit_table_export | `KEEP` | E3/E4/E5 |
+| `scripts/export_w2_world_cup_team_ids.py` | `MANUAL_OPS` | W2_TEAM_VALUES_MAPPING | operator → script | offline | 否 | W2_TEAM_VALUES_MAPPING | `KEEP` | E4/E5 |
+| `scripts/generate_release_gate_manifest.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/generate_w2_report.py` | `MANUAL_OPS` | HTML dashboard acceptance doc | operator → script | offline | 否 | W2_HTML_DASHBOARD_V3_ACCEPTANCE | `KEEP` | E4/E5 |
+| `scripts/import_stage5b_historical_data.py` | `ONE_TIME_RECOVERY` | 人工历史导入 | operator → script | offline | 否 | 无 | `KEEP` | E7 |
+| `scripts/import_team_identity_crosswalk.py` | `ONE_TIME_RECOVERY` | 人工 crosswalk 导入 | operator → script | offline | 否 | 无 | `KEEP` | E7 |
+| `scripts/ingest_football_data_co_uk.py` | `MANUAL_OPS` | FOOTBALL_DATA_INGEST_TEMPLATE | operator → script | offline | 否 | FOOTBALL_DATA_INGEST_TEMPLATE | `KEEP` | E4 |
+| `scripts/inventory_existing_football_data.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/lmm_coverage_audit.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/lmm_materialize_stored_lineups.py` | `MANUAL_OPS` | API image / tests | operator → script | ops | 是 | 无 | `KEEP` | E3/E4/E5 |
+| `scripts/lmm_transfermarkt_snapshot.py` | `MANUAL_OPS` | API image / tests | operator → script | ops | 是 | 无 | `KEEP` | E3/E4/E5 |
+| `scripts/materialize_analysis_card_canary.py` | `MANUAL_OPS` | API image / tests | operator → script | ops | 是 | 无 | `KEEP` | E3/E4/E5 |
+| `scripts/materialize_captured_matchday_odds.py` | `ONE_TIME_RECOVERY` | 人工 odds 恢复 | operator → script | staging manual | 否 | PR370 closure report | `KEEP` | E4/E7 |
+| `scripts/materialize_team_value_asof.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/preflight_runtime_writable.py` | `DEPLOYMENT` | staging parity tests | CI/operator → script | staging/CI | 否 | 无 | `KEEP` | E3/E5 |
+| `scripts/probe_analysis_chain.py` | `MANUAL_OPS` | PR370 acceptance docs | operator → script | staging read-only | 否 | PR370 acceptance docs | `KEEP` | E4 |
+| `scripts/project_stage10b_live_snapshot.py` | `MANUAL_OPS` | STAGE10B_DASHBOARD_LIVE_WIRING | operator → script | offline | 否 | STAGE10B_DASHBOARD_LIVE_WIRING | `KEEP` | E4 |
+| `scripts/project_stage10c_matchday_read_model.py` | `CI_TRANSITIVE` | test_stage10c_matchday.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/publish_w2_static_report.py` | `MANUAL_OPS` | A-151 static report runbook | operator → script | ops | 是 | A-151_STATIC_REPORT_WEB_ROOT | `KEEP` | E3/E4/E5 |
+| `scripts/reconcile_pr370_validation_ledger.py` | `ONE_TIME_RECOVERY` | 人工 ledger 恢复 | operator → script | staging manual | 否 | 无 | `KEEP` | E7 |
+| `scripts/recover_staging_runtime.sh` | `DEPLOYMENT` | STAGING_RUNTIME_HARDENING | operator → script | staging | 否 | STAGING_RUNTIME_HARDENING | `KEEP` | E3/E4/E5 |
+| `scripts/render_ai_card_text.py` | `MANUAL_OPS` | README / stage1 contract | operator → script | local | 否 | README | `KEEP` | E4/E5 |
+| `scripts/replay_provider_fixture.py` | `MANUAL_OPS` | INGESTION_OFFLINE_REPLAY | operator → script | offline | 否 | INGESTION_OFFLINE_REPLAY | `KEEP` | E4/E5 |
+| `scripts/run_fah_master_pipeline.py` | `MANUAL_OPS` | FAH data handoff | operator → script | offline | 否 | W2_FAH_PRIVATE_DATA_HANDOFF | `KEEP` | E4 |
+| `scripts/run_predeploy_e2e_smoke.sh` | `CI_DIRECT` | ci.yml | GitHub CI → script | CI | 是 | PR370 deployment context | `KEEP` | E2/E3/E4 |
+| `scripts/run_prematch_refresh.py` | `CI_TRANSITIVE` | test_prematch_refresh_cli.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/run_readiness_fault_injection.sh` | `DEPLOYMENT` | hardening test harness | operator/test → script | staging | 否 | 无 | `KEEP` | E3/E5 |
+| `scripts/run_stage10c_daily_cycle.py` | `MANUAL_OPS` | STAGE10C_DAILY_OPERATIONS | operator → script | ops | 否 | STAGE10C_DAILY_OPERATIONS | `KEEP` | E4 |
+| `scripts/run_stage11a_backup_restore_drill.py` | `MANUAL_OPS` | 人工 CLI / stage11 checker reads | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/run_stage12a_migration_dry_run.py` | `MIGRATION_ONLY` | check_w2_stage12a | CI checker → script contract | migration | 否 | 无 | `KEEP` | E6 |
+| `scripts/run_stage12a_shadow_dry_run.py` | `MANUAL_OPS` | 人工 CLI / stage12 checker reads | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/run_stage12b_shadow_comparison.py` | `MANUAL_OPS` | STAGE9B_SHADOW_OPERATIONS | operator → script | offline | 否 | STAGE9B_SHADOW_OPERATIONS | `KEEP` | E4 |
+| `scripts/run_stage13a_world_cup_dry_run.py` | `MANUAL_OPS` | WORLD_CUP_DRY_RUN | operator → script | offline | 否 | WORLD_CUP_DRY_RUN | `KEEP` | E4 |
+| `scripts/run_stage14a_league_audit.py` | `MANUAL_OPS` | whitelist workorder | operator → script | offline | 否 | W2_WHITELIST_TECH_WORKORDER | `KEEP` | E4/E5 |
+| `scripts/run_stage15a_operations_dry_run.py` | `MANUAL_OPS` | LONG_TERM_OPERATIONS | operator → script | offline | 否 | LONG_TERM_OPERATIONS | `KEEP` | E4 |
+| `scripts/run_stage4b_live_smoke.py` | `MANUAL_OPS` | LIVE_INGESTION_VERIFIED | operator → script | ops | 否 | LIVE_INGESTION_VERIFIED | `KEEP` | E4 |
+| `scripts/run_stage6_market_backtest.py` | `MANUAL_OPS` | stage6 checker reads / 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/run_stage7i_observer.py` | `MANUAL_OPS` | 人工 CLI；unit tests | operator → script | offline | 否 | 无 | `KEEP` | E4/E5 |
+| `scripts/run_stage8_replay.py` | `MANUAL_OPS` | stage8 checker reads / 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/run_stage9a_shadow_replay.py` | `MANUAL_OPS` | STAGE9A_SHADOW_OPERATIONS | operator → script | offline | 否 | STAGE9A_SHADOW_OPERATIONS | `KEEP` | E4/E5 |
+| `scripts/run_stage9b_shadow_cycle.py` | `MANUAL_OPS` | STAGE9B_SHADOW_OPERATIONS | operator → script | offline | 否 | STAGE9B_SHADOW_OPERATIONS | `KEEP` | E4 |
+| `scripts/run_w2_ah_formal_evidence.py` | `CI_TRANSITIVE` | test_w2_ah_formal_evidence_cli.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/run_w2_factor_model_remediation.py` | `ONE_TIME_RECOVERY` | 人工 remediation 恢复 | operator → script | staging manual | 否 | 无 | `KEEP` | E7 |
+| `scripts/run_w2_formal_tracking.py` | `MANUAL_OPS` | W2_FORMAL_TRACKING | operator → script | ops | 是 | W2_FORMAL_TRACKING | `KEEP` | E3/E4/E5 |
+| `scripts/run_w2_forward_outcome_ledger.py` | `MANUAL_OPS` | API image / tests | operator → script | ops | 是 | 无 | `KEEP` | E3/E4/E5 |
+| `scripts/run_w2_free_tier_2024_backtest.py` | `MANUAL_OPS` | league evaluation docs | operator → script | offline | 否 | PL/Understat evaluation docs | `KEEP` | E4 |
+| `scripts/run_w2_handicap_walkforward.py` | `MANUAL_OPS` | market timeline runbook | operator → script | ops | 是 | W2_MARKET_TIMELINE_LOCK_SNAPSHOTS | `KEEP` | E3/E4/E5 |
+| `scripts/run_w2_independent_signal_backfill.py` | `ONE_TIME_RECOVERY` | 人工 backfill | operator → script | staging manual | 是 | 无 | `KEEP` | E3/E5/E7 |
+| `scripts/run_w2_league_whitelist_audit.py` | `MANUAL_OPS` | competition README / tests | operator → script | offline | 否 | competition README | `KEEP` | E4/E5 |
+| `scripts/run_w2_market_baseline_eval.py` | `MANUAL_OPS` | architecture review docs | operator → script | offline | 否 | W2_MARKET_BASELINE_EVAL | `KEEP` | E4 |
+| `scripts/run_w2_market_timeline_refresh.py` | `MANUAL_OPS` | market timeline runbook | operator → script | ops | 是 | W2_MARKET_TIMELINE_LOCK_SNAPSHOTS | `KEEP` | E3/E4/E5 |
+| `scripts/run_w2_matchday_refresh_plan.py` | `CI_TRANSITIVE` | test_matchday_refresh_plan_cli.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/run_w2_outcome_result_refresh.py` | `MANUAL_OPS` | 人工 CLI | operator → script | ops | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/run_w2_pro_day1_sprint.py` | `MANUAL_OPS` | S13 odds probe doc | operator → script | offline | 否 | W2_S13_ODDS_PROBE | `KEEP` | E4 |
+| `scripts/run_w2_r2_offline_evaluation.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/run_w2_replay_frontdoor.py` | `CI_TRANSITIVE` | test_replay_frontdoor_cli.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/run_w2_report_runner.py` | `MANUAL_OPS` | API image / tests | operator → script | ops | 是 | 无 | `KEEP` | E3/E4/E5 |
+| `scripts/run_w2_settlement_history.py` | `MANUAL_OPS` | API image / tests | operator → script | ops | 是 | 无 | `KEEP` | E3/E4/E5 |
+| `scripts/run_xg_history_backfill.py` | `ONE_TIME_RECOVERY` | 人工历史 xG 回填 CLI | operator → script | offline recovery | 否 | 无 | `KEEP` | E7 |
+| `scripts/seed_competition_runtime_authority.py` | `MANUAL_OPS` | 人工 competition authority CLI（production 默认值 / `--set-enabled`） | operator → script | ops | 否 | 无 | `KEEP` | E4/E5 |
+| `scripts/seed_staging_dashboard.py` | `ONE_TIME_RECOVERY` | 人工 staging 恢复 | operator → script | staging manual | 否 | W2_RELEASE_SYNC | `KEEP` | E4/E7 |
+| `scripts/select_stage7i_successor.py` | `MANUAL_OPS` | 人工 CLI；unit tests | operator → script | offline | 否 | 无 | `KEEP` | E4/E5 |
+| `scripts/smoke.py` | `MANUAL_OPS` | Makefile | operator → make → script | local | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/summarize_w2_league_audit_diagnosis.py` | `CI_TRANSITIVE` | league evidence tests | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/summarize_w2_league_provider_usage.py` | `MANUAL_OPS` | provider usage doc | operator → script | offline | 否 | W2_PROVIDER_USAGE_RECONCILIATION | `KEEP` | E4/E5 |
+| `scripts/summarize_w2_league_whitelist_scope.py` | `CI_TRANSITIVE` | test_league_whitelist_full_scope.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
+| `scripts/verify_release_sync.py` | `DEPLOYMENT` | W2_RELEASE_SYNC | operator → script | staging | 否 | W2_RELEASE_SYNC | `KEEP` | E3/E4 |
+| `scripts/w2_data_asset_registry.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
+| `scripts/watch_staging_runtime.sh` | `DEPLOYMENT` | w2-staging-watchdog.service | systemd → script | staging | 是 | 无 | `KEEP` | E3/E5 |
+| `src/w2/gates/gate5_preflight_cli.py` | `RUNTIME_ENTRYPOINT` | pyproject `w2-gate5-preflight` | console → module | runtime CLI | 否 | 无 | `KEEP` | E3/E6 |
+| `src/w2/matchday/cli.py` | `RUNTIME_ENTRYPOINT` | pyproject `w2-matchday` | console → module | runtime CLI | 否 | 无 | `KEEP` | E3/E6 |
+| `src/w2/observability/stage7i_observer_cli.py` | `RUNTIME_ENTRYPOINT` | pyproject `w2-stage7i-observer` | console → module | runtime CLI | 否 | 无 | `KEEP` | E3/E6 |
+| `src/w2/shadow/comparison_import_cli.py` | `RUNTIME_ENTRYPOINT` | pyproject comparison import | console → module | runtime CLI | 否 | 无 | `KEEP` | E3/E6 |
+| `src/w2/strategy/shadow_cycle_cli.py` | `RUNTIME_ENTRYPOINT` | pyproject `w2-shadow-cycle` | console → module | runtime CLI | 否 | 无 | `KEEP` | E3/E6 |
+| `tests/secret_scan.py` | `CI_DIRECT` | ci.yml | GitHub CI → script | CI | 是 | W2_ACCEPTANCE_RUNBOOK | `KEEP` | E2/E3/E4/E5 |
+<!-- SCRIPT_AUTHORITY_MATRIX_END -->
