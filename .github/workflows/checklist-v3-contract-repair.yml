@@ -1,0 +1,59 @@
+name: Checklist v3 contract repair
+
+on:
+  push:
+    branches:
+      - codex/checklist-v3-single-authority
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore the machine-readable script authority contract
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          path = Path("docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md")
+          current = path.read_text(encoding="utf-8")
+          start_marker = "<!-- SCRIPT_AUTHORITY_MATRIX_START -->"
+          end_marker = "<!-- SCRIPT_AUTHORITY_MATRIX_END -->"
+          if start_marker not in current:
+              historical = subprocess.check_output(
+                  [
+                      "git",
+                      "show",
+                      "75e499325875c8a11bf6581422555cf425fac5b2:" + path.as_posix(),
+                  ],
+                  text=True,
+              )
+              start = historical.index(start_marker)
+              end = historical.index(end_marker) + len(end_marker)
+              matrix = historical[start:end]
+              appendix = (
+                  "\n\n---\n\n"
+                  "## 九、机器合同附录：Scripts 权威矩阵\n\n"
+                  "> 本附录是 ARCH-HYGIENE-02 已验收的机器可读合同，不是任务状态副本；"
+                  "任务状态仍只由本文件第四节维护。\n\n"
+                  + matrix
+                  + "\n"
+              )
+              path.write_text(current.rstrip() + appendix, encoding="utf-8")
+          PY
+      - name: Commit the repaired checklist and remove this temporary workflow
+        run: |
+          rm .github/workflows/checklist-v3-contract-repair.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "docs: preserve script authority matrix contract in checklist v3"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
