@@ -140,8 +140,8 @@ architecture_convergence:
       source_tree_inputs_match_git_head: true
       untracked_scanned_non_python_files_accepted: 0
     script_authority:
-      inventory_baseline: 145
-      retained: 137
+      inventory_baseline: 146
+      retained: 138
       dead_deleted: 8
       unclassified: 0
       multi_classified: 0
