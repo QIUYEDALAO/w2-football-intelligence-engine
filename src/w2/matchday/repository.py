@@ -438,7 +438,17 @@ class MatchdayRuntimeRepository:
         return count
 
     def insert_fixture_identities(self, fixtures: Sequence[Mapping[str, Any]]) -> int:
+        persisted_count, _changed_fixture_ids = (
+            self.upsert_fixture_identities_with_business_changes(fixtures)
+        )
+        return persisted_count
+
+    def upsert_fixture_identities_with_business_changes(
+        self,
+        fixtures: Sequence[Mapping[str, Any]],
+    ) -> tuple[int, list[str]]:
         count = 0
+        changed_fixture_ids: list[str] = []
         with Session(self.engine) as session:
             for row in fixtures:
                 normalized = _normalized_fixture_identity_payload(row)
@@ -447,14 +457,23 @@ class MatchdayRuntimeRepository:
                         session.add(self._fixture_identity_model(row))
                         session.flush()
                     count += 1
+                    changed_fixture_ids.append(str(row["fixture_id"]))
                 except IntegrityError:
                     existing = session.get(
                         MatchdayFixtureIdentityModel,
                         str(row["fixture_id"]),
                     )
                     if existing is not None:
+                        before = _fixture_projection_business_hash(
+                            _fixture_identity_payload(existing)
+                        )
                         if _upsert_fixture_identity(existing, normalized):
                             count += 1
+                        after = _fixture_projection_business_hash(
+                            _fixture_identity_payload(existing)
+                        )
+                        if before != after:
+                            changed_fixture_ids.append(existing.fixture_id)
                         continue
                     provider_existing = session.scalar(
                         select(MatchdayFixtureIdentityModel).where(
@@ -464,12 +483,20 @@ class MatchdayRuntimeRepository:
                         )
                     )
                     if provider_existing is not None:
+                        before = _fixture_projection_business_hash(
+                            _fixture_identity_payload(provider_existing)
+                        )
                         if _upsert_fixture_identity(provider_existing, normalized):
                             count += 1
+                        after = _fixture_projection_business_hash(
+                            _fixture_identity_payload(provider_existing)
+                        )
+                        if before != after:
+                            changed_fixture_ids.append(provider_existing.fixture_id)
                         continue
                     raise MatchdayRepositoryError("FIXTURE_IDENTITY_CONFLICT") from None
             session.commit()
-        return count
+        return count, list(dict.fromkeys(changed_fixture_ids))
 
     def insert_manifest(self, manifest: Mapping[str, Any]) -> str:
         manifest_hash = validate_manifest_identity(manifest)
@@ -509,9 +536,7 @@ class MatchdayRuntimeRepository:
                     manifest_hash=manifest_hash,
                     input_manifest_hash=str(manifest["input_manifest_hash"]),
                     decision_hash=str(decision.get("decision_hash") or "") or None,
-                    manifest_integrity_status=str(
-                        _manifest_integrity_status(manifest)
-                    ),
+                    manifest_integrity_status=str(_manifest_integrity_status(manifest)),
                     natural_key_hash=natural_key_hash,
                     payload=dict(manifest),
                 )
@@ -797,9 +822,7 @@ def _normalized_observation_payload(row: Mapping[str, Any]) -> dict[str, Any]:
 def _observation_identity_payload(row: Mapping[str, Any]) -> dict[str, Any]:
     """Stable provider-observation identity, independent of code release."""
     return {
-        key: value
-        for key, value in row.items()
-        if key not in {"source_revision", "ingested_at"}
+        key: value for key, value in row.items() if key not in {"source_revision", "ingested_at"}
     }
 
 
@@ -857,12 +880,12 @@ _FIXTURE_IDENTITY_STABLE_FIELDS = (
     "competition_id",
     "provider_league_id",
     "season",
-    "kickoff_utc",
     "home_provider_team_id",
     "away_provider_team_id",
 )
 
 _FIXTURE_IDENTITY_MUTABLE_FIELDS = (
+    "kickoff_utc",
     "fixture_status",
     "raw_payload_sha256",
     "endpoint_capture_id",
@@ -920,7 +943,7 @@ def _upsert_fixture_identity(
 
 
 def _fixture_identity_model_value(field: str, value: Any) -> Any:
-    if field == "captured_at":
+    if field in {"captured_at", "kickoff_utc"}:
         return _dt(value)
     if field == "payload":
         return dict(value)
@@ -948,6 +971,25 @@ def _fixture_identity_semantic_hash_from_payload(row: Mapping[str, Any]) -> str:
             "provider_league_id": str(row["provider_league_id"]),
             "season": str(row["season"]),
             "kickoff_utc": _iso(_dt(row["kickoff_utc"])),
+            "fixture_status": str(row["fixture_status"]),
+            "home_provider_team_id": str(row["home_provider_team_id"]),
+            "away_provider_team_id": str(row["away_provider_team_id"]),
+            "home_w2_team_id": str(row.get("home_w2_team_id") or "") or None,
+            "away_w2_team_id": str(row.get("away_w2_team_id") or "") or None,
+            "team_identity_status": str(row["team_identity_status"]),
+        }
+    )
+
+
+def _fixture_projection_business_hash(row: Mapping[str, Any]) -> str:
+    """Only fields that can change fixture projection semantics."""
+    return stable_hash(
+        {
+            "fixture_id": str(row["fixture_id"]),
+            "competition_id": str(row["competition_id"]),
+            "season": str(row["season"]),
+            "kickoff_utc": _iso(_dt(row["kickoff_utc"])),
+            "fixture_status": str(row["fixture_status"]),
             "home_provider_team_id": str(row["home_provider_team_id"]),
             "away_provider_team_id": str(row["away_provider_team_id"]),
             "home_w2_team_id": str(row.get("home_w2_team_id") or "") or None,

@@ -1122,18 +1122,22 @@ def test_checkpoint_refresh_materializes_only_fixtures_with_new_observations(
 
 def test_lineup_change_records_projection_event(monkeypatch, tmp_path: Path) -> None:
     class Repository:
+        identities = iter((None, "xi-business-hash"))
+
         def save_raw_payload(self, **_kwargs: Any) -> bool:
             return True
 
         def save_lineup_snapshots(self, **_kwargs: Any) -> int:
             return 2
 
+        def confirmed_lineup_business_identity(self, **_kwargs: Any) -> str | None:
+            return next(self.identities)
+
     service = FutureFixtureRefreshService(
         client=FakeApiFootballClient(),
         config=FutureRefreshConfig(
             runtime_root=tmp_path,
             persistence="db",
-            refresh_checkpoints=({"fixture_id": "1489404"},),
         ),
         now=NOW,
     )
@@ -1159,8 +1163,48 @@ def test_lineup_change_records_projection_event(monkeypatch, tmp_path: Path) -> 
     assert (event.fixture_id, event.event_type, event.event_id) == (
         "1489404",
         "LINEUP_CHANGED",
-        f"lineup:{'a' * 64}",
+        "lineup:xi-business-hash",
     )
+
+
+def test_repeated_confirmed_xi_does_not_record_projection_event(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    class Repository:
+        def save_raw_payload(self, **_kwargs: Any) -> bool:
+            return True
+
+        def save_lineup_snapshots(self, **_kwargs: Any) -> int:
+            return 2
+
+        def confirmed_lineup_business_identity(self, **_kwargs: Any) -> str:
+            return "same-xi-business-hash"
+
+    service = FutureFixtureRefreshService(
+        client=FakeApiFootballClient(),
+        config=FutureRefreshConfig(runtime_root=tmp_path, persistence="db"),
+        now=NOW,
+    )
+    monkeypatch.setattr(service, "_db_repository", lambda: Repository())
+    response = LiveApiFootballResponse(
+        endpoint="lineups",
+        params={"fixture": "1489404"},
+        status_code=200,
+        elapsed_ms=1,
+        payload={"response": []},
+        headers={},
+        captured_at=NOW,
+    )
+
+    assert service._save_raw_payload_first(
+        endpoint="lineups",
+        params={"fixture": "1489404"},
+        response=response,
+        payload_hash="b" * 64,
+        payload={"response": []},
+    ) == (True, None)
+    assert service._projection_events == {}
 
 
 def test_fixture_change_triggers_projection_before_task_success(
@@ -1168,8 +1212,11 @@ def test_fixture_change_triggers_projection_before_task_success(
     tmp_path: Path,
 ) -> None:
     class RuntimeRepository:
-        def insert_fixture_identities(self, _rows: list[dict[str, Any]]) -> int:
-            return 1
+        def upsert_fixture_identities_with_business_changes(
+            self,
+            _rows: list[dict[str, Any]],
+        ) -> tuple[int, list[str]]:
+            return 1, ["api_football:1489404"]
 
         def insert_market_observations(self, _rows: list[dict[str, Any]]) -> int:
             return 0
@@ -1180,7 +1227,6 @@ def test_fixture_change_triggers_projection_before_task_success(
         config=FutureRefreshConfig(
             runtime_root=tmp_path,
             persistence="db",
-            refresh_checkpoints=({"fixture_id": "1489404"},),
         ),
         now=NOW,
         materialize_public_artifacts=lambda events: (

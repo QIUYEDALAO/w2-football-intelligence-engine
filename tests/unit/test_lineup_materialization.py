@@ -67,6 +67,53 @@ def test_lineup_materialization_is_atomic_structured_and_idempotent() -> None:
     assert player_count == 22
 
 
+def test_lineup_business_identity_ignores_repeat_capture_and_changes_with_xi() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = FutureRefreshDbRepository(engine=engine)
+    first_at = datetime(2026, 7, 19, tzinfo=UTC)
+    payload = {"response": [_team(10, 100), _team(20, 200)]}
+
+    assert repository.confirmed_lineup_business_identity(fixture_id="fixture-1") is None
+    assert (
+        repository.save_lineup_snapshots(
+            fixture_id="fixture-1",
+            captured_at=first_at,
+            raw_sha256="a" * 64,
+            payload=payload,
+        )
+        == 2
+    )
+    first_identity = repository.confirmed_lineup_business_identity(fixture_id="fixture-1")
+    assert first_identity is not None
+
+    repeat_payload = {"response": [_team(10, 100), _team(20, 200)]}
+    repeat_payload["response"][0]["formation"] = "3-4-3"  # type: ignore[index]
+    assert (
+        repository.save_lineup_snapshots(
+            fixture_id="fixture-1",
+            captured_at=first_at.replace(hour=1),
+            raw_sha256="b" * 64,
+            payload=repeat_payload,
+        )
+        == 2
+    )
+    assert repository.confirmed_lineup_business_identity(fixture_id="fixture-1") == first_identity
+
+    changed_payload = {"response": [_team(10, 100), _team(20, 200)]}
+    changed_payload["response"][1]["startXI"][10]["player"]["id"] = 999  # type: ignore[index]
+    assert (
+        repository.save_lineup_snapshots(
+            fixture_id="fixture-1",
+            captured_at=first_at.replace(hour=2),
+            raw_sha256="c" * 64,
+            payload=changed_payload,
+        )
+        == 2
+    )
+    assert repository.confirmed_lineup_business_identity(fixture_id="fixture-1") != first_identity
+
+
 def test_lineup_materialization_rejects_one_team_without_visible_partial_rows() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
@@ -107,9 +154,9 @@ def test_historical_null_lineup_identity_hash_fails_closed() -> None:
             session.add(snapshot)
         session.commit()
     repository = FutureRefreshDbRepository(engine=engine)
-    assert repository.lineup_gate_evidence(
-        fixture_id="legacy-fixture", as_of=captured_at
-    )["blockers"] == ["LINEUP_IDENTITY_HASH_MISSING"]
+    assert repository.lineup_gate_evidence(fixture_id="legacy-fixture", as_of=captured_at)[
+        "blockers"
+    ] == ["LINEUP_IDENTITY_HASH_MISSING"]
 
 
 def test_saved_lineup_materializer_is_bounded_provider_free_and_idempotent() -> None:
@@ -211,9 +258,7 @@ def test_saved_lineups_materialize_asof_safe_deterministic_team_baselines() -> N
         as_of=datetime(2026, 7, 10, 17, tzinfo=UTC),
     )
     assert len(evidence["baseline_artifact_hashes"]) == 2
-    assert all(
-        item["status"] == "COMPLETE" for item in evidence["lineup_change_features"]
-    )
+    assert all(item["status"] == "COMPLETE" for item in evidence["lineup_change_features"])
 
 
 def test_transfermarkt_snapshot_enables_team_scoped_identity_and_value_gate() -> None:

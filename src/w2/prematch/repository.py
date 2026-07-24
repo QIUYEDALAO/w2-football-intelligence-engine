@@ -33,59 +33,15 @@ class DynamicPrematchRepository:
         *,
         supersession_reason: str = "NEW_CAPTURE_OR_MODEL_INPUT",
     ) -> tuple[DynamicEvaluationVersion, bool]:
-        payload = version.as_dict()
         with Session(self.engine) as session:
-            existing = session.scalar(
-                select(DynamicPrematchEvaluationModel).where(
-                    DynamicPrematchEvaluationModel.identity_hash == version.identity_hash
-                )
-            )
-            if existing is not None:
-                return _version_from_payload(existing.payload), False
-            previous = session.scalar(
-                select(DynamicPrematchEvaluationModel)
-                .where(
-                    DynamicPrematchEvaluationModel.fixture_id == version.fixture_id,
-                    DynamicPrematchEvaluationModel.market == version.market,
-                    ~DynamicPrematchEvaluationModel.evaluation_id.in_(
-                        select(DynamicPrematchSupersessionModel.superseded_evaluation_id)
-                    ),
-                )
-                .order_by(DynamicPrematchEvaluationModel.evaluated_at.desc())
-                .limit(1)
-            )
             try:
-                session.add(
-                    DynamicPrematchEvaluationModel(
-                        evaluation_id=version.evaluation_id,
-                        identity_hash=version.identity_hash,
-                        fixture_id=version.fixture_id,
-                        market=version.market,
-                        selection=version.selection,
-                        checkpoint=version.checkpoint,
-                        capture_id=version.capture_id,
-                        quote_identity_hash=version.quote_identity_hash,
-                        model_input_hash=version.model_input_hash,
-                        lineup_input_hash=version.lineup_input_hash,
-                        evaluated_at=version.evaluated_at,
-                        capture_at=version.capture_at,
-                        original_state=version.state.value,
-                        payload=payload,
-                    )
+                result = self.append_evaluation_in_session(
+                    session,
+                    version,
+                    supersession_reason=supersession_reason,
                 )
-                session.flush()
-                if previous is not None:
-                    session.add(
-                        DynamicPrematchSupersessionModel(
-                            superseded_evaluation_id=previous.evaluation_id,
-                            superseded_by_evaluation_id=version.evaluation_id,
-                            fixture_id=version.fixture_id,
-                            market=version.market,
-                            reason=supersession_reason,
-                            created_at=version.evaluated_at,
-                        )
-                    )
                 session.commit()
+                return result
             except IntegrityError:
                 session.rollback()
                 existing = session.scalar(
@@ -96,6 +52,66 @@ class DynamicPrematchRepository:
                 if existing is None:
                     raise
                 return _version_from_payload(existing.payload), False
+
+    def append_evaluation_in_session(
+        self,
+        session: Session,
+        version: DynamicEvaluationVersion,
+        *,
+        supersession_reason: str = "NEW_CAPTURE_OR_MODEL_INPUT",
+    ) -> tuple[DynamicEvaluationVersion, bool]:
+        """Append evaluation and supersession without owning the transaction."""
+        payload = version.as_dict()
+        existing = session.scalar(
+            select(DynamicPrematchEvaluationModel).where(
+                DynamicPrematchEvaluationModel.identity_hash == version.identity_hash
+            )
+        )
+        if existing is not None:
+            return _version_from_payload(existing.payload), False
+        previous = session.scalar(
+            select(DynamicPrematchEvaluationModel)
+            .where(
+                DynamicPrematchEvaluationModel.fixture_id == version.fixture_id,
+                DynamicPrematchEvaluationModel.market == version.market,
+                ~DynamicPrematchEvaluationModel.evaluation_id.in_(
+                    select(DynamicPrematchSupersessionModel.superseded_evaluation_id)
+                ),
+            )
+            .order_by(DynamicPrematchEvaluationModel.evaluated_at.desc())
+            .limit(1)
+        )
+        session.add(
+            DynamicPrematchEvaluationModel(
+                evaluation_id=version.evaluation_id,
+                identity_hash=version.identity_hash,
+                fixture_id=version.fixture_id,
+                market=version.market,
+                selection=version.selection,
+                checkpoint=version.checkpoint,
+                capture_id=version.capture_id,
+                quote_identity_hash=version.quote_identity_hash,
+                model_input_hash=version.model_input_hash,
+                lineup_input_hash=version.lineup_input_hash,
+                evaluated_at=version.evaluated_at,
+                capture_at=version.capture_at,
+                original_state=version.state.value,
+                payload=payload,
+            )
+        )
+        session.flush()
+        if previous is not None:
+            session.add(
+                DynamicPrematchSupersessionModel(
+                    superseded_evaluation_id=previous.evaluation_id,
+                    superseded_by_evaluation_id=version.evaluation_id,
+                    fixture_id=version.fixture_id,
+                    market=version.market,
+                    reason=supersession_reason,
+                    created_at=version.evaluated_at,
+                )
+            )
+            session.flush()
         return version, True
 
     def append_lineup_event(self, event: LineupConfirmedEvent) -> bool:
@@ -154,9 +170,11 @@ class DynamicPrematchRepository:
                     payload=json.loads(
                         json.dumps(
                             result.snapshot,
-                            default=lambda value: value.astimezone(UTC).isoformat()
-                            if isinstance(value, datetime)
-                            else str(value),
+                            default=lambda value: (
+                                value.astimezone(UTC).isoformat()
+                                if isinstance(value, datetime)
+                                else str(value)
+                            ),
                         )
                     ),
                 )

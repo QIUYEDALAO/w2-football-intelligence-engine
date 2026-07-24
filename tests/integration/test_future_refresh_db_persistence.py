@@ -35,6 +35,10 @@ from w2.providers.api_football import LiveApiFootballResponse
 NOW = datetime(2026, 6, 23, 10, 0, tzinfo=UTC)
 
 
+def materialize_projection_events_for_test(events: list[Any]) -> list[str]:
+    return list(dict.fromkeys(str(event.fixture_id) for event in events))
+
+
 def observation_row(observation_id: str) -> dict[str, Any]:
     return {
         "observation_id": observation_id,
@@ -178,6 +182,7 @@ def test_db_persistence_completes_with_read_only_runtime_and_is_idempotent(
             client=client,
             now=NOW,
             persistence="db",
+            materialize_public_artifacts=materialize_projection_events_for_test,
         )
         second = run_future_refresh_task(
             task_id="task-2",
@@ -187,6 +192,7 @@ def test_db_persistence_completes_with_read_only_runtime_and_is_idempotent(
             client=client,
             now=NOW,
             persistence="db",
+            materialize_public_artifacts=materialize_projection_events_for_test,
         )
     finally:
         runtime_root.chmod(0o700)
@@ -238,6 +244,7 @@ def test_raw_payload_failure_blocks_db_runtime_processing(
         client=FakeApiFootballClient(),
         now=NOW,
         persistence="db",
+        materialize_public_artifacts=materialize_projection_events_for_test,
     )
 
     assert audit.status == "BLOCKED"
@@ -277,6 +284,7 @@ def test_endpoint_capture_failure_blocks_normalization(
         client=FakeApiFootballClient(),
         now=NOW,
         persistence="db",
+        materialize_public_artifacts=materialize_projection_events_for_test,
     )
 
     assert audit.status == "BLOCKED"
@@ -311,6 +319,7 @@ def test_endpoint_capture_preserves_request_start_time(
         client=FakeApiFootballClient(requested_at=requested_at),
         now=NOW,
         persistence="db",
+        materialize_public_artifacts=materialize_projection_events_for_test,
     )
 
     assert audit.status == "COMPLETED"
@@ -390,6 +399,7 @@ def test_db_persistence_allows_retry_after_blocked_task_key(
         client=client,
         now=NOW,
         persistence="db",
+        materialize_public_artifacts=materialize_projection_events_for_test,
     )
 
     assert audit.status == "COMPLETED"
@@ -421,6 +431,7 @@ def test_api_repository_reads_future_refresh_projection_from_db(
         client=FakeApiFootballClient(),
         now=NOW,
         persistence="db",
+        materialize_public_artifacts=materialize_projection_events_for_test,
     )
 
     repository = ReadModelRepository()

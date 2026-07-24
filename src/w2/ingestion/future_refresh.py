@@ -25,7 +25,6 @@ from w2.ingestion.future_refresh_repository import (
 from w2.markets.asian_handicap_scope import canonical_market_from_label
 from w2.prematch.read_model_projection import (
     ProjectionSourceEvent,
-    materialize_projection_events,
 )
 from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
 from w2.providers.control import (
@@ -1128,21 +1127,31 @@ class FutureFixtureRefreshService:
                     if not fixture_id:
                         return False, "LINEUP_FIXTURE_ID_MISSING"
                     try:
+                        previous_identity = repository.confirmed_lineup_business_identity(
+                            fixture_id=fixture_id
+                        )
                         lineup_rows = repository.save_lineup_snapshots(
                             fixture_id=fixture_id,
                             captured_at=response.captured_at,
                             raw_sha256=payload_hash,
                             payload=payload,
                         )
-                        if lineup_rows > 0:
+                        current_identity = repository.confirmed_lineup_business_identity(
+                            fixture_id=fixture_id
+                        )
+                        if (
+                            lineup_rows > 0
+                            and current_identity is not None
+                            and current_identity != previous_identity
+                        ):
                             self._record_projection_event(
                                 ProjectionSourceEvent.create(
                                     fixture_id=fixture_id,
                                     event_type="LINEUP_CHANGED",
-                                    event_id=f"lineup:{payload_hash}",
+                                    event_id=f"lineup:{current_identity}",
                                     event_at=response.captured_at,
                                     payload={
-                                        "raw_payload_sha256": payload_hash,
+                                        "lineup_business_identity": current_identity,
                                         "materialized_rows": lineup_rows,
                                     },
                                 )
@@ -1510,14 +1519,16 @@ class FutureFixtureRefreshService:
     def _materialize_refreshed_public_artifacts(
         self,
     ) -> list[str]:
-        if not self.config.refresh_checkpoints or not self._projection_events:
+        if not self._projection_events:
             return []
         # File persistence is retained for offline/local audit flows. Production
         # DB refreshes project automatically; file-mode callers must opt in with
         # an explicit materializer so they never acquire an accidental DB write.
         if self.config.persistence != "db" and self.materialize_public_artifacts is None:
             return []
-        materializer = self.materialize_public_artifacts or materialize_projection_events
+        if self.materialize_public_artifacts is None:
+            raise FutureRefreshError("PROJECTION_MATERIALIZER_NOT_INJECTED")
+        materializer = self.materialize_public_artifacts
         events = sorted(
             self._projection_events.values(),
             key=lambda item: (
@@ -1546,8 +1557,10 @@ class FutureFixtureRefreshService:
                 fixtures=fixtures,
             )
             for fixture_identity in fixture_identities:
-                changed = repository.insert_fixture_identities([fixture_identity])
-                if changed > 0:
+                _persisted, changed_fixture_ids = (
+                    repository.upsert_fixture_identities_with_business_changes([fixture_identity])
+                )
+                if changed_fixture_ids:
                     fixture_id = str(
                         fixture_identity.get("provider_fixture_id")
                         or fixture_identity.get("fixture_id")
@@ -1559,12 +1572,7 @@ class FutureFixtureRefreshService:
                                 fixture_id=fixture_id,
                                 event_type="FIXTURE_CHANGED",
                                 event_id=(
-                                    "fixture:"
-                                    + str(
-                                        fixture_identity.get("endpoint_capture_id")
-                                        or fixture_identity.get("identity_hash")
-                                        or ""
-                                    )
+                                    "fixture:" + str(fixture_identity.get("identity_hash") or "")
                                 ),
                                 event_at=fixtures_response.captured_at,
                                 payload=fixture_identity,
