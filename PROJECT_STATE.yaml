@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-24T04:07:09Z"
+updated_at: "2026-07-24T04:45:44Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -27,12 +27,12 @@ repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
   main_sha: 1e252d73d8c9658e6ba60093ed8006dde656db10
   main_migration_head: 0041_converge_odds_history_and_projection
-  pull_request: null
-  pull_request_mode: DRAFT_PLANNED
+  pull_request: 385
+  pull_request_mode: DRAFT
   pull_request_head_branch: codex/arch-p1-04a-write-side-projection
   task_baseline_sha: 1e252d73d8c9658e6ba60093ed8006dde656db10
   local_work_branch: codex/arch-p1-04a-write-side-projection
-  github_sync_status: LOCAL_BRANCH_PR_NOT_CREATED
+  github_sync_status: PR_OPEN_IMPLEMENTATION_CI_AND_STAGING_ACCEPTED
   ci_checks:
     verify: REQUIRED_AT_PR_EXACT_HEAD
     staging-parity: REQUIRED_AT_PR_EXACT_HEAD
@@ -79,12 +79,28 @@ architecture_convergence:
   next_task: ARCH-P1-04A
   current_task:
     id: ARCH-P1-04A
-    status: IN_PROGRESS
+    status: READY_FOR_EXTERNAL_REVIEW
     started_at: "2026-07-24T04:07:09Z"
     baseline_sha: 1e252d73d8c9658e6ba60093ed8006dde656db10
     branch: codex/arch-p1-04a-write-side-projection
-    pull_request: null
-    production_behavior_changed: false
+    pull_request: 385
+    implementation_head: 24e90b45bd18891dc04474dd3f0f406e1fe5a91c
+    implementation_exact_head_ci: 30066835395
+    staging_candidate_sha: 24e90b45bd18891dc04474dd3f0f406e1fe5a91c
+    staging_rollback_sha: 1d02a45c6f38c3613ac3dddab784869095bf6804
+    staging_migration: 0041_converge_odds_history_and_projection
+    shadow_reconciliation: 8_OF_8_HASH_MATCH
+    triggered_event_types:
+      - ODDS_CHANGED
+      - LINEUP_CHANGED
+      - FIXTURE_CHANGED
+    provider_delta: 0
+    recommendation_delta: 0
+    lock_delta: 0
+    settlement_delta: 0
+    production_behavior_changed: true
+    api_read_path_changed: false
+    dashboard_read_path_changed: false
     safety_switches_changed: false
   governance_contracts:
     github_secondary_review:

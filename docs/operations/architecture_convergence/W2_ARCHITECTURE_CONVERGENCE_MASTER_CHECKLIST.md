@@ -2273,11 +2273,14 @@ allowlist 固化违规边，并必须阻止新增分层反向依赖或循环。
 ## ARCH-P1-04A：评估持久化——写侧管线
 
 ```text
-Status: IN_PROGRESS
+Status: READY_FOR_EXTERNAL_REVIEW
 Branch: codex/arch-p1-04a-write-side-projection
+PR: #385 (DRAFT)
 Base SHA: 1e252d73d8c9658e6ba60093ed8006dde656db10
 Started at: 2026-07-24T04:07:09Z
 Owner: Codex
+Validated implementation head: 24e90b45bd18891dc04474dd3f0f406e1fe5a91c
+Implementation exact-head CI: 30066835395 (success)
 ```
 
 **独立 PR。本任务不切换任何读路径。**
@@ -2372,8 +2375,61 @@ hash；不切换 API、Dashboard 或 Web 读取。
 - [x] 投影随赔率/首发/赛程变化自动更新，不依赖人工 materialize 或离线脚本。
 - [x] 不得新增 `worker/ingestion -> api` 直接依赖；把写侧投影逻辑从 API 包移入
   写侧权威包，禁止继续放在 API 包中。
-- [ ] 完整 CI 与 staging 验收通过。
+- [x] 完整 CI 与 staging 验收通过。
 - [ ] PR 合并。
+
+### 实现与 staging 写侧验收回执
+
+```text
+PR                                  = #385 (DRAFT)
+BASE_SHA                            = 1e252d73d8c9658e6ba60093ed8006dde656db10
+VALIDATED_IMPLEMENTATION_HEAD       = 24e90b45bd18891dc04474dd3f0f406e1fe5a91c
+IMPLEMENTATION_EXACT_HEAD_CI        = 30066835395 (success)
+CI_VERIFY                           = PASS
+CI_STAGING_PARITY                   = PASS
+CI_PREDEPLOY_E2E                    = PASS
+STAGING_CANDIDATE_SHA               = 24e90b45bd18891dc04474dd3f0f406e1fe5a91c
+STAGING_MIGRATION                   = 0041_converge_odds_history_and_projection
+STAGING_ROLLBACK_SHA                = 1d02a45c6f38c3613ac3dddab784869095bf6804
+```
+
+- 现有 staging 权威数据只读预检：8 个 fixture 均成功生成 2 个动态评估；
+  shadow reconciliation 为 `8/8` hash match，差异字段 `0`。
+- 在 Provider 禁用状态下，通过生产写侧入口
+  `_materialize_refreshed_public_artifacts()` 注入现有数据对应的
+  `ODDS_CHANGED`、`LINEUP_CHANGED`、`FIXTURE_CHANGED` 三类受控事件；
+  `materialized_fixture_ids = ["1494222"]`。
+- `dynamic_prematch_evaluations: 0 -> 2 -> 0`；
+  `read_model_checkpoint: 8 -> 8 -> 8`。目标 checkpoint 原位更新后恢复，
+  两条确定性评估在验收后删除；rollback counts 与基线逐项相等。
+- 投影样例：
+  `projection_version = w2.prematch-read-model-projection.v1`，
+  `projection_hash = 25a8756d...`，
+  `source_event_type = ODDS_CHANGED`，
+  `source_evaluation_id = dqe-776f913d...`；
+  read-time/projected hash 均为 `126834ea...`，差异数组为空。
+- 20 次真实 HTTP（day-view、summary、fixtures、provider status 各 5 次）
+  全部 `200`。原始响应只有每次新生成的 `request_id` 导致 hash 变化；
+  移除该非业务字段后每个 endpoint 的 5 次 hash 各自唯一值为 1。
+- 候选/rollback 同一 DB 的 A/B 复验中，fixtures 与 provider status
+  逐字段 `diff=0`；Dashboard 差异仅为请求/刷新时间、release identity 和
+  验收期间并发增长的 forward-ledger 计数，没有 fixture、赔率、decision、
+  tier、pick、analysis-card 或 safety 字段差异。本 PR 未切换任何读路径。
+- Provider request logs `162 -> 162 -> 162`；recommendations、
+  recommendation locks、gate5 lock events、settlements、shadow strategy
+  locks 均为 `0 -> 0 -> 0`。
+- 候选运行时保持：
+  `W2_PROVIDER_CALLS_DISABLED=true`、
+  `W2_PROVIDER_SCHEDULER_ENABLED=false`、
+  `W2_RECOMMENDATION_ENABLED=false`、
+  `W2_FORMAL_RECOMMENDATION_ENABLED=false`、
+  `W2_PRODUCTION_RELEASE=false`。
+- 候选 6/6 服务 healthy；验收后 release 与五个候选镜像全部回滚到
+  `1d02a45...`，最终 6/6 服务 healthy，migration 与全部安全计数不变。
+- 本地：Ruff PASS；Mypy `260` source files PASS；Pytest
+  `1501 passed, 4 skipped`；`check_w2_all.py` PASS；Web typecheck/build
+  PASS；Playwright `26 passed`。本机无 Docker CLI，Compose 与 PostgreSQL
+  Alembic smoke 由 exact-head CI `verify` 执行并通过。
 
 **验收**
 
@@ -2382,8 +2438,14 @@ PROJECTION_SHADOW_RECONCILIATION = 100_PERCENT_HASH_MATCH
 PROJECTION_TRIGGERED_BY_EVENT = TRUE
 MANUAL_MATERIALIZE_REQUIRED = FALSE
 NEW_TABLES = 0
+NEW_CONFIG_FILES = 0
+NEW_FALLBACKS = 0
 NEW_WORKER_INGESTION_TO_API_DEPENDENCIES = 0
 WRITE_SIDE_PROJECTION_LOGIC_IN_API = 0
+DASHBOARD_READ_PATH_CHANGED = FALSE
+API_READ_PATH_CHANGED = FALSE
+STAGING_WRITE_ACCEPTANCE = PASS
+STAGING_ROLLBACK = PASS
 ```
 
 ---
