@@ -5,7 +5,6 @@ from typing import Any, cast
 
 import pytest
 
-from w2.api.repository import ReadModelService
 from w2.lineups.intelligence import (
     CoverageGrade,
     LineupAdjustment,
@@ -20,6 +19,7 @@ from w2.lineups.intelligence import (
     select_asof_player_valuation,
     validate_confirmed_lineup_snapshot,
 )
+from w2.prematch.analysis_calculator import ReadModelService
 
 
 def test_identity_mapping_is_deterministic_and_team_scoped() -> None:

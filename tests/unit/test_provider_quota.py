@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from w2.api.repository import ReadModelService
 from w2.ingestion.quota_budget import independent_signal_quota_decision
+from w2.prematch.analysis_calculator import ReadModelService
 from w2.providers.quota import (
     api_football_quota_policy,
     parse_api_football_quota,

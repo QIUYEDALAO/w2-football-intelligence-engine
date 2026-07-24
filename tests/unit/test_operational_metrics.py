@@ -6,12 +6,12 @@ from apps.api.main import app
 from fastapi.testclient import TestClient
 
 from w2.api.metrics import ApiMetricSink
-from w2.api.repository import ReadModelService
 from w2.operations.observability import (
     BoundedHistogram,
     OperationalMetricRegistry,
     default_metric_registry,
 )
+from w2.prematch.analysis_calculator import ReadModelService
 from w2.providers.api_football import ApiFootballClient
 
 

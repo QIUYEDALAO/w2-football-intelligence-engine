@@ -20,6 +20,7 @@ from w2.infrastructure.persistence.market_projection_view import (
 )
 from w2.infrastructure.persistence.matchday_intake_models import MatchdayMarketObservationModel
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
+from w2.prematch import analysis_calculator as calculation_repository
 
 AUTHORITY_TABLE = "matchday_market_observations"
 LEGACY_TABLE = "future_market_observation"
@@ -177,43 +178,39 @@ def test_runtime_market_snapshot_cannot_fill_database_result(
         def market_snapshots(self) -> list[dict[str, Any]]:
             return [{"fixture_id": "database", "source": AUTHORITY_TABLE}]
 
-    monkeypatch.setattr(api_repository, "RUNTIME", tmp_path)
-    monkeypatch.setattr(api_repository, "future_refresh_db_repository", lambda: DbRepository())
+    monkeypatch.setattr(calculation_repository, "RUNTIME", tmp_path)
+    monkeypatch.setattr(
+        calculation_repository,
+        "future_refresh_db_repository",
+        lambda: DbRepository(),
+    )
 
-    assert api_repository.ReadModelRepository().market_snapshots() == [
+    assert calculation_repository.ReadModelRepository().market_snapshots() == [
         {"fixture_id": "database", "source": AUTHORITY_TABLE}
     ]
 
 
-def test_api_odds_reads_use_one_scoped_entry_and_no_runtime_or_seed() -> None:
+def test_api_odds_reads_use_projection_only_and_no_runtime_or_seed() -> None:
     source = Path("src/w2/api/repository.py").read_text(encoding="utf-8")
     for forbidden in FORBIDDEN_API_ODDS_SOURCES:
         assert forbidden not in source
-    assert AUTHORITY_METHOD in inspect.getsource(
-        api_repository.ReadModelService._fixture_observations_bounded
-    )
-    assert AUTHORITY_METHOD in inspect.getsource(
-        api_repository.ReadModelService._attach_last_known_odds
-    )
-    assert AUTHORITY_METHOD in inspect.getsource(
-        api_repository.ReadModelService.public_analysis_card_bounded
-    )
-    assert "public_analysis_card_bounded" in inspect.getsource(
-        api_repository.ReadModelService._dashboard_card_from_matchday
-    )
+    assert "read_model_checkpoint" in source
+    assert "FutureRefreshDbRepository" not in source
+    assert "future_refresh_db_repository" not in source
+    assert "_fixture_observations_bounded" not in source
+    assert "_attach_last_known_odds" not in source
     for method in (
         api_repository.ReadModelService.odds_timeline,
         api_repository.ReadModelService.market_probabilities,
     ):
         method_source = inspect.getsource(method)
-        assert "_fixture_observations_bounded" in method_source
-        assert "dashboard_fixture" not in method_source
+        assert "public_analysis_card_bounded" in method_source
     assert not hasattr(api_repository.ReadModelRepository, "staging_seed_dashboard")
 
 
 def test_empty_database_returns_empty_odds_without_file_fill(monkeypatch: Any) -> None:
-    monkeypatch.setattr(api_repository, "future_refresh_db_repository", lambda: None)
-    repository = api_repository.ReadModelRepository()
+    monkeypatch.setattr(calculation_repository, "future_refresh_db_repository", lambda: None)
+    repository = calculation_repository.ReadModelRepository()
 
     assert repository.market_snapshots() == []
     assert repository.future_market_observations_for_fixtures(["123"]) == []

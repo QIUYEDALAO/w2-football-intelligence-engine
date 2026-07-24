@@ -7,11 +7,11 @@ from pathlib import Path
 
 from scripts.project_stage10c_matchday_read_model import checkpoint_payloads
 
-from w2.api import repository
 from w2.matchday.cards import ResearchCardBuilder
 from w2.matchday.integrity import SnapshotHashVerifier
 from w2.matchday.settlement import MatchdaySettlementService
 from w2.matchday.temporal import TemporalStatus, classify_temporal_status
+from w2.prematch import analysis_calculator as repository
 
 
 def write_json(path: Path, payload: dict[str, object]) -> str:

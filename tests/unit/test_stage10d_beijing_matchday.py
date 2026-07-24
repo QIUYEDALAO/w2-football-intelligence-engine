@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 
-from w2.api import repository
 from w2.matchday.coverage import MISSING_REASONS, MatchdayCoverageReconciler
 from w2.matchday.timezone import (
     BeijingOperationalDayPolicy,
     FixtureOperationalDateResolver,
     next_36_hours_window,
 )
+from w2.prematch import analysis_calculator as repository
 
 
 def test_beijing_operational_day_crosses_utc_date() -> None:

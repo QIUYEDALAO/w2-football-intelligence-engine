@@ -82,7 +82,7 @@ def materialize_shadow_projection_events(
     events: list[ProjectionSourceEvent],
 ) -> list[str]:
     """Manual DB composition adapter with the worker's current-reader semantics."""
-    from w2.api.repository import ReadModelRepository, ReadModelService
+    from w2.prematch.analysis_calculator import ReadModelRepository, ReadModelService
     from w2.prematch.read_model_projection import (
         ScopedAnalysisRepository,
         materialize_projection_events,

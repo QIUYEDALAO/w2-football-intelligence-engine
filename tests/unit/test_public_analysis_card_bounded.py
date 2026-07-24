@@ -5,9 +5,9 @@ from datetime import UTC, datetime
 from threading import Barrier
 from typing import Any, cast
 
-from w2.api import repository as api_repository
-from w2.api.repository import ReadModelRepository, ReadModelService
 from w2.domain.recommendation_decision_v3 import validate_decision_v3_identity
+from w2.prematch import analysis_calculator as api_repository
+from w2.prematch.analysis_calculator import ReadModelRepository, ReadModelService
 
 
 class BoundedObservationRepository:
