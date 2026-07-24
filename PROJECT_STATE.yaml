@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-23T19:06:30Z"
+updated_at: "2026-07-24T00:12:04Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -30,12 +30,12 @@ repository:
   pull_request_mode: DRAFT
   pull_request_head_branch: codex/arch-hygiene-01-generated-audits-exit-git
   task_baseline_sha: db3fd12fedb76e9a9cb074f7a3dcc3294042c2fc
-  local_code_implementation_sha: d34046261db89282a514134625839f06d9c3fd57
+  local_code_implementation_sha: b6d858d614647d62f5cbc271e1d6f7f7da59303d
   local_work_branch: codex/arch-hygiene-01-generated-audits-exit-git
   github_sync_status: DRAFT_PR_OPEN_IMPLEMENTATION_CI_PASS
-  github_verified_head_sha: d34046261db89282a514134625839f06d9c3fd57
+  github_verified_head_sha: b6d858d614647d62f5cbc271e1d6f7f7da59303d
   ci_status: PASS
-  ci_run_id: 30035995807
+  ci_run_id: 30055030785
   ci_checks:
     verify: PASS
     staging-parity: PASS
@@ -85,8 +85,8 @@ architecture_convergence:
     baseline_sha: db3fd12fedb76e9a9cb074f7a3dcc3294042c2fc
     branch: codex/arch-hygiene-01-generated-audits-exit-git
     pull_request: 383
-    implementation_head: d34046261db89282a514134625839f06d9c3fd57
-    implementation_ci_run_id: 30035995807
+    implementation_head: b6d858d614647d62f5cbc271e1d6f7f7da59303d
+    implementation_ci_run_id: 30055030785
     production_behavior_changed: false
     safety_switches_changed: false
   governance_contracts:
@@ -112,6 +112,9 @@ architecture_convergence:
       audit_generator_sha: GENERATOR_CODE_VERSION
       source_review_sha: AUDITED_CODE_TREE_GIT_HEAD_AT_GENERATION
       source_review_sha_validation: MATCHES_GENERATION_HEAD
+      source_tree_input_contract: SHARED_BY_SCANNER_GIT_GUARD_AND_TESTS
+      source_tree_inputs_match_git_head: true
+      untracked_scanned_non_python_files_accepted: 0
   pre_approved_order_change:
     task: ARCH-P1-05
     condition: STAGING_ONSITE_BUILD_REPEATEDLY_FAILS

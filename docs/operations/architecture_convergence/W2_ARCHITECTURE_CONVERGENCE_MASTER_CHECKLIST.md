@@ -1688,8 +1688,10 @@ Owner: Codex
 Base SHA: db3fd12fedb76e9a9cb074f7a3dcc3294042c2fc
 Branch: codex/arch-hygiene-01-generated-audits-exit-git
 Draft PR: #383
-Implementation head: d34046261db89282a514134625839f06d9c3fd57
-Implementation exact-head CI: 30035995807 (PASS)
+Previous correction head: 47d3fdf9941ddce3f2c9fbe9466c8afa2ce2c53c
+Previous correction exact-head CI: 30054047005 (PASS)
+Implementation head: b6d858d614647d62f5cbc271e1d6f7f7da59303d
+Implementation exact-head CI: 30055030785 (PASS)
 Scope: docs/audits/system_truth 生成产物、相关生成器及双重静态守卫
 Next task: ARCH-HYGIENE-01（合并前不得推进 ARCH-HYGIENE-02）
 ```
@@ -1813,8 +1815,13 @@ STATUS_DOCUMENT_AUTHORITY = THIS_MASTER_CHECKLIST
   `--output-dir`/`output_dir`；JSON、Markdown、manifest、路径替换和 glob
   均使用传入目录。
 - `generation_head` 在生成开始时读取，所有 payload 的
-  `source_review_sha` 在发布前统一校验；发布前再次读取 HEAD，发生漂移时保留
-  原目标目录且拒绝发布。
+  `source_review_sha` 在发布前统一校验；生成前与发布前均检查 staged、
+  unstaged 和全部实际扫描的 untracked/ignored 输入，发生漂移时保留原目标
+  目录且拒绝发布。
+- 实际扫描、untracked/ignored 守卫与测试共同复用一份输入路径合同，覆盖
+  `src/apps/scripts/tests/migrations/**/*.py`、`.github/workflows/*.{yml,yaml}`、
+  `docker-compose.yml`、`infra/compose/*.{yml,yaml}`、`scripts/*.sh` 和
+  `.env.example`。
 - `audit_generator_sha` 表示生成器所在 Git 代码版本；
   `audit_output_commit_sha` 及其无消费者占位字段已删除。
 - 原生 `W2_PR_LINEAGE_MAP_V2`、`W2_RISK_REGISTER_V2` 保留生成；原
@@ -1824,8 +1831,29 @@ STATUS_DOCUMENT_AUTHORITY = THIS_MASTER_CHECKLIST
 - 唯一断链位于人工 `W2_SIMPLIFICATION_PLAN_V1.md`：其原 V1 matrix 文件名
   已改为本总清单权威路径，同时删除已失效的硬编码旧审计 SHA。
 
-已提交实现 head `d34046261db89282a514134625839f06d9c3fd57` 的真实生成与
-GitHub CI 证据：
+### 最终整改回执
+
+前一整改 implementation head
+`47d3fdf9941ddce3f2c9fbe9466c8afa2ce2c53c`、exact-head CI
+`30054047005` 已证明工作树身份预检、输出目录安全、序列化前路径别名与 JSON
+自哈希、未知 Markdown 静态守卫四项整改通过。
+
+本轮 implementation head
+`b6d858d614647d62f5cbc271e1d6f7f7da59303d`、exact-head CI
+`30055030785` 在同一共享输入合同中补齐 workflow YAML、Compose YAML、
+Shell 与 `.env.example`，CI 的 `verify`、`staging-parity`、
+`predeploy-e2e` 均为 `PASS`。直接回归证据为：
+
+- staged、unstaged、五个 Python 根目录的 untracked 与 ignored Python 输入：
+  `PASS`；
+- `.github/workflows/untracked.yml`：拒绝，`PASS`；
+- `infra/compose/untracked.yaml`：拒绝，`PASS`；
+- `scripts/untracked.sh`：拒绝，`PASS`；
+- ignored `infra/compose/ignored_probe.yaml`：拒绝，`PASS`；
+- 非 Python 输入不一致时，在任何实际扫描和输出目录验证前失败，既有输出保持
+  不变：`PASS`；
+- 输出目录归属/原子恢复、18 个 JSON 自哈希、绝对路径归零与未知
+  `W2_NEW_MACHINE_REPORT_V1.md` 静态守卫继续通过。
 
 ```text
 TRACKED_GENERATED_AUDIT_FILES = 0
@@ -1834,11 +1862,13 @@ HARDCODED_PERSONAL_PATHS = 0
 HARDCODED_SOURCE_REVIEW_SHA = 0
 SOURCE_REVIEW_SHA_SOURCE = CURRENT_GIT_HEAD
 SOURCE_REVIEW_SHA_MATCHES_GENERATION_HEAD = PASS
+SOURCE_REVIEW_SHA_INPUTS_MATCH_GIT_HEAD = PASS
+UNTRACKED_SCANNED_NON_PYTHON_FILES_ACCEPTED = 0
 PENDING_COMMIT_PLACEHOLDERS = 0
 AUDIT_GENERATION_DIRTIES_GIT = 0
 BROKEN_AUDIT_REFERENCES = 0
 RUNTIME_OUTPUT = 18 JSON + 18 Markdown
-IMPLEMENTATION_EXACT_HEAD_CI = 30035995807
+IMPLEMENTATION_EXACT_HEAD_CI = 30055030785
 VERIFY = PASS
 STAGING_PARITY = PASS
 PREDEPLOY_E2E = PASS
@@ -1880,6 +1910,8 @@ HARDCODED_PERSONAL_PATHS = 0
 HARDCODED_SOURCE_REVIEW_SHA = 0
 SOURCE_REVIEW_SHA_SOURCE = CURRENT_GIT_HEAD
 SOURCE_REVIEW_SHA_MATCHES_GENERATION_HEAD = PASS
+SOURCE_REVIEW_SHA_INPUTS_MATCH_GIT_HEAD = PASS
+UNTRACKED_SCANNED_NON_PYTHON_FILES_ACCEPTED = 0
 PENDING_COMMIT_PLACEHOLDERS = 0
 AUDIT_GENERATION_DIRTIES_GIT = 0
 BROKEN_AUDIT_REFERENCES = 0
