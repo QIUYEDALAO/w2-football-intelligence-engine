@@ -2541,8 +2541,8 @@ Base SHA: 46aa8d36d652d31831e7f99543ce16e575b7154d
 Started at: 2026-07-24T09:38:51Z
 Owner: Codex
 PR: #387 (DRAFT)
-Validated implementation head: 1c9b500a43fd2ecb6d5ddc0346aa141c93d00fcc
-Implementation exact-head CI: 30092658377 (success)
+Validated implementation head: bd816803af5e8149dec743b277d8ae495197a0e0
+Implementation exact-head CI: 30100951746 (success)
 Final review head: PR_EXACT_HEAD
 Final exact-head CI: REQUIRED_AT_PR_EXACT_HEAD
 ```
@@ -2589,14 +2589,19 @@ API_FROZEN_LIVE_AUTO_SELECTION         = 0
 DAY_VIEW_MARKET_PROBABILITY_RECOMPUTE  = 0
 PRODUCTION_DAY_VIEW_LEGACY_FALLBACK    = 0
 DAY_VIEW_MISSING_DECISION_CONTRACT     = FAIL_CLOSED
+DAY_VIEW_DECISION_FIELDS_CONTRACT_ONLY = TRUE
+DAY_VIEW_READ_TIME_DECISION_RECOMPUTE  = 0
+PARTIAL_DECISION_CONTRACT              = FAIL_CLOSED
+CONTRADICTORY_DECISION_CONTRACT        = FAIL_CLOSED
+TOP_LEVEL_DECISION_FIELD_FALLBACK      = 0
 DAY_VIEW_LEGACY_FALLBACK_TESTS         = 0
 STATIC_GUARD_COVERS_PRODUCTION_DAY_VIEW = TRUE
 LOCAL_RUFF                             = PASS
-LOCAL_MYPY                             = PASS (261 source files)
-LOCAL_PYTEST                           = 1532 passed, 4 skipped
+LOCAL_MYPY                             = PASS (262 source files)
+LOCAL_PYTEST                           = 1559 passed, 4 skipped
 LOCAL_CHECK_W2_ALL                     = PASS
 LOCAL_WEB_TYPECHECK_BUILD_E2E          = PASS / PASS / 26 passed
-IMPLEMENTATION_EXACT_HEAD_CI           = 30092658377 (PASS)
+IMPLEMENTATION_EXACT_HEAD_CI           = 30100951746 (PASS)
 FINAL_REVIEW_HEAD                      = PR_EXACT_HEAD
 FINAL_EXACT_HEAD_CI                    = REQUIRED_AT_PR_EXACT_HEAD
 ```
@@ -2612,25 +2617,34 @@ FINAL_EXACT_HEAD_CI                    = REQUIRED_AT_PR_EXACT_HEAD
   pricing / strategy / simulation import 与已删除 fallback identity 均为 0。
 - DayView 已删除 `CARD_SOURCE_LEGACY`、`_legacy_card` 和缺少
   `decision_contract` 时的兼容分支；必要合同缺失或不完整时抛出
-  `DayViewContractError`，由 API 明确返回 HTTP 503 / `SYSTEM_DEGRADED`，
+  `DecisionContractViolation`，由 API 明确返回 HTTP 503 / `SYSTEM_DEGRADED`，
   不转换为 `WATCH`、`PARTIAL` 或其他兼容结果。
+- DayView 决策字段只从已持久化 `decision_contract` 读取，不再读取顶层 card
+  fallback，也不在读取时重算 `outcome_tracked` 或默认
+  `lock_eligible`。必需字段、严格 bool、pick/non-pick 互斥与 tier 后置条件
+  由纯 domain validator 校验；顶层重复决策字段冲突同样 fail-closed。顶层
+  `data_readiness` 是原始采集证据，合同内同名字段是规范化决策就绪视图；
+  DayView 只读后者，两者不作为重复身份比较。
 - 已知 `api <-> ingestion` 循环边由 `1 + 1` 降为 `0 + 0`；本任务不声明
   ARCH-P1-04C 的全仓库依赖合同完成，只把该实际变化记录为 04C 新 baseline。
 
 ### staging 语义对账与回滚直接证据
 
 ```text
-STAGING_CANDIDATE_SHA                  = 1c9b500a43fd2ecb6d5ddc0346aa141c93d00fcc
+STAGING_CANDIDATE_SHA                  = bd816803af5e8149dec743b277d8ae495197a0e0
 STAGING_MIGRATION_CURRENT              = 0041_converge_odds_history_and_projection
 STAGING_SERVICES_HEALTHY               = 6 / 6
 MATERIALIZABLE_CURRENT_FIXTURES        = 8
 PERSISTED_READBACK_HASH_MATCH          = 8 / 8
 SHADOW_RECONCILIATION_DIFFERENCES      = 0 / 8 fixtures
 DASHBOARD_HTTP_20X                     = 20 / 20 HTTP 200
-DASHBOARD_HTTP_20X_STABLE_HASH         = e905d2e756b15e2d5bbb990508ca43de291f985abf076d2d90d10693e876322d
+DASHBOARD_HTTP_20X_STABLE_HASH         = 9257c2faf3c504d1751ec823b693e0a40af481be5f3ea87e5f96678b7200e2af
 DAY_VIEW_HTTP_20X                      = 20 / 20 HTTP 200
-DAY_VIEW_HTTP_20X_STABLE_HASH          = 19a322b0ab29f29290a1e11f6ea16ff72f76a1adf28244aabbaeb34333610cc9
+DAY_VIEW_HTTP_20X_STABLE_HASH          = 872ccaf64be84db18f6698d8543209382511ca57f6e54de91129b17410db8400
 DAY_VIEW_LEGACY_IDENTITY_COUNT         = 0
+MALFORMED_DECISION_CONTRACT_HTTP       = 503 SYSTEM_DEGRADED
+MALFORMED_DECISION_CONTRACT_MESSAGE    = DECISION_CONTRACT_INCOMPLETE
+VALID_CONTRACT_AFTER_RESTORE           = 20 / 20 HTTP 200, stable hash
 UNPROJECTED_ANALYSIS_STATUS            = SYSTEM_DEGRADED / ANALYSIS_PROJECTION_NOT_READY
 PROVIDER_REQUEST_LOG_DELTA             = 0 (162 -> 162)
 RECOMMENDATION_DELTA                   = 0
