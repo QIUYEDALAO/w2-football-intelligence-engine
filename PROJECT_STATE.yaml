@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-24T01:57:14Z"
+updated_at: "2026-07-24T02:34:42Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -31,12 +31,12 @@ repository:
   pull_request_mode: DRAFT
   pull_request_head_branch: codex/arch-hygiene-02-script-authority-convergence
   task_baseline_sha: 748b50e5c990c6138193810ec319e0e413a7ab25
-  local_code_implementation_sha: 98acd5c87961fbcd9b43fa0eef01f690cd16aef8
+  local_code_implementation_sha: 947ed607796601e21a2eb819729efe850ddfef9f
   local_work_branch: codex/arch-hygiene-02-script-authority-convergence
   github_sync_status: DRAFT_PR_OPEN_IMPLEMENTATION_CI_PASS
-  github_verified_head_sha: 98acd5c87961fbcd9b43fa0eef01f690cd16aef8
+  github_verified_head_sha: 947ed607796601e21a2eb819729efe850ddfef9f
   ci_status: PASS
-  ci_run_id: 30060110631
+  ci_run_id: 30061777277
   ci_checks:
     verify: PASS
     staging-parity: PASS
@@ -87,8 +87,8 @@ architecture_convergence:
     baseline_sha: 748b50e5c990c6138193810ec319e0e413a7ab25
     branch: codex/arch-hygiene-02-script-authority-convergence
     pull_request: 384
-    implementation_head: 98acd5c87961fbcd9b43fa0eef01f690cd16aef8
-    implementation_ci_run_id: 30060110631
+    implementation_head: 947ed607796601e21a2eb819729efe850ddfef9f
+    implementation_ci_run_id: 30061777277
     production_behavior_changed: false
     safety_switches_changed: false
   governance_contracts:

@@ -1932,8 +1932,8 @@ Base SHA: 748b50e5c990c6138193810ec319e0e413a7ab25
 Started at: 2026-07-24T00:42:35Z
 Owner: Codex
 PR: #384 (DRAFT)
-Implementation head: 98acd5c87961fbcd9b43fa0eef01f690cd16aef8
-Implementation exact-head CI: 30060110631 (PASS)
+Implementation head: 947ed607796601e21a2eb819729efe850ddfef9f
+Implementation exact-head CI: 30061777277 (PASS)
 Implementation checks: verify / staging-parity / predeploy-e2e = PASS
 Supersedes: ARCH-P2-01
 Deletion policy: DEAD 直接删除；不建立 scripts/archive
@@ -1948,7 +1948,7 @@ inventory universe 不是手写的 `scripts/` 文件列表，而由
 2. `git ls-files` 中 `infra/**` 下同类脚本，不依赖其是否已有配置引用；
 3. 任一路径段名为 `scripts` 且后缀属于上述集合的实际存在文件；
 4. `.github/workflows`、全部 Dockerfile、Compose、systemd/cron、`Makefile`
-   与 `apps/web/package.json` 中通过通用命令解析器发现的脚本或 module；
+   与全部 `package.json` 中通过结构化命令解析器发现的脚本或 module；
 5. `pyproject.toml [project.scripts]` 的全部 console entrypoint；
 6. `alembic.ini script_location` 对应的 migration `env.py`；
 7. CI 中作为 Python 程序直接执行的 `tests/secret_scan.py`。
@@ -2145,11 +2145,14 @@ TOTAL_RETAINED = 137
 
 ### `check_w2_all.py` 完整直接与传递调用图
 
-守卫读取 `COMMANDS` 字面量，并将 script/module/path 与外部 tool 记录为
-不同节点。它递归扫描 `subprocess.run/Popen/check_call/check_output`（含
-直接 import alias）、`os.system/popen`、`runpy.run_module/run_path`、
-`importlib.import_module`、`pytest.main`、`scripts.*` import，以及 Shell
-中的 Python/Bash/Node/uv/Ruff/Mypy/Pytest 命令。最终 script 执行图如下：
+守卫读取 `COMMANDS` 字面量，并将 script/module/path、外部 tool 与无法静态
+证明的执行分别记录为不同节点。它递归扫描
+`subprocess.run/Popen/check_call/check_output`（含直接 import alias）、
+`os.system/popen`、`runpy.run_module/run_path`、`importlib.import_module`、
+Pytest/Mypy/Ruff Python API、`scripts.*` import，以及 Shell 中的直接脚本、
+`source`/`.`、`exec`、`env`/`sudo`/`timeout`、Python/Bash/Node/uv 命令。
+变量、拼接、keyword `args` 或其他无法静态解析的可达命令统一生成
+`UNRESOLVED_EXECUTION` 并使合同失败。最终 script 执行图如下：
 
 ```text
 .github/workflows/ci.yml
@@ -2238,15 +2241,20 @@ CI_RUFF_OWNER = GITHUB_CI
 CI_MYPY_OWNER = GITHUB_CI
 CI_PYTEST_OWNER = GITHUB_CI
 CHECK_W2_ALL = PASS
-INVENTORY_CONTRACT_TESTS = 25_PASS
+INVENTORY_CONTRACT_TESTS = 62_PASS
 ROOT_INFRA_UNCLASSIFIED_GUARDS = 2_PASS
-GENERIC_MODULE_ENTRYPOINT_GUARDS = 4_PASS
-TRANSITIVE_HEAVY_TOOL_BYPASS_GUARDS = 6_FORMS_7_CASES_PASS
+EXACT_MODULE_RESOLVER_GUARDS = PASS
+STRUCTURED_YAML_JSON_COMMAND_GUARDS = PASS
+HEAVY_EXECUTABLE_MODULE_API_GUARDS = PASS
+DYNAMIC_COMMAND_FAIL_CLOSED_GUARDS = PASS
+DIRECT_SHELL_AND_WRAPPER_GUARDS = PASS
 DEAD_REFERENCE_IDENTITY_GUARDS = 4_PASS
+DELETION_CLOSURE_OBJECTS = 9
 EXECUTION_GRAPH = 41_NODES_40_EDGES
+EXECUTION_GRAPH_UNRESOLVED_NODES = 0
 RUFF = PASS
 MYPY = PASS (260 source files)
-PYTEST = 1509_PASS_4_SKIP
+PYTEST = 1546_PASS_4_SKIP
 GIT_DIFF_CHECK = PASS
 SHELL_SYNTAX = PASS
 PRODUCTION_BEHAVIOR_CHANGED = false
@@ -2270,6 +2278,31 @@ STAGING = NOT_APPLICABLE
 `PASS`。root/infra universe、通用 module resolver、命令级递归图和 DEAD
 四身份引用合同均已加入同一测试文件；8 个 DEAD 删除、137 个保留身份和
 `check_w2_all.py` 的 19 个直接 checker 保持不变。PR 继续保持 Draft，
+`ARCH-HYGIENE-02 = READY_FOR_EXTERNAL_REVIEW`，`ARCH-P1-04A` 未开始。
+
+### 解析器闭环整改 implementation head 回执
+
+`947ed607796601e21a2eb819729efe850ddfef9f` 上的 GitHub Actions run
+`30061777277` 已完成，`verify`、`staging-parity`、`predeploy-e2e` 均为
+`PASS`。本轮在同一合同测试中完成：
+
+- `python -m` 只接受精确 `module.py` 或 package `__main__.py`；
+  Uvicorn、Celery 与 `pyproject` 分别按各自导入合同精确解析，禁止任意父级
+  回退；
+- Workflow/Compose YAML、`package.json`、Dockerfile、systemd、Makefile 与
+  Shell 按格式提取完整命令序列，多行 module target 同样经过 resolver；
+- Ruff、Mypy、Pytest 的 executable、`python -m` 与 Python API 统一映射至
+  同一 tool 节点；可达动态命令一律 fail closed；
+- 直接 Shell、`source`/`.`、`exec`、`env`/`sudo`/`timeout` 与 uv option
+  wrapper 均递归进入执行图；
+- deletion closure 明确包含 8 个 DEAD script 与 1 个旧 Dashboard V2
+  manifest；脚本按 path/basename/stem/module，manifest 按 path/basename
+  守卫重新引用。
+
+聚焦合同 `62 passed`，本地全量 Pytest `1546 passed, 4 skipped`；实际
+执行图仍为 `41` 节点、`40` 边、19 个直接 checker，tool 仅 `uv` 与
+`python`，`UNRESOLVED_EXECUTION` 可达节点为 0。8 个 DEAD 删除、137 个
+保留身份和 19 个直接 checker 均未重做或改变。PR 继续保持 Draft，
 `ARCH-HYGIENE-02 = READY_FOR_EXTERNAL_REVIEW`，`ARCH-P1-04A` 未开始。
 
 每个脚本必须逐项归入且只能归入以下一种分类：
