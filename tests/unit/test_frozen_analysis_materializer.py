@@ -7,18 +7,23 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from w2.api.frozen_analysis import (
+from w2.api.repository import ReadModelService
+from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
+from w2.infrastructure.persistence.dynamic_prematch_models import (
+    DynamicPrematchEvaluationModel,
+    DynamicPrematchSupersessionModel,
+)
+from w2.operations.observability import default_metric_registry
+from w2.prematch.read_model_projection import (
     ANALYSIS_CARD_CANARY_SCHEMA,
     AnalysisCardCanaryMaterializer,
     FrozenAnalysisError,
+    ProjectionSourceEvent,
     canonical_sha256,
     read_frozen_analysis_artifact,
     validate_frozen_analysis_payload,
     write_frozen_analysis_artifacts,
 )
-from w2.api.repository import ReadModelService
-from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
-from w2.operations.observability import default_metric_registry
 
 
 class ScopedRepository:
@@ -92,10 +97,78 @@ def _patch_projection(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ReadModelService, "public_analysis_card_bounded", project)
 
 
-def _engine():  # type: ignore[no-untyped-def]
+def _patch_ready_projection(monkeypatch: pytest.MonkeyPatch) -> None:
+    def project(
+        self: ReadModelService,
+        fixture_id: str,
+        *,
+        evaluation_time: datetime | None = None,
+        use_frozen_canary: bool = True,
+    ) -> dict[str, Any]:
+        assert evaluation_time is not None
+        assert use_frozen_canary is False
+        return {
+            "fixture_id": fixture_id,
+            "decision": "SKIP",
+            "decision_tier": "ANALYSIS_ONLY",
+            "pick": None,
+            "evaluated_at": evaluation_time.astimezone(UTC).isoformat(),
+            "market_candidates": {
+                "ou": {
+                    "market": "TOTALS",
+                    "selection": "OVER",
+                    "line": "2.5",
+                    "analysis_evidence": {
+                        "side_evidence": {
+                            "OVER": {
+                                "model_probability": {
+                                    "status": "READY",
+                                    "effective_probability": 0.58,
+                                    "expected_value": 0.08,
+                                    "ev_se": 0.01,
+                                },
+                                "comparison": {},
+                            }
+                        },
+                        "quote_identity": {
+                            "identity_status": "COMPLETE",
+                            "freshness_status": "COMPLETE",
+                            "quotes": {
+                                "over": {
+                                    "line": "2.5",
+                                    "bookmaker_id": "book-1",
+                                    "capture_id": "capture-1",
+                                    "captured_at": "2026-07-18T04:00:00Z",
+                                    "decimal_odds": "1.91",
+                                }
+                            },
+                        },
+                        "market_probability": {"devig": {"OVER": 0.52, "UNDER": 0.48}},
+                    },
+                }
+            },
+        }
+
+    monkeypatch.setattr(ReadModelService, "public_analysis_card_bounded", project)
+
+
+def _engine(*, dynamic: bool = False):  # type: ignore[no-untyped-def]
     engine = create_engine("sqlite+pysqlite:///:memory:")
     ReadModelCheckpointModel.__table__.create(engine)
+    if dynamic:
+        DynamicPrematchEvaluationModel.__table__.create(engine)
+        DynamicPrematchSupersessionModel.__table__.create(engine)
     return engine
+
+
+def _event(event_type: str = "ODDS_CHANGED") -> ProjectionSourceEvent:
+    return ProjectionSourceEvent.create(
+        fixture_id="1576804",
+        event_type=event_type,
+        event_id=f"{event_type.lower()}:capture-1",
+        event_at=datetime(2026, 7, 18, 5, 0, tzinfo=UTC),
+        payload={"capture_id": "capture-1"},
+    )
 
 
 def test_same_inputs_produce_identical_bytes_and_hashes(
@@ -172,7 +245,7 @@ def test_write_is_idempotent_and_reader_verifies_hash(
         row = session.query(ReadModelCheckpointModel).one()
         row.payload = {**row.payload, "analysis_card": {"fixture_id": "1576804"}}
         session.commit()
-    with pytest.raises(FrozenAnalysisError, match="artifact hash mismatch"):
+    with pytest.raises(FrozenAnalysisError, match="projection hash mismatch"):
         read_frozen_analysis_artifact(engine, "1576804")
     assert registry.labelled_counters[invalid_key] == invalid_before + 1
 
@@ -250,3 +323,98 @@ def test_payload_validation_rejects_fixture_identity_conflict(
 
     with pytest.raises(FrozenAnalysisError, match="fixture identity conflict"):
         validate_frozen_analysis_payload("other", artifact.payload)
+
+
+@pytest.mark.parametrize(
+    "event_type",
+    ["ODDS_CHANGED", "LINEUP_CHANGED", "FIXTURE_CHANGED"],
+)
+def test_event_projection_records_source_and_matches_current_read_hash(
+    monkeypatch: pytest.MonkeyPatch,
+    event_type: str,
+) -> None:
+    _patch_ready_projection(monkeypatch)
+    event = _event(event_type)
+
+    first = AnalysisCardCanaryMaterializer(ScopedRepository()).build(
+        "1576804",
+        evaluated_at=event.event_at,
+        source_event=event,
+    )
+    second = AnalysisCardCanaryMaterializer(ScopedRepository()).build(
+        "1576804",
+        evaluated_at=event.event_at,
+        source_event=event,
+    )
+
+    assert first.payload["source_event_type"] == event_type
+    assert first.payload["source_event_id"] == event.event_id
+    assert first.payload["source_event_hash"] == event.event_hash
+    assert first.payload["source_evaluation_id"]
+    assert first.payload["source_evaluation_hash"]
+    assert first.payload["projection_hash"] == second.payload["projection_hash"]
+    assert first.payload["shadow_reconciliation"] == {
+        "read_time_hash": canonical_sha256(first.payload["analysis_card"]),
+        "projected_hash": canonical_sha256(first.payload["analysis_card"]),
+        "match": True,
+        "differences": [],
+    }
+
+
+def test_event_projection_write_is_idempotent_for_evaluation_and_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_ready_projection(monkeypatch)
+    event = _event()
+    artifact = AnalysisCardCanaryMaterializer(ScopedRepository()).build(
+        "1576804",
+        evaluated_at=event.event_at,
+        source_event=event,
+    )
+    engine = _engine(dynamic=True)
+
+    write_frozen_analysis_artifacts(engine, [artifact])
+    write_frozen_analysis_artifacts(engine, [artifact])
+
+    with Session(engine) as session:
+        assert session.query(DynamicPrematchEvaluationModel).count() == 1
+        assert session.query(ReadModelCheckpointModel).count() == 1
+        checkpoint = session.query(ReadModelCheckpointModel).one()
+        assert checkpoint.source_hash == artifact.source_hash
+        assert checkpoint.payload["projection_hash"] == artifact.payload["projection_hash"]
+
+
+def test_projection_failure_after_evaluation_is_repairable_without_duplicate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_ready_projection(monkeypatch)
+    event = _event()
+    artifact = AnalysisCardCanaryMaterializer(ScopedRepository()).build(
+        "1576804",
+        evaluated_at=event.event_at,
+        source_event=event,
+    )
+    engine = _engine(dynamic=True)
+    with Session(engine) as session:
+        session.add(
+            ReadModelCheckpointModel(
+                checkpoint_key=artifact.checkpoint_key,
+                source_hash="0" * 64,
+                created_at=datetime.now(UTC),
+                payload={"schema_version": "old"},
+            )
+        )
+        session.commit()
+
+    with pytest.raises(FrozenAnalysisError, match="schema incompatible"):
+        write_frozen_analysis_artifacts(engine, [artifact])
+    with Session(engine) as session:
+        assert session.query(DynamicPrematchEvaluationModel).count() == 1
+        assert session.query(ReadModelCheckpointModel).count() == 1
+        session.query(ReadModelCheckpointModel).delete()
+        session.commit()
+
+    write_frozen_analysis_artifacts(engine, [artifact])
+    with Session(engine) as session:
+        assert session.query(DynamicPrematchEvaluationModel).count() == 1
+        assert session.query(ReadModelCheckpointModel).count() == 1

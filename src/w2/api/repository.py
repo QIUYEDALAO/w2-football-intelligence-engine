@@ -495,7 +495,7 @@ def _formal_payload_blocker(formal_result: Any) -> str:
 
 class ReadModelRepository:
     def analysis_card_canary_artifact(self, fixture_id: str) -> Any:
-        from w2.api.frozen_analysis import read_frozen_analysis_artifact
+        from w2.prematch.read_model_projection import read_frozen_analysis_artifact
 
         return read_frozen_analysis_artifact(create_engine(), fixture_id)
 
@@ -2027,7 +2027,7 @@ class ReadModelService:
     def _public_frozen_analysis_card(self, fixture_id: str) -> dict[str, Any]:
         from copy import deepcopy
 
-        from w2.api.frozen_analysis import FrozenAnalysisError
+        from w2.prematch.read_model_projection import FrozenAnalysisError
 
         reader = getattr(self.repository, "analysis_card_canary_artifact", None)
         if not callable(reader):

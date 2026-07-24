@@ -2282,7 +2282,7 @@ Owner: Codex
 
 **独立 PR。本任务不切换任何读路径。**
 
-### 现状锚点（2026-07-23 复审）
+### 基线锚点（2026-07-23 复审）
 
 ```text
 EVALUATION_TABLE            = dynamic_prematch_evaluations (已存在)
@@ -2296,17 +2296,81 @@ PROJECTOR_ONLY_CALLER_TODAY = scripts/project_stage10b_live_snapshot.py (离线)
 两张表和 repository 均已存在，投影器代码也已写好，当前唯一调用方是离线
 脚本。本任务是把已有投影器接入 worker 生产链路，**不新增表**。
 
-- [ ] 审计 `read_model_checkpoint` 的 schema、写入者和当前覆盖。
-- [ ] 确保它可以承载 Boss Console 当前所需全部字段。
-- [ ] worker 在赔率、首发或赛程变化后计算分析卡，落
+### 现有表、写入者与字段覆盖审计（本 PR）
+
+```text
+dynamic_prematch_evaluations
+  schema:
+    evaluation_id PK; identity_hash UNIQUE; fixture_id; market; selection;
+    checkpoint; capture_id; quote_identity_hash; model_input_hash;
+    lineup_input_hash; evaluated_at; capture_at; original_state; payload
+  canonical writer:
+    DynamicPrematchRepository.append_evaluation()
+  production caller after this PR:
+    materialize_projection_events()
+      -> AnalysisCardCanaryMaterializer.build()
+      -> write_frozen_analysis_artifacts()
+      -> DynamicPrematchRepository.append_evaluation()
+
+read_model_checkpoint
+  schema:
+    id PK; checkpoint_key UNIQUE; source_hash; created_at; payload JSON
+  existing writers at baseline:
+    scripts/project_stage10b_live_snapshot.py
+      -> snapshot_projection.write_projection() (offline)
+    scripts/project_stage10c_matchday_read_model.py (offline direct write)
+    scripts/materialize_analysis_card_canary.py and predeploy smoke
+  production writer after this PR:
+    future_refresh checkpoint task
+      -> materialize_projection_events()
+      -> write_frozen_analysis_artifacts()
+  key:
+    analysis-card:frozen:v1:<fixture_id>
+  payload:
+    projection_version/hash; source_event_type/id/hash/at;
+    source_evaluation_id/hash; last_projected_at; checkpoint_namespace;
+    fixture_identity; input_manifest; complete analysis_card;
+    shadow_reconciliation; artifact_hash
+```
+
+Boss Console 当前消费字段由完整 `analysis_card` 原样承载，包括 fixture /
+competition / team / kickoff identity，decision / tier / lifecycle / reason，
+current odds、market candidates/probabilities、movement/timeline/strip、
+refresh/readiness/missing inputs、simulation/scoreline、pick/non-pick、
+lineup provenance、dynamic prematch、quote identity、card/provenance hash。
+基线缺口是 source event、source evaluation、projection version/hash、
+last_projected_at 与逐场 shadow diff；本 PR 已将这些元数据写入现有 payload，
+未新增列。
+
+三类有效变化的触发位置：
+
+```text
+赔率: FutureFixtureRefreshService._persist_db()
+      -> insert_market_observations() inserted > 0 -> ODDS_CHANGED
+首发: FutureFixtureRefreshService._save_raw_payload_first()
+      -> save_lineup_snapshots() rows > 0 -> LINEUP_CHANGED
+赛程: FutureFixtureRefreshService._persist_db()
+      -> insert_fixture_identities() changed > 0 -> FIXTURE_CHANGED
+共同: _materialize_refreshed_public_artifacts()
+      -> materialize_projection_events() -> evaluation -> checkpoint
+```
+
+投影失败会阻止 checkpoint refresh task 成功；评估采用确定性 identity hash
+幂等追加，checkpoint 采用确定性 key/source hash，失败后重试不会复制评估。
+影子对账直接比较同一 materializer 调用所得现行读时卡与持久化卡的 canonical
+hash；不切换 API、Dashboard 或 Web 读取。
+
+- [x] 审计 `read_model_checkpoint` 的 schema、写入者和当前覆盖。
+- [x] 确保它可以承载 Boss Console 当前所需全部字段。
+- [x] worker 在赔率、首发或赛程变化后计算分析卡，落
   `dynamic_prematch_evaluations`，并投影到 `read_model_checkpoint`。
-- [ ] 投影记录必须带 projection version/hash、source event、
+- [x] 投影记录必须带 projection version/hash、source event、
   last projected time。
-- [ ] 不新增表、不新增配置文件、不新增 fallback。
-- [ ] 影子对账：投影结果与现行读时计算结果逐场 hash 比对，不切换 API
+- [x] 不新增表、不新增配置文件、不新增 fallback。
+- [x] 影子对账：投影结果与现行读时计算结果逐场 hash 比对，不切换 API
   读路径。
-- [ ] 投影随赔率/首发变化自动更新，不依赖人工 materialize 或离线脚本。
-- [ ] 不得新增 `worker/ingestion -> api` 依赖；把写侧投影逻辑从 API 包移入
+- [x] 投影随赔率/首发/赛程变化自动更新，不依赖人工 materialize 或离线脚本。
+- [x] 不得新增 `worker/ingestion -> api` 直接依赖；把写侧投影逻辑从 API 包移入
   写侧权威包，禁止继续放在 API 包中。
 - [ ] 完整 CI 与 staging 验收通过。
 - [ ] PR 合并。

@@ -318,7 +318,7 @@ from __future__ import annotations
 import sys
 from datetime import UTC, datetime
 
-from w2.api.frozen_analysis import (
+from w2.prematch.read_model_projection import (
     AnalysisCardCanaryMaterializer,
     write_frozen_analysis_artifacts,
 )

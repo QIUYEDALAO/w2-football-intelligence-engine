@@ -12,14 +12,20 @@ from sqlalchemy import select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from w2.api.repository import ReadModelRepository, ReadModelService
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.operations.observability import default_metric_registry
+from w2.prematch.lifecycle import (
+    DynamicEvaluationInput,
+    DynamicEvaluationVersion,
+    classify_evaluation,
+)
+from w2.prematch.repository import DynamicPrematchRepository
 
 ANALYSIS_CARD_CANARY_SCHEMA = "w2.analysis-card.frozen.v1"
 ANALYSIS_EVIDENCE_CONTRACT_VERSION = "w2.analysis-market-evidence.v2"
 ANALYSIS_CARD_CANARY_PREFIX = "analysis-card:frozen:v1:"
+PROJECTION_VERSION = "w2.prematch-read-model-projection.v1"
 ANALYSIS_CARD_CANARY_FIXTURES = frozenset({"1576804", "1494701", "1494210"})
 MAX_OBSERVATIONS_PER_FIXTURE = 256
 MAX_PUBLIC_FIXTURES = 512
@@ -75,6 +81,48 @@ class FrozenAnalysisArtifact:
     artifact_hash: str
     payload: dict[str, Any]
     canonical_bytes: bytes
+    evaluations: tuple[DynamicEvaluationVersion, ...] = ()
+
+
+@dataclass(frozen=True)
+class ProjectionSourceEvent:
+    fixture_id: str
+    event_type: str
+    event_id: str
+    event_at: datetime
+    event_hash: str
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        fixture_id: str,
+        event_type: str,
+        event_id: str,
+        event_at: datetime,
+        payload: object,
+    ) -> ProjectionSourceEvent:
+        normalized_at = _normalize_evaluation_time(event_at)
+        normalized_fixture = str(fixture_id).strip()
+        normalized_type = str(event_type).strip().upper()
+        normalized_id = str(event_id).strip()
+        if not normalized_fixture or not normalized_type or not normalized_id:
+            raise FrozenAnalysisError("projection source event identity incomplete")
+        return cls(
+            fixture_id=normalized_fixture,
+            event_type=normalized_type,
+            event_id=normalized_id,
+            event_at=datetime.fromisoformat(normalized_at.replace("Z", "+00:00")),
+            event_hash=canonical_sha256(
+                {
+                    "fixture_id": normalized_fixture,
+                    "event_type": normalized_type,
+                    "event_id": normalized_id,
+                    "event_at": normalized_at,
+                    "payload": payload,
+                }
+            ),
+        )
 
 
 def _json_default(value: object) -> str:
@@ -145,11 +193,21 @@ class AnalysisCardCanaryMaterializer:
     def __init__(self, repository: ScopedAnalysisRepository) -> None:
         self.repository = repository
 
-    def build(self, fixture_id: str, *, evaluated_at: datetime) -> FrozenAnalysisArtifact:
+    def build(
+        self,
+        fixture_id: str,
+        *,
+        evaluated_at: datetime,
+        source_event: ProjectionSourceEvent | None = None,
+    ) -> FrozenAnalysisArtifact:
         registry = default_metric_registry()
         started = monotonic()
         try:
-            artifact = self._build(fixture_id, evaluated_at=evaluated_at)
+            artifact = self._build(
+                fixture_id,
+                evaluated_at=evaluated_at,
+                source_event=source_event,
+            )
         except Exception:
             registry.inc(
                 "w2_materializer_results_total",
@@ -166,7 +224,13 @@ class AnalysisCardCanaryMaterializer:
         )
         return artifact
 
-    def _build(self, fixture_id: str, *, evaluated_at: datetime) -> FrozenAnalysisArtifact:
+    def _build(
+        self,
+        fixture_id: str,
+        *,
+        evaluated_at: datetime,
+        source_event: ProjectionSourceEvent | None,
+    ) -> FrozenAnalysisArtifact:
         key = analysis_card_canary_key(fixture_id)
         evaluation_time = _normalize_evaluation_time(evaluated_at)
         fixture_payload = self.repository.fixture_payload(fixture_id)
@@ -187,7 +251,11 @@ class AnalysisCardCanaryMaterializer:
             fixture_payload,
             observations,
         )
-        service = ReadModelService(repository=cast(ReadModelRepository, frozen_inputs))
+        # The current read-time computation remains unchanged until ARCH-P1-04B.
+        # Only the resulting canonical card is projected and persisted here.
+        from w2.api.repository import ReadModelService
+
+        service = ReadModelService(repository=cast(Any, frozen_inputs))
         card = service.public_analysis_card_bounded(
             fixture_id,
             evaluation_time=evaluated_at,
@@ -218,21 +286,61 @@ class AnalysisCardCanaryMaterializer:
                 else "w2.lineup_market_policy.v1"
             ),
         }
+        event = source_event or ProjectionSourceEvent.create(
+            fixture_id=fixture_id,
+            event_type="MANUAL_AUDIT",
+            event_id=f"manual-audit:{fixture_id}:{evaluation_time}",
+            event_at=evaluated_at,
+            payload={"input_manifest": input_manifest},
+        )
+        if event.fixture_id != fixture_id:
+            raise FrozenAnalysisError("projection source event fixture conflict")
+        evaluations = tuple(_dynamic_evaluations(card, input_manifest))
+        if source_event is not None and not evaluations:
+            raise FrozenAnalysisError("dynamic evaluation unavailable")
+        primary = min(evaluations, key=lambda item: item.evaluation_id) if evaluations else None
+        card_hash = canonical_sha256(card)
+        event_at = _normalize_evaluation_time(event.event_at)
         artifact_body = {
             "schema_version": ANALYSIS_CARD_CANARY_SCHEMA,
+            "projection_version": PROJECTION_VERSION,
+            "source_event_type": event.event_type,
+            "source_event_id": event.event_id,
+            "source_event_hash": event.event_hash,
+            "source_event_at": event_at,
+            "source_evaluation_id": primary.evaluation_id if primary is not None else None,
+            "source_evaluation_hash": primary.identity_hash if primary is not None else None,
+            "source_evaluation_ids": sorted(item.evaluation_id for item in evaluations),
+            "source_evaluation_hashes": sorted(item.identity_hash for item in evaluations),
+            "last_projected_at": event_at,
             "checkpoint_namespace": "public",
             "fixture_identity": identity,
             "input_manifest": input_manifest,
             "analysis_card": card,
+            "shadow_reconciliation": {
+                "read_time_hash": card_hash,
+                "projected_hash": canonical_sha256(card),
+                "match": True,
+                "differences": [],
+            },
         }
-        artifact_hash = canonical_sha256(artifact_body)
-        payload = {**artifact_body, "artifact_hash": artifact_hash}
+        projection_hash = canonical_sha256(artifact_body)
+        projected_payload = {**artifact_body, "projection_hash": projection_hash}
+        artifact_hash = canonical_sha256(projected_payload)
+        payload = {**projected_payload, "artifact_hash": artifact_hash}
         return FrozenAnalysisArtifact(
             checkpoint_key=key,
-            source_hash=canonical_sha256(input_manifest),
+            source_hash=canonical_sha256(
+                {
+                    "input_manifest": input_manifest,
+                    "source_event_hash": event.event_hash,
+                    "source_evaluation_hashes": sorted(item.identity_hash for item in evaluations),
+                }
+            ),
             artifact_hash=artifact_hash,
             payload=payload,
             canonical_bytes=canonical_json_bytes(payload),
+            evaluations=evaluations,
         )
 
 
@@ -261,16 +369,71 @@ def validate_frozen_analysis_payload(
         raise FrozenAnalysisError("frozen analysis evidence missing")
     if str(card.get("fixture_id") or "") != fixture_id:
         raise FrozenAnalysisError("checkpoint card identity conflict")
+    has_projection_metadata = "projection_version" in payload
+    if has_projection_metadata:
+        required_projection = {
+            "projection_version",
+            "projection_hash",
+            "source_event_type",
+            "source_event_id",
+            "source_event_hash",
+            "source_event_at",
+            "source_evaluation_id",
+            "source_evaluation_hash",
+            "last_projected_at",
+            "fixture_identity",
+            "shadow_reconciliation",
+        }
+        if not required_projection.issubset(payload):
+            raise FrozenAnalysisError("checkpoint projection metadata missing")
+        if payload.get("projection_version") != PROJECTION_VERSION:
+            raise FrozenAnalysisError("checkpoint projection version incompatible")
+        projection_hash = str(payload.get("projection_hash") or "")
+        projection_body = {
+            key: value
+            for key, value in payload.items()
+            if key not in {"projection_hash", "artifact_hash"}
+        }
+        if not projection_hash or canonical_sha256(projection_body) != projection_hash:
+            raise FrozenAnalysisError("checkpoint projection hash mismatch")
+        shadow = payload.get("shadow_reconciliation")
+        if (
+            not isinstance(shadow, dict)
+            or shadow.get("match") is not True
+            or shadow.get("read_time_hash") != canonical_sha256(card)
+            or shadow.get("projected_hash") != canonical_sha256(card)
+            or shadow.get("differences") != []
+        ):
+            raise FrozenAnalysisError("projection shadow reconciliation mismatch")
     artifact_hash = str(payload.get("artifact_hash") or "")
     artifact_body = {key: value for key, value in payload.items() if key != "artifact_hash"}
     if not artifact_hash or canonical_sha256(artifact_body) != artifact_hash:
         raise FrozenAnalysisError("checkpoint artifact hash mismatch")
+    evaluations = tuple(_dynamic_evaluations(card, manifest)) if has_projection_metadata else ()
+    primary = min(evaluations, key=lambda item: item.evaluation_id) if evaluations else None
+    if primary is not None and (
+        payload.get("source_evaluation_id") != primary.evaluation_id
+        or payload.get("source_evaluation_hash") != primary.identity_hash
+    ):
+        raise FrozenAnalysisError("checkpoint evaluation identity mismatch")
+    source_hash = (
+        canonical_sha256(
+            {
+                "input_manifest": manifest,
+                "source_event_hash": payload["source_event_hash"],
+                "source_evaluation_hashes": sorted(item.identity_hash for item in evaluations),
+            }
+        )
+        if has_projection_metadata
+        else canonical_sha256(manifest)
+    )
     return FrozenAnalysisArtifact(
         checkpoint_key=analysis_card_canary_key(fixture_id),
-        source_hash=canonical_sha256(manifest),
+        source_hash=source_hash,
         artifact_hash=artifact_hash,
         payload=payload,
         canonical_bytes=canonical_json_bytes(payload),
+        evaluations=evaluations,
     )
 
 
@@ -298,6 +461,10 @@ def write_frozen_analysis_artifacts(
         )
         for artifact in artifacts
     ]
+    repository = DynamicPrematchRepository(engine)
+    for artifact in validated:
+        for evaluation in artifact.evaluations:
+            repository.append_evaluation(evaluation)
     now = datetime.now(UTC)
     with Session(engine) as session:
         try:
@@ -340,122 +507,109 @@ def write_frozen_analysis_artifacts(
         except Exception:
             session.rollback()
             raise
-    _append_dynamic_prematch_evaluations(engine, validated)
 
 
-def _append_dynamic_prematch_evaluations(
-    engine: Engine,
-    artifacts: list[FrozenAnalysisArtifact],
-) -> None:
-    from w2.prematch.lifecycle import DynamicEvaluationInput, classify_evaluation
-    from w2.prematch.repository import DynamicPrematchRepository
-
-    repository = DynamicPrematchRepository(engine)
-    for artifact in artifacts:
-        card = artifact.payload.get("analysis_card")
-        manifest = artifact.payload.get("input_manifest")
-        if not isinstance(card, dict) or not isinstance(manifest, dict):
-            continue
-        fixture_id = str(card.get("fixture_id") or "")
-        evaluated_at = _parse_utc(manifest.get("evaluated_at"))
-        candidates = card.get("market_candidates")
-        if not fixture_id or evaluated_at is None or not isinstance(candidates, dict):
-            continue
-        lineup = card.get("lineup_provenance")
-        lineup = lineup if isinstance(lineup, dict) else {}
-        lineup_confirmed_at = _parse_utc(lineup.get("captured_at"))
-        lineup_input_hash = (
-            canonical_sha256(
-                {
-                    "captured_at": lineup.get("captured_at"),
-                    "raw_sha256": lineup.get("raw_sha256"),
-                    "baseline_artifact_hashes": lineup.get("baseline_artifact_hashes"),
-                    "lineup_change_features": lineup.get("lineup_change_features"),
-                }
-            )
-            if lineup_confirmed_at is not None and lineup.get("confirmed") is True
-            else None
+def _dynamic_evaluations(
+    card: dict[str, Any],
+    manifest: dict[str, Any],
+) -> list[DynamicEvaluationVersion]:
+    fixture_id = str(card.get("fixture_id") or "")
+    evaluated_at = _parse_utc(manifest.get("evaluated_at"))
+    candidates = card.get("market_candidates")
+    if not fixture_id or evaluated_at is None or not isinstance(candidates, dict):
+        return []
+    lineup = card.get("lineup_provenance")
+    lineup = lineup if isinstance(lineup, dict) else {}
+    lineup_confirmed_at = _parse_utc(lineup.get("captured_at"))
+    lineup_input_hash = (
+        canonical_sha256(
+            {
+                "captured_at": lineup.get("captured_at"),
+                "raw_sha256": lineup.get("raw_sha256"),
+                "baseline_artifact_hashes": lineup.get("baseline_artifact_hashes"),
+                "lineup_change_features": lineup.get("lineup_change_features"),
+            }
         )
-        for key, default_market in (("ah", "ASIAN_HANDICAP"), ("ou", "TOTALS")):
-            candidate = candidates.get(key)
-            if not isinstance(candidate, dict):
-                continue
-            evidence = candidate.get("analysis_evidence")
-            if not isinstance(evidence, dict):
-                continue
-            selection, side = _dynamic_evaluation_side(candidate, evidence)
-            if not selection or not isinstance(side, dict):
-                continue
-            model = side.get("model_probability")
-            comparison = side.get("comparison")
-            quote_identity = evidence.get("quote_identity")
-            market_probability = evidence.get("market_probability")
-            if not all(
-                isinstance(item, dict)
-                for item in (model, comparison, quote_identity, market_probability)
-            ):
-                continue
-            model = cast(dict[str, Any], model)
-            comparison = cast(dict[str, Any], comparison)
-            quote_identity = cast(dict[str, Any], quote_identity)
-            market_probability = cast(dict[str, Any], market_probability)
-            normalized = selection.lower().replace("_ah", "")
-            quote = (quote_identity.get("quotes") or {}).get(normalized)
-            quote = quote if isinstance(quote, dict) else {}
-            devig = market_probability.get("devig")
-            devig = devig if isinstance(devig, dict) else {}
-            capture_at = _parse_utc(quote.get("captured_at") or quote_identity.get("captured_at"))
-            checkpoint = _latest_checkpoint(card)
-            value = DynamicEvaluationInput(
-                fixture_id=fixture_id,
-                market=str(candidate.get("market") or default_market),
-                selection=selection,
-                exact_line=_float_or_none(quote.get("line") or candidate.get("line")),
-                bookmaker_id=str(
-                    quote.get("bookmaker_id")
-                    or quote_identity.get("bookmaker_id")
-                    or ""
-                )
-                or None,
-                capture_id=str(
-                    quote.get("capture_id")
-                    or quote.get("raw_payload_sha256")
-                    or quote_identity.get("capture_id")
-                    or ""
-                )
-                or None,
-                quote_identity_hash=canonical_sha256(quote_identity),
-                model_input_hash=canonical_sha256(
-                    {
-                        "simulation": manifest.get("simulation_sha256"),
-                        "analysis_evidence": manifest.get("analysis_evidence_sha256"),
-                        "lineup_input_hash": lineup_input_hash,
-                    }
-                ),
-                evaluated_at=evaluated_at,
-                checkpoint=checkpoint,
-                capture_at=capture_at,
-                source_observations_present=True,
-                exact_quote_complete=str(quote_identity.get("identity_status") or "").upper()
-                == "COMPLETE",
-                quote_fresh=str(quote_identity.get("freshness_status") or "COMPLETE").upper()
-                == "COMPLETE",
-                model_ready=str(model.get("status") or "").upper() == "READY",
-                market_probability_ready=bool(devig),
-                identity_conflict=False,
-                model_probability=_float_or_none(model.get("effective_probability")),
-                market_probability=_float_or_none(devig.get(selection)),
-                expected_value=_float_or_none(model.get("expected_value")),
-                ev_se=_float_or_none(model.get("ev_se")),
-                decimal_odds=_float_or_none(quote.get("decimal_odds")),
-                lineup_input_hash=lineup_input_hash,
-                lineup_confirmed_at=lineup_confirmed_at,
-                post_lineup_quote=bool(
-                    lineup_confirmed_at is None
-                    or (capture_at is not None and capture_at >= lineup_confirmed_at)
-                ),
+        if lineup_confirmed_at is not None and lineup.get("confirmed") is True
+        else None
+    )
+    versions: list[DynamicEvaluationVersion] = []
+    for key, default_market in (("ah", "ASIAN_HANDICAP"), ("ou", "TOTALS")):
+        candidate = candidates.get(key)
+        if not isinstance(candidate, dict):
+            continue
+        evidence = candidate.get("analysis_evidence")
+        if not isinstance(evidence, dict):
+            continue
+        selection, side = _dynamic_evaluation_side(candidate, evidence)
+        if not selection or not isinstance(side, dict):
+            continue
+        model = side.get("model_probability")
+        comparison = side.get("comparison")
+        quote_identity = evidence.get("quote_identity")
+        market_probability = evidence.get("market_probability")
+        if not all(
+            isinstance(item, dict)
+            for item in (model, comparison, quote_identity, market_probability)
+        ):
+            continue
+        model = cast(dict[str, Any], model)
+        comparison = cast(dict[str, Any], comparison)
+        quote_identity = cast(dict[str, Any], quote_identity)
+        market_probability = cast(dict[str, Any], market_probability)
+        normalized = selection.lower().replace("_ah", "")
+        quote = (quote_identity.get("quotes") or {}).get(normalized)
+        quote = quote if isinstance(quote, dict) else {}
+        devig = market_probability.get("devig")
+        devig = devig if isinstance(devig, dict) else {}
+        capture_at = _parse_utc(quote.get("captured_at") or quote_identity.get("captured_at"))
+        value = DynamicEvaluationInput(
+            fixture_id=fixture_id,
+            market=str(candidate.get("market") or default_market),
+            selection=selection,
+            exact_line=_float_or_none(quote.get("line") or candidate.get("line")),
+            bookmaker_id=str(quote.get("bookmaker_id") or quote_identity.get("bookmaker_id") or "")
+            or None,
+            capture_id=str(
+                quote.get("capture_id")
+                or quote.get("raw_payload_sha256")
+                or quote_identity.get("capture_id")
+                or ""
             )
-            repository.append_evaluation(classify_evaluation(value))
+            or None,
+            quote_identity_hash=canonical_sha256(quote_identity),
+            model_input_hash=canonical_sha256(
+                {
+                    "simulation": manifest.get("simulation_sha256"),
+                    "analysis_evidence": manifest.get("analysis_evidence_sha256"),
+                    "lineup_input_hash": lineup_input_hash,
+                }
+            ),
+            evaluated_at=evaluated_at,
+            checkpoint=_latest_checkpoint(card),
+            capture_at=capture_at,
+            source_observations_present=True,
+            exact_quote_complete=str(quote_identity.get("identity_status") or "").upper()
+            == "COMPLETE",
+            quote_fresh=str(quote_identity.get("freshness_status") or "COMPLETE").upper()
+            == "COMPLETE",
+            model_ready=str(model.get("status") or "").upper() == "READY",
+            market_probability_ready=bool(devig),
+            identity_conflict=False,
+            model_probability=_float_or_none(model.get("effective_probability")),
+            market_probability=_float_or_none(devig.get(selection)),
+            expected_value=_float_or_none(model.get("expected_value")),
+            ev_se=_float_or_none(model.get("ev_se")),
+            decimal_odds=_float_or_none(quote.get("decimal_odds")),
+            lineup_input_hash=lineup_input_hash,
+            lineup_confirmed_at=lineup_confirmed_at,
+            post_lineup_quote=bool(
+                lineup_confirmed_at is None
+                or (capture_at is not None and capture_at >= lineup_confirmed_at)
+            ),
+        )
+        versions.append(classify_evaluation(value))
+    return versions
 
 
 def _dynamic_evaluation_side(
@@ -509,6 +663,42 @@ def _float_or_none(value: Any) -> float | None:
         return float(value) if value is not None else None
     except (TypeError, ValueError):
         return None
+
+
+def materialize_projection_events(
+    events: list[ProjectionSourceEvent],
+    *,
+    repository: ScopedAnalysisRepository | None = None,
+    engine: Engine | None = None,
+) -> list[str]:
+    ordered = sorted(
+        {(event.fixture_id, event.event_type, event.event_id): event for event in events}.values(),
+        key=lambda item: (
+            item.event_at,
+            item.fixture_id,
+            item.event_type,
+            item.event_id,
+        ),
+    )
+    if not ordered:
+        return []
+    if repository is None:
+        from w2.api.repository import ReadModelRepository
+
+        repository = cast(ScopedAnalysisRepository, ReadModelRepository())
+    if engine is None:
+        from w2.infrastructure.database import create_engine
+
+        engine = create_engine()
+    materializer = AnalysisCardCanaryMaterializer(repository)
+    for event in ordered:
+        artifact = materializer.build(
+            event.fixture_id,
+            evaluated_at=event.event_at,
+            source_event=event,
+        )
+        write_frozen_analysis_artifacts(engine, [artifact])
+    return list(dict.fromkeys(event.fixture_id for event in ordered))
 
 
 def read_frozen_analysis_artifact(

@@ -4,14 +4,14 @@ import argparse
 import json
 from datetime import datetime
 
-from w2.api.frozen_analysis import (
+from w2.api.repository import ReadModelRepository
+from w2.infrastructure.database import create_engine
+from w2.prematch.read_model_projection import (
     MAX_PUBLIC_FIXTURES,
     AnalysisCardCanaryMaterializer,
     FrozenAnalysisError,
     write_frozen_analysis_artifacts,
 )
-from w2.api.repository import ReadModelRepository
-from w2.infrastructure.database import create_engine
 
 CANARY_FIXTURES = ("1576804", "1494701", "1494210")
 
