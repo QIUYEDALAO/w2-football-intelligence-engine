@@ -96,10 +96,10 @@ architecture_convergence:
     required_checks:
       - PRE_MERGE_READINESS_GATE
       - POST_MERGE_CHECKLIST_CONSISTENCY_GATE
-    validated_implementation_head: 195439153284060726ffc669ae50d5f2eb72f64b
+    validated_implementation_head: c48fd10d4d472380bba37525255f897937a4987b
     implementation_exact_head_ci:
-      - 30113399151
-      - 30113399164
+      - 30114362958
+      - 30114363059
     final_head: GITHUB_PR_EXACT_HEAD
     final_exact_head_ci: GITHUB_ACTIONS_EXACT_HEAD_RUN
     staging_sha: NOT_APPLICABLE_GOVERNANCE_ONLY

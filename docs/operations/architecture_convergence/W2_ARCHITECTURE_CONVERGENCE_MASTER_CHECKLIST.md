@@ -106,10 +106,10 @@ Required checks: PRE_MERGE_READINESS_GATE + POST_MERGE_CHECKLIST_CONSISTENCY_GAT
 Protocol read: GITHUB_SECONDARY_REVIEW_PROTOCOL_V1
 Task scope contract read: TASK_SCOPE_AND_REVIEW_BOUNDARY_V1
 Implementation SHA: GITHUB_PR_EXACT_HEAD
-Validated implementation head: 195439153284060726ffc669ae50d5f2eb72f64b
+Validated implementation head: c48fd10d4d472380bba37525255f897937a4987b
 Final receipt head: GitHub PR exact head
 CI run: GitHub Actions exact-head W2 Stage 2 CI + W2 Architecture Governance
-Validated implementation CI: 30113399151 + 30113399164
+Validated implementation CI: 30114362958 + 30114363059
 Staging SHA: NOT_APPLICABLE_GOVERNANCE_ONLY
 Evidence: local 1593 passed / 4 skipped; governance matrix 34 passed; required checks
   verify + staging-parity + predeploy-e2e + PRE_MERGE_READINESS_GATE +
