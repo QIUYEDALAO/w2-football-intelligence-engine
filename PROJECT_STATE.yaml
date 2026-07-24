@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-24T04:45:44Z"
+updated_at: "2026-07-24T06:09:18Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -34,9 +34,9 @@ repository:
   local_work_branch: codex/arch-p1-04a-write-side-projection
   github_sync_status: PR_OPEN_IMPLEMENTATION_CI_AND_STAGING_ACCEPTED
   ci_checks:
-    verify: REQUIRED_AT_PR_EXACT_HEAD
-    staging-parity: REQUIRED_AT_PR_EXACT_HEAD
-    predeploy-e2e: REQUIRED_AT_PR_EXACT_HEAD
+    verify: PASS
+    staging-parity: PASS
+    predeploy-e2e: PASS
   closed_pull_requests:
     370: CLOSED_AFTER_BASELINE_INTEGRATION_PR_374
 
@@ -84,12 +84,16 @@ architecture_convergence:
     baseline_sha: 1e252d73d8c9658e6ba60093ed8006dde656db10
     branch: codex/arch-p1-04a-write-side-projection
     pull_request: 385
-    implementation_head: 24e90b45bd18891dc04474dd3f0f406e1fe5a91c
-    implementation_exact_head_ci: 30066835395
-    staging_candidate_sha: 24e90b45bd18891dc04474dd3f0f406e1fe5a91c
+    implementation_head: 3e902eb974e7c00b2715adf2627d831958761539
+    implementation_exact_head_ci: 30070466523
+    staging_candidate_sha: 3e902eb974e7c00b2715adf2627d831958761539
     staging_rollback_sha: 1d02a45c6f38c3613ac3dddab784869095bf6804
     staging_migration: 0041_converge_odds_history_and_projection
-    shadow_reconciliation: 8_OF_8_HASH_MATCH
+    shadow_checkpoint_key: analysis-card:shadow:v1:1494222
+    shadow_reconciliation: PERSISTED_READBACK_HASH_MATCH
+    shadow_difference_fields: 0
+    active_checkpoint_unchanged: true
+    direct_analysis_card_http: 20_OF_20_200_STABLE_BASELINE_AND_ROLLBACK
     triggered_event_types:
       - ODDS_CHANGED
       - LINEUP_CHANGED
@@ -191,7 +195,7 @@ active_workstream:
     t30_validation_snapshot: locally_verified
 
 local_verification:
-  pytest_passed: 1492
+  pytest_passed: 1513
   pytest_skipped: 4
   ruff: PASS
   mypy: PASS
@@ -206,7 +210,7 @@ local_verification:
 
 staging:
   deployed_sha: 1d02a45c6f38c3613ac3dddab784869095bf6804
-  deployed_sha_source: ARCH-P1-02_STAGING_ACCEPTANCE
+  deployed_sha_source: ARCH-P1-04A_ACCEPTANCE_ROLLBACK
   migration_current: 0041_converge_odds_history_and_projection
   deployment_status: DEPLOYED_HEALTHY
   production_deployed: false
