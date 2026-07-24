@@ -70,6 +70,15 @@ def test_full_execution_surface_has_no_removed_production_fallback_identity() ->
     assert violations == []
 
 
+def test_predeploy_projection_smoke_uses_write_side_calculator() -> None:
+    source = Path("scripts/run_predeploy_e2e_smoke.sh").read_text(encoding="utf-8")
+    assert (
+        "from w2.prematch.analysis_calculator import "
+        "ReadModelRepository, ReadModelService"
+    ) in source
+    assert "from w2.api.repository import ReadModelRepository, ReadModelService" not in source
+
+
 class ProjectionRepository:
     def __init__(self, *, projection: dict[str, Any] | None) -> None:
         self.projection = projection
