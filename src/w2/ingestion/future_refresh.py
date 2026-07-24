@@ -23,6 +23,9 @@ from w2.ingestion.future_refresh_repository import (
     FutureRefreshPersistenceError,
 )
 from w2.markets.asian_handicap_scope import canonical_market_from_label
+from w2.prematch.read_model_projection import (
+    ProjectionSourceEvent,
+)
 from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
 from w2.providers.control import (
     env_int,
@@ -662,7 +665,8 @@ class FutureFixtureRefreshService:
         config: FutureRefreshConfig | None = None,
         now: datetime | None = None,
         sleep: Any | None = None,
-        materialize_public_artifacts: Callable[[list[str]], list[str]] | None = None,
+        materialize_public_artifacts: Callable[[list[ProjectionSourceEvent]], list[str]]
+        | None = None,
     ) -> None:
         self.config = config or config_from_policy()
         self.client = client or ApiFootballClient(
@@ -680,6 +684,7 @@ class FutureFixtureRefreshService:
         self._raw_payload_written_count = 0
         self._feature_enrichment_batch_count = 0
         self._matchday_capture_by_payload: dict[tuple[str, str, str, str], dict[str, Any]] = {}
+        self._projection_events: dict[tuple[str, str, str], ProjectionSourceEvent] = {}
 
     def _db_repository(self) -> FutureRefreshDbRepository:
         return FutureRefreshDbRepository()
@@ -920,13 +925,10 @@ class FutureFixtureRefreshService:
                 response=response,
                 payload=raw_payload,
             )
-            if (
-                self.config.persistence == "db"
-                and (endpoint_capture_error is not None or endpoint_capture_id is None)
+            if self.config.persistence == "db" and (
+                endpoint_capture_error is not None or endpoint_capture_id is None
             ):
-                raise FutureRefreshError(
-                    f"ENDPOINT_CAPTURE_WRITE_FAILED:{endpoint_capture_error}"
-                )
+                raise FutureRefreshError(f"ENDPOINT_CAPTURE_WRITE_FAILED:{endpoint_capture_error}")
             self._audit.append(
                 {
                     "endpoint": endpoint,
@@ -1125,12 +1127,35 @@ class FutureFixtureRefreshService:
                     if not fixture_id:
                         return False, "LINEUP_FIXTURE_ID_MISSING"
                     try:
-                        repository.save_lineup_snapshots(
+                        previous_identity = repository.confirmed_lineup_business_identity(
+                            fixture_id=fixture_id
+                        )
+                        lineup_rows = repository.save_lineup_snapshots(
                             fixture_id=fixture_id,
                             captured_at=response.captured_at,
                             raw_sha256=payload_hash,
                             payload=payload,
                         )
+                        current_identity = repository.confirmed_lineup_business_identity(
+                            fixture_id=fixture_id
+                        )
+                        if (
+                            lineup_rows > 0
+                            and current_identity is not None
+                            and current_identity != previous_identity
+                        ):
+                            self._record_projection_event(
+                                ProjectionSourceEvent.create(
+                                    fixture_id=fixture_id,
+                                    event_type="LINEUP_CHANGED",
+                                    event_id=f"lineup:{current_identity}",
+                                    event_at=response.captured_at,
+                                    payload={
+                                        "lineup_business_identity": current_identity,
+                                        "materialized_rows": lineup_rows,
+                                    },
+                                )
+                            )
                     except FutureRefreshPersistenceError:
                         # The raw response remains valid audit evidence even when
                         # an incomplete/unidentified XI must fail closed for
@@ -1158,6 +1183,9 @@ class FutureFixtureRefreshService:
         self._raw_payload_written.add(payload_hash)
         self._raw_payload_written_count += 1
         return True, None
+
+    def _record_projection_event(self, event: ProjectionSourceEvent) -> None:
+        self._projection_events[(event.fixture_id, event.event_type, event.event_id)] = event
 
     def _raw_payload_record(
         self,
@@ -1450,6 +1478,17 @@ class FutureFixtureRefreshService:
                 )
             )
         appended = ledger.append_observations(observations)
+        if appended > 0:
+            for fixture_id, response in odds_responses:
+                self._record_projection_event(
+                    ProjectionSourceEvent.create(
+                        fixture_id=fixture_id,
+                        event_type="ODDS_CHANGED",
+                        event_id=f"odds:{sha256_payload(response.payload)}",
+                        event_at=response.captured_at,
+                        payload=response.payload,
+                    )
+                )
         latest_rows = project_ledger_to_read_model(ledger=ledger, read_model_dir=read_model)
         mappings = [self._mapping_from_fixture(item) for item in fixtures]
         markets = [
@@ -1472,28 +1511,34 @@ class FutureFixtureRefreshService:
             selected_market_fixture_ids=[fixture_id for fixture_id, _ in odds_responses],
             blockers=blockers,
             raw_payload_written_count=self._raw_payload_written_count,
-            materialized_fixture_ids=(
-                self._materialize_refreshed_public_artifacts(
-                    appended=appended,
-                    fixture_ids=[fixture_id for fixture_id, _response in odds_responses],
-                )
-                if self.materialize_public_artifacts is not None
-                else []
-            ),
+            materialized_fixture_ids=self._materialize_refreshed_public_artifacts(),
         )
         self._write_audit(result)
         return result
 
     def _materialize_refreshed_public_artifacts(
         self,
-        *,
-        appended: int,
-        fixture_ids: list[str],
     ) -> list[str]:
-        if not self.config.refresh_checkpoints or appended <= 0:
+        if not self._projection_events:
             return []
-        materializer = self.materialize_public_artifacts or materialize_refreshed_public_artifacts
-        return materializer(fixture_ids)
+        # File persistence is retained for offline/local audit flows. Production
+        # DB refreshes project automatically; file-mode callers must opt in with
+        # an explicit materializer so they never acquire an accidental DB write.
+        if self.config.persistence != "db" and self.materialize_public_artifacts is None:
+            return []
+        if self.materialize_public_artifacts is None:
+            raise FutureRefreshError("PROJECTION_MATERIALIZER_NOT_INJECTED")
+        materializer = self.materialize_public_artifacts
+        events = sorted(
+            self._projection_events.values(),
+            key=lambda item: (
+                item.event_at,
+                item.fixture_id,
+                item.event_type,
+                item.event_id,
+            ),
+        )
+        return materializer(events)
 
     def _persist_db(
         self,
@@ -1511,7 +1556,28 @@ class FutureFixtureRefreshService:
                 fixtures_response=fixtures_response,
                 fixtures=fixtures,
             )
-            repository.insert_fixture_identities(fixture_identities)
+            for fixture_identity in fixture_identities:
+                _persisted, changed_fixture_ids = (
+                    repository.upsert_fixture_identities_with_business_changes([fixture_identity])
+                )
+                if changed_fixture_ids:
+                    fixture_id = str(
+                        fixture_identity.get("provider_fixture_id")
+                        or fixture_identity.get("fixture_id")
+                        or ""
+                    )
+                    if fixture_id:
+                        self._record_projection_event(
+                            ProjectionSourceEvent.create(
+                                fixture_id=fixture_id,
+                                event_type="FIXTURE_CHANGED",
+                                event_id=(
+                                    "fixture:" + str(fixture_identity.get("identity_hash") or "")
+                                ),
+                                event_at=fixtures_response.captured_at,
+                                payload=fixture_identity,
+                            )
+                        )
             observations: list[dict[str, Any]] = []
             for fixture_id, response in odds_responses:
                 from w2.matchday.intake_v2 import normalize_matchday_odds_payload
@@ -1542,12 +1608,40 @@ class FutureFixtureRefreshService:
                     competition_id=self.config.competition_id,
                 )
                 if any(
-                    item.get("reason") == "OBSERVATION_IDENTITY_CONFLICT"
-                    for item in rejections
+                    item.get("reason") == "OBSERVATION_IDENTITY_CONFLICT" for item in rejections
                 ):
                     raise FutureRefreshError("OBSERVATION_NORMALIZATION_CONFLICT")
                 observations.extend(rows)
-            appended = repository.insert_market_observations(observations)
+            appended = 0
+            observations_by_fixture: dict[str, list[dict[str, Any]]] = {}
+            for row in observations:
+                fixture_id = str(row.get("provider_fixture_id") or row.get("fixture_id") or "")
+                observations_by_fixture.setdefault(fixture_id, []).append(row)
+            for fixture_id, rows in observations_by_fixture.items():
+                inserted = repository.insert_market_observations(rows)
+                appended += inserted
+                if inserted > 0:
+                    latest = max(
+                        rows,
+                        key=lambda item: str(item.get("captured_at") or ""),
+                    )
+                    event_at = parse_utc(latest.get("captured_at"))
+                    if event_at is None:
+                        raise FutureRefreshError("ODDS_EVENT_TIME_MISSING")
+                    self._record_projection_event(
+                        ProjectionSourceEvent.create(
+                            fixture_id=fixture_id,
+                            event_type="ODDS_CHANGED",
+                            event_id=f"odds:{latest.get('capture_id')}",
+                            event_at=event_at,
+                            payload={
+                                "observation_ids": sorted(
+                                    str(item.get("observation_id") or "") for item in rows
+                                ),
+                                "inserted": inserted,
+                            },
+                        )
+                    )
             latest_rows = [
                 {
                     **row,
@@ -1575,10 +1669,7 @@ class FutureFixtureRefreshService:
             selected_market_fixture_ids=[fixture_id for fixture_id, _ in odds_responses],
             blockers=blockers,
             raw_payload_written_count=self._raw_payload_written_count,
-            materialized_fixture_ids=self._materialize_refreshed_public_artifacts(
-                appended=appended,
-                fixture_ids=[fixture_id for fixture_id, _response in odds_responses],
-            ),
+            materialized_fixture_ids=self._materialize_refreshed_public_artifacts(),
         )
         self._write_audit(result)
         return result
@@ -1621,9 +1712,7 @@ class FutureFixtureRefreshService:
             fixture_value = item.get("fixture")
             league_value = item.get("league")
             teams: Mapping[str, Any] = teams_value if isinstance(teams_value, dict) else {}
-            fixture: Mapping[str, Any] = (
-                fixture_value if isinstance(fixture_value, dict) else {}
-            )
+            fixture: Mapping[str, Any] = fixture_value if isinstance(fixture_value, dict) else {}
             league: Mapping[str, Any] = league_value if isinstance(league_value, dict) else {}
             status_value = fixture.get("status")
             home_value = teams.get("home")
@@ -1856,7 +1945,7 @@ def run_future_fixture_refresh(
     persistence: str | None = None,
     checkpoint_fixture_ids: tuple[str, ...] = (),
     refresh_checkpoints: tuple[dict[str, Any], ...] = (),
-    materialize_public_artifacts: Callable[[list[str]], list[str]] | None = None,
+    materialize_public_artifacts: Callable[[list[ProjectionSourceEvent]], list[str]] | None = None,
 ) -> FutureRefreshResult:
     config = config_from_policy(
         competition_id=competition_id,
@@ -1910,7 +1999,7 @@ def run_future_refresh_task(
     provider_refresh_min_interval_seconds: int | None = None,
     checkpoint_fixture_ids: tuple[str, ...] = (),
     refresh_checkpoints: tuple[dict[str, Any], ...] = (),
-    materialize_public_artifacts: Callable[[list[str]], list[str]] | None = None,
+    materialize_public_artifacts: Callable[[list[ProjectionSourceEvent]], list[str]] | None = None,
 ) -> RefreshTaskAudit:
     started_at = now or utc_now()
     owner_marker = owner or str(uuid4())
@@ -2038,34 +2127,6 @@ def run_future_refresh_task(
     )
     write_task_audit(root, audit, persistence=persistence)
     return audit
-
-
-def materialize_refreshed_public_artifacts(fixture_ids: list[str]) -> list[str]:
-    from w2.api.frozen_analysis import (
-        AnalysisCardCanaryMaterializer,
-        write_frozen_analysis_artifacts,
-    )
-    from w2.api.repository import ReadModelRepository
-    from w2.infrastructure.database import create_engine
-
-    ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]
-    if not ids:
-        return []
-    repository = ReadModelRepository()
-    materializer = AnalysisCardCanaryMaterializer(repository)
-    artifacts = []
-    for fixture_id in ids:
-        observations = repository.future_market_observations_for_fixtures([fixture_id])
-        captured_at = [
-            parsed
-            for row in observations
-            if (parsed := parse_utc(row.get("captured_at"))) is not None
-        ]
-        if not captured_at:
-            raise FutureRefreshError(f"PUBLIC_ARTIFACT_CAPTURE_MISSING:{fixture_id}")
-        artifacts.append(materializer.build(fixture_id, evaluated_at=max(captured_at)))
-    write_frozen_analysis_artifacts(create_engine(), artifacts)
-    return ids
 
 
 def write_task_audit(

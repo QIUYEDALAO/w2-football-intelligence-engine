@@ -5,8 +5,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from w2.api.dashboard_read_models import MatchdaySnapshotProjector, write_projection
 from w2.infrastructure.database import create_engine
+from w2.prematch.snapshot_projection import MatchdaySnapshotProjector, write_projection
 
 
 def main() -> int:

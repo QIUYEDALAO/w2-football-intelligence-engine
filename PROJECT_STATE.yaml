@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-24T03:39:53Z"
+updated_at: "2026-07-24T08:13:09Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -25,20 +25,18 @@ context_read_order:
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  main_sha: 748b50e5c990c6138193810ec319e0e413a7ab25
+  main_sha: 1e252d73d8c9658e6ba60093ed8006dde656db10
   main_migration_head: 0041_converge_odds_history_and_projection
-  pull_request: 384
+  pull_request: 385
   pull_request_mode: DRAFT
-  pull_request_head_branch: codex/arch-hygiene-02-script-authority-convergence
-  task_baseline_sha: 748b50e5c990c6138193810ec319e0e413a7ab25
-  final_implementation_head: PR_EXACT_HEAD
-  local_work_branch: codex/arch-hygiene-02-script-authority-convergence
-  github_sync_status: DRAFT_PR_OPEN_FINAL_EXACT_HEAD_CI_REQUIRED
-  final_exact_head_ci: REQUIRED_AT_PR_EXACT_HEAD
+  pull_request_head_branch: codex/arch-p1-04a-write-side-projection
+  task_baseline_sha: 1e252d73d8c9658e6ba60093ed8006dde656db10
+  local_work_branch: codex/arch-p1-04a-write-side-projection
+  github_sync_status: PR_OPEN_IMPLEMENTATION_CI_AND_STAGING_ACCEPTED
   ci_checks:
-    verify: REQUIRED_AT_PR_EXACT_HEAD
-    staging-parity: REQUIRED_AT_PR_EXACT_HEAD
-    predeploy-e2e: REQUIRED_AT_PR_EXACT_HEAD
+    verify: PASS
+    staging-parity: PASS
+    predeploy-e2e: PASS
   closed_pull_requests:
     370: CLOSED_AFTER_BASELINE_INTEGRATION_PR_374
 
@@ -56,6 +54,7 @@ architecture_convergence:
     ARCH-P1-01: DONE
     ARCH-P1-02: DONE
     ARCH-HYGIENE-01: DONE
+    ARCH-HYGIENE-02: DONE
   superseded:
     ARCH-P2-01: ARCH-HYGIENE-02
   p0_acceptance: P0_ARCHITECTURE_CONVERGENCE_PASS
@@ -77,17 +76,40 @@ architecture_convergence:
     - ARCH-P2-04
     - ARCH-P2-06
     - ARCH-P2-05
-  next_task: ARCH-HYGIENE-02
+  next_task: ARCH-P1-04A
   current_task:
-    id: ARCH-HYGIENE-02
+    id: ARCH-P1-04A
     status: READY_FOR_EXTERNAL_REVIEW
-    started_at: "2026-07-24T00:42:35Z"
-    baseline_sha: 748b50e5c990c6138193810ec319e0e413a7ab25
-    branch: codex/arch-hygiene-02-script-authority-convergence
-    pull_request: 384
-    final_implementation_head: PR_EXACT_HEAD
-    final_exact_head_ci: REQUIRED_AT_PR_EXACT_HEAD
-    production_behavior_changed: false
+    started_at: "2026-07-24T04:07:09Z"
+    baseline_sha: 1e252d73d8c9658e6ba60093ed8006dde656db10
+    branch: codex/arch-p1-04a-write-side-projection
+    pull_request: 385
+    implementation_head: fd93f083b04c8ac59e3b05ec0bea458606fc0fdc
+    implementation_exact_head_ci: 30077831275
+    staging_candidate_sha: 72225e63e705aa5c7957eaed556ceb5a26847d41
+    staging_rollback_sha: 1d02a45c6f38c3613ac3dddab784869095bf6804
+    staging_migration: 0041_converge_odds_history_and_projection
+    shadow_checkpoint_key: analysis-card:shadow:v1:1494222
+    shadow_reconciliation: POST_WRITE_CURRENT_READ_HASH_MATCH
+    post_write_current_read_hash: 1829727a66314fe233dd45ab12fa878a29c2a9a034ad200920403abcb2d6d0b3
+    persisted_shadow_hash: 1829727a66314fe233dd45ab12fa878a29c2a9a034ad200920403abcb2d6d0b3
+    shadow_difference_fields: 0
+    manual_active_replay: DETERMINISTIC_SOURCE_AND_ARTIFACT_HASH
+    manual_active_source_hash: 06c0105a6215d03420f88ccbebab140ea69cd6f04a13f148ceab95127397eb22
+    manual_active_artifact_hash: c6a552af44ba2a4d6cc3134670605eed721101c9e8fa4134537cfbaeafb8e27a
+    active_checkpoint_unchanged: true
+    direct_analysis_card_http: 20_OF_20_200_STABLE_BASELINE_AND_ROLLBACK
+    triggered_event_types:
+      - ODDS_CHANGED
+      - LINEUP_CHANGED
+      - FIXTURE_CHANGED
+    provider_delta: 0
+    recommendation_delta: 0
+    lock_delta: 0
+    settlement_delta: 0
+    production_behavior_changed: true
+    api_read_path_changed: false
+    dashboard_read_path_changed: false
     safety_switches_changed: false
   governance_contracts:
     github_secondary_review:
@@ -97,6 +119,15 @@ architecture_convergence:
       read_ref: PR_EXACT_HEAD_IF_OPEN_ELSE_MAIN
       review_mode: FULL_CLOSURE_NOT_DELTA_CONFIRMATION
       remediation_policy: ONE_CONSOLIDATED_INCREMENTAL_INSTRUCTION
+    task_scope_and_review_boundary:
+      id: TASK_SCOPE_AND_REVIEW_BOUNDARY_V1
+      scope_authority: W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
+      current_diff_regression_can_block: true
+      safety_boundary_change_can_block: true
+      out_of_scope_implementation_may_be_removed: true
+      approved_acceptance_gates_may_be_reduced: false
+      implementation_may_be_simplified: true
+      acceptance_procedure_may_be_simplified: false
     dependency_contract:
       id: DEPENDENCY_CONTRACT_V1
       layer_order: APPS_TO_DASHBOARD_PRESENTATION_TO_API_TO_INFRASTRUCTURE_TO_DOMAIN
@@ -178,7 +209,7 @@ active_workstream:
     t30_validation_snapshot: locally_verified
 
 local_verification:
-  pytest_passed: 1492
+  pytest_passed: 1521
   pytest_skipped: 4
   ruff: PASS
   mypy: PASS
@@ -193,15 +224,15 @@ local_verification:
 
 staging:
   deployed_sha: 1d02a45c6f38c3613ac3dddab784869095bf6804
-  deployed_sha_source: ARCH-P1-02_STAGING_ACCEPTANCE
+  deployed_sha_source: ARCH-P1-04A_ACCEPTANCE_ROLLBACK
   migration_current: 0041_converge_odds_history_and_projection
   deployment_status: DEPLOYED_HEALTHY
   production_deployed: false
   provider_calls: 0
   staging_host: 118.196.30.136
   ssh_preflight: PASS_AS_ROOT
-  attempted_release_sha: 1d02a45c6f38c3613ac3dddab784869095bf6804
-  restored_release_sha: null
+  attempted_release_sha: 72225e63e705aa5c7957eaed556ceb5a26847d41
+  restored_release_sha: 1d02a45c6f38c3613ac3dddab784869095bf6804
   real_lineup_canary: DEFERRED_TO_SEPARATE_OPS_ACCEPTANCE
   public_read_20x: PASS_20_OF_20_HTTP_200_ARCH_P1_02
   public_dashboard_fixture_recovery: PASS_3_LEAGUES_24_FIXTURES

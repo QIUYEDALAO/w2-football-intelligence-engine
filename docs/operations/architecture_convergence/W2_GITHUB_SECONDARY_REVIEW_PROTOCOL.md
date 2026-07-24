@@ -31,6 +31,28 @@ REVIEW_NOT_STARTED
 
 每次复验都必须从实际 PR head 重新执行完整矩阵。不得采用“发现一个问题、发一次指令、下一轮再发现一个”的碎片化方式。
 
+### TASK_SCOPE_AND_REVIEW_BOUNDARY_V1
+
+任务范围与验收边界遵守以下强制合同：
+
+1. 架构收敛总清单决定当前任务范围与既定验收项目；
+2. 不得把清单外的未来强化、通用框架或后续任务临时扩大为当前 PR 门禁；
+3. 当前 diff 引入的回归，以及生产、安全、数据或权限边界变化，可以阻塞当前
+   PR；
+4. 超出当前任务范围的实现可以直接删除，不以已经写入代码为保留理由；
+5. 总清单已经批准的验收、exact-head CI、staging 验收与安全门禁不得减少；
+6. 实现、重复测试和重复回执可以精简，但验收程序不得精简。
+
+```text
+TASK_SCOPE_AUTHORITY = W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
+CURRENT_DIFF_REGRESSION_CAN_BLOCK = TRUE
+SAFETY_BOUNDARY_CHANGE_CAN_BLOCK = TRUE
+OUT_OF_SCOPE_IMPLEMENTATION_MAY_BE_REMOVED = TRUE
+APPROVED_ACCEPTANCE_GATES_MAY_BE_REDUCED = FALSE
+IMPLEMENTATION_MAY_BE_SIMPLIFIED = TRUE
+ACCEPTANCE_PROCEDURE_MAY_BE_SIMPLIFIED = FALSE
+```
+
 ## 三、强制闭环矩阵
 
 ### 1. 身份与范围

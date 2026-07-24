@@ -23,7 +23,7 @@ task status that the checklist already owns.
 Feature development is frozen. The only work in flight is the architecture
 convergence programme.
 
-Architecture convergence is complete through `ARCH-P1-02`. The master
+Architecture convergence is complete through `ARCH-HYGIENE-02`. The master
 checklist owns all completion evidence and repository/staging coordinates.
 
 W2_DYNAMIC_PREMATCH_V1 is `locally_verified`.
@@ -39,20 +39,20 @@ and is no longer a prerequisite for any architecture task. Lineup remains
 Execute the P1 tasks strictly in the order recorded in the master checklist:
 
 ```text
-ARCH-HYGIENE-02 -> ARCH-P1-04A -> ARCH-P1-04B -> ARCH-P1-04C -> ARCH-P1-03
-  -> ARCH-P1-05 -> ARCH-P1-06 -> ARCH-P1-07 -> ARCH-P1-08
+ARCH-P1-04A -> ARCH-P1-04B -> ARCH-P1-04C -> ARCH-P1-03 -> ARCH-P1-05
+  -> ARCH-P1-06 -> ARCH-P1-07 -> ARCH-P1-08
 ```
 
-The current and next task is **ARCH-HYGIENE-02: Scripts authority inventory
-and evidence-backed direct deletion**. ARCH-HYGIENE-01 has passed external
-review and is merged. Until ARCH-HYGIENE-02 is externally reviewed and merged:
+The current and next task is **ARCH-P1-04A: evaluation persistence and the
+write-side projection pipeline**. ARCH-HYGIENE-02 has passed external review
+and is merged. Until ARCH-P1-04A is externally reviewed and merged:
 
-1. Classify every script into the single allowed authority category recorded
-   in the master checklist; only evidence-backed `DEAD` scripts may be deleted.
-2. Keep `check_w2_all.py` limited to W2 stage/contract checkers; GitHub CI owns
-   Ruff, Mypy and Pytest without duplicate execution through that call graph.
-3. Do not begin `ARCH-P1-04A`, modify production behavior, change database
-   state, or alter any safety switch.
+1. Persist event-driven prematch evaluations and write the shadow
+   `read_model_checkpoint` projection without switching any read path.
+2. Keep worker/ingestion free of new `w2.api` dependencies and move write-side
+   projection logic out of the API package.
+3. Do not begin `ARCH-P1-04B`, change the database schema, add a fallback, or
+   alter any safety switch.
 
 `ARCH-P1-05` carries a pre-approved conditional bring-forward: if the
 `ARCH-P1-04` series' staging acceptance keeps failing because of on-server

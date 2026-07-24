@@ -26,7 +26,7 @@
 
 ### 0.1 全局进度速览
 
-`main` 顶端 `748b50e5c990c6138193810ec319e0e413a7ab25`，migration head
+`main` 顶端 `1e252d73d8c9658e6ba60093ed8006dde656db10`，migration head
 `0041_converge_odds_history_and_projection`。
 
 **staging 实际状态（ARCH-P1-02 验收后）**：release
@@ -35,12 +35,12 @@
 `current_market_projection` 视图**，六个服务全部 healthy、restart count
 全 0；`main` 与 staging 的 migration head 已一致。
 
-- [x] ARCH-HYGIENE-01
-- [>] ARCH-HYGIENE-02
-- [ ] ARCH-P1-04A
+- [x] ARCH-HYGIENE-02
+- [>] ARCH-P1-04A
+- [ ] ARCH-P1-04B
 
-**当前执行**：ARCH-HYGIENE-02。后续顺序（见第三节）：ARCH-P1-04A →
-04B → 04C → P1-03 → P1-05 → P1-06 → P1-07 → P1-08 →
+**当前执行**：ARCH-P1-04A。后续顺序（见第三节）：ARCH-P1-04B →
+04C → P1-03 → P1-05 → P1-06 → P1-07 → P1-08 →
 P2-02 → P2-03 → P2-04 → P2-06 → P2-05。原 ARCH-P2-01 已由
 ARCH-HYGIENE-02 取代，不再执行。
 
@@ -1913,14 +1913,16 @@ BROKEN_AUDIT_REFERENCES = 0
 ## ARCH-HYGIENE-02：Scripts 权威盘点与证据化直接删除
 
 ```text
-Status: READY_FOR_EXTERNAL_REVIEW
+Status: DONE
 Branch: codex/arch-hygiene-02-script-authority-convergence
 Base SHA: 748b50e5c990c6138193810ec319e0e413a7ab25
 Started at: 2026-07-24T00:42:35Z
 Owner: Codex
-PR: #384 (DRAFT)
-Final implementation head: PR_EXACT_HEAD
-Final exact-head CI: REQUIRED_AT_PR_EXACT_HEAD
+PR: #384 (MERGED)
+Final head: 7a1e52c0a4644bcd57209a7ea2231402d672a55e
+Final exact-head CI: 30064814812 (PASS)
+Merge SHA: 1e252d73d8c9658e6ba60093ed8006dde656db10
+Completed at: 2026-07-24T03:59:54Z
 Implementation checks: verify / staging-parity / predeploy-e2e = PASS
 Supersedes: ARCH-P2-01
 Deletion policy: DEAD 直接删除；不建立 scripts/archive
@@ -2204,7 +2206,7 @@ SAFETY_SWITCHES_CHANGED = false
 STAGING = NOT_APPLICABLE
 ```
 
-- [ ] PR 经外部审核并合并。
+- [x] PR 经外部审核并合并。
 
 ---
 
@@ -2270,9 +2272,20 @@ allowlist 固化违规边，并必须阻止新增分层反向依赖或循环。
 
 ## ARCH-P1-04A：评估持久化——写侧管线
 
+```text
+Status: READY_FOR_EXTERNAL_REVIEW
+Branch: codex/arch-p1-04a-write-side-projection
+PR: #385 (DRAFT)
+Base SHA: 1e252d73d8c9658e6ba60093ed8006dde656db10
+Started at: 2026-07-24T04:07:09Z
+Owner: Codex
+Validated implementation head: fd93f083b04c8ac59e3b05ec0bea458606fc0fdc
+Implementation exact-head CI: 30077831275 (success)
+```
+
 **独立 PR。本任务不切换任何读路径。**
 
-### 现状锚点（2026-07-23 复审）
+### 基线锚点（2026-07-23 复审）
 
 ```text
 EVALUATION_TABLE            = dynamic_prematch_evaluations (已存在)
@@ -2286,20 +2299,147 @@ PROJECTOR_ONLY_CALLER_TODAY = scripts/project_stage10b_live_snapshot.py (离线)
 两张表和 repository 均已存在，投影器代码也已写好，当前唯一调用方是离线
 脚本。本任务是把已有投影器接入 worker 生产链路，**不新增表**。
 
-- [ ] 审计 `read_model_checkpoint` 的 schema、写入者和当前覆盖。
-- [ ] 确保它可以承载 Boss Console 当前所需全部字段。
-- [ ] worker 在赔率、首发或赛程变化后计算分析卡，落
+### 现有表、写入者与字段覆盖审计（本 PR）
+
+```text
+dynamic_prematch_evaluations
+  schema:
+    evaluation_id PK; identity_hash UNIQUE; fixture_id; market; selection;
+    checkpoint; capture_id; quote_identity_hash; model_input_hash;
+    lineup_input_hash; evaluated_at; capture_at; original_state; payload
+  canonical writer:
+    DynamicPrematchRepository.append_evaluation()
+  production caller after this PR:
+    materialize_projection_events()
+      -> AnalysisCardCanaryMaterializer.build()
+      -> write_frozen_analysis_artifacts()
+      -> DynamicPrematchRepository.append_evaluation()
+
+read_model_checkpoint
+  schema:
+    id PK; checkpoint_key UNIQUE; source_hash; created_at; payload JSON
+  existing writers at baseline:
+    scripts/project_stage10b_live_snapshot.py
+      -> snapshot_projection.write_projection() (offline)
+    scripts/project_stage10c_matchday_read_model.py (offline direct write)
+    scripts/materialize_analysis_card_canary.py and predeploy smoke
+  production writer after this PR:
+    future_refresh checkpoint task
+      -> materialize_projection_events()
+      -> write_frozen_analysis_artifacts()
+  key:
+    analysis-card:shadow:v1:<fixture_id>
+  payload:
+    projection_version/hash; source_event_type/id/hash/at;
+    source_evaluation_id/hash; last_projected_at; checkpoint_namespace;
+    fixture_identity; input_manifest; complete analysis_card;
+    shadow_reconciliation; artifact_hash
+```
+
+Boss Console 当前消费字段由完整 `analysis_card` 原样承载，包括 fixture /
+competition / team / kickoff identity，decision / tier / lifecycle / reason，
+current odds、market candidates/probabilities、movement/timeline/strip、
+refresh/readiness/missing inputs、simulation/scoreline、pick/non-pick、
+lineup provenance、dynamic prematch、quote identity、card/provenance hash。
+基线缺口是 source event、source evaluation、projection version/hash、
+last_projected_at 与逐场 shadow diff；本 PR 已将这些元数据写入现有 payload，
+未新增列。
+
+三类有效变化的触发位置：
+
+```text
+赔率: FutureFixtureRefreshService._persist_db()
+      -> insert_market_observations() 新 observation -> ODDS_CHANGED
+首发: FutureFixtureRefreshService._save_raw_payload_first()
+      -> confirmed XI business identity 变化 -> LINEUP_CHANGED
+赛程: FutureFixtureRefreshService._persist_db()
+      -> status/kickoff/team identity 变化 -> FIXTURE_CHANGED
+      （captured_at/raw payload/endpoint capture 等 provenance-only 更新不触发）
+共同: DB persistence 有有效 event 即执行（包括 initial seed，不依赖
+      refresh_checkpoints 非空）
+      -> materialize_projection_events() -> evaluation -> checkpoint
+```
+
+worker composition root 显式注入现行读时计算器；`ingestion -> prematch
+projector` 的递归生产调用图不依赖 `w2.api`。投影失败会阻止 checkpoint
+refresh task 成功；evaluation、supersession 与 shadow checkpoint 在同一
+SQLAlchemy transaction 中提交，失败完整 rollback，重试不会复制评估。影子
+对账独立生成现行读时结果，写入 shadow 后再从 checkpoint 读回并
+canonicalize，生成真实 difference fields；不切换 API、Dashboard 或 Web
+读取。
+
+- [x] 审计 `read_model_checkpoint` 的 schema、写入者和当前覆盖。
+- [x] 确保它可以承载 Boss Console 当前所需全部字段。
+- [x] worker 在赔率、首发或赛程变化后计算分析卡，落
   `dynamic_prematch_evaluations`，并投影到 `read_model_checkpoint`。
-- [ ] 投影记录必须带 projection version/hash、source event、
+- [x] 投影记录必须带 projection version/hash、source event、
   last projected time。
-- [ ] 不新增表、不新增配置文件、不新增 fallback。
-- [ ] 影子对账：投影结果与现行读时计算结果逐场 hash 比对，不切换 API
+- [x] 不新增表、不新增配置文件、不新增 fallback。
+- [x] 影子对账：投影结果与现行读时计算结果逐场 hash 比对，不切换 API
   读路径。
-- [ ] 投影随赔率/首发变化自动更新，不依赖人工 materialize 或离线脚本。
-- [ ] 不得新增 `worker/ingestion -> api` 依赖；把写侧投影逻辑从 API 包移入
+- [x] 投影随赔率/首发/赛程变化自动更新，不依赖人工 materialize 或离线脚本。
+- [x] 不得新增 `worker/ingestion -> api` 直接依赖；把写侧投影逻辑从 API 包移入
   写侧权威包，禁止继续放在 API 包中。
-- [ ] 完整 CI 与 staging 验收通过。
+- [x] 完整 CI 与 staging 验收通过。
 - [ ] PR 合并。
+
+### 实现与 staging 写侧验收回执
+
+```text
+PR                                  = #385 (DRAFT)
+BASE_SHA                            = 1e252d73d8c9658e6ba60093ed8006dde656db10
+VALIDATED_IMPLEMENTATION_HEAD       = fd93f083b04c8ac59e3b05ec0bea458606fc0fdc
+IMPLEMENTATION_EXACT_HEAD_CI        = 30077831275 (success)
+CI_VERIFY                           = PASS
+CI_STAGING_PARITY                   = PASS
+CI_PREDEPLOY_E2E                    = PASS
+STAGING_CANDIDATE_SHA               = 72225e63e705aa5c7957eaed556ceb5a26847d41
+STAGING_MIGRATION                   = 0041_converge_odds_history_and_projection
+STAGING_ROLLBACK_SHA                = 1d02a45c6f38c3613ac3dddab784869095bf6804
+```
+
+- 生产 composition-root 写侧入口注入 fixture `1494222` 的
+  `FIXTURE_CHANGED`、`LINEUP_CHANGED`、`ODDS_CHANGED` 三类受控事件；
+  首次与同 source event 重放均返回 `materialized_fixture_ids =
+  ["1494222"]`，重放后仍为 2 条 evaluation、0 条 supersession。
+- `dynamic_prematch_evaluations: 0 -> 2 -> 0`；
+  `dynamic_prematch_supersessions: 0 -> 0 -> 0`；
+  shadow checkpoint `0 -> 1 -> 0`。active
+  `analysis-card:frozen:v1:1494222` 的 source hash
+  `49d40461...` 与 artifact hash `4702ec33...` 在候选前后均未改变。
+- 投影样例：
+  `projection_version = w2.prematch-read-model-projection.v1`，
+  `checkpoint_key = analysis-card:shadow:v1:1494222`，
+  `projection_hash = 20b1a892...`，
+  `source_event_type = ODDS_CHANGED`，
+  `source_event_at = 2026-07-22T02:18:55Z`，
+  `last_projected_at = 2026-07-24T05:58:37.825625Z`；
+  persisted-readback 的 read-time/projected hash 均为 `1829727a...`，
+  `match=true`，差异数组为空。
+- direct `/v1/fixtures/1494222/analysis-card` 在 baseline、candidate、
+  rollback 各执行 20 次，全部 `200` 且各阶段 hash 稳定。candidate 写入
+  evaluation 后唯一业务差异路径为预期的 `dynamic_prematch` 生命周期；
+  active checkpoint 未写入。清理验收 evaluation/shadow 后立即恢复 baseline
+  card hash `33784d51...`，release rollback 后 20 次仍为同一 hash。
+- 原子性回归覆盖 checkpoint validation、insert、update、第二条 evaluation
+  中途失败：失败后 evaluation/supersession/checkpoint 分别恢复为调用前
+  `0/0/0` 或既有 `1/0/1`；重试分别得到 `1/0/1`、`2/0/1` 或
+  `2/1/1`，同 source event 重放不增行。
+- Provider request logs `162 -> 162 -> 162`；recommendations、
+  recommendation locks、gate5 lock events、settlements、shadow strategy
+  locks 均为 `0 -> 0 -> 0`。
+- 候选运行时保持：
+  `W2_PROVIDER_CALLS_DISABLED=true`、
+  `W2_PROVIDER_SCHEDULER_ENABLED=false`、
+  `W2_RECOMMENDATION_ENABLED=false`、
+  `W2_FORMAL_RECOMMENDATION_ENABLED=false`、
+  `W2_PRODUCTION_RELEASE=false`。
+- 候选 6/6 服务 healthy；验收后 release 与五个候选镜像全部回滚到
+  `1d02a45...`，最终 6/6 服务 healthy，migration 与全部安全计数不变。
+- 本地：Ruff PASS；Mypy `260` source files PASS；Pytest
+  `1521 passed, 4 skipped`；`check_w2_all.py` PASS；Web typecheck/build
+  PASS；Playwright `26 passed`。本机无 Docker CLI，Compose 与 PostgreSQL
+  Alembic smoke 由 exact-head CI `verify` 执行并通过。
 
 **验收**
 
@@ -2308,8 +2448,14 @@ PROJECTION_SHADOW_RECONCILIATION = 100_PERCENT_HASH_MATCH
 PROJECTION_TRIGGERED_BY_EVENT = TRUE
 MANUAL_MATERIALIZE_REQUIRED = FALSE
 NEW_TABLES = 0
+NEW_CONFIG_FILES = 0
+NEW_FALLBACKS = 0
 NEW_WORKER_INGESTION_TO_API_DEPENDENCIES = 0
 WRITE_SIDE_PROJECTION_LOGIC_IN_API = 0
+DASHBOARD_READ_PATH_CHANGED = FALSE
+API_READ_PATH_CHANGED = FALSE
+STAGING_WRITE_ACCEPTANCE = PASS
+STAGING_ROLLBACK = PASS
 ```
 
 ---

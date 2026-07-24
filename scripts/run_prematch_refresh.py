@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from w2.prematch.read_model_projection import ProjectionSourceEvent
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -74,6 +78,38 @@ def dry_run_payload(args: argparse.Namespace, *, now: datetime, key: str) -> dic
     }
 
 
+def materialize_shadow_projection_events(
+    events: list[ProjectionSourceEvent],
+) -> list[str]:
+    """Manual DB composition adapter with the worker's current-reader semantics."""
+    from w2.api.repository import ReadModelRepository, ReadModelService
+    from w2.prematch.read_model_projection import (
+        ScopedAnalysisRepository,
+        materialize_projection_events,
+    )
+
+    repository = ReadModelRepository()
+
+    def calculate(
+        scoped_repository: ScopedAnalysisRepository,
+        fixture_id: str,
+        evaluated_at: datetime,
+    ) -> dict[str, object] | None:
+        return ReadModelService(
+            repository=cast(ReadModelRepository, scoped_repository)
+        ).public_analysis_card_bounded(
+            fixture_id,
+            evaluation_time=evaluated_at,
+            use_frozen_canary=False,
+        )
+
+    return materialize_projection_events(
+        events,
+        repository=cast(ScopedAnalysisRepository, repository),
+        calculate_analysis_card=calculate,
+    )
+
+
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
@@ -90,6 +126,15 @@ def main() -> int:
 
     from w2.ingestion.future_refresh import run_future_refresh_task  # noqa: PLC0415
 
+    resolved_persistence = (
+        args.persistence or os.environ.get("W2_FUTURE_REFRESH_PERSISTENCE", "db")
+    ).lower()
+    if resolved_persistence not in {"db", "file"}:
+        parser.error(
+            "persistence must be 'db' or 'file' "
+            "(via --persistence or W2_FUTURE_REFRESH_PERSISTENCE)"
+        )
+
     audit = run_future_refresh_task(
         task_id=f"{key}:manual",
         key=key,
@@ -97,7 +142,12 @@ def main() -> int:
         competition_id=args.competition_id,
         runtime_root=args.runtime_root,
         now=now,
-        persistence=args.persistence,
+        persistence=resolved_persistence,
+        materialize_public_artifacts=(
+            materialize_shadow_projection_events
+            if resolved_persistence == "db"
+            else None
+        ),
     )
     payload = {
         "status": audit.status,

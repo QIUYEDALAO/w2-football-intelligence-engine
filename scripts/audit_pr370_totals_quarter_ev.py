@@ -10,9 +10,9 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from w2.api.frozen_analysis import read_frozen_analysis_artifact
 from w2.infrastructure.database import create_engine
 from w2.markets.value_engine import expected_value, settlement_distribution_totals
+from w2.prematch.read_model_projection import read_frozen_analysis_artifact
 from w2.strategy.simulate import _exact_score_matrix
 
 FIXTURE_ID = "1494222"

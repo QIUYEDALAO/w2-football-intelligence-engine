@@ -9,7 +9,10 @@ from apps.api.main import app
 from fastapi.testclient import TestClient
 
 from w2.api import routers
-from w2.api.frozen_analysis import (
+from w2.api.repository import ReadModelService
+from w2.dashboard.day_view import build_dashboard_day_view
+from w2.domain.recommendation_decision_v3 import validate_decision_v3_identity
+from w2.prematch.read_model_projection import (
     ANALYSIS_CARD_CANARY_SCHEMA,
     FrozenAnalysisArtifact,
     FrozenAnalysisError,
@@ -18,9 +21,6 @@ from w2.api.frozen_analysis import (
     canonical_sha256,
     validate_frozen_analysis_payload,
 )
-from w2.api.repository import ReadModelService
-from w2.dashboard.day_view import build_dashboard_day_view
-from w2.domain.recommendation_decision_v3 import validate_decision_v3_identity
 
 
 def _artifact(

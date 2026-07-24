@@ -1,3 +1,5 @@
+"""Offline append-only snapshot projection kept outside the API package."""
+
 from __future__ import annotations
 
 import hashlib
@@ -95,9 +97,7 @@ class MatchdaySnapshotProjector:
             "research_value_lean": decision.get("research_value_lean"),
             "formal_recommendation": False,
             "candidate": False,
-            "gate4_status": decision.get(
-                "gate4_status", "PROVISIONAL_FORWARD_HOLDOUT_PENDING"
-            ),
+            "gate4_status": decision.get("gate4_status", "PROVISIONAL_FORWARD_HOLDOUT_PENDING"),
             "data_status": quality["status"],
             "bookmaker_count": self._bookmaker_count(rows),
             "market_coverage": self._market_coverage(rows),
@@ -247,9 +247,10 @@ def write_projection(engine: Engine, projection: DashboardProjection) -> None:
     now = datetime.now(UTC)
     with Session(engine) as session:
         for key, payload in projection.checkpoint_payloads.items():
-            source_hash = str(payload.get("source_manifest_sha256") or sha256_bytes(
-                json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
-            ))
+            source_hash = str(
+                payload.get("source_manifest_sha256")
+                or sha256_bytes(json.dumps(payload, sort_keys=True, default=str).encode("utf-8"))
+            )
             existing = session.scalar(
                 select(ReadModelCheckpointModel).where(
                     ReadModelCheckpointModel.checkpoint_key == key

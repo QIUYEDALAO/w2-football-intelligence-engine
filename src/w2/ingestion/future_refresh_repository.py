@@ -193,13 +193,7 @@ class FutureRefreshDbRepository:
                     {
                         "fixture_id": str(fixture_id),
                         "team_external_id": team_id,
-                        "formation": str(team_row.get("formation") or "") or None,
                         "starters": sorted(starter_ids),
-                        "substitutes": sorted(
-                            str(player["api_football_player_id"]) for player in substitutes
-                        ),
-                        "captured_at": captured_at.astimezone(UTC).isoformat(),
-                        "raw_sha256": raw_sha256,
                     },
                     sort_keys=True,
                     separators=(",", ":"),
@@ -258,6 +252,46 @@ class FutureRefreshDbRepository:
         if materialize_baselines:
             self.materialize_team_lineup_baselines(limit=4096)
         return materialized
+
+    def confirmed_lineup_business_identity(self, *, fixture_id: str) -> str | None:
+        """Return the latest confirmed XI identity, excluding capture provenance."""
+        with Session(self.engine) as session:
+            snapshots = list(
+                session.scalars(
+                    select(StructuredLineupSnapshotModel)
+                    .where(
+                        StructuredLineupSnapshotModel.fixture_id == fixture_id,
+                        StructuredLineupSnapshotModel.confirmed.is_(True),
+                    )
+                    .order_by(StructuredLineupSnapshotModel.captured_at.desc())
+                )
+            )
+            latest: dict[str, StructuredLineupSnapshotModel] = {}
+            for snapshot in snapshots:
+                latest.setdefault(snapshot.team_external_id, snapshot)
+            if len(latest) != 2:
+                return None
+            teams: list[dict[str, Any]] = []
+            for team_id, snapshot in sorted(latest.items()):
+                starters = sorted(
+                    str(player_id)
+                    for player_id in session.scalars(
+                        select(StructuredLineupPlayerModel.api_football_player_id).where(
+                            StructuredLineupPlayerModel.lineup_snapshot_id == snapshot.id,
+                            StructuredLineupPlayerModel.starter.is_(True),
+                        )
+                    )
+                )
+                if len(starters) != 11:
+                    return None
+                teams.append({"team_external_id": team_id, "starters": starters})
+        return hashlib.sha256(
+            json.dumps(
+                {"fixture_id": str(fixture_id), "teams": teams},
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
 
     def materialize_player_identity_mappings(
         self,
@@ -1266,9 +1300,7 @@ class FutureRefreshDbRepository:
             return self._projection_observations()
 
         canonical_ids = {
-            fixture_id
-            if fixture_id.startswith("api_football:")
-            else f"api_football:{fixture_id}"
+            fixture_id if fixture_id.startswith("api_football:") else f"api_football:{fixture_id}"
             for fixture_id in fixture_ids
         }
         latest_rows = self._projection_observations(
@@ -2034,4 +2066,3 @@ class FutureRefreshDbRepository:
             int(provider_request_logs or 0),
             int(quota_usage or 0),
         )
-

@@ -3,15 +3,17 @@ from __future__ import annotations
 import argparse
 import json
 from datetime import datetime
+from typing import cast
 
-from w2.api.frozen_analysis import (
+from w2.api.repository import ReadModelRepository, ReadModelService
+from w2.infrastructure.database import create_engine
+from w2.prematch.read_model_projection import (
     MAX_PUBLIC_FIXTURES,
     AnalysisCardCanaryMaterializer,
     FrozenAnalysisError,
+    ScopedAnalysisRepository,
     write_frozen_analysis_artifacts,
 )
-from w2.api.repository import ReadModelRepository
-from w2.infrastructure.database import create_engine
 
 CANARY_FIXTURES = ("1576804", "1494701", "1494210")
 
@@ -50,7 +52,23 @@ def main() -> int:
         )
     else:
         fixture_ids = tuple(args.fixture_ids or CANARY_FIXTURES)
-    materializer = AnalysisCardCanaryMaterializer(repository)
+    def calculate_analysis_card(
+        scoped_repository: ScopedAnalysisRepository,
+        fixture_id: str,
+        evaluated_at: datetime,
+    ) -> dict[str, object] | None:
+        return ReadModelService(
+            repository=cast(ReadModelRepository, scoped_repository)
+        ).public_analysis_card_bounded(
+            fixture_id,
+            evaluation_time=evaluated_at,
+            use_frozen_canary=False,
+        )
+
+    materializer = AnalysisCardCanaryMaterializer(
+        repository,
+        calculate_analysis_card=calculate_analysis_card,
+    )
     artifacts = []
     unavailable = []
     for fixture_id in fixture_ids:

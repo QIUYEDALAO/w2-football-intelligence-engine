@@ -7,13 +7,13 @@ from pathlib import Path
 from apps.api.main import app
 from fastapi.testclient import TestClient
 
-from w2.api.dashboard_read_models import (
+from w2.config import get_settings
+from w2.infrastructure.database import Base, create_engine
+from w2.prematch.snapshot_projection import (
     DashboardProjectionError,
     MatchdaySnapshotProjector,
     write_projection,
 )
-from w2.config import get_settings
-from w2.infrastructure.database import Base, create_engine
 
 
 def write_json(path: Path, payload: dict[str, object]) -> str:

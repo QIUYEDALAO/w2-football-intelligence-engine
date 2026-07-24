@@ -509,8 +509,11 @@ def test_fixture_identity_persists_provider_fixture_before_team_crosswalk() -> N
     }
     row = {**identity_body, "identity_hash": stable_hash(identity_body)}
 
-    assert repository.insert_fixture_identities([row]) == 1
-    assert repository.insert_fixture_identities([row]) == 0
+    assert repository.upsert_fixture_identities_with_business_changes([row]) == (
+        1,
+        ["api_football:1494224"],
+    )
+    assert repository.upsert_fixture_identities_with_business_changes([row]) == (0, [])
     with Session(engine) as session:
         stored = session.get(MatchdayFixtureIdentityModel, "api_football:1494224")
         assert stored is not None
@@ -601,7 +604,7 @@ def test_fixture_identity_upsert_preserves_reviewed_mapping_and_updates_capture(
     }
     incoming = {**incoming_body, "identity_hash": stable_hash(incoming_body)}
 
-    assert repository.insert_fixture_identities([incoming]) == 1
+    assert repository.upsert_fixture_identities_with_business_changes([incoming]) == (1, [])
     with Session(engine) as session:
         stored = session.get(MatchdayFixtureIdentityModel, "api_football:1494224")
         assert stored is not None
@@ -612,6 +615,18 @@ def test_fixture_identity_upsert_preserves_reviewed_mapping_and_updates_capture(
         assert stored.captured_at.replace(tzinfo=UTC) == NOW + timedelta(seconds=31)
         assert stored.identity_hash != incoming["identity_hash"]
         assert stored.identity_hash != reviewed_hash
+
+    changed_body = {
+        **incoming_body,
+        "kickoff_utc": (KICKOFF + timedelta(hours=1)).isoformat(),
+        "fixture_status": "TBD",
+        "captured_at": (NOW + timedelta(seconds=61)).isoformat(),
+    }
+    changed = {**changed_body, "identity_hash": stable_hash(changed_body)}
+    assert repository.upsert_fixture_identities_with_business_changes([changed]) == (
+        1,
+        ["api_football:1494224"],
+    )
 
 
 def test_fixture_identity_same_capture_time_provenance_conflict_fails_closed() -> None:

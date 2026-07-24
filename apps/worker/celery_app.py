@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import cast
 
 from celery import Celery
 
@@ -8,6 +9,7 @@ from w2.config import get_settings
 from w2.ingestion.future_refresh import deterministic_task_key, run_future_refresh_task
 from w2.ingestion.market_timeline_refresh import run_market_timeline_refresh
 from w2.ingestion.xg_backfill import run_xg_history_backfill
+from w2.prematch.read_model_projection import ProjectionSourceEvent
 from w2.providers.control import PROVIDER_SCHEDULER_DISABLED, provider_scheduler_enabled
 
 settings = get_settings()
@@ -25,6 +27,38 @@ result_backend = (
 
 celery_app = Celery("w2", broker=broker_url, backend=result_backend)
 celery_app.conf.update(task_always_eager=False, task_ignore_result=False)
+
+
+def _materialize_shadow_projection_events(
+    events: list[ProjectionSourceEvent],
+) -> list[str]:
+    """Composition-root adapter for the unchanged 04B read-time calculation."""
+    from w2.api.repository import ReadModelRepository, ReadModelService
+    from w2.prematch.read_model_projection import (
+        ScopedAnalysisRepository,
+        materialize_projection_events,
+    )
+
+    repository = ReadModelRepository()
+
+    def calculate(
+        scoped_repository: ScopedAnalysisRepository,
+        fixture_id: str,
+        evaluated_at: datetime,
+    ) -> dict[str, object] | None:
+        return ReadModelService(
+            repository=cast(ReadModelRepository, scoped_repository)
+        ).public_analysis_card_bounded(
+            fixture_id,
+            evaluation_time=evaluated_at,
+            use_frozen_canary=False,
+        )
+
+    return materialize_projection_events(
+        events,
+        repository=cast(ScopedAnalysisRepository, repository),
+        calculate_analysis_card=calculate,
+    )
 
 
 @celery_app.task(name="w2.ping")
@@ -88,6 +122,7 @@ def future_fixture_refresh(
         provider_refresh_min_interval_seconds=provider_refresh_min_interval_seconds,
         checkpoint_fixture_ids=tuple(checkpoint_fixture_ids or ()),
         refresh_checkpoints=tuple(refresh_checkpoints or ()),
+        materialize_public_artifacts=_materialize_shadow_projection_events,
     )
     return {
         "task_id": audit.task_id,
@@ -243,9 +278,7 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
     )
 
 
-def _run_forward_outcome_backfill(
-    *, window: str, max_fixtures: int = 20
-) -> dict[str, object]:
+def _run_forward_outcome_backfill(*, window: str, max_fixtures: int = 20) -> dict[str, object]:
     del window  # retained for task compatibility; pending ledger is the authority.
     from w2.tracking.outcome_result_refresh import (
         run_outcome_result_refresh,
