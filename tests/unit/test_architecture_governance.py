@@ -455,9 +455,12 @@ def test_workflow_is_read_only_and_uses_exact_check_names() -> None:
         "git push",
         "bootstrap",
         "se" + "crets.",
+        "github." + "to" + "ken",
+        "gh_" + "to" + "ken",
         "gh api --method",
     ):
         assert forbidden not in lowered
+    assert source.count("persist-credentials: false") == 2
     assert "pull_request:" in source
     assert 'branches: ["main"]' in source
     assert "push:" in source

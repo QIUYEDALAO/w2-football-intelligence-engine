@@ -6,7 +6,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import subprocess
+import urllib.error
+import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -105,22 +106,21 @@ class GitHubClient:
         self.timeout = timeout
 
     def _get(self, path: str) -> Any:
+        request = urllib.request.Request(  # noqa: S310 - fixed HTTPS GitHub API origin
+            f"https://api.github.com/{path.lstrip('/')}",
+            headers={
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+                "User-Agent": "w2-architecture-governance",
+            },
+        )
         try:
-            completed = subprocess.run(
-                ["gh", "api", path.lstrip("/")],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=self.timeout,
-            )
-        except (OSError, subprocess.TimeoutExpired) as exc:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:  # noqa: S310
+                if response.status != 200:
+                    raise GovernanceError(f"GITHUB_API_STATUS:{response.status}")
+                return json.load(response)
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
             raise GovernanceError(f"GITHUB_API_ERROR:{type(exc).__name__}") from exc
-        if completed.returncode != 0:
-            raise GovernanceError(f"GITHUB_API_EXIT:{completed.returncode}")
-        try:
-            return json.loads(completed.stdout)
-        except json.JSONDecodeError as exc:
-            raise GovernanceError("GITHUB_API_JSON_INVALID") from exc
 
     def _list(self, path: str) -> list[dict[str, Any]]:
         collected: list[dict[str, Any]] = []
@@ -510,8 +510,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--checklist", type=Path, default=Path(CHECKLIST_PATH))
     parser.add_argument("--event-path", type=Path)
     parser.add_argument("--repository", required=True)
+    parser.add_argument("--live", action="store_true")
     args = parser.parse_args(argv)
     try:
+        if not args.live:
+            raise GovernanceError("LIVE_GITHUB_API_OPT_IN_REQUIRED")
         checklist = args.checklist.read_text(encoding="utf-8")
         client = GitHubClient(args.repository)
         if args.gate == "pre-merge":
