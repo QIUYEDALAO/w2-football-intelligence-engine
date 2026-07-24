@@ -27,8 +27,8 @@ repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
   main_sha: 91c7921574fcca249a9f1a9cf29c8c782e774930
   main_migration_head: 0041_converge_odds_history_and_projection
-  pull_request: PENDING_CREATION
-  pull_request_mode: DRAFT_PENDING_CREATION
+  pull_request: 393
+  pull_request_mode: DRAFT
   pull_request_head_branch: codex/arch-governance-01-dual-gates
   task_baseline_sha: 91c7921574fcca249a9f1a9cf29c8c782e774930
   local_work_branch: codex/arch-governance-01-dual-gates
@@ -88,7 +88,7 @@ architecture_convergence:
     started_at: "2026-07-24T17:12:33Z"
     baseline_sha: 91c7921574fcca249a9f1a9cf29c8c782e774930
     branch: codex/arch-governance-01-dual-gates
-    pull_request: PENDING_CREATION
+    pull_request: 393
     protocol_read: GITHUB_SECONDARY_REVIEW_PROTOCOL_V1
     task_scope_contract_read: TASK_SCOPE_AND_REVIEW_BOUNDARY_V1
     required_checks:

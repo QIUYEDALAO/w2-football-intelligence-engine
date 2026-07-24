@@ -98,7 +98,7 @@ ARCH-P1-08 通过后，功能冻结部分解除：**仅允许本清单阶段 B �
 ```text
 Status: IN_PROGRESS
 Branch: codex/arch-governance-01-dual-gates
-PR: PENDING_CREATION
+PR: #393
 Base SHA: 91c7921574fcca249a9f1a9cf29c8c782e774930
 Started at: 2026-07-24T17:12:33Z
 Owner: Codex
