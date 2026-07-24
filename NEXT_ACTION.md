@@ -23,7 +23,7 @@ task status that the checklist already owns.
 Feature development is frozen. The only work in flight is the architecture
 convergence programme.
 
-Architecture convergence is complete through `ARCH-HYGIENE-02`. The master
+Architecture convergence is complete through `ARCH-P1-04A`. The master
 checklist owns all completion evidence and repository/staging coordinates.
 
 W2_DYNAMIC_PREMATCH_V1 is `locally_verified`.
@@ -39,20 +39,14 @@ and is no longer a prerequisite for any architecture task. Lineup remains
 Execute the P1 tasks strictly in the order recorded in the master checklist:
 
 ```text
-ARCH-P1-04A -> ARCH-P1-04B -> ARCH-P1-04C -> ARCH-P1-03 -> ARCH-P1-05
-  -> ARCH-P1-06 -> ARCH-P1-07 -> ARCH-P1-08
+ARCH-P1-04B -> ARCH-P1-04C -> ARCH-P1-03 -> ARCH-P1-05 -> ARCH-P1-06
+  -> ARCH-P1-07 -> ARCH-P1-08
 ```
 
-The current and next task is **ARCH-P1-04A: evaluation persistence and the
-write-side projection pipeline**. ARCH-HYGIENE-02 has passed external review
-and is merged. Until ARCH-P1-04A is externally reviewed and merged:
-
-1. Persist event-driven prematch evaluations and write the shadow
-   `read_model_checkpoint` projection without switching any read path.
-2. Keep worker/ingestion free of new `w2.api` dependencies and move write-side
-   projection logic out of the API package.
-3. Do not begin `ARCH-P1-04B`, change the database schema, add a fallback, or
-   alter any safety switch.
+The next task is **ARCH-P1-04B: Dashboard read cutover and production fallback
+removal**. It is `NOT_STARTED` in the docs-only `ARCH-P1-04A-CLOSE` change and
+must not begin from a `main` revision that lacks the merged ARCH-P1-04A close
+record. ARCH-P1-04C also remains `NOT_STARTED`.
 
 `ARCH-P1-05` carries a pre-approved conditional bring-forward: if the
 `ARCH-P1-04` series' staging acceptance keeps failing because of on-server

@@ -26,23 +26,24 @@
 
 ### 0.1 全局进度速览
 
-`main` 顶端 `1e252d73d8c9658e6ba60093ed8006dde656db10`，migration head
+`main` 顶端 `aa59b61d7d60dfda8fb43d293514fcda6beb7664`，migration head
 `0041_converge_odds_history_and_projection`。
 
-**staging 实际状态（ARCH-P1-02 验收后）**：release
+**staging 实际状态（ARCH-P1-04A 写侧验收并回滚后）**：release
 `1d02a45c6f38c3613ac3dddab784869095bf6804`，migration current
 `0041_converge_odds_history_and_projection`，**65 张表 + 1 个
 `current_market_projection` 视图**，六个服务全部 healthy、restart count
 全 0；`main` 与 staging 的 migration head 已一致。
 
 - [x] ARCH-HYGIENE-02
-- [>] ARCH-P1-04A
+- [x] ARCH-P1-04A
 - [ ] ARCH-P1-04B
 
-**当前执行**：ARCH-P1-04A。后续顺序（见第三节）：ARCH-P1-04B →
-04C → P1-03 → P1-05 → P1-06 → P1-07 → P1-08 →
-P2-02 → P2-03 → P2-04 → P2-06 → P2-05。原 ARCH-P2-01 已由
-ARCH-HYGIENE-02 取代，不再执行。
+**本次状态收口**：`ARCH-P1-04A-CLOSE` 只同步 PR #385 的已合并事实与
+流程偏差。本 docs-only PR 合并前不得开始 ARCH-P1-04B/04C；合并后下一任务
+为 ARCH-P1-04B。后续顺序（见第三节）：ARCH-P1-04B → 04C → P1-03 →
+P1-05 → P1-06 → P1-07 → P1-08 → P2-02 → P2-03 → P2-04 →
+P2-06 → P2-05。原 ARCH-P2-01 已由 ARCH-HYGIENE-02 取代，不再执行。
 
 #### 本轮两项工作的性质对比
 
@@ -619,6 +620,53 @@ staging 已验收的 `1d02a45` 完全一致，可用
 - 结果：正式插入 `ARCH-HYGIENE-01/02`，固化
   `DEPENDENCY_CONTRACT_V1` 与审计 SHA 语义，授权从该 merge SHA 开始
   `ARCH-HYGIENE-01`。
+
+---
+
+### 0.7 ARCH-P1-04A 合并后状态收口与流程偏差（PR #385）
+
+**性质**：docs-only 状态校正；不包含生产代码、schema、配置权威或安全开关
+变更。
+
+#### 已核验合并事实
+
+- PR #385 在 `2026-07-24T08:37:55Z` 合并，merge SHA 为
+  `aa59b61d7d60dfda8fb43d293514fcda6beb7664`。
+- GitHub API 的 `merged_by` 与 timeline `merged.actor` 均为
+  `QIUYEDALAO`，即本次合并由 `QIUYEDALAO` 执行。
+- 合并前十秒，`QIUYEDALAO` 于 `2026-07-24T08:37:45Z` 在 PR 写入
+  `External GitHub secondary review completed` 与
+  `FINAL_DECISION = MERGE`，随后在 `08:37:49Z` 将 PR 转为 Ready，并于
+  `08:37:55Z` 合并。
+- 但 PR #385 的本次二次验收结果是在合并后才完成；因此该 PR 实际在真正的
+  外部二次验收结论之前已被合并。
+
+#### 为何绕过既定顺序
+
+GitHub 时间线显示，合并流程把**合并执行者本人写入的验收完成声明**当成了
+外部验收已经完成的放行信号，没有等待后续真实二次验收回执；PR body 与总清单
+在合并时仍分别保留 `Draft`、`READY_FOR_EXTERNAL_REVIEW` 和未勾选的
+`PR 合并`，也说明合并前没有完成最终状态一致性复核。除这条自声明外，时间线
+没有记录其他可复核的提前合并理由。
+
+#### 规则结论
+
+**“final exact-head CI 与必要 staging 验收通过 → 外部验收明确通过 → 才允许
+合并”的顺序继续执行，不废止。** 此后合并执行者不得以自己的
+“external review completed”声明替代独立外部验收结果；若要废止或改变该规则，
+必须先在总清单中获得明确批准并修改规则，不能通过实际操作静默绕过。
+
+本节记录的是流程校正，不是追责。PR #385 的技术实现、CI 与 staging 写侧验收
+结论保持有效；本次只把 GitHub 已发生事实同步回唯一权威清单。
+
+复核命令：
+
+```bash
+gh api repos/QIUYEDALAO/w2-football-intelligence-engine/pulls/385 \
+  --jq '{merged,merged_at,merge_commit_sha,merged_by:.merged_by.login}'
+gh api repos/QIUYEDALAO/w2-football-intelligence-engine/issues/385/timeline \
+  -H 'Accept: application/vnd.github+json' --paginate
+```
 
 ---
 
@@ -2273,14 +2321,20 @@ allowlist 固化违规边，并必须阻止新增分层反向依赖或循环。
 ## ARCH-P1-04A：评估持久化——写侧管线
 
 ```text
-Status: READY_FOR_EXTERNAL_REVIEW
-Branch: codex/arch-p1-04a-write-side-projection
-PR: #385 (DRAFT)
+Status: DONE
+Merged PR: #385
+Merge SHA: aa59b61d7d60dfda8fb43d293514fcda6beb7664
+Final head: 6b15675ec44269a913096cdb4192c33274fc0cb6
+Validated implementation head: fd93f083b04c8ac59e3b05ec0bea458606fc0fdc
+Implementation CI: 30077831275 (success)
+Final exact-head CI: 30078195165 (success)
 Base SHA: 1e252d73d8c9658e6ba60093ed8006dde656db10
 Started at: 2026-07-24T04:07:09Z
+Completed at: 2026-07-24T08:37:55Z
+Staging acceptance: 写侧验收通过后回滚至
+  1d02a45c6f38c3613ac3dddab784869095bf6804；migration
+  0041_converge_odds_history_and_projection；六服务 healthy
 Owner: Codex
-Validated implementation head: fd93f083b04c8ac59e3b05ec0bea458606fc0fdc
-Implementation exact-head CI: 30077831275 (success)
 ```
 
 **独立 PR。本任务不切换任何读路径。**
@@ -2381,15 +2435,19 @@ canonicalize，生成真实 difference fields；不切换 API、Dashboard 或 We
 - [x] 不得新增 `worker/ingestion -> api` 直接依赖；把写侧投影逻辑从 API 包移入
   写侧权威包，禁止继续放在 API 包中。
 - [x] 完整 CI 与 staging 验收通过。
-- [ ] PR 合并。
+- [x] PR 合并。
 
 ### 实现与 staging 写侧验收回执
 
 ```text
-PR                                  = #385 (DRAFT)
+PR                                  = #385 (MERGED)
 BASE_SHA                            = 1e252d73d8c9658e6ba60093ed8006dde656db10
 VALIDATED_IMPLEMENTATION_HEAD       = fd93f083b04c8ac59e3b05ec0bea458606fc0fdc
 IMPLEMENTATION_EXACT_HEAD_CI        = 30077831275 (success)
+FINAL_HEAD                          = 6b15675ec44269a913096cdb4192c33274fc0cb6
+FINAL_EXACT_HEAD_CI                 = 30078195165 (success)
+MERGE_SHA                           = aa59b61d7d60dfda8fb43d293514fcda6beb7664
+COMPLETED_AT                        = 2026-07-24T08:37:55Z
 CI_VERIFY                           = PASS
 CI_STAGING_PARITY                   = PASS
 CI_PREDEPLOY_E2E                    = PASS
