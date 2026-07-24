@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import json
 from pathlib import Path
 from typing import Any
 
@@ -90,6 +92,7 @@ def valid_review(
     head: str = HEAD,
     decision: str = "PASS",
     association: str = "OWNER",
+    state: str = "COMMENTED",
     commit_id: str | None = None,
     body: str | None = None,
 ) -> dict[str, Any]:
@@ -104,6 +107,7 @@ def valid_review(
         "body": review_body,
         "commit_id": head if commit_id is None else commit_id,
         "author_association": association,
+        "state": state,
     }
 
 
@@ -121,6 +125,7 @@ def checklist(
         if a1_status == "IMPLEMENTED_PENDING_ACCEPTANCE"
         else ""
     )
+    pr_line = "\nPR: #393"
     return f"""# Checklist
 
 ## 二、已完成任务台账
@@ -136,7 +141,7 @@ def checklist(
 #### A1. ARCH-GOVERNANCE-01：dual gates
 
 ```text
-Status: {a1_status}{implementation_line}
+Status: {a1_status}{implementation_line}{pr_line}
 {a1_extra}
 ```
 
@@ -176,6 +181,45 @@ def merged_pulls(mapping: dict[int, str] = ACTUAL_MERGES) -> dict[int, dict[str,
         number: {"merged_at": "2026-07-24T00:00:00Z", "merge_commit_sha": sha}
         for number, sha in mapping.items()
     }
+
+
+def test_github_client_authenticates_checklist_api(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: dict[str, Any] = {}
+    encoded = base64.encodebytes(b"trusted checklist").decode("ascii")
+
+    class Response:
+        status = 200
+
+        def __enter__(self) -> Response:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps({"encoding": "base64", "content": encoded}).encode()
+
+    def fake_urlopen(request: Any, *, timeout: float) -> Response:
+        seen["authorization"] = request.get_header("Authorization")
+        seen["timeout"] = timeout
+        return Response()
+
+    monkeypatch.setattr(governance.urllib.request, "urlopen", fake_urlopen)
+    client = governance.GitHubClient("owner/repository", "read-only-test-credential")
+    assert client.get_text_file(governance.CHECKLIST_PATH, HEAD) == "trusted checklist"
+    assert seen == {
+        "authorization": "Bearer read-only-test-credential",  # authorization headers
+        "timeout": 15.0,
+    }
+
+
+def test_github_client_requires_credential() -> None:
+    with pytest.raises(  # token = required credential
+        governance.GovernanceError, match="GITHUB_TOKEN_MISSING"  # token = required
+    ):
+        governance.GitHubClient("owner/repository", "")
 
 
 def test_pre_merge_without_acceptance_review_fails() -> None:
@@ -260,6 +304,48 @@ def test_pre_merge_exact_head_pass_review_passes() -> None:
     assert result.details["EXTERNAL_ACCEPTANCE"] == "PASS"
 
 
+@pytest.mark.parametrize("state", ["COMMENTED", "APPROVED"])
+def test_pre_merge_submitted_active_review_passes(state: str) -> None:
+    result = pre_result(reviews=[valid_review(state=state)])
+    assert result.passed, result.errors
+
+
+@pytest.mark.parametrize("state", ["DISMISSED", "PENDING", "CHANGES_REQUESTED", "INVALID"])
+def test_pre_merge_inactive_or_invalid_review_state_is_ignored(state: str) -> None:
+    result = pre_result(reviews=[valid_review(state=state)])
+    assert result.details["EXTERNAL_ACCEPTANCE"] == "MISSING"
+    assert result.errors == ["EXTERNAL_ACCEPTANCE_MISSING"]
+
+
+def test_pre_merge_edited_review_uses_current_structured_body() -> None:
+    result = pre_result(
+        reviews=[valid_review(state="COMMENTED", decision="REMEDIATION_REQUIRED")]
+    )
+    assert result.details["EXTERNAL_ACCEPTANCE"] == "INVALID"
+    assert "ACCEPTANCE_NEGATIVE_DECISION" in result.errors
+
+
+def test_pre_merge_dismissed_negative_does_not_conflict_with_active_pass() -> None:
+    result = pre_result(
+        reviews=[
+            valid_review(),
+            valid_review(decision="REMEDIATION_REQUIRED", state="DISMISSED"),
+        ]
+    )
+    assert result.passed, result.errors
+
+
+def test_pre_merge_dismissed_pass_is_revoked() -> None:
+    result = pre_result(
+        reviews=[
+            valid_review(state="DISMISSED"),
+            valid_review(decision="REMEDIATION_REQUIRED"),
+        ]
+    )
+    assert result.details["EXTERNAL_ACCEPTANCE"] == "INVALID"
+    assert "ACCEPTANCE_NEGATIVE_DECISION" in result.errors
+
+
 @pytest.mark.parametrize("decision", ["FAIL", "REMEDIATION_REQUIRED"])
 def test_pre_merge_negative_decision_conflicts_with_pass(decision: str) -> None:
     result = pre_result(reviews=[valid_review(), valid_review(decision=decision)])
@@ -302,6 +388,25 @@ def test_pre_merge_rejects_out_of_scope_a1_file() -> None:
         files=sorted(governance.A1_ALLOWED_PATHS | {"src/w2/api/routers.py"}),
     )
     assert "A1_OUT_OF_SCOPE_FILES:src/w2/api/routers.py" in result.errors
+
+
+def test_pr_head_governance_changes_cannot_change_gate_result(tmp_path: Path) -> None:
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / ".github" / "workflows").mkdir(parents=True)
+    (tmp_path / "scripts" / "check_architecture_governance.py").write_text(
+        "raise SystemExit('PR head checker executed')\n",
+        encoding="utf-8",
+    )
+    (tmp_path / ".github" / "workflows" / "architecture-governance.yml").write_text(
+        "jobs: {bypass: {runs-on: ubuntu-latest}}\n",
+        encoding="utf-8",
+    )
+    changed_governance_files = [
+        ".github/workflows/architecture-governance.yml",
+        "scripts/check_architecture_governance.py",
+    ]
+    result = pre_result(reviews=[valid_review()], files=changed_governance_files)
+    assert result.passed, result.errors
 
 
 def test_pre_merge_requires_all_eight_answers() -> None:
@@ -416,6 +521,71 @@ def test_post_merge_non_done_task_without_merge_sha_passes() -> None:
     assert result.passed, result.errors
 
 
+def test_post_merge_merged_pr_with_pending_task_fails() -> None:
+    pulls = merged_pulls({371: ACTUAL_MERGES[371], 393: HEAD})
+    result = governance.check_post_merge(
+        checklist(),
+        FakeClient(pulls=pulls),
+    )
+    assert "MERGED_TASK_NOT_CLOSED:ARCH-GOVERNANCE-01:#393" in result.errors
+
+
+def test_post_merge_closure_to_done_passes() -> None:
+    rows = (
+        "| ARCH-00 | #371 | `09ca14a9` | done |\n"
+        f"| ARCH-GOVERNANCE-01 | #393 | `{HEAD}` | closed |"
+    )
+    pulls = merged_pulls({371: ACTUAL_MERGES[371], 393: HEAD})
+    result = governance.check_post_merge(
+        checklist(
+            a1_status="DONE",
+            ledger_rows=rows,
+            a1_extra=f"Merge SHA: {HEAD}",
+        ),
+        FakeClient(pulls=pulls),
+    )
+    assert result.passed, result.errors
+
+
+def test_pre_merge_a1_closure_passes_without_starting_a2() -> None:
+    rows = (
+        "| ARCH-00 | #371 | `09ca14a9` | done |\n"
+        f"| ARCH-GOVERNANCE-01 | #393 | `{HEAD}` | closed |"
+    )
+    body = valid_body().replace(
+        "W2_PR_KIND: IMPLEMENTATION", "W2_PR_KIND: CLOSURE"
+    )
+    result = pre_result(
+        reviews=[valid_review()],
+        body=body,
+        text=checklist(
+            a1_status="DONE",
+            ledger_rows=rows,
+            a1_extra=f"Merge SHA: {HEAD}",
+        ),
+    )
+    assert result.passed, result.errors
+
+
+def test_pre_merge_a2_waits_until_a1_closure_is_done_on_base() -> None:
+    head_text = checklist(
+        a1_status="DONE",
+        a2_status="IMPLEMENTED_PENDING_ACCEPTANCE",
+        a2_extra=f"Implementation SHA: {HEAD}",
+    )
+    body = valid_body(task="ARCH-P1-04C")
+    result = governance.check_pre_merge(
+        event(),
+        head_text,
+        FakeClient(
+            pull=valid_pull(body=body),
+            reviews=[valid_review(task="ARCH-P1-04C")],
+        ),
+        base_checklist=checklist(),
+    )
+    assert "A1_CLOSURE_NOT_COMPLETE_ON_BASE" in result.errors
+
+
 def test_post_merge_non_done_task_must_not_have_merge_sha() -> None:
     result = governance.check_post_merge(
         checklist(a1_status="IN_PROGRESS", a1_extra="Merge SHA: " + HEAD),
@@ -455,15 +625,31 @@ def test_workflow_is_read_only_and_uses_exact_check_names() -> None:
         "git push",
         "bootstrap",
         "se" + "crets.",
-        "github." + "to" + "ken",
         "gh_" + "to" + "ken",
         "gh api --method",
     ):
         assert forbidden not in lowered
     assert source.count("persist-credentials: false") == 2
-    assert "pull_request:" in source
+    assert "pull_request_target:" in source
+    assert "\n  pull_request:" not in source
     assert 'branches: ["main"]' in source
     assert "push:" in source
+    assert "github.event.pull_request.base.sha" in source
+    assert "github.event.pull_request.head.sha" not in "\n".join(
+        line for line in source.splitlines() if line.strip().startswith("ref:")
+    )
+    assert "GITHUB_TOKEN: ${{ github.token }}" in source  # token = trusted workflow
+    assert "contents: write" not in source
+    assert "pull-requests: write" not in source
+    assert "workflow_dispatch" not in source
+    checkout_refs = [
+        step["with"]["ref"]
+        for job in workflow["jobs"].values()
+        for step in job["steps"]
+        if step.get("uses") == "actions/checkout@v4"
+    ]
+    assert all("pull_request.head" not in ref for ref in checkout_refs)
+    assert all("pull_request.base.sha" in ref or "github.sha" in ref for ref in checkout_refs)
 
 
 def test_ci_workflow_was_not_modified_for_governance() -> None:

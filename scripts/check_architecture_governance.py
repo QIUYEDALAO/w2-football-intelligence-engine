@@ -4,9 +4,12 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
+import os
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -16,7 +19,7 @@ PROTOCOL_ID = "GITHUB_SECONDARY_REVIEW_PROTOCOL_V1"
 ACCEPTANCE_MARKER = "W2_EXTERNAL_ACCEPTANCE_V1"
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 TASK_MARKER_RE = re.compile(r"(?m)^W2_TASK_ID:\s*([A-Z0-9-]+)\s*$")
-PR_KIND_RE = re.compile(r"(?m)^W2_PR_KIND:\s*IMPLEMENTATION\s*$")
+PR_KIND_FIELD_RE = re.compile(r"(?m)^W2_PR_KIND:\s*(IMPLEMENTATION|CLOSURE)\s*$")
 TASK_HEADING_RE = re.compile(r"(?m)^####\s+[A-Z]\d+\.\s+([A-Z][A-Z0-9-]+)")
 STATUS_RE = re.compile(r"(?m)^Status:\s*([A-Z_]+)\s*$")
 FIELD_RE = re.compile(r"(?m)^([A-Z_]+):\s*(\S.*?)\s*$")
@@ -98,11 +101,15 @@ class GitHubClient:
     def __init__(
         self,
         repository: str,
+        credential: str,
         timeout: float = 15.0,
     ) -> None:
         if not repository or "/" not in repository:
             raise GovernanceError("GITHUB_REPOSITORY_INVALID")
+        if not credential:
+            raise GovernanceError("GITHUB_TOKEN_MISSING")  # token = required credential
         self.repository = repository
+        self.credential = credential
         self.timeout = timeout
 
     def _get(self, path: str) -> Any:
@@ -110,6 +117,7 @@ class GitHubClient:
             f"https://api.github.com/{path.lstrip('/')}",
             headers={
                 "Accept": "application/vnd.github+json",
+                "Authorization": f"Bearer {self.credential}",  # authorization headers
                 "X-GitHub-Api-Version": "2022-11-28",
                 "User-Agent": "w2-architecture-governance",
             },
@@ -147,6 +155,22 @@ class GitHubClient:
 
     def list_reviews(self, number: int) -> list[dict[str, Any]]:
         return self._list(f"/repos/{self.repository}/pulls/{number}/reviews")
+
+    def get_text_file(self, path: str, ref: str) -> str:
+        if not SHA_RE.fullmatch(ref):
+            raise GovernanceError("CHECKLIST_REF_INVALID")
+        encoded_path = urllib.parse.quote(path, safe="/")
+        payload = self._get(
+            f"/repos/{self.repository}/contents/{encoded_path}?ref={ref}"
+        )
+        try:
+            if payload["encoding"] != "base64":
+                raise GovernanceError("CHECKLIST_CONTENT_ENCODING_INVALID")
+            encoded = re.sub(r"\s+", "", payload["content"])
+            content = base64.b64decode(encoded, validate=True)
+            return content.decode("utf-8")
+        except (KeyError, TypeError, ValueError, UnicodeDecodeError) as exc:
+            raise GovernanceError("CHECKLIST_CONTENT_INVALID") from exc
 
 
 def parse_tasks(checklist: str) -> tuple[list[TaskRecord], list[str]]:
@@ -295,6 +319,9 @@ def validate_external_acceptance(
     errors: list[str] = []
     current_decisions: list[str] = []
     for review in reviews:
+        state = str(review.get("state", "")).upper()
+        if state not in {"COMMENTED", "APPROVED"}:
+            continue
         body = review.get("body")
         if not isinstance(body, str):
             continue
@@ -340,6 +367,7 @@ def check_pre_merge(
     event: dict[str, Any],
     checklist: str,
     client: Any,
+    base_checklist: str | None = None,
 ) -> GateResult:
     result = GateResult()
     event_pull = event.get("pull_request")
@@ -369,16 +397,38 @@ def check_pre_merge(
         task_id = ""
     else:
         task_id = task_markers[0]
-    if len(PR_KIND_RE.findall(body)) != 1:
+    pr_kinds = PR_KIND_FIELD_RE.findall(body)
+    if len(pr_kinds) != 1:
         result.fail("PR_KIND_MARKER_INVALID")
+        pr_kind = ""
+    else:
+        pr_kind = pr_kinds[0]
     for error in validate_pr_questions(body):
         result.fail(error)
 
     tasks, task_errors = parse_tasks(checklist)
     for error in task_errors + validate_task_sequence(tasks):
         result.fail(error)
+    if task_id != "ARCH-GOVERNANCE-01" and base_checklist is not None:
+        base_tasks, base_errors = parse_tasks(base_checklist)
+        for error in base_errors:
+            result.fail(f"BASE_{error}")
+        base_a1 = next(
+            (task for task in base_tasks if task.task_id == "ARCH-GOVERNANCE-01"),
+            None,
+        )
+        if base_a1 is None or base_a1.status != "DONE":
+            result.fail("A1_CLOSURE_NOT_COMPLETE_ON_BASE")
     allowed = current_task(tasks)
-    if allowed is None:
+    if pr_kind == "CLOSURE":
+        closure_task = next((task for task in tasks if task.task_id == task_id), None)
+        if task_id != "ARCH-GOVERNANCE-01":
+            result.fail(f"CLOSURE_TASK_INVALID:{task_id}")
+        elif closure_task is None:
+            result.fail(f"CLOSURE_TASK_MISSING:{task_id}")
+        elif closure_task.status != "DONE":
+            result.fail(f"CLOSURE_TASK_STATUS_INVALID:{closure_task.status}")
+    elif allowed is None:
         result.fail("CURRENT_TASK_MISSING")
     elif allowed.task_id != task_id:
         result.fail(f"TASK_NOT_CURRENT:{task_id}:{allowed.task_id}")
@@ -431,6 +481,13 @@ def check_post_merge(checklist: str, client: Any) -> GateResult:
     task_counts: dict[str, int] = {}
     pr_counts: dict[int, int] = {}
     actual_shas: dict[int, str] = {}
+    pulls_by_number: dict[int, dict[str, Any]] = {}
+
+    def get_pull(number: int) -> dict[str, Any]:
+        if number not in pulls_by_number:
+            pulls_by_number[number] = client.get_pull(number)
+        return pulls_by_number[number]
+
     for entry in entries:
         task_counts[entry.task_id] = task_counts.get(entry.task_id, 0) + 1
         if entry.pr_number is None:
@@ -440,7 +497,7 @@ def check_post_merge(checklist: str, client: Any) -> GateResult:
         if entry.merge_sha is None:
             result.fail(f"DONE_MERGE_SHA_MISSING:{entry.task_id}")
         try:
-            pull = client.get_pull(entry.pr_number)
+            pull = get_pull(entry.pr_number)
         except GovernanceError as exc:
             result.fail(str(exc))
             continue
@@ -474,14 +531,59 @@ def check_post_merge(checklist: str, client: Any) -> GateResult:
         if matches != 1:
             result.fail(f"DONE_MERGE_SHA_PREFIX_NOT_UNIQUE:{entry.task_id}")
 
-    ledger_task_ids = set(task_counts)
+    ledger_by_task = {entry.task_id: entry for entry in entries}
     for task in tasks:
+        pr_fields = task_field(task, "PR")
+        if len(pr_fields) > 1:
+            result.fail(f"TASK_PR_COUNT:{task.task_id}:{len(pr_fields)}")
+            continue
+        task_pr: int | None = None
+        if pr_fields:
+            match = re.fullmatch(r"#(\d+)", pr_fields[0])
+            if match is None:
+                result.fail(f"TASK_PR_INVALID:{task.task_id}")
+            else:
+                task_pr = int(match.group(1))
+        elif task.status == "DONE":
+            result.fail(f"DONE_TASK_PR_MISSING:{task.task_id}")
+
         merge_fields = task_field(task, "Merge SHA")
         if task.status == "DONE":
-            if task.task_id not in ledger_task_ids:
+            if task.task_id not in ledger_by_task:
                 result.fail(f"DONE_TASK_LEDGER_MISSING:{task.task_id}")
         elif merge_fields:
             result.fail(f"NON_DONE_TASK_HAS_MERGE_SHA:{task.task_id}")
+        if task_pr is None:
+            continue
+        try:
+            pull = get_pull(task_pr)
+        except GovernanceError as exc:
+            result.fail(str(exc))
+            continue
+        actual = pull.get("merge_commit_sha")
+        merged = (
+            pull.get("merged_at") is not None
+            and isinstance(actual, str)
+            and SHA_RE.fullmatch(actual) is not None
+        )
+        if not merged:
+            if task.status == "DONE":
+                result.fail(f"DONE_TASK_PR_NOT_MERGED:{task.task_id}:#{task_pr}")
+            continue
+        if task.status != "DONE":
+            result.fail(f"MERGED_TASK_NOT_CLOSED:{task.task_id}:#{task_pr}")
+            continue
+        entry = ledger_by_task.get(task.task_id)
+        if entry is None:
+            result.fail(f"MERGED_TASK_LEDGER_MISSING:{task.task_id}")
+        elif entry.pr_number != task_pr:
+            result.fail(f"MERGED_TASK_LEDGER_PR_MISMATCH:{task.task_id}")
+        if len(merge_fields) != 1:
+            result.fail(f"DONE_TASK_MERGE_SHA_COUNT:{task.task_id}:{len(merge_fields)}")
+        elif not SHA_RE.fullmatch(merge_fields[0].lower()):
+            result.fail(f"DONE_TASK_MERGE_SHA_NOT_FULL:{task.task_id}")
+        elif merge_fields[0].lower() != actual:
+            result.fail(f"DONE_TASK_MERGE_SHA_MISMATCH:{task.task_id}")
     return result
 
 
@@ -510,17 +612,31 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--checklist", type=Path, default=Path(CHECKLIST_PATH))
     parser.add_argument("--event-path", type=Path)
     parser.add_argument("--repository", required=True)
+    parser.add_argument("--checklist-ref")
     parser.add_argument("--live", action="store_true")
     args = parser.parse_args(argv)
     try:
         if not args.live:
             raise GovernanceError("LIVE_GITHUB_API_OPT_IN_REQUIRED")
-        checklist = args.checklist.read_text(encoding="utf-8")
-        client = GitHubClient(args.repository)
+        client = GitHubClient(
+            args.repository,
+            os.environ.get("GITHUB_TOKEN", ""),  # token = trusted base workflow only
+        )
+        base_checklist = args.checklist.read_text(encoding="utf-8")
+        checklist = (
+            client.get_text_file(CHECKLIST_PATH, args.checklist_ref)
+            if args.checklist_ref
+            else base_checklist
+        )
         if args.gate == "pre-merge":
             if args.event_path is None:
                 raise GovernanceError("EVENT_PATH_MISSING")
-            result = check_pre_merge(_load_json(args.event_path), checklist, client)
+            result = check_pre_merge(
+                _load_json(args.event_path),
+                checklist,
+                client,
+                base_checklist=base_checklist,
+            )
             return _emit("PRE_MERGE_READINESS_GATE", result)
         result = check_post_merge(checklist, client)
         return _emit("POST_MERGE_CHECKLIST_CONSISTENCY_GATE", result)

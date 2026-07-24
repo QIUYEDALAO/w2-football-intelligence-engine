@@ -1,14 +1,13 @@
 name: W2 Architecture Governance
 
 on:
-  pull_request:
+  pull_request_target:
     branches: ["main"]
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   pull_request_review:
     types: [submitted, edited, dismissed]
   push:
     branches: ["main"]
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -18,36 +17,44 @@ jobs:
   pre-merge-readiness:
     name: PRE_MERGE_READINESS_GATE
     if: >-
-      (github.event_name == 'pull_request' || github.event_name == 'pull_request_review') &&
+      (github.event_name == 'pull_request_target' ||
+       github.event_name == 'pull_request_review') &&
       github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
       - name: Validate exact-head implementation readiness
+        env:
+          GITHUB_TOKEN: ${{ github.token }} # token = trusted base workflow only
         run: >-
           python3 scripts/check_architecture_governance.py pre-merge
           --event-path "$GITHUB_EVENT_PATH"
           --repository "$GITHUB_REPOSITORY"
+          --checklist-ref "${{ github.event.pull_request.head.sha }}"
           --live
 
   post-merge-consistency:
     name: POST_MERGE_CHECKLIST_CONSISTENCY_GATE
-    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    if: github.event_name == 'pull_request_target' || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
           ref: >-
-            ${{ github.event_name == 'pull_request' &&
-                github.event.pull_request.head.sha || github.sha }}
+            ${{ github.event_name == 'pull_request_target' &&
+                github.event.pull_request.base.sha || github.sha }}
           persist-credentials: false
       - name: Reconcile DONE tasks with merged pull requests
+        env:
+          GITHUB_TOKEN: ${{ github.token }} # token = trusted base workflow only
         run: >-
           python3 scripts/check_architecture_governance.py post-merge
           --repository "$GITHUB_REPOSITORY"
+          --checklist-ref
+          "${{ github.event.pull_request.head.sha || github.sha }}"
           --live

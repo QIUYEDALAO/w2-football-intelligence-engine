@@ -165,6 +165,13 @@ architecture_convergence:
       task: ARCH-GOVERNANCE-01
       status: IMPLEMENTED_PENDING_ACCEPTANCE
       queue: CURRENT
+      trusted_execution: MAIN_BASE_WORKFLOW_AND_CHECKER
+      pr_head_governance_code_execution: FORBIDDEN
+      closure:
+        implementation_pr: 393
+        path: SEPARATE_CLOSURE_PR_AFTER_IMPLEMENTATION_MERGE
+        requires_full_merge_sha: true
+        next_task_blocked_until_main_post_pass: ARCH-P1-04C
       required_checks:
         - PRE_MERGE_READINESS_GATE
         - POST_MERGE_CHECKLIST_CONSISTENCY_GATE
