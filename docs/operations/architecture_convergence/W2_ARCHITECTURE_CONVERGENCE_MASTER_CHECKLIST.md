@@ -96,7 +96,7 @@ ARCH-P1-08 通过后，功能冻结部分解除：**仅允许本清单阶段 B �
 #### A1. ARCH-GOVERNANCE-01：合并前就绪 + 合并后清单一致性双门禁
 
 ```text
-Status: IN_PROGRESS
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
 Branch: codex/arch-governance-01-dual-gates
 PR: #393
 Base SHA: 91c7921574fcca249a9f1a9cf29c8c782e774930
@@ -105,6 +105,20 @@ Owner: Codex
 Required checks: PRE_MERGE_READINESS_GATE + POST_MERGE_CHECKLIST_CONSISTENCY_GATE
 Protocol read: GITHUB_SECONDARY_REVIEW_PROTOCOL_V1
 Task scope contract read: TASK_SCOPE_AND_REVIEW_BOUNDARY_V1
+Implementation SHA: GITHUB_PR_EXACT_HEAD
+Validated implementation head: 195439153284060726ffc669ae50d5f2eb72f64b
+Final receipt head: GitHub PR exact head
+CI run: GitHub Actions exact-head W2 Stage 2 CI + W2 Architecture Governance
+Validated implementation CI: 30113399151 + 30113399164
+Staging SHA: NOT_APPLICABLE_GOVERNANCE_ONLY
+Evidence: local 1593 passed / 4 skipped; governance matrix 34 passed; required checks
+  verify + staging-parity + predeploy-e2e + PRE_MERGE_READINESS_GATE +
+  POST_MERGE_CHECKLIST_CONSISTENCY_GATE; branch protection strict preserved;
+  rollback rehearsal PASS; workflow contents-write/self-commit/push count = 0
+Rollback: `git revert "$(gh pr view 393 --repo QIUYEDALAO/w2-football-intelligence-engine
+  --json mergeCommit --jq .mergeCommit.oid)"`; then `gh api --method PATCH
+  repos/QIUYEDALAO/w2-football-intelligence-engine/branches/main/protection/required_status_checks
+  -F strict=true -f 'contexts[]=verify' -f 'contexts[]=staging-parity'`
 ```
 
 独立治理 PR。前者阻止未获外部验收结论的 PR 提前合并；后者核验已合并 PR 与本清单
