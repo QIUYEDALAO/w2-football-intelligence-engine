@@ -29,19 +29,20 @@
 `main` 顶端 `46aa8d36d652d31831e7f99543ce16e575b7154d`，migration head
 `0041_converge_odds_history_and_projection`。
 
-**staging 实际状态（ARCH-P1-04A 写侧验收并回滚后）**：release
+**staging 实际状态（ARCH-P1-04B 读切换验收并回滚后）**：release
 `1d02a45c6f38c3613ac3dddab784869095bf6804`，migration current
 `0041_converge_odds_history_and_projection`，**65 张表 + 1 个
 `current_market_projection` 视图**，六个服务全部 healthy、restart count
-全 0；`main` 与 staging 的 migration head 已一致。
+全 0；验收临时 shadow/evaluation/supersession 已清零，`main` 与 staging 的
+migration head 已一致。
 
 - [x] ARCH-HYGIENE-02
 - [x] ARCH-P1-04A
 - [>] ARCH-P1-04B
 
-**本次状态收口**：`ARCH-P1-04A-CLOSE` 只同步 PR #385 的已合并事实与
-流程偏差。本 docs-only PR 合并前不得开始 ARCH-P1-04B/04C；合并后下一任务
-为 ARCH-P1-04B。后续顺序（见第三节）：ARCH-P1-04B →
+**当前状态**：ARCH-P1-04B 已完成实现、exact-head CI 与 staging 语义验收，
+PR #387 保持 Draft，等待外部验收；合并前不得标为 DONE，也不得开始后续任务。
+后续顺序（见第三节）：ARCH-P1-04B →
 ARCH-GOVERNANCE-01 → 04C → P1-03 → P1-05 → P1-06 → P1-07 → P1-08 →
 P2-02 → P2-03 → P2-04 →
 P2-06 → P2-05。原 ARCH-P2-01 已由 ARCH-HYGIENE-02 取代，不再执行。
@@ -2532,11 +2533,14 @@ STAGING_ROLLBACK = PASS
 **独立 PR。这是行为切换，必须有 staging 语义对账。**
 
 ```text
-Status: IN_PROGRESS
+Status: READY_FOR_EXTERNAL_REVIEW
 Branch: codex/arch-p1-04b-dashboard-read-cutover
 Base SHA: 46aa8d36d652d31831e7f99543ce16e575b7154d
 Started at: 2026-07-24T09:38:51Z
 Owner: Codex
+PR: #387 (DRAFT)
+Validated implementation head: 15bbe0cd1e6c77c1bbbc31e3a018bac4d7d5eeb4
+Implementation exact-head CI: 30085880218 (success)
 ```
 
 - [x] 所有 Dashboard 与分析生产端点只读 `read_model_checkpoint` 投影。
@@ -2561,9 +2565,9 @@ Owner: Codex
 - [x] API 返回 projection version/hash、source event、last projected time。
 - [x] 删除 `api -> ingestion/features/markets/pricing/strategy/simulation` 的
   全部读时计算依赖。
-- [ ] old/new 全部当前比赛语义对账。
-- [ ] 15/30 场 Dashboard 行为和视觉不退化。
-- [ ] 完整 CI 与 staging 验收通过。
+- [x] old/new 全部当前比赛语义对账。
+- [x] 15/30 场 Dashboard 行为和视觉不退化。
+- [x] 完整 CI 与 staging 验收通过。
 - [ ] PR 合并。
 
 ### 实现与本地直接证据
@@ -2581,9 +2585,10 @@ API_FROZEN_LIVE_AUTO_SELECTION         = 0
 DAY_VIEW_MARKET_PROBABILITY_RECOMPUTE  = 0
 LOCAL_RUFF                             = PASS
 LOCAL_MYPY                             = PASS (261 source files)
-LOCAL_PYTEST                           = 1527 passed, 4 skipped
+LOCAL_PYTEST                           = 1529 passed, 4 skipped
 LOCAL_CHECK_W2_ALL                     = PASS
 LOCAL_WEB_TYPECHECK_BUILD_E2E          = PASS / PASS / 26 passed
+IMPLEMENTATION_EXACT_HEAD_CI           = 30085880218 (PASS)
 ```
 
 - 原生产 API 读服务移出请求路径；写侧投影生成仍通过 composition root 使用
@@ -2598,6 +2603,42 @@ LOCAL_WEB_TYPECHECK_BUILD_E2E          = PASS / PASS / 26 passed
 - 已知 `api <-> ingestion` 循环边由 `1 + 1` 降为 `0 + 0`；本任务不声明
   ARCH-P1-04C 的全仓库依赖合同完成，只把该实际变化记录为 04C 新 baseline。
 
+### staging 语义对账与回滚直接证据
+
+```text
+STAGING_CANDIDATE_SHA                  = 15bbe0cd1e6c77c1bbbc31e3a018bac4d7d5eeb4
+STAGING_MIGRATION_CURRENT              = 0041_converge_odds_history_and_projection
+STAGING_SERVICES_HEALTHY               = 6 / 6
+MATERIALIZABLE_CURRENT_FIXTURES        = 8
+PERSISTED_READBACK_HASH_MATCH          = 8 / 8
+SHADOW_RECONCILIATION_DIFFERENCES      = 0 / 8 fixtures
+DASHBOARD_HTTP_20X                     = 20 / 20 HTTP 200
+DASHBOARD_HTTP_20X_STABLE_HASH         = ce8dccaad1423d5f0107db0db5aadce87f4fb5ea431701ed036a494e80b54278
+UNPROJECTED_ANALYSIS_STATUS            = SYSTEM_DEGRADED / ANALYSIS_PROJECTION_NOT_READY
+PROVIDER_REQUEST_LOG_DELTA             = 0 (162 -> 162)
+RECOMMENDATION_DELTA                   = 0
+RECOMMENDATION_LOCK_DELTA              = 0
+SETTLEMENT_DELTA                       = 0
+ACCEPTANCE_SHADOW_ROWS_AFTER_CLEANUP   = 0
+ACCEPTANCE_EVALUATIONS_AFTER_CLEANUP   = 0
+ACCEPTANCE_SUPERSESSIONS_AFTER_CLEANUP = 0
+STAGING_RESTORED_SHA                   = 1d02a45c6f38c3613ac3dddab784869095bf6804
+STAGING_ROLLBACK_SERVICES_HEALTHY      = 6 / 6
+```
+
+- 8 个有现行 frozen/市场证据的 fixture 均由写侧计算器生成 shadow，写入后从
+  checkpoint 读回，再与同一事务可见的 current-read 结果逐字段对账；
+  `read_time_hash == projected_hash` 且 `differences=[]` 为 8/8。
+- API 只读 shadow checkpoint；未投影的旧 Dashboard 索引行不再触发读时计算，
+  单场端点明确返回 `SYSTEM_DEGRADED / ANALYSIS_PROJECTION_NOT_READY`，不使用
+  seed/runtime/frozen 文件补值。
+- 15/30 场固定工作区、桌面/移动端可达性与视觉门禁由 26 个 Playwright E2E
+  覆盖并通过；真实 staging 的 20 轮 Dashboard HTTP 读取均为 200 且 canonical
+  hash 不变。
+- 验收结束后只删除本次创建的 8 个 shadow checkpoint 与 16 个 evaluation，
+  supersession 为 0；原 8 个 frozen 审计 checkpoint 保留，staging 恢复既定
+  rollback release，migration 与安全开关不变。
+
 **验收**
 
 ```text
@@ -2606,6 +2647,8 @@ PRODUCTION_FALLBACK_COUNT = 0
 IMPLICIT_EMPTY_RESULT_FALLBACK_COUNT = 0
 API_FEATURE_PRICING_SIMULATION_IMPORTS = 0
 API_TO_READ_TIME_COMPUTATION_DEPENDENCIES = 0
+STAGING_SEMANTIC_RECONCILIATION = PASS
+STAGING_ROLLBACK = PASS
 ```
 
 ---

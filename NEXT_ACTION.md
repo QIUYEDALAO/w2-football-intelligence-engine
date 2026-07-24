@@ -44,10 +44,11 @@ ARCH-P1-04B -> ARCH-GOVERNANCE-01 -> ARCH-P1-04C -> ARCH-P1-03
   -> ARCH-P1-07 -> ARCH-P1-08
 ```
 
-The next task is **ARCH-P1-04B: Dashboard read cutover and production fallback
-removal**. It is `NOT_STARTED` in the docs-only `ARCH-P1-04A-CLOSE` change and
-must not begin from a `main` revision that lacks the merged ARCH-P1-04A close
-record. ARCH-P1-04C also remains `NOT_STARTED`.
+The current task is **ARCH-P1-04B: Dashboard read cutover and production
+fallback removal**. Its implementation, exact-head CI and staging acceptance
+are complete in the current Draft PR, which remains open for external review.
+Until that review and merge complete, `next_task` remains ARCH-P1-04B and
+ARCH-GOVERNANCE-01 / ARCH-P1-04C must not start.
 
 `ARCH-P1-05` carries a pre-approved conditional bring-forward: if the
 `ARCH-P1-04` series' staging acceptance keeps failing because of on-server

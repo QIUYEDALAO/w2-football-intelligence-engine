@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-24T09:38:51Z"
+updated_at: "2026-07-24T10:51:18Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -27,12 +27,12 @@ repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
   main_sha: 46aa8d36d652d31831e7f99543ce16e575b7154d
   main_migration_head: 0041_converge_odds_history_and_projection
-  pull_request: null
+  pull_request: 387
   pull_request_mode: DRAFT
   pull_request_head_branch: codex/arch-p1-04b-dashboard-read-cutover
   task_baseline_sha: 46aa8d36d652d31831e7f99543ce16e575b7154d
   local_work_branch: codex/arch-p1-04b-dashboard-read-cutover
-  github_sync_status: ARCH_P1_04B_IN_PROGRESS
+  github_sync_status: ARCH_P1_04B_READY_FOR_EXTERNAL_REVIEW
   ci_checks:
     verify: PASS
     staging-parity: PASS
@@ -82,11 +82,13 @@ architecture_convergence:
   next_task: ARCH-P1-04B
   current_task:
     id: ARCH-P1-04B
-    status: IN_PROGRESS
+    status: READY_FOR_EXTERNAL_REVIEW
     started_at: "2026-07-24T09:38:51Z"
     baseline_sha: 46aa8d36d652d31831e7f99543ce16e575b7154d
     branch: codex/arch-p1-04b-dashboard-read-cutover
-    pull_request: null
+    pull_request: 387
+    validated_implementation_head: 15bbe0cd1e6c77c1bbbc31e3a018bac4d7d5eeb4
+    implementation_exact_head_ci: 30085880218
     api_read_authority: READ_MODEL_CHECKPOINT_ONLY
     api_except_exception_count: 0
     api_forbidden_computation_imports: 0
@@ -98,6 +100,11 @@ architecture_convergence:
     api_read_path_changed: true
     dashboard_read_path_changed: true
     safety_switches_changed: false
+    staging_semantic_reconciliation: PASS
+    staging_rollback: PASS
+    dashboard_http_reads: PASS_20_OF_20_HTTP_200_STABLE_HASH
+    persisted_readback_hash_match: PASS_8_OF_8
+    unprojected_analysis_status: SYSTEM_DEGRADED_ANALYSIS_PROJECTION_NOT_READY
   governance_contracts:
     github_secondary_review:
       id: GITHUB_SECONDARY_REVIEW_PROTOCOL_V1
@@ -203,7 +210,7 @@ active_workstream:
     t30_validation_snapshot: locally_verified
 
 local_verification:
-  pytest_passed: 1527
+  pytest_passed: 1529
   pytest_skipped: 4
   ruff: PASS
   mypy: PASS
@@ -225,8 +232,24 @@ staging:
   provider_calls: 0
   staging_host: 118.196.30.136
   ssh_preflight: PASS_AS_ROOT
-  attempted_release_sha: 72225e63e705aa5c7957eaed556ceb5a26847d41
+  attempted_release_sha: 15bbe0cd1e6c77c1bbbc31e3a018bac4d7d5eeb4
   restored_release_sha: 1d02a45c6f38c3613ac3dddab784869095bf6804
+  arch_p1_04b_acceptance:
+    services_healthy: 6
+    materializable_current_fixtures: 8
+    persisted_readback_hash_match: 8
+    shadow_reconciliation_differences: 0
+    dashboard_http_20x: PASS
+    dashboard_http_stable_hash: ce8dccaad1423d5f0107db0db5aadce87f4fb5ea431701ed036a494e80b54278
+    provider_request_logs_before: 162
+    provider_request_logs_after: 162
+    recommendation_delta: 0
+    recommendation_lock_delta: 0
+    settlement_delta: 0
+    cleanup_shadow_rows: 0
+    cleanup_evaluations: 0
+    cleanup_supersessions: 0
+    rollback: PASS
   real_lineup_canary: DEFERRED_TO_SEPARATE_OPS_ACCEPTANCE
   public_read_20x: PASS_20_OF_20_HTTP_200_ARCH_P1_02
   public_dashboard_fixture_recovery: PASS_3_LEAGUES_24_FIXTURES
