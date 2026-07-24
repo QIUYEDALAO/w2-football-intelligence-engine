@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -147,9 +148,14 @@ def _init_source_repo(tmp_path: Path, monkeypatch) -> tuple[Path, str]:
     repository.mkdir()
     for root in audit.SCANNED_SOURCE_ROOTS:
         (repository / root).mkdir()
+    (repository / ".github" / "workflows").mkdir(parents=True)
+    (repository / "infra" / "compose").mkdir(parents=True)
     tracked = repository / "src" / "tracked.py"
     tracked.write_text("VALUE = 1\n", encoding="utf-8")
-    (repository / ".gitignore").write_text("ignored_*.py\n", encoding="utf-8")
+    (repository / ".gitignore").write_text(
+        "ignored_*.py\nignored_*.yaml\n",
+        encoding="utf-8",
+    )
     subprocess.run(["git", "init", "-q"], cwd=repository, check=True)
     subprocess.run(
         ["git", "config", "user.email", "audit-test@example.invalid"],
@@ -204,7 +210,7 @@ def test_untracked_scanned_python_file_fails_source_identity_check(
 
     with pytest.raises(
         RuntimeError,
-        match=rf"untracked scanned Python files: {source_root}/nested/untracked.py",
+        match=rf"untracked scanned files: {source_root}/nested/untracked.py",
     ):
         audit._ensure_source_tree_matches_head(generation_head)
 
@@ -219,7 +225,45 @@ def test_ignored_untracked_python_file_fails_source_identity_check(
 
     with pytest.raises(
         RuntimeError,
-        match="untracked scanned Python files: scripts/ignored_probe.py",
+        match="untracked scanned files: scripts/ignored_probe.py",
+    ):
+        audit._ensure_source_tree_matches_head(generation_head)
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        ".github/workflows/untracked.yml",
+        "infra/compose/untracked.yaml",
+        "scripts/untracked.sh",
+    ],
+)
+def test_untracked_scanned_non_python_file_fails_source_identity_check(
+    relative_path: str,
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    repository, generation_head = _init_source_repo(tmp_path, monkeypatch)
+    (repository / relative_path).write_text("W2_TEST_VALUE: enabled\n", encoding="utf-8")
+
+    with pytest.raises(
+        RuntimeError,
+        match=rf"untracked scanned files: {re.escape(relative_path)}",
+    ):
+        audit._ensure_source_tree_matches_head(generation_head)
+
+
+def test_ignored_untracked_non_python_file_fails_source_identity_check(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    repository, generation_head = _init_source_repo(tmp_path, monkeypatch)
+    ignored = repository / "infra" / "compose" / "ignored_probe.yaml"
+    ignored.write_text("W2_TEST_VALUE: enabled\n", encoding="utf-8")
+
+    with pytest.raises(
+        RuntimeError,
+        match="untracked scanned files: infra/compose/ignored_probe.yaml",
     ):
         audit._ensure_source_tree_matches_head(generation_head)
 
@@ -244,6 +288,32 @@ def test_dirty_tree_aborts_before_output_or_scan(
     )
 
     with pytest.raises(RuntimeError, match="staged changes"):
+        audit.write_all(output_dir)
+
+    assert existing.read_text(encoding="utf-8") == "keep\n"
+
+
+def test_untracked_non_python_input_aborts_before_output_or_scan(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    repository, _generation_head = _init_source_repo(tmp_path, monkeypatch)
+    workflow = repository / ".github" / "workflows" / "untracked.yml"
+    workflow.write_text("W2_TEST_VALUE: enabled\n", encoding="utf-8")
+    output_dir = tmp_path / "existing-output"
+    output_dir.mkdir()
+    existing = output_dir / "keep.txt"
+    existing.write_text("keep\n", encoding="utf-8")
+    monkeypatch.setattr(
+        audit,
+        "build_symbol_index",
+        lambda: pytest.fail("source scanning must not start for a dirty tree"),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match=r"untracked scanned files: \.github/workflows/untracked.yml",
+    ):
         audit.write_all(output_dir)
 
     assert existing.read_text(encoding="utf-8") == "keep\n"

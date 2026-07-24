@@ -24,6 +24,30 @@ DEFAULT_FOOTBALL_DATA_ROOT = ROOT / "runtime" / "data" / "football-data-co-uk"
 OUTPUT_MARKER_NAME = ".w2-system-truth-audit-output"
 OUTPUT_MARKER_CONTENT = "w2.system_truth.audit_generator.v1\n"
 SCANNED_SOURCE_ROOTS = ("src", "apps", "scripts", "tests", "migrations")
+PYTHON_SCAN_INPUT_GLOBS = tuple(
+    pattern
+    for root in SCANNED_SOURCE_ROOTS
+    for pattern in (f"{root}/**/*.py", f"{root}/*.py")
+)
+GITHUB_ENV_SCAN_INPUT_GLOBS = (
+    ".github/workflows/*.yml",
+    ".github/workflows/*.yaml",
+)
+COMPOSE_ENV_SCAN_INPUT_GLOBS = (
+    "docker-compose.yml",
+    "infra/compose/*.yml",
+    "infra/compose/*.yaml",
+)
+SHELL_ENV_SCAN_INPUT_GLOBS = (
+    "scripts/*.sh",
+    ".env.example",
+)
+SCANNED_GIT_INPUT_GLOBS = (
+    *PYTHON_SCAN_INPUT_GLOBS,
+    *GITHUB_ENV_SCAN_INPUT_GLOBS,
+    *COMPOSE_ENV_SCAN_INPUT_GLOBS,
+    *SHELL_ENV_SCAN_INPUT_GLOBS,
+)
 SCHEMA_PREFIX = "w2.system_consolidation"
 CORE_CONCEPTS = (
     "fixture_discovery",
@@ -245,17 +269,13 @@ def _git_paths(*args: str) -> list[str]:
     return sorted(line for line in output.splitlines() if line)
 
 
-def _untracked_scanned_python_files() -> list[str]:
-    pathspecs = (
-        *(f"{root}/**/*.py" for root in SCANNED_SOURCE_ROOTS),
-        *(f"{root}/*.py" for root in SCANNED_SOURCE_ROOTS),
-    )
+def _untracked_scanned_files() -> list[str]:
     untracked = _git_paths(
         "ls-files",
         "--others",
         "--exclude-standard",
         "--",
-        *pathspecs,
+        *SCANNED_GIT_INPUT_GLOBS,
     )
     ignored = _git_paths(
         "ls-files",
@@ -263,7 +283,7 @@ def _untracked_scanned_python_files() -> list[str]:
         "--ignored",
         "--exclude-standard",
         "--",
-        *pathspecs,
+        *SCANNED_GIT_INPUT_GLOBS,
     )
     return sorted(set(untracked) | set(ignored))
 
@@ -281,7 +301,7 @@ def _source_tree_mismatches() -> dict[str, list[str]]:
             "--name-only",
             "--diff-filter=ACDMRTUXB",
         ),
-        "untracked scanned Python files": _untracked_scanned_python_files(),
+        "untracked scanned files": _untracked_scanned_files(),
     }
     return {kind: paths for kind, paths in mismatches.items() if paths}
 
@@ -324,13 +344,18 @@ def _read_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
 
 
+def _scan_input_files(globs: tuple[str, ...]) -> list[Path]:
+    files = {
+        path
+        for pattern in globs
+        for path in ROOT.glob(pattern)
+        if path.is_file() and ".venv" not in path.parts
+    }
+    return sorted(files)
+
+
 def _python_files() -> list[Path]:
-    roots = [ROOT / "src", ROOT / "apps", ROOT / "scripts", ROOT / "tests", ROOT / "migrations"]
-    files: list[Path] = []
-    for root in roots:
-        if root.exists():
-            files.extend(sorted(root.rglob("*.py")))
-    return [p for p in files if ".venv" not in p.parts]
+    return _scan_input_files(PYTHON_SCAN_INPUT_GLOBS)
 
 
 def build_symbol_index() -> SymbolIndex:
@@ -359,11 +384,11 @@ def build_symbol_index() -> SymbolIndex:
 def _scan_non_python_env(index: SymbolIndex) -> None:
     env_re = re.compile(r"\$\{([A-Z][A-Z0-9_]+)(?::[-?][^}]*)?}")
     key_re = re.compile(r"^\s*([A-Z][A-Z0-9_]*[A-Z0-9])\s*:")
-    for path in [*ROOT.glob(".github/workflows/*.yml"), *ROOT.glob(".github/workflows/*.yaml")]:
+    for path in _scan_input_files(GITHUB_ENV_SCAN_INPUT_GLOBS):
         _scan_env_file(path, index.github_env, env_re, key_re)
-    for path in [ROOT / "docker-compose.yml", *ROOT.glob("infra/compose/*.yml"), *ROOT.glob("infra/compose/*.yaml")]:
+    for path in _scan_input_files(COMPOSE_ENV_SCAN_INPUT_GLOBS):
         _scan_env_file(path, index.compose_env, env_re, key_re)
-    for path in [*ROOT.glob("scripts/*.sh"), ROOT / ".env.example"]:
+    for path in _scan_input_files(SHELL_ENV_SCAN_INPUT_GLOBS):
         _scan_env_file(path, index.shell_env, env_re, key_re)
 
 
@@ -740,17 +765,14 @@ def build_database_map(
 def _table_references(table: str, model: str) -> list[str]:
     refs: list[str] = []
     pattern = re.compile(rf"\b(?:{re.escape(table)}|{re.escape(model)})\b")
-    for root in (ROOT / "src", ROOT / "apps", ROOT / "scripts", ROOT / "tests", ROOT / "migrations"):
-        if not root.exists():
+    for path in _python_files():
+        rel = path.relative_to(ROOT).as_posix()
+        try:
+            for lineno, line in enumerate(path.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
+                if pattern.search(line):
+                    refs.append(f"{rel}:{lineno}")
+        except OSError:
             continue
-        for path in root.rglob("*.py"):
-            rel = path.relative_to(ROOT).as_posix()
-            try:
-                for lineno, line in enumerate(path.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
-                    if pattern.search(line):
-                        refs.append(f"{rel}:{lineno}")
-            except OSError:
-                continue
     return refs[:80]
 
 
