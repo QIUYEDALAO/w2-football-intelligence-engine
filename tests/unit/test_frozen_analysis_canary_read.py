@@ -60,6 +60,12 @@ def _artifact(
             "lock_eligible": False,
             "recommendation_id": None,
             "pick": None,
+            "non_pick": {
+                "reason_code": "MARKET_INCOMPLETE",
+                "reason_human": "市场证据不完整",
+                "action": "等待完整市场证据",
+                "next_eval_at": None,
+            },
             "reason_code": "MARKET_INCOMPLETE",
         },
         "bookmaker_intent": (
@@ -222,7 +228,9 @@ def test_frozen_ah_pick_with_opposite_side_line_fails_closed() -> None:
         {
             "decision_tier": "ANALYSIS_PICK",
             "data_status": "READY",
+            "outcome_tracked": True,
             "pick": dict(card["pick"]),
+            "non_pick": None,
         }
     )
 

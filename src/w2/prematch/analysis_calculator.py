@@ -2171,7 +2171,15 @@ class ReadModelService:
                 "lock_eligible": False,
                 "recommendation_id": None,
                 "pick": None,
+                "non_pick": {
+                    "reason_code": blocker,
+                    "reason_human": "冻结分析制品不可用",
+                    "action": "等待有效冻结制品",
+                    "next_eval_at": None,
+                },
                 "reason_code": blocker,
+                "action": "等待有效冻结制品",
+                "next_eval_at": None,
             },
             "frozen_artifact_provenance": {
                 "status": "BLOCKED",

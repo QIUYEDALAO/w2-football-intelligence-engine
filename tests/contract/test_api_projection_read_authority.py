@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from w2.api.repository import ReadModelService, SystemDegradedError
+from w2.domain.decision_contract import CONTRACT_OWNED_FIELDS
 
 API_ROOTS = (Path("src/w2/api"), Path("apps/api"))
 FULL_EXECUTION_SURFACE = (*API_ROOTS, Path("scripts"), Path("infra"))
@@ -36,6 +37,20 @@ FORBIDDEN_DAY_VIEW_FALLBACK_IDENTITIES = {
     "legacy_fallback",
     "CARD_SOURCE_LEGACY",
     "_legacy_card",
+}
+FORBIDDEN_DAY_VIEW_CONTRACT_BYPASS_IDENTITIES = {
+    "compute_outcome_tracked",
+    "_decision_field",
+    "_field",
+}
+FORBIDDEN_DOMAIN_BOUNDARY_IMPORTS = {
+    "os",
+    "pathlib",
+    "sqlalchemy",
+    "w2.api",
+    "w2.config",
+    "w2.dashboard",
+    "w2.infrastructure",
 }
 
 
@@ -96,6 +111,60 @@ def test_production_day_view_has_no_legacy_fallback_identity() -> None:
         if path.is_file() and path.suffix in {".py", ".ts", ".tsx", ".js", ".mjs"}
         for identity in FORBIDDEN_DAY_VIEW_FALLBACK_IDENTITIES
         if identity in path.read_text(encoding="utf-8", errors="ignore")
+    )
+    assert violations == []
+
+
+def test_day_view_reads_contract_owned_fields_from_contract_only() -> None:
+    path = Path("src/w2/dashboard/day_view.py")
+    source = path.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(path))
+    seen_identities = {
+        node.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Name)
+    } | {
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+    }
+    identity_violations = sorted(
+        FORBIDDEN_DAY_VIEW_CONTRACT_BYPASS_IDENTITIES & seen_identities
+    )
+    contract_read_functions = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name in {"_day_view_card", "_contract_card"}
+    ]
+    top_level_reads = sorted(
+        str(node.args[0].value)
+        for function in contract_read_functions
+        for node in ast.walk(function)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "get"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "card"
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+        and isinstance(node.args[0].value, str)
+        and node.args[0].value in CONTRACT_OWNED_FIELDS
+    )
+    assert identity_violations == []
+    assert top_level_reads == []
+
+
+def test_decision_contract_validator_is_pure_domain() -> None:
+    path = Path("src/w2/domain/decision_contract.py")
+    imports = _imports(path)
+    violations = sorted(
+        name
+        for name in imports
+        if any(
+            name == forbidden or name.startswith(f"{forbidden}.")
+            for forbidden in FORBIDDEN_DOMAIN_BOUNDARY_IMPORTS
+        )
     )
     assert violations == []
 

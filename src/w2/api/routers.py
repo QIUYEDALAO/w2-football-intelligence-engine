@@ -46,7 +46,8 @@ from w2.api.schemas import (
     WorldCupReadinessResponse,
 )
 from w2.config import Environment, get_settings
-from w2.dashboard.day_view import DayViewContractError, build_dashboard_day_view
+from w2.dashboard.day_view import build_dashboard_day_view
+from w2.domain.decision_contract import DecisionContractViolation
 from w2.monitoring.health import HealthPayload, build_health_payload
 from w2.monitoring.readiness import ReadinessPayload, build_readiness_payload
 
@@ -91,7 +92,7 @@ def public_ready(response: Response) -> ReadinessPayload:
 
 async def error_handler(request: Request, exc: Exception) -> JSONResponse:
     rid = request_id(request)
-    if isinstance(exc, SystemDegradedError | DayViewContractError):
+    if isinstance(exc, SystemDegradedError | DecisionContractViolation):
         status_code = 503
         code = exc.code
         message = str(exc)

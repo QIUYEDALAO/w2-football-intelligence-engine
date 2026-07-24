@@ -454,7 +454,15 @@ class ReadModelService:
                 "lock_eligible": False,
                 "recommendation_id": None,
                 "pick": None,
+                "non_pick": {
+                    "reason_code": blocker,
+                    "reason_human": "权威读模型投影尚未就绪",
+                    "action": "等待权威读模型投影",
+                    "next_eval_at": None,
+                },
                 "reason_code": blocker,
+                "action": "等待权威读模型投影",
+                "next_eval_at": None,
             },
             "recommendation_decision_v3": {
                 "schema_version": "w2.recommendation_decision.v3",

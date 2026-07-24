@@ -1,14 +1,91 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 
 from w2.dashboard import day_view
-from w2.dashboard.day_view import DayViewContractError, build_dashboard_day_view
+from w2.dashboard.day_view import build_dashboard_day_view
+from w2.domain.decision_contract import (
+    REQUIRED_DECISION_CONTRACT_FIELDS,
+    DecisionContractViolation,
+)
+
+
+def _non_pick_contract(
+    *,
+    tier: str = "WATCH",
+    data_status: str = "PARTIAL",
+    **extra: Any,
+) -> dict[str, Any]:
+    non_pick = {
+        "reason_code": "LINEUPS_PENDING",
+        "reason_human": "首发未出",
+        "action": "等官方首发",
+        "next_eval_at": None,
+    }
+    return {
+        "decision_tier": tier,
+        "data_status": data_status,
+        "lifecycle_status": "DRAFT",
+        "outcome_tracked": False,
+        "lock_eligible": False,
+        "recommendation_id": None,
+        "pick": None,
+        "non_pick": non_pick,
+        "reason_code": non_pick["reason_code"],
+        "action": non_pick["action"],
+        "next_eval_at": non_pick["next_eval_at"],
+        **extra,
+    }
+
+
+def _pick_contract(*, tier: str = "ANALYSIS_PICK") -> dict[str, Any]:
+    return {
+        "decision_tier": tier,
+        "data_status": "READY",
+        "lifecycle_status": "DRAFT",
+        "outcome_tracked": True,
+        "lock_eligible": tier == "RECOMMEND",
+        "recommendation_id": "rec-1" if tier == "RECOMMEND" else None,
+        "pick": {
+            "market": "ASIAN_HANDICAP",
+            "selection": "HOME_AH",
+            "line": "-0.25",
+            "odds": "1.95",
+        },
+        "non_pick": None,
+    }
+
+
+def _payload_with_contract(contract: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "generated_at": "2026-07-05T00:00:00Z",
+        "date": "2026-07-05",
+        "selected_football_day": "2026-07-05",
+        "all": [
+            {
+                "fixture_id": "fixture-1",
+                "kickoff_utc": "2026-07-05T10:00:00Z",
+                **deepcopy(contract),
+                "decision_contract": deepcopy(contract),
+            }
+        ],
+    }
 
 
 def test_day_view_projects_valid_decision_contract_card() -> None:
+    contract = _non_pick_contract(
+        data_status="BLOCKED",
+        provider_budget_status="OK",
+        probability_source="MARKET_DEVIG",
+        model_market_divergence={
+            "status": "READY",
+            "magnitude": 0.12,
+        },
+    )
     payload = {
         "generated_at": datetime(2026, 7, 5, 1, 2, tzinfo=UTC),
         "page_updated_at": datetime(2026, 7, 5, 1, 2, tzinfo=UTC),
@@ -26,18 +103,7 @@ def test_day_view_projects_valid_decision_contract_card() -> None:
                 "kickoff_utc": "2026-07-05T10:00:00Z",
                 "home_team_name": "Home",
                 "away_team_name": "Away",
-                "decision_tier": "ANALYSIS_PICK",
-                "data_status": "READY",
-                "lifecycle_status": "DRAFT",
-                "outcome_tracked": True,
-                "lock_eligible": True,
-                "recommendation_id": "rec-1",
-                "provider_budget_status": "OK",
-                "probability_source": "MARKET_DEVIG",
-                "model_market_divergence": {
-                    "status": "READY",
-                    "magnitude": 0.12,
-                },
+                **deepcopy(contract),
                 "current_odds": {
                     "ah": {
                         "home_line": "-0.25",
@@ -95,18 +161,7 @@ def test_day_view_projects_valid_decision_contract_card() -> None:
                     "status": "READY",
                     "source": "formal_simulation",
                 },
-                "pick": {
-                    "market": "ASIAN_HANDICAP",
-                    "selection": "HOME_AH",
-                    "line": "-0.25",
-                    "odds": "1.95",
-                    "disclaimer": "分析参考·非稳赢；production 动作需 RECOMMEND",
-                },
-                "decision_contract": {
-                    "decision_tier": "WATCH",
-                    "data_status": "BLOCKED",
-                    "lifecycle_status": "DRAFT",
-                },
+                "decision_contract": deepcopy(contract),
             },
         ],
     }
@@ -193,13 +248,14 @@ def test_day_view_missing_decision_contract_fails_closed() -> None:
     }
 
     with pytest.raises(
-        DayViewContractError,
-        match="DAY_VIEW_DECISION_CONTRACT_MISSING:fixture-without-contract",
+        DecisionContractViolation,
+        match="DECISION_CONTRACT_MISSING:fixture-without-contract",
     ):
         build_dashboard_day_view(payload, environment="staging")
 
 
 def test_day_view_counts_are_aggregated_from_cards_only() -> None:
+    contract = _non_pick_contract()
     payload = {
         "generated_at": "2026-07-05T00:00:00Z",
         "date": "2026-07-05",
@@ -213,24 +269,8 @@ def test_day_view_counts_are_aggregated_from_cards_only() -> None:
         "all": [
             {
                 "fixture_id": "fixture-1",
-                "decision_tier": "WATCH",
-                "data_status": "PARTIAL",
-                "lifecycle_status": "DRAFT",
-                "outcome_tracked": False,
-                "lock_eligible": False,
-                "decision_contract": {
-                    "decision_tier": "WATCH",
-                    "data_status": "PARTIAL",
-                    "lifecycle_status": "DRAFT",
-                    "outcome_tracked": False,
-                    "lock_eligible": False,
-                },
-                "non_pick": {
-                    "reason_code": "LINEUPS_PENDING",
-                    "reason_human": "首发未出",
-                    "action": "等官方首发",
-                    "next_eval_at": None,
-                },
+                **deepcopy(contract),
+                "decision_contract": deepcopy(contract),
             }
         ],
     }
@@ -257,6 +297,7 @@ def test_day_view_counts_are_aggregated_from_cards_only() -> None:
 
 
 def test_day_view_excludes_started_or_finished_matches_from_l1() -> None:
+    contract = _non_pick_contract()
     payload = {
         "generated_at": "2026-07-05T08:00:00Z",
         "date": "2026-07-05",
@@ -274,19 +315,8 @@ def test_day_view_excludes_started_or_finished_matches_from_l1() -> None:
                 "fixture_id": "future",
                 "kickoff_utc": "2026-07-05T10:00:00Z",
                 "status": "NS",
-                "decision_tier": "WATCH",
-                "data_status": "PARTIAL",
-                "lifecycle_status": "DRAFT",
-                "decision_contract": {
-                    "decision_tier": "WATCH",
-                    "data_status": "PARTIAL",
-                    "lifecycle_status": "DRAFT",
-                },
-                "non_pick": {
-                    "reason_code": "LINEUPS_PENDING",
-                    "reason_human": "首发未出",
-                    "action": "等官方首发",
-                },
+                **deepcopy(contract),
+                "decision_contract": deepcopy(contract),
             },
         ],
     }
@@ -315,6 +345,7 @@ def test_day_view_production_includes_production_environment_policy() -> None:
 
 
 def test_day_view_degradation_reflects_refreshing_payload() -> None:
+    contract = _pick_contract()
     view = build_dashboard_day_view(
         {
             "generated_at": "2026-07-05T00:00:00Z",
@@ -324,16 +355,8 @@ def test_day_view_degradation_reflects_refreshing_payload() -> None:
             "all": [
                 {
                     "fixture_id": "fixture-1",
-                    "decision_tier": "ANALYSIS_PICK",
-                    "data_status": "READY",
-                    "lifecycle_status": "DRAFT",
-                    "lock_eligible": True,
-                    "decision_contract": {
-                        "decision_tier": "ANALYSIS_PICK",
-                        "data_status": "READY",
-                        "lifecycle_status": "DRAFT",
-                        "lock_eligible": True,
-                    },
+                    **deepcopy(contract),
+                    "decision_contract": deepcopy(contract),
                 }
             ],
         },
@@ -346,3 +369,66 @@ def test_day_view_degradation_reflects_refreshing_payload() -> None:
 
 def test_day_view_module_does_not_call_strategy_decider() -> None:
     assert "decide_match" not in day_view.__dict__
+
+
+@pytest.mark.parametrize("field", REQUIRED_DECISION_CONTRACT_FIELDS)
+def test_day_view_rejects_each_missing_required_contract_field(field: str) -> None:
+    payload = _payload_with_contract(_non_pick_contract())
+    payload["all"][0]["decision_contract"].pop(field)
+
+    with pytest.raises(
+        DecisionContractViolation,
+        match=rf"DECISION_CONTRACT_INCOMPLETE:fixture-1:.*{field}",
+    ):
+        build_dashboard_day_view(payload, environment="staging")
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("outcome_tracked", 0),
+        ("outcome_tracked", "false"),
+        ("lock_eligible", 1),
+        ("lock_eligible", "false"),
+    ],
+)
+def test_day_view_rejects_non_bool_contract_flags(field: str, value: object) -> None:
+    payload = _payload_with_contract(_non_pick_contract())
+    payload["all"][0][field] = value
+    payload["all"][0]["decision_contract"][field] = value
+
+    with pytest.raises(
+        DecisionContractViolation,
+        match=rf"DECISION_CONTRACT_INVALID:fixture-1:{field}",
+    ):
+        build_dashboard_day_view(payload, environment="staging")
+
+
+@pytest.mark.parametrize(
+    "contract",
+    [
+        {**_pick_contract(), "pick": None},
+        {**_pick_contract(), "non_pick": _non_pick_contract()["non_pick"]},
+        {**_non_pick_contract(), "pick": _pick_contract()["pick"]},
+        {**_non_pick_contract(), "non_pick": None},
+        {**_non_pick_contract(), "lock_eligible": True},
+    ],
+)
+def test_day_view_rejects_pick_non_pick_or_lock_contradictions(
+    contract: dict[str, Any],
+) -> None:
+    payload = _payload_with_contract(contract)
+
+    with pytest.raises(DecisionContractViolation, match="DECISION_CONTRACT_INVALID"):
+        build_dashboard_day_view(payload, environment="staging")
+
+
+def test_day_view_rejects_top_level_decision_field_pollution() -> None:
+    payload = _payload_with_contract(_non_pick_contract())
+    payload["all"][0]["reason_code"] = "POISONED_TOP_LEVEL_VALUE"
+
+    with pytest.raises(
+        DecisionContractViolation,
+        match="DECISION_CONTRACT_CONFLICT:fixture-1:reason_code",
+    ):
+        build_dashboard_day_view(payload, environment="staging")

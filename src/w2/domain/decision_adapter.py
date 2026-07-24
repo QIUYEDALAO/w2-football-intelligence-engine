@@ -214,12 +214,16 @@ def build_decision_contract_fields(
         lock_eligible=lock_eligible,
         kickoff_utc=kickoff_utc,
     )
+    summary.update(
+        {
+            "reason_code": _reason_value(non_pick_payload, data_readiness),
+            "action": _action_value(non_pick_payload, data_readiness),
+            "next_eval_at": _next_eval_value(non_pick_payload, data_readiness),
+        }
+    )
     return {
         **summary,
-        "reason_code": _reason_value(non_pick_payload, data_readiness),
-        "action": _action_value(non_pick_payload, data_readiness),
-        "next_eval_at": _next_eval_value(non_pick_payload, data_readiness),
-        "decision_contract": summary,
+        "decision_contract": dict(summary),
     }
 
 

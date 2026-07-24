@@ -3,6 +3,11 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from w2.domain.decision_adapter import build_decision_contract_fields
+from w2.domain.decision_contract import (
+    CONTRACT_OWNED_FIELDS,
+    REQUIRED_DECISION_CONTRACT_FIELDS,
+    validate_decision_contract,
+)
 from w2.domain.enums import DataStatus, DecisionReasonCode, DecisionTier
 
 NOW = datetime(2026, 7, 5, 0, 0, tzinfo=UTC)
@@ -41,6 +46,22 @@ def _fields(
         competition_id="world_cup_2026",
         fixture_id="fixture-1",
     )
+
+
+def test_persisted_decision_contract_contains_complete_read_contract() -> None:
+    fields = _fields()
+    contract = fields["decision_contract"]
+
+    assert isinstance(contract, dict)
+    assert set(REQUIRED_DECISION_CONTRACT_FIELDS).issubset(contract)
+    for field in CONTRACT_OWNED_FIELDS:
+        if field in fields:
+            assert contract.get(field) == fields[field]
+    assert validate_decision_contract(
+        contract,
+        fixture_id="fixture-1",
+        card=fields,
+    ) == contract
 
 
 def test_missing_lineups_soft_gate_is_advisory_for_analysis() -> None:
