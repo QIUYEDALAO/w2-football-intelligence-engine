@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-24T06:09:18Z"
+updated_at: "2026-07-24T07:03:24Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -84,14 +84,19 @@ architecture_convergence:
     baseline_sha: 1e252d73d8c9658e6ba60093ed8006dde656db10
     branch: codex/arch-p1-04a-write-side-projection
     pull_request: 385
-    implementation_head: 3e902eb974e7c00b2715adf2627d831958761539
-    implementation_exact_head_ci: 30070466523
-    staging_candidate_sha: 3e902eb974e7c00b2715adf2627d831958761539
+    implementation_head: 72225e63e705aa5c7957eaed556ceb5a26847d41
+    implementation_exact_head_ci: 30073520169
+    staging_candidate_sha: 72225e63e705aa5c7957eaed556ceb5a26847d41
     staging_rollback_sha: 1d02a45c6f38c3613ac3dddab784869095bf6804
     staging_migration: 0041_converge_odds_history_and_projection
     shadow_checkpoint_key: analysis-card:shadow:v1:1494222
-    shadow_reconciliation: PERSISTED_READBACK_HASH_MATCH
+    shadow_reconciliation: POST_WRITE_CURRENT_READ_HASH_MATCH
+    post_write_current_read_hash: 1829727a66314fe233dd45ab12fa878a29c2a9a034ad200920403abcb2d6d0b3
+    persisted_shadow_hash: 1829727a66314fe233dd45ab12fa878a29c2a9a034ad200920403abcb2d6d0b3
     shadow_difference_fields: 0
+    manual_active_replay: DETERMINISTIC_SOURCE_AND_ARTIFACT_HASH
+    manual_active_source_hash: 06c0105a6215d03420f88ccbebab140ea69cd6f04a13f148ceab95127397eb22
+    manual_active_artifact_hash: c6a552af44ba2a4d6cc3134670605eed721101c9e8fa4134537cfbaeafb8e27a
     active_checkpoint_unchanged: true
     direct_analysis_card_http: 20_OF_20_200_STABLE_BASELINE_AND_ROLLBACK
     triggered_event_types:
@@ -204,7 +209,7 @@ active_workstream:
     t30_validation_snapshot: locally_verified
 
 local_verification:
-  pytest_passed: 1513
+  pytest_passed: 1519
   pytest_skipped: 4
   ruff: PASS
   mypy: PASS
