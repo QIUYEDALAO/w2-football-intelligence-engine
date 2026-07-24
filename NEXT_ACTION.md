@@ -7,6 +7,14 @@ acceptance is:
 
 `docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md`
 
+Before any GitHub secondary review, the mandatory first read is:
+
+`docs/operations/architecture_convergence/W2_GITHUB_SECONDARY_REVIEW_PROTOCOL.md`
+
+Read that protocol from the PR exact head when a PR is under review, then follow
+`PROJECT_STATE.yaml.context_read_order`. A review may not start from a Codex
+receipt or handoff summary alone.
+
 This file only points at the current task. It must not restate SHAs, CI runs or
 task status that the checklist already owns.
 
@@ -36,22 +44,22 @@ ARCH-HYGIENE-01 -> ARCH-HYGIENE-02
   -> ARCH-P1-05 -> ARCH-P1-06 -> ARCH-P1-07 -> ARCH-P1-08
 ```
 
-The next task is **ARCH-HYGIENE-01: generated audit artifacts exit Git**.
-It starts only after the docs-only checklist-revision PR that established this
-order is merged. Do not begin its code changes earlier. When it starts:
+The current and next task is **ARCH-HYGIENE-01: generated audit artifacts exit
+Git**. Its prerequisite checklist-revision PR is merged and implementation is
+ready for external review in Draft PR #383. Until that PR is externally
+reviewed and merged:
 
-1. `git fetch github-w2 main` and branch from the latest `main`.
-2. Write `Status: IN_PROGRESS` under that task in the master checklist, using
-   the status format in section 四.
-3. Limit the task to its checklist contract: classify generated versus
+1. Limit the task to its checklist contract: classify generated versus
    human-maintained audit files, move generator defaults out of Git-tracked
    paths, record `audit_generator_sha` as the generator-code version, derive
    `source_review_sha` as the audited-tree version dynamically from the current
    Git HEAD and verify it matches the generation HEAD, remove compatibility
    aliases and stale placeholders, and add both ignore and static guards.
-4. A task is finished only when its acceptance counters are zero, generator
+2. A task is finished only when its acceptance counters are zero, generator
    runs leave Git clean, full CI is green, the PR is merged, and the checklist
    status is flipped to `DONE`.
+3. Do not begin `ARCH-HYGIENE-02`, modify production behavior, change database
+   state, or alter any safety switch.
 
 `ARCH-P1-05` carries a pre-approved conditional bring-forward: if the
 `ARCH-P1-04` series' staging acceptance keeps failing because of on-server

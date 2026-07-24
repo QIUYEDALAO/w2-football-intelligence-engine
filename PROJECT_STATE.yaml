@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-23T17:44:42Z"
+updated_at: "2026-07-24T00:14:06Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -9,6 +9,7 @@ delivery_status_vocabulary:
   - production_approved
 
 context_read_order:
+  - docs/operations/architecture_convergence/W2_GITHUB_SECONDARY_REVIEW_PROTOCOL.md
   - docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
   - PROJECT_STATE.yaml
   - PROJECT_LEDGER.md
@@ -24,18 +25,18 @@ context_read_order:
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  main_sha: f53b073f5f53e078d75831ad4f2c0c648f32db88
+  main_sha: db3fd12fedb76e9a9cb074f7a3dcc3294042c2fc
   main_migration_head: 0041_converge_odds_history_and_projection
-  pull_request: 381
-  pull_request_mode: MERGED
-  pull_request_head_branch: codex/arch-p1-02-odds-table-convergence
-  task_baseline_sha: 8af05ddbacf32370303fb0e57e5097d6634c278e
-  local_code_implementation_sha: f53b073f5f53e078d75831ad4f2c0c648f32db88
-  local_work_branch: null
-  github_sync_status: SYNCED_TO_MAIN
-  github_verified_head_sha: 47c7ef7da368fa54b4643e56c0efdeb2990f23f5
+  pull_request: 383
+  pull_request_mode: DRAFT
+  pull_request_head_branch: codex/arch-hygiene-01-generated-audits-exit-git
+  task_baseline_sha: db3fd12fedb76e9a9cb074f7a3dcc3294042c2fc
+  local_code_implementation_sha: b6d858d614647d62f5cbc271e1d6f7f7da59303d
+  local_work_branch: codex/arch-hygiene-01-generated-audits-exit-git
+  github_sync_status: DRAFT_PR_OPEN_IMPLEMENTATION_CI_PASS
+  github_verified_head_sha: b6d858d614647d62f5cbc271e1d6f7f7da59303d
   ci_status: PASS
-  ci_run_id: 30017659192
+  ci_run_id: 30055030785
   ci_checks:
     verify: PASS
     staging-parity: PASS
@@ -78,7 +79,25 @@ architecture_convergence:
     - ARCH-P2-06
     - ARCH-P2-05
   next_task: ARCH-HYGIENE-01
+  current_task:
+    id: ARCH-HYGIENE-01
+    status: READY_FOR_EXTERNAL_REVIEW
+    started_at: "2026-07-23T18:43:42Z"
+    baseline_sha: db3fd12fedb76e9a9cb074f7a3dcc3294042c2fc
+    branch: codex/arch-hygiene-01-generated-audits-exit-git
+    pull_request: 383
+    implementation_head: b6d858d614647d62f5cbc271e1d6f7f7da59303d
+    implementation_ci_run_id: 30055030785
+    production_behavior_changed: false
+    safety_switches_changed: false
   governance_contracts:
+    github_secondary_review:
+      id: GITHUB_SECONDARY_REVIEW_PROTOCOL_V1
+      authority_file: docs/operations/architecture_convergence/W2_GITHUB_SECONDARY_REVIEW_PROTOCOL.md
+      must_read_before_review: true
+      read_ref: PR_EXACT_HEAD_IF_OPEN_ELSE_MAIN
+      review_mode: FULL_CLOSURE_NOT_DELTA_CONFIRMATION
+      remediation_policy: ONE_CONSOLIDATED_INCREMENTAL_INSTRUCTION
     dependency_contract:
       id: DEPENDENCY_CONTRACT_V1
       layer_order: APPS_TO_DASHBOARD_PRESENTATION_TO_API_TO_INFRASTRUCTURE_TO_DOMAIN
@@ -101,6 +120,9 @@ architecture_convergence:
       audit_generator_sha: GENERATOR_CODE_VERSION
       source_review_sha: AUDITED_CODE_TREE_GIT_HEAD_AT_GENERATION
       source_review_sha_validation: MATCHES_GENERATION_HEAD
+      source_tree_input_contract: SHARED_BY_SCANNER_GIT_GUARD_AND_TESTS
+      source_tree_inputs_match_git_head: true
+      untracked_scanned_non_python_files_accepted: 0
   pre_approved_order_change:
     task: ARCH-P1-05
     condition: STAGING_ONSITE_BUILD_REPEATEDLY_FAILS
@@ -223,6 +245,7 @@ release_invariants:
   - PR_370_CLOSED
   - FEATURE_DEVELOPMENT_FREEZE
   - ARCHITECTURE_CONVERGENCE_CHECKLIST_IS_SOLE_STATUS_AUTHORITY
+  - GITHUB_SECONDARY_REVIEW_PROTOCOL_MUST_BE_READ_FIRST
   - FORMAL_DISABLED
   - LOCK_DISABLED
   - PRODUCTION_DISABLED

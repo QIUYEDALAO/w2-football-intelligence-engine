@@ -1,12 +1,14 @@
 # W2_SIMPLIFICATION_PLAN_V1
 
 Generated at: 2026-07-20T12:51:47.425145Z  
-Audit SHA: `94ba834559c0beba5b38075bd358a8e92a434a51`  
+Historical audit provenance: Git commit `22391c8`
 State: `MANUAL_APPROVAL_REQUIRED`
 
 ## Gate
 
-Do not merge, deploy, run real provider canary, train calibration, unlock formal recommendation, or open lock capability until the P0 list in `W2_SYSTEM_TRUTH_MATRIX_V1.json` is manually reviewed.
+The generated V1 matrix referenced by the original plan exited Git under
+`ARCH-HYGIENE-01`. Current gates and completion evidence are maintained in
+`docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md`.
 
 ## Consolidation A: scheduling, checkpoints, provider intake
 

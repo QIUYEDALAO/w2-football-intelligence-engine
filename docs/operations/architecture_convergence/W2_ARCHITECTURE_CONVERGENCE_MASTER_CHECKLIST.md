@@ -26,7 +26,7 @@
 
 ### 0.1 全局进度速览
 
-`main` 顶端 `f53b073f5f53e078d75831ad4f2c0c648f32db88`，migration head
+`main` 顶端 `db3fd12fedb76e9a9cb074f7a3dcc3294042c2fc`，migration head
 `0041_converge_odds_history_and_projection`。
 
 **staging 实际状态（ARCH-P1-02 验收后）**：release
@@ -46,11 +46,12 @@
 | 7 | ARCH-P1-01 僵尸表盘点与删除 | #379 | `76201af8` | 已验收合并 | 见该任务节 |
 | 8 | 第 0 步 P1-01 收口 + 清单修订 | #380 | `8af05dd` | **已合并** | **0.2** |
 | 9 | ARCH-P1-02 赔率表收敛 | #381 | `f53b073f` | **DONE / 已验收合并** | **0.3 / 0.4 / 0.5** |
+| 10 | 架构清单顺序与合同修订 | #382 | `db3fd12f` | **已验收合并** | **0.6** |
 
 第 1–7 项由前序会话完成，其回执保留在各自任务节内，本节不重复。第 8、9 项
 的详细变更依据见 0.2–0.5。
 
-**尚未开始**（顺序见第三节）：ARCH-HYGIENE-01 → ARCH-HYGIENE-02 →
+**当前执行**：ARCH-HYGIENE-01。后续顺序（见第三节）：ARCH-HYGIENE-02 →
 ARCH-P1-04A → 04B → 04C → P1-03 → P1-05 → P1-06 → P1-07 → P1-08 →
 P2-02 → P2-03 → P2-04 → P2-06 → P2-05。原 ARCH-P2-01 已由
 ARCH-HYGIENE-02 取代，不再执行。
@@ -615,6 +616,21 @@ MERGE                 = PASS (f53b073f5f53e078d75831ad4f2c0c648f32db88)
 本回执提交只改动文档与测试断言，**不含任何生产代码改动**——生产代码与
 staging 已验收的 `1d02a45` 完全一致，可用
 `git diff 1d02a45 <head> -- src/ apps/ migrations/` 复核为空。
+
+---
+
+### 0.6 架构清单顺序与合同修订（PR #382，已合并 `db3fd12f`）
+
+**性质**：docs-only。零生产代码、零 schema、零配置、零开关变更。
+
+- final head：`6b9b496bd8867a060a621175f72da1d5e06e337e`
+- final exact-head CI：run `30030832487`，`verify`、`staging-parity`、
+  `predeploy-e2e` 全部 PASS
+- merge SHA：`db3fd12fedb76e9a9cb074f7a3dcc3294042c2fc`
+- 合并时间：`2026-07-23T18:08:22Z`
+- 结果：正式插入 `ARCH-HYGIENE-01/02`，固化
+  `DEPENDENCY_CONTRACT_V1` 与审计 SHA 语义，授权从该 merge SHA 开始
+  `ARCH-HYGIENE-01`。
 
 ---
 
@@ -1666,13 +1682,201 @@ DROP_MIGRATION_NONEMPTY_GUARD = PRESENT
 ## ARCH-HYGIENE-01：生成审计产物退出 Git
 
 ```text
-Status: NOT_STARTED
+Status: READY_FOR_EXTERNAL_REVIEW
+Started at: 2026-07-23T18:43:42Z
+Owner: Codex
+Base SHA: db3fd12fedb76e9a9cb074f7a3dcc3294042c2fc
+Branch: codex/arch-hygiene-01-generated-audits-exit-git
+Draft PR: #383
+Previous correction head: 47d3fdf9941ddce3f2c9fbe9466c8afa2ce2c53c
+Previous correction exact-head CI: 30054047005 (PASS)
+Implementation head: b6d858d614647d62f5cbc271e1d6f7f7da59303d
+Implementation exact-head CI: 30055030785 (PASS)
 Scope: docs/audits/system_truth 生成产物、相关生成器及双重静态守卫
-Next task: 本 docs-only 清单修订 PR 合并后开始
+Next task: ARCH-HYGIENE-01（合并前不得推进 ARCH-HYGIENE-02）
 ```
 
 本任务只治理生成审计产物的版本控制边界，不修改生产行为或任何安全开关，
 也不重写 Git 历史。
+
+### Codex 执行指令合同
+
+```text
+CODEX_INSTRUCTION_POLICY_V1
+NEW_TASK_FIRST_TURN = READ_AND_EXECUTE_COMPLETE_TASK_CONTRACT
+SAME_PR_FOLLOW_UP = APPLY_INCREMENTAL_DELTA_ONLY
+STATUS_DOCUMENT_AUTHORITY = THIS_MASTER_CHECKLIST
+```
+
+新任务的首轮必须读取并执行该任务的完整合同；同一 PR 的后续修复仅应用新增
+指令，不重复创建状态文档、不重写已验收回执。
+
+### 受跟踪文件逐项分类矩阵（开工基线 69 项）
+
+统一路径前缀：`docs/audits/system_truth/`。引用扫描口径为该目录外的精确
+文件名引用；69 项均为 `0`。生成器与同目录 manifest 的内部引用不构成人工
+维护证据。
+
+证据代码：
+
+- `G1`：commit `22391c8` 批量建立的 V1 结构化审计，具有成对 JSON/Markdown、
+  schema 与生成时间字段。
+- `G2`：commit `8482813` 与
+  `scripts/audit_w2_runtime_authorities.py` 的明确输出表；其中 V2
+  compatibility aliases 来自原 `phase0_aliases`。
+- `H1`：commit `601fd55` 的人工 post-consolidation 实施回执；当前生成器无
+  对应 writer，JSON 也不含生成时间/生成器 SHA 合同。
+- `H2`：commit `22391c8` 的人工叙事性简化计划；无成对 JSON、无生成器
+  writer。
+
+| 文件 | 分类 | 直接证据 | 目录外精确引用 | 决定 |
+|---|---|---|---:|---|
+| `W2_AUTHORITY_MAP_V1.json` | MACHINE_GENERATED | G1 | 0 | git rm |
+| `W2_AUTHORITY_MAP_V1.md` | MACHINE_GENERATED | G1 | 0 | git rm |
+| `W2_AUTHORITY_MAP_V3.json` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_AUTHORITY_MAP_V3.md` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_CAPABILITY_LIFECYCLE_LEDGER_V1.json` | MACHINE_GENERATED | G1 | 0 | git rm |
+| `W2_CAPABILITY_LIFECYCLE_LEDGER_V1.md` | MACHINE_GENERATED | G1 | 0 | git rm |
+| `W2_CONFIG_FLAG_MATRIX_V1.json` | MACHINE_GENERATED | G1 | 0 | git rm |
+| `W2_CONFIG_FLAG_MATRIX_V1.md` | MACHINE_GENERATED | G1 | 0 | git rm |
+| `W2_CONFIG_FLAG_MATRIX_V3.json` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_CONFIG_FLAG_MATRIX_V3.md` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_CONSOLIDATION_ACCEPTANCE_REPORT_V1.json` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_CONSOLIDATION_ACCEPTANCE_REPORT_V1.md` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_CONSOLIDATION_IMPLEMENTATION_REPORT_V1.json` | HUMAN_MAINTAINED | H1 | 0 | 保留 |
+| `W2_CONSOLIDATION_IMPLEMENTATION_REPORT_V1.md` | HUMAN_MAINTAINED | H1 | 0 | 保留 |
+| `W2_CONSOLIDATION_MANIFEST_V1.json` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_CONSOLIDATION_MANIFEST_V1.md` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_DATABASE_OWNERSHIP_MAP_V1.json` | MACHINE_GENERATED | G1 | 0 | git rm |
+| `W2_DATABASE_OWNERSHIP_MAP_V1.md` | MACHINE_GENERATED | G1 | 0 | git rm |
+| `W2_DATABASE_OWNERSHIP_MAP_V3.json` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_DATABASE_OWNERSHIP_MAP_V3.md` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_DATA_ASSET_REGISTRY_V1.json` | MACHINE_GENERATED | G1/G2 | 0 | git rm |
+| `W2_DATA_ASSET_REGISTRY_V1.md` | MACHINE_GENERATED | G1 | 0 | git rm |
+| `W2_DATA_ASSET_REGISTRY_V3.json` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_DATA_ASSET_REGISTRY_V3.md` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_FACTOR_STRATEGY_REGISTRY_V2.json` | MACHINE_GENERATED | G2 alias | 0 | git rm |
+| `W2_FACTOR_STRATEGY_REGISTRY_V2.md` | MACHINE_GENERATED | G2 alias | 0 | git rm |
+| `W2_FACTOR_STRATEGY_REGISTRY_V3.json` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_FACTOR_STRATEGY_REGISTRY_V3.md` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_FINDING_REGISTRY_V3.json` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_FINDING_REGISTRY_V3.md` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_LEGACY_DUPLICATE_CODE_REGISTER_V1.json` | MACHINE_GENERATED | G1 | 0 | git rm |
+| `W2_LEGACY_DUPLICATE_CODE_REGISTER_V1.md` | MACHINE_GENERATED | G1 | 0 | git rm |
+| `W2_LEGACY_DUPLICATE_CODE_REGISTER_V3.json` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_LEGACY_DUPLICATE_CODE_REGISTER_V3.md` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_PROVIDER_ENDPOINT_MATRIX_V2.json` | MACHINE_GENERATED | G2 alias | 0 | git rm |
+| `W2_PROVIDER_ENDPOINT_MATRIX_V2.md` | MACHINE_GENERATED | G2 alias | 0 | git rm |
+| `W2_PROVIDER_ENDPOINT_MATRIX_V3.json` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_PROVIDER_ENDPOINT_MATRIX_V3.md` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_PR_LINEAGE_MAP_V2.json` | MACHINE_GENERATED | G2 native V2 | 0 | git rm |
+| `W2_PR_LINEAGE_MAP_V2.md` | MACHINE_GENERATED | G2 native V2 | 0 | git rm |
+| `W2_RECOMMENDATION_LIFECYCLE_TRACE_V2.json` | MACHINE_GENERATED | G2 alias | 0 | git rm |
+| `W2_RECOMMENDATION_LIFECYCLE_TRACE_V2.md` | MACHINE_GENERATED | G2 alias | 0 | git rm |
+| `W2_RECOMMENDATION_LIFECYCLE_TRACE_V3.json` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_RECOMMENDATION_LIFECYCLE_TRACE_V3.md` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_RISK_REGISTER_V2.json` | MACHINE_GENERATED | G2 native V2 | 0 | git rm |
+| `W2_RISK_REGISTER_V2.md` | MACHINE_GENERATED | G2 native V2 | 0 | git rm |
+| `W2_RUNTIME_CALL_GRAPH_V2.json` | MACHINE_GENERATED | G2 alias | 0 | git rm |
+| `W2_RUNTIME_CALL_GRAPH_V2.md` | MACHINE_GENERATED | G2 alias | 0 | git rm |
+| `W2_RUNTIME_CALL_GRAPH_V3.json` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_RUNTIME_CALL_GRAPH_V3.md` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_RUNTIME_DEPLOYMENT_DELTA_V1.json` | MACHINE_GENERATED | G1 | 0 | git rm |
+| `W2_RUNTIME_DEPLOYMENT_DELTA_V1.md` | MACHINE_GENERATED | G1 | 0 | git rm |
+| `W2_RUNTIME_DEPLOYMENT_DELTA_V3.json` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_RUNTIME_DEPLOYMENT_DELTA_V3.md` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_SCHEDULER_CHECKPOINT_MATRIX_V2.json` | MACHINE_GENERATED | G2 alias | 0 | git rm |
+| `W2_SCHEDULER_CHECKPOINT_MATRIX_V2.md` | MACHINE_GENERATED | G2 alias | 0 | git rm |
+| `W2_SCHEDULER_CHECKPOINT_MATRIX_V3.json` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_SCHEDULER_CHECKPOINT_MATRIX_V3.md` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_SIMPLIFICATION_PLAN_V1.md` | HUMAN_MAINTAINED | H2 | 0 | 保留 |
+| `W2_SYSTEM_TRUTH_AUDIT_MANIFEST_V2.json` | MACHINE_GENERATED | G2 alias | 0 | git rm |
+| `W2_SYSTEM_TRUTH_AUDIT_MANIFEST_V2.md` | MACHINE_GENERATED | G2 alias | 0 | git rm |
+| `W2_SYSTEM_TRUTH_MATRIX_V1.json` | MACHINE_GENERATED | G1 | 0 | git rm |
+| `W2_SYSTEM_TRUTH_MATRIX_V1.md` | MACHINE_GENERATED | G1 | 0 | git rm |
+| `W2_SYSTEM_TRUTH_MATRIX_V3.json` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_SYSTEM_TRUTH_MATRIX_V3.md` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_TEST_COVERAGE_AUTHORITY_MATRIX_V2.json` | MACHINE_GENERATED | G2 alias | 0 | git rm |
+| `W2_TEST_COVERAGE_AUTHORITY_MATRIX_V2.md` | MACHINE_GENERATED | G2 alias | 0 | git rm |
+| `W2_TEST_COVERAGE_AUTHORITY_MATRIX_V3.json` | MACHINE_GENERATED | G2 | 0 | git rm |
+| `W2_TEST_COVERAGE_AUTHORITY_MATRIX_V3.md` | MACHINE_GENERATED | G2 | 0 | git rm |
+
+分类汇总：`MACHINE_GENERATED=66`、`HUMAN_MAINTAINED=3`；机器生成项基线
+共 `206648` 行、`6746431` 字节。删除只改变 Git 跟踪边界，历史仍可从 Git
+对象读取，不重写历史。
+
+### 本 PR 实施与直接证据
+
+- 写入方扫描：全仓库只有
+  `scripts/audit_w2_runtime_authorities.py` 写入该 system-truth 文件族；未发现
+  第二个写入 `docs/audits/system_truth` 的生成器。
+- 已对 66 个 `MACHINE_GENERATED` 文件执行 `git rm`；3 个人工文件继续跟踪。
+- 生成器默认目录改为 `runtime/audits/system_truth`，并提供
+  `--output-dir`/`output_dir`；JSON、Markdown、manifest、路径替换和 glob
+  均使用传入目录。
+- `generation_head` 在生成开始时读取，所有 payload 的
+  `source_review_sha` 在发布前统一校验；生成前与发布前均检查 staged、
+  unstaged 和全部实际扫描的 untracked/ignored 输入，发生漂移时保留原目标
+  目录且拒绝发布。
+- 实际扫描、untracked/ignored 守卫与测试共同复用一份输入路径合同，覆盖
+  `src/apps/scripts/tests/migrations/**/*.py`、`.github/workflows/*.{yml,yaml}`、
+  `docker-compose.yml`、`infra/compose/*.{yml,yaml}`、`scripts/*.sh` 和
+  `.env.example`。
+- `audit_generator_sha` 表示生成器所在 Git 代码版本；
+  `audit_output_commit_sha` 及其无消费者占位字段已删除。
+- 原生 `W2_PR_LINEAGE_MAP_V2`、`W2_RISK_REGISTER_V2` 保留生成；原
+  `phase0_aliases` 的 7 组兼容 V2 副本不再生成。
+- `.gitignore` 与 `scripts/check_tracked_outputs.py` 双重守卫覆盖未来版本；
+  3 个人工文件在两层规则中均明确允许。
+- 唯一断链位于人工 `W2_SIMPLIFICATION_PLAN_V1.md`：其原 V1 matrix 文件名
+  已改为本总清单权威路径，同时删除已失效的硬编码旧审计 SHA。
+
+### 最终整改回执
+
+前一整改 implementation head
+`47d3fdf9941ddce3f2c9fbe9466c8afa2ce2c53c`、exact-head CI
+`30054047005` 已证明工作树身份预检、输出目录安全、序列化前路径别名与 JSON
+自哈希、未知 Markdown 静态守卫四项整改通过。
+
+本轮 implementation head
+`b6d858d614647d62f5cbc271e1d6f7f7da59303d`、exact-head CI
+`30055030785` 在同一共享输入合同中补齐 workflow YAML、Compose YAML、
+Shell 与 `.env.example`，CI 的 `verify`、`staging-parity`、
+`predeploy-e2e` 均为 `PASS`。直接回归证据为：
+
+- staged、unstaged、五个 Python 根目录的 untracked 与 ignored Python 输入：
+  `PASS`；
+- `.github/workflows/untracked.yml`：拒绝，`PASS`；
+- `infra/compose/untracked.yaml`：拒绝，`PASS`；
+- `scripts/untracked.sh`：拒绝，`PASS`；
+- ignored `infra/compose/ignored_probe.yaml`：拒绝，`PASS`；
+- 非 Python 输入不一致时，在任何实际扫描和输出目录验证前失败，既有输出保持
+  不变：`PASS`；
+- 输出目录归属/原子恢复、18 个 JSON 自哈希、绝对路径归零与未知
+  `W2_NEW_MACHINE_REPORT_V1.md` 静态守卫继续通过。
+
+```text
+TRACKED_GENERATED_AUDIT_FILES = 0
+V2_ALIAS_OUTPUTS = 0
+HARDCODED_PERSONAL_PATHS = 0
+HARDCODED_SOURCE_REVIEW_SHA = 0
+SOURCE_REVIEW_SHA_SOURCE = CURRENT_GIT_HEAD
+SOURCE_REVIEW_SHA_MATCHES_GENERATION_HEAD = PASS
+SOURCE_REVIEW_SHA_INPUTS_MATCH_GIT_HEAD = PASS
+UNTRACKED_SCANNED_NON_PYTHON_FILES_ACCEPTED = 0
+PENDING_COMMIT_PLACEHOLDERS = 0
+AUDIT_GENERATION_DIRTIES_GIT = 0
+BROKEN_AUDIT_REFERENCES = 0
+RUNTIME_OUTPUT = 18 JSON + 18 Markdown
+IMPLEMENTATION_EXACT_HEAD_CI = 30055030785
+VERIFY = PASS
+STAGING_PARITY = PASS
+PREDEPLOY_E2E = PASS
+```
+
+由于本 PR 尚未经过外部审核与合并，本节只到
+`READY_FOR_EXTERNAL_REVIEW`，不写成 `DONE`；按总清单勾选规则，下列完成框与
+PR 合并框均不提前勾选。
 
 - [ ] 逐项区分 `docs/audits/system_truth` 中机器生成文件与人工维护文件，
   形成可复核清单；人工维护文件继续受 Git 管理。
@@ -1693,8 +1897,9 @@ Next task: 本 docs-only 清单修订 PR 合并后开始
   审计产物再次进入 Git。
 - [ ] 运行全部相关生成器后，`git status --short` 必须保持干净。
 - [ ] 复核所有保留文档的引用，确保移出 Git 后没有断链。
-- [ ] 完整 CI 通过并合并；不得在本任务中重写 Git 历史、改变生产行为或安全
-  开关。
+- [ ] 完整 exact-head CI 通过；不得在本任务中重写 Git 历史、改变生产行为
+  或安全开关。
+- [ ] PR 经外部审核并合并。
 
 **验收**
 
@@ -1705,6 +1910,8 @@ HARDCODED_PERSONAL_PATHS = 0
 HARDCODED_SOURCE_REVIEW_SHA = 0
 SOURCE_REVIEW_SHA_SOURCE = CURRENT_GIT_HEAD
 SOURCE_REVIEW_SHA_MATCHES_GENERATION_HEAD = PASS
+SOURCE_REVIEW_SHA_INPUTS_MATCH_GIT_HEAD = PASS
+UNTRACKED_SCANNED_NON_PYTHON_FILES_ACCEPTED = 0
 PENDING_COMMIT_PLACEHOLDERS = 0
 AUDIT_GENERATION_DIRTIES_GIT = 0
 BROKEN_AUDIT_REFERENCES = 0
