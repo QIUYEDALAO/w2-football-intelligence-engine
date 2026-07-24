@@ -26,7 +26,7 @@
 
 ### 0.1 全局进度速览
 
-`main` 顶端 `46aa8d36d652d31831e7f99543ce16e575b7154d`，migration head
+`main` 顶端 `7ffdc0fed42538243be9e6700b8093bb56372920`，migration head
 `0041_converge_odds_history_and_projection`。
 
 **staging 实际状态（ARCH-P1-04B 读切换验收并回滚后）**：release
@@ -38,14 +38,17 @@ migration head 已一致。
 
 - [x] ARCH-HYGIENE-02
 - [x] ARCH-P1-04A
-- [>] ARCH-P1-04B
+- [x] ARCH-P1-04B
+- [ ] ARCH-GOVERNANCE-01
+- [ ] ARCH-P1-04C
 
-**当前状态**：ARCH-P1-04B 已完成整改实现、implementation exact-head CI 与
-staging 语义验收；final review head 与 final exact-head CI 由 PR 当前坐标和
-GitHub checks 给出。PR #387 保持 Draft，等待外部验收；合并前不得标为 DONE，
-也不得开始后续任务。
-后续顺序（见第三节）：ARCH-P1-04B →
-ARCH-GOVERNANCE-01 → 04C → P1-03 → P1-05 → P1-06 → P1-07 → P1-08 →
+**当前状态**：ARCH-P1-04B 已通过外部验收并随 PR #387 合并，状态为 DONE；
+final head `31cb01023612c1d938723a0f31d6c643affc9450`，final exact-head CI
+`30101718744`，merge SHA `7ffdc0fed42538243be9e6700b8093bb56372920`。
+下一任务 ARCH-GOVERNANCE-01 仍为 NOT_STARTED / QUEUED；ARCH-P1-04C 仍为
+NOT_STARTED。
+后续顺序（见第三节）：ARCH-GOVERNANCE-01 → 04C → P1-03 → P1-05 →
+P1-06 → P1-07 → P1-08 →
 P2-02 → P2-03 → P2-04 →
 P2-06 → P2-05。原 ARCH-P2-01 已由 ARCH-HYGIENE-02 取代，不再执行。
 
@@ -2535,16 +2538,19 @@ STAGING_ROLLBACK = PASS
 **独立 PR。这是行为切换，必须有 staging 语义对账。**
 
 ```text
-Status: READY_FOR_EXTERNAL_REVIEW
+Status: DONE
 Branch: codex/arch-p1-04b-dashboard-read-cutover
 Base SHA: 46aa8d36d652d31831e7f99543ce16e575b7154d
 Started at: 2026-07-24T09:38:51Z
+Completed at: 2026-07-24T14:51:59Z
 Owner: Codex
-PR: #387 (DRAFT)
+Merged PR: #387
+PR state: MERGED
+Merge SHA: 7ffdc0fed42538243be9e6700b8093bb56372920
 Validated implementation head: bd816803af5e8149dec743b277d8ae495197a0e0
 Implementation exact-head CI: 30100951746 (success)
-Final review head: PR_EXACT_HEAD
-Final exact-head CI: REQUIRED_AT_PR_EXACT_HEAD
+Final head: 31cb01023612c1d938723a0f31d6c643affc9450
+Final exact-head CI: 30101718744 (success)
 ```
 
 - [x] 所有 Dashboard 与分析生产端点只读 `read_model_checkpoint` 投影。
@@ -2572,7 +2578,7 @@ Final exact-head CI: REQUIRED_AT_PR_EXACT_HEAD
 - [x] old/new 全部当前比赛语义对账。
 - [x] 15/30 场 Dashboard 行为和视觉不退化。
 - [x] 完整 CI 与 staging 验收通过。
-- [ ] PR 合并。
+- [x] PR 合并。
 
 ### 实现与本地直接证据
 
@@ -2602,8 +2608,8 @@ LOCAL_PYTEST                           = 1559 passed, 4 skipped
 LOCAL_CHECK_W2_ALL                     = PASS
 LOCAL_WEB_TYPECHECK_BUILD_E2E          = PASS / PASS / 26 passed
 IMPLEMENTATION_EXACT_HEAD_CI           = 30100951746 (PASS)
-FINAL_REVIEW_HEAD                      = PR_EXACT_HEAD
-FINAL_EXACT_HEAD_CI                    = REQUIRED_AT_PR_EXACT_HEAD
+FINAL_REVIEW_HEAD                      = 31cb01023612c1d938723a0f31d6c643affc9450
+FINAL_EXACT_HEAD_CI                    = 30101718744 (PASS)
 ```
 
 - 原生产 API 读服务移出请求路径；写侧投影生成仍通过 composition root 使用
@@ -2687,7 +2693,8 @@ STAGING_ROLLBACK = PASS
 ## ARCH-GOVERNANCE-01：合并前就绪 + 合并后清单一致性双门禁
 
 ```text
-Status: QUEUED_AFTER_ARCH-P1-04B
+Status: NOT_STARTED
+Queue: QUEUED_NEXT
 Implementation in ARCH-P1-04B: FORBIDDEN
 Required checks: PRE_MERGE_READINESS_GATE + POST_MERGE_CHECKLIST_CONSISTENCY_GATE
 ```
@@ -2700,6 +2707,10 @@ PR 与唯一总清单的 DONE/merge 坐标一致。两个 required check 缺一�
 ## ARCH-P1-04C：合同层与死代码清理
 
 **独立 PR。这是删除，必须每处附零引用证据。**
+
+```text
+Status: NOT_STARTED
+```
 
 与 04B 分开的原因：04B 是行为切换，需要 staging 对账；04C 是删除，需要
 零引用证据；两者回滚粒度不同。
