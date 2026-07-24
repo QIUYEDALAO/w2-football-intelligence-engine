@@ -7,6 +7,14 @@ acceptance is:
 
 `docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md`
 
+Before any GitHub secondary review, the mandatory first read is:
+
+`docs/operations/architecture_convergence/W2_GITHUB_SECONDARY_REVIEW_PROTOCOL.md`
+
+Read that protocol from the PR exact head when a PR is under review, then follow
+`PROJECT_STATE.yaml.context_read_order`. A review may not start from a Codex
+receipt or handoff summary alone.
+
 This file only points at the current task. It must not restate SHAs, CI runs or
 task status that the checklist already owns.
 
