@@ -1932,8 +1932,8 @@ Base SHA: 748b50e5c990c6138193810ec319e0e413a7ab25
 Started at: 2026-07-24T00:42:35Z
 Owner: Codex
 PR: #384 (DRAFT)
-Implementation head: a8ee4e78c02a6c450066f0e98261bbed467f499e
-Implementation exact-head CI: 30057878147 (PASS)
+Implementation head: 98acd5c87961fbcd9b43fa0eef01f690cd16aef8
+Implementation exact-head CI: 30060110631 (PASS)
 Implementation checks: verify / staging-parity / predeploy-e2e = PASS
 Supersedes: ARCH-P2-01
 Deletion policy: DEAD 直接删除；不建立 scripts/archive
@@ -1944,20 +1944,21 @@ Deletion policy: DEAD 直接删除；不建立 scripts/archive
 inventory universe 不是手写的 `scripts/` 文件列表，而由
 `tests/contract/test_script_authority_inventory.py` 在每次 Pytest 中重新生成：
 
-1. `git ls-files` 中任一路径段名为 `scripts` 且后缀为
-   `.py/.sh/.mjs/.js/.ts` 的实际存在文件；
-2. `.github/workflows`、全部 Dockerfile、Compose、`infra/` systemd/cron、
-   `Makefile`、`apps/web/package.json` 中直接执行的脚本或模块；
-3. `pyproject.toml [project.scripts]` 的全部 console entrypoint；
-4. `alembic.ini script_location` 对应的 migration `env.py`；
-5. CI 中作为 Python 程序直接执行的 `tests/secret_scan.py`。
+1. `git ls-files` 中仓库根目录后缀为 `.py/.sh/.mjs/.js/.ts` 的文件；
+2. `git ls-files` 中 `infra/**` 下同类脚本，不依赖其是否已有配置引用；
+3. 任一路径段名为 `scripts` 且后缀属于上述集合的实际存在文件；
+4. `.github/workflows`、全部 Dockerfile、Compose、systemd/cron、`Makefile`
+   与 `apps/web/package.json` 中通过通用命令解析器发现的脚本或 module；
+5. `pyproject.toml [project.scripts]` 的全部 console entrypoint；
+6. `alembic.ini script_location` 对应的 migration `env.py`；
+7. CI 中作为 Python 程序直接执行的 `tests/secret_scan.py`。
 
-路径解析同时覆盖 Python `-m`、Uvicorn module、Celery `-A`、显式
-`.py/.sh/.mjs` 路径；运维文档、Python subprocess/runpy/importlib 与 Shell
-调用用于逐项证据和 DEAD 判定。开工基线共 `145` 个脚本身份；本 PR 删除
-`8` 个 DEAD 后，当前 universe 为 `137`。矩阵测试要求当前 universe 与
-全部非 DEAD 行逐项相等，DEAD 行逐项不存在，任何漏项、重复分类或误删都会
-令 CI 失败。
+同一命令解析器和 module resolver 同时覆盖 `python -m`、`uv run python -m`、
+Uvicorn module、Celery `-A`、Python/Bash/Node 显式路径；运维文档、Python
+subprocess/runpy/importlib 与 Shell 调用用于逐项证据和 DEAD 判定。开工
+基线共 `145` 个脚本身份；本 PR 删除 `8` 个 DEAD 后，当前 universe 为
+`137`。矩阵测试要求当前 universe 与全部非 DEAD 行逐项相等，DEAD 行逐项
+不存在；新增未引用 root/infra 脚本也会立即形成未分类失败。
 
 证据代码：
 
@@ -2144,9 +2145,11 @@ TOTAL_RETAINED = 137
 
 ### `check_w2_all.py` 完整直接与传递调用图
 
-AST 守卫读取 `COMMANDS` 字面量，并递归扫描每个子脚本的
-`subprocess.run/Popen/check_*`、`runpy`、`os.system` 与 `scripts.*` import。
-最终执行图如下：
+守卫读取 `COMMANDS` 字面量，并将 script/module/path 与外部 tool 记录为
+不同节点。它递归扫描 `subprocess.run/Popen/check_call/check_output`（含
+直接 import alias）、`os.system/popen`、`runpy.run_module/run_path`、
+`importlib.import_module`、`pytest.main`、`scripts.*` import，以及 Shell
+中的 Python/Bash/Node/uv/Ruff/Mypy/Pytest 命令。最终 script 执行图如下：
 
 ```text
 .github/workflows/ci.yml
@@ -2172,8 +2175,10 @@ AST 守卫读取 `COMMANDS` 字面量，并递归扫描每个子脚本的
     └── scripts/check_w2_stage15a.py
 ```
 
-19 个直接子节点均无 subprocess/runpy/importlib/Shell 执行子节点；部分 checker
-会读取 `run_*` 源码或检查文件存在性，但不会执行该脚本，故不伪记为传递执行。
+实际图为 `41` 个节点、`40` 条边：19 个直接 script 节点均无可执行 script
+子节点，外部 tool 节点只有 `uv` 与 `python`；Ruff、Mypy、Pytest 均不可达。
+部分 checker 会读取 `run_*` 源码或检查文件存在性，但不会执行该脚本，故不
+伪记为传递执行。
 去重前，`check_w2_all.py` 还直接执行 Boss Console、tracked-output、Ruff、
 Mypy、Pytest；去重后前两项仍由 GitHub CI 独立直接执行，后三项唯一重测试
 owner 为 GitHub CI：
@@ -2192,6 +2197,11 @@ CI_PYTEST_OWNER = GITHUB_CI (.github/workflows/ci.yml:81)
 对下列 8 个脚本逐项扫描 Python/import/subprocess、Shell、GitHub CI、
 Dockerfile/Compose、systemd/cron、`pyproject`、tests、运维文档，直接调用
 均为 0；不能只依据“代码引用 0”，第二列同时给出失效业务合同或现行替代：
+
+每个 DEAD 路径同时展开为完整路径、basename、stem、Python module path
+四类身份，并复用 inventory 的 Python、Shell、配置命令解析器；因此
+`python -m`、`from scripts import`、省略目录的文件名执行与 `bash -c`
+包裹均不能绕过引用守卫。
 
 | DEAD 脚本 | 失效/替代直接证据 |
 |---|---|
@@ -2228,10 +2238,15 @@ CI_RUFF_OWNER = GITHUB_CI
 CI_MYPY_OWNER = GITHUB_CI
 CI_PYTEST_OWNER = GITHUB_CI
 CHECK_W2_ALL = PASS
-INVENTORY_CONTRACT_TESTS = 8_PASS
+INVENTORY_CONTRACT_TESTS = 25_PASS
+ROOT_INFRA_UNCLASSIFIED_GUARDS = 2_PASS
+GENERIC_MODULE_ENTRYPOINT_GUARDS = 4_PASS
+TRANSITIVE_HEAVY_TOOL_BYPASS_GUARDS = 6_FORMS_7_CASES_PASS
+DEAD_REFERENCE_IDENTITY_GUARDS = 4_PASS
+EXECUTION_GRAPH = 41_NODES_40_EDGES
 RUFF = PASS
 MYPY = PASS (260 source files)
-PYTEST = 1492_PASS_4_SKIP
+PYTEST = 1509_PASS_4_SKIP
 GIT_DIFF_CHECK = PASS
 SHELL_SYNTAX = PASS
 PRODUCTION_BEHAVIOR_CHANGED = false
@@ -2240,13 +2255,22 @@ SAFETY_SWITCHES_CHANGED = false
 STAGING = NOT_APPLICABLE
 ```
 
-### 实现 head 回执
+### 首轮实现 head 回执
 
 `a8ee4e78c02a6c450066f0e98261bbed467f499e` 上的 GitHub Actions run
 `30057878147` 已完成，`verify`、`staging-parity`、`predeploy-e2e` 均为
 `PASS`。其中 GitHub CI 独立执行并通过 Ruff、Mypy、全量 Pytest；
 `check_w2_all.py` 仅执行上述 19 个 W2 stage/contract checker。当前 PR
 保持 Draft，任务在外部审核与合并前不写为 `DONE`，`ARCH-P1-04A` 未开始。
+
+### 绕过缺口整改实现 head 回执
+
+`98acd5c87961fbcd9b43fa0eef01f690cd16aef8` 上的 GitHub Actions run
+`30060110631` 已完成，`verify`、`staging-parity`、`predeploy-e2e` 均为
+`PASS`。root/infra universe、通用 module resolver、命令级递归图和 DEAD
+四身份引用合同均已加入同一测试文件；8 个 DEAD 删除、137 个保留身份和
+`check_w2_all.py` 的 19 个直接 checker 保持不变。PR 继续保持 Draft，
+`ARCH-HYGIENE-02 = READY_FOR_EXTERNAL_REVIEW`，`ARCH-P1-04A` 未开始。
 
 每个脚本必须逐项归入且只能归入以下一种分类：
 

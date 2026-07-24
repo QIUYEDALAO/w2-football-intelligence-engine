@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-24T01:07:20Z"
+updated_at: "2026-07-24T01:57:14Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -31,12 +31,12 @@ repository:
   pull_request_mode: DRAFT
   pull_request_head_branch: codex/arch-hygiene-02-script-authority-convergence
   task_baseline_sha: 748b50e5c990c6138193810ec319e0e413a7ab25
-  local_code_implementation_sha: a8ee4e78c02a6c450066f0e98261bbed467f499e
+  local_code_implementation_sha: 98acd5c87961fbcd9b43fa0eef01f690cd16aef8
   local_work_branch: codex/arch-hygiene-02-script-authority-convergence
   github_sync_status: DRAFT_PR_OPEN_IMPLEMENTATION_CI_PASS
-  github_verified_head_sha: a8ee4e78c02a6c450066f0e98261bbed467f499e
+  github_verified_head_sha: 98acd5c87961fbcd9b43fa0eef01f690cd16aef8
   ci_status: PASS
-  ci_run_id: 30057878147
+  ci_run_id: 30060110631
   ci_checks:
     verify: PASS
     staging-parity: PASS
@@ -87,8 +87,8 @@ architecture_convergence:
     baseline_sha: 748b50e5c990c6138193810ec319e0e413a7ab25
     branch: codex/arch-hygiene-02-script-authority-convergence
     pull_request: 384
-    implementation_head: a8ee4e78c02a6c450066f0e98261bbed467f499e
-    implementation_ci_run_id: 30057878147
+    implementation_head: 98acd5c87961fbcd9b43fa0eef01f690cd16aef8
+    implementation_ci_run_id: 30060110631
     production_behavior_changed: false
     safety_switches_changed: false
   governance_contracts:
@@ -133,6 +133,15 @@ architecture_convergence:
       broken_references: 0
       check_w2_all_direct_children: 19
       check_w2_all_transitive_children: 0
+      execution_graph_nodes: 41
+      execution_graph_edges: 40
+      execution_graph_external_tools:
+        - uv
+        - python
+      root_infra_unclassified_guards: 2_PASS
+      generic_module_entrypoint_guards: 4_PASS
+      transitive_heavy_tool_bypass_guards: 6_FORMS_7_CASES_PASS
+      dead_reference_identity_guards: 4_PASS
       heavy_test_owner: GITHUB_CI
   pre_approved_order_change:
     task: ARCH-P1-05
@@ -181,7 +190,7 @@ active_workstream:
     t30_validation_snapshot: locally_verified
 
 local_verification:
-  pytest_passed: 1492
+  pytest_passed: 1509
   pytest_skipped: 4
   ruff: PASS
   mypy: PASS
@@ -189,7 +198,7 @@ local_verification:
   boss_console_protected_baseline: PASS
   web_playwright: 26_PASS
   migration_sqlite_roundtrip: PASS
-  script_inventory_contract_tests: 8_PASS
+  script_inventory_contract_tests: 25_PASS
   check_w2_all: PASS
   git_diff_check: PASS
   shell_syntax: PASS
