@@ -2279,8 +2279,8 @@ PR: #385 (DRAFT)
 Base SHA: 1e252d73d8c9658e6ba60093ed8006dde656db10
 Started at: 2026-07-24T04:07:09Z
 Owner: Codex
-Validated implementation head: 3e902eb974e7c00b2715adf2627d831958761539
-Implementation exact-head CI: 30070466523 (success)
+Validated implementation head: fd93f083b04c8ac59e3b05ec0bea458606fc0fdc
+Implementation exact-head CI: 30077831275 (success)
 ```
 
 **独立 PR。本任务不切换任何读路径。**
@@ -2388,12 +2388,12 @@ canonicalize，生成真实 difference fields；不切换 API、Dashboard 或 We
 ```text
 PR                                  = #385 (DRAFT)
 BASE_SHA                            = 1e252d73d8c9658e6ba60093ed8006dde656db10
-VALIDATED_IMPLEMENTATION_HEAD       = 3e902eb974e7c00b2715adf2627d831958761539
-IMPLEMENTATION_EXACT_HEAD_CI        = 30070466523 (success)
+VALIDATED_IMPLEMENTATION_HEAD       = fd93f083b04c8ac59e3b05ec0bea458606fc0fdc
+IMPLEMENTATION_EXACT_HEAD_CI        = 30077831275 (success)
 CI_VERIFY                           = PASS
 CI_STAGING_PARITY                   = PASS
 CI_PREDEPLOY_E2E                    = PASS
-STAGING_CANDIDATE_SHA               = 3e902eb974e7c00b2715adf2627d831958761539
+STAGING_CANDIDATE_SHA               = 72225e63e705aa5c7957eaed556ceb5a26847d41
 STAGING_MIGRATION                   = 0041_converge_odds_history_and_projection
 STAGING_ROLLBACK_SHA                = 1d02a45c6f38c3613ac3dddab784869095bf6804
 ```
@@ -2437,7 +2437,7 @@ STAGING_ROLLBACK_SHA                = 1d02a45c6f38c3613ac3dddab784869095bf6804
 - 候选 6/6 服务 healthy；验收后 release 与五个候选镜像全部回滚到
   `1d02a45...`，最终 6/6 服务 healthy，migration 与全部安全计数不变。
 - 本地：Ruff PASS；Mypy `260` source files PASS；Pytest
-  `1513 passed, 4 skipped`；`check_w2_all.py` PASS；Web typecheck/build
+  `1521 passed, 4 skipped`；`check_w2_all.py` PASS；Web typecheck/build
   PASS；Playwright `26 passed`。本机无 Docker CLI，Compose 与 PostgreSQL
   Alembic smoke 由 exact-head CI `verify` 执行并通过。
 

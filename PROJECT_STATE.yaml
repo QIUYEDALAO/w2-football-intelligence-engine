@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-24T07:03:24Z"
+updated_at: "2026-07-24T08:13:09Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -84,8 +84,8 @@ architecture_convergence:
     baseline_sha: 1e252d73d8c9658e6ba60093ed8006dde656db10
     branch: codex/arch-p1-04a-write-side-projection
     pull_request: 385
-    implementation_head: 72225e63e705aa5c7957eaed556ceb5a26847d41
-    implementation_exact_head_ci: 30073520169
+    implementation_head: fd93f083b04c8ac59e3b05ec0bea458606fc0fdc
+    implementation_exact_head_ci: 30077831275
     staging_candidate_sha: 72225e63e705aa5c7957eaed556ceb5a26847d41
     staging_rollback_sha: 1d02a45c6f38c3613ac3dddab784869095bf6804
     staging_migration: 0041_converge_odds_history_and_projection
@@ -209,7 +209,7 @@ active_workstream:
     t30_validation_snapshot: locally_verified
 
 local_verification:
-  pytest_passed: 1519
+  pytest_passed: 1521
   pytest_skipped: 4
   ruff: PASS
   mypy: PASS
@@ -231,8 +231,8 @@ staging:
   provider_calls: 0
   staging_host: 118.196.30.136
   ssh_preflight: PASS_AS_ROOT
-  attempted_release_sha: 1d02a45c6f38c3613ac3dddab784869095bf6804
-  restored_release_sha: null
+  attempted_release_sha: 72225e63e705aa5c7957eaed556ceb5a26847d41
+  restored_release_sha: 1d02a45c6f38c3613ac3dddab784869095bf6804
   real_lineup_canary: DEFERRED_TO_SEPARATE_OPS_ACCEPTANCE
   public_read_20x: PASS_20_OF_20_HTTP_200_ARCH_P1_02
   public_dashboard_fixture_recovery: PASS_3_LEAGUES_24_FIXTURES
