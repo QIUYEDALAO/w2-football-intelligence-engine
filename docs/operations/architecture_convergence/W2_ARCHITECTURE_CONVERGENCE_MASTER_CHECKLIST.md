@@ -198,10 +198,11 @@ A2_SCOPE_CORRECTION_1:
   original_assumption: COMPATIBILITY_FALLBACK_WITH_SIMULATION_PRIMARY_PATH
   audit_result: ACTIVE_PRODUCTION_SOURCE
   evidence:
-    - analysis_calculator run_simulation_from_shadow(card.get("pricing_shadow"))
-    - projection persists pricing_shadow (analysis_calculator:6348)
-    - no production writer for top-level card["simulation"]
-    - test consumes pricing_shadow.simulation.simulations
+    - canonical top-level writer already existed:
+      payload["simulation"] = simulation_output.as_dict()
+    - 04C-era live Dashboard projection omitted that top-level field
+    - public/formal/scoreline paths therefore still consumed pricing_shadow.simulation
+    - retain until ARCH-P1-04D projection, reconciliation and read-authority migration complete
   decision: RETAIN
   production_behavior_changed: false
   follow_up: ARCH-P1-04D
@@ -240,7 +241,8 @@ INFRASTRUCTURE→{API,DASHBOARD,APPS} 守卫绿；全量测试与 04B 守卫绿�
 `LEGACY_DECISION_CONTRACT_CODE = 0` 与 `NET_DELETION ≥ 1100` **不适用本轮**——
 合同层证明为活跃链，其删除是 ARCH-P1-04D 在 pre-LMM 契约迁移完成后的验收项。
 **资产账本**：新增 0；删除 227 行（`_is_decision_tier` + F10 子图）。
-- [ ] PR 合并。
+- [x] PR 合并（#395，merge SHA `6eeb411747a1cef624ff4780dbad87d4cec4b26d`；
+      closure #396，main POST run `30143083350` PASS）。
 
 ---
 
@@ -256,7 +258,7 @@ M1: DONE (Dashboard simulation projection, status-driven pass-through)
 M2: DONE (frozen 8 MATCH; live LEGACY_ONLY=4 blocker found, MISMATCH=0)
 M2_REMEDIATION: DONE (live _dashboard_card_from_matchday passes through canonical
   top-level simulation; live LIVE_MATCH=4, LEGACY_ONLY=0, MISMATCH=0)
-M3: NOT_STARTED (m3_blocker=PENDING_EXTERNAL_M3_ENTRY_REVIEW; 不自行开始)
+M3: NOT_STARTED (m3_blocker=PENDING_ARCH_P1_04C_CLOSURE_INTEGRITY_REVIEW; 已暂停)
 M4: NOT_STARTED
 04D 整体仍为 IN_PROGRESS，不得标 DONE。
 ```
@@ -397,7 +399,6 @@ Status: NOT_STARTED
 - [ ] **追加**：用 3 场真实比赛演示 canonical player ↔ provider lineup 球员唯一联接查询
       （EVAL-02B"缺阵分钟占比"的前置能力）。
 - [ ] PR 合并。
-
 **验收**：`CANONICAL_TEAM_IDENTITY_AUTHORITY_COUNT = 1`。
 **资产账本**：目标净减 ≥3 张表。
 
@@ -684,7 +685,7 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 |---|---|
 | 新增表 | 目标 0；唯一例外 EVAL-01A `outcome_ledger`（三条判定基准全满足才建） |
 | 新增文件权威 | 0（永久红线 2） |
-| 删除 | legacy shim/adapter（A2）、F10 死代码（A2）、≥3 张 crosswalk（A3）、runtime 账本目录（B1）、`shadow_strategy_*` 僵尸表（A7 裁决后） |
+| 删除 | legacy shim/adapter（A9/ARCH-P1-04D）、F10 死代码（A2）、≥3 张 crosswalk（A3）、runtime 账本目录（B1）、`shadow_strategy_*` 僵尸表（A7 裁决后） |
 | 防回流 | 每任务静态守卫测试；A7 终态盘点矩阵；GOVERNANCE-01 双门禁；PR 8 问模板 |
 
 ## 七、任务状态与 PR 强制说明格式
@@ -697,7 +698,6 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 待验收: Status: IMPLEMENTED_PENDING_ACCEPTANCE / Implementation SHA / CI run / Staging SHA / Evidence / Rollback
 完成:   Status: DONE / Merged PR / Merge SHA / CI run / Staging acceptance / Completed at
 ```
-
 每个 PR 描述必须回答：
 
 ```text
@@ -718,8 +718,8 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 ## 八、待议区（记录不实施）
 
 - A2 死代码复核中"证据不足"的疑似项（记录后由后续 P2-06 矩阵裁决）。
-- `PROJECT_STATE.repository.main_sha` 在 PR #392 合并后仍指向上一完成任务坐标；
-  v3 总清单与 GitHub main 为权威，A1 开工时同步到实际 Base SHA。
+- **RESOLVED 2026-07-25**：`PROJECT_STATE.repository` 已在 ARCH-P1-04C closure-integrity
+  remediation 中同步到 PR #397、base/main `9b2dc44bed22f237868d1471cbb8d9950917edcb`。
 
 ---
 
