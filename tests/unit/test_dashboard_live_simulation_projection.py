@@ -38,6 +38,7 @@ def _make_card(**overrides: Any) -> dict[str, Any]:
     base: dict[str, Any] = {
         "fixture_id": "F1",
         "kickoff_utc": "2026-07-26T12:00:00+00:00",
+        "decision_tier": "SKIP",
         "markets": [],
         "primary_market": "",
         "current_odds": {},

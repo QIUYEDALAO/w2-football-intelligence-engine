@@ -5,7 +5,6 @@ from typing import Any
 
 from w2.domain.decision_policy import compute_outcome_tracked
 from w2.domain.enums import DecisionTier
-from w2.domain.legacy_decision_shim import legacy_decision_view
 
 
 class RecommendationTier(StrEnum):
@@ -34,13 +33,7 @@ def derive_recommendation_tier(
     if decision_tier is not None:
         return _recommendation_tier_from_decision_tier(decision_tier)
 
-    # Historical compatibility only. New DecisionCard output must provide
-    # decision_tier instead of asking dashboard to infer product semantics from
-    # formal_recommendation/candidate/decision/analysis_decision.
-    legacy = legacy_decision_view(card, market)
-    if legacy.legacy_formal and legacy.lock_eligible:
-        return RecommendationTier.FORMAL
-    return _recommendation_tier_from_decision_tier(legacy.decision_tier)
+    return RecommendationTier.NO_RECOMMENDATION
 
 
 def build_recommendation(
@@ -177,7 +170,7 @@ def _decision_tier_for_output(
     if decision_tier is not None:
         return decision_tier
     if tier is RecommendationTier.FORMAL:
-        return legacy_decision_view(card, market).decision_tier
+        return DecisionTier.RECOMMEND
     if tier is RecommendationTier.ANALYSIS_PICK:
         return DecisionTier.ANALYSIS_PICK
     if tier is RecommendationTier.WATCH:

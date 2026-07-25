@@ -5315,6 +5315,19 @@ class ReadModelService:
                             else "WATCH"
                         )
         apply_market_selection(decorated)
+        if not decorated.get("decision_tier"):
+            decorated["decision_tier"] = (
+                "ANALYSIS_PICK"
+                if decorated.get("primary_market")
+                else "WATCH"
+                if str(decorated.get("decision") or "").upper() == "WATCH"
+                or any(
+                    str(item.get("decision") or "").upper() == "WATCH"
+                    or bool(item.get("candidate"))
+                    for item in decorated["markets"]
+                )
+                else "SKIP"
+            )
         return decorated
 
     def _attach_market_candidate_evidence_projection(
@@ -6125,6 +6138,12 @@ class ReadModelService:
                 "away_cn": row.get("away_team_name"),
             },
         )
+        stored_decision_contract = card.get("decision_contract")
+        contract_pick = (
+            stored_decision_contract.get("pick")
+            if isinstance(stored_decision_contract, dict)
+            else None
+        )
         markets = [item for item in card.get("markets", []) if isinstance(item, dict)]
         primary_market = str(card.get("primary_market") or "")
         picked = next(
@@ -6136,9 +6155,12 @@ class ReadModelService:
             ),
             None,
         )
-        if picked is None and not primary_market:
-            # Backward compatibility for immutable pre-LMM frozen artifacts.
-            picked = next((item for item in markets if _public_market_is_legacy_pick(item)), None)
+        if picked is None and isinstance(contract_pick, dict):
+            contract_market = str(contract_pick.get("market") or "")
+            picked = next(
+                (item for item in markets if str(item.get("market") or "") == contract_market),
+                None,
+            )
         scoreline_picks = scoreline_picks_from_card(card)
         result = result_from_dashboard_row(row)
         analysis_readiness = build_analysis_readiness(

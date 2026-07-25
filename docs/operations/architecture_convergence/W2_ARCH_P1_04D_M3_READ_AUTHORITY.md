@@ -57,11 +57,48 @@ variant. Recommendation, pick/non-pick identity, scoreline reference/readiness,
 and formal fields are identical. Mismatch and legacy-only variants are rejected
 before a public response or formal snapshot can be produced.
 
+## Remaining compatibility-chain reachability
+
+The retained compatibility code is no longer selected by the public runtime:
+
+```text
+LEGACY_PICK_RUNTIME_REACHABLE = 0
+LEGACY_SHIM_RUNTIME_REACHABLE = 0
+LEGACY_ADAPTER_RUNTIME_REACHABLE = 0
+```
+
+- current and fallback cards carry an explicit canonical `decision_tier` before
+  decision-contract projection;
+- frozen cards consume their stored canonical `decision_contract`;
+- Dashboard selects only `primary_market` or the stored contract pick and never
+  calls `_public_market_is_legacy_pick`;
+- Dashboard recommendation projection fails closed without `decision_tier` and
+  has no `legacy_decision_view` caller in `src`;
+- the adapter's retained pre-LMM fallback (`_legacy_decision_tier`) is guarded
+  by explicit canonical tier input and records zero activations across current,
+  frozen, fallback, Dashboard, DayView, and formal probes.
+
+Contradictory legacy-only fields do not change recommendation, decision tier,
+pick/non-pick identity, scoreline reference, or formal output on a canonical
+card. A pre-LMM pick without canonical selection now fails closed; no retained
+compatibility function is deleted in M3.
+
+The same fixed-as-of canonical current and fallback probes were executed against
+`d92f25d74577c1b6bd1181e7915a1eb5ea329082` and this change. Their selected
+public business payloads are byte-equal:
+
+```text
+RECOMMENDATION_TIER_DELTA = 0
+PICK_IDENTITY_DELTA = 0
+SCORELINE_OUTPUT_HASH_DELTA = 0
+FORMAL_OUTPUT_DELTA = 0
+```
+
 ## Verification
 
 ```text
-FOCUSED = 75 passed
-FULL_PYTEST = 1642 passed / 4 skipped
+FOCUSED = 90 passed
+FULL_PYTEST = 1645 passed / 4 skipped
 RUFF = PASS
 MYPY = PASS
 STAGE1_CONTRACTS = PASS

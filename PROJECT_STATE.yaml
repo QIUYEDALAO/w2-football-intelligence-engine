@@ -102,14 +102,17 @@ architecture_convergence:
     m1_status: DONE
     m2_status: DONE
     m2_remediation_status: DONE
-    m3_status: IMPLEMENTED_PENDING_ACCEPTANCE
-    m3_complete: true
-    m3_ready: true
-    m3_blocker: PENDING_EXTERNAL_M3_EXIT_REVIEW
+    m3_status: IN_PROGRESS
+    m3_complete: false
+    m3_ready: false
+    m3_blocker: REMAINING_LEGACY_CHAIN_REACHABILITY_NOT_PROVEN
     simulation_read_authority: CANONICAL_TOP_LEVEL_CARD_SIMULATION
     public_pricing_shadow_simulation_reads: 0
     reachable_legacy_only: 0
     reachable_mismatch: 0
+    legacy_pick_runtime_reachable: 0
+    legacy_shim_runtime_reachable: 0
+    legacy_adapter_runtime_reachable: 0
     m4_status: NOT_STARTED
     compatibility_chains_deleted: false
     predecessor: ARCH-P1-04C

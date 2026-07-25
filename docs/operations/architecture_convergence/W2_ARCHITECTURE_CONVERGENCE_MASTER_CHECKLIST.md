@@ -258,9 +258,9 @@ M1: DONE (Dashboard simulation projection, status-driven pass-through)
 M2: DONE (frozen 8 MATCH; live LEGACY_ONLY=4 blocker found, MISMATCH=0)
 M2_REMEDIATION: DONE (live _dashboard_card_from_matchday passes through canonical
   top-level simulation; live LIVE_MATCH=4, LEGACY_ONLY=0, MISMATCH=0)
-M3: IMPLEMENTED_PENDING_ACCEPTANCE (canonical top-level read authority;
-  PUBLIC_PRICING_SHADOW_READS=0; LEGACY_ONLY/MISMATCH/unknown fail closed;
-  business deltas=0; evidence: W2_ARCH_P1_04D_M3_READ_AUTHORITY.md)
+M3: IN_PROGRESS (canonical simulation read authority implemented;
+  LEGACY_PICK_RUNTIME_REACHABLE=0; LEGACY_SHIM_RUNTIME_REACHABLE=0;
+  LEGACY_ADAPTER_RUNTIME_REACHABLE=0; pending external M3 acceptance)
 M4: NOT_STARTED
 04D 整体仍为 IN_PROGRESS，不得标 DONE。
 ```

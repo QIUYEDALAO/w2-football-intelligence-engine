@@ -46,11 +46,14 @@ def test_dashboard_maps_recommend_decision_tier_to_legacy_formal_view() -> None:
     assert "formal_recommendation" not in recommendation
 
 
-def test_dashboard_uses_legacy_shim_only_when_decision_tier_is_missing() -> None:
+def test_dashboard_fails_closed_when_decision_tier_is_missing() -> None:
     legacy_formal = {"formal_recommendation": True, "recommendation_id": "rec-1"}
     before = dict(legacy_formal)
 
-    assert derive_recommendation_tier(legacy_formal, None) is RecommendationTier.FORMAL
+    assert (
+        derive_recommendation_tier(legacy_formal, None)
+        is RecommendationTier.NO_RECOMMENDATION
+    )
     assert legacy_formal == before
     assert (
         derive_recommendation_tier(
@@ -64,7 +67,7 @@ def test_dashboard_uses_legacy_shim_only_when_decision_tier_is_missing() -> None
             {},
             {"analysis_decision": "ANALYSIS_PICK", "formal_recommendation": False},
         )
-        is RecommendationTier.ANALYSIS_PICK
+        is RecommendationTier.NO_RECOMMENDATION
     )
     assert derive_recommendation_tier({"decision": "NO_RECOMMENDATION"}, None) is (
         RecommendationTier.NO_RECOMMENDATION

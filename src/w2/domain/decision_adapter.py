@@ -18,7 +18,6 @@ from w2.domain.enums import (
     LifecycleStatus,
     ProbabilitySource,
 )
-from w2.domain.legacy_decision_shim import legacy_decision_view
 from w2.readiness.data_gate import (
     DataFreshnessPolicy,
     DataReadinessResult,
@@ -111,8 +110,11 @@ def build_decision_contract_fields(
     )
     if tier not in {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND}:
         recommendation_id = None
-    legacy = legacy_decision_view(card, market)
-    legacy_formal = legacy.legacy_formal or _truthy(_get(recommendation, "formal_recommendation"))
+    legacy_formal = (
+        _truthy(_get(card, "formal_recommendation"))
+        or _truthy(_get(market, "formal_recommendation"))
+        or _truthy(_get(recommendation, "formal_recommendation"))
+    )
     evaluated_candidate = _selected_market_candidate(card, market)
     pick_payload = (
         _pick_payload(
@@ -249,8 +251,26 @@ def _decision_tier(
                 return DecisionTier.WATCH
             return tier
 
-    legacy = legacy_decision_view(card, market)
-    if legacy.legacy_formal or _truthy(_get(recommendation, "formal_recommendation")):
+    return _legacy_decision_tier(
+        card=card,
+        market=market,
+        recommendation=recommendation,
+        readiness=readiness,
+    )
+
+
+def _legacy_decision_tier(
+    *,
+    card: Mapping[str, Any],
+    market: Mapping[str, Any] | None,
+    recommendation: Mapping[str, Any] | None,
+    readiness: Mapping[str, Any] | None,
+) -> DecisionTier:
+    if (
+        _truthy(_get(card, "formal_recommendation"))
+        or _truthy(_get(market, "formal_recommendation"))
+        or _truthy(_get(recommendation, "formal_recommendation"))
+    ):
         return DecisionTier.ANALYSIS_PICK
 
     decision = _first_upper(
