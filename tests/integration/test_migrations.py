@@ -477,3 +477,124 @@ def test_arch_p1_02_drops_the_legacy_table_when_every_row_is_covered(tmp_path: P
     assert "future_market_observation" not in inspector.get_table_names()
     assert "current_market_projection" in inspector.get_view_names()
     assert "current_market_projection" not in inspector.get_table_names()
+
+
+def test_0042_team_identity_provider_review_provenance(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'arch-p1-03-m2a.db'}"
+    env = {
+        **os.environ,
+        "PYTHONPATH": f"{root / 'src'}:{root}",
+        "W2_DATABASE_URL": database_url,
+        "W2_ENVIRONMENT": "test",
+    }
+
+    def migrate(*args: str) -> None:
+        result = subprocess.run(
+            [sys.executable, "-m", "alembic", *args],
+            cwd=root,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stderr
+
+    migrate("upgrade", "0041_converge_odds_history_and_projection")
+    engine = create_engine(database_url)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "insert into canonical_teams (w2_team_id, display_name, country, "
+                "active_status, created_at, identity_hash, payload) values "
+                "('w2:team:api_football:100','T100','SE','ACTIVE',"
+                "'2026-01-01T00:00:00+00:00','h100','{}')"
+            )
+        )
+        conn.execute(
+            text(
+                "insert into provider_team_identity_crosswalks (id, provider, "
+                "provider_team_id, w2_team_id, competition_id, season, valid_from, "
+                "identity_status, evidence_hashes, identity_hash) values "
+                "('api_football:100:allsvenskan:2026','api_football','100',"
+                "'w2:team:api_football:100','allsvenskan','2026',"
+                "'2026-01-01T00:00:00+00:00','PROVIDER_PRIMARY_READY','[]','ih100')"
+            )
+        )
+        conn.execute(
+            text(
+                "insert into team_identity_crosswalks (id, api_football_team_id, "
+                "transfermarkt_club_id, competition_id, valid_from, review_status, "
+                "crosswalk_hash, source_sha256, reviewed_by, reviewed_at, payload) values "
+                "('tic-1','100','999','allsvenskan','2026-01-01T00:00:00+00:00',"
+                "'APPROVED','ch1','abc','analyst','2026-01-02T00:00:00+00:00','{\"k\":\"v\"}')"
+            )
+        )
+
+    migrate("upgrade", "head")
+
+    cols = {c["name"] for c in inspect(engine).get_columns("provider_team_identity_crosswalks")}
+    assert {"review_status", "reviewed_by", "reviewed_at", "source_hashes", "payload"} <= cols
+
+    with engine.begin() as conn:
+        tm = conn.execute(
+            text(
+                "select w2_team_id, review_status, reviewed_by, source_hashes, identity_status "
+                "from provider_team_identity_crosswalks where provider='transfermarkt' "
+                "and provider_team_id='999'"
+            )
+        ).mappings().all()
+        assert len(tm) == 1
+        assert tm[0]["w2_team_id"] == "w2:team:api_football:100"
+        assert tm[0]["review_status"] == "APPROVED"
+        assert tm[0]["reviewed_by"] == "analyst"
+        assert tm[0]["source_hashes"] == '["abc"]'
+        assert tm[0]["identity_status"] == "PROVIDER_PRIMARY_READY"
+
+        api = conn.execute(
+            text(
+                "select review_status, reviewed_by from provider_team_identity_crosswalks "
+                "where provider='api_football' and provider_team_id='100'"
+            )
+        ).mappings().one()
+        assert api["review_status"] == "APPROVED"
+        assert api["reviewed_by"] == "analyst"
+
+
+def test_0042_fails_closed_when_authority_mapping_missing(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'arch-p1-03-m2a-block.db'}"
+    env = {
+        **os.environ,
+        "PYTHONPATH": f"{root / 'src'}:{root}",
+        "W2_DATABASE_URL": database_url,
+        "W2_ENVIRONMENT": "test",
+    }
+
+    def migrate(*args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, "-m", "alembic", *args],
+            cwd=root,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+    assert migrate("upgrade", "0041_converge_odds_history_and_projection").returncode == 0
+    engine = create_engine(database_url)
+    with engine.begin() as conn:
+        # APPROVED legacy row with NO matching api_football authority row -> fail closed.
+        conn.execute(
+            text(
+                "insert into team_identity_crosswalks (id, api_football_team_id, "
+                "transfermarkt_club_id, competition_id, valid_from, review_status, "
+                "crosswalk_hash, payload) values "
+                "('tic-x','777','888','allsvenskan','2026-01-01T00:00:00+00:00',"
+                "'APPROVED','chx','{}')"
+            )
+        )
+
+    result = migrate("upgrade", "head")
+    assert result.returncode != 0
+    assert "team identity migration blocked" in (result.stderr + result.stdout)

@@ -62,6 +62,14 @@ class ProviderTeamIdentityCrosswalkModel(Base):
     identity_status: Mapped[str] = mapped_column(String(64), nullable=False)
     evidence_hashes: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     identity_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    # ARCH-P1-03 M2A: review provenance migrated from the legacy team crosswalks.
+    # Nullable so CANDIDATE rows may omit review; REVIEWED rows must be non-null
+    # (enforced by the migration and CanonicalIdentityRepository, not a DB check).
+    review_status: Mapped[str | None] = mapped_column(String(64))
+    reviewed_by: Mapped[str | None] = mapped_column(String(128))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source_hashes: Mapped[list[str] | None] = mapped_column(JSON)
+    payload: Mapped[dict[str, Any] | None] = mapped_column(JSON)
 
 
 class CanonicalTeamMatchHistoryModel(Base):
