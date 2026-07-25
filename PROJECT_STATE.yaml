@@ -101,6 +101,17 @@ architecture_convergence:
     started_at: "2026-07-26T00:00:00Z"
     predecessor: ARCH-P1-04D
     scope: TEAM_IDENTITY_CROSSWALK_CONVERGENCE
+    phase: M2A_TEAM_DONE
+    m1_status: DONE
+    m2a_status: DONE
+    m3_real_match_evidence: BLOCKED_INSUFFICIENT_REAL_SAVED_LINEUPS
+    m4_status: NOT_AUTHORIZED
+    legacy_crosswalk_runtime_reads: 0
+    legacy_crosswalk_runtime_writes: 0
+    legacy_crosswalk_runtime_imports: 0
+    legacy_crosswalk_orm_declarations: 3
+    legacy_crosswalk_orm_status: TEMPORARY_ALLOWED_UNTIL_M4
+    new_identity_table_count: 0
   governance_contracts:
     github_secondary_review:
       id: GITHUB_SECONDARY_REVIEW_PROTOCOL_V1

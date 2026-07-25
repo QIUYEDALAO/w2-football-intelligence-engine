@@ -410,6 +410,12 @@ Base SHA: 0cb267baa62abe547802bca27771a8fe1c26a0db
 Started at: 2026-07-26T00:00:00Z
 Owner: Codex
 Phase: IDENTITY_AUTHORITY_INVENTORY_AND_MIGRATION
+M1: DONE (read-only inventory; player identity + saved lineups empty)
+M2A: DONE (team schema+migration, CanonicalIdentityRepository, F5 read-switch,
+  static guards: LEGACY_CROSSWALK_RUNTIME_READS/WRITES/IMPORTS=0,
+  ORM_DECLARATIONS=3 TEMPORARY_ALLOWED_UNTIL_M4, NEW_IDENTITY_TABLE_COUNT=0)
+M3: REAL_MATCH_EVIDENCE = BLOCKED_INSUFFICIENT_REAL_SAVED_LINEUPS
+M4: NOT_AUTHORIZED (drop ORM + tables together; net -3 tables)
 ```
 
 待收敛组：`football_data_team_crosswalks`、`team_identity_crosswalks`、
