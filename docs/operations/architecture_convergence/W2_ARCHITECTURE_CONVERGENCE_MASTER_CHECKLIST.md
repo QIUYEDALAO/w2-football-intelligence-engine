@@ -247,7 +247,11 @@ INFRASTRUCTURE→{API,DASHBOARD,APPS} 守卫绿；全量测试与 04B 守卫绿�
 #### A9. ARCH-P1-04D：pre-LMM 契约迁移与兼容链删除（A2/04C 的后续拆分任务）
 
 ```text
-Status: NOT_STARTED
+Status: IN_PROGRESS
+Branch: codex/arch-p1-04d-pre-lmm-contract-migration
+Base SHA: 9b2dc44bed22f237868d1471cbb8d9950917edcb
+Started at: 2026-07-25T04:30:00Z
+Owner: Codex
 ```
 
 **由来**：A2（04C）经生产 trace 发现三处原定"死代码"实为活跃 pre-LMM 兼容链
@@ -257,6 +261,71 @@ card 形状**（无 `decision_tier` / `market_candidate` / 顶层 `simulation`�
 "不改生产行为"范围，故独立成任务。
 
 **目标**：淘汰 pre-LMM card 形状，之后删除三条兼容链。
+
+##### 写侧 trace 与只读盘点结论（2026-07-25，未改任何数据）
+
+生产 card 写入路径全量 trace：
+
+```text
+canonical 生成器 build_decision_contract_fields
+  （orchestrator:245 / analysis_calculator:6243）
+  → 显式含 decision_tier / data_status / pick / non_pick        → 合规
+手写降级卡 analysis_calculator:2166（frozen 不可用）
+  → decision_tier=NOT_READY 全字段完整                          → 合规
+frozen artifact writer read_model_projection.write_frozen_...
+  → 走注入的 canonical 计算器                                    → 04B 后合规
+缺口：card 顶层 "simulation" 数据字段全库无写入点
+  （投影侧 read_model_projection:344 却读 card.get("simulation")）
+  → live dashboard card 顶层无 simulation，day_view 靠
+    pricing_shadow.simulation 兜底（= 04C correction 1 的活链）
+market 级 analysis_decision / market_candidate 条件写入
+  （analysis_calculator:5296）→ legacy pick 兜底无 candidate 的
+    ANALYSIS_PICK market（= 04C correction 2 的活链）
+```
+
+staging 只读盘点（read_model_checkpoint，8 个 frozen canary artifact）：
+
+```text
+FROZEN_ARTIFACTS_TOTAL              = 8
+SCHEMA_ALL_CANONICAL               = 8/8  (w2.analysis-card.frozen.v1)
+HAS_DECISION_TIER                  = 8/8
+HAS_TOP_LEVEL_SIMULATION           = 8/8
+PRE_LMM_MISSING_FIELD_ARTIFACTS    = 0
+UNREACHABLE_OLD_ARTIFACTS          = 0
+CANNOT_REMATERIALIZE_FAIL_CLOSED   = 0   （无阻塞）
+TOP_SIM == PSHADOW_SIM             = 8/8  (都 10000 / status READY)
+```
+
+**关键结论**：staging 无 pre-LMM 缺字段 artifact（裁决第 2 点三分支当前
+零 fail-closed）；顶层 simulation 与 pricing_shadow simulation **已逐场一致**
+（双写在 frozen 层已存在）；simulation 为**单次计算**（上游 `run_simulation`
+一次，`run_simulation_from_shadow` 仅反序列化重建，非独立计算），满足
+`simulation_compute_count = 1` / `independent_simulation_writers = 0`。
+
+##### 迁移设计（双写 → 对账 → 读切换 → 删旧读）
+
+- M1 双写（不删旧）：analysis_calculator card 组装侧新增写 card 顶层
+  `simulation`（复用 `run_simulation_from_shadow(card.pricing_shadow)` 的同一
+  `SimulationOutput`，与 pricing_shadow 并存；不新增计算、不新增表、不新增
+  运行权威；含 READY / UNAVAILABLE 明确状态）。
+- M2 对账：live + frozen 两层证明
+  `top_level_simulation_hash == pricing_shadow_simulation_hash`；Dashboard/DayView
+  逐场 hash 一致（`scoreline_simulations`、`recommendation.decision_tier`、
+  ANALYSIS_PICK 不提升）。
+- M3 读切换：`day_view._scoreline_simulations` 从 pricing_shadow 切到读顶层
+  `simulation`；证明三条兼容链**零可达**。历史 frozen artifact 按裁决第 2 点：
+  不可达→保留审计；可达且缺字段→用原始输入重新物化 canonical artifact 后
+  切读取指针；无法物化→fail-closed 并阻止删链（staging 当前 0 触发）。
+- M4 删旧读（仅当 M2/M3 全绿且零可达）：删 pricing_shadow 兼容读、
+  `legacy_decision_shim.py`、adapter legacy→V3、`_public_market_is_legacy_pick`/
+  pre-LMM 分支。
+
+##### card contract version + validator（裁决第 4 点）
+
+复用现有 `validate_frozen_analysis_payload` 的 `schema_version` 机制，扩展为
+canonical card contract 校验，至少保证：显式 `decision_tier`；显式
+public-market selection **或**明确无选择状态（`market_candidate` 仍为可选证据，
+禁止伪造）；顶层 `simulation` 字典含 READY/UNAVAILABLE 等明确状态。
 
 **范围**：
 - [ ] 写侧契约补全：`analysis_calculator` 所有生产 card 无条件带完整
