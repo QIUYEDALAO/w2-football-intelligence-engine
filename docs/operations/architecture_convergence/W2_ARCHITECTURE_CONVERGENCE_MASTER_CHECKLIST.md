@@ -252,6 +252,11 @@ Branch: codex/arch-p1-04d-pre-lmm-contract-migration
 Base SHA: 9b2dc44bed22f237868d1471cbb8d9950917edcb
 Started at: 2026-07-25T04:30:00Z
 Owner: Codex
+M1: DONE (Dashboard simulation projection, status-driven pass-through)
+M2: RECONCILIATION_IN_PROGRESS (frozen 8 MATCH; live LEGACY_ONLY=4, MISMATCH=0)
+M3: NOT_STARTED (blocked: live path lacks canonical top-level simulation)
+M4: NOT_STARTED
+04D 整体仍为 IN_PROGRESS，不得标 DONE。
 ```
 
 **由来**：A2（04C）经生产 trace 发现三处原定"死代码"实为活跃 pre-LMM 兼容链
