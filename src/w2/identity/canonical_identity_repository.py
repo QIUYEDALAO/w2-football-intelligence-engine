@@ -102,6 +102,50 @@ class CanonicalIdentityRepository:
             return None
         return valid[0]
 
+    # --- season-agnostic team resolution (F5 historical, no season axis) -----
+
+    def resolve_team_canonical(
+        self, provider: str, provider_team_id: str, competition: str, as_of: datetime
+    ) -> str | None:
+        """Canonical ``w2_team_id`` for a provider team, any season, or ``None``.
+
+        F5 historical resolution has no season axis; the canonical team identity
+        is stable across seasons, so resolve by provider/team/competition valid
+        at ``as_of`` and require a single canonical target (fail closed on
+        ambiguity; never constructs an id).
+        """
+        with Session(self.engine) as session:
+            rows = session.scalars(
+                select(ProviderTeamIdentityCrosswalkModel).where(
+                    ProviderTeamIdentityCrosswalkModel.provider == provider,
+                    ProviderTeamIdentityCrosswalkModel.provider_team_id == provider_team_id,
+                    ProviderTeamIdentityCrosswalkModel.competition_id == competition,
+                    ProviderTeamIdentityCrosswalkModel.identity_status == _TEAM_READY_STATUS,
+                )
+            ).all()
+        valid = {r.w2_team_id for r in rows if _valid_at(r.valid_from, r.valid_to, as_of)}
+        if len(valid) != 1:
+            return None
+        return next(iter(valid))
+
+    def provider_identity_for_team_canonical(
+        self, w2_team_id: str, provider: str, competition: str, as_of: datetime
+    ) -> str | None:
+        """Provider team id for a canonical team, any season, or ``None``."""
+        with Session(self.engine) as session:
+            rows = session.scalars(
+                select(ProviderTeamIdentityCrosswalkModel).where(
+                    ProviderTeamIdentityCrosswalkModel.w2_team_id == w2_team_id,
+                    ProviderTeamIdentityCrosswalkModel.provider == provider,
+                    ProviderTeamIdentityCrosswalkModel.competition_id == competition,
+                    ProviderTeamIdentityCrosswalkModel.identity_status == _TEAM_READY_STATUS,
+                )
+            ).all()
+        valid = {r.provider_team_id for r in rows if _valid_at(r.valid_from, r.valid_to, as_of)}
+        if len(valid) != 1:
+            return None
+        return next(iter(valid))
+
     # --- player -------------------------------------------------------------
     # Only REVIEWED mappings with a non-null canonical_player_id and current
     # validity are model-consumable. Team/competition/season scoping columns

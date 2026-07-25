@@ -11,14 +11,12 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from w2.historical.formal_ah import parse_utc, stable_hash
+from w2.identity import CanonicalIdentityRepository
 from w2.infrastructure.persistence.models import (
     CanonicalHistoricalAhFactModel,
-    FootballDataTeamCrosswalkModel,
     HistoricalMarketSourceSnapshotModel,
     PlayerClubMembershipObservationModel,
-    PlayerIdentityCrosswalkModel,
     RegisteredRosterSnapshotModel,
-    TeamIdentityCrosswalkModel,
     TeamValueAsOfArtifactModel,
 )
 
@@ -47,34 +45,6 @@ class FahDataFoundationRepository:
     def from_url(cls, database_url: str) -> FahDataFoundationRepository:
         return cls(create_engine(database_url, pool_pre_ping=True))
 
-    def import_team_crosswalks(
-        self,
-        rows: Iterable[Mapping[str, Any]],
-    ) -> FahWriteSummary:
-        return self._write(
-            rows,
-            model=TeamIdentityCrosswalkModel,
-            hash_key="crosswalk_hash",
-            natural_key=_team_crosswalk_identity,
-            factory=_team_crosswalk_model,
-            identity_fields=("api_football_team_id", "competition_id", "valid_from"),
-        )
-
-    write_team_crosswalks = import_team_crosswalks
-
-    def import_player_crosswalks(
-        self,
-        rows: Iterable[Mapping[str, Any]],
-    ) -> FahWriteSummary:
-        return self._write(
-            rows,
-            model=PlayerIdentityCrosswalkModel,
-            hash_key="crosswalk_hash",
-            natural_key=_player_crosswalk_identity,
-            factory=_player_crosswalk_model,
-            identity_fields=("api_football_player_id", "competition_id", "valid_from"),
-        )
-
     def import_registered_roster_snapshots(
         self,
         rows: Iterable[Mapping[str, Any]],
@@ -100,19 +70,6 @@ class FahDataFoundationRepository:
         )
 
     write_team_value_artifacts = import_team_value_artifacts
-
-    def import_football_data_team_crosswalks(
-        self,
-        rows: Iterable[Mapping[str, Any]],
-    ) -> FahWriteSummary:
-        return self._write(
-            rows,
-            model=FootballDataTeamCrosswalkModel,
-            hash_key="crosswalk_hash",
-            natural_key=_football_data_team_crosswalk_identity,
-            factory=_football_data_team_crosswalk_model,
-            identity_fields=("football_data_source_identity", "competition_id", "valid_from"),
-        )
 
     def import_canonical_ah_facts(
         self,
@@ -188,27 +145,29 @@ class FahDataFoundationRepository:
         limit: int = 10,
     ) -> dict[str, Any]:
         requested_api_team_ids = {str(item) for item in team_ids}
+        identity = CanonicalIdentityRepository(engine=self.engine)
+        # API-Football provider id -> canonical W2 id (never transfermarkt-as-w2).
         api_to_w2 = {
-            team_id: str(mapping.get("w2_team_id") or mapping.get("transfermarkt_club_id"))
+            team_id: w2
             for team_id in requested_api_team_ids
             if (
-                mapping := self.team_crosswalk_at(
-                api_football_team_id=str(team_id),
-                competition_id=competition_id,
-                as_of=before,
+                w2 := identity.resolve_team_canonical(
+                    "api_football", str(team_id), competition_id, before
                 )
             )
-            is not None
         }
-        approved_w2_ids = {value for value in api_to_w2.values() if value}
-        football_data_crosswalks = self.football_data_crosswalks_for_w2_teams(
-            w2_team_ids=approved_w2_ids,
-            competition_id=competition_id,
-            as_of=before,
-        )
-        approved_source_ids = {
-            str(item["football_data_source_identity"]) for item in football_data_crosswalks
-        }
+        approved_w2_ids = set(api_to_w2.values())
+        # canonical W2 id -> Football-Data provider identity (source of AH facts).
+        football_data_crosswalks = [
+            source_id
+            for w2 in approved_w2_ids
+            if (
+                source_id := identity.provider_identity_for_team_canonical(
+                    w2, "football_data", competition_id, before
+                )
+            )
+        ]
+        approved_source_ids = set(football_data_crosswalks)
         if not approved_w2_ids or not approved_source_ids:
             return {
                 "status": "W2_RUNTIME_F5_NOT_READY",
@@ -258,72 +217,6 @@ class FahDataFoundationRepository:
             "rows": filtered,
             "missing_team_ids": sorted(requested_api_team_ids - set(api_to_w2)),
         }
-
-    def team_crosswalk_at(
-        self,
-        *,
-        api_football_team_id: str,
-        competition_id: str,
-        as_of: datetime,
-    ) -> dict[str, Any] | None:
-        with Session(self.engine) as session:
-            rows = session.scalars(
-                select(TeamIdentityCrosswalkModel).where(
-                    TeamIdentityCrosswalkModel.api_football_team_id == api_football_team_id,
-                    TeamIdentityCrosswalkModel.competition_id == competition_id,
-                    TeamIdentityCrosswalkModel.review_status == "APPROVED",
-                    TeamIdentityCrosswalkModel.valid_from <= as_of,
-                )
-            ).all()
-        valid = [row for row in rows if row.valid_to is None or as_of < row.valid_to]
-        if len(valid) != 1:
-            return None
-        payload = dict(valid[-1].payload)
-        payload.setdefault("w2_team_id", valid[-1].transfermarkt_club_id)
-        return payload
-
-    def football_data_crosswalks_for_w2_teams(
-        self,
-        *,
-        w2_team_ids: Iterable[str],
-        competition_id: str,
-        as_of: datetime,
-    ) -> list[dict[str, Any]]:
-        teams = {str(item) for item in w2_team_ids if str(item)}
-        if not teams:
-            return []
-        with Session(self.engine) as session:
-            rows = session.scalars(
-                select(FootballDataTeamCrosswalkModel).where(
-                    FootballDataTeamCrosswalkModel.competition_id == competition_id,
-                    FootballDataTeamCrosswalkModel.review_status == "APPROVED",
-                    FootballDataTeamCrosswalkModel.valid_from <= as_of,
-                )
-            ).all()
-        valid = [
-            row
-            for row in rows
-            if row.w2_team_id in teams and (row.valid_to is None or as_of < row.valid_to)
-        ]
-        return [dict(row.payload) for row in valid]
-
-    def player_crosswalks_for_roster(
-        self,
-        *,
-        api_football_team_id: str,
-        competition_id: str,
-        as_of: datetime,
-    ) -> list[dict[str, Any]]:
-        with Session(self.engine) as session:
-            rows = session.scalars(
-                select(PlayerIdentityCrosswalkModel).where(
-                    PlayerIdentityCrosswalkModel.api_football_team_id == api_football_team_id,
-                    PlayerIdentityCrosswalkModel.competition_id == competition_id,
-                    PlayerIdentityCrosswalkModel.review_status == "APPROVED",
-                    PlayerIdentityCrosswalkModel.valid_from <= as_of,
-                )
-            ).all()
-        return [dict(row.payload) for row in rows if row.valid_to is None or as_of < row.valid_to]
 
     def registered_roster_at(
         self,
@@ -521,40 +414,6 @@ def _stored_payload(model: Any) -> dict[str, Any]:
     return {}
 
 
-def _team_crosswalk_model(row: Mapping[str, Any]) -> TeamIdentityCrosswalkModel:
-    return TeamIdentityCrosswalkModel(
-        api_football_team_id=str(row.get("api_football_team_id") or ""),
-        transfermarkt_club_id=str(row.get("transfermarkt_club_id") or ""),
-        competition_id=str(row.get("competition_id") or ""),
-        valid_from=_required_time(row.get("valid_from")),
-        valid_to=parse_utc(row.get("valid_to")),
-        review_status=str(row.get("review_status") or ""),
-        source_sha256=str(row.get("source_sha256") or ""),
-        reviewed_by=str(row.get("reviewed_by") or "") or None,
-        reviewed_at=parse_utc(row.get("reviewed_at")),
-        crosswalk_hash=str(row.get("crosswalk_hash") or ""),
-        payload=dict(row),
-    )
-
-
-def _player_crosswalk_model(row: Mapping[str, Any]) -> PlayerIdentityCrosswalkModel:
-    return PlayerIdentityCrosswalkModel(
-        api_football_player_id=str(row.get("api_football_player_id") or ""),
-        transfermarkt_player_id=str(row.get("transfermarkt_player_id") or ""),
-        api_football_team_id=str(row.get("api_football_team_id") or ""),
-        transfermarkt_club_id=str(row.get("transfermarkt_club_id") or ""),
-        competition_id=str(row.get("competition_id") or ""),
-        valid_from=_required_time(row.get("valid_from")),
-        valid_to=parse_utc(row.get("valid_to")),
-        source_sha256=str(row.get("source_sha256") or ""),
-        reviewed_by=str(row.get("reviewed_by") or "") or None,
-        reviewed_at=parse_utc(row.get("reviewed_at")),
-        review_status=str(row.get("review_status") or ""),
-        crosswalk_hash=str(row.get("crosswalk_hash") or ""),
-        payload=dict(row),
-    )
-
-
 def _registered_roster_model(row: Mapping[str, Any]) -> RegisteredRosterSnapshotModel:
     snapshot_date = _required_time(row.get("snapshot_date") or row.get("observed_at"))
     payload = dict(row)
@@ -593,32 +452,6 @@ def _team_value_model(row: Mapping[str, Any]) -> TeamValueAsOfArtifactModel:
         status=str(row.get("status") or ""),
         artifact_hash=str(row.get("artifact_hash") or ""),
         payload=dict(row),
-    )
-
-
-def _football_data_team_crosswalk_model(row: Mapping[str, Any]) -> FootballDataTeamCrosswalkModel:
-    payload = dict(row)
-    crosswalk_hash = str(row.get("crosswalk_hash") or stable_hash(_football_data_team_payload(row)))
-    payload.setdefault("schema_version", "FootballDataTeamCrosswalkV1")
-    payload.setdefault("crosswalk_hash", crosswalk_hash)
-    return FootballDataTeamCrosswalkModel(
-        football_data_source_identity=str(row.get("football_data_source_identity") or ""),
-        football_data_team_name=str(row.get("football_data_team_name") or ""),
-        league=str(row.get("league") or row.get("competition_id") or ""),
-        competition_id=str(row.get("competition_id") or ""),
-        season_coverage=[str(item) for item in _list(row.get("season_coverage"))],
-        w2_team_id=str(row.get("w2_team_id") or ""),
-        api_football_team_ids=[str(item) for item in _list(row.get("api_football_team_ids"))],
-        valid_from=_required_time(row.get("valid_from")),
-        valid_to=parse_utc(row.get("valid_to")),
-        evidence=dict(row.get("evidence") or {}),
-        source_hashes=[str(item) for item in _list(row.get("source_hashes"))],
-        candidate_generation_method=str(row.get("candidate_generation_method") or ""),
-        review_status=str(row.get("review_status") or "REVIEW_REQUIRED"),
-        reviewed_by=str(row.get("reviewed_by") or "") or None,
-        reviewed_at=parse_utc(row.get("reviewed_at")),
-        crosswalk_hash=crosswalk_hash,
-        payload=payload,
     )
 
 
