@@ -39,17 +39,16 @@ and is no longer a prerequisite for any architecture task. Lineup remains
 Execute the P1 tasks strictly in the order recorded in the master checklist:
 
 ```text
-ARCH-P1-04C -> ARCH-P1-04D -> ARCH-P1-03 -> ARCH-P1-05
+ARCH-P1-04D -> ARCH-P1-03 -> ARCH-P1-05
   -> ARCH-P1-06
   -> ARCH-P1-07 -> ARCH-P1-08
 ```
 
-The current task is **ARCH-P1-04C** — dead-code cleanup plus the infrastructure
-dependency guard. Its contract-layer deletion was split out to
-**ARCH-P1-04D** (pre-LMM contract migration then compatibility-chain removal)
-after production traces proved three targets are active chains. Until
-ARCH-P1-04C is externally accepted and closed, ARCH-P1-04D and ARCH-P1-03 do
-not start. The checklist owns its PR number, status and CI evidence.
+The current task is **ARCH-P1-04D** (pre-LMM contract migration then
+compatibility-chain removal), which ARCH-P1-04C split out after production
+traces proved three targets are active chains. It stays `NOT_STARTED` until the
+ARCH-P1-04C closure PR merges and main POST passes. The checklist owns each
+task's PR number, status and CI evidence.
 
 `ARCH-P1-05` carries a pre-approved conditional bring-forward: if the
 `ARCH-P1-04` series' staging acceptance keeps failing because of on-server

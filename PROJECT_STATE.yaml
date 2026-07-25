@@ -62,6 +62,7 @@ architecture_convergence:
     ARCH-GOVERNANCE-01: DONE
     ARCH-HYGIENE-01: DONE
     ARCH-HYGIENE-02: DONE
+    ARCH-P1-04C: DONE
   superseded:
     ARCH-P2-01: ARCH-HYGIENE-02
   p0_acceptance: P0_ARCHITECTURE_CONVERGENCE_PASS
@@ -85,11 +86,12 @@ architecture_convergence:
     - ARCH-P2-04
     - ARCH-P2-06
     - ARCH-P2-05
-  next_task: ARCH-P1-04C
+  next_task: ARCH-P1-04D
   current_task:
     id: ARCH-P1-04C
-    status: IMPLEMENTED_PENDING_ACCEPTANCE
+    status: DONE
     pull_request: 395
+    merge_sha: 6eeb411747a1cef624ff4780dbad87d4cec4b26d
     started_at: "2026-07-24T21:00:00Z"
     baseline_sha: c09c7d9130f709d488f87e5369735a8bde0584b4
     branch: codex/arch-p1-04c-contract-dead-code-cleanup
@@ -164,7 +166,7 @@ architecture_convergence:
         closure_exact_head: GITHUB_PR_EXACT_HEAD
         path: SEPARATE_CLOSURE_PR_AFTER_IMPLEMENTATION_MERGE
         requires_full_merge_sha: true
-        next_task_blocked_until_main_post_pass: ARCH-P1-04C
+        next_task_blocked_until_main_post_pass: ARCH-P1-04D
       bootstrap_required_checks:
         - verify
         - staging-parity
@@ -187,7 +189,8 @@ architecture_convergence:
       implementation_in_current_task: false
   queued_tasks:
     ARCH-GOVERNANCE-01: DONE
-    ARCH-P1-04C: NOT_STARTED
+    ARCH-P1-04C: DONE
+    ARCH-P1-04D: NOT_STARTED
   pre_approved_order_change:
     task: ARCH-P1-05
     condition: STAGING_ONSITE_BUILD_REPEATEDLY_FAILS
