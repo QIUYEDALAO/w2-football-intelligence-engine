@@ -98,14 +98,14 @@ architecture_convergence:
     branch: codex/arch-p1-04d-pre-lmm-contract-migration
     baseline_sha: 9b2dc44bed22f237868d1471cbb8d9950917edcb
     started_at: "2026-07-25T04:30:00Z"
-    phase: M3_READ_AUTHORITY_SWITCH
+    phase: M4_PHYSICAL_DELETION
     m1_status: DONE
     m2_status: DONE
     m2_remediation_status: DONE
-    m3_status: IN_PROGRESS
-    m3_complete: false
-    m3_ready: false
-    m3_blocker: REMAINING_LEGACY_CHAIN_REACHABILITY_NOT_PROVEN
+    m3_status: DONE
+    m3_complete: true
+    m3_ready: true
+    m3_blocker: null
     simulation_read_authority: CANONICAL_TOP_LEVEL_CARD_SIMULATION
     public_pricing_shadow_simulation_reads: 0
     reachable_legacy_only: 0
@@ -113,8 +113,9 @@ architecture_convergence:
     legacy_pick_runtime_reachable: 0
     legacy_shim_runtime_reachable: 0
     legacy_adapter_runtime_reachable: 0
-    m4_status: NOT_STARTED
-    compatibility_chains_deleted: false
+    m4_status: IMPLEMENTED_PENDING_ACCEPTANCE
+    legacy_decision_contract_code: 0
+    compatibility_chains_deleted: true
     predecessor: ARCH-P1-04C
     arch_p1_03_status: NOT_STARTED
   governance_contracts:

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import ast
+import inspect
 from pathlib import Path
 from typing import Any, cast
 
 from w2.dashboard.day_view import _simulation_projection
-from w2.domain import decision_adapter
 from w2.prematch.analysis_calculator import ReadModelService
+from w2.prematch.simulation_reconciliation import canonical_public_simulation
 from w2.tracking.formal_results import _simulation_evidence
 
 _ROW = {
@@ -41,44 +41,32 @@ def _canonical_card(**overrides: Any) -> dict[str, Any]:
     return card
 
 
-def _call_names() -> dict[str, list[str]]:
+def _legacy_decision_contract_code_count() -> int:
     root = Path(__file__).resolve().parents[2] / "src"
-    callers: dict[str, list[str]] = {
-        "_public_market_is_legacy_pick": [],
-        "legacy_decision_view": [],
+    forbidden = {
+        "_legacy_decision_tier",
+        "_public_market_is_legacy_pick",
+        "legacy_decision_tier",
+        "legacy_decision_view",
+        "legacy_formal",
+        "run_simulation_from_shadow",
     }
-    for path in root.rglob("*.py"):
-        relative = path.relative_to(root).as_posix()
-        if relative == "w2/domain/legacy_decision_shim.py":
-            continue
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            name = node.func.id if isinstance(node.func, ast.Name) else None
-            if name in callers:
-                callers[name].append(relative)
-    return callers
+    count = int((root / "w2/domain/legacy_decision_shim.py").exists())
+    return count + sum(
+        source.count(symbol)
+        for path in root.rglob("*.py")
+        for source in (path.read_text(encoding="utf-8"),)
+        for symbol in forbidden
+    )
 
 
-def test_legacy_pick_and_shim_have_zero_public_runtime_callers() -> None:
-    assert _call_names() == {
-        "_public_market_is_legacy_pick": [],
-        "legacy_decision_view": [],
-    }
+def test_legacy_decision_contract_code_is_zero() -> None:
+    code_count = _legacy_decision_contract_code_count()
+    assert code_count == 0, f"LEGACY_DECISION_CONTRACT_CODE = {code_count}"
+    assert "pricing_shadow" not in inspect.getsource(canonical_public_simulation)
 
 
-def test_current_frozen_fallback_dashboard_and_formal_skip_legacy_adapter(
-    monkeypatch,
-) -> None:
-    activations = 0
-
-    def legacy_adapter_trap(**_: Any):
-        nonlocal activations
-        activations += 1
-        raise AssertionError("legacy adapter reached")
-
-    monkeypatch.setattr(decision_adapter, "_legacy_decision_tier", legacy_adapter_trap)
+def test_current_frozen_fallback_dashboard_and_formal_use_canonical_contract() -> None:
     service = _service()
 
     current = service._dashboard_card_from_matchday(
@@ -111,8 +99,6 @@ def test_current_frozen_fallback_dashboard_and_formal_skip_legacy_adapter(
     for card in (current, fallback, frozen):
         _simulation_projection(card)
         _simulation_evidence(card)
-
-    assert activations == 0
 
 
 def test_legacy_noise_does_not_change_canonical_public_business_fields() -> None:

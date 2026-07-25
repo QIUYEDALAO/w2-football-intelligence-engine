@@ -70,13 +70,8 @@ def reconcile_simulation(card: Mapping[str, Any]) -> str:
 
 
 def canonical_public_simulation(card: Mapping[str, Any]) -> Mapping[str, Any] | None:
-    """Return only the canonical top-level simulation, failing closed on drift."""
+    """Return only the canonical top-level simulation."""
     identity = str(card.get("fixture_id") or "UNKNOWN")
-    reconciliation = reconcile_simulation(card)
-    if reconciliation in {LEGACY_ONLY, MISMATCH}:
-        raise PublicSimulationReadViolation(
-            f"PUBLIC_SIMULATION_INVALID:{identity}:{reconciliation}"
-        )
     simulation = card.get("simulation")
     if simulation is None or simulation == {}:
         return None

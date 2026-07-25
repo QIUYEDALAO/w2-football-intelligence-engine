@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import pytest
-
 from w2.dashboard.scorelines import scoreline_reference_from_card
-from w2.prematch.simulation_reconciliation import PublicSimulationReadViolation
 from w2.strategy.simulate import SimulationInputs, run_simulation
 
 
@@ -353,5 +350,4 @@ def test_scoreline_reference_direction_top3_filters_totals_pick() -> None:
 
 def test_scoreline_reference_returns_none_without_ready_simulation() -> None:
     card = {"pricing_shadow": {"simulation": {"status": "WATCH"}}}
-    with pytest.raises(PublicSimulationReadViolation, match="LEGACY_ONLY"):
-        scoreline_reference_from_card(card)
+    assert scoreline_reference_from_card(card) is None

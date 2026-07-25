@@ -67,23 +67,20 @@ def test_public_reader_uses_canonical_top_level_for_match_and_top_only() -> None
     assert canonical_public_simulation({"simulation": simulation}) == simulation
 
 
-@pytest.mark.parametrize(
-    ("card", "reason"),
-    [
-        ({"pricing_shadow": {"simulation": _sim()}}, LEGACY_ONLY),
-        (
+def test_public_reader_ignores_removed_shadow_compatibility_source() -> None:
+    top = _sim(seed=1)
+    assert canonical_public_simulation({"pricing_shadow": {"simulation": _sim()}}) is None
+    assert (
+        canonical_public_simulation(
             {
-                "simulation": _sim(seed=1),
+                "simulation": top,
                 "pricing_shadow": {"simulation": _sim(seed=2)},
-            },
-            MISMATCH,
-        ),
-        ({"simulation": {"status": "PENDING"}}, "UNKNOWN_STATE"),
-    ],
-)
-def test_public_reader_fails_closed_on_legacy_mismatch_or_unknown(
-    card: dict[str, object],
-    reason: str,
-) -> None:
-    with pytest.raises(PublicSimulationReadViolation, match=reason):
-        canonical_public_simulation(card)
+            }
+        )
+        == top
+    )
+
+
+def test_public_reader_fails_closed_on_unknown_canonical_state() -> None:
+    with pytest.raises(PublicSimulationReadViolation, match="UNKNOWN_STATE"):
+        canonical_public_simulation({"simulation": {"status": "PENDING"}})

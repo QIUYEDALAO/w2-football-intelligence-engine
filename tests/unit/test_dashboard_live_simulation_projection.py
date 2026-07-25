@@ -9,8 +9,6 @@ from __future__ import annotations
 import copy
 from typing import Any, cast
 
-import pytest
-
 from w2.dashboard.day_view import _simulation_projection
 from w2.prematch.analysis_calculator import ReadModelService
 from w2.prematch.read_model_projection import canonical_sha256
@@ -18,7 +16,6 @@ from w2.prematch.simulation_reconciliation import (
     LEGACY_ONLY,
     MATCH,
     MISMATCH,
-    PublicSimulationReadViolation,
     reconcile_simulation,
 )
 
@@ -74,20 +71,24 @@ def test_live_card_passes_through_top_level_simulation_and_matches() -> None:
     assert reconcile_simulation(out) == MATCH
 
 
-def test_live_card_fails_closed_on_mismatch() -> None:
+def test_live_card_ignores_shadow_mismatch() -> None:
     top = _sim(seed=1)
     legacy = _sim(seed=2)
     card = _make_card(simulation=dict(top), pricing_shadow={"simulation": dict(legacy)})
 
-    with pytest.raises(PublicSimulationReadViolation, match=MISMATCH):
-        _project(card)
+    out = _project(card)
+
+    assert out["simulation"] == top
+    assert reconcile_simulation(out) == MISMATCH
 
 
-def test_live_card_fails_closed_when_only_pricing_shadow() -> None:
+def test_live_card_does_not_restore_shadow_only_simulation() -> None:
     card = _make_card(simulation=None, pricing_shadow={"simulation": _sim()})
 
-    with pytest.raises(PublicSimulationReadViolation, match=LEGACY_ONLY):
-        _project(card)
+    out = _project(card)
+
+    assert out["simulation"] is None
+    assert reconcile_simulation(out) == LEGACY_ONLY
 
 
 def test_live_card_preserves_insufficient_inputs_and_daytview_maps_unavailable() -> None:

@@ -4,11 +4,8 @@ import ast
 import inspect
 from pathlib import Path
 
-import pytest
-
 from w2.dashboard import day_view, scorelines
 from w2.prematch import analysis_calculator
-from w2.prematch.simulation_reconciliation import PublicSimulationReadViolation
 from w2.tracking import formal_results
 
 
@@ -47,13 +44,15 @@ def test_legacy_shadow_deserializer_has_no_runtime_callers() -> None:
     assert callers == []
 
 
-def test_formal_simulation_evidence_fails_closed_on_legacy_only() -> None:
-    with pytest.raises(PublicSimulationReadViolation, match="LEGACY_ONLY"):
+def test_formal_simulation_evidence_ignores_removed_shadow_source() -> None:
+    assert (
         formal_results._simulation_evidence(
             {
-                "fixture_id": "formal-legacy",
+                "fixture_id": "formal-without-canonical-simulation",
                 "pricing_shadow": {
                     "simulation": {"status": "READY", "simulations": 10000}
                 },
             }
         )
+        is None
+    )

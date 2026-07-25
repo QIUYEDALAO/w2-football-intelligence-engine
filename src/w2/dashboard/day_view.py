@@ -226,9 +226,8 @@ def _simulation_projection(card: Mapping[str, Any]) -> dict[str, Any]:
     """Project the canonical top-level ``card["simulation"]`` by its real status.
 
     The only source is the top-level simulation produced upstream by
-    analysis_calculator; this never backfills or rebuilds from
-    ``pricing_shadow.simulation`` and never computes a simulation. When the
-    source status is ``READY`` the inner object is passed through untouched as a
+    analysis_calculator; this never backfills, rebuilds, or computes a
+    simulation. When the source status is ``READY`` the inner object is passed through as a
     canonical full object, so ``canonical_sha256`` of the projected inner object
     equals that of the source. Other states carry no payload; an unknown or
     missing source status fails closed.

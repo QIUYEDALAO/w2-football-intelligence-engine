@@ -35,9 +35,28 @@ def _fields(
         "quote_identity_audit": _complete_quote_audit(),
     }
     card_payload.update(card or {})
+    market_payload = dict(market or {})
+    if not any(
+        payload.get("decision_tier")
+        for payload in (card_payload, market_payload, recommendation or {})
+    ):
+        decision = str(
+            market_payload.get("decision")
+            or market_payload.get("analysis_decision")
+            or ""
+        ).upper()
+        tier = {
+            "ANALYSIS_PICK": "ANALYSIS_PICK",
+            "PICK": "ANALYSIS_PICK",
+            "FORMAL": "ANALYSIS_PICK",
+            "NO_EDGE": "SKIP",
+            "WATCH": "WATCH",
+        }.get(decision)
+        if tier is not None:
+            market_payload["decision_tier"] = tier
     return build_decision_contract_fields(
         card=card_payload,
-        market=market,
+        market=market_payload or None,
         recommendation=recommendation,
         readiness=readiness or {"status": "PARTIAL", "blockers": []},
         environment=environment,
@@ -529,17 +548,22 @@ def test_recommend_requires_prerequisites_before_lock_eligible() -> None:
     assert with_evidence["lock_eligible"] is False
 
 
-def test_legacy_formal_is_analysis_pick_with_compatibility_marker() -> None:
+def test_canonical_analysis_pick_has_no_compatibility_marker() -> None:
     fields = _fields(
-        card={"formal_recommendation": True, "recommendation_id": "rec-legacy"},
-        market={"market": "ASIAN_HANDICAP", "line": "-0.25", "odds": "1.95"},
-        recommendation={"tier": "FORMAL", "formal_recommendation": True},
+        card={"decision_tier": "ANALYSIS_PICK"},
+        market={
+            "decision_tier": "ANALYSIS_PICK",
+            "market": "ASIAN_HANDICAP",
+            "tendency": "HOME",
+            "line": "-0.25",
+            "odds": "1.95",
+        },
         readiness={"status": "READY", "blockers": []},
     )
 
     assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
-    assert fields["legacy_formal"] is True
-    assert fields["recommendation_id"] == "rec-legacy"
+    assert "legacy_formal" not in fields
+    assert fields["recommendation_id"] is None
 
 
 def test_adapter_outputs_valid_decision_card_shapes() -> None:

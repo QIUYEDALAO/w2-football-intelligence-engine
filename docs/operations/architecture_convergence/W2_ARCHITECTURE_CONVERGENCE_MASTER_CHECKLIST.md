@@ -258,10 +258,11 @@ M1: DONE (Dashboard simulation projection, status-driven pass-through)
 M2: DONE (frozen 8 MATCH; live LEGACY_ONLY=4 blocker found, MISMATCH=0)
 M2_REMEDIATION: DONE (live _dashboard_card_from_matchday passes through canonical
   top-level simulation; live LIVE_MATCH=4, LEGACY_ONLY=0, MISMATCH=0)
-M3: IN_PROGRESS (canonical simulation read authority implemented;
+M3: DONE (canonical simulation read authority implemented;
   LEGACY_PICK_RUNTIME_REACHABLE=0; LEGACY_SHIM_RUNTIME_REACHABLE=0;
-  LEGACY_ADAPTER_RUNTIME_REACHABLE=0; pending external M3 acceptance)
-M4: NOT_STARTED
+  LEGACY_ADAPTER_RUNTIME_REACHABLE=0)
+M4: IMPLEMENTED_PENDING_ACCEPTANCE (five retained compatibility components
+  physically deleted; LEGACY_DECISION_CONTRACT_CODE=0)
 04D 整体仍为 IN_PROGRESS，不得标 DONE。
 ```
 
@@ -362,20 +363,20 @@ selection **或**明确无选择状态（`market_candidate` 仍为可选证据�
 的对账守卫接入 projection 透传路径，不追溯改写已固化的 frozen.v1 payload。
 
 **范围**：
-- [ ] canonical card 契约（写/投影侧 card 无条件具备三项，validator 强制）：
+- [x] canonical card 契约（写/投影侧 card 无条件具备三项，validator 强制）：
       1. 显式 `decision_tier`；
       2. 显式 public-market selection **或**明确 `NONE` 状态；
       3. 顶层 `simulation` 字典含明确 `READY` / `UNAVAILABLE` 状态。
       `market_candidate` **仍为可选证据，禁止写成必需字段、禁止伪造**。
-- [ ] 对账：迁移前后 Dashboard/DayView 语义逐场 hash 一致（含
+- [x] 对账：迁移前后 Dashboard/DayView 语义逐场 hash 一致（含
       `scoreline_simulations`、`recommendation.decision_tier`、ANALYSIS_PICK
       不提升语义）。
-- [ ] 读切换：确认 pre-LMM 兼容链不再可达（无 card 走 legacy 分支）。
-- [ ] 删除三条兼容链：`legacy_decision_shim.py` 整删；`decision_adapter.py`
+- [x] 读切换：确认 pre-LMM 兼容链不再可达（无 card 走 legacy 分支）。
+- [x] 删除三条兼容链：`legacy_decision_shim.py` 整删；`decision_adapter.py`
       legacy→V3 转换删；`_public_market_is_legacy_pick`/pre-LMM 分支删；
       `day_view` `pricing_shadow` 兼容读删。
-- [ ] 更新依赖该三链的测试为现代契约形状。
-- [ ] 静态守卫：`LEGACY_DECISION_CONTRACT_CODE = 0`。
+- [x] 更新依赖该三链的测试为现代契约形状。
+- [x] 静态守卫：`LEGACY_DECISION_CONTRACT_CODE = 0`。
 
 **不做**：不改模型数学；不改 EV/门槛/安全开关。
 **验收**：`LEGACY_DECISION_CONTRACT_CODE = 0`；pre-LMM 兼容链全库零可达；

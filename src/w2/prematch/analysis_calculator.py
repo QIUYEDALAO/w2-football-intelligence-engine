@@ -252,11 +252,6 @@ def _public_market_is_primary_pick(market: dict[str, Any]) -> bool:
     return role in {"", "PRIMARY"}
 
 
-def _public_market_is_legacy_pick(market: dict[str, Any]) -> bool:
-    decision = str(market.get("decision") or market.get("analysis_decision") or "").upper()
-    return decision in {"PICK", "ANALYSIS_PICK", "RECOMMEND"}
-
-
 def _truthy_flag(value: Any) -> bool:
     if isinstance(value, bool):
         return value
@@ -401,12 +396,6 @@ def parse_provider_time(value: Any) -> datetime | None:
 def release_env(name: str, default: str = "UNKNOWN") -> str:
     value = os.getenv(name)
     return value if value else default
-
-
-def run_simulation_from_shadow(payload: Any) -> SimulationOutput | None:
-    if not isinstance(payload, dict):
-        return None
-    return _simulation_output_from_mapping(payload.get("simulation"))
 
 
 def run_simulation_from_card(card: dict[str, Any]) -> SimulationOutput | None:
