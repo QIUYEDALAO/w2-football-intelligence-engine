@@ -451,3 +451,96 @@ def test_day_view_reads_normalized_data_readiness_from_contract() -> None:
         "source": "w2.readiness.data_gate.v1",
         "missing_fields": ["lineups"],
     }
+
+
+# --- ARCH-P1-04D M1: Dashboard simulation projection ---
+
+
+def test_day_view_projects_canonical_top_level_simulation() -> None:
+    payload = _payload_with_contract(_pick_contract())
+    simulation = {"status": "READY", "simulations": 10000, "seed": 7, "model_version": "sim.v1"}
+    payload["all"][0]["simulation"] = deepcopy(simulation)
+
+    card = build_dashboard_day_view(payload, environment="staging")["cards"][0]
+
+    assert card["simulation"] == {"status": "READY", "simulation": simulation}
+
+
+def test_day_view_simulation_unavailable_when_only_pricing_shadow() -> None:
+    payload = _payload_with_contract(_pick_contract())
+    payload["all"][0]["pricing_shadow"] = {
+        "simulation": {"status": "READY", "simulations": 10000}
+    }
+
+    card = build_dashboard_day_view(payload, environment="staging")["cards"][0]
+
+    # Top-level projection is UNAVAILABLE: it never reverse-rebuilds from
+    # pricing_shadow. The legacy scoreline count still reads pricing_shadow
+    # (fallback retained in M1).
+    assert card["simulation"] == {"status": "UNAVAILABLE", "simulation": None}
+    assert card["scoreline_simulations"] == 10000
+
+
+def test_day_view_declares_analysis_card_contract_version() -> None:
+    from w2.dashboard.day_view import ANALYSIS_CARD_CONTRACT_VERSION
+
+    payload = _payload_with_contract(_pick_contract())
+    card = build_dashboard_day_view(payload, environment="staging")["cards"][0]
+
+    assert ANALYSIS_CARD_CONTRACT_VERSION == "w2.analysis-card.contract.v1"
+    assert card["analysis_card_contract_version"] == "w2.analysis-card.contract.v1"
+
+
+def test_day_view_does_not_reverse_rebuild_or_compute_simulation() -> None:
+    import inspect
+
+    source = inspect.getsource(day_view)
+    assert "run_simulation_from_shadow" not in source
+    assert "run_simulation(" not in source
+
+
+def test_projection_simulation_reconciles_with_source_hash() -> None:
+    from w2.prematch.read_model_projection import canonical_sha256
+
+    payload = _payload_with_contract(_pick_contract())
+    simulation = {"status": "READY", "simulations": 10000, "seed": 7}
+    payload["all"][0]["simulation"] = deepcopy(simulation)
+
+    card = build_dashboard_day_view(payload, environment="staging")["cards"][0]
+    projected = card["simulation"]["simulation"]
+
+    assert canonical_sha256(projected) == canonical_sha256(simulation)
+
+
+def test_validate_projection_card_fails_closed_on_bad_simulation_status() -> None:
+    from w2.dashboard.day_view import (
+        ProjectionCardContractViolation,
+        _validate_projection_card,
+    )
+
+    projected = {
+        "fixture_id": "fixture-x",
+        "decision_tier": "WATCH",
+        "pick": None,
+        "non_pick": {"reason_code": "X"},
+        "simulation": {"status": "PENDING", "simulation": None},
+    }
+    with pytest.raises(ProjectionCardContractViolation, match="simulation_status"):
+        _validate_projection_card(projected)
+
+
+def test_validate_projection_card_fails_closed_without_selection() -> None:
+    from w2.dashboard.day_view import (
+        ProjectionCardContractViolation,
+        _validate_projection_card,
+    )
+
+    projected = {
+        "fixture_id": "fixture-y",
+        "decision_tier": "WATCH",
+        "pick": None,
+        "non_pick": None,
+        "simulation": {"status": "UNAVAILABLE", "simulation": None},
+    }
+    with pytest.raises(ProjectionCardContractViolation, match="market_selection"):
+        _validate_projection_card(projected)

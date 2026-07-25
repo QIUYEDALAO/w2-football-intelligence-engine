@@ -332,7 +332,9 @@ W2_ARCH_P1_04D_FROZEN_ARTIFACT_INVENTORY.md。）
 - M3 读切换：`day_view._scoreline_simulations` 从 pricing_shadow 切到读顶层
   `simulation`；证明三条兼容链**零可达**。历史 frozen artifact 按裁决第 2 点：
   不可达→保留审计；可达且缺字段→用原始输入重新物化 canonical artifact 后
-  切读取指针；无法物化→fail-closed 并阻止删链（staging 当前 0 触发）。
+  切读取指针；无法物化→fail-closed 并阻止删链。可达性统一为
+  `REACHABILITY_NOT_YET_EVALUATED = M3_GATE`，M3 须先补真实 public-reader /
+  current-fixture 可达性查询后再据结果走三分支，不得预设任何触发数。
 - M4 删旧读（仅当 M2/M3 全绿且零可达）：删 pricing_shadow 兼容读、
   `legacy_decision_shim.py`、adapter legacy→V3、`_public_market_is_legacy_pick`/
   pre-LMM 分支。

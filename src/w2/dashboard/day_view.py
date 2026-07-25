@@ -11,6 +11,11 @@ from w2.domain.enums import DataStatus, DecisionTier, LifecycleStatus
 from w2.domain.environment_policy import build_environment_policy_stamp
 
 CARD_SOURCE_CONTRACT = "decision_contract"
+ANALYSIS_CARD_CONTRACT_VERSION = "w2.analysis-card.contract.v1"
+
+
+class ProjectionCardContractViolation(RuntimeError):
+    """Raised when a canonical projection card violates the M1 contract."""
 
 
 def build_dashboard_day_view(
@@ -97,7 +102,9 @@ def _day_view_card(card: Mapping[str, Any]) -> dict[str, Any]:
         fixture_id=card.get("fixture_id"),
         card=card,
     )
-    return _contract_card(card, contract)
+    projected = _contract_card(card, contract)
+    _validate_projection_card(projected)
+    return projected
 
 
 def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict[str, Any]:
@@ -119,6 +126,8 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
     return {
         **_fixture_fields(card),
         "source": CARD_SOURCE_CONTRACT,
+        "analysis_card_contract_version": ANALYSIS_CARD_CONTRACT_VERSION,
+        "simulation": _simulation_projection(card),
         "decision_tier": decision_tier,
         "data_status": data_status,
         "lifecycle_status": lifecycle_status,
@@ -205,6 +214,47 @@ def _scoreline_simulations(card: Mapping[str, Any]) -> int | None:
     if isinstance(value, str) and value.isdigit() and int(value) > 0:
         return int(value)
     return None
+
+
+def _simulation_projection(card: Mapping[str, Any]) -> dict[str, Any]:
+    """Pass through the canonical top-level ``card["simulation"]``.
+
+    The only source is the top-level simulation produced upstream by
+    analysis_calculator. This never rebuilds the object from
+    ``pricing_shadow.simulation`` and never computes a simulation, so the
+    projected object is byte-identical to the source card simulation.
+    """
+    simulation = card.get("simulation")
+    if isinstance(simulation, Mapping) and simulation:
+        return {"status": "READY", "simulation": _mapping_copy(simulation)}
+    return {"status": "UNAVAILABLE", "simulation": None}
+
+
+def _validate_projection_card(projected: Mapping[str, Any]) -> None:
+    """Fail closed when a canonical projection card breaks the M1 contract.
+
+    Requires: explicit ``decision_tier``; an explicit public-market selection
+    (``pick``) or an explicit no-selection state (``non_pick``); and a
+    top-level ``simulation`` whose status is exactly ``READY`` or
+    ``UNAVAILABLE``. ``market_candidate`` stays optional evidence.
+    """
+    identity = _optional_text(projected.get("fixture_id")) or "UNKNOWN"
+    if not _optional_text(projected.get("decision_tier")):
+        raise ProjectionCardContractViolation(
+            f"PROJECTION_CARD_INVALID:{identity}:decision_tier"
+        )
+    if projected.get("pick") is None and projected.get("non_pick") is None:
+        raise ProjectionCardContractViolation(
+            f"PROJECTION_CARD_INVALID:{identity}:market_selection"
+        )
+    simulation = projected.get("simulation")
+    if not isinstance(simulation, Mapping) or simulation.get("status") not in {
+        "READY",
+        "UNAVAILABLE",
+    }:
+        raise ProjectionCardContractViolation(
+            f"PROJECTION_CARD_INVALID:{identity}:simulation_status"
+        )
 
 
 def _market_probabilities(card: Mapping[str, Any]) -> dict[str, Any]:
