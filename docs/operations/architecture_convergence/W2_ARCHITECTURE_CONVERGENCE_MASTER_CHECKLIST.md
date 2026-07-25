@@ -403,7 +403,13 @@ selection **或**明确无选择状态（`market_candidate` 仍为可选证据�
 #### A3. ARCH-P1-03：球队身份 Crosswalk 收敛
 
 ```text
-Status: NOT_STARTED
+Status: IN_PROGRESS
+Branch: codex/arch-p1-03-team-identity-crosswalk
+PR: #400
+Base SHA: 0cb267baa62abe547802bca27771a8fe1c26a0db
+Started at: 2026-07-26T00:00:00Z
+Owner: Codex
+Phase: IDENTITY_AUTHORITY_INVENTORY_AND_MIGRATION
 ```
 
 待收敛组：`football_data_team_crosswalks`、`team_identity_crosswalks`、
