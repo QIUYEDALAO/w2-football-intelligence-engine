@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from w2.domain.factor_registry import factor_policy, is_scoring_factor, load_factor_registry
+from w2.domain.factor_registry import factor_policy, load_factor_registry
 from w2.lineups.intelligence import LineupGate
 from w2.pricing.team_score import independent_team_scores
 
@@ -15,15 +15,6 @@ def _factor(factor_id: str, source_group: str) -> dict[str, object]:
         "source_group": source_group,
         "is_independent_signal": True,
     }
-
-
-def test_legacy_f10_is_retired_and_cannot_score() -> None:
-    assert factor_policy("F10_LINEUPS_INJURIES")["lifecycle"] == "RETIRED"
-    assert not is_scoring_factor("F10_LINEUPS_INJURIES")
-    shadow = independent_team_scores(
-        feature_contributions=[_factor("F10_LINEUPS_INJURIES", "lineup")]
-    )
-    assert shadow["factor_count_used"] == 0
 
 
 def test_lmm_is_gate_explanation_only_and_never_adds_evidence_group() -> None:

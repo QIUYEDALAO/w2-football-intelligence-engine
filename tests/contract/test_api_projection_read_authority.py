@@ -169,6 +169,23 @@ def test_decision_contract_validator_is_pure_domain() -> None:
     assert violations == []
 
 
+def test_infrastructure_does_not_import_upper_layers() -> None:
+    """DEPENDENCY_CONTRACT_V1: infrastructure sits below api/dashboard/apps.
+
+    Enforces the mandatory INFRASTRUCTURE -> {API, DASHBOARD, APPS} edges of the
+    layer order. Reuses the AST import reader; the tree is clean today, so this
+    only fixes the boundary in place.
+    """
+    forbidden = ("w2.api", "w2.dashboard", "apps")
+    violations = sorted(
+        f"{path}:{name}"
+        for path in Path("src/w2/infrastructure").rglob("*.py")
+        for name in _imports(path)
+        if any(name == pkg or name.startswith(f"{pkg}.") for pkg in forbidden)
+    )
+    assert violations == []
+
+
 def test_predeploy_projection_smoke_uses_write_side_calculator() -> None:
     source = Path("scripts/run_predeploy_e2e_smoke.sh").read_text(encoding="utf-8")
     assert (

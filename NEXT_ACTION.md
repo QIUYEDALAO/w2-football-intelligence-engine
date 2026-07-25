@@ -23,7 +23,7 @@ task status that the checklist already owns.
 Feature development is frozen. The only work in flight is the architecture
 convergence programme.
 
-Architecture convergence is complete through `ARCH-P1-04B`. The master
+Architecture convergence is complete through `ARCH-GOVERNANCE-01`. The master
 checklist owns all completion evidence and repository/staging coordinates.
 
 W2_DYNAMIC_PREMATCH_V1 is `locally_verified`.
@@ -39,14 +39,17 @@ and is no longer a prerequisite for any architecture task. Lineup remains
 Execute the P1 tasks strictly in the order recorded in the master checklist:
 
 ```text
-ARCH-GOVERNANCE-01 -> ARCH-P1-04C -> ARCH-P1-03 -> ARCH-P1-05
+ARCH-P1-04C -> ARCH-P1-04D -> ARCH-P1-03 -> ARCH-P1-05
   -> ARCH-P1-06
   -> ARCH-P1-07 -> ARCH-P1-08
 ```
 
-The next task is **ARCH-GOVERNANCE-01: pre-merge readiness and post-merge
-checklist-consistency gates**. It is queued but remains `NOT_STARTED` until its
-own task begins. `ARCH-P1-04C` also remains `NOT_STARTED`.
+The current task is **ARCH-P1-04C** — dead-code cleanup plus the infrastructure
+dependency guard. Its contract-layer deletion was split out to
+**ARCH-P1-04D** (pre-LMM contract migration then compatibility-chain removal)
+after production traces proved three targets are active chains. Until
+ARCH-P1-04C is externally accepted and closed, ARCH-P1-04D and ARCH-P1-03 do
+not start. The checklist owns its PR number, status and CI evidence.
 
 `ARCH-P1-05` carries a pre-approved conditional bring-forward: if the
 `ARCH-P1-04` series' staging acceptance keeps failing because of on-server

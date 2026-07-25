@@ -421,13 +421,24 @@ def check_pre_merge(
             result.fail("A1_CLOSURE_NOT_COMPLETE_ON_BASE")
     allowed = current_task(tasks)
     if pr_kind == "CLOSURE":
+        # A CLOSURE PR closes exactly the task that is the current
+        # IMPLEMENTED_PENDING_ACCEPTANCE task on base, carrying its DONE status in
+        # head. Validating base — not just the head status the author wrote —
+        # prevents closing a future task out of order. The DONE-status check and
+        # the post-merge ledger gate still enforce that closure is real.
         closure_task = next((task for task in tasks if task.task_id == task_id), None)
-        if task_id != "ARCH-GOVERNANCE-01":
-            result.fail(f"CLOSURE_TASK_INVALID:{task_id}")
-        elif closure_task is None:
+        if closure_task is None:
             result.fail(f"CLOSURE_TASK_MISSING:{task_id}")
         elif closure_task.status != "DONE":
             result.fail(f"CLOSURE_TASK_STATUS_INVALID:{closure_task.status}")
+        if base_checklist is not None:
+            base_tasks, _ = parse_tasks(base_checklist)
+            base_current = current_task(base_tasks)
+            if base_current is None or base_current.task_id != task_id:
+                actual = base_current.task_id if base_current else "NONE"
+                result.fail(f"CLOSURE_TASK_NOT_BASE_CURRENT:{task_id}:{actual}")
+            elif base_current.status != "IMPLEMENTED_PENDING_ACCEPTANCE":
+                result.fail(f"CLOSURE_BASE_STATUS_INVALID:{task_id}:{base_current.status}")
     elif allowed is None:
         result.fail("CURRENT_TASK_MISSING")
     elif allowed.task_id != task_id:

@@ -568,6 +568,57 @@ def test_pre_merge_a1_closure_passes_without_starting_a2() -> None:
     assert result.passed, result.errors
 
 
+def test_pre_merge_non_a1_closure_passes_when_base_task_is_pending() -> None:
+    # A2 closes through a CLOSURE PR: head carries A2=DONE, base still has A2 as
+    # the current IMPLEMENTED_PENDING_ACCEPTANCE task. Full PASS, not just the
+    # absence of the old A1-only error.
+    rows = (
+        "| ARCH-00 | #371 | `09ca14a9` | done |\n"
+        f"| ARCH-P1-04C | #395 | `{HEAD}` | closed |"
+    )
+    body = valid_body(task="ARCH-P1-04C").replace(
+        "W2_PR_KIND: IMPLEMENTATION", "W2_PR_KIND: CLOSURE"
+    )
+    result = governance.check_pre_merge(
+        event(),
+        checklist(
+            a1_status="DONE",
+            a2_status="DONE",
+            ledger_rows=rows,
+            a2_extra=f"Merge SHA: {HEAD}",
+        ),
+        FakeClient(
+            pull=valid_pull(body=body),
+            reviews=[valid_review(task="ARCH-P1-04C")],
+        ),
+        base_checklist=checklist(
+            a1_status="DONE",
+            a2_status="IMPLEMENTED_PENDING_ACCEPTANCE",
+            a2_extra=f"Implementation SHA: {HEAD}",
+        ),
+    )
+    assert result.passed, result.errors
+
+
+def test_pre_merge_out_of_order_closure_is_rejected() -> None:
+    # Head claims A2=DONE, but base has A2 not yet started, so A2 is not a
+    # closable current task. The base guard rejects the out-of-order closure.
+    body = valid_body(task="ARCH-P1-04C").replace(
+        "W2_PR_KIND: IMPLEMENTATION", "W2_PR_KIND: CLOSURE"
+    )
+    result = governance.check_pre_merge(
+        event(),
+        checklist(a1_status="DONE", a2_status="DONE"),
+        FakeClient(
+            pull=valid_pull(body=body),
+            reviews=[valid_review(task="ARCH-P1-04C")],
+        ),
+        base_checklist=checklist(a1_status="DONE", a2_status="NOT_STARTED"),
+    )
+    assert not result.passed
+    assert "CLOSURE_BASE_STATUS_INVALID:ARCH-P1-04C:NOT_STARTED" in result.errors
+
+
 def test_pre_merge_a2_waits_until_a1_closure_is_done_on_base() -> None:
     head_text = checklist(
         a1_status="DONE",

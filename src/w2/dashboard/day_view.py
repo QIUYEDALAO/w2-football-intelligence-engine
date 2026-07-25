@@ -389,11 +389,3 @@ def _bool_or_default(value: Any, default: bool) -> bool:
     if isinstance(value, bool):
         return value
     return default
-
-
-def _is_decision_tier(value: str) -> bool:
-    try:
-        DecisionTier(value)
-    except ValueError:
-        return False
-    return True

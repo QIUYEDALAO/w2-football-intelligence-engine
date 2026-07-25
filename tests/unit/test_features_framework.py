@@ -8,8 +8,6 @@ from w2.features import market_factors
 from w2.features.engine import FeatureInputs, build_feature_set, load_importance_config
 from w2.features.framework import FeatureContext, FeatureStatus
 from w2.features.live_factors import (
-    lineup_injury_factor,
-    parse_api_football_availability,
     parse_api_football_xg,
     true_xg_factor,
 )
@@ -289,7 +287,7 @@ def test_importance_is_config_driven_and_feature_set_keeps_disclaimer() -> None:
     assert feature_set.formal_recommendation is False
 
 
-def test_live_xg_and_lineup_injury_features_parse_fake_payloads() -> None:
+def test_live_xg_features_parse_fake_payloads() -> None:
     xg_rows = parse_api_football_xg(
         captured_at=NOW,
         payload={
@@ -305,24 +303,6 @@ def test_live_xg_and_lineup_injury_features_parse_fake_payloads() -> None:
             ]
         },
     )
-    availability = parse_api_football_availability(
-        captured_at=NOW,
-        lineups_payload={
-            "response": [
-                {"team": {"id": 10}, "startXI": [{} for _ in range(11)], "substitutes": []},
-                {"team": {"id": 20}, "startXI": [{} for _ in range(11)], "substitutes": [{}]},
-            ]
-        },
-        injuries_payload={
-            "response": [
-                {
-                    "team": {"id": 20},
-                    "player": {"position": "Goalkeeper"},
-                    "reason": "Suspended",
-                }
-            ]
-        },
-    )
 
     xg = true_xg_factor(
         context=context(),
@@ -330,17 +310,9 @@ def test_live_xg_and_lineup_injury_features_parse_fake_payloads() -> None:
         home_xg=[row for row in xg_rows if row.team_id == "10"],
         away_xg=[row for row in xg_rows if row.team_id == "20"],
     )
-    lineups = lineup_injury_factor(
-        context=context(),
-        profile=coverage(),
-        home_availability=[row for row in availability if row.team_id == "10"],
-        away_availability=[row for row in availability if row.team_id == "20"],
-    )
 
     assert xg.status == FeatureStatus.READY
     assert xg.inputs["home_xg_net"] == 0.9
-    assert lineups.status == FeatureStatus.READY
-    assert lineups.inputs["away_availability_risk"] > lineups.inputs["home_availability_risk"]
 
 
 def test_disabled_competition_degrades_by_whitelist() -> None:
