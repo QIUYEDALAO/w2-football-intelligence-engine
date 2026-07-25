@@ -142,7 +142,7 @@ class FootballDayResultsRepository(RecommendationLoopRepository):
         }
 
 
-def test_dashboard_validates_analysis_pick_without_promoting_to_candidate() -> None:
+def test_dashboard_fails_closed_for_pre_lmm_pick_without_canonical_selection() -> None:
     service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
 
     payload = service.dashboard(target_date="2026-06-26", window="today")
@@ -157,34 +157,18 @@ def test_dashboard_validates_analysis_pick_without_promoting_to_candidate() -> N
     assert card["lifecycle_status"] == "DRAFT"
     assert card["outcome_tracked"] is False
     assert card["lock_eligible"] is False
-    assert card["reason_code"] == "FIXTURE_LIVE_OR_FINISHED"
+    assert card["reason_code"] == "MARKET_UNAVAILABLE"
     assert card["pick"] is None
-    assert card["non_pick"]["reason_code"] == "FIXTURE_LIVE_OR_FINISHED"
+    assert card["non_pick"]["reason_code"] == "MARKET_UNAVAILABLE"
     assert card["decision_contract"]["decision_tier"] == "NOT_READY"
     assert card["decision_contract"]["environment"] == "staging"
     assert card["data_readiness"]["source"] == "w2.readiness.data_gate.v1"
     assert card["data_readiness"]["data_status"] == "BLOCKED"
-    assert card["data_readiness"]["reason_code"] == "FIXTURE_LIVE_OR_FINISHED"
+    assert card["data_readiness"]["reason_code"] == "MARKET_UNAVAILABLE"
     assert card["decision_contract"]["data_readiness"]["source"] == "w2.readiness.data_gate.v1"
-    assert card["recommendation"]["tier"] == "ANALYSIS_PICK"
-    assert card["recommendation"]["decision_tier"] == "ANALYSIS_PICK"
-    assert "candidate" not in card["recommendation"]
-    assert "formal_recommendation" not in card["recommendation"]
-    assert "selection" not in card["recommendation"]
-    assert "selection_label_cn" not in card["recommendation"]
-    assert "line" not in card["recommendation"]
-    assert "odds" not in card["recommendation"]
-    recommendation_text = json.dumps(card["recommendation"], ensure_ascii=False)
-    assert "HOME_AH" not in recommendation_text
-    assert "AWAY_AH" not in recommendation_text
-    assert "盘口变化支持大球" not in recommendation_text
-    assert not re.search(r"(让|受让)\s*[+-]?\d+(?:\.\d+)?", recommendation_text)
+    assert card["recommendation"] is None
     assert card["result"]["final_score"] == "2-1"
-    assert card["validation"]["settlement"] == "UNKNOWN"
-    assert card["validation"]["market_hit"] is None
-    assert card["validation"]["score_exact_hit"] is True
-    assert card["validation"]["counted_in_official"] is False
-    assert card["validation"]["counted_in_analysis_shadow"] is True
+    assert card["validation"]["settlement"] == "NO_BET"
     assert card["scoreline_picks"] == []
     assert card["scoreline_reference"] is None
 
@@ -194,7 +178,8 @@ def test_dashboard_validates_analysis_pick_without_promoting_to_candidate() -> N
     assert performance["analysis_shadow"]["sample_size"] == 0
     assert performance["analysis_shadow"]["hit_rate"] is None
     assert performance["candidate_count"] == 0
-    assert performance["analysis_pick_count"] == 1
+    assert performance["analysis_pick_count"] == 0
+    assert performance["no_recommendation_count"] == 1
     assert card["analysis_readiness"]["status"] in {"PARTIAL", "BLOCKED"}
     assert "FIXTURE_NOT_UPCOMING" in card["analysis_readiness"]["blockers"]
 

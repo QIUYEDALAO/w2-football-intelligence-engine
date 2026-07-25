@@ -117,6 +117,7 @@ from w2.operations.tournament import (
     readiness_report,
     tournament_profile_from_payload,
 )
+from w2.prematch.simulation_reconciliation import canonical_public_simulation
 from w2.pricing.shadow import build_pricing_shadow
 from w2.providers.quota import api_football_quota_policy, parse_int
 from w2.ratings.elo import rating_from_history
@@ -249,11 +250,6 @@ def _public_market_is_primary_pick(market: dict[str, Any]) -> bool:
         return False
     role = str(market.get("selection_role") or "").upper()
     return role in {"", "PRIMARY"}
-
-
-def _public_market_is_legacy_pick(market: dict[str, Any]) -> bool:
-    decision = str(market.get("decision") or market.get("analysis_decision") or "").upper()
-    return decision in {"PICK", "ANALYSIS_PICK", "RECOMMEND"}
 
 
 def _truthy_flag(value: Any) -> bool:
@@ -402,10 +398,11 @@ def release_env(name: str, default: str = "UNKNOWN") -> str:
     return value if value else default
 
 
-def run_simulation_from_shadow(payload: Any) -> SimulationOutput | None:
-    if not isinstance(payload, dict):
-        return None
-    simulation = payload.get("simulation")
+def run_simulation_from_card(card: dict[str, Any]) -> SimulationOutput | None:
+    return _simulation_output_from_mapping(canonical_public_simulation(card))
+
+
+def _simulation_output_from_mapping(simulation: Any) -> SimulationOutput | None:
     if not isinstance(simulation, dict) or not simulation.get("status"):
         return None
     scoreline_picks: list[dict[str, Any]] = (
@@ -5307,6 +5304,19 @@ class ReadModelService:
                             else "WATCH"
                         )
         apply_market_selection(decorated)
+        if not decorated.get("decision_tier"):
+            decorated["decision_tier"] = (
+                "ANALYSIS_PICK"
+                if decorated.get("primary_market")
+                else "WATCH"
+                if str(decorated.get("decision") or "").upper() == "WATCH"
+                or any(
+                    str(item.get("decision") or "").upper() == "WATCH"
+                    or bool(item.get("candidate"))
+                    for item in decorated["markets"]
+                )
+                else "SKIP"
+            )
         return decorated
 
     def _attach_market_candidate_evidence_projection(
@@ -6117,6 +6127,12 @@ class ReadModelService:
                 "away_cn": row.get("away_team_name"),
             },
         )
+        stored_decision_contract = card.get("decision_contract")
+        contract_pick = (
+            stored_decision_contract.get("pick")
+            if isinstance(stored_decision_contract, dict)
+            else None
+        )
         markets = [item for item in card.get("markets", []) if isinstance(item, dict)]
         primary_market = str(card.get("primary_market") or "")
         picked = next(
@@ -6128,9 +6144,12 @@ class ReadModelService:
             ),
             None,
         )
-        if picked is None and not primary_market:
-            # Backward compatibility for immutable pre-LMM frozen artifacts.
-            picked = next((item for item in markets if _public_market_is_legacy_pick(item)), None)
+        if picked is None and isinstance(contract_pick, dict):
+            contract_market = str(contract_pick.get("market") or "")
+            picked = next(
+                (item for item in markets if str(item.get("market") or "") == contract_market),
+                None,
+            )
         scoreline_picks = scoreline_picks_from_card(card)
         result = result_from_dashboard_row(row)
         analysis_readiness = build_analysis_readiness(
@@ -6141,7 +6160,7 @@ class ReadModelService:
         )
         formal_result = build_formal_recommendation(
             fixture_status=normalize_match_status(row.get("status")),
-            simulation=run_simulation_from_shadow(card.get("pricing_shadow")),
+            simulation=run_simulation_from_card(card),
             current_odds=card.get("current_odds")
             if isinstance(card.get("current_odds"), dict)
             else None,
@@ -6354,6 +6373,12 @@ class ReadModelService:
             "market_divergence": card.get("market_divergence", {}),
             "bookmaker_hypothesis": card.get("bookmaker_hypothesis", {}),
             "pricing_shadow": card.get("pricing_shadow"),
+            # ARCH-P1-04D M2 remediation: pass the canonical top-level simulation
+            # straight through from the source analysis card. Never backfilled
+            # from pricing_shadow, never recomputed, no second writer; absent ->
+            # explicit None. The source status (READY / INSUFFICIENT_INPUTS) is
+            # preserved verbatim; DayView M1 maps it to READY / UNAVAILABLE.
+            "simulation": card.get("simulation"),
             "quote_identity_audit": card.get("quote_identity_audit", {}),
             "dynamic_prematch": card.get("dynamic_prematch", {}),
             "lineup_provenance": card.get("lineup_provenance", {}),
@@ -6373,11 +6398,7 @@ class ReadModelService:
         }
 
     def _dashboard_scoreline_readiness(self, card: dict[str, Any]) -> dict[str, Any] | None:
-        simulation = card.get("simulation")
-        if not isinstance(simulation, dict):
-            shadow = card.get("pricing_shadow")
-            if isinstance(shadow, dict):
-                simulation = shadow.get("simulation")
+        simulation = canonical_public_simulation(card)
         if isinstance(simulation, dict) and simulation.get("status") == "READY":
             return {
                 "status": "READY",

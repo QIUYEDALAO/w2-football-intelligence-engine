@@ -91,6 +91,17 @@ ARCH-P1-08 通过后，功能冻结部分解除：**仅允许本清单阶段 B �
 任务必须严格按此顺序执行。每任务开工：`git fetch github-w2 main` 拉新分支，
 本文件写 `Status: IN_PROGRESS`；完成 = 完整 CI + staging 验收 + 合并 + 状态翻 DONE。
 
+### 执行与验收节奏
+
+1. 子步骤只跑 focused tests；同一 exact head 的完整 CI 不重复执行。
+2. 最终 exact head 一次性完成范围项、业务 delta=0、静态守卫、临时/生成资产清理、
+   资产账本，并满足 untracked=0、未引用新文件=0、worktree clean。
+3. 最终完整 CI 固定为 `verify`、`staging-parity`、`predeploy-e2e` 全部 PASS；
+   exact head 变化才重跑。
+4. 外部验收 PASS 后才能进入合并；合并前任务不得 DONE，后续任务不得启动。
+5. 数据库 drop、数据迁移、部署、兼容链物理删除、安全开关和模型数学变更继续执行
+   各自逐项高风险门禁。
+
 ### 阶段 A：架构收尾
 
 ---
@@ -198,10 +209,11 @@ A2_SCOPE_CORRECTION_1:
   original_assumption: COMPATIBILITY_FALLBACK_WITH_SIMULATION_PRIMARY_PATH
   audit_result: ACTIVE_PRODUCTION_SOURCE
   evidence:
-    - analysis_calculator run_simulation_from_shadow(card.get("pricing_shadow"))
-    - projection persists pricing_shadow (analysis_calculator:6348)
-    - no production writer for top-level card["simulation"]
-    - test consumes pricing_shadow.simulation.simulations
+    - canonical top-level writer already existed:
+      payload["simulation"] = simulation_output.as_dict()
+    - 04C-era live Dashboard projection omitted that top-level field
+    - public/formal/scoreline paths therefore still consumed pricing_shadow.simulation
+    - retain until ARCH-P1-04D projection, reconciliation and read-authority migration complete
   decision: RETAIN
   production_behavior_changed: false
   follow_up: ARCH-P1-04D
@@ -240,14 +252,31 @@ INFRASTRUCTURE→{API,DASHBOARD,APPS} 守卫绿；全量测试与 04B 守卫绿�
 `LEGACY_DECISION_CONTRACT_CODE = 0` 与 `NET_DELETION ≥ 1100` **不适用本轮**——
 合同层证明为活跃链，其删除是 ARCH-P1-04D 在 pre-LMM 契约迁移完成后的验收项。
 **资产账本**：新增 0；删除 227 行（`_is_decision_tier` + F10 子图）。
-- [ ] PR 合并。
+- [x] PR 合并（#395，merge SHA `6eeb411747a1cef624ff4780dbad87d4cec4b26d`；
+      closure #396，main POST run `30143083350` PASS）。
 
 ---
 
 #### A9. ARCH-P1-04D：pre-LMM 契约迁移与兼容链删除（A2/04C 的后续拆分任务）
 
 ```text
-Status: NOT_STARTED
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Branch: codex/arch-p1-04d-pre-lmm-contract-migration
+PR: #398
+Base SHA: 9b2dc44bed22f237868d1471cbb8d9950917edcb
+Implementation SHA: GITHUB_PR_EXACT_HEAD
+Started at: 2026-07-25T04:30:00Z
+Owner: Codex
+M1: DONE (Dashboard simulation projection, status-driven pass-through)
+M2: DONE (frozen 8 MATCH; live LEGACY_ONLY=4 blocker found, MISMATCH=0)
+M2_REMEDIATION: DONE (live _dashboard_card_from_matchday passes through canonical
+  top-level simulation; live LIVE_MATCH=4, LEGACY_ONLY=0, MISMATCH=0)
+M3: DONE (canonical simulation read authority implemented;
+  LEGACY_PICK_RUNTIME_REACHABLE=0; LEGACY_SHIM_RUNTIME_REACHABLE=0;
+  LEGACY_ADAPTER_RUNTIME_REACHABLE=0)
+M4: IMPLEMENTED_PENDING_ACCEPTANCE (five retained compatibility components
+  physically deleted; LEGACY_DECISION_CONTRACT_CODE=0)
+04D 整体为 IMPLEMENTED_PENDING_ACCEPTANCE，不得标 DONE。
 ```
 
 **由来**：A2（04C）经生产 trace 发现三处原定"死代码"实为活跃 pre-LMM 兼容链
@@ -258,19 +287,109 @@ card 形状**（无 `decision_tier` / `market_candidate` / 顶层 `simulation`�
 
 **目标**：淘汰 pre-LMM card 形状，之后删除三条兼容链。
 
+##### 写侧 trace 与只读盘点结论（2026-07-25，未改任何数据）
+
+生产 card 写入路径全量 trace：
+
+```text
+canonical 生成器 build_decision_contract_fields
+  （orchestrator:245 / analysis_calculator:6243）
+  → 显式含 decision_tier / data_status / pick / non_pick        → 合规
+手写降级卡 analysis_calculator:2166（frozen 不可用）
+  → decision_tier=NOT_READY 全字段完整                          → 合规
+frozen artifact writer read_model_projection.write_frozen_...
+  → 走注入的 canonical 计算器                                    → 04B 后合规
+真 simulation 计算 run_simulation（analysis_calculator:2720）一次，其输出
+  直接写入 card 顶层：payload["simulation"] = simulation_output.as_dict()
+  （analysis_calculator:2833）。**顶层 simulation 有真源，非反向重建。**
+  （更正：设计初稿曾误记"顶层 simulation 全库无写入点"，因 grep 漏读 2833；
+   实为 day_view 主路径已读 card["simulation"]，仅当其空时才 fallback 到
+   pricing_shadow.simulation —— 后者是 04C correction 1 的兜底活链。）
+run_simulation_from_shadow（:405, :6144）仅用于 build_formal_recommendation
+  的反序列化重建，**不写顶层 simulation**；裁决禁止的"反向重建→顶层"本就
+  不存在。
+market 级 analysis_decision / market_candidate 条件写入
+  （analysis_calculator:5296）→ legacy pick 兜底无 candidate 的
+    ANALYSIS_PICK market（= 04C correction 2 的活链）
+```
+
+staging 只读盘点（read_model_checkpoint，8 个 frozen canary artifact）：
+
+```text
+FROZEN_ARTIFACTS_TOTAL            = 8
+SCHEMA_ALL_CANONICAL             = 8/8  (w2.analysis-card.frozen.v1)
+PRODUCTION_VALIDATE_OK           = 8/8  (validate_frozen_analysis_payload 无异常)
+ARTIFACT_HASH_VALID              = PASS (8/8)   （payload 完整性）
+SOURCE_HASH_VALID                = PASS (8/8)   （来源身份；与 artifact_hash 语义不同）
+CARD_TOP_TIER_PRESENT            = 8/8  (WATCH×6, NOT_READY×1, ANALYSIS_PICK×1)
+CONTRACT_TIER_PRESENT            = 8/8  (逐条与 card_top_tier 相同)
+SIM_JSONB_EQUAL (full object)    = 8/8  true
+TOP_SIM_OBJ_HASH == PSHADOW_OBJ  = 8/8  (canonical_sha256 全对象)
+REACHABILITY_NOT_YET_EVALUATED   = M3_GATE
+```
+
+（artifact_hash 与 source_hash 语义不同，分别验证，不要求相等。可达性未评估：
+未查证 public-reader/current-fixture 是否仍读取历史 artifact，故不主张
+UNREACHABLE / CANNOT_REMATERIALIZE，判定锁 M3 gate。inventory fingerprint =
+3a748382575ce8dd7f36184b7e15ebbd，仅身份指纹。完整证据见
+W2_ARCH_P1_04D_FROZEN_ARTIFACT_INVENTORY.md。）
+
+**关键结论**：8 条 frozen artifact 均为 canonical schema，顶层与嵌套 tier
+逐条一致；顶层 simulation 与 pricing_shadow simulation **全对象 JSONB 逐条
+相等**（md5 全对象 hash 相同，非仅计数）；simulation 为**单次计算**（上游
+`run_simulation`
+一次，`run_simulation_from_shadow` 仅反序列化重建，非独立计算），满足
+`simulation_compute_count = 1` / `independent_simulation_writers = 0`。
+
+##### 迁移设计（双写 → 对账 → 读切换 → 删旧读）
+
+- M1 Dashboard projection 直接透传（不删旧，裁决第 1 点）：Dashboard/DayView
+  projection 直接透传 `card["simulation"]`（其真源为 analysis_calculator:2833
+  的 `simulation_output.as_dict()`，即 run_simulation 的一次计算）。
+  **禁止** `run_simulation_from_shadow → 顶层 simulation` 的反向重建（该反向
+  重建本就不存在，M1 以静态守卫固化"不得引入"）。simulation 必带明确状态
+  （READY / UNAVAILABLE），无有效 simulation 时透传 UNAVAILABLE 而非回退
+  pricing_shadow。不新增计算、不新增表、不新增运行权威。
+- M2 对账：live + frozen 两层证明
+  `top_level_simulation_hash == pricing_shadow_simulation_hash`；Dashboard/DayView
+  逐场 hash 一致（`scoreline_simulations`、`recommendation.decision_tier`、
+  ANALYSIS_PICK 不提升）。
+- M3 读切换：`day_view._scoreline_simulations` 从 pricing_shadow 切到读顶层
+  `simulation`；证明三条兼容链**零可达**。历史 frozen artifact 按裁决第 2 点：
+  不可达→保留审计；可达且缺字段→用原始输入重新物化 canonical artifact 后
+  切读取指针；无法物化→fail-closed 并阻止删链。可达性统一为
+  `REACHABILITY_NOT_YET_EVALUATED = M3_GATE`，M3 须先补真实 public-reader /
+  current-fixture 可达性查询后再据结果走三分支，不得预设任何触发数。
+- M4 删旧读（仅当 M2/M3 全绿且零可达）：删 pricing_shadow 兼容读、
+  `legacy_decision_shim.py`、adapter legacy→V3、`_public_market_is_legacy_pick`/
+  pre-LMM 分支。
+
+##### card contract version + validator（裁决第 4 点）
+
+新增独立的 `analysis_card_contract_version`（如
+`w2.analysis-card.contract.v1`），**与 frozen artifact 的 `schema_version`
+`w2.analysis-card.frozen.v1` 正交，不改后者原语义**。frozen.v1 继续由
+`validate_frozen_analysis_payload` 按原规则校验；新 contract version 是 card
+读取契约层，validator 至少保证：显式 `decision_tier`；显式 public-market
+selection **或**明确无选择状态（`market_candidate` 仍为可选证据，禁止伪造）；
+顶层 `simulation` 字典含 READY/UNAVAILABLE 等明确状态。新 validator 作为 M1
+的对账守卫接入 projection 透传路径，不追溯改写已固化的 frozen.v1 payload。
+
 **范围**：
-- [ ] 写侧契约补全：`analysis_calculator` 所有生产 card 无条件带完整
-      `decision_contract`（`decision_tier` + `market_candidate` + 顶层
-      `simulation` 或等价投影字段）。
-- [ ] 对账：迁移前后 Dashboard/DayView 语义逐场 hash 一致（含
+- [x] canonical card 契约（写/投影侧 card 无条件具备三项，validator 强制）：
+      1. 显式 `decision_tier`；
+      2. 显式 public-market selection **或**明确 `NONE` 状态；
+      3. 顶层 `simulation` 字典含明确 `READY` / `UNAVAILABLE` 状态。
+      `market_candidate` **仍为可选证据，禁止写成必需字段、禁止伪造**。
+- [x] 对账：迁移前后 Dashboard/DayView 语义逐场 hash 一致（含
       `scoreline_simulations`、`recommendation.decision_tier`、ANALYSIS_PICK
       不提升语义）。
-- [ ] 读切换：确认 pre-LMM 兼容链不再可达（无 card 走 legacy 分支）。
-- [ ] 删除三条兼容链：`legacy_decision_shim.py` 整删；`decision_adapter.py`
+- [x] 读切换：确认 pre-LMM 兼容链不再可达（无 card 走 legacy 分支）。
+- [x] 删除三条兼容链：`legacy_decision_shim.py` 整删；`decision_adapter.py`
       legacy→V3 转换删；`_public_market_is_legacy_pick`/pre-LMM 分支删；
       `day_view` `pricing_shadow` 兼容读删。
-- [ ] 更新依赖该三链的测试为现代契约形状。
-- [ ] 静态守卫：`LEGACY_DECISION_CONTRACT_CODE = 0`。
+- [x] 更新依赖该三链的测试为现代契约形状。
+- [x] 静态守卫：`LEGACY_DECISION_CONTRACT_CODE = 0`。
 
 **不做**：不改模型数学；不改 EV/门槛/安全开关。
 **验收**：`LEGACY_DECISION_CONTRACT_CODE = 0`；pre-LMM 兼容链全库零可达；
@@ -296,7 +415,6 @@ Status: NOT_STARTED
 - [ ] **追加**：用 3 场真实比赛演示 canonical player ↔ provider lineup 球员唯一联接查询
       （EVAL-02B"缺阵分钟占比"的前置能力）。
 - [ ] PR 合并。
-
 **验收**：`CANONICAL_TEAM_IDENTITY_AUTHORITY_COUNT = 1`。
 **资产账本**：目标净减 ≥3 张表。
 
@@ -583,7 +701,7 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 |---|---|
 | 新增表 | 目标 0；唯一例外 EVAL-01A `outcome_ledger`（三条判定基准全满足才建） |
 | 新增文件权威 | 0（永久红线 2） |
-| 删除 | legacy shim/adapter（A2）、F10 死代码（A2）、≥3 张 crosswalk（A3）、runtime 账本目录（B1）、`shadow_strategy_*` 僵尸表（A7 裁决后） |
+| 删除 | legacy shim/adapter（A9/ARCH-P1-04D）、F10 死代码（A2）、≥3 张 crosswalk（A3）、runtime 账本目录（B1）、`shadow_strategy_*` 僵尸表（A7 裁决后） |
 | 防回流 | 每任务静态守卫测试；A7 终态盘点矩阵；GOVERNANCE-01 双门禁；PR 8 问模板 |
 
 ## 七、任务状态与 PR 强制说明格式
@@ -596,7 +714,6 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 待验收: Status: IMPLEMENTED_PENDING_ACCEPTANCE / Implementation SHA / CI run / Staging SHA / Evidence / Rollback
 完成:   Status: DONE / Merged PR / Merge SHA / CI run / Staging acceptance / Completed at
 ```
-
 每个 PR 描述必须回答：
 
 ```text
@@ -617,8 +734,8 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 ## 八、待议区（记录不实施）
 
 - A2 死代码复核中"证据不足"的疑似项（记录后由后续 P2-06 矩阵裁决）。
-- `PROJECT_STATE.repository.main_sha` 在 PR #392 合并后仍指向上一完成任务坐标；
-  v3 总清单与 GitHub main 为权威，A1 开工时同步到实际 Base SHA。
+- **RESOLVED 2026-07-25**：`PROJECT_STATE.repository` 已在 ARCH-P1-04C closure-integrity
+  remediation 中同步到 PR #397、base/main `9b2dc44bed22f237868d1471cbb8d9950917edcb`。
 
 ---
 

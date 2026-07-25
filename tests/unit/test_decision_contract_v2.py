@@ -12,7 +12,6 @@ from w2.domain.decision_policy import (
     compute_outcome_tracked,
 )
 from w2.domain.enums import DataStatus, DecisionReasonCode, DecisionTier, LifecycleStatus
-from w2.domain.legacy_decision_shim import legacy_decision_view
 
 
 def _pick(disclaimer: str | None = None) -> DecisionPick:
@@ -30,7 +29,6 @@ def _pick(disclaimer: str | None = None) -> DecisionPick:
         invalidation="line moved past fair",
         **kwargs,
     )
-
 
 def _non_pick() -> DecisionNonPick:
     return DecisionNonPick(
@@ -217,23 +215,3 @@ def test_recommend_requires_explicit_lock_gates(environment: str) -> None:
         )
         is True
     )
-
-
-def test_legacy_shim_maps_historical_read_paths_without_mutating_payload() -> None:
-    card = {"formal_recommendation": True, "recommendation_id": "rec-Legacy"}
-    before = dict(card)
-    formal = legacy_decision_view(card)
-
-    assert formal.decision_tier is DecisionTier.ANALYSIS_PICK
-    assert formal.lock_eligible is True
-    assert formal.legacy_formal is True
-    assert formal.recommendation_id == "rec-Legacy"
-    assert card == before
-
-    explicit = legacy_decision_view({"decision_tier": "RECOMMEND", "recommendation_id": "rec-new"})
-    assert explicit.decision_tier is DecisionTier.RECOMMEND
-    assert explicit.legacy_formal is False
-    assert legacy_decision_view({"decision": "NO_RECOMMENDATION"}).decision_tier is (
-        DecisionTier.SKIP
-    )
-    assert legacy_decision_view({"candidate": True}).decision_tier is DecisionTier.WATCH

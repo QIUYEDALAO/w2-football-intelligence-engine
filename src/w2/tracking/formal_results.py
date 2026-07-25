@@ -16,6 +16,7 @@ from w2.infrastructure.persistence.models import RecommendationLockModel, Recomm
 from w2.infrastructure.persistence.recommendation_lock_snapshot import (
     build_recommendation_lock_snapshot,
 )
+from w2.prematch.simulation_reconciliation import canonical_public_simulation
 from w2.settlement.settle import WIN_UNITS, settle_market
 
 MIN_BUCKET_SAMPLES_FOR_RATE = 30
@@ -281,8 +282,7 @@ def snapshot_from_card(
 
 
 def _simulation_evidence(card: dict[str, Any]) -> dict[str, Any] | None:
-    pricing_shadow = first_dict(card.get("pricing_shadow"))
-    simulation = first_dict(card.get("simulation"), pricing_shadow.get("simulation"))
+    simulation = canonical_public_simulation(card)
     if not simulation:
         return None
     runs = (

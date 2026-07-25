@@ -18,7 +18,6 @@ from w2.domain.enums import (
     LifecycleStatus,
     ProbabilitySource,
 )
-from w2.domain.legacy_decision_shim import legacy_decision_view
 from w2.readiness.data_gate import (
     DataFreshnessPolicy,
     DataReadinessResult,
@@ -67,7 +66,6 @@ def build_decision_contract_fields(
         card=card,
         market=market,
         recommendation=recommendation,
-        readiness=readiness,
         data_status=data_status,
     )
     probability_source = _probability_source(card, market, recommendation)
@@ -111,8 +109,6 @@ def build_decision_contract_fields(
     )
     if tier not in {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND}:
         recommendation_id = None
-    legacy = legacy_decision_view(card, market)
-    legacy_formal = legacy.legacy_formal or _truthy(_get(recommendation, "formal_recommendation"))
     evaluated_candidate = _selected_market_candidate(card, market)
     pick_payload = (
         _pick_payload(
@@ -154,9 +150,8 @@ def build_decision_contract_fields(
         "probability_source": probability_source.value,
         "model_market_divergence": model_market_divergence,
         "provenance": {
-            "source": str(_get(card, "source") or "legacy_payload"),
+            "source": str(_get(card, "source") or "canonical_payload"),
             "adapter": "w2.decision_contract.v2.adapter",
-            "legacy_formal": legacy_formal,
         },
         "pick": pick_payload,
         "non_pick": non_pick_payload,
@@ -181,7 +176,6 @@ def build_decision_contract_fields(
         "readiness_source": data_readiness.source,
         "environment": environment,
         "lock_eligible": lock_eligible,
-        "legacy_formal": legacy_formal,
         "integrity_status": "PASS",
         "quote_provenance_status": quote_provenance_status,
         "formal_ah_readiness": {
@@ -232,7 +226,6 @@ def _decision_tier(
     card: Mapping[str, Any],
     market: Mapping[str, Any] | None,
     recommendation: Mapping[str, Any] | None,
-    readiness: Mapping[str, Any] | None,
     data_status: DataStatus,
 ) -> DecisionTier:
     if data_status is DataStatus.BLOCKED:
@@ -249,30 +242,7 @@ def _decision_tier(
                 return DecisionTier.WATCH
             return tier
 
-    legacy = legacy_decision_view(card, market)
-    if legacy.legacy_formal or _truthy(_get(recommendation, "formal_recommendation")):
-        return DecisionTier.ANALYSIS_PICK
-
-    decision = _first_upper(
-        _get(market, "analysis_decision"),
-        _get(market, "decision"),
-        _get(card, "analysis_decision"),
-        _get(card, "decision"),
-        _get(recommendation, "tier"),
-    )
-    if decision == "NO_EDGE":
-        return DecisionTier.SKIP
-    if decision in {"ANALYSIS_PICK", "PICK", "FORMAL"}:
-        if _pick_strength_insufficient(market) or _pick_strength_insufficient(recommendation):
-            return DecisionTier.WATCH
-        return DecisionTier.ANALYSIS_PICK
-    if _truthy(_get(card, "candidate")) or _truthy(_get(market, "candidate")):
-        return DecisionTier.WATCH
-    if decision == "WATCH":
-        return DecisionTier.WATCH
-    if _readiness_blocked(readiness):
-        return DecisionTier.NOT_READY
-    return DecisionTier.SKIP
+    return DecisionTier.NOT_READY
 
 
 def _pick_strength_insufficient(payload: Mapping[str, Any] | None) -> bool:

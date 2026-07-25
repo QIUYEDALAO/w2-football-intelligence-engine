@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-24T20:21:00Z"
+updated_at: "2026-07-25T15:01:14Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -25,24 +25,28 @@ context_read_order:
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  main_sha: 35fcac0d99573556c5e9f7a41822e153783efa73
+  main_sha: 9b2dc44bed22f237868d1471cbb8d9950917edcb
   main_migration_head: 0041_converge_odds_history_and_projection
-  pull_request: 394
-  pull_request_mode: DRAFT
-  pull_request_head_branch: codex/arch-governance-01-closure
-  task_baseline_sha: 35fcac0d99573556c5e9f7a41822e153783efa73
-  local_work_branch: codex/arch-governance-01-closure
-  github_sync_status: ARCH_GOVERNANCE_01_CLOSURE_PROPOSED
+  pull_request: 398
+  pull_request_mode: READY
+  pull_request_head_branch: codex/arch-p1-04d-pre-lmm-contract-migration
+  task_baseline_sha: 9b2dc44bed22f237868d1471cbb8d9950917edcb
+  local_work_branch: codex/arch-p1-04d-pre-lmm-contract-migration
+  github_sync_status: ARCH_P1_04D_IMPLEMENTED_PENDING_ACCEPTANCE
   ci_checks:
-    verify: GITHUB_CLOSURE_PR_EXACT_HEAD
-    staging-parity: GITHUB_CLOSURE_PR_EXACT_HEAD
-    predeploy-e2e: GITHUB_CLOSURE_PR_EXACT_HEAD_NOT_BRANCH_PROTECTION_REQUIRED
-    PRE_MERGE_READINESS_GATE: FAIL_EXPECTED_DRAFT_OR_ACCEPTANCE_MISSING
-    POST_MERGE_CHECKLIST_CONSISTENCY_GATE: GITHUB_CLOSURE_PR_EXACT_HEAD
+    verify: GITHUB_PR_EXACT_HEAD
+    staging-parity: GITHUB_PR_EXACT_HEAD
+    predeploy-e2e: GITHUB_PR_EXACT_HEAD
+    PRE_MERGE_READINESS_GATE: NOT_RUN_DRAFT_M3_PAUSED
+    POST_MERGE_CHECKLIST_CONSISTENCY_GATE: MAIN_30143083350_PASS_FOR_ARCH_P1_04C_CLOSURE
   closed_pull_requests:
     370: CLOSED_AFTER_BASELINE_INTEGRATION_PR_374
     385: MERGED_AFTER_IMPLEMENTATION_AND_STAGING_ACCEPTANCE
     387: MERGED_AFTER_EXTERNAL_REVIEW
+    393: MERGED_AFTER_EXTERNAL_REVIEW
+    394: MERGED_ARCH_GOVERNANCE_CLOSURE
+    395: MERGED_ARCH_P1_04C_IMPLEMENTATION
+    396: MERGED_ARCH_P1_04C_CLOSURE
 
 architecture_convergence:
   authority_document: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
@@ -88,20 +92,32 @@ architecture_convergence:
     - ARCH-P2-05
   next_task: ARCH-P1-04D
   current_task:
-    id: ARCH-P1-04C
-    status: DONE
-    pull_request: 395
-    merge_sha: 6eeb411747a1cef624ff4780dbad87d4cec4b26d
-    started_at: "2026-07-24T21:00:00Z"
-    baseline_sha: c09c7d9130f709d488f87e5369735a8bde0584b4
-    branch: codex/arch-p1-04c-contract-dead-code-cleanup
-    delivered: DEAD_CODE_ONLY_IS_DECISION_TIER_AND_F10_PLUS_INFRA_DEPENDENCY_GUARD
-    scope_corrections:
-      - PRICING_SHADOW_ACTIVE_SOURCE_RETAINED
-      - LEGACY_PICK_ACTIVE_CHAIN_RETAINED
-      - LEGACY_SHIM_ACTIVE_CHAIN_RETAINED
-    contract_layer_deletion_moved_to: ARCH-P1-04D
-    production_behavior_changed: false
+    id: ARCH-P1-04D
+    status: IMPLEMENTED_PENDING_ACCEPTANCE
+    pull_request: 398
+    branch: codex/arch-p1-04d-pre-lmm-contract-migration
+    baseline_sha: 9b2dc44bed22f237868d1471cbb8d9950917edcb
+    started_at: "2026-07-25T04:30:00Z"
+    phase: M4_PHYSICAL_DELETION
+    m1_status: DONE
+    m2_status: DONE
+    m2_remediation_status: DONE
+    m3_status: DONE
+    m3_complete: true
+    m3_ready: true
+    m3_blocker: null
+    simulation_read_authority: CANONICAL_TOP_LEVEL_CARD_SIMULATION
+    public_pricing_shadow_simulation_reads: 0
+    reachable_legacy_only: 0
+    reachable_mismatch: 0
+    legacy_pick_runtime_reachable: 0
+    legacy_shim_runtime_reachable: 0
+    legacy_adapter_runtime_reachable: 0
+    m4_status: IMPLEMENTED_PENDING_ACCEPTANCE
+    legacy_decision_contract_code: 0
+    compatibility_chains_deleted: true
+    predecessor: ARCH-P1-04C
+    arch_p1_03_status: NOT_STARTED
   governance_contracts:
     github_secondary_review:
       id: GITHUB_SECONDARY_REVIEW_PROTOCOL_V1
@@ -190,7 +206,8 @@ architecture_convergence:
   queued_tasks:
     ARCH-GOVERNANCE-01: DONE
     ARCH-P1-04C: DONE
-    ARCH-P1-04D: NOT_STARTED
+    ARCH-P1-04D: IN_PROGRESS
+    ARCH-P1-03: NOT_STARTED
   pre_approved_order_change:
     task: ARCH-P1-05
     condition: STAGING_ONSITE_BUILD_REPEATEDLY_FAILS
