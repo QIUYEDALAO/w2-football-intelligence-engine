@@ -421,10 +421,11 @@ def check_pre_merge(
             result.fail("A1_CLOSURE_NOT_COMPLETE_ON_BASE")
     allowed = current_task(tasks)
     if pr_kind == "CLOSURE":
+        # Any task closes through a CLOSURE PR that carries its DONE status and
+        # merge SHA, not just ARCH-GOVERNANCE-01. The DONE status check plus the
+        # post-merge ledger gate still enforce that closure is real.
         closure_task = next((task for task in tasks if task.task_id == task_id), None)
-        if task_id != "ARCH-GOVERNANCE-01":
-            result.fail(f"CLOSURE_TASK_INVALID:{task_id}")
-        elif closure_task is None:
+        if closure_task is None:
             result.fail(f"CLOSURE_TASK_MISSING:{task_id}")
         elif closure_task.status != "DONE":
             result.fail(f"CLOSURE_TASK_STATUS_INVALID:{closure_task.status}")

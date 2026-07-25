@@ -163,6 +163,7 @@ DONE/merge 坐标一致。两个 required check 缺一不可。
 Status: IMPLEMENTED_PENDING_ACCEPTANCE
 Branch: codex/arch-p1-04c-contract-dead-code-cleanup
 Base SHA: c09c7d9130f709d488f87e5369735a8bde0584b4
+Implementation SHA: GITHUB_PR_EXACT_HEAD
 Started at: 2026-07-24T21:00:00Z
 Owner: Codex
 Scope outcome: 范围经生产 trace 收敛（老板 2026-07-24 裁决）。合同层删除的

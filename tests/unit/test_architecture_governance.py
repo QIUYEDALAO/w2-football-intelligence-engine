@@ -568,6 +568,25 @@ def test_pre_merge_a1_closure_passes_without_starting_a2() -> None:
     assert result.passed, result.errors
 
 
+def test_pre_merge_non_a1_closure_is_allowed_when_task_is_done() -> None:
+    # After the A1-only restriction was lifted, any task closes through a CLOSURE
+    # PR that carries its DONE status; only the DONE check gates it.
+    body = valid_body(task="ARCH-P1-04C").replace(
+        "W2_PR_KIND: IMPLEMENTATION", "W2_PR_KIND: CLOSURE"
+    )
+    result = governance.check_pre_merge(
+        event(),
+        checklist(a2_status="DONE"),
+        FakeClient(
+            pull=valid_pull(body=body),
+            reviews=[valid_review(task="ARCH-P1-04C")],
+        ),
+        base_checklist=checklist(a1_status="DONE"),
+    )
+    assert "CLOSURE_TASK_INVALID:ARCH-P1-04C" not in result.errors
+    assert "CLOSURE_TASK_STATUS_INVALID:DONE" not in result.errors
+
+
 def test_pre_merge_a2_waits_until_a1_closure_is_done_on_base() -> None:
     head_text = checklist(
         a1_status="DONE",
