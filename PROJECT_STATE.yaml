@@ -67,6 +67,7 @@ architecture_convergence:
     ARCH-HYGIENE-01: DONE
     ARCH-HYGIENE-02: DONE
     ARCH-P1-04C: DONE
+    ARCH-P1-04D: DONE
   superseded:
     ARCH-P2-01: ARCH-HYGIENE-02
   p0_acceptance: P0_ARCHITECTURE_CONVERGENCE_PASS
@@ -90,11 +91,13 @@ architecture_convergence:
     - ARCH-P2-04
     - ARCH-P2-06
     - ARCH-P2-05
-  next_task: ARCH-P1-04D
+  next_task: ARCH-P1-03
   current_task:
     id: ARCH-P1-04D
-    status: IMPLEMENTED_PENDING_ACCEPTANCE
+    status: DONE
     pull_request: 398
+    implementation_pr: 398
+    implementation_merge_sha: e6e447293365ca29686b21876cab5e103829b1ed
     branch: codex/arch-p1-04d-pre-lmm-contract-migration
     baseline_sha: 9b2dc44bed22f237868d1471cbb8d9950917edcb
     started_at: "2026-07-25T04:30:00Z"
@@ -113,7 +116,7 @@ architecture_convergence:
     legacy_pick_runtime_reachable: 0
     legacy_shim_runtime_reachable: 0
     legacy_adapter_runtime_reachable: 0
-    m4_status: IMPLEMENTED_PENDING_ACCEPTANCE
+    m4_status: DONE
     legacy_decision_contract_code: 0
     compatibility_chains_deleted: true
     predecessor: ARCH-P1-04C
@@ -182,7 +185,7 @@ architecture_convergence:
         closure_exact_head: GITHUB_PR_EXACT_HEAD
         path: SEPARATE_CLOSURE_PR_AFTER_IMPLEMENTATION_MERGE
         requires_full_merge_sha: true
-        next_task_blocked_until_main_post_pass: ARCH-P1-04D
+        next_task_blocked_until_main_post_pass: ARCH-P1-03
       bootstrap_required_checks:
         - verify
         - staging-parity
@@ -206,7 +209,7 @@ architecture_convergence:
   queued_tasks:
     ARCH-GOVERNANCE-01: DONE
     ARCH-P1-04C: DONE
-    ARCH-P1-04D: IN_PROGRESS
+    ARCH-P1-04D: DONE
     ARCH-P1-03: NOT_STARTED
   pre_approved_order_change:
     task: ARCH-P1-05
