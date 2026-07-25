@@ -160,32 +160,118 @@ DONE/merge 坐标一致。两个 required check 缺一不可。
 #### A2. ARCH-P1-04C：合同层与死代码清理
 
 ```text
-Status: IN_PROGRESS
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
 Branch: codex/arch-p1-04c-contract-dead-code-cleanup
 Base SHA: c09c7d9130f709d488f87e5369735a8bde0584b4
 Started at: 2026-07-24T21:00:00Z
 Owner: Codex
+Scope outcome: 范围经生产 trace 收敛（老板 2026-07-24 裁决）。合同层删除的
+  三处目标经证明是活跃兼容链，本轮不删，移交新任务 ARCH-P1-04D；仅交付
+  两处真死代码 + 依赖守卫。三条 scope correction 见下方。
 ```
 
 **目标**：删除全部新旧合同并存代码与 04B 后确认的死代码；每处删除附零引用证据。
 
+**执行结果（老板裁决后）**：`legacy_decision_shim.py`、`decision_adapter.py`
+legacy→V3、`pricing_shadow` 兼容读、`_public_market_is_legacy_pick`/pre-LMM
+分支——经生产 trace 证明**均为活跃兼容链**，非死代码，本轮**不删**，移交
+`ARCH-P1-04D`。本任务实际交付：`_is_decision_tier`（死函数）+ F10_LINEUPS
+死子图删除 + INFRASTRUCTURE 层依赖守卫。
+
 **范围（逐项处理，允许 ≤3 个提交但同一 PR）**：
-- [ ] `src/w2/domain/legacy_decision_shim.py` 整文件删除（113 行）。
-- [ ] `src/w2/domain/decision_adapter.py`（986 行）中 legacy→V3 转换路径删除；V3 构造保留；
-      凡只被 shim/旧测试引用的函数一并删。
-- [ ] `src/w2/prematch/analysis_calculator.py` 中 pre-LMM frozen artifact 兼容分支
-      （注释 "Backward compatibility for immutable pre-LMM frozen artifacts" 及
-      `_public_market_is_legacy_pick` 调用链）。
-- [ ] `src/w2/dashboard/day_view.py`：`_scoreline_simulations` 的 `pricing_shadow` 兼容读
-      （保留 `simulation` 主路径）；死函数 `_is_decision_tier`。
-- [ ] **旧 F10 首发因子废弃**：`src/w2/features/live_factors.py` 中 `F10_LINEUPS` 相关函数
-      （专家评审确认未接入主 `FeatureInputs`）；并在 `src/w2/domain/factor_registry.py`
-      登记 LMM 链为唯一首发因子来源。此项是 EVAL-02B 的硬前置。
-- [ ] 删除后全库死代码复核，剩余疑似项只记录到待议区，不顺手删。
+- [ ] ~~`legacy_decision_shim.py` 整文件删除~~ → 移交 ARCH-P1-04D（活跃兼容链，见 correction 3）。
+- [ ] ~~`decision_adapter.py` legacy→V3 转换删除~~ → 移交 ARCH-P1-04D（同 correction 3）。
+- [ ] ~~`analysis_calculator` pre-LMM 分支 + `_public_market_is_legacy_pick`~~ → 保留（活跃，见 correction 2）。
+- [x] `day_view.py` 死函数 `_is_decision_tier` 删除（commit 1）。~~`pricing_shadow` 兼容读~~ → 保留（活跃源，见 correction 1）。
+- [x] F10_LINEUPS 死子图删除 + LMM 登记为唯一 lineup 来源（commit 1）。
+- [x] 全库死代码复核完成：三处原定删除项经生产 trace 证明为活跃兼容链，记录如下。
+- [x] INFRASTRUCTURE 层依赖守卫（commit 2，DEPENDENCY_CONTRACT_V1）。
+
+**三条范围纠偏（生产 trace 结论，老板 2026-07-24 裁决保留 + 移交）**：
+
+```text
+A2_SCOPE_CORRECTION_1:
+  item: DAY_VIEW_PRICING_SHADOW_COMPAT_READ
+  original_assumption: COMPATIBILITY_FALLBACK_WITH_SIMULATION_PRIMARY_PATH
+  audit_result: ACTIVE_PRODUCTION_SOURCE
+  evidence:
+    - analysis_calculator run_simulation_from_shadow(card.get("pricing_shadow"))
+    - projection persists pricing_shadow (analysis_calculator:6348)
+    - no production writer for top-level card["simulation"]
+    - test consumes pricing_shadow.simulation.simulations
+  decision: RETAIN
+  production_behavior_changed: false
+  follow_up: ARCH-P1-04D
+
+A2_SCOPE_CORRECTION_2:
+  item: PUBLIC_MARKET_LEGACY_PICK_CHAIN
+  original_assumption: PRE_LMM_DEAD_CODE
+  audit_result: ACTIVE_PICK_PATH_FOR_ANALYSIS_PICK_WITHOUT_MARKET_CANDIDATE
+  evidence:
+    - market_candidate write is conditional (analysis_calculator:5286)
+    - _public_market_is_primary_pick requires market_candidate
+    - test_dashboard_validates_analysis_pick_without_promoting_to_candidate depends on it
+  decision: RETAIN
+  production_behavior_changed: false
+  follow_up: ARCH-P1-04D
+
+A2_SCOPE_CORRECTION_3:
+  item: LEGACY_DECISION_SHIM_AND_ADAPTER_LEGACY_TO_V3
+  original_assumption: DEAD_CONTRACT_CONVERSION_1100_LINES
+  audit_result: ACTIVE_PRE_LMM_COMPATIBILITY_CHAIN
+  evidence:
+    - recommendations.derive_recommendation_tier calls legacy_decision_view when
+      _decision_tier_from_payload returns None (card without decision_tier)
+    - reached from write side via build_recommendation (analysis_calculator:6193/6556)
+    - card["decision_tier"] written on conditional/multi paths (may be absent)
+    - same test as correction 2 depends on the legacy tier inference
+    - same active chain as correction 2 (retaining zone 2 implies retaining shim)
+  decision: RETAIN
+  production_behavior_changed: false
+  follow_up: ARCH-P1-04D
+```
 
 **不做**：不动 analysis_calculator 计算语义；不动 API；不动表。
-**验收**：`LEGACY_DECISION_CONTRACT_CODE = 0`；`F10_LINEUPS` 全库零引用；全量测试与 04B 守卫绿。
-**资产账本**：新增 0；删除 ≥1,100 行合同转换 + F10 死代码。
+**验收（本轮实际口径）**：`_is_decision_tier` 零引用；`F10_LINEUPS` 全库零引用；
+INFRASTRUCTURE→{API,DASHBOARD,APPS} 守卫绿；全量测试与 04B 守卫绿。原
+`LEGACY_DECISION_CONTRACT_CODE = 0` 与 `NET_DELETION ≥ 1100` **不适用本轮**——
+合同层证明为活跃链，其删除是 ARCH-P1-04D 在 pre-LMM 契约迁移完成后的验收项。
+**资产账本**：新增 0；删除 227 行（`_is_decision_tier` + F10 子图）。
+- [ ] PR 合并。
+
+---
+
+#### A9. ARCH-P1-04D：pre-LMM 契约迁移与兼容链删除（A2/04C 的后续拆分任务）
+
+```text
+Status: NOT_STARTED
+```
+
+**由来**：A2（04C）经生产 trace 发现三处原定"死代码"实为活跃 pre-LMM 兼容链
+（见 A2 的三条 scope correction）。它们服务于**缺少完整 decision_contract 的
+card 形状**（无 `decision_tier` / `market_candidate` / 顶层 `simulation`）。删除
+这些兼容链的前置是先让写侧所有 card 带完整契约，这是数据迁移，超出 04C
+"不改生产行为"范围，故独立成任务。
+
+**目标**：淘汰 pre-LMM card 形状，之后删除三条兼容链。
+
+**范围**：
+- [ ] 写侧契约补全：`analysis_calculator` 所有生产 card 无条件带完整
+      `decision_contract`（`decision_tier` + `market_candidate` + 顶层
+      `simulation` 或等价投影字段）。
+- [ ] 对账：迁移前后 Dashboard/DayView 语义逐场 hash 一致（含
+      `scoreline_simulations`、`recommendation.decision_tier`、ANALYSIS_PICK
+      不提升语义）。
+- [ ] 读切换：确认 pre-LMM 兼容链不再可达（无 card 走 legacy 分支）。
+- [ ] 删除三条兼容链：`legacy_decision_shim.py` 整删；`decision_adapter.py`
+      legacy→V3 转换删；`_public_market_is_legacy_pick`/pre-LMM 分支删；
+      `day_view` `pricing_shadow` 兼容读删。
+- [ ] 更新依赖该三链的测试为现代契约形状。
+- [ ] 静态守卫：`LEGACY_DECISION_CONTRACT_CODE = 0`。
+
+**不做**：不改模型数学；不改 EV/门槛/安全开关。
+**验收**：`LEGACY_DECISION_CONTRACT_CODE = 0`；pre-LMM 兼容链全库零可达；
+迁移前后语义 hash 一致；全量测试与守卫绿。
 - [ ] PR 合并。
 
 ---

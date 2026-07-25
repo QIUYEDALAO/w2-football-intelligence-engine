@@ -73,6 +73,7 @@ architecture_convergence:
     - ARCH-P1-04B
     - ARCH-GOVERNANCE-01
     - ARCH-P1-04C
+    - ARCH-P1-04D
     - ARCH-P1-03
     - ARCH-P1-05
     - ARCH-P1-06
@@ -87,10 +88,17 @@ architecture_convergence:
   next_task: ARCH-P1-04C
   current_task:
     id: ARCH-P1-04C
-    status: IN_PROGRESS
+    status: IMPLEMENTED_PENDING_ACCEPTANCE
     started_at: "2026-07-24T21:00:00Z"
     baseline_sha: c09c7d9130f709d488f87e5369735a8bde0584b4
     branch: codex/arch-p1-04c-contract-dead-code-cleanup
+    delivered: DEAD_CODE_ONLY_IS_DECISION_TIER_AND_F10_PLUS_INFRA_DEPENDENCY_GUARD
+    scope_corrections:
+      - PRICING_SHADOW_ACTIVE_SOURCE_RETAINED
+      - LEGACY_PICK_ACTIVE_CHAIN_RETAINED
+      - LEGACY_SHIM_ACTIVE_CHAIN_RETAINED
+    contract_layer_deletion_moved_to: ARCH-P1-04D
+    production_behavior_changed: false
   governance_contracts:
     github_secondary_review:
       id: GITHUB_SECONDARY_REVIEW_PROTOCOL_V1
