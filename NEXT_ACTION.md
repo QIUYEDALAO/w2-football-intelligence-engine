@@ -44,12 +44,12 @@ ARCH-P1-04C -> ARCH-P1-04D -> ARCH-P1-03 -> ARCH-P1-05
   -> ARCH-P1-07 -> ARCH-P1-08
 ```
 
-The current task is **ARCH-P1-04C** (PR #395, Draft),
-`IMPLEMENTED_PENDING_ACCEPTANCE` — dead-code cleanup plus the infrastructure
+The current task is **ARCH-P1-04C** — dead-code cleanup plus the infrastructure
 dependency guard. Its contract-layer deletion was split out to
 **ARCH-P1-04D** (pre-LMM contract migration then compatibility-chain removal)
-after production traces proved three targets are active chains. Until #395 is
-externally accepted and closed, ARCH-P1-04D and ARCH-P1-03 stay `NOT_STARTED`.
+after production traces proved three targets are active chains. Until
+ARCH-P1-04C is externally accepted and closed, ARCH-P1-04D and ARCH-P1-03 do
+not start. The checklist owns its PR number, status and CI evidence.
 
 `ARCH-P1-05` carries a pre-approved conditional bring-forward: if the
 `ARCH-P1-04` series' staging acceptance keeps failing because of on-server

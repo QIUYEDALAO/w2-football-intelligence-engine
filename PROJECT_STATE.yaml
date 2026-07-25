@@ -89,6 +89,7 @@ architecture_convergence:
   current_task:
     id: ARCH-P1-04C
     status: IMPLEMENTED_PENDING_ACCEPTANCE
+    pull_request: 395
     started_at: "2026-07-24T21:00:00Z"
     baseline_sha: c09c7d9130f709d488f87e5369735a8bde0584b4
     branch: codex/arch-p1-04c-contract-dead-code-cleanup

@@ -162,6 +162,7 @@ DONE/merge 坐标一致。两个 required check 缺一不可。
 ```text
 Status: IMPLEMENTED_PENDING_ACCEPTANCE
 Branch: codex/arch-p1-04c-contract-dead-code-cleanup
+PR: #395
 Base SHA: c09c7d9130f709d488f87e5369735a8bde0584b4
 Implementation SHA: GITHUB_PR_EXACT_HEAD
 Started at: 2026-07-24T21:00:00Z
