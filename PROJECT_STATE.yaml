@@ -25,14 +25,14 @@ context_read_order:
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  main_sha: 9b2dc44bed22f237868d1471cbb8d9950917edcb
+  main_sha: 0cb267baa62abe547802bca27771a8fe1c26a0db
   main_migration_head: 0041_converge_odds_history_and_projection
-  pull_request: 398
-  pull_request_mode: READY
-  pull_request_head_branch: codex/arch-p1-04d-pre-lmm-contract-migration
-  task_baseline_sha: 9b2dc44bed22f237868d1471cbb8d9950917edcb
-  local_work_branch: codex/arch-p1-04d-pre-lmm-contract-migration
-  github_sync_status: ARCH_P1_04D_IMPLEMENTED_PENDING_ACCEPTANCE
+  pull_request: null
+  pull_request_mode: DRAFT
+  pull_request_head_branch: codex/arch-p1-03-team-identity-crosswalk
+  task_baseline_sha: 0cb267baa62abe547802bca27771a8fe1c26a0db
+  local_work_branch: codex/arch-p1-03-team-identity-crosswalk
+  github_sync_status: ARCH_P1_03_STARTED
   ci_checks:
     verify: GITHUB_PR_EXACT_HEAD
     staging-parity: GITHUB_PR_EXACT_HEAD
@@ -91,36 +91,16 @@ architecture_convergence:
     - ARCH-P2-04
     - ARCH-P2-06
     - ARCH-P2-05
-  next_task: ARCH-P1-03
+  next_task: ARCH-P1-05
   current_task:
-    id: ARCH-P1-04D
-    status: DONE
-    pull_request: 398
-    implementation_pr: 398
-    implementation_merge_sha: e6e447293365ca29686b21876cab5e103829b1ed
-    branch: codex/arch-p1-04d-pre-lmm-contract-migration
-    baseline_sha: 9b2dc44bed22f237868d1471cbb8d9950917edcb
-    started_at: "2026-07-25T04:30:00Z"
-    phase: M4_PHYSICAL_DELETION
-    m1_status: DONE
-    m2_status: DONE
-    m2_remediation_status: DONE
-    m3_status: DONE
-    m3_complete: true
-    m3_ready: true
-    m3_blocker: null
-    simulation_read_authority: CANONICAL_TOP_LEVEL_CARD_SIMULATION
-    public_pricing_shadow_simulation_reads: 0
-    reachable_legacy_only: 0
-    reachable_mismatch: 0
-    legacy_pick_runtime_reachable: 0
-    legacy_shim_runtime_reachable: 0
-    legacy_adapter_runtime_reachable: 0
-    m4_status: DONE
-    legacy_decision_contract_code: 0
-    compatibility_chains_deleted: true
-    predecessor: ARCH-P1-04C
-    arch_p1_03_status: NOT_STARTED
+    id: ARCH-P1-03
+    status: IN_PROGRESS
+    pull_request: null
+    branch: codex/arch-p1-03-team-identity-crosswalk
+    baseline_sha: 0cb267baa62abe547802bca27771a8fe1c26a0db
+    started_at: "2026-07-26T00:00:00Z"
+    predecessor: ARCH-P1-04D
+    scope: TEAM_IDENTITY_CROSSWALK_CONVERGENCE
   governance_contracts:
     github_secondary_review:
       id: GITHUB_SECONDARY_REVIEW_PROTOCOL_V1
@@ -210,7 +190,7 @@ architecture_convergence:
     ARCH-GOVERNANCE-01: DONE
     ARCH-P1-04C: DONE
     ARCH-P1-04D: DONE
-    ARCH-P1-03: NOT_STARTED
+    ARCH-P1-03: IN_PROGRESS
   pre_approved_order_change:
     task: ARCH-P1-05
     condition: STAGING_ONSITE_BUILD_REPEATEDLY_FAILS
