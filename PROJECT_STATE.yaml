@@ -27,7 +27,7 @@ repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
   main_sha: 0cb267baa62abe547802bca27771a8fe1c26a0db
   main_migration_head: 0041_converge_odds_history_and_projection
-  pull_request: null
+  pull_request: 400
   pull_request_mode: DRAFT
   pull_request_head_branch: codex/arch-p1-03-team-identity-crosswalk
   task_baseline_sha: 0cb267baa62abe547802bca27771a8fe1c26a0db
@@ -95,7 +95,7 @@ architecture_convergence:
   current_task:
     id: ARCH-P1-03
     status: IN_PROGRESS
-    pull_request: null
+    pull_request: 400
     branch: codex/arch-p1-03-team-identity-crosswalk
     baseline_sha: 0cb267baa62abe547802bca27771a8fe1c26a0db
     started_at: "2026-07-26T00:00:00Z"
