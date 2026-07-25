@@ -217,17 +217,32 @@ def _scoreline_simulations(card: Mapping[str, Any]) -> int | None:
 
 
 def _simulation_projection(card: Mapping[str, Any]) -> dict[str, Any]:
-    """Pass through the canonical top-level ``card["simulation"]``.
+    """Project the canonical top-level ``card["simulation"]`` by its real status.
 
     The only source is the top-level simulation produced upstream by
-    analysis_calculator. This never rebuilds the object from
-    ``pricing_shadow.simulation`` and never computes a simulation, so the
-    projected object is byte-identical to the source card simulation.
+    analysis_calculator; this never backfills or rebuilds from
+    ``pricing_shadow.simulation`` and never computes a simulation. When the
+    source status is ``READY`` the inner object is passed through untouched as a
+    canonical full object, so ``canonical_sha256`` of the projected inner object
+    equals that of the source. Other states carry no payload; an unknown or
+    missing source status fails closed.
     """
-    simulation = card.get("simulation")
-    if isinstance(simulation, Mapping) and simulation:
-        return {"status": "READY", "simulation": _mapping_copy(simulation)}
-    return {"status": "UNAVAILABLE", "simulation": None}
+    source = card.get("simulation")
+    if not isinstance(source, Mapping) or not source:
+        return {"status": "UNAVAILABLE", "simulation": None}
+    source_status = source.get("status")
+    if source_status == "READY":
+        return {"status": "READY", "simulation": _mapping_copy(source)}
+    if source_status == "INSUFFICIENT_INPUTS":
+        return {
+            "status": "UNAVAILABLE",
+            "simulation": None,
+            "source_status": "INSUFFICIENT_INPUTS",
+        }
+    identity = _optional_text(card.get("fixture_id")) or "UNKNOWN"
+    raise ProjectionCardContractViolation(
+        f"PROJECTION_CARD_INVALID:{identity}:simulation_source_status"
+    )
 
 
 def _validate_projection_card(projected: Mapping[str, Any]) -> None:
@@ -248,10 +263,23 @@ def _validate_projection_card(projected: Mapping[str, Any]) -> None:
             f"PROJECTION_CARD_INVALID:{identity}:market_selection"
         )
     simulation = projected.get("simulation")
-    if not isinstance(simulation, Mapping) or simulation.get("status") not in {
-        "READY",
-        "UNAVAILABLE",
-    }:
+    if not isinstance(simulation, Mapping):
+        raise ProjectionCardContractViolation(
+            f"PROJECTION_CARD_INVALID:{identity}:simulation_status"
+        )
+    status = simulation.get("status")
+    inner = simulation.get("simulation")
+    if status == "READY":
+        if not isinstance(inner, Mapping) or inner.get("status") != "READY":
+            raise ProjectionCardContractViolation(
+                f"PROJECTION_CARD_INVALID:{identity}:simulation_status"
+            )
+    elif status == "UNAVAILABLE":
+        if inner is not None:
+            raise ProjectionCardContractViolation(
+                f"PROJECTION_CARD_INVALID:{identity}:simulation_status"
+            )
+    else:
         raise ProjectionCardContractViolation(
             f"PROJECTION_CARD_INVALID:{identity}:simulation_status"
         )

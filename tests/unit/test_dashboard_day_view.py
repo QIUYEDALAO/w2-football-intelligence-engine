@@ -544,3 +544,82 @@ def test_validate_projection_card_fails_closed_without_selection() -> None:
     }
     with pytest.raises(ProjectionCardContractViolation, match="market_selection"):
         _validate_projection_card(projected)
+
+
+def test_projection_maps_insufficient_inputs_to_unavailable() -> None:
+    payload = _payload_with_contract(_pick_contract())
+    payload["all"][0]["simulation"] = {"status": "INSUFFICIENT_INPUTS", "simulations": 0}
+
+    card = build_dashboard_day_view(payload, environment="staging")["cards"][0]
+
+    assert card["simulation"] == {
+        "status": "UNAVAILABLE",
+        "simulation": None,
+        "source_status": "INSUFFICIENT_INPUTS",
+    }
+
+
+def test_projection_rejects_unknown_source_status() -> None:
+    from w2.dashboard.day_view import ProjectionCardContractViolation
+
+    payload = _payload_with_contract(_pick_contract())
+    payload["all"][0]["simulation"] = {"status": "PENDING", "simulations": 1}
+
+    with pytest.raises(
+        ProjectionCardContractViolation, match="simulation_source_status"
+    ):
+        build_dashboard_day_view(payload, environment="staging")
+
+
+def test_validator_rejects_ready_without_payload() -> None:
+    from w2.dashboard.day_view import (
+        ProjectionCardContractViolation,
+        _validate_projection_card,
+    )
+
+    projected = {
+        "fixture_id": "fixture-a",
+        "decision_tier": "ANALYSIS_PICK",
+        "pick": {"market": "ASIAN_HANDICAP"},
+        "non_pick": None,
+        "simulation": {"status": "READY", "simulation": None},
+    }
+    with pytest.raises(ProjectionCardContractViolation, match="simulation_status"):
+        _validate_projection_card(projected)
+
+
+def test_validator_rejects_unavailable_with_payload() -> None:
+    from w2.dashboard.day_view import (
+        ProjectionCardContractViolation,
+        _validate_projection_card,
+    )
+
+    projected = {
+        "fixture_id": "fixture-b",
+        "decision_tier": "WATCH",
+        "pick": None,
+        "non_pick": {"reason_code": "X"},
+        "simulation": {"status": "UNAVAILABLE", "simulation": {"status": "READY"}},
+    }
+    with pytest.raises(ProjectionCardContractViolation, match="simulation_status"):
+        _validate_projection_card(projected)
+
+
+def test_validator_rejects_ready_with_nonready_inner_status() -> None:
+    from w2.dashboard.day_view import (
+        ProjectionCardContractViolation,
+        _validate_projection_card,
+    )
+
+    projected = {
+        "fixture_id": "fixture-c",
+        "decision_tier": "ANALYSIS_PICK",
+        "pick": {"market": "ASIAN_HANDICAP"},
+        "non_pick": None,
+        "simulation": {
+            "status": "READY",
+            "simulation": {"status": "INSUFFICIENT_INPUTS"},
+        },
+    }
+    with pytest.raises(ProjectionCardContractViolation, match="simulation_status"):
+        _validate_projection_card(projected)
