@@ -41,6 +41,7 @@
 | ARCH-P1-04A 评估持久化 | #385 | `aa59b61d` | 事件驱动写侧投影管线（收口 #386 `46aa8d36`） |
 | ARCH-P1-04B Dashboard 读切换 | #387 | `7ffdc0fe` | API 降为 988 行纯投影读取，生产 fallback = 0（收口 #388 `75e49930`） |
 | ARCH-GOVERNANCE-01 双门禁 | #393 | `35fcac0d99573556c5e9f7a41822e153783efa73` | 可信 PRE/POST 门禁落地；独立 closure 收口 |
+| ARCH-P1-04C 死代码清理+依赖守卫 | #395 | `6eeb411747a1cef624ff4780dbad87d4cec4b26d` | `_is_decision_tier`+F10 删除，INFRASTRUCTURE 依赖守卫；合同层三活跃链移交 04D |
 
 ---
 
@@ -160,11 +161,11 @@ DONE/merge 坐标一致。两个 required check 缺一不可。
 #### A2. ARCH-P1-04C：合同层与死代码清理
 
 ```text
-Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Status: DONE
 Branch: codex/arch-p1-04c-contract-dead-code-cleanup
 PR: #395
 Base SHA: c09c7d9130f709d488f87e5369735a8bde0584b4
-Implementation SHA: GITHUB_PR_EXACT_HEAD
+Merge SHA: 6eeb411747a1cef624ff4780dbad87d4cec4b26d
 Started at: 2026-07-24T21:00:00Z
 Owner: Codex
 Scope outcome: 范围经生产 trace 收敛（老板 2026-07-24 裁决）。合同层删除的
