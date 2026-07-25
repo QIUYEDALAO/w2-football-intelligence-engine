@@ -258,7 +258,7 @@ M1: DONE (Dashboard simulation projection, status-driven pass-through)
 M2: DONE (frozen 8 MATCH; live LEGACY_ONLY=4 blocker found, MISMATCH=0)
 M2_REMEDIATION: DONE (live _dashboard_card_from_matchday passes through canonical
   top-level simulation; live LIVE_MATCH=4, LEGACY_ONLY=0, MISMATCH=0)
-M3: NOT_STARTED (m3_blocker=M3_PAUSED_BY_USER_PENDING_REAUTHORIZATION; 04C integrity corrected)
+M3: IN_PROGRESS (M3_READ_AUTHORITY_SWITCH; external entry authorized at bac7fdc4)
 M4: NOT_STARTED
 04D 整体仍为 IN_PROGRESS，不得标 DONE。
 ```
