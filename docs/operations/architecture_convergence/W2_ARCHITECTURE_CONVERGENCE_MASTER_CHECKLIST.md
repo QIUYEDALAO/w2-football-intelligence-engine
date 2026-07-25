@@ -160,7 +160,11 @@ DONE/merge 坐标一致。两个 required check 缺一不可。
 #### A2. ARCH-P1-04C：合同层与死代码清理
 
 ```text
-Status: NOT_STARTED
+Status: IN_PROGRESS
+Branch: codex/arch-p1-04c-contract-dead-code-cleanup
+Base SHA: c09c7d9130f709d488f87e5369735a8bde0584b4
+Started at: 2026-07-24T21:00:00Z
+Owner: Codex
 ```
 
 **目标**：删除全部新旧合同并存代码与 04B 后确认的死代码；每处删除附零引用证据。
