@@ -43,13 +43,19 @@ WRITERS（实际身份写入入口）:
          (src/w2/ingestion/future_refresh_repository.py:296，自 structured_lineup snapshot 物化；
           当前 lineup 为空故物化 0 行)
   provider_team_identity_crosswalks [authority]
-    = scripts/run_w2_league_whitelist_audit.py
-      -> write_provider_audit_outputs (src/w2/competitions/league_whitelist_provider_audit.py:521)
-    = src/w2/factor_model/remediation.py（含 stable_w2_team_id(provider_team_id):905 —
-      运行时 provider→canonical 构造点，M2 静态守卫须置 0）
+    = src/w2/factor_model/remediation.py:196
+      -> session.add(ProviderTeamIdentityCrosswalkModel(**crosswalk))
+         （w2_team_id 经 stable_w2_team_id(provider_team_id):905 构造 —
+          运行时 provider→canonical 构造点，M2 静态守卫须置 0）
+    注（更正）：scripts/run_w2_league_whitelist_audit.py -> write_provider_audit_outputs
+      (league_whitelist_provider_audit.py:521) 写的是 provider 审计产物（报告/文件），
+      非本表；不计为本表 writer。
   football_data_team_crosswalks
-    = src/w2/historical/football_data_co_uk.py
-      (write_football_data_ingest_artifacts:137 / write_football_data_audits:267)
+    = src/w2/historical/fah_repository.py:104 import_football_data_team_crosswalks
+      -> _football_data_team_crosswalk_model:599 -> FootballDataTeamCrosswalkModel(...)
+    注（更正分类）：football_data_co_uk.py write_football_data_ingest_artifacts:137 /
+      write_football_data_audits:267 写的是 ingest 产物与审计（磁盘文件/报告），
+      非本表 writer。
 JOBS / REPORT_READERS           = 0 专用 job / report 引用（仅上述 repository/ORM/脚本）
 FOREIGN_KEYS:
   provider_team_identity_crosswalks.w2_team_id -> canonical_teams
