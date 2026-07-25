@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-24T20:21:00Z"
+updated_at: "2026-07-25T14:18:39Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -25,24 +25,28 @@ context_read_order:
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  main_sha: 35fcac0d99573556c5e9f7a41822e153783efa73
+  main_sha: 9b2dc44bed22f237868d1471cbb8d9950917edcb
   main_migration_head: 0041_converge_odds_history_and_projection
-  pull_request: 394
+  pull_request: 397
   pull_request_mode: DRAFT
-  pull_request_head_branch: codex/arch-governance-01-closure
-  task_baseline_sha: 35fcac0d99573556c5e9f7a41822e153783efa73
-  local_work_branch: codex/arch-governance-01-closure
-  github_sync_status: ARCH_GOVERNANCE_01_CLOSURE_PROPOSED
+  pull_request_head_branch: codex/arch-p1-04d-pre-lmm-contract-migration
+  task_baseline_sha: 9b2dc44bed22f237868d1471cbb8d9950917edcb
+  local_work_branch: codex/arch-p1-04d-pre-lmm-contract-migration
+  github_sync_status: ARCH_P1_04D_M2_REMEDIATION_COMPLETE_M3_PAUSED
   ci_checks:
-    verify: GITHUB_CLOSURE_PR_EXACT_HEAD
-    staging-parity: GITHUB_CLOSURE_PR_EXACT_HEAD
-    predeploy-e2e: GITHUB_CLOSURE_PR_EXACT_HEAD_NOT_BRANCH_PROTECTION_REQUIRED
-    PRE_MERGE_READINESS_GATE: FAIL_EXPECTED_DRAFT_OR_ACCEPTANCE_MISSING
-    POST_MERGE_CHECKLIST_CONSISTENCY_GATE: GITHUB_CLOSURE_PR_EXACT_HEAD
+    verify: GITHUB_PR_EXACT_HEAD
+    staging-parity: GITHUB_PR_EXACT_HEAD
+    predeploy-e2e: GITHUB_PR_EXACT_HEAD
+    PRE_MERGE_READINESS_GATE: NOT_RUN_DRAFT_M3_PAUSED
+    POST_MERGE_CHECKLIST_CONSISTENCY_GATE: MAIN_30143083350_PASS_FOR_ARCH_P1_04C_CLOSURE
   closed_pull_requests:
     370: CLOSED_AFTER_BASELINE_INTEGRATION_PR_374
     385: MERGED_AFTER_IMPLEMENTATION_AND_STAGING_ACCEPTANCE
     387: MERGED_AFTER_EXTERNAL_REVIEW
+    393: MERGED_AFTER_EXTERNAL_REVIEW
+    394: MERGED_ARCH_GOVERNANCE_CLOSURE
+    395: MERGED_ARCH_P1_04C_IMPLEMENTATION
+    396: MERGED_ARCH_P1_04C_CLOSURE
 
 architecture_convergence:
   authority_document: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
@@ -99,7 +103,7 @@ architecture_convergence:
     m2_status: DONE
     m2_remediation_status: DONE
     m3_ready: false
-    m3_blocker: PENDING_EXTERNAL_M3_ENTRY_REVIEW
+    m3_blocker: PENDING_ARCH_P1_04C_CLOSURE_INTEGRITY_REVIEW
     compatibility_chains_deleted: false
     predecessor: ARCH-P1-04C
     arch_p1_03_status: NOT_STARTED
