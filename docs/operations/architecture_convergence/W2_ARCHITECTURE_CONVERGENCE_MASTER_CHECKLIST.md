@@ -293,18 +293,21 @@ staging 只读盘点（read_model_checkpoint，8 个 frozen canary artifact）�
 ```text
 FROZEN_ARTIFACTS_TOTAL            = 8
 SCHEMA_ALL_CANONICAL             = 8/8  (w2.analysis-card.frozen.v1)
+PRODUCTION_VALIDATE_OK           = 8/8  (validate_frozen_analysis_payload 无异常)
+ARTIFACT_HASH_VALID              = PASS (8/8)   （payload 完整性）
+SOURCE_HASH_VALID                = PASS (8/8)   （来源身份；与 artifact_hash 语义不同）
 CARD_TOP_TIER_PRESENT            = 8/8  (WATCH×6, NOT_READY×1, ANALYSIS_PICK×1)
 CONTRACT_TIER_PRESENT            = 8/8  (逐条与 card_top_tier 相同)
 SIM_JSONB_EQUAL (full object)    = 8/8  true
-TOP_SIM_HASH == PSHADOW_SIM_HASH = 8/8  (md5 全对象)
-SOURCE_HASH == ARTIFACT_HASH     = 8/8  (sha256)
+TOP_SIM_OBJ_HASH == PSHADOW_OBJ  = 8/8  (canonical_sha256 全对象)
 REACHABILITY_NOT_YET_EVALUATED   = M3_GATE
 ```
 
-（可达性未评估：未查证 public-reader/current-fixture 是否仍读取历史
-artifact，故不主张 UNREACHABLE / CANNOT_REMATERIALIZE，判定锁 M3 gate。
-inventory fingerprint = b7fc8e2c2b3ba30d0c8a4258bda23a4b，仅身份指纹。
-完整证据见 W2_ARCH_P1_04D_FROZEN_ARTIFACT_INVENTORY.md。）
+（artifact_hash 与 source_hash 语义不同，分别验证，不要求相等。可达性未评估：
+未查证 public-reader/current-fixture 是否仍读取历史 artifact，故不主张
+UNREACHABLE / CANNOT_REMATERIALIZE，判定锁 M3 gate。inventory fingerprint =
+3a748382575ce8dd7f36184b7e15ebbd，仅身份指纹。完整证据见
+W2_ARCH_P1_04D_FROZEN_ARTIFACT_INVENTORY.md。）
 
 **关键结论**：8 条 frozen artifact 均为 canonical schema，顶层与嵌套 tier
 逐条一致；顶层 simulation 与 pricing_shadow simulation **全对象 JSONB 逐条
@@ -346,9 +349,11 @@ selection **或**明确无选择状态（`market_candidate` 仍为可选证据�
 的对账守卫接入 projection 透传路径，不追溯改写已固化的 frozen.v1 payload。
 
 **范围**：
-- [ ] 写侧契约补全：`analysis_calculator` 所有生产 card 无条件带完整
-      `decision_contract`（`decision_tier` + `market_candidate` + 顶层
-      `simulation` 或等价投影字段）。
+- [ ] canonical card 契约（写/投影侧 card 无条件具备三项，validator 强制）：
+      1. 显式 `decision_tier`；
+      2. 显式 public-market selection **或**明确 `NONE` 状态；
+      3. 顶层 `simulation` 字典含明确 `READY` / `UNAVAILABLE` 状态。
+      `market_candidate` **仍为可选证据，禁止写成必需字段、禁止伪造**。
 - [ ] 对账：迁移前后 Dashboard/DayView 语义逐场 hash 一致（含
       `scoreline_simulations`、`recommendation.decision_tier`、ANALYSIS_PICK
       不提升语义）。

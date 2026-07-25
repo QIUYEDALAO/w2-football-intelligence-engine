@@ -186,7 +186,8 @@ architecture_convergence:
   queued_tasks:
     ARCH-GOVERNANCE-01: DONE
     ARCH-P1-04C: DONE
-    ARCH-P1-04D: NOT_STARTED
+    ARCH-P1-04D: IN_PROGRESS
+    ARCH-P1-03: NOT_STARTED
   pre_approved_order_change:
     task: ARCH-P1-05
     condition: STAGING_ONSITE_BUILD_REPEATEDLY_FAILS
