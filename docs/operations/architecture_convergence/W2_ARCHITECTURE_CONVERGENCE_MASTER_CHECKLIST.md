@@ -263,6 +263,7 @@ INFRASTRUCTURE→{API,DASHBOARD,APPS} 守卫绿；全量测试与 04B 守卫绿�
 Status: IMPLEMENTED_PENDING_ACCEPTANCE
 Branch: codex/arch-p1-04d-pre-lmm-contract-migration
 Base SHA: 9b2dc44bed22f237868d1471cbb8d9950917edcb
+Implementation SHA: GITHUB_PR_EXACT_HEAD
 Started at: 2026-07-25T04:30:00Z
 Owner: Codex
 M1: DONE (Dashboard simulation projection, status-driven pass-through)
@@ -274,7 +275,7 @@ M3: DONE (canonical simulation read authority implemented;
   LEGACY_ADAPTER_RUNTIME_REACHABLE=0)
 M4: IMPLEMENTED_PENDING_ACCEPTANCE (five retained compatibility components
   physically deleted; LEGACY_DECISION_CONTRACT_CODE=0)
-04D 整体仍为 IN_PROGRESS，不得标 DONE。
+04D 整体为 IMPLEMENTED_PENDING_ACCEPTANCE，不得标 DONE。
 ```
 
 **由来**：A2（04C）经生产 trace 发现三处原定"死代码"实为活跃 pre-LMM 兼容链
