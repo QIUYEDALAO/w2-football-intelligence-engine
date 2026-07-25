@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Any
 
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
+from w2.prematch.simulation_reconciliation import canonical_public_simulation
 from w2.strategy.simulate import sample_score_matrix, score_matrix_from_simulation
 
 
@@ -431,15 +432,8 @@ def _recommended_outcome_for_scoreline(
 
 
 def _simulation_from_card(card: dict[str, Any]) -> dict[str, Any] | None:
-    simulation = card.get("simulation")
-    if isinstance(simulation, dict):
-        return simulation
-    shadow = card.get("pricing_shadow")
-    if isinstance(shadow, dict):
-        simulation = shadow.get("simulation")
-        if isinstance(simulation, dict):
-            return simulation
-    return None
+    simulation = canonical_public_simulation(card)
+    return dict(simulation) if simulation is not None else None
 
 
 def _simulation_scoreline_picks(card: dict[str, Any]) -> list[dict[str, Any]]:

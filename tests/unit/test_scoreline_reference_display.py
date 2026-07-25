@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import pytest
+
 from w2.dashboard.scorelines import scoreline_reference_from_card
+from w2.prematch.simulation_reconciliation import PublicSimulationReadViolation
 from w2.strategy.simulate import SimulationInputs, run_simulation
 
 
@@ -22,6 +25,7 @@ def _ready_simulation_card() -> dict[str, object]:
     ).as_dict()
     return {
         "fixture_id": "fixture-scoreline-contract",
+        "simulation": simulation,
         "pricing_shadow": {"simulation": simulation},
     }
 
@@ -52,6 +56,7 @@ def test_scoreline_reference_exposes_tail_when_top_scores_are_low() -> None:
             },
         },
     }
+    card["simulation"] = card["pricing_shadow"]["simulation"]
 
     reference = scoreline_reference_from_card(
         card,
@@ -139,6 +144,7 @@ def test_scoreline_reference_direction_top3_filters_by_formal_home_ah_direction(
             },
         },
     }
+    card["simulation"] = card["pricing_shadow"]["simulation"]
 
     reference = scoreline_reference_from_card(
         card,
@@ -184,6 +190,7 @@ def test_scoreline_reference_direction_top3_filters_by_formal_away_ah_direction(
             },
         },
     }
+    card["simulation"] = card["pricing_shadow"]["simulation"]
 
     reference = scoreline_reference_from_card(
         card,
@@ -346,4 +353,5 @@ def test_scoreline_reference_direction_top3_filters_totals_pick() -> None:
 
 def test_scoreline_reference_returns_none_without_ready_simulation() -> None:
     card = {"pricing_shadow": {"simulation": {"status": "WATCH"}}}
-    assert scoreline_reference_from_card(card) is None
+    with pytest.raises(PublicSimulationReadViolation, match="LEGACY_ONLY"):
+        scoreline_reference_from_card(card)

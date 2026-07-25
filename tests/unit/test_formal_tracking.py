@@ -114,6 +114,7 @@ def test_capture_formal_snapshot_preserves_scoreline_and_simulation_evidence(tmp
             "calibration_version": "UNVALIDATED",
         },
     }
+    card["simulation"] = card["pricing_shadow"]["simulation"]  # type: ignore[index]
 
     capture_formal_snapshots(
         [card],

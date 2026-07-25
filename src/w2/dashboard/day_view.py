@@ -9,6 +9,10 @@ from w2.dashboard.degradation import build_dashboard_degradation
 from w2.domain.decision_contract import validate_decision_contract
 from w2.domain.enums import DataStatus, DecisionTier, LifecycleStatus
 from w2.domain.environment_policy import build_environment_policy_stamp
+from w2.prematch.simulation_reconciliation import (
+    PublicSimulationReadViolation,
+    canonical_public_simulation,
+)
 
 CARD_SOURCE_CONTRACT = "decision_contract"
 ANALYSIS_CARD_CONTRACT_VERSION = "w2.analysis-card.contract.v1"
@@ -97,6 +101,10 @@ def _is_prematch_card(card: Mapping[str, Any], *, as_of: datetime) -> bool:
 
 
 def _day_view_card(card: Mapping[str, Any]) -> dict[str, Any]:
+    try:
+        canonical_public_simulation(card)
+    except PublicSimulationReadViolation as exc:
+        raise ProjectionCardContractViolation(str(exc)) from exc
     contract = validate_decision_contract(
         card.get("decision_contract"),
         fixture_id=card.get("fixture_id"),
@@ -203,9 +211,7 @@ def _market_context_fields(card: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _scoreline_simulations(card: Mapping[str, Any]) -> int | None:
-    simulation = _mapping(card.get("simulation"))
-    if not simulation:
-        simulation = _mapping(_mapping(card.get("pricing_shadow")).get("simulation"))
+    simulation = _mapping(canonical_public_simulation(card))
     value = simulation.get("simulations")
     if isinstance(value, bool):
         return None
@@ -227,8 +233,8 @@ def _simulation_projection(card: Mapping[str, Any]) -> dict[str, Any]:
     equals that of the source. Other states carry no payload; an unknown or
     missing source status fails closed.
     """
-    source = card.get("simulation")
-    if not isinstance(source, Mapping) or not source:
+    source = canonical_public_simulation(card)
+    if source is None:
         return {"status": "UNAVAILABLE", "simulation": None}
     source_status = source.get("status")
     if source_status == "READY":

@@ -9,6 +9,8 @@ from __future__ import annotations
 import copy
 from typing import Any, cast
 
+import pytest
+
 from w2.dashboard.day_view import _simulation_projection
 from w2.prematch.analysis_calculator import ReadModelService
 from w2.prematch.read_model_projection import canonical_sha256
@@ -16,6 +18,7 @@ from w2.prematch.simulation_reconciliation import (
     LEGACY_ONLY,
     MATCH,
     MISMATCH,
+    PublicSimulationReadViolation,
     reconcile_simulation,
 )
 
@@ -70,31 +73,28 @@ def test_live_card_passes_through_top_level_simulation_and_matches() -> None:
     assert reconcile_simulation(out) == MATCH
 
 
-def test_live_card_uses_top_level_not_pricing_shadow_backfill() -> None:
+def test_live_card_fails_closed_on_mismatch() -> None:
     top = _sim(seed=1)
     legacy = _sim(seed=2)
     card = _make_card(simulation=dict(top), pricing_shadow={"simulation": dict(legacy)})
 
-    out = _project(card)
-
-    # The dashboard uses the top-level object, never the pricing_shadow object.
-    assert out["simulation"] == top
-    assert out["simulation"] != legacy
-    assert reconcile_simulation(out) == MISMATCH
+    with pytest.raises(PublicSimulationReadViolation, match=MISMATCH):
+        _project(card)
 
 
-def test_live_card_does_not_backfill_when_only_pricing_shadow() -> None:
+def test_live_card_fails_closed_when_only_pricing_shadow() -> None:
     card = _make_card(simulation=None, pricing_shadow={"simulation": _sim()})
 
-    out = _project(card)
-
-    assert out["simulation"] is None
-    assert reconcile_simulation(out) == LEGACY_ONLY
+    with pytest.raises(PublicSimulationReadViolation, match=LEGACY_ONLY):
+        _project(card)
 
 
 def test_live_card_preserves_insufficient_inputs_and_daytview_maps_unavailable() -> None:
     source = {"status": "INSUFFICIENT_INPUTS", "simulations": 0}
-    card = _make_card(simulation=dict(source), pricing_shadow={"simulation": _sim()})
+    card = _make_card(
+        simulation=dict(source),
+        pricing_shadow={"simulation": dict(source)},
+    )
 
     out = _project(card)
 
@@ -117,3 +117,30 @@ def test_live_projection_does_not_mutate_source_simulation() -> None:
 
     assert card["simulation"] == before
     assert canonical_sha256(out["simulation"]) == canonical_sha256(before)
+
+
+def test_match_and_top_only_keep_public_business_outputs_equal() -> None:
+    simulation = _sim()
+    matched = _project(
+        _make_card(
+            simulation=dict(simulation),
+            pricing_shadow={"simulation": dict(simulation)},
+        )
+    )
+    top_only = _project(_make_card(simulation=dict(simulation)))
+
+    fields = (
+        "recommendation",
+        "scoreline_picks",
+        "scoreline_reference",
+        "scoreline_readiness",
+        "formal_suppressed",
+        "formal_suppressed_reason",
+        "formal_recommendation",
+        "candidate",
+        "pick",
+        "non_pick",
+    )
+    assert {field: matched.get(field) for field in fields} == {
+        field: top_only.get(field) for field in fields
+    }

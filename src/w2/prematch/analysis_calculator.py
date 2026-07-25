@@ -117,6 +117,7 @@ from w2.operations.tournament import (
     readiness_report,
     tournament_profile_from_payload,
 )
+from w2.prematch.simulation_reconciliation import canonical_public_simulation
 from w2.pricing.shadow import build_pricing_shadow
 from w2.providers.quota import api_football_quota_policy, parse_int
 from w2.ratings.elo import rating_from_history
@@ -405,7 +406,14 @@ def release_env(name: str, default: str = "UNKNOWN") -> str:
 def run_simulation_from_shadow(payload: Any) -> SimulationOutput | None:
     if not isinstance(payload, dict):
         return None
-    simulation = payload.get("simulation")
+    return _simulation_output_from_mapping(payload.get("simulation"))
+
+
+def run_simulation_from_card(card: dict[str, Any]) -> SimulationOutput | None:
+    return _simulation_output_from_mapping(canonical_public_simulation(card))
+
+
+def _simulation_output_from_mapping(simulation: Any) -> SimulationOutput | None:
     if not isinstance(simulation, dict) or not simulation.get("status"):
         return None
     scoreline_picks: list[dict[str, Any]] = (
@@ -6141,7 +6149,7 @@ class ReadModelService:
         )
         formal_result = build_formal_recommendation(
             fixture_status=normalize_match_status(row.get("status")),
-            simulation=run_simulation_from_shadow(card.get("pricing_shadow")),
+            simulation=run_simulation_from_card(card),
             current_odds=card.get("current_odds")
             if isinstance(card.get("current_odds"), dict)
             else None,
@@ -6379,11 +6387,7 @@ class ReadModelService:
         }
 
     def _dashboard_scoreline_readiness(self, card: dict[str, Any]) -> dict[str, Any] | None:
-        simulation = card.get("simulation")
-        if not isinstance(simulation, dict):
-            shadow = card.get("pricing_shadow")
-            if isinstance(shadow, dict):
-                simulation = shadow.get("simulation")
+        simulation = canonical_public_simulation(card)
         if isinstance(simulation, dict) and simulation.get("status") == "READY":
             return {
                 "status": "READY",

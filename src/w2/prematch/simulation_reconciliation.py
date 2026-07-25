@@ -29,6 +29,10 @@ RECONCILIATION_STATUSES = (
 )
 
 
+class PublicSimulationReadViolation(RuntimeError):
+    """Canonical public simulation is missing, contradictory, or malformed."""
+
+
 def _present(value: Any) -> bool:
     return isinstance(value, Mapping) and bool(value)
 
@@ -63,3 +67,25 @@ def reconcile_simulation(card: Mapping[str, Any]) -> str:
     if legacy_present:
         return LEGACY_ONLY
     return BOTH_UNAVAILABLE
+
+
+def canonical_public_simulation(card: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    """Return only the canonical top-level simulation, failing closed on drift."""
+    identity = str(card.get("fixture_id") or "UNKNOWN")
+    reconciliation = reconcile_simulation(card)
+    if reconciliation in {LEGACY_ONLY, MISMATCH}:
+        raise PublicSimulationReadViolation(
+            f"PUBLIC_SIMULATION_INVALID:{identity}:{reconciliation}"
+        )
+    simulation = card.get("simulation")
+    if simulation is None or simulation == {}:
+        return None
+    if not isinstance(simulation, Mapping):
+        raise PublicSimulationReadViolation(
+            f"PUBLIC_SIMULATION_INVALID:{identity}:UNKNOWN_STATE"
+        )
+    if simulation.get("status") not in {"READY", "INSUFFICIENT_INPUTS"}:
+        raise PublicSimulationReadViolation(
+            f"PUBLIC_SIMULATION_INVALID:{identity}:UNKNOWN_STATE"
+        )
+    return simulation

@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from w2.dashboard import day_view
-from w2.dashboard.day_view import build_dashboard_day_view
+from w2.dashboard.day_view import ProjectionCardContractViolation, build_dashboard_day_view
 from w2.domain.decision_contract import (
     REQUIRED_DECISION_CONTRACT_FIELDS,
     DecisionContractViolation,
@@ -143,6 +143,10 @@ def test_day_view_projects_valid_decision_contract_card() -> None:
                         "status": "READY",
                         "simulations": 10000,
                     }
+                },
+                "simulation": {
+                    "status": "READY",
+                    "simulations": 10000,
                 },
                 "scoreline_picks": [
                     {
@@ -466,19 +470,14 @@ def test_day_view_projects_canonical_top_level_simulation() -> None:
     assert card["simulation"] == {"status": "READY", "simulation": simulation}
 
 
-def test_day_view_simulation_unavailable_when_only_pricing_shadow() -> None:
+def test_day_view_fails_closed_when_only_pricing_shadow() -> None:
     payload = _payload_with_contract(_pick_contract())
     payload["all"][0]["pricing_shadow"] = {
         "simulation": {"status": "READY", "simulations": 10000}
     }
 
-    card = build_dashboard_day_view(payload, environment="staging")["cards"][0]
-
-    # Top-level projection is UNAVAILABLE: it never reverse-rebuilds from
-    # pricing_shadow. The legacy scoreline count still reads pricing_shadow
-    # (fallback retained in M1).
-    assert card["simulation"] == {"status": "UNAVAILABLE", "simulation": None}
-    assert card["scoreline_simulations"] == 10000
+    with pytest.raises(ProjectionCardContractViolation, match="LEGACY_ONLY"):
+        build_dashboard_day_view(payload, environment="staging")
 
 
 def test_day_view_declares_analysis_card_contract_version() -> None:
@@ -566,7 +565,7 @@ def test_projection_rejects_unknown_source_status() -> None:
     payload["all"][0]["simulation"] = {"status": "PENDING", "simulations": 1}
 
     with pytest.raises(
-        ProjectionCardContractViolation, match="simulation_source_status"
+        ProjectionCardContractViolation, match="UNKNOWN_STATE"
     ):
         build_dashboard_day_view(payload, environment="staging")
 
