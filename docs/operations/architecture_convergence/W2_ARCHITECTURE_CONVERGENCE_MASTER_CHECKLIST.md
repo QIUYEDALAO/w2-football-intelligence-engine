@@ -42,6 +42,7 @@
 | ARCH-P1-04B Dashboard 读切换 | #387 | `7ffdc0fe` | API 降为 988 行纯投影读取，生产 fallback = 0（收口 #388 `75e49930`） |
 | ARCH-GOVERNANCE-01 双门禁 | #393 | `35fcac0d99573556c5e9f7a41822e153783efa73` | 可信 PRE/POST 门禁落地；独立 closure 收口 |
 | ARCH-P1-04C 死代码清理+依赖守卫 | #395 | `6eeb411747a1cef624ff4780dbad87d4cec4b26d` | `_is_decision_tier`+F10 删除，INFRASTRUCTURE 依赖守卫；合同层三活跃链移交 04D |
+| ARCH-P1-04D | #398 | `e6e447293365ca29686b21876cab5e103829b1ed` | canonical card 权威统一，五项兼容代码删除，`LEGACY_DECISION_CONTRACT_CODE=0` |
 
 ---
 
@@ -260,11 +261,12 @@ INFRASTRUCTURE→{API,DASHBOARD,APPS} 守卫绿；全量测试与 04B 守卫绿�
 #### A9. ARCH-P1-04D：pre-LMM 契约迁移与兼容链删除（A2/04C 的后续拆分任务）
 
 ```text
-Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Status: DONE
 Branch: codex/arch-p1-04d-pre-lmm-contract-migration
 PR: #398
+Merge SHA: e6e447293365ca29686b21876cab5e103829b1ed
 Base SHA: 9b2dc44bed22f237868d1471cbb8d9950917edcb
-Implementation SHA: GITHUB_PR_EXACT_HEAD
+Implementation SHA: d9748a24b2359e8a642006af53e713baad236cb9
 Started at: 2026-07-25T04:30:00Z
 Owner: Codex
 M1: DONE (Dashboard simulation projection, status-driven pass-through)
@@ -274,9 +276,9 @@ M2_REMEDIATION: DONE (live _dashboard_card_from_matchday passes through canonica
 M3: DONE (canonical simulation read authority implemented;
   LEGACY_PICK_RUNTIME_REACHABLE=0; LEGACY_SHIM_RUNTIME_REACHABLE=0;
   LEGACY_ADAPTER_RUNTIME_REACHABLE=0)
-M4: IMPLEMENTED_PENDING_ACCEPTANCE (five retained compatibility components
+M4: DONE (five retained compatibility components
   physically deleted; LEGACY_DECISION_CONTRACT_CODE=0)
-04D 整体为 IMPLEMENTED_PENDING_ACCEPTANCE，不得标 DONE。
+04D 整体为 DONE。
 ```
 
 **由来**：A2（04C）经生产 trace 发现三处原定"死代码"实为活跃 pre-LMM 兼容链
@@ -394,7 +396,7 @@ selection **或**明确无选择状态（`market_candidate` 仍为可选证据�
 **不做**：不改模型数学；不改 EV/门槛/安全开关。
 **验收**：`LEGACY_DECISION_CONTRACT_CODE = 0`；pre-LMM 兼容链全库零可达；
 迁移前后语义 hash 一致；全量测试与守卫绿。
-- [ ] PR 合并。
+- [x] PR 合并（#398，merge SHA `e6e447293365ca29686b21876cab5e103829b1ed`）。
 
 ---
 
