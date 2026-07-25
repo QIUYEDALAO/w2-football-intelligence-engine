@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-25T14:18:39Z"
+updated_at: "2026-07-25T15:01:14Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -32,7 +32,7 @@ repository:
   pull_request_head_branch: codex/arch-p1-04d-pre-lmm-contract-migration
   task_baseline_sha: 9b2dc44bed22f237868d1471cbb8d9950917edcb
   local_work_branch: codex/arch-p1-04d-pre-lmm-contract-migration
-  github_sync_status: ARCH_P1_04D_M2_REMEDIATION_COMPLETE_M3_PAUSED
+  github_sync_status: ARCH_P1_04C_CLOSURE_INTEGRITY_CORRECTED_M3_PAUSED
   ci_checks:
     verify: GITHUB_PR_EXACT_HEAD
     staging-parity: GITHUB_PR_EXACT_HEAD
@@ -103,7 +103,7 @@ architecture_convergence:
     m2_status: DONE
     m2_remediation_status: DONE
     m3_ready: false
-    m3_blocker: PENDING_ARCH_P1_04C_CLOSURE_INTEGRITY_REVIEW
+    m3_blocker: M3_PAUSED_BY_USER_PENDING_REAUTHORIZATION
     compatibility_chains_deleted: false
     predecessor: ARCH-P1-04C
     arch_p1_03_status: NOT_STARTED
