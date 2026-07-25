@@ -253,8 +253,10 @@ Base SHA: 9b2dc44bed22f237868d1471cbb8d9950917edcb
 Started at: 2026-07-25T04:30:00Z
 Owner: Codex
 M1: DONE (Dashboard simulation projection, status-driven pass-through)
-M2: RECONCILIATION_IN_PROGRESS (frozen 8 MATCH; live LEGACY_ONLY=4, MISMATCH=0)
-M3: NOT_STARTED (blocked: live path lacks canonical top-level simulation)
+M2: DONE (frozen 8 MATCH; live LEGACY_ONLY=4 blocker found, MISMATCH=0)
+M2_REMEDIATION: DONE (live _dashboard_card_from_matchday passes through canonical
+  top-level simulation; live LIVE_MATCH=4, LEGACY_ONLY=0, MISMATCH=0)
+M3: NOT_STARTED (m3_blocker=PENDING_EXTERNAL_M3_ENTRY_REVIEW; 不自行开始)
 M4: NOT_STARTED
 04D 整体仍为 IN_PROGRESS，不得标 DONE。
 ```

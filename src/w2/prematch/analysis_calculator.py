@@ -6354,6 +6354,12 @@ class ReadModelService:
             "market_divergence": card.get("market_divergence", {}),
             "bookmaker_hypothesis": card.get("bookmaker_hypothesis", {}),
             "pricing_shadow": card.get("pricing_shadow"),
+            # ARCH-P1-04D M2 remediation: pass the canonical top-level simulation
+            # straight through from the source analysis card. Never backfilled
+            # from pricing_shadow, never recomputed, no second writer; absent ->
+            # explicit None. The source status (READY / INSUFFICIENT_INPUTS) is
+            # preserved verbatim; DayView M1 maps it to READY / UNAVAILABLE.
+            "simulation": card.get("simulation"),
             "quote_identity_audit": card.get("quote_identity_audit", {}),
             "dynamic_prematch": card.get("dynamic_prematch", {}),
             "lineup_provenance": card.get("lineup_provenance", {}),

@@ -94,11 +94,12 @@ architecture_convergence:
     branch: codex/arch-p1-04d-pre-lmm-contract-migration
     baseline_sha: 9b2dc44bed22f237868d1471cbb8d9950917edcb
     started_at: "2026-07-25T04:30:00Z"
-    phase: M2_RECONCILIATION
+    phase: M2_LIVE_PROJECTION_REMEDIATION
     m1_status: DONE
-    m2_status: RECONCILIATION_IN_PROGRESS
+    m2_status: DONE
+    m2_remediation_status: DONE
     m3_ready: false
-    m3_blocker: LIVE_LEGACY_ONLY_4
+    m3_blocker: PENDING_EXTERNAL_M3_ENTRY_REVIEW
     compatibility_chains_deleted: false
     predecessor: ARCH-P1-04C
     arch_p1_03_status: NOT_STARTED
