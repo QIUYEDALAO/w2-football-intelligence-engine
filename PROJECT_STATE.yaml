@@ -86,13 +86,259 @@ architecture_convergence:
     - ARCH-P2-04
     - ARCH-P2-06
     - ARCH-P2-05
-  next_task: ARCH-P1-03
+  next_task: ARCH-P1-04D
   current_task:
     id: ARCH-P1-04D
     status: IN_PROGRESS
-    started_at: "2026-07-25T04:30:00Z"
-    baseline_sha: 9b2dc44bed22f237868d1471cbb8d9950917edcb
-    branch: codex/arch-p1-04d-pre-lmm-contract-migration
     pull_request: 397
+    branch: codex/arch-p1-04d-pre-lmm-contract-migration
+    baseline_sha: 9b2dc44bed22f237868d1471cbb8d9950917edcb
+    started_at: "2026-07-25T04:30:00Z"
     phase: DESIGN_AND_READONLY_INVENTORY
     compatibility_chains_deleted: false
+    predecessor: ARCH-P1-04C
+    arch_p1_03_status: NOT_STARTED
+  governance_contracts:
+    github_secondary_review:
+      id: GITHUB_SECONDARY_REVIEW_PROTOCOL_V1
+      authority_file: docs/operations/architecture_convergence/W2_GITHUB_SECONDARY_REVIEW_PROTOCOL.md
+      must_read_before_review: true
+      read_ref: PR_EXACT_HEAD_IF_OPEN_ELSE_MAIN
+      review_mode: FULL_CLOSURE_NOT_DELTA_CONFIRMATION
+      remediation_policy: ONE_CONSOLIDATED_INCREMENTAL_INSTRUCTION
+    task_scope_and_review_boundary:
+      id: TASK_SCOPE_AND_REVIEW_BOUNDARY_V1
+      scope_authority: W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
+      current_diff_regression_can_block: true
+      safety_boundary_change_can_block: true
+      out_of_scope_implementation_may_be_removed: true
+      approved_acceptance_gates_may_be_reduced: false
+      implementation_may_be_simplified: true
+      acceptance_procedure_may_be_simplified: false
+    dependency_contract:
+      id: DEPENDENCY_CONTRACT_V1
+      layer_order: APPS_TO_DASHBOARD_PRESENTATION_TO_API_TO_INFRASTRUCTURE_TO_DOMAIN
+      enforcement_task: ARCH-P1-04C
+      ast_guard_layers:
+        - W2_DOMAIN
+        - W2_INFRASTRUCTURE
+        - W2_API
+        - W2_DASHBOARD
+        - PRESENTATION
+        - APPS
+      infrastructure_forbidden_dependencies:
+        - W2_API
+        - W2_DASHBOARD
+        - APPS
+    documentation_scope:
+      ARCH-HYGIENE-01: GENERATED_AUDIT_ARTIFACTS
+      ARCH-P2-02: HUMAN_MAINTAINED_DOCUMENTS_ONLY
+    audit_generation:
+      audit_generator_sha: GENERATOR_CODE_VERSION
+      source_review_sha: AUDITED_CODE_TREE_GIT_HEAD_AT_GENERATION
+      source_review_sha_validation: MATCHES_GENERATION_HEAD
+      source_tree_input_contract: SHARED_BY_SCANNER_GIT_GUARD_AND_TESTS
+      source_tree_inputs_match_git_head: true
+      untracked_scanned_non_python_files_accepted: 0
+    script_authority:
+      inventory_baseline: 146
+      retained: 138
+      dead_deleted: 8
+      unclassified: 0
+      multi_classified: 0
+      broken_references: 0
+      check_w2_all_direct_children: 19
+      heavy_test_owner: GITHUB_CI
+    merge_governance:
+      task: ARCH-GOVERNANCE-01
+      status: DONE
+      queue: CLOSED_BY_CLOSURE_PR
+      trusted_execution: MAIN_BASE_WORKFLOW_AND_CHECKER
+      pr_head_governance_code_execution: FORBIDDEN
+      closure:
+        implementation_pr: 393
+        implementation_merge_sha: 35fcac0d99573556c5e9f7a41822e153783efa73
+        closure_pr: 394
+        closure_exact_head: GITHUB_PR_EXACT_HEAD
+        path: SEPARATE_CLOSURE_PR_AFTER_IMPLEMENTATION_MERGE
+        requires_full_merge_sha: true
+        next_task_blocked_until_main_post_pass: ARCH-P1-04D
+      bootstrap_required_checks:
+        - verify
+        - staging-parity
+      final_required_checks:
+        - verify
+        - staging-parity
+        - PRE_MERGE_READINESS_GATE
+        - POST_MERGE_CHECKLIST_CONSISTENCY_GATE
+      bootstrap:
+        governance_contexts: ACTIVE_ON_MAIN
+        main_post_run: 30123415474
+        main_post_result: FAIL_EXPECTED_MERGED_TASK_NOT_CLOSED
+        sequence:
+          - MERGE_393_WITH_ORIGINAL_REQUIRED_CHECKS_AND_EXTERNAL_ACCEPTANCE
+          - WORKFLOW_AND_CHECKER_BECOME_TRUSTED_ON_MAIN
+          - ADD_PRE_AND_POST_TO_ORIGINAL_REQUIRED_CONTEXTS
+          - CREATE_SEPARATE_A1_CLOSURE_PR
+          - CLOSURE_PR_RUNS_PRE_AND_POST
+          - MERGE_CLOSURE_AND_MAIN_POST_PASS_BEFORE_A1_DONE_OR_A2_START
+      implementation_in_current_task: false
+  queued_tasks:
+    ARCH-GOVERNANCE-01: DONE
+    ARCH-P1-04C: DONE
+    ARCH-P1-04D: NOT_STARTED
+  pre_approved_order_change:
+    task: ARCH-P1-05
+    condition: STAGING_ONSITE_BUILD_REPEATEDLY_FAILS
+    new_position: BEFORE_ARCH_P1_04A
+    triggered: false
+  table_count: 65
+  projection_view_count: 1
+  table_count_before_p1_01: 144
+
+current_phase:
+  id: W2_DYNAMIC_PREMATCH_V1
+  name: dynamic_quote_ev_and_lineup_value_pipeline
+  status: locally_verified
+  acceptance_state: STAGING_DEPLOYED_WAITING_REAL_LINEUP_CANARY
+  blocker: WAITING_FOR_REAL_LINEUP_WINDOW_AND_POST_LINEUP_FRESH_ODDS
+  next_phase: W2_DYNAMIC_PREMATCH_STAGING
+  feature_work_state: FROZEN_BY_ARCHITECTURE_CONVERGENCE
+  freeze_note: >-
+    功能冻结期间不推进本阶段的功能验收。真实首发 canary 已降为独立 ops
+    验收任务，不再阻塞架构收敛。当前唯一在推进的工作是
+    architecture_convergence.next_task。
+  checkpoints:
+    dynamic_quote_lifecycle: locally_verified
+    current_ev_snapshot_semantics: locally_verified
+    no_edge_reevaluation: locally_verified
+    source_absent_truth_contract: locally_verified
+    lineup_baseline: locally_verified
+    lineup_identity_pipeline: locally_verified
+    lineup_change_features: locally_verified
+    lineup_post_market_refresh: locally_verified
+    t30_validation_snapshot: locally_verified
+
+active_workstream:
+  id: DYNAMIC_EV_LINEUP
+  status: locally_verified
+  checkpoints:
+    dynamic_quote_lifecycle: locally_verified
+    current_ev_snapshot_semantics: locally_verified
+    no_edge_reevaluation: locally_verified
+    source_absent_truth_contract: locally_verified
+    lineup_baseline: locally_verified
+    lineup_identity_pipeline: locally_verified
+    lineup_change_features: locally_verified
+    lineup_post_market_refresh: locally_verified
+    t30_validation_snapshot: locally_verified
+
+local_verification:
+  pytest_passed: 1559
+  pytest_skipped: 4
+  ruff: PASS
+  mypy: PASS
+  web_typecheck: PASS
+  boss_console_protected_baseline: PASS
+  web_playwright: 26_PASS
+  migration_sqlite_roundtrip: PASS
+  script_inventory_contract_tests: 8_PASS
+  check_w2_all: PASS
+  git_diff_check: PASS
+  shell_syntax: PASS
+
+staging:
+  deployed_sha: 1d02a45c6f38c3613ac3dddab784869095bf6804
+  deployed_sha_source: ARCH-P1-04A_ACCEPTANCE_ROLLBACK
+  migration_current: 0041_converge_odds_history_and_projection
+  deployment_status: DEPLOYED_HEALTHY
+  production_deployed: false
+  provider_calls: 0
+  staging_host: 118.196.30.136
+  ssh_preflight: PASS_AS_ROOT
+  attempted_release_sha: bd816803af5e8149dec743b277d8ae495197a0e0
+  restored_release_sha: 1d02a45c6f38c3613ac3dddab784869095bf6804
+  arch_p1_04b_acceptance:
+    services_healthy: 6
+    materializable_current_fixtures: 8
+    persisted_readback_hash_match: 8
+    shadow_reconciliation_differences: 0
+    dashboard_http_20x: PASS
+    dashboard_http_stable_hash: 9257c2faf3c504d1751ec823b693e0a40af481be5f3ea87e5f96678b7200e2af
+    day_view_http_20x: PASS
+    day_view_http_stable_hash: 872ccaf64be84db18f6698d8543209382511ca57f6e54de91129b17410db8400
+    day_view_legacy_identity_count: 0
+    malformed_decision_contract_http: 503_SYSTEM_DEGRADED
+    malformed_decision_contract_message: DECISION_CONTRACT_INCOMPLETE
+    valid_contract_after_restore: PASS_20_OF_20_HTTP_200_STABLE_HASH
+    provider_request_logs_before: 162
+    provider_request_logs_after: 162
+    recommendation_delta: 0
+    recommendation_lock_delta: 0
+    settlement_delta: 0
+    cleanup_shadow_rows: 0
+    cleanup_evaluations: 0
+    cleanup_supersessions: 0
+    rollback: PASS
+  real_lineup_canary: DEFERRED_TO_SEPARATE_OPS_ACCEPTANCE
+  public_read_20x: PASS_20_OF_20_HTTP_200_ARCH_P1_02
+  public_dashboard_fixture_recovery: PASS_3_LEAGUES_24_FIXTURES
+
+fixture_recovery:
+  source: existing_staging_raw_fixture_and_odds_captures
+  provider_calls: 0
+  recovered_fixture_identities:
+    eliteserien: 8
+    brasileirao_serie_a: 8
+    chinese_super_league: 8
+  orphan_market_fixture_counts:
+    eliteserien: 0
+    brasileirao_serie_a: 0
+    chinese_super_league: 0
+  public_dashboard_proof:
+    date: "2026-07-25"
+    fixture_ids:
+      eliteserien: "1494712"
+      brasileirao_serie_a: "1492308"
+      chinese_super_league: "1523211"
+
+valuation_materialization:
+  transfermarkt_source_asset: SOURCE_READY
+  reviewed_team_crosswalk: NOT_MATERIALIZED
+  reviewed_player_identity: NOT_MATERIALIZED
+  asof_valuation_observations: NOT_MATERIALIZED
+  consequence: LINEUP_VALUE_FEATURES_FAIL_CLOSED_WHEN_COVERAGE_IS_MISSING
+
+lineup_policy:
+  mode: LINEUP_ADVISORY_ONLY
+  numeric_adjustment_enabled: false
+  ah_adjustment: 0.0
+  totals_adjustment: 0.0
+  lambda_adjustment: 0.0
+  activation_requires:
+    - rolling_origin_offline_validation
+    - no_future_leakage_review
+    - forward_shadow_validation
+    - manual_approval
+
+safety_switches:
+  provider_calls_disabled: true
+  provider_scheduler_enabled: false
+  future_fixture_refresh_enabled: false
+  formal_recommendation_enabled: false
+  recommendation_lock_enabled: false
+  official_enabled: false
+  production_release: false
+  manual_approval_required: true
+
+release_invariants:
+  - PR_370_CLOSED
+  - FEATURE_DEVELOPMENT_FREEZE
+  - ARCHITECTURE_CONVERGENCE_CHECKLIST_IS_SOLE_STATUS_AUTHORITY
+  - GITHUB_SECONDARY_REVIEW_PROTOCOL_MUST_BE_READ_FIRST
+  - FORMAL_DISABLED
+  - LOCK_DISABLED
+  - PRODUCTION_DISABLED
+  - LINEUP_NUMERIC_ADJUSTMENT_DISABLED
+  - LINEUP_ADVISORY_ONLY
+  - MANUAL_APPROVAL_REQUIRED

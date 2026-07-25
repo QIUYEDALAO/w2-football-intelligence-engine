@@ -291,19 +291,25 @@ market 级 analysis_decision / market_candidate 条件写入
 staging 只读盘点（read_model_checkpoint，8 个 frozen canary artifact）：
 
 ```text
-FROZEN_ARTIFACTS_TOTAL              = 8
-SCHEMA_ALL_CANONICAL               = 8/8  (w2.analysis-card.frozen.v1)
-HAS_DECISION_TIER                  = 8/8
-HAS_TOP_LEVEL_SIMULATION           = 8/8
-PRE_LMM_MISSING_FIELD_ARTIFACTS    = 0
-UNREACHABLE_OLD_ARTIFACTS          = 0
-CANNOT_REMATERIALIZE_FAIL_CLOSED   = 0   （无阻塞）
-TOP_SIM == PSHADOW_SIM             = 8/8  (都 10000 / status READY)
+FROZEN_ARTIFACTS_TOTAL            = 8
+SCHEMA_ALL_CANONICAL             = 8/8  (w2.analysis-card.frozen.v1)
+CARD_TOP_TIER_PRESENT            = 8/8  (WATCH×6, NOT_READY×1, ANALYSIS_PICK×1)
+CONTRACT_TIER_PRESENT            = 8/8  (逐条与 card_top_tier 相同)
+SIM_JSONB_EQUAL (full object)    = 8/8  true
+TOP_SIM_HASH == PSHADOW_SIM_HASH = 8/8  (md5 全对象)
+SOURCE_HASH == ARTIFACT_HASH     = 8/8  (sha256)
+REACHABILITY_NOT_YET_EVALUATED   = M3_GATE
 ```
 
-**关键结论**：staging 无 pre-LMM 缺字段 artifact（裁决第 2 点三分支当前
-零 fail-closed）；顶层 simulation 与 pricing_shadow simulation **已逐场一致**
-（双写在 frozen 层已存在）；simulation 为**单次计算**（上游 `run_simulation`
+（可达性未评估：未查证 public-reader/current-fixture 是否仍读取历史
+artifact，故不主张 UNREACHABLE / CANNOT_REMATERIALIZE，判定锁 M3 gate。
+inventory fingerprint = b7fc8e2c2b3ba30d0c8a4258bda23a4b，仅身份指纹。
+完整证据见 W2_ARCH_P1_04D_FROZEN_ARTIFACT_INVENTORY.md。）
+
+**关键结论**：8 条 frozen artifact 均为 canonical schema，顶层与嵌套 tier
+逐条一致；顶层 simulation 与 pricing_shadow simulation **全对象 JSONB 逐条
+相等**（md5 全对象 hash 相同，非仅计数）；simulation 为**单次计算**（上游
+`run_simulation`
 一次，`run_simulation_from_shadow` 仅反序列化重建，非独立计算），满足
 `simulation_compute_count = 1` / `independent_simulation_writers = 0`。
 
