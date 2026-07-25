@@ -260,7 +260,7 @@ INFRASTRUCTURE→{API,DASHBOARD,APPS} 守卫绿；全量测试与 04B 守卫绿�
 #### A9. ARCH-P1-04D：pre-LMM 契约迁移与兼容链删除（A2/04C 的后续拆分任务）
 
 ```text
-Status: IN_PROGRESS
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
 Branch: codex/arch-p1-04d-pre-lmm-contract-migration
 Base SHA: 9b2dc44bed22f237868d1471cbb8d9950917edcb
 Started at: 2026-07-25T04:30:00Z

@@ -93,7 +93,7 @@ architecture_convergence:
   next_task: ARCH-P1-04D
   current_task:
     id: ARCH-P1-04D
-    status: IN_PROGRESS
+    status: IMPLEMENTED_PENDING_ACCEPTANCE
     pull_request: 397
     branch: codex/arch-p1-04d-pre-lmm-contract-migration
     baseline_sha: 9b2dc44bed22f237868d1471cbb8d9950917edcb
