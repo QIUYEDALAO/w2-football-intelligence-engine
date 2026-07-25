@@ -258,7 +258,7 @@ M1: DONE (Dashboard simulation projection, status-driven pass-through)
 M2: DONE (frozen 8 MATCH; live LEGACY_ONLY=4 blocker found, MISMATCH=0)
 M2_REMEDIATION: DONE (live _dashboard_card_from_matchday passes through canonical
   top-level simulation; live LIVE_MATCH=4, LEGACY_ONLY=0, MISMATCH=0)
-M3: NOT_STARTED (m3_blocker=PENDING_ARCH_P1_04C_CLOSURE_INTEGRITY_REVIEW; 已暂停)
+M3: NOT_STARTED (m3_blocker=M3_PAUSED_BY_USER_PENDING_REAUTHORIZATION; 04C integrity corrected)
 M4: NOT_STARTED
 04D 整体仍为 IN_PROGRESS，不得标 DONE。
 ```
@@ -793,7 +793,7 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 | `scripts/check_w2_stage7h.py` | `DEPLOYMENT` | deploy_stage7h_staging.sh | operator → deploy → script | staging | 是 | STAGE7H_VPS_STAGING | `KEEP` | E3/E4/E5 |
 | `scripts/check_w2_stage7i.py` | `MANUAL_OPS` | 人工 CLI；integration tests 验证 | operator → script | offline | 否 | 无 | `KEEP` | E4/E5 |
 | `scripts/check_w2_stage8_replay.py` | `CI_TRANSITIVE` | check_w2_all.py | CI → all → script | CI | 否 | 无 | `KEEP` | E2 |
-| `scripts/check_w2_stage9a.py` | `MANUAL_OPS` | STAGE9A_SHADOW_OPERATIONS | operator → script | offline | 否 | STAGE9A_SHADOW_OPERATIONS | `KEEP` | E4 |
+| `scripts/check_w2_stage9a.py` | `MANUAL_OPS` | STAGE9B_SHADOW_OPERATIONS | operator → script | offline | 否 | STAGE9B_SHADOW_OPERATIONS | `KEEP` | E4 |
 | `scripts/check_w2_stage9b.py` | `DEAD` | 无 | 无 | none | 否 | 无 | `DELETE` | D1/D2 |
 | `scripts/debug_w2_formal_market.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
 | `scripts/debug_w2_formal_recommendations.py` | `CI_TRANSITIVE` | test_formal_explainability_audit.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
