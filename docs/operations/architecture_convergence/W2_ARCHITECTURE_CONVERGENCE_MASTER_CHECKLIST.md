@@ -262,6 +262,7 @@ INFRASTRUCTURE→{API,DASHBOARD,APPS} 守卫绿；全量测试与 04B 守卫绿�
 ```text
 Status: IMPLEMENTED_PENDING_ACCEPTANCE
 Branch: codex/arch-p1-04d-pre-lmm-contract-migration
+PR: #398
 Base SHA: 9b2dc44bed22f237868d1471cbb8d9950917edcb
 Implementation SHA: GITHUB_PR_EXACT_HEAD
 Started at: 2026-07-25T04:30:00Z

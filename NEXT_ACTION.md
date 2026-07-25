@@ -47,7 +47,7 @@ ARCH-P1-04D -> ARCH-P1-03 -> ARCH-P1-05
 The current task is **ARCH-P1-04D** (pre-LMM contract migration then
 compatibility-chain removal), which ARCH-P1-04C split out after production
 traces proved three targets were active chains. M3 is `DONE`; M4 is
-`IMPLEMENTED_PENDING_ACCEPTANCE` in Draft PR #397. `ARCH-P1-03` remains
+`IMPLEMENTED_PENDING_ACCEPTANCE` in Ready PR #398. `ARCH-P1-03` remains
 `NOT_STARTED` until 04D passes external acceptance and merges. The checklist
 owns each task's PR number, status and CI evidence.
 

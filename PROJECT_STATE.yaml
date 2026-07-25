@@ -27,12 +27,12 @@ repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
   main_sha: 9b2dc44bed22f237868d1471cbb8d9950917edcb
   main_migration_head: 0041_converge_odds_history_and_projection
-  pull_request: 397
-  pull_request_mode: DRAFT
+  pull_request: 398
+  pull_request_mode: READY
   pull_request_head_branch: codex/arch-p1-04d-pre-lmm-contract-migration
   task_baseline_sha: 9b2dc44bed22f237868d1471cbb8d9950917edcb
   local_work_branch: codex/arch-p1-04d-pre-lmm-contract-migration
-  github_sync_status: ARCH_P1_04D_M3_IMPLEMENTED_PENDING_ACCEPTANCE
+  github_sync_status: ARCH_P1_04D_IMPLEMENTED_PENDING_ACCEPTANCE
   ci_checks:
     verify: GITHUB_PR_EXACT_HEAD
     staging-parity: GITHUB_PR_EXACT_HEAD
@@ -94,7 +94,7 @@ architecture_convergence:
   current_task:
     id: ARCH-P1-04D
     status: IMPLEMENTED_PENDING_ACCEPTANCE
-    pull_request: 397
+    pull_request: 398
     branch: codex/arch-p1-04d-pre-lmm-contract-migration
     baseline_sha: 9b2dc44bed22f237868d1471cbb8d9950917edcb
     started_at: "2026-07-25T04:30:00Z"
