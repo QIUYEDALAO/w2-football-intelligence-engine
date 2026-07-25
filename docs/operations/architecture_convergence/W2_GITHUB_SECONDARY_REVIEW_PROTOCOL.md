@@ -168,7 +168,20 @@ predeploy-e2e
 - 后续任务未开始；
 - 真实 canary、Provider、Formal、Lock、OFFICIAL、Production 等边界保持既定状态。
 
-## 四、禁止碎片化验收
+## 四、执行与验收节奏
+
+1. 子步骤执行中只跑与当前改动直接相关的 focused tests，不重复跑完整 CI。
+2. 单项任务的最终 exact head 必须一次性完成全部范围项、业务语义对账、静态守卫、
+   临时/生成资产清理、资产账本和完整 CI。
+3. 最终门禁固定要求：
+   `SCOPE_ITEMS_COMPLETE=YES`、`BUSINESS_DELTA=0`、`UNTRACKED_FILES=0`、
+   `UNREFERENCED_NEW_FILES=0`、`WORKTREE_CLEAN=YES`、
+   `verify/staging-parity/predeploy-e2e=PASS`、`EXTERNAL_ACCEPTANCE=PASS`。
+4. 外部验收后若代码和文件未变化，不重复跑完整 CI；exact head 变化则重新验收。
+5. 数据库 drop、数据迁移、部署、兼容链物理删除、安全开关和模型数学变更仍按逐项
+   高风险门禁执行，不得简化。
+
+## 五、禁止碎片化验收
 
 在向 Codex发送整改意见前，必须先完成第三节全部适用项，并把本轮可发现的问题合并成**一份完整审查意见**。
 
@@ -182,7 +195,7 @@ predeploy-e2e
 
 若后来发现的问题在上一轮 exact diff 中已经可见，应视为验收漏项，并在继续下一轮前修订本协议或对应检查矩阵。
 
-## 五、验收输出格式
+## 六、验收输出格式
 
 每次二次验收必须明确返回：
 
@@ -204,7 +217,7 @@ FINAL_DECISION = MERGE|REMEDIATION_REQUIRED
 
 若失败，审查意见必须包含所有当前阻塞、具体文件/位置、目标结果和验收方法。
 
-## 六、合并动作
+## 七、合并动作
 
 全部适用项通过时：
 

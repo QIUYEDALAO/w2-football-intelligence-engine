@@ -16,6 +16,8 @@ _ROW = {
     "competition_id": "C1",
 }
 
+_LEGACY_GUARD_SURFACES = ("src", "apps", "scripts", "infra")
+
 
 def _service() -> ReadModelService:
     return ReadModelService(repository=cast(Any, object()))
@@ -42,7 +44,7 @@ def _canonical_card(**overrides: Any) -> dict[str, Any]:
 
 
 def _legacy_decision_contract_code_count() -> int:
-    root = Path(__file__).resolve().parents[2] / "src"
+    repository = Path(__file__).resolve().parents[2]
     forbidden = {
         "_legacy_decision_tier",
         "_public_market_is_legacy_pick",
@@ -51,11 +53,19 @@ def _legacy_decision_contract_code_count() -> int:
         "legacy_formal",
         "run_simulation_from_shadow",
     }
-    count = int((root / "w2/domain/legacy_decision_shim.py").exists())
+    roots = tuple(repository / surface for surface in _LEGACY_GUARD_SURFACES)
+    count = sum(
+        path.name == "legacy_decision_shim.py"
+        for root in roots
+        for path in root.rglob("*")
+        if path.is_file()
+    )
     return count + sum(
         source.count(symbol)
-        for path in root.rglob("*.py")
-        for source in (path.read_text(encoding="utf-8"),)
+        for root in roots
+        for path in root.rglob("*")
+        if path.is_file()
+        for source in (path.read_text(encoding="utf-8", errors="ignore"),)
         for symbol in forbidden
     )
 

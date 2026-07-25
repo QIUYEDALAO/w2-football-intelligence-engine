@@ -91,6 +91,17 @@ ARCH-P1-08 通过后，功能冻结部分解除：**仅允许本清单阶段 B �
 任务必须严格按此顺序执行。每任务开工：`git fetch github-w2 main` 拉新分支，
 本文件写 `Status: IN_PROGRESS`；完成 = 完整 CI + staging 验收 + 合并 + 状态翻 DONE。
 
+### 执行与验收节奏
+
+1. 子步骤只跑 focused tests；同一 exact head 的完整 CI 不重复执行。
+2. 最终 exact head 一次性完成范围项、业务 delta=0、静态守卫、临时/生成资产清理、
+   资产账本，并满足 untracked=0、未引用新文件=0、worktree clean。
+3. 最终完整 CI 固定为 `verify`、`staging-parity`、`predeploy-e2e` 全部 PASS；
+   exact head 变化才重跑。
+4. 外部验收 PASS 后才能进入合并；合并前任务不得 DONE，后续任务不得启动。
+5. 数据库 drop、数据迁移、部署、兼容链物理删除、安全开关和模型数学变更继续执行
+   各自逐项高风险门禁。
+
 ### 阶段 A：架构收尾
 
 ---
