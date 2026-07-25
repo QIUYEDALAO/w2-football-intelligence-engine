@@ -274,10 +274,15 @@ canonical 生成器 build_decision_contract_fields
   → decision_tier=NOT_READY 全字段完整                          → 合规
 frozen artifact writer read_model_projection.write_frozen_...
   → 走注入的 canonical 计算器                                    → 04B 后合规
-缺口：card 顶层 "simulation" 数据字段全库无写入点
-  （投影侧 read_model_projection:344 却读 card.get("simulation")）
-  → live dashboard card 顶层无 simulation，day_view 靠
-    pricing_shadow.simulation 兜底（= 04C correction 1 的活链）
+真 simulation 计算 run_simulation（analysis_calculator:2720）一次，其输出
+  直接写入 card 顶层：payload["simulation"] = simulation_output.as_dict()
+  （analysis_calculator:2833）。**顶层 simulation 有真源，非反向重建。**
+  （更正：设计初稿曾误记"顶层 simulation 全库无写入点"，因 grep 漏读 2833；
+   实为 day_view 主路径已读 card["simulation"]，仅当其空时才 fallback 到
+   pricing_shadow.simulation —— 后者是 04C correction 1 的兜底活链。）
+run_simulation_from_shadow（:405, :6144）仅用于 build_formal_recommendation
+  的反序列化重建，**不写顶层 simulation**；裁决禁止的"反向重建→顶层"本就
+  不存在。
 market 级 analysis_decision / market_candidate 条件写入
   （analysis_calculator:5296）→ legacy pick 兜底无 candidate 的
     ANALYSIS_PICK market（= 04C correction 2 的活链）
@@ -304,10 +309,13 @@ TOP_SIM == PSHADOW_SIM             = 8/8  (都 10000 / status READY)
 
 ##### 迁移设计（双写 → 对账 → 读切换 → 删旧读）
 
-- M1 双写（不删旧）：analysis_calculator card 组装侧新增写 card 顶层
-  `simulation`（复用 `run_simulation_from_shadow(card.pricing_shadow)` 的同一
-  `SimulationOutput`，与 pricing_shadow 并存；不新增计算、不新增表、不新增
-  运行权威；含 READY / UNAVAILABLE 明确状态）。
+- M1 Dashboard projection 直接透传（不删旧，裁决第 1 点）：Dashboard/DayView
+  projection 直接透传 `card["simulation"]`（其真源为 analysis_calculator:2833
+  的 `simulation_output.as_dict()`，即 run_simulation 的一次计算）。
+  **禁止** `run_simulation_from_shadow → 顶层 simulation` 的反向重建（该反向
+  重建本就不存在，M1 以静态守卫固化"不得引入"）。simulation 必带明确状态
+  （READY / UNAVAILABLE），无有效 simulation 时透传 UNAVAILABLE 而非回退
+  pricing_shadow。不新增计算、不新增表、不新增运行权威。
 - M2 对账：live + frozen 两层证明
   `top_level_simulation_hash == pricing_shadow_simulation_hash`；Dashboard/DayView
   逐场 hash 一致（`scoreline_simulations`、`recommendation.decision_tier`、
@@ -322,10 +330,14 @@ TOP_SIM == PSHADOW_SIM             = 8/8  (都 10000 / status READY)
 
 ##### card contract version + validator（裁决第 4 点）
 
-复用现有 `validate_frozen_analysis_payload` 的 `schema_version` 机制，扩展为
-canonical card contract 校验，至少保证：显式 `decision_tier`；显式
-public-market selection **或**明确无选择状态（`market_candidate` 仍为可选证据，
-禁止伪造）；顶层 `simulation` 字典含 READY/UNAVAILABLE 等明确状态。
+新增独立的 `analysis_card_contract_version`（如
+`w2.analysis-card.contract.v1`），**与 frozen artifact 的 `schema_version`
+`w2.analysis-card.frozen.v1` 正交，不改后者原语义**。frozen.v1 继续由
+`validate_frozen_analysis_payload` 按原规则校验；新 contract version 是 card
+读取契约层，validator 至少保证：显式 `decision_tier`；显式 public-market
+selection **或**明确无选择状态（`market_candidate` 仍为可选证据，禁止伪造）；
+顶层 `simulation` 字典含 READY/UNAVAILABLE 等明确状态。新 validator 作为 M1
+的对账守卫接入 projection 透传路径，不追溯改写已固化的 frozen.v1 payload。
 
 **范围**：
 - [ ] 写侧契约补全：`analysis_calculator` 所有生产 card 无条件带完整
