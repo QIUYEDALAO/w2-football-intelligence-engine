@@ -31,7 +31,26 @@ team_identity_crosswalks        READERS = models.py(ORM), factor_model_models.py
 provider_team_identity_crosswalks READERS = factor_model_models.py(ORM)   [authority]
 player_identity_crosswalks      READERS = models.py(ORM)
 player_identity_mappings        READERS = src/w2/ingestion/future_refresh_repository.py, models.py(ORM)  [authority]
-JOBS / REPORT_READERS           = 0 专用 job / report 引用（仅上述 repository/ORM）
+
+WRITERS（实际身份写入入口）:
+  team_identity_crosswalks
+    = scripts/import_team_identity_crosswalk.py
+      -> import_team_crosswalk_file (src/w2/lineups/value_identity.py, build_team_crosswalk/TeamIdentityCrosswalkV1)
+      -> repository.write_team_crosswalks(...)
+  player_identity_mappings [authority]
+    = scripts/lmm_transfermarkt_snapshot.py
+      -> repository.materialize_player_identity_mappings(...)
+         (src/w2/ingestion/future_refresh_repository.py:296，自 structured_lineup snapshot 物化；
+          当前 lineup 为空故物化 0 行)
+  provider_team_identity_crosswalks [authority]
+    = scripts/run_w2_league_whitelist_audit.py
+      -> write_provider_audit_outputs (src/w2/competitions/league_whitelist_provider_audit.py:521)
+    = src/w2/factor_model/remediation.py（含 stable_w2_team_id(provider_team_id):905 —
+      运行时 provider→canonical 构造点，M2 静态守卫须置 0）
+  football_data_team_crosswalks
+    = src/w2/historical/football_data_co_uk.py
+      (write_football_data_ingest_artifacts:137 / write_football_data_audits:267)
+JOBS / REPORT_READERS           = 0 专用 job / report 引用（仅上述 repository/ORM/脚本）
 FOREIGN_KEYS:
   provider_team_identity_crosswalks.w2_team_id -> canonical_teams
   canonical_team_match_history.team_w2_id / opponent_w2_id -> canonical_teams
@@ -75,8 +94,11 @@ TEAM_BLOCKED                 = 0
 TEAM_MIGRATION_SUMMARY_HASH  = 2c753bec3bb22841fecf70f3d570d76d28b15bb1ded504f81d3be9f42f9a915b
 ```
 
-（deterministic per-row hash 见 scratchpad `team_migration_preview.json`，逐行
-`row_hash = sha256(canonical row json)`，总摘要为有序拼接后再 sha256。）
+**可独立重算**：完整 16 行（untruncated `row_hash`）、源 SQL、排序、canonical_id
+规则、迁移决策规则、`row_hash`/`summary_hash` 方法均纳入 Git：
+`docs/operations/architecture_convergence/W2_ARCH_P1_03_M1_TEAM_MIGRATION_PREVIEW.json`
+（`row_hash = sha256(json.dumps(row_obj, sort_keys=True, ensure_ascii=False))`；
+`summary = sha256('|'.join(sorted(row_hash)))`）。验收不依赖未跟踪 scratchpad。
 
 ## 球员侧 / lineup 侧
 
