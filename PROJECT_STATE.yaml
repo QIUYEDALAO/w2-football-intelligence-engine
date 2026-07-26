@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-26T10:35:00Z"
+updated_at: "2026-07-26T12:21:51Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -25,14 +25,14 @@ context_read_order:
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  main_sha: 2191255b5cb92753db6da495810ed846ffb3647b
-  main_migration_head: 0042_team_identity_provider_review_provenance
-  pull_request: GITHUB_IMPLEMENTATION_PR
+  main_sha: 4e310e87def0e6e44e0fe69fa0c07f776126a6fc
+  main_migration_head: 0043_drop_legacy_identity_crosswalks
+  pull_request: GITHUB_CLOSURE_PR
   pull_request_mode: DRAFT
-  pull_request_head_branch: codex/arch-p1-03c-m4
-  task_baseline_sha: 2191255b5cb92753db6da495810ed846ffb3647b
-  local_work_branch: codex/arch-p1-03c-m4
-  github_sync_status: ARCH_P1_03C_M4_DRAFT_EXTERNAL_REVIEW_PENDING
+  pull_request_head_branch: codex/arch-p1-03c-closure
+  task_baseline_sha: 4e310e87def0e6e44e0fe69fa0c07f776126a6fc
+  local_work_branch: codex/arch-p1-03c-closure
+  github_sync_status: ARCH_P1_03C_CLOSURE_DRAFT_EXTERNAL_REVIEW_PENDING
   ci_checks:
     verify: GITHUB_PR_EXACT_HEAD
     staging-parity: GITHUB_PR_EXACT_HEAD
@@ -48,6 +48,7 @@ repository:
     395: MERGED_ARCH_P1_04C_IMPLEMENTATION
     396: MERGED_ARCH_P1_04C_CLOSURE
     402: MERGED_ARCH_P1_03B_IMPLEMENTATION
+    404: MERGED_ARCH_P1_03C_IMPLEMENTATION
 
 architecture_convergence:
   authority_document: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
@@ -71,6 +72,7 @@ architecture_convergence:
     ARCH-P1-04D: DONE
     ARCH-P1-03A: DONE
     ARCH-P1-03B: DONE
+    ARCH-P1-03C: DONE
   superseded:
     ARCH-P2-01: ARCH-HYGIENE-02
   p0_acceptance: P0_ARCHITECTURE_CONVERGENCE_PASS
@@ -96,41 +98,25 @@ architecture_convergence:
     - ARCH-P2-04
     - ARCH-P2-06
     - ARCH-P2-05
-  next_task: ARCH-P1-03C
+  next_task: ARCH-P1-05
   last_completed_task:
-    id: ARCH-P1-03B
-    status: DONE
-    pull_request: 402
-    implementation_pr: 402
-    implementation_merge_sha: df8fc4578fb4d45e2fb7afb95f58748f459a69a8
-    implementation_ci_run: 30195079380
-    accepted_head: bfce636dc245ab93f9f4d92e77699bf1689f127b
-    accepted_by: W2_EXTERNAL_ACCEPTANCE_V1
-    branch: agent/arch-p1-03b-m2b-m3
-    baseline_sha: a309f8326357adc68486609cec577d260cff25fa
-    started_at: "2026-07-26T05:10:00Z"
-    completed_at: "2026-07-26T10:05:30Z"
-    predecessor: ARCH-P1-03A
-    successor_task: ARCH-P1-03C
-    scope: PLAYER_IDENTITY_M2B_AND_M3_ONLY
-    phase: M2B_M3_DONE
-    m2b_status: DONE_STAGING_REVIEWED_66
-    m3_status: PASS_3_REAL_FIXTURES_3_RUNS_STRENGTHENED_V2
-    review_package_sha256: 916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea
-    approval_artifact_sha256: a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695
-    review_reconciliation_sha256: d697798e40928a2f1c9c2690285790563d4e2e914067e3f0627536179a8da762
-    m3_evidence_sha256: 4a0be812b61fd4aacdd5e7a3073c87ab81bf3d7ef2564cf81bb6aa1f479084e9
-    m4_status: DEFERRED_TO_ARCH_P1_03C_NOT_STARTED
-  current_task:
     id: ARCH-P1-03C
-    status: IMPLEMENTED_PENDING_ACCEPTANCE
+    status: DONE
+    pull_request: 404
+    implementation_pr: 404
+    implementation_merge_sha: 4e310e87def0e6e44e0fe69fa0c07f776126a6fc
+    implementation_ci_run: 30200526139
+    accepted_head: 8adc8d482aefd7d31063030f0b682458c58c17a2
+    accepted_by: W2_EXTERNAL_ACCEPTANCE_V1
+    evidence_sha256: aec0b6361cf8c79d48439f666f9774d53cc9c1b068f7e64bd7eddf800f966860
     branch: codex/arch-p1-03c-m4
     baseline_sha: 2191255b5cb92753db6da495810ed846ffb3647b
     started_at: "2026-07-26T10:35:00Z"
+    completed_at: "2026-07-26T12:18:23Z"
     predecessor: ARCH-P1-03B
     successor_task: ARCH-P1-05
     scope: M4_LEGACY_CROSSWALK_PHYSICAL_DROP
-    phase: M4_IMPLEMENTED_PENDING_EXTERNAL_ACCEPTANCE
+    phase: M4_DONE
     implementation_migration_head: 0043_drop_legacy_identity_crosswalks
     m4_status: DONE_STAGING_UPGRADE_DOWNGRADE_RESTORE_DRILL
     legacy_runtime_imports: 0
@@ -144,11 +130,15 @@ architecture_convergence:
     canonical_player_authority_count: 1
     staging_backup_path: /opt/w2/shared/backups/arch-p1-03c/w2-pre-arch-p1-03c-20260726T104000Z-0042.dump
     staging_backup_sha256: fff107172f4f0ea2ebf71dfabcb2f96eaa2e214d9fd66dcf662cede79e9b8f92
-    staging_sha: GITHUB_PR_EXACT_HEAD
     upgrade_result: PASS
     downgrade_restore_result: PASS_SCHEMA_EMPTY_NO_FABRICATED_BUSINESS_DATA
-    legacy_table_removal_status: DONE
-    legacy_orm_removal_status: DONE
+  current_task:
+    id: ARCH-P1-05
+    status: NOT_STARTED
+    predecessor: ARCH-P1-03C
+    successor_task: ARCH-P1-06
+    scope: CI_IMAGE_BUILD_AND_SERVER_PULL_ONLY
+    phase: NOT_STARTED
     formal_enabled: false
     candidate_runtime_enabled: false
     lock_enabled: false
@@ -245,7 +235,7 @@ architecture_convergence:
     ARCH-P1-04D: DONE
     ARCH-P1-03A: DONE
     ARCH-P1-03B: DONE
-    ARCH-P1-03C: IMPLEMENTED_PENDING_ACCEPTANCE
+    ARCH-P1-03C: DONE
     ARCH-P1-05: NOT_STARTED
   pre_approved_order_change:
     task: ARCH-P1-05

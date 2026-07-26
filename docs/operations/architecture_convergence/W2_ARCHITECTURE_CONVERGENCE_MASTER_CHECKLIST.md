@@ -45,6 +45,7 @@
 | ARCH-P1-04D | #398 | `e6e447293365ca29686b21876cab5e103829b1ed` | canonical card 权威统一，五项兼容代码删除，`LEGACY_DECISION_CONTRACT_CODE=0` |
 | ARCH-P1-03A | #400 | `bcd2c5e490a99426a0451de7f92362c1a76b2960` | 团队身份权威收敛 |
 | ARCH-P1-03B | #402 | `df8fc4578fb4d45e2fb7afb95f58748f459a69a8` | 球员身份 M2B 与三场强化 M3 收敛 |
+| ARCH-P1-03C | #404 | `4e310e87def0e6e44e0fe69fa0c07f776126a6fc` | 三张 legacy identity 表及 ORM 声明下线 |
 
 ---
 
@@ -513,11 +514,18 @@ SHA 可重算；66 条 REVIEWED 精确对账；至少 3 场真实 fixture 的强
 #### A11. ARCH-P1-03C：legacy identity 表与 ORM 下线
 
 ```text
-Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Status: DONE
+PR: #404
+Implementation PR: #404
+Merge SHA: 4e310e87def0e6e44e0fe69fa0c07f776126a6fc
+Accepted Head: 8adc8d482aefd7d31063030f0b682458c58c17a2
+External Acceptance: W2_EXTERNAL_ACCEPTANCE_V1
+Implementation CI run: 30200526139
+Evidence SHA-256:
+  aec0b6361cf8c79d48439f666f9774d53cc9c1b068f7e64bd7eddf800f966860
 Predecessor: ARCH-P1-03B
-Branch: codex/arch-p1-03c-m4
+Successor: ARCH-P1-05 (NOT_STARTED)
 Base SHA: 2191255b5cb92753db6da495810ed846ffb3647b
-Implementation SHA: GITHUB_PR_EXACT_HEAD
 M4: DONE_STAGING_UPGRADE_DOWNGRADE_RESTORE_DRILL
 Legacy runtime imports/reads/writes: 0/0/0
 Legacy tables before/after: 3/0
@@ -536,7 +544,7 @@ Formal/Candidate runtime/Lock/Production/Scheduler: false
 
 - [x] 证明 legacy runtime reads/writes/imports = 0。
 - [x] 同一实施 PR 中断言式 drop 三张表并同步删除三个 ORM 声明；证据不足则停止。
-- [ ] PR 合并。
+- [x] PR 合并（#404，merge SHA `4e310e87def0e6e44e0fe69fa0c07f776126a6fc`）。
 **验收**：`LEGACY_CROSSWALK_ORM_DECLARATIONS = 0`；
 `LEGACY_CROSSWALK_TABLE_COUNT = 0`。
 **资产账本**：目标净减 ≥3 张表。
