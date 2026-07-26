@@ -39,6 +39,17 @@ ACTUAL_MERGES = {
 }
 
 
+def test_secondary_review_protocol_allows_lightweight_closure_ci() -> None:
+    protocol = (
+        ROOT
+        / "docs/operations/architecture_convergence"
+        / "W2_GITHUB_SECONDARY_REVIEW_PROTOCOL.md"
+    ).read_text(encoding="utf-8")
+    assert "docs/status-only closure = LIGHTWEIGHT_CI_REQUIRED" in protocol
+    assert "所有 closure 强制 full CI" not in protocol
+    assert "verify/staging-parity/predeploy-e2e=PASS" not in protocol
+
+
 def ci_jobs(plan: Any | None = None) -> list[dict[str, str]]:
     plan = plan or governance.required_ci_plan(
         ["scripts/check_architecture_governance.py"], "IMPLEMENTATION"
