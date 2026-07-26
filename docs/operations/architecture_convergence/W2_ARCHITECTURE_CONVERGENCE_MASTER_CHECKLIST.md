@@ -44,6 +44,7 @@
 | ARCH-P1-04C 死代码清理+依赖守卫 | #395 | `6eeb411747a1cef624ff4780dbad87d4cec4b26d` | `_is_decision_tier`+F10 删除，INFRASTRUCTURE 依赖守卫；合同层三活跃链移交 04D |
 | ARCH-P1-04D | #398 | `e6e447293365ca29686b21876cab5e103829b1ed` | canonical card 权威统一，五项兼容代码删除，`LEGACY_DECISION_CONTRACT_CODE=0` |
 | ARCH-P1-03A | #400 | `bcd2c5e490a99426a0451de7f92362c1a76b2960` | 团队身份权威收敛 |
+| ARCH-P1-03B | #402 | `df8fc4578fb4d45e2fb7afb95f58748f459a69a8` | 球员身份 M2B 与三场强化 M3 收敛 |
 
 ---
 
@@ -471,10 +472,13 @@ M2A: DONE (accepted by W2_EXTERNAL_REVIEW_V6 @edeb873; team schema+migration,
 #### A10. ARCH-P1-03B：球员身份 Crosswalk 收敛（球员侧）
 
 ```text
-Status: IMPLEMENTED_PENDING_ACCEPTANCE
-Draft PR: #402
-External review: PENDING
-Implementation SHA: GITHUB_PR_EXACT_HEAD
+Status: DONE
+PR: #402
+Implementation PR: #402
+Merge SHA: df8fc4578fb4d45e2fb7afb95f58748f459a69a8
+Accepted Head: bfce636dc245ab93f9f4d92e77699bf1689f127b
+External Acceptance: W2_EXTERNAL_ACCEPTANCE_V1
+Implementation CI run: 30195079380
 Predecessor: ARCH-P1-03A
 Successor: ARCH-P1-03C (NOT_STARTED)
 M2B: DONE_STAGING (66 REVIEWED mappings; reviewed_by = operator:liudehua;
@@ -499,7 +503,7 @@ Transfermarkt review provenance。三张 legacy 表和 ORM 声明保持原状，
 - [x] 用 3 场真实比赛演示 canonical player ↔ provider lineup 球员唯一联接查询
       （EVAL-02B"缺阵分钟占比"的前置能力）；数据不足时保持 BLOCKED，禁止构造
       synthetic 证据。
-- [ ] PR 合并。
+- [x] PR 合并（#402，merge SHA `df8fc4578fb4d45e2fb7afb95f58748f459a69a8`）。
 **验收**：`CANONICAL_PLAYER_IDENTITY_AUTHORITY_COUNT = 1`；固定审批 manifest
 SHA 可重算；66 条 REVIEWED 精确对账；至少 3 场真实 fixture 的强化身份 M3
 每场三次只读确定性验证通过。
