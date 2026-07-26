@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+from typing import Any
+
+import pytest
 
 from w2.domain.decision_adapter import build_decision_contract_fields
 from w2.domain.decision_contract import (
@@ -9,6 +14,7 @@ from w2.domain.decision_contract import (
     validate_decision_contract,
 )
 from w2.domain.enums import DataStatus, DecisionReasonCode, DecisionTier
+from w2.markets.market_candidate import build_market_candidates
 
 NOW = datetime(2026, 7, 5, 0, 0, tzinfo=UTC)
 KICKOFF = NOW + timedelta(hours=4)
@@ -46,42 +52,71 @@ def _readiness(
     }
 
 
+def _quote_audit(market: str, line: object, odds: object) -> dict[str, object]:
+    canonical_line = Decimal(str(line))
+    sides = (
+        {
+            "home": {"line": str(canonical_line), "decimal_odds": odds},
+            "away": {"line": str(-canonical_line), "decimal_odds": odds},
+        }
+        if market == "ASIAN_HANDICAP"
+        else {
+            "over": {"line": str(canonical_line), "decimal_odds": odds},
+            "under": {"line": str(canonical_line), "decimal_odds": odds},
+        }
+    )
+    return {
+        "schema_version": "w2.quote_identity.v1",
+        "market": market,
+        "selected_line": str(canonical_line),
+        "fixture_id": "fixture-1",
+        "identity_status": "COMPLETE",
+        "freshness_status": "COMPLETE",
+        "observation_ids": {side: f"{side}-observation" for side in sides},
+        "provider": "api-football",
+        "bookmaker_id": "bookmaker-1",
+        "capture_id": "capture-1",
+        "captured_at": "2026-07-05T00:00:00Z",
+        "source_revision": "a" * 40,
+        "raw_payload_sha256": "b" * 64,
+        "quote_identity_hash": "c" * 64,
+        "quotes": sides,
+    }
+
+
 def _canonical_candidate(market: dict[str, object]) -> dict[str, object]:
     market_name = str(market.get("market") or "")
     key = "ou" if market_name == "TOTALS" else "ah"
-    line = market.get("line")
-    return {
-        "market_candidates": {
-            key: {
-                "market": market_name,
-                "selection": market.get("tendency") or market.get("selection"),
-                "line": line,
-                "fair_line": market.get("fair_line", line),
-                "market_line": market.get("market_line", line),
-                "quotes": {
-                    "executable": {
-                        "line": line,
-                        "decimal_odds": market.get("odds"),
-                    }
-                },
-                "analysis_evidence": {
-                    "evidence_contract_version": "w2.analysis-market-evidence.v2",
-                    "status": "COMPLETE",
-                    "model_probability": {
-                        "expected_value": market.get("expected_value", 0.05),
-                        "calibration_status": "VALIDATED",
-                    },
-                    "market_probability": {},
-                    "comparison": {
-                        "status": "READY",
-                        "analysis_direction_allowed": True,
-                        "probability_delta": 0.1,
-                        "reason_code": "MODEL_MARKET_EDGE_READY",
-                    },
-                },
-            }
-        }
-    }
+    line = market.get("line", "-0.5")
+    odds = market.get("odds", "1.95")
+    fair_key, market_key = (
+        ("fair_ou", "market_ou") if market_name == "TOTALS" else ("fair_ah", "market_ah")
+    )
+    candidates = build_market_candidates(
+        markets=[market],
+        quote_identity_audit={key: _quote_audit(market_name, line, odds)},
+        current_odds={},
+        pricing_shadow={
+            fair_key: market.get("fair_line", line),
+            market_key: market.get("market_line", line),
+        },
+        simulation={
+            "status": "READY",
+            "model_version": "model-v1",
+            "calibration_version": "calibration-v1",
+            "lambda_home": 2.7,
+            "lambda_away": 0.5,
+            "lambda_sigma_home": 0.08,
+            "lambda_sigma_away": 0.07,
+            "calibration": {
+                "lambda_uncertainty_method": "deterministic_three_point",
+                "params": {"dixon_coles_rho": 0.0},
+            },
+        },
+        fixture_id="fixture-1",
+        competition_id="world_cup_2026",
+    )
+    return {"market_candidates": {key: candidates[key]}}
 
 
 def _fields(
@@ -104,9 +139,7 @@ def _fields(
         for payload in (card_payload, market_payload, recommendation or {})
     ):
         decision = str(
-            market_payload.get("decision")
-            or market_payload.get("analysis_decision")
-            or ""
+            market_payload.get("decision") or market_payload.get("analysis_decision") or ""
         ).upper()
         tier = {
             "ANALYSIS_PICK": "ANALYSIS_PICK",
@@ -145,11 +178,19 @@ def test_persisted_decision_contract_contains_complete_read_contract() -> None:
     for field in CONTRACT_OWNED_FIELDS:
         if field in fields:
             assert contract.get(field) == fields[field]
-    assert validate_decision_contract(
-        contract,
-        fixture_id="fixture-1",
-        card=fields,
-    ) == contract
+    assert (
+        validate_decision_contract(
+            contract,
+            fixture_id="fixture-1",
+            card=fields,
+        )
+        == contract
+    )
+
+
+def test_model_version_uses_only_canonical_card_or_adapter_default() -> None:
+    assert _fields(card={"model_version": "canonical-model"})["model_version"] == "canonical-model"
+    assert _fields()["model_version"] == "w2.decision_contract.v2.adapter"
 
 
 def test_missing_canonical_readiness_and_analysis_evidence_fail_closed() -> None:
@@ -174,6 +215,121 @@ def test_missing_canonical_readiness_and_analysis_evidence_fail_closed() -> None
     assert missing_evidence["decision_tier"] == DecisionTier.NOT_READY.value
     assert missing_evidence["pick"] is None
     assert missing_evidence["model_market_divergence"]["status"] == "MISSING"  # type: ignore[index]
+
+
+_DELETE = object()
+_CANONICAL_MUTATIONS = (
+    (("schema_version",), _DELETE),
+    (("market",), "TOTALS"),
+    (("selection",), "OVER"),
+    (("line",), "invalid"),
+    (("quote_status",), "STALE"),
+    (("quote_usage",), "COMPARISON_ONLY"),
+    (("quote_identity", "identity_status"), "CONFLICT"),
+    (("quote_identity", "freshness_status"), "STALE"),
+    (("quote_identity", "market"), "TOTALS"),
+    (("quote_identity", "quote_identity_hash"), ""),
+    (("quotes", "executable", "line"), "-0.75"),
+    (("quotes", "executable", "decimal_odds"), "1"),
+    (("analysis_evidence", "evidence_contract_version"), "w2.analysis-market-evidence.v1"),
+    (("analysis_evidence", "status"), "NOT_READY"),
+    (("analysis_evidence", "quote_usage"), "COMPARISON_ONLY"),
+    (("analysis_evidence", "market"), "TOTALS"),
+    (("analysis_evidence", "selection"), "AWAY"),
+    (("analysis_evidence", "line"), "-0.75"),
+    (("analysis_evidence", "quote_identity", "identity_status"), "CONFLICT"),
+    (("analysis_evidence", "quote_identity", "freshness_status"), "STALE"),
+    (("analysis_evidence", "quote_identity", "market"), "TOTALS"),
+    (("analysis_evidence", "quote_identity", "quote_identity_hash"), "d" * 64),
+    (("analysis_evidence", "model_probability", "status"), "NOT_READY"),
+    (("analysis_evidence", "model_probability", "expected_value"), "invalid"),
+    (("analysis_evidence", "model_probability", "ev_se"), _DELETE),
+    (("analysis_evidence", "comparison", "status"), "NO_EDGE"),
+    (("analysis_evidence", "comparison", "probability_delta"), "invalid"),
+    (("analysis_evidence", "comparison", "analysis_direction_allowed"), False),
+)
+
+
+@pytest.mark.parametrize(
+    ("path", "replacement"),
+    _CANONICAL_MUTATIONS,
+    ids=[".".join(path) for path, _ in _CANONICAL_MUTATIONS],
+)
+def test_each_malformed_canonical_pick_field_fails_closed(
+    path: tuple[str, ...],
+    replacement: object,
+) -> None:
+    market = {
+        "market": "ASIAN_HANDICAP",
+        "decision": "PICK",
+        "tendency": "HOME",
+        "line": "-0.5",
+        "odds": "1.95",
+    }
+    card = deepcopy(_canonical_candidate(market))
+    candidate = card["market_candidates"]["ah"]  # type: ignore[index]
+    target: dict[str, Any] = candidate  # type: ignore[assignment]
+    for key in path[:-1]:
+        target = target[key]
+    if replacement is _DELETE:
+        target.pop(path[-1])
+    else:
+        target[path[-1]] = replacement
+
+    fields = _fields(card=card, market=market, readiness=_readiness())
+
+    assert fields["decision_tier"] == DecisionTier.NOT_READY.value
+    assert fields["pick"] is None
+
+
+def test_non_quarter_executable_line_fails_closed_even_when_all_lines_match() -> None:
+    market = {
+        "market": "ASIAN_HANDICAP",
+        "decision": "PICK",
+        "tendency": "HOME",
+        "line": "-0.5",
+        "odds": "1.95",
+    }
+    card = _canonical_candidate(market)
+    candidate = card["market_candidates"]["ah"]  # type: ignore[index]
+    candidate["line"] = "-0.1"  # type: ignore[index]
+    candidate["quotes"]["executable"]["line"] = "-0.1"  # type: ignore[index]
+    candidate["analysis_evidence"]["line"] = "-0.1"  # type: ignore[index]
+
+    fields = _fields(card=card, market={**market, "line": "-0.1"})
+
+    assert fields["decision_tier"] == DecisionTier.NOT_READY.value
+    assert fields["pick"] is None
+
+
+@pytest.mark.parametrize(
+    ("market_override", "recommendation"),
+    (
+        ({"tendency": "AWAY"}, None),
+        ({}, {"market": "TOTALS", "selection": "HOME"}),
+        ({}, {"market": "ASIAN_HANDICAP", "selection": "AWAY"}),
+    ),
+)
+def test_market_or_recommendation_identity_mismatch_fails_closed(
+    market_override: dict[str, object],
+    recommendation: dict[str, object] | None,
+) -> None:
+    canonical_market = {
+        "market": "ASIAN_HANDICAP",
+        "decision": "PICK",
+        "tendency": "HOME",
+        "line": "-0.5",
+        "odds": "1.95",
+    }
+    fields = _fields(
+        card=_canonical_candidate(canonical_market),
+        market={**canonical_market, **market_override},
+        recommendation=recommendation,
+        readiness=_readiness(),
+    )
+
+    assert fields["decision_tier"] == DecisionTier.NOT_READY.value
+    assert fields["pick"] is None
 
 
 def test_missing_lineups_soft_gate_is_advisory_for_analysis() -> None:
@@ -206,7 +362,6 @@ def test_totals_pick_uses_canonical_analysis_evidence() -> None:
             "odds": "2.03",
             "fair_line": "2.75",
             "market_line": "2.25",
-            "expected_value": -0.5,
         },
         readiness=_readiness(),
     )
@@ -217,10 +372,10 @@ def test_totals_pick_uses_canonical_analysis_evidence() -> None:
     assert pick["line"] == "2.25"
     assert pick["fair_line"] == "2.75"
     assert pick["market_line"] == "2.25"
-    assert pick["value_edge"] == -0.5
+    assert pick["value_edge"] == pick["model_probability"]["expected_value"]
     divergence = fields["model_market_divergence"]
     assert isinstance(divergence, dict)
-    assert divergence["model_fair_line"] == "2.75"
+    assert divergence["model_fair_line"] is None
     assert divergence["market_line"] == "2.25"
 
 
@@ -268,9 +423,9 @@ def test_readiness_status_mapping_is_not_optimistic() -> None:
         "line": "-0.25",
         "odds": "1.95",
     }
-    assert _fields(market=ready_market, readiness=_readiness())[
-        "data_status"
-    ] == (DataStatus.READY.value)
+    assert _fields(market=ready_market, readiness=_readiness())["data_status"] == (
+        DataStatus.READY.value
+    )
     assert (
         _fields(
             market=ready_market,
@@ -434,8 +589,13 @@ def test_decision_contract_exposes_canonical_probability_and_divergence() -> Non
     assert fields["decision_contract"]["probability_source"] == "MARKET_DEVIG"  # type: ignore[index]
     divergence = fields["model_market_divergence"]
     assert divergence["status"] == "READY"  # type: ignore[index]
-    assert divergence["magnitude"] == 0.1  # type: ignore[index]
-    assert divergence["model_fair_line"] == "-0.25"  # type: ignore[index]
+    assert (
+        divergence["magnitude"]
+        == fields["analysis_evidence"]["comparison"][  # type: ignore[index]
+            "probability_delta"
+        ]
+    )
+    assert divergence["model_fair_line"] is None  # type: ignore[index]
     assert divergence["compatibility_only"] is False  # type: ignore[index]
     assert fields["decision_contract"]["model_market_divergence"] == divergence  # type: ignore[index]
 
@@ -463,15 +623,7 @@ def test_market_anchor_display_requires_market_probability(monkeypatch) -> None:
     monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
 
     fields = _fields(
-        card={
-            "probability_source": "MODEL_FALLBACK",
-            "model_market_divergence": {
-                "status": "READY",
-                "magnitude": 0.2,
-                # 未来生产者契约:当前无生产路径置真;放行规则见契约 V2 预注册节。
-                "direction_allowed": True,
-            },
-        },
+        card={"probability_source": "MODEL_FALLBACK"},
         market={
             "market": "ASIAN_HANDICAP",
             "decision": "PICK",
@@ -490,7 +642,7 @@ def test_market_anchor_display_requires_market_probability(monkeypatch) -> None:
     assert fields["non_pick"] is not None
 
 
-def test_market_anchor_display_requires_actionable_divergence(monkeypatch) -> None:
+def test_top_level_divergence_cannot_override_canonical_evidence(monkeypatch) -> None:
     monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
 
     fields = _fields(
@@ -513,24 +665,16 @@ def test_market_anchor_display_requires_actionable_divergence(monkeypatch) -> No
         readiness=_readiness(),
     )
 
-    assert fields["decision_tier"] == DecisionTier.WATCH.value
-    assert fields["reason_code"] == DecisionReasonCode.EDGE_INSUFFICIENT.value
-    assert fields["pick"] is None
+    assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
+    assert fields["model_market_divergence"]["direction_allowed"] is True  # type: ignore[index]
+    assert fields["pick"] is not None
 
 
-def test_market_anchor_display_allows_significant_market_divergence(monkeypatch) -> None:
+def test_market_anchor_display_allows_canonical_market_divergence(monkeypatch) -> None:
     monkeypatch.setenv("W2_MARKET_ANCHOR_DISPLAY_ENABLED", "true")
 
     fields = _fields(
-        card={
-            "probability_source": "MARKET_DEVIG",
-            "model_market_divergence": {
-                "status": "READY",
-                "magnitude": 0.2,
-                # 未来生产者契约:当前无生产路径置真;放行规则见契约 V2 预注册节。
-                "direction_allowed": True,
-            },
-        },
+        card={"probability_source": "MARKET_DEVIG"},
         market={
             "market": "ASIAN_HANDICAP",
             "decision": "PICK",

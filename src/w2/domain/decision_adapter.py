@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta, timezone
@@ -56,6 +57,7 @@ def build_decision_contract_fields(
         readiness=readiness,
     )
     data_status = data_readiness.data_status
+    evaluated_candidate = _selected_market_candidate(card, market)
     tier = _decision_tier(
         card=card,
         market=market,
@@ -63,7 +65,7 @@ def build_decision_contract_fields(
         data_status=data_status,
     )
     probability_source = _probability_source(card, market, recommendation)
-    model_market_divergence = _model_market_divergence(card, market, recommendation)
+    model_market_divergence = _model_market_divergence(evaluated_candidate)
     tier = _market_anchor_display_tier(
         tier=tier,
         data_status=data_status,
@@ -101,18 +103,19 @@ def build_decision_contract_fields(
         data_status=data_status,
         quote_provenance_status=quote_provenance_status,
     )
-    evaluated_candidate = _selected_market_candidate(card, market)
     if tier in {
         DecisionTier.ANALYSIS_PICK,
         DecisionTier.RECOMMEND,
-    } and not _canonical_pick_evidence_ready(evaluated_candidate):
+    } and not _canonical_pick_evidence_ready(
+        evaluated_candidate,
+        market=market,
+        recommendation=recommendation,
+    ):
         tier = DecisionTier.NOT_READY
     if tier not in {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND}:
         recommendation_id = None
     pick_payload = (
         _pick_payload(
-            market=market,
-            recommendation=recommendation,
             evaluated_candidate=evaluated_candidate,
         )
         if tier in {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND}
@@ -140,11 +143,7 @@ def build_decision_contract_fields(
         "lifecycle_status": lifecycle_status.value,
         "outcome_tracked": compute_outcome_tracked(tier),
         "recommendation_id": recommendation_id,
-        "model_version": str(
-            _get(card, "model_version")
-            or _get(_as_mapping(_get(card, "pricing_shadow")), "model_version")
-            or "w2.decision_contract.v2.adapter"
-        ),
+        "model_version": str(_get(card, "model_version") or "w2.decision_contract.v2.adapter"),
         "probability_source": probability_source.value,
         "model_market_divergence": model_market_divergence,
         "provenance": {
@@ -325,8 +324,10 @@ def _available_quote_provenance(card: Mapping[str, Any]) -> dict[str, str]:
             statuses[market] = "INCOMPLETE"
             continue
         freshness = _first_upper(_get(identity, "freshness_status"))
-        statuses[market] = "COMPLETE" if freshness == "COMPLETE" else (
-            "STALE" if freshness == "STALE" else "INCOMPLETE"
+        statuses[market] = (
+            "COMPLETE"
+            if freshness == "COMPLETE"
+            else ("STALE" if freshness == "STALE" else "INCOMPLETE")
         )
     return statuses
 
@@ -341,8 +342,6 @@ def _market_anchor_display_tier(
     if tier not in {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND}:
         return tier
     if not _market_anchor_display_enabled():
-        return tier
-    if str(model_market_divergence.get("compatibility_only") or "").lower() != "true":
         return tier
     if data_status is DataStatus.BLOCKED:
         return DecisionTier.NOT_READY
@@ -415,8 +414,6 @@ def _lifecycle_status(card: Mapping[str, Any]) -> LifecycleStatus:
 
 def _pick_payload(
     *,
-    market: Mapping[str, Any] | None,
-    recommendation: Mapping[str, Any] | None,
     evaluated_candidate: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     evaluated = _as_mapping(evaluated_candidate)
@@ -424,13 +421,10 @@ def _pick_payload(
     analysis_evidence = _as_mapping(evaluated.get("analysis_evidence"))
     model_probability = _as_mapping(analysis_evidence.get("model_probability"))
     comparison = _as_mapping(analysis_evidence.get("comparison"))
-    pick_market = _first_text(_get(recommendation, "market"), _get(market, "market"))
-    if evaluated:
-        pick_market = _first_text(evaluated.get("market"), pick_market)
     return {
-        "market": pick_market,
+        "market": _first_text(evaluated.get("market")),
         "selection": _first_text(evaluated.get("selection")),
-        "line": _first_text(executable_quote.get("line"), evaluated.get("line")),
+        "line": _first_text(executable_quote.get("line")),
         "odds": _first_text(executable_quote.get("decimal_odds")),
         "fair_line": evaluated.get("fair_line"),
         "market_line": evaluated.get("market_line"),
@@ -457,16 +451,77 @@ def _pick_payload(
 
 def _canonical_pick_evidence_ready(
     candidate: Mapping[str, Any] | None,
+    *,
+    market: Mapping[str, Any] | None,
+    recommendation: Mapping[str, Any] | None,
 ) -> bool:
     evaluated = _as_mapping(candidate)
     evidence = _as_mapping(evaluated.get("analysis_evidence"))
+    model_probability = _as_mapping(evidence.get("model_probability"))
     comparison = _as_mapping(evidence.get("comparison"))
     quote = _as_mapping(_as_mapping(evaluated.get("quotes")).get("executable"))
+    identity = _as_mapping(evaluated.get("quote_identity"))
+    evidence_identity = _as_mapping(evidence.get("quote_identity"))
+    candidate_market = _first_upper(evaluated.get("market"))
+    candidate_selection = _first_upper(evaluated.get("selection"))
+    market_values = {
+        value
+        for value in (
+            candidate_market,
+            _first_upper(_get(market, "market")),
+            _first_upper(_get(recommendation, "market")),
+        )
+        if value is not None
+    }
+    selection_values = {
+        value
+        for value in (
+            candidate_selection,
+            _first_upper(_get(market, "selection")),
+            _first_upper(_get(market, "tendency")),
+            _first_upper(_get(recommendation, "selection")),
+            _first_upper(_get(recommendation, "tendency")),
+        )
+        if value is not None
+    }
+    valid_selections = {
+        "ASIAN_HANDICAP": {"HOME", "AWAY"},
+        "TOTALS": {"OVER", "UNDER"},
+    }
+    identity_hash = _first_text(identity.get("quote_identity_hash"))
+    decimal_odds = _finite_number(quote.get("decimal_odds"))
     return (
-        evidence.get("status") == "COMPLETE"
+        evaluated.get("schema_version") == "w2.market_candidate.v1"
+        and candidate_market in valid_selections
+        and candidate_selection in valid_selections.get(candidate_market, set())
+        and market_values == {candidate_market}
+        and selection_values == {candidate_selection}
+        and evaluated.get("quote_status") == "COMPLETE"
+        and evaluated.get("quote_usage") == "EXECUTABLE"
+        and identity.get("identity_status") == "COMPLETE"
+        and identity.get("freshness_status") == "COMPLETE"
+        and _first_upper(identity.get("market")) == candidate_market
+        and identity_hash is not None
+        and evidence_identity.get("identity_status") == "COMPLETE"
+        and evidence_identity.get("freshness_status") == "COMPLETE"
+        and _first_upper(evidence_identity.get("market")) == candidate_market
+        and _first_text(evidence_identity.get("quote_identity_hash")) == identity_hash
+        and _valid_market_line(candidate_market, evaluated.get("line"))
+        and _same_number(evaluated.get("line"), quote.get("line"))
+        and decimal_odds is not None
+        and decimal_odds > 1
+        and evidence.get("evidence_contract_version") == "w2.analysis-market-evidence.v2"
+        and evidence.get("status") == "COMPLETE"
+        and evidence.get("quote_usage") == "EXECUTABLE"
+        and _first_upper(evidence.get("market")) == candidate_market
+        and _first_upper(evidence.get("selection")) == candidate_selection
+        and _same_number(evidence.get("line"), evaluated.get("line"))
+        and model_probability.get("status") == "READY"
+        and _finite_number(model_probability.get("expected_value")) is not None
+        and _finite_number(model_probability.get("ev_se")) is not None
+        and comparison.get("status") == "READY"
+        and _finite_number(comparison.get("probability_delta")) is not None
         and comparison.get("analysis_direction_allowed") is True
-        and quote.get("line") is not None
-        and quote.get("decimal_odds") is not None
     )
 
 
@@ -533,11 +588,8 @@ def _reason_code(
     }
     if wants_pick and _market_anchor_display_enabled():
         probability_source = _probability_source(card, market, recommendation)
-        model_market_divergence = _model_market_divergence(card, market, recommendation)
-        compatibility_only = (
-            str(model_market_divergence.get("compatibility_only") or "").lower() == "true"
-        )
-        if compatibility_only and _market_anchor_blocks_pick(
+        model_market_divergence = _model_market_divergence(_selected_market_candidate(card, market))
+        if _market_anchor_blocks_pick(
             probability_source=probability_source,
             model_market_divergence=model_market_divergence,
         ):
@@ -736,27 +788,18 @@ def _probability_source(
 
 
 def _model_market_divergence(
-    card: Mapping[str, Any],
-    market: Mapping[str, Any] | None,
-    recommendation: Mapping[str, Any] | None,
+    candidate: Mapping[str, Any] | None,
 ) -> Mapping[str, Any]:
-    explicit = _as_mapping(_get(card, "model_market_divergence"))
-    if explicit:
-        return {
-            **explicit,
-            "compatibility_only": explicit.get("compatibility_only", True),
-        }
-    candidate = _selected_market_candidate(card, market)
     evidence = _as_mapping(candidate.get("analysis_evidence")) if candidate else {}
-    if str(evidence.get("evidence_contract_version") or "").endswith(".v2"):
+    if evidence.get("evidence_contract_version") == "w2.analysis-market-evidence.v2":
         comparison = _as_mapping(evidence.get("comparison"))
         return {
             "source": "analysis_evidence",
             "status": str(comparison.get("status") or evidence.get("status") or "UNKNOWN"),
-            "magnitude": _number(comparison.get("probability_delta")),
+            "magnitude": _finite_number(comparison.get("probability_delta")),
             "lock_divergence": None,
-            "model_fair_line": _optional_text(candidate.get("fair_line")) if candidate else None,
-            "market_line": _optional_text(candidate.get("market_line")) if candidate else None,
+            "model_fair_line": None,
+            "market_line": _optional_text(evidence.get("line")),
             "calibration_status": _optional_text(
                 _get(_as_mapping(evidence.get("model_probability")), "calibration_status")
             ),
@@ -878,6 +921,28 @@ def _number(value: Any) -> float | None:
         except ValueError:
             return None
     return None
+
+
+def _finite_number(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    number = _number(value)
+    return number if number is not None and math.isfinite(number) else None
+
+
+def _same_number(left: Any, right: Any) -> bool:
+    left_number = _finite_number(left)
+    right_number = _finite_number(right)
+    return left_number is not None and left_number == right_number
+
+
+def _valid_market_line(market: str | None, value: Any) -> bool:
+    line = _finite_number(value)
+    return bool(
+        line is not None
+        and abs(line * 4 - round(line * 4)) < 0.001
+        and (market != "TOTALS" or line > 0)
+    )
 
 
 def _non_empty(value: Any) -> bool:
