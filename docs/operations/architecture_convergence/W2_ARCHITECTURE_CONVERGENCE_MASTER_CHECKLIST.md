@@ -579,6 +579,11 @@ Required contexts target:
 - [x] Python/runtime 日常 head 运行 focused jobs；最终实施 head 通过
       `workflow_dispatch(full=true)` 运行一次完整矩阵。CI workflow、migration、
       混合或未知路径本身直接 fail-safe 进入完整矩阵。
+- [x] 可信 PRE 从 GitHub API 读取 exact-head changed paths、同一 Actions run 的
+      jobs 与 `CI_REQUIRED`，按最终 required plan 校验；focused/lightweight receipt
+      不得冒充 Python/runtime implementation 的 full receipt。
+- [x] main push 按 `before...sha` 分类；rename 同时纳入旧/新路径；CI control 和
+      deploy Python 均 fail-safe full；聚合器同时严格拒绝应跳过 job 的意外执行结果。
 - [ ] exact-head 完整 CI、外部验收与 PR 合并。
 
 **不做**：不改生产业务、数据库 schema、模型数学、provider、Formal、Candidate、

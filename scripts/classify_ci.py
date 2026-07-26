@@ -29,6 +29,9 @@ INFRA_FILES = {
 }
 FULL_CI_FILES = {
     ".github/workflows/ci.yml",
+    "scripts/check_architecture_governance.py",
+    "scripts/classify_ci.py",
+    "scripts/check_w2_all.py",
     "alembic.ini",
     "pyproject.toml",
     "uv.lock",
@@ -64,31 +67,33 @@ class CiPlan:
         }
 
 
-def _domain(path: str) -> str:
+def _domains(path: str) -> set[str]:
     pure = PurePosixPath(path)
     if pure.is_absolute() or ".." in pure.parts or path in {"", "."}:
-        return "unknown"
+        return {"unknown"}
     if path in FULL_CI_FILES or path.startswith(".github/"):
-        return "unknown"
+        return {"unknown"}
     if path.startswith(MIGRATION_ROOTS):
-        return "migration"
+        return {"migration"}
     if path.startswith(WEB_ROOTS):
-        return "web"
+        return {"web"}
     if path.startswith(INFRA_ROOTS) or path in INFRA_FILES:
-        return "infra"
+        return {"infra"}
     if path.startswith("scripts/"):
-        return "infra" if "deploy" in pure.name or pure.suffix == ".sh" else "python"
+        if pure.suffix == ".py":
+            return {"python", "infra"} if "deploy" in pure.name else {"python"}
+        return {"infra"} if pure.suffix == ".sh" else {"unknown"}
     if path in DOC_STATUS_FILES or path.startswith("docs/"):
-        return "docs"
+        return {"docs"}
     if path.startswith(PYTHON_ROOTS) or path.startswith(("config/", "contracts/")):
-        return "python"
+        return {"python"}
     if pure.suffix.lower() in {".md", ".markdown"}:
-        return "docs"
-    return "unknown"
+        return {"docs"}
+    return {"unknown"}
 
 
 def classify(paths: list[str], *, force_full: bool = False) -> CiPlan:
-    domains = {_domain(path) for path in paths}
+    domains = set().union(*(_domains(path) for path in paths)) if paths else set()
     heavy_domains = domains - {"docs"}
     full = (
         force_full
@@ -116,9 +121,17 @@ def classify(paths: list[str], *, force_full: bool = False) -> CiPlan:
     return CiPlan()
 
 
+def required_ci_plan(paths: list[str], pr_kind: str) -> CiPlan:
+    plan = classify(paths)
+    if pr_kind == "IMPLEMENTATION" and plan.python_focused:
+        return classify(paths, force_full=True)
+    return plan
+
+
 def ci_required_passes(expected: dict[str, bool], results: dict[str, str]) -> bool:
     return results.get("classify") == "success" and all(
-        results.get(job) == "success" for job in CI_JOB_NAMES if expected.get(job)
+        results.get(job) == ("success" if expected.get(job) else "skipped")
+        for job in CI_JOB_NAMES
     )
 
 
@@ -134,12 +147,21 @@ def _key_values(values: list[str]) -> dict[str, str]:
 
 def changed_paths(base: str, head: str) -> list[str]:
     result = subprocess.run(
-        ["git", "diff", "--name-only", f"{base}...{head}"],
+        ["git", "diff", "--no-renames", "--name-only", f"{base}...{head}"],
         check=True,
         capture_output=True,
         text=True,
     )
     return [line for line in result.stdout.splitlines() if line]
+
+
+def resolve_plan(base: str, head: str, *, force_full: bool = False) -> CiPlan:
+    if force_full:
+        return classify([], force_full=True)
+    try:
+        return classify(changed_paths(base, head))
+    except subprocess.CalledProcessError:
+        return classify([], force_full=True)
 
 
 def main() -> int:
@@ -158,12 +180,12 @@ def main() -> int:
             for key, value in _key_values(args.expected_job).items()
         }
         return 0 if ci_required_passes(expected, _key_values(args.result)) else 1
-    paths = args.path
-    if not paths:
-        if not args.base or not args.head:
+    if args.path:
+        plan = classify(args.path, force_full=args.force_full)
+    else:
+        if args.base is None or args.head is None:
             parser.error("--base and --head are required when --path is omitted")
-        paths = changed_paths(args.base, args.head)
-    plan = classify(paths, force_full=args.force_full)
+        plan = resolve_plan(args.base, args.head, force_full=args.force_full)
     lines = [f"{key}={value}" for key, value in plan.outputs().items()]
     if args.github_output:
         with args.github_output.open("a", encoding="utf-8") as output:

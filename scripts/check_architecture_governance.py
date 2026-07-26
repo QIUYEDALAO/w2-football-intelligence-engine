@@ -15,6 +15,21 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+try:
+    from scripts.classify_ci import (
+        CI_JOB_NAMES,
+        CiPlan,
+        ci_required_passes,
+        required_ci_plan,
+    )
+except ModuleNotFoundError:  # direct `python scripts/check_...py` execution
+    from classify_ci import (  # type: ignore[no-redef]
+        CI_JOB_NAMES,
+        CiPlan,
+        ci_required_passes,
+        required_ci_plan,
+    )
+
 PROTOCOL_ID = "GITHUB_SECONDARY_REVIEW_PROTOCOL_V1"
 ACCEPTANCE_MARKER = "W2_EXTERNAL_ACCEPTANCE_V1"
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -37,6 +52,16 @@ A1_ALLOWED_PATHS = {
     "tests/unit/test_architecture_governance.py",
 }
 TRUSTED_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
+CI_JOB_CHECK_NAMES = {
+    "governance": "governance-light",
+    "python_focused": "python-focused",
+    "web": "web",
+    "migration": "migration-schema",
+    "compose": "compose",
+    "staging_parity": "staging-parity",
+    "predeploy_e2e": "predeploy-e2e",
+    "verify": "verify",
+}
 VALID_STATUSES = {
     "NOT_STARTED",
     "IN_PROGRESS",
@@ -144,6 +169,21 @@ class GitHubClient:
                 return collected
         raise GovernanceError("GITHUB_API_PAGINATION_LIMIT")
 
+    def _object_list(self, path: str, key: str) -> list[dict[str, Any]]:
+        collected: list[dict[str, Any]] = []
+        for page in range(1, 101):
+            separator = "&" if "?" in path else "?"
+            payload = self._get(f"{path}{separator}per_page=100&page={page}")
+            if not isinstance(payload, dict) or not isinstance(payload.get(key), list):
+                raise GovernanceError("GITHUB_API_LIST_INVALID")
+            items = payload[key]
+            if not all(isinstance(item, dict) for item in items):
+                raise GovernanceError("GITHUB_API_LIST_ITEM_INVALID")
+            collected.extend(items)
+            if len(items) < 100:
+                return collected
+        raise GovernanceError("GITHUB_API_PAGINATION_LIMIT")
+
     def get_pull(self, number: int) -> dict[str, Any]:
         payload = self._get(f"/repos/{self.repository}/pulls/{number}")
         if not isinstance(payload, dict):
@@ -155,6 +195,23 @@ class GitHubClient:
 
     def list_reviews(self, number: int) -> list[dict[str, Any]]:
         return self._list(f"/repos/{self.repository}/pulls/{number}/reviews")
+
+    def list_ci_runs(self, exact_head: str) -> list[dict[str, Any]]:
+        if not SHA_RE.fullmatch(exact_head):
+            raise GovernanceError("CI_HEAD_INVALID")
+        return self._object_list(
+            f"/repos/{self.repository}/actions/workflows/ci.yml/runs"
+            f"?head_sha={exact_head}",
+            "workflow_runs",
+        )
+
+    def list_run_jobs(self, run_id: int) -> list[dict[str, Any]]:
+        if run_id <= 0:
+            raise GovernanceError("CI_RUN_ID_INVALID")
+        return self._object_list(
+            f"/repos/{self.repository}/actions/runs/{run_id}/jobs",
+            "jobs",
+        )
 
     def get_text_file(self, path: str, ref: str) -> str:
         if not SHA_RE.fullmatch(ref):
@@ -300,6 +357,53 @@ def _event_pull_number(event: dict[str, Any]) -> int:
         return int(candidate)
     except (TypeError, ValueError) as exc:
         raise GovernanceError("EVENT_PULL_REQUEST_MISSING") from exc
+
+
+def _pull_file_paths(files: list[dict[str, Any]]) -> list[str]:
+    paths: list[str] = []
+    for item in files:
+        filename = item.get("filename")
+        if not isinstance(filename, str):
+            raise GovernanceError("PULL_FILE_FIELDS_MISSING")
+        paths.append(filename)
+        previous = item.get("previous_filename")
+        if previous is not None:
+            if not isinstance(previous, str):
+                raise GovernanceError("PULL_FILE_FIELDS_MISSING")
+            paths.append(previous)
+    return sorted(set(paths))
+
+
+def _ci_receipt_matches(plan: CiPlan, jobs: list[dict[str, Any]]) -> bool:
+    results: dict[str, str] = {}
+    for internal_name, check_name in {
+        "classify": "classify",
+        **CI_JOB_CHECK_NAMES,
+        "ci_required": "CI_REQUIRED",
+    }.items():
+        matches = [job for job in jobs if job.get("name") == check_name]
+        if len(matches) != 1 or not isinstance(matches[0].get("conclusion"), str):
+            return False
+        results[internal_name] = matches[0]["conclusion"]
+    expected = {job: getattr(plan, job) for job in CI_JOB_NAMES}
+    return results["ci_required"] == "success" and ci_required_passes(expected, results)
+
+
+def _find_ci_receipt(client: Any, exact_head: str, plan: CiPlan) -> int | None:
+    for run in client.list_ci_runs(exact_head):
+        if (
+            run.get("head_sha") != exact_head
+            or run.get("status") != "completed"
+            or run.get("conclusion") != "success"
+            or run.get("event") not in {"pull_request", "workflow_dispatch"}
+        ):
+            continue
+        run_id = run.get("id")
+        if isinstance(run_id, int) and _ci_receipt_matches(
+            plan, client.list_run_jobs(run_id)
+        ):
+            return run_id
+    return None
 
 
 def _parse_acceptance_review(body: str) -> tuple[dict[str, str] | None, str | None]:
@@ -465,15 +569,24 @@ def check_pre_merge(
 
     try:
         files = client.list_pull_files(number)
-        filenames = {
-            item.get("filename") for item in files if isinstance(item.get("filename"), str)
-        }
-        if len(filenames) != len(files):
-            result.fail("PULL_FILE_FIELDS_MISSING")
+        changed_paths = _pull_file_paths(files)
+        filenames = {item["filename"] for item in files}
         if task_id == "ARCH-GOVERNANCE-01":
             unexpected = sorted(filenames - A1_ALLOWED_PATHS)
             if unexpected:
                 result.fail(f"A1_OUT_OF_SCOPE_FILES:{','.join(unexpected)}")
+        plan = required_ci_plan(changed_paths, pr_kind)
+        result.details["CI_REQUIRED_PLAN"] = (
+            "FULL" if plan.full else "LIGHTWEIGHT" if not any(
+                getattr(plan, job) for job in CI_JOB_NAMES if job != "governance"
+            ) else "PATH_AWARE"
+        )
+        receipt = _find_ci_receipt(client, exact_head, plan)
+        if receipt is None:
+            result.details["CI_REQUIRED_RECEIPT"] = "MISSING"
+            result.fail("CI_REQUIRED_RECEIPT_MISSING")
+        else:
+            result.details["CI_REQUIRED_RECEIPT"] = str(receipt)
     except GovernanceError as exc:
         result.fail(str(exc))
 

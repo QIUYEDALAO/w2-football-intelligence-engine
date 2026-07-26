@@ -1,9 +1,19 @@
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
+import pytest
 import yaml
-from scripts.classify_ci import CI_JOB_NAMES, ci_required_passes, classify
+from scripts.classify_ci import (
+    CI_JOB_NAMES,
+    changed_paths,
+    ci_required_passes,
+    classify,
+    required_ci_plan,
+    resolve_plan,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -42,6 +52,28 @@ def test_python_web_migration_and_infra_schedule_their_jobs() -> None:
     assert not infra.verify
 
 
+def test_python_scripts_keep_python_domain_and_deploy_python_is_full() -> None:
+    assert classify(["scripts/audit_example.py"]).python_focused
+    assert classify(["scripts/deploy_example.py"]).full
+    shell = classify(["scripts/deploy_example.sh"])
+    assert shell.compose and shell.staging_parity and not shell.verify
+
+
+def test_ci_control_files_always_force_full() -> None:
+    for path in (
+        ".github/workflows/ci.yml",
+        "scripts/classify_ci.py",
+        "scripts/check_architecture_governance.py",
+        "scripts/check_w2_all.py",
+    ):
+        assert classify([path]).full
+
+
+def test_python_implementation_requires_full_receipt_but_docs_closure_is_light() -> None:
+    assert required_ci_plan(["src/w2/domain/model.py"], "IMPLEMENTATION").full
+    assert not required_ci_plan(["docs/runbook.md"], "CLOSURE").full
+
+
 def test_mixed_unknown_empty_and_forced_plans_fail_safe_to_full_ci() -> None:
     for paths in (
         ["src/w2/domain/model.py", "apps/web/src/page.tsx"],
@@ -55,7 +87,7 @@ def test_mixed_unknown_empty_and_forced_plans_fail_safe_to_full_ci() -> None:
     assert classify(["docs/readme.md"], force_full=True).full
 
 
-def test_ci_required_fails_when_any_scheduled_job_is_mutated_to_failure() -> None:
+def test_ci_required_strictly_matches_success_and_skipped_results() -> None:
     plan = classify(["infra/compose/compose.staging.yml"])
     expected = {job: getattr(plan, job) for job in CI_JOB_NAMES}
     results = {
@@ -64,8 +96,47 @@ def test_ci_required_fails_when_any_scheduled_job_is_mutated_to_failure() -> Non
     }
     assert ci_required_passes(expected, results)
     for job in ("governance", "compose", "staging_parity", "predeploy_e2e"):
-        mutated = results | {job: "failure"}
-        assert not ci_required_passes(expected, mutated)
+        for unexpected in ("skipped", "failure", "cancelled"):
+            assert not ci_required_passes(expected, results | {job: unexpected})
+    for job in (name for name in CI_JOB_NAMES if not expected[name]):
+        for unexpected in ("success", "failure", "cancelled"):
+            assert not ci_required_passes(expected, results | {job: unexpected})
+
+
+def test_rename_classifies_old_and_new_paths_without_runtime_to_docs_bypass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[str] = []
+
+    def fake_run(command: list[str], **_kwargs: object) -> SimpleNamespace:
+        seen.extend(command)
+        return SimpleNamespace(stdout="src/w2/domain/model.py\ndocs/model.md\n")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    paths = changed_paths("a" * 40, "b" * 40)
+    assert "--no-renames" in seen
+    assert classify(paths).python_focused
+
+
+def test_invalid_diff_base_fails_safe_to_full(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail(*_args: object, **_kwargs: object) -> None:
+        raise subprocess.CalledProcessError(128, ["git", "diff"])
+
+    monkeypatch.setattr(subprocess, "run", fail)
+    assert resolve_plan("invalid", "b" * 40).full
+
+
+def test_valid_main_push_range_is_classified_instead_of_forced_full(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(stdout="docs/runbook.md\n"),
+    )
+    assert not resolve_plan("a" * 40, "b" * 40).full
 
 
 def test_ci_workflow_has_stable_aggregate_and_independent_governance_gates() -> None:
@@ -105,3 +176,6 @@ def test_ci_workflow_has_stable_aggregate_and_independent_governance_gates() -> 
     assert "name: POST_MERGE_CHECKLIST_CONSISTENCY_GATE" in governance
     assert "types: [opened, synchronize, reopened]" in ci
     assert "issue_comment:" in governance
+    assert "github.event_name != 'pull_request'" not in ci
+    assert "github.event.before" in ci
+    assert "github.event_name == 'workflow_dispatch' && inputs.full" in ci

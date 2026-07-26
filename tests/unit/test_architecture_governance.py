@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 import yaml
 from scripts import check_architecture_governance as governance
+from scripts.classify_ci import classify
 
 ROOT = Path(__file__).resolve().parents[2]
 HEAD = "a" * 40
@@ -37,20 +38,52 @@ ACTUAL_MERGES = {
 }
 
 
+def ci_jobs(plan: Any | None = None) -> list[dict[str, str]]:
+    plan = plan or governance.required_ci_plan(
+        ["scripts/check_architecture_governance.py"], "IMPLEMENTATION"
+    )
+    jobs = [{"name": "classify", "conclusion": "success"}]
+    jobs.extend(
+        {
+            "name": governance.CI_JOB_CHECK_NAMES[name],
+            "conclusion": "success" if getattr(plan, name) else "skipped",
+        }
+        for name in governance.CI_JOB_NAMES
+    )
+    jobs.append({"name": "CI_REQUIRED", "conclusion": "success"})
+    return jobs
+
+
 class FakeClient:
     def __init__(
         self,
         *,
         pull: dict[str, Any] | None = None,
-        files: list[str] | None = None,
+        files: list[str | dict[str, Any]] | None = None,
         reviews: list[dict[str, Any]] | None = None,
         pulls: dict[int, dict[str, Any]] | None = None,
+        ci_runs: list[dict[str, Any]] | None = None,
+        jobs: list[dict[str, Any]] | None = None,
         fail: str | None = None,
     ) -> None:
         self.pull = pull or valid_pull()
         self.files = files or sorted(governance.A1_ALLOWED_PATHS)
         self.reviews = reviews or []
         self.pulls = pulls or {}
+        self.ci_runs = (
+            ci_runs
+            if ci_runs is not None
+            else [
+                {
+                    "id": 100,
+                    "head_sha": HEAD,
+                    "status": "completed",
+                    "conclusion": "success",
+                    "event": "pull_request",
+                }
+            ]
+        )
+        self.jobs = jobs if jobs is not None else ci_jobs()
         self.fail = fail
 
     def get_pull(self, number: int) -> dict[str, Any]:
@@ -61,12 +94,25 @@ class FakeClient:
     def list_pull_files(self, number: int) -> list[dict[str, Any]]:
         if self.fail == "files":
             raise governance.GovernanceError("GITHUB_API_ERROR:TimeoutError")
-        return [{"filename": name} for name in self.files]
+        return [
+            item if isinstance(item, dict) else {"filename": item}
+            for item in self.files
+        ]
 
     def list_reviews(self, number: int) -> list[dict[str, Any]]:
         if self.fail == "reviews":
             raise governance.GovernanceError("GITHUB_API_ERROR:TimeoutError")
         return self.reviews
+
+    def list_ci_runs(self, exact_head: str) -> list[dict[str, Any]]:
+        if self.fail == "ci_runs":
+            raise governance.GovernanceError("GITHUB_API_ERROR:TimeoutError")
+        return self.ci_runs
+
+    def list_run_jobs(self, run_id: int) -> list[dict[str, Any]]:
+        if self.fail == "jobs":
+            raise governance.GovernanceError("GITHUB_API_ERROR:TimeoutError")
+        return self.jobs
 
 
 def valid_body(task: str = "ARCH-GOVERNANCE-01", extra: str = "") -> str:
@@ -317,6 +363,77 @@ def test_pre_merge_exact_head_pass_review_passes() -> None:
     result = pre_result(reviews=[valid_review()])
     assert result.passed, result.errors
     assert result.details["EXTERNAL_ACCEPTANCE"] == "PASS"
+
+
+def test_pre_merge_docs_plan_accepts_only_lightweight_exact_head_receipt() -> None:
+    plan = governance.required_ci_plan(["PROJECT_STATE.yaml"], "IMPLEMENTATION")
+    result = governance.check_pre_merge(
+        event(),
+        checklist(),
+        FakeClient(
+            files=["PROJECT_STATE.yaml"],
+            reviews=[valid_review()],
+            jobs=ci_jobs(plan),
+        ),
+    )
+    assert result.passed, result.errors
+    assert result.details["CI_REQUIRED_PLAN"] == "LIGHTWEIGHT"
+    assert result.details["CI_REQUIRED_RECEIPT"] == "100"
+
+
+def test_pre_merge_python_final_head_rejects_lightweight_ci_required_receipt() -> None:
+    focused = classify(["src/w2/domain/model.py"])
+    result = governance.check_pre_merge(
+        event(),
+        checklist(),
+        FakeClient(
+            files=["src/w2/domain/model.py"],
+            reviews=[valid_review()],
+            jobs=ci_jobs(focused),
+        ),
+    )
+    assert result.details["CI_REQUIRED_PLAN"] == "FULL"
+    assert "CI_REQUIRED_RECEIPT_MISSING" in result.errors
+
+
+def test_pre_merge_rename_includes_previous_runtime_path() -> None:
+    paths = governance._pull_file_paths(
+        [
+            {
+                "filename": "docs/model.md",
+                "previous_filename": "src/w2/domain/model.py",
+            }
+        ]
+    )
+    assert paths == ["docs/model.md", "src/w2/domain/model.py"]
+    assert governance.required_ci_plan(paths, "IMPLEMENTATION").full
+
+
+def test_ci_receipt_rejects_unexpected_success_for_unscheduled_job() -> None:
+    plan = governance.required_ci_plan(["PROJECT_STATE.yaml"], "CLOSURE")
+    jobs = ci_jobs(plan)
+    next(job for job in jobs if job["name"] == "verify")["conclusion"] = "success"
+    assert not governance._ci_receipt_matches(plan, jobs)
+
+
+def test_pre_merge_rejects_ci_receipt_from_another_head() -> None:
+    result = governance.check_pre_merge(
+        event(),
+        checklist(),
+        FakeClient(
+            reviews=[valid_review()],
+            ci_runs=[
+                {
+                    "id": 100,
+                    "head_sha": OLD_HEAD,
+                    "status": "completed",
+                    "conclusion": "success",
+                    "event": "pull_request",
+                }
+            ],
+        ),
+    )
+    assert "CI_REQUIRED_RECEIPT_MISSING" in result.errors
 
 
 @pytest.mark.parametrize("state", ["COMMENTED", "APPROVED"])
@@ -686,7 +803,11 @@ def test_workflow_is_read_only_and_uses_exact_check_names() -> None:
     path = ROOT / ".github/workflows/architecture-governance.yml"
     source = path.read_text(encoding="utf-8")
     workflow = yaml.safe_load(source)
-    assert workflow["permissions"] == {"contents": "read", "pull-requests": "read"}
+    assert workflow["permissions"] == {
+        "actions": "read",
+        "contents": "read",
+        "pull-requests": "read",
+    }
     assert {
         job["name"] for job in workflow["jobs"].values()
     } == {
