@@ -3,8 +3,7 @@
 Team identity is resolved from ``provider_team_identity_crosswalks`` +
 ``canonical_teams``; player identity from ``player_identity_mappings``. This
 repository never constructs a canonical ID from a provider ID and never reads
-the legacy crosswalk tables (``team_identity_crosswalks``,
-``football_data_team_crosswalks``, ``player_identity_crosswalks``). Unknown
+the retired legacy crosswalk tables. Unknown
 provider identity resolves to ``None`` (callers fail closed); nothing is
 auto-created.
 """

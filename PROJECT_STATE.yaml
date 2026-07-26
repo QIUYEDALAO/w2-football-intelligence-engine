@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-26T10:05:30Z"
+updated_at: "2026-07-26T10:35:00Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -25,14 +25,14 @@ context_read_order:
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  main_sha: df8fc4578fb4d45e2fb7afb95f58748f459a69a8
+  main_sha: 2191255b5cb92753db6da495810ed846ffb3647b
   main_migration_head: 0042_team_identity_provider_review_provenance
-  pull_request: GITHUB_CLOSURE_PR
+  pull_request: GITHUB_IMPLEMENTATION_PR
   pull_request_mode: DRAFT
-  pull_request_head_branch: codex/arch-p1-03b-closure
-  task_baseline_sha: df8fc4578fb4d45e2fb7afb95f58748f459a69a8
-  local_work_branch: codex/arch-p1-03b-closure
-  github_sync_status: ARCH_P1_03B_CLOSURE_DRAFT_EXTERNAL_REVIEW_PENDING
+  pull_request_head_branch: codex/arch-p1-03c-m4
+  task_baseline_sha: 2191255b5cb92753db6da495810ed846ffb3647b
+  local_work_branch: codex/arch-p1-03c-m4
+  github_sync_status: ARCH_P1_03C_M4_READ_ONLY_AUDIT
   ci_checks:
     verify: GITHUB_PR_EXACT_HEAD
     staging-parity: GITHUB_PR_EXACT_HEAD
@@ -123,12 +123,15 @@ architecture_convergence:
     m4_status: DEFERRED_TO_ARCH_P1_03C_NOT_STARTED
   current_task:
     id: ARCH-P1-03C
-    status: NOT_STARTED
+    status: IN_PROGRESS
+    branch: codex/arch-p1-03c-m4
+    baseline_sha: 2191255b5cb92753db6da495810ed846ffb3647b
+    started_at: "2026-07-26T10:35:00Z"
     predecessor: ARCH-P1-03B
     successor_task: ARCH-P1-05
     scope: M4_LEGACY_CROSSWALK_PHYSICAL_DROP
-    phase: NOT_STARTED
-    m4_status: NOT_STARTED
+    phase: READ_ONLY_AUDIT
+    m4_status: AUDIT_IN_PROGRESS
     legacy_table_removal_status: NOT_STARTED
     legacy_orm_removal_status: NOT_STARTED
     formal_enabled: false
@@ -227,7 +230,7 @@ architecture_convergence:
     ARCH-P1-04D: DONE
     ARCH-P1-03A: DONE
     ARCH-P1-03B: DONE
-    ARCH-P1-03C: NOT_STARTED
+    ARCH-P1-03C: IN_PROGRESS
     ARCH-P1-05: NOT_STARTED
   pre_approved_order_change:
     task: ARCH-P1-05

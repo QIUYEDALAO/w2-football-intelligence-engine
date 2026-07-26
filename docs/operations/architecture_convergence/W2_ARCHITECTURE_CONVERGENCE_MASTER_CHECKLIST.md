@@ -513,9 +513,11 @@ SHA 可重算；66 条 REVIEWED 精确对账；至少 3 场真实 fixture 的强
 #### A11. ARCH-P1-03C：legacy identity 表与 ORM 下线
 
 ```text
-Status: NOT_STARTED
+Status: IN_PROGRESS
 Predecessor: ARCH-P1-03B
-M4: NOT_STARTED
+Branch: codex/arch-p1-03c-m4
+Base SHA: 2191255b5cb92753db6da495810ed846ffb3647b
+M4: READ_ONLY_AUDIT_IN_PROGRESS
 Formal/Candidate runtime/Lock/Production/Scheduler: false
 ```
 

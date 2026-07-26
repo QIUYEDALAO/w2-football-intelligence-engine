@@ -1,7 +1,4 @@
-"""ARCH-P1-03 M2A static guards: the legacy team/player crosswalk ORM classes
-must not be referenced on the runtime surface (src/apps/scripts/infra) except
-their three declarations in models.py, which are temporarily allowed until M4.
-"""
+"""ARCH-P1-03 static guards for the canonical identity authority."""
 
 from __future__ import annotations
 
@@ -105,9 +102,7 @@ def _construction_sites() -> list[tuple[str, str, str]]:
     sites: list[tuple[str, str, str]] = []
     for path in _runtime_py_files():
         rel = path.relative_to(_ROOT).as_posix()
-        sites.extend(
-            construction_sites_in_source(path.read_text(encoding="utf-8"), file=rel)
-        )
+        sites.extend(construction_sites_in_source(path.read_text(encoding="utf-8"), file=rel))
     return sites
 
 
@@ -129,9 +124,9 @@ def test_controlled_mint_is_exactly_one_call_and_one_literal() -> None:
 def test_mint_allowlist_does_not_leak_to_the_same_function_name_elsewhere() -> None:
     """A same-named function in another module must not inherit the allowlist."""
     impostor = (
-        'def canonical_team_payload(pid):\n'
-        '    return stable_w2_team_id(pid)\n'
-        'def stable_w2_team_id(pid):\n'
+        "def canonical_team_payload(pid):\n"
+        "    return stable_w2_team_id(pid)\n"
+        "def stable_w2_team_id(pid):\n"
         '    return "w2:team:api_football:" + pid\n'
     )
     sites = construction_sites_in_source(impostor, file="src/w2/other_module.py")
@@ -154,16 +149,27 @@ def test_provider_id_model_primary_reads_are_zero() -> None:
     assert offenders == [], f"provider-id model primary reads: {offenders}"
 
 
-def test_legacy_crosswalk_orm_declarations_are_exactly_three() -> None:
+def test_legacy_crosswalk_orm_declarations_are_zero() -> None:
     text = _ALLOWLIST.read_text(encoding="utf-8")
-    declared = [
-        cls
-        for cls in _LEGACY_PATTERNS
-        if re.search(rf"class {cls}\b", text)
-    ]
-    # TEMPORARY_ALLOWED_UNTIL_M4: schema/metadata declarations only, no runtime use.
-    assert sorted(declared) == sorted(_LEGACY_PATTERNS), declared
-    assert len(declared) == 3
+    declared = [cls for cls in _LEGACY_PATTERNS if re.search(rf"class {cls}\b", text)]
+    assert declared == []
+
+
+def test_legacy_crosswalk_table_names_are_absent_from_runtime() -> None:
+    table_patterns = {
+        "team_identity_crosswalks": re.compile(r"(?<!provider_)team_identity_crosswalks\b"),
+        "football_data_team_crosswalks": re.compile(r"\bfootball_data_team_crosswalks\b"),
+        "player_identity_crosswalks": re.compile(r"\bplayer_identity_crosswalks\b"),
+    }
+    offenders = {
+        table: [
+            path.relative_to(_ROOT).as_posix()
+            for path in _runtime_py_files()
+            if pattern.search(path.read_text(encoding="utf-8"))
+        ]
+        for table, pattern in table_patterns.items()
+    }
+    assert offenders == {table: [] for table in table_patterns}
 
 
 def test_no_new_identity_authority_table_declared() -> None:
@@ -175,9 +181,6 @@ def test_no_new_identity_authority_table_declared() -> None:
         "canonical_teams",
         "provider_team_identity_crosswalks",
         "player_identity_mappings",
-        "team_identity_crosswalks",
-        "football_data_team_crosswalks",
-        "player_identity_crosswalks",
     }
     pattern = r'__tablename__ = "([a-z_]*(?:identity|crosswalk|canonical_teams)[a-z_]*)"'
     declared_identity_tables = set(re.findall(pattern, models + factor))

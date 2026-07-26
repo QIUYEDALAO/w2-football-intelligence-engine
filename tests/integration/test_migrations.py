@@ -623,6 +623,104 @@ def _alembic(root: Path, env: dict[str, str], *args: str) -> subprocess.Complete
     )
 
 
+def test_0043_drops_and_downgrade_recreates_legacy_identity_schema(
+    tmp_path: Path,
+) -> None:
+    root, database_url, env = _m2a_env(tmp_path, "m4-roundtrip.db")
+    baseline = "0041_converge_odds_history_and_projection"
+    assert _alembic(root, env, "upgrade", baseline).returncode == 0
+    engine = create_engine(database_url)
+    _seed_m2a_baseline(engine)
+    assert (
+        _alembic(root, env, "upgrade", "0042_team_identity_provider_review_provenance").returncode
+        == 0
+    )
+
+    targets = {
+        "team_identity_crosswalks",
+        "football_data_team_crosswalks",
+        "player_identity_crosswalks",
+    }
+    before = inspect(engine)
+    expected = {
+        table: {
+            "columns": {column["name"] for column in before.get_columns(table)},
+            "indexes": {index["name"] for index in before.get_indexes(table)},
+            "unique": {constraint["name"] for constraint in before.get_unique_constraints(table)},
+        }
+        for table in targets
+    }
+
+    result = _alembic(root, env, "upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    assert targets.isdisjoint(inspect(engine).get_table_names())
+
+    result = _alembic(root, env, "downgrade", "0042_team_identity_provider_review_provenance")
+    assert result.returncode == 0, result.stderr
+    restored = inspect(engine)
+    for table in targets:
+        assert {column["name"] for column in restored.get_columns(table)} == expected[table][
+            "columns"
+        ]
+        assert {index["name"] for index in restored.get_indexes(table)} == expected[table][
+            "indexes"
+        ]
+        assert {
+            constraint["name"] for constraint in restored.get_unique_constraints(table)
+        } == expected[table]["unique"]
+        with engine.begin() as conn:
+            assert conn.execute(text(f"select count(*) from {table}")).scalar_one() == 0  # noqa: S608
+
+
+def test_0043_fails_closed_on_legacy_database_dependency(tmp_path: Path) -> None:
+    root, database_url, env = _m2a_env(tmp_path, "m4-dependency.db")
+    baseline = "0041_converge_odds_history_and_projection"
+    assert _alembic(root, env, "upgrade", baseline).returncode == 0
+    engine = create_engine(database_url)
+    _seed_m2a_baseline(engine)
+    assert (
+        _alembic(root, env, "upgrade", "0042_team_identity_provider_review_provenance").returncode
+        == 0
+    )
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "create table legacy_consumer ("
+                "id varchar(36) primary key, crosswalk_id varchar(36), "
+                "foreign key(crosswalk_id) references team_identity_crosswalks(id))"
+            )
+        )
+
+    result = _alembic(root, env, "upgrade", "head")
+
+    assert result.returncode != 0
+    assert "LEGACY_IDENTITY_M4_DEPENDENCIES" in (result.stdout + result.stderr)
+
+
+def test_0043_fails_closed_on_unreconciled_team_identity(tmp_path: Path) -> None:
+    root, database_url, env = _m2a_env(tmp_path, "m4-unreconciled.db")
+    assert (
+        _alembic(root, env, "upgrade", "0042_team_identity_provider_review_provenance").returncode
+        == 0
+    )
+    engine = create_engine(database_url)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "insert into team_identity_crosswalks (id, api_football_team_id, "
+                "transfermarkt_club_id, competition_id, valid_from, review_status, "
+                "crosswalk_hash, payload) values "
+                "('unreconciled','100','999','allsvenskan',"
+                "'2026-01-01T00:00:00+00:00','CANDIDATE','unreconciled','{}')"
+            )
+        )
+
+    result = _alembic(root, env, "upgrade", "head")
+
+    assert result.returncode != 0
+    assert "LEGACY_IDENTITY_M4_TEAM_AUTHORITY_UNRECONCILED" in (result.stdout + result.stderr)
+
+
 def _seed_m2a_baseline(engine, *, api_id: str = "100", tm_id: str = "999") -> None:
     params = {
         "api_id": api_id,
@@ -745,7 +843,15 @@ def test_0042_blocks_on_provenance_divergence(tmp_path: Path, field: str, tamper
     assert _alembic(root, env, "upgrade", baseline).returncode == 0
     engine = create_engine(database_url)
     _seed_m2a_baseline(engine)
-    assert _alembic(root, env, "upgrade", "head").returncode == 0
+    assert (
+        _alembic(
+            root,
+            env,
+            "upgrade",
+            "0042_team_identity_provider_review_provenance",
+        ).returncode
+        == 0
+    )
 
     with engine.begin() as conn:
         # Tamper one field on the migrated row, then rewind only the alembic
