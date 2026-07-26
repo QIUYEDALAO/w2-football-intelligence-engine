@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-26T10:05:30Z"
+updated_at: "2026-07-26T10:35:00Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -25,14 +25,14 @@ context_read_order:
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  main_sha: df8fc4578fb4d45e2fb7afb95f58748f459a69a8
+  main_sha: 2191255b5cb92753db6da495810ed846ffb3647b
   main_migration_head: 0042_team_identity_provider_review_provenance
-  pull_request: GITHUB_CLOSURE_PR
+  pull_request: GITHUB_IMPLEMENTATION_PR
   pull_request_mode: DRAFT
-  pull_request_head_branch: codex/arch-p1-03b-closure
-  task_baseline_sha: df8fc4578fb4d45e2fb7afb95f58748f459a69a8
-  local_work_branch: codex/arch-p1-03b-closure
-  github_sync_status: ARCH_P1_03B_CLOSURE_DRAFT_EXTERNAL_REVIEW_PENDING
+  pull_request_head_branch: codex/arch-p1-03c-m4
+  task_baseline_sha: 2191255b5cb92753db6da495810ed846ffb3647b
+  local_work_branch: codex/arch-p1-03c-m4
+  github_sync_status: ARCH_P1_03C_M4_DRAFT_EXTERNAL_REVIEW_PENDING
   ci_checks:
     verify: GITHUB_PR_EXACT_HEAD
     staging-parity: GITHUB_PR_EXACT_HEAD
@@ -123,14 +123,32 @@ architecture_convergence:
     m4_status: DEFERRED_TO_ARCH_P1_03C_NOT_STARTED
   current_task:
     id: ARCH-P1-03C
-    status: NOT_STARTED
+    status: IMPLEMENTED_PENDING_ACCEPTANCE
+    branch: codex/arch-p1-03c-m4
+    baseline_sha: 2191255b5cb92753db6da495810ed846ffb3647b
+    started_at: "2026-07-26T10:35:00Z"
     predecessor: ARCH-P1-03B
     successor_task: ARCH-P1-05
     scope: M4_LEGACY_CROSSWALK_PHYSICAL_DROP
-    phase: NOT_STARTED
-    m4_status: NOT_STARTED
-    legacy_table_removal_status: NOT_STARTED
-    legacy_orm_removal_status: NOT_STARTED
+    phase: M4_IMPLEMENTED_PENDING_EXTERNAL_ACCEPTANCE
+    implementation_migration_head: 0043_drop_legacy_identity_crosswalks
+    m4_status: DONE_STAGING_UPGRADE_DOWNGRADE_RESTORE_DRILL
+    legacy_runtime_imports: 0
+    legacy_runtime_reads: 0
+    legacy_runtime_writes: 0
+    legacy_table_count_before: 3
+    legacy_table_count_after: 0
+    legacy_orm_declarations_before: 3
+    legacy_orm_declarations_after: 0
+    canonical_team_authority_count: 1
+    canonical_player_authority_count: 1
+    staging_backup_path: /opt/w2/shared/backups/arch-p1-03c/w2-pre-arch-p1-03c-20260726T104000Z-0042.dump
+    staging_backup_sha256: fff107172f4f0ea2ebf71dfabcb2f96eaa2e214d9fd66dcf662cede79e9b8f92
+    staging_sha: GITHUB_PR_EXACT_HEAD
+    upgrade_result: PASS
+    downgrade_restore_result: PASS_SCHEMA_EMPTY_NO_FABRICATED_BUSINESS_DATA
+    legacy_table_removal_status: DONE
+    legacy_orm_removal_status: DONE
     formal_enabled: false
     candidate_runtime_enabled: false
     lock_enabled: false
@@ -227,14 +245,14 @@ architecture_convergence:
     ARCH-P1-04D: DONE
     ARCH-P1-03A: DONE
     ARCH-P1-03B: DONE
-    ARCH-P1-03C: NOT_STARTED
+    ARCH-P1-03C: IMPLEMENTED_PENDING_ACCEPTANCE
     ARCH-P1-05: NOT_STARTED
   pre_approved_order_change:
     task: ARCH-P1-05
     condition: STAGING_ONSITE_BUILD_REPEATEDLY_FAILS
     new_position: BEFORE_ARCH_P1_04A
     triggered: false
-  table_count: 65
+  table_count: 62
   projection_view_count: 1
   table_count_before_p1_01: 144
 

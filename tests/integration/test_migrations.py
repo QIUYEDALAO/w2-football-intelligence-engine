@@ -458,9 +458,7 @@ def test_arch_p1_02_guard_blocks_a_price_twin_that_differs_semantically(
 
 @pytest.mark.parametrize("flag", ["candidate", "formal_recommendation"])
 def test_arch_p1_02_guard_blocks_flagged_legacy_rows(tmp_path: Path, flag: str) -> None:
-    root, env, database_url = _prepare_0040_with_quotes(
-        tmp_path, f"guard-{flag}.db", {flag: True}
-    )
+    root, env, database_url = _prepare_0040_with_quotes(tmp_path, f"guard-{flag}.db", {flag: True})
     result = _alembic(root, env, "upgrade", "head")
 
     assert result.returncode != 0
@@ -537,13 +535,17 @@ def test_0042_team_identity_provider_review_provenance(tmp_path: Path) -> None:
     assert {"review_status", "reviewed_by", "reviewed_at", "source_hashes", "payload"} <= cols
 
     with engine.begin() as conn:
-        tm = conn.execute(
-            text(
-                "select w2_team_id, review_status, reviewed_by, source_hashes, identity_status "
-                "from provider_team_identity_crosswalks where provider='transfermarkt' "
-                "and provider_team_id='999'"
+        tm = (
+            conn.execute(
+                text(
+                    "select w2_team_id, review_status, reviewed_by, source_hashes, identity_status "
+                    "from provider_team_identity_crosswalks where provider='transfermarkt' "
+                    "and provider_team_id='999'"
+                )
             )
-        ).mappings().all()
+            .mappings()
+            .all()
+        )
         assert len(tm) == 1
         assert tm[0]["w2_team_id"] == "w2:team:api_football:100"
         assert tm[0]["review_status"] == "APPROVED"
@@ -551,12 +553,16 @@ def test_0042_team_identity_provider_review_provenance(tmp_path: Path) -> None:
         assert tm[0]["source_hashes"] == '["abc"]'
         assert tm[0]["identity_status"] == "PROVIDER_PRIMARY_READY"
 
-        api = conn.execute(
-            text(
-                "select review_status, reviewed_by from provider_team_identity_crosswalks "
-                "where provider='api_football' and provider_team_id='100'"
+        api = (
+            conn.execute(
+                text(
+                    "select review_status, reviewed_by from provider_team_identity_crosswalks "
+                    "where provider='api_football' and provider_team_id='100'"
+                )
             )
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
         assert api["review_status"] == "APPROVED"
         assert api["reviewed_by"] == "analyst"
 
@@ -621,6 +627,324 @@ def _alembic(root: Path, env: dict[str, str], *args: str) -> subprocess.Complete
         capture_output=True,
         text=True,
     )
+
+
+def test_0043_drops_and_downgrade_recreates_legacy_identity_schema(
+    tmp_path: Path,
+) -> None:
+    root, database_url, env = _m2a_env(tmp_path, "m4-roundtrip.db")
+    baseline = "0041_converge_odds_history_and_projection"
+    assert _alembic(root, env, "upgrade", baseline).returncode == 0
+    engine = create_engine(database_url)
+    _seed_m2a_baseline(engine)
+    assert (
+        _alembic(root, env, "upgrade", "0042_team_identity_provider_review_provenance").returncode
+        == 0
+    )
+
+    targets = {
+        "team_identity_crosswalks",
+        "football_data_team_crosswalks",
+        "player_identity_crosswalks",
+    }
+    before = inspect(engine)
+    expected = {
+        table: {
+            "columns": {column["name"] for column in before.get_columns(table)},
+            "indexes": {index["name"] for index in before.get_indexes(table)},
+            "unique": {constraint["name"] for constraint in before.get_unique_constraints(table)},
+        }
+        for table in targets
+    }
+
+    result = _alembic(root, env, "upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    assert targets.isdisjoint(inspect(engine).get_table_names())
+
+    result = _alembic(root, env, "downgrade", "0042_team_identity_provider_review_provenance")
+    assert result.returncode == 0, result.stderr
+    restored = inspect(engine)
+    for table in targets:
+        assert {column["name"] for column in restored.get_columns(table)} == expected[table][
+            "columns"
+        ]
+        assert {index["name"] for index in restored.get_indexes(table)} == expected[table][
+            "indexes"
+        ]
+        assert {
+            constraint["name"] for constraint in restored.get_unique_constraints(table)
+        } == expected[table]["unique"]
+        with engine.begin() as conn:
+            assert conn.execute(text(f"select count(*) from {table}")).scalar_one() == 0  # noqa: S608
+
+
+def test_0043_fails_closed_on_legacy_database_dependency(tmp_path: Path) -> None:
+    root, database_url, env = _m2a_env(tmp_path, "m4-dependency.db")
+    baseline = "0041_converge_odds_history_and_projection"
+    assert _alembic(root, env, "upgrade", baseline).returncode == 0
+    engine = create_engine(database_url)
+    _seed_m2a_baseline(engine)
+    assert (
+        _alembic(root, env, "upgrade", "0042_team_identity_provider_review_provenance").returncode
+        == 0
+    )
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "create table legacy_consumer ("
+                "id varchar(36) primary key, crosswalk_id varchar(36), "
+                "foreign key(crosswalk_id) references team_identity_crosswalks(id))"
+            )
+        )
+
+    result = _alembic(root, env, "upgrade", "head")
+
+    assert result.returncode != 0
+    assert "LEGACY_IDENTITY_M4_DEPENDENCIES" in (result.stdout + result.stderr)
+
+
+@pytest.mark.parametrize(
+    "dependency_sql",
+    [
+        ("create view legacy_identity_view as select id from team_identity_crosswalks"),
+        (
+            "create trigger legacy_identity_trigger after insert on canonical_teams "
+            "begin select count(*) from team_identity_crosswalks; end"
+        ),
+    ],
+)
+def test_0043_fails_closed_on_sqlite_view_or_trigger_dependency(
+    tmp_path: Path,
+    dependency_sql: str,
+) -> None:
+    root, database_url, env = _m2a_env(tmp_path, "m4-sqlite-object-dependency.db")
+    assert (
+        _alembic(
+            root,
+            env,
+            "upgrade",
+            "0041_converge_odds_history_and_projection",
+        ).returncode
+        == 0
+    )
+    engine = create_engine(database_url)
+    _seed_m2a_baseline(engine)
+    assert (
+        _alembic(root, env, "upgrade", "0042_team_identity_provider_review_provenance").returncode
+        == 0
+    )
+    with engine.begin() as conn:
+        conn.execute(text(dependency_sql))
+
+    result = _alembic(root, env, "upgrade", "head")
+
+    assert result.returncode != 0
+    assert "LEGACY_IDENTITY_M4_DEPENDENCIES" in (result.stdout + result.stderr)
+
+
+@pytest.mark.parametrize(
+    "dependency_sql",
+    [
+        (
+            "create function legacy_identity_function() returns bigint language sql "
+            "as $$ select count(*) from team_identity_crosswalks $$"
+        ),
+        (
+            "create function legacy_identity_trigger_function() returns trigger "
+            "language plpgsql as $$ begin return new; end $$; "
+            "create trigger legacy_identity_trigger before insert "
+            "on team_identity_crosswalks for each row "
+            "execute function legacy_identity_trigger_function()"
+        ),
+        (
+            "create materialized view legacy_identity_materialized_view as "
+            "select id from team_identity_crosswalks"
+        ),
+    ],
+)
+def test_0043_fails_closed_on_postgres_catalog_dependency(dependency_sql: str) -> None:
+    database_url = os.environ.get("W2_TEST_POSTGRES_URL")
+    if not database_url:
+        pytest.skip("W2_TEST_POSTGRES_URL is required for PostgreSQL dependency mutation")
+    root = Path(__file__).resolve().parents[2]
+    env = _arch_p1_02_env(root, database_url)
+    engine = create_engine(database_url)
+    with engine.begin() as conn:
+        conn.execute(text("drop schema public cascade"))
+        conn.execute(text("create schema public"))
+    assert (
+        _alembic(
+            root,
+            env,
+            "upgrade",
+            "0041_converge_odds_history_and_projection",
+        ).returncode
+        == 0
+    )
+    _seed_m2a_baseline(engine)
+    assert (
+        _alembic(root, env, "upgrade", "0042_team_identity_provider_review_provenance").returncode
+        == 0
+    )
+    with engine.begin() as conn:
+        conn.execute(text(dependency_sql))
+
+    result = _alembic(root, env, "upgrade", "head")
+    with engine.begin() as conn:
+        conn.execute(text("drop schema public cascade"))
+        conn.execute(text("create schema public"))
+
+    assert result.returncode != 0
+    assert "LEGACY_IDENTITY_M4_DEPENDENCIES" in (result.stdout + result.stderr)
+
+
+def test_0043_fails_closed_on_unreconciled_team_identity(tmp_path: Path) -> None:
+    root, database_url, env = _m2a_env(tmp_path, "m4-unreconciled.db")
+    assert (
+        _alembic(root, env, "upgrade", "0042_team_identity_provider_review_provenance").returncode
+        == 0
+    )
+    engine = create_engine(database_url)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "insert into team_identity_crosswalks (id, api_football_team_id, "
+                "transfermarkt_club_id, competition_id, valid_from, review_status, "
+                "crosswalk_hash, payload) values "
+                "('unreconciled','100','999','allsvenskan',"
+                "'2026-01-01T00:00:00+00:00','CANDIDATE','unreconciled','{}')"
+            )
+        )
+
+    result = _alembic(root, env, "upgrade", "head")
+
+    assert result.returncode != 0
+    assert "LEGACY_IDENTITY_M4_TEAM_AUTHORITY_UNRECONCILED" in (result.stdout + result.stderr)
+
+
+@pytest.mark.parametrize(
+    ("case", "mutation_sql"),
+    [
+        (
+            "missing_transfermarkt",
+            "delete from provider_team_identity_crosswalks where provider='transfermarkt'",
+        ),
+        (
+            "ambiguous_api",
+            "insert into provider_team_identity_crosswalks "
+            "(id,provider,provider_team_id,w2_team_id,competition_id,season,valid_from,"
+            "identity_status,evidence_hashes,identity_hash,review_status,reviewed_by,"
+            "reviewed_at,source_hashes,payload) "
+            "select 'api_football:100:allsvenskan:overlap',provider,provider_team_id,"
+            "w2_team_id,competition_id,'2027',valid_from,identity_status,evidence_hashes,"
+            "'overlap-hash',review_status,reviewed_by,reviewed_at,source_hashes,payload "
+            "from provider_team_identity_crosswalks where provider='api_football'",
+        ),
+        (
+            "expired_api",
+            "update provider_team_identity_crosswalks "
+            "set valid_to='2026-01-01T00:00:00+00:00' where provider='api_football'",
+        ),
+        (
+            "future_api",
+            "update provider_team_identity_crosswalks "
+            "set valid_from='2026-01-02T00:00:00+00:00' where provider='api_football'",
+        ),
+        (
+            "expired_transfermarkt",
+            "update provider_team_identity_crosswalks "
+            "set valid_to='2026-01-01T00:00:00+00:00' where provider='transfermarkt'",
+        ),
+        (
+            "future_transfermarkt",
+            "update provider_team_identity_crosswalks "
+            "set valid_from='2026-01-02T00:00:00+00:00' where provider='transfermarkt'",
+        ),
+        (
+            "other_season",
+            "update provider_team_identity_crosswalks "
+            "set season='2025' where provider='transfermarkt'",
+        ),
+        (
+            "identity_hash",
+            "update provider_team_identity_crosswalks "
+            "set identity_hash='drift' where provider='transfermarkt'",
+        ),
+        (
+            "valid_from",
+            "update provider_team_identity_crosswalks "
+            "set valid_from='2025-12-31T00:00:00+00:00' where provider='transfermarkt'",
+        ),
+        (
+            "valid_to",
+            "update provider_team_identity_crosswalks "
+            "set valid_to='2027-01-01T00:00:00+00:00' where provider='transfermarkt'",
+        ),
+        (
+            "reviewed_by",
+            "update provider_team_identity_crosswalks "
+            "set reviewed_by='other' where provider='transfermarkt'",
+        ),
+        (
+            "reviewed_at",
+            "update provider_team_identity_crosswalks "
+            "set reviewed_at='2026-02-01T00:00:00+00:00' where provider='transfermarkt'",
+        ),
+        (
+            "source_hashes",
+            "update provider_team_identity_crosswalks "
+            "set source_hashes='[\"drift\"]' where provider='transfermarkt'",
+        ),
+        (
+            "evidence_hashes",
+            "update provider_team_identity_crosswalks "
+            "set evidence_hashes='[\"drift\"]' where provider='transfermarkt'",
+        ),
+        (
+            "payload",
+            "update provider_team_identity_crosswalks "
+            "set payload='[]' where provider='transfermarkt'",
+        ),
+        (
+            "api_review_provenance",
+            "update provider_team_identity_crosswalks "
+            "set reviewed_by='other' where provider='api_football'",
+        ),
+        (
+            "api_source_hashes",
+            "update provider_team_identity_crosswalks "
+            "set source_hashes='[\"drift\"]' where provider='api_football'",
+        ),
+    ],
+)
+def test_0043_fails_closed_on_reconciliation_mutation(
+    tmp_path: Path,
+    case: str,
+    mutation_sql: str,
+) -> None:
+    root, database_url, env = _m2a_env(tmp_path, f"m4-reconcile-{case}.db")
+    assert (
+        _alembic(
+            root,
+            env,
+            "upgrade",
+            "0041_converge_odds_history_and_projection",
+        ).returncode
+        == 0
+    )
+    engine = create_engine(database_url)
+    _seed_m2a_baseline(engine)
+    assert (
+        _alembic(root, env, "upgrade", "0042_team_identity_provider_review_provenance").returncode
+        == 0
+    )
+    with engine.begin() as conn:
+        conn.execute(text(mutation_sql))
+
+    result = _alembic(root, env, "upgrade", "head")
+
+    assert result.returncode != 0
+    assert "LEGACY_IDENTITY_M4_TEAM_AUTHORITY_UNRECONCILED" in (result.stdout + result.stderr)
 
 
 def _seed_m2a_baseline(engine, *, api_id: str = "100", tm_id: str = "999") -> None:
@@ -720,11 +1044,16 @@ def test_0042_downgrade_keeps_transfermarkt_rows_it_does_not_own(tmp_path: Path)
     assert _alembic(root, env, "downgrade", baseline).returncode == 0
 
     with engine.begin() as conn:
-        remaining = conn.execute(
-            text(
-                "select id from provider_team_identity_crosswalks where provider='transfermarkt'"
+        remaining = (
+            conn.execute(
+                text(
+                    "select id from provider_team_identity_crosswalks "
+                    "where provider='transfermarkt'"
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
     # The migration-owned row is gone; the foreign row survives.
     assert remaining == ["other-source:555"]
 
@@ -745,7 +1074,15 @@ def test_0042_blocks_on_provenance_divergence(tmp_path: Path, field: str, tamper
     assert _alembic(root, env, "upgrade", baseline).returncode == 0
     engine = create_engine(database_url)
     _seed_m2a_baseline(engine)
-    assert _alembic(root, env, "upgrade", "head").returncode == 0
+    assert (
+        _alembic(
+            root,
+            env,
+            "upgrade",
+            "0042_team_identity_provider_review_provenance",
+        ).returncode
+        == 0
+    )
 
     with engine.begin() as conn:
         # Tamper one field on the migrated row, then rewind only the alembic
@@ -790,11 +1127,16 @@ def test_0042_downgrade_keeps_foreign_row_that_existed_before_upgrade(tmp_path: 
     assert _alembic(root, env, "downgrade", baseline).returncode == 0
 
     with engine.begin() as conn:
-        remaining = conn.execute(
-            text(
-                "select id from provider_team_identity_crosswalks where provider='transfermarkt'"
+        remaining = (
+            conn.execute(
+                text(
+                    "select id from provider_team_identity_crosswalks "
+                    "where provider='transfermarkt'"
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
     assert remaining == ["legacy-import:555"]
 
 
@@ -851,12 +1193,16 @@ def test_0042_downgrade_keeps_unowned_row_with_matching_id_and_hash(tmp_path: Pa
     assert _alembic(root, env, "downgrade", baseline).returncode == 0
 
     with engine.begin() as conn:
-        remaining = conn.execute(
-            text(
-                "select id from provider_team_identity_crosswalks "
-                "where provider='transfermarkt' order by id"
+        remaining = (
+            conn.execute(
+                text(
+                    "select id from provider_team_identity_crosswalks "
+                    "where provider='transfermarkt' order by id"
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
     # Migration-owned row removed; the unowned look-alike survives.
     assert remaining == ["transfermarkt:888:allsvenskan:2026"]
 
@@ -926,15 +1272,25 @@ def test_0042_accepts_multiple_authority_rows_agreeing_on_one_canonical_team(
             )
         )
 
-    assert _alembic(root, env, "upgrade", "head").returncode == 0
+    # 0042 resolves a unique canonical target/season even when several valid
+    # rows agree. The destructive 0043 gate is intentionally stricter and
+    # rejects that overlap until the authority rows are de-duplicated.
+    assert (
+        _alembic(root, env, "upgrade", "0042_team_identity_provider_review_provenance").returncode
+        == 0
+    )
 
     with engine.begin() as conn:
-        created = conn.execute(
-            text(
-                "select w2_team_id from provider_team_identity_crosswalks "
-                "where provider='transfermarkt' and provider_team_id='999'"
+        created = (
+            conn.execute(
+                text(
+                    "select w2_team_id from provider_team_identity_crosswalks "
+                    "where provider='transfermarkt' and provider_team_id='999'"
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
     assert created == ["w2:team:api_football:100"]
 
 
@@ -949,8 +1305,14 @@ def test_0042_backfills_only_the_selected_valid_ready_authority_rows(tmp_path: P
     unselected = (
         # (id, season, valid_from, valid_to, identity_status, identity_hash)
         ("candidate", "2026", "2026-02-01T00:00:00+00:00", None, "CANDIDATE", "ihc"),
-        ("expired", "2025", "2024-01-01T00:00:00+00:00", "2025-01-01T00:00:00+00:00",
-         "PROVIDER_PRIMARY_READY", "ihe"),
+        (
+            "expired",
+            "2025",
+            "2024-01-01T00:00:00+00:00",
+            "2025-01-01T00:00:00+00:00",
+            "PROVIDER_PRIMARY_READY",
+            "ihe",
+        ),
         ("future", "2026", "2027-01-01T00:00:00+00:00", None, "PROVIDER_PRIMARY_READY", "ihf"),
     )
     with engine.begin() as conn:

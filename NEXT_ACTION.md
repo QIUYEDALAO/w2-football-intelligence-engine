@@ -50,8 +50,8 @@ as `bcd2c5e490a99426a0451de7f92362c1a76b2960`) and **ARCH-P1-03B** (player
 side, `DONE`; implementation PR #402 merged as
 `df8fc4578fb4d45e2fb7afb95f58748f459a69a8`, accepted head
 `bfce636dc245ab93f9f4d92e77699bf1689f127b`). The current task is
-**ARCH-P1-03C**, but it remains `NOT_STARTED`; `ARCH-P1-05` also remains
-`NOT_STARTED`.
+**ARCH-P1-03C** and is `IMPLEMENTED_PENDING_ACCEPTANCE` in its Draft
+implementation PR; `ARCH-P1-05` remains `NOT_STARTED`.
 The checklist owns each task's PR number, status and CI evidence.
 
 `ARCH-P1-05` carries a pre-approved conditional bring-forward: if the

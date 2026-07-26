@@ -106,7 +106,6 @@ P0_P1_TABLE_DOMAINS = {
     "matchday_market_observations",
     "fixtures",
     "teams",
-    "team_identity_crosswalks",
     "matchday_checkpoint_plans",
     "future_refresh_checkpoint_plan",
     "future_refresh_checkpoint_audit",

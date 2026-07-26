@@ -513,17 +513,29 @@ SHA 可重算；66 条 REVIEWED 精确对账；至少 3 场真实 fixture 的强
 #### A11. ARCH-P1-03C：legacy identity 表与 ORM 下线
 
 ```text
-Status: NOT_STARTED
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
 Predecessor: ARCH-P1-03B
-M4: NOT_STARTED
+Branch: codex/arch-p1-03c-m4
+Base SHA: 2191255b5cb92753db6da495810ed846ffb3647b
+Implementation SHA: GITHUB_PR_EXACT_HEAD
+M4: DONE_STAGING_UPGRADE_DOWNGRADE_RESTORE_DRILL
+Legacy runtime imports/reads/writes: 0/0/0
+Legacy tables before/after: 3/0
+Legacy ORM declarations before/after: 3/0
+Canonical team/player authority count: 1/1
+Backup: /opt/w2/shared/backups/arch-p1-03c/
+  w2-pre-arch-p1-03c-20260726T104000Z-0042.dump
+Backup SHA-256:
+  fff107172f4f0ea2ebf71dfabcb2f96eaa2e214d9fd66dcf662cede79e9b8f92
+Downgrade: original schema restored empty; no deleted business data fabricated
 Formal/Candidate runtime/Lock/Production/Scheduler: false
 ```
 
 待下线组：`team_identity_crosswalks`、`football_data_team_crosswalks`、
 `player_identity_crosswalks` 三张 legacy 表及其三个 ORM 声明。
 
-- [ ] 证明 legacy runtime reads/writes/imports = 0。
-- [ ] 同一实施 PR 中断言式 drop 三张表并同步删除三个 ORM 声明；证据不足则停止。
+- [x] 证明 legacy runtime reads/writes/imports = 0。
+- [x] 同一实施 PR 中断言式 drop 三张表并同步删除三个 ORM 声明；证据不足则停止。
 - [ ] PR 合并。
 **验收**：`LEGACY_CROSSWALK_ORM_DECLARATIONS = 0`；
 `LEGACY_CROSSWALK_TABLE_COUNT = 0`。
