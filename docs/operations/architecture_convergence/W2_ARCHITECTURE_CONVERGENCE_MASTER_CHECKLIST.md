@@ -425,6 +425,12 @@ M2A: REMEDIATION_APPLIED (team schema+migration, CanonicalIdentityRepository,
   W2_EXTERNAL_REVIEW_V3 MUST_FIX applied: reverse canonical->source mapping also
   fails closed on ambiguity; migration reconciles the complete authority /
   provenance / validity surface; AST mint allowlist binds file+function+kind.
+  W2_EXTERNAL_REVIEW_V4 MUST_FIX applied: migration persists an explicit
+  ownership marker so downgrade never deletes a pre-existing look-alike row;
+  api_football authority resolution uses READY status + validity window +
+  unique-canonical-target semantics.
+  Exact-head CI @768b6ac: verify / staging-parity / predeploy-e2e / POST gate =
+  success; PRE_MERGE_READINESS_GATE = FAIL_EXPECTED_DRAFT.
   Status: REMEDIATION_APPLIED_PENDING_EXTERNAL_ACCEPTANCE (M2A not DONE).
 M3: REAL_MATCH_EVIDENCE = BLOCKED_INSUFFICIENT_REAL_SAVED_LINEUPS
 M4: NOT_AUTHORIZED (drop ORM + tables together; net -3 tables)

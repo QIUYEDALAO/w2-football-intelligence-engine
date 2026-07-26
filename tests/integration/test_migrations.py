@@ -796,3 +796,143 @@ def test_0042_downgrade_keeps_foreign_row_that_existed_before_upgrade(tmp_path: 
             )
         ).scalars().all()
     assert remaining == ["legacy-import:555"]
+
+
+def _transfermarkt_hash(
+    tm_id: str, w2: str, comp: str = "allsvenskan", season: str = "2026"
+) -> str:
+    from w2.matchday.intake_v2 import stable_hash
+
+    return stable_hash(
+        {
+            "schema_version": "ProviderTeamIdentityCrosswalkV1",
+            "provider": "transfermarkt",
+            "provider_team_id": tm_id,
+            "w2_team_id": w2,
+            "competition_id": comp,
+            "season": season,
+            "identity_status": "PROVIDER_PRIMARY_READY",
+            "scope_note": (
+                "Transfermarkt provider identity migrated from team_identity_crosswalks."
+            ),
+        }
+    )
+
+
+def test_0042_downgrade_keeps_unowned_row_with_matching_id_and_hash(tmp_path: Path) -> None:
+    """Ownership is the persisted marker, not an inferred id/hash shape.
+
+    A pre-existing row whose id format and identity_hash are exactly what this
+    migration would produce must still survive downgrade, because it does not
+    carry the persisted ownership marker.
+    """
+    root, database_url, env = _m2a_env(tmp_path, "m2a-unowned-lookalike.db")
+    baseline = "0041_converge_odds_history_and_projection"
+    assert _alembic(root, env, "upgrade", baseline).returncode == 0
+    engine = create_engine(database_url)
+    _seed_m2a_baseline(engine)
+    assert _alembic(root, env, "upgrade", "head").returncode == 0
+
+    w2 = "w2:team:api_football:100"
+    with engine.begin() as conn:
+        # Look-alike row: correct id format, correct identity_hash, no marker.
+        conn.execute(
+            text(
+                "insert into provider_team_identity_crosswalks (id, provider, "
+                "provider_team_id, w2_team_id, competition_id, season, valid_from, "
+                "identity_status, evidence_hashes, identity_hash, payload) values "
+                "('transfermarkt:888:allsvenskan:2026','transfermarkt','888',:w2,"
+                "'allsvenskan','2026','2026-01-01T00:00:00+00:00',"
+                "'PROVIDER_PRIMARY_READY','[]',:h,:payload)"
+            ),
+            {"w2": w2, "h": _transfermarkt_hash("888", w2), "payload": '{"unrelated": true}'},
+        )
+
+    assert _alembic(root, env, "downgrade", baseline).returncode == 0
+
+    with engine.begin() as conn:
+        remaining = conn.execute(
+            text(
+                "select id from provider_team_identity_crosswalks "
+                "where provider='transfermarkt' order by id"
+            )
+        ).scalars().all()
+    # Migration-owned row removed; the unowned look-alike survives.
+    assert remaining == ["transfermarkt:888:allsvenskan:2026"]
+
+
+def test_0042_blocks_when_api_football_authority_is_not_ready(tmp_path: Path) -> None:
+    root, database_url, env = _m2a_env(tmp_path, "m2a-authority-not-ready.db")
+    baseline = "0041_converge_odds_history_and_projection"
+    assert _alembic(root, env, "upgrade", baseline).returncode == 0
+    engine = create_engine(database_url)
+    _seed_m2a_baseline(engine)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "update provider_team_identity_crosswalks set identity_status='CANDIDATE' "
+                "where provider='api_football' and provider_team_id='100'"
+            )
+        )
+
+    result = _alembic(root, env, "upgrade", "head")
+
+    assert result.returncode != 0
+    assert "AUTHORITY_CANONICAL_TARGETS=0" in (result.stderr + result.stdout)
+
+
+def test_0042_blocks_when_api_football_authority_is_outside_validity(tmp_path: Path) -> None:
+    root, database_url, env = _m2a_env(tmp_path, "m2a-authority-expired.db")
+    baseline = "0041_converge_odds_history_and_projection"
+    assert _alembic(root, env, "upgrade", baseline).returncode == 0
+    engine = create_engine(database_url)
+    _seed_m2a_baseline(engine)
+    with engine.begin() as conn:
+        # Authority row expires before the legacy row's effective time.
+        conn.execute(
+            text(
+                "update provider_team_identity_crosswalks "
+                "set valid_to='2025-01-01T00:00:00+00:00' "
+                "where provider='api_football' and provider_team_id='100'"
+            )
+        )
+
+    result = _alembic(root, env, "upgrade", "head")
+
+    assert result.returncode != 0
+    assert "AUTHORITY_CANONICAL_TARGETS=0" in (result.stderr + result.stdout)
+
+
+def test_0042_accepts_multiple_authority_rows_agreeing_on_one_canonical_team(
+    tmp_path: Path,
+) -> None:
+    """Unique canonical target, not a single row: agreement must not block."""
+    root, database_url, env = _m2a_env(tmp_path, "m2a-authority-agree.db")
+    baseline = "0041_converge_odds_history_and_projection"
+    assert _alembic(root, env, "upgrade", baseline).returncode == 0
+    engine = create_engine(database_url)
+    _seed_m2a_baseline(engine)
+    with engine.begin() as conn:
+        # A second READY authority row for the same provider team and the same
+        # canonical target, differing only by valid_from.
+        conn.execute(
+            text(
+                "insert into provider_team_identity_crosswalks (id, provider, "
+                "provider_team_id, w2_team_id, competition_id, season, valid_from, "
+                "identity_status, evidence_hashes, identity_hash) values "
+                "('api_football:100:allsvenskan:2026:b','api_football','100',"
+                "'w2:team:api_football:100','allsvenskan','2026',"
+                "'2025-06-01T00:00:00+00:00','PROVIDER_PRIMARY_READY','[]','ih100b')"
+            )
+        )
+
+    assert _alembic(root, env, "upgrade", "head").returncode == 0
+
+    with engine.begin() as conn:
+        created = conn.execute(
+            text(
+                "select w2_team_id from provider_team_identity_crosswalks "
+                "where provider='transfermarkt' and provider_team_id='999'"
+            )
+        ).scalars().all()
+    assert created == ["w2:team:api_football:100"]

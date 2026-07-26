@@ -37,6 +37,18 @@ def _coerce_json(value: Any) -> Any:
         return value
     return json.loads(str(value))
 
+
+def _valid_at(valid_from: Any, valid_to: Any, as_of: Any) -> bool:
+    """Validity window check matching the runtime resolver's semantics."""
+    if as_of is None:
+        return valid_to is None
+    if valid_from is not None and valid_from > as_of:
+        return False
+    if valid_to is not None and valid_to <= as_of:
+        return False
+    return True
+
+
 revision: str = "0042_team_identity_provider_review_provenance"
 down_revision: str | None = "0041_converge_odds_history_and_projection"
 branch_labels: str | None = None
@@ -51,6 +63,24 @@ _NEW_COLUMNS = (
     ("payload", sa.JSON()),
 )
 _PROVIDER_PRIMARY_READY = "PROVIDER_PRIMARY_READY"
+_MIGRATION_OWNER = "0042_team_identity_provider_review_provenance"
+
+
+def _owned_payload(source_payload: Any) -> dict[str, Any]:
+    """Wrap the migrated payload with an explicit, persisted ownership marker.
+
+    downgrade() deletes only rows carrying this marker, so a row that already
+    existed before the upgrade is never removed even when its id and
+    identity_hash happen to match what this migration would have written.
+    """
+    return {"migrated_by": _MIGRATION_OWNER, "source_payload": source_payload}
+
+
+def _is_migration_owned(payload: Any) -> bool:
+    """True only for rows this migration wrote, proven by the persisted marker."""
+    decoded = _coerce_json(payload)
+    return isinstance(decoded, dict) and decoded.get("migrated_by") == _MIGRATION_OWNER
+
 
 # Lightweight table handle so SQLAlchemy serializes JSON portably (postgres/sqlite).
 _ptic = sa.table(
@@ -121,21 +151,36 @@ def upgrade() -> None:
             blockers.append(f"{row['id']}:MISSING_API_OR_TM_ID")
             continue
 
-        # Resolve canonical w2_team_id via the existing api_football authority row
-        # (never by parsing the id). Require exactly one.
-        authority = bind.execute(
+        # Resolve canonical w2_team_id via the api_football authority (never by
+        # parsing the id), with the same semantics the runtime resolver uses:
+        # READY status, validity window at this row's effective time, and a
+        # unique canonical target (several authority rows agreeing on one
+        # canonical team are fine; disagreement is a blocker).
+        as_of = _coerce_dt(row["valid_from"])
+        authority_rows = bind.execute(
             sa.text(
-                "select w2_team_id, season from provider_team_identity_crosswalks "
+                "select w2_team_id, season, valid_from, valid_to "
+                "from provider_team_identity_crosswalks "
                 "where provider='api_football' and provider_team_id=:pid "
-                "and competition_id=:comp"
+                "and competition_id=:comp and identity_status=:status"
             ),
-            {"pid": api_id, "comp": comp},
+            {"pid": api_id, "comp": comp, "status": _PROVIDER_PRIMARY_READY},
         ).mappings().all()
-        if len(authority) != 1:
-            blockers.append(f"{row['id']}:AUTHORITY_MAPPINGS={len(authority)}")
+        valid_authority = [
+            item
+            for item in authority_rows
+            if _valid_at(_coerce_dt(item["valid_from"]), _coerce_dt(item["valid_to"]), as_of)
+        ]
+        canonical_targets = {str(item["w2_team_id"]) for item in valid_authority}
+        if len(canonical_targets) != 1:
+            blockers.append(f"{row['id']}:AUTHORITY_CANONICAL_TARGETS={len(canonical_targets)}")
             continue
-        w2 = str(authority[0]["w2_team_id"])
-        season = str(authority[0]["season"])
+        seasons = {str(item["season"]) for item in valid_authority}
+        if len(seasons) != 1:
+            blockers.append(f"{row['id']}:AUTHORITY_SEASONS={len(seasons)}")
+            continue
+        w2 = next(iter(canonical_targets))
+        season = next(iter(seasons))
 
         source_hashes = [row["source_sha256"]] if row["source_sha256"] else []
 
@@ -197,7 +242,7 @@ def upgrade() -> None:
                 ("review_status", row["review_status"], "raw"),
                 ("reviewed_by", row["reviewed_by"], "raw"),
                 ("reviewed_at", _coerce_dt(row["reviewed_at"]), "dt"),
-                ("payload", _coerce_json(row["payload"]), "json"),
+                ("payload", _owned_payload(_coerce_json(row["payload"])), "json"),
             )
             divergences = []
             for field, expected, kind in expected_fields:
@@ -230,7 +275,7 @@ def upgrade() -> None:
                 reviewed_by=row["reviewed_by"],
                 reviewed_at=_coerce_dt(row["reviewed_at"]),
                 source_hashes=source_hashes,
-                payload=_coerce_json(row["payload"]),
+                payload=_owned_payload(_coerce_json(row["payload"])),
             )
         )
 
@@ -244,19 +289,26 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Remove only the transfermarkt rows this migration owns.
 
-    Ownership is proven per row, never by ``provider='transfermarkt'`` alone:
-    the row id must match this migration's id format *and* its identity_hash
-    must equal the hash recomputed from this migration's own payload shape.
-    Transfermarkt rows written by anything else are left untouched.
+    Ownership is proven per row by the explicit marker this migration persists
+    in ``payload`` (``migrated_by``), plus the id format and an identity_hash
+    recomputed from this migration's own payload shape. A transfermarkt row that
+    existed before the upgrade cannot carry the marker, so it survives even if
+    its id and identity_hash are identical to what this migration writes.
     """
     bind = op.get_bind()
     rows = bind.execute(
         sa.text(
-            "select id, provider_team_id, w2_team_id, competition_id, season, identity_hash "
+            "select id, provider_team_id, w2_team_id, competition_id, season, "
+            "identity_hash, payload "
             "from provider_team_identity_crosswalks where provider='transfermarkt'"
         )
     ).mappings().all()
     for row in rows:
+        # Ownership is the persisted marker, not an inferred id/hash shape: a row
+        # that already existed before the upgrade cannot carry it, so an
+        # otherwise identical pre-existing row is never deleted.
+        if not _is_migration_owned(row["payload"]):
+            continue
         owned_id = (
             f"transfermarkt:{row['provider_team_id']}:{row['competition_id']}:{row['season']}"
         )
