@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-26T12:21:51Z"
+updated_at: "2026-07-26T13:26:25Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -25,18 +25,16 @@ context_read_order:
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  main_sha: 4e310e87def0e6e44e0fe69fa0c07f776126a6fc
+  main_sha: 84986936843432563003863e148c811ad3e0d480
   main_migration_head: 0043_drop_legacy_identity_crosswalks
-  pull_request: GITHUB_CLOSURE_PR
+  pull_request: GITHUB_IMPLEMENTATION_PR
   pull_request_mode: DRAFT
-  pull_request_head_branch: codex/arch-p1-03c-closure
-  task_baseline_sha: 4e310e87def0e6e44e0fe69fa0c07f776126a6fc
-  local_work_branch: codex/arch-p1-03c-closure
-  github_sync_status: ARCH_P1_03C_CLOSURE_DRAFT_EXTERNAL_REVIEW_PENDING
+  pull_request_head_branch: codex/arch-governance-02-path-aware-ci
+  task_baseline_sha: 84986936843432563003863e148c811ad3e0d480
+  local_work_branch: codex/arch-governance-02-path-aware-ci
+  github_sync_status: ARCH_GOVERNANCE_02_DRAFT_EXTERNAL_REVIEW_PENDING
   ci_checks:
-    verify: GITHUB_PR_EXACT_HEAD
-    staging-parity: GITHUB_PR_EXACT_HEAD
-    predeploy-e2e: GITHUB_PR_EXACT_HEAD
+    CI_REQUIRED: GITHUB_PR_EXACT_HEAD
     PRE_MERGE_READINESS_GATE: EXPECTED_FAIL_DRAFT_AND_EXTERNAL_ACCEPTANCE_PENDING
     POST_MERGE_CHECKLIST_CONSISTENCY_GATE: GITHUB_PR_EXACT_HEAD
   closed_pull_requests:
@@ -49,6 +47,7 @@ repository:
     396: MERGED_ARCH_P1_04C_CLOSURE
     402: MERGED_ARCH_P1_03B_IMPLEMENTATION
     404: MERGED_ARCH_P1_03C_IMPLEMENTATION
+    405: MERGED_ARCH_P1_03C_CLOSURE
 
 architecture_convergence:
   authority_document: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
@@ -88,6 +87,12 @@ architecture_convergence:
     - ARCH-P1-03A
     - ARCH-P1-03B
     - ARCH-P1-03C
+    - ARCH-GOVERNANCE-02
+    - ARCH-P1-04D-R1
+    - ARCH-P1-03B-R1
+    - ARCH-OBS-01
+    - ARCH-EVIDENCE-01
+    - ARCH-DONE-REAUDIT
     - ARCH-P1-05
     - ARCH-P1-06
     - ARCH-P1-07
@@ -98,7 +103,7 @@ architecture_convergence:
     - ARCH-P2-04
     - ARCH-P2-06
     - ARCH-P2-05
-  next_task: ARCH-P1-05
+  next_task: ARCH-GOVERNANCE-02
   last_completed_task:
     id: ARCH-P1-03C
     status: DONE
@@ -114,7 +119,7 @@ architecture_convergence:
     started_at: "2026-07-26T10:35:00Z"
     completed_at: "2026-07-26T12:18:23Z"
     predecessor: ARCH-P1-03B
-    successor_task: ARCH-P1-05
+    successor_task: ARCH-GOVERNANCE-02
     scope: M4_LEGACY_CROSSWALK_PHYSICAL_DROP
     phase: M4_DONE
     implementation_migration_head: 0043_drop_legacy_identity_crosswalks
@@ -133,12 +138,12 @@ architecture_convergence:
     upgrade_result: PASS
     downgrade_restore_result: PASS_SCHEMA_EMPTY_NO_FABRICATED_BUSINESS_DATA
   current_task:
-    id: ARCH-P1-05
-    status: NOT_STARTED
+    id: ARCH-GOVERNANCE-02
+    status: IMPLEMENTED_PENDING_ACCEPTANCE
     predecessor: ARCH-P1-03C
-    successor_task: ARCH-P1-06
-    scope: CI_IMAGE_BUILD_AND_SERVER_PULL_ONLY
-    phase: NOT_STARTED
+    successor_task: ARCH-P1-04D-R1
+    scope: PATH_AWARE_CI_AND_STABLE_REQUIRED_CONTEXT
+    phase: IMPLEMENTED_PENDING_ACCEPTANCE
     formal_enabled: false
     candidate_runtime_enabled: false
     lock_enabled: false
@@ -187,8 +192,8 @@ architecture_convergence:
       source_tree_inputs_match_git_head: true
       untracked_scanned_non_python_files_accepted: 0
     script_authority:
-      inventory_baseline: 146
-      retained: 138
+      inventory_baseline: 151
+      retained: 143
       dead_deleted: 8
       unclassified: 0
       multi_classified: 0
@@ -229,6 +234,28 @@ architecture_convergence:
           - CLOSURE_PR_RUNS_PRE_AND_POST
           - MERGE_CLOSURE_AND_MAIN_POST_PASS_BEFORE_A1_DONE_OR_A2_START
       implementation_in_current_task: false
+    path_aware_ci:
+      task: ARCH-GOVERNANCE-02
+      status: IMPLEMENTED_PENDING_ACCEPTANCE
+      stable_context: CI_REQUIRED
+      fail_safe_unknown_or_mixed: FULL_CI
+      metadata_events_code_ci: DISABLED
+      metadata_events_pre_gate: ENABLED
+      required_contexts_target:
+        - CI_REQUIRED
+        - PRE_MERGE_READINESS_GATE
+        - POST_MERGE_CHECKLIST_CONSISTENCY_GATE
+  remediation_tasks:
+    ARCH-P1-04D:
+      historical_status: DONE
+      implementation_pr: 398
+      implementation_merge_sha: e6e447293365ca29686b21876cab5e103829b1ed
+      remediation_task: ARCH-P1-04D-R1
+    ARCH-P1-03B:
+      historical_status: DONE
+      implementation_pr: 402
+      implementation_merge_sha: df8fc4578fb4d45e2fb7afb95f58748f459a69a8
+      remediation_task: ARCH-P1-03B-R1
   queued_tasks:
     ARCH-GOVERNANCE-01: DONE
     ARCH-P1-04C: DONE
@@ -236,6 +263,12 @@ architecture_convergence:
     ARCH-P1-03A: DONE
     ARCH-P1-03B: DONE
     ARCH-P1-03C: DONE
+    ARCH-GOVERNANCE-02: IMPLEMENTED_PENDING_ACCEPTANCE
+    ARCH-P1-04D-R1: NOT_STARTED
+    ARCH-P1-03B-R1: NOT_STARTED
+    ARCH-OBS-01: NOT_STARTED
+    ARCH-EVIDENCE-01: NOT_STARTED
+    ARCH-DONE-REAUDIT: NOT_STARTED
     ARCH-P1-05: NOT_STARTED
   pre_approved_order_change:
     task: ARCH-P1-05

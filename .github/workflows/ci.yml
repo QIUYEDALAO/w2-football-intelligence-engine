@@ -1,12 +1,283 @@
-name: W2 Stage 2 CI
+name: W2 Path-Aware CI
 
 on:
   pull_request:
+    branches: ["main"]
+    types: [opened, synchronize, reopened]
   push:
     branches: ["main"]
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Run the complete CI matrix on the selected exact head
+        required: true
+        default: true
+        type: boolean
 
 jobs:
+  classify:
+    name: classify
+    runs-on: ubuntu-latest
+    outputs:
+      governance: ${{ steps.plan.outputs.governance }}
+      python_focused: ${{ steps.plan.outputs.python_focused }}
+      web: ${{ steps.plan.outputs.web }}
+      migration: ${{ steps.plan.outputs.migration }}
+      compose: ${{ steps.plan.outputs.compose }}
+      staging_parity: ${{ steps.plan.outputs.staging_parity }}
+      predeploy_e2e: ${{ steps.plan.outputs.predeploy_e2e }}
+      verify: ${{ steps.plan.outputs.verify }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: plan
+        name: Classify changed paths
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          FORCE_FULL: >-
+            ${{ github.event_name == 'workflow_dispatch' && inputs.full }}
+        run: |
+          if [[ "$FORCE_FULL" == "true" ]]; then
+            python3 scripts/classify_ci.py \
+              --path docs/force-full.md \
+              --force-full \
+              --github-output "$GITHUB_OUTPUT"
+          else
+            python3 scripts/classify_ci.py \
+              --base "$BASE_SHA" \
+              --head "$HEAD_SHA" \
+              --github-output "$GITHUB_OUTPUT"
+          fi
+
+  governance:
+    name: governance-light
+    needs: classify
+    if: needs.classify.outputs.governance == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Install Python 3.12 dependencies
+        run: uv sync --python 3.12 --all-groups --frozen
+      - name: Validate tracked YAML and JSON
+        run: |
+          uv run --python 3.12 python - <<'PY'
+          import json
+          import subprocess
+          from pathlib import Path
+
+          import yaml
+
+          paths = subprocess.run(
+              ["git", "ls-files", "*.json", "*.yaml", "*.yml"],
+              check=True,
+              capture_output=True,
+              text=True,
+          ).stdout.splitlines()
+          for name in paths:
+              path = Path(name)
+              text = path.read_text(encoding="utf-8")
+              json.loads(text) if path.suffix == ".json" else yaml.safe_load(text)
+          PY
+      - name: Validate Markdown, hashes, links and task ledgers
+        run: |
+          git diff --check
+          uv run --python 3.12 pytest -q \
+            tests/unit/test_architecture_governance.py \
+            tests/unit/test_ci_classifier.py \
+            tests/contract/test_delivery_status_documentation.py \
+            tests/contract/test_master_roadmap.py
+      - name: Secret pattern scan
+        run: uv run --python 3.12 python tests/secret_scan.py
+
+  python-focused:
+    name: python-focused
+    needs: classify
+    if: needs.classify.outputs.python_focused == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: w2
+          POSTGRES_USER: w2_user
+          POSTGRES_PASSWORD: placeholder_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U w2_user -d w2"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      W2_ENVIRONMENT: test
+      W2_DATABASE_URL: postgresql+psycopg://w2_user:placeholder_password@127.0.0.1:5432/w2
+      W2_TEST_POSTGRES_URL: postgresql+psycopg://w2_user:placeholder_password@127.0.0.1:5432/w2
+      W2_REDIS_URL: redis://127.0.0.1:6379/0
+      W2_CELERY_BROKER_URL: redis://127.0.0.1:6379/1
+      W2_CELERY_RESULT_BACKEND: redis://127.0.0.1:6379/2
+      W2_PROVIDER_CALLS_DISABLED: "true"
+      W2_PROVIDER_SCHEDULER_ENABLED: "false"
+      W2_XG_BACKFILL_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Install Python 3.12 dependencies
+        run: uv sync --python 3.12 --all-groups --frozen
+      - name: Focused Python checks
+        run: |
+          uv run --python 3.12 ruff check .
+          uv run --python 3.12 mypy src apps
+          uv run --python 3.12 pytest -q tests/unit tests/contract
+      - name: Secret pattern scan
+        run: uv run --python 3.12 python tests/secret_scan.py
+
+  web:
+    name: web
+    needs: classify
+    if: needs.classify.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install web dependencies
+        run: npm --prefix apps/web ci
+      - name: Install Playwright Chromium
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - name: Boss Decision Console protected baseline
+        run: python3 scripts/check_boss_console_baseline.py
+      - name: Web typecheck
+        run: npm --prefix apps/web run typecheck
+      - name: Web build
+        run: npm --prefix apps/web run build
+      - name: Web E2E
+        run: npm --prefix apps/web run test:e2e
+
+  migration:
+    name: migration-schema
+    needs: classify
+    if: needs.classify.outputs.migration == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: w2
+          POSTGRES_USER: w2_user
+          POSTGRES_PASSWORD: placeholder_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U w2_user -d w2"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      W2_ENVIRONMENT: test
+      W2_DATABASE_URL: postgresql+psycopg://w2_user:placeholder_password@127.0.0.1:5432/w2
+      W2_TEST_POSTGRES_URL: postgresql+psycopg://w2_user:placeholder_password@127.0.0.1:5432/w2
+      W2_PROVIDER_CALLS_DISABLED: "true"
+      W2_PROVIDER_SCHEDULER_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Install Python 3.12 dependencies
+        run: uv sync --python 3.12 --all-groups --frozen
+      - name: Alembic upgrade downgrade upgrade
+        run: |
+          uv run --python 3.12 alembic upgrade head
+          uv run --python 3.12 alembic downgrade -1
+          uv run --python 3.12 alembic upgrade head
+      - name: Migration integration tests
+        run: uv run --python 3.12 pytest -q tests/integration/test_migrations.py
+
+  compose:
+    name: compose
+    needs: classify
+    if: needs.classify.outputs.compose == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Docker Compose config
+        run: docker compose config
+
+  staging-parity:
+    name: staging-parity
+    needs: classify
+    if: needs.classify.outputs.staging_parity == 'true'
+    runs-on: ubuntu-latest
+    env:
+      W2_ENVIRONMENT: test
+      W2_PROVIDER_CALLS_DISABLED: "true"
+      W2_PROVIDER_SCHEDULER_ENABLED: "false"
+      W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS: "900"
+      W2_PROVIDER_ENDPOINT_ALLOWLIST: "status,fixtures,odds,lineups"
+      W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
+      W2_XG_BACKFILL_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Install Python 3.12 dependencies
+        run: uv sync --python 3.12 --all-groups --frozen
+      - name: Future refresh staging parity
+        run: |
+          uv run --python 3.12 pytest -q \
+            tests/integration/test_future_refresh_staging_parity.py \
+            tests/integration/test_future_refresh_e2e_smoke.py
+      - name: Future refresh staging contract
+        run: uv run --python 3.12 python scripts/check_w2_future_refresh_staging_contract.py
+      - name: Secret pattern scan
+        run: uv run --python 3.12 python tests/secret_scan.py
+
+  predeploy-e2e:
+    name: predeploy-e2e
+    needs: classify
+    if: needs.classify.outputs.predeploy_e2e == 'true'
+    runs-on: ubuntu-latest
+    env:
+      W2_ENVIRONMENT: test
+      W2_PROVIDER_CALLS_DISABLED: "true"
+      W2_PROVIDER_SCHEDULER_ENABLED: "false"
+      W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS: "900"
+      W2_PROVIDER_ENDPOINT_ALLOWLIST: "status,fixtures,odds,lineups"
+      W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
+      W2_XG_BACKFILL_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Install Python 3.12 dependencies
+        run: uv sync --python 3.12 --all-groups --frozen
+      - name: Predeploy e2e staging smoke
+        run: bash scripts/run_predeploy_e2e_smoke.sh
+      - name: Predeploy e2e regression contracts
+        run: |
+          uv run --python 3.12 pytest -q \
+            tests/contract/test_predeploy_e2e_regressions.py \
+            tests/unit/test_analysis_card_api.py::test_read_model_repository_merges_dashboard_and_db_fixtures \
+            tests/unit/test_analysis_card_api.py::test_analysis_card_falls_back_for_db_fixture_when_dashboard_exists
+      - name: Secret pattern scan
+        run: uv run --python 3.12 python tests/secret_scan.py
+
   verify:
+    name: verify
+    needs: classify
+    if: needs.classify.outputs.verify == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -47,24 +318,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: apps/web/package-lock.json
-      - name: Install web dependencies
-        run: npm --prefix apps/web ci
-      - name: Install Playwright Chromium
-        working-directory: apps/web
-        run: npx playwright install --with-deps chromium
-      - name: Boss Decision Console protected baseline
-        run: python3 scripts/check_boss_console_baseline.py
-      - name: Web typecheck
-        run: npm --prefix apps/web run typecheck
-      - name: Web build
-        run: npm --prefix apps/web run build
-      - name: Web E2E
-        run: npm --prefix apps/web run test:e2e
       - name: Install Python 3.12 dependencies
         run: uv sync --python 3.12 --all-groups --frozen
       - name: Stage 1 contract checker
@@ -79,63 +332,42 @@ jobs:
         run: uv run --python 3.12 mypy src apps
       - name: Pytest
         run: uv run --python 3.12 pytest -q
-      - name: Alembic smoke
-        run: |
-          uv run --python 3.12 alembic upgrade head
-          uv run --python 3.12 alembic downgrade 0028_create_matchday_evidence_authority
-          uv run --python 3.12 alembic upgrade head
-          uv run --python 3.12 alembic downgrade 0027_finalize_fah_authority_constraints
-          uv run --python 3.12 alembic upgrade head
-      - name: Docker Compose config
-        run: docker compose config
       - name: Secret pattern scan
         run: uv run --python 3.12 python tests/secret_scan.py
-  staging-parity:
+
+  ci-required:
+    name: CI_REQUIRED
+    if: always()
+    needs:
+      - classify
+      - governance
+      - python-focused
+      - web
+      - migration
+      - compose
+      - staging-parity
+      - predeploy-e2e
+      - verify
     runs-on: ubuntu-latest
-    env:
-      W2_ENVIRONMENT: test
-      W2_PROVIDER_CALLS_DISABLED: "true"
-      W2_PROVIDER_SCHEDULER_ENABLED: "false"
-      W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS: "900"
-      W2_PROVIDER_ENDPOINT_ALLOWLIST: "status,fixtures,odds,lineups"
-      W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
-      W2_XG_BACKFILL_ENABLED: "false"
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
-      - name: Install Python 3.12 dependencies
-        run: uv sync --python 3.12 --all-groups --frozen
-      - name: Future refresh staging parity
-        run: |
-          uv run --python 3.12 pytest -q \
-            tests/integration/test_future_refresh_staging_parity.py \
-            tests/integration/test_future_refresh_e2e_smoke.py
-      - name: Future refresh staging contract
-        run: uv run --python 3.12 python scripts/check_w2_future_refresh_staging_contract.py
-      - name: Secret pattern scan
-        run: uv run --python 3.12 python tests/secret_scan.py
-  predeploy-e2e:
-    runs-on: ubuntu-latest
-    env:
-      W2_ENVIRONMENT: test
-      W2_PROVIDER_CALLS_DISABLED: "true"
-      W2_PROVIDER_SCHEDULER_ENABLED: "false"
-      W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS: "900"
-      W2_PROVIDER_ENDPOINT_ALLOWLIST: "status,fixtures,odds,lineups"
-      W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
-      W2_XG_BACKFILL_ENABLED: "false"
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
-      - name: Install Python 3.12 dependencies
-        run: uv sync --python 3.12 --all-groups --frozen
-      - name: Predeploy e2e staging smoke
-        run: bash scripts/run_predeploy_e2e_smoke.sh
-      - name: Predeploy e2e regression contracts
-        run: |
-          uv run --python 3.12 pytest -q \
-            tests/contract/test_predeploy_e2e_regressions.py \
-            tests/unit/test_analysis_card_api.py::test_read_model_repository_merges_dashboard_and_db_fixtures \
-            tests/unit/test_analysis_card_api.py::test_analysis_card_falls_back_for_db_fixture_when_dashboard_exists
-      - name: Secret pattern scan
-        run: uv run --python 3.12 python tests/secret_scan.py
+      - name: Require every scheduled job to succeed
+        run: >-
+          python3 scripts/classify_ci.py
+          --expected-job governance=${{ needs.classify.outputs.governance }}
+          --expected-job python_focused=${{ needs.classify.outputs.python_focused }}
+          --expected-job web=${{ needs.classify.outputs.web }}
+          --expected-job migration=${{ needs.classify.outputs.migration }}
+          --expected-job compose=${{ needs.classify.outputs.compose }}
+          --expected-job staging_parity=${{ needs.classify.outputs.staging_parity }}
+          --expected-job predeploy_e2e=${{ needs.classify.outputs.predeploy_e2e }}
+          --expected-job verify=${{ needs.classify.outputs.verify }}
+          --result classify=${{ needs.classify.result }}
+          --result governance=${{ needs.governance.result }}
+          --result python_focused=${{ needs['python-focused'].result }}
+          --result web=${{ needs.web.result }}
+          --result migration=${{ needs.migration.result }}
+          --result compose=${{ needs.compose.result }}
+          --result staging_parity=${{ needs['staging-parity'].result }}
+          --result predeploy_e2e=${{ needs['predeploy-e2e'].result }}
+          --result verify=${{ needs.verify.result }}
