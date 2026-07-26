@@ -37,7 +37,8 @@
       "foreign_keys": 0,
       "views": 0,
       "functions": 0,
-      "triggers": 0
+      "triggers": 0,
+      "materialized_views": 0
     },
     "canonical_rows": {
       "canonical_teams": 16,
@@ -64,6 +65,23 @@
     "final_upgrade_result": "PASS",
     "final_alembic": "0043_drop_legacy_identity_crosswalks",
     "backup_restore_result": "PASS_ISOLATED_RESTORE"
+  },
+  "drop_reconciliation": {
+    "api_authority": "EXACTLY_ONE_READY_ROW_VALID_AT_LEGACY_VALID_FROM",
+    "season_source": "UNIQUE_API_AUTHORITY",
+    "transfermarkt_authority": "EXACTLY_ONE_SAME_TEAM_COMPETITION_SEASON_ROW_VALID_AT_LEGACY_VALID_FROM",
+    "fields": [
+      "identity_hash",
+      "valid_from",
+      "valid_to",
+      "review_status",
+      "reviewed_by",
+      "reviewed_at",
+      "evidence_hashes",
+      "source_hashes",
+      "payload"
+    ],
+    "failure_mode": "FAIL_CLOSED"
   },
   "safety_boundary": {
     "formal_enabled": false,
