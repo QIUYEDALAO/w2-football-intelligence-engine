@@ -22,6 +22,68 @@ def _complete_quote_audit() -> dict[str, object]:
     return {"ah": dict(identity), "ou": dict(identity)}
 
 
+def _readiness(
+    status: DataStatus = DataStatus.READY,
+    *,
+    reason: DecisionReasonCode | None = None,
+    missing: tuple[str, ...] = (),
+    stale: tuple[str, ...] = (),
+    provider_budget_status: str = "AVAILABLE",
+) -> dict[str, object]:
+    return {
+        "data_readiness": {
+            "source": "w2.readiness.data_gate.v1",
+            "data_status": status.value,
+            "missing_fields": list(missing),
+            "stale_fields": list(stale),
+            "reason_code": reason.value if reason else None,
+            "reason_human": "",
+            "action": "",
+            "next_eval_at": None,
+            "provider_budget_status": provider_budget_status,
+            "field_statuses": [],
+        }
+    }
+
+
+def _canonical_candidate(market: dict[str, object]) -> dict[str, object]:
+    market_name = str(market.get("market") or "")
+    key = "ou" if market_name == "TOTALS" else "ah"
+    line = market.get("line")
+    return {
+        "market_candidates": {
+            key: {
+                "market": market_name,
+                "selection": market.get("tendency") or market.get("selection"),
+                "line": line,
+                "fair_line": market.get("fair_line", line),
+                "market_line": market.get("market_line", line),
+                "quotes": {
+                    "executable": {
+                        "line": line,
+                        "decimal_odds": market.get("odds"),
+                    }
+                },
+                "analysis_evidence": {
+                    "evidence_contract_version": "w2.analysis-market-evidence.v2",
+                    "status": "COMPLETE",
+                    "model_probability": {
+                        "expected_value": market.get("expected_value", 0.05),
+                        "calibration_status": "VALIDATED",
+                    },
+                    "market_probability": {},
+                    "comparison": {
+                        "status": "READY",
+                        "analysis_direction_allowed": True,
+                        "probability_delta": 0.1,
+                        "reason_code": "MODEL_MARKET_EDGE_READY",
+                    },
+                },
+            }
+        }
+    }
+
+
 def _fields(
     *,
     card: dict[str, object] | None = None,
@@ -29,6 +91,7 @@ def _fields(
     recommendation: dict[str, object] | None = None,
     readiness: dict[str, object] | None = None,
     environment: str = "staging",
+    include_analysis_evidence: bool = True,
 ) -> dict[str, object]:
     card_payload: dict[str, object] = {
         "source": "unit",
@@ -54,11 +117,17 @@ def _fields(
         }.get(decision)
         if tier is not None:
             market_payload["decision_tier"] = tier
+    if (
+        include_analysis_evidence
+        and market_payload.get("decision_tier") in {"ANALYSIS_PICK", "RECOMMEND"}
+        and "market_candidates" not in card_payload
+    ):
+        card_payload.update(_canonical_candidate(market_payload))
     return build_decision_contract_fields(
         card=card_payload,
         market=market_payload or None,
         recommendation=recommendation,
-        readiness=readiness or {"status": "PARTIAL", "blockers": []},
+        readiness=readiness or _readiness(),
         environment=environment,
         as_of=NOW,
         kickoff_utc=KICKOFF,
@@ -83,6 +152,30 @@ def test_persisted_decision_contract_contains_complete_read_contract() -> None:
     ) == contract
 
 
+def test_missing_canonical_readiness_and_analysis_evidence_fail_closed() -> None:
+    market = {
+        "market": "ASIAN_HANDICAP",
+        "decision": "PICK",
+        "tendency": "HOME",
+        "line": "-0.25",
+        "odds": "1.95",
+    }
+
+    missing_readiness = _fields(market=market, readiness={"status": "READY"})
+    missing_evidence = _fields(
+        market=market,
+        readiness=_readiness(),
+        include_analysis_evidence=False,
+    )
+
+    assert missing_readiness["decision_tier"] == DecisionTier.NOT_READY.value
+    assert missing_readiness["data_status"] == DataStatus.BLOCKED.value
+    assert missing_readiness["missing_fields"] == ["data_readiness"]
+    assert missing_evidence["decision_tier"] == DecisionTier.NOT_READY.value
+    assert missing_evidence["pick"] is None
+    assert missing_evidence["model_market_divergence"]["status"] == "MISSING"  # type: ignore[index]
+
+
 def test_missing_lineups_soft_gate_is_advisory_for_analysis() -> None:
     fields = _fields(
         market={
@@ -92,7 +185,7 @@ def test_missing_lineups_soft_gate_is_advisory_for_analysis() -> None:
             "line": "-0.25",
             "odds": "1.95",
         },
-        readiness={"status": "BLOCKED", "blockers": ["MISSING_LINEUPS"]},
+        readiness=_readiness(missing=("lineups", "xg", "ratings", "team_value")),
     )
 
     assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
@@ -103,26 +196,19 @@ def test_missing_lineups_soft_gate_is_advisory_for_analysis() -> None:
     assert fields["non_pick"] is None
 
 
-def test_totals_pick_uses_totals_pricing_shadow_not_ah_lines() -> None:
+def test_totals_pick_uses_canonical_analysis_evidence() -> None:
     fields = _fields(
-        card={
-            "pricing_shadow": {
-                "fair_ah": "-1",
-                "market_ah": "-1",
-                "edge_ah": 0,
-                "fair_ou": "2.75",
-                "market_ou": "2.25",
-                "edge_ou": -0.5,
-            },
-        },
         market={
             "market": "TOTALS",
             "decision": "PICK",
             "tendency": "OVER",
             "line": "2.25",
             "odds": "2.03",
+            "fair_line": "2.75",
+            "market_line": "2.25",
+            "expected_value": -0.5,
         },
-        readiness={"status": "READY", "blockers": []},
+        readiness=_readiness(),
     )
 
     pick = fields["pick"]
@@ -147,26 +233,29 @@ def test_edge_and_market_and_data_blockers_map_to_reason_codes() -> None:
     }
     assert (
         _fields(
-            card={"pricing_shadow": {"formal_blockers": ["AH_EV_BELOW_FORMAL_THRESHOLD"]}},
             market=market,
-            readiness={"status": "READY", "blockers": []},
+            readiness=_readiness(reason=DecisionReasonCode.EDGE_INSUFFICIENT),
         )["reason_code"]
         == DecisionReasonCode.EDGE_INSUFFICIENT.value
     )
     assert (
         _fields(
-            card={"pricing_shadow": {"formal_blockers": ["MARKET_NOT_READY"]}},
+            readiness=_readiness(
+                DataStatus.BLOCKED,
+                reason=DecisionReasonCode.MARKET_UNAVAILABLE,
+                missing=("market",),
+            ),
         )["reason_code"]
         == DecisionReasonCode.MARKET_UNAVAILABLE.value
     )
     assert (
         _fields(
             market=market,
-            readiness={
-                "status": "PARTIAL",
-                "blockers": ["DATA_INSUFFICIENT"],
-                "available_inputs": {"lineups": True},
-            },
+            readiness=_readiness(
+                DataStatus.BLOCKED,
+                reason=DecisionReasonCode.DATA_MISSING_XG,
+                missing=("xg",),
+            ),
         )["reason_code"]
         == DecisionReasonCode.DATA_MISSING_XG.value
     )
@@ -179,20 +268,23 @@ def test_readiness_status_mapping_is_not_optimistic() -> None:
         "line": "-0.25",
         "odds": "1.95",
     }
-    assert _fields(market=ready_market, readiness={"status": "READY", "blockers": []})[
+    assert _fields(market=ready_market, readiness=_readiness())[
         "data_status"
     ] == (DataStatus.READY.value)
     assert (
         _fields(
             market=ready_market,
-            readiness={"status": "PARTIAL", "blockers": ["MISSING_LINEUPS"]},
+            readiness=_readiness(missing=("lineups",)),
         )["data_status"]
         == DataStatus.READY.value
     )
     assert (
         _fields(
             market=ready_market,
-            readiness={"status": "PARTIAL", "blockers": ["PROVIDER_BUDGET_EXHAUSTED"]},
+            readiness=_readiness(
+                DataStatus.STALE,
+                reason=DecisionReasonCode.PROVIDER_BUDGET_EXHAUSTED,
+            ),
         )["data_status"]
         == DataStatus.STALE.value
     )
@@ -208,37 +300,19 @@ def test_blocked_data_status_downgrades_explicit_pick_tiers() -> None:
 
     analysis = _fields(
         market={**market, "decision_tier": "ANALYSIS_PICK"},
-        readiness={
-            "data_readiness": {
-                "source": "w2.readiness.data_gate.v1",
-                "data_status": "BLOCKED",
-                "missing_fields": ["market"],
-                "stale_fields": [],
-                "reason_code": "MARKET_UNAVAILABLE",
-                "reason_human": "盘口未就绪",
-                "action": "等盘口开出或刷新",
-                "next_eval_at": "2026-07-05T00:30:00Z",
-                "provider_budget_status": "AVAILABLE",
-                "field_statuses": [],
-            }
-        },
+        readiness=_readiness(
+            DataStatus.BLOCKED,
+            reason=DecisionReasonCode.MARKET_UNAVAILABLE,
+            missing=("market",),
+        ),
     )
     recommend = _fields(
         market={**market, "decision_tier": "RECOMMEND"},
-        readiness={
-            "data_readiness": {
-                "source": "w2.readiness.data_gate.v1",
-                "data_status": "BLOCKED",
-                "missing_fields": ["market"],
-                "stale_fields": [],
-                "reason_code": "MARKET_UNAVAILABLE",
-                "reason_human": "盘口未就绪",
-                "action": "等盘口开出或刷新",
-                "next_eval_at": "2026-07-05T00:30:00Z",
-                "provider_budget_status": "AVAILABLE",
-                "field_statuses": [],
-            }
-        },
+        readiness=_readiness(
+            DataStatus.BLOCKED,
+            reason=DecisionReasonCode.MARKET_UNAVAILABLE,
+            missing=("market",),
+        ),
     )
 
     assert analysis["decision_tier"] == DecisionTier.NOT_READY.value
@@ -261,7 +335,7 @@ def test_analysis_pick_and_lock_policy_are_environmental() -> None:
         "line": "-0.25",
         "odds": "1.95",
     }
-    readiness = {"status": "READY", "blockers": []}
+    readiness = _readiness()
 
     staging = _fields(card=card, market=market, readiness=readiness, environment="staging")
     production = _fields(card=card, market=market, readiness=readiness, environment="production")
@@ -284,7 +358,7 @@ def test_advisory_readiness_keeps_analysis_pick() -> None:
             "line": "-0.25",
             "odds": "1.95",
         },
-        readiness={"status": "PARTIAL", "blockers": ["MISSING_LINEUPS"]},
+        readiness=_readiness(missing=("lineups",)),
     )
 
     assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
@@ -304,7 +378,7 @@ def test_no_edge_analysis_stays_non_pick_with_edge_reason() -> None:
             "odds": "1.95",
             "confidence": 0.2,
         },
-        readiness={"status": "READY", "blockers": []},
+        readiness=_readiness(),
     )
 
     assert fields["decision_tier"] == DecisionTier.SKIP.value
@@ -317,7 +391,7 @@ def test_no_edge_analysis_stays_non_pick_with_edge_reason() -> None:
 
 
 def test_no_selected_market_keeps_available_quote_evidence_distinct() -> None:
-    fields = _fields(market=None, readiness={"status": "READY", "blockers": []})
+    fields = _fields(market=None, readiness=_readiness())
 
     assert fields["quote_provenance_status"] == "MISSING"
     assert fields["available_quote_provenance"] == {"AH": "COMPLETE", "OU": "COMPLETE"}
@@ -333,7 +407,7 @@ def test_low_confidence_pick_is_fail_closed_to_watch() -> None:
             "odds": "1.90",
             "confidence": 0.49,
         },
-        readiness={"status": "READY", "blockers": []},
+        readiness=_readiness(),
     )
 
     assert fields["decision_tier"] == DecisionTier.WATCH.value
@@ -342,19 +416,9 @@ def test_low_confidence_pick_is_fail_closed_to_watch() -> None:
     assert fields["non_pick"] is not None
 
 
-def test_decision_contract_exposes_probability_source_and_divergence() -> None:
+def test_decision_contract_exposes_canonical_probability_and_divergence() -> None:
     fields = _fields(
-        card={
-            "current_odds": {"ah": {"home_line": "-0.25"}},
-            "market_divergence": {
-                "status": "READY",
-                "magnitude": 0.18,
-                "lock_divergence": -0.18,
-                "calibration_status": "UNVALIDATED",
-                "direction_allowed": False,
-            },
-            "pricing_shadow": {"fair_ah": -0.5, "market_ah": -0.25},
-        },
+        card={"current_odds": {"ah": {"home_line": "-0.25"}}},
         market={
             "market": "ASIAN_HANDICAP",
             "decision": "PICK",
@@ -363,15 +427,16 @@ def test_decision_contract_exposes_probability_source_and_divergence() -> None:
             "odds": "1.95",
             "confidence": 0.72,
         },
-        readiness={"status": "PARTIAL", "blockers": []},
+        readiness=_readiness(),
     )
 
     assert fields["probability_source"] == "MARKET_DEVIG"
     assert fields["decision_contract"]["probability_source"] == "MARKET_DEVIG"  # type: ignore[index]
     divergence = fields["model_market_divergence"]
     assert divergence["status"] == "READY"  # type: ignore[index]
-    assert divergence["magnitude"] == 0.18  # type: ignore[index]
-    assert divergence["model_fair_line"] == "-0.5"  # type: ignore[index]
+    assert divergence["magnitude"] == 0.1  # type: ignore[index]
+    assert divergence["model_fair_line"] == "-0.25"  # type: ignore[index]
+    assert divergence["compatibility_only"] is False  # type: ignore[index]
     assert fields["decision_contract"]["model_market_divergence"] == divergence  # type: ignore[index]
 
 
@@ -387,7 +452,7 @@ def test_market_anchor_display_flag_is_opt_in(monkeypatch) -> None:
             "odds": "1.95",
             "confidence": 0.72,
         },
-        readiness={"status": "READY", "blockers": []},
+        readiness=_readiness(),
     )
 
     assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
@@ -415,7 +480,7 @@ def test_market_anchor_display_requires_market_probability(monkeypatch) -> None:
             "odds": "1.95",
             "confidence": 0.72,
         },
-        readiness={"status": "READY", "blockers": []},
+        readiness=_readiness(),
     )
 
     assert fields["probability_source"] == "MODEL_FALLBACK"
@@ -445,7 +510,7 @@ def test_market_anchor_display_requires_actionable_divergence(monkeypatch) -> No
             "odds": "1.95",
             "confidence": 0.72,
         },
-        readiness={"status": "READY", "blockers": []},
+        readiness=_readiness(),
     )
 
     assert fields["decision_tier"] == DecisionTier.WATCH.value
@@ -474,7 +539,7 @@ def test_market_anchor_display_allows_significant_market_divergence(monkeypatch)
             "odds": "1.95",
             "confidence": 0.72,
         },
-        readiness={"status": "READY", "blockers": []},
+        readiness=_readiness(),
     )
 
     assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
@@ -483,7 +548,7 @@ def test_market_anchor_display_allows_significant_market_divergence(monkeypatch)
 
 
 def test_staging_lock_requires_market_line_and_odds() -> None:
-    ready = {"status": "READY", "blockers": []}
+    ready = _readiness()
     base_market = {
         "market": "ASIAN_HANDICAP",
         "decision": "PICK",
@@ -525,7 +590,7 @@ def test_recommend_requires_prerequisites_before_lock_eligible() -> None:
         "line": "-0.25",
         "odds": "1.95",
     }
-    readiness = {"status": "READY", "blockers": []}
+    readiness = _readiness()
 
     without_evidence = _fields(
         recommendation={"recommendation_id": "rec-1"},
@@ -558,7 +623,7 @@ def test_canonical_analysis_pick_has_no_compatibility_marker() -> None:
             "line": "-0.25",
             "odds": "1.95",
         },
-        readiness={"status": "READY", "blockers": []},
+        readiness=_readiness(),
     )
 
     assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
@@ -575,11 +640,11 @@ def test_adapter_outputs_valid_decision_card_shapes() -> None:
             "line": "-0.25",
             "odds": "1.95",
         },
-        readiness={"status": "PARTIAL", "blockers": []},
+        readiness=_readiness(),
     )
     watch = _fields(
         market={"market": "ASIAN_HANDICAP", "decision": "WATCH", "line": "-0.25", "odds": "1.95"},
-        readiness={"status": "PARTIAL", "blockers": ["AH_EV_BELOW_FORMAL_THRESHOLD"]},
+        readiness=_readiness(reason=DecisionReasonCode.EDGE_INSUFFICIENT),
     )
     blocked = _fields(
         market={
@@ -589,7 +654,10 @@ def test_adapter_outputs_valid_decision_card_shapes() -> None:
             "line": "-0.25",
             "odds": "1.95",
         },
-        readiness={"status": "BLOCKED", "blockers": ["FIXTURE_NOT_UPCOMING"]},
+        readiness=_readiness(
+            DataStatus.BLOCKED,
+            reason=DecisionReasonCode.FIXTURE_LIVE_OR_FINISHED,
+        ),
     )
 
     assert analysis["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
@@ -614,7 +682,7 @@ def test_incomplete_or_conflicting_quote_provenance_forces_not_ready() -> None:
     missing = _fields(
         card={"quote_identity_audit": {}},
         market=market,
-        readiness={"status": "READY", "blockers": []},
+        readiness=_readiness(),
     )
     conflict = _fields(
         card={
@@ -624,7 +692,7 @@ def test_incomplete_or_conflicting_quote_provenance_forces_not_ready() -> None:
             },
         },
         market=market,
-        readiness={"status": "READY", "blockers": []},
+        readiness=_readiness(),
     )
 
     for fields in (missing, conflict):
@@ -650,7 +718,7 @@ def test_stale_quote_provenance_forces_watch_and_clears_executable_odds() -> Non
             "line": "-0.25",
             "odds": "1.95",
         },
-        readiness={"status": "READY", "blockers": []},
+        readiness=_readiness(),
     )
 
     assert fields["decision_tier"] == DecisionTier.WATCH.value
@@ -669,7 +737,11 @@ def test_provider_budget_exhausted_is_stale_readiness() -> None:
             "line": "-0.25",
             "odds": "1.95",
         },
-        readiness={"status": "PARTIAL", "blockers": ["PROVIDER_BUDGET_EXHAUSTED"]},
+        readiness=_readiness(
+            DataStatus.STALE,
+            reason=DecisionReasonCode.PROVIDER_BUDGET_EXHAUSTED,
+            provider_budget_status="EXHAUSTED",
+        ),
     )
 
     assert fields["data_status"] == DataStatus.STALE.value

@@ -19,9 +19,7 @@ from w2.domain.enums import (
     ProbabilitySource,
 )
 from w2.readiness.data_gate import (
-    DataFreshnessPolicy,
     DataReadinessResult,
-    build_data_readiness_from_legacy_payload,
     result_from_mapping,
 )
 
@@ -55,11 +53,7 @@ def build_decision_contract_fields(
 ) -> dict[str, Any]:
     data_readiness = _data_readiness_result(
         card=card,
-        market=market,
-        recommendation=recommendation,
         readiness=readiness,
-        as_of=as_of,
-        kickoff_utc=kickoff_utc,
     )
     data_status = data_readiness.data_status
     tier = _decision_tier(
@@ -107,12 +101,16 @@ def build_decision_contract_fields(
         data_status=data_status,
         quote_provenance_status=quote_provenance_status,
     )
+    evaluated_candidate = _selected_market_candidate(card, market)
+    if tier in {
+        DecisionTier.ANALYSIS_PICK,
+        DecisionTier.RECOMMEND,
+    } and not _canonical_pick_evidence_ready(evaluated_candidate):
+        tier = DecisionTier.NOT_READY
     if tier not in {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND}:
         recommendation_id = None
-    evaluated_candidate = _selected_market_candidate(card, market)
     pick_payload = (
         _pick_payload(
-            card=card,
             market=market,
             recommendation=recommendation,
             evaluated_candidate=evaluated_candidate,
@@ -379,31 +377,10 @@ def _market_anchor_blocks_pick(
     return magnitude is None or abs(magnitude) < threshold
 
 
-def _data_status(
-    readiness: Mapping[str, Any] | None,
-    card: Mapping[str, Any],
-) -> DataStatus:
-    blockers = _blockers(readiness, card=card)
-    if any("PROVIDER_BUDGET_EXHAUSTED" in blocker or "STALE" in blocker for blocker in blockers):
-        return DataStatus.STALE
-    status = _first_upper(_get(readiness, "status"), _get(card, "data_status"))
-    if status == "READY":
-        return DataStatus.READY
-    if status == "BLOCKED":
-        return DataStatus.BLOCKED
-    if status == "STALE":
-        return DataStatus.STALE
-    return DataStatus.PARTIAL
-
-
 def _data_readiness_result(
     *,
     card: Mapping[str, Any],
-    market: Mapping[str, Any] | None,
-    recommendation: Mapping[str, Any] | None,
     readiness: Mapping[str, Any] | None,
-    as_of: datetime,
-    kickoff_utc: datetime,
 ) -> DataReadinessResult:
     for payload in (
         readiness,
@@ -414,18 +391,18 @@ def _data_readiness_result(
             parsed = result_from_mapping(payload)
             if parsed is not None:
                 return parsed
-    provider_status = _as_mapping(_get(readiness, "provider_status")) or _as_mapping(
-        _get(card, "provider_status"),
-    )
-    return build_data_readiness_from_legacy_payload(
-        card=card,
-        market=market,
-        recommendation=recommendation,
-        analysis_readiness=readiness,
-        provider_status=provider_status,
-        as_of=as_of,
-        kickoff_utc=kickoff_utc,
-        policy=DataFreshnessPolicy(),
+    reason_human, action = _reason_text(DecisionReasonCode.COVERAGE_NONE)
+    return DataReadinessResult(
+        data_status=DataStatus.BLOCKED,
+        missing_fields=("data_readiness",),
+        stale_fields=(),
+        reason_code=DecisionReasonCode.COVERAGE_NONE,
+        reason_human=reason_human,
+        action=action,
+        next_eval_at=None,
+        provider_budget_status=None,
+        field_statuses=(),
+        blocking_fields=("data_readiness",),
     )
 
 
@@ -438,12 +415,10 @@ def _lifecycle_status(card: Mapping[str, Any]) -> LifecycleStatus:
 
 def _pick_payload(
     *,
-    card: Mapping[str, Any],
     market: Mapping[str, Any] | None,
     recommendation: Mapping[str, Any] | None,
     evaluated_candidate: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
-    pricing = _as_mapping(_get(card, "pricing_shadow"))
     evaluated = _as_mapping(evaluated_candidate)
     executable_quote = _as_mapping(_as_mapping(evaluated.get("quotes")).get("executable"))
     analysis_evidence = _as_mapping(evaluated.get("analysis_evidence"))
@@ -452,71 +427,47 @@ def _pick_payload(
     pick_market = _first_text(_get(recommendation, "market"), _get(market, "market"))
     if evaluated:
         pick_market = _first_text(evaluated.get("market"), pick_market)
-    fair_key, market_key, edge_key = _pricing_keys_for_market(pick_market)
-    canonical_ready = (
-        analysis_evidence.get("status") == "COMPLETE"
-        and comparison.get("analysis_direction_allowed") is True
-        and executable_quote.get("line") is not None
-        and executable_quote.get("decimal_odds") is not None
-    )
-    if canonical_ready:
-        return {
-            "market": pick_market,
-            "selection": _first_text(evaluated.get("selection")),
-            "line": _first_text(executable_quote.get("line"), evaluated.get("line")),
-            "odds": _first_text(executable_quote.get("decimal_odds")),
-            "fair_line": evaluated.get("fair_line"),
-            "market_line": evaluated.get("market_line"),
-            "value_edge": _number(model_probability.get("expected_value")),
-            "key_factors": [str(comparison.get("reason_code") or "MODEL_MARKET_EDGE_READY")],
-            "risks": [
-                "ANALYSIS_ONLY_FORMAL_DISABLED",
-                *[
-                    str(warning)
-                    for warning in _string_list(evaluated.get("warnings"))
-                    if warning == "EV_PLAUSIBILITY_REVIEW"
-                ],
-            ],
-            "invalidation": "EXACT_QUOTE_IDENTITY_OR_MODEL_INPUT_CHANGED",
-            "quote_identity": dict(_as_mapping(evaluated.get("quote_identity"))),
-            "model_probability": dict(model_probability),
-            "market_probability": analysis_evidence.get("market_probability"),
-            "probability_delta": comparison.get("probability_delta"),
-            "expected_value": model_probability.get("expected_value"),
-            "uncertainty": model_probability.get("ev_se"),
-            "disclaimer": ANALYSIS_PICK_DISCLAIMER,
-        }
     return {
         "market": pick_market,
-        "selection": _first_text(
-            _get(recommendation, "selection"),
-            _get(market, "tendency"),
-            _get(market, "lean"),
-        ),
-        "line": _first_text(_get(recommendation, "line"), _get(market, "line")),
-        "odds": _first_text(_get(recommendation, "odds"), _get(market, "odds")),
-        "fair_line": _first_text(_get(pricing, fair_key), _get(market, "fair_line")),
-        "market_line": _first_text(_get(pricing, market_key), _get(market, "market_line")),
-        "value_edge": _number(
-            _get(recommendation, "risk_adjusted_ev")
-            or _get(recommendation, "expected_value")
-            or _get(pricing, edge_key)
-            or _get(market, "risk_adjusted_ev")
-        ),
-        "key_factors": _string_list(_get(recommendation, "reasons") or _get(market, "reasons")),
-        "risks": _string_list(_get(recommendation, "risks") or _get(market, "risks")),
-        "invalidation": _first_text(
-            _get(recommendation, "invalidation"),
-            _get(market, "invalidation"),
-        ),
+        "selection": _first_text(evaluated.get("selection")),
+        "line": _first_text(executable_quote.get("line"), evaluated.get("line")),
+        "odds": _first_text(executable_quote.get("decimal_odds")),
+        "fair_line": evaluated.get("fair_line"),
+        "market_line": evaluated.get("market_line"),
+        "value_edge": _number(model_probability.get("expected_value")),
+        "key_factors": [str(comparison.get("reason_code") or "MODEL_MARKET_EDGE_READY")],
+        "risks": [
+            "ANALYSIS_ONLY_FORMAL_DISABLED",
+            *[
+                str(warning)
+                for warning in _string_list(evaluated.get("warnings"))
+                if warning == "EV_PLAUSIBILITY_REVIEW"
+            ],
+        ],
+        "invalidation": "EXACT_QUOTE_IDENTITY_OR_MODEL_INPUT_CHANGED",
+        "quote_identity": dict(_as_mapping(evaluated.get("quote_identity"))),
+        "model_probability": dict(model_probability),
+        "market_probability": analysis_evidence.get("market_probability"),
+        "probability_delta": comparison.get("probability_delta"),
+        "expected_value": model_probability.get("expected_value"),
+        "uncertainty": model_probability.get("ev_se"),
         "disclaimer": ANALYSIS_PICK_DISCLAIMER,
     }
 
 
-def _pricing_keys_for_market(market: str | None) -> tuple[str, str, str]:
-    if market == "TOTALS":
-        return ("fair_ou", "market_ou", "edge_ou")
-    return ("fair_ah", "market_ah", "edge_ah")
+def _canonical_pick_evidence_ready(
+    candidate: Mapping[str, Any] | None,
+) -> bool:
+    evaluated = _as_mapping(candidate)
+    evidence = _as_mapping(evaluated.get("analysis_evidence"))
+    comparison = _as_mapping(evidence.get("comparison"))
+    quote = _as_mapping(_as_mapping(evaluated.get("quotes")).get("executable"))
+    return (
+        evidence.get("status") == "COMPLETE"
+        and comparison.get("analysis_direction_allowed") is True
+        and quote.get("line") is not None
+        and quote.get("decimal_odds") is not None
+    )
 
 
 def _non_pick_payload(
@@ -591,7 +542,7 @@ def _reason_code(
             model_market_divergence=model_market_divergence,
         ):
             return DecisionReasonCode.EDGE_INSUFFICIENT
-    codes = _blockers(readiness, card=card, market=market, recommendation=recommendation)
+    codes = _blockers(readiness, market=market, recommendation=recommendation)
     text = " ".join(codes).upper()
     if "FIXTURE_NOT_UPCOMING" in text or "LIVE" in text or "FINISHED" in text:
         return DecisionReasonCode.FIXTURE_LIVE_OR_FINISHED
@@ -693,17 +644,12 @@ def _format_utc(value: datetime | None) -> str | None:
 def _blockers(
     readiness: Mapping[str, Any] | None,
     *,
-    card: Mapping[str, Any],
     market: Mapping[str, Any] | None = None,
     recommendation: Mapping[str, Any] | None = None,
 ) -> list[str]:
-    pricing = _as_mapping(_get(card, "pricing_shadow"))
     values: list[str] = []
     for source in (
         _get(readiness, "blockers"),
-        _get(pricing, "formal_blockers"),
-        _get(pricing, "canonical_ah_market_blocker"),
-        _get(pricing, "ah_mainline_blocker"),
         _get(market, "blockers"),
         _get(market, "reason_code"),
         _get(recommendation, "reason_code"),
@@ -711,10 +657,6 @@ def _blockers(
     ):
         values.extend(_string_list(source))
     return values
-
-
-def _readiness_blocked(readiness: Mapping[str, Any] | None) -> bool:
-    return str(_get(readiness, "status") or "").upper() in {"BLOCKED", "UNKNOWN"}
 
 
 def _market_complete(
@@ -821,24 +763,16 @@ def _model_market_divergence(
             "direction_allowed": _truthy(comparison.get("analysis_direction_allowed")),
             "compatibility_only": False,
         }
-    divergence = _as_mapping(_get(card, "market_divergence"))
-    pricing = _as_mapping(_get(card, "pricing_shadow"))
-    pick_market = _first_text(_get(recommendation, "market"), _get(market, "market"))
-    fair_key, market_key, _edge_key = _pricing_keys_for_market(pick_market)
     return {
-        "source": "market_divergence" if divergence else "adapter_fallback",
-        "compatibility_only": True,
-        "status": str(_get(divergence, "status") or "UNKNOWN"),
-        "magnitude": _number(_get(divergence, "magnitude")),
-        "lock_divergence": _number(_get(divergence, "lock_divergence")),
-        "model_fair_line": _optional_text(_get(pricing, fair_key)),
-        "market_line": _first_text(
-            _get(pricing, market_key),
-            _get(recommendation, "line"),
-            _get(market, "line"),
-        ),
-        "calibration_status": _optional_text(_get(divergence, "calibration_status")),
-        "direction_allowed": _truthy(_get(divergence, "direction_allowed")),
+        "source": "analysis_evidence",
+        "compatibility_only": False,
+        "status": "MISSING",
+        "magnitude": None,
+        "lock_divergence": None,
+        "model_fair_line": None,
+        "market_line": None,
+        "calibration_status": None,
+        "direction_allowed": False,
     }
 
 

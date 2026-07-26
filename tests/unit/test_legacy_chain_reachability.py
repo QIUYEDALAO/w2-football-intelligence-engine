@@ -60,13 +60,27 @@ def _legacy_decision_contract_code_count() -> int:
         for path in root.rglob("*")
         if path.is_file()
     )
-    return count + sum(
+    count += sum(
         source.count(symbol)
         for root in roots
         for path in root.rglob("*")
         if path.is_file()
         for source in (path.read_text(encoding="utf-8", errors="ignore"),)
         for symbol in forbidden
+    )
+    adapter = (repository / "src/w2/domain/decision_adapter.py").read_text(
+        encoding="utf-8"
+    )
+    return count + sum(
+        adapter.count(symbol)
+        for symbol in {
+            "build_data_readiness_from_legacy_payload",
+            "_pricing_keys_for_market",
+            "adapter_fallback",
+            "formal_blockers",
+            "canonical_ah_market_blocker",
+            "ah_mainline_blocker",
+        }
     )
 
 
