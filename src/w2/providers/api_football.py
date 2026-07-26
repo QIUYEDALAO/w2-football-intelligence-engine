@@ -29,6 +29,7 @@ API_FOOTBALL_HTTP_PATHS = {
     "events": "fixtures/events",
     "h2h": "fixtures/headtohead",
     "lineups": "fixtures/lineups",
+    "player_profiles": "players/profiles",
     "squads": "players/squads",
     "statistics": "fixtures/statistics",
 }

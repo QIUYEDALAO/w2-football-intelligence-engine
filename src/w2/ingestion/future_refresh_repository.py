@@ -346,7 +346,7 @@ class FutureRefreshDbRepository:
             provider_name_rows = session.scalars(
                 select(RawPayloadModel)
                 .where(
-                    RawPayloadModel.endpoint.in_(("squads", "players")),
+                    RawPayloadModel.endpoint.in_(("squads", "players", "player_profiles")),
                     RawPayloadModel.captured_at <= as_of,
                 )
                 .order_by(RawPayloadModel.captured_at.desc(), RawPayloadModel.sha256)
@@ -451,7 +451,7 @@ class FutureRefreshDbRepository:
                                 provider_name_tokens,
                             )
                         ]
-                        if squad_evidence.get("endpoint") == "players"
+                        if squad_evidence.get("endpoint") in {"players", "player_profiles"}
                         else []
                     )
                     candidate_references = exact_references or evidenced_references
@@ -679,7 +679,7 @@ class FutureRefreshDbRepository:
                     squad_team_confirmed = True
                     break
         for row in rows:
-            if row.endpoint == "players":
+            if row.endpoint in {"players", "player_profiles"}:
                 response = row.payload.get("response")
                 if not isinstance(response, list):
                     continue
@@ -710,7 +710,7 @@ class FutureRefreshDbRepository:
                         "first_name": first_name,
                         "last_name": last_name,
                         "position": None,
-                        "endpoint": "players",
+                        "endpoint": row.endpoint,
                         "source_sha256": row.sha256,
                         "captured_at": iso_z(row.captured_at),
                     }

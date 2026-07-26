@@ -594,7 +594,7 @@ def test_player_profile_name_can_use_separate_current_squad_team_evidence() -> N
             ),
             RawPayloadModel(
                 sha256="p" * 64,
-                endpoint="players",
+                endpoint="player_profiles",
                 captured_at=captured_at,
                 storage_uri="db://raw_payload/profile",
                 payload={
@@ -605,7 +605,6 @@ def test_player_profile_name_can_use_separate_current_squad_team_evidence() -> N
                                 "firstname": "Player",
                                 "lastname": "One",
                             },
-                            "statistics": [{"team": {"id": 999}}],
                         }
                     ]
                 },
@@ -616,7 +615,7 @@ def test_player_profile_name_can_use_separate_current_squad_team_evidence() -> N
     )
 
     assert evidence["full_name"] == "Player One"
-    assert evidence["endpoint"] == "players"
+    assert evidence["endpoint"] == "player_profiles"
 
 
 def test_player_identity_join_evidence_is_read_only_and_deterministic() -> None:

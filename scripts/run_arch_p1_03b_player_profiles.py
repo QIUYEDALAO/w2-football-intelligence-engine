@@ -26,6 +26,7 @@ def main() -> int:
     parser.add_argument("--fixture", action="append", required=True)
     parser.add_argument("--season", required=True)
     parser.add_argument("--max-calls", required=True, type=int)
+    parser.add_argument("--profiles", action="store_true")
     parser.add_argument("--live", action="store_true")
     args = parser.parse_args()
     if not args.live:
@@ -81,9 +82,10 @@ def main() -> int:
             f"target count {len(targets)} must be between 1 and --max-calls"
         )
 
+    endpoint = "player_profiles" if args.profiles else "players"
     client = ApiFootballClient(
         allow_live=True,
-        allowed_live_endpoints=frozenset({"players"}),
+        allowed_live_endpoints=frozenset({endpoint}),
     )
     started_at = datetime.now(UTC)
     actual_calls = 0
@@ -92,17 +94,19 @@ def main() -> int:
     for player_id, team_id in sorted(targets.items()):
         actual_calls += 1
         try:
-            response = client.request_live(
-                "players",
-                {"id": player_id, "season": str(args.season)},
+            params = (
+                {"player": player_id}
+                if args.profiles
+                else {"id": player_id, "season": str(args.season)}
             )
+            response = client.request_live(endpoint, params)
         except Exception as exc:  # ledger records the bounded transport failure first
             failures.append({"player_id": player_id, "error_type": type(exc).__name__})
             continue
         stored_payload = {
             **response.payload,
-            "endpoint": "players",
-            "parameters": {"id": player_id, "season": str(args.season)},
+            "endpoint": endpoint,
+            "parameters": params,
             "w2_scope": {"expected_team_id": team_id, "fixture_ids": fixtures},
         }
         source_sha256 = hashlib.sha256(
@@ -114,7 +118,7 @@ def main() -> int:
         ).hexdigest()
         repository.save_raw_payload(
             sha256=source_sha256,
-            endpoint="players",
+            endpoint=endpoint,
             captured_at=response.captured_at,
             payload=stored_payload,
         )
@@ -125,7 +129,7 @@ def main() -> int:
             session.scalars(
                 select(ProviderRequestLogModel).where(
                     ProviderRequestLogModel.provider == "api_football",
-                    ProviderRequestLogModel.endpoint == "players",
+                    ProviderRequestLogModel.endpoint == endpoint,
                     ProviderRequestLogModel.requested_at >= started_at,
                 )
             )
