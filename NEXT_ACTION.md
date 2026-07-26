@@ -39,8 +39,7 @@ and is no longer a prerequisite for any architecture task. Lineup remains
 Execute the P1 tasks strictly in the order recorded in the master checklist:
 
 ```text
-ARCH-P1-03C -> ARCH-P1-05 -> ARCH-P1-06
-  -> ARCH-P1-07 -> ARCH-P1-08
+ARCH-P1-05 -> ARCH-P1-06 -> ARCH-P1-07 -> ARCH-P1-08
 ```
 
 **ARCH-P1-04D** is merged and its closure records `DONE`; main POST passed at
@@ -49,9 +48,11 @@ decision into **ARCH-P1-03A** (team side, `DONE`; implementation PR #400 merged
 as `bcd2c5e490a99426a0451de7f92362c1a76b2960`) and **ARCH-P1-03B** (player
 side, `DONE`; implementation PR #402 merged as
 `df8fc4578fb4d45e2fb7afb95f58748f459a69a8`, accepted head
-`bfce636dc245ab93f9f4d92e77699bf1689f127b`). The current task is
-**ARCH-P1-03C** and is `IMPLEMENTED_PENDING_ACCEPTANCE` in its Draft
-implementation PR; `ARCH-P1-05` remains `NOT_STARTED`.
+`bfce636dc245ab93f9f4d92e77699bf1689f127b`). **ARCH-P1-03C** is also `DONE`;
+its implementation PR #404 merged as
+`4e310e87def0e6e44e0fe69fa0c07f776126a6fc`, with accepted head
+`8adc8d482aefd7d31063030f0b682458c58c17a2`. The current task is
+**ARCH-P1-05**, but it remains `NOT_STARTED`.
 The checklist owns each task's PR number, status and CI evidence.
 
 `ARCH-P1-05` carries a pre-approved conditional bring-forward: if the
