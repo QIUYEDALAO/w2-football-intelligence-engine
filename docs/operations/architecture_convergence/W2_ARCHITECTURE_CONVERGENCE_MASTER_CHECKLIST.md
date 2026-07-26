@@ -400,16 +400,22 @@ selection **或**明确无选择状态（`market_candidate` 仍为可选证据�
 
 ---
 
-#### A3. ARCH-P1-03：球队身份 Crosswalk 收敛
+#### A3. ARCH-P1-03A：球队身份 Crosswalk 收敛（团队侧）
 
 ```text
-Status: IN_PROGRESS
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
 Branch: codex/arch-p1-03-team-identity-crosswalk
 PR: #400
 Base SHA: 0cb267baa62abe547802bca27771a8fe1c26a0db
+Implementation SHA: GITHUB_PR_EXACT_HEAD
+CI run: GITHUB_PR_EXACT_HEAD
+Staging SHA: READ_ONLY_INVENTORY_ONLY_NO_STAGING_WRITE
+Evidence: W2_ARCH_P1_03_M1_IDENTITY_INVENTORY.md /
+  W2_ARCH_P1_03_M1_TEAM_MIGRATION_PREVIEW.json
+Rollback: revert PR #400; migration 0042 downgrade removes only
+  migration-owned transfermarkt rows
 Started at: 2026-07-26T00:00:00Z
 Owner: Codex
-Phase: IDENTITY_AUTHORITY_INVENTORY_AND_MIGRATION
 M1: DONE (read-only inventory; player identity + saved lineups empty)
 M2A: DONE (accepted by W2_EXTERNAL_REVIEW_V6 @edeb873; team schema+migration,
   CanonicalIdentityRepository,
@@ -417,48 +423,77 @@ M2A: DONE (accepted by W2_EXTERNAL_REVIEW_V6 @edeb873; team schema+migration,
   LEGACY_CROSSWALK_RUNTIME_READS/WRITES/IMPORTS=0,
   RUNTIME_CANONICAL_ID_FROM_PROVIDER_CONSTRUCTION=0,
   PROVIDER_ID_MODEL_PRIMARY_READS=0, ORM_DECLARATIONS=3
-  TEMPORARY_ALLOWED_UNTIL_M4, NEW_IDENTITY_TABLE_COUNT=0).
+  TEMPORARY_ALLOWED_UNTIL_ARCH_P1_03B_M4, NEW_IDENTITY_TABLE_COUNT=0).
   W2_EXTERNAL_DECISION_V2 CONTROLLED_CANONICAL_TEAM_ID_MINT_APPROVED: exactly one
   controlled mint inside canonical_team_payload, AST exact-count guarded.
-  MUST_FIX 1-5 applied: AST guard replaces prefix scan; mapping validity +
-  ambiguity fail-closed; migration exact reconciliation (no exists->continue);
-  downgrade deletes only migration-owned rows; state/PR phase synced.
-  W2_EXTERNAL_REVIEW_V3 MUST_FIX applied: reverse canonical->source mapping also
+  W2_EXTERNAL_REVIEW_V3/V4/V5 MUST_FIX applied: reverse canonical->source mapping
   fails closed on ambiguity; migration reconciles the complete authority /
-  provenance / validity surface; AST mint allowlist binds file+function+kind.
-  W2_EXTERNAL_REVIEW_V4 MUST_FIX applied: migration persists an explicit
-  ownership marker so downgrade never deletes a pre-existing look-alike row;
-  api_football authority resolution uses READY status + validity window +
-  unique-canonical-target semantics.
-  W2_EXTERNAL_REVIEW_V5 MUST_FIX applied: review provenance is backfilled only
-  into the valid READY authority rows the resolution step selected (expired,
-  future, CANDIDATE and other-season rows stay untouched).
-  Exact-head CI @768b6ac and @cb9d9bb: verify / staging-parity / predeploy-e2e /
-  POST gate = success; PRE_MERGE_READINESS_GATE = FAIL_EXPECTED_DRAFT.
+  provenance / validity surface; AST mint allowlist binds file+function+kind;
+  migration persists an explicit ownership marker so downgrade never deletes a
+  pre-existing look-alike row; api_football authority resolution uses READY
+  status + validity window + unique-canonical-target semantics; review
+  provenance is backfilled only into the selected valid READY authority rows.
   A pre-existing unmarked look-alike row is preserved by downgrade but blocks
   upgrade reconciliation (it is never silently adopted).
-  Still NOT authorized after M2A DONE: M4 physical drop, removal of the three
-  legacy ORM declarations, PR ready/merge, ARCH-P1-05.
-  Status: REMEDIATION_APPLIED_PENDING_EXTERNAL_ACCEPTANCE (M2A not DONE).
-M3: REAL_MATCH_EVIDENCE = BLOCKED_INSUFFICIENT_REAL_SAVED_LINEUPS
-M4: NOT_AUTHORIZED (drop ORM + tables together; net -3 tables)
+  Exact-head CI @768b6ac / @cb9d9bb / @0d971ff: verify / staging-parity /
+  predeploy-e2e / POST gate = success.
 ```
 
-待收敛组：`football_data_team_crosswalks`、`team_identity_crosswalks`、
-`provider_team_identity_crosswalks`、`player_identity_crosswalks`、`player_identity_mappings`。
+拆分说明：原 `ARCH-P1-03` 覆盖球队与球员两侧。团队侧已由 W2_EXTERNAL_REVIEW_V6
+在 exact head `edeb873` 验收通过，球员侧的数据前置条件尚未具备，故按外部裁决拆为
+`ARCH-P1-03A`（本任务，团队侧）与 `ARCH-P1-03B`（球员侧），避免把未完成的球员侧
+计入本任务的完成状态。
 
-- [ ] 盘点全部球队/球员身份与 provider crosswalk 表。
-- [ ] canonical team / player 体系为唯一权威；迁移有效映射及 review provenance。
-- [ ] 其余表停止写入，零引用证明后同 PR 断言式 drop；证据不足的保持原状继续调查。
-- [ ] provider IDs 仅作 provenance，不再作为模型主身份。
-- [ ] fixture、history、rating、lineup 读取对账。
-- [ ] **追加**：用 3 场真实比赛演示 canonical player ↔ provider lineup 球员唯一联接查询
-      （EVAL-02B"缺阵分钟占比"的前置能力）。
+本任务收敛组（团队侧）：`team_identity_crosswalks`、`football_data_team_crosswalks`、
+`provider_team_identity_crosswalks`（权威）、`canonical_teams`（权威）。
+
+- [x] 盘点全部球队/球员身份与 provider crosswalk 表（M1，只读证据入 Git 可重算）。
+- [x] canonical team 体系为唯一权威；迁移 16 行 Transfermarkt provider 身份及
+      review provenance。
+- [x] provider team IDs 仅作 provenance 与来源查询，不再作为模型主身份。
+- [x] fixture、history、rating、xG 团队身份读取切换至 CanonicalIdentityRepository。
+- [x] 静态守卫：legacy crosswalk runtime imports/reads/writes = 0；
+      RUNTIME_CANONICAL_ID_FROM_PROVIDER_CONSTRUCTION = 0；
+      PROVIDER_ID_MODEL_PRIMARY_READS = 0；NEW_IDENTITY_TABLE_COUNT = 0。
 - [ ] PR 合并。
 **验收**：`CANONICAL_TEAM_IDENTITY_AUTHORITY_COUNT = 1`。
+**不在本任务范围**：球员身份权威、3 场真实比赛验收、三张 legacy 表的物理 drop 与
+三个 legacy ORM 声明的删除（均属 `ARCH-P1-03B`）。
+
+---
+
+#### A10. ARCH-P1-03B：球员身份 Crosswalk 收敛与 legacy 表下线（球员侧）
+
+```text
+Status: NOT_STARTED
+Predecessor: ARCH-P1-03A
+M2B: DATA_PREREQUISITE_PENDING (player_identity_mappings = 0,
+  player_identity_crosswalks = 0, structured_lineup_snapshots = 0,
+  structured_lineup_players = 0)
+M3: BLOCKED_INSUFFICIENT_REAL_SAVED_LINEUPS
+M4: NOT_AUTHORIZED (drop the three legacy tables and their three ORM
+  declarations in the same step; net -3 tables)
+```
+
+待收敛组（球员侧与 legacy 下线）：`player_identity_crosswalks`、
+`player_identity_mappings`（权威）、以及 `team_identity_crosswalks`、
+`football_data_team_crosswalks`、`player_identity_crosswalks` 三张 legacy 表的
+物理 drop。
+
+- [ ] 球员身份权威补列与 canonical 解析（M2B）；仅 REVIEWED + 非空
+      `canonical_player_id` + 完整复核来源 + 时间有效者可被模型消费。
+- [ ] 用 3 场真实比赛演示 canonical player ↔ provider lineup 球员唯一联接查询
+      （EVAL-02B"缺阵分钟占比"的前置能力）；数据不足时保持 BLOCKED，禁止构造
+      synthetic 证据。
+- [ ] 其余表停止写入，零引用证明后同 PR 断言式 drop；ORM 声明与表同步删除；
+      证据不足的保持原状继续调查。
+- [ ] PR 合并。
+**验收**：`CANONICAL_PLAYER_IDENTITY_AUTHORITY_COUNT = 1`；
+`LEGACY_CROSSWALK_ORM_DECLARATIONS = 0`；`LEGACY_CROSSWALK_TABLE_COUNT = 0`。
 **资产账本**：目标净减 ≥3 张表。
 
 ---
+
 
 #### A4. ARCH-P1-05：部署改为 CI 构建镜像、服务器 pull-only
 

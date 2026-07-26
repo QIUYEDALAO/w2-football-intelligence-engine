@@ -32,7 +32,7 @@ repository:
   pull_request_head_branch: codex/arch-p1-03-team-identity-crosswalk
   task_baseline_sha: 0cb267baa62abe547802bca27771a8fe1c26a0db
   local_work_branch: codex/arch-p1-03-team-identity-crosswalk
-  github_sync_status: ARCH_P1_03_STARTED
+  github_sync_status: ARCH_P1_03A_IMPLEMENTED_PENDING_ACCEPTANCE
   ci_checks:
     verify: GITHUB_PR_EXACT_HEAD
     staging-parity: GITHUB_PR_EXACT_HEAD
@@ -80,7 +80,8 @@ architecture_convergence:
     - ARCH-GOVERNANCE-01
     - ARCH-P1-04C
     - ARCH-P1-04D
-    - ARCH-P1-03
+    - ARCH-P1-03A
+    - ARCH-P1-03B
     - ARCH-P1-05
     - ARCH-P1-06
     - ARCH-P1-07
@@ -91,16 +92,19 @@ architecture_convergence:
     - ARCH-P2-04
     - ARCH-P2-06
     - ARCH-P2-05
-  next_task: ARCH-P1-05
+  next_task: ARCH-P1-03B
   current_task:
-    id: ARCH-P1-03
-    status: IN_PROGRESS
+    id: ARCH-P1-03A
+    status: IMPLEMENTED_PENDING_ACCEPTANCE
     pull_request: 400
     branch: codex/arch-p1-03-team-identity-crosswalk
     baseline_sha: 0cb267baa62abe547802bca27771a8fe1c26a0db
     started_at: "2026-07-26T00:00:00Z"
     predecessor: ARCH-P1-04D
     scope: TEAM_IDENTITY_CROSSWALK_CONVERGENCE
+    split_from: ARCH-P1-03
+    split_reason: TEAM_SIDE_ACCEPTED_PLAYER_SIDE_DATA_PREREQUISITE_PENDING
+    successor_task: ARCH-P1-03B
     phase: M2A_TEAM_DONE
     m1_status: DONE
     m2a_status: DONE
@@ -151,10 +155,10 @@ architecture_convergence:
       POST_MERGE_CHECKLIST_CONSISTENCY_GATE: success
       PRE_MERGE_READINESS_GATE: FAIL_EXPECTED_DRAFT
     unowned_lookalike_semantics: PRESERVED_BY_DOWNGRADE_BUT_BLOCKS_UPGRADE_RECONCILIATION
-    m3_real_match_evidence: BLOCKED_INSUFFICIENT_REAL_SAVED_LINEUPS
-    m4_status: NOT_AUTHORIZED
-    legacy_orm_removal_status: NOT_AUTHORIZED
-    pr_ready_merge_status: NOT_AUTHORIZED
+    m3_real_match_evidence: DEFERRED_TO_ARCH_P1_03B_BLOCKED_INSUFFICIENT_REAL_SAVED_LINEUPS
+    m4_status: DEFERRED_TO_ARCH_P1_03B
+    legacy_orm_removal_status: DEFERRED_TO_ARCH_P1_03B
+    m2b_status: DEFERRED_TO_ARCH_P1_03B
     legacy_crosswalk_runtime_reads: 0
     legacy_crosswalk_runtime_writes: 0
     legacy_crosswalk_runtime_imports: 0
@@ -163,7 +167,7 @@ architecture_convergence:
     controlled_canonical_id_mint_sites: 1
     controlled_canonical_id_mint_location: canonical_team_payload
     legacy_crosswalk_orm_declarations: 3
-    legacy_crosswalk_orm_status: TEMPORARY_ALLOWED_UNTIL_M4
+    legacy_crosswalk_orm_status: TEMPORARY_ALLOWED_UNTIL_ARCH_P1_03B_M4
     new_identity_table_count: 0
   governance_contracts:
     github_secondary_review:
@@ -254,7 +258,8 @@ architecture_convergence:
     ARCH-GOVERNANCE-01: DONE
     ARCH-P1-04C: DONE
     ARCH-P1-04D: DONE
-    ARCH-P1-03: IN_PROGRESS
+    ARCH-P1-03A: IMPLEMENTED_PENDING_ACCEPTANCE
+    ARCH-P1-03B: NOT_STARTED
   pre_approved_order_change:
     task: ARCH-P1-05
     condition: STAGING_ONSITE_BUILD_REPEATEDLY_FAILS
