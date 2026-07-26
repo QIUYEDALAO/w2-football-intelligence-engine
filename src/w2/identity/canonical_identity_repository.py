@@ -143,6 +143,46 @@ class CanonicalIdentityRepository:
             if len(targets) == 1
         }
 
+    @staticmethod
+    def canonical_team_source_mapping_in_session(
+        session: Session,
+        *,
+        provider: str,
+        competition: str,
+        season: str,
+        as_of: datetime,
+    ) -> dict[str, str]:
+        """``w2_team_id -> provider_team_id`` (the reverse direction).
+
+        Used to reach provider-keyed source tables (xG feeds, raw payloads)
+        starting from a canonical id. Fails closed on the reverse axis too: a
+        canonical team that maps to more than one provider team id under the same
+        provider is dropped, so callers never silently pick one source identity.
+        Do not build this by inverting
+        :meth:`provider_team_mapping_in_session` -- inversion hides exactly this
+        ambiguity.
+        """
+        rows = session.scalars(
+            select(ProviderTeamIdentityCrosswalkModel)
+            .where(
+                ProviderTeamIdentityCrosswalkModel.provider == provider,
+                ProviderTeamIdentityCrosswalkModel.competition_id == competition,
+                ProviderTeamIdentityCrosswalkModel.season == season,
+                ProviderTeamIdentityCrosswalkModel.identity_status == _TEAM_READY_STATUS,
+            )
+            .order_by(ProviderTeamIdentityCrosswalkModel.w2_team_id)
+        ).all()
+        candidates: dict[str, set[str]] = {}
+        for row in rows:
+            if not _valid_at(row.valid_from, row.valid_to, as_of):
+                continue
+            candidates.setdefault(row.w2_team_id, set()).add(row.provider_team_id)
+        return {
+            w2_team_id: next(iter(sources))
+            for w2_team_id, sources in candidates.items()
+            if len(sources) == 1
+        }
+
     # --- season-agnostic team resolution (F5 historical, no season axis) -----
 
     def resolve_team_canonical(

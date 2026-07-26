@@ -827,18 +827,13 @@ class FactorModelRemediationService:
             # model-facing read starts from the canonical W2 id and translates to
             # that source identity through the authority, so the provider column
             # is never the model primary key. Unknown identity -> no rows.
-            w2_to_provider = {
-                w2: provider_id
-                for provider_id, w2 in CanonicalIdentityRepository
-                .provider_team_mapping_in_session(
-                    session,
-                    provider=PROVIDER,
-                    competition=self.config.competition_id,
-                    season=self.config.season,
-                    as_of=self.now,
-                )
-                .items()
-            }
+            w2_to_provider = CanonicalIdentityRepository.canonical_team_source_mapping_in_session(
+                session,
+                provider=PROVIDER,
+                competition=self.config.competition_id,
+                season=self.config.season,
+                as_of=self.now,
+            )
             home_xg_source_id = (
                 w2_to_provider.get(fixture.home_w2_team_id) if fixture.home_w2_team_id else None
             )

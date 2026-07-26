@@ -166,3 +166,59 @@ def test_mapping_in_session_drops_ambiguous_provider_id() -> None:
         )
     # Fail closed: ambiguous provider id yields no identity at all.
     assert mapping == {}
+
+
+def test_reverse_mapping_drops_ambiguous_canonical_team() -> None:
+    """One canonical team resolving to two provider source ids must fail closed."""
+    from sqlalchemy.orm import Session
+
+    engine = _engine()
+    _seed(
+        engine,
+        _provider_row(),
+        # a second provider team id pointing at the SAME canonical team
+        _provider_row(
+            id="api_football:101:allsvenskan:2026",
+            provider_team_id="101",
+            identity_hash="ih101",
+        ),
+    )
+    with Session(engine) as session:
+        reverse = CanonicalIdentityRepository.canonical_team_source_mapping_in_session(
+            session,
+            provider="api_football",
+            competition="allsvenskan",
+            season="2026",
+            as_of=AS_OF,
+        )
+        forward = CanonicalIdentityRepository.provider_team_mapping_in_session(
+            session,
+            provider="api_football",
+            competition="allsvenskan",
+            season="2026",
+            as_of=AS_OF,
+        )
+    # Forward direction is unambiguous (two distinct provider ids)...
+    assert forward == {
+        "100": "w2:team:api_football:100",
+        "101": "w2:team:api_football:100",
+    }
+    # ...but naively inverting it would silently keep one source id. The reverse
+    # mapping must instead drop the ambiguous canonical team entirely.
+    assert reverse == {}
+
+
+def test_reverse_mapping_respects_validity_window() -> None:
+    from sqlalchemy.orm import Session
+
+    engine = _engine()
+    _seed(engine, _provider_row(valid_to=datetime(2026, 6, 1, tzinfo=UTC)))
+    with Session(engine) as session:
+        reverse = CanonicalIdentityRepository.canonical_team_source_mapping_in_session(
+            session,
+            provider="api_football",
+            competition="allsvenskan",
+            season="2026",
+            as_of=AS_OF,
+        )
+    assert reverse == {}

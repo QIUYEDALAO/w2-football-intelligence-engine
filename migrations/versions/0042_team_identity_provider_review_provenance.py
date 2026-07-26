@@ -91,10 +91,17 @@ def _transfermarkt_identity_hash(
 
 
 def upgrade() -> None:
-    for name, col_type in _NEW_COLUMNS:
-        op.add_column(_TABLE, sa.Column(name, col_type, nullable=True))
-
     bind = op.get_bind()
+    # Idempotent on the column add so a partially-migrated database (columns
+    # already present, rows possibly written by another process) still reaches
+    # the reconciliation below instead of failing on a duplicate column.
+    existing_columns = {
+        column["name"] for column in sa.inspect(bind).get_columns(_TABLE)
+    }
+    for name, col_type in _NEW_COLUMNS:
+        if name not in existing_columns:
+            op.add_column(_TABLE, sa.Column(name, col_type, nullable=True))
+
     legacy = bind.execute(
         sa.text(
             "select id, api_football_team_id, transfermarkt_club_id, competition_id, "
@@ -158,8 +165,10 @@ def upgrade() -> None:
         )
         existing = bind.execute(
             sa.text(
-                "select id, w2_team_id, identity_status, identity_hash, review_status, "
-                "reviewed_by from provider_team_identity_crosswalks "
+                "select id, provider, provider_team_id, w2_team_id, competition_id, season, "
+                "valid_from, valid_to, identity_status, evidence_hashes, identity_hash, "
+                "review_status, reviewed_by, reviewed_at, source_hashes, payload "
+                "from provider_team_identity_crosswalks "
                 "where provider='transfermarkt' and provider_team_id=:pid "
                 "and competition_id=:comp and season=:season"
             ),
@@ -170,18 +179,35 @@ def upgrade() -> None:
                 blockers.append(f"{row['id']}:TRANSFERMARKT_TARGET_ROWS={len(existing)}")
                 continue
             target = existing[0]
-            divergences = [
-                field
-                for field, expected in (
-                    ("id", row_id),
-                    ("w2_team_id", w2),
-                    ("identity_status", _PROVIDER_PRIMARY_READY),
-                    ("identity_hash", expected_identity_hash),
-                    ("review_status", row["review_status"]),
-                    ("reviewed_by", row["reviewed_by"]),
-                )
-                if target[field] != expected
-            ]
+            # Compare the complete authority + provenance + validity surface,
+            # normalizing datetime/JSON so postgres and sqlite compare alike.
+            expected_fields: tuple[tuple[str, object, str], ...] = (
+                ("id", row_id, "raw"),
+                ("provider", "transfermarkt", "raw"),
+                ("provider_team_id", tm_id, "raw"),
+                ("w2_team_id", w2, "raw"),
+                ("competition_id", comp, "raw"),
+                ("season", season, "raw"),
+                ("identity_status", _PROVIDER_PRIMARY_READY, "raw"),
+                ("identity_hash", expected_identity_hash, "raw"),
+                ("valid_from", _coerce_dt(row["valid_from"]), "dt"),
+                ("valid_to", _coerce_dt(row["valid_to"]), "dt"),
+                ("evidence_hashes", source_hashes, "json"),
+                ("source_hashes", source_hashes, "json"),
+                ("review_status", row["review_status"], "raw"),
+                ("reviewed_by", row["reviewed_by"], "raw"),
+                ("reviewed_at", _coerce_dt(row["reviewed_at"]), "dt"),
+                ("payload", _coerce_json(row["payload"]), "json"),
+            )
+            divergences = []
+            for field, expected, kind in expected_fields:
+                actual = target[field]
+                if kind == "dt":
+                    actual = _coerce_dt(actual)
+                elif kind == "json":
+                    actual = _coerce_json(actual)
+                if actual != expected:
+                    divergences.append(field)
             if divergences:
                 blockers.append(
                     f"{row['id']}:TRANSFERMARKT_TARGET_DIVERGENT:{','.join(divergences)}"

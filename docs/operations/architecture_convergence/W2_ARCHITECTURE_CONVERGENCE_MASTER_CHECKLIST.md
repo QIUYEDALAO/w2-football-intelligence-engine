@@ -422,6 +422,10 @@ M2A: REMEDIATION_APPLIED (team schema+migration, CanonicalIdentityRepository,
   MUST_FIX 1-5 applied: AST guard replaces prefix scan; mapping validity +
   ambiguity fail-closed; migration exact reconciliation (no exists->continue);
   downgrade deletes only migration-owned rows; state/PR phase synced.
+  W2_EXTERNAL_REVIEW_V3 MUST_FIX applied: reverse canonical->source mapping also
+  fails closed on ambiguity; migration reconciles the complete authority /
+  provenance / validity surface; AST mint allowlist binds file+function+kind.
+  Status: REMEDIATION_APPLIED_PENDING_EXTERNAL_ACCEPTANCE (M2A not DONE).
 M3: REAL_MATCH_EVIDENCE = BLOCKED_INSUFFICIENT_REAL_SAVED_LINEUPS
 M4: NOT_AUTHORIZED (drop ORM + tables together; net -3 tables)
 ```

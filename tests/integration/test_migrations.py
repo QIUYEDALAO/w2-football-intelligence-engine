@@ -727,3 +727,72 @@ def test_0042_downgrade_keeps_transfermarkt_rows_it_does_not_own(tmp_path: Path)
         ).scalars().all()
     # The migration-owned row is gone; the foreign row survives.
     assert remaining == ["other-source:555"]
+
+
+@pytest.mark.parametrize(
+    ("field", "tampered"),
+    [
+        ("reviewed_at", "2020-01-01T00:00:00+00:00"),
+        ("source_hashes", '["tampered"]'),
+        ("valid_from", "2020-01-01T00:00:00+00:00"),
+        ("payload", '{"k": "tampered"}'),
+    ],
+)
+def test_0042_blocks_on_provenance_divergence(tmp_path: Path, field: str, tampered: str) -> None:
+    """A pre-existing target row diverging on any provenance/validity field blocks."""
+    root, database_url, env = _m2a_env(tmp_path, f"m2a-div-{field}.db")
+    baseline = "0041_converge_odds_history_and_projection"
+    assert _alembic(root, env, "upgrade", baseline).returncode == 0
+    engine = create_engine(database_url)
+    _seed_m2a_baseline(engine)
+    assert _alembic(root, env, "upgrade", "head").returncode == 0
+
+    with engine.begin() as conn:
+        # Tamper one field on the migrated row, then rewind only the alembic
+        # version pointer so the migration re-runs against a partially-migrated
+        # database whose target row now diverges.
+        # Column name comes from this test's own parametrize list, not input.
+        where = "where provider='transfermarkt' and provider_team_id='999'"
+        update_sql = f"update provider_team_identity_crosswalks set {field} = :value {where}"  # noqa: S608
+        conn.execute(text(update_sql), {"value": tampered})
+        conn.execute(text("update alembic_version set version_num=:v"), {"v": baseline})
+
+    result = _alembic(root, env, "upgrade", "head")
+
+    assert result.returncode != 0
+    output = result.stderr + result.stdout
+    assert "TRANSFERMARKT_TARGET_DIVERGENT" in output
+    assert field in output
+
+
+def test_0042_downgrade_keeps_foreign_row_that_existed_before_upgrade(tmp_path: Path) -> None:
+    """A foreign transfermarkt row present BEFORE upgrade must survive downgrade."""
+    root, database_url, env = _m2a_env(tmp_path, "m2a-pre-existing-foreign.db")
+    baseline = "0041_converge_odds_history_and_projection"
+    assert _alembic(root, env, "upgrade", baseline).returncode == 0
+    engine = create_engine(database_url)
+    _seed_m2a_baseline(engine)
+    with engine.begin() as conn:
+        # Foreign transfermarkt row for a DIFFERENT provider team id, written
+        # before this migration ever ran (no provenance columns yet).
+        conn.execute(
+            text(
+                "insert into provider_team_identity_crosswalks (id, provider, "
+                "provider_team_id, w2_team_id, competition_id, season, valid_from, "
+                "identity_status, evidence_hashes, identity_hash) values "
+                "('legacy-import:555','transfermarkt','555',"
+                "'w2:team:api_football:100','allsvenskan','2026',"
+                "'2026-01-01T00:00:00+00:00','PROVIDER_PRIMARY_READY','[]','pre-existing')"
+            )
+        )
+
+    assert _alembic(root, env, "upgrade", "head").returncode == 0
+    assert _alembic(root, env, "downgrade", baseline).returncode == 0
+
+    with engine.begin() as conn:
+        remaining = conn.execute(
+            text(
+                "select id from provider_team_identity_crosswalks where provider='transfermarkt'"
+            )
+        ).scalars().all()
+    assert remaining == ["legacy-import:555"]

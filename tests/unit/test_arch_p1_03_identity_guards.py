@@ -54,6 +54,13 @@ def test_legacy_crosswalk_runtime_references_are_zero() -> None:
 _MINT_HELPER = "stable_w2_team_id"  # may hold the single "w2:team:" literal
 _MINT_CALLER = "canonical_team_payload"  # may make the single mint call
 _CANONICAL_TEAM_ID_PREFIX = "w2:team:"
+# The allowlist binds file AND function AND construction kind, so the same
+# function name in another module is a violation, not an escape hatch.
+_MINT_FILE = "src/w2/factor_model/remediation.py"
+_APPROVED_MINT_SITES = {
+    (_MINT_FILE, _MINT_CALLER, "mint_call"),
+    (_MINT_FILE, _MINT_HELPER, "literal"),
+}
 
 
 class _ConstructionVisitor(ast.NodeVisitor):
@@ -87,33 +94,50 @@ class _ConstructionVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
 
-def _construction_sites() -> dict[str, list[tuple[str, str]]]:
-    found: dict[str, list[tuple[str, str]]] = {}
+def construction_sites_in_source(source: str, *, file: str) -> list[tuple[str, str, str]]:
+    """(file, enclosing_function, kind) for every construction site in ``source``."""
+    visitor = _ConstructionVisitor()
+    visitor.visit(ast.parse(source))
+    return [(file, enclosing, kind) for enclosing, kind in visitor.sites]
+
+
+def _construction_sites() -> list[tuple[str, str, str]]:
+    sites: list[tuple[str, str, str]] = []
     for path in _runtime_py_files():
-        visitor = _ConstructionVisitor()
-        visitor.visit(ast.parse(path.read_text(encoding="utf-8")))
-        if visitor.sites:
-            found[path.relative_to(_ROOT).as_posix()] = visitor.sites
-    return found
+        rel = path.relative_to(_ROOT).as_posix()
+        sites.extend(
+            construction_sites_in_source(path.read_text(encoding="utf-8"), file=rel)
+        )
+    return sites
 
 
 def test_runtime_canonical_id_from_provider_construction_is_zero() -> None:
     """Exact-count AST guard: zero construction outside the approved mint."""
-    approved = {(_MINT_CALLER, "mint_call"), (_MINT_HELPER, "literal")}
     violations = [
-        f"{file}:{enclosing}:{kind}"
-        for file, sites in _construction_sites().items()
-        for enclosing, kind in sites
-        if (enclosing, kind) not in approved
+        ":".join(site) for site in _construction_sites() if site not in _APPROVED_MINT_SITES
     ]
     assert violations == [], f"runtime canonical-id-from-provider construction: {violations}"
 
 
 def test_controlled_mint_is_exactly_one_call_and_one_literal() -> None:
     """The approved mint must not silently multiply either."""
-    sites = [site for sites in _construction_sites().values() for site in sites]
-    assert sites.count((_MINT_CALLER, "mint_call")) == 1, sites
-    assert sites.count((_MINT_HELPER, "literal")) == 1, sites
+    sites = _construction_sites()
+    assert sites.count((_MINT_FILE, _MINT_CALLER, "mint_call")) == 1, sites
+    assert sites.count((_MINT_FILE, _MINT_HELPER, "literal")) == 1, sites
+
+
+def test_mint_allowlist_does_not_leak_to_the_same_function_name_elsewhere() -> None:
+    """A same-named function in another module must not inherit the allowlist."""
+    impostor = (
+        'def canonical_team_payload(pid):\n'
+        '    return stable_w2_team_id(pid)\n'
+        'def stable_w2_team_id(pid):\n'
+        '    return "w2:team:api_football:" + pid\n'
+    )
+    sites = construction_sites_in_source(impostor, file="src/w2/other_module.py")
+    violations = [site for site in sites if site not in _APPROVED_MINT_SITES]
+    # Identical function names, different file -> every site is a violation.
+    assert len(violations) == len(sites) == 2, sites
 
 
 def test_provider_id_model_primary_reads_are_zero() -> None:
