@@ -457,6 +457,17 @@ def test_m2b_materializes_only_full_name_authority_chain_candidates() -> None:
         for mapping in mappings
     )
     assert all(mapping.valid_from == kickoff.replace(tzinfo=None) for mapping in mappings)
+    with Session(engine) as session:
+        mapping = session.get(PlayerIdentityMappingModel, mappings[0].id)
+        assert mapping is not None
+        mapping.evidence = {
+            **mapping.evidence,
+            "prior_preview": {
+                "mapping_status": "CANDIDATE",
+                "evidence": {"reason": "UNTRACKED_PREVIEW"},
+            },
+        }
+        session.commit()
     audit = repository.player_identity_candidate_audit(
         fixture_ids=["fixture-authority"],
         as_of=captured_at,
@@ -465,6 +476,9 @@ def test_m2b_materializes_only_full_name_authority_chain_candidates() -> None:
     assert {
         row["generator"] for row in audit
     } == {"FutureRefreshDbRepository.materialize_player_identity_mappings"}
+    assert {row["candidate_reason"] for row in audit} == {
+        "UNIQUE_AUTHORITY_TEAM_FULL_NAME_POSITION"
+    }
 
 
 def test_m2b_rejects_missing_full_name_and_wrong_club() -> None:

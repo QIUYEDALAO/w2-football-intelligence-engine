@@ -918,7 +918,15 @@ class FutureRefreshDbRepository:
                         and isinstance(prior.get("evidence"), dict)
                         else None
                     )
-                    audit_evidence = prior_evidence or evidence
+                    current_materialization = (
+                        evidence.get("schema_version")
+                        == "w2.player_identity_candidate.v2"
+                    )
+                    audit_evidence = (
+                        evidence
+                        if current_materialization
+                        else prior_evidence or evidence
+                    )
                     reference = session.scalar(
                         select(TransfermarktPlayerReferenceModel)
                         .where(
@@ -972,9 +980,7 @@ class FutureRefreshDbRepository:
                             "generator": (
                                 "FutureRefreshDbRepository."
                                 "materialize_player_identity_mappings"
-                                if evidence.get("schema_version")
-                                == "w2.player_identity_candidate.v2"
-                                and prior_evidence is None
+                                if current_materialization
                                 else "untracked staging one-off SQL; no repository "
                                 "script or function exists"
                             ),
