@@ -790,6 +790,9 @@ def test_0043_fails_closed_on_postgres_catalog_dependency(dependency_sql: str) -
         conn.execute(text(dependency_sql))
 
     result = _alembic(root, env, "upgrade", "head")
+    with engine.begin() as conn:
+        conn.execute(text("drop schema public cascade"))
+        conn.execute(text("create schema public"))
 
     assert result.returncode != 0
     assert "LEGACY_IDENTITY_M4_DEPENDENCIES" in (result.stdout + result.stderr)
