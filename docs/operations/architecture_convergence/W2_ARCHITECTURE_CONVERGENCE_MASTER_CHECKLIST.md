@@ -46,6 +46,7 @@
 | ARCH-P1-03A | #400 | `bcd2c5e490a99426a0451de7f92362c1a76b2960` | 团队身份权威收敛 |
 | ARCH-P1-03B | #402 | `df8fc4578fb4d45e2fb7afb95f58748f459a69a8` | 球员身份 M2B 与三场强化 M3 收敛 |
 | ARCH-P1-03C | #404 | `4e310e87def0e6e44e0fe69fa0c07f776126a6fc` | 三张 legacy identity 表及 ORM 声明下线 |
+| ARCH-GOVERNANCE-02 | #406 | `cf5d6ea2cca600e31d4058b7d359b271d12d1f04` | path-aware CI、稳定聚合门与 required contexts 切换 |
 
 ---
 
@@ -558,10 +559,14 @@ Formal/Candidate runtime/Lock/Production/Scheduler: false
 #### A12. ARCH-GOVERNANCE-02：path-aware CI 与稳定聚合门
 
 ```text
-Status: IMPLEMENTED_PENDING_ACCEPTANCE
-Branch: codex/arch-governance-02-path-aware-ci
+Status: DONE
+PR: #406
+Implementation PR: #406
+Merge SHA: cf5d6ea2cca600e31d4058b7d359b271d12d1f04
+Accepted Head: 7607c2336fd1507d151d5291b95ae6892d16f94f
+External Acceptance: W2_EXTERNAL_ACCEPTANCE_V1
+Implementation CI run: 30205346882
 Base SHA: 84986936843432563003863e148c811ad3e0d480
-Implementation SHA: GITHUB_PR_EXACT_HEAD
 Predecessor: ARCH-P1-03C
 Successor: ARCH-P1-04D-R1 (NOT_STARTED)
 Owner: Codex
@@ -584,7 +589,8 @@ Required contexts target:
       不得冒充 Python/runtime implementation 的 full receipt。
 - [x] main push 按 `before...sha` 分类；rename 同时纳入旧/新路径；CI control 和
       deploy Python 均 fail-safe full；聚合器同时严格拒绝应跳过 job 的意外执行结果。
-- [ ] exact-head 完整 CI、外部验收与 PR 合并。
+- [x] exact-head 完整 CI、外部验收与 PR 合并（#406，merge SHA
+      `cf5d6ea2cca600e31d4058b7d359b271d12d1f04`）。
 
 **不做**：不改生产业务、数据库 schema、模型数学、provider、Formal、Candidate、
 Lock、Production 或 scheduler。
@@ -592,7 +598,8 @@ Lock、Production 或 scheduler。
 **required context 切换时点**：本实施 PR 合并前保留现有 required contexts；合并后
 由最新 main 的可信 workflow 产生 `CI_REQUIRED`，再将 branch protection 从
 `verify + staging-parity + PRE + POST` 原子切换为 `CI_REQUIRED + PRE + POST`，
-不得在未合并的 workflow 上提前切换。
+不得在未合并的 workflow 上提前切换。main 的 `CI_REQUIRED` run
+`30205896463` 与 POST run `30205896441` 成功后，required contexts 已原子切换完成。
 
 ---
 

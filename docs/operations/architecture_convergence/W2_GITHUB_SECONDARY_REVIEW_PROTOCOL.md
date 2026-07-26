@@ -29,7 +29,9 @@ REVIEW_NOT_STARTED
 
 二次验收是独立、闭环的全量复核，不是对 Codex 回执的逐句确认，也不是只检查上一轮指出的增量问题。
 
-每次复验都必须从实际 PR head 重新执行完整矩阵。不得采用“发现一个问题、发一次指令、下一轮再发现一个”的碎片化方式。
+每次复验都必须从实际 PR head 重新执行完整闭环审查矩阵。CI 则以 trusted PRE
+按 PR kind 与 changed paths 计算的 required plan 为准，不得采用“发现一个问题、
+发一次指令、下一轮再发现一个”的碎片化方式。
 
 ### TASK_SCOPE_AND_REVIEW_BOUNDARY_V1
 
@@ -148,15 +150,19 @@ PR 描述中的回执
 
 ### 8. Exact-head CI
 
-必须核对当前 exact head 的：
+Implementation 最终 exact head 必须通过 trusted PRE 计算的 required plan，并核对
+同一 exact head 的 `CI_REQUIRED` receipt：
 
 ```text
-verify
-staging-parity
-predeploy-e2e
+Python/runtime implementation = FULL_MATRIX
+docs/status-only closure = LIGHTWEIGHT_CI_REQUIRED
+migration/mixed/unknown/CI-control = FULL_MATRIX
 ```
 
-若代码提交通过 CI 后又增加最终回执提交，则最终回执 head 也必须重新跑完整 CI。不得只引用前一 implementation head 的 CI 作为最终 PR head 证据。
+不得用 lightweight receipt 冒充 full receipt，也不得用前一 implementation head 的
+receipt 作为当前 PR head 证据。只有 exact head 变化才重新运行该新 head 对应的
+required plan；PR body、comment、Review、Draft/Ready 等 metadata 变化只重触发
+trusted PRE，不重跑代码 CI。
 
 ### 9. 任务门禁
 
@@ -172,12 +178,13 @@ predeploy-e2e
 
 1. 子步骤执行中只跑与当前改动直接相关的 focused tests，不重复跑完整 CI。
 2. 单项任务的最终 exact head 必须一次性完成全部范围项、业务语义对账、静态守卫、
-   临时/生成资产清理、资产账本和完整 CI。
+   临时/生成资产清理、资产账本和 trusted PRE 要求的同一 exact-head CI receipt。
 3. 最终门禁固定要求：
    `SCOPE_ITEMS_COMPLETE=YES`、`BUSINESS_DELTA=0`、`UNTRACKED_FILES=0`、
    `UNREFERENCED_NEW_FILES=0`、`WORKTREE_CLEAN=YES`、
-   `verify/staging-parity/predeploy-e2e=PASS`、`EXTERNAL_ACCEPTANCE=PASS`。
-4. 外部验收后若代码和文件未变化，不重复跑完整 CI；exact head 变化则重新验收。
+   `TRUSTED_PRE_REQUIRED_PLAN_RECEIPT=PASS`、`EXTERNAL_ACCEPTANCE=PASS`。
+4. 外部验收后若 exact head 未变化，不重复跑 CI；exact head 变化则重新运行新 head
+   对应的 required plan 并重新验收。
 5. 数据库 drop、数据迁移、部署、兼容链物理删除、安全开关和模型数学变更仍按逐项
    高风险门禁执行，不得简化。
 

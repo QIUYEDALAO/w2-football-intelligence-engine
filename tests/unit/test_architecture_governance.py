@@ -35,7 +35,19 @@ ACTUAL_MERGES = {
     400: "bcd2c5e490a99426a0451de7f92362c1a76b2960",
     402: "df8fc4578fb4d45e2fb7afb95f58748f459a69a8",
     404: "4e310e87def0e6e44e0fe69fa0c07f776126a6fc",
+    406: "cf5d6ea2cca600e31d4058b7d359b271d12d1f04",
 }
+
+
+def test_secondary_review_protocol_allows_lightweight_closure_ci() -> None:
+    protocol = (
+        ROOT
+        / "docs/operations/architecture_convergence"
+        / "W2_GITHUB_SECONDARY_REVIEW_PROTOCOL.md"
+    ).read_text(encoding="utf-8")
+    assert "docs/status-only closure = LIGHTWEIGHT_CI_REQUIRED" in protocol
+    assert "所有 closure 强制 full CI" not in protocol
+    assert "verify/staging-parity/predeploy-e2e=PASS" not in protocol
 
 
 def ci_jobs(plan: Any | None = None) -> list[dict[str, str]]:
