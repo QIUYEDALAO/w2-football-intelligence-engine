@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine, func, select
@@ -23,6 +26,7 @@ from w2.infrastructure.persistence.models import (
 from w2.ingestion.future_refresh_repository import (
     FutureRefreshDbRepository,
     FutureRefreshPersistenceError,
+    approved_player_identity_manifest_rows,
 )
 
 
@@ -44,6 +48,26 @@ def _team(team_id: int, offset: int) -> dict[str, object]:
         ],
         "substitutes": [],
     }
+
+
+def test_arch_p1_03b_review_manifest_recomputes_approved_package_hash() -> None:
+    path = Path(
+        "docs/operations/architecture_convergence/"
+        "W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json"
+    )
+    payload = path.read_bytes()
+    assert (
+        hashlib.sha256(payload).hexdigest()
+        == "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea"
+    )
+    rows = approved_player_identity_manifest_rows(json.loads(payload))
+    assert len(rows) == 66
+    assert len(
+        {
+            (row["api_football_player_id"], row["team_external_id"])
+            for row in rows
+        }
+    ) == 66
 
 
 def _install_player_identity_sources(
@@ -710,9 +734,32 @@ def test_player_identity_join_evidence_is_read_only_and_deterministic() -> None:
         payload={"response": [_team(10, 100), _team(20, 200)]},
         materialize_baselines=False,
     )
+    approved_rows = []
     for team_id, offset in (("10", 100), ("20", 200)):
         for index in range(11):
             player_id = str(offset + index)
+            with Session(engine) as session:
+                mapping = session.scalar(
+                    select(PlayerIdentityMappingModel).where(
+                        PlayerIdentityMappingModel.api_football_player_id == player_id,
+                        PlayerIdentityMappingModel.team_external_id == team_id,
+                    )
+                )
+            assert mapping is not None
+            approved_rows.append(
+                {
+                    "api_football_player_id": player_id,
+                    "team_external_id": team_id,
+                    "fixture_id": "fixture-authority",
+                    "canonical_player_id": f"w2:player:transfermarkt:tm-{player_id}",
+                    "transfermarkt_player_id": f"tm-{player_id}",
+                    "canonical_team_id": mapping.evidence["canonical_team_id"],
+                    "transfermarkt_club_id": mapping.evidence[
+                        "transfermarkt_club_id"
+                    ],
+                    "source_hashes": mapping.evidence["source_artifact_hashes"],
+                }
+            )
             repository.approve_player_identity_mapping(
                 api_football_player_id=player_id,
                 team_external_id=team_id,
@@ -721,12 +768,32 @@ def test_player_identity_join_evidence_is_read_only_and_deterministic() -> None:
                 reviewed_by="real-technical-reviewer",
                 reviewed_at=captured_at,
                 source_artifact_hash="r" * 64,
+                approval_artifact_hash="a" * 64,
             )
+
+    reconciliation_runs = [
+        repository.player_identity_review_reconciliation(
+            approved_rows=approved_rows,
+            review_package_sha256="r" * 64,
+            approval_artifact_sha256="a" * 64,
+            reviewed_by="real-technical-reviewer",
+        )
+        for _ in range(2)
+    ]
+    assert reconciliation_runs[0] == reconciliation_runs[1]
+    assert reconciliation_runs[0]["status"] == "PASS"
+    assert reconciliation_runs[0]["expected_rows"] == 22
+    assert reconciliation_runs[0]["actual_reviewed_rows"] == 22
+    assert reconciliation_runs[0]["exact_rows"] == 22
 
     runs = [
         repository.player_identity_join_evidence(
             fixture_id="fixture-authority",
             as_of=kickoff,
+            approved_rows=approved_rows,
+            review_package_sha256="r" * 64,
+            approval_artifact_sha256="a" * 64,
+            reviewed_by="real-technical-reviewer",
         )
         for _ in range(3)
     ]
@@ -736,3 +803,21 @@ def test_player_identity_join_evidence_is_read_only_and_deterministic() -> None:
     assert runs[0]["rows"] == runs[1]["rows"] == runs[2]["rows"]
     assert runs[0]["provider_calls"] == 0
     assert runs[0]["db_writes"] == 0
+    assert runs[0]["metrics"] == {
+        "CONFIRMED_SNAPSHOTS": 2,
+        "CONFIRMED_STARTERS": 22,
+        "UNIQUE_PROVIDER_PLAYERS": 22,
+        "UNIQUE_CANONICAL_PLAYERS": 22,
+        "REVIEWED_MAPPINGS": 22,
+        "REVIEW_PROVENANCE_VALID": 22,
+        "PACKAGE_HASH_VALID": 22,
+        "APPROVAL_HASH_VALID": 22,
+        "SOURCE_HASHES_VALID": 22,
+        "TEAM_CONSISTENT": 22,
+        "VALID_AT_KICKOFF": 22,
+        "MISSING": 0,
+        "AMBIGUOUS": 0,
+        "CONFLICT": 0,
+        "DUPLICATE_CANONICAL": 0,
+        "INVALID_AT_KICKOFF": 0,
+    }

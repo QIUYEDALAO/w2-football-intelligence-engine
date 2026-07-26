@@ -2,15 +2,20 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import event, func, select
 from sqlalchemy.orm import Session
 
 from w2.infrastructure.persistence.ingestion_models import ProviderRequestLogModel
-from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
+from w2.ingestion.future_refresh_repository import (
+    FutureRefreshDbRepository,
+    approved_player_identity_manifest_rows,
+)
 
 DEFAULT_FIXTURES = ("1494212", "1494213", "1494214", "1494215", "1494216")
 
@@ -27,8 +32,19 @@ def main() -> int:
     parser.add_argument("--as-of", required=True)
     parser.add_argument("--fixtures", nargs="+", default=list(DEFAULT_FIXTURES))
     parser.add_argument("--m3-fixtures", nargs="*", default=[])
+    parser.add_argument("--manifest", type=Path, required=True)
+    parser.add_argument("--review-package-sha256", required=True)
+    parser.add_argument("--approval-artifact-sha256", required=True)
+    parser.add_argument("--reviewed-by", required=True)
     args = parser.parse_args()
     as_of = _parse_time(args.as_of)
+    manifest_bytes = args.manifest.read_bytes()
+    manifest_sha256 = hashlib.sha256(manifest_bytes).hexdigest()
+    if manifest_sha256 != args.review_package_sha256:
+        raise ValueError("PLAYER_IDENTITY_REVIEW_MANIFEST_HASH_MISMATCH")
+    approved_rows = approved_player_identity_manifest_rows(
+        json.loads(manifest_bytes)
+    )
     repository = FutureRefreshDbRepository()
     write_statements: list[str] = []
 
@@ -62,6 +78,10 @@ def main() -> int:
             repository.player_identity_join_evidence(
                 fixture_id=fixture_id,
                 as_of=as_of,
+                approved_rows=approved_rows,
+                review_package_sha256=args.review_package_sha256,
+                approval_artifact_sha256=args.approval_artifact_sha256,
+                reviewed_by=args.reviewed_by,
             )
             for _ in range(3)
         ]

@@ -429,7 +429,7 @@ M2A: DONE (accepted by W2_EXTERNAL_REVIEW_V6 @edeb873; team schema+migration,
   LEGACY_CROSSWALK_RUNTIME_READS/WRITES/IMPORTS=0,
   RUNTIME_CANONICAL_ID_FROM_PROVIDER_CONSTRUCTION=0,
   PROVIDER_ID_MODEL_PRIMARY_READS=0, ORM_DECLARATIONS=3
-  TEMPORARY_ALLOWED_UNTIL_ARCH_P1_03B_M4, NEW_IDENTITY_TABLE_COUNT=0).
+  TEMPORARY_ALLOWED_UNTIL_ARCH_P1_03C_M4, NEW_IDENTITY_TABLE_COUNT=0).
   W2_EXTERNAL_DECISION_V2 CONTROLLED_CANONICAL_TEAM_ID_MINT_APPROVED: exactly one
   controlled mint inside canonical_team_payload, AST exact-count guarded.
   W2_EXTERNAL_REVIEW_V3/V4/V5 MUST_FIX applied: reverse canonical->source mapping
@@ -464,17 +464,18 @@ M2A: DONE (accepted by W2_EXTERNAL_REVIEW_V6 @edeb873; team schema+migration,
 - [x] PR 合并（#400，merge SHA `bcd2c5e490a99426a0451de7f92362c1a76b2960`）。
 **验收**：`CANONICAL_TEAM_IDENTITY_AUTHORITY_COUNT = 1`。
 **不在本任务范围**：球员身份权威、3 场真实比赛验收、三张 legacy 表的物理 drop 与
-三个 legacy ORM 声明的删除（均属 `ARCH-P1-03B`）。
+三个 legacy ORM 声明的删除（均属后续 `ARCH-P1-03C`）。
 
 ---
 
-#### A10. ARCH-P1-03B：球员身份 Crosswalk 收敛与 legacy 表下线（球员侧）
+#### A10. ARCH-P1-03B：球员身份 Crosswalk 收敛（球员侧）
 
 ```text
-Status: IN_PROGRESS
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
 Draft PR: #402
 External review: PENDING
 Predecessor: ARCH-P1-03A
+Successor: ARCH-P1-03C (NOT_STARTED)
 M2B: DONE_STAGING (66 REVIEWED mappings; reviewed_by = operator:liudehua;
   review package SHA-256 =
   916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea)
@@ -482,25 +483,42 @@ M3: PASS_3_REAL_FIXTURES_3_RUNS
   (fixtures 1494212, 1494214, 1494216; provider call delta = 0;
   DB write delta = 0; evidence SHA-256 =
   510a0404f43a1f662245aba56f2d9876347f59fac7a905d8e73515a12766185f)
-M4: NOT_AUTHORIZED (drop the three legacy tables and their three ORM
-  declarations in the same step; net -3 tables)
+M4: OUT_OF_SCOPE_DEFERRED_TO_ARCH-P1-03C
 ```
 
-待收敛组（球员侧与 legacy 下线）：`player_identity_crosswalks`、
-`player_identity_mappings`（权威）、以及 `team_identity_crosswalks`、
-`football_data_team_crosswalks`、`player_identity_crosswalks` 三张 legacy 表的
-物理 drop。
+本任务收敛组（球员侧）：`player_identity_mappings`（权威）及其 provider /
+Transfermarkt review provenance。三张 legacy 表和 ORM 声明保持原状，移交
+`ARCH-P1-03C`。
 
 - [x] 球员身份权威补列与 canonical 解析（M2B）；仅 REVIEWED + 非空
       `canonical_player_id` + 完整复核来源 + 时间有效者可被模型消费。
 - [x] 用 3 场真实比赛演示 canonical player ↔ provider lineup 球员唯一联接查询
       （EVAL-02B"缺阵分钟占比"的前置能力）；数据不足时保持 BLOCKED，禁止构造
       synthetic 证据。
-- [ ] 其余表停止写入，零引用证明后同 PR 断言式 drop；ORM 声明与表同步删除；
-      证据不足的保持原状继续调查。
 - [ ] PR 合并。
-**验收**：`CANONICAL_PLAYER_IDENTITY_AUTHORITY_COUNT = 1`；
-`LEGACY_CROSSWALK_ORM_DECLARATIONS = 0`；`LEGACY_CROSSWALK_TABLE_COUNT = 0`。
+**验收**：`CANONICAL_PLAYER_IDENTITY_AUTHORITY_COUNT = 1`；固定审批 manifest
+SHA 可重算；66 条 REVIEWED 精确对账；至少 3 场真实 fixture 的强化身份 M3
+每场三次只读确定性验证通过。
+
+---
+
+#### A11. ARCH-P1-03C：legacy identity 表与 ORM 下线
+
+```text
+Status: NOT_STARTED
+Predecessor: ARCH-P1-03B
+M4: NOT_STARTED
+Formal/Candidate runtime/Lock/Production/Scheduler: false
+```
+
+待下线组：`team_identity_crosswalks`、`football_data_team_crosswalks`、
+`player_identity_crosswalks` 三张 legacy 表及其三个 ORM 声明。
+
+- [ ] 证明 legacy runtime reads/writes/imports = 0。
+- [ ] 同一实施 PR 中断言式 drop 三张表并同步删除三个 ORM 声明；证据不足则停止。
+- [ ] PR 合并。
+**验收**：`LEGACY_CROSSWALK_ORM_DECLARATIONS = 0`；
+`LEGACY_CROSSWALK_TABLE_COUNT = 0`。
 **资产账本**：目标净减 ≥3 张表。
 
 ---
@@ -923,6 +941,7 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 | `scripts/project_stage10b_live_snapshot.py` | `MANUAL_OPS` | STAGE10B_DASHBOARD_LIVE_WIRING | operator → script | offline | 否 | STAGE10B_DASHBOARD_LIVE_WIRING | `KEEP` | E4 |
 | `scripts/project_stage10c_matchday_read_model.py` | `CI_TRANSITIVE` | test_stage10c_matchday.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
 | `scripts/publish_w2_static_report.py` | `MANUAL_OPS` | A-151 static report runbook | operator → script | ops | 是 | A-151_STATIC_REPORT_WEB_ROOT | `KEEP` | E3/E4/E5 |
+| `scripts/reconcile_arch_p1_03b_reviewed_mappings.py` | `MANUAL_OPS` | ARCH-P1-03B 固定审批包对账 | operator → script | staging read-only | 否 | ARCH-P1-03B acceptance | `KEEP` | E4/E5 |
 | `scripts/reconcile_pr370_validation_ledger.py` | `ONE_TIME_RECOVERY` | 人工 ledger 恢复 | operator → script | staging manual | 否 | 无 | `KEEP` | E7 |
 | `scripts/recover_staging_runtime.sh` | `DEPLOYMENT` | STAGING_RUNTIME_HARDENING | operator → script | staging | 否 | STAGING_RUNTIME_HARDENING | `KEEP` | E3/E4/E5 |
 | `scripts/render_ai_card_text.py` | `MANUAL_OPS` | README / stage1 contract | operator → script | local | 否 | README | `KEEP` | E4/E5 |

@@ -108,6 +108,69 @@ def _parts_in_order(needle: list[str], haystack: list[str]) -> bool:
     return False
 
 
+def approved_player_identity_manifest_rows(
+    manifest: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Normalize the fixed 60 clean + 6 explicit human-review package."""
+    clean = manifest.get("clean_batch", {})
+    conflicts = manifest.get("minimal_conflicts", {})
+    clean_rows = clean.get("rows", []) if isinstance(clean, dict) else []
+    conflict_rows = conflicts.get("rows", []) if isinstance(conflicts, dict) else []
+    if (
+        manifest.get("schema_version") != "w2.arch_p1_03b_human_review_package.v1"
+        or clean.get("count") != 60
+        or conflicts.get("count") != 6
+        or len(clean_rows) != 60
+        or len(conflict_rows) != 6
+    ):
+        raise FutureRefreshPersistenceError("PLAYER_IDENTITY_REVIEW_MANIFEST_INVALID")
+    rows = [
+        {
+            "api_football_player_id": str(row["api_football_player_id"]),
+            "team_external_id": str(row["api_football_team_id"]),
+            "fixture_id": str(row["fixture_id"]),
+            "canonical_player_id": (
+                f"w2:player:transfermarkt:{row['transfermarkt_player_id']}"
+            ),
+            "transfermarkt_player_id": str(row["transfermarkt_player_id"]),
+            "canonical_team_id": str(row["club_team_crosswalk"]["canonical_team_id"]),
+            "transfermarkt_club_id": str(
+                row["club_team_crosswalk"]["transfermarkt_club_id"]
+            ),
+            "source_hashes": sorted(str(value) for value in row["source_hashes"]),
+        }
+        for row in clean_rows
+    ]
+    rows.extend(
+        {
+            "api_football_player_id": str(row["api_football_player_id"]),
+            "team_external_id": str(row["api_football_team_id"]),
+            "fixture_id": str(row["fixture_id"]),
+            "canonical_player_id": str(row["proposed_canonical_player_id"]),
+            "transfermarkt_player_id": str(row["proposed_transfermarkt_player_id"]),
+            "canonical_team_id": str(row["canonical_team_id"]),
+            "transfermarkt_club_id": str(row["expected_transfermarkt_club_id"]),
+            "source_hashes": sorted(
+                str(value) for value in row["source_artifact_hashes"]
+            ),
+        }
+        for row in conflict_rows
+    )
+    keys = {
+        (row["api_football_player_id"], row["team_external_id"]) for row in rows
+    }
+    if len(rows) != 66 or len(keys) != 66:
+        raise FutureRefreshPersistenceError("PLAYER_IDENTITY_REVIEW_MANIFEST_DUPLICATE")
+    return sorted(
+        rows,
+        key=lambda row: (
+            row["fixture_id"],
+            row["team_external_id"],
+            row["api_football_player_id"],
+        ),
+    )
+
+
 class DatabaseRawPayloadObjectStore:
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -904,6 +967,157 @@ class FutureRefreshDbRepository:
             session.commit()
             return mapping.identity_hash
 
+    def player_identity_review_reconciliation(
+        self,
+        *,
+        approved_rows: list[dict[str, Any]],
+        review_package_sha256: str,
+        approval_artifact_sha256: str,
+        reviewed_by: str,
+    ) -> dict[str, Any]:
+        """Read-only, idempotent reconciliation of the fixed approved package."""
+        expected = {
+            (row["api_football_player_id"], row["team_external_id"]): row
+            for row in approved_rows
+        }
+        if not expected or len(expected) != len(approved_rows):
+            raise FutureRefreshPersistenceError("PLAYER_IDENTITY_REVIEW_MANIFEST_INVALID")
+        with Session(self.engine) as session:
+            actual = [
+                mapping
+                for mapping in session.scalars(
+                    select(PlayerIdentityMappingModel).where(
+                        PlayerIdentityMappingModel.mapping_status == "REVIEWED"
+                    )
+                ).all()
+                if mapping.evidence.get("review_package_sha256")
+                == review_package_sha256
+            ]
+        actual_by_key = {
+            (mapping.api_football_player_id, mapping.team_external_id): mapping
+            for mapping in actual
+        }
+        missing = sorted(set(expected) - set(actual_by_key))
+        unexpected = sorted(set(actual_by_key) - set(expected))
+        mismatches: list[dict[str, Any]] = []
+        for key in sorted(set(expected) & set(actual_by_key)):
+            row = expected[key]
+            mapping = actual_by_key[key]
+            evidence = mapping.evidence
+            expected_sources = sorted(
+                {
+                    *row["source_hashes"],
+                    review_package_sha256,
+                    approval_artifact_sha256,
+                }
+            )
+            identity_payload = {
+                field: evidence.get(field)
+                for field in (
+                    "api_football_player_id",
+                    "team_external_id",
+                    "canonical_player_id",
+                    "transfermarkt_player_id",
+                    "canonical_team_id",
+                    "transfermarkt_club_id",
+                    "valid_from",
+                    "valid_to",
+                    "reviewed_by",
+                    "reviewed_at",
+                    "review_package_sha256",
+                    "approval_artifact_sha256",
+                    "review_exception",
+                    "source_artifact_hashes",
+                )
+            }
+            expected_identity_hash = hashlib.sha256(
+                json.dumps(
+                    identity_payload,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()
+            checks = {
+                "mapping_status": mapping.mapping_status == "REVIEWED",
+                "canonical_player_id": (
+                    mapping.canonical_player_id == row["canonical_player_id"]
+                    == evidence.get("canonical_player_id")
+                ),
+                "transfermarkt_player_id": (
+                    mapping.transfermarkt_player_id == row["transfermarkt_player_id"]
+                    == evidence.get("transfermarkt_player_id")
+                ),
+                "fixture_id": evidence.get("fixture_id") == row["fixture_id"],
+                "canonical_team_id": (
+                    evidence.get("canonical_team_id") == row["canonical_team_id"]
+                ),
+                "transfermarkt_club_id": (
+                    evidence.get("transfermarkt_club_id")
+                    == row["transfermarkt_club_id"]
+                ),
+                "reviewed_by": (
+                    mapping.reviewed_by == reviewed_by
+                    == evidence.get("reviewed_by")
+                ),
+                "reviewed_at": (
+                    mapping.reviewed_at is not None
+                    and bool(evidence.get("reviewed_at"))
+                ),
+                "review_package_sha256": (
+                    evidence.get("review_package_sha256") == review_package_sha256
+                ),
+                "approval_artifact_sha256": (
+                    evidence.get("approval_artifact_sha256")
+                    == approval_artifact_sha256
+                ),
+                "source_artifact_hashes": (
+                    sorted(evidence.get("source_artifact_hashes", []))
+                    == expected_sources
+                ),
+                "validity": (
+                    evidence.get("valid_from") == iso_z(mapping.valid_from)
+                    and evidence.get("valid_to")
+                    == (iso_z(mapping.valid_to) if mapping.valid_to is not None else None)
+                ),
+                "identity_hash": mapping.identity_hash == expected_identity_hash,
+            }
+            failed = sorted(name for name, passed in checks.items() if not passed)
+            if failed:
+                mismatches.append(
+                    {
+                        "api_football_player_id": key[0],
+                        "team_external_id": key[1],
+                        "failed_checks": failed,
+                    }
+                )
+        exact_rows = len(expected) - len(missing) - len(mismatches)
+        return {
+            "schema_version": "w2.player_identity_review_reconciliation.v1",
+            "review_package_sha256": review_package_sha256,
+            "approval_artifact_sha256": approval_artifact_sha256,
+            "reviewed_by": reviewed_by,
+            "expected_rows": len(expected),
+            "actual_reviewed_rows": len(actual),
+            "exact_rows": exact_rows,
+            "missing": [
+                {"api_football_player_id": key[0], "team_external_id": key[1]}
+                for key in missing
+            ],
+            "unexpected": [
+                {"api_football_player_id": key[0], "team_external_id": key[1]}
+                for key in unexpected
+            ],
+            "mismatches": mismatches,
+            "status": (
+                "PASS"
+                if len(actual) == len(expected) == exact_rows
+                and not missing
+                and not unexpected
+                and not mismatches
+                else "FAIL"
+            ),
+        }
+
     def player_identity_candidate_audit(
         self,
         *,
@@ -1116,8 +1330,16 @@ class FutureRefreshDbRepository:
         *,
         fixture_id: str,
         as_of: datetime,
+        approved_rows: list[dict[str, Any]],
+        review_package_sha256: str,
+        approval_artifact_sha256: str,
+        reviewed_by: str,
     ) -> dict[str, Any]:
         """Read-only M3 identity acceptance, independent of valuation coverage."""
+        approved = {
+            (row["api_football_player_id"], row["team_external_id"]): row
+            for row in approved_rows
+        }
         payload = self.fixture_payload(str(fixture_id))
         fixture = payload.get("fixture", {}) if isinstance(payload, dict) else {}
         try:
@@ -1136,6 +1358,7 @@ class FutureRefreshDbRepository:
             latest: dict[str, StructuredLineupSnapshotModel] = {}
             for snapshot in snapshots:
                 latest.setdefault(snapshot.team_external_id, snapshot)
+            confirmed_snapshots = sum(snapshot.confirmed for snapshot in latest.values())
             starters = session.scalars(
                 select(StructuredLineupPlayerModel)
                 .where(
@@ -1151,6 +1374,8 @@ class FutureRefreshDbRepository:
             ).all()
             rows: list[dict[str, Any]] = []
             missing = ambiguous = conflicts = invalid = 0
+            provenance_valid = package_valid = approval_valid = 0
+            source_hashes_valid = team_consistent = valid_at_kickoff = 0
             for player in starters:
                 snapshot = next(
                     value for value in latest.values() if value.id == player.lineup_snapshot_id
@@ -1193,6 +1418,58 @@ class FutureRefreshDbRepository:
                 if mapping.mapping_status != "REVIEWED":
                     missing += 1
                     continue
+                expected = approved.get(
+                    (player.api_football_player_id, snapshot.team_external_id)
+                )
+                expected_sources = (
+                    sorted(
+                        {
+                            *expected["source_hashes"],
+                            review_package_sha256,
+                            approval_artifact_sha256,
+                        }
+                    )
+                    if expected is not None
+                    else []
+                )
+                provenance_ok = (
+                    mapping.reviewed_by == reviewed_by
+                    and mapping.reviewed_at is not None
+                    and mapping.evidence.get("reviewed_by") == reviewed_by
+                    and bool(mapping.evidence.get("reviewed_at"))
+                )
+                package_ok = (
+                    mapping.evidence.get("review_package_sha256")
+                    == review_package_sha256
+                )
+                approval_ok = (
+                    mapping.evidence.get("approval_artifact_sha256")
+                    == approval_artifact_sha256
+                )
+                sources_ok = (
+                    expected is not None
+                    and sorted(mapping.evidence.get("source_artifact_hashes", []))
+                    == expected_sources
+                )
+                team_ok = (
+                    expected is not None
+                    and expected["fixture_id"] == str(fixture_id)
+                    and expected["team_external_id"] == snapshot.team_external_id
+                    and mapping.canonical_player_id == expected["canonical_player_id"]
+                    and mapping.transfermarkt_player_id
+                    == expected["transfermarkt_player_id"]
+                    and mapping.evidence.get("canonical_team_id")
+                    == expected["canonical_team_id"]
+                    and mapping.evidence.get("transfermarkt_club_id")
+                    == expected["transfermarkt_club_id"]
+                    and snapshot.team_w2_id == expected["canonical_team_id"]
+                )
+                provenance_valid += int(provenance_ok)
+                package_valid += int(package_ok)
+                approval_valid += int(approval_ok)
+                source_hashes_valid += int(sources_ok)
+                team_consistent += int(team_ok)
+                valid_at_kickoff += 1
                 rows.append(
                     {
                         "api_football_player_id": player.api_football_player_id,
@@ -1201,6 +1478,28 @@ class FutureRefreshDbRepository:
                         "api_football_team_id": snapshot.team_external_id,
                         "canonical_team_id": mapping.evidence.get("canonical_team_id"),
                         "identity_hash": mapping.identity_hash,
+                        "reviewed_by": mapping.reviewed_by,
+                        "reviewed_at": (
+                            iso_z(mapping.reviewed_at)
+                            if mapping.reviewed_at is not None
+                            else None
+                        ),
+                        "review_package_sha256": mapping.evidence.get(
+                            "review_package_sha256"
+                        ),
+                        "approval_artifact_sha256": mapping.evidence.get(
+                            "approval_artifact_sha256"
+                        ),
+                        "source_artifact_hashes": mapping.evidence.get(
+                            "source_artifact_hashes", []
+                        ),
+                        "valid_from": iso_z(mapping.valid_from),
+                        "valid_to": (
+                            iso_z(mapping.valid_to)
+                            if mapping.valid_to is not None
+                            else None
+                        ),
+                        "team_consistent": team_ok,
                     }
                 )
             provider_ids = [row["api_football_player_id"] for row in rows]
@@ -1223,10 +1522,17 @@ class FutureRefreshDbRepository:
                 ).encode("utf-8")
             ).hexdigest()
             metrics = {
+                "CONFIRMED_SNAPSHOTS": confirmed_snapshots,
                 "CONFIRMED_STARTERS": len(starters),
                 "UNIQUE_PROVIDER_PLAYERS": len(set(provider_ids)),
                 "UNIQUE_CANONICAL_PLAYERS": len(set(canonical_ids)),
                 "REVIEWED_MAPPINGS": len(rows),
+                "REVIEW_PROVENANCE_VALID": provenance_valid,
+                "PACKAGE_HASH_VALID": package_valid,
+                "APPROVAL_HASH_VALID": approval_valid,
+                "SOURCE_HASHES_VALID": source_hashes_valid,
+                "TEAM_CONSISTENT": team_consistent,
+                "VALID_AT_KICKOFF": valid_at_kickoff,
                 "MISSING": missing,
                 "AMBIGUOUS": ambiguous,
                 "CONFLICT": conflicts,
@@ -1234,10 +1540,17 @@ class FutureRefreshDbRepository:
                 "INVALID_AT_KICKOFF": invalid,
             }
             passed = metrics == {
+                "CONFIRMED_SNAPSHOTS": 2,
                 "CONFIRMED_STARTERS": 22,
                 "UNIQUE_PROVIDER_PLAYERS": 22,
                 "UNIQUE_CANONICAL_PLAYERS": 22,
                 "REVIEWED_MAPPINGS": 22,
+                "REVIEW_PROVENANCE_VALID": 22,
+                "PACKAGE_HASH_VALID": 22,
+                "APPROVAL_HASH_VALID": 22,
+                "SOURCE_HASHES_VALID": 22,
+                "TEAM_CONSISTENT": 22,
+                "VALID_AT_KICKOFF": 22,
                 "MISSING": 0,
                 "AMBIGUOUS": 0,
                 "CONFLICT": 0,
@@ -1245,7 +1558,7 @@ class FutureRefreshDbRepository:
                 "INVALID_AT_KICKOFF": 0,
             }
             return {
-                "schema_version": "w2.player_identity_join_evidence.v1",
+                "schema_version": "w2.player_identity_join_evidence.v2",
                 "fixture_id": str(fixture_id),
                 "kickoff_utc": iso_z(kickoff) if kickoff is not None else None,
                 "status": "PASS" if passed else "INCOMPLETE",
