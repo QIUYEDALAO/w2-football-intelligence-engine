@@ -47,6 +47,7 @@
 | ARCH-P1-03B | #402 | `df8fc4578fb4d45e2fb7afb95f58748f459a69a8` | 球员身份 M2B 与三场强化 M3 收敛 |
 | ARCH-P1-03C | #404 | `4e310e87def0e6e44e0fe69fa0c07f776126a6fc` | 三张 legacy identity 表及 ORM 声明下线 |
 | ARCH-GOVERNANCE-02 | #406 | `cf5d6ea2cca600e31d4058b7d359b271d12d1f04` | path-aware CI、稳定聚合门与 required contexts 切换 |
+| ARCH-P1-04D-R1 | #408 | `09ece0204bed1289986e20d6a1cff842cb2f0864` | canonical decision contract 遗留兼容读取整改 |
 
 ---
 
@@ -606,14 +607,18 @@ Lock、Production 或 scheduler。
 #### A13. ARCH-P1-04D-R1：ARCH-P1-04D remediation
 
 ```text
-Status: IMPLEMENTED_PENDING_ACCEPTANCE
-Branch: codex/arch-p1-04d-r1
+Status: DONE
+PR: #408
+Implementation PR: #408
+Merge SHA: 09ece0204bed1289986e20d6a1cff842cb2f0864
+Accepted Head: 47a7c823967cf4ea98221556d96e8a30a948318d
+External Acceptance: W2_EXTERNAL_ACCEPTANCE_V1
+Implementation CI run: 30209918909
 Base SHA: ca8e98fc111c0e4ca334783572815a7baee1b9e8
-Implementation SHA: GITHUB_PR_EXACT_HEAD
 Historical task: ARCH-P1-04D (DONE, PR #398,
   merge e6e447293365ca29686b21876cab5e103829b1ed)
 Predecessor: ARCH-GOVERNANCE-02
-Successor: ARCH-P1-03B-R1
+Successor: ARCH-P1-03B-R1 (NOT_STARTED)
 ```
 
 本任务只承载对历史 DONE 任务的后续整改；不得改写 `ARCH-P1-04D` 的 DONE 状态、
