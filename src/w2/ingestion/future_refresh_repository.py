@@ -391,11 +391,10 @@ class FutureRefreshDbRepository:
                     )
                     full_name = str(squad_evidence.get("full_name") or "")
                     normalized = normalize_player_name(full_name or player.player_name)
-                    references = (
+                    club_references = (
                         session.scalars(
                             select(TransfermarktPlayerReferenceModel)
                             .where(
-                                TransfermarktPlayerReferenceModel.normalized_name == normalized,
                                 TransfermarktPlayerReferenceModel.current_club_id
                                 == tm_authority.provider_team_id,
                                 TransfermarktPlayerReferenceModel.observed_at <= as_of,
@@ -408,9 +407,45 @@ class FutureRefreshDbRepository:
                         if full_name and tm_authority is not None
                         else []
                     )
-                    newest_by_id: dict[str, TransfermarktPlayerReferenceModel] = {}
-                    for reference in references:
-                        newest_by_id.setdefault(reference.transfermarkt_player_id, reference)
+                    newest_club_by_id: dict[str, TransfermarktPlayerReferenceModel] = {}
+                    for reference in club_references:
+                        newest_club_by_id.setdefault(
+                            reference.transfermarkt_player_id,
+                            reference,
+                        )
+                    exact_references = [
+                        reference
+                        for reference in newest_club_by_id.values()
+                        if reference.normalized_name == normalized
+                    ]
+                    first_name = str(squad_evidence.get("first_name") or "")
+                    last_name = str(squad_evidence.get("last_name") or "")
+                    normalized_first = normalize_player_name(first_name)
+                    normalized_last = normalize_player_name(last_name)
+                    evidenced_references = (
+                        [
+                            reference
+                            for reference in newest_club_by_id.values()
+                            if normalized_first
+                            and normalized_last
+                            and reference.normalized_name.startswith(normalized_first[:1])
+                            and reference.normalized_name.endswith(normalized_last)
+                        ]
+                        if squad_evidence.get("endpoint") == "players"
+                        else []
+                    )
+                    candidate_references = exact_references or evidenced_references
+                    newest_by_id = {
+                        reference.transfermarkt_player_id: reference
+                        for reference in candidate_references
+                    }
+                    match_mode = (
+                        "EXACT_FULL_NORMALIZED_NAME"
+                        if exact_references
+                        else "PROVIDER_FULL_NAME_INITIAL_SURNAME"
+                        if evidenced_references
+                        else None
+                    )
                     resolution = resolve_player_identity(
                         api_football_player_id=player.api_football_player_id,
                         player_name=full_name or player.player_name,
@@ -419,7 +454,11 @@ class FutureRefreshDbRepository:
                         candidates=[
                             PlayerIdentityCandidate(
                                 transfermarkt_player_id=reference.transfermarkt_player_id,
-                                player_name=reference.player_name,
+                                player_name=(
+                                    full_name
+                                    if match_mode == "PROVIDER_FULL_NAME_INITIAL_SURNAME"
+                                    else reference.player_name
+                                ),
                                 team_external_id=snapshot.team_external_id,
                                 position=reference.position,
                             )
@@ -470,7 +509,10 @@ class FutureRefreshDbRepository:
                         "api_football_player_id": player.api_football_player_id,
                         "api_football_lineup_name": player.player_name,
                         "provider_full_name": full_name or None,
+                        "provider_first_name": first_name or None,
+                        "provider_last_name": last_name or None,
                         "provider_full_name_endpoint": squad_evidence.get("endpoint"),
+                        "name_match_mode": match_mode,
                         "normalized_full_name": normalized if full_name else None,
                         "provider_position": player.provider_position,
                         "api_football_team_id": snapshot.team_external_id,
@@ -621,6 +663,8 @@ class FutureRefreshDbRepository:
                         continue
                     return {
                         "full_name": f"{first_name} {last_name}",
+                        "first_name": first_name,
+                        "last_name": last_name,
                         "position": None,
                         "endpoint": "players",
                         "source_sha256": row.sha256,

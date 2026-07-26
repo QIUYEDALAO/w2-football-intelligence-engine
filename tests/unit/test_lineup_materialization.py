@@ -511,6 +511,16 @@ def test_m2b_uses_explicit_player_profile_name_when_squad_name_is_abbreviated() 
         engine,
         missing_squad_player_id="100",
     )
+    with Session(engine) as session:
+        reference = session.scalar(
+            select(TransfermarktPlayerReferenceModel).where(
+                TransfermarktPlayerReferenceModel.transfermarkt_player_id == "tm-100"
+            )
+        )
+        assert reference is not None
+        reference.player_name = "Pavel 100"
+        reference.normalized_name = "pavel100"
+        session.commit()
     captured_at = kickoff.replace(hour=17)
     repository.save_lineup_snapshots(
         fixture_id="fixture-authority",
@@ -559,6 +569,7 @@ def test_m2b_uses_explicit_player_profile_name_when_squad_name_is_abbreviated() 
     assert mapping is not None
     assert mapping.evidence["provider_full_name"] == "Player 100"
     assert mapping.evidence["provider_full_name_endpoint"] == "players"
+    assert mapping.evidence["name_match_mode"] == "PROVIDER_FULL_NAME_INITIAL_SURNAME"
 
 
 def test_player_identity_join_evidence_is_read_only_and_deterministic() -> None:
