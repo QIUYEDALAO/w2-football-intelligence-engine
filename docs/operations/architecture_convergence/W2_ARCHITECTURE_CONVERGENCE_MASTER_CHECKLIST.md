@@ -606,7 +606,10 @@ Lock、Production 或 scheduler。
 #### A13. ARCH-P1-04D-R1：ARCH-P1-04D remediation
 
 ```text
-Status: NOT_STARTED
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Branch: codex/arch-p1-04d-r1
+Base SHA: ca8e98fc111c0e4ca334783572815a7baee1b9e8
+Implementation SHA: GITHUB_PR_EXACT_HEAD
 Historical task: ARCH-P1-04D (DONE, PR #398,
   merge e6e447293365ca29686b21876cab5e103829b1ed)
 Predecessor: ARCH-GOVERNANCE-02
@@ -615,6 +618,16 @@ Successor: ARCH-P1-03B-R1
 
 本任务只承载对历史 DONE 任务的后续整改；不得改写 `ARCH-P1-04D` 的 DONE 状态、
 PR、Merge SHA 或已完成台账。
+
+- [x] 删除 `decision_adapter` 对 legacy readiness 的重建 fallback；canonical
+      `data_readiness` 缺失时生成明确 BLOCKED 非 pick。
+- [x] 删除 fair line、edge、blocker 与 divergence 的 `pricing_shadow` fallback；
+      canonical `analysis_evidence` 不完整时生成 NOT_READY 非 pick。
+- [x] 更新旧形状测试为 canonical readiness/evidence，并覆盖两类缺失输入。
+- [x] 强化 `LEGACY_DECISION_CONTRACT_CODE = 0` 守卫，覆盖真实遗留符号。
+
+**不做**：不改模型数学、EV、阈值或安全开关。
+**资产账本**：新增表/文件/配置 0；删除 legacy fallback 代码。
 
 ---
 

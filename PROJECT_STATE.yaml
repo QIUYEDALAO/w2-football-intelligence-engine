@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-26T14:20:56Z"
+updated_at: "2026-07-26T14:58:33Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -25,14 +25,14 @@ context_read_order:
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  main_sha: cf5d6ea2cca600e31d4058b7d359b271d12d1f04
+  main_sha: ca8e98fc111c0e4ca334783572815a7baee1b9e8
   main_migration_head: 0043_drop_legacy_identity_crosswalks
-  pull_request: GITHUB_CLOSURE_PR
+  pull_request: GITHUB_IMPLEMENTATION_PR
   pull_request_mode: DRAFT
-  pull_request_head_branch: codex/arch-governance-02-closure
-  task_baseline_sha: cf5d6ea2cca600e31d4058b7d359b271d12d1f04
-  local_work_branch: codex/arch-governance-02-closure
-  github_sync_status: ARCH_GOVERNANCE_02_CLOSURE_DRAFT_EXTERNAL_REVIEW_PENDING
+  pull_request_head_branch: codex/arch-p1-04d-r1
+  task_baseline_sha: ca8e98fc111c0e4ca334783572815a7baee1b9e8
+  local_work_branch: codex/arch-p1-04d-r1
+  github_sync_status: ARCH_P1_04D_R1_DRAFT_EXTERNAL_REVIEW_PENDING
   ci_checks:
     CI_REQUIRED: GITHUB_PR_EXACT_HEAD
     PRE_MERGE_READINESS_GATE: EXPECTED_FAIL_DRAFT_AND_EXTERNAL_ACCEPTANCE_PENDING
@@ -127,11 +127,11 @@ architecture_convergence:
     required_contexts: CI_REQUIRED_PRE_POST
   current_task:
     id: ARCH-P1-04D-R1
-    status: NOT_STARTED
+    status: IMPLEMENTED_PENDING_ACCEPTANCE
     predecessor: ARCH-GOVERNANCE-02
     successor_task: ARCH-P1-03B-R1
     scope: ARCH_P1_04D_REMEDIATION
-    phase: NOT_STARTED
+    phase: IMPLEMENTED_PENDING_ACCEPTANCE
     formal_enabled: false
     candidate_runtime_enabled: false
     lock_enabled: false
@@ -251,7 +251,7 @@ architecture_convergence:
     ARCH-P1-03B: DONE
     ARCH-P1-03C: DONE
     ARCH-GOVERNANCE-02: DONE
-    ARCH-P1-04D-R1: NOT_STARTED
+    ARCH-P1-04D-R1: IMPLEMENTED_PENDING_ACCEPTANCE
     ARCH-P1-03B-R1: NOT_STARTED
     ARCH-OBS-01: NOT_STARTED
     ARCH-EVIDENCE-01: NOT_STARTED
