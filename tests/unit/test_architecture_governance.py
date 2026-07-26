@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import copy
 import json
 from pathlib import Path
 from typing import Any
@@ -38,17 +39,92 @@ ACTUAL_MERGES = {
     406: "cf5d6ea2cca600e31d4058b7d359b271d12d1f04",
     408: "09ece0204bed1289986e20d6a1cff842cb2f0864",
 }
+MATRIX_PATH = (
+    ROOT / "docs/operations/architecture_convergence/acceptance_matrices" / "ARCH-P1-03B-R1.json"
+)
 
 
 def test_secondary_review_protocol_allows_lightweight_closure_ci() -> None:
     protocol = (
-        ROOT
-        / "docs/operations/architecture_convergence"
-        / "W2_GITHUB_SECONDARY_REVIEW_PROTOCOL.md"
+        ROOT / "docs/operations/architecture_convergence" / "W2_GITHUB_SECONDARY_REVIEW_PROTOCOL.md"
     ).read_text(encoding="utf-8")
     assert "docs/status-only closure = LIGHTWEIGHT_CI_REQUIRED" in protocol
     assert "所有 closure 强制 full CI" not in protocol
     assert "verify/staging-parity/predeploy-e2e=PASS" not in protocol
+
+
+def frozen_matrix() -> dict[str, Any]:
+    return json.loads(MATRIX_PATH.read_text(encoding="utf-8"))
+
+
+def test_arch_p1_03b_r1_frozen_matrix_is_machine_valid() -> None:
+    assert (
+        governance.validate_acceptance_matrix(
+            frozen_matrix(),
+            root=ROOT,
+            expected_task="ARCH-P1-03B-R1",
+        )
+        == []
+    )
+
+
+def test_matrix_hashes_and_required_case_set_fail_closed() -> None:
+    payload = frozen_matrix()
+    payload["input_shapes"][0]["shape"]["status"] = "PASS"
+    assert "MATRIX_INPUT_SHAPE_HASH_MISMATCH:real_repository_producer_to_consumer_output" in (
+        governance.validate_acceptance_matrix(payload, root=ROOT)
+    )
+
+    payload = frozen_matrix()
+    payload["cases"] = payload["cases"][:-1]
+    assert "MATRIX_CASE_SET_INVALID" in governance.validate_acceptance_matrix(payload, root=ROOT)
+
+
+def test_handwritten_fixture_cannot_be_primary_contract_evidence() -> None:
+    payload = frozen_matrix()
+    payload["primary_contract_tests"][0]["input_origin"] = "HANDWRITTEN_APPROXIMATION"
+    assert "MATRIX_PRIMARY_CONTRACT_TEST_INVALID" in governance.validate_acceptance_matrix(
+        payload, root=ROOT
+    )
+
+
+def test_three_layer_claim_and_external_evidence_are_fail_closed() -> None:
+    payload = frozen_matrix()
+    payload["claims"][0]["status"] = "PASS"
+    assert "MATRIX_CLAIM_PROOF_INCOMPLETE:DEAD_CODE" in (
+        governance.validate_acceptance_matrix(payload, root=ROOT)
+    )
+
+    payload = frozen_matrix()
+    payload["task_status"] = "DONE"
+    assert "MATRIX_DONE_WITHOUT_EXTERNAL_EVIDENCE" in (
+        governance.validate_acceptance_matrix(payload, root=ROOT)
+    )
+
+
+def test_matrix_review_miss_policy_and_frozen_hash_cannot_drift() -> None:
+    payload = copy.deepcopy(frozen_matrix())
+    payload["review_policy"]["old_head_first_miss_label"] = "NEW_STANDARD"
+    errors = governance.validate_acceptance_matrix(payload, root=ROOT)
+    assert "MATRIX_REVIEW_POLICY_INVALID" in errors
+    assert "MATRIX_HASH_MISMATCH" in errors
+
+
+def test_post_governance_task_requires_a_frozen_matrix(tmp_path: Path) -> None:
+    tasks = [
+        governance.TaskRecord("ARCH-GOVERNANCE-03", "DONE", ""),
+        governance.TaskRecord("ARCH-P1-03B-R1", "IMPLEMENTED_PENDING_ACCEPTANCE", ""),
+    ]
+    assert governance._task_requires_matrix(tasks, "ARCH-P1-03B-R1")
+    assert governance.validate_task_acceptance_matrix("ARCH-P1-03B-R1", root=tmp_path) == [
+        "ACCEPTANCE_MATRIX_MISSING_OR_INVALID:ARCH-P1-03B-R1"
+    ]
+    assert governance.task_acceptance_gate("ARCH-P1-03B-R1", "IMPLEMENTATION", root=ROOT) == [
+        "MATRIX_IMPLEMENTATION_GATE_BLOCKED:ARCH-P1-03B-R1"
+    ]
+    assert governance.task_acceptance_gate("ARCH-P1-03B-R1", "CLOSURE", root=ROOT) == [
+        "MATRIX_CLOSURE_EVIDENCE_BLOCKED:ARCH-P1-03B-R1"
+    ]
 
 
 def ci_jobs(plan: Any | None = None) -> list[dict[str, str]]:
@@ -107,10 +183,7 @@ class FakeClient:
     def list_pull_files(self, number: int) -> list[dict[str, Any]]:
         if self.fail == "files":
             raise governance.GovernanceError("GITHUB_API_ERROR:TimeoutError")
-        return [
-            item if isinstance(item, dict) else {"filename": item}
-            for item in self.files
-        ]
+        return [item if isinstance(item, dict) else {"filename": item} for item in self.files]
 
     def list_reviews(self, number: int) -> list[dict[str, Any]]:
         if self.fail == "reviews":
@@ -134,11 +207,7 @@ def valid_body(task: str = "ARCH-GOVERNANCE-01", extra: str = "") -> str:
         f"   - Complete answer for governance question {number}."
         for number in range(1, 9)
     )
-    return (
-        f"W2_TASK_ID: {task}\n"
-        "W2_PR_KIND: IMPLEMENTATION\n\n"
-        f"{questions}\n{extra}"
-    )
+    return f"W2_TASK_ID: {task}\nW2_PR_KIND: IMPLEMENTATION\n\n{questions}\n{extra}"
 
 
 def valid_pull(*, body: str | None = None, draft: bool = False) -> dict[str, Any]:
@@ -291,7 +360,8 @@ def test_github_client_authenticates_checklist_api(
 
 def test_github_client_requires_credential() -> None:
     with pytest.raises(  # token = required credential
-        governance.GovernanceError, match="GITHUB_TOKEN_MISSING"  # token = required
+        governance.GovernanceError,
+        match="GITHUB_TOKEN_MISSING",  # token = required
     ):
         governance.GitHubClient("owner/repository", "")
 
@@ -463,9 +533,7 @@ def test_pre_merge_inactive_or_invalid_review_state_is_ignored(state: str) -> No
 
 
 def test_pre_merge_edited_review_uses_current_structured_body() -> None:
-    result = pre_result(
-        reviews=[valid_review(state="COMMENTED", decision="REMEDIATION_REQUIRED")]
-    )
+    result = pre_result(reviews=[valid_review(state="COMMENTED", decision="REMEDIATION_REQUIRED")])
     assert result.details["EXTERNAL_ACCEPTANCE"] == "INVALID"
     assert "ACCEPTANCE_NEGATIVE_DECISION" in result.errors
 
@@ -596,10 +664,7 @@ def test_post_merge_historical_unique_short_sha_passes() -> None:
 
 
 def test_post_merge_ambiguous_historical_prefix_fails() -> None:
-    rows = (
-        "| ARCH-00 | #371 | `abcdef0` | done |\n"
-        "| ARCH-01 | #374 | `abcdef0` | done |"
-    )
+    rows = "| ARCH-00 | #371 | `abcdef0` | done |\n| ARCH-01 | #374 | `abcdef0` | done |"
     pulls = merged_pulls({371: "abcdef0" + "1" * 33, 374: "abcdef0" + "2" * 33})
     result = governance.check_post_merge(
         checklist(ledger_rows=rows),
@@ -619,8 +684,7 @@ def test_post_merge_too_short_historical_sha_fails() -> None:
 def test_post_merge_new_task_requires_full_sha() -> None:
     full = "c" * 40
     rows = (
-        "| ARCH-00 | #371 | `09ca14a9` | done |\n"
-        "| ARCH-GOVERNANCE-01 | #393 | `cccccccc` | done |"
+        "| ARCH-00 | #371 | `09ca14a9` | done |\n| ARCH-GOVERNANCE-01 | #393 | `cccccccc` | done |"
     )
     pulls = merged_pulls({371: ACTUAL_MERGES[371], 393: full})
     result = governance.check_post_merge(
@@ -636,8 +700,7 @@ def test_post_merge_new_task_requires_full_sha() -> None:
 
 def test_post_merge_duplicate_done_task_fails() -> None:
     rows = (
-        "| ARCH-00 | #371 | `09ca14a9` | done |\n"
-        "| ARCH-00 duplicate | #374 | `160a6750` | done |"
+        "| ARCH-00 | #371 | `09ca14a9` | done |\n| ARCH-00 duplicate | #374 | `160a6750` | done |"
     )
     result = governance.check_post_merge(
         checklist(ledger_rows=rows),
@@ -647,10 +710,7 @@ def test_post_merge_duplicate_done_task_fails() -> None:
 
 
 def test_post_merge_same_pr_cannot_bind_two_tasks() -> None:
-    rows = (
-        "| ARCH-00 | #371 | `09ca14a9` | done |\n"
-        "| ARCH-01 | #371 | `09ca14a9` | done |"
-    )
+    rows = "| ARCH-00 | #371 | `09ca14a9` | done |\n| ARCH-01 | #371 | `09ca14a9` | done |"
     result = governance.check_post_merge(
         checklist(ledger_rows=rows),
         FakeClient(pulls=merged_pulls({371: ACTUAL_MERGES[371]})),
@@ -677,8 +737,7 @@ def test_post_merge_merged_pr_with_pending_task_fails() -> None:
 
 def test_post_merge_closure_to_done_passes() -> None:
     rows = (
-        "| ARCH-00 | #371 | `09ca14a9` | done |\n"
-        f"| ARCH-GOVERNANCE-01 | #393 | `{HEAD}` | closed |"
+        f"| ARCH-00 | #371 | `09ca14a9` | done |\n| ARCH-GOVERNANCE-01 | #393 | `{HEAD}` | closed |"
     )
     pulls = merged_pulls({371: ACTUAL_MERGES[371], 393: HEAD})
     result = governance.check_post_merge(
@@ -694,12 +753,9 @@ def test_post_merge_closure_to_done_passes() -> None:
 
 def test_pre_merge_a1_closure_passes_without_starting_a2() -> None:
     rows = (
-        "| ARCH-00 | #371 | `09ca14a9` | done |\n"
-        f"| ARCH-GOVERNANCE-01 | #393 | `{HEAD}` | closed |"
+        f"| ARCH-00 | #371 | `09ca14a9` | done |\n| ARCH-GOVERNANCE-01 | #393 | `{HEAD}` | closed |"
     )
-    body = valid_body().replace(
-        "W2_PR_KIND: IMPLEMENTATION", "W2_PR_KIND: CLOSURE"
-    )
+    body = valid_body().replace("W2_PR_KIND: IMPLEMENTATION", "W2_PR_KIND: CLOSURE")
     result = pre_result(
         reviews=[valid_review()],
         body=body,
@@ -716,10 +772,7 @@ def test_pre_merge_non_a1_closure_passes_when_base_task_is_pending() -> None:
     # A2 closes through a CLOSURE PR: head carries A2=DONE, base still has A2 as
     # the current IMPLEMENTED_PENDING_ACCEPTANCE task. Full PASS, not just the
     # absence of the old A1-only error.
-    rows = (
-        "| ARCH-00 | #371 | `09ca14a9` | done |\n"
-        f"| ARCH-P1-04C | #395 | `{HEAD}` | closed |"
-    )
+    rows = f"| ARCH-00 | #371 | `09ca14a9` | done |\n| ARCH-P1-04C | #395 | `{HEAD}` | closed |"
     body = valid_body(task="ARCH-P1-04C").replace(
         "W2_PR_KIND: IMPLEMENTATION", "W2_PR_KIND: CLOSURE"
     )
@@ -821,9 +874,7 @@ def test_workflow_is_read_only_and_uses_exact_check_names() -> None:
         "contents": "read",
         "pull-requests": "read",
     }
-    assert {
-        job["name"] for job in workflow["jobs"].values()
-    } == {
+    assert {job["name"] for job in workflow["jobs"].values()} == {
         "PRE_MERGE_READINESS_GATE",
         "POST_MERGE_CHECKLIST_CONSISTENCY_GATE",
     }
@@ -861,9 +912,7 @@ def test_workflow_is_read_only_and_uses_exact_check_names() -> None:
     ]
     assert all("pull_request.head" not in ref for ref in checkout_refs)
     assert all(
-        "pull_request.base.sha" in ref
-        or "repository.default_branch" in ref
-        or "github.sha" in ref
+        "pull_request.base.sha" in ref or "repository.default_branch" in ref or "github.sha" in ref
         for ref in checkout_refs
     )
 

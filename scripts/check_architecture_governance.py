@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
 import os
 import re
@@ -33,6 +34,7 @@ except ModuleNotFoundError:  # direct `python scripts/check_...py` execution
 PROTOCOL_ID = "GITHUB_SECONDARY_REVIEW_PROTOCOL_V1"
 ACCEPTANCE_MARKER = "W2_EXTERNAL_ACCEPTANCE_V1"
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 TASK_MARKER_RE = re.compile(r"(?m)^W2_TASK_ID:\s*([A-Z0-9-]+)\s*$")
 PR_KIND_FIELD_RE = re.compile(r"(?m)^W2_PR_KIND:\s*(IMPLEMENTATION|CLOSURE)\s*$")
 TASK_HEADING_RE = re.compile(r"(?m)^####\s+[A-Z]\d+\.\s+([A-Z][A-Z0-9-]+)")
@@ -40,8 +42,7 @@ STATUS_RE = re.compile(r"(?m)^Status:\s*([A-Z_]+)\s*$")
 FIELD_RE = re.compile(r"(?m)^([A-Z_]+):\s*(\S.*?)\s*$")
 
 CHECKLIST_PATH = (
-    "docs/operations/architecture_convergence/"
-    "W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md"
+    "docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md"
 )
 A1_ALLOWED_PATHS = {
     ".github/workflows/architecture-governance.yml",
@@ -68,6 +69,29 @@ VALID_STATUSES = {
     "IMPLEMENTED_PENDING_ACCEPTANCE",
     "BLOCKED",
     "DONE",
+}
+MATRIX_SCHEMA_VERSION = "w2.architecture_acceptance_matrix.v1"
+MATRIX_SCHEMA_PATH = "contracts/governance/architecture_acceptance_matrix.v1.schema.json"
+MATRIX_DIR = Path("docs/operations/architecture_convergence/acceptance_matrices")
+REQUIRED_MATRIX_CASES = {
+    "valid",
+    "missing",
+    "malformed",
+    "stale",
+    "ambiguous",
+    "conflict",
+}
+REQUIRED_MATRIX_CLAIMS = {
+    "DEAD_CODE",
+    "ZERO_REACHABILITY",
+    "SINGLE_AUTHORITY",
+    "ZERO_LEGACY_READ_WRITE",
+    "SAFE_DELETION",
+}
+REQUIRED_EVIDENCE_LAYERS = {
+    "static_ast",
+    "runtime_sql_trace",
+    "mutation_tests",
 }
 # These rows existed in the approved v3 ledger before ARCH-GOVERNANCE-01.
 HISTORICAL_DONE_PRS = {
@@ -118,6 +142,260 @@ class GateResult:
     def fail(self, code: str) -> None:
         if code not in self.errors:
             self.errors.append(code)
+
+
+def _canonical_sha256(value: Any) -> str:
+    return hashlib.sha256(
+        json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+def _repo_file(root: Path, value: Any) -> bool:
+    if not isinstance(value, str) or not value:
+        return False
+    path = Path(value)
+    return not path.is_absolute() and ".." not in path.parts and (root / path).is_file()
+
+
+def validate_acceptance_matrix(
+    payload: dict[str, Any],
+    *,
+    root: Path,
+    expected_task: str | None = None,
+) -> list[str]:
+    """Validate one frozen, production-shaped architecture acceptance matrix."""
+    errors: list[str] = []
+
+    def fail(code: str) -> None:
+        if code not in errors:
+            errors.append(code)
+
+    task_id = payload.get("task_id")
+    if payload.get("schema_version") != MATRIX_SCHEMA_VERSION:
+        fail("MATRIX_SCHEMA_VERSION_INVALID")
+    if payload.get("schema_path") != MATRIX_SCHEMA_PATH:
+        fail("MATRIX_SCHEMA_PATH_INVALID")
+    elif not _repo_file(root, payload["schema_path"]):
+        fail("MATRIX_SCHEMA_FILE_MISSING")
+    if payload.get("task_status") not in VALID_STATUSES:
+        fail("MATRIX_TASK_STATUS_INVALID")
+    if not isinstance(task_id, str) or not re.fullmatch(r"ARCH-[A-Z0-9-]+", task_id):
+        fail("MATRIX_TASK_ID_INVALID")
+    elif expected_task is not None and task_id != expected_task:
+        fail(f"MATRIX_TASK_MISMATCH:{task_id}:{expected_task}")
+    if not isinstance(payload.get("frozen_exact_head"), str) or not SHA_RE.fullmatch(
+        payload["frozen_exact_head"]
+    ):
+        fail("MATRIX_FROZEN_HEAD_INVALID")
+
+    scope = payload.get("frozen_scope")
+    if not isinstance(scope, dict):
+        fail("MATRIX_SCOPE_INVALID")
+    else:
+        expected_scope_hash = scope.get("sha256")
+        scope_body = {key: value for key, value in scope.items() if key != "sha256"}
+        if expected_scope_hash != _canonical_sha256(scope_body):
+            fail("MATRIX_SCOPE_HASH_MISMATCH")
+        for key in ("summary", "allowed", "forbidden"):
+            if not scope.get(key):
+                fail(f"MATRIX_SCOPE_{key.upper()}_MISSING")
+
+    inventory = payload.get("inventory")
+    if not isinstance(inventory, dict):
+        fail("MATRIX_INVENTORY_INVALID")
+    else:
+        for group in (
+            "entry_points",
+            "producers",
+            "consumers",
+            "storage",
+            "scripts",
+            "config_paths",
+        ):
+            rows = inventory.get(group)
+            if not isinstance(rows, list) or not rows:
+                fail(f"MATRIX_INVENTORY_{group.upper()}_MISSING")
+                continue
+            for row in rows:
+                path = row.get("path") if isinstance(row, dict) else None
+                if not _repo_file(root, path):
+                    fail(f"MATRIX_INVENTORY_PATH_INVALID:{group}")
+                frozen_sha = row.get("frozen_source_sha256") if isinstance(row, dict) else None
+                if frozen_sha is not None and (
+                    not isinstance(frozen_sha, str) or not SHA256_RE.fullmatch(frozen_sha)
+                ):
+                    fail(f"MATRIX_INVENTORY_SHA_INVALID:{group}")
+
+    shapes = payload.get("input_shapes")
+    if not isinstance(shapes, list) or not shapes:
+        fail("MATRIX_INPUT_SHAPES_MISSING")
+    else:
+        for shape in shapes:
+            if not isinstance(shape, dict):
+                fail("MATRIX_INPUT_SHAPE_INVALID")
+                continue
+            if shape.get("origin") not in {
+                "REAL_PRODUCER_OUTPUT",
+                "REAL_DB",
+                "TRACKED_REAL_ARTIFACT",
+            }:
+                fail("MATRIX_INPUT_ORIGIN_INVALID")
+            source_path = shape.get("source_path")
+            if not _repo_file(root, source_path):
+                fail("MATRIX_INPUT_SOURCE_PATH_INVALID")
+            source_sha = shape.get("source_sha256")
+            if not isinstance(source_sha, str) or not SHA256_RE.fullmatch(source_sha):
+                fail(f"MATRIX_INPUT_SOURCE_HASH_INVALID:{shape.get('id', 'UNKNOWN')}")
+            if shape.get("shape_sha256") != _canonical_sha256(shape.get("shape")):
+                fail(f"MATRIX_INPUT_SHAPE_HASH_MISMATCH:{shape.get('id', 'UNKNOWN')}")
+
+    cases = payload.get("cases")
+    case_types = (
+        {
+            case.get("type")
+            for case in cases
+            if isinstance(case, dict) and isinstance(case.get("type"), str)
+        }
+        if isinstance(cases, list)
+        else set()
+    )
+    if case_types != REQUIRED_MATRIX_CASES:
+        fail("MATRIX_CASE_SET_INVALID")
+    for case in cases if isinstance(cases, list) else []:
+        if not isinstance(case, dict):
+            fail("MATRIX_CASE_INVALID")
+            continue
+        if not case.get("expected_output") or case.get("fail_closed") is not True:
+            fail(f"MATRIX_CASE_EXPECTATION_INVALID:{case.get('type', 'UNKNOWN')}")
+        if not case.get("forbidden_behaviors"):
+            fail(f"MATRIX_CASE_FORBIDDEN_BEHAVIOR_MISSING:{case.get('type', 'UNKNOWN')}")
+
+    alias_rules = payload.get("alias_rules")
+    if not isinstance(alias_rules, list) or not alias_rules:
+        fail("MATRIX_ALIAS_RULES_MISSING")
+    elif any(
+        not isinstance(rule, dict)
+        or not rule.get("field")
+        or not isinstance(rule.get("exact_mapping"), dict)
+        for rule in alias_rules
+    ):
+        fail("MATRIX_ALIAS_RULE_INVALID")
+
+    layers = payload.get("evidence_layers")
+    if not isinstance(layers, dict) or set(layers) != REQUIRED_EVIDENCE_LAYERS:
+        fail("MATRIX_EVIDENCE_LAYER_SET_INVALID")
+        layers = {}
+    for name, layer in layers.items():
+        if not isinstance(layer, dict) or not layer.get("references"):
+            fail(f"MATRIX_EVIDENCE_LAYER_INVALID:{name}")
+
+    claims = payload.get("claims")
+    claim_names = (
+        {
+            claim.get("name")
+            for claim in claims
+            if isinstance(claim, dict) and isinstance(claim.get("name"), str)
+        }
+        if isinstance(claims, list)
+        else set()
+    )
+    if claim_names != REQUIRED_MATRIX_CLAIMS:
+        fail("MATRIX_CLAIM_SET_INVALID")
+    for claim in claims if isinstance(claims, list) else []:
+        if not isinstance(claim, dict):
+            fail("MATRIX_CLAIM_INVALID")
+            continue
+        status = claim.get("status")
+        if status not in {"PASS", "UNVERIFIABLE", "BLOCKED"}:
+            fail(f"MATRIX_CLAIM_STATUS_INVALID:{claim.get('name', 'UNKNOWN')}")
+        if status == "PASS":
+            proof = claim.get("proof")
+            if not isinstance(proof, dict) or set(proof) != REQUIRED_EVIDENCE_LAYERS:
+                fail(f"MATRIX_CLAIM_PROOF_INCOMPLETE:{claim.get('name', 'UNKNOWN')}")
+            elif any(
+                not isinstance(item, dict)
+                or item.get("status") != "PASS"
+                or item.get("measurement_source") in {None, "", "STATIC_CONSTANT"}
+                for item in proof.values()
+            ):
+                fail(f"MATRIX_CLAIM_PROOF_INVALID:{claim.get('name', 'UNKNOWN')}")
+
+    primary = payload.get("primary_contract_tests")
+    if not isinstance(primary, list) or not primary:
+        fail("MATRIX_PRIMARY_CONTRACT_TEST_MISSING")
+    else:
+        for test in primary:
+            if (
+                not isinstance(test, dict)
+                or test.get("input_origin") != "REAL_PRODUCER_OUTPUT"
+                or not test.get("producer")
+                or not test.get("consumer")
+                or test.get("fixture_role") == "PRIMARY_HANDWRITTEN_APPROXIMATION"
+            ):
+                fail("MATRIX_PRIMARY_CONTRACT_TEST_INVALID")
+            path = test.get("path") if isinstance(test, dict) else None
+            if not _repo_file(root, path):
+                fail("MATRIX_PRIMARY_CONTRACT_TEST_PATH_INVALID")
+
+    external = payload.get("external_evidence")
+    if not isinstance(external, dict) or external.get("status") not in {
+        "VERIFIED",
+        "UNVERIFIABLE",
+        "BLOCKED",
+    }:
+        fail("MATRIX_EXTERNAL_EVIDENCE_INVALID")
+    elif (
+        external.get("status") in {"UNVERIFIABLE", "BLOCKED"}
+        and payload.get("task_status") == "DONE"
+    ):
+        fail("MATRIX_DONE_WITHOUT_EXTERNAL_EVIDENCE")
+
+    review = payload.get("review_policy")
+    if not isinstance(review, dict) or (
+        review.get("frozen_before_implementation") is not True
+        or review.get("exact_head_change_requires_refreeze") is not True
+        or review.get("old_head_first_miss_label") != "REVIEW_MISS"
+        or review.get("post_implementation_review")
+        != "FROZEN_ASSERTIONS_AND_NEW_DIFF_REGRESSIONS_ONLY"
+    ):
+        fail("MATRIX_REVIEW_POLICY_INVALID")
+
+    matrix_hash = payload.get("matrix_sha256")
+    matrix_body = {key: value for key, value in payload.items() if key != "matrix_sha256"}
+    if matrix_hash != _canonical_sha256(matrix_body):
+        fail("MATRIX_HASH_MISMATCH")
+    return errors
+
+
+def validate_task_acceptance_matrix(task_id: str, *, root: Path) -> list[str]:
+    path = root / MATRIX_DIR / f"{task_id}.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return [f"ACCEPTANCE_MATRIX_MISSING_OR_INVALID:{task_id}"]
+    if not isinstance(payload, dict):
+        return [f"ACCEPTANCE_MATRIX_MISSING_OR_INVALID:{task_id}"]
+    return validate_acceptance_matrix(payload, root=root, expected_task=task_id)
+
+
+def task_acceptance_gate(task_id: str, pr_kind: str, *, root: Path) -> list[str]:
+    errors = validate_task_acceptance_matrix(task_id, root=root)
+    if errors:
+        return errors
+    payload = json.loads((root / MATRIX_DIR / f"{task_id}.json").read_text(encoding="utf-8"))
+    if pr_kind == "IMPLEMENTATION" and payload.get("implementation_gate") != "OPEN":
+        errors.append(f"MATRIX_IMPLEMENTATION_GATE_BLOCKED:{task_id}")
+    if pr_kind == "CLOSURE" and payload.get("external_evidence", {}).get("status") != "VERIFIED":
+        errors.append(f"MATRIX_CLOSURE_EVIDENCE_BLOCKED:{task_id}")
+    return errors
+
+
+def _task_requires_matrix(tasks: list[TaskRecord], task_id: str) -> bool:
+    order = [task.task_id for task in tasks]
+    try:
+        return order.index(task_id) > order.index("ARCH-GOVERNANCE-03")
+    except ValueError:
+        return False
 
 
 class GitHubClient:
@@ -200,8 +478,7 @@ class GitHubClient:
         if not SHA_RE.fullmatch(exact_head):
             raise GovernanceError("CI_HEAD_INVALID")
         return self._object_list(
-            f"/repos/{self.repository}/actions/workflows/ci.yml/runs"
-            f"?head_sha={exact_head}",
+            f"/repos/{self.repository}/actions/workflows/ci.yml/runs?head_sha={exact_head}",
             "workflow_runs",
         )
 
@@ -217,9 +494,7 @@ class GitHubClient:
         if not SHA_RE.fullmatch(ref):
             raise GovernanceError("CHECKLIST_REF_INVALID")
         encoded_path = urllib.parse.quote(path, safe="/")
-        payload = self._get(
-            f"/repos/{self.repository}/contents/{encoded_path}?ref={ref}"
-        )
+        payload = self._get(f"/repos/{self.repository}/contents/{encoded_path}?ref={ref}")
         try:
             if payload["encoding"] != "base64":
                 raise GovernanceError("CHECKLIST_CONTENT_ENCODING_INVALID")
@@ -399,9 +674,7 @@ def _find_ci_receipt(client: Any, exact_head: str, plan: CiPlan) -> int | None:
         ):
             continue
         run_id = run.get("id")
-        if isinstance(run_id, int) and _ci_receipt_matches(
-            plan, client.list_run_jobs(run_id)
-        ):
+        if isinstance(run_id, int) and _ci_receipt_matches(plan, client.list_run_jobs(run_id)):
             return run_id
     return None
 
@@ -487,6 +760,7 @@ def check_pre_merge(
     checklist: str,
     client: Any,
     base_checklist: str | None = None,
+    matrix_root: Path | None = None,
 ) -> GateResult:
     result = GateResult()
     try:
@@ -524,6 +798,9 @@ def check_pre_merge(
     tasks, task_errors = parse_tasks(checklist)
     for error in task_errors + validate_task_sequence(tasks):
         result.fail(error)
+    if matrix_root is not None and _task_requires_matrix(tasks, task_id):
+        for error in task_acceptance_gate(task_id, pr_kind, root=matrix_root):
+            result.fail(error)
     if task_id != "ARCH-GOVERNANCE-01" and base_checklist is not None:
         base_tasks, base_errors = parse_tasks(base_checklist)
         for error in base_errors:
@@ -577,9 +854,11 @@ def check_pre_merge(
                 result.fail(f"A1_OUT_OF_SCOPE_FILES:{','.join(unexpected)}")
         plan = required_ci_plan(changed_paths, pr_kind)
         result.details["CI_REQUIRED_PLAN"] = (
-            "FULL" if plan.full else "LIGHTWEIGHT" if not any(
-                getattr(plan, job) for job in CI_JOB_NAMES if job != "governance"
-            ) else "PATH_AWARE"
+            "FULL"
+            if plan.full
+            else "LIGHTWEIGHT"
+            if not any(getattr(plan, job) for job in CI_JOB_NAMES if job != "governance")
+            else "PATH_AWARE"
         )
         receipt = _find_ci_receipt(client, exact_head, plan)
         if receipt is None:
@@ -592,9 +871,7 @@ def check_pre_merge(
 
     try:
         reviews = client.list_reviews(number)
-        acceptance, acceptance_errors = validate_external_acceptance(
-            reviews, task_id, exact_head
-        )
+        acceptance, acceptance_errors = validate_external_acceptance(reviews, task_id, exact_head)
     except GovernanceError as exc:
         acceptance = "INVALID"
         acceptance_errors = [str(exc)]
@@ -604,11 +881,20 @@ def check_pre_merge(
     return result
 
 
-def check_post_merge(checklist: str, client: Any) -> GateResult:
+def check_post_merge(
+    checklist: str,
+    client: Any,
+    matrix_root: Path | None = None,
+) -> GateResult:
     result = GateResult()
     tasks, task_errors = parse_tasks(checklist)
     for error in task_errors + validate_task_sequence(tasks):
         result.fail(error)
+    if matrix_root is not None:
+        matrix_dir = matrix_root / MATRIX_DIR
+        for path in sorted(matrix_dir.glob("*.json")):
+            for error in validate_task_acceptance_matrix(path.stem, root=matrix_root):
+                result.fail(error)
     entries, ledger_errors = parse_done_entries(checklist)
     for error in ledger_errors:
         result.fail(error)
@@ -637,8 +923,10 @@ def check_post_merge(checklist: str, client: Any) -> GateResult:
             result.fail(str(exc))
             continue
         actual = pull.get("merge_commit_sha")
-        if pull.get("merged_at") is None or not isinstance(actual, str) or not SHA_RE.fullmatch(
-            actual
+        if (
+            pull.get("merged_at") is None
+            or not isinstance(actual, str)
+            or not SHA_RE.fullmatch(actual)
         ):
             result.fail(f"DONE_PR_NOT_MERGED:{entry.task_id}:#{entry.pr_number}")
             continue
@@ -772,6 +1060,7 @@ def main(argv: list[str] | None = None) -> int:
                 checklist,
                 client,
                 base_checklist=base_checklist,
+                matrix_root=Path.cwd(),
             )
             return _emit("PRE_MERGE_READINESS_GATE", result)
         checklist = (
@@ -779,7 +1068,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.checklist_ref
             else base_checklist
         )
-        result = check_post_merge(checklist, client)
+        result = check_post_merge(checklist, client, matrix_root=Path.cwd())
         return _emit("POST_MERGE_CHECKLIST_CONSISTENCY_GATE", result)
     except (OSError, GovernanceError) as exc:
         print(f"ERROR = {exc}")

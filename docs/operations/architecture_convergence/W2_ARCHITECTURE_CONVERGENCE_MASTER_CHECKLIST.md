@@ -618,7 +618,7 @@ Base SHA: ca8e98fc111c0e4ca334783572815a7baee1b9e8
 Historical task: ARCH-P1-04D (DONE, PR #398,
   merge e6e447293365ca29686b21876cab5e103829b1ed)
 Predecessor: ARCH-GOVERNANCE-02
-Successor: ARCH-P1-03B-R1 (NOT_STARTED)
+Successor: ARCH-GOVERNANCE-03
 ```
 
 本任务只承载对历史 DONE 任务的后续整改；不得改写 `ARCH-P1-04D` 的 DONE 状态、
@@ -636,14 +636,52 @@ PR、Merge SHA 或已完成台账。
 
 ---
 
-#### A14. ARCH-P1-03B-R1：ARCH-P1-03B remediation
+#### A14. ARCH-GOVERNANCE-03：真实生产输入形状与冻结验收矩阵规则
+
+```text
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Branch: codex/arch-governance-03-production-input-matrix
+Base SHA: 832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd
+Implementation SHA: GITHUB_PR_EXACT_HEAD
+Predecessor: ARCH-P1-04D-R1
+Successor: ARCH-P1-03B-R1 (NOT_STARTED)
+Matrix schema: contracts/governance/architecture_acceptance_matrix.v1.schema.json
+First matrix SHA-256: 930fb45e4ec14a46c0af61d467cec72255420e92e4bb5d6bdea3b21b61078822
+```
+
+- [x] 每个后续架构任务开工前冻结 exact head、范围、全部运行入口、真实
+      producer/consumer、DB table/view、脚本和配置路径。
+- [x] 冻结由真实 producer 或真实 DB/artifact 得到的脱敏输入形状、SHA、精确别名/
+      规范化规则，以及 valid/missing/malformed/stale/ambiguous/conflict 六类输入。
+- [x] 每类输入记录预期输出、fail-closed 与禁止行为；手写近似 fixture 只能作为补充，
+      主要契约测试必须把真实 producer 输出交给真实 consumer。
+- [x] `DEAD_CODE`、`ZERO_REACHABILITY`、`SINGLE_AUTHORITY`、
+      `ZERO_LEGACY_READ_WRITE`、`SAFE_DELETION` 只有 static/AST、
+      runtime/SQL trace、mutation 三层真实测量均 PASS 后才能 PASS。
+- [x] 外部证据不可取得时标记 `UNVERIFIABLE/BLOCKED`，禁止 DONE，禁止用守卫固定
+      数字替代测量。
+- [x] matrix 在实现前冻结并生成 hash；实现后只复核冻结断言与新 diff 回归。同一旧
+      head 首次漏审必须记录 `REVIEW_MISS`，不得包装成新标准。
+- [x] 首个只读实例冻结
+      `acceptance_matrices/ARCH-P1-03B-R1.json`；03B-R1 保持 `NOT_STARTED`，
+      外部 runtime/SQL trace 未取得，因此实施门为 `BLOCKED`。
+
+**不做**：不修改 03B-R1 生产代码、66 条审批、staging 数据、模型数学、provider 或
+任何安全开关。
+**资产账本**：新增 matrix schema 1、冻结 matrix 1；治理 checker 与回归测试扩展。
+
+---
+
+#### A15. ARCH-P1-03B-R1：ARCH-P1-03B remediation
 
 ```text
 Status: NOT_STARTED
 Historical task: ARCH-P1-03B (DONE, PR #402,
   merge df8fc4578fb4d45e2fb7afb95f58748f459a69a8)
-Predecessor: ARCH-P1-04D-R1
+Predecessor: ARCH-GOVERNANCE-03
 Successor: ARCH-OBS-01
+Frozen matrix: acceptance_matrices/ARCH-P1-03B-R1.json
+Matrix status: UNVERIFIABLE/BLOCKED
 ```
 
 本任务只承载对历史 DONE 任务的后续整改；不得改写 `ARCH-P1-03B` 的 DONE 状态、
@@ -651,7 +689,7 @@ PR、Merge SHA、66 条审批或 M3 验收坐标。
 
 ---
 
-#### A15. ARCH-OBS-01：架构可观测性整改
+#### A16. ARCH-OBS-01：架构可观测性整改
 
 ```text
 Status: NOT_STARTED
@@ -661,7 +699,7 @@ Successor: ARCH-EVIDENCE-01
 
 ---
 
-#### A16. ARCH-EVIDENCE-01：证据链整改
+#### A17. ARCH-EVIDENCE-01：证据链整改
 
 ```text
 Status: NOT_STARTED
@@ -671,7 +709,7 @@ Successor: ARCH-DONE-REAUDIT
 
 ---
 
-#### A17. ARCH-DONE-REAUDIT：历史 DONE 再审计
+#### A18. ARCH-DONE-REAUDIT：历史 DONE 再审计
 
 ```text
 Status: NOT_STARTED
