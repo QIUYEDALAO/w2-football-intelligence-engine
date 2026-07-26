@@ -649,7 +649,7 @@ def test_m2b_uses_explicit_player_profile_name_when_squad_name_is_abbreviated() 
     assert mapping is not None
     assert mapping.evidence["provider_full_name"] == "Karl Player 100"
     assert mapping.evidence["provider_full_name_endpoint"] == "players"
-    assert mapping.evidence["name_match_mode"] == "PROVIDER_FULL_NAME_TOKEN_SUBSEQUENCE"
+    assert mapping.evidence["name_match_mode"] == "PROVIDER_FULL_NAME_SUBSEQUENCE"
 
 
 def test_player_profile_name_can_use_separate_current_squad_team_evidence() -> None:
