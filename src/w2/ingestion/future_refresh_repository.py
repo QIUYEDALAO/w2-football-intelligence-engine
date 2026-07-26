@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Sequence
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -649,7 +650,7 @@ class FutureRefreshDbRepository:
 
     @staticmethod
     def _provider_player_evidence(
-        rows: list[RawPayloadModel],
+        rows: Sequence[RawPayloadModel],
         *,
         team_external_id: str,
         api_football_player_id: str,
