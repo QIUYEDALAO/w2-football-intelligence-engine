@@ -27,6 +27,20 @@ from w2.readiness.data_gate import (
 ANALYSIS_PICK_DISCLAIMER = DecisionPick.__dataclass_fields__["disclaimer"].default
 MIN_ANALYSIS_PICK_CONFIDENCE = 0.55
 MIN_MARKET_ANCHOR_DIVERGENCE = 0.05
+_SELECTION_ALIASES = {
+    "ASIAN_HANDICAP": {
+        "HOME": "HOME",
+        "HOME_AH": "HOME",
+        "AWAY": "AWAY",
+        "AWAY_AH": "AWAY",
+    },
+    "TOTALS": {
+        "OVER": "OVER",
+        "OVER_TOTALS": "OVER",
+        "UNDER": "UNDER",
+        "UNDER_TOTALS": "UNDER",
+    },
+}
 
 
 def _selected_market_candidate(
@@ -421,9 +435,10 @@ def _pick_payload(
     analysis_evidence = _as_mapping(evaluated.get("analysis_evidence"))
     model_probability = _as_mapping(analysis_evidence.get("model_probability"))
     comparison = _as_mapping(analysis_evidence.get("comparison"))
+    pick_market = _first_upper(evaluated.get("market"))
     return {
-        "market": _first_text(evaluated.get("market")),
-        "selection": _first_text(evaluated.get("selection")),
+        "market": pick_market,
+        "selection": _canonical_selection(pick_market, evaluated.get("selection")),
         "line": _first_text(executable_quote.get("line")),
         "odds": _first_text(executable_quote.get("decimal_odds")),
         "fair_line": evaluated.get("fair_line"),
@@ -463,39 +478,45 @@ def _canonical_pick_evidence_ready(
     identity = _as_mapping(evaluated.get("quote_identity"))
     evidence_identity = _as_mapping(evidence.get("quote_identity"))
     candidate_market = _first_upper(evaluated.get("market"))
-    candidate_selection = _first_upper(evaluated.get("selection"))
+    evidence_market = _first_upper(evidence.get("market"))
+    market_market = _first_upper(_get(market, "market"))
+    recommendation_market = _first_upper(_get(recommendation, "market"))
+    candidate_selection = _canonical_selection(candidate_market, evaluated.get("selection"))
+    evidence_selection = _canonical_selection(evidence_market, evidence.get("selection"))
     market_values = {
         value
         for value in (
             candidate_market,
-            _first_upper(_get(market, "market")),
-            _first_upper(_get(recommendation, "market")),
+            evidence_market,
+            market_market,
+            recommendation_market,
         )
         if value is not None
     }
-    selection_values = {
-        value
-        for value in (
-            candidate_selection,
-            _first_upper(_get(market, "selection")),
-            _first_upper(_get(market, "tendency")),
-            _first_upper(_get(recommendation, "selection")),
-            _first_upper(_get(recommendation, "tendency")),
-        )
-        if value is not None
-    }
-    valid_selections = {
-        "ASIAN_HANDICAP": {"HOME", "AWAY"},
-        "TOTALS": {"OVER", "UNDER"},
-    }
+    selection_values: list[str] = []
+    for selection_market, raw_selection in (
+        (candidate_market, evaluated.get("selection")),
+        (evidence_market, evidence.get("selection")),
+        (market_market or candidate_market, _get(market, "selection")),
+        (market_market or candidate_market, _get(market, "tendency")),
+        (recommendation_market or candidate_market, _get(recommendation, "selection")),
+        (recommendation_market or candidate_market, _get(recommendation, "tendency")),
+    ):
+        if raw_selection is None:
+            continue
+        normalized = _canonical_selection(selection_market, raw_selection)
+        if normalized is None:
+            return False
+        selection_values.append(normalized)
     identity_hash = _first_text(identity.get("quote_identity_hash"))
     decimal_odds = _finite_number(quote.get("decimal_odds"))
     return (
         evaluated.get("schema_version") == "w2.market_candidate.v1"
-        and candidate_market in valid_selections
-        and candidate_selection in valid_selections.get(candidate_market, set())
+        and candidate_market in _SELECTION_ALIASES
+        and candidate_selection is not None
         and market_values == {candidate_market}
-        and selection_values == {candidate_selection}
+        and evidence_selection == candidate_selection
+        and set(selection_values) == {candidate_selection}
         and evaluated.get("quote_status") == "COMPLETE"
         and evaluated.get("quote_usage") == "EXECUTABLE"
         and identity.get("identity_status") == "COMPLETE"
@@ -513,8 +534,7 @@ def _canonical_pick_evidence_ready(
         and evidence.get("evidence_contract_version") == "w2.analysis-market-evidence.v2"
         and evidence.get("status") == "COMPLETE"
         and evidence.get("quote_usage") == "EXECUTABLE"
-        and _first_upper(evidence.get("market")) == candidate_market
-        and _first_upper(evidence.get("selection")) == candidate_selection
+        and evidence_market == candidate_market
         and _same_number(evidence.get("line"), evaluated.get("line"))
         and model_probability.get("status") == "READY"
         and _finite_number(model_probability.get("expected_value")) is not None
@@ -934,6 +954,12 @@ def _same_number(left: Any, right: Any) -> bool:
     left_number = _finite_number(left)
     right_number = _finite_number(right)
     return left_number is not None and left_number == right_number
+
+
+def _canonical_selection(market: str | None, value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    return _SELECTION_ALIASES.get(market or "", {}).get(value)
 
 
 def _valid_market_line(market: str | None, value: Any) -> bool:

@@ -86,11 +86,19 @@ def _quote_audit(market: str, line: object, odds: object) -> dict[str, object]:
 
 def _canonical_candidate(market: dict[str, object]) -> dict[str, object]:
     market_name = str(market.get("market") or "")
+    selection = str(market.get("tendency") or market.get("selection") or "")
     key = "ou" if market_name == "TOTALS" else "ah"
     line = market.get("line", "-0.5")
     odds = market.get("odds", "1.95")
     fair_key, market_key = (
         ("fair_ou", "market_ou") if market_name == "TOTALS" else ("fair_ah", "market_ah")
+    )
+    lambda_home, lambda_away = (
+        (0.5, 2.7)
+        if selection in {"AWAY", "AWAY_AH"}
+        else (0.5, 0.5)
+        if selection in {"UNDER", "UNDER_TOTALS"}
+        else (2.7, 0.5)
     )
     candidates = build_market_candidates(
         markets=[market],
@@ -104,8 +112,8 @@ def _canonical_candidate(market: dict[str, object]) -> dict[str, object]:
             "status": "READY",
             "model_version": "model-v1",
             "calibration_version": "calibration-v1",
-            "lambda_home": 2.7,
-            "lambda_away": 0.5,
+            "lambda_home": lambda_home,
+            "lambda_away": lambda_away,
             "lambda_sigma_home": 0.08,
             "lambda_sigma_away": 0.07,
             "calibration": {
@@ -191,6 +199,133 @@ def test_persisted_decision_contract_contains_complete_read_contract() -> None:
 def test_model_version_uses_only_canonical_card_or_adapter_default() -> None:
     assert _fields(card={"model_version": "canonical-model"})["model_version"] == "canonical-model"
     assert _fields()["model_version"] == "w2.decision_contract.v2.adapter"
+
+
+@pytest.mark.parametrize(
+    ("alias", "canonical"),
+    (("HOME_AH", "HOME"), ("AWAY_AH", "AWAY")),
+)
+def test_real_ah_alias_candidate_stays_analysis_pick(
+    alias: str,
+    canonical: str,
+) -> None:
+    market = {
+        "market": "ASIAN_HANDICAP",
+        "decision": "PICK",
+        "tendency": alias,
+        "line": "-0.5",
+        "odds": "1.95",
+    }
+    card = _canonical_candidate(market)
+    candidate = card["market_candidates"]["ah"]  # type: ignore[index]
+
+    assert candidate["selection"] == alias  # type: ignore[index]
+    assert candidate["analysis_evidence"]["selection"] == canonical  # type: ignore[index]
+
+    fields = _fields(
+        card=card,
+        market=market,
+        recommendation={"market": "ASIAN_HANDICAP", "selection": alias},
+    )
+
+    assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
+    assert fields["pick"]["selection"] == canonical  # type: ignore[index]
+
+
+@pytest.mark.parametrize(
+    ("alias", "canonical"),
+    (("OVER_TOTALS", "OVER"), ("UNDER_TOTALS", "UNDER")),
+)
+def test_real_totals_alias_candidate_is_canonicalized(
+    alias: str,
+    canonical: str,
+) -> None:
+    market = {
+        "market": "TOTALS",
+        "decision": "PICK",
+        "tendency": alias,
+        "line": "2.25",
+        "odds": "1.95",
+    }
+    fields = _fields(
+        card=_canonical_candidate(market),
+        market=market,
+        recommendation={"market": "TOTALS", "selection": alias},
+    )
+
+    assert fields["decision_tier"] == DecisionTier.ANALYSIS_PICK.value
+    assert fields["pick"]["selection"] == canonical  # type: ignore[index]
+
+
+@pytest.mark.parametrize("mismatch_source", ("candidate", "evidence", "market", "recommendation"))
+def test_ah_alias_identity_mismatch_fails_closed(mismatch_source: str) -> None:
+    market = {
+        "market": "ASIAN_HANDICAP",
+        "decision": "PICK",
+        "tendency": "HOME_AH",
+        "line": "-0.5",
+        "odds": "1.95",
+    }
+    card = _canonical_candidate(market)
+    candidate = card["market_candidates"]["ah"]  # type: ignore[index]
+    recommendation = {"market": "ASIAN_HANDICAP", "selection": "HOME_AH"}
+    if mismatch_source == "candidate":
+        candidate["selection"] = "AWAY_AH"  # type: ignore[index]
+    elif mismatch_source == "evidence":
+        candidate["analysis_evidence"]["selection"] = "AWAY"  # type: ignore[index]
+    elif mismatch_source == "market":
+        market["tendency"] = "AWAY_AH"
+    else:
+        recommendation["selection"] = "AWAY_AH"
+
+    fields = _fields(card=card, market=market, recommendation=recommendation)
+
+    assert fields["decision_tier"] == DecisionTier.NOT_READY.value
+    assert fields["pick"] is None
+
+
+@pytest.mark.parametrize(
+    ("source", "market_name", "base_selection", "invalid_selection"),
+    (
+        ("candidate", "ASIAN_HANDICAP", "HOME_AH", "HOME_FAKE"),
+        ("evidence", "ASIAN_HANDICAP", "HOME_AH", "HOME_FAKE"),
+        ("market", "ASIAN_HANDICAP", "HOME_AH", "HOME_FAKE"),
+        ("recommendation", "ASIAN_HANDICAP", "HOME_AH", "HOME_FAKE"),
+        ("candidate", "ASIAN_HANDICAP", "HOME_AH", "OVER_TOTALS"),
+        ("candidate", "TOTALS", "OVER_TOTALS", "HOME_AH"),
+        ("candidate", "ASIAN_HANDICAP", "HOME_AH", "home_ah"),
+    ),
+)
+def test_illegal_or_cross_market_selection_fails_closed(
+    source: str,
+    market_name: str,
+    base_selection: str,
+    invalid_selection: str,
+) -> None:
+    market = {
+        "market": market_name,
+        "decision": "PICK",
+        "tendency": base_selection,
+        "line": "2.25" if market_name == "TOTALS" else "-0.5",
+        "odds": "1.95",
+    }
+    card = _canonical_candidate(market)
+    key = "ou" if market_name == "TOTALS" else "ah"
+    candidate = card["market_candidates"][key]  # type: ignore[index]
+    recommendation = {"market": market_name, "selection": base_selection}
+    if source == "candidate":
+        candidate["selection"] = invalid_selection  # type: ignore[index]
+    elif source == "evidence":
+        candidate["analysis_evidence"]["selection"] = invalid_selection  # type: ignore[index]
+    elif source == "market":
+        market["tendency"] = invalid_selection
+    else:
+        recommendation["selection"] = invalid_selection
+
+    fields = _fields(card=card, market=market, recommendation=recommendation)
+
+    assert fields["decision_tier"] == DecisionTier.NOT_READY.value
+    assert fields["pick"] is None
 
 
 def test_missing_canonical_readiness_and_analysis_evidence_fail_closed() -> None:
