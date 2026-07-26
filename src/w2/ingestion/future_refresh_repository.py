@@ -654,6 +654,30 @@ class FutureRefreshDbRepository:
         team_external_id: str,
         api_football_player_id: str,
     ) -> dict[str, Any]:
+        squad_team_confirmed = False
+        for row in rows:
+            if row.endpoint != "squads":
+                continue
+            response = row.payload.get("response")
+            if not isinstance(response, list):
+                continue
+            for roster in response:
+                if not isinstance(roster, dict):
+                    continue
+                team = roster.get("team")
+                players = roster.get("players")
+                if (
+                    isinstance(team, dict)
+                    and str(team.get("id") or "") == team_external_id
+                    and isinstance(players, list)
+                    and any(
+                        isinstance(player, dict)
+                        and str(player.get("id") or "") == api_football_player_id
+                        for player in players
+                    )
+                ):
+                    squad_team_confirmed = True
+                    break
         for row in rows:
             if row.endpoint == "players":
                 response = row.payload.get("response")
@@ -675,7 +699,7 @@ class FutureRefreshDbRepository:
                         for statistic in statistics
                         if isinstance(statistic, dict)
                     } if isinstance(statistics, list) else set()
-                    if team_external_id not in team_ids:
+                    if team_external_id not in team_ids and not squad_team_confirmed:
                         continue
                     first_name = str(provider_player.get("firstname") or "").strip()
                     last_name = str(provider_player.get("lastname") or "").strip()

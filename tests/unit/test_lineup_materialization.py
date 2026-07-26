@@ -11,6 +11,7 @@ from w2.infrastructure.persistence.factor_model_models import (
     CanonicalTeamModel,
     ProviderTeamIdentityCrosswalkModel,
 )
+from w2.infrastructure.persistence.future_refresh_models import RawPayloadModel
 from w2.infrastructure.persistence.models import (
     PlayerIdentityMappingModel,
     StructuredLineupPlayerModel,
@@ -570,6 +571,52 @@ def test_m2b_uses_explicit_player_profile_name_when_squad_name_is_abbreviated() 
     assert mapping.evidence["provider_full_name"] == "Karl Player 100"
     assert mapping.evidence["provider_full_name_endpoint"] == "players"
     assert mapping.evidence["name_match_mode"] == "PROVIDER_FULL_NAME_TOKEN_SUBSEQUENCE"
+
+
+def test_player_profile_name_can_use_separate_current_squad_team_evidence() -> None:
+    captured_at = datetime(2026, 7, 19, tzinfo=UTC)
+    evidence = FutureRefreshDbRepository._provider_player_evidence(
+        [
+            RawPayloadModel(
+                sha256="s" * 64,
+                endpoint="squads",
+                captured_at=captured_at,
+                storage_uri="db://raw_payload/squad",
+                payload={
+                    "parameters": {"team": "10"},
+                    "response": [
+                        {
+                            "team": {"id": 10},
+                            "players": [{"id": 100, "name": "P. One"}],
+                        }
+                    ],
+                },
+            ),
+            RawPayloadModel(
+                sha256="p" * 64,
+                endpoint="players",
+                captured_at=captured_at,
+                storage_uri="db://raw_payload/profile",
+                payload={
+                    "response": [
+                        {
+                            "player": {
+                                "id": 100,
+                                "firstname": "Player",
+                                "lastname": "One",
+                            },
+                            "statistics": [{"team": {"id": 999}}],
+                        }
+                    ]
+                },
+            ),
+        ],
+        team_external_id="10",
+        api_football_player_id="100",
+    )
+
+    assert evidence["full_name"] == "Player One"
+    assert evidence["endpoint"] == "players"
 
 
 def test_player_identity_join_evidence_is_read_only_and_deterministic() -> None:
