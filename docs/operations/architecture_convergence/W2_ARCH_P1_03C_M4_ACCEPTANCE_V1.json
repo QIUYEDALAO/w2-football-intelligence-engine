@@ -1,0 +1,84 @@
+{
+  "schema_version": "W2_ARCH_P1_03C_M4_ACCEPTANCE_V1",
+  "task_id": "ARCH-P1-03C",
+  "status": "IMPLEMENTED_PENDING_EXTERNAL_ACCEPTANCE",
+  "base_main_sha": "2191255b5cb92753db6da495810ed846ffb3647b",
+  "main_post_gate": {
+    "run_id": 30198296687,
+    "job": "POST_MERGE_CHECKLIST_CONSISTENCY_GATE",
+    "result": "SUCCESS"
+  },
+  "implementation": {
+    "exact_head": "GITHUB_PR_EXACT_HEAD",
+    "migration_from": "0042_team_identity_provider_review_provenance",
+    "migration_to": "0043_drop_legacy_identity_crosswalks",
+    "dropped_tables": [
+      "team_identity_crosswalks",
+      "football_data_team_crosswalks",
+      "player_identity_crosswalks"
+    ],
+    "legacy_orm_declarations_before": 3,
+    "legacy_orm_declarations_after": 0
+  },
+  "read_only_audit": {
+    "legacy_runtime_imports": 0,
+    "legacy_runtime_reads": 0,
+    "legacy_runtime_writes": 0,
+    "canonical_team_authority_count": 1,
+    "canonical_player_authority_count": 1,
+    "staging_alembic_before": "0042_team_identity_provider_review_provenance",
+    "staging_table_count_before": 65,
+    "legacy_rows_before": {
+      "team_identity_crosswalks": 16,
+      "football_data_team_crosswalks": 0,
+      "player_identity_crosswalks": 0
+    },
+    "database_dependencies": {
+      "foreign_keys": 0,
+      "views": 0,
+      "functions": 0,
+      "triggers": 0
+    },
+    "canonical_rows": {
+      "canonical_teams": 16,
+      "provider_team_identity_crosswalks": 32,
+      "player_identity_mappings": 110,
+      "reviewed_player_identity_mappings": 66
+    }
+  },
+  "backup": {
+    "path": "/opt/w2/shared/backups/arch-p1-03c/w2-pre-arch-p1-03c-20260726T104000Z-0042.dump",
+    "sha256": "fff107172f4f0ea2ebf71dfabcb2f96eaa2e214d9fd66dcf662cede79e9b8f92",
+    "bytes": 6189974,
+    "archive_entries": 380,
+    "source_release": "bfce636dc245ab93f9f4d92e77699bf1689f127b",
+    "postgres_volume": "w2-staging_postgres-data"
+  },
+  "staging_drill": {
+    "deployed_sha": "GITHUB_PR_EXACT_HEAD",
+    "upgrade_result": "PASS",
+    "table_count_after": 62,
+    "legacy_table_count_after": 0,
+    "downgrade_result": "PASS_ORIGINAL_SCHEMA_EMPTY",
+    "downgrade_fabricated_business_rows": 0,
+    "final_upgrade_result": "PASS",
+    "final_alembic": "0043_drop_legacy_identity_crosswalks",
+    "backup_restore_result": "PASS_ISOLATED_RESTORE"
+  },
+  "safety_boundary": {
+    "formal_enabled": false,
+    "candidate_runtime_enabled": false,
+    "lock_enabled": false,
+    "production_enabled": false,
+    "provider_calls_enabled": false,
+    "scheduler_running": false,
+    "arch_p1_05_status": "NOT_STARTED"
+  },
+  "ci": {
+    "focused": "64_PASSED_1_POSTGRES_ENV_SKIP",
+    "check_w2_all": "PASS",
+    "ruff": "PASS",
+    "mypy": "PASS",
+    "exact_head_run": "GITHUB_CI_RUN"
+  }
+}
