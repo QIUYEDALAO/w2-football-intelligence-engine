@@ -733,7 +733,7 @@ def _positions_compatible(provider: str | None, transfermarkt: str | None) -> bo
         if "mid" in tm
         else "F"
     )
-    return provider_group == tm_group
+    return provider_group == tm_group or {provider_group, tm_group} == {"M", "F"}
 
 
 def _hash_payload(payload: Mapping[str, Any]) -> str:

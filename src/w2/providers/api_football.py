@@ -29,6 +29,8 @@ API_FOOTBALL_HTTP_PATHS = {
     "events": "fixtures/events",
     "h2h": "fixtures/headtohead",
     "lineups": "fixtures/lineups",
+    "player_profiles": "players/profiles",
+    "squads": "players/squads",
     "statistics": "fixtures/statistics",
 }
 
@@ -104,6 +106,31 @@ class ApiFootballClient:
         started = time.monotonic()
         requested_at = datetime.now(UTC)
         registry = default_metric_registry()
+        ledger = self.request_ledger or provider_request_ledger_from_env()
+
+        def record(
+            *,
+            status_code: int | None,
+            headers: dict[str, str],
+            payload: dict[str, Any],
+            error: str | None,
+        ) -> datetime:
+            completed_at = datetime.now(UTC)
+            if ledger is not None:
+                ledger.record_request(
+                    provider=self.provider,
+                    endpoint=endpoint,
+                    params=params,
+                    live=True,
+                    status_code=status_code,
+                    requested_at=requested_at,
+                    completed_at=completed_at,
+                    headers=headers,
+                    payload=payload,
+                    error=error,
+                )
+            return completed_at
+
         registry.inc(
             "w2_provider_requests_total",
             labels={"endpoint": endpoint, "provider": self.provider},
@@ -117,7 +144,7 @@ class ApiFootballClient:
             raw = exc.read()
             status_code = exc.code
             headers = self._sanitize_headers(exc.headers)
-        except (OSError, TimeoutError, urllib.error.URLError):
+        except (OSError, TimeoutError, urllib.error.URLError) as exc:
             elapsed_ms = int((time.monotonic() - started) * 1000)
             registry.observe(
                 "w2_provider_latency_ms",
@@ -128,6 +155,12 @@ class ApiFootballClient:
                 "w2_provider_failures_total",
                 labels={"endpoint": endpoint, "provider": self.provider},
             )
+            record(
+                status_code=None,
+                headers={},
+                payload={},
+                error=self._transport_error(exc),
+            )
             raise
         try:
             payload = json.loads(raw.decode("utf-8")) if raw else {}
@@ -135,6 +168,12 @@ class ApiFootballClient:
             registry.inc(
                 "w2_provider_failures_total",
                 labels={"endpoint": endpoint, "provider": self.provider},
+            )
+            record(
+                status_code=status_code,
+                headers=headers,
+                payload={},
+                error="PROVIDER_RESPONSE_DECODE_ERROR",
             )
             raise
         elapsed_ms = int((time.monotonic() - started) * 1000)
@@ -148,21 +187,12 @@ class ApiFootballClient:
                 "w2_provider_failures_total",
                 labels={"endpoint": endpoint, "provider": self.provider},
             )
-        completed_at = datetime.now(UTC)
-        ledger = self.request_ledger or provider_request_ledger_from_env()
-        if ledger is not None:
-            ledger.record_request(
-                provider=self.provider,
-                endpoint=endpoint,
-                params=params,
-                live=True,
-                status_code=status_code,
-                requested_at=requested_at,
-                completed_at=completed_at,
-                headers=headers,
-                payload=payload,
-                error=None if status_code < 400 else f"PROVIDER_HTTP_{status_code}",
-            )
+        completed_at = record(
+            status_code=status_code,
+            headers=headers,
+            payload=payload,
+            error=None if status_code < 400 else f"PROVIDER_HTTP_{status_code}",
+        )
         return LiveApiFootballResponse(
             endpoint=endpoint,
             params=params,
@@ -173,6 +203,16 @@ class ApiFootballClient:
             captured_at=completed_at,
             requested_at=requested_at,
         )
+
+    @staticmethod
+    def _transport_error(exc: BaseException) -> str:
+        if isinstance(exc, (TimeoutError, urllib.error.URLError)) and isinstance(
+            getattr(exc, "reason", exc), TimeoutError
+        ):
+            return "PROVIDER_TIMEOUT"
+        if isinstance(exc, urllib.error.URLError):
+            return "PROVIDER_URL_ERROR"
+        return "PROVIDER_CONNECTION_ERROR"
 
     def fixtures_by_team(
         self,

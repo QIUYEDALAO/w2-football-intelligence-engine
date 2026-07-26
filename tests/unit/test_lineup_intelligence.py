@@ -73,6 +73,26 @@ def test_identity_mapping_fails_closed_on_ambiguity() -> None:
     assert result.transfermarkt_player_id is None
 
 
+def test_identity_mapping_treats_midfield_and_attack_roles_as_compatible() -> None:
+    result = resolve_player_identity(
+        api_football_player_id="api-1",
+        player_name="Sead Haksabanovic",
+        team_external_id="team-1",
+        provider_position="M",
+        candidates=[
+            PlayerIdentityCandidate(
+                transfermarkt_player_id="tm-1",
+                player_name="Sead Haksabanovic",
+                team_external_id="team-1",
+                position="Attack",
+            )
+        ],
+    )
+
+    assert result.status is MappingStatus.CANDIDATE
+    assert result.transfermarkt_player_id == "tm-1"
+
+
 def test_baseline_is_asof_safe_and_deterministic() -> None:
     as_of = datetime(2026, 7, 19, tzinfo=UTC)
     rows = [

@@ -12,6 +12,8 @@ API_FOOTBALL_ENDPOINTS = (
     "lineups",
     "injuries",
     "squads",
+    "players",
+    "player_profiles",
     "fixture_detail",
     "results",
     "events",

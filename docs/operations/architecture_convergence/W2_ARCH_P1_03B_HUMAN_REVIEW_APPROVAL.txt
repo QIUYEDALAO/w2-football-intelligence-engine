@@ -1,0 +1,25 @@
+基于当前复核包说明及公开资料，我认可这 6 条 proposed mapping。审批严格限定于该哈希包，不覆盖任何新增或变化后的候选。e 916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea
+
+reviewed_by = operator:liudehua
+
+批准该复核包内的 60 条 clean batch，以及以下 6 条 proposed mapping：
+
+API-Football 162589 → Transfermarkt 620318，Rocco Ascone
+API-Football 624953 → Transfermarkt 1519157，Abdoulaye Doumbia
+API-Football 510476 → Transfermarkt 1376024，Charlie Rosenqvist
+API-Football 565597 → Transfermarkt 1331431，Anton Höög
+API-Football 48017 → Transfermarkt 255468，Adam Andersson
+API-Football 562307 → Transfermarkt 1087013，Benjamin Laturnus
+
+本次批准仅适用于上述固定 review package 的内容、证据链和 source hashes。若 package 内容、API-Football player ID、Transfermarkt player ID、球队、fixture、as-of 时间或 source hash 有任何变化，必须停止并重新复核，不得沿用本次批准。
+
+允许将上述 66 条映射写为 REVIEWED，并继续执行：
+
+三场 M3 身份唯一联接验收；
+三次只读确定性验证；
+创建 ARCH-P1-03B Draft PR 和外部验收包。
+
+仍不授权 M4、legacy 表或 ORM 删除、Formal、Lock、Production、scheduler、ARCH-P1-05 或 PR 合并。
+:::
+
+Codex 应保存这段人工审批原文及其哈希，作为 reviewed_by=operator:liudehua 的审计证据。

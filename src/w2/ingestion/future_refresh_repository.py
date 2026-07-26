@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Sequence
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -84,6 +85,90 @@ def iso_z(value: datetime) -> str:
     if value.tzinfo is None:
         value = value.replace(tzinfo=UTC)
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _name_parts(value: str) -> list[str]:
+    aliases = {"jr": "junior"}
+    return [
+        aliases.get(part_name, part_name)
+        for part in value.replace("-", " ").split()
+        if (part_name := normalize_player_name(part))
+    ]
+
+
+def _parts_in_order(needle: list[str], haystack: list[str]) -> bool:
+    if len(needle) < 2:
+        return False
+    index = 0
+    for part_name in haystack:
+        if part_name == needle[index]:
+            index += 1
+            if index == len(needle):
+                return True
+    return False
+
+
+def approved_player_identity_manifest_rows(
+    manifest: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Normalize the fixed 60 clean + 6 explicit human-review package."""
+    clean = manifest.get("clean_batch", {})
+    conflicts = manifest.get("minimal_conflicts", {})
+    clean_rows = clean.get("rows", []) if isinstance(clean, dict) else []
+    conflict_rows = conflicts.get("rows", []) if isinstance(conflicts, dict) else []
+    if (
+        manifest.get("schema_version") != "w2.arch_p1_03b_human_review_package.v1"
+        or clean.get("count") != 60
+        or conflicts.get("count") != 6
+        or len(clean_rows) != 60
+        or len(conflict_rows) != 6
+    ):
+        raise FutureRefreshPersistenceError("PLAYER_IDENTITY_REVIEW_MANIFEST_INVALID")
+    rows = [
+        {
+            "api_football_player_id": str(row["api_football_player_id"]),
+            "team_external_id": str(row["api_football_team_id"]),
+            "fixture_id": str(row["fixture_id"]),
+            "canonical_player_id": (
+                f"w2:player:transfermarkt:{row['transfermarkt_player_id']}"
+            ),
+            "transfermarkt_player_id": str(row["transfermarkt_player_id"]),
+            "canonical_team_id": str(row["club_team_crosswalk"]["canonical_team_id"]),
+            "transfermarkt_club_id": str(
+                row["club_team_crosswalk"]["transfermarkt_club_id"]
+            ),
+            "source_hashes": sorted(str(value) for value in row["source_hashes"]),
+        }
+        for row in clean_rows
+    ]
+    rows.extend(
+        {
+            "api_football_player_id": str(row["api_football_player_id"]),
+            "team_external_id": str(row["api_football_team_id"]),
+            "fixture_id": str(row["fixture_id"]),
+            "canonical_player_id": str(row["proposed_canonical_player_id"]),
+            "transfermarkt_player_id": str(row["proposed_transfermarkt_player_id"]),
+            "canonical_team_id": str(row["canonical_team_id"]),
+            "transfermarkt_club_id": str(row["expected_transfermarkt_club_id"]),
+            "source_hashes": sorted(
+                str(value) for value in row["source_artifact_hashes"]
+            ),
+        }
+        for row in conflict_rows
+    )
+    keys = {
+        (row["api_football_player_id"], row["team_external_id"]) for row in rows
+    }
+    if len(rows) != 66 or len(keys) != 66:
+        raise FutureRefreshPersistenceError("PLAYER_IDENTITY_REVIEW_MANIFEST_DUPLICATE")
+    return sorted(
+        rows,
+        key=lambda row: (
+            row["fixture_id"],
+            row["team_external_id"],
+            row["api_football_player_id"],
+        ),
+    )
 
 
 class DatabaseRawPayloadObjectStore:
@@ -299,6 +384,17 @@ class FutureRefreshDbRepository:
         fixture_id: str,
         as_of: datetime,
     ) -> int:
+        """Build review candidates from saved full-name and team-authority evidence."""
+        if as_of.tzinfo is None:
+            raise FutureRefreshPersistenceError("PLAYER_IDENTITY_AS_OF_TIMEZONE_INVALID")
+        fixture_payload = self.fixture_payload(str(fixture_id))
+        fixture = fixture_payload.get("fixture", {}) if isinstance(fixture_payload, dict) else {}
+        league = fixture_payload.get("league", {}) if isinstance(fixture_payload, dict) else {}
+        try:
+            kickoff = parse_db_datetime(fixture.get("date"))
+        except FutureRefreshPersistenceError:
+            kickoff = None
+        season = str(league.get("season") or "")
         with Session(self.engine) as session:
             snapshots = session.scalars(
                 select(StructuredLineupSnapshotModel)
@@ -311,8 +407,61 @@ class FutureRefreshDbRepository:
             latest: dict[str, StructuredLineupSnapshotModel] = {}
             for snapshot in snapshots:
                 latest.setdefault(snapshot.team_external_id, snapshot)
-            pending: list[PlayerIdentityMappingModel] = []
+            provider_name_rows = session.scalars(
+                select(RawPayloadModel)
+                .where(
+                    RawPayloadModel.endpoint.in_(("squads", "players", "player_profiles")),
+                    RawPayloadModel.captured_at <= as_of,
+                )
+                .order_by(RawPayloadModel.captured_at.desc(), RawPayloadModel.sha256)
+            ).all()
+            changed = 0
             for snapshot in latest.values():
+                api_authorities = (
+                    session.scalars(
+                        select(ProviderTeamIdentityCrosswalkModel).where(
+                            ProviderTeamIdentityCrosswalkModel.provider == "api_football",
+                            ProviderTeamIdentityCrosswalkModel.provider_team_id
+                            == snapshot.team_external_id,
+                            ProviderTeamIdentityCrosswalkModel.season == season,
+                            ProviderTeamIdentityCrosswalkModel.valid_from <= kickoff,
+                            (ProviderTeamIdentityCrosswalkModel.valid_to.is_(None))
+                            | (ProviderTeamIdentityCrosswalkModel.valid_to > kickoff),
+                            ProviderTeamIdentityCrosswalkModel.identity_status
+                            == "PROVIDER_PRIMARY_READY",
+                            ProviderTeamIdentityCrosswalkModel.review_status.in_(
+                                ("APPROVED", "REVIEWED")
+                            ),
+                        )
+                    ).all()
+                    if kickoff is not None and season
+                    else []
+                )
+                api_authority = api_authorities[0] if len(api_authorities) == 1 else None
+                tm_authorities = (
+                    session.scalars(
+                        select(ProviderTeamIdentityCrosswalkModel).where(
+                            ProviderTeamIdentityCrosswalkModel.provider == "transfermarkt",
+                            ProviderTeamIdentityCrosswalkModel.w2_team_id
+                            == api_authority.w2_team_id,
+                            ProviderTeamIdentityCrosswalkModel.competition_id
+                            == api_authority.competition_id,
+                            ProviderTeamIdentityCrosswalkModel.season == season,
+                            ProviderTeamIdentityCrosswalkModel.valid_from <= kickoff,
+                            (ProviderTeamIdentityCrosswalkModel.valid_to.is_(None))
+                            | (ProviderTeamIdentityCrosswalkModel.valid_to > kickoff),
+                            ProviderTeamIdentityCrosswalkModel.identity_status
+                            == "PROVIDER_PRIMARY_READY",
+                            ProviderTeamIdentityCrosswalkModel.review_status.in_(
+                                ("APPROVED", "REVIEWED")
+                            ),
+                        )
+                    ).all()
+                    if api_authority is not None and kickoff is not None
+                    else []
+                )
+                tm_authority = tm_authorities[0] if len(tm_authorities) == 1 else None
+                snapshot.team_w2_id = api_authority.w2_team_id if api_authority else None
                 players = session.scalars(
                     select(StructuredLineupPlayerModel).where(
                         StructuredLineupPlayerModel.lineup_snapshot_id == snapshot.id,
@@ -320,73 +469,349 @@ class FutureRefreshDbRepository:
                     )
                 ).all()
                 for player in players:
-                    normalized = normalize_player_name(player.player_name)
-                    references = session.scalars(
-                        select(TransfermarktPlayerReferenceModel)
-                        .where(
-                            TransfermarktPlayerReferenceModel.normalized_name == normalized,
-                            TransfermarktPlayerReferenceModel.observed_at <= as_of,
+                    squad_evidence = self._provider_player_evidence(
+                        provider_name_rows,
+                        team_external_id=snapshot.team_external_id,
+                        api_football_player_id=player.api_football_player_id,
+                    )
+                    full_name = str(squad_evidence.get("full_name") or "")
+                    normalized = normalize_player_name(full_name or player.player_name)
+                    club_references = (
+                        session.scalars(
+                            select(TransfermarktPlayerReferenceModel)
+                            .where(
+                                TransfermarktPlayerReferenceModel.current_club_id
+                                == tm_authority.provider_team_id,
+                                TransfermarktPlayerReferenceModel.observed_at <= as_of,
+                            )
+                            .order_by(
+                                TransfermarktPlayerReferenceModel.observed_at.desc(),
+                                TransfermarktPlayerReferenceModel.transfermarkt_player_id,
+                            )
+                        ).all()
+                        if full_name and tm_authority is not None
+                        else []
+                    )
+                    newest_club_by_id: dict[str, TransfermarktPlayerReferenceModel] = {}
+                    for reference in club_references:
+                        newest_club_by_id.setdefault(
+                            reference.transfermarkt_player_id,
+                            reference,
                         )
-                        .order_by(TransfermarktPlayerReferenceModel.observed_at.desc())
-                    ).all()
-                    newest_by_id: dict[str, TransfermarktPlayerReferenceModel] = {}
-                    for reference in references:
-                        newest_by_id.setdefault(reference.transfermarkt_player_id, reference)
-                    team_confirmed: list[TransfermarktPlayerReferenceModel] = []
+                    exact_references = [
+                        reference
+                        for reference in newest_club_by_id.values()
+                        if reference.normalized_name == normalized
+                    ]
+                    first_name = str(squad_evidence.get("first_name") or "")
+                    last_name = str(squad_evidence.get("last_name") or "")
+                    provider_name_parts = _name_parts(full_name)
+                    evidenced_references = (
+                        [
+                            reference
+                            for reference in newest_club_by_id.values()
+                            if _parts_in_order(
+                                _name_parts(reference.player_name),
+                                provider_name_parts,
+                            )
+                        ]
+                        if squad_evidence.get("endpoint") in {"players", "player_profiles"}
+                        else []
+                    )
+                    candidate_references = exact_references or evidenced_references
+                    newest_by_id = {
+                        reference.transfermarkt_player_id: reference
+                        for reference in candidate_references
+                    }
+                    match_mode = (
+                        "EXACT_FULL_NORMALIZED_NAME"
+                        if exact_references
+                        else "PROVIDER_FULL_NAME_SUBSEQUENCE"
+                        if evidenced_references
+                        else None
+                    )
                     resolution = resolve_player_identity(
                         api_football_player_id=player.api_football_player_id,
-                        player_name=player.player_name,
+                        player_name=full_name or player.player_name,
                         team_external_id=snapshot.team_external_id,
                         provider_position=player.provider_position,
                         candidates=[
                             PlayerIdentityCandidate(
                                 transfermarkt_player_id=reference.transfermarkt_player_id,
-                                player_name=reference.player_name,
+                                player_name=(
+                                    full_name
+                                    if match_mode == "PROVIDER_FULL_NAME_SUBSEQUENCE"
+                                    else reference.player_name
+                                ),
                                 team_external_id=snapshot.team_external_id,
                                 position=reference.position,
                             )
-                            for reference in team_confirmed
+                            for reference in newest_by_id.values()
                         ],
                     )
-                    pending.append(
-                        PlayerIdentityMappingModel(
+                    matched_reference = (
+                        newest_by_id.get(str(resolution.transfermarkt_player_id))
+                        if resolution.transfermarkt_player_id
+                        else None
+                    )
+                    reason = (
+                        "FIXTURE_KICKOFF_MISSING"
+                        if kickoff is None
+                        else "API_TEAM_AUTHORITY_MISSING_OR_AMBIGUOUS"
+                        if api_authority is None
+                        else "TRANSFERMARKT_CLUB_AUTHORITY_MISSING_OR_AMBIGUOUS"
+                        if tm_authority is None
+                        else "SQUAD_FULL_NAME_EVIDENCE_MISSING"
+                        if not full_name
+                        else "UNIQUE_AUTHORITY_TEAM_FULL_NAME_POSITION"
+                        if resolution.transfermarkt_player_id
+                        else resolution.reason
+                    )
+                    status = (
+                        resolution.status.value
+                        if full_name and tm_authority is not None
+                        else "MISSING"
+                    )
+                    source_hash_values = [
+                        snapshot.raw_sha256,
+                        str(squad_evidence.get("source_sha256") or ""),
+                        matched_reference.source_sha256
+                        if matched_reference is not None
+                        else "",
+                    ]
+                    if api_authority is not None:
+                        source_hash_values.extend(api_authority.source_hashes or [])
+                    if tm_authority is not None:
+                        source_hash_values.extend(tm_authority.source_hashes or [])
+                    source_hashes = sorted({value for value in source_hash_values if value})
+                    evidence = {
+                        "schema_version": "w2.player_identity_candidate.v2",
+                        "reason": reason,
+                        "auto_approval": False,
+                        "fixture_id": str(fixture_id),
+                        "kickoff_utc": iso_z(kickoff) if kickoff is not None else None,
+                        "api_football_player_id": player.api_football_player_id,
+                        "api_football_lineup_name": player.player_name,
+                        "provider_full_name": full_name or None,
+                        "provider_first_name": first_name or None,
+                        "provider_last_name": last_name or None,
+                        "provider_full_name_endpoint": squad_evidence.get("endpoint"),
+                        "name_match_mode": match_mode,
+                        "normalized_full_name": normalized if full_name else None,
+                        "provider_position": player.provider_position,
+                        "api_football_team_id": snapshot.team_external_id,
+                        "canonical_team_id": (
+                            api_authority.w2_team_id if api_authority is not None else None
+                        ),
+                        "transfermarkt_club_id": (
+                            tm_authority.provider_team_id
+                            if tm_authority is not None
+                            else None
+                        ),
+                        "transfermarkt_player_id": resolution.transfermarkt_player_id,
+                        "transfermarkt_position": (
+                            matched_reference.position if matched_reference is not None else None
+                        ),
+                        "candidate_ids": sorted(newest_by_id),
+                        "authority_chain_complete": bool(
+                            api_authority
+                            and tm_authority
+                            and full_name
+                            and resolution.transfermarkt_player_id
+                        ),
+                        "api_team_authority_hash": (
+                            api_authority.identity_hash if api_authority is not None else None
+                        ),
+                        "transfermarkt_club_authority_hash": (
+                            tm_authority.identity_hash if tm_authority is not None else None
+                        ),
+                        "source_artifact_hashes": source_hashes,
+                    }
+                    identity_payload = {
+                        key: evidence[key]
+                        for key in (
+                            "fixture_id",
+                            "kickoff_utc",
+                            "api_football_player_id",
+                            "provider_full_name",
+                            "normalized_full_name",
+                            "provider_position",
+                            "api_football_team_id",
+                            "canonical_team_id",
+                            "transfermarkt_club_id",
+                            "transfermarkt_player_id",
+                            "transfermarkt_position",
+                            "source_artifact_hashes",
+                        )
+                    }
+                    identity_hash = hashlib.sha256(
+                        json.dumps(
+                            identity_payload,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        ).encode("utf-8")
+                    ).hexdigest()
+                    mapping = session.scalar(
+                        select(PlayerIdentityMappingModel)
+                        .where(
+                            PlayerIdentityMappingModel.api_football_player_id
+                            == player.api_football_player_id,
+                            PlayerIdentityMappingModel.team_external_id
+                            == snapshot.team_external_id,
+                        )
+                        .order_by(PlayerIdentityMappingModel.valid_from.desc())
+                        .limit(1)
+                    )
+                    if mapping is not None and mapping.mapping_status == "REVIEWED":
+                        continue
+                    if mapping is None:
+                        mapping = PlayerIdentityMappingModel(
                             api_football_player_id=player.api_football_player_id,
                             transfermarkt_player_id=resolution.transfermarkt_player_id,
                             team_external_id=snapshot.team_external_id,
                             player_name=player.player_name,
-                            normalized_name=resolution.normalized_name,
+                            normalized_name=normalized,
                             provider_position=player.provider_position,
-                            transfermarkt_position=team_confirmed[0].position
-                            if len(team_confirmed) == 1
-                            else None,
-                            mapping_status="CANDIDATE",
-                            evidence={
-                                "reason": "TEAM_CROSSWALK_MISSING",
-                                "candidate_ids": sorted(
-                                    reference.transfermarkt_player_id
-                                    for reference in newest_by_id.values()
-                                ),
-                                "team_name": snapshot.team_name,
-                                "compatibility_note": (
-                                    "name-only club matching is review-only and cannot "
-                                    "create REVIEWED"
-                                ),
-                            },
-                            identity_hash=resolution.identity_hash,
-                            valid_from=snapshot.captured_at,
+                            transfermarkt_position=(
+                                matched_reference.position
+                                if matched_reference is not None
+                                else None
+                            ),
+                            mapping_status=status,
+                            evidence=evidence,
+                            identity_hash=identity_hash,
+                            valid_from=kickoff or snapshot.captured_at,
                         )
-                    )
-            appended = 0
-            for mapping in pending:
-                try:
-                    with session.begin_nested():
                         session.add(mapping)
                         session.flush()
-                    appended += 1
-                except IntegrityError:
-                    continue
+                    else:
+                        if mapping.evidence.get("schema_version") != evidence["schema_version"]:
+                            evidence["prior_preview"] = {
+                                "identity_hash": mapping.identity_hash,
+                                "mapping_status": mapping.mapping_status,
+                                "evidence": mapping.evidence,
+                            }
+                        elif "prior_preview" in mapping.evidence:
+                            evidence["prior_preview"] = mapping.evidence["prior_preview"]
+                        mapping.transfermarkt_player_id = resolution.transfermarkt_player_id
+                        mapping.player_name = player.player_name
+                        mapping.normalized_name = normalized
+                        mapping.provider_position = player.provider_position
+                        mapping.transfermarkt_position = (
+                            matched_reference.position if matched_reference is not None else None
+                        )
+                        mapping.mapping_status = status
+                        mapping.evidence = evidence
+                        mapping.identity_hash = identity_hash
+                        mapping.valid_from = kickoff or snapshot.captured_at
+                    player.identity_mapping_id = mapping.id
+                    player.valuation_source_player_id = resolution.transfermarkt_player_id
+                    player.mapping_status = status
+                    changed += 1
             session.commit()
-            return appended
+            return changed
+
+    @staticmethod
+    def _provider_player_evidence(
+        rows: Sequence[RawPayloadModel],
+        *,
+        team_external_id: str,
+        api_football_player_id: str,
+    ) -> dict[str, Any]:
+        squad_team_confirmed = False
+        for row in rows:
+            if row.endpoint != "squads":
+                continue
+            response = row.payload.get("response")
+            if not isinstance(response, list):
+                continue
+            for roster in response:
+                if not isinstance(roster, dict):
+                    continue
+                team = roster.get("team")
+                players = roster.get("players")
+                if (
+                    isinstance(team, dict)
+                    and str(team.get("id") or "") == team_external_id
+                    and isinstance(players, list)
+                    and any(
+                        isinstance(player, dict)
+                        and str(player.get("id") or "") == api_football_player_id
+                        for player in players
+                    )
+                ):
+                    squad_team_confirmed = True
+                    break
+        for row in rows:
+            if row.endpoint in {"players", "player_profiles"}:
+                response = row.payload.get("response")
+                if not isinstance(response, list):
+                    continue
+                for item in response:
+                    if not isinstance(item, dict):
+                        continue
+                    provider_player = item.get("player")
+                    if (
+                        not isinstance(provider_player, dict)
+                        or str(provider_player.get("id") or "")
+                        != api_football_player_id
+                    ):
+                        continue
+                    statistics = item.get("statistics")
+                    team_ids = {
+                        str(statistic.get("team", {}).get("id") or "")
+                        for statistic in statistics
+                        if isinstance(statistic, dict)
+                    } if isinstance(statistics, list) else set()
+                    if team_external_id not in team_ids and not squad_team_confirmed:
+                        continue
+                    first_name = str(provider_player.get("firstname") or "").strip()
+                    last_name = str(provider_player.get("lastname") or "").strip()
+                    if not first_name or not last_name:
+                        continue
+                    return {
+                        "full_name": f"{first_name} {last_name}",
+                        "first_name": first_name,
+                        "last_name": last_name,
+                        "position": None,
+                        "endpoint": row.endpoint,
+                        "source_sha256": row.sha256,
+                        "captured_at": iso_z(row.captured_at),
+                    }
+            parameters = row.payload.get("parameters")
+            parameter_team = (
+                str(parameters.get("team") or "") if isinstance(parameters, dict) else ""
+            )
+            response = row.payload.get("response")
+            if not isinstance(response, list):
+                continue
+            for roster in response:
+                if not isinstance(roster, dict):
+                    continue
+                team = roster.get("team")
+                response_team = str(team.get("id") or "") if isinstance(team, dict) else ""
+                if team_external_id not in {parameter_team, response_team}:
+                    continue
+                players = roster.get("players")
+                if not isinstance(players, list):
+                    continue
+                for player in players:
+                    if not isinstance(player, dict):
+                        continue
+                    if str(player.get("id") or "") != api_football_player_id:
+                        continue
+                    full_name = str(player.get("name") or "").strip()
+                    first_part = full_name.split(None, 1)[0].rstrip(".")
+                    if len(first_part) <= 1:
+                        continue
+                    return {
+                        "full_name": full_name,
+                        "position": str(player.get("position") or "") or None,
+                        "endpoint": "squads",
+                        "source_sha256": row.sha256,
+                        "captured_at": iso_z(row.captured_at),
+                    }
+        return {}
 
     def approve_player_identity_mapping(
         self,
@@ -398,6 +823,8 @@ class FutureRefreshDbRepository:
         reviewed_by: str,
         reviewed_at: datetime,
         source_artifact_hash: str,
+        approval_artifact_hash: str | None = None,
+        review_exception: dict[str, Any] | None = None,
     ) -> str:
         """Materialize an explicit reviewed crosswalk; never fuzzy-auto-approve."""
         if not all(
@@ -422,7 +849,6 @@ class FutureRefreshDbRepository:
                         PlayerIdentityMappingModel.api_football_player_id
                         == str(api_football_player_id),
                         PlayerIdentityMappingModel.team_external_id == str(team_external_id),
-                        PlayerIdentityMappingModel.valid_from <= reviewed_at,
                     )
                     .order_by(PlayerIdentityMappingModel.valid_from.desc())
                 )
@@ -430,14 +856,77 @@ class FutureRefreshDbRepository:
             mapping = candidates[0] if candidates else None
             if mapping is None:
                 raise FutureRefreshPersistenceError("PLAYER_IDENTITY_MAPPING_CANDIDATE_MISSING")
+            candidate_ready = (
+                mapping.mapping_status == "CANDIDATE"
+                and mapping.transfermarkt_player_id == str(transfermarkt_player_id)
+                and mapping.evidence.get("schema_version")
+                == "w2.player_identity_candidate.v2"
+                and bool(mapping.evidence.get("authority_chain_complete"))
+            )
+            exception_ready = (
+                mapping.mapping_status == "MISSING"
+                and isinstance(review_exception, dict)
+                and review_exception.get("review_package_sha256")
+                == str(source_artifact_hash)
+                and review_exception.get("api_football_player_id")
+                == str(api_football_player_id)
+                and review_exception.get("team_external_id") == str(team_external_id)
+                and review_exception.get("transfermarkt_player_id")
+                == str(transfermarkt_player_id)
+                and review_exception.get("fixture_id")
+                == mapping.evidence.get("fixture_id")
+                and bool(review_exception.get("issues"))
+                and mapping.evidence.get("schema_version")
+                == "w2.player_identity_candidate.v2"
+            )
+            if not candidate_ready and not exception_ready:
+                raise FutureRefreshPersistenceError("PLAYER_IDENTITY_REVIEW_EVIDENCE_INVALID")
+            if exception_ready:
+                reference = session.scalar(
+                    select(TransfermarktPlayerReferenceModel)
+                    .where(
+                        TransfermarktPlayerReferenceModel.transfermarkt_player_id
+                        == str(transfermarkt_player_id)
+                    )
+                    .order_by(TransfermarktPlayerReferenceModel.observed_at.desc())
+                    .limit(1)
+                )
+                if reference is None:
+                    raise FutureRefreshPersistenceError(
+                        "PLAYER_IDENTITY_REVIEW_REFERENCE_MISSING"
+                    )
+            source_hashes = sorted(
+                {
+                    *(
+                        str(value)
+                        for value in mapping.evidence.get("source_artifact_hashes", [])
+                        if str(value)
+                    ),
+                    str(source_artifact_hash),
+                    *(
+                        [str(approval_artifact_hash)]
+                        if approval_artifact_hash
+                        else []
+                    ),
+                }
+            )
             identity_payload = {
                 "api_football_player_id": str(api_football_player_id),
                 "team_external_id": str(team_external_id),
                 "canonical_player_id": str(canonical_player_id),
                 "transfermarkt_player_id": str(transfermarkt_player_id),
+                "canonical_team_id": mapping.evidence.get("canonical_team_id"),
+                "transfermarkt_club_id": mapping.evidence.get("transfermarkt_club_id"),
+                "valid_from": iso_z(mapping.valid_from),
+                "valid_to": iso_z(mapping.valid_to) if mapping.valid_to is not None else None,
                 "reviewed_by": str(reviewed_by),
                 "reviewed_at": reviewed_at.astimezone(UTC).isoformat(),
-                "source_artifact_hash": str(source_artifact_hash),
+                "review_package_sha256": str(source_artifact_hash),
+                "approval_artifact_sha256": (
+                    str(approval_artifact_hash) if approval_artifact_hash else None
+                ),
+                "review_exception": review_exception,
+                "source_artifact_hashes": source_hashes,
             }
             mapping.canonical_player_id = str(canonical_player_id)
             mapping.transfermarkt_player_id = str(transfermarkt_player_id)
@@ -477,6 +966,608 @@ class FutureRefreshDbRepository:
                 player.mapping_status = "REVIEWED"
             session.commit()
             return mapping.identity_hash
+
+    def player_identity_review_reconciliation(
+        self,
+        *,
+        approved_rows: list[dict[str, Any]],
+        review_package_sha256: str,
+        approval_artifact_sha256: str,
+        reviewed_by: str,
+    ) -> dict[str, Any]:
+        """Read-only, idempotent reconciliation of the fixed approved package."""
+        expected = {
+            (row["api_football_player_id"], row["team_external_id"]): row
+            for row in approved_rows
+        }
+        if not expected or len(expected) != len(approved_rows):
+            raise FutureRefreshPersistenceError("PLAYER_IDENTITY_REVIEW_MANIFEST_INVALID")
+        with Session(self.engine) as session:
+            actual = [
+                mapping
+                for mapping in session.scalars(
+                    select(PlayerIdentityMappingModel).where(
+                        PlayerIdentityMappingModel.mapping_status == "REVIEWED"
+                    )
+                ).all()
+                if mapping.evidence.get("review_package_sha256")
+                == review_package_sha256
+            ]
+        actual_by_key = {
+            (mapping.api_football_player_id, mapping.team_external_id): mapping
+            for mapping in actual
+        }
+        missing = sorted(set(expected) - set(actual_by_key))
+        unexpected = sorted(set(actual_by_key) - set(expected))
+        mismatches: list[dict[str, Any]] = []
+        for key in sorted(set(expected) & set(actual_by_key)):
+            row = expected[key]
+            mapping = actual_by_key[key]
+            evidence = mapping.evidence
+            expected_sources = sorted(
+                {
+                    *row["source_hashes"],
+                    review_package_sha256,
+                    approval_artifact_sha256,
+                }
+            )
+            identity_payload = {
+                field: evidence.get(field)
+                for field in (
+                    "api_football_player_id",
+                    "team_external_id",
+                    "canonical_player_id",
+                    "transfermarkt_player_id",
+                    "canonical_team_id",
+                    "transfermarkt_club_id",
+                    "valid_from",
+                    "valid_to",
+                    "reviewed_by",
+                    "reviewed_at",
+                    "review_package_sha256",
+                    "approval_artifact_sha256",
+                    "review_exception",
+                    "source_artifact_hashes",
+                )
+            }
+            expected_identity_hash = hashlib.sha256(
+                json.dumps(
+                    identity_payload,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()
+            checks = {
+                "mapping_status": mapping.mapping_status == "REVIEWED",
+                "canonical_player_id": (
+                    mapping.canonical_player_id == row["canonical_player_id"]
+                    == evidence.get("canonical_player_id")
+                ),
+                "transfermarkt_player_id": (
+                    mapping.transfermarkt_player_id == row["transfermarkt_player_id"]
+                    == evidence.get("transfermarkt_player_id")
+                ),
+                "fixture_id": evidence.get("fixture_id") == row["fixture_id"],
+                "canonical_team_id": (
+                    evidence.get("canonical_team_id") == row["canonical_team_id"]
+                ),
+                "transfermarkt_club_id": (
+                    evidence.get("transfermarkt_club_id")
+                    == row["transfermarkt_club_id"]
+                ),
+                "reviewed_by": (
+                    mapping.reviewed_by == reviewed_by
+                    == evidence.get("reviewed_by")
+                ),
+                "reviewed_at": (
+                    mapping.reviewed_at is not None
+                    and bool(evidence.get("reviewed_at"))
+                ),
+                "review_package_sha256": (
+                    evidence.get("review_package_sha256") == review_package_sha256
+                ),
+                "approval_artifact_sha256": (
+                    evidence.get("approval_artifact_sha256")
+                    == approval_artifact_sha256
+                ),
+                "source_artifact_hashes": (
+                    sorted(evidence.get("source_artifact_hashes", []))
+                    == expected_sources
+                ),
+                "validity": (
+                    evidence.get("valid_from") == iso_z(mapping.valid_from)
+                    and evidence.get("valid_to")
+                    == (iso_z(mapping.valid_to) if mapping.valid_to is not None else None)
+                ),
+                "identity_hash": mapping.identity_hash == expected_identity_hash,
+            }
+            failed = sorted(name for name, passed in checks.items() if not passed)
+            if failed:
+                mismatches.append(
+                    {
+                        "api_football_player_id": key[0],
+                        "team_external_id": key[1],
+                        "failed_checks": failed,
+                    }
+                )
+        exact_rows = len(expected) - len(missing) - len(mismatches)
+        return {
+            "schema_version": "w2.player_identity_review_reconciliation.v1",
+            "review_package_sha256": review_package_sha256,
+            "approval_artifact_sha256": approval_artifact_sha256,
+            "reviewed_by": reviewed_by,
+            "expected_rows": len(expected),
+            "actual_reviewed_rows": len(actual),
+            "exact_rows": exact_rows,
+            "missing": [
+                {"api_football_player_id": key[0], "team_external_id": key[1]}
+                for key in missing
+            ],
+            "unexpected": [
+                {"api_football_player_id": key[0], "team_external_id": key[1]}
+                for key in unexpected
+            ],
+            "mismatches": mismatches,
+            "status": (
+                "PASS"
+                if len(actual) == len(expected) == exact_rows
+                and not missing
+                and not unexpected
+                and not mismatches
+                else "FAIL"
+            ),
+        }
+
+    def player_identity_candidate_audit(
+        self,
+        *,
+        fixture_ids: list[str],
+        as_of: datetime,
+    ) -> list[dict[str, Any]]:
+        """Return bounded evidence for candidates; this method never writes."""
+        wanted = [str(value) for value in dict.fromkeys(fixture_ids) if str(value)]
+        if not wanted or len(wanted) > 32:
+            return []
+        rows: list[dict[str, Any]] = []
+        with Session(self.engine) as session:
+            snapshots = session.scalars(
+                select(StructuredLineupSnapshotModel)
+                .where(
+                    StructuredLineupSnapshotModel.fixture_id.in_(wanted),
+                    StructuredLineupSnapshotModel.captured_at <= as_of,
+                )
+                .order_by(
+                    StructuredLineupSnapshotModel.fixture_id,
+                    StructuredLineupSnapshotModel.team_external_id,
+                    StructuredLineupSnapshotModel.captured_at.desc(),
+                )
+            ).all()
+            latest: dict[tuple[str, str], StructuredLineupSnapshotModel] = {}
+            for snapshot in snapshots:
+                latest.setdefault((snapshot.fixture_id, snapshot.team_external_id), snapshot)
+            for snapshot in latest.values():
+                players = session.scalars(
+                    select(StructuredLineupPlayerModel)
+                    .where(
+                        StructuredLineupPlayerModel.lineup_snapshot_id == snapshot.id,
+                        StructuredLineupPlayerModel.starter.is_(True),
+                    )
+                    .order_by(StructuredLineupPlayerModel.api_football_player_id)
+                ).all()
+                for player in players:
+                    mapping = session.scalar(
+                        select(PlayerIdentityMappingModel)
+                        .where(
+                            PlayerIdentityMappingModel.api_football_player_id
+                            == player.api_football_player_id,
+                            PlayerIdentityMappingModel.team_external_id
+                            == snapshot.team_external_id,
+                        )
+                        .order_by(PlayerIdentityMappingModel.valid_from.desc())
+                        .limit(1)
+                    )
+                    if mapping is None or mapping.transfermarkt_player_id is None:
+                        continue
+                    evidence = mapping.evidence
+                    prior = evidence.get("prior_preview")
+                    prior_evidence = (
+                        prior.get("evidence")
+                        if isinstance(prior, dict)
+                        and isinstance(prior.get("evidence"), dict)
+                        else None
+                    )
+                    current_materialization = (
+                        evidence.get("schema_version")
+                        == "w2.player_identity_candidate.v2"
+                    )
+                    audit_evidence = (
+                        evidence
+                        if current_materialization
+                        else prior_evidence or evidence
+                    )
+                    reference = session.scalar(
+                        select(TransfermarktPlayerReferenceModel)
+                        .where(
+                            TransfermarktPlayerReferenceModel.transfermarkt_player_id
+                            == mapping.transfermarkt_player_id,
+                            TransfermarktPlayerReferenceModel.observed_at <= as_of,
+                        )
+                        .order_by(TransfermarktPlayerReferenceModel.observed_at.desc())
+                        .limit(1)
+                    )
+                    rows.append(
+                        {
+                            "fixture_id": snapshot.fixture_id,
+                            "api_football_player_id": player.api_football_player_id,
+                            "api_football_team_id": snapshot.team_external_id,
+                            "team_name": snapshot.team_name,
+                            "transfermarkt_player_id": mapping.transfermarkt_player_id,
+                            "full_normalized_name": (
+                                reference.normalized_name if reference is not None else None
+                            ),
+                            "provider_position": player.provider_position,
+                            "transfermarkt_position": (
+                                reference.position if reference is not None else None
+                            ),
+                            "club_team_crosswalk": {
+                                "canonical_team_id": evidence.get("canonical_team_id"),
+                                "transfermarkt_club_id": audit_evidence.get(
+                                    "expected_transfermarkt_club_id"
+                                )
+                                or evidence.get("transfermarkt_club_id"),
+                                "api_team_authority_hash": evidence.get(
+                                    "api_team_authority_hash"
+                                )
+                                or audit_evidence.get("team_crosswalk_hash"),
+                                "transfermarkt_club_authority_hash": evidence.get(
+                                    "transfermarkt_club_authority_hash"
+                                ),
+                            },
+                            "source_hashes": sorted(
+                                {
+                                    str(value)
+                                    for value in (
+                                        audit_evidence.get("lineup_raw_sha256"),
+                                        audit_evidence.get("transfermarkt_source_sha256"),
+                                        *evidence.get("source_artifact_hashes", []),
+                                    )
+                                    if value
+                                }
+                            ),
+                            "candidate_reason": audit_evidence.get("reason"),
+                            "generator": (
+                                "FutureRefreshDbRepository."
+                                "materialize_player_identity_mappings"
+                                if current_materialization
+                                else "untracked staging one-off SQL; no repository "
+                                "script or function exists"
+                            ),
+                        }
+                    )
+        return sorted(
+            rows,
+            key=lambda row: (
+                row["fixture_id"],
+                row["api_football_team_id"],
+                row["api_football_player_id"],
+            ),
+        )
+
+    def player_identity_fixture_matrix(
+        self,
+        *,
+        fixture_ids: list[str],
+        as_of: datetime,
+    ) -> list[dict[str, Any]]:
+        wanted = [str(value) for value in dict.fromkeys(fixture_ids) if str(value)]
+        matrix: list[dict[str, Any]] = []
+        with Session(self.engine) as session:
+            for fixture_id in wanted[:32]:
+                snapshots = session.scalars(
+                    select(StructuredLineupSnapshotModel)
+                    .where(
+                        StructuredLineupSnapshotModel.fixture_id == fixture_id,
+                        StructuredLineupSnapshotModel.captured_at <= as_of,
+                    )
+                    .order_by(StructuredLineupSnapshotModel.captured_at.desc())
+                ).all()
+                latest: dict[str, StructuredLineupSnapshotModel] = {}
+                for snapshot in snapshots:
+                    latest.setdefault(snapshot.team_external_id, snapshot)
+                starters = session.scalars(
+                    select(StructuredLineupPlayerModel).where(
+                        StructuredLineupPlayerModel.lineup_snapshot_id.in_(
+                            [snapshot.id for snapshot in latest.values()]
+                        ),
+                        StructuredLineupPlayerModel.starter.is_(True),
+                    )
+                ).all()
+                unique = 0
+                conflicts = 0
+                missing_ids: list[str] = []
+                for player in starters:
+                    snapshot = next(
+                        value
+                        for value in latest.values()
+                        if value.id == player.lineup_snapshot_id
+                    )
+                    mapping = session.scalar(
+                        select(PlayerIdentityMappingModel)
+                        .where(
+                            PlayerIdentityMappingModel.api_football_player_id
+                            == player.api_football_player_id,
+                            PlayerIdentityMappingModel.team_external_id
+                            == snapshot.team_external_id,
+                        )
+                        .order_by(PlayerIdentityMappingModel.valid_from.desc())
+                        .limit(1)
+                    )
+                    if (
+                        mapping is not None
+                        and mapping.mapping_status in {"CANDIDATE", "REVIEWED"}
+                        and mapping.transfermarkt_player_id
+                        and mapping.evidence.get("authority_chain_complete")
+                    ):
+                        unique += 1
+                    elif mapping is not None and mapping.mapping_status == "CONFLICT":
+                        conflicts += 1
+                    else:
+                        missing_ids.append(player.api_football_player_id)
+                matrix.append(
+                    {
+                        "fixture_id": fixture_id,
+                        "starters": len(starters),
+                        "unique_candidates": unique,
+                        "missing": len(missing_ids),
+                        "conflicts": conflicts,
+                        "missing_player_ids": sorted(missing_ids),
+                    }
+                )
+        return matrix
+
+    def player_identity_join_evidence(
+        self,
+        *,
+        fixture_id: str,
+        as_of: datetime,
+        approved_rows: list[dict[str, Any]],
+        review_package_sha256: str,
+        approval_artifact_sha256: str,
+        reviewed_by: str,
+    ) -> dict[str, Any]:
+        """Read-only M3 identity acceptance, independent of valuation coverage."""
+        approved = {
+            (row["api_football_player_id"], row["team_external_id"]): row
+            for row in approved_rows
+        }
+        payload = self.fixture_payload(str(fixture_id))
+        fixture = payload.get("fixture", {}) if isinstance(payload, dict) else {}
+        try:
+            kickoff = parse_db_datetime(fixture.get("date"))
+        except FutureRefreshPersistenceError:
+            kickoff = None
+        with Session(self.engine) as session:
+            snapshots = session.scalars(
+                select(StructuredLineupSnapshotModel)
+                .where(
+                    StructuredLineupSnapshotModel.fixture_id == str(fixture_id),
+                    StructuredLineupSnapshotModel.captured_at <= as_of,
+                )
+                .order_by(StructuredLineupSnapshotModel.captured_at.desc())
+            ).all()
+            latest: dict[str, StructuredLineupSnapshotModel] = {}
+            for snapshot in snapshots:
+                latest.setdefault(snapshot.team_external_id, snapshot)
+            confirmed_snapshots = sum(snapshot.confirmed for snapshot in latest.values())
+            starters = session.scalars(
+                select(StructuredLineupPlayerModel)
+                .where(
+                    StructuredLineupPlayerModel.lineup_snapshot_id.in_(
+                        [snapshot.id for snapshot in latest.values()]
+                    ),
+                    StructuredLineupPlayerModel.starter.is_(True),
+                )
+                .order_by(
+                    StructuredLineupPlayerModel.api_football_player_id,
+                    StructuredLineupPlayerModel.lineup_snapshot_id,
+                )
+            ).all()
+            rows: list[dict[str, Any]] = []
+            missing = ambiguous = conflicts = invalid = 0
+            provenance_valid = package_valid = approval_valid = 0
+            source_hashes_valid = team_consistent = valid_at_kickoff = 0
+            for player in starters:
+                snapshot = next(
+                    value for value in latest.values() if value.id == player.lineup_snapshot_id
+                )
+                candidates = (
+                    session.scalars(
+                        select(PlayerIdentityMappingModel)
+                        .where(
+                            PlayerIdentityMappingModel.api_football_player_id
+                            == player.api_football_player_id,
+                            PlayerIdentityMappingModel.team_external_id
+                            == snapshot.team_external_id,
+                        )
+                        .order_by(PlayerIdentityMappingModel.valid_from.desc())
+                    ).all()
+                    if kickoff is not None
+                    else []
+                )
+                mappings = [
+                    mapping
+                    for mapping in candidates
+                    if kickoff is not None
+                    and parse_db_datetime(mapping.valid_from) <= kickoff
+                    and (
+                        mapping.valid_to is None
+                        or parse_db_datetime(mapping.valid_to) > kickoff
+                    )
+                ]
+                mapping = mappings[0] if mappings else None
+                if mapping is None:
+                    if candidates:
+                        invalid += 1
+                    else:
+                        missing += 1
+                    continue
+                if len(mappings) > 1:
+                    ambiguous += 1
+                if mapping.mapping_status == "CONFLICT":
+                    conflicts += 1
+                if mapping.mapping_status != "REVIEWED":
+                    missing += 1
+                    continue
+                expected = approved.get(
+                    (player.api_football_player_id, snapshot.team_external_id)
+                )
+                expected_sources = (
+                    sorted(
+                        {
+                            *expected["source_hashes"],
+                            review_package_sha256,
+                            approval_artifact_sha256,
+                        }
+                    )
+                    if expected is not None
+                    else []
+                )
+                provenance_ok = (
+                    mapping.reviewed_by == reviewed_by
+                    and mapping.reviewed_at is not None
+                    and mapping.evidence.get("reviewed_by") == reviewed_by
+                    and bool(mapping.evidence.get("reviewed_at"))
+                )
+                package_ok = (
+                    mapping.evidence.get("review_package_sha256")
+                    == review_package_sha256
+                )
+                approval_ok = (
+                    mapping.evidence.get("approval_artifact_sha256")
+                    == approval_artifact_sha256
+                )
+                sources_ok = (
+                    expected is not None
+                    and sorted(mapping.evidence.get("source_artifact_hashes", []))
+                    == expected_sources
+                )
+                team_ok = (
+                    expected is not None
+                    and expected["fixture_id"] == str(fixture_id)
+                    and expected["team_external_id"] == snapshot.team_external_id
+                    and mapping.canonical_player_id == expected["canonical_player_id"]
+                    and mapping.transfermarkt_player_id
+                    == expected["transfermarkt_player_id"]
+                    and mapping.evidence.get("canonical_team_id")
+                    == expected["canonical_team_id"]
+                    and mapping.evidence.get("transfermarkt_club_id")
+                    == expected["transfermarkt_club_id"]
+                    and snapshot.team_w2_id == expected["canonical_team_id"]
+                )
+                provenance_valid += int(provenance_ok)
+                package_valid += int(package_ok)
+                approval_valid += int(approval_ok)
+                source_hashes_valid += int(sources_ok)
+                team_consistent += int(team_ok)
+                valid_at_kickoff += 1
+                rows.append(
+                    {
+                        "api_football_player_id": player.api_football_player_id,
+                        "canonical_player_id": mapping.canonical_player_id,
+                        "transfermarkt_player_id": mapping.transfermarkt_player_id,
+                        "api_football_team_id": snapshot.team_external_id,
+                        "canonical_team_id": mapping.evidence.get("canonical_team_id"),
+                        "identity_hash": mapping.identity_hash,
+                        "reviewed_by": mapping.reviewed_by,
+                        "reviewed_at": (
+                            iso_z(mapping.reviewed_at)
+                            if mapping.reviewed_at is not None
+                            else None
+                        ),
+                        "review_package_sha256": mapping.evidence.get(
+                            "review_package_sha256"
+                        ),
+                        "approval_artifact_sha256": mapping.evidence.get(
+                            "approval_artifact_sha256"
+                        ),
+                        "source_artifact_hashes": mapping.evidence.get(
+                            "source_artifact_hashes", []
+                        ),
+                        "valid_from": iso_z(mapping.valid_from),
+                        "valid_to": (
+                            iso_z(mapping.valid_to)
+                            if mapping.valid_to is not None
+                            else None
+                        ),
+                        "team_consistent": team_ok,
+                    }
+                )
+            provider_ids = [row["api_football_player_id"] for row in rows]
+            canonical_ids = [
+                str(row["canonical_player_id"]) for row in rows if row["canonical_player_id"]
+            ]
+            duplicate_canonical = len(canonical_ids) - len(set(canonical_ids))
+            ordered_rows = sorted(
+                rows,
+                key=lambda row: (
+                    row["api_football_team_id"],
+                    row["api_football_player_id"],
+                ),
+            )
+            business_hash = hashlib.sha256(
+                json.dumps(
+                    ordered_rows,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()
+            metrics = {
+                "CONFIRMED_SNAPSHOTS": confirmed_snapshots,
+                "CONFIRMED_STARTERS": len(starters),
+                "UNIQUE_PROVIDER_PLAYERS": len(set(provider_ids)),
+                "UNIQUE_CANONICAL_PLAYERS": len(set(canonical_ids)),
+                "REVIEWED_MAPPINGS": len(rows),
+                "REVIEW_PROVENANCE_VALID": provenance_valid,
+                "PACKAGE_HASH_VALID": package_valid,
+                "APPROVAL_HASH_VALID": approval_valid,
+                "SOURCE_HASHES_VALID": source_hashes_valid,
+                "TEAM_CONSISTENT": team_consistent,
+                "VALID_AT_KICKOFF": valid_at_kickoff,
+                "MISSING": missing,
+                "AMBIGUOUS": ambiguous,
+                "CONFLICT": conflicts,
+                "DUPLICATE_CANONICAL": duplicate_canonical,
+                "INVALID_AT_KICKOFF": invalid,
+            }
+            passed = metrics == {
+                "CONFIRMED_SNAPSHOTS": 2,
+                "CONFIRMED_STARTERS": 22,
+                "UNIQUE_PROVIDER_PLAYERS": 22,
+                "UNIQUE_CANONICAL_PLAYERS": 22,
+                "REVIEWED_MAPPINGS": 22,
+                "REVIEW_PROVENANCE_VALID": 22,
+                "PACKAGE_HASH_VALID": 22,
+                "APPROVAL_HASH_VALID": 22,
+                "SOURCE_HASHES_VALID": 22,
+                "TEAM_CONSISTENT": 22,
+                "VALID_AT_KICKOFF": 22,
+                "MISSING": 0,
+                "AMBIGUOUS": 0,
+                "CONFLICT": 0,
+                "DUPLICATE_CANONICAL": 0,
+                "INVALID_AT_KICKOFF": 0,
+            }
+            return {
+                "schema_version": "w2.player_identity_join_evidence.v2",
+                "fixture_id": str(fixture_id),
+                "kickoff_utc": iso_z(kickoff) if kickoff is not None else None,
+                "status": "PASS" if passed else "INCOMPLETE",
+                "metrics": metrics,
+                "rows": ordered_rows,
+                "business_hash": business_hash,
+                "provider_calls": 0,
+                "db_writes": 0,
+            }
 
     def lineup_gate_evidence(
         self,

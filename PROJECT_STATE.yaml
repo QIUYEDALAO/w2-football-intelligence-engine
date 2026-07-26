@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-26T03:47:54Z"
+updated_at: "2026-07-26T06:58:00Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -25,20 +25,20 @@ context_read_order:
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  main_sha: 0cb267baa62abe547802bca27771a8fe1c26a0db
-  main_migration_head: 0041_converge_odds_history_and_projection
-  pull_request: 400
+  main_sha: a309f8326357adc68486609cec577d260cff25fa
+  main_migration_head: 0042_team_identity_provider_review_provenance
+  pull_request: 402
   pull_request_mode: DRAFT
-  pull_request_head_branch: codex/arch-p1-03-team-identity-crosswalk
-  task_baseline_sha: 0cb267baa62abe547802bca27771a8fe1c26a0db
-  local_work_branch: codex/arch-p1-03-team-identity-crosswalk
-  github_sync_status: ARCH_P1_03A_IMPLEMENTED_PENDING_ACCEPTANCE
+  pull_request_head_branch: agent/arch-p1-03b-m2b-m3
+  task_baseline_sha: a309f8326357adc68486609cec577d260cff25fa
+  local_work_branch: agent/arch-p1-03b-m2b-m3
+  github_sync_status: ARCH_P1_03B_M2B_M3_DRAFT_EXTERNAL_REVIEW_PENDING
   ci_checks:
     verify: GITHUB_PR_EXACT_HEAD
     staging-parity: GITHUB_PR_EXACT_HEAD
     predeploy-e2e: GITHUB_PR_EXACT_HEAD
-    PRE_MERGE_READINESS_GATE: NOT_RUN_DRAFT_M3_PAUSED
-    POST_MERGE_CHECKLIST_CONSISTENCY_GATE: MAIN_30143083350_PASS_FOR_ARCH_P1_04C_CLOSURE
+    PRE_MERGE_READINESS_GATE: EXPECTED_FAIL_DRAFT
+    POST_MERGE_CHECKLIST_CONSISTENCY_GATE: GITHUB_PR_EXACT_HEAD
   closed_pull_requests:
     370: CLOSED_AFTER_BASELINE_INTEGRATION_PR_374
     385: MERGED_AFTER_IMPLEMENTATION_AND_STAGING_ACCEPTANCE
@@ -83,6 +83,7 @@ architecture_convergence:
     - ARCH-P1-04D
     - ARCH-P1-03A
     - ARCH-P1-03B
+    - ARCH-P1-03C
     - ARCH-P1-05
     - ARCH-P1-06
     - ARCH-P1-07
@@ -94,7 +95,7 @@ architecture_convergence:
     - ARCH-P2-06
     - ARCH-P2-05
   next_task: ARCH-P1-03B
-  current_task:
+  last_completed_task:
     id: ARCH-P1-03A
     status: DONE
     pull_request: 400
@@ -173,8 +174,39 @@ architecture_convergence:
     controlled_canonical_id_mint_sites: 1
     controlled_canonical_id_mint_location: canonical_team_payload
     legacy_crosswalk_orm_declarations: 3
-    legacy_crosswalk_orm_status: TEMPORARY_ALLOWED_UNTIL_ARCH_P1_03B_M4
+    legacy_crosswalk_orm_status: TEMPORARY_ALLOWED_UNTIL_ARCH_P1_03C_M4
     new_identity_table_count: 0
+  current_task:
+    id: ARCH-P1-03B
+    status: IMPLEMENTED_PENDING_ACCEPTANCE
+    pull_request: 402
+    branch: agent/arch-p1-03b-m2b-m3
+    baseline_sha: a309f8326357adc68486609cec577d260cff25fa
+    implementation_head: GITHUB_PR_EXACT_HEAD
+    started_at: "2026-07-26T05:10:00Z"
+    predecessor: ARCH-P1-03A
+    scope: PLAYER_IDENTITY_M2B_AND_M3_ONLY
+    phase: IMPLEMENTED_PENDING_EXTERNAL_ACCEPTANCE
+    m2b_status: DONE_STAGING_REVIEWED_66
+    m3_status: PASS_3_REAL_FIXTURES_3_RUNS_STRENGTHENED_V2
+    m3_fixtures:
+      - 1494212
+      - 1494214
+      - 1494216
+    review_package_sha256: 916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea
+    approval_artifact_sha256: a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695
+    review_reconciliation_sha256: d697798e40928a2f1c9c2690285790563d4e2e914067e3f0627536179a8da762
+    review_reconciliation_status: PASS_66_OF_66_ZERO_WRITE_ZERO_PROVIDER_CALL
+    m3_evidence_sha256: 4a0be812b61fd4aacdd5e7a3073c87ab81bf3d7ef2564cf81bb6aa1f479084e9
+    external_acceptance: REVIEW_PENDING
+    successor_task: ARCH-P1-03C
+    m4_status: DEFERRED_TO_ARCH_P1_03C_NOT_STARTED
+    legacy_table_removal_status: DEFERRED_TO_ARCH_P1_03C_NOT_STARTED
+    legacy_orm_removal_status: DEFERRED_TO_ARCH_P1_03C_NOT_STARTED
+    formal_enabled: false
+    lock_enabled: false
+    production_enabled: false
+    scheduler_enabled: false
   governance_contracts:
     github_secondary_review:
       id: GITHUB_SECONDARY_REVIEW_PROTOCOL_V1
@@ -265,7 +297,9 @@ architecture_convergence:
     ARCH-P1-04C: DONE
     ARCH-P1-04D: DONE
     ARCH-P1-03A: DONE
-    ARCH-P1-03B: NOT_STARTED
+    ARCH-P1-03B: IMPLEMENTED_PENDING_ACCEPTANCE
+    ARCH-P1-03C: NOT_STARTED
+    ARCH-P1-05: NOT_STARTED
   pre_approved_order_change:
     task: ARCH-P1-05
     condition: STAGING_ONSITE_BUILD_REPEATEDLY_FAILS
