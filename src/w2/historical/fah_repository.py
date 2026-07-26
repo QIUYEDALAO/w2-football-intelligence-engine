@@ -114,27 +114,6 @@ class FahDataFoundationRepository:
 
     write_player_memberships = import_player_memberships
 
-    def historical_ah_facts_for_teams(
-        self,
-        *,
-        team_ids: Iterable[str],
-        competition_id: str,
-        as_of: datetime,
-    ) -> list[dict[str, Any]]:
-        teams = {str(item) for item in team_ids}
-        with Session(self.engine) as session:
-            rows = session.scalars(
-                select(CanonicalHistoricalAhFactModel).where(
-                    CanonicalHistoricalAhFactModel.competition_id == competition_id,
-                    CanonicalHistoricalAhFactModel.kickoff_utc < as_of,
-                )
-            ).all()
-        return [
-            dict(row.payload)
-            for row in rows
-            if row.home_team_provider_id in teams or row.away_team_provider_id in teams
-        ]
-
     def canonical_f5_team_history(
         self,
         *,

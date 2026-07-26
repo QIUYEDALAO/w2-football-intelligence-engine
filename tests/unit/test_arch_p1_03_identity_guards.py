@@ -46,6 +46,46 @@ def test_legacy_crosswalk_runtime_references_are_zero() -> None:
     assert offenders == {}, f"legacy crosswalk runtime references: {offenders}"
 
 
+# The canonical id is minted exactly once, at controlled seeding time, inside
+# canonical_team_payload(). Every resolution path must go through
+# CanonicalIdentityRepository instead of rebuilding an id from a provider id.
+_SEEDING_MINT_FILE = _ROOT / "src" / "w2" / "factor_model" / "remediation.py"
+_MINT_CALLER = "canonical_team_payload"
+
+
+def test_runtime_canonical_id_from_provider_construction_is_zero() -> None:
+    # (a) No literal "w2:team:<provider>:" construction outside the mint.
+    literal = re.compile(r'f?"w2:team:')
+    # (b) No call to the mint helper outside its definition and canonical_team_payload.
+    call = re.compile(r"\bstable_w2_team_id\s*\(")
+    offenders: list[str] = []
+    for path in _runtime_py_files():
+        text = path.read_text(encoding="utf-8")
+        if path == _SEEDING_MINT_FILE:
+            # Only the mint helper itself and canonical_team_payload may construct.
+            mint_region = text.split(f"def {_MINT_CALLER}")[0].split("def stable_w2_team_id")[0]
+            if literal.search(mint_region) or call.search(mint_region):
+                offenders.append(f"{path.relative_to(_ROOT)}:pre-mint-region")
+            continue
+        if literal.search(text) or call.search(text):
+            offenders.append(path.relative_to(_ROOT).as_posix())
+    assert offenders == [], f"runtime canonical-id-from-provider construction: {offenders}"
+
+
+def test_provider_id_model_primary_reads_are_zero() -> None:
+    """Model-facing snapshot/history/rating/xG reads must key on canonical W2 ids."""
+    model_read = re.compile(
+        r"(TeamXgRollingSnapshotModel|TeamXgMatchModel|TeamRatingSnapshotModel"
+        r"|CanonicalTeamMatchHistoryModel)\.\w+\s*==\s*[\w.]*provider_team_id"
+    )
+    offenders = [
+        path.relative_to(_ROOT).as_posix()
+        for path in _runtime_py_files()
+        if model_read.search(path.read_text(encoding="utf-8"))
+    ]
+    assert offenders == [], f"provider-id model primary reads: {offenders}"
+
+
 def test_legacy_crosswalk_orm_declarations_are_exactly_three() -> None:
     text = _ALLOWLIST.read_text(encoding="utf-8")
     declared = [

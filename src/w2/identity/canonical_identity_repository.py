@@ -102,6 +102,35 @@ class CanonicalIdentityRepository:
             return None
         return valid[0]
 
+    # --- session-scoped bulk resolution --------------------------------------
+
+    @staticmethod
+    def provider_team_mapping_in_session(
+        session: Session,
+        *,
+        provider: str,
+        competition: str,
+        season: str,
+    ) -> dict[str, str]:
+        """``provider_team_id -> w2_team_id`` for one provider/competition/season.
+
+        Session-scoped so callers inside an open transaction resolve against the
+        authority rows they have already flushed. Provider ids absent from the
+        authority are simply absent from the mapping, so callers fail closed
+        rather than constructing an identity.
+        """
+        rows = session.scalars(
+            select(ProviderTeamIdentityCrosswalkModel)
+            .where(
+                ProviderTeamIdentityCrosswalkModel.provider == provider,
+                ProviderTeamIdentityCrosswalkModel.competition_id == competition,
+                ProviderTeamIdentityCrosswalkModel.season == season,
+                ProviderTeamIdentityCrosswalkModel.identity_status == _TEAM_READY_STATUS,
+            )
+            .order_by(ProviderTeamIdentityCrosswalkModel.provider_team_id)
+        ).all()
+        return {row.provider_team_id: row.w2_team_id for row in rows}
+
     # --- season-agnostic team resolution (F5 historical, no season axis) -----
 
     def resolve_team_canonical(

@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from w2.features.team_factors import TeamMatchHistory
 from w2.features.xg_materialization import FINISHED_STATUS, TeamXgMatch, parse_team_xg_matches
+from w2.identity import CanonicalIdentityRepository
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.factor_model_models import (
     CanonicalTeamMatchHistoryModel,
@@ -208,10 +209,15 @@ class FactorModelRemediationService:
                         raise FactorModelRemediationError(
                             "PROVIDER_TEAM_CROSSWALK_CONFLICT"
                         ) from None
-            mapping = {
-                item["provider_team_id"]: stable_w2_team_id(item["provider_team_id"])
-                for item in team_rows
-            }
+            # Fixture identity resolves from the canonical authority, never by
+            # constructing an id from the provider id. Unknown provider identity
+            # is absent from the mapping and fails closed below.
+            mapping = CanonicalIdentityRepository.provider_team_mapping_in_session(
+                session,
+                provider=PROVIDER,
+                competition=self.config.competition_id,
+                season=self.config.season,
+            )
             ready = 0
             for fixture in fixtures:
                 home = mapping.get(fixture.home_provider_team_id)
@@ -769,21 +775,12 @@ class FactorModelRemediationService:
 
     def _provider_to_w2_mapping(self) -> dict[str, str]:
         with Session(self.engine) as session:
-            rows = list(
-                session.scalars(
-                    select(ProviderTeamIdentityCrosswalkModel)
-                    .where(
-                        ProviderTeamIdentityCrosswalkModel.provider == PROVIDER,
-                        ProviderTeamIdentityCrosswalkModel.competition_id
-                        == self.config.competition_id,
-                        ProviderTeamIdentityCrosswalkModel.season == self.config.season,
-                        ProviderTeamIdentityCrosswalkModel.identity_status
-                        == PROVIDER_PRIMARY_READY,
-                    )
-                    .order_by(ProviderTeamIdentityCrosswalkModel.provider_team_id)
-                )
+            return CanonicalIdentityRepository.provider_team_mapping_in_session(
+                session,
+                provider=PROVIDER,
+                competition=self.config.competition_id,
+                season=self.config.season,
             )
-        return {row.provider_team_id: row.w2_team_id for row in rows}
 
     def _smoke_readiness(self, session: Session) -> list[dict[str, Any]]:
         output: list[dict[str, Any]] = []
@@ -824,26 +821,53 @@ class FactorModelRemediationService:
                 )
                 or 0
             )
-            home_xg_snapshot = session.scalar(
-                select(func.count())
-                .select_from(TeamXgRollingSnapshotModel)
-                .where(
-                    TeamXgRollingSnapshotModel.team_id == fixture.home_provider_team_id,
-                    TeamXgRollingSnapshotModel.as_of_time < fixture.kickoff_utc,
-                    TeamXgRollingSnapshotModel.match_count >= 3,
-                    TeamXgRollingSnapshotModel.source_system == "team_xg_match",
+            # xG rows are stored under the provider's source identity. The
+            # model-facing read starts from the canonical W2 id and translates to
+            # that source identity through the authority, so the provider column
+            # is never the model primary key. Unknown identity -> no rows.
+            w2_to_provider = {
+                w2: provider_id
+                for provider_id, w2 in CanonicalIdentityRepository
+                .provider_team_mapping_in_session(
+                    session,
+                    provider=PROVIDER,
+                    competition=self.config.competition_id,
+                    season=self.config.season,
                 )
-            ) or 0
-            away_xg_snapshot = session.scalar(
-                select(func.count())
-                .select_from(TeamXgRollingSnapshotModel)
-                .where(
-                    TeamXgRollingSnapshotModel.team_id == fixture.away_provider_team_id,
-                    TeamXgRollingSnapshotModel.as_of_time < fixture.kickoff_utc,
-                    TeamXgRollingSnapshotModel.match_count >= 3,
-                    TeamXgRollingSnapshotModel.source_system == "team_xg_match",
+                .items()
+            }
+            home_xg_source_id = (
+                w2_to_provider.get(fixture.home_w2_team_id) if fixture.home_w2_team_id else None
+            )
+            away_xg_source_id = (
+                w2_to_provider.get(fixture.away_w2_team_id) if fixture.away_w2_team_id else None
+            )
+            home_xg_snapshot = (
+                session.scalar(
+                    select(func.count())
+                    .select_from(TeamXgRollingSnapshotModel)
+                    .where(
+                        TeamXgRollingSnapshotModel.team_id == home_xg_source_id,
+                        TeamXgRollingSnapshotModel.as_of_time < fixture.kickoff_utc,
+                        TeamXgRollingSnapshotModel.match_count >= 3,
+                        TeamXgRollingSnapshotModel.source_system == "team_xg_match",
+                    )
                 )
-            ) or 0
+                or 0
+            ) if home_xg_source_id is not None else 0
+            away_xg_snapshot = (
+                session.scalar(
+                    select(func.count())
+                    .select_from(TeamXgRollingSnapshotModel)
+                    .where(
+                        TeamXgRollingSnapshotModel.team_id == away_xg_source_id,
+                        TeamXgRollingSnapshotModel.as_of_time < fixture.kickoff_utc,
+                        TeamXgRollingSnapshotModel.match_count >= 3,
+                        TeamXgRollingSnapshotModel.source_system == "team_xg_match",
+                    )
+                )
+                or 0
+            ) if away_xg_source_id is not None else 0
             f9_status = (
                 "READY"
                 if home_xg_snapshot and away_xg_snapshot
