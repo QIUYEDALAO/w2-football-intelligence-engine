@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-25T15:01:14Z"
+updated_at: "2026-07-26T03:47:54Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -68,6 +68,7 @@ architecture_convergence:
     ARCH-HYGIENE-02: DONE
     ARCH-P1-04C: DONE
     ARCH-P1-04D: DONE
+    ARCH-P1-03A: DONE
   superseded:
     ARCH-P2-01: ARCH-HYGIENE-02
   p0_acceptance: P0_ARCHITECTURE_CONVERGENCE_PASS
@@ -95,8 +96,13 @@ architecture_convergence:
   next_task: ARCH-P1-03B
   current_task:
     id: ARCH-P1-03A
-    status: IMPLEMENTED_PENDING_ACCEPTANCE
+    status: DONE
     pull_request: 400
+    implementation_pr: 400
+    implementation_merge_sha: bcd2c5e490a99426a0451de7f92362c1a76b2960
+    implementation_ci_run: 30186249997
+    accepted_head: d093ca81431edfb6990d1a50cff5702a81bcc4ed
+    accepted_by: W2_EXTERNAL_ACCEPTANCE_V1
     branch: codex/arch-p1-03-team-identity-crosswalk
     baseline_sha: 0cb267baa62abe547802bca27771a8fe1c26a0db
     started_at: "2026-07-26T00:00:00Z"
@@ -258,7 +264,7 @@ architecture_convergence:
     ARCH-GOVERNANCE-01: DONE
     ARCH-P1-04C: DONE
     ARCH-P1-04D: DONE
-    ARCH-P1-03A: IMPLEMENTED_PENDING_ACCEPTANCE
+    ARCH-P1-03A: DONE
     ARCH-P1-03B: NOT_STARTED
   pre_approved_order_change:
     task: ARCH-P1-05
