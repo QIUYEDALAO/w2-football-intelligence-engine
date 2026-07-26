@@ -113,21 +113,44 @@ ACTUAL_READ_SET = IDENTITY_GUARD_COVERAGE_SET
 
 强制规则：
 
-1. `W2_PR_KIND: PREFLIGHT` 仅用于 `NOT_STARTED` 当前任务的只读盘点、matrix/证据、
-   状态文档和治理测试；禁止修改生产代码。
-2. Implementation/Closure 禁止修改 immutable spec。范围变化必须单独走
-   PREFLIGHT，并以 `REVIEW_MISS` 或 `SCOPE_AMENDMENT` 记录原因和被替代 spec hash。
-3. baseline receipt 完整 PASS 时 checker 才派生 `implementation gate = OPEN`；
+1. matrix 是否适用、PREFLIGHT 目标和任务顺序只从 trusted base/main 读取。
+   `W2_PR_KIND: PREFLIGHT` 只能面向 base 中第一个非 `DONE` 且仍为
+   `NOT_STARTED` 的当前任务；禁止提前冻结未来任务，禁止借清单重排改变适用性。
+2. Artifact 权限按 PR kind fail-closed：
+   - PREFLIGHT 可新增/修改 spec 与 baseline，但不得写 final；
+   - IMPLEMENTATION 禁止修改 spec/baseline，只可新增/更新 final；
+   - CLOSURE 禁止修改 spec/baseline/final，只可修改状态与台账文档；
+   - rename、delete 和 `previous_filename` 同样受上述约束。
+3. baseline `exact_head` 必须等于 `spec.frozen_baseline_commit`。`INITIAL_FREEZE`
+   仅允许 spec 首次新增；修改既有 spec 必须单独走 PREFLIGHT，以 `REVIEW_MISS`
+   或 `SCOPE_AMENDMENT` 记录原因，并让 `supersedes_spec_sha256` 等于 trusted base
+   spec 的真实重算 SHA-256。
+4. baseline receipt 完整 PASS 时 checker 才派生 `implementation gate = OPEN`；
    不得在 JSON 或文档中人工填写 OPEN。
-4. Closure/DONE 只在所有适用 claims、六类 case result、三层证据和同一 exact-head
-   final receipt 全部 PASS 时派生。非适用 claim 必须为 `NOT_APPLICABLE` 并说明理由。
-5. 内存 SQLite/手写 payload 是 `SYNTHETIC_CONTRACT_TEST`；ORM 文件只是
+5. Implementation PRE 必须读取 final；`final.exact_head` 必须等于 implementation
+   PR exact head，并绑定该 head 的 `FULL` CI receipt 与 exact-head 外部 acceptance。
+   Closure 不得把 final 改绑 closure head，而应验证已合并 implementation head、
+   final hash、acceptance、Full CI 与 merge SHA。
+6. POST 对每个 matrix-governed `DONE` 任务重新验证 PASS final、记录的 accepted
+   implementation head、Full CI、implementation PR 与 merge SHA；任一缺失、失配或
+   closure 改动 artifact 都 fail-closed。
+7. 内存 SQLite/手写 payload 是 `SYNTHETIC_CONTRACT_TEST`；ORM 文件只是
    `DECLARED_ORM_SCHEMA`。`REAL_DB` 必须来自只读 SQL/`pg_catalog` 和真实行形状
    fingerprint；`REAL_PRODUCER_OUTPUT` 必须来自真实保存 payload、真实 staging 行或
    content-addressed 脱敏 artifact。
-6. 六类失败输入可由真实脱敏输入做受控 mutation，不要求生产数据库天然存在坏数据。
-7. checker 必须完整执行 lifecycle JSON Schema、验证 frozen baseline commit，重算
-   文件和证据 hash，确认 symbol/test、命令、exact head、symlink 与仓库边界。
+8. PASS input 的 evidence type 必须与 primary evidence 一致并属于 spec 允许的真实
+   类型。valid case 必须绑定 `UNCHANGED_REAL_INPUT`；missing/malformed/stale/
+   ambiguous/conflict 必须绑定
+   `CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT`、真实脱敏输入和
+   `MUTATION_TEST`。普通 static、ORM 或 synthetic 证据不得单独产生 PASS。
+9. REAL_DB、REAL_PRODUCER_OUTPUT 与 CONTENT_ADDRESSED_SANITIZED_ARTIFACT
+   必须使用机器 schema，绑定 generator、replay argv 与 hash、query hash（适用时）、
+   migration head、captured_at、source identity、行数/结果 fingerprint、
+   provider/db delta 和 exact head；CI 必须实际运行 replay generator，不能根据
+   command 字符串关键词推断证据真实性。
+10. checker 必须完整执行 lifecycle JSON Schema、验证 frozen baseline commit，使用
+    目标 commit 的 tree/blob（不依赖当前工作树存在该路径）重算文件与证据 hash，并以
+    AST 作用域确认 fully-qualified symbol/test、symlink 与仓库边界。
 
 ### 4. 输出和破坏性操作闭环
 

@@ -14,6 +14,7 @@
       "evidence": [
         {
           "evidence_type": "DECLARED_ORM_SCHEMA",
+          "role": "SUPPORTING",
           "artifact_path": "src/w2/infrastructure/persistence/models.py",
           "artifact_sha256": "f5943563d20eade299cf424393c6618b529b5ccd05cc26ba4656b95fbded1b9c",
           "command": "git show 832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd:src/w2/infrastructure/persistence/models.py",
@@ -29,6 +30,7 @@
       "evidence": [
         {
           "evidence_type": "CONTENT_ADDRESSED_SANITIZED_ARTIFACT",
+          "role": "SUPPORTING",
           "artifact_path": "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
           "artifact_sha256": "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
           "command": "git show 832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd:docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
@@ -44,6 +46,7 @@
       "evidence": [
         {
           "evidence_type": "STATIC_AST_SCAN",
+          "role": "SUPPORTING",
           "artifact_path": "tests/unit/test_arch_p1_03_identity_guards.py",
           "artifact_sha256": "e73f4393f37689ae767d89c618fea001d35cb929943a5bab20c1f4bd29e28170",
           "command": "uv run pytest -q tests/unit/test_arch_p1_03_identity_guards.py",
@@ -62,6 +65,7 @@
       "evidence": [
         {
           "evidence_type": "SYNTHETIC_CONTRACT_TEST",
+          "role": "SUPPORTING",
           "artifact_path": "tests/unit/test_lineup_materialization.py",
           "artifact_sha256": "18b75b38b6f7dacf611486420ea7a35c05357bbbbd0d0b31ac0b44c6195a2ee4",
           "command": "uv run pytest -q tests/unit/test_lineup_materialization.py::test_player_identity_join_evidence_is_read_only_and_deterministic",
@@ -72,12 +76,12 @@
     }
   },
   "case_results": [
-    {"type": "valid", "status": "NOT_RUN", "observed_output": "No qualifying real input executed.", "evidence": []},
-    {"type": "missing", "status": "NOT_RUN", "observed_output": "No controlled real-input mutation executed.", "evidence": []},
-    {"type": "malformed", "status": "NOT_RUN", "observed_output": "No controlled real-input mutation executed.", "evidence": []},
-    {"type": "stale", "status": "NOT_RUN", "observed_output": "No controlled real-input mutation executed.", "evidence": []},
-    {"type": "ambiguous", "status": "NOT_RUN", "observed_output": "No controlled real-input mutation executed.", "evidence": []},
-    {"type": "conflict", "status": "NOT_RUN", "observed_output": "No controlled real-input mutation executed.", "evidence": []}
+    {"type": "valid", "status": "NOT_RUN", "derivation": "UNCHANGED_REAL_INPUT", "observed_output": "No qualifying real input executed.", "evidence": []},
+    {"type": "missing", "status": "NOT_RUN", "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT", "observed_output": "No controlled real-input mutation executed.", "evidence": []},
+    {"type": "malformed", "status": "NOT_RUN", "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT", "observed_output": "No controlled real-input mutation executed.", "evidence": []},
+    {"type": "stale", "status": "NOT_RUN", "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT", "observed_output": "No controlled real-input mutation executed.", "evidence": []},
+    {"type": "ambiguous", "status": "NOT_RUN", "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT", "observed_output": "No controlled real-input mutation executed.", "evidence": []},
+    {"type": "conflict", "status": "NOT_RUN", "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT", "observed_output": "No controlled real-input mutation executed.", "evidence": []}
   ],
   "claim_results": [
     {
@@ -112,5 +116,5 @@
     }
   ],
   "overall_status": "BLOCKED",
-  "receipt_sha256": "2e04d8a414984cc82da0186b1d24f859be736e430e47e0dfab8b541d0cc26307"
+  "receipt_sha256": "650a9ab2df3c9d9dd9b2c8e5b5f91bdb22ced8404f55ca9b373fc7f32778828b"
 }

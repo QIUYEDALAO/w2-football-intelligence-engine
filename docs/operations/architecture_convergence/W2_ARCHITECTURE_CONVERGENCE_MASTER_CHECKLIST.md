@@ -647,7 +647,7 @@ Predecessor: ARCH-P1-04D-R1
 Successor: ARCH-P1-03B-R1 (NOT_STARTED)
 Lifecycle schema: contracts/governance/architecture_acceptance_lifecycle.v1.schema.json
 First immutable spec SHA-256: 5c7d7ad738dc051f30c87506dafdb6161d3dad2b442a5bba9a830f64f1a16ba7
-First baseline receipt SHA-256: 2e04d8a414984cc82da0186b1d24f859be736e430e47e0dfab8b541d0cc26307
+First baseline receipt SHA-256: 650a9ab2df3c9d9dd9b2c8e5b5f91bdb22ced8404f55ca9b373fc7f32778828b
 ```
 
 - [x] 每个后续架构任务开工前冻结 exact head、范围、全部运行入口、真实
@@ -667,6 +667,17 @@ First baseline receipt SHA-256: 2e04d8a414984cc82da0186b1d24f859be736e430e47e0df
 - [x] checker 完整执行 JSON Schema，重算 frozen baseline 的文件 hash，验证 symbol/
       test、symlink/仓库边界及 evidence path/hash/command/head；OPEN、Closure/DONE
       均只由 receipt 证据派生。
+- [x] PR-kind artifact ACL 覆盖 add/modify/rename/delete/previous filename；
+      baseline 绑定 frozen commit，spec amendment 绑定 trusted-base 重算 hash。
+- [x] Implementation final 绑定同一 exact head 的 FULL CI 与外部 acceptance；
+      Closure/POST 交叉核对 final hash、implementation PR/head、Full CI 与 merge SHA，
+      不把 final 改绑 closure head。
+- [x] 历史证据使用目标 commit tree/blob 校验；fully-qualified symbol 由 AST 真实
+      class scope 验证。PASS 输入/六类 case 必须绑定相符 primary real artifact，
+      controlled mutation 和 mutation test。
+- [x] 三类真实 evidence artifact 使用机器 schema，绑定 generator/replay/query、
+      migration head、capture/source identity、fingerprint、provider/db delta 与 head；
+      `governance-light` 实际执行 replay gate。
 - [x] 首个只读实例冻结 `ARCH-P1-03B-R1.spec.json` 与
       `ARCH-P1-03B-R1.baseline.json`；baseline 正确标记 synthetic/ORM 证据且
       overall `BLOCKED`，03B-R1 保持 `NOT_STARTED`。

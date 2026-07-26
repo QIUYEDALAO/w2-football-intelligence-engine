@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import base64
+import copy
+import hashlib
 import json
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -143,6 +146,238 @@ def test_repository_path_rejects_escape_and_symlink(tmp_path: Path) -> None:
     assert not governance._repo_file(tmp_path, "link.json")
 
 
+def test_git_blob_reads_historical_deleted_file_without_current_worktree_path(
+    tmp_path: Path,
+) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=tmp_path)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp_path)
+    historical = tmp_path / "historical.json"
+    historical.write_text('{"trusted":true}\n', encoding="utf-8")
+    subprocess.run(["git", "add", "historical.json"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-qm", "baseline"], cwd=tmp_path, check=True)
+    baseline = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    historical.unlink()
+    subprocess.run(["git", "add", "-u"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-qm", "delete"], cwd=tmp_path, check=True)
+    assert governance._git_blob(tmp_path, baseline, "historical.json") == (
+        b'{"trusted":true}\n'
+    )
+
+
+def test_fully_qualified_symbol_requires_real_ast_class_scope() -> None:
+    source = b"class Correct:\n    pass\n\ndef target():\n    pass\n"
+    assert governance._symbol_exists(source, "target")
+    assert not governance._symbol_exists(source, "Correct.target")
+    assert governance._symbol_exists(
+        b"class Correct:\n    def target(self):\n        return True\n",
+        "Correct.target",
+    )
+
+
+def test_final_receipt_binds_exact_head_full_ci_and_acceptance() -> None:
+    receipt = baseline_receipt()
+    receipt["artifact_kind"] = "FINAL_EXACT_HEAD_RECEIPT"
+    receipt["ci_receipt"] = {
+        "run_id": 123,
+        "plan": "FULL",
+        "conclusion": "success",
+        "exact_head": receipt["exact_head"],
+    }
+    receipt["external_acceptance"] = {
+        "protocol": governance.PROTOCOL_ID,
+        "decision": "PASS",
+        "accepted_head": receipt["exact_head"],
+        "review_sha256": "c" * 64,
+        "implementation_pr_number": 410,
+    }
+    receipt["receipt_sha256"] = governance._artifact_hash(receipt, "receipt_sha256")
+    assert governance.validate_acceptance_receipt(
+        receipt,
+        spec=frozen_spec(),
+        root=ROOT,
+        expected_kind="FINAL_EXACT_HEAD_RECEIPT",
+    ) == []
+    receipt["ci_receipt"]["exact_head"] = HEAD
+    assert "MATRIX_FINAL_CI_HEAD_MISMATCH" in governance.validate_acceptance_receipt(
+        receipt,
+        spec=frozen_spec(),
+        root=ROOT,
+        expected_kind="FINAL_EXACT_HEAD_RECEIPT",
+    )
+
+
+def test_pass_inputs_and_cases_require_matching_primary_real_evidence() -> None:
+    receipt = baseline_receipt()
+    receipt["input_results"][0]["status"] = "PASS"
+    assert "MATRIX_RECEIPT_INPUT_TYPE_INVALID:canonical_player_authority_rows" in (
+        governance.validate_acceptance_receipt(
+            receipt,
+            spec=frozen_spec(),
+            root=ROOT,
+            expected_kind="BASELINE_RECEIPT",
+        )
+    )
+    receipt = baseline_receipt()
+    valid = next(row for row in receipt["case_results"] if row["type"] == "valid")
+    valid["status"] = "PASS"
+    evidence = copy.deepcopy(receipt["layer_results"]["STATIC_AST"]["evidence"][0])
+    evidence["role"] = "PRIMARY"
+    valid["evidence"] = [evidence]
+    assert "MATRIX_VALID_CASE_REAL_EVIDENCE_MISSING" in (
+        governance.validate_acceptance_receipt(
+            receipt,
+            spec=frozen_spec(),
+            root=ROOT,
+            expected_kind="BASELINE_RECEIPT",
+        )
+    )
+    missing = next(row for row in receipt["case_results"] if row["type"] == "missing")
+    missing["status"] = "PASS"
+    missing["evidence"] = [evidence]
+    assert "MATRIX_MUTATION_CASE_EVIDENCE_MISSING:missing" in (
+        governance.validate_acceptance_receipt(
+            receipt,
+            spec=frozen_spec(),
+            root=ROOT,
+            expected_kind="BASELINE_RECEIPT",
+        )
+    )
+
+
+def test_real_evidence_artifact_is_structured_not_command_keyword_inference() -> None:
+    generator_path = "scripts/check_architecture_governance.py"
+    source = (ROOT / generator_path).read_bytes()
+    artifact = {
+        "schema_version": governance.MATRIX_SCHEMA_VERSION,
+        "schema_path": governance.MATRIX_SCHEMA_PATH,
+        "artifact_kind": "REAL_DB_EVIDENCE",
+        "task_id": "ARCH-P1-03B-R1",
+        "generator": {
+            "path": generator_path,
+            "symbol": "check_evidence_artifacts",
+            "file_sha256": hashlib.sha256(source).hexdigest(),
+        },
+        "replay": {
+            "argv": ["uv", "run", "python", generator_path],
+            "command_sha256": governance._canonical_sha256(
+                ["uv", "run", "python", generator_path]
+            ),
+            "query": "SELECT 1",
+            "query_sha256": hashlib.sha256(b"SELECT 1").hexdigest(),
+        },
+        "migration_head": "0043",
+        "captured_at": "2026-07-27T00:00:00Z",
+        "source_identity": {"database": "staging", "relation": "pg_catalog"},
+        "row_count": 1,
+        "result_fingerprint": "d" * 64,
+        "provider_call_delta": 0,
+        "db_write_delta": 0,
+        "exact_head": HEAD,
+        "artifact_sha256": "",
+    }
+    artifact["artifact_sha256"] = governance._artifact_hash(
+        artifact, "artifact_sha256"
+    )
+    assert governance.validate_evidence_artifact(
+        artifact,
+        root=ROOT,
+        expected_type="REAL_DB",
+        expected_head=HEAD,
+        blob_reader=lambda _head, path: source if path == generator_path else None,
+    ) == []
+    del artifact["replay"]["query"]
+    del artifact["replay"]["query_sha256"]
+    artifact["replay"]["argv"] = [
+        "uv",
+        "run",
+        "python",
+        generator_path,
+        "pg_catalog",
+        "fingerprint",
+    ]
+    artifact["replay"]["command_sha256"] = governance._canonical_sha256(
+        artifact["replay"]["argv"]
+    )
+    artifact["artifact_sha256"] = governance._artifact_hash(
+        artifact, "artifact_sha256"
+    )
+    errors = governance.validate_evidence_artifact(
+        artifact,
+        root=ROOT,
+        expected_type="REAL_DB",
+        expected_head=HEAD,
+        blob_reader=lambda _head, path: source if path == generator_path else None,
+    )
+    assert "MATRIX_REAL_DB_EVIDENCE_INVALID" in errors
+    artifact["captured_at"] = "not-a-timestamp"
+    assert any(
+        error.startswith("MATRIX_JSON_SCHEMA_INVALID:")
+        for error in governance.validate_evidence_artifact(
+            artifact,
+            root=ROOT,
+            expected_type="REAL_DB",
+            expected_head=HEAD,
+            blob_reader=lambda _head, path: source if path == generator_path else None,
+        )
+    )
+
+
+def test_done_matrix_binding_cross_checks_final_ci_review_and_merge() -> None:
+    review = valid_review(task="ARCH-P1-03B-R1")
+    merge_sha = "e" * 40
+    final = {
+        "exact_head": HEAD,
+        "receipt_sha256": "f" * 64,
+        "ci_receipt": {"run_id": 100},
+        "external_acceptance": {
+            "implementation_pr_number": 410,
+            "review_sha256": hashlib.sha256(review["body"].encode()).hexdigest(),
+        },
+    }
+    task = governance.TaskRecord(
+        "ARCH-P1-03B-R1",
+        "DONE",
+        "\n".join(
+            [
+                "Implementation PR: #410",
+                f"Accepted head: {HEAD}",
+                "Full CI: 100",
+                f"Final receipt SHA-256: {final['receipt_sha256']}",
+                f"Merge SHA: {merge_sha}",
+            ]
+        ),
+    )
+    client = FakeClient(
+        pulls={
+            410: {
+                "head": {"sha": HEAD},
+                "merged_at": "2026-07-27T00:00:00Z",
+                "merge_commit_sha": merge_sha,
+            }
+        },
+        reviews=[review],
+        jobs=ci_jobs(governance._full_ci_plan()),
+    )
+    assert governance.validate_done_matrix_binding(
+        task, spec=frozen_spec(), final=final, client=client
+    ) == []
+    changed = copy.deepcopy(final)
+    changed["receipt_sha256"] = "0" * 64
+    assert any(
+        error.startswith("MATRIX_DONE_FIELD_MISMATCH:")
+        for error in governance.validate_done_matrix_binding(
+            task, spec=frozen_spec(), final=changed, client=client
+        )
+    )
+
+
 def test_receipts_derive_gates_instead_of_storing_manual_gate() -> None:
     receipt = baseline_receipt()
     assert "implementation_gate" not in receipt
@@ -252,7 +487,7 @@ def test_existing_spec_requires_review_miss_or_scope_amendment() -> None:
         base_checklist=preflight_checklist(),
         matrix_root=ROOT,
     )
-    assert f"PREFLIGHT_SPEC_CHANGE_REASON_INVALID:{path}" in result.errors
+    assert f"PREFLIGHT_TRUSTED_SPEC_MISSING:{path}" in result.errors
 
 
 def test_implementation_and_closure_cannot_change_immutable_spec() -> None:
@@ -276,7 +511,144 @@ def test_implementation_and_closure_cannot_change_immutable_spec() -> None:
         base_checklist=preflight_checklist(),
         matrix_root=ROOT,
     )
-    assert any(error.startswith("IMMUTABLE_SPEC_CHANGED:") for error in result.errors)
+    assert any(
+        error.startswith("IMPLEMENTATION_MATRIX_ARTIFACT_FORBIDDEN:")
+        for error in result.errors
+    )
+
+
+@pytest.mark.parametrize("status", ["removed", "renamed"])
+def test_matrix_artifact_rename_and_delete_are_always_checked(status: str) -> None:
+    path = (
+        "docs/operations/architecture_convergence/acceptance_matrices/"
+        "ARCH-P1-03B-R1.baseline.json"
+    )
+    item: dict[str, Any] = {"filename": path, "status": status}
+    if status == "renamed":
+        item["previous_filename"] = path.replace("baseline", "old-baseline")
+    errors = governance.validate_matrix_artifact_changes(
+        [item],
+        pr_kind="IMPLEMENTATION",
+        task_id="ARCH-P1-03B-R1",
+        exact_head=HEAD,
+        trusted_base_head=OLD_HEAD,
+        client=FakeClient(),
+    )
+    assert any(
+        error.startswith("MATRIX_ARTIFACT_RENAME_OR_DELETE_FORBIDDEN:")
+        for error in errors
+    )
+
+
+@pytest.mark.parametrize(
+    ("pr_kind", "suffix", "expected_prefix"),
+    [
+        ("IMPLEMENTATION", "baseline", "IMPLEMENTATION_MATRIX_ARTIFACT_FORBIDDEN:"),
+        ("PREFLIGHT", "final", "PREFLIGHT_FINAL_ARTIFACT_FORBIDDEN:"),
+        ("CLOSURE", "spec", "CLOSURE_MATRIX_ARTIFACT_FORBIDDEN:"),
+        ("CLOSURE", "baseline", "CLOSURE_MATRIX_ARTIFACT_FORBIDDEN:"),
+        ("CLOSURE", "final", "CLOSURE_MATRIX_ARTIFACT_FORBIDDEN:"),
+    ],
+)
+def test_matrix_artifact_acl_by_pr_kind(
+    pr_kind: str, suffix: str, expected_prefix: str
+) -> None:
+    path = (
+        "docs/operations/architecture_convergence/acceptance_matrices/"
+        f"ARCH-P1-03B-R1.{suffix}.json"
+    )
+    errors = governance.validate_matrix_artifact_changes(
+        [{"filename": path, "status": "modified"}],
+        pr_kind=pr_kind,
+        task_id="ARCH-P1-03B-R1",
+        exact_head=HEAD,
+        trusted_base_head=OLD_HEAD,
+        client=FakeClient(),
+    )
+    assert any(error.startswith(expected_prefix) for error in errors)
+
+
+def test_preflight_spec_amendment_binds_recomputed_trusted_spec_hash() -> None:
+    path = (
+        "docs/operations/architecture_convergence/acceptance_matrices/"
+        "ARCH-P1-03B-R1.spec.json"
+    )
+    trusted = frozen_spec()
+    changed = copy.deepcopy(trusted)
+    changed["change_control"] = {
+        "kind": "REVIEW_MISS",
+        "rationale": "A previously missed frozen assertion.",
+        "supersedes_spec_sha256": governance._artifact_hash(trusted, "spec_sha256"),
+    }
+    changed["spec_sha256"] = governance._artifact_hash(changed, "spec_sha256")
+
+    class SpecClient:
+        def get_json_file(self, _path: str, ref: str) -> dict[str, Any]:
+            return changed if ref == HEAD else trusted
+
+    assert (
+        governance.validate_matrix_artifact_changes(
+            [{"filename": path, "status": "modified"}],
+            pr_kind="PREFLIGHT",
+            task_id="ARCH-P1-03B-R1",
+            exact_head=HEAD,
+            trusted_base_head=OLD_HEAD,
+            client=SpecClient(),
+        )
+        == []
+    )
+    changed["change_control"]["supersedes_spec_sha256"] = "0" * 64
+    assert any(
+        error.startswith("PREFLIGHT_SPEC_SUPERSEDES_INVALID:")
+        for error in governance.validate_matrix_artifact_changes(
+            [{"filename": path, "status": "modified"}],
+            pr_kind="PREFLIGHT",
+            task_id="ARCH-P1-03B-R1",
+            exact_head=HEAD,
+            trusted_base_head=OLD_HEAD,
+            client=SpecClient(),
+        )
+    )
+
+
+def test_preflight_trusted_order_rejects_removed_or_moved_governance_task() -> None:
+    base = preflight_checklist()
+    removed = base.replace(
+        "#### A2. ARCH-GOVERNANCE-03：matrix lifecycle\n\n"
+        "```text\nStatus: DONE\nPR: #410\n"
+        "Merge SHA: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n```\n\n",
+        "",
+    )
+    body = valid_body(task="ARCH-P1-03B-R1").replace(
+        "W2_PR_KIND: IMPLEMENTATION", "W2_PR_KIND: PREFLIGHT"
+    )
+    result = governance.check_pre_merge(
+        event(),
+        removed,
+        FakeClient(
+            pull=valid_pull(body=body),
+            files=["PROJECT_STATE.yaml"],
+            reviews=[valid_review(task="ARCH-P1-03B-R1")],
+        ),
+        base_checklist=base,
+    )
+    assert "TRUSTED_TASK_ORDER_CHANGED" in result.errors
+
+    r1 = removed[removed.index("#### A3.") :]
+    prefix = base[: base.index("#### A2.")]
+    g03 = base[base.index("#### A2.") : base.index("#### A3.")]
+    moved = prefix + r1 + "\n" + g03
+    result = governance.check_pre_merge(
+        event(),
+        moved,
+        FakeClient(
+            pull=valid_pull(body=body),
+            files=["PROJECT_STATE.yaml"],
+            reviews=[valid_review(task="ARCH-P1-03B-R1")],
+        ),
+        base_checklist=base,
+    )
+    assert "TRUSTED_TASK_ORDER_CHANGED" in result.errors
 
 
 def ci_jobs(plan: Any | None = None) -> list[dict[str, str]]:
@@ -383,7 +755,7 @@ def valid_pull(*, body: str | None = None, draft: bool = False) -> dict[str, Any
         "body": valid_body() if body is None else body,
         "draft": draft,
         "head": {"sha": HEAD},
-        "base": {"ref": "main"},
+        "base": {"ref": "main", "sha": OLD_HEAD},
     }
 
 
@@ -513,12 +885,14 @@ def pre_result(
     draft: bool = False,
     files: list[str] | None = None,
     fail: str | None = None,
+    jobs: list[dict[str, Any]] | None = None,
 ) -> Any:
     client = FakeClient(
         pull=valid_pull(body=body, draft=draft),
         files=files,
         reviews=reviews,
         fail=fail,
+        jobs=jobs,
     )
     return governance.check_pre_merge(event(), text or checklist(), client)
 
@@ -963,6 +1337,8 @@ def test_pre_merge_a1_closure_passes_without_starting_a2() -> None:
     result = pre_result(
         reviews=[valid_review()],
         body=body,
+        files=["PROJECT_STATE.yaml"],
+        jobs=ci_jobs(governance.required_ci_plan(["PROJECT_STATE.yaml"], "CLOSURE")),
         text=checklist(
             a1_status="DONE",
             ledger_rows=rows,
@@ -988,9 +1364,13 @@ def test_pre_merge_non_a1_closure_passes_when_base_task_is_pending() -> None:
             ledger_rows=rows,
             a2_extra=f"Merge SHA: {HEAD}",
         ),
-        FakeClient(
-            pull=valid_pull(body=body),
-            reviews=[valid_review(task="ARCH-P1-04C")],
+            FakeClient(
+                pull=valid_pull(body=body),
+                files=["PROJECT_STATE.yaml"],
+                reviews=[valid_review(task="ARCH-P1-04C")],
+                jobs=ci_jobs(
+                    governance.required_ci_plan(["PROJECT_STATE.yaml"], "CLOSURE")
+                ),
         ),
         base_checklist=checklist(
             a1_status="DONE",

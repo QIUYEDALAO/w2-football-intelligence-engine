@@ -5,7 +5,8 @@
   "oneOf": [
     {"$ref": "#/$defs/spec"},
     {"$ref": "#/$defs/baseline_receipt"},
-    {"$ref": "#/$defs/final_receipt"}
+    {"$ref": "#/$defs/final_receipt"},
+    {"$ref": "#/$defs/evidence_artifact"}
   ],
   "$defs": {
     "sha": {
@@ -340,6 +341,7 @@
       "additionalProperties": false,
       "required": [
         "evidence_type",
+        "role",
         "artifact_path",
         "artifact_sha256",
         "command",
@@ -358,6 +360,7 @@
             "CONTENT_ADDRESSED_SANITIZED_ARTIFACT"
           ]
         },
+        "role": {"enum": ["PRIMARY", "SUPPORTING"]},
         "artifact_path": {"$ref": "#/$defs/repo_path"},
         "artifact_sha256": {"$ref": "#/$defs/sha256"},
         "command": {"type": "string", "minLength": 1},
@@ -403,12 +406,18 @@
     "case_result": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["type", "status", "observed_output", "evidence"],
+      "required": ["type", "status", "derivation", "observed_output", "evidence"],
       "properties": {
         "type": {
           "enum": ["valid", "missing", "malformed", "stale", "ambiguous", "conflict"]
         },
         "status": {"enum": ["PASS", "FAIL", "NOT_RUN", "UNVERIFIABLE", "BLOCKED"]},
+        "derivation": {
+          "enum": [
+            "UNCHANGED_REAL_INPUT",
+            "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT"
+          ]
+        },
         "observed_output": {"type": "string", "minLength": 1},
         "evidence": {
           "type": "array",
@@ -509,6 +518,35 @@
           "items": {"$ref": "#/$defs/claim_result"}
         },
         "overall_status": {"enum": ["PASS", "FAIL", "UNVERIFIABLE", "BLOCKED"]},
+        "ci_receipt": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["run_id", "plan", "conclusion", "exact_head"],
+          "properties": {
+            "run_id": {"type": "integer", "minimum": 1},
+            "plan": {"const": "FULL"},
+            "conclusion": {"const": "success"},
+            "exact_head": {"$ref": "#/$defs/sha"}
+          }
+        },
+        "external_acceptance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "protocol",
+            "decision",
+            "accepted_head",
+            "review_sha256",
+            "implementation_pr_number"
+          ],
+          "properties": {
+            "protocol": {"const": "GITHUB_SECONDARY_REVIEW_PROTOCOL_V1"},
+            "decision": {"const": "PASS"},
+            "accepted_head": {"$ref": "#/$defs/sha"},
+            "review_sha256": {"$ref": "#/$defs/sha256"},
+            "implementation_pr_number": {"type": "integer", "minimum": 1}
+          }
+        },
         "receipt_sha256": {"$ref": "#/$defs/sha256"}
       }
     },
@@ -528,8 +566,96 @@
         {"$ref": "#/$defs/receipt_common_properties"},
         {
           "type": "object",
+          "required": ["ci_receipt", "external_acceptance"],
           "properties": {
             "artifact_kind": {"const": "FINAL_EXACT_HEAD_RECEIPT"}
+          }
+        }
+      ]
+    },
+    "evidence_artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "schema_path",
+        "artifact_kind",
+        "task_id",
+        "generator",
+        "replay",
+        "migration_head",
+        "captured_at",
+        "source_identity",
+        "row_count",
+        "result_fingerprint",
+        "provider_call_delta",
+        "db_write_delta",
+        "exact_head",
+        "artifact_sha256"
+      ],
+      "properties": {
+        "schema_version": {"const": "w2.architecture_acceptance_lifecycle.v1"},
+        "schema_path": {
+          "const": "contracts/governance/architecture_acceptance_lifecycle.v1.schema.json"
+        },
+        "artifact_kind": {
+          "enum": [
+            "REAL_DB_EVIDENCE",
+            "REAL_PRODUCER_OUTPUT_EVIDENCE",
+            "CONTENT_ADDRESSED_SANITIZED_ARTIFACT_EVIDENCE"
+          ]
+        },
+        "task_id": {"type": "string", "pattern": "^ARCH-[A-Z0-9-]+$"},
+        "generator": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "symbol", "file_sha256"],
+          "properties": {
+            "path": {"$ref": "#/$defs/repo_path"},
+            "symbol": {"type": "string", "minLength": 1},
+            "file_sha256": {"$ref": "#/$defs/sha256"}
+          }
+        },
+        "replay": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["argv", "command_sha256"],
+          "properties": {
+            "argv": {
+              "type": "array",
+              "minItems": 2,
+              "items": {"type": "string", "minLength": 1}
+            },
+            "command_sha256": {"$ref": "#/$defs/sha256"},
+            "query": {"type": "string", "minLength": 1},
+            "query_sha256": {"$ref": "#/$defs/sha256"}
+          }
+        },
+        "migration_head": {"type": "string", "minLength": 1},
+        "captured_at": {"type": "string", "format": "date-time"},
+        "source_identity": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {"type": ["string", "integer"]}
+        },
+        "row_count": {"type": "integer", "minimum": 0},
+        "result_fingerprint": {"$ref": "#/$defs/sha256"},
+        "provider_call_delta": {"type": "integer", "minimum": 0},
+        "db_write_delta": {"type": "integer", "minimum": 0},
+        "exact_head": {"$ref": "#/$defs/sha"},
+        "artifact_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"artifact_kind": {"const": "REAL_DB_EVIDENCE"}},
+            "required": ["artifact_kind"]
+          },
+          "then": {
+            "properties": {
+              "replay": {"required": ["query", "query_sha256"]},
+              "db_write_delta": {"const": 0}
+            }
           }
         }
       ]

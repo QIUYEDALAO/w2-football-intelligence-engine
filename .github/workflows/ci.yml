@@ -91,6 +91,8 @@ jobs:
             tests/unit/test_ci_classifier.py \
             tests/contract/test_delivery_status_documentation.py \
             tests/contract/test_master_roadmap.py
+          uv run --python 3.12 python scripts/check_architecture_governance.py \
+            evidence-artifacts
       - name: Secret pattern scan
         run: uv run --python 3.12 python tests/secret_scan.py
 

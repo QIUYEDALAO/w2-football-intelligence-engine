@@ -243,11 +243,18 @@ architecture_convergence:
       immutable_spec: ARCH-P1-03B-R1.spec.json
       immutable_spec_sha256: 5c7d7ad738dc051f30c87506dafdb6161d3dad2b442a5bba9a830f64f1a16ba7
       baseline_receipt: ARCH-P1-03B-R1.baseline.json
-      baseline_receipt_sha256: 2e04d8a414984cc82da0186b1d24f859be736e430e47e0dfab8b541d0cc26307
+      baseline_receipt_sha256: 650a9ab2df3c9d9dd9b2c8e5b5f91bdb22ced8404f55ca9b373fc7f32778828b
       final_receipt: REQUIRED_ON_IMPLEMENTATION_EXACT_HEAD
       preflight_pr_kind: PREFLIGHT
       implementation_gate_source: CHECKER_DERIVED_FROM_BASELINE_RECEIPT
-      closure_done_gate: DERIVED_FROM_FINAL_RECEIPT
+      artifact_acl: PR_KIND_PLUS_RENAME_DELETE_PREVIOUS_FILENAME
+      baseline_head_binding: SPEC_FROZEN_BASELINE_COMMIT
+      implementation_final_binding: EXACT_HEAD_FULL_CI_EXTERNAL_ACCEPTANCE
+      closure_done_gate: IMMUTABLE_FINAL_PLUS_MERGED_IMPLEMENTATION_BINDING
+      post_done_gate: FINAL_HASH_ACCEPTED_HEAD_FULL_CI_MERGE_SHA
+      historical_blob_validation: TARGET_COMMIT_TREE_AND_BLOB
+      fully_qualified_symbol_validation: AST_SCOPE
+      evidence_artifact_replay_gate: ENABLED
       freeze_before_implementation: true
       real_producer_to_real_consumer_required: true
       handwritten_fixture_primary_evidence: FORBIDDEN

@@ -70,6 +70,10 @@ immutable spec and baseline receipt are frozen separately. The baseline is
 `BLOCKED`, so its implementation gate is not OPEN until a separate read-only
 `W2_PR_KIND: PREFLIGHT` supplies qualifying real input and runtime/SQL evidence.
 No final exact-head receipt exists because implementation has not started.
+The checker now enforces the full lifecycle ACL (including rename/delete), binds
+baseline to its frozen commit, and requires implementation final evidence to
+bind the same exact head's FULL CI and external acceptance. Closure leaves that
+final immutable and POST cross-checks the merged implementation coordinates.
 **ARCH-P1-05** remains `NOT_STARTED` and must not begin
 until every inserted predecessor has completed its implementation and closure.
 The checklist owns each task's PR number, status and CI evidence.
