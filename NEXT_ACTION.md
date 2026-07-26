@@ -40,8 +40,7 @@ and is no longer a prerequisite for any architecture task. Lineup remains
 Execute the P1 tasks strictly in the order recorded in the master checklist:
 
 ```text
-ARCH-P1-04D-R1
--> ARCH-P1-03B-R1
+ARCH-P1-03B-R1
 -> ARCH-OBS-01
 -> ARCH-EVIDENCE-01
 -> ARCH-DONE-REAUDIT
@@ -60,9 +59,12 @@ its implementation PR #404 merged as
 `8adc8d482aefd7d31063030f0b682458c58c17a2`. **ARCH-GOVERNANCE-02** is
 `DONE`; implementation PR #406 merged as
 `cf5d6ea2cca600e31d4058b7d359b271d12d1f04`, with accepted head
-`7607c2336fd1507d151d5291b95ae6892d16f94f`. The current task is
-**ARCH-P1-04D-R1**, now `IMPLEMENTED_PENDING_ACCEPTANCE` in its Draft
-implementation PR. **ARCH-P1-05** remains `NOT_STARTED` and must not begin
+`7607c2336fd1507d151d5291b95ae6892d16f94f`. **ARCH-P1-04D-R1** is `DONE`;
+implementation PR #408 merged as
+`09ece0204bed1289986e20d6a1cff842cb2f0864`, with accepted head
+`47a7c823967cf4ea98221556d96e8a30a948318d`. The current task is
+**ARCH-P1-03B-R1**, but it remains `NOT_STARTED`. **ARCH-P1-05** remains
+`NOT_STARTED` and must not begin
 until every inserted predecessor has completed its implementation and closure.
 The checklist owns each task's PR number, status and CI evidence.
 
