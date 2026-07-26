@@ -411,7 +411,8 @@ Started at: 2026-07-26T00:00:00Z
 Owner: Codex
 Phase: IDENTITY_AUTHORITY_INVENTORY_AND_MIGRATION
 M1: DONE (read-only inventory; player identity + saved lineups empty)
-M2A: REMEDIATION_APPLIED (team schema+migration, CanonicalIdentityRepository,
+M2A: DONE (accepted by W2_EXTERNAL_REVIEW_V6 @edeb873; team schema+migration,
+  CanonicalIdentityRepository,
   F5/fixture/history/rating/xG read-switch; guards
   LEGACY_CROSSWALK_RUNTIME_READS/WRITES/IMPORTS=0,
   RUNTIME_CANONICAL_ID_FROM_PROVIDER_CONSTRUCTION=0,
@@ -436,6 +437,8 @@ M2A: REMEDIATION_APPLIED (team schema+migration, CanonicalIdentityRepository,
   POST gate = success; PRE_MERGE_READINESS_GATE = FAIL_EXPECTED_DRAFT.
   A pre-existing unmarked look-alike row is preserved by downgrade but blocks
   upgrade reconciliation (it is never silently adopted).
+  Still NOT authorized after M2A DONE: M4 physical drop, removal of the three
+  legacy ORM declarations, PR ready/merge, ARCH-P1-05.
   Status: REMEDIATION_APPLIED_PENDING_EXTERNAL_ACCEPTANCE (M2A not DONE).
 M3: REAL_MATCH_EVIDENCE = BLOCKED_INSUFFICIENT_REAL_SAVED_LINEUPS
 M4: NOT_AUTHORIZED (drop ORM + tables together; net -3 tables)

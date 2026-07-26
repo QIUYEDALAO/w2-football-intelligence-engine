@@ -101,9 +101,11 @@ architecture_convergence:
     started_at: "2026-07-26T00:00:00Z"
     predecessor: ARCH-P1-04D
     scope: TEAM_IDENTITY_CROSSWALK_CONVERGENCE
-    phase: M2A_TEAM_REMEDIATED_V3
+    phase: M2A_TEAM_DONE
     m1_status: DONE
-    m2a_status: REMEDIATION_APPLIED_PENDING_EXTERNAL_ACCEPTANCE
+    m2a_status: DONE
+    m2a_accepted_by: W2_EXTERNAL_REVIEW_V6
+    m2a_accepted_at_head: edeb87359f53326ac5d47e9a411de7730cf96e6f
     m2a_external_decision: W2_EXTERNAL_DECISION_V2_CONTROLLED_CANONICAL_TEAM_ID_MINT_APPROVED
     m2a_external_review: W2_EXTERNAL_REVIEW_V3
     m2a_must_fix_applied:
@@ -151,6 +153,8 @@ architecture_convergence:
     unowned_lookalike_semantics: PRESERVED_BY_DOWNGRADE_BUT_BLOCKS_UPGRADE_RECONCILIATION
     m3_real_match_evidence: BLOCKED_INSUFFICIENT_REAL_SAVED_LINEUPS
     m4_status: NOT_AUTHORIZED
+    legacy_orm_removal_status: NOT_AUTHORIZED
+    pr_ready_merge_status: NOT_AUTHORIZED
     legacy_crosswalk_runtime_reads: 0
     legacy_crosswalk_runtime_writes: 0
     legacy_crosswalk_runtime_imports: 0
