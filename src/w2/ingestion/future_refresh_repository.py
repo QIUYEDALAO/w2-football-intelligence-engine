@@ -759,6 +759,8 @@ class FutureRefreshDbRepository:
         reviewed_by: str,
         reviewed_at: datetime,
         source_artifact_hash: str,
+        approval_artifact_hash: str | None = None,
+        review_exception: dict[str, Any] | None = None,
     ) -> str:
         """Materialize an explicit reviewed crosswalk; never fuzzy-auto-approve."""
         if not all(
@@ -790,14 +792,45 @@ class FutureRefreshDbRepository:
             mapping = candidates[0] if candidates else None
             if mapping is None:
                 raise FutureRefreshPersistenceError("PLAYER_IDENTITY_MAPPING_CANDIDATE_MISSING")
-            if (
-                mapping.mapping_status != "CANDIDATE"
-                or mapping.transfermarkt_player_id != str(transfermarkt_player_id)
-                or mapping.evidence.get("schema_version")
-                != "w2.player_identity_candidate.v2"
-                or not mapping.evidence.get("authority_chain_complete")
-            ):
+            candidate_ready = (
+                mapping.mapping_status == "CANDIDATE"
+                and mapping.transfermarkt_player_id == str(transfermarkt_player_id)
+                and mapping.evidence.get("schema_version")
+                == "w2.player_identity_candidate.v2"
+                and bool(mapping.evidence.get("authority_chain_complete"))
+            )
+            exception_ready = (
+                mapping.mapping_status == "MISSING"
+                and isinstance(review_exception, dict)
+                and review_exception.get("review_package_sha256")
+                == str(source_artifact_hash)
+                and review_exception.get("api_football_player_id")
+                == str(api_football_player_id)
+                and review_exception.get("team_external_id") == str(team_external_id)
+                and review_exception.get("transfermarkt_player_id")
+                == str(transfermarkt_player_id)
+                and review_exception.get("fixture_id")
+                == mapping.evidence.get("fixture_id")
+                and bool(review_exception.get("issues"))
+                and mapping.evidence.get("schema_version")
+                == "w2.player_identity_candidate.v2"
+            )
+            if not candidate_ready and not exception_ready:
                 raise FutureRefreshPersistenceError("PLAYER_IDENTITY_REVIEW_EVIDENCE_INVALID")
+            if exception_ready:
+                reference = session.scalar(
+                    select(TransfermarktPlayerReferenceModel)
+                    .where(
+                        TransfermarktPlayerReferenceModel.transfermarkt_player_id
+                        == str(transfermarkt_player_id)
+                    )
+                    .order_by(TransfermarktPlayerReferenceModel.observed_at.desc())
+                    .limit(1)
+                )
+                if reference is None:
+                    raise FutureRefreshPersistenceError(
+                        "PLAYER_IDENTITY_REVIEW_REFERENCE_MISSING"
+                    )
             source_hashes = sorted(
                 {
                     *(
@@ -806,6 +839,11 @@ class FutureRefreshDbRepository:
                         if str(value)
                     ),
                     str(source_artifact_hash),
+                    *(
+                        [str(approval_artifact_hash)]
+                        if approval_artifact_hash
+                        else []
+                    ),
                 }
             )
             identity_payload = {
@@ -819,6 +857,11 @@ class FutureRefreshDbRepository:
                 "valid_to": iso_z(mapping.valid_to) if mapping.valid_to is not None else None,
                 "reviewed_by": str(reviewed_by),
                 "reviewed_at": reviewed_at.astimezone(UTC).isoformat(),
+                "review_package_sha256": str(source_artifact_hash),
+                "approval_artifact_sha256": (
+                    str(approval_artifact_hash) if approval_artifact_hash else None
+                ),
+                "review_exception": review_exception,
                 "source_artifact_hashes": source_hashes,
             }
             mapping.canonical_player_id = str(canonical_player_id)

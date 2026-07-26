@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 
+import pytest
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
@@ -19,7 +20,10 @@ from w2.infrastructure.persistence.models import (
     TeamLineupBaselineModel,
     TransfermarktPlayerReferenceModel,
 )
-from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
+from w2.ingestion.future_refresh_repository import (
+    FutureRefreshDbRepository,
+    FutureRefreshPersistenceError,
+)
 
 
 def _team(team_id: int, offset: int) -> dict[str, object]:
@@ -515,6 +519,67 @@ def test_m2b_rejects_missing_full_name_and_wrong_club() -> None:
             "missing_player_ids": ["100", "101"],
         }
     ]
+
+
+def test_human_review_package_can_resolve_an_explicit_missing_mapping() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = FutureRefreshDbRepository(engine=engine)
+    kickoff = _install_player_identity_sources(
+        repository,
+        engine,
+        missing_squad_player_id="100",
+    )
+    repository.save_lineup_snapshots(
+        fixture_id="fixture-authority",
+        captured_at=kickoff.replace(hour=17),
+        raw_sha256="l" * 64,
+        payload={"response": [_team(10, 100), _team(20, 200)]},
+        materialize_baselines=False,
+    )
+    review = {
+        "review_package_sha256": "p" * 64,
+        "api_football_player_id": "100",
+        "team_external_id": "10",
+        "transfermarkt_player_id": "tm-100",
+        "fixture_id": "fixture-authority",
+        "issues": ["PROVIDER_FULL_NAME_NULL"],
+    }
+    with pytest.raises(FutureRefreshPersistenceError):
+        repository.approve_player_identity_mapping(
+            api_football_player_id="100",
+            team_external_id="10",
+            canonical_player_id="w2:player:transfermarkt:tm-100",
+            transfermarkt_player_id="tm-100",
+            reviewed_by="operator:reviewer",
+            reviewed_at=kickoff,
+            source_artifact_hash="x" * 64,
+            review_exception=review,
+        )
+
+    identity_hash = repository.approve_player_identity_mapping(
+        api_football_player_id="100",
+        team_external_id="10",
+        canonical_player_id="w2:player:transfermarkt:tm-100",
+        transfermarkt_player_id="tm-100",
+        reviewed_by="operator:reviewer",
+        reviewed_at=kickoff,
+        source_artifact_hash="p" * 64,
+        approval_artifact_hash="a" * 64,
+        review_exception=review,
+    )
+
+    with Session(engine) as session:
+        mapping = session.scalar(
+            select(PlayerIdentityMappingModel).where(
+                PlayerIdentityMappingModel.api_football_player_id == "100"
+            )
+        )
+    assert mapping is not None
+    assert mapping.mapping_status == "REVIEWED"
+    assert mapping.identity_hash == identity_hash
+    assert mapping.evidence["review_exception"] == review
+    assert mapping.evidence["approval_artifact_sha256"] == "a" * 64
 
 
 def test_m2b_uses_explicit_player_profile_name_when_squad_name_is_abbreviated() -> None:
