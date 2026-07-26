@@ -1203,7 +1203,7 @@ def _find_ci_receipt(client: Any, exact_head: str, plan: CiPlan) -> int | None:
 def _full_ci_plan() -> CiPlan:
     return CiPlan(
         governance=True,
-        python_focused=True,
+        python_focused=False,
         web=True,
         migration=True,
         compose=True,

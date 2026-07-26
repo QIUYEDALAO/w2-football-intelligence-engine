@@ -330,6 +330,7 @@ def test_real_evidence_artifact_is_structured_not_command_keyword_inference() ->
 
 
 def test_done_matrix_binding_cross_checks_final_ci_review_and_merge() -> None:
+    assert not governance._full_ci_plan().python_focused
     review = valid_review(task="ARCH-P1-03B-R1")
     merge_sha = "e" * 40
     final = {
