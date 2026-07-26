@@ -502,6 +502,65 @@ def test_m2b_rejects_missing_full_name_and_wrong_club() -> None:
     ]
 
 
+def test_m2b_uses_explicit_player_profile_name_when_squad_name_is_abbreviated() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = FutureRefreshDbRepository(engine=engine)
+    kickoff = _install_player_identity_sources(
+        repository,
+        engine,
+        missing_squad_player_id="100",
+    )
+    captured_at = kickoff.replace(hour=17)
+    repository.save_lineup_snapshots(
+        fixture_id="fixture-authority",
+        captured_at=captured_at,
+        raw_sha256="l" * 64,
+        payload={"response": [_team(10, 100), _team(20, 200)]},
+        materialize_baselines=False,
+    )
+    profile_at = captured_at.replace(minute=5)
+    repository.save_raw_payload(
+        sha256="p" * 64,
+        endpoint="players",
+        captured_at=profile_at,
+        payload={
+            "parameters": {"id": "100", "season": "2026"},
+            "response": [
+                {
+                    "player": {
+                        "id": 100,
+                        "name": "P. 100",
+                        "firstname": "Player",
+                        "lastname": "100",
+                    },
+                    "statistics": [{"team": {"id": 10, "name": "Team 10"}}],
+                }
+            ],
+        },
+    )
+
+    repository.materialize_player_identity_mappings(
+        fixture_id="fixture-authority",
+        as_of=profile_at,
+    )
+
+    matrix = repository.player_identity_fixture_matrix(
+        fixture_ids=["fixture-authority"],
+        as_of=profile_at,
+    )
+    assert matrix[0]["unique_candidates"] == 22
+    with Session(engine) as session:
+        mapping = session.scalar(
+            select(PlayerIdentityMappingModel).where(
+                PlayerIdentityMappingModel.api_football_player_id == "100"
+            )
+        )
+    assert mapping is not None
+    assert mapping.evidence["provider_full_name"] == "Player 100"
+    assert mapping.evidence["provider_full_name_endpoint"] == "players"
+
+
 def test_player_identity_join_evidence_is_read_only_and_deterministic() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)

@@ -91,6 +91,40 @@ def test_api_football_squads_uses_players_squads_http_path(monkeypatch) -> None:
     assert captured["url"].endswith("/players/squads?team=1")
 
 
+def test_api_football_player_profile_uses_players_http_path(monkeypatch) -> None:
+    captured: dict[str, str] = {}
+
+    class FakeResponse:
+        status = 200
+        headers: dict[str, str] = {}
+
+        def __enter__(self) -> FakeResponse:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps({"response": []}).encode()
+
+    def fake_urlopen(request: urllib.request.Request, timeout: int) -> FakeResponse:
+        captured["url"] = request.full_url
+        return FakeResponse()
+
+    monkeypatch.delenv("W2_PROVIDER_CALLS_DISABLED", raising=False)
+    monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "players")
+    monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "test-key")
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    client = ApiFootballClient(
+        allow_live=True,
+        allowed_live_endpoints=frozenset({"players"}),
+    )
+
+    client.request_live("players", {"id": "100", "season": "2026"})
+
+    assert captured["url"].endswith("/players?id=100&season=2026")
+
+
 def test_api_football_provider_calls_disabled_blocks_before_transport(monkeypatch) -> None:
     def forbidden_urlopen(*args: object, **kwargs: object) -> object:  # pragma: no cover
         raise AssertionError("provider transport must not be called")

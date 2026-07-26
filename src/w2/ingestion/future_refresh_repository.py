@@ -322,10 +322,10 @@ class FutureRefreshDbRepository:
             latest: dict[str, StructuredLineupSnapshotModel] = {}
             for snapshot in snapshots:
                 latest.setdefault(snapshot.team_external_id, snapshot)
-            squad_rows = session.scalars(
+            provider_name_rows = session.scalars(
                 select(RawPayloadModel)
                 .where(
-                    RawPayloadModel.endpoint == "squads",
+                    RawPayloadModel.endpoint.in_(("squads", "players")),
                     RawPayloadModel.captured_at <= as_of,
                 )
                 .order_by(RawPayloadModel.captured_at.desc(), RawPayloadModel.sha256)
@@ -384,8 +384,8 @@ class FutureRefreshDbRepository:
                     )
                 ).all()
                 for player in players:
-                    squad_evidence = self._squad_player_evidence(
-                        squad_rows,
+                    squad_evidence = self._provider_player_evidence(
+                        provider_name_rows,
                         team_external_id=snapshot.team_external_id,
                         api_football_player_id=player.api_football_player_id,
                     )
@@ -470,6 +470,7 @@ class FutureRefreshDbRepository:
                         "api_football_player_id": player.api_football_player_id,
                         "api_football_lineup_name": player.player_name,
                         "provider_full_name": full_name or None,
+                        "provider_full_name_endpoint": squad_evidence.get("endpoint"),
                         "normalized_full_name": normalized if full_name else None,
                         "provider_position": player.provider_position,
                         "api_football_team_id": snapshot.team_external_id,
@@ -564,6 +565,8 @@ class FutureRefreshDbRepository:
                                 "mapping_status": mapping.mapping_status,
                                 "evidence": mapping.evidence,
                             }
+                        elif "prior_preview" in mapping.evidence:
+                            evidence["prior_preview"] = mapping.evidence["prior_preview"]
                         mapping.transfermarkt_player_id = resolution.transfermarkt_player_id
                         mapping.player_name = player.player_name
                         mapping.normalized_name = normalized
@@ -583,13 +586,46 @@ class FutureRefreshDbRepository:
             return changed
 
     @staticmethod
-    def _squad_player_evidence(
+    def _provider_player_evidence(
         rows: list[RawPayloadModel],
         *,
         team_external_id: str,
         api_football_player_id: str,
     ) -> dict[str, Any]:
         for row in rows:
+            if row.endpoint == "players":
+                response = row.payload.get("response")
+                if not isinstance(response, list):
+                    continue
+                for item in response:
+                    if not isinstance(item, dict):
+                        continue
+                    provider_player = item.get("player")
+                    if (
+                        not isinstance(provider_player, dict)
+                        or str(provider_player.get("id") or "")
+                        != api_football_player_id
+                    ):
+                        continue
+                    statistics = item.get("statistics")
+                    team_ids = {
+                        str(statistic.get("team", {}).get("id") or "")
+                        for statistic in statistics
+                        if isinstance(statistic, dict)
+                    } if isinstance(statistics, list) else set()
+                    if team_external_id not in team_ids:
+                        continue
+                    first_name = str(provider_player.get("firstname") or "").strip()
+                    last_name = str(provider_player.get("lastname") or "").strip()
+                    if not first_name or not last_name:
+                        continue
+                    return {
+                        "full_name": f"{first_name} {last_name}",
+                        "position": None,
+                        "endpoint": "players",
+                        "source_sha256": row.sha256,
+                        "captured_at": iso_z(row.captured_at),
+                    }
             parameters = row.payload.get("parameters")
             parameter_team = (
                 str(parameters.get("team") or "") if isinstance(parameters, dict) else ""
@@ -612,9 +648,14 @@ class FutureRefreshDbRepository:
                         continue
                     if str(player.get("id") or "") != api_football_player_id:
                         continue
+                    full_name = str(player.get("name") or "").strip()
+                    first_token = full_name.split(None, 1)[0].rstrip(".")
+                    if len(first_token) <= 1:
+                        continue
                     return {
-                        "full_name": str(player.get("name") or ""),
+                        "full_name": full_name,
                         "position": str(player.get("position") or "") or None,
+                        "endpoint": "squads",
                         "source_sha256": row.sha256,
                         "captured_at": iso_z(row.captured_at),
                     }
