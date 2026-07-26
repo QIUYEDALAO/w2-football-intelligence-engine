@@ -7,10 +7,16 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
 from w2.infrastructure.database import Base
+from w2.infrastructure.persistence.factor_model_models import (
+    CanonicalTeamModel,
+    ProviderTeamIdentityCrosswalkModel,
+)
 from w2.infrastructure.persistence.models import (
+    PlayerIdentityMappingModel,
     StructuredLineupPlayerModel,
     StructuredLineupSnapshotModel,
     TeamLineupBaselineModel,
+    TransfermarktPlayerReferenceModel,
 )
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 
@@ -33,6 +39,119 @@ def _team(team_id: int, offset: int) -> dict[str, object]:
         ],
         "substitutes": [],
     }
+
+
+def _install_player_identity_sources(
+    repository: FutureRefreshDbRepository,
+    engine: object,
+    *,
+    fixture_id: str = "fixture-authority",
+    missing_squad_player_id: str | None = None,
+    wrong_club_player_id: str | None = None,
+) -> datetime:
+    source_at = datetime(2026, 7, 18, tzinfo=UTC)
+    kickoff = datetime(2026, 7, 19, 18, tzinfo=UTC)
+    with Session(engine) as session:
+        for team_id in ("10", "20"):
+            w2_team_id = f"w2:team:api_football:{team_id}"
+            session.add(
+                CanonicalTeamModel(
+                    w2_team_id=w2_team_id,
+                    display_name=f"Team {team_id}",
+                    country="Sweden",
+                    active_status="ACTIVE",
+                    created_at=source_at,
+                    identity_hash=f"canonical-{team_id}",
+                    payload={},
+                )
+            )
+            for provider, provider_team_id in (
+                ("api_football", team_id),
+                ("transfermarkt", f"club-{team_id}"),
+            ):
+                session.add(
+                    ProviderTeamIdentityCrosswalkModel(
+                        id=f"{provider}:{provider_team_id}:allsvenskan:2026",
+                        provider=provider,
+                        provider_team_id=provider_team_id,
+                        w2_team_id=w2_team_id,
+                        competition_id="allsvenskan",
+                        season="2026",
+                        valid_from=datetime(2026, 1, 1, tzinfo=UTC),
+                        valid_to=None,
+                        identity_status="PROVIDER_PRIMARY_READY",
+                        evidence_hashes=[f"{provider}-source-{team_id}"],
+                        identity_hash=f"{provider}-identity-{team_id}",
+                        review_status="APPROVED",
+                        reviewed_by="fixture-authority-reviewer",
+                        reviewed_at=source_at,
+                        source_hashes=[f"{provider}-source-{team_id}"],
+                        payload={},
+                    )
+                )
+        for team_id, offset in (("10", 100), ("20", 200)):
+            for index in range(11):
+                player_id = str(offset + index)
+                session.add(
+                    TransfermarktPlayerReferenceModel(
+                        transfermarkt_player_id=f"tm-{player_id}",
+                        player_name=f"Player {player_id}",
+                        normalized_name=f"player{player_id}",
+                        current_club_id=(
+                            "wrong-club"
+                            if player_id == wrong_club_player_id
+                            else f"club-{team_id}"
+                        ),
+                        current_club_name=f"Team {team_id}",
+                        competition_code="SE1",
+                        position="Goalkeeper" if index == 0 else "Midfield",
+                        sub_position=None,
+                        market_value_eur=Decimal("1000000"),
+                        source_sha256="t" * 64,
+                        observed_at=source_at,
+                    )
+                )
+        session.commit()
+    repository.save_raw_payload(
+        sha256="f" * 64,
+        endpoint="fixtures",
+        captured_at=source_at,
+        payload={
+            "response": [
+                {
+                    "fixture": {"id": fixture_id, "date": kickoff.isoformat()},
+                    "league": {"id": 113, "season": 2026},
+                }
+            ]
+        },
+    )
+    for team_id, offset, source_hash in (
+        ("10", 100, "1" * 64),
+        ("20", 200, "2" * 64),
+    ):
+        repository.save_raw_payload(
+            sha256=source_hash,
+            endpoint="squads",
+            captured_at=source_at,
+            payload={
+                "parameters": {"team": team_id},
+                "response": [
+                    {
+                        "team": {"id": int(team_id), "name": f"Team {team_id}"},
+                        "players": [
+                            {
+                                "id": offset + index,
+                                "name": f"Player {offset + index}",
+                                "position": "Goalkeeper" if index == 0 else "Midfielder",
+                            }
+                            for index in range(11)
+                            if str(offset + index) != missing_squad_player_id
+                        ],
+                    }
+                ],
+            },
+        )
+    return kickoff
 
 
 def test_lineup_materialization_is_atomic_structured_and_idempotent() -> None:
@@ -304,3 +423,121 @@ def test_transfermarkt_snapshot_enables_team_scoped_identity_and_value_gate() ->
     assert evidence["uniquely_mapped_starters"] == 0
     assert evidence["valued_starters"] == 0
     assert "PLAYER_IDENTITY_MAPPING_INCOMPLETE" in evidence["blockers"]
+
+
+def test_m2b_materializes_only_full_name_authority_chain_candidates() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = FutureRefreshDbRepository(engine=engine)
+    kickoff = _install_player_identity_sources(repository, engine)
+    captured_at = kickoff.replace(hour=17)
+
+    repository.save_lineup_snapshots(
+        fixture_id="fixture-authority",
+        captured_at=captured_at,
+        raw_sha256="l" * 64,
+        payload={"response": [_team(10, 100), _team(20, 200)]},
+        materialize_baselines=False,
+    )
+
+    with Session(engine) as session:
+        mappings = list(
+            session.scalars(
+                select(PlayerIdentityMappingModel).order_by(
+                    PlayerIdentityMappingModel.api_football_player_id
+                )
+            )
+        )
+    assert len(mappings) == 22
+    assert all(mapping.mapping_status == "CANDIDATE" for mapping in mappings)
+    assert all(mapping.evidence["authority_chain_complete"] for mapping in mappings)
+    assert all(
+        mapping.evidence["reason"] == "UNIQUE_AUTHORITY_TEAM_FULL_NAME_POSITION"
+        for mapping in mappings
+    )
+    assert all(mapping.valid_from == kickoff.replace(tzinfo=None) for mapping in mappings)
+    audit = repository.player_identity_candidate_audit(
+        fixture_ids=["fixture-authority"],
+        as_of=captured_at,
+    )
+    assert len(audit) == 22
+    assert {
+        row["generator"] for row in audit
+    } == {"FutureRefreshDbRepository.materialize_player_identity_mappings"}
+
+
+def test_m2b_rejects_missing_full_name_and_wrong_club() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = FutureRefreshDbRepository(engine=engine)
+    kickoff = _install_player_identity_sources(
+        repository,
+        engine,
+        missing_squad_player_id="100",
+        wrong_club_player_id="101",
+    )
+    captured_at = kickoff.replace(hour=17)
+
+    repository.save_lineup_snapshots(
+        fixture_id="fixture-authority",
+        captured_at=captured_at,
+        raw_sha256="l" * 64,
+        payload={"response": [_team(10, 100), _team(20, 200)]},
+        materialize_baselines=False,
+    )
+
+    matrix = repository.player_identity_fixture_matrix(
+        fixture_ids=["fixture-authority"],
+        as_of=captured_at,
+    )
+    assert matrix == [
+        {
+            "fixture_id": "fixture-authority",
+            "starters": 22,
+            "unique_candidates": 20,
+            "missing": 2,
+            "conflicts": 0,
+            "missing_player_ids": ["100", "101"],
+        }
+    ]
+
+
+def test_player_identity_join_evidence_is_read_only_and_deterministic() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = FutureRefreshDbRepository(engine=engine)
+    kickoff = _install_player_identity_sources(repository, engine)
+    captured_at = kickoff.replace(hour=17)
+    repository.save_lineup_snapshots(
+        fixture_id="fixture-authority",
+        captured_at=captured_at,
+        raw_sha256="l" * 64,
+        payload={"response": [_team(10, 100), _team(20, 200)]},
+        materialize_baselines=False,
+    )
+    for team_id, offset in (("10", 100), ("20", 200)):
+        for index in range(11):
+            player_id = str(offset + index)
+            repository.approve_player_identity_mapping(
+                api_football_player_id=player_id,
+                team_external_id=team_id,
+                canonical_player_id=f"w2:player:transfermarkt:tm-{player_id}",
+                transfermarkt_player_id=f"tm-{player_id}",
+                reviewed_by="real-technical-reviewer",
+                reviewed_at=captured_at,
+                source_artifact_hash="r" * 64,
+            )
+
+    runs = [
+        repository.player_identity_join_evidence(
+            fixture_id="fixture-authority",
+            as_of=kickoff,
+        )
+        for _ in range(3)
+    ]
+
+    assert [run["status"] for run in runs] == ["PASS", "PASS", "PASS"]
+    assert len({run["business_hash"] for run in runs}) == 1
+    assert runs[0]["rows"] == runs[1]["rows"] == runs[2]["rows"]
+    assert runs[0]["provider_calls"] == 0
+    assert runs[0]["db_writes"] == 0

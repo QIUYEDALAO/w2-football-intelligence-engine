@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import urllib.error
 import urllib.request
 
 import pytest
@@ -54,6 +55,40 @@ def test_api_football_statistics_uses_fixtures_statistics_http_path(monkeypatch)
 
     assert response.status_code == 200
     assert captured["url"].endswith("/fixtures/statistics?fixture=1489404")
+
+
+def test_api_football_squads_uses_players_squads_http_path(monkeypatch) -> None:
+    captured: dict[str, str] = {}
+
+    class FakeResponse:
+        status = 200
+        headers: dict[str, str] = {}
+
+        def __enter__(self) -> FakeResponse:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps({"response": []}).encode()
+
+    def fake_urlopen(request: urllib.request.Request, timeout: int) -> FakeResponse:
+        captured["url"] = request.full_url
+        return FakeResponse()
+
+    monkeypatch.delenv("W2_PROVIDER_CALLS_DISABLED", raising=False)
+    monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "squads")
+    monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "test-key")
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    client = ApiFootballClient(
+        allow_live=True,
+        allowed_live_endpoints=frozenset({"squads"}),
+    )
+
+    client.request_live("squads", {"team": "1"})
+
+    assert captured["url"].endswith("/players/squads?team=1")
 
 
 def test_api_football_provider_calls_disabled_blocks_before_transport(monkeypatch) -> None:
@@ -110,3 +145,87 @@ def test_api_football_request_live_records_provider_ledger(monkeypatch) -> None:
     assert captured["params"] == {"fixture": "1489404"}
     assert captured["status_code"] == 200
     assert captured["live"] is True
+
+
+def test_api_football_http_error_records_one_sanitized_ledger_row(monkeypatch) -> None:
+    calls = 0
+    records: list[dict[str, object]] = []
+
+    class FakeLedger:
+        def record_request(self, **kwargs: object) -> None:
+            records.append(kwargs)
+
+    def fail_transport(*args: object, **kwargs: object) -> object:
+        nonlocal calls
+        calls += 1
+        raise urllib.error.HTTPError(
+            url="https://example.invalid",
+            code=503,
+            msg="unavailable",
+            hdrs={"x-ratelimit-requests-remaining": "3"},
+            fp=None,
+        )
+
+    monkeypatch.delenv("W2_PROVIDER_CALLS_DISABLED", raising=False)
+    monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "redacted-sentinel")
+    monkeypatch.setattr(urllib.request, "urlopen", fail_transport)
+    client = ApiFootballClient(
+        allow_live=True,
+        allowed_live_endpoints=frozenset({"lineups"}),
+        request_ledger=FakeLedger(),
+    )
+
+    response = client.request_live("lineups", {"fixture": "1494214"})
+
+    assert response.status_code == 503
+    assert calls == 1
+    assert len(records) == 1
+    assert records[0]["status_code"] == 503
+    assert records[0]["error"] == "PROVIDER_HTTP_503"
+    assert "redacted-sentinel" not in repr(records)
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected_error"),
+    [
+        (TimeoutError(), "PROVIDER_TIMEOUT"),
+        (ConnectionResetError(), "PROVIDER_CONNECTION_ERROR"),
+        (urllib.error.URLError("offline"), "PROVIDER_URL_ERROR"),
+    ],
+)
+def test_api_football_transport_failure_records_one_sanitized_ledger_row(
+    monkeypatch,
+    failure: OSError,
+    expected_error: str,
+) -> None:
+    calls = 0
+    records: list[dict[str, object]] = []
+
+    class FakeLedger:
+        def record_request(self, **kwargs: object) -> None:
+            records.append(kwargs)
+
+    def fail_transport(*args: object, **kwargs: object) -> object:
+        nonlocal calls
+        calls += 1
+        raise failure
+
+    monkeypatch.delenv("W2_PROVIDER_CALLS_DISABLED", raising=False)
+    monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "redacted-sentinel")
+    monkeypatch.setattr(urllib.request, "urlopen", fail_transport)
+    client = ApiFootballClient(
+        allow_live=True,
+        allowed_live_endpoints=frozenset({"lineups"}),
+        request_ledger=FakeLedger(),
+    )
+
+    with pytest.raises(type(failure)):
+        client.request_live("lineups", {"fixture": "1494214"})
+
+    assert calls == 1
+    assert len(records) == 1
+    assert records[0]["status_code"] is None
+    assert records[0]["error"] == expected_error
+    assert records[0]["headers"] == {}
+    assert records[0]["payload"] == {}
+    assert "redacted-sentinel" not in repr(records)
