@@ -598,3 +598,132 @@ def test_0042_fails_closed_when_authority_mapping_missing(tmp_path: Path) -> Non
     result = migrate("upgrade", "head")
     assert result.returncode != 0
     assert "team identity migration blocked" in (result.stderr + result.stdout)
+
+
+def _m2a_env(tmp_path: Path, name: str) -> tuple[Path, str, dict[str, str]]:
+    root = Path(__file__).resolve().parents[2]
+    database_url = f"sqlite+pysqlite:///{tmp_path / name}"
+    env = {
+        **os.environ,
+        "PYTHONPATH": f"{root / 'src'}:{root}",
+        "W2_DATABASE_URL": database_url,
+        "W2_ENVIRONMENT": "test",
+    }
+    return root, database_url, env
+
+
+def _alembic(root: Path, env: dict[str, str], *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, "-m", "alembic", *args],
+        cwd=root,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _seed_m2a_baseline(engine, *, api_id: str = "100", tm_id: str = "999") -> None:
+    params = {
+        "api_id": api_id,
+        "tm_id": tm_id,
+        "w2": f"w2:team:api_football:{api_id}",
+        "ptic_id": f"api_football:{api_id}:allsvenskan:2026",
+        "team_hash": f"h{api_id}",
+        "identity_hash": f"ih{api_id}",
+    }
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "insert into canonical_teams (w2_team_id, display_name, country, "
+                "active_status, created_at, identity_hash, payload) values "
+                "(:w2,'T','SE','ACTIVE','2026-01-01T00:00:00+00:00',:team_hash,'{}')"
+            ),
+            params,
+        )
+        conn.execute(
+            text(
+                "insert into provider_team_identity_crosswalks (id, provider, "
+                "provider_team_id, w2_team_id, competition_id, season, valid_from, "
+                "identity_status, evidence_hashes, identity_hash) values "
+                "(:ptic_id,'api_football',:api_id,:w2,'allsvenskan','2026',"
+                "'2026-01-01T00:00:00+00:00','PROVIDER_PRIMARY_READY','[]',:identity_hash)"
+            ),
+            params,
+        )
+        conn.execute(
+            text(
+                "insert into team_identity_crosswalks (id, api_football_team_id, "
+                "transfermarkt_club_id, competition_id, valid_from, review_status, "
+                "crosswalk_hash, source_sha256, reviewed_by, reviewed_at, payload) values "
+                "('tic-1',:api_id,:tm_id,'allsvenskan','2026-01-01T00:00:00+00:00',"
+                "'APPROVED','ch1','abc','analyst','2026-01-02T00:00:00+00:00','{}')"
+            ),
+            params,
+        )
+
+
+def test_0042_blocks_on_divergent_existing_transfermarkt_row(tmp_path: Path) -> None:
+    root, database_url, env = _m2a_env(tmp_path, "m2a-divergent.db")
+    baseline = "0041_converge_odds_history_and_projection"
+    assert _alembic(root, env, "upgrade", baseline).returncode == 0
+    engine = create_engine(database_url)
+    _seed_m2a_baseline(engine)
+    with engine.begin() as conn:
+        # A pre-existing transfermarkt target row pointing at a DIFFERENT canonical team.
+        conn.execute(
+            text(
+                "insert into canonical_teams (w2_team_id, display_name, country, "
+                "active_status, created_at, identity_hash, payload) values "
+                "('w2:team:api_football:777','X','SE','ACTIVE',"
+                "'2026-01-01T00:00:00+00:00','h777','{}')"
+            )
+        )
+        conn.execute(
+            text(
+                "insert into provider_team_identity_crosswalks (id, provider, "
+                "provider_team_id, w2_team_id, competition_id, season, valid_from, "
+                "identity_status, evidence_hashes, identity_hash) values "
+                "('transfermarkt:999:allsvenskan:2026','transfermarkt','999',"
+                "'w2:team:api_football:777','allsvenskan','2026',"
+                "'2026-01-01T00:00:00+00:00','PROVIDER_PRIMARY_READY','[]','other-hash')"
+            )
+        )
+
+    result = _alembic(root, env, "upgrade", "head")
+
+    assert result.returncode != 0
+    assert "TRANSFERMARKT_TARGET_DIVERGENT" in (result.stderr + result.stdout)
+
+
+def test_0042_downgrade_keeps_transfermarkt_rows_it_does_not_own(tmp_path: Path) -> None:
+    root, database_url, env = _m2a_env(tmp_path, "m2a-downgrade.db")
+    baseline = "0041_converge_odds_history_and_projection"
+    assert _alembic(root, env, "upgrade", baseline).returncode == 0
+    engine = create_engine(database_url)
+    _seed_m2a_baseline(engine)
+    assert _alembic(root, env, "upgrade", "head").returncode == 0
+
+    with engine.begin() as conn:
+        # A transfermarkt row owned by something else (foreign id + foreign hash).
+        conn.execute(
+            text(
+                "insert into provider_team_identity_crosswalks (id, provider, "
+                "provider_team_id, w2_team_id, competition_id, season, valid_from, "
+                "identity_status, evidence_hashes, identity_hash) values "
+                "('other-source:555','transfermarkt','555',"
+                "'w2:team:api_football:100','allsvenskan','2026',"
+                "'2026-01-01T00:00:00+00:00','PROVIDER_PRIMARY_READY','[]','foreign-hash')"
+            )
+        )
+
+    assert _alembic(root, env, "downgrade", baseline).returncode == 0
+
+    with engine.begin() as conn:
+        remaining = conn.execute(
+            text(
+                "select id from provider_team_identity_crosswalks where provider='transfermarkt'"
+            )
+        ).scalars().all()
+    # The migration-owned row is gone; the foreign row survives.
+    assert remaining == ["other-source:555"]

@@ -149,20 +149,47 @@ def upgrade() -> None:
             )
         )
 
-        # (b) Insert the transfermarkt provider row (idempotent), same w2_team_id.
-        exists = bind.execute(
+        # (b) Insert the transfermarkt provider row, same w2_team_id. If a target
+        # row already exists it must reconcile exactly against what this migration
+        # would write; a divergent existing row is a blocker, never skipped.
+        row_id = f"transfermarkt:{tm_id}:{comp}:{season}"
+        expected_identity_hash = _transfermarkt_identity_hash(
+            provider_team_id=tm_id, w2_team_id=w2, competition_id=comp, season=season
+        )
+        existing = bind.execute(
             sa.text(
-                "select 1 from provider_team_identity_crosswalks "
+                "select id, w2_team_id, identity_status, identity_hash, review_status, "
+                "reviewed_by from provider_team_identity_crosswalks "
                 "where provider='transfermarkt' and provider_team_id=:pid "
                 "and competition_id=:comp and season=:season"
             ),
             {"pid": tm_id, "comp": comp, "season": season},
-        ).first()
-        if exists:
+        ).mappings().all()
+        if existing:
+            if len(existing) != 1:
+                blockers.append(f"{row['id']}:TRANSFERMARKT_TARGET_ROWS={len(existing)}")
+                continue
+            target = existing[0]
+            divergences = [
+                field
+                for field, expected in (
+                    ("id", row_id),
+                    ("w2_team_id", w2),
+                    ("identity_status", _PROVIDER_PRIMARY_READY),
+                    ("identity_hash", expected_identity_hash),
+                    ("review_status", row["review_status"]),
+                    ("reviewed_by", row["reviewed_by"]),
+                )
+                if target[field] != expected
+            ]
+            if divergences:
+                blockers.append(
+                    f"{row['id']}:TRANSFERMARKT_TARGET_DIVERGENT:{','.join(divergences)}"
+                )
             continue
         bind.execute(
             sa.insert(_ptic).values(
-                id=f"transfermarkt:{tm_id}:{comp}:{season}",
+                id=row_id,
                 provider="transfermarkt",
                 provider_team_id=tm_id,
                 w2_team_id=w2,
@@ -172,12 +199,7 @@ def upgrade() -> None:
                 valid_to=_coerce_dt(row["valid_to"]),
                 identity_status=_PROVIDER_PRIMARY_READY,
                 evidence_hashes=source_hashes,
-                identity_hash=_transfermarkt_identity_hash(
-                    provider_team_id=tm_id,
-                    w2_team_id=w2,
-                    competition_id=comp,
-                    season=season,
-                ),
+                identity_hash=expected_identity_hash,
                 review_status=row["review_status"],
                 reviewed_by=row["reviewed_by"],
                 reviewed_at=_coerce_dt(row["reviewed_at"]),
@@ -194,11 +216,35 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Remove only the transfermarkt rows this migration owns.
+
+    Ownership is proven per row, never by ``provider='transfermarkt'`` alone:
+    the row id must match this migration's id format *and* its identity_hash
+    must equal the hash recomputed from this migration's own payload shape.
+    Transfermarkt rows written by anything else are left untouched.
+    """
     bind = op.get_bind()
-    bind.execute(
+    rows = bind.execute(
         sa.text(
-            "delete from provider_team_identity_crosswalks where provider='transfermarkt'"
+            "select id, provider_team_id, w2_team_id, competition_id, season, identity_hash "
+            "from provider_team_identity_crosswalks where provider='transfermarkt'"
         )
-    )
+    ).mappings().all()
+    for row in rows:
+        owned_id = (
+            f"transfermarkt:{row['provider_team_id']}:{row['competition_id']}:{row['season']}"
+        )
+        owned_hash = _transfermarkt_identity_hash(
+            provider_team_id=str(row["provider_team_id"]),
+            w2_team_id=str(row["w2_team_id"]),
+            competition_id=str(row["competition_id"]),
+            season=str(row["season"]),
+        )
+        if row["id"] != owned_id or row["identity_hash"] != owned_hash:
+            continue
+        bind.execute(
+            sa.text("delete from provider_team_identity_crosswalks where id=:id"),
+            {"id": row["id"]},
+        )
     for name, _ in _NEW_COLUMNS:
         op.drop_column(_TABLE, name)

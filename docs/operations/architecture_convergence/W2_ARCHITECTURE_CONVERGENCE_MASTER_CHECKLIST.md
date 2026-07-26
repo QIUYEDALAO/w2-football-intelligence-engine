@@ -411,9 +411,17 @@ Started at: 2026-07-26T00:00:00Z
 Owner: Codex
 Phase: IDENTITY_AUTHORITY_INVENTORY_AND_MIGRATION
 M1: DONE (read-only inventory; player identity + saved lineups empty)
-M2A: DONE (team schema+migration, CanonicalIdentityRepository, F5 read-switch,
-  static guards: LEGACY_CROSSWALK_RUNTIME_READS/WRITES/IMPORTS=0,
-  ORM_DECLARATIONS=3 TEMPORARY_ALLOWED_UNTIL_M4, NEW_IDENTITY_TABLE_COUNT=0)
+M2A: REMEDIATION_APPLIED (team schema+migration, CanonicalIdentityRepository,
+  F5/fixture/history/rating/xG read-switch; guards
+  LEGACY_CROSSWALK_RUNTIME_READS/WRITES/IMPORTS=0,
+  RUNTIME_CANONICAL_ID_FROM_PROVIDER_CONSTRUCTION=0,
+  PROVIDER_ID_MODEL_PRIMARY_READS=0, ORM_DECLARATIONS=3
+  TEMPORARY_ALLOWED_UNTIL_M4, NEW_IDENTITY_TABLE_COUNT=0).
+  W2_EXTERNAL_DECISION_V2 CONTROLLED_CANONICAL_TEAM_ID_MINT_APPROVED: exactly one
+  controlled mint inside canonical_team_payload, AST exact-count guarded.
+  MUST_FIX 1-5 applied: AST guard replaces prefix scan; mapping validity +
+  ambiguity fail-closed; migration exact reconciliation (no exists->continue);
+  downgrade deletes only migration-owned rows; state/PR phase synced.
 M3: REAL_MATCH_EVIDENCE = BLOCKED_INSUFFICIENT_REAL_SAVED_LINEUPS
 M4: NOT_AUTHORIZED (drop ORM + tables together; net -3 tables)
 ```

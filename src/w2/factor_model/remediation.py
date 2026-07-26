@@ -217,6 +217,7 @@ class FactorModelRemediationService:
                 provider=PROVIDER,
                 competition=self.config.competition_id,
                 season=self.config.season,
+                as_of=self.now,
             )
             ready = 0
             for fixture in fixtures:
@@ -780,6 +781,7 @@ class FactorModelRemediationService:
                 provider=PROVIDER,
                 competition=self.config.competition_id,
                 season=self.config.season,
+                as_of=self.now,
             )
 
     def _smoke_readiness(self, session: Session) -> list[dict[str, Any]]:
@@ -833,6 +835,7 @@ class FactorModelRemediationService:
                     provider=PROVIDER,
                     competition=self.config.competition_id,
                     season=self.config.season,
+                    as_of=self.now,
                 )
                 .items()
             }

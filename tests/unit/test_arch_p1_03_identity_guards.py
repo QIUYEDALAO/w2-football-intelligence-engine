@@ -5,6 +5,7 @@ their three declarations in models.py, which are temporarily allowed until M4.
 
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 
@@ -46,30 +47,73 @@ def test_legacy_crosswalk_runtime_references_are_zero() -> None:
     assert offenders == {}, f"legacy crosswalk runtime references: {offenders}"
 
 
-# The canonical id is minted exactly once, at controlled seeding time, inside
-# canonical_team_payload(). Every resolution path must go through
-# CanonicalIdentityRepository instead of rebuilding an id from a provider id.
-_SEEDING_MINT_FILE = _ROOT / "src" / "w2" / "factor_model" / "remediation.py"
-_MINT_CALLER = "canonical_team_payload"
+# The canonical id is minted exactly once, at controlled seeding time
+# (W2_EXTERNAL_DECISION_V2: CONTROLLED_CANONICAL_TEAM_ID_MINT_APPROVED). Every
+# resolution path must go through CanonicalIdentityRepository instead of
+# rebuilding an id from a provider id. Enforced by AST, not text scanning.
+_MINT_HELPER = "stable_w2_team_id"  # may hold the single "w2:team:" literal
+_MINT_CALLER = "canonical_team_payload"  # may make the single mint call
+_CANONICAL_TEAM_ID_PREFIX = "w2:team:"
+
+
+class _ConstructionVisitor(ast.NodeVisitor):
+    """Collect canonical-id construction sites with their enclosing function."""
+
+    def __init__(self) -> None:
+        self.scope: list[str] = []
+        self.sites: list[tuple[str, str]] = []  # (enclosing_function, kind)
+
+    def _enclosing(self) -> str:
+        return self.scope[-1] if self.scope else "<module>"
+
+    def _visit_scoped(self, node: ast.AST) -> None:
+        self.scope.append(node.name)  # type: ignore[attr-defined]
+        self.generic_visit(node)
+        self.scope.pop()
+
+    visit_FunctionDef = _visit_scoped  # type: ignore[assignment]
+    visit_AsyncFunctionDef = _visit_scoped  # type: ignore[assignment]
+
+    def visit_Call(self, node: ast.Call) -> None:
+        func = node.func
+        name = getattr(func, "id", None) or getattr(func, "attr", None)
+        if name == _MINT_HELPER:
+            self.sites.append((self._enclosing(), "mint_call"))
+        self.generic_visit(node)
+
+    def visit_Constant(self, node: ast.Constant) -> None:
+        if isinstance(node.value, str) and node.value.startswith(_CANONICAL_TEAM_ID_PREFIX):
+            self.sites.append((self._enclosing(), "literal"))
+        self.generic_visit(node)
+
+
+def _construction_sites() -> dict[str, list[tuple[str, str]]]:
+    found: dict[str, list[tuple[str, str]]] = {}
+    for path in _runtime_py_files():
+        visitor = _ConstructionVisitor()
+        visitor.visit(ast.parse(path.read_text(encoding="utf-8")))
+        if visitor.sites:
+            found[path.relative_to(_ROOT).as_posix()] = visitor.sites
+    return found
 
 
 def test_runtime_canonical_id_from_provider_construction_is_zero() -> None:
-    # (a) No literal "w2:team:<provider>:" construction outside the mint.
-    literal = re.compile(r'f?"w2:team:')
-    # (b) No call to the mint helper outside its definition and canonical_team_payload.
-    call = re.compile(r"\bstable_w2_team_id\s*\(")
-    offenders: list[str] = []
-    for path in _runtime_py_files():
-        text = path.read_text(encoding="utf-8")
-        if path == _SEEDING_MINT_FILE:
-            # Only the mint helper itself and canonical_team_payload may construct.
-            mint_region = text.split(f"def {_MINT_CALLER}")[0].split("def stable_w2_team_id")[0]
-            if literal.search(mint_region) or call.search(mint_region):
-                offenders.append(f"{path.relative_to(_ROOT)}:pre-mint-region")
-            continue
-        if literal.search(text) or call.search(text):
-            offenders.append(path.relative_to(_ROOT).as_posix())
-    assert offenders == [], f"runtime canonical-id-from-provider construction: {offenders}"
+    """Exact-count AST guard: zero construction outside the approved mint."""
+    approved = {(_MINT_CALLER, "mint_call"), (_MINT_HELPER, "literal")}
+    violations = [
+        f"{file}:{enclosing}:{kind}"
+        for file, sites in _construction_sites().items()
+        for enclosing, kind in sites
+        if (enclosing, kind) not in approved
+    ]
+    assert violations == [], f"runtime canonical-id-from-provider construction: {violations}"
+
+
+def test_controlled_mint_is_exactly_one_call_and_one_literal() -> None:
+    """The approved mint must not silently multiply either."""
+    sites = [site for sites in _construction_sites().values() for site in sites]
+    assert sites.count((_MINT_CALLER, "mint_call")) == 1, sites
+    assert sites.count((_MINT_HELPER, "literal")) == 1, sites
 
 
 def test_provider_id_model_primary_reads_are_zero() -> None:

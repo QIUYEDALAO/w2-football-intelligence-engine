@@ -44,14 +44,14 @@ def _seed(engine, *rows):
     with engine.begin() as conn:
         from sqlalchemy import text
 
-        for w2 in {r.w2_team_id for r in rows}:
+        for index, w2 in enumerate(sorted({r.w2_team_id for r in rows})):
             conn.execute(
                 text(
                     "insert into canonical_teams (w2_team_id, display_name, country, "
                     "active_status, created_at, identity_hash, payload) values "
-                    "(:w2,'T','SE','ACTIVE','2026-01-01T00:00:00+00:00','h','{}')"
+                    "(:w2,'T','SE','ACTIVE','2026-01-01T00:00:00+00:00',:h,'{}')"
                 ),
-                {"w2": w2},
+                {"w2": w2, "h": f"h{index}"},
             )
     with Session(engine) as session:
         session.add_all(rows)
@@ -113,3 +113,56 @@ def test_player_methods_empty_and_never_fabricate() -> None:
     w2 = "w2:team:api_football:100"
     assert repo.resolve_player("p1", w2, "allsvenskan", "2026", AS_OF) is None
     assert repo.approved_players_for_team(w2, "allsvenskan", "2026", AS_OF) == []
+
+
+def test_mapping_in_session_excludes_rows_outside_validity_window() -> None:
+    from sqlalchemy.orm import Session
+
+    engine = _engine()
+    _seed(
+        engine,
+        _provider_row(),  # valid
+        _provider_row(
+            id="api_football:200:allsvenskan:2026",
+            provider_team_id="200",
+            w2_team_id="w2:team:api_football:200",
+            identity_hash="ih200",
+            valid_to=datetime(2026, 6, 1, tzinfo=UTC),  # expired before AS_OF
+        ),
+    )
+    with Session(engine) as session:
+        mapping = CanonicalIdentityRepository.provider_team_mapping_in_session(
+            session,
+            provider="api_football",
+            competition="allsvenskan",
+            season="2026",
+            as_of=AS_OF,
+        )
+    assert mapping == {"100": "w2:team:api_football:100"}
+
+
+def test_mapping_in_session_drops_ambiguous_provider_id() -> None:
+    from sqlalchemy.orm import Session
+
+    engine = _engine()
+    _seed(
+        engine,
+        _provider_row(),
+        # same provider team id resolving to a second canonical team
+        _provider_row(
+            id="api_football:100:allsvenskan:2026:dup",
+            w2_team_id="w2:team:api_football:999",
+            identity_hash="ihdup",
+            valid_from=datetime(2026, 2, 1, tzinfo=UTC),
+        ),
+    )
+    with Session(engine) as session:
+        mapping = CanonicalIdentityRepository.provider_team_mapping_in_session(
+            session,
+            provider="api_football",
+            competition="allsvenskan",
+            season="2026",
+            as_of=AS_OF,
+        )
+    # Fail closed: ambiguous provider id yields no identity at all.
+    assert mapping == {}

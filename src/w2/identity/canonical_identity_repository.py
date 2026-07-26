@@ -111,13 +111,16 @@ class CanonicalIdentityRepository:
         provider: str,
         competition: str,
         season: str,
+        as_of: datetime,
     ) -> dict[str, str]:
         """``provider_team_id -> w2_team_id`` for one provider/competition/season.
 
         Session-scoped so callers inside an open transaction resolve against the
-        authority rows they have already flushed. Provider ids absent from the
-        authority are simply absent from the mapping, so callers fail closed
-        rather than constructing an identity.
+        authority rows they have already flushed. Fail-closed by omission on both
+        axes: rows outside their validity window at ``as_of`` are ignored, and a
+        provider id that resolves to more than one canonical team is dropped
+        entirely rather than silently picking one (same rule as
+        :meth:`resolve_team`). Absent provider ids never yield a constructed id.
         """
         rows = session.scalars(
             select(ProviderTeamIdentityCrosswalkModel)
@@ -129,7 +132,16 @@ class CanonicalIdentityRepository:
             )
             .order_by(ProviderTeamIdentityCrosswalkModel.provider_team_id)
         ).all()
-        return {row.provider_team_id: row.w2_team_id for row in rows}
+        candidates: dict[str, set[str]] = {}
+        for row in rows:
+            if not _valid_at(row.valid_from, row.valid_to, as_of):
+                continue
+            candidates.setdefault(row.provider_team_id, set()).add(row.w2_team_id)
+        return {
+            provider_team_id: next(iter(targets))
+            for provider_team_id, targets in candidates.items()
+            if len(targets) == 1
+        }
 
     # --- season-agnostic team resolution (F5 historical, no season axis) -----
 

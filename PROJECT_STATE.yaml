@@ -101,14 +101,25 @@ architecture_convergence:
     started_at: "2026-07-26T00:00:00Z"
     predecessor: ARCH-P1-04D
     scope: TEAM_IDENTITY_CROSSWALK_CONVERGENCE
-    phase: M2A_TEAM_DONE
+    phase: M2A_TEAM_REMEDIATED
     m1_status: DONE
-    m2a_status: DONE
+    m2a_status: REMEDIATION_APPLIED
+    m2a_external_decision: W2_EXTERNAL_DECISION_V2_CONTROLLED_CANONICAL_TEAM_ID_MINT_APPROVED
+    m2a_must_fix_applied:
+      - AST_EXACT_COUNT_GUARD_REPLACES_PREFIX_SCAN
+      - MAPPING_VALIDITY_AND_AMBIGUITY_FAIL_CLOSED
+      - MIGRATION_EXACT_RECONCILIATION_NO_EXISTS_CONTINUE
+      - DOWNGRADE_DELETES_ONLY_MIGRATION_OWNED_ROWS
+      - STATE_AND_PR_PHASE_SYNC
     m3_real_match_evidence: BLOCKED_INSUFFICIENT_REAL_SAVED_LINEUPS
     m4_status: NOT_AUTHORIZED
     legacy_crosswalk_runtime_reads: 0
     legacy_crosswalk_runtime_writes: 0
     legacy_crosswalk_runtime_imports: 0
+    runtime_canonical_id_from_provider_construction: 0
+    provider_id_model_primary_reads: 0
+    controlled_canonical_id_mint_sites: 1
+    controlled_canonical_id_mint_location: canonical_team_payload
     legacy_crosswalk_orm_declarations: 3
     legacy_crosswalk_orm_status: TEMPORARY_ALLOWED_UNTIL_M4
     new_identity_table_count: 0
