@@ -474,6 +474,7 @@ M2A: DONE (accepted by W2_EXTERNAL_REVIEW_V6 @edeb873; team schema+migration,
 Status: IMPLEMENTED_PENDING_ACCEPTANCE
 Draft PR: #402
 External review: PENDING
+Implementation SHA: GITHUB_PR_EXACT_HEAD
 Predecessor: ARCH-P1-03A
 Successor: ARCH-P1-03C (NOT_STARTED)
 M2B: DONE_STAGING (66 REVIEWED mappings; reviewed_by = operator:liudehua;
