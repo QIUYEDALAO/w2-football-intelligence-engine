@@ -1,0 +1,125 @@
+{
+  "schema_version": "w2.arch_p1_03b_m2b_m3_acceptance.v1",
+  "task": "ARCH-P1-03B",
+  "scope": "M2B_AND_M3_ONLY",
+  "status": "READY_FOR_EXTERNAL_REVIEW",
+  "pull_request": 402,
+  "draft": true,
+  "baseline_main_sha": "a309f8326357adc68486609cec577d260cff25fa",
+  "staging_exact_sha": "789c92bfbd92037bcab87a749ea366baf9bb02ad",
+  "staging_migration": {
+    "from": "0041_converge_odds_history_and_projection",
+    "to": "0042_team_identity_provider_review_provenance",
+    "status": "PASS"
+  },
+  "backup": {
+    "path": "/opt/w2/shared/backups/arch-p1-03b/w2-pre-arch-p1-03b-20260726T051034Z-0041.dump",
+    "sha256": "9f44afeae6abcc26d9e4b6212b3e8f0b03b7333f1b600c45fa5105d3eea0c87b",
+    "wal_lsn": "0/B2DA790",
+    "restore_catalog_check": "PASS"
+  },
+  "migration_business_hashes": {
+    "raw_lineups": {
+      "rows": 5,
+      "recorded_sha256_prefix": "be5eb237"
+    },
+    "structured_lineup_snapshots": {
+      "rows": 10,
+      "recorded_sha256_prefix": "4f5d2cfa"
+    },
+    "structured_lineup_players": {
+      "rows": 200,
+      "recorded_sha256_prefix": "51700a37"
+    },
+    "transfermarkt_player_references": {
+      "rows": 50149,
+      "recorded_sha256_prefix": "e887412f"
+    },
+    "candidate_player_mappings": {
+      "rows": 110,
+      "recorded_sha256_prefix": "649f9206"
+    },
+    "status": "ROW_COUNTS_AND_FULL_OPERATIONAL_HASHES_IDENTICAL_BEFORE_AND_AFTER"
+  },
+  "provider_ledger": {
+    "post_fix_actual_calls": 145,
+    "success_rows": 145,
+    "failure_rows": 0,
+    "equation": "ACTUAL_CALLS = SUCCESS_LEDGER_ROWS + FAILURE_LEDGER_ROWS",
+    "by_endpoint": {
+      "squads": 10,
+      "players": 87,
+      "player_profiles": 48
+    },
+    "first_pre_fix_timeout": "RECORDED_AS_MANUAL_AUDIT_ONLY_NOT_BACKFILLED"
+  },
+  "transfermarkt_snapshot": {
+    "rows": 50149,
+    "source_sha256": "921f986c8e6ddae235783440ee01725547120473e7e92b2c232780c5c521766a",
+    "refresh_result": "SOURCE_HASH_UNCHANGED"
+  },
+  "candidate_provenance": {
+    "legacy_preview_rows": 94,
+    "legacy_preview_artifact_sha256": "b5d5d987c15ad429a8d3bed98067e6e5c80a14c3f909fbbac64cc1ec04677f67",
+    "legacy_generator": "untracked staging one-off SQL; no repository script or function exists",
+    "current_generator": "FutureRefreshDbRepository.materialize_player_identity_mappings",
+    "current_review_input_sha256": "1256721b28d58ac66d428461cf660adecd874332771be52edb3c856857e8ec1b"
+  },
+  "human_review": {
+    "review_package_sha256": "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
+    "approval_text_sha256": "a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695",
+    "reviewed_by": "operator:liudehua",
+    "clean_batch": 60,
+    "explicit_exception_rows": 6,
+    "reviewed_rows": 66,
+    "unique_identity_hashes": 66
+  },
+  "m3_identity_evidence": {
+    "artifact_sha256": "510a0404f43a1f662245aba56f2d9876347f59fac7a905d8e73515a12766185f",
+    "fixtures": {
+      "1494212": "ff6b5418a31af031b4bae83f5706a38b1e64e17c12d7ac5d8e0fccf670ca6051",
+      "1494214": "89335bab95f49c4bd694bf1a034339ee52e2e22695a419ac01e03349e6043bfa",
+      "1494216": "3e56ec3f6f251efb6ab47bc682cff2ee82cd6d24a30c6e51464aea5218db2e55"
+    },
+    "metrics_per_fixture": {
+      "CONFIRMED_STARTERS": 22,
+      "UNIQUE_PROVIDER_PLAYERS": 22,
+      "UNIQUE_CANONICAL_PLAYERS": 22,
+      "REVIEWED_MAPPINGS": 22,
+      "MISSING": 0,
+      "AMBIGUOUS": 0,
+      "CONFLICT": 0,
+      "DUPLICATE_CANONICAL": 0,
+      "INVALID_AT_KICKOFF": 0
+    },
+    "runs_per_fixture": 3,
+    "row_counts_identical": true,
+    "sorting_identical": true,
+    "business_hashes_identical": true,
+    "provider_call_delta": 0,
+    "db_write_delta": 0,
+    "status": "PASS"
+  },
+  "valuation_report": {
+    "valued_starters_per_fixture": 0,
+    "starter_count_per_fixture": 22,
+    "lineup_gate_evidence": "INCOMPLETE_PLAYER_VALUATION",
+    "blocks_m3_identity_join": false
+  },
+  "runtime_boundaries": {
+    "scheduler": false,
+    "formal": false,
+    "candidate_runtime": false,
+    "lock": false,
+    "production": false,
+    "m4": false,
+    "legacy_table_deletion": false,
+    "legacy_orm_deletion": false,
+    "arch_p1_05_started": false
+  },
+  "external_acceptance": {
+    "protocol": "GITHUB_SECONDARY_REVIEW_PROTOCOL_V1",
+    "decision": "REVIEW_PENDING",
+    "must_bind_to_pr_exact_head": true
+  }
+}

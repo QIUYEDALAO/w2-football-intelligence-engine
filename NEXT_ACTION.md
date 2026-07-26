@@ -47,8 +47,9 @@ ARCH-P1-03B -> ARCH-P1-05 -> ARCH-P1-06
 `0cb267baa62abe547802bca27771a8fe1c26a0db`. `ARCH-P1-03` was split by external
 decision into **ARCH-P1-03A** (team side, `DONE`; implementation PR #400 merged
 as `bcd2c5e490a99426a0451de7f92362c1a76b2960`) and **ARCH-P1-03B** (player
-side, `NOT_STARTED`, data prerequisite pending). The checklist owns each task's
-PR number, status and CI evidence.
+side, `IN_PROGRESS`; M2B and the three-fixture M3 identity evidence are complete
+in Draft PR #402, while external review is pending and M4 remains unauthorized).
+The checklist owns each task's PR number, status and CI evidence.
 
 `ARCH-P1-05` carries a pre-approved conditional bring-forward: if the
 `ARCH-P1-04` series' staging acceptance keeps failing because of on-server

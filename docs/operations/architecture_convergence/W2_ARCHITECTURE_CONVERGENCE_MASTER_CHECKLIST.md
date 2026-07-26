@@ -471,12 +471,17 @@ M2A: DONE (accepted by W2_EXTERNAL_REVIEW_V6 @edeb873; team schema+migration,
 #### A10. ARCH-P1-03B：球员身份 Crosswalk 收敛与 legacy 表下线（球员侧）
 
 ```text
-Status: NOT_STARTED
+Status: IN_PROGRESS
+Draft PR: #402
+External review: PENDING
 Predecessor: ARCH-P1-03A
-M2B: DATA_PREREQUISITE_PENDING (player_identity_mappings = 0,
-  player_identity_crosswalks = 0, structured_lineup_snapshots = 0,
-  structured_lineup_players = 0)
-M3: BLOCKED_INSUFFICIENT_REAL_SAVED_LINEUPS
+M2B: DONE_STAGING (66 REVIEWED mappings; reviewed_by = operator:liudehua;
+  review package SHA-256 =
+  916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea)
+M3: PASS_3_REAL_FIXTURES_3_RUNS
+  (fixtures 1494212, 1494214, 1494216; provider call delta = 0;
+  DB write delta = 0; evidence SHA-256 =
+  510a0404f43a1f662245aba56f2d9876347f59fac7a905d8e73515a12766185f)
 M4: NOT_AUTHORIZED (drop the three legacy tables and their three ORM
   declarations in the same step; net -3 tables)
 ```
@@ -486,9 +491,9 @@ M4: NOT_AUTHORIZED (drop the three legacy tables and their three ORM
 `football_data_team_crosswalks`、`player_identity_crosswalks` 三张 legacy 表的
 物理 drop。
 
-- [ ] 球员身份权威补列与 canonical 解析（M2B）；仅 REVIEWED + 非空
+- [x] 球员身份权威补列与 canonical 解析（M2B）；仅 REVIEWED + 非空
       `canonical_player_id` + 完整复核来源 + 时间有效者可被模型消费。
-- [ ] 用 3 场真实比赛演示 canonical player ↔ provider lineup 球员唯一联接查询
+- [x] 用 3 场真实比赛演示 canonical player ↔ provider lineup 球员唯一联接查询
       （EVAL-02B"缺阵分钟占比"的前置能力）；数据不足时保持 BLOCKED，禁止构造
       synthetic 证据。
 - [ ] 其余表停止写入，零引用证明后同 PR 断言式 drop；ORM 声明与表同步删除；
