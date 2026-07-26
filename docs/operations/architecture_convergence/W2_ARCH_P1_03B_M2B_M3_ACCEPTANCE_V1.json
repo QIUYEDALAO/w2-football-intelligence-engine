@@ -6,7 +6,7 @@
   "pull_request": 402,
   "draft": true,
   "baseline_main_sha": "a309f8326357adc68486609cec577d260cff25fa",
-  "staging_exact_sha": "789c92bfbd92037bcab87a749ea366baf9bb02ad",
+  "m3_staging_exact_sha": "789c92bfbd92037bcab87a749ea366baf9bb02ad",
   "staging_migration": {
     "from": "0041_converge_odds_history_and_projection",
     "to": "0042_team_identity_provider_review_provenance",
