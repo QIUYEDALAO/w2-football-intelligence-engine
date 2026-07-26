@@ -43,6 +43,7 @@
 | ARCH-GOVERNANCE-01 双门禁 | #393 | `35fcac0d99573556c5e9f7a41822e153783efa73` | 可信 PRE/POST 门禁落地；独立 closure 收口 |
 | ARCH-P1-04C 死代码清理+依赖守卫 | #395 | `6eeb411747a1cef624ff4780dbad87d4cec4b26d` | `_is_decision_tier`+F10 删除，INFRASTRUCTURE 依赖守卫；合同层三活跃链移交 04D |
 | ARCH-P1-04D | #398 | `e6e447293365ca29686b21876cab5e103829b1ed` | canonical card 权威统一，五项兼容代码删除，`LEGACY_DECISION_CONTRACT_CODE=0` |
+| ARCH-P1-03A | #400 | `bcd2c5e490a99426a0451de7f92362c1a76b2960` | 团队身份权威收敛 |
 
 ---
 
@@ -403,12 +404,17 @@ selection **或**明确无选择状态（`market_candidate` 仍为可选证据�
 #### A3. ARCH-P1-03A：球队身份 Crosswalk 收敛（团队侧）
 
 ```text
-Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Status: DONE
 Branch: codex/arch-p1-03-team-identity-crosswalk
 PR: #400
+Merge SHA: bcd2c5e490a99426a0451de7f92362c1a76b2960
+Implementation PR: #400
+Implementation Merge SHA: bcd2c5e490a99426a0451de7f92362c1a76b2960
+Accepted Head: d093ca81431edfb6990d1a50cff5702a81bcc4ed
+External Acceptance: W2_EXTERNAL_ACCEPTANCE_V1
 Base SHA: 0cb267baa62abe547802bca27771a8fe1c26a0db
-Implementation SHA: GITHUB_PR_EXACT_HEAD
-CI run: GITHUB_PR_EXACT_HEAD
+Implementation SHA: d093ca81431edfb6990d1a50cff5702a81bcc4ed
+CI run: 30186249997
 Staging SHA: READ_ONLY_INVENTORY_ONLY_NO_STAGING_WRITE
 Evidence: W2_ARCH_P1_03_M1_IDENTITY_INVENTORY.md /
   W2_ARCH_P1_03_M1_TEAM_MIGRATION_PREVIEW.json
@@ -455,7 +461,7 @@ M2A: DONE (accepted by W2_EXTERNAL_REVIEW_V6 @edeb873; team schema+migration,
 - [x] 静态守卫：legacy crosswalk runtime imports/reads/writes = 0；
       RUNTIME_CANONICAL_ID_FROM_PROVIDER_CONSTRUCTION = 0；
       PROVIDER_ID_MODEL_PRIMARY_READS = 0；NEW_IDENTITY_TABLE_COUNT = 0。
-- [ ] PR 合并。
+- [x] PR 合并（#400，merge SHA `bcd2c5e490a99426a0451de7f92362c1a76b2960`）。
 **验收**：`CANONICAL_TEAM_IDENTITY_AUTHORITY_COUNT = 1`。
 **不在本任务范围**：球员身份权威、3 场真实比赛验收、三张 legacy 表的物理 drop 与
 三个 legacy ORM 声明的删除（均属 `ARCH-P1-03B`）。
