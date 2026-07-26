@@ -28,7 +28,7 @@ ALLOWED_CLASSIFICATIONS = {
 }
 EXPECTED_CLASSIFICATION_COUNTS = {
     "RUNTIME_ENTRYPOINT": 8,
-    "CI_DIRECT": 8,
+    "CI_DIRECT": 9,
     "CI_TRANSITIVE": 29,
     "DEPLOYMENT": 11,
     "MANUAL_OPS": 73,
@@ -187,7 +187,7 @@ def _check_w2_all_commands() -> list[list[str]]:
     raise AssertionError("scripts/check_w2_all.py has no literal COMMANDS list")
 
 
-def test_inventory_has_150_unique_classified_identities() -> None:
+def test_inventory_has_151_unique_classified_identities() -> None:
     rows = _matrix_rows()
     paths = [path for path, _classification, _decision in rows]
     classifications = Counter(
@@ -200,11 +200,11 @@ def test_inventory_has_150_unique_classified_identities() -> None:
         if classification != "DEAD" and decision == "KEEP"
     }
 
-    assert len(rows) == 150
+    assert len(rows) == 151
     assert len(paths) == len(set(paths))
     assert set(classifications) == ALLOWED_CLASSIFICATIONS
     assert dict(classifications) == EXPECTED_CLASSIFICATION_COUNTS
-    assert len(retained) == 142
+    assert len(retained) == 143
     assert len(dead) == 8
     assert set(paths) == retained | dead
     assert retained == _inventory_universe()

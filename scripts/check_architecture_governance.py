@@ -287,6 +287,21 @@ def _pull_fields(pull: dict[str, Any]) -> tuple[int, str, str, str, bool]:
     return number, body, head, base, draft
 
 
+def _event_pull_number(event: dict[str, Any]) -> int:
+    event_pull = event.get("pull_request")
+    if isinstance(event_pull, dict):
+        candidate = event_pull.get("number")
+    else:
+        issue = event.get("issue")
+        candidate = issue.get("number") if isinstance(issue, dict) else None
+        if not isinstance(issue, dict) or not isinstance(issue.get("pull_request"), dict):
+            raise GovernanceError("EVENT_PULL_REQUEST_MISSING")
+    try:
+        return int(candidate)
+    except (TypeError, ValueError) as exc:
+        raise GovernanceError("EVENT_PULL_REQUEST_MISSING") from exc
+
+
 def _parse_acceptance_review(body: str) -> tuple[dict[str, str] | None, str | None]:
     if ACCEPTANCE_MARKER not in body:
         return None, None
@@ -370,12 +385,8 @@ def check_pre_merge(
     base_checklist: str | None = None,
 ) -> GateResult:
     result = GateResult()
-    event_pull = event.get("pull_request")
-    if not isinstance(event_pull, dict):
-        result.fail("EVENT_PULL_REQUEST_MISSING")
-        return result
     try:
-        event_number = int(event_pull["number"])
+        event_number = _event_pull_number(event)
         pull = client.get_pull(event_number)
         number, body, exact_head, base, draft = _pull_fields(pull)
         if number != event_number:
@@ -634,21 +645,27 @@ def main(argv: list[str] | None = None) -> int:
             os.environ.get("GITHUB_TOKEN", ""),  # token = trusted base workflow only
         )
         base_checklist = args.checklist.read_text(encoding="utf-8")
-        checklist = (
-            client.get_text_file(CHECKLIST_PATH, args.checklist_ref)
-            if args.checklist_ref
-            else base_checklist
-        )
         if args.gate == "pre-merge":
             if args.event_path is None:
                 raise GovernanceError("EVENT_PATH_MISSING")
+            event = _load_json(args.event_path)
+            checklist_ref = args.checklist_ref
+            if not checklist_ref:
+                pull = client.get_pull(_event_pull_number(event))
+                _, _, checklist_ref, _, _ = _pull_fields(pull)
+            checklist = client.get_text_file(CHECKLIST_PATH, checklist_ref)
             result = check_pre_merge(
-                _load_json(args.event_path),
+                event,
                 checklist,
                 client,
                 base_checklist=base_checklist,
             )
             return _emit("PRE_MERGE_READINESS_GATE", result)
+        checklist = (
+            client.get_text_file(CHECKLIST_PATH, args.checklist_ref)
+            if args.checklist_ref
+            else base_checklist
+        )
         result = check_post_merge(checklist, client)
         return _emit("POST_MERGE_CHECKLIST_CONSISTENCY_GATE", result)
     except (OSError, GovernanceError) as exc:

@@ -100,8 +100,10 @@ ARCH-P1-08 通过后，功能冻结部分解除：**仅允许本清单阶段 B �
 1. 子步骤只跑 focused tests；同一 exact head 的完整 CI 不重复执行。
 2. 最终 exact head 一次性完成范围项、业务 delta=0、静态守卫、临时/生成资产清理、
    资产账本，并满足 untracked=0、未引用新文件=0、worktree clean。
-3. 最终完整 CI 固定为 `verify`、`staging-parity`、`predeploy-e2e` 全部 PASS；
-   exact head 变化才重跑。
+3. `CI_REQUIRED` 是所有 PR 的稳定代码 CI 聚合 context；最终实施 exact head 的完整
+   CI 所调度 jobs 必须全部 PASS。`PRE_MERGE_READINESS_GATE` 与
+   `POST_MERGE_CHECKLIST_CONSISTENCY_GATE` 独立且继续 required；exact head
+   变化才重跑代码 CI。
 4. 外部验收 PASS 后才能进入合并；合并前任务不得 DONE，后续任务不得启动。
 5. 数据库 drop、数据迁移、部署、兼容链物理删除、安全开关和模型数学变更继续执行
    各自逐项高风险门禁。
@@ -272,6 +274,7 @@ Base SHA: 9b2dc44bed22f237868d1471cbb8d9950917edcb
 Implementation SHA: d9748a24b2359e8a642006af53e713baad236cb9
 Started at: 2026-07-25T04:30:00Z
 Owner: Codex
+Remediation task: ARCH-P1-04D-R1
 M1: DONE (Dashboard simulation projection, status-driven pass-through)
 M2: DONE (frozen 8 MATCH; live LEGACY_ONLY=4 blocker found, MISMATCH=0)
 M2_REMEDIATION: DONE (live _dashboard_card_from_matchday passes through canonical
@@ -480,6 +483,7 @@ Merge SHA: df8fc4578fb4d45e2fb7afb95f58748f459a69a8
 Accepted Head: bfce636dc245ab93f9f4d92e77699bf1689f127b
 External Acceptance: W2_EXTERNAL_ACCEPTANCE_V1
 Implementation CI run: 30195079380
+Remediation task: ARCH-P1-03B-R1
 Predecessor: ARCH-P1-03A
 Successor: ARCH-P1-03C (NOT_STARTED)
 M2B: DONE_STAGING (66 REVIEWED mappings; reviewed_by = operator:liudehua;
@@ -524,7 +528,7 @@ Implementation CI run: 30200526139
 Evidence SHA-256:
   aec0b6361cf8c79d48439f666f9774d53cc9c1b068f7e64bd7eddf800f966860
 Predecessor: ARCH-P1-03B
-Successor: ARCH-P1-05 (NOT_STARTED)
+Successor: ARCH-GOVERNANCE-02
 Base SHA: 2191255b5cb92753db6da495810ed846ffb3647b
 M4: DONE_STAGING_UPGRADE_DOWNGRADE_RESTORE_DRILL
 Legacy runtime imports/reads/writes: 0/0/0
@@ -551,11 +555,108 @@ Formal/Candidate runtime/Lock/Production/Scheduler: false
 
 ---
 
+#### A12. ARCH-GOVERNANCE-02：path-aware CI 与稳定聚合门
+
+```text
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Branch: codex/arch-governance-02-path-aware-ci
+Base SHA: 84986936843432563003863e148c811ad3e0d480
+Implementation SHA: GITHUB_PR_EXACT_HEAD
+Predecessor: ARCH-P1-03C
+Successor: ARCH-P1-04D-R1 (NOT_STARTED)
+Owner: Codex
+Required contexts target:
+  CI_REQUIRED + PRE_MERGE_READINESS_GATE +
+  POST_MERGE_CHECKLIST_CONSISTENCY_GATE
+```
+
+- [x] 所有 PR 均产生稳定 `CI_REQUIRED`；分类器/聚合器任一不可信时 fail-closed。
+- [x] docs/closure/status-only 仅运行文档格式、治理、hash/link/台账一致性检查。
+- [x] Python、Web、migration/schema、infra/deploy 按路径分别调度；混合、未知、
+      CI workflow 或依赖坐标变化进入完整 CI。
+- [x] PR body/comment/Review/Draft/Ready 只重触发可信 PRE workflow，不触发代码 CI。
+- [x] classifier 与聚合门 mutation tests 覆盖轻量、各路径、未知/混合和失败传播。
+- [x] Python/runtime 日常 head 运行 focused jobs；最终实施 head 通过
+      `workflow_dispatch(full=true)` 运行一次完整矩阵。CI workflow、migration、
+      混合或未知路径本身直接 fail-safe 进入完整矩阵。
+- [ ] exact-head 完整 CI、外部验收与 PR 合并。
+
+**不做**：不改生产业务、数据库 schema、模型数学、provider、Formal、Candidate、
+Lock、Production 或 scheduler。
+**资产账本**：新增 classifier 与对应单测各 1 个；无数据库、生产运行时或部署资产。
+**required context 切换时点**：本实施 PR 合并前保留现有 required contexts；合并后
+由最新 main 的可信 workflow 产生 `CI_REQUIRED`，再将 branch protection 从
+`verify + staging-parity + PRE + POST` 原子切换为 `CI_REQUIRED + PRE + POST`，
+不得在未合并的 workflow 上提前切换。
+
+---
+
+#### A13. ARCH-P1-04D-R1：ARCH-P1-04D remediation
+
+```text
+Status: NOT_STARTED
+Historical task: ARCH-P1-04D (DONE, PR #398,
+  merge e6e447293365ca29686b21876cab5e103829b1ed)
+Predecessor: ARCH-GOVERNANCE-02
+Successor: ARCH-P1-03B-R1
+```
+
+本任务只承载对历史 DONE 任务的后续整改；不得改写 `ARCH-P1-04D` 的 DONE 状态、
+PR、Merge SHA 或已完成台账。
+
+---
+
+#### A14. ARCH-P1-03B-R1：ARCH-P1-03B remediation
+
+```text
+Status: NOT_STARTED
+Historical task: ARCH-P1-03B (DONE, PR #402,
+  merge df8fc4578fb4d45e2fb7afb95f58748f459a69a8)
+Predecessor: ARCH-P1-04D-R1
+Successor: ARCH-OBS-01
+```
+
+本任务只承载对历史 DONE 任务的后续整改；不得改写 `ARCH-P1-03B` 的 DONE 状态、
+PR、Merge SHA、66 条审批或 M3 验收坐标。
+
+---
+
+#### A15. ARCH-OBS-01：架构可观测性整改
+
+```text
+Status: NOT_STARTED
+Predecessor: ARCH-P1-03B-R1
+Successor: ARCH-EVIDENCE-01
+```
+
+---
+
+#### A16. ARCH-EVIDENCE-01：证据链整改
+
+```text
+Status: NOT_STARTED
+Predecessor: ARCH-OBS-01
+Successor: ARCH-DONE-REAUDIT
+```
+
+---
+
+#### A17. ARCH-DONE-REAUDIT：历史 DONE 再审计
+
+```text
+Status: NOT_STARTED
+Predecessor: ARCH-EVIDENCE-01
+Successor: ARCH-P1-05
+```
+
+---
+
 
 #### A4. ARCH-P1-05：部署改为 CI 构建镜像、服务器 pull-only
 
 ```text
 Status: NOT_STARTED
+Predecessor: ARCH-DONE-REAUDIT
 ```
 
 - [ ] 4 个 Python Dockerfile 合并为 1 个多 target/多 command；Web 独立镜像保留。
@@ -898,6 +999,7 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 | `scripts/capture_runtime_release_evidence.py` | `DEPLOYMENT` | 发布证据人工 CLI | operator → script | staging | 否 | 无 | `KEEP` | E3 |
 | `scripts/capture_stage7i_fixture_lifecycle.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
 | `scripts/check_architecture_governance.py` | `CI_DIRECT` | architecture-governance.yml | GitHub CI → script | CI | 是 | 无 | `KEEP` | E2/E3/E5 |
+| `scripts/classify_ci.py` | `CI_DIRECT` | ci.yml | GitHub CI → script | CI | 是 | ARCH-GOVERNANCE-02 | `KEEP` | E2/E3/E5 |
 | `scripts/check_boss_console_baseline.py` | `CI_DIRECT` | ci.yml | GitHub CI → script | CI | 是 | 无 | `KEEP` | E2/E3 |
 | `scripts/check_compose_staging_ports.py` | `DEPLOYMENT` | deploy_stage7h / predeploy smoke | operator/CI → script | staging/CI | 是 | STAGE7H_VPS_STAGING | `KEEP` | E3/E4/E5 |
 | `scripts/check_dashboard_v2_baseline.py` | `DEAD` | 无 | 无 | none | 否 | 无 | `DELETE` | D1/D2 |

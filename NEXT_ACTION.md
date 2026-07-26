@@ -23,8 +23,9 @@ task status that the checklist already owns.
 Feature development is frozen. The only work in flight is the architecture
 convergence programme.
 
-Architecture convergence is complete through `ARCH-P1-04D`. The master
-checklist owns all completion evidence and repository/staging coordinates.
+Historical architecture completion remains recorded through `ARCH-P1-03C`.
+`ARCH-P1-05` is paused behind the governance/remediation sequence below. The
+master checklist owns all completion evidence and repository/staging coordinates.
 
 W2_DYNAMIC_PREMATCH_V1 is `locally_verified`.
 W2_DYNAMIC_PREMATCH_STAGING is authorized.
@@ -39,7 +40,13 @@ and is no longer a prerequisite for any architecture task. Lineup remains
 Execute the P1 tasks strictly in the order recorded in the master checklist:
 
 ```text
-ARCH-P1-05 -> ARCH-P1-06 -> ARCH-P1-07 -> ARCH-P1-08
+ARCH-GOVERNANCE-02
+-> ARCH-P1-04D-R1
+-> ARCH-P1-03B-R1
+-> ARCH-OBS-01
+-> ARCH-EVIDENCE-01
+-> ARCH-DONE-REAUDIT
+-> ARCH-P1-05
 ```
 
 **ARCH-P1-04D** is merged and its closure records `DONE`; main POST passed at
@@ -52,7 +59,8 @@ side, `DONE`; implementation PR #402 merged as
 its implementation PR #404 merged as
 `4e310e87def0e6e44e0fe69fa0c07f776126a6fc`, with accepted head
 `8adc8d482aefd7d31063030f0b682458c58c17a2`. The current task is
-**ARCH-P1-05**, but it remains `NOT_STARTED`.
+**ARCH-GOVERNANCE-02**. **ARCH-P1-05** remains `NOT_STARTED` and must not begin
+until every inserted predecessor has completed its implementation and closure.
 The checklist owns each task's PR number, status and CI evidence.
 
 `ARCH-P1-05` carries a pre-approved conditional bring-forward: if the

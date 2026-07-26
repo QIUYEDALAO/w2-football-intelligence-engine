@@ -164,6 +164,15 @@ def event() -> dict[str, Any]:
     return {"pull_request": {"number": PR_NUMBER}}
 
 
+def comment_event() -> dict[str, Any]:
+    return {
+        "issue": {
+            "number": PR_NUMBER,
+            "pull_request": {"url": "https://api.github.test/pulls/393"},
+        }
+    }
+
+
 def pre_result(
     *,
     reviews: list[dict[str, Any]] | None = None,
@@ -643,6 +652,15 @@ def test_pre_merge_a2_waits_until_a1_closure_is_done_on_base() -> None:
     assert "A1_CLOSURE_NOT_COMPLETE_ON_BASE" in result.errors
 
 
+def test_pre_merge_accepts_pull_request_comment_events() -> None:
+    result = governance.check_pre_merge(
+        comment_event(),
+        checklist(),
+        FakeClient(reviews=[valid_review()]),
+    )
+    assert result.passed
+
+
 def test_post_merge_non_done_task_must_not_have_merge_sha() -> None:
     result = governance.check_post_merge(
         checklist(a1_status="IN_PROGRESS", a1_extra="Merge SHA: " + HEAD),
@@ -688,6 +706,8 @@ def test_workflow_is_read_only_and_uses_exact_check_names() -> None:
         assert forbidden not in lowered
     assert source.count("persist-credentials: false") == 2
     assert "pull_request_target:" in source
+    assert "issue_comment:" in source
+    assert "edited" in source
     assert "\n  pull_request:" not in source
     assert 'branches: ["main"]' in source
     assert "push:" in source
@@ -706,7 +726,12 @@ def test_workflow_is_read_only_and_uses_exact_check_names() -> None:
         if step.get("uses") == "actions/checkout@v4"
     ]
     assert all("pull_request.head" not in ref for ref in checkout_refs)
-    assert all("pull_request.base.sha" in ref or "github.sha" in ref for ref in checkout_refs)
+    assert all(
+        "pull_request.base.sha" in ref
+        or "repository.default_branch" in ref
+        or "github.sha" in ref
+        for ref in checkout_refs
+    )
 
 
 def test_ci_workflow_was_not_modified_for_governance() -> None:
