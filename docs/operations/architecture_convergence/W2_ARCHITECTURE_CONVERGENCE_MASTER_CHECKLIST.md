@@ -429,8 +429,13 @@ M2A: REMEDIATION_APPLIED (team schema+migration, CanonicalIdentityRepository,
   ownership marker so downgrade never deletes a pre-existing look-alike row;
   api_football authority resolution uses READY status + validity window +
   unique-canonical-target semantics.
-  Exact-head CI @768b6ac: verify / staging-parity / predeploy-e2e / POST gate =
-  success; PRE_MERGE_READINESS_GATE = FAIL_EXPECTED_DRAFT.
+  W2_EXTERNAL_REVIEW_V5 MUST_FIX applied: review provenance is backfilled only
+  into the valid READY authority rows the resolution step selected (expired,
+  future, CANDIDATE and other-season rows stay untouched).
+  Exact-head CI @768b6ac and @cb9d9bb: verify / staging-parity / predeploy-e2e /
+  POST gate = success; PRE_MERGE_READINESS_GATE = FAIL_EXPECTED_DRAFT.
+  A pre-existing unmarked look-alike row is preserved by downgrade but blocks
+  upgrade reconciliation (it is never silently adopted).
   Status: REMEDIATION_APPLIED_PENDING_EXTERNAL_ACCEPTANCE (M2A not DONE).
 M3: REAL_MATCH_EVIDENCE = BLOCKED_INSUFFICIENT_REAL_SAVED_LINEUPS
 M4: NOT_AUTHORIZED (drop ORM + tables together; net -3 tables)

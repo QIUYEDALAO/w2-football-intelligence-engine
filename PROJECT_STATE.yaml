@@ -130,13 +130,25 @@ architecture_convergence:
       - AUTHORITY_NOT_READY_BLOCKS
       - AUTHORITY_OUTSIDE_VALIDITY_BLOCKS
       - MULTIPLE_AUTHORITY_ROWS_AGREEING_ON_ONE_CANONICAL_TARGET_ACCEPTED
-    focused_tests: 81
+    m2a_external_review_v5: W2_EXTERNAL_REVIEW_V5
+    m2a_must_fix_v5_applied:
+      - BACKFILL_ONLY_SELECTED_VALID_READY_AUTHORITY_ROWS
+    m2a_evidence_v5_added:
+      - MIXED_AUTHORITY_ROW_SELECTIVE_BACKFILL_TEST
+    focused_tests: 82
     ci_exact_head_768b6ac:
       verify: success
       staging-parity: success
       predeploy-e2e: success
       POST_MERGE_CHECKLIST_CONSISTENCY_GATE: success
       PRE_MERGE_READINESS_GATE: FAIL_EXPECTED_DRAFT
+    ci_exact_head_cb9d9bb:
+      verify: success
+      staging-parity: success
+      predeploy-e2e: success
+      POST_MERGE_CHECKLIST_CONSISTENCY_GATE: success
+      PRE_MERGE_READINESS_GATE: FAIL_EXPECTED_DRAFT
+    unowned_lookalike_semantics: PRESERVED_BY_DOWNGRADE_BUT_BLOCKS_UPGRADE_RECONCILIATION
     m3_real_match_evidence: BLOCKED_INSUFFICIENT_REAL_SAVED_LINEUPS
     m4_status: NOT_AUTHORIZED
     legacy_crosswalk_runtime_reads: 0

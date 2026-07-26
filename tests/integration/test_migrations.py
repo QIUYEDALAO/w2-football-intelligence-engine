@@ -936,3 +936,55 @@ def test_0042_accepts_multiple_authority_rows_agreeing_on_one_canonical_team(
             )
         ).scalars().all()
     assert created == ["w2:team:api_football:100"]
+
+
+def test_0042_backfills_only_the_selected_valid_ready_authority_rows(tmp_path: Path) -> None:
+    """Mixed authority rows: only the selected valid READY row gains provenance."""
+    root, database_url, env = _m2a_env(tmp_path, "m2a-mixed-authority.db")
+    baseline = "0041_converge_odds_history_and_projection"
+    assert _alembic(root, env, "upgrade", baseline).returncode == 0
+    engine = create_engine(database_url)
+    _seed_m2a_baseline(engine)  # row A: READY, valid, season 2026 -> selected
+
+    unselected = (
+        # (id, season, valid_from, valid_to, identity_status, identity_hash)
+        ("candidate", "2026", "2026-02-01T00:00:00+00:00", None, "CANDIDATE", "ihc"),
+        ("expired", "2025", "2024-01-01T00:00:00+00:00", "2025-01-01T00:00:00+00:00",
+         "PROVIDER_PRIMARY_READY", "ihe"),
+        ("future", "2026", "2027-01-01T00:00:00+00:00", None, "PROVIDER_PRIMARY_READY", "ihf"),
+    )
+    with engine.begin() as conn:
+        for row_id, season, valid_from, valid_to, status, identity_hash in unselected:
+            conn.execute(
+                text(
+                    "insert into provider_team_identity_crosswalks (id, provider, "
+                    "provider_team_id, w2_team_id, competition_id, season, valid_from, "
+                    "valid_to, identity_status, evidence_hashes, identity_hash) values "
+                    "(:id,'api_football','100','w2:team:api_football:100','allsvenskan',"
+                    ":season,:valid_from,:valid_to,:status,'[]',:identity_hash)"
+                ),
+                {
+                    "id": f"api_football:100:allsvenskan:{row_id}",
+                    "season": season,
+                    "valid_from": valid_from,
+                    "valid_to": valid_to,
+                    "status": status,
+                    "identity_hash": identity_hash,
+                },
+            )
+
+    assert _alembic(root, env, "upgrade", "head").returncode == 0
+
+    with engine.begin() as conn:
+        provenance = dict(
+            conn.execute(
+                text(
+                    "select id, review_status from provider_team_identity_crosswalks "
+                    "where provider='api_football'"
+                )
+            ).all()
+        )
+    # Only the selected valid READY row carries review provenance.
+    assert provenance["api_football:100:allsvenskan:2026"] == "APPROVED"
+    for row_id, *_ in unselected:
+        assert provenance[f"api_football:100:allsvenskan:{row_id}"] is None

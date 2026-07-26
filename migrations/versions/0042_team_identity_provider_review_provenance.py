@@ -159,7 +159,7 @@ def upgrade() -> None:
         as_of = _coerce_dt(row["valid_from"])
         authority_rows = bind.execute(
             sa.text(
-                "select w2_team_id, season, valid_from, valid_to "
+                "select id, w2_team_id, season, valid_from, valid_to "
                 "from provider_team_identity_crosswalks "
                 "where provider='api_football' and provider_team_id=:pid "
                 "and competition_id=:comp and identity_status=:status"
@@ -184,14 +184,13 @@ def upgrade() -> None:
 
         source_hashes = [row["source_sha256"]] if row["source_sha256"] else []
 
-        # (a) Backfill the api_football authority row's review provenance.
+        # (a) Backfill review provenance into exactly the authority rows the
+        # resolution step selected. Expired, future, non-READY and other-season
+        # rows were never selected and must stay untouched.
+        selected_authority_ids = [str(item["id"]) for item in valid_authority]
         bind.execute(
             sa.update(_ptic)
-            .where(
-                _ptic.c.provider == "api_football",
-                _ptic.c.provider_team_id == api_id,
-                _ptic.c.competition_id == comp,
-            )
+            .where(_ptic.c.id.in_(selected_authority_ids))
             .values(
                 review_status=row["review_status"],
                 reviewed_by=row["reviewed_by"],
