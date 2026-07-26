@@ -35,6 +35,7 @@ ACTUAL_MERGES = {
     400: "bcd2c5e490a99426a0451de7f92362c1a76b2960",
     402: "df8fc4578fb4d45e2fb7afb95f58748f459a69a8",
     404: "4e310e87def0e6e44e0fe69fa0c07f776126a6fc",
+    406: "cf5d6ea2cca600e31d4058b7d359b271d12d1f04",
 }
 
 
