@@ -3,10 +3,16 @@
   "task": "ARCH-P1-03B",
   "scope": "M2B_AND_M3_ONLY",
   "status": "READY_FOR_EXTERNAL_REVIEW",
+  "task_status": "IMPLEMENTED_PENDING_ACCEPTANCE",
   "pull_request": 402,
   "draft": true,
   "baseline_main_sha": "a309f8326357adc68486609cec577d260cff25fa",
-  "m3_staging_exact_sha": "789c92bfbd92037bcab87a749ea366baf9bb02ad",
+  "staging_exact_sha_binding": "PR_EXACT_HEAD_AND_HANDOFF",
+  "successor_task": {
+    "id": "ARCH-P1-03C",
+    "status": "NOT_STARTED",
+    "scope": "M4_LEGACY_TABLE_AND_ORM_REMOVAL"
+  },
   "staging_migration": {
     "from": "0041_converge_odds_history_and_projection",
     "to": "0042_team_identity_provider_review_provenance",
@@ -72,20 +78,44 @@
     "clean_batch": 60,
     "explicit_exception_rows": 6,
     "reviewed_rows": 66,
-    "unique_identity_hashes": 66
+    "unique_identity_hashes": 66,
+    "manifest_path": "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+    "manifest_sha256_recomputed": true
+  },
+  "review_reconciliation": {
+    "schema_version": "w2.player_identity_review_reconciliation.v1",
+    "artifact_sha256": "d697798e40928a2f1c9c2690285790563d4e2e914067e3f0627536179a8da762",
+    "expected_rows": 66,
+    "actual_reviewed_rows": 66,
+    "exact_rows": 66,
+    "missing": 0,
+    "unexpected": 0,
+    "mismatches": 0,
+    "runs_identical": true,
+    "provider_call_delta": 0,
+    "db_write_delta": 0,
+    "status": "PASS"
   },
   "m3_identity_evidence": {
-    "artifact_sha256": "510a0404f43a1f662245aba56f2d9876347f59fac7a905d8e73515a12766185f",
+    "schema_version": "w2.player_identity_join_evidence.v2",
+    "artifact_sha256": "4a0be812b61fd4aacdd5e7a3073c87ab81bf3d7ef2564cf81bb6aa1f479084e9",
     "fixtures": {
-      "1494212": "ff6b5418a31af031b4bae83f5706a38b1e64e17c12d7ac5d8e0fccf670ca6051",
-      "1494214": "89335bab95f49c4bd694bf1a034339ee52e2e22695a419ac01e03349e6043bfa",
-      "1494216": "3e56ec3f6f251efb6ab47bc682cff2ee82cd6d24a30c6e51464aea5218db2e55"
+      "1494212": "524f5b7aba122b3118f88361f2382bbcc7b18f4c50c2a6c13143508778355a4c",
+      "1494214": "e4b9da4e1202e7f5641252889be91817fec0ccde967105a8e4e3667e1326f37a",
+      "1494216": "d80ae7d258e4a2cad39f90a8293784403a791f178a740614de39728f358cc8a1"
     },
     "metrics_per_fixture": {
+      "CONFIRMED_SNAPSHOTS": 2,
       "CONFIRMED_STARTERS": 22,
       "UNIQUE_PROVIDER_PLAYERS": 22,
       "UNIQUE_CANONICAL_PLAYERS": 22,
       "REVIEWED_MAPPINGS": 22,
+      "REVIEW_PROVENANCE_VALID": 22,
+      "PACKAGE_HASH_VALID": 22,
+      "APPROVAL_HASH_VALID": 22,
+      "SOURCE_HASHES_VALID": 22,
+      "TEAM_CONSISTENT": 22,
+      "VALID_AT_KICKOFF": 22,
       "MISSING": 0,
       "AMBIGUOUS": 0,
       "CONFLICT": 0,
@@ -113,6 +143,7 @@
     "lock": false,
     "production": false,
     "m4": false,
+    "arch_p1_03c_started": false,
     "legacy_table_deletion": false,
     "legacy_orm_deletion": false,
     "arch_p1_05_started": false

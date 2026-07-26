@@ -479,10 +479,13 @@ Successor: ARCH-P1-03C (NOT_STARTED)
 M2B: DONE_STAGING (66 REVIEWED mappings; reviewed_by = operator:liudehua;
   review package SHA-256 =
   916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea)
-M3: PASS_3_REAL_FIXTURES_3_RUNS
+Reconcile: PASS_66_OF_66 (two identical read-only runs; provider call delta = 0;
+  DB write delta = 0; evidence SHA-256 =
+  d697798e40928a2f1c9c2690285790563d4e2e914067e3f0627536179a8da762)
+M3: PASS_3_REAL_FIXTURES_3_RUNS_STRENGTHENED_V2
   (fixtures 1494212, 1494214, 1494216; provider call delta = 0;
   DB write delta = 0; evidence SHA-256 =
-  510a0404f43a1f662245aba56f2d9876347f59fac7a905d8e73515a12766185f)
+  4a0be812b61fd4aacdd5e7a3073c87ab81bf3d7ef2564cf81bb6aa1f479084e9)
 M4: OUT_OF_SCOPE_DEFERRED_TO_ARCH-P1-03C
 ```
 
