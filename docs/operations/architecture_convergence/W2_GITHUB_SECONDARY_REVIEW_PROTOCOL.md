@@ -24,6 +24,9 @@ REVIEW_NOT_STARTED
 4. 不得只凭交接文字、Codex 回执、PR 描述或上一次会话记忆下结论。
 
 读取本文件后，再按 `PROJECT_STATE.yaml.context_read_order` 读取总清单、机器状态和当前动作指针。
+其中 `{CURRENT_TASK}` 必须在读取时替换为 `PROJECT_STATE.yaml` 的当前任务；动态读取
+`{CURRENT_TASK}.spec.json`、`{CURRENT_TASK}.baseline.json` 和
+`{CURRENT_TASK}.final.json` 中实际存在的文件，不得永久写死某个历史任务路径。
 
 ## 二、验收原则
 
@@ -97,6 +100,34 @@ ACTUAL_READ_SET = IDENTITY_GUARD_COVERAGE_SET
 - 生成中 HEAD、输入或依赖发生变化时是否拒绝发布。
 
 对于带自哈希的 JSON，必须抽查或自动验证：删除 `artifact_sha` 后重算，结果等于原值。
+
+### 3A. 冻结验收矩阵生命周期
+
+每个适用的后续架构任务使用三个独立 artifact：
+
+```text
+{TASK}.spec.json       = immutable spec
+{TASK}.baseline.json   = baseline/preflight receipt
+{TASK}.final.json      = implementation final exact-head result receipt
+```
+
+强制规则：
+
+1. `W2_PR_KIND: PREFLIGHT` 仅用于 `NOT_STARTED` 当前任务的只读盘点、matrix/证据、
+   状态文档和治理测试；禁止修改生产代码。
+2. Implementation/Closure 禁止修改 immutable spec。范围变化必须单独走
+   PREFLIGHT，并以 `REVIEW_MISS` 或 `SCOPE_AMENDMENT` 记录原因和被替代 spec hash。
+3. baseline receipt 完整 PASS 时 checker 才派生 `implementation gate = OPEN`；
+   不得在 JSON 或文档中人工填写 OPEN。
+4. Closure/DONE 只在所有适用 claims、六类 case result、三层证据和同一 exact-head
+   final receipt 全部 PASS 时派生。非适用 claim 必须为 `NOT_APPLICABLE` 并说明理由。
+5. 内存 SQLite/手写 payload 是 `SYNTHETIC_CONTRACT_TEST`；ORM 文件只是
+   `DECLARED_ORM_SCHEMA`。`REAL_DB` 必须来自只读 SQL/`pg_catalog` 和真实行形状
+   fingerprint；`REAL_PRODUCER_OUTPUT` 必须来自真实保存 payload、真实 staging 行或
+   content-addressed 脱敏 artifact。
+6. 六类失败输入可由真实脱敏输入做受控 mutation，不要求生产数据库天然存在坏数据。
+7. checker 必须完整执行 lifecycle JSON Schema、验证 frozen baseline commit，重算
+   文件和证据 hash，确认 symbol/test、命令、exact head、symlink 与仓库边界。
 
 ### 4. 输出和破坏性操作闭环
 

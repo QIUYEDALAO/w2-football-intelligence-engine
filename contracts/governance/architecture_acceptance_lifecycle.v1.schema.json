@@ -1,0 +1,538 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "w2.architecture_acceptance_lifecycle.v1",
+  "title": "W2 architecture acceptance lifecycle artifact",
+  "oneOf": [
+    {"$ref": "#/$defs/spec"},
+    {"$ref": "#/$defs/baseline_receipt"},
+    {"$ref": "#/$defs/final_receipt"}
+  ],
+  "$defs": {
+    "sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "repo_path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+    },
+    "non_empty_string_array": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "allowed", "forbidden", "sha256"],
+      "properties": {
+        "summary": {"type": "string", "minLength": 1},
+        "allowed": {"$ref": "#/$defs/non_empty_string_array"},
+        "forbidden": {"$ref": "#/$defs/non_empty_string_array"},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "change_control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "rationale"],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {"enum": ["REVIEW_MISS", "SCOPE_AMENDMENT"]}
+            },
+            "required": ["kind"]
+          },
+          "then": {"required": ["supersedes_spec_sha256"]}
+        }
+      ],
+      "properties": {
+        "kind": {
+          "enum": ["INITIAL_FREEZE", "REVIEW_MISS", "SCOPE_AMENDMENT"]
+        },
+        "rationale": {"type": "string", "minLength": 1},
+        "supersedes_spec_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "inventory_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "path", "kind", "file_sha256"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "path": {"$ref": "#/$defs/repo_path"},
+        "kind": {"type": "string", "minLength": 1},
+        "symbol": {"type": "string", "minLength": 1},
+        "file_sha256": {"$ref": "#/$defs/sha256"},
+        "reachability": {
+          "enum": ["PRODUCTION_REACHABLE", "NO_PRODUCTION_CALLER", "UNKNOWN"]
+        },
+        "reachability_rationale": {"type": "string", "minLength": 1}
+      }
+    },
+    "inventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entry_points",
+        "producers",
+        "consumers",
+        "storage",
+        "scripts",
+        "config_paths"
+      ],
+      "properties": {
+        "entry_points": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/inventory_item"}
+        },
+        "producers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/inventory_item"}
+        },
+        "consumers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/inventory_item"}
+        },
+        "storage": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/inventory_item"}
+        },
+        "scripts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/inventory_item"}
+        },
+        "config_paths": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/inventory_item"}
+        }
+      }
+    },
+    "input_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "accepted_evidence_types",
+        "shape",
+        "shape_sha256",
+        "redaction"
+      ],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "accepted_evidence_types": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "REAL_DB",
+              "REAL_PRODUCER_OUTPUT",
+              "CONTENT_ADDRESSED_SANITIZED_ARTIFACT"
+            ]
+          }
+        },
+        "shape": {"type": "object", "minProperties": 1},
+        "shape_sha256": {"$ref": "#/$defs/sha256"},
+        "redaction": {"type": "string", "minLength": 1}
+      }
+    },
+    "alias_rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "exact_mapping", "reject"],
+      "properties": {
+        "field": {"type": "string", "minLength": 1},
+        "exact_mapping": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {"type": "string"}
+        },
+        "reject": {"$ref": "#/$defs/non_empty_string_array"}
+      }
+    },
+    "case_spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "source_input_id",
+        "derivation",
+        "expected_output",
+        "fail_closed",
+        "forbidden_behaviors"
+      ],
+      "properties": {
+        "type": {
+          "enum": ["valid", "missing", "malformed", "stale", "ambiguous", "conflict"]
+        },
+        "source_input_id": {"type": "string", "minLength": 1},
+        "derivation": {
+          "enum": ["UNCHANGED_REAL_INPUT", "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT"]
+        },
+        "expected_output": {"type": "string", "minLength": 1},
+        "fail_closed": {"const": true},
+        "forbidden_behaviors": {"$ref": "#/$defs/non_empty_string_array"}
+      }
+    },
+    "claim_spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "applicability", "rationale"],
+      "properties": {
+        "name": {
+          "enum": [
+            "DEAD_CODE",
+            "ZERO_REACHABILITY",
+            "SINGLE_AUTHORITY",
+            "ZERO_LEGACY_READ_WRITE",
+            "SAFE_DELETION"
+          ]
+        },
+        "applicability": {"enum": ["APPLICABLE", "NOT_APPLICABLE"]},
+        "rationale": {"type": "string", "minLength": 1}
+      }
+    },
+    "frozen_assertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "requirement", "forbidden"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "requirement": {"type": "string", "minLength": 1},
+        "forbidden": {"$ref": "#/$defs/non_empty_string_array"}
+      }
+    },
+    "primary_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "test",
+        "producer",
+        "consumer",
+        "required_input_types",
+        "handwritten_primary_forbidden"
+      ],
+      "properties": {
+        "path": {"$ref": "#/$defs/repo_path"},
+        "test": {"type": "string", "minLength": 1},
+        "producer": {"type": "string", "minLength": 1},
+        "consumer": {"type": "string", "minLength": 1},
+        "required_input_types": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "REAL_DB",
+              "REAL_PRODUCER_OUTPUT",
+              "CONTENT_ADDRESSED_SANITIZED_ARTIFACT"
+            ]
+          }
+        },
+        "handwritten_primary_forbidden": {"const": true}
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "schema_path",
+        "artifact_kind",
+        "task_id",
+        "frozen_baseline_commit",
+        "change_control",
+        "scope",
+        "inventory",
+        "input_contracts",
+        "alias_rules",
+        "cases",
+        "claims",
+        "required_evidence_layers",
+        "primary_contract",
+        "frozen_assertions",
+        "review_policy",
+        "spec_sha256"
+      ],
+      "properties": {
+        "schema_version": {"const": "w2.architecture_acceptance_lifecycle.v1"},
+        "schema_path": {
+          "const": "contracts/governance/architecture_acceptance_lifecycle.v1.schema.json"
+        },
+        "artifact_kind": {"const": "IMMUTABLE_SPEC"},
+        "task_id": {"type": "string", "pattern": "^ARCH-[A-Z0-9-]+$"},
+        "frozen_baseline_commit": {"$ref": "#/$defs/sha"},
+        "change_control": {"$ref": "#/$defs/change_control"},
+        "scope": {"$ref": "#/$defs/scope"},
+        "inventory": {"$ref": "#/$defs/inventory"},
+        "input_contracts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/input_contract"}
+        },
+        "alias_rules": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/alias_rule"}
+        },
+        "cases": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": {"$ref": "#/$defs/case_spec"}
+        },
+        "claims": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/claim_spec"}
+        },
+        "required_evidence_layers": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {"enum": ["STATIC_AST", "RUNTIME_SQL_TRACE", "MUTATION_TESTS"]}
+        },
+        "primary_contract": {"$ref": "#/$defs/primary_contract"},
+        "frozen_assertions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/frozen_assertion"}
+        },
+        "review_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "immutable_during_implementation_and_closure",
+            "scope_change_pr_kind",
+            "post_implementation_review",
+            "old_head_first_miss_label"
+          ],
+          "properties": {
+            "immutable_during_implementation_and_closure": {"const": true},
+            "scope_change_pr_kind": {"const": "PREFLIGHT"},
+            "post_implementation_review": {
+              "const": "FROZEN_ASSERTIONS_AND_NEW_DIFF_REGRESSIONS_ONLY"
+            },
+            "old_head_first_miss_label": {"const": "REVIEW_MISS"}
+          }
+        },
+        "spec_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "evidence_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_type",
+        "artifact_path",
+        "artifact_sha256",
+        "command",
+        "exact_head"
+      ],
+      "properties": {
+        "evidence_type": {
+          "enum": [
+            "STATIC_AST_SCAN",
+            "RUNTIME_SQL_TRACE",
+            "MUTATION_TEST",
+            "SYNTHETIC_CONTRACT_TEST",
+            "DECLARED_ORM_SCHEMA",
+            "REAL_DB",
+            "REAL_PRODUCER_OUTPUT",
+            "CONTENT_ADDRESSED_SANITIZED_ARTIFACT"
+          ]
+        },
+        "artifact_path": {"$ref": "#/$defs/repo_path"},
+        "artifact_sha256": {"$ref": "#/$defs/sha256"},
+        "command": {"type": "string", "minLength": 1},
+        "exact_head": {"$ref": "#/$defs/sha"}
+      }
+    },
+    "layer_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "evidence", "rationale"],
+      "properties": {
+        "status": {"enum": ["PASS", "FAIL", "PARTIAL", "UNVERIFIABLE", "BLOCKED"]},
+        "evidence": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/evidence_item"}
+        },
+        "rationale": {"type": "string", "minLength": 1}
+      }
+    },
+    "input_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["input_id", "status", "evidence_type", "evidence", "rationale"],
+      "properties": {
+        "input_id": {"type": "string", "minLength": 1},
+        "status": {"enum": ["PASS", "FAIL", "UNVERIFIABLE", "BLOCKED"]},
+        "evidence_type": {
+          "enum": [
+            "REAL_DB",
+            "REAL_PRODUCER_OUTPUT",
+            "CONTENT_ADDRESSED_SANITIZED_ARTIFACT",
+            "DECLARED_ORM_SCHEMA",
+            "SYNTHETIC_CONTRACT_TEST"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/evidence_item"}
+        },
+        "rationale": {"type": "string", "minLength": 1}
+      }
+    },
+    "case_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "status", "observed_output", "evidence"],
+      "properties": {
+        "type": {
+          "enum": ["valid", "missing", "malformed", "stale", "ambiguous", "conflict"]
+        },
+        "status": {"enum": ["PASS", "FAIL", "NOT_RUN", "UNVERIFIABLE", "BLOCKED"]},
+        "observed_output": {"type": "string", "minLength": 1},
+        "evidence": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/evidence_item"}
+        }
+      }
+    },
+    "claim_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "rationale", "layer_evidence"],
+      "properties": {
+        "name": {
+          "enum": [
+            "DEAD_CODE",
+            "ZERO_REACHABILITY",
+            "SINGLE_AUTHORITY",
+            "ZERO_LEGACY_READ_WRITE",
+            "SAFE_DELETION"
+          ]
+        },
+        "status": {
+          "enum": ["PASS", "FAIL", "UNVERIFIABLE", "BLOCKED", "NOT_APPLICABLE"]
+        },
+        "rationale": {"type": "string", "minLength": 1},
+        "layer_evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "STATIC_AST": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/evidence_item"}
+            },
+            "RUNTIME_SQL_TRACE": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/evidence_item"}
+            },
+            "MUTATION_TESTS": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/evidence_item"}
+            }
+          }
+        }
+      }
+    },
+    "receipt_common_properties": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "schema_path",
+        "artifact_kind",
+        "task_id",
+        "spec_path",
+        "spec_sha256",
+        "exact_head",
+        "input_results",
+        "layer_results",
+        "case_results",
+        "claim_results",
+        "overall_status",
+        "receipt_sha256"
+      ],
+      "properties": {
+        "schema_version": {"const": "w2.architecture_acceptance_lifecycle.v1"},
+        "schema_path": {
+          "const": "contracts/governance/architecture_acceptance_lifecycle.v1.schema.json"
+        },
+        "artifact_kind": {"enum": ["BASELINE_RECEIPT", "FINAL_EXACT_HEAD_RECEIPT"]},
+        "task_id": {"type": "string", "pattern": "^ARCH-[A-Z0-9-]+$"},
+        "spec_path": {"$ref": "#/$defs/repo_path"},
+        "spec_sha256": {"$ref": "#/$defs/sha256"},
+        "exact_head": {"$ref": "#/$defs/sha"},
+        "input_results": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/input_result"}
+        },
+        "layer_results": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["STATIC_AST", "RUNTIME_SQL_TRACE", "MUTATION_TESTS"],
+          "properties": {
+            "STATIC_AST": {"$ref": "#/$defs/layer_result"},
+            "RUNTIME_SQL_TRACE": {"$ref": "#/$defs/layer_result"},
+            "MUTATION_TESTS": {"$ref": "#/$defs/layer_result"}
+          }
+        },
+        "case_results": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": {"$ref": "#/$defs/case_result"}
+        },
+        "claim_results": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/claim_result"}
+        },
+        "overall_status": {"enum": ["PASS", "FAIL", "UNVERIFIABLE", "BLOCKED"]},
+        "receipt_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "baseline_receipt": {
+      "allOf": [
+        {"$ref": "#/$defs/receipt_common_properties"},
+        {
+          "type": "object",
+          "properties": {
+            "artifact_kind": {"const": "BASELINE_RECEIPT"}
+          }
+        }
+      ]
+    },
+    "final_receipt": {
+      "allOf": [
+        {"$ref": "#/$defs/receipt_common_properties"},
+        {
+          "type": "object",
+          "properties": {
+            "artifact_kind": {"const": "FINAL_EXACT_HEAD_RECEIPT"}
+          }
+        }
+      ]
+    }
+  }
+}

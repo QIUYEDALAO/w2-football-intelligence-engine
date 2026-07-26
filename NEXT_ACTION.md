@@ -66,8 +66,11 @@ implementation PR #408 merged as
 `47a7c823967cf4ea98221556d96e8a30a948318d`. The current task is
 **ARCH-GOVERNANCE-03**, implementing the frozen real-production-input
 acceptance-matrix rule. **ARCH-P1-03B-R1** remains `NOT_STARTED`; its first
-matrix is repository-frozen but externally `UNVERIFIABLE` until exact-head
-runtime/SQL evidence exists. **ARCH-P1-05** remains `NOT_STARTED` and must not begin
+immutable spec and baseline receipt are frozen separately. The baseline is
+`BLOCKED`, so its implementation gate is not OPEN until a separate read-only
+`W2_PR_KIND: PREFLIGHT` supplies qualifying real input and runtime/SQL evidence.
+No final exact-head receipt exists because implementation has not started.
+**ARCH-P1-05** remains `NOT_STARTED` and must not begin
 until every inserted predecessor has completed its implementation and closure.
 The checklist owns each task's PR number, status and CI evidence.
 

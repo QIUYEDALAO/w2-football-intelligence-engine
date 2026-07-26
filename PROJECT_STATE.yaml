@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-26T16:54:46Z"
+updated_at: "2026-07-26T17:49:29Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -11,8 +11,10 @@ delivery_status_vocabulary:
 context_read_order:
   - docs/operations/architecture_convergence/W2_GITHUB_SECONDARY_REVIEW_PROTOCOL.md
   - docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
-  - docs/operations/architecture_convergence/acceptance_matrices/ARCH-P1-03B-R1.json
   - PROJECT_STATE.yaml
+  - docs/operations/architecture_convergence/acceptance_matrices/{CURRENT_TASK}.spec.json
+  - docs/operations/architecture_convergence/acceptance_matrices/{CURRENT_TASK}.baseline.json
+  - docs/operations/architecture_convergence/acceptance_matrices/{CURRENT_TASK}.final.json
   - PROJECT_LEDGER.md
   - NEXT_ACTION.md
   - docs/operations/dynamic_prematch/W2_DYNAMIC_PREMATCH_ACCEPTANCE_V1.md
@@ -235,10 +237,17 @@ architecture_convergence:
         - POST_MERGE_CHECKLIST_CONSISTENCY_GATE
     production_input_acceptance_matrix:
       task: ARCH-GOVERNANCE-03
-      schema: contracts/governance/architecture_acceptance_matrix.v1.schema.json
+      schema: contracts/governance/architecture_acceptance_lifecycle.v1.schema.json
       matrix_root: docs/operations/architecture_convergence/acceptance_matrices
       first_matrix_task: ARCH-P1-03B-R1
-      first_matrix_sha256: 930fb45e4ec14a46c0af61d467cec72255420e92e4bb5d6bdea3b21b61078822
+      immutable_spec: ARCH-P1-03B-R1.spec.json
+      immutable_spec_sha256: 5c7d7ad738dc051f30c87506dafdb6161d3dad2b442a5bba9a830f64f1a16ba7
+      baseline_receipt: ARCH-P1-03B-R1.baseline.json
+      baseline_receipt_sha256: 2e04d8a414984cc82da0186b1d24f859be736e430e47e0dfab8b541d0cc26307
+      final_receipt: REQUIRED_ON_IMPLEMENTATION_EXACT_HEAD
+      preflight_pr_kind: PREFLIGHT
+      implementation_gate_source: CHECKER_DERIVED_FROM_BASELINE_RECEIPT
+      closure_done_gate: DERIVED_FROM_FINAL_RECEIPT
       freeze_before_implementation: true
       real_producer_to_real_consumer_required: true
       handwritten_fixture_primary_evidence: FORBIDDEN

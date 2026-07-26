@@ -34,11 +34,14 @@ jobs:
             ${{ github.event.pull_request.base.sha ||
                 github.event.repository.default_branch }}
           persist-credentials: false
+      - uses: astral-sh/setup-uv@v3
+      - name: Install governance dependencies
+        run: uv sync --python 3.12 --all-groups --frozen
       - name: Validate exact-head implementation readiness
         env:
           GITHUB_TOKEN: ${{ github.token }} # token = trusted base workflow only
         run: >-
-          python3 scripts/check_architecture_governance.py pre-merge
+          uv run --python 3.12 python scripts/check_architecture_governance.py pre-merge
           --event-path "$GITHUB_EVENT_PATH"
           --repository "$GITHUB_REPOSITORY"
           --checklist-ref "${{ github.event.pull_request.head.sha }}"
@@ -61,11 +64,14 @@ jobs:
             ${{ github.event_name == 'pull_request_target' &&
                 github.event.pull_request.base.sha || github.sha }}
           persist-credentials: false
+      - uses: astral-sh/setup-uv@v3
+      - name: Install governance dependencies
+        run: uv sync --python 3.12 --all-groups --frozen
       - name: Reconcile DONE tasks with merged pull requests
         env:
           GITHUB_TOKEN: ${{ github.token }} # token = trusted base workflow only
         run: >-
-          python3 scripts/check_architecture_governance.py post-merge
+          uv run --python 3.12 python scripts/check_architecture_governance.py post-merge
           --repository "$GITHUB_REPOSITORY"
           --checklist-ref
           "${{ github.event.pull_request.head.sha || github.sha }}"

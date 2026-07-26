@@ -645,8 +645,9 @@ Base SHA: 832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd
 Implementation SHA: GITHUB_PR_EXACT_HEAD
 Predecessor: ARCH-P1-04D-R1
 Successor: ARCH-P1-03B-R1 (NOT_STARTED)
-Matrix schema: contracts/governance/architecture_acceptance_matrix.v1.schema.json
-First matrix SHA-256: 930fb45e4ec14a46c0af61d467cec72255420e92e4bb5d6bdea3b21b61078822
+Lifecycle schema: contracts/governance/architecture_acceptance_lifecycle.v1.schema.json
+First immutable spec SHA-256: 5c7d7ad738dc051f30c87506dafdb6161d3dad2b442a5bba9a830f64f1a16ba7
+First baseline receipt SHA-256: 2e04d8a414984cc82da0186b1d24f859be736e430e47e0dfab8b541d0cc26307
 ```
 
 - [x] 每个后续架构任务开工前冻结 exact head、范围、全部运行入口、真实
@@ -660,11 +661,15 @@ First matrix SHA-256: 930fb45e4ec14a46c0af61d467cec72255420e92e4bb5d6bdea3b21b61
       runtime/SQL trace、mutation 三层真实测量均 PASS 后才能 PASS。
 - [x] 外部证据不可取得时标记 `UNVERIFIABLE/BLOCKED`，禁止 DONE，禁止用守卫固定
       数字替代测量。
-- [x] matrix 在实现前冻结并生成 hash；实现后只复核冻结断言与新 diff 回归。同一旧
-      head 首次漏审必须记录 `REVIEW_MISS`，不得包装成新标准。
-- [x] 首个只读实例冻结
-      `acceptance_matrices/ARCH-P1-03B-R1.json`；03B-R1 保持 `NOT_STARTED`，
-      外部 runtime/SQL trace 未取得，因此实施门为 `BLOCKED`。
+- [x] lifecycle 拆为 immutable spec、baseline/preflight receipt 与 final exact-head
+      receipt；Implementation/Closure 不得改 spec。范围变化只能由独立
+      `W2_PR_KIND: PREFLIGHT` 记录 `REVIEW_MISS` 或 scope amendment。
+- [x] checker 完整执行 JSON Schema，重算 frozen baseline 的文件 hash，验证 symbol/
+      test、symlink/仓库边界及 evidence path/hash/command/head；OPEN、Closure/DONE
+      均只由 receipt 证据派生。
+- [x] 首个只读实例冻结 `ARCH-P1-03B-R1.spec.json` 与
+      `ARCH-P1-03B-R1.baseline.json`；baseline 正确标记 synthetic/ORM 证据且
+      overall `BLOCKED`，03B-R1 保持 `NOT_STARTED`。
 
 **不做**：不修改 03B-R1 生产代码、66 条审批、staging 数据、模型数学、provider 或
 任何安全开关。
@@ -680,8 +685,10 @@ Historical task: ARCH-P1-03B (DONE, PR #402,
   merge df8fc4578fb4d45e2fb7afb95f58748f459a69a8)
 Predecessor: ARCH-GOVERNANCE-03
 Successor: ARCH-OBS-01
-Frozen matrix: acceptance_matrices/ARCH-P1-03B-R1.json
-Matrix status: UNVERIFIABLE/BLOCKED
+Immutable spec: acceptance_matrices/ARCH-P1-03B-R1.spec.json
+Baseline receipt: acceptance_matrices/ARCH-P1-03B-R1.baseline.json
+Final receipt: required on implementation exact head
+Derived implementation gate: BLOCKED
 ```
 
 本任务只承载对历史 DONE 任务的后续整改；不得改写 `ARCH-P1-03B` 的 DONE 状态、

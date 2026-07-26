@@ -1,0 +1,354 @@
+{
+  "schema_version": "w2.architecture_acceptance_lifecycle.v1",
+  "schema_path": "contracts/governance/architecture_acceptance_lifecycle.v1.schema.json",
+  "artifact_kind": "IMMUTABLE_SPEC",
+  "task_id": "ARCH-P1-03B-R1",
+  "frozen_baseline_commit": "832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd",
+  "change_control": {
+    "kind": "INITIAL_FREEZE",
+    "rationale": "First immutable production-input specification created by ARCH-GOVERNANCE-03 before ARCH-P1-03B-R1 starts."
+  },
+  "scope": {
+    "summary": "Remediate the player-identity production authority boundary without changing the approved 66 mappings.",
+    "allowed": [
+      "read-only authority inventory and evidence capture",
+      "canonical player identity producer-to-consumer wiring",
+      "fail-closed identity resolution and evidence",
+      "tests for this frozen specification"
+    ],
+    "forbidden": [
+      "changing the 66 approved mappings or evidence hashes",
+      "synthetic identity creation or fuzzy auto-approval",
+      "Formal, Candidate runtime, Lock, Production, scheduler, M4, or ARCH-P1-05 changes"
+    ],
+    "sha256": "810739e1227eb76a19ef6da9dc7acbfb61fbb1ce7a8709a0dc95a9db088e8829"
+  },
+  "inventory": {
+    "entry_points": [
+      {
+        "name": "manual identity evidence",
+        "path": "scripts/arch_p1_03b_identity_evidence.py",
+        "symbol": "main",
+        "kind": "READ_ONLY_CLI",
+        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Explicit manual staging CLI calls player_identity_join_evidence."
+      },
+      {
+        "name": "offline team value materializer",
+        "path": "scripts/materialize_team_value_asof.py",
+        "symbol": "main",
+        "kind": "OFFLINE_CLI",
+        "file_sha256": "83694b3a861ac1a2730483d06b1ee01774868ccc40bc6690eb8bbaeda5fcaa5d",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Repository CLI calls the file-shaped materialize_team_value_asof consumer."
+      }
+    ],
+    "producers": [
+      {
+        "name": "confirmed lineup producer",
+        "path": "src/w2/ingestion/future_refresh_repository.py",
+        "symbol": "FutureRefreshDbRepository.save_lineup_snapshots",
+        "kind": "REAL_PRODUCER",
+        "file_sha256": "89db787e8899c9d5521766c0c7de58ca667a859da9e7d95f49de0bed044cd625",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Worker persistence repository writes saved lineup payloads."
+      },
+      {
+        "name": "player mapping materializer",
+        "path": "src/w2/ingestion/future_refresh_repository.py",
+        "symbol": "FutureRefreshDbRepository.materialize_player_identity_mappings",
+        "kind": "REAL_PRODUCER",
+        "file_sha256": "89db787e8899c9d5521766c0c7de58ca667a859da9e7d95f49de0bed044cd625",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Manual staging identity workflow materializes repository rows."
+      }
+    ],
+    "consumers": [
+      {
+        "name": "identity join evidence",
+        "path": "src/w2/ingestion/future_refresh_repository.py",
+        "symbol": "FutureRefreshDbRepository.player_identity_join_evidence",
+        "kind": "CANONICAL_CONSUMER",
+        "file_sha256": "89db787e8899c9d5521766c0c7de58ca667a859da9e7d95f49de0bed044cd625",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Called by the manual staging evidence CLI."
+      },
+      {
+        "name": "canonical player resolver",
+        "path": "src/w2/identity/canonical_identity_repository.py",
+        "symbol": "CanonicalIdentityRepository.resolve_player",
+        "kind": "CANONICAL_CONSUMER",
+        "file_sha256": "a94ed42bf3a323da7e8c4a17998056748cacb058143216eed596c4e06805a842",
+        "reachability": "NO_PRODUCTION_CALLER",
+        "reachability_rationale": "Frozen repository search finds only its declaration and unit-test invocation."
+      },
+      {
+        "name": "canonical approved team roster",
+        "path": "src/w2/identity/canonical_identity_repository.py",
+        "symbol": "CanonicalIdentityRepository.approved_players_for_team",
+        "kind": "CANONICAL_CONSUMER",
+        "file_sha256": "a94ed42bf3a323da7e8c4a17998056748cacb058143216eed596c4e06805a842",
+        "reachability": "NO_PRODUCTION_CALLER",
+        "reachability_rationale": "Frozen repository search finds only its fixed-empty declaration and unit-test invocation."
+      },
+      {
+        "name": "file-shaped team value consumer",
+        "path": "src/w2/lineups/value_identity.py",
+        "symbol": "materialize_team_value_asof",
+        "kind": "COMPETING_INPUT_CONSUMER",
+        "file_sha256": "56e699d253bd9267bee98978848b2fbb1d4d04e20f95581a25545a36ad0ab59d",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Called by scripts/materialize_team_value_asof.py with PlayerIdentityCrosswalkV1 input."
+      }
+    ],
+    "storage": [
+      {
+        "name": "player identity and lineup ORM declarations",
+        "path": "src/w2/infrastructure/persistence/models.py",
+        "symbol": "PlayerIdentityMappingModel",
+        "kind": "DECLARED_ORM_SCHEMA",
+        "file_sha256": "f5943563d20eade299cf424393c6618b529b5ccd05cc26ba4656b95fbded1b9c",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Declared ORM schema only; it is not REAL_DB evidence."
+      },
+      {
+        "name": "provider team authority ORM declaration",
+        "path": "src/w2/infrastructure/persistence/factor_model_models.py",
+        "symbol": "ProviderTeamIdentityCrosswalkModel",
+        "kind": "DECLARED_ORM_SCHEMA",
+        "file_sha256": "b6d703eaee6d46db1a8a990ed5f23743b56a02e2f8a568ef1f86aba615ba7a84",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Declared canonical team authority schema; it is not REAL_DB evidence."
+      }
+    ],
+    "scripts": [
+      {
+        "name": "review reconciliation",
+        "path": "scripts/reconcile_arch_p1_03b_reviewed_mappings.py",
+        "symbol": "main",
+        "kind": "READ_ONLY_CLI",
+        "file_sha256": "25a26237a21bc6099396c0d2a752e262c3435e05e0a03f52843fa1fb0627c501",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Manual staging reconciliation entry point."
+      },
+      {
+        "name": "Transfermarkt snapshot materializer",
+        "path": "scripts/lmm_transfermarkt_snapshot.py",
+        "symbol": "main",
+        "kind": "BOUNDED_CLI",
+        "file_sha256": "e0c93298be851cacaa6eaf8ddc622e639cf1e7fe4f5f1d76b8d39eca5900fe04",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Manual content-addressed artifact producer."
+      },
+      {
+        "name": "bounded player profile canary",
+        "path": "scripts/run_arch_p1_03b_player_profiles.py",
+        "symbol": "main",
+        "kind": "MANUAL_PROVIDER_CLI",
+        "file_sha256": "ffa83751ebd387943c16200b8d42b051be9170d3585c709d80fd2d6d3282e882",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Manual provider-backed evidence entry point."
+      }
+    ],
+    "config_paths": [
+      {
+        "name": "lineup market policy",
+        "path": "config/policies/lineup_market_policy.v1.json",
+        "kind": "RUNTIME_POLICY",
+        "file_sha256": "a6b3ab7ce1d7a8e88ff1ae27392168382cce1450ec133186eb15c2c4e4de9732",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Runtime policy loaded by lineup processing."
+      },
+      {
+        "name": "player crosswalk artifact contract",
+        "path": "docs/data/contracts/player_crosswalk.v1.schema.json",
+        "kind": "LEGACY_FILE_CONTRACT_UNDER_REVIEW",
+        "file_sha256": "01eb3d4272e5943caa3259be0a22b8ac26a1293ce2f42ad4ed4daa5e0b284208",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "File-shaped PlayerIdentityCrosswalkV1 consumer remains reachable through the offline CLI."
+      }
+    ]
+  },
+  "input_contracts": [
+    {
+      "id": "canonical_player_authority_rows",
+      "accepted_evidence_types": [
+        "REAL_DB",
+        "REAL_PRODUCER_OUTPUT",
+        "CONTENT_ADDRESSED_SANITIZED_ARTIFACT"
+      ],
+      "shape": {
+        "identity_dimensions": [
+          "api_football_player_id",
+          "canonical_team_id",
+          "competition_id",
+          "season",
+          "valid_from",
+          "valid_to"
+        ],
+        "review_fields": [
+          "mapping_status",
+          "reviewed_by",
+          "reviewed_at",
+          "source_hashes",
+          "identity_hash"
+        ],
+        "result": "exactly zero or one canonical_player_id"
+      },
+      "shape_sha256": "336666cc554f344c01d192dbe72493ac49f372d8217ea7bb5b84ba979105461d",
+      "redaction": "Use pg_catalog plus sanitized real row keys and value types; exclude credentials and raw provider payloads."
+    },
+    {
+      "id": "team_value_player_authority_input",
+      "accepted_evidence_types": [
+        "REAL_DB",
+        "REAL_PRODUCER_OUTPUT",
+        "CONTENT_ADDRESSED_SANITIZED_ARTIFACT"
+      ],
+      "shape": {
+        "consumer": "materialize_team_value_asof",
+        "required_authority": "CanonicalIdentityRepository",
+        "required_dimensions": [
+          "canonical_team_id",
+          "competition_id",
+          "season",
+          "as_of"
+        ],
+        "legacy_input": "PlayerIdentityCrosswalkV1 must be removed from runtime scope or proven unreachable"
+      },
+      "shape_sha256": "82148cd20a91ded7b2d2cf261730d0248125bfff1318b4b5b07c5e03c41f98af",
+      "redaction": "Only content-addressed shape and identity dimensions are retained."
+    }
+  ],
+  "alias_rules": [
+    {
+      "field": "mapping_status",
+      "exact_mapping": {
+        "REVIEWED": "REVIEWED"
+      },
+      "reject": ["APPROVED", "MATCHED", "REVIEW_REQUIRED", "reviewed"]
+    },
+    {
+      "field": "provider_player_id",
+      "exact_mapping": {
+        "non-empty decimal string": "same exact string"
+      },
+      "reject": ["integer coercion", "prefix stripping", "synthetic id"]
+    }
+  ],
+  "cases": [
+    {
+      "type": "valid",
+      "source_input_id": "canonical_player_authority_rows",
+      "derivation": "UNCHANGED_REAL_INPUT",
+      "expected_output": "one uniquely scoped canonical player and complete reviewed evidence",
+      "fail_closed": true,
+      "forbidden_behaviors": ["file fallback", "provider-id-derived canonical id", "automatic review"]
+    },
+    {
+      "type": "missing",
+      "source_input_id": "canonical_player_authority_rows",
+      "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT",
+      "expected_output": "None/MISSING and no canonical player",
+      "fail_closed": true,
+      "forbidden_behaviors": ["synthetic candidate", "name-only mapping", "legacy file fallback"]
+    },
+    {
+      "type": "malformed",
+      "source_input_id": "canonical_player_authority_rows",
+      "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT",
+      "expected_output": "INCOMPLETE and no accepted identity",
+      "fail_closed": true,
+      "forbidden_behaviors": ["default hash", "fixed-count substitution", "partial row acceptance"]
+    },
+    {
+      "type": "stale",
+      "source_input_id": "canonical_player_authority_rows",
+      "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT",
+      "expected_output": "INVALID_AT_KICKOFF and no canonical player",
+      "fail_closed": true,
+      "forbidden_behaviors": ["latest-row fallback", "ignoring as-of", "future mapping use"]
+    },
+    {
+      "type": "ambiguous",
+      "source_input_id": "canonical_player_authority_rows",
+      "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT",
+      "expected_output": "AMBIGUOUS and no canonical player",
+      "fail_closed": true,
+      "forbidden_behaviors": ["first-row selection", "highest-confidence guess", "fuzzy auto-approve"]
+    },
+    {
+      "type": "conflict",
+      "source_input_id": "canonical_player_authority_rows",
+      "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT",
+      "expected_output": "CONFLICT and no accepted join",
+      "fail_closed": true,
+      "forbidden_behaviors": ["team-id rewriting", "conflict suppression", "cross-club match"]
+    }
+  ],
+  "claims": [
+    {
+      "name": "DEAD_CODE",
+      "applicability": "APPLICABLE",
+      "rationale": "The competing PlayerIdentityCrosswalkV1 path may only be called dead with three-layer proof."
+    },
+    {
+      "name": "ZERO_REACHABILITY",
+      "applicability": "APPLICABLE",
+      "rationale": "The current repository has an offline file-shaped caller and no canonical repository production caller."
+    },
+    {
+      "name": "SINGLE_AUTHORITY",
+      "applicability": "APPLICABLE",
+      "rationale": "Canonical DB and file-shaped identity consumers currently coexist."
+    },
+    {
+      "name": "ZERO_LEGACY_READ_WRITE",
+      "applicability": "APPLICABLE",
+      "rationale": "Runtime and SQL traces must prove no legacy read or write."
+    },
+    {
+      "name": "SAFE_DELETION",
+      "applicability": "NOT_APPLICABLE",
+      "rationale": "ARCH-P1-03B-R1 does not authorize table or compatibility-chain deletion."
+    }
+  ],
+  "required_evidence_layers": ["STATIC_AST", "RUNTIME_SQL_TRACE", "MUTATION_TESTS"],
+  "primary_contract": {
+    "path": "tests/unit/test_lineup_materialization.py",
+    "test": "test_player_identity_join_evidence_is_read_only_and_deterministic",
+    "producer": "FutureRefreshDbRepository.save_lineup_snapshots",
+    "consumer": "FutureRefreshDbRepository.player_identity_join_evidence",
+    "required_input_types": [
+      "REAL_DB",
+      "REAL_PRODUCER_OUTPUT",
+      "CONTENT_ADDRESSED_SANITIZED_ARTIFACT"
+    ],
+    "handwritten_primary_forbidden": true
+  },
+  "frozen_assertions": [
+    {
+      "id": "RESOLVE_PLAYER_FULL_SCOPE",
+      "requirement": "resolve_player uniquely resolves by player, team, competition, season, and as-of.",
+      "forbidden": ["player-only query", "first-row selection", "ignoring team/competition/season/as-of"]
+    },
+    {
+      "id": "APPROVED_PLAYERS_REAL_AUTHORITY",
+      "requirement": "approved_players_for_team reads real REVIEWED canonical authority rows.",
+      "forbidden": ["fixed empty return", "file fallback", "unreviewed mappings"]
+    },
+    {
+      "id": "FILE_CONSUMER_CONVERGENCE",
+      "requirement": "Every PlayerIdentityCrosswalkV1 file consumer switches to CanonicalIdentityRepository or is proven outside runtime scope.",
+      "forbidden": ["unmeasured zero reachability", "parallel authority", "legacy fallback"]
+    }
+  ],
+  "review_policy": {
+    "immutable_during_implementation_and_closure": true,
+    "scope_change_pr_kind": "PREFLIGHT",
+    "post_implementation_review": "FROZEN_ASSERTIONS_AND_NEW_DIFF_REGRESSIONS_ONLY",
+    "old_head_first_miss_label": "REVIEW_MISS"
+  },
+  "spec_sha256": "5c7d7ad738dc051f30c87506dafdb6161d3dad2b442a5bba9a830f64f1a16ba7"
+}

@@ -1,0 +1,116 @@
+{
+  "schema_version": "w2.architecture_acceptance_lifecycle.v1",
+  "schema_path": "contracts/governance/architecture_acceptance_lifecycle.v1.schema.json",
+  "artifact_kind": "BASELINE_RECEIPT",
+  "task_id": "ARCH-P1-03B-R1",
+  "spec_path": "docs/operations/architecture_convergence/acceptance_matrices/ARCH-P1-03B-R1.spec.json",
+  "spec_sha256": "5c7d7ad738dc051f30c87506dafdb6161d3dad2b442a5bba9a830f64f1a16ba7",
+  "exact_head": "832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd",
+  "input_results": [
+    {
+      "input_id": "canonical_player_authority_rows",
+      "status": "UNVERIFIABLE",
+      "evidence_type": "DECLARED_ORM_SCHEMA",
+      "evidence": [
+        {
+          "evidence_type": "DECLARED_ORM_SCHEMA",
+          "artifact_path": "src/w2/infrastructure/persistence/models.py",
+          "artifact_sha256": "f5943563d20eade299cf424393c6618b529b5ccd05cc26ba4656b95fbded1b9c",
+          "command": "git show 832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd:src/w2/infrastructure/persistence/models.py",
+          "exact_head": "832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd"
+        }
+      ],
+      "rationale": "models.py is DECLARED_ORM_SCHEMA, not REAL_DB; no read-only pg_catalog and real-row fingerprint is frozen."
+    },
+    {
+      "input_id": "team_value_player_authority_input",
+      "status": "UNVERIFIABLE",
+      "evidence_type": "CONTENT_ADDRESSED_SANITIZED_ARTIFACT",
+      "evidence": [
+        {
+          "evidence_type": "CONTENT_ADDRESSED_SANITIZED_ARTIFACT",
+          "artifact_path": "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+          "artifact_sha256": "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
+          "command": "git show 832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd:docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+          "exact_head": "832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd"
+        }
+      ],
+      "rationale": "The approved manifest is real and content-addressed, but does not prove the runtime file consumer uses canonical repository authority."
+    }
+  ],
+  "layer_results": {
+    "STATIC_AST": {
+      "status": "PASS",
+      "evidence": [
+        {
+          "evidence_type": "STATIC_AST_SCAN",
+          "artifact_path": "tests/unit/test_arch_p1_03_identity_guards.py",
+          "artifact_sha256": "e73f4393f37689ae767d89c618fea001d35cb929943a5bab20c1f4bd29e28170",
+          "command": "uv run pytest -q tests/unit/test_arch_p1_03_identity_guards.py",
+          "exact_head": "832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd"
+        }
+      ],
+      "rationale": "Repository static guards exist at the frozen baseline."
+    },
+    "RUNTIME_SQL_TRACE": {
+      "status": "UNVERIFIABLE",
+      "evidence": [],
+      "rationale": "No read-only pg_catalog, real-row fingerprint, or all-entry-point runtime SQL trace was captured."
+    },
+    "MUTATION_TESTS": {
+      "status": "PARTIAL",
+      "evidence": [
+        {
+          "evidence_type": "SYNTHETIC_CONTRACT_TEST",
+          "artifact_path": "tests/unit/test_lineup_materialization.py",
+          "artifact_sha256": "18b75b38b6f7dacf611486420ea7a35c05357bbbbd0d0b31ac0b44c6195a2ee4",
+          "command": "uv run pytest -q tests/unit/test_lineup_materialization.py::test_player_identity_join_evidence_is_read_only_and_deterministic",
+          "exact_head": "832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd"
+        }
+      ],
+      "rationale": "The current test uses in-memory SQLite and handwritten payloads, so it is supplementary synthetic evidence."
+    }
+  },
+  "case_results": [
+    {"type": "valid", "status": "NOT_RUN", "observed_output": "No qualifying real input executed.", "evidence": []},
+    {"type": "missing", "status": "NOT_RUN", "observed_output": "No controlled real-input mutation executed.", "evidence": []},
+    {"type": "malformed", "status": "NOT_RUN", "observed_output": "No controlled real-input mutation executed.", "evidence": []},
+    {"type": "stale", "status": "NOT_RUN", "observed_output": "No controlled real-input mutation executed.", "evidence": []},
+    {"type": "ambiguous", "status": "NOT_RUN", "observed_output": "No controlled real-input mutation executed.", "evidence": []},
+    {"type": "conflict", "status": "NOT_RUN", "observed_output": "No controlled real-input mutation executed.", "evidence": []}
+  ],
+  "claim_results": [
+    {
+      "name": "DEAD_CODE",
+      "status": "UNVERIFIABLE",
+      "rationale": "Static references alone cannot prove dead code.",
+      "layer_evidence": {}
+    },
+    {
+      "name": "ZERO_REACHABILITY",
+      "status": "FAIL",
+      "rationale": "The offline CLI reaches the PlayerIdentityCrosswalkV1 consumer.",
+      "layer_evidence": {}
+    },
+    {
+      "name": "SINGLE_AUTHORITY",
+      "status": "FAIL",
+      "rationale": "Canonical repository and file-shaped identity consumers coexist.",
+      "layer_evidence": {}
+    },
+    {
+      "name": "ZERO_LEGACY_READ_WRITE",
+      "status": "UNVERIFIABLE",
+      "rationale": "No runtime SQL trace covers every frozen entry point.",
+      "layer_evidence": {}
+    },
+    {
+      "name": "SAFE_DELETION",
+      "status": "NOT_APPLICABLE",
+      "rationale": "The immutable spec does not authorize deletion.",
+      "layer_evidence": {}
+    }
+  ],
+  "overall_status": "BLOCKED",
+  "receipt_sha256": "2e04d8a414984cc82da0186b1d24f859be736e430e47e0dfab8b541d0cc26307"
+}

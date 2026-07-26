@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import base64
-import copy
 import json
 from pathlib import Path
 from typing import Any
@@ -39,8 +38,11 @@ ACTUAL_MERGES = {
     406: "cf5d6ea2cca600e31d4058b7d359b271d12d1f04",
     408: "09ece0204bed1289986e20d6a1cff842cb2f0864",
 }
-MATRIX_PATH = (
-    ROOT / "docs/operations/architecture_convergence/acceptance_matrices" / "ARCH-P1-03B-R1.json"
+MATRIX_ROOT = ROOT / "docs/operations/architecture_convergence/acceptance_matrices"
+SPEC_PATH = MATRIX_ROOT / "ARCH-P1-03B-R1.spec.json"
+BASELINE_PATH = MATRIX_ROOT / "ARCH-P1-03B-R1.baseline.json"
+SCHEMA_PATH = (
+    ROOT / "contracts/governance/architecture_acceptance_lifecycle.v1.schema.json"
 )
 
 
@@ -51,63 +53,116 @@ def test_secondary_review_protocol_allows_lightweight_closure_ci() -> None:
     assert "docs/status-only closure = LIGHTWEIGHT_CI_REQUIRED" in protocol
     assert "所有 closure 强制 full CI" not in protocol
     assert "verify/staging-parity/predeploy-e2e=PASS" not in protocol
+    assert "W2_PR_KIND: PREFLIGHT" in protocol
+    assert "{CURRENT_TASK}.spec.json" in protocol
+    assert "ARCH-P1-03B-R1.json" not in protocol
 
 
-def frozen_matrix() -> dict[str, Any]:
-    return json.loads(MATRIX_PATH.read_text(encoding="utf-8"))
+def frozen_spec() -> dict[str, Any]:
+    return json.loads(SPEC_PATH.read_text(encoding="utf-8"))
 
 
-def test_arch_p1_03b_r1_frozen_matrix_is_machine_valid() -> None:
+def baseline_receipt() -> dict[str, Any]:
+    return json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
+
+
+def test_arch_p1_03b_r1_lifecycle_is_machine_valid() -> None:
     assert (
-        governance.validate_acceptance_matrix(
-            frozen_matrix(),
+        governance.validate_acceptance_spec(
+            frozen_spec(),
             root=ROOT,
             expected_task="ARCH-P1-03B-R1",
         )
         == []
     )
+    assert (
+        governance.validate_acceptance_receipt(
+            baseline_receipt(),
+            spec=frozen_spec(),
+            root=ROOT,
+            expected_kind="BASELINE_RECEIPT",
+        )
+        == []
+    )
+    assert governance.validate_task_acceptance_lifecycle("ARCH-P1-03B-R1", root=ROOT) == []
 
 
-def test_matrix_hashes_and_required_case_set_fail_closed() -> None:
-    payload = frozen_matrix()
-    payload["input_shapes"][0]["shape"]["status"] = "PASS"
-    assert "MATRIX_INPUT_SHAPE_HASH_MISMATCH:real_repository_producer_to_consumer_output" in (
-        governance.validate_acceptance_matrix(payload, root=ROOT)
+def test_spec_hashes_and_required_case_set_fail_closed() -> None:
+    payload = frozen_spec()
+    payload["input_contracts"][0]["shape"]["result"] = "first row"
+    assert "MATRIX_INPUT_SHAPE_HASH_MISMATCH:canonical_player_authority_rows" in (
+        governance.validate_acceptance_spec(payload, root=ROOT)
     )
 
-    payload = frozen_matrix()
+    payload = frozen_spec()
     payload["cases"] = payload["cases"][:-1]
-    assert "MATRIX_CASE_SET_INVALID" in governance.validate_acceptance_matrix(payload, root=ROOT)
+    assert "MATRIX_CASE_SET_INVALID" in governance.validate_acceptance_spec(payload, root=ROOT)
 
 
-def test_handwritten_fixture_cannot_be_primary_contract_evidence() -> None:
-    payload = frozen_matrix()
-    payload["primary_contract_tests"][0]["input_origin"] = "HANDWRITTEN_APPROXIMATION"
-    assert "MATRIX_PRIMARY_CONTRACT_TEST_INVALID" in governance.validate_acceptance_matrix(
-        payload, root=ROOT
+def test_json_schema_executes_nested_definitions() -> None:
+    payload = frozen_spec()
+    payload["inventory"]["consumers"][0]["unexpected"] = True
+    assert any(
+        error.startswith("MATRIX_JSON_SCHEMA_INVALID:")
+        for error in governance.validate_acceptance_spec(payload, root=ROOT)
     )
 
 
-def test_three_layer_claim_and_external_evidence_are_fail_closed() -> None:
-    payload = frozen_matrix()
-    payload["claims"][0]["status"] = "PASS"
-    assert "MATRIX_CLAIM_PROOF_INCOMPLETE:DEAD_CODE" in (
-        governance.validate_acceptance_matrix(payload, root=ROOT)
+def test_baseline_file_hash_symbol_and_evidence_types_fail_closed() -> None:
+    payload = frozen_spec()
+    payload["inventory"]["consumers"][0]["file_sha256"] = "0" * 64
+    assert any(
+        error.startswith("MATRIX_INVENTORY_HASH_MISMATCH:consumers:")
+        for error in governance.validate_acceptance_spec(payload, root=ROOT)
     )
 
-    payload = frozen_matrix()
-    payload["task_status"] = "DONE"
-    assert "MATRIX_DONE_WITHOUT_EXTERNAL_EVIDENCE" in (
-        governance.validate_acceptance_matrix(payload, root=ROOT)
+    payload = frozen_spec()
+    payload["inventory"]["consumers"][0]["symbol"] = "missing_symbol"
+    assert "MATRIX_INVENTORY_SYMBOL_MISSING:consumers:missing_symbol" in (
+        governance.validate_acceptance_spec(payload, root=ROOT)
+    )
+
+    receipt = baseline_receipt()
+    receipt["input_results"][0]["evidence"][0]["evidence_type"] = "REAL_DB"
+    assert any(
+        error.startswith("MATRIX_ORM_EVIDENCE_TYPE_INVALID:")
+        for error in governance.validate_acceptance_receipt(
+            receipt,
+            spec=frozen_spec(),
+            root=ROOT,
+            expected_kind="BASELINE_RECEIPT",
+        )
     )
 
 
-def test_matrix_review_miss_policy_and_frozen_hash_cannot_drift() -> None:
-    payload = copy.deepcopy(frozen_matrix())
-    payload["review_policy"]["old_head_first_miss_label"] = "NEW_STANDARD"
-    errors = governance.validate_acceptance_matrix(payload, root=ROOT)
-    assert "MATRIX_REVIEW_POLICY_INVALID" in errors
-    assert "MATRIX_HASH_MISMATCH" in errors
+def test_repository_path_rejects_escape_and_symlink(tmp_path: Path) -> None:
+    target = tmp_path / "target.json"
+    target.write_text("{}", encoding="utf-8")
+    (tmp_path / "link.json").symlink_to(target)
+    assert not governance._repo_file(tmp_path, "../target.json")
+    assert not governance._repo_file(tmp_path, "link.json")
+
+
+def test_receipts_derive_gates_instead_of_storing_manual_gate() -> None:
+    receipt = baseline_receipt()
+    assert "implementation_gate" not in receipt
+    assert not governance._receipt_passes(frozen_spec(), receipt)
+    assert governance.task_acceptance_gate("ARCH-P1-03B-R1", "IMPLEMENTATION", root=ROOT) == [
+        "MATRIX_IMPLEMENTATION_GATE_BLOCKED:ARCH-P1-03B-R1"
+    ]
+    assert governance.task_acceptance_gate(
+        "ARCH-P1-03B-R1", "CLOSURE", root=ROOT, exact_head=HEAD
+    ) == ["MATRIX_FINAL_RECEIPT_BLOCKED:ARCH-P1-03B-R1"]
+
+
+def test_not_applicable_claim_requires_spec_rationale() -> None:
+    payload = frozen_spec()
+    safe_deletion = next(row for row in payload["claims"] if row["name"] == "SAFE_DELETION")
+    safe_deletion["rationale"] = ""
+    assert any(
+        error.startswith("MATRIX_JSON_SCHEMA_INVALID:")
+        for error in governance.validate_acceptance_spec(payload, root=ROOT)
+    )
 
 
 def test_post_governance_task_requires_a_frozen_matrix(tmp_path: Path) -> None:
@@ -116,15 +171,112 @@ def test_post_governance_task_requires_a_frozen_matrix(tmp_path: Path) -> None:
         governance.TaskRecord("ARCH-P1-03B-R1", "IMPLEMENTED_PENDING_ACCEPTANCE", ""),
     ]
     assert governance._task_requires_matrix(tasks, "ARCH-P1-03B-R1")
-    assert governance.validate_task_acceptance_matrix("ARCH-P1-03B-R1", root=tmp_path) == [
-        "ACCEPTANCE_MATRIX_MISSING_OR_INVALID:ARCH-P1-03B-R1"
+    assert governance.validate_task_acceptance_lifecycle("ARCH-P1-03B-R1", root=tmp_path) == [
+        "ACCEPTANCE_MATRIX_LIFECYCLE_MISSING:ARCH-P1-03B-R1"
     ]
     assert governance.task_acceptance_gate("ARCH-P1-03B-R1", "IMPLEMENTATION", root=ROOT) == [
         "MATRIX_IMPLEMENTATION_GATE_BLOCKED:ARCH-P1-03B-R1"
     ]
     assert governance.task_acceptance_gate("ARCH-P1-03B-R1", "CLOSURE", root=ROOT) == [
-        "MATRIX_CLOSURE_EVIDENCE_BLOCKED:ARCH-P1-03B-R1"
+        "MATRIX_FINAL_RECEIPT_BLOCKED:ARCH-P1-03B-R1"
     ]
+
+
+def test_preflight_allows_read_only_matrix_for_not_started_task() -> None:
+    paths = [
+        "docs/operations/architecture_convergence/acceptance_matrices/"
+        "ARCH-P1-03B-R1.spec.json",
+        "docs/operations/architecture_convergence/acceptance_matrices/"
+        "ARCH-P1-03B-R1.baseline.json",
+    ]
+    plan = governance.required_ci_plan(paths, "PREFLIGHT")
+    body = valid_body(task="ARCH-P1-03B-R1").replace(
+        "W2_PR_KIND: IMPLEMENTATION", "W2_PR_KIND: PREFLIGHT"
+    )
+    client = FakeClient(
+        pull=valid_pull(body=body),
+        files=[{"filename": path, "status": "added"} for path in paths],
+        reviews=[valid_review(task="ARCH-P1-03B-R1")],
+        jobs=ci_jobs(plan),
+    )
+    result = governance.check_pre_merge(
+        event(),
+        preflight_checklist(),
+        client,
+        base_checklist=preflight_checklist(),
+        matrix_root=ROOT,
+    )
+    assert result.passed, result.errors
+
+
+def test_preflight_rejects_production_code_and_non_not_started_task() -> None:
+    body = valid_body(task="ARCH-P1-03B-R1").replace(
+        "W2_PR_KIND: IMPLEMENTATION", "W2_PR_KIND: PREFLIGHT"
+    )
+    text = preflight_checklist().replace(
+        "#### A3. ARCH-P1-03B-R1：preflight\n\n```text\nStatus: NOT_STARTED",
+        "#### A3. ARCH-P1-03B-R1：preflight\n\n```text\nStatus: IN_PROGRESS",
+    )
+    result = governance.check_pre_merge(
+        event(),
+        text,
+        FakeClient(
+            pull=valid_pull(body=body),
+            files=["src/w2/identity/canonical_identity_repository.py"],
+            reviews=[valid_review(task="ARCH-P1-03B-R1")],
+        ),
+        base_checklist=preflight_checklist(),
+        matrix_root=ROOT,
+    )
+    assert "PREFLIGHT_TASK_STATUS_INVALID:IN_PROGRESS" in result.errors
+    assert any(error.startswith("PREFLIGHT_OUT_OF_SCOPE_FILES:") for error in result.errors)
+
+
+def test_existing_spec_requires_review_miss_or_scope_amendment() -> None:
+    path = (
+        "docs/operations/architecture_convergence/acceptance_matrices/"
+        "ARCH-P1-03B-R1.spec.json"
+    )
+    body = valid_body(task="ARCH-P1-03B-R1").replace(
+        "W2_PR_KIND: IMPLEMENTATION", "W2_PR_KIND: PREFLIGHT"
+    )
+    result = governance.check_pre_merge(
+        event(),
+        preflight_checklist(),
+        FakeClient(
+            pull=valid_pull(body=body),
+            files=[{"filename": path, "status": "modified"}],
+            reviews=[valid_review(task="ARCH-P1-03B-R1")],
+            jobs=ci_jobs(governance.required_ci_plan([path], "PREFLIGHT")),
+        ),
+        base_checklist=preflight_checklist(),
+        matrix_root=ROOT,
+    )
+    assert f"PREFLIGHT_SPEC_CHANGE_REASON_INVALID:{path}" in result.errors
+
+
+def test_implementation_and_closure_cannot_change_immutable_spec() -> None:
+    body = valid_body(task="ARCH-P1-03B-R1")
+    implementation_checklist = preflight_checklist().replace(
+        "Status: NOT_STARTED",
+        "Status: IMPLEMENTED_PENDING_ACCEPTANCE",
+        1,
+    )
+    result = governance.check_pre_merge(
+        event(),
+        implementation_checklist,
+        FakeClient(
+            pull=valid_pull(body=body),
+            files=[
+                "docs/operations/architecture_convergence/acceptance_matrices/"
+                "ARCH-P1-03B-R1.spec.json"
+            ],
+            reviews=[valid_review(task="ARCH-P1-03B-R1")],
+        ),
+        base_checklist=preflight_checklist(),
+        matrix_root=ROOT,
+    )
+    assert any(error.startswith("IMMUTABLE_SPEC_CHANGED:") for error in result.errors)
 
 
 def ci_jobs(plan: Any | None = None) -> list[dict[str, str]]:
@@ -199,6 +351,21 @@ class FakeClient:
         if self.fail == "jobs":
             raise governance.GovernanceError("GITHUB_API_ERROR:TimeoutError")
         return self.jobs
+
+    def get_text_file(self, path: str, ref: str) -> str:
+        if ref == HEAD:
+            candidate = ROOT / path
+            if candidate.is_file():
+                return candidate.read_text(encoding="utf-8")
+        blob = governance._git_blob(ROOT, ref, path)
+        if blob is None:
+            raise governance.GovernanceError("GITHUB_API_STATUS:404")
+        return blob.decode("utf-8")
+
+    def get_json_file(self, path: str, ref: str) -> dict[str, Any]:
+        payload = json.loads(self.get_text_file(path, ref))
+        assert isinstance(payload, dict)
+        return payload
 
 
 def valid_body(task: str = "ARCH-GOVERNANCE-01", extra: str = "") -> str:
@@ -284,6 +451,43 @@ Status: {a1_status}{implementation_line}{pr_line}
 ```text
 Status: {a2_status}
 {a2_extra}
+```
+"""
+
+
+def preflight_checklist() -> str:
+    return """# Checklist
+
+## 二、已完成任务台账
+
+| 任务 | PR | Merge SHA | 一句话结论 |
+|---|---|---|---|
+| ARCH-00 | #371 | `09ca14a9` | done |
+
+## 三、红线
+
+## 四、执行顺序
+
+#### A1. ARCH-GOVERNANCE-01：trusted gates
+
+```text
+Status: DONE
+PR: #393
+Merge SHA: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+```
+
+#### A2. ARCH-GOVERNANCE-03：matrix lifecycle
+
+```text
+Status: DONE
+PR: #410
+Merge SHA: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+```
+
+#### A3. ARCH-P1-03B-R1：preflight
+
+```text
+Status: NOT_STARTED
 ```
 """
 
