@@ -518,8 +518,8 @@ def test_m2b_uses_explicit_player_profile_name_when_squad_name_is_abbreviated() 
             )
         )
         assert reference is not None
-        reference.player_name = "Pavel 100"
-        reference.normalized_name = "pavel100"
+        reference.player_name = "Player 100"
+        reference.normalized_name = "player100"
         session.commit()
     captured_at = kickoff.replace(hour=17)
     repository.save_lineup_snapshots(
@@ -541,7 +541,7 @@ def test_m2b_uses_explicit_player_profile_name_when_squad_name_is_abbreviated() 
                     "player": {
                         "id": 100,
                         "name": "P. 100",
-                        "firstname": "Player",
+                        "firstname": "Karl Player",
                         "lastname": "100",
                     },
                     "statistics": [{"team": {"id": 10, "name": "Team 10"}}],
@@ -567,9 +567,9 @@ def test_m2b_uses_explicit_player_profile_name_when_squad_name_is_abbreviated() 
             )
         )
     assert mapping is not None
-    assert mapping.evidence["provider_full_name"] == "Player 100"
+    assert mapping.evidence["provider_full_name"] == "Karl Player 100"
     assert mapping.evidence["provider_full_name_endpoint"] == "players"
-    assert mapping.evidence["name_match_mode"] == "PROVIDER_FULL_NAME_INITIAL_SURNAME"
+    assert mapping.evidence["name_match_mode"] == "PROVIDER_FULL_NAME_TOKEN_SUBSEQUENCE"
 
 
 def test_player_identity_join_evidence_is_read_only_and_deterministic() -> None:

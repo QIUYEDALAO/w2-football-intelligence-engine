@@ -86,6 +86,27 @@ def iso_z(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
+def _name_tokens(value: str) -> list[str]:
+    aliases = {"jr": "junior"}
+    return [
+        aliases.get(token, token)
+        for part in value.replace("-", " ").split()
+        if (token := normalize_player_name(part))
+    ]
+
+
+def _tokens_in_order(needle: list[str], haystack: list[str]) -> bool:
+    if len(needle) < 2:
+        return False
+    index = 0
+    for token in haystack:
+        if token == needle[index]:
+            index += 1
+            if index == len(needle):
+                return True
+    return False
+
+
 class DatabaseRawPayloadObjectStore:
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -420,16 +441,15 @@ class FutureRefreshDbRepository:
                     ]
                     first_name = str(squad_evidence.get("first_name") or "")
                     last_name = str(squad_evidence.get("last_name") or "")
-                    normalized_first = normalize_player_name(first_name)
-                    normalized_last = normalize_player_name(last_name)
+                    provider_name_tokens = _name_tokens(full_name)
                     evidenced_references = (
                         [
                             reference
                             for reference in newest_club_by_id.values()
-                            if normalized_first
-                            and normalized_last
-                            and reference.normalized_name.startswith(normalized_first[:1])
-                            and reference.normalized_name.endswith(normalized_last)
+                            if _tokens_in_order(
+                                _name_tokens(reference.player_name),
+                                provider_name_tokens,
+                            )
                         ]
                         if squad_evidence.get("endpoint") == "players"
                         else []
@@ -442,7 +462,7 @@ class FutureRefreshDbRepository:
                     match_mode = (
                         "EXACT_FULL_NORMALIZED_NAME"
                         if exact_references
-                        else "PROVIDER_FULL_NAME_INITIAL_SURNAME"
+                        else "PROVIDER_FULL_NAME_TOKEN_SUBSEQUENCE"
                         if evidenced_references
                         else None
                     )
@@ -456,7 +476,7 @@ class FutureRefreshDbRepository:
                                 transfermarkt_player_id=reference.transfermarkt_player_id,
                                 player_name=(
                                     full_name
-                                    if match_mode == "PROVIDER_FULL_NAME_INITIAL_SURNAME"
+                                    if match_mode == "PROVIDER_FULL_NAME_TOKEN_SUBSEQUENCE"
                                     else reference.player_name
                                 ),
                                 team_external_id=snapshot.team_external_id,
