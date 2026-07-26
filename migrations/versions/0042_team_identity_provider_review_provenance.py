@@ -1,0 +1,327 @@
+"""ARCH-P1-03 M2A: add review provenance to the team identity authority and
+migrate the legacy team crosswalks into transfermarkt provider rows.
+
+No new identity table. Adds review_status / reviewed_by / reviewed_at /
+source_hashes / payload to ``provider_team_identity_crosswalks`` and, for every
+APPROVED ``team_identity_crosswalks`` row, (a) backfills the matching
+api_football authority row's review provenance and (b) inserts a transfermarkt
+provider row pointing at the same canonical ``w2_team_id``. Fail-closed on any
+missing or ambiguous canonical mapping (no guessing).
+
+Revision ID: 0042_team_identity_provider_review_provenance
+Revises: 0041_converge_odds_history_and_projection
+Create Date: 2026-07-26 00:00:00.000000
+"""
+from __future__ import annotations
+
+import json
+from datetime import date, datetime
+from typing import Any
+
+import sqlalchemy as sa
+from alembic import op
+
+from w2.matchday.intake_v2 import stable_hash
+
+
+def _coerce_dt(value: Any) -> Any:
+    """Datetime columns need real datetimes; postgres returns them, sqlite text."""
+    if value is None or isinstance(value, (datetime, date)):
+        return value
+    return datetime.fromisoformat(str(value))
+
+
+def _coerce_json(value: Any) -> Any:
+    """JSON columns need dict/list; postgres json returns objects, sqlite text."""
+    if value is None or isinstance(value, (dict, list)):
+        return value
+    return json.loads(str(value))
+
+
+def _valid_at(valid_from: Any, valid_to: Any, as_of: Any) -> bool:
+    """Validity window check matching the runtime resolver's semantics."""
+    if as_of is None:
+        return valid_to is None
+    if valid_from is not None and valid_from > as_of:
+        return False
+    if valid_to is not None and valid_to <= as_of:
+        return False
+    return True
+
+
+revision: str = "0042_team_identity_provider_review_provenance"
+down_revision: str | None = "0041_converge_odds_history_and_projection"
+branch_labels: str | None = None
+depends_on: str | None = None
+
+_TABLE = "provider_team_identity_crosswalks"
+_NEW_COLUMNS = (
+    ("review_status", sa.String(length=64)),
+    ("reviewed_by", sa.String(length=128)),
+    ("reviewed_at", sa.DateTime(timezone=True)),
+    ("source_hashes", sa.JSON()),
+    ("payload", sa.JSON()),
+)
+_PROVIDER_PRIMARY_READY = "PROVIDER_PRIMARY_READY"
+_MIGRATION_OWNER = "0042_team_identity_provider_review_provenance"
+
+
+def _owned_payload(source_payload: Any) -> dict[str, Any]:
+    """Wrap the migrated payload with an explicit, persisted ownership marker.
+
+    downgrade() deletes only rows carrying this marker, so a row that already
+    existed before the upgrade is never removed even when its id and
+    identity_hash happen to match what this migration would have written.
+    """
+    return {"migrated_by": _MIGRATION_OWNER, "source_payload": source_payload}
+
+
+def _is_migration_owned(payload: Any) -> bool:
+    """True only for rows this migration wrote, proven by the persisted marker."""
+    decoded = _coerce_json(payload)
+    return isinstance(decoded, dict) and decoded.get("migrated_by") == _MIGRATION_OWNER
+
+
+# Lightweight table handle so SQLAlchemy serializes JSON portably (postgres/sqlite).
+_ptic = sa.table(
+    _TABLE,
+    sa.column("id", sa.String),
+    sa.column("provider", sa.String),
+    sa.column("provider_team_id", sa.String),
+    sa.column("w2_team_id", sa.String),
+    sa.column("competition_id", sa.String),
+    sa.column("season", sa.String),
+    sa.column("valid_from", sa.DateTime(timezone=True)),
+    sa.column("valid_to", sa.DateTime(timezone=True)),
+    sa.column("identity_status", sa.String),
+    sa.column("evidence_hashes", sa.JSON),
+    sa.column("identity_hash", sa.String),
+    sa.column("review_status", sa.String),
+    sa.column("reviewed_by", sa.String),
+    sa.column("reviewed_at", sa.DateTime(timezone=True)),
+    sa.column("source_hashes", sa.JSON),
+    sa.column("payload", sa.JSON),
+)
+
+
+def _transfermarkt_identity_hash(
+    *, provider_team_id: str, w2_team_id: str, competition_id: str, season: str
+) -> str:
+    payload = {
+        "schema_version": "ProviderTeamIdentityCrosswalkV1",
+        "provider": "transfermarkt",
+        "provider_team_id": provider_team_id,
+        "w2_team_id": w2_team_id,
+        "competition_id": competition_id,
+        "season": season,
+        "identity_status": _PROVIDER_PRIMARY_READY,
+        "scope_note": "Transfermarkt provider identity migrated from team_identity_crosswalks.",
+    }
+    return stable_hash(payload)
+
+
+def upgrade() -> None:
+    bind = op.get_bind()
+    # Idempotent on the column add so a partially-migrated database (columns
+    # already present, rows possibly written by another process) still reaches
+    # the reconciliation below instead of failing on a duplicate column.
+    existing_columns = {
+        column["name"] for column in sa.inspect(bind).get_columns(_TABLE)
+    }
+    for name, col_type in _NEW_COLUMNS:
+        if name not in existing_columns:
+            op.add_column(_TABLE, sa.Column(name, col_type, nullable=True))
+
+    legacy = bind.execute(
+        sa.text(
+            "select id, api_football_team_id, transfermarkt_club_id, competition_id, "
+            "review_status, reviewed_by, reviewed_at, source_sha256, payload, "
+            "valid_from, valid_to from team_identity_crosswalks"
+        )
+    ).mappings().all()
+
+    blockers: list[str] = []
+    for row in legacy:
+        if str(row["review_status"] or "").upper() != "APPROVED":
+            continue
+        api_id = str(row["api_football_team_id"] or "")
+        tm_id = str(row["transfermarkt_club_id"] or "")
+        comp = str(row["competition_id"] or "")
+        if not api_id or not tm_id:
+            blockers.append(f"{row['id']}:MISSING_API_OR_TM_ID")
+            continue
+
+        # Resolve canonical w2_team_id via the api_football authority (never by
+        # parsing the id), with the same semantics the runtime resolver uses:
+        # READY status, validity window at this row's effective time, and a
+        # unique canonical target (several authority rows agreeing on one
+        # canonical team are fine; disagreement is a blocker).
+        as_of = _coerce_dt(row["valid_from"])
+        authority_rows = bind.execute(
+            sa.text(
+                "select id, w2_team_id, season, valid_from, valid_to "
+                "from provider_team_identity_crosswalks "
+                "where provider='api_football' and provider_team_id=:pid "
+                "and competition_id=:comp and identity_status=:status"
+            ),
+            {"pid": api_id, "comp": comp, "status": _PROVIDER_PRIMARY_READY},
+        ).mappings().all()
+        valid_authority = [
+            item
+            for item in authority_rows
+            if _valid_at(_coerce_dt(item["valid_from"]), _coerce_dt(item["valid_to"]), as_of)
+        ]
+        canonical_targets = {str(item["w2_team_id"]) for item in valid_authority}
+        if len(canonical_targets) != 1:
+            blockers.append(f"{row['id']}:AUTHORITY_CANONICAL_TARGETS={len(canonical_targets)}")
+            continue
+        seasons = {str(item["season"]) for item in valid_authority}
+        if len(seasons) != 1:
+            blockers.append(f"{row['id']}:AUTHORITY_SEASONS={len(seasons)}")
+            continue
+        w2 = next(iter(canonical_targets))
+        season = next(iter(seasons))
+
+        source_hashes = [row["source_sha256"]] if row["source_sha256"] else []
+
+        # (a) Backfill review provenance into exactly the authority rows the
+        # resolution step selected. Expired, future, non-READY and other-season
+        # rows were never selected and must stay untouched.
+        selected_authority_ids = [str(item["id"]) for item in valid_authority]
+        bind.execute(
+            sa.update(_ptic)
+            .where(_ptic.c.id.in_(selected_authority_ids))
+            .values(
+                review_status=row["review_status"],
+                reviewed_by=row["reviewed_by"],
+                reviewed_at=_coerce_dt(row["reviewed_at"]),
+                source_hashes=source_hashes,
+                payload=_coerce_json(row["payload"]),
+            )
+        )
+
+        # (b) Insert the transfermarkt provider row, same w2_team_id. If a target
+        # row already exists it must reconcile exactly against what this migration
+        # would write; a divergent existing row is a blocker, never skipped.
+        row_id = f"transfermarkt:{tm_id}:{comp}:{season}"
+        expected_identity_hash = _transfermarkt_identity_hash(
+            provider_team_id=tm_id, w2_team_id=w2, competition_id=comp, season=season
+        )
+        existing = bind.execute(
+            sa.text(
+                "select id, provider, provider_team_id, w2_team_id, competition_id, season, "
+                "valid_from, valid_to, identity_status, evidence_hashes, identity_hash, "
+                "review_status, reviewed_by, reviewed_at, source_hashes, payload "
+                "from provider_team_identity_crosswalks "
+                "where provider='transfermarkt' and provider_team_id=:pid "
+                "and competition_id=:comp and season=:season"
+            ),
+            {"pid": tm_id, "comp": comp, "season": season},
+        ).mappings().all()
+        if existing:
+            if len(existing) != 1:
+                blockers.append(f"{row['id']}:TRANSFERMARKT_TARGET_ROWS={len(existing)}")
+                continue
+            target = existing[0]
+            # Compare the complete authority + provenance + validity surface,
+            # normalizing datetime/JSON so postgres and sqlite compare alike.
+            expected_fields: tuple[tuple[str, object, str], ...] = (
+                ("id", row_id, "raw"),
+                ("provider", "transfermarkt", "raw"),
+                ("provider_team_id", tm_id, "raw"),
+                ("w2_team_id", w2, "raw"),
+                ("competition_id", comp, "raw"),
+                ("season", season, "raw"),
+                ("identity_status", _PROVIDER_PRIMARY_READY, "raw"),
+                ("identity_hash", expected_identity_hash, "raw"),
+                ("valid_from", _coerce_dt(row["valid_from"]), "dt"),
+                ("valid_to", _coerce_dt(row["valid_to"]), "dt"),
+                ("evidence_hashes", source_hashes, "json"),
+                ("source_hashes", source_hashes, "json"),
+                ("review_status", row["review_status"], "raw"),
+                ("reviewed_by", row["reviewed_by"], "raw"),
+                ("reviewed_at", _coerce_dt(row["reviewed_at"]), "dt"),
+                ("payload", _owned_payload(_coerce_json(row["payload"])), "json"),
+            )
+            divergences = []
+            for field, expected, kind in expected_fields:
+                actual = target[field]
+                if kind == "dt":
+                    actual = _coerce_dt(actual)
+                elif kind == "json":
+                    actual = _coerce_json(actual)
+                if actual != expected:
+                    divergences.append(field)
+            if divergences:
+                blockers.append(
+                    f"{row['id']}:TRANSFERMARKT_TARGET_DIVERGENT:{','.join(divergences)}"
+                )
+            continue
+        bind.execute(
+            sa.insert(_ptic).values(
+                id=row_id,
+                provider="transfermarkt",
+                provider_team_id=tm_id,
+                w2_team_id=w2,
+                competition_id=comp,
+                season=season,
+                valid_from=_coerce_dt(row["valid_from"]),
+                valid_to=_coerce_dt(row["valid_to"]),
+                identity_status=_PROVIDER_PRIMARY_READY,
+                evidence_hashes=source_hashes,
+                identity_hash=expected_identity_hash,
+                review_status=row["review_status"],
+                reviewed_by=row["reviewed_by"],
+                reviewed_at=_coerce_dt(row["reviewed_at"]),
+                source_hashes=source_hashes,
+                payload=_owned_payload(_coerce_json(row["payload"])),
+            )
+        )
+
+    if blockers:
+        raise RuntimeError(
+            "ARCH-P1-03 M2A team identity migration blocked (no guessing): "
+            + "; ".join(sorted(blockers))
+        )
+
+
+def downgrade() -> None:
+    """Remove only the transfermarkt rows this migration owns.
+
+    Ownership is proven per row by the explicit marker this migration persists
+    in ``payload`` (``migrated_by``), plus the id format and an identity_hash
+    recomputed from this migration's own payload shape. A transfermarkt row that
+    existed before the upgrade cannot carry the marker, so it survives even if
+    its id and identity_hash are identical to what this migration writes.
+    """
+    bind = op.get_bind()
+    rows = bind.execute(
+        sa.text(
+            "select id, provider_team_id, w2_team_id, competition_id, season, "
+            "identity_hash, payload "
+            "from provider_team_identity_crosswalks where provider='transfermarkt'"
+        )
+    ).mappings().all()
+    for row in rows:
+        # Ownership is the persisted marker, not an inferred id/hash shape: a row
+        # that already existed before the upgrade cannot carry it, so an
+        # otherwise identical pre-existing row is never deleted.
+        if not _is_migration_owned(row["payload"]):
+            continue
+        owned_id = (
+            f"transfermarkt:{row['provider_team_id']}:{row['competition_id']}:{row['season']}"
+        )
+        owned_hash = _transfermarkt_identity_hash(
+            provider_team_id=str(row["provider_team_id"]),
+            w2_team_id=str(row["w2_team_id"]),
+            competition_id=str(row["competition_id"]),
+            season=str(row["season"]),
+        )
+        if row["id"] != owned_id or row["identity_hash"] != owned_hash:
+            continue
+        bind.execute(
+            sa.text("delete from provider_team_identity_crosswalks where id=:id"),
+            {"id": row["id"]},
+        )
+    for name, _ in _NEW_COLUMNS:
+        op.drop_column(_TABLE, name)

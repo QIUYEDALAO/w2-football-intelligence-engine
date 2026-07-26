@@ -25,14 +25,14 @@ context_read_order:
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  main_sha: 9b2dc44bed22f237868d1471cbb8d9950917edcb
+  main_sha: 0cb267baa62abe547802bca27771a8fe1c26a0db
   main_migration_head: 0041_converge_odds_history_and_projection
-  pull_request: 398
-  pull_request_mode: READY
-  pull_request_head_branch: codex/arch-p1-04d-pre-lmm-contract-migration
-  task_baseline_sha: 9b2dc44bed22f237868d1471cbb8d9950917edcb
-  local_work_branch: codex/arch-p1-04d-pre-lmm-contract-migration
-  github_sync_status: ARCH_P1_04D_IMPLEMENTED_PENDING_ACCEPTANCE
+  pull_request: 400
+  pull_request_mode: DRAFT
+  pull_request_head_branch: codex/arch-p1-03-team-identity-crosswalk
+  task_baseline_sha: 0cb267baa62abe547802bca27771a8fe1c26a0db
+  local_work_branch: codex/arch-p1-03-team-identity-crosswalk
+  github_sync_status: ARCH_P1_03A_IMPLEMENTED_PENDING_ACCEPTANCE
   ci_checks:
     verify: GITHUB_PR_EXACT_HEAD
     staging-parity: GITHUB_PR_EXACT_HEAD
@@ -80,7 +80,8 @@ architecture_convergence:
     - ARCH-GOVERNANCE-01
     - ARCH-P1-04C
     - ARCH-P1-04D
-    - ARCH-P1-03
+    - ARCH-P1-03A
+    - ARCH-P1-03B
     - ARCH-P1-05
     - ARCH-P1-06
     - ARCH-P1-07
@@ -91,36 +92,83 @@ architecture_convergence:
     - ARCH-P2-04
     - ARCH-P2-06
     - ARCH-P2-05
-  next_task: ARCH-P1-03
+  next_task: ARCH-P1-03B
   current_task:
-    id: ARCH-P1-04D
-    status: DONE
-    pull_request: 398
-    implementation_pr: 398
-    implementation_merge_sha: e6e447293365ca29686b21876cab5e103829b1ed
-    branch: codex/arch-p1-04d-pre-lmm-contract-migration
-    baseline_sha: 9b2dc44bed22f237868d1471cbb8d9950917edcb
-    started_at: "2026-07-25T04:30:00Z"
-    phase: M4_PHYSICAL_DELETION
+    id: ARCH-P1-03A
+    status: IMPLEMENTED_PENDING_ACCEPTANCE
+    pull_request: 400
+    branch: codex/arch-p1-03-team-identity-crosswalk
+    baseline_sha: 0cb267baa62abe547802bca27771a8fe1c26a0db
+    started_at: "2026-07-26T00:00:00Z"
+    predecessor: ARCH-P1-04D
+    scope: TEAM_IDENTITY_CROSSWALK_CONVERGENCE
+    split_from: ARCH-P1-03
+    split_reason: TEAM_SIDE_ACCEPTED_PLAYER_SIDE_DATA_PREREQUISITE_PENDING
+    successor_task: ARCH-P1-03B
+    phase: M2A_TEAM_DONE
     m1_status: DONE
-    m2_status: DONE
-    m2_remediation_status: DONE
-    m3_status: DONE
-    m3_complete: true
-    m3_ready: true
-    m3_blocker: null
-    simulation_read_authority: CANONICAL_TOP_LEVEL_CARD_SIMULATION
-    public_pricing_shadow_simulation_reads: 0
-    reachable_legacy_only: 0
-    reachable_mismatch: 0
-    legacy_pick_runtime_reachable: 0
-    legacy_shim_runtime_reachable: 0
-    legacy_adapter_runtime_reachable: 0
-    m4_status: DONE
-    legacy_decision_contract_code: 0
-    compatibility_chains_deleted: true
-    predecessor: ARCH-P1-04C
-    arch_p1_03_status: NOT_STARTED
+    m2a_status: DONE
+    m2a_accepted_by: W2_EXTERNAL_REVIEW_V6
+    m2a_accepted_at_head: edeb87359f53326ac5d47e9a411de7730cf96e6f
+    m2a_external_decision: W2_EXTERNAL_DECISION_V2_CONTROLLED_CANONICAL_TEAM_ID_MINT_APPROVED
+    m2a_external_review: W2_EXTERNAL_REVIEW_V3
+    m2a_must_fix_applied:
+      - AST_EXACT_COUNT_GUARD_REPLACES_PREFIX_SCAN
+      - MAPPING_VALIDITY_AND_AMBIGUITY_FAIL_CLOSED
+      - MIGRATION_EXACT_RECONCILIATION_NO_EXISTS_CONTINUE
+      - DOWNGRADE_DELETES_ONLY_MIGRATION_OWNED_ROWS
+      - STATE_AND_PR_PHASE_SYNC
+    m2a_must_fix_v3_applied:
+      - REVERSE_CANONICAL_TO_SOURCE_AMBIGUITY_FAIL_CLOSED
+      - MIGRATION_RECONCILES_COMPLETE_AUTHORITY_PROVENANCE_VALIDITY_FIELDS
+      - AST_MINT_ALLOWLIST_BINDS_FILE_FUNCTION_KIND
+    m2a_evidence_v3_added:
+      - REVERSE_IDENTITY_AMBIGUITY_TEST
+      - REVIEWED_AT_AND_SOURCE_HASH_DIVERGENCE_MIGRATION_TESTS
+      - PRE_UPGRADE_FOREIGN_TRANSFERMARKT_DOWNGRADE_SURVIVAL_TEST
+      - AST_SAME_FUNCTION_NAME_IN_ANOTHER_FILE_MUTATION_TEST
+    m2a_external_review_v4: W2_EXTERNAL_REVIEW_V4
+    m2a_must_fix_v4_applied:
+      - PERSISTED_MIGRATION_OWNERSHIP_MARKER_IN_PAYLOAD
+      - AUTHORITY_RESOLUTION_READY_STATUS_VALIDITY_UNIQUE_CANONICAL_TARGET
+    m2a_evidence_v4_added:
+      - DOWNGRADE_KEEPS_UNOWNED_ROW_WITH_MATCHING_ID_AND_HASH
+      - AUTHORITY_NOT_READY_BLOCKS
+      - AUTHORITY_OUTSIDE_VALIDITY_BLOCKS
+      - MULTIPLE_AUTHORITY_ROWS_AGREEING_ON_ONE_CANONICAL_TARGET_ACCEPTED
+    m2a_external_review_v5: W2_EXTERNAL_REVIEW_V5
+    m2a_must_fix_v5_applied:
+      - BACKFILL_ONLY_SELECTED_VALID_READY_AUTHORITY_ROWS
+    m2a_evidence_v5_added:
+      - MIXED_AUTHORITY_ROW_SELECTIVE_BACKFILL_TEST
+    focused_tests: 82
+    ci_exact_head_768b6ac:
+      verify: success
+      staging-parity: success
+      predeploy-e2e: success
+      POST_MERGE_CHECKLIST_CONSISTENCY_GATE: success
+      PRE_MERGE_READINESS_GATE: FAIL_EXPECTED_DRAFT
+    ci_exact_head_cb9d9bb:
+      verify: success
+      staging-parity: success
+      predeploy-e2e: success
+      POST_MERGE_CHECKLIST_CONSISTENCY_GATE: success
+      PRE_MERGE_READINESS_GATE: FAIL_EXPECTED_DRAFT
+    unowned_lookalike_semantics: PRESERVED_BY_DOWNGRADE_BUT_BLOCKS_UPGRADE_RECONCILIATION
+    m3_real_match_evidence: DEFERRED_TO_ARCH_P1_03B_BLOCKED_INSUFFICIENT_REAL_SAVED_LINEUPS
+    m4_status: DEFERRED_TO_ARCH_P1_03B
+    legacy_orm_removal_status: DEFERRED_TO_ARCH_P1_03B
+    m2b_status: DEFERRED_TO_ARCH_P1_03B
+    legacy_crosswalk_runtime_reads: 0
+    legacy_crosswalk_runtime_writes: 0
+    legacy_crosswalk_runtime_imports: 0
+    runtime_canonical_id_from_provider_construction: 0
+    provider_id_model_primary_reads: 0
+    controlled_canonical_id_mint_sites: 1
+    controlled_canonical_id_mint_location: canonical_team_payload
+    legacy_crosswalk_orm_declarations: 3
+    legacy_crosswalk_orm_status: TEMPORARY_ALLOWED_UNTIL_ARCH_P1_03B_M4
+    new_identity_table_count: 0
   governance_contracts:
     github_secondary_review:
       id: GITHUB_SECONDARY_REVIEW_PROTOCOL_V1
@@ -210,7 +258,8 @@ architecture_convergence:
     ARCH-GOVERNANCE-01: DONE
     ARCH-P1-04C: DONE
     ARCH-P1-04D: DONE
-    ARCH-P1-03: NOT_STARTED
+    ARCH-P1-03A: IMPLEMENTED_PENDING_ACCEPTANCE
+    ARCH-P1-03B: NOT_STARTED
   pre_approved_order_change:
     task: ARCH-P1-05
     condition: STAGING_ONSITE_BUILD_REPEATEDLY_FAILS
