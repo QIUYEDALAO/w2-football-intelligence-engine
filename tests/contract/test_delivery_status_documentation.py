@@ -38,7 +38,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
 
     assert state["current_task"] == "ARCH-P1-05"
     assert state["current_status"] == "IN_PROGRESS"
-    assert state["current_pr"] is None
+    assert state["current_pr"] == 420
     assert state["next_task"] == "ARCH-P1-06"
     assert tuple(state["task_queue"]) == TASK_ORDER
     assert "当前：完成 A4 ARCH-P1-05 的 Draft Implementation PR。" in next_action
