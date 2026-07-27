@@ -171,11 +171,12 @@ architecture_convergence:
     successor_task: ARCH-OBS-01
     scope: ARCH_P1_03B_REMEDIATION
     phase: NOT_STARTED
-    active_spec: NONE
-    active_baseline_receipt: NONE
+    active_spec: docs/operations/architecture_convergence/acceptance_matrices/ARCH-P1-03B-R1.spec.json
+    active_baseline_receipt: docs/operations/architecture_convergence/acceptance_matrices/ARCH-P1-03B-R1.baseline.json
     active_final_attestation: NONE
     allowed_next_pr_kind: PREFLIGHT
-    implementation_gate: NOT_OPEN
+    implementation_gate: BLOCKED
+    implementation_gate_reason: REAL_DB_CAPTURE_SUPPORTING_ONLY_AND_SUBJECT_HEAD_GENERATOR_NOT_REPLAYABLE
     formal_enabled: false
     candidate_runtime_enabled: false
     lock_enabled: false
@@ -281,8 +282,8 @@ architecture_convergence:
       schema: contracts/governance/architecture_acceptance_lifecycle.v1.schema.json
       matrix_root: docs/operations/architecture_convergence/acceptance_matrices
       first_matrix_task: ARCH-P1-03B-R1
-      active_spec: NONE_UNTIL_ARCH_P1_03B_R1_PREFLIGHT
-      active_baseline_receipt: NONE_UNTIL_ARCH_P1_03B_R1_PREFLIGHT
+      active_spec: docs/operations/architecture_convergence/acceptance_matrices/ARCH-P1-03B-R1.spec.json
+      active_baseline_receipt: docs/operations/architecture_convergence/acceptance_matrices/ARCH-P1-03B-R1.baseline.json
       active_final_attestation: NONE_UNTIL_ARCH_P1_03B_R1_CLOSURE
       governance_fixture_spec_sha256: 29eaeba063ee5bad47e13441c6862ba5c821d211affb31426efbe515b7e47fe4
       governance_fixture_baseline_sha256: 9dbce71730f344c9e98f0020cf654f7a4684aa73d2faea85912b9443fdf9b3b0

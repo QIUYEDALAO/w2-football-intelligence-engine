@@ -1,0 +1,309 @@
+{
+  "schema_version": "w2.architecture_acceptance_lifecycle.v1",
+  "schema_path": "contracts/governance/architecture_acceptance_lifecycle.v1.schema.json",
+  "artifact_kind": "BASELINE_RECEIPT",
+  "task_id": "ARCH-P1-03B-R1",
+  "spec_path": "docs/operations/architecture_convergence/acceptance_matrices/ARCH-P1-03B-R1.spec.json",
+  "spec_sha256": "dedfb4622e3ba495ae85000f18b64f505d55ece356d4f6a60848c7332ae914ae",
+  "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54",
+  "preconditions": {
+    "SPEC_INVENTORY_COMPLETE": {
+      "status": "PASS",
+      "evidence": [
+        {
+          "evidence_type": "STATIC_AST_SCAN",
+          "role": "PRIMARY",
+          "artifact_path": "docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md",
+          "artifact_sha256": "7ae0f7d18feb8f47450985c6c793b970ddcb9c19a31ab773e14043f966100c88",
+          "command": "git show a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54:docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md",
+          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
+        }
+      ],
+      "rationale": "The active spec enumerates every repository-visible worker, manual CLI, producer, consumer, storage, config, and file-shaped identity surface."
+    },
+    "REAL_INPUT_AVAILABLE": {
+      "status": "UNVERIFIABLE",
+      "evidence": [
+        {
+          "evidence_type": "CONTENT_ADDRESSED_SANITIZED_ARTIFACT",
+          "role": "SUPPORTING",
+          "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight-capture.json",
+          "artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+          "command": "read-only SSH -> PostgreSQL 16 with PGOPTIONS default_transaction_read_only=on; sanitize counts and fingerprints",
+          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
+        }
+      ],
+      "rationale": "Real staging rows were read and sanitized, but the capture is supporting only because no subject-head lifecycle evidence generator can replay it."
+    },
+    "RUNTIME_SQL_BASELINE_CAPTURED": {
+      "status": "UNVERIFIABLE",
+      "evidence": [
+        {
+          "evidence_type": "REAL_DB",
+          "role": "SUPPORTING",
+          "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight-capture.json",
+          "artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+          "command": "read-only pg_catalog/information_schema and canonical identity SELECT capture; no replayable subject-head generator",
+          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
+        }
+      ],
+      "rationale": "PostgreSQL schema, indexes, migration head, row counts, reviewed fingerprints, lineup joins, and zero deltas were captured read-only; the required replayable REAL_DB artifact is absent."
+    },
+    "MUTATION_SOURCE_FROZEN": {
+      "status": "UNVERIFIABLE",
+      "evidence": [
+        {
+          "evidence_type": "CONTENT_ADDRESSED_SANITIZED_ARTIFACT",
+          "role": "SUPPORTING",
+          "artifact_path": "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+          "artifact_sha256": "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
+          "command": "git show a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54:docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
+        },
+        {
+          "evidence_type": "CONTENT_ADDRESSED_SANITIZED_ARTIFACT",
+          "role": "SUPPORTING",
+          "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight-capture.json",
+          "artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+          "command": "read-only SSH -> PostgreSQL 16 with PGOPTIONS default_transaction_read_only=on; sanitize counts and fingerprints",
+          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
+        }
+      ],
+      "rationale": "The fixed 66-row approval manifest and sanitized staging fingerprints exist, but no schema-valid replayable mutation-source artifact binds them at this baseline."
+    },
+    "GENERATOR_REPLAYABLE": {
+      "status": "BLOCKED",
+      "evidence": [],
+      "rationale": "scripts/arch_p1_03b_identity_evidence.py does not implement the lifecycle --output replay contract; PREFLIGHT cannot modify that production/ops generator."
+    },
+    "SCOPE_AND_FORBIDDEN_FROZEN": {
+      "status": "PASS",
+      "evidence": [
+        {
+          "evidence_type": "STATIC_AST_SCAN",
+          "role": "PRIMARY",
+          "artifact_path": "docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md",
+          "artifact_sha256": "7ae0f7d18feb8f47450985c6c793b970ddcb9c19a31ab773e14043f966100c88",
+          "command": "git show a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54:docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md",
+          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
+        }
+      ],
+      "rationale": "The spec freezes read-only PREFLIGHT scope and forbids production implementation, provider calls, database writes, mapping changes, runtime switches, and successor tasks."
+    }
+  },
+  "implementation_open_status": "BLOCKED",
+  "input_results": [
+    {
+      "input_id": "canonical_player_authority_rows",
+      "status": "UNVERIFIABLE",
+      "evidence_type": "REAL_DB",
+      "evidence": [
+        {
+          "evidence_type": "REAL_DB",
+          "role": "SUPPORTING",
+          "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight-capture.json",
+          "artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+          "command": "read-only pg_catalog/information_schema and canonical identity SELECT capture; no replayable subject-head generator",
+          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
+        }
+      ],
+      "rationale": "The real database contains 66 REVIEWED rows and the fixed package hashes, but the supporting capture is not a replayable REAL_DB evidence artifact."
+    },
+    {
+      "input_id": "team_value_player_authority_input",
+      "status": "UNVERIFIABLE",
+      "evidence_type": "CONTENT_ADDRESSED_SANITIZED_ARTIFACT",
+      "evidence": [
+        {
+          "evidence_type": "CONTENT_ADDRESSED_SANITIZED_ARTIFACT",
+          "role": "SUPPORTING",
+          "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight-capture.json",
+          "artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+          "command": "read-only SSH -> PostgreSQL 16 with PGOPTIONS default_transaction_read_only=on; sanitize counts and fingerprints",
+          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
+        },
+        {
+          "evidence_type": "CONTENT_ADDRESSED_SANITIZED_ARTIFACT",
+          "role": "SUPPORTING",
+          "artifact_path": "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+          "artifact_sha256": "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
+          "command": "git show a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54:docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
+        }
+      ],
+      "rationale": "Real lineups and the approved manifest are frozen as supporting inputs, while the reachable PlayerIdentityCrosswalkV1 file consumer remains a competing authority."
+    }
+  ],
+  "layer_results": {
+    "STATIC_AST": {
+      "status": "PASS",
+      "evidence": [
+        {
+          "evidence_type": "STATIC_AST_SCAN",
+          "role": "SUPPORTING",
+          "artifact_path": "tests/unit/test_arch_p1_03_identity_guards.py",
+          "artifact_sha256": "e73f4393f37689ae767d89c618fea001d35cb929943a5bab20c1f4bd29e28170",
+          "command": "uv run pytest -q tests/unit/test_arch_p1_03_identity_guards.py",
+          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
+        }
+      ],
+      "rationale": "Repository inventory proves the canonical resolver has no production caller and the file-shaped PlayerIdentityCrosswalkV1 consumer remains reachable."
+    },
+    "RUNTIME_SQL_TRACE": {
+      "status": "UNVERIFIABLE",
+      "evidence": [
+        {
+          "evidence_type": "REAL_DB",
+          "role": "SUPPORTING",
+          "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight-capture.json",
+          "artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+          "command": "read-only pg_catalog/information_schema and canonical identity SELECT capture; no replayable subject-head generator",
+          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
+        }
+      ],
+      "rationale": "A real read-only SQL baseline exists, but no replayable runtime trace covers every frozen entry point."
+    },
+    "MUTATION_TESTS": {
+      "status": "PARTIAL",
+      "evidence": [
+        {
+          "evidence_type": "SYNTHETIC_CONTRACT_TEST",
+          "role": "SUPPORTING",
+          "artifact_path": "tests/unit/test_lineup_materialization.py",
+          "artifact_sha256": "18b75b38b6f7dacf611486420ea7a35c05357bbbbd0d0b31ac0b44c6195a2ee4",
+          "command": "uv run pytest -q tests/unit/test_lineup_materialization.py::test_player_identity_join_evidence_is_read_only_and_deterministic",
+          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
+        }
+      ],
+      "rationale": "Existing in-memory SQLite and handwritten payload tests remain supplementary and do not open the implementation gate."
+    }
+  },
+  "case_results": [
+    {
+      "type": "valid",
+      "status": "NOT_RUN",
+      "derivation": "UNCHANGED_REAL_INPUT",
+      "observed_output": "Frozen for the later implementation; no PREFLIGHT mutation execution.",
+      "evidence": []
+    },
+    {
+      "type": "missing",
+      "status": "NOT_RUN",
+      "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT",
+      "source_artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+      "mutation_manifest": {
+        "operation": "missing",
+        "source_artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+        "status": "NOT_RUN"
+      },
+      "mutation_manifest_sha256": "cd0577059e4bd76e740667b48b8db50b1c77fc9d04befcbac41d7b413b0c0d61",
+      "mutation_operation": "missing",
+      "expected_output": "None/MISSING and no canonical player",
+      "observed_output": "Frozen for the later implementation; no PREFLIGHT mutation execution.",
+      "observed_output_fingerprint": "e355425d18f6f4c13062aae8ff0b534416dc4836c41c058c59b3f099a8849fc3",
+      "evidence": []
+    },
+    {
+      "type": "malformed",
+      "status": "NOT_RUN",
+      "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT",
+      "source_artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+      "mutation_manifest": {
+        "operation": "malformed",
+        "source_artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+        "status": "NOT_RUN"
+      },
+      "mutation_manifest_sha256": "6041d8ef03ab3c2af0363b0ff8494794fa925426917f9fd49736323f7820e139",
+      "mutation_operation": "malformed",
+      "expected_output": "INCOMPLETE and no accepted identity",
+      "observed_output": "Frozen for the later implementation; no PREFLIGHT mutation execution.",
+      "observed_output_fingerprint": "e355425d18f6f4c13062aae8ff0b534416dc4836c41c058c59b3f099a8849fc3",
+      "evidence": []
+    },
+    {
+      "type": "stale",
+      "status": "NOT_RUN",
+      "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT",
+      "source_artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+      "mutation_manifest": {
+        "operation": "stale",
+        "source_artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+        "status": "NOT_RUN"
+      },
+      "mutation_manifest_sha256": "536992a276886d93ab4cea90c96445d24b3cb7818ed8aed4c5a81d7b886811ec",
+      "mutation_operation": "stale",
+      "expected_output": "INVALID_AT_KICKOFF and no canonical player",
+      "observed_output": "Frozen for the later implementation; no PREFLIGHT mutation execution.",
+      "observed_output_fingerprint": "e355425d18f6f4c13062aae8ff0b534416dc4836c41c058c59b3f099a8849fc3",
+      "evidence": []
+    },
+    {
+      "type": "ambiguous",
+      "status": "NOT_RUN",
+      "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT",
+      "source_artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+      "mutation_manifest": {
+        "operation": "ambiguous",
+        "source_artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+        "status": "NOT_RUN"
+      },
+      "mutation_manifest_sha256": "f5444c71169765e39665d1966f7f7fa890e302a849b7dc9226c9b079c423ef61",
+      "mutation_operation": "ambiguous",
+      "expected_output": "AMBIGUOUS and no canonical player",
+      "observed_output": "Frozen for the later implementation; no PREFLIGHT mutation execution.",
+      "observed_output_fingerprint": "e355425d18f6f4c13062aae8ff0b534416dc4836c41c058c59b3f099a8849fc3",
+      "evidence": []
+    },
+    {
+      "type": "conflict",
+      "status": "NOT_RUN",
+      "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT",
+      "source_artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+      "mutation_manifest": {
+        "operation": "conflict",
+        "source_artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+        "status": "NOT_RUN"
+      },
+      "mutation_manifest_sha256": "a81b2d475becd72d56b954f93b4351a7302fdaa1fbb4f98e30315408fb20cbbf",
+      "mutation_operation": "conflict",
+      "expected_output": "CONFLICT and no accepted join",
+      "observed_output": "Frozen for the later implementation; no PREFLIGHT mutation execution.",
+      "observed_output_fingerprint": "e355425d18f6f4c13062aae8ff0b534416dc4836c41c058c59b3f099a8849fc3",
+      "evidence": []
+    }
+  ],
+  "claim_results": [
+    {
+      "name": "DEAD_CODE",
+      "status": "UNVERIFIABLE",
+      "rationale": "Static references alone cannot prove dead code; the offline file consumer is reachable.",
+      "layer_evidence": {}
+    },
+    {
+      "name": "ZERO_REACHABILITY",
+      "status": "FAIL",
+      "rationale": "scripts/materialize_team_value_asof.py reaches the PlayerIdentityCrosswalkV1 consumer.",
+      "layer_evidence": {}
+    },
+    {
+      "name": "SINGLE_AUTHORITY",
+      "status": "FAIL",
+      "rationale": "Canonical database mappings and the file-shaped identity consumer coexist.",
+      "layer_evidence": {}
+    },
+    {
+      "name": "ZERO_LEGACY_READ_WRITE",
+      "status": "UNVERIFIABLE",
+      "rationale": "Legacy tables are absent, but no runtime trace covers every frozen file consumer and entry point.",
+      "layer_evidence": {}
+    },
+    {
+      "name": "SAFE_DELETION",
+      "status": "NOT_APPLICABLE",
+      "rationale": "ARCH-P1-03B-R1 does not authorize table or compatibility-chain deletion.",
+      "layer_evidence": {}
+    }
+  ],
+  "overall_status": "BLOCKED",
+  "receipt_sha256": "73598ec265c68e6b50516c1a3907a1d2f684c6a2f8d5a020eee586cf1e5882c9"
+}

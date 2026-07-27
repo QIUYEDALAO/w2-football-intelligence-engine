@@ -121,7 +121,7 @@ def test_arch_p1_03b_r1_lifecycle_is_machine_valid() -> None:
     )
     assert governance.validate_task_acceptance_lifecycle(
         "ARCH-P1-03B-R1", root=ROOT
-    ) == ["ACCEPTANCE_MATRIX_LIFECYCLE_MISSING:ARCH-P1-03B-R1"]
+    ) == []
 
 
 def test_spec_hashes_and_required_case_set_fail_closed() -> None:
@@ -1120,10 +1120,10 @@ def test_receipts_derive_gates_instead_of_storing_manual_gate() -> None:
     assert not governance._receipt_passes(frozen_spec(), receipt)
     assert governance.task_acceptance_gate(
         "ARCH-P1-03B-R1", "IMPLEMENTATION", root=ROOT
-    ) == ["ACCEPTANCE_MATRIX_LIFECYCLE_MISSING:ARCH-P1-03B-R1"]
+    ) == ["MATRIX_IMPLEMENTATION_GATE_BLOCKED:ARCH-P1-03B-R1"]
     assert governance.task_acceptance_gate(
         "ARCH-P1-03B-R1", "CLOSURE", root=ROOT, exact_head=HEAD
-    ) == ["ACCEPTANCE_MATRIX_LIFECYCLE_MISSING:ARCH-P1-03B-R1"]
+    ) == ["MATRIX_FINAL_RECEIPT_BLOCKED:ARCH-P1-03B-R1"]
 
 
 def test_not_applicable_claim_requires_spec_rationale() -> None:
@@ -1147,10 +1147,10 @@ def test_post_governance_task_requires_a_frozen_matrix(tmp_path: Path) -> None:
     ]
     assert governance.task_acceptance_gate(
         "ARCH-P1-03B-R1", "IMPLEMENTATION", root=ROOT
-    ) == ["ACCEPTANCE_MATRIX_LIFECYCLE_MISSING:ARCH-P1-03B-R1"]
+    ) == ["MATRIX_IMPLEMENTATION_GATE_BLOCKED:ARCH-P1-03B-R1"]
     assert governance.task_acceptance_gate(
         "ARCH-P1-03B-R1", "CLOSURE", root=ROOT
-    ) == ["ACCEPTANCE_MATRIX_LIFECYCLE_MISSING:ARCH-P1-03B-R1"]
+    ) == ["MATRIX_FINAL_RECEIPT_BLOCKED:ARCH-P1-03B-R1"]
 
 
 def test_preflight_allows_read_only_matrix_for_not_started_task() -> None:
@@ -2126,7 +2126,7 @@ def test_detached_ci_artifacts_bind_task_subject_and_run(tmp_path: Path) -> None
         output_dir=tmp_path / "out",
         event={
             "pull_request": {
-                "body": valid_body(task="ARCH-P1-03B-R1"),
+                "body": valid_body(task="ARCH-OBS-01"),
             }
         },
         subject_head=HEAD,
@@ -2139,7 +2139,7 @@ def test_detached_ci_artifacts_bind_task_subject_and_run(tmp_path: Path) -> None
         (tmp_path / "out/evidence/evidence-index.json").read_text(encoding="utf-8")
     )
     for payload in (result, evidence):
-        assert payload["task_id"] == "ARCH-P1-03B-R1"
+        assert payload["task_id"] == "ARCH-OBS-01"
         assert payload["subject_head"] == HEAD
     assert result["result_sha256"] == governance._artifact_hash(
         result, "result_sha256"

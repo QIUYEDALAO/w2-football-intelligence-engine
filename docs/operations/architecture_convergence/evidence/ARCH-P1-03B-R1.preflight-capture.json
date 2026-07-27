@@ -1,0 +1,93 @@
+{
+  "schema_version": "w2.arch_p1_03b_r1_preflight_capture.v1",
+  "task_id": "ARCH-P1-03B-R1",
+  "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54",
+  "captured_at": "2026-07-27T09:28:19Z",
+  "classification": "SUPPORTING_READ_ONLY_CAPTURE_NOT_REPLAYABLE_REAL_DB_EVIDENCE",
+  "source_identity": {
+    "environment": "staging",
+    "database": "w2",
+    "database_engine": "PostgreSQL 16",
+    "staging_release_sha": "8adc8d482aefd7d31063030f0b682458c58c17a2",
+    "access": "SSH_TO_POSTGRES_CONTAINER",
+    "transaction_policy": "PGOPTIONS_DEFAULT_TRANSACTION_READ_ONLY"
+  },
+  "database": {
+    "migration_head": "0043_drop_legacy_identity_crosswalks",
+    "schema_index_sha256": "2a40b2d4494849e5f5a346511ee327fcbe5d8b0612c4a302cb086f61835e0cc5",
+    "tables": {
+      "player_identity_mappings": 110,
+      "provider_team_identity_crosswalks": 32,
+      "structured_lineup_snapshots": 10,
+      "structured_lineup_players": 200,
+      "transfermarkt_player_references": 50149
+    },
+    "legacy_crosswalk_table_count": 0
+  },
+  "canonical_authority": {
+    "player_mapping_status_counts": {
+      "CANDIDATE": 36,
+      "MISSING": 8,
+      "REVIEWED": 66
+    },
+    "provider_team_authority_counts": {
+      "api_football_APPROVED": 16,
+      "transfermarkt_APPROVED": 16
+    },
+    "reviewed_rows": 66,
+    "reviewed_by": "operator:liudehua",
+    "review_package_sha256": "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
+    "approval_artifact_sha256": "a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695",
+    "reviewed_mapping_fingerprint_rule": "sha256(newline-terminated rows ordered by api_football_player_id,team_external_id,valid_from; fields=api_football_player_id|transfermarkt_player_id|canonical_player_id|team_external_id|identity_hash|valid_from|valid_to|reviewed_by|reviewed_at|review_package_sha256|approval_artifact_sha256)",
+    "reviewed_mapping_fingerprint": "5004170d32240de1f1ca43cdf0d30003f022854cad1b8810d47a6440874a144e"
+  },
+  "materialization_sources": {
+    "raw_payload_counts": {
+      "lineups": 5,
+      "squads": 10,
+      "players": 87,
+      "player_profiles": 48
+    },
+    "confirmed_lineup_snapshots": 10,
+    "lineup_players": 200,
+    "starters": 110,
+    "reviewed_join_rows": 66,
+    "fixture_matrix": {
+      "1494212": "2 snapshots / 22 starters / 22 reviewed",
+      "1494213": "2 snapshots / 22 starters / 0 reviewed",
+      "1494214": "2 snapshots / 22 starters / 22 reviewed",
+      "1494215": "2 snapshots / 22 starters / 0 reviewed",
+      "1494216": "2 snapshots / 22 starters / 22 reviewed"
+    },
+    "lineup_join_fingerprint_rule": "sha256(newline-terminated rows ordered by fixture_id,team_external_id,api_football_player_id; fields exclude names and raw payloads)",
+    "lineup_join_fingerprint": "9265af518186b2314c393cc2c6f4d33035e2ffc4c4867285cc35a1786421180e"
+  },
+  "reachability": {
+    "resolve_player_production_callers": 0,
+    "approved_players_for_team_production_callers": 0,
+    "materialize_player_identity_mappings_callers": [
+      "FutureRefreshDbRepository.save_lineup_snapshots",
+      "scripts/lmm_transfermarkt_snapshot.py"
+    ],
+    "player_identity_join_evidence_callers": [
+      "scripts/arch_p1_03b_identity_evidence.py"
+    ],
+    "materialize_team_value_asof_callers": [
+      "scripts/materialize_team_value_asof.py"
+    ],
+    "player_identity_crosswalk_v1_runtime_consumer": "src/w2/lineups/value_identity.py::materialize_team_value_asof",
+    "canonical_and_file_authorities_coexist": true
+  },
+  "side_effects": {
+    "provider_request_log_before": 312,
+    "provider_request_log_after": 312,
+    "provider_call_delta": 0,
+    "db_write_delta": 0,
+    "write_prevention": "All SQL ran with default_transaction_read_only=on; no provider code was invoked."
+  },
+  "limitations": [
+    "The repository has no subject-head 03B-R1 evidence generator implementing the lifecycle --output replay contract.",
+    "The staging application release is older than the frozen baseline head, although the persistent database is at migration 0043.",
+    "This supporting capture therefore cannot by itself open REAL_INPUT_AVAILABLE, RUNTIME_SQL_BASELINE_CAPTURED, MUTATION_SOURCE_FROZEN, or GENERATOR_REPLAYABLE."
+  ]
+}

@@ -1,0 +1,1820 @@
+{
+  "schema_version": "w2.architecture_acceptance_lifecycle.v1",
+  "schema_path": "contracts/governance/architecture_acceptance_lifecycle.v1.schema.json",
+  "artifact_kind": "IMMUTABLE_SPEC",
+  "task_id": "ARCH-P1-03B-R1",
+  "frozen_baseline_commit": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54",
+  "change_control": {
+    "kind": "INITIAL_FREEZE",
+    "rationale": "First active read-only PREFLIGHT freeze for ARCH-P1-03B-R1 at main@a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54."
+  },
+  "scope": {
+    "summary": "Freeze the real ARCH-P1-03B-R1 player-identity production chain and acceptance measurements without changing code, data, providers, mappings, or runtime switches.",
+    "allowed": [
+      "read-only repository and staging PostgreSQL inventory",
+      "immutable acceptance specification and baseline receipt",
+      "content-addressed sanitized supporting capture",
+      "governance validation for this PREFLIGHT"
+    ],
+    "forbidden": [
+      "production implementation or identity repository changes",
+      "changing or rebuilding the 66 approved mappings",
+      "database writes or provider calls",
+      "synthetic or ORM evidence presented as real input",
+      "Formal, Candidate runtime, Lock, Production, scheduler, M4, ARCH-P1-05, or successor work"
+    ],
+    "sha256": "f98a394b658767a96d6d8ce4785e93ea13b3406f72906f000903ddce85cf3853"
+  },
+  "inventory": {
+    "entry_points": [
+      {
+        "name": "runtime lineup persistence",
+        "path": "src/w2/ingestion/future_refresh.py",
+        "kind": "WORKER_RUNTIME",
+        "file_sha256": "616cca2dd444e5ceaa82bbc5aa031bafb445612159aa9ecb670eb0bd602383d0",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "The worker intake persists a real lineup payload through save_lineup_snapshots.",
+        "symbol": "FutureFixtureRefreshService._save_raw_payload_first"
+      },
+      {
+        "name": "manual identity evidence",
+        "path": "scripts/arch_p1_03b_identity_evidence.py",
+        "kind": "READ_ONLY_CLI",
+        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Explicit staging acceptance CLI calls player_identity_join_evidence.",
+        "symbol": "main"
+      },
+      {
+        "name": "offline team value materializer",
+        "path": "scripts/materialize_team_value_asof.py",
+        "kind": "OFFLINE_CLI",
+        "file_sha256": "83694b3a861ac1a2730483d06b1ee01774868ccc40bc6690eb8bbaeda5fcaa5d",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Manual CLI passes PlayerIdentityCrosswalkV1-shaped file input to materialize_team_value_asof.",
+        "symbol": "main"
+      },
+      {
+        "name": "saved lineup one-shot",
+        "path": "scripts/lmm_materialize_stored_lineups.py",
+        "kind": "MANUAL_CLI",
+        "file_sha256": "a90b719111f2430f5376a5b44ff2aadd02f7755a41163b332a3adac03b9f5602",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Manual one-shot enumerates saved lineup payloads and can invoke the materializer only with --write.",
+        "symbol": "main"
+      }
+    ],
+    "producers": [
+      {
+        "name": "confirmed lineup producer",
+        "path": "src/w2/ingestion/future_refresh_repository.py",
+        "kind": "REAL_PRODUCER",
+        "file_sha256": "89db787e8899c9d5521766c0c7de58ca667a859da9e7d95f49de0bed044cd625",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Worker persistence writes structured lineup rows and invokes player identity materialization.",
+        "symbol": "FutureRefreshDbRepository.save_lineup_snapshots"
+      },
+      {
+        "name": "player mapping materializer",
+        "path": "src/w2/ingestion/future_refresh_repository.py",
+        "kind": "REAL_PRODUCER",
+        "file_sha256": "89db787e8899c9d5521766c0c7de58ca667a859da9e7d95f49de0bed044cd625",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Called by lineup persistence and the Transfermarkt snapshot CLI.",
+        "symbol": "FutureRefreshDbRepository.materialize_player_identity_mappings"
+      },
+      {
+        "name": "stored lineup producer",
+        "path": "src/w2/ingestion/future_refresh_repository.py",
+        "kind": "REAL_PRODUCER",
+        "file_sha256": "89db787e8899c9d5521766c0c7de58ca667a859da9e7d95f49de0bed044cd625",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Manual one-shot replays saved raw lineup payloads without provider access.",
+        "symbol": "FutureRefreshDbRepository.materialize_stored_lineup_payloads"
+      }
+    ],
+    "consumers": [
+      {
+        "name": "identity join evidence",
+        "path": "src/w2/ingestion/future_refresh_repository.py",
+        "kind": "CANONICAL_CONSUMER",
+        "file_sha256": "89db787e8899c9d5521766c0c7de58ca667a859da9e7d95f49de0bed044cd625",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Called by the manual staging evidence CLI.",
+        "symbol": "FutureRefreshDbRepository.player_identity_join_evidence"
+      },
+      {
+        "name": "canonical player resolver",
+        "path": "src/w2/identity/canonical_identity_repository.py",
+        "kind": "CANONICAL_CONSUMER",
+        "file_sha256": "a94ed42bf3a323da7e8c4a17998056748cacb058143216eed596c4e06805a842",
+        "reachability": "NO_PRODUCTION_CALLER",
+        "reachability_rationale": "Repository-wide production-path search finds only the declaration; no API, worker, scheduler, or manual caller.",
+        "symbol": "CanonicalIdentityRepository.resolve_player"
+      },
+      {
+        "name": "canonical approved team roster",
+        "path": "src/w2/identity/canonical_identity_repository.py",
+        "kind": "CANONICAL_CONSUMER",
+        "file_sha256": "a94ed42bf3a323da7e8c4a17998056748cacb058143216eed596c4e06805a842",
+        "reachability": "NO_PRODUCTION_CALLER",
+        "reachability_rationale": "Repository-wide production-path search finds only the fixed-empty declaration.",
+        "symbol": "CanonicalIdentityRepository.approved_players_for_team"
+      },
+      {
+        "name": "file-shaped team value consumer",
+        "path": "src/w2/lineups/value_identity.py",
+        "kind": "COMPETING_INPUT_CONSUMER",
+        "file_sha256": "56e699d253bd9267bee98978848b2fbb1d4d04e20f95581a25545a36ad0ab59d",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Called by scripts/materialize_team_value_asof.py with PlayerIdentityCrosswalkV1 input.",
+        "symbol": "materialize_team_value_asof"
+      },
+      {
+        "name": "file-shaped player crosswalk",
+        "path": "src/w2/lineups/value_identity.py",
+        "kind": "LEGACY_FILE_CONTRACT",
+        "file_sha256": "56e699d253bd9267bee98978848b2fbb1d4d04e20f95581a25545a36ad0ab59d",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Imported and consumed by the reachable offline team-value CLI.",
+        "symbol": "PlayerIdentityCrosswalkV1"
+      }
+    ],
+    "storage": [
+      {
+        "name": "player identity authority ORM",
+        "path": "src/w2/infrastructure/persistence/models.py",
+        "kind": "DECLARED_ORM_SCHEMA",
+        "file_sha256": "f5943563d20eade299cf424393c6618b529b5ccd05cc26ba4656b95fbded1b9c",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "ORM declaration for the real player_identity_mappings table; supporting schema evidence only.",
+        "symbol": "PlayerIdentityMappingModel"
+      },
+      {
+        "name": "provider team authority ORM",
+        "path": "src/w2/infrastructure/persistence/factor_model_models.py",
+        "kind": "DECLARED_ORM_SCHEMA",
+        "file_sha256": "b6d703eaee6d46db1a8a990ed5f23743b56a02e2f8a568ef1f86aba615ba7a84",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "ORM declaration for canonical team authority; supporting schema evidence only.",
+        "symbol": "ProviderTeamIdentityCrosswalkModel"
+      },
+      {
+        "name": "lineup persistence ORM",
+        "path": "src/w2/infrastructure/persistence/models.py",
+        "kind": "DECLARED_ORM_SCHEMA",
+        "file_sha256": "f5943563d20eade299cf424393c6618b529b5ccd05cc26ba4656b95fbded1b9c",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "ORM declaration for persisted real lineup inputs; supporting schema evidence only.",
+        "symbol": "StructuredLineupSnapshotModel"
+      }
+    ],
+    "scripts": [
+      {
+        "name": "review reconciliation",
+        "path": "scripts/reconcile_arch_p1_03b_reviewed_mappings.py",
+        "kind": "READ_ONLY_CLI",
+        "file_sha256": "25a26237a21bc6099396c0d2a752e262c3435e05e0a03f52843fa1fb0627c501",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Read-only fixed-package reconciliation entry point.",
+        "symbol": "main"
+      },
+      {
+        "name": "Transfermarkt snapshot materializer",
+        "path": "scripts/lmm_transfermarkt_snapshot.py",
+        "kind": "BOUNDED_CLI",
+        "file_sha256": "e0c93298be851cacaa6eaf8ddc622e639cf1e7fe4f5f1d76b8d39eca5900fe04",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Manual artifact producer; materialization requires explicit --write.",
+        "symbol": "main"
+      },
+      {
+        "name": "identity evidence",
+        "path": "scripts/arch_p1_03b_identity_evidence.py",
+        "kind": "READ_ONLY_CLI",
+        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Read-only candidate, fixture, and M3 evidence entry point.",
+        "symbol": "main"
+      },
+      {
+        "name": "team value materializer",
+        "path": "scripts/materialize_team_value_asof.py",
+        "kind": "OFFLINE_CLI",
+        "file_sha256": "83694b3a861ac1a2730483d06b1ee01774868ccc40bc6690eb8bbaeda5fcaa5d",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Reachable file-shaped PlayerIdentityCrosswalkV1 consumer.",
+        "symbol": "main"
+      },
+      {
+        "name": "saved lineup materializer",
+        "path": "scripts/lmm_materialize_stored_lineups.py",
+        "kind": "MANUAL_CLI",
+        "file_sha256": "a90b719111f2430f5376a5b44ff2aadd02f7755a41163b332a3adac03b9f5602",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Provider-free one-shot; writes require explicit --write.",
+        "symbol": "main"
+      }
+    ],
+    "config_paths": [
+      {
+        "name": "lineup market policy",
+        "path": "config/policies/lineup_market_policy.v1.json",
+        "kind": "RUNTIME_POLICY",
+        "file_sha256": "a6b3ab7ce1d7a8e88ff1ae27392168382cce1450ec133186eb15c2c4e4de9732",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Loaded by lineup processing."
+      },
+      {
+        "name": "player crosswalk artifact contract",
+        "path": "docs/data/contracts/player_crosswalk.v1.schema.json",
+        "kind": "LEGACY_FILE_CONTRACT_UNDER_REVIEW",
+        "file_sha256": "01eb3d4272e5943caa3259be0a22b8ac26a1293ce2f42ad4ed4daa5e0b284208",
+        "reachability": "PRODUCTION_REACHABLE",
+        "reachability_rationale": "Defines the reachable file-shaped player crosswalk input."
+      }
+    ]
+  },
+  "input_contracts": [
+    {
+      "id": "canonical_player_authority_rows",
+      "accepted_evidence_types": [
+        "REAL_DB",
+        "REAL_PRODUCER_OUTPUT",
+        "CONTENT_ADDRESSED_SANITIZED_ARTIFACT"
+      ],
+      "shape": {
+        "identity_dimensions": [
+          "api_football_player_id",
+          "canonical_team_id",
+          "competition_id",
+          "season",
+          "valid_from",
+          "valid_to"
+        ],
+        "review_fields": [
+          "mapping_status",
+          "reviewed_by",
+          "reviewed_at",
+          "source_hashes",
+          "identity_hash"
+        ],
+        "result": "exactly zero or one canonical_player_id"
+      },
+      "shape_sha256": "336666cc554f344c01d192dbe72493ac49f372d8217ea7bb5b84ba979105461d",
+      "redaction": "Use pg_catalog plus sanitized real row keys and value types; exclude credentials and raw provider payloads."
+    },
+    {
+      "id": "team_value_player_authority_input",
+      "accepted_evidence_types": [
+        "REAL_DB",
+        "REAL_PRODUCER_OUTPUT",
+        "CONTENT_ADDRESSED_SANITIZED_ARTIFACT"
+      ],
+      "shape": {
+        "consumer": "materialize_team_value_asof",
+        "required_authority": "CanonicalIdentityRepository",
+        "required_dimensions": [
+          "canonical_team_id",
+          "competition_id",
+          "season",
+          "as_of"
+        ],
+        "legacy_input": "PlayerIdentityCrosswalkV1 must be removed from runtime scope or proven unreachable"
+      },
+      "shape_sha256": "82148cd20a91ded7b2d2cf261730d0248125bfff1318b4b5b07c5e03c41f98af",
+      "redaction": "Only content-addressed shape and identity dimensions are retained."
+    }
+  ],
+  "alias_rules": [
+    {
+      "field": "mapping_status",
+      "exact_mapping": {
+        "REVIEWED": "REVIEWED"
+      },
+      "reject": [
+        "APPROVED",
+        "MATCHED",
+        "REVIEW_REQUIRED",
+        "reviewed"
+      ]
+    },
+    {
+      "field": "provider_player_id",
+      "exact_mapping": {
+        "non-empty decimal string": "same exact string"
+      },
+      "reject": [
+        "integer coercion",
+        "prefix stripping",
+        "synthetic id"
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "type": "valid",
+      "source_input_id": "canonical_player_authority_rows",
+      "derivation": "UNCHANGED_REAL_INPUT",
+      "expected_output": "one uniquely scoped canonical player and complete reviewed evidence",
+      "fail_closed": true,
+      "forbidden_behaviors": [
+        "file fallback",
+        "provider-id-derived canonical id",
+        "automatic review"
+      ]
+    },
+    {
+      "type": "missing",
+      "source_input_id": "canonical_player_authority_rows",
+      "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT",
+      "expected_output": "None/MISSING and no canonical player",
+      "fail_closed": true,
+      "forbidden_behaviors": [
+        "synthetic candidate",
+        "name-only mapping",
+        "legacy file fallback"
+      ]
+    },
+    {
+      "type": "malformed",
+      "source_input_id": "canonical_player_authority_rows",
+      "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT",
+      "expected_output": "INCOMPLETE and no accepted identity",
+      "fail_closed": true,
+      "forbidden_behaviors": [
+        "default hash",
+        "fixed-count substitution",
+        "partial row acceptance"
+      ]
+    },
+    {
+      "type": "stale",
+      "source_input_id": "canonical_player_authority_rows",
+      "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT",
+      "expected_output": "INVALID_AT_KICKOFF and no canonical player",
+      "fail_closed": true,
+      "forbidden_behaviors": [
+        "latest-row fallback",
+        "ignoring as-of",
+        "future mapping use"
+      ]
+    },
+    {
+      "type": "ambiguous",
+      "source_input_id": "canonical_player_authority_rows",
+      "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT",
+      "expected_output": "AMBIGUOUS and no canonical player",
+      "fail_closed": true,
+      "forbidden_behaviors": [
+        "first-row selection",
+        "highest-confidence guess",
+        "fuzzy auto-approve"
+      ]
+    },
+    {
+      "type": "conflict",
+      "source_input_id": "canonical_player_authority_rows",
+      "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT",
+      "expected_output": "CONFLICT and no accepted join",
+      "fail_closed": true,
+      "forbidden_behaviors": [
+        "team-id rewriting",
+        "conflict suppression",
+        "cross-club match"
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "name": "DEAD_CODE",
+      "applicability": "APPLICABLE",
+      "rationale": "The competing PlayerIdentityCrosswalkV1 path may only be called dead with three-layer proof."
+    },
+    {
+      "name": "ZERO_REACHABILITY",
+      "applicability": "APPLICABLE",
+      "rationale": "The current repository has an offline file-shaped caller and no canonical repository production caller."
+    },
+    {
+      "name": "SINGLE_AUTHORITY",
+      "applicability": "APPLICABLE",
+      "rationale": "Canonical DB and file-shaped identity consumers currently coexist."
+    },
+    {
+      "name": "ZERO_LEGACY_READ_WRITE",
+      "applicability": "APPLICABLE",
+      "rationale": "Runtime and SQL traces must prove no legacy read or write."
+    },
+    {
+      "name": "SAFE_DELETION",
+      "applicability": "NOT_APPLICABLE",
+      "rationale": "ARCH-P1-03B-R1 does not authorize table or compatibility-chain deletion."
+    }
+  ],
+  "required_evidence_layers": [
+    "STATIC_AST",
+    "RUNTIME_SQL_TRACE",
+    "MUTATION_TESTS"
+  ],
+  "primary_contract": {
+    "path": "tests/unit/test_lineup_materialization.py",
+    "test": "test_player_identity_join_evidence_is_read_only_and_deterministic",
+    "producer": "FutureRefreshDbRepository.save_lineup_snapshots",
+    "consumer": "FutureRefreshDbRepository.player_identity_join_evidence",
+    "required_input_types": [
+      "REAL_DB",
+      "REAL_PRODUCER_OUTPUT",
+      "CONTENT_ADDRESSED_SANITIZED_ARTIFACT"
+    ],
+    "handwritten_primary_forbidden": true
+  },
+  "frozen_assertions": [
+    {
+      "id": "RESOLVE_PLAYER_FULL_SCOPE",
+      "requirement": "resolve_player uniquely resolves by player, team, competition, season, and as-of.",
+      "forbidden": [
+        "player-only query",
+        "first-row selection",
+        "ignoring team/competition/season/as-of"
+      ]
+    },
+    {
+      "id": "APPROVED_PLAYERS_REAL_AUTHORITY",
+      "requirement": "approved_players_for_team reads real REVIEWED canonical authority rows.",
+      "forbidden": [
+        "fixed empty return",
+        "file fallback",
+        "unreviewed mappings"
+      ]
+    },
+    {
+      "id": "FILE_CONSUMER_CONVERGENCE",
+      "requirement": "Every PlayerIdentityCrosswalkV1 file consumer switches to CanonicalIdentityRepository or is proven outside runtime scope.",
+      "forbidden": [
+        "unmeasured zero reachability",
+        "parallel authority",
+        "legacy fallback"
+      ]
+    }
+  ],
+  "measurement_plan": [
+    {
+      "measurement_id": "ASSERT_RESOLVE_PLAYER_FULL_SCOPE",
+      "target_kind": "FROZEN_ASSERTION",
+      "target_id": "RESOLVE_PLAYER_FULL_SCOPE",
+      "argv": [
+        "python3",
+        "scripts/arch_p1_03b_identity_evidence.py",
+        "--as-of",
+        "2026-11-30T23:59:59Z",
+        "--fixtures",
+        "1494212",
+        "1494213",
+        "1494214",
+        "1494215",
+        "1494216",
+        "--m3-fixtures",
+        "1494212",
+        "1494214",
+        "1494216",
+        "--manifest",
+        "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+        "--review-package-sha256",
+        "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
+        "--approval-artifact-sha256",
+        "a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695",
+        "--reviewed-by",
+        "operator:liudehua"
+      ],
+      "command_sha256": "87b768b64d72ff77961dd3a3a717fa3f6a17e75937a0f48fef431b010f9de518",
+      "expected_evidence_path": "detached-evidence/assert-resolve.json",
+      "evidence_type": "STATIC_AST_SCAN",
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "subject_head",
+          "observed_output",
+          "result_fingerprint",
+          "provider_call_delta",
+          "db_write_delta"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "subject_head": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "observed_output": {},
+          "result_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "provider_call_delta": {
+            "const": 0
+          },
+          "db_write_delta": {
+            "const": 0
+          }
+        },
+        "additionalProperties": true
+      },
+      "subject_head": "IMPLEMENTATION_EXACT_HEAD",
+      "generator": {
+        "path": "scripts/arch_p1_03b_identity_evidence.py",
+        "symbol": "main",
+        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+      },
+      "allowed_exit_codes": [
+        0
+      ],
+      "fingerprint_rule": "EVIDENCE_RESULT_FINGERPRINT",
+      "pytest_nodeid": "tests/unit/test_lineup_materialization.py::test_m2b_materializes_only_full_name_authority_chain_candidates"
+    },
+    {
+      "measurement_id": "ASSERT_APPROVED_PLAYERS_REAL_AUTHORITY",
+      "target_kind": "FROZEN_ASSERTION",
+      "target_id": "APPROVED_PLAYERS_REAL_AUTHORITY",
+      "argv": [
+        "python3",
+        "scripts/arch_p1_03b_identity_evidence.py",
+        "--as-of",
+        "2026-11-30T23:59:59Z",
+        "--fixtures",
+        "1494212",
+        "1494213",
+        "1494214",
+        "1494215",
+        "1494216",
+        "--m3-fixtures",
+        "1494212",
+        "1494214",
+        "1494216",
+        "--manifest",
+        "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+        "--review-package-sha256",
+        "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
+        "--approval-artifact-sha256",
+        "a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695",
+        "--reviewed-by",
+        "operator:liudehua"
+      ],
+      "command_sha256": "87b768b64d72ff77961dd3a3a717fa3f6a17e75937a0f48fef431b010f9de518",
+      "expected_evidence_path": "detached-evidence/assert-approved.json",
+      "evidence_type": "STATIC_AST_SCAN",
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "subject_head",
+          "observed_output",
+          "result_fingerprint",
+          "provider_call_delta",
+          "db_write_delta"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "subject_head": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "observed_output": {},
+          "result_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "provider_call_delta": {
+            "const": 0
+          },
+          "db_write_delta": {
+            "const": 0
+          }
+        },
+        "additionalProperties": true
+      },
+      "subject_head": "IMPLEMENTATION_EXACT_HEAD",
+      "generator": {
+        "path": "scripts/arch_p1_03b_identity_evidence.py",
+        "symbol": "main",
+        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+      },
+      "allowed_exit_codes": [
+        0
+      ],
+      "fingerprint_rule": "EVIDENCE_RESULT_FINGERPRINT",
+      "pytest_nodeid": "tests/unit/test_lineup_materialization.py::test_player_identity_join_evidence_is_read_only_and_deterministic"
+    },
+    {
+      "measurement_id": "ASSERT_FILE_CONSUMER_CONVERGENCE",
+      "target_kind": "FROZEN_ASSERTION",
+      "target_id": "FILE_CONSUMER_CONVERGENCE",
+      "argv": [
+        "python3",
+        "scripts/arch_p1_03b_identity_evidence.py",
+        "--as-of",
+        "2026-11-30T23:59:59Z",
+        "--fixtures",
+        "1494212",
+        "1494213",
+        "1494214",
+        "1494215",
+        "1494216",
+        "--m3-fixtures",
+        "1494212",
+        "1494214",
+        "1494216",
+        "--manifest",
+        "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+        "--review-package-sha256",
+        "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
+        "--approval-artifact-sha256",
+        "a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695",
+        "--reviewed-by",
+        "operator:liudehua"
+      ],
+      "command_sha256": "87b768b64d72ff77961dd3a3a717fa3f6a17e75937a0f48fef431b010f9de518",
+      "expected_evidence_path": "detached-evidence/assert-file-consumer.json",
+      "evidence_type": "STATIC_AST_SCAN",
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "subject_head",
+          "observed_output",
+          "result_fingerprint",
+          "provider_call_delta",
+          "db_write_delta"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "subject_head": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "observed_output": {},
+          "result_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "provider_call_delta": {
+            "const": 0
+          },
+          "db_write_delta": {
+            "const": 0
+          }
+        },
+        "additionalProperties": true
+      },
+      "subject_head": "IMPLEMENTATION_EXACT_HEAD",
+      "generator": {
+        "path": "scripts/arch_p1_03b_identity_evidence.py",
+        "symbol": "main",
+        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+      },
+      "allowed_exit_codes": [
+        0
+      ],
+      "fingerprint_rule": "EVIDENCE_RESULT_FINGERPRINT",
+      "pytest_nodeid": "tests/unit/test_fah_data_foundation.py::test_team_value_asof_uses_source_valuation_date_and_rejects_future"
+    },
+    {
+      "measurement_id": "INPUT_CANONICAL_PLAYER_AUTHORITY_ROWS",
+      "target_kind": "INPUT",
+      "target_id": "canonical_player_authority_rows",
+      "argv": [
+        "python3",
+        "scripts/arch_p1_03b_identity_evidence.py",
+        "--as-of",
+        "2026-11-30T23:59:59Z",
+        "--fixtures",
+        "1494212",
+        "1494213",
+        "1494214",
+        "1494215",
+        "1494216",
+        "--m3-fixtures",
+        "1494212",
+        "1494214",
+        "1494216",
+        "--manifest",
+        "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+        "--review-package-sha256",
+        "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
+        "--approval-artifact-sha256",
+        "a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695",
+        "--reviewed-by",
+        "operator:liudehua"
+      ],
+      "command_sha256": "87b768b64d72ff77961dd3a3a717fa3f6a17e75937a0f48fef431b010f9de518",
+      "expected_evidence_path": "detached-evidence/input-canonical.json",
+      "evidence_type": "REAL_PRODUCER_OUTPUT",
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "subject_head",
+          "observed_output",
+          "result_fingerprint",
+          "provider_call_delta",
+          "db_write_delta"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "subject_head": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "observed_output": {},
+          "result_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "provider_call_delta": {
+            "const": 0
+          },
+          "db_write_delta": {
+            "const": 0
+          }
+        },
+        "additionalProperties": true
+      },
+      "subject_head": "IMPLEMENTATION_EXACT_HEAD",
+      "generator": {
+        "path": "scripts/arch_p1_03b_identity_evidence.py",
+        "symbol": "main",
+        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+      },
+      "allowed_exit_codes": [
+        0
+      ],
+      "fingerprint_rule": "EVIDENCE_RESULT_FINGERPRINT",
+      "pytest_nodeid": "tests/unit/test_lineup_materialization.py::test_player_identity_join_evidence_is_read_only_and_deterministic"
+    },
+    {
+      "measurement_id": "INPUT_TEAM_VALUE_PLAYER_AUTHORITY",
+      "target_kind": "INPUT",
+      "target_id": "team_value_player_authority_input",
+      "argv": [
+        "python3",
+        "scripts/arch_p1_03b_identity_evidence.py",
+        "--as-of",
+        "2026-11-30T23:59:59Z",
+        "--fixtures",
+        "1494212",
+        "1494213",
+        "1494214",
+        "1494215",
+        "1494216",
+        "--m3-fixtures",
+        "1494212",
+        "1494214",
+        "1494216",
+        "--manifest",
+        "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+        "--review-package-sha256",
+        "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
+        "--approval-artifact-sha256",
+        "a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695",
+        "--reviewed-by",
+        "operator:liudehua"
+      ],
+      "command_sha256": "87b768b64d72ff77961dd3a3a717fa3f6a17e75937a0f48fef431b010f9de518",
+      "expected_evidence_path": "detached-evidence/input-team-value.json",
+      "evidence_type": "CONTENT_ADDRESSED_SANITIZED_ARTIFACT",
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "subject_head",
+          "observed_output",
+          "result_fingerprint",
+          "provider_call_delta",
+          "db_write_delta"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "subject_head": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "observed_output": {},
+          "result_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "provider_call_delta": {
+            "const": 0
+          },
+          "db_write_delta": {
+            "const": 0
+          }
+        },
+        "additionalProperties": true
+      },
+      "subject_head": "IMPLEMENTATION_EXACT_HEAD",
+      "generator": {
+        "path": "scripts/arch_p1_03b_identity_evidence.py",
+        "symbol": "main",
+        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+      },
+      "allowed_exit_codes": [
+        0
+      ],
+      "fingerprint_rule": "EVIDENCE_RESULT_FINGERPRINT",
+      "pytest_nodeid": "tests/unit/test_fah_data_foundation.py::test_team_value_asof_uses_source_valuation_date_and_rejects_future"
+    },
+    {
+      "measurement_id": "CASE_VALID",
+      "target_kind": "CASE",
+      "target_id": "valid",
+      "argv": [
+        "python3",
+        "scripts/arch_p1_03b_identity_evidence.py",
+        "--as-of",
+        "2026-11-30T23:59:59Z",
+        "--fixtures",
+        "1494212",
+        "1494213",
+        "1494214",
+        "1494215",
+        "1494216",
+        "--m3-fixtures",
+        "1494212",
+        "1494214",
+        "1494216",
+        "--manifest",
+        "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+        "--review-package-sha256",
+        "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
+        "--approval-artifact-sha256",
+        "a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695",
+        "--reviewed-by",
+        "operator:liudehua"
+      ],
+      "command_sha256": "87b768b64d72ff77961dd3a3a717fa3f6a17e75937a0f48fef431b010f9de518",
+      "expected_evidence_path": "detached-evidence/case-valid.json",
+      "evidence_type": "REAL_PRODUCER_OUTPUT",
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "subject_head",
+          "observed_output",
+          "result_fingerprint",
+          "provider_call_delta",
+          "db_write_delta"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "subject_head": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "observed_output": {},
+          "result_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "provider_call_delta": {
+            "const": 0
+          },
+          "db_write_delta": {
+            "const": 0
+          }
+        },
+        "additionalProperties": true
+      },
+      "subject_head": "IMPLEMENTATION_EXACT_HEAD",
+      "generator": {
+        "path": "scripts/arch_p1_03b_identity_evidence.py",
+        "symbol": "main",
+        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+      },
+      "allowed_exit_codes": [
+        0
+      ],
+      "fingerprint_rule": "EVIDENCE_RESULT_FINGERPRINT",
+      "pytest_nodeid": "tests/unit/test_lineup_materialization.py::test_player_identity_join_evidence_is_read_only_and_deterministic"
+    },
+    {
+      "measurement_id": "CASE_MISSING",
+      "target_kind": "CASE",
+      "target_id": "missing",
+      "argv": [
+        "python3",
+        "scripts/arch_p1_03b_identity_evidence.py",
+        "--as-of",
+        "2026-11-30T23:59:59Z",
+        "--fixtures",
+        "1494212",
+        "1494213",
+        "1494214",
+        "1494215",
+        "1494216",
+        "--m3-fixtures",
+        "1494212",
+        "1494214",
+        "1494216",
+        "--manifest",
+        "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+        "--review-package-sha256",
+        "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
+        "--approval-artifact-sha256",
+        "a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695",
+        "--reviewed-by",
+        "operator:liudehua"
+      ],
+      "command_sha256": "87b768b64d72ff77961dd3a3a717fa3f6a17e75937a0f48fef431b010f9de518",
+      "expected_evidence_path": "detached-evidence/case-missing.json",
+      "evidence_type": "REAL_PRODUCER_OUTPUT",
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "subject_head",
+          "observed_output",
+          "result_fingerprint",
+          "provider_call_delta",
+          "db_write_delta"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "subject_head": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "observed_output": {},
+          "result_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "provider_call_delta": {
+            "const": 0
+          },
+          "db_write_delta": {
+            "const": 0
+          }
+        },
+        "additionalProperties": true
+      },
+      "subject_head": "IMPLEMENTATION_EXACT_HEAD",
+      "generator": {
+        "path": "scripts/arch_p1_03b_identity_evidence.py",
+        "symbol": "main",
+        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+      },
+      "allowed_exit_codes": [
+        0
+      ],
+      "fingerprint_rule": "EVIDENCE_RESULT_FINGERPRINT",
+      "pytest_nodeid": "tests/unit/test_fah_data_foundation.py::test_missing_crosswalk_and_conflicting_crosswalk"
+    },
+    {
+      "measurement_id": "CASE_MALFORMED",
+      "target_kind": "CASE",
+      "target_id": "malformed",
+      "argv": [
+        "python3",
+        "scripts/arch_p1_03b_identity_evidence.py",
+        "--as-of",
+        "2026-11-30T23:59:59Z",
+        "--fixtures",
+        "1494212",
+        "1494213",
+        "1494214",
+        "1494215",
+        "1494216",
+        "--m3-fixtures",
+        "1494212",
+        "1494214",
+        "1494216",
+        "--manifest",
+        "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+        "--review-package-sha256",
+        "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
+        "--approval-artifact-sha256",
+        "a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695",
+        "--reviewed-by",
+        "operator:liudehua"
+      ],
+      "command_sha256": "87b768b64d72ff77961dd3a3a717fa3f6a17e75937a0f48fef431b010f9de518",
+      "expected_evidence_path": "detached-evidence/case-malformed.json",
+      "evidence_type": "REAL_PRODUCER_OUTPUT",
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "subject_head",
+          "observed_output",
+          "result_fingerprint",
+          "provider_call_delta",
+          "db_write_delta"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "subject_head": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "observed_output": {},
+          "result_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "provider_call_delta": {
+            "const": 0
+          },
+          "db_write_delta": {
+            "const": 0
+          }
+        },
+        "additionalProperties": true
+      },
+      "subject_head": "IMPLEMENTATION_EXACT_HEAD",
+      "generator": {
+        "path": "scripts/arch_p1_03b_identity_evidence.py",
+        "symbol": "main",
+        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+      },
+      "allowed_exit_codes": [
+        0
+      ],
+      "fingerprint_rule": "EVIDENCE_RESULT_FINGERPRINT",
+      "pytest_nodeid": "tests/unit/test_fah_data_foundation.py::test_player_crosswalk_requires_reviewed_evidence_and_approved_team_crosswalk"
+    },
+    {
+      "measurement_id": "CASE_STALE",
+      "target_kind": "CASE",
+      "target_id": "stale",
+      "argv": [
+        "python3",
+        "scripts/arch_p1_03b_identity_evidence.py",
+        "--as-of",
+        "2026-11-30T23:59:59Z",
+        "--fixtures",
+        "1494212",
+        "1494213",
+        "1494214",
+        "1494215",
+        "1494216",
+        "--m3-fixtures",
+        "1494212",
+        "1494214",
+        "1494216",
+        "--manifest",
+        "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+        "--review-package-sha256",
+        "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
+        "--approval-artifact-sha256",
+        "a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695",
+        "--reviewed-by",
+        "operator:liudehua"
+      ],
+      "command_sha256": "87b768b64d72ff77961dd3a3a717fa3f6a17e75937a0f48fef431b010f9de518",
+      "expected_evidence_path": "detached-evidence/case-stale.json",
+      "evidence_type": "REAL_PRODUCER_OUTPUT",
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "subject_head",
+          "observed_output",
+          "result_fingerprint",
+          "provider_call_delta",
+          "db_write_delta"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "subject_head": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "observed_output": {},
+          "result_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "provider_call_delta": {
+            "const": 0
+          },
+          "db_write_delta": {
+            "const": 0
+          }
+        },
+        "additionalProperties": true
+      },
+      "subject_head": "IMPLEMENTATION_EXACT_HEAD",
+      "generator": {
+        "path": "scripts/arch_p1_03b_identity_evidence.py",
+        "symbol": "main",
+        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+      },
+      "allowed_exit_codes": [
+        0
+      ],
+      "fingerprint_rule": "EVIDENCE_RESULT_FINGERPRINT",
+      "pytest_nodeid": "tests/unit/test_fah_data_foundation.py::test_team_value_asof_uses_source_valuation_date_and_rejects_future"
+    },
+    {
+      "measurement_id": "CASE_AMBIGUOUS",
+      "target_kind": "CASE",
+      "target_id": "ambiguous",
+      "argv": [
+        "python3",
+        "scripts/arch_p1_03b_identity_evidence.py",
+        "--as-of",
+        "2026-11-30T23:59:59Z",
+        "--fixtures",
+        "1494212",
+        "1494213",
+        "1494214",
+        "1494215",
+        "1494216",
+        "--m3-fixtures",
+        "1494212",
+        "1494214",
+        "1494216",
+        "--manifest",
+        "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+        "--review-package-sha256",
+        "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
+        "--approval-artifact-sha256",
+        "a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695",
+        "--reviewed-by",
+        "operator:liudehua"
+      ],
+      "command_sha256": "87b768b64d72ff77961dd3a3a717fa3f6a17e75937a0f48fef431b010f9de518",
+      "expected_evidence_path": "detached-evidence/case-ambiguous.json",
+      "evidence_type": "REAL_PRODUCER_OUTPUT",
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "subject_head",
+          "observed_output",
+          "result_fingerprint",
+          "provider_call_delta",
+          "db_write_delta"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "subject_head": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "observed_output": {},
+          "result_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "provider_call_delta": {
+            "const": 0
+          },
+          "db_write_delta": {
+            "const": 0
+          }
+        },
+        "additionalProperties": true
+      },
+      "subject_head": "IMPLEMENTATION_EXACT_HEAD",
+      "generator": {
+        "path": "scripts/arch_p1_03b_identity_evidence.py",
+        "symbol": "main",
+        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+      },
+      "allowed_exit_codes": [
+        0
+      ],
+      "fingerprint_rule": "EVIDENCE_RESULT_FINGERPRINT",
+      "pytest_nodeid": "tests/unit/test_fah_data_foundation.py::test_team_value_asof_rejects_same_day_valuation_conflict"
+    },
+    {
+      "measurement_id": "CASE_CONFLICT",
+      "target_kind": "CASE",
+      "target_id": "conflict",
+      "argv": [
+        "python3",
+        "scripts/arch_p1_03b_identity_evidence.py",
+        "--as-of",
+        "2026-11-30T23:59:59Z",
+        "--fixtures",
+        "1494212",
+        "1494213",
+        "1494214",
+        "1494215",
+        "1494216",
+        "--m3-fixtures",
+        "1494212",
+        "1494214",
+        "1494216",
+        "--manifest",
+        "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+        "--review-package-sha256",
+        "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
+        "--approval-artifact-sha256",
+        "a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695",
+        "--reviewed-by",
+        "operator:liudehua"
+      ],
+      "command_sha256": "87b768b64d72ff77961dd3a3a717fa3f6a17e75937a0f48fef431b010f9de518",
+      "expected_evidence_path": "detached-evidence/case-conflict.json",
+      "evidence_type": "REAL_PRODUCER_OUTPUT",
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "subject_head",
+          "observed_output",
+          "result_fingerprint",
+          "provider_call_delta",
+          "db_write_delta"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "subject_head": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "observed_output": {},
+          "result_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "provider_call_delta": {
+            "const": 0
+          },
+          "db_write_delta": {
+            "const": 0
+          }
+        },
+        "additionalProperties": true
+      },
+      "subject_head": "IMPLEMENTATION_EXACT_HEAD",
+      "generator": {
+        "path": "scripts/arch_p1_03b_identity_evidence.py",
+        "symbol": "main",
+        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+      },
+      "allowed_exit_codes": [
+        0
+      ],
+      "fingerprint_rule": "EVIDENCE_RESULT_FINGERPRINT",
+      "pytest_nodeid": "tests/unit/test_fah_data_foundation.py::test_result_identity_conflict_is_isolated"
+    },
+    {
+      "measurement_id": "LAYER_STATIC_AST",
+      "target_kind": "LAYER",
+      "target_id": "STATIC_AST",
+      "argv": [
+        "python3",
+        "scripts/arch_p1_03b_identity_evidence.py",
+        "--as-of",
+        "2026-11-30T23:59:59Z",
+        "--fixtures",
+        "1494212",
+        "1494213",
+        "1494214",
+        "1494215",
+        "1494216",
+        "--m3-fixtures",
+        "1494212",
+        "1494214",
+        "1494216",
+        "--manifest",
+        "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+        "--review-package-sha256",
+        "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
+        "--approval-artifact-sha256",
+        "a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695",
+        "--reviewed-by",
+        "operator:liudehua"
+      ],
+      "command_sha256": "87b768b64d72ff77961dd3a3a717fa3f6a17e75937a0f48fef431b010f9de518",
+      "expected_evidence_path": "detached-evidence/layer-static.json",
+      "evidence_type": "STATIC_AST_SCAN",
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "subject_head",
+          "observed_output",
+          "result_fingerprint",
+          "provider_call_delta",
+          "db_write_delta"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "subject_head": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "observed_output": {},
+          "result_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "provider_call_delta": {
+            "const": 0
+          },
+          "db_write_delta": {
+            "const": 0
+          }
+        },
+        "additionalProperties": true
+      },
+      "subject_head": "IMPLEMENTATION_EXACT_HEAD",
+      "generator": {
+        "path": "scripts/arch_p1_03b_identity_evidence.py",
+        "symbol": "main",
+        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+      },
+      "allowed_exit_codes": [
+        0
+      ],
+      "fingerprint_rule": "EVIDENCE_RESULT_FINGERPRINT",
+      "pytest_nodeid": "tests/unit/test_arch_p1_03_identity_guards.py::test_legacy_crosswalk_runtime_references_are_zero"
+    },
+    {
+      "measurement_id": "LAYER_RUNTIME_SQL_TRACE",
+      "target_kind": "LAYER",
+      "target_id": "RUNTIME_SQL_TRACE",
+      "argv": [
+        "python3",
+        "scripts/arch_p1_03b_identity_evidence.py",
+        "--as-of",
+        "2026-11-30T23:59:59Z",
+        "--fixtures",
+        "1494212",
+        "1494213",
+        "1494214",
+        "1494215",
+        "1494216",
+        "--m3-fixtures",
+        "1494212",
+        "1494214",
+        "1494216",
+        "--manifest",
+        "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+        "--review-package-sha256",
+        "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
+        "--approval-artifact-sha256",
+        "a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695",
+        "--reviewed-by",
+        "operator:liudehua"
+      ],
+      "command_sha256": "87b768b64d72ff77961dd3a3a717fa3f6a17e75937a0f48fef431b010f9de518",
+      "expected_evidence_path": "detached-evidence/layer-runtime.json",
+      "evidence_type": "RUNTIME_SQL_TRACE",
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "subject_head",
+          "observed_output",
+          "result_fingerprint",
+          "provider_call_delta",
+          "db_write_delta"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "subject_head": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "observed_output": {},
+          "result_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "provider_call_delta": {
+            "const": 0
+          },
+          "db_write_delta": {
+            "const": 0
+          }
+        },
+        "additionalProperties": true
+      },
+      "subject_head": "IMPLEMENTATION_EXACT_HEAD",
+      "generator": {
+        "path": "scripts/arch_p1_03b_identity_evidence.py",
+        "symbol": "main",
+        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+      },
+      "allowed_exit_codes": [
+        0
+      ],
+      "fingerprint_rule": "EVIDENCE_RESULT_FINGERPRINT",
+      "pytest_nodeid": "tests/unit/test_lineup_materialization.py::test_player_identity_join_evidence_is_read_only_and_deterministic"
+    },
+    {
+      "measurement_id": "LAYER_MUTATION_TESTS",
+      "target_kind": "LAYER",
+      "target_id": "MUTATION_TESTS",
+      "argv": [
+        "python3",
+        "scripts/arch_p1_03b_identity_evidence.py",
+        "--as-of",
+        "2026-11-30T23:59:59Z",
+        "--fixtures",
+        "1494212",
+        "1494213",
+        "1494214",
+        "1494215",
+        "1494216",
+        "--m3-fixtures",
+        "1494212",
+        "1494214",
+        "1494216",
+        "--manifest",
+        "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+        "--review-package-sha256",
+        "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
+        "--approval-artifact-sha256",
+        "a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695",
+        "--reviewed-by",
+        "operator:liudehua"
+      ],
+      "command_sha256": "87b768b64d72ff77961dd3a3a717fa3f6a17e75937a0f48fef431b010f9de518",
+      "expected_evidence_path": "detached-evidence/layer-mutation.json",
+      "evidence_type": "MUTATION_TEST",
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "subject_head",
+          "observed_output",
+          "result_fingerprint",
+          "provider_call_delta",
+          "db_write_delta"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "subject_head": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "observed_output": {},
+          "result_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "provider_call_delta": {
+            "const": 0
+          },
+          "db_write_delta": {
+            "const": 0
+          }
+        },
+        "additionalProperties": true
+      },
+      "subject_head": "IMPLEMENTATION_EXACT_HEAD",
+      "generator": {
+        "path": "scripts/arch_p1_03b_identity_evidence.py",
+        "symbol": "main",
+        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+      },
+      "allowed_exit_codes": [
+        0
+      ],
+      "fingerprint_rule": "EVIDENCE_RESULT_FINGERPRINT",
+      "pytest_nodeid": "tests/unit/test_fah_data_foundation.py::test_missing_crosswalk_and_conflicting_crosswalk"
+    },
+    {
+      "measurement_id": "CLAIM_DEAD_CODE",
+      "target_kind": "CLAIM",
+      "target_id": "DEAD_CODE",
+      "argv": [
+        "python3",
+        "scripts/arch_p1_03b_identity_evidence.py",
+        "--as-of",
+        "2026-11-30T23:59:59Z",
+        "--fixtures",
+        "1494212",
+        "1494213",
+        "1494214",
+        "1494215",
+        "1494216",
+        "--m3-fixtures",
+        "1494212",
+        "1494214",
+        "1494216",
+        "--manifest",
+        "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+        "--review-package-sha256",
+        "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
+        "--approval-artifact-sha256",
+        "a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695",
+        "--reviewed-by",
+        "operator:liudehua"
+      ],
+      "command_sha256": "87b768b64d72ff77961dd3a3a717fa3f6a17e75937a0f48fef431b010f9de518",
+      "expected_evidence_path": "detached-evidence/claim-dead-code.json",
+      "evidence_type": "STATIC_AST_SCAN",
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "subject_head",
+          "observed_output",
+          "result_fingerprint",
+          "provider_call_delta",
+          "db_write_delta"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "subject_head": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "observed_output": {},
+          "result_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "provider_call_delta": {
+            "const": 0
+          },
+          "db_write_delta": {
+            "const": 0
+          }
+        },
+        "additionalProperties": true
+      },
+      "subject_head": "IMPLEMENTATION_EXACT_HEAD",
+      "generator": {
+        "path": "scripts/arch_p1_03b_identity_evidence.py",
+        "symbol": "main",
+        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+      },
+      "allowed_exit_codes": [
+        0
+      ],
+      "fingerprint_rule": "EVIDENCE_RESULT_FINGERPRINT",
+      "pytest_nodeid": "tests/unit/test_arch_p1_03_identity_guards.py::test_legacy_crosswalk_runtime_references_are_zero"
+    },
+    {
+      "measurement_id": "CLAIM_ZERO_REACHABILITY",
+      "target_kind": "CLAIM",
+      "target_id": "ZERO_REACHABILITY",
+      "argv": [
+        "python3",
+        "scripts/arch_p1_03b_identity_evidence.py",
+        "--as-of",
+        "2026-11-30T23:59:59Z",
+        "--fixtures",
+        "1494212",
+        "1494213",
+        "1494214",
+        "1494215",
+        "1494216",
+        "--m3-fixtures",
+        "1494212",
+        "1494214",
+        "1494216",
+        "--manifest",
+        "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+        "--review-package-sha256",
+        "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
+        "--approval-artifact-sha256",
+        "a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695",
+        "--reviewed-by",
+        "operator:liudehua"
+      ],
+      "command_sha256": "87b768b64d72ff77961dd3a3a717fa3f6a17e75937a0f48fef431b010f9de518",
+      "expected_evidence_path": "detached-evidence/claim-zero-reachability.json",
+      "evidence_type": "STATIC_AST_SCAN",
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "subject_head",
+          "observed_output",
+          "result_fingerprint",
+          "provider_call_delta",
+          "db_write_delta"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "subject_head": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "observed_output": {},
+          "result_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "provider_call_delta": {
+            "const": 0
+          },
+          "db_write_delta": {
+            "const": 0
+          }
+        },
+        "additionalProperties": true
+      },
+      "subject_head": "IMPLEMENTATION_EXACT_HEAD",
+      "generator": {
+        "path": "scripts/arch_p1_03b_identity_evidence.py",
+        "symbol": "main",
+        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+      },
+      "allowed_exit_codes": [
+        0
+      ],
+      "fingerprint_rule": "EVIDENCE_RESULT_FINGERPRINT",
+      "pytest_nodeid": "tests/unit/test_arch_p1_03_identity_guards.py::test_legacy_crosswalk_runtime_references_are_zero"
+    },
+    {
+      "measurement_id": "CLAIM_SINGLE_AUTHORITY",
+      "target_kind": "CLAIM",
+      "target_id": "SINGLE_AUTHORITY",
+      "argv": [
+        "python3",
+        "scripts/arch_p1_03b_identity_evidence.py",
+        "--as-of",
+        "2026-11-30T23:59:59Z",
+        "--fixtures",
+        "1494212",
+        "1494213",
+        "1494214",
+        "1494215",
+        "1494216",
+        "--m3-fixtures",
+        "1494212",
+        "1494214",
+        "1494216",
+        "--manifest",
+        "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+        "--review-package-sha256",
+        "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
+        "--approval-artifact-sha256",
+        "a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695",
+        "--reviewed-by",
+        "operator:liudehua"
+      ],
+      "command_sha256": "87b768b64d72ff77961dd3a3a717fa3f6a17e75937a0f48fef431b010f9de518",
+      "expected_evidence_path": "detached-evidence/claim-single-authority.json",
+      "evidence_type": "STATIC_AST_SCAN",
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "subject_head",
+          "observed_output",
+          "result_fingerprint",
+          "provider_call_delta",
+          "db_write_delta"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "subject_head": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "observed_output": {},
+          "result_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "provider_call_delta": {
+            "const": 0
+          },
+          "db_write_delta": {
+            "const": 0
+          }
+        },
+        "additionalProperties": true
+      },
+      "subject_head": "IMPLEMENTATION_EXACT_HEAD",
+      "generator": {
+        "path": "scripts/arch_p1_03b_identity_evidence.py",
+        "symbol": "main",
+        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+      },
+      "allowed_exit_codes": [
+        0
+      ],
+      "fingerprint_rule": "EVIDENCE_RESULT_FINGERPRINT",
+      "pytest_nodeid": "tests/unit/test_fah_data_foundation.py::test_player_crosswalk_requires_reviewed_evidence_and_approved_team_crosswalk"
+    },
+    {
+      "measurement_id": "CLAIM_ZERO_LEGACY_READ_WRITE",
+      "target_kind": "CLAIM",
+      "target_id": "ZERO_LEGACY_READ_WRITE",
+      "argv": [
+        "python3",
+        "scripts/arch_p1_03b_identity_evidence.py",
+        "--as-of",
+        "2026-11-30T23:59:59Z",
+        "--fixtures",
+        "1494212",
+        "1494213",
+        "1494214",
+        "1494215",
+        "1494216",
+        "--m3-fixtures",
+        "1494212",
+        "1494214",
+        "1494216",
+        "--manifest",
+        "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+        "--review-package-sha256",
+        "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
+        "--approval-artifact-sha256",
+        "a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695",
+        "--reviewed-by",
+        "operator:liudehua"
+      ],
+      "command_sha256": "87b768b64d72ff77961dd3a3a717fa3f6a17e75937a0f48fef431b010f9de518",
+      "expected_evidence_path": "detached-evidence/claim-zero-legacy.json",
+      "evidence_type": "STATIC_AST_SCAN",
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "subject_head",
+          "observed_output",
+          "result_fingerprint",
+          "provider_call_delta",
+          "db_write_delta"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "subject_head": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "observed_output": {},
+          "result_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "provider_call_delta": {
+            "const": 0
+          },
+          "db_write_delta": {
+            "const": 0
+          }
+        },
+        "additionalProperties": true
+      },
+      "subject_head": "IMPLEMENTATION_EXACT_HEAD",
+      "generator": {
+        "path": "scripts/arch_p1_03b_identity_evidence.py",
+        "symbol": "main",
+        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+      },
+      "allowed_exit_codes": [
+        0
+      ],
+      "fingerprint_rule": "EVIDENCE_RESULT_FINGERPRINT",
+      "pytest_nodeid": "tests/unit/test_arch_p1_03_identity_guards.py::test_legacy_crosswalk_table_names_are_absent_from_runtime"
+    }
+  ],
+  "review_policy": {
+    "immutable_during_implementation_and_closure": true,
+    "scope_change_pr_kind": "PREFLIGHT",
+    "post_implementation_review": "FROZEN_ASSERTIONS_AND_NEW_DIFF_REGRESSIONS_ONLY",
+    "old_head_first_miss_label": "REVIEW_MISS"
+  },
+  "spec_sha256": "dedfb4622e3ba495ae85000f18b64f505d55ece356d4f6a60848c7332ae914ae"
+}

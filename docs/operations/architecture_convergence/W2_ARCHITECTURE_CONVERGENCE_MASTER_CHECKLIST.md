@@ -739,8 +739,11 @@ Historical task: ARCH-P1-03B (DONE, PR #402,
   merge df8fc4578fb4d45e2fb7afb95f58748f459a69a8)
 Predecessor: ARCH-GOVERNANCE-03
 Successor: ARCH-OBS-01
-Immutable spec: NONE (must be added by ARCH-P1-03B-R1 PREFLIGHT)
-Baseline receipt: NONE (must be added by ARCH-P1-03B-R1 PREFLIGHT)
+PREFLIGHT PR: #414
+Frozen baseline: a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54
+Immutable spec: docs/operations/architecture_convergence/acceptance_matrices/ARCH-P1-03B-R1.spec.json
+Baseline receipt: docs/operations/architecture_convergence/acceptance_matrices/ARCH-P1-03B-R1.baseline.json
+Supporting read-only capture: docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight-capture.json
 Final attestation: add-only in the later closure PR after implementation acceptance
 Derived implementation gate: BLOCKED
 Allowed next PR kind: PREFLIGHT
@@ -748,9 +751,11 @@ Allowed next PR kind: PREFLIGHT
 
 本任务只承载对历史 DONE 任务的后续整改；不得改写 `ARCH-P1-03B` 的 DONE 状态、
 PR、Merge SHA、66 条审批或 M3 验收坐标。
-当前没有 active spec、baseline receipt 或 final attestation，implementation gate
-尚未 OPEN。下一步只能创建只读 PREFLIGHT；不得直接修改 production identity
-repository。
+active spec 与 baseline receipt 已由本只读 PREFLIGHT 冻结；final attestation
+仍不存在。真实 staging PostgreSQL 已取得 66 条 REVIEWED mapping、schema/index、
+migration、lineup join 与零副作用 fingerprint，但 subject-head generator 尚不符合
+lifecycle `--output` replay 契约，因此 implementation gate 保持 `BLOCKED`。
+不得直接修改 production identity repository。
 
 ---
 
