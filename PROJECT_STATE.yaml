@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-27T05:15:00Z"
+updated_at: "2026-07-27T08:03:00Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -28,14 +28,14 @@ context_read_order:
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  main_sha: bfdd79b3814008d9988f8f5d76d566145188e1e4
+  main_sha: f891f25dac1c0b663facab94dc0e05c54b84f4eb
   main_migration_head: 0043_drop_legacy_identity_crosswalks
-  pull_request: GITHUB_REMEDIATION_PR
+  pull_request: 412
   pull_request_mode: DRAFT
-  pull_request_head_branch: codex/arch-governance-03-main-push-remediation
-  task_baseline_sha: bfdd79b3814008d9988f8f5d76d566145188e1e4
-  local_work_branch: codex/arch-governance-03-main-push-remediation
-  github_sync_status: ARCH_GOVERNANCE_03_MAIN_PUSH_REMEDIATION_DRAFT
+  pull_request_head_branch: codex/arch-governance-03-closure
+  task_baseline_sha: f891f25dac1c0b663facab94dc0e05c54b84f4eb
+  local_work_branch: codex/arch-governance-03-closure
+  github_sync_status: ARCH_GOVERNANCE_03_CLOSURE_DRAFT_EXTERNAL_REVIEW_PENDING
   ci_checks:
     CI_REQUIRED: GITHUB_PR_EXACT_HEAD
     PRE_MERGE_READINESS_GATE: EXPECTED_FAIL_DRAFT_AND_EXTERNAL_ACCEPTANCE_PENDING
@@ -54,6 +54,7 @@ repository:
     406: MERGED_ARCH_GOVERNANCE_02_IMPLEMENTATION
     408: MERGED_ARCH_P1_04D_R1_IMPLEMENTATION
     410: MERGED_ARCH_GOVERNANCE_03_INITIAL_IMPLEMENTATION
+    411: MERGED_ARCH_GOVERNANCE_03_MAIN_PUSH_REMEDIATION
 
 architecture_convergence:
   authority_document: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
@@ -80,6 +81,7 @@ architecture_convergence:
     ARCH-P1-03C: DONE
     ARCH-GOVERNANCE-02: DONE
     ARCH-P1-04D-R1: DONE
+    ARCH-GOVERNANCE-03: DONE
   superseded:
     ARCH-P2-01: ARCH-HYGIENE-02
   p0_acceptance: P0_ARCHITECTURE_CONVERGENCE_PASS
@@ -112,41 +114,49 @@ architecture_convergence:
     - ARCH-P2-04
     - ARCH-P2-06
     - ARCH-P2-05
-  next_task: ARCH-GOVERNANCE-03
+  next_task: ARCH-P1-03B-R1
   last_completed_task:
-    id: ARCH-P1-04D-R1
-    status: DONE
-    pull_request: 408
-    implementation_pr: 408
-    implementation_merge_sha: 09ece0204bed1289986e20d6a1cff842cb2f0864
-    implementation_ci_run: 30209918909
-    accepted_head: 47a7c823967cf4ea98221556d96e8a30a948318d
-    accepted_by: W2_EXTERNAL_ACCEPTANCE_V1
-    branch: codex/arch-p1-04d-r1
-    baseline_sha: ca8e98fc111c0e4ca334783572815a7baee1b9e8
-    completed_at: "2026-07-26T16:30:17Z"
-    predecessor: ARCH-GOVERNANCE-02
-    successor_task: ARCH-GOVERNANCE-03
-    scope: ARCH_P1_04D_REMEDIATION
-    phase: DONE
-  current_task:
     id: ARCH-GOVERNANCE-03
-    status: IMPLEMENTED_PENDING_ACCEPTANCE
-    predecessor: ARCH-P1-04D-R1
-    successor_task: ARCH-P1-03B-R1
-    scope: FROZEN_REAL_PRODUCTION_INPUT_ACCEPTANCE_MATRIX
-    phase: IMPLEMENTED_PENDING_ACCEPTANCE
+    status: DONE
+    pull_request: 411
+    closure_pr: 412
     implementation_pr: 410
     implementation_merge_sha: bfdd79b3814008d9988f8f5d76d566145188e1e4
     implementation_ci_run: 30237236245
     accepted_head: f7043f6a5fc0e020d11e19672a70658a66cc420f
     accepted_by: W2_EXTERNAL_ACCEPTANCE_V1
-    post_merge_main_push_remediation:
-      branch: codex/arch-governance-03-main-push-remediation
-      pull_request: GITHUB_REMEDIATION_PR
-      base_sha: bfdd79b3814008d9988f8f5d76d566145188e1e4
-      failed_main_ci_run: 30238672678
-      scope: WORKFLOW_EVENT_CI_PLAN_COVERAGE_ONLY
+    branch: codex/arch-governance-03-main-push-remediation
+    baseline_sha: 832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd
+    completed_at: "2026-07-27T08:03:00Z"
+    predecessor: ARCH-P1-04D-R1
+    successor_task: ARCH-P1-03B-R1
+    scope: FROZEN_REAL_PRODUCTION_INPUT_ACCEPTANCE_MATRIX
+    phase: DONE
+    initial_implementation:
+      pull_request: 410
+      accepted_head: f7043f6a5fc0e020d11e19672a70658a66cc420f
+      full_ci_run: 30237236245
+      merge_sha: bfdd79b3814008d9988f8f5d76d566145188e1e4
+    final_remediation:
+      pull_request: 411
+      accepted_head: 688b4c132d719d7fd282dc7d85598a594666617e
+      full_ci_run: 30240556366
+      accepted_by: W2_EXTERNAL_ACCEPTANCE_V1
+      merge_sha: f891f25dac1c0b663facab94dc0e05c54b84f4eb
+    main_ci_required_run: 30241678736
+    main_post_gate_run: 30241678744
+  current_task:
+    id: ARCH-P1-03B-R1
+    status: NOT_STARTED
+    predecessor: ARCH-GOVERNANCE-03
+    successor_task: ARCH-OBS-01
+    scope: ARCH_P1_03B_REMEDIATION
+    phase: NOT_STARTED
+    active_spec: NONE
+    active_baseline_receipt: NONE
+    active_final_attestation: NONE
+    allowed_next_pr_kind: PREFLIGHT
+    implementation_gate: NOT_OPEN
     formal_enabled: false
     candidate_runtime_enabled: false
     lock_enabled: false
@@ -294,7 +304,7 @@ architecture_convergence:
     ARCH-P1-03C: DONE
     ARCH-GOVERNANCE-02: DONE
     ARCH-P1-04D-R1: DONE
-    ARCH-GOVERNANCE-03: IMPLEMENTED_PENDING_ACCEPTANCE
+    ARCH-GOVERNANCE-03: DONE
     ARCH-P1-03B-R1: NOT_STARTED
     ARCH-OBS-01: NOT_STARTED
     ARCH-EVIDENCE-01: NOT_STARTED
