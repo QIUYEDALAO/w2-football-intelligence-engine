@@ -4,7 +4,7 @@
   "artifact_kind": "BASELINE_RECEIPT",
   "task_id": "ARCH-P1-03B-R1",
   "spec_path": "tests/fixtures/governance/architecture_acceptance_frozen_spec.json",
-  "spec_sha256": "29eaeba063ee5bad47e13441c6862ba5c821d211affb31426efbe515b7e47fe4",
+  "spec_sha256": "0f776fd2ef386d2b0ddbf678cee945e9771ef7b26272798c3a3d053b22772e8c",
   "subject_head": "832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd",
   "preconditions": {
     "SPEC_INVENTORY_COMPLETE": {
@@ -149,5 +149,5 @@
     }
   ],
   "overall_status": "BLOCKED",
-  "receipt_sha256": "6ace56f8f0b827f88c7716f978702a9744f1292a23f4ad4cde09583c9961addb"
+  "receipt_sha256": "95c46e92973e5fb0ca4f81206d1b20b87af0a57de01932e692dffa0dd48df87e"
 }

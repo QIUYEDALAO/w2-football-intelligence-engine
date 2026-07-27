@@ -17,6 +17,7 @@ import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ElementTree
 import zipfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -419,6 +420,82 @@ def validate_acceptance_spec(
             fail("MATRIX_PRIMARY_CONTRACT_PATH_INVALID")
         elif not _symbol_exists(blob, str(primary.get("test", ""))):
             fail("MATRIX_PRIMARY_CONTRACT_TEST_MISSING")
+
+    expected_measurements = {
+        ("FROZEN_ASSERTION", row.get("id"))
+        for row in payload.get("frozen_assertions", [])
+        if isinstance(row, dict)
+    }
+    expected_measurements.update(
+        ("INPUT", row.get("id"))
+        for row in payload.get("input_contracts", [])
+        if isinstance(row, dict)
+    )
+    expected_measurements.update(
+        ("CASE", row.get("type"))
+        for row in payload.get("cases", [])
+        if isinstance(row, dict)
+    )
+    expected_measurements.update(
+        ("LAYER", layer) for layer in payload.get("required_evidence_layers", [])
+    )
+    expected_measurements.update(
+        ("CLAIM", row.get("name"))
+        for row in payload.get("claims", [])
+        if isinstance(row, dict) and row.get("applicability") == "APPLICABLE"
+    )
+    measurement_rows = payload.get("measurement_plan")
+    actual_measurements: set[tuple[Any, Any]] = set()
+    measurement_ids: set[str] = set()
+    for row in measurement_rows if isinstance(measurement_rows, list) else []:
+        if not isinstance(row, dict):
+            continue
+        measurement_id = row.get("measurement_id")
+        target = (row.get("target_kind"), row.get("target_id"))
+        if target in actual_measurements or measurement_id in measurement_ids:
+            fail("MATRIX_MEASUREMENT_PLAN_DUPLICATE")
+        actual_measurements.add(target)
+        if isinstance(measurement_id, str):
+            measurement_ids.add(measurement_id)
+        argv = row.get("argv")
+        if row.get("command_sha256") != _canonical_sha256(argv):
+            fail(f"MATRIX_MEASUREMENT_COMMAND_HASH_MISMATCH:{measurement_id}")
+        generator = row.get("generator")
+        if not isinstance(generator, dict):
+            continue
+        generator_path = generator.get("path")
+        generator_blob = (
+            read_blob(baseline, generator_path)
+            if isinstance(generator_path, str)
+            else None
+        )
+        if generator_blob is None:
+            fail(f"MATRIX_MEASUREMENT_GENERATOR_MISSING:{measurement_id}")
+            continue
+        if generator.get("file_sha256") != hashlib.sha256(generator_blob).hexdigest():
+            fail(f"MATRIX_MEASUREMENT_GENERATOR_HASH_MISMATCH:{measurement_id}")
+        symbol = generator.get("symbol")
+        if not isinstance(symbol, str) or not _symbol_exists(generator_blob, symbol):
+            fail(f"MATRIX_MEASUREMENT_GENERATOR_SYMBOL_MISSING:{measurement_id}")
+        checker_symbol = row.get("checker_symbol")
+        if isinstance(checker_symbol, str) and not _symbol_exists(
+            generator_blob, checker_symbol
+        ):
+            fail(f"MATRIX_MEASUREMENT_CHECKER_SYMBOL_MISSING:{measurement_id}")
+        nodeid = row.get("pytest_nodeid")
+        if isinstance(nodeid, str):
+            test_path, _, test_symbol = nodeid.partition("::")
+            test_blob = read_blob(baseline, test_path)
+            if test_blob is None or not _symbol_exists(
+                test_blob, test_symbol.split("[", 1)[0]
+            ):
+                fail(f"MATRIX_MEASUREMENT_NODEID_MISSING:{measurement_id}")
+        try:
+            Draft202012Validator.check_schema(row.get("output_schema"))
+        except Exception:
+            fail(f"MATRIX_MEASUREMENT_OUTPUT_SCHEMA_INVALID:{measurement_id}")
+    if actual_measurements != expected_measurements:
+        fail("MATRIX_MEASUREMENT_PLAN_COVERAGE_INVALID")
     return errors
 
 
@@ -2573,6 +2650,248 @@ def check_evidence_artifacts(root: Path, *, replay: bool) -> GateResult:
     return result
 
 
+def _compile_detached_result(
+    *,
+    spec: dict[str, Any],
+    baseline: dict[str, Any],
+    source: dict[str, Any],
+    evidence_index: dict[str, Any],
+    task_id: str,
+    subject_head: str,
+    run_id: int,
+    root: Path,
+) -> dict[str, Any]:
+    """Compile final statuses from immutable plans and raw receipts."""
+    schema_errors = _schema_errors(source, root=root)
+    if schema_errors:
+        raise GovernanceError(schema_errors[0])
+    if (
+        source.get("artifact_kind") != "RAW_MEASUREMENT_RECEIPT_SET"
+        or source.get("task_id") != task_id
+        or source.get("subject_head") != subject_head
+        or source.get("full_ci_run_id") != run_id
+        or source.get("raw_receipt_sha256")
+        != _artifact_hash(source, "raw_receipt_sha256")
+    ):
+        raise GovernanceError("DETACHED_RAW_RECEIPT_BINDING_INVALID")
+
+    plans = {
+        row["measurement_id"]: row
+        for row in spec.get("measurement_plan", [])
+        if isinstance(row, dict) and isinstance(row.get("measurement_id"), str)
+    }
+    receipts: dict[str, dict[str, Any]] = {}
+    for row in source.get("measurements", []):
+        measurement_id = row.get("measurement_id") if isinstance(row, dict) else None
+        if not isinstance(measurement_id, str) or measurement_id in receipts:
+            raise GovernanceError("DETACHED_RAW_MEASUREMENT_DUPLICATE")
+        receipts[measurement_id] = row
+    if set(receipts) != set(plans):
+        raise GovernanceError("DETACHED_RAW_MEASUREMENT_SET_INVALID")
+
+    artifacts = source.get("evidence_artifacts")
+    if not isinstance(artifacts, dict):
+        raise GovernanceError("DETACHED_EVIDENCE_SOURCE_INVALID")
+    if set(artifacts) != {
+        plan.get("expected_evidence_path") for plan in plans.values()
+    }:
+        raise GovernanceError("DETACHED_EVIDENCE_SOURCE_SET_INVALID")
+    evidence_items: dict[str, dict[str, Any]] = {}
+    for measurement_id, plan in plans.items():
+        receipt = receipts[measurement_id]
+        argv = plan.get("argv")
+        command_hash = _canonical_sha256(argv)
+        nodeid = plan.get("pytest_nodeid")
+        expected_nodeids = [nodeid] if isinstance(nodeid, str) else []
+        if (
+            receipt.get("argv") != argv
+            or receipt.get("command_sha256") != command_hash
+            or command_hash != plan.get("command_sha256")
+            or receipt.get("exit_code") not in plan.get("allowed_exit_codes", [])
+            or receipt.get("executed_nodeids") != expected_nodeids
+            or receipt.get("passed_count") != 1
+            or receipt.get("failed_count") != 0
+            or receipt.get("skipped_count") != 0
+        ):
+            raise GovernanceError(
+                f"DETACHED_RAW_MEASUREMENT_EXECUTION_INVALID:{measurement_id}"
+            )
+        path = receipt.get("evidence_artifact_path")
+        artifact = artifacts.get(path) if isinstance(path, str) else None
+        if not isinstance(artifact, dict):
+            raise GovernanceError(
+                f"DETACHED_RAW_MEASUREMENT_EVIDENCE_MISSING:{measurement_id}"
+            )
+        artifact_hash = hashlib.sha256(_canonical_bytes(artifact)).hexdigest()
+        if (
+            path != plan.get("expected_evidence_path")
+            or receipt.get("evidence_artifact_sha256") != artifact_hash
+            or receipt.get("evidence_generated_by_command_sha256") != command_hash
+            or artifact.get("task_id") != task_id
+            or artifact.get("subject_head") != subject_head
+            or artifact.get("measurement_id") != measurement_id
+            or artifact.get("command_sha256") != command_hash
+            or artifact.get("result_fingerprint")
+            != receipt.get("observed_output_fingerprint")
+        ):
+            raise GovernanceError(
+                f"DETACHED_RAW_MEASUREMENT_EVIDENCE_INVALID:{measurement_id}"
+            )
+        output_schema = plan.get("output_schema")
+        try:
+            issues = sorted(
+                Draft202012Validator(
+                    output_schema, format_checker=FormatChecker()
+                ).iter_errors(artifact),
+                key=lambda issue: list(issue.absolute_path),
+            )
+        except Exception as exc:
+            raise GovernanceError(
+                f"DETACHED_MEASUREMENT_OUTPUT_SCHEMA_INVALID:{measurement_id}"
+            ) from exc
+        if issues:
+            raise GovernanceError(
+                f"DETACHED_MEASUREMENT_OUTPUT_INVALID:{measurement_id}"
+            )
+        if plan.get("target_kind") == "CASE" and plan.get("target_id") != "valid":
+            manifest = receipt.get("mutation_manifest")
+            if (
+                not isinstance(manifest, dict)
+                or receipt.get("mutation_manifest_sha256")
+                != _canonical_sha256(manifest)
+                or artifact.get("mutation_source_sha256")
+                != receipt.get("mutation_source_sha256")
+                or artifact.get("mutation_manifest_sha256")
+                != receipt.get("mutation_manifest_sha256")
+            ):
+                raise GovernanceError(
+                    f"DETACHED_MUTATION_BINDING_INVALID:{measurement_id}"
+                )
+        evidence_items[measurement_id] = {
+            "evidence_type": plan["evidence_type"],
+            "role": "PRIMARY",
+            "artifact_path": path,
+            "artifact_sha256": artifact_hash,
+            "command": json.dumps(argv, separators=(",", ":"), ensure_ascii=False),
+            "subject_head": subject_head,
+        }
+
+    by_target = {
+        (plan["target_kind"], plan["target_id"]): measurement_id
+        for measurement_id, plan in plans.items()
+    }
+
+    def item(kind: str, target_id: str) -> dict[str, Any]:
+        return evidence_items[by_target[(kind, target_id)]]
+
+    assertion_results = [
+        {
+            "id": row["id"],
+            "status": "PASS",
+            "rationale": "Derived by the trusted compiler from the frozen measurement.",
+        }
+        for row in spec["frozen_assertions"]
+    ]
+    input_results = [
+        {
+            "input_id": row["id"],
+            "status": "PASS",
+            "evidence_type": item("INPUT", row["id"])["evidence_type"],
+            "evidence": [item("INPUT", row["id"])],
+            "rationale": "Derived by the trusted compiler from the frozen measurement.",
+        }
+        for row in spec["input_contracts"]
+    ]
+    case_results: list[dict[str, Any]] = []
+    for row in spec["cases"]:
+        case_type = row["type"]
+        measurement_id = by_target[("CASE", case_type)]
+        receipt = receipts[measurement_id]
+        artifact = artifacts[receipt["evidence_artifact_path"]]
+        real_item = item("CASE", case_type)
+        result: dict[str, Any] = {
+            "type": case_type,
+            "status": "PASS",
+            "derivation": row["derivation"],
+            "observed_output": artifact["observed_output"],
+            "evidence": [real_item],
+        }
+        if case_type != "valid":
+            mutation_item = {
+                **real_item,
+                "evidence_type": "MUTATION_TEST",
+                "consumes_artifact_sha256": real_item["artifact_sha256"],
+                "mutation_manifest_sha256": receipt["mutation_manifest_sha256"],
+            }
+            result.update(
+                {
+                    "source_artifact_sha256": real_item["artifact_sha256"],
+                    "mutation_manifest": receipt["mutation_manifest"],
+                    "mutation_manifest_sha256": receipt[
+                        "mutation_manifest_sha256"
+                    ],
+                    "mutation_operation": receipt["mutation_operation"],
+                    "expected_output": row["expected_output"],
+                    "observed_output_fingerprint": hashlib.sha256(
+                        artifact["observed_output"].encode("utf-8")
+                    ).hexdigest(),
+                    "evidence": [real_item, mutation_item],
+                }
+            )
+        case_results.append(result)
+    layer_results = {
+        layer: {
+            "status": "PASS",
+            "evidence": [item("LAYER", layer)],
+            "rationale": "Derived by the trusted compiler from the frozen measurement.",
+        }
+        for layer in spec["required_evidence_layers"]
+    }
+    claim_results = []
+    for row in spec["claims"]:
+        if row["applicability"] == "NOT_APPLICABLE":
+            claim_results.append(
+                {
+                    "name": row["name"],
+                    "status": "NOT_APPLICABLE",
+                    "rationale": row["rationale"],
+                    "layer_evidence": {},
+                }
+            )
+            continue
+        claim_static = item("CLAIM", row["name"])
+        claim_results.append(
+            {
+                "name": row["name"],
+                "status": "PASS",
+                "rationale": "Derived by the trusted compiler from frozen measurements.",
+                "layer_evidence": {
+                    "STATIC_AST": [claim_static],
+                    "RUNTIME_SQL_TRACE": [
+                        item("LAYER", "RUNTIME_SQL_TRACE")
+                    ],
+                    "MUTATION_TESTS": [item("LAYER", "MUTATION_TESTS")],
+                },
+            }
+        )
+    result = {
+        "artifact_kind": "DETACHED_IMPLEMENTATION_RESULT",
+        "task_id": task_id,
+        "subject_head": subject_head,
+        "spec_sha256": spec["spec_sha256"],
+        "baseline_receipt_sha256": baseline["receipt_sha256"],
+        "full_ci_run_id": run_id,
+        "frozen_assertion_results": assertion_results,
+        "input_results": input_results,
+        "case_results": case_results,
+        "layer_results": layer_results,
+        "claim_results": claim_results,
+        "evidence_index_sha256": evidence_index["index_sha256"],
+    }
+    result["result_sha256"] = _artifact_hash(result, "result_sha256")
+    return result
+
+
 def write_detached_ci_artifacts(
     *,
     root: Path,
@@ -2651,28 +2970,16 @@ def write_detached_ci_artifacts(
     }
     evidence["index_sha256"] = _artifact_hash(evidence, "index_sha256")
     if source is not None and spec is not None and baseline is not None:
-        result = {
-            key: source.get(key)
-            for key in (
-                "frozen_assertion_results",
-                "input_results",
-                "case_results",
-                "layer_results",
-                "claim_results",
-            )
-        }
-        result.update(
-            {
-                "artifact_kind": "DETACHED_IMPLEMENTATION_RESULT",
-                "task_id": task_id,
-                "subject_head": subject_head,
-                "spec_sha256": spec.get("spec_sha256"),
-                "baseline_receipt_sha256": baseline.get("receipt_sha256"),
-                "full_ci_run_id": run_id,
-                "evidence_index_sha256": evidence["index_sha256"],
-            }
+        result = _compile_detached_result(
+            spec=spec,
+            baseline=baseline,
+            source=source,
+            evidence_index=evidence,
+            task_id=task_id,
+            subject_head=subject_head,
+            run_id=run_id,
+            root=root,
         )
-        result["result_sha256"] = _artifact_hash(result, "result_sha256")
         errors = _final_result_errors(
             result,
             evidence,
@@ -2715,7 +3022,12 @@ def write_detached_ci_artifacts(
 
 
 def prepare_detached_result_source(
-    *, root: Path, event: dict[str, Any], output: Path
+    *,
+    root: Path,
+    event: dict[str, Any],
+    output: Path,
+    subject_head: str | None = None,
+    run_id: int | None = None,
 ) -> None:
     pull = event.get("pull_request")
     body = pull.get("body") if isinstance(pull, dict) else None
@@ -2733,13 +3045,157 @@ def prepare_detached_result_source(
     task_id = task_markers[0]
     governed = (root / MATRIX_DIR / f"{task_id}.spec.json").is_file()
     if governed:
-        if _load_artifact(root / output) is None:
-            raise GovernanceError("DETACHED_RESULT_SOURCE_MISSING")
+        if (root / output).exists():
+            raise GovernanceError("DETACHED_RESULT_SOURCE_AUTHOR_WRITTEN")
+        if (
+            subject_head is None
+            or not SHA_RE.fullmatch(subject_head)
+            or run_id is None
+            or run_id <= 0
+        ):
+            raise GovernanceError("DETACHED_RAW_RECEIPT_IDENTITY_INVALID")
+        spec = _load_artifact(root / MATRIX_DIR / f"{task_id}.spec.json")
+        plans = spec.get("measurement_plan") if isinstance(spec, dict) else None
+        if not isinstance(plans, list) or not plans:
+            raise GovernanceError("DETACHED_MEASUREMENT_PLAN_MISSING")
+        receipts: list[dict[str, Any]] = []
+        artifacts: dict[str, dict[str, Any]] = {}
+        for plan in plans:
+            if not isinstance(plan, dict):
+                raise GovernanceError("DETACHED_MEASUREMENT_PLAN_INVALID")
+            measurement_id = plan.get("measurement_id")
+            argv = plan.get("argv")
+            expected_path = plan.get("expected_evidence_path")
+            generator = plan.get("generator")
+            if (
+                not isinstance(measurement_id, str)
+                or not isinstance(argv, list)
+                or not all(isinstance(value, str) for value in argv)
+                or not isinstance(expected_path, str)
+                or not isinstance(generator, dict)
+            ):
+                raise GovernanceError("DETACHED_MEASUREMENT_PLAN_INVALID")
+            evidence_path = root / expected_path
+            if (
+                _safe_repo_path(expected_path) != expected_path
+                or not expected_path.startswith("detached-evidence/")
+                or evidence_path.exists()
+            ):
+                raise GovernanceError(
+                    f"DETACHED_MEASUREMENT_OUTPUT_PATH_INVALID:{measurement_id}"
+                )
+            generator_path = generator.get("path")
+            if not isinstance(generator_path, str):
+                raise GovernanceError("DETACHED_MEASUREMENT_PLAN_INVALID")
+            generator_file = root / generator_path
+            try:
+                generator_hash = hashlib.sha256(generator_file.read_bytes()).hexdigest()
+            except OSError as exc:
+                raise GovernanceError(
+                    f"DETACHED_MEASUREMENT_GENERATOR_MISSING:{measurement_id}"
+                ) from exc
+            if generator_hash != generator.get("file_sha256"):
+                raise GovernanceError(
+                    f"DETACHED_MEASUREMENT_GENERATOR_DRIFT:{measurement_id}"
+                )
+            completed = subprocess.run(
+                argv,
+                cwd=root,
+                check=False,
+                capture_output=True,
+            )
+            artifact = _load_artifact(evidence_path)
+            if artifact is None:
+                raise GovernanceError(
+                    f"DETACHED_MEASUREMENT_OUTPUT_MISSING:{measurement_id}"
+                )
+            if evidence_path.read_bytes() != _canonical_bytes(artifact):
+                raise GovernanceError(
+                    f"DETACHED_MEASUREMENT_OUTPUT_NOT_CANONICAL:{measurement_id}"
+                )
+            nodeids: list[str] = []
+            passed = int(completed.returncode == 0)
+            failed = int(completed.returncode != 0)
+            skipped = 0
+            nodeid = plan.get("pytest_nodeid")
+            if isinstance(nodeid, str):
+                junit_path = artifact.get("junit_xml_path")
+                if not isinstance(junit_path, str) or _safe_repo_path(
+                    junit_path
+                ) != junit_path:
+                    raise GovernanceError(
+                        f"DETACHED_MEASUREMENT_JUNIT_MISSING:{measurement_id}"
+                    )
+                try:
+                    suite = ElementTree.parse(  # noqa: S314 - bounded local JUnit
+                        root / junit_path
+                    ).getroot()
+                except (OSError, ElementTree.ParseError) as exc:
+                    raise GovernanceError(
+                        f"DETACHED_MEASUREMENT_JUNIT_INVALID:{measurement_id}"
+                    ) from exc
+                cases = list(suite.iter("testcase"))
+                nodeids = [
+                    f"{case.attrib.get('file')}::{case.attrib.get('name')}"
+                    for case in cases
+                ]
+                passed = sum(
+                    not list(case.iter("failure"))
+                    and not list(case.iter("error"))
+                    and not list(case.iter("skipped"))
+                    for case in cases
+                )
+                failed = sum(
+                    bool(list(case.iter("failure")) or list(case.iter("error")))
+                    for case in cases
+                )
+                skipped = sum(bool(list(case.iter("skipped"))) for case in cases)
+            command_hash = _canonical_sha256(argv)
+            artifact_hash = hashlib.sha256(_canonical_bytes(artifact)).hexdigest()
+            receipt: dict[str, Any] = {
+                "measurement_id": measurement_id,
+                "argv": argv,
+                "command_sha256": command_hash,
+                "exit_code": completed.returncode,
+                "executed_nodeids": nodeids,
+                "passed_count": passed,
+                "failed_count": failed,
+                "skipped_count": skipped,
+                "stdout_sha256": hashlib.sha256(completed.stdout).hexdigest(),
+                "stderr_sha256": hashlib.sha256(completed.stderr).hexdigest(),
+                "evidence_artifact_path": expected_path,
+                "evidence_artifact_sha256": artifact_hash,
+                "evidence_generated_by_command_sha256": command_hash,
+                "observed_output_fingerprint": artifact.get("result_fingerprint"),
+            }
+            for field in (
+                "mutation_source_sha256",
+                "mutation_manifest",
+                "mutation_manifest_sha256",
+                "mutation_operation",
+            ):
+                if field in artifact:
+                    receipt[field] = artifact[field]
+            receipts.append(receipt)
+            artifacts[expected_path] = artifact
+        source = {
+            "artifact_kind": "RAW_MEASUREMENT_RECEIPT_SET",
+            "task_id": task_id,
+            "subject_head": subject_head,
+            "full_ci_run_id": run_id,
+            "measurements": receipts,
+            "evidence_artifacts": artifacts,
+            "raw_receipt_sha256": "",
+        }
+        source["raw_receipt_sha256"] = _artifact_hash(
+            source, "raw_receipt_sha256"
+        )
+        (root / output).write_bytes(_canonical_bytes(source))
         return
     (root / output).write_bytes(
         _canonical_bytes(
             {
-                "artifact_kind": "UNSCOPED_RESULT_SOURCE",
+                "artifact_kind": "UNSCOPED_RAW_MEASUREMENT_RECEIPT",
                 "task_id": task_id,
             }
         )
@@ -2800,6 +3256,8 @@ def main(argv: list[str] | None = None) -> int:
                 root=Path.cwd(),
                 event=_load_json(args.event_path),
                 output=args.result_source,
+                subject_head=args.subject_head,
+                run_id=args.run_id,
             )
             print("DETACHED_RESULT_SOURCE = PASS")
             return 0

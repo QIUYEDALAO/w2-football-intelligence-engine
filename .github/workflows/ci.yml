@@ -339,11 +339,25 @@ jobs:
       - name: Mypy
         run: uv run --python 3.12 mypy src apps
       - name: Pytest
-        env:
-          W2_DETACHED_RESULT_SOURCE: w2-detached-result-source.json
         run: uv run --python 3.12 pytest -q
       - name: Secret pattern scan
         run: uv run --python 3.12 python tests/secret_scan.py
+      - name: Checkout trusted measurement collector
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .w2-trusted-governance
+      - name: Enforce trusted collector for ordinary tasks
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          task_id="$(jq -r '.pull_request.body | capture("W2_TASK_ID: (?<id>ARCH-[A-Z0-9-]+)").id' "$GITHUB_EVENT_PATH")"
+          if [[ "$task_id" != ARCH-GOVERNANCE-* ]]; then
+            cmp \
+              scripts/check_architecture_governance.py \
+              .w2-trusted-governance/scripts/check_architecture_governance.py
+          fi
       - name: Validate detached result source
         if: github.event_name == 'pull_request'
         run: >-
@@ -351,6 +365,8 @@ jobs:
           prepare-detached-result-source
           --event-path "$GITHUB_EVENT_PATH"
           --result-source w2-detached-result-source.json
+          --subject-head "${{ github.event.pull_request.head.sha }}"
+          --run-id "${{ github.run_id }}"
       - name: Transfer detached result source
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
@@ -375,6 +391,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Checkout trusted governance compiler
+        if: >-
+          github.event_name == 'pull_request' &&
+          needs.classify.outputs.verify == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .w2-trusted-governance
       - name: Receive detached result source
         if: >-
           github.event_name == 'pull_request' &&
@@ -408,7 +432,7 @@ jobs:
           github.event_name == 'pull_request' &&
           needs.classify.outputs.verify == 'true'
         run: >-
-          python3 scripts/check_architecture_governance.py
+          python3 .w2-trusted-governance/scripts/check_architecture_governance.py
           detached-ci-artifacts
           --event-path "$GITHUB_EVENT_PATH"
           --output-dir .w2-detached

@@ -67,6 +67,10 @@ def test_secondary_review_protocol_allows_lightweight_closure_ci() -> None:
     assert "只看 artifact 名称或 metadata" in protocol
     assert "artifact 正常过期或不可取得后" in protocol
     assert "普通 PREFLIGHT/IMPLEMENTATION/CLOSURE 不得" in protocol
+    assert "只交付实际 argv/hash" in protocol
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    assert "Checkout trusted measurement collector" in workflow
+    assert ".w2-trusted-governance/scripts/check_architecture_governance.py" in workflow
 
 
 def frozen_spec() -> dict[str, Any]:
@@ -422,6 +426,107 @@ def detached_bundle(
         ).hexdigest(),
         "evidence_artifacts": artifacts,
     }
+
+
+def raw_measurement_source(
+    *,
+    subject_head: str = HEAD,
+    run_id: int = 100,
+    spec: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    spec = spec or frozen_spec()
+    artifacts: dict[str, dict[str, Any]] = {}
+    receipts: list[dict[str, Any]] = []
+    for plan in spec["measurement_plan"]:
+        measurement_id = plan["measurement_id"]
+        case = next(
+            (
+                row
+                for row in spec["cases"]
+                if plan["target_kind"] == "CASE"
+                and row["type"] == plan["target_id"]
+            ),
+            None,
+        )
+        observed = case["expected_output"] if case else "measured output"
+        fingerprint = hashlib.sha256(
+            f"{measurement_id}:{observed}".encode()
+        ).hexdigest()
+        artifact: dict[str, Any] = {
+            "task_id": spec["task_id"],
+            "subject_head": subject_head,
+            "measurement_id": measurement_id,
+            "command_sha256": plan["command_sha256"],
+            "result_fingerprint": fingerprint,
+            "observed_output": observed,
+        }
+        receipt: dict[str, Any] = {
+            "measurement_id": measurement_id,
+            "argv": plan["argv"],
+            "command_sha256": plan["command_sha256"],
+            "exit_code": 0,
+            "executed_nodeids": (
+                [plan["pytest_nodeid"]] if "pytest_nodeid" in plan else []
+            ),
+            "passed_count": 1,
+            "failed_count": 0,
+            "skipped_count": 0,
+            "stdout_sha256": "1" * 64,
+            "stderr_sha256": "2" * 64,
+            "evidence_artifact_path": plan["expected_evidence_path"],
+            "evidence_artifact_sha256": "",
+            "evidence_generated_by_command_sha256": plan["command_sha256"],
+            "observed_output_fingerprint": fingerprint,
+        }
+        if case and case["type"] != "valid":
+            manifest = {"case": case["type"], "operation": "controlled mutation"}
+            manifest_sha = governance._canonical_sha256(manifest)
+            artifact.update(
+                {
+                    "mutation_source_sha256": "",
+                    "mutation_manifest_sha256": manifest_sha,
+                }
+            )
+            receipt.update(
+                {
+                    "mutation_source_sha256": "",
+                    "mutation_manifest": manifest,
+                    "mutation_manifest_sha256": manifest_sha,
+                    "mutation_operation": "controlled mutation",
+                }
+            )
+        artifacts[plan["expected_evidence_path"]] = artifact
+        receipts.append(receipt)
+    for receipt in receipts:
+        artifact = artifacts[receipt["evidence_artifact_path"]]
+        if "mutation_source_sha256" in receipt:
+            source_hash = hashlib.sha256(
+                governance._canonical_bytes(
+                    {
+                        key: value
+                        for key, value in artifact.items()
+                        if key != "mutation_source_sha256"
+                    }
+                )
+            ).hexdigest()
+            receipt["mutation_source_sha256"] = source_hash
+            artifact["mutation_source_sha256"] = source_hash
+        receipt["evidence_artifact_sha256"] = hashlib.sha256(
+            governance._canonical_bytes(artifact)
+        ).hexdigest()
+    payload = {
+        "artifact_kind": "RAW_MEASUREMENT_RECEIPT_SET",
+        "task_id": spec["task_id"],
+        "subject_head": subject_head,
+        "full_ci_run_id": run_id,
+        "measurements": receipts,
+        "evidence_artifacts": artifacts,
+        "raw_receipt_sha256": "",
+    }
+    payload["raw_receipt_sha256"] = governance._artifact_hash(
+        payload, "raw_receipt_sha256"
+    )
+    return payload
 
 
 def preflight_real_evidence() -> tuple[str, dict[str, Any], dict[str, Any]]:
@@ -1520,7 +1625,7 @@ def test_non_governance_task_cannot_modify_trusted_artifact_producers() -> None:
     )
 
 
-def test_governed_full_ci_requires_untracked_result_source(tmp_path: Path) -> None:
+def test_governed_full_ci_requires_trusted_raw_receipt_identity(tmp_path: Path) -> None:
     matrix_dir = tmp_path / governance.MATRIX_DIR
     matrix_dir.mkdir(parents=True)
     (matrix_dir / "ARCH-P1-03B-R1.spec.json").write_text(
@@ -1530,7 +1635,7 @@ def test_governed_full_ci_requires_untracked_result_source(tmp_path: Path) -> No
         "pull_request": {"body": valid_body(task="ARCH-P1-03B-R1")}
     }
     with pytest.raises(
-        governance.GovernanceError, match="DETACHED_RESULT_SOURCE_MISSING"
+        governance.GovernanceError, match="DETACHED_RAW_RECEIPT_IDENTITY_INVALID"
     ):
         governance.prepare_detached_result_source(
             root=tmp_path,
@@ -1555,18 +1660,7 @@ def test_governed_producer_reproves_detached_source_and_evidence(
     (matrix_dir / "ARCH-P1-03B-R1.baseline.json").write_bytes(
         governance._canonical_bytes(baseline)
     )
-    bundle = detached_bundle()
-    source = {
-        key: bundle["result"][key]
-        for key in (
-            "frozen_assertion_results",
-            "input_results",
-            "case_results",
-            "layer_results",
-            "claim_results",
-        )
-    }
-    source["evidence_artifacts"] = bundle["evidence_artifacts"]
+    source = raw_measurement_source()
     source_path = tmp_path / ".w2-detached-result-source.json"
     source_path.write_bytes(governance._canonical_bytes(source))
     governance.write_detached_ci_artifacts(
@@ -1584,9 +1678,216 @@ def test_governed_producer_reproves_detached_source_and_evidence(
     )
     assert written["task_id"] == "ARCH-P1-03B-R1"
     assert written["subject_head"] == HEAD
-    assert written["case_results"] == bundle["result"]["case_results"]
+    assert {row["status"] for row in written["case_results"]} == {"PASS"}
     assert written["result_sha256"] == governance._artifact_hash(
         written, "result_sha256"
+    )
+
+
+def _governed_compiler_root(
+    tmp_path: Path, spec: dict[str, Any], source: dict[str, Any]
+) -> Path:
+    matrix_dir = tmp_path / governance.MATRIX_DIR
+    matrix_dir.mkdir(parents=True)
+    schema = tmp_path / governance.MATRIX_SCHEMA_PATH
+    schema.parent.mkdir(parents=True)
+    schema.write_bytes(SCHEMA_PATH.read_bytes())
+    (matrix_dir / "ARCH-P1-03B-R1.spec.json").write_bytes(
+        governance._canonical_bytes(spec)
+    )
+    (matrix_dir / "ARCH-P1-03B-R1.baseline.json").write_bytes(
+        governance._canonical_bytes(baseline_receipt())
+    )
+    source_path = tmp_path / ".w2-detached-result-source.json"
+    source_path.write_bytes(governance._canonical_bytes(source))
+    return source_path
+
+
+def test_implementation_authored_all_pass_source_is_rejected(tmp_path: Path) -> None:
+    spec = frozen_spec()
+    fake = detached_bundle()["result"]
+    fake["evidence_artifacts"] = detached_bundle()["evidence_artifacts"]
+    source_path = _governed_compiler_root(tmp_path, spec, fake)
+    with pytest.raises(governance.GovernanceError):
+        governance.prepare_detached_result_source(
+            root=tmp_path,
+            event={
+                "pull_request": {
+                    "body": valid_body(task="ARCH-P1-03B-R1")
+                }
+            },
+            output=source_path.relative_to(tmp_path),
+        )
+
+
+def test_trusted_collector_executes_plan_and_emits_raw_receipt(
+    tmp_path: Path,
+) -> None:
+    generator = tmp_path / "measure.py"
+    evidence_path = tmp_path / "detached-evidence/result.json"
+    generator.write_text(
+        "import hashlib,json,pathlib\n"
+        f"p=pathlib.Path({str(evidence_path)!r})\n"
+        "p.parent.mkdir(parents=True)\n"
+        "payload={'task_id':'ARCH-P1-03B-R1','subject_head':'"
+        f"{HEAD}','measurement_id':'MEASURE_ONE','command_sha256':'"
+        "PLACEHOLDER','result_fingerprint':'3'*64,'observed_output':'ok'}\n"
+        "p.write_text(json.dumps(payload,sort_keys=True,separators=(',',':'))+'\\n')\n",
+        encoding="utf-8",
+    )
+    argv = ["python3", "measure.py"]
+    command_hash = governance._canonical_sha256(argv)
+    generator.write_text(
+        generator.read_text(encoding="utf-8").replace(
+            "PLACEHOLDER", command_hash
+        ),
+        encoding="utf-8",
+    )
+    matrix_dir = tmp_path / governance.MATRIX_DIR
+    matrix_dir.mkdir(parents=True)
+    (matrix_dir / "ARCH-P1-03B-R1.spec.json").write_bytes(
+        governance._canonical_bytes(
+            {
+                "measurement_plan": [
+                    {
+                        "measurement_id": "MEASURE_ONE",
+                        "argv": argv,
+                        "expected_evidence_path": "detached-evidence/result.json",
+                        "generator": {
+                            "path": "measure.py",
+                            "file_sha256": hashlib.sha256(
+                                generator.read_bytes()
+                            ).hexdigest(),
+                        },
+                    }
+                ]
+            }
+        )
+    )
+    output = Path("raw.json")
+    governance.prepare_detached_result_source(
+        root=tmp_path,
+        event={
+            "pull_request": {
+                "body": valid_body(task="ARCH-P1-03B-R1")
+            }
+        },
+        output=output,
+        subject_head=HEAD,
+        run_id=100,
+    )
+    receipt = json.loads((tmp_path / output).read_text(encoding="utf-8"))
+    assert receipt["artifact_kind"] == "RAW_MEASUREMENT_RECEIPT_SET"
+    assert receipt["measurements"][0]["exit_code"] == 0
+    assert not any(
+        key.endswith("_results") or key in {"status", "overall_status"}
+        for key in receipt
+    )
+
+
+@pytest.mark.parametrize(
+    "attack",
+    [
+        "required_nodeid_missing",
+        "required_nodeid_skipped",
+        "same_name_different_path",
+        "command_not_executed",
+        "command_hash_mismatch",
+        "evidence_not_generated_by_command",
+        "mutation_source_not_consumed",
+        "raw_receipt_tampered",
+    ],
+)
+def test_trusted_compiler_rejects_raw_receipt_attacks(
+    tmp_path: Path, attack: str
+) -> None:
+    spec = frozen_spec()
+    source = raw_measurement_source(spec=spec)
+    receipt = source["measurements"][0]
+    if attack in {
+        "required_nodeid_missing",
+        "required_nodeid_skipped",
+        "same_name_different_path",
+    }:
+        plan = spec["measurement_plan"][0]
+        plan.pop("checker_symbol")
+        plan["pytest_nodeid"] = "tests/unit/test_architecture_governance.py::test_expected"
+        if attack == "same_name_different_path":
+            receipt["executed_nodeids"] = [
+                "tests/other/test_architecture_governance.py::test_expected"
+            ]
+        elif attack == "required_nodeid_skipped":
+            receipt["executed_nodeids"] = [plan["pytest_nodeid"]]
+            receipt["passed_count"] = 0
+            receipt["skipped_count"] = 1
+    elif attack == "command_not_executed":
+        receipt["passed_count"] = 0
+    elif attack == "command_hash_mismatch":
+        receipt["command_sha256"] = "9" * 64
+    elif attack == "evidence_not_generated_by_command":
+        receipt["evidence_generated_by_command_sha256"] = "9" * 64
+    elif attack == "mutation_source_not_consumed":
+        receipt = next(
+            row
+            for row in source["measurements"]
+            if row["measurement_id"] == "CASE_MISSING"
+        )
+        receipt["mutation_source_sha256"] = "9" * 64
+    elif attack == "raw_receipt_tampered":
+        receipt["stdout_sha256"] = "9" * 64
+    if attack != "raw_receipt_tampered":
+        source["raw_receipt_sha256"] = governance._artifact_hash(
+            source, "raw_receipt_sha256"
+        )
+    source_path = _governed_compiler_root(tmp_path, spec, source)
+    with pytest.raises(governance.GovernanceError):
+        governance.write_detached_ci_artifacts(
+            root=tmp_path,
+            output_dir=tmp_path / "out",
+            event={
+                "pull_request": {
+                    "body": valid_body(task="ARCH-P1-03B-R1")
+                }
+            },
+            subject_head=HEAD,
+            run_id=100,
+            result_source=source_path,
+        )
+
+
+def test_implementation_cannot_modify_measurement_plan_or_trusted_compiler() -> None:
+    spec_path = (
+        "docs/operations/architecture_convergence/acceptance_matrices/"
+        "ARCH-P1-03B-R1.spec.json"
+    )
+    assert governance.validate_matrix_artifact_changes(
+        [{"filename": spec_path, "status": "modified"}],
+        pr_kind="IMPLEMENTATION",
+        task_id="ARCH-P1-03B-R1",
+        exact_head=HEAD,
+        trusted_base_head=OLD_HEAD,
+        client=FakeClient(),
+    )
+    result = governance.check_pre_merge(
+        event(),
+        preflight_checklist().replace(
+            "Status: NOT_STARTED",
+            "Status: IMPLEMENTED_PENDING_ACCEPTANCE\n"
+            "Implementation SHA: GITHUB_PR_EXACT_HEAD",
+            1,
+        ),
+        FakeClient(
+            pull=valid_pull(body=valid_body(task="ARCH-P1-03B-R1")),
+            files=["scripts/check_architecture_governance.py"],
+            reviews=[valid_review(task="ARCH-P1-03B-R1")],
+            jobs=ci_jobs(governance._full_ci_plan()),
+        ),
+        base_checklist=preflight_checklist(),
+        matrix_root=ROOT,
+    )
+    assert any(
+        error.startswith("GOVERNANCE_PRODUCER_AUTHORITY_VIOLATION:")
+        for error in result.errors
     )
 
 

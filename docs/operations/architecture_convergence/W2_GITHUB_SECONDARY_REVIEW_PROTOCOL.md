@@ -180,12 +180,20 @@ ACTUAL_READ_SET = IDENTITY_GUARD_COVERAGE_SET
     GitHub PR/base/main 上下文推导，不写入 payload。PREFLIGHT 可以在新 head 保存
     evidence，而其 `subject_head` 仍可指向更早的 frozen main；validator 先从 storage
     ref 读取 artifact，再到 subject worktree 验证 generator/query/code/input 来源。
-14. detached producer 属于治理权威。普通 PREFLIGHT/IMPLEMENTATION/CLOSURE 不得
+14. immutable spec 必须为每个 frozen assertion、input、六类 case、三层 evidence
+    和每个 applicable claim 冻结 measurement plan：measurement id、精确 argv/
+    command hash、完整 pytest nodeid 或 checker symbol、预期 evidence artifact、
+    output schema、implementation exact-head binding、generator/file hash、允许退出码
+    与 fingerprint 规则。Implementation/Closure 不得修改该 plan。
+15. detached producer 属于治理权威。普通 PREFLIGHT/IMPLEMENTATION/CLOSURE 不得
     修改 governance workflow、`ci.yml` detached 生成链、lifecycle schema、checker
     或本协议；只允许独立 `ARCH-GOVERNANCE-*` 任务修改。FULL verify 通过未跟踪的
-    result source 交付测量结果及 detached evidence payloads，CI_REQUIRED 由受保护
-    producer 生成 result/evidence ZIP，trusted-base PRE 再证明内容；tracked result
-    source 或 PR 自定义 producer 一律拒绝。
+    source 只交付实际 argv/hash、退出码、完整 nodeid 与 passed/failed/skipped 计数、
+    stdout/stderr hash、evidence/mutation/fingerprint 绑定及 CI identity 的 raw
+    receipts，禁止携带作者填写的最终状态。CI_REQUIRED 必须从 trusted base checkout
+    运行受保护 compiler，逐条拒绝缺失、额外、重复、skip、替换或非本次命令生成的
+    measurement，再由原始回执派生 result/evidence ZIP；Implementation 不能覆盖派生
+    结果，tracked source、all-PASS source 或 PR 自定义 compiler 一律拒绝。
 
 ### 4. 输出和破坏性操作闭环
 
