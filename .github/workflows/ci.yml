@@ -397,8 +397,12 @@ jobs:
           docker run --rm --entrypoint python "$python_ref" -c \
             "from apps.scheduler.main import heartbeat; assert 'heartbeat' in heartbeat()"
           docker run --rm --entrypoint alembic "$python_ref" --help >/dev/null
-          web_id="$(docker run -d -p 18081:8080 "$web_ref")"
-          trap 'docker rm -f "$web_id" >/dev/null 2>&1 || true' EXIT
+          smoke_network="w2-image-smoke-${GITHUB_RUN_ID}"
+          docker network create "$smoke_network" >/dev/null
+          api_id="$(docker run -d --network "$smoke_network" --network-alias api \
+            --entrypoint python "$python_ref" -m http.server 8000)"
+          web_id="$(docker run -d --network "$smoke_network" -p 18081:8080 "$web_ref")"
+          trap 'docker rm -f "$web_id" "$api_id" >/dev/null 2>&1 || true; docker network rm "$smoke_network" >/dev/null 2>&1 || true' EXIT
           for attempt in $(seq 1 12); do
             if curl -fsS http://127.0.0.1:18081/ >/dev/null; then
               exit 0
