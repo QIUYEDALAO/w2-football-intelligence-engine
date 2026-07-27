@@ -81,7 +81,7 @@ architecture_convergence:
     ARCH-P1-03C: DONE
     ARCH-GOVERNANCE-02: DONE
     ARCH-P1-04D-R1: DONE
-    ARCH-GOVERNANCE-03: DONE
+    ARCH-GOVERNANCE-03: IMPLEMENTED_PENDING_ACCEPTANCE
   superseded:
     ARCH-P2-01: ARCH-HYGIENE-02
   p0_acceptance: P0_ARCHITECTURE_CONVERGENCE_PASS
@@ -114,7 +114,7 @@ architecture_convergence:
     - ARCH-P2-04
     - ARCH-P2-06
     - ARCH-P2-05
-  next_task: ARCH-P1-03B-R1
+  next_task: ARCH-GOVERNANCE-03
   last_completed_task:
     id: ARCH-GOVERNANCE-03
     status: DONE
@@ -146,17 +146,19 @@ architecture_convergence:
     main_ci_required_run: 30241678736
     main_post_gate_run: 30241678744
   current_task:
-    id: ARCH-P1-03B-R1
-    status: NOT_STARTED
-    predecessor: ARCH-GOVERNANCE-03
-    successor_task: ARCH-OBS-01
-    scope: ARCH_P1_03B_REMEDIATION
-    phase: NOT_STARTED
+    id: ARCH-GOVERNANCE-03
+    status: IMPLEMENTED_PENDING_ACCEPTANCE
+    predecessor: ARCH-P1-04D-R1
+    successor_task: ARCH-P1-03B-R1
+    scope: IDENTITY_EVIDENCE_GENERATOR_REPLAY_HOTFIX
+    phase: IMPLEMENTED_PENDING_ACCEPTANCE
+    generator_hotfix_pr: 415
+    implementation_sha: GITHUB_PR_EXACT_HEAD
     active_spec: NONE
     active_baseline_receipt: NONE
     active_final_attestation: NONE
-    allowed_next_pr_kind: PREFLIGHT
-    implementation_gate: NOT_OPEN
+    allowed_next_pr_kind: CLOSURE_AFTER_EXTERNAL_ACCEPTANCE
+    implementation_gate: NOT_APPLICABLE_GOVERNANCE_HOTFIX
     formal_enabled: false
     candidate_runtime_enabled: false
     lock_enabled: false
@@ -304,7 +306,7 @@ architecture_convergence:
     ARCH-P1-03C: DONE
     ARCH-GOVERNANCE-02: DONE
     ARCH-P1-04D-R1: DONE
-    ARCH-GOVERNANCE-03: DONE
+    ARCH-GOVERNANCE-03: IMPLEMENTED_PENDING_ACCEPTANCE
     ARCH-P1-03B-R1: NOT_STARTED
     ARCH-OBS-01: NOT_STARTED
     ARCH-EVIDENCE-01: NOT_STARTED

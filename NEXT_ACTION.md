@@ -40,7 +40,8 @@ and is no longer a prerequisite for any architecture task. Lineup remains
 Execute the P1 tasks strictly in the order recorded in the master checklist:
 
 ```text
-ARCH-P1-03B-R1
+ARCH-GOVERNANCE-03 identity evidence generator hotfix
+-> ARCH-P1-03B-R1 PREFLIGHT
 -> ARCH-OBS-01
 -> ARCH-EVIDENCE-01
 -> ARCH-DONE-REAUDIT
@@ -63,15 +64,18 @@ its implementation PR #404 merged as
 implementation PR #408 merged as
 `09ece0204bed1289986e20d6a1cff842cb2f0864`, with accepted head
 `47a7c823967cf4ea98221556d96e8a30a948318d`. **ARCH-GOVERNANCE-03** is
-`DONE`. Its initial implementation PR #410 was accepted at
+was historically `DONE`. Its initial implementation PR #410 was accepted at
 `f7043f6a5fc0e020d11e19672a70658a66cc420f` with Full CI `30237236245` and
 merged as `bfdd79b3814008d9988f8f5d76d566145188e1e4`. Final remediation PR #411
 was accepted at `688b4c132d719d7fd282dc7d85598a594666617e` with Full CI
 `30240556366` and merged as `f891f25dac1c0b663facab94dc0e05c54b84f4eb`;
 main push `CI_REQUIRED` run `30241678736` and POST run `30241678744` passed.
-The current task is **ARCH-P1-03B-R1**, but it remains `NOT_STARTED`; it has
-no active spec, baseline receipt or final attestation. Its implementation gate
-is not OPEN. The only permitted next step is a separate read-only
+It is temporarily `IMPLEMENTED_PENDING_ACCEPTANCE` solely for generator hotfix
+PR #415, which adds deterministic read-only lifecycle `--output` support without
+changing identity behavior. **ARCH-P1-03B-R1** remains `NOT_STARTED`; PR #414
+remains Draft with its BLOCKED baseline and must not begin production
+implementation. After the hotfix implementation and status-only closure merge,
+the only permitted next step is to rebase the same read-only
 `W2_PR_KIND: PREFLIGHT` that adds and validates the spec and baseline receipt
 with qualifying real input and runtime/SQL evidence; production identity
 repository changes are forbidden until that gate opens.

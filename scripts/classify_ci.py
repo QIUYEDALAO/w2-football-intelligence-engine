@@ -29,6 +29,7 @@ INFRA_FILES = {
 }
 FULL_CI_FILES = {
     ".github/workflows/ci.yml",
+    "scripts/arch_p1_03b_identity_evidence.py",
     "scripts/check_architecture_governance.py",
     "scripts/classify_ci.py",
     "scripts/check_w2_all.py",
@@ -61,10 +62,7 @@ class CiPlan:
     full: bool = False
 
     def outputs(self) -> dict[str, str]:
-        return {
-            key: str(value).lower()
-            for key, value in vars(self).items()
-        }
+        return {key: str(value).lower() for key, value in vars(self).items()}
 
 
 def _domains(path: str) -> set[str]:
@@ -176,8 +174,7 @@ def main() -> int:
     args = parser.parse_args()
     if args.result:
         expected = {
-            key: value == "true"
-            for key, value in _key_values(args.expected_job).items()
+            key: value == "true" for key, value in _key_values(args.expected_job).items()
         }
         return 0 if ci_required_passes(expected, _key_values(args.result)) else 1
     if args.path:
