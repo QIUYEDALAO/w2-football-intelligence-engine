@@ -641,10 +641,10 @@ PR、Merge SHA 或已完成台账。
 #### A14. ARCH-GOVERNANCE-03：真实生产输入形状与冻结验收矩阵规则
 
 ```text
-Status: DONE
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
 Closure PR: #412
-PR: #411
-Merge SHA: f891f25dac1c0b663facab94dc0e05c54b84f4eb
+Historical final remediation PR: #411
+Historical final remediation merge SHA: f891f25dac1c0b663facab94dc0e05c54b84f4eb
 Base SHA: 832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd
 Initial implementation PR: #410
 Initial accepted head: f7043f6a5fc0e020d11e19672a70658a66cc420f
@@ -657,6 +657,9 @@ Final external acceptance: W2_EXTERNAL_ACCEPTANCE_V1
 Final merge SHA: f891f25dac1c0b663facab94dc0e05c54b84f4eb
 Main push CI run: 30241678736
 Main POST run: 30241678744
+Generator hotfix PR: #415
+Implementation SHA: GITHUB_PR_EXACT_HEAD
+Generator hotfix scope: deterministic read-only lifecycle evidence output only
 Predecessor: ARCH-P1-04D-R1
 Successor: ARCH-P1-03B-R1 (NOT_STARTED)
 Lifecycle schema: contracts/governance/architecture_acceptance_lifecycle.v1.schema.json
@@ -699,8 +702,11 @@ Governance fixture blocked-baseline SHA-256: 9dbce71730f344c9e98f0020cf654f7a468
       03B-R1 保持 `NOT_STARTED`。
 - [x] post-merge remediation 仅修复 workflow event × CI plan 的可信 root 初始化；
       新 main 的 `CI_REQUIRED` 与 POST 同时成功后，方可创建本任务 Closure。
+- [ ] generator hotfix PR #415 仅为
+      `scripts/arch_p1_03b_identity_evidence.py` 增加可重放 `--output`，待 exact-head
+      CI 与外部验收；不得启动 03B-R1 生产实现。
 
-**不做**：不修改 03B-R1 生产代码、66 条审批、staging 数据、模型数学、provider 或
+**不做**：不修改 03B-R1 identity 实现、66 条审批、staging 数据、模型数学、provider 或
 任何安全开关。
 **资产账本**：新增 matrix schema 1、冻结 matrix 1；治理 checker 与回归测试扩展。
 
