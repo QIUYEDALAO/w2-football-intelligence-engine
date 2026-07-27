@@ -167,12 +167,21 @@ ACTUAL_READ_SET = IDENTITY_GUARD_COVERAGE_SET
     operation、expected output 与 observed output fingerprint；对应 mutation test
     必须声明其消费的同一 source artifact 和 manifest，禁止拼接无关 real evidence。
 11. REAL_DB、REAL_PRODUCER_OUTPUT 与 CONTENT_ADDRESSED_SANITIZED_ARTIFACT
-   必须使用机器 schema，绑定 generator、replay argv 与 hash、query hash（适用时）、
-   migration head、captured_at、source identity、行数/结果 fingerprint、
-   provider/db delta 和 `subject_head`。replay 必须在该 subject commit 的独立
-   worktree 中运行冻结 generator，写入明确临时 output path，并逐字节重验 canonical
-   JSON、artifact hash、row count 与 result fingerprint；无输出、不同输出、非零退出
-   或修改 tracked tree 都失败，不能使用当前 main 的同名 generator。
+   必须使用机器 schema，绑定 generator、argv/hash、query hash（适用时）、migration
+   head、captured_at、source identity hash、行数/结果 fingerprint、provider/db delta、
+   `subject_head` 与 `verification_mode`：
+   - `SELF_CONTAINED_REPLAY` 必须在该 subject commit 的独立 worktree 中运行冻结
+     generator，写入明确临时 output path，并逐字节重验 canonical JSON、artifact
+     hash、row count 与 result fingerprint；无输出、不同输出、非零退出或修改
+     tracked tree 都失败，不能使用当前 main 的同名 generator。
+   - `TRUSTED_EXTERNAL_CAPTURE` 仅用于 staging PostgreSQL 等受保护来源。普通 hosted
+     PR runner 禁止连接数据库或网络重采，只离线验证 schema、canonical/artifact
+     hash、subject/generator/argv/migration/source/result 绑定与零副作用。artifact
+     必须附带双次采集 attestation，绑定两次相同 capture hash、artifact/result hash、
+     generator/command/source hash、captured_at 与 attestation self-hash；缺失、单次、
+     不同 hash、字段漂移或非零副作用均 fail-closed。真实采集只能在受保护
+     staging/operator 环境执行，不得向 pull request workflow 注入 staging 凭据；
+     同一 exact-head 的外部 PASS Review 是采集真实性的审批锚点。
 12. checker 必须完整执行 lifecycle JSON Schema、验证 frozen baseline commit，使用
     目标 commit 的 tree/blob（不依赖当前工作树存在该路径）重算文件与证据 hash，并以
     AST 作用域确认 fully-qualified symbol/test、symlink 与仓库边界。

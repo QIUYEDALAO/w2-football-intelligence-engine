@@ -40,7 +40,8 @@ and is no longer a prerequisite for any architecture task. Lineup remains
 Execute the P1 tasks strictly in the order recorded in the master checklist:
 
 ```text
-ARCH-P1-03B-R1 PREFLIGHT
+ARCH-GOVERNANCE-03 trusted external capture verification hotfix
+-> ARCH-P1-03B-R1 PREFLIGHT
 -> ARCH-OBS-01
 -> ARCH-EVIDENCE-01
 -> ARCH-DONE-REAUDIT
@@ -73,12 +74,13 @@ Generator hotfix PR #415 was accepted at
 `8981cab16360d37d75a6f49becba687bbe6e3830`, passed Full CI `30258743731`,
 and merged as `d69d3ccb835bb56fbe4930d361fe64c90ce6e8fa`; main
 `CI_REQUIRED` run `30259420198` and POST run `30259420152` passed.
-**ARCH-P1-03B-R1** remains `NOT_STARTED`; PR #414 remains Draft with its
-BLOCKED baseline and must not begin production implementation. The only
-permitted next step is to rebase the same read-only
-`W2_PR_KIND: PREFLIGHT` that adds and validates the spec and baseline receipt
-with qualifying real input and runtime/SQL evidence; production identity
-repository changes are forbidden until that gate opens.
+**ARCH-GOVERNANCE-03** is temporarily `IMPLEMENTED_PENDING_ACCEPTANCE` only
+for the trusted external capture verification hotfix. It separates hosted
+runner replay from protected staging/operator capture without injecting staging
+credentials into pull-request CI. **ARCH-P1-03B-R1** remains `NOT_STARTED`;
+PR #414 remains Draft and unchanged until this hotfix implementation and its
+status-only closure merge. Then the same #414 may be rebased and its existing
+evidence may receive only `verification_mode` and capture attestation fields.
 The checker enforces the full lifecycle ACL (including rename/delete),
 binds baseline evidence to its frozen subject head, and makes Implementation PRE
 query GitHub directly for same-head FULL CI, detached result/evidence artifacts,

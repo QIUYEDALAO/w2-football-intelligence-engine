@@ -641,10 +641,10 @@ PR、Merge SHA 或已完成台账。
 #### A14. ARCH-GOVERNANCE-03：真实生产输入形状与冻结验收矩阵规则
 
 ```text
-Status: DONE
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
 Closure PR: #412
-PR: #411
-Merge SHA: f891f25dac1c0b663facab94dc0e05c54b84f4eb
+Historical final remediation PR: #411
+Historical final remediation merge SHA: f891f25dac1c0b663facab94dc0e05c54b84f4eb
 Base SHA: 832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd
 Initial implementation PR: #410
 Initial accepted head: f7043f6a5fc0e020d11e19672a70658a66cc420f
@@ -665,6 +665,9 @@ Generator hotfix closure PR: #416
 Generator hotfix main CI_REQUIRED: 30259420198
 Generator hotfix main POST: 30259420152
 Generator hotfix scope: deterministic read-only lifecycle evidence output only
+External capture verification hotfix PR: GITHUB_PR_NUMBER
+Implementation SHA: GITHUB_PR_EXACT_HEAD
+External capture verification scope: offline attestation validation for protected data sources only
 Predecessor: ARCH-P1-04D-R1
 Successor: ARCH-P1-03B-R1 (NOT_STARTED)
 Lifecycle schema: contracts/governance/architecture_acceptance_lifecycle.v1.schema.json
@@ -710,6 +713,10 @@ Governance fixture blocked-baseline SHA-256: 9dbce71730f344c9e98f0020cf654f7a468
 - [x] generator hotfix PR #415 仅为
       `scripts/arch_p1_03b_identity_evidence.py` 增加可重放 `--output`；exact-head
       Full CI、外部验收与 main CI/POST 均通过，未启动 03B-R1 生产实现。
+- [ ] external capture verification hotfix 将 evidence 明确分为
+      `SELF_CONTAINED_REPLAY` 与 `TRUSTED_EXTERNAL_CAPTURE`；hosted runner
+      对受保护 staging 证据只做离线双采集 attestation 验证，不连接 staging，
+      不向 pull-request workflow 注入凭据。
 
 **不做**：不修改 03B-R1 identity 实现、66 条审批、staging 数据、模型数学、provider 或
 任何安全开关。
