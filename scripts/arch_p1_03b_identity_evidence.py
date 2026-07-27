@@ -4,7 +4,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import subprocess
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -31,10 +33,10 @@ def _canonical_sha256(value: Any) -> str:
     return hashlib.sha256(_canonical_bytes(value)).hexdigest()
 
 
-def _parse_time(value: str) -> datetime:
+def _parse_time(value: str, *, flag: str) -> datetime:
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if parsed.tzinfo is None:
-        raise ValueError("--as-of must include a timezone")
+        raise ValueError(f"{flag} must include a timezone")
     return parsed.astimezone(UTC)
 
 
@@ -47,6 +49,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--review-package-sha256", required=True)
     parser.add_argument("--approval-artifact-sha256", required=True)
     parser.add_argument("--reviewed-by", required=True)
+    parser.add_argument("--captured-at")
+    parser.add_argument("--source-label", default="staging-postgresql")
     parser.add_argument("--output", type=Path)
     return parser
 
@@ -72,14 +76,54 @@ def _replay_argv(args: argparse.Namespace) -> list[str]:
             args.approval_artifact_sha256,
             "--reviewed-by",
             args.reviewed_by,
+            "--captured-at",
+            args.captured_at,
+            "--source-label",
+            args.source_label,
         )
     )
     return argv
 
 
+def _write_new_atomic(path: Path, content: bytes) -> None:
+    target = path.expanduser()
+    if target.exists() or target.is_symlink():
+        raise FileExistsError("IDENTITY_EVIDENCE_OUTPUT_ALREADY_EXISTS")
+    parent = target.parent
+    if not parent.is_dir():
+        raise FileNotFoundError("IDENTITY_EVIDENCE_OUTPUT_PARENT_MISSING")
+    resolved_parent = parent.resolve(strict=True)
+    resolved_target = resolved_parent / target.name
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=resolved_parent,
+            prefix=f".{target.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temporary = Path(handle.name)
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.link(temporary, resolved_target)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    as_of = _parse_time(args.as_of)
+    as_of = _parse_time(args.as_of, flag="--as-of")
+    captured_at = (
+        _parse_time(args.captured_at, flag="--captured-at")
+        if args.captured_at is not None
+        else None
+    )
+    if args.output is not None and captured_at is None:
+        raise ValueError("--captured-at is required with --output")
+
     manifest_bytes = args.manifest.read_bytes()
     manifest_sha256 = hashlib.sha256(manifest_bytes).hexdigest()
     if manifest_sha256 != args.review_package_sha256:
@@ -143,6 +187,7 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         event.remove(repository.engine, "begin", force_read_only)
         event.remove(repository.engine, "before_cursor_execute", detect_write)
+
     stability = {
         fixture_id: {
             "row_counts": [len(run["rows"]) for run in runs],
@@ -172,6 +217,13 @@ def main(argv: list[str] | None = None) -> int:
 
     replay_argv = _replay_argv(args)
     generator_file = Path(__file__).resolve()
+    database_identity_sha256 = _canonical_sha256(
+        {
+            "engine": repository.engine.dialect.name,
+            "host": repository.engine.url.host or "local",
+            "database": repository.engine.url.database or "unknown",
+        }
+    )
     artifact = {
         "schema_version": "w2.architecture_acceptance_lifecycle.v1",
         "schema_path": SCHEMA_PATH,
@@ -188,11 +240,11 @@ def main(argv: list[str] | None = None) -> int:
             "command_sha256": _canonical_sha256(replay_argv),
         },
         "migration_head": migration_head,
-        "captured_at": as_of.isoformat(),
+        "captured_at": captured_at.isoformat(),
         "source_identity": {
             "database_engine": repository.engine.dialect.name,
-            "database_host": repository.engine.url.host or "local",
-            "database_name": repository.engine.url.database or "unknown",
+            "source_label": args.source_label,
+            "database_identity_sha256": database_identity_sha256,
             "manifest_sha256": manifest_sha256,
         },
         "row_count": len(audit)
@@ -212,7 +264,7 @@ def main(argv: list[str] | None = None) -> int:
     artifact["artifact_sha256"] = _canonical_sha256(
         {key: value for key, value in artifact.items() if key != "artifact_sha256"}
     )
-    args.output.write_bytes(_canonical_bytes(artifact) + b"\n")
+    _write_new_atomic(args.output, _canonical_bytes(artifact) + b"\n")
     return 0
 
 
