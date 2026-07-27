@@ -340,7 +340,7 @@ jobs:
         run: uv run --python 3.12 mypy src apps
       - name: Pytest
         env:
-          W2_DETACHED_RESULT_SOURCE: .w2-detached-result-source.json
+          W2_DETACHED_RESULT_SOURCE: w2-detached-result-source.json
         run: uv run --python 3.12 pytest -q
       - name: Secret pattern scan
         run: uv run --python 3.12 python tests/secret_scan.py
@@ -350,13 +350,13 @@ jobs:
           uv run --python 3.12 python scripts/check_architecture_governance.py
           prepare-detached-result-source
           --event-path "$GITHUB_EVENT_PATH"
-          --result-source .w2-detached-result-source.json
+          --result-source w2-detached-result-source.json
       - name: Transfer detached result source
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: w2-acceptance-source-${{ github.event.pull_request.head.sha }}
-          path: .w2-detached-result-source.json
+          path: w2-detached-result-source.json
           if-no-files-found: error
 
   ci-required:
@@ -414,7 +414,7 @@ jobs:
           --output-dir .w2-detached
           --subject-head "${{ github.event.pull_request.head.sha }}"
           --run-id "${{ github.run_id }}"
-          --result-source .w2-detached-result-source.json
+          --result-source w2-detached-result-source.json
       - name: Upload detached implementation result
         if: >-
           github.event_name == 'pull_request' &&
