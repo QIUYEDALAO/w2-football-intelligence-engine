@@ -431,14 +431,19 @@ jobs:
         if: >-
           github.event_name == 'pull_request' &&
           needs.classify.outputs.verify == 'true'
-        run: >-
-          python3 .w2-trusted-governance/scripts/check_architecture_governance.py
-          detached-ci-artifacts
-          --event-path "$GITHUB_EVENT_PATH"
-          --output-dir .w2-detached
-          --subject-head "${{ github.event.pull_request.head.sha }}"
-          --run-id "${{ github.run_id }}"
-          --result-source w2-detached-result-source.json
+        shell: bash
+        run: |
+          task_id="$(jq -r '.pull_request.body | capture("W2_TASK_ID: (?<id>ARCH-[A-Z0-9-]+)").id' "$GITHUB_EVENT_PATH")"
+          compiler=".w2-trusted-governance/scripts/check_architecture_governance.py"
+          if [[ "$task_id" == ARCH-GOVERNANCE-* ]]; then
+            compiler="scripts/check_architecture_governance.py"
+          fi
+          python3 "$compiler" detached-ci-artifacts \
+            --event-path "$GITHUB_EVENT_PATH" \
+            --output-dir .w2-detached \
+            --subject-head "${{ github.event.pull_request.head.sha }}" \
+            --run-id "${{ github.run_id }}" \
+            --result-source w2-detached-result-source.json
       - name: Upload detached implementation result
         if: >-
           github.event_name == 'pull_request' &&
