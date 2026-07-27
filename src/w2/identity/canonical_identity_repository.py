@@ -13,6 +13,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from sqlalchemy import Engine, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from w2.config import Settings
@@ -23,7 +24,7 @@ from w2.infrastructure.persistence.factor_model_models import (
 from w2.infrastructure.persistence.models import PlayerIdentityMappingModel
 
 _TEAM_READY_STATUS = "PROVIDER_PRIMARY_READY"
-_PLAYER_REVIEWED_STATUS = "REVIEWED"
+_REVIEWED_STATUSES = ("REVIEWED", "APPROVED")
 
 
 def _as_utc(value: datetime | None) -> datetime | None:
@@ -70,6 +71,9 @@ class CanonicalIdentityRepository:
                     ProviderTeamIdentityCrosswalkModel.competition_id == competition,
                     ProviderTeamIdentityCrosswalkModel.season == season,
                     ProviderTeamIdentityCrosswalkModel.identity_status == _TEAM_READY_STATUS,
+                    ProviderTeamIdentityCrosswalkModel.review_status.in_(_REVIEWED_STATUSES),
+                    ProviderTeamIdentityCrosswalkModel.reviewed_by.is_not(None),
+                    ProviderTeamIdentityCrosswalkModel.reviewed_at.is_not(None),
                 )
             ).all()
         valid = [r.w2_team_id for r in rows if _valid_at(r.valid_from, r.valid_to, as_of)]
@@ -94,6 +98,9 @@ class CanonicalIdentityRepository:
                     ProviderTeamIdentityCrosswalkModel.competition_id == competition,
                     ProviderTeamIdentityCrosswalkModel.season == season,
                     ProviderTeamIdentityCrosswalkModel.identity_status == _TEAM_READY_STATUS,
+                    ProviderTeamIdentityCrosswalkModel.review_status.in_(_REVIEWED_STATUSES),
+                    ProviderTeamIdentityCrosswalkModel.reviewed_by.is_not(None),
+                    ProviderTeamIdentityCrosswalkModel.reviewed_at.is_not(None),
                 )
             ).all()
         valid = [r.provider_team_id for r in rows if _valid_at(r.valid_from, r.valid_to, as_of)]
@@ -102,6 +109,36 @@ class CanonicalIdentityRepository:
         return valid[0]
 
     # --- session-scoped bulk resolution --------------------------------------
+
+    @staticmethod
+    def reviewed_team_authority_in_session(
+        session: Session,
+        *,
+        provider: str,
+        provider_team_id: str,
+        season: str,
+        as_of: datetime,
+    ) -> ProviderTeamIdentityCrosswalkModel | None:
+        """Unique reviewed team authority when the source lacks a competition key."""
+        rows = session.scalars(
+            select(ProviderTeamIdentityCrosswalkModel).where(
+                ProviderTeamIdentityCrosswalkModel.provider == provider,
+                ProviderTeamIdentityCrosswalkModel.provider_team_id
+                == provider_team_id,
+                ProviderTeamIdentityCrosswalkModel.season == season,
+                ProviderTeamIdentityCrosswalkModel.identity_status
+                == _TEAM_READY_STATUS,
+                ProviderTeamIdentityCrosswalkModel.review_status.in_(
+                    _REVIEWED_STATUSES
+                ),
+                ProviderTeamIdentityCrosswalkModel.reviewed_by.is_not(None),
+                ProviderTeamIdentityCrosswalkModel.reviewed_at.is_not(None),
+            )
+        ).all()
+        valid = [
+            row for row in rows if _valid_at(row.valid_from, row.valid_to, as_of)
+        ]
+        return valid[0] if len(valid) == 1 else None
 
     @staticmethod
     def provider_team_mapping_in_session(
@@ -227,10 +264,71 @@ class CanonicalIdentityRepository:
         return next(iter(valid))
 
     # --- player -------------------------------------------------------------
-    # Only REVIEWED mappings with a non-null canonical_player_id and current
-    # validity are model-consumable. Team/competition/season scoping columns
-    # land with the player-side migration; player identity data is currently
-    # empty, so these resolve to None/[] and never fabricate an identity.
+
+    @staticmethod
+    def player_mapping_in_session(
+        session: Session,
+        *,
+        api_football_player_id: str,
+        w2_team_id: str,
+        competition: str,
+        season: str,
+        as_of: datetime,
+    ) -> PlayerIdentityMappingModel | None:
+        """Return one reviewed mapping under the exact canonical team authority."""
+        team_rows = session.scalars(
+            select(ProviderTeamIdentityCrosswalkModel).where(
+                ProviderTeamIdentityCrosswalkModel.provider == "api_football",
+                ProviderTeamIdentityCrosswalkModel.w2_team_id == w2_team_id,
+                ProviderTeamIdentityCrosswalkModel.competition_id == competition,
+                ProviderTeamIdentityCrosswalkModel.season == season,
+                ProviderTeamIdentityCrosswalkModel.identity_status == _TEAM_READY_STATUS,
+                ProviderTeamIdentityCrosswalkModel.review_status.in_(_REVIEWED_STATUSES),
+                ProviderTeamIdentityCrosswalkModel.reviewed_by.is_not(None),
+                ProviderTeamIdentityCrosswalkModel.reviewed_at.is_not(None),
+            )
+        ).all()
+        provider_team_ids = {
+            row.provider_team_id
+            for row in team_rows
+            if _valid_at(row.valid_from, row.valid_to, as_of)
+        }
+        if len(provider_team_ids) != 1:
+            return None
+        team_external_id = next(iter(provider_team_ids))
+        rows = session.scalars(
+            select(PlayerIdentityMappingModel).where(
+                PlayerIdentityMappingModel.api_football_player_id
+                == api_football_player_id,
+                PlayerIdentityMappingModel.team_external_id == team_external_id,
+            )
+        ).all()
+        active = [row for row in rows if _valid_at(row.valid_from, row.valid_to, as_of)]
+        if any(row.mapping_status == "CONFLICT" for row in active):
+            return None
+        accepted = [row for row in active if row.mapping_status in _REVIEWED_STATUSES]
+        if not accepted or any(
+            not isinstance(row.evidence, dict)
+            or not row.canonical_player_id
+            or not row.transfermarkt_player_id
+            or not row.identity_hash
+            or not row.reviewed_by
+            or not row.reviewed_at
+            or row.evidence.get("canonical_team_id") != w2_team_id
+            or row.evidence.get("review_status") not in _REVIEWED_STATUSES
+            for row in accepted
+        ):
+            return None
+        if any(
+            len({getattr(row, field) for row in accepted}) != 1
+            for field in (
+                "canonical_player_id",
+                "transfermarkt_player_id",
+                "identity_hash",
+            )
+        ):
+            return None
+        return accepted[0]
 
     def resolve_player(
         self,
@@ -241,22 +339,19 @@ class CanonicalIdentityRepository:
         as_of: datetime,
     ) -> str | None:
         """Canonical player id for an API-Football player, or ``None``."""
-        with Session(self.engine) as session:
-            rows = session.scalars(
-                select(PlayerIdentityMappingModel).where(
-                    PlayerIdentityMappingModel.api_football_player_id == api_football_player_id,
-                    PlayerIdentityMappingModel.mapping_status == _PLAYER_REVIEWED_STATUS,
-                    PlayerIdentityMappingModel.canonical_player_id.is_not(None),
+        try:
+            with Session(self.engine) as session:
+                row = self.player_mapping_in_session(
+                    session,
+                    api_football_player_id=api_football_player_id,
+                    w2_team_id=w2_team_id,
+                    competition=competition,
+                    season=season,
+                    as_of=as_of,
                 )
-            ).all()
-        valid = [
-            r.canonical_player_id
-            for r in rows
-            if _valid_at(r.valid_from, r.valid_to, as_of)
-        ]
-        if len(set(valid)) != 1:
+        except SQLAlchemyError:
             return None
-        return valid[0]
+        return row.canonical_player_id if row else None
 
     def approved_players_for_team(
         self,
@@ -265,5 +360,118 @@ class CanonicalIdentityRepository:
         season: str,
         as_of: datetime,
     ) -> list[str]:
-        """Canonical player ids approved for a team (empty until player-side M2)."""
-        return []
+        """Stable, deduplicated reviewed roster under one exact team authority."""
+        try:
+            with Session(self.engine) as session:
+                team_id = self.provider_identity_for_team_in_session(
+                    session,
+                    w2_team_id=w2_team_id,
+                    provider="api_football",
+                    competition=competition,
+                    season=season,
+                    as_of=as_of,
+                )
+                if team_id is None:
+                    return []
+                player_ids = session.scalars(
+                    select(PlayerIdentityMappingModel.api_football_player_id)
+                    .where(PlayerIdentityMappingModel.team_external_id == team_id)
+                    .distinct()
+                    .order_by(PlayerIdentityMappingModel.api_football_player_id)
+                ).all()
+                resolved = {
+                    row.canonical_player_id
+                    for player_id in player_ids
+                    if (
+                        row := self.player_mapping_in_session(
+                            session,
+                            api_football_player_id=player_id,
+                            w2_team_id=w2_team_id,
+                            competition=competition,
+                            season=season,
+                            as_of=as_of,
+                        )
+                    )
+                    is not None
+                    and row.canonical_player_id
+                }
+                return sorted(resolved)
+        except SQLAlchemyError:
+            return []
+
+    @staticmethod
+    def provider_identity_for_team_in_session(
+        session: Session,
+        *,
+        w2_team_id: str,
+        provider: str,
+        competition: str,
+        season: str,
+        as_of: datetime,
+    ) -> str | None:
+        """Session-scoped reverse team lookup with reviewed authority."""
+        rows = session.scalars(
+            select(ProviderTeamIdentityCrosswalkModel).where(
+                ProviderTeamIdentityCrosswalkModel.w2_team_id == w2_team_id,
+                ProviderTeamIdentityCrosswalkModel.provider == provider,
+                ProviderTeamIdentityCrosswalkModel.competition_id == competition,
+                ProviderTeamIdentityCrosswalkModel.season == season,
+                ProviderTeamIdentityCrosswalkModel.identity_status == _TEAM_READY_STATUS,
+                ProviderTeamIdentityCrosswalkModel.review_status.in_(_REVIEWED_STATUSES),
+                ProviderTeamIdentityCrosswalkModel.reviewed_by.is_not(None),
+                ProviderTeamIdentityCrosswalkModel.reviewed_at.is_not(None),
+            )
+        ).all()
+        valid = {
+            row.provider_team_id
+            for row in rows
+            if _valid_at(row.valid_from, row.valid_to, as_of)
+        }
+        return next(iter(valid)) if len(valid) == 1 else None
+
+    def approved_player_source_mapping(
+        self,
+        w2_team_id: str,
+        competition: str,
+        season: str,
+        as_of: datetime,
+    ) -> dict[str, str]:
+        """Transfermarkt player id to canonical player id for a reviewed roster."""
+        try:
+            with Session(self.engine) as session:
+                team_id = self.provider_identity_for_team_in_session(
+                    session,
+                    w2_team_id=w2_team_id,
+                    provider="api_football",
+                    competition=competition,
+                    season=season,
+                    as_of=as_of,
+                )
+                if team_id is None:
+                    return {}
+                provider_ids = session.scalars(
+                    select(PlayerIdentityMappingModel.api_football_player_id)
+                    .where(PlayerIdentityMappingModel.team_external_id == team_id)
+                    .distinct()
+                ).all()
+                pairs: dict[str, set[str]] = {}
+                for player_id in provider_ids:
+                    row = self.player_mapping_in_session(
+                        session,
+                        api_football_player_id=player_id,
+                        w2_team_id=w2_team_id,
+                        competition=competition,
+                        season=season,
+                        as_of=as_of,
+                    )
+                    if row and row.transfermarkt_player_id and row.canonical_player_id:
+                        pairs.setdefault(row.transfermarkt_player_id, set()).add(
+                            row.canonical_player_id
+                        )
+                return {
+                    source_id: next(iter(canonical_ids))
+                    for source_id, canonical_ids in sorted(pairs.items())
+                    if len(canonical_ids) == 1
+                }
+        except SQLAlchemyError:
+            return {}

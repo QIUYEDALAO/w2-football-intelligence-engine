@@ -85,7 +85,7 @@ def main() -> int:
         json_path=args.artifact_root / "FAH_CANONICAL_FACT_AUDIT.json",
         md_path=args.artifact_root / "FAH_CANONICAL_FACT_AUDIT.md",
     )
-    f8 = identity_value_audit(crosswalks=[], artifacts=[], source_root=data_root)
+    f8 = identity_value_audit(artifacts=[], source_root=data_root)
     write_json_and_md(f8, args.artifact_root / "FAH_F8_AUDIT.json")
     status = (
         "PASS_FOR_SHADOW"
@@ -139,7 +139,6 @@ def _write_no_data_package(
             "historical_market_observation.v1.schema.json",
             "historical_result.v1.schema.json",
             "team_crosswalk.v1.schema.json",
-            "player_crosswalk.v1.schema.json",
             "registered_roster_snapshot.v1.schema.json",
             "player_valuation.v1.schema.json",
         ],

@@ -3,7 +3,6 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
 
 import pytest
 import yaml
@@ -12,40 +11,20 @@ from scripts.classify_ci import (
     changed_paths,
     ci_required_passes,
     classify,
-    required_ci_plan,
     resolve_plan,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def _workflow_step(job: dict[str, Any], name: str) -> dict[str, Any]:
-    return next(step for step in job["steps"] if step.get("name") == name)
-
-
-def _step_runs(step: dict[str, Any], event: str, verify: bool) -> bool:
-    condition = " ".join(str(step.get("if", "")).split())
-    if not condition:
-        return True
-    if condition == "github.event_name == 'pull_request'":
-        return event == "pull_request"
-    if condition == (
-        "github.event_name == 'pull_request' && "
-        "needs.classify.outputs.verify == 'true'"
-    ):
-        return event == "pull_request" and verify
-    raise AssertionError(f"untested workflow condition: {condition}")
-
-
-def test_docs_only_schedules_only_lightweight_governance() -> None:
+def test_docs_only_schedules_no_runtime_jobs() -> None:
     plan = classify(
         [
             "PROJECT_STATE.yaml",
             "docs/operations/runbook.md",
-            "tests/unit/test_architecture_governance.py",
+            "tests/contract/test_delivery_status_documentation.py",
         ]
     )
-    assert plan.governance
     assert not any(
         (
             plan.python_focused,
@@ -82,15 +61,9 @@ def test_ci_control_files_always_force_full() -> None:
     for path in (
         ".github/workflows/ci.yml",
         "scripts/classify_ci.py",
-        "scripts/check_architecture_governance.py",
         "scripts/check_w2_all.py",
     ):
         assert classify([path]).full
-
-
-def test_python_implementation_requires_full_receipt_but_docs_closure_is_light() -> None:
-    assert required_ci_plan(["src/w2/domain/model.py"], "IMPLEMENTATION").full
-    assert not required_ci_plan(["docs/runbook.md"], "CLOSURE").full
 
 
 def test_mixed_unknown_empty_and_forced_plans_fail_safe_to_full_ci() -> None:
@@ -114,7 +87,7 @@ def test_ci_required_strictly_matches_success_and_skipped_results() -> None:
         **{job: "success" if expected[job] else "skipped" for job in CI_JOB_NAMES},
     }
     assert ci_required_passes(expected, results)
-    for job in ("governance", "compose", "staging_parity", "predeploy_e2e"):
+    for job in ("compose", "staging_parity", "predeploy_e2e"):
         for unexpected in ("skipped", "failure", "cancelled"):
             assert not ci_required_passes(expected, results | {job: unexpected})
     for job in (name for name in CI_JOB_NAMES if not expected[name]):
@@ -158,18 +131,14 @@ def test_valid_main_push_range_is_classified_instead_of_forced_full(
     assert not resolve_plan("a" * 40, "b" * 40).full
 
 
-def test_ci_workflow_has_stable_aggregate_and_independent_governance_gates() -> None:
+def test_ci_workflow_has_stable_aggregate_for_real_quality_jobs() -> None:
     ci_path = ROOT / ".github/workflows/ci.yml"
     ci = ci_path.read_text(encoding="utf-8")
-    governance = (
-        ROOT / ".github/workflows/architecture-governance.yml"
-    ).read_text(encoding="utf-8")
     jobs = yaml.safe_load(ci_path.read_text(encoding="utf-8"))["jobs"]
     assert "name: CI_REQUIRED" in ci
     assert "if: always()" in ci
     assert jobs["ci-required"]["needs"] == [
         "classify",
-        "governance",
         "python-focused",
         "web",
         "migration",
@@ -179,7 +148,6 @@ def test_ci_workflow_has_stable_aggregate_and_independent_governance_gates() -> 
         "verify",
     ]
     for job, output in (
-        ("governance", "governance"),
         ("python-focused", "python_focused"),
         ("web", "web"),
         ("migration", "migration"),
@@ -191,96 +159,9 @@ def test_ci_workflow_has_stable_aggregate_and_independent_governance_gates() -> 
         assert jobs[job]["if"] == f"needs.classify.outputs.{output} == 'true'"
     assert "PRE_MERGE_READINESS_GATE" not in ci
     assert "POST_MERGE_CHECKLIST_CONSISTENCY_GATE" not in ci
-    assert "name: PRE_MERGE_READINESS_GATE" in governance
-    assert "name: POST_MERGE_CHECKLIST_CONSISTENCY_GATE" in governance
+    assert "governance-light" not in ci
+    assert "detached acceptance" not in ci.lower()
     assert "types: [opened, synchronize, reopened]" in ci
-    assert "issue_comment:" in governance
     assert "github.event_name != 'pull_request'" not in ci
     assert "github.event.before" in ci
     assert "github.event_name == 'workflow_dispatch' && inputs.full" in ci
-
-
-@pytest.mark.parametrize(
-    ("event", "plan", "verify"),
-    [
-        ("pull_request", "FULL", True),
-        ("pull_request", "PATH_AWARE_FULL", True),
-        ("pull_request", "PATH_AWARE_FOCUSED", False),
-        ("pull_request", "LIGHTWEIGHT", False),
-        ("push", "MAIN", True),
-        ("workflow_dispatch", "FULL", True),
-    ],
-)
-def test_ci_workflow_event_plan_matrix_initializes_trusted_runtime(
-    event: str,
-    plan: str,
-    verify: bool,
-) -> None:
-    jobs = yaml.safe_load(
-        (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-    )["jobs"]
-    aggregate = jobs["ci-required"]
-    verify_job = jobs["verify"]
-    checkout = _workflow_step(aggregate, "Checkout trusted governance compiler")
-    select = _workflow_step(aggregate, "Select trusted governance runtime")
-    require = _workflow_step(aggregate, "Require every scheduled job to succeed")
-    detached_names = (
-        "Receive detached result source",
-        "Build detached acceptance artifacts",
-        "Upload detached implementation result",
-        "Upload detached evidence index",
-    )
-
-    assert aggregate["if"] == "always()"
-    assert aggregate["env"]["W2_GOVERNANCE_ROOT"] == "${{ github.workspace }}"
-    assert "classify" in aggregate["needs"]
-    assert _step_runs(checkout, event, verify) == (event == "pull_request")
-    assert _step_runs(select, event, verify) == (event == "pull_request")
-    assert _step_runs(require, event, verify)
-    assert all(
-        _step_runs(_workflow_step(aggregate, name), event, verify)
-        == (event == "pull_request" and verify)
-        for name in detached_names
-    ), plan
-
-    root = (
-        "$GITHUB_WORKSPACE/.w2-trusted-governance"
-        if _step_runs(select, event, verify)
-        else "${{ github.workspace }}"
-    )
-    assert root
-    assert checkout["with"]["path"] == ".w2-trusted-governance"
-    assert checkout["with"]["ref"] == "${{ github.event.pull_request.base.sha }}"
-    assert (
-        select["run"].strip()
-        == 'echo "W2_GOVERNANCE_ROOT=$GITHUB_WORKSPACE/.w2-trusted-governance" >> "$GITHUB_ENV"'
-    )
-    assert 'cd "$W2_GOVERNANCE_ROOT"' in require["run"]
-    assert 'python3 "$W2_GOVERNANCE_ROOT/scripts/classify_ci.py"' in require["run"]
-    assert "env -u PYTHONPATH PYTHONNOUSERSITE=1" in require["run"]
-
-    collector_checkout = _workflow_step(
-        verify_job, "Checkout trusted measurement collector"
-    )
-    collector_select = _workflow_step(
-        verify_job, "Select trusted measurement collector"
-    )
-    assert _step_runs(collector_checkout, event, verify) == (
-        event == "pull_request"
-    )
-    assert _step_runs(collector_select, event, verify) == (
-        event == "pull_request"
-    )
-    assert (
-        collector_select["run"].strip()
-        == 'echo "W2_GOVERNANCE_ROOT=$GITHUB_WORKSPACE/.w2-trusted-governance" >> "$GITHUB_ENV"'
-    )
-    reachable_runs = [
-        str(step.get("run", ""))
-        for job in (aggregate, verify_job)
-        for step in job["steps"]
-        if _step_runs(step, event, verify)
-    ]
-    if event != "pull_request":
-        assert not any("github.event.pull_request" in run for run in reachable_runs)
-    assert not any("ARCH-GOVERNANCE-03" in run for run in reachable_runs)

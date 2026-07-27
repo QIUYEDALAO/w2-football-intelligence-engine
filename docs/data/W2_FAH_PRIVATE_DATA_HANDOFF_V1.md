@@ -12,7 +12,6 @@ Required schemas live in `docs/data/contracts/`:
 - `historical_market_observation.v1.schema.json`
 - `historical_result.v1.schema.json`
 - `team_crosswalk.v1.schema.json`
-- `player_crosswalk.v1.schema.json`
 - `registered_roster_snapshot.v1.schema.json`
 - `player_valuation.v1.schema.json`
 

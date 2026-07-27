@@ -20,17 +20,21 @@ from w2.historical.formal_ah import (
     decimal_line,
     stable_hash,
 )
+from w2.identity import CanonicalIdentityRepository
 from w2.infrastructure.database import Base
+from w2.infrastructure.persistence.factor_model_models import (
+    CanonicalTeamModel,
+    ProviderTeamIdentityCrosswalkModel,
+)
 from w2.infrastructure.persistence.models import (
+    PlayerIdentityMappingModel,
     TeamValueAsOfArtifactModel,
 )
 from w2.lineups.value_identity import (
-    PlayerIdentityCrosswalkV1,
-    TeamIdentityCrosswalkV1,
     approved_crosswalk_for_team,
     audit_transfermarkt_asset,
-    build_player_crosswalk,
     build_team_crosswalk,
+    identity_value_audit,
     materialize_team_value_asof,
 )
 
@@ -542,92 +546,74 @@ def test_missing_crosswalk_and_conflicting_crosswalk() -> None:
     assert status == "CONFLICT"
 
 
-def test_player_crosswalk_requires_reviewed_evidence_and_approved_team_crosswalk() -> None:
-    pending = build_player_crosswalk(
-        {
-            "api_football_player_id": "p-api",
-            "api_football_team_id": "1",
-            "competition_id": "allsvenskan",
-            "valid_from": "2024-01-01T00:00:00Z",
-            "source_sha256": "b" * 64,
-            "evidence": {"name_match": "exact", "position_match": "forward"},
-            "review_status": "APPROVED",
-            "reviewed_by": "reviewer",
-            "reviewed_at": "2024-01-02T00:00:00Z",
-        },
-        team_crosswalks=[],
-    )
-
-    team = build_team_crosswalk(
-        {
-            "api_football_team_id": "1",
-            "transfermarkt_club_id": "club-1",
-            "competition_id": "allsvenskan",
-            "valid_from": "2024-01-01T00:00:00Z",
-            "source_sha256": "a" * 64,
-            "evidence": {"source": "manual-review"},
-            "source_refs": ["manual-review"],
-            "review_status": "APPROVED",
-            "reviewed_by": "reviewer",
-            "reviewed_at": "2024-01-02T00:00:00Z",
-        }
-    )
-    approved = build_player_crosswalk(
-        {
-            "api_football_player_id": "p-api",
-            "transfermarkt_player_id": "tm-p",
-            "api_football_team_id": "1",
-            "competition_id": "allsvenskan",
-            "valid_from": "2024-01-01T00:00:00Z",
-            "source_sha256": "b" * 64,
-            "evidence": {"source": "manual-review"},
-            "review_status": "APPROVED",
-            "reviewed_by": "reviewer",
-            "reviewed_at": "2024-01-02T00:00:00Z",
-        },
-        team_crosswalks=[team],
-    )
-
-    assert pending.review_status == "REVIEW_REQUIRED"
-    assert approved.review_status == "APPROVED"
-    assert approved.transfermarkt_club_id == "club-1"
-
-
-def _approved_player_crosswalk() -> tuple[TeamIdentityCrosswalkV1, PlayerIdentityCrosswalkV1]:
-    team = build_team_crosswalk(
-        {
-            "api_football_team_id": "1",
-            "transfermarkt_club_id": "club-1",
-            "competition_id": "allsvenskan",
-            "valid_from": "2024-01-01T00:00:00Z",
-            "source_sha256": "a" * 64,
-            "evidence": {"source": "manual-review"},
-            "source_refs": ["manual-review"],
-            "review_status": "APPROVED",
-            "reviewed_by": "reviewer",
-            "reviewed_at": "2024-01-02T00:00:00Z",
-        }
-    )
-    player = build_player_crosswalk(
-        {
-            "api_football_player_id": "api-p1",
-            "transfermarkt_player_id": "p1",
-            "api_football_team_id": "1",
-            "competition_id": "allsvenskan",
-            "valid_from": "2024-01-01T00:00:00Z",
-            "source_sha256": "b" * 64,
-            "evidence": {"source": "manual-review"},
-            "review_status": "APPROVED",
-            "reviewed_by": "reviewer",
-            "reviewed_at": "2024-01-02T00:00:00Z",
-        },
-        team_crosswalks=[team],
-    )
-    return team, player
+def _canonical_value_identity_repository() -> CanonicalIdentityRepository:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    reviewed_at = datetime(2024, 1, 2, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add(
+            CanonicalTeamModel(
+                w2_team_id="w2:team:1",
+                display_name="Team 1",
+                country="SE",
+                active_status="ACTIVE",
+                created_at=reviewed_at,
+                identity_hash="team-1",
+                payload={},
+            )
+        )
+        for provider, provider_team_id in (
+            ("api_football", "1"),
+            ("transfermarkt", "club-1"),
+        ):
+            session.add(
+                ProviderTeamIdentityCrosswalkModel(
+                    id=f"{provider}:{provider_team_id}:allsvenskan:2024",
+                    provider=provider,
+                    provider_team_id=provider_team_id,
+                    w2_team_id="w2:team:1",
+                    competition_id="allsvenskan",
+                    season="2024",
+                    valid_from=datetime(2024, 1, 1, tzinfo=UTC),
+                    valid_to=None,
+                    identity_status="PROVIDER_PRIMARY_READY",
+                    evidence_hashes=[],
+                    identity_hash=f"team-{provider}",
+                    review_status="APPROVED",
+                    reviewed_by="reviewer",
+                    reviewed_at=reviewed_at,
+                    source_hashes=[],
+                    payload={},
+                )
+            )
+        session.add(
+            PlayerIdentityMappingModel(
+                api_football_player_id="api-p1",
+                canonical_player_id="w2:player:p1",
+                transfermarkt_player_id="p1",
+                team_external_id="1",
+                player_name="Player One",
+                normalized_name="playerone",
+                mapping_status="REVIEWED",
+                evidence={
+                    "canonical_team_id": "w2:team:1",
+                    "review_status": "APPROVED",
+                },
+                identity_hash="player-p1",
+                valid_from=datetime(2024, 1, 1, tzinfo=UTC),
+                valid_to=None,
+                reviewed_at=reviewed_at,
+                reviewed_by="reviewer",
+            )
+        )
+        session.commit()
+    return CanonicalIdentityRepository(engine=engine)
 
 
-def test_team_value_asof_uses_source_valuation_date_and_rejects_future(tmp_path: Path) -> None:
-    crosswalk, player_crosswalk = _approved_player_crosswalk()
+def test_team_value_asof_uses_canonical_db_identity_and_rejects_future(
+    tmp_path: Path,
+) -> None:
+    identity = _canonical_value_identity_repository()
     _write_csv(
         tmp_path / "registered_roster_snapshots.csv",
         [
@@ -637,7 +623,6 @@ def test_team_value_asof_uses_source_valuation_date_and_rejects_future(tmp_path:
                 "roster_snapshot_id": "club-1-2024-05-01",
                 "snapshot_date": "2024-05-01T00:00:00Z",
                 "observed_at": "2024-05-01T00:00:00Z",
-                "identity_hash": "p1hash",
             }
         ],
     )
@@ -656,80 +641,56 @@ def test_team_value_asof_uses_source_valuation_date_and_rejects_future(tmp_path:
             },
         ],
     )
-
+    fixture = {
+        "team_external_id": "1",
+        "competition_id": "allsvenskan",
+        "season": "2024",
+        "as_of": "2024-05-02T00:00:00Z",
+    }
     artifact = materialize_team_value_asof(
-        fixture={
-            "team_external_id": "1",
-            "competition_id": "allsvenskan",
-            "as_of": "2024-05-02T00:00:00Z",
-        },
-        crosswalks=[crosswalk],
-        player_crosswalks=[player_crosswalk],
+        fixture=fixture,
+        identity_repository=identity,
         source_root=tmp_path,
     )
     rebuilt = materialize_team_value_asof(
-        fixture={
-            "team_external_id": "1",
-            "competition_id": "allsvenskan",
-            "as_of": "2024-05-02T00:00:00Z",
-        },
-        crosswalks=[crosswalk],
-        player_crosswalks=[player_crosswalk],
+        fixture=fixture,
+        identity_repository=identity,
         source_root=tmp_path,
     )
 
     assert artifact["status"] == "READY"
+    assert artifact["schema_version"] == "w2.team_value_asof_artifact.v2"
+    assert artifact["canonical_team_id"] == "w2:team:1"
+    assert artifact["canonical_player_ids"] == ["w2:player:p1"]
     assert artifact["squad_value_eur"] == "100"
-    assert artifact["roster_source_hash"]
-    assert artifact["membership_source_hashes"] == [artifact["roster_source_hash"]]
     assert artifact["future_valuation_exclusions"] == 1
     assert artifact["artifact_hash"] == rebuilt["artifact_hash"]
 
 
-def test_team_value_asof_rejects_same_day_valuation_conflict(tmp_path: Path) -> None:
-    crosswalk, player_crosswalk = _approved_player_crosswalk()
+def test_team_value_asof_fails_closed_on_wrong_scope(tmp_path: Path) -> None:
+    identity = _canonical_value_identity_repository()
     _write_csv(
         tmp_path / "registered_roster_snapshots.csv",
         [
             {
                 "transfermarkt_player_id": "p1",
                 "club_id": "club-1",
-                "roster_snapshot_id": "club-1-2024-05-01",
                 "snapshot_date": "2024-05-01T00:00:00Z",
-                "observed_at": "2024-05-01T00:00:00Z",
             }
         ],
     )
-    _write_csv(
-        tmp_path / "player_valuations.csv",
-        [
-            {
-                "transfermarkt_player_id": "p1",
-                "observed_at": "2024-04-01T00:00:00Z",
-                "market_value_eur": "100",
-            },
-            {
-                "transfermarkt_player_id": "p1",
-                "observed_at": "2024-04-01T12:00:00Z",
-                "market_value_eur": "101",
-            },
-        ],
-    )
-
     artifact = materialize_team_value_asof(
         fixture={
             "team_external_id": "1",
-            "competition_id": "allsvenskan",
+            "competition_id": "wrong",
+            "season": "2024",
             "as_of": "2024-05-02T00:00:00Z",
         },
-        crosswalks=[crosswalk],
-        player_crosswalks=[player_crosswalk],
+        identity_repository=identity,
         source_root=tmp_path,
     )
-
     assert artifact["status"] == "INCOMPLETE"
-    assert artifact["squad_value_eur"] is None
-    assert "VALUATION_CONFLICT" in artifact["blockers"]
+    assert "CANONICAL_TEAM_IDENTITY_MISSING_OR_AMBIGUOUS" in artifact["blockers"]
 
 
 def test_fah_repository_can_query_team_value_by_team_and_asof() -> None:
@@ -737,6 +698,7 @@ def test_fah_repository_can_query_team_value_by_team_and_asof() -> None:
     Base.metadata.create_all(engine)
     repository = FahDataFoundationRepository(engine)
     artifact = {
+        "schema_version": "w2.team_value_asof_artifact.v2",
         "team_external_id": "1",
         "transfermarkt_club_id": "club-1",
         "competition_id": "allsvenskan",
@@ -765,6 +727,7 @@ def test_f8_authority_keeps_static_or_unreviewed_values_out_of_formal() -> None:
     repository.write_team_value_artifacts(
         [
             {
+                "schema_version": "w2.team_value_asof_artifact.v2",
                 "team_external_id": "1",
                 "transfermarkt_club_id": "club-1",
                 "competition_id": "allsvenskan",
@@ -793,6 +756,7 @@ def test_f8_authority_ready_requires_complete_reviewed_artifact() -> None:
     Base.metadata.create_all(engine)
     repository = FahDataFoundationRepository(engine)
     artifact = {
+        "schema_version": "w2.team_value_asof_artifact.v2",
         "team_external_id": "1",
         "transfermarkt_club_id": "club-1",
         "competition_id": "allsvenskan",
@@ -825,6 +789,34 @@ def test_f8_authority_ready_requires_complete_reviewed_artifact() -> None:
     assert result["status"] == "READY"
     assert result["formal_eligible"] is False
     assert result["blockers"] == ["FORMAL_CAPABILITY_DISABLED"]
+
+
+def test_team_value_and_identity_audit_reject_old_contract_version() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = FahDataFoundationRepository(engine)
+    old_artifact = {
+        "schema_version": "w2.team_value_asof_artifact.v1",
+        "team_external_id": "1",
+        "competition_id": "allsvenskan",
+        "as_of": "2024-05-02T00:00:00Z",
+        "artifact_hash": "e" * 64,
+    }
+
+    summary = repository.write_team_value_artifacts([old_artifact])
+
+    assert summary.rolled_back is True
+    assert (
+        repository.team_value_artifact_at(
+            team_external_id="1",
+            competition_id="allsvenskan",
+            as_of=AS_OF,
+        )
+        is None
+    )
+    assert identity_value_audit(artifacts=[], source_root=None)["schema_version"] == (
+        "w2.fah04.identity_value_audit.v2"
+    )
 
 
 def test_data_asset_registry_uses_aliases_and_backup_missing_is_external_blocker(

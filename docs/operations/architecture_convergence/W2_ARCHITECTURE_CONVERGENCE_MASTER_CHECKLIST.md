@@ -33,22 +33,13 @@
 | ARCH-P0-03 联赛白名单入库 | #377 | `7bd5088b` | DB 竞赛权威 + 热切换，JSON/env 业务覆盖删除 |
 | ARCH-P0-04 P0 总验收 | #378 | `d62e3351` | P0_ARCHITECTURE_CONVERGENCE_PASS |
 | ARCH-P1-01 僵尸表删除 | #379 | `76201af8` | 144→66 表，78 张僵尸表证据化删除（0038–0040） |
-| P1-01 收口 + 清单修订 | #380 | `8af05ddb` | P1 顺序调整获批（04 拆分、03 后移、新增 07） |
+| P1-01 收口 + 清单修订 | #380 | `8af05dd6` | P1 顺序调整获批（04 拆分、03 后移、新增 07） |
 | ARCH-P1-02 赔率表收敛 | #381 | `f53b073f` | 唯一 append-only 历史 + 投影视图（0041，断言式 drop） |
-| HYGIENE 清单顺序修正 | #382 | `db3fd12f` | 清单序列一致性修正 |
+| HYGIENE 清单顺序修正 | #382 | `db3fd128` | 清单序列一致性修正 |
 | ARCH-HYGIENE-01 | #383 | `748b50e5` | 生成审计产物退出 Git |
 | ARCH-HYGIENE-02 | #384 | `1e252d73` | Scripts 权威盘点与证据化删除（取代 P2-01） |
 | ARCH-P1-04A 评估持久化 | #385 | `aa59b61d` | 事件驱动写侧投影管线（收口 #386 `46aa8d36`） |
 | ARCH-P1-04B Dashboard 读切换 | #387 | `7ffdc0fe` | API 降为 988 行纯投影读取，生产 fallback = 0（收口 #388 `75e49930`） |
-| ARCH-GOVERNANCE-01 双门禁 | #393 | `35fcac0d99573556c5e9f7a41822e153783efa73` | 可信 PRE/POST 门禁落地；独立 closure 收口 |
-| ARCH-P1-04C 死代码清理+依赖守卫 | #395 | `6eeb411747a1cef624ff4780dbad87d4cec4b26d` | `_is_decision_tier`+F10 删除，INFRASTRUCTURE 依赖守卫；合同层三活跃链移交 04D |
-| ARCH-P1-04D | #398 | `e6e447293365ca29686b21876cab5e103829b1ed` | canonical card 权威统一，五项兼容代码删除，`LEGACY_DECISION_CONTRACT_CODE=0` |
-| ARCH-P1-03A | #400 | `bcd2c5e490a99426a0451de7f92362c1a76b2960` | 团队身份权威收敛 |
-| ARCH-P1-03B | #402 | `df8fc4578fb4d45e2fb7afb95f58748f459a69a8` | 球员身份 M2B 与三场强化 M3 收敛 |
-| ARCH-P1-03C | #404 | `4e310e87def0e6e44e0fe69fa0c07f776126a6fc` | 三张 legacy identity 表及 ORM 声明下线 |
-| ARCH-GOVERNANCE-02 | #406 | `cf5d6ea2cca600e31d4058b7d359b271d12d1f04` | path-aware CI、稳定聚合门与 required contexts 切换 |
-| ARCH-P1-04D-R1 | #408 | `09ece0204bed1289986e20d6a1cff842cb2f0864` | canonical decision contract 遗留兼容读取整改 |
-| ARCH-GOVERNANCE-03 | #411 | `f891f25dac1c0b663facab94dc0e05c54b84f4eb` | 真实生产输入验收矩阵与可信 workflow event 运行闭包；#417 完成外部采集验证 |
 
 ---
 
@@ -98,19 +89,6 @@ ARCH-P1-08 通过后，功能冻结部分解除：**仅允许本清单阶段 B �
 任务必须严格按此顺序执行。每任务开工：`git fetch github-w2 main` 拉新分支，
 本文件写 `Status: IN_PROGRESS`；完成 = 完整 CI + staging 验收 + 合并 + 状态翻 DONE。
 
-### 执行与验收节奏
-
-1. 子步骤只跑 focused tests；同一 exact head 的完整 CI 不重复执行。
-2. 最终 exact head 一次性完成范围项、业务 delta=0、静态守卫、临时/生成资产清理、
-   资产账本，并满足 untracked=0、未引用新文件=0、worktree clean。
-3. `CI_REQUIRED` 是所有 PR 的稳定代码 CI 聚合 context；最终实施 exact head 的完整
-   CI 所调度 jobs 必须全部 PASS。`PRE_MERGE_READINESS_GATE` 与
-   `POST_MERGE_CHECKLIST_CONSISTENCY_GATE` 独立且继续 required；exact head
-   变化才重跑代码 CI。
-4. 外部验收 PASS 后才能进入合并；合并前任务不得 DONE，后续任务不得启动。
-5. 数据库 drop、数据迁移、部署、兼容链物理删除、安全开关和模型数学变更继续执行
-   各自逐项高风险门禁。
-
 ### 阶段 A：架构收尾
 
 ---
@@ -119,63 +97,14 @@ ARCH-P1-08 通过后，功能冻结部分解除：**仅允许本清单阶段 B �
 
 ```text
 Status: DONE
-Branch: codex/arch-governance-01-closure
-PR: #393
-Merge SHA: 35fcac0d99573556c5e9f7a41822e153783efa73
-Closure PR: #394
-Closure exact head: GITHUB_PR_EXACT_HEAD
-Base SHA: 91c7921574fcca249a9f1a9cf29c8c782e774930
-Started at: 2026-07-24T17:12:33Z
-Owner: Codex
-Bootstrap required checks: verify + staging-parity
-Final A1 required checks: verify + staging-parity + PRE_MERGE_READINESS_GATE +
-  POST_MERGE_CHECKLIST_CONSISTENCY_GATE
-Trusted execution: workflow + checker from main/base; PR head checklist is API-read data only
-Protocol read: GITHUB_SECONDARY_REVIEW_PROTOCOL_V1
-Task scope contract read: TASK_SCOPE_AND_REVIEW_BOUNDARY_V1
-Implementation SHA: GITHUB_PR_EXACT_HEAD
-Validated remediation head: 6bb10237bfa3d60f138cf76450b25c659f7e697a
-Final receipt head: historical ARCH-GOVERNANCE-01 coordinate (superseded by
-  ARCH-GOVERNANCE-03 subject-head/detached-artifact lifecycle)
-Stage 2 CI: 30116539839
-Main bootstrap POST run: 30123415474 /
-  FAIL_EXPECTED_MERGED_TASK_NOT_CLOSED:ARCH-GOVERNANCE-01:#393
-Branch protection before API: {"strict":true,"contexts":["verify","staging-parity"],
-  "checks":[{"context":"verify","app_id":15368},{"context":"staging-parity","app_id":15368}]}
-Branch protection after API: {"strict":true,"contexts":["verify","staging-parity",
-  "PRE_MERGE_READINESS_GATE","POST_MERGE_CHECKLIST_CONSISTENCY_GATE"],
-  "checks":[{"context":"verify","app_id":15368},{"context":"staging-parity","app_id":15368},
-  {"context":"PRE_MERGE_READINESS_GATE","app_id":15368},
-  {"context":"POST_MERGE_CHECKLIST_CONSISTENCY_GATE","app_id":15368}]}
-Branch protection rollback: `gh api --method PATCH
-  repos/QIUYEDALAO/w2-football-intelligence-engine/branches/main/protection/required_status_checks
-  -F strict=true -f 'contexts[]=verify' -f 'contexts[]=staging-parity'`
-Staging SHA: NOT_APPLICABLE_GOVERNANCE_ONLY
-Evidence: local 1609 passed / 4 skipped; governance matrix 58 passed; Stage 2 CI
-  verify + staging-parity + predeploy-e2e PASS; bootstrap required contexts =
-  verify + staging-parity; predeploy-e2e remains mandatory full CI but is not a
-  branch-protection required context; branch protection strict = true;
-  workflow contents-write/self-commit/push count = 0
-Rollback: `git revert "$(gh pr view 393 --repo QIUYEDALAO/w2-football-intelligence-engine
-  --json mergeCommit --jq .mergeCommit.oid)"`; then `gh api --method PATCH
-  repos/QIUYEDALAO/w2-football-intelligence-engine/branches/main/protection/required_status_checks
-  -F strict=true -f 'contexts[]=verify' -f 'contexts[]=staging-parity'`
-One-time bootstrap:
-  1. #393 仅在原 required checks（verify + staging-parity）与外部验收下合并。
-  2. #393 合并后，workflow/checker 才成为 main 可信代码。
-  3. 随即将 required contexts 更新为 verify + staging-parity +
-     PRE_MERGE_READINESS_GATE + POST_MERGE_CHECKLIST_CONSISTENCY_GATE。
-  4. 从最新 main 创建独立 `W2_PR_KIND: CLOSURE` 的 A1 closure PR，写入
-     `Status: DONE`、台账 `#393` 与 GitHub 返回的完整 40 位 Merge SHA。
-  5. closure PR 必须真实跑通 PRE 与 POST 两个新门禁。
-  6. closure PR 合并且 main POST PASS 前，A1 不得 DONE，A2 不得启动。
+Required checks: PRE_MERGE_READINESS_GATE + POST_MERGE_CHECKLIST_CONSISTENCY_GATE
 ```
 
 独立治理 PR。前者阻止未获外部验收结论的 PR 提前合并；后者核验已合并 PR 与本清单
 DONE/merge 坐标一致。两个 required check 缺一不可。
 
-- [x] 双门禁落地为 required checks。
-- [x] 完整 CI 通过并合并。
+- [ ] 双门禁落地为 required checks。
+- [ ] 完整 CI 通过并合并。
 
 ---
 
@@ -183,613 +112,62 @@ DONE/merge 坐标一致。两个 required check 缺一不可。
 
 ```text
 Status: DONE
-Branch: codex/arch-p1-04c-contract-dead-code-cleanup
-PR: #395
-Base SHA: c09c7d9130f709d488f87e5369735a8bde0584b4
-Merge SHA: 6eeb411747a1cef624ff4780dbad87d4cec4b26d
-Started at: 2026-07-24T21:00:00Z
-Owner: Codex
-Scope outcome: 范围经生产 trace 收敛（老板 2026-07-24 裁决）。合同层删除的
-  三处目标经证明是活跃兼容链，本轮不删，移交新任务 ARCH-P1-04D；仅交付
-  两处真死代码 + 依赖守卫。三条 scope correction 见下方。
 ```
 
 **目标**：删除全部新旧合同并存代码与 04B 后确认的死代码；每处删除附零引用证据。
 
-**执行结果（老板裁决后）**：`legacy_decision_shim.py`、`decision_adapter.py`
-legacy→V3、`pricing_shadow` 兼容读、`_public_market_is_legacy_pick`/pre-LMM
-分支——经生产 trace 证明**均为活跃兼容链**，非死代码，本轮**不删**，移交
-`ARCH-P1-04D`。本任务实际交付：`_is_decision_tier`（死函数）+ F10_LINEUPS
-死子图删除 + INFRASTRUCTURE 层依赖守卫。
-
 **范围（逐项处理，允许 ≤3 个提交但同一 PR）**：
-- [ ] ~~`legacy_decision_shim.py` 整文件删除~~ → 移交 ARCH-P1-04D（活跃兼容链，见 correction 3）。
-- [ ] ~~`decision_adapter.py` legacy→V3 转换删除~~ → 移交 ARCH-P1-04D（同 correction 3）。
-- [ ] ~~`analysis_calculator` pre-LMM 分支 + `_public_market_is_legacy_pick`~~ → 保留（活跃，见 correction 2）。
-- [x] `day_view.py` 死函数 `_is_decision_tier` 删除（commit 1）。~~`pricing_shadow` 兼容读~~ → 保留（活跃源，见 correction 1）。
-- [x] F10_LINEUPS 死子图删除 + LMM 登记为唯一 lineup 来源（commit 1）。
-- [x] 全库死代码复核完成：三处原定删除项经生产 trace 证明为活跃兼容链，记录如下。
-- [x] INFRASTRUCTURE 层依赖守卫（commit 2，DEPENDENCY_CONTRACT_V1）。
-
-**三条范围纠偏（生产 trace 结论，老板 2026-07-24 裁决保留 + 移交）**：
-
-```text
-A2_SCOPE_CORRECTION_1:
-  item: DAY_VIEW_PRICING_SHADOW_COMPAT_READ
-  original_assumption: COMPATIBILITY_FALLBACK_WITH_SIMULATION_PRIMARY_PATH
-  audit_result: ACTIVE_PRODUCTION_SOURCE
-  evidence:
-    - canonical top-level writer already existed:
-      payload["simulation"] = simulation_output.as_dict()
-    - 04C-era live Dashboard projection omitted that top-level field
-    - public/formal/scoreline paths therefore still consumed pricing_shadow.simulation
-    - retain until ARCH-P1-04D projection, reconciliation and read-authority migration complete
-  decision: RETAIN
-  production_behavior_changed: false
-  follow_up: ARCH-P1-04D
-
-A2_SCOPE_CORRECTION_2:
-  item: PUBLIC_MARKET_LEGACY_PICK_CHAIN
-  original_assumption: PRE_LMM_DEAD_CODE
-  audit_result: ACTIVE_PICK_PATH_FOR_ANALYSIS_PICK_WITHOUT_MARKET_CANDIDATE
-  evidence:
-    - market_candidate write is conditional (analysis_calculator:5286)
-    - _public_market_is_primary_pick requires market_candidate
-    - test_dashboard_validates_analysis_pick_without_promoting_to_candidate depends on it
-  decision: RETAIN
-  production_behavior_changed: false
-  follow_up: ARCH-P1-04D
-
-A2_SCOPE_CORRECTION_3:
-  item: LEGACY_DECISION_SHIM_AND_ADAPTER_LEGACY_TO_V3
-  original_assumption: DEAD_CONTRACT_CONVERSION_1100_LINES
-  audit_result: ACTIVE_PRE_LMM_COMPATIBILITY_CHAIN
-  evidence:
-    - recommendations.derive_recommendation_tier calls legacy_decision_view when
-      _decision_tier_from_payload returns None (card without decision_tier)
-    - reached from write side via build_recommendation (analysis_calculator:6193/6556)
-    - card["decision_tier"] written on conditional/multi paths (may be absent)
-    - same test as correction 2 depends on the legacy tier inference
-    - same active chain as correction 2 (retaining zone 2 implies retaining shim)
-  decision: RETAIN
-  production_behavior_changed: false
-  follow_up: ARCH-P1-04D
-```
+- [ ] `src/w2/domain/legacy_decision_shim.py` 整文件删除（113 行）。
+- [ ] `src/w2/domain/decision_adapter.py`（986 行）中 legacy→V3 转换路径删除；V3 构造保留；
+      凡只被 shim/旧测试引用的函数一并删。
+- [ ] `src/w2/prematch/analysis_calculator.py` 中 pre-LMM frozen artifact 兼容分支
+      （注释 "Backward compatibility for immutable pre-LMM frozen artifacts" 及
+      `_public_market_is_legacy_pick` 调用链）。
+- [ ] `src/w2/dashboard/day_view.py`：`_scoreline_simulations` 的 `pricing_shadow` 兼容读
+      （保留 `simulation` 主路径）；死函数 `_is_decision_tier`。
+- [ ] **旧 F10 首发因子废弃**：`src/w2/features/live_factors.py` 中 `F10_LINEUPS` 相关函数
+      （专家评审确认未接入主 `FeatureInputs`）；并在 `src/w2/domain/factor_registry.py`
+      登记 LMM 链为唯一首发因子来源。此项是 EVAL-02B 的硬前置。
+- [ ] 删除后全库死代码复核，剩余疑似项只记录到待议区，不顺手删。
 
 **不做**：不动 analysis_calculator 计算语义；不动 API；不动表。
-**验收（本轮实际口径）**：`_is_decision_tier` 零引用；`F10_LINEUPS` 全库零引用；
-INFRASTRUCTURE→{API,DASHBOARD,APPS} 守卫绿；全量测试与 04B 守卫绿。原
-`LEGACY_DECISION_CONTRACT_CODE = 0` 与 `NET_DELETION ≥ 1100` **不适用本轮**——
-合同层证明为活跃链，其删除是 ARCH-P1-04D 在 pre-LMM 契约迁移完成后的验收项。
-**资产账本**：新增 0；删除 227 行（`_is_decision_tier` + F10 子图）。
-- [x] PR 合并（#395，merge SHA `6eeb411747a1cef624ff4780dbad87d4cec4b26d`；
-      closure #396，main POST run `30143083350` PASS）。
+**验收**：`LEGACY_DECISION_CONTRACT_CODE = 0`；`F10_LINEUPS` 全库零引用；全量测试与 04B 守卫绿。
+**资产账本**：新增 0；删除 ≥1,100 行合同转换 + F10 死代码。
+- [ ] PR 合并。
 
 ---
 
-#### A9. ARCH-P1-04D：pre-LMM 契约迁移与兼容链删除（A2/04C 的后续拆分任务）
+#### A3. ARCH-P1-03：球队身份 Crosswalk 收敛
 
 ```text
-Status: DONE
-Branch: codex/arch-p1-04d-pre-lmm-contract-migration
-PR: #398
-Merge SHA: e6e447293365ca29686b21876cab5e103829b1ed
-Base SHA: 9b2dc44bed22f237868d1471cbb8d9950917edcb
-Implementation SHA: d9748a24b2359e8a642006af53e713baad236cb9
-Started at: 2026-07-25T04:30:00Z
-Owner: Codex
-Remediation task: ARCH-P1-04D-R1
-M1: DONE (Dashboard simulation projection, status-driven pass-through)
-M2: DONE (frozen 8 MATCH; live LEGACY_ONLY=4 blocker found, MISMATCH=0)
-M2_REMEDIATION: DONE (live _dashboard_card_from_matchday passes through canonical
-  top-level simulation; live LIVE_MATCH=4, LEGACY_ONLY=0, MISMATCH=0)
-M3: DONE (canonical simulation read authority implemented;
-  LEGACY_PICK_RUNTIME_REACHABLE=0; LEGACY_SHIM_RUNTIME_REACHABLE=0;
-  LEGACY_ADAPTER_RUNTIME_REACHABLE=0)
-M4: DONE (five retained compatibility components
-  physically deleted; LEGACY_DECISION_CONTRACT_CODE=0)
-04D 整体为 DONE。
+Status: IN_PROGRESS
+Current PR: #419
 ```
 
-**由来**：A2（04C）经生产 trace 发现三处原定"死代码"实为活跃 pre-LMM 兼容链
-（见 A2 的三条 scope correction）。它们服务于**缺少完整 decision_contract 的
-card 形状**（无 `decision_tier` / `market_candidate` / 顶层 `simulation`）。删除
-这些兼容链的前置是先让写侧所有 card 带完整契约，这是数据迁移，超出 04C
-"不改生产行为"范围，故独立成任务。
+待收敛组：`football_data_team_crosswalks`、`team_identity_crosswalks`、
+`provider_team_identity_crosswalks`、`player_identity_crosswalks`、`player_identity_mappings`。
 
-**目标**：淘汰 pre-LMM card 形状，之后删除三条兼容链。
+历史实施记录（仅属于 A3，不是顶层任务）：ARCH-P1-03A、ARCH-P1-03B、
+ARCH-P1-03C、ARCH-P1-03B-R1。
 
-##### 写侧 trace 与只读盘点结论（2026-07-25，未改任何数据）
+- [ ] 盘点全部球队/球员身份与 provider crosswalk 表。
+- [ ] canonical team / player 体系为唯一权威；迁移有效映射及 review provenance。
+- [ ] 其余表停止写入，零引用证明后同 PR 断言式 drop；证据不足的保持原状继续调查。
+- [ ] provider IDs 仅作 provenance，不再作为模型主身份。
+- [ ] fixture、history、rating、lineup 读取对账。
+- [ ] **追加**：用 3 场真实比赛演示 canonical player ↔ provider lineup 球员唯一联接查询
+      （EVAL-02B"缺阵分钟占比"的前置能力）。
+- [ ] PR 合并。
 
-生产 card 写入路径全量 trace：
-
-```text
-canonical 生成器 build_decision_contract_fields
-  （orchestrator:245 / analysis_calculator:6243）
-  → 显式含 decision_tier / data_status / pick / non_pick        → 合规
-手写降级卡 analysis_calculator:2166（frozen 不可用）
-  → decision_tier=NOT_READY 全字段完整                          → 合规
-frozen artifact writer read_model_projection.write_frozen_...
-  → 走注入的 canonical 计算器                                    → 04B 后合规
-真 simulation 计算 run_simulation（analysis_calculator:2720）一次，其输出
-  直接写入 card 顶层：payload["simulation"] = simulation_output.as_dict()
-  （analysis_calculator:2833）。**顶层 simulation 有真源，非反向重建。**
-  （更正：设计初稿曾误记"顶层 simulation 全库无写入点"，因 grep 漏读 2833；
-   实为 day_view 主路径已读 card["simulation"]，仅当其空时才 fallback 到
-   pricing_shadow.simulation —— 后者是 04C correction 1 的兜底活链。）
-run_simulation_from_shadow（:405, :6144）仅用于 build_formal_recommendation
-  的反序列化重建，**不写顶层 simulation**；裁决禁止的"反向重建→顶层"本就
-  不存在。
-market 级 analysis_decision / market_candidate 条件写入
-  （analysis_calculator:5296）→ legacy pick 兜底无 candidate 的
-    ANALYSIS_PICK market（= 04C correction 2 的活链）
-```
-
-staging 只读盘点（read_model_checkpoint，8 个 frozen canary artifact）：
-
-```text
-FROZEN_ARTIFACTS_TOTAL            = 8
-SCHEMA_ALL_CANONICAL             = 8/8  (w2.analysis-card.frozen.v1)
-PRODUCTION_VALIDATE_OK           = 8/8  (validate_frozen_analysis_payload 无异常)
-ARTIFACT_HASH_VALID              = PASS (8/8)   （payload 完整性）
-SOURCE_HASH_VALID                = PASS (8/8)   （来源身份；与 artifact_hash 语义不同）
-CARD_TOP_TIER_PRESENT            = 8/8  (WATCH×6, NOT_READY×1, ANALYSIS_PICK×1)
-CONTRACT_TIER_PRESENT            = 8/8  (逐条与 card_top_tier 相同)
-SIM_JSONB_EQUAL (full object)    = 8/8  true
-TOP_SIM_OBJ_HASH == PSHADOW_OBJ  = 8/8  (canonical_sha256 全对象)
-REACHABILITY_NOT_YET_EVALUATED   = M3_GATE
-```
-
-（artifact_hash 与 source_hash 语义不同，分别验证，不要求相等。可达性未评估：
-未查证 public-reader/current-fixture 是否仍读取历史 artifact，故不主张
-UNREACHABLE / CANNOT_REMATERIALIZE，判定锁 M3 gate。inventory fingerprint =
-3a748382575ce8dd7f36184b7e15ebbd，仅身份指纹。完整证据见
-W2_ARCH_P1_04D_FROZEN_ARTIFACT_INVENTORY.md。）
-
-**关键结论**：8 条 frozen artifact 均为 canonical schema，顶层与嵌套 tier
-逐条一致；顶层 simulation 与 pricing_shadow simulation **全对象 JSONB 逐条
-相等**（md5 全对象 hash 相同，非仅计数）；simulation 为**单次计算**（上游
-`run_simulation`
-一次，`run_simulation_from_shadow` 仅反序列化重建，非独立计算），满足
-`simulation_compute_count = 1` / `independent_simulation_writers = 0`。
-
-##### 迁移设计（双写 → 对账 → 读切换 → 删旧读）
-
-- M1 Dashboard projection 直接透传（不删旧，裁决第 1 点）：Dashboard/DayView
-  projection 直接透传 `card["simulation"]`（其真源为 analysis_calculator:2833
-  的 `simulation_output.as_dict()`，即 run_simulation 的一次计算）。
-  **禁止** `run_simulation_from_shadow → 顶层 simulation` 的反向重建（该反向
-  重建本就不存在，M1 以静态守卫固化"不得引入"）。simulation 必带明确状态
-  （READY / UNAVAILABLE），无有效 simulation 时透传 UNAVAILABLE 而非回退
-  pricing_shadow。不新增计算、不新增表、不新增运行权威。
-- M2 对账：live + frozen 两层证明
-  `top_level_simulation_hash == pricing_shadow_simulation_hash`；Dashboard/DayView
-  逐场 hash 一致（`scoreline_simulations`、`recommendation.decision_tier`、
-  ANALYSIS_PICK 不提升）。
-- M3 读切换：`day_view._scoreline_simulations` 从 pricing_shadow 切到读顶层
-  `simulation`；证明三条兼容链**零可达**。历史 frozen artifact 按裁决第 2 点：
-  不可达→保留审计；可达且缺字段→用原始输入重新物化 canonical artifact 后
-  切读取指针；无法物化→fail-closed 并阻止删链。可达性统一为
-  `REACHABILITY_NOT_YET_EVALUATED = M3_GATE`，M3 须先补真实 public-reader /
-  current-fixture 可达性查询后再据结果走三分支，不得预设任何触发数。
-- M4 删旧读（仅当 M2/M3 全绿且零可达）：删 pricing_shadow 兼容读、
-  `legacy_decision_shim.py`、adapter legacy→V3、`_public_market_is_legacy_pick`/
-  pre-LMM 分支。
-
-##### card contract version + validator（裁决第 4 点）
-
-新增独立的 `analysis_card_contract_version`（如
-`w2.analysis-card.contract.v1`），**与 frozen artifact 的 `schema_version`
-`w2.analysis-card.frozen.v1` 正交，不改后者原语义**。frozen.v1 继续由
-`validate_frozen_analysis_payload` 按原规则校验；新 contract version 是 card
-读取契约层，validator 至少保证：显式 `decision_tier`；显式 public-market
-selection **或**明确无选择状态（`market_candidate` 仍为可选证据，禁止伪造）；
-顶层 `simulation` 字典含 READY/UNAVAILABLE 等明确状态。新 validator 作为 M1
-的对账守卫接入 projection 透传路径，不追溯改写已固化的 frozen.v1 payload。
-
-**范围**：
-- [x] canonical card 契约（写/投影侧 card 无条件具备三项，validator 强制）：
-      1. 显式 `decision_tier`；
-      2. 显式 public-market selection **或**明确 `NONE` 状态；
-      3. 顶层 `simulation` 字典含明确 `READY` / `UNAVAILABLE` 状态。
-      `market_candidate` **仍为可选证据，禁止写成必需字段、禁止伪造**。
-- [x] 对账：迁移前后 Dashboard/DayView 语义逐场 hash 一致（含
-      `scoreline_simulations`、`recommendation.decision_tier`、ANALYSIS_PICK
-      不提升语义）。
-- [x] 读切换：确认 pre-LMM 兼容链不再可达（无 card 走 legacy 分支）。
-- [x] 删除三条兼容链：`legacy_decision_shim.py` 整删；`decision_adapter.py`
-      legacy→V3 转换删；`_public_market_is_legacy_pick`/pre-LMM 分支删；
-      `day_view` `pricing_shadow` 兼容读删。
-- [x] 更新依赖该三链的测试为现代契约形状。
-- [x] 静态守卫：`LEGACY_DECISION_CONTRACT_CODE = 0`。
-
-**不做**：不改模型数学；不改 EV/门槛/安全开关。
-**验收**：`LEGACY_DECISION_CONTRACT_CODE = 0`；pre-LMM 兼容链全库零可达；
-迁移前后语义 hash 一致；全量测试与守卫绿。
-- [x] PR 合并（#398，merge SHA `e6e447293365ca29686b21876cab5e103829b1ed`）。
-
----
-
-#### A3. ARCH-P1-03A：球队身份 Crosswalk 收敛（团队侧）
-
-```text
-Status: DONE
-Branch: codex/arch-p1-03-team-identity-crosswalk
-PR: #400
-Merge SHA: bcd2c5e490a99426a0451de7f92362c1a76b2960
-Implementation PR: #400
-Implementation Merge SHA: bcd2c5e490a99426a0451de7f92362c1a76b2960
-Accepted Head: d093ca81431edfb6990d1a50cff5702a81bcc4ed
-External Acceptance: W2_EXTERNAL_ACCEPTANCE_V1
-Base SHA: 0cb267baa62abe547802bca27771a8fe1c26a0db
-Implementation SHA: d093ca81431edfb6990d1a50cff5702a81bcc4ed
-CI run: 30186249997
-Staging SHA: READ_ONLY_INVENTORY_ONLY_NO_STAGING_WRITE
-Evidence: W2_ARCH_P1_03_M1_IDENTITY_INVENTORY.md /
-  W2_ARCH_P1_03_M1_TEAM_MIGRATION_PREVIEW.json
-Rollback: revert PR #400; migration 0042 downgrade removes only
-  migration-owned transfermarkt rows
-Started at: 2026-07-26T00:00:00Z
-Owner: Codex
-M1: DONE (read-only inventory; player identity + saved lineups empty)
-M2A: DONE (accepted by W2_EXTERNAL_REVIEW_V6 @edeb873; team schema+migration,
-  CanonicalIdentityRepository,
-  F5/fixture/history/rating/xG read-switch; guards
-  LEGACY_CROSSWALK_RUNTIME_READS/WRITES/IMPORTS=0,
-  RUNTIME_CANONICAL_ID_FROM_PROVIDER_CONSTRUCTION=0,
-  PROVIDER_ID_MODEL_PRIMARY_READS=0, ORM_DECLARATIONS=3
-  TEMPORARY_ALLOWED_UNTIL_ARCH_P1_03C_M4, NEW_IDENTITY_TABLE_COUNT=0).
-  W2_EXTERNAL_DECISION_V2 CONTROLLED_CANONICAL_TEAM_ID_MINT_APPROVED: exactly one
-  controlled mint inside canonical_team_payload, AST exact-count guarded.
-  W2_EXTERNAL_REVIEW_V3/V4/V5 MUST_FIX applied: reverse canonical->source mapping
-  fails closed on ambiguity; migration reconciles the complete authority /
-  provenance / validity surface; AST mint allowlist binds file+function+kind;
-  migration persists an explicit ownership marker so downgrade never deletes a
-  pre-existing look-alike row; api_football authority resolution uses READY
-  status + validity window + unique-canonical-target semantics; review
-  provenance is backfilled only into the selected valid READY authority rows.
-  A pre-existing unmarked look-alike row is preserved by downgrade but blocks
-  upgrade reconciliation (it is never silently adopted).
-  Exact-head CI @768b6ac / @cb9d9bb / @0d971ff: verify / staging-parity /
-  predeploy-e2e / POST gate = success.
-```
-
-拆分说明：原 `ARCH-P1-03` 覆盖球队与球员两侧。团队侧已由 W2_EXTERNAL_REVIEW_V6
-在 exact head `edeb873` 验收通过，球员侧的数据前置条件尚未具备，故按外部裁决拆为
-`ARCH-P1-03A`（本任务，团队侧）与 `ARCH-P1-03B`（球员侧），避免把未完成的球员侧
-计入本任务的完成状态。
-
-本任务收敛组（团队侧）：`team_identity_crosswalks`、`football_data_team_crosswalks`、
-`provider_team_identity_crosswalks`（权威）、`canonical_teams`（权威）。
-
-- [x] 盘点全部球队/球员身份与 provider crosswalk 表（M1，只读证据入 Git 可重算）。
-- [x] canonical team 体系为唯一权威；迁移 16 行 Transfermarkt provider 身份及
-      review provenance。
-- [x] provider team IDs 仅作 provenance 与来源查询，不再作为模型主身份。
-- [x] fixture、history、rating、xG 团队身份读取切换至 CanonicalIdentityRepository。
-- [x] 静态守卫：legacy crosswalk runtime imports/reads/writes = 0；
-      RUNTIME_CANONICAL_ID_FROM_PROVIDER_CONSTRUCTION = 0；
-      PROVIDER_ID_MODEL_PRIMARY_READS = 0；NEW_IDENTITY_TABLE_COUNT = 0。
-- [x] PR 合并（#400，merge SHA `bcd2c5e490a99426a0451de7f92362c1a76b2960`）。
 **验收**：`CANONICAL_TEAM_IDENTITY_AUTHORITY_COUNT = 1`。
-**不在本任务范围**：球员身份权威、3 场真实比赛验收、三张 legacy 表的物理 drop 与
-三个 legacy ORM 声明的删除（均属后续 `ARCH-P1-03C`）。
-
----
-
-#### A10. ARCH-P1-03B：球员身份 Crosswalk 收敛（球员侧）
-
-```text
-Status: DONE
-PR: #402
-Implementation PR: #402
-Merge SHA: df8fc4578fb4d45e2fb7afb95f58748f459a69a8
-Accepted Head: bfce636dc245ab93f9f4d92e77699bf1689f127b
-External Acceptance: W2_EXTERNAL_ACCEPTANCE_V1
-Implementation CI run: 30195079380
-Remediation task: ARCH-P1-03B-R1
-Predecessor: ARCH-P1-03A
-Successor: ARCH-P1-03C (NOT_STARTED)
-M2B: DONE_STAGING (66 REVIEWED mappings; reviewed_by = operator:liudehua;
-  review package SHA-256 =
-  916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea)
-Reconcile: PASS_66_OF_66 (two identical read-only runs; provider call delta = 0;
-  DB write delta = 0; evidence SHA-256 =
-  d697798e40928a2f1c9c2690285790563d4e2e914067e3f0627536179a8da762)
-M3: PASS_3_REAL_FIXTURES_3_RUNS_STRENGTHENED_V2
-  (fixtures 1494212, 1494214, 1494216; provider call delta = 0;
-  DB write delta = 0; evidence SHA-256 =
-  4a0be812b61fd4aacdd5e7a3073c87ab81bf3d7ef2564cf81bb6aa1f479084e9)
-M4: OUT_OF_SCOPE_DEFERRED_TO_ARCH-P1-03C
-```
-
-本任务收敛组（球员侧）：`player_identity_mappings`（权威）及其 provider /
-Transfermarkt review provenance。三张 legacy 表和 ORM 声明保持原状，移交
-`ARCH-P1-03C`。
-
-- [x] 球员身份权威补列与 canonical 解析（M2B）；仅 REVIEWED + 非空
-      `canonical_player_id` + 完整复核来源 + 时间有效者可被模型消费。
-- [x] 用 3 场真实比赛演示 canonical player ↔ provider lineup 球员唯一联接查询
-      （EVAL-02B"缺阵分钟占比"的前置能力）；数据不足时保持 BLOCKED，禁止构造
-      synthetic 证据。
-- [x] PR 合并（#402，merge SHA `df8fc4578fb4d45e2fb7afb95f58748f459a69a8`）。
-**验收**：`CANONICAL_PLAYER_IDENTITY_AUTHORITY_COUNT = 1`；固定审批 manifest
-SHA 可重算；66 条 REVIEWED 精确对账；至少 3 场真实 fixture 的强化身份 M3
-每场三次只读确定性验证通过。
-
----
-
-#### A11. ARCH-P1-03C：legacy identity 表与 ORM 下线
-
-```text
-Status: DONE
-PR: #404
-Implementation PR: #404
-Merge SHA: 4e310e87def0e6e44e0fe69fa0c07f776126a6fc
-Accepted Head: 8adc8d482aefd7d31063030f0b682458c58c17a2
-External Acceptance: W2_EXTERNAL_ACCEPTANCE_V1
-Implementation CI run: 30200526139
-Evidence SHA-256:
-  aec0b6361cf8c79d48439f666f9774d53cc9c1b068f7e64bd7eddf800f966860
-Predecessor: ARCH-P1-03B
-Successor: ARCH-GOVERNANCE-02
-Base SHA: 2191255b5cb92753db6da495810ed846ffb3647b
-M4: DONE_STAGING_UPGRADE_DOWNGRADE_RESTORE_DRILL
-Legacy runtime imports/reads/writes: 0/0/0
-Legacy tables before/after: 3/0
-Legacy ORM declarations before/after: 3/0
-Canonical team/player authority count: 1/1
-Backup: /opt/w2/shared/backups/arch-p1-03c/
-  w2-pre-arch-p1-03c-20260726T104000Z-0042.dump
-Backup SHA-256:
-  fff107172f4f0ea2ebf71dfabcb2f96eaa2e214d9fd66dcf662cede79e9b8f92
-Downgrade: original schema restored empty; no deleted business data fabricated
-Formal/Candidate runtime/Lock/Production/Scheduler: false
-```
-
-待下线组：`team_identity_crosswalks`、`football_data_team_crosswalks`、
-`player_identity_crosswalks` 三张 legacy 表及其三个 ORM 声明。
-
-- [x] 证明 legacy runtime reads/writes/imports = 0。
-- [x] 同一实施 PR 中断言式 drop 三张表并同步删除三个 ORM 声明；证据不足则停止。
-- [x] PR 合并（#404，merge SHA `4e310e87def0e6e44e0fe69fa0c07f776126a6fc`）。
-**验收**：`LEGACY_CROSSWALK_ORM_DECLARATIONS = 0`；
-`LEGACY_CROSSWALK_TABLE_COUNT = 0`。
 **资产账本**：目标净减 ≥3 张表。
 
 ---
 
-#### A12. ARCH-GOVERNANCE-02：path-aware CI 与稳定聚合门
-
-```text
-Status: DONE
-PR: #406
-Implementation PR: #406
-Merge SHA: cf5d6ea2cca600e31d4058b7d359b271d12d1f04
-Accepted Head: 7607c2336fd1507d151d5291b95ae6892d16f94f
-External Acceptance: W2_EXTERNAL_ACCEPTANCE_V1
-Implementation CI run: 30205346882
-Base SHA: 84986936843432563003863e148c811ad3e0d480
-Predecessor: ARCH-P1-03C
-Successor: ARCH-P1-04D-R1 (NOT_STARTED)
-Owner: Codex
-Required contexts target:
-  CI_REQUIRED + PRE_MERGE_READINESS_GATE +
-  POST_MERGE_CHECKLIST_CONSISTENCY_GATE
-```
-
-- [x] 所有 PR 均产生稳定 `CI_REQUIRED`；分类器/聚合器任一不可信时 fail-closed。
-- [x] docs/closure/status-only 仅运行文档格式、治理、hash/link/台账一致性检查。
-- [x] Python、Web、migration/schema、infra/deploy 按路径分别调度；混合、未知、
-      CI workflow 或依赖坐标变化进入完整 CI。
-- [x] PR body/comment/Review/Draft/Ready 只重触发可信 PRE workflow，不触发代码 CI。
-- [x] classifier 与聚合门 mutation tests 覆盖轻量、各路径、未知/混合和失败传播。
-- [x] Python/runtime 日常 head 运行 focused jobs；最终实施 head 通过
-      `workflow_dispatch(full=true)` 运行一次完整矩阵。CI workflow、migration、
-      混合或未知路径本身直接 fail-safe 进入完整矩阵。
-- [x] 可信 PRE 从 GitHub API 读取 exact-head changed paths、同一 Actions run 的
-      jobs 与 `CI_REQUIRED`，按最终 required plan 校验；focused/lightweight receipt
-      不得冒充 Python/runtime implementation 的 full receipt。
-- [x] main push 按 `before...sha` 分类；rename 同时纳入旧/新路径；CI control 和
-      deploy Python 均 fail-safe full；聚合器同时严格拒绝应跳过 job 的意外执行结果。
-- [x] exact-head 完整 CI、外部验收与 PR 合并（#406，merge SHA
-      `cf5d6ea2cca600e31d4058b7d359b271d12d1f04`）。
-
-**不做**：不改生产业务、数据库 schema、模型数学、provider、Formal、Candidate、
-Lock、Production 或 scheduler。
-**资产账本**：新增 classifier 与对应单测各 1 个；无数据库、生产运行时或部署资产。
-**required context 切换时点**：本实施 PR 合并前保留现有 required contexts；合并后
-由最新 main 的可信 workflow 产生 `CI_REQUIRED`，再将 branch protection 从
-`verify + staging-parity + PRE + POST` 原子切换为 `CI_REQUIRED + PRE + POST`，
-不得在未合并的 workflow 上提前切换。main 的 `CI_REQUIRED` run
-`30205896463` 与 POST run `30205896441` 成功后，required contexts 已原子切换完成。
-
----
-
-#### A13. ARCH-P1-04D-R1：ARCH-P1-04D remediation
-
-```text
-Status: DONE
-PR: #408
-Implementation PR: #408
-Merge SHA: 09ece0204bed1289986e20d6a1cff842cb2f0864
-Accepted Head: 47a7c823967cf4ea98221556d96e8a30a948318d
-External Acceptance: W2_EXTERNAL_ACCEPTANCE_V1
-Implementation CI run: 30209918909
-Base SHA: ca8e98fc111c0e4ca334783572815a7baee1b9e8
-Historical task: ARCH-P1-04D (DONE, PR #398,
-  merge e6e447293365ca29686b21876cab5e103829b1ed)
-Predecessor: ARCH-GOVERNANCE-02
-Successor: ARCH-GOVERNANCE-03
-```
-
-本任务只承载对历史 DONE 任务的后续整改；不得改写 `ARCH-P1-04D` 的 DONE 状态、
-PR、Merge SHA 或已完成台账。
-
-- [x] 删除 `decision_adapter` 对 legacy readiness 的重建 fallback；canonical
-      `data_readiness` 缺失时生成明确 BLOCKED 非 pick。
-- [x] 删除 fair line、edge、blocker 与 divergence 的 `pricing_shadow` fallback；
-      canonical `analysis_evidence` 不完整时生成 NOT_READY 非 pick。
-- [x] 更新旧形状测试为 canonical readiness/evidence，并覆盖两类缺失输入。
-- [x] 强化 `LEGACY_DECISION_CONTRACT_CODE = 0` 守卫，覆盖真实遗留符号。
-
-**不做**：不改模型数学、EV、阈值或安全开关。
-**资产账本**：新增表/文件/配置 0；删除 legacy fallback 代码。
-
----
-
-#### A14. ARCH-GOVERNANCE-03：真实生产输入形状与冻结验收矩阵规则
-
-```text
-Status: DONE
-Closure PR: #418
-PR: #411
-Merge SHA: f891f25dac1c0b663facab94dc0e05c54b84f4eb
-Historical final remediation PR: #411
-Historical final remediation merge SHA: f891f25dac1c0b663facab94dc0e05c54b84f4eb
-Base SHA: 832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd
-Initial implementation PR: #410
-Initial accepted head: f7043f6a5fc0e020d11e19672a70658a66cc420f
-Initial FULL CI: 30237236245
-Initial merge SHA: bfdd79b3814008d9988f8f5d76d566145188e1e4
-Final remediation PR: #411
-Final accepted head: 688b4c132d719d7fd282dc7d85598a594666617e
-Final FULL CI: 30240556366
-Final external acceptance: W2_EXTERNAL_ACCEPTANCE_V1
-Final merge SHA: f891f25dac1c0b663facab94dc0e05c54b84f4eb
-Main push CI run: 30241678736
-Main POST run: 30241678744
-Generator hotfix PR: #415
-Generator hotfix accepted head: 8981cab16360d37d75a6f49becba687bbe6e3830
-Generator hotfix FULL CI: 30258743731
-Generator hotfix merge SHA: d69d3ccb835bb56fbe4930d361fe64c90ce6e8fa
-Generator hotfix closure PR: #416
-Generator hotfix main CI_REQUIRED: 30259420198
-Generator hotfix main POST: 30259420152
-Generator hotfix scope: deterministic read-only lifecycle evidence output only
-External capture verification hotfix PR: #417
-External capture verification accepted head: b614c490e46f94835a729d3079b2aa71fe9213da
-External capture verification FULL CI: 30266575034
-External capture verification acceptance: W2_EXTERNAL_ACCEPTANCE_V1
-External capture verification merge SHA: 62a9c0ac5a85426fb44234ec7a0032454d605a59
-External capture verification main CI_REQUIRED: 30268052489
-External capture verification main POST: 30268052524
-External capture verification scope: offline attestation validation for protected data sources only
-Predecessor: ARCH-P1-04D-R1
-Successor: ARCH-P1-03B-R1 (NOT_STARTED)
-Lifecycle schema: contracts/governance/architecture_acceptance_lifecycle.v1.schema.json
-Governance fixture spec SHA-256: 29eaeba063ee5bad47e13441c6862ba5c821d211affb31426efbe515b7e47fe4
-Governance fixture blocked-baseline SHA-256: 9dbce71730f344c9e98f0020cf654f7a4684aa73d2faea85912b9443fdf9b3b0
-```
-
-- [x] 每个后续架构任务开工前冻结 exact head、范围、全部运行入口、真实
-      producer/consumer、DB table/view、脚本和配置路径。
-- [x] 冻结由真实 producer 或真实 DB/artifact 得到的脱敏输入形状、SHA、精确别名/
-      规范化规则，以及 valid/missing/malformed/stale/ambiguous/conflict 六类输入。
-- [x] 每类输入记录预期输出、fail-closed 与禁止行为；手写近似 fixture 只能作为补充，
-      主要契约测试必须把真实 producer 输出交给真实 consumer。
-- [x] `DEAD_CODE`、`ZERO_REACHABILITY`、`SINGLE_AUTHORITY`、
-      `ZERO_LEGACY_READ_WRITE`、`SAFE_DELETION` 只有 static/AST、
-      runtime/SQL trace、mutation 三层真实测量均 PASS 后才能 PASS。
-- [x] 外部证据不可取得时标记 `UNVERIFIABLE/BLOCKED`，禁止 DONE，禁止用守卫固定
-      数字替代测量。
-- [x] lifecycle 拆为 immutable spec、baseline/preflight receipt 与 Closure add-only
-      final attestation；Implementation/Closure 不得改 spec。范围变化只能由独立
-      `W2_PR_KIND: PREFLIGHT` 记录 `REVIEW_MISS` 或 scope amendment。
-- [x] checker 完整执行 JSON Schema，重算 frozen baseline 的文件 hash，验证 symbol/
-      test、symlink/仓库边界及 evidence path/hash/command/head；OPEN、Closure/DONE
-      均只由 receipt 证据派生。
-- [x] PR-kind artifact ACL 覆盖 add/modify/rename/delete/previous filename；
-      baseline 绑定 frozen commit，spec amendment 绑定 trusted-base 重算 hash。
-- [x] Implementation PRE 通过 GitHub API 绑定同一 exact head 的 FULL CI、detached
-      artifacts 与外部 PASS Review；Closure add-only final attestation，Closure/POST
-      交叉核对其 hash、implementation PR/head、Full CI 与 merge SHA，不自引用
-      closure head。
-- [x] 历史证据使用目标 commit tree/blob 校验；fully-qualified symbol 由 AST 真实
-      class scope 验证。PASS 输入/六类 case 必须绑定相符 primary real artifact，
-      controlled mutation 和 mutation test。
-- [x] 三类真实 evidence artifact 使用机器 schema，绑定 generator/replay/query、
-      migration head、capture/source identity、fingerprint、provider/db delta 与 head；
-      `governance-light` 实际执行 replay gate。
-- [x] 治理测试 fixture 覆盖 03B-R1 的 `BLOCKED → PREFLIGHT OPEN →
-      Implementation FULL/Review → merge → Closure add-only final → POST DONE`
-      状态机；真实 03B-R1 spec/baseline 必须由其后续独立 PREFLIGHT 新增，
-      03B-R1 保持 `NOT_STARTED`。
-- [x] post-merge remediation 仅修复 workflow event × CI plan 的可信 root 初始化；
-      新 main 的 `CI_REQUIRED` 与 POST 同时成功后，方可创建本任务 Closure。
-- [x] generator hotfix PR #415 仅为
-      `scripts/arch_p1_03b_identity_evidence.py` 增加可重放 `--output`；exact-head
-      Full CI、外部验收与 main CI/POST 均通过，未启动 03B-R1 生产实现。
-- [ ] external capture verification hotfix 将 evidence 明确分为
-      `SELF_CONTAINED_REPLAY` 与 `TRUSTED_EXTERNAL_CAPTURE`；hosted runner
-      对受保护 staging 证据只做离线双采集 attestation 验证，不连接 staging，
-      不向 pull-request workflow 注入凭据。
-
-**不做**：不修改 03B-R1 identity 实现、66 条审批、staging 数据、模型数学、provider 或
-任何安全开关。
-**资产账本**：新增 matrix schema 1、冻结 matrix 1；治理 checker 与回归测试扩展。
-
----
-
-#### A15. ARCH-P1-03B-R1：ARCH-P1-03B remediation
-
-```text
-Status: NOT_STARTED
-Historical task: ARCH-P1-03B (DONE, PR #402,
-  merge df8fc4578fb4d45e2fb7afb95f58748f459a69a8)
-Predecessor: ARCH-GOVERNANCE-03
-Successor: ARCH-OBS-01
-Immutable spec: NONE (must be added by ARCH-P1-03B-R1 PREFLIGHT)
-Baseline receipt: NONE (must be added by ARCH-P1-03B-R1 PREFLIGHT)
-Final attestation: add-only in the later closure PR after implementation acceptance
-Derived implementation gate: BLOCKED
-Allowed next PR kind: PREFLIGHT
-```
-
-本任务只承载对历史 DONE 任务的后续整改；不得改写 `ARCH-P1-03B` 的 DONE 状态、
-PR、Merge SHA、66 条审批或 M3 验收坐标。
-当前没有 active spec、baseline receipt 或 final attestation，implementation gate
-尚未 OPEN。下一步只能创建只读 PREFLIGHT；不得直接修改 production identity
-repository。
-
----
-
-#### A16. ARCH-OBS-01：架构可观测性整改
-
-```text
-Status: NOT_STARTED
-Predecessor: ARCH-P1-03B-R1
-Successor: ARCH-EVIDENCE-01
-```
-
----
-
-#### A17. ARCH-EVIDENCE-01：证据链整改
-
-```text
-Status: NOT_STARTED
-Predecessor: ARCH-OBS-01
-Successor: ARCH-DONE-REAUDIT
-```
-
----
-
-#### A18. ARCH-DONE-REAUDIT：历史 DONE 再审计
-
-```text
-Status: NOT_STARTED
-Predecessor: ARCH-EVIDENCE-01
-Successor: ARCH-P1-05
-```
-
----
-
-
 #### A4. ARCH-P1-05：部署改为 CI 构建镜像、服务器 pull-only
 
 ```text
-Status: NOT_STARTED
-Predecessor: ARCH-DONE-REAUDIT
+Status: NEXT
 ```
 
 - [ ] 4 个 Python Dockerfile 合并为 1 个多 target/多 command；Web 独立镜像保留。
@@ -851,6 +229,10 @@ Status: NOT_STARTED
 
 #### A8. 阶段 P2：卫生治理（可与阶段 B 穿插，不得抢占 EVAL-01 序列）
 
+```text
+Status: NOT_STARTED
+```
+
 **ARCH-P2-02 Docs 整理**
 - [ ] 日期型一次性证据移入 `docs/archive/`；同一审计只留最新权威版；旧文档标 `SUPERSEDED_BY`。
 - [ ] PR 合并。
@@ -881,6 +263,10 @@ Status: NOT_STARTED
 
 > 总目标：闭合"赛果→表现→反馈"回边，每场比赛（而非每次推荐）都产生可信度量；
 > 首发因子两面处理：有首发的联赛验增量，无首发的联赛防逆向选择。
+
+```text
+Status: NOT_STARTED
+```
 
 ---
 
@@ -1067,7 +453,7 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 |---|---|
 | 新增表 | 目标 0；唯一例外 EVAL-01A `outcome_ledger`（三条判定基准全满足才建） |
 | 新增文件权威 | 0（永久红线 2） |
-| 删除 | legacy shim/adapter（A9/ARCH-P1-04D）、F10 死代码（A2）、≥3 张 crosswalk（A3）、runtime 账本目录（B1）、`shadow_strategy_*` 僵尸表（A7 裁决后） |
+| 删除 | legacy shim/adapter（A2）、F10 死代码（A2）、≥3 张 crosswalk（A3）、runtime 账本目录（B1）、`shadow_strategy_*` 僵尸表（A7 裁决后） |
 | 防回流 | 每任务静态守卫测试；A7 终态盘点矩阵；GOVERNANCE-01 双门禁；PR 8 问模板 |
 
 ## 七、任务状态与 PR 强制说明格式
@@ -1080,6 +466,7 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 待验收: Status: IMPLEMENTED_PENDING_ACCEPTANCE / Implementation SHA / CI run / Staging SHA / Evidence / Rollback
 完成:   Status: DONE / Merged PR / Merge SHA / CI run / Staging acceptance / Completed at
 ```
+
 每个 PR 描述必须回答：
 
 ```text
@@ -1100,8 +487,6 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 ## 八、待议区（记录不实施）
 
 - A2 死代码复核中"证据不足"的疑似项（记录后由后续 P2-06 矩阵裁决）。
-- **RESOLVED 2026-07-25**：`PROJECT_STATE.repository` 已在 ARCH-P1-04C closure-integrity
-  remediation 中同步到 PR #397、base/main `9b2dc44bed22f237868d1471cbb8d9950917edcb`。
 
 ---
 
@@ -1117,7 +502,6 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 | `apps/web/scripts/write-meta.mjs` | `DEPLOYMENT` | package.json predev/prebuild | npm → script | build | 是 | 无 | `KEEP` | E3 |
 | `apps/worker/celery_app.py` | `RUNTIME_ENTRYPOINT` | Dockerfile.worker / Compose Celery | config → process | runtime | 是 | 无 | `KEEP` | E3/E5/E6 |
 | `migrations/env.py` | `MIGRATION_ONLY` | alembic.ini / Alembic CLI | Alembic → env | migration | 否 | 无 | `KEEP` | E5/E6 |
-| `scripts/arch_p1_03b_identity_evidence.py` | `MANUAL_OPS` | ARCH-P1-03B M3 人工验收 | operator → script | staging read-only | 否 | ARCH-P1-03B acceptance | `KEEP` | E4/E5 |
 | `scripts/audit_football_data_co_uk.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
 | `scripts/audit_formal_ah_historical_sources.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
 | `scripts/audit_market_mainline_ladder.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
@@ -1131,8 +515,6 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 | `scripts/build_stage7i_successor_candidates.py` | `MANUAL_OPS` | 人工 CLI；unit test 验证 | operator → script | offline | 否 | 无 | `KEEP` | E4/E5 |
 | `scripts/capture_runtime_release_evidence.py` | `DEPLOYMENT` | 发布证据人工 CLI | operator → script | staging | 否 | 无 | `KEEP` | E3 |
 | `scripts/capture_stage7i_fixture_lifecycle.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
-| `scripts/check_architecture_governance.py` | `CI_DIRECT` | architecture-governance.yml | GitHub CI → script | CI | 是 | 无 | `KEEP` | E2/E3/E5 |
-| `scripts/classify_ci.py` | `CI_DIRECT` | ci.yml | GitHub CI → script | CI | 是 | ARCH-GOVERNANCE-02 | `KEEP` | E2/E3/E5 |
 | `scripts/check_boss_console_baseline.py` | `CI_DIRECT` | ci.yml | GitHub CI → script | CI | 是 | 无 | `KEEP` | E2/E3 |
 | `scripts/check_compose_staging_ports.py` | `DEPLOYMENT` | deploy_stage7h / predeploy smoke | operator/CI → script | staging/CI | 是 | STAGE7H_VPS_STAGING | `KEEP` | E3/E4/E5 |
 | `scripts/check_dashboard_v2_baseline.py` | `DEAD` | 无 | 无 | none | 否 | 无 | `DELETE` | D1/D2 |
@@ -1204,13 +586,10 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 | `scripts/project_stage10b_live_snapshot.py` | `MANUAL_OPS` | STAGE10B_DASHBOARD_LIVE_WIRING | operator → script | offline | 否 | STAGE10B_DASHBOARD_LIVE_WIRING | `KEEP` | E4 |
 | `scripts/project_stage10c_matchday_read_model.py` | `CI_TRANSITIVE` | test_stage10c_matchday.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
 | `scripts/publish_w2_static_report.py` | `MANUAL_OPS` | A-151 static report runbook | operator → script | ops | 是 | A-151_STATIC_REPORT_WEB_ROOT | `KEEP` | E3/E4/E5 |
-| `scripts/reconcile_arch_p1_03b_reviewed_mappings.py` | `MANUAL_OPS` | ARCH-P1-03B 固定审批包对账 | operator → script | staging read-only | 否 | ARCH-P1-03B acceptance | `KEEP` | E4/E5 |
 | `scripts/reconcile_pr370_validation_ledger.py` | `ONE_TIME_RECOVERY` | 人工 ledger 恢复 | operator → script | staging manual | 否 | 无 | `KEEP` | E7 |
 | `scripts/recover_staging_runtime.sh` | `DEPLOYMENT` | STAGING_RUNTIME_HARDENING | operator → script | staging | 否 | STAGING_RUNTIME_HARDENING | `KEEP` | E3/E4/E5 |
 | `scripts/render_ai_card_text.py` | `MANUAL_OPS` | README / stage1 contract | operator → script | local | 否 | README | `KEEP` | E4/E5 |
 | `scripts/replay_provider_fixture.py` | `MANUAL_OPS` | INGESTION_OFFLINE_REPLAY | operator → script | offline | 否 | INGESTION_OFFLINE_REPLAY | `KEEP` | E4/E5 |
-| `scripts/run_arch_p1_03b_player_profiles.py` | `MANUAL_OPS` | ARCH-P1-03B 有界 one-shot | operator → script | staging manual | 否 | ARCH-P1-03B acceptance | `KEEP` | E3/E4/E5 |
-| `scripts/run_arch_p1_03b_squads_canary.py` | `MANUAL_OPS` | ARCH-P1-03B 有界 one-shot | operator → script | staging manual | 否 | ARCH-P1-03B acceptance | `KEEP` | E3/E4/E5 |
 | `scripts/run_fah_master_pipeline.py` | `MANUAL_OPS` | FAH data handoff | operator → script | offline | 否 | W2_FAH_PRIVATE_DATA_HANDOFF | `KEEP` | E4 |
 | `scripts/run_predeploy_e2e_smoke.sh` | `CI_DIRECT` | ci.yml | GitHub CI → script | CI | 是 | PR370 deployment context | `KEEP` | E2/E3/E4 |
 | `scripts/run_prematch_refresh.py` | `CI_TRANSITIVE` | test_prematch_refresh_cli.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |

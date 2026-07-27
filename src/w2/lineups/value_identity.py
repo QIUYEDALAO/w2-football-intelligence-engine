@@ -5,10 +5,9 @@ import gzip
 import hashlib
 import json
 import re
-from collections import Counter
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
@@ -19,6 +18,7 @@ from w2.historical.formal_ah import (
     parse_utc,
     stable_hash,
 )
+from w2.identity import CanonicalIdentityRepository
 from w2.lineups.intelligence import normalize_player_name
 
 
@@ -37,27 +37,6 @@ class TeamIdentityCrosswalkV1:
     review_status: str
     crosswalk_hash: str
     schema_version: str = TEAM_IDENTITY_CROSSWALK_SCHEMA
-
-    def as_dict(self) -> dict[str, Any]:
-        return asdict(self)
-
-
-@dataclass(frozen=True, kw_only=True)
-class PlayerIdentityCrosswalkV1:
-    api_football_player_id: str
-    transfermarkt_player_id: str | None
-    api_football_team_id: str
-    transfermarkt_club_id: str | None
-    competition_id: str
-    valid_from: str
-    valid_to: str | None
-    source_sha256: str
-    evidence: dict[str, Any]
-    reviewed_by: str | None
-    reviewed_at: str | None
-    review_status: str
-    crosswalk_hash: str
-    schema_version: str = "w2.player_identity_crosswalk.v1"
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -101,70 +80,6 @@ def build_team_crosswalk(row: Mapping[str, Any]) -> TeamIdentityCrosswalkV1:
     }
     payload["crosswalk_hash"] = stable_hash(payload)
     return TeamIdentityCrosswalkV1(**payload)
-
-
-def build_player_crosswalk(
-    row: Mapping[str, Any],
-    *,
-    team_crosswalks: list[TeamIdentityCrosswalkV1],
-) -> PlayerIdentityCrosswalkV1:
-    requested_status = str(row.get("review_status") or "REVIEW_REQUIRED")
-    source_sha = str(row.get("source_sha256") or "")
-    reviewed_by = _optional_text(row.get("reviewed_by"))
-    reviewed_at = _optional_text(row.get("reviewed_at"))
-    evidence = _dict(row.get("evidence"))
-    valid_from = str(row.get("valid_from") or "")
-    api_team = str(row.get("api_football_team_id") or "")
-    competition_id = str(row.get("competition_id") or "")
-    as_of = parse_utc(valid_from) or datetime.min.replace(tzinfo=UTC)
-    team_crosswalk, team_status = approved_crosswalk_for_team(
-        team_crosswalks,
-        api_football_team_id=api_team,
-        competition_id=competition_id,
-        as_of=as_of,
-    )
-    valid_to = _optional_text(row.get("valid_to"))
-    valid_from_dt = parse_utc(valid_from)
-    valid_to_dt = parse_utc(valid_to)
-    if requested_status == "APPROVED" and (
-        not _optional_text(row.get("api_football_player_id"))
-        or not _optional_text(row.get("transfermarkt_player_id"))
-        or not api_team
-        or not competition_id
-        or not _sha256(source_sha)
-        or not reviewed_by
-        or parse_utc(reviewed_at) is None
-        or not evidence
-        or valid_from_dt is None
-        or (valid_to_dt is not None and valid_to_dt <= valid_from_dt)
-        or not _optional_text(row.get("transfermarkt_player_id"))
-        or team_crosswalk is None
-    ):
-        requested_status = "REVIEW_REQUIRED"
-        evidence = {
-            **evidence,
-            "blocked_reason": "TEAM_CROSSWALK_NOT_APPROVED"
-            if team_status != "APPROVED"
-            else "PLAYER_EVIDENCE_INCOMPLETE",
-        }
-    payload: dict[str, Any] = {
-        "api_football_player_id": str(row.get("api_football_player_id") or ""),
-        "transfermarkt_player_id": _optional_text(row.get("transfermarkt_player_id")),
-        "api_football_team_id": api_team,
-        "transfermarkt_club_id": team_crosswalk.transfermarkt_club_id
-        if team_crosswalk
-        else _optional_text(row.get("transfermarkt_club_id")),
-        "competition_id": competition_id,
-        "valid_from": valid_from,
-        "valid_to": valid_to,
-        "source_sha256": source_sha,
-        "evidence": evidence,
-        "reviewed_by": reviewed_by,
-        "reviewed_at": reviewed_at,
-        "review_status": requested_status,
-    }
-    payload["crosswalk_hash"] = stable_hash(payload)
-    return PlayerIdentityCrosswalkV1(**payload)
 
 
 def approved_crosswalk_for_team(
@@ -349,8 +264,7 @@ def audit_transfermarkt_asset(
 def materialize_team_value_asof(
     *,
     fixture: Mapping[str, Any],
-    crosswalks: list[TeamIdentityCrosswalkV1],
-    player_crosswalks: list[PlayerIdentityCrosswalkV1] | None = None,
+    identity_repository: CanonicalIdentityRepository,
     source_root: Path,
 ) -> dict[str, Any]:
     as_of = parse_utc(fixture.get("as_of"))
@@ -358,26 +272,32 @@ def materialize_team_value_asof(
         raise ValueError("fixture as_of is required")
     team_external_id = str(fixture.get("team_external_id") or "")
     competition_id = str(fixture.get("competition_id") or "")
-    crosswalk, crosswalk_status = approved_crosswalk_for_team(
-        crosswalks,
-        api_football_team_id=team_external_id,
-        competition_id=competition_id,
-        as_of=as_of,
+    season = str(fixture.get("season") or "")
+    canonical_team_id = identity_repository.resolve_team(
+        "api_football", team_external_id, competition_id, season, as_of
+    )
+    club_id = (
+        identity_repository.provider_identity_for_team(
+            canonical_team_id, "transfermarkt", competition_id, season, as_of
+        )
+        if canonical_team_id
+        else None
     )
     sources = load_transfermarkt_source_root(source_root)
     blockers: list[str] = []
-    if crosswalk is None:
-        blockers.append(f"TEAM_CROSSWALK_{crosswalk_status}")
-    club_id = crosswalk.transfermarkt_club_id if crosswalk else ""
-    memberships, roster_status = _memberships_for_club(sources, club_id=club_id, as_of=as_of)
+    if canonical_team_id is None or club_id is None:
+        blockers.append("CANONICAL_TEAM_IDENTITY_MISSING_OR_AMBIGUOUS")
+    memberships, roster_status = _memberships_for_club(
+        sources, club_id=club_id or "", as_of=as_of
+    )
     if not memberships:
         blockers.append(roster_status)
-    approved_players = _approved_players_for_team(
-        player_crosswalks or [],
-        api_football_team_id=team_external_id,
-        transfermarkt_club_id=club_id,
-        competition_id=competition_id,
-        as_of=as_of,
+    approved_players = (
+        identity_repository.approved_player_source_mapping(
+            canonical_team_id, competition_id, season, as_of
+        )
+        if canonical_team_id
+        else {}
     )
     valuations = sources["player_valuations.csv"]["rows"]
     total = Decimal("0")
@@ -395,10 +315,10 @@ def materialize_team_value_asof(
         if not player_id or player_id in seen_players:
             continue
         seen_players.add(player_id)
-        player_mapping = approved_players.get(player_id)
-        if player_mapping is None:
+        canonical_player_id = approved_players.get(player_id)
+        if canonical_player_id is None:
             missing_mapping += 1
-            blockers.append("PLAYER_CROSSWALK_MISSING")
+            blockers.append("CANONICAL_PLAYER_IDENTITY_MISSING")
             continue
         chosen, future_count = _latest_valuation(valuations, player_id=player_id, as_of=as_of)
         future_exclusions += future_count
@@ -433,21 +353,22 @@ def materialize_team_value_asof(
         "schema_version": TEAM_VALUE_ASOF_ARTIFACT_SCHEMA,
         "team_external_id": team_external_id,
         "transfermarkt_club_id": club_id,
+        "canonical_team_id": canonical_team_id,
         "competition_id": competition_id,
+        "season": season,
         "as_of": as_of.isoformat().replace("+00:00", "Z"),
         "roster_policy": "LATEST_COMPLETE_SNAPSHOT_AT_OR_BEFORE_AS_OF",
         "roster_source_hash": roster_hash,
-        "team_crosswalk_hash": crosswalk.crosswalk_hash if crosswalk else None,
         "player_count": len(
             {_membership_player_id(row) for row in memberships if _membership_player_id(row)}
         ),
         "uniquely_mapped_count": len(seen_players) - missing_mapping,
         "valued_count": valued,
         "conflict_count": conflict_count,
-        "missing_mapping_count": missing_mapping if crosswalk else len(memberships),
+        "missing_mapping_count": missing_mapping,
         "missing_valuation_count": missing_valuation,
-        "player_mapping_hashes": sorted(
-            approved_players[_membership_player_id(row)].crosswalk_hash
+        "canonical_player_ids": sorted(
+            approved_players[_membership_player_id(row)]
             for row in memberships
             if _membership_player_id(row) in approved_players
         ),
@@ -468,7 +389,6 @@ def materialize_team_value_asof(
 
 def identity_value_audit(
     *,
-    crosswalks: list[TeamIdentityCrosswalkV1],
     artifacts: list[Mapping[str, Any]],
     source_root: Path | None,
 ) -> dict[str, Any]:
@@ -483,23 +403,13 @@ def identity_value_audit(
         for row in valuation_rows
         if row.get("observed_at") or row.get("valuation_date")
     )
-    statuses = Counter(row.review_status for row in crosswalks)
     return {
-        "schema_version": "w2.fah04.identity_value_audit.v1",
+        "schema_version": "w2.fah04.identity_value_audit.v2",
         "status": (
             "SOURCE_NOT_AVAILABLE"
-            if not crosswalks and not artifacts
+            if not artifacts
             else "CODE_COMPLETE_DATA_PENDING"
         ),
-        "team_crosswalk_total": len(crosswalks),
-        "approved_team_crosswalk_count": statuses.get("APPROVED", 0),
-        "review_required_team_crosswalk_count": statuses.get("REVIEW_REQUIRED", 0),
-        "conflict_team_crosswalk_count": statuses.get("CONFLICT", 0),
-        "missing_team_crosswalk_count": 0 if crosswalks else 0,
-        "player_mapping_total": 0,
-        "matched_player_mapping_count": 0,
-        "review_required_player_mapping_count": 0,
-        "conflict_player_mapping_count": 0,
         "historical_membership_coverage": (
             len(source.get("registered_roster_snapshots.csv", {}).get("rows", []))
             if source
@@ -615,36 +525,6 @@ def _memberships_for_club(
     if len(snapshot_ids) > 1:
         return [], "ROSTER_SNAPSHOT_CONFLICT"
     return latest_rows, "ROSTER_MEMBERSHIP_MISSING"
-
-
-def _approved_players_for_team(
-    rows: list[PlayerIdentityCrosswalkV1],
-    *,
-    api_football_team_id: str,
-    transfermarkt_club_id: str,
-    competition_id: str,
-    as_of: datetime,
-) -> dict[str, PlayerIdentityCrosswalkV1]:
-    output: dict[str, PlayerIdentityCrosswalkV1] = {}
-    conflicted: set[str] = set()
-    for row in rows:
-        if (
-            row.review_status != "APPROVED"
-            or row.api_football_team_id != api_football_team_id
-            or row.transfermarkt_club_id != transfermarkt_club_id
-            or row.competition_id != competition_id
-            or row.transfermarkt_player_id is None
-            or not _valid_at(row.valid_from, row.valid_to, as_of)
-        ):
-            continue
-        existing = output.get(row.transfermarkt_player_id)
-        if existing is not None and existing.crosswalk_hash != row.crosswalk_hash:
-            conflicted.add(row.transfermarkt_player_id)
-            output.pop(row.transfermarkt_player_id, None)
-            continue
-        if row.transfermarkt_player_id not in conflicted:
-            output[row.transfermarkt_player_id] = row
-    return output
 
 
 def _membership_player_id(row: Mapping[str, Any]) -> str:

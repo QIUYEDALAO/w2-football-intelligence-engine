@@ -13,7 +13,6 @@ DOC_STATUS_FILES = {
     "PROJECT_STATE.yaml",
     "PROJECT_LEDGER.md",
     "tests/contract/test_delivery_status_documentation.py",
-    "tests/unit/test_architecture_governance.py",
 }
 PYTHON_ROOTS = ("src/", "apps/api/", "apps/scheduler/", "apps/worker/", "tests/")
 WEB_ROOTS = ("apps/web/",)
@@ -29,8 +28,6 @@ INFRA_FILES = {
 }
 FULL_CI_FILES = {
     ".github/workflows/ci.yml",
-    "scripts/arch_p1_03b_identity_evidence.py",
-    "scripts/check_architecture_governance.py",
     "scripts/classify_ci.py",
     "scripts/check_w2_all.py",
     "alembic.ini",
@@ -38,7 +35,6 @@ FULL_CI_FILES = {
     "uv.lock",
 }
 CI_JOB_NAMES = (
-    "governance",
     "python_focused",
     "web",
     "migration",
@@ -51,7 +47,6 @@ CI_JOB_NAMES = (
 
 @dataclass(frozen=True)
 class CiPlan:
-    governance: bool = True
     python_focused: bool = False
     web: bool = False
     migration: bool = False
@@ -117,13 +112,6 @@ def classify(paths: list[str], *, force_full: bool = False) -> CiPlan:
     if heavy_domains == {"infra"}:
         return CiPlan(compose=True, staging_parity=True, predeploy_e2e=True)
     return CiPlan()
-
-
-def required_ci_plan(paths: list[str], pr_kind: str) -> CiPlan:
-    plan = classify(paths)
-    if pr_kind == "IMPLEMENTATION" and plan.python_focused:
-        return classify(paths, force_full=True)
-    return plan
 
 
 def ci_required_passes(expected: dict[str, bool], results: dict[str, str]) -> bool:

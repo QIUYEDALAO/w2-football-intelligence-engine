@@ -10,7 +10,11 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from w2.historical.formal_ah import parse_utc, stable_hash
+from w2.historical.formal_ah import (
+    TEAM_VALUE_ASOF_ARTIFACT_SCHEMA,
+    parse_utc,
+    stable_hash,
+)
 from w2.identity import CanonicalIdentityRepository
 from w2.infrastructure.persistence.models import (
     CanonicalHistoricalAhFactModel,
@@ -231,6 +235,12 @@ class FahDataFoundationRepository:
                     TeamValueAsOfArtifactModel.as_of <= as_of,
                 )
             ).all()
+        rows = [
+            row
+            for row in rows
+            if isinstance(row.payload, dict)
+            and row.payload.get("schema_version") == TEAM_VALUE_ASOF_ARTIFACT_SCHEMA
+        ]
         if not rows:
             return None
         return dict(max(rows, key=lambda row: row.as_of).payload)
@@ -421,6 +431,8 @@ def _registered_roster_model(row: Mapping[str, Any]) -> RegisteredRosterSnapshot
 
 
 def _team_value_model(row: Mapping[str, Any]) -> TeamValueAsOfArtifactModel:
+    if row.get("schema_version") != TEAM_VALUE_ASOF_ARTIFACT_SCHEMA:
+        raise ValueError("TEAM_VALUE_ASOF_ARTIFACT_SCHEMA_INVALID")
     natural_identity = _team_value_identity(row)
     return TeamValueAsOfArtifactModel(
         natural_identity=natural_identity,
@@ -581,16 +593,6 @@ def _football_data_team_payload(row: Mapping[str, Any]) -> dict[str, Any]:
         "competition_id": row.get("competition_id"),
         "valid_from": row.get("valid_from"),
     }
-
-
-def _player_crosswalk_identity(row: Mapping[str, Any]) -> str:
-    return stable_hash(
-        {
-            "api_football_player_id": row.get("api_football_player_id"),
-            "competition_id": row.get("competition_id"),
-            "valid_from": row.get("valid_from"),
-        }
-    )
 
 
 def _registered_roster_identity(row: Mapping[str, Any]) -> str:

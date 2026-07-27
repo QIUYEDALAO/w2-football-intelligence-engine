@@ -17,7 +17,7 @@ from w2.domain.odds import settle_asian_handicap
 CANONICAL_HISTORICAL_AH_FACT_SCHEMA = "w2.canonical_historical_ah_fact.v1"
 FORMAL_AH_SOURCE_REGISTRY_SCHEMA = "w2.formal_ah_source_registry.v1"
 TEAM_IDENTITY_CROSSWALK_SCHEMA = "w2.team_identity_crosswalk.v1"
-TEAM_VALUE_ASOF_ARTIFACT_SCHEMA = "w2.team_value_asof_artifact.v1"
+TEAM_VALUE_ASOF_ARTIFACT_SCHEMA = "w2.team_value_asof_artifact.v2"
 CHECKPOINT_POLICY = "LATEST_COMPLETE_TWO_SIDED_QUOTE_AT_OR_BEFORE_T_MINUS_30"
 SETTLEMENT_VERSION = "w2.settle_asian_handicap.v1"
 APPROVED_SOURCE_STATUS = "APPROVED_CAPTURED_AT"
