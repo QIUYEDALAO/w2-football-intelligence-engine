@@ -7,83 +7,42 @@ from pathlib import Path
 import yaml
 
 
-def test_dockerfiles_install_non_editable_package_and_package_required_runtime_scripts() -> None:
+def test_unified_python_image_packages_every_runtime_role() -> None:
     root = Path(__file__).resolve().parents[2]
-    dockerfiles = {
-        "Dockerfile.api": ("w2-gate5-preflight",),
-        "Dockerfile.worker": ("w2-shadow-comparison-import",),
-        "Dockerfile.scheduler": ("w2-shadow-cycle", "w2-stage7i-observer"),
-        "Dockerfile.migrations": ("python", "alembic"),
-    }
-    for name, expected_bins in dockerfiles.items():
-        text = (root / name).read_text(encoding="utf-8")
-        assert "ENV VIRTUAL_ENV=/app/.venv" in text
-        assert "ENV PATH=/app/.venv/bin:$PATH" in text
-        assert "uv sync --no-dev --frozen --no-editable" in text
-        assert "COPY src ./src" in text
-        assert "COPY config ./config" in text
-        if name in {"Dockerfile.api", "Dockerfile.worker", "Dockerfile.scheduler"}:
-            assert (
-                "COPY config/policies/lineup_market_policy.v1.json "
-                "/app/image_config/policies/lineup_market_policy.v1.json"
-            ) in text
-        if name == "Dockerfile.api":
-            assert "COPY scripts/run_w2_market_timeline_refresh.py" in text
-            assert "scripts/check_w2_market_timeline.py" in text
-            assert "scripts/run_w2_handicap_walkforward.py" in text
-            assert "scripts/run_w2_formal_tracking.py" in text
-            assert "scripts/check_w2_formal_tracking.py" in text
-            assert "scripts/run_w2_forward_outcome_ledger.py" in text
-            assert "scripts/run_w2_independent_signal_backfill.py" in text
-            assert "scripts/run_w2_report_runner.py" in text
-            assert "scripts/publish_w2_static_report.py" in text
-            assert "scripts/run_w2_settlement_history.py" in text
-            assert "scripts/check_w2_production_readiness.py" in text
-            assert "scripts/export_w2_audit_tables.py" in text
-            assert "scripts/debug_w2_modeling_sanity.py" in text
-            assert "scripts/debug_w2_s2_calibration_validation.py" in text
-            assert "scripts/lmm_transfermarkt_snapshot.py" in text
-            assert "scripts/lmm_materialize_stored_lineups.py" in text
-            assert "scripts/materialize_analysis_card_canary.py" in text
-            assert "test -f /app/scripts/run_w2_market_timeline_refresh.py" in text
-            assert "test -f /app/scripts/run_w2_formal_tracking.py" in text
-            assert "test -f /app/scripts/run_w2_forward_outcome_ledger.py" in text
-            assert "test -f /app/scripts/run_w2_independent_signal_backfill.py" in text
-            assert "test -f /app/scripts/run_w2_report_runner.py" in text
-            assert "test -f /app/scripts/publish_w2_static_report.py" in text
-            assert "test -f /app/scripts/run_w2_settlement_history.py" in text
-            assert "test -f /app/scripts/check_w2_production_readiness.py" in text
-            assert "test -f /app/scripts/export_w2_audit_tables.py" in text
-            assert "test -f /app/scripts/debug_w2_modeling_sanity.py" in text
-            assert "test -f /app/scripts/debug_w2_s2_calibration_validation.py" in text
-            assert "test -f /app/scripts/lmm_transfermarkt_snapshot.py" in text
-            assert "test -f /app/scripts/lmm_materialize_stored_lineups.py" in text
-            assert "test -f /app/scripts/materialize_analysis_card_canary.py" in text
-            assert "from w2.lineups.intelligence import lineup_market_policy" in text
-            assert (
-                "W2_LINEUP_POLICY_PATH=/app/image_config/policies/lineup_market_policy.v1.json"
-            ) in text
-        else:
-            assert "COPY scripts" not in text
-        assert "COPY reports" not in text
-        assert "w2.runtime.contract.version" in text
-        for binary in expected_bins:
-            assert f"test -x /app/.venv/bin/{binary}" in text
+    text = (root / "Dockerfile.python").read_text(encoding="utf-8")
+    assert "ENV VIRTUAL_ENV=/app/.venv" in text
+    assert "ENV PATH=/app/.venv/bin:$PATH" in text
+    assert "uv sync --no-dev --frozen --no-editable" in text
+    assert "COPY apps ./apps" in text
+    assert "COPY src ./src" in text
+    assert "COPY config ./config" in text
+    assert "COPY migrations ./migrations" in text
+    assert "COPY scripts ./scripts" in text
+    assert "COPY reports" not in text
+    assert "w2.runtime.contract.version" in text
+    for binary in (
+        "alembic",
+        "w2-gate5-preflight",
+        "w2-shadow-comparison-import",
+        "w2-shadow-cycle",
+        "w2-stage7i-observer",
+    ):
+        assert f"test -x /app/.venv/bin/{binary}" in text
+    for old in (
+        "Dockerfile.api",
+        "Dockerfile.worker",
+        "Dockerfile.scheduler",
+        "Dockerfile.migrations",
+    ):
+        assert not (root / old).exists()
 
 
 def test_runtime_entrypoints_do_not_resync_the_environment() -> None:
     root = Path(__file__).resolve().parents[2]
-    dockerfile_commands = {
-        "Dockerfile.api": 'CMD ["uvicorn"',
-        "Dockerfile.worker": 'CMD ["celery"',
-        "Dockerfile.scheduler": 'CMD ["python"',
-        "Dockerfile.migrations": 'CMD ["alembic"',
-    }
-    for name, expected_command in dockerfile_commands.items():
-        text = (root / name).read_text(encoding="utf-8")
-        assert expected_command in text
-        assert 'CMD ["uv", "run"' not in text
-        assert "HEALTHCHECK CMD uv run" not in text
+    text = (root / "Dockerfile.python").read_text(encoding="utf-8")
+    assert 'CMD ["uvicorn"' in text
+    assert 'CMD ["uv", "run"' not in text
+    assert "HEALTHCHECK CMD uv run" not in text
 
     compose = yaml.safe_load(
         (root / "infra/compose/compose.staging.yml").read_text(encoding="utf-8")

@@ -29,6 +29,8 @@ TMP_DIR="$(mktemp -d)"
 ENV_FILE="${TMP_DIR}/predeploy-e2e.env"
 OVERRIDE_FILE="${TMP_DIR}/predeploy-e2e.override.yml"
 CURRENT_REVISION="$(git -C "${ROOT}" rev-parse HEAD 2>/dev/null || true)"
+LOCAL_PYTHON_IMAGE="${PROJECT_NAME}-python:${CURRENT_REVISION:-local}"
+LOCAL_WEB_IMAGE="${PROJECT_NAME}-web:${CURRENT_REVISION:-local}"
 RUNTIME_MODE_BEFORE=""
 if [ -e "${ROOT}/runtime" ]; then
   RUNTIME_MODE_BEFORE="$(stat -c '%a' "${ROOT}/runtime" 2>/dev/null || stat -f '%Lp' "${ROOT}/runtime" 2>/dev/null || true)"
@@ -54,6 +56,9 @@ EOF
   printf 'W2_RELEASE_ID=%s\n' "${CURRENT_REVISION}"
   printf 'VITE_GIT_SHA=%s\n' "${CURRENT_REVISION}"
   printf 'VITE_RELEASE_ID=%s\n' "${CURRENT_REVISION}"
+  printf 'W2_PYTHON_IMAGE=%s\n' "${LOCAL_PYTHON_IMAGE}"
+  printf 'W2_WEB_IMAGE=%s\n' "${LOCAL_WEB_IMAGE}"
+  printf 'W2_PREDEPLOY_RUNTIME=%s\n' "${ROOT}/runtime"
 } >>"${ENV_FILE}"
 
 cat >"${OVERRIDE_FILE}" <<'EOF'
@@ -68,6 +73,9 @@ services:
       W2_PROVIDER_ENDPOINT_ALLOWLIST: status,fixtures,odds,lineups
       W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS: "900"
       W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
+    volumes: !override
+      - ${W2_PREDEPLOY_RUNTIME}:/app/runtime
+      - ${W2_PREDEPLOY_RUNTIME}/market_timeline_snapshots:/app/market_timeline_snapshots
   worker:
     environment:
       W2_FUTURE_REFRESH_PERSISTENCE: db
@@ -76,6 +84,9 @@ services:
       W2_PROVIDER_ENDPOINT_ALLOWLIST: status,fixtures,odds,lineups
       W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS: "900"
       W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
+    volumes: !override
+      - ${W2_PREDEPLOY_RUNTIME}:/app/runtime
+      - ${W2_PREDEPLOY_RUNTIME}/market_timeline_snapshots:/app/market_timeline_snapshots
   scheduler:
     environment:
       W2_FUTURE_REFRESH_PERSISTENCE: db
@@ -87,12 +98,18 @@ services:
       W2_PROVIDER_ENDPOINT_ALLOWLIST: status,fixtures,odds,lineups
       W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS: "900"
       W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
+    volumes: !override
+      - ${W2_PREDEPLOY_RUNTIME}:/app/runtime
+      - ${W2_PREDEPLOY_RUNTIME}/market_timeline_snapshots:/app/market_timeline_snapshots
     healthcheck:
-      test: ["CMD", "uv", "run", "python", "-c", "from apps.scheduler.main import heartbeat; assert 'heartbeat' in heartbeat()"]
+      test: ["CMD", "python", "-c", "from apps.scheduler.main import heartbeat; assert 'heartbeat' in heartbeat()"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
+  web:
+    volumes: !override
+      - ${W2_PREDEPLOY_RUNTIME}/reports/public:/usr/share/nginx/html/static-report:ro
 EOF
 
 cd "${ROOT}"
@@ -102,9 +119,15 @@ chmod 0555 runtime || true
 run_python scripts/check_compose_staging_ports.py infra/compose/compose.staging.yml
 run_python scripts/check_w2_future_refresh_staging_contract.py
 
-docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" up -d --build --wait postgres redis
+docker build -f Dockerfile.python -t "${LOCAL_PYTHON_IMAGE}" \
+  --build-arg "W2_GIT_SHA=${CURRENT_REVISION}" \
+  --build-arg "W2_RELEASE_ID=${CURRENT_REVISION}" .
+docker build -f Dockerfile.web -t "${LOCAL_WEB_IMAGE}" \
+  --build-arg "VITE_GIT_SHA=${CURRENT_REVISION}" \
+  --build-arg "W2_RELEASE_ID=${CURRENT_REVISION}" .
+docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" up -d --wait postgres redis
 docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" run --rm migration
-docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" up -d --build api worker scheduler
+docker compose -p "${PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" up -d api worker scheduler
 
 services_ready=false
 for attempt in $(seq 1 24); do

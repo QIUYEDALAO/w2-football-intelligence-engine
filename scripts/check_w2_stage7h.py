@@ -6,7 +6,7 @@ Usage (on server):
     python3 scripts/check_w2_stage7h.py
 
 Or via SSH:
-    ssh server 'cd /opt/w2/current && python3 scripts/check_w2_stage7h.py'
+    ssh server 'python3 /opt/w2/deploy/check_w2_stage7h.py'
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from typing import Any, NoReturn
 from urllib.error import URLError
 from urllib.request import urlopen
 
-COMPOSE_FILE = "/opt/w2/current/infra/compose/compose.staging.yml"
+COMPOSE_FILE = "/opt/w2/deploy/compose.staging.yml"
 ENV_FILE = "/opt/w2/shared/.env"
 RELEASE_ENV_FILE = "/opt/w2/shared/release.env"
 COMPOSE_PROJECT = "w2-staging"
@@ -88,18 +88,19 @@ def main() -> None:
     print("=" * 60)
 
     # ── 1. Release info ─────────────────────────────────────
-    current = Path("/opt/w2/current")
-    if current.is_symlink():
-        revision = current.resolve().name
-        ok(f"/opt/w2/current -> {revision}")
-    else:
-        fail("/opt/w2/current is not a symlink")
-
-    dep_rev = current / "DEPLOYMENT_REVISION"
-    if dep_rev.exists():
-        ok(f"DEPLOYMENT_REVISION: {dep_rev.read_text().strip()}")
-    else:
-        warn("DEPLOYMENT_REVISION file not found")
+    release_values = dict(
+        line.split("=", 1)
+        for line in Path(RELEASE_ENV_FILE).read_text(encoding="utf-8").splitlines()
+        if "=" in line
+    )
+    revision = release_values.get("W2_GIT_SHA", "")
+    if len(revision) != 40:
+        fail("release.env does not contain an exact git SHA")
+    for key in ("W2_PYTHON_IMAGE", "W2_WEB_IMAGE"):
+        image = release_values.get(key, "")
+        if "@sha256:" not in image or len(image.rsplit("@sha256:", 1)[-1]) != 64:
+            fail(f"{key} is not an immutable digest reference")
+    ok(f"release.env revision: {revision}")
 
     # ── 2. Docker compose ps ─────────────────────────────────
     r = run(

@@ -34,6 +34,7 @@ def test_docs_only_schedules_no_runtime_jobs() -> None:
             plan.staging_parity,
             plan.predeploy_e2e,
             plan.verify,
+            plan.images,
         )
     )
 
@@ -47,6 +48,7 @@ def test_python_web_migration_and_infra_schedule_their_jobs() -> None:
 
     infra = classify(["infra/compose/compose.staging.yml"])
     assert infra.compose and infra.staging_parity and infra.predeploy_e2e
+    assert infra.images
     assert not infra.verify
 
 
@@ -146,7 +148,22 @@ def test_ci_workflow_has_stable_aggregate_for_real_quality_jobs() -> None:
         "staging-parity",
         "predeploy-e2e",
         "verify",
+        "images",
     ]
+    assert jobs["images"]["needs"] == [
+        "classify",
+        "python-focused",
+        "web",
+        "migration",
+        "compose",
+        "staging-parity",
+        "predeploy-e2e",
+        "verify",
+    ]
+    assert "docker/build-push-action@v6" in ci
+    assert "cache-to: type=gha" in ci
+    assert "steps.python.outputs.digest" in ci
+    assert "steps.web-image.outputs.digest" in ci
     for job, output in (
         ("python-focused", "python_focused"),
         ("web", "web"),
@@ -155,8 +172,11 @@ def test_ci_workflow_has_stable_aggregate_for_real_quality_jobs() -> None:
         ("staging-parity", "staging_parity"),
         ("predeploy-e2e", "predeploy_e2e"),
         ("verify", "verify"),
+        ("images", "images"),
     ):
-        assert jobs[job]["if"] == f"needs.classify.outputs.{output} == 'true'"
+        if job != "images":
+            assert jobs[job]["if"] == f"needs.classify.outputs.{output} == 'true'"
+    assert "needs.classify.outputs.images == 'true'" in jobs["images"]["if"]
     assert "PRE_MERGE_READINESS_GATE" not in ci
     assert "POST_MERGE_CHECKLIST_CONSISTENCY_GATE" not in ci
     assert "governance-light" not in ci

@@ -35,6 +35,8 @@ def replace_config_mounts(compose: dict[str, Any], source: str) -> dict[str, Any
                 volumes.append(f"{source}:/app/config:ro")
             else:
                 volumes.append(volume)
+        if not any(":/app/config:" in str(volume) for volume in volumes):
+            volumes.append(f"{source}:/app/config:ro")
         definition["volumes"] = volumes
     return mutated
 
@@ -48,7 +50,7 @@ def test_predeploy_contract_rejects_infra_compose_config_mount() -> None:
         checker.assert_config_mount(STAGING_COMPOSE, broken)
 
 
-def test_predeploy_contract_accepts_release_root_config_mount() -> None:
+def test_predeploy_contract_accepts_image_owned_config() -> None:
     checker = load_checker()
     compose = checker.load_yaml(STAGING_COMPOSE)
 

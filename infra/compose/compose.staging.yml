@@ -1,6 +1,7 @@
 # W2 Staging Compose — standalone (no inheritance from docker-compose.yml)
 # All business ports bound to 127.0.0.1 only.
-# Usage: sudo docker compose -f infra/compose/compose.staging.yml --env-file /opt/w2/shared/.env -p w2 up -d
+# W2_PYTHON_IMAGE and W2_WEB_IMAGE must be immutable GHCR references ending in @sha256:<digest>.
+# Usage: sudo docker compose -f infra/compose/compose.staging.yml --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env -p w2 up -d
 
 name: w2-staging
 
@@ -54,16 +55,7 @@ services:
       - "6379"
 
   migration:
-    build:
-      context: ../..
-      dockerfile: Dockerfile.migrations
-      args:
-        UV_BOOTSTRAP_IMAGE: ${UV_BOOTSTRAP_IMAGE:-ghcr.io/astral-sh/uv:0.11.30}
-        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
-        UV_INDEX_URL: ${UV_INDEX_URL:-}
-        W2_GIT_SHA: ${W2_GIT_SHA:-UNKNOWN}
-        W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
-        W2_RELEASE_ID: ${W2_RELEASE_ID:-UNKNOWN}
+    image: ${W2_PYTHON_IMAGE:?immutable Python image reference required}
     command:
       - "alembic"
       - "upgrade"
@@ -88,16 +80,7 @@ services:
         max-file: "2"
 
   api:
-    build:
-      context: ../..
-      dockerfile: Dockerfile.api
-      args:
-        UV_BOOTSTRAP_IMAGE: ${UV_BOOTSTRAP_IMAGE:-ghcr.io/astral-sh/uv:0.11.30}
-        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
-        UV_INDEX_URL: ${UV_INDEX_URL:-}
-        W2_GIT_SHA: ${W2_GIT_SHA:-UNKNOWN}
-        W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
-        W2_RELEASE_ID: ${W2_RELEASE_ID:-UNKNOWN}
+    image: ${W2_PYTHON_IMAGE:?immutable Python image reference required}
     command:
       - "uvicorn"
       - "apps.api.main:app"
@@ -108,9 +91,8 @@ services:
     ports:
       - "127.0.0.1:18000:8000"
     volumes:
-      - ../../runtime:/app/runtime
-      - ../../runtime/market_timeline_snapshots:/app/market_timeline_snapshots
-      - ../../config:/app/config:ro
+      - /opt/w2/shared/runtime:/app/runtime
+      - /opt/w2/shared/runtime/market_timeline_snapshots:/app/market_timeline_snapshots
     environment:
       W2_APP_ROOT: /app
       W2_RUNTIME_ROOT: /app/runtime
@@ -173,16 +155,7 @@ services:
         max-file: "3"
 
   worker:
-    build:
-      context: ../..
-      dockerfile: Dockerfile.worker
-      args:
-        UV_BOOTSTRAP_IMAGE: ${UV_BOOTSTRAP_IMAGE:-ghcr.io/astral-sh/uv:0.11.30}
-        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
-        UV_INDEX_URL: ${UV_INDEX_URL:-}
-        W2_GIT_SHA: ${W2_GIT_SHA:-UNKNOWN}
-        W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
-        W2_RELEASE_ID: ${W2_RELEASE_ID:-UNKNOWN}
+    image: ${W2_PYTHON_IMAGE:?immutable Python image reference required}
     command:
       - "celery"
       - "-A"
@@ -193,9 +166,8 @@ services:
       - "--max-tasks-per-child=10"
       - "--max-memory-per-child=1200000"
     volumes:
-      - ../../runtime:/app/runtime
-      - ../../runtime/market_timeline_snapshots:/app/market_timeline_snapshots
-      - ../../config:/app/config:ro
+      - /opt/w2/shared/runtime:/app/runtime
+      - /opt/w2/shared/runtime/market_timeline_snapshots:/app/market_timeline_snapshots
     environment:
       W2_APP_ROOT: /app
       W2_RUNTIME_ROOT: /app/runtime
@@ -254,24 +226,14 @@ services:
         max-file: "3"
 
   scheduler:
-    build:
-      context: ../..
-      dockerfile: Dockerfile.scheduler
-      args:
-        UV_BOOTSTRAP_IMAGE: ${UV_BOOTSTRAP_IMAGE:-ghcr.io/astral-sh/uv:0.11.30}
-        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
-        UV_INDEX_URL: ${UV_INDEX_URL:-}
-        W2_GIT_SHA: ${W2_GIT_SHA:-UNKNOWN}
-        W2_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
-        W2_RELEASE_ID: ${W2_RELEASE_ID:-UNKNOWN}
+    image: ${W2_PYTHON_IMAGE:?immutable Python image reference required}
     command:
       - "python"
       - "-m"
       - "apps.scheduler.main"
     volumes:
-      - ../../runtime:/app/runtime
-      - ../../runtime/market_timeline_snapshots:/app/market_timeline_snapshots
-      - ../../config:/app/config:ro
+      - /opt/w2/shared/runtime:/app/runtime
+      - /opt/w2/shared/runtime/market_timeline_snapshots:/app/market_timeline_snapshots
     environment:
       W2_APP_ROOT: /app
       W2_RUNTIME_ROOT: /app/runtime
@@ -341,22 +303,13 @@ services:
         max-file: "3"
 
   web:
-    build:
-      context: ../..
-      dockerfile: Dockerfile.web
-      args:
-        VITE_GIT_SHA: ${W2_GIT_SHA:-UNKNOWN}
-        VITE_BUILD_TIME: ${W2_BUILD_TIME:-UNKNOWN}
-        W2_RELEASE_ID: ${W2_RELEASE_ID:-UNKNOWN}
-        VITE_DASHBOARD_DATA_MODE: api
-        VITE_W2_MARKET_ANCHOR_DISPLAY_ENABLED: ${VITE_W2_MARKET_ANCHOR_DISPLAY_ENABLED:-true}
-        VITE_W2_MARKET_ANCHOR_MIN_DIVERGENCE: ${VITE_W2_MARKET_ANCHOR_MIN_DIVERGENCE:-0.05}
+    image: ${W2_WEB_IMAGE:?immutable Web image reference required}
     ports:
       - "127.0.0.1:18080:8080"
     environment:
       W2_ENVIRONMENT: staging
     volumes:
-      - ../../runtime/reports/public:/usr/share/nginx/html/static-report:ro
+      - /opt/w2/shared/runtime/reports/public:/usr/share/nginx/html/static-report:ro
     depends_on:
       api:
         condition: service_healthy

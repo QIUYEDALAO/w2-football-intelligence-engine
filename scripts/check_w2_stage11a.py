@@ -26,11 +26,8 @@ REQUIRED = [
     "docs/runbooks/BACKUP_AND_RESTORE.md",
     "docs/runbooks/INCIDENT_RESPONSE_LOCAL_STAGING.md",
     ".dockerignore",
-    "Dockerfile.api",
-    "Dockerfile.worker",
-    "Dockerfile.scheduler",
+    "Dockerfile.python",
     "Dockerfile.web",
-    "Dockerfile.migrations",
 ]
 REPORT_ARTIFACTS = [
     "reports/W2_STAGE11A_SLO_AUDIT.json",
@@ -105,11 +102,8 @@ def main() -> int:
             if token not in result:
                 fail(f"missing status {token}")
     for dockerfile in [
-        "Dockerfile.api",
-        "Dockerfile.worker",
-        "Dockerfile.scheduler",
+        "Dockerfile.python",
         "Dockerfile.web",
-        "Dockerfile.migrations",
     ]:
         text = read(dockerfile)
         if "USER " not in text:

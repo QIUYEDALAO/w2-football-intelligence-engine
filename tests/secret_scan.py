@@ -23,6 +23,7 @@ ALLOWLIST = (
     "secrets guard",
     "without_secrets",
     "Secret pattern scan",
+    "password: ${{ secrets.GITHUB_TOKEN }}",
     "pattern scan",
     "database passwords",
     "authorization headers",

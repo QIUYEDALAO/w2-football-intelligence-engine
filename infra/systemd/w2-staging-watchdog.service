@@ -8,8 +8,8 @@ After=docker.service network-online.target
 Type=oneshot
 User=ubuntu
 Group=ubuntu
-WorkingDirectory=/opt/w2/current
-ExecStart=/bin/bash /opt/w2/current/scripts/watch_staging_runtime.sh
+WorkingDirectory=/opt/w2/deploy
+ExecStart=/bin/bash /opt/w2/deploy/watch_staging_runtime.sh
 StandardOutput=journal
 StandardError=journal
 

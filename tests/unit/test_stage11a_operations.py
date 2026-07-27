@@ -77,11 +77,8 @@ def test_backup_restore_drill_verifies_sha(tmp_path: Path) -> None:
 
 def test_dockerfiles_non_root_and_healthcheck() -> None:
     for name in [
-        "Dockerfile.api",
-        "Dockerfile.worker",
-        "Dockerfile.scheduler",
+        "Dockerfile.python",
         "Dockerfile.web",
-        "Dockerfile.migrations",
     ]:
         text = Path(name).read_text()
         assert "USER " in text

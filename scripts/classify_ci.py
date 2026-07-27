@@ -20,11 +20,8 @@ MIGRATION_ROOTS = ("migrations/",)
 INFRA_ROOTS = ("infra/",)
 INFRA_FILES = {
     "docker-compose.yml",
-    "Dockerfile.api",
-    "Dockerfile.migrations",
-    "Dockerfile.scheduler",
+    "Dockerfile.python",
     "Dockerfile.web",
-    "Dockerfile.worker",
 }
 FULL_CI_FILES = {
     ".github/workflows/ci.yml",
@@ -42,6 +39,7 @@ CI_JOB_NAMES = (
     "staging_parity",
     "predeploy_e2e",
     "verify",
+    "images",
 )
 
 
@@ -54,6 +52,7 @@ class CiPlan:
     staging_parity: bool = False
     predeploy_e2e: bool = False
     verify: bool = False
+    images: bool = False
     full: bool = False
 
     def outputs(self) -> dict[str, str]:
@@ -103,14 +102,15 @@ def classify(paths: list[str], *, force_full: bool = False) -> CiPlan:
             staging_parity=True,
             predeploy_e2e=True,
             verify=True,
+            images=True,
             full=True,
         )
     if heavy_domains == {"python"}:
-        return CiPlan(python_focused=True)
+        return CiPlan(python_focused=True, images=True)
     if heavy_domains == {"web"}:
-        return CiPlan(web=True)
+        return CiPlan(web=True, images=True)
     if heavy_domains == {"infra"}:
-        return CiPlan(compose=True, staging_parity=True, predeploy_e2e=True)
+        return CiPlan(compose=True, staging_parity=True, predeploy_e2e=True, images=True)
     return CiPlan()
 
 
