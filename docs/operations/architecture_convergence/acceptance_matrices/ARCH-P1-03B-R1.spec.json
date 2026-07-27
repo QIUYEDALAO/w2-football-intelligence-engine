@@ -3,10 +3,10 @@
   "schema_path": "contracts/governance/architecture_acceptance_lifecycle.v1.schema.json",
   "artifact_kind": "IMMUTABLE_SPEC",
   "task_id": "ARCH-P1-03B-R1",
-  "frozen_baseline_commit": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54",
+  "frozen_baseline_commit": "3ebccbd3561e4e40ed1a1e8625491fbc73b23871",
   "change_control": {
     "kind": "INITIAL_FREEZE",
-    "rationale": "First active read-only PREFLIGHT freeze for ARCH-P1-03B-R1 at main@a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54."
+    "rationale": "First active read-only PREFLIGHT freeze for ARCH-P1-03B-R1 at main@3ebccbd3561e4e40ed1a1e8625491fbc73b23871."
   },
   "scope": {
     "summary": "Freeze the real ARCH-P1-03B-R1 player-identity production chain and acceptance measurements without changing code, data, providers, mappings, or runtime switches.",
@@ -40,7 +40,7 @@
         "name": "manual identity evidence",
         "path": "scripts/arch_p1_03b_identity_evidence.py",
         "kind": "READ_ONLY_CLI",
-        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66",
+        "file_sha256": "ea750a5bc3d7c039ff853b3bb50e42956a3ad3753b74f16cca18db4120ee7cf6",
         "reachability": "PRODUCTION_REACHABLE",
         "reachability_rationale": "Explicit staging acceptance CLI calls player_identity_join_evidence.",
         "symbol": "main"
@@ -192,7 +192,7 @@
         "name": "identity evidence",
         "path": "scripts/arch_p1_03b_identity_evidence.py",
         "kind": "READ_ONLY_CLI",
-        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66",
+        "file_sha256": "ea750a5bc3d7c039ff853b3bb50e42956a3ad3753b74f16cca18db4120ee7cf6",
         "reachability": "PRODUCTION_REACHABLE",
         "reachability_rationale": "Read-only candidate, fixture, and M3 evidence entry point.",
         "symbol": "main"
@@ -526,7 +526,7 @@
       "generator": {
         "path": "scripts/arch_p1_03b_identity_evidence.py",
         "symbol": "main",
-        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+        "file_sha256": "ea750a5bc3d7c039ff853b3bb50e42956a3ad3753b74f16cca18db4120ee7cf6"
       },
       "allowed_exit_codes": [
         0
@@ -601,7 +601,7 @@
       "generator": {
         "path": "scripts/arch_p1_03b_identity_evidence.py",
         "symbol": "main",
-        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+        "file_sha256": "ea750a5bc3d7c039ff853b3bb50e42956a3ad3753b74f16cca18db4120ee7cf6"
       },
       "allowed_exit_codes": [
         0
@@ -676,7 +676,7 @@
       "generator": {
         "path": "scripts/arch_p1_03b_identity_evidence.py",
         "symbol": "main",
-        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+        "file_sha256": "ea750a5bc3d7c039ff853b3bb50e42956a3ad3753b74f16cca18db4120ee7cf6"
       },
       "allowed_exit_codes": [
         0
@@ -751,7 +751,7 @@
       "generator": {
         "path": "scripts/arch_p1_03b_identity_evidence.py",
         "symbol": "main",
-        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+        "file_sha256": "ea750a5bc3d7c039ff853b3bb50e42956a3ad3753b74f16cca18db4120ee7cf6"
       },
       "allowed_exit_codes": [
         0
@@ -826,7 +826,7 @@
       "generator": {
         "path": "scripts/arch_p1_03b_identity_evidence.py",
         "symbol": "main",
-        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+        "file_sha256": "ea750a5bc3d7c039ff853b3bb50e42956a3ad3753b74f16cca18db4120ee7cf6"
       },
       "allowed_exit_codes": [
         0
@@ -901,7 +901,7 @@
       "generator": {
         "path": "scripts/arch_p1_03b_identity_evidence.py",
         "symbol": "main",
-        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+        "file_sha256": "ea750a5bc3d7c039ff853b3bb50e42956a3ad3753b74f16cca18db4120ee7cf6"
       },
       "allowed_exit_codes": [
         0
@@ -976,7 +976,7 @@
       "generator": {
         "path": "scripts/arch_p1_03b_identity_evidence.py",
         "symbol": "main",
-        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+        "file_sha256": "ea750a5bc3d7c039ff853b3bb50e42956a3ad3753b74f16cca18db4120ee7cf6"
       },
       "allowed_exit_codes": [
         0
@@ -1051,7 +1051,7 @@
       "generator": {
         "path": "scripts/arch_p1_03b_identity_evidence.py",
         "symbol": "main",
-        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+        "file_sha256": "ea750a5bc3d7c039ff853b3bb50e42956a3ad3753b74f16cca18db4120ee7cf6"
       },
       "allowed_exit_codes": [
         0
@@ -1126,7 +1126,7 @@
       "generator": {
         "path": "scripts/arch_p1_03b_identity_evidence.py",
         "symbol": "main",
-        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+        "file_sha256": "ea750a5bc3d7c039ff853b3bb50e42956a3ad3753b74f16cca18db4120ee7cf6"
       },
       "allowed_exit_codes": [
         0
@@ -1201,7 +1201,7 @@
       "generator": {
         "path": "scripts/arch_p1_03b_identity_evidence.py",
         "symbol": "main",
-        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+        "file_sha256": "ea750a5bc3d7c039ff853b3bb50e42956a3ad3753b74f16cca18db4120ee7cf6"
       },
       "allowed_exit_codes": [
         0
@@ -1276,7 +1276,7 @@
       "generator": {
         "path": "scripts/arch_p1_03b_identity_evidence.py",
         "symbol": "main",
-        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+        "file_sha256": "ea750a5bc3d7c039ff853b3bb50e42956a3ad3753b74f16cca18db4120ee7cf6"
       },
       "allowed_exit_codes": [
         0
@@ -1351,7 +1351,7 @@
       "generator": {
         "path": "scripts/arch_p1_03b_identity_evidence.py",
         "symbol": "main",
-        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+        "file_sha256": "ea750a5bc3d7c039ff853b3bb50e42956a3ad3753b74f16cca18db4120ee7cf6"
       },
       "allowed_exit_codes": [
         0
@@ -1426,7 +1426,7 @@
       "generator": {
         "path": "scripts/arch_p1_03b_identity_evidence.py",
         "symbol": "main",
-        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+        "file_sha256": "ea750a5bc3d7c039ff853b3bb50e42956a3ad3753b74f16cca18db4120ee7cf6"
       },
       "allowed_exit_codes": [
         0
@@ -1501,7 +1501,7 @@
       "generator": {
         "path": "scripts/arch_p1_03b_identity_evidence.py",
         "symbol": "main",
-        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+        "file_sha256": "ea750a5bc3d7c039ff853b3bb50e42956a3ad3753b74f16cca18db4120ee7cf6"
       },
       "allowed_exit_codes": [
         0
@@ -1576,7 +1576,7 @@
       "generator": {
         "path": "scripts/arch_p1_03b_identity_evidence.py",
         "symbol": "main",
-        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+        "file_sha256": "ea750a5bc3d7c039ff853b3bb50e42956a3ad3753b74f16cca18db4120ee7cf6"
       },
       "allowed_exit_codes": [
         0
@@ -1651,7 +1651,7 @@
       "generator": {
         "path": "scripts/arch_p1_03b_identity_evidence.py",
         "symbol": "main",
-        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+        "file_sha256": "ea750a5bc3d7c039ff853b3bb50e42956a3ad3753b74f16cca18db4120ee7cf6"
       },
       "allowed_exit_codes": [
         0
@@ -1726,7 +1726,7 @@
       "generator": {
         "path": "scripts/arch_p1_03b_identity_evidence.py",
         "symbol": "main",
-        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+        "file_sha256": "ea750a5bc3d7c039ff853b3bb50e42956a3ad3753b74f16cca18db4120ee7cf6"
       },
       "allowed_exit_codes": [
         0
@@ -1801,7 +1801,7 @@
       "generator": {
         "path": "scripts/arch_p1_03b_identity_evidence.py",
         "symbol": "main",
-        "file_sha256": "05c5747b9be563087438f12bfc535668080e43fde68c64a627b8c4762e95fd66"
+        "file_sha256": "ea750a5bc3d7c039ff853b3bb50e42956a3ad3753b74f16cca18db4120ee7cf6"
       },
       "allowed_exit_codes": [
         0
@@ -1816,5 +1816,5 @@
     "post_implementation_review": "FROZEN_ASSERTIONS_AND_NEW_DIFF_REGRESSIONS_ONLY",
     "old_head_first_miss_label": "REVIEW_MISS"
   },
-  "spec_sha256": "dedfb4622e3ba495ae85000f18b64f505d55ece356d4f6a60848c7332ae914ae"
+  "spec_sha256": "a58a00aeeb270c1221bb68c2c410394f16efb7dcb09b1e070a0251c343bf16a5"
 }

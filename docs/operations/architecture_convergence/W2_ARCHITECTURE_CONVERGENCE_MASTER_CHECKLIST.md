@@ -740,22 +740,25 @@ Historical task: ARCH-P1-03B (DONE, PR #402,
 Predecessor: ARCH-GOVERNANCE-03
 Successor: ARCH-OBS-01
 PREFLIGHT PR: #414
-Frozen baseline: a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54
+Frozen baseline: 3ebccbd3561e4e40ed1a1e8625491fbc73b23871
 Immutable spec: docs/operations/architecture_convergence/acceptance_matrices/ARCH-P1-03B-R1.spec.json
 Baseline receipt: docs/operations/architecture_convergence/acceptance_matrices/ARCH-P1-03B-R1.baseline.json
-The baseline receipt records the forced-read-only staging counts and fingerprints in its rationales. They remain `UNVERIFIABLE` lifecycle evidence because the frozen subject head has no replayable real-input generator.
+Evidence artifact: docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight.evidence.json
 Final attestation: add-only in the later closure PR after implementation acceptance
-Derived implementation gate: BLOCKED
+Derived implementation gate: OPEN
 Allowed next PR kind: PREFLIGHT
 ```
 
 本任务只承载对历史 DONE 任务的后续整改；不得改写 `ARCH-P1-03B` 的 DONE 状态、
 PR、Merge SHA、66 条审批或 M3 验收坐标。
 active spec 与 baseline receipt 已由本只读 PREFLIGHT 冻结；final attestation
-仍不存在。真实 staging PostgreSQL 已取得 66 条 REVIEWED mapping、schema/index、
-migration、lineup join 与零副作用 fingerprint，但 subject-head generator 尚不符合
-lifecycle `--output` replay 契约，因此 implementation gate 保持 `BLOCKED`。
-不得直接修改 production identity repository。
+仍不存在。合并后的 generator 从 detached frozen-baseline worktree 对同一 staging
+fixture 集合执行强制只读采集，两次 canonical 输出完全一致。66 条 REVIEWED mapping
+reconcile 为 exact `66/66`、无 missing/mismatch/unexpected，既有 row fingerprint
+`5004170d32240de1f1ca43cdf0d30003f022854cad1b8810d47a6440874a144e`
+不变，provider call 与 DB write delta 均为 `0`。六项 readiness precondition
+全部由机器证据派生为 `PASS`，implementation gate 为 `OPEN`；本 PREFLIGHT
+被外部验收并合并前仍不得修改 production identity repository。
 
 ---
 

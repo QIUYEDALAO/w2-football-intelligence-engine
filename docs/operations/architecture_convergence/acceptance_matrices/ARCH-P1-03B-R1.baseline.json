@@ -4,8 +4,8 @@
   "artifact_kind": "BASELINE_RECEIPT",
   "task_id": "ARCH-P1-03B-R1",
   "spec_path": "docs/operations/architecture_convergence/acceptance_matrices/ARCH-P1-03B-R1.spec.json",
-  "spec_sha256": "dedfb4622e3ba495ae85000f18b64f505d55ece356d4f6a60848c7332ae914ae",
-  "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54",
+  "spec_sha256": "a58a00aeeb270c1221bb68c2c410394f16efb7dcb09b1e070a0251c343bf16a5",
+  "subject_head": "3ebccbd3561e4e40ed1a1e8625491fbc73b23871",
   "preconditions": {
     "SPEC_INVENTORY_COMPLETE": {
       "status": "PASS",
@@ -14,41 +14,76 @@
           "evidence_type": "STATIC_AST_SCAN",
           "role": "PRIMARY",
           "artifact_path": "docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md",
-          "artifact_sha256": "7ae0f7d18feb8f47450985c6c793b970ddcb9c19a31ab773e14043f966100c88",
-          "command": "git show a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54:docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md",
-          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
+          "artifact_sha256": "2c6275a5a8422a51dbc3789efa9e270baed73c1a222aebd732d2366458476ed8",
+          "command": "git show 3ebccbd3561e4e40ed1a1e8625491fbc73b23871:docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md",
+          "subject_head": "3ebccbd3561e4e40ed1a1e8625491fbc73b23871"
         }
       ],
       "rationale": "The active spec enumerates every repository-visible worker, manual CLI, producer, consumer, storage, config, and file-shaped identity surface."
     },
     "REAL_INPUT_AVAILABLE": {
-      "status": "UNVERIFIABLE",
-      "evidence": [],
-      "rationale": "A forced-read-only staging audit observed PostgreSQL 16 at migration 0043_drop_legacy_identity_crosswalks, 66 REVIEWED mappings, 32 APPROVED team crosswalks, 10 confirmed lineup snapshots, 200 lineup players, 110 starters, and provider_request_logs=312 before/after. The current staging application release is 8adc8d482aefd7d31063030f0b682458c58c17a2 rather than subject head a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54, and no subject-head lifecycle generator can replay the capture, so it is not promoted to real-input evidence."
+      "status": "PASS",
+      "evidence": [
+        {
+          "evidence_type": "REAL_PRODUCER_OUTPUT",
+          "role": "PRIMARY",
+          "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight.evidence.json",
+          "artifact_sha256": "64a330f153ff2cc0be2eeed507284f0079c395251b291a9144f7f51a13364453",
+          "command": "python3 scripts/arch_p1_03b_identity_evidence.py --as-of 2026-11-30T23:59:59Z --fixtures 1494212 1494213 1494214 1494215 1494216 --m3-fixtures 1494212 1494214 1494216 --manifest docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json --review-package-sha256 916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea --approval-artifact-sha256 a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695 --reviewed-by operator:liudehua --captured-at 2026-07-27T11:40:44Z --source-label staging-postgresql --output <temporary-output-path>",
+          "subject_head": "3ebccbd3561e4e40ed1a1e8625491fbc73b23871"
+        }
+      ],
+      "rationale": "The merged generator ran from a detached main@3ebccbd3561e4e40ed1a1e8625491fbc73b23871 worktree against the frozen staging fixture set. It captured canonical PostgreSQL identity evidence at migration 0043_drop_legacy_identity_crosswalks with row_count=173 and result fingerprint 52354068920f5bb3ca31083179a04a896515dc12566c24dc06630ff2379fc80f."
     },
     "RUNTIME_SQL_BASELINE_CAPTURED": {
-      "status": "UNVERIFIABLE",
-      "evidence": [],
-      "rationale": "Forced-read-only pg_catalog/information_schema and canonical identity SELECTs observed schema/index fingerprint 2a40b2d4494849e5f5a346511ee327fcbe5d8b0612c4a302cb086f61835e0cc5 and lineup-join fingerprint 9265af518186b2314c393cc2c6f4d33035e2ffc4c4867285cc35a1786421180e, with provider call delta=0 and DB write delta=0. The required replayable REAL_DB artifact is absent, so the baseline remains UNVERIFIABLE."
+      "status": "PASS",
+      "evidence": [
+        {
+          "evidence_type": "REAL_PRODUCER_OUTPUT",
+          "role": "PRIMARY",
+          "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight.evidence.json",
+          "artifact_sha256": "64a330f153ff2cc0be2eeed507284f0079c395251b291a9144f7f51a13364453",
+          "command": "python3 scripts/arch_p1_03b_identity_evidence.py --as-of 2026-11-30T23:59:59Z --fixtures 1494212 1494213 1494214 1494215 1494216 --m3-fixtures 1494212 1494214 1494216 --manifest docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json --review-package-sha256 916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea --approval-artifact-sha256 a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695 --reviewed-by operator:liudehua --captured-at 2026-07-27T11:40:44Z --source-label staging-postgresql --output <temporary-output-path>",
+          "subject_head": "3ebccbd3561e4e40ed1a1e8625491fbc73b23871"
+        }
+      ],
+      "rationale": "The forced-read-only producer traversed the canonical identity audit, five-fixture matrix, and three M3 joins directly on staging PostgreSQL. Three reads per M3 fixture were stable; provider_call_delta=0 and db_write_delta=0."
     },
     "MUTATION_SOURCE_FROZEN": {
-      "status": "UNVERIFIABLE",
+      "status": "PASS",
       "evidence": [
+        {
+          "evidence_type": "REAL_PRODUCER_OUTPUT",
+          "role": "PRIMARY",
+          "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight.evidence.json",
+          "artifact_sha256": "64a330f153ff2cc0be2eeed507284f0079c395251b291a9144f7f51a13364453",
+          "command": "python3 scripts/arch_p1_03b_identity_evidence.py --as-of 2026-11-30T23:59:59Z --fixtures 1494212 1494213 1494214 1494215 1494216 --m3-fixtures 1494212 1494214 1494216 --manifest docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json --review-package-sha256 916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea --approval-artifact-sha256 a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695 --reviewed-by operator:liudehua --captured-at 2026-07-27T11:40:44Z --source-label staging-postgresql --output <temporary-output-path>",
+          "subject_head": "3ebccbd3561e4e40ed1a1e8625491fbc73b23871"
+        },
         {
           "evidence_type": "CONTENT_ADDRESSED_SANITIZED_ARTIFACT",
           "role": "SUPPORTING",
           "artifact_path": "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
           "artifact_sha256": "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
-          "command": "git show a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54:docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
-          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
+          "command": "git show 3ebccbd3561e4e40ed1a1e8625491fbc73b23871:docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+          "subject_head": "3ebccbd3561e4e40ed1a1e8625491fbc73b23871"
         }
       ],
-      "rationale": "The fixed 66-row approval manifest is content-addressed. Read-only staging audit observed all 66 rows with reviewed_by=operator:liudehua, review-package SHA 916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea, approval SHA a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695, and row fingerprint 5004170d32240de1f1ca43cdf0d30003f022854cad1b8810d47a6440874a144e. No schema-valid replayable mutation-source artifact binds the live rows at this baseline."
+      "rationale": "The fixed 66-row approval manifest is content-addressed and bound to the replayable staging artifact. Reconciliation returned expected=actual=exact=66, no missing/mismatch/unexpected rows, reviewed_by=operator:liudehua, review-package SHA 916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea, approval SHA a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695, and unchanged approved-row fingerprint 5004170d32240de1f1ca43cdf0d30003f022854cad1b8810d47a6440874a144e."
     },
     "GENERATOR_REPLAYABLE": {
-      "status": "BLOCKED",
-      "evidence": [],
-      "rationale": "scripts/arch_p1_03b_identity_evidence.py does not implement the lifecycle --output replay contract; PREFLIGHT cannot modify that production/ops generator."
+      "status": "PASS",
+      "evidence": [
+        {
+          "evidence_type": "REAL_PRODUCER_OUTPUT",
+          "role": "PRIMARY",
+          "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight.evidence.json",
+          "artifact_sha256": "64a330f153ff2cc0be2eeed507284f0079c395251b291a9144f7f51a13364453",
+          "command": "cmp evidence-final-1.json evidence-final-2.json",
+          "subject_head": "3ebccbd3561e4e40ed1a1e8625491fbc73b23871"
+        }
+      ],
+      "rationale": "The merged --output generator was replayed twice from the detached frozen-baseline worktree with identical arguments and captured_at. Both canonical outputs had byte SHA-256 64a330f153ff2cc0be2eeed507284f0079c395251b291a9144f7f51a13364453."
     },
     "SCOPE_AND_FORBIDDEN_FROZEN": {
       "status": "PASS",
@@ -57,38 +92,55 @@
           "evidence_type": "STATIC_AST_SCAN",
           "role": "PRIMARY",
           "artifact_path": "docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md",
-          "artifact_sha256": "7ae0f7d18feb8f47450985c6c793b970ddcb9c19a31ab773e14043f966100c88",
-          "command": "git show a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54:docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md",
-          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
+          "artifact_sha256": "2c6275a5a8422a51dbc3789efa9e270baed73c1a222aebd732d2366458476ed8",
+          "command": "git show 3ebccbd3561e4e40ed1a1e8625491fbc73b23871:docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md",
+          "subject_head": "3ebccbd3561e4e40ed1a1e8625491fbc73b23871"
         }
       ],
       "rationale": "The spec freezes read-only PREFLIGHT scope and forbids production implementation, provider calls, database writes, mapping changes, runtime switches, and successor tasks."
     }
   },
-  "implementation_open_status": "BLOCKED",
+  "implementation_open_status": "OPEN",
   "input_results": [
     {
       "input_id": "canonical_player_authority_rows",
-      "status": "UNVERIFIABLE",
-      "evidence_type": "REAL_DB",
-      "evidence": [],
-      "rationale": "Forced-read-only staging queries observed 110 canonical player-identity rows: 66 REVIEWED, 36 CANDIDATE, and 8 MISSING. The 66 approved rows fingerprint to 5004170d32240de1f1ca43cdf0d30003f022854cad1b8810d47a6440874a144e, but the capture is not a replayable REAL_DB evidence artifact."
+      "status": "PASS",
+      "evidence_type": "REAL_PRODUCER_OUTPUT",
+      "evidence": [
+        {
+          "evidence_type": "REAL_PRODUCER_OUTPUT",
+          "role": "PRIMARY",
+          "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight.evidence.json",
+          "artifact_sha256": "64a330f153ff2cc0be2eeed507284f0079c395251b291a9144f7f51a13364453",
+          "command": "python3 scripts/arch_p1_03b_identity_evidence.py --output <temporary-output-path>",
+          "subject_head": "3ebccbd3561e4e40ed1a1e8625491fbc73b23871"
+        }
+      ],
+      "rationale": "The replayable real producer read canonical identity rows and M3 joins from staging PostgreSQL. The fixed approval package reconciled exactly 66 REVIEWED rows with unchanged fingerprint 5004170d32240de1f1ca43cdf0d30003f022854cad1b8810d47a6440874a144e."
     },
     {
       "input_id": "team_value_player_authority_input",
-      "status": "UNVERIFIABLE",
-      "evidence_type": "CONTENT_ADDRESSED_SANITIZED_ARTIFACT",
+      "status": "PASS",
+      "evidence_type": "REAL_PRODUCER_OUTPUT",
       "evidence": [
+        {
+          "evidence_type": "REAL_PRODUCER_OUTPUT",
+          "role": "PRIMARY",
+          "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight.evidence.json",
+          "artifact_sha256": "64a330f153ff2cc0be2eeed507284f0079c395251b291a9144f7f51a13364453",
+          "command": "python3 scripts/arch_p1_03b_identity_evidence.py --output <temporary-output-path>",
+          "subject_head": "3ebccbd3561e4e40ed1a1e8625491fbc73b23871"
+        },
         {
           "evidence_type": "CONTENT_ADDRESSED_SANITIZED_ARTIFACT",
           "role": "SUPPORTING",
           "artifact_path": "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
           "artifact_sha256": "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
-          "command": "git show a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54:docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
-          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
+          "command": "git show 3ebccbd3561e4e40ed1a1e8625491fbc73b23871:docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
+          "subject_head": "3ebccbd3561e4e40ed1a1e8625491fbc73b23871"
         }
       ],
-      "rationale": "The fixed approved manifest is frozen as a supporting input. Forced-read-only staging queries observed confirmed lineup fixtures 1494212-1494216, with reviewed starter joins of 22,0,22,0,22 respectively; the reachable PlayerIdentityCrosswalkV1 file consumer remains a competing authority."
+      "rationale": "The fixed approved manifest and replayable real producer bind the team/player as-of input shape. Three target fixtures each returned 22 reviewed starter joins with stable business hashes; the reachable PlayerIdentityCrosswalkV1 file consumer remains a competing authority for later remediation."
     }
   ],
   "layer_results": {
@@ -101,7 +153,7 @@
           "artifact_path": "tests/unit/test_arch_p1_03_identity_guards.py",
           "artifact_sha256": "e73f4393f37689ae767d89c618fea001d35cb929943a5bab20c1f4bd29e28170",
           "command": "uv run pytest -q tests/unit/test_arch_p1_03_identity_guards.py",
-          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
+          "subject_head": "3ebccbd3561e4e40ed1a1e8625491fbc73b23871"
         }
       ],
       "rationale": "Repository inventory proves the canonical resolver has no production caller and the file-shaped PlayerIdentityCrosswalkV1 consumer remains reachable."
@@ -120,7 +172,7 @@
           "artifact_path": "tests/unit/test_lineup_materialization.py",
           "artifact_sha256": "18b75b38b6f7dacf611486420ea7a35c05357bbbbd0d0b31ac0b44c6195a2ee4",
           "command": "uv run pytest -q tests/unit/test_lineup_materialization.py::test_player_identity_join_evidence_is_read_only_and_deterministic",
-          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
+          "subject_head": "3ebccbd3561e4e40ed1a1e8625491fbc73b23871"
         }
       ],
       "rationale": "Existing in-memory SQLite and handwritten payload tests remain supplementary and do not open the implementation gate."
@@ -253,5 +305,5 @@
     }
   ],
   "overall_status": "BLOCKED",
-  "receipt_sha256": "065b369db53d395d0f2845c294b7731a2d782d9a819944814a197d8e97c7084b"
+  "receipt_sha256": "468a1cb90ad4b2eaa838d005b74c4d41cd3bd2d64c8ac5d62f9f5cc16afaf152"
 }

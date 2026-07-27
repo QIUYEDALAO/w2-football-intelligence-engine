@@ -1120,7 +1120,7 @@ def test_receipts_derive_gates_instead_of_storing_manual_gate() -> None:
     assert not governance._receipt_passes(frozen_spec(), receipt)
     assert governance.task_acceptance_gate(
         "ARCH-P1-03B-R1", "IMPLEMENTATION", root=ROOT
-    ) == ["MATRIX_IMPLEMENTATION_GATE_BLOCKED:ARCH-P1-03B-R1"]
+    ) == []
     assert governance.task_acceptance_gate(
         "ARCH-P1-03B-R1", "CLOSURE", root=ROOT, exact_head=HEAD
     ) == ["MATRIX_FINAL_RECEIPT_BLOCKED:ARCH-P1-03B-R1"]
@@ -1147,7 +1147,7 @@ def test_post_governance_task_requires_a_frozen_matrix(tmp_path: Path) -> None:
     ]
     assert governance.task_acceptance_gate(
         "ARCH-P1-03B-R1", "IMPLEMENTATION", root=ROOT
-    ) == ["MATRIX_IMPLEMENTATION_GATE_BLOCKED:ARCH-P1-03B-R1"]
+    ) == []
     assert governance.task_acceptance_gate(
         "ARCH-P1-03B-R1", "CLOSURE", root=ROOT
     ) == ["MATRIX_FINAL_RECEIPT_BLOCKED:ARCH-P1-03B-R1"]
