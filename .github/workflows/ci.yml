@@ -352,13 +352,7 @@ jobs:
         if: github.event_name == 'pull_request'
         shell: bash
         run: |
-          task_id="$(jq -r '.pull_request.body | capture("W2_TASK_ID: (?<id>ARCH-[A-Z0-9-]+)").id' "$GITHUB_EVENT_PATH")"
-          trusted_root="$GITHUB_WORKSPACE/.w2-trusted-governance"
-          collector_root="$trusted_root"
-          if [[ "$task_id" == "ARCH-GOVERNANCE-03" ]]; then
-            collector_root="$GITHUB_WORKSPACE"
-          fi
-          echo "W2_GOVERNANCE_ROOT=$collector_root" >> "$GITHUB_ENV"
+          echo "W2_GOVERNANCE_ROOT=$GITHUB_WORKSPACE/.w2-trusted-governance" >> "$GITHUB_ENV"
       - name: Validate detached result source
         if: github.event_name == 'pull_request'
         shell: bash
@@ -397,29 +391,21 @@ jobs:
       - predeploy-e2e
       - verify
     runs-on: ubuntu-latest
+    env:
+      W2_GOVERNANCE_ROOT: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v4
       - name: Checkout trusted governance compiler
-        if: >-
-          github.event_name == 'pull_request' &&
-          needs.classify.outputs.verify == 'true'
+        if: github.event_name == 'pull_request'
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           path: .w2-trusted-governance
       - name: Select trusted governance runtime
-        if: >-
-          github.event_name == 'pull_request' &&
-          needs.classify.outputs.verify == 'true'
+        if: github.event_name == 'pull_request'
         shell: bash
         run: |
-          task_id="$(jq -r '.pull_request.body | capture("W2_TASK_ID: (?<id>ARCH-[A-Z0-9-]+)").id' "$GITHUB_EVENT_PATH")"
-          trusted_root="$GITHUB_WORKSPACE/.w2-trusted-governance"
-          governance_root="$trusted_root"
-          if [[ "$task_id" == "ARCH-GOVERNANCE-03" ]]; then
-            governance_root="$GITHUB_WORKSPACE"
-          fi
-          echo "W2_GOVERNANCE_ROOT=$governance_root" >> "$GITHUB_ENV"
+          echo "W2_GOVERNANCE_ROOT=$GITHUB_WORKSPACE/.w2-trusted-governance" >> "$GITHUB_ENV"
       - name: Receive detached result source
         if: >-
           github.event_name == 'pull_request' &&

@@ -3,6 +3,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 import yaml
@@ -16,6 +17,24 @@ from scripts.classify_ci import (
 )
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _workflow_step(job: dict[str, Any], name: str) -> dict[str, Any]:
+    return next(step for step in job["steps"] if step.get("name") == name)
+
+
+def _step_runs(step: dict[str, Any], event: str, verify: bool) -> bool:
+    condition = " ".join(str(step.get("if", "")).split())
+    if not condition:
+        return True
+    if condition == "github.event_name == 'pull_request'":
+        return event == "pull_request"
+    if condition == (
+        "github.event_name == 'pull_request' && "
+        "needs.classify.outputs.verify == 'true'"
+    ):
+        return event == "pull_request" and verify
+    raise AssertionError(f"untested workflow condition: {condition}")
 
 
 def test_docs_only_schedules_only_lightweight_governance() -> None:
@@ -179,3 +198,89 @@ def test_ci_workflow_has_stable_aggregate_and_independent_governance_gates() -> 
     assert "github.event_name != 'pull_request'" not in ci
     assert "github.event.before" in ci
     assert "github.event_name == 'workflow_dispatch' && inputs.full" in ci
+
+
+@pytest.mark.parametrize(
+    ("event", "plan", "verify"),
+    [
+        ("pull_request", "FULL", True),
+        ("pull_request", "PATH_AWARE_FULL", True),
+        ("pull_request", "PATH_AWARE_FOCUSED", False),
+        ("pull_request", "LIGHTWEIGHT", False),
+        ("push", "MAIN", True),
+        ("workflow_dispatch", "FULL", True),
+    ],
+)
+def test_ci_workflow_event_plan_matrix_initializes_trusted_runtime(
+    event: str,
+    plan: str,
+    verify: bool,
+) -> None:
+    jobs = yaml.safe_load(
+        (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    )["jobs"]
+    aggregate = jobs["ci-required"]
+    verify_job = jobs["verify"]
+    checkout = _workflow_step(aggregate, "Checkout trusted governance compiler")
+    select = _workflow_step(aggregate, "Select trusted governance runtime")
+    require = _workflow_step(aggregate, "Require every scheduled job to succeed")
+    detached_names = (
+        "Receive detached result source",
+        "Build detached acceptance artifacts",
+        "Upload detached implementation result",
+        "Upload detached evidence index",
+    )
+
+    assert aggregate["if"] == "always()"
+    assert aggregate["env"]["W2_GOVERNANCE_ROOT"] == "${{ github.workspace }}"
+    assert "classify" in aggregate["needs"]
+    assert _step_runs(checkout, event, verify) == (event == "pull_request")
+    assert _step_runs(select, event, verify) == (event == "pull_request")
+    assert _step_runs(require, event, verify)
+    assert all(
+        _step_runs(_workflow_step(aggregate, name), event, verify)
+        == (event == "pull_request" and verify)
+        for name in detached_names
+    ), plan
+
+    root = (
+        "$GITHUB_WORKSPACE/.w2-trusted-governance"
+        if _step_runs(select, event, verify)
+        else "${{ github.workspace }}"
+    )
+    assert root
+    assert checkout["with"]["path"] == ".w2-trusted-governance"
+    assert checkout["with"]["ref"] == "${{ github.event.pull_request.base.sha }}"
+    assert (
+        select["run"].strip()
+        == 'echo "W2_GOVERNANCE_ROOT=$GITHUB_WORKSPACE/.w2-trusted-governance" >> "$GITHUB_ENV"'
+    )
+    assert 'cd "$W2_GOVERNANCE_ROOT"' in require["run"]
+    assert 'python3 "$W2_GOVERNANCE_ROOT/scripts/classify_ci.py"' in require["run"]
+    assert "env -u PYTHONPATH PYTHONNOUSERSITE=1" in require["run"]
+
+    collector_checkout = _workflow_step(
+        verify_job, "Checkout trusted measurement collector"
+    )
+    collector_select = _workflow_step(
+        verify_job, "Select trusted measurement collector"
+    )
+    assert _step_runs(collector_checkout, event, verify) == (
+        event == "pull_request"
+    )
+    assert _step_runs(collector_select, event, verify) == (
+        event == "pull_request"
+    )
+    assert (
+        collector_select["run"].strip()
+        == 'echo "W2_GOVERNANCE_ROOT=$GITHUB_WORKSPACE/.w2-trusted-governance" >> "$GITHUB_ENV"'
+    )
+    reachable_runs = [
+        str(step.get("run", ""))
+        for job in (aggregate, verify_job)
+        for step in job["steps"]
+        if _step_runs(step, event, verify)
+    ]
+    if event != "pull_request":
+        assert not any("github.event.pull_request" in run for run in reachable_runs)
+    assert not any("ARCH-GOVERNANCE-03" in run for run in reachable_runs)
