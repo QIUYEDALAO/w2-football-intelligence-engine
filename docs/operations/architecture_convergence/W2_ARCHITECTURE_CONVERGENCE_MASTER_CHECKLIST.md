@@ -48,6 +48,7 @@
 | ARCH-P1-03C | #404 | `4e310e87def0e6e44e0fe69fa0c07f776126a6fc` | 三张 legacy identity 表及 ORM 声明下线 |
 | ARCH-GOVERNANCE-02 | #406 | `cf5d6ea2cca600e31d4058b7d359b271d12d1f04` | path-aware CI、稳定聚合门与 required contexts 切换 |
 | ARCH-P1-04D-R1 | #408 | `09ece0204bed1289986e20d6a1cff842cb2f0864` | canonical decision contract 遗留兼容读取整改 |
+| ARCH-GOVERNANCE-03 | #411 | `f891f25dac1c0b663facab94dc0e05c54b84f4eb` | 真实生产输入验收矩阵与可信 workflow event 运行闭包 |
 
 ---
 
@@ -640,19 +641,22 @@ PR、Merge SHA 或已完成台账。
 #### A14. ARCH-GOVERNANCE-03：真实生产输入形状与冻结验收矩阵规则
 
 ```text
-Status: IMPLEMENTED_PENDING_ACCEPTANCE
-Branch: codex/arch-governance-03-production-input-matrix
+Status: DONE
+Closure PR: #412
+PR: #411
+Merge SHA: f891f25dac1c0b663facab94dc0e05c54b84f4eb
 Base SHA: 832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd
-Implementation PR: #410
-Accepted Head: f7043f6a5fc0e020d11e19672a70658a66cc420f
-Full CI: 30237236245
-External Acceptance: W2_EXTERNAL_ACCEPTANCE_V1
-Initial implementation merged as: bfdd79b3814008d9988f8f5d76d566145188e1e4
-Post-merge remediation: GITHUB_REMEDIATION_PR
-Remediation branch: codex/arch-governance-03-main-push-remediation
-Remediation base: bfdd79b3814008d9988f8f5d76d566145188e1e4
-Failed main-push CI: 30238672678
-Implementation SHA: GITHUB_PR_EXACT_HEAD
+Initial implementation PR: #410
+Initial accepted head: f7043f6a5fc0e020d11e19672a70658a66cc420f
+Initial FULL CI: 30237236245
+Initial merge SHA: bfdd79b3814008d9988f8f5d76d566145188e1e4
+Final remediation PR: #411
+Final accepted head: 688b4c132d719d7fd282dc7d85598a594666617e
+Final FULL CI: 30240556366
+Final external acceptance: W2_EXTERNAL_ACCEPTANCE_V1
+Final merge SHA: f891f25dac1c0b663facab94dc0e05c54b84f4eb
+Main push CI run: 30241678736
+Main POST run: 30241678744
 Predecessor: ARCH-P1-04D-R1
 Successor: ARCH-P1-03B-R1 (NOT_STARTED)
 Lifecycle schema: contracts/governance/architecture_acceptance_lifecycle.v1.schema.json
@@ -693,7 +697,7 @@ Governance fixture blocked-baseline SHA-256: 9dbce71730f344c9e98f0020cf654f7a468
       Implementation FULL/Review → merge → Closure add-only final → POST DONE`
       状态机；真实 03B-R1 spec/baseline 必须由其后续独立 PREFLIGHT 新增，
       03B-R1 保持 `NOT_STARTED`。
-- [ ] post-merge remediation 仅修复 workflow event × CI plan 的可信 root 初始化；
+- [x] post-merge remediation 仅修复 workflow event × CI plan 的可信 root 初始化；
       新 main 的 `CI_REQUIRED` 与 POST 同时成功后，方可创建本任务 Closure。
 
 **不做**：不修改 03B-R1 生产代码、66 条审批、staging 数据、模型数学、provider 或
@@ -714,10 +718,14 @@ Immutable spec: NONE (must be added by ARCH-P1-03B-R1 PREFLIGHT)
 Baseline receipt: NONE (must be added by ARCH-P1-03B-R1 PREFLIGHT)
 Final attestation: add-only in the later closure PR after implementation acceptance
 Derived implementation gate: BLOCKED
+Allowed next PR kind: PREFLIGHT
 ```
 
 本任务只承载对历史 DONE 任务的后续整改；不得改写 `ARCH-P1-03B` 的 DONE 状态、
 PR、Merge SHA、66 条审批或 M3 验收坐标。
+当前没有 active spec、baseline receipt 或 final attestation，implementation gate
+尚未 OPEN。下一步只能创建只读 PREFLIGHT；不得直接修改 production identity
+repository。
 
 ---
 
