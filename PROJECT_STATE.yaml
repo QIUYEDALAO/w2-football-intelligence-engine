@@ -30,7 +30,7 @@ repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
   main_sha: 62a9c0ac5a85426fb44234ec7a0032454d605a59
   main_migration_head: 0043_drop_legacy_identity_crosswalks
-  pull_request: GITHUB_CLOSURE_PR
+  pull_request: 418
   pull_request_mode: DRAFT
   pull_request_head_branch: codex/arch-governance-03-status-closure
   task_baseline_sha: 62a9c0ac5a85426fb44234ec7a0032454d605a59
@@ -159,7 +159,7 @@ architecture_convergence:
       full_ci_run: 30266575034
       accepted_by: W2_EXTERNAL_ACCEPTANCE_V1
       merge_sha: 62a9c0ac5a85426fb44234ec7a0032454d605a59
-      closure_pr: GITHUB_CLOSURE_PR
+      closure_pr: 418
       main_ci_required_run: 30268052489
       main_post_gate_run: 30268052524
     main_ci_required_run: 30241678736
