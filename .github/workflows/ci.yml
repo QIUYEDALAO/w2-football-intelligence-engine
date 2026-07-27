@@ -379,3 +379,26 @@ jobs:
           --result staging_parity=${{ needs['staging-parity'].result }}
           --result predeploy_e2e=${{ needs['predeploy-e2e'].result }}
           --result verify=${{ needs.verify.result }}
+      - name: Build detached acceptance artifacts
+        if: github.event_name == 'pull_request'
+        run: >-
+          python3 scripts/check_architecture_governance.py
+          detached-ci-artifacts
+          --event-path "$GITHUB_EVENT_PATH"
+          --output-dir .w2-detached
+          --subject-head "${{ github.event.pull_request.head.sha }}"
+          --run-id "${{ github.run_id }}"
+      - name: Upload detached implementation result
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: w2-acceptance-result-${{ github.event.pull_request.head.sha }}
+          path: .w2-detached/result
+          if-no-files-found: error
+      - name: Upload detached evidence index
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: w2-acceptance-evidence-${{ github.event.pull_request.head.sha }}
+          path: .w2-detached/evidence
+          if-no-files-found: error

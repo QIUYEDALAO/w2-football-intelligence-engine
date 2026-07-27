@@ -42,8 +42,9 @@ ACTUAL_MERGES = {
     408: "09ece0204bed1289986e20d6a1cff842cb2f0864",
 }
 MATRIX_ROOT = ROOT / "docs/operations/architecture_convergence/acceptance_matrices"
-SPEC_PATH = MATRIX_ROOT / "ARCH-P1-03B-R1.spec.json"
-BASELINE_PATH = MATRIX_ROOT / "ARCH-P1-03B-R1.baseline.json"
+FIXTURE_ROOT = ROOT / "tests/fixtures/governance"
+SPEC_PATH = FIXTURE_ROOT / "architecture_acceptance_frozen_spec.json"
+BASELINE_PATH = FIXTURE_ROOT / "architecture_acceptance_blocked_baseline.json"
 SCHEMA_PATH = (
     ROOT / "contracts/governance/architecture_acceptance_lifecycle.v1.schema.json"
 )
@@ -87,7 +88,9 @@ def test_arch_p1_03b_r1_lifecycle_is_machine_valid() -> None:
         )
         == []
     )
-    assert governance.validate_task_acceptance_lifecycle("ARCH-P1-03B-R1", root=ROOT) == []
+    assert governance.validate_task_acceptance_lifecycle(
+        "ARCH-P1-03B-R1", root=ROOT
+    ) == ["ACCEPTANCE_MATRIX_LIFECYCLE_MISSING:ARCH-P1-03B-R1"]
 
 
 def test_spec_hashes_and_required_case_set_fail_closed() -> None:
@@ -181,35 +184,63 @@ def test_fully_qualified_symbol_requires_real_ast_class_scope() -> None:
     )
 
 
-def test_final_receipt_binds_exact_head_full_ci_and_acceptance() -> None:
-    receipt = baseline_receipt()
-    receipt["artifact_kind"] = "FINAL_EXACT_HEAD_RECEIPT"
-    receipt["ci_receipt"] = {
-        "run_id": 123,
-        "plan": "FULL",
-        "conclusion": "success",
-        "exact_head": receipt["exact_head"],
-    }
-    receipt["external_acceptance"] = {
-        "protocol": governance.PROTOCOL_ID,
-        "decision": "PASS",
-        "accepted_head": receipt["exact_head"],
-        "review_sha256": "c" * 64,
+def final_attestation(
+    *,
+    subject_head: str = HEAD,
+    review_sha256: str = "c" * 64,
+    result_sha256: str = "d" * 64,
+    evidence_sha256s: list[str] | None = None,
+) -> dict[str, Any]:
+    payload = {
+        "schema_version": governance.MATRIX_SCHEMA_VERSION,
+        "schema_path": governance.MATRIX_SCHEMA_PATH,
+        "artifact_kind": "FINAL_ATTESTATION",
+        "task_id": "ARCH-P1-03B-R1",
+        "subject_head": subject_head,
         "implementation_pr_number": 410,
+        "implementation_merge_sha": "e" * 40,
+        "full_ci_run_id": 100,
+        "external_review_sha256": review_sha256,
+        "spec_sha256": frozen_spec()["spec_sha256"],
+        "baseline_receipt_sha256": baseline_receipt()["receipt_sha256"],
+        "result_artifact_sha256": result_sha256,
+        "evidence_artifact_sha256s": evidence_sha256s or ["f" * 64],
+        "attestation_sha256": "",
     }
-    receipt["receipt_sha256"] = governance._artifact_hash(receipt, "receipt_sha256")
-    assert governance.validate_acceptance_receipt(
-        receipt,
+    payload["attestation_sha256"] = governance._artifact_hash(
+        payload, "attestation_sha256"
+    )
+    return payload
+
+
+def test_final_attestation_uses_subject_head_without_storage_self_reference() -> None:
+    payload = final_attestation(subject_head=OLD_HEAD)
+    assert governance.validate_final_attestation(
+        payload,
         spec=frozen_spec(),
+        baseline=baseline_receipt(),
+        expected_task="ARCH-P1-03B-R1",
         root=ROOT,
-        expected_kind="FINAL_EXACT_HEAD_RECEIPT",
     ) == []
-    receipt["ci_receipt"]["exact_head"] = HEAD
-    assert "MATRIX_FINAL_CI_HEAD_MISMATCH" in governance.validate_acceptance_receipt(
-        receipt,
+    payload["exact_head"] = HEAD
+    assert any(
+        error.startswith("MATRIX_JSON_SCHEMA_INVALID:")
+        for error in governance.validate_final_attestation(
+            payload,
+            spec=frozen_spec(),
+            baseline=baseline_receipt(),
+            expected_task="ARCH-P1-03B-R1",
+            root=ROOT,
+        )
+    )
+    payload = final_attestation()
+    payload["attestation_sha256"] = "0" * 64
+    assert "MATRIX_FINAL_HASH_MISMATCH" in governance.validate_final_attestation(
+        payload,
         spec=frozen_spec(),
+        baseline=baseline_receipt(),
+        expected_task="ARCH-P1-03B-R1",
         root=ROOT,
-        expected_kind="FINAL_EXACT_HEAD_RECEIPT",
     )
 
 
@@ -266,6 +297,7 @@ def test_real_evidence_artifact_is_structured_not_command_keyword_inference() ->
         },
         "replay": {
             "argv": ["uv", "run", "python", generator_path],
+            "output_flag": "--output",
             "command_sha256": governance._canonical_sha256(
                 ["uv", "run", "python", generator_path]
             ),
@@ -279,7 +311,7 @@ def test_real_evidence_artifact_is_structured_not_command_keyword_inference() ->
         "result_fingerprint": "d" * 64,
         "provider_call_delta": 0,
         "db_write_delta": 0,
-        "exact_head": HEAD,
+        "subject_head": HEAD,
         "artifact_sha256": "",
     }
     artifact["artifact_sha256"] = governance._artifact_hash(
@@ -289,7 +321,7 @@ def test_real_evidence_artifact_is_structured_not_command_keyword_inference() ->
         artifact,
         root=ROOT,
         expected_type="REAL_DB",
-        expected_head=HEAD,
+        expected_task="ARCH-P1-03B-R1",
         blob_reader=lambda _head, path: source if path == generator_path else None,
     ) == []
     del artifact["replay"]["query"]
@@ -312,7 +344,7 @@ def test_real_evidence_artifact_is_structured_not_command_keyword_inference() ->
         artifact,
         root=ROOT,
         expected_type="REAL_DB",
-        expected_head=HEAD,
+        expected_task="ARCH-P1-03B-R1",
         blob_reader=lambda _head, path: source if path == generator_path else None,
     )
     assert "MATRIX_REAL_DB_EVIDENCE_INVALID" in errors
@@ -323,25 +355,165 @@ def test_real_evidence_artifact_is_structured_not_command_keyword_inference() ->
             artifact,
             root=ROOT,
             expected_type="REAL_DB",
-            expected_head=HEAD,
+            expected_task="ARCH-P1-03B-R1",
             blob_reader=lambda _head, path: source if path == generator_path else None,
         )
     )
+
+
+def test_evidence_artifact_task_binding_and_mutation_source_binding_fail_closed() -> None:
+    generator_path = "scripts/check_architecture_governance.py"
+    source = (ROOT / generator_path).read_bytes()
+    artifact = {
+        "schema_version": governance.MATRIX_SCHEMA_VERSION,
+        "schema_path": governance.MATRIX_SCHEMA_PATH,
+        "artifact_kind": "REAL_PRODUCER_OUTPUT_EVIDENCE",
+        "task_id": "ARCH-OBS-01",
+        "generator": {
+            "path": generator_path,
+            "symbol": "check_evidence_artifacts",
+            "file_sha256": hashlib.sha256(source).hexdigest(),
+        },
+        "replay": {
+            "argv": ["python3", generator_path],
+            "output_flag": "--output",
+            "command_sha256": governance._canonical_sha256(
+                ["python3", generator_path]
+            ),
+        },
+        "migration_head": "0043",
+        "captured_at": "2026-07-27T00:00:00Z",
+        "source_identity": {"artifact": "saved-lineup"},
+        "row_count": 1,
+        "result_fingerprint": "d" * 64,
+        "provider_call_delta": 0,
+        "db_write_delta": 0,
+        "subject_head": HEAD,
+        "artifact_sha256": "",
+    }
+    artifact["artifact_sha256"] = governance._artifact_hash(
+        artifact, "artifact_sha256"
+    )
+    assert "MATRIX_EVIDENCE_ARTIFACT_TASK_MISMATCH" in (
+        governance.validate_evidence_artifact(
+            artifact,
+            root=ROOT,
+            expected_type="REAL_PRODUCER_OUTPUT",
+            expected_task="ARCH-P1-03B-R1",
+            blob_reader=lambda _head, path: (
+                source if path == generator_path else None
+            ),
+        )
+    )
+
+    receipt = baseline_receipt()
+    case = next(row for row in receipt["case_results"] if row["type"] == "missing")
+    case["status"] = "PASS"
+    source_hash = case["source_artifact_sha256"]
+    case["evidence"] = [
+        {
+            "evidence_type": "REAL_PRODUCER_OUTPUT",
+            "role": "PRIMARY",
+            "artifact_path": (
+                "docs/operations/architecture_convergence/evidence/"
+                "source.evidence.json"
+            ),
+            "artifact_sha256": source_hash,
+            "subject_head": receipt["subject_head"],
+            "command": "read source",
+        },
+        {
+            "evidence_type": "MUTATION_TEST",
+            "role": "PRIMARY",
+            "artifact_path": "tests/unit/test_architecture_governance.py",
+            "artifact_sha256": hashlib.sha256(
+                (ROOT / "tests/unit/test_architecture_governance.py").read_bytes()
+            ).hexdigest(),
+            "subject_head": receipt["subject_head"],
+            "command": "pytest mutation",
+            "consumes_artifact_sha256": "0" * 64,
+            "mutation_manifest_sha256": case["mutation_manifest_sha256"],
+        },
+    ]
+    assert "MATRIX_MUTATION_BINDING_INVALID:missing" in (
+        governance.validate_acceptance_receipt(
+            receipt,
+            spec=frozen_spec(),
+            root=ROOT,
+            expected_kind="BASELINE_RECEIPT",
+            blob_reader=lambda _head, _path: b"not-used",
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    ("generator_body", "expected"),
+    [
+        (
+            "import argparse\n"
+            "p=argparse.ArgumentParser(); p.add_argument('--output'); p.parse_args()\n",
+            "MATRIX_EVIDENCE_REPLAY_OUTPUT_INVALID",
+        ),
+        (
+            "import argparse,json\nfrom pathlib import Path\n"
+            "p=argparse.ArgumentParser(); p.add_argument('--output'); a=p.parse_args()\n"
+            "Path(a.output).write_text(json.dumps({'different': True}))\n",
+            "MATRIX_EVIDENCE_REPLAY_CONTENT_MISMATCH",
+        ),
+        (
+            "import argparse,json\nfrom pathlib import Path\n"
+            "p=argparse.ArgumentParser(); p.add_argument('--output'); a=p.parse_args()\n"
+            "Path('tracked.txt').write_text('dirty')\n"
+            "Path(a.output).write_text(json.dumps({'different': True}))\n",
+            "MATRIX_EVIDENCE_REPLAY_OUTPUT_INVALID",
+        ),
+    ],
+)
+def test_replay_rejects_no_output_different_output_and_tracked_mutation(
+    tmp_path: Path, generator_body: str, expected: str
+) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=tmp_path)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp_path)
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / "generator.py").write_text(generator_body, encoding="utf-8")
+    (tmp_path / "tracked.txt").write_text("clean", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-qm", "subject"], cwd=tmp_path, check=True)
+    subject = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    payload = {
+        "subject_head": subject,
+        "generator": {"path": "scripts/generator.py"},
+        "replay": {
+            "argv": ["python3", "scripts/generator.py"],
+            "output_flag": "--output",
+        },
+        "row_count": 1,
+        "result_fingerprint": "d" * 64,
+        "artifact_sha256": "e" * 64,
+    }
+    assert governance._replay_evidence_artifact(payload, root=tmp_path) == expected
 
 
 def test_done_matrix_binding_cross_checks_final_ci_review_and_merge() -> None:
     assert not governance._full_ci_plan().python_focused
     review = valid_review(task="ARCH-P1-03B-R1")
     merge_sha = "e" * 40
-    final = {
-        "exact_head": HEAD,
-        "receipt_sha256": "f" * 64,
-        "ci_receipt": {"run_id": 100},
-        "external_acceptance": {
-            "implementation_pr_number": 410,
-            "review_sha256": hashlib.sha256(review["body"].encode()).hexdigest(),
-        },
-    }
+    review_sha = hashlib.sha256(review["body"].encode()).hexdigest()
+    result_sha = "c" * 64
+    evidence_sha = "d" * 64
+    final = final_attestation(
+        review_sha256=review_sha,
+        result_sha256=result_sha,
+        evidence_sha256s=[evidence_sha],
+    )
     task = governance.TaskRecord(
         "ARCH-P1-03B-R1",
         "DONE",
@@ -350,7 +522,7 @@ def test_done_matrix_binding_cross_checks_final_ci_review_and_merge() -> None:
                 "Implementation PR: #410",
                 f"Accepted head: {HEAD}",
                 "Full CI: 100",
-                f"Final receipt SHA-256: {final['receipt_sha256']}",
+                f"Final attestation SHA-256: {final['attestation_sha256']}",
                 f"Merge SHA: {merge_sha}",
             ]
         ),
@@ -365,16 +537,38 @@ def test_done_matrix_binding_cross_checks_final_ci_review_and_merge() -> None:
         },
         reviews=[review],
         jobs=ci_jobs(governance._full_ci_plan()),
+        artifacts=[
+            {
+                "name": f"w2-acceptance-result-{HEAD}",
+                "digest": f"sha256:{result_sha}",
+                "expired": False,
+            },
+            {
+                "name": f"w2-acceptance-evidence-{HEAD}",
+                "digest": f"sha256:{evidence_sha}",
+                "expired": False,
+            },
+        ],
     )
     assert governance.validate_done_matrix_binding(
-        task, spec=frozen_spec(), final=final, client=client
+        task,
+        spec=frozen_spec(),
+        baseline=baseline_receipt(),
+        final=final,
+        client=client,
+        root=ROOT,
     ) == []
     changed = copy.deepcopy(final)
-    changed["receipt_sha256"] = "0" * 64
+    changed["attestation_sha256"] = "0" * 64
     assert any(
         error.startswith("MATRIX_DONE_FIELD_MISMATCH:")
         for error in governance.validate_done_matrix_binding(
-            task, spec=frozen_spec(), final=changed, client=client
+            task,
+            spec=frozen_spec(),
+            baseline=baseline_receipt(),
+            final=changed,
+            client=client,
+            root=ROOT,
         )
     )
 
@@ -383,12 +577,12 @@ def test_receipts_derive_gates_instead_of_storing_manual_gate() -> None:
     receipt = baseline_receipt()
     assert "implementation_gate" not in receipt
     assert not governance._receipt_passes(frozen_spec(), receipt)
-    assert governance.task_acceptance_gate("ARCH-P1-03B-R1", "IMPLEMENTATION", root=ROOT) == [
-        "MATRIX_IMPLEMENTATION_GATE_BLOCKED:ARCH-P1-03B-R1"
-    ]
+    assert governance.task_acceptance_gate(
+        "ARCH-P1-03B-R1", "IMPLEMENTATION", root=ROOT
+    ) == ["ACCEPTANCE_MATRIX_LIFECYCLE_MISSING:ARCH-P1-03B-R1"]
     assert governance.task_acceptance_gate(
         "ARCH-P1-03B-R1", "CLOSURE", root=ROOT, exact_head=HEAD
-    ) == ["MATRIX_FINAL_RECEIPT_BLOCKED:ARCH-P1-03B-R1"]
+    ) == ["ACCEPTANCE_MATRIX_LIFECYCLE_MISSING:ARCH-P1-03B-R1"]
 
 
 def test_not_applicable_claim_requires_spec_rationale() -> None:
@@ -410,12 +604,12 @@ def test_post_governance_task_requires_a_frozen_matrix(tmp_path: Path) -> None:
     assert governance.validate_task_acceptance_lifecycle("ARCH-P1-03B-R1", root=tmp_path) == [
         "ACCEPTANCE_MATRIX_LIFECYCLE_MISSING:ARCH-P1-03B-R1"
     ]
-    assert governance.task_acceptance_gate("ARCH-P1-03B-R1", "IMPLEMENTATION", root=ROOT) == [
-        "MATRIX_IMPLEMENTATION_GATE_BLOCKED:ARCH-P1-03B-R1"
-    ]
-    assert governance.task_acceptance_gate("ARCH-P1-03B-R1", "CLOSURE", root=ROOT) == [
-        "MATRIX_FINAL_RECEIPT_BLOCKED:ARCH-P1-03B-R1"
-    ]
+    assert governance.task_acceptance_gate(
+        "ARCH-P1-03B-R1", "IMPLEMENTATION", root=ROOT
+    ) == ["ACCEPTANCE_MATRIX_LIFECYCLE_MISSING:ARCH-P1-03B-R1"]
+    assert governance.task_acceptance_gate(
+        "ARCH-P1-03B-R1", "CLOSURE", root=ROOT
+    ) == ["ACCEPTANCE_MATRIX_LIFECYCLE_MISSING:ARCH-P1-03B-R1"]
 
 
 def test_preflight_allows_read_only_matrix_for_not_started_task() -> None:
@@ -518,6 +712,173 @@ def test_implementation_and_closure_cannot_change_immutable_spec() -> None:
     )
 
 
+def test_complete_matrix_lifecycle_blocked_to_post_done(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    spec = frozen_spec()
+    blocked = baseline_receipt()
+    assert not governance._receipt_passes(spec, blocked)
+
+    opened = copy.deepcopy(blocked)
+    opened["overall_status"] = "PASS"
+    inputs = {row["id"]: row for row in spec["input_contracts"]}
+    for result in opened["input_results"]:
+        result["status"] = "PASS"
+        result["evidence_type"] = inputs[result["input_id"]][
+            "accepted_evidence_types"
+        ][0]
+        result["evidence"] = [{"derived": "trusted preflight evidence"}]
+    for result in opened["layer_results"].values():
+        result["status"] = "PASS"
+        result["evidence"] = [{"derived": "layer evidence"}]
+    for result in opened["case_results"]:
+        result["status"] = "PASS"
+        result["evidence"] = [{"derived": "case evidence"}]
+    claims = {row["name"]: row for row in spec["claims"]}
+    for result in opened["claim_results"]:
+        result["status"] = (
+            "PASS"
+            if claims[result["name"]]["applicability"] == "APPLICABLE"
+            else "NOT_APPLICABLE"
+        )
+    assert governance._receipt_passes(spec, opened)
+
+    monkeypatch.setattr(
+        governance,
+        "task_acceptance_payload_gate",
+        lambda *_args, **_kwargs: [],
+    )
+    checklist = preflight_checklist().replace(
+        "Status: NOT_STARTED",
+        "Status: IMPLEMENTED_PENDING_ACCEPTANCE\n"
+        "Implementation SHA: GITHUB_PR_EXACT_HEAD",
+        1,
+    )
+    body = valid_body(task="ARCH-P1-03B-R1")
+    client = FakeClient(
+        pull=valid_pull(body=body),
+        files=["src/w2/identity/canonical_identity_repository.py"],
+        reviews=[valid_review(task="ARCH-P1-03B-R1")],
+        jobs=ci_jobs(governance._full_ci_plan()),
+    )
+    result = governance.check_pre_merge(
+        event(),
+        checklist,
+        client,
+        base_checklist=preflight_checklist(),
+        matrix_root=ROOT,
+    )
+    assert result.passed, result.errors
+    assert result.details["CI_REQUIRED_PLAN"] == "FULL"
+    assert result.details["CI_REQUIRED_RECEIPT"] == "100"
+    assert result.details["EXTERNAL_ACCEPTANCE"] == "PASS"
+    assert "DETACHED_RESULT_SHA256" in result.details
+
+    client.artifacts = []
+    result = governance.check_pre_merge(
+        event(),
+        checklist,
+        client,
+        base_checklist=preflight_checklist(),
+        matrix_root=ROOT,
+    )
+    assert "MATRIX_DETACHED_ARTIFACTS_MISSING" in result.errors
+
+    review = valid_review(task="ARCH-P1-03B-R1")
+    final = final_attestation(
+        review_sha256=hashlib.sha256(review["body"].encode()).hexdigest(),
+        result_sha256="c" * 64,
+        evidence_sha256s=["d" * 64],
+    )
+    artifacts = {
+        "ARCH-P1-03B-R1.spec.json": spec,
+        "ARCH-P1-03B-R1.baseline.json": blocked,
+        "ARCH-P1-03B-R1.final.json": final,
+    }
+    monkeypatch.setattr(
+        governance,
+        "_load_artifact",
+        lambda path: artifacts.get(path.name),
+    )
+    post_checklist = f"""# Checklist
+
+## 二、已完成任务台账
+
+| 任务 | PR | Merge SHA | 一句话结论 |
+|---|---|---|---|
+| ARCH-GOVERNANCE-03 | #499 | `{'9' * 40}` | lifecycle |
+| ARCH-P1-03B-R1 | #410 | `{'e' * 40}` | remediation |
+
+## 三、红线
+
+## 四、执行顺序
+
+#### A1. ARCH-GOVERNANCE-03：lifecycle
+
+```text
+Status: DONE
+PR: #499
+Merge SHA: {'9' * 40}
+```
+
+#### A2. ARCH-P1-03B-R1：remediation
+
+```text
+Status: DONE
+PR: #410
+Implementation PR: #410
+Accepted head: {HEAD}
+Full CI: 100
+Final attestation SHA-256: {final['attestation_sha256']}
+Merge SHA: {'e' * 40}
+```
+"""
+    client = FakeClient(
+        pulls={
+            499: {
+                "head": {"sha": "8" * 40},
+                "merged_at": "2026-07-27T00:00:00Z",
+                "merge_commit_sha": "9" * 40,
+            },
+            410: {
+                "head": {"sha": HEAD},
+                "merged_at": "2026-07-27T00:00:00Z",
+                "merge_commit_sha": "e" * 40,
+            },
+        },
+        reviews=[review],
+        jobs=ci_jobs(governance._full_ci_plan()),
+    )
+    post = governance.check_post_merge(post_checklist, client, matrix_root=ROOT)
+    assert post.passed, post.errors
+
+
+def test_detached_ci_artifacts_bind_task_subject_and_run(tmp_path: Path) -> None:
+    governance.write_detached_ci_artifacts(
+        root=ROOT,
+        output_dir=tmp_path / "out",
+        event={
+            "pull_request": {
+                "body": valid_body(task="ARCH-P1-03B-R1"),
+            }
+        },
+        subject_head=HEAD,
+        run_id=100,
+    )
+    result = json.loads(
+        (tmp_path / "out/result/result.json").read_text(encoding="utf-8")
+    )
+    evidence = json.loads(
+        (tmp_path / "out/evidence/evidence-index.json").read_text(encoding="utf-8")
+    )
+    for payload in (result, evidence):
+        assert payload["task_id"] == "ARCH-P1-03B-R1"
+        assert payload["subject_head"] == HEAD
+        stored_hash = payload.pop("artifact_sha256")
+        assert stored_hash == governance._canonical_sha256(payload)
+    assert result["full_ci_run_id"] == 100
+
+
 @pytest.mark.parametrize("status", ["removed", "renamed"])
 def test_matrix_artifact_rename_and_delete_are_always_checked(status: str) -> None:
     path = (
@@ -544,11 +905,13 @@ def test_matrix_artifact_rename_and_delete_are_always_checked(status: str) -> No
 @pytest.mark.parametrize(
     ("pr_kind", "suffix", "expected_prefix"),
     [
+        ("IMPLEMENTATION", "spec", "IMPLEMENTATION_MATRIX_ARTIFACT_FORBIDDEN:"),
         ("IMPLEMENTATION", "baseline", "IMPLEMENTATION_MATRIX_ARTIFACT_FORBIDDEN:"),
+        ("IMPLEMENTATION", "final", "IMPLEMENTATION_MATRIX_ARTIFACT_FORBIDDEN:"),
         ("PREFLIGHT", "final", "PREFLIGHT_FINAL_ARTIFACT_FORBIDDEN:"),
-        ("CLOSURE", "spec", "CLOSURE_MATRIX_ARTIFACT_FORBIDDEN:"),
-        ("CLOSURE", "baseline", "CLOSURE_MATRIX_ARTIFACT_FORBIDDEN:"),
-        ("CLOSURE", "final", "CLOSURE_MATRIX_ARTIFACT_FORBIDDEN:"),
+        ("CLOSURE", "spec", "CLOSURE_MATRIX_ARTIFACT_NOT_ADD_ONLY:"),
+        ("CLOSURE", "baseline", "CLOSURE_MATRIX_ARTIFACT_NOT_ADD_ONLY:"),
+        ("CLOSURE", "final", "CLOSURE_MATRIX_ARTIFACT_NOT_ADD_ONLY:"),
     ],
 )
 def test_matrix_artifact_acl_by_pr_kind(
@@ -567,6 +930,79 @@ def test_matrix_artifact_acl_by_pr_kind(
         client=FakeClient(),
     )
     assert any(error.startswith(expected_prefix) for error in errors)
+
+
+def test_closure_may_only_add_its_own_final_attestation() -> None:
+    path = (
+        "docs/operations/architecture_convergence/acceptance_matrices/"
+        "ARCH-P1-03B-R1.final.json"
+    )
+    payload = final_attestation(subject_head=OLD_HEAD)
+
+    class FinalClient:
+        def get_json_file(self, filename: str, ref: str) -> dict[str, Any]:
+            assert filename == path
+            assert ref == HEAD
+            return payload
+
+    assert governance.validate_matrix_artifact_changes(
+        [{"filename": path, "status": "added"}],
+        pr_kind="CLOSURE",
+        task_id="ARCH-P1-03B-R1",
+        exact_head=HEAD,
+        trusted_base_head=OLD_HEAD,
+        client=FinalClient(),
+    ) == []
+
+    payload["task_id"] = "ARCH-OBS-01"
+    assert any(
+        error.startswith("MATRIX_ARTIFACT_PAYLOAD_TASK_MISMATCH:")
+        for error in governance.validate_matrix_artifact_changes(
+            [{"filename": path, "status": "added"}],
+            pr_kind="CLOSURE",
+            task_id="ARCH-P1-03B-R1",
+            exact_head=HEAD,
+            trusted_base_head=OLD_HEAD,
+            client=FinalClient(),
+        )
+    )
+
+    payload = final_attestation()
+    assert "MATRIX_FINAL_SUBJECT_SELF_REFERENCE:ARCH-P1-03B-R1" in (
+        governance.validate_matrix_artifact_changes(
+            [{"filename": path, "status": "added"}],
+            pr_kind="CLOSURE",
+            task_id="ARCH-P1-03B-R1",
+            exact_head=HEAD,
+            trusted_base_head=OLD_HEAD,
+            client=FinalClient(),
+        )
+    )
+
+
+def test_cross_task_matrix_and_evidence_artifacts_are_rejected() -> None:
+    other_spec = (
+        "docs/operations/architecture_convergence/acceptance_matrices/"
+        "ARCH-OBS-01.spec.json"
+    )
+    other_evidence = (
+        "docs/operations/architecture_convergence/evidence/"
+        "ARCH-OBS-01.real-db.evidence.json"
+    )
+    errors = governance.validate_matrix_artifact_changes(
+        [
+            {"filename": other_spec, "status": "added"},
+            {"filename": other_evidence, "status": "added"},
+        ],
+        pr_kind="PREFLIGHT",
+        task_id="ARCH-P1-03B-R1",
+        exact_head=HEAD,
+        trusted_base_head=OLD_HEAD,
+        client=FakeClient(),
+    )
+    assert sum(
+        error.startswith("MATRIX_ARTIFACT_TASK_SCOPE_INVALID:") for error in errors
+    ) == 2
 
 
 def test_preflight_spec_amendment_binds_recomputed_trusted_spec_hash() -> None:
@@ -678,6 +1114,7 @@ class FakeClient:
         pulls: dict[int, dict[str, Any]] | None = None,
         ci_runs: list[dict[str, Any]] | None = None,
         jobs: list[dict[str, Any]] | None = None,
+        artifacts: list[dict[str, Any]] | None = None,
         fail: str | None = None,
     ) -> None:
         self.pull = pull or valid_pull()
@@ -698,6 +1135,18 @@ class FakeClient:
             ]
         )
         self.jobs = jobs if jobs is not None else ci_jobs()
+        self.artifacts = artifacts if artifacts is not None else [
+            {
+                "name": f"w2-acceptance-result-{HEAD}",
+                "digest": f"sha256:{'c' * 64}",
+                "expired": False,
+            },
+            {
+                "name": f"w2-acceptance-evidence-{HEAD}",
+                "digest": f"sha256:{'d' * 64}",
+                "expired": False,
+            },
+        ]
         self.fail = fail
 
     def get_pull(self, number: int) -> dict[str, Any]:
@@ -725,6 +1174,11 @@ class FakeClient:
             raise governance.GovernanceError("GITHUB_API_ERROR:TimeoutError")
         return self.jobs
 
+    def list_run_artifacts(self, run_id: int) -> list[dict[str, Any]]:
+        if self.fail == "artifacts":
+            raise governance.GovernanceError("GITHUB_API_ERROR:TimeoutError")
+        return self.artifacts
+
     def get_text_file(self, path: str, ref: str) -> str:
         if ref == HEAD:
             candidate = ROOT / path
@@ -736,6 +1190,10 @@ class FakeClient:
         return blob.decode("utf-8")
 
     def get_json_file(self, path: str, ref: str) -> dict[str, Any]:
+        if ref == HEAD and path.endswith("ARCH-P1-03B-R1.spec.json"):
+            return frozen_spec()
+        if ref == HEAD and path.endswith("ARCH-P1-03B-R1.baseline.json"):
+            return baseline_receipt()
         payload = json.loads(self.get_text_file(path, ref))
         assert isinstance(payload, dict)
         return payload

@@ -3,9 +3,9 @@
   "schema_path": "contracts/governance/architecture_acceptance_lifecycle.v1.schema.json",
   "artifact_kind": "BASELINE_RECEIPT",
   "task_id": "ARCH-P1-03B-R1",
-  "spec_path": "docs/operations/architecture_convergence/acceptance_matrices/ARCH-P1-03B-R1.spec.json",
-  "spec_sha256": "5c7d7ad738dc051f30c87506dafdb6161d3dad2b442a5bba9a830f64f1a16ba7",
-  "exact_head": "832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd",
+  "spec_path": "tests/fixtures/governance/architecture_acceptance_frozen_spec.json",
+  "spec_sha256": "29eaeba063ee5bad47e13441c6862ba5c821d211affb31426efbe515b7e47fe4",
+  "subject_head": "832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd",
   "input_results": [
     {
       "input_id": "canonical_player_authority_rows",
@@ -18,7 +18,7 @@
           "artifact_path": "src/w2/infrastructure/persistence/models.py",
           "artifact_sha256": "f5943563d20eade299cf424393c6618b529b5ccd05cc26ba4656b95fbded1b9c",
           "command": "git show 832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd:src/w2/infrastructure/persistence/models.py",
-          "exact_head": "832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd"
+          "subject_head": "832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd"
         }
       ],
       "rationale": "models.py is DECLARED_ORM_SCHEMA, not REAL_DB; no read-only pg_catalog and real-row fingerprint is frozen."
@@ -34,7 +34,7 @@
           "artifact_path": "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
           "artifact_sha256": "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
           "command": "git show 832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd:docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
-          "exact_head": "832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd"
+          "subject_head": "832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd"
         }
       ],
       "rationale": "The approved manifest is real and content-addressed, but does not prove the runtime file consumer uses canonical repository authority."
@@ -50,7 +50,7 @@
           "artifact_path": "tests/unit/test_arch_p1_03_identity_guards.py",
           "artifact_sha256": "e73f4393f37689ae767d89c618fea001d35cb929943a5bab20c1f4bd29e28170",
           "command": "uv run pytest -q tests/unit/test_arch_p1_03_identity_guards.py",
-          "exact_head": "832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd"
+          "subject_head": "832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd"
         }
       ],
       "rationale": "Repository static guards exist at the frozen baseline."
@@ -69,7 +69,7 @@
           "artifact_path": "tests/unit/test_lineup_materialization.py",
           "artifact_sha256": "18b75b38b6f7dacf611486420ea7a35c05357bbbbd0d0b31ac0b44c6195a2ee4",
           "command": "uv run pytest -q tests/unit/test_lineup_materialization.py::test_player_identity_join_evidence_is_read_only_and_deterministic",
-          "exact_head": "832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd"
+          "subject_head": "832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd"
         }
       ],
       "rationale": "The current test uses in-memory SQLite and handwritten payloads, so it is supplementary synthetic evidence."
@@ -77,11 +77,11 @@
   },
   "case_results": [
     {"type": "valid", "status": "NOT_RUN", "derivation": "UNCHANGED_REAL_INPUT", "observed_output": "No qualifying real input executed.", "evidence": []},
-    {"type": "missing", "status": "NOT_RUN", "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT", "observed_output": "No controlled real-input mutation executed.", "evidence": []},
-    {"type": "malformed", "status": "NOT_RUN", "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT", "observed_output": "No controlled real-input mutation executed.", "evidence": []},
-    {"type": "stale", "status": "NOT_RUN", "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT", "observed_output": "No controlled real-input mutation executed.", "evidence": []},
-    {"type": "ambiguous", "status": "NOT_RUN", "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT", "observed_output": "No controlled real-input mutation executed.", "evidence": []},
-    {"type": "conflict", "status": "NOT_RUN", "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT", "observed_output": "No controlled real-input mutation executed.", "evidence": []}
+    {"type": "missing", "status": "NOT_RUN", "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT", "source_artifact_sha256": "f5943563d20eade299cf424393c6618b529b5ccd05cc26ba4656b95fbded1b9c", "mutation_manifest": {"operation": "missing", "status": "NOT_RUN"}, "mutation_manifest_sha256": "6eb21ff99aa07dd13502a9a14e06b07ab541cc73b21f9bb1b7f5f51498fcdfa0", "mutation_operation": "missing", "expected_output": "None/MISSING and no canonical player", "observed_output": "No controlled real-input mutation executed.", "observed_output_fingerprint": "63432d63716816104aa0944a4e2941ac70eb0164f1cbec7dd8ef971903ce941a", "evidence": []},
+    {"type": "malformed", "status": "NOT_RUN", "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT", "source_artifact_sha256": "f5943563d20eade299cf424393c6618b529b5ccd05cc26ba4656b95fbded1b9c", "mutation_manifest": {"operation": "malformed", "status": "NOT_RUN"}, "mutation_manifest_sha256": "34ff618953a608ee8d5629ea0a7cd2e50ce101198e109dbc5a82f98b14cc7354", "mutation_operation": "malformed", "expected_output": "INCOMPLETE and no accepted identity", "observed_output": "No controlled real-input mutation executed.", "observed_output_fingerprint": "63432d63716816104aa0944a4e2941ac70eb0164f1cbec7dd8ef971903ce941a", "evidence": []},
+    {"type": "stale", "status": "NOT_RUN", "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT", "source_artifact_sha256": "f5943563d20eade299cf424393c6618b529b5ccd05cc26ba4656b95fbded1b9c", "mutation_manifest": {"operation": "stale", "status": "NOT_RUN"}, "mutation_manifest_sha256": "930e013396c4521946432ffeae86cebaf20cbb033379b31c88b27ac068682fa6", "mutation_operation": "stale", "expected_output": "INVALID_AT_KICKOFF and no canonical player", "observed_output": "No controlled real-input mutation executed.", "observed_output_fingerprint": "63432d63716816104aa0944a4e2941ac70eb0164f1cbec7dd8ef971903ce941a", "evidence": []},
+    {"type": "ambiguous", "status": "NOT_RUN", "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT", "source_artifact_sha256": "f5943563d20eade299cf424393c6618b529b5ccd05cc26ba4656b95fbded1b9c", "mutation_manifest": {"operation": "ambiguous", "status": "NOT_RUN"}, "mutation_manifest_sha256": "aac510c912e444d1f84fd8bb9f36951c5b706264a8edaf2de0932d6cccdac55f", "mutation_operation": "ambiguous", "expected_output": "AMBIGUOUS and no canonical player", "observed_output": "No controlled real-input mutation executed.", "observed_output_fingerprint": "63432d63716816104aa0944a4e2941ac70eb0164f1cbec7dd8ef971903ce941a", "evidence": []},
+    {"type": "conflict", "status": "NOT_RUN", "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT", "source_artifact_sha256": "f5943563d20eade299cf424393c6618b529b5ccd05cc26ba4656b95fbded1b9c", "mutation_manifest": {"operation": "conflict", "status": "NOT_RUN"}, "mutation_manifest_sha256": "5ece4e5d1e6eca4f127a3cb181c780ea71552509e88e22f1633d4a2b07bf6507", "mutation_operation": "conflict", "expected_output": "CONFLICT and no accepted join", "observed_output": "No controlled real-input mutation executed.", "observed_output_fingerprint": "63432d63716816104aa0944a4e2941ac70eb0164f1cbec7dd8ef971903ce941a", "evidence": []}
   ],
   "claim_results": [
     {
@@ -116,5 +116,5 @@
     }
   ],
   "overall_status": "BLOCKED",
-  "receipt_sha256": "650a9ab2df3c9d9dd9b2c8e5b5f91bdb22ced8404f55ca9b373fc7f32778828b"
+  "receipt_sha256": "9dbce71730f344c9e98f0020cf654f7a4684aa73d2faea85912b9443fdf9b3b0"
 }

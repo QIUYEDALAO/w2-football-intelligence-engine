@@ -11,6 +11,7 @@ import json
 import os
 import re
 import subprocess
+import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -396,7 +397,7 @@ def validate_evidence_artifact(
     *,
     root: Path,
     expected_type: str,
-    expected_head: str,
+    expected_task: str,
     blob_reader: Callable[[str, str], bytes | None],
 ) -> list[str]:
     errors = _schema_errors(payload, root=root)
@@ -407,14 +408,17 @@ def validate_evidence_artifact(
 
     if payload.get("artifact_kind") != EVIDENCE_ARTIFACT_KINDS.get(expected_type):
         fail("MATRIX_EVIDENCE_ARTIFACT_KIND_INVALID")
-    if payload.get("exact_head") != expected_head:
-        fail("MATRIX_EVIDENCE_ARTIFACT_HEAD_MISMATCH")
+    subject_head = payload.get("subject_head")
+    if payload.get("task_id") != expected_task:
+        fail("MATRIX_EVIDENCE_ARTIFACT_TASK_MISMATCH")
+    if not isinstance(subject_head, str) or not SHA_RE.fullmatch(subject_head):
+        fail("MATRIX_EVIDENCE_ARTIFACT_SUBJECT_INVALID")
     if payload.get("artifact_sha256") != _artifact_hash(payload, "artifact_sha256"):
         fail("MATRIX_EVIDENCE_ARTIFACT_HASH_MISMATCH")
     generator = payload.get("generator", {})
     generator_path = generator.get("path")
     blob = (
-        blob_reader(expected_head, generator_path)
+        blob_reader(subject_head, generator_path)
         if isinstance(generator_path, str)
         else None
     )
@@ -444,6 +448,97 @@ def validate_evidence_artifact(
     return errors
 
 
+def _replay_evidence_artifact(payload: dict[str, Any], *, root: Path) -> str | None:
+    subject_head = payload.get("subject_head")
+    generator_path = payload.get("generator", {}).get("path")
+    replay = payload.get("replay", {})
+    argv = replay.get("argv")
+    output_flag = replay.get("output_flag")
+    if (
+        not isinstance(subject_head, str)
+        or not SHA_RE.fullmatch(subject_head)
+        or not isinstance(generator_path, str)
+        or not isinstance(argv, list)
+        or not all(isinstance(value, str) and value for value in argv)
+        or output_flag != "--output"
+        or output_flag in argv
+    ):
+        return "MATRIX_EVIDENCE_REPLAY_COMMAND_INVALID"
+    safe_python = argv[:2] == ["python3", generator_path]
+    safe_uv = (
+        argv[:3] == ["uv", "run", "python"] and argv[3:4] == [generator_path]
+    )
+    if not generator_path.startswith("scripts/") or not (safe_python or safe_uv):
+        return "MATRIX_EVIDENCE_REPLAY_COMMAND_INVALID"
+    with tempfile.TemporaryDirectory(prefix="w2-evidence-replay-") as temporary:
+        temp_root = Path(temporary)
+        worktree = temp_root / "subject"
+        output_path = temp_root / "replayed.evidence.json"
+        try:
+            subprocess.run(
+                ["git", "worktree", "add", "--detach", str(worktree), subject_head],
+                cwd=root,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            before = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=worktree,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+            completed = subprocess.run(
+                [*argv, output_flag, str(output_path)],
+                cwd=worktree,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            after = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=worktree,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+            if completed.returncode != 0:
+                return "MATRIX_EVIDENCE_REPLAY_FAILED"
+            if before or after or not output_path.is_file():
+                return "MATRIX_EVIDENCE_REPLAY_OUTPUT_INVALID"
+            try:
+                replayed = json.loads(output_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                return "MATRIX_EVIDENCE_REPLAY_OUTPUT_INVALID"
+            if not isinstance(replayed, dict):
+                return "MATRIX_EVIDENCE_REPLAY_OUTPUT_INVALID"
+            if json.dumps(
+                replayed, sort_keys=True, separators=(",", ":")
+            ).encode() != json.dumps(
+                payload, sort_keys=True, separators=(",", ":")
+            ).encode():
+                return "MATRIX_EVIDENCE_REPLAY_CONTENT_MISMATCH"
+            if (
+                replayed.get("artifact_sha256")
+                != _artifact_hash(replayed, "artifact_sha256")
+                or replayed.get("row_count") != payload.get("row_count")
+                or replayed.get("result_fingerprint")
+                != payload.get("result_fingerprint")
+            ):
+                return "MATRIX_EVIDENCE_REPLAY_CONTENT_MISMATCH"
+        except (OSError, subprocess.CalledProcessError):
+            return "MATRIX_EVIDENCE_REPLAY_FAILED"
+        finally:
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(worktree)],
+                cwd=root,
+                check=False,
+                capture_output=True,
+            )
+    return None
+
+
 def validate_acceptance_receipt(
     payload: dict[str, Any],
     *,
@@ -452,7 +547,7 @@ def validate_acceptance_receipt(
     expected_kind: str,
     blob_reader: Callable[[str, str], bytes | None] | None = None,
 ) -> list[str]:
-    """Validate a content-addressed baseline or final receipt."""
+    """Validate a content-addressed baseline receipt."""
     errors = _schema_errors(payload, root=root)
 
     def fail(code: str) -> None:
@@ -467,24 +562,19 @@ def validate_acceptance_receipt(
         fail("MATRIX_RECEIPT_SPEC_HASH_MISMATCH")
     if payload.get("receipt_sha256") != _artifact_hash(payload, "receipt_sha256"):
         fail("MATRIX_RECEIPT_HASH_MISMATCH")
-    exact_head = payload.get("exact_head")
+    subject_head = payload.get("subject_head")
     read_blob = blob_reader or (lambda commit, path: _git_blob(root, commit, path))
-    if not isinstance(exact_head, str) or not SHA_RE.fullmatch(exact_head):
-        fail("MATRIX_RECEIPT_HEAD_INVALID")
+    if not isinstance(subject_head, str) or not SHA_RE.fullmatch(subject_head):
+        fail("MATRIX_RECEIPT_SUBJECT_INVALID")
     if (
         expected_kind == "BASELINE_RECEIPT"
-        and exact_head != spec.get("frozen_baseline_commit")
+        and subject_head != spec.get("frozen_baseline_commit")
     ):
-        fail("MATRIX_BASELINE_HEAD_MISMATCH")
-    if expected_kind == "FINAL_EXACT_HEAD_RECEIPT":
-        if payload.get("ci_receipt", {}).get("exact_head") != exact_head:
-            fail("MATRIX_FINAL_CI_HEAD_MISMATCH")
-        if payload.get("external_acceptance", {}).get("accepted_head") != exact_head:
-            fail("MATRIX_FINAL_ACCEPTANCE_HEAD_MISMATCH")
+        fail("MATRIX_BASELINE_SUBJECT_MISMATCH")
 
     for item in _evidence_items(payload):
         path = item.get("artifact_path")
-        item_head = item.get("exact_head")
+        item_head = item.get("subject_head")
         blob = (
             read_blob(item_head, path)
             if isinstance(item_head, str) and isinstance(path, str)
@@ -495,8 +585,8 @@ def validate_acceptance_receipt(
             continue
         if item.get("artifact_sha256") != hashlib.sha256(blob).hexdigest():
             fail(f"MATRIX_EVIDENCE_HASH_MISMATCH:{path}")
-        if item_head != exact_head:
-            fail(f"MATRIX_EVIDENCE_HEAD_MISMATCH:{path}")
+        if item_head != subject_head:
+            fail(f"MATRIX_EVIDENCE_SUBJECT_MISMATCH:{path}")
         evidence_type = item.get("evidence_type")
         if path.endswith("models.py") and evidence_type != "DECLARED_ORM_SCHEMA":
             fail(f"MATRIX_ORM_EVIDENCE_TYPE_INVALID:{path}")
@@ -518,7 +608,7 @@ def validate_acceptance_receipt(
                 artifact,
                 root=root,
                 expected_type=evidence_type,
-                expected_head=exact_head,
+                expected_task=str(payload.get("task_id", "")),
                 blob_reader=read_blob,
             ):
                 fail(f"{error}:{path}")
@@ -592,6 +682,36 @@ def validate_acceptance_receipt(
             or not primary_types.intersection(REAL_INPUT_EVIDENCE_TYPES)
         ):
             fail(f"MATRIX_MUTATION_CASE_EVIDENCE_MISSING:{case_type}")
+        if case_type != "valid":
+            manifest = result.get("mutation_manifest")
+            if result.get("mutation_manifest_sha256") != _canonical_sha256(manifest):
+                fail(f"MATRIX_MUTATION_MANIFEST_HASH_MISMATCH:{case_type}")
+            if result.get("expected_output") != spec_cases.get(case_type, {}).get(
+                "expected_output"
+            ):
+                fail(f"MATRIX_MUTATION_EXPECTED_OUTPUT_MISMATCH:{case_type}")
+            if result.get("observed_output_fingerprint") != hashlib.sha256(
+                str(result.get("observed_output", "")).encode("utf-8")
+            ).hexdigest():
+                fail(f"MATRIX_MUTATION_OUTPUT_FINGERPRINT_MISMATCH:{case_type}")
+            if result.get("status") == "PASS":
+                source_hash = result.get("source_artifact_sha256")
+                source_bound = any(
+                    item.get("role") == "PRIMARY"
+                    and item.get("evidence_type") in REAL_INPUT_EVIDENCE_TYPES
+                    and item.get("artifact_sha256") == source_hash
+                    for item in result.get("evidence", [])
+                )
+                mutation_bound = any(
+                    item.get("role") == "PRIMARY"
+                    and item.get("evidence_type") == "MUTATION_TEST"
+                    and item.get("consumes_artifact_sha256") == source_hash
+                    and item.get("mutation_manifest_sha256")
+                    == result.get("mutation_manifest_sha256")
+                    for item in result.get("evidence", [])
+                )
+                if not source_bound or not mutation_bound:
+                    fail(f"MATRIX_MUTATION_BINDING_INVALID:{case_type}")
     claim_specs = {
         row["name"]: row
         for row in spec.get("claims", [])
@@ -654,16 +774,6 @@ def _receipt_passes(spec: dict[str, Any], receipt: dict[str, Any]) -> bool:
         for result in receipt.get("input_results", [])
     ):
         return False
-    if receipt.get("artifact_kind") == "FINAL_EXACT_HEAD_RECEIPT":
-        exact_head = receipt.get("exact_head")
-        if (
-            receipt.get("ci_receipt", {}).get("exact_head") != exact_head
-            or receipt.get("ci_receipt", {}).get("plan") != "FULL"
-            or receipt.get("ci_receipt", {}).get("conclusion") != "success"
-            or receipt.get("external_acceptance", {}).get("accepted_head") != exact_head
-            or receipt.get("external_acceptance", {}).get("decision") != "PASS"
-        ):
-            return False
     if any(
         layer.get("status") != "PASS" or not layer.get("evidence")
         for layer in receipt.get("layer_results", {}).values()
@@ -682,6 +792,35 @@ def _receipt_passes(spec: dict[str, Any], receipt: dict[str, Any]) -> bool:
         if not applicable and result.get("status") != "NOT_APPLICABLE":
             return False
     return True
+
+
+def validate_final_attestation(
+    payload: dict[str, Any],
+    *,
+    spec: dict[str, Any],
+    baseline: dict[str, Any],
+    expected_task: str,
+    root: Path,
+) -> list[str]:
+    errors = _schema_errors(payload, root=root)
+
+    def fail(code: str) -> None:
+        if code not in errors:
+            errors.append(code)
+
+    if payload.get("artifact_kind") != "FINAL_ATTESTATION":
+        fail("MATRIX_FINAL_KIND_INVALID")
+    if payload.get("task_id") != expected_task:
+        fail("MATRIX_FINAL_TASK_MISMATCH")
+    if payload.get("spec_sha256") != spec.get("spec_sha256"):
+        fail("MATRIX_FINAL_SPEC_HASH_MISMATCH")
+    if payload.get("baseline_receipt_sha256") != baseline.get("receipt_sha256"):
+        fail("MATRIX_FINAL_BASELINE_HASH_MISMATCH")
+    if payload.get("attestation_sha256") != _artifact_hash(
+        payload, "attestation_sha256"
+    ):
+        fail("MATRIX_FINAL_HASH_MISMATCH")
+    return errors
 
 
 def _load_artifact(path: Path) -> dict[str, Any] | None:
@@ -713,8 +852,12 @@ def validate_task_acceptance_lifecycle(task_id: str, *, root: Path) -> list[str]
         else:
             errors.extend(
                 error
-                for error in validate_acceptance_receipt(
-                    final, spec=spec, root=root, expected_kind="FINAL_EXACT_HEAD_RECEIPT"
+                for error in validate_final_attestation(
+                    final,
+                    spec=spec,
+                    baseline=baseline,
+                    expected_task=task_id,
+                    root=root,
                 )
                 if error not in errors
             )
@@ -750,12 +893,12 @@ def validate_acceptance_lifecycle_payloads(
     if final is not None:
         errors.extend(
             error
-            for error in validate_acceptance_receipt(
+            for error in validate_final_attestation(
                 final,
                 spec=spec,
+                baseline=baseline,
+                expected_task=task_id,
                 root=root,
-                expected_kind="FINAL_EXACT_HEAD_RECEIPT",
-                blob_reader=blob_reader,
             )
             if error not in errors
         )
@@ -771,19 +914,10 @@ def task_acceptance_gate(
     spec = _load_artifact(root / MATRIX_DIR / f"{task_id}.spec.json") or {}
     baseline = _load_artifact(root / MATRIX_DIR / f"{task_id}.baseline.json") or {}
     final = _load_artifact(root / MATRIX_DIR / f"{task_id}.final.json")
-    if pr_kind == "IMPLEMENTATION" and (
-        not _receipt_passes(spec, baseline)
-        or final is None
-        or not _receipt_passes(spec, final)
-        or exact_head is None
-        or final.get("exact_head") != exact_head
-    ):
+    if pr_kind == "IMPLEMENTATION" and not _receipt_passes(spec, baseline):
         errors.append(f"MATRIX_IMPLEMENTATION_GATE_BLOCKED:{task_id}")
     if pr_kind == "CLOSURE":
-        if (
-            final is None
-            or not _receipt_passes(spec, final)
-        ):
+        if final is None:
             errors.append(f"MATRIX_FINAL_RECEIPT_BLOCKED:{task_id}")
     return errors
 
@@ -809,17 +943,9 @@ def task_acceptance_payload_gate(
     )
     if errors:
         return errors
-    if pr_kind == "IMPLEMENTATION" and (
-        not _receipt_passes(spec, baseline)
-        or final is None
-        or not _receipt_passes(spec, final)
-        or final.get("exact_head") != exact_head
-    ):
+    if pr_kind == "IMPLEMENTATION" and not _receipt_passes(spec, baseline):
         errors.append(f"MATRIX_IMPLEMENTATION_GATE_BLOCKED:{task_id}")
-    if pr_kind == "CLOSURE" and (
-        final is None
-        or not _receipt_passes(spec, final)
-    ):
+    if pr_kind == "CLOSURE" and final is None:
         errors.append(f"MATRIX_FINAL_RECEIPT_BLOCKED:{task_id}")
     return errors
 
@@ -922,6 +1048,14 @@ class GitHubClient:
         return self._object_list(
             f"/repos/{self.repository}/actions/runs/{run_id}/jobs",
             "jobs",
+        )
+
+    def list_run_artifacts(self, run_id: int) -> list[dict[str, Any]]:
+        if run_id <= 0:
+            raise GovernanceError("CI_RUN_ID_INVALID")
+        return self._object_list(
+            f"/repos/{self.repository}/actions/runs/{run_id}/artifacts",
+            "artifacts",
         )
 
     def get_text_file(self, path: str, ref: str) -> str:
@@ -1101,7 +1235,22 @@ def _matrix_artifact_type(path: str) -> str | None:
             f".{artifact_type}.json"
         ):
             return artifact_type
+    if path.startswith(
+        "docs/operations/architecture_convergence/evidence/"
+    ) and path.endswith(".evidence.json"):
+        return "evidence"
     return None
+
+
+def _matrix_artifact_task(path: str) -> str | None:
+    name = Path(path).name
+    match = re.fullmatch(
+        r"(ARCH-[A-Z0-9-]+)\.(?:spec|baseline|final)\.json", name
+    )
+    if match:
+        return match.group(1)
+    match = re.fullmatch(r"(ARCH-[A-Z0-9-]+)\..+\.evidence\.json", name)
+    return match.group(1) if match else None
 
 
 def validate_matrix_artifact_changes(
@@ -1129,17 +1278,53 @@ def validate_matrix_artifact_changes(
             for path in paths
             if (artifact_type := _matrix_artifact_type(path)) is not None
         }
+        protected_paths = [
+            path
+            for path in paths
+            if path.startswith(
+                (
+                    f"{MATRIX_DIR.as_posix()}/",
+                    "docs/operations/architecture_convergence/evidence/",
+                )
+            )
+        ]
+        if protected_paths and not artifact_types:
+            fail(f"MATRIX_ARTIFACT_FILENAME_INVALID:{','.join(protected_paths)}")
+            continue
         if not artifact_types:
             continue
+        for path in paths:
+            artifact_type = _matrix_artifact_type(path)
+            if artifact_type is None:
+                continue
+            artifact_task = _matrix_artifact_task(path)
+            if artifact_task != task_id:
+                fail(f"MATRIX_ARTIFACT_TASK_SCOPE_INVALID:{path}:{artifact_task}")
         if status in {"removed", "renamed"} or previous is not None:
             fail(f"MATRIX_ARTIFACT_RENAME_OR_DELETE_FORBIDDEN:{','.join(paths)}")
             continue
-        if pr_kind == "IMPLEMENTATION" and artifact_types != {"final"}:
+        if pr_kind == "IMPLEMENTATION":
             fail(f"IMPLEMENTATION_MATRIX_ARTIFACT_FORBIDDEN:{','.join(paths)}")
-        elif pr_kind == "CLOSURE":
-            fail(f"CLOSURE_MATRIX_ARTIFACT_FORBIDDEN:{','.join(paths)}")
+        elif pr_kind == "CLOSURE" and (
+            artifact_types != {"final"} or status != "added"
+        ):
+            fail(f"CLOSURE_MATRIX_ARTIFACT_NOT_ADD_ONLY:{','.join(paths)}")
         elif pr_kind == "PREFLIGHT" and "final" in artifact_types:
             fail(f"PREFLIGHT_FINAL_ARTIFACT_FORBIDDEN:{','.join(paths)}")
+        if isinstance(filename, str) and status != "removed":
+            try:
+                changed_payload = client.get_json_file(filename, exact_head)
+            except GovernanceError:
+                fail(f"MATRIX_ARTIFACT_PAYLOAD_INVALID:{filename}")
+            else:
+                if changed_payload.get("task_id") != task_id:
+                    fail(f"MATRIX_ARTIFACT_PAYLOAD_TASK_MISMATCH:{filename}")
+                if (
+                    pr_kind == "CLOSURE"
+                    and artifact_types == {"final"}
+                    and changed_payload.get("subject_head") == exact_head
+                ):
+                    fail(f"MATRIX_FINAL_SUBJECT_SELF_REFERENCE:{task_id}")
         if pr_kind != "PREFLIGHT" or "spec" not in artifact_types:
             continue
         if not isinstance(filename, str):
@@ -1214,12 +1399,41 @@ def _full_ci_plan() -> CiPlan:
     )
 
 
+def _detached_artifact_hashes(
+    client: Any, run_id: int, subject_head: str
+) -> tuple[str, list[str]] | None:
+    expected_names = {
+        f"w2-acceptance-result-{subject_head}": "result",
+        f"w2-acceptance-evidence-{subject_head}": "evidence",
+    }
+    found: dict[str, str] = {}
+    for artifact in client.list_run_artifacts(run_id):
+        name = artifact.get("name")
+        digest = artifact.get("digest")
+        if name not in expected_names:
+            continue
+        if (
+            artifact.get("expired") is True
+            or not isinstance(digest, str)
+            or not digest.startswith("sha256:")
+            or not SHA256_RE.fullmatch(digest.removeprefix("sha256:"))
+            or expected_names[name] in found
+        ):
+            return None
+        found[expected_names[name]] = digest.removeprefix("sha256:")
+    if set(found) != {"result", "evidence"}:
+        return None
+    return found["result"], [found["evidence"]]
+
+
 def validate_done_matrix_binding(
     task: TaskRecord,
     *,
     spec: dict[str, Any],
+    baseline: dict[str, Any],
     final: dict[str, Any],
     client: Any,
+    root: Path,
 ) -> list[str]:
     errors: list[str] = []
 
@@ -1227,51 +1441,80 @@ def validate_done_matrix_binding(
         if code not in errors:
             errors.append(code)
 
-    exact_head = final.get("exact_head")
-    acceptance = final.get("external_acceptance", {})
-    ci_receipt = final.get("ci_receipt", {})
+    subject_head = final.get("subject_head")
     expected_fields = {
-        "Accepted head": exact_head,
-        "Full CI": str(ci_receipt.get("run_id", "")),
-        "Final receipt SHA-256": final.get("receipt_sha256"),
-        "Implementation PR": f"#{acceptance.get('implementation_pr_number')}",
+        "Accepted head": subject_head,
+        "Full CI": str(final.get("full_ci_run_id", "")),
+        "Final attestation SHA-256": final.get("attestation_sha256"),
+        "Implementation PR": f"#{final.get('implementation_pr_number')}",
     }
     for name, expected in expected_fields.items():
         if task_field(task, name) != [expected]:
             fail(f"MATRIX_DONE_FIELD_MISMATCH:{task.task_id}:{name}")
     try:
-        implementation_number = int(acceptance["implementation_pr_number"])
+        implementation_number = int(final["implementation_pr_number"])
         pull = client.get_pull(implementation_number)
     except (GovernanceError, KeyError, TypeError, ValueError):
         fail(f"MATRIX_IMPLEMENTATION_PR_INVALID:{task.task_id}")
         return errors
     merge_fields = task_field(task, "Merge SHA")
     if (
-        pull.get("head", {}).get("sha") != exact_head
+        pull.get("head", {}).get("sha") != subject_head
         or pull.get("merged_at") is None
         or len(merge_fields) != 1
-        or pull.get("merge_commit_sha") != merge_fields[0]
+        or pull.get("merge_commit_sha") != final.get("implementation_merge_sha")
+        or final.get("implementation_merge_sha") != merge_fields[0]
     ):
         fail(f"MATRIX_IMPLEMENTATION_MERGE_BINDING_INVALID:{task.task_id}")
-    full_run = _find_ci_receipt(client, str(exact_head), _full_ci_plan())
-    if full_run != ci_receipt.get("run_id"):
+    full_run = _find_ci_receipt(client, str(subject_head), _full_ci_plan())
+    if full_run != final.get("full_ci_run_id"):
         fail(f"MATRIX_FINAL_FULL_CI_INVALID:{task.task_id}")
+    else:
+        artifact_hashes = _detached_artifact_hashes(
+            client, full_run, str(subject_head)
+        )
+        if artifact_hashes != (
+            final.get("result_artifact_sha256"),
+            final.get("evidence_artifact_sha256s"),
+        ):
+            fail(f"MATRIX_FINAL_ARTIFACT_BINDING_INVALID:{task.task_id}")
     try:
         reviews = client.list_reviews(implementation_number)
     except GovernanceError:
         fail(f"MATRIX_FINAL_ACCEPTANCE_INVALID:{task.task_id}")
         return errors
     decision, review_errors = validate_external_acceptance(
-        reviews, task.task_id, str(exact_head)
+        reviews, task.task_id, str(subject_head)
     )
-    matching_hash = any(
-        isinstance(review.get("body"), str)
-        and hashlib.sha256(review["body"].encode("utf-8")).hexdigest()
-        == acceptance.get("review_sha256")
-        for review in reviews
-    )
+    matching_hash = False
+    for review in reviews:
+        body = review.get("body")
+        fields, parse_error = (
+            _parse_acceptance_review(body) if isinstance(body, str) else (None, None)
+        )
+        if (
+            parse_error is None
+            and fields is not None
+            and fields.get("TASK") == task.task_id
+            and fields.get("EXACT_HEAD") == subject_head
+            and fields.get("DECISION") == "PASS"
+            and review.get("commit_id") == subject_head
+            and str(review.get("author_association", "")).upper()
+            in TRUSTED_ASSOCIATIONS
+            and hashlib.sha256(body.encode("utf-8")).hexdigest()
+            == final.get("external_review_sha256")
+        ):
+            matching_hash = True
     if decision != "PASS" or review_errors or not matching_hash:
         fail(f"MATRIX_FINAL_ACCEPTANCE_INVALID:{task.task_id}")
+    for error in validate_final_attestation(
+        final,
+        spec=spec,
+        baseline=baseline,
+        expected_task=task.task_id,
+        root=root,
+    ):
+        fail(error)
     return errors
 
 
@@ -1409,6 +1652,7 @@ def check_pre_merge(
     ):
         result.fail("TRUSTED_TASK_ORDER_CHANGED")
     spec: dict[str, Any] | None = None
+    baseline_receipt: dict[str, Any] | None = None
     final_receipt: dict[str, Any] | None = None
     if matrix_root is not None and matrix_required:
         try:
@@ -1422,7 +1666,7 @@ def check_pre_merge(
                 client.get_json_file(
                     f"{MATRIX_DIR.as_posix()}/{task_id}.final.json", exact_head
                 )
-                if pr_kind in {"IMPLEMENTATION", "CLOSURE"}
+                if pr_kind == "CLOSURE"
                 else None
             )
 
@@ -1473,14 +1717,18 @@ def check_pre_merge(
             elif base_current.status != "IMPLEMENTED_PENDING_ACCEPTANCE":
                 result.fail(f"CLOSURE_BASE_STATUS_INVALID:{task_id}:{base_current.status}")
         if matrix_required and closure_task is not None:
-            if spec is None or final_receipt is None:
+            if spec is None or baseline_receipt is None or final_receipt is None:
                 result.fail(f"MATRIX_FINAL_RECEIPT_BLOCKED:{task_id}")
+            elif final_receipt.get("subject_head") == exact_head:
+                result.fail(f"MATRIX_FINAL_SUBJECT_SELF_REFERENCE:{task_id}")
             else:
                 for error in validate_done_matrix_binding(
                     closure_task,
                     spec=spec,
+                    baseline=baseline_receipt,
                     final=final_receipt,
                     client=client,
+                    root=matrix_root or Path.cwd(),
                 ):
                     result.fail(error)
     elif pr_kind == "PREFLIGHT":
@@ -1524,16 +1772,15 @@ def check_pre_merge(
             trusted_base_head
         ):
             raise GovernanceError("PULL_BASE_SHA_INVALID")
-        if task_id != "ARCH-GOVERNANCE-03" or pr_kind != "IMPLEMENTATION":
-            for error in validate_matrix_artifact_changes(
-                files,
-                pr_kind=pr_kind,
-                task_id=task_id,
-                exact_head=exact_head,
-                trusted_base_head=trusted_base_head,
-                client=client,
-            ):
-                result.fail(error)
+        for error in validate_matrix_artifact_changes(
+            files,
+            pr_kind=pr_kind,
+            task_id=task_id,
+            exact_head=exact_head,
+            trusted_base_head=trusted_base_head,
+            client=client,
+        ):
+            result.fail(error)
         if pr_kind == "PREFLIGHT":
             unexpected = sorted(
                 path
@@ -1544,14 +1791,19 @@ def check_pre_merge(
             if unexpected:
                 result.fail(f"PREFLIGHT_OUT_OF_SCOPE_FILES:{','.join(unexpected)}")
         if pr_kind == "CLOSURE":
-            unexpected = sorted(filenames - CLOSURE_ALLOWED_FILES)
+            final_path = f"{MATRIX_DIR.as_posix()}/{task_id}.final.json"
+            unexpected = sorted(filenames - CLOSURE_ALLOWED_FILES - {final_path})
             if unexpected:
                 result.fail(f"CLOSURE_OUT_OF_SCOPE_FILES:{','.join(unexpected)}")
         if task_id == "ARCH-GOVERNANCE-01":
             unexpected = sorted(filenames - A1_ALLOWED_PATHS)
             if unexpected:
                 result.fail(f"A1_OUT_OF_SCOPE_FILES:{','.join(unexpected)}")
-        plan = required_ci_plan(changed_paths, pr_kind)
+        plan = (
+            _full_ci_plan()
+            if matrix_required and pr_kind == "IMPLEMENTATION"
+            else required_ci_plan(changed_paths, pr_kind)
+        )
         result.details["CI_REQUIRED_PLAN"] = (
             "FULL"
             if plan.full
@@ -1565,11 +1817,17 @@ def check_pre_merge(
             result.fail("CI_REQUIRED_RECEIPT_MISSING")
         else:
             result.details["CI_REQUIRED_RECEIPT"] = str(receipt)
-            if matrix_required and pr_kind == "IMPLEMENTATION" and (
-                final_receipt is None
-                or final_receipt.get("ci_receipt", {}).get("run_id") != receipt
-            ):
-                result.fail("MATRIX_FINAL_CI_RECEIPT_MISMATCH")
+            if matrix_required and pr_kind == "IMPLEMENTATION":
+                artifact_hashes = _detached_artifact_hashes(
+                    client, receipt, exact_head
+                )
+                if artifact_hashes is None:
+                    result.fail("MATRIX_DETACHED_ARTIFACTS_MISSING")
+                else:
+                    result.details["DETACHED_RESULT_SHA256"] = artifact_hashes[0]
+                    result.details["DETACHED_EVIDENCE_SHA256"] = ",".join(
+                        artifact_hashes[1]
+                    )
     except GovernanceError as exc:
         result.fail(str(exc))
 
@@ -1668,21 +1926,26 @@ def check_post_merge(
                 spec = _load_artifact(
                     matrix_root / MATRIX_DIR / f"{task.task_id}.spec.json"
                 )
+                baseline = _load_artifact(
+                    matrix_root / MATRIX_DIR / f"{task.task_id}.baseline.json"
+                )
                 final = _load_artifact(
                     matrix_root / MATRIX_DIR / f"{task.task_id}.final.json"
                 )
                 if (
                     spec is None
+                    or baseline is None
                     or final is None
-                    or not _receipt_passes(spec, final)
                 ):
                     result.fail(f"MATRIX_DONE_FINAL_MISSING_OR_BLOCKED:{task.task_id}")
                 else:
                     for error in validate_done_matrix_binding(
                         task,
                         spec=spec,
+                        baseline=baseline,
                         final=final,
                         client=client,
+                        root=matrix_root,
                     ):
                         result.fail(error)
         pr_fields = task_field(task, "PR")
@@ -1756,33 +2019,73 @@ def check_evidence_artifacts(root: Path, *, replay: bool) -> GateResult:
             ),
             "",
         )
-        exact_head = str(payload.get("exact_head", ""))
+        artifact_task = _matrix_artifact_task(path.relative_to(root).as_posix())
         for error in validate_evidence_artifact(
             payload,
             root=root,
             expected_type=expected_type,
-            expected_head=exact_head,
+            expected_task=str(artifact_task or ""),
             blob_reader=lambda commit, value: _git_blob(root, commit, value),
         ):
             result.fail(f"{error}:{path.relative_to(root)}")
         if not replay:
             continue
-        argv = payload.get("replay", {}).get("argv")
-        generator_path = payload.get("generator", {}).get("path")
-        if (
-            not isinstance(argv, list)
-            or argv[:3] != ["uv", "run", "python"]
-            or not isinstance(generator_path, str)
-            or argv[3:4] != [generator_path]
-            or not generator_path.startswith("scripts/")
-        ):
-            result.fail(f"MATRIX_EVIDENCE_REPLAY_COMMAND_INVALID:{path.relative_to(root)}")
-            continue
-        try:
-            subprocess.run(argv, cwd=root, check=True, capture_output=True, text=True)
-        except (OSError, subprocess.CalledProcessError):
-            result.fail(f"MATRIX_EVIDENCE_REPLAY_FAILED:{path.relative_to(root)}")
+        replay_error = _replay_evidence_artifact(payload, root=root)
+        if replay_error:
+            result.fail(f"{replay_error}:{path.relative_to(root)}")
     return result
+
+
+def write_detached_ci_artifacts(
+    *,
+    root: Path,
+    output_dir: Path,
+    event: dict[str, Any],
+    subject_head: str,
+    run_id: int,
+) -> None:
+    pull = event.get("pull_request")
+    body = pull.get("body") if isinstance(pull, dict) else None
+    task_markers = TASK_MARKER_RE.findall(body) if isinstance(body, str) else []
+    if len(task_markers) != 1 or not SHA_RE.fullmatch(subject_head) or run_id <= 0:
+        raise GovernanceError("DETACHED_ARTIFACT_INPUT_INVALID")
+    task_id = task_markers[0]
+    evidence_rows: list[dict[str, str]] = []
+    evidence_root = root / "docs/operations/architecture_convergence/evidence"
+    for path in sorted(evidence_root.glob(f"{task_id}.*.evidence.json")):
+        evidence_rows.append(
+            {
+                "path": path.relative_to(root).as_posix(),
+                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            }
+        )
+    result = {
+        "artifact_kind": "DETACHED_IMPLEMENTATION_RESULT",
+        "task_id": task_id,
+        "subject_head": subject_head,
+        "full_ci_run_id": run_id,
+        "ci_required": "SUCCESS",
+    }
+    result["artifact_sha256"] = _canonical_sha256(result)
+    evidence = {
+        "artifact_kind": "DETACHED_EVIDENCE_INDEX",
+        "task_id": task_id,
+        "subject_head": subject_head,
+        "evidence": evidence_rows,
+    }
+    evidence["artifact_sha256"] = _canonical_sha256(evidence)
+    result_dir = output_dir / "result"
+    evidence_dir = output_dir / "evidence"
+    result_dir.mkdir(parents=True, exist_ok=False)
+    evidence_dir.mkdir(parents=True, exist_ok=False)
+    result_dir.joinpath("result.json").write_text(
+        json.dumps(result, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    evidence_dir.joinpath("evidence-index.json").write_text(
+        json.dumps(evidence, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -1807,12 +2110,21 @@ def _emit(name: str, result: GateResult) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "gate", choices=("pre-merge", "post-merge", "evidence-artifacts")
+        "gate",
+        choices=(
+            "pre-merge",
+            "post-merge",
+            "evidence-artifacts",
+            "detached-ci-artifacts",
+        ),
     )
     parser.add_argument("--checklist", type=Path, default=Path(CHECKLIST_PATH))
     parser.add_argument("--event-path", type=Path)
     parser.add_argument("--repository", default="")
     parser.add_argument("--checklist-ref")
+    parser.add_argument("--output-dir", type=Path)
+    parser.add_argument("--subject-head")
+    parser.add_argument("--run-id", type=int)
     parser.add_argument("--live", action="store_true")
     args = parser.parse_args(argv)
     try:
@@ -1821,6 +2133,23 @@ def main(argv: list[str] | None = None) -> int:
                 "MATRIX_EVIDENCE_ARTIFACT_GATE",
                 check_evidence_artifacts(Path.cwd(), replay=True),
             )
+        if args.gate == "detached-ci-artifacts":
+            if (
+                args.event_path is None
+                or args.output_dir is None
+                or args.subject_head is None
+                or args.run_id is None
+            ):
+                raise GovernanceError("DETACHED_ARTIFACT_ARGUMENT_MISSING")
+            write_detached_ci_artifacts(
+                root=Path.cwd(),
+                output_dir=args.output_dir,
+                event=_load_json(args.event_path),
+                subject_head=args.subject_head,
+                run_id=args.run_id,
+            )
+            print("DETACHED_CI_ARTIFACTS = PASS")
+            return 0
         if not args.live:
             raise GovernanceError("LIVE_GITHUB_API_OPT_IN_REQUIRED")
         client = GitHubClient(

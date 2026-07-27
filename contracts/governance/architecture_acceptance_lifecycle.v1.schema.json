@@ -5,7 +5,7 @@
   "oneOf": [
     {"$ref": "#/$defs/spec"},
     {"$ref": "#/$defs/baseline_receipt"},
-    {"$ref": "#/$defs/final_receipt"},
+    {"$ref": "#/$defs/final_attestation"},
     {"$ref": "#/$defs/evidence_artifact"}
   ],
   "$defs": {
@@ -345,7 +345,7 @@
         "artifact_path",
         "artifact_sha256",
         "command",
-        "exact_head"
+        "subject_head"
       ],
       "properties": {
         "evidence_type": {
@@ -364,7 +364,9 @@
         "artifact_path": {"$ref": "#/$defs/repo_path"},
         "artifact_sha256": {"$ref": "#/$defs/sha256"},
         "command": {"type": "string", "minLength": 1},
-        "exact_head": {"$ref": "#/$defs/sha"}
+        "subject_head": {"$ref": "#/$defs/sha"},
+        "consumes_artifact_sha256": {"$ref": "#/$defs/sha256"},
+        "mutation_manifest_sha256": {"$ref": "#/$defs/sha256"}
       }
     },
     "layer_result": {
@@ -407,6 +409,28 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["type", "status", "derivation", "observed_output", "evidence"],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "derivation": {
+                "const": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT"
+              }
+            },
+            "required": ["derivation"]
+          },
+          "then": {
+            "required": [
+              "source_artifact_sha256",
+              "mutation_manifest",
+              "mutation_manifest_sha256",
+              "mutation_operation",
+              "expected_output",
+              "observed_output_fingerprint"
+            ]
+          }
+        }
+      ],
       "properties": {
         "type": {
           "enum": ["valid", "missing", "malformed", "stale", "ambiguous", "conflict"]
@@ -419,6 +443,12 @@
           ]
         },
         "observed_output": {"type": "string", "minLength": 1},
+        "source_artifact_sha256": {"$ref": "#/$defs/sha256"},
+        "mutation_manifest": {"type": "object", "minProperties": 1},
+        "mutation_manifest_sha256": {"$ref": "#/$defs/sha256"},
+        "mutation_operation": {"type": "string", "minLength": 1},
+        "expected_output": {"type": "string", "minLength": 1},
+        "observed_output_fingerprint": {"$ref": "#/$defs/sha256"},
         "evidence": {
           "type": "array",
           "items": {"$ref": "#/$defs/evidence_item"}
@@ -473,7 +503,7 @@
         "task_id",
         "spec_path",
         "spec_sha256",
-        "exact_head",
+        "subject_head",
         "input_results",
         "layer_results",
         "case_results",
@@ -486,11 +516,11 @@
         "schema_path": {
           "const": "contracts/governance/architecture_acceptance_lifecycle.v1.schema.json"
         },
-        "artifact_kind": {"enum": ["BASELINE_RECEIPT", "FINAL_EXACT_HEAD_RECEIPT"]},
+        "artifact_kind": {"const": "BASELINE_RECEIPT"},
         "task_id": {"type": "string", "pattern": "^ARCH-[A-Z0-9-]+$"},
         "spec_path": {"$ref": "#/$defs/repo_path"},
         "spec_sha256": {"$ref": "#/$defs/sha256"},
-        "exact_head": {"$ref": "#/$defs/sha"},
+        "subject_head": {"$ref": "#/$defs/sha"},
         "input_results": {
           "type": "array",
           "minItems": 1,
@@ -518,35 +548,6 @@
           "items": {"$ref": "#/$defs/claim_result"}
         },
         "overall_status": {"enum": ["PASS", "FAIL", "UNVERIFIABLE", "BLOCKED"]},
-        "ci_receipt": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["run_id", "plan", "conclusion", "exact_head"],
-          "properties": {
-            "run_id": {"type": "integer", "minimum": 1},
-            "plan": {"const": "FULL"},
-            "conclusion": {"const": "success"},
-            "exact_head": {"$ref": "#/$defs/sha"}
-          }
-        },
-        "external_acceptance": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "protocol",
-            "decision",
-            "accepted_head",
-            "review_sha256",
-            "implementation_pr_number"
-          ],
-          "properties": {
-            "protocol": {"const": "GITHUB_SECONDARY_REVIEW_PROTOCOL_V1"},
-            "decision": {"const": "PASS"},
-            "accepted_head": {"$ref": "#/$defs/sha"},
-            "review_sha256": {"$ref": "#/$defs/sha256"},
-            "implementation_pr_number": {"type": "integer", "minimum": 1}
-          }
-        },
         "receipt_sha256": {"$ref": "#/$defs/sha256"}
       }
     },
@@ -561,17 +562,48 @@
         }
       ]
     },
-    "final_receipt": {
-      "allOf": [
-        {"$ref": "#/$defs/receipt_common_properties"},
-        {
-          "type": "object",
-          "required": ["ci_receipt", "external_acceptance"],
-          "properties": {
-            "artifact_kind": {"const": "FINAL_EXACT_HEAD_RECEIPT"}
-          }
-        }
-      ]
+    "final_attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "schema_path",
+        "artifact_kind",
+        "task_id",
+        "subject_head",
+        "implementation_pr_number",
+        "implementation_merge_sha",
+        "full_ci_run_id",
+        "external_review_sha256",
+        "spec_sha256",
+        "baseline_receipt_sha256",
+        "result_artifact_sha256",
+        "evidence_artifact_sha256s",
+        "attestation_sha256"
+      ],
+      "properties": {
+        "schema_version": {"const": "w2.architecture_acceptance_lifecycle.v1"},
+        "schema_path": {
+          "const": "contracts/governance/architecture_acceptance_lifecycle.v1.schema.json"
+        },
+        "artifact_kind": {"const": "FINAL_ATTESTATION"},
+        "task_id": {"type": "string", "pattern": "^ARCH-[A-Z0-9-]+$"},
+        "subject_head": {"$ref": "#/$defs/sha"},
+        "implementation_pr_number": {"type": "integer", "minimum": 1},
+        "implementation_merge_sha": {"$ref": "#/$defs/sha"},
+        "full_ci_run_id": {"type": "integer", "minimum": 1},
+        "external_review_sha256": {"$ref": "#/$defs/sha256"},
+        "spec_sha256": {"$ref": "#/$defs/sha256"},
+        "baseline_receipt_sha256": {"$ref": "#/$defs/sha256"},
+        "result_artifact_sha256": {"$ref": "#/$defs/sha256"},
+        "evidence_artifact_sha256s": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/sha256"}
+        },
+        "attestation_sha256": {"$ref": "#/$defs/sha256"}
+      }
     },
     "evidence_artifact": {
       "type": "object",
@@ -590,7 +622,7 @@
         "result_fingerprint",
         "provider_call_delta",
         "db_write_delta",
-        "exact_head",
+        "subject_head",
         "artifact_sha256"
       ],
       "properties": {
@@ -619,7 +651,7 @@
         "replay": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["argv", "command_sha256"],
+          "required": ["argv", "command_sha256", "output_flag"],
           "properties": {
             "argv": {
               "type": "array",
@@ -627,6 +659,7 @@
               "items": {"type": "string", "minLength": 1}
             },
             "command_sha256": {"$ref": "#/$defs/sha256"},
+            "output_flag": {"const": "--output"},
             "query": {"type": "string", "minLength": 1},
             "query_sha256": {"$ref": "#/$defs/sha256"}
           }
@@ -642,7 +675,7 @@
         "result_fingerprint": {"$ref": "#/$defs/sha256"},
         "provider_call_delta": {"type": "integer", "minimum": 0},
         "db_write_delta": {"type": "integer", "minimum": 0},
-        "exact_head": {"$ref": "#/$defs/sha"},
+        "subject_head": {"$ref": "#/$defs/sha"},
         "artifact_sha256": {"$ref": "#/$defs/sha256"}
       },
       "allOf": [

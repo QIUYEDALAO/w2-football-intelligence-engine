@@ -240,18 +240,18 @@ architecture_convergence:
       schema: contracts/governance/architecture_acceptance_lifecycle.v1.schema.json
       matrix_root: docs/operations/architecture_convergence/acceptance_matrices
       first_matrix_task: ARCH-P1-03B-R1
-      immutable_spec: ARCH-P1-03B-R1.spec.json
-      immutable_spec_sha256: 5c7d7ad738dc051f30c87506dafdb6161d3dad2b442a5bba9a830f64f1a16ba7
-      baseline_receipt: ARCH-P1-03B-R1.baseline.json
-      baseline_receipt_sha256: 650a9ab2df3c9d9dd9b2c8e5b5f91bdb22ced8404f55ca9b373fc7f32778828b
-      final_receipt: REQUIRED_ON_IMPLEMENTATION_EXACT_HEAD
+      active_spec: NONE_UNTIL_ARCH_P1_03B_R1_PREFLIGHT
+      active_baseline_receipt: NONE_UNTIL_ARCH_P1_03B_R1_PREFLIGHT
+      governance_fixture_spec_sha256: 29eaeba063ee5bad47e13441c6862ba5c821d211affb31426efbe515b7e47fe4
+      governance_fixture_baseline_sha256: 9dbce71730f344c9e98f0020cf654f7a4684aa73d2faea85912b9443fdf9b3b0
+      final_attestation: CLOSURE_ADD_ONLY_AFTER_IMPLEMENTATION_MERGE
       preflight_pr_kind: PREFLIGHT
       implementation_gate_source: CHECKER_DERIVED_FROM_BASELINE_RECEIPT
       artifact_acl: PR_KIND_PLUS_RENAME_DELETE_PREVIOUS_FILENAME
-      baseline_head_binding: SPEC_FROZEN_BASELINE_COMMIT
-      implementation_final_binding: EXACT_HEAD_FULL_CI_EXTERNAL_ACCEPTANCE
-      closure_done_gate: IMMUTABLE_FINAL_PLUS_MERGED_IMPLEMENTATION_BINDING
-      post_done_gate: FINAL_HASH_ACCEPTED_HEAD_FULL_CI_MERGE_SHA
+      baseline_subject_binding: SPEC_FROZEN_BASELINE_COMMIT
+      implementation_pre_binding: GITHUB_API_EXACT_HEAD_FULL_CI_DETACHED_ARTIFACTS_EXTERNAL_REVIEW
+      closure_done_gate: ADD_ONLY_FINAL_ATTESTATION_PLUS_MERGED_IMPLEMENTATION_BINDING
+      post_done_gate: ATTESTATION_HASH_ACCEPTED_HEAD_FULL_CI_ARTIFACTS_MERGE_SHA
       historical_blob_validation: TARGET_COMMIT_TREE_AND_BLOB
       fully_qualified_symbol_validation: AST_SCOPE
       evidence_artifact_replay_gate: ENABLED

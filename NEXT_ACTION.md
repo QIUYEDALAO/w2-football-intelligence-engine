@@ -65,15 +65,17 @@ implementation PR #408 merged as
 `09ece0204bed1289986e20d6a1cff842cb2f0864`, with accepted head
 `47a7c823967cf4ea98221556d96e8a30a948318d`. The current task is
 **ARCH-GOVERNANCE-03**, implementing the frozen real-production-input
-acceptance-matrix rule. **ARCH-P1-03B-R1** remains `NOT_STARTED`; its first
-immutable spec and baseline receipt are frozen separately. The baseline is
-`BLOCKED`, so its implementation gate is not OPEN until a separate read-only
-`W2_PR_KIND: PREFLIGHT` supplies qualifying real input and runtime/SQL evidence.
-No final exact-head receipt exists because implementation has not started.
-The checker now enforces the full lifecycle ACL (including rename/delete), binds
-baseline to its frozen commit, and requires implementation final evidence to
-bind the same exact head's FULL CI and external acceptance. Closure leaves that
-final immutable and POST cross-checks the merged implementation coordinates.
+acceptance-matrix rule. **ARCH-P1-03B-R1** remains `NOT_STARTED`; it has no
+active spec or baseline because cross-task artifacts are forbidden. Its
+implementation gate is not OPEN until a separate read-only
+`W2_PR_KIND: PREFLIGHT` adds and validates both artifacts with qualifying real
+input and runtime/SQL evidence.
+No final attestation exists because implementation has not been accepted and
+merged. The checker enforces the full lifecycle ACL (including rename/delete),
+binds baseline evidence to its frozen subject head, and makes Implementation PRE
+query GitHub directly for same-head FULL CI, detached result/evidence artifacts,
+and external PASS Review. The later Closure is the only PR allowed to add the
+final attestation; POST cross-checks its merged implementation coordinates.
 **ARCH-P1-05** remains `NOT_STARTED` and must not begin
 until every inserted predecessor has completed its implementation and closure.
 The checklist owns each task's PR number, status and CI evidence.

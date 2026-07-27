@@ -134,7 +134,8 @@ Protocol read: GITHUB_SECONDARY_REVIEW_PROTOCOL_V1
 Task scope contract read: TASK_SCOPE_AND_REVIEW_BOUNDARY_V1
 Implementation SHA: GITHUB_PR_EXACT_HEAD
 Validated remediation head: 6bb10237bfa3d60f138cf76450b25c659f7e697a
-Final receipt head: GitHub PR exact head
+Final receipt head: historical ARCH-GOVERNANCE-01 coordinate (superseded by
+  ARCH-GOVERNANCE-03 subject-head/detached-artifact lifecycle)
 Stage 2 CI: 30116539839
 Main bootstrap POST run: 30123415474 /
   FAIL_EXPECTED_MERGED_TASK_NOT_CLOSED:ARCH-GOVERNANCE-01:#393
@@ -646,8 +647,8 @@ Implementation SHA: GITHUB_PR_EXACT_HEAD
 Predecessor: ARCH-P1-04D-R1
 Successor: ARCH-P1-03B-R1 (NOT_STARTED)
 Lifecycle schema: contracts/governance/architecture_acceptance_lifecycle.v1.schema.json
-First immutable spec SHA-256: 5c7d7ad738dc051f30c87506dafdb6161d3dad2b442a5bba9a830f64f1a16ba7
-First baseline receipt SHA-256: 650a9ab2df3c9d9dd9b2c8e5b5f91bdb22ced8404f55ca9b373fc7f32778828b
+Governance fixture spec SHA-256: 29eaeba063ee5bad47e13441c6862ba5c821d211affb31426efbe515b7e47fe4
+Governance fixture blocked-baseline SHA-256: 9dbce71730f344c9e98f0020cf654f7a4684aa73d2faea85912b9443fdf9b3b0
 ```
 
 - [x] 每个后续架构任务开工前冻结 exact head、范围、全部运行入口、真实
@@ -661,26 +662,28 @@ First baseline receipt SHA-256: 650a9ab2df3c9d9dd9b2c8e5b5f91bdb22ced8404f55ca9b
       runtime/SQL trace、mutation 三层真实测量均 PASS 后才能 PASS。
 - [x] 外部证据不可取得时标记 `UNVERIFIABLE/BLOCKED`，禁止 DONE，禁止用守卫固定
       数字替代测量。
-- [x] lifecycle 拆为 immutable spec、baseline/preflight receipt 与 final exact-head
-      receipt；Implementation/Closure 不得改 spec。范围变化只能由独立
+- [x] lifecycle 拆为 immutable spec、baseline/preflight receipt 与 Closure add-only
+      final attestation；Implementation/Closure 不得改 spec。范围变化只能由独立
       `W2_PR_KIND: PREFLIGHT` 记录 `REVIEW_MISS` 或 scope amendment。
 - [x] checker 完整执行 JSON Schema，重算 frozen baseline 的文件 hash，验证 symbol/
       test、symlink/仓库边界及 evidence path/hash/command/head；OPEN、Closure/DONE
       均只由 receipt 证据派生。
 - [x] PR-kind artifact ACL 覆盖 add/modify/rename/delete/previous filename；
       baseline 绑定 frozen commit，spec amendment 绑定 trusted-base 重算 hash。
-- [x] Implementation final 绑定同一 exact head 的 FULL CI 与外部 acceptance；
-      Closure/POST 交叉核对 final hash、implementation PR/head、Full CI 与 merge SHA，
-      不把 final 改绑 closure head。
+- [x] Implementation PRE 通过 GitHub API 绑定同一 exact head 的 FULL CI、detached
+      artifacts 与外部 PASS Review；Closure add-only final attestation，Closure/POST
+      交叉核对其 hash、implementation PR/head、Full CI 与 merge SHA，不自引用
+      closure head。
 - [x] 历史证据使用目标 commit tree/blob 校验；fully-qualified symbol 由 AST 真实
       class scope 验证。PASS 输入/六类 case 必须绑定相符 primary real artifact，
       controlled mutation 和 mutation test。
 - [x] 三类真实 evidence artifact 使用机器 schema，绑定 generator/replay/query、
       migration head、capture/source identity、fingerprint、provider/db delta 与 head；
       `governance-light` 实际执行 replay gate。
-- [x] 首个只读实例冻结 `ARCH-P1-03B-R1.spec.json` 与
-      `ARCH-P1-03B-R1.baseline.json`；baseline 正确标记 synthetic/ORM 证据且
-      overall `BLOCKED`，03B-R1 保持 `NOT_STARTED`。
+- [x] 治理测试 fixture 覆盖 03B-R1 的 `BLOCKED → PREFLIGHT OPEN →
+      Implementation FULL/Review → merge → Closure add-only final → POST DONE`
+      状态机；真实 03B-R1 spec/baseline 必须由其后续独立 PREFLIGHT 新增，
+      03B-R1 保持 `NOT_STARTED`。
 
 **不做**：不修改 03B-R1 生产代码、66 条审批、staging 数据、模型数学、provider 或
 任何安全开关。
@@ -696,9 +699,9 @@ Historical task: ARCH-P1-03B (DONE, PR #402,
   merge df8fc4578fb4d45e2fb7afb95f58748f459a69a8)
 Predecessor: ARCH-GOVERNANCE-03
 Successor: ARCH-OBS-01
-Immutable spec: acceptance_matrices/ARCH-P1-03B-R1.spec.json
-Baseline receipt: acceptance_matrices/ARCH-P1-03B-R1.baseline.json
-Final receipt: required on implementation exact head
+Immutable spec: NONE (must be added by ARCH-P1-03B-R1 PREFLIGHT)
+Baseline receipt: NONE (must be added by ARCH-P1-03B-R1 PREFLIGHT)
+Final attestation: add-only in the later closure PR after implementation acceptance
 Derived implementation gate: BLOCKED
 ```
 

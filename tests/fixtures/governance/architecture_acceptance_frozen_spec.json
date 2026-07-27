@@ -6,7 +6,7 @@
   "frozen_baseline_commit": "832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd",
   "change_control": {
     "kind": "INITIAL_FREEZE",
-    "rationale": "First immutable production-input specification created by ARCH-GOVERNANCE-03 before ARCH-P1-03B-R1 starts."
+    "rationale": "Synthetic governance fixture exercising the future PREFLIGHT lifecycle without creating an active cross-task artifact."
   },
   "scope": {
     "summary": "Remediate the player-identity production authority boundary without changing the approved 66 mappings.",
@@ -350,5 +350,5 @@
     "post_implementation_review": "FROZEN_ASSERTIONS_AND_NEW_DIFF_REGRESSIONS_ONLY",
     "old_head_first_miss_label": "REVIEW_MISS"
   },
-  "spec_sha256": "5c7d7ad738dc051f30c87506dafdb6161d3dad2b442a5bba9a830f64f1a16ba7"
+  "spec_sha256": "29eaeba063ee5bad47e13441c6862ba5c821d211affb31426efbe515b7e47fe4"
 }
