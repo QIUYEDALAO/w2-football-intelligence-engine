@@ -652,6 +652,7 @@ Post-merge remediation: GITHUB_REMEDIATION_PR
 Remediation branch: codex/arch-governance-03-main-push-remediation
 Remediation base: bfdd79b3814008d9988f8f5d76d566145188e1e4
 Failed main-push CI: 30238672678
+Implementation SHA: GITHUB_PR_EXACT_HEAD
 Predecessor: ARCH-P1-04D-R1
 Successor: ARCH-P1-03B-R1 (NOT_STARTED)
 Lifecycle schema: contracts/governance/architecture_acceptance_lifecycle.v1.schema.json
