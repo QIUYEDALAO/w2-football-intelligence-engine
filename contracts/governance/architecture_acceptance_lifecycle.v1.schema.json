@@ -939,6 +939,7 @@
         "schema_path",
         "artifact_kind",
         "task_id",
+        "verification_mode",
         "generator",
         "replay",
         "migration_head",
@@ -964,6 +965,9 @@
           ]
         },
         "task_id": {"type": "string", "pattern": "^ARCH-[A-Z0-9-]+$"},
+        "verification_mode": {
+          "enum": ["SELF_CONTAINED_REPLAY", "TRUSTED_EXTERNAL_CAPTURE"]
+        },
         "generator": {
           "type": "object",
           "additionalProperties": false,
@@ -1002,7 +1006,40 @@
         "provider_call_delta": {"type": "integer", "minimum": 0},
         "db_write_delta": {"type": "integer", "minimum": 0},
         "subject_head": {"$ref": "#/$defs/sha"},
-        "artifact_sha256": {"$ref": "#/$defs/sha256"}
+        "artifact_sha256": {"$ref": "#/$defs/sha256"},
+        "capture_attestation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "capture_count",
+            "captures_identical",
+            "capture_sha256",
+            "artifact_sha256",
+            "result_fingerprint",
+            "generator_file_sha256",
+            "command_sha256",
+            "source_identity_sha256",
+            "captured_at",
+            "attestation_sha256"
+          ],
+          "properties": {
+            "capture_count": {"const": 2},
+            "captures_identical": {"const": true},
+            "capture_sha256": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {"$ref": "#/$defs/sha256"}
+            },
+            "artifact_sha256": {"$ref": "#/$defs/sha256"},
+            "result_fingerprint": {"$ref": "#/$defs/sha256"},
+            "generator_file_sha256": {"$ref": "#/$defs/sha256"},
+            "command_sha256": {"$ref": "#/$defs/sha256"},
+            "source_identity_sha256": {"$ref": "#/$defs/sha256"},
+            "captured_at": {"type": "string", "format": "date-time"},
+            "attestation_sha256": {"$ref": "#/$defs/sha256"}
+          }
+        }
       },
       "allOf": [
         {
@@ -1015,6 +1052,18 @@
               "replay": {"required": ["query", "query_sha256"]},
               "db_write_delta": {"const": 0}
             }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "verification_mode": {"const": "TRUSTED_EXTERNAL_CAPTURE"}
+            },
+            "required": ["verification_mode"]
+          },
+          "then": {"required": ["capture_attestation"]},
+          "else": {
+            "not": {"required": ["capture_attestation"]}
           }
         }
       ]

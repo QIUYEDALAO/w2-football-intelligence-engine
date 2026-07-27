@@ -559,6 +559,7 @@ def preflight_real_evidence() -> tuple[str, dict[str, Any], dict[str, Any]]:
         "schema_path": governance.MATRIX_SCHEMA_PATH,
         "artifact_kind": "REAL_PRODUCER_OUTPUT_EVIDENCE",
         "task_id": "ARCH-P1-03B-R1",
+        "verification_mode": "SELF_CONTAINED_REPLAY",
         "generator": {
             "path": generator_path,
             "symbol": "main",
@@ -678,6 +679,7 @@ def test_real_evidence_artifact_is_structured_not_command_keyword_inference() ->
         "schema_path": governance.MATRIX_SCHEMA_PATH,
         "artifact_kind": "REAL_DB_EVIDENCE",
         "task_id": "ARCH-P1-03B-R1",
+        "verification_mode": "SELF_CONTAINED_REPLAY",
         "generator": {
             "path": generator_path,
             "symbol": "check_evidence_artifacts",
@@ -757,6 +759,7 @@ def test_evidence_artifact_task_binding_and_mutation_source_binding_fail_closed(
         "schema_path": governance.MATRIX_SCHEMA_PATH,
         "artifact_kind": "REAL_PRODUCER_OUTPUT_EVIDENCE",
         "task_id": "ARCH-OBS-01",
+        "verification_mode": "SELF_CONTAINED_REPLAY",
         "generator": {
             "path": generator_path,
             "symbol": "check_evidence_artifacts",
@@ -888,6 +891,152 @@ def test_replay_rejects_no_output_different_output_and_tracked_mutation(
         "artifact_sha256": "e" * 64,
     }
     assert governance._replay_evidence_artifact(payload, root=tmp_path) == expected
+
+
+def external_capture_artifact(
+    *, subject_head: str, generator_path: str, generator: bytes
+) -> dict[str, Any]:
+    artifact = {
+        "schema_version": governance.MATRIX_SCHEMA_VERSION,
+        "schema_path": governance.MATRIX_SCHEMA_PATH,
+        "artifact_kind": "REAL_PRODUCER_OUTPUT_EVIDENCE",
+        "task_id": "ARCH-P1-03B-R1",
+        "generator": {
+            "path": generator_path,
+            "symbol": "main",
+            "file_sha256": hashlib.sha256(generator).hexdigest(),
+        },
+        "replay": {
+            "argv": ["python3", generator_path],
+            "output_flag": "--output",
+            "command_sha256": governance._canonical_sha256(
+                ["python3", generator_path]
+            ),
+        },
+        "migration_head": "0043",
+        "captured_at": "2026-07-27T00:00:00Z",
+        "source_identity": {
+            "database_engine": "postgresql",
+            "database_identity_sha256": "d" * 64,
+        },
+        "row_count": 66,
+        "result_fingerprint": "8" * 64,
+        "provider_call_delta": 0,
+        "db_write_delta": 0,
+        "subject_head": subject_head,
+        "artifact_sha256": "",
+    }
+    artifact["artifact_sha256"] = governance._artifact_hash(
+        artifact, "artifact_sha256"
+    )
+    capture_sha256 = hashlib.sha256(
+        governance._canonical_bytes(artifact) + b"\n"
+    ).hexdigest()
+    artifact["verification_mode"] = "TRUSTED_EXTERNAL_CAPTURE"
+    attestation = {
+        "capture_count": 2,
+        "captures_identical": True,
+        "capture_sha256": [capture_sha256, capture_sha256],
+        "artifact_sha256": artifact["artifact_sha256"],
+        "result_fingerprint": artifact["result_fingerprint"],
+        "generator_file_sha256": artifact["generator"]["file_sha256"],
+        "command_sha256": artifact["replay"]["command_sha256"],
+        "source_identity_sha256": governance._canonical_sha256(
+            artifact["source_identity"]
+        ),
+        "captured_at": artifact["captured_at"],
+        "attestation_sha256": "",
+    }
+    attestation["attestation_sha256"] = governance._artifact_hash(
+        attestation, "attestation_sha256"
+    )
+    artifact["capture_attestation"] = attestation
+    return artifact
+
+
+def evidence_repository(
+    tmp_path: Path, *, verification_mode: str
+) -> tuple[Path, dict[str, Any]]:
+    schema = tmp_path / governance.MATRIX_SCHEMA_PATH
+    schema.parent.mkdir(parents=True)
+    schema.write_bytes((ROOT / governance.MATRIX_SCHEMA_PATH).read_bytes())
+    generator_path = "scripts/generator.py"
+    generator = b"def main():\n    raise SystemExit(1)\n"
+    generator_file = tmp_path / generator_path
+    generator_file.parent.mkdir()
+    generator_file.write_bytes(generator)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=tmp_path)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp_path)
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-qm", "subject"], cwd=tmp_path, check=True)
+    subject = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    artifact = external_capture_artifact(
+        subject_head=subject,
+        generator_path=generator_path,
+        generator=generator,
+    )
+    if verification_mode == "SELF_CONTAINED_REPLAY":
+        artifact.pop("capture_attestation")
+        artifact["verification_mode"] = verification_mode
+        artifact["artifact_sha256"] = governance._artifact_hash(
+            artifact, "artifact_sha256"
+        )
+    evidence = (
+        tmp_path
+        / "docs/operations/architecture_convergence/evidence"
+        / "ARCH-P1-03B-R1.hosted-runner.evidence.json"
+    )
+    evidence.parent.mkdir(parents=True)
+    evidence.write_bytes(governance._canonical_bytes(artifact))
+    return evidence, artifact
+
+
+def test_trusted_external_capture_passes_offline_without_database(
+    tmp_path: Path,
+) -> None:
+    evidence_repository(tmp_path, verification_mode="TRUSTED_EXTERNAL_CAPTURE")
+    result = governance.check_evidence_artifacts(tmp_path, replay=True)
+    assert result.passed, result.errors
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda artifact: artifact.pop("capture_attestation"),
+        lambda artifact: artifact["capture_attestation"].update(
+            attestation_sha256="0" * 64
+        ),
+        lambda artifact: artifact["capture_attestation"].update(
+            result_fingerprint="0" * 64
+        ),
+        lambda artifact: artifact["capture_attestation"].update(capture_count=1),
+        lambda artifact: artifact.update(provider_call_delta=1),
+        lambda artifact: artifact.update(db_write_delta=1),
+    ],
+)
+def test_trusted_external_capture_attestation_fails_closed(
+    tmp_path: Path, mutate: Any
+) -> None:
+    evidence, artifact = evidence_repository(
+        tmp_path, verification_mode="TRUSTED_EXTERNAL_CAPTURE"
+    )
+    mutate(artifact)
+    evidence.write_bytes(governance._canonical_bytes(artifact))
+    result = governance.check_evidence_artifacts(tmp_path, replay=True)
+    assert not result.passed
+
+
+def test_self_contained_capture_still_requires_live_replay(tmp_path: Path) -> None:
+    evidence_repository(tmp_path, verification_mode="SELF_CONTAINED_REPLAY")
+    result = governance.check_evidence_artifacts(tmp_path, replay=True)
+    assert any("MATRIX_EVIDENCE_REPLAY_" in error for error in result.errors)
 
 
 def test_done_matrix_binding_cross_checks_final_ci_review_and_merge() -> None:

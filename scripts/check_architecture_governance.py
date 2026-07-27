@@ -314,6 +314,32 @@ def _artifact_hash(payload: dict[str, Any], field: str) -> str:
     return _canonical_sha256({key: value for key, value in payload.items() if key != field})
 
 
+def _evidence_artifact_hash(payload: dict[str, Any]) -> str:
+    if payload.get("verification_mode") == "TRUSTED_EXTERNAL_CAPTURE":
+        return _canonical_sha256(
+            {
+                key: value
+                for key, value in payload.items()
+                if key
+                not in {
+                    "artifact_sha256",
+                    "verification_mode",
+                    "capture_attestation",
+                }
+            }
+        )
+    return _artifact_hash(payload, "artifact_sha256")
+
+
+def _external_capture_file_sha256(payload: dict[str, Any]) -> str:
+    captured = {
+        key: value
+        for key, value in payload.items()
+        if key not in {"verification_mode", "capture_attestation"}
+    }
+    return hashlib.sha256(_canonical_bytes(captured) + b"\n").hexdigest()
+
+
 def _symbol_exists(source: bytes, symbol: str) -> bool:
     try:
         nodes: list[ast.stmt] = ast.parse(source.decode("utf-8")).body
@@ -542,7 +568,7 @@ def validate_evidence_artifact(
         fail("MATRIX_EVIDENCE_ARTIFACT_TASK_MISMATCH")
     if not isinstance(subject_head, str) or not SHA_RE.fullmatch(subject_head):
         fail("MATRIX_EVIDENCE_ARTIFACT_SUBJECT_INVALID")
-    if payload.get("artifact_sha256") != _artifact_hash(payload, "artifact_sha256"):
+    if payload.get("artifact_sha256") != _evidence_artifact_hash(payload):
         fail("MATRIX_EVIDENCE_ARTIFACT_HASH_MISMATCH")
     generator = payload.get("generator", {})
     generator_path = generator.get("path")
@@ -574,6 +600,40 @@ def validate_evidence_artifact(
         not isinstance(query, str) or payload.get("db_write_delta") != 0
     ):
         fail("MATRIX_REAL_DB_EVIDENCE_INVALID")
+    mode = payload.get("verification_mode")
+    attestation = payload.get("capture_attestation")
+    if mode == "SELF_CONTAINED_REPLAY":
+        if attestation is not None:
+            fail("MATRIX_EVIDENCE_CAPTURE_ATTESTATION_UNEXPECTED")
+    elif mode == "TRUSTED_EXTERNAL_CAPTURE":
+        if not isinstance(attestation, dict):
+            fail("MATRIX_EVIDENCE_CAPTURE_ATTESTATION_MISSING")
+        else:
+            capture_hash = _external_capture_file_sha256(payload)
+            capture_sha256 = attestation.get("capture_sha256")
+            if (
+                attestation.get("capture_count") != 2
+                or attestation.get("captures_identical") is not True
+                or capture_sha256 != [capture_hash, capture_hash]
+                or attestation.get("artifact_sha256")
+                != payload.get("artifact_sha256")
+                or attestation.get("result_fingerprint")
+                != payload.get("result_fingerprint")
+                or attestation.get("generator_file_sha256")
+                != generator.get("file_sha256")
+                or attestation.get("command_sha256")
+                != replay.get("command_sha256")
+                or attestation.get("source_identity_sha256")
+                != _canonical_sha256(payload.get("source_identity"))
+                or attestation.get("captured_at") != payload.get("captured_at")
+                or attestation.get("attestation_sha256")
+                != _artifact_hash(attestation, "attestation_sha256")
+                or payload.get("provider_call_delta") != 0
+                or payload.get("db_write_delta") != 0
+            ):
+                fail("MATRIX_EVIDENCE_CAPTURE_ATTESTATION_INVALID")
+    else:
+        fail("MATRIX_EVIDENCE_VERIFICATION_MODE_INVALID")
     return errors
 
 
@@ -2653,7 +2713,10 @@ def check_evidence_artifacts(root: Path, *, replay: bool) -> GateResult:
             blob_reader=lambda commit, value: _git_blob(root, commit, value),
         ):
             result.fail(f"{error}:{path.relative_to(root)}")
-        if not replay:
+        if (
+            not replay
+            or payload.get("verification_mode") == "TRUSTED_EXTERNAL_CAPTURE"
+        ):
             continue
         replay_error = _replay_evidence_artifact(payload, root=root)
         if replay_error:
