@@ -5,11 +5,22 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-STATES = (
-    "implemented",
-    "locally_verified",
-    "staging_accepted",
-    "production_approved",
+TASK_ORDER = (
+    "ARCH-GOVERNANCE-01",
+    "ARCH-P1-04C",
+    "ARCH-P1-03",
+    "ARCH-P1-05",
+    "ARCH-P1-06",
+    "ARCH-P1-07",
+    "ARCH-P1-08",
+)
+FORBIDDEN_TASKS = (
+    "ARCH-OBS-01",
+    "ARCH-EVIDENCE-01",
+    "ARCH-DONE-REAUDIT",
+    "ARCH-P1-03B-R1_VERIFICATION",
+    "PREFLIGHT",
+    "CLOSURE",
 )
 
 
@@ -17,22 +28,30 @@ def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-def test_delivery_status_vocabulary_is_complete_and_not_overclaimed() -> None:
-    policy = read("docs/operations/W2_DELIVERY_STATUS_LEVELS.md")
-    state_text = read("PROJECT_STATE.yaml")
-    state = yaml.safe_load(state_text)
+def test_v3_task_authority_and_next_action_are_consistent() -> None:
+    state = yaml.safe_load(read("PROJECT_STATE.yaml"))
     next_action = read("NEXT_ACTION.md")
-
-    for status in STATES:
-        assert f"`{status}`" in policy
-    assert tuple(state["delivery_status_vocabulary"]) == STATES
-    assert state["current_phase"]["status"] in STATES
-    assert set(state["current_phase"]["checkpoints"].values()) <= set(STATES)
-    assert (
-        f"{state['current_phase']['id']} is `{state['current_phase']['status']}`"
-        in next_action
+    checklist = read(
+        "docs/operations/architecture_convergence/"
+        "W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md"
     )
-    assert f"{state['current_phase']['next_phase']} is authorized" in next_action
+
+    assert state["current_task"] == "ARCH-P1-03"
+    assert state["current_status"] == "IN_PROGRESS"
+    assert state["current_pr"] == 419
+    assert state["next_task"] == "ARCH-P1-05"
+    assert tuple(state["task_queue"]) == TASK_ORDER
+    assert "当前：完成 A3 / PR #419 二次验收与合并。" in next_action
+    assert "下一项：A4 ARCH-P1-05。" in next_action
+    positions = [
+        checklist.index(f"#### A{index}. {task}")
+        for index, task in enumerate(TASK_ORDER, 1)
+    ]
+    assert positions == sorted(positions)
+    for task in FORBIDDEN_TASKS:
+        assert task not in state
+        assert task not in next_action
+        assert task not in checklist
     assert state["staging"]["production_deployed"] is False
 
 

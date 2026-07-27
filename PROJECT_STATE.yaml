@@ -1,29 +1,14 @@
 schema_version: w2.project_state.v3
 project: w2-football-intelligence-engine
 updated_at: "2026-07-27"
-delivery_status_vocabulary:
-  - implemented
-  - locally_verified
-  - staging_accepted
-  - production_approved
-current_phase:
-  id: ARCH-P1-03B-R1
-  status: locally_verified
-  task_status: "PR #419 pending secondary review"
-  next_phase: ARCH-OBS-01
-  checkpoints:
-    canonical_player_repository: locally_verified
-    approved_roster_query: locally_verified
-    lineup_identity_chain: locally_verified
-    join_evidence_identity_chain: locally_verified
-    team_value_identity_chain: locally_verified
-    legacy_player_crosswalk_removed: locally_verified
-next_task: ARCH-OBS-01
+current_task: ARCH-P1-03
+current_status: IN_PROGRESS
+current_pr: 419
+next_task: ARCH-P1-05
 task_queue:
-  - ARCH-P1-03B-R1
-  - ARCH-OBS-01
-  - ARCH-EVIDENCE-01
-  - ARCH-DONE-REAUDIT
+  - ARCH-GOVERNANCE-01
+  - ARCH-P1-04C
+  - ARCH-P1-03
   - ARCH-P1-05
   - ARCH-P1-06
   - ARCH-P1-07
@@ -36,3 +21,4 @@ safety:
   reviewed_mapping_count_expected: 66
 staging:
   production_deployed: false
+  read_only_recheck: BLOCKED_BY_INFRA_UNREACHABLE
