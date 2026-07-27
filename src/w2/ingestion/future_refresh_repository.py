@@ -298,8 +298,13 @@ class FutureRefreshDbRepository:
         if as_of.tzinfo is None:
             raise FutureRefreshPersistenceError("PLAYER_IDENTITY_AS_OF_TIMEZONE_INVALID")
         payload = self.fixture_payload(str(fixture_id))
+        fixture = payload.get("fixture", {}) if isinstance(payload, dict) else {}
         league = payload.get("league", {}) if isinstance(payload, dict) else {}
         season = str(league.get("season") or "")
+        try:
+            kickoff = parse_db_datetime(fixture.get("date"))
+        except FutureRefreshPersistenceError:
+            kickoff = None
         with Session(self.engine) as session:
             snapshots = session.scalars(
                 select(StructuredLineupSnapshotModel)
@@ -320,8 +325,10 @@ class FutureRefreshDbRepository:
                         provider="api_football",
                         provider_team_id=snapshot.team_external_id,
                         season=season,
-                        as_of=as_of,
+                        as_of=kickoff,
                     )
+                    if kickoff is not None
+                    else None
                 )
                 team_w2_id = authority.w2_team_id if authority else None
                 if snapshot.team_w2_id != team_w2_id:
@@ -340,9 +347,9 @@ class FutureRefreshDbRepository:
                             w2_team_id=authority.w2_team_id,
                             competition=authority.competition_id,
                             season=season,
-                            as_of=as_of,
+                            as_of=kickoff,
                         )
-                        if authority
+                        if authority and kickoff is not None
                         else None
                     )
                     values = (
@@ -495,8 +502,13 @@ class FutureRefreshDbRepository:
         as_of: datetime,
     ) -> dict[str, Any]:
         payload = self.fixture_payload(str(fixture_id))
+        fixture = payload.get("fixture", {}) if isinstance(payload, dict) else {}
         league = payload.get("league", {}) if isinstance(payload, dict) else {}
         season = str(league.get("season") or "")
+        try:
+            kickoff = parse_db_datetime(fixture.get("date"))
+        except FutureRefreshPersistenceError:
+            kickoff = None
         with Session(self.engine) as session:
             snapshots = session.scalars(
                 select(StructuredLineupSnapshotModel)
@@ -575,11 +587,13 @@ class FutureRefreshDbRepository:
                         provider="api_football",
                         provider_team_id=snapshot.team_external_id,
                         season=season,
-                        as_of=snapshot.captured_at,
+                        as_of=kickoff,
                     )
+                    if kickoff is not None
+                    else None
                 )
                 newest_mapping: dict[str, PlayerIdentityMappingModel] = {}
-                if authority is not None:
+                if authority is not None and kickoff is not None:
                     for api_id in all_api_ids:
                         mapping = CanonicalIdentityRepository.player_mapping_in_session(
                             session,
@@ -587,7 +601,7 @@ class FutureRefreshDbRepository:
                             w2_team_id=authority.w2_team_id,
                             competition=authority.competition_id,
                             season=season,
-                            as_of=snapshot.captured_at,
+                            as_of=kickoff,
                         )
                         if mapping is not None:
                             newest_mapping[api_id] = mapping

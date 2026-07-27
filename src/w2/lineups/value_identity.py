@@ -404,7 +404,7 @@ def identity_value_audit(
         if row.get("observed_at") or row.get("valuation_date")
     )
     return {
-        "schema_version": "w2.fah04.identity_value_audit.v1",
+        "schema_version": "w2.fah04.identity_value_audit.v2",
         "status": (
             "SOURCE_NOT_AVAILABLE"
             if not artifacts

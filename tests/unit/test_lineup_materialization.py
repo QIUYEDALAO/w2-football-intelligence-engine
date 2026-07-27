@@ -548,3 +548,49 @@ def test_join_evidence_and_lineup_gate_use_the_materialized_canonical_players() 
         row["api_football_player_id"]: row["canonical_player_id"]
         for row in runs[0]["rows"]
     } == materialized
+
+
+def test_identity_valid_at_capture_but_expired_at_kickoff_fails_closed() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = FutureRefreshDbRepository(engine=engine)
+    kickoff = _install_player_identity_sources(repository, engine)
+    captured_at = kickoff.replace(hour=17)
+    with Session(engine) as session:
+        mapping = session.scalar(
+            select(PlayerIdentityMappingModel).where(
+                PlayerIdentityMappingModel.api_football_player_id == "100"
+            )
+        )
+        assert mapping is not None
+        mapping.valid_to = captured_at.replace(minute=30)
+        session.commit()
+
+    repository.save_lineup_snapshots(
+        fixture_id="fixture-authority",
+        captured_at=captured_at,
+        raw_sha256="l" * 64,
+        payload={"response": [_team(10, 100), _team(20, 200)]},
+        materialize_baselines=False,
+    )
+
+    join = repository.player_identity_join_evidence(
+        fixture_id="fixture-authority",
+        as_of=kickoff,
+    )
+    gate = repository.lineup_gate_evidence(
+        fixture_id="fixture-authority",
+        as_of=kickoff,
+    )
+    with Session(engine) as session:
+        player = session.scalar(
+            select(StructuredLineupPlayerModel).where(
+                StructuredLineupPlayerModel.api_football_player_id == "100"
+            )
+        )
+    assert player is not None
+    assert player.mapping_status == "MISSING"
+    assert player.canonical_player_id is None
+    assert join["status"] == "INCOMPLETE"
+    assert join["metrics"]["MISSING_OR_INVALID"] == 1
+    assert gate["uniquely_mapped_starters"] == 21

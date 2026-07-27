@@ -306,21 +306,27 @@ class CanonicalIdentityRepository:
         active = [row for row in rows if _valid_at(row.valid_from, row.valid_to, as_of)]
         if any(row.mapping_status == "CONFLICT" for row in active):
             return None
-        accepted = [
-            row
-            for row in active
-            if row.mapping_status in _REVIEWED_STATUSES
-            and row.canonical_player_id
-            and row.reviewed_by
-            and row.reviewed_at
-            and row.evidence.get("canonical_team_id") == w2_team_id
-            and row.evidence.get("review_status") in _REVIEWED_STATUSES
-        ]
-        canonical_ids = {row.canonical_player_id for row in accepted}
-        if len(canonical_ids) != 1:
+        accepted = [row for row in active if row.mapping_status in _REVIEWED_STATUSES]
+        if not accepted or any(
+            not isinstance(row.evidence, dict)
+            or not row.canonical_player_id
+            or not row.transfermarkt_player_id
+            or not row.identity_hash
+            or not row.reviewed_by
+            or not row.reviewed_at
+            or row.evidence.get("canonical_team_id") != w2_team_id
+            or row.evidence.get("review_status") not in _REVIEWED_STATUSES
+            for row in accepted
+        ):
             return None
-        identity_hashes = {row.identity_hash for row in accepted}
-        if len(identity_hashes) != 1:
+        if any(
+            len({getattr(row, field) for row in accepted}) != 1
+            for field in (
+                "canonical_player_id",
+                "transfermarkt_player_id",
+                "identity_hash",
+            )
+        ):
             return None
         return accepted[0]
 

@@ -2,33 +2,22 @@
 
 ## Current task
 
-- ARCH-P1-03B-R1: IMPLEMENTATION_IN_PROGRESS
+- ARCH-P1-03B-R1: `locally_verified`
+- PR #419: pending secondary review
+- Next task: ARCH-OBS-01
 - Branch: `codex/arch-p1-03b-r1`
 - Delivery: one Draft Implementation PR
 
-## Required outcome
+## Task queue
 
-- Canonical player resolution is scoped by provider player ID, canonical team,
-  competition, season, and as-of time.
-- Only REVIEWED/APPROVED mappings are consumable; missing, stale, ambiguous, conflict,
-  unreviewed, and database-error cases fail closed.
-- Approved team rosters come from the canonical database with stable sorting and
-  deduplication.
-- Lineup materialization, join evidence, and team value use the same canonical
-  authority.
-- Production references to `PlayerIdentityCrosswalkV1` are zero.
-- The existing 66 reviewed mappings retain the same count and fingerprint.
-- Provider calls and staging database writes remain zero.
-
-## Verification
-
-- Focused identity tests
-- Ruff and Mypy
-- Full pytest
-- Migration upgrade/downgrade/upgrade
-- Web typecheck, build, and e2e
-- Staging parity
-- FULL CI / `CI_REQUIRED`
+1. ARCH-P1-03B-R1
+2. ARCH-OBS-01
+3. ARCH-EVIDENCE-01
+4. ARCH-DONE-REAUDIT
+5. ARCH-P1-05
+6. ARCH-P1-06
+7. ARCH-P1-07
+8. ARCH-P1-08
 
 ## Stop condition
 

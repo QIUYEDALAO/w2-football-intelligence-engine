@@ -8,16 +8,26 @@ delivery_status_vocabulary:
   - production_approved
 current_phase:
   id: ARCH-P1-03B-R1
-  status: implemented
-  task_status: IMPLEMENTATION_IN_PROGRESS
-  next_phase: ARCH-P1-03B-R1_VERIFICATION
+  status: locally_verified
+  task_status: "PR #419 pending secondary review"
+  next_phase: ARCH-OBS-01
   checkpoints:
-    canonical_player_repository: implemented
-    approved_roster_query: implemented
-    lineup_identity_chain: implemented
-    join_evidence_identity_chain: implemented
-    team_value_identity_chain: implemented
-    legacy_player_crosswalk_removed: implemented
+    canonical_player_repository: locally_verified
+    approved_roster_query: locally_verified
+    lineup_identity_chain: locally_verified
+    join_evidence_identity_chain: locally_verified
+    team_value_identity_chain: locally_verified
+    legacy_player_crosswalk_removed: locally_verified
+next_task: ARCH-OBS-01
+task_queue:
+  - ARCH-P1-03B-R1
+  - ARCH-OBS-01
+  - ARCH-EVIDENCE-01
+  - ARCH-DONE-REAUDIT
+  - ARCH-P1-05
+  - ARCH-P1-06
+  - ARCH-P1-07
+  - ARCH-P1-08
 safety:
   provider_calls: 0
   staging_writes: 0

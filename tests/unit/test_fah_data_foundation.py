@@ -34,6 +34,7 @@ from w2.lineups.value_identity import (
     approved_crosswalk_for_team,
     audit_transfermarkt_asset,
     build_team_crosswalk,
+    identity_value_audit,
     materialize_team_value_asof,
 )
 
@@ -658,6 +659,7 @@ def test_team_value_asof_uses_canonical_db_identity_and_rejects_future(
     )
 
     assert artifact["status"] == "READY"
+    assert artifact["schema_version"] == "w2.team_value_asof_artifact.v2"
     assert artifact["canonical_team_id"] == "w2:team:1"
     assert artifact["canonical_player_ids"] == ["w2:player:p1"]
     assert artifact["squad_value_eur"] == "100"
@@ -696,6 +698,7 @@ def test_fah_repository_can_query_team_value_by_team_and_asof() -> None:
     Base.metadata.create_all(engine)
     repository = FahDataFoundationRepository(engine)
     artifact = {
+        "schema_version": "w2.team_value_asof_artifact.v2",
         "team_external_id": "1",
         "transfermarkt_club_id": "club-1",
         "competition_id": "allsvenskan",
@@ -724,6 +727,7 @@ def test_f8_authority_keeps_static_or_unreviewed_values_out_of_formal() -> None:
     repository.write_team_value_artifacts(
         [
             {
+                "schema_version": "w2.team_value_asof_artifact.v2",
                 "team_external_id": "1",
                 "transfermarkt_club_id": "club-1",
                 "competition_id": "allsvenskan",
@@ -752,6 +756,7 @@ def test_f8_authority_ready_requires_complete_reviewed_artifact() -> None:
     Base.metadata.create_all(engine)
     repository = FahDataFoundationRepository(engine)
     artifact = {
+        "schema_version": "w2.team_value_asof_artifact.v2",
         "team_external_id": "1",
         "transfermarkt_club_id": "club-1",
         "competition_id": "allsvenskan",
@@ -784,6 +789,34 @@ def test_f8_authority_ready_requires_complete_reviewed_artifact() -> None:
     assert result["status"] == "READY"
     assert result["formal_eligible"] is False
     assert result["blockers"] == ["FORMAL_CAPABILITY_DISABLED"]
+
+
+def test_team_value_and_identity_audit_reject_old_contract_version() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = FahDataFoundationRepository(engine)
+    old_artifact = {
+        "schema_version": "w2.team_value_asof_artifact.v1",
+        "team_external_id": "1",
+        "competition_id": "allsvenskan",
+        "as_of": "2024-05-02T00:00:00Z",
+        "artifact_hash": "e" * 64,
+    }
+
+    summary = repository.write_team_value_artifacts([old_artifact])
+
+    assert summary.rolled_back is True
+    assert (
+        repository.team_value_artifact_at(
+            team_external_id="1",
+            competition_id="allsvenskan",
+            as_of=AS_OF,
+        )
+        is None
+    )
+    assert identity_value_audit(artifacts=[], source_root=None)["schema_version"] == (
+        "w2.fah04.identity_value_audit.v2"
+    )
 
 
 def test_data_asset_registry_uses_aliases_and_backup_missing_is_external_blocker(

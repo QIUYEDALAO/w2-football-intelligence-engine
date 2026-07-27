@@ -261,6 +261,63 @@ def test_player_resolution_fails_closed_for_stale_ambiguous_and_conflict() -> No
     )
 
 
+def test_player_resolution_fails_closed_for_malformed_evidence() -> None:
+    team = "w2:team:api_football:100"
+    for evidence in (
+        None,
+        [],
+        {},
+        {"canonical_team_id": team},
+        {"review_status": "APPROVED"},
+    ):
+        engine = _engine()
+        _seed(engine, _provider_row())
+        _seed_players(engine, _player_row(evidence=evidence))
+        assert (
+            CanonicalIdentityRepository(engine=engine).resolve_player(
+                "p1", team, "allsvenskan", "2026", AS_OF
+            )
+            is None
+        )
+
+
+def test_player_resolution_rejects_conflicting_transfermarkt_source_ids() -> None:
+    engine = _engine()
+    _seed(engine, _provider_row())
+    _seed_players(
+        engine,
+        _player_row(),
+        _player_row(
+            transfermarkt_player_id="tm-other",
+            valid_from=datetime(2026, 2, 1, tzinfo=UTC),
+        ),
+    )
+    repo = CanonicalIdentityRepository(engine=engine)
+    team = "w2:team:api_football:100"
+    assert repo.resolve_player("p1", team, "allsvenskan", "2026", AS_OF) is None
+    assert repo.approved_players_for_team(team, "allsvenskan", "2026", AS_OF) == []
+
+
+def test_player_resolution_requires_complete_reviewed_identity_binding() -> None:
+    team = "w2:team:api_football:100"
+    for missing in (
+        {"canonical_player_id": None},
+        {"transfermarkt_player_id": None},
+        {"identity_hash": ""},
+        {"reviewed_by": None},
+        {"reviewed_at": None},
+    ):
+        engine = _engine()
+        _seed(engine, _provider_row())
+        _seed_players(engine, _player_row(**missing))
+        assert (
+            CanonicalIdentityRepository(engine=engine).resolve_player(
+                "p1", team, "allsvenskan", "2026", AS_OF
+            )
+            is None
+        )
+
+
 def test_duplicate_identical_reviewed_rows_dedupe_and_database_errors_fail_closed() -> None:
     engine = _engine()
     _seed(engine, _provider_row())
