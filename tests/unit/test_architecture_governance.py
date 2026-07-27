@@ -45,6 +45,7 @@ ACTUAL_MERGES = {
     404: "4e310e87def0e6e44e0fe69fa0c07f776126a6fc",
     406: "cf5d6ea2cca600e31d4058b7d359b271d12d1f04",
     408: "09ece0204bed1289986e20d6a1cff842cb2f0864",
+    411: "f891f25dac1c0b663facab94dc0e05c54b84f4eb",
 }
 MATRIX_ROOT = ROOT / "docs/operations/architecture_convergence/acceptance_matrices"
 FIXTURE_ROOT = ROOT / "tests/fixtures/governance"
