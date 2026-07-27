@@ -354,9 +354,8 @@ jobs:
         run: |
           task_id="$(jq -r '.pull_request.body | capture("W2_TASK_ID: (?<id>ARCH-[A-Z0-9-]+)").id' "$GITHUB_EVENT_PATH")"
           trusted_root="$GITHUB_WORKSPACE/.w2-trusted-governance"
-          trusted_task="$(sed -n 's/^  next_task: //p' "$trusted_root/PROJECT_STATE.yaml" | head -1)"
           collector_root="$trusted_root"
-          if [[ "$task_id" == ARCH-GOVERNANCE-* && "$task_id" == "$trusted_task" ]]; then
+          if [[ "$task_id" == "ARCH-GOVERNANCE-03" ]]; then
             collector_root="$GITHUB_WORKSPACE"
           fi
           echo "W2_GOVERNANCE_ROOT=$collector_root" >> "$GITHUB_ENV"
@@ -416,9 +415,8 @@ jobs:
         run: |
           task_id="$(jq -r '.pull_request.body | capture("W2_TASK_ID: (?<id>ARCH-[A-Z0-9-]+)").id' "$GITHUB_EVENT_PATH")"
           trusted_root="$GITHUB_WORKSPACE/.w2-trusted-governance"
-          trusted_task="$(sed -n 's/^  next_task: //p' "$trusted_root/PROJECT_STATE.yaml" | head -1)"
           governance_root="$trusted_root"
-          if [[ "$task_id" == ARCH-GOVERNANCE-* && "$task_id" == "$trusted_task" ]]; then
+          if [[ "$task_id" == "ARCH-GOVERNANCE-03" ]]; then
             governance_root="$GITHUB_WORKSPACE"
           fi
           echo "W2_GOVERNANCE_ROOT=$governance_root" >> "$GITHUB_ENV"

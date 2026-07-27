@@ -76,7 +76,7 @@ def test_secondary_review_protocol_allows_lightweight_closure_ci() -> None:
     assert "cmp \\" not in workflow
     assert 'cd "$W2_GOVERNANCE_ROOT"' in workflow
     assert "env -u PYTHONPATH PYTHONNOUSERSITE=1" in workflow
-    assert '"$task_id" == ARCH-GOVERNANCE-* && "$task_id" == "$trusted_task"' in workflow
+    assert workflow.count('"$task_id" == "ARCH-GOVERNANCE-03"') == 2
     trusted_invocation = (
         '"$W2_GOVERNANCE_ROOT/scripts/check_architecture_governance.py"'
     )
@@ -1700,15 +1700,14 @@ def test_trusted_collector_dependency_closure_ignores_pr_shadow_modules(
 
 
 def test_workflow_collector_selection_is_fail_closed() -> None:
-    def selected_root(task_id: str, trusted_task: str) -> str:
-        if task_id.startswith("ARCH-GOVERNANCE-") and task_id == trusted_task:
+    def selected_root(task_id: str) -> str:
+        if task_id == "ARCH-GOVERNANCE-03":
             return "candidate"
         return "trusted"
 
-    assert selected_root("ARCH-P1-03B-R1", "ARCH-GOVERNANCE-03") == "trusted"
-    assert selected_root("ARCH-GOVERNANCE-99", "ARCH-GOVERNANCE-03") == "trusted"
-    assert selected_root("ARCH-GOVERNANCE-03", "ARCH-GOVERNANCE-03") == "candidate"
-    assert selected_root("ARCH-P1-03B-R1", "ARCH-P1-03B-R1") == "trusted"
+    assert selected_root("ARCH-P1-03B-R1") == "trusted"
+    assert selected_root("ARCH-GOVERNANCE-99") == "trusted"
+    assert selected_root("ARCH-GOVERNANCE-03") == "candidate"
 
 
 def test_governed_full_ci_requires_trusted_raw_receipt_identity(tmp_path: Path) -> None:

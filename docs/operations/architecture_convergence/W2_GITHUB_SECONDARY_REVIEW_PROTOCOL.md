@@ -196,8 +196,9 @@ ACTUAL_READ_SET = IDENTITY_GUARD_COVERAGE_SET
     measurement，再由原始回执派生 result/evidence ZIP；普通任务必须直接从 trusted
     base checkout 执行 collector/compiler，并在 trusted base cwd、清空 `PYTHONPATH`
     后加载同一 checkout 的 `classify_ci`。PR 工作树同名 module/package 不得进入依赖
-    闭包。Implementation 不能覆盖派生结果，tracked source、all-PASS source 或 PR
-    自定义 collector/compiler 一律拒绝。
+    闭包。当前引导阶段仅 `ARCH-GOVERNANCE-03` 可执行 candidate collector/compiler；
+    其余任务（包括后续普通任务）必须执行 trusted base。Implementation 不能覆盖派生
+    结果，tracked source、all-PASS source 或 PR 自定义 collector/compiler 一律拒绝。
 
 ### 4. 输出和破坏性操作闭环
 
