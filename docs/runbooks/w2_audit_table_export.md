@@ -23,7 +23,7 @@ python scripts/export_w2_audit_tables.py \
 
 ```bash
 python scripts/export_w2_audit_tables.py \
-  --url "http://43.155.208.138/v1/dashboard?window=today&include_debug=true" \
+  --url "http://118.196.30.136/v1/dashboard?window=today&include_debug=true" \
   --output-dir /tmp/w2_audit_tables \
   --format both \
   --timeout 20

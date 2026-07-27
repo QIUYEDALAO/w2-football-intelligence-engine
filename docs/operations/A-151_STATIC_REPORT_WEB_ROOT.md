@@ -24,7 +24,7 @@ The accepted daily report is published with:
 
 ```bash
 uv run --python 3.12 python scripts/publish_w2_static_report.py \
-  --base-url http://43.155.208.138 \
+  --base-url http://118.196.30.136 \
   --runtime-root runtime
 ```
 
@@ -54,10 +54,10 @@ Every deploy that touches `web` must confirm the React boss-view is the root and
 the static report watermark is not served from `/`:
 
 ```bash
-curl -fsS http://43.155.208.138/ | grep -c '<div id="root">'
-curl -fsS http://43.155.208.138/ | grep -c 'w2.html_dashboard.v6'
-curl -fsS http://43.155.208.138/v1/version
-curl -fsS http://43.155.208.138/meta.json
+curl -fsS http://118.196.30.136/ | grep -c '<div id="root">'
+curl -fsS http://118.196.30.136/ | grep -c 'w2.html_dashboard.v6'
+curl -fsS http://118.196.30.136/v1/version
+curl -fsS http://118.196.30.136/meta.json
 ```
 
 Acceptance:

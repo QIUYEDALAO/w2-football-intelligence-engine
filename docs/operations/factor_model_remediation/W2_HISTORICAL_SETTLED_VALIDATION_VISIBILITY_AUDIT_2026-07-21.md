@@ -78,27 +78,6 @@ leagues: Serie A=34, Eliteserien=16, Allsvenskan=14, Super League=16
 
 It therefore does not account for the reported more-than-ten completed post-match validation records.
 
-## Old Server Access
-
-Repository documentation identifies a prior staging/single-machine production host:
-
-```text
-43.155.208.138
-```
-
-Read-only SSH attempts failed with the available keys:
-
-```text
-ssh ubuntu@43.155.208.138 -i /Users/liudehua/Downloads/huoshanyun.pem
-Permission denied (publickey)
-
-ssh root@43.155.208.138 -i /Users/liudehua/Downloads/huoshanyun.pem
-Permission denied (publickey)
-
-ssh ubuntu@43.155.208.138 -i /Users/liudehua/.ssh/id_ed25519_btc_eth_quant_vps
-Permission denied (publickey)
-```
-
 ## Interim Finding
 
 The historical completed validation records are not visible in the current new server's shared runtime, public dashboard payload, or PostgreSQL tables.
@@ -118,10 +97,9 @@ The latest forward validation repair did not delete the reported historical rows
 To recover the reported historical settled validation, locate one of:
 
 ```text
-1. SSH access to old host 43.155.208.138 with the correct key/user.
-2. A filesystem backup of /opt/w2/shared/runtime from the old host.
-3. A PostgreSQL dump from the old host.
-4. A prior dashboard/export artifact containing card.validation rows with HIT/MISS/PUSH/VOID.
+1. A filesystem backup of `/opt/w2/shared/runtime`.
+2. A PostgreSQL dump.
+3. A prior dashboard/export artifact containing card.validation rows with HIT/MISS/PUSH/VOID.
 ```
 
 After locating the source, recover append-only into a separate legacy import artifact or reviewed migration path. Do not fabricate settled outcomes and do not merge incompatible cohorts into the new five pending validation samples.

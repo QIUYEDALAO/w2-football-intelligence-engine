@@ -62,35 +62,14 @@
     },
     "settlement_counts": {}
   },
-  "old_host_probe": {
-    "host": "43.155.208.138",
-    "attempts": [
-      {
-        "user": "ubuntu",
-        "key": "/Users/liudehua/Downloads/huoshanyun.pem",
-        "result": "Permission denied (publickey)"
-      },
-      {
-        "user": "root",
-        "key": "/Users/liudehua/Downloads/huoshanyun.pem",
-        "result": "Permission denied (publickey)"
-      },
-      {
-        "user": "ubuntu",
-        "key": "/Users/liudehua/.ssh/id_ed25519_btc_eth_quant_vps",
-        "result": "Permission denied (publickey)"
-      }
-    ]
-  },
   "interim_finding": [
     "HISTORICAL_SETTLED_VALIDATION_NOT_PRESENT_ON_NEW_STAGING",
     "OLD_SETTLED_VALIDATION_SOURCE_NOT_YET_LOCATED",
     "LIKELY_NOT_MIGRATED_OR_STORED_ON_OLD_HOST_OR_BACKUP"
   ],
   "required_recovery_sources": [
-    "SSH access to old host 43.155.208.138 with the correct key/user",
-    "Filesystem backup of /opt/w2/shared/runtime from the old host",
-    "PostgreSQL dump from the old host",
+    "Filesystem backup of /opt/w2/shared/runtime",
+    "PostgreSQL dump",
     "Prior dashboard/export artifact containing card.validation rows with HIT/MISS/PUSH/VOID"
   ],
   "safety": {

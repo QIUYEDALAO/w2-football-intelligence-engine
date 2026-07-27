@@ -17,12 +17,12 @@ The local `HEAD` must match the expected GitHub branch SHA before deployment.
 ## Runtime endpoints
 
 ```bash
-curl -s http://43.155.208.138/health | jq .
-curl -s http://43.155.208.138/ready | jq .
-curl -s http://43.155.208.138/meta.json | jq .
-curl -s http://43.155.208.138/v1/version | jq .
-curl -s 'http://43.155.208.138/v1/dashboard?window=today&include_debug=true' | jq .
-curl -s 'http://43.155.208.138/v1/dashboard?window=next36&include_debug=true' | jq .
+curl -s http://118.196.30.136/health | jq .
+curl -s http://118.196.30.136/ready | jq .
+curl -s http://118.196.30.136/meta.json | jq .
+curl -s http://118.196.30.136/v1/version | jq .
+curl -s 'http://118.196.30.136/v1/dashboard?window=today&include_debug=true' | jq .
+curl -s 'http://118.196.30.136/v1/dashboard?window=next36&include_debug=true' | jq .
 ```
 
 Expected fields:
@@ -39,7 +39,7 @@ If `/health` or `/ready` returns HTML, fix the Web nginx config so exact health 
 
 ```bash
 python scripts/verify_release_sync.py \
-  --base-url http://43.155.208.138 \
+  --base-url http://118.196.30.136 \
   --expected-sha "$(git rev-parse HEAD)" \
   --allow-empty-data
 ```
@@ -71,10 +71,10 @@ After a deployment or a systemd restart:
 
 ```bash
 sudo systemctl restart w2-staging.service
-curl -s http://43.155.208.138/meta.json | jq .web_git_sha
-curl -s http://43.155.208.138/v1/version | jq .api_git_sha
+curl -s http://118.196.30.136/meta.json | jq .web_git_sha
+curl -s http://118.196.30.136/v1/version | jq .api_git_sha
 python scripts/verify_release_sync.py \
-  --base-url http://43.155.208.138 \
+  --base-url http://118.196.30.136 \
   --expected-sha "$(git rev-parse HEAD)" \
   --allow-empty-data
 ```

@@ -1,7 +1,7 @@
 # W2 Stage7H – VPS Staging Runbook
 
 **Task**: W2-STAGE7H-001-BUNDLE  
-**Server**: 43.155.208.138 (首尔 VPS, Tencent Cloud)  
+**Server**: 118.196.30.136 (华东 2 / 上海, Volcengine)
 **Spec**: 4 vCPU / 8 GiB / 120 GiB SSD  
 **OS**: Ubuntu 24.04 LTS
 
@@ -11,7 +11,7 @@
 
 ```
 ┌─────────────────────────────────────────────────┐
-│  Host: 43.155.208.138 (public)                  │
+│  Host: 118.196.30.136 (public)                  │
 │  UFW: inactive  │  SSH: :22                     │
 │                                                  │
 │  systemd: w2-staging.service                     │
@@ -28,8 +28,9 @@
 │  └───────────────────────────────────────┘       │
 │                                                  │
 │  /opt/w2/                                        │
-│    ├── current → releases/<SHA>                  │
-│    ├── releases/<SHA>/                           │
+│    ├── deploy/                                   │
+│    │    ├── compose.staging.yml                  │
+│    │    └── watch_staging_runtime.sh             │
 │    └── shared/                                   │
 │         ├── .env (chmod 600)                     │
 │         ├── state/                               │
@@ -78,20 +79,23 @@ sudo systemctl restart w2-staging.service
 
 # Status
 sudo systemctl status w2-staging.service --no-pager
-sudo docker compose -f /opt/w2/current/infra/compose/compose.staging.yml ps
+sudo docker compose -f /opt/w2/deploy/compose.staging.yml ps
 
 # View logs
 sudo journalctl -u w2-staging.service -f
-sudo docker compose -f /opt/w2/current/infra/compose/compose.staging.yml logs --tail=100 -f api
-sudo docker compose -f /opt/w2/current/infra/compose/compose.staging.yml logs --tail=100 -f worker
-sudo docker compose -f /opt/w2/current/infra/compose/compose.staging.yml logs --tail=100 -f scheduler
+sudo docker compose -f /opt/w2/deploy/compose.staging.yml logs --tail=100 -f api
+sudo docker compose -f /opt/w2/deploy/compose.staging.yml logs --tail=100 -f worker
+sudo docker compose -f /opt/w2/deploy/compose.staging.yml logs --tail=100 -f scheduler
 ```
 
 ## Deployment
 
 ```bash
 # From local workspace
-bash scripts/deploy_stage7h_staging.sh ubuntu@43.155.208.138
+bash scripts/deploy_stage7h_staging.sh \
+  root@118.196.30.136 \
+  ghcr.io/qiuyedalao/w2-football-intelligence-engine/python@sha256:<digest> \
+  ghcr.io/qiuyedalao/w2-football-intelligence-engine/web@sha256:<digest>
 ```
 
 The deployment script assumes `/opt/w2/shared/.env` has already been provisioned

@@ -2,7 +2,7 @@
 
 ## Scope
 
-- Runtime: 43.155.208.138
+- Runtime: 118.196.30.136
 - Release SHA: f15f28c3c4af138339881864b03c1085fc9d60a0
 - Operation: classify legacy non-full-time Asian Handicap rows out of the full-time AH mainline pool.
 - Provider calls: 0
@@ -91,4 +91,3 @@ Audit export:
 - read_only: true
 - provider_calls: 0
 - db_writes: 0
-

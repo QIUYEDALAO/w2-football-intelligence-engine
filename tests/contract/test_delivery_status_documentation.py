@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import yaml
@@ -62,3 +63,15 @@ def test_historical_pr_range_is_explicitly_non_authoritative() -> None:
     assert "PRs #333–#347" in policy
     assert "PRs #333–#347" in recovery
     assert "specification and failure-case inputs only" in recovery
+
+
+def test_obsolete_staging_ip_is_absent_from_tracked_authority() -> None:
+    obsolete_ip = "43.155" + ".208.138"
+    result = subprocess.run(
+        ["git", "grep", "-n", obsolete_ip],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1, result.stdout
