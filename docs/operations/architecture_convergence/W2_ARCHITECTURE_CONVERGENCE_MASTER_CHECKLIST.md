@@ -647,7 +647,7 @@ Implementation PR: #410
 Accepted Head: f7043f6a5fc0e020d11e19672a70658a66cc420f
 Full CI: 30237236245
 External Acceptance: W2_EXTERNAL_ACCEPTANCE_V1
-Merge SHA: bfdd79b3814008d9988f8f5d76d566145188e1e4
+Initial implementation merged as: bfdd79b3814008d9988f8f5d76d566145188e1e4
 Post-merge remediation: GITHUB_REMEDIATION_PR
 Remediation branch: codex/arch-governance-03-main-push-remediation
 Remediation base: bfdd79b3814008d9988f8f5d76d566145188e1e4
