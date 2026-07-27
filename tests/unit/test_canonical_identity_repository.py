@@ -3,12 +3,13 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from sqlalchemy import create_engine as sa_create_engine
+from sqlalchemy.orm import Session
 
 from w2.identity import CanonicalIdentityRepository
 from w2.infrastructure.persistence.factor_model_models import (
     ProviderTeamIdentityCrosswalkModel,
 )
-from w2.infrastructure.persistence.models import Base
+from w2.infrastructure.persistence.models import Base, PlayerIdentityMappingModel
 
 AS_OF = datetime(2026, 7, 26, tzinfo=UTC)
 
@@ -32,14 +33,15 @@ def _provider_row(**over):
         identity_status="PROVIDER_PRIMARY_READY",
         evidence_hashes=[],
         identity_hash="ih100",
+        review_status="APPROVED",
+        reviewed_by="identity-reviewer",
+        reviewed_at=datetime(2026, 1, 2, tzinfo=UTC),
     )
     base.update(over)
     return ProviderTeamIdentityCrosswalkModel(**base)
 
 
 def _seed(engine, *rows):
-    from sqlalchemy.orm import Session
-
     # canonical_teams FK target must exist
     with engine.begin() as conn:
         from sqlalchemy import text
@@ -53,6 +55,37 @@ def _seed(engine, *rows):
                 ),
                 {"w2": w2, "h": f"h{index}"},
             )
+    with Session(engine) as session:
+        session.add_all(rows)
+        session.commit()
+
+
+def _player_row(**over):
+    base = dict(
+        api_football_player_id="p1",
+        canonical_player_id="w2:player:tm:1",
+        transfermarkt_player_id="tm1",
+        team_external_id="100",
+        player_name="Player One",
+        normalized_name="playerone",
+        provider_position="M",
+        transfermarkt_position="Midfield",
+        mapping_status="REVIEWED",
+        evidence={
+            "canonical_team_id": "w2:team:api_football:100",
+            "review_status": "APPROVED",
+        },
+        identity_hash="player-identity-1",
+        valid_from=datetime(2026, 1, 1, tzinfo=UTC),
+        valid_to=None,
+        reviewed_at=datetime(2026, 1, 2, tzinfo=UTC),
+        reviewed_by="identity-reviewer",
+    )
+    base.update(over)
+    return PlayerIdentityMappingModel(**base)
+
+
+def _seed_players(engine, *rows):
     with Session(engine) as session:
         session.add_all(rows)
         session.commit()
@@ -113,6 +146,143 @@ def test_player_methods_empty_and_never_fabricate() -> None:
     w2 = "w2:team:api_football:100"
     assert repo.resolve_player("p1", w2, "allsvenskan", "2026", AS_OF) is None
     assert repo.approved_players_for_team(w2, "allsvenskan", "2026", AS_OF) == []
+
+
+def test_player_resolution_and_roster_use_reviewed_canonical_authority() -> None:
+    engine = _engine()
+    _seed(engine, _provider_row())
+    _seed_players(
+        engine,
+        _player_row(),
+        _player_row(
+            api_football_player_id="p2",
+            canonical_player_id="w2:player:tm:2",
+            transfermarkt_player_id="tm2",
+            identity_hash="player-identity-2",
+        ),
+        _player_row(
+            api_football_player_id="p3",
+            canonical_player_id="w2:player:tm:2",
+            transfermarkt_player_id="tm2",
+            identity_hash="player-identity-3",
+        ),
+    )
+    repo = CanonicalIdentityRepository(engine=engine)
+    team = "w2:team:api_football:100"
+    assert repo.resolve_player("p1", team, "allsvenskan", "2026", AS_OF) == "w2:player:tm:1"
+    assert repo.approved_players_for_team(team, "allsvenskan", "2026", AS_OF) == [
+        "w2:player:tm:1",
+        "w2:player:tm:2",
+    ]
+    assert repo.approved_player_source_mapping(
+        team, "allsvenskan", "2026", AS_OF
+    ) == {
+        "tm1": "w2:player:tm:1",
+        "tm2": "w2:player:tm:2",
+    }
+
+
+def test_player_resolution_fails_closed_for_scope_and_unreviewed_rows() -> None:
+    engine = _engine()
+    _seed(engine, _provider_row())
+    _seed_players(
+        engine,
+        _player_row(),
+        _player_row(
+            api_football_player_id="p2",
+            canonical_player_id="w2:player:tm:2",
+            transfermarkt_player_id="tm2",
+            identity_hash="player-identity-2",
+            mapping_status="CANDIDATE",
+            reviewed_at=None,
+        ),
+    )
+    repo = CanonicalIdentityRepository(engine=engine)
+    team = "w2:team:api_football:100"
+    assert repo.resolve_player("p2", team, "allsvenskan", "2026", AS_OF) is None
+    assert repo.resolve_player("p1", team, "wrong", "2026", AS_OF) is None
+    assert repo.resolve_player("p1", team, "allsvenskan", "2025", AS_OF) is None
+    assert repo.resolve_player("p1", "wrong-team", "allsvenskan", "2026", AS_OF) is None
+    assert (
+        repo.resolve_player(
+            "p1",
+            team,
+            "allsvenskan",
+            "2026",
+            datetime(2025, 12, 31, tzinfo=UTC),
+        )
+        is None
+    )
+
+
+def test_player_resolution_fails_closed_for_stale_ambiguous_and_conflict() -> None:
+    team = "w2:team:api_football:100"
+
+    stale_engine = _engine()
+    _seed(stale_engine, _provider_row())
+    _seed_players(
+        stale_engine,
+        _player_row(valid_to=datetime(2026, 7, 1, tzinfo=UTC)),
+    )
+    assert (
+        CanonicalIdentityRepository(engine=stale_engine).resolve_player(
+            "p1", team, "allsvenskan", "2026", AS_OF
+        )
+        is None
+    )
+
+    ambiguous_engine = _engine()
+    _seed(ambiguous_engine, _provider_row())
+    _seed_players(
+        ambiguous_engine,
+        _player_row(),
+        _player_row(
+            canonical_player_id="w2:player:tm:other",
+            transfermarkt_player_id="tm-other",
+            identity_hash="player-identity-other",
+            valid_from=datetime(2026, 2, 1, tzinfo=UTC),
+        ),
+    )
+    assert (
+        CanonicalIdentityRepository(engine=ambiguous_engine).resolve_player(
+            "p1", team, "allsvenskan", "2026", AS_OF
+        )
+        is None
+    )
+
+    conflict_engine = _engine()
+    _seed(conflict_engine, _provider_row())
+    _seed_players(conflict_engine, _player_row(mapping_status="CONFLICT"))
+    assert (
+        CanonicalIdentityRepository(engine=conflict_engine).resolve_player(
+            "p1", team, "allsvenskan", "2026", AS_OF
+        )
+        is None
+    )
+
+
+def test_duplicate_identical_reviewed_rows_dedupe_and_database_errors_fail_closed() -> None:
+    engine = _engine()
+    _seed(engine, _provider_row())
+    _seed_players(
+        engine,
+        _player_row(),
+        _player_row(valid_from=datetime(2026, 2, 1, tzinfo=UTC)),
+    )
+    repo = CanonicalIdentityRepository(engine=engine)
+    team = "w2:team:api_football:100"
+    assert repo.resolve_player("p1", team, "allsvenskan", "2026", AS_OF) == "w2:player:tm:1"
+    assert repo.approved_players_for_team(team, "allsvenskan", "2026", AS_OF) == [
+        "w2:player:tm:1"
+    ]
+
+    broken = _engine()
+    Base.metadata.drop_all(broken)
+    broken_repo = CanonicalIdentityRepository(engine=broken)
+    assert broken_repo.resolve_player("p1", team, "allsvenskan", "2026", AS_OF) is None
+    assert broken_repo.approved_players_for_team(
+        team, "allsvenskan", "2026", AS_OF
+    ) == []
 
 
 def test_mapping_in_session_excludes_rows_outside_validity_window() -> None:

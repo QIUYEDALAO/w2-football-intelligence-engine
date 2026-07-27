@@ -15,6 +15,8 @@ _ALLOWLIST = _ROOT / "src" / "w2" / "infrastructure" / "persistence" / "models.p
 _LEGACY_PATTERNS = {
     "FootballDataTeamCrosswalkModel": re.compile(r"\bFootballDataTeamCrosswalkModel\b"),
     "PlayerIdentityCrosswalkModel": re.compile(r"\bPlayerIdentityCrosswalkModel\b"),
+    "PlayerIdentityCrosswalkV1": re.compile(r"\bPlayerIdentityCrosswalkV1\b"),
+    "build_player_crosswalk": re.compile(r"\bbuild_player_crosswalk\b"),
     "TeamIdentityCrosswalkModel": re.compile(r"(?<!Provider)\bTeamIdentityCrosswalkModel\b"),
 }
 

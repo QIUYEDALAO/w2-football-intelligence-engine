@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-import hashlib
-import json
 from datetime import UTC, datetime
 from decimal import Decimal
-from pathlib import Path
 
-import pytest
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
@@ -15,7 +11,6 @@ from w2.infrastructure.persistence.factor_model_models import (
     CanonicalTeamModel,
     ProviderTeamIdentityCrosswalkModel,
 )
-from w2.infrastructure.persistence.future_refresh_models import RawPayloadModel
 from w2.infrastructure.persistence.models import (
     PlayerIdentityMappingModel,
     StructuredLineupPlayerModel,
@@ -25,8 +20,6 @@ from w2.infrastructure.persistence.models import (
 )
 from w2.ingestion.future_refresh_repository import (
     FutureRefreshDbRepository,
-    FutureRefreshPersistenceError,
-    approved_player_identity_manifest_rows,
 )
 
 
@@ -48,26 +41,6 @@ def _team(team_id: int, offset: int) -> dict[str, object]:
         ],
         "substitutes": [],
     }
-
-
-def test_arch_p1_03b_review_manifest_recomputes_approved_package_hash() -> None:
-    path = Path(
-        "docs/operations/architecture_convergence/"
-        "W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json"
-    )
-    payload = path.read_bytes()
-    assert (
-        hashlib.sha256(payload).hexdigest()
-        == "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea"
-    )
-    rows = approved_player_identity_manifest_rows(json.loads(payload))
-    assert len(rows) == 66
-    assert len(
-        {
-            (row["api_football_player_id"], row["team_external_id"])
-            for row in rows
-        }
-    ) == 66
 
 
 def _install_player_identity_sources(
@@ -138,6 +111,30 @@ def _install_player_identity_sources(
                         market_value_eur=Decimal("1000000"),
                         source_sha256="t" * 64,
                         observed_at=source_at,
+                    )
+                )
+                session.add(
+                    PlayerIdentityMappingModel(
+                        api_football_player_id=player_id,
+                        canonical_player_id=f"w2:player:transfermarkt:tm-{player_id}",
+                        transfermarkt_player_id=f"tm-{player_id}",
+                        team_external_id=team_id,
+                        player_name=f"Player {player_id}",
+                        normalized_name=f"player{player_id}",
+                        provider_position="G" if index == 0 else "M",
+                        transfermarkt_position="Goalkeeper"
+                        if index == 0
+                        else "Midfield",
+                        mapping_status="REVIEWED",
+                        evidence={
+                            "canonical_team_id": f"w2:team:api_football:{team_id}",
+                            "review_status": "APPROVED",
+                        },
+                        identity_hash=f"reviewed-player-{player_id}",
+                        valid_from=datetime(2026, 1, 1, tzinfo=UTC),
+                        valid_to=None,
+                        reviewed_at=source_at,
+                        reviewed_by="fixture-authority-reviewer",
                     )
                 )
         session.commit()
@@ -454,12 +451,21 @@ def test_transfermarkt_snapshot_enables_team_scoped_identity_and_value_gate() ->
     assert "PLAYER_IDENTITY_MAPPING_INCOMPLETE" in evidence["blockers"]
 
 
-def test_m2b_materializes_only_full_name_authority_chain_candidates() -> None:
+def test_lineup_materialization_projects_reviewed_db_identity_without_mapping_writes() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
     repository = FutureRefreshDbRepository(engine=engine)
     kickoff = _install_player_identity_sources(repository, engine)
     captured_at = kickoff.replace(hour=17)
+    with Session(engine) as session:
+        before = list(
+            session.execute(
+                select(
+                    PlayerIdentityMappingModel.identity_hash,
+                    PlayerIdentityMappingModel.canonical_player_id,
+                ).order_by(PlayerIdentityMappingModel.identity_hash)
+            )
+        )
 
     repository.save_lineup_snapshots(
         fixture_id="fixture-authority",
@@ -470,258 +476,30 @@ def test_m2b_materializes_only_full_name_authority_chain_candidates() -> None:
     )
 
     with Session(engine) as session:
-        mappings = list(
-            session.scalars(
-                select(PlayerIdentityMappingModel).order_by(
-                    PlayerIdentityMappingModel.api_football_player_id
-                )
+        after = list(
+            session.execute(
+                select(
+                    PlayerIdentityMappingModel.identity_hash,
+                    PlayerIdentityMappingModel.canonical_player_id,
+                ).order_by(PlayerIdentityMappingModel.identity_hash)
             )
         )
-    assert len(mappings) == 22
-    assert all(mapping.mapping_status == "CANDIDATE" for mapping in mappings)
-    assert all(mapping.evidence["authority_chain_complete"] for mapping in mappings)
+        players = session.scalars(
+            select(StructuredLineupPlayerModel).order_by(
+                StructuredLineupPlayerModel.api_football_player_id
+            )
+        ).all()
+    assert before == after
+    assert len(players) == 22
+    assert all(player.mapping_status == "REVIEWED" for player in players)
     assert all(
-        mapping.evidence["reason"] == "UNIQUE_AUTHORITY_TEAM_FULL_NAME_POSITION"
-        for mapping in mappings
-    )
-    assert all(mapping.valid_from == kickoff.replace(tzinfo=None) for mapping in mappings)
-    with Session(engine) as session:
-        mapping = session.get(PlayerIdentityMappingModel, mappings[0].id)
-        assert mapping is not None
-        mapping.evidence = {
-            **mapping.evidence,
-            "prior_preview": {
-                "mapping_status": "CANDIDATE",
-                "evidence": {"reason": "UNTRACKED_PREVIEW"},
-            },
-        }
-        session.commit()
-    audit = repository.player_identity_candidate_audit(
-        fixture_ids=["fixture-authority"],
-        as_of=captured_at,
-    )
-    assert len(audit) == 22
-    assert {
-        row["generator"] for row in audit
-    } == {"FutureRefreshDbRepository.materialize_player_identity_mappings"}
-    assert {row["candidate_reason"] for row in audit} == {
-        "UNIQUE_AUTHORITY_TEAM_FULL_NAME_POSITION"
-    }
-
-
-def test_m2b_rejects_missing_full_name_and_wrong_club() -> None:
-    engine = create_engine("sqlite+pysqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    repository = FutureRefreshDbRepository(engine=engine)
-    kickoff = _install_player_identity_sources(
-        repository,
-        engine,
-        missing_squad_player_id="100",
-        wrong_club_player_id="101",
-    )
-    captured_at = kickoff.replace(hour=17)
-
-    repository.save_lineup_snapshots(
-        fixture_id="fixture-authority",
-        captured_at=captured_at,
-        raw_sha256="l" * 64,
-        payload={"response": [_team(10, 100), _team(20, 200)]},
-        materialize_baselines=False,
+        player.canonical_player_id
+        == f"w2:player:transfermarkt:tm-{player.api_football_player_id}"
+        for player in players
     )
 
-    matrix = repository.player_identity_fixture_matrix(
-        fixture_ids=["fixture-authority"],
-        as_of=captured_at,
-    )
-    assert matrix == [
-        {
-            "fixture_id": "fixture-authority",
-            "starters": 22,
-            "unique_candidates": 20,
-            "missing": 2,
-            "conflicts": 0,
-            "missing_player_ids": ["100", "101"],
-        }
-    ]
 
-
-def test_human_review_package_can_resolve_an_explicit_missing_mapping() -> None:
-    engine = create_engine("sqlite+pysqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    repository = FutureRefreshDbRepository(engine=engine)
-    kickoff = _install_player_identity_sources(
-        repository,
-        engine,
-        missing_squad_player_id="100",
-    )
-    repository.save_lineup_snapshots(
-        fixture_id="fixture-authority",
-        captured_at=kickoff.replace(hour=17),
-        raw_sha256="l" * 64,
-        payload={"response": [_team(10, 100), _team(20, 200)]},
-        materialize_baselines=False,
-    )
-    review = {
-        "review_package_sha256": "p" * 64,
-        "api_football_player_id": "100",
-        "team_external_id": "10",
-        "transfermarkt_player_id": "tm-100",
-        "fixture_id": "fixture-authority",
-        "issues": ["PROVIDER_FULL_NAME_NULL"],
-    }
-    with pytest.raises(FutureRefreshPersistenceError):
-        repository.approve_player_identity_mapping(
-            api_football_player_id="100",
-            team_external_id="10",
-            canonical_player_id="w2:player:transfermarkt:tm-100",
-            transfermarkt_player_id="tm-100",
-            reviewed_by="operator:reviewer",
-            reviewed_at=kickoff,
-            source_artifact_hash="x" * 64,
-            review_exception=review,
-        )
-
-    identity_hash = repository.approve_player_identity_mapping(
-        api_football_player_id="100",
-        team_external_id="10",
-        canonical_player_id="w2:player:transfermarkt:tm-100",
-        transfermarkt_player_id="tm-100",
-        reviewed_by="operator:reviewer",
-        reviewed_at=kickoff,
-        source_artifact_hash="p" * 64,
-        approval_artifact_hash="a" * 64,
-        review_exception=review,
-    )
-
-    with Session(engine) as session:
-        mapping = session.scalar(
-            select(PlayerIdentityMappingModel).where(
-                PlayerIdentityMappingModel.api_football_player_id == "100"
-            )
-        )
-    assert mapping is not None
-    assert mapping.mapping_status == "REVIEWED"
-    assert mapping.identity_hash == identity_hash
-    assert mapping.evidence["review_exception"] == review
-    assert mapping.evidence["approval_artifact_sha256"] == "a" * 64
-
-
-def test_m2b_uses_explicit_player_profile_name_when_squad_name_is_abbreviated() -> None:
-    engine = create_engine("sqlite+pysqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    repository = FutureRefreshDbRepository(engine=engine)
-    kickoff = _install_player_identity_sources(
-        repository,
-        engine,
-        missing_squad_player_id="100",
-    )
-    with Session(engine) as session:
-        reference = session.scalar(
-            select(TransfermarktPlayerReferenceModel).where(
-                TransfermarktPlayerReferenceModel.transfermarkt_player_id == "tm-100"
-            )
-        )
-        assert reference is not None
-        reference.player_name = "Player 100"
-        reference.normalized_name = "player100"
-        session.commit()
-    captured_at = kickoff.replace(hour=17)
-    repository.save_lineup_snapshots(
-        fixture_id="fixture-authority",
-        captured_at=captured_at,
-        raw_sha256="l" * 64,
-        payload={"response": [_team(10, 100), _team(20, 200)]},
-        materialize_baselines=False,
-    )
-    profile_at = captured_at.replace(minute=5)
-    repository.save_raw_payload(
-        sha256="p" * 64,
-        endpoint="players",
-        captured_at=profile_at,
-        payload={
-            "parameters": {"id": "100", "season": "2026"},
-            "response": [
-                {
-                    "player": {
-                        "id": 100,
-                        "name": "P. 100",
-                        "firstname": "Karl Player",
-                        "lastname": "100",
-                    },
-                    "statistics": [{"team": {"id": 10, "name": "Team 10"}}],
-                }
-            ],
-        },
-    )
-
-    repository.materialize_player_identity_mappings(
-        fixture_id="fixture-authority",
-        as_of=profile_at,
-    )
-
-    matrix = repository.player_identity_fixture_matrix(
-        fixture_ids=["fixture-authority"],
-        as_of=profile_at,
-    )
-    assert matrix[0]["unique_candidates"] == 22
-    with Session(engine) as session:
-        mapping = session.scalar(
-            select(PlayerIdentityMappingModel).where(
-                PlayerIdentityMappingModel.api_football_player_id == "100"
-            )
-        )
-    assert mapping is not None
-    assert mapping.evidence["provider_full_name"] == "Karl Player 100"
-    assert mapping.evidence["provider_full_name_endpoint"] == "players"
-    assert mapping.evidence["name_match_mode"] == "PROVIDER_FULL_NAME_SUBSEQUENCE"
-
-
-def test_player_profile_name_can_use_separate_current_squad_team_evidence() -> None:
-    captured_at = datetime(2026, 7, 19, tzinfo=UTC)
-    evidence = FutureRefreshDbRepository._provider_player_evidence(
-        [
-            RawPayloadModel(
-                sha256="s" * 64,
-                endpoint="squads",
-                captured_at=captured_at,
-                storage_uri="db://raw_payload/squad",
-                payload={
-                    "parameters": {"team": "10"},
-                    "response": [
-                        {
-                            "team": {"id": 10},
-                            "players": [{"id": 100, "name": "P. One"}],
-                        }
-                    ],
-                },
-            ),
-            RawPayloadModel(
-                sha256="p" * 64,
-                endpoint="player_profiles",
-                captured_at=captured_at,
-                storage_uri="db://raw_payload/profile",
-                payload={
-                    "response": [
-                        {
-                            "player": {
-                                "id": 100,
-                                "firstname": "Player",
-                                "lastname": "One",
-                            },
-                        }
-                    ]
-                },
-            ),
-        ],
-        team_external_id="10",
-        api_football_player_id="100",
-    )
-
-    assert evidence["full_name"] == "Player One"
-    assert evidence["endpoint"] == "player_profiles"
-
-
-def test_player_identity_join_evidence_is_read_only_and_deterministic() -> None:
+def test_join_evidence_and_lineup_gate_use_the_materialized_canonical_players() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
     repository = FutureRefreshDbRepository(engine=engine)
@@ -734,73 +512,16 @@ def test_player_identity_join_evidence_is_read_only_and_deterministic() -> None:
         payload={"response": [_team(10, 100), _team(20, 200)]},
         materialize_baselines=False,
     )
-    approved_rows = []
-    for team_id, offset in (("10", 100), ("20", 200)):
-        for index in range(11):
-            player_id = str(offset + index)
-            with Session(engine) as session:
-                mapping = session.scalar(
-                    select(PlayerIdentityMappingModel).where(
-                        PlayerIdentityMappingModel.api_football_player_id == player_id,
-                        PlayerIdentityMappingModel.team_external_id == team_id,
-                    )
-                )
-            assert mapping is not None
-            approved_rows.append(
-                {
-                    "api_football_player_id": player_id,
-                    "team_external_id": team_id,
-                    "fixture_id": "fixture-authority",
-                    "canonical_player_id": f"w2:player:transfermarkt:tm-{player_id}",
-                    "transfermarkt_player_id": f"tm-{player_id}",
-                    "canonical_team_id": mapping.evidence["canonical_team_id"],
-                    "transfermarkt_club_id": mapping.evidence[
-                        "transfermarkt_club_id"
-                    ],
-                    "source_hashes": mapping.evidence["source_artifact_hashes"],
-                }
-            )
-            repository.approve_player_identity_mapping(
-                api_football_player_id=player_id,
-                team_external_id=team_id,
-                canonical_player_id=f"w2:player:transfermarkt:tm-{player_id}",
-                transfermarkt_player_id=f"tm-{player_id}",
-                reviewed_by="real-technical-reviewer",
-                reviewed_at=captured_at,
-                source_artifact_hash="r" * 64,
-                approval_artifact_hash="a" * 64,
-            )
-
-    reconciliation_runs = [
-        repository.player_identity_review_reconciliation(
-            approved_rows=approved_rows,
-            review_package_sha256="r" * 64,
-            approval_artifact_sha256="a" * 64,
-            reviewed_by="real-technical-reviewer",
-        )
-        for _ in range(2)
-    ]
-    assert reconciliation_runs[0] == reconciliation_runs[1]
-    assert reconciliation_runs[0]["status"] == "PASS"
-    assert reconciliation_runs[0]["expected_rows"] == 22
-    assert reconciliation_runs[0]["actual_reviewed_rows"] == 22
-    assert reconciliation_runs[0]["exact_rows"] == 22
 
     runs = [
         repository.player_identity_join_evidence(
             fixture_id="fixture-authority",
             as_of=kickoff,
-            approved_rows=approved_rows,
-            review_package_sha256="r" * 64,
-            approval_artifact_sha256="a" * 64,
-            reviewed_by="real-technical-reviewer",
         )
-        for _ in range(3)
+        for _ in range(2)
     ]
-
-    assert [run["status"] for run in runs] == ["PASS", "PASS", "PASS"]
-    assert len({run["business_hash"] for run in runs}) == 1
-    assert runs[0]["rows"] == runs[1]["rows"] == runs[2]["rows"]
+    assert [run["status"] for run in runs] == ["PASS", "PASS"]
+    assert runs[0]["business_hash"] == runs[1]["business_hash"]
     assert runs[0]["provider_calls"] == 0
     assert runs[0]["db_writes"] == 0
     assert runs[0]["metrics"] == {
@@ -809,15 +530,21 @@ def test_player_identity_join_evidence_is_read_only_and_deterministic() -> None:
         "UNIQUE_PROVIDER_PLAYERS": 22,
         "UNIQUE_CANONICAL_PLAYERS": 22,
         "REVIEWED_MAPPINGS": 22,
-        "REVIEW_PROVENANCE_VALID": 22,
-        "PACKAGE_HASH_VALID": 22,
-        "APPROVAL_HASH_VALID": 22,
-        "SOURCE_HASHES_VALID": 22,
-        "TEAM_CONSISTENT": 22,
-        "VALID_AT_KICKOFF": 22,
-        "MISSING": 0,
-        "AMBIGUOUS": 0,
-        "CONFLICT": 0,
+        "MISSING_OR_INVALID": 0,
         "DUPLICATE_CANONICAL": 0,
-        "INVALID_AT_KICKOFF": 0,
     }
+
+    lineup = repository.lineup_gate_evidence(
+        fixture_id="fixture-authority",
+        as_of=kickoff,
+    )
+    assert lineup["uniquely_mapped_starters"] == 22
+    with Session(engine) as session:
+        materialized = {
+            row.api_football_player_id: row.canonical_player_id
+            for row in session.scalars(select(StructuredLineupPlayerModel))
+        }
+    assert {
+        row["api_football_player_id"]: row["canonical_player_id"]
+        for row in runs[0]["rows"]
+    } == materialized

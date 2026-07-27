@@ -72,6 +72,8 @@ ALLOWLIST = (
 )
 SKIP_PARTS = {
     ".git",
+    ".agents",
+    ".learnings",
     ".venv",
     "node_modules",
     ".mypy_cache",

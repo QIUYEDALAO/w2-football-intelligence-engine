@@ -6,9 +6,9 @@ import json
 from pathlib import Path
 
 from w2.historical.fah_repository import FahDataFoundationRepository
+from w2.identity import CanonicalIdentityRepository
 from w2.lineups.value_identity import (
     identity_value_audit,
-    import_team_crosswalk_file,
     materialize_team_value_asof,
     write_json_and_md,
 )
@@ -17,24 +17,21 @@ from w2.lineups.value_identity import (
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build offline TeamValueAsOf artifacts.")
     parser.add_argument("--fixture-as-of-file", type=Path, required=True)
-    parser.add_argument("--crosswalk-file", type=Path)
     parser.add_argument("--source-root", type=Path, required=True)
     parser.add_argument("--output-root", type=Path, required=True)
-    parser.add_argument("--database-url")
+    parser.add_argument("--database-url", required=True)
     parser.add_argument("--write", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
-    if args.write and not args.database_url:
-        parser.error("--write requires --database-url")
-
     fixtures = json.loads(args.fixture_as_of_file.read_text(encoding="utf-8"))
     if isinstance(fixtures, dict):
         fixtures = fixtures.get("fixtures", [])
-    crosswalks = import_team_crosswalk_file(args.crosswalk_file) if args.crosswalk_file else []
+    repository = FahDataFoundationRepository.from_url(str(args.database_url))
+    identity_repository = CanonicalIdentityRepository(engine=repository.engine)
     artifacts = [
         materialize_team_value_asof(
             fixture=fixture,
-            crosswalks=crosswalks,
+            identity_repository=identity_repository,
             source_root=args.source_root,
         )
         for fixture in fixtures
@@ -47,10 +44,8 @@ def main() -> int:
     )
     write_summary = None
     if args.write and not args.dry_run:
-        repository = FahDataFoundationRepository.from_url(str(args.database_url))
         write_summary = repository.write_team_value_artifacts(artifacts)
     audit = identity_value_audit(
-        crosswalks=crosswalks,
         artifacts=artifacts,
         source_root=args.source_root,
     )

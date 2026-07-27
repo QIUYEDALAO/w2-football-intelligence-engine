@@ -583,16 +583,6 @@ def _football_data_team_payload(row: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _player_crosswalk_identity(row: Mapping[str, Any]) -> str:
-    return stable_hash(
-        {
-            "api_football_player_id": row.get("api_football_player_id"),
-            "competition_id": row.get("competition_id"),
-            "valid_from": row.get("valid_from"),
-        }
-    )
-
-
 def _registered_roster_identity(row: Mapping[str, Any]) -> str:
     return str(row.get("membership_hash") or stable_hash(_registered_roster_identity_payload(row)))
 
