@@ -48,7 +48,7 @@
 | ARCH-P1-03C | #404 | `4e310e87def0e6e44e0fe69fa0c07f776126a6fc` | 三张 legacy identity 表及 ORM 声明下线 |
 | ARCH-GOVERNANCE-02 | #406 | `cf5d6ea2cca600e31d4058b7d359b271d12d1f04` | path-aware CI、稳定聚合门与 required contexts 切换 |
 | ARCH-P1-04D-R1 | #408 | `09ece0204bed1289986e20d6a1cff842cb2f0864` | canonical decision contract 遗留兼容读取整改 |
-| ARCH-GOVERNANCE-03 | #417 | `62a9c0ac5a85426fb44234ec7a0032454d605a59` | 真实生产输入验收矩阵、可信 workflow event 与外部采集验证闭包 |
+| ARCH-GOVERNANCE-03 | #411 | `f891f25dac1c0b663facab94dc0e05c54b84f4eb` | 真实生产输入验收矩阵与可信 workflow event 运行闭包；#417 完成外部采集验证 |
 
 ---
 
