@@ -130,18 +130,30 @@ ACTUAL_READ_SET = IDENTITY_GUARD_COVERAGE_SET
    仅允许 spec 首次新增；修改既有 spec 必须单独走 PREFLIGHT，以 `REVIEW_MISS`
    或 `SCOPE_AMENDMENT` 记录原因，并让 `supersedes_spec_sha256` 等于 trusted base
    spec 的真实重算 SHA-256。
-4. baseline receipt 完整 PASS 时 checker 才派生 `implementation gate = OPEN`；
-   不得在 JSON 或文档中人工填写 OPEN。
+4. baseline readiness 与 final acceptance 严格分离。baseline 只验证开工前置：
+   spec/inventory 完整、真实输入可取得、runtime/SQL baseline 已捕获、mutation
+   source 已冻结、generator 可重放、scope/禁止项已冻结。checker 仅由这六项派生
+   `implementation_open_status=OPEN|BLOCKED`；baseline 可以诚实保留当前 case、
+   layer 或 applicable claim 的 `FAIL`/`UNVERIFIABLE`，这些 remediation 前状态不得
+   被误用来阻止开工。六类 case、三层 evidence、claims 与 frozen assertions 的最终
+   PASS 只来自 implementation FULL CI 的 detached result。
 5. Implementation PRE 不读取或写入 final。它直接通过 GitHub API 验证当前 exact
-   head 的 `FULL` CI、该 run 的 detached result/evidence artifacts，以及同一 exact
-   head 的外部 PASS Review；实现测试结果不得通过自引用 commit SHA 存入 Git。
+   head 的 `FULL` CI、该 run 的 detached result/evidence ZIP，以及同一 exact head
+   的外部 PASS Review。trusted PRE 必须下载 ZIP，限制文件数量、路径与总大小，拒绝
+   symlink、path traversal、重复文件和非 canonical JSON；重算 GitHub ZIP digest、
+   result/index 内部 self-hash、spec/baseline hash，并验证 frozen assertions、inputs、
+   cases、layers、claims 和 evidence-index 逐项完整。只看 artifact 名称或 metadata
+   digest 不得 PASS；实现测试结果不得通过自引用 commit SHA 存入 Git。
 6. Closure add-only final attestation 的 `subject_head` 指向已验收并合并的
    implementation head，并绑定 implementation PR/merge SHA、Full CI run、外部
-   Review hash、spec/baseline hash、detached result/evidence artifact hashes；不得
-   包含或要求 final 文件所在 closure commit SHA。
+   Review hash、spec/baseline hash、artifact ZIP digest、canonical result/evidence
+   content hash，并持久化已在线验证的 canonical detached result 与 evidence index；
+   不得包含或要求 final 文件所在 closure commit SHA。
 7. POST 对每个 matrix-governed `DONE` 任务重新验证 PASS final、记录的 accepted
    implementation head、Full CI、implementation PR 与 merge SHA；任一缺失、失配或
-   closure 改动 artifact 都 fail-closed。
+   closure 改动 artifact 都 fail-closed。Actions artifact 尚存在时必须交叉核对；
+   artifact 正常过期或不可取得后，允许依赖 Closure 已验证并 add-only 持久化的
+   canonical attestation；ZIP digest/content 不一致不得使用 durable fallback。
 8. 内存 SQLite/手写 payload 是 `SYNTHETIC_CONTRACT_TEST`；ORM 文件只是
    `DECLARED_ORM_SCHEMA`。`REAL_DB` 必须来自只读 SQL/`pg_catalog` 和真实行形状
    fingerprint；`REAL_PRODUCER_OUTPUT` 必须来自真实保存 payload、真实 staging 行或
@@ -164,6 +176,16 @@ ACTUAL_READ_SET = IDENTITY_GUARD_COVERAGE_SET
 12. checker 必须完整执行 lifecycle JSON Schema、验证 frozen baseline commit，使用
     目标 commit 的 tree/blob（不依赖当前工作树存在该路径）重算文件与证据 hash，并以
     AST 作用域确认 fully-qualified symbol/test、symlink 与仓库边界。
+13. artifact payload 只记录被测版本 `subject_head`；storage ref 永远由 trusted
+    GitHub PR/base/main 上下文推导，不写入 payload。PREFLIGHT 可以在新 head 保存
+    evidence，而其 `subject_head` 仍可指向更早的 frozen main；validator 先从 storage
+    ref 读取 artifact，再到 subject worktree 验证 generator/query/code/input 来源。
+14. detached producer 属于治理权威。普通 PREFLIGHT/IMPLEMENTATION/CLOSURE 不得
+    修改 governance workflow、`ci.yml` detached 生成链、lifecycle schema、checker
+    或本协议；只允许独立 `ARCH-GOVERNANCE-*` 任务修改。FULL verify 通过未跟踪的
+    result source 交付测量结果及 detached evidence payloads，CI_REQUIRED 由受保护
+    producer 生成 result/evidence ZIP，trusted-base PRE 再证明内容；tracked result
+    source 或 PR 自定义 producer 一律拒绝。
 
 ### 4. 输出和破坏性操作闭环
 

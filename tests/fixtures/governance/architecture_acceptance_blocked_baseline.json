@@ -6,6 +6,39 @@
   "spec_path": "tests/fixtures/governance/architecture_acceptance_frozen_spec.json",
   "spec_sha256": "29eaeba063ee5bad47e13441c6862ba5c821d211affb31426efbe515b7e47fe4",
   "subject_head": "832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd",
+  "preconditions": {
+    "SPEC_INVENTORY_COMPLETE": {
+      "status": "BLOCKED",
+      "evidence": [],
+      "rationale": "The immutable inventory is frozen, but baseline readiness is intentionally blocked in this fixture."
+    },
+    "REAL_INPUT_AVAILABLE": {
+      "status": "UNVERIFIABLE",
+      "evidence": [],
+      "rationale": "No qualifying real input artifact has been captured."
+    },
+    "RUNTIME_SQL_BASELINE_CAPTURED": {
+      "status": "UNVERIFIABLE",
+      "evidence": [],
+      "rationale": "No real runtime or SQL baseline has been captured."
+    },
+    "MUTATION_SOURCE_FROZEN": {
+      "status": "UNVERIFIABLE",
+      "evidence": [],
+      "rationale": "No sanitized real mutation source has been frozen."
+    },
+    "GENERATOR_REPLAYABLE": {
+      "status": "BLOCKED",
+      "evidence": [],
+      "rationale": "No subject-head generator replay has passed."
+    },
+    "SCOPE_AND_FORBIDDEN_FROZEN": {
+      "status": "BLOCKED",
+      "evidence": [],
+      "rationale": "Scope readiness is intentionally blocked in this fixture."
+    }
+  },
+  "implementation_open_status": "BLOCKED",
   "input_results": [
     {
       "input_id": "canonical_player_authority_rows",
@@ -116,5 +149,5 @@
     }
   ],
   "overall_status": "BLOCKED",
-  "receipt_sha256": "9dbce71730f344c9e98f0020cf654f7a4684aa73d2faea85912b9443fdf9b3b0"
+  "receipt_sha256": "6ace56f8f0b827f88c7716f978702a9744f1292a23f4ad4cde09583c9961addb"
 }

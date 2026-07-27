@@ -339,9 +339,25 @@ jobs:
       - name: Mypy
         run: uv run --python 3.12 mypy src apps
       - name: Pytest
+        env:
+          W2_DETACHED_RESULT_SOURCE: .w2-detached-result-source.json
         run: uv run --python 3.12 pytest -q
       - name: Secret pattern scan
         run: uv run --python 3.12 python tests/secret_scan.py
+      - name: Validate detached result source
+        if: github.event_name == 'pull_request'
+        run: >-
+          uv run --python 3.12 python scripts/check_architecture_governance.py
+          prepare-detached-result-source
+          --event-path "$GITHUB_EVENT_PATH"
+          --result-source .w2-detached-result-source.json
+      - name: Transfer detached result source
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: w2-acceptance-source-${{ github.event.pull_request.head.sha }}
+          path: .w2-detached-result-source.json
+          if-no-files-found: error
 
   ci-required:
     name: CI_REQUIRED
@@ -359,6 +375,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Receive detached result source
+        if: >-
+          github.event_name == 'pull_request' &&
+          needs.classify.outputs.verify == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: w2-acceptance-source-${{ github.event.pull_request.head.sha }}
+          path: .
       - name: Require every scheduled job to succeed
         run: >-
           python3 scripts/classify_ci.py
@@ -380,7 +404,9 @@ jobs:
           --result predeploy_e2e=${{ needs['predeploy-e2e'].result }}
           --result verify=${{ needs.verify.result }}
       - name: Build detached acceptance artifacts
-        if: github.event_name == 'pull_request'
+        if: >-
+          github.event_name == 'pull_request' &&
+          needs.classify.outputs.verify == 'true'
         run: >-
           python3 scripts/check_architecture_governance.py
           detached-ci-artifacts
@@ -388,15 +414,20 @@ jobs:
           --output-dir .w2-detached
           --subject-head "${{ github.event.pull_request.head.sha }}"
           --run-id "${{ github.run_id }}"
+          --result-source .w2-detached-result-source.json
       - name: Upload detached implementation result
-        if: github.event_name == 'pull_request'
+        if: >-
+          github.event_name == 'pull_request' &&
+          needs.classify.outputs.verify == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: w2-acceptance-result-${{ github.event.pull_request.head.sha }}
           path: .w2-detached/result
           if-no-files-found: error
       - name: Upload detached evidence index
-        if: github.event_name == 'pull_request'
+        if: >-
+          github.event_name == 'pull_request' &&
+          needs.classify.outputs.verify == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: w2-acceptance-evidence-${{ github.event.pull_request.head.sha }}

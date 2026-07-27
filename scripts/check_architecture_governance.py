@@ -7,14 +7,17 @@ import argparse
 import ast
 import base64
 import hashlib
+import io
 import json
 import os
 import re
+import stat
 import subprocess
 import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
+import zipfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -119,6 +122,26 @@ CLOSURE_ALLOWED_FILES = {
     "PROJECT_STATE.yaml",
     CHECKLIST_PATH,
 }
+GOVERNANCE_PRODUCER_FILES = {
+    ".github/workflows/architecture-governance.yml",
+    ".github/workflows/ci.yml",
+    MATRIX_SCHEMA_PATH,
+    "scripts/check_architecture_governance.py",
+    "docs/operations/architecture_convergence/"
+    "W2_GITHUB_SECONDARY_REVIEW_PROTOCOL.md",
+}
+BASELINE_PRECONDITIONS = {
+    "SPEC_INVENTORY_COMPLETE",
+    "REAL_INPUT_AVAILABLE",
+    "RUNTIME_SQL_BASELINE_CAPTURED",
+    "MUTATION_SOURCE_FROZEN",
+    "GENERATOR_REPLAYABLE",
+    "SCOPE_AND_FORBIDDEN_FROZEN",
+}
+DETACHED_RESULT_NAME = "result.json"
+DETACHED_EVIDENCE_NAME = "evidence-index.json"
+DETACHED_ZIP_MAX_FILES = 256
+DETACHED_ZIP_MAX_BYTES = 16_777_216
 # These rows existed in the approved v3 ledger before ARCH-GOVERNANCE-01.
 HISTORICAL_DONE_PRS = {
     371,
@@ -174,6 +197,13 @@ def _canonical_sha256(value: Any) -> str:
     return hashlib.sha256(
         json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
+
+
+def _canonical_bytes(value: Any) -> bytes:
+    return (
+        json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        + b"\n"
+    )
 
 
 def _repo_file(root: Path, value: Any) -> bool:
@@ -242,6 +272,20 @@ def _git_blob(root: Path, commit: str, path: str) -> bytes | None:
         ).stdout
     except (subprocess.CalledProcessError, UnicodeDecodeError, ValueError):
         return None
+
+
+def _git_head(root: Path) -> str | None:
+    try:
+        value = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return value if SHA_RE.fullmatch(value) else None
 
 
 def _schema_errors(payload: dict[str, Any], *, root: Path) -> list[str]:
@@ -380,6 +424,8 @@ def validate_acceptance_spec(
 
 def _evidence_items(receipt: dict[str, Any]) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
+    for result in receipt.get("preconditions", {}).values():
+        items.extend(result.get("evidence", []))
     for result in receipt.get("input_results", []):
         items.extend(result.get("evidence", []))
     for layer in receipt.get("layer_results", {}).values():
@@ -545,6 +591,7 @@ def validate_acceptance_receipt(
     spec: dict[str, Any],
     root: Path,
     expected_kind: str,
+    storage_ref: str | None = None,
     blob_reader: Callable[[str, str], bytes | None] | None = None,
 ) -> list[str]:
     """Validate a content-addressed baseline receipt."""
@@ -571,13 +618,25 @@ def validate_acceptance_receipt(
         and subject_head != spec.get("frozen_baseline_commit")
     ):
         fail("MATRIX_BASELINE_SUBJECT_MISMATCH")
+    evidence_storage_ref = storage_ref or subject_head
+    if (
+        not isinstance(evidence_storage_ref, str)
+        or not SHA_RE.fullmatch(evidence_storage_ref)
+    ):
+        fail("MATRIX_EVIDENCE_STORAGE_REF_INVALID")
 
     for item in _evidence_items(payload):
         path = item.get("artifact_path")
         item_head = item.get("subject_head")
+        evidence_type = item.get("evidence_type")
+        blob_ref = (
+            evidence_storage_ref
+            if evidence_type in REAL_INPUT_EVIDENCE_TYPES
+            else item_head
+        )
         blob = (
-            read_blob(item_head, path)
-            if isinstance(item_head, str) and isinstance(path, str)
+            read_blob(blob_ref, path)
+            if isinstance(blob_ref, str) and isinstance(path, str)
             else None
         )
         if blob is None:
@@ -587,7 +646,6 @@ def validate_acceptance_receipt(
             fail(f"MATRIX_EVIDENCE_HASH_MISMATCH:{path}")
         if item_head != subject_head:
             fail(f"MATRIX_EVIDENCE_SUBJECT_MISMATCH:{path}")
-        evidence_type = item.get("evidence_type")
         if path.endswith("models.py") and evidence_type != "DECLARED_ORM_SCHEMA":
             fail(f"MATRIX_ORM_EVIDENCE_TYPE_INVALID:{path}")
         if evidence_type in REAL_INPUT_EVIDENCE_TYPES and item.get("role") == "PRIMARY":
@@ -612,6 +670,42 @@ def validate_acceptance_receipt(
                 blob_reader=read_blob,
             ):
                 fail(f"{error}:{path}")
+
+    preconditions = payload.get("preconditions", {})
+    if set(preconditions) != BASELINE_PRECONDITIONS:
+        fail("MATRIX_BASELINE_PRECONDITION_SET_INVALID")
+    derived_open = all(
+        isinstance(preconditions.get(name), dict)
+        and preconditions[name].get("status") == "PASS"
+        and bool(preconditions[name].get("evidence"))
+        for name in BASELINE_PRECONDITIONS
+    )
+    expected_open = "OPEN" if derived_open else "BLOCKED"
+    if payload.get("implementation_open_status") != expected_open:
+        fail("MATRIX_IMPLEMENTATION_OPEN_STATUS_NOT_DERIVED")
+    precondition_types = {
+        "SPEC_INVENTORY_COMPLETE": {"STATIC_AST_SCAN"},
+        "REAL_INPUT_AVAILABLE": REAL_INPUT_EVIDENCE_TYPES,
+        "RUNTIME_SQL_BASELINE_CAPTURED": {
+            "RUNTIME_SQL_TRACE",
+            "REAL_DB",
+            "REAL_PRODUCER_OUTPUT",
+        },
+        "MUTATION_SOURCE_FROZEN": REAL_INPUT_EVIDENCE_TYPES,
+        "GENERATOR_REPLAYABLE": REAL_INPUT_EVIDENCE_TYPES,
+        "SCOPE_AND_FORBIDDEN_FROZEN": {"STATIC_AST_SCAN"},
+    }
+    for name, allowed_types in precondition_types.items():
+        result = preconditions.get(name, {})
+        if result.get("status") != "PASS":
+            continue
+        if not any(
+            item.get("role") == "PRIMARY"
+            and item.get("evidence_type") in allowed_types
+            for item in result.get("evidence", [])
+            if isinstance(item, dict)
+        ):
+            fail(f"MATRIX_BASELINE_PRECONDITION_EVIDENCE_INVALID:{name}")
 
     input_specs = {
         row["id"]: row
@@ -762,36 +856,24 @@ def validate_acceptance_receipt(
     return errors
 
 
+def _baseline_open(receipt: dict[str, Any]) -> bool:
+    preconditions = receipt.get("preconditions", {})
+    return (
+        receipt.get("implementation_open_status") == "OPEN"
+        and set(preconditions) == BASELINE_PRECONDITIONS
+        and all(
+            isinstance(preconditions[name], dict)
+            and preconditions[name].get("status") == "PASS"
+            and bool(preconditions[name].get("evidence"))
+            for name in BASELINE_PRECONDITIONS
+        )
+    )
+
+
 def _receipt_passes(spec: dict[str, Any], receipt: dict[str, Any]) -> bool:
-    if receipt.get("overall_status") != "PASS":
-        return False
-    inputs = {row.get("id"): row for row in spec.get("input_contracts", [])}
-    if any(
-        result.get("status") != "PASS"
-        or result.get("evidence_type")
-        not in inputs.get(result.get("input_id"), {}).get("accepted_evidence_types", [])
-        or not result.get("evidence")
-        for result in receipt.get("input_results", [])
-    ):
-        return False
-    if any(
-        layer.get("status") != "PASS" or not layer.get("evidence")
-        for layer in receipt.get("layer_results", {}).values()
-    ):
-        return False
-    if any(
-        result.get("status") != "PASS" or not result.get("evidence")
-        for result in receipt.get("case_results", [])
-    ):
-        return False
-    claims = {row.get("name"): row for row in spec.get("claims", [])}
-    for result in receipt.get("claim_results", []):
-        applicable = claims.get(result.get("name"), {}).get("applicability") == "APPLICABLE"
-        if applicable and result.get("status") != "PASS":
-            return False
-        if not applicable and result.get("status") != "NOT_APPLICABLE":
-            return False
-    return True
+    """Compatibility helper: baseline readiness, not final acceptance."""
+    del spec
+    return _baseline_open(receipt)
 
 
 def validate_final_attestation(
@@ -820,6 +902,33 @@ def validate_final_attestation(
         payload, "attestation_sha256"
     ):
         fail("MATRIX_FINAL_HASH_MISMATCH")
+    detached_result = payload.get("detached_result")
+    evidence_index = payload.get("evidence_index")
+    full_ci_run_id = payload.get("full_ci_run_id")
+    if (
+        isinstance(detached_result, dict)
+        and isinstance(evidence_index, dict)
+        and isinstance(full_ci_run_id, int)
+    ):
+        for error in _final_result_errors(
+            detached_result,
+            evidence_index,
+            spec=spec,
+            baseline=baseline,
+            task_id=expected_task,
+            subject_head=str(payload.get("subject_head", "")),
+            full_ci_run_id=full_ci_run_id,
+            root=root,
+        ):
+            fail(error)
+        if payload.get("result_content_sha256") != hashlib.sha256(
+            _canonical_bytes(detached_result)
+        ).hexdigest():
+            fail("MATRIX_FINAL_RESULT_CONTENT_HASH_MISMATCH")
+        if payload.get("evidence_content_sha256") != hashlib.sha256(
+            _canonical_bytes(evidence_index)
+        ).hexdigest():
+            fail("MATRIX_FINAL_EVIDENCE_CONTENT_HASH_MISMATCH")
     return errors
 
 
@@ -840,7 +949,11 @@ def validate_task_acceptance_lifecycle(task_id: str, *, root: Path) -> list[str]
     errors.extend(
         error
         for error in validate_acceptance_receipt(
-            baseline, spec=spec, root=root, expected_kind="BASELINE_RECEIPT"
+            baseline,
+            spec=spec,
+            root=root,
+            expected_kind="BASELINE_RECEIPT",
+            storage_ref=_git_head(root) or str(baseline.get("subject_head", "")),
         )
         if error not in errors
     )
@@ -871,6 +984,7 @@ def validate_acceptance_lifecycle_payloads(
     baseline: dict[str, Any],
     final: dict[str, Any] | None,
     root: Path,
+    storage_ref: str,
     blob_reader: Callable[[str, str], bytes | None],
 ) -> list[str]:
     errors = validate_acceptance_spec(
@@ -886,6 +1000,7 @@ def validate_acceptance_lifecycle_payloads(
             spec=spec,
             root=root,
             expected_kind="BASELINE_RECEIPT",
+            storage_ref=storage_ref,
             blob_reader=blob_reader,
         )
         if error not in errors
@@ -939,6 +1054,7 @@ def task_acceptance_payload_gate(
         baseline=baseline,
         final=final,
         root=root,
+        storage_ref=exact_head,
         blob_reader=blob_reader,
     )
     if errors:
@@ -992,6 +1108,27 @@ class GitHubClient:
                 return json.load(response)
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
             raise GovernanceError(f"GITHUB_API_ERROR:{type(exc).__name__}") from exc
+
+    def _get_bytes(self, path: str) -> bytes:
+        request = urllib.request.Request(  # noqa: S310 - fixed GitHub API origin
+            f"https://api.github.com/{path.lstrip('/')}",
+            headers={
+                "Accept": "application/vnd.github+json",
+                "Authorization": f"Bearer {self.credential}",
+                "X-GitHub-Api-Version": "2022-11-28",
+                "User-Agent": "w2-architecture-governance",
+            },
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:  # noqa: S310
+                if response.status != 200:
+                    raise GovernanceError(f"GITHUB_API_STATUS:{response.status}")
+                payload = response.read(DETACHED_ZIP_MAX_BYTES + 1)
+        except (urllib.error.URLError, TimeoutError) as exc:
+            raise GovernanceError(f"GITHUB_API_ERROR:{type(exc).__name__}") from exc
+        if len(payload) > DETACHED_ZIP_MAX_BYTES:
+            raise GovernanceError("MATRIX_DETACHED_ZIP_TOO_LARGE")
+        return payload
 
     def _list(self, path: str) -> list[dict[str, Any]]:
         collected: list[dict[str, Any]] = []
@@ -1056,6 +1193,13 @@ class GitHubClient:
         return self._object_list(
             f"/repos/{self.repository}/actions/runs/{run_id}/artifacts",
             "artifacts",
+        )
+
+    def download_artifact_zip(self, artifact_id: int) -> bytes:
+        if artifact_id <= 0:
+            raise GovernanceError("MATRIX_DETACHED_ARTIFACT_ID_INVALID")
+        return self._get_bytes(
+            f"/repos/{self.repository}/actions/artifacts/{artifact_id}/zip"
         )
 
     def get_text_file(self, path: str, ref: str) -> str:
@@ -1399,31 +1543,384 @@ def _full_ci_plan() -> CiPlan:
     )
 
 
-def _detached_artifact_hashes(
-    client: Any, run_id: int, subject_head: str
-) -> tuple[str, list[str]] | None:
+def _safe_detached_zip(
+    payload: bytes, *, required_name: str
+) -> tuple[dict[str, Any], dict[str, bytes]]:
+    if len(payload) > DETACHED_ZIP_MAX_BYTES:
+        raise GovernanceError("MATRIX_DETACHED_ZIP_TOO_LARGE")
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(payload))
+        infos = archive.infolist()
+    except (OSError, zipfile.BadZipFile) as exc:
+        raise GovernanceError("MATRIX_DETACHED_ZIP_INVALID") from exc
+    names: set[str] = set()
+    files: dict[str, bytes] = {}
+    total_size = 0
+    if not infos or len(infos) > DETACHED_ZIP_MAX_FILES:
+        raise GovernanceError("MATRIX_DETACHED_ZIP_FILE_COUNT_INVALID")
+    for info in infos:
+        path = Path(info.filename)
+        mode = info.external_attr >> 16
+        if (
+            not info.filename
+            or info.is_dir()
+            or info.filename in names
+            or path.is_absolute()
+            or ".." in path.parts
+            or "\\" in info.filename
+            or info.filename != path.as_posix()
+            or stat.S_ISLNK(mode)
+        ):
+            raise GovernanceError("MATRIX_DETACHED_ZIP_PATH_INVALID")
+        names.add(info.filename)
+        if info.file_size > DETACHED_ZIP_MAX_BYTES:
+            raise GovernanceError("MATRIX_DETACHED_ZIP_TOO_LARGE")
+        total_size += info.file_size
+        if total_size > DETACHED_ZIP_MAX_BYTES:
+            raise GovernanceError("MATRIX_DETACHED_ZIP_TOO_LARGE")
+        try:
+            files[info.filename] = archive.read(info)
+        except (RuntimeError, zipfile.BadZipFile) as exc:
+            raise GovernanceError("MATRIX_DETACHED_ZIP_INVALID") from exc
+    if required_name not in files:
+        raise GovernanceError("MATRIX_DETACHED_ZIP_REQUIRED_FILE_MISSING")
+    try:
+        document = json.loads(files[required_name])
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise GovernanceError("MATRIX_DETACHED_JSON_INVALID") from exc
+    if not isinstance(document, dict) or files[required_name] != _canonical_bytes(
+        document
+    ):
+        raise GovernanceError("MATRIX_DETACHED_JSON_NOT_CANONICAL")
+    return document, files
+
+
+def _final_result_errors(
+    result: dict[str, Any],
+    evidence_index: dict[str, Any],
+    *,
+    spec: dict[str, Any],
+    baseline: dict[str, Any],
+    task_id: str,
+    subject_head: str,
+    full_ci_run_id: int,
+    root: Path,
+    evidence_files: dict[str, bytes] | None = None,
+) -> list[str]:
+    errors = _schema_errors(result, root=root) + _schema_errors(
+        evidence_index, root=root
+    )
+    if errors:
+        return errors
+
+    def fail(code: str) -> None:
+        if code not in errors:
+            errors.append(code)
+
+    bindings = {
+        "task_id": task_id,
+        "subject_head": subject_head,
+    }
+    if any(result.get(key) != value for key, value in bindings.items()) or any(
+        evidence_index.get(key) != value for key, value in bindings.items()
+    ):
+        fail("MATRIX_DETACHED_BINDING_INVALID")
+    if (
+        result.get("spec_sha256") != spec.get("spec_sha256")
+        or result.get("baseline_receipt_sha256") != baseline.get("receipt_sha256")
+        or result.get("full_ci_run_id") != full_ci_run_id
+    ):
+        fail("MATRIX_DETACHED_LIFECYCLE_HASH_MISMATCH")
+    if result.get("result_sha256") != _artifact_hash(result, "result_sha256"):
+        fail("MATRIX_DETACHED_RESULT_HASH_MISMATCH")
+    if evidence_index.get("index_sha256") != _artifact_hash(
+        evidence_index, "index_sha256"
+    ):
+        fail("MATRIX_DETACHED_EVIDENCE_INDEX_HASH_MISMATCH")
+    if result.get("evidence_index_sha256") != evidence_index.get("index_sha256"):
+        fail("MATRIX_DETACHED_INDEX_BINDING_INVALID")
+
+    assertion_ids = {
+        row.get("id") for row in spec.get("frozen_assertions", []) if isinstance(row, dict)
+    }
+    assertion_results = {
+        row.get("id"): row
+        for row in result.get("frozen_assertion_results", [])
+        if isinstance(row, dict)
+    }
+    if set(assertion_results) != assertion_ids or any(
+        row.get("status") != "PASS" for row in assertion_results.values()
+    ):
+        fail("MATRIX_DETACHED_ASSERTIONS_INCOMPLETE")
+    input_ids = {
+        row.get("id") for row in spec.get("input_contracts", []) if isinstance(row, dict)
+    }
+    input_results = {
+        row.get("input_id"): row
+        for row in result.get("input_results", [])
+        if isinstance(row, dict)
+    }
+    if set(input_results) != input_ids or any(
+        row.get("status") != "PASS" or not row.get("evidence")
+        for row in input_results.values()
+    ):
+        fail("MATRIX_DETACHED_INPUTS_INCOMPLETE")
+    input_specs = {
+        row.get("id"): row for row in spec.get("input_contracts", []) if isinstance(row, dict)
+    }
+    for input_id, row in input_results.items():
+        primary_types = {
+            item.get("evidence_type")
+            for item in row.get("evidence", [])
+            if item.get("role") == "PRIMARY"
+        }
+        if (
+            row.get("evidence_type")
+            not in input_specs.get(input_id, {}).get("accepted_evidence_types", [])
+            or row.get("evidence_type") not in REAL_INPUT_EVIDENCE_TYPES
+            or row.get("evidence_type") not in primary_types
+        ):
+            fail("MATRIX_DETACHED_INPUTS_INCOMPLETE")
+    case_results = {
+        row.get("type"): row
+        for row in result.get("case_results", [])
+        if isinstance(row, dict)
+    }
+    if set(case_results) != REQUIRED_MATRIX_CASES or any(
+        row.get("status") != "PASS" or not row.get("evidence")
+        for row in case_results.values()
+    ):
+        fail("MATRIX_DETACHED_CASES_INCOMPLETE")
+    case_specs = {
+        row.get("type"): row for row in spec.get("cases", []) if isinstance(row, dict)
+    }
+    for case_type, row in case_results.items():
+        expected_derivation = (
+            "UNCHANGED_REAL_INPUT"
+            if case_type == "valid"
+            else "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT"
+        )
+        primary = [
+            item for item in row.get("evidence", []) if item.get("role") == "PRIMARY"
+        ]
+        real = [
+            item
+            for item in primary
+            if item.get("evidence_type") in REAL_INPUT_EVIDENCE_TYPES
+        ]
+        if (
+            row.get("derivation") != expected_derivation
+            or case_specs.get(case_type, {}).get("derivation")
+            != expected_derivation
+            or not real
+        ):
+            fail("MATRIX_DETACHED_CASES_INCOMPLETE")
+            continue
+        if case_type == "valid":
+            source_input = case_specs[case_type].get("source_input_id")
+            allowed = set(
+                input_specs.get(source_input, {}).get("accepted_evidence_types", [])
+            )
+            if not any(item.get("evidence_type") in allowed for item in real):
+                fail("MATRIX_DETACHED_CASES_INCOMPLETE")
+            continue
+        manifest_hash = _canonical_sha256(row.get("mutation_manifest"))
+        source_hash = row.get("source_artifact_sha256")
+        if (
+            row.get("mutation_manifest_sha256") != manifest_hash
+            or row.get("expected_output")
+            != case_specs.get(case_type, {}).get("expected_output")
+            or row.get("observed_output_fingerprint")
+            != hashlib.sha256(
+                str(row.get("observed_output", "")).encode("utf-8")
+            ).hexdigest()
+            or not any(item.get("artifact_sha256") == source_hash for item in real)
+            or not any(
+                item.get("evidence_type") == "MUTATION_TEST"
+                and item.get("consumes_artifact_sha256") == source_hash
+                and item.get("mutation_manifest_sha256") == manifest_hash
+                for item in primary
+            )
+        ):
+            fail("MATRIX_DETACHED_CASES_INCOMPLETE")
+    layers = result.get("layer_results", {})
+    if set(layers) != REQUIRED_EVIDENCE_LAYERS or any(
+        not isinstance(row, dict)
+        or row.get("status") != "PASS"
+        or not row.get("evidence")
+        for row in layers.values()
+    ):
+        fail("MATRIX_DETACHED_LAYERS_INCOMPLETE")
+    allowed_layer_types = {
+        "STATIC_AST": {"STATIC_AST_SCAN"},
+        "RUNTIME_SQL_TRACE": {"RUNTIME_SQL_TRACE", "REAL_DB"},
+        "MUTATION_TESTS": {"MUTATION_TEST"},
+    }
+    for layer, row in layers.items():
+        if any(
+            item.get("evidence_type") not in allowed_layer_types.get(layer, set())
+            for item in row.get("evidence", [])
+        ):
+            fail("MATRIX_DETACHED_LAYERS_INCOMPLETE")
+    claim_specs = {
+        row.get("name"): row for row in spec.get("claims", []) if isinstance(row, dict)
+    }
+    claim_results = {
+        row.get("name"): row
+        for row in result.get("claim_results", [])
+        if isinstance(row, dict)
+    }
+    if set(claim_results) != set(claim_specs):
+        fail("MATRIX_DETACHED_CLAIMS_INCOMPLETE")
+    else:
+        for name, claim_spec in claim_specs.items():
+            expected = (
+                "PASS"
+                if claim_spec.get("applicability") == "APPLICABLE"
+                else "NOT_APPLICABLE"
+            )
+            if claim_results[name].get("status") != expected:
+                fail("MATRIX_DETACHED_CLAIMS_INCOMPLETE")
+            if expected == "PASS":
+                proof = claim_results[name].get("layer_evidence", {})
+                if set(proof) != REQUIRED_EVIDENCE_LAYERS or any(
+                    not proof.get(layer) for layer in REQUIRED_EVIDENCE_LAYERS
+                ):
+                    fail("MATRIX_DETACHED_CLAIMS_INCOMPLETE")
+                elif any(
+                    any(
+                        item.get("evidence_type")
+                        not in allowed_layer_types[layer]
+                        for item in proof[layer]
+                    )
+                    for layer in REQUIRED_EVIDENCE_LAYERS
+                ):
+                    fail("MATRIX_DETACHED_CLAIMS_INCOMPLETE")
+
+    indexed: dict[str, dict[str, Any]] = {}
+    for row in evidence_index.get("evidence", []):
+        if not isinstance(row, dict):
+            continue
+        path = row.get("path")
+        if (
+            not isinstance(path, str)
+            or path in indexed
+            or row.get("task_id") != task_id
+        ):
+            fail("MATRIX_DETACHED_EVIDENCE_INDEX_INVALID")
+            continue
+        indexed[path] = row
+        if evidence_files is not None:
+            stored = evidence_files.get(path)
+            if stored is None:
+                fail("MATRIX_DETACHED_EVIDENCE_CONTENT_MISSING")
+                continue
+            try:
+                artifact = json.loads(stored)
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                fail("MATRIX_DETACHED_EVIDENCE_CONTENT_INVALID")
+                continue
+            if (
+                not isinstance(artifact, dict)
+                or stored != _canonical_bytes(artifact)
+                or row.get("subject_head") != artifact.get("subject_head")
+                or row.get("task_id") != artifact.get("task_id")
+                or row.get("canonical_payload_sha256")
+                != hashlib.sha256(stored).hexdigest()
+                or (
+                    "artifact_sha256" in artifact
+                    and artifact.get("artifact_sha256")
+                    != _artifact_hash(artifact, "artifact_sha256")
+                )
+            ):
+                fail("MATRIX_DETACHED_EVIDENCE_CONTENT_INVALID")
+    expected_files = {DETACHED_EVIDENCE_NAME, *indexed}
+    if evidence_files is not None and set(evidence_files) != expected_files:
+        fail("MATRIX_DETACHED_EVIDENCE_FILE_SET_INVALID")
+    for item in _evidence_items(result):
+        path = item.get("artifact_path")
+        row = indexed.get(path)
+        if (
+            row is None
+            or item.get("artifact_sha256") != row.get("canonical_payload_sha256")
+        ):
+            fail("MATRIX_DETACHED_RESULT_EVIDENCE_UNBOUND")
+    return errors
+
+
+def _validated_detached_artifacts(
+    client: Any,
+    run_id: int,
+    subject_head: str,
+    *,
+    spec: dict[str, Any],
+    baseline: dict[str, Any],
+    task_id: str,
+    root: Path,
+) -> dict[str, Any]:
     expected_names = {
         f"w2-acceptance-result-{subject_head}": "result",
         f"w2-acceptance-evidence-{subject_head}": "evidence",
     }
-    found: dict[str, str] = {}
+    found: dict[str, dict[str, Any]] = {}
     for artifact in client.list_run_artifacts(run_id):
         name = artifact.get("name")
         digest = artifact.get("digest")
         if name not in expected_names:
             continue
+        if artifact.get("expired") is True:
+            raise GovernanceError("MATRIX_DETACHED_ARTIFACT_EXPIRED")
         if (
-            artifact.get("expired") is True
+            not isinstance(artifact.get("id"), int)
             or not isinstance(digest, str)
             or not digest.startswith("sha256:")
             or not SHA256_RE.fullmatch(digest.removeprefix("sha256:"))
             or expected_names[name] in found
         ):
-            return None
-        found[expected_names[name]] = digest.removeprefix("sha256:")
+            raise GovernanceError("MATRIX_DETACHED_ARTIFACT_METADATA_INVALID")
+        found[expected_names[name]] = artifact
     if set(found) != {"result", "evidence"}:
-        return None
-    return found["result"], [found["evidence"]]
+        raise GovernanceError("MATRIX_DETACHED_ARTIFACTS_MISSING")
+    downloaded: dict[str, bytes] = {}
+    for kind, artifact in found.items():
+        data = client.download_artifact_zip(artifact["id"])
+        expected_digest = artifact["digest"].removeprefix("sha256:")
+        if hashlib.sha256(data).hexdigest() != expected_digest:
+            raise GovernanceError("MATRIX_DETACHED_ZIP_DIGEST_MISMATCH")
+        downloaded[kind] = data
+    result, result_files = _safe_detached_zip(
+        downloaded["result"], required_name=DETACHED_RESULT_NAME
+    )
+    if set(result_files) != {DETACHED_RESULT_NAME}:
+        raise GovernanceError("MATRIX_DETACHED_RESULT_FILE_SET_INVALID")
+    evidence_index, evidence_files = _safe_detached_zip(
+        downloaded["evidence"], required_name=DETACHED_EVIDENCE_NAME
+    )
+    errors = _final_result_errors(
+        result,
+        evidence_index,
+        spec=spec,
+        baseline=baseline,
+        task_id=task_id,
+        subject_head=subject_head,
+        full_ci_run_id=run_id,
+        root=root,
+        evidence_files=evidence_files,
+    )
+    if errors:
+        raise GovernanceError(errors[0])
+    return {
+        "result": result,
+        "evidence_index": evidence_index,
+        "result_zip_sha256": hashlib.sha256(downloaded["result"]).hexdigest(),
+        "evidence_zip_sha256": hashlib.sha256(downloaded["evidence"]).hexdigest(),
+        "result_content_sha256": hashlib.sha256(
+            result_files[DETACHED_RESULT_NAME]
+        ).hexdigest(),
+        "evidence_content_sha256": hashlib.sha256(
+            evidence_files[DETACHED_EVIDENCE_NAME]
+        ).hexdigest(),
+    }
 
 
 def validate_done_matrix_binding(
@@ -1434,6 +1931,7 @@ def validate_done_matrix_binding(
     final: dict[str, Any],
     client: Any,
     root: Path,
+    allow_durable_fallback: bool = False,
 ) -> list[str]:
     errors: list[str] = []
 
@@ -1470,14 +1968,34 @@ def validate_done_matrix_binding(
     if full_run != final.get("full_ci_run_id"):
         fail(f"MATRIX_FINAL_FULL_CI_INVALID:{task.task_id}")
     else:
-        artifact_hashes = _detached_artifact_hashes(
-            client, full_run, str(subject_head)
-        )
-        if artifact_hashes != (
-            final.get("result_artifact_sha256"),
-            final.get("evidence_artifact_sha256s"),
-        ):
-            fail(f"MATRIX_FINAL_ARTIFACT_BINDING_INVALID:{task.task_id}")
+        try:
+            detached = _validated_detached_artifacts(
+                client,
+                full_run,
+                str(subject_head),
+                spec=spec,
+                baseline=baseline,
+                task_id=task.task_id,
+                root=root,
+            )
+        except GovernanceError as exc:
+            durable_codes = {
+                "MATRIX_DETACHED_ARTIFACT_EXPIRED",
+                "MATRIX_DETACHED_ARTIFACTS_MISSING",
+            }
+            if not allow_durable_fallback or str(exc) not in durable_codes:
+                fail(f"MATRIX_FINAL_ARTIFACT_BINDING_INVALID:{task.task_id}:{exc}")
+        else:
+            expected = {
+                "result": final.get("detached_result"),
+                "evidence_index": final.get("evidence_index"),
+                "result_zip_sha256": final.get("result_zip_sha256"),
+                "evidence_zip_sha256": final.get("evidence_zip_sha256"),
+                "result_content_sha256": final.get("result_content_sha256"),
+                "evidence_content_sha256": final.get("evidence_content_sha256"),
+            }
+            if detached != expected:
+                fail(f"MATRIX_FINAL_ARTIFACT_BINDING_INVALID:{task.task_id}")
     try:
         reviews = client.list_reviews(implementation_number)
     except GovernanceError:
@@ -1767,6 +2285,12 @@ def check_pre_merge(
         files = client.list_pull_files(number)
         changed_paths = _pull_file_paths(files)
         filenames = set(changed_paths)
+        protected_changes = sorted(filenames.intersection(GOVERNANCE_PRODUCER_FILES))
+        if protected_changes and not task_id.startswith("ARCH-GOVERNANCE-"):
+            result.fail(
+                "GOVERNANCE_PRODUCER_AUTHORITY_VIOLATION:"
+                + ",".join(protected_changes)
+            )
         trusted_base_head = pull.get("base", {}).get("sha")
         if not isinstance(trusted_base_head, str) or not SHA_RE.fullmatch(
             trusted_base_head
@@ -1818,16 +2342,28 @@ def check_pre_merge(
         else:
             result.details["CI_REQUIRED_RECEIPT"] = str(receipt)
             if matrix_required and pr_kind == "IMPLEMENTATION":
-                artifact_hashes = _detached_artifact_hashes(
-                    client, receipt, exact_head
-                )
-                if artifact_hashes is None:
-                    result.fail("MATRIX_DETACHED_ARTIFACTS_MISSING")
+                if spec is None or baseline_receipt is None:
+                    result.fail("MATRIX_DETACHED_LIFECYCLE_MISSING")
                 else:
-                    result.details["DETACHED_RESULT_SHA256"] = artifact_hashes[0]
-                    result.details["DETACHED_EVIDENCE_SHA256"] = ",".join(
-                        artifact_hashes[1]
-                    )
+                    try:
+                        detached = _validated_detached_artifacts(
+                            client,
+                            receipt,
+                            exact_head,
+                            spec=spec,
+                            baseline=baseline_receipt,
+                            task_id=task_id,
+                            root=matrix_root or Path.cwd(),
+                        )
+                    except GovernanceError as exc:
+                        result.fail(str(exc))
+                    else:
+                        result.details["DETACHED_RESULT_SHA256"] = detached[
+                            "result_content_sha256"
+                        ]
+                        result.details["DETACHED_EVIDENCE_SHA256"] = detached[
+                            "evidence_content_sha256"
+                        ]
     except GovernanceError as exc:
         result.fail(str(exc))
 
@@ -1946,6 +2482,7 @@ def check_post_merge(
                         final=final,
                         client=client,
                         root=matrix_root,
+                        allow_durable_fallback=True,
                     ):
                         result.fail(error)
         pr_fields = task_field(task, "PR")
@@ -2043,6 +2580,7 @@ def write_detached_ci_artifacts(
     event: dict[str, Any],
     subject_head: str,
     run_id: int,
+    result_source: Path | None = None,
 ) -> None:
     pull = event.get("pull_request")
     body = pull.get("body") if isinstance(pull, dict) else None
@@ -2050,41 +2588,161 @@ def write_detached_ci_artifacts(
     if len(task_markers) != 1 or not SHA_RE.fullmatch(subject_head) or run_id <= 0:
         raise GovernanceError("DETACHED_ARTIFACT_INPUT_INVALID")
     task_id = task_markers[0]
-    evidence_rows: list[dict[str, str]] = []
+    spec = _load_artifact(root / MATRIX_DIR / f"{task_id}.spec.json")
+    baseline = _load_artifact(root / MATRIX_DIR / f"{task_id}.baseline.json")
+    evidence_rows: list[dict[str, Any]] = []
+    evidence_payloads: dict[str, dict[str, Any]] = {}
     evidence_root = root / "docs/operations/architecture_convergence/evidence"
     for path in sorted(evidence_root.glob(f"{task_id}.*.evidence.json")):
+        payload = _load_artifact(path)
+        if payload is None:
+            raise GovernanceError("DETACHED_EVIDENCE_SOURCE_INVALID")
+        relative = path.relative_to(root).as_posix()
+        canonical = _canonical_bytes(payload)
+        evidence_payloads[relative] = payload
         evidence_rows.append(
             {
-                "path": path.relative_to(root).as_posix(),
-                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                "path": relative,
+                "task_id": payload.get("task_id"),
+                "subject_head": payload.get("subject_head"),
+                "canonical_payload_sha256": hashlib.sha256(canonical).hexdigest(),
+                "use": "IMPLEMENTATION_ACCEPTANCE_EVIDENCE",
             }
         )
-    result = {
-        "artifact_kind": "DETACHED_IMPLEMENTATION_RESULT",
-        "task_id": task_id,
-        "subject_head": subject_head,
-        "full_ci_run_id": run_id,
-        "ci_required": "SUCCESS",
-    }
-    result["artifact_sha256"] = _canonical_sha256(result)
+    source: dict[str, Any] | None = None
+    if spec is not None or baseline is not None:
+        if spec is None or baseline is None or result_source is None:
+            raise GovernanceError("DETACHED_RESULT_SOURCE_MISSING")
+        source = _load_artifact(result_source)
+        if source is None:
+            raise GovernanceError("DETACHED_RESULT_SOURCE_INVALID")
+        detached_evidence = source.get("evidence_artifacts")
+        if not isinstance(detached_evidence, dict) or not detached_evidence:
+            raise GovernanceError("DETACHED_EVIDENCE_SOURCE_MISSING")
+        for relative, payload in sorted(detached_evidence.items()):
+            safe_path = _safe_repo_path(relative)
+            if (
+                safe_path is None
+                or not safe_path.startswith("detached-evidence/")
+                or not safe_path.endswith(".json")
+                or safe_path in evidence_payloads
+                or not isinstance(payload, dict)
+                or payload.get("task_id") != task_id
+                or payload.get("subject_head") != subject_head
+            ):
+                raise GovernanceError("DETACHED_EVIDENCE_SOURCE_INVALID")
+            evidence_payloads[safe_path] = payload
+            evidence_rows.append(
+                {
+                    "path": safe_path,
+                    "task_id": task_id,
+                    "subject_head": subject_head,
+                    "canonical_payload_sha256": hashlib.sha256(
+                        _canonical_bytes(payload)
+                    ).hexdigest(),
+                    "use": "DETACHED_IMPLEMENTATION_EVIDENCE",
+                }
+            )
     evidence = {
         "artifact_kind": "DETACHED_EVIDENCE_INDEX",
         "task_id": task_id,
         "subject_head": subject_head,
         "evidence": evidence_rows,
     }
-    evidence["artifact_sha256"] = _canonical_sha256(evidence)
+    evidence["index_sha256"] = _artifact_hash(evidence, "index_sha256")
+    if source is not None and spec is not None and baseline is not None:
+        result = {
+            key: source.get(key)
+            for key in (
+                "frozen_assertion_results",
+                "input_results",
+                "case_results",
+                "layer_results",
+                "claim_results",
+            )
+        }
+        result.update(
+            {
+                "artifact_kind": "DETACHED_IMPLEMENTATION_RESULT",
+                "task_id": task_id,
+                "subject_head": subject_head,
+                "spec_sha256": spec.get("spec_sha256"),
+                "baseline_receipt_sha256": baseline.get("receipt_sha256"),
+                "full_ci_run_id": run_id,
+                "evidence_index_sha256": evidence["index_sha256"],
+            }
+        )
+        result["result_sha256"] = _artifact_hash(result, "result_sha256")
+        errors = _final_result_errors(
+            result,
+            evidence,
+            spec=spec,
+            baseline=baseline,
+            task_id=task_id,
+            subject_head=subject_head,
+            full_ci_run_id=run_id,
+            root=root,
+            evidence_files={
+                DETACHED_EVIDENCE_NAME: _canonical_bytes(evidence),
+                **{
+                    path: _canonical_bytes(payload)
+                    for path, payload in evidence_payloads.items()
+                },
+            },
+        )
+        if errors:
+            raise GovernanceError(errors[0])
+    else:
+        result = {
+            "artifact_kind": "UNSCOPED_CI_RECEIPT",
+            "task_id": task_id,
+            "subject_head": subject_head,
+            "full_ci_run_id": run_id,
+        }
+        result["result_sha256"] = _artifact_hash(result, "result_sha256")
     result_dir = output_dir / "result"
     evidence_dir = output_dir / "evidence"
     result_dir.mkdir(parents=True, exist_ok=False)
     evidence_dir.mkdir(parents=True, exist_ok=False)
-    result_dir.joinpath("result.json").write_text(
-        json.dumps(result, sort_keys=True, separators=(",", ":")) + "\n",
-        encoding="utf-8",
+    result_dir.joinpath(DETACHED_RESULT_NAME).write_bytes(_canonical_bytes(result))
+    evidence_dir.joinpath(DETACHED_EVIDENCE_NAME).write_bytes(
+        _canonical_bytes(evidence)
     )
-    evidence_dir.joinpath("evidence-index.json").write_text(
-        json.dumps(evidence, sort_keys=True, separators=(",", ":")) + "\n",
-        encoding="utf-8",
+    for relative, payload in evidence_payloads.items():
+        target = evidence_dir / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(_canonical_bytes(payload))
+
+
+def prepare_detached_result_source(
+    *, root: Path, event: dict[str, Any], output: Path
+) -> None:
+    pull = event.get("pull_request")
+    body = pull.get("body") if isinstance(pull, dict) else None
+    task_markers = TASK_MARKER_RE.findall(body) if isinstance(body, str) else []
+    if len(task_markers) != 1 or output.is_absolute():
+        raise GovernanceError("DETACHED_RESULT_SOURCE_INPUT_INVALID")
+    tracked = subprocess.run(
+        ["git", "ls-files", "--error-unmatch", output.as_posix()],
+        cwd=root,
+        check=False,
+        capture_output=True,
+    ).returncode == 0
+    if tracked:
+        raise GovernanceError("DETACHED_RESULT_SOURCE_MUST_BE_UNTRACKED")
+    task_id = task_markers[0]
+    governed = (root / MATRIX_DIR / f"{task_id}.spec.json").is_file()
+    if governed:
+        if _load_artifact(root / output) is None:
+            raise GovernanceError("DETACHED_RESULT_SOURCE_MISSING")
+        return
+    (root / output).write_bytes(
+        _canonical_bytes(
+            {
+                "artifact_kind": "UNSCOPED_RESULT_SOURCE",
+                "task_id": task_id,
+            }
+        )
     )
 
 
@@ -2115,6 +2773,7 @@ def main(argv: list[str] | None = None) -> int:
             "pre-merge",
             "post-merge",
             "evidence-artifacts",
+            "prepare-detached-result-source",
             "detached-ci-artifacts",
         ),
     )
@@ -2125,6 +2784,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--subject-head")
     parser.add_argument("--run-id", type=int)
+    parser.add_argument("--result-source", type=Path)
     parser.add_argument("--live", action="store_true")
     args = parser.parse_args(argv)
     try:
@@ -2133,6 +2793,16 @@ def main(argv: list[str] | None = None) -> int:
                 "MATRIX_EVIDENCE_ARTIFACT_GATE",
                 check_evidence_artifacts(Path.cwd(), replay=True),
             )
+        if args.gate == "prepare-detached-result-source":
+            if args.event_path is None or args.result_source is None:
+                raise GovernanceError("DETACHED_RESULT_SOURCE_ARGUMENT_MISSING")
+            prepare_detached_result_source(
+                root=Path.cwd(),
+                event=_load_json(args.event_path),
+                output=args.result_source,
+            )
+            print("DETACHED_RESULT_SOURCE = PASS")
+            return 0
         if args.gate == "detached-ci-artifacts":
             if (
                 args.event_path is None
@@ -2147,6 +2817,7 @@ def main(argv: list[str] | None = None) -> int:
                 event=_load_json(args.event_path),
                 subject_head=args.subject_head,
                 run_id=args.run_id,
+                result_source=args.result_source,
             )
             print("DETACHED_CI_ARTIFACTS = PASS")
             return 0

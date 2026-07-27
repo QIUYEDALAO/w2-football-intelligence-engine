@@ -3,8 +3,11 @@ from __future__ import annotations
 import base64
 import copy
 import hashlib
+import io
 import json
 import subprocess
+import warnings
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -60,6 +63,10 @@ def test_secondary_review_protocol_allows_lightweight_closure_ci() -> None:
     assert "W2_PR_KIND: PREFLIGHT" in protocol
     assert "{CURRENT_TASK}.spec.json" in protocol
     assert "ARCH-P1-03B-R1.json" not in protocol
+    assert "implementation_open_status=OPEN|BLOCKED" in protocol
+    assert "只看 artifact 名称或 metadata" in protocol
+    assert "artifact 正常过期或不可取得后" in protocol
+    assert "普通 PREFLIGHT/IMPLEMENTATION/CLOSURE 不得" in protocol
 
 
 def frozen_spec() -> dict[str, Any]:
@@ -188,9 +195,13 @@ def final_attestation(
     *,
     subject_head: str = HEAD,
     review_sha256: str = "c" * 64,
-    result_sha256: str = "d" * 64,
-    evidence_sha256s: list[str] | None = None,
+    detached: dict[str, Any] | None = None,
+    baseline: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    baseline = baseline or baseline_receipt()
+    detached = detached or detached_bundle(
+        subject_head=subject_head, baseline=baseline
+    )
     payload = {
         "schema_version": governance.MATRIX_SCHEMA_VERSION,
         "schema_path": governance.MATRIX_SCHEMA_PATH,
@@ -202,15 +213,267 @@ def final_attestation(
         "full_ci_run_id": 100,
         "external_review_sha256": review_sha256,
         "spec_sha256": frozen_spec()["spec_sha256"],
-        "baseline_receipt_sha256": baseline_receipt()["receipt_sha256"],
-        "result_artifact_sha256": result_sha256,
-        "evidence_artifact_sha256s": evidence_sha256s or ["f" * 64],
+        "baseline_receipt_sha256": baseline["receipt_sha256"],
+        "result_zip_sha256": detached["result_zip_sha256"],
+        "evidence_zip_sha256": detached["evidence_zip_sha256"],
+        "result_content_sha256": detached["result_content_sha256"],
+        "evidence_content_sha256": detached["evidence_content_sha256"],
+        "detached_result": detached["result"],
+        "evidence_index": detached["evidence_index"],
+        "attested_at": "2026-07-27T00:00:00Z",
         "attestation_sha256": "",
     }
     payload["attestation_sha256"] = governance._artifact_hash(
         payload, "attestation_sha256"
     )
     return payload
+
+
+def _zip_bytes(files: dict[str, bytes]) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name, content in sorted(files.items()):
+            info = zipfile.ZipInfo(name, date_time=(2026, 1, 1, 0, 0, 0))
+            info.external_attr = 0o100644 << 16
+            archive.writestr(info, content)
+    return buffer.getvalue()
+
+
+def detached_bundle(
+    *,
+    subject_head: str = HEAD,
+    run_id: int = 100,
+    baseline: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    spec = frozen_spec()
+    baseline = baseline or baseline_receipt()
+    artifacts: dict[str, dict[str, Any]] = {}
+    items: dict[str, dict[str, Any]] = {}
+    for evidence_type, suffix in (
+        ("REAL_PRODUCER_OUTPUT", "real"),
+        ("STATIC_AST_SCAN", "static"),
+        ("RUNTIME_SQL_TRACE", "runtime"),
+        ("MUTATION_TEST", "mutation"),
+    ):
+        path = f"detached-evidence/ARCH-P1-03B-R1.{suffix}.evidence.json"
+        artifact = {
+            "task_id": "ARCH-P1-03B-R1",
+            "subject_head": subject_head,
+            "evidence_type": evidence_type,
+            "observed": "PASS",
+        }
+        artifacts[path] = artifact
+        items[evidence_type] = {
+            "evidence_type": evidence_type,
+            "role": "PRIMARY",
+            "artifact_path": path,
+            "artifact_sha256": hashlib.sha256(
+                governance._canonical_bytes(artifact)
+            ).hexdigest(),
+            "command": f"trusted detached check {suffix}",
+            "subject_head": subject_head,
+        }
+    real = items["REAL_PRODUCER_OUTPUT"]
+    mutation = copy.deepcopy(items["MUTATION_TEST"])
+    mutation["consumes_artifact_sha256"] = real["artifact_sha256"]
+    index = {
+        "artifact_kind": "DETACHED_EVIDENCE_INDEX",
+        "task_id": "ARCH-P1-03B-R1",
+        "subject_head": subject_head,
+        "evidence": [
+            {
+                "path": path,
+                "task_id": artifact["task_id"],
+                "subject_head": artifact["subject_head"],
+                "canonical_payload_sha256": hashlib.sha256(
+                    governance._canonical_bytes(artifact)
+                ).hexdigest(),
+                "use": "STATE_MACHINE_TEST",
+            }
+            for path, artifact in sorted(artifacts.items())
+        ],
+    }
+    index["index_sha256"] = governance._artifact_hash(index, "index_sha256")
+    inputs = []
+    for row in spec["input_contracts"]:
+        inputs.append(
+            {
+                "input_id": row["id"],
+                "status": "PASS",
+                "evidence_type": "REAL_PRODUCER_OUTPUT",
+                "evidence": [copy.deepcopy(real)],
+                "rationale": "Detached real producer evidence passed.",
+            }
+        )
+    cases = []
+    baseline_cases = {row["type"]: row for row in baseline["case_results"]}
+    for row in spec["cases"]:
+        case_type = row["type"]
+        if case_type == "valid":
+            cases.append(
+                {
+                    "type": case_type,
+                    "status": "PASS",
+                    "derivation": "UNCHANGED_REAL_INPUT",
+                    "observed_output": row["expected_output"],
+                    "evidence": [copy.deepcopy(real)],
+                }
+            )
+            continue
+        source = baseline_cases[case_type]
+        mutation_item = copy.deepcopy(mutation)
+        mutation_item["mutation_manifest_sha256"] = source[
+            "mutation_manifest_sha256"
+        ]
+        cases.append(
+            {
+                **{key: value for key, value in source.items() if key != "evidence"},
+                "status": "PASS",
+                "observed_output": row["expected_output"],
+                "observed_output_fingerprint": hashlib.sha256(
+                    row["expected_output"].encode()
+                ).hexdigest(),
+                "source_artifact_sha256": real["artifact_sha256"],
+                "evidence": [copy.deepcopy(real), mutation_item],
+            }
+        )
+    layers = {
+        "STATIC_AST": {
+            "status": "PASS",
+            "evidence": [copy.deepcopy(items["STATIC_AST_SCAN"])],
+            "rationale": "Detached AST evidence passed.",
+        },
+        "RUNTIME_SQL_TRACE": {
+            "status": "PASS",
+            "evidence": [copy.deepcopy(items["RUNTIME_SQL_TRACE"])],
+            "rationale": "Detached runtime evidence passed.",
+        },
+        "MUTATION_TESTS": {
+            "status": "PASS",
+            "evidence": [copy.deepcopy(mutation)],
+            "rationale": "Detached mutation evidence passed.",
+        },
+    }
+    claims = []
+    for row in spec["claims"]:
+        applicable = row["applicability"] == "APPLICABLE"
+        claims.append(
+            {
+                "name": row["name"],
+                "status": "PASS" if applicable else "NOT_APPLICABLE",
+                "rationale": "Detached claim evaluation completed.",
+                "layer_evidence": (
+                    {
+                        "STATIC_AST": [copy.deepcopy(items["STATIC_AST_SCAN"])],
+                        "RUNTIME_SQL_TRACE": [
+                            copy.deepcopy(items["RUNTIME_SQL_TRACE"])
+                        ],
+                        "MUTATION_TESTS": [copy.deepcopy(mutation)],
+                    }
+                    if applicable
+                    else {}
+                ),
+            }
+        )
+    result = {
+        "artifact_kind": "DETACHED_IMPLEMENTATION_RESULT",
+        "task_id": "ARCH-P1-03B-R1",
+        "subject_head": subject_head,
+        "spec_sha256": spec["spec_sha256"],
+        "baseline_receipt_sha256": baseline["receipt_sha256"],
+        "full_ci_run_id": run_id,
+        "frozen_assertion_results": [
+            {
+                "id": row["id"],
+                "status": "PASS",
+                "rationale": "Frozen assertion passed.",
+            }
+            for row in spec["frozen_assertions"]
+        ],
+        "input_results": inputs,
+        "case_results": cases,
+        "layer_results": layers,
+        "claim_results": claims,
+        "evidence_index_sha256": index["index_sha256"],
+    }
+    result["result_sha256"] = governance._artifact_hash(result, "result_sha256")
+    result_files = {governance.DETACHED_RESULT_NAME: governance._canonical_bytes(result)}
+    evidence_files = {
+        governance.DETACHED_EVIDENCE_NAME: governance._canonical_bytes(index),
+        **{
+            path: governance._canonical_bytes(artifact)
+            for path, artifact in artifacts.items()
+        },
+    }
+    result_zip = _zip_bytes(result_files)
+    evidence_zip = _zip_bytes(evidence_files)
+    return {
+        "result": result,
+        "evidence_index": index,
+        "result_zip": result_zip,
+        "evidence_zip": evidence_zip,
+        "result_zip_sha256": hashlib.sha256(result_zip).hexdigest(),
+        "evidence_zip_sha256": hashlib.sha256(evidence_zip).hexdigest(),
+        "result_content_sha256": hashlib.sha256(
+            result_files[governance.DETACHED_RESULT_NAME]
+        ).hexdigest(),
+        "evidence_content_sha256": hashlib.sha256(
+            evidence_files[governance.DETACHED_EVIDENCE_NAME]
+        ).hexdigest(),
+        "evidence_artifacts": artifacts,
+    }
+
+
+def preflight_real_evidence() -> tuple[str, dict[str, Any], dict[str, Any]]:
+    subject = baseline_receipt()["subject_head"]
+    generator_path = "scripts/arch_p1_03b_identity_evidence.py"
+    generator = governance._git_blob(ROOT, subject, generator_path)
+    assert generator is not None
+    artifact = {
+        "schema_version": governance.MATRIX_SCHEMA_VERSION,
+        "schema_path": governance.MATRIX_SCHEMA_PATH,
+        "artifact_kind": "REAL_PRODUCER_OUTPUT_EVIDENCE",
+        "task_id": "ARCH-P1-03B-R1",
+        "generator": {
+            "path": generator_path,
+            "symbol": "main",
+            "file_sha256": hashlib.sha256(generator).hexdigest(),
+        },
+        "replay": {
+            "argv": ["python3", generator_path],
+            "output_flag": "--output",
+            "command_sha256": governance._canonical_sha256(
+                ["python3", generator_path]
+            ),
+        },
+        "migration_head": "0042",
+        "captured_at": "2026-07-27T00:00:00Z",
+        "source_identity": {"artifact": "sanitized-staging-lineup"},
+        "row_count": 1,
+        "result_fingerprint": "8" * 64,
+        "provider_call_delta": 0,
+        "db_write_delta": 0,
+        "subject_head": subject,
+        "artifact_sha256": "",
+    }
+    artifact["artifact_sha256"] = governance._artifact_hash(
+        artifact, "artifact_sha256"
+    )
+    path = (
+        "docs/operations/architecture_convergence/evidence/"
+        "ARCH-P1-03B-R1.preflight.evidence.json"
+    )
+    item = {
+        "evidence_type": "REAL_PRODUCER_OUTPUT",
+        "role": "PRIMARY",
+        "artifact_path": path,
+        "artifact_sha256": hashlib.sha256(
+            governance._canonical_bytes(artifact)
+        ).hexdigest(),
+        "command": "replay frozen subject generator",
+        "subject_head": subject,
+    }
+    return path, artifact, item
 
 
 def test_final_attestation_uses_subject_head_without_storage_self_reference() -> None:
@@ -507,12 +770,10 @@ def test_done_matrix_binding_cross_checks_final_ci_review_and_merge() -> None:
     review = valid_review(task="ARCH-P1-03B-R1")
     merge_sha = "e" * 40
     review_sha = hashlib.sha256(review["body"].encode()).hexdigest()
-    result_sha = "c" * 64
-    evidence_sha = "d" * 64
+    detached = detached_bundle()
     final = final_attestation(
         review_sha256=review_sha,
-        result_sha256=result_sha,
-        evidence_sha256s=[evidence_sha],
+        detached=detached,
     )
     task = governance.TaskRecord(
         "ARCH-P1-03B-R1",
@@ -539,16 +800,22 @@ def test_done_matrix_binding_cross_checks_final_ci_review_and_merge() -> None:
         jobs=ci_jobs(governance._full_ci_plan()),
         artifacts=[
             {
+                "id": 1,
                 "name": f"w2-acceptance-result-{HEAD}",
-                "digest": f"sha256:{result_sha}",
+                "digest": f"sha256:{detached['result_zip_sha256']}",
                 "expired": False,
             },
             {
+                "id": 2,
                 "name": f"w2-acceptance-evidence-{HEAD}",
-                "digest": f"sha256:{evidence_sha}",
+                "digest": f"sha256:{detached['evidence_zip_sha256']}",
                 "expired": False,
             },
         ],
+        artifact_zips={
+            1: detached["result_zip"],
+            2: detached["evidence_zip"],
+        },
     )
     assert governance.validate_done_matrix_binding(
         task,
@@ -712,42 +979,41 @@ def test_implementation_and_closure_cannot_change_immutable_spec() -> None:
     )
 
 
-def test_complete_matrix_lifecycle_blocked_to_post_done(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_complete_matrix_lifecycle_blocked_to_post_done(tmp_path: Path) -> None:
     spec = frozen_spec()
     blocked = baseline_receipt()
     assert not governance._receipt_passes(spec, blocked)
 
     opened = copy.deepcopy(blocked)
-    opened["overall_status"] = "PASS"
-    inputs = {row["id"]: row for row in spec["input_contracts"]}
-    for result in opened["input_results"]:
-        result["status"] = "PASS"
-        result["evidence_type"] = inputs[result["input_id"]][
-            "accepted_evidence_types"
-        ][0]
-        result["evidence"] = [{"derived": "trusted preflight evidence"}]
-    for result in opened["layer_results"].values():
-        result["status"] = "PASS"
-        result["evidence"] = [{"derived": "layer evidence"}]
-    for result in opened["case_results"]:
-        result["status"] = "PASS"
-        result["evidence"] = [{"derived": "case evidence"}]
-    claims = {row["name"]: row for row in spec["claims"]}
-    for result in opened["claim_results"]:
-        result["status"] = (
-            "PASS"
-            if claims[result["name"]]["applicability"] == "APPLICABLE"
-            else "NOT_APPLICABLE"
-        )
-    assert governance._receipt_passes(spec, opened)
-
-    monkeypatch.setattr(
-        governance,
-        "task_acceptance_payload_gate",
-        lambda *_args, **_kwargs: [],
+    static_evidence = copy.deepcopy(
+        opened["layer_results"]["STATIC_AST"]["evidence"][0]
     )
+    static_evidence["role"] = "PRIMARY"
+    evidence_path, evidence_artifact, real_evidence = preflight_real_evidence()
+    opened["preconditions"] = {}
+    for name in governance.BASELINE_PRECONDITIONS:
+        opened["preconditions"][name] = {
+            "status": "PASS",
+            "evidence": [
+                copy.deepcopy(
+                    static_evidence
+                    if name
+                    in {
+                        "SPEC_INVENTORY_COMPLETE",
+                        "SCOPE_AND_FORBIDDEN_FROZEN",
+                    }
+                    else real_evidence
+                )
+            ],
+            "rationale": f"{name} was captured before implementation.",
+        }
+    opened["implementation_open_status"] = "OPEN"
+    opened["receipt_sha256"] = governance._artifact_hash(opened, "receipt_sha256")
+    assert governance._receipt_passes(spec, opened)
+    assert opened["overall_status"] == "BLOCKED"
+    assert any(row["status"] == "FAIL" for row in opened["claim_results"])
+    assert any(row["status"] == "NOT_RUN" for row in opened["case_results"])
+
     checklist = preflight_checklist().replace(
         "Status: NOT_STARTED",
         "Status: IMPLEMENTED_PENDING_ACCEPTANCE\n"
@@ -755,11 +1021,42 @@ def test_complete_matrix_lifecycle_blocked_to_post_done(
         1,
     )
     body = valid_body(task="ARCH-P1-03B-R1")
+    implementation_detached = detached_bundle(baseline=opened)
     client = FakeClient(
         pull=valid_pull(body=body),
         files=["src/w2/identity/canonical_identity_repository.py"],
         reviews=[valid_review(task="ARCH-P1-03B-R1")],
         jobs=ci_jobs(governance._full_ci_plan()),
+        artifacts=[
+            {
+                "id": 1,
+                "name": f"w2-acceptance-result-{HEAD}",
+                "digest": f"sha256:{implementation_detached['result_zip_sha256']}",
+                "expired": False,
+            },
+            {
+                "id": 2,
+                "name": f"w2-acceptance-evidence-{HEAD}",
+                "digest": f"sha256:{implementation_detached['evidence_zip_sha256']}",
+                "expired": False,
+            },
+        ],
+        artifact_zips={
+            1: implementation_detached["result_zip"],
+            2: implementation_detached["evidence_zip"],
+        },
+        json_files={
+            (
+                f"{governance.MATRIX_DIR.as_posix()}/"
+                "ARCH-P1-03B-R1.baseline.json",
+                HEAD,
+            ): opened,
+        },
+        text_files={
+            (evidence_path, HEAD): governance._canonical_bytes(
+                evidence_artifact
+            ).decode()
+        },
     )
     result = governance.check_pre_merge(
         event(),
@@ -785,20 +1082,44 @@ def test_complete_matrix_lifecycle_blocked_to_post_done(
     assert "MATRIX_DETACHED_ARTIFACTS_MISSING" in result.errors
 
     review = valid_review(task="ARCH-P1-03B-R1")
+    detached = detached_bundle(baseline=opened)
     final = final_attestation(
         review_sha256=hashlib.sha256(review["body"].encode()).hexdigest(),
-        result_sha256="c" * 64,
-        evidence_sha256s=["d" * 64],
+        detached=detached,
+        baseline=opened,
     )
-    artifacts = {
-        "ARCH-P1-03B-R1.spec.json": spec,
-        "ARCH-P1-03B-R1.baseline.json": blocked,
-        "ARCH-P1-03B-R1.final.json": final,
-    }
-    monkeypatch.setattr(
-        governance,
-        "_load_artifact",
-        lambda path: artifacts.get(path.name),
+    repository = tmp_path / "repository"
+    subprocess.run(
+        ["git", "clone", "-q", "--shared", str(ROOT), str(repository)],
+        check=True,
+    )
+    matrix_dir = repository / governance.MATRIX_DIR
+    matrix_dir.mkdir(parents=True, exist_ok=True)
+    cloned_schema = repository / governance.MATRIX_SCHEMA_PATH
+    cloned_schema.write_bytes(SCHEMA_PATH.read_bytes())
+    for name, payload in (
+        ("ARCH-P1-03B-R1.spec.json", spec),
+        ("ARCH-P1-03B-R1.baseline.json", opened),
+        ("ARCH-P1-03B-R1.final.json", final),
+    ):
+        (matrix_dir / name).write_bytes(governance._canonical_bytes(payload))
+    stored_evidence = repository / evidence_path
+    stored_evidence.parent.mkdir(parents=True, exist_ok=True)
+    stored_evidence.write_bytes(governance._canonical_bytes(evidence_artifact))
+    subprocess.run(["git", "add", "."], cwd=repository, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.invalid",
+            "commit",
+            "-qm",
+            "durable closure",
+        ],
+        cwd=repository,
+        check=True,
     )
     post_checklist = f"""# Checklist
 
@@ -848,9 +1169,425 @@ Merge SHA: {'e' * 40}
         },
         reviews=[review],
         jobs=ci_jobs(governance._full_ci_plan()),
+        artifacts=[
+            {
+                "id": 1,
+                "name": f"w2-acceptance-result-{HEAD}",
+                "digest": f"sha256:{detached['result_zip_sha256']}",
+                "expired": False,
+            },
+            {
+                "id": 2,
+                "name": f"w2-acceptance-evidence-{HEAD}",
+                "digest": f"sha256:{detached['evidence_zip_sha256']}",
+                "expired": False,
+            },
+        ],
+        artifact_zips={
+            1: detached["result_zip"],
+            2: detached["evidence_zip"],
+        },
     )
-    post = governance.check_post_merge(post_checklist, client, matrix_root=ROOT)
+    post = governance.check_post_merge(
+        post_checklist, client, matrix_root=repository
+    )
     assert post.passed, post.errors
+
+
+def test_preflight_storage_ref_can_be_newer_than_evidence_subject() -> None:
+    spec = frozen_spec()
+    receipt = baseline_receipt()
+    path, artifact, item = preflight_real_evidence()
+    static = copy.deepcopy(receipt["layer_results"]["STATIC_AST"]["evidence"][0])
+    static["role"] = "PRIMARY"
+    receipt["preconditions"] = {
+        name: {
+            "status": "PASS",
+            "evidence": [
+                copy.deepcopy(
+                    static
+                    if name
+                    in {
+                        "SPEC_INVENTORY_COMPLETE",
+                        "SCOPE_AND_FORBIDDEN_FROZEN",
+                    }
+                    else item
+                )
+            ],
+            "rationale": "Frozen preflight evidence is available.",
+        }
+        for name in governance.BASELINE_PRECONDITIONS
+    }
+    receipt["implementation_open_status"] = "OPEN"
+    receipt["receipt_sha256"] = governance._artifact_hash(
+        receipt, "receipt_sha256"
+    )
+    storage_head = HEAD
+
+    def read_blob(commit: str, value: str) -> bytes | None:
+        if (commit, value) == (storage_head, path):
+            return governance._canonical_bytes(artifact)
+        if commit == storage_head and (ROOT / value).is_file():
+            return (ROOT / value).read_bytes()
+        return governance._git_blob(ROOT, commit, value)
+
+    assert governance.validate_acceptance_receipt(
+        receipt,
+        spec=spec,
+        root=ROOT,
+        expected_kind="BASELINE_RECEIPT",
+        storage_ref=storage_head,
+        blob_reader=read_blob,
+    ) == []
+    assert any(
+        error.startswith("MATRIX_EVIDENCE_PATH_OR_HEAD_INVALID:")
+        for error in governance.validate_acceptance_receipt(
+            receipt,
+            spec=spec,
+            root=ROOT,
+            expected_kind="BASELINE_RECEIPT",
+            blob_reader=read_blob,
+        )
+    )
+
+
+@pytest.mark.parametrize("attack", ["traversal", "symlink", "duplicate"])
+def test_detached_zip_rejects_unsafe_members(attack: str) -> None:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        if attack == "traversal":
+            archive.writestr("../result.json", b"{}\n")
+            archive.writestr(governance.DETACHED_RESULT_NAME, b"{}\n")
+        elif attack == "symlink":
+            info = zipfile.ZipInfo(governance.DETACHED_RESULT_NAME)
+            info.external_attr = 0o120777 << 16
+            archive.writestr(info, b"target")
+        else:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", UserWarning)
+                archive.writestr(governance.DETACHED_RESULT_NAME, b"{}\n")
+                archive.writestr(governance.DETACHED_RESULT_NAME, b"{}\n")
+    with pytest.raises(
+        governance.GovernanceError, match="MATRIX_DETACHED_ZIP_PATH_INVALID"
+    ):
+        governance._safe_detached_zip(
+            buffer.getvalue(), required_name=governance.DETACHED_RESULT_NAME
+        )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["spec_hash", "baseline_hash", "case_missing", "claim_missing", "layer_missing"],
+)
+def test_detached_result_completeness_and_hash_bindings_fail_closed(
+    mutation: str,
+) -> None:
+    bundle = detached_bundle()
+    result = copy.deepcopy(bundle["result"])
+    index = copy.deepcopy(bundle["evidence_index"])
+    if mutation == "spec_hash":
+        result["spec_sha256"] = "0" * 64
+    elif mutation == "baseline_hash":
+        result["baseline_receipt_sha256"] = "0" * 64
+    elif mutation == "case_missing":
+        result["case_results"].pop()
+    elif mutation == "claim_missing":
+        result["claim_results"].pop()
+    else:
+        result["layer_results"].pop("RUNTIME_SQL_TRACE")
+    result["result_sha256"] = governance._artifact_hash(
+        result, "result_sha256"
+    )
+    errors = governance._final_result_errors(
+        result,
+        index,
+        spec=frozen_spec(),
+        baseline=baseline_receipt(),
+        task_id="ARCH-P1-03B-R1",
+        subject_head=HEAD,
+        full_ci_run_id=100,
+        root=ROOT,
+    )
+    assert errors
+
+
+def test_detached_zip_content_tamper_is_not_saved_by_metadata_digest() -> None:
+    bundle = detached_bundle()
+    changed = copy.deepcopy(bundle["result"])
+    changed["case_results"].pop()
+    changed["result_sha256"] = governance._artifact_hash(changed, "result_sha256")
+    tampered_zip = _zip_bytes(
+        {governance.DETACHED_RESULT_NAME: governance._canonical_bytes(changed)}
+    )
+    client = FakeClient(
+        artifacts=[
+            {
+                "id": 1,
+                "name": f"w2-acceptance-result-{HEAD}",
+                "digest": f"sha256:{hashlib.sha256(tampered_zip).hexdigest()}",
+                "expired": False,
+            },
+            {
+                "id": 2,
+                "name": f"w2-acceptance-evidence-{HEAD}",
+                "digest": f"sha256:{bundle['evidence_zip_sha256']}",
+                "expired": False,
+            },
+        ],
+        artifact_zips={1: tampered_zip, 2: bundle["evidence_zip"]},
+    )
+    with pytest.raises(governance.GovernanceError):
+        governance._validated_detached_artifacts(
+            client,
+            100,
+            HEAD,
+            spec=frozen_spec(),
+            baseline=baseline_receipt(),
+            task_id="ARCH-P1-03B-R1",
+            root=ROOT,
+        )
+
+
+@pytest.mark.parametrize("availability", ["expired", "missing"])
+def test_post_uses_durable_attestation_after_artifact_unavailability(
+    availability: str,
+) -> None:
+    review = valid_review(task="ARCH-P1-03B-R1")
+    detached = detached_bundle()
+    final = final_attestation(
+        review_sha256=hashlib.sha256(review["body"].encode()).hexdigest(),
+        detached=detached,
+    )
+    task = governance.TaskRecord(
+        "ARCH-P1-03B-R1",
+        "DONE",
+        "\n".join(
+            [
+                "Implementation PR: #410",
+                f"Accepted head: {HEAD}",
+                "Full CI: 100",
+                f"Final attestation SHA-256: {final['attestation_sha256']}",
+                f"Merge SHA: {'e' * 40}",
+            ]
+        ),
+    )
+    artifacts = (
+        [
+            {
+                "id": 1,
+                "name": f"w2-acceptance-result-{HEAD}",
+                "digest": f"sha256:{detached['result_zip_sha256']}",
+                "expired": True,
+            }
+        ]
+        if availability == "expired"
+        else []
+    )
+    client = FakeClient(
+        pulls={
+            410: {
+                "head": {"sha": HEAD},
+                "merged_at": "2026-07-27T00:00:00Z",
+                "merge_commit_sha": "e" * 40,
+            }
+        },
+        reviews=[review],
+        jobs=ci_jobs(governance._full_ci_plan()),
+        artifacts=artifacts,
+    )
+    assert governance.validate_done_matrix_binding(
+        task,
+        spec=frozen_spec(),
+        baseline=baseline_receipt(),
+        final=final,
+        client=client,
+        root=ROOT,
+        allow_durable_fallback=True,
+    ) == []
+    assert governance.validate_done_matrix_binding(
+        task,
+        spec=frozen_spec(),
+        baseline=baseline_receipt(),
+        final=final,
+        client=client,
+        root=ROOT,
+    )
+
+
+def test_post_rejects_digest_mismatch_and_missing_durable_payload() -> None:
+    review = valid_review(task="ARCH-P1-03B-R1")
+    detached = detached_bundle()
+    final = final_attestation(
+        review_sha256=hashlib.sha256(review["body"].encode()).hexdigest(),
+        detached=detached,
+    )
+    task = governance.TaskRecord(
+        "ARCH-P1-03B-R1",
+        "DONE",
+        "\n".join(
+            [
+                "Implementation PR: #410",
+                f"Accepted head: {HEAD}",
+                "Full CI: 100",
+                f"Final attestation SHA-256: {final['attestation_sha256']}",
+                f"Merge SHA: {'e' * 40}",
+            ]
+        ),
+    )
+    pull = {
+        410: {
+            "head": {"sha": HEAD},
+            "merged_at": "2026-07-27T00:00:00Z",
+            "merge_commit_sha": "e" * 40,
+        }
+    }
+    digest_client = FakeClient(
+        pulls=pull,
+        reviews=[review],
+        jobs=ci_jobs(governance._full_ci_plan()),
+        artifacts=[
+            {
+                "id": 1,
+                "name": f"w2-acceptance-result-{HEAD}",
+                "digest": f"sha256:{'0' * 64}",
+                "expired": False,
+            },
+            {
+                "id": 2,
+                "name": f"w2-acceptance-evidence-{HEAD}",
+                "digest": f"sha256:{detached['evidence_zip_sha256']}",
+                "expired": False,
+            },
+        ],
+        artifact_zips={1: detached["result_zip"], 2: detached["evidence_zip"]},
+    )
+    errors = governance.validate_done_matrix_binding(
+        task,
+        spec=frozen_spec(),
+        baseline=baseline_receipt(),
+        final=final,
+        client=digest_client,
+        root=ROOT,
+        allow_durable_fallback=True,
+    )
+    assert any("MATRIX_DETACHED_ZIP_DIGEST_MISMATCH" in error for error in errors)
+
+    incomplete = copy.deepcopy(final)
+    incomplete.pop("detached_result")
+    incomplete["attestation_sha256"] = governance._artifact_hash(
+        incomplete, "attestation_sha256"
+    )
+    missing_client = FakeClient(
+        pulls=pull,
+        reviews=[review],
+        jobs=ci_jobs(governance._full_ci_plan()),
+        artifacts=[],
+    )
+    assert governance.validate_done_matrix_binding(
+        task,
+        spec=frozen_spec(),
+        baseline=baseline_receipt(),
+        final=incomplete,
+        client=missing_client,
+        root=ROOT,
+        allow_durable_fallback=True,
+    )
+
+
+def test_non_governance_task_cannot_modify_trusted_artifact_producers() -> None:
+    body = valid_body(task="ARCH-P1-03B-R1")
+    checklist = preflight_checklist().replace(
+        "Status: NOT_STARTED",
+        "Status: IMPLEMENTED_PENDING_ACCEPTANCE\n"
+        "Implementation SHA: GITHUB_PR_EXACT_HEAD",
+        1,
+    )
+    result = governance.check_pre_merge(
+        event(),
+        checklist,
+        FakeClient(
+            pull=valid_pull(body=body),
+            files=["scripts/check_architecture_governance.py"],
+            reviews=[valid_review(task="ARCH-P1-03B-R1")],
+            jobs=ci_jobs(governance._full_ci_plan()),
+        ),
+        base_checklist=preflight_checklist(),
+        matrix_root=ROOT,
+    )
+    assert any(
+        error.startswith("GOVERNANCE_PRODUCER_AUTHORITY_VIOLATION:")
+        for error in result.errors
+    )
+
+
+def test_governed_full_ci_requires_untracked_result_source(tmp_path: Path) -> None:
+    matrix_dir = tmp_path / governance.MATRIX_DIR
+    matrix_dir.mkdir(parents=True)
+    (matrix_dir / "ARCH-P1-03B-R1.spec.json").write_text(
+        "{}", encoding="utf-8"
+    )
+    event_payload = {
+        "pull_request": {"body": valid_body(task="ARCH-P1-03B-R1")}
+    }
+    with pytest.raises(
+        governance.GovernanceError, match="DETACHED_RESULT_SOURCE_MISSING"
+    ):
+        governance.prepare_detached_result_source(
+            root=tmp_path,
+            event=event_payload,
+            output=Path(".w2-detached-result-source.json"),
+        )
+
+
+def test_governed_producer_reproves_detached_source_and_evidence(
+    tmp_path: Path,
+) -> None:
+    matrix_dir = tmp_path / governance.MATRIX_DIR
+    matrix_dir.mkdir(parents=True)
+    schema = tmp_path / governance.MATRIX_SCHEMA_PATH
+    schema.parent.mkdir(parents=True)
+    schema.write_bytes(SCHEMA_PATH.read_bytes())
+    spec = frozen_spec()
+    baseline = baseline_receipt()
+    (matrix_dir / "ARCH-P1-03B-R1.spec.json").write_bytes(
+        governance._canonical_bytes(spec)
+    )
+    (matrix_dir / "ARCH-P1-03B-R1.baseline.json").write_bytes(
+        governance._canonical_bytes(baseline)
+    )
+    bundle = detached_bundle()
+    source = {
+        key: bundle["result"][key]
+        for key in (
+            "frozen_assertion_results",
+            "input_results",
+            "case_results",
+            "layer_results",
+            "claim_results",
+        )
+    }
+    source["evidence_artifacts"] = bundle["evidence_artifacts"]
+    source_path = tmp_path / ".w2-detached-result-source.json"
+    source_path.write_bytes(governance._canonical_bytes(source))
+    governance.write_detached_ci_artifacts(
+        root=tmp_path,
+        output_dir=tmp_path / "out",
+        event={
+            "pull_request": {"body": valid_body(task="ARCH-P1-03B-R1")}
+        },
+        subject_head=HEAD,
+        run_id=100,
+        result_source=source_path,
+    )
+    written = json.loads(
+        (tmp_path / "out/result/result.json").read_text(encoding="utf-8")
+    )
+    assert written["task_id"] == "ARCH-P1-03B-R1"
+    assert written["subject_head"] == HEAD
+    assert written["case_results"] == bundle["result"]["case_results"]
+    assert written["result_sha256"] == governance._artifact_hash(
+        written, "result_sha256"
+    )
 
 
 def test_detached_ci_artifacts_bind_task_subject_and_run(tmp_path: Path) -> None:
@@ -874,8 +1611,12 @@ def test_detached_ci_artifacts_bind_task_subject_and_run(tmp_path: Path) -> None
     for payload in (result, evidence):
         assert payload["task_id"] == "ARCH-P1-03B-R1"
         assert payload["subject_head"] == HEAD
-        stored_hash = payload.pop("artifact_sha256")
-        assert stored_hash == governance._canonical_sha256(payload)
+    assert result["result_sha256"] == governance._artifact_hash(
+        result, "result_sha256"
+    )
+    assert evidence["index_sha256"] == governance._artifact_hash(
+        evidence, "index_sha256"
+    )
     assert result["full_ci_run_id"] == 100
 
 
@@ -1115,6 +1856,9 @@ class FakeClient:
         ci_runs: list[dict[str, Any]] | None = None,
         jobs: list[dict[str, Any]] | None = None,
         artifacts: list[dict[str, Any]] | None = None,
+        artifact_zips: dict[int, bytes] | None = None,
+        json_files: dict[tuple[str, str], dict[str, Any]] | None = None,
+        text_files: dict[tuple[str, str], str] | None = None,
         fail: str | None = None,
     ) -> None:
         self.pull = pull or valid_pull()
@@ -1135,18 +1879,27 @@ class FakeClient:
             ]
         )
         self.jobs = jobs if jobs is not None else ci_jobs()
+        bundle = detached_bundle()
         self.artifacts = artifacts if artifacts is not None else [
             {
+                "id": 1,
                 "name": f"w2-acceptance-result-{HEAD}",
-                "digest": f"sha256:{'c' * 64}",
+                "digest": f"sha256:{bundle['result_zip_sha256']}",
                 "expired": False,
             },
             {
+                "id": 2,
                 "name": f"w2-acceptance-evidence-{HEAD}",
-                "digest": f"sha256:{'d' * 64}",
+                "digest": f"sha256:{bundle['evidence_zip_sha256']}",
                 "expired": False,
             },
         ]
+        self.artifact_zips = artifact_zips or {
+            1: bundle["result_zip"],
+            2: bundle["evidence_zip"],
+        }
+        self.json_files = json_files or {}
+        self.text_files = text_files or {}
         self.fail = fail
 
     def get_pull(self, number: int) -> dict[str, Any]:
@@ -1179,7 +1932,19 @@ class FakeClient:
             raise governance.GovernanceError("GITHUB_API_ERROR:TimeoutError")
         return self.artifacts
 
+    def download_artifact_zip(self, artifact_id: int) -> bytes:
+        if self.fail == "artifact_download":
+            raise governance.GovernanceError("GITHUB_API_ERROR:TimeoutError")
+        try:
+            return self.artifact_zips[artifact_id]
+        except KeyError as exc:
+            raise governance.GovernanceError(
+                "MATRIX_DETACHED_ARTIFACTS_MISSING"
+            ) from exc
+
     def get_text_file(self, path: str, ref: str) -> str:
+        if (path, ref) in self.text_files:
+            return self.text_files[(path, ref)]
         if ref == HEAD:
             candidate = ROOT / path
             if candidate.is_file():
@@ -1190,6 +1955,8 @@ class FakeClient:
         return blob.decode("utf-8")
 
     def get_json_file(self, path: str, ref: str) -> dict[str, Any]:
+        if (path, ref) in self.json_files:
+            return copy.deepcopy(self.json_files[(path, ref)])
         if ref == HEAD and path.endswith("ARCH-P1-03B-R1.spec.json"):
             return frozen_spec()
         if ref == HEAD and path.endswith("ARCH-P1-03B-R1.baseline.json"):
