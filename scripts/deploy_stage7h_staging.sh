@@ -70,9 +70,9 @@ rollback() {
     rollback_started="$(date +%s)"
     sudo install -o root -g root -m 0644 \
       /opt/w2/shared/release.previous.env /opt/w2/shared/release.env
-    "${COMPOSE[@]}" pull migration api worker web
-    "${COMPOSE[@]}" run --rm migration
-    "${COMPOSE[@]}" up -d --remove-orphans api worker web
+    "${COMPOSE[@]}" pull migration api worker web </dev/null
+    "${COMPOSE[@]}" run --rm migration </dev/null
+    "${COMPOSE[@]}" up -d --remove-orphans api worker web </dev/null
     rollback_seconds="$(( $(date +%s) - rollback_started ))"
     echo "rollback=PASS duration_seconds=${rollback_seconds} target_seconds=120"
   else
@@ -105,13 +105,13 @@ sudo install -o root -g root -m 0644 /tmp/release.env /opt/w2/shared/release.env
 ACTIVATED=true
 
 if [ "${DEPLOY_MODE}" = "web" ]; then
-  "${COMPOSE[@]}" pull web
-  "${COMPOSE[@]}" up -d --no-deps web
+  "${COMPOSE[@]}" pull web </dev/null
+  "${COMPOSE[@]}" up -d --no-deps web </dev/null
   TARGET_SECONDS=180
 else
-  "${COMPOSE[@]}" pull migration api worker web
-  "${COMPOSE[@]}" run --rm migration
-  "${COMPOSE[@]}" up -d --remove-orphans api worker web
+  "${COMPOSE[@]}" pull migration api worker web </dev/null
+  "${COMPOSE[@]}" run --rm migration </dev/null
+  "${COMPOSE[@]}" up -d --remove-orphans api worker web </dev/null
   TARGET_SECONDS=300
 fi
 
@@ -137,8 +137,8 @@ fi
 PYTHON_IMAGE="$(sed -n 's/^W2_PYTHON_IMAGE=//p' /opt/w2/shared/release.env)"
 WEB_IMAGE="$(sed -n 's/^W2_WEB_IMAGE=//p' /opt/w2/shared/release.env)"
 python3 - "${REVISION}" "${DEPLOY_MODE}" "${DEPLOY_SECONDS}" \
-  "${PYTHON_IMAGE}" "${WEB_IMAGE}" <<'PY' |
-  sudo tee "/opt/w2/shared/releases/${REVISION}.json" >/dev/null
+  "${PYTHON_IMAGE}" "${WEB_IMAGE}" <<'PY' | sudo tee \
+  "/opt/w2/shared/releases/${REVISION}.json" >/dev/null
 import json
 import sys
 from datetime import UTC, datetime

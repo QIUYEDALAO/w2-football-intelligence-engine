@@ -88,9 +88,15 @@ def test_deploy_is_pull_only_and_health_checked() -> None:
     assert '"${COMPOSE[@]}" pull migration api worker web' in text
     assert '"${COMPOSE[@]}" run --rm migration' in text
     assert '"${COMPOSE[@]}" up -d --remove-orphans api worker web' in text
+    compose_commands = [
+        line.strip() for line in text.splitlines() if '"${COMPOSE[@]}"' in line
+    ]
+    assert compose_commands
+    assert all(command.endswith("</dev/null") for command in compose_commands)
     assert "http://127.0.0.1:18000/ready" in text
     assert "http://127.0.0.1:18080/meta.json" in text
     assert "w2.release_record.v1" in text
+    assert "<<'PY' | sudo tee \\" in text
     assert "release.previous.env" in text
     assert "target_seconds=120" in text
 
