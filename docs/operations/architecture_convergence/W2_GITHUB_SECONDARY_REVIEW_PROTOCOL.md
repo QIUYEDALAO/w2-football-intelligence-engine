@@ -24,6 +24,9 @@ REVIEW_NOT_STARTED
 4. 不得只凭交接文字、Codex 回执、PR 描述或上一次会话记忆下结论。
 
 读取本文件后，再按 `PROJECT_STATE.yaml.context_read_order` 读取总清单、机器状态和当前动作指针。
+其中 `{CURRENT_TASK}` 必须在读取时替换为 `PROJECT_STATE.yaml` 的当前任务；动态读取
+`{CURRENT_TASK}.spec.json`、`{CURRENT_TASK}.baseline.json` 和
+`{CURRENT_TASK}.final.json` 中实际存在的文件，不得永久写死某个历史任务路径。
 
 ## 二、验收原则
 
@@ -97,6 +100,105 @@ ACTUAL_READ_SET = IDENTITY_GUARD_COVERAGE_SET
 - 生成中 HEAD、输入或依赖发生变化时是否拒绝发布。
 
 对于带自哈希的 JSON，必须抽查或自动验证：删除 `artifact_sha` 后重算，结果等于原值。
+
+### 3A. 冻结验收矩阵生命周期
+
+每个适用的后续架构任务使用三个独立 artifact：
+
+```text
+{TASK}.spec.json       = immutable spec
+{TASK}.baseline.json   = baseline/preflight receipt
+{TASK}.final.json      = closure add-only final attestation
+```
+
+强制规则：
+
+1. matrix 是否适用、PREFLIGHT 目标和任务顺序只从 trusted base/main 读取。
+   `W2_PR_KIND: PREFLIGHT` 只能面向 base 中第一个非 `DONE` 且仍为
+   `NOT_STARTED` 的当前任务；禁止提前冻结未来任务，禁止借清单重排改变适用性。
+2. Artifact 权限按 PR kind fail-closed：
+   - PREFLIGHT 可新增/修改 spec 与 baseline，但不得写 final；
+   - IMPLEMENTATION 禁止新增、修改 spec/baseline/final/evidence；
+   - CLOSURE 是唯一可新增 final attestation 的 PR kind，且只能 add-only；不得修改
+     spec、baseline、既有 final 或 evidence；
+   - rename、delete 和 `previous_filename` 同样受上述约束。
+   文件名 stem、artifact payload `task_id` 与 PR `W2_TASK_ID` 必须一致；evidence
+   artifact 的 `task_id` 也必须与引用它的 spec/receipt 一致，禁止跨任务写入。
+3. baseline `subject_head` 必须等于 `spec.frozen_baseline_commit`。artifact 的存储位置
+   由当前 GitHub PR/base/main ref 推导，不写入 artifact，也不得形成 closure commit
+   的自引用。`INITIAL_FREEZE`
+   仅允许 spec 首次新增；修改既有 spec 必须单独走 PREFLIGHT，以 `REVIEW_MISS`
+   或 `SCOPE_AMENDMENT` 记录原因，并让 `supersedes_spec_sha256` 等于 trusted base
+   spec 的真实重算 SHA-256。
+4. baseline readiness 与 final acceptance 严格分离。baseline 只验证开工前置：
+   spec/inventory 完整、真实输入可取得、runtime/SQL baseline 已捕获、mutation
+   source 已冻结、generator 可重放、scope/禁止项已冻结。checker 仅由这六项派生
+   `implementation_open_status=OPEN|BLOCKED`；baseline 可以诚实保留当前 case、
+   layer 或 applicable claim 的 `FAIL`/`UNVERIFIABLE`，这些 remediation 前状态不得
+   被误用来阻止开工。六类 case、三层 evidence、claims 与 frozen assertions 的最终
+   PASS 只来自 implementation FULL CI 的 detached result。
+5. Implementation PRE 不读取或写入 final。它直接通过 GitHub API 验证当前 exact
+   head 的 `FULL` CI、该 run 的 detached result/evidence ZIP，以及同一 exact head
+   的外部 PASS Review。trusted PRE 必须下载 ZIP，限制文件数量、路径与总大小，拒绝
+   symlink、path traversal、重复文件和非 canonical JSON；重算 GitHub ZIP digest、
+   result/index 内部 self-hash、spec/baseline hash，并验证 frozen assertions、inputs、
+   cases、layers、claims 和 evidence-index 逐项完整。只看 artifact 名称或 metadata
+   digest 不得 PASS；实现测试结果不得通过自引用 commit SHA 存入 Git。
+6. Closure add-only final attestation 的 `subject_head` 指向已验收并合并的
+   implementation head，并绑定 implementation PR/merge SHA、Full CI run、外部
+   Review hash、spec/baseline hash、artifact ZIP digest、canonical result/evidence
+   content hash，并持久化已在线验证的 canonical detached result 与 evidence index；
+   不得包含或要求 final 文件所在 closure commit SHA。
+7. POST 对每个 matrix-governed `DONE` 任务重新验证 PASS final、记录的 accepted
+   implementation head、Full CI、implementation PR 与 merge SHA；任一缺失、失配或
+   closure 改动 artifact 都 fail-closed。Actions artifact 尚存在时必须交叉核对；
+   artifact 正常过期或不可取得后，允许依赖 Closure 已验证并 add-only 持久化的
+   canonical attestation；ZIP digest/content 不一致不得使用 durable fallback。
+8. 内存 SQLite/手写 payload 是 `SYNTHETIC_CONTRACT_TEST`；ORM 文件只是
+   `DECLARED_ORM_SCHEMA`。`REAL_DB` 必须来自只读 SQL/`pg_catalog` 和真实行形状
+   fingerprint；`REAL_PRODUCER_OUTPUT` 必须来自真实保存 payload、真实 staging 行或
+   content-addressed 脱敏 artifact。
+9. PASS input 的 evidence type 必须与 primary evidence 一致并属于 spec 允许的真实
+   类型。valid case 必须绑定 `UNCHANGED_REAL_INPUT`；missing/malformed/stale/
+   ambiguous/conflict 必须绑定
+   `CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT`、真实脱敏输入和
+   `MUTATION_TEST`。普通 static、ORM 或 synthetic 证据不得单独产生 PASS。
+10. mutation case 必须绑定 source artifact hash、canonical mutation manifest/hash、
+    operation、expected output 与 observed output fingerprint；对应 mutation test
+    必须声明其消费的同一 source artifact 和 manifest，禁止拼接无关 real evidence。
+11. REAL_DB、REAL_PRODUCER_OUTPUT 与 CONTENT_ADDRESSED_SANITIZED_ARTIFACT
+   必须使用机器 schema，绑定 generator、replay argv 与 hash、query hash（适用时）、
+   migration head、captured_at、source identity、行数/结果 fingerprint、
+   provider/db delta 和 `subject_head`。replay 必须在该 subject commit 的独立
+   worktree 中运行冻结 generator，写入明确临时 output path，并逐字节重验 canonical
+   JSON、artifact hash、row count 与 result fingerprint；无输出、不同输出、非零退出
+   或修改 tracked tree 都失败，不能使用当前 main 的同名 generator。
+12. checker 必须完整执行 lifecycle JSON Schema、验证 frozen baseline commit，使用
+    目标 commit 的 tree/blob（不依赖当前工作树存在该路径）重算文件与证据 hash，并以
+    AST 作用域确认 fully-qualified symbol/test、symlink 与仓库边界。
+13. artifact payload 只记录被测版本 `subject_head`；storage ref 永远由 trusted
+    GitHub PR/base/main 上下文推导，不写入 payload。PREFLIGHT 可以在新 head 保存
+    evidence，而其 `subject_head` 仍可指向更早的 frozen main；validator 先从 storage
+    ref 读取 artifact，再到 subject worktree 验证 generator/query/code/input 来源。
+14. immutable spec 必须为每个 frozen assertion、input、六类 case、三层 evidence
+    和每个 applicable claim 冻结 measurement plan：measurement id、精确 argv/
+    command hash、完整 pytest nodeid 或 checker symbol、预期 evidence artifact、
+    output schema、implementation exact-head binding、generator/file hash、允许退出码
+    与 fingerprint 规则。Implementation/Closure 不得修改该 plan。
+15. detached producer 属于治理权威。普通 PREFLIGHT/IMPLEMENTATION/CLOSURE 不得
+    修改 governance workflow、`ci.yml` detached 生成链、lifecycle schema、
+    checker、`scripts/classify_ci.py` 或本协议；只允许独立
+    `ARCH-GOVERNANCE-*` 任务修改。FULL verify 通过未跟踪的
+    source 只交付实际 argv/hash、退出码、完整 nodeid 与 passed/failed/skipped 计数、
+    stdout/stderr hash、evidence/mutation/fingerprint 绑定及 CI identity 的 raw
+    receipts，禁止携带作者填写的最终状态。CI_REQUIRED 必须从 trusted base checkout
+    运行受保护 compiler，逐条拒绝缺失、额外、重复、skip、替换或非本次命令生成的
+    measurement，再由原始回执派生 result/evidence ZIP；普通任务必须直接从 trusted
+    base checkout 执行 collector/compiler，并在 trusted base cwd、清空 `PYTHONPATH`
+    后加载同一 checkout 的 `classify_ci`。PR 工作树同名 module/package 不得进入依赖
+    闭包。当前引导阶段仅 `ARCH-GOVERNANCE-03` 可执行 candidate collector/compiler；
+    其余任务（包括后续普通任务）必须执行 trusted base。Implementation 不能覆盖派生
+    结果，tracked source、all-PASS source 或 PR 自定义 collector/compiler 一律拒绝。
 
 ### 4. 输出和破坏性操作闭环
 

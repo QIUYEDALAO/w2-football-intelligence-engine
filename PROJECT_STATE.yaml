@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-26T16:30:17Z"
+updated_at: "2026-07-26T17:49:29Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -12,6 +12,9 @@ context_read_order:
   - docs/operations/architecture_convergence/W2_GITHUB_SECONDARY_REVIEW_PROTOCOL.md
   - docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
   - PROJECT_STATE.yaml
+  - docs/operations/architecture_convergence/acceptance_matrices/{CURRENT_TASK}.spec.json
+  - docs/operations/architecture_convergence/acceptance_matrices/{CURRENT_TASK}.baseline.json
+  - docs/operations/architecture_convergence/acceptance_matrices/{CURRENT_TASK}.final.json
   - PROJECT_LEDGER.md
   - NEXT_ACTION.md
   - docs/operations/dynamic_prematch/W2_DYNAMIC_PREMATCH_ACCEPTANCE_V1.md
@@ -25,14 +28,14 @@ context_read_order:
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  main_sha: 09ece0204bed1289986e20d6a1cff842cb2f0864
+  main_sha: 832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd
   main_migration_head: 0043_drop_legacy_identity_crosswalks
-  pull_request: GITHUB_CLOSURE_PR
+  pull_request: GITHUB_IMPLEMENTATION_PR
   pull_request_mode: DRAFT
-  pull_request_head_branch: codex/arch-p1-04d-r1-closure
-  task_baseline_sha: 09ece0204bed1289986e20d6a1cff842cb2f0864
-  local_work_branch: codex/arch-p1-04d-r1-closure
-  github_sync_status: ARCH_P1_04D_R1_CLOSURE_DRAFT_EXTERNAL_REVIEW_PENDING
+  pull_request_head_branch: codex/arch-governance-03-production-input-matrix
+  task_baseline_sha: 832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd
+  local_work_branch: codex/arch-governance-03-production-input-matrix
+  github_sync_status: ARCH_GOVERNANCE_03_DRAFT_EXTERNAL_REVIEW_PENDING
   ci_checks:
     CI_REQUIRED: GITHUB_PR_EXACT_HEAD
     PRE_MERGE_READINESS_GATE: EXPECTED_FAIL_DRAFT_AND_EXTERNAL_ACCEPTANCE_PENDING
@@ -93,6 +96,7 @@ architecture_convergence:
     - ARCH-P1-03C
     - ARCH-GOVERNANCE-02
     - ARCH-P1-04D-R1
+    - ARCH-GOVERNANCE-03
     - ARCH-P1-03B-R1
     - ARCH-OBS-01
     - ARCH-EVIDENCE-01
@@ -107,7 +111,7 @@ architecture_convergence:
     - ARCH-P2-04
     - ARCH-P2-06
     - ARCH-P2-05
-  next_task: ARCH-P1-03B-R1
+  next_task: ARCH-GOVERNANCE-03
   last_completed_task:
     id: ARCH-P1-04D-R1
     status: DONE
@@ -121,16 +125,16 @@ architecture_convergence:
     baseline_sha: ca8e98fc111c0e4ca334783572815a7baee1b9e8
     completed_at: "2026-07-26T16:30:17Z"
     predecessor: ARCH-GOVERNANCE-02
-    successor_task: ARCH-P1-03B-R1
+    successor_task: ARCH-GOVERNANCE-03
     scope: ARCH_P1_04D_REMEDIATION
     phase: DONE
   current_task:
-    id: ARCH-P1-03B-R1
-    status: NOT_STARTED
+    id: ARCH-GOVERNANCE-03
+    status: IMPLEMENTED_PENDING_ACCEPTANCE
     predecessor: ARCH-P1-04D-R1
-    successor_task: ARCH-OBS-01
-    scope: ARCH_P1_03B_REMEDIATION
-    phase: NOT_STARTED
+    successor_task: ARCH-P1-03B-R1
+    scope: FROZEN_REAL_PRODUCTION_INPUT_ACCEPTANCE_MATRIX
+    phase: IMPLEMENTED_PENDING_ACCEPTANCE
     formal_enabled: false
     candidate_runtime_enabled: false
     lock_enabled: false
@@ -231,6 +235,32 @@ architecture_convergence:
         - CI_REQUIRED
         - PRE_MERGE_READINESS_GATE
         - POST_MERGE_CHECKLIST_CONSISTENCY_GATE
+    production_input_acceptance_matrix:
+      task: ARCH-GOVERNANCE-03
+      schema: contracts/governance/architecture_acceptance_lifecycle.v1.schema.json
+      matrix_root: docs/operations/architecture_convergence/acceptance_matrices
+      first_matrix_task: ARCH-P1-03B-R1
+      active_spec: NONE_UNTIL_ARCH_P1_03B_R1_PREFLIGHT
+      active_baseline_receipt: NONE_UNTIL_ARCH_P1_03B_R1_PREFLIGHT
+      governance_fixture_spec_sha256: 29eaeba063ee5bad47e13441c6862ba5c821d211affb31426efbe515b7e47fe4
+      governance_fixture_baseline_sha256: 9dbce71730f344c9e98f0020cf654f7a4684aa73d2faea85912b9443fdf9b3b0
+      final_attestation: CLOSURE_ADD_ONLY_AFTER_IMPLEMENTATION_MERGE
+      preflight_pr_kind: PREFLIGHT
+      implementation_gate_source: CHECKER_DERIVED_FROM_BASELINE_RECEIPT
+      artifact_acl: PR_KIND_PLUS_RENAME_DELETE_PREVIOUS_FILENAME
+      baseline_subject_binding: SPEC_FROZEN_BASELINE_COMMIT
+      implementation_pre_binding: GITHUB_API_EXACT_HEAD_FULL_CI_DETACHED_ARTIFACTS_EXTERNAL_REVIEW
+      closure_done_gate: ADD_ONLY_FINAL_ATTESTATION_PLUS_MERGED_IMPLEMENTATION_BINDING
+      post_done_gate: ATTESTATION_HASH_ACCEPTED_HEAD_FULL_CI_ARTIFACTS_MERGE_SHA
+      historical_blob_validation: TARGET_COMMIT_TREE_AND_BLOB
+      fully_qualified_symbol_validation: AST_SCOPE
+      evidence_artifact_replay_gate: ENABLED
+      freeze_before_implementation: true
+      real_producer_to_real_consumer_required: true
+      handwritten_fixture_primary_evidence: FORBIDDEN
+      required_evidence_layers: STATIC_AST_RUNTIME_SQL_TRACE_MUTATION
+      unverifiable_policy: BLOCK_DONE
+      old_head_first_miss_label: REVIEW_MISS
   remediation_tasks:
     ARCH-P1-04D:
       historical_status: DONE
@@ -251,6 +281,7 @@ architecture_convergence:
     ARCH-P1-03C: DONE
     ARCH-GOVERNANCE-02: DONE
     ARCH-P1-04D-R1: DONE
+    ARCH-GOVERNANCE-03: IMPLEMENTED_PENDING_ACCEPTANCE
     ARCH-P1-03B-R1: NOT_STARTED
     ARCH-OBS-01: NOT_STARTED
     ARCH-EVIDENCE-01: NOT_STARTED
