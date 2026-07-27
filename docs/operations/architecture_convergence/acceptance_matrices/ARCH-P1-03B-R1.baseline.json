@@ -28,7 +28,7 @@
           "evidence_type": "REAL_PRODUCER_OUTPUT",
           "role": "PRIMARY",
           "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight.evidence.json",
-          "artifact_sha256": "64a330f153ff2cc0be2eeed507284f0079c395251b291a9144f7f51a13364453",
+          "artifact_sha256": "57035bda133b39bd17dc6bcbee3c6a2b16c0a7f83d396f4233110f39625edb32",
           "command": "python3 scripts/arch_p1_03b_identity_evidence.py --as-of 2026-11-30T23:59:59Z --fixtures 1494212 1494213 1494214 1494215 1494216 --m3-fixtures 1494212 1494214 1494216 --manifest docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json --review-package-sha256 916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea --approval-artifact-sha256 a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695 --reviewed-by operator:liudehua --captured-at 2026-07-27T11:40:44Z --source-label staging-postgresql --output <temporary-output-path>",
           "subject_head": "3ebccbd3561e4e40ed1a1e8625491fbc73b23871"
         }
@@ -42,7 +42,7 @@
           "evidence_type": "REAL_PRODUCER_OUTPUT",
           "role": "PRIMARY",
           "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight.evidence.json",
-          "artifact_sha256": "64a330f153ff2cc0be2eeed507284f0079c395251b291a9144f7f51a13364453",
+          "artifact_sha256": "57035bda133b39bd17dc6bcbee3c6a2b16c0a7f83d396f4233110f39625edb32",
           "command": "python3 scripts/arch_p1_03b_identity_evidence.py --as-of 2026-11-30T23:59:59Z --fixtures 1494212 1494213 1494214 1494215 1494216 --m3-fixtures 1494212 1494214 1494216 --manifest docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json --review-package-sha256 916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea --approval-artifact-sha256 a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695 --reviewed-by operator:liudehua --captured-at 2026-07-27T11:40:44Z --source-label staging-postgresql --output <temporary-output-path>",
           "subject_head": "3ebccbd3561e4e40ed1a1e8625491fbc73b23871"
         }
@@ -56,7 +56,7 @@
           "evidence_type": "REAL_PRODUCER_OUTPUT",
           "role": "PRIMARY",
           "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight.evidence.json",
-          "artifact_sha256": "64a330f153ff2cc0be2eeed507284f0079c395251b291a9144f7f51a13364453",
+          "artifact_sha256": "57035bda133b39bd17dc6bcbee3c6a2b16c0a7f83d396f4233110f39625edb32",
           "command": "python3 scripts/arch_p1_03b_identity_evidence.py --as-of 2026-11-30T23:59:59Z --fixtures 1494212 1494213 1494214 1494215 1494216 --m3-fixtures 1494212 1494214 1494216 --manifest docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json --review-package-sha256 916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea --approval-artifact-sha256 a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695 --reviewed-by operator:liudehua --captured-at 2026-07-27T11:40:44Z --source-label staging-postgresql --output <temporary-output-path>",
           "subject_head": "3ebccbd3561e4e40ed1a1e8625491fbc73b23871"
         },
@@ -78,7 +78,7 @@
           "evidence_type": "REAL_PRODUCER_OUTPUT",
           "role": "PRIMARY",
           "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight.evidence.json",
-          "artifact_sha256": "64a330f153ff2cc0be2eeed507284f0079c395251b291a9144f7f51a13364453",
+          "artifact_sha256": "57035bda133b39bd17dc6bcbee3c6a2b16c0a7f83d396f4233110f39625edb32",
           "command": "cmp evidence-final-1.json evidence-final-2.json",
           "subject_head": "3ebccbd3561e4e40ed1a1e8625491fbc73b23871"
         }
@@ -111,7 +111,7 @@
           "evidence_type": "REAL_PRODUCER_OUTPUT",
           "role": "PRIMARY",
           "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight.evidence.json",
-          "artifact_sha256": "64a330f153ff2cc0be2eeed507284f0079c395251b291a9144f7f51a13364453",
+          "artifact_sha256": "57035bda133b39bd17dc6bcbee3c6a2b16c0a7f83d396f4233110f39625edb32",
           "command": "python3 scripts/arch_p1_03b_identity_evidence.py --output <temporary-output-path>",
           "subject_head": "3ebccbd3561e4e40ed1a1e8625491fbc73b23871"
         }
@@ -127,7 +127,7 @@
           "evidence_type": "REAL_PRODUCER_OUTPUT",
           "role": "PRIMARY",
           "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight.evidence.json",
-          "artifact_sha256": "64a330f153ff2cc0be2eeed507284f0079c395251b291a9144f7f51a13364453",
+          "artifact_sha256": "57035bda133b39bd17dc6bcbee3c6a2b16c0a7f83d396f4233110f39625edb32",
           "command": "python3 scripts/arch_p1_03b_identity_evidence.py --output <temporary-output-path>",
           "subject_head": "3ebccbd3561e4e40ed1a1e8625491fbc73b23871"
         },
@@ -305,5 +305,5 @@
     }
   ],
   "overall_status": "BLOCKED",
-  "receipt_sha256": "468a1cb90ad4b2eaa838d005b74c4d41cd3bd2d64c8ac5d62f9f5cc16afaf152"
+  "receipt_sha256": "763060082bd2a23e62590040c1fdaaf3ab6e6e64c575748afd0bdc4b86d4a674"
 }

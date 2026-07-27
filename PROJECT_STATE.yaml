@@ -1,5 +1,5 @@
 schema_version: w2.project_state.v3
-updated_at: "2026-07-27T13:08:31Z"
+updated_at: "2026-07-27T13:38:35Z"
 authority: GITHUB_MAIN_WITH_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST
 
 delivery_status_vocabulary:
@@ -28,14 +28,14 @@ context_read_order:
 
 repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
-  main_sha: 62a9c0ac5a85426fb44234ec7a0032454d605a59
+  main_sha: 395812b534e5dc117de598d6d5cdbccb1d75282a
   main_migration_head: 0043_drop_legacy_identity_crosswalks
-  pull_request: 418
+  pull_request: 414
   pull_request_mode: DRAFT
-  pull_request_head_branch: codex/arch-governance-03-status-closure
-  task_baseline_sha: 62a9c0ac5a85426fb44234ec7a0032454d605a59
-  local_work_branch: codex/arch-governance-03-status-closure
-  github_sync_status: ARCH_GOVERNANCE_03_STATUS_CLOSURE_DRAFT
+  pull_request_head_branch: codex/arch-p1-03b-r1-preflight
+  task_baseline_sha: 3ebccbd3561e4e40ed1a1e8625491fbc73b23871
+  local_work_branch: codex/arch-p1-03b-r1-preflight
+  github_sync_status: ARCH_P1_03B_R1_PREFLIGHT_DRAFT_EXTERNAL_REVIEW_PENDING
   ci_checks:
     CI_REQUIRED: GITHUB_PR_EXACT_HEAD
     PRE_MERGE_READINESS_GATE: EXPECTED_FAIL_DRAFT_AND_EXTERNAL_ACCEPTANCE_PENDING
