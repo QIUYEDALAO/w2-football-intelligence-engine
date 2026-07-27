@@ -348,25 +348,34 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           path: .w2-trusted-governance
-      - name: Enforce trusted collector for ordinary tasks
+      - name: Select trusted measurement collector
         if: github.event_name == 'pull_request'
         shell: bash
         run: |
           task_id="$(jq -r '.pull_request.body | capture("W2_TASK_ID: (?<id>ARCH-[A-Z0-9-]+)").id' "$GITHUB_EVENT_PATH")"
-          if [[ "$task_id" != ARCH-GOVERNANCE-* ]]; then
-            cmp \
-              scripts/check_architecture_governance.py \
-              .w2-trusted-governance/scripts/check_architecture_governance.py
+          trusted_root="$GITHUB_WORKSPACE/.w2-trusted-governance"
+          trusted_task="$(sed -n 's/^  next_task: //p' "$trusted_root/PROJECT_STATE.yaml" | head -1)"
+          collector_root="$trusted_root"
+          if [[ "$task_id" == ARCH-GOVERNANCE-* && "$task_id" == "$trusted_task" ]]; then
+            collector_root="$GITHUB_WORKSPACE"
           fi
+          echo "W2_GOVERNANCE_ROOT=$collector_root" >> "$GITHUB_ENV"
       - name: Validate detached result source
         if: github.event_name == 'pull_request'
-        run: >-
-          uv run --python 3.12 python scripts/check_architecture_governance.py
-          prepare-detached-result-source
-          --event-path "$GITHUB_EVENT_PATH"
-          --result-source w2-detached-result-source.json
-          --subject-head "${{ github.event.pull_request.head.sha }}"
-          --run-id "${{ github.run_id }}"
+        shell: bash
+        run: |
+          (
+            cd "$W2_GOVERNANCE_ROOT"
+            env -u PYTHONPATH PYTHONNOUSERSITE=1 \
+              "$GITHUB_WORKSPACE/.venv/bin/python" \
+              "$W2_GOVERNANCE_ROOT/scripts/check_architecture_governance.py" \
+              prepare-detached-result-source \
+              --workspace-root "$GITHUB_WORKSPACE" \
+              --event-path "$GITHUB_EVENT_PATH" \
+              --result-source w2-detached-result-source.json \
+              --subject-head "${{ github.event.pull_request.head.sha }}" \
+              --run-id "${{ github.run_id }}"
+          )
       - name: Transfer detached result source
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
@@ -399,6 +408,20 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           path: .w2-trusted-governance
+      - name: Select trusted governance runtime
+        if: >-
+          github.event_name == 'pull_request' &&
+          needs.classify.outputs.verify == 'true'
+        shell: bash
+        run: |
+          task_id="$(jq -r '.pull_request.body | capture("W2_TASK_ID: (?<id>ARCH-[A-Z0-9-]+)").id' "$GITHUB_EVENT_PATH")"
+          trusted_root="$GITHUB_WORKSPACE/.w2-trusted-governance"
+          trusted_task="$(sed -n 's/^  next_task: //p' "$trusted_root/PROJECT_STATE.yaml" | head -1)"
+          governance_root="$trusted_root"
+          if [[ "$task_id" == ARCH-GOVERNANCE-* && "$task_id" == "$trusted_task" ]]; then
+            governance_root="$GITHUB_WORKSPACE"
+          fi
+          echo "W2_GOVERNANCE_ROOT=$governance_root" >> "$GITHUB_ENV"
       - name: Receive detached result source
         if: >-
           github.event_name == 'pull_request' &&
@@ -408,42 +431,48 @@ jobs:
           name: w2-acceptance-source-${{ github.event.pull_request.head.sha }}
           path: .
       - name: Require every scheduled job to succeed
-        run: >-
-          python3 scripts/classify_ci.py
-          --expected-job governance=${{ needs.classify.outputs.governance }}
-          --expected-job python_focused=${{ needs.classify.outputs.python_focused }}
-          --expected-job web=${{ needs.classify.outputs.web }}
-          --expected-job migration=${{ needs.classify.outputs.migration }}
-          --expected-job compose=${{ needs.classify.outputs.compose }}
-          --expected-job staging_parity=${{ needs.classify.outputs.staging_parity }}
-          --expected-job predeploy_e2e=${{ needs.classify.outputs.predeploy_e2e }}
-          --expected-job verify=${{ needs.classify.outputs.verify }}
-          --result classify=${{ needs.classify.result }}
-          --result governance=${{ needs.governance.result }}
-          --result python_focused=${{ needs['python-focused'].result }}
-          --result web=${{ needs.web.result }}
-          --result migration=${{ needs.migration.result }}
-          --result compose=${{ needs.compose.result }}
-          --result staging_parity=${{ needs['staging-parity'].result }}
-          --result predeploy_e2e=${{ needs['predeploy-e2e'].result }}
-          --result verify=${{ needs.verify.result }}
+        shell: bash
+        run: |
+          (
+            cd "$W2_GOVERNANCE_ROOT"
+            env -u PYTHONPATH PYTHONNOUSERSITE=1 \
+              python3 "$W2_GOVERNANCE_ROOT/scripts/classify_ci.py" \
+              --expected-job governance=${{ needs.classify.outputs.governance }} \
+              --expected-job python_focused=${{ needs.classify.outputs.python_focused }} \
+              --expected-job web=${{ needs.classify.outputs.web }} \
+              --expected-job migration=${{ needs.classify.outputs.migration }} \
+              --expected-job compose=${{ needs.classify.outputs.compose }} \
+              --expected-job staging_parity=${{ needs.classify.outputs.staging_parity }} \
+              --expected-job predeploy_e2e=${{ needs.classify.outputs.predeploy_e2e }} \
+              --expected-job verify=${{ needs.classify.outputs.verify }} \
+              --result classify=${{ needs.classify.result }} \
+              --result governance=${{ needs.governance.result }} \
+              --result python_focused=${{ needs['python-focused'].result }} \
+              --result web=${{ needs.web.result }} \
+              --result migration=${{ needs.migration.result }} \
+              --result compose=${{ needs.compose.result }} \
+              --result staging_parity=${{ needs['staging-parity'].result }} \
+              --result predeploy_e2e=${{ needs['predeploy-e2e'].result }} \
+              --result verify=${{ needs.verify.result }}
+          )
       - name: Build detached acceptance artifacts
         if: >-
           github.event_name == 'pull_request' &&
           needs.classify.outputs.verify == 'true'
         shell: bash
         run: |
-          task_id="$(jq -r '.pull_request.body | capture("W2_TASK_ID: (?<id>ARCH-[A-Z0-9-]+)").id' "$GITHUB_EVENT_PATH")"
-          compiler=".w2-trusted-governance/scripts/check_architecture_governance.py"
-          if [[ "$task_id" == ARCH-GOVERNANCE-* ]]; then
-            compiler="scripts/check_architecture_governance.py"
-          fi
-          python3 "$compiler" detached-ci-artifacts \
-            --event-path "$GITHUB_EVENT_PATH" \
-            --output-dir .w2-detached \
-            --subject-head "${{ github.event.pull_request.head.sha }}" \
-            --run-id "${{ github.run_id }}" \
-            --result-source w2-detached-result-source.json
+          (
+            cd "$W2_GOVERNANCE_ROOT"
+            env -u PYTHONPATH PYTHONNOUSERSITE=1 \
+              python3 "$W2_GOVERNANCE_ROOT/scripts/check_architecture_governance.py" \
+              detached-ci-artifacts \
+              --workspace-root "$GITHUB_WORKSPACE" \
+              --event-path "$GITHUB_EVENT_PATH" \
+              --output-dir .w2-detached \
+              --subject-head "${{ github.event.pull_request.head.sha }}" \
+              --run-id "${{ github.run_id }}" \
+              --result-source w2-detached-result-source.json
+          )
       - name: Upload detached implementation result
         if: >-
           github.event_name == 'pull_request' &&

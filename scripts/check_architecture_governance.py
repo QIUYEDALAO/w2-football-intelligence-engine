@@ -128,9 +128,15 @@ GOVERNANCE_PRODUCER_FILES = {
     ".github/workflows/ci.yml",
     MATRIX_SCHEMA_PATH,
     "scripts/check_architecture_governance.py",
+    "scripts/classify_ci.py",
+    "scripts/jsonschema.py",
     "docs/operations/architecture_convergence/"
     "W2_GITHUB_SECONDARY_REVIEW_PROTOCOL.md",
 }
+GOVERNANCE_PRODUCER_PREFIXES = (
+    "scripts/classify_ci/",
+    "scripts/jsonschema/",
+)
 BASELINE_PRECONDITIONS = {
     "SPEC_INVENTORY_COMPLETE",
     "REAL_INPUT_AVAILABLE",
@@ -2362,7 +2368,12 @@ def check_pre_merge(
         files = client.list_pull_files(number)
         changed_paths = _pull_file_paths(files)
         filenames = set(changed_paths)
-        protected_changes = sorted(filenames.intersection(GOVERNANCE_PRODUCER_FILES))
+        protected_changes = sorted(
+            path
+            for path in filenames
+            if path in GOVERNANCE_PRODUCER_FILES
+            or path.startswith(GOVERNANCE_PRODUCER_PREFIXES)
+        )
         if protected_changes and not task_id.startswith("ARCH-GOVERNANCE-"):
             result.fail(
                 "GOVERNANCE_PRODUCER_AUTHORITY_VIOLATION:"
@@ -3241,19 +3252,26 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--subject-head")
     parser.add_argument("--run-id", type=int)
     parser.add_argument("--result-source", type=Path)
+    parser.add_argument("--workspace-root", type=Path)
     parser.add_argument("--live", action="store_true")
     args = parser.parse_args(argv)
+    workspace_root = (
+        args.workspace_root.resolve() if args.workspace_root else Path.cwd()
+    )
+    if not workspace_root.is_dir():
+        print("ERROR = WORKSPACE_ROOT_INVALID")
+        return 1
     try:
         if args.gate == "evidence-artifacts":
             return _emit(
                 "MATRIX_EVIDENCE_ARTIFACT_GATE",
-                check_evidence_artifacts(Path.cwd(), replay=True),
+                check_evidence_artifacts(workspace_root, replay=True),
             )
         if args.gate == "prepare-detached-result-source":
             if args.event_path is None or args.result_source is None:
                 raise GovernanceError("DETACHED_RESULT_SOURCE_ARGUMENT_MISSING")
             prepare_detached_result_source(
-                root=Path.cwd(),
+                root=workspace_root,
                 event=_load_json(args.event_path),
                 output=args.result_source,
                 subject_head=args.subject_head,
@@ -3270,12 +3288,21 @@ def main(argv: list[str] | None = None) -> int:
             ):
                 raise GovernanceError("DETACHED_ARTIFACT_ARGUMENT_MISSING")
             write_detached_ci_artifacts(
-                root=Path.cwd(),
-                output_dir=args.output_dir,
+                root=workspace_root,
+                output_dir=(
+                    args.output_dir
+                    if args.output_dir.is_absolute()
+                    else workspace_root / args.output_dir
+                ),
                 event=_load_json(args.event_path),
                 subject_head=args.subject_head,
                 run_id=args.run_id,
-                result_source=args.result_source,
+                result_source=(
+                    workspace_root / args.result_source
+                    if args.result_source is not None
+                    and not args.result_source.is_absolute()
+                    else args.result_source
+                ),
             )
             print("DETACHED_CI_ARTIFACTS = PASS")
             return 0
@@ -3300,7 +3327,7 @@ def main(argv: list[str] | None = None) -> int:
                 checklist,
                 client,
                 base_checklist=base_checklist,
-                matrix_root=Path.cwd(),
+                matrix_root=workspace_root,
             )
             return _emit("PRE_MERGE_READINESS_GATE", result)
         checklist = (
@@ -3308,7 +3335,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.checklist_ref
             else base_checklist
         )
-        result = check_post_merge(checklist, client, matrix_root=Path.cwd())
+        result = check_post_merge(checklist, client, matrix_root=workspace_root)
         return _emit("POST_MERGE_CHECKLIST_CONSISTENCY_GATE", result)
     except (OSError, GovernanceError) as exc:
         print(f"ERROR = {exc}")

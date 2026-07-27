@@ -186,14 +186,18 @@ ACTUAL_READ_SET = IDENTITY_GUARD_COVERAGE_SET
     output schema、implementation exact-head binding、generator/file hash、允许退出码
     与 fingerprint 规则。Implementation/Closure 不得修改该 plan。
 15. detached producer 属于治理权威。普通 PREFLIGHT/IMPLEMENTATION/CLOSURE 不得
-    修改 governance workflow、`ci.yml` detached 生成链、lifecycle schema、checker
-    或本协议；只允许独立 `ARCH-GOVERNANCE-*` 任务修改。FULL verify 通过未跟踪的
+    修改 governance workflow、`ci.yml` detached 生成链、lifecycle schema、
+    checker、`scripts/classify_ci.py` 或本协议；只允许独立
+    `ARCH-GOVERNANCE-*` 任务修改。FULL verify 通过未跟踪的
     source 只交付实际 argv/hash、退出码、完整 nodeid 与 passed/failed/skipped 计数、
     stdout/stderr hash、evidence/mutation/fingerprint 绑定及 CI identity 的 raw
     receipts，禁止携带作者填写的最终状态。CI_REQUIRED 必须从 trusted base checkout
     运行受保护 compiler，逐条拒绝缺失、额外、重复、skip、替换或非本次命令生成的
-    measurement，再由原始回执派生 result/evidence ZIP；Implementation 不能覆盖派生
-    结果，tracked source、all-PASS source 或 PR 自定义 compiler 一律拒绝。
+    measurement，再由原始回执派生 result/evidence ZIP；普通任务必须直接从 trusted
+    base checkout 执行 collector/compiler，并在 trusted base cwd、清空 `PYTHONPATH`
+    后加载同一 checkout 的 `classify_ci`。PR 工作树同名 module/package 不得进入依赖
+    闭包。Implementation 不能覆盖派生结果，tracked source、all-PASS source 或 PR
+    自定义 collector/compiler 一律拒绝。
 
 ### 4. 输出和破坏性操作闭环
 

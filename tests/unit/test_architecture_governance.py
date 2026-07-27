@@ -5,7 +5,9 @@ import copy
 import hashlib
 import io
 import json
+import os
 import subprocess
+import sys
 import warnings
 import zipfile
 from pathlib import Path
@@ -70,7 +72,19 @@ def test_secondary_review_protocol_allows_lightweight_closure_ci() -> None:
     assert "只交付实际 argv/hash" in protocol
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     assert "Checkout trusted measurement collector" in workflow
-    assert ".w2-trusted-governance/scripts/check_architecture_governance.py" in workflow
+    assert 'trusted_root="$GITHUB_WORKSPACE/.w2-trusted-governance"' in workflow
+    assert "cmp \\" not in workflow
+    assert 'cd "$W2_GOVERNANCE_ROOT"' in workflow
+    assert "env -u PYTHONPATH PYTHONNOUSERSITE=1" in workflow
+    assert '"$task_id" == ARCH-GOVERNANCE-* && "$task_id" == "$trusted_task"' in workflow
+    trusted_invocation = (
+        '"$W2_GOVERNANCE_ROOT/scripts/check_architecture_governance.py"'
+    )
+    assert workflow.count(trusted_invocation) == 2
+    assert (
+        "uv run --python 3.12 python scripts/check_architecture_governance.py"
+        " \\\n          prepare-detached-result-source"
+    ) not in workflow
 
 
 def frozen_spec() -> dict[str, Any]:
@@ -1599,7 +1613,25 @@ def test_post_rejects_digest_mismatch_and_missing_durable_payload() -> None:
     )
 
 
-def test_non_governance_task_cannot_modify_trusted_artifact_producers() -> None:
+@pytest.mark.parametrize(
+    "path",
+    [
+        "scripts/check_architecture_governance.py",
+        "scripts/classify_ci.py",
+        "scripts/jsonschema.py",
+        "scripts/classify_ci/__init__.py",
+        ".github/workflows/architecture-governance.yml",
+        ".github/workflows/ci.yml",
+        governance.MATRIX_SCHEMA_PATH,
+        (
+            "docs/operations/architecture_convergence/"
+            "W2_GITHUB_SECONDARY_REVIEW_PROTOCOL.md"
+        ),
+    ],
+)
+def test_non_governance_task_cannot_modify_trusted_artifact_producers(
+    path: str,
+) -> None:
     body = valid_body(task="ARCH-P1-03B-R1")
     checklist = preflight_checklist().replace(
         "Status: NOT_STARTED",
@@ -1612,7 +1644,7 @@ def test_non_governance_task_cannot_modify_trusted_artifact_producers() -> None:
         checklist,
         FakeClient(
             pull=valid_pull(body=body),
-            files=["scripts/check_architecture_governance.py"],
+            files=[path],
             reviews=[valid_review(task="ARCH-P1-03B-R1")],
             jobs=ci_jobs(governance._full_ci_plan()),
         ),
@@ -1623,6 +1655,60 @@ def test_non_governance_task_cannot_modify_trusted_artifact_producers() -> None:
         error.startswith("GOVERNANCE_PRODUCER_AUTHORITY_VIOLATION:")
         for error in result.errors
     )
+
+
+def test_trusted_collector_dependency_closure_ignores_pr_shadow_modules(
+    tmp_path: Path,
+) -> None:
+    trusted = tmp_path / "trusted"
+    trusted_scripts = trusted / "scripts"
+    trusted_scripts.mkdir(parents=True)
+    trusted_checker = trusted_scripts / "check_architecture_governance.py"
+    trusted_classifier = trusted_scripts / "classify_ci.py"
+    trusted_checker.write_bytes(
+        (ROOT / "scripts/check_architecture_governance.py").read_bytes()
+    )
+    trusted_classifier.write_bytes((ROOT / "scripts/classify_ci.py").read_bytes())
+
+    pull = tmp_path / "pull"
+    pull_scripts = pull / "scripts"
+    (pull_scripts / "classify_ci").mkdir(parents=True)
+    marker = tmp_path / "shadow-loaded"
+    malicious = f"from pathlib import Path\nPath({str(marker)!r}).touch()\n"
+    (pull_scripts / "jsonschema.py").write_text(malicious, encoding="utf-8")
+    (pull_scripts / "classify_ci.py").write_text(malicious, encoding="utf-8")
+    (pull_scripts / "classify_ci/__init__.py").write_text(
+        malicious, encoding="utf-8"
+    )
+    (pull_scripts / "check_architecture_governance.py").write_bytes(
+        trusted_checker.read_bytes()
+    )
+
+    environment = dict(os.environ)
+    environment.pop("PYTHONPATH", None)
+    environment["PYTHONNOUSERSITE"] = "1"
+    completed = subprocess.run(
+        [sys.executable, str(trusted_checker), "--help"],
+        cwd=trusted,
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert not marker.exists()
+
+
+def test_workflow_collector_selection_is_fail_closed() -> None:
+    def selected_root(task_id: str, trusted_task: str) -> str:
+        if task_id.startswith("ARCH-GOVERNANCE-") and task_id == trusted_task:
+            return "candidate"
+        return "trusted"
+
+    assert selected_root("ARCH-P1-03B-R1", "ARCH-GOVERNANCE-03") == "trusted"
+    assert selected_root("ARCH-GOVERNANCE-99", "ARCH-GOVERNANCE-03") == "trusted"
+    assert selected_root("ARCH-GOVERNANCE-03", "ARCH-GOVERNANCE-03") == "candidate"
+    assert selected_root("ARCH-P1-03B-R1", "ARCH-P1-03B-R1") == "trusted"
 
 
 def test_governed_full_ci_requires_trusted_raw_receipt_identity(tmp_path: Path) -> None:
