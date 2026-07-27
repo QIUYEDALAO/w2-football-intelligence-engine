@@ -643,6 +643,8 @@ PR、Merge SHA 或已完成台账。
 ```text
 Status: DONE
 Closure PR: #418
+PR: #411
+Merge SHA: f891f25dac1c0b663facab94dc0e05c54b84f4eb
 Historical final remediation PR: #411
 Historical final remediation merge SHA: f891f25dac1c0b663facab94dc0e05c54b84f4eb
 Base SHA: 832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd
