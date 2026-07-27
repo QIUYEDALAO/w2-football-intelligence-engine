@@ -665,7 +665,7 @@ Generator hotfix closure PR: #416
 Generator hotfix main CI_REQUIRED: 30259420198
 Generator hotfix main POST: 30259420152
 Generator hotfix scope: deterministic read-only lifecycle evidence output only
-External capture verification hotfix PR: GITHUB_PR_NUMBER
+External capture verification hotfix PR: #417
 Implementation SHA: GITHUB_PR_EXACT_HEAD
 External capture verification scope: offline attestation validation for protected data sources only
 Predecessor: ARCH-P1-04D-R1

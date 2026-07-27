@@ -30,7 +30,7 @@ repository:
   remote: QIUYEDALAO/w2-football-intelligence-engine
   main_sha: 3ebccbd3561e4e40ed1a1e8625491fbc73b23871
   main_migration_head: 0043_drop_legacy_identity_crosswalks
-  pull_request: GITHUB_PR_NUMBER
+  pull_request: 417
   pull_request_mode: DRAFT
   pull_request_head_branch: codex/arch-governance-04-external-capture-verification
   task_baseline_sha: 3ebccbd3561e4e40ed1a1e8625491fbc73b23871
@@ -161,7 +161,7 @@ architecture_convergence:
     successor_task: ARCH-P1-03B-R1
     scope: TRUSTED_EXTERNAL_CAPTURE_VERIFICATION_HOTFIX
     phase: IMPLEMENTED_PENDING_ACCEPTANCE
-    external_capture_hotfix_pr: GITHUB_PR_NUMBER
+    external_capture_hotfix_pr: 417
     implementation_sha: GITHUB_PR_EXACT_HEAD
     active_spec: NONE
     active_baseline_receipt: NONE
