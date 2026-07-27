@@ -48,7 +48,7 @@
 | ARCH-P1-03C | #404 | `4e310e87def0e6e44e0fe69fa0c07f776126a6fc` | 三张 legacy identity 表及 ORM 声明下线 |
 | ARCH-GOVERNANCE-02 | #406 | `cf5d6ea2cca600e31d4058b7d359b271d12d1f04` | path-aware CI、稳定聚合门与 required contexts 切换 |
 | ARCH-P1-04D-R1 | #408 | `09ece0204bed1289986e20d6a1cff842cb2f0864` | canonical decision contract 遗留兼容读取整改 |
-| ARCH-GOVERNANCE-03 | #411 | `f891f25dac1c0b663facab94dc0e05c54b84f4eb` | 真实生产输入验收矩阵与可信 workflow event 运行闭包 |
+| ARCH-GOVERNANCE-03 | #417 | `62a9c0ac5a85426fb44234ec7a0032454d605a59` | 真实生产输入验收矩阵、可信 workflow event 与外部采集验证闭包 |
 
 ---
 
@@ -641,8 +641,8 @@ PR、Merge SHA 或已完成台账。
 #### A14. ARCH-GOVERNANCE-03：真实生产输入形状与冻结验收矩阵规则
 
 ```text
-Status: IMPLEMENTED_PENDING_ACCEPTANCE
-Closure PR: #412
+Status: DONE
+Closure PR: GITHUB_CLOSURE_PR
 Historical final remediation PR: #411
 Historical final remediation merge SHA: f891f25dac1c0b663facab94dc0e05c54b84f4eb
 Base SHA: 832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd
@@ -666,7 +666,12 @@ Generator hotfix main CI_REQUIRED: 30259420198
 Generator hotfix main POST: 30259420152
 Generator hotfix scope: deterministic read-only lifecycle evidence output only
 External capture verification hotfix PR: #417
-Implementation SHA: GITHUB_PR_EXACT_HEAD
+External capture verification accepted head: b614c490e46f94835a729d3079b2aa71fe9213da
+External capture verification FULL CI: 30266575034
+External capture verification acceptance: W2_EXTERNAL_ACCEPTANCE_V1
+External capture verification merge SHA: 62a9c0ac5a85426fb44234ec7a0032454d605a59
+External capture verification main CI_REQUIRED: 30268052489
+External capture verification main POST: 30268052524
 External capture verification scope: offline attestation validation for protected data sources only
 Predecessor: ARCH-P1-04D-R1
 Successor: ARCH-P1-03B-R1 (NOT_STARTED)
