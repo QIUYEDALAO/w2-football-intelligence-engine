@@ -23,31 +23,13 @@
     },
     "REAL_INPUT_AVAILABLE": {
       "status": "UNVERIFIABLE",
-      "evidence": [
-        {
-          "evidence_type": "CONTENT_ADDRESSED_SANITIZED_ARTIFACT",
-          "role": "SUPPORTING",
-          "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight-capture.json",
-          "artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
-          "command": "read-only SSH -> PostgreSQL 16 with PGOPTIONS default_transaction_read_only=on; sanitize counts and fingerprints",
-          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
-        }
-      ],
-      "rationale": "Real staging rows were read and sanitized, but the capture is supporting only because no subject-head lifecycle evidence generator can replay it."
+      "evidence": [],
+      "rationale": "A forced-read-only staging audit observed PostgreSQL 16 at migration 0043_drop_legacy_identity_crosswalks, 66 REVIEWED mappings, 32 APPROVED team crosswalks, 10 confirmed lineup snapshots, 200 lineup players, 110 starters, and provider_request_logs=312 before/after. The current staging application release is 8adc8d482aefd7d31063030f0b682458c58c17a2 rather than subject head a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54, and no subject-head lifecycle generator can replay the capture, so it is not promoted to real-input evidence."
     },
     "RUNTIME_SQL_BASELINE_CAPTURED": {
       "status": "UNVERIFIABLE",
-      "evidence": [
-        {
-          "evidence_type": "REAL_DB",
-          "role": "SUPPORTING",
-          "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight-capture.json",
-          "artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
-          "command": "read-only pg_catalog/information_schema and canonical identity SELECT capture; no replayable subject-head generator",
-          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
-        }
-      ],
-      "rationale": "PostgreSQL schema, indexes, migration head, row counts, reviewed fingerprints, lineup joins, and zero deltas were captured read-only; the required replayable REAL_DB artifact is absent."
+      "evidence": [],
+      "rationale": "Forced-read-only pg_catalog/information_schema and canonical identity SELECTs observed schema/index fingerprint 2a40b2d4494849e5f5a346511ee327fcbe5d8b0612c4a302cb086f61835e0cc5 and lineup-join fingerprint 9265af518186b2314c393cc2c6f4d33035e2ffc4c4867285cc35a1786421180e, with provider call delta=0 and DB write delta=0. The required replayable REAL_DB artifact is absent, so the baseline remains UNVERIFIABLE."
     },
     "MUTATION_SOURCE_FROZEN": {
       "status": "UNVERIFIABLE",
@@ -59,17 +41,9 @@
           "artifact_sha256": "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
           "command": "git show a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54:docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
           "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
-        },
-        {
-          "evidence_type": "CONTENT_ADDRESSED_SANITIZED_ARTIFACT",
-          "role": "SUPPORTING",
-          "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight-capture.json",
-          "artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
-          "command": "read-only SSH -> PostgreSQL 16 with PGOPTIONS default_transaction_read_only=on; sanitize counts and fingerprints",
-          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
         }
       ],
-      "rationale": "The fixed 66-row approval manifest and sanitized staging fingerprints exist, but no schema-valid replayable mutation-source artifact binds them at this baseline."
+      "rationale": "The fixed 66-row approval manifest is content-addressed. Read-only staging audit observed all 66 rows with reviewed_by=operator:liudehua, review-package SHA 916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea, approval SHA a78a020e774dda958d787a60c794df3c56f58b51ae110ba8d4289b9b45558695, and row fingerprint 5004170d32240de1f1ca43cdf0d30003f022854cad1b8810d47a6440874a144e. No schema-valid replayable mutation-source artifact binds the live rows at this baseline."
     },
     "GENERATOR_REPLAYABLE": {
       "status": "BLOCKED",
@@ -97,17 +71,8 @@
       "input_id": "canonical_player_authority_rows",
       "status": "UNVERIFIABLE",
       "evidence_type": "REAL_DB",
-      "evidence": [
-        {
-          "evidence_type": "REAL_DB",
-          "role": "SUPPORTING",
-          "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight-capture.json",
-          "artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
-          "command": "read-only pg_catalog/information_schema and canonical identity SELECT capture; no replayable subject-head generator",
-          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
-        }
-      ],
-      "rationale": "The real database contains 66 REVIEWED rows and the fixed package hashes, but the supporting capture is not a replayable REAL_DB evidence artifact."
+      "evidence": [],
+      "rationale": "Forced-read-only staging queries observed 110 canonical player-identity rows: 66 REVIEWED, 36 CANDIDATE, and 8 MISSING. The 66 approved rows fingerprint to 5004170d32240de1f1ca43cdf0d30003f022854cad1b8810d47a6440874a144e, but the capture is not a replayable REAL_DB evidence artifact."
     },
     {
       "input_id": "team_value_player_authority_input",
@@ -117,21 +82,13 @@
         {
           "evidence_type": "CONTENT_ADDRESSED_SANITIZED_ARTIFACT",
           "role": "SUPPORTING",
-          "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight-capture.json",
-          "artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
-          "command": "read-only SSH -> PostgreSQL 16 with PGOPTIONS default_transaction_read_only=on; sanitize counts and fingerprints",
-          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
-        },
-        {
-          "evidence_type": "CONTENT_ADDRESSED_SANITIZED_ARTIFACT",
-          "role": "SUPPORTING",
           "artifact_path": "docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
           "artifact_sha256": "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
           "command": "git show a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54:docs/operations/architecture_convergence/W2_ARCH_P1_03B_REVIEW_PACKAGE_MANIFEST_V1.json",
           "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
         }
       ],
-      "rationale": "Real lineups and the approved manifest are frozen as supporting inputs, while the reachable PlayerIdentityCrosswalkV1 file consumer remains a competing authority."
+      "rationale": "The fixed approved manifest is frozen as a supporting input. Forced-read-only staging queries observed confirmed lineup fixtures 1494212-1494216, with reviewed starter joins of 22,0,22,0,22 respectively; the reachable PlayerIdentityCrosswalkV1 file consumer remains a competing authority."
     }
   ],
   "layer_results": {
@@ -151,17 +108,8 @@
     },
     "RUNTIME_SQL_TRACE": {
       "status": "UNVERIFIABLE",
-      "evidence": [
-        {
-          "evidence_type": "REAL_DB",
-          "role": "SUPPORTING",
-          "artifact_path": "docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight-capture.json",
-          "artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
-          "command": "read-only pg_catalog/information_schema and canonical identity SELECT capture; no replayable subject-head generator",
-          "subject_head": "a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54"
-        }
-      ],
-      "rationale": "A real read-only SQL baseline exists, but no replayable runtime trace covers every frozen entry point."
+      "evidence": [],
+      "rationale": "A forced-read-only SQL baseline was measured with provider call delta=0 and DB write delta=0, but no replayable runtime trace covers every frozen entry point."
     },
     "MUTATION_TESTS": {
       "status": "PARTIAL",
@@ -190,13 +138,13 @@
       "type": "missing",
       "status": "NOT_RUN",
       "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT",
-      "source_artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+      "source_artifact_sha256": "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
       "mutation_manifest": {
         "operation": "missing",
-        "source_artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+        "source_artifact_sha256": "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
         "status": "NOT_RUN"
       },
-      "mutation_manifest_sha256": "cd0577059e4bd76e740667b48b8db50b1c77fc9d04befcbac41d7b413b0c0d61",
+      "mutation_manifest_sha256": "29375f4ade27c4e29ba6222ba81b5d6c151dba4c4eefd5e03fe9570b1438b5f5",
       "mutation_operation": "missing",
       "expected_output": "None/MISSING and no canonical player",
       "observed_output": "Frozen for the later implementation; no PREFLIGHT mutation execution.",
@@ -207,13 +155,13 @@
       "type": "malformed",
       "status": "NOT_RUN",
       "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT",
-      "source_artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+      "source_artifact_sha256": "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
       "mutation_manifest": {
         "operation": "malformed",
-        "source_artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+        "source_artifact_sha256": "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
         "status": "NOT_RUN"
       },
-      "mutation_manifest_sha256": "6041d8ef03ab3c2af0363b0ff8494794fa925426917f9fd49736323f7820e139",
+      "mutation_manifest_sha256": "02f32322974bbe95dd447973a4ce6e51fb77bd2263e4108bce0ac9bd7643984a",
       "mutation_operation": "malformed",
       "expected_output": "INCOMPLETE and no accepted identity",
       "observed_output": "Frozen for the later implementation; no PREFLIGHT mutation execution.",
@@ -224,13 +172,13 @@
       "type": "stale",
       "status": "NOT_RUN",
       "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT",
-      "source_artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+      "source_artifact_sha256": "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
       "mutation_manifest": {
         "operation": "stale",
-        "source_artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+        "source_artifact_sha256": "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
         "status": "NOT_RUN"
       },
-      "mutation_manifest_sha256": "536992a276886d93ab4cea90c96445d24b3cb7818ed8aed4c5a81d7b886811ec",
+      "mutation_manifest_sha256": "4d5e2d1024c09e3d1c5fc5ed540038a23dd8c38dff2f4f4a336ecdbbbf1f3ed8",
       "mutation_operation": "stale",
       "expected_output": "INVALID_AT_KICKOFF and no canonical player",
       "observed_output": "Frozen for the later implementation; no PREFLIGHT mutation execution.",
@@ -241,13 +189,13 @@
       "type": "ambiguous",
       "status": "NOT_RUN",
       "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT",
-      "source_artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+      "source_artifact_sha256": "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
       "mutation_manifest": {
         "operation": "ambiguous",
-        "source_artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+        "source_artifact_sha256": "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
         "status": "NOT_RUN"
       },
-      "mutation_manifest_sha256": "f5444c71169765e39665d1966f7f7fa890e302a849b7dc9226c9b079c423ef61",
+      "mutation_manifest_sha256": "a386c69674f3cbb4a6162ee1a56d37b451559d63d3078527829859a70f41745f",
       "mutation_operation": "ambiguous",
       "expected_output": "AMBIGUOUS and no canonical player",
       "observed_output": "Frozen for the later implementation; no PREFLIGHT mutation execution.",
@@ -258,13 +206,13 @@
       "type": "conflict",
       "status": "NOT_RUN",
       "derivation": "CONTROLLED_MUTATION_OF_SANITIZED_REAL_INPUT",
-      "source_artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+      "source_artifact_sha256": "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
       "mutation_manifest": {
         "operation": "conflict",
-        "source_artifact_sha256": "438b21eadfca0d9d00821dd3efe0cf6cff3bcee87da8b076faf7a966bc806b3f",
+        "source_artifact_sha256": "916fb7aed46d0c69cae6aff0107ad4e67e12aa55fe6be5fa32b17b7aa0d4b9ea",
         "status": "NOT_RUN"
       },
-      "mutation_manifest_sha256": "a81b2d475becd72d56b954f93b4351a7302fdaa1fbb4f98e30315408fb20cbbf",
+      "mutation_manifest_sha256": "4ee3599b09fb96f4e9749e81f57b88a214927b260728fda3aa0afb611c6b3843",
       "mutation_operation": "conflict",
       "expected_output": "CONFLICT and no accepted join",
       "observed_output": "Frozen for the later implementation; no PREFLIGHT mutation execution.",
@@ -305,5 +253,5 @@
     }
   ],
   "overall_status": "BLOCKED",
-  "receipt_sha256": "73598ec265c68e6b50516c1a3907a1d2f684c6a2f8d5a020eee586cf1e5882c9"
+  "receipt_sha256": "065b369db53d395d0f2845c294b7731a2d782d9a819944814a197d8e97c7084b"
 }

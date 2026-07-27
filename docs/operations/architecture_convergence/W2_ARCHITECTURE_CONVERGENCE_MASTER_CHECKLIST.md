@@ -743,7 +743,7 @@ PREFLIGHT PR: #414
 Frozen baseline: a0caebc92b8abd20fbb1e054f03e62e4ceb1ea54
 Immutable spec: docs/operations/architecture_convergence/acceptance_matrices/ARCH-P1-03B-R1.spec.json
 Baseline receipt: docs/operations/architecture_convergence/acceptance_matrices/ARCH-P1-03B-R1.baseline.json
-Supporting read-only capture: docs/operations/architecture_convergence/evidence/ARCH-P1-03B-R1.preflight-capture.json
+The baseline receipt records the forced-read-only staging counts and fingerprints in its rationales. They remain `UNVERIFIABLE` lifecycle evidence because the frozen subject head has no replayable real-input generator.
 Final attestation: add-only in the later closure PR after implementation acceptance
 Derived implementation gate: BLOCKED
 Allowed next PR kind: PREFLIGHT
