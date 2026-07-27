@@ -72,11 +72,16 @@ def test_secondary_review_protocol_allows_lightweight_closure_ci() -> None:
     assert "只交付实际 argv/hash" in protocol
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     assert "Checkout trusted measurement collector" in workflow
-    assert 'trusted_root="$GITHUB_WORKSPACE/.w2-trusted-governance"' in workflow
+    assert (
+        workflow.count(
+            'echo "W2_GOVERNANCE_ROOT=$GITHUB_WORKSPACE/.w2-trusted-governance"'
+        )
+        == 2
+    )
     assert "cmp \\" not in workflow
     assert 'cd "$W2_GOVERNANCE_ROOT"' in workflow
     assert "env -u PYTHONPATH PYTHONNOUSERSITE=1" in workflow
-    assert workflow.count('"$task_id" == "ARCH-GOVERNANCE-03"') == 2
+    assert '"$task_id" == "ARCH-GOVERNANCE-03"' not in workflow
     trusted_invocation = (
         '"$W2_GOVERNANCE_ROOT/scripts/check_architecture_governance.py"'
     )
@@ -1697,17 +1702,6 @@ def test_trusted_collector_dependency_closure_ignores_pr_shadow_modules(
     )
     assert completed.returncode == 0, completed.stderr
     assert not marker.exists()
-
-
-def test_workflow_collector_selection_is_fail_closed() -> None:
-    def selected_root(task_id: str) -> str:
-        if task_id == "ARCH-GOVERNANCE-03":
-            return "candidate"
-        return "trusted"
-
-    assert selected_root("ARCH-P1-03B-R1") == "trusted"
-    assert selected_root("ARCH-GOVERNANCE-99") == "trusted"
-    assert selected_root("ARCH-GOVERNANCE-03") == "candidate"
 
 
 def test_governed_full_ci_requires_trusted_raw_receipt_identity(tmp_path: Path) -> None:

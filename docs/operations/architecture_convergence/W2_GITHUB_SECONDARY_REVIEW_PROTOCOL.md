@@ -196,9 +196,17 @@ ACTUAL_READ_SET = IDENTITY_GUARD_COVERAGE_SET
     measurement，再由原始回执派生 result/evidence ZIP；普通任务必须直接从 trusted
     base checkout 执行 collector/compiler，并在 trusted base cwd、清空 `PYTHONPATH`
     后加载同一 checkout 的 `classify_ci`。PR 工作树同名 module/package 不得进入依赖
-    闭包。当前引导阶段仅 `ARCH-GOVERNANCE-03` 可执行 candidate collector/compiler；
-    其余任务（包括后续普通任务）必须执行 trusted base。Implementation 不能覆盖派生
-    结果，tracked source、all-PASS source 或 PR 自定义 collector/compiler 一律拒绝。
+    闭包。`ARCH-GOVERNANCE-03` bootstrap 已随 PR #410 合并完成；此后所有 PR
+    （包括该任务的 remediation 和 Closure）都必须执行 trusted base
+    collector/classifier/compiler，不再允许 candidate runtime。Implementation 不能
+    覆盖派生结果，tracked source、all-PASS source 或 PR 自定义 collector/compiler
+    一律拒绝。
+16. 修改 GitHub Actions workflow 的任务必须在实现前冻结 workflow event × CI plan
+    验收矩阵，并以解析后的 workflow job/step `if`、`env`、`needs` 做机器测试，不得
+    仅检查字符串。矩阵至少覆盖 `pull_request FULL`、`pull_request PATH_AWARE`、
+    `pull_request LIGHTWEIGHT`、`push main` 与 `workflow_dispatch`；逐一验证每个
+    `on` 事件、每种 CI plan、每个 `always()` job、事件专属 context 的可达性，以及
+    所有必需 env/path 在每条可达路径均已初始化。
 
 ### 4. 输出和破坏性操作闭环
 

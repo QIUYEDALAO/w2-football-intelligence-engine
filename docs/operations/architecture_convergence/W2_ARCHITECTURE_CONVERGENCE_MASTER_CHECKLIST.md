@@ -643,6 +643,15 @@ PR、Merge SHA 或已完成台账。
 Status: IMPLEMENTED_PENDING_ACCEPTANCE
 Branch: codex/arch-governance-03-production-input-matrix
 Base SHA: 832ae1e79fbddb7b4c3b1316abe8a2a5e9da15dd
+Implementation PR: #410
+Accepted Head: f7043f6a5fc0e020d11e19672a70658a66cc420f
+Full CI: 30237236245
+External Acceptance: W2_EXTERNAL_ACCEPTANCE_V1
+Initial implementation merged as: bfdd79b3814008d9988f8f5d76d566145188e1e4
+Post-merge remediation: GITHUB_REMEDIATION_PR
+Remediation branch: codex/arch-governance-03-main-push-remediation
+Remediation base: bfdd79b3814008d9988f8f5d76d566145188e1e4
+Failed main-push CI: 30238672678
 Implementation SHA: GITHUB_PR_EXACT_HEAD
 Predecessor: ARCH-P1-04D-R1
 Successor: ARCH-P1-03B-R1 (NOT_STARTED)
@@ -684,6 +693,8 @@ Governance fixture blocked-baseline SHA-256: 9dbce71730f344c9e98f0020cf654f7a468
       Implementation FULL/Review → merge → Closure add-only final → POST DONE`
       状态机；真实 03B-R1 spec/baseline 必须由其后续独立 PREFLIGHT 新增，
       03B-R1 保持 `NOT_STARTED`。
+- [ ] post-merge remediation 仅修复 workflow event × CI plan 的可信 root 初始化；
+      新 main 的 `CI_REQUIRED` 与 POST 同时成功后，方可创建本任务 Closure。
 
 **不做**：不修改 03B-R1 生产代码、66 条审批、staging 数据、模型数学、provider 或
 任何安全开关。
