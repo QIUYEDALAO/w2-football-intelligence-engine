@@ -381,11 +381,11 @@ Status: NOT_STARTED
 
 ```text
 Status: IMPLEMENTED_PENDING_ACCEPTANCE
-Implementation SHA: 7fdd4cc3c31e39a521392e8d47e1e752f3110636
+Implementation SHA: 9e50607594157bd8f9255b5b835343b1d7899a10
 CI run: pending final exact-head FULL CI
 Staging SHA: pending one final exact-head deployment
 Evidence: PR #424 description
-Rollback: pre-B1 immutable image + PostgreSQL backup + runtime-ledger backup
+Rollback: pre-B1 image a944b12b… + /opt/w2/shared/backups/eval-01a-79cf729cdf7efc17-20260728T1015Z
 ```
 
 ---
