@@ -136,6 +136,12 @@ class CompetitionRegistry:
                 "api_football_league_id": str(season_payload.get("provider_league_id") or ""),
                 "api_football_season": str(season_payload.get("provider_season") or season.season),
             }
+            try:
+                audit_order = int(profile_payload.get("audit_order") or 999)
+            except (TypeError, ValueError) as exc:
+                raise CompetitionRegistryError(
+                    f"COMPETITION_AUDIT_ORDER_INVALID:{profile.competition_id}"
+                ) from exc
             entries[profile.competition_id] = CompetitionRegistryEntry(
                 competition_id=profile.competition_id,
                 season=season.season,
@@ -157,7 +163,7 @@ class CompetitionRegistry:
                 else None,
                 scope_group=str(profile_payload.get("scope_group") or ""),
                 audit_cohort=str(profile_payload.get("audit_cohort") or ""),
-                audit_order=int(profile_payload.get("audit_order") or 999),
+                audit_order=audit_order,
                 config_hash=str(season_payload.get("config_hash") or ""),
                 profile_payload=dict(profile_payload.get("competition_profile") or {}),
             )

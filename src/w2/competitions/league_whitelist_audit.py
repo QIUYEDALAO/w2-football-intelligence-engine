@@ -8,7 +8,6 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any, Protocol
 
-from w2.competitions.league_whitelist_scope import NATIONAL_LEAGUES_OFFSEASON
 from w2.competitions.odds_market_mapping import bookmaker_observed_evidence
 from w2.competitions.registry import CompetitionRegistryEntry
 
@@ -374,7 +373,7 @@ def evaluate_league_whitelist_audit(
         _fixtures_item(
             future_fixtures := provider.get_fixtures(league_id, season, "future"),
             query_params=future_query,
-            competition_id=entry.competition_id,
+            audit_cohort=entry.audit_cohort,
             configured_season=season,
         ),
         _results_item(provider.get_results(league_id, season)),
@@ -466,7 +465,7 @@ def _fixtures_item(
     fixtures: Sequence[Mapping[str, Any]],
     *,
     query_params: Mapping[str, Any] | None = None,
-    competition_id: str = "",
+    audit_cohort: str = "",
     configured_season: str = "",
 ) -> AuditItem:
     ids = tuple(_fixture_id(item) for item in fixtures if _fixture_id(item))
@@ -483,7 +482,7 @@ def _fixtures_item(
             observed_evidence=observed_evidence,
         )
     message = _empty_fixtures_message(
-        competition_id=competition_id,
+        audit_cohort=audit_cohort,
         configured_season=configured_season,
     )
     return AuditItem(
@@ -591,8 +590,8 @@ def _bookmaker_observed_evidence(odds: Sequence[Mapping[str, Any]]) -> dict[str,
     return bookmaker_observed_evidence(odds)
 
 
-def _empty_fixtures_message(*, competition_id: str, configured_season: str) -> str:
-    if competition_id in NATIONAL_LEAGUES_OFFSEASON:
+def _empty_fixtures_message(*, audit_cohort: str, configured_season: str) -> str:
+    if audit_cohort == "OFFSEASON":
         return "FIXTURES_EMPTY_OFF_SEASON"
     if configured_season:
         return "FIXTURES_EMPTY_CONFIGURED_SEASON"

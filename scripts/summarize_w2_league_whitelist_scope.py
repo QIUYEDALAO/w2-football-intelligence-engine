@@ -5,12 +5,8 @@ import json
 from typing import Any
 
 from w2.competitions.league_whitelist_scope import (
-    ALL_WHITELIST_COMPETITIONS,
-    IN_SEASON_NATIONAL_LEAGUES,
-    NATIONAL_LEAGUES_OFFSEASON,
-    REMAINING_UNAUDITED_WHITELIST,
-    TOP_FIVE_COMPETITIONS,
-    WORLD_CUP_COMPETITIONS,
+    LeagueWhitelistScope,
+    load_league_whitelist_scope,
 )
 from w2.competitions.registry import CompetitionRegistry, CompetitionRegistryEntry
 
@@ -41,12 +37,12 @@ def build_scope_summary(
     *,
     provider_calls_used_today: int = 0,
     daily_audit_hard_cap: int = DAILY_AUDIT_HARD_CAP,
+    registry: CompetitionRegistry | None = None,
 ) -> dict[str, Any]:
-    registry = CompetitionRegistry()
-    entries = registry.entries()
+    scope = load_league_whitelist_scope(registry)
     inventory = [
-        _inventory_item(entries[competition_id])
-        for competition_id in ALL_WHITELIST_COMPETITIONS
+        _inventory_item(scope.entries[competition_id], scope)
+        for competition_id in scope.all_whitelist
     ]
     remaining_cap = remaining_provider_cap(
         provider_calls_used_today,
@@ -56,11 +52,13 @@ def build_scope_summary(
         "status": "PASS",
         "source": SOURCE,
         "competition_count": len(inventory),
-        "remaining_unaudited_count": len(REMAINING_UNAUDITED_WHITELIST),
-        "remaining_unaudited_whitelist": list(REMAINING_UNAUDITED_WHITELIST),
+        "remaining_unaudited_count": len(scope.remaining_unaudited),
+        "remaining_unaudited_whitelist": list(scope.remaining_unaudited),
         "inventory": inventory,
         "provider_calls": 0,
-        "db_reads": 0,
+        "db_reads": 1,
+        "import_time_db_reads": 0,
+        "runtime_scope_db_reads": 1,
         "db_writes": 0,
         "provider_calls_used_today_by_league_whitelist": provider_calls_used_today,
         "daily_audit_hard_cap": daily_audit_hard_cap,
@@ -76,10 +74,13 @@ def remaining_provider_cap(
     return max(0, daily_audit_hard_cap - provider_calls_used_today)
 
 
-def _inventory_item(entry: CompetitionRegistryEntry) -> dict[str, Any]:
+def _inventory_item(
+    entry: CompetitionRegistryEntry,
+    scope: LeagueWhitelistScope,
+) -> dict[str, Any]:
     competition_id = entry.competition_id
-    group = _group(competition_id)
-    audit_status = _audit_status(entry)
+    group = _group(competition_id, scope)
+    audit_status = _audit_status(entry, scope)
     return {
         "competition_id": competition_id,
         "group": group,
@@ -89,27 +90,27 @@ def _inventory_item(entry: CompetitionRegistryEntry) -> dict[str, Any]:
         "audit_status": audit_status,
         "audit_mode": _audit_mode(audit_status),
         "can_enable": False,
-        "reason": _reason(competition_id, audit_status),
+        "reason": _reason(competition_id, audit_status, scope),
         "provider_calls": 0,
         "db_reads": 0,
         "db_writes": 0,
     }
 
 
-def _group(competition_id: str) -> str:
-    if competition_id in TOP_FIVE_COMPETITIONS:
+def _group(competition_id: str, scope: LeagueWhitelistScope) -> str:
+    if competition_id in scope.top_five:
         return "top_five"
-    if competition_id in WORLD_CUP_COMPETITIONS:
+    if competition_id in scope.world_cup:
         return "world_cup"
     return "national_leagues"
 
 
-def _audit_status(entry: CompetitionRegistryEntry) -> str:
+def _audit_status(entry: CompetitionRegistryEntry, scope: LeagueWhitelistScope) -> str:
     if entry.enabled:
         return "ENABLED_EXISTING"
-    if entry.competition_id in IN_SEASON_NATIONAL_LEAGUES:
+    if entry.competition_id in scope.in_season_national_leagues:
         return "AUDITED_IN_180"
-    if entry.competition_id in NATIONAL_LEAGUES_OFFSEASON:
+    if entry.competition_id in scope.national_leagues_offseason:
         return "OFF_SEASON_DEFERRED"
     return "NOT_AUDITED"
 
@@ -120,14 +121,18 @@ def _audit_mode(audit_status: str) -> str:
     return "COVERAGE_INVENTORY_AUDIT"
 
 
-def _reason(competition_id: str, audit_status: str) -> str:
+def _reason(
+    competition_id: str,
+    audit_status: str,
+    scope: LeagueWhitelistScope,
+) -> str:
     if audit_status == "AUDITED_IN_180":
         return "audited in prior controlled provider audit; not full whitelist completion"
     if audit_status == "ENABLED_EXISTING":
         return "already enabled; included for inventory, not a new enablement"
     if audit_status == "OFF_SEASON_DEFERRED":
         return "national league registered but excluded from in-season six-league audit"
-    if competition_id in TOP_FIVE_COMPETITIONS:
+    if competition_id in scope.top_five:
         return "top five competition registered but not covered by six-league national audit"
     return "registered whitelist competition not covered by six-league national audit"
 

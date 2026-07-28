@@ -5,19 +5,15 @@ import json
 import math
 import time
 import unicodedata
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
-from w2.competitions.league_whitelist_scope import (
-    IN_SEASON_NATIONAL_LEAGUES,
-    NATIONAL_LEAGUES_OFFSEASON,
-    TOP_FIVE_COMPETITIONS,
-)
-from w2.competitions.registry import CompetitionRegistry, CompetitionRegistryEntry
+from w2.competitions.league_whitelist_scope import load_league_whitelist_scope
+from w2.competitions.registry import CompetitionRegistryEntry, CompetitionRegistryError
 from w2.domain.time import require_utc
 from w2.models.evaluation import EvaluationRow, metrics, reliability
 from w2.models.independent import (
@@ -31,11 +27,6 @@ from w2.models.independent import (
 from w2.providers.quota import parse_api_football_quota
 
 FREE_TIER_2024_BACKTEST_VERSION = "w2.free_tier_2024_backtest.v1"
-ANNUAL_COMPETITIONS = (
-    *TOP_FIVE_COMPETITIONS,
-    *IN_SEASON_NATIONAL_LEAGUES,
-    *NATIONAL_LEAGUES_OFFSEASON,
-)
 DEFAULT_RAW_DIRS = (Path("runtime/w2_free_tier_2024/raw"), Path("runtime/stage5b/raw"))
 MIN_READY_SAMPLE = 200
 MIN_OBSERVING_SAMPLE = 30
@@ -139,18 +130,24 @@ def build_free_tier_2024_backtest_report(
     *,
     raw_dirs: Sequence[Path] = DEFAULT_RAW_DIRS,
     season: str = "2024",
-    competitions: Sequence[str] = ANNUAL_COMPETITIONS,
+    competitions: Sequence[str] | None = None,
+    competition_entries: Mapping[str, CompetitionRegistryEntry] | None = None,
     true_xg_source: str = "api_football_statistics",
     generated_at: datetime | None = None,
 ) -> dict[str, Any]:
     generated = (generated_at or datetime.now(UTC)).astimezone(UTC)
-    registry = CompetitionRegistry()
-    entries = registry.entries()
+    if competitions is None:
+        scope = load_league_whitelist_scope()
+        resolved_competitions = scope.annual_competitions
+        entries: Mapping[str, CompetitionRegistryEntry] | None = scope.entries
+    else:
+        resolved_competitions = tuple(competitions)
+        entries = competition_entries
     fixtures = load_historical_fixtures(
         raw_dirs=raw_dirs,
         entries=entries,
         season=season,
-        competitions=competitions,
+        competitions=resolved_competitions,
     )
     predictions = build_walk_forward_predictions(fixtures)
     rows = [
@@ -169,18 +166,22 @@ def build_free_tier_2024_backtest_report(
             [row for row in rows if row.competition == competition_id],
             predictions=[item for item in predictions if item["competition_id"] == competition_id],
         )
-        for competition_id in competitions
+        for competition_id in resolved_competitions
     }
     covered_competitions = sorted(
         {row.competition for row in rows},
-        key=lambda item: competitions.index(item) if item in competitions else 999,
+        key=lambda item: (
+            resolved_competitions.index(item) if item in resolved_competitions else 999
+        ),
     )
-    missing_competitions = [item for item in competitions if item not in covered_competitions]
+    missing_competitions = [
+        item for item in resolved_competitions if item not in covered_competitions
+    ]
     input_coverage = _input_coverage(
         raw_dirs=raw_dirs,
         entries=entries,
         season=season,
-        competitions=competitions,
+        competitions=resolved_competitions,
     )
     true_xg_statistics = (
         load_understat_xg_statistics(
@@ -218,7 +219,7 @@ def build_free_tier_2024_backtest_report(
         "value_pick_enabled": False,
         "season": season,
         "scope": {
-            "annual_competitions": list(competitions),
+            "annual_competitions": list(resolved_competitions),
             "covered_competitions": covered_competitions,
             "missing_competitions": missing_competitions,
             "world_cup_excluded_reason": "2024 is not a World Cup tournament season",
@@ -242,24 +243,38 @@ def build_free_tier_2024_backtest_report(
 def load_historical_fixtures(
     *,
     raw_dirs: Sequence[Path],
-    entries: dict[str, CompetitionRegistryEntry],
+    entries: Mapping[str, CompetitionRegistryEntry] | None,
     season: str,
     competitions: Sequence[str],
 ) -> list[HistoricalFixture]:
-    by_league = {
-        entries[competition_id].provider_mapping.get("api_football_league_id", ""): competition_id
-        for competition_id in competitions
-        if competition_id in entries
-    }
+    by_league = (
+        {
+            entries[competition_id].provider_mapping.get(
+                "api_football_league_id", ""
+            ): competition_id
+            for competition_id in competitions
+            if competition_id in entries
+        }
+        if entries is not None
+        else None
+    )
     fixtures: dict[str, HistoricalFixture] = {}
     for path in _raw_files(raw_dirs, endpoint="fixtures"):
         payload = _load_json(path)
         params = _params(payload)
         league_id = str(params.get("league") or "")
         raw_season = str(params.get("season") or "")
-        if league_id not in by_league or raw_season != season:
+        competition_id = (
+            by_league.get(league_id)
+            if by_league is not None
+            else _raw_competition_id(payload)
+        )
+        if (
+            competition_id is None
+            or competition_id not in competitions
+            or raw_season != season
+        ):
             continue
-        competition_id = by_league[league_id]
         for row in _response_rows(payload):
             fixture = _fixture_from_row(
                 row,
@@ -465,13 +480,13 @@ def build_understat_model_iteration_report(
     raw_dirs: Sequence[Path] = DEFAULT_RAW_DIRS,
     season: str = "2024",
     competitions: Sequence[str] = MODEL_ITERATION_COMPETITIONS,
+    competition_entries: Mapping[str, CompetitionRegistryEntry] | None = None,
     min_history: int = 5,
     train_fraction: float = 0.7,
 ) -> dict[str, Any]:
-    registry = CompetitionRegistry()
     fixtures = load_historical_fixtures(
         raw_dirs=raw_dirs,
-        entries=registry.entries(),
+        entries=competition_entries,
         season=season,
         competitions=competitions,
     )
@@ -656,7 +671,8 @@ def collect_provider_dataset(
     *,
     out_dir: Path,
     season: str = "2024",
-    competitions: Sequence[str] = ANNUAL_COMPETITIONS,
+    competitions: Sequence[str] | None = None,
+    competition_entries: Mapping[str, CompetitionRegistryEntry] | None = None,
     reuse_raw_dirs: Sequence[Path] = DEFAULT_RAW_DIRS,
     daily_hard_cap: int = 80,
     max_statistics_calls: int = 0,
@@ -667,8 +683,16 @@ def collect_provider_dataset(
 ) -> ProviderFetchResult:
     if daily_hard_cap < 0 or max_statistics_calls < 0:
         raise ValueError("provider call caps must be non-negative")
-    registry = CompetitionRegistry()
-    entries = registry.entries()
+    entries: Mapping[str, CompetitionRegistryEntry] | None
+    if competitions is None:
+        scope = load_league_whitelist_scope()
+        resolved_competitions = scope.annual_competitions
+        entries = scope.entries
+    else:
+        resolved_competitions = tuple(competitions)
+        entries = competition_entries
+    if entries is None:
+        raise CompetitionRegistryError("COMPETITION_ENTRIES_REQUIRED_FOR_PROVIDER_COLLECTION")
     raw_dir = out_dir / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
     generated = (generated_at or datetime.now(UTC)).astimezone(UTC)
@@ -681,7 +705,7 @@ def collect_provider_dataset(
     def remaining() -> int:
         return daily_hard_cap - provider_calls
 
-    for competition_id in competitions:
+    for competition_id in resolved_competitions:
         if competition_id not in entries:
             continue
         entry = entries[competition_id]
@@ -739,7 +763,7 @@ def collect_provider_dataset(
             raw_dirs=(raw_dir, *reuse_raw_dirs),
             entries=entries,
             season=season,
-            competitions=competitions,
+            competitions=resolved_competitions,
         )
         for fixture in _round_robin_by_competition(fixtures):
             if provider_calls >= daily_hard_cap:
@@ -903,7 +927,7 @@ def _sample_status(sample_count: int) -> str:
 def _input_coverage(
     *,
     raw_dirs: Sequence[Path],
-    entries: dict[str, CompetitionRegistryEntry],
+    entries: Mapping[str, CompetitionRegistryEntry] | None,
     season: str,
     competitions: Sequence[str],
 ) -> dict[str, Any]:
@@ -934,6 +958,11 @@ def _input_coverage(
             "status": "MISSING_SOURCE",
         },
     }
+
+
+def _raw_competition_id(payload: dict[str, Any]) -> str | None:
+    value = payload.get("competition_id") or _params(payload).get("competition_id")
+    return str(value) if value else None
 
 
 def load_fixture_statistics(raw_dirs: Sequence[Path]) -> dict[str, dict[str, float]]:

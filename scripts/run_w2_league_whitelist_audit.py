@@ -39,12 +39,8 @@ from w2.competitions.league_whitelist_provider_audit import (
     write_provider_audit_outputs,
 )
 from w2.competitions.league_whitelist_scope import (
-    ALL_WHITELIST_COMPETITIONS,
-    IN_SEASON_NATIONAL_LEAGUES,
-    NATIONAL_LEAGUES_OFFSEASON,
-    REMAINING_UNAUDITED_WHITELIST,
-    TOP_FIVE_COMPETITIONS,
-    WORLD_CUP_COMPETITIONS,
+    LeagueWhitelistScope,
+    load_league_whitelist_scope,
 )
 from w2.competitions.registry import CompetitionRegistry, CompetitionRegistryEntry
 
@@ -139,8 +135,8 @@ def build_cli_payload(
     requester_factory: Callable[[str], ApiFootballRequester] | None = None,
     sleeper: Callable[[float], None] | None = None,
 ) -> dict[str, Any]:
-    registry = CompetitionRegistry()
-    entries = _selected_entries(registry, group=group, competition_id=competition_id)
+    scope = load_league_whitelist_scope(CompetitionRegistry())
+    entries = _selected_entries(scope, group=group, competition_id=competition_id)
     if audit_mode not in AUDIT_MODES:
         raise SystemExit(f"UNSUPPORTED_AUDIT_MODE:{audit_mode}")
     resolved_audit_season_override = _text(
@@ -175,6 +171,7 @@ def build_cli_payload(
             endpoint_allowlist=endpoint_allowlist,
             requester_factory=requester_factory,
             sleeper=sleeper,
+            in_season_count=len(scope.in_season_national_leagues),
         )
     if execute_provider_audit and planned_calls > max_provider_calls:
         results = [
@@ -277,31 +274,31 @@ def build_cli_payload(
 
 
 def _selected_entries(
-    registry: CompetitionRegistry,
+    scope: LeagueWhitelistScope,
     *,
     group: str,
     competition_id: str,
 ) -> list[CompetitionRegistryEntry]:
-    entries = registry.entries()
+    entries = scope.entries
     if competition_id:
         entry = entries.get(competition_id)
         if entry is None:
             raise SystemExit(f"COMPETITION_NOT_REGISTERED:{competition_id}")
         return [entry]
     if group == "national_leagues_in_season":
-        return [entries[item] for item in IN_SEASON_NATIONAL_LEAGUES]
+        return [entries[item] for item in scope.in_season_national_leagues]
     if group == "remaining_unaudited_whitelist":
-        return [entries[item] for item in REMAINING_UNAUDITED_WHITELIST]
+        return [entries[item] for item in scope.remaining_unaudited]
     if group == "all_whitelist_competitions":
-        return [entries[item] for item in ALL_WHITELIST_COMPETITIONS]
+        return [entries[item] for item in scope.all_whitelist]
     if group == "free_tier_controls":
         return [entries[item] for item in FREE_TIER_CONTROL_COMPETITIONS]
     if group == "top_five":
-        return [entries[item] for item in TOP_FIVE_COMPETITIONS]
+        return [entries[item] for item in scope.top_five]
     if group == "world_cup":
-        return [entries[item] for item in WORLD_CUP_COMPETITIONS]
+        return [entries[item] for item in scope.world_cup]
     if group == "national_leagues_offseason":
-        return [entries[item] for item in NATIONAL_LEAGUES_OFFSEASON]
+        return [entries[item] for item in scope.national_leagues_offseason]
     if group and group != "national_leagues":
         raise SystemExit(f"UNSUPPORTED_GROUP:{group}")
     return [
@@ -341,13 +338,16 @@ def _build_real_provider_payload(
     endpoint_allowlist: tuple[str, ...],
     requester_factory: Callable[[str], ApiFootballRequester] | None,
     sleeper: Callable[[float], None] | None,
+    in_season_count: int,
 ) -> dict[str, Any]:
     if not approved_provider_calls:
         results = [
             build_skipped_provider_not_approved_result(
                 entry,
                 environment=environment,
-                hard_cap=_league_cap(entry, max_provider_calls, league_hard_cap),
+                hard_cap=_league_cap(
+                    entry, max_provider_calls, league_hard_cap, in_season_count
+                ),
             )
             for entry in entries
         ]
@@ -369,7 +369,9 @@ def _build_real_provider_payload(
             build_provider_key_missing_result(
                 entry,
                 environment=environment,
-                hard_cap=_league_cap(entry, max_provider_calls, league_hard_cap),
+                hard_cap=_league_cap(
+                    entry, max_provider_calls, league_hard_cap, in_season_count
+                ),
             )
             for entry in entries
         ]
@@ -431,7 +433,7 @@ def _build_real_provider_payload(
         if existing_report is not None and _is_completed_report(existing_report):
             skipped_existing_reports.append(str(existing_report["_path"]))
             continue
-        cap = _league_cap(entry, max_provider_calls, league_hard_cap)
+        cap = _league_cap(entry, max_provider_calls, league_hard_cap, in_season_count)
         provider = ApiFootballLeagueAuditProvider(
             competition_id=entry.competition_id,
             league_hard_cap=cap,
@@ -592,10 +594,11 @@ def _league_cap(
     entry: CompetitionRegistryEntry,
     max_provider_calls: int,
     league_hard_cap: int | None,
+    in_season_count: int,
 ) -> int:
     if league_hard_cap is not None:
         return league_hard_cap
-    if len(IN_SEASON_NATIONAL_LEAGUES) == 1:
+    if in_season_count == 1:
         return max_provider_calls
     return LEAGUE_PROVIDER_HARD_CAPS.get(entry.competition_id, max_provider_calls)
 
@@ -659,6 +662,7 @@ def _audit_mode_output(audit_mode: str) -> str:
 def summarize_output_dir(out_dir: Path) -> dict[str, Any]:
     if not _is_tmp_path(out_dir):
         raise SystemExit("BLOCKER: SUMMARY_OUTPUT_DIR_MUST_BE_UNDER_TMP")
+    scope = load_league_whitelist_scope()
     reports = _resume_reports(out_dir)
     summary = _read_json(out_dir / "summary.json")
     ledger = _read_json(out_dir / "audit_ledger.json")
@@ -669,7 +673,7 @@ def summarize_output_dir(out_dir: Path) -> dict[str, Any]:
     blockers: list[str] = []
     warnings: list[str] = []
     season_review_required = False
-    for competition_id in IN_SEASON_NATIONAL_LEAGUES:
+    for competition_id in scope.in_season_national_leagues:
         report = reports.get(competition_id)
         if report is None:
             continue
@@ -695,7 +699,7 @@ def summarize_output_dir(out_dir: Path) -> dict[str, Any]:
         }
     unstarted_leagues = [
         competition_id
-        for competition_id in IN_SEASON_NATIONAL_LEAGUES
+        for competition_id in scope.in_season_national_leagues
         if competition_id not in reports
     ]
     stopped_reason = _text(summary.get("stopped_reason")) if isinstance(summary, dict) else ""
