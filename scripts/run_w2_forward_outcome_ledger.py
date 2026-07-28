@@ -26,6 +26,7 @@ def main() -> int:
     parser.add_argument("--window", default="next36", choices=["today", "next36", "future", "all"])
     parser.add_argument("--import-runtime-ledger", action="store_true")
     parser.add_argument("--source-root", type=Path)
+    parser.add_argument("--legacy-recovery-manifest", type=Path)
     parser.add_argument("--dry-run", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--write-db", action="store_true")
     parser.add_argument("--confirm-write")
@@ -33,6 +34,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.write_db and args.dry_run:
         parser.error("--write-db requires --no-dry-run")
+    if args.legacy_recovery_manifest is not None and not args.import_runtime_ledger:
+        parser.error("--legacy-recovery-manifest requires --import-runtime-ledger")
 
     repository = OutcomeLedgerRepository()
     if args.import_runtime_ledger:
@@ -44,6 +47,7 @@ def main() -> int:
             dry_run=args.dry_run,
             write_db=args.write_db,
             confirm_write=args.confirm_write,
+            legacy_recovery_manifest=args.legacy_recovery_manifest,
         )
     else:
         service = ReadModelService()
@@ -63,6 +67,23 @@ def main() -> int:
         )
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+    elif args.import_runtime_ledger:
+        print(
+            "status={status} source_files={source_files} source_records={source_records} "
+            "db_records={db_records} already_imported={already_imported} "
+            "source_sha256={source_sha256} db_sha256={db_sha256} "
+            "reconciliation={reconciliation} db_writes={db_writes}".format(
+                status=payload["status"],
+                source_files=payload["source_file_count"],
+                source_records=payload["source_record_count"],
+                db_records=payload["db_record_count"],
+                already_imported=payload["already_imported_count"],
+                source_sha256=payload["source_canonical_sha256"],
+                db_sha256=payload["db_canonical_sha256"],
+                reconciliation=payload["reconciliation_status"],
+                db_writes=payload["db_writes"],
+            )
+        )
     else:
         print(
             "status={status} dry_run={dry_run} records={records} written={written}".format(
@@ -72,7 +93,14 @@ def main() -> int:
                 written=payload["written"],
             )
         )
-    return 0
+    return (
+        0
+        if payload.get("status") == "PASS"
+        and payload.get("reconciliation_status") not in {"FAIL", "BLOCKED"}
+        and not payload.get("malformed_count")
+        and not payload.get("result_conflict_count")
+        else 1
+    )
 
 
 if __name__ == "__main__":

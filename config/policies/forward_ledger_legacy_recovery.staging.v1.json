@@ -2,6 +2,7 @@
   "schema_version": "w2.forward_ledger_legacy_recovery.v1",
   "environment": "staging",
   "policy": "unique_validation_capture_exact_identity",
+  "authority_status": "MIGRATION_INPUT_ONLY",
   "reviewed_at_utc": "2026-07-19T06:45:00Z",
   "entries": [
     {

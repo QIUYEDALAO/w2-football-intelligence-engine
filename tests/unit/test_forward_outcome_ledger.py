@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -19,7 +21,10 @@ from w2.tracking.forward_outcome_ledger import (
     pending_outcome_entries,
     run_forward_outcome_ledger,
 )
-from w2.tracking.outcome_ledger_repository import OutcomeLedgerRepository
+from w2.tracking.outcome_ledger_repository import (
+    OutcomeLedgerError,
+    OutcomeLedgerRepository,
+)
 
 
 def _day_view() -> dict[str, object]:
@@ -152,7 +157,7 @@ def test_forward_outcome_ledger_write_is_idempotent(tmp_path: Path) -> None:
         repository=repository,
         dry_run=False,
         write_db=True,
-        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+        captured_at=datetime(2026, 7, 7, 12, 5, tzinfo=UTC),
     )
 
     rows = repository.records()
@@ -191,6 +196,61 @@ def test_forward_outcome_ledger_write_is_idempotent(tmp_path: Path) -> None:
         "not_displayed": True,
     }
     assert rows[0]["current_odds"]["ah"]["bookmaker_count"] == 4
+
+
+def test_forward_outcome_ledger_writes_changed_card_at_next_tick(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    first = _day_view()
+    second = _day_view()
+    second["cards"][0]["card_hash"] = "hash-2"  # type: ignore[index]
+
+    run_forward_outcome_ledger(
+        first,
+        repository=repository,
+        dry_run=False,
+        write_db=True,
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )
+    result = run_forward_outcome_ledger(
+        second,
+        repository=repository,
+        dry_run=False,
+        write_db=True,
+        captured_at=datetime(2026, 7, 7, 12, 5, tzinfo=UTC),
+    )
+
+    assert result["written"] == 1
+    assert len(repository.records()) == 2
+
+
+def test_independent_repositories_dedupe_runtime_retry_and_reject_conflict(
+    tmp_path: Path,
+) -> None:
+    first_repository = _repository(tmp_path)
+    second_repository = OutcomeLedgerRepository(first_repository.engine)
+    first_record = build_forward_outcome_records(
+        _day_view(),
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+    )[0]
+    retry_record = build_forward_outcome_records(
+        _day_view(),
+        captured_at=datetime(2026, 7, 7, 12, 5, tzinfo=UTC),
+    )[0]
+
+    first_repository.append([first_record], dry_run=False, write_db=True)
+    retry = second_repository.append([retry_record], dry_run=False, write_db=True)
+
+    assert retry["written"] == 0
+    assert retry["already_imported"] == 1
+    assert len(first_repository.records()) == 1
+
+    conflict = dict(retry_record)
+    conflict["reason_code"] = "CHANGED_WITHOUT_IDENTITY_CHANGE"
+    with pytest.raises(OutcomeLedgerError, match="LEDGER_IMPORT_IDENTITY_CONFLICT"):
+        second_repository.append([conflict], dry_run=False, write_db=True)
+    assert len(first_repository.records()) == 1
 
 
 def test_forward_outcome_ledger_validation_pick_binds_entry_quote(
@@ -422,9 +482,10 @@ def test_forward_outcome_ledger_shadow_pick_is_null_without_lines(
     assert payload["records"][0]["shadow_pick"] is None
 
 
-def test_forward_outcome_ledger_cli_imports_runtime_ledger_only_explicitly(
+def test_forward_outcome_ledger_cli_import_dry_run_text_and_json(
     tmp_path: Path,
 ) -> None:
+    _repository(tmp_path)
     source_root = tmp_path / "runtime"
     ledger_root = source_root / "forward_outcome_ledger"
     ledger_root.mkdir(parents=True)
@@ -433,25 +494,175 @@ def test_forward_outcome_ledger_cli_imports_runtime_ledger_only_explicitly(
         [_capture("fixture-1", "hash-1", home_line="-1", home_price="1.9")],
     )
 
-    result = subprocess.run(
-        [
-            sys.executable,
-            "scripts/run_w2_forward_outcome_ledger.py",
-            "--import-runtime-ledger",
-            "--source-root",
-            str(source_root),
-            "--json",
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    text_result = _run_import_cli(tmp_path, source_root)
+    json_result = _run_import_cli(tmp_path, source_root, "--json")
 
-    payload = json.loads(result.stdout)
+    assert text_result.returncode == 0
+    assert "source_records=1" in text_result.stdout
+    assert "reconciliation=PASS" in text_result.stdout
+    assert json_result.returncode == 0
+    payload = json.loads(json_result.stdout)
     assert payload["provider_calls"] == 0
     assert payload["db_writes"] == 0
     assert payload["source_record_count"] == 1
     assert payload["reconciliation_status"] == "PASS"
+
+
+def test_forward_outcome_ledger_cli_write_and_idempotent_text_exit_zero(
+    tmp_path: Path,
+) -> None:
+    _repository(tmp_path)
+    source_root = tmp_path / "runtime"
+    ledger_root = source_root / "forward_outcome_ledger"
+    ledger_root.mkdir(parents=True)
+    _write_jsonl(
+        ledger_root / "capture.jsonl",
+        [_capture("fixture-1", "hash-1", home_line="-1", home_price="1.9")],
+    )
+    write_args = (
+        "--no-dry-run",
+        "--write-db",
+        "--confirm-write",
+        "EVAL_01A_IMPORT_RUNTIME_LEDGER",
+    )
+
+    first = _run_import_cli(tmp_path, source_root, *write_args)
+    second = _run_import_cli(tmp_path, source_root, *write_args)
+
+    assert first.returncode == 0
+    assert "db_writes=1" in first.stdout
+    assert second.returncode == 0
+    assert "already_imported=1" in second.stdout
+    assert "db_writes=0" in second.stdout
+
+
+def test_forward_outcome_ledger_cli_import_failures_exit_nonzero(
+    tmp_path: Path,
+) -> None:
+    _repository(tmp_path)
+    cases: list[tuple[str, str]] = []
+
+    malformed = tmp_path / "malformed" / "forward_outcome_ledger"
+    malformed.mkdir(parents=True)
+    (malformed / "broken.jsonl").write_text("{broken}\n", encoding="utf-8")
+    cases.append(("malformed", str(malformed.parent)))
+
+    identity = tmp_path / "identity" / "forward_outcome_ledger"
+    identity.mkdir(parents=True)
+    first_capture = _capture("fixture-1", "same", home_line="-1", home_price="1.9")
+    conflict_capture = dict(first_capture)
+    conflict_capture["decision_hash"] = "different"
+    _write_jsonl(identity / "conflict.jsonl", [first_capture, conflict_capture])
+    cases.append(("identity", str(identity.parent)))
+
+    result = tmp_path / "result" / "forward_outcome_ledger"
+    result.mkdir(parents=True)
+    _write_jsonl(
+        result / "conflict.jsonl",
+        [
+            _cli_outcome("capture-1", home=2),
+            _cli_outcome("capture-2", home=3),
+        ],
+    )
+    cases.append(("result", str(result.parent)))
+
+    for name, source_root in cases:
+        completed = _run_import_cli(
+            tmp_path,
+            Path(source_root),
+            "--no-dry-run",
+            "--write-db",
+            "--confirm-write",
+            "EVAL_01A_IMPORT_RUNTIME_LEDGER",
+        )
+        assert completed.returncode != 0, name
+
+
+def test_forward_outcome_ledger_cli_missing_confirmation_exits_nonzero(
+    tmp_path: Path,
+) -> None:
+    _repository(tmp_path)
+    source_root = tmp_path / "runtime"
+    ledger_root = source_root / "forward_outcome_ledger"
+    ledger_root.mkdir(parents=True)
+    _write_jsonl(
+        ledger_root / "capture.jsonl",
+        [_capture("fixture-1", "hash-1", home_line="-1", home_price="1.9")],
+    )
+
+    completed = _run_import_cli(
+        tmp_path,
+        source_root,
+        "--no-dry-run",
+        "--write-db",
+    )
+
+    assert completed.returncode != 0
+
+
+@pytest.mark.parametrize(
+    ("status", "reconciliation_status"),
+    (("BLOCKED", "PASS"), ("PASS", "BLOCKED"), ("FAIL", "PASS"), ("PASS", "FAIL")),
+)
+def test_forward_outcome_ledger_cli_blocked_or_failed_payload_exits_nonzero(
+    tmp_path: Path,
+    status: str,
+    reconciliation_status: str,
+) -> None:
+    code = f"""
+import sys
+from scripts import run_w2_forward_outcome_ledger as cli
+cli.import_runtime_ledger = lambda *args, **kwargs: {{
+    "status": {status!r},
+    "reconciliation_status": {reconciliation_status!r},
+    "malformed_count": 0,
+    "result_conflict_count": 0,
+}}
+sys.argv = [
+    "run_w2_forward_outcome_ledger.py",
+    "--import-runtime-ledger",
+    "--source-root",
+    {str(tmp_path)!r},
+    "--json",
+]
+raise SystemExit(cli.main())
+"""
+    completed = subprocess.run(
+        [sys.executable, "-c", code],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+
+
+def test_forward_outcome_ledger_cli_output_failure_exits_nonzero(
+    tmp_path: Path,
+) -> None:
+    code = f"""
+import sys
+from scripts import run_w2_forward_outcome_ledger as cli
+cli.import_runtime_ledger = lambda *args, **kwargs: {{
+    "status": "PASS",
+    "reconciliation_status": "PASS",
+}}
+sys.argv = [
+    "run_w2_forward_outcome_ledger.py",
+    "--import-runtime-ledger",
+    "--source-root",
+    {str(tmp_path)!r},
+]
+raise SystemExit(cli.main())
+"""
+    completed = subprocess.run(
+        [sys.executable, "-c", code],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
 
 
 def test_forward_outcome_backfill_writes_win_push_half_loss_and_fails_closed_without_quote(
@@ -703,6 +914,45 @@ def _repository(root: Path) -> OutcomeLedgerRepository:
     ResultModel.__table__.create(engine, checkfirst=True)
     OutcomeLedgerModel.__table__.create(engine, checkfirst=True)
     return OutcomeLedgerRepository(engine)
+
+
+def _run_import_cli(
+    root: Path,
+    source_root: Path,
+    *args: str,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            sys.executable,
+            "scripts/run_w2_forward_outcome_ledger.py",
+            "--import-runtime-ledger",
+            "--source-root",
+            str(source_root),
+            *args,
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env={
+            **os.environ,
+            "W2_DATABASE_URL": f"sqlite+pysqlite:///{root / 'outcome-ledger.db'}",
+        },
+    )
+
+
+def _cli_outcome(capture_hash: str, *, home: int) -> dict[str, object]:
+    return {
+        "schema_version": "w2.forward_outcome_ledger.v3",
+        "record_type": "outcome",
+        "fixture_id": "101",
+        "settled_at": "2026-07-08T03:00:00Z",
+        "capture_identity_hash": capture_hash,
+        "settled_side": "pick",
+        "market": "ASIAN_HANDICAP",
+        "selection": "HOME_AH",
+        "final_score": {"home": home, "away": 1, "status": "FT"},
+        "settlement_outcome": "WIN",
+    }
 
 
 def _seed_results(

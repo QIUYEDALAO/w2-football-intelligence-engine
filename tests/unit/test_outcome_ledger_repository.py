@@ -132,6 +132,52 @@ def test_runtime_import_reconciles_count_hash_and_second_run_is_noop(
     assert second["db_writes"] == 0
 
 
+def test_legacy_recovery_import_is_db_backed_idempotent_and_fail_closed(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path / "db")
+    source = tmp_path / "runtime"
+    source.mkdir()
+    manifest = _write_recovery_manifest(tmp_path / "recovery.json")
+
+    first = import_runtime_ledger(
+        repository,
+        source,
+        dry_run=False,
+        write_db=True,
+        confirm_write=IMPORT_CONFIRMATION_PHRASE,
+        legacy_recovery_manifest=manifest,
+    )
+    second = import_runtime_ledger(
+        repository,
+        source,
+        dry_run=False,
+        write_db=True,
+        confirm_write=IMPORT_CONFIRMATION_PHRASE,
+        legacy_recovery_manifest=manifest,
+    )
+
+    assert first["legacy_recovery_source_count"] == 1
+    assert first["legacy_recovery_db_count"] == 1
+    assert first["legacy_recovery_hash_parity"] == "PASS"
+    assert first["total_db_record_count"] == 1
+    assert second["already_imported_count"] == 1
+    assert second["db_writes"] == 0
+    assert repository.legacy_recoveries()["fixture-legacy"]["entry_price"] == 1.9
+
+    _write_recovery_manifest(manifest, entry_price=2.0)
+    with pytest.raises(OutcomeLedgerError, match="LEDGER_IMPORT_IDENTITY_CONFLICT"):
+        import_runtime_ledger(
+            repository,
+            source,
+            dry_run=False,
+            write_db=True,
+            confirm_write=IMPORT_CONFIRMATION_PHRASE,
+            legacy_recovery_manifest=manifest,
+        )
+    assert len(repository.records({"legacy_recovery"})) == 1
+
+
 def test_runtime_import_rejects_malformed_json_without_writes(tmp_path: Path) -> None:
     repository = _repository(tmp_path / "db")
     source = tmp_path / "runtime"
@@ -417,3 +463,37 @@ def _write_jsonl(path: Path, rows: list[dict[str, object]]) -> None:
         "\n".join(json.dumps(row, sort_keys=True) for row in rows),
         encoding="utf-8",
     )
+
+
+def _write_recovery_manifest(path: Path, *, entry_price: float = 1.9) -> Path:
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": "w2.forward_ledger_legacy_recovery.v1",
+                "environment": "staging",
+                "policy": "unique_validation_capture_exact_identity",
+                "authority_status": "MIGRATION_INPUT_ONLY",
+                "reviewed_at_utc": "2026-07-19T06:45:00Z",
+                "entries": [
+                    {
+                        "fixture_id": "fixture-legacy",
+                        "captured_at": "2026-07-07T12:00:00Z",
+                        "capture_hash": "a" * 64,
+                        "kickoff_utc": "2026-07-08T12:00:00Z",
+                        "competition": "league-1",
+                        "home_team_name": "Home",
+                        "away_team_name": "Away",
+                        "market": "ASIAN_HANDICAP",
+                        "selection": "HOME_AH",
+                        "line": "-1",
+                        "entry_price": entry_price,
+                        "settlement_outcome": "WIN",
+                        "final_score": {"home": 2, "away": 0, "status": "FT"},
+                    }
+                ],
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    return path

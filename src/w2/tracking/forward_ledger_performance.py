@@ -64,12 +64,16 @@ def forward_ledger_performance(
     repository: OutcomeLedgerRepository | None = None,
     sample_target: int = SAMPLE_TARGET,
     now: datetime | None = None,
-    legacy_recoveries: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     resolved_now = (now or datetime.now(UTC)).astimezone(UTC)
     repo = repository or OutcomeLedgerRepository()
-    raw_records = repo.records()
+    raw_records = [
+        record
+        for record in repo.records()
+        if _record_type(record) != "legacy_recovery"
+    ]
     authoritative_results = repo.result_payloads()
+    legacy_recoveries = repo.legacy_recoveries()
     raw_records = [
         _with_authoritative_result(record, authoritative_results)
         for record in raw_records
@@ -177,7 +181,7 @@ def forward_ledger_performance(
         ),
         "by_league_market": _league_market_rows(candidates, validation_rows),
         "provider_calls": 0,
-        "db_reads": 2,
+        "db_reads": 3,
         "db_writes": 0,
         "mock_data": False,
     }

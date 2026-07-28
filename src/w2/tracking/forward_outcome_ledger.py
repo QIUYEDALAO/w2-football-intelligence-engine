@@ -131,6 +131,9 @@ def build_forward_outcome_records(
             quote_provenance = _quote_provenance(card)
             artifact_provenance = _artifact_provenance(card)
             probability_identity = _probability_identity(card)
+            decision_hash = _optional_text(
+                canonical.get("decision_hash") or v3.get("decision_hash")
+            )
             capture_identity = {
                 "fixture_identity": fixture_identity,
                 "recommendation_scope": recommendation_scope,
@@ -141,7 +144,7 @@ def build_forward_outcome_records(
                 "artifact_provenance": artifact_provenance,
                 "probability_identity": probability_identity,
                 "card_hash": _optional_text(card.get("card_hash")),
-                "captured_at": captured,
+                "decision_hash": decision_hash,
             }
             rows.append(
                 {
@@ -184,9 +187,7 @@ def build_forward_outcome_records(
                     "lock_eligible": bool(canonical.get("lock_eligible"))
                     if v3
                     else bool(card.get("lock_eligible") is True),
-                    "decision_hash": _optional_text(
-                        canonical.get("decision_hash") or v3.get("decision_hash")
-                    ),
+                    "decision_hash": decision_hash,
                     "recommendation_id": _optional_text(card.get("recommendation_id")),
                     "source": _optional_text(card.get("source")),
                     "posthoc_only": True,

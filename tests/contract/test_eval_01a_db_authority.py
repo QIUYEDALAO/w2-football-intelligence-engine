@@ -28,6 +28,7 @@ RESULT_MATERIALIZER_FILES = (
     Path("src/w2/tracking/outcome_ledger_repository.py"),
 )
 PROVIDER_IDENTITIES = ("ApiFootballClient", "request_live(", "providers.api_football")
+LEGACY_RECOVERY_MANIFEST = "forward_ledger_legacy_recovery.staging.v1.json"
 
 
 def _files(surfaces: tuple[Path, ...]) -> list[Path]:
@@ -116,6 +117,24 @@ def test_outcome_ledger_has_one_writable_repository_authority() -> None:
     assert model_source.count("class OutcomeLedgerModel(") == 1
     assert repository_source.count("OutcomeLedgerModel(") == 1
     assert "active.add(" in repository_source
+
+
+def test_legacy_recovery_manifest_is_migration_input_only() -> None:
+    forbidden_readers = (
+        ROOT / "src/w2/prematch/analysis_calculator.py",
+        ROOT / "src/w2/tracking/forward_ledger_performance.py",
+        ROOT / "apps/api",
+        ROOT / "apps/web",
+    )
+    violations = [
+        str(path)
+        for root in forbidden_readers
+        for path in ([root] if root.is_file() else root.rglob("*"))
+        if path.is_file()
+        and LEGACY_RECOVERY_MANIFEST
+        in path.read_text(encoding="utf-8", errors="ignore")
+    ]
+    assert violations == []
 
 
 def test_runtime_ledger_guard_covers_every_production_surface(tmp_path: Path) -> None:

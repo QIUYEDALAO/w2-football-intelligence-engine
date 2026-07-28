@@ -22,6 +22,7 @@ from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerMod
 
 IMPORT_CONFIRMATION_PHRASE = "EVAL_01A_IMPORT_RUNTIME_LEDGER"  # noqa: S105
 TERMINAL_STATUSES = {"FT", "AET", "PEN"}
+RUNTIME_LEDGER_SOURCE = "db:forward_outcome_ledger"
 
 
 class OutcomeLedgerError(ValueError):
@@ -42,6 +43,19 @@ def canonical_json(payload: Mapping[str, Any]) -> str:
 
 def payload_sha256(payload: Mapping[str, Any]) -> str:
     return hashlib.sha256(canonical_json(payload).encode()).hexdigest()
+
+
+def _runtime_capture_sha256(
+    payload: Mapping[str, Any],
+    *,
+    record_type: str,
+    source_artifact: str,
+) -> str | None:
+    if record_type != "capture" or source_artifact != RUNTIME_LEDGER_SOURCE:
+        return None
+    business_payload = dict(payload)
+    business_payload.pop("captured_at", None)
+    return payload_sha256(business_payload)
 
 
 def business_key(payload: Mapping[str, Any], record_type: str | None = None) -> str:
@@ -79,6 +93,9 @@ def business_key(payload: Mapping[str, Any], record_type: str | None = None) -> 
             payload.get("snapshot_id"),
             payload.get("prediction_hash"),
         )
+    elif kind == "legacy_recovery":
+        capture_hash = payload.get("capture_hash")
+        identity = (fixture_id, capture_hash) if fixture_id and capture_hash else None
     else:
         identity = payload
     if not kind or not identity:
@@ -122,7 +139,7 @@ class OutcomeLedgerRepository:
         *,
         dry_run: bool,
         write_db: bool,
-        source_artifact: str = "db:forward_outcome_ledger",
+        source_artifact: str = RUNTIME_LEDGER_SOURCE,
         imported_at: datetime | None = None,
     ) -> dict[str, Any]:
         imports = [
@@ -157,25 +174,42 @@ class OutcomeLedgerRepository:
         now = (imported_at or datetime.now(UTC)).astimezone(UTC)
         written = 0
         already_imported = 0
-        pending: dict[str, str] = {}
+        pending: dict[str, tuple[str, str | None]] = {}
         try:
             for item in records:
                 payload = dict(item.payload)
                 key = business_key(payload, item.record_type)
                 digest = payload_sha256(payload)
+                runtime_digest = _runtime_capture_sha256(
+                    payload,
+                    record_type=item.record_type,
+                    source_artifact=item.source_artifact,
+                )
                 if key in pending:
-                    if pending[key] != digest:
+                    pending_digest, pending_runtime_digest = pending[key]
+                    if pending_digest != digest and (
+                        runtime_digest is None
+                        or runtime_digest != pending_runtime_digest
+                    ):
                         raise OutcomeLedgerError("LEDGER_IMPORT_IDENTITY_CONFLICT")
                     already_imported += 1
                     continue
                 existing = active.get(OutcomeLedgerModel, key)
                 if existing is not None:
-                    if existing.payload_sha256 != digest:
+                    existing_runtime_digest = _runtime_capture_sha256(
+                        existing.payload,
+                        record_type=existing.record_type,
+                        source_artifact=existing.source_artifact,
+                    )
+                    if existing.payload_sha256 != digest and (
+                        runtime_digest is None
+                        or runtime_digest != existing_runtime_digest
+                    ):
                         raise OutcomeLedgerError("LEDGER_IMPORT_IDENTITY_CONFLICT")
                     already_imported += 1
                     continue
                 if not write_db:
-                    pending[key] = digest
+                    pending[key] = (digest, runtime_digest)
                     written += 1
                     continue
                 occurred, captured, settled = _record_time(payload)
@@ -201,7 +235,7 @@ class OutcomeLedgerRepository:
                         imported_at=now,
                     )
                 )
-                pending[key] = digest
+                pending[key] = (digest, runtime_digest)
                 written += 1
             if own_session:
                 active.commit() if write_db else active.rollback()
@@ -241,6 +275,15 @@ class OutcomeLedgerRepository:
             )
         return [dict(row.payload) for row in rows]
 
+    def legacy_recoveries(self) -> dict[str, dict[str, Any]]:
+        recoveries: dict[str, dict[str, Any]] = {}
+        for payload in self.records({"legacy_recovery"}):
+            fixture_id = str(payload.get("fixture_id") or "")
+            if not fixture_id or fixture_id in recoveries:
+                raise OutcomeLedgerError("LEGACY_RECOVERY_IDENTITY_CONFLICT")
+            recoveries[fixture_id] = payload
+        return recoveries
+
     def result_payloads(self) -> dict[str, dict[str, Any]]:
         with Session(self.engine) as session:
             rows = list(session.scalars(select(ResultModel).order_by(ResultModel.fixture_id)))
@@ -256,15 +299,21 @@ class OutcomeLedgerRepository:
             for row in rows
         }
 
-    def canonical_aggregate_sha256(self) -> str:
+    def canonical_aggregate_sha256(
+        self,
+        business_keys: Sequence[str] | None = None,
+    ) -> str:
         with Session(self.engine) as session:
-            rows = list(
-                session.execute(
-                    select(
-                        OutcomeLedgerModel.business_key,
-                        OutcomeLedgerModel.payload_sha256,
-                    ).order_by(OutcomeLedgerModel.business_key)
+            statement = select(
+                OutcomeLedgerModel.business_key,
+                OutcomeLedgerModel.payload_sha256,
+            )
+            if business_keys is not None:
+                statement = statement.where(
+                    OutcomeLedgerModel.business_key.in_(tuple(business_keys))
                 )
+            rows = list(
+                session.execute(statement.order_by(OutcomeLedgerModel.business_key))
             )
         return hashlib.sha256(
             "".join(f"{key}:{digest}\n" for key, digest in rows).encode()
@@ -442,6 +491,63 @@ def load_runtime_import_records(source_root: Path) -> list[ImportRecord]:
     return records
 
 
+def load_legacy_recovery_import_records(path: Path) -> list[ImportRecord]:
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise OutcomeLedgerError("LEDGER_IMPORT_MALFORMED_RECORD") from exc
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("schema_version")
+        != "w2.forward_ledger_legacy_recovery.v1"
+        or manifest.get("authority_status") != "MIGRATION_INPUT_ONLY"
+        or not isinstance(manifest.get("entries"), list)
+    ):
+        raise OutcomeLedgerError("LEDGER_IMPORT_MALFORMED_RECORD")
+    shared = {
+        "record_type": "legacy_recovery",
+        "schema_version": manifest.get("schema_version"),
+        "environment": manifest.get("environment"),
+        "policy": manifest.get("policy"),
+        "authority_status": manifest.get("authority_status"),
+        "reviewed_at": manifest.get("reviewed_at_utc"),
+    }
+    records: list[ImportRecord] = []
+    for index, entry in enumerate(manifest["entries"], 1):
+        if not isinstance(entry, dict):
+            raise OutcomeLedgerError("LEDGER_IMPORT_MALFORMED_RECORD")
+        payload = {**shared, **entry}
+        if any(
+            payload.get(key) in {None, ""}
+            for key in (
+                "schema_version",
+                "reviewed_at",
+                "fixture_id",
+                "captured_at",
+                "capture_hash",
+                "kickoff_utc",
+                "competition",
+                "home_team_name",
+                "away_team_name",
+                "market",
+                "selection",
+                "line",
+                "entry_price",
+                "settlement_outcome",
+            )
+        ) or not isinstance(payload.get("final_score"), Mapping):
+            raise OutcomeLedgerError("LEDGER_IMPORT_MALFORMED_RECORD")
+        records.append(
+            ImportRecord(
+                payload=payload,
+                record_type="legacy_recovery",
+                source_artifact=str(path),
+                source_line_number=index,
+            )
+        )
+    return records
+
+
 def canonical_import_sha256(records: Sequence[ImportRecord]) -> str:
     rows = sorted(
         (business_key(item.payload, item.record_type), payload_sha256(item.payload))
@@ -457,12 +563,24 @@ def import_runtime_ledger(
     dry_run: bool,
     write_db: bool,
     confirm_write: str | None,
+    legacy_recovery_manifest: Path | None = None,
 ) -> dict[str, Any]:
     if write_db and confirm_write != IMPORT_CONFIRMATION_PHRASE:
         raise OutcomeLedgerError("LEDGER_IMPORT_WRITE_REQUIRES_CONFIRMATION")
     records = load_runtime_import_records(source_root)
+    recovery_records = (
+        load_legacy_recovery_import_records(legacy_recovery_manifest)
+        if legacy_recovery_manifest is not None
+        else []
+    )
+    records.extend(recovery_records)
     source_files = {item.source_artifact for item in records}
     source_hash = canonical_import_sha256(records)
+    business_keys = [business_key(item.payload, item.record_type) for item in records]
+    recovery_keys = [
+        business_key(item.payload, item.record_type) for item in recovery_records
+    ]
+    recovery_source_hash = canonical_import_sha256(recovery_records)
     with Session(repository.engine) as session:
         try:
             result_count = _materialize_imported_results(session, records, write_db=write_db)
@@ -478,18 +596,28 @@ def import_runtime_ledger(
             raise
     db_count = 0
     db_hash = source_hash
+    total_db_count = 0
+    total_db_hash = source_hash
+    recovery_db_count = 0
+    recovery_db_hash = recovery_source_hash
     if write_db:
         with Session(repository.engine) as session:
             db_count = int(
                 session.query(OutcomeLedgerModel)
                 .filter(
-                    OutcomeLedgerModel.business_key.in_(
-                        [business_key(item.payload, item.record_type) for item in records]
-                    )
+                    OutcomeLedgerModel.business_key.in_(business_keys)
                 )
                 .count()
             )
-        db_hash = repository.canonical_aggregate_sha256()
+            total_db_count = int(session.query(OutcomeLedgerModel).count())
+            recovery_db_count = int(
+                session.query(OutcomeLedgerModel)
+                .filter(OutcomeLedgerModel.business_key.in_(recovery_keys))
+                .count()
+            )
+        db_hash = repository.canonical_aggregate_sha256(business_keys)
+        total_db_hash = repository.canonical_aggregate_sha256()
+        recovery_db_hash = repository.canonical_aggregate_sha256(recovery_keys)
     reconciliation = (
         len(records) == db_count and source_hash == db_hash
         if write_db
@@ -506,6 +634,21 @@ def import_runtime_ledger(
         "already_imported_count": outcome["already_imported"],
         "db_record_count": db_count,
         "db_canonical_sha256": db_hash,
+        "total_db_record_count": total_db_count,
+        "total_db_canonical_sha256": total_db_hash,
+        "legacy_recovery_source_count": len(recovery_records),
+        "legacy_recovery_db_count": recovery_db_count,
+        "legacy_recovery_source_sha256": recovery_source_hash,
+        "legacy_recovery_db_sha256": recovery_db_hash,
+        "legacy_recovery_hash_parity": (
+            "NOT_APPLICABLE"
+            if not recovery_records
+            else "PASS"
+            if write_db
+            and len(recovery_records) == recovery_db_count
+            and recovery_source_hash == recovery_db_hash
+            else "NOT_RUN"
+        ),
         "result_fixture_count": result_count,
         "result_conflict_count": 0,
         "malformed_count": 0,

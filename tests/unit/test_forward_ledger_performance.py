@@ -20,6 +20,7 @@ from w2.tracking.forward_ledger_performance import (
 from w2.tracking.outcome_ledger_repository import (
     ImportRecord,
     OutcomeLedgerRepository,
+    load_legacy_recovery_import_records,
 )
 
 
@@ -44,20 +45,14 @@ def forward_ledger_performance(
                     source_line_number=line_number,
                 )
             )
+    if legacy_recovery_manifest is not None:
+        records.extend(load_legacy_recovery_import_records(legacy_recovery_manifest))
     repository._append_imports(records, dry_run=False, write_db=True)
     _seed_authoritative_results(repository, [item.payload for item in records])
-    recoveries = None
-    if legacy_recovery_manifest is not None:
-        manifest = json.loads(legacy_recovery_manifest.read_text(encoding="utf-8"))
-        recoveries = {
-            str(entry["fixture_id"]): entry
-            for entry in manifest.get("entries", [])
-        }
     return _db_forward_ledger_performance(
         repository=repository,
         sample_target=sample_target,
         now=now,
-        legacy_recoveries=recoveries,
     )
 
 
@@ -75,7 +70,7 @@ def test_forward_ledger_performance_accumulates_without_fake_hit_rate(tmp_path: 
     payload = forward_ledger_performance(tmp_path)
 
     assert payload["provider_calls"] == 0
-    assert payload["db_reads"] == 2
+    assert payload["db_reads"] == 3
     assert payload["db_writes"] == 0
     assert payload["record_count"] == 2
     assert payload["fixture_count"] == 2
@@ -700,8 +695,6 @@ def test_performance_cohort_partitions_samples_and_filters_clv(tmp_path: Path) -
 
 
 def test_unique_legacy_capture_can_be_recovered_by_audited_manifest(tmp_path: Path) -> None:
-    root = tmp_path / "forward_outcome_ledger"
-    root.mkdir()
     capture = _validation_capture("legacy-recovered", "2026-07-07T00:00:00Z")
     outcome = _outcome_record("legacy-recovered", "WIN", side="pick", scope="VALIDATION")
     outcome.update(
@@ -711,13 +704,26 @@ def test_unique_legacy_capture_can_be_recovered_by_audited_manifest(tmp_path: Pa
             "final_score": {"home": 2, "away": 0, "status": "FT"},
         }
     )
-    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture, outcome])
     manifest = tmp_path / "recovery.json"
     _write_recovery_manifest(manifest, capture, outcome)
+    repository = _repository(tmp_path)
+    records = [
+        ImportRecord(
+            payload=row,
+            record_type=str(row["record_type"]),
+            source_artifact="legacy.jsonl",
+            source_line_number=index,
+        )
+        for index, row in enumerate((capture, outcome), 1)
+    ]
+    records.extend(load_legacy_recovery_import_records(manifest))
+    repository._append_imports(records, dry_run=False, write_db=True)
+    _seed_authoritative_results(repository, [capture, outcome])
 
-    payload = forward_ledger_performance(tmp_path, legacy_recovery_manifest=manifest)
+    payload = _db_forward_ledger_performance(repository=repository)
     cohort = payload["performance_cohort"]
 
+    assert payload["record_count"] == 2
     assert cohort["eligible_count"] == 1
     assert cohort["excluded_count"] == 0
     assert cohort["recovered_count"] == 1
@@ -912,6 +918,8 @@ def _write_recovery_manifest(
             {
                 "schema_version": "w2.forward_ledger_legacy_recovery.v1",
                 "environment": "staging",
+                "authority_status": "MIGRATION_INPUT_ONLY",
+                "reviewed_at_utc": "2026-07-19T06:45:00Z",
                 "entries": [
                     {
                         "fixture_id": capture["fixture_id"],
