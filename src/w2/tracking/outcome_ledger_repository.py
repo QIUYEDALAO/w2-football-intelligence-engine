@@ -593,7 +593,11 @@ def _resolve_fixture_id(session: Session, value: str) -> str | None:
     canonical = {row.fixture_id for row in rows}
     if len(canonical) > 1:
         raise OutcomeLedgerError("RESULT_SOURCE_CONFLICT")
-    return next(iter(canonical)) if canonical else None
+    if canonical:
+        return next(iter(canonical))
+    if bare.isdigit() and value in {bare, f"api_football:{bare}"}:
+        return f"api_football:{bare}"
+    return None
 
 
 def _select_identities(

@@ -195,6 +195,51 @@ def test_runtime_import_score_conflict_rolls_back_everything(tmp_path: Path) -> 
         assert list(session.scalars(select(ResultModel))) == []
 
 
+def test_runtime_import_canonicalizes_bare_api_football_fixture_id(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path / "db")
+    source = tmp_path / "runtime"
+    ledger = source / "forward_outcome_ledger"
+    ledger.mkdir(parents=True)
+    outcome = _outcome()
+    outcome["fixture_id"] = "101"
+    _write_jsonl(ledger / "bare-provider-id.jsonl", [outcome])
+
+    result = import_runtime_ledger(
+        repository,
+        source,
+        dry_run=False,
+        write_db=True,
+        confirm_write=IMPORT_CONFIRMATION_PHRASE,
+    )
+
+    with Session(repository.engine) as session:
+        row = session.scalar(select(ResultModel))
+        assert row is not None
+        assert row.fixture_id == "api_football:101"
+    assert result["result_fixture_count"] == 1
+
+
+def test_runtime_import_rejects_unknown_fixture_identity(tmp_path: Path) -> None:
+    repository = _repository(tmp_path / "db")
+    source = tmp_path / "runtime"
+    ledger = source / "forward_outcome_ledger"
+    ledger.mkdir(parents=True)
+    outcome = _outcome()
+    outcome["fixture_id"] = "unknown"
+    _write_jsonl(ledger / "unknown-fixture.jsonl", [outcome])
+
+    with pytest.raises(OutcomeLedgerError, match="RESULT_SOURCE_MISSING"):
+        import_runtime_ledger(
+            repository,
+            source,
+            dry_run=False,
+            write_db=True,
+            confirm_write=IMPORT_CONFIRMATION_PHRASE,
+        )
+
+
 def test_runtime_import_requires_explicit_write_confirmation(tmp_path: Path) -> None:
     repository = _repository(tmp_path / "db")
     with pytest.raises(
