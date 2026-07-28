@@ -1,10 +1,10 @@
 schema_version: w2.project_state.v3
 project: w2-football-intelligence-engine
 updated_at: "2026-07-28"
-current_task: ARCH-P1-07
+current_task: ARCH-P1-08
 current_status: IN_PROGRESS
-current_pr: 422
-next_task: ARCH-P1-08
+current_pr: 423
+next_task: EVAL-01A
 task_queue:
   - ARCH-GOVERNANCE-01
   - ARCH-P1-04C
@@ -21,4 +21,4 @@ safety:
   reviewed_mapping_count_expected: 66
 staging:
   production_deployed: false
-  read_only_recheck: BLOCKED_BY_INFRA_UNREACHABLE
+  read_only_recheck: IN_PROGRESS

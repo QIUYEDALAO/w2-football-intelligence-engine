@@ -148,6 +148,17 @@ def test_full_execution_surface_has_no_removed_production_fallback_identity() ->
     assert violations == []
 
 
+def test_retired_shadow_strategy_has_no_production_reference() -> None:
+    violations = sorted(
+        str(path)
+        for root in FULL_EXECUTION_SURFACE
+        for path in root.rglob("*")
+        if path.is_file() and path.suffix in {".py", ".sh", ".yml", ".yaml"}
+        and "shadow_strategy" in path.read_text(encoding="utf-8", errors="ignore")
+    )
+    assert violations == []
+
+
 def test_production_day_view_has_no_legacy_fallback_identity() -> None:
     assert Path("src/w2/dashboard") in PRODUCTION_DAY_VIEW_SURFACE
     assert Path("apps/web/src") in PRODUCTION_DAY_VIEW_SURFACE

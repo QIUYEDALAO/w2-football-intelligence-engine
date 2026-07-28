@@ -37,13 +37,16 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md"
     )
 
-    assert state["current_task"] == "ARCH-P1-07"
+    assert state["current_task"] == "ARCH-P1-08"
     assert state["current_status"] == "IN_PROGRESS"
-    assert state["current_pr"] == 422
-    assert state["next_task"] == "ARCH-P1-08"
+    assert state["current_pr"] == 423
+    assert state["next_task"] == "EVAL-01A"
     assert tuple(state["task_queue"]) == TASK_ORDER
-    assert "当前：完成 A6 ARCH-P1-07 的 Draft Implementation PR。" in next_action
-    assert "下一项：A7 ARCH-P1-08。" in next_action
+    assert (
+        "当前：完成 A7 ARCH-P1-08 的 Draft Implementation PR #423 二次验收与合并。"
+        in next_action
+    )
+    assert "下一项：阶段 B 的 B1 EVAL-01A；A7 合并前不启动。" in next_action
     positions = [
         checklist.index(f"#### A{index}. {task}")
         for index, task in enumerate(TASK_ORDER, 1)
@@ -54,6 +57,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         assert task not in next_action
         assert task not in checklist
     assert state["staging"]["production_deployed"] is False
+    assert "EVAL-01A" not in state["task_queue"]
 
 
 def test_historical_pr_range_is_explicitly_non_authoritative() -> None:
