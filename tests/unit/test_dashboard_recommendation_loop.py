@@ -2,13 +2,25 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import UTC, datetime
+from hashlib import sha256
 from pathlib import Path
 from typing import Any, cast
 
+import pytest
+from sqlalchemy.orm import Session
+
 from w2.api.schemas import DashboardResponse
+from w2.config import get_settings
+from w2.infrastructure.database import Base, create_engine
+from w2.infrastructure.persistence.models import ResultModel
 from w2.prematch.analysis_calculator import ReadModelService
 from w2.strategy.formal_recommendation import ah_display_contract
 from w2.strategy.simulate import SimulationInputs, run_simulation
+from w2.tracking.outcome_ledger_repository import (
+    ImportRecord,
+    OutcomeLedgerRepository,
+)
 
 
 class RecommendationLoopRepository:
@@ -310,45 +322,50 @@ def _write_formal_snapshot(
     fixture_id: str = "finished-over",
     snapshot_id: str = "locked-snapshot-1",
 ) -> None:
-    path = runtime_root / "formal_recommendation_snapshots" / f"{snapshot_id}.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(
-            {
-                "schema_version": "w2_formal_recommendation_snapshot.v1",
-                "fixture_id": fixture_id,
-                "snapshot_id": snapshot_id,
-                "captured_at": "2026-06-26T08:30:00Z",
-                "as_of": "2026-06-26T08:30:00Z",
-                "kickoff_utc": "2026-06-26T10:00:00Z",
-                "home_team_name": "Home",
-                "away_team_name": "Away",
-                "recommendation": {
-                    "tier": "FORMAL",
-                    "market": "ASIAN_HANDICAP",
-                    "selection": "AWAY_AH",
-                    "selection_side": "AWAY",
-                    "selection_label_cn": "Away 受让",
-                    "line": "1.5",
-                    "odds": "1.93",
-                    "risk_adjusted_ev": "12.5pct",
-                    "reverse_factor_value": True,
-                },
-                "scoreline_reference": {
-                    "source": "formal_simulation",
-                    "top_scorelines": [{"scoreline": "1-1", "probability_label": "12%"}],
-                },
-                "simulation_evidence": {
-                    "simulations": 10000,
-                    "source": "formal_simulation",
-                },
-                "candidate": False,
-                "formal_recommendation": True,
-                "immutable": True,
-            },
-            ensure_ascii=False,
-        ),
-        encoding="utf-8",
+    del runtime_root
+    payload = {
+        "schema_version": "w2_formal_recommendation_snapshot.v1",
+        "fixture_id": fixture_id,
+        "snapshot_id": snapshot_id,
+        "captured_at": "2026-06-26T08:30:00Z",
+        "as_of": "2026-06-26T08:30:00Z",
+        "kickoff_utc": "2026-06-26T10:00:00Z",
+        "home_team_name": "Home",
+        "away_team_name": "Away",
+        "recommendation": {
+            "tier": "FORMAL",
+            "market": "ASIAN_HANDICAP",
+            "selection": "AWAY_AH",
+            "selection_side": "AWAY",
+            "selection_label_cn": "Away 受让",
+            "line": "1.5",
+            "odds": "1.93",
+            "risk_adjusted_ev": "12.5pct",
+            "reverse_factor_value": True,
+        },
+        "scoreline_reference": {
+            "source": "formal_simulation",
+            "top_scorelines": [{"scoreline": "1-1", "probability_label": "12%"}],
+        },
+        "simulation_evidence": {
+            "simulations": 10000,
+            "source": "formal_simulation",
+        },
+        "candidate": False,
+        "formal_recommendation": True,
+        "immutable": True,
+    }
+    OutcomeLedgerRepository()._append_imports(
+        [
+            ImportRecord(
+                payload=payload,
+                record_type="formal_snapshot",
+                source_artifact="db:test",
+                source_line_number=None,
+            )
+        ],
+        dry_run=False,
+        write_db=True,
     )
 
 
@@ -357,33 +374,64 @@ def _write_formal_settlement(
     *,
     snapshot_id: str = "locked-snapshot-1",
 ) -> None:
-    path = runtime_root / "formal_recommendation_settlements" / f"{snapshot_id}.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(
-            {
-                "schema_version": "w2_formal_recommendation_settlement.v1",
-                "fixture_id": "finished-over",
-                "snapshot_id": snapshot_id,
-                "final_score": {"home_goals": 2, "away_goals": 1, "status": "FINISHED"},
-                "settlement_outcome": "WIN",
-                "settled_units": "1",
-                "sample_included": True,
-                "win_included": True,
-                "evaluated_at": "2026-06-26T12:30:00Z",
-            },
-            ensure_ascii=False,
-        ),
-        encoding="utf-8",
+    del runtime_root
+    repository = OutcomeLedgerRepository()
+    identity = "finished-over:2:1"
+    with Session(repository.engine) as session:
+        session.add(
+            ResultModel(
+                fixture_id="finished-over",
+                home_goals=2,
+                away_goals=1,
+                result_status="FT",
+                confirmed_at=datetime(2026, 6, 26, 12, 30, tzinfo=UTC),
+                source_payload_sha256=sha256(identity.encode()).hexdigest(),
+                source_capture_id=None,
+                result_hash=sha256(f"result:{identity}".encode()).hexdigest(),
+            )
+        )
+        session.commit()
+    repository._append_imports(
+        [
+            ImportRecord(
+                payload={
+                    "schema_version": "w2_formal_recommendation_settlement.v1",
+                    "settlement_id": "settlement-1",
+                    "fixture_id": "finished-over",
+                    "snapshot_id": snapshot_id,
+                    "final_score": {"home_goals": 2, "away_goals": 1, "status": "FT"},
+                    "settlement_outcome": "WIN",
+                    "settled_units": "1",
+                    "sample_included": True,
+                    "win_included": True,
+                    "evaluated_at": "2026-06-26T12:30:00Z",
+                },
+                record_type="formal_settlement",
+                source_artifact="db:test",
+                source_line_number=None,
+            )
+        ],
+        dry_run=False,
+        write_db=True,
     )
 
 
+@pytest.fixture()
+def formal_db(tmp_path: Path, monkeypatch: Any):  # type: ignore[no-untyped-def]
+    monkeypatch.setenv(
+        "W2_DATABASE_URL",
+        f"sqlite+pysqlite:///{tmp_path / 'formal.db'}",
+    )
+    get_settings.cache_clear()
+    Base.metadata.create_all(create_engine())
+    yield tmp_path
+    get_settings.cache_clear()
+
+
 def test_dashboard_exposes_locked_prematch_recommendation_after_kickoff(
-    tmp_path: Path,
-    monkeypatch: Any,
+    formal_db: Path,
 ) -> None:
-    monkeypatch.setenv("W2_RUNTIME_ROOT", str(tmp_path))
-    _write_formal_snapshot(tmp_path)
+    _write_formal_snapshot(formal_db)
     service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
 
     card = service.dashboard(target_date="2026-06-26", window="today")["all"][0]
@@ -400,10 +448,8 @@ def test_dashboard_exposes_locked_prematch_recommendation_after_kickoff(
 
 
 def test_dashboard_reports_no_prematch_formal_when_started_without_snapshot(
-    tmp_path: Path,
-    monkeypatch: Any,
+    formal_db: Path,
 ) -> None:
-    monkeypatch.setenv("W2_RUNTIME_ROOT", str(tmp_path))
     service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
 
     card = service.dashboard(target_date="2026-06-26", window="today")["all"][0]
@@ -416,12 +462,10 @@ def test_dashboard_reports_no_prematch_formal_when_started_without_snapshot(
 
 
 def test_dashboard_exposes_locked_prematch_settlement_when_artifact_exists(
-    tmp_path: Path,
-    monkeypatch: Any,
+    formal_db: Path,
 ) -> None:
-    monkeypatch.setenv("W2_RUNTIME_ROOT", str(tmp_path))
-    _write_formal_snapshot(tmp_path)
-    _write_formal_settlement(tmp_path)
+    _write_formal_snapshot(formal_db)
+    _write_formal_settlement(formal_db)
     service = ReadModelService(repository=cast(Any, RecommendationLoopRepository()))
 
     card = service.dashboard(target_date="2026-06-26", window="today")["all"][0]

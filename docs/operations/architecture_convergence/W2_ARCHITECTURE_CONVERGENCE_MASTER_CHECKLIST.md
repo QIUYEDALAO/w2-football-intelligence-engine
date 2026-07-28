@@ -218,19 +218,25 @@ Merge SHA: e2f0d5ca895f08e1d4e9ef20ccc8db89a8045e64
 #### A7. ARCH-P1-08：P1 总验收 + 终态重复盘点
 
 ```text
-Status: IN_PROGRESS
-Current PR: #423
+Status: DONE
+PR: #423
+Merge SHA: a607d65b0b71afbc0caa50c44a6e162cf397e4e4
+CI run: 30339386348
+Secondary Review: PASS
 ```
 
-- [ ] 一套赔率历史 + 一套当前盘口投影 + 一套 canonical identity + Dashboard 单一 read model。
-- [ ] CI 镜像发布；服务器 pull-only；无生产 fallback。
-- [ ] **追加三条**：API 层无特征/定价/模拟 import（守卫常绿）；读路径 fail-closed
+- [x] 一套赔率历史 + 一套当前盘口投影 + 一套 canonical identity + Dashboard 单一 read model。
+- [x] CI 镜像发布；服务器 pull-only；无生产 fallback。
+- [x] **追加三条**：API 层无特征/定价/模拟 import（守卫常绿）；读路径 fail-closed
       （无隐式空数据 fallback）；legacy 决策合同代码为零。
-- [ ] **终态盘点**：按 P1-01 矩阵方法对全部剩余表、runtime 目录、配置、账本终态盘点，
+- [x] **终态盘点**：按 P1-01 矩阵方法对全部剩余表、runtime 目录、配置、账本终态盘点，
       每类事实指认唯一权威，矩阵写入本文件；发现双权威 = 不通过。
-- [ ] **`shadow_strategy_*` 裁决**：零读零写零任务则按证据法独立 PR drop；
+- [x] **`shadow_strategy_*` 裁决**：零读零写零任务则按证据法独立 PR drop；
       EVAL-01A 要复用则明确登记。
-- [ ] P1 完整 CI 与 staging 验收；人工验收；PR 合并。
+- [x] P1 完整 CI 与 staging 验收；人工验收；PR 合并。
+
+`32e21c49` 相对 runtime-validated head `7beac096` 仅改变
+`PROJECT_STATE.yaml` 和 contract test，因此 A7 staging 证据继续有效，没有重复部署 VPS。
 
 ##### A7 Database authority matrix
 
@@ -329,7 +335,7 @@ COMPOSE_BUILD_COUNT = 0
 MUTABLE_IMAGE_REFERENCE_COUNT = 0
 SERVER_SOURCE_INSTALL_COUNT = 0
 SHADOW_STRATEGY_DECISION = DROP
-P1_ARCHITECTURE_CONVERGENCE_PASS = pending exact-head staging and secondary acceptance
+P1_ARCHITECTURE_CONVERGENCE_PASS = PASS
 ```
 
 **完成标准**：`P1_ARCHITECTURE_CONVERGENCE_PASS`
@@ -374,7 +380,12 @@ Status: NOT_STARTED
 > 首发因子两面处理：有首发的联赛验增量，无首发的联赛防逆向选择。
 
 ```text
-Status: NOT_STARTED
+Status: IN_PROGRESS
+Branch: codex/eval-01a-results-outcome-ledger-db
+PR: #424
+Base SHA: a607d65b0b71afbc0caa50c44a6e162cf397e4e4
+Started at: 2026-07-28
+Owner: Codex
 ```
 
 ---
@@ -382,7 +393,12 @@ Status: NOT_STARTED
 #### B1. EVAL-01A：赛果与结算账本数据库化
 
 ```text
-Status: NOT_STARTED
+Status: IN_PROGRESS
+Branch: codex/eval-01a-results-outcome-ledger-db
+PR: #424
+Base SHA: a607d65b0b71afbc0caa50c44a6e162cf397e4e4
+Started at: 2026-07-28
+Owner: Codex
 ```
 
 **目标**：赛果获得 DB 唯一权威；runtime 文件账本（最后一块文件飞地）迁入 DB 并删除。
@@ -402,6 +418,14 @@ Status: NOT_STARTED
 **验收**：`RESULTS_DB_AUTHORITY_COUNT = 1`；`RUNTIME_LEDGER_FILE_IO = 0`（静态守卫，
 模式同 `test_production_report_reads.py`）；迁移对账一致；老板可见的历史表现数字不漂移。
 **资产账本**：新增 ≤1 表（按基准判定）；删除 runtime 账本目录 + 文件 IO 代码。
+
+**建表授权判定**：`OUTCOME_LEDGER_DECISION = CREATE_ONE_TABLE`
+
+1. `results` 每场只保存一个终场比分，无法承载 capture、outcome、supersession、报价时间线和非正式验证事件。
+2. `settlements` 强绑定 `recommendation_id` 与 `result_id`；承载 validation/shadow/capture 会伪造正式推荐身份并扭曲列语义。
+3. 历史 JSONL 的 fixture/recommendation scope、pick/shadow pick、quote/artifact/probability provenance、
+   capture/decision/supersession identity 与 settlement evidence 无法无损映射到现有两表。
+
 - [ ] PR 合并。
 
 ---

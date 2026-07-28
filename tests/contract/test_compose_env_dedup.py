@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
@@ -16,16 +15,30 @@ ROOT = Path(__file__).resolve().parents[2]
 FORMAL = ROOT / "infra/compose/compose.staging.yml"
 LITE = ROOT / "infra/compose/staging-lite.override.yml"
 SERVICES = ("api", "worker", "scheduler")
-EXPECTED_FINGERPRINTS = {
+BASE_SHA = "a607d65b0b71afbc0caa50c44a6e162cf397e4e4"
+REMOVED_EVAL_01A_ENV = {
     FORMAL: {
-        "api": "e5be837ee00dffe47dcf35deaaabd288635d911c6a2678323b0fb895a6ff74c3",
-        "worker": "630a34300dda08d26bb8699375f16cc2390dde51e65d7cee387f64e6f9edea3c",
-        "scheduler": "ac7709079e5bef261000fba17d6d6c611c90f9873782197511549419dfd0847c",
+        "api": set(),
+        "worker": {
+            "W2_FORWARD_OUTCOME_BACKFILL_MAX_FIXTURES",
+            "W2_FORWARD_OUTCOME_RUNTIME_ROOT",
+        },
+        "scheduler": {
+            "W2_FORWARD_OUTCOME_BACKFILL_ENABLED",
+            "W2_FORWARD_OUTCOME_BACKFILL_INTERVAL_SECONDS",
+            "W2_FORWARD_OUTCOME_BACKFILL_MAX_FIXTURES",
+            "W2_FORWARD_OUTCOME_BACKFILL_WINDOW",
+            "W2_FORWARD_OUTCOME_RUNTIME_ROOT",
+        },
     },
     LITE: {
-        "api": "c87841c26c51cab17c1f679ca13372c143d03cfb8e856dc8cf274231367c626c",
-        "worker": "69a0b57d6aa52f0514ad6a418c894a684570b38e5fcc7a010971086f8d7a2d54",
-        "scheduler": "34f86427ef3535331d403a107b757212e529a8048f52fe027f2506e675773d5b",
+        "api": set(),
+        "worker": set(),
+        "scheduler": {
+            "W2_FORWARD_OUTCOME_BACKFILL_ENABLED",
+            "W2_FORWARD_OUTCOME_BACKFILL_INTERVAL_SECONDS",
+            "W2_FORWARD_OUTCOME_BACKFILL_WINDOW",
+        },
     },
 }
 EXPECTED_UNIQUE = {
@@ -39,19 +52,12 @@ EXPECTED_UNIQUE = {
         },
         "worker": {
             "W2_FORMAL_RECOMMENDATION_ENABLED",
-            "W2_FORWARD_OUTCOME_BACKFILL_MAX_FIXTURES",
-            "W2_FORWARD_OUTCOME_RUNTIME_ROOT",
         },
         "scheduler": {
-            "W2_FORWARD_OUTCOME_BACKFILL_ENABLED",
-            "W2_FORWARD_OUTCOME_BACKFILL_INTERVAL_SECONDS",
-            "W2_FORWARD_OUTCOME_BACKFILL_MAX_FIXTURES",
-            "W2_FORWARD_OUTCOME_BACKFILL_WINDOW",
             "W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE",
             "W2_FORWARD_OUTCOME_LEDGER_ENABLED",
             "W2_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS",
             "W2_FORWARD_OUTCOME_LEDGER_WINDOW",
-            "W2_FORWARD_OUTCOME_RUNTIME_ROOT",
             "W2_FUTURE_FIXTURE_REFRESH_ENABLED",
             "W2_MARKET_TIMELINE_MAX_FIXTURES",
             "W2_MARKET_TIMELINE_REFRESH_ENABLED",
@@ -63,9 +69,6 @@ EXPECTED_UNIQUE = {
         "api": {"W2_READINESS_RELEASE_ROOT"},
         "worker": set(),
         "scheduler": {
-            "W2_FORWARD_OUTCOME_BACKFILL_ENABLED",
-            "W2_FORWARD_OUTCOME_BACKFILL_INTERVAL_SECONDS",
-            "W2_FORWARD_OUTCOME_BACKFILL_WINDOW",
             "W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE",
             "W2_FORWARD_OUTCOME_LEDGER_ENABLED",
             "W2_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS",
@@ -145,7 +148,10 @@ def test_safety_switches_keep_their_values_and_ownership(path: Path) -> None:
 
 @pytest.mark.skipif(shutil.which("docker") is None, reason="Docker Compose unavailable")
 @pytest.mark.parametrize("path", [FORMAL, LITE])
-def test_compose_expansion_matches_pre_dedup_baseline(path: Path) -> None:
+def test_compose_expansion_matches_baseline_except_removed_eval_01a_env(
+    path: Path,
+    tmp_path: Path,
+) -> None:
     environment = os.environ.copy()
     compose_text = path.read_text(encoding="utf-8")
     for name in re.findall(r"\$\{([A-Z0-9_]+)", compose_text):
@@ -164,9 +170,21 @@ def test_compose_expansion_matches_pre_dedup_baseline(path: Path) -> None:
             "W2_API_REGISTRY_DIGEST": "sha256:" + "6" * 64,
         }
     )
-    command = ["docker", "compose"]
+    baseline = tmp_path / path.name
+    baseline.write_text(
+        subprocess.run(
+            ["git", "show", f"{BASE_SHA}:{path.relative_to(ROOT)}"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout,
+        encoding="utf-8",
+    )
+    current_command = ["docker", "compose"]
+    baseline_command = ["docker", "compose"]
     if path == LITE:
-        command += [
+        current_command += [
             "-f",
             str(ROOT / "docker-compose.yml"),
             "-f",
@@ -174,22 +192,38 @@ def test_compose_expansion_matches_pre_dedup_baseline(path: Path) -> None:
             "--profile",
             "staging",
         ]
+        baseline_command += [
+            "-f",
+            str(ROOT / "docker-compose.yml"),
+            "-f",
+            str(baseline),
+            "--profile",
+            "staging",
+        ]
     else:
-        command += ["-f", str(path)]
-    result = subprocess.run(
-        [*command, "config", "--format", "json"],
+        current_command += ["-f", str(path)]
+        baseline_command += ["-f", str(baseline)]
+    current = subprocess.run(
+        [*current_command, "config", "--format", "json"],
         cwd=ROOT,
         env=environment,
         check=True,
         capture_output=True,
         text=True,
     )
-    services = json.loads(result.stdout)["services"]
+    before = subprocess.run(
+        [*baseline_command, "config", "--format", "json"],
+        cwd=ROOT,
+        env=environment,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    current_services = json.loads(current.stdout)["services"]
+    baseline_services = json.loads(before.stdout)["services"]
 
     for service in SERVICES:
-        encoded = json.dumps(
-            services[service]["environment"],
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode()
-        assert hashlib.sha256(encoded).hexdigest() == EXPECTED_FINGERPRINTS[path][service]
+        expected = dict(baseline_services[service]["environment"])
+        for name in REMOVED_EVAL_01A_ENV[path][service]:
+            expected.pop(name)
+        assert current_services[service]["environment"] == expected

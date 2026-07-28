@@ -5,7 +5,7 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
 
@@ -65,6 +65,24 @@ class MatchResult:
     away_goals_90: int
     final_at: datetime
     result_status: str = "FINAL"
+
+
+class ResultRow(Protocol):
+    fixture_id: str
+    home_goals: int
+    away_goals: int
+    confirmed_at: datetime
+    result_status: str
+
+
+def match_result_from_model(row: ResultRow) -> MatchResult:
+    return MatchResult(
+        fixture_id=row.fixture_id,
+        home_goals_90=row.home_goals,
+        away_goals_90=row.away_goals,
+        final_at=row.confirmed_at,
+        result_status=row.result_status,
+    )
 
 
 @dataclass(frozen=True, kw_only=True)

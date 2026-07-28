@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-import json
 import math
 import random
 from collections import defaultdict
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from statistics import median
 from typing import Any
+
+from w2.tracking.outcome_ledger_repository import OutcomeLedgerRepository
 
 SAMPLE_TARGET = 200
 MIN_DECISIVE_SAMPLES_FOR_RATE = 5
@@ -26,16 +26,54 @@ SETTLED_OUTCOMES = {
 }
 
 
+def _result_for_fixture(
+    results: Mapping[str, Mapping[str, Any]],
+    fixture_id: str,
+) -> Mapping[str, Any] | None:
+    bare = fixture_id.removeprefix("api_football:")
+    return (
+        results.get(fixture_id)
+        or results.get(bare)
+        or results.get(f"api_football:{bare}")
+    )
+
+
+def _with_authoritative_result(
+    record: Mapping[str, Any],
+    results: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    payload = dict(record)
+    if _record_type(record) != "outcome":
+        return payload
+    result = _result_for_fixture(results, _text(record.get("fixture_id")))
+    payload["final_score"] = (
+        {
+            "home": result["home_goals"],
+            "away": result["away_goals"],
+            "status": result["status"],
+        }
+        if result is not None
+        else None
+    )
+    payload["result_source"] = "results" if result is not None else "RESULT_SOURCE_MISSING"
+    return payload
+
+
 def forward_ledger_performance(
-    runtime_root: Path,
     *,
+    repository: OutcomeLedgerRepository | None = None,
     sample_target: int = SAMPLE_TARGET,
     now: datetime | None = None,
-    legacy_recovery_manifest: Path | None = None,
+    legacy_recoveries: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     resolved_now = (now or datetime.now(UTC)).astimezone(UTC)
-    root = runtime_root / "forward_outcome_ledger"
-    raw_records = list(load_forward_ledger_records(root))
+    repo = repository or OutcomeLedgerRepository()
+    raw_records = repo.records()
+    authoritative_results = repo.result_payloads()
+    raw_records = [
+        _with_authoritative_result(record, authoritative_results)
+        for record in raw_records
+    ]
     superseded = _superseded_capture_hashes(raw_records)
     records = [record for record in raw_records if not _record_is_superseded(record, superseded)]
     captures = [record for record in records if _record_type(record) == "capture"]
@@ -47,7 +85,6 @@ def forward_ledger_performance(
     validation_counts = _counts_for_rows(validation_rows)
     official_counts = _counts_for_rows(official_rows)
     shadow_counts = _counts_for_rows(shadow_rows)
-    legacy_recoveries = _load_legacy_recovery_manifest(legacy_recovery_manifest)
     canonical_rows, canonical_excluded, recovered = _canonical_rows(
         validation_rows,
         candidates,
@@ -65,9 +102,9 @@ def forward_ledger_performance(
         _text(record.get("fixture_id")) for record in records if _text(record.get("fixture_id"))
     }
     pending_status = _pending_status_summary(
-        runtime_root,
         candidates=candidates,
         settled=validation_rows,
+        results=authoritative_results,
         now=resolved_now,
     )
     performance_cohort = _performance_cohort(
@@ -81,7 +118,7 @@ def forward_ledger_performance(
     )
     return {
         "schema_version": "w2.forward_ledger_performance.v3",
-        "source": "runtime/forward_outcome_ledger",
+        "source": "outcome_ledger+results",
         "sample_target": sample_target,
         "record_count": len(raw_records),
         "active_record_count": len(records),
@@ -140,7 +177,7 @@ def forward_ledger_performance(
         ),
         "by_league_market": _league_market_rows(candidates, validation_rows),
         "provider_calls": 0,
-        "db_reads": 0,
+        "db_reads": 2,
         "db_writes": 0,
         "mock_data": False,
     }
@@ -282,6 +319,8 @@ def _validation_settlements(
     for record in records:
         if _record_type(record) != "outcome" or _outcome_side(record) != "pick":
             continue
+        if record.get("result_source") != "results" and _outcome(record) != "VOID":
+            continue
         fixture_id = _text(record.get("fixture_id"))
         candidate = candidates.get(fixture_id)
         if candidate is None:
@@ -310,6 +349,8 @@ def _scoped_outcomes(records: Sequence[Mapping[str, Any]], scope: str) -> list[M
     grouped: dict[tuple[str, str, str], list[Mapping[str, Any]]] = defaultdict(list)
     for record in records:
         if _record_type(record) != "outcome":
+            continue
+        if record.get("result_source") != "results" and _outcome(record) != "VOID":
             continue
         actual = _text(record.get("recommendation_scope")).upper()
         if scope == "SHADOW" and _outcome_side(record) == "shadow_pick":
@@ -374,35 +415,6 @@ def _canonical_rows(
         else:
             rows.append(outcome)
     return rows, excluded, recovered
-
-
-def _load_legacy_recovery_manifest(
-    path: Path | None,
-) -> dict[str, Mapping[str, Any]]:
-    if path is None or not path.exists():
-        return {}
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise ValueError(f"invalid legacy recovery manifest: {path}") from exc
-    if not isinstance(payload, Mapping) or payload.get("schema_version") != (
-        "w2.forward_ledger_legacy_recovery.v1"
-    ):
-        raise ValueError("unsupported legacy recovery manifest schema")
-    if _text(payload.get("environment")) != "staging":
-        raise ValueError("legacy recovery manifest must be staging-only")
-    entries = payload.get("entries")
-    if not isinstance(entries, Sequence) or isinstance(entries, str | bytes | bytearray):
-        raise ValueError("legacy recovery manifest entries must be a list")
-    by_fixture: dict[str, Mapping[str, Any]] = {}
-    for entry in entries:
-        if not isinstance(entry, Mapping):
-            raise ValueError("legacy recovery manifest entry must be an object")
-        fixture_id = _text(entry.get("fixture_id"))
-        if not fixture_id or fixture_id in by_fixture:
-            raise ValueError("legacy recovery fixture IDs must be unique")
-        by_fixture[fixture_id] = entry
-    return by_fixture
 
 
 def _legacy_recovery_matches(
@@ -772,22 +784,14 @@ def _validation_market_pick_count(
 
 
 def _pending_status_summary(
-    runtime_root: Path,
     *,
     candidates: Mapping[str, Mapping[str, Any]],
     settled: Sequence[Mapping[str, Any]],
+    results: Mapping[str, Mapping[str, Any]],
     now: datetime,
 ) -> dict[str, Any]:
     settled_ids = {_text(row.get("fixture_id")) for row in settled}
     pending_ids = set(candidates) - settled_ids
-    state_path = runtime_root / "forward_outcome_result_refresh_state.json"
-    try:
-        state_payload = json.loads(state_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        state_payload = {}
-    states = state_payload.get("fixtures") if isinstance(state_payload, Mapping) else {}
-    if not isinstance(states, Mapping):
-        states = {}
     counts = {
         "waiting_finish_count": 0,
         "postponed_count": 0,
@@ -798,16 +802,11 @@ def _pending_status_summary(
     for fixture_id in sorted(pending_ids):
         capture = candidates[fixture_id]
         kickoff = _parse_time(capture.get("kickoff_utc"))
-        state = states.get(fixture_id)
-        state = state if isinstance(state, Mapping) else {}
-        provider_status = _text(state.get("status")).upper()
-        if provider_status == "PST":
-            category = "POSTPONED"
-            counts["postponed_count"] += 1
-        elif kickoff is not None and now < kickoff + timedelta(hours=3):
+        result = _result_for_fixture(results, fixture_id)
+        if kickoff is not None and now < kickoff + timedelta(hours=3):
             category = "WAITING_FINISH"
             counts["waiting_finish_count"] += 1
-        elif provider_status == "RESULT_MISSING":
+        elif result is None:
             category = "RESULT_MISSING"
             counts["result_missing_count"] += 1
         else:
@@ -821,27 +820,11 @@ def _pending_status_summary(
                 "card_hash": capture.get("card_hash"),
                 "decision_hash": capture.get("decision_hash"),
                 "recommendation_scope": capture.get("recommendation_scope"),
-                "last_checked_at_utc": state.get("checked_at_utc"),
-                "next_check_at_utc": state.get("next_check_at_utc"),
+                "last_checked_at_utc": result.get("confirmed_at") if result else None,
+                "next_check_at_utc": None,
             }
         )
     return {**counts, "details": details}
-
-
-def load_forward_ledger_records(root: Path) -> Iterable[dict[str, Any]]:
-    if not root.exists():
-        return []
-    records: list[dict[str, Any]] = []
-    for path in sorted(root.glob("*.jsonl")):
-        with path.open(encoding="utf-8") as handle:
-            for line in handle:
-                try:
-                    payload = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(payload, dict):
-                    records.append(payload)
-    return records
 
 
 def _outcome_counts(

@@ -2,11 +2,63 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from hashlib import sha256
 from pathlib import Path
 
 import pytest
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
 
-from w2.tracking.forward_ledger_performance import _eligible_clv_rows, forward_ledger_performance
+from w2.infrastructure.persistence.models import ResultModel
+from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerModel
+from w2.tracking.forward_ledger_performance import (
+    _eligible_clv_rows,
+)
+from w2.tracking.forward_ledger_performance import (
+    forward_ledger_performance as _db_forward_ledger_performance,
+)
+from w2.tracking.outcome_ledger_repository import (
+    ImportRecord,
+    OutcomeLedgerRepository,
+)
+
+
+def forward_ledger_performance(
+    runtime_root: Path,
+    *,
+    sample_target: int = 200,
+    now: datetime | None = None,
+    legacy_recovery_manifest: Path | None = None,
+) -> dict[str, object]:
+    """Import legacy test vectors, then exercise the DB-only production reader."""
+    repository = _repository(runtime_root)
+    records: list[ImportRecord] = []
+    for path in sorted((runtime_root / "forward_outcome_ledger").glob("*.jsonl")):
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            payload = json.loads(line)
+            records.append(
+                ImportRecord(
+                    payload=payload,
+                    record_type=str(payload.get("record_type") or "capture"),
+                    source_artifact=str(path.relative_to(runtime_root)),
+                    source_line_number=line_number,
+                )
+            )
+    repository._append_imports(records, dry_run=False, write_db=True)
+    _seed_authoritative_results(repository, [item.payload for item in records])
+    recoveries = None
+    if legacy_recovery_manifest is not None:
+        manifest = json.loads(legacy_recovery_manifest.read_text(encoding="utf-8"))
+        recoveries = {
+            str(entry["fixture_id"]): entry
+            for entry in manifest.get("entries", [])
+        }
+    return _db_forward_ledger_performance(
+        repository=repository,
+        sample_target=sample_target,
+        now=now,
+        legacy_recoveries=recoveries,
+    )
 
 
 def test_forward_ledger_performance_accumulates_without_fake_hit_rate(tmp_path: Path) -> None:
@@ -23,7 +75,7 @@ def test_forward_ledger_performance_accumulates_without_fake_hit_rate(tmp_path: 
     payload = forward_ledger_performance(tmp_path)
 
     assert payload["provider_calls"] == 0
-    assert payload["db_reads"] == 0
+    assert payload["db_reads"] == 2
     assert payload["db_writes"] == 0
     assert payload["record_count"] == 2
     assert payload["fixture_count"] == 2
@@ -69,6 +121,7 @@ def test_forward_ledger_excludes_superseded_capture_from_validation(tmp_path: Pa
     supersession = {
         "schema_version": "w2.forward_outcome_ledger.v3",
         "record_type": "supersession",
+        "superseded_at": "2026-07-07T01:00:00Z",
         "supersession_status": "SUPERSEDED",
         "reason_code": "AH_SELECTED_SIDE_LINE_MISMATCH",
         "fixture_id": "fixture-1",
@@ -393,21 +446,6 @@ def test_validation_pending_status_explains_missing_result(tmp_path: Path) -> No
     root.mkdir()
     capture = _validation_capture("fixture-1", "2026-07-07T00:00:00Z")
     _write_jsonl(root / "2026-07-07_staging.jsonl", [capture])
-    (tmp_path / "forward_outcome_result_refresh_state.json").write_text(
-        json.dumps(
-            {
-                "schema_version": "w2.outcome_result_refresh.v1",
-                "fixtures": {
-                    "fixture-1": {
-                        "status": "RESULT_MISSING",
-                        "checked_at_utc": "2026-07-08T04:00:00Z",
-                        "next_check_at_utc": "2026-07-08T05:00:00Z",
-                    }
-                },
-            }
-        ),
-        encoding="utf-8",
-    )
 
     payload = forward_ledger_performance(
         tmp_path,
@@ -840,6 +878,16 @@ def _outcome_record(
         "settled_side": side,
         "settlement_outcome": settlement_outcome,
     }
+    score_by_outcome = {
+        "WIN": (2, 0),
+        "HALF_WIN": (2, 0),
+        "LOSS": (0, 1),
+        "HALF_LOSS": (0, 1),
+        "PUSH": (1, 0),
+    }
+    if settlement_outcome in score_by_outcome:
+        home, away = score_by_outcome[settlement_outcome]
+        row["final_score"] = {"home": home, "away": away, "status": "FT"}
     if scope is not None:
         row["recommendation_scope"] = scope
     return row
@@ -885,3 +933,59 @@ def _write_recovery_manifest(
         ),
         encoding="utf-8",
     )
+
+
+def _repository(root: Path) -> OutcomeLedgerRepository:
+    engine = create_engine(f"sqlite+pysqlite:///{root / 'performance.db'}")
+    ResultModel.__table__.create(engine, checkfirst=True)
+    OutcomeLedgerModel.__table__.create(engine, checkfirst=True)
+    return OutcomeLedgerRepository(engine)
+
+
+def _seed_authoritative_results(
+    repository: OutcomeLedgerRepository,
+    records: list[dict[str, object]],
+) -> None:
+    scores: dict[str, tuple[int, int, str]] = {}
+    for record in records:
+        if record.get("record_type") != "outcome":
+            continue
+        final_score = record.get("final_score")
+        if not isinstance(final_score, dict):
+            continue
+        status = str(final_score.get("status") or "")
+        home = final_score.get("home")
+        away = final_score.get("away")
+        if (
+            status not in {"FT", "AET", "PEN"}
+            or not isinstance(home, int)
+            or not isinstance(away, int)
+        ):
+            continue
+        fixture_id = str(record["fixture_id"])
+        value = (home, away, status)
+        if fixture_id in scores and scores[fixture_id] != value:
+            raise ValueError("RESULT_SOURCE_CONFLICT")
+        scores[fixture_id] = value
+    with Session(repository.engine) as session:
+        existing = {
+            row.fixture_id
+            for row in session.scalars(select(ResultModel))
+        }
+        for fixture_id, (home, away, status) in scores.items():
+            if fixture_id in existing:
+                continue
+            identity = f"{fixture_id}:{home}:{away}"
+            session.add(
+                ResultModel(
+                    fixture_id=fixture_id,
+                    home_goals=home,
+                    away_goals=away,
+                    result_status=status,
+                    confirmed_at=datetime(2026, 7, 8, 3, tzinfo=UTC),
+                    source_payload_sha256=sha256(identity.encode()).hexdigest(),
+                    source_capture_id=None,
+                    result_hash=sha256(f"result:{identity}".encode()).hexdigest(),
+                )
+            )
+        session.commit()

@@ -4,8 +4,14 @@ import json
 import subprocess
 import sys
 from datetime import UTC, datetime
+from hashlib import sha256
 from pathlib import Path
 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+
+from w2.infrastructure.persistence.models import ResultModel
+from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerModel
 from w2.tracking.forward_outcome_ledger import (
     append_capture_supersessions,
     backfill_outcomes,
@@ -13,6 +19,7 @@ from w2.tracking.forward_outcome_ledger import (
     pending_outcome_entries,
     run_forward_outcome_ledger,
 )
+from w2.tracking.outcome_ledger_repository import OutcomeLedgerRepository
 
 
 def _day_view() -> dict[str, object]:
@@ -57,11 +64,11 @@ def _day_view() -> dict[str, object]:
 
 
 def test_forward_outcome_ledger_dry_run_does_not_write(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
     payload = run_forward_outcome_ledger(
         _day_view(),
+        repository=repository,
         dry_run=True,
-        write_artifacts=True,
-        runtime_root=tmp_path,
         captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
     )
 
@@ -71,11 +78,11 @@ def test_forward_outcome_ledger_dry_run_does_not_write(tmp_path: Path) -> None:
     assert payload["settlement_write"] is False
     assert payload["record_count"] == 1
     assert payload["written"] == 0
-    assert list(tmp_path.glob("*.jsonl")) == []
+    assert repository.records() == []
 
 
 def test_capture_supersession_is_append_only_and_removes_pending_entry(tmp_path: Path) -> None:
-    ledger_root = tmp_path / "forward_outcome_ledger"
+    repository = _repository(tmp_path)
     day_view = _day_view()
     card = day_view["cards"][0]  # type: ignore[index]
     card.update(  # type: ignore[union-attr]
@@ -89,36 +96,28 @@ def test_capture_supersession_is_append_only_and_removes_pending_entry(tmp_path:
             },
         }
     )
-    capture = run_forward_outcome_ledger(
+    run_forward_outcome_ledger(
         day_view,
+        repository=repository,
         dry_run=False,
-        write_artifacts=True,
-        runtime_root=ledger_root,
+        write_db=True,
         captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
     )
-    capture_hash = capture["records"][0]["capture_identity_hash"] if capture["records"] else None
-    if capture_hash is None:
-        row = json.loads(
-            (ledger_root / "2026-07-07_staging.jsonl").read_text(encoding="utf-8").splitlines()[0]
-        )
-        capture_hash = row["capture_identity_hash"]
-    assert len(pending_outcome_entries(tmp_path)) == 1
+    capture_hash = repository.records()[0]["capture_identity_hash"]
+    assert len(pending_outcome_entries(repository=repository)) == 1
 
     result = append_capture_supersessions(
-        tmp_path,
         [{"fixture_id": "fixture-1", "capture_identity_hash": capture_hash}],
+        repository=repository,
         reason_code="AH_SELECTED_SIDE_LINE_MISMATCH",
         superseded_at=datetime(2026, 7, 7, 13, 0, tzinfo=UTC),
         dry_run=False,
-        write_artifacts=True,
+        write_db=True,
     )
 
     assert result["written"] == 1
-    assert len(pending_outcome_entries(tmp_path)) == 0
-    original = ledger_root / "2026-07-07_staging.jsonl"
-    assert original.exists()
-    supersession = tmp_path / "forward_outcome_ledger" / "2026-07-07-supersessions_staging.jsonl"
-    row = json.loads(supersession.read_text(encoding="utf-8"))
+    assert len(pending_outcome_entries(repository=repository)) == 0
+    row = repository.records({"supersession"})[0]
     assert row["supersession_status"] == "SUPERSEDED"
     assert row["target_capture_identity_hash"] == capture_hash
 
@@ -140,23 +139,23 @@ def test_forward_capture_identity_preserves_at_most_one_strict_secondary() -> No
 
 
 def test_forward_outcome_ledger_write_is_idempotent(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
     first = run_forward_outcome_ledger(
         _day_view(),
+        repository=repository,
         dry_run=False,
-        write_artifacts=True,
-        runtime_root=tmp_path,
+        write_db=True,
         captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
     )
     second = run_forward_outcome_ledger(
         _day_view(),
+        repository=repository,
         dry_run=False,
-        write_artifacts=True,
-        runtime_root=tmp_path,
-        captured_at=datetime(2026, 7, 7, 12, 5, tzinfo=UTC),
+        write_db=True,
+        captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
     )
 
-    output = tmp_path / "2026-07-07_staging.jsonl"
-    rows = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    rows = repository.records()
     assert first["written"] == 1
     assert second["written"] == 0
     assert second["skipped_existing"] == 1
@@ -197,6 +196,7 @@ def test_forward_outcome_ledger_write_is_idempotent(tmp_path: Path) -> None:
 def test_forward_outcome_ledger_validation_pick_binds_entry_quote(
     tmp_path: Path,
 ) -> None:
+    repository = _repository(tmp_path)
     day_view = _day_view()
     card = day_view["cards"][0]  # type: ignore[index]
     card.update(  # type: ignore[union-attr]
@@ -226,18 +226,13 @@ def test_forward_outcome_ledger_validation_pick_binds_entry_quote(
 
     payload = run_forward_outcome_ledger(
         day_view,
+        repository=repository,
         dry_run=False,
-        write_artifacts=True,
-        runtime_root=tmp_path,
+        write_db=True,
         captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
     )
 
-    rows = [
-        json.loads(line)
-        for line in (tmp_path / "2026-07-07_staging.jsonl")
-        .read_text(encoding="utf-8")
-        .splitlines()
-    ]
+    rows = repository.records()
     assert payload["written"] == 1
     assert rows[0]["recommendation_scope"] == "VALIDATION"
     assert rows[0]["outcome_tracked"] is True
@@ -251,6 +246,7 @@ def test_forward_outcome_ledger_validation_pick_binds_entry_quote(
 def test_forward_outcome_ledger_uses_public_team_name_fallbacks(
     tmp_path: Path,
 ) -> None:
+    repository = _repository(tmp_path)
     day_view = _day_view()
     card = day_view["cards"][0]  # type: ignore[index]
     card.pop("home_team_name")  # type: ignore[union-attr]
@@ -260,18 +256,13 @@ def test_forward_outcome_ledger_uses_public_team_name_fallbacks(
 
     payload = run_forward_outcome_ledger(
         day_view,
+        repository=repository,
         dry_run=False,
-        write_artifacts=True,
-        runtime_root=tmp_path,
+        write_db=True,
         captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
     )
 
-    rows = [
-        json.loads(line)
-        for line in (tmp_path / "2026-07-07_staging.jsonl")
-        .read_text(encoding="utf-8")
-        .splitlines()
-    ]
+    rows = repository.records()
     assert payload["written"] == 1
     assert rows[0]["fixture_identity"]["home_team_name"] == "Public Home"
     assert rows[0]["fixture_identity"]["away_team_name"] == "Public Away"
@@ -280,6 +271,7 @@ def test_forward_outcome_ledger_uses_public_team_name_fallbacks(
 def test_forward_outcome_ledger_captures_and_settles_independent_ou_shadow(
     tmp_path: Path,
 ) -> None:
+    repository = _repository(tmp_path)
     day_view = _day_view()
     card = day_view["cards"][0]  # type: ignore[index]
     card["current_odds"]["ou"] = {  # type: ignore[index]
@@ -291,19 +283,14 @@ def test_forward_outcome_ledger_captures_and_settles_independent_ou_shadow(
 
     capture = run_forward_outcome_ledger(
         day_view,
+        repository=repository,
         dry_run=False,
-        write_artifacts=True,
-        runtime_root=tmp_path / "forward_outcome_ledger",
+        write_db=True,
         captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
     )
 
     assert capture["written"] == 2
-    capture_rows = [
-        json.loads(line)
-        for line in (tmp_path / "forward_outcome_ledger" / "2026-07-07_staging.jsonl")
-        .read_text(encoding="utf-8")
-        .splitlines()
-    ]
+    capture_rows = repository.records({"capture"})
     assert {
         (row["shadow_pick"]["market"], row["shadow_pick"]["selection"])
         for row in capture_rows
@@ -311,21 +298,11 @@ def test_forward_outcome_ledger_captures_and_settles_independent_ou_shadow(
     assert all(row["shadow_pick"]["not_a_recommendation"] is True for row in capture_rows)
     assert all(row["shadow_pick"]["not_displayed"] is True for row in capture_rows)
 
-    settlement = backfill_outcomes(
-        tmp_path,
-        {"results": [_result("fixture-1", 2, 1)]},
-        dry_run=False,
-        write_artifacts=True,
-    )
+    _seed_results(repository, [_result("fixture-1", 2, 1)])
+    settlement = backfill_outcomes(repository=repository, dry_run=False, write_db=True)
 
     assert settlement["written"] == 2
-    rows = [
-        json.loads(line)
-        for line in (tmp_path / "forward_outcome_ledger" / "2026-07-07_staging.jsonl")
-        .read_text(encoding="utf-8")
-        .splitlines()
-    ]
-    outcomes = [row for row in rows if row.get("record_type") == "outcome"]
+    outcomes = repository.records({"outcome"})
     assert {(row["market"], row["selection"], row["settlement_outcome"]) for row in outcomes} == {
         ("ASIAN_HANDICAP", "HOME_AH", "HALF_LOSS"),
         ("TOTALS", "OVER", "WIN"),
@@ -381,35 +358,26 @@ def test_v3_no_edge_still_captures_isolated_same_line_shadow_markets() -> None:
 def test_forward_outcome_backfill_deduplicates_same_capture_across_day_files(
     tmp_path: Path,
 ) -> None:
-    root = tmp_path / "forward_outcome_ledger"
-    root.mkdir()
+    repository = _repository(tmp_path)
     capture = _capture("fixture-1", "hash-1", home_line="-1", home_price="1.9")
     next_day = dict(capture)
-    next_day["football_day"] = "2026-07-08"
-    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture])
-    _write_jsonl(root / "2026-07-08_staging.jsonl", [next_day])
+    repository.append([capture, next_day], dry_run=False, write_db=True)
+    _seed_results(repository, [_result("fixture-1", 2, 0)])
 
     payload = backfill_outcomes(
-        tmp_path,
-        {"results": [_result("fixture-1", 2, 0)]},
+        repository=repository,
         dry_run=False,
-        write_artifacts=True,
+        write_db=True,
     )
 
-    outcomes = [
-        json.loads(line)
-        for path in root.glob("*.jsonl")
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if json.loads(line).get("record_type") == "outcome"
-    ]
+    outcomes = repository.records({"outcome"})
     assert payload["written"] == 1
     assert payload["record_count"] == 1
     assert len(outcomes) == 1
 
 
 def test_forward_outcome_backfill_does_not_void_shadow_without_quote(tmp_path: Path) -> None:
-    root = tmp_path / "forward_outcome_ledger"
-    root.mkdir()
+    repository = _repository(tmp_path)
     capture = _capture("fixture-1", "hash-1", home_line="-1", home_price="1.9")
     capture["decision_tier"] = "WATCH"
     capture["recommendation_scope"] = "SHADOW"
@@ -421,13 +389,13 @@ def test_forward_outcome_backfill_does_not_void_shadow_without_quote(tmp_path: P
         "not_a_recommendation": True,
         "not_displayed": True,
     }
-    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture])
+    repository.append([capture], dry_run=False, write_db=True)
+    _seed_results(repository, [_result("fixture-1", 2, 1)])
 
     payload = backfill_outcomes(
-        tmp_path,
-        {"results": [_result("fixture-1", 2, 1)]},
+        repository=repository,
         dry_run=False,
-        write_artifacts=True,
+        write_db=True,
     )
 
     assert payload["written"] == 0
@@ -447,27 +415,31 @@ def test_forward_outcome_ledger_shadow_pick_is_null_without_lines(
     payload = run_forward_outcome_ledger(
         day_view,
         dry_run=True,
-        write_artifacts=False,
-        runtime_root=tmp_path,
+        repository=_repository(tmp_path),
         captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
     )
 
     assert payload["records"][0]["shadow_pick"] is None
 
 
-def test_forward_outcome_ledger_cli_reads_day_view_json(tmp_path: Path) -> None:
-    day_view_path = tmp_path / "day_view.json"
-    day_view_path.write_text(json.dumps(_day_view()), encoding="utf-8")
-    output_root = tmp_path / "ledger"
+def test_forward_outcome_ledger_cli_imports_runtime_ledger_only_explicitly(
+    tmp_path: Path,
+) -> None:
+    source_root = tmp_path / "runtime"
+    ledger_root = source_root / "forward_outcome_ledger"
+    ledger_root.mkdir(parents=True)
+    _write_jsonl(
+        ledger_root / "2026-07-07_staging.jsonl",
+        [_capture("fixture-1", "hash-1", home_line="-1", home_price="1.9")],
+    )
 
     result = subprocess.run(
         [
             sys.executable,
             "scripts/run_w2_forward_outcome_ledger.py",
-            "--day-view-json",
-            str(day_view_path),
-            "--runtime-root",
-            str(output_root),
+            "--import-runtime-ledger",
+            "--source-root",
+            str(source_root),
             "--json",
         ],
         check=True,
@@ -476,50 +448,46 @@ def test_forward_outcome_ledger_cli_reads_day_view_json(tmp_path: Path) -> None:
     )
 
     payload = json.loads(result.stdout)
-    assert payload["dry_run"] is True
     assert payload["provider_calls"] == 0
     assert payload["db_writes"] == 0
-    assert payload["record_count"] == 1
-    assert not output_root.exists()
+    assert payload["source_record_count"] == 1
+    assert payload["reconciliation_status"] == "PASS"
 
 
 def test_forward_outcome_backfill_writes_win_push_half_loss_and_fails_closed_without_quote(
     tmp_path: Path,
 ) -> None:
-    root = tmp_path / "forward_outcome_ledger"
-    root.mkdir()
-    _write_jsonl(
-        root / "2026-07-07_staging.jsonl",
+    repository = _repository(tmp_path)
+    repository.append(
         [
             _capture("fixture-win", "hash-win", home_line="-1", home_price="1.9"),
             _capture("fixture-push", "hash-push", home_line="-1", home_price="1.9"),
             _capture("fixture-half-loss", "hash-half", home_line="-0.25", home_price="1.9"),
             _capture("fixture-void", "hash-void", home_line=None, home_price="1.9"),
         ],
+        dry_run=False,
+        write_db=True,
+    )
+    _seed_results(
+        repository,
+        [
+            _result("fixture-win", 2, 0),
+            _result("fixture-push", 1, 0),
+            _result("fixture-half-loss", 0, 0),
+            _result("fixture-void", 2, 0),
+        ],
     )
 
     payload = backfill_outcomes(
-        tmp_path,
-        {
-            "results": [
-                _result("fixture-win", 2, 0),
-                _result("fixture-push", 1, 0),
-                _result("fixture-half-loss", 0, 0),
-                _result("fixture-void", 2, 0),
-            ]
-        },
+        repository=repository,
         dry_run=False,
-        write_artifacts=True,
+        write_db=True,
         settled_at=datetime(2026, 7, 8, 12, 0, tzinfo=UTC),
     )
 
-    rows = [
-        json.loads(line)
-        for line in (root / "2026-07-07_staging.jsonl").read_text(encoding="utf-8").splitlines()
-    ]
-    outcomes = {row["fixture_id"]: row for row in rows if row.get("record_type") == "outcome"}
+    outcomes = {row["fixture_id"]: row for row in repository.records({"outcome"})}
     assert payload["provider_calls"] == 0
-    assert payload["db_writes"] == 0
+    assert payload["db_writes"] == 3
     assert payload["settlement_write"] is False
     assert payload["written"] == 3
     assert outcomes["fixture-win"]["settlement_outcome"] == "WIN"
@@ -535,16 +503,16 @@ def test_forward_outcome_backfill_writes_win_push_half_loss_and_fails_closed_wit
 
 
 def test_forward_outcome_backfill_is_idempotent(tmp_path: Path) -> None:
-    root = tmp_path / "forward_outcome_ledger"
-    root.mkdir()
-    _write_jsonl(
-        root / "2026-07-07_staging.jsonl",
+    repository = _repository(tmp_path)
+    repository.append(
         [_capture("fixture-1", "hash-1", home_line="-1", home_price="1.9")],
+        dry_run=False,
+        write_db=True,
     )
-    source = {"results": [_result("fixture-1", 2, 0)]}
+    _seed_results(repository, [_result("fixture-1", 2, 0)])
 
-    first = backfill_outcomes(tmp_path, source, dry_run=False, write_artifacts=True)
-    second = backfill_outcomes(tmp_path, source, dry_run=False, write_artifacts=True)
+    first = backfill_outcomes(repository=repository, dry_run=False, write_db=True)
+    second = backfill_outcomes(repository=repository, dry_run=False, write_db=True)
 
     assert first["written"] == 1
     assert second["written"] == 0
@@ -553,18 +521,17 @@ def test_forward_outcome_backfill_is_idempotent(tmp_path: Path) -> None:
 
 
 def test_forward_outcome_backfill_ignores_non_ft_results(tmp_path: Path) -> None:
-    root = tmp_path / "forward_outcome_ledger"
-    root.mkdir()
-    _write_jsonl(
-        root / "2026-07-07_staging.jsonl",
+    repository = _repository(tmp_path)
+    repository.append(
         [_capture("fixture-1", "hash-1", home_line="-1", home_price="1.9")],
+        dry_run=False,
+        write_db=True,
     )
 
     payload = backfill_outcomes(
-        tmp_path,
-        {"results": [_result("fixture-1", 2, 0, status="1H")]},
+        repository=repository,
         dry_run=False,
-        write_artifacts=True,
+        write_db=True,
     )
 
     assert payload["record_count"] == 0
@@ -574,8 +541,7 @@ def test_forward_outcome_backfill_ignores_non_ft_results(tmp_path: Path) -> None
 def test_forward_outcome_backfill_settles_shadow_pick_separately(
     tmp_path: Path,
 ) -> None:
-    root = tmp_path / "forward_outcome_ledger"
-    root.mkdir()
+    repository = _repository(tmp_path)
     capture = _capture("fixture-1", "hash-1", home_line="-1", home_price="1.9")
     capture["shadow_pick"] = {
         "market": "ASIAN_HANDICAP",
@@ -585,20 +551,16 @@ def test_forward_outcome_backfill_settles_shadow_pick_separately(
     }
     capture["current_odds"]["ah"]["away_line"] = "+1"
     capture["current_odds"]["ah"]["away_price"] = "1.8"
-    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture])
+    repository.append([capture], dry_run=False, write_db=True)
+    _seed_results(repository, [_result("fixture-1", 2, 0)])
 
     payload = backfill_outcomes(
-        tmp_path,
-        {"results": [_result("fixture-1", 2, 0)]},
+        repository=repository,
         dry_run=False,
-        write_artifacts=True,
+        write_db=True,
     )
 
-    rows = [
-        json.loads(line)
-        for line in (root / "2026-07-07_staging.jsonl").read_text(encoding="utf-8").splitlines()
-    ]
-    outcomes = [row for row in rows if row.get("record_type") == "outcome"]
+    outcomes = repository.records({"outcome"})
     assert payload["written"] == 2
     assert {row["settled_side"] for row in outcomes} == {"pick", "shadow_pick"}
     shadow = [row for row in outcomes if row["settled_side"] == "shadow_pick"][0]
@@ -609,49 +571,45 @@ def test_forward_outcome_backfill_settles_shadow_pick_separately(
 def test_forward_outcome_backfill_settles_totals_and_uses_fulltime_score(
     tmp_path: Path,
 ) -> None:
-    root = tmp_path / "forward_outcome_ledger"
-    root.mkdir()
+    repository = _repository(tmp_path)
     capture = _capture("fixture-ou", "hash-ou", home_line="-1", home_price="1.9")
     capture["pick"] = {"market": "TOTALS", "selection": "OVER"}
     capture["current_odds"] = {"ou": {"line": "2.75", "over_price": "1.9", "under_price": "1.9"}}
-    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture])
-
-    payload = backfill_outcomes(
-        tmp_path,
-        {
-            "results": [
-                {
-                    "fixture": {"id": "fixture-ou", "status": {"short": "AET"}},
-                    "goals": {"home": 3, "away": 1},
-                    "score": {"fulltime": {"home": 1, "away": 1}},
-                }
-            ]
-        },
-        dry_run=False,
-        write_artifacts=True,
+    repository.append([capture], dry_run=False, write_db=True)
+    _seed_results(
+        repository,
+        [
+            {
+                "fixture_id": "fixture-ou",
+                "status": "AET",
+                "home_score": 1,
+                "away_score": 1,
+            }
+        ],
     )
 
-    rows = [
-        json.loads(line)
-        for line in (root / "2026-07-07_staging.jsonl").read_text(encoding="utf-8").splitlines()
-    ]
-    outcome = [row for row in rows if row.get("record_type") == "outcome"][0]
+    payload = backfill_outcomes(
+        repository=repository,
+        dry_run=False,
+        write_db=True,
+    )
+
+    outcome = repository.records({"outcome"})[0]
     assert payload["status"] == "PASS"
     assert outcome["final_score"] == {"home": 1, "away": 1, "status": "AET"}
     assert outcome["settlement_outcome"] == "LOSS"
 
 
 def test_pending_entries_and_zero_result_are_not_false_pass(tmp_path: Path) -> None:
-    root = tmp_path / "forward_outcome_ledger"
-    root.mkdir()
+    repository = _repository(tmp_path)
     capture = _capture("fixture-1", "hash-1", home_line="-1", home_price="1.9")
-    _write_jsonl(root / "2026-07-07_staging.jsonl", [capture])
+    repository.append([capture], dry_run=False, write_db=True)
 
     pending = pending_outcome_entries(
-        tmp_path,
+        repository=repository,
         now=datetime(2026, 7, 8, 6, 0, tzinfo=UTC),
     )
-    payload = backfill_outcomes(tmp_path, {"results": []})
+    payload = backfill_outcomes(repository=repository)
 
     assert len(pending) == 1
     assert pending[0]["due"] is True
@@ -661,8 +619,7 @@ def test_pending_entries_and_zero_result_are_not_false_pass(tmp_path: Path) -> N
 
 
 def test_v3_validation_identity_conflict_is_not_settled(tmp_path: Path) -> None:
-    root = tmp_path / "forward_outcome_ledger"
-    root.mkdir()
+    repository = _repository(tmp_path)
     first = _capture("fixture-1", "hash-1", home_line="-1", home_price="1.9")
     first.update(
         {
@@ -679,11 +636,11 @@ def test_v3_validation_identity_conflict_is_not_settled(tmp_path: Path) -> None:
     conflict["captured_at"] = "2026-07-07T01:00:00Z"
     conflict["capture_identity_hash"] = "capture-2"
     conflict["pick"] = {"market": "ASIAN_HANDICAP", "selection": "AWAY_AH"}
-    _write_jsonl(root / "2026-07-07_staging.jsonl", [first, conflict])
+    repository.append([first, conflict], dry_run=False, write_db=True)
+    _seed_results(repository, [_result("fixture-1", 2, 0)])
 
     payload = backfill_outcomes(
-        tmp_path,
-        {"results": [_result("fixture-1", 2, 0)]},
+        repository=repository,
     )
 
     assert payload["status"] == "NO_DUE_WORK"
@@ -739,6 +696,41 @@ def _result(
         "home_score": home,
         "away_score": away,
     }
+
+
+def _repository(root: Path) -> OutcomeLedgerRepository:
+    engine = create_engine(f"sqlite+pysqlite:///{root / 'outcome-ledger.db'}")
+    ResultModel.__table__.create(engine, checkfirst=True)
+    OutcomeLedgerModel.__table__.create(engine, checkfirst=True)
+    return OutcomeLedgerRepository(engine)
+
+
+def _seed_results(
+    repository: OutcomeLedgerRepository,
+    rows: list[dict[str, object]],
+) -> None:
+    with Session(repository.engine) as session:
+        for row in rows:
+            status = str(row["status"])
+            if status not in {"FT", "AET", "PEN"}:
+                continue
+            fixture_id = str(row["fixture_id"])
+            home = int(row["home_score"])
+            away = int(row["away_score"])
+            identity = f"{fixture_id}:{home}:{away}"
+            session.add(
+                ResultModel(
+                    fixture_id=fixture_id,
+                    home_goals=home,
+                    away_goals=away,
+                    result_status=status,
+                    confirmed_at=datetime(2026, 7, 8, tzinfo=UTC),
+                    source_payload_sha256=sha256(identity.encode()).hexdigest(),
+                    source_capture_id=None,
+                    result_hash=sha256(f"result:{identity}".encode()).hexdigest(),
+                )
+            )
+        session.commit()
 
 
 def _write_jsonl(path: Path, rows: list[dict[str, object]]) -> None:

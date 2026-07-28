@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from hashlib import sha256
 
 import pytest
 from sqlalchemy import create_engine
@@ -201,7 +202,7 @@ def test_formal_tracking_db_capture_blocks_missing_recommendation_id(session: Se
     assert result["blockers"]["MISSING_RECOMMENDATION_ID"] == 1
 
 
-def test_formal_tracking_capture_creates_recommendation_marker_for_payload_id(
+def test_formal_tracking_capture_does_not_fabricate_recommendation_for_payload_id(
     session: Session,
 ) -> None:
     fixture = _fixture_graph(session)
@@ -216,18 +217,10 @@ def test_formal_tracking_capture_creates_recommendation_marker_for_payload_id(
         now=NOW,
         release_sha="release-sha",
     )
-    session.commit()
-
-    assert result["written"] == 1
-    assert result["blockers"]["RECOMMENDATION_MARKER_CREATED"] == 1
+    assert result["written"] == 0
+    assert result["blockers"]["MISSING_RECOMMENDATION"] == 1
     marker = session.get(RecommendationModel, recommendation_id)
-    assert marker is not None
-    assert marker.fixture_id == fixture.id
-    assert marker.status == "FORMAL"
-    stored = session.get(RecommendationLockModel, result["results"][0]["lock_id"])
-    assert stored is not None
-    assert stored.recommendation_id == recommendation_id
-    assert stored.reproducible is True
+    assert marker is None
 
 
 def test_settlement_requires_existing_result_recommendation_and_can_bind_lock(
@@ -240,7 +233,7 @@ def test_settlement_requires_existing_result_recommendation_and_can_bind_lock(
         status="LOCKED",
         created_at=NOW,
     )
-    result = ResultModel(fixture_id=fixture.id, home_goals=1, away_goals=1, confirmed_at=NOW)
+    result = _result_model(fixture.id, 1, 1)
     session.add_all([recommendation, result])
     session.flush()
     lock = RecommendationLockModel(
@@ -299,7 +292,7 @@ def test_settlement_is_append_only(session: Session) -> None:
         status="LOCKED",
         created_at=NOW,
     )
-    result = ResultModel(fixture_id=fixture.id, home_goals=1, away_goals=1, confirmed_at=NOW)
+    result = _result_model(fixture.id, 1, 1)
     session.add_all([recommendation, result])
     session.flush()
     settlement = SettlementModel(
@@ -377,3 +370,17 @@ def _formal_card(fixture_id: str, kickoff_utc: datetime) -> dict[str, object]:
         },
         "data_profile": "real-db",
     }
+
+
+def _result_model(fixture_id: str, home_goals: int, away_goals: int) -> ResultModel:
+    identity = f"{fixture_id}:{home_goals}:{away_goals}"
+    return ResultModel(
+        fixture_id=fixture_id,
+        home_goals=home_goals,
+        away_goals=away_goals,
+        result_status="FT",
+        confirmed_at=NOW,
+        source_payload_sha256=sha256(identity.encode()).hexdigest(),
+        source_capture_id=None,
+        result_hash=sha256(f"result:{identity}".encode()).hexdigest(),
+    )

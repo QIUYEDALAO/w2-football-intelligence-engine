@@ -1,18 +1,18 @@
 schema_version: w2.project_state.v3
 project: w2-football-intelligence-engine
 updated_at: "2026-07-28"
-current_task: ARCH-P1-08
+current_task: EVAL-01A
 current_status: IN_PROGRESS
-current_pr: 423
-next_task: EVAL-01A
+current_pr: 424
+next_task: EVAL-01B
 task_queue:
-  - ARCH-GOVERNANCE-01
-  - ARCH-P1-04C
-  - ARCH-P1-03
-  - ARCH-P1-05
-  - ARCH-P1-06
-  - ARCH-P1-07
-  - ARCH-P1-08
+  - EVAL-01A
+  - EVAL-01B
+  - EVAL-01C
+  - EVAL-02A
+  - EVAL-02B
+  - OPS-01
+  - EVAL-03
 safety:
   provider_calls: 0
   staging_writes: 0

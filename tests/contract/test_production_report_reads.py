@@ -41,7 +41,7 @@ def test_formal_tracking_endpoint_ignores_report_file(tmp_path: Path, monkeypatc
     )
     monkeypatch.setenv("W2_FORMAL_TRACKING_REPORT", str(report_path))
 
-    summary = endpoint_summary(runtime_root=tmp_path / "runtime")
+    summary = endpoint_summary()
 
     assert summary["status"] == "OBSERVING"
     assert summary["sample_count"] == 0

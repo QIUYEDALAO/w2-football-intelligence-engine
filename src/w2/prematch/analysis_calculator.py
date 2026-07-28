@@ -152,9 +152,6 @@ from w2.tracking.forward_ledger_performance import forward_ledger_performance
 
 ROOT = Path(os.getenv("W2_APP_ROOT", Path(__file__).resolve().parents[3])).resolve()
 RUNTIME = Path(os.getenv("W2_RUNTIME_ROOT", ROOT / "runtime")).resolve()
-FORWARD_LEDGER_LEGACY_RECOVERY = (
-    ROOT / "config/policies/forward_ledger_legacy_recovery.staging.v1.json"
-)
 MAX_PUBLIC_FIXTURES = 512
 WORLD_CUP_FIXTURES = RUNTIME / "stage5b/processed/national_fixtures_cleaned.json"
 BALANCED_MAINLINE_MAX_DISTANCE = 0.06
@@ -1274,10 +1271,7 @@ class ReadModelService:
         football_day_start, football_day_end = football_day_window(requested_date)
         next_available_date = self._next_available_date(requested_date, future_rows=future_rows)
         performance = self._dashboard_performance(all_cards)
-        performance["forward_ledger"] = forward_ledger_performance(
-            RUNTIME,
-            legacy_recovery_manifest=FORWARD_LEDGER_LEGACY_RECOVERY,
-        )
+        performance["forward_ledger"] = forward_ledger_performance()
         if window == "all":
             performance.update(self._all_window_surface_contract(include=True))
         refresh_reader = getattr(self.repository, "public_market_refresh_status", None)

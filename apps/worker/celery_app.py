@@ -221,31 +221,21 @@ def forward_outcome_ledger(
         "candidate": False,
         "formal_recommendation": False,
         "provider_calls": 0,
-        "db_writes": 0,
+        "db_writes": result.get("db_writes", 0),
         "lock_capture_write": False,
         "settlement_write": False,
     }
 
 
-@celery_app.task(name="w2.forward_outcome_backfill", bind=True)
-def forward_outcome_backfill(
+@celery_app.task(name="w2.result_materialize", bind=True)
+def result_materialize(
     self: object,
     queued_at_utc: str | None = None,
-    window: str = "next36",
-    max_fixtures: int = 20,
+    fixture_ids: list[str] | None = None,
 ) -> dict[str, object]:
     request = getattr(self, "request", None)
-    task_id = str(getattr(request, "id", None) or "forward-outcome-backfill")
-    if not provider_scheduler_enabled():
-        return {
-            "task_id": task_id,
-            "queued_at_utc": queued_at_utc,
-            "status": PROVIDER_SCHEDULER_DISABLED,
-            "result": {"provider_calls": 0, "db_writes": 0},
-            "candidate": False,
-            "formal_recommendation": False,
-        }
-    result = _run_forward_outcome_backfill(window=window, max_fixtures=max_fixtures)
+    task_id = str(getattr(request, "id", None) or "result-materialize")
+    result = _run_result_materialize(fixture_ids=fixture_ids)
     return {
         "task_id": task_id,
         "queued_at_utc": queued_at_utc,
@@ -254,7 +244,7 @@ def forward_outcome_backfill(
         "candidate": False,
         "formal_recommendation": False,
         "provider_calls": 0,
-        "db_writes": 0,
+        "db_writes": result.get("db_writes", 0),
         "lock_capture_write": False,
         "settlement_write": False,
     }
@@ -263,31 +253,59 @@ def forward_outcome_backfill(
 def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
     from w2.api.repository import ReadModelService
     from w2.dashboard.day_view import build_dashboard_day_view
-    from w2.tracking.forward_outcome_ledger import run_forward_outcome_ledger
+    from w2.tracking.forward_outcome_ledger import (
+        backfill_outcomes,
+        run_forward_outcome_ledger,
+    )
+    from w2.tracking.outcome_ledger_repository import OutcomeLedgerRepository
+    from w2.tracking.outcome_result_refresh import run_outcome_result_refresh
 
     service = ReadModelService()
+    repository = OutcomeLedgerRepository()
     dashboard = service.dashboard(window=window, include_debug=False)
     day_view = build_dashboard_day_view(
         dashboard,
         environment=get_settings().environment.value,
     )
-    return run_forward_outcome_ledger(
+    capture = run_forward_outcome_ledger(
         day_view,
+        repository=repository,
         dry_run=False,
-        write_artifacts=True,
+        write_db=True,
     )
+    materialization = run_outcome_result_refresh(
+        repository=repository,
+        dry_run=False,
+        write_db=True,
+    )
+    settlement = backfill_outcomes(
+        repository=repository,
+        dry_run=False,
+        write_db=True,
+    )
+    return {
+        **capture,
+        "status": (
+            "BLOCKED"
+            if materialization["status"] == "BLOCKED"
+            else capture["status"]
+        ),
+        "db_writes": sum(
+            int(item.get("db_writes", 0))
+            for item in (capture, materialization, settlement)
+        ),
+        "result_materialization": materialization,
+        "outcome_settlement": settlement,
+    }
 
 
-def _run_forward_outcome_backfill(*, window: str, max_fixtures: int = 20) -> dict[str, object]:
-    del window  # retained for task compatibility; pending ledger is the authority.
-    from w2.tracking.outcome_result_refresh import (
-        run_outcome_result_refresh,
-        runtime_root_from_env,
-    )
+def _run_result_materialize(
+    *, fixture_ids: list[str] | None = None
+) -> dict[str, object]:
+    from w2.tracking.outcome_result_refresh import run_outcome_result_refresh
 
     return run_outcome_result_refresh(
-        runtime_root=runtime_root_from_env(),
+        fixture_ids=fixture_ids,
         dry_run=False,
-        write_artifacts=True,
-        max_fixtures=max_fixtures,
+        write_db=True,
     )

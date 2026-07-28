@@ -2,32 +2,40 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
-from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from w2.infrastructure.persistence.models import RecommendationLockModel, RecommendationModel
+from w2.infrastructure.persistence.models import (
+    RecommendationLockModel,
+    RecommendationModel,
+    SettlementModel,
+)
 from w2.infrastructure.persistence.recommendation_lock_snapshot import (
     build_recommendation_lock_snapshot,
 )
 from w2.prematch.simulation_reconciliation import canonical_public_simulation
 from w2.settlement.settle import WIN_UNITS, settle_market
+from w2.tracking.outcome_ledger_repository import ImportRecord, OutcomeLedgerRepository
 
 MIN_BUCKET_SAMPLES_FOR_RATE = 30
 SNAPSHOT_SCHEMA_VERSION = "w2_formal_recommendation_snapshot.v1"
 SETTLEMENT_SCHEMA_VERSION = "w2_formal_recommendation_settlement.v1"
 REPORT_SCHEMA_VERSION = "w2_formal_tracking_report.v1"
-SNAPSHOT_DIRNAME = "formal_recommendation_snapshots"
-SETTLEMENT_DIRNAME = "formal_recommendation_settlements"
-DEFAULT_REPORT_OUTPUT_PATH = Path("reports/w2_formal_tracking/latest/report.json")
 VOID_STATUSES = {"VOID", "POSTPONED", "ABANDONED", "CANCELLED"}
-FINISHED_STATUSES = {"FINISHED", "FT", "AET", "PEN"}
+
+
+def _formal_import(payload: dict[str, Any], record_type: str) -> ImportRecord:
+    return ImportRecord(
+        payload=payload,
+        record_type=record_type,
+        source_artifact="db:formal_tracking",
+        source_line_number=None,
+    )
 
 
 def utc_now() -> datetime:
@@ -49,48 +57,6 @@ def parse_dt(value: Any) -> datetime | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=UTC)
     return parsed.astimezone(UTC)
-
-
-def runtime_root_from_env() -> Path:
-    return Path(os.getenv("W2_RUNTIME_ROOT", "runtime"))
-
-
-def snapshot_dir(runtime_root: Path | None = None) -> Path:
-    return (runtime_root or runtime_root_from_env()) / SNAPSHOT_DIRNAME
-
-
-def settlement_dir(runtime_root: Path | None = None) -> Path:
-    return (runtime_root or runtime_root_from_env()) / SETTLEMENT_DIRNAME
-
-
-def report_output_path(path: Path | None = None) -> Path:
-    return path or Path(
-        os.getenv("W2_FORMAL_TRACKING_REPORT", str(DEFAULT_REPORT_OUTPUT_PATH))
-    )
-
-
-def load_json(path: Path, default: Any) -> Any:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return default
-
-
-def write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(
-        json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    tmp.replace(path)
-
-
-def json_paths(path: Path) -> list[Path]:
-    try:
-        return sorted(path.glob("*.json"))
-    except OSError:
-        return []
 
 
 def stable_hash(payload: dict[str, Any]) -> str:
@@ -155,13 +121,10 @@ def formal_snapshot_key(snapshot: dict[str, Any]) -> tuple[str, str, str, str | 
     )
 
 
-def existing_snapshot_keys(root: Path | None = None) -> set[tuple[str, str, str, str | None]]:
-    keys: set[tuple[str, str, str, str | None]] = set()
-    for path in json_paths(snapshot_dir(root)):
-        payload = load_json(path, {})
-        if isinstance(payload, dict):
-            keys.add(formal_snapshot_key(payload))
-    return keys
+def existing_snapshot_keys(
+    repository: OutcomeLedgerRepository,
+) -> set[tuple[str, str, str, str | None]]:
+    return {formal_snapshot_key(payload) for payload in load_snapshots(repository)}
 
 
 def snapshot_id(payload: dict[str, Any]) -> str:
@@ -172,17 +135,6 @@ def snapshot_id(payload: dict[str, Any]) -> str:
         "pricing_shadow": payload.get("pricing_shadow"),
     }
     return stable_hash(basis)[:24]
-
-
-def _result_payload(card: dict[str, Any]) -> dict[str, Any]:
-    result = first_dict(card.get("result"))
-    status = str(result.get("status") or card.get("status") or "").upper()
-    return {
-        "status": status,
-        "home_goals": result.get("home_goals"),
-        "away_goals": result.get("away_goals"),
-        "settled_at": result.get("settled_at"),
-    }
 
 
 def _capture_as_of(card: dict[str, Any], now: datetime) -> datetime | None:
@@ -306,17 +258,36 @@ def _simulation_evidence(card: dict[str, Any]) -> dict[str, Any] | None:
 def capture_formal_snapshots(
     cards: list[dict[str, Any]],
     *,
+    repository: OutcomeLedgerRepository | None = None,
     dry_run: bool = True,
-    write_artifacts: bool = False,
-    runtime_root: Path | None = None,
+    write_db: bool = False,
     now: datetime | None = None,
     release_sha: str | None = None,
 ) -> dict[str, Any]:
+    repo = repository or OutcomeLedgerRepository()
     captured_at = now or utc_now()
-    keys = existing_snapshot_keys(runtime_root)
+    keys = existing_snapshot_keys(repo)
+    recommendation_ids = {
+        recommendation_id
+        for card in cards
+        if (recommendation_id := _recommendation_id(card)) is not None
+    }
+    with Session(repo.engine) as session:
+        mapped_recommendations = set(
+            session.scalars(
+                select(RecommendationModel.id).where(
+                    RecommendationModel.id.in_(recommendation_ids)
+                )
+            )
+        )
     results: list[dict[str, Any]] = []
+    snapshots: list[dict[str, Any]] = []
     counts: Counter[str] = Counter()
     for card in cards:
+        recommendation_id = _recommendation_id(card)
+        if recommendation_id in mapped_recommendations:
+            counts["MAPPED_TO_RECOMMENDATION_LOCK"] += 1
+            continue
         snapshot, blocker = snapshot_from_card(card, now=captured_at, release_sha=release_sha)
         if snapshot is None:
             counts[blocker or "SKIPPED"] += 1
@@ -327,25 +298,30 @@ def capture_formal_snapshots(
             results.append({"fixture_id": snapshot["fixture_id"], "status": "ALREADY_CAPTURED"})
             continue
         counts["CAPTURED"] += 1
+        snapshots.append(snapshot)
         result = {
             "fixture_id": snapshot["fixture_id"],
             "snapshot_id": snapshot["snapshot_id"],
-            "status": "WOULD_WRITE" if dry_run or not write_artifacts else "WRITTEN",
+            "status": "WOULD_WRITE" if dry_run or not write_db else "WRITTEN",
         }
-        if write_artifacts and not dry_run:
-            write_json_atomic(
-                snapshot_dir(runtime_root) / f"{snapshot['snapshot_id']}.json",
-                snapshot,
-            )
-            keys.add(key)
+        keys.add(key)
         results.append(result)
+    appended = repo._append_imports(
+        [
+            _formal_import(snapshot, "formal_snapshot")
+            for snapshot in snapshots
+        ],
+        dry_run=dry_run,
+        write_db=write_db,
+    )
     return {
         "status": "PASS",
         "dry_run": dry_run,
-        "write_artifacts": write_artifacts,
+        "write_db": write_db,
         "captured_at": iso(captured_at),
         "eligible_seen": counts["CAPTURED"] + counts["ALREADY_CAPTURED"],
-        "written": sum(1 for row in results if row["status"] == "WRITTEN"),
+        "written": appended["written"],
+        "db_writes": appended["db_writes"],
         "already_captured": counts["ALREADY_CAPTURED"],
         "blockers": dict(counts),
         "results": results,
@@ -391,20 +367,8 @@ def capture_formal_locks(
             continue
         recommendation_marker = session.get(RecommendationModel, recommendation_id)
         if recommendation_marker is None:
-            fixture_id = card.get("fixture_id")
-            if not isinstance(fixture_id, str) or not fixture_id:
-                counts["MISSING_FIXTURE_ID"] += 1
-                continue
-            recommendation_marker = RecommendationModel(
-                id=recommendation_id,
-                fixture_id=fixture_id,
-                prediction_id=None,
-                status="FORMAL",
-                created_at=captured_at,
-            )
-            session.add(recommendation_marker)
-            session.flush()
-            counts["RECOMMENDATION_MARKER_CREATED"] += 1
+            counts["MISSING_RECOMMENDATION"] += 1
+            continue
         try:
             lock = build_recommendation_lock_snapshot(
                 recommendation_id=recommendation_id,
@@ -450,14 +414,6 @@ def _recommendation_id(card: dict[str, Any]) -> str | None:
         if isinstance(value, str) and value:
             return value
     return None
-
-
-def snapshot_to_result(card: dict[str, Any]) -> dict[str, Any] | None:
-    result = _result_payload(card)
-    status = result["status"]
-    if status not in FINISHED_STATUSES and status not in VOID_STATUSES:
-        return None
-    return result
 
 
 def settle_snapshot(
@@ -522,50 +478,52 @@ def settle_snapshot(
 
 
 def settle_formal_snapshots(
-    cards: list[dict[str, Any]],
     *,
+    repository: OutcomeLedgerRepository | None = None,
     dry_run: bool = True,
-    write_artifacts: bool = False,
-    runtime_root: Path | None = None,
+    write_db: bool = False,
     now: datetime | None = None,
 ) -> dict[str, Any]:
-    result_by_fixture = {
-        str(card.get("fixture_id")): result
-        for card in cards
-        if (result := snapshot_to_result(card)) is not None
+    repo = repository or OutcomeLedgerRepository()
+    result_by_fixture = repo.result_payloads()
+    snapshots = load_snapshots(repo)
+    settled_snapshot_ids = {
+        str(row.get("snapshot_id") or "") for row in load_settlements(repo)
     }
     results: list[dict[str, Any]] = []
+    settlements: list[dict[str, Any]] = []
     counts: Counter[str] = Counter()
-    for path in json_paths(snapshot_dir(runtime_root)):
-        snapshot = load_json(path, {})
-        if not isinstance(snapshot, dict):
-            counts["BAD_SNAPSHOT"] += 1
-            continue
+    for snapshot in snapshots:
         sid = str(snapshot.get("snapshot_id"))
-        out_path = settlement_dir(runtime_root) / f"{sid}.json"
-        if out_path.exists():
+        if sid in settled_snapshot_ids:
             counts["ALREADY_SETTLED"] += 1
             continue
-        result = result_by_fixture.get(str(snapshot.get("fixture_id")))
+        fixture_id = str(snapshot.get("fixture_id") or "")
+        result = _result_for_fixture(result_by_fixture, fixture_id)
         if result is None:
             counts["PENDING_RESULT"] += 1
             continue
         settlement = settle_snapshot(snapshot, result, now=now)
+        settlements.append(settlement)
         counts["SETTLED"] += 1
         row = {
             "fixture_id": snapshot.get("fixture_id"),
             "snapshot_id": sid,
-            "status": "WOULD_WRITE" if dry_run or not write_artifacts else "WRITTEN",
+            "status": "WOULD_WRITE" if dry_run or not write_db else "WRITTEN",
             "outcome": settlement["settlement_outcome"],
         }
-        if write_artifacts and not dry_run:
-            write_json_atomic(out_path, settlement)
         results.append(row)
+    appended = repo._append_imports(
+        [_formal_import(item, "formal_settlement") for item in settlements],
+        dry_run=dry_run,
+        write_db=write_db,
+    )
     return {
         "status": "PASS",
         "dry_run": dry_run,
-        "write_artifacts": write_artifacts,
-        "written": sum(1 for row in results if row["status"] == "WRITTEN"),
+        "write_db": write_db,
+        "written": appended["written"],
+        "db_writes": appended["db_writes"],
         "counts": dict(counts),
         "results": results,
         "not_a_formal_gate": True,
@@ -573,20 +531,90 @@ def settle_formal_snapshots(
     }
 
 
-def load_snapshots(root: Path | None = None) -> list[dict[str, Any]]:
-    return [
-        payload
-        for path in json_paths(snapshot_dir(root))
-        if isinstance((payload := load_json(path, {})), dict)
-    ]
+def load_snapshots(
+    repository: OutcomeLedgerRepository | None = None,
+) -> list[dict[str, Any]]:
+    repo = repository or OutcomeLedgerRepository()
+    rows = repo.records({"formal_snapshot"})
+    with Session(repo.engine) as session:
+        rows.extend(
+            dict(lock.snapshot_payload_json)
+            for lock in session.scalars(
+                select(RecommendationLockModel).where(
+                    RecommendationLockModel.snapshot_payload_json.is_not(None)
+                )
+            )
+            if isinstance(lock.snapshot_payload_json, dict)
+        )
+    by_id = {str(payload.get("snapshot_id") or stable_hash(payload)): payload for payload in rows}
+    return [by_id[key] for key in sorted(by_id)]
 
 
-def load_settlements(root: Path | None = None) -> list[dict[str, Any]]:
-    return [
-        payload
-        for path in json_paths(settlement_dir(root))
-        if isinstance((payload := load_json(path, {})), dict)
-    ]
+def load_settlements(
+    repository: OutcomeLedgerRepository | None = None,
+) -> list[dict[str, Any]]:
+    repo = repository or OutcomeLedgerRepository()
+    raw_rows = repo.records({"formal_settlement"})
+    snapshots = {
+        str(row.get("snapshot_id") or ""): row
+        for row in load_snapshots(repo)
+    }
+    result_by_fixture = repo.result_payloads()
+    rows: list[dict[str, Any]] = []
+    for item in raw_rows:
+        if item.get("settlement_outcome") == "VOID":
+            rows.append(item)
+            continue
+        snapshot = snapshots.get(str(item.get("snapshot_id") or ""))
+        result = _result_for_fixture(
+            result_by_fixture,
+            str(item.get("fixture_id") or ""),
+        )
+        if snapshot is None or result is None:
+            continue
+        rows.append(
+            settle_snapshot(
+                snapshot,
+                result,
+                now=parse_dt(item.get("evaluated_at")) or utc_now(),
+            )
+        )
+    with Session(repo.engine) as session:
+        settlements = list(
+            session.scalars(select(SettlementModel).order_by(SettlementModel.settled_at))
+        )
+        for settlement_model in settlements:
+            snapshot = (
+                settlement_model.lock.snapshot_payload_json
+                if settlement_model.lock is not None
+                else None
+            )
+            if not isinstance(snapshot, dict):
+                continue
+            rows.append(
+                settle_snapshot(
+                    snapshot,
+                    {
+                        "status": settlement_model.result.result_status,
+                        "home_goals": settlement_model.result.home_goals,
+                        "away_goals": settlement_model.result.away_goals,
+                    },
+                    now=settlement_model.settled_at,
+                )
+            )
+    return rows
+
+
+def _result_for_fixture(
+    results: dict[str, dict[str, Any]],
+    fixture_id: str,
+) -> dict[str, Any] | None:
+    bare = fixture_id.removeprefix("api_football:")
+    return (
+        results.get(fixture_id)
+        or results.get(bare)
+        or results.get(f"api_football:{bare}")
+    )
 
 
 def line_bucket(line: Any) -> str:
@@ -663,14 +691,13 @@ def report_summary(settlements: list[dict[str, Any]]) -> dict[str, Any]:
 
 def build_tracking_report(
     *,
-    runtime_root: Path | None = None,
-    output_report: Path | None = None,
-    write: bool = False,
+    repository: OutcomeLedgerRepository | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
+    repo = repository or OutcomeLedgerRepository()
     generated_at = now or utc_now()
-    snapshots = {str(row.get("snapshot_id")): row for row in load_snapshots(runtime_root)}
-    settlements = load_settlements(runtime_root)
+    snapshots = {str(row.get("snapshot_id")): row for row in load_snapshots(repo)}
+    settlements = load_settlements(repo)
     included_settlements = [row for row in settlements if row.get("sample_included") is True]
     summary = report_summary(settlements)
     buckets: dict[str, defaultdict[str, list[dict[str, Any]]]] = {
@@ -724,14 +751,16 @@ def build_tracking_report(
         "buckets": rendered_buckets,
         "not_a_formal_gate": True,
         "posthoc_only": True,
+        "source": "recommendation_locks+results+settlements+outcome_ledger",
+        "db_reads": 4,
     }
-    if write:
-        write_json_atomic(report_output_path(output_report), report)
     return report
 
 
-def endpoint_summary(runtime_root: Path | None = None) -> dict[str, Any]:
-    report = build_tracking_report(runtime_root=runtime_root, write=False)
+def endpoint_summary(
+    repository: OutcomeLedgerRepository | None = None,
+) -> dict[str, Any]:
+    report = build_tracking_report(repository=repository)
     return {
         "generated_at": report.get("generated_at"),
         "status": report.get("status", "OBSERVING"),
