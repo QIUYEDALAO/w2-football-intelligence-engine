@@ -381,7 +381,7 @@ Status: NOT_STARTED
 
 ```text
 Status: IMPLEMENTED_PENDING_ACCEPTANCE
-Implementation SHA: 9e50607594157bd8f9255b5b835343b1d7899a10
+Implementation SHA: a1797f60c761a06cd193d57654da88466680bda4
 CI run: pending final exact-head FULL CI
 Staging SHA: pending one final exact-head deployment
 Evidence: PR #424 description
