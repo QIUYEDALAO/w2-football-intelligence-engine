@@ -120,9 +120,9 @@ def test_world_cup_legacy_policy_does_not_restore_league_whitelist() -> None:
         (ROOT / "config/policies/future_fixture_refresh.v1.json").read_text(encoding="utf-8")
     )
     assert any(item["competition_id"] == "world_cup_2026" for item in policy["competitions"])
-    from w2.competitions.league_whitelist_scope import ALL_WHITELIST_COMPETITIONS
+    from w2.competitions.league_whitelist_scope import load_league_whitelist_scope
 
-    assert "world_cup_2026" not in ALL_WHITELIST_COMPETITIONS
+    assert "world_cup_2026" not in load_league_whitelist_scope().all_whitelist
 
 
 def test_scheduler_tick_stays_disabled_without_env_flag(monkeypatch) -> None:

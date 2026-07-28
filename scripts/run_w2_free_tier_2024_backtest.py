@@ -15,7 +15,6 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from w2.backtest.free_tier_2024 import (  # noqa: E402
-    ANNUAL_COMPETITIONS,
     DEFAULT_RAW_DIRS,
     UNDERSTAT_LEAGUE_CODES,
     UNDERSTAT_XG_SOURCE,
@@ -26,12 +25,17 @@ from w2.backtest.free_tier_2024 import (  # noqa: E402
     collect_understat_xg_dataset,
     report_sha256,
 )
+from w2.competitions.league_whitelist_scope import load_league_whitelist_scope  # noqa: E402
 
 
 def main() -> int:
     args = _parse_args()
     raw_dirs = tuple(Path(item) for item in args.raw_dir) if args.raw_dir else DEFAULT_RAW_DIRS
-    competitions = tuple(args.competition) if args.competition else ANNUAL_COMPETITIONS
+    competitions = (
+        tuple(args.competition)
+        if args.competition
+        else load_league_whitelist_scope().annual_competitions
+    )
     try:
         provider_result = None
         if args.collect_provider:

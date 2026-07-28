@@ -21,12 +21,9 @@ from w2.backtest.free_tier_2024 import (  # noqa: E402,I001
     build_free_tier_2024_backtest_report,
     report_sha256,
 )
-from w2.competitions.league_whitelist_scope import (  # noqa: E402
-    ALL_WHITELIST_COMPETITIONS,
-    IN_SEASON_NATIONAL_LEAGUES,
-)
+from w2.competitions.league_whitelist_scope import load_league_whitelist_scope  # noqa: E402
 from w2.competitions.odds_market_mapping import bookmaker_observed_evidence  # noqa: E402
-from w2.competitions.registry import CompetitionRegistry, CompetitionRegistryEntry  # noqa: E402
+from w2.competitions.registry import CompetitionRegistryEntry  # noqa: E402
 from w2.providers.quota import parse_api_football_quota  # noqa: E402
 
 
@@ -328,9 +325,10 @@ def run_phase0(client: LedgeredApiFootballClient) -> dict[str, Any]:
 
 
 def run_collect(client: LedgeredApiFootballClient) -> dict[str, Any]:
-    registry = CompetitionRegistry().entries()
+    scope = load_league_whitelist_scope()
+    registry = scope.entries
     per_league: dict[str, Any] = {}
-    for competition_id in IN_SEASON_NATIONAL_LEAGUES:
+    for competition_id in scope.in_season_national_leagues:
         entry = registry[competition_id]
         league_id = IN_SEASON_LEAGUE_IDS.get(competition_id) or entry.provider_mapping.get(
             "api_football_league_id",
@@ -342,7 +340,7 @@ def run_collect(client: LedgeredApiFootballClient) -> dict[str, Any]:
     return {
         "status": "STOPPED" if client.stopped_reason else "COMPLETED",
         "phase": "collect",
-        "in_scope_leagues": list(IN_SEASON_NATIONAL_LEAGUES),
+        "in_scope_leagues": list(scope.in_season_national_leagues),
         "per_league": per_league,
         "coverage": _coverage_summary(client.persistent_root),
     }
@@ -434,9 +432,10 @@ def _collect_fixture_endpoint(
 
 
 def run_audit_inventory(client: LedgeredApiFootballClient) -> dict[str, Any]:
-    registry = CompetitionRegistry().entries()
+    scope = load_league_whitelist_scope()
+    registry = scope.entries
     results = []
-    for competition_id in ALL_WHITELIST_COMPETITIONS:
+    for competition_id in scope.all_whitelist:
         entry = registry[competition_id]
         results.append(_audit_competition(client, entry))
         if client.stopped_reason:
@@ -444,7 +443,7 @@ def run_audit_inventory(client: LedgeredApiFootballClient) -> dict[str, Any]:
     return {
         "status": "STOPPED" if client.stopped_reason else "COMPLETED",
         "phase": "audit",
-        "competition_count": len(ALL_WHITELIST_COMPETITIONS),
+        "competition_count": len(scope.all_whitelist),
         "results": results,
         "can_enter_staging_candidates": [
             item["competition_id"]
@@ -517,12 +516,13 @@ def run_model_recheck(persistent_root: Path) -> dict[str, Any]:
         raw_root / "odds",
         raw_root / "lineups",
     )
+    scope = load_league_whitelist_scope()
     reports = {}
     for season in HISTORICAL_SEASONS:
         reports[season] = build_free_tier_2024_backtest_report(
             raw_dirs=raw_dirs,
             season=season,
-            competitions=IN_SEASON_NATIONAL_LEAGUES,
+            competitions=scope.in_season_national_leagues,
             true_xg_source="api_football_statistics",
         )
     return {

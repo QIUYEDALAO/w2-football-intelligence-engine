@@ -30,19 +30,12 @@ from w2.competitions.league_whitelist_audit import (
     evidence_only_provider_calls_for_audit,
     planned_provider_calls_for_audit,
 )
-from w2.competitions.league_whitelist_scope import (
-    IN_SEASON_NATIONAL_LEAGUES as _IN_SEASON_NATIONAL_LEAGUES,
-)
-from w2.competitions.league_whitelist_scope import (
-    NATIONAL_LEAGUES_OFFSEASON,
-)
 from w2.competitions.odds_market_mapping import bookmaker_observed_evidence
 from w2.competitions.registry import CompetitionRegistryEntry
 from w2.providers.quota import parse_api_football_quota
 
 AUDIT_PROVIDER_ENDPOINT_ALLOWLIST = frozenset(AUDIT_ENDPOINT_ALLOWLIST)
 EVIDENCE_ONLY_PROVIDER_ENDPOINT_ALLOWLIST = frozenset(EVIDENCE_ONLY_ENDPOINT_ALLOWLIST)
-IN_SEASON_NATIONAL_LEAGUES = _IN_SEASON_NATIONAL_LEAGUES
 LEAGUE_PROVIDER_HARD_CAPS = {
     "brasileirao_serie_a": 13,
     "argentina_primera": 15,
@@ -340,7 +333,7 @@ def evaluate_controlled_provider_league_audit(
             _fixtures_item(
                 future,
                 query_params={"league": league_id, "season": audit_season, "next": "5"},
-                competition_id=entry.competition_id,
+                audit_cohort=entry.audit_cohort,
                 configured_season=configured_season,
                 audit_mode=audit_mode,
                 has_recent_results=bool(results),
@@ -449,7 +442,7 @@ def evaluate_evidence_only_provider_league_audit(
             _fixtures_item(
                 fixture_rows,
                 query_params=fixture_query_params,
-                competition_id=entry.competition_id,
+                audit_cohort=entry.audit_cohort,
                 configured_season=configured_season,
                 audit_mode=EVIDENCE_ONLY_AUDIT_MODE,
                 has_recent_results=bool(results),
@@ -709,7 +702,7 @@ def _fixtures_item(
     rows: list[dict[str, Any]],
     *,
     query_params: dict[str, Any] | None = None,
-    competition_id: str = "",
+    audit_cohort: str = "",
     configured_season: str = "",
     audit_mode: str = "enablement",
     has_recent_results: bool = False,
@@ -728,7 +721,7 @@ def _fixtures_item(
             observed_evidence=observed_evidence,
         )
     message = _empty_fixtures_message(
-        competition_id=competition_id,
+        audit_cohort=audit_cohort,
         configured_season=configured_season,
         audit_mode=audit_mode,
         has_recent_results=has_recent_results,
@@ -879,12 +872,12 @@ def _bookmaker_observed_evidence(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 def _empty_fixtures_message(
     *,
-    competition_id: str,
+    audit_cohort: str,
     configured_season: str,
     audit_mode: str,
     has_recent_results: bool,
 ) -> str:
-    if competition_id in NATIONAL_LEAGUES_OFFSEASON:
+    if audit_cohort == "OFFSEASON":
         return "FIXTURES_EMPTY_OFF_SEASON"
     if audit_mode == "coverage-inventory" and has_recent_results:
         return "FIXTURES_QUERY_REVIEW_REQUIRED"

@@ -8,7 +8,6 @@ from scripts.run_w2_league_whitelist_audit import build_cli_payload
 
 from w2.competitions.league_whitelist_provider_audit import (
     AUDIT_PROVIDER_ENDPOINT_ALLOWLIST,
-    IN_SEASON_NATIONAL_LEAGUES,
     ApiFootballLeagueAuditProvider,
     LocalProviderAuditLedger,
     ProviderAuditBudget,
@@ -16,6 +15,7 @@ from w2.competitions.league_whitelist_provider_audit import (
     _normalized_provider_key,
     evaluate_controlled_provider_league_audit,
 )
+from w2.competitions.league_whitelist_scope import load_league_whitelist_scope
 from w2.competitions.registry import CompetitionRegistry
 
 
@@ -168,7 +168,7 @@ def test_national_leagues_in_season_scope_excludes_later_season_leagues() -> Non
     payload = build_cli_payload(group="national_leagues_in_season")
     ids = [result["competition_id"] for result in payload["results"]]
 
-    assert tuple(ids) == IN_SEASON_NATIONAL_LEAGUES
+    assert tuple(ids) == load_league_whitelist_scope().in_season_national_leagues
     assert "eredivisie" not in ids
     assert "primeira_liga" not in ids
 

@@ -9,8 +9,8 @@ from typing import Any
 
 from w2.competitions.league_whitelist_audit import EVIDENCE_ONLY_AUDIT_MODE_OUTPUT
 from w2.competitions.league_whitelist_scope import (
-    ALL_WHITELIST_COMPETITIONS,
-    IN_SEASON_NATIONAL_LEAGUES,
+    LeagueWhitelistScope,
+    load_league_whitelist_scope,
 )
 
 REPORT_PREFIX = "W2_WHITELIST_AUDIT_"
@@ -104,8 +104,9 @@ def build_diagnosis(
     if out_file is not None and not _is_tmp_path(out_file):
         raise SystemExit("BLOCKER: OUT_FILE_MUST_BE_UNDER_TMP")
 
-    reports = _combined_reports(audit_dirs)
-    expected_leagues = _expected_leagues(reports)
+    scope = load_league_whitelist_scope()
+    reports = _combined_reports(audit_dirs, scope)
+    expected_leagues = _expected_leagues(reports, scope)
     completed_leagues = [
         league_id
         for league_id in expected_leagues
@@ -149,13 +150,16 @@ def build_diagnosis(
     return payload
 
 
-def _combined_reports(audit_dirs: list[Path]) -> dict[str, dict[str, Any]]:
+def _combined_reports(
+    audit_dirs: list[Path],
+    scope: LeagueWhitelistScope,
+) -> dict[str, dict[str, Any]]:
     reports: dict[str, dict[str, Any]] = {}
     for audit_dir in audit_dirs:
         for path in sorted(audit_dir.glob(f"{REPORT_PREFIX}*{REPORT_SUFFIX}")):
             report = _read_report(path)
             league_id = _text(report.get("competition_id")) or _league_id_from_path(path)
-            if league_id not in ALL_WHITELIST_COMPETITIONS:
+            if league_id not in scope.all_whitelist:
                 continue
             existing = reports.get(league_id)
             if existing is None or _prefer_report(report, existing):
@@ -163,12 +167,15 @@ def _combined_reports(audit_dirs: list[Path]) -> dict[str, dict[str, Any]]:
     return reports
 
 
-def _expected_leagues(reports: dict[str, dict[str, Any]]) -> tuple[str, ...]:
-    if any(league_id not in IN_SEASON_NATIONAL_LEAGUES for league_id in reports):
+def _expected_leagues(
+    reports: dict[str, dict[str, Any]],
+    scope: LeagueWhitelistScope,
+) -> tuple[str, ...]:
+    if any(league_id not in scope.in_season_national_leagues for league_id in reports):
         return tuple(
-            league_id for league_id in ALL_WHITELIST_COMPETITIONS if league_id in reports
+            league_id for league_id in scope.all_whitelist if league_id in reports
         )
-    return IN_SEASON_NATIONAL_LEAGUES
+    return scope.in_season_national_leagues
 
 
 def _read_report(path: Path) -> dict[str, Any]:

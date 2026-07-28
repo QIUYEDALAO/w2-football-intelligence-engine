@@ -189,20 +189,22 @@ Merge SHA: ba8f10e1809c491a112c13eec28303ceb67d7f74
 #### A5. ARCH-P1-06：Compose 环境变量去重
 
 ```text
-Status: IN_PROGRESS
-Current PR: #421
+Status: DONE
+PR: #421
+Merge SHA: 5fb6ea5172f92633c609dd9c5cc1287b9a231e70
 ```
 
-- [ ] api/worker/scheduler 重复环境变量提取为 `x-common-env` anchor；服务级差异保留。
-- [ ] 展开后环境变量对账；安全开关值不得变化。
-- [ ] Compose config、CI、staging smoke 通过；PR 合并。
+- [x] api/worker/scheduler 重复环境变量提取为 `x-common-env` anchor；服务级差异保留。
+- [x] 展开后环境变量对账；安全开关值不得变化。
+- [x] Compose config、CI、staging smoke 通过；PR 合并。
 
 ---
 
 #### A6. ARCH-P1-07：竞赛域读路径修正
 
 ```text
-Status: NOT_STARTED
+Status: IN_PROGRESS
+Current PR: pending
 ```
 
 - [ ] `src/w2/competitions/league_whitelist_scope.py` 模块级常量（`TOP_FIVE_COMPETITIONS` 等）

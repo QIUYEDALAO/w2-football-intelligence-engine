@@ -9,7 +9,7 @@ from scripts.summarize_w2_league_whitelist_scope import (
     remaining_provider_cap,
 )
 
-from w2.competitions.league_whitelist_scope import REMAINING_UNAUDITED_WHITELIST
+from w2.competitions.league_whitelist_scope import load_league_whitelist_scope
 
 
 def test_full_scope_inventory_has_thirteen_league_competitions() -> None:
@@ -45,7 +45,7 @@ def test_remaining_unaudited_whitelist_has_seven_competitions() -> None:
     ids = [result["competition_id"] for result in payload["results"]]
 
     assert payload["competition_count"] == 7
-    assert tuple(ids) == REMAINING_UNAUDITED_WHITELIST
+    assert tuple(ids) == load_league_whitelist_scope().remaining_unaudited
     assert ids == [
         "premier_league",
         "la_liga",
@@ -125,7 +125,9 @@ def test_coverage_inventory_runs_partial_when_cap_is_insufficient(
     assert payload["actual_provider_calls"] == 1
     assert payload["partial_leagues"] == ["premier_league"]
     assert payload["completed_leagues"] == []
-    assert payload["unstarted_leagues"] == list(REMAINING_UNAUDITED_WHITELIST[1:])
+    assert payload["unstarted_leagues"] == list(
+        load_league_whitelist_scope().remaining_unaudited[1:]
+    )
     assert payload["results"][0]["can_enable"] is False
     assert payload["results"][0]["audit_mode"] == "coverage-inventory"
 

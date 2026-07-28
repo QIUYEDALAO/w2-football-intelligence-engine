@@ -5,7 +5,7 @@ import json
 from typing import Any
 
 from w2.competitions.league_profile_validation import validate_league_profile_mapping
-from w2.competitions.league_whitelist_scope import ALL_WHITELIST_COMPETITIONS
+from w2.competitions.league_whitelist_scope import load_league_whitelist_scope
 from w2.competitions.odds_market_mapping import normalize_market_name
 from w2.competitions.registry import CompetitionRegistry
 
@@ -31,11 +31,11 @@ def build_readiness_payload(
     enabled_national_leagues_override: list[str] | None = None,
     squad_value_source_status: str = "SQUAD_VALUE_SOURCE_MISSING",
 ) -> dict[str, Any]:
-    registry = CompetitionRegistry()
-    entries = registry.entries()
+    scope = load_league_whitelist_scope(CompetitionRegistry())
+    entries = scope.entries
     profile_results = [
         validate_league_profile_mapping(entries[competition_id], {}).as_dict()
-        for competition_id in ALL_WHITELIST_COMPETITIONS
+        for competition_id in scope.all_whitelist
     ]
     missing_evidence = [
         result["competition_id"]

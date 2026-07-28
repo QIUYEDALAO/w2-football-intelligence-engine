@@ -31,7 +31,7 @@ class AnalysisBlocker(StrEnum):
     UNKNOWN_BLOCKER = "UNKNOWN_BLOCKER"
 
 
-TOP_FIVE_COMPETITIONS = {
+STRICT_LINEUPS_COMPETITIONS = {
     "premier_league",
     "la_liga",
     "bundesliga",
@@ -209,7 +209,7 @@ def _available_inputs(card: dict[str, Any] | None) -> dict[str, Any]:
 def _strict_lineups_required(card: dict[str, Any] | None) -> bool:
     if not isinstance(card, dict):
         return True
-    return str(card.get("competition_id") or "").strip() in TOP_FIVE_COMPETITIONS
+    return str(card.get("competition_id") or "").strip() in STRICT_LINEUPS_COMPETITIONS
 
 
 def _advisory_warnings(card: dict[str, Any] | None, available: dict[str, Any]) -> list[str]:

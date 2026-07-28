@@ -58,11 +58,7 @@ from w2.backtest.free_tier_2024 import (  # noqa: E402
     load_historical_fixtures,
     load_understat_fixture_dataset,
 )
-from w2.competitions.league_whitelist_scope import (  # noqa: E402
-    IN_SEASON_NATIONAL_LEAGUES,
-    TOP_FIVE_COMPETITIONS,
-)
-from w2.competitions.registry import CompetitionRegistry  # noqa: E402
+from w2.competitions.league_whitelist_scope import load_league_whitelist_scope  # noqa: E402
 from w2.models.divergence_champion import (  # noqa: E402
     DivergenceModelFamily,
     select_divergence_champion_probabilities,
@@ -714,7 +710,8 @@ def _safe_ratio(value: float, denominator: float) -> float:
 
 def run_model_phase() -> dict:
     MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
-    registry_entries = CompetitionRegistry().entries()
+    scope = load_league_whitelist_scope()
+    registry_entries = dict(scope.entries)
     outputs: list[dict] = []
     manifests: dict[str, list[dict]] = {}
 
@@ -722,7 +719,7 @@ def run_model_phase() -> dict:
     big5_fixtures, big5_stats = load_understat_fixture_dataset(
         raw_dirs=UNDERSTAT_DIRS,
         seasons=BIG5_SEASONS,
-        competitions=list(TOP_FIVE_COMPETITIONS),
+        competitions=list(scope.top_five),
     )
     big5_samples = _offline_model_samples(
         fixtures=big5_fixtures, statistics_by_fixture=big5_stats, min_history=MIN_HISTORY
@@ -759,7 +756,7 @@ def run_model_phase() -> dict:
     if "manifest_rows" in res:
         manifests["big5_cross_season_2023_to_2024"] = res["manifest_rows"]
         # per-league validation slices
-        for competition in TOP_FIVE_COMPETITIONS:
+        for competition in scope.top_five:
             rows = [
                 r for r in res["manifest_rows"]
                 if r["competition_id"] == competition and r["split"] == "validation"
@@ -794,7 +791,7 @@ def run_model_phase() -> dict:
 
     # --- in-season national leagues (API-Football cache; NEW experiment) ---
     stats = load_fixture_statistics(list(PRO_DAY1_DIRS))
-    for competition in IN_SEASON_NATIONAL_LEAGUES:
+    for competition in scope.in_season_national_leagues:
         fixtures = []
         for season in IN_SEASON_SEASONS:
             fixtures.extend(
@@ -839,7 +836,7 @@ def run_model_phase() -> dict:
                 raw_dirs=list(PRO_DAY1_DIRS),
                 entries=registry_entries,
                 season=season,
-                competitions=list(IN_SEASON_NATIONAL_LEAGUES),
+                competitions=list(scope.in_season_national_leagues),
             )
         )
     pooled_samples = _offline_model_samples(
@@ -862,7 +859,7 @@ def run_model_phase() -> dict:
         # Per-league validation slices under the pooled fit (small leagues
         # cannot reach MIN_LAMBDA_FIT_SAMPLE=200 alone; pooling the fit across
         # leagues mirrors how #193 pooled the big-5 fit).
-        for competition in IN_SEASON_NATIONAL_LEAGUES:
+        for competition in scope.in_season_national_leagues:
             rows = [
                 r for r in res["manifest_rows"]
                 if r["competition_id"] == competition and r["split"] == "validation"
@@ -1241,12 +1238,13 @@ def run_market_phase() -> dict:
                 "(see FOOTBALL_DATA_FILES in this script for expected names)."
             ),
         }
+    scope = load_league_whitelist_scope()
     results = {}
     # big-5: use the cross-season manifest (validation season 2024 = 2024/25 CSVs)
     manifest_path = MANIFEST_DIR / "big5_cross_season_2023_to_2024.jsonl"
     if manifest_path.exists():
         rows = [json.loads(line) for line in manifest_path.open()]
-        for competition in TOP_FIVE_COMPETITIONS:
+        for competition in scope.top_five:
             spec = FOOTBALL_DATA_FILES.get(competition)
             comp_rows = [r for r in rows if r["competition_id"] == competition]
             if not spec or not comp_rows:
@@ -1260,7 +1258,7 @@ def run_market_phase() -> dict:
             evaluation["join"] = diagnostics
             results[competition] = evaluation
     # in-season leagues
-    for competition in IN_SEASON_NATIONAL_LEAGUES:
+    for competition in scope.in_season_national_leagues:
         manifest_path = MANIFEST_DIR / f"inseason_pooled_fit__{competition}.jsonl"
         spec = FOOTBALL_DATA_FILES.get(competition)
         if not manifest_path.exists() or spec is None:
