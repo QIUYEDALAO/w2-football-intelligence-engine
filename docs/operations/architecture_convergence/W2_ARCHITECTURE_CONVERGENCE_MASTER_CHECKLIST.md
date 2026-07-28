@@ -380,12 +380,12 @@ Status: NOT_STARTED
 > 首发因子两面处理：有首发的联赛验增量，无首发的联赛防逆向选择。
 
 ```text
-Status: IN_PROGRESS
-Branch: codex/eval-01a-results-outcome-ledger-db
-PR: #424
-Base SHA: a607d65b0b71afbc0caa50c44a6e162cf397e4e4
-Started at: 2026-07-28
-Owner: Codex
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Implementation SHA: 7fdd4cc3c31e39a521392e8d47e1e752f3110636
+CI run: pending final exact-head FULL CI
+Staging SHA: pending one final exact-head deployment
+Evidence: PR #424 description
+Rollback: pre-B1 immutable image + PostgreSQL backup + runtime-ledger backup
 ```
 
 ---
@@ -403,15 +403,15 @@ Owner: Codex
 
 **目标**：赛果获得 DB 唯一权威；runtime 文件账本（最后一块文件飞地）迁入 DB 并删除。
 
-- [ ] **赛果权威 = 现有 `results` 表**（不新建）。新增 worker 任务：FINISHED 后从**已采集**的
+- [x] **赛果权威 = 现有 `results` 表**（不新建）。新增 worker 任务：FINISHED 后从**已采集**的
       provider fixture 数据（`raw_payload` / matchday 采集链的 FT 状态与比分）提取
       `MatchResult` 写入 `results`。**不新增任何 provider 调用**；缺比分场次记
       `RESULT_SOURCE_MISSING`，不补采。
-- [ ] **runtime 账本迁移**：`runtime/forward_outcome_ledger/*` 与
+- [x] **runtime 账本迁移**：`runtime/forward_outcome_ledger/*` 与
       `src/w2/tracking/formal_results.py` 的文件读写（11、26 处）迁入 DB；
       建表与否按第三节授权基准 (a) 执行，判定证据写入本文件。
       迁移行数+hash 对账后**同一 PR** 删除文件读写路径，`runtime/` 不再有账本目录。
-- [ ] `src/w2/settlement/settle.py` 消费 DB `results`；`forward_ledger_performance`
+- [x] `src/w2/settlement/settle.py` 消费 DB `results`；`forward_ledger_performance`
       记录来源改为 DB 查询（调用方 `analysis_calculator.py` 语义不动）。
 
 **不做**：不改 CLV/命中率计算逻辑；不动 canonical 样本定义；不做 Dashboard。

@@ -2,7 +2,7 @@ schema_version: w2.project_state.v3
 project: w2-football-intelligence-engine
 updated_at: "2026-07-28"
 current_task: EVAL-01A
-current_status: IN_PROGRESS
+current_status: IMPLEMENTED_PENDING_ACCEPTANCE
 current_pr: 424
 next_task: EVAL-01B
 task_queue:

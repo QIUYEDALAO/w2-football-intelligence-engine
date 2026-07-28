@@ -38,14 +38,14 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     )
 
     assert state["current_task"] == "EVAL-01A"
-    assert state["current_status"] == "IN_PROGRESS"
+    assert state["current_status"] == "IMPLEMENTED_PENDING_ACCEPTANCE"
     assert state["current_pr"] == 424
     assert state["next_task"] == "EVAL-01B"
     assert tuple(state["task_queue"]) == TASK_ORDER
     assert "当前：完成 B1 EVAL-01A 的 Draft Implementation PR。" in next_action
     assert "下一项：B2 EVAL-01B；B1 合并前不启动。" in next_action
     assert "#### B1. EVAL-01A" in checklist
-    assert "Status: IN_PROGRESS" in checklist
+    assert "Status: IMPLEMENTED_PENDING_ACCEPTANCE" in checklist
     assert "P1_ARCHITECTURE_CONVERGENCE_PASS = PASS" in checklist
     for task in FORBIDDEN_TASKS:
         assert task not in state
