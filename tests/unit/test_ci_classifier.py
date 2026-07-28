@@ -185,3 +185,22 @@ def test_ci_workflow_has_stable_aggregate_for_real_quality_jobs() -> None:
     assert "github.event_name != 'pull_request'" not in ci
     assert "github.event.before" in ci
     assert "github.event_name == 'workflow_dispatch' && inputs.full" in ci
+
+
+def test_ci_limits_registry_write_and_preserves_staging_web_feature_args() -> None:
+    ci_path = ROOT / ".github/workflows/ci.yml"
+    workflow = yaml.safe_load(ci_path.read_text(encoding="utf-8"))
+
+    assert workflow["permissions"] == {"contents": "read"}
+    assert workflow["jobs"]["images"]["permissions"] == {
+        "contents": "read",
+        "packages": "write",
+    }
+    assert all(
+        "packages" not in job.get("permissions", {})
+        for name, job in workflow["jobs"].items()
+        if name != "images"
+    )
+    build_args = workflow["jobs"]["images"]["steps"][6]["with"]["build-args"]
+    assert "VITE_W2_MARKET_ANCHOR_DISPLAY_ENABLED=true" in build_args
+    assert "VITE_W2_MARKET_ANCHOR_MIN_DIVERGENCE=0.05" in build_args

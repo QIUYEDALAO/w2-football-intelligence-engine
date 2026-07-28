@@ -6,6 +6,8 @@ from pathlib import Path
 
 import yaml
 
+REQUIRED_PRODUCTION_SCRIPT_ALLOWLIST: tuple[str, ...] = ()
+
 
 def test_unified_python_image_packages_every_runtime_role() -> None:
     root = Path(__file__).resolve().parents[2]
@@ -17,7 +19,18 @@ def test_unified_python_image_packages_every_runtime_role() -> None:
     assert "COPY src ./src" in text
     assert "COPY config ./config" in text
     assert "COPY migrations ./migrations" in text
-    assert "COPY scripts ./scripts" in text
+    assert "COPY scripts ./scripts" not in text
+    assert "Runtime script allowlist is intentionally empty" in text
+    for script in REQUIRED_PRODUCTION_SCRIPT_ALLOWLIST:
+        assert f"scripts/{script}" in text
+    for forbidden in (
+        "audit_football_data_co_uk.py",
+        "audit_pr370_totals_quarter_ev.py",
+        "build_canonical_historical_ah_facts.py",
+        "import_stage5b_historical_data.py",
+        "run_w2_r2_offline_evaluation.py",
+    ):
+        assert f"scripts/{forbidden}" not in text
     assert "COPY reports" not in text
     assert "w2.runtime.contract.version" in text
     for binary in (

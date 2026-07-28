@@ -89,16 +89,33 @@ def test_deploy_is_pull_only_and_health_checked() -> None:
     assert '"${COMPOSE[@]}" run --rm migration' in text
     assert '"${COMPOSE[@]}" up -d --remove-orphans api worker web' in text
     compose_commands = [
-        line.strip() for line in text.splitlines() if '"${COMPOSE[@]}"' in line
+        line.strip()
+        for line in text.splitlines()
+        if '"${COMPOSE[@]}"' in line
+        and any(action in line for action in (" pull ", " run ", " up "))
     ]
     assert compose_commands
-    assert all(command.endswith("</dev/null") for command in compose_commands)
+    assert all("</dev/null" in command for command in compose_commands)
     assert "http://127.0.0.1:18000/ready" in text
+    assert "http://127.0.0.1:18000/v1/version" in text
     assert "http://127.0.0.1:18080/meta.json" in text
+    assert "org.opencontainers.image.revision" in text
+    assert "org.opencontainers.image.created" in text
+    assert "w2.release.id" in text
+    assert '[ "${PYTHON_REVISION}" = "${REVISION}" ]' in text
+    assert '[ "${WEB_REVISION}" = "${REVISION}" ]' in text
+    assert '[ "${PYTHON_RELEASE_ID}" = "${REVISION}" ]' in text
+    assert '[ "${WEB_RELEASE_ID}" = "${REVISION}" ]' in text
+    assert "W2_API_IMAGE_ID" in text
+    assert "W2_API_OCI_DIGEST" in text
+    assert "W2_API_REGISTRY_DIGEST" in text
     assert "w2.release_record.v1" in text
     assert "<<'PY' | sudo tee \\" in text
     assert "release.previous.env" in text
     assert "target_seconds=120" in text
+    assert "rollback=FAIL health_or_digest_mismatch" in text
+    assert "WARM_SWITCH" in text
+    assert "COLD_PULL_END_TO_END" in text
 
 
 def test_health_check_targets_the_canonical_compose_project_and_cohort() -> None:
@@ -150,10 +167,23 @@ def test_deploy_has_no_server_build_or_source_release() -> None:
 
 def test_deploy_writes_release_metadata_with_root_owned_install() -> None:
     text = read(DEPLOY)
+    assert 'BUILD_TIME="$(date' not in text
+    assert "VITE_BUILD_TIME" not in text
     assert (
         "sudo install -o root -g root -m 0644 /tmp/release.env "
         "/opt/w2/shared/release.env"
     ) in text
+
+
+def test_deploy_installs_documented_health_checker_without_source_upload() -> None:
+    deploy = read(DEPLOY)
+    runbook = read(ROOT / "docs/runbooks/STAGE7H_VPS_STAGING.md")
+    installed_path = "/opt/w2/deploy/check_w2_stage7h.py"
+
+    assert installed_path in deploy
+    assert installed_path in runbook
+    assert "install -o root -g root -m 0444" in deploy
+    assert "/opt/w2/current/scripts/check_w2_stage7h.py" not in runbook
 
 
 def test_runtime_healthchecks_and_release_probes_use_canonical_ready() -> None:

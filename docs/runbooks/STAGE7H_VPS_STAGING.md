@@ -30,7 +30,8 @@
 │  /opt/w2/                                        │
 │    ├── deploy/                                   │
 │    │    ├── compose.staging.yml                  │
-│    │    └── watch_staging_runtime.sh             │
+│    │    ├── watch_staging_runtime.sh             │
+│    │    └── check_w2_stage7h.py                  │
 │    └── shared/                                   │
 │         ├── .env (chmod 600)                     │
 │         ├── state/                               │
@@ -157,7 +158,7 @@ sudo docker compose -f /opt/w2/current/infra/compose/compose.staging.yml ps
 sudo docker stats --no-stream
 
 # Full check
-python3 /opt/w2/current/scripts/check_w2_stage7h.py
+python3 /opt/w2/deploy/check_w2_stage7h.py
 ```
 
 ## Rollback

@@ -16,7 +16,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   classify:
@@ -304,6 +303,9 @@ jobs:
 
   images:
     name: images
+    permissions:
+      contents: read
+      packages: write
     needs:
       - classify
       - python-focused
@@ -381,6 +383,8 @@ jobs:
             W2_RELEASE_ID=${{ env.EXACT_HEAD }}
             VITE_BUILD_TIME=${{ steps.build-meta.outputs.created }}
             VITE_DASHBOARD_DATA_MODE=api
+            VITE_W2_MARKET_ANCHOR_DISPLAY_ENABLED=true
+            VITE_W2_MARKET_ANCHOR_MIN_DIVERGENCE=0.05
           cache-from: type=gha,scope=w2-web
           cache-to: type=gha,mode=max,scope=w2-web
       - name: Smoke final immutable images

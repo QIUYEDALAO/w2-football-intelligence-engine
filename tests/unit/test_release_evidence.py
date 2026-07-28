@@ -141,5 +141,9 @@ def test_staging_deploy_requires_registry_digests_and_rolls_back_by_digest() -> 
     assert r"@sha256:[0-9a-f]{64}" in script
     assert "release.previous.env" in script
     assert '"${COMPOSE[@]}" pull migration api worker web' in script
+    assert "repo_digest_ref" in script
+    assert "verify_runtime" in script
+    assert "rollback=PASS" in script
+    assert "rollback=FAIL" in script
     assert "docker image tag" not in script
     assert ":latest" not in script
