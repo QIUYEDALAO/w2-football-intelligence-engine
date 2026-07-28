@@ -57,11 +57,14 @@ def business_key(payload: Mapping[str, Any], record_type: str | None = None) -> 
         )
     elif kind == "outcome":
         identity = (
-            payload.get("capture_identity_hash") or payload.get("card_hash"),
+            payload.get("capture_identity_hash")
+            or payload.get("source_capture_hash")
+            or payload.get("card_hash"),
             fixture_id,
             payload.get("settled_side"),
             payload.get("market"),
             payload.get("selection"),
+            payload.get("settled_at"),
         )
     elif kind == "supersession":
         identity = payload.get("supersession_hash") or (

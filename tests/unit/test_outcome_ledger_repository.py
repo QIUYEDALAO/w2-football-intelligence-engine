@@ -221,6 +221,28 @@ def test_runtime_import_canonicalizes_bare_api_football_fixture_id(
     assert result["result_fixture_count"] == 1
 
 
+def test_runtime_import_preserves_distinct_outcome_events(tmp_path: Path) -> None:
+    repository = _repository(tmp_path / "db")
+    source = tmp_path / "runtime"
+    ledger = source / "forward_outcome_ledger"
+    ledger.mkdir(parents=True)
+    first = _outcome()
+    second = dict(first)
+    second["settled_at"] = "2026-07-09T03:00:00Z"
+    _write_jsonl(ledger / "repeated-outcome.jsonl", [first, second])
+
+    result = import_runtime_ledger(
+        repository,
+        source,
+        dry_run=False,
+        write_db=True,
+        confirm_write=IMPORT_CONFIRMATION_PHRASE,
+    )
+
+    assert result["source_record_count"] == result["db_record_count"] == 2
+    assert result["source_canonical_sha256"] == result["db_canonical_sha256"]
+
+
 def test_runtime_import_rejects_unknown_fixture_identity(tmp_path: Path) -> None:
     repository = _repository(tmp_path / "db")
     source = tmp_path / "runtime"
