@@ -50,6 +50,31 @@ def _entry(
     )
 
 
+def _fixture_raw(league_id: str, fixture_ids: tuple[str, ...]) -> dict[str, object]:
+    return {
+        "endpoint": "fixtures",
+        "params": {"league": league_id, "season": "2024"},
+        "payload": {
+            "response": [
+                {
+                    "fixture": {
+                        "id": fixture_id,
+                        "date": f"2024-01-{index:02d}T12:00:00Z",
+                        "status": {"short": "FT"},
+                        "venue": {"id": 1},
+                    },
+                    "teams": {
+                        "home": {"name": f"Home {fixture_id}"},
+                        "away": {"name": f"Away {fixture_id}"},
+                    },
+                    "goals": {"home": 1, "away": 0},
+                }
+                for index, fixture_id in enumerate(fixture_ids, start=1)
+            ]
+        },
+    }
+
+
 def test_scope_hot_switches_without_module_reload() -> None:
     registry = FakeRegistry({"alpha": _entry("alpha", group="top_five")})
     assert load_league_whitelist_scope(registry).all_whitelist == ("alpha",)  # type: ignore[arg-type]
@@ -117,11 +142,19 @@ def test_legacy_and_hashed_fixture_raw_use_passed_snapshot(
     tmp_path: Path,
 ) -> None:
     entries = CompetitionRegistry().entries()
-    legacy_raw = ROOT / "runtime" / "stage5b" / "raw"
     hashed_raw = tmp_path / "raw" / "fixtures"
     hashed_raw.mkdir(parents=True)
-    source = json.loads((legacy_raw / "039_P2_fixtures.json").read_text(encoding="utf-8"))
-    source["payload"]["response"] = source["payload"]["response"][:3]
+    legacy_raw = tmp_path / "legacy"
+    legacy_raw.mkdir()
+    (legacy_raw / "039_P2_fixtures.json").write_text(
+        json.dumps(_fixture_raw("39", ("pl-1",))),
+        encoding="utf-8",
+    )
+    (legacy_raw / "051_P2_fixtures.json").write_text(
+        json.dumps(_fixture_raw("71", ("br-1", "br-2"))),
+        encoding="utf-8",
+    )
+    source = _fixture_raw("39", ("hash-1", "hash-2", "hash-3"))
     (hashed_raw / "fixtures_deadbeef.json").write_text(
         json.dumps(source),
         encoding="utf-8",
@@ -144,9 +177,9 @@ def test_legacy_and_hashed_fixture_raw_use_passed_snapshot(
         competitions=("premier_league",),
     )
 
-    assert sum(item.competition_id == "premier_league" for item in legacy) == 380
-    assert sum(item.competition_id == "brasileirao_serie_a" for item in legacy) == 380
-    assert len(build_walk_forward_predictions(legacy)) == 760
+    assert sum(item.competition_id == "premier_league" for item in legacy) == 1
+    assert sum(item.competition_id == "brasileirao_serie_a" for item in legacy) == 2
+    assert len(build_walk_forward_predictions(legacy)) == 3
     assert {item.competition_id for item in legacy} == {
         "premier_league",
         "brasileirao_serie_a",
@@ -159,14 +192,13 @@ def test_explicit_competitions_without_snapshot_require_raw_canonical_identity(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    raw = json.loads(
-        (ROOT / "runtime" / "stage5b" / "raw" / "039_P2_fixtures.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    rows = raw["payload"]["response"]
+    raw = _fixture_raw("999", ("canonical-1", "filename-only-1"))
+    payload = raw["payload"]
+    assert isinstance(payload, dict)
+    rows = payload["response"]
+    assert isinstance(rows, list)
     raw["competition_id"] = "alpha"
-    raw["payload"]["response"] = rows[:1]
+    payload["response"] = rows[:1]
     (tmp_path / "fixtures_deadbeef.json").write_text(json.dumps(raw), encoding="utf-8")
     without_identity = dict(raw)
     without_identity.pop("competition_id")
