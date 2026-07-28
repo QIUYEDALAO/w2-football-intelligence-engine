@@ -178,7 +178,8 @@ Merge SHA: ba8f10e1809c491a112c13eec28303ceb67d7f74
 - [x] staging Compose 从 `build:` 改为不可变 digest `image:`。
 - [x] 服务器部署只执行 pull → migration job → restart → health → release record。
 - [x] 删除服务器上传源码、安装依赖、构建镜像的正式流程；回滚用上一 digest。
-- [x] 部署时间验证：Web-only ≤3 分钟；Python ≤5 分钟；rollback ≤2 分钟。
+- [x] 部署时间验证已执行：Web warm 11 秒、full-stack warm 20 秒、rollback 10 秒；
+  cold pull end-to-end 实测 423 秒，BLOCKED_BY_NETWORK，未宣称 Python ≤5 分钟 SLO 通过。
 - [x] PR 合并。
 
 **验收**：`CI_IMAGE_BUILD_AUTHORITY = PASS`；`SERVER_BUILD_COUNT = 0`。
