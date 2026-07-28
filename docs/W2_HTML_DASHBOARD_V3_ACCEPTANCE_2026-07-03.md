@@ -81,22 +81,22 @@ def test_html_renderer_version_pinned() -> None:
 
 ## 6. 云端部署与部署后验证（强制）
 
-**生产环境定义（老板 2026-07-04 拍板，决策记录）**：单机即生产——`43.155.208.138`（staging VPS）同时是生产服务机，`compose.staging.yml` 即生产编排；环境分离列入休赛期规划。端口结构：API 仅绑定主机本地 `127.0.0.1:18000`（验证须在机器上执行），Web 对外 `:80`。
+**生产环境定义（老板 2026-07-04 拍板，决策记录）**：单机即生产——`118.196.30.136`（staging VPS）同时是生产服务机，`compose.staging.yml` 即生产编排；环境分离列入休赛期规划。端口结构：API 仅绑定主机本地 `127.0.0.1:18000`（验证须在机器上执行），Web 对外 `:80`。
 
 本次事故链最终版本：#143 `d7e86f5`、#144 `f348f3d`、#145 `99512ad`（含 legacy read-model 主线残留补救）。#145 已部署，因此"生产部署"已完成，收尾动作只剩验证与定版：
 
 ```
 # 1) 机器上确认运行版本 = #145 merge SHA
-ssh ubuntu@43.155.208.138 \
+ssh root@118.196.30.136 \
   "curl -s http://127.0.0.1:18000/v1/version" | grep -c 99512ade66c2c18f1fbba07d2eb14d949805996a
 # 期望 1
 
 # 2) 公网页面水印（首页已替换为 V3 日页）
-curl -s http://43.155.208.138/ | grep -c 'w2.html_dashboard.v3'      # 期望 ≥2
+curl -s http://118.196.30.136/ | grep -c 'w2.html_dashboard.v3'      # 期望 ≥2
 
 # 3) 禁词与主线纠正双查
-curl -s http://43.155.208.138/ | grep -c '方向未识别'                 # 必须 0
-curl -s http://43.155.208.138/ | grep -c '\-1.25'                    # ≥1（Colombia 主线已纠正）
+curl -s http://118.196.30.136/ | grep -c '方向未识别'                 # 必须 0
+curl -s http://118.196.30.136/ | grep -c '\-1.25'                    # ≥1（Colombia 主线已纠正）
 
 # 4) 定版
 git tag -a release/wc2026-hotfix-ah-mainline -m "AH mainline consensus + FORMAL sanity gates (#143-#145)" 99512ade66c2c18f1fbba07d2eb14d949805996a

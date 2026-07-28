@@ -53,6 +53,16 @@ def test_staging_compose_has_memory_guards_for_lightweight_host() -> None:
     assert "--max-memory-per-child=1200000" in worker_command
 
 
+def test_staging_services_use_published_images_without_builds() -> None:
+    compose = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))
+    services = compose["services"]
+    for service in ("migration", "api", "worker", "scheduler"):
+        assert services[service]["image"].startswith("${W2_PYTHON_IMAGE:")
+        assert "build" not in services[service]
+    assert services["web"]["image"].startswith("${W2_WEB_IMAGE:")
+    assert "build" not in services["web"]
+
+
 def test_staging_hardening_scripts_do_not_print_env_or_delete_volumes() -> None:
     for path in (DEPLOY, DIAGNOSE, RECOVER, WATCH):
         text = read(path)
@@ -73,25 +83,45 @@ def test_recovery_script_is_staging_only_and_uses_safe_prunes() -> None:
     assert "W2_API_FOOTBALL" not in text
 
 
-def test_deploy_installs_watchdog_and_supports_stability_probe() -> None:
+def test_deploy_is_pull_only_and_health_checked() -> None:
     text = read(DEPLOY)
-    assert "w2-staging-watchdog.service" in text
-    assert "w2-staging-watchdog.timer" in text
-    assert "W2_STAGING_START_AFTER_DEPLOY" in text
-    assert "stability_probe=PASS" in text
-    assert "for health_attempt in 1 2 3 4 5 6; do" in text
-    assert "python3 scripts/check_w2_stage7h.py" in text
+    assert '"${COMPOSE[@]}" pull migration api worker web' in text
+    assert '"${COMPOSE[@]}" run --rm migration' in text
+    assert '"${COMPOSE[@]}" up -d --remove-orphans api worker web' in text
+    compose_commands = [
+        line.strip()
+        for line in text.splitlines()
+        if '"${COMPOSE[@]}"' in line
+        and any(action in line for action in (" pull ", " run ", " up "))
+    ]
+    assert compose_commands
+    assert all("</dev/null" in command for command in compose_commands)
     assert "http://127.0.0.1:18000/ready" in text
     assert "http://127.0.0.1:18000/v1/version" in text
     assert "http://127.0.0.1:18080/meta.json" in text
-    assert "docker builder prune -f" in text
-    assert "W2_STAGING_PRUNE_BUILD_CACHE" in text
+    assert "org.opencontainers.image.revision" in text
+    assert "org.opencontainers.image.created" in text
+    assert "w2.release.id" in text
+    assert '[ "${PYTHON_REVISION}" = "${REVISION}" ]' in text
+    assert '[ "${WEB_REVISION}" = "${REVISION}" ]' in text
+    assert '[ "${PYTHON_RELEASE_ID}" = "${REVISION}" ]' in text
+    assert '[ "${WEB_RELEASE_ID}" = "${REVISION}" ]' in text
+    assert "W2_API_IMAGE_ID" in text
+    assert "W2_API_OCI_DIGEST" in text
+    assert "W2_API_REGISTRY_DIGEST" in text
+    assert "w2.release_record.v1" in text
+    assert "<<'PY' | sudo tee \\" in text
+    assert "release.previous.env" in text
+    assert "target_seconds=120" in text
+    assert "rollback=FAIL health_or_digest_mismatch" in text
+    assert "WARM_SWITCH" in text
+    assert "COLD_PULL_END_TO_END" in text
 
 
 def test_health_check_targets_the_canonical_compose_project_and_cohort() -> None:
     text = read(HEALTH_CHECK)
     assert 'COMPOSE_PROJECT = "w2-staging"' in text
-    assert 'COMPOSE_FILE = "/opt/w2/current/infra/compose/compose.staging.yml"' in text
+    assert 'COMPOSE_FILE = "/opt/w2/deploy/compose.staging.yml"' in text
     assert 'ENV_FILE = "/opt/w2/shared/.env"' in text
     assert 'name = svc.get("Service", "?")' in text
     assert 'ledger.get("schema_version") != "w2.forward_ledger_performance.v3"' in text
@@ -118,16 +148,42 @@ def test_staging_legacy_recovery_manifest_contains_only_unique_capture_cases() -
     assert all(len(entry["capture_hash"]) == 64 for entry in entries)
 
 
-def test_deploy_builds_release_targets_sequentially() -> None:
+def test_deploy_has_no_server_build_or_source_release() -> None:
     text = read(DEPLOY)
-    assert "for service in migration api worker scheduler web; do" in text
-    assert 'build "\\${service}"' in text
-    assert "compose.staging.yml build\n" not in text
+    for forbidden in (
+        "docker build",
+        "compose build",
+        "git archive",
+        "tar -x",
+        "uv sync",
+        "pip install",
+        "/opt/w2/releases/${REVISION}/src",
+    ):
+        assert forbidden not in text
+    assert "W2_PYTHON_IMAGE" in text
+    assert "W2_WEB_IMAGE" in text
+    assert "@sha256:" in text
 
 
 def test_deploy_writes_release_metadata_with_root_owned_install() -> None:
     text = read(DEPLOY)
-    assert "sudo install -o root -g root -m 0644 /dev/stdin" in text
+    assert 'BUILD_TIME="$(date' not in text
+    assert "VITE_BUILD_TIME" not in text
+    assert (
+        "sudo install -o root -g root -m 0644 /tmp/release.env "
+        "/opt/w2/shared/release.env"
+    ) in text
+
+
+def test_deploy_installs_documented_health_checker_without_source_upload() -> None:
+    deploy = read(DEPLOY)
+    runbook = read(ROOT / "docs/runbooks/STAGE7H_VPS_STAGING.md")
+    installed_path = "/opt/w2/deploy/check_w2_stage7h.py"
+
+    assert installed_path in deploy
+    assert installed_path in runbook
+    assert "install -o root -g root -m 0444" in deploy
+    assert "/opt/w2/current/scripts/check_w2_stage7h.py" not in runbook
 
 
 def test_runtime_healthchecks_and_release_probes_use_canonical_ready() -> None:
@@ -157,20 +213,17 @@ def test_deploy_makes_shared_runtime_writable_for_staging_runtime_tasks() -> Non
     text = read(DEPLOY)
     assert "sudo install -d -o 10001 -g 10001 -m 0775 /opt/w2/shared/runtime" in text
     assert (
-        "sudo install -d -o 10001 -g 10001 -m 0775 "
         "/opt/w2/shared/runtime/independent_signal_backfill/raw_payloads"
     ) in text
-    assert "sudo chown 10001:10001 /opt/w2/shared/runtime" in text
-    assert "sudo chown -R 10001:10001 /opt/w2/shared/runtime/independent_signal_backfill" in text
-    assert "sudo chmod u+rwX,g+rwX /opt/w2/shared/runtime" in text
-    assert "sudo chmod -R u+rwX,g+rwX /opt/w2/shared/runtime/independent_signal_backfill" in text
+    assert "/opt/w2/shared/runtime/market_timeline_snapshots" in text
+    assert "/opt/w2/shared/runtime/reports/public" in text
 
 
 def test_watchdog_units_restart_only_staging_service() -> None:
     service = read(WATCHDOG_SERVICE)
     timer = read(WATCHDOG_TIMER)
     script = read(WATCH)
-    assert "/opt/w2/current/scripts/watch_staging_runtime.sh" in service
+    assert "/opt/w2/deploy/watch_staging_runtime.sh" in service
     assert "OnUnitActiveSec=1min" in timer
     assert "sudo systemctl restart w2-staging.service" in script
     assert "production" not in service.lower()

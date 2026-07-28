@@ -17,7 +17,7 @@ COMPOSE_FILES = [
     ROOT / "infra/compose/staging-lite.override.yml",
 ]
 EXPECTED_RUNTIME_MOUNT_SOURCES = {
-    ROOT / "infra/compose/compose.staging.yml": "../../runtime",
+    ROOT / "infra/compose/compose.staging.yml": "/opt/w2/shared/runtime",
     ROOT / "infra/compose/staging-lite.override.yml": "./runtime",
 }
 POLICY_MOUNT_TARGET = "/app/config/policies"
@@ -25,11 +25,11 @@ CONFIG_MOUNT_TARGET = "/app/config"
 RUNTIME_MOUNT_TARGET = "/app/runtime"
 MARKET_TIMELINE_MOUNT_TARGET = "/app/market_timeline_snapshots"
 EXPECTED_CONFIG_MOUNT_SOURCES = {
-    ROOT / "infra/compose/compose.staging.yml": "../../config",
+    ROOT / "infra/compose/compose.staging.yml": None,
     ROOT / "infra/compose/staging-lite.override.yml": "./config",
 }
 EXPECTED_MARKET_TIMELINE_MOUNT_SOURCES = {
-    ROOT / "infra/compose/compose.staging.yml": "../../runtime/market_timeline_snapshots",
+    ROOT / "infra/compose/compose.staging.yml": "/opt/w2/shared/runtime/market_timeline_snapshots",
     ROOT / "infra/compose/staging-lite.override.yml": "./runtime/market_timeline_snapshots",
 }
 POLICY = ROOT / "config/policies/future_fixture_refresh.v1.json"
@@ -180,6 +180,10 @@ def assert_config_mount(path: Path, compose: dict[str, Any]) -> None:
             for volume in service_volumes(compose, service)
             if split_volume(volume)[1] == CONFIG_MOUNT_TARGET
         ]
+        if expected_source is None:
+            if matches:
+                fail(f"{path}: {service} must use image-owned config")
+            continue
         if len(matches) != 1:
             fail(f"{path}: {service} must have exactly one full config mount")
         source, target, mode = matches[0]

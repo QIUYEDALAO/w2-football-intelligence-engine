@@ -284,8 +284,6 @@ new_staging_recommendations=0
 old_release_2026-07-20_forward_ledger_lines=80
 old_release_2026-07-20_forward_ledger_scope=NONE
 old_release_2026-07-20_forward_ledger_settlements=0
-old_host_candidate=43.155.208.138
-old_host_access=Permission denied with available keys
 finding=HISTORICAL_SETTLED_VALIDATION_NOT_PRESENT_ON_NEW_STAGING
 finding=OLD_SETTLED_VALIDATION_SOURCE_NOT_YET_LOCATED
 ```

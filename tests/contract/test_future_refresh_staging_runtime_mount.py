@@ -41,10 +41,10 @@ def volume_mode(compose: dict[str, Any], service: str, target: str) -> str | Non
     raise AssertionError(f"{service} missing {target} mount")
 
 
-def test_standalone_runtime_mount_resolves_to_release_root_runtime() -> None:
+def test_standalone_runtime_mount_uses_stable_shared_runtime() -> None:
     compose = load_compose(STANDALONE)
     for service in ("api", "worker", "scheduler"):
-        assert volume_source(compose, service, "/app/runtime") == "../../runtime"
+        assert volume_source(compose, service, "/app/runtime") == "/opt/w2/shared/runtime"
         assert volume_mode(compose, service, "/app/runtime") != "ro"
 
 
@@ -76,7 +76,7 @@ def test_runtime_environment_points_installed_services_at_mounted_authority() ->
 
 def test_web_mounts_static_report_public_root_read_only() -> None:
     expected_sources = {
-        STANDALONE: "../../runtime/reports/public",
+        STANDALONE: "/opt/w2/shared/runtime/reports/public",
         LITE: "./runtime/reports/public",
     }
     for path, expected_source in expected_sources.items():
@@ -129,5 +129,5 @@ def test_no_root_or_permission_workaround_for_worker() -> None:
     assert worker.get("user") not in ("root", "0")
     assert worker.get("privileged") is not True
     assert "0777" not in STANDALONE.read_text(encoding="utf-8")
-    dockerfile = (ROOT / "Dockerfile.worker").read_text(encoding="utf-8")
+    dockerfile = (ROOT / "Dockerfile.python").read_text(encoding="utf-8")
     assert "USER w2" in dockerfile

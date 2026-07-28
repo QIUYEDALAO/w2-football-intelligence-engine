@@ -5,7 +5,7 @@
 # All business ports (18000, 18080) bind to localhost only.
 #
 # Environment file: /opt/w2/shared/.env (chmod 600, owner ubuntu)
-# Release env file: /opt/w2/shared/release.env (public SHA/build metadata)
+# Release env file: /opt/w2/shared/release.env (immutable image digests and public metadata)
 # Docker compose reads env via --env-file flags (not working directory .env)
 
 [Unit]
@@ -21,31 +21,31 @@ RemainAfterExit=yes
 User=ubuntu
 Group=ubuntu
 
-Environment=COMPOSE_PROJECT_NAME=w2
+Environment=COMPOSE_PROJECT_NAME=w2-staging
 EnvironmentFile=-/opt/w2/shared/release.env
 
-WorkingDirectory=/opt/w2/current
+WorkingDirectory=/opt/w2/deploy
 
 ExecStart=/usr/bin/sudo /usr/bin/docker compose \
-  -f infra/compose/compose.staging.yml \
+  -f /opt/w2/deploy/compose.staging.yml \
   --env-file /opt/w2/shared/.env \
   --env-file /opt/w2/shared/release.env \
-  up -d --remove-orphans
+  up -d --remove-orphans api worker web
 
 ExecStop=/usr/bin/sudo /usr/bin/docker compose \
-  -f infra/compose/compose.staging.yml \
+  -f /opt/w2/deploy/compose.staging.yml \
   --env-file /opt/w2/shared/.env \
   --env-file /opt/w2/shared/release.env \
   down
 
 ExecReload=/usr/bin/sudo /usr/bin/docker compose \
-  -f infra/compose/compose.staging.yml \
+  -f /opt/w2/deploy/compose.staging.yml \
   --env-file /opt/w2/shared/.env \
   --env-file /opt/w2/shared/release.env \
   restart
 
 ExecStartPost=/usr/bin/sudo /usr/bin/docker compose \
-  -f infra/compose/compose.staging.yml \
+  -f /opt/w2/deploy/compose.staging.yml \
   --env-file /opt/w2/shared/.env \
   --env-file /opt/w2/shared/release.env \
   ps

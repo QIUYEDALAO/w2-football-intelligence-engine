@@ -140,8 +140,9 @@ Status: DONE
 #### A3. ARCH-P1-03：球队身份 Crosswalk 收敛
 
 ```text
-Status: IN_PROGRESS
-Current PR: #419
+Status: DONE
+PR: #419
+Merge SHA: 5026919fe1b1bbe2d5c6dfd67a2f70b6b0f59768
 ```
 
 待收敛组：`football_data_team_crosswalks`、`team_identity_crosswalks`、
@@ -167,7 +168,8 @@ ARCH-P1-03C、ARCH-P1-03B-R1。
 #### A4. ARCH-P1-05：部署改为 CI 构建镜像、服务器 pull-only
 
 ```text
-Status: NEXT
+Status: IN_PROGRESS
+Current PR: #420
 ```
 
 - [ ] 4 个 Python Dockerfile 合并为 1 个多 target/多 command；Web 独立镜像保留。
@@ -497,10 +499,10 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 <!-- SCRIPT_AUTHORITY_MATRIX_START -->
 | path | 唯一分类 | 直接调用方 | 传递调用链 | 运行环境 | 部署引用 | 运维文档 | 决定 | 证据 |
 |---|---|---|---|---|---|---|---|---|
-| `apps/api/main.py` | `RUNTIME_ENTRYPOINT` | Dockerfile.api / Compose Uvicorn | config → process | runtime | 是 | 无 | `KEEP` | E3/E5/E6 |
-| `apps/scheduler/main.py` | `RUNTIME_ENTRYPOINT` | Dockerfile.scheduler / Compose `python -m` | config → process | runtime | 是 | 无 | `KEEP` | E3/E5/E6 |
+| `apps/api/main.py` | `RUNTIME_ENTRYPOINT` | Dockerfile.python / Compose Uvicorn | config → process | runtime | 是 | 无 | `KEEP` | E3/E5/E6 |
+| `apps/scheduler/main.py` | `RUNTIME_ENTRYPOINT` | Dockerfile.python / Compose `python -m` | config → process | runtime | 是 | 无 | `KEEP` | E3/E5/E6 |
 | `apps/web/scripts/write-meta.mjs` | `DEPLOYMENT` | package.json predev/prebuild | npm → script | build | 是 | 无 | `KEEP` | E3 |
-| `apps/worker/celery_app.py` | `RUNTIME_ENTRYPOINT` | Dockerfile.worker / Compose Celery | config → process | runtime | 是 | 无 | `KEEP` | E3/E5/E6 |
+| `apps/worker/celery_app.py` | `RUNTIME_ENTRYPOINT` | Dockerfile.python / Compose Celery | config → process | runtime | 是 | 无 | `KEEP` | E3/E5/E6 |
 | `migrations/env.py` | `MIGRATION_ONLY` | alembic.ini / Alembic CLI | Alembic → env | migration | 否 | 无 | `KEEP` | E5/E6 |
 | `scripts/audit_football_data_co_uk.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |
 | `scripts/audit_formal_ah_historical_sources.py` | `MANUAL_OPS` | 人工 CLI | operator → script | offline | 否 | 无 | `KEEP` | E1/E4 |

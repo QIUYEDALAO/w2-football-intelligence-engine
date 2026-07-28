@@ -55,9 +55,7 @@ services:
   # ─── Migration (one-shot) ──────────────────────────────────
   migration:
     profiles: ["staging"]
-    build:
-      context: ../..
-      dockerfile: Dockerfile.migrations
+    image: ${W2_PYTHON_IMAGE:?immutable Python image reference required}
     command:
       - "uv"
       - "run"
@@ -82,9 +80,7 @@ services:
   # ─── API ───────────────────────────────────────────────────
   api:
     profiles: ["staging"]
-    build:
-      context: ../..
-      dockerfile: Dockerfile.api
+    image: ${W2_PYTHON_IMAGE:?immutable Python image reference required}
     command:
       - "uv"
       - "run"
@@ -155,9 +151,7 @@ services:
   # ─── Worker ────────────────────────────────────────────────
   worker:
     profiles: ["staging"]
-    build:
-      context: ../..
-      dockerfile: Dockerfile.worker
+    image: ${W2_PYTHON_IMAGE:?immutable Python image reference required}
     command:
       - "uv"
       - "run"
@@ -223,9 +217,7 @@ services:
   # ─── Scheduler ─────────────────────────────────────────────
   scheduler:
     profiles: ["staging"]
-    build:
-      context: ../..
-      dockerfile: Dockerfile.scheduler
+    image: ${W2_PYTHON_IMAGE:?immutable Python image reference required}
     command:
       - "uv"
       - "run"
@@ -300,9 +292,7 @@ services:
   # ─── Web ───────────────────────────────────────────────────
   web:
     profiles: ["staging"]
-    build:
-      context: apps/web
-      dockerfile: ../../Dockerfile.web
+    image: ${W2_WEB_IMAGE:?immutable Web image reference required}
     ports:
       - "127.0.0.1:18080:8080"
     environment:

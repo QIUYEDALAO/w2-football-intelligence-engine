@@ -109,7 +109,7 @@ started and its restart policy stayed `no`.
 
 Runtime identity:
 
-- Host: 43.155.208.138
+- Host: 118.196.30.136
 - Web/API SHA: f15f28c3c4af138339881864b03c1085fc9d60a0
 - Local branch at launch: feat/w2-canonical-ah-materialization
 - Launch time: 2026-07-04T11:05:41Z

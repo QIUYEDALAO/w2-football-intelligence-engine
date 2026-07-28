@@ -14,7 +14,7 @@ apply to production.
 ## Diagnose
 
 ```bash
-scripts/diagnose_staging_runtime.sh ubuntu@43.155.208.138
+scripts/diagnose_staging_runtime.sh root@118.196.30.136
 ```
 
 The diagnostic script is read-only. It collects host load, memory, disk, Docker
@@ -26,20 +26,13 @@ disk usage, compose status, container stats, local HTTP probes, and recent
 Default recovery only restarts the staging stack and probes local health:
 
 ```bash
-scripts/recover_staging_runtime.sh ubuntu@43.155.208.138
-```
-
-If Docker build cache pressure is suspected, prune unused build cache before the
-restart:
-
-```bash
-scripts/recover_staging_runtime.sh ubuntu@43.155.208.138 --prune-build-cache
+scripts/recover_staging_runtime.sh root@118.196.30.136
 ```
 
 If dangling images are clearly consuming disk, prune dangling images:
 
 ```bash
-scripts/recover_staging_runtime.sh ubuntu@43.155.208.138 --prune-images
+scripts/recover_staging_runtime.sh root@118.196.30.136 --prune-images
 ```
 
 The recovery helper never deletes Docker volumes.
@@ -63,20 +56,11 @@ sudo journalctl -u w2-staging-watchdog.service --no-pager -n 100
 
 ## Deploy Stability Probe
 
-By default, `scripts/deploy_stage7h_staging.sh` keeps its original behavior:
-it builds and installs the release but does not start the stack.
-
-To start/restart staging and require a post-deploy probe:
+Deployment is pull-only and requires immutable Python and Web digest references:
 
 ```bash
-W2_STAGING_START_AFTER_DEPLOY=true \
-  scripts/deploy_stage7h_staging.sh ubuntu@43.155.208.138
-```
-
-To also prune unused build cache after image build:
-
-```bash
-W2_STAGING_PRUNE_BUILD_CACHE=true \
-W2_STAGING_START_AFTER_DEPLOY=true \
-  scripts/deploy_stage7h_staging.sh ubuntu@43.155.208.138
+scripts/deploy_stage7h_staging.sh \
+  root@118.196.30.136 \
+  ghcr.io/qiuyedalao/w2-football-intelligence-engine/python@sha256:<digest> \
+  ghcr.io/qiuyedalao/w2-football-intelligence-engine/web@sha256:<digest>
 ```

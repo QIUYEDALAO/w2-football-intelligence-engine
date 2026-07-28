@@ -135,14 +135,15 @@ def test_release_gate_manifest_hashes_evidence_and_fails_closed(
         )
 
 
-def test_staging_deploy_captures_real_image_id_without_faking_digest() -> None:
+def test_staging_deploy_requires_registry_digests_and_rolls_back_by_digest() -> None:
     script = Path("scripts/deploy_stage7h_staging.sh").read_text(encoding="utf-8")
 
-    assert "docker image inspect --format='{{.Id}}' w2-staging-api:latest" in script
-    assert "images -q api" not in script
-    assert r"rollback-\${ROLLBACK_REVISION}" in script
-    assert "docker image tag" in script
-    assert "rollback images preserved" in script
-    assert "W2_API_IMAGE_ID=" in script
-    assert "W2_API_OCI_DIGEST=" not in script
-    assert "W2_API_REGISTRY_DIGEST=" not in script
+    assert r"@sha256:[0-9a-f]{64}" in script
+    assert "release.previous.env" in script
+    assert '"${COMPOSE[@]}" pull migration api worker web' in script
+    assert "repo_digest_ref" in script
+    assert "verify_runtime" in script
+    assert "rollback=PASS" in script
+    assert "rollback=FAIL" in script
+    assert "docker image tag" not in script
+    assert ":latest" not in script

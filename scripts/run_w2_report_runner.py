@@ -13,7 +13,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Run the W2 report generator against a dashboard endpoint."
     )
-    parser.add_argument("--base-url", default="http://43.155.208.138")
+    parser.add_argument("--base-url", default="http://118.196.30.136")
     parser.add_argument("--window", default="today")
     parser.add_argument("--report-type", choices=["morning", "final"], default="final")
     parser.add_argument("--format", choices=["markdown", "text", "html"], default="markdown")

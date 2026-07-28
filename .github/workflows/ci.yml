@@ -14,6 +14,9 @@ on:
         default: true
         type: boolean
 
+permissions:
+  contents: read
+
 jobs:
   classify:
     name: classify
@@ -26,6 +29,7 @@ jobs:
       staging_parity: ${{ steps.plan.outputs.staging_parity }}
       predeploy_e2e: ${{ steps.plan.outputs.predeploy_e2e }}
       verify: ${{ steps.plan.outputs.verify }}
+      images: ${{ steps.plan.outputs.images }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -297,6 +301,137 @@ jobs:
       - name: Secret pattern scan
         run: uv run --python 3.12 python tests/secret_scan.py
 
+  images:
+    name: images
+    permissions:
+      contents: read
+      packages: write
+    needs:
+      - classify
+      - python-focused
+      - web
+      - migration
+      - compose
+      - staging-parity
+      - predeploy-e2e
+      - verify
+    if: >-
+      always() &&
+      needs.classify.outputs.images == 'true' &&
+      needs.classify.result == 'success' &&
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
+    runs-on: ubuntu-latest
+    env:
+      PYTHON_IMAGE: ghcr.io/qiuyedalao/w2-football-intelligence-engine/python
+      WEB_IMAGE: ghcr.io/qiuyedalao/w2-football-intelligence-engine/web
+      EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require every scheduled quality job to succeed
+        run: |
+          python3 scripts/classify_ci.py \
+            --expected-job python_focused=${{ needs.classify.outputs.python_focused }} \
+            --expected-job web=${{ needs.classify.outputs.web }} \
+            --expected-job migration=${{ needs.classify.outputs.migration }} \
+            --expected-job compose=${{ needs.classify.outputs.compose }} \
+            --expected-job staging_parity=${{ needs.classify.outputs.staging_parity }} \
+            --expected-job predeploy_e2e=${{ needs.classify.outputs.predeploy_e2e }} \
+            --expected-job verify=${{ needs.classify.outputs.verify }} \
+            --expected-job images=false \
+            --result classify=${{ needs.classify.result }} \
+            --result python_focused=${{ needs['python-focused'].result }} \
+            --result web=${{ needs.web.result }} \
+            --result migration=${{ needs.migration.result }} \
+            --result compose=${{ needs.compose.result }} \
+            --result staging_parity=${{ needs['staging-parity'].result }} \
+            --result predeploy_e2e=${{ needs['predeploy-e2e'].result }} \
+            --result verify=${{ needs.verify.result }} \
+            --result images=skipped
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: build-meta
+        run: echo "created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$GITHUB_OUTPUT"
+      - name: Build and push unified Python image
+        id: python
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.python
+          push: true
+          tags: ${{ env.PYTHON_IMAGE }}:${{ env.EXACT_HEAD }}
+          build-args: |
+            W2_GIT_SHA=${{ env.EXACT_HEAD }}
+            W2_RELEASE_ID=${{ env.EXACT_HEAD }}
+            W2_BUILD_TIME=${{ steps.build-meta.outputs.created }}
+          cache-from: type=gha,scope=w2-python
+          cache-to: type=gha,mode=max,scope=w2-python
+      - name: Build and push Web image
+        id: web-image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.web
+          push: true
+          tags: ${{ env.WEB_IMAGE }}:${{ env.EXACT_HEAD }}
+          build-args: |
+            VITE_GIT_SHA=${{ env.EXACT_HEAD }}
+            W2_RELEASE_ID=${{ env.EXACT_HEAD }}
+            VITE_BUILD_TIME=${{ steps.build-meta.outputs.created }}
+            VITE_DASHBOARD_DATA_MODE=api
+            VITE_W2_MARKET_ANCHOR_DISPLAY_ENABLED=true
+            VITE_W2_MARKET_ANCHOR_MIN_DIVERGENCE=0.05
+          cache-from: type=gha,scope=w2-web
+          cache-to: type=gha,mode=max,scope=w2-web
+      - name: Smoke final immutable images
+        env:
+          PYTHON_DIGEST: ${{ steps.python.outputs.digest }}
+          WEB_DIGEST: ${{ steps.web-image.outputs.digest }}
+        run: |
+          python_ref="${PYTHON_IMAGE}@${PYTHON_DIGEST}"
+          web_ref="${WEB_IMAGE}@${WEB_DIGEST}"
+          docker run --rm --entrypoint python "$python_ref" -c \
+            "from apps.api.main import app; assert app"
+          docker run --rm --entrypoint python "$python_ref" -c \
+            "from apps.worker.celery_app import ping; assert ping.run() == 'pong'"
+          docker run --rm --entrypoint python "$python_ref" -c \
+            "from apps.scheduler.main import heartbeat; assert 'heartbeat' in heartbeat()"
+          docker run --rm --entrypoint alembic "$python_ref" --help >/dev/null
+          smoke_network="w2-image-smoke-${GITHUB_RUN_ID}"
+          docker network create "$smoke_network" >/dev/null
+          api_id="$(docker run -d --network "$smoke_network" --network-alias api \
+            --entrypoint python "$python_ref" -m http.server 8000)"
+          web_id="$(docker run -d --network "$smoke_network" -p 18081:8080 "$web_ref")"
+          trap 'docker rm -f "$web_id" "$api_id" >/dev/null 2>&1 || true; docker network rm "$smoke_network" >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 12); do
+            if curl -fsS http://127.0.0.1:18081/ >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs "$web_id"
+          exit 1
+      - name: Record immutable image digests
+        env:
+          PYTHON_DIGEST: ${{ steps.python.outputs.digest }}
+          WEB_DIGEST: ${{ steps.web-image.outputs.digest }}
+        run: |
+          {
+            printf 'EXACT_HEAD=%s\n' "$EXACT_HEAD"
+            printf 'W2_PYTHON_IMAGE=%s@%s\n' "$PYTHON_IMAGE" "$PYTHON_DIGEST"
+            printf 'W2_WEB_IMAGE=%s@%s\n' "$WEB_IMAGE" "$WEB_DIGEST"
+          } | tee "$RUNNER_TEMP/image-digests.env" >>"$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-digests-${{ env.EXACT_HEAD }}
+          path: ${{ runner.temp }}/image-digests.env
+          if-no-files-found: error
+          retention-days: 30
+
   ci-required:
     name: CI_REQUIRED
     if: always()
@@ -309,6 +444,7 @@ jobs:
       - staging-parity
       - predeploy-e2e
       - verify
+      - images
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -323,6 +459,7 @@ jobs:
             --expected-job staging_parity=${{ needs.classify.outputs.staging_parity }} \
             --expected-job predeploy_e2e=${{ needs.classify.outputs.predeploy_e2e }} \
             --expected-job verify=${{ needs.classify.outputs.verify }} \
+            --expected-job images=${{ needs.classify.outputs.images }} \
             --result classify=${{ needs.classify.result }} \
             --result python_focused=${{ needs['python-focused'].result }} \
             --result web=${{ needs.web.result }} \
@@ -330,4 +467,5 @@ jobs:
             --result compose=${{ needs.compose.result }} \
             --result staging_parity=${{ needs['staging-parity'].result }} \
             --result predeploy_e2e=${{ needs['predeploy-e2e'].result }} \
-            --result verify=${{ needs.verify.result }}
+            --result verify=${{ needs.verify.result }} \
+            --result images=${{ needs.images.result }}
