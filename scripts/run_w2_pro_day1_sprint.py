@@ -523,6 +523,7 @@ def run_model_recheck(persistent_root: Path) -> dict[str, Any]:
             raw_dirs=raw_dirs,
             season=season,
             competitions=scope.in_season_national_leagues,
+            competition_entries=scope.entries,
             true_xg_source="api_football_statistics",
         )
     return {

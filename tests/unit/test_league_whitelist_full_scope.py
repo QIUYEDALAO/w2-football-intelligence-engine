@@ -18,7 +18,9 @@ def test_full_scope_inventory_has_thirteen_league_competitions() -> None:
 
     assert payload["competition_count"] == 13
     assert payload["provider_calls"] == 0
-    assert payload["db_reads"] == 0
+    assert payload["db_reads"] == 1
+    assert payload["import_time_db_reads"] == 0
+    assert payload["runtime_scope_db_reads"] == 1
     assert payload["db_writes"] == 0
     assert set(inventory) == {
         "premier_league",

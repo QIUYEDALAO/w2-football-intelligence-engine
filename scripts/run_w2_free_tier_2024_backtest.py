@@ -31,11 +31,8 @@ from w2.competitions.league_whitelist_scope import load_league_whitelist_scope  
 def main() -> int:
     args = _parse_args()
     raw_dirs = tuple(Path(item) for item in args.raw_dir) if args.raw_dir else DEFAULT_RAW_DIRS
-    competitions = (
-        tuple(args.competition)
-        if args.competition
-        else load_league_whitelist_scope().annual_competitions
-    )
+    scope = load_league_whitelist_scope()
+    competitions = tuple(args.competition) if args.competition else scope.annual_competitions
     try:
         provider_result = None
         if args.collect_provider:
@@ -46,6 +43,7 @@ def main() -> int:
                 out_dir=args.out_dir,
                 season=args.season,
                 competitions=competitions,
+                competition_entries=scope.entries,
                 daily_hard_cap=args.daily_hard_cap,
                 max_statistics_calls=args.max_statistics_calls,
                 request_interval_seconds=args.request_interval_seconds,
@@ -78,6 +76,7 @@ def main() -> int:
             raw_dirs=raw_dirs,
             season=args.season,
             competitions=competitions,
+            competition_entries=scope.entries,
             true_xg_source=true_xg_source,
             generated_at=datetime.now(UTC),
         )
@@ -110,6 +109,7 @@ def main() -> int:
                 raw_dirs=raw_dirs,
                 season=args.season,
                 competitions=competitions,
+                competition_entries=scope.entries,
             )
         if args.fit_understat_robustness:
             report["understat_model_iteration_1_robustness"] = (

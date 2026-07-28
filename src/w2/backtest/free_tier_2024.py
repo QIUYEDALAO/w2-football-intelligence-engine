@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from w2.competitions.league_whitelist_scope import load_league_whitelist_scope
-from w2.competitions.registry import CompetitionRegistry, CompetitionRegistryEntry
+from w2.competitions.registry import CompetitionRegistryEntry, CompetitionRegistryError
 from w2.domain.time import require_utc
 from w2.models.evaluation import EvaluationRow, metrics, reliability
 from w2.models.independent import (
@@ -131,6 +131,7 @@ def build_free_tier_2024_backtest_report(
     raw_dirs: Sequence[Path] = DEFAULT_RAW_DIRS,
     season: str = "2024",
     competitions: Sequence[str] | None = None,
+    competition_entries: Mapping[str, CompetitionRegistryEntry] | None = None,
     true_xg_source: str = "api_football_statistics",
     generated_at: datetime | None = None,
 ) -> dict[str, Any]:
@@ -141,7 +142,7 @@ def build_free_tier_2024_backtest_report(
         entries: Mapping[str, CompetitionRegistryEntry] | None = scope.entries
     else:
         resolved_competitions = tuple(competitions)
-        entries = None
+        entries = competition_entries
     fixtures = load_historical_fixtures(
         raw_dirs=raw_dirs,
         entries=entries,
@@ -266,16 +267,13 @@ def load_historical_fixtures(
         competition_id = (
             by_league.get(league_id)
             if by_league is not None
-            else next(
-                (
-                    item
-                    for item in competitions
-                    if path.name.startswith(f"fixtures_{item}_")
-                ),
-                None,
-            )
+            else _raw_competition_id(payload)
         )
-        if competition_id is None or raw_season != season:
+        if (
+            competition_id is None
+            or competition_id not in competitions
+            or raw_season != season
+        ):
             continue
         for row in _response_rows(payload):
             fixture = _fixture_from_row(
@@ -482,13 +480,13 @@ def build_understat_model_iteration_report(
     raw_dirs: Sequence[Path] = DEFAULT_RAW_DIRS,
     season: str = "2024",
     competitions: Sequence[str] = MODEL_ITERATION_COMPETITIONS,
+    competition_entries: Mapping[str, CompetitionRegistryEntry] | None = None,
     min_history: int = 5,
     train_fraction: float = 0.7,
 ) -> dict[str, Any]:
-    registry = CompetitionRegistry()
     fixtures = load_historical_fixtures(
         raw_dirs=raw_dirs,
-        entries=registry.entries(),
+        entries=competition_entries,
         season=season,
         competitions=competitions,
     )
@@ -674,6 +672,7 @@ def collect_provider_dataset(
     out_dir: Path,
     season: str = "2024",
     competitions: Sequence[str] | None = None,
+    competition_entries: Mapping[str, CompetitionRegistryEntry] | None = None,
     reuse_raw_dirs: Sequence[Path] = DEFAULT_RAW_DIRS,
     daily_hard_cap: int = 80,
     max_statistics_calls: int = 0,
@@ -684,13 +683,16 @@ def collect_provider_dataset(
 ) -> ProviderFetchResult:
     if daily_hard_cap < 0 or max_statistics_calls < 0:
         raise ValueError("provider call caps must be non-negative")
+    entries: Mapping[str, CompetitionRegistryEntry] | None
     if competitions is None:
         scope = load_league_whitelist_scope()
         resolved_competitions = scope.annual_competitions
         entries = scope.entries
     else:
         resolved_competitions = tuple(competitions)
-        entries = CompetitionRegistry().entries()
+        entries = competition_entries
+    if entries is None:
+        raise CompetitionRegistryError("COMPETITION_ENTRIES_REQUIRED_FOR_PROVIDER_COLLECTION")
     raw_dir = out_dir / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
     generated = (generated_at or datetime.now(UTC)).astimezone(UTC)
@@ -956,6 +958,11 @@ def _input_coverage(
             "status": "MISSING_SOURCE",
         },
     }
+
+
+def _raw_competition_id(payload: dict[str, Any]) -> str | None:
+    value = payload.get("competition_id") or _params(payload).get("competition_id")
+    return str(value) if value else None
 
 
 def load_fixture_statistics(raw_dirs: Sequence[Path]) -> dict[str, dict[str, float]]:

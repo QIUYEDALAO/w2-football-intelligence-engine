@@ -36,6 +36,7 @@ def test_free_tier_backtest_uses_only_prematch_rolling_inputs(tmp_path: Path) ->
     report = build_free_tier_2024_backtest_report(
         raw_dirs=(tmp_path,),
         competitions=("premier_league",),
+        competition_entries=CompetitionRegistry().entries(),
         generated_at=None,
     )
 
@@ -63,6 +64,7 @@ def test_backtest_reports_missing_inputs_and_competition_slices(tmp_path: Path) 
     report = build_free_tier_2024_backtest_report(
         raw_dirs=(tmp_path,),
         competitions=("premier_league", "la_liga"),
+        competition_entries=CompetitionRegistry().entries(),
     )
 
     assert report["scope"]["covered_competitions"] == ["premier_league"]
@@ -98,6 +100,7 @@ def test_provider_collection_reuses_existing_fixture_cache_and_caps_calls(
     result = collect_provider_dataset(
         out_dir=tmp_path,
         competitions=("premier_league", "la_liga"),
+        competition_entries=CompetitionRegistry().entries(),
         reuse_raw_dirs=(),
         daily_hard_cap=1,
         request_interval_seconds=0,
@@ -143,6 +146,7 @@ def test_provider_collection_can_fetch_limited_statistics_without_real_sleep(
     result = collect_provider_dataset(
         out_dir=tmp_path,
         competitions=("premier_league",),
+        competition_entries=CompetitionRegistry().entries(),
         reuse_raw_dirs=(),
         daily_hard_cap=2,
         max_statistics_calls=1,
@@ -335,6 +339,7 @@ def test_understat_model_iteration_report_is_offline_and_has_validation(tmp_path
     report = build_understat_model_iteration_report(
         raw_dirs=(tmp_path,),
         competitions=("premier_league",),
+        competition_entries=CompetitionRegistry().entries(),
         min_history=5,
     )
 
@@ -414,6 +419,7 @@ def test_provider_collection_skips_existing_statistics_cache(tmp_path: Path) -> 
     result = collect_provider_dataset(
         out_dir=tmp_path,
         competitions=("premier_league",),
+        competition_entries=CompetitionRegistry().entries(),
         reuse_raw_dirs=(),
         daily_hard_cap=5,
         max_statistics_calls=1,

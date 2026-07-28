@@ -1,14 +1,21 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from scripts import run_w2_free_tier_2024_backtest
+from scripts.run_w2_pro_day1_sprint import run_model_recheck
 from scripts.summarize_w2_league_whitelist_scope import build_scope_summary
 
-from w2.backtest.free_tier_2024 import build_free_tier_2024_backtest_report
+from w2.backtest.free_tier_2024 import (
+    build_free_tier_2024_backtest_report,
+    build_walk_forward_predictions,
+    load_historical_fixtures,
+)
 from w2.competitions.league_whitelist_scope import load_league_whitelist_scope
 from w2.competitions.registry import CompetitionRegistry, CompetitionRegistryError
 
@@ -102,6 +109,126 @@ def test_default_backtest_scope_reads_one_registry_snapshot(
     report = build_free_tier_2024_backtest_report(raw_dirs=(tmp_path,))
 
     assert report["scope"]["annual_competitions"] == ["alpha"]
+    assert calls == 1
+
+
+def test_legacy_and_hashed_fixture_raw_use_passed_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    entries = CompetitionRegistry().entries()
+    legacy_raw = ROOT / "runtime" / "stage5b" / "raw"
+    hashed_raw = tmp_path / "raw" / "fixtures"
+    hashed_raw.mkdir(parents=True)
+    source = json.loads((legacy_raw / "039_P2_fixtures.json").read_text(encoding="utf-8"))
+    source["payload"]["response"] = source["payload"]["response"][:3]
+    (hashed_raw / "fixtures_deadbeef.json").write_text(
+        json.dumps(source),
+        encoding="utf-8",
+    )
+
+    def fail_entries(self: CompetitionRegistry) -> object:
+        raise AssertionError("passed snapshot must prevent registry reads")
+
+    monkeypatch.setattr(CompetitionRegistry, "entries", fail_entries)
+    legacy = load_historical_fixtures(
+        raw_dirs=(legacy_raw,),
+        entries=entries,
+        season="2024",
+        competitions=("premier_league", "brasileirao_serie_a"),
+    )
+    hashed = load_historical_fixtures(
+        raw_dirs=(hashed_raw,),
+        entries=entries,
+        season="2024",
+        competitions=("premier_league",),
+    )
+
+    assert sum(item.competition_id == "premier_league" for item in legacy) == 380
+    assert sum(item.competition_id == "brasileirao_serie_a" for item in legacy) == 380
+    assert len(build_walk_forward_predictions(legacy)) == 760
+    assert {item.competition_id for item in legacy} == {
+        "premier_league",
+        "brasileirao_serie_a",
+    }
+    assert len(hashed) == 3
+    assert {item.competition_id for item in hashed} == {"premier_league"}
+
+
+def test_explicit_competitions_without_snapshot_require_raw_canonical_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    raw = json.loads(
+        (ROOT / "runtime" / "stage5b" / "raw" / "039_P2_fixtures.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    rows = raw["payload"]["response"]
+    raw["competition_id"] = "alpha"
+    raw["payload"]["response"] = rows[:1]
+    (tmp_path / "fixtures_deadbeef.json").write_text(json.dumps(raw), encoding="utf-8")
+    without_identity = dict(raw)
+    without_identity.pop("competition_id")
+    without_identity["payload"] = {
+        "response": rows[1:2],
+    }
+    (tmp_path / "fixtures_alpha_999_2024.json").write_text(
+        json.dumps(without_identity),
+        encoding="utf-8",
+    )
+
+    def fail_entries(self: CompetitionRegistry) -> object:
+        raise AssertionError("explicit competitions must not read registry")
+
+    monkeypatch.setattr(CompetitionRegistry, "entries", fail_entries)
+    report = build_free_tier_2024_backtest_report(
+        raw_dirs=(tmp_path,),
+        competitions=("alpha",),
+    )
+
+    assert report["scope"]["annual_competitions"] == ["alpha"]
+    assert report["overall"]["sample_count"] == 1
+
+
+def test_default_cli_reads_one_registry_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    calls = 0
+    original_entries = CompetitionRegistry.entries
+
+    def counting_entries(self: CompetitionRegistry):  # type: ignore[no-untyped-def]
+        nonlocal calls
+        calls += 1
+        return original_entries(self)
+
+    monkeypatch.setattr(CompetitionRegistry, "entries", counting_entries)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["run_w2_free_tier_2024_backtest.py", "--raw-dir", str(tmp_path), "--json"],
+    )
+
+    assert run_w2_free_tier_2024_backtest.main() == 0
+    assert calls == 1
+
+
+def test_pro_day1_model_recheck_reads_one_registry_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    calls = 0
+    original_entries = CompetitionRegistry.entries
+
+    def counting_entries(self: CompetitionRegistry):  # type: ignore[no-untyped-def]
+        nonlocal calls
+        calls += 1
+        return original_entries(self)
+
+    monkeypatch.setattr(CompetitionRegistry, "entries", counting_entries)
+
+    assert run_model_recheck(tmp_path)["status"] == "COMPLETED"
     assert calls == 1
 
 
