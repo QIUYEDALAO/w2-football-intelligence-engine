@@ -21,4 +21,4 @@ safety:
   reviewed_mapping_count_expected: 66
 staging:
   production_deployed: false
-  read_only_recheck: IN_PROGRESS
+  read_only_recheck: PASS

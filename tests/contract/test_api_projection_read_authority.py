@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 from datetime import UTC, datetime
+from importlib.util import resolve_name
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,16 @@ from w2.domain.decision_contract import CONTRACT_OWNED_FIELDS
 
 API_ROOTS = (Path("src/w2/api"), Path("apps/api"))
 FULL_EXECUTION_SURFACE = (*API_ROOTS, Path("scripts"), Path("infra"))
+RETIRED_SHADOW_PRODUCTION_SURFACES = (
+    Path("src/w2"),
+    Path("apps"),
+    Path("scripts"),
+    Path("infra"),
+    Path(".github/workflows"),
+    Path("pyproject.toml"),
+    Path("Dockerfile.python"),
+    Path("Dockerfile.web"),
+)
 PRODUCTION_DAY_VIEW_SURFACE = (
     *API_ROOTS,
     Path("src/w2/dashboard"),
@@ -53,16 +64,42 @@ FORBIDDEN_DOMAIN_BOUNDARY_IMPORTS = {
     "w2.dashboard",
     "w2.infrastructure",
 }
+RETIRED_SHADOW_STRATEGY_IDENTITIES = {
+    "shadow_strategy_models",
+    "ShadowStrategyRunModel",
+    "ShadowStrategyLockModel",
+    "ShadowStrategyEvaluationModel",
+    "w2.strategy.shadow",
+    "w2.strategy.shadow_cycle_cli",
+    "shadow_strategy_status",
+    "shadow_strategy_locks",
+    "shadow_strategy_evaluations",
+    "shadow_strategy_replay",
+    "/shadow-strategy/",
+    "w2-shadow-cycle",
+    "config/policies/shadow_strategy.v1.json",
+}
 
 
-def _imports(path: Path) -> set[str]:
+def _imports(path: Path, module: str | None = None) -> set[str]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    current_module = module or _module_name(path)
+    package = current_module if path.name == "__init__.py" else current_module.rpartition(".")[0]
     imports: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             imports.update(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            imports.add(node.module)
+        elif isinstance(node, ast.ImportFrom):
+            base = node.module or ""
+            if node.level:
+                base = resolve_name(f"{'.' * node.level}{base}", package)
+            if base:
+                imports.add(base)
+            imports.update(
+                f"{base}.{alias.name}" if base else alias.name
+                for alias in node.names
+                if alias.name != "*"
+            )
     return imports
 
 
@@ -84,27 +121,19 @@ def _production_module_paths() -> dict[str, Path]:
     }
 
 
-def test_api_imports_no_read_time_computation_packages() -> None:
-    violations = sorted(
-        f"{path}:{name}"
-        for root in API_ROOTS
-        for path in root.rglob("*.py")
-        for name in _imports(path)
-        if any(
-            name == package or name.startswith(f"{package}.")
-            for package in FORBIDDEN_API_PACKAGES
-        )
+def _matches_forbidden(module: str, forbidden: set[str]) -> bool:
+    return any(
+        module == package or module.startswith(f"{package}.")
+        for package in forbidden
     )
-    assert violations == []
 
 
-def test_api_transitive_import_graph_has_no_read_time_computation_packages() -> None:
-    module_paths = _production_module_paths()
-    pending = [
-        _module_name(path)
-        for root in API_ROOTS
-        for path in root.rglob("*.py")
-    ]
+def _import_graph_violations(
+    roots: list[str],
+    module_paths: dict[str, Path],
+    forbidden: set[str] = FORBIDDEN_API_PACKAGES,
+) -> list[str]:
+    pending = list(roots)
     visited: set[str] = set()
     violations: list[str] = []
     while pending:
@@ -115,15 +144,107 @@ def test_api_transitive_import_graph_has_no_read_time_computation_packages() -> 
         path = module_paths.get(module)
         if path is None:
             continue
-        for imported in _imports(path):
-            if any(
-                imported == package or imported.startswith(f"{package}.")
-                for package in FORBIDDEN_API_PACKAGES
-            ):
+        for imported in _imports(path, module):
+            if _matches_forbidden(imported, forbidden):
                 violations.append(f"{module}->{imported}")
             if imported in module_paths and imported not in visited:
                 pending.append(imported)
-    assert sorted(violations) == []
+    return sorted(violations)
+
+
+def _retired_shadow_violations(surfaces: tuple[Path, ...]) -> list[str]:
+    files = (
+        path
+        for surface in surfaces
+        for path in ([surface] if surface.is_file() else surface.rglob("*"))
+        if path.is_file()
+        and not {"node_modules", "__pycache__", ".venv"}.intersection(path.parts)
+    )
+    return sorted(
+        f"{path}:{identity}"
+        for path in files
+        for identity in RETIRED_SHADOW_STRATEGY_IDENTITIES
+        if identity in path.read_text(encoding="utf-8", errors="ignore")
+    )
+
+
+def _write_modules(root: Path, sources: dict[str, str]) -> dict[str, Path]:
+    modules: dict[str, Path] = {}
+    for module, source in sources.items():
+        path = root.joinpath(*module.split(".")).with_suffix(".py")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(source, encoding="utf-8")
+        modules[module] = path
+    return modules
+
+
+def test_api_imports_no_read_time_computation_packages() -> None:
+    violations = sorted(
+        f"{path}:{name}"
+        for root in API_ROOTS
+        for path in root.rglob("*.py")
+        for name in _imports(path, _module_name(path))
+        if _matches_forbidden(name, FORBIDDEN_API_PACKAGES)
+    )
+    assert violations == []
+
+
+def test_api_transitive_import_graph_has_no_read_time_computation_packages() -> None:
+    module_paths = _production_module_paths()
+    roots = [
+        _module_name(path)
+        for root in API_ROOTS
+        for path in root.rglob("*.py")
+    ]
+    assert _import_graph_violations(roots, module_paths) == []
+
+
+def test_import_graph_detects_package_child_relative_and_transitive_bypasses(
+    tmp_path: Path,
+) -> None:
+    cases = (
+        (
+            {"w2.api.root": "from w2 import features\n", "w2.features": ""},
+            "w2.features",
+        ),
+        (
+            {
+                "w2.api.root": "from w2.dashboard import intermediate\n",
+                "w2.dashboard.intermediate": "import w2.markets\n",
+            },
+            "w2.markets",
+        ),
+        (
+            {
+                "w2.api.root": "from .helper import x\n",
+                "w2.api.helper": "import w2.simulation\n",
+            },
+            "w2.simulation",
+        ),
+        (
+            {"w2.api.root": "from ..pricing import shadow\n"},
+            "w2.pricing",
+        ),
+    )
+    for index, (sources, expected) in enumerate(cases):
+        modules = _write_modules(tmp_path / str(index), sources)
+        violations = _import_graph_violations(["w2.api.root"], modules)
+        assert any(expected in violation for violation in violations)
+
+
+def test_import_graph_allows_pure_domain_and_read_only_dependencies(tmp_path: Path) -> None:
+    modules = _write_modules(
+        tmp_path,
+        {
+            "w2.api.root": (
+                "from w2.domain import decision_contract\n"
+                "from . import read_only_repository\n"
+            ),
+            "w2.domain.decision_contract": "from dataclasses import dataclass\n",
+            "w2.api.read_only_repository": "from copy import deepcopy\n",
+        },
+    )
+    assert _import_graph_violations(["w2.api.root"], modules) == []
 
 
 def test_dashboard_uses_existing_shadow_projection_namespace() -> None:
@@ -149,14 +270,47 @@ def test_full_execution_surface_has_no_removed_production_fallback_identity() ->
 
 
 def test_retired_shadow_strategy_has_no_production_reference() -> None:
-    violations = sorted(
-        str(path)
-        for root in FULL_EXECUTION_SURFACE
-        for path in root.rglob("*")
-        if path.is_file() and path.suffix in {".py", ".sh", ".yml", ".yaml"}
-        and "shadow_strategy" in path.read_text(encoding="utf-8", errors="ignore")
+    violations = _retired_shadow_violations(RETIRED_SHADOW_PRODUCTION_SURFACES)
+    assert violations == [], (
+        f"RETIRED_SHADOW_STRATEGY_PRODUCTION_REFERENCE_COUNT={len(violations)}: "
+        f"{violations}"
     )
-    assert violations == []
+
+
+def test_retired_shadow_guard_covers_every_production_surface(tmp_path: Path) -> None:
+    mutations = (
+        ("src/w2/prematch/reintroduced.py", "shadow_strategy_status"),
+        ("src/w2/infrastructure/reintroduced.py", "ShadowStrategyRunModel"),
+        (".github/workflows/reintroduced.yml", "/shadow-strategy/"),
+        ("pyproject.toml", "w2-shadow-cycle"),
+        ("Dockerfile.python", "config/policies/shadow_strategy.v1.json"),
+        ("Dockerfile.web", "w2.strategy.shadow_cycle_cli"),
+    )
+    surface_names = tuple(str(path) for path in RETIRED_SHADOW_PRODUCTION_SURFACES)
+    for index, (relative_path, identity) in enumerate(mutations):
+        root = tmp_path / str(index)
+        path = root / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(identity, encoding="utf-8")
+        surfaces = tuple(root / name for name in surface_names)
+        assert f"{path}:{identity}" in _retired_shadow_violations(surfaces)
+
+
+def test_retired_shadow_guard_allows_current_shadow_namespaces(tmp_path: Path) -> None:
+    path = tmp_path / "src/w2/current.py"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        "\n".join(
+            (
+                "analysis-card:shadow:v1:",
+                "w2.pricing.shadow",
+                "w2.shadow.comparison_import_cli",
+                "w2-shadow-comparison-import",
+            )
+        ),
+        encoding="utf-8",
+    )
+    assert _retired_shadow_violations((tmp_path / "src/w2",)) == []
 
 
 def test_production_day_view_has_no_legacy_fallback_identity() -> None:
