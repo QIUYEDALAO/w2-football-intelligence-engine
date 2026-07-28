@@ -7,14 +7,12 @@ import sys
 from pathlib import Path
 
 MODULES = [
-    "w2.strategy.shadow_cycle_cli",
     "w2.gates.gate5_preflight_cli",
     "w2.shadow.comparison_import_cli",
     "w2.observability.stage7i_observer_cli",
 ]
 
 CONSOLE_SCRIPTS = [
-    "w2-shadow-cycle",
     "w2-gate5-preflight",
     "w2-shadow-comparison-import",
     "w2-stage7i-observer",
@@ -51,28 +49,6 @@ def test_console_scripts_help() -> None:
     root = Path(__file__).resolve().parents[2]
     for script in CONSOLE_SCRIPTS:
         run_command(["uv", "run", script, "--help"], cwd=root)
-
-
-def test_shadow_cli_retrospective_is_shadow_only(tmp_path: Path) -> None:
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(Path(__file__).resolve().parents[2] / "src")
-    output = run_command(
-        [
-            sys.executable,
-            "-m",
-            "w2.strategy.shadow_cycle_cli",
-            "--execution-kind",
-            "RETROSPECTIVE",
-            "--dry-run",
-            "--json",
-        ],
-        cwd=tmp_path,
-        env=env,
-    )
-    payload = json.loads(output)
-    assert payload["shadow_only"] is True
-    assert payload["forward_lock_count"] == 0
-    assert payload["allowed_shadow_actions"] == ["SHADOW_WATCH", "SHADOW_SKIP"]
 
 
 def test_gate5_cli_cannot_close(tmp_path: Path) -> None:

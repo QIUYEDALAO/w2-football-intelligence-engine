@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from w2.strategy.shadow import write_json
+from w2.strategy.operations import write_json
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORTS = ROOT / "reports"

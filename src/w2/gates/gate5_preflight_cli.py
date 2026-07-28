@@ -5,8 +5,7 @@ import json
 from collections.abc import Sequence
 from pathlib import Path
 
-from w2.strategy.operations import gate5_preflight
-from w2.strategy.shadow import write_json
+from w2.strategy.operations import gate5_preflight, write_json
 
 
 def build_parser() -> argparse.ArgumentParser:

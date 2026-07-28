@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from w2.strategy.shadow import write_json
+from w2.strategy.operations import write_json
 
 
 def _sha256(path: Path) -> str:

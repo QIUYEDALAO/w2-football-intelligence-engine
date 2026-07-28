@@ -67,11 +67,6 @@ from w2.infrastructure.persistence.models import (
 from w2.infrastructure.persistence.recommendation_lock_models import (
     Gate5RecommendationLockEventModel,
 )
-from w2.infrastructure.persistence.shadow_strategy_models import (
-    ShadowStrategyEvaluationModel,
-    ShadowStrategyLockModel,
-    ShadowStrategyRunModel,
-)
 from w2.infrastructure.persistence.stage7i_lifecycle_models import (
     Stage7ILifecycleEventModel,
     Stage7ILifecycleHeartbeatModel,
@@ -120,9 +115,6 @@ __all__ = [
     "ResultModel",
     "SeasonModel",
     "SettlementModel",
-    "ShadowStrategyEvaluationModel",
-    "ShadowStrategyLockModel",
-    "ShadowStrategyRunModel",
     "Stage7ILifecycleEventModel",
     "Stage7ILifecycleHeartbeatModel",
     "Stage7ILifecycleRunModel",

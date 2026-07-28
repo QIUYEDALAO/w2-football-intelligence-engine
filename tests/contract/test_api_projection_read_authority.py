@@ -22,6 +22,7 @@ FORBIDDEN_API_PACKAGES = {
     "w2.pricing",
     "w2.strategy",
     "w2.simulation",
+    "w2.prematch.analysis_calculator",
 }
 FORBIDDEN_PRODUCTION_FALLBACKS = {
     "prediction_locks.json",
@@ -65,6 +66,24 @@ def _imports(path: Path) -> set[str]:
     return imports
 
 
+def _module_name(path: Path) -> str:
+    relative = path.with_suffix("")
+    if relative.parts[0] == "src":
+        relative = Path(*relative.parts[1:])
+    parts = list(relative.parts)
+    if parts[-1] == "__init__":
+        parts.pop()
+    return ".".join(parts)
+
+
+def _production_module_paths() -> dict[str, Path]:
+    return {
+        _module_name(path): path
+        for root in (Path("src"), Path("apps"))
+        for path in root.rglob("*.py")
+    }
+
+
 def test_api_imports_no_read_time_computation_packages() -> None:
     violations = sorted(
         f"{path}:{name}"
@@ -77,6 +96,34 @@ def test_api_imports_no_read_time_computation_packages() -> None:
         )
     )
     assert violations == []
+
+
+def test_api_transitive_import_graph_has_no_read_time_computation_packages() -> None:
+    module_paths = _production_module_paths()
+    pending = [
+        _module_name(path)
+        for root in API_ROOTS
+        for path in root.rglob("*.py")
+    ]
+    visited: set[str] = set()
+    violations: list[str] = []
+    while pending:
+        module = pending.pop()
+        if module in visited:
+            continue
+        visited.add(module)
+        path = module_paths.get(module)
+        if path is None:
+            continue
+        for imported in _imports(path):
+            if any(
+                imported == package or imported.startswith(f"{package}.")
+                for package in FORBIDDEN_API_PACKAGES
+            ):
+                violations.append(f"{module}->{imported}")
+            if imported in module_paths and imported not in visited:
+                pending.append(imported)
+    assert sorted(violations) == []
 
 
 def test_dashboard_uses_existing_shadow_projection_namespace() -> None:

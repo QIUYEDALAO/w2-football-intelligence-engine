@@ -250,7 +250,9 @@ def test_staging_state_stage9a_head_upgrades_to_future_refresh_head(tmp_path: Pa
     )
     assert second.returncode == 0, second.stderr
     tables = set(inspect(create_engine(env["W2_DATABASE_URL"])).get_table_names())
-    assert "shadow_strategy_run" in tables
+    assert "shadow_strategy_run" not in tables
+    assert "shadow_strategy_lock" not in tables
+    assert "shadow_strategy_evaluation" not in tables
     assert "future_market_observation" not in tables
 
 
@@ -289,9 +291,71 @@ def test_postgres_staging_state_stage9a_head_upgrades_to_future_refresh_head() -
         )
         assert result.returncode == 0, result.stderr
     tables = set(inspect(create_engine(database_url)).get_table_names())
-    assert "shadow_strategy_run" in tables
+    assert "shadow_strategy_run" not in tables
+    assert "shadow_strategy_lock" not in tables
+    assert "shadow_strategy_evaluation" not in tables
     assert "future_market_observation" not in tables
     assert "matchday_market_observations" in tables
+
+
+def test_arch_p1_08_drops_and_restores_empty_shadow_strategy_tables(
+    tmp_path: Path,
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'arch-p1-08-shadow.db'}"
+    env = {
+        **os.environ,
+        "PYTHONPATH": f"{root / 'src'}:{root}",
+        "W2_DATABASE_URL": database_url,
+        "W2_ENVIRONMENT": "test",
+    }
+    shadow_tables = {
+        "shadow_strategy_run",
+        "shadow_strategy_lock",
+        "shadow_strategy_evaluation",
+    }
+
+    assert _alembic(
+        root, env, "upgrade", "0043_drop_legacy_identity_crosswalks"
+    ).returncode == 0
+    engine = create_engine(database_url)
+    assert shadow_tables.issubset(inspect(engine).get_table_names())
+
+    assert _alembic(root, env, "upgrade", "head").returncode == 0
+    assert shadow_tables.isdisjoint(inspect(engine).get_table_names())
+
+    assert _alembic(
+        root, env, "downgrade", "0043_drop_legacy_identity_crosswalks"
+    ).returncode == 0
+    assert shadow_tables.issubset(inspect(engine).get_table_names())
+
+
+def test_arch_p1_08_refuses_nonempty_shadow_strategy_tables(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'arch-p1-08-shadow-nonempty.db'}"
+    env = {
+        **os.environ,
+        "PYTHONPATH": f"{root / 'src'}:{root}",
+        "W2_DATABASE_URL": database_url,
+        "W2_ENVIRONMENT": "test",
+    }
+    assert _alembic(
+        root, env, "upgrade", "0043_drop_legacy_identity_crosswalks"
+    ).returncode == 0
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "insert into shadow_strategy_run "
+                "(id, run_id, strategy_version, started_at, status, manifest_sha256, payload) "
+                "values ('id', 'run', 'v1', '2026-07-28 00:00:00', 'DONE', :hash, '{}')"
+            ),
+            {"hash": "a" * 64},
+        )
+
+    result = _alembic(root, env, "upgrade", "head")
+    assert result.returncode != 0
+    assert "SHADOW_STRATEGY_DROP_NONEMPTY" in result.stderr
 
 
 def _arch_p1_02_env(root: Path, database_url: str) -> dict[str, str]:

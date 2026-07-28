@@ -3,8 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from w2.strategy.operations import gate5_preflight
-from w2.strategy.shadow import write_json
+from w2.strategy.operations import gate5_preflight, write_json
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORTS = ROOT / "reports"
