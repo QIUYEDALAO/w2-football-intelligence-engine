@@ -509,14 +509,18 @@ Status: NOT_STARTED
 #### B6. OPS-01：联赛扩容 Runbook（A3 后随时可执行，与 B 序列并行）
 
 ```text
-Status: NOT_STARTED
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Branch: codex/ops-01-league-expansion-runbook
+Owner: Codex
 ```
 
-- [ ] 固定流程 runbook 存 `docs/runbooks/`：seed 导入 profile/season → crosswalk 身份
+- [x] 固定流程 runbook 存 `docs/runbooks/`：seed 导入 profile/season → crosswalk 身份
       建立与 review → `league_readiness_audit` 核验 → `--set-enabled true` →
       观察 7 天数据完整性 → 归入 ADVISORY 或 STRICT 分层。
-- [ ] 配额约束：启用前用 `quota_usage` 现值测算新增请求量，超预算联赛排队。
-- [ ] 每联赛执行记录追加到本文件。
+- [x] 配额约束：启用前用 `quota_usage` 现值测算新增请求量，超预算联赛排队。
+- [x] 每联赛执行记录追加到本文件。
+
+**OPS-01 执行记录**：本 PR 只建立标准流程，未实际启用联赛；暂无执行记录。
 
 ---
 
