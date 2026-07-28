@@ -204,7 +204,7 @@ Merge SHA: 5fb6ea5172f92633c609dd9c5cc1287b9a231e70
 
 ```text
 Status: IN_PROGRESS
-Current PR: pending
+Current PR: #422
 ```
 
 - [ ] `src/w2/competitions/league_whitelist_scope.py` 模块级常量（`TOP_FIVE_COMPETITIONS` 等）
