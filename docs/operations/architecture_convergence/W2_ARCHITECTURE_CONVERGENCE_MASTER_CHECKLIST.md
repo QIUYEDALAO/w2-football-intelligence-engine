@@ -189,6 +189,7 @@ Merge SHA: ba8f10e1809c491a112c13eec28303ceb67d7f74
 
 ```text
 Status: IN_PROGRESS
+Current PR: #421
 ```
 
 - [ ] api/worker/scheduler 重复环境变量提取为 `x-common-env` anchor；服务级差异保留。

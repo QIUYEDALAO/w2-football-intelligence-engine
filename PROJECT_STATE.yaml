@@ -3,7 +3,7 @@ project: w2-football-intelligence-engine
 updated_at: "2026-07-28"
 current_task: ARCH-P1-06
 current_status: IN_PROGRESS
-current_pr: null
+current_pr: 421
 next_task: ARCH-P1-07
 task_queue:
   - ARCH-GOVERNANCE-01
