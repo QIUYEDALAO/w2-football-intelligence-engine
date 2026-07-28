@@ -203,21 +203,23 @@ Merge SHA: 5fb6ea5172f92633c609dd9c5cc1287b9a231e70
 #### A6. ARCH-P1-07：竞赛域读路径修正
 
 ```text
-Status: IN_PROGRESS
-Current PR: #422
+Status: DONE
+PR: #422
+Merge SHA: e2f0d5ca895f08e1d4e9ef20ccc8db89a8045e64
 ```
 
-- [ ] `src/w2/competitions/league_whitelist_scope.py` 模块级常量（`TOP_FIVE_COMPETITIONS` 等）
+- [x] `src/w2/competitions/league_whitelist_scope.py` 模块级常量（`TOP_FIVE_COMPETITIONS` 等）
       改为函数调用，消除 import 时查库与热切换失效。
-- [ ] 核查 audit/backtest 导入链上的其他 import-time 副作用。
-- [ ] PR 合并。
+- [x] 核查 audit/backtest 导入链上的其他 import-time 副作用。
+- [x] PR 合并。
 
 ---
 
 #### A7. ARCH-P1-08：P1 总验收 + 终态重复盘点
 
 ```text
-Status: NOT_STARTED
+Status: IN_PROGRESS
+Current PR: #423
 ```
 
 - [ ] 一套赔率历史 + 一套当前盘口投影 + 一套 canonical identity + Dashboard 单一 read model。
@@ -229,6 +231,106 @@ Status: NOT_STARTED
 - [ ] **`shadow_strategy_*` 裁决**：零读零写零任务则按证据法独立 PR drop；
       EVAL-01A 要复用则明确登记。
 - [ ] P1 完整 CI 与 staging 验收；人工验收；PR 合并。
+
+##### A7 Database authority matrix
+
+2026-07-28 在 staging 对 `public` schema 全量读取：62 tables、1 view、0 materialized
+views。以下矩阵覆盖全部 63 个观测资产；`0044` 删除 3 个零行 shadow 表后终态为
+59 tables、1 view。行数是 migration 前只读实测；ORM/migration 与 reader/writer
+均按 exact-head 生产 import graph 和 SQL 引用全量核对。所有外键均已纳入
+`information_schema` 入站/出站对账，shadow 三表入站/出站均为 0。
+
+| asset | asset_type | fact_class | row_or_file_count | producer | consumer | scheduled_task | canonical_authority | duplicate_or_fallback | decision | evidence |
+|---|---|---|---:|---|---|---|---|---|---|---|
+| `alembic_version` | table | migration metadata | 1 | Alembic | Alembic | migration job | yes | no | retain | PostgreSQL catalog + `migrations/` |
+| `canonical_teams`; `provider_team_identity_crosswalks`; `player_identity_mappings`; `transfermarkt_player_references`; `player_club_membership_observations` | 5 tables | identity | 16; 32; 110; 50149; 0 | identity materializers/import | lineup, valuation, projection | worker/manual import | first four are scoped canonical/provenance authorities; observations are source facts | no legacy crosswalk fallback | retain | persistence models; migrations `0001`, `0032`, `0042`; A3 guards |
+| `competitions`; `seasons`; `league_profile`; `league_season`; `league_readiness_audit`; `teams`; `canonical_team_match_history`; `venues`; `referees` | 9 tables | competition/team history | 0; 0; 14; 14; 20; 0; 102; 0; 0 | registry/audit/history materializers | runtime scope, model inputs | worker/manual audit | DB competition registry + canonical history | JSON competition files are bootstrap metadata, not runtime scope authority | retain | ORM/migrations + A6 single-query guards |
+| `fixtures`; `raw_payload`; `provider_request_logs`; `ingestion_runs`; `stages`; `quota_usage` | 6 tables | ingestion/provenance | 0; 370; 312; 0; 0; 13 | ingestion | workers/audit | worker (scheduler disabled) | raw capture/request provenance | no runtime provider fallback | retain | persistence models; provider delta guard |
+| `matchday_market_observations`; `current_market_projection`; `historical_market_source_snapshots`; `forward_market_snapshot`; `canonical_historical_ah_facts` | 4 tables + 1 view | odds/history/projection | 44644; 10648; 0; 0; 0 | matchday intake; deterministic SQL view | projection/worker | worker | history=`matchday_market_observations`; current=`current_market_projection` | other three are empty scoped source/model artifacts, not competing writers | retain | `market_projection_view.py`; migration `0041`; no API provider access |
+| `matchday_checkpoint_plans`; `matchday_endpoint_capture_plans`; `matchday_endpoint_captures`; `matchday_evidence_manifests`; `matchday_fixture_identities` | 5 tables | matchday capture | 608; 0; 231; 2; 38 | matchday intake | materializers/audit | worker | DB capture chain | no runtime card fallback | retain | matchday persistence models/migrations |
+| `future_refresh_checkpoint_audit`; `future_refresh_checkpoint_plan`; `future_refresh_run_audit`; `future_refresh_task_audit` | 4 tables | refresh audit | 1; 0; 60; 55 | future refresh | ops/audit | worker (scheduler disabled) | DB audit trail | no duplicate writable store | retain | future-refresh repository/migrations |
+| `lineup_confirmed_events`; `lineup_source_snapshots`; `registered_roster_snapshots`; `structured_lineup_players`; `structured_lineup_snapshots`; `team_lineup_baselines` | 6 tables | lineup/roster | 0; 1; 0; 200; 10; 0 | lineup materialization | projection/model | worker | structured DB lineup + canonical identity | no name/fuzzy/file fallback | retain | lineup models; A3 fail-closed contracts |
+| `model_runs`; `predictions`; `team_rating_snapshots`; `team_xg_match`; `team_xg_rolling_snapshot`; `t30_validation_snapshots` | 6 tables | model facts | 0; 0; 16; 104; 28; 0 | offline/model materializers | write-side projection only | manual/worker | DB model inputs/results | API import graph cannot reach calculators | retain | model persistence + API transitive guard |
+| `player_valuation_observations`; `team_value_asof_artifacts` | 2 tables | valuation | 31507; 0 | valuation materializer | team-value projection | manual/worker | DB valuation history | no crosswalk/file fallback | retain | valuation models; A3 contracts |
+| `read_model_checkpoint` | table | public read model | 8 | write-side projection | API/Dashboard/operations | worker | **sole public read authority** | runtime/provider/recompute fallback count 0 | retain | `api/repository.py`; 20-round read guard |
+| `dynamic_prematch_evaluations`; `dynamic_prematch_supersessions`; `gate5_recommendation_lock_event`; `recommendation_locks`; `recommendations` | 5 tables | decision/lock | 0; 0; 0; 0; 0 | write-side decision pipeline | write-side/audit | disabled | canonical v3 contract when populated | no legacy endpoint/schema/bypass | retain empty schema for defined current capabilities | decision-contract static guards |
+| `results`; `settlements` | 2 tables | result/settlement | 0; 0 | EVAL-01A not started | none in current production read authority | none | not active yet; runtime forward ledger remains current historical authority | no dual writer | retain for B1 activation only | catalog + runtime writer scan |
+| `stage7i_lifecycle_event`; `stage7i_lifecycle_heartbeat`; `stage7i_lifecycle_run` | 3 tables | lifecycle audit | 0; 0; 0 | observer tooling | ops tooling | none | scoped DB lifecycle audit | no public read fallback | retain | stage7i persistence/migrations |
+| `shadow_strategy_run`; `shadow_strategy_lock`; `shadow_strategy_evaluation` | 3 tables | retired shadow strategy | 0; 0; 0 | none | none after #423 | none | no | no historical rows; EVAL-01A schema is lossy | **DROP in `0044`** | staging count/FK=0; production read/write/task/API scan=0 |
+
+##### A7 Runtime authority matrix
+
+有效 staging 根 `/opt/w2/shared/runtime` 全量为 132 files / 271748876 bytes。
+Compose 仅挂载该根（API/worker）和 `reports/public`（Web）；历史业务数据不删除。
+
+| asset | asset_type | fact_class | row_or_file_count | producer | consumer | scheduled_task | canonical_authority | duplicate_or_fallback | decision | evidence |
+|---|---|---|---:|---|---|---|---|---|---|---|
+| `backups/` | runtime dir | recovery | 1 / 27782 B | recovery tooling | operator | none | no | not live authority | retain historical recovery | full `find`/size inventory |
+| `forward_outcome_ledger/` | runtime dir | forward result/settlement | 25 / 148670580 B | forward outcome ledger | performance/formal tracking | manual/worker | **yes until EVAL-01A** | DB `results`/`settlements` have zero writers/rows | retain; B1 migration input | Compose mount + writer/reader scan |
+| `imports/` | runtime dir | historical/raw cache | 43 / 108226927 B | historical imports | offline/recovery | none | source provenance only | not public fallback | retain historical business data | full file inventory (jsonl/ledger/lock) |
+| `independent_signal_backfill/` | runtime dir | offline cache | 0 / 0 B | offline tool | offline tool | none | no | no production reader | retain empty mount-compatible root | full file inventory |
+| `market_timeline_snapshots/` | runtime dir | market cache | 0 / 0 B | write-side tool | offline/tooling | none | no; DB odds history is authority | production fallback count 0 | retain expected writer root | Compose/path scan |
+| `reports/` (including `reports/public`) | runtime dir | public materialized reports | 62 / 14823585 B | report projector | Web/static ops | worker/manual | display artifacts only; DB read model is authority | API does not read files | retain | Web Compose mount + full file inventory |
+| `watchdog/` | runtime dir | liveness | 1 / 2 B | watchdog | health tooling | watchdog | no | no business fact | retain | full file inventory |
+
+##### A7 Configuration authority matrix
+
+Tracked structured config contains 43 files after deleting the one unused shadow policy. Entries
+with identical readers and authority semantics are grouped, but every file is covered by its exact
+directory glob. Deployment authority adds 7 explicitly named surfaces, for 50 inventoried assets.
+
+| asset | asset_type | fact_class | row_or_file_count | producer | consumer | scheduled_task | canonical_authority | duplicate_or_fallback | decision | evidence |
+|---|---|---|---:|---|---|---|---|---|---|---|
+| `config/approvals/*.json`; `config/capabilities/*.json`; `config/factors/*.json` | config | current decision capability | 1 + 1 + 1 | reviewed source | domain adapter/write side | none | yes for scoped policy | DB stores projected outcome, not duplicate config | retain | exact file list + reader import scan |
+| `config/competitions/**/*.json` | config | competition bootstrap/profile | 14 | reviewed source | loaders/offline/predeploy | none | bootstrap metadata only; runtime enabled scope is DB | no runtime hard-coded fallback | retain | all 14 files enumerated by `find`; A6 guards |
+| `config/environments/*` | config | environment defaults | 4 | operator | settings | service startup | yes per environment | Compose explicit overrides are deployment inputs | retain | local/production/staging/test YAML |
+| `config/evaluations/*`; `config/readiness/*`; `config/team_ratings/*`; `config/team_values/*` | config | offline evaluation/readiness/bootstrap | 2 + 1 + 1 + 1 | reviewed/offline | offline/predeploy | none | scoped offline/bootstrap only | not API authority | retain | exact five-file inventory + readers |
+| `config/policies/*` excluding deleted `shadow_strategy.v1.json` | config | operational/model policy | 17 | reviewed source | named loaders/tools | worker/manual | yes per scoped policy; DB facts remain separate | no duplicate dynamic authority | retain | exact 17-file inventory + path/reference scan |
+| `.github/workflows/ci.yml`; `Dockerfile.python`; `Dockerfile.web`; `infra/compose/compose.staging.yml`; `scripts/deploy_stage7h_staging.sh`; `scripts/recover_staging_runtime.sh`; `scripts/watch_staging_runtime.sh` | workflow/deploy config | immutable deployment | 7 | repository/CI | GHCR/staging | CI/operator/watchdog | **sole deployment authority chain** | server build/source install/mutable image count 0 | retain | workflow, Compose and shell static contracts |
+
+##### A7 Ledger/contract authority matrix
+
+| asset | asset_type | fact_class | row_or_file_count | producer | consumer | scheduled_task | canonical_authority | duplicate_or_fallback | decision | evidence |
+|---|---|---|---:|---|---|---|---|---|---|---|
+| `matchday_market_observations` | table | odds history | 44644 | matchday intake | current view/projector | worker | yes (count 1) | no JSON odds fallback | retain | migration `0041` + import graph |
+| `current_market_projection` | view | current odds | 10648 | deterministic SQL view | write-side projection | query-time SQL | yes (count 1) | no provider/runtime fallback | retain | view definition |
+| canonical identity tables (player/team rows above) | tables | player/team identity | 110 / 16+32 | reviewed identity materializers | lineup/valuation/projection | none/worker | player=1; team=1 | legacy crosswalk/name/fuzzy bypass 0 | retain | A3 guards + production scan |
+| `read_model_checkpoint` | table | Dashboard/API projection | 8 | projector | all public reads | worker | yes (count 1) | API compute/runtime fallback 0 | retain | direct/transitive import graph |
+| `forward_outcome_ledger/` | runtime ledger | forward result/settlement history | 25 files | forward tracking | performance/formal tracking | manual/worker | yes until B1 | `results`/`settlements` dormant, not writable competitors | retain until EVAL-01A | runtime writer/reader scan |
+| `recommendation_locks`; `gate5_recommendation_lock_event` | tables | current decision lock | 0 / 0 | current v3 pipeline when enabled | audit | disabled | current schema | production switches remain disabled | retain | schema/router scan |
+| `*_snapshots`, `*_history`, `*_evaluation` DB assets listed in Database matrix | tables | scoped source/model/audit facts | counts above | scoped materializers | write-side/offline | worker/manual | each scoped by fact class | not public/ledger fallback | retain | zero omitted DB assets |
+| historical `imports/` ledgers/locks and `backups/` | runtime files | recovery/provenance | 44 files | historical tooling | offline recovery | none | no | production readers 0 | retain, never promote to live authority | runtime full inventory |
+
+```text
+DATABASE_ASSET_COUNT = 60
+RUNTIME_ASSET_COUNT = 7
+CONFIG_ASSET_COUNT = 50
+LEDGER_ASSET_COUNT = 8
+
+UNMAPPED_ASSET_COUNT = 0
+DUAL_WRITABLE_AUTHORITY_COUNT = 0
+PRODUCTION_FALLBACK_COUNT = 0
+
+ODDS_HISTORY_AUTHORITY_COUNT = 1
+CURRENT_ODDS_PROJECTION_AUTHORITY_COUNT = 1
+CANONICAL_PLAYER_IDENTITY_AUTHORITY_COUNT = 1
+CANONICAL_TEAM_IDENTITY_AUTHORITY_COUNT = 1
+DASHBOARD_READ_AUTHORITY_COUNT = 1
+API_COMPUTE_IMPORT_COUNT = 0
+IMPLICIT_EMPTY_DATA_FALLBACK_COUNT = 0
+LEGACY_DECISION_RUNTIME_REFERENCE_COUNT = 0
+LEGACY_DECISION_SCHEMA_COUNT = 0
+LEGACY_DECISION_ENDPOINT_COUNT = 0
+DECISION_CONTRACT_BYPASS_COUNT = 0
+READ_PATH_FAIL_CLOSED = PASS
+CI_IMAGE_BUILD_AUTHORITY = PASS
+SERVER_BUILD_COUNT = 0
+COMPOSE_BUILD_COUNT = 0
+MUTABLE_IMAGE_REFERENCE_COUNT = 0
+SERVER_SOURCE_INSTALL_COUNT = 0
+SHADOW_STRATEGY_DECISION = DROP
+P1_ARCHITECTURE_CONVERGENCE_PASS = pending exact-head staging and secondary acceptance
+```
 
 **完成标准**：`P1_ARCHITECTURE_CONVERGENCE_PASS`
 

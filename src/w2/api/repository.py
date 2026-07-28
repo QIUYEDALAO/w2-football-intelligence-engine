@@ -928,29 +928,6 @@ class ReadModelService:
     def retention_status(self) -> dict[str, Any]:
         return {"status": "DRY_RUN_ONLY", "policy": {}}
 
-    def shadow_strategy_status(self) -> dict[str, Any]:
-        return {
-            "status": "NOT_READY",
-            "strategy_version": "W2_SHADOW_STRATEGY_V1",
-            "gate4_status": "PROVISIONAL_FORWARD_HOLDOUT_PENDING",
-            "gate5_status": "NOT_READY",
-            "formal_recommendation": False,
-            "candidate": False,
-            "decisions": 0,
-            "locks": 0,
-            "latest_run_id": None,
-        }
-
-    def shadow_strategy_locks(self) -> list[dict[str, Any]]:
-        return [item["payload"] for item in self.operations_items("shadow-strategy-locks")]
-
-    def shadow_strategy_evaluations(self) -> list[dict[str, Any]]:
-        return [item["payload"] for item in self.operations_items("shadow-strategy-evaluations")]
-
-    def shadow_strategy_replay(self) -> dict[str, Any]:
-        rows = self.operations_items("shadow-strategy-replay")
-        return rows[-1]["payload"] if rows else {"status": "NOT_READY"}
-
     def gate5_preflight(self) -> dict[str, Any]:
         return {"gate5_result": "NO_RUN", "production_release": "DISABLED"}
 

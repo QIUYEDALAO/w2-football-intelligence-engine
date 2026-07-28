@@ -32,7 +32,6 @@ RUN uv sync --no-dev --frozen --no-editable \
  && test -x /app/.venv/bin/alembic \
  && test -x /app/.venv/bin/w2-gate5-preflight \
  && test -x /app/.venv/bin/w2-shadow-comparison-import \
- && test -x /app/.venv/bin/w2-shadow-cycle \
  && test -x /app/.venv/bin/w2-stage7i-observer \
  && chown -R w2:w2 /app/.venv
 LABEL org.opencontainers.image.source="w2-football-intelligence-engine" \

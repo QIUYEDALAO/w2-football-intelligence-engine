@@ -25,7 +25,6 @@ AUDIT_TABLES = (
     "recommendations",
     "recommendation_locks",
     "gate5_recommendation_lock_event",
-    "shadow_strategy_lock",
     "settlements",
     "matchday_evidence_manifests",
 )
@@ -33,7 +32,6 @@ COHORT_TABLES = (
     "recommendations",
     "recommendation_locks",
     "settlements",
-    "shadow_strategy_lock",
 )
 OFFICIAL_TABLES = (
     "recommendations",

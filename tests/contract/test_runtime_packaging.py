@@ -37,7 +37,6 @@ def test_unified_python_image_packages_every_runtime_role() -> None:
         "alembic",
         "w2-gate5-preflight",
         "w2-shadow-comparison-import",
-        "w2-shadow-cycle",
         "w2-stage7i-observer",
     ):
         assert f"test -x /app/.venv/bin/{binary}" in text
@@ -103,7 +102,6 @@ def test_wheel_install_exposes_entrypoints(tmp_path: Path) -> None:
         timeout=120,
     )
     for module in (
-        "w2.strategy.shadow_cycle_cli",
         "w2.gates.gate5_preflight_cli",
         "w2.shadow.comparison_import_cli",
         "w2.observability.stage7i_observer_cli",
@@ -118,7 +116,6 @@ def test_wheel_install_exposes_entrypoints(tmp_path: Path) -> None:
         )
         assert result.returncode == 0, result.stdout + result.stderr
     scripts = (
-        "w2-shadow-cycle",
         "w2-gate5-preflight",
         "w2-shadow-comparison-import",
         "w2-stage7i-observer",
