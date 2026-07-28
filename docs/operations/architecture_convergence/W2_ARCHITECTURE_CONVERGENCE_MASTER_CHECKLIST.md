@@ -168,17 +168,18 @@ ARCH-P1-03C、ARCH-P1-03B-R1。
 #### A4. ARCH-P1-05：部署改为 CI 构建镜像、服务器 pull-only
 
 ```text
-Status: IN_PROGRESS
-Current PR: #420
+Status: DONE
+PR: #420
+Merge SHA: ba8f10e1809c491a112c13eec28303ceb67d7f74
 ```
 
-- [ ] 4 个 Python Dockerfile 合并为 1 个多 target/多 command；Web 独立镜像保留。
-- [ ] CI：测试 → BuildKit cache 构建 → 推 GHCR → 记录 SHA tag 与 digest → 镜像 smoke test。
-- [ ] staging Compose 从 `build:` 改为不可变 digest `image:`。
-- [ ] 服务器部署只执行 pull → migration job → restart → health → release record。
-- [ ] 删除服务器上传源码、安装依赖、构建镜像的正式流程；回滚用上一 digest。
-- [ ] 部署时间验证：Web-only ≤3 分钟；Python ≤5 分钟；rollback ≤2 分钟。
-- [ ] PR 合并。
+- [x] 4 个 Python Dockerfile 合并为 1 个多 target/多 command；Web 独立镜像保留。
+- [x] CI：测试 → BuildKit cache 构建 → 推 GHCR → 记录 SHA tag 与 digest → 镜像 smoke test。
+- [x] staging Compose 从 `build:` 改为不可变 digest `image:`。
+- [x] 服务器部署只执行 pull → migration job → restart → health → release record。
+- [x] 删除服务器上传源码、安装依赖、构建镜像的正式流程；回滚用上一 digest。
+- [x] 部署时间验证：Web-only ≤3 分钟；Python ≤5 分钟；rollback ≤2 分钟。
+- [x] PR 合并。
 
 **验收**：`CI_IMAGE_BUILD_AUTHORITY = PASS`；`SERVER_BUILD_COUNT = 0`。
 
@@ -187,7 +188,7 @@ Current PR: #420
 #### A5. ARCH-P1-06：Compose 环境变量去重
 
 ```text
-Status: NOT_STARTED
+Status: IN_PROGRESS
 ```
 
 - [ ] api/worker/scheduler 重复环境变量提取为 `x-common-env` anchor；服务级差异保留。
