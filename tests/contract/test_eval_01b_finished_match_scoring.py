@@ -62,26 +62,19 @@ def test_eval_01b_authority_status_and_safety_contract() -> None:
     assert "B2_SCORING_TABLE_COUNT = 0" in section
     assert "- [ ] PR 合并。" in section
     assert state["current_task"] == "EVAL-01B"
-    assert (
-        state["current_status"]
-        == "IMPLEMENTED_PENDING_SECONDARY_REVIEW_AND_STAGING"
-    )
+    assert state["current_status"] == "DONE"
     assert state["current_pr"] == 430
     assert state["next_task"] == "EVAL-01C"
-    assert (
-        state["tasks"]["EVAL-01B"]["status"]
-        == "IMPLEMENTED_PENDING_SECONDARY_REVIEW_AND_STAGING"
-    )
-    assert state["tasks"]["EVAL-01B"]["blockers"] == [
-        "BATCH_ENVELOPE_CONFLICT_DOES_NOT_GATE_PERSISTENCE",
-        "STAGING_BATCH_PERSISTENCE_REMEDIATION_REQUIRED",
-    ]
-    assert (
-        state["staging"]["eval_01b_exact_head_acceptance"]
-        == "STAGING_BATCH_PERSISTENCE_REMEDIATION_REQUIRED"
-    )
+    assert state["tasks"]["EVAL-01B"] == {
+        "status": "DONE",
+        "pr": 430,
+        "merge_sha": "5c2bd6f2e5c23196a25495335da72599e076c8ae",
+        "main_ci": 30477611652,
+    }
+    assert state["staging"]["eval_01b_exact_head_acceptance"] == "PASS"
     assert state["tasks"]["EVAL-01C"]["status"] == "NOT_STARTED"
     assert state["safety"]["provider_calls"] == 0
+    assert state["safety"]["business_db_writes"] == 0
     assert state["safety"]["scheduler_started"] is False
     assert state["safety"]["production_started"] is False
 
