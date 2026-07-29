@@ -522,6 +522,15 @@ Owner: Codex
 
 **OPS-01 执行记录**：本 PR 只建立标准流程，未实际启用联赛；暂无执行记录。
 
+```text
+GENERIC_LEAGUE_READINESS_PRODUCER = MISSING
+REAL_LEAGUE_ENABLEMENT_READY = false
+```
+
+当前没有可生成完整 reviewed DB readiness audit 的通用 producer，任何真实新联赛在
+Phase 4 都必须 fail-closed。补齐该能力需要后续单独授权；operator 不得用 direct SQL
+伪造 audit。
+
 ---
 
 #### B7. EVAL-03：OU 正式链路泛化（Market Candidate Contract）

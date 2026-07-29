@@ -2,9 +2,15 @@
 
 ## 1. 目的、范围与权威
 
-本流程用于把一个新联赛或新赛季加入 W2 数据采集范围。完成本流程不等于开放
+本流程只用于首次注册一个新联赛及其初始 reviewed seed season。完成本流程不等于开放
 Recommendation、Candidate、Formal、Lock 或 Production，也不改变模型数学、EV、CLV、
 阈值或联赛分层规则。任何安全开关均由其既有独立流程控制。
+
+既有 `competition_id` 的新赛季滚动不属于本 Runbook 当前可执行范围。当前 seed 是
+first-registration / insert-only，不更新既有
+`league_profile.payload.current_season`。`docs/leagues/W2_SEASON_ROLLOVER_V1.md`
+仅为设计材料，不提供可执行的 runtime 更新能力；在专门的 season-rollover 实现获批前，
+既有联赛新赛季必须 fail-closed。
 
 运行时权威及用途：
 
@@ -34,9 +40,18 @@ Stage14A 本地 contract fixtures、生成型 reports 和 top-five 专用 audit 
 producer；OPS-01 不新增第二套 producer。没有符合第 7 节字段的现存 DB audit 时，
 `READINESS_GATE_BLOCKED`，不得启用。
 
+```text
+GENERIC_LEAGUE_READINESS_PRODUCER = MISSING
+REAL_LEAGUE_ENABLEMENT_READY = false
+```
+
+OPS-01 只建立标准操作合同。当前任何真实新联赛在 Phase 4 都会 fail-closed；补齐通用
+producer 必须另行授权，不得由 operator direct SQL 写入假 audit。
+
 ## 2. 输入申请模板
 
-复制并完整填写；核心字段缺失、空值、未知或互相冲突时输出
+复制并完整填写；`provider_season`、`season_start`、`season_end` 仅描述首次 seed
+season，不是 season rollover 指令。核心字段缺失、空值、未知或互相冲突时输出
 `BLOCKED_REQUEST_INPUT_INCOMPLETE`，不得自动补值。
 
 ```yaml
@@ -89,6 +104,14 @@ BLOCKED_<REASON>
 
 `MISSING`、`UNKNOWN`、`CONFLICT`、`UNRESOLVED`、DB 读取失败或权威缺失都必须进入
 `BLOCKED_<REASON>`。预检不得自动修复数据。
+
+固定 season 裁决：
+
+```text
+competition_id 已存在
+且申请 provider_season 不等于 league_profile.payload.current_season
+→ BLOCKED_SEASON_ROLLOVER_UNSUPPORTED
+```
 
 建议记录以下只读基线：
 
@@ -193,13 +216,21 @@ DUPLICATE_PROVIDER_MAPPING_COUNT = 0
 DUPLICATE_CANONICAL_MAPPING_COUNT = 0
 ```
 
-任一不为零即 `IDENTITY_GATE_BLOCKED`。新赛季升降级或新增球队必须重新 review，不得沿用
+任一不为零即 `IDENTITY_GATE_BLOCKED`。首次 seed season 的球队必须逐一 review，不得沿用
 名称相似度确认。
 
 ## 6. Phase 3：Provider quota gate
 
 配额事实只来自当前 `quota_usage` 和 `provider_request_logs`；endpoint allowlist 与 tick
 hard cap 只来自当前运行配置。不得自行发明 provider 套餐上限或安全余量。
+
+```text
+API_FOOTBALL_QUOTA_SCOPE = PROVIDER_ACCOUNT_DAILY
+ENDPOINT_LIMIT_SUMMATION = FORBIDDEN
+```
+
+API-Football 的 daily quota 是 provider 账户级事实；各 endpoint 行只是同一账户配额在
+不同请求时间的观测，不得跨 endpoint 做加法聚合。
 
 对目标联赛未来七天的真实 fixture 列表逐日运行 dry-run。命令只允许 dry-run，不得 enqueue：
 
@@ -230,11 +261,20 @@ db_writes=0
 计算方法：
 
 ```text
+ACTIVE_QUOTA_WINDOW
+  = 覆盖当前时间的 provider quota window
+
+QUOTA_LIMIT_VALUES
+  = 同一 provider/current window 所有有效 endpoint 行的 distinct limit
+
+QUOTA_LIMIT
+  = QUOTA_LIMIT_VALUES 中唯一一致的 limit
+
 CURRENT_USAGE
-  = quota_usage 当前有效窗口内、目标 provider/endpoint 的 used 总和
+  = 同一 provider/current window 所有 endpoint 行 used 的最大值
 
 CURRENT_REMAINING_BUDGET
-  = quota_usage 当前有效窗口 limit 总和 - CURRENT_USAGE
+  = QUOTA_LIMIT - CURRENT_USAGE
 
 PROJECTED_CALLS_PER_TICK
   = dry-run projected_calls_by_tick 的逐 tick 值
@@ -243,20 +283,29 @@ PROJECTED_DAILY_CALLS
   = 同一自然日所有非 blocked tick 的 projected calls 总和
 
 PROJECTED_7_DAY_CALLS
-  = 七个实际自然日 dry-run 结果之和；不得用虚构平均值外推
+  = 七个实际自然日的所有计划调用各累计一次；不得重复计算或用虚构平均值外推
 
-SAFETY_HEADROOM
+AUTHORIZED_SAFETY_HEADROOM
   = 当前 quota/config authority 已明确保留的安全余量
 
 POST_ENABLE_PROJECTED_USAGE
   = CURRENT_USAGE + PROJECTED_7_DAY_CALLS
+
+POST_ENABLE_REMAINING
+  = QUOTA_LIMIT - POST_ENABLE_PROJECTED_USAGE
 ```
 
 固定裁决：
 
-- 预算内且保留既有安全余量：`QUOTA_GATE_PASS`；
+- 没有覆盖当前时间的有效窗口：`QUOTA_GATE_UNKNOWN`，按 BLOCKED 处理；
+- 任一候选行已过期或无法确定是否属于当前窗口：`QUOTA_WINDOW_UNKNOWN`，按 BLOCKED 处理；
+- `QUOTA_LIMIT_VALUES` 的 distinct count 不等于 1：
+  `QUOTA_LIMIT_CONFLICT`，按 BLOCKED 处理；
+- `AUTHORIZED_SAFETY_HEADROOM` 缺失、未知或无法从当前权威读取：按 BLOCKED 处理；
+- 只有 `POST_ENABLE_REMAINING >= AUTHORIZED_SAFETY_HEADROOM`：
+  `QUOTA_GATE_PASS`；
 - 超出预算：`QUOTA_GATE_BLOCKED`；
-- quota authority、安全余量或窗口无法确定：`QUOTA_GATE_UNKNOWN`，按 BLOCKED 处理。
+- 其他 quota authority 缺失或冲突：`QUOTA_GATE_UNKNOWN`，按 BLOCKED 处理。
 
 超预算联赛进入队列，禁止启用：
 
@@ -296,6 +345,8 @@ producer。本 Runbook 不把这些历史/离线工具升级为权威，也不�
 因此：
 
 ```text
+GENERIC_LEAGUE_READINESS_PRODUCER = MISSING
+REAL_LEAGUE_ENABLEMENT_READY = false
 LATEST_AUDIT_PRESENT = false  → READINESS_GATE_BLOCKED
 AUDIT_HASH_INVALID = true     → READINESS_GATE_BLOCKED
 REQUIRED_FIELD_MISSING = true → READINESS_GATE_BLOCKED
