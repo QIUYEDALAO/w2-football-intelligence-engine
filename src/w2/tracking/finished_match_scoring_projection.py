@@ -109,10 +109,11 @@ def run_finished_match_scoring_projection(
         )
         fixture_payloads: dict[str, dict[str, Any]] = {}
         blockers = []
-        if batch_envelope_conflict or (
+        hard_batch_persistence_block = batch_envelope_conflict or (
             ledger_parity["status"] == "BLOCKED"
             and not envelope_conflicts & finished_fixture_ids
-        ):
+        )
+        if hard_batch_persistence_block:
             blockers.append(
                 "batch:OUTCOME_LEDGER_ENVELOPE_PAYLOAD_CONFLICT"
             )
@@ -140,44 +141,50 @@ def run_finished_match_scoring_projection(
                 )
 
         projected_fixture_payloads = _existing_fixture_payloads(session)
-        writes = 0
+        fixture_writes = 0
+        cohort_writes = 0
         skipped = 0
         write_blockers: list[str] = []
         timestamp = (now or datetime.now(UTC)).astimezone(UTC)
-        for fixture_id, payload in fixture_payloads.items():
-            outcome = _persist_checkpoint(
-                session,
-                checkpoint_key=f"performance:fixture:{fixture_id}",
-                payload=payload,
-                source_hash=_source_hash(payload),
-                created_at=timestamp,
-                write_db=write_db,
-                preserve_trusted_on_blocked=True,
-            )
-            writes += outcome["writes"]
-            skipped += outcome["skipped"]
-            write_blockers.extend(outcome["blockers"])
-            if outcome["accepted"]:
-                projected_fixture_payloads[fixture_id] = payload
-        cohort_payloads = _cohort_projections(projected_fixture_payloads)
-        for key, payload in cohort_payloads.items():
-            outcome = _persist_checkpoint(
-                session,
-                checkpoint_key=key,
-                payload=payload,
-                source_hash=str(payload["business_projection_hash"]),
-                created_at=timestamp,
-                write_db=write_db,
-                preserve_trusted_on_blocked=False,
-            )
-            writes += outcome["writes"]
-            skipped += outcome["skipped"]
-            write_blockers.extend(outcome["blockers"])
-        blockers.extend(write_blockers)
-        if write_db:
-            session.commit()
+        if hard_batch_persistence_block:
+            projected_fixture_payloads.update(fixture_payloads)
         else:
+            for fixture_id, payload in fixture_payloads.items():
+                outcome = _persist_checkpoint(
+                    session,
+                    checkpoint_key=f"performance:fixture:{fixture_id}",
+                    payload=payload,
+                    source_hash=_source_hash(payload),
+                    created_at=timestamp,
+                    write_db=write_db,
+                    preserve_trusted_on_blocked=True,
+                )
+                fixture_writes += outcome["writes"]
+                skipped += outcome["skipped"]
+                write_blockers.extend(outcome["blockers"])
+                if outcome["accepted"]:
+                    projected_fixture_payloads[fixture_id] = payload
+        cohort_payloads = _cohort_projections(projected_fixture_payloads)
+        if not hard_batch_persistence_block:
+            for key, payload in cohort_payloads.items():
+                outcome = _persist_checkpoint(
+                    session,
+                    checkpoint_key=key,
+                    payload=payload,
+                    source_hash=str(payload["business_projection_hash"]),
+                    created_at=timestamp,
+                    write_db=write_db,
+                    preserve_trusted_on_blocked=False,
+                )
+                cohort_writes += outcome["writes"]
+                skipped += outcome["skipped"]
+                write_blockers.extend(outcome["blockers"])
+        writes = fixture_writes + cohort_writes
+        blockers.extend(write_blockers)
+        if hard_batch_persistence_block or not write_db:
             session.rollback()
+        else:
+            session.commit()
         counts = Counter(payload["status"] for payload in fixture_payloads.values())
         status = "BLOCKED" if blockers else "PASS"
         fixture_projection_coverage = len(fixture_payloads) / len(results)
@@ -186,8 +193,22 @@ def run_finished_match_scoring_projection(
             "schema_version": SCHEMA_VERSION,
             "status": status,
             "finished_result_count": len(results),
-            "fixture_checkpoint_count": len(fixture_payloads),
-            "cohort_checkpoint_count": len(cohort_payloads),
+            "fixture_checkpoint_count": (
+                0
+                if hard_batch_persistence_block
+                else len(fixture_payloads)
+            ),
+            "cohort_checkpoint_count": (
+                0 if hard_batch_persistence_block else len(cohort_payloads)
+            ),
+            "projected_fixture_checkpoint_count": len(fixture_payloads),
+            "projected_cohort_checkpoint_count": len(cohort_payloads),
+            "persisted_fixture_checkpoint_count": (
+                fixture_writes if write_db else 0
+            ),
+            "persisted_cohort_checkpoint_count": (
+                cohort_writes if write_db else 0
+            ),
             "scored_count": counts["SCORED"],
             "not_scorable_count": counts["NOT_SCORABLE"],
             "blocked_count": counts["BLOCKED"],
@@ -210,6 +231,12 @@ def run_finished_match_scoring_projection(
             "would_write": writes if not write_db else 0,
             "skipped_existing": skipped,
             "db_writes": writes if write_db else 0,
+            "persistence_gate": (
+                "BLOCKED_BATCH_ENVELOPE_CONFLICT"
+                if hard_batch_persistence_block
+                else "PASS"
+            ),
+            "persistence_suppressed": hard_batch_persistence_block,
             "provider_calls": 0,
             "blockers": sorted(set(blockers)),
             "ledger_parity": ledger_parity,

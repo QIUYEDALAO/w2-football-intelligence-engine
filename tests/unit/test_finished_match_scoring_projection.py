@@ -1079,8 +1079,16 @@ def test_envelope_fixture_conflict_blocks_both_canonical_fixtures(
         ]
 
 
-def test_unresolvable_envelope_conflict_blocks_entire_batch(
+@pytest.mark.parametrize(
+    ("dry_run", "write_db"),
+    [(True, False), (False, True)],
+    ids=["dry-run", "write-mode"],
+)
+def test_unresolvable_envelope_conflict_suppresses_all_persistence(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    dry_run: bool,
+    write_db: bool,
 ) -> None:
     repository = _repository(tmp_path)
     _seed_result(repository, "fixture-result", home=1, away=0)
@@ -1088,7 +1096,7 @@ def test_unresolvable_envelope_conflict_blocks_entire_batch(
     repository.append(
         [
             _capture(
-                "unresolvable-payload",
+                "fixture-result",
                 KICKOFF - timedelta(minutes=5),
                 identity="matching",
                 kickoff=KICKOFF,
@@ -1097,29 +1105,94 @@ def test_unresolvable_envelope_conflict_blocks_entire_batch(
         dry_run=False,
         write_db=True,
     )
-    _mutate_ledger_envelope(
-        repository,
-        fixture_id="unresolvable-envelope",
-    )
-
-    result = run_finished_match_scoring_projection(
+    run_finished_match_scoring_projection(
         engine=repository.engine,
         dry_run=False,
         write_db=True,
     )
+    before = _performance_snapshot(repository)
+    with repository.engine.begin() as connection:
+        stored_payload = connection.execute(
+            select(OutcomeLedgerModel.payload)
+        ).scalar_one()
+        payload = {
+            **stored_payload,
+            "fixture_id": "unresolvable-payload",
+            "fixture_identity": {
+                **stored_payload["fixture_identity"],
+                "fixture_id": "unresolvable-payload",
+            },
+        }
+        connection.execute(
+            update(OutcomeLedgerModel).values(
+                payload=payload,
+                payload_sha256=payload_sha256(payload),
+                fixture_id="unresolvable-envelope",
+            )
+        )
+    monkeypatch.setattr(
+        "w2.tracking.finished_match_scoring_projection._persist_checkpoint",
+        lambda *_args, **_kwargs: pytest.fail(
+            "_persist_checkpoint called behind hard batch gate"
+        ),
+    )
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=dry_run,
+        write_db=write_db,
+    )
 
     assert result["status"] == "BLOCKED"
+    assert result["persistence_gate"] == "BLOCKED_BATCH_ENVELOPE_CONFLICT"
+    assert result["persistence_suppressed"] is True
+    assert result["written"] == 0
+    assert result["would_write"] == 0
+    assert result["db_writes"] == 0
+    assert result["skipped_existing"] == 0
+    assert result["fixture_checkpoint_count"] == 0
+    assert result["cohort_checkpoint_count"] == 0
+    assert result["projected_fixture_checkpoint_count"] == 1
+    assert result["projected_cohort_checkpoint_count"] > 0
+    assert result["persisted_fixture_checkpoint_count"] == 0
+    assert result["persisted_cohort_checkpoint_count"] == 0
     assert result["blockers"] == [
         "batch:OUTCOME_LEDGER_ENVELOPE_PAYLOAD_CONFLICT"
     ]
+    assert _performance_snapshot(repository) == before
 
 
-def test_non_finished_fixture_envelope_conflict_blocks_batch(
+@pytest.mark.parametrize(
+    ("dry_run", "write_db"),
+    [(True, False), (False, True)],
+    ids=["dry-run", "write-mode"],
+)
+def test_non_finished_fixture_envelope_conflict_suppresses_all_persistence(
     tmp_path: Path,
+    dry_run: bool,
+    write_db: bool,
 ) -> None:
     repository = _repository(tmp_path)
     _seed_result(repository, "fixture-result", home=1, away=0)
     _seed_identity(repository, "fixture-result", kickoff=KICKOFF)
+    repository.append(
+        [
+            _capture(
+                "fixture-result",
+                KICKOFF - timedelta(minutes=5),
+                identity="result",
+                kickoff=KICKOFF,
+            )
+        ],
+        dry_run=False,
+        write_db=True,
+    )
+    run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+    before = _performance_snapshot(repository)
     _seed_identity(repository, "fixture-orphan", kickoff=KICKOFF)
     repository.append(
         [
@@ -1133,18 +1206,90 @@ def test_non_finished_fixture_envelope_conflict_blocks_batch(
         dry_run=False,
         write_db=True,
     )
-    _mutate_ledger_envelope(repository, record_type="outcome")
+    with repository.engine.begin() as connection:
+        connection.execute(
+            update(OutcomeLedgerModel)
+            .where(
+                OutcomeLedgerModel.fixture_id == "fixture-orphan"
+            )
+            .values(record_type="outcome")
+        )
 
     result = run_finished_match_scoring_projection(
         engine=repository.engine,
+        dry_run=dry_run,
+        write_db=write_db,
     )
 
     assert result["status"] == "BLOCKED"
+    assert result["persistence_suppressed"] is True
+    assert result["would_write"] == 0
+    assert result["db_writes"] == 0
     assert result["blockers"] == [
         "batch:OUTCOME_LEDGER_ENVELOPE_PAYLOAD_CONFLICT"
     ]
     assert result["ledger_parity"]["affected_fixture_count"] == 1
     assert result["ledger_parity"]["finished_result_affected_count"] == 0
+    assert _performance_snapshot(repository) == before
+
+
+def test_finished_fixture_envelope_conflict_is_isolated(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    for fixture_id in ("fixture-conflict", "fixture-valid"):
+        _seed_result(repository, fixture_id, home=1, away=0)
+        _seed_identity(repository, fixture_id, kickoff=KICKOFF)
+        repository.append(
+            [
+                _capture(
+                    fixture_id,
+                    KICKOFF - timedelta(minutes=5),
+                    identity=fixture_id,
+                    kickoff=KICKOFF,
+                )
+            ],
+            dry_run=False,
+            write_db=True,
+        )
+    run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+    trusted_conflict = _checkpoint(
+        repository,
+        "performance:fixture:fixture-conflict",
+    )
+    with repository.engine.begin() as connection:
+        connection.execute(
+            update(OutcomeLedgerModel)
+            .where(
+                OutcomeLedgerModel.fixture_id == "fixture-conflict"
+            )
+            .values(record_type="outcome")
+        )
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+
+    assert result["status"] == "BLOCKED"
+    assert result["blocked_count"] == 1
+    assert result["scored_count"] == 1
+    assert result["persistence_suppressed"] is False
+    assert result["persistence_gate"] == "PASS"
+    assert not any(blocker.startswith("batch:") for blocker in result["blockers"])
+    assert (
+        _checkpoint(repository, "performance:fixture:fixture-conflict")
+        == trusted_conflict
+    )
+    assert (
+        _checkpoint(repository, "performance:fixture:fixture-valid")["status"]
+        == "SCORED"
+    )
 
 
 def test_ambiguous_exact_fixture_mapping_is_blocked(tmp_path: Path) -> None:
@@ -1797,5 +1942,27 @@ def _performance_hashes(repository: OutcomeLedgerRepository) -> dict[str, str]:
                 select(ReadModelCheckpointModel).where(
                     ReadModelCheckpointModel.checkpoint_key.like("performance:%")
                 )
+            )
+        }
+
+
+def _performance_snapshot(
+    repository: OutcomeLedgerRepository,
+) -> dict[str, tuple[str, datetime, str]]:
+    with Session(repository.engine) as session:
+        return {
+            row.checkpoint_key: (
+                row.source_hash,
+                row.created_at,
+                payload_sha256(row.payload),
+            )
+            for row in session.scalars(
+                select(ReadModelCheckpointModel)
+                .where(
+                    ReadModelCheckpointModel.checkpoint_key.like(
+                        "performance:%"
+                    )
+                )
+                .order_by(ReadModelCheckpointModel.checkpoint_key)
             )
         }

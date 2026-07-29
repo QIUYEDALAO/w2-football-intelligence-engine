@@ -73,12 +73,12 @@ def test_eval_01b_authority_status_and_safety_contract() -> None:
         == "IMPLEMENTED_PENDING_SECONDARY_REVIEW_AND_STAGING"
     )
     assert state["tasks"]["EVAL-01B"]["blockers"] == [
-        "LEGACY_IMPORT_NORMALIZATION_NOT_RECOGNIZED_BY_ENVELOPE_VALIDATOR",
-        "STAGING_ENVELOPE_PARITY_REMEDIATION_REQUIRED",
+        "BATCH_ENVELOPE_CONFLICT_DOES_NOT_GATE_PERSISTENCE",
+        "STAGING_BATCH_PERSISTENCE_REMEDIATION_REQUIRED",
     ]
     assert (
         state["staging"]["eval_01b_exact_head_acceptance"]
-        == "STAGING_ENVELOPE_PARITY_REMEDIATION_REQUIRED"
+        == "STAGING_BATCH_PERSISTENCE_REMEDIATION_REQUIRED"
     )
     assert state["tasks"]["EVAL-01C"]["status"] == "NOT_STARTED"
     assert state["safety"]["provider_calls"] == 0

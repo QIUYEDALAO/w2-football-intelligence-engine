@@ -100,6 +100,64 @@ def test_committed_valid_result_is_scored_when_peer_source_is_missing(
     assert result["scoring_projection_status"] == "PASS"
 
 
+def test_result_materializer_commits_result_but_suppresses_scoring_batch(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    _seed_fixture(repository, provider_id="203", status="FT", fulltime=(2, 0))
+    repository.append(
+        [
+            {
+                "schema_version": "w2.forward_outcome_ledger.v3",
+                "record_type": "capture",
+                "fixture_id": "unresolvable-ledger-fixture",
+                "captured_at": NOW.isoformat(),
+                "capture_identity_hash": "unresolvable-ledger-capture",
+                "card_hash": "unresolvable-ledger-card",
+                "recommendation_scope": "NONE",
+            }
+        ],
+        dry_run=False,
+        write_db=True,
+    )
+    with repository.engine.begin() as connection:
+        connection.execute(
+            OutcomeLedgerModel.__table__.update().values(
+                record_type="outcome"
+            )
+        )
+
+    result = run_outcome_result_refresh(
+        repository=repository,
+        dry_run=False,
+        write_db=True,
+        now=NOW,
+    )
+
+    assert result["status"] == "BLOCKED"
+    assert result["materialized_result_count"] == 1
+    assert result["result_db_writes"] == 1
+    assert result["scoring_projection_status"] == "BLOCKED"
+    assert result["scoring_projection_db_writes"] == 0
+    assert result["scoring_projection"]["persistence_suppressed"] is True
+    assert result["provider_calls"] == 0
+    with Session(repository.engine) as session:
+        assert session.scalar(
+            select(ResultModel).where(
+                ResultModel.fixture_id == "api_football:203"
+            )
+        )
+        assert list(
+            session.scalars(
+                select(ReadModelCheckpointModel).where(
+                    ReadModelCheckpointModel.checkpoint_key.like(
+                        "performance:%"
+                    )
+                )
+            )
+        ) == []
+
+
 def test_result_materializer_is_idempotent_for_same_score(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
     _seed_fixture(repository, provider_id="104", status="FT", fulltime=(1, 0))

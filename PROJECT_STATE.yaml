@@ -45,8 +45,8 @@ tasks:
     pr: 430
     branch: codex/eval-01b-finished-match-scoring-projection
     blockers:
-      - LEGACY_IMPORT_NORMALIZATION_NOT_RECOGNIZED_BY_ENVELOPE_VALIDATOR
-      - STAGING_ENVELOPE_PARITY_REMEDIATION_REQUIRED
+      - BATCH_ENVELOPE_CONFLICT_DOES_NOT_GATE_PERSISTENCE
+      - STAGING_BATCH_PERSISTENCE_REMEDIATION_REQUIRED
   EVAL-01C:
     status: NOT_STARTED
 safety:
@@ -58,7 +58,7 @@ safety:
 staging:
   production_deployed: false
   eval_01a_exact_head_acceptance: PASS
-  eval_01b_exact_head_acceptance: STAGING_ENVELOPE_PARITY_REMEDIATION_REQUIRED
+  eval_01b_exact_head_acceptance: STAGING_BATCH_PERSISTENCE_REMEDIATION_REQUIRED
 architecture_convergence:
   status: PASS
   receipt: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
