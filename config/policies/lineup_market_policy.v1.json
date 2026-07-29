@@ -28,6 +28,6 @@
     "totals_enabled": false,
     "reason": "FROZEN_OFFLINE_EVALUATION_NOT_PASSED"
   },
-  "source_manifest": "docs/operations/W2_LMM0_COVERAGE_AUDIT_20260719.json",
+  "source_manifest": "docs/archive/operations/W2_LMM0_COVERAGE_AUDIT_20260719.json",
   "audit_status": "PARTIAL_HARD_GATE_PENDING_TRANSFERMARKT_DATASET"
 }

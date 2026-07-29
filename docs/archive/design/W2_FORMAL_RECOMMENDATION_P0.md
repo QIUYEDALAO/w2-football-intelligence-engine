@@ -1,5 +1,7 @@
 # W2 Formal Recommendation P0 Design
 
+SUPERSEDED_BY: `docs/consolidation/W2_DECISION_CONTRACT_V2.md`
+
 ## New Definition
 
 Formal recommendation means the strategy produces a self-consistent pre-match output from real data. It does not require proof that W2 beats the market, and historical hit rate is a post-match reporting metric rather than an opening gate.

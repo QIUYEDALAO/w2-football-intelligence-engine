@@ -13,7 +13,7 @@ local execution.
   `01f8a75aa87cfaf58d0db3635eefc02016830d87`.
 - The next implementation package is the lineup-change and multi-market decision
   plan in
-  [W2_LINEUP_MULTI_MARKET_EXECUTION_PLAN_20260719.md](consolidation/W2_LINEUP_MULTI_MARKET_EXECUTION_PLAN_20260719.md).
+  [W2_LINEUP_MULTI_MARKET_EXECUTION_PLAN_20260719.md](archive/consolidation/W2_LINEUP_MULTI_MARKET_EXECUTION_PLAN_20260719.md).
 - The current Dashboard layout is frozen. Work is limited to source-backed data,
   decision semantics and concise evidence inside the existing layout.
 - `ANALYSIS_PICK` remains outcome-tracked but never lock-eligible. `RECOMMEND`,

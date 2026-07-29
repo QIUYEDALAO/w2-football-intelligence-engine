@@ -27,11 +27,11 @@
 
 **⚠ 本块曾因两写冲突从 main 丢失(reviewer file-tool 编辑 vs Codex git 提交),现重加;台账后续由 Codex 单写提交。**
 
-独立复盘 + 市场基准 eval(脚本 `run_w2_market_baseline_eval.py`;文档 `W2_ARCHITECTURE_REVIEW_2026_07.md` / `W2_MARKET_BASELINE_EVAL_2026_07.md` / `W2_MARKET_ANCHOR_PROPOSAL_2026_07.md` / `W2_REVISED_ROADMAP_2026_07.md`,均已进 main #205)**推翻多个此前结论**,已代码核实:
+独立复盘 + 市场基准 eval(脚本 `run_w2_market_baseline_eval.py`;文档 `docs/archive/consolidation/W2_ARCHITECTURE_REVIEW_2026_07.md` / `docs/archive/consolidation/W2_MARKET_BASELINE_EVAL_2026_07.md` / `docs/archive/consolidation/W2_MARKET_ANCHOR_PROPOSAL_2026_07.md` / `docs/archive/consolidation/W2_REVISED_ROADMAP_2026_07.md`,均已进 main #205)**推翻多个此前结论**,已代码核实:
 
 - 线上 `ANALYSIS_PICK` 来自 `bookmaker_intent` 手设启发式,**不是**被验证的拟合模型;拟合模型只在 `backtest/free_tier_2024.py`、**未接线上**。
 - 市场基准(gap = 模型 − 市场,同批):**11 联赛全部落后 Pinnacle 收盘** +0.013(法甲)~+0.055(瑞典超);blend 全纯市场最优 → **模型零增量**。**"五大好/在赛弱""0.99 够用""锚八月"均推翻**(挪超第二好、德甲最差档;MLS 达标 .027;阿甲观察档)。
-- **方向转市场锚定**:展示概率 = 去 vig 市场,模型 = 分歧雷达(gap ≤ 0.04 达标),EV 腿门槛改前向 CLV,联赛按 §4 准入矩阵(非月份)。**完整路线图见 `W2_REVISED_ROADMAP_2026_07.md`(V3),已取代旧 F1–F4。**
+- **方向转市场锚定**:展示概率 = 去 vig 市场,模型 = 分歧雷达(gap ≤ 0.04 达标),EV 腿门槛改前向 CLV,联赛按 §4 准入矩阵(非月份)。**完整路线图见 `docs/archive/consolidation/W2_REVISED_ROADMAP_2026_07.md`(V3),已取代旧 F1–F4。**
 
 **V3 执行进展(2026-07-07)**:#205 战略产物进 main(`f28df3b`);#204(Draft `a47321f`,staging 已部署 http://118.196.30.136/)完成 **R1.0**(前向 ledger + odds 时间线 staging 自动调度已接)+ **R2.1**(DayView 输出 `MARKET_DEVIG` 市场概率,假"未就绪"已被真实概率取代)。**下一步**:R2.3(staging 启用 4 个 odds-PASS 在赛联赛,单独审批)+ R2.2(dashboard 三态验收 / 设计定案)。
 
@@ -211,7 +211,7 @@
 
 ## 前瞻路线图 V3(市场锚定版)· 操作员按此接手
 
-**已被市场基准裁决改向(见🔴战略裁决)。完整版:`docs/consolidation/W2_REVISED_ROADMAP_2026_07.md`。** 三主线,第 0–2 天可并行启动 R1.0 / R2.0 / R3.0:
+**已被市场基准裁决改向(见🔴战略裁决)。完整版:`docs/archive/consolidation/W2_REVISED_ROADMAP_2026_07.md`。** 三主线,第 0–2 天可并行启动 R1.0 / R2.0 / R3.0:
 
 - **R1 · 前向资产(今天起跑)**:staging 每日两批次(T-24h/T-1h,世界杯加 T-15m)采 fixtures+odds 快照 + 赛后 outcome 回填 → append-only `forward_ledger`,≤120 calls/日;两周检查点(≥100 卡双快照)→ 评分常设(CLV + 分轨校准,喂 dashboard 战绩条)→ 第 8 周裁决 `bookmaker_intent` 去留。**只记录、不改决策路径、不需 enable。**(= 我已下发的 Codex S18)
 - **R2 · 市场锚定产品**:DecisionCard 加 `probability_source`(MARKET_DEVIG/MODEL_FALLBACK/BLEND)+ `model_market_divergence`;档位加**选择性**(NO_EDGE 档,常态日"值得看"0–3 场,治全 PICK);展示概率 = 去 vig 市场,模型 = **分歧雷达**,无盘口 → 纯模型回退 + 降级标注;dashboard 三态截图验收;R2.3 odds-PASS 在赛联赛按 §4 矩阵 staging enable(单独批准)。(= 我已下发的 Codex S17 重定向)
@@ -389,7 +389,7 @@
 - Dashboard 原布局冻结；所有合格比赛继续展示。推荐比分必须服从最终 AH/OU 市场，
   无最终 pick 时不显示方向性比分。
 - 完整任务清单：
-  `docs/consolidation/W2_LINEUP_MULTI_MARKET_EXECUTION_PLAN_20260719.md`。
+  `docs/archive/consolidation/W2_LINEUP_MULTI_MARKET_EXECUTION_PLAN_20260719.md`。
 - 本地上下文：`local_main_sha=8e171dc05efc2fc3a512fff2c334d123d01db922`，
   `github_w2_main_baseline=a80bcca`，未同步 GitHub，未部署。
 - 本计划属于数据契约和运行时决策变更；全部本地/隔离 Gate 通过后只做一次 staging

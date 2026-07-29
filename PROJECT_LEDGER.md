@@ -19,7 +19,7 @@ specifications and failure cases, not proof of behavior in the current tree.
 - Staging remains fail-safe at the product boundary: RECOMMEND, lock, OFFICIAL and
   production are closed.
 
-Detailed evidence: [W2 R0.0 Baseline Freeze](docs/operations/W2_R0_0_BASELINE_FREEZE_20260718.md).
+Detailed evidence: [W2 R0.0 Baseline Freeze](docs/archive/operations/W2_R0_0_BASELINE_FREEZE_20260718.md).
 
 - PR #348 passed `verify`, `staging-parity` and `predeploy-e2e`, then merged as
   `37767123313483ecd8dc9607b4bb085d7cb6db36`.
@@ -64,7 +64,7 @@ Detailed evidence: [W2 R0.0 Baseline Freeze](docs/operations/W2_R0_0_BASELINE_FR
 - R0.1a is PASS. R0.1b is now authorized.
 
 Detailed canary evidence:
-[W2 R0.1a Staging Canary](docs/operations/W2_R0_1A_STAGING_CANARY_20260718.md).
+[W2 R0.1a Staging Canary](docs/archive/operations/W2_R0_1A_STAGING_CANARY_20260718.md).
 
 ## 2026-07-18 — R0.1b quote freshness isolation
 
@@ -82,7 +82,7 @@ Detailed canary evidence:
 - R0.1b is PASS. R0.1c is now authorized.
 
 Detailed canary evidence:
-[W2 R0.1b Staging Canary](docs/operations/W2_R0_1B_STAGING_CANARY_20260718.md).
+[W2 R0.1b Staging Canary](docs/archive/operations/W2_R0_1B_STAGING_CANARY_20260718.md).
 
 ## 2026-07-18 — R0.1c non-READY no-pick invariant
 
@@ -100,7 +100,7 @@ Detailed canary evidence:
 - R0.1c is PASS. R0.2 is now authorized.
 
 Detailed canary evidence:
-[W2 R0.1c Staging Canary](docs/operations/W2_R0_1C_STAGING_CANARY_20260718.md).
+[W2 R0.1c Staging Canary](docs/archive/operations/W2_R0_1C_STAGING_CANARY_20260718.md).
 
 ## 2026-07-18 — R0.2 canonical readiness 503
 
@@ -118,7 +118,7 @@ Detailed canary evidence:
 - R0.2 is PASS. `next_phase=R0.3`; this run stops before R0.3.
 
 Detailed canary evidence:
-[W2 R0.2 Staging Canary](docs/operations/W2_R0_2_STAGING_CANARY_20260718.md).
+[W2 R0.2 Staging Canary](docs/archive/operations/W2_R0_2_STAGING_CANARY_20260718.md).
 
 ## 2026-07-18 — R0.3 fixture-scoped bounded public reads
 
@@ -137,7 +137,7 @@ Detailed canary evidence:
 - R0.3 is PASS. R0.4 is authorized by the full local execution plan.
 
 Detailed canary evidence:
-[W2 R0.3 Staging Canary](docs/operations/W2_R0_3_STAGING_CANARY_20260718.md).
+[W2 R0.3 Staging Canary](docs/archive/operations/W2_R0_3_STAGING_CANARY_20260718.md).
 
 ## 2026-07-18 — R0.4 deterministic sidecar materializer
 
@@ -158,7 +158,7 @@ Detailed canary evidence:
   were restored. R0.4 is PASS and R0.5 is authorized.
 
 Detailed canary evidence:
-[W2 R0.4 Staging Canary](docs/operations/W2_R0_4_STAGING_CANARY_20260718.md).
+[W2 R0.4 Staging Canary](docs/archive/operations/W2_R0_4_STAGING_CANARY_20260718.md).
 
 ## 2026-07-18 — R0.5 frozen analysis-card canary
 
@@ -177,7 +177,7 @@ Detailed canary evidence:
   watchdog were restored. R0.5 is PASS and R0.6 is authorized.
 
 Detailed canary evidence:
-[W2 R0.5 Staging Canary](docs/operations/W2_R0_5_STAGING_CANARY_20260718.md).
+[W2 R0.5 Staging Canary](docs/archive/operations/W2_R0_5_STAGING_CANARY_20260718.md).
 
 ## 2026-07-18 — R0.6 frozen public cutover
 
@@ -199,7 +199,7 @@ Detailed canary evidence:
   is authorized by the full local execution plan.
 
 Detailed canary evidence:
-[W2 R0.6 Staging Canary](docs/operations/W2_R0_6_STAGING_CANARY_20260718.md).
+[W2 R0.6 Staging Canary](docs/archive/operations/W2_R0_6_STAGING_CANARY_20260718.md).
 
 ## 2026-07-18 — R1 local checkpoints before phase canary
 
@@ -240,7 +240,7 @@ Detailed canary evidence:
   league scope, RECOMMEND/lock, OFFICIAL and production remain unchanged.
 
 Detailed evidence:
-[W2 R1 Staging Canary](docs/operations/W2_R1_STAGING_CANARY_20260718.md).
+[W2 R1 Staging Canary](docs/archive/operations/W2_R1_STAGING_CANARY_20260718.md).
 
 ## 2026-07-18 — R2 offline corrections and staging acceptance
 
@@ -266,7 +266,7 @@ Detailed evidence:
   authorized for append-only forward shadow evidence only.
 
 Detailed evidence:
-[W2 R2 Staging Canary](docs/operations/W2_R2_STAGING_CANARY_20260718.md).
+[W2 R2 Staging Canary](docs/archive/operations/W2_R2_STAGING_CANARY_20260718.md).
 
 ## 2026-07-18 — R3 read-only staging candidate
 
@@ -289,7 +289,7 @@ Detailed evidence:
   cycle is 2026-07-19. Champion, RECOMMEND/lock and OFFICIAL remain unchanged.
 
 Detailed evidence:
-[W2 R3 read-only staging candidate](docs/operations/W2_R3_READONLY_STAGING_CANDIDATE_20260718.md).
+[W2 R3 read-only staging candidate](docs/archive/operations/W2_R3_READONLY_STAGING_CANDIDATE_20260718.md).
 
 ## 2026-07-18 — R4 approval packs prepared in parallel
 
@@ -305,7 +305,7 @@ Detailed evidence:
   reset the cycle candidate.
 
 Detailed evidence:
-[W2 R4 approval packs](docs/operations/W2_R4_APPROVAL_PACKS_20260718.md).
+[W2 R4 approval packs](docs/archive/operations/W2_R4_APPROVAL_PACKS_20260718.md).
 
 ## 2026-07-18 — repeated quote capture and freshness correction
 
@@ -331,7 +331,7 @@ Detailed evidence:
   RECOMMEND/lock, OFFICIAL and write-enabled production remain unchanged.
 
 Detailed evidence:
-[W2 repeated-capture freshness canary](docs/operations/W2_REPEAT_CAPTURE_FRESHNESS_STAGING_CANARY_20260718.md).
+[W2 repeated-capture freshness canary](docs/archive/operations/W2_REPEAT_CAPTURE_FRESHNESS_STAGING_CANARY_20260718.md).
 
 ## Delivery rule
 
@@ -378,7 +378,7 @@ merge-before-next-phase rule.
   RECOMMEND/lock, OFFICIAL and write-enabled production remain unchanged.
 
 Detailed evidence:
-[W2 LMM staging acceptance](docs/operations/W2_LMM_STAGING_CANARY_20260719.md).
+[W2 LMM staging acceptance](docs/archive/operations/W2_LMM_STAGING_CANARY_20260719.md).
 
 ## 2026-07-19 — Dashboard ledger authority regression fixed
 
@@ -401,7 +401,7 @@ Detailed evidence:
   Beijing on the same SHA and images.
 
 Detailed evidence:
-[W2 Dashboard ledger authority fix](docs/operations/W2_DASHBOARD_LEDGER_AUTHORITY_STAGING_FIX_20260719.md).
+[W2 Dashboard ledger authority fix](docs/archive/operations/W2_DASHBOARD_LEDGER_AUTHORITY_STAGING_FIX_20260719.md).
 
 ## 2026-07-19 — Validation outcome auto-settlement staging acceptance
 
@@ -425,7 +425,7 @@ Detailed evidence:
   The stability sequence is reset to `0/3` for July 20–22 at 09:00 Beijing.
 
 Detailed evidence:
-[W2 validation outcome settlement](docs/operations/W2_VALIDATION_OUTCOME_SETTLEMENT_STAGING_20260719.md).
+[W2 validation outcome settlement](docs/archive/operations/W2_VALIDATION_OUTCOME_SETTLEMENT_STAGING_20260719.md).
 
 ## 2026-07-22 — Dynamic EV and confirmed-lineup lifecycle locally verified
 

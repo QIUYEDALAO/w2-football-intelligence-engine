@@ -1,5 +1,7 @@
 # W2 Decision Contract V1
 
+SUPERSEDED_BY: `docs/consolidation/W2_DECISION_CONTRACT_V2.md`
+
 Status: 提议（Proposed）。本文件是 W2 输出语义的**唯一真源**。一经接受，它**取代**以下文档中一切相互冲突的输出定义：`W2_STATE_MODEL_V1`（DecisionStatus 五态 + DisplayGrade A/B/C）、`W2_FORMAL_RECOMMENDATION_P0`（FORMAL/WATCH）、`ADR-0026`（ANALYSIS_PICK/RECOMMEND）。选定方向：**两档分层**。
 
 ## 为什么需要这份契约
