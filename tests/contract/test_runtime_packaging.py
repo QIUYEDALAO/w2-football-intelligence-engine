@@ -38,6 +38,7 @@ def test_unified_python_image_packages_every_runtime_role() -> None:
         "w2-gate5-preflight",
         "w2-shadow-comparison-import",
         "w2-stage7i-observer",
+        "w2-finished-match-scoring",
     ):
         assert f"test -x /app/.venv/bin/{binary}" in text
     for old in (

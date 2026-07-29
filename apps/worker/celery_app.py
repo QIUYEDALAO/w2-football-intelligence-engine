@@ -245,6 +245,12 @@ def result_materialize(
         "formal_recommendation": False,
         "provider_calls": 0,
         "db_writes": result.get("db_writes", 0),
+        "scoring_projection_status": result.get(
+            "scoring_projection_status", "NO_DUE_WORK"
+        ),
+        "scoring_projection_db_writes": result.get(
+            "scoring_projection_db_writes", 0
+        ),
         "lock_capture_write": False,
         "settlement_write": False,
     }

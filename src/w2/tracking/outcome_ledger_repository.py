@@ -367,6 +367,7 @@ class OutcomeLedgerRepository:
                 for fixture_id in unresolved
             ]
             staged: list[ResultModel] = []
+            confirmed_fixture_ids: list[str] = []
             for identity in selected:
                 candidates = list(by_provider_id.get(identity.provider_fixture_id, ()))
                 candidates.append(
@@ -400,6 +401,7 @@ class OutcomeLedgerRepository:
                         blockers.append(f"{identity.fixture_id}:RESULT_SOURCE_CONFLICT")
                     else:
                         counts["already_materialized_count"] += 1
+                        confirmed_fixture_ids.append(identity.fixture_id)
                     continue
                 staged.append(
                     ResultModel(
@@ -417,6 +419,7 @@ class OutcomeLedgerRepository:
                         ),
                     )
                 )
+                confirmed_fixture_ids.append(identity.fixture_id)
             if counts["result_source_conflict_count"]:
                 session.rollback()
                 staged = []
@@ -432,6 +435,11 @@ class OutcomeLedgerRepository:
                 "provider_calls": 0,
                 "db_writes": counts["materialized_result_count"],
                 "blockers": blockers,
+                "confirmed_fixture_ids": (
+                    sorted(set(confirmed_fixture_ids))
+                    if not counts["result_source_conflict_count"]
+                    else []
+                ),
                 "evaluated_at": _iso(now or datetime.now(UTC)),
             }
 

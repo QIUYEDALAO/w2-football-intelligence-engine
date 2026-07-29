@@ -382,4 +382,7 @@ def test_p2_05_is_done_and_eval_01b_is_current() -> None:
         "merge_sha": "dc1a665655add801c4fe5cd7a0f39211d836e916",
         "main_ci": 30441901340,
     }
-    assert state["tasks"]["EVAL-01B"]["status"] == "IN_PROGRESS"
+    assert (
+        state["tasks"]["EVAL-01B"]["status"]
+        == "IMPLEMENTED_PENDING_ACCEPTANCE"
+    )

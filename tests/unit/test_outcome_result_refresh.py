@@ -9,12 +9,17 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
+from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
+from w2.infrastructure.persistence.dynamic_prematch_models import (
+    DynamicPrematchEvaluationModel,
+)
 from w2.infrastructure.persistence.future_refresh_models import RawPayloadModel
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayEndpointCaptureModel,
     MatchdayFixtureIdentityModel,
 )
 from w2.infrastructure.persistence.models import ResultModel
+from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerModel
 from w2.tracking.outcome_ledger_repository import OutcomeLedgerRepository
 from w2.tracking.outcome_result_refresh import run_outcome_result_refresh
 
@@ -40,7 +45,8 @@ def test_result_materializer_writes_terminal_scores(
     assert result["status"] == "PASS"
     assert result["materialized_result_count"] == 1
     assert result["provider_calls"] == 0
-    assert result["db_writes"] == 1
+    assert result["result_db_writes"] == 1
+    assert result["scoring_projection_status"] == "PASS"
     assert _result_row(repository, "api_football:101") == (status, 2, 1)
 
 
@@ -73,6 +79,25 @@ def test_result_materializer_fails_closed_on_terminal_missing_score(tmp_path: Pa
     assert result["result_source_missing_count"] == 1
     assert result["blockers"] == ["api_football:103:RESULT_SOURCE_MISSING"]
     assert result["db_writes"] == 0
+
+
+def test_committed_valid_result_is_scored_when_peer_source_is_missing(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    _seed_fixture(repository, provider_id="201", status="FT", fulltime=(2, 0))
+    _seed_fixture(repository, provider_id="202", status="FT", fulltime=None)
+
+    result = run_outcome_result_refresh(
+        repository=repository,
+        dry_run=False,
+        write_db=True,
+    )
+
+    assert result["status"] == "BLOCKED"
+    assert result["result_db_writes"] == 1
+    assert result["scoring_projection"]["fixture_checkpoint_count"] == 1
+    assert result["scoring_projection_status"] == "PASS"
 
 
 def test_result_materializer_is_idempotent_for_same_score(tmp_path: Path) -> None:
@@ -176,6 +201,9 @@ def _repository(root: Path) -> OutcomeLedgerRepository:
     MatchdayEndpointCaptureModel.__table__.create(engine, checkfirst=True)
     MatchdayFixtureIdentityModel.__table__.create(engine, checkfirst=True)
     ResultModel.__table__.create(engine, checkfirst=True)
+    OutcomeLedgerModel.__table__.create(engine, checkfirst=True)
+    DynamicPrematchEvaluationModel.__table__.create(engine, checkfirst=True)
+    ReadModelCheckpointModel.__table__.create(engine, checkfirst=True)
     return OutcomeLedgerRepository(engine)
 
 

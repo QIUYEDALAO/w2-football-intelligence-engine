@@ -436,7 +436,7 @@ DELETED_PACKAGE_COUNT = 0
 | `gates` | 2 | apps:0;scripts:0;migrations:0;tests:0 | - | strategy | - | w2-gate5-preflight | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | CONSOLE_ENTRYPOINT |
 | `historical` | 12 | apps:0;scripts:9;migrations:0;tests:4 | lineups | domain,identity,infrastructure | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `identity` | 2 | apps:0;scripts:1;migrations:0;tests:2 | factor_model,historical,ingestion,lineups | infrastructure | - | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
-| `infrastructure` | 19 | apps:0;scripts:12;migrations:17;tests:37 | api,audit_export,competitions,factor_model,historical,identity,ingestion,matchday,monitoring,operations,prematch,providers,settlement,strategy,tracking | - | - | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `infrastructure` | 19 | apps:0;scripts:12;migrations:17;tests:38 | api,audit_export,competitions,factor_model,historical,identity,ingestion,matchday,monitoring,operations,prematch,providers,settlement,strategy,tracking | - | - | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `ingestion` | 16 | apps:2;scripts:13;migrations:0;tests:16 | analysis,backtest,factor_model,prematch,providers | competitions,domain,features,identity,infrastructure,lineups,markets,matchday,normalization,prematch,providers | SCC-1 | - | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `lineups` | 5 | apps:0;scripts:6;migrations:0;tests:5 | ingestion,prematch | historical,identity | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `markets` | 17 | apps:0;scripts:3;migrations:0;tests:15 | backtest,features,ingestion,prematch,readiness,strategy,tracking | domain,strategy | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
@@ -461,7 +461,7 @@ DELETED_PACKAGE_COUNT = 0
 | `settlement` | 3 | apps:0;scripts:2;migrations:0;tests:2 | dashboard,tracking | domain,infrastructure | SCC-1 | - | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `shadow` | 2 | apps:0;scripts:0;migrations:0;tests:0 | - | strategy | - | w2-shadow-comparison-import | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | CONSOLE_ENTRYPOINT;COMPARISON_IMPORT |
 | `strategy` | 13 | apps:0;scripts:3;migrations:0;tests:15 | dashboard,gates,markets,matchday,prematch,pricing,shadow | competitions,domain,features,formal,infrastructure,markets,models | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
-| `tracking` | 8 | apps:1;scripts:4;migrations:0;tests:13 | audit_export,prematch | domain,infrastructure,markets,prematch,settlement | SCC-1 | - | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `tracking` | 11 | apps:1;scripts:5;migrations:0;tests:14 | audit_export,prematch | domain,infrastructure,markets,prematch,settlement | SCC-1 | w2-finished-match-scoring | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 
 ```text
 ROLE_COUNTS = RUNTIME_ENTRYPOINT:1;RUNTIME_LIBRARY:19;WRITE_SIDE_PROJECTION:5;PUBLIC_READ:2;OFFLINE_TOOL:11;MIGRATION_ONLY:1;AUDIT_EXPORT:1;DEAD:0
@@ -574,21 +574,36 @@ PR #424 已完成 exact-head FULL CI、外部 Review、staging 验收并合并�
 #### B2. EVAL-01B：全量校准评分投影
 
 ```text
-Status: IN_PROGRESS
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
 Branch: codex/eval-01b-finished-match-scoring-projection
 PR: #430
 ```
 
 **目标**：每场 FINISHED 比赛自动产生"模型 vs 市场"评分——不管推没推荐。
 
-- [ ] 触发：EVAL-01A 赛果写入事件（复用 04A 事件→投影模式，不建新管线框架）。
-- [ ] 输入：该 fixture 开赛前**最后一次** `dynamic_prematch_evaluations` 评估
-      （`model_probabilities` + `market_probabilities`）+ `results` + picks 的 CLV
-      （复用 `forward_ledger_performance.py` 的 `CLV_METHOD` 与 `_log_loss`，禁止重写公式）。
-- [ ] 输出（全部落 `read_model_checkpoint`，不建新表）：
+```text
+B2_RESULT_AUTHORITY = results
+B2_1X2_PROBABILITY_AUTHORITY = outcome_ledger.capture.probability_identity
+B2_DYNAMIC_EVALUATION_ROLE = AH_OU_LIFECYCLE_METADATA_ONLY
+B2_SCORING_TABLE_COUNT = 0
+```
+
+输入权威：终场比分来自 `results`；评分概率来自 `outcome_ledger` 中该
+fixture 开赛前最后一条完整、未 supersede 的
+`capture.probability_identity`。CLV 复用
+`forward_ledger_performance.py` 的既有语义。`dynamic_prematch_evaluations`
+只补充 checkpoint、lineup 与 AH/OU 生命周期元数据，且仅允许精确身份连接。
+
+- [x] 触发：EVAL-01A 赛果提交后调用同一个写侧投影；不建新管线框架。
+- [x] 输入：权威赛果 + 最后一条完整未 supersede 的赛前 1X2 概率 capture；
+      无 pick/WATCH/SKIP 仍评分，冲突 fail-closed。
+- [x] 输出（全部落 `read_model_checkpoint`，不建新表）：
       `performance:fixture:{id}`（双方 log loss/Brier/RPS、CLV、联赛、STRICT/ADVISORY 分层标签）；
       `performance:cohort:{scope}`（按联赛/分层/7-30-90 天窗口滚动聚合，含样本计数）。
-- [ ] 幂等：同一 fixture 重算 hash 一致；投影带 projection_version/source_event。
+- [x] 幂等：同一 fixture 重算 hash 一致且零写；投影带
+      projection_version/source_event；同源不同 payload fail-closed。
+- [x] 运维回填：显式 CLI 默认 dry-run，写入要求双重确认；文本/JSON
+      输出分离，provider calls 固定为 0。
 
 **不做**：不做 UI；不做任何"评分→参数"自动反馈（那是 EVAL-02B 门禁的事）。
 **验收**：staging 全部已完结且有评估记录的比赛 100% 产生 `performance:fixture:*`；

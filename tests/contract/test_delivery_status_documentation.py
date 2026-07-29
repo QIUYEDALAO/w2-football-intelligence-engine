@@ -34,7 +34,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     assert state["current_state_authority"] == "PROJECT_STATE.yaml"
     assert state["task_authority"] == CHECKLIST_PATH
     assert state["current_task"] == "EVAL-01B"
-    assert state["current_status"] == "IN_PROGRESS"
+    assert state["current_status"] == "IMPLEMENTED_PENDING_ACCEPTANCE"
     assert state["current_pr"] == 430
     assert state["next_task"] == "EVAL-01C"
     assert state["tasks"]["ARCH-P2-02"] == {
@@ -68,7 +68,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "main_ci": 30441901340,
     }
     assert state["tasks"]["EVAL-01B"] == {
-        "status": "IN_PROGRESS",
+        "status": "IMPLEMENTED_PENDING_ACCEPTANCE",
         "pr": 430,
         "branch": "codex/eval-01b-finished-match-scoring-projection",
     }
@@ -76,7 +76,10 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     assert state["architecture_convergence"]["status"] == "PASS"
     assert "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)" in next_action
     assert CHECKLIST_PATH in next_action
-    assert "当前：执行 B2 EVAL-01B / PR #430 全量校准评分投影。" in next_action
+    assert (
+        "当前：完成 B2 EVAL-01B / PR #430 exact-head CI、staging 与二次验收。"
+        in next_action
+    )
     assert "下一项：B3 EVAL-01C；B2 合并前不启动。" in next_action
     assert "sole machine-readable project-status record" in ledger
     assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", ledger)
@@ -101,7 +104,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     b2 = checklist[
         checklist.index("#### B2. EVAL-01B") : checklist.index("#### B3.")
     ]
-    assert "Status: IN_PROGRESS" in b2
+    assert "Status: IMPLEMENTED_PENDING_ACCEPTANCE" in b2
     assert "PR: #430" in b2
     assert "W2_ARCHITECTURE_CONVERGENCE_COMPLETE = PASS" in checklist
     for task in FORBIDDEN_TASKS:

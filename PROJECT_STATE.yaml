@@ -4,7 +4,7 @@ updated_at: "2026-07-29"
 current_state_authority: PROJECT_STATE.yaml
 task_authority: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
 current_task: EVAL-01B
-current_status: IN_PROGRESS
+current_status: IMPLEMENTED_PENDING_ACCEPTANCE
 current_pr: 430
 next_task: EVAL-01C
 tasks:
@@ -41,7 +41,7 @@ tasks:
     merge_sha: dc1a665655add801c4fe5cd7a0f39211d836e916
     main_ci: 30441901340
   EVAL-01B:
-    status: IN_PROGRESS
+    status: IMPLEMENTED_PENDING_ACCEPTANCE
     pr: 430
     branch: codex/eval-01b-finished-match-scoring-projection
   EVAL-01C:
