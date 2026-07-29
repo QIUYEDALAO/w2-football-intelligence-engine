@@ -4,7 +4,7 @@ updated_at: "2026-07-29"
 authority: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
 current_task: ARCH-P2-04
 current_status: IN_PROGRESS
-current_pr: null
+current_pr: 427
 next_task: ARCH-P2-06
 tasks:
   ARCH-P2-02:

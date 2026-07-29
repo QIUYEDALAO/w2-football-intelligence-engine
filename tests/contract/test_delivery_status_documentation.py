@@ -34,7 +34,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     assert state["authority"] == CHECKLIST_PATH
     assert state["current_task"] == "ARCH-P2-04"
     assert state["current_status"] == "IN_PROGRESS"
-    assert state["current_pr"] is None
+    assert state["current_pr"] == 427
     assert state["next_task"] == "ARCH-P2-06"
     assert state["tasks"]["ARCH-P2-02"] == {
         "status": "DONE",
