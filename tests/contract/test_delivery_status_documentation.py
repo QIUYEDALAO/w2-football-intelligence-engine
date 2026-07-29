@@ -34,8 +34,8 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     assert state["current_state_authority"] == "PROJECT_STATE.yaml"
     assert state["task_authority"] == CHECKLIST_PATH
     assert state["current_task"] == "ARCH-P2-05"
-    assert state["current_status"] == "IN_PROGRESS"
-    assert state["current_pr"] is None
+    assert state["current_status"] == "IMPLEMENTED_PENDING_ACCEPTANCE"
+    assert state["current_pr"] == 429
     assert state["next_task"] == "EVAL-01A"
     assert state["tasks"]["ARCH-P2-02"] == {
         "status": "DONE",
@@ -56,8 +56,9 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "main_ci": 30432075563,
     }
     assert state["tasks"]["ARCH-P2-05"] == {
-        "status": "IN_PROGRESS",
+        "status": "IMPLEMENTED_PENDING_ACCEPTANCE",
         "branch": "codex/arch-p2-05-final-architecture-acceptance",
+        "pr": 429,
     }
     assert state["tasks"]["EVAL-01A"] == {
         "status": "BLOCKED",

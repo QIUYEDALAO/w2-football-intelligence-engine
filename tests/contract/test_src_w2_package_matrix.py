@@ -375,7 +375,8 @@ def test_p2_05_and_eval_01a_boundaries_remain_closed() -> None:
     eval_01a = state["tasks"]["EVAL-01A"]
 
     assert "Status: DONE" not in p2_05
-    assert "- [x]" not in p2_05
+    assert "Status: IMPLEMENTED_PENDING_ACCEPTANCE" in p2_05
+    assert "- [ ] exact-head FULL CI、外部验收与 PR 合并" in p2_05
     assert eval_01a["status"] == "BLOCKED"
     assert eval_01a["mergeable"] is False
     assert eval_01a["blockers"] == [

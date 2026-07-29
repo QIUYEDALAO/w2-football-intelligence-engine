@@ -4,8 +4,8 @@ updated_at: "2026-07-29"
 current_state_authority: PROJECT_STATE.yaml
 task_authority: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
 current_task: ARCH-P2-05
-current_status: IN_PROGRESS
-current_pr: null
+current_status: IMPLEMENTED_PENDING_ACCEPTANCE
+current_pr: 429
 next_task: EVAL-01A
 tasks:
   ARCH-P2-02:
@@ -31,8 +31,9 @@ tasks:
     merge_sha: 1a46a9e47a478072d37e4ec4c7a44d914e1a127b
     main_ci: 30432075563
   ARCH-P2-05:
-    status: IN_PROGRESS
+    status: IMPLEMENTED_PENDING_ACCEPTANCE
     branch: codex/arch-p2-05-final-architecture-acceptance
+    pr: 429
   EVAL-01A:
     status: BLOCKED
     pr: 424

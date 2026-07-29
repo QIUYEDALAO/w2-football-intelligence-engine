@@ -78,7 +78,9 @@ def test_p2_status_coordinates_and_unstarted_work_are_authoritative() -> None:
 
     p2_05 = p2[p2.index("**ARCH-P2-05") :]
     assert "Status: DONE" not in p2_05
-    assert "- [x]" not in p2_05
+    assert "Status: IMPLEMENTED_PENDING_ACCEPTANCE" in p2_05
+    assert "PR: #429" in p2_05
+    assert "- [ ] exact-head FULL CI、外部验收与 PR 合并" in p2_05
 
 
 def test_superseded_targets_exist_and_form_no_cycles() -> None:

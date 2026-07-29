@@ -35,13 +35,13 @@
 | ARCH-P0-03 联赛白名单入库 | #377 | `7bd5088b` | DB 竞赛权威 + 热切换，JSON/env 业务覆盖删除 |
 | ARCH-P0-04 P0 总验收 | #378 | `d62e3351` | P0_ARCHITECTURE_CONVERGENCE_PASS |
 | ARCH-P1-01 僵尸表删除 | #379 | `76201af8` | 144→66 表，78 张僵尸表证据化删除（0038–0040） |
-| P1-01 收口 + 清单修订 | #380 | `8af05dd6` | P1 顺序调整获批（04 拆分、03 后移、新增 07） |
+| P1-01 收口 + 清单修订 | #380 | `8af05ddb` | P1 顺序调整获批（04 拆分、03 后移、新增 07） |
 | ARCH-P1-02 赔率表收敛 | #381 | `f53b073f` | 唯一 append-only 历史 + 投影视图（0041，断言式 drop） |
-| HYGIENE 清单顺序修正 | #382 | `db3fd128` | 清单序列一致性修正 |
+| HYGIENE 清单顺序修正 | #382 | `db3fd12f` | 清单序列一致性修正 |
 | ARCH-HYGIENE-01 | #383 | `748b50e5` | 生成审计产物退出 Git |
 | ARCH-HYGIENE-02 | #384 | `1e252d73` | Scripts 权威盘点与证据化删除（取代 P2-01） |
 | ARCH-P1-04A 评估持久化 | #385 | `aa59b61d` | 事件驱动写侧投影管线（收口 #386 `46aa8d36`） |
-| ARCH-P1-04B Dashboard 读切换 | #387 | `7ffdc0fe` | API 降为 988 行纯投影读取，生产 fallback = 0（收口 #388 `75e49930`） |
+| ARCH-P1-04B Dashboard 读切换 | #387 | `7ffdc0fe` | API 降为 988 行纯投影读取，生产 fallback = 0（收口 #388 `75e49932`） |
 
 ---
 
@@ -100,14 +100,16 @@ ARCH-P1-08 通过后，功能冻结部分解除：**仅允许本清单阶段 B �
 
 ```text
 Status: DONE
-Required checks: PRE_MERGE_READINESS_GATE + POST_MERGE_CHECKLIST_CONSISTENCY_GATE
+PR: #393
+Merge SHA: 35fcac0d99573556c5e9f7a41822e153783efa73
+Current required check: CI_REQUIRED
 ```
 
-独立治理 PR。前者阻止未获外部验收结论的 PR 提前合并；后者核验已合并 PR 与本清单
-DONE/merge 坐标一致。两个 required check 缺一不可。
+PR #393 是该历史任务的实际实施坐标；此前 PRE/POST 专用门禁已在后续获授权精简中退役，
+不是当前 required checks 或运行权威。当前分支保护只保留 `CI_REQUIRED`。
 
-- [ ] 双门禁落地为 required checks。
-- [ ] 完整 CI 通过并合并。
+- [x] 历史实施 PR #393 曾落地双门禁；后续获授权退役，不再作为当前 required checks。
+- [x] 历史实施完整 CI 通过并合并；当前 required check 为 `CI_REQUIRED`。
 
 ---
 
@@ -115,6 +117,8 @@ DONE/merge 坐标一致。两个 required check 缺一不可。
 
 ```text
 Status: DONE
+PR: #395
+Merge SHA: 6eeb411747a1cef624ff4780dbad87d4cec4b26d
 ```
 
 **目标**：删除全部新旧合同并存代码与 04B 后确认的死代码；每处删除附零引用证据。
@@ -471,14 +475,47 @@ INVESTIGATION_REQUIRED_PACKAGES = schemas
 
 **ARCH-P2-05 最终架构收敛验收**
 ```text
-Status: IN_PROGRESS
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
 Branch: codex/arch-p2-05-final-architecture-acceptance
+PR: #429
+Base Main: 1a46a9e47a478072d37e4ec4c7a44d914e1a127b
+Base Main CI: 30432075563
 ```
 
-- [ ] P0/P1/P2 全部完成；无竞争权威；无生产 fallback；无服务器源码构建；
-      所有 drop 有直接证据；完整 CI 与 staging 验收；老板最终验收。
+- [x] P0 与 P1 的历史台账、A1–A7 实施 PR 和 merge SHA 已逐项对 Git/GitHub 核对；
+      原台账 #380、#382、#388 的三个错误短 SHA 已改为真实前缀。
+- [x] P2-02、P2-03、P2-04、P2-06 的完成坐标/本地结论完整；P2-05 不提前标 DONE。
+- [x] `PROJECT_STATE.yaml` 仍是唯一当前机器状态；本清单仍是唯一任务顺序、规格和已合并回执权威。
+- [x] 唯一事实权威计数均为 1；API 计算 import、隐式空数据 fallback、legacy runtime 引用均为 0；
+      现有 fail-closed 与生产零引用合同继续执行。
+- [x] 正式部署保持 CI build/push/smoke → immutable digest → server pull-only；
+      `SERVER_BUILD_COUNT = 0`、`SERVER_SOURCE_INSTALL_COUNT = 0`、Compose `build:` = 0。
+- [x] P1 删除账本与断言式 drop 证据仍在；scripts 矩阵的 8 个 `DELETE` 路径均已不存在且保留 D1/D2；
+      `0044` shadow 三表 drop 仍先断言表存在、零行与零依赖。
+- [x] 已知保留项如实登记：当前 1 个 22 包 SCC 未重构；`schemas` 保持
+      `KEEP_OFFLINE / INVESTIGATION_REQUIRED`，未虚假宣称问题消失。
+- [x] 本 PR 仅修改清单、机器状态和合同测试；`STAGING_NOT_REQUIRED = PASS`，
+      Provider calls = 0，Business DB writes = 0。
+- [ ] exact-head FULL CI、外部验收与 PR 合并。
 
-**最终状态**：`W2_ARCHITECTURE_CONVERGENCE_COMPLETE`
+```text
+P0_ARCHITECTURE_CONVERGENCE_PASS = PASS
+P1_ARCHITECTURE_CONVERGENCE_PASS = PASS
+P2_ARCHITECTURE_FINAL_ACCEPTANCE = IMPLEMENTED_PENDING_ACCEPTANCE
+CURRENT_AUTHORITY_CONFLICT_COUNT = 0
+PRODUCTION_FALLBACK_REFERENCE_COUNT = 0
+SERVER_BUILD_COUNT = 0
+SERVER_SOURCE_INSTALL_COUNT = 0
+COMPOSE_BUILD_COUNT = 0
+SCRIPT_DELETE_EVIDENCE_COUNT = 8
+PACKAGE_CYCLE_COUNT = 1
+CYCLIC_PACKAGE_COUNT = 22
+SCHEMAS_DECISION = KEEP_OFFLINE
+SCHEMAS_EVIDENCE = INVESTIGATION_REQUIRED
+STAGING_NOT_REQUIRED = PASS
+```
+
+**最终状态（P2-05 合并后才允许）**：`W2_ARCHITECTURE_CONVERGENCE_COMPLETE`
 
 ---
 
