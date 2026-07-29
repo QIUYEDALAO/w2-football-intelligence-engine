@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import Counter, defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from statistics import median
 from typing import Any
@@ -22,6 +22,10 @@ from w2.infrastructure.persistence.matchday_intake_models import (
 from w2.infrastructure.persistence.models import ResultModel
 from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerModel
 from w2.tracking.forward_ledger_performance import CLV_METHOD, fixture_clv
+from w2.tracking.outcome_ledger_repository import (
+    ExactFixtureResolver,
+    FixtureIdentityConflict,
+)
 from w2.tracking.performance_scoring import (
     bootstrap_ci,
     brier,
@@ -56,7 +60,11 @@ def run_finished_match_scoring_projection(
         raise FinishedMatchScoringError("write_db requires dry_run=false")
     resolved_engine = engine or create_engine()
     with Session(resolved_engine) as session:
-        results = _results(session, fixture_ids)
+        identity_rows = list(
+            session.scalars(select(MatchdayFixtureIdentityModel))
+        )
+        resolver = ExactFixtureResolver(identity_rows)
+        results = _results(session, fixture_ids, resolver)
         if not results:
             return _empty_result()
         ledger_rows = list(
@@ -67,29 +75,44 @@ def run_finished_match_scoring_projection(
                 )
             )
         )
-        records = [dict(row.payload) for row in ledger_rows]
+        records, identity_conflicts = _canonical_records(
+            [dict(row.payload) for row in ledger_rows],
+            resolver,
+        )
         fixture_identities = {
             row.fixture_id: row
-            for row in session.scalars(select(MatchdayFixtureIdentityModel))
+            for row in identity_rows
         }
-        dynamic_rows = list(
-            session.scalars(select(DynamicPrematchEvaluationModel))
+        dynamic_rows, dynamic_conflicts = _canonical_dynamic_rows(
+            session.scalars(select(DynamicPrematchEvaluationModel)),
+            resolver,
+        )
+        identity_conflicts.update(dynamic_conflicts)
+        resolved_results = _canonical_results(results, resolver)
+        result_counts = Counter(
+            fixture_id for _, fixture_id, _ in resolved_results
         )
         fixture_payloads: dict[str, dict[str, Any]] = {}
         blockers: list[str] = []
-        for result in results:
+        for result, fixture_id, result_identity_conflict in resolved_results:
             payload = _fixture_projection(
                 result,
+                fixture_id=fixture_id,
                 records=records,
-                fixture_identity=fixture_identities.get(result.fixture_id),
+                fixture_identity=fixture_identities.get(fixture_id),
                 dynamic_rows=[
-                    row for row in dynamic_rows if row.fixture_id == result.fixture_id
+                    row for row in dynamic_rows.get(fixture_id, ())
                 ],
+                identity_conflict=(
+                    result_identity_conflict
+                    or fixture_id in identity_conflicts
+                    or result_counts[fixture_id] > 1
+                ),
             )
-            fixture_payloads[result.fixture_id] = payload
+            fixture_payloads[fixture_id] = payload
             if payload["status"] == "BLOCKED":
                 blockers.extend(
-                    f"{result.fixture_id}:{reason}"
+                    f"{fixture_id}:{reason}"
                     for reason in payload["reason_codes"]
                 )
 
@@ -166,30 +189,121 @@ def run_finished_match_scoring_projection(
 def _results(
     session: Session,
     fixture_ids: Sequence[str] | None,
+    resolver: ExactFixtureResolver,
 ) -> list[ResultModel]:
-    statement = select(ResultModel)
-    if fixture_ids is not None:
-        statement = statement.where(ResultModel.fixture_id.in_(tuple(fixture_ids)))
-    return list(session.scalars(statement.order_by(ResultModel.fixture_id)))
+    rows = list(
+        session.scalars(select(ResultModel).order_by(ResultModel.fixture_id))
+    )
+    if fixture_ids is None:
+        return rows
+    requested: set[str] = set()
+    for value in fixture_ids:
+        candidates = resolver.candidates(str(value))
+        if candidates:
+            requested.update(candidates)
+        elif (resolved := resolver.resolve(str(value))) is not None:
+            requested.add(resolved)
+    return [
+        row
+        for row in rows
+        if (
+            _resolve_without_conflict(resolver, row.fixture_id) in requested
+            or bool(resolver.candidates(row.fixture_id) & requested)
+        )
+    ]
+
+
+def _canonical_results(
+    results: Sequence[ResultModel],
+    resolver: ExactFixtureResolver,
+) -> list[tuple[ResultModel, str, bool]]:
+    resolved: list[tuple[ResultModel, str, bool]] = []
+    for row in results:
+        try:
+            fixture_id = resolver.resolve(row.fixture_id)
+        except FixtureIdentityConflict:
+            resolved.append((row, row.fixture_id, True))
+            continue
+        resolved.append((row, fixture_id or row.fixture_id, fixture_id is None))
+    return resolved
+
+
+def _canonical_records(
+    records: Sequence[Mapping[str, Any]],
+    resolver: ExactFixtureResolver,
+) -> tuple[list[dict[str, Any]], set[str]]:
+    resolved: list[dict[str, Any]] = []
+    conflicts: set[str] = set()
+    for record in records:
+        raw_fixture_id = _fixture_id(record)
+        if not raw_fixture_id:
+            continue
+        try:
+            fixture_id = resolver.resolve(raw_fixture_id)
+        except FixtureIdentityConflict:
+            conflicts.update(resolver.candidates(raw_fixture_id))
+            continue
+        if fixture_id is None:
+            continue
+        canonical = dict(record)
+        canonical["fixture_id"] = fixture_id
+        nested = record.get("fixture_identity")
+        if isinstance(nested, Mapping):
+            canonical["fixture_identity"] = {
+                **nested,
+                "fixture_id": fixture_id,
+            }
+        resolved.append(canonical)
+    return resolved, conflicts
+
+
+def _canonical_dynamic_rows(
+    rows: Iterable[DynamicPrematchEvaluationModel],
+    resolver: ExactFixtureResolver,
+) -> tuple[dict[str, list[DynamicPrematchEvaluationModel]], set[str]]:
+    resolved: dict[str, list[DynamicPrematchEvaluationModel]] = defaultdict(list)
+    conflicts: set[str] = set()
+    for row in rows:
+        try:
+            fixture_id = resolver.resolve(row.fixture_id)
+        except FixtureIdentityConflict:
+            conflicts.update(resolver.candidates(row.fixture_id))
+            continue
+        if fixture_id is not None:
+            resolved[fixture_id].append(row)
+    return resolved, conflicts
+
+
+def _resolve_without_conflict(
+    resolver: ExactFixtureResolver,
+    value: str,
+) -> str | None:
+    try:
+        return resolver.resolve(value)
+    except FixtureIdentityConflict:
+        return None
 
 
 def _fixture_projection(
     result: ResultModel,
     *,
+    fixture_id: str,
     records: Sequence[Mapping[str, Any]],
     fixture_identity: MatchdayFixtureIdentityModel | None,
     dynamic_rows: Sequence[DynamicPrematchEvaluationModel],
+    identity_conflict: bool,
 ) -> dict[str, Any]:
     related = [
         record
         for record in records
         if _record_type(record) == "capture"
-        and _fixture_id(record) == result.fixture_id
+        and _fixture_id(record) == fixture_id
     ]
     superseded = {
         _text(record.get("target_capture_identity_hash"))
         for record in records
         if _record_type(record) == "supersession"
+        and _fixture_id(record) == fixture_id
         and _text(record.get("supersession_status")).upper() == "SUPERSEDED"
     }
     active = [
@@ -197,7 +311,15 @@ def _fixture_projection(
         for record in related
         if _text(record.get("capture_identity_hash")) not in superseded
     ]
-    capture, status, reasons = _select_capture(active, fixture_identity)
+    capture, status, reasons = _select_capture(
+        active,
+        fixture_identity,
+        fixture_id,
+        dynamic_rows,
+    )
+    if identity_conflict:
+        status = "BLOCKED"
+        reasons = ["FIXTURE_IDENTITY_CONFLICT"]
     if result.result_status not in TERMINAL_STATUSES:
         status = "BLOCKED"
         reasons = ["RESULT_IDENTITY_CONFLICT"]
@@ -219,12 +341,12 @@ def _fixture_projection(
             status = "SCORED"
             reasons = []
 
-    fixture = _fixture_values(capture, fixture_identity, result.fixture_id)
+    fixture = _fixture_values(capture, fixture_identity, fixture_id)
     lifecycle, lifecycle_conflict = _lifecycle_metadata(capture, dynamic_rows)
     if lifecycle_conflict:
         status = "BLOCKED"
         reasons = ["PROBABILITY_IDENTITY_CONFLICT"]
-    clv = _fixture_clv(records, capture, result.fixture_id)
+    clv = _fixture_clv(records, fixture_id)
     probability_hash = _hash_value(
         capture.get("probability_identity") if capture else {}
     )
@@ -233,7 +355,7 @@ def _fixture_projection(
         "projection_version": PROJECTION_VERSION,
         "status": status,
         "reason_codes": sorted(set(reasons)),
-        "fixture_id": result.fixture_id,
+        "fixture_id": fixture_id,
         "competition_id": fixture["competition_id"],
         "competition_name": fixture["competition_name"],
         "kickoff_utc": fixture["kickoff_utc"],
@@ -247,6 +369,14 @@ def _fixture_projection(
         "actual_outcome": ("HOME", "DRAW", "AWAY")[actual],
         "source_capture_identity_hash": _optional(
             capture.get("capture_identity_hash") if capture else None
+        ),
+        "source_capture_group_hash": _optional(
+            capture.get("source_capture_group_hash") if capture else None
+        ),
+        "contributing_capture_identity_hashes": (
+            list(capture.get("contributing_capture_identity_hashes", ()))
+            if capture
+            else []
         ),
         "source_card_hash": _optional(capture.get("card_hash") if capture else None),
         "source_artifact_hash": _artifact_hash(capture),
@@ -294,6 +424,8 @@ def _fixture_projection(
 def _select_capture(
     captures: Sequence[Mapping[str, Any]],
     fixture_identity: MatchdayFixtureIdentityModel | None,
+    fixture_id: str,
+    dynamic_rows: Sequence[DynamicPrematchEvaluationModel],
 ) -> tuple[Mapping[str, Any] | None, str, list[str]]:
     kickoff = (
         _utc(fixture_identity.kickoff_utc) if fixture_identity is not None else None
@@ -302,7 +434,7 @@ def _select_capture(
     signatures: set[tuple[str, ...]] = set()
     identities: dict[str, str] = {}
     for capture in captures:
-        signature = _fixture_signature(capture)
+        signature = _fixture_signature(capture, fixture_id)
         captured_at = _parse_time(capture.get("captured_at"))
         capture_kickoff = _parse_time(_fixture_values(capture, None, "")["kickoff_utc"])
         resolved_kickoff = kickoff or capture_kickoff
@@ -329,7 +461,7 @@ def _select_capture(
             for item in captures
         )
         has_complete_identity = any(
-            _fixture_signature(item) is not None for item in captures
+            _fixture_signature(item, fixture_id) is not None for item in captures
         )
         if kickoff is None and not has_capture_kickoff:
             reason = "KICKOFF_IDENTITY_MISSING"
@@ -347,12 +479,42 @@ def _select_capture(
     latest = [
         item for item in complete if _parse_time(item.get("captured_at")) == latest_at
     ]
-    latest_identities = {
-        _text(item.get("capture_identity_hash")) for item in latest
-    }
-    if len(latest_identities) > 1:
-        return None, "BLOCKED", ["EQUAL_TIMESTAMP_DIFFERENT_BUSINESS_IDENTITY"]
-    return latest[0], "SCORED", []
+    scoring_identities = [
+        _scoring_relevant_identity(
+            item,
+            fixture_id=fixture_id,
+            fixture_identity=fixture_identity,
+            dynamic_rows=dynamic_rows,
+        )
+        for item in latest
+    ]
+    if len({_hash_value(identity) for identity in scoring_identities}) > 1:
+        probability_hashes = {
+            identity["probability_identity_hash"]
+            for identity in scoring_identities
+        }
+        reason = (
+            "PROBABILITY_IDENTITY_CONFLICT"
+            if len(probability_hashes) > 1
+            else "EQUAL_TIMESTAMP_DIFFERENT_BUSINESS_IDENTITY"
+        )
+        return None, "BLOCKED", [reason]
+    contributing = sorted(
+        {_text(item.get("capture_identity_hash")) for item in latest}
+    )
+    scoring_identity = scoring_identities[0]
+    group_hash = _hash_value(
+        {
+            "scoring_relevant_identity": scoring_identity,
+            "contributing_capture_identity_hashes": contributing,
+        }
+    )
+    capture = dict(latest[0])
+    capture["contributing_capture_identity_hashes"] = contributing
+    capture["source_capture_group_hash"] = group_hash
+    if len(contributing) > 1:
+        capture["capture_identity_hash"] = group_hash
+    return capture, "SCORED", []
 
 
 def _fixture_values(
@@ -380,8 +542,12 @@ def _fixture_values(
     }
 
 
-def _fixture_signature(record: Mapping[str, Any]) -> tuple[str, ...] | None:
+def _fixture_signature(
+    record: Mapping[str, Any],
+    fixture_id: str,
+) -> tuple[str, ...] | None:
     values = _fixture_values(record, None, "")
+    values["fixture_id"] = fixture_id
     signature = tuple(
         _text(values[key])
         for key in (
@@ -393,6 +559,30 @@ def _fixture_signature(record: Mapping[str, Any]) -> tuple[str, ...] | None:
         )
     )
     return signature if all(signature) else None
+
+
+def _scoring_relevant_identity(
+    capture: Mapping[str, Any],
+    *,
+    fixture_id: str,
+    fixture_identity: MatchdayFixtureIdentityModel | None,
+    dynamic_rows: Sequence[DynamicPrematchEvaluationModel],
+) -> dict[str, Any]:
+    lifecycle, _ = _lifecycle_metadata(capture, dynamic_rows)
+    values = _fixture_values(capture, fixture_identity, fixture_id)
+    return {
+        "fixture_id": fixture_id,
+        "kickoff_utc": _iso(_parse_time(values["kickoff_utc"])),
+        "captured_at": _iso(_parse_time(capture.get("captured_at"))),
+        "card_hash": _optional(capture.get("card_hash")),
+        "artifact_identity_hash": _artifact_identity_hash(capture),
+        "probability_identity_hash": _hash_value(
+            capture.get("probability_identity")
+        ),
+        "evaluation_tier": lifecycle["evaluation_tier"],
+        "checkpoint": lifecycle["checkpoint"],
+        "lineup_input_hash": lifecycle["lineup_input_hash"],
+    }
 
 
 def _lifecycle_metadata(
@@ -431,24 +621,13 @@ def _lifecycle_metadata(
 
 def _fixture_clv(
     records: Sequence[Mapping[str, Any]],
-    capture: Mapping[str, Any] | None,
     fixture_id: str,
 ) -> dict[str, Any]:
-    pick = capture.get("pick") if capture else None
-    if (
-        not isinstance(pick, Mapping)
-        or _text(capture.get("recommendation_scope") if capture else "").upper()
-        not in {"OFFICIAL", "VALIDATION"}
-    ):
-        return {"clv_status": "NOT_APPLICABLE_NO_PICK", "clv_decimal": None}
-    market = _text(pick.get("market"))
-    selection = _text(pick.get("selection"))
-    if not market or not selection:
-        return {"clv_status": "NOT_APPLICABLE_NO_PICK", "clv_decimal": None}
     superseded = {
         _text(record.get("target_capture_identity_hash"))
         for record in records
         if _record_type(record) == "supersession"
+        and _fixture_id(record) == fixture_id
         and _text(record.get("supersession_status")).upper() == "SUPERSEDED"
     }
     active_records = [
@@ -457,17 +636,37 @@ def _fixture_clv(
         if _record_type(record) != "capture"
         or _text(record.get("capture_identity_hash")) not in superseded
     ]
-    row = fixture_clv(
+    canonical_picks: set[tuple[str, str]] = set()
+    for record in active_records:
+        pick = record.get("pick")
+        if (
+            _record_type(record) != "capture"
+            or _fixture_id(record) != fixture_id
+            or _text(record.get("recommendation_scope")).upper()
+            not in {"OFFICIAL", "VALIDATION"}
+            or not isinstance(pick, Mapping)
+        ):
+            continue
+        market = _text(pick.get("market"))
+        selection = _text(pick.get("selection"))
+        if market and selection:
+            canonical_picks.add((market, selection))
+    if not canonical_picks:
+        return {"clv_status": "NOT_APPLICABLE_NO_PICK", "clv_decimal": None}
+    if len(canonical_picks) > 1:
+        return {"clv_status": "CANONICAL_PICK_CONFLICT", "clv_decimal": None}
+    market, selection = next(iter(canonical_picks))
+    clv = fixture_clv(
         active_records,
         fixture_id=fixture_id,
         market=market,
         selection=selection,
     )
-    if row is None:
+    if clv is None:
         return {"clv_status": "INSUFFICIENT_SNAPSHOTS", "clv_decimal": None}
     return {
-        "clv_status": row.get("clv_status"),
-        "clv_decimal": row.get("clv_decimal"),
+        "clv_status": clv.get("clv_status"),
+        "clv_decimal": clv.get("clv_decimal"),
     }
 
 
@@ -685,6 +884,10 @@ def _source_hash(payload: Mapping[str, Any]) -> str:
         {
             "result_identity_hash": payload.get("result_identity_hash"),
             "source_capture_identity_hash": payload.get("source_capture_identity_hash"),
+            "source_capture_group_hash": payload.get("source_capture_group_hash"),
+            "contributing_capture_identity_hashes": payload.get(
+                "contributing_capture_identity_hashes"
+            ),
             "source_probability_identity_hash": payload.get(
                 "source_probability_identity_hash"
             ),
@@ -701,6 +904,11 @@ def _artifact_hash(capture: Mapping[str, Any] | None) -> str | None:
         if isinstance(artifact, Mapping)
         else None
     )
+
+
+def _artifact_identity_hash(capture: Mapping[str, Any]) -> str | None:
+    artifact = capture.get("artifact_provenance")
+    return _hash_value(artifact) if isinstance(artifact, Mapping) else None
 
 
 def _record_type(record: Mapping[str, Any]) -> str:

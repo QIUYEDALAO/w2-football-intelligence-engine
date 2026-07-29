@@ -73,18 +73,26 @@ def test_superseded_capture_is_excluded_and_missing_vector_is_checkpointed(
     tmp_path: Path,
 ) -> None:
     repository = _repository(tmp_path)
-    _seed_result(repository, "fixture-2", home=1, away=1)
-    _seed_identity(repository, "fixture-2", kickoff=KICKOFF)
+    canonical = "api_football:1576809"
+    _seed_result(repository, canonical, home=1, away=1)
+    _seed_identity(
+        repository,
+        canonical,
+        kickoff=KICKOFF,
+        provider_fixture_id="1576809",
+    )
     complete = _capture(
-        "fixture-2",
+        "1576809",
         KICKOFF - timedelta(minutes=5),
         identity="superseded",
+        kickoff=KICKOFF,
     )
     incomplete = _capture(
-        "fixture-2",
+        canonical,
         KICKOFF - timedelta(minutes=10),
         identity="active",
         model=None,
+        kickoff=KICKOFF,
     )
     repository.append(
         [
@@ -93,7 +101,7 @@ def test_superseded_capture_is_excluded_and_missing_vector_is_checkpointed(
             {
                 "schema_version": "w2.forward_outcome_ledger.v3",
                 "record_type": "supersession",
-                "fixture_id": "fixture-2",
+                "fixture_id": canonical,
                 "captured_at": (KICKOFF - timedelta(minutes=1)).isoformat(),
                 "supersession_status": "SUPERSEDED",
                 "target_capture_identity_hash": "superseded",
@@ -109,7 +117,7 @@ def test_superseded_capture_is_excluded_and_missing_vector_is_checkpointed(
         dry_run=False,
         write_db=True,
     )
-    payload = _checkpoint(repository, "performance:fixture:fixture-2")
+    payload = _checkpoint(repository, f"performance:fixture:{canonical}")
 
     assert result["status"] == "PASS"
     assert result["not_scorable_count"] == 1
@@ -145,23 +153,223 @@ def test_equal_timestamp_different_identity_is_blocked(tmp_path: Path) -> None:
 
     assert result["status"] == "BLOCKED"
     assert payload["status"] == "BLOCKED"
+    assert payload["reason_codes"] == ["PROBABILITY_IDENTITY_CONFLICT"]
+
+
+def test_api_football_prefixed_result_matches_bare_capture(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    canonical = "api_football:1576804"
+    _seed_result(repository, canonical, home=1, away=0)
+    _seed_identity(
+        repository,
+        canonical,
+        kickoff=KICKOFF,
+        provider_fixture_id="1576804",
+    )
+    repository.append(
+        [
+            _capture(
+                "1576804",
+                KICKOFF - timedelta(minutes=5),
+                identity="bare",
+                kickoff=KICKOFF,
+            )
+        ],
+        dry_run=False,
+        write_db=True,
+    )
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+
+    assert result["status"] == "PASS"
+    assert _checkpoint(repository, f"performance:fixture:{canonical}")["status"] == "SCORED"
+
+
+def test_bare_result_and_canonical_capture_use_canonical_checkpoint(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    canonical = "fixture-canonical-1576805"
+    _seed_result(repository, "1576805", home=1, away=1)
+    _seed_identity(
+        repository,
+        canonical,
+        kickoff=KICKOFF,
+        provider_fixture_id="1576805",
+    )
+    repository.append(
+        [
+            _capture(
+                canonical,
+                KICKOFF - timedelta(minutes=5),
+                identity="canonical",
+                kickoff=KICKOFF,
+            )
+        ],
+        dry_run=False,
+        write_db=True,
+    )
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+    payload = _checkpoint(repository, f"performance:fixture:{canonical}")
+
+    assert result["status"] == "PASS"
+    assert payload["fixture_id"] == canonical
+    assert payload["status"] == "SCORED"
+
+
+def test_ambiguous_exact_fixture_mapping_is_blocked(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    _seed_result(repository, "1576806", home=1, away=0)
+    _seed_identity(
+        repository,
+        "1576806",
+        kickoff=KICKOFF,
+        provider_fixture_id="provider-a",
+    )
+    _seed_identity(
+        repository,
+        "fixture-canonical-b",
+        kickoff=KICKOFF,
+        provider_fixture_id="1576806",
+    )
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+    payload = _checkpoint(repository, "performance:fixture:1576806")
+
+    assert result["status"] == "BLOCKED"
+    assert payload["reason_codes"] == ["FIXTURE_IDENTITY_CONFLICT"]
+
+
+def test_same_card_market_siblings_collapse_with_order_invariant_hash(
+    tmp_path: Path,
+) -> None:
+    hashes: list[str] = []
+    for order in (("ah", "ou"), ("ou", "ah")):
+        repository = _repository(tmp_path / "-".join(order))
+        _seed_result(repository, "fixture-siblings", home=2, away=1)
+        _seed_identity(repository, "fixture-siblings", kickoff=KICKOFF)
+        siblings = _market_siblings("fixture-siblings", order)
+        repository.append(siblings, dry_run=False, write_db=True)
+
+        result = run_finished_match_scoring_projection(
+            engine=repository.engine,
+            dry_run=False,
+            write_db=True,
+        )
+        payload = _checkpoint(repository, "performance:fixture:fixture-siblings")
+
+        assert result["scored_count"] == 1
+        assert payload["status"] == "SCORED"
+        assert payload["contributing_capture_identity_hashes"] == ["ah", "ou"]
+        assert payload["clv_status"] == "NOT_APPLICABLE_NO_PICK"
+        hashes.append(payload["source_capture_group_hash"])
+
+    assert hashes[0] == hashes[1]
+
+
+def test_same_time_different_card_or_artifact_is_blocked(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    _seed_result(repository, "fixture-artifact-conflict", home=1, away=0)
+    _seed_identity(repository, "fixture-artifact-conflict", kickoff=KICKOFF)
+    captured = KICKOFF - timedelta(minutes=5)
+    repository.append(
+        [
+            _capture(
+                "fixture-artifact-conflict",
+                captured,
+                identity="a",
+                kickoff=KICKOFF,
+            ),
+            _capture(
+                "fixture-artifact-conflict",
+                captured,
+                identity="b",
+                kickoff=KICKOFF,
+            ),
+        ],
+        dry_run=False,
+        write_db=True,
+    )
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+    payload = _checkpoint(
+        repository,
+        "performance:fixture:fixture-artifact-conflict",
+    )
+
+    assert result["status"] == "BLOCKED"
     assert payload["reason_codes"] == [
         "EQUAL_TIMESTAMP_DIFFERENT_BUSINESS_IDENTITY"
     ]
 
 
+def test_dynamic_metadata_uses_canonical_fixture_join(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    canonical = "api_football:1576807"
+    captured = KICKOFF - timedelta(minutes=5)
+    _seed_result(repository, canonical, home=1, away=0)
+    _seed_identity(
+        repository,
+        canonical,
+        kickoff=KICKOFF,
+        provider_fixture_id="1576807",
+    )
+    capture = _capture("1576807", captured, identity="dynamic", kickoff=KICKOFF)
+    capture.pop("checkpoint", None)
+    capture.pop("lineup_input_hash", None)
+    repository.append([capture], dry_run=False, write_db=True)
+    _seed_dynamic(repository, "1576807", captured)
+
+    run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+    payload = _checkpoint(repository, f"performance:fixture:{canonical}")
+
+    assert payload["checkpoint"] == "T-30m"
+    assert payload["lineup_input_hash"] == "lineup-canonical"
+
+
 def test_fixture_clv_uses_existing_selection_and_method(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
-    _seed_result(repository, "fixture-clv", home=2, away=0)
-    _seed_identity(repository, "fixture-clv", kickoff=KICKOFF)
+    canonical = "api_football:1576808"
+    _seed_result(repository, canonical, home=2, away=0)
+    _seed_identity(
+        repository,
+        canonical,
+        kickoff=KICKOFF,
+        provider_fixture_id="1576808",
+    )
     entry = _capture(
-        "fixture-clv",
+        "1576808",
         KICKOFF - timedelta(hours=24),
         identity="clv-entry",
         kickoff=KICKOFF,
     )
     closing = _capture(
-        "fixture-clv",
+        "1576808",
         KICKOFF - timedelta(minutes=5),
         identity="clv-closing",
         kickoff=KICKOFF,
@@ -184,7 +392,7 @@ def test_fixture_clv_uses_existing_selection_and_method(tmp_path: Path) -> None:
         dry_run=False,
         write_db=True,
     )
-    payload = _checkpoint(repository, "performance:fixture:fixture-clv")
+    payload = _checkpoint(repository, f"performance:fixture:{canonical}")
 
     assert payload["clv_status"] == "AVAILABLE"
     assert payload["clv_decimal"] == 0.1
@@ -353,6 +561,7 @@ def test_operator_cli_exit_and_confirmation_semantics(
 
 
 def _repository(root: Path) -> OutcomeLedgerRepository:
+    root.mkdir(parents=True, exist_ok=True)
     engine = create_engine(f"sqlite+pysqlite:///{root / 'scoring.db'}")
     for table in (
         ResultModel.__table__,
@@ -394,14 +603,16 @@ def _seed_identity(
     fixture_id: str,
     *,
     kickoff: datetime,
+    provider_fixture_id: str | None = None,
 ) -> None:
     digest = sha256(fixture_id.encode()).hexdigest()
+    provider_id = provider_fixture_id or fixture_id
     with Session(repository.engine) as session:
         session.add(
             MatchdayFixtureIdentityModel(
                 fixture_id=fixture_id,
                 provider="api_football",
-                provider_fixture_id=fixture_id,
+                provider_fixture_id=provider_id,
                 competition_id="premier_league",
                 provider_league_id="39",
                 season="2026",
@@ -420,6 +631,57 @@ def _seed_identity(
             )
         )
         session.commit()
+
+
+def _seed_dynamic(
+    repository: OutcomeLedgerRepository,
+    fixture_id: str,
+    captured_at: datetime,
+) -> None:
+    with Session(repository.engine) as session:
+        session.add(
+            DynamicPrematchEvaluationModel(
+                evaluation_id=f"evaluation-{fixture_id}",
+                identity_hash=sha256(f"dynamic:{fixture_id}".encode()).hexdigest(),
+                fixture_id=fixture_id,
+                market="ASIAN_HANDICAP",
+                selection="HOME_AH",
+                checkpoint="T-30m",
+                capture_id=None,
+                quote_identity_hash=None,
+                model_input_hash=None,
+                lineup_input_hash="lineup-canonical",
+                evaluated_at=captured_at,
+                capture_at=captured_at,
+                original_state="WATCH",
+                payload={},
+            )
+        )
+        session.commit()
+
+
+def _market_siblings(
+    fixture_id: str,
+    order: tuple[str, str],
+) -> list[dict[str, Any]]:
+    captured_at = KICKOFF - timedelta(minutes=5)
+    siblings: dict[str, dict[str, Any]] = {}
+    for market in ("ah", "ou"):
+        capture = _capture(
+            fixture_id,
+            captured_at,
+            identity=market,
+            kickoff=KICKOFF,
+        )
+        capture["card_hash"] = "shared-card"
+        capture["artifact_provenance"] = {"artifact_hash": "shared-artifact"}
+        capture["shadow_pick"] = (
+            {"market": "ASIAN_HANDICAP", "selection": "HOME_AH"}
+            if market == "ah"
+            else {"market": "TOTALS", "selection": "OVER"}
+        )
+        siblings[market] = capture
+    return [siblings[market] for market in order]
 
 
 def _capture(

@@ -384,5 +384,5 @@ def test_p2_05_is_done_and_eval_01b_is_current() -> None:
     }
     assert (
         state["tasks"]["EVAL-01B"]["status"]
-        == "IMPLEMENTED_PENDING_ACCEPTANCE"
+        == "IMPLEMENTED_PENDING_SECONDARY_REVIEW_AND_STAGING"
     )

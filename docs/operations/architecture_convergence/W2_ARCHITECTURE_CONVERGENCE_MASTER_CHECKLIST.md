@@ -574,7 +574,7 @@ PR #424 已完成 exact-head FULL CI、外部 Review、staging 验收并合并�
 #### B2. EVAL-01B：全量校准评分投影
 
 ```text
-Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Status: IMPLEMENTED_PENDING_SECONDARY_REVIEW_AND_STAGING
 Branch: codex/eval-01b-finished-match-scoring-projection
 PR: #430
 ```

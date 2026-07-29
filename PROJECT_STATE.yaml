@@ -4,7 +4,7 @@ updated_at: "2026-07-29"
 current_state_authority: PROJECT_STATE.yaml
 task_authority: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
 current_task: EVAL-01B
-current_status: IMPLEMENTED_PENDING_ACCEPTANCE
+current_status: IMPLEMENTED_PENDING_SECONDARY_REVIEW_AND_STAGING
 current_pr: 430
 next_task: EVAL-01C
 tasks:
@@ -41,9 +41,11 @@ tasks:
     merge_sha: dc1a665655add801c4fe5cd7a0f39211d836e916
     main_ci: 30441901340
   EVAL-01B:
-    status: IMPLEMENTED_PENDING_ACCEPTANCE
+    status: IMPLEMENTED_PENDING_SECONDARY_REVIEW_AND_STAGING
     pr: 430
     branch: codex/eval-01b-finished-match-scoring-projection
+    blockers:
+      - EXACT_HEAD_IMAGE_TRANSFER_BLOCKED
   EVAL-01C:
     status: NOT_STARTED
 safety:
@@ -55,6 +57,7 @@ safety:
 staging:
   production_deployed: false
   eval_01a_exact_head_acceptance: PASS
+  eval_01b_exact_head_acceptance: BLOCKED_BY_NETWORK
 architecture_convergence:
   status: PASS
   receipt: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md

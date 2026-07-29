@@ -62,10 +62,16 @@ def test_eval_01b_authority_status_and_safety_contract() -> None:
     assert "B2_SCORING_TABLE_COUNT = 0" in section
     assert "- [ ] PR 合并。" in section
     assert state["current_task"] == "EVAL-01B"
-    assert state["current_status"] == "IMPLEMENTED_PENDING_ACCEPTANCE"
+    assert (
+        state["current_status"]
+        == "IMPLEMENTED_PENDING_SECONDARY_REVIEW_AND_STAGING"
+    )
     assert state["current_pr"] == 430
     assert state["next_task"] == "EVAL-01C"
-    assert state["tasks"]["EVAL-01B"]["status"] == "IMPLEMENTED_PENDING_ACCEPTANCE"
+    assert (
+        state["tasks"]["EVAL-01B"]["status"]
+        == "IMPLEMENTED_PENDING_SECONDARY_REVIEW_AND_STAGING"
+    )
     assert state["tasks"]["EVAL-01C"]["status"] == "NOT_STARTED"
     assert state["safety"]["provider_calls"] == 0
     assert state["safety"]["scheduler_started"] is False
