@@ -33,10 +33,10 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
 
     assert state["current_state_authority"] == "PROJECT_STATE.yaml"
     assert state["task_authority"] == CHECKLIST_PATH
-    assert state["current_task"] == "ARCH-P2-05"
+    assert state["current_task"] == "EVAL-01A"
     assert state["current_status"] == "IMPLEMENTED_PENDING_ACCEPTANCE"
-    assert state["current_pr"] == 429
-    assert state["next_task"] == "EVAL-01A"
+    assert state["current_pr"] == 424
+    assert state["next_task"] == "EVAL-01B"
     assert state["tasks"]["ARCH-P2-02"] == {
         "status": "DONE",
         "receipt": CHECKLIST_PATH,
@@ -56,28 +56,32 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "main_ci": 30432075563,
     }
     assert state["tasks"]["ARCH-P2-05"] == {
-        "status": "IMPLEMENTED_PENDING_ACCEPTANCE",
-        "branch": "codex/arch-p2-05-final-architecture-acceptance",
+        "status": "DONE",
         "pr": 429,
+        "merge_sha": "86a66ff5c07438b0543d2790165d406d452daedb",
+        "main_ci": 30435005222,
     }
     assert state["tasks"]["EVAL-01A"] == {
-        "status": "BLOCKED",
+        "status": "IMPLEMENTED_PENDING_ACCEPTANCE",
         "pr": 424,
-        "exact_head": "1bd33939243894d37475bb6d9a7bd86f175e8900",
-        "mergeable": False,
-        "blockers": [
-            "EXACT_HEAD_IMAGE_TRANSFER_BLOCKED",
-            "BASE_DIVERGENCE_MERGE_CONFLICT",
+        "branch": "codex/eval-01a-results-outcome-ledger-db",
+        "base_main": "86a66ff5c07438b0543d2790165d406d452daedb",
+        "pending_acceptance": [
+            "EXACT_HEAD_FULL_CI",
+            "SECONDARY_REVIEW",
+            "STAGING",
         ],
         "next_required_action": (
-            "Reconcile PR #424 onto the then-current main, resolve status-file "
-            "conflicts, rerun exact-head CI and external review, then perform "
-            "exact-head staging."
+            "Run exact-head FULL CI and external review, then perform exact-head "
+            "staging."
         ),
     }
     assert state["tasks"]["EVAL-01B"]["status"] == "NOT_STARTED"
+    assert state["architecture_convergence"]["status"] == "PASS"
     assert "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)" in next_action
     assert CHECKLIST_PATH in next_action
+    assert "当前：完成 B1 EVAL-01A / PR #424" in next_action
+    assert "下一项：B2 EVAL-01B；B1 合并前不启动。" in next_action
     assert "sole machine-readable project-status record" in ledger
     assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", ledger)
     assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", next_action)
@@ -94,9 +98,9 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     b1 = checklist[
         checklist.index("#### B1. EVAL-01A") : checklist.index("#### B2.")
     ]
-    assert "Status: BLOCKED" in b1
-    assert "EXACT_HEAD_IMAGE_TRANSFER_BLOCKED" in b1
-    assert "BASE_DIVERGENCE_MERGE_CONFLICT" in b1
+    assert "Status: IMPLEMENTED_PENDING_ACCEPTANCE" in b1
+    assert "Base Main: 86a66ff5c07438b0543d2790165d406d452daedb" in b1
+    assert "W2_ARCHITECTURE_CONVERGENCE_COMPLETE = PASS" in checklist
     for task in FORBIDDEN_TASKS:
         assert task not in state
         assert task not in next_action

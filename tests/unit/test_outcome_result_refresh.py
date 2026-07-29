@@ -1,269 +1,293 @@
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
+from hashlib import sha256
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
+import pytest
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
+
+from w2.infrastructure.persistence.future_refresh_models import RawPayloadModel
+from w2.infrastructure.persistence.matchday_intake_models import (
+    MatchdayEndpointCaptureModel,
+    MatchdayFixtureIdentityModel,
+)
+from w2.infrastructure.persistence.models import ResultModel
+from w2.tracking.outcome_ledger_repository import OutcomeLedgerRepository
 from w2.tracking.outcome_result_refresh import run_outcome_result_refresh
 
-
-class FakeRepository:
-    def __init__(self, calls_today: int = 0) -> None:
-        self.calls_today = calls_today
-        self.saved: list[dict[str, Any]] = []
-
-    def request_count_since(self, since: datetime) -> int:
-        del since
-        return self.calls_today
-
-    def save_raw_payload(self, **payload: Any) -> str:
-        self.saved.append(payload)
-        return f"db://raw_payload/{payload['sha256']}"
+NOW = datetime(2026, 7, 19, 4, 0, tzinfo=UTC)
 
 
-class StatusRefreshRepository(FakeRepository):
-    def __init__(self, fixtures: list[dict[str, Any]]) -> None:
-        super().__init__()
-        self.fixtures = fixtures
-
-    def fixture_payloads(self) -> list[dict[str, Any]]:
-        return self.fixtures
-
-
-class FakeClient:
-    def __init__(self, payloads: dict[str, dict[str, Any]]) -> None:
-        self.payloads = payloads
-        self.calls: list[str] = []
-
-    def request_live(self, endpoint: str, params: dict[str, str]) -> Any:
-        assert endpoint == "fixtures"
-        fixture_id = params["id"]
-        self.calls.append(fixture_id)
-        return SimpleNamespace(
-            payload=self.payloads[fixture_id],
-            captured_at=datetime(2026, 7, 19, 4, 0, tzinfo=UTC),
-        )
-
-
-def test_result_refresh_fetches_pending_fixture_and_settles_total(tmp_path: Path) -> None:
-    _write_capture(tmp_path, fixture_id="101", market="TOTALS", selection="OVER")
-    client = FakeClient(
-        {
-            "101": _fixture_payload(
-                fixture_id="101",
-                status="FT",
-                fulltime=(2, 1),
-                goals=(2, 1),
-            )
-        }
-    )
-    repository = FakeRepository()
+@pytest.mark.parametrize("status", ["FT", "AET", "PEN"])
+def test_result_materializer_writes_terminal_scores(
+    tmp_path: Path,
+    status: str,
+) -> None:
+    repository = _repository(tmp_path)
+    _seed_fixture(repository, provider_id="101", status=status, fulltime=(2, 1))
 
     result = run_outcome_result_refresh(
-        runtime_root=tmp_path,
-        client=client,
-        repository=repository,  # type: ignore[arg-type]
-        now=datetime(2026, 7, 19, 4, 0, tzinfo=UTC),
+        repository=repository,
+        fixture_ids=["api_football:101"],
+        now=NOW,
         dry_run=False,
-        write_artifacts=True,
+        write_db=True,
     )
 
     assert result["status"] == "PASS"
-    assert result["provider_calls"] == 1
-    assert result["db_writes"] == 1
-    assert result["settlement"]["written"] == 1
-    assert repository.saved[0]["endpoint"] == "fixtures"
-    rows = _ledger_rows(tmp_path)
-    outcome = [row for row in rows if row.get("record_type") == "outcome"][0]
-    assert outcome["settlement_outcome"] == "HALF_WIN"
-
-
-def test_result_refresh_voids_postponement_over_48_hours(tmp_path: Path) -> None:
-    _write_capture(tmp_path, fixture_id="102", market="ASIAN_HANDICAP", selection="HOME_AH")
-    client = FakeClient(
-        {"102": _fixture_payload(fixture_id="102", status="PST", fulltime=None, goals=None)}
-    )
-
-    result = run_outcome_result_refresh(
-        runtime_root=tmp_path,
-        client=client,
-        repository=FakeRepository(),  # type: ignore[arg-type]
-        now=datetime(2026, 7, 19, 4, 0, tzinfo=UTC),
-        dry_run=False,
-        write_artifacts=True,
-    )
-
-    assert result["status"] == "PASS"
-    outcome = [row for row in _ledger_rows(tmp_path) if row.get("record_type") == "outcome"][0]
-    assert outcome["settlement_outcome"] == "VOID"
-    assert outcome["void_reason"] == "VOID_POSTPONED_OVER_48H"
-
-
-def test_result_refresh_respects_daily_cap(tmp_path: Path, monkeypatch: Any) -> None:
-    monkeypatch.setenv("W2_PROVIDER_DAILY_HARD_CAP", "120")
-    _write_capture(tmp_path, fixture_id="103", market="ASIAN_HANDICAP", selection="HOME_AH")
-    client = FakeClient({})
-
-    result = run_outcome_result_refresh(
-        runtime_root=tmp_path,
-        client=client,
-        repository=FakeRepository(calls_today=120),  # type: ignore[arg-type]
-        now=datetime(2026, 7, 19, 4, 0, tzinfo=UTC),
-    )
-
-    assert result["status"] == "PARTIAL"
+    assert result["materialized_result_count"] == 1
     assert result["provider_calls"] == 0
-    assert result["blockers"] == ["PROVIDER_DAILY_HARD_CAP_REACHED"]
-    assert client.calls == []
+    assert result["db_writes"] == 1
+    assert _result_row(repository, "api_football:101") == (status, 2, 1)
 
 
-def test_finished_unsettleable_capture_is_not_requeried(tmp_path: Path) -> None:
-    _write_capture(tmp_path, fixture_id="104", market="TOTALS", selection="OVER")
-    ledger_path = tmp_path / "forward_outcome_ledger" / "2026-07-10_staging.jsonl"
-    capture = json.loads(ledger_path.read_text(encoding="utf-8"))
-    capture.update(
-        {
-            "decision_tier": "WATCH",
-            "recommendation_scope": "SHADOW",
-            "outcome_tracked": False,
-            "pick": None,
-            "shadow_pick": {"market": "TOTALS", "selection": "OVER"},
-            "current_odds": {},
-        }
+def test_result_materializer_does_not_write_non_terminal_fixture(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    _seed_fixture(repository, provider_id="102", status="NS", fulltime=None)
+
+    result = run_outcome_result_refresh(
+        repository=repository,
+        dry_run=False,
+        write_db=True,
     )
-    ledger_path.write_text(json.dumps(capture, sort_keys=True) + "\n", encoding="utf-8")
-    client = FakeClient(
-        {
-            "104": _fixture_payload(
-                fixture_id="104",
-                status="FT",
-                fulltime=(2, 1),
-                goals=(2, 1),
-            )
-        }
+
+    assert result["status"] == "PASS"
+    assert result["result_not_finished_count"] == 1
+    assert result["db_writes"] == 0
+
+
+def test_result_materializer_fails_closed_on_terminal_missing_score(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    _seed_fixture(repository, provider_id="103", status="FT", fulltime=None)
+
+    result = run_outcome_result_refresh(
+        repository=repository,
+        dry_run=False,
+        write_db=True,
     )
-    repository = FakeRepository()
+
+    assert result["status"] == "BLOCKED"
+    assert result["result_source_missing_count"] == 1
+    assert result["blockers"] == ["api_football:103:RESULT_SOURCE_MISSING"]
+    assert result["db_writes"] == 0
+
+
+def test_result_materializer_is_idempotent_for_same_score(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    _seed_fixture(repository, provider_id="104", status="FT", fulltime=(1, 0))
 
     first = run_outcome_result_refresh(
-        runtime_root=tmp_path,
-        client=client,
-        repository=repository,  # type: ignore[arg-type]
-        now=datetime(2026, 7, 19, 4, 0, tzinfo=UTC),
+        repository=repository,
         dry_run=False,
-        write_artifacts=True,
+        write_db=True,
     )
     second = run_outcome_result_refresh(
-        runtime_root=tmp_path,
-        client=client,
-        repository=repository,  # type: ignore[arg-type]
-        now=datetime(2026, 7, 19, 5, 0, tzinfo=UTC),
+        repository=repository,
         dry_run=False,
-        write_artifacts=True,
+        write_db=True,
     )
 
-    assert first["status"] == "PARTIAL"
-    assert first["selected"][0]["status"] == "SETTLEMENT_ERROR"
-    assert first["provider_calls"] == 1
-    assert second["status"] == "NO_DUE_WORK"
-    assert second["provider_calls"] == 0
-    assert client.calls == ["104"]
+    assert first["materialized_result_count"] == 1
+    assert second["already_materialized_count"] == 1
+    assert second["db_writes"] == 0
 
 
-def test_result_refresh_reconciles_completed_non_ledger_fixture_status(tmp_path: Path) -> None:
-    repository = StatusRefreshRepository(
-        [
-            {
-                "fixture": {
-                    "id": 105,
-                    "date": "2026-07-19T00:00:00Z",
-                    "status": {"short": "NS"},
-                }
-            }
-        ]
+def test_result_materializer_fails_closed_on_conflicting_scores(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    _seed_fixture(repository, provider_id="105", status="FT", fulltime=(1, 0))
+    _seed_raw(repository, provider_id="105", status="FT", fulltime=(2, 0), suffix="conflict")
+
+    result = run_outcome_result_refresh(
+        repository=repository,
+        dry_run=False,
+        write_db=True,
     )
-    client = FakeClient(
-        {
-            "105": _fixture_payload(
-                fixture_id="105",
-                status="FT",
-                fulltime=(1, 0),
-                goals=(1, 0),
-            )
-        }
+
+    assert result["status"] == "BLOCKED"
+    assert result["result_source_conflict_count"] == 1
+    assert result["blockers"] == ["api_football:105:RESULT_SOURCE_CONFLICT"]
+    assert result["db_writes"] == 0
+
+
+@pytest.mark.parametrize("requested", ["106", "api_football:106"])
+def test_result_materializer_resolves_bare_and_canonical_provider_id(
+    tmp_path: Path,
+    requested: str,
+) -> None:
+    repository = _repository(tmp_path)
+    _seed_fixture(repository, provider_id="106", status="FT", fulltime=(3, 2))
+
+    result = run_outcome_result_refresh(
+        repository=repository,
+        fixture_ids=[requested],
+        dry_run=False,
+        write_db=True,
+    )
+
+    assert result["inspected_fixture_count"] == 1
+    assert _result_row(repository, "api_football:106") == ("FT", 3, 2)
+
+
+def test_result_materializer_does_not_match_by_team_name(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    _seed_fixture(repository, provider_id="107", status="FT", fulltime=(1, 1))
+
+    result = run_outcome_result_refresh(
+        repository=repository,
+        fixture_ids=["Home v Away"],
+        dry_run=False,
+        write_db=True,
+    )
+
+    assert result["inspected_fixture_count"] == 0
+    assert result["status"] == "BLOCKED"
+    assert result["blockers"] == ["Home v Away:RESULT_SOURCE_MISSING"]
+    assert result["db_writes"] == 0
+
+
+def test_result_materializer_never_imports_or_calls_provider(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = _repository(tmp_path)
+    _seed_fixture(repository, provider_id="108", status="FT", fulltime=(2, 2))
+    monkeypatch.setattr(
+        "builtins.__import__",
+        _provider_import_guard,
     )
 
     result = run_outcome_result_refresh(
-        runtime_root=tmp_path,
-        client=client,
-        repository=repository,  # type: ignore[arg-type]
-        now=datetime(2026, 7, 19, 4, 0, tzinfo=UTC),
-        dry_run=False,
-        write_artifacts=True,
+        repository=repository,
+        dry_run=True,
+        write_db=False,
     )
 
-    assert result["status"] == "PASS"
-    assert result["provider_calls"] == 1
-    assert result["db_writes"] == 1
-    assert result["settlement"]["written"] == 0
-    assert client.calls == ["105"]
-    assert result["selected"][0]["status"] == "FT"
-    assert result["selected"][0]["next_check_at_utc"] is None
+    assert result["provider_calls"] == 0
+    assert result["db_writes"] == 0
+    assert result["materialized_result_count"] == 0
 
 
-def _write_capture(
-    root: Path,
+def _repository(root: Path) -> OutcomeLedgerRepository:
+    engine = create_engine(f"sqlite+pysqlite:///{root / 'results.db'}")
+    RawPayloadModel.__table__.create(engine, checkfirst=True)
+    MatchdayEndpointCaptureModel.__table__.create(engine, checkfirst=True)
+    MatchdayFixtureIdentityModel.__table__.create(engine, checkfirst=True)
+    ResultModel.__table__.create(engine, checkfirst=True)
+    return OutcomeLedgerRepository(engine)
+
+
+def _seed_fixture(
+    repository: OutcomeLedgerRepository,
     *,
-    fixture_id: str,
-    market: str,
-    selection: str,
+    provider_id: str,
+    status: str,
+    fulltime: tuple[int, int] | None,
 ) -> None:
-    ledger = root / "forward_outcome_ledger"
-    ledger.mkdir()
-    odds = (
-        {"ah": {"home_line": "-0.5", "home_price": "1.9", "away_line": "+0.5", "away_price": "1.9"}}
-        if market == "ASIAN_HANDICAP"
-        else {"ou": {"line": "2.75", "over_price": "1.9", "under_price": "1.9"}}
+    raw_hash, payload = _seed_raw(
+        repository,
+        provider_id=provider_id,
+        status=status,
+        fulltime=fulltime,
+        suffix="identity",
     )
-    capture = {
-        "schema_version": "w2.forward_outcome_ledger.v3",
-        "record_type": "capture",
-        "captured_at": "2026-07-10T00:00:00Z",
-        "football_day": "2026-07-10",
-        "environment": "staging",
-        "fixture_id": fixture_id,
-        "kickoff_utc": "2026-07-10T02:00:00Z",
-        "competition_id": "league-1",
-        "home_team_name": "Home",
-        "away_team_name": "Away",
-        "card_hash": f"card-{fixture_id}",
-        "capture_identity_hash": f"capture-{fixture_id}",
-        "recommendation_scope": "VALIDATION",
-        "outcome_tracked": True,
-        "pick": {"market": market, "selection": selection},
-        "current_odds": odds,
-    }
-    (ledger / "2026-07-10_staging.jsonl").write_text(
-        json.dumps(capture, sort_keys=True) + "\n",
-        encoding="utf-8",
+    capture_id = f"capture-{provider_id}"
+    with Session(repository.engine) as session:
+        session.add(
+            MatchdayEndpointCaptureModel(
+                capture_id=capture_id,
+                fixture_id=f"api_football:{provider_id}",
+                competition_id="premier_league",
+                checkpoint="RESULT",
+                endpoint="fixtures",
+                sanitized_params={"id": provider_id},
+                params_hash=sha256(provider_id.encode()).hexdigest(),
+                request_task_key=f"fixture:{provider_id}",
+                attempt=1,
+                requested_at=NOW,
+                provider_captured_at=NOW,
+                status_code=200,
+                elapsed_ms=1,
+                response_count=1,
+                quota_values={},
+                raw_payload_sha256=raw_hash,
+                provider_event_time=None,
+                capture_status="SUCCESS",
+                error_code=None,
+            )
+        )
+        session.add(
+            MatchdayFixtureIdentityModel(
+                fixture_id=f"api_football:{provider_id}",
+                provider="api_football",
+                provider_fixture_id=provider_id,
+                competition_id="premier_league",
+                provider_league_id="39",
+                season="2026",
+                kickoff_utc=NOW,
+                fixture_status=status,
+                home_provider_team_id="1",
+                away_provider_team_id="2",
+                home_w2_team_id="home",
+                away_w2_team_id="away",
+                team_identity_status="RESOLVED",
+                raw_payload_sha256=raw_hash,
+                endpoint_capture_id=capture_id,
+                captured_at=NOW,
+                identity_hash=sha256(f"identity:{provider_id}".encode()).hexdigest(),
+                payload=payload["response"][0],
+            )
+        )
+        session.commit()
+
+
+def _seed_raw(
+    repository: OutcomeLedgerRepository,
+    *,
+    provider_id: str,
+    status: str,
+    fulltime: tuple[int, int] | None,
+    suffix: str,
+) -> tuple[str, dict[str, Any]]:
+    payload = _fixture_payload(
+        provider_id=provider_id,
+        status=status,
+        fulltime=fulltime,
     )
+    raw_hash = sha256(f"{provider_id}:{status}:{fulltime}:{suffix}".encode()).hexdigest()
+    with Session(repository.engine) as session:
+        session.add(
+            RawPayloadModel(
+                sha256=raw_hash,
+                endpoint="fixtures",
+                captured_at=NOW,
+                storage_uri=f"db://raw_payload/{raw_hash}",
+                payload=payload,
+            )
+        )
+        session.commit()
+    return raw_hash, payload
 
 
 def _fixture_payload(
     *,
-    fixture_id: str,
+    provider_id: str,
     status: str,
     fulltime: tuple[int, int] | None,
-    goals: tuple[int, int] | None,
 ) -> dict[str, Any]:
     return {
         "response": [
             {
                 "fixture": {
-                    "id": int(fixture_id),
+                    "id": int(provider_id),
                     "date": "2026-07-10T02:00:00Z",
                     "status": {"short": status},
+                },
+                "teams": {
+                    "home": {"id": 1, "name": "Home"},
+                    "away": {"id": 2, "name": "Away"},
                 },
                 "score": {
                     "fulltime": {
@@ -271,15 +295,34 @@ def _fixture_payload(
                         "away": fulltime[1] if fulltime else None,
                     }
                 },
-                "goals": {
-                    "home": goals[0] if goals else None,
-                    "away": goals[1] if goals else None,
-                },
             }
         ]
     }
 
 
-def _ledger_rows(root: Path) -> list[dict[str, Any]]:
-    path = root / "forward_outcome_ledger/2026-07-10_staging.jsonl"
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+def _result_row(
+    repository: OutcomeLedgerRepository,
+    fixture_id: str,
+) -> tuple[str, int, int] | None:
+    with Session(repository.engine) as session:
+        row = session.scalar(
+            select(ResultModel).where(ResultModel.fixture_id == fixture_id)
+        )
+        if row is None:
+            return None
+        return (row.result_status, row.home_goals, row.away_goals)
+
+
+def _provider_import_guard(
+    name: str,
+    globals: dict[str, Any] | None = None,
+    locals: dict[str, Any] | None = None,
+    fromlist: tuple[str, ...] = (),
+    level: int = 0,
+) -> Any:
+    if "provider" in name.lower() or "api_football" in name.lower():
+        raise AssertionError(f"provider import forbidden: {name}")
+    return _ORIGINAL_IMPORT(name, globals, locals, fromlist, level)
+
+
+_ORIGINAL_IMPORT = __import__

@@ -348,7 +348,7 @@ P1_ARCHITECTURE_CONVERGENCE_PASS = PASS
 #### A8. 阶段 P2：卫生治理（可与阶段 B 穿插，不得抢占 EVAL-01 序列）
 
 ```text
-Status: IN_PROGRESS
+Status: DONE
 ```
 
 **ARCH-P2-02 Docs 整理**
@@ -412,7 +412,7 @@ Dockerfile、Compose、workflow、Runbook 和历史/恢复入口，避免把离�
 TOP_LEVEL_PACKAGE_COUNT = 40
 MAPPED_PACKAGE_COUNT = 40
 UNMAPPED_PACKAGE_COUNT = 0
-DEPENDENCY_EDGE_COUNT = 124
+DEPENDENCY_EDGE_COUNT = 122
 CYCLE_COUNT = 1
 RUNTIME_REACHABLE_PACKAGE_COUNT = 27
 OFFLINE_ONLY_PACKAGE_COUNT = 13
@@ -436,8 +436,8 @@ DELETED_PACKAGE_COUNT = 0
 | `gates` | 2 | apps:0;scripts:0;migrations:0;tests:0 | - | strategy | - | w2-gate5-preflight | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | CONSOLE_ENTRYPOINT |
 | `historical` | 12 | apps:0;scripts:9;migrations:0;tests:4 | lineups | domain,identity,infrastructure | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `identity` | 2 | apps:0;scripts:1;migrations:0;tests:2 | factor_model,historical,ingestion,lineups | infrastructure | - | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
-| `infrastructure` | 18 | apps:0;scripts:13;migrations:17;tests:31 | api,audit_export,competitions,factor_model,historical,identity,ingestion,matchday,monitoring,operations,prematch,providers,settlement,strategy,tracking | - | - | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
-| `ingestion` | 16 | apps:2;scripts:13;migrations:0;tests:16 | analysis,backtest,factor_model,prematch,providers,tracking | competitions,domain,features,identity,infrastructure,lineups,markets,matchday,normalization,prematch,providers | SCC-1 | - | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `infrastructure` | 19 | apps:0;scripts:12;migrations:17;tests:37 | api,audit_export,competitions,factor_model,historical,identity,ingestion,matchday,monitoring,operations,prematch,providers,settlement,strategy,tracking | - | - | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `ingestion` | 16 | apps:2;scripts:13;migrations:0;tests:16 | analysis,backtest,factor_model,prematch,providers | competitions,domain,features,identity,infrastructure,lineups,markets,matchday,normalization,prematch,providers | SCC-1 | - | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `lineups` | 5 | apps:0;scripts:6;migrations:0;tests:5 | ingestion,prematch | historical,identity | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `markets` | 17 | apps:0;scripts:3;migrations:0;tests:15 | backtest,features,ingestion,prematch,readiness,strategy,tracking | domain,strategy | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `matchday` | 11 | apps:1;scripts:3;migrations:2;tests:9 | api,factor_model,ingestion,prematch,refresh | competitions,dashboard,domain,infrastructure,providers,readiness,refresh,strategy | SCC-1 | w2-matchday | YES | YES | PYTHON_IMAGE | RUNTIME_ENTRYPOINT | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
@@ -449,7 +449,7 @@ DELETED_PACKAGE_COUNT = 0
 | `operations` | 11 | apps:1;scripts:7;migrations:0;tests:9 | api,prematch,providers,security | competitions,domain,infrastructure,models | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `prematch` | 7 | apps:1;scripts:6;migrations:0;tests:29 | api,dashboard,ingestion,tracking | analysis,competitions,dashboard,domain,features,infrastructure,ingestion,lineups,markets,matchday,operations,pricing,providers,ratings,strategy,tracking | SCC-1 | - | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `pricing` | 6 | apps:0;scripts:0;migrations:0;tests:3 | prematch | domain,strategy | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
-| `providers` | 5 | apps:2;scripts:7;migrations:0;tests:11 | api,backtest,competitions,factor_model,ingestion,matchday,monitoring,prematch,tracking | infrastructure,ingestion,operations | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `providers` | 5 | apps:2;scripts:6;migrations:0;tests:11 | api,backtest,competitions,factor_model,ingestion,matchday,monitoring,prematch | infrastructure,ingestion,operations | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `ratings` | 2 | apps:0;scripts:0;migrations:0;tests:0 | factor_model,prematch | features | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `readiness` | 2 | apps:0;scripts:0;migrations:0;tests:1 | domain,matchday | domain,markets | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `recovery` | 2 | apps:0;scripts:1;migrations:0;tests:1 | - | domain,models | - | - | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | SCRIPT_ENTRY;BACKUP_RESTORE |
@@ -461,7 +461,7 @@ DELETED_PACKAGE_COUNT = 0
 | `settlement` | 3 | apps:0;scripts:2;migrations:0;tests:2 | dashboard,tracking | domain,infrastructure | SCC-1 | - | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `shadow` | 2 | apps:0;scripts:0;migrations:0;tests:0 | - | strategy | - | w2-shadow-comparison-import | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | CONSOLE_ENTRYPOINT;COMPARISON_IMPORT |
 | `strategy` | 13 | apps:0;scripts:3;migrations:0;tests:15 | dashboard,gates,markets,matchday,prematch,pricing,shadow | competitions,domain,features,formal,infrastructure,markets,models | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
-| `tracking` | 7 | apps:1;scripts:5;migrations:0;tests:11 | audit_export,prematch | domain,infrastructure,ingestion,markets,prematch,providers,settlement | SCC-1 | - | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `tracking` | 8 | apps:1;scripts:4;migrations:0;tests:13 | audit_export,prematch | domain,infrastructure,markets,prematch,settlement | SCC-1 | - | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 
 ```text
 ROLE_COUNTS = RUNTIME_ENTRYPOINT:1;RUNTIME_LIBRARY:19;WRITE_SIDE_PROJECTION:5;PUBLIC_READ:2;OFFLINE_TOOL:11;MIGRATION_ONLY:1;AUDIT_EXPORT:1;DEAD:0
@@ -475,16 +475,16 @@ INVESTIGATION_REQUIRED_PACKAGES = schemas
 
 **ARCH-P2-05 最终架构收敛验收**
 ```text
-Status: IMPLEMENTED_PENDING_ACCEPTANCE
-Branch: codex/arch-p2-05-final-architecture-acceptance
+Status: DONE
 PR: #429
-Base Main: 1a46a9e47a478072d37e4ec4c7a44d914e1a127b
-Base Main CI: 30432075563
+Merge SHA: 86a66ff5c07438b0543d2790165d406d452daedb
+CI: 30435005222
+Conclusion: P0/P1/P2 最终架构收敛验收通过；22 包 SCC 与 schemas 待调查项如实保留。
 ```
 
 - [x] P0 与 P1 的历史台账、A1–A7 实施 PR 和 merge SHA 已逐项对 Git/GitHub 核对；
       原台账 #380、#382、#388 的三个错误短 SHA 已改为真实前缀。
-- [x] P2-02、P2-03、P2-04、P2-06 的完成坐标/本地结论完整；P2-05 不提前标 DONE。
+- [x] P2-02、P2-03、P2-04、P2-06 的完成坐标/本地结论完整；P2-05 仅在 PR #429 合并后标 DONE。
 - [x] `PROJECT_STATE.yaml` 仍是唯一当前机器状态；本清单仍是唯一任务顺序、规格和已合并回执权威。
 - [x] 唯一事实权威计数均为 1；API 计算 import、隐式空数据 fallback、legacy runtime 引用均为 0；
       现有 fail-closed 与生产零引用合同继续执行。
@@ -496,12 +496,12 @@ Base Main CI: 30432075563
       `KEEP_OFFLINE / INVESTIGATION_REQUIRED`，未虚假宣称问题消失。
 - [x] 本 PR 仅修改清单、机器状态和合同测试；`STAGING_NOT_REQUIRED = PASS`，
       Provider calls = 0，Business DB writes = 0。
-- [ ] exact-head FULL CI、外部验收与 PR 合并。
+- [x] exact-head FULL CI、外部验收与 PR 合并。
 
 ```text
 P0_ARCHITECTURE_CONVERGENCE_PASS = PASS
 P1_ARCHITECTURE_CONVERGENCE_PASS = PASS
-P2_ARCHITECTURE_FINAL_ACCEPTANCE = IMPLEMENTED_PENDING_ACCEPTANCE
+P2_ARCHITECTURE_FINAL_ACCEPTANCE = PASS
 CURRENT_AUTHORITY_CONFLICT_COUNT = 0
 PRODUCTION_FALLBACK_REFERENCE_COUNT = 0
 SERVER_BUILD_COUNT = 0
@@ -515,7 +515,7 @@ SCHEMAS_EVIDENCE = INVESTIGATION_REQUIRED
 STAGING_NOT_REQUIRED = PASS
 ```
 
-**最终状态（P2-05 合并后才允许）**：`W2_ARCHITECTURE_CONVERGENCE_COMPLETE`
+**最终状态**：`W2_ARCHITECTURE_CONVERGENCE_COMPLETE = PASS`
 
 ---
 
@@ -525,7 +525,7 @@ STAGING_NOT_REQUIRED = PASS
 > 首发因子两面处理：有首发的联赛验增量，无首发的联赛防逆向选择。
 
 ```text
-Status: NOT_STARTED
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
 ```
 
 ---
@@ -533,30 +533,40 @@ Status: NOT_STARTED
 #### B1. EVAL-01A：赛果与结算账本数据库化
 
 ```text
-Status: BLOCKED
-Blockers: EXACT_HEAD_IMAGE_TRANSFER_BLOCKED; BASE_DIVERGENCE_MERGE_CONFLICT
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Branch: codex/eval-01a-results-outcome-ledger-db
+PR: #424
+Base Main: 86a66ff5c07438b0543d2790165d406d452daedb
 ```
 
-PR #424 必须先对齐届时最新 main、解决状态文件冲突、重跑 exact-head CI 与外部 Review，
-再执行 exact-head staging；本任务不在 ARCH-P2-04 中处理。
+PR #424 已在同一分支对齐最新 main；下一步为新 exact head 的 FULL CI、外部 Review
+与 staging 验收。
 
 **目标**：赛果获得 DB 唯一权威；runtime 文件账本（最后一块文件飞地）迁入 DB 并删除。
 
-- [ ] **赛果权威 = 现有 `results` 表**（不新建）。新增 worker 任务：FINISHED 后从**已采集**的
+- [x] **赛果权威 = 现有 `results` 表**（不新建）。新增 worker 任务：FINISHED 后从**已采集**的
       provider fixture 数据（`raw_payload` / matchday 采集链的 FT 状态与比分）提取
       `MatchResult` 写入 `results`。**不新增任何 provider 调用**；缺比分场次记
       `RESULT_SOURCE_MISSING`，不补采。
-- [ ] **runtime 账本迁移**：`runtime/forward_outcome_ledger/*` 与
+- [x] **runtime 账本迁移**：`runtime/forward_outcome_ledger/*` 与
       `src/w2/tracking/formal_results.py` 的文件读写（11、26 处）迁入 DB；
       建表与否按第三节授权基准 (a) 执行，判定证据写入本文件。
       迁移行数+hash 对账后**同一 PR** 删除文件读写路径，`runtime/` 不再有账本目录。
-- [ ] `src/w2/settlement/settle.py` 消费 DB `results`；`forward_ledger_performance`
+- [x] `src/w2/settlement/settle.py` 消费 DB `results`；`forward_ledger_performance`
       记录来源改为 DB 查询（调用方 `analysis_calculator.py` 语义不动）。
 
 **不做**：不改 CLV/命中率计算逻辑；不动 canonical 样本定义；不做 Dashboard。
 **验收**：`RESULTS_DB_AUTHORITY_COUNT = 1`；`RUNTIME_LEDGER_FILE_IO = 0`（静态守卫，
 模式同 `test_production_report_reads.py`）；迁移对账一致；老板可见的历史表现数字不漂移。
 **资产账本**：新增 ≤1 表（按基准判定）；删除 runtime 账本目录 + 文件 IO 代码。
+
+**建表授权判定**：`OUTCOME_LEDGER_DECISION = CREATE_ONE_TABLE`
+
+1. `results` 每场只保存一个终场比分，无法承载 capture、outcome、supersession、报价时间线和非正式验证事件。
+2. `settlements` 强绑定 `recommendation_id` 与 `result_id`；承载 validation/shadow/capture 会伪造正式推荐身份并扭曲列语义。
+3. 历史 JSONL 的 fixture/recommendation scope、pick/shadow pick、quote/artifact/probability provenance、
+   capture/decision/supersession identity 与 settlement evidence 无法无损映射到现有两表。
+
 - [ ] PR 合并。
 
 ---

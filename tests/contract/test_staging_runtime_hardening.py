@@ -139,6 +139,7 @@ def test_staging_legacy_recovery_manifest_contains_only_unique_capture_cases() -
     assert payload["schema_version"] == "w2.forward_ledger_legacy_recovery.v1"
     assert payload["environment"] == "staging"
     assert payload["policy"] == "unique_validation_capture_exact_identity"
+    assert payload["authority_status"] == "MIGRATION_INPUT_ONLY"
     assert {entry["fixture_id"] for entry in entries} == {
         "1492295",
         "1492297",

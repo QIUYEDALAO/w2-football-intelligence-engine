@@ -7,7 +7,6 @@ from typing import Any
 from apps.scheduler import main as scheduler_main
 from apps.scheduler.main import (
     due_checkpoint_refresh_batch,
-    forward_outcome_backfill_tick,
     forward_outcome_ledger_tick,
     future_fixture_refresh_tick,
     heartbeat,
@@ -16,11 +15,11 @@ from apps.scheduler.main import (
 )
 from apps.worker.celery_app import (
     celery_app,
-    forward_outcome_backfill,
     forward_outcome_ledger,
     future_fixture_refresh,
     market_timeline_refresh,
     ping,
+    result_materialize,
     xg_history_backfill,
 )
 
@@ -66,7 +65,6 @@ def test_scheduler_future_refresh_disabled_by_default(monkeypatch) -> None:
     assert xg_history_backfill_tick()["status"] == "DISABLED"
     assert market_timeline_refresh_tick()["status"] == "DISABLED"
     assert forward_outcome_ledger_tick()["status"] == "DISABLED"
-    assert forward_outcome_backfill_tick()["status"] == "DISABLED"
 
 
 def test_scheduler_future_refresh_dispatches_checkpoint_worker_task_without_running_provider(
@@ -553,27 +551,6 @@ def test_scheduler_forward_outcome_ledger_dispatches_without_provider_calls(monk
     assert sent[0]["kwargs"]["window"] == "next36"
 
 
-def test_scheduler_forward_outcome_backfill_dispatches_without_provider_calls(
-    monkeypatch,
-) -> None:
-    sent: list[dict[str, object]] = []
-
-    def fake_send_task(name: str, **kwargs: object) -> None:
-        sent.append({"name": name, **kwargs})
-
-    monkeypatch.setenv("W2_FORWARD_OUTCOME_BACKFILL_ENABLED", "true")
-    monkeypatch.setattr(celery_app, "send_task", fake_send_task)
-
-    result = forward_outcome_backfill_tick()
-
-    assert result["status"] == "QUEUED"
-    assert result["provider_calls"] == 0
-    assert result["db_writes"] == 0
-    assert str(result["task_id"]).startswith("forward-outcome-backfill:")
-    assert sent[0]["name"] == "w2.forward_outcome_backfill"
-    assert sent[0]["kwargs"]["window"] == "next36"
-
-
 def test_worker_xg_backfill_task_reports_false_flags(monkeypatch) -> None:
     class FakeResult:
         def as_dict(self) -> dict[str, object]:
@@ -684,26 +661,25 @@ def test_worker_forward_outcome_ledger_task_reports_safety_flags(monkeypatch) ->
     assert result["formal_recommendation"] is False
 
 
-def test_worker_forward_outcome_backfill_task_reports_safety_flags(monkeypatch) -> None:
-    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+def test_worker_result_materialize_task_reports_safety_flags(monkeypatch) -> None:
     monkeypatch.setattr(
-        "apps.worker.celery_app._run_forward_outcome_backfill",
+        "apps.worker.celery_app._run_result_materialize",
         lambda **kwargs: {
             "status": "PASS",
             "provider_calls": 0,
-            "db_writes": 0,
-            "lock_capture_write": False,
-            "settlement_write": False,
-            "record_count": 1,
-            "written": 1,
+            "db_writes": 1,
+            "materialized_result_count": 1,
         },
     )
 
-    result = forward_outcome_backfill.run(queued_at_utc="2026-06-29T12:00:00Z")
+    result = result_materialize.run(
+        queued_at_utc="2026-06-29T12:00:00Z",
+        fixture_ids=["fixture-1"],
+    )
 
     assert result["status"] == "PASS"
     assert result["provider_calls"] == 0
-    assert result["db_writes"] == 0
+    assert result["db_writes"] == 1
     assert result["lock_capture_write"] is False
     assert result["settlement_write"] is False
     assert result["candidate"] is False
@@ -839,7 +815,7 @@ def test_worker_future_refresh_task_is_registered() -> None:
     assert future_fixture_refresh.name == "w2.future_fixture_refresh"
     assert market_timeline_refresh.name == "w2.market_timeline_refresh"
     assert forward_outcome_ledger.name == "w2.forward_outcome_ledger"
-    assert forward_outcome_backfill.name == "w2.forward_outcome_backfill"
+    assert result_materialize.name == "w2.result_materialize"
 
 
 def test_redis_status_handles_unavailable_connection() -> None:

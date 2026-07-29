@@ -42,6 +42,7 @@ TASK_RECEIPTS = {
     "ARCH-P2-02": (426, "49c75521325af46551699b27241c0ef4c6bbb7a0"),
     "ARCH-P2-04": (427, "bf21ddcc495b0c8d041c956734d278c1d611f24e"),
     "ARCH-P2-06": (428, "1a46a9e47a478072d37e4ec4c7a44d914e1a127b"),
+    "ARCH-P2-05": (429, "86a66ff5c07438b0543d2790165d406d452daedb"),
 }
 
 
@@ -184,16 +185,18 @@ def test_deletions_keep_direct_evidence_and_known_retained_items() -> None:
     assert "CYCLIC_PACKAGE_COUNT = 22" in checklist
 
 
-def test_p2_05_stays_pending_until_exact_head_acceptance_and_merge() -> None:
+def test_p2_05_is_done_and_eval_01a_is_current() -> None:
     checklist = _text(CHECKLIST)
     state = yaml.safe_load(_text(ROOT / "PROJECT_STATE.yaml"))
     section = checklist[checklist.index("**ARCH-P2-05") : checklist.index("### 阶段 B")]
 
-    assert "Status: IMPLEMENTED_PENDING_ACCEPTANCE" in section
-    assert "P2_ARCHITECTURE_FINAL_ACCEPTANCE = IMPLEMENTED_PENDING_ACCEPTANCE" in section
-    assert "- [ ] exact-head FULL CI、外部验收与 PR 合并" in section
-    assert section.count("- [ ]") == 1
-    assert state["current_task"] == "ARCH-P2-05"
+    assert "Status: DONE" in section
+    assert "P2_ARCHITECTURE_FINAL_ACCEPTANCE = PASS" in section
+    assert "- [x] exact-head FULL CI、外部验收与 PR 合并" in section
+    assert "- [ ]" not in section
+    assert "W2_ARCHITECTURE_CONVERGENCE_COMPLETE = PASS" in section
+    assert state["current_task"] == "EVAL-01A"
     assert state["current_status"] == "IMPLEMENTED_PENDING_ACCEPTANCE"
-    assert state["current_pr"] == 429
-    assert state["tasks"]["EVAL-01A"]["status"] == "BLOCKED"
+    assert state["current_pr"] == 424
+    assert state["tasks"]["ARCH-P2-05"]["status"] == "DONE"
+    assert state["tasks"]["EVAL-01A"]["status"] == "IMPLEMENTED_PENDING_ACCEPTANCE"

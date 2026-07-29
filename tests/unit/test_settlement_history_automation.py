@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from hashlib import sha256
 
 import pytest
 from sqlalchemy import create_engine
@@ -155,11 +156,16 @@ def _reproducible_lock_with_result(
     away_goals: int,
 ) -> tuple[RecommendationLockModel, ResultModel]:
     recommendation = _recommendation(session)
+    identity = f"fixture-1:{home_goals}:{away_goals}"
     result = ResultModel(
         fixture_id="fixture-1",
         home_goals=home_goals,
         away_goals=away_goals,
+        result_status="FT",
         confirmed_at=NOW,
+        source_payload_sha256=sha256(identity.encode()).hexdigest(),
+        source_capture_id=None,
+        result_hash=sha256(f"result:{identity}".encode()).hexdigest(),
     )
     lock = RecommendationLockModel(
         recommendation_id=recommendation.id,

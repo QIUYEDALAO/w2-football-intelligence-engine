@@ -5,15 +5,13 @@ import json
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
-from pathlib import Path
 from typing import Any
 
 from w2.domain.canonical_decision_projection import project_canonical_decision
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
+from w2.tracking.outcome_ledger_repository import OutcomeLedgerRepository
 
 SCHEMA_VERSION = "w2.forward_outcome_ledger.v3"
-DEFAULT_LEDGER_DIR = Path("runtime/forward_outcome_ledger")
-SETTLED_STATUSES = {"FT", "AET", "PEN"}
 VOID_STATUSES = {"CANC", "ABD", "AWD", "WO"}
 SUPPORTED_MARKETS = {"ASIAN_HANDICAP", "TOTALS"}
 
@@ -21,67 +19,50 @@ SUPPORTED_MARKETS = {"ASIAN_HANDICAP", "TOTALS"}
 def run_forward_outcome_ledger(
     day_view: Mapping[str, Any],
     *,
+    repository: OutcomeLedgerRepository | None = None,
     dry_run: bool = True,
-    write_artifacts: bool = False,
-    runtime_root: Path | None = None,
+    write_db: bool = False,
     captured_at: datetime | None = None,
 ) -> dict[str, Any]:
     resolved_captured_at = (captured_at or datetime.now(UTC)).astimezone(UTC)
-    root = runtime_root or Path.cwd() / DEFAULT_LEDGER_DIR
     records = build_forward_outcome_records(
         day_view,
         captured_at=resolved_captured_at,
     )
-    written = 0
-    skipped_existing = 0
-    output_file = _ledger_path(root, day_view)
-    if write_artifacts and not dry_run:
-        existing_keys = _existing_keys(output_file)
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-        with output_file.open("a", encoding="utf-8") as handle:
-            for record in records:
-                key = _record_key(record)
-                if key in existing_keys:
-                    skipped_existing += 1
-                    continue
-                handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
-                existing_keys.add(key)
-                written += 1
+    outcome = (repository or OutcomeLedgerRepository()).append(
+        records,
+        dry_run=dry_run,
+        write_db=write_db,
+    )
     return {
         "schema_version": SCHEMA_VERSION,
         "status": "PASS",
         "dry_run": bool(dry_run),
-        "write_artifacts": bool(write_artifacts),
+        "write_db": bool(write_db),
         "provider_calls": 0,
-        "db_writes": 0,
+        "db_writes": outcome["db_writes"],
         "lock_capture_write": False,
         "settlement_write": False,
-        "runtime_root": str(root),
-        "output_file": str(output_file),
+        "source": "outcome_ledger",
         "record_count": len(records),
-        "written": written,
-        "skipped_existing": skipped_existing,
-        "records": records if dry_run or not write_artifacts else [],
+        "written": outcome["written"],
+        "skipped_existing": outcome["already_imported"],
+        "records": records if dry_run or not write_db else [],
     }
 
 
 def append_capture_supersessions(
-    runtime_root: Path,
     targets: Sequence[Mapping[str, Any]],
     *,
+    repository: OutcomeLedgerRepository | None = None,
     reason_code: str,
     superseded_at: datetime | None = None,
     dry_run: bool = True,
-    write_artifacts: bool = False,
+    write_db: bool = False,
 ) -> dict[str, Any]:
     """Append invalidations without mutating or deleting original captures."""
     resolved_at = (superseded_at or datetime.now(UTC)).astimezone(UTC)
     timestamp = resolved_at.isoformat().replace("+00:00", "Z")
-    output_file = (
-        runtime_root
-        / "forward_outcome_ledger"
-        / f"{resolved_at.date().isoformat()}-supersessions_staging.jsonl"
-    )
     records: list[dict[str, Any]] = []
     for target in targets:
         capture_hash = _optional_text(target.get("capture_identity_hash"))
@@ -102,28 +83,21 @@ def append_capture_supersessions(
             "not_a_settlement": True,
         }
         records.append({**core, "supersession_hash": _canonical_sha256(core)})
-    written = 0
-    skipped_existing = 0
-    if write_artifacts and not dry_run:
-        existing = _existing_keys(output_file)
-        for record in records:
-            key = _record_key(record)
-            if key in existing:
-                skipped_existing += 1
-                continue
-            _append_jsonl_record(output_file, record)
-            existing.add(key)
-            written += 1
+    outcome = (repository or OutcomeLedgerRepository()).append(
+        records,
+        dry_run=dry_run,
+        write_db=write_db,
+    )
     return {
         "schema_version": SCHEMA_VERSION,
         "status": "PASS",
         "dry_run": dry_run,
-        "write_artifacts": write_artifacts,
-        "output_file": str(output_file),
+        "write_db": write_db,
+        "source": "outcome_ledger",
         "record_count": len(records),
-        "written": written,
-        "skipped_existing": skipped_existing,
-        "records": records if dry_run or not write_artifacts else [],
+        "written": outcome["written"],
+        "skipped_existing": outcome["already_imported"],
+        "records": records if dry_run or not write_db else [],
     }
 
 
@@ -157,6 +131,9 @@ def build_forward_outcome_records(
             quote_provenance = _quote_provenance(card)
             artifact_provenance = _artifact_provenance(card)
             probability_identity = _probability_identity(card)
+            decision_hash = _optional_text(
+                canonical.get("decision_hash") or v3.get("decision_hash")
+            )
             capture_identity = {
                 "fixture_identity": fixture_identity,
                 "recommendation_scope": recommendation_scope,
@@ -167,7 +144,7 @@ def build_forward_outcome_records(
                 "artifact_provenance": artifact_provenance,
                 "probability_identity": probability_identity,
                 "card_hash": _optional_text(card.get("card_hash")),
-                "captured_at": captured,
+                "decision_hash": decision_hash,
             }
             rows.append(
                 {
@@ -210,9 +187,7 @@ def build_forward_outcome_records(
                     "lock_eligible": bool(canonical.get("lock_eligible"))
                     if v3
                     else bool(card.get("lock_eligible") is True),
-                    "decision_hash": _optional_text(
-                        canonical.get("decision_hash") or v3.get("decision_hash")
-                    ),
+                    "decision_hash": decision_hash,
                     "recommendation_id": _optional_text(card.get("recommendation_id")),
                     "source": _optional_text(card.get("source")),
                     "posthoc_only": True,
@@ -223,20 +198,18 @@ def build_forward_outcome_records(
 
 
 def backfill_outcomes(
-    runtime_root: Path,
-    day_view_or_results_source: Mapping[str, Any],
     *,
+    repository: OutcomeLedgerRepository | None = None,
     dry_run: bool = True,
-    write_artifacts: bool = False,
+    write_db: bool = False,
     settled_at: datetime | None = None,
 ) -> dict[str, Any]:
-    root = runtime_root / "forward_outcome_ledger"
+    repo = repository or OutcomeLedgerRepository()
     resolved_settled_at = (settled_at or datetime.now(UTC)).astimezone(UTC)
-    results = _finished_results(day_view_or_results_source)
-    ledger_rows = _ledger_rows_by_file(root)
-    pending_before = _pending_entries(ledger_rows)
-    outcome_records: list[tuple[Path, dict[str, Any]]] = []
-    for path, entry, side, item in pending_before.values():
+    results = repo.result_payloads()
+    pending_before = _pending_entries(repo.records())
+    outcome_records: list[dict[str, Any]] = []
+    for entry, side, item in pending_before.values():
         result = results.get(_text(entry.get("fixture_id")))
         if result is None:
             continue
@@ -248,26 +221,12 @@ def backfill_outcomes(
             settled_at=resolved_settled_at,
         )
         if record is not None:
-            outcome_records.append((path, record))
+            outcome_records.append(record)
+    appended = repo.append(outcome_records, dry_run=dry_run, write_db=write_db)
 
-    written = 0
-    skipped_existing = 0
-    if write_artifacts and not dry_run:
-        existing_by_path = {path: _existing_keys(path) for path in ledger_rows}
-        for path, record in outcome_records:
-            existing_keys = existing_by_path.setdefault(path, _existing_keys(path))
-            key = _record_key(record)
-            if key in existing_keys:
-                skipped_existing += 1
-                continue
-            path.parent.mkdir(parents=True, exist_ok=True)
-            _append_jsonl_record(path, record)
-            existing_keys.add(key)
-            written += 1
-
-    processed_keys = {_settlement_identity(record) for _, record in outcome_records}
+    processed_keys = {_settlement_identity(record) for record in outcome_records}
     processed_fixture_counts: dict[str, int] = {}
-    for _, record in outcome_records:
+    for record in outcome_records:
         fixture_id = _text(record.get("fixture_id"))
         if fixture_id:
             processed_fixture_counts[fixture_id] = processed_fixture_counts.get(fixture_id, 0) + 1
@@ -282,44 +241,22 @@ def backfill_outcomes(
         "schema_version": SCHEMA_VERSION,
         "status": status,
         "dry_run": bool(dry_run),
-        "write_artifacts": bool(write_artifacts),
+        "write_db": bool(write_db),
         "provider_calls": 0,
-        "db_reads": 0,
-        "db_writes": 0,
+        "db_reads": 2,
+        "db_writes": appended["db_writes"],
         "lock_capture_write": False,
         "settlement_write": False,
-        "runtime_root": str(runtime_root),
+        "source": "outcome_ledger+results",
         "result_fixture_count": len(results),
         "pending_count": len(pending_before),
         "unresolved_count": unresolved_count,
         "record_count": len(outcome_records),
         "processed_fixture_counts": processed_fixture_counts,
-        "written": written,
-        "skipped_existing": skipped_existing,
-        "records": [record for _, record in outcome_records]
-        if dry_run or not write_artifacts
-        else [],
+        "written": appended["written"],
+        "skipped_existing": appended["already_imported"],
+        "records": outcome_records if dry_run or not write_db else [],
     }
-
-
-def _ledger_path(root: Path, day_view: Mapping[str, Any]) -> Path:
-    football_day = _text(day_view.get("football_day") or day_view.get("date") or "unknown")
-    environment = _text(day_view.get("environment") or "unknown")
-    return root / f"{football_day}_{environment}.jsonl"
-
-
-def _existing_keys(path: Path) -> set[str]:
-    if not path.exists():
-        return set()
-    keys: set[str] = set()
-    for line in path.read_text(encoding="utf-8").splitlines():
-        try:
-            record = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(record, Mapping):
-            keys.add(_record_key(record))
-    return keys
 
 
 def _record_key(record: Mapping[str, Any]) -> str:
@@ -352,34 +289,6 @@ def _record_key(record: Mapping[str, Any]) -> str:
     return "|".join(parts)
 
 
-def _ledger_rows_by_file(root: Path) -> dict[Path, list[dict[str, Any]]]:
-    if not root.exists():
-        return {}
-    rows: dict[Path, list[dict[str, Any]]] = {}
-    for path in sorted(root.glob("*.jsonl")):
-        items: list[dict[str, Any]] = []
-        with path.open(encoding="utf-8") as handle:
-            for line in handle:
-                try:
-                    record = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(record, dict):
-                    items.append(record)
-        rows[path] = items
-    return rows
-
-
-def _append_jsonl_record(path: Path, record: Mapping[str, Any]) -> None:
-    needs_newline = path.exists() and path.stat().st_size > 0
-    if needs_newline:
-        with path.open("rb") as handle:
-            handle.seek(-1, 2)
-            needs_newline = handle.read(1) != b"\n"
-    with path.open("a", encoding="utf-8") as handle:
-        if needs_newline:
-            handle.write("\n")
-        handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
 
 
 def _settlement_entries(
@@ -553,98 +462,6 @@ def _outcome_record(
     }
 
 
-def _finished_results(source: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
-    results: dict[str, dict[str, Any]] = {}
-    candidates: list[Mapping[str, Any]] = []
-    for key in ("cards", "results", "fixtures"):
-        value = source.get(key)
-        if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
-            candidates.extend(item for item in value if isinstance(item, Mapping))
-    if not candidates and source:
-        candidates.append(source)
-    for item in candidates:
-        fixture_id = _fixture_id(item)
-        status = _status(item)
-        score = _score(item)
-        void_reason = _optional_text(item.get("void_reason"))
-        if not fixture_id:
-            continue
-        if status in VOID_STATUSES or void_reason:
-            results[fixture_id] = {
-                "fixture_id": fixture_id,
-                "status": status or "VOID",
-                "home_goals": None,
-                "away_goals": None,
-                "void_reason": void_reason or f"TERMINAL_STATUS_{status}",
-            }
-            continue
-        if status not in SETTLED_STATUSES or score is None:
-            continue
-        home_goals, away_goals = score
-        results[fixture_id] = {
-            "fixture_id": fixture_id,
-            "status": status,
-            "home_goals": home_goals,
-            "away_goals": away_goals,
-        }
-    return results
-
-
-def _fixture_id(item: Mapping[str, Any]) -> str:
-    fixture = item.get("fixture")
-    if isinstance(fixture, Mapping):
-        value = fixture.get("id")
-        if value is not None:
-            return _text(value)
-    return _text(item.get("fixture_id") or item.get("id"))
-
-
-def _status(item: Mapping[str, Any]) -> str:
-    fixture = item.get("fixture")
-    if isinstance(fixture, Mapping):
-        status = fixture.get("status")
-        if isinstance(status, Mapping):
-            return _text(status.get("short")).upper()
-        value = fixture.get("status")
-        if value is not None:
-            return _text(value).upper()
-    return _text(item.get("status") or item.get("result_status")).upper()
-
-
-def _score(item: Mapping[str, Any]) -> tuple[int, int] | None:
-    direct = _score_pair(item.get("home_score"), item.get("away_score"))
-    if direct is not None:
-        return direct
-    score = item.get("score")
-    if isinstance(score, Mapping):
-        for key in ("fulltime", "full_time", "ft"):
-            value = score.get(key)
-            if isinstance(value, Mapping):
-                pair = _score_pair(value.get("home"), value.get("away"))
-                if pair is not None:
-                    return pair
-        pair = _score_pair(score.get("home"), score.get("away"))
-        if pair is not None:
-            return pair
-    goals = item.get("goals")
-    if isinstance(goals, Mapping):
-        pair = _score_pair(goals.get("home"), goals.get("away"))
-        if pair is not None:
-            return pair
-    result = item.get("result")
-    if isinstance(result, Mapping):
-        return _score_pair(result.get("home_goals"), result.get("away_goals"))
-    return None
-
-
-def _score_pair(home: Any, away: Any) -> tuple[int, int] | None:
-    home_goals = _int(home)
-    away_goals = _int(away)
-    if home_goals is None or away_goals is None:
-        return None
-    return (home_goals, away_goals)
-
-
 def _quote(record: Mapping[str, Any], market: str, selection: str) -> tuple[str, float] | None:
     odds = record.get("current_odds")
     if not isinstance(odds, Mapping):
@@ -697,23 +514,21 @@ def _settlement_selection(market: str, selection: str) -> str | None:
 
 
 def pending_outcome_entries(
-    runtime_root: Path,
     *,
+    repository: OutcomeLedgerRepository | None = None,
     now: datetime | None = None,
 ) -> list[dict[str, Any]]:
     """Return canonical fixture-market captures that still need an outcome."""
-    root = runtime_root / "forward_outcome_ledger"
-    rows = _ledger_rows_by_file(root)
-    pending = _pending_entries(rows)
+    pending = _pending_entries((repository or OutcomeLedgerRepository()).records())
     resolved_now = (now or datetime.now(UTC)).astimezone(UTC)
     output: list[dict[str, Any]] = []
-    for identity, (path, entry, side, item) in pending.items():
+    for identity, (entry, side, item) in pending.items():
         kickoff = _parse_time(entry.get("kickoff_utc"))
         due_at = kickoff + timedelta(hours=3) if kickoff else None
         output.append(
             {
                 "identity": list(identity),
-                "ledger_file": str(path),
+                "source": "outcome_ledger",
                 "fixture_id": _text(entry.get("fixture_id")),
                 "kickoff_utc": _optional_text(entry.get("kickoff_utc")),
                 "due_at_utc": due_at.isoformat().replace("+00:00", "Z") if due_at else None,
@@ -729,40 +544,34 @@ def pending_outcome_entries(
 
 
 def _pending_entries(
-    rows_by_file: Mapping[Path, Sequence[Mapping[str, Any]]],
-) -> dict[tuple[str, str, str, str, str], tuple[Path, Mapping[str, Any], str, Mapping[str, Any]]]:
+    raw_records: Sequence[Mapping[str, Any]],
+) -> dict[tuple[str, str, str, str, str], tuple[Mapping[str, Any], str, Mapping[str, Any]]]:
     pending: dict[
         tuple[str, str, str, str, str],
-        tuple[Path, Mapping[str, Any], str, Mapping[str, Any]],
+        tuple[Mapping[str, Any], str, Mapping[str, Any]],
     ] = {}
     settled: set[tuple[str, str, str, str, str]] = set()
-    all_records = [record for records in rows_by_file.values() for record in records]
-    superseded = _superseded_capture_hashes(all_records)
-    all_records = [
-        record for record in all_records if not _record_is_superseded(record, superseded)
+    superseded = _superseded_capture_hashes(raw_records)
+    records = [
+        record for record in raw_records if not _record_is_superseded(record, superseded)
     ]
-    globally_conflicted_validation = _conflicted_validation_fixtures(all_records)
-    for path, raw_records in rows_by_file.items():
-        records = [
-            record for record in raw_records if not _record_is_superseded(record, superseded)
-        ]
-        for record in records:
-            if _text(record.get("record_type")) == "outcome":
-                settled.add(_settlement_identity(record))
-        grouped = _settlement_entries(
-            records,
-            {
-                str(record.get("fixture_id")): {"fixture_id": record.get("fixture_id")}
-                for record in records
-                if record.get("fixture_id")
-            },
-        )
-        # _settlement_entries only needs fixture membership here; settlement payload is unused.
-        for entry, side, item in grouped:
-            if side == "pick" and _text(entry.get("fixture_id")) in globally_conflicted_validation:
-                continue
-            identity = _settlement_identity_from_parts(entry, side, item)
-            pending.setdefault(identity, (path, entry, side, item))
+    globally_conflicted_validation = _conflicted_validation_fixtures(records)
+    for record in records:
+        if _text(record.get("record_type")) == "outcome":
+            settled.add(_settlement_identity(record))
+    grouped = _settlement_entries(
+        records,
+        {
+            str(record.get("fixture_id")): {"fixture_id": record.get("fixture_id")}
+            for record in records
+            if record.get("fixture_id")
+        },
+    )
+    for entry, side, item in grouped:
+        if side == "pick" and _text(entry.get("fixture_id")) in globally_conflicted_validation:
+            continue
+        identity = _settlement_identity_from_parts(entry, side, item)
+        pending.setdefault(identity, (entry, side, item))
     return {identity: value for identity, value in pending.items() if identity not in settled}
 
 

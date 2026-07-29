@@ -368,18 +368,17 @@ def test_runtime_entry_surfaces_are_included_in_the_analysis() -> None:
         assert entrypoint in runtime_text
 
 
-def test_p2_05_and_eval_01a_boundaries_remain_closed() -> None:
+def test_p2_05_is_done_and_eval_01a_is_current() -> None:
     checklist = CHECKLIST.read_text(encoding="utf-8")
     p2_05 = checklist[checklist.index("**ARCH-P2-05") : checklist.index("### 阶段 B")]
     state = yaml.safe_load((ROOT / "PROJECT_STATE.yaml").read_text(encoding="utf-8"))
     eval_01a = state["tasks"]["EVAL-01A"]
 
-    assert "Status: DONE" not in p2_05
-    assert "Status: IMPLEMENTED_PENDING_ACCEPTANCE" in p2_05
-    assert "- [ ] exact-head FULL CI、外部验收与 PR 合并" in p2_05
-    assert eval_01a["status"] == "BLOCKED"
-    assert eval_01a["mergeable"] is False
-    assert eval_01a["blockers"] == [
-        "EXACT_HEAD_IMAGE_TRANSFER_BLOCKED",
-        "BASE_DIVERGENCE_MERGE_CONFLICT",
+    assert "Status: DONE" in p2_05
+    assert "- [x] exact-head FULL CI、外部验收与 PR 合并" in p2_05
+    assert eval_01a["status"] == "IMPLEMENTED_PENDING_ACCEPTANCE"
+    assert eval_01a["pending_acceptance"] == [
+        "EXACT_HEAD_FULL_CI",
+        "SECONDARY_REVIEW",
+        "STAGING",
     ]

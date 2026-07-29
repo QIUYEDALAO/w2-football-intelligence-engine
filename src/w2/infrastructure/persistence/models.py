@@ -113,7 +113,6 @@ class FixtureModel(Base):
     kickoff_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
 
-    result: Mapped[ResultModel | None] = relationship(back_populates="fixture")
 
 
 class LineupSourceSnapshotModel(Base):
@@ -525,15 +524,22 @@ class RecommendationLockModel(Base):
 
 class ResultModel(Base):
     __tablename__ = "results"
-    __table_args__ = (UniqueConstraint("fixture_id", name="uq_result_fixture"),)
+    __table_args__ = (
+        UniqueConstraint("fixture_id", name="uq_result_fixture"),
+        UniqueConstraint("result_hash", name="uq_result_hash"),
+        Index("ix_results_confirmed_at", "confirmed_at"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    fixture_id: Mapped[str] = mapped_column(ForeignKey("fixtures.id"), nullable=False)
+    fixture_id: Mapped[str] = mapped_column(String(128), nullable=False)
     home_goals: Mapped[int] = mapped_column(Integer, nullable=False)
     away_goals: Mapped[int] = mapped_column(Integer, nullable=False)
+    result_status: Mapped[str] = mapped_column(String(8), nullable=False)
     confirmed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    source_payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_capture_id: Mapped[str | None] = mapped_column(String(64))
+    result_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 
-    fixture: Mapped[FixtureModel] = relationship(back_populates="result")
     settlements: Mapped[list[SettlementModel]] = relationship(back_populates="result")
 
 
@@ -565,6 +571,7 @@ def _prevent_update_delete(_mapper: Any, _connection: Any, target: Any) -> None:
 
 for immutable_model in (
     RecommendationLockModel,
+    ResultModel,
     SettlementModel,
 ):
     event.listen(immutable_model, "before_update", _prevent_update_delete)
