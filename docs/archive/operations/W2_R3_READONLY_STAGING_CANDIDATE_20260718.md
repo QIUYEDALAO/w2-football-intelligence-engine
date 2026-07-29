@@ -1,5 +1,7 @@
 # W2 R3 read-only staging candidate — 2026-07-18
 
+SUPERSEDED_BY: `docs/archive/operations/W2_REPEAT_CAPTURE_FRESHNESS_STAGING_CANARY_20260718.md`
+
 ## Result
 
 > Superseded candidate note: the repeated-capture freshness correction was

@@ -218,19 +218,21 @@ Merge SHA: e2f0d5ca895f08e1d4e9ef20ccc8db89a8045e64
 #### A7. ARCH-P1-08：P1 总验收 + 终态重复盘点
 
 ```text
-Status: IN_PROGRESS
-Current PR: #423
+Status: DONE
+PR: #423
+Merge SHA: a607d65b0b71afbc0caa50c44a6e162cf397e4e4
+CI: 30339386348
 ```
 
-- [ ] 一套赔率历史 + 一套当前盘口投影 + 一套 canonical identity + Dashboard 单一 read model。
-- [ ] CI 镜像发布；服务器 pull-only；无生产 fallback。
-- [ ] **追加三条**：API 层无特征/定价/模拟 import（守卫常绿）；读路径 fail-closed
+- [x] 一套赔率历史 + 一套当前盘口投影 + 一套 canonical identity + Dashboard 单一 read model。
+- [x] CI 镜像发布；服务器 pull-only；无生产 fallback。
+- [x] **追加三条**：API 层无特征/定价/模拟 import（守卫常绿）；读路径 fail-closed
       （无隐式空数据 fallback）；legacy 决策合同代码为零。
-- [ ] **终态盘点**：按 P1-01 矩阵方法对全部剩余表、runtime 目录、配置、账本终态盘点，
+- [x] **终态盘点**：按 P1-01 矩阵方法对全部剩余表、runtime 目录、配置、账本终态盘点，
       每类事实指认唯一权威，矩阵写入本文件；发现双权威 = 不通过。
-- [ ] **`shadow_strategy_*` 裁决**：零读零写零任务则按证据法独立 PR drop；
+- [x] **`shadow_strategy_*` 裁决**：零读零写零任务则按证据法独立 PR drop；
       EVAL-01A 要复用则明确登记。
-- [ ] P1 完整 CI 与 staging 验收；人工验收；PR 合并。
+- [x] P1 完整 CI 与 staging 验收；人工验收；PR 合并。
 
 ##### A7 Database authority matrix
 
@@ -329,7 +331,7 @@ COMPOSE_BUILD_COUNT = 0
 MUTABLE_IMAGE_REFERENCE_COUNT = 0
 SERVER_SOURCE_INSTALL_COUNT = 0
 SHADOW_STRATEGY_DECISION = DROP
-P1_ARCHITECTURE_CONVERGENCE_PASS = pending exact-head staging and secondary acceptance
+P1_ARCHITECTURE_CONVERGENCE_PASS = PASS
 ```
 
 **完成标准**：`P1_ARCHITECTURE_CONVERGENCE_PASS`
@@ -339,11 +341,16 @@ P1_ARCHITECTURE_CONVERGENCE_PASS = pending exact-head staging and secondary acce
 #### A8. 阶段 P2：卫生治理（可与阶段 B 穿插，不得抢占 EVAL-01 序列）
 
 ```text
-Status: NOT_STARTED
+Status: IN_PROGRESS
 ```
 
 **ARCH-P2-02 Docs 整理**
-- [ ] 日期型一次性证据移入 `docs/archive/`；同一审计只留最新权威版；旧文档标 `SUPERSEDED_BY`。
+```text
+Status: IN_PROGRESS
+Branch: codex/arch-p2-02-doc-authority-consolidation
+```
+
+- [x] 日期型一次性证据移入 `docs/archive/`；同一审计只留最新权威版；旧文档标 `SUPERSEDED_BY`。
 - [ ] PR 合并。
 
 **ARCH-P2-03 本地垃圾清理**（只清开发机，不进业务 PR）
@@ -509,9 +516,13 @@ Status: NOT_STARTED
 #### B6. OPS-01：联赛扩容 Runbook（A3 后随时可执行，与 B 序列并行）
 
 ```text
-Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Status: DONE
 Branch: codex/ops-01-league-expansion-runbook
 Owner: Codex
+PR: #425
+Merge SHA: 6aba4ca6e1232d490b0b3c5d5fa40fc09749b3f8
+FULL CI: 30412412188
+Main CI: 30414946283
 ```
 
 - [x] 固定流程 runbook 存 `docs/runbooks/`：seed 导入 profile/season → crosswalk 身份
@@ -707,7 +718,7 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 | `scripts/probe_analysis_chain.py` | `MANUAL_OPS` | PR370 acceptance docs | operator → script | staging read-only | 否 | PR370 acceptance docs | `KEEP` | E4 |
 | `scripts/project_stage10b_live_snapshot.py` | `MANUAL_OPS` | STAGE10B_DASHBOARD_LIVE_WIRING | operator → script | offline | 否 | STAGE10B_DASHBOARD_LIVE_WIRING | `KEEP` | E4 |
 | `scripts/project_stage10c_matchday_read_model.py` | `CI_TRANSITIVE` | test_stage10c_matchday.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
-| `scripts/publish_w2_static_report.py` | `MANUAL_OPS` | A-151 static report runbook | operator → script | ops | 是 | A-151_STATIC_REPORT_WEB_ROOT | `KEEP` | E3/E4/E5 |
+| `scripts/publish_w2_static_report.py` | `MANUAL_OPS` | `docs/runbooks/STAGE7H_VPS_STAGING.md` | operator → script | ops | 是 | `docs/runbooks/STAGE7H_VPS_STAGING.md` | `KEEP` | E3/E4/E5 |
 | `scripts/reconcile_pr370_validation_ledger.py` | `ONE_TIME_RECOVERY` | 人工 ledger 恢复 | operator → script | staging manual | 否 | 无 | `KEEP` | E7 |
 | `scripts/recover_staging_runtime.sh` | `DEPLOYMENT` | STAGING_RUNTIME_HARDENING | operator → script | staging | 否 | STAGING_RUNTIME_HARDENING | `KEEP` | E3/E4/E5 |
 | `scripts/render_ai_card_text.py` | `MANUAL_OPS` | README / stage1 contract | operator → script | local | 否 | README | `KEEP` | E4/E5 |

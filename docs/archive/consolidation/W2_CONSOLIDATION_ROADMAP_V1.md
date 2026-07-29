@@ -1,5 +1,7 @@
 # W2 Consolidation Roadmap V1
 
+SUPERSEDED_BY: `docs/consolidation/W2_CONSOLIDATION_ROADMAP_V2.md`
+
 Status: 提议。配套 `W2_DECISION_CONTRACT_V1`。方向：**两档分层**。
 
 ## 论点

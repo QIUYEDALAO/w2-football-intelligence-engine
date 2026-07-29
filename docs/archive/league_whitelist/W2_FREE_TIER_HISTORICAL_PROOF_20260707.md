@@ -37,7 +37,7 @@ For `SEASON_FREE=2024`, both Premier League (`id=39`) and Brasileirao Serie A
 (`id=71`) advertised fixtures, fixture statistics, player statistics, and
 lineups coverage. Odds coverage was advertised as false.
 
-See [FREE_TIER_CAPABILITY.md](FREE_TIER_CAPABILITY.md).
+See [FREE_TIER_CAPABILITY.md](../../league_whitelist/FREE_TIER_CAPABILITY.md).
 
 ## Phase 1 Local Historical Raw
 

@@ -62,7 +62,9 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
 
 def test_historical_pr_range_is_explicitly_non_authoritative() -> None:
     policy = read("docs/operations/W2_DELIVERY_STATUS_LEVELS.md")
-    recovery = read("docs/consolidation/W2_V3_CORRECTNESS_RECOVERY_PLAN_20260718.md")
+    recovery = read(
+        "docs/archive/consolidation/W2_V3_CORRECTNESS_RECOVERY_PLAN_20260718.md"
+    )
 
     assert "PRs #333–#347" in policy
     assert "PRs #333–#347" in recovery
