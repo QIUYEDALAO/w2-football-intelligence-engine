@@ -368,7 +368,7 @@ def test_runtime_entry_surfaces_are_included_in_the_analysis() -> None:
         assert entrypoint in runtime_text
 
 
-def test_p2_05_is_done_and_eval_01a_is_current() -> None:
+def test_p2_05_is_done_and_eval_01b_is_current() -> None:
     checklist = CHECKLIST.read_text(encoding="utf-8")
     p2_05 = checklist[checklist.index("**ARCH-P2-05") : checklist.index("### 阶段 B")]
     state = yaml.safe_load((ROOT / "PROJECT_STATE.yaml").read_text(encoding="utf-8"))
@@ -376,9 +376,10 @@ def test_p2_05_is_done_and_eval_01a_is_current() -> None:
 
     assert "Status: DONE" in p2_05
     assert "- [x] exact-head FULL CI、外部验收与 PR 合并" in p2_05
-    assert eval_01a["status"] == "IMPLEMENTED_PENDING_ACCEPTANCE"
-    assert eval_01a["pending_acceptance"] == [
-        "EXACT_HEAD_FULL_CI",
-        "SECONDARY_REVIEW",
-        "STAGING",
-    ]
+    assert eval_01a == {
+        "status": "DONE",
+        "pr": 424,
+        "merge_sha": "dc1a665655add801c4fe5cd7a0f39211d836e916",
+        "main_ci": 30441901340,
+    }
+    assert state["tasks"]["EVAL-01B"]["status"] == "IN_PROGRESS"

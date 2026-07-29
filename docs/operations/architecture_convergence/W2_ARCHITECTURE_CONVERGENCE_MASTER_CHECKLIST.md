@@ -525,7 +525,7 @@ STAGING_NOT_REQUIRED = PASS
 > 首发因子两面处理：有首发的联赛验增量，无首发的联赛防逆向选择。
 
 ```text
-Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Status: IN_PROGRESS
 ```
 
 ---
@@ -533,14 +533,14 @@ Status: IMPLEMENTED_PENDING_ACCEPTANCE
 #### B1. EVAL-01A：赛果与结算账本数据库化
 
 ```text
-Status: IMPLEMENTED_PENDING_ACCEPTANCE
+Status: DONE
 Branch: codex/eval-01a-results-outcome-ledger-db
 PR: #424
-Base Main: 86a66ff5c07438b0543d2790165d406d452daedb
+Merge SHA: dc1a665655add801c4fe5cd7a0f39211d836e916
+Main CI: 30441901340
 ```
 
-PR #424 已在同一分支对齐最新 main；下一步为新 exact head 的 FULL CI、外部 Review
-与 staging 验收。
+PR #424 已完成 exact-head FULL CI、外部 Review、staging 验收并合并。
 
 **目标**：赛果获得 DB 唯一权威；runtime 文件账本（最后一块文件飞地）迁入 DB 并删除。
 
@@ -567,14 +567,16 @@ PR #424 已在同一分支对齐最新 main；下一步为新 exact head 的 FUL
 3. 历史 JSONL 的 fixture/recommendation scope、pick/shadow pick、quote/artifact/probability provenance、
    capture/decision/supersession identity 与 settlement evidence 无法无损映射到现有两表。
 
-- [ ] PR 合并。
+- [x] PR 合并。
 
 ---
 
 #### B2. EVAL-01B：全量校准评分投影
 
 ```text
-Status: NOT_STARTED
+Status: IN_PROGRESS
+Branch: codex/eval-01b-finished-match-scoring-projection
+PR: #430
 ```
 
 **目标**：每场 FINISHED 比赛自动产生"模型 vs 市场"评分——不管推没推荐。

@@ -33,10 +33,10 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
 
     assert state["current_state_authority"] == "PROJECT_STATE.yaml"
     assert state["task_authority"] == CHECKLIST_PATH
-    assert state["current_task"] == "EVAL-01A"
-    assert state["current_status"] == "IMPLEMENTED_PENDING_ACCEPTANCE"
-    assert state["current_pr"] == 424
-    assert state["next_task"] == "EVAL-01B"
+    assert state["current_task"] == "EVAL-01B"
+    assert state["current_status"] == "IN_PROGRESS"
+    assert state["current_pr"] == 430
+    assert state["next_task"] == "EVAL-01C"
     assert state["tasks"]["ARCH-P2-02"] == {
         "status": "DONE",
         "receipt": CHECKLIST_PATH,
@@ -62,26 +62,22 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "main_ci": 30435005222,
     }
     assert state["tasks"]["EVAL-01A"] == {
-        "status": "IMPLEMENTED_PENDING_ACCEPTANCE",
+        "status": "DONE",
         "pr": 424,
-        "branch": "codex/eval-01a-results-outcome-ledger-db",
-        "base_main": "86a66ff5c07438b0543d2790165d406d452daedb",
-        "pending_acceptance": [
-            "EXACT_HEAD_FULL_CI",
-            "SECONDARY_REVIEW",
-            "STAGING",
-        ],
-        "next_required_action": (
-            "Run exact-head FULL CI and external review, then perform exact-head "
-            "staging."
-        ),
+        "merge_sha": "dc1a665655add801c4fe5cd7a0f39211d836e916",
+        "main_ci": 30441901340,
     }
-    assert state["tasks"]["EVAL-01B"]["status"] == "NOT_STARTED"
+    assert state["tasks"]["EVAL-01B"] == {
+        "status": "IN_PROGRESS",
+        "pr": 430,
+        "branch": "codex/eval-01b-finished-match-scoring-projection",
+    }
+    assert state["tasks"]["EVAL-01C"]["status"] == "NOT_STARTED"
     assert state["architecture_convergence"]["status"] == "PASS"
     assert "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)" in next_action
     assert CHECKLIST_PATH in next_action
-    assert "当前：完成 B1 EVAL-01A / PR #424" in next_action
-    assert "下一项：B2 EVAL-01B；B1 合并前不启动。" in next_action
+    assert "当前：执行 B2 EVAL-01B / PR #430 全量校准评分投影。" in next_action
+    assert "下一项：B3 EVAL-01C；B2 合并前不启动。" in next_action
     assert "sole machine-readable project-status record" in ledger
     assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", ledger)
     assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", next_action)
@@ -98,14 +94,22 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     b1 = checklist[
         checklist.index("#### B1. EVAL-01A") : checklist.index("#### B2.")
     ]
-    assert "Status: IMPLEMENTED_PENDING_ACCEPTANCE" in b1
-    assert "Base Main: 86a66ff5c07438b0543d2790165d406d452daedb" in b1
+    assert "Status: DONE" in b1
+    assert "Merge SHA: dc1a665655add801c4fe5cd7a0f39211d836e916" in b1
+    assert "Main CI: 30441901340" in b1
+    assert "- [x] PR 合并。" in b1
+    b2 = checklist[
+        checklist.index("#### B2. EVAL-01B") : checklist.index("#### B3.")
+    ]
+    assert "Status: IN_PROGRESS" in b2
+    assert "PR: #430" in b2
     assert "W2_ARCHITECTURE_CONVERGENCE_COMPLETE = PASS" in checklist
     for task in FORBIDDEN_TASKS:
         assert task not in state
         assert task not in next_action
         assert task not in checklist
     assert state["staging"]["production_deployed"] is False
+    assert state["staging"]["eval_01a_exact_head_acceptance"] == "PASS"
 
 
 def test_historical_pr_range_is_explicitly_non_authoritative() -> None:
