@@ -157,6 +157,8 @@ def run_finished_match_scoring_projection(
             session.rollback()
         counts = Counter(payload["status"] for payload in fixture_payloads.values())
         status = "BLOCKED" if blockers else "PASS"
+        fixture_projection_coverage = len(fixture_payloads) / len(results)
+        scorable_fixture_count = counts["SCORED"]
         return {
             "schema_version": SCHEMA_VERSION,
             "status": status,
@@ -176,7 +178,11 @@ def run_finished_match_scoring_projection(
                     ).items()
                 )
             ),
-            "eligible_scoring_coverage": 1.0,
+            "fixture_projection_coverage": fixture_projection_coverage,
+            "scorable_fixture_count": scorable_fixture_count,
+            "scorable_rate": scorable_fixture_count / len(results),
+            "eligible_scoring_coverage": fixture_projection_coverage,
+            "eligible_scoring_coverage_semantics": "CHECKPOINT_COVERAGE_ONLY",
             "written": writes if write_db else 0,
             "would_write": writes if not write_db else 0,
             "skipped_existing": skipped,
@@ -311,7 +317,7 @@ def _fixture_projection(
         for record in related
         if _text(record.get("capture_identity_hash")) not in superseded
     ]
-    capture, status, reasons = _select_capture(
+    capture, status, reasons, selection = _select_capture(
         active,
         fixture_identity,
         fixture_id,
@@ -334,9 +340,9 @@ def _fixture_projection(
             missing.append("MODEL_PROBABILITY_VECTOR_MISSING")
         if market is None:
             missing.append("MARKET_PROBABILITY_VECTOR_MISSING")
-        if missing:
+        if missing or status == "NOT_SCORABLE":
             status = "NOT_SCORABLE"
-            reasons = missing
+            reasons = sorted(set(reasons + missing))
         else:
             status = "SCORED"
             reasons = []
@@ -347,8 +353,13 @@ def _fixture_projection(
         status = "BLOCKED"
         reasons = ["PROBABILITY_IDENTITY_CONFLICT"]
     clv = _fixture_clv(records, fixture_id)
-    probability_hash = _hash_value(
-        capture.get("probability_identity") if capture else {}
+    scoring_capture = capture if status == "SCORED" else None
+    scored_model = model if scoring_capture else None
+    scored_market = market if scoring_capture else None
+    probability_hash = (
+        _hash_value(scoring_capture.get("probability_identity"))
+        if scoring_capture
+        else None
     )
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -368,43 +379,60 @@ def _fixture_projection(
         "away_goals": result.away_goals,
         "actual_outcome": ("HOME", "DRAW", "AWAY")[actual],
         "source_capture_identity_hash": _optional(
-            capture.get("capture_identity_hash") if capture else None
+            scoring_capture.get("capture_identity_hash")
+            if scoring_capture
+            else None
         ),
         "source_capture_group_hash": _optional(
-            capture.get("source_capture_group_hash") if capture else None
+            scoring_capture.get("source_capture_group_hash")
+            if scoring_capture
+            else None
         ),
         "contributing_capture_identity_hashes": (
-            list(capture.get("contributing_capture_identity_hashes", ()))
-            if capture
+            list(
+                scoring_capture.get(
+                    "contributing_capture_identity_hashes",
+                    (),
+                )
+            )
+            if scoring_capture
             else []
         ),
-        "source_card_hash": _optional(capture.get("card_hash") if capture else None),
-        "source_artifact_hash": _artifact_hash(capture),
-        "source_capture_at": _optional(capture.get("captured_at") if capture else None),
-        "source_probability_identity_hash": probability_hash if capture else None,
-        "model_probabilities": list(model) if model else None,
-        "market_probabilities": list(market) if market else None,
-        "model_log_loss": log_loss(model, actual) if model else None,
-        "market_log_loss": log_loss(market, actual) if market else None,
+        "source_card_hash": _optional(
+            scoring_capture.get("card_hash") if scoring_capture else None
+        ),
+        "source_artifact_hash": _artifact_hash(scoring_capture),
+        "source_capture_at": _optional(
+            scoring_capture.get("captured_at") if scoring_capture else None
+        ),
+        "selected_scoring_capture_at": _optional(
+            scoring_capture.get("captured_at") if scoring_capture else None
+        ),
+        "source_probability_identity_hash": probability_hash,
+        "model_probabilities": list(scored_model) if scored_model else None,
+        "market_probabilities": list(scored_market) if scored_market else None,
+        "model_log_loss": log_loss(scored_model, actual) if scored_model else None,
+        "market_log_loss": log_loss(scored_market, actual) if scored_market else None,
         "model_minus_market_log_loss": (
-            log_loss(model, actual) - log_loss(market, actual)
-            if model and market
+            log_loss(scored_model, actual) - log_loss(scored_market, actual)
+            if scored_model and scored_market
             else None
         ),
-        "model_brier": brier(model, actual) if model else None,
-        "market_brier": brier(market, actual) if market else None,
+        "model_brier": brier(scored_model, actual) if scored_model else None,
+        "market_brier": brier(scored_market, actual) if scored_market else None,
         "model_minus_market_brier": (
-            brier(model, actual) - brier(market, actual)
-            if model and market
+            brier(scored_model, actual) - brier(scored_market, actual)
+            if scored_model and scored_market
             else None
         ),
-        "model_rps": rps(model, actual) if model else None,
-        "market_rps": rps(market, actual) if market else None,
+        "model_rps": rps(scored_model, actual) if scored_model else None,
+        "market_rps": rps(scored_market, actual) if scored_market else None,
         "model_minus_market_rps": (
-            rps(model, actual) - rps(market, actual)
-            if model and market
+            rps(scored_model, actual) - rps(scored_market, actual)
+            if scored_model and scored_market
             else None
         ),
+        **selection,
         "league": fixture["competition_id"] or fixture["competition_name"] or "UNKNOWN",
         "evaluation_tier": lifecycle["evaluation_tier"],
         "checkpoint": lifecycle["checkpoint"],
@@ -426,36 +454,23 @@ def _select_capture(
     fixture_identity: MatchdayFixtureIdentityModel | None,
     fixture_id: str,
     dynamic_rows: Sequence[DynamicPrematchEvaluationModel],
-) -> tuple[Mapping[str, Any] | None, str, list[str]]:
+) -> tuple[Mapping[str, Any] | None, str, list[str], dict[str, Any]]:
     kickoff = (
         _utc(fixture_identity.kickoff_utc) if fixture_identity is not None else None
     )
-    complete: list[Mapping[str, Any]] = []
-    signatures: set[tuple[str, ...]] = set()
-    identities: dict[str, str] = {}
+    prekickoff: list[Mapping[str, Any]] = []
     for capture in captures:
-        signature = _fixture_signature(capture, fixture_id)
         captured_at = _parse_time(capture.get("captured_at"))
         capture_kickoff = _parse_time(_fixture_values(capture, None, "")["kickoff_utc"])
         resolved_kickoff = kickoff or capture_kickoff
-        if resolved_kickoff is None:
+        if (
+            resolved_kickoff is None
+            or captured_at is None
+            or captured_at >= resolved_kickoff
+        ):
             continue
-        if signature is None or captured_at is None or captured_at >= resolved_kickoff:
-            continue
-        if kickoff is not None and capture_kickoff != kickoff:
-            return None, "BLOCKED", ["FIXTURE_IDENTITY_CONFLICT"]
-        identity = _text(capture.get("capture_identity_hash"))
-        if not identity:
-            return None, "BLOCKED", ["PROBABILITY_IDENTITY_CONFLICT"]
-        digest = _hash_value(capture)
-        if identity in identities and identities[identity] != digest:
-            return None, "BLOCKED", ["PROBABILITY_IDENTITY_CONFLICT"]
-        identities[identity] = digest
-        signatures.add(signature)
-        complete.append(capture)
-    if len(signatures) > 1:
-        return None, "BLOCKED", ["FIXTURE_IDENTITY_CONFLICT"]
-    if not complete:
+        prekickoff.append(capture)
+    if not prekickoff:
         has_capture_kickoff = any(
             _parse_time(_fixture_values(item, None, "")["kickoff_utc"]) is not None
             for item in captures
@@ -469,16 +484,102 @@ def _select_capture(
             reason = "FIXTURE_IDENTITY_MISSING"
         else:
             reason = "NO_PREKICKOFF_CAPTURE"
-        return None, "NOT_SCORABLE", [reason]
-    complete_times = [
+        return None, "NOT_SCORABLE", [reason], {
+            "latest_prekickoff_at": None,
+            "latest_group_capture_count": 0,
+            "latest_group_identity_bearing_count": 0,
+            "latest_group_identity_missing_count": 0,
+            "model_probability_complete": False,
+            "market_probability_complete": False,
+            "capture_selection_status": reason,
+            "total_historical_prekickoff_capture_count": 0,
+            "older_identity_missing_capture_count": 0,
+        }
+    latest_at = max(
         captured_at
-        for item in complete
+        for item in prekickoff
         if (captured_at := _parse_time(item.get("captured_at"))) is not None
-    ]
-    latest_at = max(complete_times)
+    )
     latest = [
-        item for item in complete if _parse_time(item.get("captured_at")) == latest_at
+        item
+        for item in prekickoff
+        if _parse_time(item.get("captured_at")) == latest_at
     ]
+    identity_bearing = [
+        item for item in latest if _text(item.get("capture_identity_hash"))
+    ]
+    model_complete = all(
+        probability_vector(item, "model_probabilities") is not None
+        for item in latest
+    )
+    market_complete = all(
+        probability_vector(item, "market_probabilities") is not None
+        for item in latest
+    )
+    audit = {
+        "latest_prekickoff_at": _iso(latest_at),
+        "latest_group_capture_count": len(latest),
+        "latest_group_identity_bearing_count": len(identity_bearing),
+        "latest_group_identity_missing_count": len(latest) - len(identity_bearing),
+        "model_probability_complete": model_complete,
+        "market_probability_complete": market_complete,
+        "capture_selection_status": "SELECTED",
+        "total_historical_prekickoff_capture_count": len(prekickoff),
+        "older_identity_missing_capture_count": sum(
+            not _text(item.get("capture_identity_hash"))
+            for item in prekickoff
+            if _parse_time(item.get("captured_at")) != latest_at
+        ),
+    }
+    signatures = {
+        signature
+        for item in latest
+        if (signature := _fixture_signature(item, fixture_id)) is not None
+    }
+    if len(signatures) != 1:
+        audit["capture_selection_status"] = "FIXTURE_IDENTITY_CONFLICT"
+        reason = (
+            "FIXTURE_IDENTITY_CONFLICT"
+            if len(signatures) > 1
+            else "FIXTURE_IDENTITY_MISSING"
+        )
+        status = "BLOCKED" if len(signatures) > 1 else "NOT_SCORABLE"
+        return latest[0], status, [reason], audit
+    if kickoff is not None and any(
+        _parse_time(_fixture_values(item, None, "")["kickoff_utc"]) != kickoff
+        for item in latest
+    ):
+        audit["capture_selection_status"] = "FIXTURE_IDENTITY_CONFLICT"
+        return latest[0], "BLOCKED", ["FIXTURE_IDENTITY_CONFLICT"], audit
+    if not identity_bearing:
+        reasons = ["CAPTURE_IDENTITY_MISSING"]
+        if not model_complete:
+            reasons.append("MODEL_PROBABILITY_VECTOR_MISSING")
+        if not market_complete:
+            reasons.append("MARKET_PROBABILITY_VECTOR_MISSING")
+        audit["capture_selection_status"] = "CAPTURE_IDENTITY_MISSING"
+        return latest[0], "NOT_SCORABLE", reasons, audit
+    if len(identity_bearing) != len(latest):
+        audit["capture_selection_status"] = "COMPLETE_INCOMPLETE_SIBLING_CONFLICT"
+        return (
+            latest[0],
+            "BLOCKED",
+            ["COMPLETE_INCOMPLETE_SIBLING_CONFLICT"],
+            audit,
+        )
+    complete_flags = [
+        probability_vector(item, "model_probabilities") is not None
+        and probability_vector(item, "market_probabilities") is not None
+        for item in latest
+    ]
+    if any(complete_flags) and not all(complete_flags):
+        audit["capture_selection_status"] = "COMPLETE_INCOMPLETE_SIBLING_CONFLICT"
+        return (
+            latest[0],
+            "BLOCKED",
+            ["COMPLETE_INCOMPLETE_SIBLING_CONFLICT"],
+            audit,
+        )
     scoring_identities = [
         _scoring_relevant_identity(
             item,
@@ -498,7 +599,8 @@ def _select_capture(
             if len(probability_hashes) > 1
             else "EQUAL_TIMESTAMP_DIFFERENT_BUSINESS_IDENTITY"
         )
-        return None, "BLOCKED", [reason]
+        audit["capture_selection_status"] = reason
+        return latest[0], "BLOCKED", [reason], audit
     contributing = sorted(
         {_text(item.get("capture_identity_hash")) for item in latest}
     )
@@ -514,7 +616,9 @@ def _select_capture(
     capture["source_capture_group_hash"] = group_hash
     if len(contributing) > 1:
         capture["capture_identity_hash"] = group_hash
-    return capture, "SCORED", []
+    if not model_complete or not market_complete:
+        audit["capture_selection_status"] = "PROBABILITY_INCOMPLETE"
+    return capture, "SCORED", [], audit
 
 
 def _fixture_values(
@@ -891,6 +995,25 @@ def _source_hash(payload: Mapping[str, Any]) -> str:
             "source_probability_identity_hash": payload.get(
                 "source_probability_identity_hash"
             ),
+            "latest_prekickoff_at": payload.get("latest_prekickoff_at"),
+            "latest_group_capture_count": payload.get(
+                "latest_group_capture_count"
+            ),
+            "latest_group_identity_bearing_count": payload.get(
+                "latest_group_identity_bearing_count"
+            ),
+            "latest_group_identity_missing_count": payload.get(
+                "latest_group_identity_missing_count"
+            ),
+            "capture_selection_status": payload.get(
+                "capture_selection_status"
+            ),
+            "total_historical_prekickoff_capture_count": payload.get(
+                "total_historical_prekickoff_capture_count"
+            ),
+            "older_identity_missing_capture_count": payload.get(
+                "older_identity_missing_capture_count"
+            ),
             "status": payload.get("status"),
             "reason_codes": payload.get("reason_codes"),
         }
@@ -987,7 +1110,11 @@ def _empty_result() -> dict[str, Any]:
         "not_scorable_count": 0,
         "blocked_count": 0,
         "not_scorable_by_reason": {},
+        "fixture_projection_coverage": 1.0,
+        "scorable_fixture_count": 0,
+        "scorable_rate": 0.0,
         "eligible_scoring_coverage": 1.0,
+        "eligible_scoring_coverage_semantics": "CHECKPOINT_COVERAGE_ONLY",
         "written": 0,
         "would_write": 0,
         "skipped_existing": 0,

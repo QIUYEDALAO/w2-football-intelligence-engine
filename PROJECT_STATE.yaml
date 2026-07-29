@@ -45,7 +45,8 @@ tasks:
     pr: 430
     branch: codex/eval-01b-finished-match-scoring-projection
     blockers:
-      - EXACT_HEAD_IMAGE_TRANSFER_BLOCKED
+      - LEGACY_PREKICKOFF_IDENTITY_MISSING_POISONS_LATEST_SELECTION
+      - STAGING_CLASSIFICATION_REMEDIATION_REQUIRED
   EVAL-01C:
     status: NOT_STARTED
 safety:
@@ -57,7 +58,7 @@ safety:
 staging:
   production_deployed: false
   eval_01a_exact_head_acceptance: PASS
-  eval_01b_exact_head_acceptance: BLOCKED_BY_NETWORK
+  eval_01b_exact_head_acceptance: STAGING_CLASSIFICATION_REMEDIATION_REQUIRED
 architecture_convergence:
   status: PASS
   receipt: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md

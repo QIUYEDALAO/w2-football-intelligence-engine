@@ -74,7 +74,10 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "status": "IMPLEMENTED_PENDING_SECONDARY_REVIEW_AND_STAGING",
         "pr": 430,
         "branch": "codex/eval-01b-finished-match-scoring-projection",
-        "blockers": ["EXACT_HEAD_IMAGE_TRANSFER_BLOCKED"],
+        "blockers": [
+            "LEGACY_PREKICKOFF_IDENTITY_MISSING_POISONS_LATEST_SELECTION",
+            "STAGING_CLASSIFICATION_REMEDIATION_REQUIRED",
+        ],
     }
     assert state["tasks"]["EVAL-01C"]["status"] == "NOT_STARTED"
     assert state["architecture_convergence"]["status"] == "PASS"
@@ -119,7 +122,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     assert state["staging"]["eval_01a_exact_head_acceptance"] == "PASS"
     assert (
         state["staging"]["eval_01b_exact_head_acceptance"]
-        == "BLOCKED_BY_NETWORK"
+        == "STAGING_CLASSIFICATION_REMEDIATION_REQUIRED"
     )
 
 

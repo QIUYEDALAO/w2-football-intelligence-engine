@@ -156,6 +156,203 @@ def test_equal_timestamp_different_identity_is_blocked(tmp_path: Path) -> None:
     assert payload["reason_codes"] == ["PROBABILITY_IDENTITY_CONFLICT"]
 
 
+def test_latest_group_missing_identity_is_not_scorable_with_audit(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    _seed_result(repository, "fixture-missing-identity", home=1, away=0)
+    _seed_identity(repository, "fixture-missing-identity", kickoff=KICKOFF)
+    captures = [
+        _capture(
+            "fixture-missing-identity",
+            KICKOFF - timedelta(minutes=5),
+            identity=identity,
+            model=None,
+            market=None,
+            kickoff=KICKOFF,
+        )
+        for identity in ("missing-a", "missing-b")
+    ]
+    for capture in captures:
+        capture.pop("capture_identity_hash")
+        capture.pop("probability_identity")
+    repository.append(captures, dry_run=False, write_db=True)
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+    payload = _checkpoint(
+        repository,
+        "performance:fixture:fixture-missing-identity",
+    )
+
+    assert result["status"] == "PASS"
+    assert result["not_scorable_count"] == 1
+    assert payload["status"] == "NOT_SCORABLE"
+    assert payload["reason_codes"] == [
+        "CAPTURE_IDENTITY_MISSING",
+        "MARKET_PROBABILITY_VECTOR_MISSING",
+        "MODEL_PROBABILITY_VECTOR_MISSING",
+    ]
+    assert payload["latest_group_capture_count"] == 2
+    assert payload["latest_group_identity_bearing_count"] == 0
+    assert payload["latest_group_identity_missing_count"] == 2
+    assert payload["capture_selection_status"] == "CAPTURE_IDENTITY_MISSING"
+    assert payload["source_capture_identity_hash"] is None
+    assert payload["source_capture_group_hash"] is None
+    assert payload["selected_scoring_capture_at"] is None
+
+
+def test_older_missing_or_conflicting_captures_do_not_poison_latest(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    fixture_id = "fixture-old-conflict"
+    _seed_result(repository, fixture_id, home=2, away=0)
+    _seed_identity(repository, fixture_id, kickoff=KICKOFF)
+    old_at = KICKOFF - timedelta(hours=2)
+    old_missing = _capture(
+        fixture_id,
+        KICKOFF - timedelta(hours=3),
+        identity="old-missing",
+        kickoff=KICKOFF,
+    )
+    old_missing.pop("capture_identity_hash")
+    old_missing.pop("probability_identity")
+    repository.append(
+        [
+            old_missing,
+            _capture(fixture_id, old_at, identity="old-a", kickoff=KICKOFF),
+            _capture(
+                fixture_id,
+                old_at,
+                identity="old-b",
+                model=(0.2, 0.2, 0.6),
+                kickoff=KICKOFF,
+            ),
+            _capture(
+                fixture_id,
+                KICKOFF - timedelta(minutes=5),
+                identity="latest",
+                kickoff=KICKOFF,
+            ),
+        ],
+        dry_run=False,
+        write_db=True,
+    )
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+    payload = _checkpoint(repository, f"performance:fixture:{fixture_id}")
+
+    assert result["scored_count"] == 1
+    assert payload["status"] == "SCORED"
+    assert payload["source_capture_identity_hash"] == "latest"
+    assert payload["total_historical_prekickoff_capture_count"] == 4
+    assert payload["older_identity_missing_capture_count"] == 1
+
+
+def test_latest_identity_with_missing_vectors_is_not_scorable(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    fixture_id = "fixture-latest-incomplete"
+    _seed_result(repository, fixture_id, home=0, away=0)
+    _seed_identity(repository, fixture_id, kickoff=KICKOFF)
+    old = _capture(
+        fixture_id,
+        KICKOFF - timedelta(hours=2),
+        identity="old-missing",
+        kickoff=KICKOFF,
+    )
+    old.pop("capture_identity_hash")
+    old.pop("probability_identity")
+    repository.append(
+        [
+            old,
+            _capture(
+                fixture_id,
+                KICKOFF - timedelta(minutes=5),
+                identity="latest-incomplete",
+                model=None,
+                market=None,
+                kickoff=KICKOFF,
+            ),
+        ],
+        dry_run=False,
+        write_db=True,
+    )
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+    payload = _checkpoint(repository, f"performance:fixture:{fixture_id}")
+
+    assert result["status"] == "PASS"
+    assert payload["reason_codes"] == [
+        "MARKET_PROBABILITY_VECTOR_MISSING",
+        "MODEL_PROBABILITY_VECTOR_MISSING",
+    ]
+    assert payload["capture_selection_status"] == "PROBABILITY_INCOMPLETE"
+    assert payload["model_probability_complete"] is False
+    assert payload["market_probability_complete"] is False
+    assert payload["source_capture_identity_hash"] is None
+    assert payload["selected_scoring_capture_at"] is None
+
+
+def test_latest_complete_incomplete_siblings_are_blocked(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    fixture_id = "fixture-complete-incomplete"
+    _seed_result(repository, fixture_id, home=1, away=0)
+    _seed_identity(repository, fixture_id, kickoff=KICKOFF)
+    captured_at = KICKOFF - timedelta(minutes=5)
+    complete = _capture(
+        fixture_id,
+        captured_at,
+        identity="complete",
+        kickoff=KICKOFF,
+    )
+    incomplete = _capture(
+        fixture_id,
+        captured_at,
+        identity="incomplete",
+        model=None,
+        kickoff=KICKOFF,
+    )
+    for capture in (complete, incomplete):
+        capture["card_hash"] = "same-card"
+        capture["artifact_provenance"] = {"artifact_hash": "same-artifact"}
+    repository.append(
+        [complete, incomplete],
+        dry_run=False,
+        write_db=True,
+    )
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+    payload = _checkpoint(repository, f"performance:fixture:{fixture_id}")
+
+    assert result["status"] == "BLOCKED"
+    assert payload["reason_codes"] == [
+        "COMPLETE_INCOMPLETE_SIBLING_CONFLICT"
+    ]
+    assert payload["capture_selection_status"] == (
+        "COMPLETE_INCOMPLETE_SIBLING_CONFLICT"
+    )
+
+
 def test_api_football_prefixed_result_matches_bare_capture(
     tmp_path: Path,
 ) -> None:
@@ -484,6 +681,71 @@ def test_projection_and_cohorts_are_idempotent_and_windowed(tmp_path: Path) -> N
     assert cohort["windows"]["30d"]["finished_result_count"] == 4
     assert cohort["windows"]["90d"]["finished_result_count"] == 5
     assert cohort["windows"]["7d"]["scored_count"] == 2
+
+
+def test_all_not_scorable_fixtures_still_generate_stable_cohorts(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    for index in range(35):
+        fixture_id = f"not-scorable-{index:02d}"
+        kickoff = KICKOFF - timedelta(hours=index)
+        _seed_result(repository, fixture_id, home=1, away=0)
+        _seed_identity(repository, fixture_id, kickoff=kickoff)
+        capture = _capture(
+            fixture_id,
+            kickoff - timedelta(minutes=5),
+            identity=f"missing-{index}",
+            model=None,
+            market=None,
+            kickoff=kickoff,
+        )
+        capture.pop("capture_identity_hash")
+        capture.pop("probability_identity")
+        repository.append([capture], dry_run=False, write_db=True)
+
+    first = run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+    hashes = _performance_hashes(repository)
+    second = run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+    cohort = _checkpoint(repository, "performance:cohort:all")
+    window = cohort["windows"]["90d"]
+
+    assert first["fixture_checkpoint_count"] == 35
+    assert first["fixture_projection_coverage"] == 1.0
+    assert first["eligible_scoring_coverage"] == 1.0
+    assert (
+        first["eligible_scoring_coverage_semantics"]
+        == "CHECKPOINT_COVERAGE_ONLY"
+    )
+    assert first["scorable_fixture_count"] == 0
+    assert first["scorable_rate"] == 0.0
+    assert first["not_scorable_count"] == 35
+    assert first["blocked_count"] == 0
+    assert first["cohort_checkpoint_count"] == 4
+    assert window["finished_result_count"] == 35
+    assert window["fixture_checkpoint_count"] == 35
+    assert window["scored_count"] == 0
+    assert window["not_scorable_count"] == 35
+    assert window["blocked_count"] == 0
+    assert window["model_log_loss"] is None
+    assert window["market_log_loss"] is None
+    assert window["model_ece"] is None
+    assert window["market_ece"] is None
+    assert window["paired_log_loss_bootstrap"] == {
+        "status": "INSUFFICIENT",
+        "sample_count": 0,
+    }
+    assert window["clv_sample_count"] == 0
+    assert second["db_writes"] == 0
+    assert _performance_hashes(repository) == hashes
 
 
 @pytest.mark.parametrize(
