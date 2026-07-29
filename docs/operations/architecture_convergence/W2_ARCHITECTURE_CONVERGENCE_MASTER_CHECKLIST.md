@@ -124,23 +124,23 @@ Merge SHA: 6eeb411747a1cef624ff4780dbad87d4cec4b26d
 **目标**：删除全部新旧合同并存代码与 04B 后确认的死代码；每处删除附零引用证据。
 
 **范围（逐项处理，允许 ≤3 个提交但同一 PR）**：
-- [ ] `src/w2/domain/legacy_decision_shim.py` 整文件删除（113 行）。
-- [ ] `src/w2/domain/decision_adapter.py`（986 行）中 legacy→V3 转换路径删除；V3 构造保留；
+- [x] `src/w2/domain/legacy_decision_shim.py` 整文件删除（113 行）。
+- [x] `src/w2/domain/decision_adapter.py`（986 行）中 legacy→V3 转换路径删除；V3 构造保留；
       凡只被 shim/旧测试引用的函数一并删。
-- [ ] `src/w2/prematch/analysis_calculator.py` 中 pre-LMM frozen artifact 兼容分支
+- [x] `src/w2/prematch/analysis_calculator.py` 中 pre-LMM frozen artifact 兼容分支
       （注释 "Backward compatibility for immutable pre-LMM frozen artifacts" 及
       `_public_market_is_legacy_pick` 调用链）。
-- [ ] `src/w2/dashboard/day_view.py`：`_scoreline_simulations` 的 `pricing_shadow` 兼容读
+- [x] `src/w2/dashboard/day_view.py`：`_scoreline_simulations` 的 `pricing_shadow` 兼容读
       （保留 `simulation` 主路径）；死函数 `_is_decision_tier`。
-- [ ] **旧 F10 首发因子废弃**：`src/w2/features/live_factors.py` 中 `F10_LINEUPS` 相关函数
+- [x] **旧 F10 首发因子废弃**：`src/w2/features/live_factors.py` 中 `F10_LINEUPS` 相关函数
       （专家评审确认未接入主 `FeatureInputs`）；并在 `src/w2/domain/factor_registry.py`
       登记 LMM 链为唯一首发因子来源。此项是 EVAL-02B 的硬前置。
-- [ ] 删除后全库死代码复核，剩余疑似项只记录到待议区，不顺手删。
+- [x] 删除后全库死代码复核，剩余疑似项只记录到待议区，不顺手删。
 
 **不做**：不动 analysis_calculator 计算语义；不动 API；不动表。
 **验收**：`LEGACY_DECISION_CONTRACT_CODE = 0`；`F10_LINEUPS` 全库零引用；全量测试与 04B 守卫绿。
 **资产账本**：新增 0；删除 ≥1,100 行合同转换 + F10 死代码。
-- [ ] PR 合并。
+- [x] PR 合并。
 
 ---
 
@@ -158,14 +158,14 @@ Merge SHA: 5026919fe1b1bbe2d5c6dfd67a2f70b6b0f59768
 历史实施记录（仅属于 A3，不是顶层任务）：ARCH-P1-03A、ARCH-P1-03B、
 ARCH-P1-03C、ARCH-P1-03B-R1。
 
-- [ ] 盘点全部球队/球员身份与 provider crosswalk 表。
-- [ ] canonical team / player 体系为唯一权威；迁移有效映射及 review provenance。
-- [ ] 其余表停止写入，零引用证明后同 PR 断言式 drop；证据不足的保持原状继续调查。
-- [ ] provider IDs 仅作 provenance，不再作为模型主身份。
-- [ ] fixture、history、rating、lineup 读取对账。
-- [ ] **追加**：用 3 场真实比赛演示 canonical player ↔ provider lineup 球员唯一联接查询
+- [x] 盘点全部球队/球员身份与 provider crosswalk 表。
+- [x] canonical team / player 体系为唯一权威；迁移有效映射及 review provenance。
+- [x] 其余表停止写入，零引用证明后同 PR 断言式 drop；证据不足的保持原状继续调查。
+- [x] provider IDs 仅作 provenance，不再作为模型主身份。
+- [x] fixture、history、rating、lineup 读取对账。
+- [x] **追加**：用 3 场真实比赛演示 canonical player ↔ provider lineup 球员唯一联接查询
       （EVAL-02B"缺阵分钟占比"的前置能力）。
-- [ ] PR 合并。
+- [x] PR 合并。
 
 **验收**：`CANONICAL_TEAM_IDENTITY_AUTHORITY_COUNT = 1`。
 **资产账本**：目标净减 ≥3 张表。

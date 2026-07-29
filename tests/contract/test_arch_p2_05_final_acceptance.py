@@ -84,6 +84,20 @@ def test_p0_p1_p2_receipts_are_real_ancestors() -> None:
     assert _is_ancestor("75e499325875c8a11bf6581422555cf425fac5b2")
 
 
+def test_done_a1_a7_sections_have_no_unchecked_tasks() -> None:
+    checklist = _text(CHECKLIST)
+    sections = re.findall(
+        r"^#### A[1-7]\..*?(?=^---$|^##### A7 Database authority matrix)",
+        checklist,
+        re.MULTILINE | re.DOTALL,
+    )
+
+    assert len(sections) == 7
+    for section in sections:
+        if "Status: DONE" in section:
+            assert "- [ ]" not in section
+
+
 def test_single_authorities_and_production_fallback_guards_remain_active() -> None:
     checklist = _text(CHECKLIST)
     state = yaml.safe_load(_text(ROOT / "PROJECT_STATE.yaml"))
@@ -178,6 +192,7 @@ def test_p2_05_stays_pending_until_exact_head_acceptance_and_merge() -> None:
     assert "Status: IMPLEMENTED_PENDING_ACCEPTANCE" in section
     assert "P2_ARCHITECTURE_FINAL_ACCEPTANCE = IMPLEMENTED_PENDING_ACCEPTANCE" in section
     assert "- [ ] exact-head FULL CI、外部验收与 PR 合并" in section
+    assert section.count("- [ ]") == 1
     assert state["current_task"] == "ARCH-P2-05"
     assert state["current_status"] == "IMPLEMENTED_PENDING_ACCEPTANCE"
     assert state["current_pr"] == 429
