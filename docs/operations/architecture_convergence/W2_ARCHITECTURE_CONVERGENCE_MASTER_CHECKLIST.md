@@ -1,6 +1,8 @@
-# W2 架构收敛与 EVAL 能力建设总清单（v3，唯一权威）
+# W2 架构收敛与 EVAL 能力建设总清单（v3）
 
-> 本文件是 W2 全部任务状态的**唯一权威**。旧版清单（v2 及更早）已整体废止，
+> `PROJECT_STATE.yaml` 是 W2 **唯一当前机器可读状态快照**。
+> 本文件是 W2 **唯一任务顺序、任务规格和已合并完成回执权威**。
+> 旧版清单（v2 及更早）已整体废止，
 > 其完整内容保留在本文件之前的 git 历史中，审计坐标见第二节台账。
 > 老板 2026-07-24 决定：任务清单只保留本版本，不再维护旧清单文本。
 >
@@ -55,7 +57,8 @@
 6. Provider 熔断等安全环境变量不动。
 7. 模型数学只允许在 EVAL-02B 门禁通过的解冻点上变化，其余一律不动。
 8. 不以本地测试或 Markdown 报告代替 GitHub CI 和 staging 证据；不用 `[skip ci]` 作最终验收提交。
-9. 状态只更新本文件；不再创建重复的日期型上下文文档。
+9. 当前机器状态只更新 `PROJECT_STATE.yaml`；任务顺序、规格和已合并完成回执只更新本文件；
+   不再创建重复的日期型上下文文档。
 10. 修改 decision contract 结构时，必须同步 `src/w2/domain/decision_contract.py` 校验器、
     `tests/contract/test_api_projection_read_authority.py` 守卫及全部合同测试。
 11. 每个任务必须附**资产账本**：新增了哪些表/文件/配置（目标 0），删除了哪些。
@@ -402,8 +405,12 @@ Status: NOT_STARTED
 #### B1. EVAL-01A：赛果与结算账本数据库化
 
 ```text
-Status: NOT_STARTED
+Status: BLOCKED
+Blockers: EXACT_HEAD_IMAGE_TRANSFER_BLOCKED; BASE_DIVERGENCE_MERGE_CONFLICT
 ```
+
+PR #424 必须先对齐届时最新 main、解决状态文件冲突、重跑 exact-head CI 与外部 Review，
+再执行 exact-head staging；本任务不在 ARCH-P2-04 中处理。
 
 **目标**：赛果获得 DB 唯一权威；runtime 文件账本（最后一块文件飞地）迁入 DB 并删除。
 
@@ -604,13 +611,18 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 
 ## 七、任务状态与 PR 强制说明格式
 
-状态流转（追加在对应任务下）：
+`PROJECT_STATE.yaml` 保存当前机器状态流转：
 
 ```text
 开工:   Status: IN_PROGRESS / Branch / PR / Base SHA / Started at / Owner
 阻塞:   Status: BLOCKED / Blocker / Evidence / Next required decision
 待验收: Status: IMPLEMENTED_PENDING_ACCEPTANCE / Implementation SHA / CI run / Staging SHA / Evidence / Rollback
-完成:   Status: DONE / Merged PR / Merge SHA / CI run / Staging acceptance / Completed at
+```
+
+本文件维护任务顺序、规格和已合并完成回执；只在任务合并后追加：
+
+```text
+完成: Status: DONE / Merged PR / Merge SHA / CI run / 一行结论
 ```
 
 每个 PR 描述必须回答：
@@ -628,7 +640,7 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 
 立即停止条件：一个 PR 跨两个任务；新增竞争权威；删除仍有读写的数据；未断言就 drop；
 放宽安全开关；清单外修改模型数学；CI 未过；staging 对账失败；历史数据 hash/count 异常。
-停止后在本文件记 `BLOCKED`，不得自行绕过。
+停止后在 `PROJECT_STATE.yaml` 记 `BLOCKED`，不得自行绕过。
 
 ## 八、待议区（记录不实施）
 
@@ -638,7 +650,8 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 
 ## 九、机器合同附录：Scripts 权威矩阵
 
-> 本附录是 ARCH-HYGIENE-02 已验收的机器可读合同，不是任务状态副本；任务状态仍只由本文件第四节维护。
+> 本附录是 ARCH-HYGIENE-02 已验收的机器可读合同，不是当前状态副本。
+> 当前机器状态只由 `PROJECT_STATE.yaml` 维护；任务顺序、规格和已合并完成回执只由本文件维护。
 
 <!-- SCRIPT_AUTHORITY_MATRIX_START -->
 | path | 唯一分类 | 直接调用方 | 传递调用链 | 运行环境 | 部署引用 | 运维文档 | 决定 | 证据 |
