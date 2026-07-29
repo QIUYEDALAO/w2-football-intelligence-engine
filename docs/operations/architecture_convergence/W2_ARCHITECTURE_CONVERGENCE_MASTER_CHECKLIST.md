@@ -718,7 +718,7 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 | `scripts/probe_analysis_chain.py` | `MANUAL_OPS` | PR370 acceptance docs | operator → script | staging read-only | 否 | PR370 acceptance docs | `KEEP` | E4 |
 | `scripts/project_stage10b_live_snapshot.py` | `MANUAL_OPS` | STAGE10B_DASHBOARD_LIVE_WIRING | operator → script | offline | 否 | STAGE10B_DASHBOARD_LIVE_WIRING | `KEEP` | E4 |
 | `scripts/project_stage10c_matchday_read_model.py` | `CI_TRANSITIVE` | test_stage10c_matchday.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
-| `scripts/publish_w2_static_report.py` | `MANUAL_OPS` | A-151 static report runbook | operator → script | ops | 是 | `docs/archive/operations/A-151_STATIC_REPORT_WEB_ROOT.md` | `KEEP` | E3/E4/E5 |
+| `scripts/publish_w2_static_report.py` | `MANUAL_OPS` | `docs/runbooks/STAGE7H_VPS_STAGING.md` | operator → script | ops | 是 | `docs/runbooks/STAGE7H_VPS_STAGING.md` | `KEEP` | E3/E4/E5 |
 | `scripts/reconcile_pr370_validation_ledger.py` | `ONE_TIME_RECOVERY` | 人工 ledger 恢复 | operator → script | staging manual | 否 | 无 | `KEEP` | E7 |
 | `scripts/recover_staging_runtime.sh` | `DEPLOYMENT` | STAGING_RUNTIME_HARDENING | operator → script | staging | 否 | STAGING_RUNTIME_HARDENING | `KEEP` | E3/E4/E5 |
 | `scripts/render_ai_card_text.py` | `MANUAL_OPS` | README / stage1 contract | operator → script | local | 否 | README | `KEEP` | E4/E5 |

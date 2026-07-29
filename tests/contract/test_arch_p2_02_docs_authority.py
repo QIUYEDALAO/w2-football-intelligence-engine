@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 
@@ -10,10 +11,14 @@ CHECKLIST = (
     "W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md"
 )
 SUPERSEDED_PATTERN = re.compile(r"SUPERSEDED_BY:\s*`([^`]+)`")
-DATED_NAME_PATTERN = re.compile(
-    r"(?:20\d{2}[-_]\d{2}(?:[-_]\d{2})?|20\d{6})"
-)
 MARKDOWN_LINK_PATTERN = re.compile(r"!?\[[^\]]*]\(([^)]+)\)")
+CURRENT_ARCHIVE_CLAIM_PATTERN = re.compile(
+    r"(?i)(?:current|next|当前|下一|完整路线图|runbook).*docs/archive/"
+    r"|docs/archive/.*(?:current|next|当前|下一|完整路线图|runbook)"
+)
+ARCHIVE_POLICY_PATTERN = re.compile(
+    r'"source_manifest"\s*:\s*"docs/archive/'
+)
 
 
 def _section(text: str, start: str, end: str) -> str:
@@ -76,18 +81,13 @@ def test_superseded_targets_exist_and_form_no_cycles() -> None:
             current = graph[current]
 
 
-def test_dated_evidence_is_archived_and_internal_links_resolve() -> None:
+def test_current_documents_do_not_promote_archived_material() -> None:
     docs = ROOT / "docs"
-    outside_archive = [
-        path
-        for path in docs.rglob("*")
-        if path.is_file()
-        and "archive" not in path.relative_to(docs).parts
-        and DATED_NAME_PATTERN.search(path.name)
-    ]
-    assert outside_archive == []
-
     for source in docs.rglob("*.md"):
+        if "archive" not in source.relative_to(docs).parts:
+            for line in source.read_text(encoding="utf-8").splitlines():
+                if CURRENT_ARCHIVE_CLAIM_PATTERN.search(line):
+                    assert "历史" in line or "不是当前" in line, source
         for raw_target in MARKDOWN_LINK_PATTERN.findall(
             source.read_text(encoding="utf-8")
         ):
@@ -101,3 +101,26 @@ def test_dated_evidence_is_archived_and_internal_links_resolve() -> None:
                 else source.parent / path_part
             )
             assert resolved.exists(), f"{source.relative_to(ROOT)} -> {target}"
+
+
+def test_active_assets_never_use_archive_as_runtime_storage() -> None:
+    for script in (ROOT / "scripts").rglob("*.py"):
+        tree = ast.parse(script.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+                continue
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            names = [target.id for target in targets if isinstance(target, ast.Name)]
+            value = node.value
+            if any(name.startswith("DEFAULT_OUTPUT") for name in names) and value:
+                assert "docs/archive" not in ast.unparse(value), script
+
+    for policy in (ROOT / "config/policies").glob("*.json"):
+        assert not ARCHIVE_POLICY_PATTERN.search(
+            policy.read_text(encoding="utf-8")
+        ), policy
+
+
+def test_protected_current_authorities_are_not_archived() -> None:
+    assert CHECKLIST.is_file()
+    assert (ROOT / "docs/runbooks/W2_LEAGUE_EXPANSION_RUNBOOK.md").is_file()

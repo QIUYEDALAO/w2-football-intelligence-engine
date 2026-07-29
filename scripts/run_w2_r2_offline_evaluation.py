@@ -14,9 +14,7 @@ from w2.models.correction_evaluation import (
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_INPUT = ROOT / "tests/fixtures/gate4/dixon_coles_matches.json"
-DEFAULT_OUTPUT = (
-    ROOT / "docs/archive/operations/W2_R2_OFFLINE_CORRECTION_EVALUATION_20260718.json"
-)
+DEFAULT_OUTPUT = ROOT / "docs/operations/W2_R2_OFFLINE_CORRECTION_EVALUATION_20260718.json"
 
 
 def main() -> int:
