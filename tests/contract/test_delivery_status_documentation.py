@@ -1,19 +1,15 @@
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-TASK_ORDER = (
-    "ARCH-GOVERNANCE-01",
-    "ARCH-P1-04C",
-    "ARCH-P1-03",
-    "ARCH-P1-05",
-    "ARCH-P1-06",
-    "ARCH-P1-07",
-    "ARCH-P1-08",
+CHECKLIST_PATH = (
+    "docs/operations/architecture_convergence/"
+    "W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md"
 )
 FORBIDDEN_TASKS = (
     "ARCH-OBS-01",
@@ -32,32 +28,33 @@ def read(path: str) -> str:
 def test_v3_task_authority_and_next_action_are_consistent() -> None:
     state = yaml.safe_load(read("PROJECT_STATE.yaml"))
     next_action = read("NEXT_ACTION.md")
-    checklist = read(
-        "docs/operations/architecture_convergence/"
-        "W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md"
-    )
+    ledger = read("PROJECT_LEDGER.md")
+    checklist = read(CHECKLIST_PATH)
 
-    assert state["current_task"] == "ARCH-P1-08"
+    assert state["authority"] == CHECKLIST_PATH
+    assert state["current_task"] == "ARCH-P2-04"
     assert state["current_status"] == "IN_PROGRESS"
-    assert state["current_pr"] == 423
-    assert state["next_task"] == "EVAL-01A"
-    assert tuple(state["task_queue"]) == TASK_ORDER
-    assert (
-        "当前：完成 A7 ARCH-P1-08 的 Draft Implementation PR #423 二次验收与合并。"
-        in next_action
-    )
-    assert "下一项：阶段 B 的 B1 EVAL-01A；A7 合并前不启动。" in next_action
-    positions = [
-        checklist.index(f"#### A{index}. {task}")
-        for index, task in enumerate(TASK_ORDER, 1)
-    ]
-    assert positions == sorted(positions)
+    assert state["current_pr"] is None
+    assert state["next_task"] == "ARCH-P2-06"
+    assert state["tasks"]["ARCH-P2-02"] == {
+        "status": "DONE",
+        "receipt": CHECKLIST_PATH,
+    }
+    assert state["tasks"]["ARCH-P2-03"]["status"] == "DONE"
+    assert state["tasks"]["ARCH-P2-03"]["space_released_kib"] == 1853664
+    assert state["tasks"]["EVAL-01A"]["status"] == "BLOCKED_BY_NETWORK"
+    assert state["tasks"]["EVAL-01B"]["status"] == "NOT_STARTED"
+    assert "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)" in next_action
+    assert CHECKLIST_PATH in next_action
+    assert "sole machine-readable project-status record" in ledger
+    assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", ledger)
+    assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", next_action)
+    assert "Status: IN_PROGRESS" in checklist
     for task in FORBIDDEN_TASKS:
         assert task not in state
         assert task not in next_action
         assert task not in checklist
     assert state["staging"]["production_deployed"] is False
-    assert "EVAL-01A" not in state["task_queue"]
 
 
 def test_historical_pr_range_is_explicitly_non_authoritative() -> None:

@@ -346,17 +346,30 @@ Status: IN_PROGRESS
 
 **ARCH-P2-02 Docs 整理**
 ```text
-Status: IN_PROGRESS
-Branch: codex/arch-p2-02-doc-authority-consolidation
+Status: DONE
+PR: #426
+Merge SHA: 49c75521325af46551699b27241c0ef4c6bbb7a0
+CI: 30422145661
+Conclusion: 133 份冻结历史文件归档；活动资产、当前权威和 Runbook 保持在现行路径。
 ```
 
 - [x] 日期型一次性证据移入 `docs/archive/`；同一审计只留最新权威版；旧文档标 `SUPERSEDED_BY`。
-- [ ] PR 合并。
+- [x] PR 合并。
 
 **ARCH-P2-03 本地垃圾清理**（只清开发机，不进业务 PR）
-- [ ] `.worktrees/`、过期 `.local/`、废弃 `runtime/` stage 目录、无用本地分支；记录释放空间。
+```text
+Status: DONE
+Conclusion: PASS；释放 1853664 KiB（1.77 GiB），活动 worktree、开放 PR 分支及历史数据保持可用。
+```
+
+- [x] `.worktrees/`、过期 `.local/`、废弃 `runtime/` stage 目录、无用本地分支；记录释放空间。
 
 **ARCH-P2-04 项目状态记录收敛**
+```text
+Status: IN_PROGRESS
+Branch: codex/arch-p2-04-status-record-convergence
+```
+
 - [ ] `PROJECT_STATE.yaml` 唯一机器可读状态；`PROJECT_LEDGER.md` 只记人工决定。
 - [ ] `NEXT_ACTION.md` 改为链接本清单或删除；SHA/CI 不再多文档重复维护。
 - [ ] 本清单任务回执压缩为 CI run 号 + merge SHA + 一行结论。
