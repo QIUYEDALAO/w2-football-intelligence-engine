@@ -34,10 +34,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     assert state["current_state_authority"] == "PROJECT_STATE.yaml"
     assert state["task_authority"] == CHECKLIST_PATH
     assert state["current_task"] == "EVAL-01B"
-    assert (
-        state["current_status"]
-        == "IMPLEMENTED_PENDING_SECONDARY_REVIEW_AND_STAGING"
-    )
+    assert state["current_status"] == "DONE"
     assert state["current_pr"] == 430
     assert state["next_task"] == "EVAL-01C"
     assert state["tasks"]["ARCH-P2-02"] == {
@@ -71,13 +68,10 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "main_ci": 30441901340,
     }
     assert state["tasks"]["EVAL-01B"] == {
-        "status": "IMPLEMENTED_PENDING_SECONDARY_REVIEW_AND_STAGING",
+        "status": "DONE",
         "pr": 430,
-        "branch": "codex/eval-01b-finished-match-scoring-projection",
-        "blockers": [
-            "BATCH_ENVELOPE_CONFLICT_DOES_NOT_GATE_PERSISTENCE",
-            "STAGING_BATCH_PERSISTENCE_REMEDIATION_REQUIRED",
-        ],
+        "merge_sha": "5c2bd6f2e5c23196a25495335da72599e076c8ae",
+        "main_ci": 30477611652,
     }
     assert state["tasks"]["EVAL-01C"]["status"] == "NOT_STARTED"
     assert state["architecture_convergence"]["status"] == "PASS"
@@ -120,10 +114,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         assert task not in checklist
     assert state["staging"]["production_deployed"] is False
     assert state["staging"]["eval_01a_exact_head_acceptance"] == "PASS"
-    assert (
-        state["staging"]["eval_01b_exact_head_acceptance"]
-        == "STAGING_BATCH_PERSISTENCE_REMEDIATION_REQUIRED"
-    )
+    assert state["staging"]["eval_01b_exact_head_acceptance"] == "PASS"
 
 
 def test_historical_pr_range_is_explicitly_non_authoritative() -> None:
