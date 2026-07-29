@@ -22,7 +22,10 @@ LEGACY_IMPORT_IDENTITIES = (
     "formal_recommendation_snapshots",
     "formal_recommendation_settlements",
 )
-LEGACY_IMPORT_MODULE = Path("src/w2/tracking/outcome_ledger_repository.py")
+LEGACY_IMPORT_MODULES = (
+    Path("src/w2/tracking/outcome_ledger_repository.py"),
+    Path("src/w2/tracking/finished_match_scoring_projection.py"),
+)
 RESULT_MATERIALIZER_FILES = (
     Path("src/w2/tracking/outcome_result_refresh.py"),
     Path("src/w2/tracking/outcome_ledger_repository.py"),
@@ -55,8 +58,9 @@ def _runtime_ledger_violations(surfaces: tuple[Path, ...]) -> list[str]:
             if identity in source:
                 violations.append(f"{path}:{identity}")
         for identity in LEGACY_IMPORT_IDENTITIES:
-            if identity in source and not path.as_posix().endswith(
-                LEGACY_IMPORT_MODULE.as_posix()
+            if identity in source and not any(
+                path.as_posix().endswith(module.as_posix())
+                for module in LEGACY_IMPORT_MODULES
             ):
                 violations.append(f"{path}:{identity}")
     return sorted(violations)
@@ -86,6 +90,7 @@ def test_runtime_ledger_file_io_is_zero_outside_explicit_importer() -> None:
         ROOT / "src/w2/tracking/formal_results.py",
         ROOT / "src/w2/tracking/forward_ledger_performance.py",
         ROOT / "src/w2/tracking/forward_outcome_ledger.py",
+        ROOT / "src/w2/tracking/finished_match_scoring_projection.py",
         ROOT / "src/w2/tracking/outcome_result_refresh.py",
     )
     for path in business_readers:

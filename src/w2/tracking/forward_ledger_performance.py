@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import math
-import random
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
@@ -9,6 +7,24 @@ from statistics import median
 from typing import Any
 
 from w2.tracking.outcome_ledger_repository import OutcomeLedgerRepository
+from w2.tracking.performance_scoring import (
+    brier as _brier,
+)
+from w2.tracking.performance_scoring import (
+    ece as _ece,
+)
+from w2.tracking.performance_scoring import (
+    log_loss as _log_loss,
+)
+from w2.tracking.performance_scoring import (
+    paired_bootstrap as _paired_bootstrap,
+)
+from w2.tracking.performance_scoring import (
+    probability_vector as _probability_vector,
+)
+from w2.tracking.performance_scoring import (
+    rps as _rps,
+)
 
 SAMPLE_TARGET = 200
 MIN_DECISIVE_SAMPLES_FOR_RATE = 5
@@ -570,30 +586,6 @@ def _complete_quote_provenance(value: Mapping[str, Any]) -> bool:
     return False
 
 
-def _probability_vector(record: Mapping[str, Any], key: str) -> tuple[float, float, float] | None:
-    identity = record.get("probability_identity")
-    if not isinstance(identity, Mapping):
-        return None
-    raw_value = identity.get(key)
-    if not isinstance(raw_value, Mapping):
-        return None
-    raw: Mapping[str, Any] = raw_value
-    one_x_two = raw.get("one_x_two")
-    if isinstance(one_x_two, Mapping):
-        probabilities = one_x_two.get("probabilities")
-        raw = probabilities if isinstance(probabilities, Mapping) else one_x_two
-    values = tuple(_number(raw.get(name)) for name in ("HOME", "DRAW", "AWAY"))
-    if any(value is None for value in values):
-        return None
-    vector = tuple(float(value) for value in values if value is not None)
-    if len(vector) != 3 or any(value <= 0 or value >= 1 for value in vector):
-        return None
-    total = sum(vector)
-    if abs(total - 1.0) > 0.02:
-        return None
-    return tuple(value / total for value in vector)  # type: ignore[return-value]
-
-
 def _calibration_summary(
     rows: Sequence[Mapping[str, Any]], candidates: Mapping[str, Mapping[str, Any]]
 ) -> dict[str, Any]:
@@ -636,60 +628,6 @@ def _calibration_summary(
         "ece": _ece(observations),
         "research_roi": round(sum(roi_units) / len(roi_units), 12) if roi_units else None,
         "paired_bootstrap": _paired_bootstrap(paired),
-    }
-
-
-def _log_loss(probabilities: tuple[float, float, float], actual: int) -> float:
-    return -math.log(max(probabilities[actual], 1e-15))
-
-
-def _brier(probabilities: tuple[float, float, float], actual: int) -> float:
-    return sum(
-        (value - (1.0 if index == actual else 0.0)) ** 2
-        for index, value in enumerate(probabilities)
-    )
-
-
-def _rps(probabilities: tuple[float, float, float], actual: int) -> float:
-    observed = (1.0 if actual == 0 else 0.0, 1.0 if actual <= 1 else 0.0)
-    forecast = (probabilities[0], probabilities[0] + probabilities[1])
-    return sum((left - right) ** 2 for left, right in zip(forecast, observed, strict=True)) / 2
-
-
-def _ece(observations: Sequence[tuple[tuple[float, float, float], int]]) -> float:
-    buckets: dict[int, list[tuple[float, bool]]] = defaultdict(list)
-    for probabilities, actual in observations:
-        confidence = max(probabilities)
-        predicted = probabilities.index(confidence)
-        buckets[min(9, int(confidence * 10))].append((confidence, predicted == actual))
-    total = len(observations)
-    return sum(
-        len(items)
-        / total
-        * abs(
-            sum(conf for conf, _ in items) / len(items) - sum(hit for _, hit in items) / len(items)
-        )
-        for items in buckets.values()
-    )
-
-
-def _paired_bootstrap(pairs: Sequence[tuple[float, float]]) -> dict[str, Any]:
-    if len(pairs) < 2:
-        return {"status": "INSUFFICIENT", "sample_count": len(pairs)}
-    rng = random.Random(7)  # noqa: S311 - deterministic evaluation, not security
-    deltas: list[float] = []
-    for _ in range(1000):
-        sample = [pairs[rng.randrange(len(pairs))] for _ in pairs]
-        deltas.append(sum(model - market for model, market in sample) / len(sample))
-    deltas.sort()
-    return {
-        "status": "AVAILABLE",
-        "sample_count": len(pairs),
-        "metric": "model_minus_market_log_loss",
-        "delta": sum(model - market for model, market in pairs) / len(pairs),
-        "ci95": [deltas[24], deltas[974]],
-        "iterations": 1000,
-        "seed": 7,
     }
 
 
@@ -983,6 +921,24 @@ def _clv_rows(
             }
         )
     return rows
+
+
+def fixture_clv(
+    records: Sequence[Mapping[str, Any]],
+    *,
+    fixture_id: str,
+    market: str,
+    selection: str,
+) -> dict[str, Any] | None:
+    """Return the existing canonical-pick CLV row for one exact fixture identity."""
+    for row in _clv_rows(records, key_fn=_clv_key):
+        if (
+            _text(row.get("fixture_id")) == fixture_id
+            and _text(row.get("market")) == market
+            and _text(row.get("selection")) == selection
+        ):
+            return row
+    return None
 
 
 def _entry_record(records: list[Mapping[str, Any]]) -> Mapping[str, Any]:

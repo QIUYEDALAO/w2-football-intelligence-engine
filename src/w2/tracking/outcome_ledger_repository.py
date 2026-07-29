@@ -29,6 +29,52 @@ class OutcomeLedgerError(ValueError):
     pass
 
 
+class FixtureIdentityConflict(ValueError):
+    pass
+
+
+class ExactFixtureResolver:
+    """Resolve only canonical IDs and the exact API-Football numeric namespace."""
+
+    def __init__(self, rows: Iterable[MatchdayFixtureIdentityModel]) -> None:
+        aliases: dict[str, set[str]] = {}
+        for row in rows:
+            canonical = str(row.fixture_id)
+            provider = str(row.provider_fixture_id)
+            aliases.setdefault(canonical, set()).add(canonical)
+            aliases.setdefault(provider, set()).add(canonical)
+            aliases.setdefault(f"api_football:{provider}", set()).add(canonical)
+        self._aliases = aliases
+
+    def candidates(self, value: str) -> frozenset[str]:
+        text = str(value).strip()
+        if not text:
+            return frozenset()
+        bare = text.removeprefix("api_football:")
+        return frozenset(
+            self._aliases.get(text, set()) | self._aliases.get(bare, set())
+        )
+
+    def resolve(self, value: str) -> str | None:
+        return _resolve_exact_fixture_id(value, self.candidates(value))
+
+
+def _resolve_exact_fixture_id(
+    value: str,
+    candidates: Iterable[str],
+) -> str | None:
+    text = str(value).strip()
+    canonical = frozenset(candidates)
+    if len(canonical) > 1:
+        raise FixtureIdentityConflict("FIXTURE_IDENTITY_CONFLICT")
+    if canonical:
+        return next(iter(canonical))
+    bare = text.removeprefix("api_football:")
+    if bare.isdigit() and text in {bare, f"api_football:{bare}"}:
+        return f"api_football:{bare}"
+    return None
+
+
 @dataclass(frozen=True, kw_only=True)
 class ImportRecord:
     payload: dict[str, Any]
@@ -367,6 +413,7 @@ class OutcomeLedgerRepository:
                 for fixture_id in unresolved
             ]
             staged: list[ResultModel] = []
+            confirmed_fixture_ids: list[str] = []
             for identity in selected:
                 candidates = list(by_provider_id.get(identity.provider_fixture_id, ()))
                 candidates.append(
@@ -400,6 +447,7 @@ class OutcomeLedgerRepository:
                         blockers.append(f"{identity.fixture_id}:RESULT_SOURCE_CONFLICT")
                     else:
                         counts["already_materialized_count"] += 1
+                        confirmed_fixture_ids.append(identity.fixture_id)
                     continue
                 staged.append(
                     ResultModel(
@@ -417,6 +465,7 @@ class OutcomeLedgerRepository:
                         ),
                     )
                 )
+                confirmed_fixture_ids.append(identity.fixture_id)
             if counts["result_source_conflict_count"]:
                 session.rollback()
                 staged = []
@@ -432,6 +481,11 @@ class OutcomeLedgerRepository:
                 "provider_calls": 0,
                 "db_writes": counts["materialized_result_count"],
                 "blockers": blockers,
+                "confirmed_fixture_ids": (
+                    sorted(set(confirmed_fixture_ids))
+                    if not counts["result_source_conflict_count"]
+                    else []
+                ),
                 "evaluated_at": _iso(now or datetime.now(UTC)),
             }
 
@@ -726,24 +780,18 @@ def _result_from_record(item: ImportRecord) -> dict[str, Any] | None:
 
 def _resolve_fixture_id(session: Session, value: str) -> str | None:
     bare = value.removeprefix("api_football:")
-    rows = list(
-        session.scalars(
-            select(MatchdayFixtureIdentityModel).where(
-                or_(
-                    MatchdayFixtureIdentityModel.fixture_id == value,
-                    MatchdayFixtureIdentityModel.provider_fixture_id == bare,
-                )
+    rows = session.scalars(
+        select(MatchdayFixtureIdentityModel).where(
+            or_(
+                MatchdayFixtureIdentityModel.fixture_id == value,
+                MatchdayFixtureIdentityModel.provider_fixture_id == bare,
             )
         )
     )
-    canonical = {row.fixture_id for row in rows}
-    if len(canonical) > 1:
-        raise OutcomeLedgerError("RESULT_SOURCE_CONFLICT")
-    if canonical:
-        return next(iter(canonical))
-    if bare.isdigit() and value in {bare, f"api_football:{bare}"}:
-        return f"api_football:{bare}"
-    return None
+    try:
+        return _resolve_exact_fixture_id(value, (row.fixture_id for row in rows))
+    except FixtureIdentityConflict:
+        raise OutcomeLedgerError("RESULT_SOURCE_CONFLICT") from None
 
 
 def _select_identities(

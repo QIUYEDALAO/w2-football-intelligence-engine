@@ -669,6 +669,8 @@ def test_worker_result_materialize_task_reports_safety_flags(monkeypatch) -> Non
             "provider_calls": 0,
             "db_writes": 1,
             "materialized_result_count": 1,
+            "scoring_projection_status": "PASS",
+            "scoring_projection_db_writes": 4,
         },
     )
 
@@ -680,6 +682,8 @@ def test_worker_result_materialize_task_reports_safety_flags(monkeypatch) -> Non
     assert result["status"] == "PASS"
     assert result["provider_calls"] == 0
     assert result["db_writes"] == 1
+    assert result["scoring_projection_status"] == "PASS"
+    assert result["scoring_projection_db_writes"] == 4
     assert result["lock_capture_write"] is False
     assert result["settlement_write"] is False
     assert result["candidate"] is False

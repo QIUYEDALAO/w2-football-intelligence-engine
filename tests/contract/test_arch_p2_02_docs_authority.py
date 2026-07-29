@@ -49,9 +49,10 @@ def test_p2_status_coordinates_and_unstarted_work_are_authoritative() -> None:
     b2 = _section(text, "#### B2. EVAL-01B", "#### B3.")
     p2 = _section(text, "#### A8. 阶段 P2", "### 阶段 B")
 
-    assert "Status: DONE" not in b1
-    assert "- [ ] PR 合并" in b1
-    assert "Status: NOT_STARTED" in b2
+    assert "Status: DONE" in b1
+    assert "- [x] PR 合并" in b1
+    assert "Status: IMPLEMENTED_PENDING_SECONDARY_REVIEW_AND_STAGING" in b2
+    assert "- [ ] PR 合并" in b2
 
     p2_02 = _section(p2, "**ARCH-P2-02", "**ARCH-P2-03")
     assert "Status: DONE" in p2_02

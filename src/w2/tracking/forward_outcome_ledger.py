@@ -131,6 +131,7 @@ def build_forward_outcome_records(
             quote_provenance = _quote_provenance(card)
             artifact_provenance = _artifact_provenance(card)
             probability_identity = _probability_identity(card)
+            lifecycle_metadata = _lifecycle_metadata(card)
             decision_hash = _optional_text(
                 canonical.get("decision_hash") or v3.get("decision_hash")
             )
@@ -143,6 +144,7 @@ def build_forward_outcome_records(
                 "quote_provenance": quote_provenance,
                 "artifact_provenance": artifact_provenance,
                 "probability_identity": probability_identity,
+                "lifecycle_metadata": lifecycle_metadata,
                 "card_hash": _optional_text(card.get("card_hash")),
                 "decision_hash": decision_hash,
             }
@@ -180,6 +182,9 @@ def build_forward_outcome_records(
                     "quote_provenance": quote_provenance,
                     "artifact_provenance": artifact_provenance,
                     "probability_identity": probability_identity,
+                    "evaluation_tier": lifecycle_metadata["evaluation_tier"],
+                    "checkpoint": lifecycle_metadata["checkpoint"],
+                    "lineup_input_hash": lifecycle_metadata["lineup_input_hash"],
                     "capture_identity_hash": _canonical_sha256(capture_identity),
                     "outcome_tracked": bool(canonical.get("outcome_tracked"))
                     if v3
@@ -893,6 +898,22 @@ def _probability_identity(card: Mapping[str, Any]) -> dict[str, Any]:
             _mapping(card.get("model_market_divergence")).get("model_family")
         ),
         "calibration_hash": _optional_text(diagnostics.get("calibration_hash")),
+    }
+
+
+def _lifecycle_metadata(card: Mapping[str, Any]) -> dict[str, str | None]:
+    lineup = _mapping(card.get("lineup_provenance"))
+    requirement = _text(
+        card.get("evaluation_tier") or lineup.get("requirement")
+    ).upper()
+    return {
+        "evaluation_tier": requirement
+        if requirement in {"STRICT", "ADVISORY"}
+        else "UNKNOWN",
+        "checkpoint": _optional_text(card.get("checkpoint")),
+        "lineup_input_hash": _optional_text(
+            card.get("lineup_input_hash") or lineup.get("lineup_input_hash")
+        ),
     }
 
 
