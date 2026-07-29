@@ -3,10 +3,10 @@ project: w2-football-intelligence-engine
 updated_at: "2026-07-29"
 current_state_authority: PROJECT_STATE.yaml
 task_authority: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
-current_task: ARCH-P2-04
+current_task: ARCH-P2-06
 current_status: IN_PROGRESS
-current_pr: 427
-next_task: ARCH-P2-06
+current_pr: null
+next_task: ARCH-P2-05
 tasks:
   ARCH-P2-02:
     status: DONE
@@ -21,8 +21,13 @@ tasks:
     removed_validation_databases: 20
     removed_runtime_directories: 0
   ARCH-P2-04:
+    status: DONE
+    pr: 427
+    merge_sha: bf21ddcc495b0c8d041c956734d278c1d611f24e
+    main_ci: 30425831606
+  ARCH-P2-06:
     status: IN_PROGRESS
-    branch: codex/arch-p2-04-status-record-convergence
+    branch: codex/arch-p2-06-package-role-matrix
   EVAL-01A:
     status: BLOCKED
     pr: 424

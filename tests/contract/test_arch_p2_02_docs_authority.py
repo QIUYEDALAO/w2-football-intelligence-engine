@@ -64,16 +64,19 @@ def test_p2_status_coordinates_and_unstarted_work_are_authoritative() -> None:
     assert "1853664 KiB（1.77 GiB）" in p2_03
 
     p2_04 = _section(p2, "**ARCH-P2-04", "**ARCH-P2-06")
-    assert "Status: IN_PROGRESS" in p2_04
-    assert "Status: DONE" not in p2_04
+    assert "Status: DONE" in p2_04
+    assert "PR: #427" in p2_04
+    assert "Merge SHA: bf21ddcc495b0c8d041c956734d278c1d611f24e" in p2_04
+    assert "CI: 30425831606" in p2_04
 
-    for task in ("ARCH-P2-05", "ARCH-P2-06"):
-        task_block = p2[p2.index(f"**{task}") :]
-        next_task = task_block.find("\n**", 3)
-        if next_task >= 0:
-            task_block = task_block[:next_task]
-        assert "Status: DONE" not in task_block
-        assert "- [x]" not in task_block
+    p2_06 = _section(p2, "**ARCH-P2-06", "**ARCH-P2-05")
+    assert "Status: IN_PROGRESS" in p2_06
+    assert "Status: DONE" not in p2_06
+    assert "- [x]" not in p2_06
+
+    p2_05 = p2[p2.index("**ARCH-P2-05") :]
+    assert "Status: DONE" not in p2_05
+    assert "- [x]" not in p2_05
 
 
 def test_superseded_targets_exist_and_form_no_cycles() -> None:

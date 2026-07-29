@@ -369,16 +369,24 @@ Conclusion: PASS；释放 1853664 KiB（1.77 GiB），活动 worktree、开放 P
 
 **ARCH-P2-04 项目状态记录收敛**
 ```text
-Status: IN_PROGRESS
-Branch: codex/arch-p2-04-status-record-convergence
+Status: DONE
+PR: #427
+Merge SHA: bf21ddcc495b0c8d041c956734d278c1d611f24e
+CI: 30425831606
+Conclusion: 当前机器状态、任务规格/完成回执和人工决定已分离为单一职责权威。
 ```
 
-- [ ] `PROJECT_STATE.yaml` 唯一机器可读状态；`PROJECT_LEDGER.md` 只记人工决定。
-- [ ] `NEXT_ACTION.md` 改为链接本清单或删除；SHA/CI 不再多文档重复维护。
-- [ ] 本清单任务回执压缩为 CI run 号 + merge SHA + 一行结论。
-- [ ] PR 合并。
+- [x] `PROJECT_STATE.yaml` 唯一机器可读状态；`PROJECT_LEDGER.md` 只记人工决定。
+- [x] `NEXT_ACTION.md` 改为链接本清单或删除；SHA/CI 不再多文档重复维护。
+- [x] 本清单任务回执压缩为 CI run 号 + merge SHA + 一行结论。
+- [x] PR 合并。
 
 **ARCH-P2-06 `src/w2` 一级包角色与依赖矩阵**
+```text
+Status: IN_PROGRESS
+Branch: codex/arch-p2-06-package-role-matrix
+```
+
 - [ ] 逐包矩阵（package/callers/依赖/循环/镜像包含/role/decision/evidence），全包覆盖不抽样。
 - [ ] `replay`、`data_assets`、`migration`、`audit_export` 先标 `OFFLINE_TOOL` 候选，不得直接判 DEAD。
 - [ ] 只有证据充分的 `DEAD` 可删；PR 合并。
