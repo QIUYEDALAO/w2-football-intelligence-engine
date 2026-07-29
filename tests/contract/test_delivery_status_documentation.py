@@ -1,19 +1,15 @@
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-TASK_ORDER = (
-    "ARCH-GOVERNANCE-01",
-    "ARCH-P1-04C",
-    "ARCH-P1-03",
-    "ARCH-P1-05",
-    "ARCH-P1-06",
-    "ARCH-P1-07",
-    "ARCH-P1-08",
+CHECKLIST_PATH = (
+    "docs/operations/architecture_convergence/"
+    "W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md"
 )
 FORBIDDEN_TASKS = (
     "ARCH-OBS-01",
@@ -32,32 +28,63 @@ def read(path: str) -> str:
 def test_v3_task_authority_and_next_action_are_consistent() -> None:
     state = yaml.safe_load(read("PROJECT_STATE.yaml"))
     next_action = read("NEXT_ACTION.md")
-    checklist = read(
-        "docs/operations/architecture_convergence/"
-        "W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md"
-    )
+    ledger = read("PROJECT_LEDGER.md")
+    checklist = read(CHECKLIST_PATH)
 
-    assert state["current_task"] == "ARCH-P1-08"
+    assert state["current_state_authority"] == "PROJECT_STATE.yaml"
+    assert state["task_authority"] == CHECKLIST_PATH
+    assert state["current_task"] == "ARCH-P2-04"
     assert state["current_status"] == "IN_PROGRESS"
-    assert state["current_pr"] == 423
-    assert state["next_task"] == "EVAL-01A"
-    assert tuple(state["task_queue"]) == TASK_ORDER
-    assert (
-        "当前：完成 A7 ARCH-P1-08 的 Draft Implementation PR #423 二次验收与合并。"
-        in next_action
-    )
-    assert "下一项：阶段 B 的 B1 EVAL-01A；A7 合并前不启动。" in next_action
-    positions = [
-        checklist.index(f"#### A{index}. {task}")
-        for index, task in enumerate(TASK_ORDER, 1)
+    assert state["current_pr"] == 427
+    assert state["next_task"] == "ARCH-P2-06"
+    assert state["tasks"]["ARCH-P2-02"] == {
+        "status": "DONE",
+        "receipt": CHECKLIST_PATH,
+    }
+    assert state["tasks"]["ARCH-P2-03"]["status"] == "DONE"
+    assert state["tasks"]["ARCH-P2-03"]["space_released_kib"] == 1853664
+    assert state["tasks"]["EVAL-01A"] == {
+        "status": "BLOCKED",
+        "pr": 424,
+        "exact_head": "1bd33939243894d37475bb6d9a7bd86f175e8900",
+        "mergeable": False,
+        "blockers": [
+            "EXACT_HEAD_IMAGE_TRANSFER_BLOCKED",
+            "BASE_DIVERGENCE_MERGE_CONFLICT",
+        ],
+        "next_required_action": (
+            "Reconcile PR #424 onto the then-current main, resolve status-file "
+            "conflicts, rerun exact-head CI and external review, then perform "
+            "exact-head staging."
+        ),
+    }
+    assert state["tasks"]["EVAL-01B"]["status"] == "NOT_STARTED"
+    assert "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)" in next_action
+    assert CHECKLIST_PATH in next_action
+    assert "sole machine-readable project-status record" in ledger
+    assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", ledger)
+    assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", next_action)
+    assert "`PROJECT_STATE.yaml` 是 W2 **唯一当前机器可读状态快照**" in checklist
+    assert "唯一任务顺序、任务规格和已合并完成回执权威" in checklist
+    assert "状态只更新本文件" not in checklist
+    assert "任务状态仍只由本文件" not in checklist
+    redlines = checklist[checklist.index("### 永久红线") : checklist.index("### 冻结解除边界")]
+    section_seven = checklist[checklist.index("## 七、") : checklist.index("## 八、")]
+    machine_appendix = checklist[checklist.index("## 九、") :]
+    for section in (redlines, section_seven, machine_appendix):
+        assert "`PROJECT_STATE.yaml`" in section
+        assert "已合并完成回执" in section
+    b1 = checklist[
+        checklist.index("#### B1. EVAL-01A") : checklist.index("#### B2.")
     ]
-    assert positions == sorted(positions)
+    assert "Status: BLOCKED" in b1
+    assert "EXACT_HEAD_IMAGE_TRANSFER_BLOCKED" in b1
+    assert "BASE_DIVERGENCE_MERGE_CONFLICT" in b1
     for task in FORBIDDEN_TASKS:
         assert task not in state
         assert task not in next_action
         assert task not in checklist
     assert state["staging"]["production_deployed"] is False
-    assert "EVAL-01A" not in state["task_queue"]
 
 
 def test_historical_pr_range_is_explicitly_non_authoritative() -> None:

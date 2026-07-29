@@ -43,7 +43,7 @@ def test_a7_and_b6_done_coordinates_are_authoritative() -> None:
     assert "Main CI: 30414946283" in b6
 
 
-def test_unstarted_work_is_not_marked_complete() -> None:
+def test_p2_status_coordinates_and_unstarted_work_are_authoritative() -> None:
     text = CHECKLIST.read_text(encoding="utf-8")
     b1 = _section(text, "#### B1. EVAL-01A", "#### B2.")
     b2 = _section(text, "#### B2. EVAL-01B", "#### B3.")
@@ -52,7 +52,22 @@ def test_unstarted_work_is_not_marked_complete() -> None:
     assert "Status: DONE" not in b1
     assert "- [ ] PR 合并" in b1
     assert "Status: NOT_STARTED" in b2
-    for task in ("ARCH-P2-03", "ARCH-P2-04", "ARCH-P2-05", "ARCH-P2-06"):
+
+    p2_02 = _section(p2, "**ARCH-P2-02", "**ARCH-P2-03")
+    assert "Status: DONE" in p2_02
+    assert "PR: #426" in p2_02
+    assert "Merge SHA: 49c75521325af46551699b27241c0ef4c6bbb7a0" in p2_02
+    assert "CI: 30422145661" in p2_02
+
+    p2_03 = _section(p2, "**ARCH-P2-03", "**ARCH-P2-04")
+    assert "Status: DONE" in p2_03
+    assert "1853664 KiB（1.77 GiB）" in p2_03
+
+    p2_04 = _section(p2, "**ARCH-P2-04", "**ARCH-P2-06")
+    assert "Status: IN_PROGRESS" in p2_04
+    assert "Status: DONE" not in p2_04
+
+    for task in ("ARCH-P2-05", "ARCH-P2-06"):
         task_block = p2[p2.index(f"**{task}") :]
         next_task = task_block.find("\n**", 3)
         if next_task >= 0:
