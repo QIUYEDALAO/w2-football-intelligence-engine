@@ -383,15 +383,17 @@ Conclusion: 当前机器状态、任务规格/完成回执和人工决定已分�
 
 **ARCH-P2-06 `src/w2` 一级包角色与依赖矩阵**
 ```text
-Status: IMPLEMENTED_PENDING_ACCEPTANCE
-Branch: codex/arch-p2-06-package-role-matrix
+Status: DONE
 PR: #428
+Merge SHA: 1a46a9e47a478072d37e4ec4c7a44d914e1a127b
+CI: 30432075563
+Conclusion: 40 个一级包全量映射；删除 0；22 包 SCC 与 schemas 待调查项如实保留。
 ```
 
 - [x] 逐包矩阵（package/callers/依赖/循环/镜像包含/role/decision/evidence），全包覆盖不抽样。
 - [x] `replay`、`data_assets`、`migration`、`audit_export` 已按实际入口审查，均有保留依据。
 - [x] 仅完整满足九项零引用标准才允许 `DELETE`；本轮没有包达到该标准，未删除源码。
-- [ ] PR 合并。
+- [x] PR 合并。
 
 分析口径：Python 依赖使用 AST 解析 `import`、`from`、相对导入、package child import，
 以及参数为常量的 `importlib.import_module` / `__import__`；直接调用方覆盖 `apps/`、
@@ -468,6 +470,11 @@ INVESTIGATION_REQUIRED_PACKAGES = schemas
 <!-- SRC_W2_PACKAGE_MATRIX_END -->
 
 **ARCH-P2-05 最终架构收敛验收**
+```text
+Status: IN_PROGRESS
+Branch: codex/arch-p2-05-final-architecture-acceptance
+```
+
 - [ ] P0/P1/P2 全部完成；无竞争权威；无生产 fallback；无服务器源码构建；
       所有 drop 有直接证据；完整 CI 与 staging 验收；老板最终验收。
 
