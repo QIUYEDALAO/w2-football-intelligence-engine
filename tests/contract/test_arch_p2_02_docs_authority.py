@@ -70,9 +70,10 @@ def test_p2_status_coordinates_and_unstarted_work_are_authoritative() -> None:
     assert "CI: 30425831606" in p2_04
 
     p2_06 = _section(p2, "**ARCH-P2-06", "**ARCH-P2-05")
-    assert "Status: IN_PROGRESS" in p2_06
+    assert "Status: IMPLEMENTED_PENDING_ACCEPTANCE" in p2_06
     assert "Status: DONE" not in p2_06
-    assert "- [x]" not in p2_06
+    assert "PR: #428" in p2_06
+    assert "- [ ] PR 合并" in p2_06
 
     p2_05 = p2[p2.index("**ARCH-P2-05") :]
     assert "Status: DONE" not in p2_05

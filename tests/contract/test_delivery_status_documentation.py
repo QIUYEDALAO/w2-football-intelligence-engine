@@ -34,7 +34,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     assert state["current_state_authority"] == "PROJECT_STATE.yaml"
     assert state["task_authority"] == CHECKLIST_PATH
     assert state["current_task"] == "ARCH-P2-06"
-    assert state["current_status"] == "IN_PROGRESS"
+    assert state["current_status"] == "IMPLEMENTED_PENDING_ACCEPTANCE"
     assert state["current_pr"] == 428
     assert state["next_task"] == "ARCH-P2-05"
     assert state["tasks"]["ARCH-P2-02"] == {
@@ -50,8 +50,9 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "main_ci": 30425831606,
     }
     assert state["tasks"]["ARCH-P2-06"] == {
-        "status": "IN_PROGRESS",
+        "status": "IMPLEMENTED_PENDING_ACCEPTANCE",
         "branch": "codex/arch-p2-06-package-role-matrix",
+        "pr": 428,
     }
     assert state["tasks"]["EVAL-01A"] == {
         "status": "BLOCKED",
