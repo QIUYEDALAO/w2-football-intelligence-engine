@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
@@ -31,7 +32,10 @@ from w2.tracking.forward_ledger_performance import (
     _rps,
 )
 from w2.tracking.outcome_ledger_repository import (
+    IMPORT_CONFIRMATION_PHRASE,
+    ImportRecord,
     OutcomeLedgerRepository,
+    import_runtime_ledger,
     payload_sha256,
 )
 from w2.tracking.performance_scoring import brier, log_loss, probability_vector, rps
@@ -687,19 +691,269 @@ def test_outcome_ledger_envelope_payload_parity_allows_scoring(
     )["status"] == "SCORED"
 
 
+def test_b1_legacy_runtime_import_passes_effective_parity(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path / "db")
+    fixture_id = "fixture-legacy-import"
+    _seed_result(repository, fixture_id, home=1, away=0)
+    _seed_identity(repository, fixture_id, kickoff=KICKOFF)
+    source = tmp_path / "runtime"
+    ledger = source / "forward_outcome_ledger"
+    ledger.mkdir(parents=True)
+    capture = _capture(
+        fixture_id,
+        KICKOFF - timedelta(minutes=5),
+        identity="legacy-import",
+        kickoff=KICKOFF,
+    )
+    capture.pop("record_type")
+    (ledger / "legacy.jsonl").write_text(
+        json.dumps(capture) + "\n",
+        encoding="utf-8",
+    )
+
+    import_runtime_ledger(
+        repository,
+        source,
+        dry_run=False,
+        write_db=True,
+        confirm_write=IMPORT_CONFIRMATION_PHRASE,
+    )
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+    )
+    with Session(repository.engine) as session:
+        row = session.scalar(select(OutcomeLedgerModel))
+        assert row is not None
+        assert row.payload_sha256 == payload_sha256(row.payload)
+
+    assert result["status"] == "PASS"
+    assert result["scored_count"] == 1
+    assert result["ledger_parity"] == {
+        "status": "PASS_WITH_LEGACY_NORMALIZATION",
+        "total_row_count": 1,
+        "explicit_match_count": 0,
+        "legacy_inferred_capture_count": 1,
+        "legacy_formal_snapshot_count": 0,
+        "legacy_formal_settlement_count": 0,
+        "legacy_unknown_schema_count": 0,
+        "explicit_conflict_count": 0,
+        "unsupported_missing_count": 0,
+        "mismatches_by_field": {},
+        "affected_fixture_count": 0,
+        "finished_result_affected_count": 0,
+    }
+
+
 @pytest.mark.parametrize(
-    "envelope_change",
+    "source_artifact",
+    ["db:forward_outcome_ledger", "unknown/legacy.jsonl"],
+)
+def test_missing_record_type_from_unsupported_source_is_blocked(
+    tmp_path: Path,
+    source_artifact: str,
+) -> None:
+    repository = _repository(tmp_path)
+    fixture_id = "fixture-unsupported-source"
+    _seed_result(repository, fixture_id, home=1, away=0)
+    _seed_identity(repository, fixture_id, kickoff=KICKOFF)
+    capture = _capture(
+        fixture_id,
+        KICKOFF - timedelta(minutes=5),
+        identity="unsupported",
+        kickoff=KICKOFF,
+    )
+    capture.pop("record_type")
+    _append_import_record(
+        repository,
+        capture,
+        record_type="capture",
+        source_artifact=source_artifact,
+    )
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+    )
+
+    assert result["status"] == "BLOCKED"
+    assert result["ledger_parity"]["unsupported_missing_count"] == 1
+    assert result["ledger_parity"]["mismatches_by_field"] == {
+        "record_type": 1
+    }
+
+
+@pytest.mark.parametrize(
+    ("record_type", "source_artifact", "identity_key"),
     [
-        {"fixture_id": "fixture-envelope-other"},
-        {"record_type": "outcome"},
-        {"capture_identity_hash": "different-capture"},
-        {"captured_at": KICKOFF - timedelta(minutes=6)},
-        {"payload_sha256": "0" * 64},
+        (
+            "formal_snapshot",
+            "formal_recommendation_snapshots/snapshot.json",
+            "snapshot_id",
+        ),
+        (
+            "formal_settlement",
+            "formal_recommendation_settlements/settlement.json",
+            "settlement_id",
+        ),
+    ],
+)
+def test_formal_directory_infers_effective_record_type(
+    tmp_path: Path,
+    record_type: str,
+    source_artifact: str,
+    identity_key: str,
+) -> None:
+    repository = _repository(tmp_path)
+    fixture_id = f"fixture-{record_type}"
+    _seed_result(repository, fixture_id, home=1, away=0)
+    _seed_identity(repository, fixture_id, kickoff=KICKOFF)
+    payload = {
+        "schema_version": f"w2.{record_type}.v1",
+        "fixture_id": fixture_id,
+        identity_key: f"{record_type}-1",
+        (
+            "captured_at"
+            if record_type == "formal_snapshot"
+            else "evaluated_at"
+        ): (KICKOFF - timedelta(minutes=5)).isoformat(),
+    }
+    _append_import_record(
+        repository,
+        payload,
+        record_type=record_type,
+        source_artifact=source_artifact,
+    )
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+    )
+
+    assert result["status"] == "PASS"
+    assert result["blocked_count"] == 0
+    assert result["ledger_parity"][
+        f"legacy_{record_type}_count"
+    ] == 1
+
+
+def test_formal_directory_type_mismatch_is_blocked(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    fixture_id = "fixture-formal-source-conflict"
+    _seed_result(repository, fixture_id, home=1, away=0)
+    _seed_identity(repository, fixture_id, kickoff=KICKOFF)
+    _append_import_record(
+        repository,
+        {
+            "schema_version": "w2.formal_snapshot.v1",
+            "fixture_id": fixture_id,
+            "snapshot_id": "snapshot-conflict",
+            "captured_at": (KICKOFF - timedelta(minutes=5)).isoformat(),
+        },
+        record_type="formal_snapshot",
+        source_artifact=(
+            "formal_recommendation_settlements/settlement.json"
+        ),
+    )
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+    )
+
+    assert result["status"] == "BLOCKED"
+    assert result["ledger_parity"]["unsupported_missing_count"] == 1
+
+
+def test_missing_schema_version_unknown_envelope_is_normalized(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    fixture_id = "fixture-unknown-schema"
+    _seed_result(repository, fixture_id, home=1, away=0)
+    _seed_identity(repository, fixture_id, kickoff=KICKOFF)
+    capture = _capture(
+        fixture_id,
+        KICKOFF - timedelta(minutes=5),
+        identity="unknown-schema",
+        kickoff=KICKOFF,
+    )
+    capture.pop("schema_version")
+    _append_import_record(
+        repository,
+        capture,
+        record_type="capture",
+        source_artifact="db:forward_outcome_ledger",
+    )
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+    )
+
+    assert result["status"] == "PASS"
+    assert result["ledger_parity"]["legacy_unknown_schema_count"] == 1
+
+
+def test_missing_schema_version_non_unknown_envelope_is_blocked(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    fixture_id = "fixture-schema-conflict"
+    _seed_result(repository, fixture_id, home=1, away=0)
+    _seed_identity(repository, fixture_id, kickoff=KICKOFF)
+    capture = _capture(
+        fixture_id,
+        KICKOFF - timedelta(minutes=5),
+        identity="schema-conflict",
+        kickoff=KICKOFF,
+    )
+    capture.pop("schema_version")
+    _append_import_record(
+        repository,
+        capture,
+        record_type="capture",
+        source_artifact="db:forward_outcome_ledger",
+    )
+    _mutate_ledger_envelope(
+        repository,
+        schema_version="w2.forward_outcome_ledger.v3",
+    )
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+    )
+
+    assert result["status"] == "BLOCKED"
+    assert result["ledger_parity"]["explicit_conflict_count"] == 1
+    assert result["ledger_parity"]["mismatches_by_field"] == {
+        "schema_version": 1
+    }
+
+
+@pytest.mark.parametrize(
+    ("envelope_change", "mismatch_field"),
+    [
+        ({"fixture_id": "fixture-envelope-other"}, "fixture_id"),
+        ({"record_type": "outcome"}, "record_type"),
+        (
+            {"capture_identity_hash": "different-capture"},
+            "capture_identity_hash",
+        ),
+        ({"decision_hash": "different-decision"}, "decision_hash"),
+        (
+            {"recommendation_scope": "FORMAL"},
+            "recommendation_scope",
+        ),
+        (
+            {"captured_at": KICKOFF - timedelta(minutes=6)},
+            "captured_at",
+        ),
+        ({"payload_sha256": "0" * 64}, "payload_sha256"),
     ],
     ids=[
         "fixture-id",
         "record-type",
         "capture-identity",
+        "decision-hash",
+        "recommendation-scope",
         "captured-at",
         "payload-sha256",
     ],
@@ -707,6 +961,7 @@ def test_outcome_ledger_envelope_payload_parity_allows_scoring(
 def test_outcome_ledger_envelope_payload_mismatch_blocks_fixture(
     tmp_path: Path,
     envelope_change: dict[str, Any],
+    mismatch_field: str,
 ) -> None:
     repository = _repository(tmp_path)
     fixture_id = "fixture-envelope-conflict"
@@ -733,6 +988,55 @@ def test_outcome_ledger_envelope_payload_mismatch_blocks_fixture(
     assert payload["reason_codes"] == [
         "OUTCOME_LEDGER_ENVELOPE_PAYLOAD_CONFLICT"
     ]
+    assert result["ledger_parity"]["mismatches_by_field"] == {
+        mismatch_field: 1
+    }
+
+
+def test_envelope_parity_reports_all_independent_mismatches(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    fixture_id = "fixture-envelope-all-fields"
+    _seed_result(repository, fixture_id, home=1, away=0)
+    _seed_identity(repository, fixture_id, kickoff=KICKOFF)
+    repository.append(
+        [
+            _capture(
+                fixture_id,
+                KICKOFF - timedelta(minutes=5),
+                identity="all-fields",
+                kickoff=KICKOFF,
+            )
+        ],
+        dry_run=False,
+        write_db=True,
+    )
+    _mutate_ledger_envelope(
+        repository,
+        record_type="outcome",
+        fixture_id="fixture-envelope-other",
+        captured_at=KICKOFF - timedelta(minutes=6),
+        recommendation_scope="FORMAL",
+        capture_identity_hash="different-capture",
+        decision_hash="different-decision",
+        payload_sha256="0" * 64,
+    )
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+    )
+
+    assert result["status"] == "BLOCKED"
+    assert result["ledger_parity"]["mismatches_by_field"] == {
+        "capture_identity_hash": 1,
+        "captured_at": 1,
+        "decision_hash": 1,
+        "fixture_id": 1,
+        "payload_sha256": 1,
+        "recommendation_scope": 1,
+        "record_type": 1,
+    }
 
 
 def test_envelope_fixture_conflict_blocks_both_canonical_fixtures(
@@ -808,6 +1112,39 @@ def test_unresolvable_envelope_conflict_blocks_entire_batch(
     assert result["blockers"] == [
         "batch:OUTCOME_LEDGER_ENVELOPE_PAYLOAD_CONFLICT"
     ]
+
+
+def test_non_finished_fixture_envelope_conflict_blocks_batch(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    _seed_result(repository, "fixture-result", home=1, away=0)
+    _seed_identity(repository, "fixture-result", kickoff=KICKOFF)
+    _seed_identity(repository, "fixture-orphan", kickoff=KICKOFF)
+    repository.append(
+        [
+            _capture(
+                "fixture-orphan",
+                KICKOFF - timedelta(minutes=5),
+                identity="orphan",
+                kickoff=KICKOFF,
+            )
+        ],
+        dry_run=False,
+        write_db=True,
+    )
+    _mutate_ledger_envelope(repository, record_type="outcome")
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+    )
+
+    assert result["status"] == "BLOCKED"
+    assert result["blockers"] == [
+        "batch:OUTCOME_LEDGER_ENVELOPE_PAYLOAD_CONFLICT"
+    ]
+    assert result["ledger_parity"]["affected_fixture_count"] == 1
+    assert result["ledger_parity"]["finished_result_affected_count"] == 0
 
 
 def test_ambiguous_exact_fixture_mapping_is_blocked(tmp_path: Path) -> None:
@@ -1085,7 +1422,8 @@ def test_all_not_scorable_fixtures_still_generate_stable_cohorts(
             market=None,
             kickoff=kickoff,
         )
-        capture.pop("capture_identity_hash")
+        if index < 31:
+            capture.pop("capture_identity_hash")
         capture.pop("probability_identity")
         repository.append([capture], dry_run=False, write_db=True)
 
@@ -1114,6 +1452,11 @@ def test_all_not_scorable_fixtures_still_generate_stable_cohorts(
     assert first["scorable_rate"] == 0.0
     assert first["not_scorable_count"] == 35
     assert first["blocked_count"] == 0
+    assert first["not_scorable_by_reason"] == {
+        "CAPTURE_IDENTITY_MISSING": 31,
+        "MARKET_PROBABILITY_VECTOR_MISSING": 35,
+        "MODEL_PROBABILITY_VECTOR_MISSING": 35,
+    }
     assert first["cohort_checkpoint_count"] == 4
     assert window["finished_result_count"] == 35
     assert window["fixture_checkpoint_count"] == 35
@@ -1415,6 +1758,27 @@ def _checkpoint(
         )
         assert row is not None
         return dict(row.payload)
+
+
+def _append_import_record(
+    repository: OutcomeLedgerRepository,
+    payload: dict[str, Any],
+    *,
+    record_type: str,
+    source_artifact: str,
+) -> None:
+    repository._append_imports(
+        [
+            ImportRecord(
+                payload=payload,
+                record_type=record_type,
+                source_artifact=source_artifact,
+                source_line_number=1,
+            )
+        ],
+        dry_run=False,
+        write_db=True,
+    )
 
 
 def _mutate_ledger_envelope(

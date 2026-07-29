@@ -45,9 +45,8 @@ tasks:
     pr: 430
     branch: codex/eval-01b-finished-match-scoring-projection
     blockers:
-      - OUTCOME_LEDGER_ENVELOPE_PAYLOAD_PARITY_REQUIRED
-      - LATEST_GROUP_MISSING_IDENTITY_MASKS_REAL_CONFLICT
-      - STAGING_FAIL_CLOSED_REMEDIATION_REQUIRED
+      - LEGACY_IMPORT_NORMALIZATION_NOT_RECOGNIZED_BY_ENVELOPE_VALIDATOR
+      - STAGING_ENVELOPE_PARITY_REMEDIATION_REQUIRED
   EVAL-01C:
     status: NOT_STARTED
 safety:
@@ -59,7 +58,7 @@ safety:
 staging:
   production_deployed: false
   eval_01a_exact_head_acceptance: PASS
-  eval_01b_exact_head_acceptance: STAGING_FAIL_CLOSED_REMEDIATION_REQUIRED
+  eval_01b_exact_head_acceptance: STAGING_ENVELOPE_PARITY_REMEDIATION_REQUIRED
 architecture_convergence:
   status: PASS
   receipt: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md

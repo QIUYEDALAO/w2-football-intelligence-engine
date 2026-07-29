@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+import re
 from pathlib import Path
 from typing import Any, cast
 
@@ -83,7 +84,7 @@ def _legacy_decision_contract_code_count() -> int:
         if path.is_file()
     )
     count += sum(
-        source.count(symbol)
+        len(re.findall(rf"\b{re.escape(symbol)}\b", source))
         for root in roots
         for path in root.rglob("*")
         if path.is_file()

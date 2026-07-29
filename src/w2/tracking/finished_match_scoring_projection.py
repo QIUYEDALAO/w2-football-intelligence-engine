@@ -5,6 +5,7 @@ import json
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
+from pathlib import PurePosixPath
 from statistics import median
 from typing import Any
 
@@ -68,6 +69,10 @@ def run_finished_match_scoring_projection(
         results = _results(session, fixture_ids, resolver)
         if not results:
             return _empty_result()
+        resolved_results = _canonical_results(results, resolver)
+        finished_fixture_ids = {
+            fixture_id for _, fixture_id, _ in resolved_results
+        }
         ledger_rows = list(
             session.scalars(
                 select(OutcomeLedgerModel).order_by(
@@ -76,8 +81,15 @@ def run_finished_match_scoring_projection(
                 )
             )
         )
-        ledger_payloads, envelope_conflicts, batch_envelope_conflict = (
-            _validated_ledger_payloads(ledger_rows, resolver)
+        (
+            ledger_payloads,
+            envelope_conflicts,
+            batch_envelope_conflict,
+            ledger_parity,
+        ) = _validated_ledger_payloads(
+            ledger_rows,
+            resolver,
+            finished_fixture_ids=finished_fixture_ids,
         )
         records, identity_conflicts = _canonical_records(
             ledger_payloads,
@@ -92,16 +104,18 @@ def run_finished_match_scoring_projection(
             resolver,
         )
         identity_conflicts.update(dynamic_conflicts)
-        resolved_results = _canonical_results(results, resolver)
         result_counts = Counter(
             fixture_id for _, fixture_id, _ in resolved_results
         )
         fixture_payloads: dict[str, dict[str, Any]] = {}
-        blockers = (
-            ["batch:OUTCOME_LEDGER_ENVELOPE_PAYLOAD_CONFLICT"]
-            if batch_envelope_conflict
-            else []
-        )
+        blockers = []
+        if batch_envelope_conflict or (
+            ledger_parity["status"] == "BLOCKED"
+            and not envelope_conflicts & finished_fixture_ids
+        ):
+            blockers.append(
+                "batch:OUTCOME_LEDGER_ENVELOPE_PAYLOAD_CONFLICT"
+            )
         for result, fixture_id, result_identity_conflict in resolved_results:
             payload = _fixture_projection(
                 result,
@@ -198,6 +212,7 @@ def run_finished_match_scoring_projection(
             "db_writes": writes if write_db else 0,
             "provider_calls": 0,
             "blockers": sorted(set(blockers)),
+            "ledger_parity": ledger_parity,
         }
 
 
@@ -246,15 +261,50 @@ def _canonical_results(
 def _validated_ledger_payloads(
     rows: Sequence[OutcomeLedgerModel],
     resolver: ExactFixtureResolver,
-) -> tuple[list[dict[str, Any]], set[str], bool]:
+    *,
+    finished_fixture_ids: set[str] | None = None,
+) -> tuple[list[dict[str, Any]], set[str], bool, dict[str, Any]]:
     payloads: list[dict[str, Any]] = []
     conflicts: set[str] = set()
     batch_conflict = False
+    record_types: Counter[str] = Counter()
+    schema_versions: Counter[str] = Counter()
+    mismatches_by_field: Counter[str] = Counter()
+    explicit_conflicts = 0
+    unsupported_missing = 0
     for row in rows:
         payload = dict(row.payload)
-        if _ledger_envelope_matches_payload(row, payload):
-            payloads.append(payload)
+        (
+            effective_record_type,
+            record_type_status,
+        ) = _effective_payload_record_type(row, payload)
+        _, schema_version_status = _effective_payload_schema_version(
+            row,
+            payload,
+        )
+        record_types[record_type_status] += 1
+        schema_versions[schema_version_status] += 1
+        mismatches = _ledger_envelope_mismatches(
+            row,
+            payload,
+            record_type_status=record_type_status,
+            schema_version_status=schema_version_status,
+        )
+        if record_type_status == "EXPLICIT_CONFLICT" or (
+            schema_version_status == "EXPLICIT_CONFLICT"
+        ):
+            explicit_conflicts += 1
+        if record_type_status == "MISSING_UNSUPPORTED":
+            unsupported_missing += 1
+        if not mismatches:
+            validated = dict(payload)
+            if not _optional(payload.get("record_type")):
+                validated["_effective_payload_record_type"] = (
+                    effective_record_type
+                )
+            payloads.append(validated)
             continue
+        mismatches_by_field.update(mismatches)
         affected: set[str] = set()
         for raw_fixture_id in {row.fixture_id, _fixture_id(payload)}:
             if not raw_fixture_id:
@@ -270,28 +320,135 @@ def _validated_ledger_payloads(
             conflicts.update(affected)
         else:
             batch_conflict = True
-    return payloads, conflicts, batch_conflict
+    legacy_count = (
+        record_types["LEGACY_INFERRED_CAPTURE"]
+        + record_types["LEGACY_DIRECTORY_FORMAL_SNAPSHOT"]
+        + record_types["LEGACY_DIRECTORY_FORMAL_SETTLEMENT"]
+        + schema_versions["LEGACY_UNKNOWN_NORMALIZATION"]
+    )
+    parity_status = (
+        "BLOCKED"
+        if mismatches_by_field
+        else (
+            "PASS_WITH_LEGACY_NORMALIZATION"
+            if legacy_count
+            else "PASS"
+        )
+    )
+    finished = finished_fixture_ids or set()
+    parity = {
+        "status": parity_status,
+        "total_row_count": len(rows),
+        "explicit_match_count": record_types["EXPLICIT_MATCH"],
+        "legacy_inferred_capture_count": record_types[
+            "LEGACY_INFERRED_CAPTURE"
+        ],
+        "legacy_formal_snapshot_count": record_types[
+            "LEGACY_DIRECTORY_FORMAL_SNAPSHOT"
+        ],
+        "legacy_formal_settlement_count": record_types[
+            "LEGACY_DIRECTORY_FORMAL_SETTLEMENT"
+        ],
+        "legacy_unknown_schema_count": schema_versions[
+            "LEGACY_UNKNOWN_NORMALIZATION"
+        ],
+        "explicit_conflict_count": explicit_conflicts,
+        "unsupported_missing_count": unsupported_missing,
+        "mismatches_by_field": dict(sorted(mismatches_by_field.items())),
+        "affected_fixture_count": len(conflicts),
+        "finished_result_affected_count": len(conflicts & finished),
+    }
+    return payloads, conflicts, batch_conflict, parity
 
 
-def _ledger_envelope_matches_payload(
+def _effective_payload_record_type(
     row: OutcomeLedgerModel,
     payload: Mapping[str, Any],
-) -> bool:
-    if _text(row.record_type).lower() != _text(payload.get("record_type")).lower():
-        return False
+) -> tuple[str | None, str]:
+    envelope = _text(row.record_type).lower()
+    explicit = _optional(payload.get("record_type"))
+    if explicit is not None:
+        normalized = explicit.lower()
+        return (
+            normalized,
+            "EXPLICIT_MATCH"
+            if normalized == envelope
+            else "EXPLICIT_CONFLICT",
+        )
+    source = _text(row.source_artifact).replace("\\", "/")
+    if (
+        source.startswith("forward_outcome_ledger/")
+        and source.endswith(".jsonl")
+        and _optional(payload.get("fixture_id")) is not None
+        and _optional(payload.get("captured_at")) is not None
+        and envelope == "capture"
+    ):
+        return "capture", "LEGACY_INFERRED_CAPTURE"
+    source_path = PurePosixPath(source)
+    if (
+        source_path.parent.as_posix()
+        == "formal_recommendation_snapshots"
+        and source_path.suffix == ".json"
+        and envelope == "formal_snapshot"
+    ):
+        return "formal_snapshot", "LEGACY_DIRECTORY_FORMAL_SNAPSHOT"
+    if (
+        source_path.parent.as_posix()
+        == "formal_recommendation_settlements"
+        and source_path.suffix == ".json"
+        and envelope == "formal_settlement"
+    ):
+        return "formal_settlement", "LEGACY_DIRECTORY_FORMAL_SETTLEMENT"
+    return None, "MISSING_UNSUPPORTED"
+
+
+def _effective_payload_schema_version(
+    row: OutcomeLedgerModel,
+    payload: Mapping[str, Any],
+) -> tuple[str | None, str]:
+    envelope = _optional(row.schema_version)
+    explicit = _optional(payload.get("schema_version"))
+    if explicit is not None:
+        return (
+            explicit,
+            "EXPLICIT_MATCH"
+            if explicit == envelope
+            else "EXPLICIT_CONFLICT",
+        )
+    if envelope == "UNKNOWN":
+        return "UNKNOWN", "LEGACY_UNKNOWN_NORMALIZATION"
+    return None, "EXPLICIT_CONFLICT"
+
+
+def _ledger_envelope_mismatches(
+    row: OutcomeLedgerModel,
+    payload: Mapping[str, Any],
+    *,
+    record_type_status: str,
+    schema_version_status: str,
+) -> list[str]:
+    mismatches: list[str] = []
+    if record_type_status in {
+        "EXPLICIT_CONFLICT",
+        "MISSING_UNSUPPORTED",
+    }:
+        mismatches.append("record_type")
+    if schema_version_status == "EXPLICIT_CONFLICT":
+        mismatches.append("schema_version")
     if str(row.fixture_id) != str(payload.get("fixture_id") or ""):
-        return False
+        mismatches.append("fixture_id")
     if _utc(row.captured_at) != _parse_time(payload.get("captured_at")):
-        return False
+        mismatches.append("captured_at")
     for field in (
-        "schema_version",
         "recommendation_scope",
         "capture_identity_hash",
         "decision_hash",
     ):
         if _optional(getattr(row, field)) != _optional(payload.get(field)):
-            return False
-    return row.payload_sha256 == payload_sha256(payload)
+            mismatches.append(field)
+    if row.payload_sha256 != payload_sha256(payload):
+        mismatches.append("payload_sha256")
+    return mismatches
 
 
 def _canonical_records(
@@ -1189,7 +1346,11 @@ def _artifact_identity_hash(capture: Mapping[str, Any]) -> str | None:
 
 
 def _record_type(record: Mapping[str, Any]) -> str:
-    return _text(record.get("record_type") or "capture").lower()
+    return _text(
+        record.get("record_type")
+        or record.get("_effective_payload_record_type")
+        or "capture"
+    ).lower()
 
 
 def _fixture_id(record: Mapping[str, Any]) -> str:
@@ -1275,4 +1436,18 @@ def _empty_result() -> dict[str, Any]:
         "db_writes": 0,
         "provider_calls": 0,
         "blockers": [],
+        "ledger_parity": {
+            "status": "PASS",
+            "total_row_count": 0,
+            "explicit_match_count": 0,
+            "legacy_inferred_capture_count": 0,
+            "legacy_formal_snapshot_count": 0,
+            "legacy_formal_settlement_count": 0,
+            "legacy_unknown_schema_count": 0,
+            "explicit_conflict_count": 0,
+            "unsupported_missing_count": 0,
+            "mismatches_by_field": {},
+            "affected_fixture_count": 0,
+            "finished_result_affected_count": 0,
+        },
     }
