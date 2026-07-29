@@ -1,6 +1,8 @@
-# W2 架构收敛与 EVAL 能力建设总清单（v3，唯一权威）
+# W2 架构收敛与 EVAL 能力建设总清单（v3）
 
-> 本文件是 W2 全部任务状态的**唯一权威**。旧版清单（v2 及更早）已整体废止，
+> `PROJECT_STATE.yaml` 是 W2 **唯一当前机器可读状态快照**。
+> 本文件是 W2 **唯一任务顺序、任务规格和已合并完成回执权威**。
+> 旧版清单（v2 及更早）已整体废止，
 > 其完整内容保留在本文件之前的 git 历史中，审计坐标见第二节台账。
 > 老板 2026-07-24 决定：任务清单只保留本版本，不再维护旧清单文本。
 >
@@ -33,13 +35,13 @@
 | ARCH-P0-03 联赛白名单入库 | #377 | `7bd5088b` | DB 竞赛权威 + 热切换，JSON/env 业务覆盖删除 |
 | ARCH-P0-04 P0 总验收 | #378 | `d62e3351` | P0_ARCHITECTURE_CONVERGENCE_PASS |
 | ARCH-P1-01 僵尸表删除 | #379 | `76201af8` | 144→66 表，78 张僵尸表证据化删除（0038–0040） |
-| P1-01 收口 + 清单修订 | #380 | `8af05dd6` | P1 顺序调整获批（04 拆分、03 后移、新增 07） |
+| P1-01 收口 + 清单修订 | #380 | `8af05ddb` | P1 顺序调整获批（04 拆分、03 后移、新增 07） |
 | ARCH-P1-02 赔率表收敛 | #381 | `f53b073f` | 唯一 append-only 历史 + 投影视图（0041，断言式 drop） |
-| HYGIENE 清单顺序修正 | #382 | `db3fd128` | 清单序列一致性修正 |
+| HYGIENE 清单顺序修正 | #382 | `db3fd12f` | 清单序列一致性修正 |
 | ARCH-HYGIENE-01 | #383 | `748b50e5` | 生成审计产物退出 Git |
 | ARCH-HYGIENE-02 | #384 | `1e252d73` | Scripts 权威盘点与证据化删除（取代 P2-01） |
 | ARCH-P1-04A 评估持久化 | #385 | `aa59b61d` | 事件驱动写侧投影管线（收口 #386 `46aa8d36`） |
-| ARCH-P1-04B Dashboard 读切换 | #387 | `7ffdc0fe` | API 降为 988 行纯投影读取，生产 fallback = 0（收口 #388 `75e49930`） |
+| ARCH-P1-04B Dashboard 读切换 | #387 | `7ffdc0fe` | API 降为 988 行纯投影读取，生产 fallback = 0（收口 #388 `75e49932`） |
 
 ---
 
@@ -55,7 +57,8 @@
 6. Provider 熔断等安全环境变量不动。
 7. 模型数学只允许在 EVAL-02B 门禁通过的解冻点上变化，其余一律不动。
 8. 不以本地测试或 Markdown 报告代替 GitHub CI 和 staging 证据；不用 `[skip ci]` 作最终验收提交。
-9. 状态只更新本文件；不再创建重复的日期型上下文文档。
+9. 当前机器状态只更新 `PROJECT_STATE.yaml`；任务顺序、规格和已合并完成回执只更新本文件；
+   不再创建重复的日期型上下文文档。
 10. 修改 decision contract 结构时，必须同步 `src/w2/domain/decision_contract.py` 校验器、
     `tests/contract/test_api_projection_read_authority.py` 守卫及全部合同测试。
 11. 每个任务必须附**资产账本**：新增了哪些表/文件/配置（目标 0），删除了哪些。
@@ -97,14 +100,16 @@ ARCH-P1-08 通过后，功能冻结部分解除：**仅允许本清单阶段 B �
 
 ```text
 Status: DONE
-Required checks: PRE_MERGE_READINESS_GATE + POST_MERGE_CHECKLIST_CONSISTENCY_GATE
+PR: #393
+Merge SHA: 35fcac0d99573556c5e9f7a41822e153783efa73
+Current required check: CI_REQUIRED
 ```
 
-独立治理 PR。前者阻止未获外部验收结论的 PR 提前合并；后者核验已合并 PR 与本清单
-DONE/merge 坐标一致。两个 required check 缺一不可。
+PR #393 是该历史任务的实际实施坐标；此前 PRE/POST 专用门禁已在后续获授权精简中退役，
+不是当前 required checks 或运行权威。当前分支保护只保留 `CI_REQUIRED`。
 
-- [ ] 双门禁落地为 required checks。
-- [ ] 完整 CI 通过并合并。
+- [x] 历史实施 PR #393 曾落地双门禁；后续获授权退役，不再作为当前 required checks。
+- [x] 历史实施完整 CI 通过并合并；当前 required check 为 `CI_REQUIRED`。
 
 ---
 
@@ -112,28 +117,30 @@ DONE/merge 坐标一致。两个 required check 缺一不可。
 
 ```text
 Status: DONE
+PR: #395
+Merge SHA: 6eeb411747a1cef624ff4780dbad87d4cec4b26d
 ```
 
 **目标**：删除全部新旧合同并存代码与 04B 后确认的死代码；每处删除附零引用证据。
 
 **范围（逐项处理，允许 ≤3 个提交但同一 PR）**：
-- [ ] `src/w2/domain/legacy_decision_shim.py` 整文件删除（113 行）。
-- [ ] `src/w2/domain/decision_adapter.py`（986 行）中 legacy→V3 转换路径删除；V3 构造保留；
+- [x] `src/w2/domain/legacy_decision_shim.py` 整文件删除（113 行）。
+- [x] `src/w2/domain/decision_adapter.py`（986 行）中 legacy→V3 转换路径删除；V3 构造保留；
       凡只被 shim/旧测试引用的函数一并删。
-- [ ] `src/w2/prematch/analysis_calculator.py` 中 pre-LMM frozen artifact 兼容分支
+- [x] `src/w2/prematch/analysis_calculator.py` 中 pre-LMM frozen artifact 兼容分支
       （注释 "Backward compatibility for immutable pre-LMM frozen artifacts" 及
       `_public_market_is_legacy_pick` 调用链）。
-- [ ] `src/w2/dashboard/day_view.py`：`_scoreline_simulations` 的 `pricing_shadow` 兼容读
+- [x] `src/w2/dashboard/day_view.py`：`_scoreline_simulations` 的 `pricing_shadow` 兼容读
       （保留 `simulation` 主路径）；死函数 `_is_decision_tier`。
-- [ ] **旧 F10 首发因子废弃**：`src/w2/features/live_factors.py` 中 `F10_LINEUPS` 相关函数
+- [x] **旧 F10 首发因子废弃**：`src/w2/features/live_factors.py` 中 `F10_LINEUPS` 相关函数
       （专家评审确认未接入主 `FeatureInputs`）；并在 `src/w2/domain/factor_registry.py`
       登记 LMM 链为唯一首发因子来源。此项是 EVAL-02B 的硬前置。
-- [ ] 删除后全库死代码复核，剩余疑似项只记录到待议区，不顺手删。
+- [x] 删除后全库死代码复核，剩余疑似项只记录到待议区，不顺手删。
 
 **不做**：不动 analysis_calculator 计算语义；不动 API；不动表。
 **验收**：`LEGACY_DECISION_CONTRACT_CODE = 0`；`F10_LINEUPS` 全库零引用；全量测试与 04B 守卫绿。
 **资产账本**：新增 0；删除 ≥1,100 行合同转换 + F10 死代码。
-- [ ] PR 合并。
+- [x] PR 合并。
 
 ---
 
@@ -151,14 +158,14 @@ Merge SHA: 5026919fe1b1bbe2d5c6dfd67a2f70b6b0f59768
 历史实施记录（仅属于 A3，不是顶层任务）：ARCH-P1-03A、ARCH-P1-03B、
 ARCH-P1-03C、ARCH-P1-03B-R1。
 
-- [ ] 盘点全部球队/球员身份与 provider crosswalk 表。
-- [ ] canonical team / player 体系为唯一权威；迁移有效映射及 review provenance。
-- [ ] 其余表停止写入，零引用证明后同 PR 断言式 drop；证据不足的保持原状继续调查。
-- [ ] provider IDs 仅作 provenance，不再作为模型主身份。
-- [ ] fixture、history、rating、lineup 读取对账。
-- [ ] **追加**：用 3 场真实比赛演示 canonical player ↔ provider lineup 球员唯一联接查询
+- [x] 盘点全部球队/球员身份与 provider crosswalk 表。
+- [x] canonical team / player 体系为唯一权威；迁移有效映射及 review provenance。
+- [x] 其余表停止写入，零引用证明后同 PR 断言式 drop；证据不足的保持原状继续调查。
+- [x] provider IDs 仅作 provenance，不再作为模型主身份。
+- [x] fixture、history、rating、lineup 读取对账。
+- [x] **追加**：用 3 场真实比赛演示 canonical player ↔ provider lineup 球员唯一联接查询
       （EVAL-02B"缺阵分钟占比"的前置能力）。
-- [ ] PR 合并。
+- [x] PR 合并。
 
 **验收**：`CANONICAL_TEAM_IDENTITY_AUTHORITY_COUNT = 1`。
 **资产账本**：目标净减 ≥3 张表。
@@ -221,8 +228,7 @@ Merge SHA: e2f0d5ca895f08e1d4e9ef20ccc8db89a8045e64
 Status: DONE
 PR: #423
 Merge SHA: a607d65b0b71afbc0caa50c44a6e162cf397e4e4
-CI run: 30339386348
-Secondary Review: PASS
+CI: 30339386348
 ```
 
 - [x] 一套赔率历史 + 一套当前盘口投影 + 一套 canonical identity + Dashboard 单一 read model。
@@ -234,9 +240,6 @@ Secondary Review: PASS
 - [x] **`shadow_strategy_*` 裁决**：零读零写零任务则按证据法独立 PR drop；
       EVAL-01A 要复用则明确登记。
 - [x] P1 完整 CI 与 staging 验收；人工验收；PR 合并。
-
-`32e21c49` 相对 runtime-validated head `7beac096` 仅改变
-`PROJECT_STATE.yaml` 和 contract test，因此 A7 staging 证据继续有效，没有重复部署 VPS。
 
 ##### A7 Database authority matrix
 
@@ -345,32 +348,174 @@ P1_ARCHITECTURE_CONVERGENCE_PASS = PASS
 #### A8. 阶段 P2：卫生治理（可与阶段 B 穿插，不得抢占 EVAL-01 序列）
 
 ```text
-Status: NOT_STARTED
+Status: DONE
 ```
 
 **ARCH-P2-02 Docs 整理**
-- [ ] 日期型一次性证据移入 `docs/archive/`；同一审计只留最新权威版；旧文档标 `SUPERSEDED_BY`。
-- [ ] PR 合并。
+```text
+Status: DONE
+PR: #426
+Merge SHA: 49c75521325af46551699b27241c0ef4c6bbb7a0
+CI: 30422145661
+Conclusion: 133 份冻结历史文件归档；活动资产、当前权威和 Runbook 保持在现行路径。
+```
+
+- [x] 日期型一次性证据移入 `docs/archive/`；同一审计只留最新权威版；旧文档标 `SUPERSEDED_BY`。
+- [x] PR 合并。
 
 **ARCH-P2-03 本地垃圾清理**（只清开发机，不进业务 PR）
-- [ ] `.worktrees/`、过期 `.local/`、废弃 `runtime/` stage 目录、无用本地分支；记录释放空间。
+```text
+Status: DONE
+Conclusion: PASS；释放 1853664 KiB（1.77 GiB），活动 worktree、开放 PR 分支及历史数据保持可用。
+```
+
+- [x] `.worktrees/`、过期 `.local/`、废弃 `runtime/` stage 目录、无用本地分支；记录释放空间。
 
 **ARCH-P2-04 项目状态记录收敛**
-- [ ] `PROJECT_STATE.yaml` 唯一机器可读状态；`PROJECT_LEDGER.md` 只记人工决定。
-- [ ] `NEXT_ACTION.md` 改为链接本清单或删除；SHA/CI 不再多文档重复维护。
-- [ ] 本清单任务回执压缩为 CI run 号 + merge SHA + 一行结论。
-- [ ] PR 合并。
+```text
+Status: DONE
+PR: #427
+Merge SHA: bf21ddcc495b0c8d041c956734d278c1d611f24e
+CI: 30425831606
+Conclusion: 当前机器状态、任务规格/完成回执和人工决定已分离为单一职责权威。
+```
+
+- [x] `PROJECT_STATE.yaml` 唯一机器可读状态；`PROJECT_LEDGER.md` 只记人工决定。
+- [x] `NEXT_ACTION.md` 改为链接本清单或删除；SHA/CI 不再多文档重复维护。
+- [x] 本清单任务回执压缩为 CI run 号 + merge SHA + 一行结论。
+- [x] PR 合并。
 
 **ARCH-P2-06 `src/w2` 一级包角色与依赖矩阵**
-- [ ] 逐包矩阵（package/callers/依赖/循环/镜像包含/role/decision/evidence），全包覆盖不抽样。
-- [ ] `replay`、`data_assets`、`migration`、`audit_export` 先标 `OFFLINE_TOOL` 候选，不得直接判 DEAD。
-- [ ] 只有证据充分的 `DEAD` 可删；PR 合并。
+```text
+Status: DONE
+PR: #428
+Merge SHA: 1a46a9e47a478072d37e4ec4c7a44d914e1a127b
+CI: 30432075563
+Conclusion: 40 个一级包全量映射；删除 0；22 包 SCC 与 schemas 待调查项如实保留。
+```
+
+- [x] 逐包矩阵（package/callers/依赖/循环/镜像包含/role/decision/evidence），全包覆盖不抽样。
+- [x] `replay`、`data_assets`、`migration`、`audit_export` 已按实际入口审查，均有保留依据。
+- [x] 仅完整满足九项零引用标准才允许 `DELETE`；本轮没有包达到该标准，未删除源码。
+- [x] PR 合并。
+
+分析口径：Python 依赖使用 AST 解析 `import`、`from`、相对导入、package child import，
+以及参数为常量的 `importlib.import_module` / `__import__`；直接调用方覆盖 `apps/`、
+`scripts/`、migrations、tests 和 `pyproject.toml` console entrypoints。运行可达性从
+Compose/Docker/workflow 声明的 API、worker、scheduler 入口出发计算传递闭包；另行扫描
+Dockerfile、Compose、workflow、Runbook 和历史/恢复入口，避免把离线能力误判为 DEAD。
+`direct_callers` 固定按 `apps;scripts;migrations;tests` 记直接 AST 调用文件数；
+`reverse_callers` 是其他 `src/w2` 一级包的直接反向依赖。
+
+<!-- SRC_W2_PACKAGE_MATRIX_START -->
+```text
+TOP_LEVEL_PACKAGE_COUNT = 40
+MAPPED_PACKAGE_COUNT = 40
+UNMAPPED_PACKAGE_COUNT = 0
+DEPENDENCY_EDGE_COUNT = 122
+CYCLE_COUNT = 1
+RUNTIME_REACHABLE_PACKAGE_COUNT = 27
+OFFLINE_ONLY_PACKAGE_COUNT = 13
+DEAD_PACKAGE_COUNT = 0
+DELETED_PACKAGE_COUNT = 0
+```
+
+| package | python_file_count | direct_callers | reverse_callers | internal_dependencies | cycle_membership | entrypoints | scheduler_or_worker_reachability | api_or_web_reachability | docker_image_inclusion | role | decision | evidence |
+|---|---:|---|---|---|---|---|---|---|---|---|---|---|
+| `analysis` | 2 | apps:0;scripts:0;migrations:0;tests:2 | prematch | ingestion | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `api` | 6 | apps:2;scripts:2;migrations:0;tests:11 | - | competitions,dashboard,domain,infrastructure,matchday,models,monitoring,operations,prematch,providers | - | - | YES | YES | PYTHON_IMAGE | PUBLIC_READ | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `audit_export` | 2 | apps:0;scripts:2;migrations:0;tests:1 | - | domain,infrastructure,reporting,tracking | - | - | NO | NO | PYTHON_IMAGE | AUDIT_EXPORT | KEEP_AUDIT | SCRIPT_ENTRY;AUDIT_EXPORT_DEPENDENCIES |
+| `backtest` | 10 | apps:0;scripts:7;migrations:0;tests:10 | - | competitions,domain,ingestion,markets,models,providers | - | - | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | 7_SCRIPT_ENTRIES;HISTORICAL_RAW_CONSUMER |
+| `competitions` | 8 | apps:1;scripts:11;migrations:1;tests:21 | api,backtest,features,ingestion,matchday,monitoring,operations,prematch,strategy | infrastructure,providers | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `dashboard` | 16 | apps:1;scripts:2;migrations:0;tests:16 | api,matchday,prematch | domain,prematch,settlement,strategy | SCC-1 | - | YES | YES | PYTHON_IMAGE | PUBLIC_READ | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `data_assets` | 2 | apps:0;scripts:1;migrations:0;tests:1 | - | - | - | - | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | SCRIPT_ENTRY;ASSET_REGISTRY |
+| `domain` | 14 | apps:0;scripts:2;migrations:0;tests:21 | api,audit_export,backtest,dashboard,features,historical,ingestion,markets,matchday,migration,models,normalization,operations,prematch,pricing,readiness,recovery,replay,reporting,schemas,settlement,strategy,tracking | readiness | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `factor_model` | 2 | apps:0;scripts:1;migrations:0;tests:1 | - | features,identity,infrastructure,ingestion,matchday,providers,ratings | - | - | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | SCRIPT_ENTRY;OFFLINE_REMEDIATION |
+| `features` | 8 | apps:0;scripts:0;migrations:0;tests:7 | factor_model,ingestion,prematch,ratings,strategy | competitions,domain,markets | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `formal` | 2 | apps:0;scripts:1;migrations:0;tests:2 | strategy | - | - | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `gates` | 2 | apps:0;scripts:0;migrations:0;tests:0 | - | strategy | - | w2-gate5-preflight | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | CONSOLE_ENTRYPOINT |
+| `historical` | 12 | apps:0;scripts:9;migrations:0;tests:4 | lineups | domain,identity,infrastructure | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `identity` | 2 | apps:0;scripts:1;migrations:0;tests:2 | factor_model,historical,ingestion,lineups | infrastructure | - | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `infrastructure` | 19 | apps:0;scripts:12;migrations:17;tests:37 | api,audit_export,competitions,factor_model,historical,identity,ingestion,matchday,monitoring,operations,prematch,providers,settlement,strategy,tracking | - | - | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `ingestion` | 16 | apps:2;scripts:13;migrations:0;tests:16 | analysis,backtest,factor_model,prematch,providers | competitions,domain,features,identity,infrastructure,lineups,markets,matchday,normalization,prematch,providers | SCC-1 | - | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `lineups` | 5 | apps:0;scripts:6;migrations:0;tests:5 | ingestion,prematch | historical,identity | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `markets` | 17 | apps:0;scripts:3;migrations:0;tests:15 | backtest,features,ingestion,prematch,readiness,strategy,tracking | domain,strategy | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `matchday` | 11 | apps:1;scripts:3;migrations:2;tests:9 | api,factor_model,ingestion,prematch,refresh | competitions,dashboard,domain,infrastructure,providers,readiness,refresh,strategy | SCC-1 | w2-matchday | YES | YES | PYTHON_IMAGE | RUNTIME_ENTRYPOINT | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `migration` | 3 | apps:0;scripts:2;migrations:0;tests:1 | - | domain | - | - | NO | NO | PYTHON_IMAGE | MIGRATION_ONLY | KEEP_MIGRATION | 2_SCRIPT_ENTRIES;MIGRATION_RECOVERY |
+| `models` | 12 | apps:0;scripts:2;migrations:0;tests:8 | api,backtest,operations,recovery,strategy | domain | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `monitoring` | 5 | apps:1;scripts:3;migrations:0;tests:4 | api | competitions,infrastructure,providers | - | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `normalization` | 2 | apps:0;scripts:2;migrations:0;tests:1 | ingestion | domain | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `observability` | 2 | apps:0;scripts:0;migrations:0;tests:0 | - | - | - | w2-stage7i-observer | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | CONSOLE_ENTRYPOINT |
+| `operations` | 11 | apps:1;scripts:7;migrations:0;tests:9 | api,prematch,providers,security | competitions,domain,infrastructure,models | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `prematch` | 7 | apps:1;scripts:6;migrations:0;tests:29 | api,dashboard,ingestion,tracking | analysis,competitions,dashboard,domain,features,infrastructure,ingestion,lineups,markets,matchday,operations,pricing,providers,ratings,strategy,tracking | SCC-1 | - | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `pricing` | 6 | apps:0;scripts:0;migrations:0;tests:3 | prematch | domain,strategy | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `providers` | 5 | apps:2;scripts:6;migrations:0;tests:11 | api,backtest,competitions,factor_model,ingestion,matchday,monitoring,prematch | infrastructure,ingestion,operations | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `ratings` | 2 | apps:0;scripts:0;migrations:0;tests:0 | factor_model,prematch | features | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `readiness` | 2 | apps:0;scripts:0;migrations:0;tests:1 | domain,matchday | domain,markets | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `recovery` | 2 | apps:0;scripts:1;migrations:0;tests:1 | - | domain,models | - | - | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | SCRIPT_ENTRY;BACKUP_RESTORE |
+| `refresh` | 2 | apps:0;scripts:1;migrations:0;tests:5 | matchday | matchday | SCC-1 | - | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `replay` | 2 | apps:0;scripts:2;migrations:0;tests:2 | - | domain | - | - | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | 2_SCRIPT_ENTRIES;HISTORICAL_REPLAY |
+| `reporting` | 4 | apps:0;scripts:4;migrations:0;tests:4 | audit_export | domain | - | - | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | 4_SCRIPT_ENTRIES;REPORT_READER |
+| `schemas` | 2 | apps:0;scripts:0;migrations:0;tests:1 | - | domain | - | - | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | INVESTIGATION_REQUIRED;TEST_ONLY_CALLER;HISTORICAL_DEPENDENCY_UNPROVEN |
+| `security` | 2 | apps:0;scripts:1;migrations:0;tests:1 | - | operations | - | - | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | SCRIPT_ENTRY;BACKUP_SECURITY_BASELINE |
+| `settlement` | 3 | apps:0;scripts:2;migrations:0;tests:2 | dashboard,tracking | domain,infrastructure | SCC-1 | - | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `shadow` | 2 | apps:0;scripts:0;migrations:0;tests:0 | - | strategy | - | w2-shadow-comparison-import | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | CONSOLE_ENTRYPOINT;COMPARISON_IMPORT |
+| `strategy` | 13 | apps:0;scripts:3;migrations:0;tests:15 | dashboard,gates,markets,matchday,prematch,pricing,shadow | competitions,domain,features,formal,infrastructure,markets,models | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `tracking` | 8 | apps:1;scripts:4;migrations:0;tests:13 | audit_export,prematch | domain,infrastructure,markets,prematch,settlement | SCC-1 | - | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+
+```text
+ROLE_COUNTS = RUNTIME_ENTRYPOINT:1;RUNTIME_LIBRARY:19;WRITE_SIDE_PROJECTION:5;PUBLIC_READ:2;OFFLINE_TOOL:11;MIGRATION_ONLY:1;AUDIT_EXPORT:1;DEAD:0
+DECISION_COUNTS = KEEP:27;KEEP_OFFLINE:11;KEEP_MIGRATION:1;KEEP_AUDIT:1;DELETE:0
+CYCLE_1_MEMBERS = analysis,competitions,dashboard,domain,features,historical,ingestion,lineups,markets,matchday,models,normalization,operations,prematch,pricing,providers,ratings,readiness,refresh,settlement,strategy,tracking
+DEAD_PACKAGES = NONE
+DELETED_PACKAGES = NONE
+INVESTIGATION_REQUIRED_PACKAGES = schemas
+```
+<!-- SRC_W2_PACKAGE_MATRIX_END -->
 
 **ARCH-P2-05 最终架构收敛验收**
-- [ ] P0/P1/P2 全部完成；无竞争权威；无生产 fallback；无服务器源码构建；
-      所有 drop 有直接证据；完整 CI 与 staging 验收；老板最终验收。
+```text
+Status: DONE
+PR: #429
+Merge SHA: 86a66ff5c07438b0543d2790165d406d452daedb
+CI: 30435005222
+Conclusion: P0/P1/P2 最终架构收敛验收通过；22 包 SCC 与 schemas 待调查项如实保留。
+```
 
-**最终状态**：`W2_ARCHITECTURE_CONVERGENCE_COMPLETE`
+- [x] P0 与 P1 的历史台账、A1–A7 实施 PR 和 merge SHA 已逐项对 Git/GitHub 核对；
+      原台账 #380、#382、#388 的三个错误短 SHA 已改为真实前缀。
+- [x] P2-02、P2-03、P2-04、P2-06 的完成坐标/本地结论完整；P2-05 仅在 PR #429 合并后标 DONE。
+- [x] `PROJECT_STATE.yaml` 仍是唯一当前机器状态；本清单仍是唯一任务顺序、规格和已合并回执权威。
+- [x] 唯一事实权威计数均为 1；API 计算 import、隐式空数据 fallback、legacy runtime 引用均为 0；
+      现有 fail-closed 与生产零引用合同继续执行。
+- [x] 正式部署保持 CI build/push/smoke → immutable digest → server pull-only；
+      `SERVER_BUILD_COUNT = 0`、`SERVER_SOURCE_INSTALL_COUNT = 0`、Compose `build:` = 0。
+- [x] P1 删除账本与断言式 drop 证据仍在；scripts 矩阵的 8 个 `DELETE` 路径均已不存在且保留 D1/D2；
+      `0044` shadow 三表 drop 仍先断言表存在、零行与零依赖。
+- [x] 已知保留项如实登记：当前 1 个 22 包 SCC 未重构；`schemas` 保持
+      `KEEP_OFFLINE / INVESTIGATION_REQUIRED`，未虚假宣称问题消失。
+- [x] 本 PR 仅修改清单、机器状态和合同测试；`STAGING_NOT_REQUIRED = PASS`，
+      Provider calls = 0，Business DB writes = 0。
+- [x] exact-head FULL CI、外部验收与 PR 合并。
+
+```text
+P0_ARCHITECTURE_CONVERGENCE_PASS = PASS
+P1_ARCHITECTURE_CONVERGENCE_PASS = PASS
+P2_ARCHITECTURE_FINAL_ACCEPTANCE = PASS
+CURRENT_AUTHORITY_CONFLICT_COUNT = 0
+PRODUCTION_FALLBACK_REFERENCE_COUNT = 0
+SERVER_BUILD_COUNT = 0
+SERVER_SOURCE_INSTALL_COUNT = 0
+COMPOSE_BUILD_COUNT = 0
+SCRIPT_DELETE_EVIDENCE_COUNT = 8
+PACKAGE_CYCLE_COUNT = 1
+CYCLIC_PACKAGE_COUNT = 22
+SCHEMAS_DECISION = KEEP_OFFLINE
+SCHEMAS_EVIDENCE = INVESTIGATION_REQUIRED
+STAGING_NOT_REQUIRED = PASS
+```
+
+**最终状态**：`W2_ARCHITECTURE_CONVERGENCE_COMPLETE = PASS`
 
 ---
 
@@ -381,11 +526,6 @@ Status: NOT_STARTED
 
 ```text
 Status: IMPLEMENTED_PENDING_ACCEPTANCE
-Implementation SHA: a1797f60c761a06cd193d57654da88466680bda4
-CI run: pending final exact-head FULL CI
-Staging SHA: pending one final exact-head deployment
-Evidence: PR #424 description
-Rollback: pre-B1 image a944b12b… + /opt/w2/shared/backups/eval-01a-79cf729cdf7efc17-20260728T1015Z
 ```
 
 ---
@@ -393,13 +533,14 @@ Rollback: pre-B1 image a944b12b… + /opt/w2/shared/backups/eval-01a-79cf729cdf7
 #### B1. EVAL-01A：赛果与结算账本数据库化
 
 ```text
-Status: IN_PROGRESS
+Status: IMPLEMENTED_PENDING_ACCEPTANCE
 Branch: codex/eval-01a-results-outcome-ledger-db
 PR: #424
-Base SHA: a607d65b0b71afbc0caa50c44a6e162cf397e4e4
-Started at: 2026-07-28
-Owner: Codex
+Base Main: 86a66ff5c07438b0543d2790165d406d452daedb
 ```
+
+PR #424 已在同一分支对齐最新 main；下一步为新 exact head 的 FULL CI、外部 Review
+与 staging 验收。
 
 **目标**：赛果获得 DB 唯一权威；runtime 文件账本（最后一块文件飞地）迁入 DB 并删除。
 
@@ -533,14 +674,31 @@ Status: NOT_STARTED
 #### B6. OPS-01：联赛扩容 Runbook（A3 后随时可执行，与 B 序列并行）
 
 ```text
-Status: NOT_STARTED
+Status: DONE
+Branch: codex/ops-01-league-expansion-runbook
+Owner: Codex
+PR: #425
+Merge SHA: 6aba4ca6e1232d490b0b3c5d5fa40fc09749b3f8
+FULL CI: 30412412188
+Main CI: 30414946283
 ```
 
-- [ ] 固定流程 runbook 存 `docs/runbooks/`：seed 导入 profile/season → crosswalk 身份
+- [x] 固定流程 runbook 存 `docs/runbooks/`：seed 导入 profile/season → crosswalk 身份
       建立与 review → `league_readiness_audit` 核验 → `--set-enabled true` →
       观察 7 天数据完整性 → 归入 ADVISORY 或 STRICT 分层。
-- [ ] 配额约束：启用前用 `quota_usage` 现值测算新增请求量，超预算联赛排队。
-- [ ] 每联赛执行记录追加到本文件。
+- [x] 配额约束：启用前用 `quota_usage` 现值测算新增请求量，超预算联赛排队。
+- [x] 每联赛执行记录追加到本文件。
+
+**OPS-01 执行记录**：本 PR 只建立标准流程，未实际启用联赛；暂无执行记录。
+
+```text
+GENERIC_LEAGUE_READINESS_PRODUCER = MISSING
+REAL_LEAGUE_ENABLEMENT_READY = false
+```
+
+当前没有可生成完整 reviewed DB readiness audit 的通用 producer，任何真实新联赛在
+Phase 4 都必须 fail-closed。补齐该能力需要后续单独授权；operator 不得用 direct SQL
+伪造 audit。
 
 ---
 
@@ -591,13 +749,18 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 
 ## 七、任务状态与 PR 强制说明格式
 
-状态流转（追加在对应任务下）：
+`PROJECT_STATE.yaml` 保存当前机器状态流转：
 
 ```text
 开工:   Status: IN_PROGRESS / Branch / PR / Base SHA / Started at / Owner
 阻塞:   Status: BLOCKED / Blocker / Evidence / Next required decision
 待验收: Status: IMPLEMENTED_PENDING_ACCEPTANCE / Implementation SHA / CI run / Staging SHA / Evidence / Rollback
-完成:   Status: DONE / Merged PR / Merge SHA / CI run / Staging acceptance / Completed at
+```
+
+本文件维护任务顺序、规格和已合并完成回执；只在任务合并后追加：
+
+```text
+完成: Status: DONE / Merged PR / Merge SHA / CI run / 一行结论
 ```
 
 每个 PR 描述必须回答：
@@ -615,7 +778,7 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 
 立即停止条件：一个 PR 跨两个任务；新增竞争权威；删除仍有读写的数据；未断言就 drop；
 放宽安全开关；清单外修改模型数学；CI 未过；staging 对账失败；历史数据 hash/count 异常。
-停止后在本文件记 `BLOCKED`，不得自行绕过。
+停止后在 `PROJECT_STATE.yaml` 记 `BLOCKED`，不得自行绕过。
 
 ## 八、待议区（记录不实施）
 
@@ -625,7 +788,8 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 
 ## 九、机器合同附录：Scripts 权威矩阵
 
-> 本附录是 ARCH-HYGIENE-02 已验收的机器可读合同，不是任务状态副本；任务状态仍只由本文件第四节维护。
+> 本附录是 ARCH-HYGIENE-02 已验收的机器可读合同，不是当前状态副本。
+> 当前机器状态只由 `PROJECT_STATE.yaml` 维护；任务顺序、规格和已合并完成回执只由本文件维护。
 
 <!-- SCRIPT_AUTHORITY_MATRIX_START -->
 | path | 唯一分类 | 直接调用方 | 传递调用链 | 运行环境 | 部署引用 | 运维文档 | 决定 | 证据 |
@@ -718,7 +882,7 @@ Dixon-Coles、市场混合权重校准等，必须过 EVAL-01 门禁（时间切
 | `scripts/probe_analysis_chain.py` | `MANUAL_OPS` | PR370 acceptance docs | operator → script | staging read-only | 否 | PR370 acceptance docs | `KEEP` | E4 |
 | `scripts/project_stage10b_live_snapshot.py` | `MANUAL_OPS` | STAGE10B_DASHBOARD_LIVE_WIRING | operator → script | offline | 否 | STAGE10B_DASHBOARD_LIVE_WIRING | `KEEP` | E4 |
 | `scripts/project_stage10c_matchday_read_model.py` | `CI_TRANSITIVE` | test_stage10c_matchday.py | CI → Pytest → script | CI | 否 | 无 | `KEEP` | E2/E5 |
-| `scripts/publish_w2_static_report.py` | `MANUAL_OPS` | A-151 static report runbook | operator → script | ops | 是 | A-151_STATIC_REPORT_WEB_ROOT | `KEEP` | E3/E4/E5 |
+| `scripts/publish_w2_static_report.py` | `MANUAL_OPS` | `docs/runbooks/STAGE7H_VPS_STAGING.md` | operator → script | ops | 是 | `docs/runbooks/STAGE7H_VPS_STAGING.md` | `KEEP` | E3/E4/E5 |
 | `scripts/reconcile_pr370_validation_ledger.py` | `ONE_TIME_RECOVERY` | 人工 ledger 恢复 | operator → script | staging manual | 否 | 无 | `KEEP` | E7 |
 | `scripts/recover_staging_runtime.sh` | `DEPLOYMENT` | STAGING_RUNTIME_HARDENING | operator → script | staging | 否 | STAGING_RUNTIME_HARDENING | `KEEP` | E3/E4/E5 |
 | `scripts/render_ai_card_text.py` | `MANUAL_OPS` | README / stage1 contract | operator → script | local | 否 | README | `KEEP` | E4/E5 |

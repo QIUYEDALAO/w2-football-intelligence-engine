@@ -6,7 +6,9 @@ from pathlib import Path
 
 def test_frozen_lmm_evidence_fails_closed_without_canonical_identity_join() -> None:
     report = json.loads(
-        Path("docs/operations/W2_V3_08_LMM_OFFLINE_EVALUATION_20260720.json").read_text(
+        Path(
+            "docs/archive/operations/W2_V3_08_LMM_OFFLINE_EVALUATION_20260720.json"
+        ).read_text(
             encoding="utf-8"
         )
     )

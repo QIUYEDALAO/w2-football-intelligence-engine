@@ -1,5 +1,7 @@
 # W2 State Model V1
 
+SUPERSEDED_BY: `docs/consolidation/W2_DECISION_CONTRACT_V2.md`
+
 W2 uses three orthogonal statuses.
 
 DecisionStatus: NOT_READY, SKIP, WATCH, CANDIDATE, RECOMMEND. New matches start NOT_READY. Evaluated matches with no valid candidate become SKIP. CANDIDATE is a system state; DeepSeek cannot invent it. DeepSeek may choose only RECOMMEND, WATCH, or SKIP.

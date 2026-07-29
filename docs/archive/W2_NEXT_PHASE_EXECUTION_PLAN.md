@@ -1,9 +1,13 @@
 # W2 Next Phase Execution Plan
 
+SUPERSEDED_BY: `docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md`
+
+> Archived historical execution plan. It is not the current task or next-step
+> authority.
+
 ## 2026-07-19 Current Local Context
 
-This section supersedes the historical PR #142–#151 sequencing below for current
-local execution.
+This section recorded the local execution context on 2026-07-19.
 
 - Local `main` and the active branch both point to
   `8e171dc05efc2fc3a512fff2c334d123d01db922`.
@@ -11,9 +15,8 @@ local execution.
   synchronization is authorized by the current task.
 - The latest accepted Dashboard implementation recorded locally is
   `01f8a75aa87cfaf58d0db3635eefc02016830d87`.
-- The next implementation package is the lineup-change and multi-market decision
-  plan in
-  [W2_LINEUP_MULTI_MARKET_EXECUTION_PLAN_20260719.md](consolidation/W2_LINEUP_MULTI_MARKET_EXECUTION_PLAN_20260719.md).
+- The recorded implementation package was the lineup-change and multi-market
+  decision plan archived alongside this file.
 - The current Dashboard layout is frozen. Work is limited to source-backed data,
   decision semantics and concise evidence inside the existing layout.
 - `ANALYSIS_PICK` remains outcome-tracked but never lock-eligible. `RECOMMEND`,
@@ -21,8 +24,7 @@ local execution.
 - This package changes data contracts and runtime decisions; after its one staging
   canary, the three consecutive 09:00 read-only cycles restart from `0/3`.
 
-The older strategy and PR route remain below only as historical context. Where
-they conflict with this section or Decision Contract V2, this section wins.
+The strategy and PR route below remain only as historical context.
 
 ## Status
 
@@ -31,8 +33,8 @@ Decision Contract V2 migration is the execution entry point for this phase.
 Existing stage checkers remain as regression safety nets, but W2 will not add
 Stage 16 or another `check_w2_stageN.py` gate.
 
-The original basis documents are archived under `docs/consolidation/`. This
-file is the execution summary and the single entry document for PR sequencing.
+The original basis documents are archived. The v3 master checklist named by
+`SUPERSEDED_BY` is the current task authority.
 
 ## Goal
 

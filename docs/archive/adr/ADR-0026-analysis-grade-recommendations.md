@@ -1,5 +1,7 @@
 # ADR-0026 Analysis-Grade Recommendations
 
+SUPERSEDED_BY: `docs/consolidation/W2_DECISION_CONTRACT_V2.md`
+
 Status: Accepted for U5 governance.
 
 ## Context

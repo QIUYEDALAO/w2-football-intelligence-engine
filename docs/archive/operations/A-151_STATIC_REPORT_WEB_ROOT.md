@@ -1,5 +1,7 @@
 # A-151 Static Report Web Root
 
+SUPERSEDED_BY: `docs/runbooks/STAGE7H_VPS_STAGING.md`
+
 ## Status
 
 Superseded by S14/S15. Static daily reports remain mounted and archived, but the

@@ -42,7 +42,7 @@ def test_frozen_v3_07_report_is_reproducible(tmp_path: Path) -> None:
             sys.executable,
             "scripts/run_w2_ah_formal_evidence.py",
             "--input-jsonl",
-            "docs/operations/W2_V3_07_AH_FORMAL_EVIDENCE_INPUT_20260720.json",
+            "docs/archive/operations/W2_V3_07_AH_FORMAL_EVIDENCE_INPUT_20260720.json",
             "--protocol-json",
             "config/evaluations/ah_formal_evidence.v1.json",
             "--data-source",
@@ -55,6 +55,6 @@ def test_frozen_v3_07_report_is_reproducible(tmp_path: Path) -> None:
         text=True,
     )
 
-    frozen = Path("docs/operations/W2_V3_07_AH_FORMAL_EVIDENCE_20260720.json")
+    frozen = Path("docs/archive/operations/W2_V3_07_AH_FORMAL_EVIDENCE_20260720.json")
     assert result.stdout == frozen.read_text(encoding="utf-8")
     assert report.read_text(encoding="utf-8") == result.stdout

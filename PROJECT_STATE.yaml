@@ -1,24 +1,62 @@
 schema_version: w2.project_state.v3
 project: w2-football-intelligence-engine
-updated_at: "2026-07-28"
+updated_at: "2026-07-29"
+current_state_authority: PROJECT_STATE.yaml
+task_authority: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
 current_task: EVAL-01A
 current_status: IMPLEMENTED_PENDING_ACCEPTANCE
 current_pr: 424
 next_task: EVAL-01B
-task_queue:
-  - EVAL-01A
-  - EVAL-01B
-  - EVAL-01C
-  - EVAL-02A
-  - EVAL-02B
-  - OPS-01
-  - EVAL-03
+tasks:
+  ARCH-P2-02:
+    status: DONE
+    receipt: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
+  ARCH-P2-03:
+    status: DONE
+    conclusion: PASS
+    space_released_kib: 1853664
+    space_released_gib: 1.77
+    removed_worktrees: 15
+    pruned_worktree_records: 1
+    removed_validation_databases: 20
+    removed_runtime_directories: 0
+  ARCH-P2-04:
+    status: DONE
+    pr: 427
+    merge_sha: bf21ddcc495b0c8d041c956734d278c1d611f24e
+    main_ci: 30425831606
+  ARCH-P2-06:
+    status: DONE
+    pr: 428
+    merge_sha: 1a46a9e47a478072d37e4ec4c7a44d914e1a127b
+    main_ci: 30432075563
+  ARCH-P2-05:
+    status: DONE
+    pr: 429
+    merge_sha: 86a66ff5c07438b0543d2790165d406d452daedb
+    main_ci: 30435005222
+  EVAL-01A:
+    status: IMPLEMENTED_PENDING_ACCEPTANCE
+    pr: 424
+    branch: codex/eval-01a-results-outcome-ledger-db
+    base_main: 86a66ff5c07438b0543d2790165d406d452daedb
+    pending_acceptance:
+      - EXACT_HEAD_FULL_CI
+      - SECONDARY_REVIEW
+      - STAGING
+    next_required_action: >-
+      Run exact-head FULL CI and external review, then perform exact-head staging.
+  EVAL-01B:
+    status: NOT_STARTED
 safety:
   provider_calls: 0
-  staging_writes: 0
+  business_db_writes: 0
   scheduler_started: false
   production_started: false
   reviewed_mapping_count_expected: 66
 staging:
   production_deployed: false
-  read_only_recheck: PASS
+  eval_01a_exact_head_acceptance: PENDING
+architecture_convergence:
+  status: PASS
+  receipt: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
