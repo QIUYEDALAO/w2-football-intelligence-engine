@@ -5,7 +5,7 @@ current_state_authority: PROJECT_STATE.yaml
 task_authority: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
 current_task: ARCH-P2-06
 current_status: IN_PROGRESS
-current_pr: null
+current_pr: 428
 next_task: ARCH-P2-05
 tasks:
   ARCH-P2-02:
