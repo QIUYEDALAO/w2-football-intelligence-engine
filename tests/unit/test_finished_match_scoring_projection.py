@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, update
 from sqlalchemy.orm import Session
 
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
@@ -30,7 +30,10 @@ from w2.tracking.forward_ledger_performance import (
     _probability_vector,
     _rps,
 )
-from w2.tracking.outcome_ledger_repository import OutcomeLedgerRepository
+from w2.tracking.outcome_ledger_repository import (
+    OutcomeLedgerRepository,
+    payload_sha256,
+)
 from w2.tracking.performance_scoring import brier, log_loss, probability_vector, rps
 
 KICKOFF = datetime(2026, 7, 20, 16, 0, tzinfo=UTC)
@@ -130,16 +133,18 @@ def test_equal_timestamp_different_identity_is_blocked(tmp_path: Path) -> None:
     _seed_result(repository, "fixture-3", home=0, away=2)
     _seed_identity(repository, "fixture-3", kickoff=KICKOFF)
     captured = KICKOFF - timedelta(minutes=10)
+    first = _capture("fixture-3", captured, identity="capture-a")
+    second = _capture(
+        "fixture-3",
+        captured,
+        identity="capture-b",
+        model=(0.2, 0.2, 0.6),
+    )
+    for capture in (first, second):
+        capture["card_hash"] = "same-card"
+        capture["artifact_provenance"] = {"artifact_hash": "same-artifact"}
     repository.append(
-        [
-            _capture("fixture-3", captured, identity="capture-a"),
-            _capture(
-                "fixture-3",
-                captured,
-                identity="capture-b",
-                model=(0.2, 0.2, 0.6),
-            ),
-        ],
+        [first, second],
         dry_run=False,
         write_db=True,
     )
@@ -153,7 +158,7 @@ def test_equal_timestamp_different_identity_is_blocked(tmp_path: Path) -> None:
 
     assert result["status"] == "BLOCKED"
     assert payload["status"] == "BLOCKED"
-    assert payload["reason_codes"] == ["PROBABILITY_IDENTITY_CONFLICT"]
+    assert payload["reason_codes"] == ["MODEL_PROBABILITY_VECTOR_CONFLICT"]
 
 
 def test_latest_group_missing_identity_is_not_scorable_with_audit(
@@ -176,6 +181,9 @@ def test_latest_group_missing_identity_is_not_scorable_with_audit(
     for capture in captures:
         capture.pop("capture_identity_hash")
         capture.pop("probability_identity")
+        capture["card_hash"] = "same-card"
+        capture["artifact_provenance"] = {"artifact_hash": "same-artifact"}
+    _distinguish_legacy_siblings(captures)
     repository.append(captures, dry_run=False, write_db=True)
 
     result = run_finished_match_scoring_projection(
@@ -199,10 +207,227 @@ def test_latest_group_missing_identity_is_not_scorable_with_audit(
     assert payload["latest_group_capture_count"] == 2
     assert payload["latest_group_identity_bearing_count"] == 0
     assert payload["latest_group_identity_missing_count"] == 2
+    assert payload["latest_group_fixture_signature_complete_count"] == 2
+    assert payload["latest_group_fixture_signature_incomplete_count"] == 0
     assert payload["capture_selection_status"] == "CAPTURE_IDENTITY_MISSING"
     assert payload["source_capture_identity_hash"] is None
     assert payload["source_capture_group_hash"] is None
     assert payload["selected_scoring_capture_at"] is None
+
+
+@pytest.mark.parametrize(
+    ("vector_name", "reason"),
+    [
+        ("model", "MODEL_PROBABILITY_VECTOR_CONFLICT"),
+        ("market", "MARKET_PROBABILITY_VECTOR_CONFLICT"),
+    ],
+)
+def test_latest_missing_identity_does_not_mask_vector_conflict(
+    tmp_path: Path,
+    vector_name: str,
+    reason: str,
+) -> None:
+    repository = _repository(tmp_path)
+    fixture_id = f"fixture-missing-{vector_name}-conflict"
+    _seed_result(repository, fixture_id, home=1, away=0)
+    _seed_identity(repository, fixture_id, kickoff=KICKOFF)
+    captured_at = KICKOFF - timedelta(minutes=5)
+    first = _capture(
+        fixture_id,
+        captured_at,
+        identity="first",
+        kickoff=KICKOFF,
+    )
+    second = _capture(
+        fixture_id,
+        captured_at,
+        identity="second",
+        model=(0.2, 0.2, 0.6) if vector_name == "model" else (0.5, 0.3, 0.2),
+        market=(0.2, 0.2, 0.6) if vector_name == "market" else (0.4, 0.35, 0.25),
+        kickoff=KICKOFF,
+    )
+    for capture in (first, second):
+        capture.pop("capture_identity_hash")
+        capture["card_hash"] = "same-card"
+        capture["artifact_provenance"] = {"artifact_hash": "same-artifact"}
+    _distinguish_legacy_siblings([first, second])
+    repository.append([first, second], dry_run=False, write_db=True)
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+    payload = _checkpoint(repository, f"performance:fixture:{fixture_id}")
+
+    assert result["status"] == "BLOCKED"
+    assert payload["reason_codes"] == [reason]
+
+
+@pytest.mark.parametrize("conflict_field", ["card", "artifact"])
+def test_latest_missing_identity_does_not_mask_business_identity_conflict(
+    tmp_path: Path,
+    conflict_field: str,
+) -> None:
+    repository = _repository(tmp_path)
+    fixture_id = f"fixture-missing-{conflict_field}-conflict"
+    _seed_result(repository, fixture_id, home=1, away=0)
+    _seed_identity(repository, fixture_id, kickoff=KICKOFF)
+    captured_at = KICKOFF - timedelta(minutes=5)
+    captures = [
+        _capture(
+            fixture_id,
+            captured_at,
+            identity=identity,
+            kickoff=KICKOFF,
+        )
+        for identity in ("first", "second")
+    ]
+    for capture in captures:
+        capture.pop("capture_identity_hash")
+        capture["card_hash"] = "same-card"
+        capture["artifact_provenance"] = {"artifact_hash": "same-artifact"}
+    _distinguish_legacy_siblings(captures)
+    if conflict_field == "card":
+        captures[1]["card_hash"] = "different-card"
+    else:
+        captures[1]["artifact_provenance"] = {
+            "artifact_hash": "different-artifact"
+        }
+    repository.append(captures, dry_run=False, write_db=True)
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+    payload = _checkpoint(repository, f"performance:fixture:{fixture_id}")
+
+    assert result["status"] == "BLOCKED"
+    assert payload["reason_codes"] == [
+        "EQUAL_TIMESTAMP_DIFFERENT_BUSINESS_IDENTITY"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("field", "reason"),
+    [
+        ("checkpoint", "DYNAMIC_CHECKPOINT_CONFLICT"),
+        ("lineup_input_hash", "DYNAMIC_LINEUP_HASH_CONFLICT"),
+    ],
+)
+def test_latest_missing_identity_does_not_mask_lifecycle_conflict(
+    tmp_path: Path,
+    field: str,
+    reason: str,
+) -> None:
+    repository = _repository(tmp_path)
+    fixture_id = f"fixture-missing-{field}-conflict"
+    _seed_result(repository, fixture_id, home=1, away=0)
+    _seed_identity(repository, fixture_id, kickoff=KICKOFF)
+    captured_at = KICKOFF - timedelta(minutes=5)
+    captures = [
+        _capture(
+            fixture_id,
+            captured_at,
+            identity=identity,
+            kickoff=KICKOFF,
+        )
+        for identity in ("first", "second")
+    ]
+    for capture in captures:
+        capture.pop("capture_identity_hash")
+        capture["card_hash"] = "same-card"
+        capture["artifact_provenance"] = {"artifact_hash": "same-artifact"}
+    _distinguish_legacy_siblings(captures)
+    captures[0][field] = "first"
+    captures[1][field] = "second"
+    repository.append(captures, dry_run=False, write_db=True)
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+    payload = _checkpoint(repository, f"performance:fixture:{fixture_id}")
+
+    assert result["status"] == "BLOCKED"
+    assert payload["reason_codes"] == [reason]
+
+
+def test_latest_fixture_signature_complete_incomplete_is_blocked(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    fixture_id = "fixture-signature-mixed"
+    _seed_result(repository, fixture_id, home=1, away=0)
+    _seed_identity(repository, fixture_id, kickoff=KICKOFF)
+    captured_at = KICKOFF - timedelta(minutes=5)
+    complete = _capture(
+        fixture_id,
+        captured_at,
+        identity="complete",
+        kickoff=KICKOFF,
+    )
+    incomplete = _capture(
+        fixture_id,
+        captured_at,
+        identity="incomplete",
+        kickoff=KICKOFF,
+    )
+    incomplete.pop("home_team_name")
+    incomplete["fixture_identity"].pop("home_team_name")
+    for capture in (complete, incomplete):
+        capture["card_hash"] = "same-card"
+        capture["artifact_provenance"] = {"artifact_hash": "same-artifact"}
+    repository.append([complete, incomplete], dry_run=False, write_db=True)
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+    payload = _checkpoint(repository, f"performance:fixture:{fixture_id}")
+
+    assert result["status"] == "BLOCKED"
+    assert payload["reason_codes"] == [
+        "COMPLETE_INCOMPLETE_SIBLING_CONFLICT"
+    ]
+    assert payload["latest_group_fixture_signature_complete_count"] == 1
+    assert payload["latest_group_fixture_signature_incomplete_count"] == 1
+
+
+@pytest.mark.parametrize("missing_field", ["home_team_name", "kickoff_utc"])
+def test_single_latest_incomplete_fixture_signature_is_not_scorable(
+    tmp_path: Path,
+    missing_field: str,
+) -> None:
+    repository = _repository(tmp_path)
+    fixture_id = f"fixture-signature-incomplete-{missing_field}"
+    _seed_result(repository, fixture_id, home=1, away=0)
+    _seed_identity(repository, fixture_id, kickoff=KICKOFF)
+    capture = _capture(
+        fixture_id,
+        KICKOFF - timedelta(minutes=5),
+        identity="incomplete",
+        kickoff=KICKOFF,
+    )
+    capture.pop(missing_field)
+    capture["fixture_identity"].pop(missing_field)
+    repository.append([capture], dry_run=False, write_db=True)
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+    payload = _checkpoint(repository, f"performance:fixture:{fixture_id}")
+
+    assert result["status"] == "PASS"
+    assert payload["status"] == "NOT_SCORABLE"
+    assert payload["reason_codes"] == ["FIXTURE_IDENTITY_MISSING"]
+    assert payload["latest_group_fixture_signature_complete_count"] == 0
+    assert payload["latest_group_fixture_signature_incomplete_count"] == 1
 
 
 def test_older_missing_or_conflicting_captures_do_not_poison_latest(
@@ -423,6 +648,166 @@ def test_bare_result_and_canonical_capture_use_canonical_checkpoint(
     assert result["status"] == "PASS"
     assert payload["fixture_id"] == canonical
     assert payload["status"] == "SCORED"
+
+
+def test_outcome_ledger_envelope_payload_parity_allows_scoring(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    fixture_id = "fixture-envelope-parity"
+    _seed_result(repository, fixture_id, home=1, away=0)
+    _seed_identity(repository, fixture_id, kickoff=KICKOFF)
+    repository.append(
+        [
+            _capture(
+                fixture_id,
+                KICKOFF - timedelta(minutes=5),
+                identity="matching",
+                kickoff=KICKOFF,
+            )
+        ],
+        dry_run=False,
+        write_db=True,
+    )
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+    with Session(repository.engine) as session:
+        row = session.scalar(select(OutcomeLedgerModel))
+        assert row is not None
+        assert row.payload_sha256 == payload_sha256(row.payload)
+
+    assert result["status"] == "PASS"
+    assert _checkpoint(
+        repository,
+        f"performance:fixture:{fixture_id}",
+    )["status"] == "SCORED"
+
+
+@pytest.mark.parametrize(
+    "envelope_change",
+    [
+        {"fixture_id": "fixture-envelope-other"},
+        {"record_type": "outcome"},
+        {"capture_identity_hash": "different-capture"},
+        {"captured_at": KICKOFF - timedelta(minutes=6)},
+        {"payload_sha256": "0" * 64},
+    ],
+    ids=[
+        "fixture-id",
+        "record-type",
+        "capture-identity",
+        "captured-at",
+        "payload-sha256",
+    ],
+)
+def test_outcome_ledger_envelope_payload_mismatch_blocks_fixture(
+    tmp_path: Path,
+    envelope_change: dict[str, Any],
+) -> None:
+    repository = _repository(tmp_path)
+    fixture_id = "fixture-envelope-conflict"
+    _seed_result(repository, fixture_id, home=1, away=0)
+    _seed_identity(repository, fixture_id, kickoff=KICKOFF)
+    capture = _capture(
+        fixture_id,
+        KICKOFF - timedelta(minutes=5),
+        identity="matching",
+        kickoff=KICKOFF,
+    )
+    repository.append([capture], dry_run=False, write_db=True)
+    _mutate_ledger_envelope(repository, **envelope_change)
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+    payload = _checkpoint(repository, f"performance:fixture:{fixture_id}")
+
+    assert result["status"] == "BLOCKED"
+    assert payload["status"] == "BLOCKED"
+    assert payload["reason_codes"] == [
+        "OUTCOME_LEDGER_ENVELOPE_PAYLOAD_CONFLICT"
+    ]
+
+
+def test_envelope_fixture_conflict_blocks_both_canonical_fixtures(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    for fixture_id in ("fixture-envelope-a", "fixture-envelope-b"):
+        _seed_result(repository, fixture_id, home=1, away=0)
+        _seed_identity(repository, fixture_id, kickoff=KICKOFF)
+    repository.append(
+        [
+            _capture(
+                "fixture-envelope-a",
+                KICKOFF - timedelta(minutes=5),
+                identity="matching",
+                kickoff=KICKOFF,
+            )
+        ],
+        dry_run=False,
+        write_db=True,
+    )
+    _mutate_ledger_envelope(
+        repository,
+        fixture_id="fixture-envelope-b",
+    )
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+
+    assert result["status"] == "BLOCKED"
+    for fixture_id in ("fixture-envelope-a", "fixture-envelope-b"):
+        assert _checkpoint(
+            repository,
+            f"performance:fixture:{fixture_id}",
+        )["reason_codes"] == [
+            "OUTCOME_LEDGER_ENVELOPE_PAYLOAD_CONFLICT"
+        ]
+
+
+def test_unresolvable_envelope_conflict_blocks_entire_batch(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    _seed_result(repository, "fixture-result", home=1, away=0)
+    _seed_identity(repository, "fixture-result", kickoff=KICKOFF)
+    repository.append(
+        [
+            _capture(
+                "unresolvable-payload",
+                KICKOFF - timedelta(minutes=5),
+                identity="matching",
+                kickoff=KICKOFF,
+            )
+        ],
+        dry_run=False,
+        write_db=True,
+    )
+    _mutate_ledger_envelope(
+        repository,
+        fixture_id="unresolvable-envelope",
+    )
+
+    result = run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+
+    assert result["status"] == "BLOCKED"
+    assert result["blockers"] == [
+        "batch:OUTCOME_LEDGER_ENVELOPE_PAYLOAD_CONFLICT"
+    ]
 
 
 def test_ambiguous_exact_fixture_mapping_is_blocked(tmp_path: Path) -> None:
@@ -946,6 +1331,19 @@ def _market_siblings(
     return [siblings[market] for market in order]
 
 
+def _distinguish_legacy_siblings(
+    captures: list[dict[str, Any]],
+) -> None:
+    captures[0]["shadow_pick"] = {
+        "market": "ASIAN_HANDICAP",
+        "selection": "HOME_AH",
+    }
+    captures[1]["shadow_pick"] = {
+        "market": "TOTALS",
+        "selection": "OVER",
+    }
+
+
 def _capture(
     fixture_id: str,
     captured_at: datetime,
@@ -1017,6 +1415,14 @@ def _checkpoint(
         )
         assert row is not None
         return dict(row.payload)
+
+
+def _mutate_ledger_envelope(
+    repository: OutcomeLedgerRepository,
+    **values: Any,
+) -> None:
+    with repository.engine.begin() as connection:
+        connection.execute(update(OutcomeLedgerModel).values(**values))
 
 
 def _performance_hashes(repository: OutcomeLedgerRepository) -> dict[str, str]:

@@ -73,12 +73,13 @@ def test_eval_01b_authority_status_and_safety_contract() -> None:
         == "IMPLEMENTED_PENDING_SECONDARY_REVIEW_AND_STAGING"
     )
     assert state["tasks"]["EVAL-01B"]["blockers"] == [
-        "LEGACY_PREKICKOFF_IDENTITY_MISSING_POISONS_LATEST_SELECTION",
-        "STAGING_CLASSIFICATION_REMEDIATION_REQUIRED",
+        "OUTCOME_LEDGER_ENVELOPE_PAYLOAD_PARITY_REQUIRED",
+        "LATEST_GROUP_MISSING_IDENTITY_MASKS_REAL_CONFLICT",
+        "STAGING_FAIL_CLOSED_REMEDIATION_REQUIRED",
     ]
     assert (
         state["staging"]["eval_01b_exact_head_acceptance"]
-        == "STAGING_CLASSIFICATION_REMEDIATION_REQUIRED"
+        == "STAGING_FAIL_CLOSED_REMEDIATION_REQUIRED"
     )
     assert state["tasks"]["EVAL-01C"]["status"] == "NOT_STARTED"
     assert state["safety"]["provider_calls"] == 0

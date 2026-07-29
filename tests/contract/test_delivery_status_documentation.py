@@ -75,8 +75,9 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "pr": 430,
         "branch": "codex/eval-01b-finished-match-scoring-projection",
         "blockers": [
-            "LEGACY_PREKICKOFF_IDENTITY_MISSING_POISONS_LATEST_SELECTION",
-            "STAGING_CLASSIFICATION_REMEDIATION_REQUIRED",
+            "OUTCOME_LEDGER_ENVELOPE_PAYLOAD_PARITY_REQUIRED",
+            "LATEST_GROUP_MISSING_IDENTITY_MASKS_REAL_CONFLICT",
+            "STAGING_FAIL_CLOSED_REMEDIATION_REQUIRED",
         ],
     }
     assert state["tasks"]["EVAL-01C"]["status"] == "NOT_STARTED"
@@ -122,7 +123,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     assert state["staging"]["eval_01a_exact_head_acceptance"] == "PASS"
     assert (
         state["staging"]["eval_01b_exact_head_acceptance"]
-        == "STAGING_CLASSIFICATION_REMEDIATION_REQUIRED"
+        == "STAGING_FAIL_CLOSED_REMEDIATION_REQUIRED"
     )
 
 

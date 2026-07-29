@@ -25,6 +25,7 @@ from w2.tracking.forward_ledger_performance import CLV_METHOD, fixture_clv
 from w2.tracking.outcome_ledger_repository import (
     ExactFixtureResolver,
     FixtureIdentityConflict,
+    payload_sha256,
 )
 from w2.tracking.performance_scoring import (
     bootstrap_ci,
@@ -75,8 +76,11 @@ def run_finished_match_scoring_projection(
                 )
             )
         )
+        ledger_payloads, envelope_conflicts, batch_envelope_conflict = (
+            _validated_ledger_payloads(ledger_rows, resolver)
+        )
         records, identity_conflicts = _canonical_records(
-            [dict(row.payload) for row in ledger_rows],
+            ledger_payloads,
             resolver,
         )
         fixture_identities = {
@@ -93,7 +97,11 @@ def run_finished_match_scoring_projection(
             fixture_id for _, fixture_id, _ in resolved_results
         )
         fixture_payloads: dict[str, dict[str, Any]] = {}
-        blockers: list[str] = []
+        blockers = (
+            ["batch:OUTCOME_LEDGER_ENVELOPE_PAYLOAD_CONFLICT"]
+            if batch_envelope_conflict
+            else []
+        )
         for result, fixture_id, result_identity_conflict in resolved_results:
             payload = _fixture_projection(
                 result,
@@ -108,6 +116,7 @@ def run_finished_match_scoring_projection(
                     or fixture_id in identity_conflicts
                     or result_counts[fixture_id] > 1
                 ),
+                envelope_conflict=fixture_id in envelope_conflicts,
             )
             fixture_payloads[fixture_id] = payload
             if payload["status"] == "BLOCKED":
@@ -234,6 +243,57 @@ def _canonical_results(
     return resolved
 
 
+def _validated_ledger_payloads(
+    rows: Sequence[OutcomeLedgerModel],
+    resolver: ExactFixtureResolver,
+) -> tuple[list[dict[str, Any]], set[str], bool]:
+    payloads: list[dict[str, Any]] = []
+    conflicts: set[str] = set()
+    batch_conflict = False
+    for row in rows:
+        payload = dict(row.payload)
+        if _ledger_envelope_matches_payload(row, payload):
+            payloads.append(payload)
+            continue
+        affected: set[str] = set()
+        for raw_fixture_id in {row.fixture_id, _fixture_id(payload)}:
+            if not raw_fixture_id:
+                continue
+            try:
+                resolved = resolver.resolve(raw_fixture_id)
+            except FixtureIdentityConflict:
+                affected.update(resolver.candidates(raw_fixture_id))
+            else:
+                if resolved is not None:
+                    affected.add(resolved)
+        if affected:
+            conflicts.update(affected)
+        else:
+            batch_conflict = True
+    return payloads, conflicts, batch_conflict
+
+
+def _ledger_envelope_matches_payload(
+    row: OutcomeLedgerModel,
+    payload: Mapping[str, Any],
+) -> bool:
+    if _text(row.record_type).lower() != _text(payload.get("record_type")).lower():
+        return False
+    if str(row.fixture_id) != str(payload.get("fixture_id") or ""):
+        return False
+    if _utc(row.captured_at) != _parse_time(payload.get("captured_at")):
+        return False
+    for field in (
+        "schema_version",
+        "recommendation_scope",
+        "capture_identity_hash",
+        "decision_hash",
+    ):
+        if _optional(getattr(row, field)) != _optional(payload.get(field)):
+            return False
+    return row.payload_sha256 == payload_sha256(payload)
+
+
 def _canonical_records(
     records: Sequence[Mapping[str, Any]],
     resolver: ExactFixtureResolver,
@@ -298,6 +358,7 @@ def _fixture_projection(
     fixture_identity: MatchdayFixtureIdentityModel | None,
     dynamic_rows: Sequence[DynamicPrematchEvaluationModel],
     identity_conflict: bool,
+    envelope_conflict: bool,
 ) -> dict[str, Any]:
     related = [
         record
@@ -348,10 +409,13 @@ def _fixture_projection(
             reasons = []
 
     fixture = _fixture_values(capture, fixture_identity, fixture_id)
-    lifecycle, lifecycle_conflict = _lifecycle_metadata(capture, dynamic_rows)
-    if lifecycle_conflict:
+    lifecycle, lifecycle_conflicts = _lifecycle_metadata(capture, dynamic_rows)
+    if lifecycle_conflicts:
         status = "BLOCKED"
-        reasons = ["PROBABILITY_IDENTITY_CONFLICT"]
+        reasons = lifecycle_conflicts
+    if envelope_conflict:
+        status = "BLOCKED"
+        reasons = ["OUTCOME_LEDGER_ENVELOPE_PAYLOAD_CONFLICT"]
     clv = _fixture_clv(records, fixture_id)
     scoring_capture = capture if status == "SCORED" else None
     scored_model = model if scoring_capture else None
@@ -489,6 +553,8 @@ def _select_capture(
             "latest_group_capture_count": 0,
             "latest_group_identity_bearing_count": 0,
             "latest_group_identity_missing_count": 0,
+            "latest_group_fixture_signature_complete_count": 0,
+            "latest_group_fixture_signature_incomplete_count": 0,
             "model_probability_complete": False,
             "market_probability_complete": False,
             "capture_selection_status": reason,
@@ -508,19 +574,27 @@ def _select_capture(
     identity_bearing = [
         item for item in latest if _text(item.get("capture_identity_hash"))
     ]
-    model_complete = all(
-        probability_vector(item, "model_probabilities") is not None
-        for item in latest
-    )
-    market_complete = all(
-        probability_vector(item, "market_probabilities") is not None
-        for item in latest
-    )
+    signatures = [_fixture_signature(item, fixture_id) for item in latest]
+    model_vectors = [
+        probability_vector(item, "model_probabilities") for item in latest
+    ]
+    market_vectors = [
+        probability_vector(item, "market_probabilities") for item in latest
+    ]
+    signature_complete_count = sum(item is not None for item in signatures)
+    model_complete = all(item is not None for item in model_vectors)
+    market_complete = all(item is not None for item in market_vectors)
     audit = {
         "latest_prekickoff_at": _iso(latest_at),
         "latest_group_capture_count": len(latest),
         "latest_group_identity_bearing_count": len(identity_bearing),
         "latest_group_identity_missing_count": len(latest) - len(identity_bearing),
+        "latest_group_fixture_signature_complete_count": (
+            signature_complete_count
+        ),
+        "latest_group_fixture_signature_incomplete_count": (
+            len(latest) - signature_complete_count
+        ),
         "model_probability_complete": model_complete,
         "market_probability_complete": market_complete,
         "capture_selection_status": "SELECTED",
@@ -531,55 +605,49 @@ def _select_capture(
             if _parse_time(item.get("captured_at")) != latest_at
         ),
     }
-    signatures = {
-        signature
+    conflicts = _latest_group_conflicts(
+        latest,
+        fixture_id=fixture_id,
+        signatures=signatures,
+        model_vectors=model_vectors,
+        market_vectors=market_vectors,
+        dynamic_rows=dynamic_rows,
+    )
+    if conflicts:
+        audit["capture_selection_status"] = conflicts[0]
+        return latest[0], "BLOCKED", conflicts, audit
+    capture_kickoffs = [
+        _parse_time(_fixture_values(item, None, "")["kickoff_utc"])
         for item in latest
-        if (signature := _fixture_signature(item, fixture_id)) is not None
-    }
-    if len(signatures) != 1:
-        audit["capture_selection_status"] = "FIXTURE_IDENTITY_CONFLICT"
-        reason = (
-            "FIXTURE_IDENTITY_CONFLICT"
-            if len(signatures) > 1
-            else "FIXTURE_IDENTITY_MISSING"
-        )
-        status = "BLOCKED" if len(signatures) > 1 else "NOT_SCORABLE"
-        return latest[0], status, [reason], audit
+    ]
     if kickoff is not None and any(
-        _parse_time(_fixture_values(item, None, "")["kickoff_utc"]) != kickoff
-        for item in latest
+        value is not None and value != kickoff for value in capture_kickoffs
     ):
         audit["capture_selection_status"] = "FIXTURE_IDENTITY_CONFLICT"
         return latest[0], "BLOCKED", ["FIXTURE_IDENTITY_CONFLICT"], audit
+    missing: list[str] = []
+    if signature_complete_count == 0:
+        missing.append("FIXTURE_IDENTITY_MISSING")
     if not identity_bearing:
-        reasons = ["CAPTURE_IDENTITY_MISSING"]
+        missing.append("CAPTURE_IDENTITY_MISSING")
         if not model_complete:
-            reasons.append("MODEL_PROBABILITY_VECTOR_MISSING")
+            missing.append("MODEL_PROBABILITY_VECTOR_MISSING")
         if not market_complete:
-            reasons.append("MARKET_PROBABILITY_VECTOR_MISSING")
-        audit["capture_selection_status"] = "CAPTURE_IDENTITY_MISSING"
-        return latest[0], "NOT_SCORABLE", reasons, audit
-    if len(identity_bearing) != len(latest):
-        audit["capture_selection_status"] = "COMPLETE_INCOMPLETE_SIBLING_CONFLICT"
-        return (
-            latest[0],
-            "BLOCKED",
-            ["COMPLETE_INCOMPLETE_SIBLING_CONFLICT"],
-            audit,
+            missing.append("MARKET_PROBABILITY_VECTOR_MISSING")
+    else:
+        if not model_complete:
+            missing.append("MODEL_PROBABILITY_VECTOR_MISSING")
+        if not market_complete:
+            missing.append("MARKET_PROBABILITY_VECTOR_MISSING")
+    if missing:
+        audit["capture_selection_status"] = (
+            "PROBABILITY_INCOMPLETE"
+            if identity_bearing
+            and signature_complete_count
+            and all(reason.endswith("_VECTOR_MISSING") for reason in missing)
+            else missing[0]
         )
-    complete_flags = [
-        probability_vector(item, "model_probabilities") is not None
-        and probability_vector(item, "market_probabilities") is not None
-        for item in latest
-    ]
-    if any(complete_flags) and not all(complete_flags):
-        audit["capture_selection_status"] = "COMPLETE_INCOMPLETE_SIBLING_CONFLICT"
-        return (
-            latest[0],
-            "BLOCKED",
-            ["COMPLETE_INCOMPLETE_SIBLING_CONFLICT"],
-            audit,
-        )
+        return latest[0], "NOT_SCORABLE", missing, audit
     scoring_identities = [
         _scoring_relevant_identity(
             item,
@@ -650,19 +718,97 @@ def _fixture_signature(
     record: Mapping[str, Any],
     fixture_id: str,
 ) -> tuple[str, ...] | None:
+    signature = _fixture_comparison(record, fixture_id)
+    return tuple(item or "" for item in signature) if all(signature) else None
+
+
+def _fixture_comparison(
+    record: Mapping[str, Any],
+    fixture_id: str,
+) -> tuple[str | None, ...]:
     values = _fixture_values(record, None, "")
-    values["fixture_id"] = fixture_id
-    signature = tuple(
-        _text(values[key])
-        for key in (
-            "fixture_id",
-            "kickoff_utc",
-            "competition_id",
-            "home_team_name",
-            "away_team_name",
-        )
+    return (
+        _optional(fixture_id),
+        _iso(_parse_time(values["kickoff_utc"])),
+        _optional(values["competition_id"]),
+        _optional(values["home_team_name"]),
+        _optional(values["away_team_name"]),
     )
-    return signature if all(signature) else None
+
+
+def _latest_group_conflicts(
+    latest: Sequence[Mapping[str, Any]],
+    *,
+    fixture_id: str,
+    signatures: Sequence[tuple[str, ...] | None],
+    model_vectors: Sequence[tuple[float, float, float] | None],
+    market_vectors: Sequence[tuple[float, float, float] | None],
+    dynamic_rows: Sequence[DynamicPrematchEvaluationModel],
+) -> list[str]:
+    reasons: list[str] = []
+    complete_signatures = [item for item in signatures if item is not None]
+    if 0 < len(complete_signatures) < len(signatures):
+        reasons.append("COMPLETE_INCOMPLETE_SIBLING_CONFLICT")
+    elif len(set(complete_signatures)) > 1:
+        reasons.append("FIXTURE_IDENTITY_CONFLICT")
+    elif not complete_signatures:
+        fixture_values = [
+            _fixture_comparison(item, fixture_id) for item in latest
+        ]
+        if any(
+            len({value for value in column if value is not None}) > 1
+            for column in zip(*fixture_values, strict=True)
+        ):
+            reasons.append("FIXTURE_IDENTITY_CONFLICT")
+
+    if len({item for item in model_vectors if item is not None}) > 1:
+        reasons.append("MODEL_PROBABILITY_VECTOR_CONFLICT")
+    if len({item for item in market_vectors if item is not None}) > 1:
+        reasons.append("MARKET_PROBABILITY_VECTOR_CONFLICT")
+
+    lifecycles: list[dict[str, Any]] = []
+    for capture in latest:
+        lifecycle, dynamic_conflicts = _lifecycle_metadata(
+            capture,
+            dynamic_rows,
+        )
+        lifecycles.append(lifecycle)
+        reasons.extend(dynamic_conflicts)
+    if len({_optional(item.get("checkpoint")) for item in lifecycles} - {None}) > 1:
+        reasons.append("DYNAMIC_CHECKPOINT_CONFLICT")
+    if (
+        len({_optional(item.get("lineup_input_hash")) for item in lifecycles} - {None})
+        > 1
+    ):
+        reasons.append("DYNAMIC_LINEUP_HASH_CONFLICT")
+    if len({_optional(item.get("evaluation_tier")) for item in lifecycles} - {None}) > 1:
+        reasons.append("EQUAL_TIMESTAMP_DIFFERENT_BUSINESS_IDENTITY")
+
+    cards = [_optional(item.get("card_hash")) for item in latest]
+    artifacts = [_artifact_identity_hash(item) for item in latest]
+    if (
+        len({item for item in cards if item is not None}) > 1
+        or len({item for item in artifacts if item is not None}) > 1
+    ):
+        reasons.append("EQUAL_TIMESTAMP_DIFFERENT_BUSINESS_IDENTITY")
+
+    presence_columns = (
+        signatures,
+        model_vectors,
+        market_vectors,
+        cards,
+        artifacts,
+        [_optional(item.get("capture_identity_hash")) for item in latest],
+        [_optional(item.get("checkpoint")) for item in lifecycles],
+        [_optional(item.get("lineup_input_hash")) for item in lifecycles],
+    )
+    if any(
+        any(item is not None for item in column)
+        and not all(item is not None for item in column)
+        for column in presence_columns
+    ):
+        reasons.append("COMPLETE_INCOMPLETE_SIBLING_CONFLICT")
+    return list(dict.fromkeys(reasons))
 
 
 def _scoring_relevant_identity(
@@ -692,7 +838,7 @@ def _scoring_relevant_identity(
 def _lifecycle_metadata(
     capture: Mapping[str, Any] | None,
     rows: Sequence[DynamicPrematchEvaluationModel],
-) -> tuple[dict[str, Any], bool]:
+) -> tuple[dict[str, Any], list[str]]:
     record = capture or {}
     captured_at = _parse_time(record.get("captured_at"))
     exact = [
@@ -709,18 +855,20 @@ def _lifecycle_metadata(
         row.lineup_input_hash for row in exact if row.lineup_input_hash
     }
     tier = _text(record.get("evaluation_tier")).upper()
-    return (
-        {
-            "evaluation_tier": tier
-            if tier in {"STRICT", "ADVISORY"}
-            else "UNKNOWN",
-            "checkpoint": _optional(record.get("checkpoint"))
-            or (next(iter(checkpoints)) if len(checkpoints) == 1 else None),
-            "lineup_input_hash": _optional(record.get("lineup_input_hash"))
-            or (next(iter(lineup_hashes)) if len(lineup_hashes) == 1 else None),
-        },
-        len(checkpoints) > 1 or len(lineup_hashes) > 1,
-    )
+    conflicts = []
+    if len(checkpoints) > 1:
+        conflicts.append("DYNAMIC_CHECKPOINT_CONFLICT")
+    if len(lineup_hashes) > 1:
+        conflicts.append("DYNAMIC_LINEUP_HASH_CONFLICT")
+    return {
+        "evaluation_tier": tier
+        if tier in {"STRICT", "ADVISORY"}
+        else "UNKNOWN",
+        "checkpoint": _optional(record.get("checkpoint"))
+        or (next(iter(checkpoints)) if len(checkpoints) == 1 else None),
+        "lineup_input_hash": _optional(record.get("lineup_input_hash"))
+        or (next(iter(lineup_hashes)) if len(lineup_hashes) == 1 else None),
+    }, conflicts
 
 
 def _fixture_clv(
@@ -1004,6 +1152,12 @@ def _source_hash(payload: Mapping[str, Any]) -> str:
             ),
             "latest_group_identity_missing_count": payload.get(
                 "latest_group_identity_missing_count"
+            ),
+            "latest_group_fixture_signature_complete_count": payload.get(
+                "latest_group_fixture_signature_complete_count"
+            ),
+            "latest_group_fixture_signature_incomplete_count": payload.get(
+                "latest_group_fixture_signature_incomplete_count"
             ),
             "capture_selection_status": payload.get(
                 "capture_selection_status"
