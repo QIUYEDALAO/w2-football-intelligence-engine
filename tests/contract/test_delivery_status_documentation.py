@@ -98,28 +98,23 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
             "exact_pre_post_pairs": 0,
             "results_without_unique_canonical_competition_season_identity": 35,
         },
-        "contract_blocker": [
-            "120 total pairs vs 500 validation rows",
-            "10000 bootstrap vs 2000",
-            "per-league scope vs minimum_competitions=3",
-            "RPS/coverage guards not pre-registered",
-        ],
-        "next_required_decision": (
-            "PRE_REGISTRATION_CONTRACT_REMEDIATION_AND_DATA_ACQUISITION_AUTHORITY"
-        ),
+        "contract_authority": "FROZEN",
+        "data_acquisition_plan": "AUTHORIZED",
+        "runtime_collection_authorized": False,
+        "next_required_action": "IDENTITY_REMEDIATION_DESIGN",
     }
     assert state["tasks"]["EVAL-03"]["status"] == "NOT_STARTED"
     assert state["architecture_convergence"]["status"] == "PASS"
     assert "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)" in next_action
     assert CHECKLIST_PATH in next_action
     assert (
-        "当前：B5 EVAL-02B 启动资格 BLOCKED；"
-        "EVAL_02B_START_AUTHORIZED = false。" in next_action
+        "当前：B5 EVAL-02B 仍为 BLOCKED；合同权威已冻结、"
+        "数据获取方案已授权，但运行采集未授权。" in next_action
     )
     assert (
-        "下一步：取得 "
-        "PRE_REGISTRATION_CONTRACT_REMEDIATION_AND_DATA_ACQUISITION_AUTHORITY；"
-        "B7 EVAL-03 仍为 NOT_STARTED。" in next_action
+        "下一步：B5 IDENTITY_REMEDIATION_DESIGN；"
+        "EVAL_02B_START_AUTHORIZED = false，B7 EVAL-03 仍为 NOT_STARTED。"
+        in next_action
     )
     assert "sole machine-readable project-status record" in ledger
     assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", ledger)
@@ -201,14 +196,67 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     assert "lineup_confirmed_events 0" in b5
     assert "exact pre/post pairs 0" in b5
     assert "35 results 缺唯一 canonical competition/season identity" in b5
-    assert "120 total pairs vs 500 validation rows" in b5
-    assert "10000 bootstrap vs 2000" in b5
-    assert "per-league scope vs minimum_competitions=3" in b5
-    assert "RPS/coverage guards 未预注册" in b5
-    assert (
-        "PRE_REGISTRATION_CONTRACT_REMEDIATION_AND_DATA_ACQUISITION_AUTHORITY"
-        in b5
-    )
+    for frozen_coordinate in (
+        "CONTRACT_AUTHORITY = FROZEN",
+        "DATA_ACQUISITION_PLAN = AUTHORIZED",
+        "RUNTIME_COLLECTION_AUTHORIZED = false",
+        "NEXT_REQUIRED_ACTION = IDENTITY_REMEDIATION_DESIGN",
+        "PAIR_SCOPE = PER_COMPETITION_X_MARKET",
+        "PAIR_GRAIN = ONE_CANONICAL_FIXTURE_PAIR",
+        "MINIMUM_ELIGIBLE_TOTAL_PAIRS = 120",
+        "TIME_SPLIT = STRICT_CHRONOLOGICAL_70_30",
+        "MINIMUM_VALIDATION_PAIRS = 36",
+        "BOOTSTRAP_ITERATIONS = 10000",
+        "BOOTSTRAP_UNIT = PAIRED_VALIDATION_FIXTURE",
+        "MINIMUM_COMPETITIONS = NOT_APPLICABLE",
+        "paired_log_loss_improvement =",
+        "baseline_log_loss - candidate_log_loss",
+        "log_loss_improvement_ci_low > 0",
+        "RPS_ROLE = DIAGNOSTIC_ONLY",
+        "COVERAGE_ROLE = DIAGNOSTIC_ONLY",
+        "REVALIDATE_AFTER_DAYS = 90",
+        "REVALIDATE_AFTER_NEW_PAIRS = 60",
+        "CI_CONTAINS_ZERO = FREEZE_ADJUSTMENT_TO_ZERO",
+        "pre.evaluated_at < lineup_confirmed_at <= post.capture_at",
+        "LEAGUE_SCOPE",
+        "MARKET_SCOPE",
+        "ENDPOINT_SCOPE",
+        "CAPTURE_CADENCE",
+        "DAILY_REQUEST_BUDGET",
+        "ROLLBACK",
+        "PROVIDER_CALL_LIMIT",
+    ):
+        assert frozen_coordinate in b5
+    for identity_rule in (
+        "同一 canonical fixture、competition、season、market、selection",
+        "首发确认前最后一个合格持久化评估",
+        "首发确认后第一个使用 fresh",
+        "每场 fixture",
+        "只允许一个 pair",
+        "跨赛季、跨联赛、marker-only 和 superseded 数据全部排除",
+        "禁止 fuzzy、名称猜测或跨 bookmaker/line 拼接",
+    ):
+        assert identity_rule in b5
+    for acquisition_rule in (
+        "35 个历史 results 只能使用已持久化的",
+        "仅精确唯一",
+        "多义或缺失继续保持 blocker",
+        "不得调用 Provider",
+        "不得用 direct SQL",
+        "独立、幂等、可回滚 PR",
+        "`dynamic_prematch_evaluations`、`lineup_confirmed_events` 的真实写侧",
+        "不得制造历史样本或使用 synthetic 数据充数",
+        "只有另行取得 activation 授权后",
+        "Recommendation、Candidate、Formal、Lock、Production 全程保持关闭",
+    ):
+        assert acquisition_rule in b5
+    assert "500 个验证样本" in b5
+    assert "Bootstrap 只重采样 validation fixture pairs" in b5
+    assert "排序后的 canonical pair" in b5
+    assert "identity hash 派生" in b5
+    assert "2.5% 与 97.5% 分位数" in b5
+    assert "RPS 与 coverage 必须输出" in b5
+    assert "不得作为 blocker" in b5
     b7 = checklist[
         checklist.index("#### B7. EVAL-03") : checklist.index("### 模型升级")
     ]
