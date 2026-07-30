@@ -88,19 +88,28 @@ tasks:
     legacy_remediation_reopen_condition: EXACT_ORIGINAL_RAW_BLOB_RECOVERED
     required_blob_verification: SHA256(blob) == result.source_payload_sha256
     reopen_scope: IDENTITY_REMEDIATION_ONLY
-    write_side_implementation_authorized: false
+    write_side_implementation_authorized: true
+    write_side_execution_tranche: STACKED_IMPLEMENTATIONS_02_03_04
+    write_side_implementation_01: DONE
+    write_side_implementation_01_pr: 441
+    write_side_implementation_01_merge_sha: 5c52a40a6f0b3afb8589c251bea0b7ba611012f5
+    write_side_implementation_01_main_ci: 30583359805
+    write_side_implementation_02: AUTHORIZED
+    write_side_implementation_03: AUTHORIZED_AFTER_02
+    write_side_implementation_04: AUTHORIZED_AFTER_03
     provider_calls_authorized: false
     scheduler_start_authorized: false
     write_side_readiness_design: FROZEN
     write_side_ready: false
     new_table_count: 0
     new_migration_count: 0
-    lineup_event_production_caller: MISSING
+    lineup_event_production_caller: IMPLEMENTED
+    canonical_lineup_event_atomic_write: IMPLEMENTED
     post_lineup_refresh_plan_production_caller: MISSING
     dynamic_evaluation_v2: DESIGNED
     five_state_snapshot: DESIGNED
     exact_pair_projector: DESIGNED
-    next_required_action: WRITE_SIDE_IMPLEMENTATION_01_REVIEW
+    next_required_action: WRITE_SIDE_IMPLEMENTATION_02
   EVAL-03:
     status: NOT_STARTED
 safety:

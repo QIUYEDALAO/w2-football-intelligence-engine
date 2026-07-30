@@ -127,32 +127,43 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
             "SHA256(blob) == result.source_payload_sha256"
         ),
         "reopen_scope": "IDENTITY_REMEDIATION_ONLY",
-        "write_side_implementation_authorized": False,
+        "write_side_implementation_authorized": True,
+        "write_side_execution_tranche": "STACKED_IMPLEMENTATIONS_02_03_04",
+        "write_side_implementation_01": "DONE",
+        "write_side_implementation_01_pr": 441,
+        "write_side_implementation_01_merge_sha": (
+            "5c52a40a6f0b3afb8589c251bea0b7ba611012f5"
+        ),
+        "write_side_implementation_01_main_ci": 30583359805,
+        "write_side_implementation_02": "AUTHORIZED",
+        "write_side_implementation_03": "AUTHORIZED_AFTER_02",
+        "write_side_implementation_04": "AUTHORIZED_AFTER_03",
         "provider_calls_authorized": False,
         "scheduler_start_authorized": False,
         "write_side_readiness_design": "FROZEN",
         "write_side_ready": False,
         "new_table_count": 0,
         "new_migration_count": 0,
-        "lineup_event_production_caller": "MISSING",
+        "lineup_event_production_caller": "IMPLEMENTED",
+        "canonical_lineup_event_atomic_write": "IMPLEMENTED",
         "post_lineup_refresh_plan_production_caller": "MISSING",
         "dynamic_evaluation_v2": "DESIGNED",
         "five_state_snapshot": "DESIGNED",
         "exact_pair_projector": "DESIGNED",
-        "next_required_action": "WRITE_SIDE_IMPLEMENTATION_01_REVIEW",
+        "next_required_action": "WRITE_SIDE_IMPLEMENTATION_02",
     }
     assert state["tasks"]["EVAL-03"]["status"] == "NOT_STARTED"
     assert state["architecture_convergence"]["status"] == "PASS"
     assert "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)" in next_action
     assert CHECKLIST_PATH in next_action
     assert (
-        "当前：B5 WRITE_SIDE_READINESS_DESIGN 已冻结，但 "
-        "WRITE_SIDE_READY = false；EVAL-02B 仍为 BLOCKED。" in next_action
+        "当前：Implementation 01 已完成并合并；"
+        "WRITE_SIDE_READY = false。" in next_action
     )
     assert (
-        "下一步：B5 WRITE_SIDE_IMPLEMENTATION_01_REVIEW；"
-        "写侧实现、Provider、scheduler "
-        "与运行采集均未授权，B7 EVAL-03 仍为 NOT_STARTED。"
+        "下一步：按已授权 stacked tranche 执行 Implementation 02 → 03 → 04；"
+        "Provider、scheduler、运行采集与 EVAL-02B 启动仍未授权，"
+        "B7 EVAL-03 仍为 NOT_STARTED。"
         in next_action
     )
     assert "sole machine-readable project-status record" in ledger
@@ -259,17 +270,28 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "LEGACY_RESULT_EVAL_ELIGIBILITY = false",
         "LEGACY_IDENTITY_REMEDIATION_CLOSED = true",
         "FUTURE_ONLY_PAIR_COLLECTION_REQUIRED = true",
-        "WRITE_SIDE_IMPLEMENTATION_AUTHORIZED = false",
+        "WRITE_SIDE_IMPLEMENTATION_01 = DONE",
+        "WRITE_SIDE_IMPLEMENTATION_01_PR = 441",
+        "WRITE_SIDE_IMPLEMENTATION_01_MERGE_SHA =",
+        "5c52a40a6f0b3afb8589c251bea0b7ba611012f5",
+        "WRITE_SIDE_IMPLEMENTATION_01_MAIN_CI = 30583359805",
+        "WRITE_SIDE_IMPLEMENTATION_AUTHORIZED = true",
+        "WRITE_SIDE_EXECUTION_TRANCHE =",
+        "STACKED_IMPLEMENTATIONS_02_03_04",
+        "WRITE_SIDE_IMPLEMENTATION_02 = AUTHORIZED",
+        "WRITE_SIDE_IMPLEMENTATION_03 = AUTHORIZED_AFTER_02",
+        "WRITE_SIDE_IMPLEMENTATION_04 = AUTHORIZED_AFTER_03",
         "PROVIDER_CALLS_AUTHORIZED = false",
         "SCHEDULER_START_AUTHORIZED = false",
         "WRITE_SIDE_READINESS_DESIGN = FROZEN",
         "WRITE_SIDE_READY = false",
-        "LINEUP_EVENT_PRODUCTION_CALLER = MISSING",
+        "LINEUP_EVENT_PRODUCTION_CALLER = IMPLEMENTED",
+        "CANONICAL_LINEUP_EVENT_ATOMIC_WRITE = IMPLEMENTED",
         "POST_LINEUP_REFRESH_PLAN_PRODUCTION_CALLER = MISSING",
         "DYNAMIC_EVALUATION_V2 = DESIGNED",
         "FIVE_STATE_SNAPSHOT = DESIGNED",
         "EXACT_PAIR_PROJECTOR = DESIGNED",
-        "NEXT_REQUIRED_ACTION = WRITE_SIDE_IMPLEMENTATION_01_REVIEW",
+        "NEXT_REQUIRED_ACTION = WRITE_SIDE_IMPLEMENTATION_02",
         "NEW_PROVIDER_FETCH_CAN_RESTORE_LEGACY_PROVENANCE = false",
         "FUZZY_IDENTITY_RECONSTRUCTION_ALLOWED = false",
         "TEAM_NAME_MATCH_ALLOWED = false",
@@ -638,7 +660,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "01 -> 02 -> 03 -> 04",
         "WRITE_SIDE_READINESS_DESIGN = FROZEN",
         "WRITE_SIDE_READY = false",
-        "NEXT_REQUIRED_ACTION = WRITE_SIDE_IMPLEMENTATION_01_REVIEW",
+        "NEXT_REQUIRED_ACTION = WRITE_SIDE_IMPLEMENTATION_02",
     ):
         assert write_side_coordinate in b5
     for write_side_rule in (
@@ -688,6 +710,11 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "分别通过独立、可回滚 PR",
         "不得自动开启 Provider、",
         "scheduler 或运行采集",
+        "只授权 Implementation 02–04 的代码实现",
+        "不授权 Provider、scheduler、生产部署或运行采集",
+        "三个 stacked Draft PR",
+        "中间不创建状态闭环 PR",
+        "全部验收并合并后再统一更新最终权威状态",
     ):
         assert write_side_rule in b5
     assert "DYNAMIC_EVALUATION_V2_EVAL_02B_ELIGIBLE = true" not in b5

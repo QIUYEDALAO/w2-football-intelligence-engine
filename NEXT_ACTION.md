@@ -5,5 +5,5 @@
 
 Task coordinates are maintained only in those authorities.
 
-当前：B5 WRITE_SIDE_READINESS_DESIGN 已冻结，但 WRITE_SIDE_READY = false；EVAL-02B 仍为 BLOCKED。
-下一步：B5 WRITE_SIDE_IMPLEMENTATION_01_REVIEW；写侧实现、Provider、scheduler 与运行采集均未授权，B7 EVAL-03 仍为 NOT_STARTED。
+当前：Implementation 01 已完成并合并；WRITE_SIDE_READY = false。
+下一步：按已授权 stacked tranche 执行 Implementation 02 → 03 → 04；Provider、scheduler、运行采集与 EVAL-02B 启动仍未授权，B7 EVAL-03 仍为 NOT_STARTED。
