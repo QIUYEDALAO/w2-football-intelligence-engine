@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -222,6 +222,200 @@ class FormalTrackingSummaryResponse(BaseModel):
     buckets: dict[str, Any]
     not_a_formal_gate: bool = True
     posthoc_only: bool = True
+
+
+class PerformanceReliabilityBin(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    lower: float
+    upper: float
+    count: int = Field(ge=0)
+    mean_confidence: float | None
+    accuracy: float | None
+
+
+class PerformanceBootstrap(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["AVAILABLE", "INSUFFICIENT"]
+    sample_count: int = Field(ge=0)
+    metric: str | None = None
+    delta: float | None = None
+    ci95: list[float] | None = Field(default=None, min_length=2, max_length=2)
+    iterations: int | None = Field(default=None, ge=1)
+    seed: int | None = None
+
+
+class PerformanceWindowProjection(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    finished_result_count: int = Field(ge=0)
+    fixture_checkpoint_count: int = Field(ge=0)
+    scored_count: int = Field(ge=0)
+    not_scorable_count: int = Field(ge=0)
+    blocked_count: int = Field(ge=0)
+    not_scorable_by_reason: dict[str, int]
+    model_log_loss: float | None
+    market_log_loss: float | None
+    model_minus_market_log_loss: float | None
+    model_ece: float | None
+    market_ece: float | None
+    model_reliability_bins: list[PerformanceReliabilityBin]
+    market_reliability_bins: list[PerformanceReliabilityBin]
+    paired_log_loss_bootstrap: PerformanceBootstrap
+    clv_sample_count: int = Field(ge=0)
+    clv_mean: float | None
+    clv_median: float | None
+    clv_positive_count: int = Field(ge=0)
+    clv_positive_share: float | None
+    clv_ci95: list[float] | None = Field(default=None, min_length=2, max_length=2)
+    clv_method: str
+    canonical_settled_count: int = Field(ge=0)
+    canonical_hit_count: int = Field(ge=0)
+    canonical_miss_count: int = Field(ge=0)
+    canonical_push_count: int = Field(ge=0)
+    canonical_void_count: int = Field(ge=0)
+    canonical_decisive_count: int = Field(ge=0)
+    canonical_hit_rate: float | None
+    canonical_hit_rate_status: Literal["AVAILABLE", "INSUFFICIENT_SAMPLE"]
+    sample_target: int = Field(gt=0)
+    sample_progress: float = Field(ge=0, le=1)
+    sample_progress_status: Literal["ACCUMULATING", "TARGET_REACHED"]
+
+
+class PerformanceCohortProjection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["w2.performance_projection.v2"]
+    projection_version: Literal["eval-01c.v2"]
+    checkpoint_key: str
+    scoring_window_anchor: datetime
+    windows: dict[Literal["7d", "30d", "90d"], PerformanceWindowProjection]
+    business_projection_hash: str
+
+
+class PerformanceFixtureProjection(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    schema_version: Literal["w2.performance_projection.v2"]
+    projection_version: Literal["eval-01c.v2"]
+    status: Literal["SCORED", "NOT_SCORABLE", "BLOCKED"]
+    fixture_id: str
+    kickoff_utc: datetime
+    league: str
+    evaluation_tier: Literal["STRICT", "ADVISORY", "UNKNOWN"]
+    clv_status: str
+    clv_decimal: float | None
+    canonical_pick_status: Literal[
+        "AVAILABLE",
+        "NOT_APPLICABLE_NO_CANONICAL_PICK",
+        "SETTLEMENT_MISSING",
+        "CANONICAL_PICK_CONFLICT",
+    ]
+    canonical_settlement_outcome: Literal["HIT", "MISS", "PUSH", "VOID"] | None
+    canonical_decisive: bool | None
+
+
+class PerformanceClvPoint(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    fixture_id: str
+    kickoff_utc: datetime
+    league: str
+    evaluation_tier: Literal["STRICT", "ADVISORY", "UNKNOWN"]
+    clv_decimal: float
+
+
+class PerformanceClvResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    sample_count: int = Field(ge=0)
+    mean: float | None
+    median: float | None
+    ci95: list[float] | None = Field(default=None, min_length=2, max_length=2)
+    positive_count: int = Field(ge=0)
+    positive_share: float | None
+    method: str
+    points: list[PerformanceClvPoint]
+
+
+class PerformanceCalibrationResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    scored_count: int = Field(ge=0)
+    model_log_loss: float | None
+    market_log_loss: float | None
+    model_minus_market_log_loss: float | None
+    model_ece: float | None
+    market_ece: float | None
+    model_reliability_bins: list[PerformanceReliabilityBin]
+    market_reliability_bins: list[PerformanceReliabilityBin]
+    paired_log_loss_bootstrap: PerformanceBootstrap
+
+
+class PerformanceTierRow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tier: Literal["STRICT", "ADVISORY"]
+    finished_result_count: int = Field(ge=0)
+    scored_count: int = Field(ge=0)
+    canonical_settled_count: int = Field(ge=0)
+    canonical_hit_rate: float | None
+    canonical_hit_rate_status: Literal["AVAILABLE", "INSUFFICIENT_SAMPLE"]
+    clv_mean: float | None
+    clv_positive_share: float | None
+
+
+class PerformanceTierComparison(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    STRICT: PerformanceTierRow
+    ADVISORY: PerformanceTierRow
+
+
+class PerformanceSampleProgress(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    current: int = Field(ge=0)
+    target: int = Field(gt=0)
+    ratio: float = Field(ge=0, le=1)
+    status: Literal["ACCUMULATING", "TARGET_REACHED"]
+
+
+class PerformanceCoverage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    finished_result_count: int = Field(ge=0)
+    fixture_checkpoint_count: int = Field(ge=0)
+    scored_count: int = Field(ge=0)
+    not_scorable_count: int = Field(ge=0)
+    blocked_count: int = Field(ge=0)
+    not_scorable_by_reason: dict[str, int]
+
+
+class PerformanceCheckpointMetadata(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    checkpoint_key: str
+    source_hash: str
+    created_at: datetime
+
+
+class PerformanceResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: str
+    projection_version: Literal["eval-01c.v2"]
+    scoring_window_anchor: datetime
+    selected_window: Literal["7d", "30d", "90d"]
+    selected_league: str | None
+    selected_tier: Literal["ALL", "STRICT", "ADVISORY"]
+    clv: PerformanceClvResponse
+    calibration: PerformanceCalibrationResponse
+    tier_comparison: PerformanceTierComparison
+    sample_progress: PerformanceSampleProgress
+    coverage: PerformanceCoverage
+    checkpoint_metadata: PerformanceCheckpointMetadata
 
 
 class MatchdayCoverageResponse(BaseModel):

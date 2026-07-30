@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
@@ -30,6 +31,7 @@ from w2.tracking.forward_ledger_performance import (
     _log_loss,
     _probability_vector,
     _rps,
+    canonical_settlement_outcome,
 )
 from w2.tracking.outcome_ledger_repository import (
     IMPORT_CONFIRMATION_PHRASE,
@@ -1463,6 +1465,216 @@ def test_fixture_clv_uses_existing_selection_and_method(tmp_path: Path) -> None:
     assert payload["clv_method"] == CLV_METHOD
 
 
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("HIT", "HIT"),
+        ("WIN", "HIT"),
+        ("HALF_WIN", "HIT"),
+        ("MISS", "MISS"),
+        ("LOSS", "MISS"),
+        ("HALF_LOSS", "MISS"),
+        ("PUSH", "PUSH"),
+        ("VOID", "VOID"),
+    ],
+)
+def test_canonical_settlement_outcome_reuses_forward_semantics(
+    raw: str,
+    expected: str,
+) -> None:
+    assert canonical_settlement_outcome(raw) == expected
+
+
+@pytest.mark.parametrize(
+    ("outcome", "decisive"),
+    [
+        ("HIT", True),
+        ("MISS", True),
+        ("PUSH", False),
+        ("VOID", False),
+    ],
+)
+def test_fixture_projection_includes_canonical_settlement(
+    tmp_path: Path,
+    outcome: str,
+    decisive: bool,
+) -> None:
+    repository = _repository(tmp_path)
+    fixture_id = f"canonical-{outcome.lower()}"
+    _seed_result(repository, fixture_id, home=1, away=0)
+    _seed_identity(repository, fixture_id, kickoff=KICKOFF)
+    capture = _capture(
+        fixture_id,
+        KICKOFF - timedelta(minutes=5),
+        identity=f"capture-{outcome.lower()}",
+        kickoff=KICKOFF,
+    )
+    capture["recommendation_scope"] = "VALIDATION"
+    capture["pick"] = {
+        "market": "ASIAN_HANDICAP",
+        "selection": "HOME_AH",
+    }
+    repository.append(
+        [capture, _settlement(capture, outcome)],
+        dry_run=False,
+        write_db=True,
+    )
+
+    run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+    payload = _checkpoint(repository, f"performance:fixture:{fixture_id}")
+
+    assert payload["canonical_pick_status"] == "AVAILABLE"
+    assert payload["canonical_settlement_outcome"] == outcome
+    assert payload["canonical_decisive"] is decisive
+
+
+def test_fixture_projection_canonical_pick_missing_conflict_and_unsettled(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    fixtures = ("no-pick", "conflict", "unsettled")
+    for fixture_id in fixtures:
+        _seed_result(repository, fixture_id, home=1, away=0)
+        _seed_identity(repository, fixture_id, kickoff=KICKOFF)
+    no_pick = _capture(
+        "no-pick",
+        KICKOFF - timedelta(minutes=5),
+        identity="no-pick",
+        kickoff=KICKOFF,
+    )
+    first = _capture(
+        "conflict",
+        KICKOFF - timedelta(minutes=10),
+        identity="conflict-a",
+        kickoff=KICKOFF,
+    )
+    second = _capture(
+        "conflict",
+        KICKOFF - timedelta(minutes=5),
+        identity="conflict-b",
+        kickoff=KICKOFF,
+    )
+    unsettled = _capture(
+        "unsettled",
+        KICKOFF - timedelta(minutes=5),
+        identity="unsettled",
+        kickoff=KICKOFF,
+    )
+    for capture, selection in (
+        (first, "HOME_AH"),
+        (second, "AWAY_AH"),
+        (unsettled, "HOME_AH"),
+    ):
+        capture["recommendation_scope"] = "VALIDATION"
+        capture["pick"] = {
+            "market": "ASIAN_HANDICAP",
+            "selection": selection,
+        }
+    repository.append(
+        [no_pick, first, second, unsettled],
+        dry_run=False,
+        write_db=True,
+    )
+
+    run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+
+    assert _checkpoint(
+        repository, "performance:fixture:no-pick"
+    )["canonical_pick_status"] == "NOT_APPLICABLE_NO_CANONICAL_PICK"
+    assert _checkpoint(
+        repository, "performance:fixture:conflict"
+    )["canonical_pick_status"] == "CANONICAL_PICK_CONFLICT"
+    assert _checkpoint(
+        repository, "performance:fixture:unsettled"
+    )["canonical_pick_status"] == "SETTLEMENT_MISSING"
+
+
+def test_cohort_canonical_hit_rate_and_sample_progress(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    outcomes = ("HIT", "HIT", "HIT", "MISS", "PUSH", "VOID")
+    for index, outcome in enumerate(outcomes):
+        fixture_id = f"canonical-rate-{index}"
+        kickoff = KICKOFF - timedelta(hours=index)
+        _seed_result(repository, fixture_id, home=1, away=0)
+        _seed_identity(repository, fixture_id, kickoff=kickoff)
+        capture = _capture(
+            fixture_id,
+            kickoff - timedelta(minutes=5),
+            identity=f"canonical-rate-{index}",
+            kickoff=kickoff,
+        )
+        capture["recommendation_scope"] = "VALIDATION"
+        capture["pick"] = {
+            "market": "ASIAN_HANDICAP",
+            "selection": "HOME_AH",
+        }
+        repository.append(
+            [capture, _settlement(capture, outcome)],
+            dry_run=False,
+            write_db=True,
+        )
+
+    run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+    window = _checkpoint(
+        repository, "performance:cohort:all"
+    )["windows"]["30d"]
+
+    assert window["canonical_settled_count"] == 6
+    assert window["canonical_hit_count"] == 3
+    assert window["canonical_miss_count"] == 1
+    assert window["canonical_push_count"] == 1
+    assert window["canonical_void_count"] == 1
+    assert window["canonical_decisive_count"] == 4
+    assert window["canonical_hit_rate"] is None
+    assert window["canonical_hit_rate_status"] == "INSUFFICIENT_SAMPLE"
+    assert window["sample_target"] == 200
+    assert window["sample_progress"] == 0.03
+    assert window["sample_progress_status"] == "ACCUMULATING"
+
+    extra = _capture(
+        "canonical-rate-extra",
+        KICKOFF - timedelta(minutes=5),
+        identity="canonical-rate-extra",
+        kickoff=KICKOFF,
+    )
+    _seed_result(repository, "canonical-rate-extra", home=1, away=0)
+    _seed_identity(repository, "canonical-rate-extra", kickoff=KICKOFF)
+    extra["recommendation_scope"] = "VALIDATION"
+    extra["pick"] = {
+        "market": "ASIAN_HANDICAP",
+        "selection": "HOME_AH",
+    }
+    repository.append(
+        [extra, _settlement(extra, "HIT")],
+        dry_run=False,
+        write_db=True,
+    )
+    run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+    window = _checkpoint(
+        repository, "performance:cohort:all"
+    )["windows"]["30d"]
+
+    assert window["canonical_decisive_count"] == 5
+    assert window["canonical_hit_rate"] == 0.8
+    assert window["canonical_hit_rate_status"] == "AVAILABLE"
+
+
 def test_same_source_with_different_payload_fails_closed(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
     _seed_result(repository, "fixture-conflict", home=1, away=0)
@@ -1888,6 +2100,25 @@ def _capture(
         "decision_tier": "WATCH",
         "recommendation_scope": "NONE",
         "pick": None,
+    }
+
+
+def _settlement(
+    capture: Mapping[str, Any],
+    outcome: str,
+) -> dict[str, Any]:
+    pick = capture["pick"]
+    assert isinstance(pick, Mapping)
+    return {
+        "schema_version": "w2.forward_outcome_ledger.v3",
+        "record_type": "outcome",
+        "fixture_id": capture["fixture_id"],
+        "settled_at": (KICKOFF + timedelta(hours=2)).isoformat(),
+        "recommendation_scope": capture["recommendation_scope"],
+        "capture_identity_hash": capture["capture_identity_hash"],
+        "market": pick["market"],
+        "selection": pick["selection"],
+        "settlement_outcome": outcome,
     }
 
 

@@ -42,6 +42,11 @@ SETTLED_OUTCOMES = {
 }
 
 
+def canonical_settlement_outcome(value: Any) -> str | None:
+    bucket = SETTLED_OUTCOMES.get(_text(value).upper())
+    return bucket.upper() if bucket else None
+
+
 def _result_for_fixture(
     results: Mapping[str, Mapping[str, Any]],
     fixture_id: str,
@@ -395,9 +400,9 @@ def _scoped_outcomes(records: Sequence[Mapping[str, Any]], scope: str) -> list[M
 def _counts_for_rows(rows: Sequence[Mapping[str, Any]]) -> defaultdict[str, int]:
     counts: defaultdict[str, int] = defaultdict(int)
     for row in rows:
-        bucket = SETTLED_OUTCOMES.get(_outcome(row))
+        bucket = canonical_settlement_outcome(_outcome(row))
         if bucket:
-            counts[bucket] += 1
+            counts[bucket.lower()] += 1
     return counts
 
 
@@ -778,9 +783,9 @@ def _outcome_counts(
     for record in records:
         if _outcome_side(record) != side:
             continue
-        bucket = SETTLED_OUTCOMES.get(_outcome(record))
+        bucket = canonical_settlement_outcome(_outcome(record))
         if bucket:
-            counts[bucket] += 1
+            counts[bucket.lower()] += 1
     return counts
 
 
@@ -793,9 +798,9 @@ def outcome_counts_by_league(
     for record in records:
         if _outcome_side(record) != side:
             continue
-        bucket = SETTLED_OUTCOMES.get(_outcome(record))
+        bucket = canonical_settlement_outcome(_outcome(record))
         if bucket:
-            by_league[_league_key(record)][bucket] += 1
+            by_league[_league_key(record)][bucket.lower()] += 1
     return by_league
 
 

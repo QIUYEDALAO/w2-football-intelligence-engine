@@ -22,7 +22,11 @@ from w2.infrastructure.persistence.matchday_intake_models import (
 )
 from w2.infrastructure.persistence.models import ResultModel
 from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerModel
-from w2.tracking.forward_ledger_performance import CLV_METHOD, fixture_clv
+from w2.tracking.forward_ledger_performance import (
+    CLV_METHOD,
+    canonical_settlement_outcome,
+    fixture_clv,
+)
 from w2.tracking.outcome_ledger_repository import (
     ExactFixtureResolver,
     FixtureIdentityConflict,
@@ -39,8 +43,8 @@ from w2.tracking.performance_scoring import (
     rps,
 )
 
-SCHEMA_VERSION = "w2.finished_match_scoring_projection.v1"
-PROJECTION_VERSION = "eval-01b.v1"
+SCHEMA_VERSION = "w2.performance_projection.v2"
+PROJECTION_VERSION = "eval-01c.v2"
 WRITE_CONFIRMATION_PHRASE = "EVAL_01B_WRITE_SCORING_PROJECTION"  # noqa: S105
 TERMINAL_STATUSES = {"FT", "AET", "PEN"}
 WINDOWS = {"7d": timedelta(days=7), "30d": timedelta(days=30), "90d": timedelta(days=90)}
@@ -601,6 +605,7 @@ def _fixture_projection(
         status = "BLOCKED"
         reasons = ["OUTCOME_LEDGER_ENVELOPE_PAYLOAD_CONFLICT"]
     clv = _fixture_clv(records, fixture_id)
+    canonical = _canonical_pick_settlement(records, fixture_id)
     scoring_capture = capture if status == "SCORED" else None
     scored_model = model if scoring_capture else None
     scored_market = market if scoring_capture else None
@@ -688,6 +693,7 @@ def _fixture_projection(
         "clv_status": clv["clv_status"],
         "clv_decimal": clv["clv_decimal"],
         "clv_method": CLV_METHOD,
+        **canonical,
         "source_event_type": "RESULT_MATERIALIZED",
         "source_event_id": result.id,
         "source_event_hash": result.result_hash,
@@ -1106,6 +1112,120 @@ def _fixture_clv(
     }
 
 
+def _canonical_pick_settlement(
+    records: Sequence[Mapping[str, Any]],
+    fixture_id: str,
+) -> dict[str, Any]:
+    active = _active_fixture_records(records, fixture_id)
+    picks: set[tuple[str, str]] = set()
+    capture_hashes: set[str] = set()
+    for record in active:
+        pick = record.get("pick")
+        if (
+            _record_type(record) != "capture"
+            or _text(record.get("recommendation_scope")).upper()
+            not in {"OFFICIAL", "VALIDATION"}
+            or not isinstance(pick, Mapping)
+        ):
+            continue
+        market = _text(pick.get("market"))
+        selection = _text(pick.get("selection"))
+        if market and selection:
+            picks.add((market, selection))
+            if capture_hash := _text(record.get("capture_identity_hash")):
+                capture_hashes.add(capture_hash)
+    if not picks:
+        return _canonical_outcome_payload("NOT_APPLICABLE_NO_CANONICAL_PICK")
+    if len(picks) != 1:
+        return _canonical_outcome_payload("CANONICAL_PICK_CONFLICT")
+
+    market, selection = next(iter(picks))
+    outcomes: set[str] = set()
+    conflict = False
+    for record in active:
+        if (
+            _record_type(record) != "outcome"
+            or _text(record.get("recommendation_scope")).upper()
+            not in {"OFFICIAL", "VALIDATION"}
+            or _text(record.get("market")) != market
+            or _text(record.get("selection")) != selection
+        ):
+            continue
+        linked_capture = _text(
+            record.get("capture_identity_hash")
+            or record.get("source_capture_hash")
+        )
+        if linked_capture and capture_hashes and linked_capture not in capture_hashes:
+            conflict = True
+            continue
+        raw_outcome = _settlement_outcome(record)
+        normalized = canonical_settlement_outcome(raw_outcome)
+        if raw_outcome and normalized is None:
+            conflict = True
+        elif normalized:
+            outcomes.add(normalized)
+    if conflict or len(outcomes) > 1:
+        return _canonical_outcome_payload("CANONICAL_PICK_CONFLICT")
+    if not outcomes:
+        return _canonical_outcome_payload("SETTLEMENT_MISSING")
+    outcome = next(iter(outcomes))
+    return {
+        "canonical_pick_status": "AVAILABLE",
+        "canonical_settlement_outcome": outcome,
+        "canonical_decisive": outcome in {"HIT", "MISS"},
+    }
+
+
+def _canonical_outcome_payload(status: str) -> dict[str, Any]:
+    return {
+        "canonical_pick_status": status,
+        "canonical_settlement_outcome": None,
+        "canonical_decisive": None,
+    }
+
+
+def _active_fixture_records(
+    records: Sequence[Mapping[str, Any]],
+    fixture_id: str,
+) -> list[Mapping[str, Any]]:
+    fixture_records = [
+        record for record in records if _fixture_id(record) == fixture_id
+    ]
+    superseded = {
+        _text(record.get("target_capture_identity_hash"))
+        for record in fixture_records
+        if _record_type(record) == "supersession"
+        and _text(record.get("supersession_status")).upper() == "SUPERSEDED"
+    }
+    return [
+        record
+        for record in fixture_records
+        if not (
+            _record_type(record) in {"capture", "outcome"}
+            and {
+                _text(record.get("capture_identity_hash")),
+                _text(record.get("source_capture_hash")),
+            }
+            & superseded
+        )
+    ]
+
+
+def _settlement_outcome(record: Mapping[str, Any]) -> str:
+    for key in ("settlement_outcome", "outcome", "result_outcome"):
+        if value := _text(record.get(key)):
+            return value
+    settlement = record.get("settlement")
+    if isinstance(settlement, Mapping):
+        return _text(
+            settlement.get("outcome") or settlement.get("settlement")
+        )
+    validation = record.get("validation")
+    if isinstance(validation, Mapping):
+        return _text(validation.get("settlement"))
+    return ""
+
+
 def _existing_fixture_payloads(session: Session) -> dict[str, dict[str, Any]]:
     rows = session.scalars(
         select(ReadModelCheckpointModel).where(
@@ -1192,6 +1312,16 @@ def _window_metrics(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         for row in scored
         if _is_number(row.get("clv_decimal"))
     ]
+    canonical_outcomes = Counter(
+        _text(row.get("canonical_settlement_outcome")).upper()
+        for row in rows
+        if _text(row.get("canonical_settlement_outcome")).upper()
+        in {"HIT", "MISS", "PUSH", "VOID"}
+    )
+    canonical_settled_count = sum(canonical_outcomes.values())
+    canonical_decisive_count = (
+        canonical_outcomes["HIT"] + canonical_outcomes["MISS"]
+    )
     return {
         "finished_result_count": len(rows),
         "fixture_checkpoint_count": len(rows),
@@ -1233,6 +1363,29 @@ def _window_metrics(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         ),
         "clv_ci95": bootstrap_ci(clv_values),
         "clv_method": CLV_METHOD,
+        "canonical_settled_count": canonical_settled_count,
+        "canonical_hit_count": canonical_outcomes["HIT"],
+        "canonical_miss_count": canonical_outcomes["MISS"],
+        "canonical_push_count": canonical_outcomes["PUSH"],
+        "canonical_void_count": canonical_outcomes["VOID"],
+        "canonical_decisive_count": canonical_decisive_count,
+        "canonical_hit_rate": (
+            canonical_outcomes["HIT"] / canonical_decisive_count
+            if canonical_decisive_count >= 5
+            else None
+        ),
+        "canonical_hit_rate_status": (
+            "AVAILABLE"
+            if canonical_decisive_count >= 5
+            else "INSUFFICIENT_SAMPLE"
+        ),
+        "sample_target": 200,
+        "sample_progress": min(canonical_settled_count / 200, 1.0),
+        "sample_progress_status": (
+            "TARGET_REACHED"
+            if canonical_settled_count >= 200
+            else "ACCUMULATING"
+        ),
     }
 
 
@@ -1318,6 +1471,8 @@ def _persist_checkpoint(
 def _source_hash(payload: Mapping[str, Any]) -> str:
     return _hash_value(
         {
+            "schema_version": payload.get("schema_version"),
+            "projection_version": payload.get("projection_version"),
             "result_identity_hash": payload.get("result_identity_hash"),
             "source_capture_identity_hash": payload.get("source_capture_identity_hash"),
             "source_capture_group_hash": payload.get("source_capture_group_hash"),
@@ -1354,6 +1509,11 @@ def _source_hash(payload: Mapping[str, Any]) -> str:
             ),
             "status": payload.get("status"),
             "reason_codes": payload.get("reason_codes"),
+            "canonical_pick_status": payload.get("canonical_pick_status"),
+            "canonical_settlement_outcome": payload.get(
+                "canonical_settlement_outcome"
+            ),
+            "canonical_decisive": payload.get("canonical_decisive"),
         }
     )
 

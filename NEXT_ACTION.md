@@ -5,5 +5,5 @@
 
 Task coordinates are maintained only in those authorities.
 
-当前：完成 B2 EVAL-01B / PR #430 exact-head CI、staging 与二次验收。
-下一项：B3 EVAL-01C；B2 合并前不启动。
+当前：完成 B3 EVAL-01C / PR #432 Dashboard 表现视图实现与验收。
+下一项：B4 EVAL-02A；B3 合并前不启动。

@@ -33,10 +33,10 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
 
     assert state["current_state_authority"] == "PROJECT_STATE.yaml"
     assert state["task_authority"] == CHECKLIST_PATH
-    assert state["current_task"] == "EVAL-01B"
-    assert state["current_status"] == "DONE"
-    assert state["current_pr"] == 430
-    assert state["next_task"] == "EVAL-01C"
+    assert state["current_task"] == "EVAL-01C"
+    assert state["current_status"] == "IN_PROGRESS"
+    assert state["current_pr"] == 432
+    assert state["next_task"] == "EVAL-02A"
     assert state["tasks"]["ARCH-P2-02"] == {
         "status": "DONE",
         "receipt": CHECKLIST_PATH,
@@ -73,15 +73,20 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "merge_sha": "5c2bd6f2e5c23196a25495335da72599e076c8ae",
         "main_ci": 30477611652,
     }
-    assert state["tasks"]["EVAL-01C"]["status"] == "NOT_STARTED"
+    assert state["tasks"]["EVAL-01C"] == {
+        "status": "IN_PROGRESS",
+        "pr": 432,
+        "branch": "codex/eval-01c-performance-dashboard",
+    }
+    assert state["tasks"]["EVAL-02A"]["status"] == "NOT_STARTED"
     assert state["architecture_convergence"]["status"] == "PASS"
     assert "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)" in next_action
     assert CHECKLIST_PATH in next_action
     assert (
-        "当前：完成 B2 EVAL-01B / PR #430 exact-head CI、staging 与二次验收。"
+        "当前：完成 B3 EVAL-01C / PR #432 Dashboard 表现视图实现与验收。"
         in next_action
     )
-    assert "下一项：B3 EVAL-01C；B2 合并前不启动。" in next_action
+    assert "下一项：B4 EVAL-02A；B3 合并前不启动。" in next_action
     assert "sole machine-readable project-status record" in ledger
     assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", ledger)
     assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", next_action)
@@ -105,8 +110,13 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     b2 = checklist[
         checklist.index("#### B2. EVAL-01B") : checklist.index("#### B3.")
     ]
-    assert "Status: IMPLEMENTED_PENDING_SECONDARY_REVIEW_AND_STAGING" in b2
+    assert "Status: DONE" in b2
     assert "PR: #430" in b2
+    assert "Source head: dbd70161823c45a1a8e38b68be7de646db2d2a33" in b2
+    assert "Merge SHA: 5c2bd6f2e5c23196a25495335da72599e076c8ae" in b2
+    assert "Main CI: 30477611652" in b2
+    assert "Staging acceptance: PASS" in b2
+    assert "- [x] PR 合并。" in b2
     assert "W2_ARCHITECTURE_CONVERGENCE_COMPLETE = PASS" in checklist
     for task in FORBIDDEN_TASKS:
         assert task not in state
