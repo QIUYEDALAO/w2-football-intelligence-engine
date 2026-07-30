@@ -356,7 +356,8 @@ class ReadModelService:
                     "clv_decimal": fixture.clv_decimal,
                 }
                 for fixture in fixtures
-                if fixture.clv_status == "AVAILABLE"
+                if fixture.status == "SCORED"
+                and fixture.clv_status == "AVAILABLE"
                 and fixture.clv_decimal is not None
                 and fixture.kickoff_utc.tzinfo is not None
                 and lower
@@ -371,7 +372,7 @@ class ReadModelService:
                     str(row["fixture_id"]),
                 )
             )
-            payload = PerformanceResponse.model_validate(
+            response = PerformanceResponse.model_validate(
                 {
                     "request_id": "validation-only",
                     "projection_version": selected.projection_version,
@@ -380,6 +381,7 @@ class ReadModelService:
                     "selected_league": league,
                     "selected_tier": tier,
                     "clv": {
+                        "clv_population": selected_window.clv_population,
                         "sample_count": selected_window.clv_sample_count,
                         "mean": selected_window.clv_mean,
                         "median": selected_window.clv_median,
@@ -440,7 +442,12 @@ class ReadModelService:
                     },
                     "checkpoint_metadata": _checkpoint_metadata(selected_row),
                 }
-            ).model_dump()
+            )
+            if len(response.clv.points) != response.clv.sample_count:
+                raise SystemDegradedError(
+                    "PERFORMANCE_CLV_POPULATION_MISMATCH"
+                )
+            payload = response.model_dump()
         except (KeyError, ValidationError, TypeError, ValueError) as exc:
             raise SystemDegradedError(
                 "PERFORMANCE_PROJECTION_INVALID"

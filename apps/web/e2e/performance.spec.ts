@@ -26,6 +26,7 @@ function payload(pointCount = 0) {
     selected_league: null,
     selected_tier: "ALL",
     clv: {
+      clv_population: "SCORABLE_FINISHED_WITH_CANONICAL_CLV",
       sample_count: pointCount,
       mean: pointCount ? 0.04 : null,
       median: pointCount ? 0.03 : null,
@@ -92,6 +93,9 @@ test("renders the real zero-sample production state without fake metrics", async
 
   await page.goto("/performance");
 
+  await expect(
+    page.getByText("总体：已完成全量评分且具有 canonical CLV 的比赛"),
+  ).toBeVisible();
   await expect(page.getByText("暂无 canonical CLV 样本")).toBeVisible();
   await expect(page.getByText("暂无可评分样本")).toBeVisible();
   await expect(page.getByText("0 / 200")).toBeVisible();

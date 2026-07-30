@@ -24,6 +24,7 @@ from w2.tracking import finished_match_scoring_cli
 from w2.tracking.finished_match_scoring_projection import (
     WRITE_CONFIRMATION_PHRASE,
     _cohort_projections,
+    _window_metrics,
     run_finished_match_scoring_projection,
 )
 from w2.tracking.forward_ledger_performance import (
@@ -43,7 +44,13 @@ from w2.tracking.outcome_ledger_repository import (
     import_runtime_ledger,
     payload_sha256,
 )
-from w2.tracking.performance_scoring import brier, log_loss, probability_vector, rps
+from w2.tracking.performance_scoring import (
+    bootstrap_ci,
+    brier,
+    log_loss,
+    probability_vector,
+    rps,
+)
 
 KICKOFF = datetime(2026, 7, 20, 16, 0, tzinfo=UTC)
 
@@ -1960,6 +1967,50 @@ def test_sparse_tier_cohorts_are_zero_sample_and_hash_stable() -> None:
         assert window["sample_target"] == 200
         assert window["sample_progress"] == 0
         assert window["sample_progress_status"] == "ACCUMULATING"
+
+
+def test_clv_summary_uses_only_scorable_finished_available_population() -> None:
+    rows = [
+        {
+            "status": "SCORED",
+            "clv_status": "AVAILABLE",
+            "clv_decimal": 0.2,
+        },
+        {
+            "status": "SCORED",
+            "clv_status": "AVAILABLE",
+            "clv_decimal": -0.1,
+        },
+        {
+            "status": "NOT_SCORABLE",
+            "clv_status": "AVAILABLE",
+            "clv_decimal": 0.9,
+        },
+        {
+            "status": "BLOCKED",
+            "clv_status": "AVAILABLE",
+            "clv_decimal": 0.8,
+        },
+        {
+            "status": "SCORED",
+            "clv_status": "INSUFFICIENT_SNAPSHOTS",
+            "clv_decimal": 0.7,
+        },
+    ]
+
+    window = _window_metrics(rows)
+    population = [0.2, -0.1]
+
+    assert (
+        window["clv_population"]
+        == "SCORABLE_FINISHED_WITH_CANONICAL_CLV"
+    )
+    assert window["clv_sample_count"] == len(population)
+    assert window["clv_mean"] == sum(population) / len(population)
+    assert window["clv_median"] == 0.05
+    assert window["clv_positive_count"] == 1
+    assert window["clv_positive_share"] == 0.5
+    assert window["clv_ci95"] == bootstrap_ci(population)
 
 
 @pytest.mark.parametrize(

@@ -232,6 +232,8 @@ def test_performance_api_is_projection_only_and_has_no_compute_imports() -> None
     )
     assert 'self.repository.checkpoints("performance:cohort:")' in performance_source
     assert 'self.repository.checkpoints("performance:fixture:")' in performance_source
+    assert 'fixture.status == "SCORED"' in performance_source
+    assert "PERFORMANCE_CLV_POPULATION_MISMATCH" in performance_source
 
 
 def test_performance_projection_uses_shared_canonical_settlement_authority() -> None:

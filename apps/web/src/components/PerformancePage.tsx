@@ -119,6 +119,12 @@ export function PerformancePage() {
           </div>
           <span>{payload.clv.sample_count} 个样本</span>
         </div>
+        <p
+          className="performance-population"
+          data-population={payload.clv.clv_population}
+        >
+          总体：已完成全量评分且具有 canonical CLV 的比赛
+        </p>
         {payload.clv.sample_count === 0 ? (
           <div className="performance-empty">暂无 canonical CLV 样本</div>
         ) : (

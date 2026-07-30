@@ -47,6 +47,7 @@ from w2.tracking.performance_scoring import (
 
 SCHEMA_VERSION = "w2.performance_projection.v2"
 PROJECTION_VERSION = "eval-01c.v2"
+CLV_POPULATION = "SCORABLE_FINISHED_WITH_CANONICAL_CLV"
 WRITE_CONFIRMATION_PHRASE = "EVAL_01B_WRITE_SCORING_PROJECTION"  # noqa: S105
 TERMINAL_STATUSES = {"FT", "AET", "PEN"}
 WINDOWS = {"7d": timedelta(days=7), "30d": timedelta(days=30), "90d": timedelta(days=90)}
@@ -1291,7 +1292,8 @@ def _window_metrics(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     clv_values = [
         float(row["clv_decimal"])
         for row in scored
-        if _is_number(row.get("clv_decimal"))
+        if row.get("clv_status") == "AVAILABLE"
+        and _is_number(row.get("clv_decimal"))
     ]
     canonical_outcomes = Counter(
         _text(row.get("canonical_settlement_outcome")).upper()
@@ -1334,6 +1336,7 @@ def _window_metrics(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "model_reliability_bins": reliability_bins(model_observations),
         "market_reliability_bins": reliability_bins(market_observations),
         "clv_sample_count": len(clv_values),
+        "clv_population": CLV_POPULATION,
         "clv_mean": sum(clv_values) / len(clv_values) if clv_values else None,
         "clv_median": median(clv_values) if clv_values else None,
         "clv_positive_count": len([value for value in clv_values if value > 0]),

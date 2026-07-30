@@ -28,6 +28,7 @@ export interface PerformancePayload {
   selected_league: string | null;
   selected_tier: PerformanceTier;
   clv: {
+    clv_population: "SCORABLE_FINISHED_WITH_CANONICAL_CLV";
     sample_count: number;
     mean: number | null;
     median: number | null;

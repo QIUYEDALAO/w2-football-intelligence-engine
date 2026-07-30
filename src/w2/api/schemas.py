@@ -264,6 +264,7 @@ class PerformanceWindowProjection(BaseModel):
     market_reliability_bins: list[PerformanceReliabilityBin]
     paired_log_loss_bootstrap: PerformanceBootstrap
     clv_sample_count: int = Field(ge=0)
+    clv_population: Literal["SCORABLE_FINISHED_WITH_CANONICAL_CLV"]
     clv_mean: float | None
     clv_median: float | None
     clv_positive_count: int = Field(ge=0)
@@ -330,6 +331,7 @@ class PerformanceClvPoint(BaseModel):
 class PerformanceClvResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    clv_population: Literal["SCORABLE_FINISHED_WITH_CANONICAL_CLV"]
     sample_count: int = Field(ge=0)
     mean: float | None
     median: float | None

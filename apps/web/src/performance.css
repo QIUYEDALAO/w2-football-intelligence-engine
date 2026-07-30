@@ -116,6 +116,12 @@
   font-size: 21px;
 }
 
+.performance-population {
+  margin: -6px 0 15px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .performance-kpis {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
