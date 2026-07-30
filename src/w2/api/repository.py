@@ -10,14 +10,21 @@ from __future__ import annotations
 import os
 from copy import deepcopy
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from time import monotonic
-from typing import Any, cast
+from typing import Any, Literal, cast
 
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from w2.api.schemas import (
+    PerformanceCohortProjection,
+    PerformanceFixtureProjection,
+    PerformanceResponse,
+    PerformanceWindowProjection,
+)
 from w2.competitions.registry import CompetitionRegistry, CompetitionRegistryError
 from w2.config import get_settings
 from w2.dashboard.date_window import (
@@ -85,6 +92,32 @@ def _checkpoint_metadata(row: Checkpoint) -> dict[str, Any]:
         "checkpoint_key": row.key,
         "source_hash": row.source_hash,
         "created_at": row.created_at.isoformat().replace("+00:00", "Z"),
+    }
+
+
+def _performance_cohort_key(*, league: str | None, tier: str) -> str:
+    if league and tier != "ALL":
+        return f"performance:cohort:league-tier:{league}:{tier}"
+    if league:
+        return f"performance:cohort:league:{league}"
+    if tier != "ALL":
+        return f"performance:cohort:tier:{tier}"
+    return "performance:cohort:all"
+
+
+def _performance_tier_row(
+    tier: str,
+    window: PerformanceWindowProjection,
+) -> dict[str, Any]:
+    return {
+        "tier": tier,
+        "finished_result_count": window.finished_result_count,
+        "scored_count": window.scored_count,
+        "canonical_settled_count": window.canonical_settled_count,
+        "canonical_hit_rate": window.canonical_hit_rate,
+        "canonical_hit_rate_status": window.canonical_hit_rate_status,
+        "clv_mean": window.clv_mean,
+        "clv_positive_share": window.clv_positive_share,
     }
 
 
@@ -267,6 +300,160 @@ class ReadModelService:
 
     def public_validation_summary(self, **kwargs: Any) -> dict[str, Any]:
         return self.validation_summary(**kwargs)
+
+    def performance(
+        self,
+        *,
+        window: Literal["7d", "30d", "90d"],
+        league: str | None,
+        tier: Literal["ALL", "STRICT", "ADVISORY"],
+    ) -> dict[str, Any]:
+        try:
+            cohorts = {
+                row.key: (
+                    row,
+                    PerformanceCohortProjection.model_validate(row.payload),
+                )
+                for row in self.repository.checkpoints("performance:cohort:")
+            }
+            fixtures = [
+                PerformanceFixtureProjection.model_validate(row.payload)
+                for row in self.repository.checkpoints("performance:fixture:")
+            ]
+            if not cohorts or not fixtures:
+                raise SystemDegradedError("PERFORMANCE_PROJECTION_MISSING")
+            selected_row, selected = cohorts[
+                _performance_cohort_key(league=league, tier=tier)
+            ]
+            strict = cohorts[
+                _performance_cohort_key(league=league, tier="STRICT")
+            ][1]
+            advisory = cohorts[
+                _performance_cohort_key(league=league, tier="ADVISORY")
+            ][1]
+            selected_window = selected.windows[window]
+            strict_window = strict.windows[window]
+            advisory_window = advisory.windows[window]
+            if (
+                selected.checkpoint_key != selected_row.key
+                or not selected_row.source_hash
+                or selected.scoring_window_anchor.tzinfo is None
+            ):
+                raise SystemDegradedError(
+                    "PERFORMANCE_PROJECTION_IDENTITY_INVALID"
+                )
+            lower = selected.scoring_window_anchor - {
+                "7d": timedelta(days=7),
+                "30d": timedelta(days=30),
+                "90d": timedelta(days=90),
+            }[window]
+            points = [
+                {
+                    "fixture_id": fixture.fixture_id,
+                    "kickoff_utc": fixture.kickoff_utc,
+                    "league": fixture.league,
+                    "evaluation_tier": fixture.evaluation_tier,
+                    "clv_decimal": fixture.clv_decimal,
+                }
+                for fixture in fixtures
+                if fixture.status == "SCORED"
+                and fixture.clv_status == "AVAILABLE"
+                and fixture.clv_decimal is not None
+                and fixture.kickoff_utc.tzinfo is not None
+                and lower
+                <= fixture.kickoff_utc
+                <= selected.scoring_window_anchor
+                and (league is None or fixture.league == league)
+                and (tier == "ALL" or fixture.evaluation_tier == tier)
+            ]
+            points.sort(
+                key=lambda row: (
+                    cast(datetime, row["kickoff_utc"]),
+                    str(row["fixture_id"]),
+                )
+            )
+            response = PerformanceResponse.model_validate(
+                {
+                    "request_id": "validation-only",
+                    "projection_version": selected.projection_version,
+                    "scoring_window_anchor": selected.scoring_window_anchor,
+                    "selected_window": window,
+                    "selected_league": league,
+                    "selected_tier": tier,
+                    "clv": {
+                        "clv_population": selected_window.clv_population,
+                        "sample_count": selected_window.clv_sample_count,
+                        "mean": selected_window.clv_mean,
+                        "median": selected_window.clv_median,
+                        "ci95": selected_window.clv_ci95,
+                        "positive_count": selected_window.clv_positive_count,
+                        "positive_share": selected_window.clv_positive_share,
+                        "method": selected_window.clv_method,
+                        "points": points,
+                    },
+                    "calibration": {
+                        "scored_count": selected_window.scored_count,
+                        "model_log_loss": selected_window.model_log_loss,
+                        "market_log_loss": selected_window.market_log_loss,
+                        "model_minus_market_log_loss": (
+                            selected_window.model_minus_market_log_loss
+                        ),
+                        "model_ece": selected_window.model_ece,
+                        "market_ece": selected_window.market_ece,
+                        "model_reliability_bins": (
+                            selected_window.model_reliability_bins
+                        ),
+                        "market_reliability_bins": (
+                            selected_window.market_reliability_bins
+                        ),
+                        "paired_log_loss_bootstrap": (
+                            selected_window.paired_log_loss_bootstrap
+                        ),
+                    },
+                    "tier_comparison": {
+                        "STRICT": _performance_tier_row(
+                            "STRICT", strict_window
+                        ),
+                        "ADVISORY": _performance_tier_row(
+                            "ADVISORY", advisory_window
+                        ),
+                    },
+                    "sample_progress": {
+                        "current": selected_window.canonical_settled_count,
+                        "target": selected_window.sample_target,
+                        "ratio": selected_window.sample_progress,
+                        "status": selected_window.sample_progress_status,
+                    },
+                    "coverage": {
+                        "finished_result_count": (
+                            selected_window.finished_result_count
+                        ),
+                        "fixture_checkpoint_count": (
+                            selected_window.fixture_checkpoint_count
+                        ),
+                        "scored_count": selected_window.scored_count,
+                        "not_scorable_count": (
+                            selected_window.not_scorable_count
+                        ),
+                        "blocked_count": selected_window.blocked_count,
+                        "not_scorable_by_reason": (
+                            selected_window.not_scorable_by_reason
+                        ),
+                    },
+                    "checkpoint_metadata": _checkpoint_metadata(selected_row),
+                }
+            )
+            if len(response.clv.points) != response.clv.sample_count:
+                raise SystemDegradedError(
+                    "PERFORMANCE_CLV_POPULATION_MISMATCH"
+                )
+            payload = response.model_dump()
+        except (KeyError, ValidationError, TypeError, ValueError) as exc:
+            raise SystemDegradedError(
+                "PERFORMANCE_PROJECTION_INVALID"
+            ) from exc
+        payload.pop("request_id")
+        return payload
 
     def warm_dashboard_cache(self) -> None:
         # Startup must remain available to return an explicit 503 if the

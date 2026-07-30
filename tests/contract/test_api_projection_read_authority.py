@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import inspect
 from datetime import UTC, datetime
 from importlib.util import resolve_name
 from pathlib import Path
@@ -78,6 +79,13 @@ RETIRED_SHADOW_STRATEGY_IDENTITIES = {
     "/shadow-strategy/",
     "w2-shadow-cycle",
     "config/policies/shadow_strategy.v1.json",
+}
+FORBIDDEN_PERFORMANCE_API_COMPUTE_IMPORTS = {
+    "w2.dashboard.performance",
+    "w2.settlement",
+    "w2.tracking.finished_match_scoring_projection",
+    "w2.tracking.forward_ledger_performance",
+    "w2.tracking.performance_scoring",
 }
 
 
@@ -197,6 +205,88 @@ def test_api_transitive_import_graph_has_no_read_time_computation_packages() -> 
         for path in root.rglob("*.py")
     ]
     assert _import_graph_violations(roots, module_paths) == []
+
+
+def test_performance_api_is_projection_only_and_has_no_compute_imports() -> None:
+    performance_source = inspect.getsource(ReadModelService.performance)
+    compute_imports = sorted(
+        name
+        for name in FORBIDDEN_PERFORMANCE_API_COMPUTE_IMPORTS
+        if name in performance_source
+    )
+    non_projection_reads = sorted(
+        identity
+        for identity in (
+            "dashboard.performance",
+            "forward_ledger_performance",
+            "outcome_ledger",
+            "settlements",
+            "runtime JSON",
+        )
+        if identity in performance_source
+    )
+
+    assert compute_imports == [], "API_COMPUTE_IMPORT_COUNT != 0"
+    assert non_projection_reads == [], (
+        "API_PERFORMANCE_NON_PROJECTION_READ_COUNT != 0"
+    )
+    assert 'self.repository.checkpoints("performance:cohort:")' in performance_source
+    assert 'self.repository.checkpoints("performance:fixture:")' in performance_source
+    assert 'fixture.status == "SCORED"' in performance_source
+    assert "PERFORMANCE_CLV_POPULATION_MISMATCH" in performance_source
+
+
+def test_performance_projection_uses_shared_canonical_settlement_authority() -> None:
+    projection = Path(
+        "src/w2/tracking/finished_match_scoring_projection.py"
+    ).read_text(encoding="utf-8")
+    authority = Path(
+        "src/w2/tracking/forward_ledger_performance.py"
+    ).read_text(encoding="utf-8")
+    shared_authority = authority[
+        authority.index("def canonical_settlement_facts(") :
+        authority.index("\ndef _result_for_fixture(")
+    ]
+
+    assert "canonical_settlement_facts(" in projection
+    assert "_canonical_pick_settlement" not in projection
+    for helper in (
+        "_validation_candidates(",
+        "_validation_settlements(",
+        "_canonical_rows(",
+    ):
+        assert helper in shared_authority
+
+
+def test_performance_web_has_no_metric_recomputation_or_production_fixture() -> None:
+    sources = {
+        path: path.read_text(encoding="utf-8")
+        for path in Path("apps/web/src").rglob("*")
+        if path.is_file() and path.suffix in {".ts", ".tsx"}
+    }
+    performance_sources = "\n".join(
+        text
+        for path, text in sources.items()
+        if "performance" in path.name.lower()
+        or "PerformancePage" in text
+    )
+    forbidden = {
+        "reliability_bins(",
+        "bootstrap_ci(",
+        "paired_bootstrap(",
+        "calculateMean",
+        "calculateHitRate",
+        ".reduce(",
+        "forward_ledger_performance",
+    }
+
+    assert sorted(
+        identity for identity in forbidden if identity in performance_sources
+    ) == []
+    assert "fixture-01" not in performance_sources
+    assert "performance-e2e" not in performance_sources
+    assert 'fetch(`${API_BASE}/performance?' in performance_sources
+    assert "payload.sample_progress.ratio * 100" in performance_sources
 
 
 def test_import_graph_detects_package_child_relative_and_transitive_bypasses(

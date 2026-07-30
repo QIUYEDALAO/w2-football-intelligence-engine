@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request, Response
@@ -35,6 +35,7 @@ from w2.api.schemas import (
     OperationsCycleResponse,
     OperationsLatestResponse,
     PageMeta,
+    PerformanceResponse,
     ProbabilityResponse,
     ProviderStatusResponse,
     ReleaseReadinessResponse,
@@ -141,6 +142,19 @@ def dashboard(
             timezone=timezone,
             include_debug=include_debug,
         ),
+    }
+
+
+@public_router.get("/performance", response_model=PerformanceResponse)
+def performance(
+    request: Request,
+    window: Literal["7d", "30d", "90d"] = "30d",
+    league: str | None = None,
+    tier: Literal["ALL", "STRICT", "ADVISORY"] = "ALL",
+) -> dict[str, Any]:
+    return {
+        "request_id": request_id(request),
+        **service.performance(window=window, league=league, tier=tier),
     }
 
 

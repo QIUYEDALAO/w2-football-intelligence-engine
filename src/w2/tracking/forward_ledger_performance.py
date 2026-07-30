@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from statistics import median
 from typing import Any
@@ -40,6 +41,82 @@ SETTLED_OUTCOMES = {
     "PUSH": "push",
     "VOID": "void",
 }
+
+
+def canonical_settlement_outcome(value: Any) -> str | None:
+    bucket = SETTLED_OUTCOMES.get(_text(value).upper())
+    return bucket.upper() if bucket else None
+
+
+@dataclass(frozen=True)
+class CanonicalSettlementFacts:
+    accepted_by_fixture: dict[str, Mapping[str, Any]]
+    excluded_by_fixture: dict[str, str]
+    canonical_excluded_by_fixture: dict[str, str]
+    candidate_by_fixture: dict[str, Mapping[str, Any]]
+    settlement_by_fixture: dict[str, Mapping[str, Any]]
+    outcome_counts: dict[str, int]
+    validation_excluded_by_fixture: dict[str, str]
+    recovered_by_fixture: dict[str, Mapping[str, Any]]
+    active_records: tuple[Mapping[str, Any], ...]
+    captures: tuple[Mapping[str, Any], ...]
+    superseded_capture_hashes: frozenset[str]
+
+
+def canonical_settlement_facts(
+    records: Sequence[Mapping[str, Any]],
+    authoritative_results: Mapping[str, Mapping[str, Any]],
+    legacy_recoveries: Mapping[str, Mapping[str, Any]] | None = None,
+) -> CanonicalSettlementFacts:
+    enriched = [
+        _with_authoritative_result(record, authoritative_results)
+        for record in records
+        if _record_type(record) != "legacy_recovery"
+    ]
+    superseded = _superseded_capture_hashes(enriched)
+    active = [
+        record
+        for record in enriched
+        if not _record_is_superseded(record, superseded)
+    ]
+    captures = [
+        record for record in active if _record_type(record) == "capture"
+    ]
+    candidates, validation_excluded = _validation_candidates(captures)
+    settled, settlement_excluded = _validation_settlements(
+        active,
+        candidates,
+    )
+    validation_excluded.update(settlement_excluded)
+    accepted, excluded, recovered = _canonical_rows(
+        settled,
+        candidates,
+        captures,
+        legacy_recoveries=legacy_recoveries,
+    )
+    counts = _counts_for_rows(accepted)
+    all_excluded = dict(validation_excluded)
+    all_excluded.update(excluded)
+    return CanonicalSettlementFacts(
+        accepted_by_fixture={
+            _text(row.get("fixture_id")): row for row in accepted
+        },
+        excluded_by_fixture=all_excluded,
+        canonical_excluded_by_fixture=dict(excluded),
+        candidate_by_fixture=dict(candidates),
+        settlement_by_fixture={
+            _text(row.get("fixture_id")): row for row in settled
+        },
+        outcome_counts={
+            outcome: counts[outcome.lower()]
+            for outcome in ("HIT", "MISS", "PUSH", "VOID")
+        },
+        validation_excluded_by_fixture=dict(validation_excluded),
+        recovered_by_fixture=dict(recovered),
+        active_records=tuple(active),
+        captures=tuple(captures),
+        superseded_capture_hashes=frozenset(superseded),
+    )
 
 
 def _result_for_fixture(
@@ -90,27 +167,24 @@ def forward_ledger_performance(
     ]
     authoritative_results = repo.result_payloads()
     legacy_recoveries = repo.legacy_recoveries()
-    raw_records = [
-        _with_authoritative_result(record, authoritative_results)
-        for record in raw_records
-    ]
-    superseded = _superseded_capture_hashes(raw_records)
-    records = [record for record in raw_records if not _record_is_superseded(record, superseded)]
-    captures = [record for record in records if _record_type(record) == "capture"]
-    candidates, excluded = _validation_candidates(captures)
-    validation_rows, settlement_excluded = _validation_settlements(records, candidates)
-    excluded.update(settlement_excluded)
+    facts = canonical_settlement_facts(
+        raw_records,
+        authoritative_results,
+        legacy_recoveries,
+    )
+    records = list(facts.active_records)
+    captures = list(facts.captures)
+    candidates = facts.candidate_by_fixture
+    excluded = facts.validation_excluded_by_fixture
+    validation_rows = list(facts.settlement_by_fixture.values())
     official_rows = _scoped_outcomes(records, "OFFICIAL")
     shadow_rows = _scoped_outcomes(records, "SHADOW")
     validation_counts = _counts_for_rows(validation_rows)
     official_counts = _counts_for_rows(official_rows)
     shadow_counts = _counts_for_rows(shadow_rows)
-    canonical_rows, canonical_excluded, recovered = _canonical_rows(
-        validation_rows,
-        candidates,
-        captures,
-        legacy_recoveries=legacy_recoveries,
-    )
+    canonical_rows = list(facts.accepted_by_fixture.values())
+    canonical_excluded = facts.canonical_excluded_by_fixture
+    recovered = facts.recovered_by_fixture
     canonical_counts = _counts_for_rows(canonical_rows)
     calibration = _calibration_summary(canonical_rows, candidates)
     clv_rows = _clv_rows(records, key_fn=_clv_key)
@@ -142,7 +216,7 @@ def forward_ledger_performance(
         "sample_target": sample_target,
         "record_count": len(raw_records),
         "active_record_count": len(records),
-        "superseded_capture_count": len(superseded),
+        "superseded_capture_count": len(facts.superseded_capture_hashes),
         "fixture_count": len(fixture_ids),
         "validation_fixture_count": len(candidates),
         "validation_market_pick_count": _validation_market_pick_count(candidates),
@@ -395,9 +469,9 @@ def _scoped_outcomes(records: Sequence[Mapping[str, Any]], scope: str) -> list[M
 def _counts_for_rows(rows: Sequence[Mapping[str, Any]]) -> defaultdict[str, int]:
     counts: defaultdict[str, int] = defaultdict(int)
     for row in rows:
-        bucket = SETTLED_OUTCOMES.get(_outcome(row))
+        bucket = canonical_settlement_outcome(_outcome(row))
         if bucket:
-            counts[bucket] += 1
+            counts[bucket.lower()] += 1
     return counts
 
 
@@ -778,9 +852,9 @@ def _outcome_counts(
     for record in records:
         if _outcome_side(record) != side:
             continue
-        bucket = SETTLED_OUTCOMES.get(_outcome(record))
+        bucket = canonical_settlement_outcome(_outcome(record))
         if bucket:
-            counts[bucket] += 1
+            counts[bucket.lower()] += 1
     return counts
 
 
@@ -793,9 +867,9 @@ def outcome_counts_by_league(
     for record in records:
         if _outcome_side(record) != side:
             continue
-        bucket = SETTLED_OUTCOMES.get(_outcome(record))
+        bucket = canonical_settlement_outcome(_outcome(record))
         if bucket:
-            by_league[_league_key(record)][bucket] += 1
+            by_league[_league_key(record)][bucket.lower()] += 1
     return by_league
 
 

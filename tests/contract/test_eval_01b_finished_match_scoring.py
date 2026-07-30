@@ -35,13 +35,22 @@ def test_scoring_is_write_side_checkpoint_projection_without_new_table() -> None
 
 
 def test_api_and_web_do_not_import_or_recompute_scoring() -> None:
+    compute_identities = {
+        "def log_loss(",
+        "def brier(",
+        "def rps(",
+        "def ece(",
+        "def reliability_bins(",
+        "def paired_bootstrap(",
+        "def bootstrap_ci(",
+    }
     for root in (ROOT / "src/w2/api", ROOT / "apps/web"):
         for path in root.rglob("*"):
             if not path.is_file() or path.suffix not in {".py", ".ts", ".tsx", ".js"}:
                 continue
             text = path.read_text(encoding="utf-8")
             assert "finished_match_scoring_projection" not in text
-            assert "model_minus_market_log_loss" not in text
+            assert not any(identity in text for identity in compute_identities)
 
 
 def test_eval_01b_authority_status_and_safety_contract() -> None:
@@ -60,11 +69,11 @@ def test_eval_01b_authority_status_and_safety_contract() -> None:
         "B2_DYNAMIC_EVALUATION_ROLE = AH_OU_LIFECYCLE_METADATA_ONLY" in section
     )
     assert "B2_SCORING_TABLE_COUNT = 0" in section
-    assert "- [ ] PR 合并。" in section
-    assert state["current_task"] == "EVAL-01B"
-    assert state["current_status"] == "DONE"
-    assert state["current_pr"] == 430
-    assert state["next_task"] == "EVAL-01C"
+    assert "- [x] PR 合并。" in section
+    assert state["current_task"] == "EVAL-01C"
+    assert state["current_status"] == "IN_PROGRESS"
+    assert state["current_pr"] == 432
+    assert state["next_task"] == "EVAL-02A"
     assert state["tasks"]["EVAL-01B"] == {
         "status": "DONE",
         "pr": 430,
@@ -72,7 +81,8 @@ def test_eval_01b_authority_status_and_safety_contract() -> None:
         "main_ci": 30477611652,
     }
     assert state["staging"]["eval_01b_exact_head_acceptance"] == "PASS"
-    assert state["tasks"]["EVAL-01C"]["status"] == "NOT_STARTED"
+    assert state["tasks"]["EVAL-01C"]["status"] == "IN_PROGRESS"
+    assert state["tasks"]["EVAL-02A"]["status"] == "NOT_STARTED"
     assert state["safety"]["provider_calls"] == 0
     assert state["safety"]["business_db_writes"] == 0
     assert state["safety"]["scheduler_started"] is False

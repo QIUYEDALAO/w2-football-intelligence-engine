@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
@@ -13,6 +14,7 @@ from w2.infrastructure.persistence.models import ResultModel
 from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerModel
 from w2.tracking.forward_ledger_performance import (
     _eligible_clv_rows,
+    canonical_settlement_facts,
 )
 from w2.tracking.forward_ledger_performance import (
     forward_ledger_performance as _db_forward_ledger_performance,
@@ -131,6 +133,97 @@ def test_forward_ledger_excludes_superseded_capture_from_validation(tmp_path: Pa
     assert payload["superseded_capture_count"] == 1
     assert payload["validation_fixture_count"] == 0
     assert payload["validation_pending_fixture_count"] == 0
+
+
+@pytest.mark.parametrize(
+    ("case", "reason"),
+    [
+        ("missing_result_source", None),
+        ("shadow_side", None),
+        ("missing_entry_quote", "MISSING_ENTRY_QUOTE"),
+        ("missing_artifact", "MISSING_ARTIFACT_IDENTITY"),
+        ("missing_quote_provenance", "MISSING_QUOTE_PROVENANCE"),
+        ("identity_mismatch", "CAPTURE_OUTCOME_IDENTITY_MISMATCH"),
+        ("missing_capture_link", "CAPTURE_OUTCOME_IDENTITY_MISMATCH"),
+        ("missing_final_score", "MISSING_SETTLED_SCORE"),
+        ("settlement_conflict", "SETTLEMENT_CONFLICT"),
+    ],
+)
+def test_shared_canonical_authority_rejects_incomplete_or_conflicting_facts(
+    case: str,
+    reason: str | None,
+) -> None:
+    fixture_id = f"fixture-{case}"
+    capture = _validation_capture(
+        fixture_id,
+        "2026-07-07T00:00:00Z",
+    )
+    capture.update(
+        {
+            "schema_version": "w2.forward_outcome_ledger.v3",
+            "capture_identity_hash": f"capture-{case}",
+            "artifact_provenance": {"artifact_hash": f"artifact-{case}"},
+            "quote_provenance": {
+                "markets": {
+                    "ah": {
+                        "identity_status": "COMPLETE",
+                        "freshness_status": "COMPLETE",
+                        "captured_at": capture["captured_at"],
+                    }
+                }
+            },
+        }
+    )
+    outcome = _outcome_record(
+        fixture_id,
+        "WIN",
+        side="pick",
+        scope="VALIDATION",
+    )
+    outcome["capture_identity_hash"] = capture["capture_identity_hash"]
+    records = [capture, outcome]
+    results = {
+        fixture_id: {
+            "fixture_id": fixture_id,
+            "status": "FT",
+            "home_goals": 2,
+            "away_goals": 0,
+        }
+    }
+    if case == "missing_result_source":
+        results = {}
+    elif case == "shadow_side":
+        outcome["settled_side"] = "shadow_pick"
+    elif case == "missing_entry_quote":
+        capture["current_odds"] = {}
+    elif case == "missing_artifact":
+        capture.pop("artifact_provenance")
+    elif case == "missing_quote_provenance":
+        capture.pop("quote_provenance")
+    elif case == "identity_mismatch":
+        outcome["capture_identity_hash"] = "other-capture"
+    elif case == "missing_capture_link":
+        outcome.pop("capture_identity_hash")
+    elif case == "missing_final_score":
+        results = {}
+        outcome["settlement_outcome"] = "VOID"
+    elif case == "settlement_conflict":
+        conflict = deepcopy(outcome)
+        conflict["settlement_outcome"] = "LOSS"
+        records.append(conflict)
+
+    facts = canonical_settlement_facts(records, results)
+
+    assert fixture_id not in facts.accepted_by_fixture
+    if reason in {
+        "MISSING_ARTIFACT_IDENTITY",
+        "MISSING_QUOTE_PROVENANCE",
+        "CAPTURE_OUTCOME_IDENTITY_MISMATCH",
+        "MISSING_SETTLED_SCORE",
+    }:
+        assert facts.excluded_by_fixture[fixture_id] == reason
+    elif reason is not None:
+        assert facts.validation_excluded_by_fixture[fixture_id] == reason
 
 
 def test_forward_ledger_latest_same_decision_capture_repairs_identity_format(

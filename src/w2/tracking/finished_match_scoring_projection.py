@@ -22,7 +22,13 @@ from w2.infrastructure.persistence.matchday_intake_models import (
 )
 from w2.infrastructure.persistence.models import ResultModel
 from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerModel
-from w2.tracking.forward_ledger_performance import CLV_METHOD, fixture_clv
+from w2.tracking.forward_ledger_performance import (
+    CLV_METHOD,
+    CanonicalSettlementFacts,
+    canonical_settlement_facts,
+    canonical_settlement_outcome,
+    fixture_clv,
+)
 from w2.tracking.outcome_ledger_repository import (
     ExactFixtureResolver,
     FixtureIdentityConflict,
@@ -39,8 +45,9 @@ from w2.tracking.performance_scoring import (
     rps,
 )
 
-SCHEMA_VERSION = "w2.finished_match_scoring_projection.v1"
-PROJECTION_VERSION = "eval-01b.v1"
+SCHEMA_VERSION = "w2.performance_projection.v2"
+PROJECTION_VERSION = "eval-01c.v2"
+CLV_POPULATION = "SCORABLE_FINISHED_WITH_CANONICAL_CLV"
 WRITE_CONFIRMATION_PHRASE = "EVAL_01B_WRITE_SCORING_PROJECTION"  # noqa: S105
 TERMINAL_STATUSES = {"FT", "AET", "PEN"}
 WINDOWS = {"7d": timedelta(days=7), "30d": timedelta(days=30), "90d": timedelta(days=90)}
@@ -95,6 +102,32 @@ def run_finished_match_scoring_projection(
             ledger_payloads,
             resolver,
         )
+        result_counts = Counter(
+            fixture_id for _, fixture_id, _ in resolved_results
+        )
+        authoritative_results = {
+            fixture_id: {
+                "fixture_id": fixture_id,
+                "status": result.result_status,
+                "home_goals": result.home_goals,
+                "away_goals": result.away_goals,
+                "confirmed_at": _iso(result.confirmed_at),
+                "result_hash": result.result_hash,
+            }
+            for result, fixture_id, identity_conflict in resolved_results
+            if not identity_conflict and result_counts[fixture_id] == 1
+        }
+        legacy_recoveries = {
+            fixture_id: record
+            for record in records
+            if _record_type(record) == "legacy_recovery"
+            and (fixture_id := _fixture_id(record))
+        }
+        canonical_facts = canonical_settlement_facts(
+            records,
+            authoritative_results,
+            legacy_recoveries,
+        )
         fixture_identities = {
             row.fixture_id: row
             for row in identity_rows
@@ -104,9 +137,6 @@ def run_finished_match_scoring_projection(
             resolver,
         )
         identity_conflicts.update(dynamic_conflicts)
-        result_counts = Counter(
-            fixture_id for _, fixture_id, _ in resolved_results
-        )
         fixture_payloads: dict[str, dict[str, Any]] = {}
         blockers = []
         hard_batch_persistence_block = batch_envelope_conflict or (
@@ -126,6 +156,7 @@ def run_finished_match_scoring_projection(
                 dynamic_rows=[
                     row for row in dynamic_rows.get(fixture_id, ())
                 ],
+                canonical_facts=canonical_facts,
                 identity_conflict=(
                     result_identity_conflict
                     or fixture_id in identity_conflicts
@@ -541,6 +572,7 @@ def _fixture_projection(
     records: Sequence[Mapping[str, Any]],
     fixture_identity: MatchdayFixtureIdentityModel | None,
     dynamic_rows: Sequence[DynamicPrematchEvaluationModel],
+    canonical_facts: CanonicalSettlementFacts,
     identity_conflict: bool,
     envelope_conflict: bool,
 ) -> dict[str, Any]:
@@ -601,6 +633,7 @@ def _fixture_projection(
         status = "BLOCKED"
         reasons = ["OUTCOME_LEDGER_ENVELOPE_PAYLOAD_CONFLICT"]
     clv = _fixture_clv(records, fixture_id)
+    canonical = _canonical_outcome_payload(canonical_facts, fixture_id)
     scoring_capture = capture if status == "SCORED" else None
     scored_model = model if scoring_capture else None
     scored_market = market if scoring_capture else None
@@ -688,6 +721,7 @@ def _fixture_projection(
         "clv_status": clv["clv_status"],
         "clv_decimal": clv["clv_decimal"],
         "clv_method": CLV_METHOD,
+        **canonical,
         "source_event_type": "RESULT_MATERIALIZED",
         "source_event_id": result.id,
         "source_event_hash": result.result_hash,
@@ -1106,6 +1140,59 @@ def _fixture_clv(
     }
 
 
+def _canonical_outcome_payload(
+    facts: CanonicalSettlementFacts,
+    fixture_id: str,
+) -> dict[str, Any]:
+    accepted = facts.accepted_by_fixture.get(fixture_id)
+    if accepted is not None:
+        outcome = canonical_settlement_outcome(
+            _settlement_outcome(accepted)
+        )
+        if outcome is not None:
+            return {
+                "canonical_pick_status": "AVAILABLE",
+                "canonical_settlement_outcome": outcome,
+                "canonical_decisive": outcome in {"HIT", "MISS"},
+                "canonical_exclusion_reason": None,
+            }
+    if reason := facts.excluded_by_fixture.get(fixture_id):
+        return {
+            "canonical_pick_status": "CANONICAL_PICK_CONFLICT",
+            "canonical_settlement_outcome": None,
+            "canonical_decisive": None,
+            "canonical_exclusion_reason": reason,
+        }
+    if fixture_id not in facts.candidate_by_fixture:
+        return {
+            "canonical_pick_status": "NOT_APPLICABLE_NO_CANONICAL_PICK",
+            "canonical_settlement_outcome": None,
+            "canonical_decisive": None,
+            "canonical_exclusion_reason": None,
+        }
+    return {
+        "canonical_pick_status": "SETTLEMENT_MISSING",
+        "canonical_settlement_outcome": None,
+        "canonical_decisive": None,
+        "canonical_exclusion_reason": "SETTLEMENT_MISSING",
+    }
+
+
+def _settlement_outcome(record: Mapping[str, Any]) -> str:
+    for key in ("settlement_outcome", "outcome", "result_outcome"):
+        if value := _text(record.get(key)):
+            return value
+    settlement = record.get("settlement")
+    if isinstance(settlement, Mapping):
+        return _text(
+            settlement.get("outcome") or settlement.get("settlement")
+        )
+    validation = record.get("validation")
+    if isinstance(validation, Mapping):
+        return _text(validation.get("settlement"))
+    return ""
+
+
 def _existing_fixture_payloads(session: Session) -> dict[str, dict[str, Any]]:
     rows = session.scalars(
         select(ReadModelCheckpointModel).where(
@@ -1134,15 +1221,30 @@ def _cohort_projections(
         if (kickoff := _parse_time(row["kickoff_utc"])) is not None
     ]
     anchor = max(kickoff_times)
-    groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    leagues = {
+        _text(row.get("league")) or "UNKNOWN"
+        for row in rows
+    }
+    groups: dict[str, list[dict[str, Any]]] = {
+        "performance:cohort:all": [],
+        "performance:cohort:tier:STRICT": [],
+        "performance:cohort:tier:ADVISORY": [],
+    }
+    for league in leagues:
+        groups[f"performance:cohort:league:{league}"] = []
+        groups[f"performance:cohort:league-tier:{league}:STRICT"] = []
+        groups[f"performance:cohort:league-tier:{league}:ADVISORY"] = []
     for row in rows:
         league = _text(row.get("league")) or "UNKNOWN"
         tier = _text(row.get("evaluation_tier")).upper()
         tier = tier if tier in {"STRICT", "ADVISORY"} else "UNKNOWN"
         groups["performance:cohort:all"].append(row)
         groups[f"performance:cohort:league:{league}"].append(row)
-        groups[f"performance:cohort:tier:{tier}"].append(row)
-        groups[f"performance:cohort:league-tier:{league}:{tier}"].append(row)
+        groups.setdefault(f"performance:cohort:tier:{tier}", []).append(row)
+        groups.setdefault(
+            f"performance:cohort:league-tier:{league}:{tier}",
+            [],
+        ).append(row)
     return {
         key: _cohort_payload(key, values, anchor)
         for key, values in sorted(groups.items())
@@ -1190,8 +1292,19 @@ def _window_metrics(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     clv_values = [
         float(row["clv_decimal"])
         for row in scored
-        if _is_number(row.get("clv_decimal"))
+        if row.get("clv_status") == "AVAILABLE"
+        and _is_number(row.get("clv_decimal"))
     ]
+    canonical_outcomes = Counter(
+        _text(row.get("canonical_settlement_outcome")).upper()
+        for row in rows
+        if _text(row.get("canonical_settlement_outcome")).upper()
+        in {"HIT", "MISS", "PUSH", "VOID"}
+    )
+    canonical_settled_count = sum(canonical_outcomes.values())
+    canonical_decisive_count = (
+        canonical_outcomes["HIT"] + canonical_outcomes["MISS"]
+    )
     return {
         "finished_result_count": len(rows),
         "fixture_checkpoint_count": len(rows),
@@ -1223,6 +1336,7 @@ def _window_metrics(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "model_reliability_bins": reliability_bins(model_observations),
         "market_reliability_bins": reliability_bins(market_observations),
         "clv_sample_count": len(clv_values),
+        "clv_population": CLV_POPULATION,
         "clv_mean": sum(clv_values) / len(clv_values) if clv_values else None,
         "clv_median": median(clv_values) if clv_values else None,
         "clv_positive_count": len([value for value in clv_values if value > 0]),
@@ -1233,6 +1347,29 @@ def _window_metrics(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         ),
         "clv_ci95": bootstrap_ci(clv_values),
         "clv_method": CLV_METHOD,
+        "canonical_settled_count": canonical_settled_count,
+        "canonical_hit_count": canonical_outcomes["HIT"],
+        "canonical_miss_count": canonical_outcomes["MISS"],
+        "canonical_push_count": canonical_outcomes["PUSH"],
+        "canonical_void_count": canonical_outcomes["VOID"],
+        "canonical_decisive_count": canonical_decisive_count,
+        "canonical_hit_rate": (
+            canonical_outcomes["HIT"] / canonical_decisive_count
+            if canonical_decisive_count >= 5
+            else None
+        ),
+        "canonical_hit_rate_status": (
+            "AVAILABLE"
+            if canonical_decisive_count >= 5
+            else "INSUFFICIENT_SAMPLE"
+        ),
+        "sample_target": 200,
+        "sample_progress": min(canonical_settled_count / 200, 1.0),
+        "sample_progress_status": (
+            "TARGET_REACHED"
+            if canonical_settled_count >= 200
+            else "ACCUMULATING"
+        ),
     }
 
 
@@ -1318,6 +1455,8 @@ def _persist_checkpoint(
 def _source_hash(payload: Mapping[str, Any]) -> str:
     return _hash_value(
         {
+            "schema_version": payload.get("schema_version"),
+            "projection_version": payload.get("projection_version"),
             "result_identity_hash": payload.get("result_identity_hash"),
             "source_capture_identity_hash": payload.get("source_capture_identity_hash"),
             "source_capture_group_hash": payload.get("source_capture_group_hash"),
@@ -1354,6 +1493,14 @@ def _source_hash(payload: Mapping[str, Any]) -> str:
             ),
             "status": payload.get("status"),
             "reason_codes": payload.get("reason_codes"),
+            "canonical_pick_status": payload.get("canonical_pick_status"),
+            "canonical_settlement_outcome": payload.get(
+                "canonical_settlement_outcome"
+            ),
+            "canonical_decisive": payload.get("canonical_decisive"),
+            "canonical_exclusion_reason": payload.get(
+                "canonical_exclusion_reason"
+            ),
         }
     )
 

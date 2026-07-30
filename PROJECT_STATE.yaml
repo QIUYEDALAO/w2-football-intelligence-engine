@@ -3,10 +3,10 @@ project: w2-football-intelligence-engine
 updated_at: "2026-07-30"
 current_state_authority: PROJECT_STATE.yaml
 task_authority: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
-current_task: EVAL-01B
-current_status: DONE
-current_pr: 430
-next_task: EVAL-01C
+current_task: EVAL-01C
+current_status: IN_PROGRESS
+current_pr: 432
+next_task: EVAL-02A
 tasks:
   ARCH-P2-02:
     status: DONE
@@ -46,6 +46,10 @@ tasks:
     merge_sha: 5c2bd6f2e5c23196a25495335da72599e076c8ae
     main_ci: 30477611652
   EVAL-01C:
+    status: IN_PROGRESS
+    pr: 432
+    branch: codex/eval-01c-performance-dashboard
+  EVAL-02A:
     status: NOT_STARTED
 safety:
   provider_calls: 0

@@ -2,6 +2,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./styles.css";
+import "./performance.css";
 import "./reference/boss-console/boss-decision-console.css";
 
 // Compatibility markers for existing contract tests: const API_BASE = "/v1"; ${API_BASE}/fixtures
