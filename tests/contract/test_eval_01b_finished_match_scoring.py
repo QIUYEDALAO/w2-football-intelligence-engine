@@ -71,7 +71,7 @@ def test_eval_01b_authority_status_and_safety_contract() -> None:
     assert "B2_SCORING_TABLE_COUNT = 0" in section
     assert "- [x] PR 合并。" in section
     assert state["current_task"] == "EVAL-01C"
-    assert state["current_status"] == "IN_PROGRESS"
+    assert state["current_status"] == "DONE"
     assert state["current_pr"] == 432
     assert state["next_task"] == "EVAL-02A"
     assert state["tasks"]["EVAL-01B"] == {
@@ -81,7 +81,7 @@ def test_eval_01b_authority_status_and_safety_contract() -> None:
         "main_ci": 30477611652,
     }
     assert state["staging"]["eval_01b_exact_head_acceptance"] == "PASS"
-    assert state["tasks"]["EVAL-01C"]["status"] == "IN_PROGRESS"
+    assert state["tasks"]["EVAL-01C"]["status"] == "DONE"
     assert state["tasks"]["EVAL-02A"]["status"] == "NOT_STARTED"
     assert state["safety"]["provider_calls"] == 0
     assert state["safety"]["business_db_writes"] == 0

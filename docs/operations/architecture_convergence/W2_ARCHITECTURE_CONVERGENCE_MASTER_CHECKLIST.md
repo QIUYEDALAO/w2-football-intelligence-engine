@@ -621,20 +621,26 @@ fixture 开赛前最后一条完整、未 supersede 的
 #### B3. EVAL-01C：Dashboard 表现视图（CLV 第一 KPI）
 
 ```text
-Status: IN_PROGRESS
-Branch: codex/eval-01c-performance-dashboard
+Status: DONE
+PR: #432
+Source head: f136bd9c11c67defeed9de39095130f7848aee64
+Merge SHA: 10ace8f67bb3ecfa8481be4f9906c485d20b2d16
+Main CI: 30517146657
+Staging acceptance: PASS
+Conclusion: CLV 第一 KPI、全量校准、STRICT/ADVISORY 分层、canonical 命中率、
+样本进度及 projection-only API/Web 均完成 exact-head staging 验收。
 ```
 
-- [ ] API/Web 只读表现页，仅读 `performance:*` 投影：
+- [x] API/Web 只读表现页，仅读 `performance:*` 投影：
       ① CLV 第一位（canonical picks 分布、均值与置信区间、正 CLV 占比）；
       ② 全量校准（model vs market 滚动 log loss 差、校准曲线）；
       ③ STRICT vs ADVISORY 分层表（命中率、CLV、样本数并列）；
       ④ 样本进度条（对照预注册目标；未达标时命中率旁强制"样本不足"标注）。
-- [ ] 前端不做任何概率/指标重算（04B 守卫覆盖 `apps/web/src`，保持绿）。
+- [x] 前端不做任何概率/指标重算（04B 守卫覆盖 `apps/web/src`，保持绿）。
 
 **验收**：页面数字与投影逐项一致；20 轮只读零写；15/30 场视觉验收。
 **资产账本**：新增 0；删除 0。
-- [ ] PR 合并。
+- [x] PR 合并。
 
 ---
 
