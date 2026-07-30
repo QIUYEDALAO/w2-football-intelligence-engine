@@ -751,9 +751,27 @@ causal_claim = false
 #### B5. EVAL-02B：首发增量门禁验证（进攻面，样本驱动）
 
 ```text
-Status: NOT_STARTED
+Status: BLOCKED
 前置：A2（F10 已删）、A3（球员身份可联接）、B2（评分基建）、
       每联赛 LINEUP_CONFIRMED 配对评估历史 ≥120 场
+EVAL_02B_START_AUTHORIZED = false
+AUDIT_AS_OF = 2026-07-30T16:06:59.736350Z
+AUDIT_SHA256 = c4099f973f46514c3105911eee9bf87accd20f98b2430998868716d8ae13e70d
+
+DATA_BLOCKER =
+dynamic_prematch_evaluations 0
+lineup_confirmed_events 0
+exact pre/post pairs 0
+35 results 缺唯一 canonical competition/season identity
+
+CONTRACT_BLOCKER =
+120 total pairs vs 500 validation rows
+10000 bootstrap vs 2000
+per-league scope vs minimum_competitions=3
+RPS/coverage guards 未预注册
+
+NEXT_REQUIRED_DECISION =
+PRE_REGISTRATION_CONTRACT_REMEDIATION_AND_DATA_ACQUISITION_AUTHORITY
 ```
 
 - [ ] **Tier-1 特征集（仅这四个，禁止顺手加特征）**：缺阵球员上季+本季出场分钟占比；

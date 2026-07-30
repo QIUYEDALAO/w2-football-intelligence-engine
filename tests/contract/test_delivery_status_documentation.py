@@ -33,9 +33,9 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
 
     assert state["current_state_authority"] == "PROJECT_STATE.yaml"
     assert state["task_authority"] == CHECKLIST_PATH
-    assert state["current_task"] == "EVAL-02A"
-    assert state["current_status"] == "DONE"
-    assert state["current_pr"] == 434
+    assert state["current_task"] == "EVAL-02B"
+    assert state["current_status"] == "BLOCKED"
+    assert state["current_pr"] is None
     assert state["next_task"] == "EVAL-02B"
     assert state["tasks"]["ARCH-P2-02"] == {
         "status": "DONE",
@@ -85,12 +85,42 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "merge_sha": "427cb2203d943304582e5aa3f6b55e5d6b8adce0",
         "main_ci": 30556679131,
     }
-    assert state["tasks"]["EVAL-02B"]["status"] == "NOT_STARTED"
+    assert state["tasks"]["EVAL-02B"] == {
+        "status": "BLOCKED",
+        "start_authorized": False,
+        "audit_as_of": "2026-07-30T16:06:59.736350Z",
+        "audit_sha256": (
+            "c4099f973f46514c3105911eee9bf87accd20f98b2430998868716d8ae13e70d"
+        ),
+        "data_blocker": {
+            "dynamic_prematch_evaluations": 0,
+            "lineup_confirmed_events": 0,
+            "exact_pre_post_pairs": 0,
+            "results_without_unique_canonical_competition_season_identity": 35,
+        },
+        "contract_blocker": [
+            "120 total pairs vs 500 validation rows",
+            "10000 bootstrap vs 2000",
+            "per-league scope vs minimum_competitions=3",
+            "RPS/coverage guards not pre-registered",
+        ],
+        "next_required_decision": (
+            "PRE_REGISTRATION_CONTRACT_REMEDIATION_AND_DATA_ACQUISITION_AUTHORITY"
+        ),
+    }
+    assert state["tasks"]["EVAL-03"]["status"] == "NOT_STARTED"
     assert state["architecture_convergence"]["status"] == "PASS"
     assert "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)" in next_action
     assert CHECKLIST_PATH in next_action
-    assert "当前：B4 EVAL-02A / PR #434 DONE，已完成。" in next_action
-    assert "下一项：B5 EVAL-02B；状态仍为 NOT_STARTED，尚未启动。" in next_action
+    assert (
+        "当前：B5 EVAL-02B 启动资格 BLOCKED；"
+        "EVAL_02B_START_AUTHORIZED = false。" in next_action
+    )
+    assert (
+        "下一步：取得 "
+        "PRE_REGISTRATION_CONTRACT_REMEDIATION_AND_DATA_ACQUISITION_AUTHORITY；"
+        "B7 EVAL-03 仍为 NOT_STARTED。" in next_action
+    )
     assert "sole machine-readable project-status record" in ledger
     assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", ledger)
     assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", next_action)
@@ -159,7 +189,30 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     b5 = checklist[
         checklist.index("#### B5. EVAL-02B") : checklist.index("#### B6.")
     ]
-    assert "Status: NOT_STARTED" in b5
+    assert "Status: BLOCKED" in b5
+    assert "EVAL_02B_START_AUTHORIZED = false" in b5
+    assert "AUDIT_AS_OF = 2026-07-30T16:06:59.736350Z" in b5
+    assert (
+        "AUDIT_SHA256 = "
+        "c4099f973f46514c3105911eee9bf87accd20f98b2430998868716d8ae13e70d"
+        in b5
+    )
+    assert "dynamic_prematch_evaluations 0" in b5
+    assert "lineup_confirmed_events 0" in b5
+    assert "exact pre/post pairs 0" in b5
+    assert "35 results 缺唯一 canonical competition/season identity" in b5
+    assert "120 total pairs vs 500 validation rows" in b5
+    assert "10000 bootstrap vs 2000" in b5
+    assert "per-league scope vs minimum_competitions=3" in b5
+    assert "RPS/coverage guards 未预注册" in b5
+    assert (
+        "PRE_REGISTRATION_CONTRACT_REMEDIATION_AND_DATA_ACQUISITION_AUTHORITY"
+        in b5
+    )
+    b7 = checklist[
+        checklist.index("#### B7. EVAL-03") : checklist.index("### 模型升级")
+    ]
+    assert "Status: NOT_STARTED" in b7
     assert "W2_ARCHITECTURE_CONVERGENCE_COMPLETE = PASS" in checklist
     for task in FORBIDDEN_TASKS:
         assert task not in state

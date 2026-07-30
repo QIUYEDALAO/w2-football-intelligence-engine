@@ -5,5 +5,5 @@
 
 Task coordinates are maintained only in those authorities.
 
-当前：B4 EVAL-02A / PR #434 DONE，已完成。
-下一项：B5 EVAL-02B；状态仍为 NOT_STARTED，尚未启动。
+当前：B5 EVAL-02B 启动资格 BLOCKED；EVAL_02B_START_AUTHORIZED = false。
+下一步：取得 PRE_REGISTRATION_CONTRACT_REMEDIATION_AND_DATA_ACQUISITION_AUTHORITY；B7 EVAL-03 仍为 NOT_STARTED。
