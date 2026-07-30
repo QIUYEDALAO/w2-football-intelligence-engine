@@ -109,19 +109,40 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         ),
         "exact_unique_candidate_count": 0,
         "unresolved_result_count": 35,
-        "next_required_action": "IDENTITY_PROVENANCE_GAP_DECISION",
+        "identity_provenance_gap_decision": (
+            "LEGACY_35_RESULTS_EXCLUDED_FROM_EVAL_02B"
+        ),
+        "legacy_result_facts_retained": True,
+        "legacy_result_facts_mutated": False,
+        "legacy_result_eval_eligibility": False,
+        "legacy_identity_remediation_closed": True,
+        "future_only_pair_collection_required": True,
+        "new_provider_fetch_can_restore_legacy_provenance": False,
+        "fuzzy_identity_reconstruction_allowed": False,
+        "team_name_match_allowed": False,
+        "approximate_time_match_allowed": False,
+        "manual_competition_season_guess_allowed": False,
+        "legacy_remediation_reopen_condition": "EXACT_ORIGINAL_RAW_BLOB_RECOVERED",
+        "required_blob_verification": (
+            "SHA256(blob) == result.source_payload_sha256"
+        ),
+        "reopen_scope": "IDENTITY_REMEDIATION_ONLY",
+        "write_side_implementation_authorized": False,
+        "provider_calls_authorized": False,
+        "scheduler_start_authorized": False,
+        "next_required_action": "WRITE_SIDE_READINESS_DESIGN",
     }
     assert state["tasks"]["EVAL-03"]["status"] == "NOT_STARTED"
     assert state["architecture_convergence"]["status"] == "PASS"
     assert "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)" in next_action
     assert CHECKLIST_PATH in next_action
     assert (
-        "当前：B5 EVAL-02B 仍为 BLOCKED；身份修复只读审计未找到 "
-        "exact unique candidate，身份修复执行与运行采集均未授权。" in next_action
+        "当前：B5 EVAL-02B 仍为 BLOCKED；35 条 legacy Result 保留为历史事实"
+        "但永久排除 EVAL-02B，身份修复关闭。" in next_action
     )
     assert (
-        "下一步：B5 IDENTITY_PROVENANCE_GAP_DECISION；"
-        "EVAL_02B_START_AUTHORIZED = false，B7 EVAL-03 仍为 NOT_STARTED。"
+        "下一步：B5 WRITE_SIDE_READINESS_DESIGN；写侧实现、Provider、scheduler "
+        "与运行采集均未授权，B7 EVAL-03 仍为 NOT_STARTED。"
         in next_action
     )
     assert "sole machine-readable project-status record" in ledger
@@ -221,7 +242,30 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "RUNTIME_COLLECTION_AUTHORIZED = false",
         "IDENTITY_REMEDIATION_DESIGN = BLOCKED",
         "IDENTITY_REMEDIATION_EXECUTION_AUTHORIZED = false",
-        "NEXT_REQUIRED_ACTION = IDENTITY_PROVENANCE_GAP_DECISION",
+        "IDENTITY_PROVENANCE_GAP_DECISION =",
+        "LEGACY_35_RESULTS_EXCLUDED_FROM_EVAL_02B",
+        "LEGACY_RESULT_FACTS_RETAINED = true",
+        "LEGACY_RESULT_FACTS_MUTATED = false",
+        "LEGACY_RESULT_EVAL_ELIGIBILITY = false",
+        "LEGACY_IDENTITY_REMEDIATION_CLOSED = true",
+        "FUTURE_ONLY_PAIR_COLLECTION_REQUIRED = true",
+        "WRITE_SIDE_IMPLEMENTATION_AUTHORIZED = false",
+        "PROVIDER_CALLS_AUTHORIZED = false",
+        "SCHEDULER_START_AUTHORIZED = false",
+        "NEXT_REQUIRED_ACTION = WRITE_SIDE_READINESS_DESIGN",
+        "NEW_PROVIDER_FETCH_CAN_RESTORE_LEGACY_PROVENANCE = false",
+        "FUZZY_IDENTITY_RECONSTRUCTION_ALLOWED = false",
+        "TEAM_NAME_MATCH_ALLOWED = false",
+        "APPROXIMATE_TIME_MATCH_ALLOWED = false",
+        "MANUAL_COMPETITION_SEASON_GUESS_ALLOWED = false",
+        "LEGACY_REMEDIATION_REOPEN_CONDITION =",
+        "EXACT_ORIGINAL_RAW_BLOB_RECOVERED",
+        "REQUIRED_BLOB_VERIFICATION =",
+        "SHA256(blob) == result.source_payload_sha256",
+        "REOPEN_SCOPE =",
+        "IDENTITY_REMEDIATION_ONLY",
+        "EVAL_02B = BLOCKED",
+        "EVAL_03 = NOT_STARTED",
         "PAIR_SCOPE = PER_COMPETITION_X_MARKET",
         "PAIR_GRAIN = ONE_CANONICAL_FIXTURE_PAIR",
         "MINIMUM_ELIGIBLE_TOTAL_PAIRS = 120",
@@ -427,8 +471,34 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "身份已变化或已被下游消费时",
         "自动回滚必须",
         "fail-closed",
+        "35 条 `results` 继续保留为不可变历史比分事实",
+        "不删除、不修改，也不补造",
+        "它们不参与 EVAL-02B 的 sample count、time split、bootstrap、",
+        "评分或门禁",
+        "`MINIMUM_ELIGIBLE_TOTAL_PAIRS = 120` 必须完全由未来合法数据满足",
+        "不得重新调用 Provider 下载同一比赛后替换原 source hash",
+        "不得用新 payload 冒充旧",
+        "不得根据球队名、联赛名、比分、日期或近似开球时间补建身份",
+        "不得修改 Result",
+        "的 source hash 或 capture ID",
+        "不得通过 direct SQL 将旧结果强行接入 EVAL-02B",
+        "原始 blob 还必须来自 fixtures endpoint",
+        "provider fixture、比分和状态精确一致",
+        "provenance chain 无歧义",
+        "满足时只重新打开身份修复子任务",
+        "`WRITE_SIDE_READINESS_DESIGN` 仅审查和设计未来",
+        "baseline/candidate",
+        "Pre/Post exact pairing identity",
+        "本 PR 不授权代码实施",
     ):
         assert remediation_rule in b5
+    assert (
+        "EVAL-01A\n"
+        "EVAL-01B\n"
+        "EVAL-01C\n"
+        "EVAL-02A\n"
+        "EVAL-02B_PREREGISTRATION_CONTRACT"
+    ) in b5
     assert ".audit/" not in b5
     assert "/Users/" not in b5
     assert "500 个验证样本" in b5

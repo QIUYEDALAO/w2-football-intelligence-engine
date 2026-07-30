@@ -773,7 +773,17 @@ DATA_ACQUISITION_PLAN = AUTHORIZED
 RUNTIME_COLLECTION_AUTHORIZED = false
 IDENTITY_REMEDIATION_DESIGN = BLOCKED
 IDENTITY_REMEDIATION_EXECUTION_AUTHORIZED = false
-NEXT_REQUIRED_ACTION = IDENTITY_PROVENANCE_GAP_DECISION
+IDENTITY_PROVENANCE_GAP_DECISION =
+LEGACY_35_RESULTS_EXCLUDED_FROM_EVAL_02B
+LEGACY_RESULT_FACTS_RETAINED = true
+LEGACY_RESULT_FACTS_MUTATED = false
+LEGACY_RESULT_EVAL_ELIGIBILITY = false
+LEGACY_IDENTITY_REMEDIATION_CLOSED = true
+FUTURE_ONLY_PAIR_COLLECTION_REQUIRED = true
+WRITE_SIDE_IMPLEMENTATION_AUTHORIZED = false
+PROVIDER_CALLS_AUTHORIZED = false
+SCHEDULER_START_AUTHORIZED = false
+NEXT_REQUIRED_ACTION = WRITE_SIDE_READINESS_DESIGN
 ```
 
 **预注册门禁合同（已冻结）**：
@@ -1040,7 +1050,83 @@ PROVIDER_CALL_DELTA = 0
 35 条 Result 的 source hash 均未精确命中现存 raw authority，因而无法继续建立
 无歧义 raw fixture 与 competition/season 证据链；本轮不得产生拟写入身份。
 
-未来实施必须默认 `dry-run`，先生成 canonical remediation manifest；每行状态只能是：
+**身份 provenance 缺口最终决策（已冻结）**：
+
+```text
+IDENTITY_PROVENANCE_GAP_DECISION =
+LEGACY_35_RESULTS_EXCLUDED_FROM_EVAL_02B
+
+LEGACY_RESULT_FACTS_RETAINED = true
+LEGACY_RESULT_FACTS_MUTATED = false
+LEGACY_RESULT_EVAL_ELIGIBILITY = false
+
+LEGACY_IDENTITY_REMEDIATION_CLOSED = true
+IDENTITY_REMEDIATION_EXECUTION_AUTHORIZED = false
+
+FUTURE_ONLY_PAIR_COLLECTION_REQUIRED = true
+NEXT_REQUIRED_ACTION = WRITE_SIDE_READINESS_DESIGN
+```
+
+35 条 `results` 继续保留为不可变历史比分事实，不删除、不修改，也不补造
+competition/season；它们不参与 EVAL-02B 的 sample count、time split、bootstrap、
+评分或门禁。`MINIMUM_ELIGIBLE_TOTAL_PAIRS = 120` 必须完全由未来合法数据满足。
+
+禁止伪恢复：
+
+```text
+NEW_PROVIDER_FETCH_CAN_RESTORE_LEGACY_PROVENANCE = false
+FUZZY_IDENTITY_RECONSTRUCTION_ALLOWED = false
+TEAM_NAME_MATCH_ALLOWED = false
+APPROXIMATE_TIME_MATCH_ALLOWED = false
+MANUAL_COMPETITION_SEASON_GUESS_ALLOWED = false
+```
+
+不得重新调用 Provider 下载同一比赛后替换原 source hash，不得用新 payload 冒充旧
+payload；不得根据球队名、联赛名、比分、日期或近似开球时间补建身份；不得修改 Result
+的 source hash 或 capture ID，也不得通过 direct SQL 将旧结果强行接入 EVAL-02B。
+
+唯一允许重新打开的条件：
+
+```text
+LEGACY_REMEDIATION_REOPEN_CONDITION =
+EXACT_ORIGINAL_RAW_BLOB_RECOVERED
+
+REQUIRED_BLOB_VERIFICATION =
+SHA256(blob) == result.source_payload_sha256
+
+REOPEN_SCOPE =
+IDENTITY_REMEDIATION_ONLY
+```
+
+原始 blob 还必须来自 fixtures endpoint，且 provider fixture、比分和状态精确一致，
+provenance chain 无歧义。满足时只重新打开身份修复子任务，不重新执行：
+
+```text
+EVAL-01A
+EVAL-01B
+EVAL-01C
+EVAL-02A
+EVAL-02B_PREREGISTRATION_CONTRACT
+```
+
+下一阶段 `WRITE_SIDE_READINESS_DESIGN` 仅审查和设计未来
+`dynamic_prematch_evaluations`、`lineup_confirmed_events`、baseline/candidate
+五态分布及 Pre/Post exact pairing identity 的写侧；本 PR 不授权代码实施。
+
+```text
+WRITE_SIDE_IMPLEMENTATION_AUTHORIZED = false
+RUNTIME_COLLECTION_AUTHORIZED = false
+PROVIDER_CALLS_AUTHORIZED = false
+SCHEDULER_START_AUTHORIZED = false
+
+SCORING_IMPLEMENTATION = BLOCKED
+EVAL_02B_START_AUTHORIZED = false
+EVAL_02B = BLOCKED
+EVAL_03 = NOT_STARTED
+```
+
+此前冻结的身份修复实施流程保持休眠；只有满足上述 exact original raw blob 重开条件后，
+未来实施才必须默认 `dry-run`，先生成 canonical remediation manifest；每行状态只能是：
 
 ```text
 WOULD_INSERT
