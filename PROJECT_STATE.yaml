@@ -1,11 +1,11 @@
 schema_version: w2.project_state.v3
 project: w2-football-intelligence-engine
-updated_at: "2026-07-30"
+updated_at: "2026-07-31"
 current_state_authority: PROJECT_STATE.yaml
 task_authority: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
-current_task: EVAL-02A
-current_status: DONE
-current_pr: 434
+current_task: EVAL-02B
+current_status: BLOCKED
+current_pr: null
 next_task: EVAL-02B
 tasks:
   ARCH-P2-02:
@@ -56,6 +56,22 @@ tasks:
     merge_sha: 427cb2203d943304582e5aa3f6b55e5d6b8adce0
     main_ci: 30556679131
   EVAL-02B:
+    status: BLOCKED
+    start_authorized: false
+    audit_as_of: "2026-07-30T16:06:59.736350Z"
+    audit_sha256: c4099f973f46514c3105911eee9bf87accd20f98b2430998868716d8ae13e70d
+    data_blocker:
+      dynamic_prematch_evaluations: 0
+      lineup_confirmed_events: 0
+      exact_pre_post_pairs: 0
+      results_without_unique_canonical_competition_season_identity: 35
+    contract_blocker:
+      - 120 total pairs vs 500 validation rows
+      - 10000 bootstrap vs 2000
+      - per-league scope vs minimum_competitions=3
+      - RPS/coverage guards not pre-registered
+    next_required_decision: PRE_REGISTRATION_CONTRACT_REMEDIATION_AND_DATA_ACQUISITION_AUTHORITY
+  EVAL-03:
     status: NOT_STARTED
 safety:
   provider_calls: 0
