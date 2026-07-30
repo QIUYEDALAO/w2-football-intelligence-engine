@@ -141,7 +141,13 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     assert "Status: IN_PROGRESS" in b4
     assert "Branch: codex/eval-02a-lineup-blind-spot-defense" in b4
     assert "PR: #434" in b4
+    assert "opening_ev = model_probability * opening_decimal_odds - 1" not in b4
+    assert "current_ev = model_probability * current_decimal_odds - 1" not in b4
+    assert "FROZEN_EV_DISTRIBUTION" in b4
+    assert "expected_value(opening_decimal_odds, FROZEN_EV_DISTRIBUTION)" in b4
+    assert "expected_value(current_decimal_odds, FROZEN_EV_DISTRIBUTION)" in b4
     assert "movement_ev_share > 0.5 = MOVEMENT_CREATED_DIVERGENCE" in b4
+    assert "non-moved and divergence_age_ratio >= 0.6 = STABLE_DIVERGENCE" in b4
     assert "rotation_rate >= 4 / 11 = HIGH_ROTATION" in b4
     assert "minimum advisory canonical settled = 50" in b4
     assert "PERFORMANCE_SCHEMA_VERSION = w2.performance_projection.v3" in b4

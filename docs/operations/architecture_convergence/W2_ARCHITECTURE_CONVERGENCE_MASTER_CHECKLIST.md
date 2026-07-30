@@ -669,8 +669,15 @@ NEW_CONFIG_AUTHORITY_COUNT = 0
 
 DIVERGENCE_SCHEMA_VERSION = w2.divergence_origin.v1
 DIVERGENCE_FORMULA_VERSION = eval-02a.v1
-opening_ev = model_probability * opening_decimal_odds - 1
-current_ev = model_probability * current_decimal_odds - 1
+FROZEN_EV_DISTRIBUTION =
+  当前 selected candidate 的完整五态结算分布：
+  WIN / HALF_WIN / PUSH / HALF_LOSS / LOSS
+opening_ev =
+  expected_value(opening_decimal_odds, FROZEN_EV_DISTRIBUTION)
+current_ev =
+  expected_value(current_decimal_odds, FROZEN_EV_DISTRIBUTION)
+opening 与 current 必须复用同一五态分布；只替换 decimal odds。
+model_probability 仅为审计字段，不得替代 settlement-distribution EV。
 movement_created_ev = max(current_ev - max(opening_ev, 0), 0)
 movement_ev_share = clamp(movement_created_ev / max(current_ev, 1e-12), 0, 1)
 divergence_age_ratio = clamp(max(min(opening_ev, current_ev), 0) / max(current_ev, 1e-12), 0, 1)

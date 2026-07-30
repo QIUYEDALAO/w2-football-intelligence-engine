@@ -155,7 +155,7 @@ def build_decision_contract_fields(
         and lineup_requirement == "ADVISORY"
     ):
         policy = _as_mapping(_get(card, "advisory_blind_spot_policy"))
-        if not validate_advisory_blind_spot_policy(policy):
+        if not validate_advisory_blind_spot_policy(policy, as_of=as_of):
             tier = DecisionTier.WATCH
             forced_reason = DecisionReasonCode.ADVISORY_DELTA_POLICY_NOT_READY
         else:

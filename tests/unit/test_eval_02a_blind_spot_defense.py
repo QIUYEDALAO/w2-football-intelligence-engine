@@ -576,6 +576,19 @@ def _rehash_policy(payload: dict[str, object]) -> dict[str, object]:
     return {**projected, "business_projection_hash": digest}
 
 
+def _corrupted_policy_checkpoint(
+    payload: dict[str, object],
+    *,
+    remove: str | None = None,
+    **changes: object,
+) -> AdvisoryBlindSpotPolicyCheckpoint:
+    corrupted = {**payload, **changes}
+    if remove is not None:
+        corrupted.pop(remove)
+    rehashed = _rehash_policy(corrupted)
+    return _policy_checkpoint(rehashed, created_at=KICKOFF)
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     (
@@ -676,6 +689,140 @@ def test_policy_checkpoint_integrity_rejects_state_specific_corruption(
         )
         is False
     )
+
+
+@pytest.mark.parametrize(
+    ("remove", "changes"),
+    (
+        ("strict_clv_mean", {}),
+        ("advisory_clv_mean", {}),
+        ("next_recalibration_at", {}),
+        (None, {"advisory_canonical_settled_count": 49}),
+        (None, {"last_calibrated_settled_count": 49}),
+        (None, {"bootstrap_seed": 0}),
+        (None, {"strict_clv_mean": None}),
+        (None, {"advisory_clv_mean": None}),
+        (None, {"strict_clv_mean": float("nan")}),
+        (None, {"advisory_clv_mean": float("inf")}),
+        (None, {"advisory_clv_mean": float("-inf")}),
+        (None, {"watch_only": False}),
+        (None, {"next_recalibration_at": (KICKOFF + timedelta(days=89)).isoformat()}),
+        (None, {"next_recalibration_at": (KICKOFF - timedelta(days=1)).isoformat()}),
+    ),
+)
+def test_ready_policy_rejects_rehashed_semantic_corruption(
+    remove: str | None,
+    changes: dict[str, object],
+) -> None:
+    payload = build_advisory_blind_spot_policy(
+        _performance_rows(50),
+        existing=None,
+        now=KICKOFF,
+    )
+
+    assert (
+        validate_advisory_blind_spot_policy(
+            _corrupted_policy_checkpoint(payload, remove=remove, **changes)
+        )
+        is False
+    )
+
+
+def test_ready_policy_rejects_rehashed_false_watch_only_corruption() -> None:
+    payload = build_advisory_blind_spot_policy(
+        _performance_rows(50, strict_clv=0.01, advisory_clv=0.02),
+        existing=None,
+        now=KICKOFF,
+    )
+
+    assert payload["watch_only"] is False
+    assert (
+        validate_advisory_blind_spot_policy(
+            _corrupted_policy_checkpoint(payload, watch_only=True)
+        )
+        is False
+    )
+
+
+@pytest.mark.parametrize(
+    ("tier", "count_field", "mean_field"),
+    (
+        ("STRICT", "strict_clv_sample_count", "strict_clv_mean"),
+        ("ADVISORY", "advisory_clv_sample_count", "advisory_clv_mean"),
+    ),
+)
+def test_policy_rejects_rehashed_count_mean_mismatch(
+    tier: str,
+    count_field: str,
+    mean_field: str,
+) -> None:
+    payload = build_advisory_blind_spot_policy(
+        _performance_rows(16),
+        existing=None,
+        now=KICKOFF,
+    )
+    nonzero_missing = _corrupted_policy_checkpoint(payload, **{mean_field: None})
+    zero_nonempty = _corrupted_policy_checkpoint(
+        payload,
+        **{count_field: 0, mean_field: 0.1},
+    )
+
+    assert tier in {"STRICT", "ADVISORY"}
+    assert validate_advisory_blind_spot_policy(nonzero_missing) is False
+    assert validate_advisory_blind_spot_policy(zero_nonempty) is False
+
+
+def test_policy_expiry_boundary_is_inclusive_then_fails_one_microsecond_later() -> None:
+    payload = build_advisory_blind_spot_policy(
+        _performance_rows(50),
+        existing=None,
+        now=KICKOFF,
+    )
+    checkpoint = _policy_checkpoint(payload, created_at=KICKOFF)
+    expires_at = KICKOFF + timedelta(days=90)
+
+    assert validate_advisory_blind_spot_policy(checkpoint, as_of=expires_at) is True
+    assert (
+        validate_advisory_blind_spot_policy(
+            checkpoint,
+            as_of=expires_at + timedelta(microseconds=1),
+        )
+        is False
+    )
+
+
+def test_insufficient_policy_rejects_rehashed_recalibration_metadata() -> None:
+    advisory_insufficient = build_advisory_blind_spot_policy(
+        _performance_rows(16),
+        existing=None,
+        now=KICKOFF,
+    )
+    clv_insufficient = build_advisory_blind_spot_policy(
+        {
+            key: value
+            for key, value in _performance_rows(50).items()
+            if key != "strict"
+        },
+        existing=None,
+        now=KICKOFF,
+    )
+
+    assert validate_advisory_blind_spot_policy(
+        _policy_checkpoint(advisory_insufficient, created_at=KICKOFF)
+    )
+    assert validate_advisory_blind_spot_policy(
+        _policy_checkpoint(clv_insufficient, created_at=KICKOFF)
+    )
+    for payload in (advisory_insufficient, clv_insufficient):
+        assert (
+            validate_advisory_blind_spot_policy(
+                _corrupted_policy_checkpoint(
+                    payload,
+                    next_recalibration_at=(KICKOFF + timedelta(days=90)).isoformat(),
+                )
+            )
+            is False
+        )
 
 
 def _lineup_evidence(deviation: float, *, high_rotation: bool = False) -> dict[str, object]:

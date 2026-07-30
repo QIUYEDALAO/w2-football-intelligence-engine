@@ -169,6 +169,8 @@ def build_advisory_blind_spot_policy(
 
 def validate_advisory_blind_spot_policy(
     value: AdvisoryBlindSpotPolicyCheckpoint | Mapping[str, Any] | None,
+    *,
+    as_of: datetime | None = None,
 ) -> bool:
     checkpoint = _checkpoint(value)
     if checkpoint is None or checkpoint.checkpoint_key != POLICY_CHECKPOINT_KEY:
@@ -185,6 +187,8 @@ def validate_advisory_blind_spot_policy(
         "strict_clv_sample_count",
         "advisory_clv_sample_count",
         "advisory_canonical_settled_count",
+        "strict_clv_mean",
+        "advisory_clv_mean",
         "bootstrap_iterations",
         "bootstrap_seed",
         "lower_bound_80",
@@ -193,6 +197,7 @@ def validate_advisory_blind_spot_policy(
         "watch_only",
         "last_calibrated_at",
         "last_calibrated_settled_count",
+        "next_recalibration_at",
         "source_fixture_hash",
         "business_projection_hash",
     }
@@ -209,9 +214,7 @@ def validate_advisory_blind_spot_policy(
         or _SHA256.fullmatch(business_hash) is None
         or _SHA256.fullmatch(fixture_hash) is None
         or payload.get("bootstrap_iterations") != BOOTSTRAP_ITERATIONS
-        or not isinstance(payload.get("bootstrap_seed"), int)
-        or isinstance(payload.get("bootstrap_seed"), bool)
-        or int(payload["bootstrap_seed"]) < 0
+        or payload.get("bootstrap_seed") != int(fixture_hash[:16], 16)
         or type(payload.get("watch_only")) is not bool
     ):
         return False
@@ -245,6 +248,8 @@ def validate_advisory_blind_spot_policy(
     delta = _number(payload.get("applied_delta"))
     threshold = _number(payload.get("effective_threshold"))
     lower_bound = _number(payload.get("lower_bound_80"))
+    strict_mean = _number(payload.get("strict_clv_mean"))
+    advisory_mean = _number(payload.get("advisory_clv_mean"))
     if (
         delta is None
         or delta < 0
@@ -253,39 +258,59 @@ def validate_advisory_blind_spot_policy(
         or strict_count > window_count
         or advisory_count > window_count
         or settled_count > window_count
+        or not _mean_matches_count(
+            payload.get("strict_clv_mean"),
+            count=strict_count,
+            parsed=strict_mean,
+        )
+        or not _mean_matches_count(
+            payload.get("advisory_clv_mean"),
+            count=advisory_count,
+            parsed=advisory_mean,
+        )
     ):
         return False
     status = payload.get("status")
     last_at = _parse_time(payload.get("last_calibrated_at"))
+    next_at = _parse_time(payload.get("next_recalibration_at"))
+    decision_at = _utc(as_of)
     if status == "INSUFFICIENT_ADVISORY_CANONICAL_SAMPLE":
         return (
             settled_count < MIN_ADVISORY_SETTLED
             and delta == 0
-            and lower_bound is None
+            and payload.get("lower_bound_80") is None
             and payload.get("watch_only") is False
-            and last_at is None
+            and payload.get("last_calibrated_at") is None
             and calibrated_count == 0
+            and payload.get("next_recalibration_at") is None
         )
     if status == "INSUFFICIENT_CLV_SAMPLE":
         return (
             settled_count >= MIN_ADVISORY_SETTLED
             and (strict_count == 0 or advisory_count == 0)
             and delta == 0
-            and lower_bound is None
+            and payload.get("lower_bound_80") is None
             and payload.get("watch_only") is False
-            and last_at is None
+            and payload.get("last_calibrated_at") is None
             and calibrated_count == 0
+            and payload.get("next_recalibration_at") is None
         )
     if status != "READY":
         return False
     return bool(
-        strict_count > 0
+        settled_count >= MIN_ADVISORY_SETTLED
+        and strict_count > 0
         and advisory_count > 0
+        and strict_mean is not None
+        and advisory_mean is not None
         and last_at is not None
         and last_at <= created_at
-        and calibrated_count <= settled_count
+        and MIN_ADVISORY_SETTLED <= calibrated_count <= settled_count
+        and next_at == last_at + RECALIBRATION_MAX_AGE
+        and (decision_at is None or (next_at is not None and decision_at <= next_at))
         and lower_bound is not None
         and abs(delta - max(0.0, lower_bound)) <= 1e-12
+        and payload.get("watch_only") is (advisory_mean - delta <= 0)
     )
 
 
@@ -374,11 +399,17 @@ def _nonnegative_int(value: Any) -> int | None:
 
 
 def _number(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
     try:
         parsed = float(value)
     except (TypeError, ValueError):
         return None
     return parsed if parsed == parsed and abs(parsed) != float("inf") else None
+
+
+def _mean_matches_count(value: Any, *, count: int, parsed: float | None) -> bool:
+    return value is None if count == 0 else parsed is not None
 
 
 def _parse_time(value: Any) -> datetime | None:
