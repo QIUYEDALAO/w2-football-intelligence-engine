@@ -1,12 +1,180 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 
+from w2.domain.enums import MarketType
 from w2.ingestion.market_timeline import parse_utc
+from w2.markets.value_engine import SettlementDistribution, expected_value
 
 TIMELINE_SOURCE = "market_timeline_snapshots"
 UNVALIDATED = "UNVALIDATED"
+DIVERGENCE_ORIGIN_SCHEMA_VERSION = "w2.divergence_origin.v1"
+DIVERGENCE_ORIGIN_FORMULA_VERSION = "eval-02a.v1"
+
+
+def classify_divergence_origin(
+    *,
+    fixture_id: str,
+    market: str,
+    selection: str,
+    line: Any,
+    model_probability: Any,
+    current_decimal_odds: Any,
+    current_expected_value: Any,
+    current_captured_at: Any,
+    kickoff_utc: Any,
+    current_quote_identity_status: str,
+    current_quote_freshness_status: str,
+    observations: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Classify same-line market movement without changing the model probability."""
+    market_name = str(market or "").upper()
+    selection_name = _canonical_selection(market_name, selection)
+    current_time = parse_utc(current_captured_at)
+    kickoff = parse_utc(kickoff_utc)
+    probability = _number(model_probability)
+    current_odds = _number(current_decimal_odds)
+    persisted_current_ev = _number(current_expected_value)
+    blockers: list[str] = []
+    if market_name not in {
+        MarketType.ASIAN_HANDICAP.value,
+        MarketType.TOTALS.value,
+    }:
+        blockers.append("MARKET_NOT_SUPPORTED")
+    if selection_name is None:
+        blockers.append("SELECTION_IDENTITY_INCOMPLETE")
+    if _decimal(line) is None:
+        blockers.append("LINE_IDENTITY_INCOMPLETE")
+    if probability is None or not 0 <= probability <= 1:
+        blockers.append("MODEL_PROBABILITY_INCOMPLETE")
+    if current_odds is None or current_odds <= 1:
+        blockers.append("CURRENT_QUOTE_INCOMPLETE")
+    if current_time is None or kickoff is None or current_time >= kickoff:
+        blockers.append("CURRENT_QUOTE_TIME_INVALID")
+    if current_quote_identity_status != "COMPLETE":
+        blockers.append("CURRENT_QUOTE_IDENTITY_INCOMPLETE")
+    if current_quote_freshness_status != "COMPLETE":
+        blockers.append("CURRENT_QUOTE_FRESHNESS_INCOMPLETE")
+
+    computed_current_ev = _binary_expected_value(probability, current_odds)
+    if (
+        computed_current_ev is not None
+        and persisted_current_ev is not None
+        and abs(computed_current_ev - persisted_current_ev) > 1e-9
+    ):
+        blockers.append("EV_IDENTITY_PARITY_CONFLICT")
+
+    eligible = [
+        row
+        for row in observations
+        if _opening_matches(
+            row,
+            fixture_id=fixture_id,
+            market=market_name,
+            selection=selection_name,
+            line=line,
+            current_time=current_time,
+            kickoff=kickoff,
+        )
+    ]
+    eligible.sort(
+        key=lambda row: (
+            parse_utc(row.get("captured_at")) or datetime.max.replace(tzinfo=UTC),
+            str(row.get("observation_id") or ""),
+        )
+    )
+    opening = eligible[0] if eligible else None
+    if opening is None:
+        blockers.append("SAME_LINE_OPENING_NOT_AVAILABLE")
+
+    opening_odds = _number(opening.get("decimal_odds")) if opening else None
+    opening_ev = _binary_expected_value(probability, opening_odds)
+    current_ev = computed_current_ev
+    movement_created_ev: float | None = None
+    movement_ev_share: float | None = None
+    divergence_age_ratio: float | None = None
+    if (
+        not blockers
+        and opening_ev is not None
+        and current_ev is not None
+        and current_ev > 0
+    ):
+        movement_created_ev = max(current_ev - max(opening_ev, 0.0), 0.0)
+        movement_ev_share = _clamp(movement_created_ev / max(current_ev, 1e-12))
+        divergence_age_ratio = _clamp(
+            max(min(opening_ev, current_ev), 0.0) / max(current_ev, 1e-12)
+        )
+
+    raw_classification = "INDETERMINATE"
+    if movement_ev_share is not None and movement_ev_share > 0.5:
+        raw_classification = "MOVEMENT_CREATED_DIVERGENCE"
+    elif divergence_age_ratio is not None and divergence_age_ratio >= 0.6:
+        raw_classification = "STABLE_DIVERGENCE"
+    effective_risk = {
+        "MOVEMENT_CREATED_DIVERGENCE": "MOVED",
+        "STABLE_DIVERGENCE": "STABLE",
+        "INDETERMINATE": "MOVED_CONSERVATIVE",
+    }[raw_classification]
+    status = (
+        "BLOCKED"
+        if "EV_IDENTITY_PARITY_CONFLICT" in blockers
+        else "READY"
+        if raw_classification != "INDETERMINATE"
+        else "INDETERMINATE"
+    )
+    current_ids = [
+        str(row.get("observation_id"))
+        for row in observations
+        if _current_quote_matches(
+            row,
+            fixture_id=fixture_id,
+            market=market_name,
+            selection=selection_name,
+            line=line,
+            captured_at=current_time,
+            decimal_odds=current_odds,
+        )
+        and row.get("observation_id")
+    ]
+    input_ids = sorted(
+        {
+            *current_ids,
+            *(
+                [str(opening.get("observation_id"))]
+                if opening and opening.get("observation_id")
+                else []
+            ),
+        }
+    )
+    canonical_line = _decimal(line)
+    result = {
+        "schema_version": DIVERGENCE_ORIGIN_SCHEMA_VERSION,
+        "formula_version": DIVERGENCE_ORIGIN_FORMULA_VERSION,
+        "status": status,
+        "raw_classification": raw_classification,
+        "effective_risk_class": effective_risk,
+        "fixture_id": fixture_id,
+        "market": market_name,
+        "selection": selection_name,
+        "line": float(canonical_line) if canonical_line is not None else None,
+        "model_probability": probability,
+        "opening_decimal_odds": opening_odds,
+        "current_decimal_odds": current_odds,
+        "opening_captured_at": opening.get("captured_at") if opening else None,
+        "current_captured_at": current_captured_at,
+        "opening_ev": opening_ev,
+        "current_ev": current_ev,
+        "movement_created_ev": movement_created_ev,
+        "movement_ev_share": movement_ev_share,
+        "divergence_age_ratio": divergence_age_ratio,
+        "input_observation_ids": input_ids,
+        "blockers": sorted(set(blockers)),
+    }
+    return {**result, "input_hash": _canonical_hash(result)}
 
 
 def build_market_movement(timeline: dict[str, Any] | None) -> dict[str, Any]:
@@ -241,6 +409,113 @@ def _number(value: Any) -> float | None:
         except ValueError:
             return None
     return None
+
+
+def _decimal(value: Any) -> Decimal | None:
+    try:
+        parsed = Decimal(str(value))
+    except Exception:
+        return None
+    return parsed if parsed.is_finite() else None
+
+
+def _binary_expected_value(
+    probability: float | None,
+    decimal_odds: float | None,
+) -> float | None:
+    if probability is None or decimal_odds is None:
+        return None
+    distribution = SettlementDistribution(
+        full_win_probability=Decimal(str(probability)),
+        full_loss_probability=Decimal("1") - Decimal(str(probability)),
+    )
+    return float(expected_value(Decimal(str(decimal_odds)), distribution))
+
+
+def _canonical_selection(market: str, value: Any) -> str | None:
+    raw = str(value or "").strip().upper()
+    aliases = {
+        "ASIAN_HANDICAP": {
+            "HOME": "HOME",
+            "HOME_AH": "HOME",
+            "AWAY": "AWAY",
+            "AWAY_AH": "AWAY",
+        },
+        "TOTALS": {
+            "OVER": "OVER",
+            "OVER_TOTALS": "OVER",
+            "UNDER": "UNDER",
+            "UNDER_TOTALS": "UNDER",
+        },
+    }
+    return aliases.get(market, {}).get(raw)
+
+
+def _same_fixture(left: Any, right: Any) -> bool:
+    def normalized(value: Any) -> str:
+        return str(value or "").removeprefix("api_football:")
+
+    return bool(normalized(left)) and normalized(left) == normalized(right)
+
+
+def _opening_matches(
+    row: dict[str, Any],
+    *,
+    fixture_id: str,
+    market: str,
+    selection: str | None,
+    line: Any,
+    current_time: datetime | None,
+    kickoff: datetime | None,
+) -> bool:
+    captured_at = parse_utc(row.get("captured_at"))
+    return bool(
+        selection is not None
+        and current_time is not None
+        and kickoff is not None
+        and captured_at is not None
+        and captured_at < current_time
+        and captured_at < kickoff
+        and _same_fixture(row.get("fixture_id"), fixture_id)
+        and str(row.get("canonical_market") or "").upper() == market
+        and _canonical_selection(market, row.get("selection")) == selection
+        and _decimal(row.get("line")) == _decimal(line)
+        and not bool(row.get("live"))
+        and not bool(row.get("suspended"))
+        and _number(row.get("decimal_odds")) is not None
+    )
+
+
+def _current_quote_matches(
+    row: dict[str, Any],
+    *,
+    fixture_id: str,
+    market: str,
+    selection: str | None,
+    line: Any,
+    captured_at: datetime | None,
+    decimal_odds: float | None,
+) -> bool:
+    return bool(
+        selection is not None
+        and captured_at is not None
+        and _same_fixture(row.get("fixture_id"), fixture_id)
+        and str(row.get("canonical_market") or "").upper() == market
+        and _canonical_selection(market, row.get("selection")) == selection
+        and _decimal(row.get("line")) == _decimal(line)
+        and parse_utc(row.get("captured_at")) == captured_at
+        and _number(row.get("decimal_odds")) == decimal_odds
+    )
+
+
+def _clamp(value: float) -> float:
+    return max(0.0, min(value, 1.0))
+
+
+def _canonical_hash(payload: dict[str, Any]) -> str:
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()
+    ).hexdigest()
 
 
 def _price_drift(opening: Any, latest: Any) -> float | None:

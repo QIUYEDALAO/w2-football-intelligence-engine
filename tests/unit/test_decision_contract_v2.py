@@ -11,7 +11,13 @@ from w2.domain.decision_policy import (
     compute_lock_eligible,
     compute_outcome_tracked,
 )
-from w2.domain.enums import DataStatus, DecisionReasonCode, DecisionTier, LifecycleStatus
+from w2.domain.enums import (
+    DataStatus,
+    DecisionReasonCode,
+    DecisionRiskCode,
+    DecisionTier,
+    LifecycleStatus,
+)
 
 
 def _pick(disclaimer: str | None = None) -> DecisionPick:
@@ -57,6 +63,8 @@ def _card(
         outcome_tracked=compute_outcome_tracked(decision_tier),
         lock_eligible=False,
         recommendation_id="rec-1",
+        lineup_requirement="ADVISORY",
+        risk_reason_codes=(DecisionRiskCode.LINEUP_UNOBSERVABLE,),
         model_version="dc-v2-test",
         provenance={"source": "unit"},
         environment="staging",
@@ -103,6 +111,8 @@ def test_non_pick_requires_actionable_reason_fields() -> None:
         outcome_tracked=False,
         lock_eligible=False,
         recommendation_id=None,
+        lineup_requirement="ADVISORY",
+        risk_reason_codes=(DecisionRiskCode.LINEUP_UNOBSERVABLE,),
         model_version="dc-v2-test",
         provenance={"source": "unit"},
         environment="staging",

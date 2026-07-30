@@ -46,7 +46,11 @@ from w2.infrastructure.persistence.models import (
     TeamLineupBaselineModel,
     TransfermarktPlayerReferenceModel,
 )
-from w2.lineups.intelligence import build_team_baseline, derive_lineup_change_features
+from w2.lineups.intelligence import (
+    build_team_baseline,
+    build_team_rotation_prior,
+    derive_lineup_change_features,
+)
 
 
 class FutureRefreshPersistenceError(RuntimeError):
@@ -533,6 +537,11 @@ class FutureRefreshDbRepository:
                     "formation_count": sum(bool(row.formation) for row in selected),
                     "blockers": ["LINEUP_SNAPSHOT_INCOMPLETE"],
                 }
+            rotation_priors = self._rotation_priors_in_session(
+                session,
+                team_external_ids=[snapshot.team_external_id for snapshot in selected],
+                as_of=kickoff or as_of,
+            )
             if any(not snapshot.lineup_identity_hash for snapshot in selected):
                 return {
                     "status": "INCOMPLETE",
@@ -543,6 +552,7 @@ class FutureRefreshDbRepository:
                     "valued_starters": 0,
                     "formation_count": sum(bool(row.formation) for row in selected),
                     "blockers": ["LINEUP_IDENTITY_HASH_MISSING"],
+                    "rotation_priors": rotation_priors,
                     "schema_version": "w2.lineup_gate_evidence.v1",
                 }
             starter_counts: list[int] = []
@@ -744,9 +754,101 @@ class FutureRefreshDbRepository:
                 "raw_sha256": sorted({snapshot.raw_sha256 for snapshot in selected}),
                 "baseline_artifact_hashes": sorted(set(baseline_hashes)),
                 "lineup_change_features": change_features,
+                "rotation_priors": rotation_priors,
                 "blockers": sorted(set(evidence_blockers)),
                 "schema_version": "w2.lineup_gate_evidence.v1",
             }
+
+    def _rotation_priors_in_session(
+        self,
+        session: Session,
+        *,
+        team_external_ids: list[str],
+        as_of: datetime,
+    ) -> list[dict[str, Any]]:
+        snapshots = list(
+            session.scalars(
+                select(StructuredLineupSnapshotModel)
+                .where(
+                    StructuredLineupSnapshotModel.team_external_id.in_(
+                        team_external_ids
+                    ),
+                    StructuredLineupSnapshotModel.confirmed.is_(True),
+                    StructuredLineupSnapshotModel.captured_at < as_of,
+                )
+                .order_by(StructuredLineupSnapshotModel.captured_at.desc())
+                .limit(256)
+            )
+        )
+        if not snapshots:
+            return [
+                build_team_rotation_prior(
+                    [],
+                    team_external_id=team_id,
+                    as_of=as_of,
+                )
+                for team_id in sorted(set(team_external_ids))
+            ]
+        fixture_ids = {snapshot.fixture_id for snapshot in snapshots}
+        bare_ids = {
+            fixture_id.removeprefix("api_football:") for fixture_id in fixture_ids
+        }
+        identities = list(
+            session.scalars(
+                select(MatchdayFixtureIdentityModel)
+                .where(
+                    (MatchdayFixtureIdentityModel.fixture_id.in_(fixture_ids))
+                    | (
+                        MatchdayFixtureIdentityModel.provider_fixture_id.in_(
+                            bare_ids
+                        )
+                    )
+                )
+                .order_by(MatchdayFixtureIdentityModel.captured_at.desc())
+            )
+        )
+        kickoff_by_fixture: dict[str, datetime] = {}
+        for identity in identities:
+            for alias in _fixture_aliases(identity.fixture_id):
+                kickoff_by_fixture.setdefault(alias, identity.kickoff_utc)
+            for alias in _fixture_aliases(identity.provider_fixture_id):
+                kickoff_by_fixture.setdefault(alias, identity.kickoff_utc)
+        snapshot_ids = [snapshot.id for snapshot in snapshots]
+        players = list(
+            session.scalars(
+                select(StructuredLineupPlayerModel).where(
+                    StructuredLineupPlayerModel.lineup_snapshot_id.in_(
+                        snapshot_ids
+                    ),
+                    StructuredLineupPlayerModel.starter.is_(True),
+                )
+            )
+        )
+        starters_by_snapshot: dict[str, list[dict[str, str]]] = {}
+        for player in players:
+            starters_by_snapshot.setdefault(player.lineup_snapshot_id, []).append(
+                {"player_id": player.api_football_player_id}
+            )
+        rows = [
+            {
+                "fixture_id": snapshot.fixture_id,
+                "team_external_id": snapshot.team_external_id,
+                "kickoff_at": kickoff_by_fixture.get(snapshot.fixture_id),
+                "captured_at": snapshot.captured_at,
+                "confirmed": snapshot.confirmed,
+                "starters": starters_by_snapshot.get(snapshot.id, []),
+                "lineup_identity_hash": snapshot.lineup_identity_hash,
+            }
+            for snapshot in snapshots
+        ]
+        return [
+            build_team_rotation_prior(
+                rows,
+                team_external_id=team_id,
+                as_of=as_of,
+            )
+            for team_id in sorted(set(team_external_ids))
+        ]
 
     def import_transfermarkt_player_snapshot(
         self,

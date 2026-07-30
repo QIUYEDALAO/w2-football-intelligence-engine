@@ -23,6 +23,7 @@ from w2.analysis.market_movement import (
     build_market_divergence,
     build_market_movement,
     build_market_timeline_reference,
+    classify_divergence_origin,
 )
 from w2.competitions.registry import CompetitionRegistry, CompetitionRegistryError
 from w2.config import Environment, get_settings
@@ -2011,6 +2012,8 @@ class ReadModelService:
             "outcome_tracked": False,
             "lock_eligible": False,
             "recommendation_id": None,
+            "lineup_requirement": "ADVISORY",
+            "risk_reason_codes": ["LINEUP_UNOBSERVABLE"],
             "pick": None,
             "non_pick": {
                 "reason_code": blocker,
@@ -2036,6 +2039,8 @@ class ReadModelService:
                 "outcome_tracked": False,
                 "lock_eligible": False,
                 "recommendation_id": None,
+                "lineup_requirement": "ADVISORY",
+                "risk_reason_codes": ["LINEUP_UNOBSERVABLE"],
                 "pick": None,
                 "non_pick": {
                     "reason_code": blocker,
@@ -2089,6 +2094,8 @@ class ReadModelService:
                     "recommendation_id",
                     "pick",
                     "non_pick",
+                    "lineup_requirement",
+                    "risk_reason_codes",
                     "reason_code",
                     "action",
                     "next_eval_at",
@@ -2327,17 +2334,56 @@ class ReadModelService:
         }
         generated = self._db_analysis_card_from_fixture(item, observations)
         if generated is not None:
-            return self._normalize_analysis_card(
+            normalized = self._normalize_analysis_card(
                 generated,
                 fixture_id=fixture_id,
                 fixture_context=self._analysis_context_from_provider_fixture(item),
             )
+            self._attach_divergence_origins(normalized, observations=observations)
+            return normalized
         return self._fallback_analysis_card(
             fixture_id=fixture_id,
             market_coverage=coverage,
             source="future_refresh_without_analysis_payload",
             fixture_context=self._analysis_context_from_provider_fixture(item),
         )
+
+    def _attach_divergence_origins(
+        self,
+        card: dict[str, Any],
+        *,
+        observations: list[dict[str, Any]],
+    ) -> None:
+        candidates = card.get("market_candidates")
+        if not isinstance(candidates, dict):
+            return
+        for key in ("ah", "ou"):
+            candidate = candidates.get(key)
+            if not isinstance(candidate, dict):
+                continue
+            selected = candidate.get("analysis_selected_candidate")
+            identity = candidate.get("quote_identity")
+            quote = candidate.get("execution_quote")
+            if not isinstance(selected, dict):
+                selected = {}
+            if not isinstance(identity, dict):
+                identity = {}
+            if not isinstance(quote, dict):
+                quote = {}
+            candidate["divergence_origin"] = classify_divergence_origin(
+                fixture_id=str(card.get("fixture_id") or ""),
+                market=str(candidate.get("market") or ""),
+                selection=str(candidate.get("selection") or ""),
+                line=candidate.get("line"),
+                model_probability=selected.get("model_probability"),
+                current_decimal_odds=quote.get("decimal_odds"),
+                current_expected_value=selected.get("expected_value"),
+                current_captured_at=identity.get("captured_at"),
+                kickoff_utc=card.get("kickoff_utc"),
+                current_quote_identity_status=str(identity.get("identity_status") or ""),
+                current_quote_freshness_status=str(identity.get("freshness_status") or ""),
+                observations=observations,
+            )
 
     def _market_coverage_from_fixture_observations(
         self,

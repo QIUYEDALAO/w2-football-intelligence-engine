@@ -15,10 +15,12 @@ from w2.domain.decision_policy import (
 from w2.domain.enums import (
     DataStatus,
     DecisionReasonCode,
+    DecisionRiskCode,
     DecisionTier,
     LifecycleStatus,
     ProbabilitySource,
 )
+from w2.lineups.intelligence import lineup_requirement as competition_lineup_requirement
 from w2.readiness.data_gate import (
     DataReadinessResult,
     result_from_mapping,
@@ -126,6 +128,25 @@ def build_decision_contract_fields(
         recommendation=recommendation,
     ):
         tier = DecisionTier.NOT_READY
+    lineup_requirement, risk_reason_codes = _lineup_risks(
+        card,
+        competition_id=competition_id,
+    )
+    forced_reason: DecisionReasonCode | None = None
+    if (
+        tier in {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND}
+        and lineup_requirement == "ADVISORY"
+        and _get(_as_mapping(evaluated_candidate), "divergence_origin")
+        and _first_upper(
+            _get(
+                _as_mapping(_get(_as_mapping(evaluated_candidate), "divergence_origin")),
+                "effective_risk_class",
+            )
+        )
+        in {"MOVED", "MOVED_CONSERVATIVE"}
+    ):
+        tier = DecisionTier.WATCH
+        forced_reason = DecisionReasonCode.MARKET_MOVED_AGAINST_BLIND_SPOT
     if tier not in {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND}:
         recommendation_id = None
     pick_payload = (
@@ -144,6 +165,7 @@ def build_decision_contract_fields(
             data_readiness=data_readiness,
             kickoff_utc=kickoff_utc,
             as_of=as_of,
+            reason_override=forced_reason,
         )
         if tier in {DecisionTier.NOT_READY, DecisionTier.SKIP, DecisionTier.WATCH}
         else None
@@ -166,6 +188,8 @@ def build_decision_contract_fields(
         },
         "pick": pick_payload,
         "non_pick": non_pick_payload,
+        "lineup_requirement": lineup_requirement,
+        "risk_reason_codes": risk_reason_codes,
         "one_liner": _one_liner(tier, non_pick_payload),
     }
     lock_eligible = compute_lock_eligible(
@@ -554,8 +578,9 @@ def _non_pick_payload(
     data_readiness: DataReadinessResult,
     kickoff_utc: datetime,
     as_of: datetime,
+    reason_override: DecisionReasonCode | None = None,
 ) -> dict[str, Any]:
-    reason_code = data_readiness.reason_code or _reason_code(
+    reason_code = reason_override or data_readiness.reason_code or _reason_code(
         card=card,
         market=market,
         recommendation=recommendation,
@@ -563,7 +588,7 @@ def _non_pick_payload(
     )
     reason_human, action = (
         (data_readiness.reason_human, data_readiness.action)
-        if data_readiness.reason_code is not None
+        if data_readiness.reason_code is not None and reason_override is None
         else _reason_text(reason_code)
     )
     return {
@@ -643,6 +668,10 @@ def _reason_code(
 
 
 def _reason_text(reason_code: DecisionReasonCode) -> tuple[str, str]:
+    if reason_code is DecisionReasonCode.MARKET_MOVED_AGAINST_BLIND_SPOT:
+        return "盘口移动暴露首发盲区", "等待可观测首发或稳定同线价格"
+    if reason_code is DecisionReasonCode.ADVISORY_DELTA_POLICY_NOT_READY:
+        return "ADVISORY 风险溢价尚未就绪", "等待写侧策略投影"
     if reason_code is DecisionReasonCode.LINEUPS_PENDING:
         return "首发未出", "等官方首发"
     if reason_code is DecisionReasonCode.EDGE_INSUFFICIENT:
@@ -658,6 +687,29 @@ def _reason_text(reason_code: DecisionReasonCode) -> tuple[str, str]:
     if reason_code is DecisionReasonCode.CONTRADICTION_UNEXPLAINED:
         return "信号冲突未解释", "人工复核后再评估"
     return "覆盖不足", "等待覆盖或跳过"
+
+
+def _lineup_risks(
+    card: Mapping[str, Any],
+    *,
+    competition_id: str | None,
+) -> tuple[str, list[str]]:
+    provenance = _as_mapping(_get(card, "lineup_provenance"))
+    requirement = _first_upper(provenance.get("requirement"))
+    if requirement not in {"STRICT", "ADVISORY"}:
+        requirement = competition_lineup_requirement(
+            competition_id or str(_get(card, "competition_id") or "")
+        )
+    risks: set[str] = set()
+    if requirement == "ADVISORY":
+        risks.add(DecisionRiskCode.LINEUP_UNOBSERVABLE.value)
+    rotation_priors = provenance.get("rotation_priors")
+    if isinstance(rotation_priors, list) and any(
+        isinstance(item, Mapping) and item.get("classification") == "HIGH_ROTATION"
+        for item in rotation_priors
+    ):
+        risks.add(DecisionRiskCode.HIGH_ROTATION_PRIOR.value)
+    return requirement, sorted(risks)
 
 
 def _next_eval_at(
@@ -777,6 +829,11 @@ def _validated_card_hash(
         outcome_tracked=bool(core["outcome_tracked"]),
         lock_eligible=lock_eligible,
         recommendation_id=_optional_text(core.get("recommendation_id")),
+        lineup_requirement=str(core["lineup_requirement"]),
+        risk_reason_codes=tuple(
+            DecisionRiskCode(str(value))
+            for value in core["risk_reason_codes"]
+        ),
         model_version=str(core["model_version"]),
         probability_source=ProbabilitySource(str(core["probability_source"])),
         model_market_divergence=_as_mapping(core.get("model_market_divergence")),

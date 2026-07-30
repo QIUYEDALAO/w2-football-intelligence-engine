@@ -10,6 +10,7 @@ from typing import Any, cast
 from w2.domain.enums import (
     DataStatus,
     DecisionReasonCode,
+    DecisionRiskCode,
     DecisionTier,
     LifecycleStatus,
     ProbabilitySource,
@@ -65,6 +66,8 @@ class DecisionCard:
     outcome_tracked: bool
     lock_eligible: bool
     recommendation_id: str | None
+    lineup_requirement: str
+    risk_reason_codes: tuple[DecisionRiskCode, ...]
     model_version: str
     provenance: Mapping[str, Any]
     environment: str
@@ -80,6 +83,10 @@ class DecisionCard:
         if self.kickoff_beijing.tzinfo is None or self.kickoff_beijing.utcoffset() is None:
             raise ValueError("kickoff_beijing must be timezone-aware")
         _validate_tier_payload(self.decision_tier, self.pick, self.non_pick)
+        if self.lineup_requirement not in {"STRICT", "ADVISORY"}:
+            raise ValueError("lineup_requirement must be STRICT or ADVISORY")
+        if tuple(sorted(set(self.risk_reason_codes))) != self.risk_reason_codes:
+            raise ValueError("risk_reason_codes must be sorted and unique")
         object.__setattr__(self, "card_hash", compute_card_hash(self))
 
     def as_dict(self) -> dict[str, Any]:
@@ -88,6 +95,7 @@ class DecisionCard:
         payload["data_status"] = self.data_status.value
         payload["lifecycle_status"] = self.lifecycle_status.value
         payload["probability_source"] = self.probability_source.value
+        payload["risk_reason_codes"] = [item.value for item in self.risk_reason_codes]
         if self.non_pick is not None:
             payload["non_pick"]["reason_code"] = self.non_pick.reason_code.value
         return payload
@@ -111,6 +119,8 @@ def _hash_payload(card: DecisionCard | Mapping[str, Any]) -> dict[str, Any]:
             "lifecycle_status": card.lifecycle_status,
             "outcome_tracked": card.outcome_tracked,
             "recommendation_id": card.recommendation_id,
+            "lineup_requirement": card.lineup_requirement,
+            "risk_reason_codes": card.risk_reason_codes,
             "model_version": card.model_version,
             "probability_source": card.probability_source,
             "model_market_divergence": card.model_market_divergence,
@@ -164,7 +174,12 @@ def _normalize(value: Any) -> Any:
         return _normalize(asdict(value))
     if isinstance(
         value,
-        DecisionTier | DataStatus | LifecycleStatus | DecisionReasonCode | ProbabilitySource,
+        DecisionTier
+        | DataStatus
+        | LifecycleStatus
+        | DecisionReasonCode
+        | DecisionRiskCode
+        | ProbabilitySource,
     ):
         return value.value
     if isinstance(value, datetime):

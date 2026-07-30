@@ -135,6 +135,7 @@ def _fields(
     readiness: dict[str, object] | None = None,
     environment: str = "staging",
     include_analysis_evidence: bool = True,
+    competition_id: str = "world_cup_2026",
 ) -> dict[str, object]:
     card_payload: dict[str, object] = {
         "source": "unit",
@@ -172,7 +173,7 @@ def _fields(
         environment=environment,
         as_of=NOW,
         kickoff_utc=KICKOFF,
-        competition_id="world_cup_2026",
+        competition_id=competition_id,
         fixture_id="fixture-1",
     )
 
@@ -194,6 +195,75 @@ def test_persisted_decision_contract_contains_complete_read_contract() -> None:
         )
         == contract
     )
+
+
+def test_lineup_requirement_and_risks_are_required_and_fail_closed() -> None:
+    advisory = _fields()
+    assert advisory["lineup_requirement"] == "ADVISORY"
+    assert advisory["risk_reason_codes"] == ["LINEUP_UNOBSERVABLE"]
+
+    strict = _fields(competition_id="premier_league")
+    assert strict["lineup_requirement"] == "STRICT"
+    assert strict["risk_reason_codes"] == []
+
+    invalid = dict(advisory["decision_contract"])  # type: ignore[arg-type]
+    invalid["risk_reason_codes"] = ["LINEUP_UNOBSERVABLE", "LINEUP_UNOBSERVABLE"]
+    with pytest.raises(ValueError, match="risk_reason_codes"):
+        validate_decision_contract(invalid, fixture_id="fixture-1")
+    invalid["risk_reason_codes"] = ["UNKNOWN"]
+    with pytest.raises(ValueError, match="risk_reason_codes"):
+        validate_decision_contract(invalid, fixture_id="fixture-1")
+    del invalid["risk_reason_codes"]
+    with pytest.raises(ValueError, match="DECISION_CONTRACT_INCOMPLETE"):
+        validate_decision_contract(invalid, fixture_id="fixture-1")
+
+
+def test_high_rotation_prior_adds_risk_without_numerical_adjustment() -> None:
+    fields = _fields(
+        card={
+            "lineup_provenance": {
+                "requirement": "ADVISORY",
+                "rotation_priors": [
+                    {"status": "READY", "classification": "HIGH_ROTATION"}
+                ],
+                "lineup_ah_adjustment": 0.0,
+                "lineup_totals_adjustment": 0.0,
+            }
+        }
+    )
+
+    assert fields["risk_reason_codes"] == [
+        "HIGH_ROTATION_PRIOR",
+        "LINEUP_UNOBSERVABLE",
+    ]
+
+
+def test_advisory_moved_pick_downgrades_but_strict_pick_does_not() -> None:
+    market = {
+        "market": "ASIAN_HANDICAP",
+        "decision": "PICK",
+        "tendency": "HOME_AH",
+        "line": "-0.5",
+        "odds": "1.95",
+    }
+    card = _canonical_candidate(market)
+    candidate = card["market_candidates"]["ah"]  # type: ignore[index]
+    candidate["divergence_origin"] = {"effective_risk_class": "MOVED_CONSERVATIVE"}
+    card["lineup_provenance"] = {"requirement": "ADVISORY"}
+
+    advisory = _fields(card=card, market=market)
+    strict = _fields(
+        card={**card, "lineup_provenance": {"requirement": "STRICT"}},
+        market=market,
+        competition_id="premier_league",
+    )
+
+    assert advisory["decision_tier"] == "WATCH"
+    assert advisory["pick"] is None
+    assert advisory["non_pick"]["reason_code"] == "MARKET_MOVED_AGAINST_BLIND_SPOT"  # type: ignore[index]
+    assert advisory["outcome_tracked"] is False
+    assert advisory["lock_eligible"] is False
+    assert strict["decision_tier"] == "ANALYSIS_PICK"
 
 
 def test_model_version_uses_only_canonical_card_or_adapter_default() -> None:
