@@ -548,10 +548,43 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "lineup_change_features",
         "model_version",
         "release_sha",
+        "AUTHORITATIVE_LINEUP_EVENT_POLICY =",
+        "FIRST_COMPLETE_CONFIRMED_LINEUP_IDENTITY",
+        "AUTHORITATIVE_EVENT_TIME =",
+        "EARLIEST_COMPLETE_CONFIRMED_CAPTURE_AT",
+        "ELIGIBLE_LINEUP_EVENT_COUNT_PER_FIXTURE = 1",
+        "SAME_FIXTURE_SAME_LINEUP_HASH_SAME_CAPTURE =",
+        "ZERO_WRITE_EXACT_REPLAY",
+        "SAME_FIXTURE_SAME_LINEUP_HASH_DIFFERENT_CAPTURE =",
+        "ZERO_WRITE_REOBSERVATION",
+        "REOBSERVATION_PRESERVES_ORIGINAL_EVENT_TIME = true",
+        "REOBSERVATION_PRESERVES_ORIGINAL_EVENT_PAYLOAD = true",
+        "SAME_FIXTURE_DIFFERENT_LINEUP_HASH =",
+        "LINEUP_CONFIRMATION_CONFLICT",
+        "LINEUP_CONFIRMATION_CONFLICT_EVAL_02B_ELIGIBLE = false",
+        "SECOND_ELIGIBLE_LINEUP_EVENT_ALLOWED = false",
         "DYNAMIC_EVALUATION_SCHEMA_VERSION =",
         "w2.dynamic_quote_evaluation.v2",
         "DYNAMIC_EVALUATION_V1_EVAL_02B_ELIGIBLE = false",
-        "DYNAMIC_EVALUATION_V2_EVAL_02B_ELIGIBLE = true",
+        "DYNAMIC_EVALUATION_V2_SCHEMA_ELIGIBILITY =",
+        "NECESSARY_NOT_SUFFICIENT",
+        "EVAL_02B_EVALUATION_ROLES =",
+        "PRE_CONFIRMATION / POST_CONFIRMATION",
+        "PRE_CONFIRMATION_ELIGIBILITY =",
+        "POST_CONFIRMATION_ELIGIBILITY =",
+        "schema_version == w2.dynamic_quote_evaluation.v2",
+        "capture_at < authoritative_lineup_event.captured_at",
+        "capture_at >= authoritative_lineup_event.captured_at",
+        "lineup_input_hash == null",
+        "lineup_input_hash == authoritative_lineup_event.lineup_input_hash",
+        "post_lineup_quote == true",
+        "quote_fresh == true",
+        "exact_quote_identity_complete == true",
+        "model_settlement_distribution_valid == true",
+        "state_not_marker_or_not_ready == true",
+        "superseded == false",
+        "PRE_LINEUP_INPUT_HASH_REQUIRED = false",
+        "POST_LINEUP_INPUT_HASH_REQUIRED = true",
         "DYNAMIC_EVALUATION_V2_FIELDS =",
         "competition_id",
         "provider",
@@ -580,6 +613,16 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "WRITE_SIDE_NOT_READY",
         "PLAN_EXISTS_BUT_PROVIDER_NOT_ACTIVATED =",
         "READY_FOR_ACTIVATION_REVIEW",
+        "PAIR_PROJECTOR_REQUIRES =",
+        "EXACTLY_ONE_AUTHORITATIVE_ELIGIBLE_LINEUP_EVENT",
+        "ZERO_AUTHORITATIVE_EVENTS =",
+        "BLOCKED_LINEUP_EVENT_MISSING",
+        "MULTIPLE_OR_CONFLICTING_EVENTS =",
+        "BLOCKED_LINEUP_EVENT_CONFLICT",
+        "last eligible PRE_CONFIRMATION evaluation",
+        "before authoritative event",
+        "first eligible POST_CONFIRMATION evaluation",
+        "after authoritative event",
         "PRE_POST_EXACT_MATCH_FIELDS =",
         "PAIR_STORAGE_MODE = DERIVED_READ_MODEL",
         "NEW_PAIR_TABLE_COUNT = 0",
@@ -616,6 +659,16 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "两队 snapshot 属于同一 capture",
         "capture 在开球前",
         "任一条件不满足均不写 event",
+        "同一套 XI 后续再次被观测时，不创建新 event、不修改最早确认时间",
+        "也不视为冲突",
+        "Reobservation 不作为新的 authoritative payload",
+        "首次确认后出现不同",
+        "`lineup_input_hash`，该 fixture 整体不得产生 EVAL-02B pair",
+        "v2 schema 本身只提供必要条件，不能自动赋予 EVAL-02B 资格",
+        "Pre 的",
+        "`lineup_input_hash` 必须为空",
+        "Post 的 hash 必须精确匹配 authoritative event",
+        "NOT_READY、marker 和 superseded evaluation 均不合格",
         "必须全部参与 v2 identity hash",
         "继续使用现有 JSON payload，不改数据库表",
         "不得在一条 evaluation 同时保存",
@@ -626,6 +679,10 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "未来实现必须显式比较已存 payload",
         "不得新建 scheduler 或",
         "plan 表",
+        "只有恰好一个 authoritative eligible lineup event 时才允许选择 Pre/Post",
+        "0 个或多个/",
+        "冲突 event 必须按上述 blocker fail-closed",
+        "每场 fixture 最多一个 pair",
         "不得跨 provider、bookmaker、line 或 selection 配对",
         "不新建 pair 表",
         "分别通过独立、可回滚 PR",
@@ -633,6 +690,29 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "scheduler 或运行采集",
     ):
         assert write_side_rule in b5
+    assert "DYNAMIC_EVALUATION_V2_EVAL_02B_ELIGIBLE = true" not in b5
+    assert (
+        "PRE_CONFIRMATION_ELIGIBILITY =\n"
+        "schema_version == w2.dynamic_quote_evaluation.v2\n"
+        "capture_at < authoritative_lineup_event.captured_at\n"
+        "lineup_input_hash == null\n"
+        "exact_quote_identity_complete == true\n"
+        "model_settlement_distribution_valid == true\n"
+        "state_not_marker_or_not_ready == true\n"
+        "superseded == false"
+    ) in b5
+    assert (
+        "POST_CONFIRMATION_ELIGIBILITY =\n"
+        "schema_version == w2.dynamic_quote_evaluation.v2\n"
+        "capture_at >= authoritative_lineup_event.captured_at\n"
+        "lineup_input_hash == authoritative_lineup_event.lineup_input_hash\n"
+        "post_lineup_quote == true\n"
+        "quote_fresh == true\n"
+        "exact_quote_identity_complete == true\n"
+        "model_settlement_distribution_valid == true\n"
+        "state_not_marker_or_not_ready == true\n"
+        "superseded == false"
+    ) in b5
     assert (
         "EVAL-01A\n"
         "EVAL-01B\n"
