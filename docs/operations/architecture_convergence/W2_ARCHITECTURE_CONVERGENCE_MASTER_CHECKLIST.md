@@ -574,9 +574,14 @@ PR #424 已完成 exact-head FULL CI、外部 Review、staging 验收并合并�
 #### B2. EVAL-01B：全量校准评分投影
 
 ```text
-Status: IMPLEMENTED_PENDING_SECONDARY_REVIEW_AND_STAGING
+Status: DONE
 Branch: codex/eval-01b-finished-match-scoring-projection
 PR: #430
+Source head: dbd70161823c45a1a8e38b68be7de646db2d2a33
+Merge SHA: 5c2bd6f2e5c23196a25495335da72599e076c8ae
+Main CI: 30477611652
+Staging acceptance: PASS
+Conclusion: 全量 finished-match scoring projection、legacy parity、cohort、幂等和 fail-closed staging 验收通过。
 ```
 
 **目标**：每场 FINISHED 比赛自动产生"模型 vs 市场"评分——不管推没推荐。
@@ -609,14 +614,15 @@ fixture 开赛前最后一条完整、未 supersede 的
 **验收**：staging 全部已完结且有评估记录的比赛 100% 产生 `performance:fixture:*`；
 抽 5 场人工复算一致；API 守卫不变绿（评分在写侧）。
 **资产账本**：新增 0；删除 0。
-- [ ] PR 合并。
+- [x] PR 合并。
 
 ---
 
 #### B3. EVAL-01C：Dashboard 表现视图（CLV 第一 KPI）
 
 ```text
-Status: NOT_STARTED
+Status: IN_PROGRESS
+Branch: codex/eval-01c-performance-dashboard
 ```
 
 - [ ] API/Web 只读表现页，仅读 `performance:*` 投影：
