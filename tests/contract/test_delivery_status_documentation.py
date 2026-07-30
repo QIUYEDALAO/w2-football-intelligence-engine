@@ -34,7 +34,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     assert state["current_state_authority"] == "PROJECT_STATE.yaml"
     assert state["task_authority"] == CHECKLIST_PATH
     assert state["current_task"] == "EVAL-02A"
-    assert state["current_status"] == "IN_PROGRESS"
+    assert state["current_status"] == "DONE"
     assert state["current_pr"] == 434
     assert state["next_task"] == "EVAL-02B"
     assert state["tasks"]["ARCH-P2-02"] == {
@@ -80,20 +80,17 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "main_ci": 30517146657,
     }
     assert state["tasks"]["EVAL-02A"] == {
-        "status": "IN_PROGRESS",
+        "status": "DONE",
         "pr": 434,
-        "branch": "codex/eval-02a-lineup-blind-spot-defense",
+        "merge_sha": "427cb2203d943304582e5aa3f6b55e5d6b8adce0",
+        "main_ci": 30556679131,
     }
     assert state["tasks"]["EVAL-02B"]["status"] == "NOT_STARTED"
     assert state["architecture_convergence"]["status"] == "PASS"
     assert "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)" in next_action
     assert CHECKLIST_PATH in next_action
-    assert (
-        "当前：B4 EVAL-02A / PR #434 IN_PROGRESS，等待实现、独立 CODE Review "
-        "和 exact-head staging。"
-        in next_action
-    )
-    assert "下一项：B5 EVAL-02B；B4 合并前不启动。" in next_action
+    assert "当前：B4 EVAL-02A / PR #434 DONE，已完成。" in next_action
+    assert "下一项：B5 EVAL-02B；状态仍为 NOT_STARTED，尚未启动。" in next_action
     assert "sole machine-readable project-status record" in ledger
     assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", ledger)
     assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", next_action)
@@ -138,9 +135,13 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     b4 = checklist[
         checklist.index("#### B4. EVAL-02A") : checklist.index("#### B5.")
     ]
-    assert "Status: IN_PROGRESS" in b4
+    assert "Status: DONE" in b4
     assert "Branch: codex/eval-02a-lineup-blind-spot-defense" in b4
     assert "PR: #434" in b4
+    assert "Source head: 43a9e5aae1da6821edfc88d048c680b52ff870fb" in b4
+    assert "Merge SHA: 427cb2203d943304582e5aa3f6b55e5d6b8adce0" in b4
+    assert "Main CI: 30556679131" in b4
+    assert "Staging acceptance: PASS" in b4
     assert "opening_ev = model_probability * opening_decimal_odds - 1" not in b4
     assert "current_ev = model_probability * current_decimal_odds - 1" not in b4
     assert "FROZEN_EV_DISTRIBUTION" in b4
@@ -150,7 +151,11 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     assert "non-moved and divergence_age_ratio >= 0.6 = STABLE_DIVERGENCE" in b4
     assert "rotation_rate >= 4 / 11 = HIGH_ROTATION" in b4
     assert "minimum advisory canonical settled = 50" in b4
+    assert (
+        "ADVISORY_DELTA_SCHEMA_VERSION = w2.advisory_blind_spot_policy.v2" in b4
+    )
     assert "PERFORMANCE_SCHEMA_VERSION = w2.performance_projection.v3" in b4
+    assert "- [x] PR 合并。" in b4
     b5 = checklist[
         checklist.index("#### B5. EVAL-02B") : checklist.index("#### B6.")
     ]
@@ -164,6 +169,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     assert state["staging"]["eval_01a_exact_head_acceptance"] == "PASS"
     assert state["staging"]["eval_01b_exact_head_acceptance"] == "PASS"
     assert state["staging"]["eval_01c_exact_head_acceptance"] == "PASS"
+    assert state["staging"]["eval_02a_exact_head_acceptance"] == "PASS"
 
 
 def test_historical_pr_range_is_explicitly_non_authoritative() -> None:
