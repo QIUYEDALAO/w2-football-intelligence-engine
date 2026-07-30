@@ -101,18 +101,26 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "contract_authority": "FROZEN",
         "data_acquisition_plan": "AUTHORIZED",
         "runtime_collection_authorized": False,
-        "next_required_action": "IDENTITY_REMEDIATION_DESIGN",
+        "identity_remediation_design": "BLOCKED",
+        "identity_remediation_execution_authorized": False,
+        "identity_remediation_audit_as_of": "2026-07-30T17:31:23.303986Z",
+        "identity_remediation_audit_sha256": (
+            "8871fa588091b2daa8c72bd36837e044f462c194f9bc7804bcde27015d063ad0"
+        ),
+        "exact_unique_candidate_count": 0,
+        "unresolved_result_count": 35,
+        "next_required_action": "IDENTITY_PROVENANCE_GAP_DECISION",
     }
     assert state["tasks"]["EVAL-03"]["status"] == "NOT_STARTED"
     assert state["architecture_convergence"]["status"] == "PASS"
     assert "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)" in next_action
     assert CHECKLIST_PATH in next_action
     assert (
-        "当前：B5 EVAL-02B 仍为 BLOCKED；合同权威已冻结、"
-        "数据获取方案已授权，但运行采集未授权。" in next_action
+        "当前：B5 EVAL-02B 仍为 BLOCKED；身份修复只读审计未找到 "
+        "exact unique candidate，身份修复执行与运行采集均未授权。" in next_action
     )
     assert (
-        "下一步：B5 IDENTITY_REMEDIATION_DESIGN；"
+        "下一步：B5 IDENTITY_PROVENANCE_GAP_DECISION；"
         "EVAL_02B_START_AUTHORIZED = false，B7 EVAL-03 仍为 NOT_STARTED。"
         in next_action
     )
@@ -186,12 +194,23 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     ]
     assert "Status: BLOCKED" in b5
     assert "EVAL_02B_START_AUTHORIZED = false" in b5
-    assert "AUDIT_AS_OF = 2026-07-30T16:06:59.736350Z" in b5
     assert (
-        "AUDIT_SHA256 = "
+        "START_QUALIFICATION_AUDIT_AS_OF = 2026-07-30T16:06:59.736350Z"
+        in b5
+    )
+    assert (
+        "START_QUALIFICATION_AUDIT_SHA256 = "
         "c4099f973f46514c3105911eee9bf87accd20f98b2430998868716d8ae13e70d"
         in b5
     )
+    assert "AUDIT_AS_OF = 2026-07-30T17:31:23.303986Z" in b5
+    assert (
+        "AUDIT_SHA256 = "
+        "8871fa588091b2daa8c72bd36837e044f462c194f9bc7804bcde27015d063ad0"
+        in b5
+    )
+    assert "EXACT_UNIQUE_CANDIDATE_COUNT = 0" in b5
+    assert "UNRESOLVED_RESULT_COUNT = 35" in b5
     assert "dynamic_prematch_evaluations 0" in b5
     assert "lineup_confirmed_events 0" in b5
     assert "exact pre/post pairs 0" in b5
@@ -200,7 +219,9 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "CONTRACT_AUTHORITY = FROZEN",
         "DATA_ACQUISITION_PLAN = AUTHORIZED",
         "RUNTIME_COLLECTION_AUTHORIZED = false",
-        "NEXT_REQUIRED_ACTION = IDENTITY_REMEDIATION_DESIGN",
+        "IDENTITY_REMEDIATION_DESIGN = BLOCKED",
+        "IDENTITY_REMEDIATION_EXECUTION_AUTHORIZED = false",
+        "NEXT_REQUIRED_ACTION = IDENTITY_PROVENANCE_GAP_DECISION",
         "PAIR_SCOPE = PER_COMPETITION_X_MARKET",
         "PAIR_GRAIN = ONE_CANONICAL_FIXTURE_PAIR",
         "MINIMUM_ELIGIBLE_TOTAL_PAIRS = 120",
@@ -286,6 +307,57 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "exact_line",
         "pre_evaluation_id",
         "post_evaluation_id",
+        "RESULT_AUTHORITY = results",
+        "FIXTURE_IDENTITY_AUTHORITY = matchday_fixture_identities",
+        "LEAGUE_MAPPING_AUTHORITY = league_profile + league_season",
+        "RESULT_ROWS_MUTABLE = false",
+        "IDENTITY_REMEDIATION_MODE = INSERT_MISSING_ONLY",
+        "NEW_TABLE_COUNT = 0",
+        "NEW_MIGRATION_COUNT = 0",
+        "DIRECT_SQL_WRITE_ALLOWED = false",
+        "result.fixture_id",
+        "result.source_payload_sha256",
+        "result.source_capture_id",
+        "→ raw_payload（raw_payloads authority 的当前物理表）",
+        "→ matchday_endpoint_captures（存在时）",
+        "→ raw fixtures response",
+        "→ league_profile / league_season",
+        "→ proposed MatchdayFixtureIdentityV1",
+        "provider + provider_league_id + provider_season",
+        "COMPETITION_SEASON_MAPPING_MISSING",
+        "COMPETITION_SEASON_MAPPING_AMBIGUOUS",
+        "COMPETITION_SEASON_PROVENANCE_CONFLICT",
+        "kickoff_utc",
+        "home_provider_team_id",
+        "away_provider_team_id",
+        "home_w2_team_id",
+        "away_w2_team_id",
+        "team_identity_status",
+        "raw_payload_sha256",
+        "endpoint_capture_id",
+        "captured_at",
+        "identity_hash",
+        "RESULT_COUNT = 35",
+        "SOURCE_CAPTURE_ID_PRESENT = 0",
+        "RAW_PAYLOAD_EXACT = 0",
+        "RAW_FIXTURE_EXACT = 0",
+        "CAPTURE_EXACT = 0",
+        "REGISTRY_EXACT = 0",
+        "WOULD_INSERT = 0",
+        "ALREADY_EXACT = 0",
+        "BLOCKED_MISSING = 35",
+        "BLOCKED_AMBIGUOUS = 0",
+        "BLOCKED_CONFLICT = 0",
+        "RAW_PAYLOAD_NOT_FOUND = 35",
+        "RAW_FIXTURE_PROVENANCE_MISSING = 35",
+        "COMPETITION_SEASON_MAPPING_MISSING = 35",
+        "DB_WRITE_DELTA = 0",
+        "PROVIDER_CALL_DELTA = 0",
+        "canonical remediation manifest",
+        "MatchdayRuntimeRepository.upsert_fixture_identities_with_business_changes()",
+        "manifest_hash",
+        "preexisting",
+        "inserted_at",
     ):
         assert frozen_coordinate in b5
     for identity_rule in (
@@ -311,6 +383,54 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "Recommendation、Candidate、Formal、Lock、Production 全程保持关闭",
     ):
         assert acquisition_rule in b5
+    assert (
+        "fixture_id\n"
+        "provider\n"
+        "provider_fixture_id\n"
+        "competition_id\n"
+        "provider_league_id\n"
+        "season\n"
+        "kickoff_utc\n"
+        "fixture_status\n"
+        "home_provider_team_id\n"
+        "away_provider_team_id\n"
+        "home_w2_team_id\n"
+        "away_w2_team_id\n"
+        "team_identity_status\n"
+        "raw_payload_sha256\n"
+        "endpoint_capture_id\n"
+        "captured_at\n"
+        "payload\n"
+        "identity_hash"
+    ) in b5
+    assert (
+        "WOULD_INSERT\n"
+        "ALREADY_EXACT\n"
+        "BLOCKED_MISSING\n"
+        "BLOCKED_AMBIGUOUS\n"
+        "BLOCKED_CONFLICT"
+    ) in b5
+    for remediation_rule in (
+        "`results` 不得修改、删除、重建或增加 competition/season 字段",
+        "不得新建平行 identity",
+        "不得以名称、球队或时间作模糊匹配",
+        "fixture status、fulltime 比分必须与 Result 一致",
+        "禁止 team name、league name 或近似时间匹配",
+        "W2 team IDs 仅可取 reviewed exact",
+        "identity_hash` 必须复用 repository 既有 semantic hash",
+        "写入前必须重新核验 DB snapshot 与 manifest hash",
+        "`ALREADY_EXACT` 必须零写",
+        "稳定字段不同必须整批 fail-closed",
+        "第二次执行必须",
+        "零写且 manifest hash 一致",
+        "回滚只可删除 `preexisting = false`",
+        "身份已变化或已被下游消费时",
+        "自动回滚必须",
+        "fail-closed",
+    ):
+        assert remediation_rule in b5
+    assert ".audit/" not in b5
+    assert "/Users/" not in b5
     assert "500 个验证样本" in b5
     assert "Baseline 与 candidate 是两套独立概率向量" in b5
     assert "相同、有序的五态空间" in b5

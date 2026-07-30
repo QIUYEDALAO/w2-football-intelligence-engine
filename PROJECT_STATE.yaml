@@ -68,7 +68,13 @@ tasks:
     contract_authority: FROZEN
     data_acquisition_plan: AUTHORIZED
     runtime_collection_authorized: false
-    next_required_action: IDENTITY_REMEDIATION_DESIGN
+    identity_remediation_design: BLOCKED
+    identity_remediation_execution_authorized: false
+    identity_remediation_audit_as_of: "2026-07-30T17:31:23.303986Z"
+    identity_remediation_audit_sha256: 8871fa588091b2daa8c72bd36837e044f462c194f9bc7804bcde27015d063ad0
+    exact_unique_candidate_count: 0
+    unresolved_result_count: 35
+    next_required_action: IDENTITY_PROVENANCE_GAP_DECISION
   EVAL-03:
     status: NOT_STARTED
 safety:

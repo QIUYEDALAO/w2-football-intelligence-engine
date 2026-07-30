@@ -755,8 +755,12 @@ Status: BLOCKED
 前置：A2（F10 已删）、A3（球员身份可联接）、B2（评分基建）、
       每联赛 LINEUP_CONFIRMED 配对评估历史 ≥120 场
 EVAL_02B_START_AUTHORIZED = false
-AUDIT_AS_OF = 2026-07-30T16:06:59.736350Z
-AUDIT_SHA256 = c4099f973f46514c3105911eee9bf87accd20f98b2430998868716d8ae13e70d
+START_QUALIFICATION_AUDIT_AS_OF = 2026-07-30T16:06:59.736350Z
+START_QUALIFICATION_AUDIT_SHA256 = c4099f973f46514c3105911eee9bf87accd20f98b2430998868716d8ae13e70d
+AUDIT_AS_OF = 2026-07-30T17:31:23.303986Z
+AUDIT_SHA256 = 8871fa588091b2daa8c72bd36837e044f462c194f9bc7804bcde27015d063ad0
+EXACT_UNIQUE_CANDIDATE_COUNT = 0
+UNRESOLVED_RESULT_COUNT = 35
 
 DATA_BLOCKER =
 dynamic_prematch_evaluations 0
@@ -767,7 +771,9 @@ exact pre/post pairs 0
 CONTRACT_AUTHORITY = FROZEN
 DATA_ACQUISITION_PLAN = AUTHORIZED
 RUNTIME_COLLECTION_AUTHORIZED = false
-NEXT_REQUIRED_ACTION = IDENTITY_REMEDIATION_DESIGN
+IDENTITY_REMEDIATION_DESIGN = BLOCKED
+IDENTITY_REMEDIATION_EXECUTION_AUTHORIZED = false
+NEXT_REQUIRED_ACTION = IDENTITY_PROVENANCE_GAP_DECISION
 ```
 
 **预注册门禁合同（已冻结）**：
@@ -936,6 +942,135 @@ PROVIDER_CALL_LIMIT
 ```
 
 Recommendation、Candidate、Formal、Lock、Production 全程保持关闭。
+
+**Phase 1 身份修复设计与只读可行性审计**：
+
+```text
+RESULT_AUTHORITY = results
+FIXTURE_IDENTITY_AUTHORITY = matchday_fixture_identities
+LEAGUE_MAPPING_AUTHORITY = league_profile + league_season
+RESULT_ROWS_MUTABLE = false
+IDENTITY_REMEDIATION_MODE = INSERT_MISSING_ONLY
+NEW_TABLE_COUNT = 0
+NEW_MIGRATION_COUNT = 0
+DIRECT_SQL_WRITE_ALLOWED = false
+```
+
+`results` 不得修改、删除、重建或增加 competition/season 字段；不得新建平行 identity
+表，也不得以名称、球队或时间作模糊匹配。
+
+每条 Result 的唯一许可证据链是：
+
+```text
+result.fixture_id
+result.source_payload_sha256
+result.source_capture_id
+→ raw_payload（raw_payloads authority 的当前物理表）
+→ matchday_endpoint_captures（存在时）
+→ raw fixtures response
+→ league_profile / league_season
+→ proposed MatchdayFixtureIdentityV1
+```
+
+- `raw_payload.sha256` 必须等于 `result.source_payload_sha256`，endpoint 必须为
+  `fixtures`；response 中必须恰好一个 API-Football 数字 provider fixture ID 与
+  `result.fixture_id` 精确一致。
+- fixture status、fulltime 比分必须与 Result 一致；kickoff、league ID、season 和
+  主客 provider team ID 必须完整。禁止 team name、league name 或近似时间匹配。
+- 非空 `source_capture_id` 必须精确命中，且 capture 的 raw hash、endpoint、fixture ID
+  全部一致。空 capture ID 可按 raw hash 查找：唯一 capture 使用、无 capture 可仅依赖
+  精确 raw provenance、多个冲突 capture 必须 fail-closed。
+- Competition/season 必须用 DB 全部 `league_profile` / `league_season` 权威行，按
+  `provider + provider_league_id + provider_season` 精确唯一映射。缺失、歧义和
+  capture/raw/mapping 冲突分别记为 `COMPETITION_SEASON_MAPPING_MISSING`、
+  `COMPETITION_SEASON_MAPPING_AMBIGUOUS`、
+  `COMPETITION_SEASON_PROVENANCE_CONFLICT`；不得从当前 enabled season 猜历史赛季。
+
+拟生成身份只允许完全复用 `MatchdayFixtureIdentityV1`：
+
+```text
+fixture_id
+provider
+provider_fixture_id
+competition_id
+provider_league_id
+season
+kickoff_utc
+fixture_status
+home_provider_team_id
+away_provider_team_id
+home_w2_team_id
+away_w2_team_id
+team_identity_status
+raw_payload_sha256
+endpoint_capture_id
+captured_at
+payload
+identity_hash
+```
+
+Provider team IDs 必须来自同一 raw fixture。W2 team IDs 仅可取 reviewed exact
+authority；未完成 reviewed mapping 时保持空值并使用既有 fail-closed status。
+`identity_hash` 必须复用 repository 既有 semantic hash，不新增 hash 版本或身份算法。
+
+只读审计矩阵：
+
+```text
+RESULT_COUNT = 35
+SOURCE_CAPTURE_ID_PRESENT = 0
+RAW_PAYLOAD_EXACT = 0
+RAW_FIXTURE_EXACT = 0
+CAPTURE_EXACT = 0
+REGISTRY_EXACT = 0
+WOULD_INSERT = 0
+ALREADY_EXACT = 0
+BLOCKED_MISSING = 35
+BLOCKED_AMBIGUOUS = 0
+BLOCKED_CONFLICT = 0
+
+BLOCKER_COUNT =
+RAW_PAYLOAD_NOT_FOUND = 35
+RAW_FIXTURE_PROVENANCE_MISSING = 35
+COMPETITION_SEASON_MAPPING_MISSING = 35
+
+DB_WRITE_DELTA = 0
+PROVIDER_CALL_DELTA = 0
+```
+
+35 条 Result 的 source hash 均未精确命中现存 raw authority，因而无法继续建立
+无歧义 raw fixture 与 competition/season 证据链；本轮不得产生拟写入身份。
+
+未来实施必须默认 `dry-run`，先生成 canonical remediation manifest；每行状态只能是：
+
+```text
+WOULD_INSERT
+ALREADY_EXACT
+BLOCKED_MISSING
+BLOCKED_AMBIGUOUS
+BLOCKED_CONFLICT
+```
+
+写入前必须重新核验 DB snapshot 与 manifest hash。仅 `WOULD_INSERT` 且 exact unique
+的缺失身份可交给
+`MatchdayRuntimeRepository.upsert_fixture_identities_with_business_changes()`；
+`ALREADY_EXACT` 必须零写，已存在但稳定字段不同必须整批 fail-closed。第二次执行必须
+零写且 manifest hash 一致。
+
+未来实施写入 receipt 至少包含：
+
+```text
+fixture_id
+identity_hash
+raw_payload_sha256
+endpoint_capture_id
+manifest_hash
+preexisting
+inserted_at
+```
+
+回滚只可删除 `preexisting = false`、fixture ID 与 identity hash 仍精确一致、且尚未启动
+Phase 2、采集或其他下游写入的行。身份已变化或已被下游消费时，自动回滚必须
+fail-closed。
 
 - [ ] **Tier-1 特征集（仅这四个，禁止顺手加特征）**：缺阵球员上季+本季出场分钟占比；
       按位置组（GK/DEF/MID/FWD）缺阵价值占比；XI 连续性计数（最近 5 场首发过的人数）；
