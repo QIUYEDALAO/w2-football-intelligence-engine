@@ -10,6 +10,7 @@ from statistics import median
 from typing import Any
 
 from sqlalchemy import Engine, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from w2.infrastructure.database import create_engine
@@ -22,6 +23,12 @@ from w2.infrastructure.persistence.matchday_intake_models import (
 )
 from w2.infrastructure.persistence.models import ResultModel
 from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerModel
+from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
+from w2.tracking.advisory_blind_spot_policy import (
+    POLICY_CHECKPOINT_KEY,
+    AdvisoryBlindSpotPolicyCheckpoint,
+    build_advisory_blind_spot_policy,
+)
 from w2.tracking.forward_ledger_performance import (
     CLV_METHOD,
     CanonicalSettlementFacts,
@@ -45,8 +52,8 @@ from w2.tracking.performance_scoring import (
     rps,
 )
 
-SCHEMA_VERSION = "w2.performance_projection.v2"
-PROJECTION_VERSION = "eval-01c.v2"
+SCHEMA_VERSION = "w2.performance_projection.v3"
+PROJECTION_VERSION = "eval-02a.v1"
 CLV_POPULATION = "SCORABLE_FINISHED_WITH_CANONICAL_CLV"
 WRITE_CONFIRMATION_PHRASE = "EVAL_01B_WRITE_SCORING_PROJECTION"  # noqa: S105
 TERMINAL_STATUSES = {"FT", "AET", "PEN"}
@@ -69,17 +76,13 @@ def run_finished_match_scoring_projection(
         raise FinishedMatchScoringError("write_db requires dry_run=false")
     resolved_engine = engine or create_engine()
     with Session(resolved_engine) as session:
-        identity_rows = list(
-            session.scalars(select(MatchdayFixtureIdentityModel))
-        )
+        identity_rows = list(session.scalars(select(MatchdayFixtureIdentityModel)))
         resolver = ExactFixtureResolver(identity_rows)
         results = _results(session, fixture_ids, resolver)
         if not results:
             return _empty_result()
         resolved_results = _canonical_results(results, resolver)
-        finished_fixture_ids = {
-            fixture_id for _, fixture_id, _ in resolved_results
-        }
+        finished_fixture_ids = {fixture_id for _, fixture_id, _ in resolved_results}
         ledger_rows = list(
             session.scalars(
                 select(OutcomeLedgerModel).order_by(
@@ -102,9 +105,7 @@ def run_finished_match_scoring_projection(
             ledger_payloads,
             resolver,
         )
-        result_counts = Counter(
-            fixture_id for _, fixture_id, _ in resolved_results
-        )
+        result_counts = Counter(fixture_id for _, fixture_id, _ in resolved_results)
         authoritative_results = {
             fixture_id: {
                 "fixture_id": fixture_id,
@@ -120,18 +121,20 @@ def run_finished_match_scoring_projection(
         legacy_recoveries = {
             fixture_id: record
             for record in records
-            if _record_type(record) == "legacy_recovery"
-            and (fixture_id := _fixture_id(record))
+            if _record_type(record) == "legacy_recovery" and (fixture_id := _fixture_id(record))
         }
         canonical_facts = canonical_settlement_facts(
             records,
             authoritative_results,
             legacy_recoveries,
         )
-        fixture_identities = {
-            row.fixture_id: row
-            for row in identity_rows
-        }
+        try:
+            lineup_attribution = FutureRefreshDbRepository(
+                engine=resolved_engine
+            ).lineup_attribution_evidence_for_fixtures(sorted(finished_fixture_ids))
+        except SQLAlchemyError:
+            lineup_attribution = {}
+        fixture_identities = {row.fixture_id: row for row in identity_rows}
         dynamic_rows, dynamic_conflicts = _canonical_dynamic_rows(
             session.scalars(select(DynamicPrematchEvaluationModel)),
             resolver,
@@ -140,22 +143,17 @@ def run_finished_match_scoring_projection(
         fixture_payloads: dict[str, dict[str, Any]] = {}
         blockers = []
         hard_batch_persistence_block = batch_envelope_conflict or (
-            ledger_parity["status"] == "BLOCKED"
-            and not envelope_conflicts & finished_fixture_ids
+            ledger_parity["status"] == "BLOCKED" and not envelope_conflicts & finished_fixture_ids
         )
         if hard_batch_persistence_block:
-            blockers.append(
-                "batch:OUTCOME_LEDGER_ENVELOPE_PAYLOAD_CONFLICT"
-            )
+            blockers.append("batch:OUTCOME_LEDGER_ENVELOPE_PAYLOAD_CONFLICT")
         for result, fixture_id, result_identity_conflict in resolved_results:
             payload = _fixture_projection(
                 result,
                 fixture_id=fixture_id,
                 records=records,
                 fixture_identity=fixture_identities.get(fixture_id),
-                dynamic_rows=[
-                    row for row in dynamic_rows.get(fixture_id, ())
-                ],
+                dynamic_rows=[row for row in dynamic_rows.get(fixture_id, ())],
                 canonical_facts=canonical_facts,
                 identity_conflict=(
                     result_identity_conflict
@@ -163,17 +161,16 @@ def run_finished_match_scoring_projection(
                     or result_counts[fixture_id] > 1
                 ),
                 envelope_conflict=fixture_id in envelope_conflicts,
+                lineup_evidence=lineup_attribution.get(fixture_id),
             )
             fixture_payloads[fixture_id] = payload
             if payload["status"] == "BLOCKED":
-                blockers.extend(
-                    f"{fixture_id}:{reason}"
-                    for reason in payload["reason_codes"]
-                )
+                blockers.extend(f"{fixture_id}:{reason}" for reason in payload["reason_codes"])
 
         projected_fixture_payloads = _existing_fixture_payloads(session)
         fixture_writes = 0
         cohort_writes = 0
+        policy_writes = 0
         skipped = 0
         write_blockers: list[str] = []
         timestamp = (now or datetime.now(UTC)).astimezone(UTC)
@@ -210,7 +207,42 @@ def run_finished_match_scoring_projection(
                 cohort_writes += outcome["writes"]
                 skipped += outcome["skipped"]
                 write_blockers.extend(outcome["blockers"])
-        writes = fixture_writes + cohort_writes
+        existing_policy_row = session.scalar(
+            select(ReadModelCheckpointModel).where(
+                ReadModelCheckpointModel.checkpoint_key == POLICY_CHECKPOINT_KEY
+            )
+        )
+        policy_payload = build_advisory_blind_spot_policy(
+            projected_fixture_payloads,
+            existing=(
+                AdvisoryBlindSpotPolicyCheckpoint(
+                    checkpoint_key=existing_policy_row.checkpoint_key,
+                    source_hash=existing_policy_row.source_hash,
+                    created_at=existing_policy_row.created_at,
+                    payload=dict(existing_policy_row.payload),
+                )
+                if existing_policy_row is not None
+                else None
+            ),
+            now=timestamp,
+            scoring_window_anchor=_parse_time(
+                cohort_payloads.get("performance:cohort:all", {}).get("scoring_window_anchor")
+            ),
+        )
+        if not hard_batch_persistence_block:
+            outcome = _persist_checkpoint(
+                session,
+                checkpoint_key=POLICY_CHECKPOINT_KEY,
+                payload=policy_payload,
+                source_hash=str(policy_payload["business_projection_hash"]),
+                created_at=timestamp,
+                write_db=write_db,
+                preserve_trusted_on_blocked=False,
+            )
+            policy_writes += outcome["writes"]
+            skipped += outcome["skipped"]
+            write_blockers.extend(outcome["blockers"])
+        writes = fixture_writes + cohort_writes + policy_writes
         blockers.extend(write_blockers)
         if hard_batch_persistence_block or not write_db:
             session.rollback()
@@ -225,21 +257,17 @@ def run_finished_match_scoring_projection(
             "status": status,
             "finished_result_count": len(results),
             "fixture_checkpoint_count": (
-                0
-                if hard_batch_persistence_block
-                else len(fixture_payloads)
+                0 if hard_batch_persistence_block else len(fixture_payloads)
             ),
             "cohort_checkpoint_count": (
                 0 if hard_batch_persistence_block else len(cohort_payloads)
             ),
             "projected_fixture_checkpoint_count": len(fixture_payloads),
             "projected_cohort_checkpoint_count": len(cohort_payloads),
-            "persisted_fixture_checkpoint_count": (
-                fixture_writes if write_db else 0
-            ),
-            "persisted_cohort_checkpoint_count": (
-                cohort_writes if write_db else 0
-            ),
+            "persisted_fixture_checkpoint_count": (fixture_writes if write_db else 0),
+            "persisted_cohort_checkpoint_count": (cohort_writes if write_db else 0),
+            "policy_checkpoint": policy_payload,
+            "persisted_policy_checkpoint_count": (policy_writes if write_db else 0),
             "scored_count": counts["SCORED"],
             "not_scorable_count": counts["NOT_SCORABLE"],
             "blocked_count": counts["BLOCKED"],
@@ -263,9 +291,7 @@ def run_finished_match_scoring_projection(
             "skipped_existing": skipped,
             "db_writes": writes if write_db else 0,
             "persistence_gate": (
-                "BLOCKED_BATCH_ENVELOPE_CONFLICT"
-                if hard_batch_persistence_block
-                else "PASS"
+                "BLOCKED_BATCH_ENVELOPE_CONFLICT" if hard_batch_persistence_block else "PASS"
             ),
             "persistence_suppressed": hard_batch_persistence_block,
             "provider_calls": 0,
@@ -279,9 +305,7 @@ def _results(
     fixture_ids: Sequence[str] | None,
     resolver: ExactFixtureResolver,
 ) -> list[ResultModel]:
-    rows = list(
-        session.scalars(select(ResultModel).order_by(ResultModel.fixture_id))
-    )
+    rows = list(session.scalars(select(ResultModel).order_by(ResultModel.fixture_id)))
     if fixture_ids is None:
         return rows
     requested: set[str] = set()
@@ -357,9 +381,7 @@ def _validated_ledger_payloads(
         if not mismatches:
             validated = dict(payload)
             if not _optional(payload.get("record_type")):
-                validated["_effective_payload_record_type"] = (
-                    effective_record_type
-                )
+                validated["_effective_payload_record_type"] = effective_record_type
             payloads.append(validated)
             continue
         mismatches_by_field.update(mismatches)
@@ -387,29 +409,17 @@ def _validated_ledger_payloads(
     parity_status = (
         "BLOCKED"
         if mismatches_by_field
-        else (
-            "PASS_WITH_LEGACY_NORMALIZATION"
-            if legacy_count
-            else "PASS"
-        )
+        else ("PASS_WITH_LEGACY_NORMALIZATION" if legacy_count else "PASS")
     )
     finished = finished_fixture_ids or set()
     parity = {
         "status": parity_status,
         "total_row_count": len(rows),
         "explicit_match_count": record_types["EXPLICIT_MATCH"],
-        "legacy_inferred_capture_count": record_types[
-            "LEGACY_INFERRED_CAPTURE"
-        ],
-        "legacy_formal_snapshot_count": record_types[
-            "LEGACY_DIRECTORY_FORMAL_SNAPSHOT"
-        ],
-        "legacy_formal_settlement_count": record_types[
-            "LEGACY_DIRECTORY_FORMAL_SETTLEMENT"
-        ],
-        "legacy_unknown_schema_count": schema_versions[
-            "LEGACY_UNKNOWN_NORMALIZATION"
-        ],
+        "legacy_inferred_capture_count": record_types["LEGACY_INFERRED_CAPTURE"],
+        "legacy_formal_snapshot_count": record_types["LEGACY_DIRECTORY_FORMAL_SNAPSHOT"],
+        "legacy_formal_settlement_count": record_types["LEGACY_DIRECTORY_FORMAL_SETTLEMENT"],
+        "legacy_unknown_schema_count": schema_versions["LEGACY_UNKNOWN_NORMALIZATION"],
         "explicit_conflict_count": explicit_conflicts,
         "unsupported_missing_count": unsupported_missing,
         "mismatches_by_field": dict(sorted(mismatches_by_field.items())),
@@ -429,9 +439,7 @@ def _effective_payload_record_type(
         normalized = explicit.lower()
         return (
             normalized,
-            "EXPLICIT_MATCH"
-            if normalized == envelope
-            else "EXPLICIT_CONFLICT",
+            "EXPLICIT_MATCH" if normalized == envelope else "EXPLICIT_CONFLICT",
         )
     source = _text(row.source_artifact).replace("\\", "/")
     if (
@@ -444,15 +452,13 @@ def _effective_payload_record_type(
         return "capture", "LEGACY_INFERRED_CAPTURE"
     source_path = PurePosixPath(source)
     if (
-        source_path.parent.as_posix()
-        == "formal_recommendation_snapshots"
+        source_path.parent.as_posix() == "formal_recommendation_snapshots"
         and source_path.suffix == ".json"
         and envelope == "formal_snapshot"
     ):
         return "formal_snapshot", "LEGACY_DIRECTORY_FORMAL_SNAPSHOT"
     if (
-        source_path.parent.as_posix()
-        == "formal_recommendation_settlements"
+        source_path.parent.as_posix() == "formal_recommendation_settlements"
         and source_path.suffix == ".json"
         and envelope == "formal_settlement"
     ):
@@ -469,9 +475,7 @@ def _effective_payload_schema_version(
     if explicit is not None:
         return (
             explicit,
-            "EXPLICIT_MATCH"
-            if explicit == envelope
-            else "EXPLICIT_CONFLICT",
+            "EXPLICIT_MATCH" if explicit == envelope else "EXPLICIT_CONFLICT",
         )
     if envelope == "UNKNOWN":
         return "UNKNOWN", "LEGACY_UNKNOWN_NORMALIZATION"
@@ -575,12 +579,12 @@ def _fixture_projection(
     canonical_facts: CanonicalSettlementFacts,
     identity_conflict: bool,
     envelope_conflict: bool,
+    lineup_evidence: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     related = [
         record
         for record in records
-        if _record_type(record) == "capture"
-        and _fixture_id(record) == fixture_id
+        if _record_type(record) == "capture" and _fixture_id(record) == fixture_id
     ]
     superseded = {
         _text(record.get("target_capture_identity_hash"))
@@ -590,9 +594,7 @@ def _fixture_projection(
         and _text(record.get("supersession_status")).upper() == "SUPERSEDED"
     }
     active = [
-        record
-        for record in related
-        if _text(record.get("capture_identity_hash")) not in superseded
+        record for record in related if _text(record.get("capture_identity_hash")) not in superseded
     ]
     capture, status, reasons, selection = _select_capture(
         active,
@@ -606,8 +608,10 @@ def _fixture_projection(
     if result.result_status not in TERMINAL_STATUSES:
         status = "BLOCKED"
         reasons = ["RESULT_IDENTITY_CONFLICT"]
-    actual = 0 if result.home_goals > result.away_goals else (
-        1 if result.home_goals == result.away_goals else 2
+    actual = (
+        0
+        if result.home_goals > result.away_goals
+        else (1 if result.home_goals == result.away_goals else 2)
     )
     model = probability_vector(capture or {}, "model_probabilities")
     market = probability_vector(capture or {}, "market_probabilities")
@@ -634,13 +638,21 @@ def _fixture_projection(
         reasons = ["OUTCOME_LEDGER_ENVELOPE_PAYLOAD_CONFLICT"]
     clv = _fixture_clv(records, fixture_id)
     canonical = _canonical_outcome_payload(canonical_facts, fixture_id)
+    blind_spot_attribution = _blind_spot_attribution(
+        lineup_requirement=(
+            str(lineup_evidence.get("lineup_requirement"))
+            if isinstance(lineup_evidence, Mapping)
+            and lineup_evidence.get("lineup_requirement") in {"STRICT", "ADVISORY"}
+            else lifecycle["evaluation_tier"]
+        ),
+        lineup_evidence=lineup_evidence,
+        canonical=canonical,
+    )
     scoring_capture = capture if status == "SCORED" else None
     scored_model = model if scoring_capture else None
     scored_market = market if scoring_capture else None
     probability_hash = (
-        _hash_value(scoring_capture.get("probability_identity"))
-        if scoring_capture
-        else None
+        _hash_value(scoring_capture.get("probability_identity")) if scoring_capture else None
     )
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -660,14 +672,10 @@ def _fixture_projection(
         "away_goals": result.away_goals,
         "actual_outcome": ("HOME", "DRAW", "AWAY")[actual],
         "source_capture_identity_hash": _optional(
-            scoring_capture.get("capture_identity_hash")
-            if scoring_capture
-            else None
+            scoring_capture.get("capture_identity_hash") if scoring_capture else None
         ),
         "source_capture_group_hash": _optional(
-            scoring_capture.get("source_capture_group_hash")
-            if scoring_capture
-            else None
+            scoring_capture.get("source_capture_group_hash") if scoring_capture else None
         ),
         "contributing_capture_identity_hashes": (
             list(
@@ -722,6 +730,7 @@ def _fixture_projection(
         "clv_decimal": clv["clv_decimal"],
         "clv_method": CLV_METHOD,
         **canonical,
+        "blind_spot_attribution": blind_spot_attribution,
         "source_event_type": "RESULT_MATERIALIZED",
         "source_event_id": result.id,
         "source_event_hash": result.result_hash,
@@ -737,19 +746,13 @@ def _select_capture(
     fixture_id: str,
     dynamic_rows: Sequence[DynamicPrematchEvaluationModel],
 ) -> tuple[Mapping[str, Any] | None, str, list[str], dict[str, Any]]:
-    kickoff = (
-        _utc(fixture_identity.kickoff_utc) if fixture_identity is not None else None
-    )
+    kickoff = _utc(fixture_identity.kickoff_utc) if fixture_identity is not None else None
     prekickoff: list[Mapping[str, Any]] = []
     for capture in captures:
         captured_at = _parse_time(capture.get("captured_at"))
         capture_kickoff = _parse_time(_fixture_values(capture, None, "")["kickoff_utc"])
         resolved_kickoff = kickoff or capture_kickoff
-        if (
-            resolved_kickoff is None
-            or captured_at is None
-            or captured_at >= resolved_kickoff
-        ):
+        if resolved_kickoff is None or captured_at is None or captured_at >= resolved_kickoff:
             continue
         prekickoff.append(capture)
     if not prekickoff:
@@ -766,39 +769,34 @@ def _select_capture(
             reason = "FIXTURE_IDENTITY_MISSING"
         else:
             reason = "NO_PREKICKOFF_CAPTURE"
-        return None, "NOT_SCORABLE", [reason], {
-            "latest_prekickoff_at": None,
-            "latest_group_capture_count": 0,
-            "latest_group_identity_bearing_count": 0,
-            "latest_group_identity_missing_count": 0,
-            "latest_group_fixture_signature_complete_count": 0,
-            "latest_group_fixture_signature_incomplete_count": 0,
-            "model_probability_complete": False,
-            "market_probability_complete": False,
-            "capture_selection_status": reason,
-            "total_historical_prekickoff_capture_count": 0,
-            "older_identity_missing_capture_count": 0,
-        }
+        return (
+            None,
+            "NOT_SCORABLE",
+            [reason],
+            {
+                "latest_prekickoff_at": None,
+                "latest_group_capture_count": 0,
+                "latest_group_identity_bearing_count": 0,
+                "latest_group_identity_missing_count": 0,
+                "latest_group_fixture_signature_complete_count": 0,
+                "latest_group_fixture_signature_incomplete_count": 0,
+                "model_probability_complete": False,
+                "market_probability_complete": False,
+                "capture_selection_status": reason,
+                "total_historical_prekickoff_capture_count": 0,
+                "older_identity_missing_capture_count": 0,
+            },
+        )
     latest_at = max(
         captured_at
         for item in prekickoff
         if (captured_at := _parse_time(item.get("captured_at"))) is not None
     )
-    latest = [
-        item
-        for item in prekickoff
-        if _parse_time(item.get("captured_at")) == latest_at
-    ]
-    identity_bearing = [
-        item for item in latest if _text(item.get("capture_identity_hash"))
-    ]
+    latest = [item for item in prekickoff if _parse_time(item.get("captured_at")) == latest_at]
+    identity_bearing = [item for item in latest if _text(item.get("capture_identity_hash"))]
     signatures = [_fixture_signature(item, fixture_id) for item in latest]
-    model_vectors = [
-        probability_vector(item, "model_probabilities") for item in latest
-    ]
-    market_vectors = [
-        probability_vector(item, "market_probabilities") for item in latest
-    ]
+    model_vectors = [probability_vector(item, "model_probabilities") for item in latest]
+    market_vectors = [probability_vector(item, "market_probabilities") for item in latest]
     signature_complete_count = sum(item is not None for item in signatures)
     model_complete = all(item is not None for item in model_vectors)
     market_complete = all(item is not None for item in market_vectors)
@@ -807,12 +805,8 @@ def _select_capture(
         "latest_group_capture_count": len(latest),
         "latest_group_identity_bearing_count": len(identity_bearing),
         "latest_group_identity_missing_count": len(latest) - len(identity_bearing),
-        "latest_group_fixture_signature_complete_count": (
-            signature_complete_count
-        ),
-        "latest_group_fixture_signature_incomplete_count": (
-            len(latest) - signature_complete_count
-        ),
+        "latest_group_fixture_signature_complete_count": (signature_complete_count),
+        "latest_group_fixture_signature_incomplete_count": (len(latest) - signature_complete_count),
         "model_probability_complete": model_complete,
         "market_probability_complete": market_complete,
         "capture_selection_status": "SELECTED",
@@ -835,8 +829,7 @@ def _select_capture(
         audit["capture_selection_status"] = conflicts[0]
         return latest[0], "BLOCKED", conflicts, audit
     capture_kickoffs = [
-        _parse_time(_fixture_values(item, None, "")["kickoff_utc"])
-        for item in latest
+        _parse_time(_fixture_values(item, None, "")["kickoff_utc"]) for item in latest
     ]
     if kickoff is not None and any(
         value is not None and value != kickoff for value in capture_kickoffs
@@ -877,8 +870,7 @@ def _select_capture(
     ]
     if len({_hash_value(identity) for identity in scoring_identities}) > 1:
         probability_hashes = {
-            identity["probability_identity_hash"]
-            for identity in scoring_identities
+            identity["probability_identity_hash"] for identity in scoring_identities
         }
         reason = (
             "PROBABILITY_IDENTITY_CONFLICT"
@@ -887,9 +879,7 @@ def _select_capture(
         )
         audit["capture_selection_status"] = reason
         return latest[0], "BLOCKED", [reason], audit
-    contributing = sorted(
-        {_text(item.get("capture_identity_hash")) for item in latest}
-    )
+    contributing = sorted({_text(item.get("capture_identity_hash")) for item in latest})
     scoring_identity = scoring_identities[0]
     group_hash = _hash_value(
         {
@@ -923,12 +913,9 @@ def _fixture_values(
         "competition_id": nested.get("competition_id")
         or record.get("competition_id")
         or (identity.competition_id if identity else None),
-        "competition_name": nested.get("competition_name")
-        or record.get("competition_name"),
-        "home_team_name": nested.get("home_team_name")
-        or record.get("home_team_name"),
-        "away_team_name": nested.get("away_team_name")
-        or record.get("away_team_name"),
+        "competition_name": nested.get("competition_name") or record.get("competition_name"),
+        "home_team_name": nested.get("home_team_name") or record.get("home_team_name"),
+        "away_team_name": nested.get("away_team_name") or record.get("away_team_name"),
     }
 
 
@@ -970,9 +957,7 @@ def _latest_group_conflicts(
     elif len(set(complete_signatures)) > 1:
         reasons.append("FIXTURE_IDENTITY_CONFLICT")
     elif not complete_signatures:
-        fixture_values = [
-            _fixture_comparison(item, fixture_id) for item in latest
-        ]
+        fixture_values = [_fixture_comparison(item, fixture_id) for item in latest]
         if any(
             len({value for value in column if value is not None}) > 1
             for column in zip(*fixture_values, strict=True)
@@ -994,10 +979,7 @@ def _latest_group_conflicts(
         reasons.extend(dynamic_conflicts)
     if len({_optional(item.get("checkpoint")) for item in lifecycles} - {None}) > 1:
         reasons.append("DYNAMIC_CHECKPOINT_CONFLICT")
-    if (
-        len({_optional(item.get("lineup_input_hash")) for item in lifecycles} - {None})
-        > 1
-    ):
+    if len({_optional(item.get("lineup_input_hash")) for item in lifecycles} - {None}) > 1:
         reasons.append("DYNAMIC_LINEUP_HASH_CONFLICT")
     if len({_optional(item.get("evaluation_tier")) for item in lifecycles} - {None}) > 1:
         reasons.append("EQUAL_TIMESTAMP_DIFFERENT_BUSINESS_IDENTITY")
@@ -1021,8 +1003,7 @@ def _latest_group_conflicts(
         [_optional(item.get("lineup_input_hash")) for item in lifecycles],
     )
     if any(
-        any(item is not None for item in column)
-        and not all(item is not None for item in column)
+        any(item is not None for item in column) and not all(item is not None for item in column)
         for column in presence_columns
     ):
         reasons.append("COMPLETE_INCOMPLETE_SIBLING_CONFLICT")
@@ -1044,9 +1025,7 @@ def _scoring_relevant_identity(
         "captured_at": _iso(_parse_time(capture.get("captured_at"))),
         "card_hash": _optional(capture.get("card_hash")),
         "artifact_identity_hash": _artifact_identity_hash(capture),
-        "probability_identity_hash": _hash_value(
-            capture.get("probability_identity")
-        ),
+        "probability_identity_hash": _hash_value(capture.get("probability_identity")),
         "evaluation_tier": lifecycle["evaluation_tier"],
         "checkpoint": lifecycle["checkpoint"],
         "lineup_input_hash": lifecycle["lineup_input_hash"],
@@ -1063,15 +1042,10 @@ def _lifecycle_metadata(
         row
         for row in rows
         if captured_at is not None
-        and (
-            _utc(row.capture_at) == captured_at
-            or _utc(row.evaluated_at) == captured_at
-        )
+        and (_utc(row.capture_at) == captured_at or _utc(row.evaluated_at) == captured_at)
     ]
     checkpoints = {row.checkpoint for row in exact if row.checkpoint}
-    lineup_hashes = {
-        row.lineup_input_hash for row in exact if row.lineup_input_hash
-    }
+    lineup_hashes = {row.lineup_input_hash for row in exact if row.lineup_input_hash}
     tier = _text(record.get("evaluation_tier")).upper()
     conflicts = []
     if len(checkpoints) > 1:
@@ -1079,9 +1053,7 @@ def _lifecycle_metadata(
     if len(lineup_hashes) > 1:
         conflicts.append("DYNAMIC_LINEUP_HASH_CONFLICT")
     return {
-        "evaluation_tier": tier
-        if tier in {"STRICT", "ADVISORY"}
-        else "UNKNOWN",
+        "evaluation_tier": tier if tier in {"STRICT", "ADVISORY"} else "UNKNOWN",
         "checkpoint": _optional(record.get("checkpoint"))
         or (next(iter(checkpoints)) if len(checkpoints) == 1 else None),
         "lineup_input_hash": _optional(record.get("lineup_input_hash"))
@@ -1112,8 +1084,7 @@ def _fixture_clv(
         if (
             _record_type(record) != "capture"
             or _fixture_id(record) != fixture_id
-            or _text(record.get("recommendation_scope")).upper()
-            not in {"OFFICIAL", "VALIDATION"}
+            or _text(record.get("recommendation_scope")).upper() not in {"OFFICIAL", "VALIDATION"}
             or not isinstance(pick, Mapping)
         ):
             continue
@@ -1146,15 +1117,17 @@ def _canonical_outcome_payload(
 ) -> dict[str, Any]:
     accepted = facts.accepted_by_fixture.get(fixture_id)
     if accepted is not None:
-        outcome = canonical_settlement_outcome(
-            _settlement_outcome(accepted)
-        )
+        pick = accepted.get("pick")
+        pick = pick if isinstance(pick, Mapping) else {}
+        outcome = canonical_settlement_outcome(_settlement_outcome(accepted))
         if outcome is not None:
             return {
                 "canonical_pick_status": "AVAILABLE",
                 "canonical_settlement_outcome": outcome,
                 "canonical_decisive": outcome in {"HIT", "MISS"},
                 "canonical_exclusion_reason": None,
+                "canonical_pick_market": _optional(pick.get("market")),
+                "canonical_pick_selection": _optional(pick.get("selection")),
             }
     if reason := facts.excluded_by_fixture.get(fixture_id):
         return {
@@ -1162,6 +1135,8 @@ def _canonical_outcome_payload(
             "canonical_settlement_outcome": None,
             "canonical_decisive": None,
             "canonical_exclusion_reason": reason,
+            "canonical_pick_market": None,
+            "canonical_pick_selection": None,
         }
     if fixture_id not in facts.candidate_by_fixture:
         return {
@@ -1169,13 +1144,89 @@ def _canonical_outcome_payload(
             "canonical_settlement_outcome": None,
             "canonical_decisive": None,
             "canonical_exclusion_reason": None,
+            "canonical_pick_market": None,
+            "canonical_pick_selection": None,
         }
     return {
         "canonical_pick_status": "SETTLEMENT_MISSING",
         "canonical_settlement_outcome": None,
         "canonical_decisive": None,
         "canonical_exclusion_reason": "SETTLEMENT_MISSING",
+        "canonical_pick_market": None,
+        "canonical_pick_selection": None,
     }
+
+
+def _blind_spot_attribution(
+    *,
+    lineup_requirement: str,
+    lineup_evidence: Mapping[str, Any] | None,
+    canonical: Mapping[str, Any],
+) -> dict[str, Any]:
+    evidence = lineup_evidence if isinstance(lineup_evidence, Mapping) else {}
+    home = evidence.get("home")
+    away = evidence.get("away")
+    home = home if isinstance(home, Mapping) else {}
+    away = away if isinstance(away, Mapping) else {}
+    home_prior = home.get("rotation_prior")
+    away_prior = away.get("rotation_prior")
+    home_prior = home_prior if isinstance(home_prior, Mapping) else {}
+    away_prior = away_prior if isinstance(away_prior, Mapping) else {}
+    home_continuity = _optional_number(home.get("starter_continuity"))
+    away_continuity = _optional_number(away.get("starter_continuity"))
+    home_deviation = 1 - home_continuity if home_continuity is not None else None
+    away_deviation = 1 - away_continuity if away_continuity is not None else None
+    market = _text(canonical.get("canonical_pick_market")).upper()
+    selection = _text(canonical.get("canonical_pick_selection")).upper()
+    selected_deviation = (
+        home_deviation
+        if market in {"AH", "ASIAN_HANDICAP"} and "HOME" in selection
+        else away_deviation
+        if market in {"AH", "ASIAN_HANDICAP"} and "AWAY" in selection
+        else max(value for value in (home_deviation, away_deviation) if value is not None)
+        if market in {"OU", "TOTALS"}
+        and any(value is not None for value in (home_deviation, away_deviation))
+        else None
+    )
+    high_rotation = any(
+        prior.get("status") == "READY" and prior.get("classification") == "HIGH_ROTATION"
+        for prior in (home_prior, away_prior)
+    )
+    blockers = [str(item) for item in evidence.get("blockers", []) if item]
+    outcome = canonical.get("canonical_settlement_outcome")
+    if lineup_requirement == "STRICT":
+        applicability = "NOT_APPLICABLE_STRICT"
+        attribution = "NOT_APPLICABLE_STRICT"
+    elif outcome != "MISS":
+        applicability = "APPLICABLE"
+        attribution = "NOT_LOSS"
+    elif selected_deviation is None or evidence.get("status") != "READY":
+        applicability = "APPLICABLE"
+        attribution = "INSUFFICIENT_EVIDENCE"
+    elif selected_deviation >= 4 / 11 or high_rotation:
+        applicability = "APPLICABLE"
+        attribution = "ROTATION_ASSOCIATED"
+    else:
+        applicability = "APPLICABLE"
+        attribution = "NON_ROTATION_RESIDUAL"
+    payload = {
+        "schema_version": "w2.blind_spot_attribution.v1",
+        "applicability": applicability,
+        "lineup_requirement": lineup_requirement,
+        "home_rotation_prior": dict(home_prior) if home_prior else None,
+        "away_rotation_prior": dict(away_prior) if away_prior else None,
+        "home_starter_continuity": home_continuity,
+        "away_starter_continuity": away_continuity,
+        "home_lineup_deviation": home_deviation,
+        "away_lineup_deviation": away_deviation,
+        "selected_side_lineup_deviation": selected_deviation,
+        "high_rotation_prior": high_rotation,
+        "canonical_settlement_outcome": outcome,
+        "attribution": attribution,
+        "causal_claim": False,
+        "blockers": sorted(set(blockers)),
+    }
+    return {**payload, "input_hash": _hash_value(payload)}
 
 
 def _settlement_outcome(record: Mapping[str, Any]) -> str:
@@ -1184,9 +1235,7 @@ def _settlement_outcome(record: Mapping[str, Any]) -> str:
             return value
     settlement = record.get("settlement")
     if isinstance(settlement, Mapping):
-        return _text(
-            settlement.get("outcome") or settlement.get("settlement")
-        )
+        return _text(settlement.get("outcome") or settlement.get("settlement"))
     validation = record.get("validation")
     if isinstance(validation, Mapping):
         return _text(validation.get("settlement"))
@@ -1200,8 +1249,7 @@ def _existing_fixture_payloads(session: Session) -> dict[str, dict[str, Any]]:
         )
     )
     return {
-        row.checkpoint_key.removeprefix("performance:fixture:"): dict(row.payload)
-        for row in rows
+        row.checkpoint_key.removeprefix("performance:fixture:"): dict(row.payload) for row in rows
     }
 
 
@@ -1216,15 +1264,10 @@ def _cohort_projections(
     if not rows:
         return {}
     kickoff_times = [
-        kickoff
-        for row in rows
-        if (kickoff := _parse_time(row["kickoff_utc"])) is not None
+        kickoff for row in rows if (kickoff := _parse_time(row["kickoff_utc"])) is not None
     ]
     anchor = max(kickoff_times)
-    leagues = {
-        _text(row.get("league")) or "UNKNOWN"
-        for row in rows
-    }
+    leagues = {_text(row.get("league")) or "UNKNOWN" for row in rows}
     groups: dict[str, list[dict[str, Any]]] = {
         "performance:cohort:all": [],
         "performance:cohort:tier:STRICT": [],
@@ -1245,10 +1288,7 @@ def _cohort_projections(
             f"performance:cohort:league-tier:{league}:{tier}",
             [],
         ).append(row)
-    return {
-        key: _cohort_payload(key, values, anchor)
-        for key, values in sorted(groups.items())
-    }
+    return {key: _cohort_payload(key, values, anchor) for key, values in sorted(groups.items())}
 
 
 def _cohort_payload(
@@ -1286,25 +1326,29 @@ def _window_metrics(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     pairs = [
         (float(row["model_log_loss"]), float(row["market_log_loss"]))
         for row in scored
-        if _is_number(row.get("model_log_loss"))
-        and _is_number(row.get("market_log_loss"))
+        if _is_number(row.get("model_log_loss")) and _is_number(row.get("market_log_loss"))
     ]
     clv_values = [
         float(row["clv_decimal"])
         for row in scored
-        if row.get("clv_status") == "AVAILABLE"
-        and _is_number(row.get("clv_decimal"))
+        if row.get("clv_status") == "AVAILABLE" and _is_number(row.get("clv_decimal"))
     ]
     canonical_outcomes = Counter(
         _text(row.get("canonical_settlement_outcome")).upper()
         for row in rows
-        if _text(row.get("canonical_settlement_outcome")).upper()
-        in {"HIT", "MISS", "PUSH", "VOID"}
+        if _text(row.get("canonical_settlement_outcome")).upper() in {"HIT", "MISS", "PUSH", "VOID"}
     )
     canonical_settled_count = sum(canonical_outcomes.values())
-    canonical_decisive_count = (
-        canonical_outcomes["HIT"] + canonical_outcomes["MISS"]
-    )
+    canonical_decisive_count = canonical_outcomes["HIT"] + canonical_outcomes["MISS"]
+    attributions = [
+        value
+        for row in rows
+        if isinstance(
+            value := row.get("blind_spot_attribution"),
+            Mapping,
+        )
+    ]
+    attribution_counts = Counter(_text(value.get("attribution")) for value in attributions)
     return {
         "finished_result_count": len(rows),
         "fixture_checkpoint_count": len(rows),
@@ -1359,16 +1403,29 @@ def _window_metrics(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             else None
         ),
         "canonical_hit_rate_status": (
-            "AVAILABLE"
-            if canonical_decisive_count >= 5
-            else "INSUFFICIENT_SAMPLE"
+            "AVAILABLE" if canonical_decisive_count >= 5 else "INSUFFICIENT_SAMPLE"
         ),
         "sample_target": 200,
         "sample_progress": min(canonical_settled_count / 200, 1.0),
         "sample_progress_status": (
-            "TARGET_REACHED"
-            if canonical_settled_count >= 200
-            else "ACCUMULATING"
+            "TARGET_REACHED" if canonical_settled_count >= 200 else "ACCUMULATING"
+        ),
+        "blind_spot_attribution_sample_count": sum(
+            attribution_counts[value]
+            for value in (
+                "ROTATION_ASSOCIATED",
+                "NON_ROTATION_RESIDUAL",
+                "INSUFFICIENT_EVIDENCE",
+            )
+        ),
+        "rotation_associated_miss_count": attribution_counts["ROTATION_ASSOCIATED"],
+        "non_rotation_residual_miss_count": attribution_counts["NON_ROTATION_RESIDUAL"],
+        "insufficient_attribution_count": attribution_counts["INSUFFICIENT_EVIDENCE"],
+        "high_rotation_prior_fixture_count": sum(
+            value.get("high_rotation_prior") is True for value in attributions
+        ),
+        "lineup_unobservable_fixture_count": sum(
+            value.get("lineup_requirement") == "ADVISORY" for value in attributions
         ),
     }
 
@@ -1463,13 +1520,9 @@ def _source_hash(payload: Mapping[str, Any]) -> str:
             "contributing_capture_identity_hashes": payload.get(
                 "contributing_capture_identity_hashes"
             ),
-            "source_probability_identity_hash": payload.get(
-                "source_probability_identity_hash"
-            ),
+            "source_probability_identity_hash": payload.get("source_probability_identity_hash"),
             "latest_prekickoff_at": payload.get("latest_prekickoff_at"),
-            "latest_group_capture_count": payload.get(
-                "latest_group_capture_count"
-            ),
+            "latest_group_capture_count": payload.get("latest_group_capture_count"),
             "latest_group_identity_bearing_count": payload.get(
                 "latest_group_identity_bearing_count"
             ),
@@ -1482,9 +1535,7 @@ def _source_hash(payload: Mapping[str, Any]) -> str:
             "latest_group_fixture_signature_incomplete_count": payload.get(
                 "latest_group_fixture_signature_incomplete_count"
             ),
-            "capture_selection_status": payload.get(
-                "capture_selection_status"
-            ),
+            "capture_selection_status": payload.get("capture_selection_status"),
             "total_historical_prekickoff_capture_count": payload.get(
                 "total_historical_prekickoff_capture_count"
             ),
@@ -1494,24 +1545,19 @@ def _source_hash(payload: Mapping[str, Any]) -> str:
             "status": payload.get("status"),
             "reason_codes": payload.get("reason_codes"),
             "canonical_pick_status": payload.get("canonical_pick_status"),
-            "canonical_settlement_outcome": payload.get(
-                "canonical_settlement_outcome"
-            ),
+            "canonical_settlement_outcome": payload.get("canonical_settlement_outcome"),
             "canonical_decisive": payload.get("canonical_decisive"),
-            "canonical_exclusion_reason": payload.get(
-                "canonical_exclusion_reason"
-            ),
+            "canonical_exclusion_reason": payload.get("canonical_exclusion_reason"),
+            "canonical_pick_market": payload.get("canonical_pick_market"),
+            "canonical_pick_selection": payload.get("canonical_pick_selection"),
+            "blind_spot_attribution": payload.get("blind_spot_attribution"),
         }
     )
 
 
 def _artifact_hash(capture: Mapping[str, Any] | None) -> str | None:
     artifact = capture.get("artifact_provenance") if capture else None
-    return (
-        _optional(artifact.get("artifact_hash"))
-        if isinstance(artifact, Mapping)
-        else None
-    )
+    return _optional(artifact.get("artifact_hash")) if isinstance(artifact, Mapping) else None
 
 
 def _artifact_identity_hash(capture: Mapping[str, Any]) -> str | None:
@@ -1521,9 +1567,7 @@ def _artifact_identity_hash(capture: Mapping[str, Any]) -> str | None:
 
 def _record_type(record: Mapping[str, Any]) -> str:
     return _text(
-        record.get("record_type")
-        or record.get("_effective_payload_record_type")
-        or "capture"
+        record.get("record_type") or record.get("_effective_payload_record_type") or "capture"
     ).lower()
 
 
@@ -1577,6 +1621,14 @@ def _text(value: Any) -> str:
 def _optional(value: Any) -> str | None:
     text = _text(value)
     return text or None
+
+
+def _optional_number(value: Any) -> float | None:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed == parsed and abs(parsed) != float("inf") else None
 
 
 def _is_number(value: Any) -> bool:

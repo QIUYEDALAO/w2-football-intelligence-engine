@@ -7,6 +7,8 @@ from importlib.util import resolve_name
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from w2.api.repository import ReadModelService, SystemDegradedError
 from w2.domain.decision_contract import CONTRACT_OWNED_FIELDS
 
@@ -130,10 +132,7 @@ def _production_module_paths() -> dict[str, Path]:
 
 
 def _matches_forbidden(module: str, forbidden: set[str]) -> bool:
-    return any(
-        module == package or module.startswith(f"{package}.")
-        for package in forbidden
-    )
+    return any(module == package or module.startswith(f"{package}.") for package in forbidden)
 
 
 def _import_graph_violations(
@@ -165,8 +164,7 @@ def _retired_shadow_violations(surfaces: tuple[Path, ...]) -> list[str]:
         path
         for surface in surfaces
         for path in ([surface] if surface.is_file() else surface.rglob("*"))
-        if path.is_file()
-        and not {"node_modules", "__pycache__", ".venv"}.intersection(path.parts)
+        if path.is_file() and not {"node_modules", "__pycache__", ".venv"}.intersection(path.parts)
     )
     return sorted(
         f"{path}:{identity}"
@@ -199,20 +197,14 @@ def test_api_imports_no_read_time_computation_packages() -> None:
 
 def test_api_transitive_import_graph_has_no_read_time_computation_packages() -> None:
     module_paths = _production_module_paths()
-    roots = [
-        _module_name(path)
-        for root in API_ROOTS
-        for path in root.rglob("*.py")
-    ]
+    roots = [_module_name(path) for root in API_ROOTS for path in root.rglob("*.py")]
     assert _import_graph_violations(roots, module_paths) == []
 
 
 def test_performance_api_is_projection_only_and_has_no_compute_imports() -> None:
     performance_source = inspect.getsource(ReadModelService.performance)
     compute_imports = sorted(
-        name
-        for name in FORBIDDEN_PERFORMANCE_API_COMPUTE_IMPORTS
-        if name in performance_source
+        name for name in FORBIDDEN_PERFORMANCE_API_COMPUTE_IMPORTS if name in performance_source
     )
     non_projection_reads = sorted(
         identity
@@ -227,9 +219,7 @@ def test_performance_api_is_projection_only_and_has_no_compute_imports() -> None
     )
 
     assert compute_imports == [], "API_COMPUTE_IMPORT_COUNT != 0"
-    assert non_projection_reads == [], (
-        "API_PERFORMANCE_NON_PROJECTION_READ_COUNT != 0"
-    )
+    assert non_projection_reads == [], "API_PERFORMANCE_NON_PROJECTION_READ_COUNT != 0"
     assert 'self.repository.checkpoints("performance:cohort:")' in performance_source
     assert 'self.repository.checkpoints("performance:fixture:")' in performance_source
     assert 'fixture.status == "SCORED"' in performance_source
@@ -237,15 +227,14 @@ def test_performance_api_is_projection_only_and_has_no_compute_imports() -> None
 
 
 def test_performance_projection_uses_shared_canonical_settlement_authority() -> None:
-    projection = Path(
-        "src/w2/tracking/finished_match_scoring_projection.py"
-    ).read_text(encoding="utf-8")
-    authority = Path(
-        "src/w2/tracking/forward_ledger_performance.py"
-    ).read_text(encoding="utf-8")
+    projection = Path("src/w2/tracking/finished_match_scoring_projection.py").read_text(
+        encoding="utf-8"
+    )
+    authority = Path("src/w2/tracking/forward_ledger_performance.py").read_text(encoding="utf-8")
     shared_authority = authority[
-        authority.index("def canonical_settlement_facts(") :
-        authority.index("\ndef _result_for_fixture(")
+        authority.index("def canonical_settlement_facts(") : authority.index(
+            "\ndef _result_for_fixture("
+        )
     ]
 
     assert "canonical_settlement_facts(" in projection
@@ -267,8 +256,7 @@ def test_performance_web_has_no_metric_recomputation_or_production_fixture() -> 
     performance_sources = "\n".join(
         text
         for path, text in sources.items()
-        if "performance" in path.name.lower()
-        or "PerformancePage" in text
+        if "performance" in path.name.lower() or "PerformancePage" in text
     )
     forbidden = {
         "reliability_bins(",
@@ -280,12 +268,10 @@ def test_performance_web_has_no_metric_recomputation_or_production_fixture() -> 
         "forward_ledger_performance",
     }
 
-    assert sorted(
-        identity for identity in forbidden if identity in performance_sources
-    ) == []
+    assert sorted(identity for identity in forbidden if identity in performance_sources) == []
     assert "fixture-01" not in performance_sources
     assert "performance-e2e" not in performance_sources
-    assert 'fetch(`${API_BASE}/performance?' in performance_sources
+    assert "fetch(`${API_BASE}/performance?" in performance_sources
     assert "payload.sample_progress.ratio * 100" in performance_sources
 
 
@@ -327,8 +313,7 @@ def test_import_graph_allows_pure_domain_and_read_only_dependencies(tmp_path: Pa
         tmp_path,
         {
             "w2.api.root": (
-                "from w2.domain import decision_contract\n"
-                "from . import read_only_repository\n"
+                "from w2.domain import decision_contract\nfrom . import read_only_repository\n"
             ),
             "w2.domain.decision_contract": "from dataclasses import dataclass\n",
             "w2.api.read_only_repository": "from copy import deepcopy\n",
@@ -351,7 +336,8 @@ def test_full_execution_surface_has_no_removed_production_fallback_identity() ->
         f"{path}:{identity}"
         for root in FULL_EXECUTION_SURFACE
         for path in root.rglob("*")
-        if path.is_file() and path.suffix in {".py", ".sh", ".yml", ".yaml"}
+        if path.is_file()
+        and path.suffix in {".py", ".sh", ".yml", ".yaml"}
         and path not in NON_PRODUCTION_FALLBACK_READERS
         for identity in FORBIDDEN_PRODUCTION_FALLBACKS
         if identity in path.read_text(encoding="utf-8", errors="ignore")
@@ -362,8 +348,7 @@ def test_full_execution_surface_has_no_removed_production_fallback_identity() ->
 def test_retired_shadow_strategy_has_no_production_reference() -> None:
     violations = _retired_shadow_violations(RETIRED_SHADOW_PRODUCTION_SURFACES)
     assert violations == [], (
-        f"RETIRED_SHADOW_STRATEGY_PRODUCTION_REFERENCE_COUNT={len(violations)}: "
-        f"{violations}"
+        f"RETIRED_SHADOW_STRATEGY_PRODUCTION_REFERENCE_COUNT={len(violations)}: {violations}"
     )
 
 
@@ -421,23 +406,16 @@ def test_day_view_reads_contract_owned_fields_from_contract_only() -> None:
     path = Path("src/w2/dashboard/day_view.py")
     source = path.read_text(encoding="utf-8")
     tree = ast.parse(source, filename=str(path))
-    seen_identities = {
-        node.id
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Name)
-    } | {
+    seen_identities = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)} | {
         node.name
         for node in ast.walk(tree)
         if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
     }
-    identity_violations = sorted(
-        FORBIDDEN_DAY_VIEW_CONTRACT_BYPASS_IDENTITIES & seen_identities
-    )
+    identity_violations = sorted(FORBIDDEN_DAY_VIEW_CONTRACT_BYPASS_IDENTITIES & seen_identities)
     contract_read_functions = [
         node
         for node in tree.body
-        if isinstance(node, ast.FunctionDef)
-        and node.name in {"_day_view_card", "_contract_card"}
+        if isinstance(node, ast.FunctionDef) and node.name in {"_day_view_card", "_contract_card"}
     ]
     top_level_reads = sorted(
         str(node.args[0].value)
@@ -491,8 +469,7 @@ def test_infrastructure_does_not_import_upper_layers() -> None:
 def test_predeploy_projection_smoke_uses_write_side_calculator() -> None:
     source = Path("scripts/run_predeploy_e2e_smoke.sh").read_text(encoding="utf-8")
     assert (
-        "from w2.prematch.analysis_calculator import "
-        "ReadModelRepository, ReadModelService"
+        "from w2.prematch.analysis_calculator import ReadModelRepository, ReadModelService"
     ) in source
     assert "from w2.api.repository import ReadModelRepository, ReadModelService" not in source
 
@@ -571,6 +548,43 @@ def test_missing_projection_is_explicit_system_degraded_not_empty() -> None:
     assert card["decision_tier"] == "NOT_READY"
     assert card["data_status"] == "BLOCKED"
     assert card["current_odds"] == {}
+
+
+@pytest.mark.parametrize(
+    ("competition_id", "requirement", "risks", "reason"),
+    (
+        ("premier_league", "STRICT", [], "ANALYSIS_PROJECTION_NOT_READY"),
+        (
+            "world_cup_2026",
+            "ADVISORY",
+            ["LINEUP_UNOBSERVABLE"],
+            "ANALYSIS_PROJECTION_NOT_READY",
+        ),
+        (
+            None,
+            "ADVISORY",
+            ["LINEUP_UNOBSERVABLE"],
+            "LINEUP_REQUIREMENT_IDENTITY_MISSING",
+        ),
+    ),
+)
+def test_missing_projection_preserves_lineup_requirement_identity(
+    competition_id: str | None,
+    requirement: str,
+    risks: list[str],
+    reason: str,
+) -> None:
+    repository = ProjectionRepository(projection=None)
+    repository.fixture["competition_id"] = competition_id
+
+    card = ReadModelService(repository=repository).public_analysis_card_bounded(  # type: ignore[arg-type]
+        "fixture-1"
+    )
+
+    assert card is not None
+    assert card["lineup_requirement"] == requirement
+    assert card["risk_reason_codes"] == risks
+    assert card["reason_code"] == reason
 
 
 class FailedProjectionRepository(ProjectionRepository):

@@ -39,6 +39,7 @@ from w2.dashboard.validation_summary import validation_summary
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
+from w2.lineups.intelligence import lineup_requirement
 from w2.matchday.timezone import (
     BEIJING_TZ,
     BeijingOperationalDayPolicy,
@@ -322,15 +323,9 @@ class ReadModelService:
             ]
             if not cohorts or not fixtures:
                 raise SystemDegradedError("PERFORMANCE_PROJECTION_MISSING")
-            selected_row, selected = cohorts[
-                _performance_cohort_key(league=league, tier=tier)
-            ]
-            strict = cohorts[
-                _performance_cohort_key(league=league, tier="STRICT")
-            ][1]
-            advisory = cohorts[
-                _performance_cohort_key(league=league, tier="ADVISORY")
-            ][1]
+            selected_row, selected = cohorts[_performance_cohort_key(league=league, tier=tier)]
+            strict = cohorts[_performance_cohort_key(league=league, tier="STRICT")][1]
+            advisory = cohorts[_performance_cohort_key(league=league, tier="ADVISORY")][1]
             selected_window = selected.windows[window]
             strict_window = strict.windows[window]
             advisory_window = advisory.windows[window]
@@ -339,14 +334,15 @@ class ReadModelService:
                 or not selected_row.source_hash
                 or selected.scoring_window_anchor.tzinfo is None
             ):
-                raise SystemDegradedError(
-                    "PERFORMANCE_PROJECTION_IDENTITY_INVALID"
-                )
-            lower = selected.scoring_window_anchor - {
-                "7d": timedelta(days=7),
-                "30d": timedelta(days=30),
-                "90d": timedelta(days=90),
-            }[window]
+                raise SystemDegradedError("PERFORMANCE_PROJECTION_IDENTITY_INVALID")
+            lower = (
+                selected.scoring_window_anchor
+                - {
+                    "7d": timedelta(days=7),
+                    "30d": timedelta(days=30),
+                    "90d": timedelta(days=90),
+                }[window]
+            )
             points = [
                 {
                     "fixture_id": fixture.fixture_id,
@@ -360,9 +356,7 @@ class ReadModelService:
                 and fixture.clv_status == "AVAILABLE"
                 and fixture.clv_decimal is not None
                 and fixture.kickoff_utc.tzinfo is not None
-                and lower
-                <= fixture.kickoff_utc
-                <= selected.scoring_window_anchor
+                and lower <= fixture.kickoff_utc <= selected.scoring_window_anchor
                 and (league is None or fixture.league == league)
                 and (tier == "ALL" or fixture.evaluation_tier == tier)
             ]
@@ -400,23 +394,13 @@ class ReadModelService:
                         ),
                         "model_ece": selected_window.model_ece,
                         "market_ece": selected_window.market_ece,
-                        "model_reliability_bins": (
-                            selected_window.model_reliability_bins
-                        ),
-                        "market_reliability_bins": (
-                            selected_window.market_reliability_bins
-                        ),
-                        "paired_log_loss_bootstrap": (
-                            selected_window.paired_log_loss_bootstrap
-                        ),
+                        "model_reliability_bins": (selected_window.model_reliability_bins),
+                        "market_reliability_bins": (selected_window.market_reliability_bins),
+                        "paired_log_loss_bootstrap": (selected_window.paired_log_loss_bootstrap),
                     },
                     "tier_comparison": {
-                        "STRICT": _performance_tier_row(
-                            "STRICT", strict_window
-                        ),
-                        "ADVISORY": _performance_tier_row(
-                            "ADVISORY", advisory_window
-                        ),
+                        "STRICT": _performance_tier_row("STRICT", strict_window),
+                        "ADVISORY": _performance_tier_row("ADVISORY", advisory_window),
                     },
                     "sample_progress": {
                         "current": selected_window.canonical_settled_count,
@@ -425,33 +409,21 @@ class ReadModelService:
                         "status": selected_window.sample_progress_status,
                     },
                     "coverage": {
-                        "finished_result_count": (
-                            selected_window.finished_result_count
-                        ),
-                        "fixture_checkpoint_count": (
-                            selected_window.fixture_checkpoint_count
-                        ),
+                        "finished_result_count": (selected_window.finished_result_count),
+                        "fixture_checkpoint_count": (selected_window.fixture_checkpoint_count),
                         "scored_count": selected_window.scored_count,
-                        "not_scorable_count": (
-                            selected_window.not_scorable_count
-                        ),
+                        "not_scorable_count": (selected_window.not_scorable_count),
                         "blocked_count": selected_window.blocked_count,
-                        "not_scorable_by_reason": (
-                            selected_window.not_scorable_by_reason
-                        ),
+                        "not_scorable_by_reason": (selected_window.not_scorable_by_reason),
                     },
                     "checkpoint_metadata": _checkpoint_metadata(selected_row),
                 }
             )
             if len(response.clv.points) != response.clv.sample_count:
-                raise SystemDegradedError(
-                    "PERFORMANCE_CLV_POPULATION_MISMATCH"
-                )
+                raise SystemDegradedError("PERFORMANCE_CLV_POPULATION_MISMATCH")
             payload = response.model_dump()
         except (KeyError, ValidationError, TypeError, ValueError) as exc:
-            raise SystemDegradedError(
-                "PERFORMANCE_PROJECTION_INVALID"
-            ) from exc
+            raise SystemDegradedError("PERFORMANCE_PROJECTION_INVALID") from exc
         payload.pop("request_id")
         return payload
 
@@ -569,7 +541,11 @@ class ReadModelService:
             raise SystemDegradedError("DASHBOARD_FIXTURE_IDENTITY_MISSING")
         analysis = self.repository.analysis_card_projection(fixture_id)
         card = (
-            self._system_degraded_card(fixture_id, "ANALYSIS_PROJECTION_NOT_READY")
+            self._system_degraded_card(
+                fixture_id,
+                "ANALYSIS_PROJECTION_NOT_READY",
+                competition_id=str(fixture.get("competition_id") or "") or None,
+            )
             if analysis is None
             else analysis
         )
@@ -579,8 +555,7 @@ class ReadModelService:
             "fixture_id": fixture_id,
             "kickoff_utc": fixture.get("kickoff_utc") or card.get("kickoff_utc"),
             "competition_id": fixture.get("competition_id") or card.get("competition_id"),
-            "competition_name": fixture.get("competition_name")
-            or card.get("competition_name"),
+            "competition_name": fixture.get("competition_name") or card.get("competition_name"),
             "home_team_id": fixture.get("home_team_id"),
             "home_team_name": fixture.get("home_team_name") or card.get("home_name"),
             "away_team_id": fixture.get("away_team_id"),
@@ -608,7 +583,19 @@ class ReadModelService:
         )
         return merged
 
-    def _system_degraded_card(self, fixture_id: str, blocker: str) -> dict[str, Any]:
+    def _system_degraded_card(
+        self,
+        fixture_id: str,
+        blocker: str,
+        *,
+        competition_id: str | None = None,
+    ) -> dict[str, Any]:
+        identity_missing = not str(competition_id or "").strip()
+        requirement = (
+            lineup_requirement(str(competition_id)) if not identity_missing else "ADVISORY"
+        )
+        risks = ["LINEUP_UNOBSERVABLE"] if requirement == "ADVISORY" else []
+        effective_blocker = "LINEUP_REQUIREMENT_IDENTITY_MISSING" if identity_missing else blocker
         return {
             "fixture_id": fixture_id,
             "decision": "SKIP",
@@ -618,8 +605,10 @@ class ReadModelService:
             "outcome_tracked": False,
             "lock_eligible": False,
             "recommendation_id": None,
+            "lineup_requirement": requirement,
+            "risk_reason_codes": risks,
             "pick": None,
-            "reason_code": blocker,
+            "reason_code": effective_blocker,
             "action": "等待权威读模型投影",
             "next_eval_at": None,
             "current_odds": {},
@@ -628,7 +617,7 @@ class ReadModelService:
             "candidate": False,
             "formal_recommendation": False,
             "non_pick": {
-                "reason_code": blocker,
+                "reason_code": effective_blocker,
                 "reason_human": "权威读模型投影尚未就绪",
                 "action": "等待权威读模型投影",
                 "next_eval_at": None,
@@ -640,21 +629,26 @@ class ReadModelService:
                 "outcome_tracked": False,
                 "lock_eligible": False,
                 "recommendation_id": None,
+                "lineup_requirement": requirement,
+                "risk_reason_codes": risks,
                 "pick": None,
                 "non_pick": {
-                    "reason_code": blocker,
+                    "reason_code": effective_blocker,
                     "reason_human": "权威读模型投影尚未就绪",
                     "action": "等待权威读模型投影",
                     "next_eval_at": None,
                 },
-                "reason_code": blocker,
+                "reason_code": effective_blocker,
                 "action": "等待权威读模型投影",
                 "next_eval_at": None,
             },
             "recommendation_decision_v3": {
                 "schema_version": "w2.recommendation_decision.v3",
                 "outcome": "SYSTEM_DEGRADED",
-                "reason": {"code": blocker, "message": "权威读模型投影尚未就绪"},
+                "reason": {
+                    "code": effective_blocker,
+                    "message": "权威读模型投影尚未就绪",
+                },
                 "selected_candidate": None,
                 "evaluated_candidate": None,
                 "decision_hash": None,
@@ -713,9 +707,7 @@ class ReadModelService:
         ]
         return max(values, default=None)
 
-    def _next_available_date(
-        self, requested_date: date, cards: list[dict[str, Any]]
-    ) -> str | None:
+    def _next_available_date(self, requested_date: date, cards: list[dict[str, Any]]) -> str | None:
         candidates = []
         for card in cards:
             kickoff = _parse_datetime(card.get("kickoff_utc"))
@@ -906,7 +898,11 @@ class ReadModelService:
             "integrity_status": row.get("integrity_status"),
             "analysis_card": analysis
             if analysis is not None
-            else self._system_degraded_card(fixture_id, "ANALYSIS_PROJECTION_NOT_READY"),
+            else self._system_degraded_card(
+                fixture_id,
+                "ANALYSIS_PROJECTION_NOT_READY",
+                competition_id=str(row.get("competition_id") or "") or None,
+            ),
         }
 
     def research_card(self, fixture_id: str) -> dict[str, Any] | None:
@@ -920,8 +916,14 @@ class ReadModelService:
         use_frozen_canary: bool = False,
     ) -> dict[str, Any] | None:
         del evaluation_time, use_frozen_canary
-        return self.repository.analysis_card_projection(fixture_id) or self._system_degraded_card(
-            fixture_id, "ANALYSIS_PROJECTION_NOT_READY"
+        projection = self.repository.analysis_card_projection(fixture_id)
+        if projection is not None:
+            return projection
+        fixture = self.repository.dashboard_fixture(fixture_id) or {}
+        return self._system_degraded_card(
+            fixture_id,
+            "ANALYSIS_PROJECTION_NOT_READY",
+            competition_id=str(fixture.get("competition_id") or "") or None,
         )
 
     def odds_timeline(self, fixture_id: str) -> list[dict[str, Any]]:
@@ -935,9 +937,7 @@ class ReadModelService:
     def integrity(self, fixture_id: str) -> dict[str, Any] | None:
         card = self.public_analysis_card_bounded(fixture_id)
         return (
-            None
-            if card is None
-            else dict(card.get("integrity") or {"integrity_status": "UNKNOWN"})
+            None if card is None else dict(card.get("integrity") or {"integrity_status": "UNKNOWN"})
         )
 
     def market_probabilities(self, fixture_id: str) -> dict[str, Any]:
@@ -1131,9 +1131,7 @@ class ReadModelService:
             "competition_name": str(item.get("competition_name") or ""),
             "kickoff_utc": kickoff,
             "kickoff_beijing": kickoff.astimezone(self.day_policy.timezone).isoformat(),
-            "operational_date_beijing": self.date_resolver.operational_date(
-                kickoff
-            ).isoformat(),
+            "operational_date_beijing": self.date_resolver.operational_date(kickoff).isoformat(),
             "kickoff_display": kickoff.astimezone(self.day_policy.timezone).strftime(
                 "%Y-%m-%d %H:%M"
             ),

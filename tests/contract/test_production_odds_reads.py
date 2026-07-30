@@ -131,6 +131,54 @@ def test_matchday_observation_is_the_only_database_read_authority() -> None:
     )
 
 
+def test_fixture_scoped_timeline_reads_history_not_current_projection() -> None:
+    engine = _engine()
+    _seed_authority(engine)
+    opening_at = datetime(2026, 7, 22, 20, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add(
+            MatchdayMarketObservationModel(
+                observation_id="authority-opening-1",
+                fixture_id="api_football:123",
+                provider_fixture_id="123",
+                competition_id="world_cup_2026",
+                provider="api_football",
+                bookmaker_id="bookmaker-7",
+                bookmaker_name="Bookmaker Seven",
+                capture_id="capture-opening",
+                provider_bet_id="4",
+                raw_market_label="Asian Handicap",
+                canonical_market="ASIAN_HANDICAP",
+                canonical_selection="HOME",
+                provider_selection="Home -0.5",
+                line="-0.5",
+                decimal_odds="2.05",
+                suspended=False,
+                live=False,
+                provider_updated_at="2026-07-22T19:59:00Z",
+                captured_at=opening_at,
+                ingested_at=opening_at,
+                raw_payload_sha256="b" * 64,
+                source_revision="opening-revision",
+            )
+        )
+        session.commit()
+
+    repository = FutureRefreshDbRepository(engine=engine)
+    current = repository.latest_market_observations_for_fixtures(["123"])
+    timeline = repository.market_observation_timeline_for_fixtures(["123"])
+
+    assert [row["observation_id"] for row in current] == ["authority-quote-1"]
+    assert [row["observation_id"] for row in timeline] == [
+        "authority-opening-1",
+        "authority-quote-1",
+    ]
+    assert timeline[0]["provider"] == timeline[1]["provider"] == "api_football"
+    assert timeline[0]["bookmaker_id"] == timeline[1]["bookmaker_id"] == "bookmaker-7"
+    assert timeline[0]["raw_payload_sha256"] == "b" * 64
+    assert timeline[0]["source_revision"] == "opening-revision"
+
+
 def test_twenty_reads_preserve_identity_and_issue_zero_writes() -> None:
     engine = _engine()
     _seed_authority(engine)

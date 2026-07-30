@@ -22,7 +22,7 @@ export interface PerformanceTierRow {
 
 export interface PerformancePayload {
   request_id: string;
-  projection_version: "eval-01c.v2";
+  projection_version: "eval-02a.v1";
   scoring_window_anchor: string;
   selected_window: PerformanceWindow;
   selected_league: string | null;

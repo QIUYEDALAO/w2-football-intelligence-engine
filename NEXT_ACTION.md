@@ -5,5 +5,5 @@
 
 Task coordinates are maintained only in those authorities.
 
-当前：B3 EVAL-01C / PR #432 已完成 exact-head CI、staging、Secondary Review、合并与状态闭环。
-下一项：B4 EVAL-02A；本状态闭环 PR 合并前不启动。
+当前：B4 EVAL-02A / PR #434 IN_PROGRESS，等待实现、独立 CODE Review 和 exact-head staging。
+下一项：B5 EVAL-02B；B4 合并前不启动。

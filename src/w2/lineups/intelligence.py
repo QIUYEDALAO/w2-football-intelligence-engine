@@ -31,6 +31,8 @@ TOP_FIVE_COMPETITION_CODES = frozenset(
 MAX_AH_DELTA = 0.25
 MAX_TOTALS_DELTA = 0.30
 LINEUP_POLICY_RELATIVE_PATH = Path("config/policies/lineup_market_policy.v1.json")
+ROTATION_PRIOR_SCHEMA_VERSION = "w2.team_rotation_prior.v1"
+HIGH_ROTATION_THRESHOLD = 4 / 11
 
 
 class CoverageGrade(StrEnum):
@@ -355,6 +357,87 @@ def build_team_baseline(
         "artifact_hash": _hash_payload(payload),
         "schema_version": "w2.lineup_baseline.v1",
     }
+
+
+def build_team_rotation_prior(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    team_external_id: str,
+    as_of: datetime,
+) -> dict[str, Any]:
+    """Build a deterministic prior from the latest complete confirmed XI per fixture."""
+    latest_by_fixture: dict[str, tuple[datetime, Mapping[str, Any], tuple[str, ...]]] = {}
+    for row in rows:
+        if str(row.get("team_external_id") or "") != team_external_id:
+            continue
+        kickoff = row.get("kickoff_at")
+        captured_at = row.get("captured_at")
+        if (
+            not isinstance(kickoff, datetime)
+            or not isinstance(captured_at, datetime)
+            or kickoff >= as_of
+            or captured_at >= kickoff
+            or not bool(row.get("confirmed"))
+        ):
+            continue
+        starters = tuple(
+            sorted(
+                str(player.get("player_id") or player.get("api_football_player_id") or "")
+                for player in row.get("starters", [])
+                if isinstance(player, Mapping)
+            )
+        )
+        if len(starters) != 11 or len(set(starters)) != 11 or any(not item for item in starters):
+            continue
+        fixture_id = str(row.get("fixture_id") or "")
+        if not fixture_id:
+            continue
+        current = latest_by_fixture.get(fixture_id)
+        if current is None or captured_at > current[0]:
+            latest_by_fixture[fixture_id] = (captured_at, row, starters)
+
+    selected = sorted(
+        latest_by_fixture.items(),
+        key=lambda item: (
+            item[1][1]["kickoff_at"],
+            item[0],
+        ),
+    )[-6:]
+    turnovers = [
+        (11 - len(set(previous[1][2]) & set(current[1][2]))) / 11
+        for previous, current in zip(selected, selected[1:], strict=False)
+    ]
+    transition_count = len(turnovers)
+    raw_rotation_rate = sum(turnovers) / transition_count if transition_count else None
+    rotation_rate = (
+        round(raw_rotation_rate, 12) if raw_rotation_rate is not None else None
+    )
+    status = "READY" if transition_count >= 4 else "INSUFFICIENT_SAMPLE"
+    classification = (
+        "HIGH_ROTATION"
+        if status == "READY"
+        and raw_rotation_rate is not None
+        and raw_rotation_rate >= HIGH_ROTATION_THRESHOLD
+        else "NORMAL"
+        if status == "READY"
+        else "UNKNOWN"
+    )
+    payload = {
+        "schema_version": ROTATION_PRIOR_SCHEMA_VERSION,
+        "status": status,
+        "team_external_id": team_external_id,
+        "match_count": len(selected),
+        "transition_count": transition_count,
+        "rotation_rate": rotation_rate,
+        "classification": classification,
+        "input_fixture_ids": [fixture_id for fixture_id, _ in selected],
+        "input_lineup_hashes": [
+            str(row.get("lineup_identity_hash") or _hash_payload({"starters": starters}))
+            for _, (_, row, starters) in selected
+        ],
+        "as_of": as_of.isoformat(),
+    }
+    return {**payload, "input_hash": _hash_payload(payload)}
 
 
 def derive_lineup_change_features(

@@ -3,10 +3,10 @@ project: w2-football-intelligence-engine
 updated_at: "2026-07-30"
 current_state_authority: PROJECT_STATE.yaml
 task_authority: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
-current_task: EVAL-01C
-current_status: DONE
-current_pr: 432
-next_task: EVAL-02A
+current_task: EVAL-02A
+current_status: IN_PROGRESS
+current_pr: 434
+next_task: EVAL-02B
 tasks:
   ARCH-P2-02:
     status: DONE
@@ -51,6 +51,10 @@ tasks:
     merge_sha: 10ace8f67bb3ecfa8481be4f9906c485d20b2d16
     main_ci: 30517146657
   EVAL-02A:
+    status: IN_PROGRESS
+    pr: 434
+    branch: codex/eval-02a-lineup-blind-spot-defense
+  EVAL-02B:
     status: NOT_STARTED
 safety:
   provider_calls: 0
@@ -63,6 +67,7 @@ staging:
   eval_01a_exact_head_acceptance: PASS
   eval_01b_exact_head_acceptance: PASS
   eval_01c_exact_head_acceptance: PASS
+  eval_02a_exact_head_acceptance: NOT_STARTED_FOR_NEW_HEAD
 architecture_convergence:
   status: PASS
   receipt: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md

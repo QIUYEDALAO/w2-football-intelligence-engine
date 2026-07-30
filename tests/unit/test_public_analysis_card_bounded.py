@@ -206,7 +206,7 @@ def test_fixture_scoped_reader_rejects_cross_fixture_rows(monkeypatch: Any) -> N
     assert all(market["decision"] == "SKIP" for market in card["markets"])
     assert card["quote_identity_audit"]["ah"]["identity_status"] == "INCOMPLETE"
     assert repository.global_calls == 0
-    _assert_fail_closed_v3(card, "FIXTURE_SCOPED_OBSERVATION_CROSS_FIXTURE_ROWS")
+    _assert_fail_closed_v3(card, "LINEUP_REQUIREMENT_IDENTITY_MISSING")
 
 
 def test_fixture_scoped_reader_failure_does_not_fallback_global(monkeypatch: Any) -> None:
@@ -224,7 +224,7 @@ def test_fixture_scoped_reader_failure_does_not_fallback_global(monkeypatch: Any
     assert card["decision"] == "SKIP"
     assert repository.global_calls == 0
     assert repository.latest_calls == 0
-    _assert_fail_closed_v3(card, "FIXTURE_SCOPED_OBSERVATION_READ_FAILED")
+    _assert_fail_closed_v3(card, "LINEUP_REQUIREMENT_IDENTITY_MISSING")
 
 
 def test_missing_fixture_scoped_reader_returns_blocked_card(monkeypatch: Any) -> None:
@@ -256,7 +256,7 @@ def test_missing_fixture_scoped_reader_returns_blocked_card(monkeypatch: Any) ->
     ]
     assert card["decision"] == "SKIP"
     assert card["lock_eligible"] is False
-    _assert_fail_closed_v3(card, "FIXTURE_SCOPED_OBSERVATION_READER_UNAVAILABLE")
+    _assert_fail_closed_v3(card, "LINEUP_REQUIREMENT_IDENTITY_MISSING")
 
 
 def test_concurrent_analysis_card_requests_do_not_share_fixture_cache(

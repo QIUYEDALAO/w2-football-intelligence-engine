@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -15,9 +17,108 @@ from w2.domain.decision_contract import (
 )
 from w2.domain.enums import DataStatus, DecisionReasonCode, DecisionTier
 from w2.markets.market_candidate import build_market_candidates
+from w2.tracking.advisory_blind_spot_policy import (
+    POLICY_CHECKPOINT_KEY,
+    AdvisoryBlindSpotPolicyCheckpoint,
+    build_advisory_blind_spot_policy,
+)
 
 NOW = datetime(2026, 7, 5, 0, 0, tzinfo=UTC)
 KICKOFF = NOW + timedelta(hours=4)
+POLICY_PAYLOAD = build_advisory_blind_spot_policy(
+    {
+        "fixture-1": {
+            "fixture_id": "fixture-1",
+            "kickoff_utc": NOW.isoformat(),
+            "evaluation_tier": "ADVISORY",
+            "status": "NOT_SCORABLE",
+        }
+    },
+    existing=None,
+    now=NOW,
+)
+POLICY_CHECKPOINT = AdvisoryBlindSpotPolicyCheckpoint(
+    checkpoint_key=POLICY_CHECKPOINT_KEY,
+    source_hash=str(POLICY_PAYLOAD["business_projection_hash"]),
+    created_at=NOW,
+    payload=POLICY_PAYLOAD,
+).as_dict()
+
+
+def _ready_policy_checkpoint(
+    *,
+    calibrated_at: datetime,
+    corruption: str | None = None,
+) -> dict[str, object]:
+    strict_clv = 0.2 if corruption == "watch_false" else 0.01
+    advisory_clv = 0.05 if corruption == "watch_false" else 0.02
+    rows = {
+        f"advisory-{index}": {
+            "fixture_id": f"advisory-{index}",
+            "kickoff_utc": (calibrated_at - timedelta(hours=index)).isoformat(),
+            "evaluation_tier": "ADVISORY",
+            "status": "SCORED",
+            "canonical_settlement_outcome": "HIT",
+            "clv_status": "AVAILABLE",
+            "clv_decimal": advisory_clv,
+        }
+        for index in range(50)
+    }
+    rows["strict"] = {
+        **rows["advisory-0"],
+        "fixture_id": "strict",
+        "evaluation_tier": "STRICT",
+        "clv_decimal": strict_clv,
+    }
+    payload = build_advisory_blind_spot_policy(
+        rows,
+        existing=None,
+        now=calibrated_at,
+    )
+    if corruption is not None:
+        if corruption == "missing_next":
+            payload.pop("next_recalibration_at")
+        else:
+            key, value = {
+                "settled": ("calibration_advisory_canonical_settled_count", 49),
+                "calibrated": ("last_calibrated_settled_count", 49),
+                "seed": ("calibration_bootstrap_seed", 0),
+                "strict_mean": ("calibration_strict_clv_mean", None),
+                "advisory_mean": ("calibration_advisory_clv_mean", None),
+                "zero_count_mean": ("calibration_strict_clv_sample_count", 0),
+                "mean_nan": ("calibration_strict_clv_mean", float("nan")),
+                "mean_infinity": ("calibration_advisory_clv_mean", float("inf")),
+                "watch_only": ("watch_only", True),
+                "watch_false": ("watch_only", False),
+                "next": (
+                    "next_recalibration_at",
+                    (calibrated_at + timedelta(days=89)).isoformat(),
+                ),
+                "next_early": (
+                    "next_recalibration_at",
+                    (calibrated_at - timedelta(microseconds=1)).isoformat(),
+                ),
+            }[corruption]
+            payload[key] = value
+        projected = {
+            key: value
+            for key, value in payload.items()
+            if key != "business_projection_hash"
+        }
+        payload["business_projection_hash"] = hashlib.sha256(
+            json.dumps(
+                projected,
+                sort_keys=True,
+                separators=(",", ":"),
+                default=str,
+            ).encode()
+        ).hexdigest()
+    return AdvisoryBlindSpotPolicyCheckpoint(
+        checkpoint_key=POLICY_CHECKPOINT_KEY,
+        source_hash=str(payload["business_projection_hash"]),
+        created_at=calibrated_at,
+        payload=payload,
+    ).as_dict()
 
 
 def _complete_quote_audit() -> dict[str, object]:
@@ -135,12 +236,20 @@ def _fields(
     readiness: dict[str, object] | None = None,
     environment: str = "staging",
     include_analysis_evidence: bool = True,
+    competition_id: str = "world_cup_2026",
+    advisory_policy_ready: bool = True,
+    as_of: datetime = NOW,
 ) -> dict[str, object]:
     card_payload: dict[str, object] = {
         "source": "unit",
         "quote_identity_audit": _complete_quote_audit(),
     }
     card_payload.update(card or {})
+    if advisory_policy_ready:
+        card_payload.setdefault(
+            "advisory_blind_spot_policy",
+            POLICY_CHECKPOINT,
+        )
     market_payload = dict(market or {})
     if not any(
         payload.get("decision_tier")
@@ -170,9 +279,9 @@ def _fields(
         recommendation=recommendation,
         readiness=readiness or _readiness(),
         environment=environment,
-        as_of=NOW,
+        as_of=as_of,
         kickoff_utc=KICKOFF,
-        competition_id="world_cup_2026",
+        competition_id=competition_id,
         fixture_id="fixture-1",
     )
 
@@ -194,6 +303,206 @@ def test_persisted_decision_contract_contains_complete_read_contract() -> None:
         )
         == contract
     )
+
+
+def test_lineup_requirement_and_risks_are_required_and_fail_closed() -> None:
+    advisory = _fields()
+    assert advisory["lineup_requirement"] == "ADVISORY"
+    assert advisory["risk_reason_codes"] == ["LINEUP_UNOBSERVABLE"]
+
+    strict = _fields(competition_id="premier_league")
+    assert strict["lineup_requirement"] == "STRICT"
+    assert strict["risk_reason_codes"] == []
+
+    invalid = dict(advisory["decision_contract"])  # type: ignore[arg-type]
+    invalid["risk_reason_codes"] = ["LINEUP_UNOBSERVABLE", "LINEUP_UNOBSERVABLE"]
+    with pytest.raises(ValueError, match="risk_reason_codes"):
+        validate_decision_contract(invalid, fixture_id="fixture-1")
+    invalid["risk_reason_codes"] = ["UNKNOWN"]
+    with pytest.raises(ValueError, match="risk_reason_codes"):
+        validate_decision_contract(invalid, fixture_id="fixture-1")
+    del invalid["risk_reason_codes"]
+    with pytest.raises(ValueError, match="DECISION_CONTRACT_INCOMPLETE"):
+        validate_decision_contract(invalid, fixture_id="fixture-1")
+
+
+def test_high_rotation_prior_adds_risk_without_numerical_adjustment() -> None:
+    fields = _fields(
+        card={
+            "lineup_provenance": {
+                "requirement": "ADVISORY",
+                "rotation_priors": [{"status": "READY", "classification": "HIGH_ROTATION"}],
+                "lineup_ah_adjustment": 0.0,
+                "lineup_totals_adjustment": 0.0,
+            }
+        }
+    )
+
+    assert fields["risk_reason_codes"] == [
+        "HIGH_ROTATION_PRIOR",
+        "LINEUP_UNOBSERVABLE",
+    ]
+
+
+def test_advisory_moved_pick_downgrades_but_strict_pick_does_not() -> None:
+    market = {
+        "market": "ASIAN_HANDICAP",
+        "decision": "PICK",
+        "tendency": "HOME_AH",
+        "line": "-0.5",
+        "odds": "1.95",
+    }
+    card = _canonical_candidate(market)
+    candidate = card["market_candidates"]["ah"]  # type: ignore[index]
+    candidate["divergence_origin"] = {"effective_risk_class": "MOVED_CONSERVATIVE"}
+    card["lineup_provenance"] = {"requirement": "ADVISORY"}
+
+    advisory = _fields(card=card, market=market)
+    strict = _fields(
+        card={**card, "lineup_provenance": {"requirement": "STRICT"}},
+        market=market,
+        competition_id="premier_league",
+    )
+
+    assert advisory["decision_tier"] == "WATCH"
+    assert advisory["pick"] is None
+    assert advisory["non_pick"]["reason_code"] == "MARKET_MOVED_AGAINST_BLIND_SPOT"  # type: ignore[index]
+    assert advisory["outcome_tracked"] is False
+    assert advisory["lock_eligible"] is False
+    assert strict["decision_tier"] == "ANALYSIS_PICK"
+
+
+def test_advisory_pick_fails_closed_when_delta_policy_is_missing() -> None:
+    fields = _fields(
+        market={
+            "market": "ASIAN_HANDICAP",
+            "decision": "PICK",
+            "tendency": "HOME",
+            "line": "-0.25",
+            "odds": "1.95",
+        },
+        advisory_policy_ready=False,
+    )
+
+    assert fields["decision_tier"] == "WATCH"
+    assert fields["non_pick"]["reason_code"] == "ADVISORY_DELTA_POLICY_NOT_READY"  # type: ignore[index]
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    (
+        "settled",
+        "calibrated",
+        "seed",
+        "strict_mean",
+        "advisory_mean",
+        "zero_count_mean",
+        "mean_nan",
+        "mean_infinity",
+        "watch_only",
+        "watch_false",
+        "missing_next",
+        "next",
+        "next_early",
+    ),
+)
+def test_advisory_pick_fails_closed_for_semantically_invalid_policy(
+    corruption: str,
+) -> None:
+    fields = _fields(
+        card={
+            "advisory_blind_spot_policy": _ready_policy_checkpoint(
+                calibrated_at=NOW,
+                corruption=corruption,
+            )
+        },
+        market={
+            "market": "ASIAN_HANDICAP",
+            "decision": "PICK",
+            "tendency": "HOME",
+            "line": "-0.25",
+            "odds": "1.95",
+        },
+    )
+
+    assert fields["decision_tier"] == "WATCH"
+    assert fields["pick"] is None
+    assert fields["non_pick"] is not None
+    assert fields["non_pick"]["reason_code"] == "ADVISORY_DELTA_POLICY_NOT_READY"  # type: ignore[index]
+    assert fields["outcome_tracked"] is False
+    assert fields["lock_eligible"] is False
+
+
+def test_advisory_policy_expiry_boundary_and_strict_no_drift() -> None:
+    calibrated_at = NOW - timedelta(days=90)
+    policy = _ready_policy_checkpoint(calibrated_at=calibrated_at)
+    market = {
+        "market": "ASIAN_HANDICAP",
+        "decision": "PICK",
+        "tendency": "HOME",
+        "line": "-0.25",
+        "odds": "1.95",
+    }
+
+    boundary = _fields(
+        card={"advisory_blind_spot_policy": policy},
+        market=market,
+        as_of=NOW,
+    )
+    expired = _fields(
+        card={"advisory_blind_spot_policy": policy},
+        market=market,
+        as_of=NOW + timedelta(microseconds=1),
+    )
+    strict = _fields(
+        card={
+            "advisory_blind_spot_policy": policy,
+            "lineup_provenance": {"requirement": "STRICT"},
+        },
+        market=market,
+        competition_id="premier_league",
+        as_of=NOW + timedelta(microseconds=1),
+    )
+
+    assert boundary["decision_tier"] == "ANALYSIS_PICK"
+    assert expired["decision_tier"] == "WATCH"
+    assert expired["pick"] is None
+    assert expired["non_pick"] is not None
+    assert expired["non_pick"]["reason_code"] == "ADVISORY_DELTA_POLICY_NOT_READY"  # type: ignore[index]
+    assert expired["outcome_tracked"] is False
+    assert expired["lock_eligible"] is False
+    assert strict["decision_tier"] == "ANALYSIS_PICK"
+    assert strict["pick"] is not None
+
+
+def test_historical_advisory_decision_cannot_consume_future_policy() -> None:
+    policy = _ready_policy_checkpoint(calibrated_at=NOW)
+    market = {
+        "market": "ASIAN_HANDICAP",
+        "decision": "PICK",
+        "tendency": "HOME",
+        "line": "-0.25",
+        "odds": "1.95",
+    }
+
+    advisory = _fields(
+        card={"advisory_blind_spot_policy": policy},
+        market=market,
+        as_of=NOW - timedelta(microseconds=1),
+    )
+    strict = _fields(
+        card={
+            "advisory_blind_spot_policy": policy,
+            "lineup_provenance": {"requirement": "STRICT"},
+        },
+        market=market,
+        competition_id="premier_league",
+        as_of=NOW - timedelta(microseconds=1),
+    )
+
+    assert advisory["decision_tier"] == "WATCH"
+    assert advisory["non_pick"]["reason_code"] == "ADVISORY_DELTA_POLICY_NOT_READY"  # type: ignore[index]
+    assert strict["decision_tier"] == "ANALYSIS_PICK"
 
 
 def test_model_version_uses_only_canonical_card_or_adapter_default() -> None:

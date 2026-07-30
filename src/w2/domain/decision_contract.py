@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from w2.domain.enums import DataStatus, DecisionTier, LifecycleStatus
+from w2.domain.enums import DataStatus, DecisionRiskCode, DecisionTier, LifecycleStatus
 
 REQUIRED_DECISION_CONTRACT_FIELDS = (
     "decision_tier",
@@ -14,6 +14,8 @@ REQUIRED_DECISION_CONTRACT_FIELDS = (
     "recommendation_id",
     "pick",
     "non_pick",
+    "lineup_requirement",
+    "risk_reason_codes",
 )
 
 CONTRACT_OWNED_FIELDS = frozenset(
@@ -77,6 +79,30 @@ def validate_decision_contract(
     outcome_tracked = _required_bool(raw, "outcome_tracked", identity)
     lock_eligible = _required_bool(raw, "lock_eligible", identity)
     _validate_recommendation_id(raw["recommendation_id"], identity)
+    lineup_requirement = raw["lineup_requirement"]
+    if lineup_requirement not in {"STRICT", "ADVISORY"}:
+        raise DecisionContractViolation(
+            f"DECISION_CONTRACT_INVALID:{identity}:lineup_requirement"
+        )
+    risk_reason_codes = raw["risk_reason_codes"]
+    if (
+        not isinstance(risk_reason_codes, list)
+        or risk_reason_codes != sorted(set(risk_reason_codes))
+    ):
+        raise DecisionContractViolation(
+            f"DECISION_CONTRACT_INVALID:{identity}:risk_reason_codes"
+        )
+    try:
+        risks = {DecisionRiskCode(value) for value in risk_reason_codes}
+    except (TypeError, ValueError) as exc:
+        raise DecisionContractViolation(
+            f"DECISION_CONTRACT_INVALID:{identity}:risk_reason_codes"
+        ) from exc
+    lineup_unobservable = DecisionRiskCode.LINEUP_UNOBSERVABLE
+    if (lineup_requirement == "ADVISORY") != (lineup_unobservable in risks):
+        raise DecisionContractViolation(
+            f"DECISION_CONTRACT_INVALID:{identity}:risk_reason_codes"
+        )
 
     pick = raw["pick"]
     non_pick = raw["non_pick"]

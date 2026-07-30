@@ -59,6 +59,8 @@ def _artifact(
             "outcome_tracked": False,
             "lock_eligible": False,
             "recommendation_id": None,
+            "lineup_requirement": "ADVISORY",
+            "risk_reason_codes": ["LINEUP_UNOBSERVABLE"],
             "pick": None,
             "non_pick": {
                 "reason_code": "MARKET_INCOMPLETE",
@@ -90,6 +92,7 @@ def _artifact(
                 "captured_at": "2026-07-18T04:00:00Z",
             },
         },
+        "lineup_provenance": {"requirement": "STRICT"},
     }
     manifest = {
         "evaluated_at": "2026-07-18T05:00:00Z",
@@ -102,6 +105,7 @@ def _artifact(
         "analysis_evidence_sha256": "6" * 64,
         "capability_manifest_sha256": "7" * 64,
         "lineup_policy_version": "w2.lineup_market_policy.v1",
+        "advisory_policy_identity": {"applicability": "NOT_APPLICABLE_STRICT"},
     }
     body = {
         "schema_version": ANALYSIS_CARD_CANARY_SCHEMA,
@@ -121,8 +125,14 @@ def _artifact(
 
 
 class FrozenRepository:
-    def __init__(self, artifact: FrozenAnalysisArtifact | None) -> None:
+    def __init__(
+        self,
+        artifact: FrozenAnalysisArtifact | None,
+        *,
+        competition_id: str | None = "league",
+    ) -> None:
         self.artifact = artifact
+        self.competition_id = competition_id
         self.reads: list[str] = []
         self.forbidden_calls = 0
 
@@ -132,6 +142,17 @@ class FrozenRepository:
     ) -> FrozenAnalysisArtifact | None:
         self.reads.append(fixture_id)
         return self.artifact
+
+    def matchday_fixture_identity(self, fixture_id: str) -> dict[str, Any] | None:
+        return (
+            {
+                "status": "READY",
+                "fixture_id": fixture_id,
+                "competition_id": self.competition_id,
+            }
+            if self.competition_id is not None
+            else None
+        )
 
     def fixture_payload(self, fixture_id: str) -> dict[str, Any] | None:
         self.forbidden_calls += 1
@@ -325,6 +346,53 @@ def test_invalid_canary_artifact_maps_to_structured_not_ready(
     assert card["frozen_artifact_provenance"]["blockers"] == [blocker]
 
 
+@pytest.mark.parametrize(
+    ("competition_id", "requirement", "risks", "reason"),
+    (
+        ("premier_league", "STRICT", [], "FROZEN_ARTIFACT_MISSING"),
+        ("world_cup_2026", "ADVISORY", ["LINEUP_UNOBSERVABLE"], "FROZEN_ARTIFACT_MISSING"),
+        (None, "ADVISORY", ["LINEUP_UNOBSERVABLE"], "LINEUP_REQUIREMENT_IDENTITY_MISSING"),
+    ),
+)
+def test_frozen_failure_uses_trusted_competition_identity(
+    competition_id: str | None,
+    requirement: str,
+    risks: list[str],
+    reason: str,
+) -> None:
+    card = ReadModelService(
+        repository=cast(
+            Any,
+            FrozenRepository(None, competition_id=competition_id),
+        )
+    ).public_analysis_card_bounded("1576804")
+
+    assert card["lineup_requirement"] == requirement
+    assert card["risk_reason_codes"] == risks
+    assert card["reason_code"] == reason
+    assert card["decision_contract"]["lineup_requirement"] == requirement
+
+
+def test_invalid_strict_frozen_artifact_stays_strict() -> None:
+    class InvalidStrictRepository(FrozenRepository):
+        def analysis_card_canary_artifact(
+            self,
+            fixture_id: str,
+        ) -> FrozenAnalysisArtifact | None:
+            raise FrozenAnalysisError("checkpoint artifact hash mismatch")
+
+    card = ReadModelService(
+        repository=cast(
+            Any,
+            InvalidStrictRepository(None, competition_id="premier_league"),
+        )
+    ).public_analysis_card_bounded("1576804")
+
+    assert card["lineup_requirement"] == "STRICT"
+    assert card["risk_reason_codes"] == []
+    assert card["reason_code"] == "FROZEN_ARTIFACT_HASH_INVALID"
+
+
 def test_public_route_exposes_frozen_provenance(monkeypatch: pytest.MonkeyPatch) -> None:
     artifact = _artifact()
     repository = FrozenRepository(artifact)
@@ -425,9 +493,7 @@ def test_fixture_dashboard_and_day_view_share_frozen_authority(
     assert analysis["frozen_artifact_provenance"]["artifact_hash"] == expected_hash
     assert detail["analysis_card"]["frozen_artifact_provenance"]["artifact_hash"] == (expected_hash)
     assert dashboard_card["artifact_hash"] == expected_hash
-    assert day_view["cards"][0]["frozen_artifact_provenance"]["artifact_hash"] == (
-        expected_hash
-    )
+    assert day_view["cards"][0]["frozen_artifact_provenance"]["artifact_hash"] == (expected_hash)
     for card in (analysis, detail["analysis_card"], dashboard_card, day_view["cards"][0]):
         assert card["decision_tier"] == "NOT_READY"
         assert card["pick"] is None

@@ -1841,7 +1841,9 @@ def test_projection_and_cohorts_are_idempotent_and_windowed(tmp_path: Path) -> N
     cohort = _checkpoint(repository, "performance:cohort:all")
 
     assert first["fixture_checkpoint_count"] == 5
+    assert first["persisted_policy_checkpoint_count"] == 1
     assert second["db_writes"] == 0
+    assert second["persisted_policy_checkpoint_count"] == 0
     assert _performance_hashes(repository) == hashes
     assert cohort["windows"]["7d"]["finished_result_count"] == 2
     assert cohort["windows"]["30d"]["finished_result_count"] == 4
