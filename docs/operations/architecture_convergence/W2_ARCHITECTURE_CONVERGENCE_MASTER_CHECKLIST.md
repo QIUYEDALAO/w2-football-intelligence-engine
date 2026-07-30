@@ -412,7 +412,7 @@ Dockerfile、Compose、workflow、Runbook 和历史/恢复入口，避免把离�
 TOP_LEVEL_PACKAGE_COUNT = 40
 MAPPED_PACKAGE_COUNT = 40
 UNMAPPED_PACKAGE_COUNT = 0
-DEPENDENCY_EDGE_COUNT = 127
+DEPENDENCY_EDGE_COUNT = 128
 CYCLE_COUNT = 1
 RUNTIME_REACHABLE_PACKAGE_COUNT = 27
 OFFLINE_ONLY_PACKAGE_COUNT = 13
@@ -423,7 +423,7 @@ DELETED_PACKAGE_COUNT = 0
 | package | python_file_count | direct_callers | reverse_callers | internal_dependencies | cycle_membership | entrypoints | scheduler_or_worker_reachability | api_or_web_reachability | docker_image_inclusion | role | decision | evidence |
 |---|---:|---|---|---|---|---|---|---|---|---|---|---|
 | `analysis` | 2 | apps:0;scripts:0;migrations:0;tests:3 | prematch | domain,ingestion,markets | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
-| `api` | 6 | apps:2;scripts:2;migrations:0;tests:12 | - | competitions,dashboard,domain,infrastructure,matchday,models,monitoring,operations,prematch,providers | - | - | YES | YES | PYTHON_IMAGE | PUBLIC_READ | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `api` | 6 | apps:2;scripts:2;migrations:0;tests:12 | - | competitions,dashboard,domain,infrastructure,lineups,matchday,models,monitoring,operations,prematch,providers | - | - | YES | YES | PYTHON_IMAGE | PUBLIC_READ | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `audit_export` | 2 | apps:0;scripts:2;migrations:0;tests:1 | - | domain,infrastructure,reporting,tracking | - | - | NO | NO | PYTHON_IMAGE | AUDIT_EXPORT | KEEP_AUDIT | SCRIPT_ENTRY;AUDIT_EXPORT_DEPENDENCIES |
 | `backtest` | 10 | apps:0;scripts:7;migrations:0;tests:10 | - | competitions,domain,ingestion,markets,models,providers | - | - | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | 7_SCRIPT_ENTRIES;HISTORICAL_RAW_CONSUMER |
 | `competitions` | 8 | apps:1;scripts:11;migrations:1;tests:21 | api,backtest,features,ingestion,matchday,monitoring,operations,prematch,strategy | infrastructure,providers | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
@@ -438,8 +438,8 @@ DELETED_PACKAGE_COUNT = 0
 | `identity` | 2 | apps:0;scripts:1;migrations:0;tests:2 | factor_model,historical,ingestion,lineups | infrastructure | - | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `infrastructure` | 19 | apps:0;scripts:12;migrations:17;tests:39 | api,audit_export,competitions,factor_model,historical,identity,ingestion,matchday,monitoring,operations,prematch,providers,settlement,strategy,tracking | - | - | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `ingestion` | 16 | apps:2;scripts:13;migrations:0;tests:16 | analysis,backtest,factor_model,prematch,providers,tracking | competitions,domain,features,identity,infrastructure,lineups,markets,matchday,normalization,prematch,providers | SCC-1 | - | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
-| `lineups` | 5 | apps:0;scripts:6;migrations:0;tests:6 | domain,ingestion,prematch | historical,identity | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
-| `markets` | 17 | apps:0;scripts:3;migrations:0;tests:15 | analysis,backtest,features,ingestion,prematch,readiness,strategy,tracking | domain,strategy | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `lineups` | 5 | apps:0;scripts:6;migrations:0;tests:6 | api,domain,ingestion,prematch | historical,identity | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `markets` | 17 | apps:0;scripts:3;migrations:0;tests:16 | analysis,backtest,features,ingestion,prematch,readiness,strategy,tracking | domain,strategy | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `matchday` | 11 | apps:1;scripts:3;migrations:2;tests:9 | api,factor_model,ingestion,prematch,refresh | competitions,dashboard,domain,infrastructure,providers,readiness,refresh,strategy | SCC-1 | w2-matchday | YES | YES | PYTHON_IMAGE | RUNTIME_ENTRYPOINT | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `migration` | 3 | apps:0;scripts:2;migrations:0;tests:1 | - | domain | - | - | NO | NO | PYTHON_IMAGE | MIGRATION_ONLY | KEEP_MIGRATION | 2_SCRIPT_ENTRIES;MIGRATION_RECOVERY |
 | `models` | 12 | apps:0;scripts:2;migrations:0;tests:8 | api,backtest,operations,recovery,strategy | domain | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
@@ -461,7 +461,7 @@ DELETED_PACKAGE_COUNT = 0
 | `settlement` | 3 | apps:0;scripts:2;migrations:0;tests:2 | dashboard,tracking | domain,infrastructure | SCC-1 | - | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `shadow` | 2 | apps:0;scripts:0;migrations:0;tests:0 | - | strategy | - | w2-shadow-comparison-import | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | CONSOLE_ENTRYPOINT;COMPARISON_IMPORT |
 | `strategy` | 13 | apps:0;scripts:3;migrations:0;tests:15 | dashboard,gates,markets,matchday,prematch,pricing,shadow | competitions,domain,features,formal,infrastructure,markets,models | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
-| `tracking` | 12 | apps:1;scripts:5;migrations:0;tests:15 | audit_export,domain,prematch | domain,infrastructure,ingestion,markets,prematch,settlement | SCC-1 | w2-finished-match-scoring | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `tracking` | 12 | apps:1;scripts:5;migrations:0;tests:16 | audit_export,domain,prematch | domain,infrastructure,ingestion,markets,prematch,settlement | SCC-1 | w2-finished-match-scoring | YES | YES | PYTHON_IMAGE | WRITE_SIDE_PROJECTION | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 
 ```text
 ROLE_COUNTS = RUNTIME_ENTRYPOINT:1;RUNTIME_LIBRARY:19;WRITE_SIDE_PROJECTION:5;PUBLIC_READ:2;OFFLINE_TOOL:11;MIGRATION_ONLY:1;AUDIT_EXPORT:1;DEAD:0

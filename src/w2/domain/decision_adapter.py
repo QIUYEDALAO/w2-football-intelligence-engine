@@ -159,6 +159,7 @@ def build_decision_contract_fields(
             tier = DecisionTier.WATCH
             forced_reason = DecisionReasonCode.ADVISORY_DELTA_POLICY_NOT_READY
         else:
+            policy_payload = _as_mapping(policy.get("payload"))
             expected_value = _number(
                 _get(
                     _as_mapping(
@@ -167,11 +168,9 @@ def build_decision_contract_fields(
                     "expected_value",
                 )
             )
-            threshold = _number(policy.get("effective_threshold"))
-            if policy.get("watch_only") is True or (
-                expected_value is not None
-                and threshold is not None
-                and expected_value < threshold
+            threshold = _number(policy_payload.get("effective_threshold"))
+            if policy_payload.get("watch_only") is True or (
+                expected_value is not None and threshold is not None and expected_value < threshold
             ):
                 tier = DecisionTier.WATCH
                 forced_reason = DecisionReasonCode.EDGE_INSUFFICIENT
@@ -608,11 +607,15 @@ def _non_pick_payload(
     as_of: datetime,
     reason_override: DecisionReasonCode | None = None,
 ) -> dict[str, Any]:
-    reason_code = reason_override or data_readiness.reason_code or _reason_code(
-        card=card,
-        market=market,
-        recommendation=recommendation,
-        readiness=readiness,
+    reason_code = (
+        reason_override
+        or data_readiness.reason_code
+        or _reason_code(
+            card=card,
+            market=market,
+            recommendation=recommendation,
+            readiness=readiness,
+        )
     )
     reason_human, action = (
         (data_readiness.reason_human, data_readiness.action)
@@ -859,8 +862,7 @@ def _validated_card_hash(
         recommendation_id=_optional_text(core.get("recommendation_id")),
         lineup_requirement=str(core["lineup_requirement"]),
         risk_reason_codes=tuple(
-            DecisionRiskCode(str(value))
-            for value in core["risk_reason_codes"]
+            DecisionRiskCode(str(value)) for value in core["risk_reason_codes"]
         ),
         model_version=str(core["model_version"]),
         probability_source=ProbabilitySource(str(core["probability_source"])),

@@ -187,6 +187,7 @@ def _candidate(
             "line": evidence.get("selected_side_line") if selection is not None else line,
             "candidate_role": candidate_role,
             "model_probability": model.get("effective_probability"),
+            "settlement_distribution": model.get("settlement_distribution"),
             "market_probability": _selected_market_probability(evidence, selection),
             "probability_delta": comparison.get("probability_delta"),
             "expected_value": model.get("expected_value"),

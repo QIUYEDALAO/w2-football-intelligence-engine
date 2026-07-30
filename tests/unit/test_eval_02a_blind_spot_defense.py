@@ -1,13 +1,20 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 import pytest
 
 from w2.analysis.market_movement import classify_divergence_origin
 from w2.lineups.intelligence import build_team_rotation_prior
+from w2.markets.value_engine import SettlementDistribution, expected_value
 from w2.tracking.advisory_blind_spot_policy import (
+    POLICY_CHECKPOINT_KEY,
+    AdvisoryBlindSpotPolicyCheckpoint,
     build_advisory_blind_spot_policy,
+    validate_advisory_blind_spot_policy,
 )
 from w2.tracking.finished_match_scoring_projection import (
     _blind_spot_attribution,
@@ -24,12 +31,16 @@ def _observation(
     odds: float,
     captured_at: datetime,
     line: float = -0.5,
+    market: str = "ASIAN_HANDICAP",
+    selection: str = "HOME",
 ) -> dict[str, object]:
     return {
         "observation_id": observation_id,
         "fixture_id": "api_football:42",
-        "canonical_market": "ASIAN_HANDICAP",
-        "selection": "HOME",
+        "provider": "api_football",
+        "bookmaker_id": "7",
+        "canonical_market": market,
+        "canonical_selection": selection,
         "line": line,
         "decimal_odds": odds,
         "captured_at": captured_at.isoformat(),
@@ -42,30 +53,72 @@ def _classification(
     opening_odds: float,
     *,
     current_odds: float = 2.4,
-    current_ev: float = 0.2,
+    current_ev: float | None = None,
+    settlement_distribution: dict[str, float] | None = None,
     observations: list[dict[str, object]] | None = None,
+    market: str = "ASIAN_HANDICAP",
+    selection: str = "HOME",
+    line: float = -0.5,
+    current_provider: str = "api_football",
+    current_bookmaker_id: str = "7",
 ) -> dict[str, object]:
     rows = observations or [
         _observation(
             observation_id="opening",
             odds=opening_odds,
             captured_at=CURRENT - timedelta(hours=5),
+            line=line,
+            market=market,
+            selection=selection,
         ),
         _observation(
             observation_id="current",
             odds=current_odds,
             captured_at=CURRENT,
+            line=line,
+            market=market,
+            selection=selection,
         ),
     ]
+    distribution = (
+        {
+            "WIN": 0.5,
+            "HALF_WIN": 0.0,
+            "PUSH": 0.0,
+            "HALF_LOSS": 0.0,
+            "LOSS": 0.5,
+        }
+        if settlement_distribution is None
+        else settlement_distribution
+    )
+    persisted_ev = (
+        current_ev
+        if current_ev is not None
+        else float(
+            expected_value(
+                Decimal(str(current_odds)),
+                SettlementDistribution(
+                    full_win_probability=Decimal(str(distribution["WIN"])),
+                    half_win_probability=Decimal(str(distribution["HALF_WIN"])),
+                    push_probability=Decimal(str(distribution["PUSH"])),
+                    half_loss_probability=Decimal(str(distribution["HALF_LOSS"])),
+                    full_loss_probability=Decimal(str(distribution["LOSS"])),
+                ),
+            )
+        )
+    )
     return classify_divergence_origin(
         fixture_id="42",
-        market="ASIAN_HANDICAP",
-        selection="HOME",
-        line=-0.5,
+        market=market,
+        selection=selection,
+        line=line,
         model_probability=0.5,
+        settlement_distribution=distribution,
         current_decimal_odds=current_odds,
-        current_expected_value=current_ev,
+        current_expected_value=persisted_ev,
         current_captured_at=CURRENT,
+        current_provider=current_provider,
+        current_bookmaker_id=current_bookmaker_id,
         kickoff_utc=KICKOFF,
         current_quote_identity_status="COMPLETE",
         current_quote_freshness_status="COMPLETE",
@@ -120,6 +173,164 @@ def test_divergence_classifier_fails_closed_on_current_ev_parity_conflict() -> N
 
     assert result["status"] == "BLOCKED"
     assert "EV_IDENTITY_PARITY_CONFLICT" in result["blockers"]
+
+
+@pytest.mark.parametrize(
+    ("market", "selection", "line", "distribution"),
+    (
+        (
+            "ASIAN_HANDICAP",
+            "HOME",
+            0.0,
+            {"WIN": 0.45, "HALF_WIN": 0.0, "PUSH": 0.1, "HALF_LOSS": 0.0, "LOSS": 0.45},
+        ),
+        (
+            "ASIAN_HANDICAP",
+            "HOME",
+            -0.5,
+            {"WIN": 0.52, "HALF_WIN": 0.0, "PUSH": 0.0, "HALF_LOSS": 0.0, "LOSS": 0.48},
+        ),
+        (
+            "ASIAN_HANDICAP",
+            "HOME",
+            -0.25,
+            {"WIN": 0.46, "HALF_WIN": 0.12, "PUSH": 0.0, "HALF_LOSS": 0.1, "LOSS": 0.32},
+        ),
+        (
+            "TOTALS",
+            "OVER",
+            2.0,
+            {"WIN": 0.44, "HALF_WIN": 0.0, "PUSH": 0.14, "HALF_LOSS": 0.0, "LOSS": 0.42},
+        ),
+        (
+            "TOTALS",
+            "OVER",
+            2.5,
+            {"WIN": 0.51, "HALF_WIN": 0.0, "PUSH": 0.0, "HALF_LOSS": 0.0, "LOSS": 0.49},
+        ),
+        (
+            "TOTALS",
+            "OVER",
+            2.25,
+            {"WIN": 0.43, "HALF_WIN": 0.11, "PUSH": 0.0, "HALF_LOSS": 0.13, "LOSS": 0.33},
+        ),
+    ),
+)
+def test_divergence_reprices_same_five_state_distribution_without_false_parity(
+    market: str,
+    selection: str,
+    line: float,
+    distribution: dict[str, float],
+) -> None:
+    result = _classification(
+        1.9,
+        current_odds=2.1,
+        settlement_distribution=distribution,
+        market=market,
+        selection=selection,
+        line=line,
+    )
+
+    assert "EV_IDENTITY_PARITY_CONFLICT" not in result["blockers"]
+    assert "MODEL_SETTLEMENT_DISTRIBUTION_INVALID" not in result["blockers"]
+    assert result["current_ev"] == pytest.approx(
+        float(
+            expected_value(
+                Decimal("2.1"),
+                SettlementDistribution(
+                    full_win_probability=Decimal(str(distribution["WIN"])),
+                    half_win_probability=Decimal(str(distribution["HALF_WIN"])),
+                    push_probability=Decimal(str(distribution["PUSH"])),
+                    half_loss_probability=Decimal(str(distribution["HALF_LOSS"])),
+                    full_loss_probability=Decimal(str(distribution["LOSS"])),
+                ),
+            )
+        )
+    )
+    assert result["opening_ev"] != result["current_ev"]
+
+
+def test_divergence_rejects_invalid_distribution_and_cross_bookmaker_opening() -> None:
+    invalid = _classification(
+        2.0,
+        settlement_distribution={
+            "WIN": 0.5,
+            "HALF_WIN": 0.0,
+            "PUSH": 0.0,
+            "HALF_LOSS": 0.0,
+            "LOSS": 0.6,
+        },
+    )
+    cross_bookmaker = _observation(
+        observation_id="cross-bookmaker",
+        odds=2.0,
+        captured_at=CURRENT - timedelta(hours=5),
+    )
+    cross_bookmaker["bookmaker_id"] = "other"
+    current = _observation(
+        observation_id="current",
+        odds=2.4,
+        captured_at=CURRENT,
+    )
+    mismatched = _classification(
+        2.0,
+        observations=[cross_bookmaker, current],
+    )
+
+    assert invalid["raw_classification"] == "INDETERMINATE"
+    assert "MODEL_SETTLEMENT_DISTRIBUTION_INVALID" in invalid["blockers"]
+    assert "SAME_LINE_OPENING_NOT_AVAILABLE" in mismatched["blockers"]
+
+
+@pytest.mark.parametrize(
+    "distribution",
+    (
+        {"WIN": 0.5, "HALF_WIN": 0.0, "PUSH": 0.0, "HALF_LOSS": 0.0},
+        {
+            "WIN": 0.5,
+            "HALF_WIN": -0.1,
+            "PUSH": 0.1,
+            "HALF_LOSS": 0.0,
+            "LOSS": 0.5,
+        },
+        {
+            "WIN": float("inf"),
+            "HALF_WIN": 0.0,
+            "PUSH": 0.0,
+            "HALF_LOSS": 0.0,
+            "LOSS": 0.0,
+        },
+    ),
+)
+def test_divergence_rejects_incomplete_negative_and_nonfinite_distribution(
+    distribution: dict[str, float],
+) -> None:
+    result = _classification(
+        2.0,
+        settlement_distribution=distribution,
+        current_ev=0.0,
+    )
+
+    assert result["raw_classification"] == "INDETERMINATE"
+    assert "MODEL_SETTLEMENT_DISTRIBUTION_INVALID" in result["blockers"]
+
+
+@pytest.mark.parametrize(
+    ("provider", "bookmaker_id"),
+    (("", "7"), ("api_football", "")),
+)
+def test_divergence_rejects_missing_current_execution_identity(
+    provider: str,
+    bookmaker_id: str,
+) -> None:
+    result = _classification(
+        2.0,
+        current_provider=provider,
+        current_bookmaker_id=bookmaker_id,
+    )
+
+    assert result["raw_classification"] == "INDETERMINATE"
+    assert "CURRENT_QUOTE_EXECUTION_IDENTITY_INCOMPLETE" in result["blockers"]
 
 
 def _lineup_rows(*, changes: int) -> list[dict[str, object]]:
@@ -205,6 +416,7 @@ def _performance_rows(
     rows = {
         f"advisory-{index}": {
             "fixture_id": f"advisory-{index}",
+            "kickoff_utc": (KICKOFF - timedelta(hours=index)).isoformat(),
             "evaluation_tier": "ADVISORY",
             "status": "SCORED",
             "canonical_settlement_outcome": "HIT",
@@ -215,6 +427,7 @@ def _performance_rows(
     }
     rows["strict"] = {
         "fixture_id": "strict",
+        "kickoff_utc": KICKOFF.isoformat(),
         "evaluation_tier": "STRICT",
         "status": "SCORED",
         "canonical_settlement_outcome": "HIT",
@@ -222,6 +435,19 @@ def _performance_rows(
         "clv_decimal": strict_clv,
     }
     return rows
+
+
+def _policy_checkpoint(
+    payload: dict[str, object],
+    *,
+    created_at: datetime,
+) -> AdvisoryBlindSpotPolicyCheckpoint:
+    return AdvisoryBlindSpotPolicyCheckpoint(
+        checkpoint_key=POLICY_CHECKPOINT_KEY,
+        source_hash=str(payload["business_projection_hash"]),
+        created_at=created_at,
+        payload=payload,
+    )
 
 
 def test_advisory_delta_policy_keeps_real_like_insufficient_sample_at_zero() -> None:
@@ -266,17 +492,17 @@ def test_advisory_delta_policy_recalibrates_only_on_step_or_age() -> None:
     )
     retained = build_advisory_blind_spot_policy(
         _performance_rows(99, strict_clv=0.3, advisory_clv=0.01),
-        existing=initial,
+        existing=_policy_checkpoint(initial, created_at=KICKOFF),
         now=KICKOFF + timedelta(days=1),
     )
     by_count = build_advisory_blind_spot_policy(
         _performance_rows(100, strict_clv=0.3, advisory_clv=0.01),
-        existing=initial,
+        existing=_policy_checkpoint(initial, created_at=KICKOFF),
         now=KICKOFF + timedelta(days=1),
     )
     by_age = build_advisory_blind_spot_policy(
         _performance_rows(99, strict_clv=0.3, advisory_clv=0.01),
-        existing=initial,
+        existing=_policy_checkpoint(initial, created_at=KICKOFF),
         now=KICKOFF + timedelta(days=90),
     )
 
@@ -284,6 +510,172 @@ def test_advisory_delta_policy_recalibrates_only_on_step_or_age() -> None:
     assert retained["last_calibrated_at"] == initial["last_calibrated_at"]
     assert by_count["last_calibrated_settled_count"] == 100
     assert by_age["last_calibrated_at"] != initial["last_calibrated_at"]
+
+
+def test_advisory_policy_uses_exact_90d_window_and_stable_source_hash() -> None:
+    start = KICKOFF - timedelta(days=90)
+    rows = {
+        "boundary": {
+            **_performance_rows(1)["advisory-0"],
+            "fixture_id": "boundary",
+            "kickoff_utc": start.isoformat(),
+        },
+        "before": {
+            **_performance_rows(1)["advisory-0"],
+            "fixture_id": "before",
+            "kickoff_utc": (start - timedelta(microseconds=1)).isoformat(),
+        },
+        "after": {
+            **_performance_rows(1)["advisory-0"],
+            "fixture_id": "after",
+            "kickoff_utc": (KICKOFF + timedelta(microseconds=1)).isoformat(),
+        },
+        "anchor": {
+            **_performance_rows(1)["advisory-0"],
+            "fixture_id": "anchor",
+            "kickoff_utc": KICKOFF.isoformat(),
+        },
+    }
+    policy = build_advisory_blind_spot_policy(
+        rows,
+        existing=None,
+        now=KICKOFF,
+        scoring_window_anchor=KICKOFF,
+    )
+    reversed_policy = build_advisory_blind_spot_policy(
+        dict(reversed(list(rows.items()))),
+        existing=None,
+        now=KICKOFF,
+        scoring_window_anchor=KICKOFF,
+    )
+    without_lifetime = build_advisory_blind_spot_policy(
+        {key: value for key, value in rows.items() if key != "before"},
+        existing=None,
+        now=KICKOFF,
+        scoring_window_anchor=KICKOFF,
+    )
+
+    assert policy["scoring_window_anchor"] == KICKOFF.isoformat().replace("+00:00", "Z")
+    assert policy["window_start"] == start.isoformat().replace("+00:00", "Z")
+    assert policy["window_fixture_count"] == 2
+    assert policy["advisory_canonical_settled_count"] == 2
+    assert policy["source_fixture_hash"] == reversed_policy["source_fixture_hash"]
+    assert policy["source_fixture_hash"] == without_lifetime["source_fixture_hash"]
+
+
+def _rehash_policy(payload: dict[str, object]) -> dict[str, object]:
+    projected = {key: value for key, value in payload.items() if key != "business_projection_hash"}
+    digest = hashlib.sha256(
+        json.dumps(
+            projected,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        ).encode()
+    ).hexdigest()
+    return {**projected, "business_projection_hash": digest}
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("applied_delta", -0.1),
+        ("effective_threshold", 999.0),
+        ("bootstrap_iterations", 9999),
+        ("last_calibrated_at", None),
+        ("last_calibrated_settled_count", 51),
+    ),
+)
+def test_policy_checkpoint_integrity_rejects_corrupt_invariants(
+    field: str,
+    value: object,
+) -> None:
+    payload = build_advisory_blind_spot_policy(
+        _performance_rows(50),
+        existing=None,
+        now=KICKOFF,
+    )
+    corrupted = _rehash_policy({**payload, field: value})
+    checkpoint = AdvisoryBlindSpotPolicyCheckpoint(
+        checkpoint_key=POLICY_CHECKPOINT_KEY,
+        source_hash=str(corrupted["business_projection_hash"]),
+        created_at=KICKOFF,
+        payload=corrupted,
+    )
+
+    assert validate_advisory_blind_spot_policy(checkpoint) is False
+
+
+def test_policy_checkpoint_integrity_rejects_hash_and_source_hash_mismatch() -> None:
+    payload = build_advisory_blind_spot_policy(
+        _performance_rows(16),
+        existing=None,
+        now=KICKOFF,
+    )
+    valid = _policy_checkpoint(payload, created_at=KICKOFF)
+    bad_business = {
+        **payload,
+        "business_projection_hash": "0" * 64,
+    }
+
+    assert validate_advisory_blind_spot_policy(valid) is True
+    assert (
+        validate_advisory_blind_spot_policy(
+            AdvisoryBlindSpotPolicyCheckpoint(
+                checkpoint_key=POLICY_CHECKPOINT_KEY,
+                source_hash="f" * 64,
+                created_at=KICKOFF,
+                payload=payload,
+            )
+        )
+        is False
+    )
+    assert (
+        validate_advisory_blind_spot_policy(
+            AdvisoryBlindSpotPolicyCheckpoint(
+                checkpoint_key=POLICY_CHECKPOINT_KEY,
+                source_hash="0" * 64,
+                created_at=KICKOFF,
+                payload=bad_business,
+            )
+        )
+        is False
+    )
+
+
+@pytest.mark.parametrize(
+    ("advisory_count", "field", "value"),
+    (
+        (16, "applied_delta", 0.1),
+        (50, "last_calibrated_at", (KICKOFF + timedelta(seconds=1)).isoformat()),
+    ),
+)
+def test_policy_checkpoint_integrity_rejects_state_specific_corruption(
+    advisory_count: int,
+    field: str,
+    value: object,
+) -> None:
+    payload = build_advisory_blind_spot_policy(
+        _performance_rows(advisory_count),
+        existing=None,
+        now=KICKOFF,
+    )
+    overrides = {field: value}
+    if field == "applied_delta":
+        overrides["effective_threshold"] = value
+    corrupted = _rehash_policy({**payload, **overrides})
+
+    assert (
+        validate_advisory_blind_spot_policy(
+            AdvisoryBlindSpotPolicyCheckpoint(
+                checkpoint_key=POLICY_CHECKPOINT_KEY,
+                source_hash=str(corrupted["business_projection_hash"]),
+                created_at=KICKOFF,
+                payload=corrupted,
+            )
+        )
+        is False
+    )
 
 
 def _lineup_evidence(deviation: float, *, high_rotation: bool = False) -> dict[str, object]:

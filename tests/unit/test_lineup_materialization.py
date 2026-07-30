@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import create_engine, func, select
@@ -10,6 +10,9 @@ from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.factor_model_models import (
     CanonicalTeamModel,
     ProviderTeamIdentityCrosswalkModel,
+)
+from w2.infrastructure.persistence.matchday_intake_models import (
+    MatchdayFixtureIdentityModel,
 )
 from w2.infrastructure.persistence.models import (
     PlayerIdentityMappingModel,
@@ -100,9 +103,7 @@ def _install_player_identity_sources(
                         player_name=f"Player {player_id}",
                         normalized_name=f"player{player_id}",
                         current_club_id=(
-                            "wrong-club"
-                            if player_id == wrong_club_player_id
-                            else f"club-{team_id}"
+                            "wrong-club" if player_id == wrong_club_player_id else f"club-{team_id}"
                         ),
                         current_club_name=f"Team {team_id}",
                         competition_code="SE1",
@@ -122,9 +123,7 @@ def _install_player_identity_sources(
                         player_name=f"Player {player_id}",
                         normalized_name=f"player{player_id}",
                         provider_position="G" if index == 0 else "M",
-                        transfermarkt_position="Goalkeeper"
-                        if index == 0
-                        else "Midfield",
+                        transfermarkt_position="Goalkeeper" if index == 0 else "Midfield",
                         mapping_status="REVIEWED",
                         evidence={
                             "canonical_team_id": f"w2:team:api_football:{team_id}",
@@ -493,8 +492,7 @@ def test_lineup_materialization_projects_reviewed_db_identity_without_mapping_wr
     assert len(players) == 22
     assert all(player.mapping_status == "REVIEWED" for player in players)
     assert all(
-        player.canonical_player_id
-        == f"w2:player:transfermarkt:tm-{player.api_football_player_id}"
+        player.canonical_player_id == f"w2:player:transfermarkt:tm-{player.api_football_player_id}"
         for player in players
     )
 
@@ -545,8 +543,7 @@ def test_join_evidence_and_lineup_gate_use_the_materialized_canonical_players() 
             for row in session.scalars(select(StructuredLineupPlayerModel))
         }
     assert {
-        row["api_football_player_id"]: row["canonical_player_id"]
-        for row in runs[0]["rows"]
+        row["api_football_player_id"]: row["canonical_player_id"] for row in runs[0]["rows"]
     } == materialized
 
 
@@ -594,3 +591,252 @@ def test_identity_valid_at_capture_but_expired_at_kickoff_fails_closed() -> None
     assert join["status"] == "INCOMPLETE"
     assert join["metrics"]["MISSING_OR_INVALID"] == 1
     assert gate["uniquely_mapped_starters"] == 21
+
+
+def _fixture_identity(
+    *,
+    fixture_id: str,
+    provider_fixture_id: str,
+    identity_hash: str,
+    kickoff: datetime,
+    provider: str = "api_football",
+    league_id: str = "39",
+    season: str = "2026",
+) -> MatchdayFixtureIdentityModel:
+    return MatchdayFixtureIdentityModel(
+        fixture_id=fixture_id,
+        provider=provider,
+        provider_fixture_id=provider_fixture_id,
+        competition_id="premier_league",
+        provider_league_id=league_id,
+        season=season,
+        kickoff_utc=kickoff,
+        fixture_status="NS",
+        home_provider_team_id="10",
+        away_provider_team_id="20",
+        home_w2_team_id="w2:team:10",
+        away_w2_team_id="w2:team:20",
+        team_identity_status="READY",
+        raw_payload_sha256=identity_hash,
+        endpoint_capture_id=None,
+        captured_at=kickoff.replace(hour=0),
+        identity_hash=identity_hash,
+        payload={},
+    )
+
+
+def _add_lineup(
+    session: Session,
+    *,
+    fixture_id: str,
+    team_id: str,
+    captured_at: datetime,
+    offset: int,
+) -> StructuredLineupSnapshotModel:
+    snapshot = StructuredLineupSnapshotModel(
+        fixture_id=fixture_id,
+        team_external_id=team_id,
+        team_name=f"Team {team_id}",
+        formation="4-3-3",
+        captured_at=captured_at,
+        confirmed=True,
+        authoritative_status="CONFIRMED",
+        raw_sha256=f"{fixture_id}:{team_id}",
+        lineup_identity_hash=f"lineup:{fixture_id}:{team_id}",
+        team_w2_id=f"w2:team:{team_id}",
+        source_capture_id=None,
+        schema_version="w2.structured_lineup.v1",
+    )
+    session.add(snapshot)
+    session.flush()
+    for index in range(11):
+        session.add(
+            StructuredLineupPlayerModel(
+                lineup_snapshot_id=snapshot.id,
+                api_football_player_id=str(offset + index),
+                player_name=f"Player {offset + index}",
+                starter=True,
+                shirt_number=index + 1,
+                provider_position="M",
+                grid=None,
+                captain=False,
+                identity_mapping_id=None,
+                canonical_player_id=None,
+                valuation_source_player_id=None,
+                mapping_status="MISSING",
+            )
+        )
+    return snapshot
+
+
+def test_lineup_attribution_rejects_alias_identity_hash_conflict() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    kickoff = datetime(2026, 7, 30, 12, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add_all(
+            [
+                _fixture_identity(
+                    fixture_id="api_football:901",
+                    provider_fixture_id="901",
+                    identity_hash="a" * 64,
+                    kickoff=kickoff,
+                ),
+                _fixture_identity(
+                    fixture_id="901",
+                    provider_fixture_id="901",
+                    identity_hash="b" * 64,
+                    kickoff=kickoff,
+                    provider="secondary",
+                ),
+            ]
+        )
+        session.commit()
+
+    evidence = FutureRefreshDbRepository(engine=engine).lineup_attribution_evidence_for_fixtures(
+        ["901"]
+    )["901"]
+
+    assert evidence == {
+        "status": "INCOMPLETE",
+        "fixture_id": "901",
+        "home": None,
+        "away": None,
+        "blockers": ["FIXTURE_ID_ALIAS_CONFLICT"],
+    }
+
+
+def test_lineup_attribution_isolates_baseline_and_rotation_scope() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    kickoff = datetime(2026, 7, 30, 12, tzinfo=UTC)
+    captured_at = kickoff.replace(hour=11)
+    with Session(engine) as session:
+        session.add(
+            _fixture_identity(
+                fixture_id="api_football:900",
+                provider_fixture_id="900",
+                identity_hash="0" * 64,
+                kickoff=kickoff,
+            )
+        )
+        _add_lineup(
+            session,
+            fixture_id="900",
+            team_id="10",
+            captured_at=captured_at,
+            offset=100,
+        )
+        _add_lineup(
+            session,
+            fixture_id="900",
+            team_id="20",
+            captured_at=captured_at,
+            offset=200,
+        )
+        baseline_players = [
+            {"player_id": str(100 + index), "starter_weight": 3.0} for index in range(11)
+        ]
+        for league_id, season, seconds, artifact_hash in (
+            ("39", "2026", 300, "correct"),
+            ("99", "2026", 120, "wrong-competition"),
+            ("39", "2025", 60, "wrong-season"),
+        ):
+            session.add(
+                TeamLineupBaselineModel(
+                    team_external_id="10",
+                    competition_external_id=league_id,
+                    season=season,
+                    as_of_time=captured_at - timedelta(seconds=seconds),
+                    match_count=6,
+                    payload={"players": baseline_players},
+                    input_manifest={},
+                    artifact_hash=artifact_hash,
+                    schema_version="w2.lineup_baseline.v1",
+                )
+            )
+        session.add(
+            TeamLineupBaselineModel(
+                team_external_id="20",
+                competition_external_id="39",
+                season="2026",
+                as_of_time=captured_at - timedelta(minutes=5),
+                match_count=6,
+                payload={
+                    "players": [
+                        {"player_id": str(200 + index), "starter_weight": 3.0}
+                        for index in range(11)
+                    ]
+                },
+                input_manifest={},
+                artifact_hash="correct-away",
+                schema_version="w2.lineup_baseline.v1",
+            )
+        )
+        for index in range(6):
+            history_kickoff = kickoff - timedelta(days=12 - index)
+            fixture_id = f"history-{index}"
+            session.add(
+                _fixture_identity(
+                    fixture_id=fixture_id,
+                    provider_fixture_id=f"8{index}",
+                    identity_hash=f"{index + 1}" * 64,
+                    kickoff=history_kickoff,
+                )
+            )
+            _add_lineup(
+                session,
+                fixture_id=fixture_id,
+                team_id="10",
+                captured_at=history_kickoff - timedelta(hours=1),
+                offset=300 + index,
+            )
+        for league_id, season, suffix in (
+            ("99", "2026", "wrong-competition"),
+            ("39", "2025", "wrong-season"),
+        ):
+            history_kickoff = kickoff - timedelta(hours=2)
+            session.add(
+                _fixture_identity(
+                    fixture_id=suffix,
+                    provider_fixture_id=suffix,
+                    identity_hash=("d" * 64 if league_id == "99" else "e" * 64),
+                    kickoff=history_kickoff,
+                    league_id=league_id,
+                    season=season,
+                )
+            )
+            _add_lineup(
+                session,
+                fixture_id=suffix,
+                team_id="10",
+                captured_at=history_kickoff - timedelta(hours=1),
+                offset=900,
+            )
+        session.commit()
+
+    repository = FutureRefreshDbRepository(engine=engine)
+    first = repository.lineup_attribution_evidence_for_fixtures(["900"])["900"]
+    second = repository.lineup_attribution_evidence_for_fixtures(["900"])["900"]
+
+    assert first["status"] == "READY"
+    assert first["home"]["baseline_artifact_hash"] == "correct"
+    assert first["home"]["starter_continuity"] == 1.0
+    assert first["home"]["rotation_prior"]["input_fixture_ids"] == [
+        f"history-{index}" for index in range(6)
+    ]
+    assert first["input_hash"] == second["input_hash"]
+
+    with Session(engine) as session:
+        correct = session.scalar(
+            select(TeamLineupBaselineModel).where(
+                TeamLineupBaselineModel.artifact_hash == "correct"
+            )
+        )
+        assert correct is not None
+        session.delete(correct)
+        session.commit()
+    without_correct_scope = repository.lineup_attribution_evidence_for_fixtures(["900"])["900"]
+
+    assert without_correct_scope["home"]["baseline_artifact_hash"] is None
+    assert "10:LINEUP_BASELINE_INCOMPLETE" in without_correct_scope["blockers"]

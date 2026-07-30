@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import os
+from collections.abc import Mapping
 from contextlib import suppress
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -142,6 +143,7 @@ from w2.strategy.score_scenarios import Direction
 from w2.strategy.simulate import SimulationInputs, SimulationOutput, run_simulation
 from w2.tracking.advisory_blind_spot_policy import (
     POLICY_CHECKPOINT_KEY,
+    AdvisoryBlindSpotPolicyCheckpoint,
 )
 from w2.tracking.formal_results import (
     endpoint_summary as formal_tracking_endpoint_summary,
@@ -548,7 +550,25 @@ class ReadModelRepository:
         return self.dashboard_checkpoint_payload("dashboard:forward_status")
 
     def advisory_blind_spot_policy(self) -> dict[str, Any] | None:
-        return self.dashboard_checkpoint_payload(POLICY_CHECKPOINT_KEY)
+        try:
+            with Session(create_engine()) as session:
+                row = session.scalar(
+                    select(ReadModelCheckpointModel).where(
+                        ReadModelCheckpointModel.checkpoint_key == POLICY_CHECKPOINT_KEY
+                    )
+                )
+            return (
+                AdvisoryBlindSpotPolicyCheckpoint(
+                    checkpoint_key=row.checkpoint_key,
+                    source_hash=row.source_hash,
+                    created_at=row.created_at,
+                    payload=dict(row.payload),
+                ).as_dict()
+                if row is not None
+                else None
+            )
+        except SQLAlchemyError:
+            return None
 
     def stage10c_matchday_cards(self) -> list[dict[str, Any]]:
         payload = self.dashboard_checkpoint_payload("dashboard:stage10c_matchday_cards")
@@ -651,6 +671,18 @@ class ReadModelRepository:
                     )
         return None
 
+    def matchday_fixture_identity(
+        self,
+        fixture_id: str,
+    ) -> dict[str, Any] | None:
+        db_repository = future_refresh_db_repository()
+        reader = (
+            getattr(db_repository, "matchday_fixture_identity", None)
+            if db_repository is not None
+            else None
+        )
+        return cast(dict[str, Any] | None, reader(fixture_id)) if callable(reader) else None
+
     def public_fixture_payloads(self, *, limit: int = 512) -> list[dict[str, Any]]:
         bounded_limit = max(0, min(int(limit), 1024))
         fixtures: dict[str, dict[str, Any]] = {}
@@ -719,6 +751,25 @@ class ReadModelRepository:
             if callable(reader):
                 return cast(list[dict[str, Any]], reader(fixture_ids))
         return []
+
+    def market_observation_timeline_for_fixtures(
+        self,
+        fixture_ids: list[str],
+    ) -> list[dict[str, Any]]:
+        fixture_ids = list(dict.fromkeys(fixture_id for fixture_id in fixture_ids if fixture_id))
+        if not fixture_ids or len(fixture_ids) > 64:
+            return []
+        db_repository = future_refresh_db_repository()
+        reader = (
+            getattr(
+                db_repository,
+                "market_observation_timeline_for_fixtures",
+                None,
+            )
+            if db_repository is not None
+            else None
+        )
+        return cast(list[dict[str, Any]], reader(fixture_ids)) if callable(reader) else []
 
     def public_market_refresh_status(
         self,
@@ -1046,6 +1097,17 @@ class ReadModelService:
                 seen.add(identity)
                 rows.append(row)
         return rows
+
+    def _timeline_observations_for_fixture(
+        self,
+        fixture_id: str,
+    ) -> list[dict[str, Any]]:
+        reader = getattr(
+            self.repository,
+            "market_observation_timeline_for_fixtures",
+            None,
+        )
+        return cast(list[dict[str, Any]], reader([fixture_id])) if callable(reader) else []
 
     def _prime_observations_for_rows(self, rows: list[dict[str, Any]]) -> None:
         reader = getattr(self.repository, "future_market_observations_for_fixtures", None)
@@ -1935,6 +1997,10 @@ class ReadModelService:
                 blocker="FROZEN_ARTIFACT_MISSING",
             )
         card = cast(dict[str, Any], deepcopy(artifact.payload["analysis_card"]))
+        card.setdefault(
+            "competition_id",
+            artifact.payload["fixture_identity"]["competition_id"],
+        )
         card["bookmaker_intent"] = self._project_heuristic_signal_strength(
             card.get("bookmaker_intent")
         )
@@ -2008,8 +2074,27 @@ class ReadModelService:
         *,
         blocker: str,
     ) -> dict[str, Any]:
+        identity_reader = getattr(
+            self.repository,
+            "matchday_fixture_identity",
+            None,
+        )
+        identity = identity_reader(fixture_id) if callable(identity_reader) else None
+        competition_id = (
+            str(identity.get("competition_id") or "")
+            if isinstance(identity, dict) and identity.get("status") != "FIXTURE_ID_ALIAS_CONFLICT"
+            else ""
+        ) or None
+        effective_blocker = (
+            blocker if competition_id is not None else "LINEUP_REQUIREMENT_IDENTITY_MISSING"
+        )
+        requirement = (
+            lineup_requirement(competition_id) if competition_id is not None else "ADVISORY"
+        )
+        risks = ["LINEUP_UNOBSERVABLE"] if requirement == "ADVISORY" else []
         card = {
             "fixture_id": fixture_id,
+            "competition_id": competition_id,
             "source": "frozen_analysis_checkpoint",
             "decision": "SKIP",
             "decision_tier": "NOT_READY",
@@ -2018,16 +2103,16 @@ class ReadModelService:
             "outcome_tracked": False,
             "lock_eligible": False,
             "recommendation_id": None,
-            "lineup_requirement": "ADVISORY",
-            "risk_reason_codes": ["LINEUP_UNOBSERVABLE"],
+            "lineup_requirement": requirement,
+            "risk_reason_codes": risks,
             "pick": None,
             "non_pick": {
-                "reason_code": blocker,
+                "reason_code": effective_blocker,
                 "reason_human": "冻结分析制品不可用",
                 "action": "等待有效冻结制品",
                 "next_eval_at": None,
             },
-            "reason_code": blocker,
+            "reason_code": effective_blocker,
             "action": "等待有效冻结制品",
             "next_eval_at": None,
             "current_odds": {},
@@ -2045,25 +2130,28 @@ class ReadModelService:
                 "outcome_tracked": False,
                 "lock_eligible": False,
                 "recommendation_id": None,
-                "lineup_requirement": "ADVISORY",
-                "risk_reason_codes": ["LINEUP_UNOBSERVABLE"],
+                "lineup_requirement": requirement,
+                "risk_reason_codes": risks,
                 "pick": None,
                 "non_pick": {
-                    "reason_code": blocker,
+                    "reason_code": effective_blocker,
                     "reason_human": "冻结分析制品不可用",
                     "action": "等待有效冻结制品",
                     "next_eval_at": None,
                 },
-                "reason_code": blocker,
+                "reason_code": effective_blocker,
                 "action": "等待有效冻结制品",
                 "next_eval_at": None,
             },
             "frozen_artifact_provenance": {
                 "status": "BLOCKED",
-                "blockers": [blocker],
+                "blockers": [effective_blocker],
             },
         }
-        self._attach_fail_closed_public_v3(card, blocker=blocker)
+        self._attach_fail_closed_public_v3(
+            card,
+            blocker=effective_blocker,
+        )
         return card
 
     def _project_public_analysis_decision_contract(
@@ -2169,6 +2257,13 @@ class ReadModelService:
         card["card_hash"] = contract["card_hash"]
         card["decision_contract"] = contract
         card["recommendation_decision_v3"] = decision
+        for key in (
+            "lineup_requirement",
+            "risk_reason_codes",
+            "reason_code",
+            "non_pick",
+        ):
+            card[key] = contract[key]
         self._validate_public_v3_card_parity(card)
 
     def _fail_closed_decision_contract(
@@ -2177,6 +2272,11 @@ class ReadModelService:
         *,
         blocker: str,
     ) -> dict[str, Any]:
+        competition_id = str(card.get("competition_id") or "")
+        identity_missing = not competition_id
+        requirement = lineup_requirement(competition_id) if not identity_missing else "ADVISORY"
+        risks = ["LINEUP_UNOBSERVABLE"] if requirement == "ADVISORY" else []
+        effective_blocker = "LINEUP_REQUIREMENT_IDENTITY_MISSING" if identity_missing else blocker
         as_of = (
             self._analysis_evaluation_time_override
             or _parse_utc_text(card.get("generated_at"))
@@ -2184,7 +2284,7 @@ class ReadModelService:
         )
         contract: dict[str, Any] = {
             "fixture_id": str(card.get("fixture_id") or ""),
-            "competition_id": str(card.get("competition_id") or ""),
+            "competition_id": competition_id,
             "as_of": as_of.astimezone(UTC).isoformat().replace("+00:00", "Z"),
             "decision_tier": "NOT_READY",
             "data_status": "BLOCKED",
@@ -2192,14 +2292,16 @@ class ReadModelService:
             "outcome_tracked": False,
             "lock_eligible": False,
             "recommendation_id": None,
+            "lineup_requirement": requirement,
+            "risk_reason_codes": risks,
             "pick": None,
             "non_pick": {
-                "reason_code": blocker,
+                "reason_code": effective_blocker,
                 "reason_human": "公开分析读取已失败关闭",
                 "action": "等待有效公开分析证据",
                 "next_eval_at": None,
             },
-            "reason_code": blocker,
+            "reason_code": effective_blocker,
             "action": "等待有效公开分析证据",
             "next_eval_at": None,
             "integrity_status": "PASS",
@@ -2209,7 +2311,7 @@ class ReadModelService:
             "selected_market_candidate": None,
             "analysis_evidence": {},
             "analysis_evidence_hash": None,
-            "warnings": [blocker],
+            "warnings": [effective_blocker],
         }
         contract["card_hash"] = hashlib.sha256(
             json.dumps(contract, ensure_ascii=False, sort_keys=True, default=str).encode()
@@ -2332,6 +2434,7 @@ class ReadModelService:
         item: dict[str, Any],
     ) -> dict[str, Any]:
         observations = self._observations_for_fixture(fixture_id)
+        timeline_observations = self._timeline_observations_for_fixture(fixture_id)
         coverage = {
             "ASIAN_HANDICAP": any(
                 row.get("canonical_market") == "ASIAN_HANDICAP" for row in observations
@@ -2345,7 +2448,10 @@ class ReadModelService:
                 fixture_id=fixture_id,
                 fixture_context=self._analysis_context_from_provider_fixture(item),
             )
-            self._attach_divergence_origins(normalized, observations=observations)
+            self._attach_divergence_origins(
+                normalized,
+                observations=timeline_observations,
+            )
             policy_reader = getattr(
                 self.repository,
                 "advisory_blind_spot_policy",
@@ -2390,9 +2496,16 @@ class ReadModelService:
                 selection=str(candidate.get("selection") or ""),
                 line=candidate.get("line"),
                 model_probability=selected.get("model_probability"),
+                settlement_distribution=(
+                    selected.get("settlement_distribution")
+                    if isinstance(selected.get("settlement_distribution"), Mapping)
+                    else None
+                ),
                 current_decimal_odds=quote.get("decimal_odds"),
                 current_expected_value=selected.get("expected_value"),
                 current_captured_at=identity.get("captured_at"),
+                current_provider=identity.get("provider"),
+                current_bookmaker_id=identity.get("bookmaker_id"),
                 kickoff_utc=card.get("kickoff_utc"),
                 current_quote_identity_status=str(identity.get("identity_status") or ""),
                 current_quote_freshness_status=str(identity.get("freshness_status") or ""),
@@ -2852,15 +2965,23 @@ class ReadModelService:
         post_lineup_quote_ready: dict[str, bool] = {}
         for market_name, selected in mainline_selection.items():
             observations = selected.get("observations") if isinstance(selected, dict) else None
-            captures = [
-                parsed
-                for row in observations if isinstance(observations, list) and isinstance(row, dict)
-                if (parsed := _parse_utc_text(row.get("captured_at") or row.get("captured_at_utc")))
-                is not None
-            ] if isinstance(observations, list) else []
+            captures = (
+                [
+                    parsed
+                    for row in observations
+                    if isinstance(observations, list) and isinstance(row, dict)
+                    if (
+                        parsed := _parse_utc_text(
+                            row.get("captured_at") or row.get("captured_at_utc")
+                        )
+                    )
+                    is not None
+                ]
+                if isinstance(observations, list)
+                else []
+            )
             post_lineup_quote_ready[market_name] = bool(
-                lineup_captured_at is None
-                or (captures and max(captures) >= lineup_captured_at)
+                lineup_captured_at is None or (captures and max(captures) >= lineup_captured_at)
             )
         lineup_refresh_pending = bool(
             evidence.get("confirmed")

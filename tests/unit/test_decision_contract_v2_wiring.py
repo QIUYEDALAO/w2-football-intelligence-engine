@@ -15,9 +15,32 @@ from w2.domain.decision_contract import (
 )
 from w2.domain.enums import DataStatus, DecisionReasonCode, DecisionTier
 from w2.markets.market_candidate import build_market_candidates
+from w2.tracking.advisory_blind_spot_policy import (
+    POLICY_CHECKPOINT_KEY,
+    AdvisoryBlindSpotPolicyCheckpoint,
+    build_advisory_blind_spot_policy,
+)
 
 NOW = datetime(2026, 7, 5, 0, 0, tzinfo=UTC)
 KICKOFF = NOW + timedelta(hours=4)
+POLICY_PAYLOAD = build_advisory_blind_spot_policy(
+    {
+        "fixture-1": {
+            "fixture_id": "fixture-1",
+            "kickoff_utc": NOW.isoformat(),
+            "evaluation_tier": "ADVISORY",
+            "status": "NOT_SCORABLE",
+        }
+    },
+    existing=None,
+    now=NOW,
+)
+POLICY_CHECKPOINT = AdvisoryBlindSpotPolicyCheckpoint(
+    checkpoint_key=POLICY_CHECKPOINT_KEY,
+    source_hash=str(POLICY_PAYLOAD["business_projection_hash"]),
+    created_at=NOW,
+    payload=POLICY_PAYLOAD,
+).as_dict()
 
 
 def _complete_quote_audit() -> dict[str, object]:
@@ -146,16 +169,7 @@ def _fields(
     if advisory_policy_ready:
         card_payload.setdefault(
             "advisory_blind_spot_policy",
-            {
-                "schema_version": "w2.advisory_blind_spot_policy.v1",
-                "status": "INSUFFICIENT_ADVISORY_CANONICAL_SAMPLE",
-                "window": "90d",
-                "applied_delta": 0.0,
-                "effective_threshold": 0.0,
-                "watch_only": False,
-                "source_fixture_hash": "a" * 64,
-                "business_projection_hash": "b" * 64,
-            },
+            POLICY_CHECKPOINT,
         )
     market_payload = dict(market or {})
     if not any(
@@ -238,9 +252,7 @@ def test_high_rotation_prior_adds_risk_without_numerical_adjustment() -> None:
         card={
             "lineup_provenance": {
                 "requirement": "ADVISORY",
-                "rotation_priors": [
-                    {"status": "READY", "classification": "HIGH_ROTATION"}
-                ],
+                "rotation_priors": [{"status": "READY", "classification": "HIGH_ROTATION"}],
                 "lineup_ah_adjustment": 0.0,
                 "lineup_totals_adjustment": 0.0,
             }

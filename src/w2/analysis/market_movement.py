@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from w2.domain.enums import MarketType
@@ -23,9 +24,12 @@ def classify_divergence_origin(
     selection: str,
     line: Any,
     model_probability: Any,
+    settlement_distribution: Mapping[str, Any] | None,
     current_decimal_odds: Any,
     current_expected_value: Any,
     current_captured_at: Any,
+    current_provider: Any,
+    current_bookmaker_id: Any,
     kickoff_utc: Any,
     current_quote_identity_status: str,
     current_quote_freshness_status: str,
@@ -37,6 +41,7 @@ def classify_divergence_origin(
     current_time = parse_utc(current_captured_at)
     kickoff = parse_utc(kickoff_utc)
     probability = _number(model_probability)
+    distribution = _settlement_distribution(settlement_distribution)
     current_odds = _number(current_decimal_odds)
     persisted_current_ev = _number(current_expected_value)
     blockers: list[str] = []
@@ -51,16 +56,20 @@ def classify_divergence_origin(
         blockers.append("LINE_IDENTITY_INCOMPLETE")
     if probability is None or not 0 <= probability <= 1:
         blockers.append("MODEL_PROBABILITY_INCOMPLETE")
+    if distribution is None:
+        blockers.append("MODEL_SETTLEMENT_DISTRIBUTION_INVALID")
     if current_odds is None or current_odds <= 1:
         blockers.append("CURRENT_QUOTE_INCOMPLETE")
     if current_time is None or kickoff is None or current_time >= kickoff:
         blockers.append("CURRENT_QUOTE_TIME_INVALID")
     if current_quote_identity_status != "COMPLETE":
         blockers.append("CURRENT_QUOTE_IDENTITY_INCOMPLETE")
+    if not str(current_provider or "").strip() or not str(current_bookmaker_id or "").strip():
+        blockers.append("CURRENT_QUOTE_EXECUTION_IDENTITY_INCOMPLETE")
     if current_quote_freshness_status != "COMPLETE":
         blockers.append("CURRENT_QUOTE_FRESHNESS_INCOMPLETE")
 
-    computed_current_ev = _binary_expected_value(probability, current_odds)
+    computed_current_ev = _distribution_expected_value(distribution, current_odds)
     if (
         computed_current_ev is not None
         and persisted_current_ev is not None
@@ -77,6 +86,8 @@ def classify_divergence_origin(
             market=market_name,
             selection=selection_name,
             line=line,
+            provider=current_provider,
+            bookmaker_id=current_bookmaker_id,
             current_time=current_time,
             kickoff=kickoff,
         )
@@ -92,17 +103,12 @@ def classify_divergence_origin(
         blockers.append("SAME_LINE_OPENING_NOT_AVAILABLE")
 
     opening_odds = _number(opening.get("decimal_odds")) if opening else None
-    opening_ev = _binary_expected_value(probability, opening_odds)
+    opening_ev = _distribution_expected_value(distribution, opening_odds)
     current_ev = computed_current_ev
     movement_created_ev: float | None = None
     movement_ev_share: float | None = None
     divergence_age_ratio: float | None = None
-    if (
-        not blockers
-        and opening_ev is not None
-        and current_ev is not None
-        and current_ev > 0
-    ):
+    if not blockers and opening_ev is not None and current_ev is not None and current_ev > 0:
         movement_created_ev = max(current_ev - max(opening_ev, 0.0), 0.0)
         movement_ev_share = _clamp(movement_created_ev / max(current_ev, 1e-12))
         divergence_age_ratio = _clamp(
@@ -137,6 +143,8 @@ def classify_divergence_origin(
             line=line,
             captured_at=current_time,
             decimal_odds=current_odds,
+            provider=current_provider,
+            bookmaker_id=current_bookmaker_id,
         )
         and row.get("observation_id")
     ]
@@ -162,6 +170,17 @@ def classify_divergence_origin(
         "selection": selection_name,
         "line": float(canonical_line) if canonical_line is not None else None,
         "model_probability": probability,
+        "settlement_distribution": (
+            {
+                "WIN": float(distribution.full_win_probability),
+                "HALF_WIN": float(distribution.half_win_probability),
+                "PUSH": float(distribution.push_probability),
+                "HALF_LOSS": float(distribution.half_loss_probability),
+                "LOSS": float(distribution.full_loss_probability),
+            }
+            if distribution is not None
+            else None
+        ),
         "opening_decimal_odds": opening_odds,
         "current_decimal_odds": current_odds,
         "opening_captured_at": opening.get("captured_at") if opening else None,
@@ -419,17 +438,36 @@ def _decimal(value: Any) -> Decimal | None:
     return parsed if parsed.is_finite() else None
 
 
-def _binary_expected_value(
-    probability: float | None,
+def _distribution_expected_value(
+    distribution: SettlementDistribution | None,
     decimal_odds: float | None,
 ) -> float | None:
-    if probability is None or decimal_odds is None:
+    if distribution is None or decimal_odds is None:
         return None
-    distribution = SettlementDistribution(
-        full_win_probability=Decimal(str(probability)),
-        full_loss_probability=Decimal("1") - Decimal(str(probability)),
-    )
     return float(expected_value(Decimal(str(decimal_odds)), distribution))
+
+
+def _settlement_distribution(
+    value: Mapping[str, Any] | None,
+) -> SettlementDistribution | None:
+    outcomes = ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")
+    if not isinstance(value, Mapping) or set(value) != set(outcomes):
+        return None
+    try:
+        probabilities = {key: Decimal(str(value[key])) for key in outcomes}
+        if any(not item.is_finite() or item < 0 for item in probabilities.values()):
+            return None
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+    if abs(sum(probabilities.values(), Decimal("0")) - Decimal("1")) > Decimal("0.000000001"):
+        return None
+    return SettlementDistribution(
+        full_win_probability=probabilities["WIN"],
+        half_win_probability=probabilities["HALF_WIN"],
+        push_probability=probabilities["PUSH"],
+        half_loss_probability=probabilities["HALF_LOSS"],
+        full_loss_probability=probabilities["LOSS"],
+    )
 
 
 def _canonical_selection(market: str, value: Any) -> str | None:
@@ -465,6 +503,8 @@ def _opening_matches(
     market: str,
     selection: str | None,
     line: Any,
+    provider: Any,
+    bookmaker_id: Any,
     current_time: datetime | None,
     kickoff: datetime | None,
 ) -> bool:
@@ -477,8 +517,14 @@ def _opening_matches(
         and captured_at < current_time
         and captured_at < kickoff
         and _same_fixture(row.get("fixture_id"), fixture_id)
+        and str(row.get("provider") or "") == str(provider or "")
+        and str(row.get("bookmaker_id") or "") == str(bookmaker_id or "")
         and str(row.get("canonical_market") or "").upper() == market
-        and _canonical_selection(market, row.get("selection")) == selection
+        and _canonical_selection(
+            market,
+            row.get("canonical_selection") or row.get("selection"),
+        )
+        == selection
         and _decimal(row.get("line")) == _decimal(line)
         and not bool(row.get("live"))
         and not bool(row.get("suspended"))
@@ -495,13 +541,21 @@ def _current_quote_matches(
     line: Any,
     captured_at: datetime | None,
     decimal_odds: float | None,
+    provider: Any,
+    bookmaker_id: Any,
 ) -> bool:
     return bool(
         selection is not None
         and captured_at is not None
         and _same_fixture(row.get("fixture_id"), fixture_id)
+        and str(row.get("provider") or "") == str(provider or "")
+        and str(row.get("bookmaker_id") or "") == str(bookmaker_id or "")
         and str(row.get("canonical_market") or "").upper() == market
-        and _canonical_selection(market, row.get("selection")) == selection
+        and _canonical_selection(
+            market,
+            row.get("canonical_selection") or row.get("selection"),
+        )
+        == selection
         and _decimal(row.get("line")) == _decimal(line)
         and parse_utc(row.get("captured_at")) == captured_at
         and _number(row.get("decimal_odds")) == decimal_odds
