@@ -33,6 +33,8 @@ def _non_pick_contract(
         "outcome_tracked": False,
         "lock_eligible": False,
         "recommendation_id": None,
+        "lineup_requirement": "ADVISORY",
+        "risk_reason_codes": ["LINEUP_UNOBSERVABLE"],
         "pick": None,
         "non_pick": non_pick,
         "reason_code": non_pick["reason_code"],
@@ -50,6 +52,8 @@ def _pick_contract(*, tier: str = "ANALYSIS_PICK") -> dict[str, Any]:
         "outcome_tracked": True,
         "lock_eligible": tier == "RECOMMEND",
         "recommendation_id": "rec-1" if tier == "RECOMMEND" else None,
+        "lineup_requirement": "ADVISORY",
+        "risk_reason_codes": ["LINEUP_UNOBSERVABLE"],
         "pick": {
             "market": "ASIAN_HANDICAP",
             "selection": "HOME_AH",

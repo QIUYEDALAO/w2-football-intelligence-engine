@@ -136,12 +136,27 @@ def _fields(
     environment: str = "staging",
     include_analysis_evidence: bool = True,
     competition_id: str = "world_cup_2026",
+    advisory_policy_ready: bool = True,
 ) -> dict[str, object]:
     card_payload: dict[str, object] = {
         "source": "unit",
         "quote_identity_audit": _complete_quote_audit(),
     }
     card_payload.update(card or {})
+    if advisory_policy_ready:
+        card_payload.setdefault(
+            "advisory_blind_spot_policy",
+            {
+                "schema_version": "w2.advisory_blind_spot_policy.v1",
+                "status": "INSUFFICIENT_ADVISORY_CANONICAL_SAMPLE",
+                "window": "90d",
+                "applied_delta": 0.0,
+                "effective_threshold": 0.0,
+                "watch_only": False,
+                "source_fixture_hash": "a" * 64,
+                "business_projection_hash": "b" * 64,
+            },
+        )
     market_payload = dict(market or {})
     if not any(
         payload.get("decision_tier")
@@ -264,6 +279,22 @@ def test_advisory_moved_pick_downgrades_but_strict_pick_does_not() -> None:
     assert advisory["outcome_tracked"] is False
     assert advisory["lock_eligible"] is False
     assert strict["decision_tier"] == "ANALYSIS_PICK"
+
+
+def test_advisory_pick_fails_closed_when_delta_policy_is_missing() -> None:
+    fields = _fields(
+        market={
+            "market": "ASIAN_HANDICAP",
+            "decision": "PICK",
+            "tendency": "HOME",
+            "line": "-0.25",
+            "odds": "1.95",
+        },
+        advisory_policy_ready=False,
+    )
+
+    assert fields["decision_tier"] == "WATCH"
+    assert fields["non_pick"]["reason_code"] == "ADVISORY_DELTA_POLICY_NOT_READY"  # type: ignore[index]
 
 
 def test_model_version_uses_only_canonical_card_or_adapter_default() -> None:

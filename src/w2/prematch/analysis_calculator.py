@@ -140,6 +140,9 @@ from w2.strategy.market_selector import (
 )
 from w2.strategy.score_scenarios import Direction
 from w2.strategy.simulate import SimulationInputs, SimulationOutput, run_simulation
+from w2.tracking.advisory_blind_spot_policy import (
+    POLICY_CHECKPOINT_KEY,
+)
 from w2.tracking.formal_results import (
     endpoint_summary as formal_tracking_endpoint_summary,
 )
@@ -543,6 +546,9 @@ class ReadModelRepository:
 
     def dashboard_forward_status(self) -> dict[str, Any] | None:
         return self.dashboard_checkpoint_payload("dashboard:forward_status")
+
+    def advisory_blind_spot_policy(self) -> dict[str, Any] | None:
+        return self.dashboard_checkpoint_payload(POLICY_CHECKPOINT_KEY)
 
     def stage10c_matchday_cards(self) -> list[dict[str, Any]]:
         payload = self.dashboard_checkpoint_payload("dashboard:stage10c_matchday_cards")
@@ -2340,6 +2346,14 @@ class ReadModelService:
                 fixture_context=self._analysis_context_from_provider_fixture(item),
             )
             self._attach_divergence_origins(normalized, observations=observations)
+            policy_reader = getattr(
+                self.repository,
+                "advisory_blind_spot_policy",
+                None,
+            )
+            normalized["advisory_blind_spot_policy"] = (
+                policy_reader() if callable(policy_reader) else None
+            )
             return normalized
         return self._fallback_analysis_card(
             fixture_id=fixture_id,

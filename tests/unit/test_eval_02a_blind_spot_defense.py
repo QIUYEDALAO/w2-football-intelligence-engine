@@ -6,6 +6,13 @@ import pytest
 
 from w2.analysis.market_movement import classify_divergence_origin
 from w2.lineups.intelligence import build_team_rotation_prior
+from w2.tracking.advisory_blind_spot_policy import (
+    build_advisory_blind_spot_policy,
+)
+from w2.tracking.finished_match_scoring_projection import (
+    _blind_spot_attribution,
+    _window_metrics,
+)
 
 KICKOFF = datetime(2026, 7, 30, 12, tzinfo=UTC)
 CURRENT = KICKOFF - timedelta(hours=1)
@@ -187,3 +194,206 @@ def test_rotation_prior_excludes_incomplete_future_and_old_same_fixture_snapshot
 
     assert result["match_count"] == 6
     assert result["classification"] == "NORMAL"
+
+
+def _performance_rows(
+    advisory_count: int,
+    *,
+    strict_clv: float = 0.2,
+    advisory_clv: float = 0.05,
+) -> dict[str, dict[str, object]]:
+    rows = {
+        f"advisory-{index}": {
+            "fixture_id": f"advisory-{index}",
+            "evaluation_tier": "ADVISORY",
+            "status": "SCORED",
+            "canonical_settlement_outcome": "HIT",
+            "clv_status": "AVAILABLE",
+            "clv_decimal": advisory_clv,
+        }
+        for index in range(advisory_count)
+    }
+    rows["strict"] = {
+        "fixture_id": "strict",
+        "evaluation_tier": "STRICT",
+        "status": "SCORED",
+        "canonical_settlement_outcome": "HIT",
+        "clv_status": "AVAILABLE",
+        "clv_decimal": strict_clv,
+    }
+    return rows
+
+
+def test_advisory_delta_policy_keeps_real_like_insufficient_sample_at_zero() -> None:
+    policy = build_advisory_blind_spot_policy(
+        _performance_rows(16),
+        existing=None,
+        now=KICKOFF,
+    )
+
+    assert policy["status"] == "INSUFFICIENT_ADVISORY_CANONICAL_SAMPLE"
+    assert policy["advisory_canonical_settled_count"] == 16
+    assert policy["applied_delta"] == 0.0
+    assert policy["watch_only"] is False
+
+
+def test_advisory_delta_policy_calibrates_q10_and_respects_zero_floor() -> None:
+    positive = build_advisory_blind_spot_policy(
+        _performance_rows(50),
+        existing=None,
+        now=KICKOFF,
+    )
+    floored = build_advisory_blind_spot_policy(
+        _performance_rows(50, strict_clv=0.01, advisory_clv=0.02),
+        existing=None,
+        now=KICKOFF,
+    )
+
+    assert positive["status"] == "READY"
+    assert positive["bootstrap_iterations"] == 10_000
+    assert positive["lower_bound_80"] == pytest.approx(0.15)
+    assert positive["applied_delta"] == pytest.approx(0.15)
+    assert positive["watch_only"] is True
+    assert floored["lower_bound_80"] < 0
+    assert floored["applied_delta"] == 0.0
+
+
+def test_advisory_delta_policy_recalibrates_only_on_step_or_age() -> None:
+    initial = build_advisory_blind_spot_policy(
+        _performance_rows(50),
+        existing=None,
+        now=KICKOFF,
+    )
+    retained = build_advisory_blind_spot_policy(
+        _performance_rows(99, strict_clv=0.3, advisory_clv=0.01),
+        existing=initial,
+        now=KICKOFF + timedelta(days=1),
+    )
+    by_count = build_advisory_blind_spot_policy(
+        _performance_rows(100, strict_clv=0.3, advisory_clv=0.01),
+        existing=initial,
+        now=KICKOFF + timedelta(days=1),
+    )
+    by_age = build_advisory_blind_spot_policy(
+        _performance_rows(99, strict_clv=0.3, advisory_clv=0.01),
+        existing=initial,
+        now=KICKOFF + timedelta(days=90),
+    )
+
+    assert retained["applied_delta"] == initial["applied_delta"]
+    assert retained["last_calibrated_at"] == initial["last_calibrated_at"]
+    assert by_count["last_calibrated_settled_count"] == 100
+    assert by_age["last_calibrated_at"] != initial["last_calibrated_at"]
+
+
+def _lineup_evidence(deviation: float, *, high_rotation: bool = False) -> dict[str, object]:
+    prior = {
+        "status": "READY",
+        "classification": "HIGH_ROTATION" if high_rotation else "NORMAL",
+    }
+    return {
+        "status": "READY",
+        "home": {
+            "starter_continuity": 1 - deviation,
+            "rotation_prior": prior,
+        },
+        "away": {
+            "starter_continuity": 1.0,
+            "rotation_prior": {"status": "READY", "classification": "NORMAL"},
+        },
+        "blockers": [],
+    }
+
+
+@pytest.mark.parametrize(
+    ("outcome", "deviation", "high_rotation", "expected"),
+    (
+        ("MISS", 4 / 11, False, "ROTATION_ASSOCIATED"),
+        ("MISS", 3 / 11, False, "NON_ROTATION_RESIDUAL"),
+        ("HIT", 4 / 11, True, "NOT_LOSS"),
+        ("PUSH", 4 / 11, True, "NOT_LOSS"),
+        ("VOID", 4 / 11, True, "NOT_LOSS"),
+    ),
+)
+def test_blind_spot_attribution_is_non_causal_and_thresholded(
+    outcome: str,
+    deviation: float,
+    high_rotation: bool,
+    expected: str,
+) -> None:
+    result = _blind_spot_attribution(
+        lineup_requirement="ADVISORY",
+        lineup_evidence=_lineup_evidence(
+            deviation,
+            high_rotation=high_rotation,
+        ),
+        canonical={
+            "canonical_settlement_outcome": outcome,
+            "canonical_pick_market": "ASIAN_HANDICAP",
+            "canonical_pick_selection": "HOME",
+        },
+    )
+
+    assert result["attribution"] == expected
+    assert result["causal_claim"] is False
+
+
+def test_blind_spot_attribution_handles_missing_evidence_and_strict() -> None:
+    canonical = {
+        "canonical_settlement_outcome": "MISS",
+        "canonical_pick_market": "ASIAN_HANDICAP",
+        "canonical_pick_selection": "HOME",
+    }
+    missing = _blind_spot_attribution(
+        lineup_requirement="ADVISORY",
+        lineup_evidence=None,
+        canonical=canonical,
+    )
+    strict = _blind_spot_attribution(
+        lineup_requirement="STRICT",
+        lineup_evidence=_lineup_evidence(1.0),
+        canonical=canonical,
+    )
+
+    assert missing["attribution"] == "INSUFFICIENT_EVIDENCE"
+    assert strict["attribution"] == "NOT_APPLICABLE_STRICT"
+
+
+def test_blind_spot_cohort_counts_are_deterministic() -> None:
+    rows = [
+        {
+            "status": "NOT_SCORABLE",
+            "reason_codes": [],
+            "blind_spot_attribution": {
+                "attribution": "ROTATION_ASSOCIATED",
+                "high_rotation_prior": True,
+                "lineup_requirement": "ADVISORY",
+            },
+        },
+        {
+            "status": "NOT_SCORABLE",
+            "reason_codes": [],
+            "blind_spot_attribution": {
+                "attribution": "NON_ROTATION_RESIDUAL",
+                "high_rotation_prior": False,
+                "lineup_requirement": "ADVISORY",
+            },
+        },
+        {
+            "status": "NOT_SCORABLE",
+            "reason_codes": [],
+            "blind_spot_attribution": {
+                "attribution": "INSUFFICIENT_EVIDENCE",
+                "high_rotation_prior": False,
+                "lineup_requirement": "ADVISORY",
+            },
+        },
+    ]
+    window = _window_metrics(rows)
+
+    assert window["blind_spot_attribution_sample_count"] == 3
+    assert window["rotation_associated_miss_count"] == 1
+    assert window["non_rotation_residual_miss_count"] == 1
+    assert window["insufficient_attribution_count"] == 1
+    assert window["high_rotation_prior_fixture_count"] == 1
+    assert window["lineup_unobservable_fixture_count"] == 3

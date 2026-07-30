@@ -61,6 +61,8 @@ class RecordingDashboardService:
                         "outcome_tracked": False,
                         "lock_eligible": False,
                         "recommendation_id": None,
+                        "lineup_requirement": "ADVISORY",
+                        "risk_reason_codes": ["LINEUP_UNOBSERVABLE"],
                         "pick": None,
                         "non_pick": {
                             "reason_code": "LINEUPS_PENDING",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -50,6 +51,7 @@ from w2.lineups.intelligence import (
     build_team_baseline,
     build_team_rotation_prior,
     derive_lineup_change_features,
+    lineup_requirement,
 )
 
 
@@ -849,6 +851,212 @@ class FutureRefreshDbRepository:
             )
             for team_id in sorted(set(team_external_ids))
         ]
+
+    def lineup_attribution_evidence_for_fixtures(
+        self,
+        fixture_ids: list[str],
+    ) -> dict[str, dict[str, Any]]:
+        """Read bounded pre-kickoff lineup evidence for finished fixtures in one session."""
+        requested = list(dict.fromkeys(str(value) for value in fixture_ids if value))
+        if not requested or len(requested) > 512:
+            return {}
+        aliases = {alias for fixture_id in requested for alias in _fixture_aliases(fixture_id)}
+        bare = {alias.removeprefix("api_football:") for alias in aliases}
+        with Session(self.engine) as session:
+            identities = list(
+                session.scalars(
+                    select(MatchdayFixtureIdentityModel)
+                    .where(
+                        (MatchdayFixtureIdentityModel.fixture_id.in_(aliases))
+                        | (
+                            MatchdayFixtureIdentityModel.provider_fixture_id.in_(
+                                bare
+                            )
+                        )
+                    )
+                    .order_by(MatchdayFixtureIdentityModel.captured_at.desc())
+                )
+            )
+            identity_by_alias: dict[str, MatchdayFixtureIdentityModel] = {}
+            for identity in identities:
+                for alias in {
+                    *_fixture_aliases(identity.fixture_id),
+                    *_fixture_aliases(identity.provider_fixture_id),
+                }:
+                    identity_by_alias.setdefault(alias, identity)
+            selected_identity = {
+                fixture_id: next(
+                    (
+                        identity_by_alias[alias]
+                        for alias in _fixture_aliases(fixture_id)
+                        if alias in identity_by_alias
+                    ),
+                    None,
+                )
+                for fixture_id in requested
+            }
+            snapshots = list(
+                session.scalars(
+                    select(StructuredLineupSnapshotModel)
+                    .where(
+                        StructuredLineupSnapshotModel.fixture_id.in_(aliases),
+                        StructuredLineupSnapshotModel.confirmed.is_(True),
+                    )
+                    .order_by(StructuredLineupSnapshotModel.captured_at.desc())
+                )
+            )
+            snapshot_by_fixture_team: dict[
+                tuple[str, str], StructuredLineupSnapshotModel
+            ] = {}
+            for requested_id, target_identity in selected_identity.items():
+                if target_identity is None:
+                    continue
+                for snapshot in snapshots:
+                    if (
+                        snapshot.captured_at >= target_identity.kickoff_utc
+                        or not any(
+                            alias in _fixture_aliases(snapshot.fixture_id)
+                            for alias in _fixture_aliases(requested_id)
+                        )
+                    ):
+                        continue
+                    snapshot_by_fixture_team.setdefault(
+                        (requested_id, snapshot.team_external_id),
+                        snapshot,
+                    )
+            selected_snapshots = list(snapshot_by_fixture_team.values())
+            players = list(
+                session.scalars(
+                    select(StructuredLineupPlayerModel).where(
+                        StructuredLineupPlayerModel.lineup_snapshot_id.in_(
+                            [snapshot.id for snapshot in selected_snapshots]
+                        ),
+                        StructuredLineupPlayerModel.starter.is_(True),
+                    )
+                )
+            ) if selected_snapshots else []
+            starters_by_snapshot: dict[str, list[str]] = {}
+            for player in players:
+                starters_by_snapshot.setdefault(
+                    player.lineup_snapshot_id,
+                    [],
+                ).append(player.api_football_player_id)
+            team_ids = {
+                snapshot.team_external_id for snapshot in selected_snapshots
+            }
+            baselines = list(
+                session.scalars(
+                    select(TeamLineupBaselineModel)
+                    .where(
+                        TeamLineupBaselineModel.team_external_id.in_(team_ids)
+                    )
+                    .order_by(TeamLineupBaselineModel.as_of_time.desc())
+                )
+            ) if team_ids else []
+            result: dict[str, dict[str, Any]] = {}
+            for fixture_id in requested:
+                target_identity = selected_identity[fixture_id]
+                if target_identity is None:
+                    result[fixture_id] = {
+                        "status": "INCOMPLETE",
+                        "blockers": ["FIXTURE_IDENTITY_MISSING"],
+                    }
+                    continue
+                team_order = (
+                    target_identity.home_provider_team_id,
+                    target_identity.away_provider_team_id,
+                )
+                priors = {
+                    item["team_external_id"]: item
+                    for item in self._rotation_priors_in_session(
+                        session,
+                        team_external_ids=list(team_order),
+                        as_of=target_identity.kickoff_utc,
+                    )
+                }
+                teams: list[dict[str, Any]] = []
+                blockers: list[str] = []
+                for team_id in team_order:
+                    target_snapshot = snapshot_by_fixture_team.get((fixture_id, team_id))
+                    if target_snapshot is None:
+                        blockers.append(f"{team_id}:LINEUP_SNAPSHOT_MISSING")
+                        teams.append(
+                            {
+                                "team_external_id": team_id,
+                                "starter_continuity": None,
+                                "rotation_prior": priors.get(team_id),
+                            }
+                        )
+                        continue
+                    starter_ids = set(starters_by_snapshot.get(target_snapshot.id, []))
+                    baseline = next(
+                        (
+                            row
+                            for row in baselines
+                            if row.team_external_id == team_id
+                            and row.as_of_time <= target_snapshot.captured_at
+                        ),
+                        None,
+                    )
+                    regular = {
+                        str(player.get("player_id") or "")
+                        for player in (
+                            baseline.payload.get("players", [])
+                            if baseline is not None
+                            else []
+                        )
+                        if isinstance(player, Mapping)
+                        and float(player.get("starter_weight") or 0.0) >= 3.0
+                    }
+                    continuity = (
+                        len(regular & starter_ids) / max(len(regular), 1)
+                        if baseline is not None
+                        and len(starter_ids) == 11
+                        and len(regular) > 0
+                        else None
+                    )
+                    if continuity is None:
+                        blockers.append(f"{team_id}:LINEUP_BASELINE_INCOMPLETE")
+                    teams.append(
+                        {
+                            "team_external_id": team_id,
+                            "starter_continuity": (
+                                round(continuity, 12)
+                                if continuity is not None
+                                else None
+                            ),
+                            "rotation_prior": priors.get(team_id),
+                            "lineup_identity_hash": target_snapshot.lineup_identity_hash,
+                            "baseline_artifact_hash": (
+                                baseline.artifact_hash
+                                if baseline is not None
+                                else None
+                            ),
+                        }
+                    )
+                payload = {
+                    "status": "READY" if not blockers else "INCOMPLETE",
+                    "fixture_id": fixture_id,
+                    "kickoff_utc": iso_z(target_identity.kickoff_utc),
+                    "lineup_requirement": lineup_requirement(
+                        target_identity.competition_id
+                    ),
+                    "home": teams[0],
+                    "away": teams[1],
+                    "blockers": sorted(blockers),
+                }
+                result[fixture_id] = {
+                    **payload,
+                    "input_hash": hashlib.sha256(
+                        json.dumps(
+                            payload,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                            default=str,
+                        ).encode()
+                    ).hexdigest(),
+                }
+            return result
 
     def import_transfermarkt_player_snapshot(
         self,

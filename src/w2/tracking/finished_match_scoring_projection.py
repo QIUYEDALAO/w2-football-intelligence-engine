@@ -10,6 +10,7 @@ from statistics import median
 from typing import Any
 
 from sqlalchemy import Engine, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from w2.infrastructure.database import create_engine
@@ -22,6 +23,11 @@ from w2.infrastructure.persistence.matchday_intake_models import (
 )
 from w2.infrastructure.persistence.models import ResultModel
 from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerModel
+from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
+from w2.tracking.advisory_blind_spot_policy import (
+    POLICY_CHECKPOINT_KEY,
+    build_advisory_blind_spot_policy,
+)
 from w2.tracking.forward_ledger_performance import (
     CLV_METHOD,
     CanonicalSettlementFacts,
@@ -45,8 +51,8 @@ from w2.tracking.performance_scoring import (
     rps,
 )
 
-SCHEMA_VERSION = "w2.performance_projection.v2"
-PROJECTION_VERSION = "eval-01c.v2"
+SCHEMA_VERSION = "w2.performance_projection.v3"
+PROJECTION_VERSION = "eval-02a.v1"
 CLV_POPULATION = "SCORABLE_FINISHED_WITH_CANONICAL_CLV"
 WRITE_CONFIRMATION_PHRASE = "EVAL_01B_WRITE_SCORING_PROJECTION"  # noqa: S105
 TERMINAL_STATUSES = {"FT", "AET", "PEN"}
@@ -128,6 +134,15 @@ def run_finished_match_scoring_projection(
             authoritative_results,
             legacy_recoveries,
         )
+        try:
+            lineup_attribution = (
+                FutureRefreshDbRepository(engine=resolved_engine)
+                .lineup_attribution_evidence_for_fixtures(
+                    sorted(finished_fixture_ids)
+                )
+            )
+        except SQLAlchemyError:
+            lineup_attribution = {}
         fixture_identities = {
             row.fixture_id: row
             for row in identity_rows
@@ -163,6 +178,7 @@ def run_finished_match_scoring_projection(
                     or result_counts[fixture_id] > 1
                 ),
                 envelope_conflict=fixture_id in envelope_conflicts,
+                lineup_evidence=lineup_attribution.get(fixture_id),
             )
             fixture_payloads[fixture_id] = payload
             if payload["status"] == "BLOCKED":
@@ -174,6 +190,7 @@ def run_finished_match_scoring_projection(
         projected_fixture_payloads = _existing_fixture_payloads(session)
         fixture_writes = 0
         cohort_writes = 0
+        policy_writes = 0
         skipped = 0
         write_blockers: list[str] = []
         timestamp = (now or datetime.now(UTC)).astimezone(UTC)
@@ -210,7 +227,34 @@ def run_finished_match_scoring_projection(
                 cohort_writes += outcome["writes"]
                 skipped += outcome["skipped"]
                 write_blockers.extend(outcome["blockers"])
-        writes = fixture_writes + cohort_writes
+        existing_policy_row = session.scalar(
+            select(ReadModelCheckpointModel).where(
+                ReadModelCheckpointModel.checkpoint_key == POLICY_CHECKPOINT_KEY
+            )
+        )
+        policy_payload = build_advisory_blind_spot_policy(
+            projected_fixture_payloads,
+            existing=(
+                dict(existing_policy_row.payload)
+                if existing_policy_row is not None
+                else None
+            ),
+            now=timestamp,
+        )
+        if not hard_batch_persistence_block:
+            outcome = _persist_checkpoint(
+                session,
+                checkpoint_key=POLICY_CHECKPOINT_KEY,
+                payload=policy_payload,
+                source_hash=str(policy_payload["business_projection_hash"]),
+                created_at=timestamp,
+                write_db=write_db,
+                preserve_trusted_on_blocked=False,
+            )
+            policy_writes += outcome["writes"]
+            skipped += outcome["skipped"]
+            write_blockers.extend(outcome["blockers"])
+        writes = fixture_writes + cohort_writes + policy_writes
         blockers.extend(write_blockers)
         if hard_batch_persistence_block or not write_db:
             session.rollback()
@@ -239,6 +283,10 @@ def run_finished_match_scoring_projection(
             ),
             "persisted_cohort_checkpoint_count": (
                 cohort_writes if write_db else 0
+            ),
+            "policy_checkpoint": policy_payload,
+            "persisted_policy_checkpoint_count": (
+                policy_writes if write_db else 0
             ),
             "scored_count": counts["SCORED"],
             "not_scorable_count": counts["NOT_SCORABLE"],
@@ -575,6 +623,7 @@ def _fixture_projection(
     canonical_facts: CanonicalSettlementFacts,
     identity_conflict: bool,
     envelope_conflict: bool,
+    lineup_evidence: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     related = [
         record
@@ -634,6 +683,16 @@ def _fixture_projection(
         reasons = ["OUTCOME_LEDGER_ENVELOPE_PAYLOAD_CONFLICT"]
     clv = _fixture_clv(records, fixture_id)
     canonical = _canonical_outcome_payload(canonical_facts, fixture_id)
+    blind_spot_attribution = _blind_spot_attribution(
+        lineup_requirement=(
+            str(lineup_evidence.get("lineup_requirement"))
+            if isinstance(lineup_evidence, Mapping)
+            and lineup_evidence.get("lineup_requirement") in {"STRICT", "ADVISORY"}
+            else lifecycle["evaluation_tier"]
+        ),
+        lineup_evidence=lineup_evidence,
+        canonical=canonical,
+    )
     scoring_capture = capture if status == "SCORED" else None
     scored_model = model if scoring_capture else None
     scored_market = market if scoring_capture else None
@@ -722,6 +781,7 @@ def _fixture_projection(
         "clv_decimal": clv["clv_decimal"],
         "clv_method": CLV_METHOD,
         **canonical,
+        "blind_spot_attribution": blind_spot_attribution,
         "source_event_type": "RESULT_MATERIALIZED",
         "source_event_id": result.id,
         "source_event_hash": result.result_hash,
@@ -1146,6 +1206,8 @@ def _canonical_outcome_payload(
 ) -> dict[str, Any]:
     accepted = facts.accepted_by_fixture.get(fixture_id)
     if accepted is not None:
+        pick = accepted.get("pick")
+        pick = pick if isinstance(pick, Mapping) else {}
         outcome = canonical_settlement_outcome(
             _settlement_outcome(accepted)
         )
@@ -1155,6 +1217,8 @@ def _canonical_outcome_payload(
                 "canonical_settlement_outcome": outcome,
                 "canonical_decisive": outcome in {"HIT", "MISS"},
                 "canonical_exclusion_reason": None,
+                "canonical_pick_market": _optional(pick.get("market")),
+                "canonical_pick_selection": _optional(pick.get("selection")),
             }
     if reason := facts.excluded_by_fixture.get(fixture_id):
         return {
@@ -1162,6 +1226,8 @@ def _canonical_outcome_payload(
             "canonical_settlement_outcome": None,
             "canonical_decisive": None,
             "canonical_exclusion_reason": reason,
+            "canonical_pick_market": None,
+            "canonical_pick_selection": None,
         }
     if fixture_id not in facts.candidate_by_fixture:
         return {
@@ -1169,13 +1235,99 @@ def _canonical_outcome_payload(
             "canonical_settlement_outcome": None,
             "canonical_decisive": None,
             "canonical_exclusion_reason": None,
+            "canonical_pick_market": None,
+            "canonical_pick_selection": None,
         }
     return {
         "canonical_pick_status": "SETTLEMENT_MISSING",
         "canonical_settlement_outcome": None,
         "canonical_decisive": None,
         "canonical_exclusion_reason": "SETTLEMENT_MISSING",
+        "canonical_pick_market": None,
+        "canonical_pick_selection": None,
     }
+
+
+def _blind_spot_attribution(
+    *,
+    lineup_requirement: str,
+    lineup_evidence: Mapping[str, Any] | None,
+    canonical: Mapping[str, Any],
+) -> dict[str, Any]:
+    evidence = lineup_evidence if isinstance(lineup_evidence, Mapping) else {}
+    home = evidence.get("home")
+    away = evidence.get("away")
+    home = home if isinstance(home, Mapping) else {}
+    away = away if isinstance(away, Mapping) else {}
+    home_prior = home.get("rotation_prior")
+    away_prior = away.get("rotation_prior")
+    home_prior = home_prior if isinstance(home_prior, Mapping) else {}
+    away_prior = away_prior if isinstance(away_prior, Mapping) else {}
+    home_continuity = _optional_number(home.get("starter_continuity"))
+    away_continuity = _optional_number(away.get("starter_continuity"))
+    home_deviation = (
+        1 - home_continuity if home_continuity is not None else None
+    )
+    away_deviation = (
+        1 - away_continuity if away_continuity is not None else None
+    )
+    market = _text(canonical.get("canonical_pick_market")).upper()
+    selection = _text(canonical.get("canonical_pick_selection")).upper()
+    selected_deviation = (
+        home_deviation
+        if market in {"AH", "ASIAN_HANDICAP"} and "HOME" in selection
+        else away_deviation
+        if market in {"AH", "ASIAN_HANDICAP"} and "AWAY" in selection
+        else max(
+            value
+            for value in (home_deviation, away_deviation)
+            if value is not None
+        )
+        if market in {"OU", "TOTALS"} and any(
+            value is not None for value in (home_deviation, away_deviation)
+        )
+        else None
+    )
+    high_rotation = any(
+        prior.get("status") == "READY"
+        and prior.get("classification") == "HIGH_ROTATION"
+        for prior in (home_prior, away_prior)
+    )
+    blockers = [str(item) for item in evidence.get("blockers", []) if item]
+    outcome = canonical.get("canonical_settlement_outcome")
+    if lineup_requirement == "STRICT":
+        applicability = "NOT_APPLICABLE_STRICT"
+        attribution = "NOT_APPLICABLE_STRICT"
+    elif outcome != "MISS":
+        applicability = "APPLICABLE"
+        attribution = "NOT_LOSS"
+    elif selected_deviation is None or evidence.get("status") != "READY":
+        applicability = "APPLICABLE"
+        attribution = "INSUFFICIENT_EVIDENCE"
+    elif selected_deviation >= 4 / 11 or high_rotation:
+        applicability = "APPLICABLE"
+        attribution = "ROTATION_ASSOCIATED"
+    else:
+        applicability = "APPLICABLE"
+        attribution = "NON_ROTATION_RESIDUAL"
+    payload = {
+        "schema_version": "w2.blind_spot_attribution.v1",
+        "applicability": applicability,
+        "lineup_requirement": lineup_requirement,
+        "home_rotation_prior": dict(home_prior) if home_prior else None,
+        "away_rotation_prior": dict(away_prior) if away_prior else None,
+        "home_starter_continuity": home_continuity,
+        "away_starter_continuity": away_continuity,
+        "home_lineup_deviation": home_deviation,
+        "away_lineup_deviation": away_deviation,
+        "selected_side_lineup_deviation": selected_deviation,
+        "high_rotation_prior": high_rotation,
+        "canonical_settlement_outcome": outcome,
+        "attribution": attribution,
+        "causal_claim": False,
+        "blockers": sorted(set(blockers)),
+    }
+    return {**payload, "input_hash": _hash_value(payload)}
 
 
 def _settlement_outcome(record: Mapping[str, Any]) -> str:
@@ -1305,6 +1457,17 @@ def _window_metrics(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     canonical_decisive_count = (
         canonical_outcomes["HIT"] + canonical_outcomes["MISS"]
     )
+    attributions = [
+        value
+        for row in rows
+        if isinstance(
+            value := row.get("blind_spot_attribution"),
+            Mapping,
+        )
+    ]
+    attribution_counts = Counter(
+        _text(value.get("attribution")) for value in attributions
+    )
     return {
         "finished_result_count": len(rows),
         "fixture_checkpoint_count": len(rows),
@@ -1369,6 +1532,30 @@ def _window_metrics(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             "TARGET_REACHED"
             if canonical_settled_count >= 200
             else "ACCUMULATING"
+        ),
+        "blind_spot_attribution_sample_count": sum(
+            attribution_counts[value]
+            for value in (
+                "ROTATION_ASSOCIATED",
+                "NON_ROTATION_RESIDUAL",
+                "INSUFFICIENT_EVIDENCE",
+            )
+        ),
+        "rotation_associated_miss_count": attribution_counts[
+            "ROTATION_ASSOCIATED"
+        ],
+        "non_rotation_residual_miss_count": attribution_counts[
+            "NON_ROTATION_RESIDUAL"
+        ],
+        "insufficient_attribution_count": attribution_counts[
+            "INSUFFICIENT_EVIDENCE"
+        ],
+        "high_rotation_prior_fixture_count": sum(
+            value.get("high_rotation_prior") is True for value in attributions
+        ),
+        "lineup_unobservable_fixture_count": sum(
+            value.get("lineup_requirement") == "ADVISORY"
+            for value in attributions
         ),
     }
 
@@ -1501,6 +1688,11 @@ def _source_hash(payload: Mapping[str, Any]) -> str:
             "canonical_exclusion_reason": payload.get(
                 "canonical_exclusion_reason"
             ),
+            "canonical_pick_market": payload.get("canonical_pick_market"),
+            "canonical_pick_selection": payload.get(
+                "canonical_pick_selection"
+            ),
+            "blind_spot_attribution": payload.get("blind_spot_attribution"),
         }
     )
 
@@ -1577,6 +1769,14 @@ def _text(value: Any) -> str:
 def _optional(value: Any) -> str | None:
     text = _text(value)
     return text or None
+
+
+def _optional_number(value: Any) -> float | None:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed == parsed and abs(parsed) != float("inf") else None
 
 
 def _is_number(value: Any) -> bool:

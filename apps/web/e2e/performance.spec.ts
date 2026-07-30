@@ -20,7 +20,7 @@ function payload(pointCount = 0) {
   });
   return {
     request_id: "performance-e2e",
-    projection_version: "eval-01c.v2",
+    projection_version: "eval-02a.v1",
     scoring_window_anchor: "2026-07-30T00:00:00Z",
     selected_window: "30d",
     selected_league: null,

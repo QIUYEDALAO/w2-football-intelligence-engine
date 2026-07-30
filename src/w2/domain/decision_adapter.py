@@ -25,6 +25,9 @@ from w2.readiness.data_gate import (
     DataReadinessResult,
     result_from_mapping,
 )
+from w2.tracking.advisory_blind_spot_policy import (
+    validate_advisory_blind_spot_policy,
+)
 
 ANALYSIS_PICK_DISCLAIMER = DecisionPick.__dataclass_fields__["disclaimer"].default
 MIN_ANALYSIS_PICK_CONFIDENCE = 0.55
@@ -147,6 +150,31 @@ def build_decision_contract_fields(
     ):
         tier = DecisionTier.WATCH
         forced_reason = DecisionReasonCode.MARKET_MOVED_AGAINST_BLIND_SPOT
+    if (
+        tier in {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND}
+        and lineup_requirement == "ADVISORY"
+    ):
+        policy = _as_mapping(_get(card, "advisory_blind_spot_policy"))
+        if not validate_advisory_blind_spot_policy(policy):
+            tier = DecisionTier.WATCH
+            forced_reason = DecisionReasonCode.ADVISORY_DELTA_POLICY_NOT_READY
+        else:
+            expected_value = _number(
+                _get(
+                    _as_mapping(
+                        _get(_as_mapping(evaluated_candidate), "analysis_selected_candidate")
+                    ),
+                    "expected_value",
+                )
+            )
+            threshold = _number(policy.get("effective_threshold"))
+            if policy.get("watch_only") is True or (
+                expected_value is not None
+                and threshold is not None
+                and expected_value < threshold
+            ):
+                tier = DecisionTier.WATCH
+                forced_reason = DecisionReasonCode.EDGE_INSUFFICIENT
     if tier not in {DecisionTier.ANALYSIS_PICK, DecisionTier.RECOMMEND}:
         recommendation_id = None
     pick_payload = (

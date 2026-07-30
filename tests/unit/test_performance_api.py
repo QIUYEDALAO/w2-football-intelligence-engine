@@ -492,8 +492,8 @@ def _cohort(
         source_hash=f"hash:{key}",
         created_at=NOW,
         payload={
-            "schema_version": "w2.performance_projection.v2",
-            "projection_version": "eval-01c.v2",
+            "schema_version": "w2.performance_projection.v3",
+            "projection_version": "eval-02a.v1",
             "checkpoint_key": key,
             "scoring_window_anchor": NOW.isoformat(),
             "windows": {
@@ -568,6 +568,12 @@ def _window(
         "sample_target": 200,
         "sample_progress": settled / 200,
         "sample_progress_status": "ACCUMULATING",
+        "blind_spot_attribution_sample_count": 0,
+        "rotation_associated_miss_count": 0,
+        "non_rotation_residual_miss_count": 0,
+        "insufficient_attribution_count": 0,
+        "high_rotation_prior_fixture_count": 0,
+        "lineup_unobservable_fixture_count": 0,
     }
 
 
@@ -597,8 +603,8 @@ def _fixture(
         source_hash=f"hash:{key}",
         created_at=NOW,
         payload={
-            "schema_version": "w2.performance_projection.v2",
-            "projection_version": "eval-01c.v2",
+            "schema_version": "w2.performance_projection.v3",
+            "projection_version": "eval-02a.v1",
             "status": status,
             "fixture_id": fixture_id,
             "kickoff_utc": NOW.isoformat(),

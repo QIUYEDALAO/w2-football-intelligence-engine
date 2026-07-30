@@ -282,13 +282,19 @@ class PerformanceWindowProjection(BaseModel):
     sample_target: int = Field(gt=0)
     sample_progress: float = Field(ge=0, le=1)
     sample_progress_status: Literal["ACCUMULATING", "TARGET_REACHED"]
+    blind_spot_attribution_sample_count: int = Field(ge=0)
+    rotation_associated_miss_count: int = Field(ge=0)
+    non_rotation_residual_miss_count: int = Field(ge=0)
+    insufficient_attribution_count: int = Field(ge=0)
+    high_rotation_prior_fixture_count: int = Field(ge=0)
+    lineup_unobservable_fixture_count: int = Field(ge=0)
 
 
 class PerformanceCohortProjection(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal["w2.performance_projection.v2"]
-    projection_version: Literal["eval-01c.v2"]
+    schema_version: Literal["w2.performance_projection.v3"]
+    projection_version: Literal["eval-02a.v1"]
     checkpoint_key: str
     scoring_window_anchor: datetime
     windows: dict[Literal["7d", "30d", "90d"], PerformanceWindowProjection]
@@ -298,8 +304,8 @@ class PerformanceCohortProjection(BaseModel):
 class PerformanceFixtureProjection(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    schema_version: Literal["w2.performance_projection.v2"]
-    projection_version: Literal["eval-01c.v2"]
+    schema_version: Literal["w2.performance_projection.v3"]
+    projection_version: Literal["eval-02a.v1"]
     status: Literal["SCORED", "NOT_SCORABLE", "BLOCKED"]
     fixture_id: str
     kickoff_utc: datetime
@@ -408,7 +414,7 @@ class PerformanceResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     request_id: str
-    projection_version: Literal["eval-01c.v2"]
+    projection_version: Literal["eval-02a.v1"]
     scoring_window_anchor: datetime
     selected_window: Literal["7d", "30d", "90d"]
     selected_league: str | None
