@@ -647,10 +647,16 @@ Conclusion: CLV 第一 KPI、全量校准、STRICT/ADVISORY 分层、canonical �
 #### B4. EVAL-02A：首发盲区防护（防守面，先于增量验证）
 
 ```text
-Status: IN_PROGRESS
+Status: DONE
 Branch: codex/eval-02a-lineup-blind-spot-defense
 PR: #434
+Source head: 43a9e5aae1da6821edfc88d048c680b52ff870fb
+Merge SHA: 427cb2203d943304582e5aa3f6b55e5d6b8adce0
+Main CI: 30556679131
+Staging acceptance: PASS
 ```
+
+**完成结论**：exact-head staging 与合并后 main required CI 均通过，EVAL-02A 闭合。
 
 **目标**：ADVISORY 联赛（无赛前首发）的 pick 不再裸奔；盲区里"模型大幅打赢市场"按逆向选择风险处理。
 
@@ -696,7 +702,7 @@ rotation_rate = arithmetic mean of latest 5 turnovers
 transition_count >= 4 = READY
 rotation_rate >= 4 / 11 = HIGH_ROTATION
 
-ADVISORY_DELTA_SCHEMA_VERSION = w2.advisory_blind_spot_policy.v1
+ADVISORY_DELTA_SCHEMA_VERSION = w2.advisory_blind_spot_policy.v2
 initial delta = 0.0
 window = 90d
 minimum advisory canonical settled = 50
@@ -738,7 +744,7 @@ causal_claim = false
 **验收**：ADVISORY 卡 100% 携带 `LINEUP_UNOBSERVABLE`；重放一场"移动产生分歧"样例
 验证降级 WATCH；合同守卫全绿；分层统计出现盲区归因字段。
 **资产账本**：新增 0；删除 0。
-- [ ] PR 合并。
+- [x] PR 合并。
 
 ---
 
