@@ -130,18 +130,28 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "write_side_implementation_authorized": False,
         "provider_calls_authorized": False,
         "scheduler_start_authorized": False,
-        "next_required_action": "WRITE_SIDE_READINESS_DESIGN",
+        "write_side_readiness_design": "FROZEN",
+        "write_side_ready": False,
+        "new_table_count": 0,
+        "new_migration_count": 0,
+        "lineup_event_production_caller": "MISSING",
+        "post_lineup_refresh_plan_production_caller": "MISSING",
+        "dynamic_evaluation_v2": "DESIGNED",
+        "five_state_snapshot": "DESIGNED",
+        "exact_pair_projector": "DESIGNED",
+        "next_required_action": "WRITE_SIDE_IMPLEMENTATION_01_REVIEW",
     }
     assert state["tasks"]["EVAL-03"]["status"] == "NOT_STARTED"
     assert state["architecture_convergence"]["status"] == "PASS"
     assert "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)" in next_action
     assert CHECKLIST_PATH in next_action
     assert (
-        "当前：B5 EVAL-02B 仍为 BLOCKED；35 条 legacy Result 保留为历史事实"
-        "但永久排除 EVAL-02B，身份修复关闭。" in next_action
+        "当前：B5 WRITE_SIDE_READINESS_DESIGN 已冻结，但 "
+        "WRITE_SIDE_READY = false；EVAL-02B 仍为 BLOCKED。" in next_action
     )
     assert (
-        "下一步：B5 WRITE_SIDE_READINESS_DESIGN；写侧实现、Provider、scheduler "
+        "下一步：B5 WRITE_SIDE_IMPLEMENTATION_01_REVIEW；"
+        "写侧实现、Provider、scheduler "
         "与运行采集均未授权，B7 EVAL-03 仍为 NOT_STARTED。"
         in next_action
     )
@@ -252,7 +262,14 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "WRITE_SIDE_IMPLEMENTATION_AUTHORIZED = false",
         "PROVIDER_CALLS_AUTHORIZED = false",
         "SCHEDULER_START_AUTHORIZED = false",
-        "NEXT_REQUIRED_ACTION = WRITE_SIDE_READINESS_DESIGN",
+        "WRITE_SIDE_READINESS_DESIGN = FROZEN",
+        "WRITE_SIDE_READY = false",
+        "LINEUP_EVENT_PRODUCTION_CALLER = MISSING",
+        "POST_LINEUP_REFRESH_PLAN_PRODUCTION_CALLER = MISSING",
+        "DYNAMIC_EVALUATION_V2 = DESIGNED",
+        "FIVE_STATE_SNAPSHOT = DESIGNED",
+        "EXACT_PAIR_PROJECTOR = DESIGNED",
+        "NEXT_REQUIRED_ACTION = WRITE_SIDE_IMPLEMENTATION_01_REVIEW",
         "NEW_PROVIDER_FETCH_CAN_RESTORE_LEGACY_PROVENANCE = false",
         "FUZZY_IDENTITY_RECONSTRUCTION_ALLOWED = false",
         "TEAM_NAME_MATCH_ALLOWED = false",
@@ -492,6 +509,210 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "本 PR 不授权代码实施",
     ):
         assert remediation_rule in b5
+    for write_side_coordinate in (
+        "DYNAMIC_EVALUATION_TABLE = EXISTS",
+        "DYNAMIC_EVALUATION_APPEND_API = EXISTS",
+        "DYNAMIC_EVALUATION_TRANSACTIONAL_PROJECTION = EXISTS",
+        "LINEUP_CONFIRMED_EVENT_TABLE = EXISTS",
+        "LINEUP_CONFIRMED_EVENT_APPEND_API = EXISTS",
+        "LINEUP_CONFIRMED_EVENT_PRODUCTION_CALLER = MISSING",
+        "LINEUP_CHANGED_PROJECTION_EVENT = EXISTS",
+        "POST_LINEUP_REFRESH_PLAN_FACTORY = EXISTS",
+        "POST_LINEUP_REFRESH_PLAN_PRODUCTION_CALLER = MISSING",
+        "MODEL_FIVE_STATE_DISTRIBUTION_SOURCE = EXISTS",
+        "MODEL_FIVE_STATE_DISTRIBUTION_PERSISTED_IN_DYNAMIC_EVALUATION = MISSING",
+        "EXPLICIT_PROVIDER_IN_DYNAMIC_EVALUATION = MISSING",
+        "CANONICAL_LINEUP_HASH_SHARED_BY_EVENT_AND_EVALUATION = MISSING",
+        "EXACT_PRE_POST_PAIR_PROJECTOR = MISSING",
+        "NEW_PARALLEL_WRITE_PIPELINE = false",
+        "NEW_TABLE_COUNT = 0",
+        "NEW_MIGRATION_COUNT = 0",
+        "DYNAMIC_WRITE_BOUNDARY =",
+        "write_frozen_analysis_artifacts",
+        "LINEUP_EVENT_AND_DYNAMIC_EVALUATION_UNIT_OF_WORK =",
+        "SAME_DATABASE_TRANSACTION",
+        "READ_MODEL_CHECKPOINT_AND_DYNAMIC_EVALUATION_UNIT_OF_WORK =",
+        "LINEUP_INPUT_HASH_AUTHORITY =",
+        "confirmed_lineup_business_identity",
+        "LINEUP_EVENT_LINEUP_INPUT_HASH =",
+        "POST_EVALUATION_LINEUP_INPUT_HASH =",
+        "CANONICAL_LINEUP_IDENTITY_FIELDS =",
+        "home_team_external_id",
+        "home_sorted_starter_ids",
+        "away_team_external_id",
+        "away_sorted_starter_ids",
+        "LINEUP_INPUT_HASH_EXCLUDED_FIELDS =",
+        "captured_at",
+        "raw_sha256",
+        "baseline_artifact_hashes",
+        "lineup_change_features",
+        "model_version",
+        "release_sha",
+        "AUTHORITATIVE_LINEUP_EVENT_POLICY =",
+        "FIRST_COMPLETE_CONFIRMED_LINEUP_IDENTITY",
+        "AUTHORITATIVE_EVENT_TIME =",
+        "EARLIEST_COMPLETE_CONFIRMED_CAPTURE_AT",
+        "ELIGIBLE_LINEUP_EVENT_COUNT_PER_FIXTURE = 1",
+        "SAME_FIXTURE_SAME_LINEUP_HASH_SAME_CAPTURE =",
+        "ZERO_WRITE_EXACT_REPLAY",
+        "SAME_FIXTURE_SAME_LINEUP_HASH_DIFFERENT_CAPTURE =",
+        "ZERO_WRITE_REOBSERVATION",
+        "REOBSERVATION_PRESERVES_ORIGINAL_EVENT_TIME = true",
+        "REOBSERVATION_PRESERVES_ORIGINAL_EVENT_PAYLOAD = true",
+        "SAME_FIXTURE_DIFFERENT_LINEUP_HASH =",
+        "LINEUP_CONFIRMATION_CONFLICT",
+        "LINEUP_CONFIRMATION_CONFLICT_EVAL_02B_ELIGIBLE = false",
+        "SECOND_ELIGIBLE_LINEUP_EVENT_ALLOWED = false",
+        "DYNAMIC_EVALUATION_SCHEMA_VERSION =",
+        "w2.dynamic_quote_evaluation.v2",
+        "DYNAMIC_EVALUATION_V1_EVAL_02B_ELIGIBLE = false",
+        "DYNAMIC_EVALUATION_V2_SCHEMA_ELIGIBILITY =",
+        "NECESSARY_NOT_SUFFICIENT",
+        "EVAL_02B_EVALUATION_ROLES =",
+        "PRE_CONFIRMATION / POST_CONFIRMATION",
+        "PRE_CONFIRMATION_ELIGIBILITY =",
+        "POST_CONFIRMATION_ELIGIBILITY =",
+        "schema_version == w2.dynamic_quote_evaluation.v2",
+        "capture_at < authoritative_lineup_event.captured_at",
+        "capture_at >= authoritative_lineup_event.captured_at",
+        "lineup_input_hash == null",
+        "lineup_input_hash == authoritative_lineup_event.lineup_input_hash",
+        "post_lineup_quote == true",
+        "quote_fresh == true",
+        "exact_quote_identity_complete == true",
+        "model_settlement_distribution_valid == true",
+        "state_not_marker_or_not_ready == true",
+        "superseded == false",
+        "PRE_LINEUP_INPUT_HASH_REQUIRED = false",
+        "POST_LINEUP_INPUT_HASH_REQUIRED = true",
+        "DYNAMIC_EVALUATION_V2_FIELDS =",
+        "competition_id",
+        "provider",
+        "quote_identity_hash",
+        "model_input_hash",
+        "lineup_input_hash",
+        "model_settlement_distribution",
+        "MODEL_SETTLEMENT_DISTRIBUTION_STATE_ORDER =",
+        "BASELINE_DISTRIBUTION = PRE.model_settlement_distribution",
+        "CANDIDATE_DISTRIBUTION = POST.model_settlement_distribution",
+        "STATE_SET_EXACT = true",
+        "FINITE_AND_NON_NEGATIVE = true",
+        "ABS(SUM - 1) <= 1e-9",
+        "MISSING_OR_INVALID = FAIL_CLOSED",
+        "LINEUP_EVENT_V2_FIELDS =",
+        "home_lineup_identity_hash",
+        "away_lineup_identity_hash",
+        "source_capture_id",
+        "SAME_NATURAL_IDENTITY_AND_SAME_PAYLOAD = ZERO_WRITE",
+        "SAME_NATURAL_IDENTITY_AND_DIFFERENT_PAYLOAD = FAIL_CLOSED",
+        "checkpoint = LINEUP_CONFIRMED",
+        "endpoint = odds",
+        "scheduled_at = lineup_event.captured_at",
+        "fixture_id = lineup_event.fixture_id",
+        "LINEUP_EVENT_WITHOUT_POST_LINEUP_ODDS_PLAN =",
+        "WRITE_SIDE_NOT_READY",
+        "PLAN_EXISTS_BUT_PROVIDER_NOT_ACTIVATED =",
+        "READY_FOR_ACTIVATION_REVIEW",
+        "PAIR_PROJECTOR_REQUIRES =",
+        "EXACTLY_ONE_AUTHORITATIVE_ELIGIBLE_LINEUP_EVENT",
+        "ZERO_AUTHORITATIVE_EVENTS =",
+        "BLOCKED_LINEUP_EVENT_MISSING",
+        "MULTIPLE_OR_CONFLICTING_EVENTS =",
+        "BLOCKED_LINEUP_EVENT_CONFLICT",
+        "last eligible PRE_CONFIRMATION evaluation",
+        "before authoritative event",
+        "first eligible POST_CONFIRMATION evaluation",
+        "after authoritative event",
+        "PRE_POST_EXACT_MATCH_FIELDS =",
+        "PAIR_STORAGE_MODE = DERIVED_READ_MODEL",
+        "NEW_PAIR_TABLE_COUNT = 0",
+        "WRITE_SIDE_IMPLEMENTATION_01 =",
+        "CANONICAL_LINEUP_EVENT_AND_ATOMIC_WRITE",
+        "WRITE_SIDE_IMPLEMENTATION_02 =",
+        "DYNAMIC_EVALUATION_V2_AND_FIVE_STATE_SNAPSHOT",
+        "WRITE_SIDE_IMPLEMENTATION_03 =",
+        "POST_LINEUP_ODDS_PLAN_PRODUCER",
+        "WRITE_SIDE_IMPLEMENTATION_04 =",
+        "READ_ONLY_EXACT_PAIR_PROJECTOR",
+        "WRITE_SIDE_IMPLEMENTATION_ORDER =",
+        "01 -> 02 -> 03 -> 04",
+        "WRITE_SIDE_READINESS_DESIGN = FROZEN",
+        "WRITE_SIDE_READY = false",
+        "NEXT_REQUIRED_ACTION = WRITE_SIDE_IMPLEMENTATION_01_REVIEW",
+    ):
+        assert write_side_coordinate in b5
+    for write_side_rule in (
+        "唯一方案是复用当前 production projection graph",
+        "不新建平行写侧",
+        "`append_lineup_event_in_session()`",
+        "canonical lineup event、dynamic",
+        "evaluation、supersession、shadow read-model checkpoint",
+        "任一步冲突必须整批 rollback",
+        "API/read path 不得写数据库",
+        "future refresh 不得另建独立 evaluation writer",
+        "不得新增",
+        "第二个 event/outbox 表",
+        "不得使用 direct SQL",
+        "排除字段属于 provenance 或 `model_input_hash`",
+        "主客各 11 名首发、22 个",
+        "球员 ID 唯一",
+        "两队 snapshot 属于同一 capture",
+        "capture 在开球前",
+        "任一条件不满足均不写 event",
+        "同一套 XI 后续再次被观测时，不创建新 event、不修改最早确认时间",
+        "也不视为冲突",
+        "Reobservation 不作为新的 authoritative payload",
+        "首次确认后出现不同",
+        "`lineup_input_hash`，该 fixture 整体不得产生 EVAL-02B pair",
+        "v2 schema 本身只提供必要条件，不能自动赋予 EVAL-02B 资格",
+        "Pre 的",
+        "`lineup_input_hash` 必须为空",
+        "Post 的 hash 必须精确匹配 authoritative event",
+        "NOT_READY、marker 和 superseded evaluation 均不合格",
+        "必须全部参与 v2 identity hash",
+        "继续使用现有 JSON payload，不改数据库表",
+        "不得在一条 evaluation 同时保存",
+        "baseline 和 candidate",
+        "`complete_five_state_distribution()` 的 `1e-6` 容差",
+        "`1e-9`",
+        "PUSH、HALF_WIN、HALF_LOSS 不得转换为二元概率",
+        "未来实现必须显式比较已存 payload",
+        "不得新建 scheduler 或",
+        "plan 表",
+        "只有恰好一个 authoritative eligible lineup event 时才允许选择 Pre/Post",
+        "0 个或多个/",
+        "冲突 event 必须按上述 blocker fail-closed",
+        "每场 fixture 最多一个 pair",
+        "不得跨 provider、bookmaker、line 或 selection 配对",
+        "不新建 pair 表",
+        "分别通过独立、可回滚 PR",
+        "不得自动开启 Provider、",
+        "scheduler 或运行采集",
+    ):
+        assert write_side_rule in b5
+    assert "DYNAMIC_EVALUATION_V2_EVAL_02B_ELIGIBLE = true" not in b5
+    assert (
+        "PRE_CONFIRMATION_ELIGIBILITY =\n"
+        "schema_version == w2.dynamic_quote_evaluation.v2\n"
+        "capture_at < authoritative_lineup_event.captured_at\n"
+        "lineup_input_hash == null\n"
+        "exact_quote_identity_complete == true\n"
+        "model_settlement_distribution_valid == true\n"
+        "state_not_marker_or_not_ready == true\n"
+        "superseded == false"
+    ) in b5
+    assert (
+        "POST_CONFIRMATION_ELIGIBILITY =\n"
+        "schema_version == w2.dynamic_quote_evaluation.v2\n"
+        "capture_at >= authoritative_lineup_event.captured_at\n"
+        "lineup_input_hash == authoritative_lineup_event.lineup_input_hash\n"
+        "post_lineup_quote == true\n"
+        "quote_fresh == true\n"
+        "exact_quote_identity_complete == true\n"
+        "model_settlement_distribution_valid == true\n"
+        "state_not_marker_or_not_ready == true\n"
+        "superseded == false"
+    ) in b5
     assert (
         "EVAL-01A\n"
         "EVAL-01B\n"
