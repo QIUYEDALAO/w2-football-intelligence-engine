@@ -80,14 +80,14 @@ def _ready_policy_checkpoint(
             payload.pop("next_recalibration_at")
         else:
             key, value = {
-                "settled": ("advisory_canonical_settled_count", 49),
+                "settled": ("calibration_advisory_canonical_settled_count", 49),
                 "calibrated": ("last_calibrated_settled_count", 49),
-                "seed": ("bootstrap_seed", 0),
-                "strict_mean": ("strict_clv_mean", None),
-                "advisory_mean": ("advisory_clv_mean", None),
-                "zero_count_mean": ("strict_clv_sample_count", 0),
-                "mean_nan": ("strict_clv_mean", float("nan")),
-                "mean_infinity": ("advisory_clv_mean", float("inf")),
+                "seed": ("calibration_bootstrap_seed", 0),
+                "strict_mean": ("calibration_strict_clv_mean", None),
+                "advisory_mean": ("calibration_advisory_clv_mean", None),
+                "zero_count_mean": ("calibration_strict_clv_sample_count", 0),
+                "mean_nan": ("calibration_strict_clv_mean", float("nan")),
+                "mean_infinity": ("calibration_advisory_clv_mean", float("inf")),
                 "watch_only": ("watch_only", True),
                 "watch_false": ("watch_only", False),
                 "next": (
@@ -473,6 +473,36 @@ def test_advisory_policy_expiry_boundary_and_strict_no_drift() -> None:
     assert expired["lock_eligible"] is False
     assert strict["decision_tier"] == "ANALYSIS_PICK"
     assert strict["pick"] is not None
+
+
+def test_historical_advisory_decision_cannot_consume_future_policy() -> None:
+    policy = _ready_policy_checkpoint(calibrated_at=NOW)
+    market = {
+        "market": "ASIAN_HANDICAP",
+        "decision": "PICK",
+        "tendency": "HOME",
+        "line": "-0.25",
+        "odds": "1.95",
+    }
+
+    advisory = _fields(
+        card={"advisory_blind_spot_policy": policy},
+        market=market,
+        as_of=NOW - timedelta(microseconds=1),
+    )
+    strict = _fields(
+        card={
+            "advisory_blind_spot_policy": policy,
+            "lineup_provenance": {"requirement": "STRICT"},
+        },
+        market=market,
+        competition_id="premier_league",
+        as_of=NOW - timedelta(microseconds=1),
+    )
+
+    assert advisory["decision_tier"] == "WATCH"
+    assert advisory["non_pick"]["reason_code"] == "ADVISORY_DELTA_POLICY_NOT_READY"  # type: ignore[index]
+    assert strict["decision_tier"] == "ANALYSIS_PICK"
 
 
 def test_model_version_uses_only_canonical_card_or_adapter_default() -> None:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -201,6 +201,45 @@ def _event(event_type: str = "ODDS_CHANGED") -> ProjectionSourceEvent:
     )
 
 
+def _ready_policy(created_at: datetime, *, advisory_clv: float) -> dict[str, Any]:
+    business_hash = canonical_sha256(
+        {"created_at": created_at.isoformat(), "advisory_clv": advisory_clv}
+    )
+    return {
+        "checkpoint_key": "performance:policy:advisory-blind-spot",
+        "source_hash": business_hash,
+        "created_at": created_at.isoformat(),
+        "payload": {
+            "schema_version": "w2.advisory_blind_spot_policy.v2",
+            "status": "READY",
+            "business_projection_hash": business_hash,
+            "last_calibrated_at": created_at.isoformat(),
+            "next_recalibration_at": (created_at + timedelta(days=90)).isoformat(),
+        },
+    }
+
+
+def _policy_projection(state: dict[str, Any], *, strict: bool = False) -> Any:
+    def calculate(
+        _repository: Any,
+        fixture_id: str,
+        evaluated_at: datetime,
+    ) -> dict[str, Any]:
+        return {
+            "fixture_id": fixture_id,
+            "decision": "SKIP",
+            "decision_tier": "NOT_READY",
+            "pick": None,
+            "evaluated_at": evaluated_at.isoformat(),
+            "lineup_provenance": {
+                "requirement": "STRICT" if strict else "ADVISORY",
+            },
+            "advisory_blind_spot_policy": state["policy"],
+        }
+
+    return calculate
+
+
 def test_same_inputs_produce_identical_bytes_and_hashes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -219,6 +258,130 @@ def test_same_inputs_produce_identical_bytes_and_hashes(
     assert "created_at" not in first.payload
     assert "run_id" not in first.payload
     assert repository.global_calls == 0
+
+
+def test_advisory_policy_identity_changes_source_and_rematerializes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evaluated_at = datetime(2026, 7, 18, 5, 0, tzinfo=UTC)
+    monkeypatch.setattr(
+        "w2.prematch.read_model_projection.validate_advisory_blind_spot_policy",
+        lambda *_args, **_kwargs: True,
+    )
+    state = {"policy": _ready_policy(evaluated_at - timedelta(days=1), advisory_clv=0.05)}
+    materializer = AnalysisCardCanaryMaterializer(
+        ScopedRepository(),
+        calculate_analysis_card=_policy_projection(state),
+    )
+    first = materializer.build("1576804", evaluated_at=evaluated_at)
+    state["policy"] = _ready_policy(evaluated_at, advisory_clv=0.08)
+    second = materializer.build("1576804", evaluated_at=evaluated_at)
+    replay = materializer.build("1576804", evaluated_at=evaluated_at)
+    engine = _engine()
+
+    write_frozen_analysis_artifacts(engine, [first])
+    write_frozen_analysis_artifacts(engine, [second])
+    write_frozen_analysis_artifacts(engine, [replay])
+
+    first_identity = first.payload["input_manifest"]["advisory_policy_identity"]
+    second_identity = second.payload["input_manifest"]["advisory_policy_identity"]
+    assert first_identity["validation_status"] == "VALID"
+    assert second_identity["validation_status"] == "VALID"
+    assert first_identity["identity_hash"] != second_identity["identity_hash"]
+    assert first.source_hash != second.source_hash
+    assert first.artifact_hash != second.artifact_hash
+    assert replay.source_hash == second.source_hash
+    assert replay.artifact_hash == second.artifact_hash
+    with Session(engine) as session:
+        checkpoint = session.query(ReadModelCheckpointModel).one()
+    assert checkpoint.source_hash == second.source_hash
+
+
+def test_strict_frozen_artifact_does_not_drift_with_advisory_policy() -> None:
+    evaluated_at = datetime(2026, 7, 18, 5, 0, tzinfo=UTC)
+    state = {"policy": _ready_policy(evaluated_at - timedelta(days=1), advisory_clv=0.05)}
+    materializer = AnalysisCardCanaryMaterializer(
+        ScopedRepository(),
+        calculate_analysis_card=_policy_projection(state, strict=True),
+    )
+    first = materializer.build("1576804", evaluated_at=evaluated_at)
+    state["policy"] = _ready_policy(evaluated_at, advisory_clv=0.08)
+    second = materializer.build("1576804", evaluated_at=evaluated_at)
+
+    assert first.payload["input_manifest"]["advisory_policy_identity"] == {
+        "applicability": "NOT_APPLICABLE_STRICT"
+    }
+    assert first.source_hash == second.source_hash
+    assert first.artifact_hash == second.artifact_hash
+
+
+@pytest.mark.parametrize(
+    ("policy", "status"),
+    (
+        ({}, "MISSING"),
+        ({"checkpoint_key": "wrong", "payload": {}}, "INVALID"),
+        (
+            _ready_policy(
+                datetime(2026, 7, 18, 5, 0, tzinfo=UTC),
+                advisory_clv=0.05,
+            ),
+            "INVALID",
+        ),
+    ),
+)
+def test_advisory_policy_provenance_records_fail_closed_status(
+    policy: dict[str, Any],
+    status: str,
+) -> None:
+    evaluated_at = datetime(2026, 7, 18, 4, 59, 59, 999999, tzinfo=UTC)
+    artifact = AnalysisCardCanaryMaterializer(
+        ScopedRepository(),
+        calculate_analysis_card=_policy_projection({"policy": policy}),
+    ).build("1576804", evaluated_at=evaluated_at)
+
+    identity = artifact.payload["input_manifest"]["advisory_policy_identity"]
+    assert identity["validation_status"] == status
+    assert identity["identity_hash"]
+
+
+def test_public_and_shadow_record_same_advisory_policy_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evaluated_at = datetime(2026, 7, 18, 5, 0, tzinfo=UTC)
+    state = {"policy": _ready_policy(evaluated_at, advisory_clv=0.05)}
+    monkeypatch.setattr(
+        "w2.prematch.read_model_projection.validate_advisory_blind_spot_policy",
+        lambda *_args, **_kwargs: True,
+    )
+    _patch_ready_projection(monkeypatch)
+
+    def calculate(
+        repository: Any,
+        fixture_id: str,
+        as_of: datetime,
+    ) -> dict[str, Any]:
+        card = _calculate_projection(repository, fixture_id, as_of)
+        assert card is not None
+        card["lineup_provenance"] = {"requirement": "ADVISORY"}
+        card["advisory_blind_spot_policy"] = state["policy"]
+        return card
+
+    materializer = AnalysisCardCanaryMaterializer(
+        ScopedRepository(),
+        calculate_analysis_card=calculate,
+    )
+
+    public = materializer.build("1576804", evaluated_at=evaluated_at)
+    shadow = materializer.build(
+        "1576804",
+        evaluated_at=evaluated_at,
+        source_event=_event(),
+    )
+
+    assert (
+        public.payload["input_manifest"]["advisory_policy_identity"]
+        == shadow.payload["input_manifest"]["advisory_policy_identity"]
+    )
 
 
 def test_missing_or_conflicting_scoped_inputs_fail_closed(
@@ -362,6 +525,27 @@ def test_payload_validation_rejects_fixture_identity_conflict(
 
     with pytest.raises(FrozenAnalysisError, match="fixture identity conflict"):
         validate_frozen_analysis_payload("other", artifact.payload)
+
+
+def test_payload_validation_rejects_advisory_policy_identity_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_projection(monkeypatch)
+    artifact = _materializer(ScopedRepository()).build(
+        "1576804",
+        evaluated_at=datetime(2026, 7, 18, 5, 0, tzinfo=UTC),
+    )
+    body = deepcopy(artifact.payload)
+    body.pop("artifact_hash")
+    body["input_manifest"]["advisory_policy_identity"]["validation_status"] = "VALID"
+    identity = body["input_manifest"]["advisory_policy_identity"]
+    identity["identity_hash"] = canonical_sha256(
+        {key: value for key, value in identity.items() if key != "identity_hash"}
+    )
+    payload = {**body, "artifact_hash": canonical_sha256(body)}
+
+    with pytest.raises(FrozenAnalysisError, match="policy identity mismatch"):
+        validate_frozen_analysis_payload("1576804", payload)
 
 
 def test_public_projection_preserves_original_active_payload_and_hash_contract(

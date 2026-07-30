@@ -458,8 +458,8 @@ def test_advisory_delta_policy_keeps_real_like_insufficient_sample_at_zero() -> 
     )
 
     assert policy["status"] == "INSUFFICIENT_ADVISORY_CANONICAL_SAMPLE"
-    assert policy["advisory_canonical_settled_count"] == 16
-    assert policy["applied_delta"] == 0.0
+    assert policy["current_advisory_canonical_settled_count"] == 16
+    assert policy["calibration_applied_delta"] == 0.0
     assert policy["watch_only"] is False
 
 
@@ -477,11 +477,11 @@ def test_advisory_delta_policy_calibrates_q10_and_respects_zero_floor() -> None:
 
     assert positive["status"] == "READY"
     assert positive["bootstrap_iterations"] == 10_000
-    assert positive["lower_bound_80"] == pytest.approx(0.15)
-    assert positive["applied_delta"] == pytest.approx(0.15)
+    assert positive["calibration_lower_bound_80"] == pytest.approx(0.15)
+    assert positive["calibration_applied_delta"] == pytest.approx(0.15)
     assert positive["watch_only"] is True
-    assert floored["lower_bound_80"] < 0
-    assert floored["applied_delta"] == 0.0
+    assert floored["calibration_lower_bound_80"] < 0
+    assert floored["calibration_applied_delta"] == 0.0
 
 
 def test_advisory_delta_policy_recalibrates_only_on_step_or_age() -> None:
@@ -506,9 +506,23 @@ def test_advisory_delta_policy_recalibrates_only_on_step_or_age() -> None:
         now=KICKOFF + timedelta(days=90),
     )
 
-    assert retained["applied_delta"] == initial["applied_delta"]
+    assert retained["calibration_applied_delta"] == initial["calibration_applied_delta"]
     assert retained["last_calibrated_at"] == initial["last_calibrated_at"]
+    for key in (
+        "calibration_source_fixture_hash",
+        "calibration_bootstrap_seed",
+        "calibration_window_fixture_count",
+        "calibration_strict_clv_sample_count",
+        "calibration_advisory_clv_sample_count",
+        "calibration_strict_clv_mean",
+        "calibration_advisory_clv_mean",
+        "calibration_lower_bound_80",
+    ):
+        assert retained[key] == initial[key]
+    assert retained["current_population_hash"] != initial["current_population_hash"]
+    assert retained["current_advisory_canonical_settled_count"] == 99
     assert by_count["last_calibrated_settled_count"] == 100
+    assert by_count["calibration_source_fixture_hash"] == by_count["current_population_hash"]
     assert by_age["last_calibrated_at"] != initial["last_calibrated_at"]
 
 
@@ -557,10 +571,10 @@ def test_advisory_policy_uses_exact_90d_window_and_stable_source_hash() -> None:
 
     assert policy["scoring_window_anchor"] == KICKOFF.isoformat().replace("+00:00", "Z")
     assert policy["window_start"] == start.isoformat().replace("+00:00", "Z")
-    assert policy["window_fixture_count"] == 2
-    assert policy["advisory_canonical_settled_count"] == 2
-    assert policy["source_fixture_hash"] == reversed_policy["source_fixture_hash"]
-    assert policy["source_fixture_hash"] == without_lifetime["source_fixture_hash"]
+    assert policy["current_window_fixture_count"] == 2
+    assert policy["current_advisory_canonical_settled_count"] == 2
+    assert policy["current_population_hash"] == reversed_policy["current_population_hash"]
+    assert policy["current_population_hash"] == without_lifetime["current_population_hash"]
 
 
 def _rehash_policy(payload: dict[str, object]) -> dict[str, object]:
@@ -592,7 +606,7 @@ def _corrupted_policy_checkpoint(
 @pytest.mark.parametrize(
     ("field", "value"),
     (
-        ("applied_delta", -0.1),
+        ("calibration_applied_delta", -0.1),
         ("effective_threshold", 999.0),
         ("bootstrap_iterations", 9999),
         ("last_calibrated_at", None),
@@ -659,7 +673,7 @@ def test_policy_checkpoint_integrity_rejects_hash_and_source_hash_mismatch() -> 
 @pytest.mark.parametrize(
     ("advisory_count", "field", "value"),
     (
-        (16, "applied_delta", 0.1),
+        (16, "calibration_applied_delta", 0.1),
         (50, "last_calibrated_at", (KICKOFF + timedelta(seconds=1)).isoformat()),
     ),
 )
@@ -674,7 +688,7 @@ def test_policy_checkpoint_integrity_rejects_state_specific_corruption(
         now=KICKOFF,
     )
     overrides = {field: value}
-    if field == "applied_delta":
+    if field == "calibration_applied_delta":
         overrides["effective_threshold"] = value
     corrupted = _rehash_policy({**payload, **overrides})
 
@@ -694,17 +708,17 @@ def test_policy_checkpoint_integrity_rejects_state_specific_corruption(
 @pytest.mark.parametrize(
     ("remove", "changes"),
     (
-        ("strict_clv_mean", {}),
-        ("advisory_clv_mean", {}),
+        ("current_strict_clv_mean", {}),
+        ("current_advisory_clv_mean", {}),
         ("next_recalibration_at", {}),
-        (None, {"advisory_canonical_settled_count": 49}),
+        (None, {"current_advisory_canonical_settled_count": 49}),
         (None, {"last_calibrated_settled_count": 49}),
-        (None, {"bootstrap_seed": 0}),
-        (None, {"strict_clv_mean": None}),
-        (None, {"advisory_clv_mean": None}),
-        (None, {"strict_clv_mean": float("nan")}),
-        (None, {"advisory_clv_mean": float("inf")}),
-        (None, {"advisory_clv_mean": float("-inf")}),
+        (None, {"calibration_bootstrap_seed": 0}),
+        (None, {"current_strict_clv_mean": None}),
+        (None, {"current_advisory_clv_mean": None}),
+        (None, {"current_strict_clv_mean": float("nan")}),
+        (None, {"current_advisory_clv_mean": float("inf")}),
+        (None, {"current_advisory_clv_mean": float("-inf")}),
         (None, {"watch_only": False}),
         (None, {"next_recalibration_at": (KICKOFF + timedelta(days=89)).isoformat()}),
         (None, {"next_recalibration_at": (KICKOFF - timedelta(days=1)).isoformat()}),
@@ -747,8 +761,12 @@ def test_ready_policy_rejects_rehashed_false_watch_only_corruption() -> None:
 @pytest.mark.parametrize(
     ("tier", "count_field", "mean_field"),
     (
-        ("STRICT", "strict_clv_sample_count", "strict_clv_mean"),
-        ("ADVISORY", "advisory_clv_sample_count", "advisory_clv_mean"),
+        ("STRICT", "current_strict_clv_sample_count", "current_strict_clv_mean"),
+        (
+            "ADVISORY",
+            "current_advisory_clv_sample_count",
+            "current_advisory_clv_mean",
+        ),
     ),
 )
 def test_policy_rejects_rehashed_count_mean_mismatch(
@@ -788,6 +806,58 @@ def test_policy_expiry_boundary_is_inclusive_then_fails_one_microsecond_later() 
             as_of=expires_at + timedelta(microseconds=1),
         )
         is False
+    )
+
+
+def test_policy_valid_from_boundaries_are_inclusive_and_fail_closed() -> None:
+    ready = build_advisory_blind_spot_policy(
+        _performance_rows(50),
+        existing=None,
+        now=KICKOFF,
+    )
+    insufficient = build_advisory_blind_spot_policy(
+        _performance_rows(16),
+        existing=None,
+        now=KICKOFF,
+    )
+    ready_checkpoint = _policy_checkpoint(ready, created_at=KICKOFF)
+    insufficient_checkpoint = _policy_checkpoint(insufficient, created_at=KICKOFF)
+
+    assert validate_advisory_blind_spot_policy(ready_checkpoint, as_of=KICKOFF)
+    assert not validate_advisory_blind_spot_policy(
+        ready_checkpoint,
+        as_of=KICKOFF - timedelta(microseconds=1),
+    )
+    assert validate_advisory_blind_spot_policy(insufficient_checkpoint, as_of=KICKOFF)
+    assert not validate_advisory_blind_spot_policy(
+        insufficient_checkpoint,
+        as_of=KICKOFF - timedelta(microseconds=1),
+    )
+
+
+def test_calibration_lower_bound_is_reproducible_from_persisted_corpus() -> None:
+    policy = build_advisory_blind_spot_policy(
+        _performance_rows(50),
+        existing=None,
+        now=KICKOFF,
+    )
+    reversed_policy = build_advisory_blind_spot_policy(
+        dict(reversed(list(_performance_rows(50).items()))),
+        existing=None,
+        now=KICKOFF,
+    )
+
+    assert policy["business_projection_hash"] == reversed_policy["business_projection_hash"]
+    assert validate_advisory_blind_spot_policy(
+        _policy_checkpoint(policy, created_at=KICKOFF)
+    )
+    assert not validate_advisory_blind_spot_policy(
+        _corrupted_policy_checkpoint(
+            policy,
+            calibration_lower_bound_80=0.123,
+            calibration_applied_delta=0.123,
+            effective_threshold=0.123,
+        )
     )
 
 

@@ -67,6 +67,7 @@ staging:
   eval_01a_exact_head_acceptance: PASS
   eval_01b_exact_head_acceptance: PASS
   eval_01c_exact_head_acceptance: PASS
+  eval_02a_exact_head_acceptance: NOT_STARTED_FOR_NEW_HEAD
 architecture_convergence:
   status: PASS
   receipt: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md

@@ -92,6 +92,7 @@ def _artifact(
                 "captured_at": "2026-07-18T04:00:00Z",
             },
         },
+        "lineup_provenance": {"requirement": "STRICT"},
     }
     manifest = {
         "evaluated_at": "2026-07-18T05:00:00Z",
@@ -104,6 +105,7 @@ def _artifact(
         "analysis_evidence_sha256": "6" * 64,
         "capability_manifest_sha256": "7" * 64,
         "lineup_policy_version": "w2.lineup_market_policy.v1",
+        "advisory_policy_identity": {"applicability": "NOT_APPLICABLE_STRICT"},
     }
     body = {
         "schema_version": ANALYSIS_CARD_CANARY_SCHEMA,

@@ -11,7 +11,7 @@ from statistics import fmean
 from typing import Any
 
 POLICY_CHECKPOINT_KEY = "performance:policy:advisory-blind-spot"
-POLICY_SCHEMA_VERSION = "w2.advisory_blind_spot_policy.v1"
+POLICY_SCHEMA_VERSION = "w2.advisory_blind_spot_policy.v2"
 BOOTSTRAP_ITERATIONS = 10_000
 MIN_ADVISORY_SETTLED = 50
 RECALIBRATION_SETTLED_STEP = 50
@@ -63,15 +63,15 @@ def build_advisory_blind_spot_policy(
         if anchor is not None
         else []
     )
-    strict = _clv_values(rows, "STRICT")
-    advisory = _clv_values(rows, "ADVISORY")
+    strict = sorted(_clv_values(rows, "STRICT"))
+    advisory = sorted(_clv_values(rows, "ADVISORY"))
     advisory_settled = sum(
         1
         for row in rows
         if row.get("evaluation_tier") == "ADVISORY"
         and row.get("canonical_settlement_outcome") in {"HIT", "MISS", "PUSH", "VOID"}
     )
-    source_fixture_hash = _hash(
+    current_population_hash = _hash(
         {
             "fixtures": [
                 {
@@ -101,43 +101,47 @@ def build_advisory_blind_spot_policy(
     )
     strict_mean = fmean(strict) if strict else None
     advisory_mean = fmean(advisory) if advisory else None
-    seed = int(source_fixture_hash[:16], 16)
     existing_payload = _validated_payload(existing)
     should_calibrate = status == "READY" and _recalibration_due(
         existing_payload,
         advisory_settled=advisory_settled,
         now=now,
     )
-    lower_bound: float | None
-    applied_delta: float
-    last_calibrated_at: str | None
-    last_calibrated_settled_count: int
+    calibration: dict[str, Any]
     if should_calibrate:
+        seed = int(current_population_hash[:16], 16)
         lower_bound = _independent_bootstrap_q10(strict, advisory, seed=seed)
-        applied_delta = max(0.0, lower_bound)
-        last_calibrated_at = _iso(now)
-        last_calibrated_settled_count = advisory_settled
+        calibration = {
+            "calibration_source_fixture_hash": current_population_hash,
+            "calibration_bootstrap_seed": seed,
+            "calibration_window_fixture_count": len(rows),
+            "calibration_strict_clv_sample_count": len(strict),
+            "calibration_advisory_clv_sample_count": len(advisory),
+            "calibration_advisory_canonical_settled_count": advisory_settled,
+            "calibration_strict_clv_mean": fmean(strict),
+            "calibration_advisory_clv_mean": fmean(advisory),
+            "calibration_strict_clv_values": strict,
+            "calibration_advisory_clv_values": advisory,
+            "calibration_lower_bound_80": lower_bound,
+            "calibration_applied_delta": max(0.0, lower_bound),
+            "last_calibrated_at": _iso(now),
+            "last_calibrated_settled_count": advisory_settled,
+        }
     elif existing_payload is not None:
-        lower_bound = _number(existing_payload.get("lower_bound_80"))
-        applied_delta = _number(existing_payload.get("applied_delta")) or 0.0
-        last_calibrated_at = _optional_text(existing_payload.get("last_calibrated_at"))
-        last_calibrated_settled_count = int(
-            existing_payload.get("last_calibrated_settled_count") or 0
-        )
+        calibration = {
+            key: existing_payload[key]
+            for key in _CALIBRATION_FIELDS
+            if key != "next_recalibration_at"
+        }
     else:
-        lower_bound = None
-        applied_delta = 0.0
-        last_calibrated_at = None
-        last_calibrated_settled_count = 0
+        calibration = _empty_calibration()
     if status != "READY":
-        lower_bound = None
-        applied_delta = 0.0
-        last_calibrated_at = None
-        last_calibrated_settled_count = 0
+        calibration = _empty_calibration()
+    applied_delta = _number(calibration["calibration_applied_delta"]) or 0.0
     watch_only = bool(
         status == "READY" and advisory_mean is not None and advisory_mean - applied_delta <= 0
     )
-    calibrated_at = _parse_time(last_calibrated_at)
+    calibrated_at = _parse_time(calibration["last_calibrated_at"])
     payload = {
         "schema_version": POLICY_SCHEMA_VERSION,
         "status": status,
@@ -145,24 +149,20 @@ def build_advisory_blind_spot_policy(
         "scoring_window_anchor": _iso(anchor),
         "window_start": _iso(window_start),
         "window_end": _iso(anchor),
-        "window_fixture_count": len(rows),
-        "strict_clv_sample_count": len(strict),
-        "advisory_clv_sample_count": len(advisory),
-        "advisory_canonical_settled_count": advisory_settled,
-        "strict_clv_mean": strict_mean,
-        "advisory_clv_mean": advisory_mean,
+        "current_population_hash": current_population_hash,
+        "current_window_fixture_count": len(rows),
+        "current_strict_clv_sample_count": len(strict),
+        "current_advisory_clv_sample_count": len(advisory),
+        "current_advisory_canonical_settled_count": advisory_settled,
+        "current_strict_clv_mean": strict_mean,
+        "current_advisory_clv_mean": advisory_mean,
         "bootstrap_iterations": BOOTSTRAP_ITERATIONS,
-        "bootstrap_seed": seed,
-        "lower_bound_80": lower_bound,
-        "applied_delta": applied_delta,
+        **calibration,
         "effective_threshold": BASE_ADVISORY_EV_THRESHOLD + applied_delta,
         "watch_only": watch_only,
-        "last_calibrated_at": last_calibrated_at,
-        "last_calibrated_settled_count": last_calibrated_settled_count,
         "next_recalibration_at": (
             _iso(calibrated_at + RECALIBRATION_MAX_AGE) if calibrated_at is not None else None
         ),
-        "source_fixture_hash": source_fixture_hash,
     }
     return {**payload, "business_projection_hash": _hash(payload)}
 
@@ -183,28 +183,22 @@ def validate_advisory_blind_spot_policy(
         "scoring_window_anchor",
         "window_start",
         "window_end",
-        "window_fixture_count",
-        "strict_clv_sample_count",
-        "advisory_clv_sample_count",
-        "advisory_canonical_settled_count",
-        "strict_clv_mean",
-        "advisory_clv_mean",
+        "current_population_hash",
+        "current_window_fixture_count",
+        "current_strict_clv_sample_count",
+        "current_advisory_clv_sample_count",
+        "current_advisory_canonical_settled_count",
+        "current_strict_clv_mean",
+        "current_advisory_clv_mean",
         "bootstrap_iterations",
-        "bootstrap_seed",
-        "lower_bound_80",
-        "applied_delta",
         "effective_threshold",
         "watch_only",
-        "last_calibrated_at",
-        "last_calibrated_settled_count",
-        "next_recalibration_at",
-        "source_fixture_hash",
         "business_projection_hash",
-    }
+    } | _CALIBRATION_FIELDS
     if not required.issubset(payload):
         return False
     business_hash = str(payload.get("business_projection_hash") or "")
-    fixture_hash = str(payload.get("source_fixture_hash") or "")
+    population_hash = str(payload.get("current_population_hash") or "")
     if (
         payload.get("schema_version") != POLICY_SCHEMA_VERSION
         or payload.get("window") != "90d"
@@ -212,9 +206,8 @@ def validate_advisory_blind_spot_policy(
         or _hash({key: item for key, item in payload.items() if key != "business_projection_hash"})
         != business_hash
         or _SHA256.fullmatch(business_hash) is None
-        or _SHA256.fullmatch(fixture_hash) is None
+        or _SHA256.fullmatch(population_hash) is None
         or payload.get("bootstrap_iterations") != BOOTSTRAP_ITERATIONS
-        or payload.get("bootstrap_seed") != int(fixture_hash[:16], 16)
         or type(payload.get("watch_only")) is not bool
     ):
         return False
@@ -222,34 +215,35 @@ def validate_advisory_blind_spot_policy(
     start = _parse_time(payload.get("window_start"))
     end = _parse_time(payload.get("window_end"))
     created_at = _utc(checkpoint.created_at)
+    decision_at = _utc(as_of)
     if (
         anchor is None
         or start is None
         or end != anchor
         or start != anchor - POLICY_WINDOW
         or created_at is None
+        or (decision_at is not None and created_at > decision_at)
     ):
         return False
     counts = [
         _nonnegative_int(payload.get(key))
         for key in (
-            "window_fixture_count",
-            "strict_clv_sample_count",
-            "advisory_clv_sample_count",
-            "advisory_canonical_settled_count",
-            "last_calibrated_settled_count",
+            "current_window_fixture_count",
+            "current_strict_clv_sample_count",
+            "current_advisory_clv_sample_count",
+            "current_advisory_canonical_settled_count",
         )
     ]
     if any(item is None for item in counts):
         return False
-    window_count, strict_count, advisory_count, settled_count, calibrated_count = (
+    window_count, strict_count, advisory_count, settled_count = (
         int(item) for item in counts if item is not None
     )
-    delta = _number(payload.get("applied_delta"))
+    delta = _number(payload.get("calibration_applied_delta"))
     threshold = _number(payload.get("effective_threshold"))
-    lower_bound = _number(payload.get("lower_bound_80"))
-    strict_mean = _number(payload.get("strict_clv_mean"))
-    advisory_mean = _number(payload.get("advisory_clv_mean"))
+    lower_bound = _number(payload.get("calibration_lower_bound_80"))
+    strict_mean = _number(payload.get("current_strict_clv_mean"))
+    advisory_mean = _number(payload.get("current_advisory_clv_mean"))
     if (
         delta is None
         or delta < 0
@@ -259,12 +253,12 @@ def validate_advisory_blind_spot_policy(
         or advisory_count > window_count
         or settled_count > window_count
         or not _mean_matches_count(
-            payload.get("strict_clv_mean"),
+            payload.get("current_strict_clv_mean"),
             count=strict_count,
             parsed=strict_mean,
         )
         or not _mean_matches_count(
-            payload.get("advisory_clv_mean"),
+            payload.get("current_advisory_clv_mean"),
             count=advisory_count,
             parsed=advisory_mean,
         )
@@ -273,42 +267,86 @@ def validate_advisory_blind_spot_policy(
     status = payload.get("status")
     last_at = _parse_time(payload.get("last_calibrated_at"))
     next_at = _parse_time(payload.get("next_recalibration_at"))
-    decision_at = _utc(as_of)
     if status == "INSUFFICIENT_ADVISORY_CANONICAL_SAMPLE":
         return (
             settled_count < MIN_ADVISORY_SETTLED
             and delta == 0
-            and payload.get("lower_bound_80") is None
             and payload.get("watch_only") is False
-            and payload.get("last_calibrated_at") is None
-            and calibrated_count == 0
-            and payload.get("next_recalibration_at") is None
+            and _calibration_is_empty(payload)
         )
     if status == "INSUFFICIENT_CLV_SAMPLE":
         return (
             settled_count >= MIN_ADVISORY_SETTLED
             and (strict_count == 0 or advisory_count == 0)
             and delta == 0
-            and payload.get("lower_bound_80") is None
             and payload.get("watch_only") is False
-            and payload.get("last_calibrated_at") is None
-            and calibrated_count == 0
-            and payload.get("next_recalibration_at") is None
+            and _calibration_is_empty(payload)
         )
     if status != "READY":
         return False
+    calibration_hash = str(payload.get("calibration_source_fixture_hash") or "")
+    seed = _nonnegative_int(payload.get("calibration_bootstrap_seed"))
+    calibration_counts = [
+        _nonnegative_int(payload.get(key))
+        for key in (
+            "calibration_window_fixture_count",
+            "calibration_strict_clv_sample_count",
+            "calibration_advisory_clv_sample_count",
+            "calibration_advisory_canonical_settled_count",
+            "last_calibrated_settled_count",
+        )
+    ]
+    calibration_strict = _number_list(payload.get("calibration_strict_clv_values"))
+    calibration_advisory = _number_list(payload.get("calibration_advisory_clv_values"))
+    if (
+        _SHA256.fullmatch(calibration_hash) is None
+        or seed is None
+        or seed != int(calibration_hash[:16], 16)
+        or any(item is None for item in calibration_counts)
+        or calibration_strict is None
+        or calibration_advisory is None
+    ):
+        return False
+    (
+        calibration_window_count,
+        calibration_strict_count,
+        calibration_advisory_count,
+        calibration_settled_count,
+        calibrated_count,
+    ) = (int(item) for item in calibration_counts if item is not None)
+    calibration_strict_mean = _number(payload.get("calibration_strict_clv_mean"))
+    calibration_advisory_mean = _number(payload.get("calibration_advisory_clv_mean"))
+    reproduced_lower = _independent_bootstrap_q10(
+        calibration_strict,
+        calibration_advisory,
+        seed=seed,
+    )
     return bool(
         settled_count >= MIN_ADVISORY_SETTLED
         and strict_count > 0
         and advisory_count > 0
         and strict_mean is not None
         and advisory_mean is not None
+        and calibration_window_count >= calibration_strict_count
+        and calibration_window_count >= calibration_advisory_count
+        and calibration_window_count >= calibration_settled_count
+        and calibration_settled_count == calibrated_count
+        and len(calibration_strict) == calibration_strict_count
+        and len(calibration_advisory) == calibration_advisory_count
+        and calibration_strict_mean is not None
+        and calibration_advisory_mean is not None
+        and abs(fmean(calibration_strict) - calibration_strict_mean) <= 1e-12
+        and abs(fmean(calibration_advisory) - calibration_advisory_mean) <= 1e-12
         and last_at is not None
         and last_at <= created_at
-        and MIN_ADVISORY_SETTLED <= calibrated_count <= settled_count
+        and calibrated_count >= MIN_ADVISORY_SETTLED
         and next_at == last_at + RECALIBRATION_MAX_AGE
-        and (decision_at is None or (next_at is not None and decision_at <= next_at))
+        and (
+            decision_at is None
+            or (next_at is not None and last_at <= decision_at <= next_at)
+        )
         and lower_bound is not None
+        and abs(lower_bound - reproduced_lower) <= 1e-12
         and abs(delta - max(0.0, lower_bound)) <= 1e-12
         and payload.get("watch_only") is (advisory_mean - delta <= 0)
     )
@@ -371,6 +409,65 @@ def _recalibration_due(
         advisory_settled - last_count >= RECALIBRATION_SETTLED_STEP
         or last_at is None
         or now - last_at >= RECALIBRATION_MAX_AGE
+    )
+
+
+_CALIBRATION_FIELDS = {
+    "calibration_source_fixture_hash",
+    "calibration_bootstrap_seed",
+    "calibration_window_fixture_count",
+    "calibration_strict_clv_sample_count",
+    "calibration_advisory_clv_sample_count",
+    "calibration_advisory_canonical_settled_count",
+    "calibration_strict_clv_mean",
+    "calibration_advisory_clv_mean",
+    "calibration_strict_clv_values",
+    "calibration_advisory_clv_values",
+    "calibration_lower_bound_80",
+    "calibration_applied_delta",
+    "last_calibrated_at",
+    "last_calibrated_settled_count",
+    "next_recalibration_at",
+}
+
+
+def _empty_calibration() -> dict[str, Any]:
+    return {
+        "calibration_source_fixture_hash": None,
+        "calibration_bootstrap_seed": None,
+        "calibration_window_fixture_count": 0,
+        "calibration_strict_clv_sample_count": 0,
+        "calibration_advisory_clv_sample_count": 0,
+        "calibration_advisory_canonical_settled_count": 0,
+        "calibration_strict_clv_mean": None,
+        "calibration_advisory_clv_mean": None,
+        "calibration_strict_clv_values": [],
+        "calibration_advisory_clv_values": [],
+        "calibration_lower_bound_80": None,
+        "calibration_applied_delta": 0.0,
+        "last_calibrated_at": None,
+        "last_calibrated_settled_count": 0,
+    }
+
+
+def _calibration_is_empty(payload: Mapping[str, Any]) -> bool:
+    return all(
+        payload.get(key) == value
+        for key, value in {
+            **_empty_calibration(),
+            "next_recalibration_at": None,
+        }.items()
+    )
+
+
+def _number_list(value: Any) -> list[float] | None:
+    if not isinstance(value, list):
+        return None
+    parsed = [_number(item) for item in value]
+    return (
+        [float(item) for item in parsed if item is not None]
+        if all(item is not None for item in parsed)
+        else None
     )
 
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -22,6 +22,10 @@ from w2.prematch.lifecycle import (
     classify_evaluation,
 )
 from w2.prematch.repository import DynamicPrematchRepository
+from w2.tracking.advisory_blind_spot_policy import (
+    POLICY_CHECKPOINT_KEY,
+    validate_advisory_blind_spot_policy,
+)
 
 ANALYSIS_CARD_CANARY_SCHEMA = "w2.analysis-card.frozen.v1"
 ANALYSIS_EVIDENCE_CONTRACT_VERSION = "w2.analysis-market-evidence.v2"
@@ -332,6 +336,7 @@ class AnalysisCardCanaryMaterializer:
         )
         if card is None:
             raise FrozenAnalysisError("analysis-card projection unavailable")
+        card = _scope_advisory_policy(card)
         if str(card.get("fixture_id") or "") != fixture_id:
             raise FrozenAnalysisError("analysis-card fixture identity conflict")
         input_manifest = {
@@ -352,6 +357,10 @@ class AnalysisCardCanaryMaterializer:
                 (card.get("lineup_provenance") or {}).get("policy_version")
                 if isinstance(card.get("lineup_provenance"), dict)
                 else "w2.lineup_market_policy.v1"
+            ),
+            "advisory_policy_identity": _advisory_policy_identity(
+                card,
+                evaluated_at=evaluated_at,
             ),
         }
         evaluations = tuple(_dynamic_evaluations(card, input_manifest))
@@ -380,6 +389,7 @@ class AnalysisCardCanaryMaterializer:
         )
         if read_time_reference is None:
             raise FrozenAnalysisError("analysis-card read-time reference unavailable")
+        read_time_reference = _scope_advisory_policy(read_time_reference)
         if str(read_time_reference.get("fixture_id") or "") != fixture_id:
             raise FrozenAnalysisError("analysis-card read-time fixture identity conflict")
 
@@ -463,9 +473,18 @@ def validate_frozen_analysis_payload(
         "analysis_evidence_sha256",
         "capability_manifest_sha256",
         "lineup_policy_version",
+        "advisory_policy_identity",
     }
     if not required_evidence.issubset(manifest):
         raise FrozenAnalysisError("frozen analysis evidence missing")
+    _validate_advisory_policy_identity(manifest["advisory_policy_identity"])
+    evaluated_at = _parse_utc(manifest.get("evaluated_at"))
+    if (
+        evaluated_at is None
+        or manifest["advisory_policy_identity"]
+        != _advisory_policy_identity(card, evaluated_at=evaluated_at)
+    ):
+        raise FrozenAnalysisError("advisory policy identity mismatch")
     if str(card.get("fixture_id") or "") != fixture_id:
         raise FrozenAnalysisError("checkpoint card identity conflict")
     has_projection_metadata = "projection_version" in payload
@@ -552,6 +571,89 @@ def _projection_business_hash(payload: dict[str, Any]) -> str:
             if key not in {"last_projected_at", "projection_hash", "artifact_hash"}
         }
     )
+
+
+_ADVISORY_POLICY_IDENTITY_FIELDS = (
+    "applicability",
+    "checkpoint_key",
+    "schema_version",
+    "status",
+    "source_hash",
+    "business_projection_hash",
+    "created_at",
+    "last_calibrated_at",
+    "next_recalibration_at",
+    "validation_status",
+)
+
+
+def _scope_advisory_policy(card: dict[str, Any]) -> dict[str, Any]:
+    lineup = card.get("lineup_provenance")
+    if (
+        isinstance(lineup, Mapping)
+        and lineup.get("requirement") == "STRICT"
+        and "advisory_blind_spot_policy" in card
+    ):
+        return {
+            key: value
+            for key, value in card.items()
+            if key != "advisory_blind_spot_policy"
+        }
+    return card
+
+
+def _advisory_policy_identity(
+    card: Mapping[str, Any],
+    *,
+    evaluated_at: datetime,
+) -> dict[str, Any]:
+    lineup = card.get("lineup_provenance")
+    if isinstance(lineup, Mapping) and lineup.get("requirement") == "STRICT":
+        return {"applicability": "NOT_APPLICABLE_STRICT"}
+    checkpoint = card.get("advisory_blind_spot_policy")
+    checkpoint = checkpoint if isinstance(checkpoint, Mapping) else {}
+    payload = checkpoint.get("payload")
+    payload = payload if isinstance(payload, Mapping) else {}
+    body = {
+        "applicability": "APPLICABLE_ADVISORY",
+        "checkpoint_key": checkpoint.get("checkpoint_key"),
+        "schema_version": payload.get("schema_version"),
+        "status": payload.get("status"),
+        "source_hash": checkpoint.get("source_hash"),
+        "business_projection_hash": payload.get("business_projection_hash"),
+        "created_at": checkpoint.get("created_at"),
+        "last_calibrated_at": payload.get("last_calibrated_at"),
+        "next_recalibration_at": payload.get("next_recalibration_at"),
+        "validation_status": (
+            "VALID"
+            if validate_advisory_blind_spot_policy(checkpoint, as_of=evaluated_at)
+            else "MISSING"
+            if not checkpoint
+            else "INVALID"
+        ),
+    }
+    return {**body, "identity_hash": canonical_sha256(body)}
+
+
+def _validate_advisory_policy_identity(value: Any) -> None:
+    if value == {"applicability": "NOT_APPLICABLE_STRICT"}:
+        return
+    if not isinstance(value, dict) or set(value) != {
+        *_ADVISORY_POLICY_IDENTITY_FIELDS,
+        "identity_hash",
+    }:
+        raise FrozenAnalysisError("advisory policy identity incomplete")
+    body = {key: value[key] for key in _ADVISORY_POLICY_IDENTITY_FIELDS}
+    if (
+        value.get("applicability") != "APPLICABLE_ADVISORY"
+        or value.get("validation_status") not in {"VALID", "INVALID", "MISSING"}
+        or value.get("identity_hash") != canonical_sha256(body)
+        or (
+            value.get("checkpoint_key") is not None
+            and value.get("checkpoint_key") != POLICY_CHECKPOINT_KEY
+        )
+    ):
+        raise FrozenAnalysisError("advisory policy identity invalid")
 
 
 def _difference_fields(reference: object, projected: object, *, path: str = "") -> list[str]:
