@@ -647,10 +647,70 @@ Conclusion: CLV 第一 KPI、全量校准、STRICT/ADVISORY 分层、canonical �
 #### B4. EVAL-02A：首发盲区防护（防守面，先于增量验证）
 
 ```text
-Status: NOT_STARTED
+Status: IN_PROGRESS
+Branch: codex/eval-02a-lineup-blind-spot-defense
+PR: #434
 ```
 
 **目标**：ADVISORY 联赛（无赛前首发）的 pick 不再裸奔；盲区里"模型大幅打赢市场"按逆向选择风险处理。
+
+**预注册参数（本任务冻结，不随测试结果调整）**：
+
+```text
+MARKET_TIMELINE_AUTHORITY = matchday_market_observations
+LINEUP_HISTORY_AUTHORITY = structured_lineup_snapshots + structured_lineup_players
+TEAM_BASELINE_AUTHORITY = team_lineup_baselines
+PERFORMANCE_AUTHORITY = performance:fixture:* + performance:cohort:*
+POLICY_CHECKPOINT = performance:policy:advisory-blind-spot
+NEW_TABLE_COUNT = 0
+NEW_MIGRATION_COUNT = 0
+NEW_PROVIDER_PATH_COUNT = 0
+NEW_CONFIG_AUTHORITY_COUNT = 0
+
+DIVERGENCE_SCHEMA_VERSION = w2.divergence_origin.v1
+DIVERGENCE_FORMULA_VERSION = eval-02a.v1
+opening_ev = model_probability * opening_decimal_odds - 1
+current_ev = model_probability * current_decimal_odds - 1
+movement_created_ev = max(current_ev - max(opening_ev, 0), 0)
+movement_ev_share = clamp(movement_created_ev / max(current_ev, 1e-12), 0, 1)
+divergence_age_ratio = clamp(max(min(opening_ev, current_ev), 0) / max(current_ev, 1e-12), 0, 1)
+movement_ev_share > 0.5 = MOVEMENT_CREATED_DIVERGENCE
+movement_ev_share == 0.5 = not MOVEMENT_CREATED_DIVERGENCE
+non-moved and divergence_age_ratio >= 0.6 = STABLE_DIVERGENCE
+otherwise = INDETERMINATE
+effective risk: MOVEMENT_CREATED_DIVERGENCE -> MOVED
+effective risk: INDETERMINATE -> MOVED_CONSERVATIVE
+effective risk: STABLE_DIVERGENCE -> STABLE
+
+ROTATION_PRIOR_SCHEMA_VERSION = w2.team_rotation_prior.v1
+confirmed pre-kickoff complete XI only; latest snapshot per fixture; latest 6 matches
+turnover_i = (11 - starter_overlap_i) / 11
+rotation_rate = arithmetic mean of latest 5 turnovers
+transition_count >= 4 = READY
+rotation_rate >= 4 / 11 = HIGH_ROTATION
+
+ADVISORY_DELTA_SCHEMA_VERSION = w2.advisory_blind_spot_policy.v1
+initial delta = 0.0
+window = 90d
+minimum advisory canonical settled = 50
+bootstrap iterations = 10000
+bootstrap seed = deterministic source hash
+lower_bound_80 = q10(STRICT mean CLV - ADVISORY mean CLV bootstrap distribution)
+delta = max(0, lower_bound_80)
+recalibrate after 50 new ADVISORY canonical settled or 90 days
+effective_advisory_ev_threshold = existing_threshold + delta
+ADVISORY rolling CLV mean - delta <= 0 = watch_only
+
+PERFORMANCE_SCHEMA_VERSION = w2.performance_projection.v3
+PERFORMANCE_PROJECTION_VERSION = eval-02a.v1
+lineup_deviation = 1 - starter_continuity
+canonical MISS and selected deviation >= 4/11 or high rotation = ROTATION_ASSOCIATED
+canonical MISS with complete lower deviation evidence = NON_ROTATION_RESIDUAL
+canonical MISS with incomplete evidence = INSUFFICIENT_EVIDENCE
+non-MISS = NOT_LOSS
+STRICT = NOT_APPLICABLE_STRICT
+causal_claim = false
+```
 
 - [ ] **分歧成因分类器**（写侧 `analysis_calculator`）：用 `matchday_market_observations`
       timeline 计算 `divergence_age_ratio` 与 `movement_ev_share`，按第三节授权基准 (b)
