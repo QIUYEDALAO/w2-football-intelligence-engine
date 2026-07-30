@@ -65,12 +65,10 @@ tasks:
       lineup_confirmed_events: 0
       exact_pre_post_pairs: 0
       results_without_unique_canonical_competition_season_identity: 35
-    contract_blocker:
-      - 120 total pairs vs 500 validation rows
-      - 10000 bootstrap vs 2000
-      - per-league scope vs minimum_competitions=3
-      - RPS/coverage guards not pre-registered
-    next_required_decision: PRE_REGISTRATION_CONTRACT_REMEDIATION_AND_DATA_ACQUISITION_AUTHORITY
+    contract_authority: FROZEN
+    data_acquisition_plan: AUTHORIZED
+    runtime_collection_authorized: false
+    next_required_action: IDENTITY_REMEDIATION_DESIGN
   EVAL-03:
     status: NOT_STARTED
 safety:

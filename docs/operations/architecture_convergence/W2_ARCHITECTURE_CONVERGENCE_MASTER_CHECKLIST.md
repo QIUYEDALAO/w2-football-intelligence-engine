@@ -764,15 +764,178 @@ lineup_confirmed_events 0
 exact pre/post pairs 0
 35 results 缺唯一 canonical competition/season identity
 
-CONTRACT_BLOCKER =
-120 total pairs vs 500 validation rows
-10000 bootstrap vs 2000
-per-league scope vs minimum_competitions=3
-RPS/coverage guards 未预注册
-
-NEXT_REQUIRED_DECISION =
-PRE_REGISTRATION_CONTRACT_REMEDIATION_AND_DATA_ACQUISITION_AUTHORITY
+CONTRACT_AUTHORITY = FROZEN
+DATA_ACQUISITION_PLAN = AUTHORIZED
+RUNTIME_COLLECTION_AUTHORIZED = false
+NEXT_REQUIRED_ACTION = IDENTITY_REMEDIATION_DESIGN
 ```
+
+**预注册门禁合同（已冻结）**：
+
+```text
+PAIR_SCOPE = PER_COMPETITION_X_MARKET
+PAIR_GRAIN = ONE_CANONICAL_FIXTURE_PAIR
+MINIMUM_ELIGIBLE_TOTAL_PAIRS = 120
+TIME_SPLIT = STRICT_CHRONOLOGICAL_70_30
+MINIMUM_VALIDATION_PAIRS = 36
+BOOTSTRAP_ITERATIONS = 10000
+BOOTSTRAP_UNIT = PAIRED_VALIDATION_FIXTURE
+MINIMUM_COMPETITIONS = NOT_APPLICABLE
+```
+
+`MINIMUM_ELIGIBLE_TOTAL_PAIRS = 120` 是严格时间切分前、每个 competition×market
+的合格总配对数；不得解释为 500 个验证样本。
+
+**评分合同（已冻结，实施仍阻塞）**：
+
+```text
+SETTLEMENT_STATE_ORDER =
+WIN, HALF_WIN, PUSH, HALF_LOSS, LOSS
+
+BASELINE_DISTRIBUTION =
+baseline_probability_by_settlement_state
+
+CANDIDATE_DISTRIBUTION =
+candidate_probability_by_settlement_state
+
+DISTRIBUTIONS_SHARE_IDENTICAL_STATE_SPACE = true
+DISTRIBUTION_VALUES_MAY_DIFFER = true
+PROBABILITY_VALUES = FINITE_AND_NON_NEGATIVE
+PROBABILITY_SUM_TOLERANCE = 1e-9
+LOG_LOSS_EPSILON = 1e-9
+OBSERVED_SETTLEMENT_STATE = REQUIRED
+MISSING_OR_INVALID_DISTRIBUTION = FAIL_CLOSED
+
+LL(distribution, observed_state) =
+-ln(max(distribution[observed_state], LOG_LOSS_EPSILON))
+
+paired_log_loss_improvement =
+LL(baseline_distribution, observed_state)
+-
+LL(candidate_distribution, observed_state)
+
+GATE_PASS =
+log_loss_improvement_ci_low > 0
+
+SCORING_IMPLEMENTATION = BLOCKED
+SCORING_IMPLEMENTATION_BLOCKER =
+COMPLETE_PERSISTED_BASELINE_AND_CANDIDATE_FIVE_STATE_DISTRIBUTIONS_UNAVAILABLE
+```
+
+Baseline 与 candidate 是两套独立概率向量；两者使用相同、有序的五态空间，但不要求
+概率值相等。每个概率必须 finite 且非负，概率和与 1 的差不得超过 `1e-9`，observed
+settlement state 必须属于冻结五态；任一分布缺失或非法均 fail-closed。整数盘、半盘和
+四分之一盘统一使用上述合同，不得把 PUSH、HALF_WIN 或 HALF_LOSS 转成二元 outcome。
+现有持久化证据不能提供完整的 baseline/candidate 五态分布，因此不得发明新公式，
+EVAL-02B 继续 fail-closed。
+
+```text
+CONTRACT_VERSION = w2.eval_02b_gate.v1
+
+ORDER_BY =
+kickoff_at ASC, canonical_fixture_id ASC
+
+VALIDATION_START_INDEX =
+floor(total_eligible_pairs * 0.70)
+
+VALIDATION_SET =
+ordered_pairs[VALIDATION_START_INDEX:]
+
+PAIR_IDENTITY_SERIALIZATION =
+UTF8_CANONICAL_JSON_SORTED_KEYS_COMPACT
+
+PAIR_IDENTITY_HASH =
+SHA256(PAIR_IDENTITY_SERIALIZATION)
+
+BOOTSTRAP_SEED_PAYLOAD =
+canonical_json({
+  contract_version,
+  validation_pair_identity_hashes:
+    sorted(validation_pair_identity_hashes)
+})
+
+BOOTSTRAP_SEED_HASH =
+SHA256(BOOTSTRAP_SEED_PAYLOAD)
+
+BOOTSTRAP_SEED =
+UNSIGNED_BIG_ENDIAN_UINT64(
+  FIRST_8_BYTES(BOOTSTRAP_SEED_HASH)
+)
+```
+
+Bootstrap 只重采样 validation fixture pairs；95% 区间固定取 2.5% 与 97.5% 分位数。
+Canonical JSON 禁止 NaN/Infinity，key 必须排序并使用 compact separators。相同
+validation pair 集合必须产生完全相同的整数 seed；相同输入必须产生相同的 split、
+seed 和 bootstrap 区间。
+
+```text
+RPS_ROLE = DIAGNOSTIC_ONLY
+COVERAGE_ROLE = DIAGNOSTIC_ONLY
+REVALIDATE_AFTER_DAYS = 90
+REVALIDATE_AFTER_NEW_PAIRS = 60
+CI_CONTAINS_ZERO = FREEZE_ADJUSTMENT_TO_ZERO
+```
+
+RPS 与 coverage 必须输出，但在新的预注册授权前不得作为 blocker。
+
+**配对身份（已冻结）**：
+
+- Pre/Post 必须属于同一 canonical fixture、competition、season、market、selection
+  和 exact line。
+- Pre 是首发确认前最后一个合格持久化评估；Post 是首发确认后第一个使用 fresh
+  exact quote 的合格评估。
+- 必须满足 `pre.evaluated_at < lineup_confirmed_at <= post.capture_at`；每场 fixture
+  只允许一个 pair。
+- 冲突、缺身份、缺赛果、跨赛季、跨联赛、marker-only 和 superseded 数据全部排除。
+- 禁止 fuzzy、名称猜测或跨 bookmaker/line 拼接。
+
+```text
+PAIR_QUOTE_SCOPE =
+SAME_PROVIDER_X_BOOKMAKER_X_MARKET_X_SELECTION_X_EXACT_LINE
+
+PRE_POST_PROVIDER_ID = SAME
+PRE_POST_BOOKMAKER_ID = SAME
+CAPTURE_ID = MAY_DIFFER
+QUOTE_IDENTITY_MISSING_OR_CONFLICTING = FAIL_CLOSED
+
+PAIR_IDENTITY_HASH_MINIMUM_FIELDS =
+canonical_fixture_id
+competition_id
+season_id
+provider_id
+bookmaker_id
+market
+selection
+exact_line
+pre_evaluation_id
+post_evaluation_id
+```
+
+Pre/Post 不得跨 provider、bookmaker、selection 或 line 配对。
+
+**数据获取权限方案（只授权方案，不授权启动）**：
+
+1. **Phase 1：身份修复。** 35 个历史 results 只能使用已持久化的
+   fixture/raw/capture provenance 建立 canonical competition/season 身份；仅精确唯一
+   映射允许写入，多义或缺失继续保持 blocker；不得调用 Provider，不得用 direct SQL
+   绕过写侧合同。后续实施必须使用独立、幂等、可回滚 PR。
+2. **Phase 2：写侧就绪。** 后续独立 PR 核验并补齐
+   `dynamic_prematch_evaluations`、`lineup_confirmed_events` 的真实写侧，以及 Pre/Post
+   自动配对所需的 exact identity；不得制造历史样本或使用 synthetic 数据充数。
+3. **Phase 3：真实未来采集。** 只有另行取得 activation 授权后，才允许启动 scheduler、
+   产生 Provider 请求并为真实未来比赛积累 paired samples。activation PR 必须先登记：
+
+```text
+LEAGUE_SCOPE
+MARKET_SCOPE
+ENDPOINT_SCOPE
+CAPTURE_CADENCE
+DAILY_REQUEST_BUDGET
+ROLLBACK
+PROVIDER_CALL_LIMIT
+```
+
+Recommendation、Candidate、Formal、Lock、Production 全程保持关闭。
 
 - [ ] **Tier-1 特征集（仅这四个，禁止顺手加特征）**：缺阵球员上季+本季出场分钟占比；
       按位置组（GK/DEF/MID/FWD）缺阵价值占比；XI 连续性计数（最近 5 场首发过的人数）；
