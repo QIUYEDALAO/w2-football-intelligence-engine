@@ -683,6 +683,15 @@ class ReadModelRepository:
         )
         return cast(dict[str, Any] | None, reader(fixture_id)) if callable(reader) else None
 
+    def canonical_lineup_confirmed_event(self, fixture_id: str) -> Any | None:
+        db_repository = future_refresh_db_repository()
+        reader = (
+            getattr(db_repository, "canonical_lineup_confirmed_event", None)
+            if db_repository is not None
+            else None
+        )
+        return reader(fixture_id) if callable(reader) else None
+
     def public_fixture_payloads(self, *, limit: int = 512) -> list[dict[str, Any]]:
         bounded_limit = max(0, min(int(limit), 1024))
         fixtures: dict[str, dict[str, Any]] = {}

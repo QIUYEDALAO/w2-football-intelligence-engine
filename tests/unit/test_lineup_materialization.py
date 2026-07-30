@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
+import pytest
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
@@ -12,6 +13,7 @@ from w2.infrastructure.persistence.factor_model_models import (
     ProviderTeamIdentityCrosswalkModel,
 )
 from w2.infrastructure.persistence.matchday_intake_models import (
+    MatchdayEndpointCaptureModel,
     MatchdayFixtureIdentityModel,
 )
 from w2.infrastructure.persistence.models import (
@@ -23,6 +25,7 @@ from w2.infrastructure.persistence.models import (
 )
 from w2.ingestion.future_refresh_repository import (
     FutureRefreshDbRepository,
+    FutureRefreshPersistenceError,
 )
 
 
@@ -216,46 +219,59 @@ def test_lineup_business_identity_ignores_repeat_capture_and_changes_with_xi() -
     Base.metadata.create_all(engine)
     repository = FutureRefreshDbRepository(engine=engine)
     first_at = datetime(2026, 7, 19, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add(
+            _fixture_identity(
+                fixture_id="api_football:901",
+                provider_fixture_id="901",
+                identity_hash="fixture-901",
+                kickoff=first_at + timedelta(days=1),
+            )
+        )
+        session.commit()
     payload = {"response": [_team(10, 100), _team(20, 200)]}
 
-    assert repository.confirmed_lineup_business_identity(fixture_id="fixture-1") is None
+    assert repository.confirmed_lineup_business_identity(fixture_id="901") is None
     assert (
         repository.save_lineup_snapshots(
-            fixture_id="fixture-1",
+            fixture_id="901",
             captured_at=first_at,
             raw_sha256="a" * 64,
             payload=payload,
+            source_capture_id="capture-a",
         )
         == 2
     )
-    first_identity = repository.confirmed_lineup_business_identity(fixture_id="fixture-1")
+    first_identity = repository.confirmed_lineup_business_identity(fixture_id="901")
     assert first_identity is not None
 
     repeat_payload = {"response": [_team(10, 100), _team(20, 200)]}
     repeat_payload["response"][0]["formation"] = "3-4-3"  # type: ignore[index]
     assert (
         repository.save_lineup_snapshots(
-            fixture_id="fixture-1",
+            fixture_id="901",
             captured_at=first_at.replace(hour=1),
             raw_sha256="b" * 64,
             payload=repeat_payload,
+            source_capture_id="capture-b",
         )
         == 2
     )
-    assert repository.confirmed_lineup_business_identity(fixture_id="fixture-1") == first_identity
+    assert repository.confirmed_lineup_business_identity(fixture_id="901") == first_identity
 
     changed_payload = {"response": [_team(10, 100), _team(20, 200)]}
     changed_payload["response"][1]["startXI"][10]["player"]["id"] = 999  # type: ignore[index]
     assert (
         repository.save_lineup_snapshots(
-            fixture_id="fixture-1",
+            fixture_id="901",
             captured_at=first_at.replace(hour=2),
             raw_sha256="c" * 64,
             payload=changed_payload,
+            source_capture_id="capture-c",
         )
         == 2
     )
-    assert repository.confirmed_lineup_business_identity(fixture_id="fixture-1") != first_identity
+    assert repository.confirmed_lineup_business_identity(fixture_id="901") != first_identity
 
 
 def test_lineup_materialization_rejects_one_team_without_visible_partial_rows() -> None:
@@ -667,6 +683,248 @@ def _add_lineup(
             )
         )
     return snapshot
+
+
+def _lineup_capture(
+    *,
+    capture_id: str,
+    fixture_id: str,
+    raw_sha256: str,
+    captured_at: datetime,
+) -> MatchdayEndpointCaptureModel:
+    return MatchdayEndpointCaptureModel(
+        capture_id=capture_id,
+        fixture_id=fixture_id,
+        competition_id="premier_league",
+        checkpoint="LINEUP_CONFIRMED",
+        endpoint="lineups",
+        sanitized_params={"fixture": fixture_id},
+        params_hash=f"params-{capture_id}",
+        request_task_key=f"lineups:{capture_id}",
+        attempt=1,
+        requested_at=captured_at,
+        provider_captured_at=captured_at,
+        status_code=200,
+        elapsed_ms=1,
+        response_count=2,
+        quota_values={},
+        raw_payload_sha256=raw_sha256,
+        provider_event_time=None,
+        capture_status="SUCCESS",
+        error_code=None,
+    )
+
+
+def _canonical_snapshot(
+    session: Session,
+    *,
+    fixture_id: str,
+    team_id: str,
+    captured_at: datetime,
+    raw_sha256: str,
+    source_capture_id: str | None,
+    starter_ids: list[str],
+) -> None:
+    snapshot = StructuredLineupSnapshotModel(
+        fixture_id=fixture_id,
+        team_external_id=team_id,
+        team_name=f"Team {team_id}",
+        formation="4-3-3",
+        captured_at=captured_at,
+        confirmed=True,
+        authoritative_status="COMPLETE",
+        raw_sha256=raw_sha256,
+        lineup_identity_hash=f"lineup:{fixture_id}:{team_id}:{raw_sha256}",
+        team_w2_id=None,
+        source_capture_id=source_capture_id,
+        schema_version="w2.structured_lineup.v2",
+    )
+    session.add(snapshot)
+    session.flush()
+    for player_id in starter_ids:
+        session.add(
+            StructuredLineupPlayerModel(
+                lineup_snapshot_id=snapshot.id,
+                api_football_player_id=player_id,
+                player_name=f"Player {player_id}",
+                starter=True,
+                shirt_number=None,
+                provider_position=None,
+                grid=None,
+                captain=False,
+                identity_mapping_id=None,
+                canonical_player_id=None,
+                valuation_source_player_id=None,
+                mapping_status="MISSING",
+            )
+        )
+
+
+def _canonical_lineup_repository() -> tuple[FutureRefreshDbRepository, object, datetime]:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    kickoff = datetime(2026, 7, 31, 18, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add(
+            _fixture_identity(
+                fixture_id="api_football:901",
+                provider_fixture_id="901",
+                identity_hash="fixture-901",
+                kickoff=kickoff,
+            )
+        )
+        session.commit()
+    return FutureRefreshDbRepository(engine=engine), engine, kickoff
+
+
+def test_canonical_lineup_event_uses_complete_capture_alias_and_earliest_same_xi() -> None:
+    repository, _engine, kickoff = _canonical_lineup_repository()
+    first_at = kickoff - timedelta(hours=2)
+    payload = {"response": [_team(10, 100), _team(20, 200)]}
+    repository.save_lineup_snapshots(
+        fixture_id="901",
+        captured_at=first_at,
+        raw_sha256="a" * 64,
+        payload=payload,
+        source_capture_id="capture-a",
+    )
+    repository.save_lineup_snapshots(
+        fixture_id="api_football:901",
+        captured_at=first_at + timedelta(minutes=10),
+        raw_sha256="b" * 64,
+        payload=payload,
+        source_capture_id="capture-b",
+    )
+
+    bare = repository.canonical_lineup_confirmed_event("901")
+    canonical = repository.canonical_lineup_confirmed_event("api_football:901")
+
+    assert bare is not None and canonical is not None
+    assert bare.lineup_input_hash == canonical.lineup_input_hash
+    assert bare.fixture_id == "901"
+    assert bare.captured_at == first_at
+    assert bare.source_capture_id == "capture-a"
+
+
+def test_canonical_lineup_capture_requires_unique_exact_capture_resolution() -> None:
+    repository, engine, kickoff = _canonical_lineup_repository()
+    captured_at = kickoff - timedelta(hours=1)
+    raw_sha256 = "c" * 64
+    repository.save_lineup_snapshots(
+        fixture_id="901",
+        captured_at=captured_at,
+        raw_sha256=raw_sha256,
+        payload={"response": [_team(10, 100), _team(20, 200)]},
+    )
+    assert repository.canonical_lineup_confirmed_event("901") is None
+
+    with Session(engine) as session:
+        session.add(
+            _lineup_capture(
+                capture_id="capture-c",
+                fixture_id="api_football:901",
+                raw_sha256=raw_sha256,
+                captured_at=captured_at,
+            )
+        )
+        session.commit()
+    assert repository.canonical_lineup_confirmed_event("901") is not None
+
+    with Session(engine) as session:
+        session.add(
+            _lineup_capture(
+                capture_id="capture-c-ambiguous",
+                fixture_id="901",
+                raw_sha256=raw_sha256,
+                captured_at=captured_at,
+            )
+        )
+        session.commit()
+    assert repository.canonical_lineup_confirmed_event("901") is None
+
+
+@pytest.mark.parametrize(
+    ("home_at_delta", "away_at_delta", "home_ids", "away_ids"),
+    [
+        (timedelta(hours=-2), timedelta(hours=-1), range(100, 111), range(200, 211)),
+        (timedelta(), timedelta(), range(100, 111), range(200, 211)),
+        (timedelta(hours=-1), timedelta(hours=-1), range(100, 110), range(200, 211)),
+        (timedelta(hours=-1), timedelta(hours=-1), range(100, 111), range(100, 111)),
+    ],
+)
+def test_incomplete_or_invalid_capture_group_fails_closed(
+    home_at_delta: timedelta,
+    away_at_delta: timedelta,
+    home_ids: range,
+    away_ids: range,
+) -> None:
+    repository, engine, kickoff = _canonical_lineup_repository()
+    with Session(engine) as session:
+        _canonical_snapshot(
+            session,
+            fixture_id="901",
+            team_id="10",
+            captured_at=kickoff + home_at_delta,
+            raw_sha256="d" * 64,
+            source_capture_id="capture-home",
+            starter_ids=[str(value) for value in home_ids],
+        )
+        _canonical_snapshot(
+            session,
+            fixture_id="901",
+            team_id="20",
+            captured_at=kickoff + away_at_delta,
+            raw_sha256="d" * 64,
+            source_capture_id="capture-away"
+            if home_at_delta != away_at_delta
+            else "capture-home",
+            starter_ids=[str(value) for value in away_ids],
+        )
+        session.commit()
+
+    assert repository.canonical_lineup_confirmed_event("901") is None
+
+
+def test_canonical_lineup_event_rejects_fixture_and_lineup_conflicts() -> None:
+    repository, engine, kickoff = _canonical_lineup_repository()
+    with Session(engine) as session:
+        session.add(
+            _fixture_identity(
+                fixture_id="901",
+                provider_fixture_id="902",
+                identity_hash="fixture-902",
+                kickoff=kickoff,
+            )
+        )
+        session.commit()
+    with pytest.raises(
+        FutureRefreshPersistenceError,
+        match="LINEUP_FIXTURE_IDENTITY_CONFLICT",
+    ):
+        repository.canonical_lineup_confirmed_event("901")
+
+    repository, _engine, kickoff = _canonical_lineup_repository()
+    repository.save_lineup_snapshots(
+        fixture_id="901",
+        captured_at=kickoff - timedelta(hours=2),
+        raw_sha256="e" * 64,
+        payload={"response": [_team(10, 100), _team(20, 200)]},
+        source_capture_id="capture-e",
+    )
+    changed = {"response": [_team(10, 100), _team(20, 200)]}
+    changed["response"][1]["startXI"][10]["player"]["id"] = 999  # type: ignore[index]
+    repository.save_lineup_snapshots(
+        fixture_id="901",
+        captured_at=kickoff - timedelta(hours=1),
+        raw_sha256="f" * 64,
+        payload=changed,
+        source_capture_id="capture-f",
+    )
+    with pytest.raises(
+        FutureRefreshPersistenceError,
+        match="LINEUP_CONFIRMATION_CONFLICT",
+    ):
+        repository.canonical_lineup_confirmed_event("901")
 
 
 def test_lineup_attribution_rejects_alias_identity_hash_conflict() -> None:

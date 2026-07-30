@@ -114,39 +114,55 @@ class DynamicPrematchRepository:
             session.flush()
         return version, True
 
-    def append_lineup_event(self, event: LineupConfirmedEvent) -> bool:
-        event_id = f"lineup-{event.lineup_input_hash}"
-        payload = {
-            "fixture_id": event.fixture_id,
-            "captured_at": event.captured_at.astimezone(UTC).isoformat(),
-            "lineup_input_hash": event.lineup_input_hash,
-            "home_starters": event.home_starters,
-            "away_starters": event.away_starters,
-            "home_lineup_identity_hash": event.home_lineup_identity_hash,
-            "away_lineup_identity_hash": event.away_lineup_identity_hash,
-            "checkpoint": event.checkpoint,
-            "numeric_adjustment_enabled": False,
-            "lineup_ah_adjustment": 0.0,
-            "lineup_totals_adjustment": 0.0,
-            "lambda_adjustment": 0.0,
-        }
+    def append_lineup_event(
+        self,
+        event: LineupConfirmedEvent,
+    ) -> tuple[LineupConfirmedEvent, bool]:
         with Session(self.engine) as session:
-            session.add(
-                LineupConfirmedEventModel(
-                    event_id=event_id,
-                    fixture_id=event.fixture_id,
-                    lineup_input_hash=event.lineup_input_hash,
-                    captured_at=event.captured_at,
-                    checkpoint=event.checkpoint,
-                    payload=payload,
-                )
-            )
             try:
+                result = self.append_lineup_event_in_session(session, event)
                 session.commit()
-                return True
-            except IntegrityError:
+                return result
+            except Exception:
                 session.rollback()
-                return False
+                raise
+
+    def append_lineup_event_in_session(
+        self,
+        session: Session,
+        event: LineupConfirmedEvent,
+    ) -> tuple[LineupConfirmedEvent, bool]:
+        existing = list(
+            session.scalars(
+                select(LineupConfirmedEventModel)
+                .where(LineupConfirmedEventModel.fixture_id == event.fixture_id)
+                .order_by(LineupConfirmedEventModel.captured_at, LineupConfirmedEventModel.event_id)
+                .limit(2)
+            )
+        )
+        if len(existing) > 1:
+            raise ValueError("LINEUP_CONFIRMATION_CONFLICT")
+        if existing:
+            row = existing[0]
+            if row.lineup_input_hash != event.lineup_input_hash:
+                raise ValueError("LINEUP_CONFIRMATION_CONFLICT")
+            original = _lineup_event_from_payload(row.payload)
+            if _lineup_event_business_fields(original) != _lineup_event_business_fields(event):
+                raise ValueError("LINEUP_EVENT_PAYLOAD_CONFLICT")
+            return original, False
+
+        session.add(
+            LineupConfirmedEventModel(
+                event_id=f"lineup:{event.lineup_input_hash}",
+                fixture_id=event.fixture_id,
+                lineup_input_hash=event.lineup_input_hash,
+                captured_at=event.captured_at,
+                checkpoint=event.checkpoint,
+                payload=event.as_dict(),
+            )
+        )
+        session.flush()
+        return event, True
 
     def freeze_t30_snapshot(self, fixture_id: str, result: LockSnapshotResult) -> bool:
         if result.status != "READY" or result.snapshot is None:
@@ -278,6 +294,45 @@ def _version_from_payload(payload: dict[str, Any]) -> DynamicEvaluationVersion:
         supersession_reason=str(payload["supersession_reason"])
         if payload.get("supersession_reason")
         else None,
+    )
+
+
+def _lineup_event_from_payload(payload: dict[str, Any]) -> LineupConfirmedEvent:
+    if payload.get("schema_version") != "w2.lineup_confirmed_event.v2":
+        raise ValueError("LINEUP_EVENT_PAYLOAD_CONFLICT")
+    captured_at = _parse_utc(payload.get("captured_at"))
+    if captured_at is None:
+        raise ValueError("LINEUP_EVENT_PAYLOAD_CONFLICT")
+    try:
+        return LineupConfirmedEvent(
+            fixture_id=str(payload["fixture_id"]),
+            competition_id=str(payload["competition_id"]),
+            season=str(payload["season"]),
+            captured_at=captured_at,
+            checkpoint=str(payload["checkpoint"]),
+            lineup_input_hash=str(payload["lineup_input_hash"]),
+            home_lineup_identity_hash=str(payload["home_lineup_identity_hash"]),
+            away_lineup_identity_hash=str(payload["away_lineup_identity_hash"]),
+            home_starters=int(payload["home_starters"]),
+            away_starters=int(payload["away_starters"]),
+            source_capture_id=str(payload["source_capture_id"]),
+            raw_sha256=str(payload["raw_sha256"]),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("LINEUP_EVENT_PAYLOAD_CONFLICT") from exc
+
+
+def _lineup_event_business_fields(event: LineupConfirmedEvent) -> tuple[object, ...]:
+    return (
+        event.fixture_id,
+        event.competition_id,
+        event.season,
+        event.lineup_input_hash,
+        event.home_lineup_identity_hash,
+        event.away_lineup_identity_hash,
+        event.home_starters,
+        event.away_starters,
+        event.checkpoint,
     )
 
 

@@ -19,6 +19,7 @@ from w2.operations.observability import default_metric_registry
 from w2.prematch.lifecycle import (
     DynamicEvaluationInput,
     DynamicEvaluationVersion,
+    LineupConfirmedEvent,
     classify_evaluation,
 )
 from w2.prematch.repository import DynamicPrematchRepository
@@ -107,6 +108,7 @@ class FrozenAnalysisArtifact:
     payload: dict[str, Any]
     canonical_bytes: bytes
     evaluations: tuple[DynamicEvaluationVersion, ...] = ()
+    lineup_event: LineupConfirmedEvent | None = None
     read_time_reference: dict[str, Any] | None = None
     projection_event: ProjectionSourceEvent | None = field(
         default=None,
@@ -159,6 +161,51 @@ class ProjectionSourceEvent:
                 }
             ),
         )
+
+
+def _lineup_event_for_source(
+    repository: ScopedAnalysisRepository,
+    source_event: ProjectionSourceEvent,
+) -> LineupConfirmedEvent | None:
+    if source_event.event_type != "LINEUP_CHANGED":
+        return None
+    reader = getattr(repository, "canonical_lineup_confirmed_event", None)
+    event = reader(source_event.fixture_id) if callable(reader) else None
+    if not isinstance(event, LineupConfirmedEvent):
+        raise FrozenAnalysisError("canonical lineup event unavailable")
+    _validate_lineup_event_binding(source_event, event)
+    return event
+
+
+def _validate_lineup_event_binding(
+    source_event: ProjectionSourceEvent,
+    lineup_event: LineupConfirmedEvent,
+) -> None:
+    if source_event.fixture_id != lineup_event.fixture_id:
+        raise FrozenAnalysisError("lineup event fixture mismatch")
+    if source_event.event_id != f"lineup:{lineup_event.lineup_input_hash}":
+        raise FrozenAnalysisError("lineup event id mismatch")
+    if _normalize_evaluation_time(source_event.event_at) != _normalize_evaluation_time(
+        lineup_event.captured_at
+    ):
+        raise FrozenAnalysisError("lineup event time mismatch")
+
+
+def _projection_source_identity(
+    *,
+    input_manifest: dict[str, Any],
+    source_event_hash: str,
+    source_evaluation_hashes: list[str],
+    lineup_event_payload_sha256: str | None,
+) -> dict[str, Any]:
+    identity: dict[str, Any] = {
+        "input_manifest": input_manifest,
+        "source_event_hash": source_event_hash,
+        "source_evaluation_hashes": source_evaluation_hashes,
+    }
+    if lineup_event_payload_sha256 is not None:
+        identity["lineup_event_payload_sha256"] = lineup_event_payload_sha256
+    return identity
 
 
 def _json_default(value: object) -> str:
@@ -402,6 +449,7 @@ class AnalysisCardCanaryMaterializer:
         )
         if event.fixture_id != fixture_id:
             raise FrozenAnalysisError("projection source event fixture conflict")
+        lineup_event = _lineup_event_for_source(self.repository, event)
         if not evaluations:
             raise FrozenAnalysisError("dynamic evaluation unavailable")
         primary = min(evaluations, key=lambda item: item.evaluation_id) if evaluations else None
@@ -426,6 +474,11 @@ class AnalysisCardCanaryMaterializer:
             "analysis_card": card,
             "shadow_reconciliation": reconciliation,
         }
+        lineup_event_payload_sha256 = (
+            canonical_sha256(lineup_event.as_dict()) if lineup_event is not None else None
+        )
+        if lineup_event_payload_sha256 is not None:
+            artifact_body["lineup_event_payload_sha256"] = lineup_event_payload_sha256
         projection_hash = (
             _projection_business_hash(artifact_body)
             if source_event is not None
@@ -437,16 +490,20 @@ class AnalysisCardCanaryMaterializer:
         return FrozenAnalysisArtifact(
             checkpoint_key=key,
             source_hash=canonical_sha256(
-                {
-                    "input_manifest": input_manifest,
-                    "source_event_hash": event.event_hash,
-                    "source_evaluation_hashes": sorted(item.identity_hash for item in evaluations),
-                }
+                _projection_source_identity(
+                    input_manifest=input_manifest,
+                    source_event_hash=event.event_hash,
+                    source_evaluation_hashes=sorted(
+                        item.identity_hash for item in evaluations
+                    ),
+                    lineup_event_payload_sha256=lineup_event_payload_sha256,
+                )
             ),
             artifact_hash=artifact_hash,
             payload=payload,
             canonical_bytes=canonical_json_bytes(payload),
             evaluations=evaluations,
+            lineup_event=lineup_event,
             read_time_reference=read_time_reference,
             projection_event=event,
             projection_materializer=self,
@@ -506,6 +563,15 @@ def validate_frozen_analysis_payload(
             raise FrozenAnalysisError("checkpoint projection metadata missing")
         if payload.get("projection_version") != PROJECTION_VERSION:
             raise FrozenAnalysisError("checkpoint projection version incompatible")
+        is_lineup_event = payload.get("source_event_type") == "LINEUP_CHANGED"
+        lineup_event_payload_sha256 = payload.get("lineup_event_payload_sha256")
+        if is_lineup_event and (
+            not isinstance(lineup_event_payload_sha256, str)
+            or len(lineup_event_payload_sha256) != 64
+        ):
+            raise FrozenAnalysisError("lineup event payload identity missing")
+        if not is_lineup_event and lineup_event_payload_sha256 is not None:
+            raise FrozenAnalysisError("lineup event payload identity unexpected")
         projection_hash = str(payload.get("projection_hash") or "")
         projection_body = {
             key: value
@@ -543,11 +609,18 @@ def validate_frozen_analysis_payload(
         raise FrozenAnalysisError("checkpoint evaluation identity mismatch")
     source_hash = (
         canonical_sha256(
-            {
-                "input_manifest": manifest,
-                "source_event_hash": payload["source_event_hash"],
-                "source_evaluation_hashes": sorted(item.identity_hash for item in evaluations),
-            }
+            _projection_source_identity(
+                input_manifest=manifest,
+                source_event_hash=str(payload["source_event_hash"]),
+                source_evaluation_hashes=sorted(
+                    item.identity_hash for item in evaluations
+                ),
+                lineup_event_payload_sha256=(
+                    str(payload["lineup_event_payload_sha256"])
+                    if payload.get("source_event_type") == "LINEUP_CHANGED"
+                    else None
+                ),
+            )
         )
         if has_projection_metadata
         else canonical_sha256(manifest)
@@ -719,6 +792,22 @@ def write_frozen_analysis_artifacts(
     with Session(engine) as session:
         try:
             for original, draft in validated:
+                if original.lineup_event is not None:
+                    event = original.projection_event
+                    if event is None:
+                        raise FrozenAnalysisError("lineup projection source event unavailable")
+                    _validate_lineup_event_binding(event, original.lineup_event)
+                    if (
+                        draft.payload.get("lineup_event_payload_sha256")
+                        != canonical_sha256(original.lineup_event.as_dict())
+                    ):
+                        raise FrozenAnalysisError("lineup event payload identity mismatch")
+                    repository.append_lineup_event_in_session(
+                        session,
+                        original.lineup_event,
+                    )
+                elif draft.payload.get("source_event_type") == "LINEUP_CHANGED":
+                    raise FrozenAnalysisError("lineup event unavailable")
                 for evaluation in draft.evaluations:
                     repository.append_evaluation_in_session(session, evaluation)
                 artifact = draft

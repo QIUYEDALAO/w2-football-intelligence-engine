@@ -13,9 +13,11 @@ from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.infrastructure.persistence.dynamic_prematch_models import (
     DynamicPrematchEvaluationModel,
     DynamicPrematchSupersessionModel,
+    LineupConfirmedEventModel,
 )
 from w2.operations.observability import default_metric_registry
 from w2.prematch.analysis_calculator import ReadModelService
+from w2.prematch.lifecycle import LineupConfirmedEvent
 from w2.prematch.read_model_projection import (
     ANALYSIS_CARD_CANARY_PREFIX,
     ANALYSIS_CARD_CANARY_SCHEMA,
@@ -80,6 +82,26 @@ class ScopedRepository:
     def future_market_observations(self) -> list[dict[str, Any]]:
         self.global_calls += 1
         raise AssertionError("global observation reader called")
+
+    def canonical_lineup_confirmed_event(
+        self,
+        fixture_id: str,
+    ) -> LineupConfirmedEvent | None:
+        if fixture_id != self.fixture_id:
+            return None
+        return LineupConfirmedEvent(
+            fixture_id=fixture_id,
+            competition_id="league",
+            season="2026",
+            captured_at=datetime(2026, 7, 18, 5, 0, tzinfo=UTC),
+            lineup_input_hash="lineup-1",
+            home_starters=11,
+            away_starters=11,
+            home_lineup_identity_hash="home-lineup-1",
+            away_lineup_identity_hash="away-lineup-1",
+            source_capture_id="capture-1",
+            raw_sha256="a" * 64,
+        )
 
 
 def _patch_projection(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -164,6 +186,7 @@ def _engine(*, dynamic: bool = False):  # type: ignore[no-untyped-def]
     if dynamic:
         DynamicPrematchEvaluationModel.__table__.create(engine)
         DynamicPrematchSupersessionModel.__table__.create(engine)
+        LineupConfirmedEventModel.__table__.create(engine)
     return engine
 
 
@@ -192,10 +215,15 @@ def _materializer(
 
 
 def _event(event_type: str = "ODDS_CHANGED") -> ProjectionSourceEvent:
+    event_id = (
+        "lineup:lineup-1"
+        if event_type == "LINEUP_CHANGED"
+        else f"{event_type.lower()}:capture-1"
+    )
     return ProjectionSourceEvent.create(
         fixture_id="1576804",
         event_type=event_type,
-        event_id=f"{event_type.lower()}:capture-1",
+        event_id=event_id,
         event_at=datetime(2026, 7, 18, 5, 0, tzinfo=UTC),
         payload={"capture_id": "capture-1"},
     )
@@ -789,6 +817,120 @@ def test_single_event_shadow_matches_post_write_current_read_with_lifecycle(
         assert session.query(DynamicPrematchEvaluationModel).count() == 1
         assert session.query(DynamicPrematchSupersessionModel).count() == 0
         assert session.query(ReadModelCheckpointModel).count() == 1
+        assert session.query(LineupConfirmedEventModel).count() == (
+            1 if event_type == "LINEUP_CHANGED" else 0
+        )
+    if event_type == "LINEUP_CHANGED":
+        assert len(artifact.payload["lineup_event_payload_sha256"]) == 64
+    else:
+        assert "lineup_event_payload_sha256" not in artifact.payload
+
+
+def test_lineup_source_event_binding_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_ready_projection(monkeypatch)
+    repository = ScopedRepository()
+    materializer = _materializer(repository)
+    event = _event("LINEUP_CHANGED")
+
+    wrong_id = ProjectionSourceEvent.create(
+        fixture_id=event.fixture_id,
+        event_type=event.event_type,
+        event_id="lineup:wrong",
+        event_at=event.event_at,
+        payload={},
+    )
+    with pytest.raises(FrozenAnalysisError, match="lineup event id mismatch"):
+        materializer.build(
+            "1576804",
+            evaluated_at=wrong_id.event_at,
+            source_event=wrong_id,
+        )
+
+    wrong_time = ProjectionSourceEvent.create(
+        fixture_id=event.fixture_id,
+        event_type=event.event_type,
+        event_id=event.event_id,
+        event_at=event.event_at + timedelta(microseconds=1),
+        payload={},
+    )
+    with pytest.raises(FrozenAnalysisError, match="lineup event time mismatch"):
+        materializer.build(
+            "1576804",
+            evaluated_at=wrong_time.event_at,
+            source_event=wrong_time,
+        )
+
+    class WrongFixtureRepository(ScopedRepository):
+        def canonical_lineup_confirmed_event(
+            self,
+            fixture_id: str,
+        ) -> LineupConfirmedEvent | None:
+            original = super().canonical_lineup_confirmed_event(fixture_id)
+            assert original is not None
+            return LineupConfirmedEvent(
+                **{**original.__dict__, "fixture_id": "other-fixture"}
+            )
+
+    with pytest.raises(FrozenAnalysisError, match="lineup event fixture mismatch"):
+        _materializer(WrongFixtureRepository()).build(
+            "1576804",
+            evaluated_at=event.event_at,
+            source_event=event,
+        )
+
+
+def test_lineup_event_and_shadow_unit_roll_back_on_checkpoint_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_ready_projection(monkeypatch)
+    event = _event("LINEUP_CHANGED")
+    artifact = _materializer(ScopedRepository()).build(
+        "1576804",
+        evaluated_at=event.event_at,
+        source_event=event,
+    )
+    engine = _engine(dynamic=True)
+
+    def fail_checkpoint_insert(*_args: Any, **_kwargs: Any) -> None:
+        raise RuntimeError("checkpoint insert failed")
+
+    sa_event.listen(ReadModelCheckpointModel, "before_insert", fail_checkpoint_insert)
+    try:
+        with pytest.raises(RuntimeError, match="checkpoint insert failed"):
+            write_frozen_analysis_artifacts(engine, [artifact])
+    finally:
+        sa_event.remove(ReadModelCheckpointModel, "before_insert", fail_checkpoint_insert)
+
+    with Session(engine) as session:
+        assert session.query(LineupConfirmedEventModel).count() == 0
+        assert session.query(DynamicPrematchEvaluationModel).count() == 0
+        assert session.query(DynamicPrematchSupersessionModel).count() == 0
+        assert session.query(ReadModelCheckpointModel).count() == 0
+
+    write_frozen_analysis_artifacts(engine, [artifact])
+    with Session(engine) as session:
+        assert session.query(LineupConfirmedEventModel).count() == 1
+        assert session.query(DynamicPrematchEvaluationModel).count() == 1
+        assert session.query(ReadModelCheckpointModel).count() == 1
+
+
+def test_lineup_shadow_payload_requires_event_payload_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_ready_projection(monkeypatch)
+    event = _event("LINEUP_CHANGED")
+    artifact = _materializer(ScopedRepository()).build(
+        "1576804",
+        evaluated_at=event.event_at,
+        source_event=event,
+    )
+    payload = deepcopy(artifact.payload)
+    payload.pop("lineup_event_payload_sha256")
+
+    with pytest.raises(FrozenAnalysisError, match="lineup event payload identity missing"):
+        validate_frozen_analysis_payload("1576804", payload)
 
 
 def test_post_write_current_read_difference_rolls_back_entire_shadow_unit(
@@ -934,7 +1076,7 @@ def test_multiple_evaluation_mid_write_failure_rolls_back_entire_batch(
         card["market_candidates"]["ah"] = handicap
         return card
 
-    event = _event()
+    event = _event("LINEUP_CHANGED")
     artifact = AnalysisCardCanaryMaterializer(
         ScopedRepository(),
         calculate_analysis_card=calculate_two,
@@ -970,6 +1112,7 @@ def test_multiple_evaluation_mid_write_failure_rolls_back_entire_batch(
     with pytest.raises(RuntimeError, match="second evaluation failed"):
         write_frozen_analysis_artifacts(engine, [artifact])
     with Session(engine) as session:
+        assert session.query(LineupConfirmedEventModel).count() == 0
         assert session.query(DynamicPrematchEvaluationModel).count() == 0
         assert session.query(DynamicPrematchSupersessionModel).count() == 0
         assert session.query(ReadModelCheckpointModel).count() == 0
@@ -981,6 +1124,7 @@ def test_multiple_evaluation_mid_write_failure_rolls_back_entire_batch(
     )
     write_frozen_analysis_artifacts(engine, [artifact])
     with Session(engine) as session:
+        assert session.query(LineupConfirmedEventModel).count() == 1
         assert session.query(DynamicPrematchEvaluationModel).count() == 2
         assert session.query(DynamicPrematchSupersessionModel).count() == 0
         assert session.query(ReadModelCheckpointModel).count() == 1

@@ -35,6 +35,7 @@ from w2.infrastructure.persistence.ingestion_models import (
 )
 from w2.infrastructure.persistence.market_projection_view import current_market_projection
 from w2.infrastructure.persistence.matchday_intake_models import (
+    MatchdayEndpointCaptureModel,
     MatchdayFixtureIdentityModel,
     MatchdayMarketObservationModel,
 )
@@ -53,6 +54,7 @@ from w2.lineups.intelligence import (
     derive_lineup_change_features,
     lineup_requirement,
 )
+from w2.prematch.lifecycle import LineupConfirmedEvent
 
 
 class FutureRefreshPersistenceError(RuntimeError):
@@ -79,6 +81,50 @@ def _fixture_aliases(fixture_id: str) -> tuple[str, ...]:
     if value.isdigit():
         return (value, f"api_football:{value}")
     return (value,)
+
+
+def _fixture_identity_candidates(
+    session: Session,
+    fixture_id: str,
+) -> list[MatchdayFixtureIdentityModel]:
+    aliases = _fixture_aliases(fixture_id)
+    if not aliases:
+        return []
+    bare_aliases = [alias.removeprefix("api_football:") for alias in aliases]
+    return list(
+        session.scalars(
+            select(MatchdayFixtureIdentityModel)
+            .where(
+                (MatchdayFixtureIdentityModel.fixture_id.in_(aliases))
+                | (MatchdayFixtureIdentityModel.provider_fixture_id.in_(bare_aliases))
+            )
+            .order_by(MatchdayFixtureIdentityModel.captured_at.desc())
+            .limit(2)
+        )
+    )
+
+
+def _canonical_lineup_identity_hash(
+    *,
+    fixture_id: str,
+    home_team_external_id: str,
+    home_sorted_starter_ids: list[str],
+    away_team_external_id: str,
+    away_sorted_starter_ids: list[str],
+) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            {
+                "fixture_id": fixture_id,
+                "home_team_external_id": home_team_external_id,
+                "home_sorted_starter_ids": home_sorted_starter_ids,
+                "away_team_external_id": away_team_external_id,
+                "away_sorted_starter_ids": away_sorted_starter_ids,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
 
 
 def iso_z(value: datetime) -> str:
@@ -255,44 +301,164 @@ class FutureRefreshDbRepository:
         return materialized
 
     def confirmed_lineup_business_identity(self, *, fixture_id: str) -> str | None:
-        """Return the latest confirmed XI identity, excluding capture provenance."""
+        """Return the latest complete capture's canonical XI identity."""
         with Session(self.engine) as session:
-            snapshots = list(
-                session.scalars(
-                    select(StructuredLineupSnapshotModel)
-                    .where(
-                        StructuredLineupSnapshotModel.fixture_id == fixture_id,
-                        StructuredLineupSnapshotModel.confirmed.is_(True),
-                    )
-                    .order_by(StructuredLineupSnapshotModel.captured_at.desc())
+            events = self._canonical_lineup_events_in_session(session, fixture_id=fixture_id)
+        return events[-1].lineup_input_hash if events else None
+
+    def canonical_lineup_confirmed_event(
+        self,
+        fixture_id: str,
+    ) -> LineupConfirmedEvent | None:
+        with Session(self.engine) as session:
+            events = self._canonical_lineup_events_in_session(session, fixture_id=fixture_id)
+        hashes = {event.lineup_input_hash for event in events}
+        if len(hashes) > 1:
+            raise FutureRefreshPersistenceError("LINEUP_CONFIRMATION_CONFLICT")
+        return events[0] if events else None
+
+    def _canonical_lineup_events_in_session(
+        self,
+        session: Session,
+        *,
+        fixture_id: str,
+    ) -> list[LineupConfirmedEvent]:
+        identity = self._exact_fixture_identity_in_session(session, fixture_id=fixture_id)
+        aliases = {
+            alias
+            for value in (fixture_id, identity.fixture_id, identity.provider_fixture_id)
+            for alias in _fixture_aliases(value)
+        }
+        snapshots = list(
+            session.scalars(
+                select(StructuredLineupSnapshotModel)
+                .where(StructuredLineupSnapshotModel.fixture_id.in_(aliases))
+                .order_by(
+                    StructuredLineupSnapshotModel.captured_at,
+                    StructuredLineupSnapshotModel.id,
                 )
             )
-            latest: dict[str, StructuredLineupSnapshotModel] = {}
-            for snapshot in snapshots:
-                latest.setdefault(snapshot.team_external_id, snapshot)
-            if len(latest) != 2:
-                return None
-            teams: list[dict[str, Any]] = []
-            for team_id, snapshot in sorted(latest.items()):
-                starters = sorted(
-                    str(player_id)
-                    for player_id in session.scalars(
-                        select(StructuredLineupPlayerModel.api_football_player_id).where(
-                            StructuredLineupPlayerModel.lineup_snapshot_id == snapshot.id,
-                            StructuredLineupPlayerModel.starter.is_(True),
-                        )
-                    )
+        )
+        if not snapshots:
+            return []
+        captures = list(
+            session.scalars(
+                select(MatchdayEndpointCaptureModel).where(
+                    MatchdayEndpointCaptureModel.endpoint == "lineups",
+                    MatchdayEndpointCaptureModel.raw_payload_sha256.in_(
+                        {snapshot.raw_sha256 for snapshot in snapshots}
+                    ),
                 )
-                if len(starters) != 11:
-                    return None
-                teams.append({"team_external_id": team_id, "starters": starters})
-        return hashlib.sha256(
-            json.dumps(
-                {"fixture_id": str(fixture_id), "teams": teams},
-                sort_keys=True,
-                separators=(",", ":"),
-            ).encode("utf-8")
-        ).hexdigest()
+            )
+        )
+        grouped: dict[
+            tuple[str, str, datetime],
+            list[StructuredLineupSnapshotModel],
+        ] = {}
+        for snapshot in snapshots:
+            captured_at = parse_db_datetime(snapshot.captured_at)
+            source_capture_id = str(snapshot.source_capture_id or "")
+            if not source_capture_id:
+                matches = [
+                    capture
+                    for capture in captures
+                    if capture.fixture_id is not None
+                    and aliases.intersection(_fixture_aliases(capture.fixture_id))
+                    and capture.raw_payload_sha256 == snapshot.raw_sha256
+                    and parse_db_datetime(capture.provider_captured_at) == captured_at
+                ]
+                if len(matches) != 1:
+                    continue
+                source_capture_id = matches[0].capture_id
+            grouped.setdefault(
+                (source_capture_id, snapshot.raw_sha256, captured_at),
+                [],
+            ).append(snapshot)
+
+        snapshot_ids = [snapshot.id for rows in grouped.values() for snapshot in rows]
+        starter_ids: dict[str, list[str]] = {}
+        if snapshot_ids:
+            for player in session.scalars(
+                select(StructuredLineupPlayerModel).where(
+                    StructuredLineupPlayerModel.lineup_snapshot_id.in_(snapshot_ids),
+                    StructuredLineupPlayerModel.starter.is_(True),
+                )
+            ):
+                starter_ids.setdefault(player.lineup_snapshot_id, []).append(
+                    player.api_football_player_id
+                )
+
+        events: list[LineupConfirmedEvent] = []
+        kickoff = parse_db_datetime(identity.kickoff_utc)
+        canonical_fixture_id = identity.provider_fixture_id
+        for (source_capture_id, raw_sha256, captured_at), rows in grouped.items():
+            by_team = {row.team_external_id: row for row in rows}
+            if (
+                len(rows) != 2
+                or len(by_team) != 2
+                or captured_at >= kickoff
+                or any(
+                    not row.confirmed
+                    or row.authoritative_status != "COMPLETE"
+                    or not row.lineup_identity_hash
+                    for row in rows
+                )
+            ):
+                continue
+            home = by_team.get(identity.home_provider_team_id)
+            away = by_team.get(identity.away_provider_team_id)
+            if home is None or away is None:
+                continue
+            home_starters = sorted(starter_ids.get(home.id, []))
+            away_starters = sorted(starter_ids.get(away.id, []))
+            if (
+                len(home_starters) != 11
+                or len(away_starters) != 11
+                or len(set(home_starters + away_starters)) != 22
+            ):
+                continue
+            events.append(
+                LineupConfirmedEvent(
+                    fixture_id=canonical_fixture_id,
+                    competition_id=identity.competition_id,
+                    season=identity.season,
+                    captured_at=captured_at,
+                    lineup_input_hash=_canonical_lineup_identity_hash(
+                        fixture_id=canonical_fixture_id,
+                        home_team_external_id=identity.home_provider_team_id,
+                        home_sorted_starter_ids=home_starters,
+                        away_team_external_id=identity.away_provider_team_id,
+                        away_sorted_starter_ids=away_starters,
+                    ),
+                    home_starters=11,
+                    away_starters=11,
+                    home_lineup_identity_hash=str(home.lineup_identity_hash),
+                    away_lineup_identity_hash=str(away.lineup_identity_hash),
+                    source_capture_id=source_capture_id,
+                    raw_sha256=raw_sha256,
+                )
+            )
+        return sorted(
+            events,
+            key=lambda event: (
+                event.captured_at,
+                event.source_capture_id,
+                event.lineup_input_hash,
+            ),
+        )
+
+    @staticmethod
+    def _exact_fixture_identity_in_session(
+        session: Session,
+        *,
+        fixture_id: str,
+    ) -> MatchdayFixtureIdentityModel:
+        rows = _fixture_identity_candidates(session, fixture_id)
+        if not rows:
+            raise FutureRefreshPersistenceError("LINEUP_FIXTURE_IDENTITY_MISSING")
+        if len(rows) != 1:
+            raise FutureRefreshPersistenceError("LINEUP_FIXTURE_IDENTITY_CONFLICT")
+        return rows[0]
 
     def materialize_player_identity_mappings(
         self,
@@ -1445,22 +1611,8 @@ class FutureRefreshDbRepository:
         ]
 
     def matchday_fixture_identity(self, fixture_id: str) -> dict[str, Any] | None:
-        aliases = _fixture_aliases(fixture_id)
-        if not aliases:
-            return None
-        bare_aliases = [alias.removeprefix("api_football:") for alias in aliases]
         with Session(self.engine) as session:
-            rows = list(
-                session.scalars(
-                    select(MatchdayFixtureIdentityModel)
-                    .where(
-                        (MatchdayFixtureIdentityModel.fixture_id.in_(aliases))
-                        | (MatchdayFixtureIdentityModel.provider_fixture_id.in_(bare_aliases))
-                    )
-                    .order_by(MatchdayFixtureIdentityModel.captured_at.desc())
-                    .limit(2)
-                )
-            )
+            rows = _fixture_identity_candidates(session, fixture_id)
         if not rows:
             return None
         identities = {row.identity_hash for row in rows if row.identity_hash}
