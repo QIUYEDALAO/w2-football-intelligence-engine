@@ -789,37 +789,49 @@ MINIMUM_COMPETITIONS = NOT_APPLICABLE
 **评分合同（已冻结，实施仍阻塞）**：
 
 ```text
-SCORING_DISTRIBUTION =
-WIN / HALF_WIN / PUSH / HALF_LOSS / LOSS
+SETTLEMENT_STATE_ORDER =
+WIN, HALF_WIN, PUSH, HALF_LOSS, LOSS
 
-BASELINE_AND_CANDIDATE_DISTRIBUTION_SCHEMA =
-SAME_CANONICAL_SETTLEMENT_DISTRIBUTION
+BASELINE_DISTRIBUTION =
+baseline_probability_by_settlement_state
 
-PAIR_LOG_LOSS =
--negative_log_probability_of_observed_settlement_state
+CANDIDATE_DISTRIBUTION =
+candidate_probability_by_settlement_state
 
+DISTRIBUTIONS_SHARE_IDENTICAL_STATE_SPACE = true
+DISTRIBUTION_VALUES_MAY_DIFFER = true
 PROBABILITY_VALUES = FINITE_AND_NON_NEGATIVE
-PROBABILITY_SUM = 1_WITHIN_TOLERANCE
+PROBABILITY_SUM_TOLERANCE = 1e-9
+LOG_LOSS_EPSILON = 1e-9
 OBSERVED_SETTLEMENT_STATE = REQUIRED
 MISSING_OR_INVALID_DISTRIBUTION = FAIL_CLOSED
+
+LL(distribution, observed_state) =
+-ln(max(distribution[observed_state], LOG_LOSS_EPSILON))
+
+paired_log_loss_improvement =
+LL(baseline_distribution, observed_state)
+-
+LL(candidate_distribution, observed_state)
+
+GATE_PASS =
+log_loss_improvement_ci_low > 0
 
 SCORING_IMPLEMENTATION = BLOCKED
 SCORING_IMPLEMENTATION_BLOCKER =
 COMPLETE_PERSISTED_BASELINE_AND_CANDIDATE_FIVE_STATE_DISTRIBUTIONS_UNAVAILABLE
 ```
 
-整数盘、半盘和四分之一盘统一使用上述 canonical 五态合同；不得把 PUSH、HALF_WIN
-或 HALF_LOSS 转成二元 outcome。现有持久化证据不能提供完整的 baseline/candidate
-五态分布，因此不得发明新公式，EVAL-02B 继续 fail-closed。
+Baseline 与 candidate 是两套独立概率向量；两者使用相同、有序的五态空间，但不要求
+概率值相等。每个概率必须 finite 且非负，概率和与 1 的差不得超过 `1e-9`，observed
+settlement state 必须属于冻结五态；任一分布缺失或非法均 fail-closed。整数盘、半盘和
+四分之一盘统一使用上述合同，不得把 PUSH、HALF_WIN 或 HALF_LOSS 转成二元 outcome。
+现有持久化证据不能提供完整的 baseline/candidate 五态分布，因此不得发明新公式，
+EVAL-02B 继续 fail-closed。
 
 ```text
-paired_log_loss_improvement =
-baseline_log_loss - candidate_log_loss
+CONTRACT_VERSION = w2.eval_02b_gate.v1
 
-log_loss_improvement_ci_low > 0
-```
-
-```text
 ORDER_BY =
 kickoff_at ASC, canonical_fixture_id ASC
 
@@ -829,12 +841,32 @@ floor(total_eligible_pairs * 0.70)
 VALIDATION_SET =
 ordered_pairs[VALIDATION_START_INDEX:]
 
-BOOTSTRAP_SEED_INPUT =
-contract_version + sorted(validation_pair_identity_hashes)
+PAIR_IDENTITY_SERIALIZATION =
+UTF8_CANONICAL_JSON_SORTED_KEYS_COMPACT
+
+PAIR_IDENTITY_HASH =
+SHA256(PAIR_IDENTITY_SERIALIZATION)
+
+BOOTSTRAP_SEED_PAYLOAD =
+canonical_json({
+  contract_version,
+  validation_pair_identity_hashes:
+    sorted(validation_pair_identity_hashes)
+})
+
+BOOTSTRAP_SEED_HASH =
+SHA256(BOOTSTRAP_SEED_PAYLOAD)
+
+BOOTSTRAP_SEED =
+UNSIGNED_BIG_ENDIAN_UINT64(
+  FIRST_8_BYTES(BOOTSTRAP_SEED_HASH)
+)
 ```
 
 Bootstrap 只重采样 validation fixture pairs；95% 区间固定取 2.5% 与 97.5% 分位数。
-相同输入必须产生相同的 split、seed 和 bootstrap 区间。
+Canonical JSON 禁止 NaN/Infinity，key 必须排序并使用 compact separators。相同
+validation pair 集合必须产生完全相同的整数 seed；相同输入必须产生相同的 split、
+seed 和 bootstrap 区间。
 
 ```text
 RPS_ROLE = DIAGNOSTIC_ONLY

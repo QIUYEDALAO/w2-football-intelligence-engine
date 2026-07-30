@@ -209,33 +209,53 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "BOOTSTRAP_ITERATIONS = 10000",
         "BOOTSTRAP_UNIT = PAIRED_VALIDATION_FIXTURE",
         "MINIMUM_COMPETITIONS = NOT_APPLICABLE",
-        "SCORING_DISTRIBUTION =",
-        "WIN / HALF_WIN / PUSH / HALF_LOSS / LOSS",
-        "BASELINE_AND_CANDIDATE_DISTRIBUTION_SCHEMA =",
-        "SAME_CANONICAL_SETTLEMENT_DISTRIBUTION",
-        "PAIR_LOG_LOSS =",
-        "-negative_log_probability_of_observed_settlement_state",
+        "SETTLEMENT_STATE_ORDER =",
+        "WIN, HALF_WIN, PUSH, HALF_LOSS, LOSS",
+        "BASELINE_DISTRIBUTION =",
+        "baseline_probability_by_settlement_state",
+        "CANDIDATE_DISTRIBUTION =",
+        "candidate_probability_by_settlement_state",
+        "DISTRIBUTIONS_SHARE_IDENTICAL_STATE_SPACE = true",
+        "DISTRIBUTION_VALUES_MAY_DIFFER = true",
         "PROBABILITY_VALUES = FINITE_AND_NON_NEGATIVE",
-        "PROBABILITY_SUM = 1_WITHIN_TOLERANCE",
+        "PROBABILITY_SUM_TOLERANCE = 1e-9",
+        "LOG_LOSS_EPSILON = 1e-9",
         "OBSERVED_SETTLEMENT_STATE = REQUIRED",
         "MISSING_OR_INVALID_DISTRIBUTION = FAIL_CLOSED",
+        "LL(distribution, observed_state) =",
+        "-ln(max(distribution[observed_state], LOG_LOSS_EPSILON))",
+        "paired_log_loss_improvement =",
+        "LL(baseline_distribution, observed_state)",
+        "LL(candidate_distribution, observed_state)",
+        "GATE_PASS =",
+        "log_loss_improvement_ci_low > 0",
         "SCORING_IMPLEMENTATION = BLOCKED",
         "SCORING_IMPLEMENTATION_BLOCKER =",
         (
             "COMPLETE_PERSISTED_BASELINE_AND_CANDIDATE_"
             "FIVE_STATE_DISTRIBUTIONS_UNAVAILABLE"
         ),
-        "paired_log_loss_improvement =",
-        "baseline_log_loss - candidate_log_loss",
-        "log_loss_improvement_ci_low > 0",
+        "CONTRACT_VERSION = w2.eval_02b_gate.v1",
         "ORDER_BY =",
         "kickoff_at ASC, canonical_fixture_id ASC",
         "VALIDATION_START_INDEX =",
         "floor(total_eligible_pairs * 0.70)",
         "VALIDATION_SET =",
         "ordered_pairs[VALIDATION_START_INDEX:]",
-        "BOOTSTRAP_SEED_INPUT =",
-        "contract_version + sorted(validation_pair_identity_hashes)",
+        "PAIR_IDENTITY_SERIALIZATION =",
+        "UTF8_CANONICAL_JSON_SORTED_KEYS_COMPACT",
+        "PAIR_IDENTITY_HASH =",
+        "SHA256(PAIR_IDENTITY_SERIALIZATION)",
+        "BOOTSTRAP_SEED_PAYLOAD =",
+        "canonical_json({",
+        "contract_version,",
+        "validation_pair_identity_hashes:",
+        "sorted(validation_pair_identity_hashes)",
+        "BOOTSTRAP_SEED_HASH =",
+        "SHA256(BOOTSTRAP_SEED_PAYLOAD)",
+        "BOOTSTRAP_SEED =",
+        "UNSIGNED_BIG_ENDIAN_UINT64(",
+        "FIRST_8_BYTES(BOOTSTRAP_SEED_HASH)",
         "RPS_ROLE = DIAGNOSTIC_ONLY",
         "COVERAGE_ROLE = DIAGNOSTIC_ONLY",
         "REVALIDATE_AFTER_DAYS = 90",
@@ -292,17 +312,60 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     ):
         assert acquisition_rule in b5
     assert "500 个验证样本" in b5
-    assert "整数盘、半盘和四分之一盘统一使用" in b5
+    assert "Baseline 与 candidate 是两套独立概率向量" in b5
+    assert "相同、有序的五态空间" in b5
+    assert "不要求" in b5
+    assert "概率值相等" in b5
+    assert "概率和与 1 的差不得超过 `1e-9`" in b5
+    assert "observed" in b5
+    assert "settlement state 必须属于冻结五态" in b5
+    assert "任一分布缺失或非法均 fail-closed" in b5
+    assert (
+        "paired_log_loss_improvement =\n"
+        "LL(baseline_distribution, observed_state)\n"
+        "-\n"
+        "LL(candidate_distribution, observed_state)\n\n"
+        "GATE_PASS =\n"
+        "log_loss_improvement_ci_low > 0"
+    ) in b5
+    assert "整数盘、半盘和" in b5
+    assert "四分之一盘统一使用上述合同" in b5
     assert "不得把 PUSH、HALF_WIN" in b5
     assert "或 HALF_LOSS 转成二元 outcome" in b5
     assert "不得发明新公式" in b5
     assert "EVAL-02B 继续 fail-closed" in b5
     assert "Bootstrap 只重采样 validation fixture pairs" in b5
     assert "2.5% 与 97.5% 分位数" in b5
-    assert "相同输入必须产生相同的 split、seed 和 bootstrap 区间" in b5
+    assert "Canonical JSON 禁止 NaN/Infinity" in b5
+    assert "key 必须排序并使用 compact separators" in b5
+    assert "validation pair 集合必须产生完全相同的整数 seed" in b5
+    assert "相同输入必须产生相同的 split、" in b5
+    assert "seed 和 bootstrap 区间" in b5
+    assert (
+        "BOOTSTRAP_SEED_PAYLOAD =\n"
+        "canonical_json({\n"
+        "  contract_version,\n"
+        "  validation_pair_identity_hashes:\n"
+        "    sorted(validation_pair_identity_hashes)\n"
+        "})"
+    ) in b5
+    assert (
+        "BOOTSTRAP_SEED =\n"
+        "UNSIGNED_BIG_ENDIAN_UINT64(\n"
+        "  FIRST_8_BYTES(BOOTSTRAP_SEED_HASH)\n"
+        ")"
+    ) in b5
     assert "RPS 与 coverage 必须输出" in b5
     assert "不得作为 blocker" in b5
     assert "不得跨 provider、bookmaker、selection 或 line 配对" in b5
+    for obsolete_coordinate in (
+        "SCORING_DISTRIBUTION =",
+        "BASELINE_AND_CANDIDATE_DISTRIBUTION_SCHEMA =",
+        "PAIR_LOG_LOSS =",
+        "PROBABILITY_SUM = 1_WITHIN_TOLERANCE",
+        "BOOTSTRAP_SEED_INPUT =",
+    ):
+        assert obsolete_coordinate not in b5
     b7 = checklist[
         checklist.index("#### B7. EVAL-03") : checklist.index("### 模型升级")
     ]
