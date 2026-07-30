@@ -67,9 +67,10 @@ def test_write_projector_lives_outside_api_without_compatibility_shim() -> None:
 def test_lineup_event_uses_the_existing_atomic_projection_unit_of_work() -> None:
     source = WRITE_PROJECTOR.read_text(encoding="utf-8")
     event_append = source.index("repository.append_lineup_event_in_session")
+    plan_upsert = source.index("matchday_repository.upsert_checkpoint_plan_in_session")
     evaluation_append = source.index("repository.append_evaluation_in_session")
 
-    assert event_append < evaluation_append
+    assert event_append < plan_upsert < evaluation_append
     assert "lineup_event_payload_sha256" in source
     assert "session.commit()" in source
     assert "session.rollback()" in source

@@ -66,6 +66,21 @@ class MatchdayRuntimeRepository:
         return True
 
     def upsert_checkpoint_plan(self, plan: CheckpointPlan | Mapping[str, Any]) -> str:
+        with Session(self.engine) as session:
+            try:
+                plan_id = self.upsert_checkpoint_plan_in_session(session, plan)
+                session.commit()
+                return plan_id
+            except Exception:
+                session.rollback()
+                raise
+
+    def upsert_checkpoint_plan_in_session(
+        self,
+        session: Session,
+        plan: CheckpointPlan | Mapping[str, Any],
+    ) -> str:
+        """Upsert one checkpoint plan without owning the transaction."""
         payload = plan.as_dict() if isinstance(plan, CheckpointPlan) else dict(plan)
         plan_id = stable_hash(
             ":".join(
@@ -79,57 +94,58 @@ class MatchdayRuntimeRepository:
             )
         )
         incoming_status = str(payload["status"])
-        with Session(self.engine) as session:
-            existing = session.get(MatchdayCheckpointPlanModel, plan_id)
-            if existing is not None:
-                if existing.scheduled_at != _dt(payload["scheduled_at"]):
-                    raise MatchdayRepositoryError("CHECKPOINT_PLAN_CONFLICT")
-                if existing.status == "MISSED" and incoming_status == "CAPTURED":
-                    raise MatchdayRepositoryError("MISSED_CHECKPOINT_IMMUTABLE")
-                existing.status = _transition_status(existing.status, incoming_status)
-                existing.missed_at = (
-                    _dt(payload["missed_at"]) if payload.get("missed_at") else existing.missed_at
+        existing = session.get(MatchdayCheckpointPlanModel, plan_id)
+        if existing is not None:
+            if normalize_repo_time(existing.scheduled_at) != normalize_repo_time(
+                _dt(payload["scheduled_at"])
+            ):
+                raise MatchdayRepositoryError("CHECKPOINT_PLAN_CONFLICT")
+            if existing.status == "MISSED" and incoming_status == "CAPTURED":
+                raise MatchdayRepositoryError("MISSED_CHECKPOINT_IMMUTABLE")
+            existing.status = _transition_status(existing.status, incoming_status)
+            existing.missed_at = (
+                _dt(payload["missed_at"]) if payload.get("missed_at") else existing.missed_at
+            )
+            existing.capture_id = (
+                str(payload.get("capture_id") or existing.capture_id or "") or None
+            )
+            existing.current_unscheduled_capture_id = (
+                str(
+                    payload.get("current_unscheduled_capture_id")
+                    or existing.current_unscheduled_capture_id
+                    or ""
                 )
-                existing.capture_id = (
-                    str(payload.get("capture_id") or existing.capture_id or "") or None
-                )
-                existing.current_unscheduled_capture_id = (
-                    str(
-                        payload.get("current_unscheduled_capture_id")
-                        or existing.current_unscheduled_capture_id
-                        or ""
+                or None
+            )
+            existing.endpoints = list(payload.get("endpoints") or existing.endpoints or [])
+            existing.blockers = list(payload.get("blockers") or existing.blockers or [])
+            existing.plan_hash = str(payload.get("plan_hash") or existing.plan_hash)
+        else:
+            session.add(
+                MatchdayCheckpointPlanModel(
+                    plan_id=plan_id,
+                    fixture_id=str(payload["fixture_id"]),
+                    competition_id=str(payload["competition_id"]),
+                    season=str(payload["season"]),
+                    policy_version=str(payload["policy_version"]),
+                    checkpoint=str(payload["checkpoint"]),
+                    kickoff_utc=_dt(payload["kickoff_utc"]),
+                    scheduled_at=_dt(payload["scheduled_at"]),
+                    window_start=_dt(payload["window_start"]),
+                    window_end=_dt(payload["window_end"]),
+                    endpoints=list(payload.get("endpoints") or []),
+                    status=incoming_status,
+                    missed_at=_dt(payload["missed_at"]) if payload.get("missed_at") else None,
+                    capture_id=str(payload.get("capture_id") or "") or None,
+                    current_unscheduled_capture_id=str(
+                        payload.get("current_unscheduled_capture_id") or ""
                     )
-                    or None
+                    or None,
+                    blockers=list(payload.get("blockers") or []),
+                    plan_hash=str(payload["plan_hash"]),
                 )
-                existing.endpoints = list(payload.get("endpoints") or existing.endpoints or [])
-                existing.blockers = list(payload.get("blockers") or existing.blockers or [])
-                existing.plan_hash = str(payload.get("plan_hash") or existing.plan_hash)
-            else:
-                session.add(
-                    MatchdayCheckpointPlanModel(
-                        plan_id=plan_id,
-                        fixture_id=str(payload["fixture_id"]),
-                        competition_id=str(payload["competition_id"]),
-                        season=str(payload["season"]),
-                        policy_version=str(payload["policy_version"]),
-                        checkpoint=str(payload["checkpoint"]),
-                        kickoff_utc=_dt(payload["kickoff_utc"]),
-                        scheduled_at=_dt(payload["scheduled_at"]),
-                        window_start=_dt(payload["window_start"]),
-                        window_end=_dt(payload["window_end"]),
-                        endpoints=list(payload.get("endpoints") or []),
-                        status=incoming_status,
-                        missed_at=_dt(payload["missed_at"]) if payload.get("missed_at") else None,
-                        capture_id=str(payload.get("capture_id") or "") or None,
-                        current_unscheduled_capture_id=str(
-                            payload.get("current_unscheduled_capture_id") or ""
-                        )
-                        or None,
-                        blockers=list(payload.get("blockers") or []),
-                        plan_hash=str(payload["plan_hash"]),
-                    )
-                )
-            session.commit()
+            )
+        session.flush()
         return plan_id
 
     def transition_checkpoint(
