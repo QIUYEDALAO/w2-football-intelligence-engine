@@ -171,6 +171,46 @@ class LineupConfirmedEvent:
         }
 
 
+def lineup_confirmed_refresh_plan(
+    *,
+    fixture_id: str,
+    competition_id: str,
+    season: str,
+    kickoff_utc: datetime,
+    captured_at_utc: datetime,
+    home_starters: int,
+    away_starters: int,
+    lineup_input_hash: str,
+) -> dict[str, Any]:
+    kickoff = _aware_utc(kickoff_utc, field="kickoff_utc")
+    captured_at = _aware_utc(captured_at_utc, field="captured_at_utc")
+    if home_starters != 11 or away_starters != 11:
+        raise ValueError("STARTING_XI_INCOMPLETE")
+    if not lineup_input_hash:
+        raise ValueError("LINEUP_INPUT_HASH_MISSING")
+    if captured_at >= kickoff:
+        raise ValueError("POST_KICKOFF_LINEUP_REJECTED")
+    payload: dict[str, Any] = {
+        "fixture_id": fixture_id,
+        "competition_id": competition_id,
+        "season": season,
+        "policy_version": "w2.matchday_intake_policy.v2",
+        "checkpoint": LINEUP_CONFIRMED_CHECKPOINT,
+        "kickoff_utc": _iso(kickoff),
+        "scheduled_at": _iso(captured_at),
+        "window_start": _iso(captured_at),
+        "window_end": _iso(kickoff),
+        "endpoints": ["odds"],
+        "status": "DUE",
+        "missed_at": None,
+        "capture_id": None,
+        "current_unscheduled_capture_id": None,
+        "blockers": [],
+    }
+    payload["plan_hash"] = _hash(payload)
+    return payload
+
+
 @dataclass(frozen=True, kw_only=True)
 class LockSnapshotResult:
     status: str

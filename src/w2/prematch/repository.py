@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import json
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
@@ -15,6 +17,7 @@ from w2.infrastructure.persistence.dynamic_prematch_models import (
     LineupConfirmedEventModel,
     T30ValidationSnapshotModel,
 )
+from w2.infrastructure.persistence.matchday_intake_models import MatchdayCheckpointPlanModel
 from w2.prematch.lifecycle import (
     DynamicEvaluationState,
     DynamicEvaluationVersion,
@@ -163,6 +166,44 @@ class DynamicPrematchRepository:
         )
         session.flush()
         return event, True
+
+    def ensure_lineup_confirmed_odds_plan_in_session(
+        self,
+        session: Session,
+        plan: Mapping[str, Any],
+    ) -> tuple[str, bool]:
+        plan_id = _checkpoint_plan_id(plan)
+        existing = session.get(MatchdayCheckpointPlanModel, plan_id)
+        if existing is not None:
+            if not _same_checkpoint_plan_spec(existing, plan):
+                raise RuntimeError("CHECKPOINT_PLAN_CONFLICT")
+            return existing.plan_id, False
+        session.add(
+            MatchdayCheckpointPlanModel(
+                plan_id=plan_id,
+                fixture_id=str(plan["fixture_id"]),
+                competition_id=str(plan["competition_id"]),
+                season=str(plan["season"]),
+                policy_version=str(plan["policy_version"]),
+                checkpoint=str(plan["checkpoint"]),
+                kickoff_utc=_plan_time(plan["kickoff_utc"]),
+                scheduled_at=_plan_time(plan["scheduled_at"]),
+                window_start=_plan_time(plan["window_start"]),
+                window_end=_plan_time(plan["window_end"]),
+                endpoints=list(plan.get("endpoints") or []),
+                status=str(plan["status"]),
+                missed_at=_plan_optional_time(plan.get("missed_at")),
+                capture_id=str(plan.get("capture_id") or "") or None,
+                current_unscheduled_capture_id=str(
+                    plan.get("current_unscheduled_capture_id") or ""
+                )
+                or None,
+                blockers=list(plan.get("blockers") or []),
+                plan_hash=str(plan["plan_hash"]),
+            )
+        )
+        session.flush()
+        return plan_id, True
 
     def freeze_t30_snapshot(self, fixture_id: str, result: LockSnapshotResult) -> bool:
         if result.status != "READY" or result.snapshot is None:
@@ -344,6 +385,49 @@ def _lineup_event_business_fields(event: LineupConfirmedEvent) -> tuple[object, 
         event.away_starters,
         event.checkpoint,
     )
+
+
+def _checkpoint_plan_id(plan: Mapping[str, Any]) -> str:
+    identity = ":".join(
+        str(plan[key])
+        for key in (
+            "fixture_id",
+            "competition_id",
+            "season",
+            "checkpoint",
+            "policy_version",
+        )
+    )
+    return hashlib.sha256(json.dumps(identity, separators=(",", ":")).encode()).hexdigest()
+
+
+def _same_checkpoint_plan_spec(
+    existing: MatchdayCheckpointPlanModel,
+    plan: Mapping[str, Any],
+) -> bool:
+    return (
+        existing.fixture_id == str(plan["fixture_id"])
+        and existing.competition_id == str(plan["competition_id"])
+        and existing.season == str(plan["season"])
+        and existing.policy_version == str(plan["policy_version"])
+        and existing.checkpoint == str(plan["checkpoint"])
+        and _plan_time(existing.kickoff_utc) == _plan_time(plan["kickoff_utc"])
+        and _plan_time(existing.scheduled_at) == _plan_time(plan["scheduled_at"])
+        and _plan_time(existing.window_start) == _plan_time(plan["window_start"])
+        and _plan_time(existing.window_end) == _plan_time(plan["window_end"])
+        and list(existing.endpoints or []) == list(plan.get("endpoints") or [])
+    )
+
+
+def _plan_optional_time(value: object) -> datetime | None:
+    return None if value is None else _plan_time(value)
+
+
+def _plan_time(value: object) -> datetime:
+    parsed = _parse_utc(value)
+    if parsed is None:
+        raise ValueError("INVALID_DATETIME")
+    return parsed
 
 
 def _parse_utc(value: Any) -> datetime | None:

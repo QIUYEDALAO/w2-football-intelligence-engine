@@ -15,8 +15,6 @@ from sqlalchemy.orm import Session
 
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
-from w2.matchday.intake_v2 import CheckpointPlan
-from w2.matchday.repository import MatchdayRuntimeRepository
 from w2.operations.observability import default_metric_registry
 from w2.prematch.lifecycle import (
     DYNAMIC_EVALUATION_V2_SCHEMA,
@@ -24,6 +22,7 @@ from w2.prematch.lifecycle import (
     DynamicEvaluationVersion,
     LineupConfirmedEvent,
     classify_evaluation,
+    lineup_confirmed_refresh_plan,
 )
 from w2.prematch.repository import DynamicPrematchRepository
 from w2.tracking.advisory_blind_spot_policy import (
@@ -197,32 +196,19 @@ def _validate_lineup_event_binding(
 def _post_lineup_odds_plan(
     lineup_event: LineupConfirmedEvent,
     fixture_identity: Mapping[str, Any],
-) -> CheckpointPlan:
-    from w2.ingestion.checkpoint_refresh import lineup_confirmed_refresh_plan
-
+) -> dict[str, Any]:
     kickoff = _parse_utc(fixture_identity.get("kickoff_utc"))
     if kickoff is None:
         raise FrozenAnalysisError("lineup odds plan kickoff unavailable")
-    legacy_plan = lineup_confirmed_refresh_plan(
+    return lineup_confirmed_refresh_plan(
         fixture_id=lineup_event.fixture_id,
+        competition_id=lineup_event.competition_id,
+        season=lineup_event.season,
         kickoff_utc=kickoff,
         captured_at_utc=lineup_event.captured_at,
         home_starters=lineup_event.home_starters,
         away_starters=lineup_event.away_starters,
         lineup_input_hash=lineup_event.lineup_input_hash,
-    )
-    return CheckpointPlan(
-        fixture_id=lineup_event.fixture_id,
-        competition_id=lineup_event.competition_id,
-        season=lineup_event.season,
-        checkpoint=legacy_plan.checkpoint,
-        kickoff_utc=legacy_plan.kickoff_utc,
-        scheduled_at=legacy_plan.due_at_utc,
-        window_start=legacy_plan.due_at_utc,
-        window_end=legacy_plan.kickoff_utc,
-        endpoints=legacy_plan.endpoints,
-        status="DUE",
-        blockers=(),
     )
 
 
@@ -849,7 +835,6 @@ def write_frozen_analysis_artifacts(
             raise FrozenAnalysisError("checkpoint namespace conflicts with payload")
         validated.append((artifact, candidate))
     repository = DynamicPrematchRepository(engine)
-    matchday_repository = MatchdayRuntimeRepository(engine=engine)
     now = datetime.now(UTC)
     with Session(engine) as session:
         try:
@@ -870,7 +855,7 @@ def write_frozen_analysis_artifacts(
                     fixture_identity = draft.payload.get("fixture_identity")
                     if not isinstance(fixture_identity, dict):
                         raise FrozenAnalysisError("lineup odds plan identity unavailable")
-                    matchday_repository.upsert_checkpoint_plan_in_session(
+                    repository.ensure_lineup_confirmed_odds_plan_in_session(
                         session,
                         _post_lineup_odds_plan(
                             original.lineup_event,
