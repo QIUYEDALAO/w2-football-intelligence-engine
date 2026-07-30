@@ -7,7 +7,12 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from w2.infrastructure.database import Base
-from w2.infrastructure.persistence.dynamic_prematch_models import LineupConfirmedEventModel
+from w2.infrastructure.persistence.dynamic_prematch_models import (
+    DynamicPrematchEvaluationModel,
+    DynamicPrematchSupersessionModel,
+    LineupConfirmedEventModel,
+)
+from w2.infrastructure.persistence.matchday_intake_models import MatchdayFixtureIdentityModel
 from w2.prematch.lifecycle import (
     DYNAMIC_EVALUATION_V2_SCHEMA,
     DynamicEvaluationInput,
@@ -17,9 +22,22 @@ from w2.prematch.lifecycle import (
     classify_evaluation,
     select_t30_validation_snapshot,
 )
-from w2.prematch.repository import DynamicPrematchRepository
+from w2.prematch.repository import (
+    DynamicPrematchRepository,
+    project_exact_eval_02b_pairs,
+)
 
 NOW = datetime(2026, 7, 22, 12, tzinfo=UTC)
+PAIR_NOW = datetime(2026, 8, 1, 10, tzinfo=UTC)
+PAIR_EVENT_AT = PAIR_NOW + timedelta(hours=1)
+PAIR_KICKOFF = PAIR_NOW + timedelta(hours=2)
+PAIR_STATES = {
+    "WIN": 0.40,
+    "HALF_WIN": 0.10,
+    "PUSH": 0.10,
+    "HALF_LOSS": 0.10,
+    "LOSS": 0.30,
+}
 
 
 def _evaluation(
@@ -432,3 +450,489 @@ def test_db_lifecycle_is_append_only_and_t30_freezes_once() -> None:
     )
     assert repository.freeze_t30_snapshot("fixture-1", lock)
     assert not repository.freeze_t30_snapshot("fixture-1", lock)
+
+
+def _pair_engine():
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    return engine
+
+
+def _pair_fixture(
+    *,
+    fixture_id: str = "pair-fixture-1",
+    provider_fixture_id: str = "1001",
+) -> MatchdayFixtureIdentityModel:
+    return MatchdayFixtureIdentityModel(
+        fixture_id=fixture_id,
+        provider="api_football",
+        provider_fixture_id=provider_fixture_id,
+        competition_id="competition-1",
+        provider_league_id="39",
+        season="2026",
+        kickoff_utc=PAIR_KICKOFF,
+        fixture_status="NS",
+        home_provider_team_id="home",
+        away_provider_team_id="away",
+        team_identity_status="READY",
+        raw_payload_sha256="a" * 64,
+        captured_at=PAIR_NOW,
+        identity_hash=f"fixture-{fixture_id}",
+        payload={},
+    )
+
+
+def _pair_event(
+    *,
+    event_id: str = "lineup:lineup-hash",
+    lineup_hash: str = "lineup-hash",
+    fixture_id: str = "pair-fixture-1",
+) -> LineupConfirmedEventModel:
+    return LineupConfirmedEventModel(
+        event_id=event_id,
+        fixture_id=fixture_id,
+        lineup_input_hash=lineup_hash,
+        captured_at=PAIR_EVENT_AT,
+        checkpoint="LINEUP_CONFIRMED",
+        payload={
+            "schema_version": "w2.lineup_confirmed_event.v2",
+            "fixture_id": fixture_id,
+            "competition_id": "competition-1",
+            "season": "2026",
+            "captured_at": PAIR_EVENT_AT.isoformat(),
+            "checkpoint": "LINEUP_CONFIRMED",
+            "lineup_input_hash": lineup_hash,
+        },
+    )
+
+
+def _pair_evaluation(
+    evaluation_id: str,
+    *,
+    capture_at: datetime,
+    lineup_hash: str | None,
+    evaluated_at: datetime | None = None,
+    fixture_id: str = "pair-fixture-1",
+    market: str = "ASIAN_HANDICAP",
+    selection: str = "HOME",
+    exact_line: float = -0.25,
+    bookmaker_id: str = "book-1",
+    provider: str = "api_football",
+    state: str = "ANALYSIS_PICK_ACTIVE",
+    schema_version: str = "w2.dynamic_quote_evaluation.v2",
+    distribution: dict[str, float] | None = None,
+) -> DynamicPrematchEvaluationModel:
+    evaluated = evaluated_at or capture_at
+    payload = {
+        "schema_version": schema_version,
+        "evaluation_id": evaluation_id,
+        "fixture_id": fixture_id,
+        "competition_id": "competition-1",
+        "season": "2026",
+        "provider": provider,
+        "market": market,
+        "selection": selection,
+        "exact_line": exact_line,
+        "bookmaker_id": bookmaker_id,
+        "capture_id": f"capture-{evaluation_id}",
+        "quote_identity_hash": f"quote-{evaluation_id}",
+        "lineup_input_hash": lineup_hash,
+        "evaluated_at": evaluated.isoformat(),
+        "capture_at": capture_at.isoformat(),
+        "model_settlement_distribution": distribution or PAIR_STATES,
+    }
+    return DynamicPrematchEvaluationModel(
+        evaluation_id=evaluation_id,
+        identity_hash=f"{evaluation_id:0<64}"[:64],
+        fixture_id=fixture_id,
+        market=market,
+        selection=selection,
+        checkpoint="capture",
+        capture_id=f"capture-{evaluation_id}",
+        quote_identity_hash=f"quote-{evaluation_id}",
+        model_input_hash=f"model-{evaluation_id}",
+        lineup_input_hash=lineup_hash,
+        evaluated_at=evaluated,
+        capture_at=capture_at,
+        original_state=state,
+        payload=payload,
+    )
+
+
+def _persist_pair(engine) -> None:  # type: ignore[no-untyped-def]
+    with Session(engine) as session:
+        session.add_all(
+            [
+                _pair_fixture(),
+                _pair_event(),
+                _pair_evaluation(
+                    "pair-pre",
+                    capture_at=PAIR_EVENT_AT - timedelta(minutes=1),
+                    lineup_hash=None,
+                ),
+                _pair_evaluation(
+                    "pair-post",
+                    capture_at=PAIR_EVENT_AT,
+                    lineup_hash="lineup-hash",
+                ),
+            ]
+        )
+        session.commit()
+
+
+def test_exact_pair_projector_is_deterministic_and_read_only() -> None:
+    engine = _pair_engine()
+    _persist_pair(engine)
+    with Session(engine) as session:
+        counts = (
+            session.query(DynamicPrematchEvaluationModel).count(),
+            session.query(LineupConfirmedEventModel).count(),
+        )
+
+    first = project_exact_eval_02b_pairs(engine)
+    second = project_exact_eval_02b_pairs(engine)
+
+    assert first == second
+    assert len(first.pairs) == 1
+    pair = first.pairs[0]
+    assert pair.identity.canonical_fixture_id == "pair-fixture-1"
+    assert pair.identity.pre_evaluation_id == "pair-pre"
+    assert pair.identity.post_evaluation_id == "pair-post"
+    assert pair.baseline_distribution == PAIR_STATES
+    assert pair.candidate_distribution == PAIR_STATES
+    assert pair.pre_superseded_by_evaluation_id is None
+    assert pair.post_superseded_by_evaluation_id is None
+    with Session(engine) as session:
+        assert counts == (
+            session.query(DynamicPrematchEvaluationModel).count(),
+            session.query(LineupConfirmedEventModel).count(),
+        )
+
+
+def test_exact_pair_projector_selects_last_pre_and_first_post() -> None:
+    engine = _pair_engine()
+    with Session(engine) as session:
+        session.add_all(
+            [
+                _pair_fixture(),
+                _pair_event(),
+                _pair_evaluation(
+                    "pre-old",
+                    capture_at=PAIR_EVENT_AT - timedelta(minutes=2),
+                    lineup_hash=None,
+                ),
+                _pair_evaluation(
+                    "pre-last",
+                    capture_at=PAIR_EVENT_AT - timedelta(microseconds=1),
+                    lineup_hash=None,
+                ),
+                _pair_evaluation(
+                    "post-first",
+                    capture_at=PAIR_EVENT_AT,
+                    lineup_hash="lineup-hash",
+                ),
+                _pair_evaluation(
+                    "post-later",
+                    capture_at=PAIR_EVENT_AT + timedelta(microseconds=1),
+                    lineup_hash="lineup-hash",
+                ),
+            ]
+        )
+        session.commit()
+
+    pair = project_exact_eval_02b_pairs(engine).pairs[0]
+
+    assert pair.identity.pre_evaluation_id == "pre-last"
+    assert pair.identity.post_evaluation_id == "post-first"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("bookmaker_id", "book-2"),
+        ("provider", "other-provider"),
+        ("selection", "AWAY"),
+        ("exact_line", -0.5),
+    ],
+)
+def test_exact_pair_projector_rejects_cross_quote_identity(
+    field: str,
+    value: object,
+) -> None:
+    engine = _pair_engine()
+    post = {
+        "bookmaker_id": "book-1",
+        "provider": "api_football",
+        "selection": "HOME",
+        "exact_line": -0.25,
+    }
+    post[field] = value
+    with Session(engine) as session:
+        session.add_all(
+            [
+                _pair_fixture(),
+                _pair_event(),
+                _pair_evaluation(
+                    "pre",
+                    capture_at=PAIR_EVENT_AT - timedelta(minutes=1),
+                    lineup_hash=None,
+                ),
+                _pair_evaluation(
+                    "post",
+                    capture_at=PAIR_EVENT_AT,
+                    lineup_hash="lineup-hash",
+                    **post,
+                ),
+            ]
+        )
+        session.commit()
+
+    assert not project_exact_eval_02b_pairs(engine).pairs
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"schema_version": "w2.dynamic_quote_evaluation.v1"},
+        {"state": "NOT_READY_MODEL_INPUT"},
+        {"state": "SUPERSEDED"},
+        {"distribution": {**PAIR_STATES, "WIN": 0.41}},
+    ],
+)
+def test_exact_pair_projector_requires_valid_v2_original_evidence(
+    override: dict[str, object],
+) -> None:
+    engine = _pair_engine()
+    with Session(engine) as session:
+        session.add_all(
+            [
+                _pair_fixture(),
+                _pair_event(),
+                _pair_evaluation(
+                    "pre",
+                    capture_at=PAIR_EVENT_AT - timedelta(minutes=1),
+                    lineup_hash=None,
+                ),
+                _pair_evaluation(
+                    "post",
+                    capture_at=PAIR_EVENT_AT,
+                    lineup_hash="lineup-hash",
+                    **override,
+                ),
+            ]
+        )
+        session.commit()
+
+    assert not project_exact_eval_02b_pairs(engine).pairs
+
+
+@pytest.mark.parametrize("event_count", [0, 2])
+def test_exact_pair_projector_requires_one_authoritative_event(event_count: int) -> None:
+    engine = _pair_engine()
+    rows = [
+        _pair_fixture(),
+        _pair_evaluation(
+            "pre",
+            capture_at=PAIR_EVENT_AT - timedelta(minutes=1),
+            lineup_hash=None,
+        ),
+        _pair_evaluation(
+            "post",
+            capture_at=PAIR_EVENT_AT,
+            lineup_hash="lineup-hash",
+        ),
+    ]
+    if event_count:
+        rows.extend(
+            [
+                _pair_event(),
+                _pair_event(event_id="lineup:other", lineup_hash="other"),
+            ]
+        )
+    with Session(engine) as session:
+        session.add_all(rows)
+        session.commit()
+
+    projection = project_exact_eval_02b_pairs(engine)
+
+    assert not projection.pairs
+    expected = (
+        "BLOCKED_LINEUP_EVENT_MISSING"
+        if event_count == 0
+        else "BLOCKED_LINEUP_EVENT_CONFLICT"
+    )
+    assert expected in {item.reason for item in projection.exclusions}
+
+
+def test_exact_pair_projector_blocks_multiple_scopes_per_fixture_market() -> None:
+    engine = _pair_engine()
+    with Session(engine) as session:
+        session.add_all([_pair_fixture(), _pair_event()])
+        for suffix, selection in (("home", "HOME"), ("away", "AWAY")):
+            session.add(
+                _pair_evaluation(
+                    f"pre-{suffix}",
+                    capture_at=PAIR_EVENT_AT - timedelta(minutes=1),
+                    lineup_hash=None,
+                    selection=selection,
+                )
+            )
+            session.add(
+                _pair_evaluation(
+                    f"post-{suffix}",
+                    capture_at=PAIR_EVENT_AT,
+                    lineup_hash="lineup-hash",
+                    selection=selection,
+                )
+            )
+        session.commit()
+
+    assert not project_exact_eval_02b_pairs(engine).pairs
+
+
+def test_exact_pair_projector_resolves_production_fixture_alias() -> None:
+    engine = _pair_engine()
+    with Session(engine) as session:
+        session.add_all(
+            [
+                _pair_fixture(
+                    fixture_id="api_football:1001",
+                    provider_fixture_id="1001",
+                ),
+                _pair_event(fixture_id="1001"),
+                _pair_evaluation(
+                    "pre-alias",
+                    fixture_id="1001",
+                    capture_at=PAIR_EVENT_AT - timedelta(minutes=1),
+                    lineup_hash=None,
+                ),
+                _pair_evaluation(
+                    "post-alias",
+                    fixture_id="1001",
+                    capture_at=PAIR_EVENT_AT,
+                    lineup_hash="lineup-hash",
+                ),
+            ]
+        )
+        session.commit()
+
+    pair = project_exact_eval_02b_pairs(engine).pairs[0]
+
+    assert pair.identity.canonical_fixture_id == "api_football:1001"
+
+
+def test_exact_pair_projector_rejects_ambiguous_fixture_alias() -> None:
+    engine = _pair_engine()
+    with Session(engine) as session:
+        session.add_all(
+            [
+                _pair_fixture(
+                    fixture_id="api_football:1001",
+                    provider_fixture_id="1001",
+                ),
+                _pair_fixture(fixture_id="1001", provider_fixture_id="2002"),
+                _pair_event(fixture_id="1001"),
+                _pair_evaluation(
+                    "pre-ambiguous",
+                    fixture_id="1001",
+                    capture_at=PAIR_EVENT_AT - timedelta(minutes=1),
+                    lineup_hash=None,
+                ),
+                _pair_evaluation(
+                    "post-ambiguous",
+                    fixture_id="1001",
+                    capture_at=PAIR_EVENT_AT,
+                    lineup_hash="lineup-hash",
+                ),
+            ]
+        )
+        session.commit()
+
+    projection = project_exact_eval_02b_pairs(engine)
+
+    assert not projection.pairs
+    assert "BLOCKED_FIXTURE_IDENTITY_CONFLICT" in {
+        item.reason for item in projection.exclusions
+    }
+
+
+def test_exact_pair_projector_keeps_superseded_original_history() -> None:
+    engine = _pair_engine()
+    _persist_pair(engine)
+    with Session(engine) as session:
+        session.add(
+            DynamicPrematchSupersessionModel(
+                superseded_evaluation_id="pair-pre",
+                superseded_by_evaluation_id="pair-post",
+                fixture_id="pair-fixture-1",
+                market="ASIAN_HANDICAP",
+                reason="NEW_CAPTURE_OR_MODEL_INPUT",
+                created_at=PAIR_EVENT_AT,
+            )
+        )
+        session.commit()
+
+    pair = project_exact_eval_02b_pairs(engine).pairs[0]
+
+    assert pair.pre_superseded_by_evaluation_id == "pair-post"
+    assert pair.post_superseded_by_evaluation_id is None
+
+
+def test_exact_pair_projector_pre_eligibility_uses_capture_time_only() -> None:
+    engine = _pair_engine()
+    with Session(engine) as session:
+        session.add_all(
+            [
+                _pair_fixture(),
+                _pair_event(),
+                _pair_evaluation(
+                    "pre-processed-late",
+                    capture_at=PAIR_EVENT_AT - timedelta(minutes=1),
+                    evaluated_at=PAIR_EVENT_AT + timedelta(minutes=1),
+                    lineup_hash=None,
+                ),
+                _pair_evaluation(
+                    "post",
+                    capture_at=PAIR_EVENT_AT,
+                    lineup_hash="lineup-hash",
+                ),
+            ]
+        )
+        session.commit()
+
+    pair = project_exact_eval_02b_pairs(engine).pairs[0]
+
+    assert pair.identity.pre_evaluation_id == "pre-processed-late"
+
+
+def test_exact_pair_projector_orders_pre_by_capture_before_processing_time() -> None:
+    engine = _pair_engine()
+    with Session(engine) as session:
+        session.add_all(
+            [
+                _pair_fixture(),
+                _pair_event(),
+                _pair_evaluation(
+                    "pre-newer-capture",
+                    capture_at=PAIR_EVENT_AT - timedelta(minutes=1),
+                    evaluated_at=PAIR_EVENT_AT - timedelta(minutes=10),
+                    lineup_hash=None,
+                ),
+                _pair_evaluation(
+                    "pre-older-processed-later",
+                    capture_at=PAIR_EVENT_AT - timedelta(minutes=2),
+                    evaluated_at=PAIR_EVENT_AT + timedelta(minutes=1),
+                    lineup_hash=None,
+                ),
+                _pair_evaluation(
+                    "post",
+                    capture_at=PAIR_EVENT_AT,
+                    lineup_hash="lineup-hash",
+                ),
+            ]
+        )
+        session.commit()
+
+    pair = project_exact_eval_02b_pairs(engine).pairs[0]
+
+    assert pair.identity.pre_evaluation_id == "pre-newer-capture"
