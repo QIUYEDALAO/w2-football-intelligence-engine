@@ -5,5 +5,5 @@
 
 Task coordinates are maintained only in those authorities.
 
-当前：完成 B3 EVAL-01C / PR #432 Dashboard 表现视图实现与验收。
+当前：B3 EVAL-01C / PR #432 IN_PROGRESS，等待独立 CODE Review 与 exact-head staging。
 下一项：B4 EVAL-02A；B3 合并前不启动。

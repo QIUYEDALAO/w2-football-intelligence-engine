@@ -314,6 +314,7 @@ class PerformanceFixtureProjection(BaseModel):
     ]
     canonical_settlement_outcome: Literal["HIT", "MISS", "PUSH", "VOID"] | None
     canonical_decisive: bool | None
+    canonical_exclusion_reason: str | None
 
 
 class PerformanceClvPoint(BaseModel):

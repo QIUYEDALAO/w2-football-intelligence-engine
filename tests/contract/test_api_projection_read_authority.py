@@ -234,6 +234,28 @@ def test_performance_api_is_projection_only_and_has_no_compute_imports() -> None
     assert 'self.repository.checkpoints("performance:fixture:")' in performance_source
 
 
+def test_performance_projection_uses_shared_canonical_settlement_authority() -> None:
+    projection = Path(
+        "src/w2/tracking/finished_match_scoring_projection.py"
+    ).read_text(encoding="utf-8")
+    authority = Path(
+        "src/w2/tracking/forward_ledger_performance.py"
+    ).read_text(encoding="utf-8")
+    shared_authority = authority[
+        authority.index("def canonical_settlement_facts(") :
+        authority.index("\ndef _result_for_fixture(")
+    ]
+
+    assert "canonical_settlement_facts(" in projection
+    assert "_canonical_pick_settlement" not in projection
+    for helper in (
+        "_validation_candidates(",
+        "_validation_settlements(",
+        "_canonical_rows(",
+    ):
+        assert helper in shared_authority
+
+
 def test_performance_web_has_no_metric_recomputation_or_production_fixture() -> None:
     sources = {
         path: path.read_text(encoding="utf-8")

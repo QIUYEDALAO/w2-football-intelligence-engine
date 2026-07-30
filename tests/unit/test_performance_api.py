@@ -12,7 +12,11 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session
 
 from w2.api import routers
-from w2.api.repository import Checkpoint, ReadModelRepository, ReadModelService
+from w2.api.repository import (
+    Checkpoint,
+    ReadModelRepository,
+    ReadModelService,
+)
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 
 NOW = datetime(2026, 7, 30, tzinfo=UTC)
@@ -198,6 +202,81 @@ def test_performance_endpoint_missing_projection_field_fails_closed(
     assert response.json()["code"] == "SYSTEM_DEGRADED"
 
 
+@pytest.mark.parametrize(
+    ("populated_tier", "empty_tier"),
+    [("STRICT", "ADVISORY"), ("ADVISORY", "STRICT")],
+)
+def test_sparse_tier_and_league_tier_return_zero_sample_projection(
+    populated_tier: str,
+    empty_tier: str,
+) -> None:
+    repository = PerformanceRepository(
+        _sparse_rows(populated_tier=populated_tier)
+    )
+    service = ReadModelService(repository=repository)  # type: ignore[arg-type]
+
+    global_payload = service.performance(
+        window="30d",
+        league=None,
+        tier=empty_tier,  # type: ignore[arg-type]
+    )
+    league_payload = service.performance(
+        window="30d",
+        league="premier_league",
+        tier="ALL",
+    )
+
+    assert global_payload["coverage"]["fixture_checkpoint_count"] == 0
+    assert global_payload["sample_progress"] == {
+        "current": 0,
+        "target": 200,
+        "ratio": 0.0,
+        "status": "ACCUMULATING",
+    }
+    assert league_payload["tier_comparison"][empty_tier][
+        "finished_result_count"
+    ] == 0
+    assert league_payload["tier_comparison"][empty_tier][
+        "canonical_hit_rate"
+    ] is None
+
+
+def test_unknown_league_and_missing_mandatory_tier_cohort_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = _sparse_rows(populated_tier="STRICT")
+    monkeypatch.setattr(
+        routers,
+        "service",
+        ReadModelService(
+            repository=PerformanceRepository(rows),  # type: ignore[arg-type]
+        ),
+    )
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.get(
+        "/v1/performance",
+        params={"league": "unknown_league"},
+    )
+    assert response.status_code == 503
+    assert response.json()["code"] == "SYSTEM_DEGRADED"
+
+    missing = [
+        row
+        for row in rows
+        if row.key != "performance:cohort:tier:ADVISORY"
+    ]
+    monkeypatch.setattr(
+        routers,
+        "service",
+        ReadModelService(
+            repository=PerformanceRepository(missing),  # type: ignore[arg-type]
+        ),
+    )
+    response = client.get("/v1/performance")
+    assert response.status_code == 503
+    assert response.json()["code"] == "SYSTEM_DEGRADED"
+
+
 def _rows() -> list[Checkpoint]:
     rows = [
         _cohort("performance:cohort:all", finished=35, settled=0),
@@ -232,6 +311,44 @@ def _rows() -> list[Checkpoint]:
         ]
     )
     return rows
+
+
+def _sparse_rows(*, populated_tier: str) -> list[Checkpoint]:
+    empty_tier = "ADVISORY" if populated_tier == "STRICT" else "STRICT"
+    return [
+        _cohort("performance:cohort:all", finished=1, settled=0),
+        _cohort(
+            f"performance:cohort:tier:{populated_tier}",
+            finished=1,
+            settled=0,
+        ),
+        _cohort(
+            f"performance:cohort:tier:{empty_tier}",
+            finished=0,
+            settled=0,
+        ),
+        _cohort(
+            "performance:cohort:league:premier_league",
+            finished=1,
+            settled=0,
+        ),
+        _cohort(
+            f"performance:cohort:league-tier:premier_league:{populated_tier}",
+            finished=1,
+            settled=0,
+        ),
+        _cohort(
+            f"performance:cohort:league-tier:premier_league:{empty_tier}",
+            finished=0,
+            settled=0,
+        ),
+        _fixture(
+            "fixture-sparse",
+            clv_status="NOT_APPLICABLE_NO_PICK",
+            clv_decimal=None,
+            evaluation_tier=populated_tier,
+        ),
+    ]
 
 
 def _cohort(
@@ -281,9 +398,11 @@ def _window(
         "scored_count": 0,
         "not_scorable_count": finished,
         "blocked_count": 0,
-        "not_scorable_by_reason": {
-            "CAPTURE_IDENTITY_MISSING": finished
-        },
+        "not_scorable_by_reason": (
+            {"CAPTURE_IDENTITY_MISSING": finished}
+            if finished
+            else {}
+        ),
         "model_log_loss": model_log_loss,
         "market_log_loss": None,
         "model_minus_market_log_loss": None,
@@ -341,6 +460,7 @@ def _fixture(
     *,
     clv_status: str,
     clv_decimal: float | None,
+    evaluation_tier: str = "STRICT",
 ) -> Checkpoint:
     key = f"performance:fixture:{fixture_id}"
     return Checkpoint(
@@ -354,11 +474,12 @@ def _fixture(
             "fixture_id": fixture_id,
             "kickoff_utc": NOW.isoformat(),
             "league": "premier_league",
-            "evaluation_tier": "STRICT",
+            "evaluation_tier": evaluation_tier,
             "clv_status": clv_status,
             "clv_decimal": clv_decimal,
             "canonical_pick_status": "SETTLEMENT_MISSING",
             "canonical_settlement_outcome": None,
             "canonical_decisive": None,
+            "canonical_exclusion_reason": "SETTLEMENT_MISSING",
         },
     )

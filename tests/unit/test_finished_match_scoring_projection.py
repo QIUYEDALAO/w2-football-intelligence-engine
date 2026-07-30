@@ -23,6 +23,7 @@ from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerMod
 from w2.tracking import finished_match_scoring_cli
 from w2.tracking.finished_match_scoring_projection import (
     WRITE_CONFIRMATION_PHRASE,
+    _cohort_projections,
     run_finished_match_scoring_projection,
 )
 from w2.tracking.forward_ledger_performance import (
@@ -31,7 +32,9 @@ from w2.tracking.forward_ledger_performance import (
     _log_loss,
     _probability_vector,
     _rps,
+    canonical_settlement_facts,
     canonical_settlement_outcome,
+    forward_ledger_performance,
 )
 from w2.tracking.outcome_ledger_repository import (
     IMPORT_CONFIRMATION_PHRASE,
@@ -1503,7 +1506,7 @@ def test_fixture_projection_includes_canonical_settlement(
     fixture_id = f"canonical-{outcome.lower()}"
     _seed_result(repository, fixture_id, home=1, away=0)
     _seed_identity(repository, fixture_id, kickoff=KICKOFF)
-    capture = _capture(
+    capture = _canonical_capture(
         fixture_id,
         KICKOFF - timedelta(minutes=5),
         identity=f"capture-{outcome.lower()}",
@@ -1546,19 +1549,19 @@ def test_fixture_projection_canonical_pick_missing_conflict_and_unsettled(
         identity="no-pick",
         kickoff=KICKOFF,
     )
-    first = _capture(
+    first = _canonical_capture(
         "conflict",
         KICKOFF - timedelta(minutes=10),
         identity="conflict-a",
         kickoff=KICKOFF,
     )
-    second = _capture(
+    second = _canonical_capture(
         "conflict",
         KICKOFF - timedelta(minutes=5),
         identity="conflict-b",
         kickoff=KICKOFF,
     )
-    unsettled = _capture(
+    unsettled = _canonical_capture(
         "unsettled",
         KICKOFF - timedelta(minutes=5),
         identity="unsettled",
@@ -1605,7 +1608,7 @@ def test_cohort_canonical_hit_rate_and_sample_progress(tmp_path: Path) -> None:
         kickoff = KICKOFF - timedelta(hours=index)
         _seed_result(repository, fixture_id, home=1, away=0)
         _seed_identity(repository, fixture_id, kickoff=kickoff)
-        capture = _capture(
+        capture = _canonical_capture(
             fixture_id,
             kickoff - timedelta(minutes=5),
             identity=f"canonical-rate-{index}",
@@ -1643,7 +1646,7 @@ def test_cohort_canonical_hit_rate_and_sample_progress(tmp_path: Path) -> None:
     assert window["sample_progress"] == 0.03
     assert window["sample_progress_status"] == "ACCUMULATING"
 
-    extra = _capture(
+    extra = _canonical_capture(
         "canonical-rate-extra",
         KICKOFF - timedelta(minutes=5),
         identity="canonical-rate-extra",
@@ -1673,6 +1676,83 @@ def test_cohort_canonical_hit_rate_and_sample_progress(tmp_path: Path) -> None:
     assert window["canonical_decisive_count"] == 5
     assert window["canonical_hit_rate"] == 0.8
     assert window["canonical_hit_rate_status"] == "AVAILABLE"
+
+
+def test_forward_and_projection_share_fixture_level_canonical_authority(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    records: list[dict[str, Any]] = []
+    for fixture_id, outcome in (
+        ("canonical-hit", "HIT"),
+        ("canonical-miss", "MISS"),
+        ("canonical-excluded", "HIT"),
+    ):
+        _seed_result(repository, fixture_id, home=1, away=0)
+        _seed_identity(repository, fixture_id, kickoff=KICKOFF)
+        capture = _canonical_capture(
+            fixture_id,
+            KICKOFF - timedelta(minutes=5),
+            identity=f"capture-{fixture_id}",
+            kickoff=KICKOFF,
+        )
+        if fixture_id == "canonical-excluded":
+            capture.pop("artifact_provenance")
+        records.extend((capture, _settlement(capture, outcome)))
+    repository.append(records, dry_run=False, write_db=True)
+
+    facts = canonical_settlement_facts(
+        repository.records(),
+        repository.result_payloads(),
+        repository.legacy_recoveries(),
+    )
+    forward_before = forward_ledger_performance(repository=repository)
+    run_finished_match_scoring_projection(
+        engine=repository.engine,
+        dry_run=False,
+        write_db=True,
+    )
+    forward_after = forward_ledger_performance(repository=repository)
+    fixtures = {
+        fixture_id: _checkpoint(
+            repository,
+            f"performance:fixture:{fixture_id}",
+        )
+        for fixture_id in (
+            "canonical-hit",
+            "canonical-miss",
+            "canonical-excluded",
+        )
+    }
+    cohort = _checkpoint(
+        repository,
+        "performance:cohort:all",
+    )["windows"]["30d"]
+
+    assert forward_after == forward_before
+    assert {
+        fixture_id
+        for fixture_id, payload in fixtures.items()
+        if payload["canonical_pick_status"] == "AVAILABLE"
+    } == set(facts.accepted_by_fixture)
+    assert {
+        fixture_id: payload["canonical_exclusion_reason"]
+        for fixture_id, payload in fixtures.items()
+        if payload["canonical_pick_status"] == "CANONICAL_PICK_CONFLICT"
+    } == facts.excluded_by_fixture
+    assert facts.excluded_by_fixture == {
+        "canonical-excluded": "MISSING_ARTIFACT_IDENTITY"
+    }
+    assert {
+        outcome: cohort[f"canonical_{outcome.lower()}_count"]
+        for outcome in ("HIT", "MISS", "PUSH", "VOID")
+    } == facts.outcome_counts
+    assert forward_after["outcomes_canonical"]["hit_count"] == (
+        cohort["canonical_hit_count"]
+    )
+    assert forward_after["outcomes_canonical"]["miss_count"] == (
+        cohort["canonical_miss_count"]
+    )
 
 
 def test_same_source_with_different_payload_fails_closed(tmp_path: Path) -> None:
@@ -1814,7 +1894,7 @@ def test_all_not_scorable_fixtures_still_generate_stable_cohorts(
         "MARKET_PROBABILITY_VECTOR_MISSING": 35,
         "MODEL_PROBABILITY_VECTOR_MISSING": 35,
     }
-    assert first["cohort_checkpoint_count"] == 4
+    assert first["cohort_checkpoint_count"] == 6
     assert window["finished_result_count"] == 35
     assert window["fixture_checkpoint_count"] == 35
     assert window["scored_count"] == 0
@@ -1831,6 +1911,55 @@ def test_all_not_scorable_fixtures_still_generate_stable_cohorts(
     assert window["clv_sample_count"] == 0
     assert second["db_writes"] == 0
     assert _performance_hashes(repository) == hashes
+
+
+def test_sparse_tier_cohorts_are_zero_sample_and_hash_stable() -> None:
+    fixture = {
+        "fixture_id": "strict-only",
+        "kickoff_utc": KICKOFF.isoformat(),
+        "league": "premier_league",
+        "evaluation_tier": "STRICT",
+        "status": "NOT_SCORABLE",
+        "reason_codes": ["CAPTURE_IDENTITY_MISSING"],
+        "canonical_settlement_outcome": None,
+    }
+
+    first = _cohort_projections({"strict-only": fixture})
+    second = _cohort_projections({"strict-only": fixture})
+    global_empty = first["performance:cohort:tier:ADVISORY"]
+    league_empty = first[
+        "performance:cohort:league-tier:premier_league:ADVISORY"
+    ]
+
+    assert first == second
+    assert global_empty["business_projection_hash"] == second[
+        "performance:cohort:tier:ADVISORY"
+    ]["business_projection_hash"]
+    assert league_empty["business_projection_hash"] == second[
+        "performance:cohort:league-tier:premier_league:ADVISORY"
+    ]["business_projection_hash"]
+    for cohort in (global_empty, league_empty):
+        window = cohort["windows"]["30d"]
+        assert window["finished_result_count"] == 0
+        assert window["fixture_checkpoint_count"] == 0
+        assert window["not_scorable_by_reason"] == {}
+        assert window["model_log_loss"] is None
+        assert window["market_ece"] is None
+        assert all(
+            item["count"] == 0
+            for item in window["model_reliability_bins"]
+        )
+        assert window["paired_log_loss_bootstrap"] == {
+            "status": "INSUFFICIENT",
+            "sample_count": 0,
+        }
+        assert window["clv_sample_count"] == 0
+        assert window["canonical_settled_count"] == 0
+        assert window["canonical_hit_rate"] is None
+        assert window["canonical_hit_rate_status"] == "INSUFFICIENT_SAMPLE"
+        assert window["sample_target"] == 200
+        assert window["sample_progress"] == 0
+        assert window["sample_progress_status"] == "ACCUMULATING"
 
 
 @pytest.mark.parametrize(
@@ -2118,8 +2247,52 @@ def _settlement(
         "capture_identity_hash": capture["capture_identity_hash"],
         "market": pick["market"],
         "selection": pick["selection"],
+        "entry_line": "-1",
+        "entry_price": 2.0,
         "settlement_outcome": outcome,
     }
+
+
+def _canonical_capture(
+    fixture_id: str,
+    captured_at: datetime,
+    *,
+    identity: str,
+    kickoff: datetime,
+) -> dict[str, Any]:
+    capture = _capture(
+        fixture_id,
+        captured_at,
+        identity=identity,
+        kickoff=kickoff,
+    )
+    capture.update(
+        {
+            "recommendation_scope": "VALIDATION",
+            "pick": {
+                "market": "ASIAN_HANDICAP",
+                "selection": "HOME_AH",
+            },
+            "current_odds": {
+                "ah": {
+                    "home_line": "-1",
+                    "away_line": "+1",
+                    "home_price": 2.0,
+                    "away_price": 1.8,
+                }
+            },
+            "quote_provenance": {
+                "markets": {
+                    "ah": {
+                        "identity_status": "COMPLETE",
+                        "freshness_status": "COMPLETE",
+                        "captured_at": captured_at.isoformat(),
+                    }
+                }
+            },
+        }
+    )
+    return capture
 
 
 def _checkpoint(

@@ -83,9 +83,11 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     assert "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)" in next_action
     assert CHECKLIST_PATH in next_action
     assert (
-        "当前：完成 B3 EVAL-01C / PR #432 Dashboard 表现视图实现与验收。"
+        "当前：B3 EVAL-01C / PR #432 IN_PROGRESS，等待独立 CODE Review 与 "
+        "exact-head staging。"
         in next_action
     )
+    assert "下一项：B4 EVAL-02A；B3 合并前不启动。" in next_action
     assert "下一项：B4 EVAL-02A；B3 合并前不启动。" in next_action
     assert "sole machine-readable project-status record" in ledger
     assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", ledger)
