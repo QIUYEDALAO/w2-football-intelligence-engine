@@ -209,9 +209,33 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "BOOTSTRAP_ITERATIONS = 10000",
         "BOOTSTRAP_UNIT = PAIRED_VALIDATION_FIXTURE",
         "MINIMUM_COMPETITIONS = NOT_APPLICABLE",
+        "SCORING_DISTRIBUTION =",
+        "WIN / HALF_WIN / PUSH / HALF_LOSS / LOSS",
+        "BASELINE_AND_CANDIDATE_DISTRIBUTION_SCHEMA =",
+        "SAME_CANONICAL_SETTLEMENT_DISTRIBUTION",
+        "PAIR_LOG_LOSS =",
+        "-negative_log_probability_of_observed_settlement_state",
+        "PROBABILITY_VALUES = FINITE_AND_NON_NEGATIVE",
+        "PROBABILITY_SUM = 1_WITHIN_TOLERANCE",
+        "OBSERVED_SETTLEMENT_STATE = REQUIRED",
+        "MISSING_OR_INVALID_DISTRIBUTION = FAIL_CLOSED",
+        "SCORING_IMPLEMENTATION = BLOCKED",
+        "SCORING_IMPLEMENTATION_BLOCKER =",
+        (
+            "COMPLETE_PERSISTED_BASELINE_AND_CANDIDATE_"
+            "FIVE_STATE_DISTRIBUTIONS_UNAVAILABLE"
+        ),
         "paired_log_loss_improvement =",
         "baseline_log_loss - candidate_log_loss",
         "log_loss_improvement_ci_low > 0",
+        "ORDER_BY =",
+        "kickoff_at ASC, canonical_fixture_id ASC",
+        "VALIDATION_START_INDEX =",
+        "floor(total_eligible_pairs * 0.70)",
+        "VALIDATION_SET =",
+        "ordered_pairs[VALIDATION_START_INDEX:]",
+        "BOOTSTRAP_SEED_INPUT =",
+        "contract_version + sorted(validation_pair_identity_hashes)",
         "RPS_ROLE = DIAGNOSTIC_ONLY",
         "COVERAGE_ROLE = DIAGNOSTIC_ONLY",
         "REVALIDATE_AFTER_DAYS = 90",
@@ -225,6 +249,23 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "DAILY_REQUEST_BUDGET",
         "ROLLBACK",
         "PROVIDER_CALL_LIMIT",
+        "PAIR_QUOTE_SCOPE =",
+        "SAME_PROVIDER_X_BOOKMAKER_X_MARKET_X_SELECTION_X_EXACT_LINE",
+        "PRE_POST_PROVIDER_ID = SAME",
+        "PRE_POST_BOOKMAKER_ID = SAME",
+        "CAPTURE_ID = MAY_DIFFER",
+        "QUOTE_IDENTITY_MISSING_OR_CONFLICTING = FAIL_CLOSED",
+        "PAIR_IDENTITY_HASH_MINIMUM_FIELDS =",
+        "canonical_fixture_id",
+        "competition_id",
+        "season_id",
+        "provider_id",
+        "bookmaker_id",
+        "market",
+        "selection",
+        "exact_line",
+        "pre_evaluation_id",
+        "post_evaluation_id",
     ):
         assert frozen_coordinate in b5
     for identity_rule in (
@@ -251,12 +292,17 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     ):
         assert acquisition_rule in b5
     assert "500 个验证样本" in b5
+    assert "整数盘、半盘和四分之一盘统一使用" in b5
+    assert "不得把 PUSH、HALF_WIN" in b5
+    assert "或 HALF_LOSS 转成二元 outcome" in b5
+    assert "不得发明新公式" in b5
+    assert "EVAL-02B 继续 fail-closed" in b5
     assert "Bootstrap 只重采样 validation fixture pairs" in b5
-    assert "排序后的 canonical pair" in b5
-    assert "identity hash 派生" in b5
     assert "2.5% 与 97.5% 分位数" in b5
+    assert "相同输入必须产生相同的 split、seed 和 bootstrap 区间" in b5
     assert "RPS 与 coverage 必须输出" in b5
     assert "不得作为 blocker" in b5
+    assert "不得跨 provider、bookmaker、selection 或 line 配对" in b5
     b7 = checklist[
         checklist.index("#### B7. EVAL-03") : checklist.index("### 模型升级")
     ]

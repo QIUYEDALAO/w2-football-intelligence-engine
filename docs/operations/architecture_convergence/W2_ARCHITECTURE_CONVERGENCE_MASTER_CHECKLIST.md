@@ -786,6 +786,32 @@ MINIMUM_COMPETITIONS = NOT_APPLICABLE
 `MINIMUM_ELIGIBLE_TOTAL_PAIRS = 120` 是严格时间切分前、每个 competition×market
 的合格总配对数；不得解释为 500 个验证样本。
 
+**评分合同（已冻结，实施仍阻塞）**：
+
+```text
+SCORING_DISTRIBUTION =
+WIN / HALF_WIN / PUSH / HALF_LOSS / LOSS
+
+BASELINE_AND_CANDIDATE_DISTRIBUTION_SCHEMA =
+SAME_CANONICAL_SETTLEMENT_DISTRIBUTION
+
+PAIR_LOG_LOSS =
+-negative_log_probability_of_observed_settlement_state
+
+PROBABILITY_VALUES = FINITE_AND_NON_NEGATIVE
+PROBABILITY_SUM = 1_WITHIN_TOLERANCE
+OBSERVED_SETTLEMENT_STATE = REQUIRED
+MISSING_OR_INVALID_DISTRIBUTION = FAIL_CLOSED
+
+SCORING_IMPLEMENTATION = BLOCKED
+SCORING_IMPLEMENTATION_BLOCKER =
+COMPLETE_PERSISTED_BASELINE_AND_CANDIDATE_FIVE_STATE_DISTRIBUTIONS_UNAVAILABLE
+```
+
+整数盘、半盘和四分之一盘统一使用上述 canonical 五态合同；不得把 PUSH、HALF_WIN
+或 HALF_LOSS 转成二元 outcome。现有持久化证据不能提供完整的 baseline/candidate
+五态分布，因此不得发明新公式，EVAL-02B 继续 fail-closed。
+
 ```text
 paired_log_loss_improvement =
 baseline_log_loss - candidate_log_loss
@@ -793,8 +819,22 @@ baseline_log_loss - candidate_log_loss
 log_loss_improvement_ci_low > 0
 ```
 
-Bootstrap 只重采样 validation fixture pairs；确定性 seed 从排序后的 canonical pair
-identity hash 派生；95% 区间固定取 2.5% 与 97.5% 分位数。
+```text
+ORDER_BY =
+kickoff_at ASC, canonical_fixture_id ASC
+
+VALIDATION_START_INDEX =
+floor(total_eligible_pairs * 0.70)
+
+VALIDATION_SET =
+ordered_pairs[VALIDATION_START_INDEX:]
+
+BOOTSTRAP_SEED_INPUT =
+contract_version + sorted(validation_pair_identity_hashes)
+```
+
+Bootstrap 只重采样 validation fixture pairs；95% 区间固定取 2.5% 与 97.5% 分位数。
+相同输入必须产生相同的 split、seed 和 bootstrap 区间。
 
 ```text
 RPS_ROLE = DIAGNOSTIC_ONLY
@@ -816,6 +856,30 @@ RPS 与 coverage 必须输出，但在新的预注册授权前不得作为 block
   只允许一个 pair。
 - 冲突、缺身份、缺赛果、跨赛季、跨联赛、marker-only 和 superseded 数据全部排除。
 - 禁止 fuzzy、名称猜测或跨 bookmaker/line 拼接。
+
+```text
+PAIR_QUOTE_SCOPE =
+SAME_PROVIDER_X_BOOKMAKER_X_MARKET_X_SELECTION_X_EXACT_LINE
+
+PRE_POST_PROVIDER_ID = SAME
+PRE_POST_BOOKMAKER_ID = SAME
+CAPTURE_ID = MAY_DIFFER
+QUOTE_IDENTITY_MISSING_OR_CONFLICTING = FAIL_CLOSED
+
+PAIR_IDENTITY_HASH_MINIMUM_FIELDS =
+canonical_fixture_id
+competition_id
+season_id
+provider_id
+bookmaker_id
+market
+selection
+exact_line
+pre_evaluation_id
+post_evaluation_id
+```
+
+Pre/Post 不得跨 provider、bookmaker、selection 或 line 配对。
 
 **数据获取权限方案（只授权方案，不授权启动）**：
 
