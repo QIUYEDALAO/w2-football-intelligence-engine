@@ -783,7 +783,16 @@ FUTURE_ONLY_PAIR_COLLECTION_REQUIRED = true
 WRITE_SIDE_IMPLEMENTATION_AUTHORIZED = false
 PROVIDER_CALLS_AUTHORIZED = false
 SCHEDULER_START_AUTHORIZED = false
-NEXT_REQUIRED_ACTION = WRITE_SIDE_READINESS_DESIGN
+WRITE_SIDE_READINESS_DESIGN = FROZEN
+WRITE_SIDE_READY = false
+NEW_TABLE_COUNT = 0
+NEW_MIGRATION_COUNT = 0
+LINEUP_EVENT_PRODUCTION_CALLER = MISSING
+POST_LINEUP_REFRESH_PLAN_PRODUCTION_CALLER = MISSING
+DYNAMIC_EVALUATION_V2 = DESIGNED
+FIVE_STATE_SNAPSHOT = DESIGNED
+EXACT_PAIR_PROJECTOR = DESIGNED
+NEXT_REQUIRED_ACTION = WRITE_SIDE_IMPLEMENTATION_01_REVIEW
 ```
 
 **预注册门禁合同（已冻结）**：
@@ -1119,6 +1128,263 @@ RUNTIME_COLLECTION_AUTHORIZED = false
 PROVIDER_CALLS_AUTHORIZED = false
 SCHEDULER_START_AUTHORIZED = false
 
+SCORING_IMPLEMENTATION = BLOCKED
+EVAL_02B_START_AUTHORIZED = false
+EVAL_02B = BLOCKED
+EVAL_03 = NOT_STARTED
+```
+
+**未来写侧就绪设计（已冻结，未授权实施）**：
+
+现有能力矩阵：
+
+```text
+DYNAMIC_EVALUATION_TABLE = EXISTS
+DYNAMIC_EVALUATION_APPEND_API = EXISTS
+DYNAMIC_EVALUATION_TRANSACTIONAL_PROJECTION = EXISTS
+
+LINEUP_CONFIRMED_EVENT_TABLE = EXISTS
+LINEUP_CONFIRMED_EVENT_APPEND_API = EXISTS
+LINEUP_CONFIRMED_EVENT_PRODUCTION_CALLER = MISSING
+
+LINEUP_CHANGED_PROJECTION_EVENT = EXISTS
+POST_LINEUP_REFRESH_PLAN_FACTORY = EXISTS
+POST_LINEUP_REFRESH_PLAN_PRODUCTION_CALLER = MISSING
+
+MODEL_FIVE_STATE_DISTRIBUTION_SOURCE = EXISTS
+MODEL_FIVE_STATE_DISTRIBUTION_PERSISTED_IN_DYNAMIC_EVALUATION = MISSING
+
+EXPLICIT_PROVIDER_IN_DYNAMIC_EVALUATION = MISSING
+CANONICAL_LINEUP_HASH_SHARED_BY_EVENT_AND_EVALUATION = MISSING
+EXACT_PRE_POST_PAIR_PROJECTOR = MISSING
+
+NEW_PARALLEL_WRITE_PIPELINE = false
+NEW_TABLE_COUNT = 0
+NEW_MIGRATION_COUNT = 0
+```
+
+唯一方案是复用当前 production projection graph，不新建平行写侧。
+
+唯一写入边界：
+
+```text
+DYNAMIC_WRITE_BOUNDARY =
+write_frozen_analysis_artifacts
+
+LINEUP_EVENT_AND_DYNAMIC_EVALUATION_UNIT_OF_WORK =
+SAME_DATABASE_TRANSACTION
+
+READ_MODEL_CHECKPOINT_AND_DYNAMIC_EVALUATION_UNIT_OF_WORK =
+SAME_DATABASE_TRANSACTION
+```
+
+未来实施为 `DynamicPrematchRepository` 增加
+`append_lineup_event_in_session()`，并在现有
+`write_frozen_analysis_artifacts()` 事务内依次处理 canonical lineup event、dynamic
+evaluation、supersession、shadow read-model checkpoint；任一步冲突必须整批 rollback。
+API/read path 不得写数据库，future refresh 不得另建独立 evaluation writer；不得新增
+第二个 event/outbox 表，也不得使用 direct SQL。
+
+Canonical lineup identity：
+
+```text
+LINEUP_INPUT_HASH_AUTHORITY =
+confirmed_lineup_business_identity
+
+LINEUP_EVENT_LINEUP_INPUT_HASH =
+confirmed_lineup_business_identity
+
+POST_EVALUATION_LINEUP_INPUT_HASH =
+confirmed_lineup_business_identity
+
+CANONICAL_LINEUP_IDENTITY_FIELDS =
+fixture_id
+home_team_external_id
+home_sorted_starter_ids
+away_team_external_id
+away_sorted_starter_ids
+
+LINEUP_INPUT_HASH_EXCLUDED_FIELDS =
+captured_at
+raw_sha256
+baseline_artifact_hashes
+lineup_change_features
+model_version
+release_sha
+```
+
+排除字段属于 provenance 或 `model_input_hash`，不是首发业务身份。Lineup event 必须由
+同一 fixture 最新两条 COMPLETE、confirmed snapshot 生成：主客各 11 名首发、22 个
+球员 ID 唯一、两队 snapshot 属于同一 capture、capture 在开球前，且两个 per-team
+lineup identity hash 完整；任一条件不满足均不写 event。
+
+Dynamic evaluation v2：
+
+```text
+DYNAMIC_EVALUATION_SCHEMA_VERSION =
+w2.dynamic_quote_evaluation.v2
+
+DYNAMIC_EVALUATION_V1_EVAL_02B_ELIGIBLE = false
+DYNAMIC_EVALUATION_V2_EVAL_02B_ELIGIBLE = true
+
+DYNAMIC_EVALUATION_V2_FIELDS =
+fixture_id
+competition_id
+season
+provider
+market
+selection
+exact_line
+bookmaker_id
+capture_id
+quote_identity_hash
+model_input_hash
+lineup_input_hash
+checkpoint
+evaluated_at
+capture_at
+model_settlement_distribution
+state
+blockers
+```
+
+`competition_id / season` 来自既有 `matchday_fixture_identities`；
+`provider / bookmaker_id / exact_line / capture_id` 来自 exact quote identity；
+`model_settlement_distribution` 是 selected side 的
+`model_probability.settlement_distribution`；`lineup_input_hash` 使用上述 canonical
+lineup identity；`model_input_hash` 覆盖 simulation、analysis evidence、lineup
+features 和版本输入。Provider、competition、season、exact line、bookmaker、capture
+和五态分布必须全部参与 v2 identity hash。继续使用现有 JSON payload，不改数据库表。
+
+五态分布写入合同：
+
+```text
+MODEL_SETTLEMENT_DISTRIBUTION_STATE_ORDER =
+WIN
+HALF_WIN
+PUSH
+HALF_LOSS
+LOSS
+
+BASELINE_DISTRIBUTION = PRE.model_settlement_distribution
+CANDIDATE_DISTRIBUTION = POST.model_settlement_distribution
+
+STATE_SET_EXACT = true
+FINITE_AND_NON_NEGATIVE = true
+ABS(SUM - 1) <= 1e-9
+MISSING_OR_INVALID = FAIL_CLOSED
+```
+
+每条 Pre/Post evaluation 各保存一套五态模型分布，不得在一条 evaluation 同时保存
+baseline 和 candidate。写侧可复用现有状态枚举，但不得直接使用
+`complete_five_state_distribution()` 的 `1e-6` 容差；EVAL-02B 必须实现冻结的
+`1e-9`。PUSH、HALF_WIN、HALF_LOSS 不得转换为二元概率。
+
+Lineup event payload 与幂等：
+
+```text
+LINEUP_EVENT_V2_FIELDS =
+fixture_id
+competition_id
+season
+captured_at
+checkpoint
+lineup_input_hash
+home_lineup_identity_hash
+away_lineup_identity_hash
+home_starters
+away_starters
+source_capture_id
+raw_sha256
+
+SAME_NATURAL_IDENTITY_AND_SAME_PAYLOAD = ZERO_WRITE
+SAME_NATURAL_IDENTITY_AND_DIFFERENT_PAYLOAD = FAIL_CLOSED
+```
+
+现有 `append_lineup_event()` 对所有 `IntegrityError` 直接返回 `false`，无法区分幂等与
+冲突；未来实现必须显式比较已存 payload。
+
+首发后赔率刷新计划复用 `lineup_confirmed_refresh_plan()`、
+`matchday_checkpoint_plans` 和 `MatchdayRuntimeRepository`，不得新建 scheduler 或
+plan 表。Event 成功写入后必须幂等地产生：
+
+```text
+checkpoint = LINEUP_CONFIRMED
+endpoint = odds
+scheduled_at = lineup_event.captured_at
+fixture_id = lineup_event.fixture_id
+
+LINEUP_EVENT_WITHOUT_POST_LINEUP_ODDS_PLAN =
+WRITE_SIDE_NOT_READY
+
+PLAN_EXISTS_BUT_PROVIDER_NOT_ACTIVATED =
+READY_FOR_ACTIVATION_REVIEW
+
+SCHEDULER_START_AUTHORIZED = false
+PROVIDER_CALLS_AUTHORIZED = false
+```
+
+Pre/Post 配对所需字段：
+
+```text
+PRE =
+最后一条 capture_at < lineup_event.captured_at
+且具备完整 v2 身份与五态分布的 evaluation
+
+POST =
+第一条 capture_at >= lineup_event.captured_at
+lineup_input_hash == lineup_event.lineup_input_hash
+且使用 fresh exact quote 的 evaluation
+
+PRE_POST_EXACT_MATCH_FIELDS =
+fixture_id
+competition_id
+season
+provider
+bookmaker_id
+market
+selection
+exact_line
+
+PAIR_STORAGE_MODE = DERIVED_READ_MODEL
+NEW_PAIR_TABLE_COUNT = 0
+```
+
+不得跨 provider、bookmaker、line 或 selection 配对；pair identity 在后续 projector
+中按已冻结 minimum fields 确定性计算，不新建 pair 表。
+
+实施工作包与顺序：
+
+```text
+WRITE_SIDE_IMPLEMENTATION_01 =
+CANONICAL_LINEUP_EVENT_AND_ATOMIC_WRITE
+
+WRITE_SIDE_IMPLEMENTATION_02 =
+DYNAMIC_EVALUATION_V2_AND_FIVE_STATE_SNAPSHOT
+
+WRITE_SIDE_IMPLEMENTATION_03 =
+POST_LINEUP_ODDS_PLAN_PRODUCER
+
+WRITE_SIDE_IMPLEMENTATION_04 =
+READ_ONLY_EXACT_PAIR_PROJECTOR
+
+WRITE_SIDE_IMPLEMENTATION_ORDER =
+01 -> 02 -> 03 -> 04
+```
+
+四个工作包必须分别通过独立、可回滚 PR；任何工作包均不得自动开启 Provider、
+scheduler 或运行采集。本设计冻结后的状态为：
+
+```text
+WRITE_SIDE_READINESS_DESIGN = FROZEN
+WRITE_SIDE_READY = false
+WRITE_SIDE_IMPLEMENTATION_AUTHORIZED = false
+NEXT_REQUIRED_ACTION = WRITE_SIDE_IMPLEMENTATION_01_REVIEW
+
+LEGACY_RESULT_EVAL_ELIGIBILITY = false
+RUNTIME_COLLECTION_AUTHORIZED = false
+PROVIDER_CALLS_AUTHORIZED = false
+SCHEDULER_START_AUTHORIZED = false
 SCORING_IMPLEMENTATION = BLOCKED
 EVAL_02B_START_AUTHORIZED = false
 EVAL_02B = BLOCKED
