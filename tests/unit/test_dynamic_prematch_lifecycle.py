@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.dynamic_prematch_models import LineupConfirmedEventModel
 from w2.prematch.lifecycle import (
+    DYNAMIC_EVALUATION_V2_SCHEMA,
     DynamicEvaluationInput,
     DynamicEvaluationLedger,
     DynamicEvaluationState,
@@ -109,9 +110,7 @@ def test_active_admission_requires_all_three_robust_gates(
     ev_se: float,
     blocker: str,
 ) -> None:
-    version = classify_evaluation(
-        _evaluation(capture_id=blocker, ev=ev, delta=delta, ev_se=ev_se)
-    )
+    version = classify_evaluation(_evaluation(capture_id=blocker, ev=ev, delta=delta, ev_se=ev_se))
     assert version.state is DynamicEvaluationState.NO_EDGE_CURRENT
     assert blocker in version.blockers
 
@@ -153,6 +152,93 @@ def test_source_absent_has_public_copy_not_internal_term() -> None:
     assert version.state is DynamicEvaluationState.NOT_READY_SOURCE_ABSENT
     assert version.user_message == "当前采集窗口尚未取得完整盘口"
     assert version.next_action == "等待下一次受控采集"
+
+
+def test_v2_persists_exact_identity_and_five_state_distribution() -> None:
+    distribution = {
+        "WIN": 0.48,
+        "HALF_WIN": 0.10,
+        "PUSH": 0.02,
+        "HALF_LOSS": 0.10,
+        "LOSS": 0.30,
+    }
+    version = classify_evaluation(
+        _evaluation(
+            capture_id="v2",
+            ev=0.08,
+            delta=0.06,
+            ev_se=0.02,
+            schema_version=DYNAMIC_EVALUATION_V2_SCHEMA,
+            competition_id="competition-1",
+            season="2026",
+            provider="api_football",
+            model_settlement_distribution=distribution,
+        )
+    )
+
+    payload = version.as_dict()
+    assert payload["schema_version"] == DYNAMIC_EVALUATION_V2_SCHEMA
+    assert payload["competition_id"] == "competition-1"
+    assert payload["season"] == "2026"
+    assert payload["provider"] == "api_football"
+    assert payload["lineup_input_hash"] is None
+    assert payload["model_settlement_distribution"] == distribution
+    changed_provider = classify_evaluation(
+        _evaluation(
+            capture_id="v2",
+            ev=0.08,
+            delta=0.06,
+            ev_se=0.02,
+            schema_version=DYNAMIC_EVALUATION_V2_SCHEMA,
+            competition_id="competition-1",
+            season="2026",
+            provider="other",
+            model_settlement_distribution=distribution,
+        )
+    )
+    assert changed_provider.identity_hash != version.identity_hash
+
+
+@pytest.mark.parametrize(
+    "distribution",
+    [
+        {
+            "WIN": 0.48,
+            "HALF_WIN": 0.10,
+            "PUSH": 0.02,
+            "HALF_LOSS": 0.10,
+            "LOSS": 0.30000001,
+        },
+        {
+            "WIN": float("nan"),
+            "HALF_WIN": 0.10,
+            "PUSH": 0.02,
+            "HALF_LOSS": 0.10,
+            "LOSS": 0.30,
+        },
+        {"WIN": 1.0},
+    ],
+)
+def test_v2_distribution_fails_closed_at_one_e_minus_nine(
+    distribution: dict[str, float],
+) -> None:
+    with pytest.raises(
+        ValueError,
+        match="DYNAMIC_EVALUATION_V2_DISTRIBUTION_INVALID",
+    ):
+        classify_evaluation(
+            _evaluation(
+                capture_id="v2-invalid",
+                ev=0.08,
+                delta=0.06,
+                ev_se=0.02,
+                schema_version=DYNAMIC_EVALUATION_V2_SCHEMA,
+                competition_id="competition-1",
+                season="2026",
+                provider="api_football",
+                model_settlement_distribution=distribution,
+            )
+        )
 
 
 def test_lineup_event_invalidates_old_input_until_post_lineup_quote() -> None:

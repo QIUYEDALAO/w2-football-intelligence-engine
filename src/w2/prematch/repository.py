@@ -294,6 +294,16 @@ def _version_from_payload(payload: dict[str, Any]) -> DynamicEvaluationVersion:
         supersession_reason=str(payload["supersession_reason"])
         if payload.get("supersession_reason")
         else None,
+        schema_version=str(payload.get("schema_version") or "w2.dynamic_quote_evaluation.v1"),
+        competition_id=str(payload["competition_id"]) if payload.get("competition_id") else None,
+        season=str(payload["season"]) if payload.get("season") else None,
+        provider=str(payload["provider"]) if payload.get("provider") else None,
+        model_settlement_distribution={
+            str(key): float(value)
+            for key, value in payload["model_settlement_distribution"].items()
+        }
+        if isinstance(payload.get("model_settlement_distribution"), dict)
+        else None,
     )
 
 

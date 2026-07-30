@@ -103,6 +103,18 @@ class ScopedRepository:
             raw_sha256="a" * 64,
         )
 
+    def matchday_fixture_identity(self, fixture_id: str) -> dict[str, Any] | None:
+        if fixture_id != self.fixture_id:
+            return None
+        return {
+            "status": "READY",
+            "fixture_id": fixture_id,
+            "provider": "api_football",
+            "provider_fixture_id": fixture_id,
+            "competition_id": "league",
+            "season": "2026",
+        }
+
 
 def _patch_projection(monkeypatch: pytest.MonkeyPatch) -> None:
     def project(
@@ -151,6 +163,13 @@ def _patch_ready_projection(monkeypatch: pytest.MonkeyPatch) -> None:
                             "OVER": {
                                 "model_probability": {
                                     "status": "READY",
+                                    "settlement_distribution": {
+                                        "WIN": 0.48,
+                                        "HALF_WIN": 0.10,
+                                        "PUSH": 0.02,
+                                        "HALF_LOSS": 0.10,
+                                        "LOSS": 0.30,
+                                    },
                                     "effective_probability": 0.58,
                                     "expected_value": 0.08,
                                     "ev_se": 0.01,
@@ -164,6 +183,7 @@ def _patch_ready_projection(monkeypatch: pytest.MonkeyPatch) -> None:
                             "quotes": {
                                 "over": {
                                     "line": "2.5",
+                                    "provider": "api_football",
                                     "bookmaker_id": "book-1",
                                     "capture_id": "capture-1",
                                     "captured_at": "2026-07-18T04:00:00Z",
@@ -216,9 +236,7 @@ def _materializer(
 
 def _event(event_type: str = "ODDS_CHANGED") -> ProjectionSourceEvent:
     event_id = (
-        "lineup:lineup-1"
-        if event_type == "LINEUP_CHANGED"
-        else f"{event_type.lower()}:capture-1"
+        "lineup:lineup-1" if event_type == "LINEUP_CHANGED" else f"{event_type.lower()}:capture-1"
     )
     return ProjectionSourceEvent.create(
         fixture_id="1576804",
@@ -585,9 +603,7 @@ def test_public_projection_preserves_original_active_payload_and_hash_contract(
         evaluated_at=datetime(2026, 7, 18, 5, 0, tzinfo=UTC),
     )
     artifact_body = {
-        key: value
-        for key, value in artifact.payload.items()
-        if key != "artifact_hash"
+        key: value for key, value in artifact.payload.items() if key != "artifact_hash"
     }
 
     assert artifact.payload["checkpoint_namespace"] == "public"
@@ -820,6 +836,20 @@ def test_single_event_shadow_matches_post_write_current_read_with_lifecycle(
         assert session.query(LineupConfirmedEventModel).count() == (
             1 if event_type == "LINEUP_CHANGED" else 0
         )
+        evaluation = session.query(DynamicPrematchEvaluationModel).one()
+        assert evaluation.payload["schema_version"] == "w2.dynamic_quote_evaluation.v2"
+        assert evaluation.payload["competition_id"] == "league"
+        assert evaluation.payload["season"] == "2026"
+        assert evaluation.payload["provider"] == "api_football"
+        assert evaluation.payload["lineup_input_hash"] is None
+        assert evaluation.payload["state"] == "ANALYSIS_PICK_ACTIVE"
+        assert evaluation.payload["model_settlement_distribution"] == {
+            "WIN": 0.48,
+            "HALF_WIN": 0.10,
+            "PUSH": 0.02,
+            "HALF_LOSS": 0.10,
+            "LOSS": 0.30,
+        }
     if event_type == "LINEUP_CHANGED":
         assert len(artifact.payload["lineup_event_payload_sha256"]) == 64
     else:
@@ -869,9 +899,7 @@ def test_lineup_source_event_binding_fails_closed(
         ) -> LineupConfirmedEvent | None:
             original = super().canonical_lineup_confirmed_event(fixture_id)
             assert original is not None
-            return LineupConfirmedEvent(
-                **{**original.__dict__, "fixture_id": "other-fixture"}
-            )
+            return LineupConfirmedEvent(**{**original.__dict__, "fixture_id": "other-fixture"})
 
     with pytest.raises(FrozenAnalysisError, match="lineup event fixture mismatch"):
         _materializer(WrongFixtureRepository()).build(
@@ -1194,5 +1222,12 @@ def test_checkpoint_update_failure_restores_evaluation_and_supersession(
     with Session(engine) as session:
         assert session.query(DynamicPrematchEvaluationModel).count() == 2
         assert session.query(DynamicPrematchSupersessionModel).count() == 1
+        latest = (
+            session.query(DynamicPrematchEvaluationModel)
+            .order_by(DynamicPrematchEvaluationModel.capture_at.desc())
+            .first()
+        )
+        assert latest is not None
+        assert latest.payload["lineup_input_hash"] == "lineup-1"
         checkpoint = session.query(ReadModelCheckpointModel).one()
         assert checkpoint.source_hash == second.source_hash

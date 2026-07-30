@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
@@ -13,6 +14,10 @@ ACTIVE_EV_THRESHOLD = 0.0
 ACTIVE_EV_MINUS_SE_THRESHOLD = 0.0
 LINEUP_CONFIRMED_CHECKPOINT = "LINEUP_CONFIRMED"
 T30_VALIDATION_CHECKPOINT = "T-30m_VALIDATION_LOCK"
+DYNAMIC_EVALUATION_V1_SCHEMA = "w2.dynamic_quote_evaluation.v1"
+DYNAMIC_EVALUATION_V2_SCHEMA = "w2.dynamic_quote_evaluation.v2"
+SETTLEMENT_STATE_ORDER = ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")
+EVAL_02B_DISTRIBUTION_TOLERANCE = 1e-9
 SOURCE_ABSENT_USER_MESSAGE = "当前采集窗口尚未取得完整盘口"
 SOURCE_ABSENT_NEXT_ACTION = "等待下一次受控采集"
 
@@ -55,6 +60,11 @@ class DynamicEvaluationInput:
     lineup_input_hash: str | None = None
     lineup_confirmed_at: datetime | None = None
     post_lineup_quote: bool = False
+    schema_version: str = DYNAMIC_EVALUATION_V1_SCHEMA
+    competition_id: str | None = None
+    season: str | None = None
+    provider: str | None = None
+    model_settlement_distribution: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -86,6 +96,11 @@ class DynamicEvaluationVersion:
     next_action: str | None
     supersedes_evaluation_id: str | None = None
     supersession_reason: str | None = None
+    schema_version: str = DYNAMIC_EVALUATION_V1_SCHEMA
+    competition_id: str | None = None
+    season: str | None = None
+    provider: str | None = None
+    model_settlement_distribution: dict[str, float] | None = None
 
     def as_dict(
         self,
@@ -100,7 +115,7 @@ class DynamicEvaluationVersion:
         payload["blockers"] = list(self.blockers)
         payload["superseded_by_evaluation_id"] = superseded_by_evaluation_id
         payload["immutable"] = True
-        payload["schema_version"] = "w2.dynamic_quote_evaluation.v1"
+        payload["schema_version"] = self.schema_version
         return payload
 
 
@@ -175,6 +190,7 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
         if value.lineup_confirmed_at is not None
         else None
     )
+    distribution = _v2_distribution(value)
     blockers: list[str] = []
     user_message: str | None = None
     next_action: str | None = None
@@ -233,14 +249,12 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
 
     shortfall = {
         "ev": round(max(ACTIVE_EV_THRESHOLD - ev, 0.0), 6) if ev is not None else 0.0,
-        "delta": round(max(ACTIVE_DELTA_THRESHOLD - delta, 0.0), 6)
-        if delta is not None
-        else 0.0,
+        "delta": round(max(ACTIVE_DELTA_THRESHOLD - delta, 0.0), 6) if delta is not None else 0.0,
         "ev_minus_se": round(max(ACTIVE_EV_MINUS_SE_THRESHOLD - ev_minus_se, 0.0), 6)
         if ev_minus_se is not None
         else 0.0,
     }
-    identity_payload = {
+    identity_payload: dict[str, Any] = {
         "fixture_id": value.fixture_id,
         "market": value.market,
         "selection": value.selection,
@@ -253,6 +267,16 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
         "checkpoint": value.checkpoint,
         "capture_at": _iso(capture_at) if capture_at else None,
     }
+    if value.schema_version == DYNAMIC_EVALUATION_V2_SCHEMA:
+        identity_payload.update(
+            {
+                "schema_version": value.schema_version,
+                "competition_id": value.competition_id,
+                "season": value.season,
+                "provider": value.provider,
+                "model_settlement_distribution": distribution,
+            }
+        )
     identity_hash = _hash(identity_payload)
     return DynamicEvaluationVersion(
         evaluation_id=f"dqe-{identity_hash}",
@@ -280,7 +304,48 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
         blockers=tuple(blockers),
         user_message=user_message,
         next_action=next_action,
+        schema_version=value.schema_version,
+        competition_id=str(value.competition_id) if value.competition_id else None,
+        season=str(value.season) if value.season else None,
+        provider=str(value.provider) if value.provider else None,
+        model_settlement_distribution=distribution,
     )
+
+
+def _v2_distribution(value: DynamicEvaluationInput) -> dict[str, float] | None:
+    if value.schema_version == DYNAMIC_EVALUATION_V1_SCHEMA:
+        return None
+    if value.schema_version != DYNAMIC_EVALUATION_V2_SCHEMA:
+        raise ValueError("DYNAMIC_EVALUATION_SCHEMA_UNSUPPORTED")
+    required_identity = (
+        value.fixture_id,
+        value.competition_id,
+        value.season,
+        value.provider,
+        value.market,
+        value.selection,
+        value.bookmaker_id,
+        value.capture_id,
+        value.quote_identity_hash,
+        value.model_input_hash,
+        value.checkpoint,
+    )
+    if any(item is None or not str(item).strip() for item in required_identity):
+        raise ValueError("DYNAMIC_EVALUATION_V2_IDENTITY_INCOMPLETE")
+    if value.exact_line is None or value.capture_at is None:
+        raise ValueError("DYNAMIC_EVALUATION_V2_IDENTITY_INCOMPLETE")
+    raw = value.model_settlement_distribution
+    if not isinstance(raw, Mapping) or set(raw) != set(SETTLEMENT_STATE_ORDER):
+        raise ValueError("DYNAMIC_EVALUATION_V2_DISTRIBUTION_INVALID")
+    try:
+        distribution = {state: float(raw[state]) for state in SETTLEMENT_STATE_ORDER}
+    except (TypeError, ValueError):
+        raise ValueError("DYNAMIC_EVALUATION_V2_DISTRIBUTION_INVALID") from None
+    if any(not math.isfinite(item) or item < 0 for item in distribution.values()):
+        raise ValueError("DYNAMIC_EVALUATION_V2_DISTRIBUTION_INVALID")
+    if abs(sum(distribution.values()) - 1.0) > EVAL_02B_DISTRIBUTION_TOLERANCE:
+        raise ValueError("DYNAMIC_EVALUATION_V2_DISTRIBUTION_INVALID")
+    return distribution
 
 
 class DynamicEvaluationLedger:
