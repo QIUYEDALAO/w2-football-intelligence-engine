@@ -3,9 +3,11 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
 
 from w2.infrastructure.database import Base
+from w2.infrastructure.persistence.dynamic_prematch_models import LineupConfirmedEventModel
 from w2.prematch.lifecycle import (
     DynamicEvaluationInput,
     DynamicEvaluationLedger,
@@ -48,6 +50,24 @@ def _evaluation(
     }
     values.update(overrides)
     return DynamicEvaluationInput(**values)  # type: ignore[arg-type]
+
+
+def _lineup_event(**overrides: object) -> LineupConfirmedEvent:
+    values = {
+        "fixture_id": "fixture-1",
+        "competition_id": "competition-1",
+        "season": "2026",
+        "captured_at": NOW,
+        "lineup_input_hash": "lineup-1",
+        "home_starters": 11,
+        "away_starters": 11,
+        "home_lineup_identity_hash": "home",
+        "away_lineup_identity_hash": "away",
+        "source_capture_id": "capture-lineup-1",
+        "raw_sha256": "a" * 64,
+    }
+    values.update(overrides)
+    return LineupConfirmedEvent(**values)  # type: ignore[arg-type]
 
 
 def test_new_capture_supersedes_old_and_same_capture_is_idempotent() -> None:
@@ -141,12 +161,16 @@ def test_lineup_event_invalidates_old_input_until_post_lineup_quote() -> None:
     confirmed_at = NOW + timedelta(minutes=1)
     event = LineupConfirmedEvent(
         fixture_id="fixture-1",
+        competition_id="competition-1",
+        season="2026",
         captured_at=confirmed_at,
         lineup_input_hash="lineup-1",
         home_starters=11,
         away_starters=11,
         home_lineup_identity_hash="home",
         away_lineup_identity_hash="away",
+        source_capture_id="capture-lineup-1",
+        raw_sha256="a" * 64,
     )
     ledger.confirm_lineup(event)
     pending = ledger.current_for("fixture-1", "TOTALS")
@@ -175,13 +199,61 @@ def test_incomplete_confirmed_lineup_event_fails_closed() -> None:
     with pytest.raises(ValueError, match="STARTING_XI_INCOMPLETE"):
         LineupConfirmedEvent(
             fixture_id="fixture-1",
+            competition_id="competition-1",
+            season="2026",
             captured_at=NOW,
             lineup_input_hash="lineup-incomplete",
             home_starters=10,
             away_starters=11,
             home_lineup_identity_hash="home",
             away_lineup_identity_hash="away",
+            source_capture_id="capture-lineup-incomplete",
+            raw_sha256="b" * 64,
         )
+
+
+def test_lineup_event_v2_append_is_idempotent_and_preserves_first_observation() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = DynamicPrematchRepository(engine)
+    first = _lineup_event()
+
+    stored, inserted = repository.append_lineup_event(first)
+    reobserved, replay_inserted = repository.append_lineup_event(
+        _lineup_event(
+            captured_at=NOW + timedelta(minutes=5),
+            source_capture_id="capture-lineup-2",
+            raw_sha256="b" * 64,
+        )
+    )
+
+    assert inserted is True
+    assert replay_inserted is False
+    assert stored == first
+    assert reobserved == first
+    assert reobserved.captured_at == NOW
+    assert reobserved.source_capture_id == "capture-lineup-1"
+    with Session(engine) as session:
+        row = session.scalar(select(LineupConfirmedEventModel))
+    assert row is not None
+    assert row.payload == first.as_dict()
+    assert row.payload["schema_version"] == "w2.lineup_confirmed_event.v2"
+    assert row.payload["numeric_adjustment_enabled"] is False
+
+
+def test_lineup_event_append_rejects_payload_and_lineup_corrections() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = DynamicPrematchRepository(engine)
+    repository.append_lineup_event(_lineup_event())
+
+    with pytest.raises(ValueError, match="LINEUP_EVENT_PAYLOAD_CONFLICT"):
+        repository.append_lineup_event(_lineup_event(season="2027"))
+    with pytest.raises(ValueError, match="LINEUP_CONFIRMATION_CONFLICT"):
+        repository.append_lineup_event(_lineup_event(lineup_input_hash="lineup-2"))
+
+    with Session(engine) as session:
+        assert session.query(LineupConfirmedEventModel).count() == 1
 
 
 def test_t30_validation_is_time_selected_and_never_best_ev_selected() -> None:

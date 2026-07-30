@@ -64,6 +64,25 @@ def test_write_projector_lives_outside_api_without_compatibility_shim() -> None:
     assert "def materialize_projection_events" in source
 
 
+def test_lineup_event_uses_the_existing_atomic_projection_unit_of_work() -> None:
+    source = WRITE_PROJECTOR.read_text(encoding="utf-8")
+    event_append = source.index("repository.append_lineup_event_in_session")
+    evaluation_append = source.index("repository.append_evaluation_in_session")
+
+    assert event_append < evaluation_append
+    assert "lineup_event_payload_sha256" in source
+    assert "session.commit()" in source
+    assert "session.rollback()" in source
+
+
+def test_future_refresh_does_not_add_an_independent_lineup_event_writer() -> None:
+    source = WRITE_ENTRYPOINT.read_text(encoding="utf-8")
+
+    assert ".append_lineup_event(" not in source
+    assert ".append_lineup_event_in_session(" not in source
+    assert 'event_type="LINEUP_CHANGED"' in source
+
+
 def test_recursive_projection_production_graph_has_no_api_dependency() -> None:
     graph = _prematch_projection_graph()
     assert WRITE_PROJECTOR in graph

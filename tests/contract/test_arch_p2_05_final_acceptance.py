@@ -185,7 +185,7 @@ def test_deletions_keep_direct_evidence_and_known_retained_items() -> None:
     assert "CYCLIC_PACKAGE_COUNT = 22" in checklist
 
 
-def test_p2_05_is_done_and_eval_02a_is_current() -> None:
+def test_p2_05_is_done_and_eval_02b_is_current() -> None:
     checklist = _text(CHECKLIST)
     state = yaml.safe_load(_text(ROOT / "PROJECT_STATE.yaml"))
     section = checklist[checklist.index("**ARCH-P2-05") : checklist.index("### 阶段 B")]
@@ -195,12 +195,12 @@ def test_p2_05_is_done_and_eval_02a_is_current() -> None:
     assert "- [x] exact-head FULL CI、外部验收与 PR 合并" in section
     assert "- [ ]" not in section
     assert "W2_ARCHITECTURE_CONVERGENCE_COMPLETE = PASS" in section
-    assert state["current_task"] == "EVAL-02A"
-    assert state["current_status"] == "IN_PROGRESS"
-    assert state["current_pr"] == 434
+    assert state["current_task"] == "EVAL-02B"
+    assert state["current_status"] == "BLOCKED"
+    assert state["current_pr"] is None
     assert state["tasks"]["ARCH-P2-05"]["status"] == "DONE"
     assert state["tasks"]["EVAL-01A"]["status"] == "DONE"
     assert state["tasks"]["EVAL-01B"]["status"] == "DONE"
     assert state["tasks"]["EVAL-01C"]["status"] == "DONE"
-    assert state["tasks"]["EVAL-02A"]["status"] == "IN_PROGRESS"
-    assert state["tasks"]["EVAL-02B"]["status"] == "NOT_STARTED"
+    assert state["tasks"]["EVAL-02A"]["status"] == "DONE"
+    assert state["tasks"]["EVAL-02B"]["status"] == "BLOCKED"

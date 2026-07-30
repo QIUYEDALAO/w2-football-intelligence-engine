@@ -107,21 +107,53 @@ class DynamicEvaluationVersion:
 @dataclass(frozen=True, kw_only=True)
 class LineupConfirmedEvent:
     fixture_id: str
+    competition_id: str
+    season: str
     captured_at: datetime
     lineup_input_hash: str
     home_starters: int
     away_starters: int
     home_lineup_identity_hash: str
     away_lineup_identity_hash: str
+    source_capture_id: str
+    raw_sha256: str
     checkpoint: str = LINEUP_CONFIRMED_CHECKPOINT
 
     def __post_init__(self) -> None:
+        if not self.fixture_id or not self.competition_id or not self.season:
+            raise ValueError("LINEUP_EVENT_IDENTITY_MISSING")
+        _aware_utc(self.captured_at, field="captured_at")
+        if self.checkpoint != LINEUP_CONFIRMED_CHECKPOINT:
+            raise ValueError("LINEUP_EVENT_CHECKPOINT_INVALID")
         if self.home_starters != 11 or self.away_starters != 11:
             raise ValueError("STARTING_XI_INCOMPLETE")
         if not self.lineup_input_hash:
             raise ValueError("LINEUP_INPUT_HASH_MISSING")
         if not self.home_lineup_identity_hash or not self.away_lineup_identity_hash:
             raise ValueError("LINEUP_IDENTITY_HASH_MISSING")
+        if not self.source_capture_id or not self.raw_sha256:
+            raise ValueError("LINEUP_EVENT_PROVENANCE_MISSING")
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "fixture_id": self.fixture_id,
+            "competition_id": self.competition_id,
+            "season": self.season,
+            "captured_at": _iso(self.captured_at),
+            "checkpoint": self.checkpoint,
+            "lineup_input_hash": self.lineup_input_hash,
+            "home_lineup_identity_hash": self.home_lineup_identity_hash,
+            "away_lineup_identity_hash": self.away_lineup_identity_hash,
+            "home_starters": self.home_starters,
+            "away_starters": self.away_starters,
+            "source_capture_id": self.source_capture_id,
+            "raw_sha256": self.raw_sha256,
+            "schema_version": "w2.lineup_confirmed_event.v2",
+            "numeric_adjustment_enabled": False,
+            "lineup_ah_adjustment": 0.0,
+            "lineup_totals_adjustment": 0.0,
+            "lambda_adjustment": 0.0,
+        }
 
 
 @dataclass(frozen=True, kw_only=True)
