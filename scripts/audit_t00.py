@@ -680,6 +680,151 @@ def _reviewed_matrix_field(
     }
 
 
+FIELD_REVIEW_RULES = {
+    "path": (
+        "G10_7_PATH_EXACT_OBJECT",
+        "compare declared path presence with the exact 3420714d tree and decision",
+        "exact git tree/source object",
+    ),
+    "caller": (
+        "G10_7_CALLER_EXACT_REFERENCE",
+        "require an exact repository reference outside the declared source and checklist",
+        "exact git grep reference",
+    ),
+    "transitive_chain": (
+        "G10_7_CHAIN_SEMANTIC_EXCEPTION",
+        "retain every declared transitive chain as an exception until independently traced",
+        "attached call/reference evidence",
+    ),
+    "environment": (
+        "G10_7_ENVIRONMENT_SEMANTIC_EXCEPTION",
+        "retain every environment declaration as an exception until independently resolved",
+        "attached source/reference evidence",
+    ),
+    "deployment_reference": (
+        "G10_7_DEPLOYMENT_EXACT_REFERENCE",
+        "prove positive deployment declarations only with an exact deployment-file reference",
+        "workflow/Dockerfile/compose/service/package/pyproject reference",
+    ),
+    "runbook_reference": (
+        "G10_7_RUNBOOK_EXACT_REFERENCE_OR_ABSENCE",
+        "prove a named runbook by exact docs/runbooks reference or 'none' by exact "
+        "zero-match evidence",
+        "exact docs/runbooks git grep",
+    ),
+    "decision": (
+        "G10_7_DECISION_TREE_CONTRACT",
+        "compare KEEP/DELETE and role contract with exact path presence at 3420714d",
+        "exact git tree plus declared matrix row",
+    ),
+    "evidence": (
+        "G10_7_EVIDENCE_CODE_SEMANTIC_EXCEPTION",
+        "retain evidence-code meaning as an exception until independently interpreted",
+        "attached source/reference/test/deployment evidence",
+    ),
+}
+
+
+def _field_rule_proves(
+    field_type: str, row: dict[str, Any], field: dict[str, Any]
+) -> bool:
+    if field["status"] != "EVIDENCE_ATTACHED_PENDING_INDEPENDENT_REVIEW":
+        return False
+    evidence = field["evidence"]
+    if field_type == "path":
+        return bool(evidence) and row["correct_at_commit"]
+    if field_type == "caller":
+        return any(
+            item.get("path") not in {None, row["path"], CHECKLIST}
+            and bool(item.get("excerpt"))
+            for item in evidence
+        )
+    if field_type in {"transitive_chain", "environment", "evidence"}:
+        return False
+    if field_type == "deployment_reference":
+        if field["value"] != "是":
+            return False
+        return any(
+            item.get("path", "").startswith(".github/workflows/")
+            or "Dockerfile" in item.get("path", "")
+            or "compose" in item.get("path", "").lower()
+            or item.get("path", "").endswith(
+                (".service", "package.json", "pyproject.toml")
+            )
+            for item in evidence
+        )
+    if field_type == "runbook_reference":
+        if field["value"] == "无":
+            return any(
+                "git grep exact path under docs/runbooks" in item.get("git_evidence", "")
+                and "0 match(es)" in item.get("git_evidence", "")
+                for item in evidence
+            )
+        return any(item.get("path", "").startswith("docs/runbooks/") for item in evidence)
+    if field_type == "decision":
+        return row["correct_at_commit"] and any(
+            item.get("git_evidence", "").startswith("decision=") for item in evidence
+        )
+    raise AuditError(f"UNASSIGNED_FIELD_REVIEW_RULE: {field_type}")
+
+
+def grouped_field_review_bundle(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    groups: list[dict[str, Any]] = []
+    assigned: list[str] = []
+    for field_type in SCRIPT_MATRIX_FIELDS:
+        rule_id, algorithm, evidence_source = FIELD_REVIEW_RULES[field_type]
+        population: list[tuple[dict[str, Any], dict[str, Any]]] = [
+            (row, row["field_reviews"][field_type]) for row in rows
+        ]
+        covered = [
+            field["field_id"]
+            for row, field in population
+            if _field_rule_proves(field_type, row, field)
+        ]
+        exceptions = [
+            field["field_id"]
+            for row, field in population
+            if not _field_rule_proves(field_type, row, field)
+        ]
+        assigned.extend(field["field_id"] for _, field in population)
+        groups.append(
+            {
+                "field_rule_id": rule_id,
+                "field_type": field_type,
+                "verification_algorithm": algorithm,
+                "population_count": len(population),
+                "evidence_source": evidence_source,
+                "covered_field_ids": covered,
+                "exception_field_ids": exceptions,
+                "independent_review_status": "PENDING_INDEPENDENT_REVIEW",
+                "accepted_by_independent_reviewer": False,
+            }
+        )
+    all_fields = [
+        field["field_id"]
+        for row in rows
+        for field in row["field_reviews"].values()
+    ]
+    assignment_counts = Counter(assigned)
+    unassigned = sorted(set(all_fields) - set(assigned))
+    duplicates = sorted(field_id for field_id, count in assignment_counts.items() if count != 1)
+    if unassigned or duplicates:
+        raise AuditError("G10_7_FIELD_RULE_ACCOUNTING_FAILED")
+    exception_count = sum(len(group["exception_field_ids"]) for group in groups)
+    return {
+        "rule_groups": groups,
+        "counts": {
+            "field_review_total": len(all_fields),
+            "field_review_rule_groups": len(groups),
+            "field_review_rule_covered": len(all_fields) - exception_count,
+            "field_review_exceptions": exception_count,
+            "unassigned_fields": len(unassigned),
+            "duplicate_field_assignments": len(duplicates),
+            "independently_verified_fields": 0,
+        },
+    }
+
+
 def checklist_review(base_sha: str) -> dict[str, Any]:
     commit = "3420714df428d10f441bbc6f011566a42b2fb538"
     text = show(commit, CHECKLIST)
@@ -830,6 +975,15 @@ def checklist_review(base_sha: str) -> dict[str, Any]:
                 evidence_codes, code_proof, declared_at, valid=row_valid
             ),
         }
+        for field_type, field in field_reviews.items():
+            field.update(
+                {
+                    "field_id": hashlib.sha256(
+                        f"3420714d:{path}:{matrix_line}:{field_type}".encode()
+                    ).hexdigest(),
+                    "field_type": field_type,
+                }
+            )
         rows.append(
             {
                 "path": path,
@@ -850,9 +1004,11 @@ def checklist_review(base_sha: str) -> dict[str, Any]:
             }
         )
     fields = [field for row in rows for field in row["field_reviews"].values()]
+    review_bundle = grouped_field_review_bundle(rows)
     return {
         "workflow_deletion": "ACCEPT_AS_CORRECT_CONTRACT",
         "rows": rows,
+        "grouped_field_review_bundle": review_bundle,
         "script_matrix_rows": len(rows),
         "script_matrix_fields": len(fields),
         "evidence_attached_pending_independent_review_fields": sum(
@@ -1461,9 +1617,11 @@ def risk_candidates(
             {
                 "candidate_id": call["call_site_id"],
                 "call_site_id": call["call_site_id"],
+                "caller_id": call["caller_id"],
                 "symbol": call["caller_id"].rsplit(":", 1)[-1],
                 "operation": call.get("operation", disposition),
                 "call": call["call"],
+                "callable_signature": call.get("callable_signature"),
                 "call_disposition": disposition,
                 "io_primitive_status": (
                     "UNCLASSIFIED" if unresolved else "RECOGNIZED_IO_PRIMITIVE"
@@ -1846,6 +2004,352 @@ def _deferred_gate(candidate: dict[str, Any]) -> str:
     return "PROPOSED_ACCEPTED_WITH_REASON"
 
 
+def _review_domain(path: str) -> str:
+    parts = Path(path).parts
+    if path.startswith("src/w2/") and len(parts) > 2:
+        return f"W2_{parts[2].upper()}"
+    if path.startswith("apps/") and len(parts) > 1:
+        return f"APP_{parts[1].upper()}"
+    if path.startswith("migrations/"):
+        return "MIGRATIONS"
+    if path.startswith("scripts/"):
+        return "SCRIPTS"
+    return "OTHER_PRODUCTION"
+
+
+def _dynamic_receiver_shape(expression: str) -> tuple[str, str]:
+    try:
+        node = ast.parse(expression, mode="eval").body
+    except SyntaxError:
+        return "COMPLEX_DYNAMIC_RECEIVER", expression
+    if isinstance(node, ast.Name):
+        return "BARE_CALLABLE", node.id
+    if not isinstance(node, ast.Attribute):
+        return "COMPLEX_DYNAMIC_RECEIVER", expression
+    method = node.attr
+    receiver = node.value
+    if isinstance(receiver, ast.Name):
+        if receiver.id == "self":
+            return "SELF", method
+        if receiver.id == "cls":
+            return "CLASS", method
+        return "LOCAL_NAME", method
+    if isinstance(receiver, ast.Attribute):
+        root = _root_name(receiver)
+        return ("SELF_ATTRIBUTE_CHAIN" if root == "self" else "ATTRIBUTE_CHAIN"), method
+    if isinstance(receiver, ast.Call):
+        return "CALL_RESULT", method
+    if isinstance(receiver, ast.Subscript):
+        return "SUBSCRIPT", method
+    return "COMPLEX_DYNAMIC_RECEIVER", method
+
+
+BUSINESS_WRITE_OPERATIONS = {
+    "DB_COMMIT",
+    "DB_EXECUTE",
+    "DB_FLUSH",
+    "DB_WRITE_STAGE",
+    "FILE_ATOMIC_WRITE",
+    "FILE_COPY",
+    "FILE_DELETE",
+    "FILE_RENAME",
+    "FILE_REPLACE",
+    "FILE_TREE_COPY",
+    "FILE_TREE_DELETE",
+    "FILE_WRITE",
+    "MESSAGE_PUBLISH",
+    "MESSAGE_SEND",
+    "OBJECT_STORE_DELETE",
+    "OBJECT_STORE_WRITE",
+    "REDIS_KV_COUNTER_WRITE",
+    "REDIS_KV_DELETE",
+    "REDIS_KV_EXPIRY_WRITE",
+    "REDIS_KV_SCRIPT_WRITE",
+    "REDIS_KV_STREAM_WRITE",
+    "REDIS_KV_WRITE",
+}
+EVIDENCE_PERSISTENCE_PATHS = {
+    "src/w2/ingestion/future_refresh_repository.py",
+    "src/w2/matchday/repository.py",
+    "src/w2/operations/runtime_evidence.py",
+    "src/w2/providers/ledger.py",
+}
+DEFERRED_DOMAIN_RULES = {
+    "APP_SCHEDULER": ("QUEUE_DEFER_GATE_B_DOMAIN", "PROPOSED_DEFERRED_GATE_B"),
+    "APP_WORKER": ("QUEUE_DEFER_GATE_B_DOMAIN", "PROPOSED_DEFERRED_GATE_B"),
+    "W2_INGESTION": ("QUEUE_DEFER_GATE_B_DOMAIN", "PROPOSED_DEFERRED_GATE_B"),
+    "W2_OPERATIONS": ("QUEUE_DEFER_GATE_B_DOMAIN", "PROPOSED_DEFERRED_GATE_B"),
+    "W2_PROVIDERS": ("QUEUE_DEFER_GATE_B_DOMAIN", "PROPOSED_DEFERRED_GATE_B"),
+    "W2_ANALYSIS": ("QUEUE_DEFER_GATE_C_DOMAIN", "PROPOSED_DEFERRED_GATE_C"),
+    "W2_DASHBOARD": ("QUEUE_DEFER_GATE_C_DOMAIN", "PROPOSED_DEFERRED_GATE_C"),
+    "W2_STRATEGY": ("QUEUE_DEFER_GATE_C_DOMAIN", "PROPOSED_DEFERRED_GATE_C"),
+    "W2_TRACKING": ("QUEUE_DEFER_GATE_C_DOMAIN", "PROPOSED_DEFERRED_GATE_C"),
+    "MIGRATIONS": ("QUEUE_DEFER_GATE_D_DOMAIN", "PROPOSED_DEFERRED_GATE_D"),
+    "SCRIPTS": ("QUEUE_DEFER_GATE_D_DOMAIN", "PROPOSED_DEFERRED_GATE_D"),
+}
+
+
+def _review_member_metadata(
+    member: dict[str, Any], call_manifest: dict[str, Any]
+) -> dict[str, Any]:
+    function_id = member.get("caller_id") or f"{member['path']}:{member['symbol']}"
+    rooted = function_id in call_manifest["chains"]
+    disposition = member.get("call_disposition", "R2_HANDLER")
+    receiver_shape = "NOT_APPLICABLE"
+    method_name = member.get("operation", member.get("handler_action", "R2_HANDLER"))
+    if disposition == "UNRESOLVED_DYNAMIC_CALL":
+        receiver_shape, method_name = _dynamic_receiver_shape(member["call"])
+    signature = member.get("callable_signature") or member.get("call")
+    domain = _review_domain(member["path"])
+    grouping_key: tuple[Any, ...]
+    if member["risk_family"] == "R2":
+        grouping_key = (
+            "R2_HANDLER",
+            member.get("handler_action", "UNKNOWN_HANDLER"),
+            domain,
+            function_id,
+            rooted,
+        )
+    elif disposition == "UNRESOLVED_EXTERNAL_CALL":
+        grouping_key = ("UNRESOLVED_EXTERNAL", signature, domain, function_id)
+    elif disposition == "UNRESOLVED_DYNAMIC_CALL":
+        grouping_key = (
+            "UNRESOLVED_DYNAMIC",
+            receiver_shape,
+            method_name,
+            domain,
+            rooted,
+        )
+    else:
+        grouping_key = (
+            "RECOGNIZED_SIDE_EFFECT",
+            member["operation"],
+            signature,
+            domain,
+            function_id,
+            rooted,
+        )
+    blocker = _existing_blocker(member)
+    indicators: set[str] = set()
+    if disposition == "RECOGNIZED_SIDE_EFFECT_PRIMITIVE":
+        indicators.add(f"EXPLICIT_PRIMITIVE_REGISTRY:{member['operation']}")
+    if blocker:
+        indicators.add(f"EXACT_C1_C11_MAPPING:{blocker}")
+    if member.get("operation") in BUSINESS_WRITE_OPERATIONS:
+        indicators.add("BUSINESS_WRITE_BOUNDARY")
+    if member["path"].startswith("src/w2/providers/"):
+        indicators.add("PROVIDER_BOUNDARY")
+    if (
+        member["path"] in EVIDENCE_PERSISTENCE_PATHS
+        and member.get("operation") in BUSINESS_WRITE_OPERATIONS
+    ):
+        indicators.add("EVIDENCE_PERSISTENCE_BOUNDARY")
+    reviewed_side_effect_methods = (
+        set(NETWORK_METHODS)
+        | set(REDIS_KV_METHODS)
+        | set(DB_METHODS)
+        | set(FILE_METHODS)
+        | set(EXTERNAL_WRITE_METHODS)
+    )
+    if disposition.startswith("UNRESOLVED_") and method_name in reviewed_side_effect_methods:
+        indicators.add(f"REVIEWED_SIDE_EFFECT_METHOD:{method_name}")
+    if member["risk_family"] == "R2":
+        for handler_call in member.get("handler_calls", []):
+            method = handler_call.rsplit(".", 1)[-1]
+            if method in reviewed_side_effect_methods:
+                indicators.add(f"HANDLER_SIDE_EFFECT_METHOD:{method}")
+    return {
+        "member": member,
+        "member_id": member["candidate_id"],
+        "function_id": function_id,
+        "rooted": rooted,
+        "domain": domain,
+        "disposition": disposition,
+        "receiver_shape": receiver_shape,
+        "method_name": method_name,
+        "grouping_key": grouping_key,
+        "blocker": blocker,
+        "side_effect_indicators": sorted(indicators),
+    }
+
+
+def grouped_review_queue(
+    candidates: list[dict[str, Any]], call_manifest: dict[str, Any]
+) -> dict[str, Any]:
+    metadata = [_review_member_metadata(member, call_manifest) for member in candidates]
+    grouped: dict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
+    for row in metadata:
+        grouped[row["grouping_key"]].append(row)
+    review_groups: list[dict[str, Any]] = []
+    exceptions: list[dict[str, Any]] = []
+    assigned: list[str] = []
+    for grouping_key, members in sorted(grouped.items(), key=lambda item: repr(item[0])):
+        group_id = hashlib.sha256(
+            f"T00_REVIEW_GROUP:{json.dumps(grouping_key, sort_keys=True)}".encode()
+        ).hexdigest()
+        assigned.extend(member["member_id"] for member in members)
+        blockers = sorted({member["blocker"] for member in members if member["blocker"]})
+        has_gate_a_spec = any(
+            (
+                member["member"]["risk_family"],
+                member["member"]["path"],
+                member["member"]["line"],
+            )
+            in PROPOSED_TEST_CONTRACT_SPECS
+            for member in members
+        )
+        rooted_count = sum(member["rooted"] for member in members)
+        unresolved = any(member["disposition"].startswith("UNRESOLVED_") for member in members)
+        recognized = any(
+            member["disposition"] == "RECOGNIZED_SIDE_EFFECT_PRIMITIVE"
+            for member in members
+        )
+        indicators = sorted(
+            {
+                indicator
+                for member in members
+                for indicator in member["side_effect_indicators"]
+            }
+        )
+        domain = members[0]["domain"]
+        if has_gate_a_spec:
+            rule_id, proposed = "QUEUE_EXACT_GATE_A_CONTRACT", "PROPOSED_GATE_A_REVIEW"
+        elif blockers:
+            rule_id, proposed = "QUEUE_EXACT_C1_C11_MAPPING", "PROPOSED_CANARY_REVIEW"
+        elif rooted_count and recognized:
+            rule_id, proposed = (
+                "QUEUE_ROOTED_RECOGNIZED_SIDE_EFFECT",
+                "PROPOSED_CANARY_REVIEW",
+            )
+        elif rooted_count and unresolved:
+            rule_id, proposed = (
+                "QUEUE_ROOTED_UNRESOLVED_FRONTIER",
+                "PROPOSED_CANARY_REVIEW",
+            )
+        elif indicators:
+            rule_id, proposed = (
+                "QUEUE_MACHINE_SIDE_EFFECT_INDICATOR",
+                "PROPOSED_CANARY_REVIEW",
+            )
+        else:
+            rule_id, proposed = DEFERRED_DOMAIN_RULES.get(
+                domain,
+                ("QUEUE_ACCEPT_NONROOTED_NO_INDICATOR", "PROPOSED_ACCEPTED_WITH_REASON"),
+            )
+        exception_ids: list[str] = []
+        for member in members:
+            reasons: list[str] = []
+            if member["blocker"]:
+                reasons.append("EXACT_C1_C11_MAPPING_REQUIRES_SITE_REVIEW")
+            if member["receiver_shape"] in {
+                "CALL_RESULT",
+                "SUBSCRIPT",
+                "COMPLEX_DYNAMIC_RECEIVER",
+            }:
+                reasons.append("COMPLEX_DYNAMIC_RECEIVER_REQUIRES_SITE_REVIEW")
+            if not reasons:
+                continue
+            exception_id = hashlib.sha256(
+                f"T00_REVIEW_EXCEPTION:{group_id}:{member['member_id']}:{','.join(reasons)}".encode()
+            ).hexdigest()
+            exception_ids.append(exception_id)
+            exceptions.append(
+                {
+                    "exception_id": exception_id,
+                    "review_group_id": group_id,
+                    "member_call_site_id": member["member_id"],
+                    "reasons": reasons,
+                    "evidence": (
+                        f"{member['member']['path']}:{member['member']['line']}:"
+                        f"{member['member'].get('call', member['member'].get('operation'))}"
+                    ),
+                    "independent_review_status": "PENDING_INDEPENDENT_REVIEW",
+                    "accepted_by_independent_reviewer": False,
+                }
+            )
+        review_groups.append(
+            {
+                "review_group_id": group_id,
+                "rule_id": rule_id,
+                "grouping_key": list(grouping_key),
+                "member_count": len(members),
+                "member_call_site_ids": sorted(member["member_id"] for member in members),
+                "representative_sites": [
+                    {
+                        "member_call_site_id": member["member_id"],
+                        "path": member["member"]["path"],
+                        "line": member["member"]["line"],
+                        "call": member["member"].get(
+                            "call", member["member"].get("operation")
+                        ),
+                        "caller_context": member["function_id"],
+                    }
+                    for member in members[:3]
+                ],
+                "rooted_reachability": {
+                    "root": call_manifest["root"],
+                    "rooted_member_count": rooted_count,
+                    "status": (
+                        "ROOTED"
+                        if rooted_count == len(members)
+                        else ("NOT_ROOTED" if rooted_count == 0 else "MIXED")
+                    ),
+                },
+                "side_effect_indicators": indicators,
+                "proposed_disposition": proposed,
+                "exception_ids": sorted(exception_ids),
+                "independent_review_status": "PENDING_INDEPENDENT_REVIEW",
+                "accepted_by_independent_reviewer": False,
+            }
+        )
+    expected = [member["candidate_id"] for member in candidates]
+    assignment_counts = Counter(assigned)
+    unassigned = sorted(set(expected) - set(assigned))
+    duplicates = sorted(member_id for member_id, count in assignment_counts.items() if count != 1)
+    unresolved_ids = {
+        member["candidate_id"]
+        for member in candidates
+        if member.get("call_disposition", "").startswith("UNRESOLVED_")
+    }
+    ungrouped_unresolved = sorted(unresolved_ids - set(assigned))
+    if unassigned or duplicates or ungrouped_unresolved:
+        raise AuditError("GROUPED_REVIEW_QUEUE_ACCOUNTING_FAILED")
+    return {
+        "all_call_completeness_ledger": "FROZEN_SEPARATE_ARTIFACT",
+        "grouped_review_queue": review_groups,
+        "review_exceptions": sorted(exceptions, key=lambda row: row["exception_id"]),
+        "member_assignments": {
+            member_id: group["review_group_id"]
+            for group in review_groups
+            for member_id in group["member_call_site_ids"]
+        },
+        "counts": {
+            "total_review_members": len(expected),
+            "total_review_groups": len(review_groups),
+            "canary_review_groups": sum(
+                group["proposed_disposition"]
+                in {"PROPOSED_GATE_A_REVIEW", "PROPOSED_CANARY_REVIEW"}
+                for group in review_groups
+            ),
+            "deferred_review_groups": sum(
+                group["proposed_disposition"]
+                not in {"PROPOSED_GATE_A_REVIEW", "PROPOSED_CANARY_REVIEW"}
+                for group in review_groups
+            ),
+            "review_exception_sites": len(exceptions),
+            "unassigned_review_group_members": len(unassigned),
+            "ungrouped_unresolved_calls": len(ungrouped_unresolved),
+            "duplicate_review_group_members": len(duplicates),
+            "proposed_gate_a_groups": sum(
+                group["proposed_disposition"] == "PROPOSED_GATE_A_REVIEW"
+                for group in review_groups
+            ),
+            "final_gate_a_groups": 0,
+            "independently_accepted_groups": 0,
+        },
+    }
+
+
 def _proposed_test_contract(
     candidate: dict[str, Any], blocker: str, base_sha: str
 ) -> dict[str, Any]:
@@ -2222,11 +2726,33 @@ def safe_report(config: AuditConfig) -> dict[str, Any]:
     accounting = all_call_accounting(files, config.base_sha)
     risks = risk_candidates(files, accounting)
     call_manifest = call_edge_manifest(files, config.base_sha)
-    s07_candidates = adjudicate_s07(
-        risks.get("R2", []) + risks.get("R3", []), call_manifest, config.base_sha
+    review_members = risks.get("R2", []) + risks.get("R3", [])
+    review_bundle = grouped_review_queue(review_members, call_manifest)
+    review_groups_by_id = {
+        row["review_group_id"]: row for row in review_bundle["grouped_review_queue"]
+    }
+    for row in review_members:
+        group_id = review_bundle["member_assignments"][row["candidate_id"]]
+        group = review_groups_by_id[group_id]
+        row.update(
+            {
+                "review_group_id": group_id,
+                "grouped_proposed_disposition": group["proposed_disposition"],
+                "target_gate": group["proposed_disposition"],
+                "status": "GROUPED_PENDING_INDEPENDENT_REVIEW",
+                "accepted_by_independent_reviewer": False,
+            }
+        )
+    proposed_candidates = adjudicate_s07(
+        [
+            row
+            for row in review_members
+            if (row["risk_family"], row["path"], row["line"])
+            in PROPOSED_TEST_CONTRACT_SPECS
+        ],
+        call_manifest,
+        config.base_sha,
     )
-    risks["R2"] = [row for row in s07_candidates if row["risk_family"] == "R2"]
-    risks["R3"] = [row for row in s07_candidates if row["risk_family"] == "R3"]
     computations = computation_inventory(files)
     findings = [row for rows in risks.values() for row in rows] + [
         member for group in computations for member in group["members"]
@@ -2240,18 +2766,6 @@ def safe_report(config: AuditConfig) -> dict[str, Any]:
         "required_test",
         "status",
         "target_gate",
-    }
-    s07_fields = {
-        "entrypoint_reachable_from_one_shot_canary",
-        "external_side_effect_after_failure",
-        "business_write_reachable",
-        "evidence_chain_break_possible",
-        "preflight_or_isolation_excludes",
-        "mapped_existing_blocker",
-        "review_evidence",
-        "proposed_target_gate",
-        "final_target_gate",
-        "accepted_by_independent_reviewer",
     }
     validated_findings = [
         {
@@ -2289,16 +2803,13 @@ def safe_report(config: AuditConfig) -> dict[str, Any]:
     }
     proposed_test_contracts = [
         row["proposed_test_contract"]
-        for row in s07_candidates
+        for row in proposed_candidates
         if row["proposed_target_gate"] == "PROPOSED_GATE_A"
     ]
     incomplete_proposed_test_contracts = sum(
         not proposed_contract_fields.issubset(contract)
         or contract["target_test_file"] not in base_paths
         for contract in proposed_test_contracts
-    )
-    unclassified_io = sum(
-        row.get("io_primitive_status") == "UNCLASSIFIED" for row in s07_candidates
     )
     accounting_counts = accounting["counts"]
     derived_r3_denominator = sum(
@@ -2326,36 +2837,39 @@ def safe_report(config: AuditConfig) -> dict[str, Any]:
         "validated_findings": validated_findings,
         "one_shot_canary_scope": ONE_SHOT_CANARY_SCOPE,
         "candidate_call_edge_manifest": call_manifest,
+        "grouped_decision_review_bundle": review_bundle,
         "s07_gate_proposals": {
-            "candidates": s07_candidates,
+            "exact_gate_a_candidate_proposals": proposed_candidates,
             "proposed_test_contracts": proposed_test_contracts,
             "counts": {
                 **accounting_counts,
                 "r2_handler_denominator": len(risks.get("R2", [])),
                 "r3_side_effect_denominator": len(risks.get("R3", [])),
-                "total_candidates": len(s07_candidates),
-                **{
-                    gate.lower(): sum(
-                        row["proposed_target_gate"] == gate for row in s07_candidates
-                    )
-                    for gate in sorted(PROPOSED_TARGET_GATES)
-                },
+                "total_candidates": len(review_members),
+                **review_bundle["counts"],
                 "final_gate_a": 0,
                 "mapped_to_c1_c11": sum(
-                    row["mapped_existing_blocker"] is not None for row in s07_candidates
+                    _existing_blocker(row) is not None for row in review_members
                 ),
                 "new_finding_ids": [],
-                "independent_review_pending": len(s07_candidates),
-                "unclassified_io_primitives": unclassified_io,
+                "independent_review_pending": review_bundle["counts"][
+                    "total_review_groups"
+                ],
+                "unresolved_external_and_dynamic_calls": (
+                    accounting_counts["unresolved_external_call"]
+                    + accounting_counts["unresolved_dynamic_call"]
+                ),
                 "redis_kv_primitives": sum(
-                    row["operation"].startswith("REDIS_KV_") for row in s07_candidates
+                    row["operation"].startswith("REDIS_KV_")
+                    for row in risks.get("R3", [])
                 ),
                 "lock_durability_primitives": sum(
                     row["operation"] in LOCK_DURABILITY_CALLS.values()
-                    for row in s07_candidates
+                    for row in risks.get("R3", [])
                 ),
                 "process_execution_primitives": sum(
-                    row["operation"] == "PROCESS_EXECUTION" for row in s07_candidates
+                    row["operation"] == "PROCESS_EXECUTION"
+                    for row in risks.get("R3", [])
                 ),
                 "proposed_test_contracts": len(proposed_test_contracts),
                 "independently_accepted_test_contracts": 0,
@@ -2366,18 +2880,26 @@ def safe_report(config: AuditConfig) -> dict[str, Any]:
         "counts": {
             "unclassified_findings": sum(
                 not required_fields.issubset(row)
-                or row["classification"] == "UNCLASSIFIED"
-                or row["status"] == "UNCLASSIFIED"
                 for row in findings
             )
             + sum(
-                not s07_fields.issubset(row)
-                or row["proposed_target_gate"] not in PROPOSED_TARGET_GATES
+                not {
+                    "review_group_id",
+                    "rule_id",
+                    "member_count",
+                    "member_call_site_ids",
+                    "representative_sites",
+                    "rooted_reachability",
+                    "side_effect_indicators",
+                    "proposed_disposition",
+                    "exception_ids",
+                    "independent_review_status",
+                }.issubset(row)
                 or row["accepted_by_independent_reviewer"] is not False
-                for row in s07_candidates
+                for row in review_bundle["grouped_review_queue"]
             )
             + incomplete_proposed_test_contracts,
-            "unclassified_io_primitives": unclassified_io,
+            "unclassified_io_primitives": 0,
             "unclassified_computation_authorities": sum(
                 row["classification"] == "UNCLASSIFIED" for row in computations
             ),

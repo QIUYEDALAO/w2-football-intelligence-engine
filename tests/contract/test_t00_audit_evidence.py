@@ -41,12 +41,23 @@ G10_S07_MARKERS = (
     "UNACCOUNTED_PRODUCTION_CALLS = 0",
     "R2_HANDLER_DENOMINATOR = 449",
     "R3_SIDE_EFFECT_DENOMINATOR = 22223",
+    "ALL_CALL_LEDGER_UNCHANGED = true",
     "REDIS_KV_PRIMITIVES = 2",
     "LOCK_DURABILITY_PRIMITIVES = 13",
     "PROCESS_EXECUTION_PRIMITIVES = 24",
-    "PROPOSED_GATE_A = 30",
-    "FINAL_GATE_A = 0",
-    "INDEPENDENT_REVIEW_PENDING = 22672",
+    "TOTAL_REVIEW_GROUPS = 5671",
+    "CANARY_REVIEW_GROUPS = 1156",
+    "DEFERRED_REVIEW_GROUPS = 4515",
+    "REVIEW_EXCEPTION_SITES = 2245",
+    "UNASSIGNED_REVIEW_GROUP_MEMBERS = 0",
+    "UNGROUPED_UNRESOLVED_CALLS = 0",
+    "DUPLICATE_REVIEW_GROUP_MEMBERS = 0",
+    "PROPOSED_GATE_A_GROUPS = 28",
+    "FINAL_GATE_A_GROUPS = 0",
+    "FIELD_REVIEW_RULE_GROUPS = 8",
+    "FIELD_REVIEW_RULE_COVERED = 547",
+    "FIELD_REVIEW_EXCEPTIONS = 613",
+    "UNASSIGNED_FIELDS = 0",
     "MAPPED_TO_C1_C11 = 35",
     "NEW_FINDING_IDS = 0",
     "PROPOSED_TEST_CONTRACTS = 30",
@@ -225,15 +236,39 @@ def test_g10_6_matrix_attaches_evidence_but_is_not_self_verified() -> None:
     assert report["pending_independent_review_fields"] == 1160
     assert report["conflicting_fields"] == 0
     assert report["unreviewed"] == 145
+    bundle = report["grouped_field_review_bundle"]
+    assert bundle["counts"] == {
+        "field_review_total": 1160,
+        "field_review_rule_groups": 8,
+        "field_review_rule_covered": 547,
+        "field_review_exceptions": 613,
+        "unassigned_fields": 0,
+        "duplicate_field_assignments": 0,
+        "independently_verified_fields": 0,
+    }
+    assert {group["field_type"] for group in bundle["rule_groups"]} == set(
+        scanner["SCRIPT_MATRIX_FIELDS"]
+    )
+    assert all(group["population_count"] == 145 for group in bundle["rule_groups"])
+    assert all(
+        group["independent_review_status"] == "PENDING_INDEPENDENT_REVIEW"
+        and group["accepted_by_independent_reviewer"] is False
+        for group in bundle["rule_groups"]
+    )
+    assert sum(
+        len(group["covered_field_ids"]) + len(group["exception_field_ids"])
+        for group in bundle["rule_groups"]
+    ) == 1160
 
 
-def test_s07_emits_only_pending_candidate_gate_proposals() -> None:
+def test_s07_emits_complete_grouped_review_queue_without_self_acceptance() -> None:
     scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
     files = scanner["python_files"](scanner["BASE_SHA"])
     accounting = scanner["all_call_accounting"](files)
     risks = scanner["risk_candidates"](files, accounting)
     call_manifest = scanner["call_edge_manifest"](files)
-    candidates = scanner["adjudicate_s07"](risks["R2"] + risks["R3"], call_manifest)
+    candidates = risks["R2"] + risks["R3"]
+    bundle = scanner["grouped_review_queue"](candidates, call_manifest)
     assert len(risks["R2"]) == 449
     assert len(risks["R3"]) == 22223
     assert len(candidates) == 22672
@@ -263,18 +298,43 @@ def test_s07_emits_only_pending_candidate_gate_proposals() -> None:
         for row in accounting["calls"]
         if row["disposition"] == "INTERNAL_PROJECT_CALL"
     )
-    assert len({row["candidate_id"] for row in candidates}) == len(candidates)
+    assert len({row["candidate_id"] for row in candidates}) == len(candidates) == 22672
+    assert bundle["counts"] == {
+        "total_review_members": 22672,
+        "total_review_groups": 5671,
+        "canary_review_groups": 1156,
+        "deferred_review_groups": 4515,
+        "review_exception_sites": 2245,
+        "unassigned_review_group_members": 0,
+        "ungrouped_unresolved_calls": 0,
+        "duplicate_review_group_members": 0,
+        "proposed_gate_a_groups": 28,
+        "final_gate_a_groups": 0,
+        "independently_accepted_groups": 0,
+    }
+    groups = bundle["grouped_review_queue"]
+    assert sum(group["member_count"] for group in groups) == 22672
     assert all(
-        row["proposed_target_gate"] in scanner["PROPOSED_TARGET_GATES"]
-        for row in candidates
+        group["member_count"] == len(group["member_call_site_ids"])
+        and group["independent_review_status"] == "PENDING_INDEPENDENT_REVIEW"
+        and group["accepted_by_independent_reviewer"] is False
+        for group in groups
     )
-    assert all(row["final_target_gate"] == "PENDING_INDEPENDENT_REVIEW" for row in candidates)
-    assert all(row["independent_review"] == "PENDING_S07_8" for row in candidates)
-    assert all(row["accepted_by_independent_reviewer"] is False for row in candidates)
-    assert sum(row["mapped_existing_blocker"] is not None for row in candidates) == 35
-    proposed_a = [
-        row for row in candidates if row["proposed_target_gate"] == "PROPOSED_GATE_A"
-    ]
+    assert all(
+        exception["independent_review_status"] == "PENDING_INDEPENDENT_REVIEW"
+        and exception["accepted_by_independent_reviewer"] is False
+        for exception in bundle["review_exceptions"]
+    )
+    assert len(bundle["member_assignments"]) == 22672
+    proposed_a = scanner["adjudicate_s07"](
+        [
+            row
+            for row in candidates
+            if (row["risk_family"], row["path"], row["line"])
+            in scanner["PROPOSED_TEST_CONTRACT_SPECS"]
+        ],
+        call_manifest,
+    )
     assert len(proposed_a) == 30
     assert all(
         row["gate_a_admission_conditions"]["accepted_by_independent_reviewer"] is False
@@ -308,6 +368,52 @@ def test_s07_emits_only_pending_candidate_gate_proposals() -> None:
             if isinstance(node, ast.ExceptHandler)
         )
     assert no_raise_sites <= {(row["path"], row["line"]) for row in risks["R2"]}
+
+
+def test_grouped_queue_roots_frontiers_defers_nonrooted_and_maps_exact_blockers() -> None:
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    files = scanner["python_files"](scanner["BASE_SHA"])
+    accounting = scanner["all_call_accounting"](files)
+    risks = scanner["risk_candidates"](files, accounting)
+    candidates = risks["R2"] + risks["R3"]
+    bundle = scanner["grouped_review_queue"](
+        candidates, scanner["call_edge_manifest"](files)
+    )
+    groups = bundle["grouped_review_queue"]
+    rooted_frontiers = [
+        group for group in groups if group["rule_id"] == "QUEUE_ROOTED_UNRESOLVED_FRONTIER"
+    ]
+    assert rooted_frontiers
+    assert all(
+        group["rooted_reachability"]["status"] == "ROOTED"
+        and group["proposed_disposition"] == "PROPOSED_CANARY_REVIEW"
+        for group in rooted_frontiers
+    )
+    deferred = [
+        group
+        for group in groups
+        if (
+            group["rule_id"].startswith("QUEUE_DEFER_")
+            or group["rule_id"] == "QUEUE_ACCEPT_NONROOTED_NO_INDICATOR"
+        )
+        and group["rooted_reachability"]["status"] == "NOT_ROOTED"
+    ]
+    assert deferred
+    assert all(not group["side_effect_indicators"] for group in deferred)
+    mapped = [row for row in candidates if scanner["_existing_blocker"](row)]
+    assert len(mapped) == 35
+    group_by_id = {group["review_group_id"]: group for group in groups}
+    for row in mapped:
+        group = group_by_id[bundle["member_assignments"][row["candidate_id"]]]
+        assert group["rule_id"] in {
+            "QUEUE_EXACT_GATE_A_CONTRACT",
+            "QUEUE_EXACT_C1_C11_MAPPING",
+        }
+        assert any(
+            exception["member_call_site_id"] == row["candidate_id"]
+            and "EXACT_C1_C11_MAPPING_REQUIRES_SITE_REVIEW" in exception["reasons"]
+            for exception in bundle["review_exceptions"]
+        )
 
 
 def test_r2_enumerates_call_only_and_all_no_raise_handler_shapes() -> None:
