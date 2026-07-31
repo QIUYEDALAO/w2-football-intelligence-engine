@@ -22,6 +22,10 @@ DELIVERY_TEST = "tests/contract/test_delivery_status_documentation.py"
 CHECKLIST = (
     "docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md"
 )
+INCLUDED_PRODUCTION_ROOTS = ("apps/", "migrations/", "scripts/", "src/w2/")
+EXCLUDED_PYTHON_ROOTS = {
+    "tests/": "TEST_ONLY_NOT_PART_OF_PRODUCTION_DENOMINATOR",
+}
 
 WORKFLOW_CLASSIFICATIONS = {
     ".github/workflows/agent-c9-ci-fix.yml": "QUARANTINED_UNAUTHORIZED_MUTATOR",
@@ -252,6 +256,50 @@ NETWORK_CALLS = {
     "socket.create_connection": "NETWORK_TRANSPORT",
 }
 NETWORK_METHODS = {"request", "send", "get", "post", "put", "patch", "delete"}
+REDIS_KV_METHODS = {
+    "append": "REDIS_KV_WRITE",
+    "decr": "REDIS_KV_COUNTER_WRITE",
+    "decrby": "REDIS_KV_COUNTER_WRITE",
+    "delete": "REDIS_KV_DELETE",
+    "eval": "REDIS_KV_SCRIPT_WRITE",
+    "expire": "REDIS_KV_EXPIRY_WRITE",
+    "expireat": "REDIS_KV_EXPIRY_WRITE",
+    "hdel": "REDIS_KV_DELETE",
+    "hmset": "REDIS_KV_WRITE",
+    "hset": "REDIS_KV_WRITE",
+    "incr": "REDIS_KV_COUNTER_WRITE",
+    "incrby": "REDIS_KV_COUNTER_WRITE",
+    "lpush": "REDIS_KV_WRITE",
+    "pexpire": "REDIS_KV_EXPIRY_WRITE",
+    "pexpireat": "REDIS_KV_EXPIRY_WRITE",
+    "psetex": "REDIS_KV_WRITE",
+    "rpush": "REDIS_KV_WRITE",
+    "sadd": "REDIS_KV_WRITE",
+    "set": "REDIS_KV_WRITE",
+    "setex": "REDIS_KV_WRITE",
+    "setnx": "REDIS_KV_WRITE",
+    "xadd": "REDIS_KV_STREAM_WRITE",
+    "xdel": "REDIS_KV_DELETE",
+    "zadd": "REDIS_KV_WRITE",
+    "zrem": "REDIS_KV_DELETE",
+}
+LOCK_DURABILITY_CALLS = {
+    "fcntl.flock": "FILE_LOCK_OPERATION",
+    "os.fdatasync": "FILE_DURABILITY_SYNC",
+    "os.fsync": "FILE_DURABILITY_SYNC",
+}
+PROCESS_EXECUTION_CALLS = {
+    "subprocess.Popen": "PROCESS_EXECUTION",
+    "subprocess.check_call": "PROCESS_EXECUTION",
+    "subprocess.check_output": "PROCESS_EXECUTION",
+    "subprocess.run": "PROCESS_EXECUTION",
+}
+FILE_CALLS = {
+    "os.remove": "FILE_DELETE",
+    "os.rename": "FILE_RENAME",
+    "os.replace": "FILE_REPLACE",
+    "os.unlink": "FILE_DELETE",
+}
 DB_METHODS = {
     "add": "DB_WRITE_STAGE",
     "add_all": "DB_WRITE_STAGE",
@@ -265,6 +313,13 @@ DB_METHODS = {
     "rollback": "DB_ROLLBACK",
 }
 FILE_METHODS = {
+    "exists": "FILE_READ",
+    "is_dir": "FILE_READ",
+    "is_file": "FILE_READ",
+    "read": "FILE_READ",
+    "read_bytes": "FILE_READ",
+    "read_text": "FILE_READ",
+    "stat": "FILE_READ",
     "write": "FILE_WRITE",
     "writelines": "FILE_WRITE",
     "write_bytes": "FILE_WRITE",
@@ -281,6 +336,27 @@ EXTERNAL_WRITE_METHODS = {
     "publish": "MESSAGE_PUBLISH",
     "send_message": "MESSAGE_SEND",
 }
+IO_RECEIVER_MARKERS = (
+    "bucket",
+    "cache",
+    "client",
+    "conn",
+    "connection",
+    "database",
+    "db",
+    "engine",
+    "file",
+    "handle",
+    "http",
+    "kv",
+    "provider",
+    "queue",
+    "redis",
+    "session",
+    "socket",
+    "stream",
+    "transport",
+)
 
 
 class AuditError(RuntimeError):
@@ -828,11 +904,43 @@ def governance_report(config: AuditConfig, *, verify_github: bool = False) -> di
     return report
 
 
+def _python_root(path: str) -> str:
+    parts = Path(path).parts
+    if len(parts) == 1:
+        return "./"
+    if parts[0] == "src" and len(parts) > 2:
+        return f"src/{parts[1]}/"
+    return f"{parts[0]}/"
+
+
+def production_python_scope(base_sha: str) -> dict[str, Any]:
+    python_paths = [path for path in tree_paths(base_sha) if path.endswith(".py")]
+    discovered_roots = sorted({_python_root(path) for path in python_paths})
+    classified_roots = set(INCLUDED_PRODUCTION_ROOTS) | set(EXCLUDED_PYTHON_ROOTS)
+    unclassified_roots = sorted(set(discovered_roots) - classified_roots)
+    if unclassified_roots:
+        raise AuditError(
+            "UNCLASSIFIED_PYTHON_ROOTS: "
+            f"{','.join(unclassified_roots)}; add each root to INCLUDED_PRODUCTION_ROOTS "
+            "or EXCLUDED_PYTHON_ROOTS with an explicit reviewed reason"
+        )
+    return {
+        "included_production_roots": list(INCLUDED_PRODUCTION_ROOTS),
+        "excluded_python_roots": [
+            {"root": root, "reason": reason}
+            for root, reason in sorted(EXCLUDED_PYTHON_ROOTS.items())
+        ],
+        "discovered_python_roots": discovered_roots,
+        "unclassified_python_roots": unclassified_roots,
+    }
+
+
 def python_files(base_sha: str) -> dict[str, str]:
+    production_python_scope(base_sha)
     return {
         path: show(base_sha, path)
         for path in tree_paths(base_sha)
-        if path.endswith(".py") and path.startswith(("src/w2/", "scripts/", "migrations/versions/"))
+        if path.endswith(".py") and path.startswith(INCLUDED_PRODUCTION_ROOTS)
     }
 
 
@@ -1091,9 +1199,33 @@ def _candidate_id(family: str, path: str, line: int, discriminator: str = "") ->
 def _io_call(node: ast.Call, name: str) -> tuple[str, str] | None:
     lowered = name.lower()
     attribute = node.func.attr.lower() if isinstance(node.func, ast.Attribute) else ""
-    receiver = ast.unparse(node.func.value).lower() if isinstance(node.func, ast.Attribute) else ""
+    receiver_names = {
+        child.id.lower()
+        for child in ast.walk(node.func.value)
+        if isinstance(child, ast.Name)
+    } | {
+        child.attr.lower()
+        for child in ast.walk(node.func.value)
+        if isinstance(child, ast.Attribute)
+    } if isinstance(node.func, ast.Attribute) else set()
+
+    def receiver_matches(markers: tuple[str, ...]) -> bool:
+        return any(
+            identifier == marker
+            or identifier.startswith(f"{marker}_")
+            or identifier.endswith(f"_{marker}")
+            for identifier in receiver_names
+            for marker in markers
+        )
+
     if name in NETWORK_CALLS:
         return NETWORK_CALLS[name], "RECOGNIZED_IO_PRIMITIVE"
+    if name in LOCK_DURABILITY_CALLS:
+        return LOCK_DURABILITY_CALLS[name], "RECOGNIZED_IO_PRIMITIVE"
+    if name in PROCESS_EXECUTION_CALLS:
+        return PROCESS_EXECUTION_CALLS[name], "RECOGNIZED_IO_PRIMITIVE"
+    if name in FILE_CALLS:
+        return FILE_CALLS[name], "RECOGNIZED_IO_PRIMITIVE"
     if name in {"open", "io.open"}:
         mode = "r"
         if len(node.args) > 1 and isinstance(node.args[1], ast.Constant):
@@ -1105,28 +1237,33 @@ def _io_call(node: ast.Call, name: str) -> tuple[str, str] | None:
         return operation, "RECOGNIZED_IO_PRIMITIVE"
     if lowered.endswith("write_json_atomic"):
         return "FILE_ATOMIC_WRITE", "RECOGNIZED_IO_PRIMITIVE"
-    if attribute in DB_METHODS and any(
-        marker in receiver
-        for marker in ("session", "database", "db", "connection", "conn", "engine", "table", "op")
+    if attribute in REDIS_KV_METHODS and receiver_matches(("redis", "cache", "kv")):
+        return REDIS_KV_METHODS[attribute], "RECOGNIZED_IO_PRIMITIVE"
+    if attribute and receiver_matches(("redis", "cache", "kv")):
+        return "UNCLASSIFIED_IO_PRIMITIVE", "UNCLASSIFIED"
+    if attribute in DB_METHODS and receiver_matches(
+        ("session", "database", "db", "connection", "conn", "engine", "table", "op")
     ):
         return DB_METHODS[attribute], "RECOGNIZED_IO_PRIMITIVE"
-    if attribute == "get" and receiver.endswith("session"):
+    if attribute == "get" and receiver_matches(("session",)):
         return "DB_READ", "RECOGNIZED_IO_PRIMITIVE"
-    if attribute in NETWORK_METHODS and any(
-        marker in receiver
-        for marker in ("client", "http", "provider", "request", "transport", "url")
+    if attribute in NETWORK_METHODS and receiver_matches(
+        ("client", "http", "provider", "request", "transport", "url")
     ):
         return "NETWORK_TRANSPORT", "RECOGNIZED_IO_PRIMITIVE"
     if attribute in FILE_METHODS and (
         attribute in {"write_text", "write_bytes", "writelines"}
-        or any(
-            marker in receiver
-            for marker in ("file", "path", "stream", "buffer", "handle", "output", "temp", "tmp")
+        or receiver_matches(
+            ("file", "path", "stream", "buffer", "handle", "output", "temp", "tmp")
         )
     ):
         return FILE_METHODS[attribute], "RECOGNIZED_IO_PRIMITIVE"
     if attribute in EXTERNAL_WRITE_METHODS:
         return EXTERNAL_WRITE_METHODS[attribute], "RECOGNIZED_IO_PRIMITIVE"
+    if attribute and receiver_matches(IO_RECEIVER_MARKERS):
+        return "UNCLASSIFIED_IO_PRIMITIVE", "UNCLASSIFIED"
+    if name.startswith(("fcntl.", "subprocess.")):
+        return "UNCLASSIFIED_IO_PRIMITIVE", "UNCLASSIFIED"
     if any(
         marker in lowered
         for marker in (
@@ -1609,7 +1746,17 @@ def adjudicate_s07(
         read_or_rollback = operation in {"DB_READ", "FILE_READ", "DB_ROLLBACK"}
         external_after_failure = (
             "PROPOSED_TRUE"
-            if operation.startswith(("NETWORK_", "DB_", "FILE_", "OBJECT_", "MESSAGE_"))
+            if operation.startswith(
+                (
+                    "NETWORK_",
+                    "DB_",
+                    "FILE_",
+                    "OBJECT_",
+                    "MESSAGE_",
+                    "PROCESS_",
+                    "REDIS_KV_",
+                )
+            )
             else "PENDING_REVIEW"
         )
         business_write = (
@@ -1622,6 +1769,12 @@ def adjudicate_s07(
                 "DB_EXECUTE",
                 "FILE_WRITE",
                 "FILE_ATOMIC_WRITE",
+                "REDIS_KV_WRITE",
+                "REDIS_KV_COUNTER_WRITE",
+                "REDIS_KV_DELETE",
+                "REDIS_KV_EXPIRY_WRITE",
+                "REDIS_KV_SCRIPT_WRITE",
+                "REDIS_KV_STREAM_WRITE",
             }
             else "PENDING_REVIEW"
         )
@@ -1848,6 +2001,7 @@ def guard_matrix(config: AuditConfig) -> dict[str, Any]:
 
 
 def safe_report(config: AuditConfig) -> dict[str, Any]:
+    production_scope = production_python_scope(config.base_sha)
     files = python_files(config.base_sha)
     base_paths = set(tree_paths(config.base_sha))
     risks = risk_candidates(files)
@@ -1936,6 +2090,7 @@ def safe_report(config: AuditConfig) -> dict[str, Any]:
         "remote": config.remote,
         "pr450_ref": config.pr450_ref,
         "scan_strategy": "AST_FIRST_WITH_TEXT_FALLBACK",
+        "production_python_scope": production_scope,
         "risk_candidates": risks,
         "storage_inventory": storage_inventory(files, config.base_sha),
         "computation_authorities": computations,
@@ -1963,6 +2118,16 @@ def safe_report(config: AuditConfig) -> dict[str, Any]:
                 "new_finding_ids": [],
                 "independent_review_pending": len(s07_candidates),
                 "unclassified_io_primitives": unclassified_io,
+                "redis_kv_primitives": sum(
+                    row["operation"].startswith("REDIS_KV_") for row in s07_candidates
+                ),
+                "lock_durability_primitives": sum(
+                    row["operation"] in LOCK_DURABILITY_CALLS.values()
+                    for row in s07_candidates
+                ),
+                "process_execution_primitives": sum(
+                    row["operation"] == "PROCESS_EXECUTION" for row in s07_candidates
+                ),
                 "proposed_test_contracts": len(proposed_test_contracts),
                 "independently_accepted_test_contracts": 0,
                 "incomplete_proposed_test_contracts": incomplete_proposed_test_contracts,

@@ -30,12 +30,17 @@ G10_S07_MARKERS = (
     "SCRIPT_MATRIX_EVIDENCE_ATTACHED = 1160",
     "INDEPENDENTLY_VERIFIED_FIELDS = 0",
     "CONFLICTING_FIELDS = 0",
-    "R2_HANDLER_DENOMINATOR = 441",
-    "R3_SIDE_EFFECT_DENOMINATOR = 837",
-    "UNCLASSIFIED_IO_PRIMITIVES = 429",
+    "INCLUDED_PRODUCTION_ROOTS = apps/, migrations/, scripts/, src/w2/",
+    "EXCLUDED_PYTHON_ROOTS = tests/: TEST_ONLY_NOT_PART_OF_PRODUCTION_DENOMINATOR",
+    "R2_HANDLER_DENOMINATOR = 449",
+    "R3_SIDE_EFFECT_DENOMINATOR = 1501",
+    "REDIS_KV_PRIMITIVES = 2",
+    "LOCK_DURABILITY_PRIMITIVES = 13",
+    "PROCESS_EXECUTION_PRIMITIVES = 24",
+    "UNCLASSIFIED_IO_PRIMITIVES = 796",
     "PROPOSED_GATE_A = 30",
     "FINAL_GATE_A = 0",
-    "INDEPENDENT_REVIEW_PENDING = 1278",
+    "INDEPENDENT_REVIEW_PENDING = 1950",
     "MAPPED_TO_C1_C11 = 35",
     "NEW_FINDING_IDS = 0",
     "PROPOSED_TEST_CONTRACTS = 30",
@@ -48,7 +53,9 @@ def _git(repo: Path, *args: str) -> str:
     return subprocess.check_output(["git", "-C", str(repo), *args], text=True).strip()
 
 
-def _portable_repo(tmp_path: Path, *, include_pr: bool) -> tuple[Path, str, str | None]:
+def _portable_repo(
+    tmp_path: Path, *, include_pr: bool, extra_python_path: str | None = None
+) -> tuple[Path, str, str | None]:
     repo = tmp_path / "portable"
     repo.mkdir()
     _git(repo, "init", "-q")
@@ -57,7 +64,11 @@ def _portable_repo(tmp_path: Path, *, include_pr: bool) -> tuple[Path, str, str 
     guard = repo / "tests/contract/test_delivery_status_documentation.py"
     guard.parent.mkdir(parents=True)
     guard.write_text("def test_guard():\n    assert True\n", encoding="utf-8")
-    _git(repo, "add", guard.relative_to(repo).as_posix())
+    if extra_python_path:
+        extra = repo / extra_python_path
+        extra.parent.mkdir(parents=True)
+        extra.write_text("def production_entrypoint():\n    return None\n", encoding="utf-8")
+    _git(repo, "add", ".")
     _git(repo, "commit", "-qm", "base")
     base = _git(repo, "rev-parse", "HEAD")
     _git(repo, "remote", "add", "github-w2", ".")
@@ -109,6 +120,37 @@ def test_t00_does_not_remove_historical_delivery_guards() -> None:
     assert "test_v3_task_authority_and_next_action_are_consistent" in guard
     assert "test_historical_pr_range_is_explicitly_non_authoritative" in guard
     assert "test_obsolete_staging_ip_is_absent_from_tracked_authority" in guard
+
+
+def test_production_python_roots_are_complete_and_apps_are_scanned() -> None:
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    scope = scanner["production_python_scope"](scanner["BASE_SHA"])
+    files = scanner["python_files"](scanner["BASE_SHA"])
+    assert scope["included_production_roots"] == [
+        "apps/",
+        "migrations/",
+        "scripts/",
+        "src/w2/",
+    ]
+    assert scope["excluded_python_roots"] == [
+        {"root": "tests/", "reason": "TEST_ONLY_NOT_PART_OF_PRODUCTION_DENOMINATOR"}
+    ]
+    assert scope["unclassified_python_roots"] == []
+    assert "apps/api/main.py" in files
+    assert "apps/worker/celery_app.py" in files
+    assert "migrations/env.py" in files
+
+
+def test_new_python_root_fails_until_classified(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, base, _ = _portable_repo(
+        tmp_path, include_pr=False, extra_python_path="new_service/worker.py"
+    )
+    monkeypatch.chdir(repo)
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    with pytest.raises(scanner["AuditError"], match="UNCLASSIFIED_PYTHON_ROOTS: new_service/"):
+        scanner["python_files"](base)
 
 
 def test_t00_safe_supports_github_w2_remote(tmp_path: Path) -> None:
@@ -185,9 +227,9 @@ def test_s07_emits_only_pending_candidate_gate_proposals() -> None:
     risks = scanner["risk_candidates"](files)
     call_manifest = scanner["call_edge_manifest"](files)
     candidates = scanner["adjudicate_s07"](risks["R2"] + risks["R3"], call_manifest)
-    assert len(risks["R2"]) == 441
-    assert len(risks["R3"]) == 837
-    assert len(candidates) == 1278
+    assert len(risks["R2"]) == 449
+    assert len(risks["R3"]) == 1501
+    assert len(candidates) == 1950
     assert len({row["candidate_id"] for row in candidates}) == len(candidates)
     assert all(
         row["proposed_target_gate"] in scanner["PROPOSED_TARGET_GATES"]
@@ -296,7 +338,7 @@ def handlers(flag):
 def test_r3_covers_actual_transports_and_write_primitives() -> None:
     scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
     source = """
-def writes(session, client, path, bucket, mystery, request):
+def writes(session, client, path, bucket, mystery, request, redis_client, handle):
     urllib.request.urlopen(request)
     client.send(request)
     session.execute(statement)
@@ -304,6 +346,23 @@ def writes(session, client, path, bucket, mystery, request):
     session.commit()
     path.write_text("evidence")
     bucket.put_object(Key="x", Body=b"x")
+    redis_client.set("lock", "owner")
+    redis_client.setnx("lock", "owner")
+    redis_client.eval("return 1", 0)
+    redis_client.expire("lock", 60)
+    redis_client.incr("counter")
+    redis_client.decr("counter")
+    redis_client.xadd("events", {"status": "ok"})
+    redis_client.delete("lock")
+    redis_client.unknown_command("value")
+    fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+    os.fsync(handle.fileno())
+    os.fdatasync(handle.fileno())
+    subprocess.run(["true"], check=True)
+    subprocess.Popen(["true"])
+    subprocess.check_call(["true"])
+    subprocess.check_output(["true"])
+    subprocess.call(["true"])
     mystery.save_payload({})
 """
     rows = scanner["risk_candidates"]({"src/w2/synthetic.py": source})["R3"]
@@ -315,11 +374,37 @@ def writes(session, client, path, bucket, mystery, request):
         "DB_COMMIT",
         "FILE_WRITE",
         "OBJECT_STORE_WRITE",
+        "REDIS_KV_WRITE",
+        "REDIS_KV_SCRIPT_WRITE",
+        "FILE_LOCK_OPERATION",
+        "FILE_DURABILITY_SYNC",
+        "PROCESS_EXECUTION",
         "UNCLASSIFIED_IO_PRIMITIVE",
     } <= operations
     unclassified = [row for row in rows if row["operation"] == "UNCLASSIFIED_IO_PRIMITIVE"]
-    assert len(unclassified) == 1
-    assert unclassified[0]["status"] == "UNCLASSIFIED"
+    assert any(row["call"] == "mystery.save_payload" for row in unclassified)
+    assert any(row["call"] == "redis_client.unknown_command" for row in unclassified)
+    assert any(row["call"] == "subprocess.call" for row in unclassified)
+    assert all(row["status"] == "UNCLASSIFIED" for row in unclassified)
+    by_call = {row["call"]: row for row in rows}
+    for call in (
+        "redis_client.set",
+        "redis_client.setnx",
+        "redis_client.eval",
+        "redis_client.expire",
+        "redis_client.incr",
+        "redis_client.decr",
+        "redis_client.xadd",
+        "redis_client.delete",
+        "fcntl.flock",
+        "os.fsync",
+        "os.fdatasync",
+        "subprocess.run",
+        "subprocess.Popen",
+        "subprocess.check_call",
+        "subprocess.check_output",
+    ):
+        assert by_call[call]["io_primitive_status"] == "RECOGNIZED_IO_PRIMITIVE"
 
     files = scanner["python_files"](scanner["BASE_SHA"])
     actual = scanner["risk_candidates"](files)["R3"]
@@ -330,6 +415,26 @@ def writes(session, client, path, bucket, mystery, request):
         and row["operation"] == "NETWORK_TRANSPORT"
         for row in actual
     )
+
+
+def test_r3_exact_trusted_main_redis_lock_and_durability_sites() -> None:
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    files = scanner["python_files"](scanner["BASE_SHA"])
+    rows = scanner["risk_candidates"](files)["R3"]
+    by_site = {(row["path"], row["line"], row["call"]): row for row in rows}
+    expected = {
+        ("src/w2/ingestion/future_refresh.py", 344, "redis_client.set"): "REDIS_KV_WRITE",
+        (
+            "src/w2/ingestion/future_refresh.py",
+            389,
+            "redis_client.eval",
+        ): "REDIS_KV_SCRIPT_WRITE",
+        ("src/w2/ingestion/future_refresh.py", 351, "fcntl.flock"): "FILE_LOCK_OPERATION",
+        ("src/w2/ingestion/future_refresh.py", 375, "os.fsync"): "FILE_DURABILITY_SYNC",
+    }
+    for site, operation in expected.items():
+        assert by_site[site]["operation"] == operation
+        assert by_site[site]["io_primitive_status"] == "RECOGNIZED_IO_PRIMITIVE"
 
 
 def test_candidate_call_edges_are_rooted_and_candidate_id_bound() -> None:
