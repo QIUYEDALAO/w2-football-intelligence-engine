@@ -177,21 +177,30 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "pair_evidence_authority": "IMMUTABLE_ORIGINAL_EVALUATION",
         "lifecycle_supersession_effect": "DIAGNOSTIC_ONLY",
         "pre_post_eligibility_requires_not_superseded": False,
+        "forward_collection_activation_review": "FROZEN",
+        "forward_collection_activation_ready": False,
+        "compose_fail_closed_defaults": "VERIFIED",
+        "provider_code_default_fail_closed": "MISSING",
+        "runtime_authority_enforcement": "MISSING",
+        "bounded_supervised_one_shot": "MISSING",
+        "activation_blocker": "SUPERVISED_FORWARD_COLLECTION_GUARD_REQUIRED",
+        "forward_collection_guard_implementation_authorized": True,
+        "supervised_one_shot_authorized": False,
+        "persistent_scheduler_authorized": False,
         "scoring_implementation": "BLOCKED",
-        "next_required_action": "FORWARD_COLLECTION_ACTIVATION_REVIEW",
+        "next_required_action": "SUPERVISED_FORWARD_COLLECTION_GUARD_IMPLEMENTATION",
     }
     assert state["tasks"]["EVAL-03"]["status"] == "NOT_STARTED"
     assert state["architecture_convergence"]["status"] == "PASS"
     assert "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)" in next_action
     assert CHECKLIST_PATH in next_action
     assert (
-        "当前：Implementation 01–04 已完成并合并；"
-        "WRITE_SIDE_READY = true。" in next_action
+        "当前：FORWARD_COLLECTION_ACTIVATION_REVIEW = FROZEN；"
+        "FORWARD_COLLECTION_ACTIVATION_READY = false。" in next_action
     )
     assert (
-        "下一步：执行 FORWARD_COLLECTION_ACTIVATION_REVIEW；"
-        "这只是激活审查，"
-        "Provider、scheduler、运行采集与 EVAL-02B 启动仍未授权，"
+        "下一步：仅实施 SUPERVISED_FORWARD_COLLECTION_GUARD_IMPLEMENTATION；"
+        "Provider、scheduler、SUPERVISED_ONE_SHOT、运行采集与 EVAL-02B 启动仍未授权，"
         "B7 EVAL-03 仍为 NOT_STARTED。"
         in next_action
     )
@@ -729,8 +738,19 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "LIFECYCLE_SUPERSESSION_EFFECT =",
         "DIAGNOSTIC_ONLY",
         "PRE_POST_ELIGIBILITY_REQUIRES_NOT_SUPERSEDED = false",
+        "FORWARD_COLLECTION_ACTIVATION_REVIEW = FROZEN",
+        "FORWARD_COLLECTION_ACTIVATION_READY = false",
+        "COMPOSE_FAIL_CLOSED_DEFAULTS = VERIFIED",
+        "PROVIDER_CODE_DEFAULT_FAIL_CLOSED = MISSING",
+        "RUNTIME_AUTHORITY_ENFORCEMENT = MISSING",
+        "BOUNDED_SUPERVISED_ONE_SHOT = MISSING",
+        "ACTIVATION_BLOCKER =",
+        "SUPERVISED_FORWARD_COLLECTION_GUARD_REQUIRED",
+        "FORWARD_COLLECTION_GUARD_IMPLEMENTATION_AUTHORIZED = true",
+        "SUPERVISED_ONE_SHOT_AUTHORIZED = false",
+        "PERSISTENT_SCHEDULER_AUTHORIZED = false",
         "NEXT_REQUIRED_ACTION =",
-        "FORWARD_COLLECTION_ACTIVATION_REVIEW",
+        "SUPERVISED_FORWARD_COLLECTION_GUARD_IMPLEMENTATION",
     ):
         assert write_side_coordinate in b5
     assert "pre.capture_at < lineup_confirmed_at <= post.capture_at" in b5
@@ -800,12 +820,69 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "分别通过独立、可回滚 PR",
         "不得自动开启 Provider、",
         "scheduler 或运行采集",
-        "`FORWARD_COLLECTION_ACTIVATION_REVIEW` 只是激活审查",
-        "不授权 Provider、scheduler、",
-        "生产部署或运行采集",
+        "激活审查已冻结，但尚未达到激活条件",
+        "只授权 Guard 代码实施",
+        "不授权 Provider、",
+        "scheduler、`SUPERVISED_ONE_SHOT`、生产部署或运行采集",
         "EVAL-02B gate 与 EVAL-03 均不得启动",
     ):
         assert write_side_rule in b5
+    for activation_contract in (
+        "FORWARD_COLLECTION_ACTIVATION_MODES =",
+        "OFF\nPREFLIGHT\nSUPERVISED_ONE_SHOT",
+        "DEFAULT_ACTIVATION_MODE = OFF",
+        "SCHEDULER_MODE_SUPPORTED = false",
+        "PREFLIGHT =\nPROVIDER_CALLS = 0",
+        "BUSINESS_DB_WRITES = 0",
+        "CELERY_TASKS_QUEUED = 0",
+        "CHECKPOINT_CLAIMS = 0",
+        "`PREFLIGHT` 只能验证配置和输出预计调用",
+        "必须复用 `run_future_refresh_task()`",
+        "执行后自动返回",
+        "不得修改 compose 默认开关",
+        "schema_version =",
+        "w2.forward_collection_activation.v1",
+        "environment = staging",
+        "release_sha = exact 40-char merged SHA",
+        "mode = SUPERVISED_ONE_SHOT",
+        "competition_id = exactly one",
+        "phase =\nDISCOVERY_ONLY | CHECKPOINT_CAPTURE",
+        "fixture_ids = zero or one",
+        "checkpoint_plan_ids = zero or one",
+        "allowed_endpoints = bounded subset",
+        "max_provider_calls = bounded positive integer",
+        "expires_at = timezone-aware future timestamp",
+        "activation_nonce = non-empty unique value",
+        "persistence = db",
+        "provider_request_ledger_required = true",
+        "candidate_enabled = false",
+        "formal_recommendation_enabled = false",
+        "production_release_enabled = false",
+        "DISCOVERY_ONLY_ALLOWED_ENDPOINTS =",
+        "status,fixtures",
+        "DISCOVERY_ONLY_MAX_PROVIDER_CALLS = 2",
+        "CHECKPOINT_CAPTURE_ALLOWED_ENDPOINTS =",
+        "status,fixtures,odds,lineups",
+        "CHECKPOINT_CAPTURE_MAX_FIXTURES = 1",
+        "CHECKPOINT_CAPTURE_MAX_PLANS = 1",
+        "CHECKPOINT_CAPTURE_MAX_PROVIDER_CALLS = 4",
+        "SUPERVISED_ONE_SHOT_HTTP_MAX_ATTEMPTS = 1",
+        "RUNTIME_GATES =",
+        "CLI_ADMISSION_GATE",
+        "FUTURE_REFRESH_SERVICE_GATE",
+        "API_FOOTBALL_CLIENT_REQUEST_GATE",
+        "ANY_GATE_FAILURE_PROVIDER_CALLS = 0",
+        "ANY_GATE_FAILURE_STATUS = BLOCKED",
+        "INTERSECTION_MANIFEST_SCOPE_EXISTING_POLICY_SCOPE",
+        "AUTO_RETRY = false",
+        "SCHEDULER_RESTART = false",
+        "ENDPOINT_WIDENING = false",
+        "CALL_CAP_WIDENING = false",
+        "不能只依赖 compose 或",
+        "操作人员记忆",
+        "不自动重试",
+    ):
+        assert activation_contract in b5
     assert "DYNAMIC_EVALUATION_V2_EVAL_02B_ELIGIBLE = true" not in b5
     assert (
         "PRE_CONFIRMATION_ELIGIBILITY =\n"
@@ -902,7 +979,12 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     for task in FORBIDDEN_TASKS:
         assert task not in state
         assert task not in next_action
-        assert task not in checklist
+        if task == "PREFLIGHT":
+            assert not re.search(
+                rf"^#+\s+{re.escape(task)}\b", checklist, flags=re.MULTILINE
+            )
+        else:
+            assert task not in checklist
     assert state["staging"]["production_deployed"] is False
     assert state["staging"]["eval_01a_exact_head_acceptance"] == "PASS"
     assert state["staging"]["eval_01b_exact_head_acceptance"] == "PASS"

@@ -124,8 +124,18 @@ tasks:
     pair_evidence_authority: IMMUTABLE_ORIGINAL_EVALUATION
     lifecycle_supersession_effect: DIAGNOSTIC_ONLY
     pre_post_eligibility_requires_not_superseded: false
+    forward_collection_activation_review: FROZEN
+    forward_collection_activation_ready: false
+    compose_fail_closed_defaults: VERIFIED
+    provider_code_default_fail_closed: MISSING
+    runtime_authority_enforcement: MISSING
+    bounded_supervised_one_shot: MISSING
+    activation_blocker: SUPERVISED_FORWARD_COLLECTION_GUARD_REQUIRED
+    forward_collection_guard_implementation_authorized: true
+    supervised_one_shot_authorized: false
+    persistent_scheduler_authorized: false
     scoring_implementation: BLOCKED
-    next_required_action: FORWARD_COLLECTION_ACTIVATION_REVIEW
+    next_required_action: SUPERVISED_FORWARD_COLLECTION_GUARD_IMPLEMENTATION
   EVAL-03:
     status: NOT_STARTED
 safety:

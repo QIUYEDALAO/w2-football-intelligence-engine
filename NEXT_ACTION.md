@@ -5,5 +5,5 @@
 
 Task coordinates are maintained only in those authorities.
 
-当前：Implementation 01–04 已完成并合并；WRITE_SIDE_READY = true。
-下一步：执行 FORWARD_COLLECTION_ACTIVATION_REVIEW；这只是激活审查，Provider、scheduler、运行采集与 EVAL-02B 启动仍未授权，B7 EVAL-03 仍为 NOT_STARTED。
+当前：FORWARD_COLLECTION_ACTIVATION_REVIEW = FROZEN；FORWARD_COLLECTION_ACTIVATION_READY = false。
+下一步：仅实施 SUPERVISED_FORWARD_COLLECTION_GUARD_IMPLEMENTATION；Provider、scheduler、SUPERVISED_ONE_SHOT、运行采集与 EVAL-02B 启动仍未授权，B7 EVAL-03 仍为 NOT_STARTED。

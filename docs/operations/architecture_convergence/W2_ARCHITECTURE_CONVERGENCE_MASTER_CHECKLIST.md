@@ -825,9 +825,20 @@ IMMUTABLE_ORIGINAL_EVALUATION
 LIFECYCLE_SUPERSESSION_EFFECT =
 DIAGNOSTIC_ONLY
 PRE_POST_ELIGIBILITY_REQUIRES_NOT_SUPERSEDED = false
+FORWARD_COLLECTION_ACTIVATION_REVIEW = FROZEN
+FORWARD_COLLECTION_ACTIVATION_READY = false
+COMPOSE_FAIL_CLOSED_DEFAULTS = VERIFIED
+PROVIDER_CODE_DEFAULT_FAIL_CLOSED = MISSING
+RUNTIME_AUTHORITY_ENFORCEMENT = MISSING
+BOUNDED_SUPERVISED_ONE_SHOT = MISSING
+ACTIVATION_BLOCKER =
+SUPERVISED_FORWARD_COLLECTION_GUARD_REQUIRED
+FORWARD_COLLECTION_GUARD_IMPLEMENTATION_AUTHORIZED = true
+SUPERVISED_ONE_SHOT_AUTHORIZED = false
+PERSISTENT_SCHEDULER_AUTHORIZED = false
 SCORING_IMPLEMENTATION = BLOCKED
 NEXT_REQUIRED_ACTION =
-FORWARD_COLLECTION_ACTIVATION_REVIEW
+SUPERVISED_FORWARD_COLLECTION_GUARD_IMPLEMENTATION
 ```
 
 **预注册门禁合同（已冻结）**：
@@ -1560,8 +1571,19 @@ IMMUTABLE_ORIGINAL_EVALUATION
 LIFECYCLE_SUPERSESSION_EFFECT =
 DIAGNOSTIC_ONLY
 PRE_POST_ELIGIBILITY_REQUIRES_NOT_SUPERSEDED = false
+FORWARD_COLLECTION_ACTIVATION_REVIEW = FROZEN
+FORWARD_COLLECTION_ACTIVATION_READY = false
+COMPOSE_FAIL_CLOSED_DEFAULTS = VERIFIED
+PROVIDER_CODE_DEFAULT_FAIL_CLOSED = MISSING
+RUNTIME_AUTHORITY_ENFORCEMENT = MISSING
+BOUNDED_SUPERVISED_ONE_SHOT = MISSING
+ACTIVATION_BLOCKER =
+SUPERVISED_FORWARD_COLLECTION_GUARD_REQUIRED
+FORWARD_COLLECTION_GUARD_IMPLEMENTATION_AUTHORIZED = true
+SUPERVISED_ONE_SHOT_AUTHORIZED = false
+PERSISTENT_SCHEDULER_AUTHORIZED = false
 NEXT_REQUIRED_ACTION =
-FORWARD_COLLECTION_ACTIVATION_REVIEW
+SUPERVISED_FORWARD_COLLECTION_GUARD_IMPLEMENTATION
 
 LEGACY_RESULT_EVAL_ELIGIBILITY = false
 RUNTIME_COLLECTION_AUTHORIZED = false
@@ -1573,8 +1595,96 @@ EVAL_02B = BLOCKED
 EVAL_03 = NOT_STARTED
 ```
 
-`FORWARD_COLLECTION_ACTIVATION_REVIEW` 只是激活审查，不授权 Provider、scheduler、
-生产部署或运行采集；EVAL-02B gate 与 EVAL-03 均不得启动。
+激活审查已冻结，但尚未达到激活条件。只授权 Guard 代码实施，不授权 Provider、
+scheduler、`SUPERVISED_ONE_SHOT`、生产部署或运行采集；
+EVAL-02B gate 与 EVAL-03 均不得启动。
+
+**Forward collection 激活审查合同（已冻结，实施仍阻塞）**：
+
+```text
+FORWARD_COLLECTION_ACTIVATION_MODES =
+OFF
+PREFLIGHT
+SUPERVISED_ONE_SHOT
+
+DEFAULT_ACTIVATION_MODE = OFF
+SCHEDULER_MODE_SUPPORTED = false
+
+PREFLIGHT =
+PROVIDER_CALLS = 0
+BUSINESS_DB_WRITES = 0
+CELERY_TASKS_QUEUED = 0
+CHECKPOINT_CLAIMS = 0
+```
+
+`PREFLIGHT` 只能验证配置和输出预计调用，不得调用 Provider、写业务数据库、claim
+checkpoint 或 queue Celery task。`SUPERVISED_ONE_SHOT` 只能前台单进程执行，不启动
+scheduler、不通过 Celery，必须复用 `run_future_refresh_task()` 以及既有 Provider
+ledger、quota、raw/capture、DB persistence 和 projection writer；执行后自动返回
+`OFF`，且不得修改 compose 默认开关。
+
+```text
+schema_version =
+w2.forward_collection_activation.v1
+
+environment = staging
+release_sha = exact 40-char merged SHA
+mode = SUPERVISED_ONE_SHOT
+competition_id = exactly one
+phase =
+DISCOVERY_ONLY | CHECKPOINT_CAPTURE
+fixture_ids = zero or one
+checkpoint_plan_ids = zero or one
+allowed_endpoints = bounded subset
+max_provider_calls = bounded positive integer
+expires_at = timezone-aware future timestamp
+activation_nonce = non-empty unique value
+persistence = db
+provider_request_ledger_required = true
+candidate_enabled = false
+formal_recommendation_enabled = false
+production_release_enabled = false
+
+DISCOVERY_ONLY_ALLOWED_ENDPOINTS =
+status,fixtures
+DISCOVERY_ONLY_MAX_PROVIDER_CALLS = 2
+
+CHECKPOINT_CAPTURE_ALLOWED_ENDPOINTS =
+status,fixtures,odds,lineups
+CHECKPOINT_CAPTURE_MAX_FIXTURES = 1
+CHECKPOINT_CAPTURE_MAX_PLANS = 1
+CHECKPOINT_CAPTURE_MAX_PROVIDER_CALLS = 4
+
+SUPERVISED_ONE_SHOT_HTTP_MAX_ATTEMPTS = 1
+```
+
+Manifest 禁止 fuzzy competition/fixture、默认 competition、无到期时间、未绑定 exact
+Git SHA、phase allowlist 外 endpoint 或超过 phase cap 的调用上限；不得通过增加重试
+突破 manifest 最大调用数。
+
+```text
+RUNTIME_GATES =
+CLI_ADMISSION_GATE
+FUTURE_REFRESH_SERVICE_GATE
+API_FOOTBALL_CLIENT_REQUEST_GATE
+
+ANY_GATE_FAILURE_PROVIDER_CALLS = 0
+ANY_GATE_FAILURE_STATUS = BLOCKED
+
+EFFECTIVE_SCOPE =
+INTERSECTION_MANIFEST_SCOPE_EXISTING_POLICY_SCOPE
+
+AUTO_RETRY = false
+SCHEDULER_RESTART = false
+ENDPOINT_WIDENING = false
+CALL_CAP_WIDENING = false
+```
+
+三重运行门必须都在 Provider HTTP 前校验 activation context，不能只依赖 compose 或
+操作人员记忆。Provider 调用发生后不可回滚，但必须保留 request ledger、raw payload、
+endpoint capture、run audit、checkpoint audit 与 exact activation manifest hash。
+DB persistence 或 projection 失败时必须立即停止，不自动重试，不启动 scheduler 或
+EVAL-02B gate。
 
 此前冻结的身份修复实施流程保持休眠；只有满足上述 exact original raw blob 重开条件后，
 未来实施才必须默认 `dry-run`，先生成 canonical remediation manifest；每行状态只能是：
