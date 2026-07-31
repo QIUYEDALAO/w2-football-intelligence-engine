@@ -1,46 +1,44 @@
-# W2 Current Main Independent Final Audit
+# W2 当前 main 分支独立终审报告
 
-**Audit baseline:** `main@dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6`  
-**Audit date:** 2026-07-31  
-**Repository:** `QIUYEDALAO/w2-football-intelligence-engine`  
-**Decision:** `EVAL-02B = BLOCKED`; no Provider, real canary, persistent scheduler, Candidate, Formal, Lock, or Production authorization.
+**审计基线：** `main@dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6`  
+**审计日期：** 2026-07-31  
+**最终裁决：** `EVAL-02B = BLOCKED`。当前不得开放真实 Provider、真实 canary、持续 scheduler、Candidate、Formal、Lock 或 Production。
 
-## 1. Method and evidence policy
+## 一、审计方法与边界
 
-This review treats the following as evidence:
+本报告只把以下内容视为证据：
 
-- source code at the exact baseline commit;
-- database constraints and migrations;
-- effective deployment configuration;
-- reproducible GitHub merge facts;
-- tests only as supporting evidence, not as proof of runtime correctness.
+- 审计基线提交中的源代码；
+- 数据库模型、唯一约束和 migration；
+- staging Compose 等有效部署配置；
+- 可以复核的 GitHub merge 事实；
+- 测试只作为辅助证据，不把“测试通过”直接等同于运行能力通过。
 
-The review does **not** accept a PR description, `PROJECT_STATE.yaml`, `NEXT_ACTION.md`, a Runbook, or a passing test suite as proof merely because it says a task passed.
+PR 描述、`PROJECT_STATE.yaml`、`NEXT_ACTION.md`、Runbook 或既有测试中的自我声明，均不能单独证明任务完成。
 
-Coverage limitations remain for backup/restore, clock drift, resource exhaustion, supply-chain dependencies, secret/log exposure, and operating-system/database least privilege. Those areas are not “passed”; they remain unproven.
+尚未做到同等深度故障注入的领域包括：备份恢复、时钟漂移、资源耗尽、供应链依赖、凭据与日志暴露、操作系统和数据库账号最小权限。这些领域是“未证明”，不是“已通过”。
 
-## 2. Executive decision
+## 二、执行摘要
 
-### 2.1 What is genuinely complete
+### 已完成
 
-- P0/P1/P2 architecture convergence is complete.
-- Phase A merged implementation tasks are complete within their frozen scopes.
-- EVAL-01A/B/C and EVAL-02A are complete within their frozen scopes.
-- OPS-01 is complete as a Runbook artifact, not as proof of runtime enablement.
-- EVAL-02B preregistration, the Legacy 35 exclusion decision, and write-side Implementations 01–04 are complete.
-- The exact-pair core contract is substantially implemented: `capture_at` is the Pre/Post eligibility boundary; Provider, bookmaker, market, selection, and exact line must match; five-state distributions are validated; ambiguity fails closed.
+- P0/P1/P2 架构收敛；
+- 阶段 A 已合并任务；
+- EVAL-01A/B/C、EVAL-02A；
+- OPS-01 Runbook 文档；
+- EVAL-02B 预注册合同；
+- Legacy 35 条永久排除决策；
+- EVAL-02B 写侧 Implementation 01–04；
+- exact pair 核心合同：以 `capture_at` 划分 Pre/Post，同 provider/bookmaker/market/selection/exact line，五态概率合法，歧义 fail-closed。
 
-### 2.2 What is not complete
+### 未完成
 
-- EVAL-02B end-to-end evidence collection has never been validated with a real Provider run.
-- A148 stopped before Provider execution because the effective scheduler restart policy contradicted the frozen rehearsal precondition.
-- Actual Provider calls, request ledger, raw payload, endpoint capture, lineup event, dynamic evaluation v2, five-state snapshot, and exact pair deltas were all zero.
-- EVAL-03 has not started.
-- Continuous scheduler operation, quota accounting under concurrency, recovery, and operational health have not been proven.
+- EVAL-02B 真实端到端证据链；
+- EVAL-03；
+- 真实 Provider 链路验收；
+- 持续 scheduler、多联赛并发配额、恢复和长期运行能力。
 
-### 2.3 A148 classification
-
-A148 is correctly classified as:
+### A148 的唯一正确结论
 
 ```text
 FAIL_CLOSED_BARRIER = PASS
@@ -50,224 +48,205 @@ RUNTIME_COLLECTION_READINESS = NOT_PROVEN
 EVAL_02B = BLOCKED
 ```
 
-It must never be described as “the real chain passed”.
+A148 证明挡板在前置条件冲突时能够阻止执行；它没有证明 Provider 到 exact pair 的链路可用。
 
-## 3. Root-cause pattern and engineering invariants
+## 三、统一工程原则
 
-The findings repeatedly follow two unsafe patterns:
+本轮缺陷反复呈现两个模式：
 
 ```text
-missing input -> allow
-exception -> silence or downgrade
+缺失即放行
+异常即静默
 ```
 
-Examples include a missing Provider kill switch allowing calls, a missing allowlist opening endpoints, missing Redis permitting an unlocked DB run, `IntegrityError` being swallowed, lineup persistence failure being passed over, and incomplete quota evidence silently stopping quota updates.
-
-The remediation must enforce three repository-wide invariants:
-
-1. **Default deny on missing or unknown.** Any missing, malformed, stale, or unverifiable safety input yields `BLOCKED`.
-2. **Explicit failure after an external side effect.** Once a Provider request may have reached the external service, every downstream failure is persisted, surfaced, and stops further Provider calls.
-3. **Idempotency must be proven.** A conflict is a no-op only after the expected constraint and the stored business fields are verified.
-
-## 4. Critical findings
-
-### C1. Provider kill switch and endpoint allowlist default fail-open
+整改必须统一采用三条不变量：
+
+1. **Default deny on missing or unknown**：安全输入缺失、非法、陈旧或不可验证时，结果必须是 `BLOCKED`。
+2. **Explicit failure after external side effect**：Provider 请求可能到达外部系统后，任何后续失败必须持久化、显式冒泡并阻止后续调用。
+3. **Idempotency must be proven**：只有命中预期约束、回读既存行并核对业务字段完全一致，冲突才可视为 no-op。
+
+## 四、Critical
+
+### C1. Provider 总熔断与 endpoint allowlist 缺失时 fail-open
+
+**文件：** `src/w2/providers/control.py:47-61`  
+**触发：** `W2_PROVIDER_CALLS_DISABLED` 缺失或非法，同时进程可见 API key 且调用方使用 `allow_live=True`。  
+**后果：** 熔断被解释为未禁用；allowlist 缺失时默认开放 `status/fixtures/odds/lineups`。  
+**复现：** 删除上述环境变量，在具备有效 key 的隔离测试中进入 live transport。  
+**必须修复：** 缺失、空值、非法布尔值一律禁用；allowlist 缺失时为空集合；按一次性授权逐 endpoint 开放。  
+**可接受风险：** 无。
+
+### C2. 手工及其他 live 入口缺少统一运行时授权
+
+**文件：** `scripts/run_prematch_refresh.py:124-152`、`src/w2/providers/api_football.py`。  
+**触发：** 进程具备 shell、key 和数据库环境变量。  
+**后果：** `--execute` 不校验 exact Git SHA、competition、policy season、endpoint、persistence、调用上限和授权有效期；状态文件只是文档，不是运行强制面。  
+**复现：** 在 transport 条件允许的环境执行 `python scripts/run_prematch_refresh.py --execute`。  
+**必须修复：** 在共享 Provider transport 前增加不可伪造、可过期、可撤销的运行授权，绑定上述全部范围和 run ID。  
+**可接受风险：** 无。
+
+### C3. CLI `--season` 只改变 task key，不约束真实 policy season
 
-**Code:** `src/w2/providers/control.py:47-61`  
-**Trigger:** `W2_PROVIDER_CALLS_DISABLED` is missing or malformed; API key is present; a caller uses `allow_live=True`.  
-**Consequence:** the kill switch is interpreted as disabled, while a missing endpoint allowlist opens `status`, `fixtures`, `odds`, and `lineups`.  
-**Reproduction:** unset the kill-switch and allowlist variables, provide a valid key, then invoke a live path.  
-**Must fix:**
-
-- missing, empty, or invalid kill-switch values must disable Provider calls;
-- missing allowlist must be empty;
-- a scoped runtime authorization must explicitly open each endpoint;
-- contract tests must cover missing and invalid values.
-
-**Acceptable risk:** none.
-
-### C2. Manual and other live paths lack one runtime authorization contract
-
-**Code:** `scripts/run_prematch_refresh.py:124-152`; Provider transport in `src/w2/providers/api_football.py`.  
-**Trigger:** a user or process has shell execution, environment access, a Provider key, and DB configuration.  
-**Consequence:** `--execute` can call `run_future_refresh_task()` without proving current authorization, exact Git SHA, competition/season scope, endpoint scope, persistence target, call cap, or expiry. `PROJECT_STATE.yaml` is documentation, not a runtime enforcement plane.  
-**Reproduction:** invoke `python scripts/run_prematch_refresh.py --execute` in an environment where the transport gates happen to permit calls.  
-**Must fix:** implement one authorization check at or below the shared Provider transport. The authorization must bind exact Git SHA, environment, competition, policy season, endpoints, persistence, maximum calls, expiry, purpose, and run ID.  
-**Acceptable risk:** none.
+**文件：** `scripts/run_prematch_refresh.py:33,56-63,114-152`、`src/w2/ingestion/future_refresh.py`。  
+**触发：** CLI season 与 registry policy season 不一致。  
+**后果：** audit/task key 与真实 Provider 参数、数据库写入 season 分裂；改变 CLI season 可制造不同去重 key。  
+**复现：** 对 policy season 2026 的 competition 使用 `--season 2099`。  
+**必须修复：** 删除该参数，或仅把它作为 assertion；不一致时 Provider 调用和写入必须均为 0。  
+**可接受风险：** 无。
 
-### C3. CLI `--season` changes task identity but not collection policy
+### C4. `--execute` 默认使用 DB persistence
 
-**Code:** `scripts/run_prematch_refresh.py:33, 49-63, 114-152`; `src/w2/ingestion/future_refresh.py` policy loading.  
-**Trigger:** operator supplies a season different from the registry policy.  
-**Consequence:** the task key and audit identity can claim one season while Provider parameters and DB writes use another. Changing only the CLI season can also create a new dedupe key for the same real season.  
-**Reproduction:** run with `--season 2099` against a competition whose policy season is 2026.  
-**Must fix:** remove the argument or treat it solely as an assertion against `policy.season`; mismatch must produce zero Provider calls and zero writes.  
-**Acceptable risk:** none.
+**文件：** `scripts/run_prematch_refresh.py:129-131`、`src/w2/ingestion/future_refresh.py:2005-2010`。  
+**触发：** 执行命令但未显式指定 persistence。  
+**后果：** 人工命令可直接写 raw payload、capture、observation、projection 和 task audit。  
+**复现：** 不传 `--persistence` 且不设置覆盖变量。  
+**必须修复：** 默认 plan/no-persistence 或隔离 file；DB 写入必须显式选择、核验目标库并携带有效授权。  
+**可接受风险：** 无。
 
-### C4. `--execute` defaults to DB persistence
+### C5. DB 模式在 Redis 缺失时可无锁执行
 
-**Code:** `scripts/run_prematch_refresh.py:129-131`; `src/w2/ingestion/future_refresh.py:2005-2010`.  
-**Trigger:** operator uses `--execute` without `--persistence`.  
-**Consequence:** a manual command can write raw payloads, captures, observations, projections, and task audit to the configured business DB without an explicit persistence decision.  
-**Reproduction:** execute the CLI with no persistence argument and no overriding environment variable.  
-**Must fix:** default to plan/no persistence or isolated file evidence. DB persistence must require an explicit flag, runtime authorization, and target-database identity verification.  
-**Acceptable risk:** none.
+**文件：** `src/w2/ingestion/future_refresh.py:2000-2041`。  
+**触发：** DB persistence、Redis 未配置、两个相同 key 的手工/worker run 并发。  
+**后果：** 两个进程都可能通过 `task_key_exists()`，随后因无 Redis 直接 `lock_acquired=True`，造成双调用和并发写入。  
+**复现：** 在无 Redis 的隔离环境并发启动两个相同 bucket 的 run。  
+**必须修复：** 无锁后端即拒绝；优先采用 DB 原子 reservation 或 advisory lock，并使用 owner/fencing identity。  
+**可接受风险：** 无。
 
-### C5. DB-mode run locking is optional when Redis is absent
+### C6. Provider 调用、request ledger 与 quota ledger 不是可对账状态机
 
-**Code:** `src/w2/ingestion/future_refresh.py:2000-2041`.  
-**Trigger:** DB persistence is configured, Redis is not configured, and two same-key manual/worker runs overlap.  
-**Consequence:** both runs can pass the `task_key_exists()` precheck before the end-of-run audit exists; the code then sets `lock_acquired=True` without a lock. Both runs may call the Provider and write concurrently.  
-**Reproduction:** unset Redis configuration and start two same-bucket `--execute` processes concurrently.  
-**Must fix:** absence of a lock backend must deny execution. Prefer an atomic DB reservation (`INSERT ... ON CONFLICT DO NOTHING`) or advisory lock with owner/fencing identity.  
-**Acceptable risk:** none.
+**文件：** `src/w2/providers/api_football.py`、`src/w2/providers/ledger.py:55-123`。  
+**触发：** 外部请求已完成，但本地 request log 或 quota usage 写入失败。  
+**后果：** 外部成本存在，本地 ledger 不完整；request log 与 quota usage 又是两个事务，调用数和 hard cap 可能被低估。  
+**复现：** 在成功 HTTP 响应之后注入 ledger commit 失败。  
+**纠偏：** HTTP attempts 默认是 1；默认情况下不会因此自动再次购买请求。只有显式设置 attempts≥2 时，广义重试才放大重复计费。结构问题仍然成立。  
+**必须修复：** 建立稳定 logical request ID 和 `INTENT -> SENT/UNCERTAIN -> RESPONSE_RECEIVED -> LEDGER_COMPLETE` 状态机；收到响应后的 ledger 错误不得再次触发 HTTP。  
+**可接受风险：** 真实 canary 前无。
 
-### C6. Provider call, request ledger, and quota ledger are not a reconciled side-effect state machine
+### C7. uncertain-delivery timeout 在开启重试后不幂等
 
-**Code:** `src/w2/providers/api_football.py`; `src/w2/providers/ledger.py:55-123`.  
-**Trigger:** Provider has received or completed a request, then local request-log or quota persistence fails.  
-**Consequence:** external cost may exist without a complete local ledger; local call counts and hard-cap decisions may be understated. Request log and quota usage are separate transactions.  
-**Reproduction:** inject a DB failure after a successful HTTP response but before request or quota ledger completion.  
-**Important correction:** `provider_http_max_attempts()` defaults to 1, so automatic duplicate charging is not the default behavior. The duplicate-call amplification appears when `W2_PROVIDER_HTTP_MAX_ATTEMPTS >= 2`. The structural accounting defect exists regardless.  
-**Must fix:** create a stable logical request ID and a state machine such as `INTENT -> SENT/UNCERTAIN -> RESPONSE_RECEIVED -> LEDGER_COMPLETE`. A ledger failure after a response must not cause another HTTP request.  
-**Acceptable risk:** none for a real canary.
+**文件：** `src/w2/providers/api_football.py`、`src/w2/ingestion/future_refresh.py`。  
+**触发：** 请求已到 Provider，但客户端 read timeout，且 attempts≥2。  
+**后果：** 同一逻辑请求可能再次购买。  
+**复现：** 在服务端接收后注入客户端 timeout。  
+**必须修复：** 区分连接建立前失败与 delivery uncertain；后者终止 run，禁止自动 Provider 重试。  
+**可接受风险：** 默认 attempts=1 只能降低概率，不能证明正确。
 
-### C7. Uncertain-delivery timeouts are not idempotent when retries are enabled
+### C8. schema drift 与异常空数据可能被视为正常完成
 
-**Code:** `src/w2/providers/api_football.py` (`urlopen(..., timeout=20)`); `src/w2/ingestion/future_refresh.py` request loop.  
-**Trigger:** request reaches Provider and may be charged, but the client gets a read timeout; max attempts is configured above 1.  
-**Consequence:** W2 can buy the same logical request again.  
-**Reproduction:** inject a timeout after server-side request acceptance with attempts set to 2 or 3.  
-**Must fix:** distinguish connection-establishment failure from uncertain delivery. Uncertain delivery must end the run without automatic Provider retry.  
-**Acceptable risk:** default attempts=1 reduces exposure but is not a correctness proof.
+**文件：** `src/w2/ingestion/future_refresh.py`，尤其 `_future_fixtures()`、市场过滤和 `_diagnostic_code_for_response()`。  
+**触发：** Provider schema 变化、权限变化、competition/season 错误、bookmaker 消失或 required lineup 为空。  
+**后果：** fixture、market、event 或 pair 为 0，仍可能只有 diagnostic 或无 blocker。  
+**复现：** 返回非预期 response 结构或 required endpoint 的空数组。  
+**必须修复：** endpoint-specific schema；区分合法空窗口和异常空窗口；真实 canary 增加最低证据断言。  
+**可接受风险：** 合法未出首发只能在调用前判定为不满足 canary 前置，不能算 canary PASS。
 
-### C8. Provider schema drift and unexpected empty evidence can look like normal completion
+### C9. lineup materialization 失败及部分完整性冲突被吞掉
 
-**Code:** `src/w2/ingestion/future_refresh.py`, especially `_future_fixtures`, market/enrichment filtering, and `_diagnostic_code_for_response()` at approximately lines 1208-1221. Tests currently accept empty lineup data with no blocker.  
-**Trigger:** Provider schema changes, permissions change, competition/season is wrong, bookmaker data disappears, or required lineup data is unexpectedly empty.  
-**Consequence:** zero fixtures, markets, lineup events, or pairs can be recorded as a non-blocked run or only a diagnostic.  
-**Reproduction:** return an unexpected response shape or `{response: []}` for required evidence.  
-**Must fix:** endpoint-specific schema contracts, an explicit legal-empty policy, and minimum evidence assertions for the canary.  
-**Acceptable risk:** a legally empty lineup window may be allowed only when the checkpoint policy explicitly predicts it; it cannot count as a canary pass.
+**文件：** `src/w2/ingestion/future_refresh.py:1105-1158`、`src/w2/ingestion/future_refresh_repository.py`。  
+**触发：** XI 不完整、球员重复、两队不完整、身份冲突或数据库完整性错误。  
+**后果：** raw payload 已保存，但 lineup snapshot/event/evaluation/pair 未生成；调用方对 `FutureRefreshPersistenceError` 执行 `pass`，repository 也可能以 0 代替明确冲突。  
+**复现：** raw 保存后注入 lineup persistence 失败。  
+**必须修复：** 保留 raw evidence，同时设置明确阶段失败和整体 `BLOCKED/PARTIAL_FAILED`；只有证明为同一业务事实的重复才允许 no-op。  
+**可接受风险：** 保留 raw payload 可接受，隐藏后续失败不可接受。
 
-### C9. Lineup materialization failures and some integrity conflicts are swallowed
+### C10. A148 冻结 restart policy 与 staging Compose 仍冲突
 
-**Code:** `src/w2/ingestion/future_refresh.py:1105-1158`; `src/w2/ingestion/future_refresh_repository.py` lineup persistence.  
-**Trigger:** incomplete XI, duplicate player, two-team incompleteness, identity conflict, DB constraint failure, or other lineup persistence error.  
-**Consequence:** raw payload may be preserved while lineup snapshot/event/evaluation/pair production fails; the caller catches `FutureRefreshPersistenceError` and executes `pass`. Repository `IntegrityError` may return zero without proving idempotency.  
-**Reproduction:** inject a lineup persistence error after raw payload save.  
-**Must fix:** preserve raw evidence but set explicit stage failure and overall `BLOCKED/PARTIAL_FAILED`. Verify the expected constraint and stored business fields before treating an integrity conflict as a no-op.  
-**Acceptable risk:** preserving raw evidence is correct; hiding the downstream failure is not.
+**文件：** `infra/compose/compose.staging.yml:229`。  
+**触发：** 使用当前 effective Compose 重跑 A148。  
+**后果：** scheduler 的 `restart: unless-stopped` 再次与冻结要求 `restart: no` 冲突，演练仍会在 Provider 前停止。  
+**复现：** 比对 effective Compose 与演练合同。  
+**必须修复：** 提供专用 rehearsal profile/override，并验证最终 effective config 为 `restart: no`。  
+**可接受风险：** 无。
 
-### C10. The frozen rehearsal restart policy still contradicts staging Compose
+### C11. ledger 完整性错误与不完整 quota evidence 可静默失败
 
-**Code:** `infra/compose/compose.staging.yml:229` (scheduler service).  
-**Trigger:** rerun A148 against the current effective Compose.  
-**Consequence:** the same precondition failure repeats before Provider execution.  
-**Reproduction:** inspect effective Compose and compare `restart: unless-stopped` with the frozen `restart: no` requirement.  
-**Must fix:** create an explicit rehearsal deployment profile or override whose effective configuration is verified as `restart: no`.  
-**Acceptable risk:** none for the canary.
+#### C11-A. request ledger 无条件吞没 `IntegrityError`
 
-### C11. Ledger integrity and incomplete quota evidence can fail silently
+**文件：** `src/w2/providers/ledger.py:72-94`、`src/w2/infrastructure/persistence/ingestion_models.py`。  
+**触发：** Provider 外部副作用发生后，request log commit 抛任意 `IntegrityError`。  
+**后果：** rollback 后继续，不识别约束、不回读、不核对业务字段、不产生明确失败；真实调用可能没有 ledger。  
+**复现：** 注入非幂等的 request-log 完整性失败。  
+**必须修复：** 只允许预期唯一冲突进入 duplicate 分支；回读并核对全部字段；其他错误抛专用异常并停止后续调用。
 
-#### C11-A. Request-ledger `IntegrityError` is swallowed
+#### C11-B. 有 remaining 但无 limit 时 quota usage 静默不更新
 
-**Code:** `src/w2/providers/ledger.py:72-94`; unique constraint in `src/w2/infrastructure/persistence/ingestion_models.py`.  
-**Trigger:** request-log commit raises any `IntegrityError` after an external Provider request.  
-**Consequence:** the code rolls back and continues without identifying the constraint, reading the existing row, comparing business fields, emitting a metric, or surfacing failure. A real request may have no ledger record.  
-**Reproduction:** inject a non-idempotent request-log integrity failure.  
-**Must fix:** only the expected uniqueness conflict may enter a duplicate path; read back and compare all business fields. Every other integrity failure must raise a dedicated ledger exception and stop further calls.
+**文件：** `src/w2/providers/ledger.py:95-123`、`src/w2/providers/quota.py`。  
+**触发：** 响应提供 `daily_remaining`，但没有 `daily_limit`。  
+**后果：** 当前 run 可继续，而 `QuotaUsageModel` 不更新，也没有 diagnostic/metric，request ledger 与 quota ledger 分叉。  
+**复现：** 只返回 remaining header。  
+**必须修复：** 返回并持久化结构化 ledger 状态和缺失字段；产生 `PROVIDER_QUOTA_EVIDENCE_INCOMPLETE`；当 quota evidence 是安全边界时阻止后续调用。  
+**纠偏：** `daily_remaining` 本身缺失时，future refresh 会显式 `DAILY_QUOTA_UNKNOWN`，该情况不是静默成功。  
+**可接受风险：** 只有版本化 Provider 合同允许使用配置 limit，且必须记录来源。
 
-#### C11-B. Remaining-without-limit silently stops quota usage updates
+## 五、Important
 
-**Code:** `src/w2/providers/ledger.py:95-123`; quota parsing in `src/w2/providers/quota.py`.  
-**Trigger:** response provides `daily_remaining` but no `daily_limit`.  
-**Consequence:** the current request can continue, while `QuotaUsageModel` is not updated and no warning/metric/status is emitted. Request ledger and quota ledger diverge.  
-**Reproduction:** return a valid remaining header without any limit header or payload limit.  
-**Must fix:** return/persist structured ledger status with missing quota fields, emit `PROVIDER_QUOTA_EVIDENCE_INCOMPLETE`, and block subsequent calls when quota evidence is a safety boundary.  
-**Correction:** if `daily_remaining` itself is missing, future refresh explicitly blocks with `DAILY_QUOTA_UNKNOWN`; that case is not silent.
+### I1. PR #449 合并后当前状态曾失真
 
-**Acceptable risk:** only a versioned Provider contract may supply a configured limit, and its source must be recorded.
+`PROJECT_STATE.yaml` 与 `NEXT_ACTION.md` 仍等待独立回执审查。state v4 将其翻页为 `RUNTIME_SAFETY_AND_CONCURRENCY_REMEDIATION`。
 
-## 5. Important findings
+### I2. 合并后状态一致性门禁已退役
 
-### I1. Current state documents were stale after PR #449
+`ARCH-GOVERNANCE-01` 历史完成，但专用 post-merge consistency gate 后来被移除。至少应恢复可见告警。
 
-**Files:** `PROJECT_STATE.yaml`, `NEXT_ACTION.md`.  
-PR #449 merged, yet both still said the next action was independent receipt review. This is conservative drift, but it hides the real remediation step. The context/state update accompanying this report corrects that condition.
+### I3. 单个 frozen artifact 原子，但完整 Provider-to-pair 链不是同一事务
 
-### I2. The post-merge consistency gate that would catch drift was retired
+`write_frozen_analysis_artifacts()` 内部共享一个 Session；Provider ledger、raw、capture、lineup、observation、projection 分属多个事务，多 event 又逐个 commit。必须用显式 saga 状态表达和重放规则。
 
-**File:** master checklist, `ARCH-GOVERNANCE-01`.  
-The task is historically complete, but the dedicated post-merge checklist consistency gate was later removed, leaving only `CI_REQUIRED`. Restore at least a visible post-merge consistency check.
+### I4. evaluation、lineup、supersession 存在首写并发竞态
 
-### I3. One frozen artifact is atomic; the full Provider-to-pair chain is not
+`SELECT previous -> INSERT -> supersession` 没有 fixture/market 锁；lineup 唯一约束也不是 fixture 单一 authoritative event。持续运行前需数据库级串行化和并发测试。
 
-**Code:** `src/w2/prematch/read_model_projection.py:838-963` and `materialize_projection_events()`.  
-Lineup event, post-lineup plan, evaluations, supersessions, checkpoint, and readback reconciliation share one Session within one artifact. Provider ledger, raw payload, endpoint capture, lineup snapshots, observations, and projection are separate transactions. Multiple projection events are committed one by one. Model the chain as an explicit saga with stage states and replay rules.
+### I5. 跨 run 日配额预检存在竞态
 
-### I4. First-write concurrency remains for evaluation, lineup, and supersession
+不同 key 可同时读取相同旧 usage 并各自通过。需要原子 quota reservation 或 advisory lock，并用 Provider evidence 与本地 ledger 做保守对账。
 
-**Code:** `src/w2/prematch/repository.py`; `src/w2/infrastructure/persistence/dynamic_prematch_models.py`.  
-`SELECT previous -> INSERT evaluation -> INSERT supersession` has no row/advisory lock. Lineup uniqueness is `(fixture_id, lineup_input_hash)`, not one authoritative fixture event. Add fixture/market serialization and database constraints/fencing.
+### I6. collection readiness 可失败，而顶层 `/ready` 仍为绿色
 
-### I5. Daily quota preflight races across runs
+`readiness.py` 不是 live 入口；问题是 `matchday_intake.ready` 没有参与顶层 status。应拆分 `/live`、service readiness、collection readiness 和 evaluation readiness。
 
-**Code:** `src/w2/ingestion/future_refresh.py:1223-1235`.  
-Two different keys can read the same old usage and both reserve none of it. Use an atomic quota reservation or serialized advisory lock, with Provider headers and local ledger reconciled conservatively.
+### I7. migration 成功未约束 worker/scheduler 启动
 
-### I6. Collection readiness can be false while top-level `/ready` is green
+worker 和 scheduler 没有依赖 migration 完成。需建立 schema-head fencing。
 
-**Code:** `src/w2/monitoring/readiness.py:193-294`; `apps/api/main.py`.  
-`readiness.py` is **not** a live Provider entrypoint. It only calculates status. The problem is aggregation: `matchday_intake.ready` does not affect top-level service `status`, so service readiness can be 200 while collection is disabled/unready. Split service liveness/readiness, collection readiness, and evaluation readiness.
+### I8. Celery 交付语义依赖框架默认值
 
-### I7. Migration success does not fence worker/scheduler startup
+acks、worker lost、failure/timeout、autoretry 和 publish retry 没有显式冻结。需写入代码并做 kill test。
 
-**Code:** `infra/compose/compose.staging.yml`.  
-Worker and scheduler do not depend on successful migration completion. Add schema-head fencing before either process can execute tasks.
+### I9. 测试存在 over-mock 与源码字符串断言
 
-### I8. Celery delivery semantics rely on framework defaults
+需要 PostgreSQL、Redis、worker kill、timeout、schema drift、多 event 部分失败等真实故障注入。
 
-The repository does not explicitly freeze acknowledgement, worker-lost, failure/timeout, autoretry, and publish-retry settings. Record the intended at-most-once/at-least-once trade-off in code and kill-test it.
+### I10. Cold pull、恢复、时钟、资源、供应链、权限和凭据暴露仍未证明
 
-### I9. Tests overuse mocks and static source assertions for runtime claims
+cold-pull SLO 阻止持续 scheduler；恢复和安全领域未通过前阻止 Production。
 
-Examples include monkeypatching the real refresh task and `urlopen`, and testing transaction behavior by checking source strings. Add PostgreSQL, Redis, worker-kill, timeout, schema-drift, and multi-event failure injection.
+## 六、Minor
 
-### I10. Cold pull, recovery, clock, resources, supply chain, permissions, and secret exposure remain unproven
+### M1. `ALREADY_RUNNING` 返回退出码 0
 
-Cold-pull SLO blocks continuous operation. Backup/restore and the other areas block Production approval until independently tested.
+`run_prematch_refresh.py:166` 会让调用方误认为本轮已采集。应输出 `executed=false` 并使用独立退出码。
 
-## 6. Minor findings
+### M2. pair `exact_line` 使用 float 序列化
 
-### M1. `ALREADY_RUNNING` returns exit code 0
+目前不是已证实错误，但 Decimal 字符串或 quarter-unit integer 更利于跨实现重现。
 
-**Code:** `scripts/run_prematch_refresh.py:166`.  
-A caller can mistake “did not execute” for successful collection. Use a distinct exit code and explicit `executed=false`.
+### M3. 状态文件曾重新膨胀为任务台账副本
 
-### M2. Pair `exact_line` uses float serialization
+state v4 只保留当前状态和 blockers；历史回执继续由总清单负责。
 
-This is not a proven current data error. Decimal string or quarter-unit integer would improve cross-implementation reproducibility.
+## 七、已纠正的非问题
 
-### M3. Current state had regrown into a duplicate task ledger
+### Valid split-line averaging is intentional
 
-The previous EVAL-02B state block copied extensive receipts and evidence already owned by the master checklist. The accompanying state v4 keeps machine status and current blockers while leaving historical receipts in the checklist.
+`2/2.5 -> 2.25`、`-0/0.5 -> -0.25` 是明确实现并由测试冻结。没有真实 Provider payload 证明输入域包含非法 split line，因此不得把它列为整改阻断项。
 
-## 7. Corrected non-findings
+### `readiness.py` is not a live-call path
 
-### 7.1 Valid split-line averaging is intentional
+该文件只计算状态，不执行 Provider HTTP。需要修复的是 readiness 聚合语义，而不是隐藏网络入口。
 
-`src/w2/ingestion/future_refresh.py` intentionally maps valid Asian split lines such as `2/2.5` to `2.25` and `-0/0.5` to `-0.25`. Tests freeze this behavior. No real Provider payload proves an invalid input domain. Do not change the parser without such evidence.
+## 八、真实 canary 不可豁免合同
 
-### 7.2 `readiness.py` is not a live-call path
-
-It reads DB/Redis/schema/mount/config/registry state and constructs readiness output. The defect is readiness aggregation, not hidden Provider execution.
-
-## 8. Real canary acceptance contract
-
-A real canary is an evidence-chain acceptance test, not a process-liveness test.
-
-All required deltas must be positive:
+真实 canary 是证据链验收，不是进程存活验收。以下增量必须全部为正：
 
 ```text
 actual_provider_calls_delta      > 0
@@ -280,7 +259,7 @@ five_state_snapshot_delta        > 0
 exact_pair_delta                 > 0
 ```
 
-All evidence must belong to one reconciled lineage containing at least:
+并且必须在同一 lineage 中对账至少以下字段：
 
 ```text
 run_id
@@ -302,7 +281,7 @@ pair_hash
 exact_git_sha
 ```
 
-If any required delta is zero or lineage cannot be reconciled:
+任何必需增量为 0 或 lineage 断裂：
 
 ```text
 CANARY = FAILED
@@ -310,44 +289,44 @@ EVAL_02B = BLOCKED
 AUTO_RETRY = FORBIDDEN
 ```
 
-If preconditions cannot reasonably produce the full evidence chain, the command must stop before the Provider call with zero cost. “No data this time” is not a canary pass.
+如果运行前无法合理预期产生完整证据链，必须在 Provider 调用前终止且成本为 0。“这次没数据”不能成为 canary PASS。
 
-## 9. Retained issues and risk acceptance
+## 九、可接受或有界保留项
 
-- **Legacy 35:** acceptable only as immutable facts permanently excluded from EVAL-02B. Reopen identity remediation solely if the exact original raw blob is recovered and its SHA-256 matches.
-- **22-package SCC and `schemas`:** bounded technical debt with owner/exit criteria; do not invent deletes.
-- **OPS-01 generic readiness producer:** may wait until another competition enablement, but enablement cannot claim readiness without it.
-- **Cold-pull SLO:** may not block a tightly controlled foreground canary after C1-C11, but blocks persistent scheduler and Production.
-- **Backup/restore and security review gaps:** block Production.
+- **Legacy 35：** 作为不可变历史事实永久排除；只有找回 exact original raw blob 且 SHA-256 一致，才可重开身份修复子任务。
+- **22 包 SCC 与 `schemas`：** 允许作为有 owner 和退出条件的技术债，不允许据此猜测删除。
+- **OPS-01 通用 readiness producer：** 可等到新 competition enablement，但届时未补齐就不能称 ready。
+- **cold-pull SLO：** 在 C1–C11 全部关闭后，可不阻止一次严格前台 canary；仍阻止持续 scheduler 和 Production。
+- **备份恢复与安全审查空缺：** 阻止 Production。
 
-## 10. Required remediation sequence
+## 十、整改顺序
 
-1. Implement a shared default-deny runtime authorization and empty allowlist behavior.
-2. Bind command identity to policy competition/season and require explicit persistence.
-3. Add atomic task and quota reservations with fencing.
-4. Replace Provider/ledger flow with a reconciled external-side-effect state machine.
-5. Classify retry-safe versus uncertain-delivery failures.
-6. Make schema/required-empty/lineup/ledger failures explicit.
-7. Provide an effective rehearsal profile with `restart: no`.
-8. Separate service readiness from collection/evaluation readiness.
-9. Add migration fencing, explicit Celery semantics, and failure-injection tests.
-10. Independently review the remediation before authorizing one real canary.
+1. 统一 default-deny runtime authorization 与空 allowlist；
+2. competition/season/task identity 强绑定并显式选择 persistence；
+3. 原子 task reservation、quota reservation 与 fencing；
+4. Provider/ledger 外部副作用状态机；
+5. 区分可安全重试和 uncertain delivery；
+6. schema、required-empty、lineup、ledger 错误全部显式失败；
+7. 提供 `restart: no` 的 rehearsal effective config；
+8. 拆分 service/collection/evaluation readiness；
+9. migration fencing、Celery 合同和故障注入；
+10. 独立复审后才可申请一次真实 canary。
 
-## 11. Final answers
+## 十一、最终回答
 
-### Are completed tasks really complete?
+### 已完成任务是否真的完成？
 
-Yes within their frozen implementation scopes. EVAL-02B write-side 01–04 is code-complete, but runtime safety remediation is required and end-to-end is not validated.
+在冻结实现范围内完成。EVAL-02B 写侧 01–04 为 code-complete，但运行安全仍需整改，端到端未验证。
 
-### Can EVAL-02B start real collection now?
+### EVAL-02B 当前能否开始真实采集？
 
-No. C1-C11 must be closed and independently reviewed first.
+不能。C1–C11 必须全部关闭并通过独立复审。
 
-### Is the system ready for continuous operation?
+### 系统是否具备持续运行条件？
 
-No. Locking, cross-run quota reservation, readiness, migration fencing, Celery semantics, SLO, and recovery are incomplete.
+不具备。锁、跨 run quota、readiness、migration fencing、Celery 语义、SLO 与恢复均未闭环。
 
-### What must remain closed?
+### 当前必须保持关闭的能力
 
 ```text
 PROVIDER = OFF
