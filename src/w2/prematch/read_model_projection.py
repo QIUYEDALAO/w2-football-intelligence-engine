@@ -22,6 +22,7 @@ from w2.prematch.lifecycle import (
     DynamicEvaluationVersion,
     LineupConfirmedEvent,
     classify_evaluation,
+    lineup_confirmed_refresh_plan,
 )
 from w2.prematch.repository import DynamicPrematchRepository
 from w2.tracking.advisory_blind_spot_policy import (
@@ -190,6 +191,25 @@ def _validate_lineup_event_binding(
         lineup_event.captured_at
     ):
         raise FrozenAnalysisError("lineup event time mismatch")
+
+
+def _post_lineup_odds_plan(
+    lineup_event: LineupConfirmedEvent,
+    fixture_identity: Mapping[str, Any],
+) -> dict[str, Any]:
+    kickoff = _parse_utc(fixture_identity.get("kickoff_utc"))
+    if kickoff is None:
+        raise FrozenAnalysisError("lineup odds plan kickoff unavailable")
+    return lineup_confirmed_refresh_plan(
+        fixture_id=lineup_event.fixture_id,
+        competition_id=lineup_event.competition_id,
+        season=lineup_event.season,
+        kickoff_utc=kickoff,
+        captured_at_utc=lineup_event.captured_at,
+        home_starters=lineup_event.home_starters,
+        away_starters=lineup_event.away_starters,
+        lineup_input_hash=lineup_event.lineup_input_hash,
+    )
 
 
 def _projection_source_identity(
@@ -831,6 +851,16 @@ def write_frozen_analysis_artifacts(
                     repository.append_lineup_event_in_session(
                         session,
                         original.lineup_event,
+                    )
+                    fixture_identity = draft.payload.get("fixture_identity")
+                    if not isinstance(fixture_identity, dict):
+                        raise FrozenAnalysisError("lineup odds plan identity unavailable")
+                    repository.ensure_lineup_confirmed_odds_plan_in_session(
+                        session,
+                        _post_lineup_odds_plan(
+                            original.lineup_event,
+                            fixture_identity,
+                        ),
                     )
                 elif draft.payload.get("source_event_type") == "LINEUP_CHANGED":
                     raise FrozenAnalysisError("lineup event unavailable")

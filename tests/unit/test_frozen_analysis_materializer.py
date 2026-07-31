@@ -15,6 +15,9 @@ from w2.infrastructure.persistence.dynamic_prematch_models import (
     DynamicPrematchSupersessionModel,
     LineupConfirmedEventModel,
 )
+from w2.infrastructure.persistence.matchday_intake_models import (
+    MatchdayCheckpointPlanModel,
+)
 from w2.operations.observability import default_metric_registry
 from w2.prematch.analysis_calculator import ReadModelService
 from w2.prematch.lifecycle import LineupConfirmedEvent
@@ -25,6 +28,7 @@ from w2.prematch.read_model_projection import (
     AnalysisCardCanaryMaterializer,
     FrozenAnalysisError,
     ProjectionSourceEvent,
+    _post_lineup_odds_plan,
     canonical_sha256,
     read_frozen_analysis_artifact,
     read_shadow_analysis_artifact,
@@ -207,6 +211,7 @@ def _engine(*, dynamic: bool = False):  # type: ignore[no-untyped-def]
         DynamicPrematchEvaluationModel.__table__.create(engine)
         DynamicPrematchSupersessionModel.__table__.create(engine)
         LineupConfirmedEventModel.__table__.create(engine)
+        MatchdayCheckpointPlanModel.__table__.create(engine)
     return engine
 
 
@@ -775,6 +780,146 @@ def test_event_projection_write_is_idempotent_for_evaluation_and_checkpoint(
         assert checkpoint.payload["projection_hash"] == artifact.payload["projection_hash"]
 
 
+def test_lineup_odds_plan_replay_is_zero_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_ready_projection(monkeypatch)
+    event = _event("LINEUP_CHANGED")
+    artifact = _materializer(ScopedRepository()).build(
+        "1576804",
+        evaluated_at=event.event_at,
+        source_event=event,
+    )
+    engine = _engine(dynamic=True)
+
+    write_frozen_analysis_artifacts(engine, [artifact])
+    write_frozen_analysis_artifacts(engine, [artifact])
+
+    with Session(engine) as session:
+        assert session.query(MatchdayCheckpointPlanModel).count() == 1
+        plan = session.query(MatchdayCheckpointPlanModel).one()
+        assert plan.checkpoint == "LINEUP_CONFIRMED"
+        assert plan.endpoints == ["odds"]
+        assert plan.status == "DUE"
+
+
+@pytest.mark.parametrize("advanced_status", ["CLAIMED", "CAPTURED", "MISSED"])
+def test_lineup_odds_plan_replay_preserves_advanced_state(
+    monkeypatch: pytest.MonkeyPatch,
+    advanced_status: str,
+) -> None:
+    _patch_ready_projection(monkeypatch)
+    event = _event("LINEUP_CHANGED")
+    artifact = _materializer(ScopedRepository()).build(
+        "1576804",
+        evaluated_at=event.event_at,
+        source_event=event,
+    )
+    engine = _engine(dynamic=True)
+    write_frozen_analysis_artifacts(engine, [artifact])
+
+    with Session(engine) as session:
+        plan = session.query(MatchdayCheckpointPlanModel).one()
+        plan.status = advanced_status
+        plan.missed_at = datetime(2026, 7, 18, 6, 0, tzinfo=UTC)
+        plan.capture_id = "capture-advanced"
+        plan.current_unscheduled_capture_id = "capture-unscheduled"
+        plan.blockers = ["ADVANCED_STATE"]
+        plan.plan_hash = "f" * 64
+        session.commit()
+
+    write_frozen_analysis_artifacts(engine, [artifact])
+
+    with Session(engine) as session:
+        plan = session.query(MatchdayCheckpointPlanModel).one()
+        assert plan.status == advanced_status
+        assert plan.missed_at == datetime(2026, 7, 18, 6, 0)
+        assert plan.capture_id == "capture-advanced"
+        assert plan.current_unscheduled_capture_id == "capture-unscheduled"
+        assert plan.blockers == ["ADVANCED_STATE"]
+        assert plan.plan_hash == "f" * 64
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("endpoints", ("odds", "fixtures")),
+        ("window_end", datetime(2026, 7, 19, 11, 59, tzinfo=UTC)),
+        ("kickoff_utc", datetime(2026, 7, 19, 12, 1, tzinfo=UTC)),
+    ],
+)
+def test_lineup_odds_plan_spec_conflict_rolls_back_projection_unit(
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    value: object,
+) -> None:
+    _patch_ready_projection(monkeypatch)
+    event = _event("LINEUP_CHANGED")
+    artifact = _materializer(ScopedRepository()).build(
+        "1576804",
+        evaluated_at=event.event_at,
+        source_event=event,
+    )
+    assert artifact.lineup_event is not None
+    fixture_identity = artifact.payload["fixture_identity"]
+    intended = _post_lineup_odds_plan(artifact.lineup_event, fixture_identity)
+    conflicting = {**intended, field: value}
+    engine = _engine(dynamic=True)
+    natural_identity = ":".join(
+        str(conflicting[key])
+        for key in (
+            "fixture_id",
+            "competition_id",
+            "season",
+            "checkpoint",
+            "policy_version",
+        )
+    )
+    plan_times = {
+        key: (
+            value
+            if isinstance((value := conflicting[key]), datetime)
+            else datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        )
+        for key in ("kickoff_utc", "scheduled_at", "window_start", "window_end")
+    }
+    with Session(engine) as session:
+        session.add(
+            MatchdayCheckpointPlanModel(
+                plan_id=canonical_sha256(natural_identity),
+                fixture_id=str(conflicting["fixture_id"]),
+                competition_id=str(conflicting["competition_id"]),
+                season=str(conflicting["season"]),
+                policy_version=str(conflicting["policy_version"]),
+                checkpoint=str(conflicting["checkpoint"]),
+                kickoff_utc=plan_times["kickoff_utc"],
+                scheduled_at=plan_times["scheduled_at"],
+                window_start=plan_times["window_start"],
+                window_end=plan_times["window_end"],
+                endpoints=list(conflicting["endpoints"]),
+                status=str(conflicting["status"]),
+                missed_at=conflicting["missed_at"],
+                capture_id=conflicting["capture_id"],
+                current_unscheduled_capture_id=conflicting[
+                    "current_unscheduled_capture_id"
+                ],
+                blockers=list(conflicting["blockers"]),
+                plan_hash=str(conflicting["plan_hash"]),
+            )
+        )
+        session.commit()
+
+    with pytest.raises(RuntimeError, match="CHECKPOINT_PLAN_CONFLICT"):
+        write_frozen_analysis_artifacts(engine, [artifact])
+
+    with Session(engine) as session:
+        assert session.query(LineupConfirmedEventModel).count() == 0
+        assert session.query(MatchdayCheckpointPlanModel).count() == 1
+        assert session.query(DynamicPrematchEvaluationModel).count() == 0
+        assert session.query(DynamicPrematchSupersessionModel).count() == 0
+        assert session.query(ReadModelCheckpointModel).count() == 0
+
+
 @pytest.mark.parametrize(
     "event_type",
     ["ODDS_CHANGED", "LINEUP_CHANGED", "FIXTURE_CHANGED"],
@@ -836,6 +981,9 @@ def test_single_event_shadow_matches_post_write_current_read_with_lifecycle(
         assert session.query(LineupConfirmedEventModel).count() == (
             1 if event_type == "LINEUP_CHANGED" else 0
         )
+        assert session.query(MatchdayCheckpointPlanModel).count() == (
+            1 if event_type == "LINEUP_CHANGED" else 0
+        )
         evaluation = session.query(DynamicPrematchEvaluationModel).one()
         assert evaluation.payload["schema_version"] == "w2.dynamic_quote_evaluation.v2"
         assert evaluation.payload["competition_id"] == "league"
@@ -852,6 +1000,12 @@ def test_single_event_shadow_matches_post_write_current_read_with_lifecycle(
         }
     if event_type == "LINEUP_CHANGED":
         assert len(artifact.payload["lineup_event_payload_sha256"]) == 64
+        with Session(engine) as session:
+            plan = session.query(MatchdayCheckpointPlanModel).one()
+            assert plan.checkpoint == "LINEUP_CONFIRMED"
+            assert plan.endpoints == ["odds"]
+            assert plan.scheduled_at == datetime(2026, 7, 18, 5, 0)
+            assert plan.status == "DUE"
     else:
         assert "lineup_event_payload_sha256" not in artifact.payload
 
@@ -933,6 +1087,7 @@ def test_lineup_event_and_shadow_unit_roll_back_on_checkpoint_failure(
 
     with Session(engine) as session:
         assert session.query(LineupConfirmedEventModel).count() == 0
+        assert session.query(MatchdayCheckpointPlanModel).count() == 0
         assert session.query(DynamicPrematchEvaluationModel).count() == 0
         assert session.query(DynamicPrematchSupersessionModel).count() == 0
         assert session.query(ReadModelCheckpointModel).count() == 0
@@ -940,6 +1095,7 @@ def test_lineup_event_and_shadow_unit_roll_back_on_checkpoint_failure(
     write_frozen_analysis_artifacts(engine, [artifact])
     with Session(engine) as session:
         assert session.query(LineupConfirmedEventModel).count() == 1
+        assert session.query(MatchdayCheckpointPlanModel).count() == 1
         assert session.query(DynamicPrematchEvaluationModel).count() == 1
         assert session.query(ReadModelCheckpointModel).count() == 1
 
@@ -1141,6 +1297,7 @@ def test_multiple_evaluation_mid_write_failure_rolls_back_entire_batch(
         write_frozen_analysis_artifacts(engine, [artifact])
     with Session(engine) as session:
         assert session.query(LineupConfirmedEventModel).count() == 0
+        assert session.query(MatchdayCheckpointPlanModel).count() == 0
         assert session.query(DynamicPrematchEvaluationModel).count() == 0
         assert session.query(DynamicPrematchSupersessionModel).count() == 0
         assert session.query(ReadModelCheckpointModel).count() == 0
@@ -1153,6 +1310,7 @@ def test_multiple_evaluation_mid_write_failure_rolls_back_entire_batch(
     write_frozen_analysis_artifacts(engine, [artifact])
     with Session(engine) as session:
         assert session.query(LineupConfirmedEventModel).count() == 1
+        assert session.query(MatchdayCheckpointPlanModel).count() == 1
         assert session.query(DynamicPrematchEvaluationModel).count() == 2
         assert session.query(DynamicPrematchSupersessionModel).count() == 0
         assert session.query(ReadModelCheckpointModel).count() == 1

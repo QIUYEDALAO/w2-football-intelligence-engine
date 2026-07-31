@@ -14,6 +14,9 @@ from w2.matchday.intake_v2 import (
     competition_policies,
     load_matchday_policy,
 )
+from w2.prematch.lifecycle import (
+    lineup_confirmed_refresh_plan as canonical_lineup_confirmed_refresh_plan,
+)
 
 CHECKPOINT_REFRESH_CONTRACT = "w2.checkpoint_refresh.v1"
 CHECKPOINT_REFRESH_AUTHORITY = MATCHDAY_INTAKE_POLICY_VERSION
@@ -204,20 +207,22 @@ def lineup_confirmed_refresh_plan(
     lineup_input_hash: str,
 ) -> FixtureCheckpointPlan:
     """Schedule the mandatory fresh-odds fetch after both XIs are confirmed."""
-    kickoff = normalize_utc(kickoff_utc)
-    captured_at = normalize_utc(captured_at_utc)
-    if home_starters != 11 or away_starters != 11:
-        raise ValueError("STARTING_XI_INCOMPLETE")
-    if not lineup_input_hash:
-        raise ValueError("LINEUP_INPUT_HASH_MISSING")
-    if captured_at >= kickoff:
-        raise ValueError("POST_KICKOFF_LINEUP_REJECTED")
+    plan = canonical_lineup_confirmed_refresh_plan(
+        fixture_id=fixture_id,
+        competition_id="",
+        season="",
+        kickoff_utc=kickoff_utc,
+        captured_at_utc=captured_at_utc,
+        home_starters=home_starters,
+        away_starters=away_starters,
+        lineup_input_hash=lineup_input_hash,
+    )
     return FixtureCheckpointPlan(
-        fixture_id=str(fixture_id),
-        checkpoint=LINEUP_CONFIRMED_CHECKPOINT,
-        kickoff_utc=kickoff,
-        due_at_utc=captured_at,
-        endpoints=("odds",),
+        fixture_id=str(plan["fixture_id"]),
+        checkpoint=str(plan["checkpoint"]),
+        kickoff_utc=plan["kickoff_utc"],
+        due_at_utc=plan["scheduled_at"],
+        endpoints=tuple(str(item) for item in plan["endpoints"]),
         source=f"lineup_confirmed:{lineup_input_hash}",
     )
 
