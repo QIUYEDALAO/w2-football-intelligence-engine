@@ -67,7 +67,39 @@ tasks:
       results_without_unique_canonical_competition_season_identity: 35
     contract_authority: FROZEN
     data_acquisition_plan: AUTHORIZED
-    runtime_collection_authorized: false
+    forward_collection_activation_review: PASS
+    forward_collection_activation_review_status: DONE
+    existing_collection_pipeline: REUSED
+    a148_supervised_rehearsal: SELECTED
+    new_guard_framework: false
+    new_activation_manifest_framework: false
+    new_canary_cli: false
+    provider_control_rewrite: false
+    new_collection_pipeline: false
+    rehearsal_competition_id: brasileirao_serie_a
+    rehearsal_season: "2026"
+    rehearsal_competition_audit_order: 1
+    market_scope:
+      - ASIAN_HANDICAP
+      - TOTALS
+    endpoint_scope:
+      - status
+      - fixtures
+      - odds
+      - lineups
+    capture_cadence: ONE_SUPERVISED_REFRESH_RUN
+    provider_call_limit: 30
+    daily_request_budget: 120
+    scheduler_mode: NOT_STARTED
+    scheduler_restart_policy: "no"
+    scheduler_container_started: false
+    rehearsal_execution_mode: MANUAL_FOREGROUND_ONE_SHOT
+    rehearsal_entrypoint: scripts/run_prematch_refresh.py
+    auto_retry: false
+    runtime_collection_authorized: true
+    runtime_collection_authorized_scope: A148_ONE_SUPERVISED_REHEARSAL
+    persistent_scheduler_authorized: false
+    continuous_collection_authorized: false
     identity_remediation_design: BLOCKED
     identity_remediation_execution_authorized: false
     identity_remediation_audit_as_of: "2026-07-30T17:31:23.303986Z"
@@ -109,8 +141,10 @@ tasks:
     write_side_implementation_04_head: 05b55b5e1fc6583abbdee705a6b39bd263da4372
     write_side_implementation_04_merge_sha: 308e1edc9ed1748a18cd64c9325521e54a5777ba
     write_side_implementation_04_main_ci: 30599981432
-    provider_calls_authorized: false
+    provider_calls_authorized: true
+    provider_calls_authorized_scope: A148_ONE_SUPERVISED_REHEARSAL
     scheduler_start_authorized: false
+    scheduler_start_authorized_scope: NOT_APPLICABLE
     write_side_readiness_design: FROZEN
     write_side_ready: true
     new_table_count: 0
@@ -124,8 +158,13 @@ tasks:
     pair_evidence_authority: IMMUTABLE_ORIGINAL_EVALUATION
     lifecycle_supersession_effect: DIAGNOSTIC_ONLY
     pre_post_eligibility_requires_not_superseded: false
+    recommendation_enabled: false
+    candidate_enabled: false
+    formal_recommendation_enabled: false
+    lock_enabled: false
+    production_release: false
     scoring_implementation: BLOCKED
-    next_required_action: FORWARD_COLLECTION_ACTIVATION_REVIEW
+    next_required_action: A148_SUPERVISED_COLLECTION_REHEARSAL
   EVAL-03:
     status: NOT_STARTED
 safety:

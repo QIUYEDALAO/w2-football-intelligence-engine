@@ -5,5 +5,5 @@
 
 Task coordinates are maintained only in those authorities.
 
-当前：Implementation 01–04 已完成并合并；WRITE_SIDE_READY = true。
-下一步：执行 FORWARD_COLLECTION_ACTIVATION_REVIEW；这只是激活审查，Provider、scheduler、运行采集与 EVAL-02B 启动仍未授权，B7 EVAL-03 仍为 NOT_STARTED。
+当前：FORWARD_COLLECTION_ACTIVATION_REVIEW 已完成并通过；WRITE_SIDE_READY = true。
+下一步：仅通过 scripts/run_prematch_refresh.py 按已冻结范围执行一次 A148_SUPERVISED_COLLECTION_REHEARSAL（brasileirao_serie_a / 2026，manual foreground one-shot）；scheduler 不启动，持续采集、EVAL-02B gate 与 B7 EVAL-03 均未授权。

@@ -770,7 +770,49 @@ exact pre/post pairs 0
 
 CONTRACT_AUTHORITY = FROZEN
 DATA_ACQUISITION_PLAN = AUTHORIZED
-RUNTIME_COLLECTION_AUTHORIZED = false
+FORWARD_COLLECTION_ACTIVATION_REVIEW = PASS
+FORWARD_COLLECTION_ACTIVATION_REVIEW_STATUS = DONE
+EXISTING_COLLECTION_PIPELINE = REUSED
+A148_SUPERVISED_REHEARSAL = SELECTED
+NEW_GUARD_FRAMEWORK = false
+NEW_ACTIVATION_MANIFEST_FRAMEWORK = false
+NEW_CANARY_CLI = false
+PROVIDER_CONTROL_REWRITE = false
+NEW_COLLECTION_PIPELINE = false
+REHEARSAL_COMPETITION_ID = brasileirao_serie_a
+REHEARSAL_SEASON = 2026
+MARKET_SCOPE =
+ASIAN_HANDICAP
+TOTALS
+ENDPOINT_SCOPE =
+status
+fixtures
+odds
+lineups
+CAPTURE_CADENCE =
+ONE_SUPERVISED_REFRESH_RUN
+PROVIDER_CALL_LIMIT = 30
+DAILY_REQUEST_BUDGET = 120
+SCHEDULER_MODE =
+NOT_STARTED
+REHEARSAL_EXECUTION_MODE =
+MANUAL_FOREGROUND_ONE_SHOT
+REHEARSAL_ENTRYPOINT =
+scripts/run_prematch_refresh.py
+SCHEDULER_RESTART_POLICY = no
+SCHEDULER_CONTAINER_STARTED = false
+AUTO_RETRY = false
+PROVIDER_CALLS_AUTHORIZED = true
+PROVIDER_CALLS_AUTHORIZED_SCOPE =
+A148_ONE_SUPERVISED_REHEARSAL
+SCHEDULER_START_AUTHORIZED = false
+SCHEDULER_START_AUTHORIZED_SCOPE =
+NOT_APPLICABLE
+RUNTIME_COLLECTION_AUTHORIZED = true
+RUNTIME_COLLECTION_AUTHORIZED_SCOPE =
+A148_ONE_SUPERVISED_REHEARSAL
+PERSISTENT_SCHEDULER_AUTHORIZED = false
+CONTINUOUS_COLLECTION_AUTHORIZED = false
 IDENTITY_REMEDIATION_DESIGN = BLOCKED
 IDENTITY_REMEDIATION_EXECUTION_AUTHORIZED = false
 IDENTITY_PROVENANCE_GAP_DECISION =
@@ -808,8 +850,6 @@ WRITE_SIDE_IMPLEMENTATION_04_HEAD =
 WRITE_SIDE_IMPLEMENTATION_04_MERGE_SHA =
 308e1edc9ed1748a18cd64c9325521e54a5777ba
 WRITE_SIDE_IMPLEMENTATION_04_MAIN_CI = 30599981432
-PROVIDER_CALLS_AUTHORIZED = false
-SCHEDULER_START_AUTHORIZED = false
 WRITE_SIDE_READINESS_DESIGN = FROZEN
 WRITE_SIDE_READY = true
 NEW_TABLE_COUNT = 0
@@ -825,9 +865,14 @@ IMMUTABLE_ORIGINAL_EVALUATION
 LIFECYCLE_SUPERSESSION_EFFECT =
 DIAGNOSTIC_ONLY
 PRE_POST_ELIGIBILITY_REQUIRES_NOT_SUPERSEDED = false
+RECOMMENDATION_ENABLED = false
+CANDIDATE_ENABLED = false
+FORMAL_RECOMMENDATION_ENABLED = false
+LOCK_ENABLED = false
+PRODUCTION_RELEASE = false
 SCORING_IMPLEMENTATION = BLOCKED
 NEXT_REQUIRED_ACTION =
-FORWARD_COLLECTION_ACTIVATION_REVIEW
+A148_SUPERVISED_COLLECTION_REHEARSAL
 ```
 
 **预注册门禁合同（已冻结）**：
@@ -1561,20 +1606,176 @@ LIFECYCLE_SUPERSESSION_EFFECT =
 DIAGNOSTIC_ONLY
 PRE_POST_ELIGIBILITY_REQUIRES_NOT_SUPERSEDED = false
 NEXT_REQUIRED_ACTION =
-FORWARD_COLLECTION_ACTIVATION_REVIEW
+A148_SUPERVISED_COLLECTION_REHEARSAL
 
 LEGACY_RESULT_EVAL_ELIGIBILITY = false
-RUNTIME_COLLECTION_AUTHORIZED = false
-PROVIDER_CALLS_AUTHORIZED = false
+PROVIDER_CALLS_AUTHORIZED = true
+PROVIDER_CALLS_AUTHORIZED_SCOPE =
+A148_ONE_SUPERVISED_REHEARSAL
 SCHEDULER_START_AUTHORIZED = false
+SCHEDULER_START_AUTHORIZED_SCOPE =
+NOT_APPLICABLE
+RUNTIME_COLLECTION_AUTHORIZED = true
+RUNTIME_COLLECTION_AUTHORIZED_SCOPE =
+A148_ONE_SUPERVISED_REHEARSAL
+PERSISTENT_SCHEDULER_AUTHORIZED = false
+CONTINUOUS_COLLECTION_AUTHORIZED = false
 SCORING_IMPLEMENTATION = BLOCKED
 EVAL_02B_START_AUTHORIZED = false
 EVAL_02B = BLOCKED
 EVAL_03 = NOT_STARTED
 ```
 
-`FORWARD_COLLECTION_ACTIVATION_REVIEW` 只是激活审查，不授权 Provider、scheduler、
-生产部署或运行采集；EVAL-02B gate 与 EVAL-03 均不得启动。
+**Forward collection activation review（已完成）**：
+
+本审查复用现有 `apps/scheduler/main.py`、`apps/worker/celery_app.py`、
+`src/w2/ingestion/future_refresh.py`、`src/w2/providers/api_football.py`、
+`src/w2/providers/control.py`、`scripts/run_prematch_refresh.py` 与
+`docs/operations/A-148_SUPERVISED_SCHEDULER_REHEARSAL.md`。不得建立平行 guard、
+activation manifest、canary CLI、Provider control 或 collection pipeline。
+
+```text
+FORWARD_COLLECTION_ACTIVATION_REVIEW = PASS
+FORWARD_COLLECTION_ACTIVATION_REVIEW_STATUS = DONE
+EXISTING_COLLECTION_PIPELINE = REUSED
+A148_SUPERVISED_REHEARSAL = SELECTED
+
+NEW_GUARD_FRAMEWORK = false
+NEW_ACTIVATION_MANIFEST_FRAMEWORK = false
+NEW_CANARY_CLI = false
+PROVIDER_CONTROL_REWRITE = false
+NEW_COLLECTION_PIPELINE = false
+```
+
+2026-07-31T04:11:34.425127Z 的 staging DB `REPEATABLE READ READ ONLY`
+competition authority 审查确认 `brasileirao_serie_a`、`chinese_super_league`、
+`allsvenskan` 与 `eliteserien` 均为 enabled、ACTIVE、IN_SEASON，且
+future-refresh policy 与 fixtures/odds/lineups switches 完整。为避免任意选择，本次只取
+DB `audit_order` 最小值（1）作为唯一演练 scope：
+
+```text
+REHEARSAL_COMPETITION_ID = brasileirao_serie_a
+REHEARSAL_SEASON = 2026
+
+MARKET_SCOPE =
+ASIAN_HANDICAP
+TOTALS
+
+ENDPOINT_SCOPE =
+status
+fixtures
+odds
+lineups
+
+CAPTURE_CADENCE =
+ONE_SUPERVISED_REFRESH_RUN
+
+PROVIDER_CALL_LIMIT = 30
+DAILY_REQUEST_BUDGET = 120
+
+SCHEDULER_MODE =
+NOT_STARTED
+
+REHEARSAL_EXECUTION_MODE =
+MANUAL_FOREGROUND_ONE_SHOT
+
+REHEARSAL_ENTRYPOINT =
+scripts/run_prematch_refresh.py
+
+SCHEDULER_RESTART_POLICY = no
+SCHEDULER_CONTAINER_STARTED = false
+AUTO_RETRY = false
+```
+
+单一 competition 必须通过现有脚本直接执行一次手工前台 refresh：
+
+```text
+python scripts/run_prematch_refresh.py \
+  --competition-id brasileirao_serie_a \
+  --season 2026 \
+  --persistence db \
+  --execute
+```
+
+本整改 PR 阶段不得执行该命令。演练不得调用 `apps.scheduler.main.run_forever`，不得进行
+Celery scheduler dispatch；该约束只复用现有显式 competition 参数，不引入新 CLI 或
+pipeline。
+
+本 PR 合并后只授权上述一次 A-148 演练：
+
+```text
+PROVIDER_CALLS_AUTHORIZED = true
+PROVIDER_CALLS_AUTHORIZED_SCOPE =
+A148_ONE_SUPERVISED_REHEARSAL
+
+SCHEDULER_START_AUTHORIZED = false
+SCHEDULER_START_AUTHORIZED_SCOPE =
+NOT_APPLICABLE
+SCHEDULER_CONTAINER_STARTED = false
+
+RUNTIME_COLLECTION_AUTHORIZED = true
+RUNTIME_COLLECTION_AUTHORIZED_SCOPE =
+A148_ONE_SUPERVISED_REHEARSAL
+
+PERSISTENT_SCHEDULER_AUTHORIZED = false
+CONTINUOUS_COLLECTION_AUTHORIZED = false
+
+RECOMMENDATION_ENABLED = false
+CANDIDATE_ENABLED = false
+FORMAL_RECOMMENDATION_ENABLED = false
+LOCK_ENABLED = false
+PRODUCTION_RELEASE = false
+
+SCORING_IMPLEMENTATION = BLOCKED
+EVAL_02B_START_AUTHORIZED = false
+EVAL_02B = BLOCKED
+EVAL_03 = NOT_STARTED
+```
+
+演练 receipt 必须来自现有 A-148 路径并包含：
+
+```text
+projected_provider_calls
+actual_provider_calls
+request_count_by_endpoint
+provider_request_ledger_delta
+raw_payload_delta
+endpoint_capture_delta
+checkpoint_audit_delta
+lineup_event_delta
+dynamic_evaluation_v2_delta
+five_state_snapshot_delta
+exact_pair_delta
+materialized_fixture_ids
+read_model_data_time_before
+read_model_data_time_after
+dashboard_data_time_before
+dashboard_data_time_after
+scheduler_restart_policy
+blockers
+execution_mode
+execution_entrypoint
+scheduler_started
+celery_tasks_queued
+checkpoint_claim_delta
+```
+
+```text
+execution_mode = MANUAL_FOREGROUND_ONE_SHOT
+execution_entrypoint = scripts/run_prematch_refresh.py
+scheduler_started = false
+celery_tasks_queued = 0
+checkpoint_claim_delta = 0
+```
+
+手工 one-shot 没有消费 checkpoint claim 时，`checkpoint_audit_delta = 0` 是允许结果，
+不得伪造 checkpoint cycle。未进入首发确认窗口时，`lineup_event_delta = 0` 或
+`exact_pair_delta = 0` 不自动判失败；但 receipt 必须证明对应 plan 与写侧链路无错误、
+无越权。演练前后必须核验 scheduler container 未启动且 `restart=no`，并将 Provider 与
+future-refresh flags 全部恢复为 disabled；不得持续采集，不得自动重试，
+不得扩大 endpoint allowlist，不得增加 Provider budget。随后只创建一个 final
+rehearsal receipt state PR，不得直接开启持续采集。
+EVAL-02B gate 与 EVAL-03 均不得启动。
 
 此前冻结的身份修复实施流程保持休眠；只有满足上述 exact original raw blob 重开条件后，
 未来实施才必须默认 `dry-run`，先生成 canonical remediation manifest；每行状态只能是：
