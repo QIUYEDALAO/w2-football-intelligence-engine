@@ -97,7 +97,7 @@ date / datetime policy
 unsupported type behavior
 ```
 
-全仓代码搜索只在 `_pair_sha256` 找到显式 `allow_nan=False`。已知其余实现继承 Python 默认 `allow_nan=True`，可能输出 `NaN` / `Infinity` token，而不是拒绝输入。
+全仓代码搜索只在 `_pair_sha256` 找到显式 `allow_nan=False`。已知其余实现继承 Python 默认 `allow_nan=True`，可能输出 `NaN` / `Infinity` 非标准字面值，而不是拒绝输入。
 
 ## 风险
 
