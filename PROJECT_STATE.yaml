@@ -3,6 +3,8 @@ project: w2-football-intelligence-engine
 updated_at: "2026-07-31"
 current_state_authority: PROJECT_STATE.yaml
 task_authority: https://github.com/QIUYEDALAO/w2-football-intelligence-engine/issues/454
+active_execution_authority: https://github.com/QIUYEDALAO/w2-football-intelligence-engine/issues/454
+master_task_and_receipt_authority: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
 handoff_authority: AI_PROJECT_CONTEXT.md
 independent_audit_authority: docs/operations/W2_INDEPENDENT_FINAL_AUDIT_20260731.md
 asset_uniqueness_audit_authority: docs/operations/W2_ASSET_UNIQUENESS_AUDIT_20260731.md
@@ -340,7 +342,7 @@ gate_d_production:
     - HISTORICAL_MIGRATION_REPLAY_SCHEMA_GOLDEN_MANIFEST
     - BACKUP_RESTORE_DISASTER_RECOVERY
     - CLOCK_CAPACITY_LONG_SOAK
-    - SUPPLY_CHAIN_PERMISSION_SECRET_LOG_REVIEW
+    - SUPPLY_CHAIN_PERMISSION_CREDENTIAL_LOG_REVIEW
     - INDEPENDENT_SECURITY_AND_OPERATIONS_SIGNOFF
 
 engineering_principles:
