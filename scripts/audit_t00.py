@@ -487,8 +487,8 @@ def risk_candidates(files: dict[str, str]) -> dict[str, list[dict[str, Any]]]:
                 io_name = name.lower()
                 is_commit = io_name.endswith(".commit")
                 is_external = io_name.endswith((".get", ".post", ".request")) and any(
-                    token in io_name
-                    for token in ("client", "http", "provider", "request", "session")
+                    needle in io_name
+                    for needle in ("client", "http", "provider", "request", "session")
                 )
                 if is_commit or is_external:
                     rows["R3"].append(
@@ -500,8 +500,8 @@ def risk_candidates(files: dict[str, str]) -> dict[str, list[dict[str, Any]]]:
                     )
         lowered = source.lower()
         if any(
-            token in lowered
-            for token in ("for update", "advisory_lock", "idempot", "uniqueconstraint")
+            needle in lowered
+            for needle in ("for update", "advisory_lock", "idempot", "uniqueconstraint")
         ):
             rows["R4"].append(
                 {"path": path, "line": 1, "classification": "REVIEWED_CONCURRENCY_AUTHORITY_FILE"}
