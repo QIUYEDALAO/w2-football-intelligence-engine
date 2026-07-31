@@ -685,6 +685,7 @@ class FutureFixtureRefreshService:
         self._feature_enrichment_batch_count = 0
         self._matchday_capture_by_payload: dict[tuple[str, str, str, str], dict[str, Any]] = {}
         self._projection_events: dict[tuple[str, str, str], ProjectionSourceEvent] = {}
+        self._lineup_materialization_rows: dict[tuple[str, str], int] = {}
 
     def _db_repository(self) -> FutureRefreshDbRepository:
         return FutureRefreshDbRepository()
@@ -794,6 +795,10 @@ class FutureFixtureRefreshService:
                 self._fixtures_request_params(),
             )
             future_fixtures = self._future_fixtures(fixtures_response.payload)
+            self._persist_fixture_identities_before_enrichment(
+                fixtures_response=fixtures_response,
+                fixtures=future_fixtures,
+            )
             odds_responses = self._fetch_market_snapshots(future_fixtures)
             enrichment_responses = self._fetch_feature_enrichment(future_fixtures)
             result = self._persist(
@@ -929,6 +934,12 @@ class FutureFixtureRefreshService:
                 endpoint_capture_error is not None or endpoint_capture_id is None
             ):
                 raise FutureRefreshError(f"ENDPOINT_CAPTURE_WRITE_FAILED:{endpoint_capture_error}")
+            self._record_lineup_projection_after_capture(
+                endpoint=endpoint,
+                params=params,
+                payload_hash=payload_sha,
+                response=response,
+            )
             self._audit.append(
                 {
                     "endpoint": endpoint,
@@ -1127,40 +1138,19 @@ class FutureFixtureRefreshService:
                     if not fixture_id:
                         return False, "LINEUP_FIXTURE_ID_MISSING"
                     try:
-                        previous_identity = repository.confirmed_lineup_business_identity(
-                            fixture_id=fixture_id
-                        )
                         lineup_rows = repository.save_lineup_snapshots(
                             fixture_id=fixture_id,
                             captured_at=response.captured_at,
                             raw_sha256=payload_hash,
                             payload=payload,
                         )
-                        current_identity = repository.confirmed_lineup_business_identity(
-                            fixture_id=fixture_id
-                        )
-                        if (
-                            lineup_rows > 0
-                            and current_identity is not None
-                            and current_identity != previous_identity
-                        ):
-                            self._record_projection_event(
-                                ProjectionSourceEvent.create(
-                                    fixture_id=fixture_id,
-                                    event_type="LINEUP_CHANGED",
-                                    event_id=f"lineup:{current_identity}",
-                                    event_at=response.captured_at,
-                                    payload={
-                                        "lineup_business_identity": current_identity,
-                                        "materialized_rows": lineup_rows,
-                                    },
-                                )
-                            )
-                    except FutureRefreshPersistenceError:
-                        # The raw response remains valid audit evidence even when
-                        # an incomplete/unidentified XI must fail closed for
-                        # lineup-feature materialization.
-                        pass
+                    except FutureRefreshPersistenceError as exc:
+                        self._raw_payload_written.add(payload_hash)
+                        self._raw_payload_written_count += 1
+                        raise FutureRefreshError(
+                            f"LINEUP_MATERIALIZATION_FAILED:{exc}"
+                        ) from exc
+                    self._lineup_materialization_rows[(fixture_id, payload_hash)] = lineup_rows
             elif self.config.persistence == "file":
                 file_fixture_id = params.get("fixture")
                 suffix = f"_{file_fixture_id}" if file_fixture_id else ""
@@ -1178,11 +1168,59 @@ class FutureFixtureRefreshService:
                 )
             else:
                 return False, f"FUTURE_REFRESH_PERSISTENCE_INVALID:{self.config.persistence}"
+        except FutureRefreshError:
+            raise
         except Exception as exc:
             return False, exc.__class__.__name__
         self._raw_payload_written.add(payload_hash)
         self._raw_payload_written_count += 1
         return True, None
+
+    def _record_lineup_projection_after_capture(
+        self,
+        *,
+        endpoint: str,
+        params: dict[str, str],
+        payload_hash: str,
+        response: LiveApiFootballResponse,
+    ) -> None:
+        if self.config.persistence != "db" or endpoint != "lineups":
+            return
+        fixture_id = str(params.get("fixture") or "")
+        if not fixture_id:
+            raise FutureRefreshError("LINEUP_FIXTURE_ID_MISSING")
+        materialized_rows = self._lineup_materialization_rows.pop(
+            (fixture_id, payload_hash),
+            None,
+        )
+        if materialized_rows is None:
+            raise FutureRefreshError("LINEUP_MATERIALIZATION_RECEIPT_MISSING")
+        if materialized_rows == 0:
+            return
+        try:
+            current_identity = self._db_repository().confirmed_lineup_business_identity(
+                fixture_id=fixture_id
+            )
+        except FutureRefreshPersistenceError as exc:
+            raise FutureRefreshError(
+                f"LINEUP_EVENT_DERIVATION_FAILED:{exc}"
+            ) from exc
+        if current_identity is None:
+            raise FutureRefreshError(
+                "LINEUP_EVENT_DERIVATION_FAILED:LINEUP_BUSINESS_IDENTITY_MISSING"
+            )
+        self._record_projection_event(
+            ProjectionSourceEvent.create(
+                fixture_id=fixture_id,
+                event_type="LINEUP_CHANGED",
+                event_id=f"lineup:{current_identity}",
+                event_at=response.captured_at,
+                payload={
+                    "lineup_business_identity": current_identity,
+                    "materialized_rows": materialized_rows,
+                },
+            )
+        )
 
     def _record_projection_event(self, event: ProjectionSourceEvent) -> None:
         self._projection_events[(event.fixture_id, event.event_type, event.event_id)] = event
@@ -1352,6 +1390,59 @@ class FutureFixtureRefreshService:
             rows.append(item)
         rows.sort(key=lambda item: kickoff_from_payload(item) or datetime.max.replace(tzinfo=UTC))
         return rows[: self.config.max_fixture_candidates]
+
+    def _persist_fixture_identities_before_enrichment(
+        self,
+        *,
+        fixtures_response: LiveApiFootballResponse,
+        fixtures: list[dict[str, Any]],
+    ) -> None:
+        if self.config.persistence != "db":
+            return
+        from w2.matchday.repository import (
+            MatchdayRepositoryError,
+            MatchdayRuntimeRepository,
+        )
+
+        repository = MatchdayRuntimeRepository()
+        try:
+            fixture_identities = self._fixture_identities_from_response(
+                fixtures_response=fixtures_response,
+                fixtures=fixtures,
+            )
+            for fixture_identity in fixture_identities:
+                _persisted, changed_fixture_ids = (
+                    repository.upsert_fixture_identities_with_business_changes(
+                        [fixture_identity]
+                    )
+                )
+                if not changed_fixture_ids:
+                    continue
+                fixture_id = str(
+                    fixture_identity.get("provider_fixture_id")
+                    or fixture_identity.get("fixture_id")
+                    or ""
+                )
+                if not fixture_id:
+                    raise FutureRefreshError(
+                        "FIXTURE_IDENTITY_PROVIDER_FIXTURE_ID_MISSING"
+                    )
+                self._record_projection_event(
+                    ProjectionSourceEvent.create(
+                        fixture_id=fixture_id,
+                        event_type="FIXTURE_CHANGED",
+                        event_id=(
+                            "fixture:"
+                            + str(fixture_identity.get("identity_hash") or "")
+                        ),
+                        event_at=fixtures_response.captured_at,
+                        payload=fixture_identity,
+                    )
+                )
+        except MatchdayRepositoryError as exc:
+            raise FutureRefreshError(
+                f"FIXTURE_IDENTITY_WRITE_FAILED:{exc}"
+            ) from exc
 
     def _fetch_market_snapshots(
         self,
@@ -1552,32 +1643,6 @@ class FutureFixtureRefreshService:
             from w2.matchday.repository import MatchdayRuntimeRepository
 
             repository = MatchdayRuntimeRepository()
-            fixture_identities = self._fixture_identities_from_response(
-                fixtures_response=fixtures_response,
-                fixtures=fixtures,
-            )
-            for fixture_identity in fixture_identities:
-                _persisted, changed_fixture_ids = (
-                    repository.upsert_fixture_identities_with_business_changes([fixture_identity])
-                )
-                if changed_fixture_ids:
-                    fixture_id = str(
-                        fixture_identity.get("provider_fixture_id")
-                        or fixture_identity.get("fixture_id")
-                        or ""
-                    )
-                    if fixture_id:
-                        self._record_projection_event(
-                            ProjectionSourceEvent.create(
-                                fixture_id=fixture_id,
-                                event_type="FIXTURE_CHANGED",
-                                event_id=(
-                                    "fixture:" + str(fixture_identity.get("identity_hash") or "")
-                                ),
-                                event_at=fixtures_response.captured_at,
-                                payload=fixture_identity,
-                            )
-                        )
             observations: list[dict[str, Any]] = []
             for fixture_id, response in odds_responses:
                 from w2.matchday.intake_v2 import normalize_matchday_odds_payload

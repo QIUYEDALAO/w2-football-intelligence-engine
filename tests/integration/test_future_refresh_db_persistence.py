@@ -7,6 +7,8 @@ from typing import Any
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
+import pytest
+
 import w2.prematch.analysis_calculator as api_repository
 from w2.config import get_settings
 from w2.infrastructure.database import Base
@@ -28,6 +30,7 @@ from w2.infrastructure.persistence.matchday_intake_models import (
 from w2.ingestion.future_refresh import deterministic_task_key, run_future_refresh_task
 from w2.ingestion.future_refresh_repository import (
     FutureRefreshDbRepository,
+    FutureRefreshPersistenceError,
 )
 from w2.prematch.analysis_calculator import ReadModelRepository, ReadModelService
 from w2.providers.api_football import LiveApiFootballResponse
@@ -136,12 +139,26 @@ class FakeApiFootballClient:
                 ]
             }
         if endpoint == "lineups":
-            return {
-                "response": [
-                    {"team": {"id": 10}, "startXI": [{} for _ in range(11)], "substitutes": []},
-                    {"team": {"id": 20}, "startXI": [{} for _ in range(11)], "substitutes": [{}]},
-                ]
-            }
+            def team_lineup(team_id: int, offset: int) -> dict[str, Any]:
+                return {
+                    "team": {"id": team_id, "name": f"Team {team_id}"},
+                    "formation": "4-3-3",
+                    "startXI": [
+                        {
+                            "player": {
+                                "id": offset + index,
+                                "name": f"Player {offset + index}",
+                                "number": index + 1,
+                                "pos": "G" if index == 0 else "M",
+                                "grid": f"{index // 4 + 1}:{index % 4 + 1}",
+                            }
+                        }
+                        for index in range(11)
+                    ],
+                    "substitutes": [],
+                }
+
+            return {"response": [team_lineup(10, 100), team_lineup(20, 200)]}
         if endpoint == "injuries":
             return {"response": []}
         raise AssertionError(endpoint)
@@ -632,3 +649,126 @@ def test_request_count_since_includes_quota_usage(
         session.commit()
 
     assert FutureRefreshDbRepository().request_count_since(since) >= 7000
+
+
+def test_c9_lineup_event_is_emitted_after_identity_and_capture_are_available(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    key = deterministic_task_key(
+        competition_id="world_cup_2026",
+        season="2026",
+        now=NOW,
+        interval_seconds=900,
+    )
+    event_types: list[str] = []
+
+    def materialize(events: list[Any]) -> list[str]:
+        event_types.extend(str(event.event_type) for event in events)
+        return list(dict.fromkeys(str(event.fixture_id) for event in events))
+
+    audit = run_future_refresh_task(
+        task_id="task-c9-ordering",
+        key=key,
+        queued_at=NOW,
+        runtime_root=tmp_path / "runtime",
+        client=FakeApiFootballClient(),
+        now=NOW,
+        persistence="db",
+        materialize_public_artifacts=materialize,
+    )
+
+    assert audit.status == "COMPLETED", audit
+    assert set(event_types) == {"FIXTURE_CHANGED", "LINEUP_CHANGED", "ODDS_CHANGED"}
+
+
+def test_c9_lineup_failure_is_explicit_and_preserves_paid_raw_evidence(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+
+    def reject_lineup(self: Any, **kwargs: Any) -> int:
+        raise FutureRefreshPersistenceError("INJECTED_LINEUP_WRITE_FAILURE")
+
+    monkeypatch.setattr(
+        FutureRefreshDbRepository,
+        "save_lineup_snapshots",
+        reject_lineup,
+    )
+    key = deterministic_task_key(
+        competition_id="world_cup_2026",
+        season="2026",
+        now=NOW,
+        interval_seconds=900,
+    )
+    client = FakeApiFootballClient()
+
+    audit = run_future_refresh_task(
+        task_id="task-c9-failure",
+        key=key,
+        queued_at=NOW,
+        runtime_root=tmp_path / "runtime",
+        client=client,
+        now=NOW,
+        persistence="db",
+        materialize_public_artifacts=materialize_projection_events_for_test,
+    )
+
+    assert audit.status == "BLOCKED"
+    assert audit.result["error_code"] == (
+        "LINEUP_MATERIALIZATION_FAILED:INJECTED_LINEUP_WRITE_FAILURE"
+    )
+    assert audit.result["raw_payload_written_count"] == 4
+    assert [endpoint for endpoint, _params in client.calls] == [
+        "status",
+        "fixtures",
+        "odds",
+        "lineups",
+    ]
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        endpoints = set(session.scalars(select(RawPayloadModel.endpoint)).all())
+        assert endpoints == {"status", "fixtures", "odds", "lineups"}
+        assert session.scalar(
+            select(func.count()).select_from(MatchdayMarketObservationModel)
+        ) == 0
+
+
+def test_c9_lineup_integrity_conflict_is_noop_only_for_exact_replay(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    repository = FutureRefreshDbRepository()
+    payload = FakeApiFootballClient().payload("lineups", {"fixture": "1489404"})
+
+    assert repository.save_lineup_snapshots(
+        fixture_id="1489404",
+        captured_at=NOW,
+        raw_sha256="a" * 64,
+        payload=payload,
+        materialize_baselines=False,
+    ) == 2
+    assert repository.save_lineup_snapshots(
+        fixture_id="1489404",
+        captured_at=NOW,
+        raw_sha256="a" * 64,
+        payload=payload,
+        materialize_baselines=False,
+    ) == 0
+
+    conflicting = json.loads(json.dumps(payload))
+    conflicting["response"][0]["formation"] = "3-5-2"
+    with pytest.raises(
+        FutureRefreshPersistenceError,
+        match="LINEUP_SNAPSHOT_IDENTITY_CONFLICT",
+    ):
+        repository.save_lineup_snapshots(
+            fixture_id="1489404",
+            captured_at=NOW,
+            raw_sha256="a" * 64,
+            payload=conflicting,
+            materialize_baselines=False,
+        )

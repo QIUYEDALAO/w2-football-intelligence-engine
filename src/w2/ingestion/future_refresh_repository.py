@@ -289,9 +289,17 @@ class FutureRefreshDbRepository:
                         )
                 session.commit()
                 materialized = len(snapshots)
-            except IntegrityError:
+            except IntegrityError as exc:
                 session.rollback()
-                return 0
+                if self._lineup_snapshots_match_existing(
+                    fixture_id=fixture_id,
+                    captured_at=captured_at,
+                    snapshots=snapshots,
+                ):
+                    return 0
+                raise FutureRefreshPersistenceError(
+                    "LINEUP_SNAPSHOT_IDENTITY_CONFLICT"
+                ) from exc
             except Exception as exc:
                 session.rollback()
                 raise FutureRefreshPersistenceError("LINEUP_MATERIALIZATION_FAILED") from exc
@@ -299,6 +307,94 @@ class FutureRefreshDbRepository:
         if materialize_baselines:
             self.materialize_team_lineup_baselines(limit=4096)
         return materialized
+
+    def _lineup_snapshots_match_existing(
+        self,
+        *,
+        fixture_id: str,
+        captured_at: datetime,
+        snapshots: list[tuple[StructuredLineupSnapshotModel, list[dict[str, Any]]]],
+    ) -> bool:
+        expected_by_team = {
+            snapshot.team_external_id: (snapshot, players)
+            for snapshot, players in snapshots
+        }
+        with Session(self.engine) as session:
+            existing_rows = list(
+                session.scalars(
+                    select(StructuredLineupSnapshotModel).where(
+                        StructuredLineupSnapshotModel.fixture_id == fixture_id,
+                        StructuredLineupSnapshotModel.captured_at == captured_at,
+                        StructuredLineupSnapshotModel.team_external_id.in_(
+                            sorted(expected_by_team)
+                        ),
+                    )
+                )
+            )
+            existing_by_team = {row.team_external_id: row for row in existing_rows}
+            if set(existing_by_team) != set(expected_by_team):
+                return False
+            for team_id, (expected, expected_players) in expected_by_team.items():
+                existing = existing_by_team[team_id]
+                if (
+                    existing.team_name != expected.team_name
+                    or existing.formation != expected.formation
+                    or parse_db_datetime(existing.captured_at)
+                    != parse_db_datetime(expected.captured_at)
+                    or existing.confirmed != expected.confirmed
+                    or existing.authoritative_status != expected.authoritative_status
+                    or existing.raw_sha256 != expected.raw_sha256
+                    or existing.lineup_identity_hash != expected.lineup_identity_hash
+                    or existing.source_capture_id != expected.source_capture_id
+                    or existing.schema_version != expected.schema_version
+                ):
+                    return False
+                actual_players = list(
+                    session.scalars(
+                        select(StructuredLineupPlayerModel).where(
+                            StructuredLineupPlayerModel.lineup_snapshot_id == existing.id
+                        )
+                    )
+                )
+                expected_payload = sorted(
+                    [
+                        {
+                            "api_football_player_id": str(player["api_football_player_id"]),
+                            "player_name": str(player["player_name"]),
+                            "starter": bool(player["starter"]),
+                            "shirt_number": player.get("shirt_number"),
+                            "provider_position": player.get("provider_position"),
+                            "grid": player.get("grid"),
+                            "captain": bool(player.get("captain", False)),
+                        }
+                        for player in expected_players
+                    ],
+                    key=lambda item: (
+                        item["api_football_player_id"],
+                        not item["starter"],
+                    ),
+                )
+                actual_payload = sorted(
+                    [
+                        {
+                            "api_football_player_id": player.api_football_player_id,
+                            "player_name": player.player_name,
+                            "starter": player.starter,
+                            "shirt_number": player.shirt_number,
+                            "provider_position": player.provider_position,
+                            "grid": player.grid,
+                            "captain": player.captain,
+                        }
+                        for player in actual_players
+                    ],
+                    key=lambda item: (
+                        item["api_football_player_id"],
+                        not item["starter"],
+                    ),
+                )
+                if actual_payload != expected_payload:
+                    return False
+        return True
 
     def confirmed_lineup_business_identity(self, *, fixture_id: str) -> str | None:
         """Return the latest complete capture's canonical XI identity."""
