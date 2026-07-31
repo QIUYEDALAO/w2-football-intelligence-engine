@@ -1,22 +1,25 @@
-schema_version: w2.project_state.v4
+schema_version: w2.project_state.v5
 project: w2-football-intelligence-engine
 updated_at: "2026-07-31"
 current_state_authority: PROJECT_STATE.yaml
 task_authority: https://github.com/QIUYEDALAO/w2-football-intelligence-engine/issues/454
 handoff_authority: AI_PROJECT_CONTEXT.md
 independent_audit_authority: docs/operations/W2_INDEPENDENT_FINAL_AUDIT_20260731.md
+asset_uniqueness_audit_authority: docs/operations/W2_ASSET_UNIQUENESS_AUDIT_20260731.md
 audit_perspective_registry_authority: docs/operations/W2_AUDIT_PERSPECTIVE_REGISTRY.md
 governance_incident_authority: https://github.com/QIUYEDALAO/w2-football-intelligence-engine/issues/455
+computation_authority_issue: https://github.com/QIUYEDALAO/w2-football-intelligence-engine/issues/456
 
 current_task: EVAL-02B-T00
-current_status: BLOCKED_GOVERNANCE_AND_RUNTIME_REMEDIATION
+current_status: BLOCKED_GOVERNANCE_RUNTIME_AND_COMPUTATION_AUTHORITY_REMEDIATION
 current_pr: null
 quarantined_pr: 453
 active_issues:
   - 454
   - 455
+  - 456
 next_task: EVAL-02B-T00-GOV
-next_required_action: T00_GOV_THEN_T00_SAFE_THEN_TRUSTED_C9_REBUILD
+next_required_action: T00_GOV_THEN_T00_SAFE_R1_R5_THEN_CANONICAL_SERIALIZATION_THEN_TRUSTED_C9_REBUILD
 
 trusted_baseline:
   repository: QIUYEDALAO/w2-football-intelligence-engine
@@ -80,6 +83,39 @@ risk_families:
   R2_SILENT_FAILURE_OR_FAILURE_DOWNGRADE: OPEN_SCAN_REQUIRED
   R3_EXTERNAL_SIDE_EFFECT_LOCAL_STATE_NON_ATOMICITY: OPEN_SCAN_REQUIRED
   R4_AUTHORITY_SPLIT_CONCURRENCY_IDENTITY_DRIFT: OPEN_SCAN_REQUIRED
+  R5_COMPUTATION_AUTHORITY_SPLIT: OPEN_SCAN_REQUIRED
+
+asset_uniqueness:
+  issue: 456
+  storage_layer:
+    current_conclusion: NO_CURRENT_EVIDENCE_OF_DELETION_RESIDUALS
+    reproducible_inventory_required: true
+    reported_duplicate_tablenames: 0
+    reported_dropped_table_models_remaining: 0
+    runtime_directory_git_asset_present: false
+    reports_directory_git_asset_present: false
+  computation_layer:
+    status: OPEN_BLOCKER
+    known_runtime_canonical_serializer_minimum_count: 6
+    definitive_implementation_count: PENDING_T00_R5
+    canonical_serializer_authority_count_target: 1
+    explicit_allow_nan_false_known_count: 1
+    pair_identity_contract_incomplete: true
+    ensure_ascii_decision: PENDING_MIGRATION_INVENTORY
+    historical_hash_in_place_rewrite_forbidden: true
+    serializer_version_required: true
+    gate_a_issue: 456
+    gate_c_concepts:
+      - FAIR_DECIMAL_ODDS_AND_DECIMAL_ODDS_PRECISION
+      - CANONICAL_MARKET_TAXONOMY
+      - BRIER_ECE_METRIC_AUTHORITY
+      - READ_MODEL_CLASS_NAMING_AND_BOUNDARY
+      - INDEPENDENT_MATHEMATICAL_ORACLE
+  migration_debt:
+    dynamic_current_orm_metadata_versions: "0002-0016"
+    reported_count: 15
+    historical_migration_rewrite_forbidden: true
+    replay_schema_golden_manifest_required: true
 
 audit_perspective_governance:
   registry_self_expanding: true
@@ -100,6 +136,7 @@ audit_perspective_governance:
     - R2_SILENT_FAILURE_OR_FAILURE_DOWNGRADE
     - R3_EXTERNAL_SIDE_EFFECT_LOCAL_STATE_NON_ATOMICITY
     - R4_AUTHORITY_SPLIT_CONCURRENCY_IDENTITY_DRIFT
+  post_incident_r5_required_when_touching_hash_formula_taxonomy_precision: true
   post_incident_closure_requires:
     - ALL_AFFECTED_EXTRA_PERSPECTIVES_REVIEWED
     - UNCLASSIFIED_POST_INCIDENT_FINDINGS_ZERO
@@ -109,10 +146,18 @@ audit_perspective_governance:
 
 t00_safe:
   status: NOT_STARTED
+  risk_families:
+    - R1_DEFAULT_ALLOW_OR_MISSING_AUTHORITY
+    - R2_SILENT_FAILURE_OR_FAILURE_DOWNGRADE
+    - R3_EXTERNAL_SIDE_EFFECT_LOCAL_STATE_NON_ATOMICITY
+    - R4_AUTHORITY_SPLIT_CONCURRENCY_IDENTITY_DRIFT
+    - R5_COMPUTATION_AUTHORITY_SPLIT
   reproducible_scan_required: true
   base_sha_bound_required: true
   output_sha256_required: true
   unclassified_findings_required: 0
+  unclassified_computation_authorities_required: 0
+  storage_asset_inventory_reproducible_required: true
   classifications:
     - SAFE_DEGRADATION
     - MUST_FIX_FOR_CANARY
@@ -165,7 +210,7 @@ tasks:
     main_ci: 30556679131
   EVAL-02B:
     status: BLOCKED
-    contract_authority: FROZEN
+    contract_authority: FROZEN_BUT_PAIR_SERIALIZATION_INCOMPLETE
     write_side_execution_tranche: COMPLETED
     write_side_implementation_01: DONE
     write_side_implementation_01_pr: 441
@@ -190,6 +235,7 @@ tasks:
     exact_pair_delta: 0
     current_execution_manifest_issue: 454
     current_governance_incident_issue: 455
+    current_computation_authority_issue: 456
     c9_original_issue: 451
     c9_contaminated_pr: 453
     c9_clean_rebuild_required: true
@@ -205,23 +251,25 @@ tasks:
       - C9_LINEUP_MATERIALIZATION_FAILURE_SWALLOWED
       - C10_SCHEDULER_RESTART_POLICY_MISMATCH
       - C11_LEDGER_INTEGRITY_AND_QUOTA_EVIDENCE_SILENT_FAILURE
+      - R5_CANONICAL_SERIALIZATION_AUTHORITY_SPLIT
     identity_provenance_gap_decision: LEGACY_35_RESULTS_EXCLUDED_FROM_EVAL_02B
     legacy_result_facts_retained: true
     legacy_result_facts_mutated: false
     legacy_result_eval_eligibility: false
     future_only_pair_collection_required: true
     scoring_implementation: BLOCKED
-    next_required_action: T00_GOV_THEN_T00_SAFE_THEN_TRUSTED_C9_REBUILD
+    next_required_action: T00_GOV_THEN_T00_SAFE_R1_R5_THEN_CANONICAL_SERIALIZATION_THEN_TRUSTED_C9_REBUILD
   EVAL-03:
     status: NOT_STARTED
 
 execution_order:
   - GITHUB_TO_LOCAL_TRUSTED_SYNC
   - T00_GOV_WORKFLOW_RUN_COMMIT_PROVENANCE
-  - T00_SAFE_R1_R2_R3_R4_SCAN
+  - T00_SAFE_R1_R2_R3_R4_R5_AND_ASSET_INVENTORY
+  - R5_CANONICAL_SERIALIZATION_AUTHORITY_AND_VERSIONED_MIGRATION
   - E875050F_HUNK_REVIEW
   - TRUSTED_MAIN_C9_REBUILD_NEW_DRAFT_PR
-  - GATE_A_ONE_SHOT_CANARY_BLOCKERS
+  - GATE_A_REMAINING_ONE_SHOT_CANARY_BLOCKERS
   - OFFLINE_FAKE_PROVIDER_REHEARSAL
   - CONTEXT_AND_EVIDENCE_SYNC
   - INDEPENDENT_SECOND_REVIEW
@@ -230,6 +278,13 @@ execution_order:
 gate_a_one_shot_canary:
   status: BLOCKED
   items:
+    - T00_R1_R5_CANARY_FINDINGS_CLOSED
+    - R5_CANONICAL_SERIALIZER_SINGLE_AUTHORITY
+    - R5_SERIALIZER_VERSION_AND_HISTORICAL_HASH_MIGRATION
+    - R5_PAIR_IDENTITY_CONTRACT_COMPLETE
+    - R5_UNICODE_NAN_DECIMAL_DATETIME_PAIR_SEED_GOLDEN_VECTORS
+    - R5_INDEPENDENT_HASH_RECOMPUTATION
+    - TRUSTED_MAIN_C9_REBUILD
     - C1_DEFAULT_DENY_PROVIDER_INGRESS
     - C2_SINGLE_USE_RUNTIME_AUTHORIZATION
     - C3_CANONICAL_SEASON_SCOPE
@@ -262,11 +317,31 @@ gate_b_continuous_operation:
     - LONG_LEASE_RENEWAL_AND_STALE_OWNER_FENCING
     - MULTI_COMPETITION_SHARED_QUOTA_CONCURRENCY
     - FULL_WORKER_SCHEDULER_BROKER_REDIS_FAILURE_MATRIX
-    - COLD_PULL_BACKUP_RESTORE_DISASTER_RECOVERY
-    - CLOCK_RESOURCE_QUEUE_DISK_LOG_CONTROLS
+    - COLD_PULL_RESOURCE_BACKPRESSURE
+
+gate_c_candidate_formal_lock:
+  status: DEFERRED_NOT_AUTHORIZED
+  computation_authority_items:
+    - FAIR_DECIMAL_ODDS_AND_DECIMAL_ODDS_PRECISION_AUTHORITY
+    - CANONICAL_MARKET_TAXONOMY_AUTHORITY
+    - BRIER_ECE_METRIC_AUTHORITY_OR_EXPLICIT_VERSIONING
+    - READ_MODEL_CLASS_NAMING_AND_BOUNDARY
+    - EV_FIVE_STATE_SETTLEMENT_CLV_CALIBRATION_INDEPENDENT_ORACLE
+  product_items:
+    - DATASET_SAMPLE_AND_TIME_SPLIT_CORRECTNESS
+    - PRODUCT_THRESHOLD_GUARDRAIL_ROLLBACK
+    - CANDIDATE_INDEPENDENT_AUTHORIZATION
+    - FORMAL_INDEPENDENT_AUTHORIZATION
+    - LOCK_INDEPENDENT_AUTHORIZATION
+
+gate_d_production:
+  status: DEFERRED_NOT_AUTHORIZED
+  items:
+    - HISTORICAL_MIGRATION_REPLAY_SCHEMA_GOLDEN_MANIFEST
+    - BACKUP_RESTORE_DISASTER_RECOVERY
+    - CLOCK_CAPACITY_LONG_SOAK
     - SUPPLY_CHAIN_PERMISSION_SECRET_LOG_REVIEW
-    - CANDIDATE_FORMAL_LOCK_PRODUCTION_PRODUCT_GATES
-    - EVAL_03_START_DECISION
+    - INDEPENDENT_SECURITY_AND_OPERATIONS_SIGNOFF
 
 engineering_principles:
   default_deny_on_missing_or_unknown: REQUIRED
@@ -279,6 +354,8 @@ engineering_principles:
   incident_fix_requires_post_incident_review: REQUIRED
   independent_reviewer_required_for_major_closure: REQUIRED
   same_origin_tests_do_not_equal_independent_oracle: REQUIRED
+  one_computation_authority_per_fact_or_explicit_version: REQUIRED
+  historical_hash_change_requires_versioned_migration: REQUIRED
   forbidden_patterns:
     - MISSING_CONFIGURATION_IMPLIES_ALLOW
     - INTEGRITY_ERROR_ROLLBACK_AND_CONTINUE_WITHOUT_RECONCILIATION
@@ -287,12 +364,14 @@ engineering_principles:
     - WORKFLOW_PUSHES_TO_BUSINESS_PR_BRANCH
     - AUTOMATION_COMMIT_USED_AS_IMPLEMENTATION_AUTHORITY
     - UNMAPPED_INCIDENT_PERSPECTIVE_AT_CLOSURE
-    - INCIDENT_CLOSED_WITHOUT_POST_INCIDENT_R1_R4_REVIEW
+    - INCIDENT_CLOSED_WITHOUT_REQUIRED_POST_INCIDENT_REVIEW
     - IMPLEMENTER_SELF_SIGNS_INDEPENDENT_COMPLETION
+    - SECOND_CANONICAL_HASH_SERIALIZER_WITHOUT_VERSIONED_AUTHORITY
+    - HISTORICAL_IDENTITY_HASH_OVERWRITTEN_WITHOUT_MIGRATION
 
 canary_acceptance:
   status: NOT_AUTHORIZED
-  decision_rule: ALL_REQUIRED_DELTAS_POSITIVE_AND_FULL_LINEAGE_RECONCILED
+  decision_rule: ALL_REQUIRED_DELTAS_POSITIVE_FULL_LINEAGE_AND_INDEPENDENT_HASH_RECOMPUTATION
   required_deltas:
     actual_provider_calls_delta: ">0"
     provider_request_ledger_delta: ">0"
@@ -320,8 +399,11 @@ canary_acceptance:
     - evaluation_id
     - pair_hash
     - exact_git_sha
+    - serializer_version
   zero_required_delta_result: FAILED
   lineage_mismatch_result: FAILED
+  independent_hash_mismatch_result: FAILED
+  nan_or_infinity_result: FAILED
   auto_retry: false
   authorization_restored_disabled_required: true
   unmapped_perspective_required: 0
@@ -359,4 +441,5 @@ staging:
 
 architecture_convergence:
   status: PASS
+  scope_remains_valid: true
   receipt: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
