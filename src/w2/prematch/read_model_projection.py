@@ -17,6 +17,7 @@ from w2.domain.recommendation_capabilities import load_recommendation_capability
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.operations.observability import default_metric_registry
 from w2.prematch.lifecycle import (
+    DYNAMIC_EVALUATION_V2_SCHEMA,
     DynamicEvaluationInput,
     DynamicEvaluationVersion,
     LineupConfirmedEvent,
@@ -410,7 +411,6 @@ class AnalysisCardCanaryMaterializer:
                 evaluated_at=evaluated_at,
             ),
         }
-        evaluations = tuple(_dynamic_evaluations(card, input_manifest))
         if source_event is None:
             artifact_body: dict[str, Any] = {
                 "schema_version": ANALYSIS_CARD_CANARY_SCHEMA,
@@ -440,16 +440,40 @@ class AnalysisCardCanaryMaterializer:
         if str(read_time_reference.get("fixture_id") or "") != fixture_id:
             raise FrozenAnalysisError("analysis-card read-time fixture identity conflict")
 
-        event = source_event or ProjectionSourceEvent.create(
-            fixture_id=fixture_id,
-            event_type="MANUAL_AUDIT",
-            event_id=f"manual-audit:{fixture_id}:{evaluation_time}",
-            event_at=evaluated_at,
-            payload={"input_manifest": input_manifest},
-        )
+        event = source_event
         if event.fixture_id != fixture_id:
             raise FrozenAnalysisError("projection source event fixture conflict")
-        lineup_event = _lineup_event_for_source(self.repository, event)
+        authoritative_lineup_event = _canonical_lineup_event(
+            self.repository,
+            fixture_id,
+        )
+        lineup_event = (
+            _lineup_event_for_source(self.repository, event)
+            if event.event_type == "LINEUP_CHANGED"
+            else None
+        )
+        dynamic_fixture_identity = _dynamic_evaluation_fixture_identity(
+            self.repository,
+            fixture_id,
+        )
+        dynamic_lineup_identity = (
+            {
+                "captured_at": _normalize_evaluation_time(authoritative_lineup_event.captured_at),
+                "lineup_input_hash": authoritative_lineup_event.lineup_input_hash,
+            }
+            if authoritative_lineup_event is not None
+            else None
+        )
+        input_manifest["dynamic_fixture_identity"] = dynamic_fixture_identity
+        input_manifest["dynamic_lineup_identity"] = dynamic_lineup_identity
+        evaluations = tuple(
+            _dynamic_evaluations(
+                card,
+                input_manifest,
+                fixture_identity=dynamic_fixture_identity,
+                lineup_identity=dynamic_lineup_identity,
+            )
+        )
         if not evaluations:
             raise FrozenAnalysisError("dynamic evaluation unavailable")
         primary = min(evaluations, key=lambda item: item.evaluation_id) if evaluations else None
@@ -493,9 +517,7 @@ class AnalysisCardCanaryMaterializer:
                 _projection_source_identity(
                     input_manifest=input_manifest,
                     source_event_hash=event.event_hash,
-                    source_evaluation_hashes=sorted(
-                        item.identity_hash for item in evaluations
-                    ),
+                    source_evaluation_hashes=sorted(item.identity_hash for item in evaluations),
                     lineup_event_payload_sha256=lineup_event_payload_sha256,
                 )
             ),
@@ -536,10 +558,8 @@ def validate_frozen_analysis_payload(
         raise FrozenAnalysisError("frozen analysis evidence missing")
     _validate_advisory_policy_identity(manifest["advisory_policy_identity"])
     evaluated_at = _parse_utc(manifest.get("evaluated_at"))
-    if (
-        evaluated_at is None
-        or manifest["advisory_policy_identity"]
-        != _advisory_policy_identity(card, evaluated_at=evaluated_at)
+    if evaluated_at is None or manifest["advisory_policy_identity"] != _advisory_policy_identity(
+        card, evaluated_at=evaluated_at
     ):
         raise FrozenAnalysisError("advisory policy identity mismatch")
     if str(card.get("fixture_id") or "") != fixture_id:
@@ -598,9 +618,22 @@ def validate_frozen_analysis_payload(
     artifact_body = {key: value for key, value in payload.items() if key != "artifact_hash"}
     if not artifact_hash or canonical_sha256(artifact_body) != artifact_hash:
         raise FrozenAnalysisError("checkpoint artifact hash mismatch")
-    evaluations = (
-        tuple(_dynamic_evaluations(card, manifest)) if has_projection_metadata else ()
-    )
+    evaluations: tuple[DynamicEvaluationVersion, ...] = ()
+    if has_projection_metadata:
+        fixture_identity = manifest.get("dynamic_fixture_identity")
+        lineup_identity = manifest.get("dynamic_lineup_identity")
+        if not isinstance(fixture_identity, dict):
+            raise FrozenAnalysisError("dynamic evaluation fixture identity missing")
+        if lineup_identity is not None and not isinstance(lineup_identity, dict):
+            raise FrozenAnalysisError("dynamic evaluation lineup identity invalid")
+        evaluations = tuple(
+            _dynamic_evaluations(
+                card,
+                manifest,
+                fixture_identity={str(key): str(value) for key, value in fixture_identity.items()},
+                lineup_identity=cast(dict[str, str] | None, lineup_identity),
+            )
+        )
     primary = min(evaluations, key=lambda item: item.evaluation_id) if evaluations else None
     if primary is not None and (
         payload.get("source_evaluation_id") != primary.evaluation_id
@@ -612,9 +645,7 @@ def validate_frozen_analysis_payload(
             _projection_source_identity(
                 input_manifest=manifest,
                 source_event_hash=str(payload["source_event_hash"]),
-                source_evaluation_hashes=sorted(
-                    item.identity_hash for item in evaluations
-                ),
+                source_evaluation_hashes=sorted(item.identity_hash for item in evaluations),
                 lineup_event_payload_sha256=(
                     str(payload["lineup_event_payload_sha256"])
                     if payload.get("source_event_type") == "LINEUP_CHANGED"
@@ -667,11 +698,7 @@ def _scope_advisory_policy(card: dict[str, Any]) -> dict[str, Any]:
         and lineup.get("requirement") == "STRICT"
         and "advisory_blind_spot_policy" in card
     ):
-        return {
-            key: value
-            for key, value in card.items()
-            if key != "advisory_blind_spot_policy"
-        }
+        return {key: value for key, value in card.items() if key != "advisory_blind_spot_policy"}
     return card
 
 
@@ -797,9 +824,8 @@ def write_frozen_analysis_artifacts(
                     if event is None:
                         raise FrozenAnalysisError("lineup projection source event unavailable")
                     _validate_lineup_event_binding(event, original.lineup_event)
-                    if (
-                        draft.payload.get("lineup_event_payload_sha256")
-                        != canonical_sha256(original.lineup_event.as_dict())
+                    if draft.payload.get("lineup_event_payload_sha256") != canonical_sha256(
+                        original.lineup_event.as_dict()
                     ):
                         raise FrozenAnalysisError("lineup event payload identity mismatch")
                     repository.append_lineup_event_in_session(
@@ -884,11 +910,7 @@ def write_frozen_analysis_artifacts(
                     continue
                 materializer = original.projection_materializer
                 event = original.projection_event
-                if (
-                    not isinstance(persisted_card, dict)
-                    or materializer is None
-                    or event is None
-                ):
+                if not isinstance(persisted_card, dict) or materializer is None or event is None:
                     raise FrozenAnalysisError("projection persisted-readback unavailable")
                 post_write = materializer.build(
                     event.fixture_id,
@@ -914,26 +936,23 @@ def write_frozen_analysis_artifacts(
 def _dynamic_evaluations(
     card: dict[str, Any],
     manifest: dict[str, Any],
+    *,
+    fixture_identity: dict[str, str],
+    lineup_identity: dict[str, str] | None,
 ) -> list[DynamicEvaluationVersion]:
+    if any(not fixture_identity.get(field) for field in ("competition_id", "season", "provider")):
+        raise FrozenAnalysisError("dynamic evaluation fixture identity incomplete")
+    if lineup_identity is not None and (
+        not lineup_identity.get("captured_at") or not lineup_identity.get("lineup_input_hash")
+    ):
+        raise FrozenAnalysisError("dynamic evaluation lineup identity incomplete")
     fixture_id = str(card.get("fixture_id") or "")
     evaluated_at = _parse_utc(manifest.get("evaluated_at"))
     candidates = card.get("market_candidates")
     if not fixture_id or evaluated_at is None or not isinstance(candidates, dict):
         return []
-    lineup = card.get("lineup_provenance")
-    lineup = lineup if isinstance(lineup, dict) else {}
-    lineup_confirmed_at = _parse_utc(lineup.get("captured_at"))
-    lineup_input_hash = (
-        canonical_sha256(
-            {
-                "captured_at": lineup.get("captured_at"),
-                "raw_sha256": lineup.get("raw_sha256"),
-                "baseline_artifact_hashes": lineup.get("baseline_artifact_hashes"),
-                "lineup_change_features": lineup.get("lineup_change_features"),
-            }
-        )
-        if lineup_confirmed_at is not None and lineup.get("confirmed") is True
-        else None
+    lineup_confirmed_at = _parse_utc(
+        lineup_identity.get("captured_at") if lineup_identity is not None else None
     )
     versions: list[DynamicEvaluationVersion] = []
     for key, default_market in (("ah", "ASIAN_HANDICAP"), ("ou", "TOTALS")):
@@ -965,6 +984,19 @@ def _dynamic_evaluations(
         devig = market_probability.get("devig")
         devig = devig if isinstance(devig, dict) else {}
         capture_at = _parse_utc(quote.get("captured_at") or quote_identity.get("captured_at"))
+        post_lineup_quote = bool(
+            lineup_confirmed_at is not None
+            and capture_at is not None
+            and capture_at >= lineup_confirmed_at
+        )
+        lineup_input_hash = (
+            lineup_identity["lineup_input_hash"]
+            if post_lineup_quote and lineup_identity is not None
+            else None
+        )
+        provider = str(quote.get("provider") or quote_identity.get("provider") or "")
+        if provider != fixture_identity["provider"]:
+            raise FrozenAnalysisError("dynamic evaluation provider identity conflict")
         value = DynamicEvaluationInput(
             fixture_id=fixture_id,
             market=str(candidate.get("market") or default_market),
@@ -979,7 +1011,8 @@ def _dynamic_evaluations(
                 or ""
             )
             or None,
-            quote_identity_hash=canonical_sha256(quote_identity),
+            quote_identity_hash=str(quote_identity.get("quote_identity_hash") or "")
+            or canonical_sha256(quote_identity),
             model_input_hash=canonical_sha256(
                 {
                     "simulation": manifest.get("simulation_sha256"),
@@ -1004,14 +1037,47 @@ def _dynamic_evaluations(
             ev_se=_float_or_none(model.get("ev_se")),
             decimal_odds=_float_or_none(quote.get("decimal_odds")),
             lineup_input_hash=lineup_input_hash,
-            lineup_confirmed_at=lineup_confirmed_at,
-            post_lineup_quote=bool(
-                lineup_confirmed_at is None
-                or (capture_at is not None and capture_at >= lineup_confirmed_at)
-            ),
+            lineup_confirmed_at=(lineup_confirmed_at if post_lineup_quote else None),
+            post_lineup_quote=post_lineup_quote,
+            schema_version=DYNAMIC_EVALUATION_V2_SCHEMA,
+            competition_id=fixture_identity["competition_id"],
+            season=fixture_identity["season"],
+            provider=provider,
+            model_settlement_distribution=model.get("settlement_distribution")
+            if isinstance(model.get("settlement_distribution"), Mapping)
+            else None,
         )
         versions.append(classify_evaluation(value))
     return versions
+
+
+def _dynamic_evaluation_fixture_identity(
+    repository: ScopedAnalysisRepository,
+    fixture_id: str,
+) -> dict[str, str]:
+    reader = getattr(repository, "matchday_fixture_identity", None)
+    raw = reader(fixture_id) if callable(reader) else None
+    if not isinstance(raw, dict) or raw.get("status") == "FIXTURE_ID_ALIAS_CONFLICT":
+        raise FrozenAnalysisError("dynamic evaluation fixture identity unavailable")
+    identity = {
+        "competition_id": str(raw.get("competition_id") or ""),
+        "season": str(raw.get("season") or ""),
+        "provider": str(raw.get("provider") or ""),
+    }
+    if any(not value for value in identity.values()):
+        raise FrozenAnalysisError("dynamic evaluation fixture identity incomplete")
+    return identity
+
+
+def _canonical_lineup_event(
+    repository: ScopedAnalysisRepository,
+    fixture_id: str,
+) -> LineupConfirmedEvent | None:
+    reader = getattr(repository, "canonical_lineup_confirmed_event", None)
+    event = reader(fixture_id) if callable(reader) else None
+    if event is not None and not isinstance(event, LineupConfirmedEvent):
+        raise FrozenAnalysisError("canonical lineup event invalid")
+    return event
 
 
 def _dynamic_evaluation_side(
