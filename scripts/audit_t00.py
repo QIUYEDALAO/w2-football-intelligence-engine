@@ -182,13 +182,104 @@ ONE_SHOT_CANARY_SCOPE = {
     ],
 }
 
-FINAL_TARGET_GATES = {
-    "GATE_A",
-    "GATE_B",
-    "GATE_C",
-    "GATE_D",
-    "SAFE_DEGRADATION",
-    "ACCEPTED_WITH_REASON",
+PROPOSED_TARGET_GATES = {
+    "PROPOSED_GATE_A",
+    "PROPOSED_GATE_B",
+    "PROPOSED_GATE_C",
+    "PROPOSED_GATE_D",
+    "PROPOSED_SAFE_DEGRADATION",
+    "PROPOSED_ACCEPTED_WITH_REASON",
+}
+
+# Every mapping is bound to one exact AST candidate coordinate. The scanner
+# converts these coordinates to candidate IDs and never falls back by function.
+EXACT_BLOCKER_SPECS = (
+    ("R2", "src/w2/ingestion/future_refresh.py", 806, "C6"),
+    ("R2", "src/w2/ingestion/future_refresh.py", 824, "C6"),
+    ("R2", "src/w2/ingestion/future_refresh.py", 878, "C7"),
+    ("R2", "src/w2/ingestion/future_refresh.py", 1061, "C6,C11"),
+    ("R2", "src/w2/ingestion/future_refresh.py", 1159, "C9"),
+    ("R2", "src/w2/ingestion/future_refresh.py", 1181, "C6"),
+    ("R2", "src/w2/ingestion/future_refresh.py", 2098, "C6,C10"),
+    ("R2", "src/w2/ingestion/future_refresh_repository.py", 194, "C6,C11"),
+    ("R2", "src/w2/ingestion/future_refresh_repository.py", 292, "C9"),
+    ("R2", "src/w2/ingestion/future_refresh_repository.py", 295, "C9"),
+    ("R2", "src/w2/ingestion/future_refresh_repository.py", 2434, "C6,C11"),
+    ("R2", "src/w2/ingestion/future_refresh_repository.py", 2575, "C6,C11"),
+    ("R2", "src/w2/ingestion/future_refresh_repository.py", 2614, "C6,C11"),
+    ("R2", "src/w2/ingestion/future_refresh_repository.py", 2648, "C11"),
+    ("R2", "src/w2/prematch/analysis_calculator.py", 1942, "C8"),
+    ("R2", "src/w2/prematch/analysis_calculator.py", 2047, "C9"),
+    ("R2", "src/w2/prematch/read_model_projection.py", 351, "C9"),
+    ("R2", "src/w2/prematch/read_model_projection.py", 961, "C9"),
+    ("R2", "src/w2/providers/ledger.py", 98, "C11-A"),
+    ("R2", "src/w2/providers/ledger.py", 100, "C11-A"),
+    ("R2", "src/w2/providers/ledger.py", 142, "C11-A"),
+    ("R3", "src/w2/ingestion/future_refresh_repository.py", 186, "C6,C11"),
+    ("R3", "src/w2/ingestion/future_refresh_repository.py", 290, "C9"),
+    ("R3", "src/w2/ingestion/future_refresh_repository.py", 2433, "C6,C11"),
+    ("R3", "src/w2/ingestion/future_refresh_repository.py", 2573, "C6,C11"),
+    ("R3", "src/w2/ingestion/future_refresh_repository.py", 2613, "C6,C11"),
+    ("R3", "src/w2/matchday/repository.py", 192, "C5,C6"),
+    ("R3", "src/w2/matchday/repository.py", 321, "C5"),
+    ("R3", "src/w2/matchday/repository.py", 387, "C6,C11"),
+    ("R3", "src/w2/matchday/repository.py", 415, "C6,C11"),
+    ("R3", "src/w2/matchday/repository.py", 453, "C6"),
+    ("R3", "src/w2/matchday/repository.py", 514, "C3,C6"),
+    ("R3", "src/w2/prematch/read_model_projection.py", 960, "C9"),
+    ("R3", "src/w2/providers/ledger.py", 97, "C11-A"),
+    ("R3", "src/w2/providers/ledger.py", 141, "C11-A"),
+)
+
+# These are the 30 exact candidates that carried the prior Wave-1 Gate-A
+# templates. They remain proposals; the five other blocker mappings do not.
+PROPOSED_TEST_CONTRACT_SPECS = {
+    (family, path, line)
+    for family, path, line, _ in EXACT_BLOCKER_SPECS
+} - {
+    ("R2", "src/w2/ingestion/future_refresh.py", 1061),
+    ("R2", "src/w2/ingestion/future_refresh_repository.py", 2648),
+    ("R2", "src/w2/prematch/analysis_calculator.py", 1942),
+    ("R2", "src/w2/providers/ledger.py", 100),
+    ("R2", "src/w2/providers/ledger.py", 142),
+}
+
+NETWORK_CALLS = {
+    "urllib.request.urlopen": "NETWORK_TRANSPORT",
+    "requests.request": "NETWORK_TRANSPORT",
+    "httpx.request": "NETWORK_TRANSPORT",
+    "aiohttp.request": "NETWORK_TRANSPORT",
+    "socket.create_connection": "NETWORK_TRANSPORT",
+}
+NETWORK_METHODS = {"request", "send", "get", "post", "put", "patch", "delete"}
+DB_METHODS = {
+    "add": "DB_WRITE_STAGE",
+    "add_all": "DB_WRITE_STAGE",
+    "bulk_insert_mappings": "DB_WRITE_STAGE",
+    "bulk_save_objects": "DB_WRITE_STAGE",
+    "commit": "DB_COMMIT",
+    "delete": "DB_WRITE_STAGE",
+    "execute": "DB_EXECUTE",
+    "flush": "DB_FLUSH",
+    "merge": "DB_WRITE_STAGE",
+    "rollback": "DB_ROLLBACK",
+}
+FILE_METHODS = {
+    "write": "FILE_WRITE",
+    "writelines": "FILE_WRITE",
+    "write_bytes": "FILE_WRITE",
+    "write_text": "FILE_WRITE",
+    "replace": "FILE_REPLACE",
+    "rename": "FILE_RENAME",
+    "unlink": "FILE_DELETE",
+}
+EXTERNAL_WRITE_METHODS = {
+    "put_object": "OBJECT_STORE_WRITE",
+    "upload_file": "OBJECT_STORE_WRITE",
+    "upload_fileobj": "OBJECT_STORE_WRITE",
+    "delete_object": "OBJECT_STORE_DELETE",
+    "publish": "MESSAGE_PUBLISH",
+    "send_message": "MESSAGE_SEND",
 }
 
 
@@ -441,8 +532,13 @@ def _reviewed_matrix_field(
 ) -> dict[str, Any]:
     return {
         "value": value,
-        "status": "IMPLEMENTER_VERIFIED" if valid and proof else "CONFLICT",
+        "status": (
+            "EVIDENCE_ATTACHED_PENDING_INDEPENDENT_REVIEW"
+            if valid and proof
+            else "CONFLICT"
+        ),
         "independent_review": "PENDING_INDEPENDENT_REVIEW",
+        "independently_verified": False,
         "declared_at": declared_at,
         "evidence": _unique_evidence(proof),
     }
@@ -607,9 +703,10 @@ def checklist_review(base_sha: str) -> dict[str, Any]:
                 "present_at_base": path in at_base,
                 "field_reviews": field_reviews,
                 "classification": (
-                    "IMPLEMENTER_VERIFIED_PENDING_INDEPENDENT_REVIEW"
+                    "EVIDENCE_ATTACHED_PENDING_INDEPENDENT_REVIEW"
                     if all(
-                        field["status"] == "IMPLEMENTER_VERIFIED"
+                        field["status"]
+                        == "EVIDENCE_ATTACHED_PENDING_INDEPENDENT_REVIEW"
                         for field in field_reviews.values()
                     )
                     else "CONFLICTING_EVIDENCE"
@@ -622,9 +719,11 @@ def checklist_review(base_sha: str) -> dict[str, Any]:
         "rows": rows,
         "script_matrix_rows": len(rows),
         "script_matrix_fields": len(fields),
-        "implementer_verified_fields": sum(
-            field["status"] == "IMPLEMENTER_VERIFIED" for field in fields
+        "evidence_attached_pending_independent_review_fields": sum(
+            field["status"] == "EVIDENCE_ATTACHED_PENDING_INDEPENDENT_REVIEW"
+            for field in fields
         ),
+        "independently_verified_fields": sum(field["independently_verified"] for field in fields),
         "pending_independent_review_fields": sum(
             field["independent_review"] == "PENDING_INDEPENDENT_REVIEW" for field in fields
         ),
@@ -912,11 +1011,54 @@ def _scope_name(node: ast.AST, parents: dict[ast.AST, ast.AST]) -> str:
     return "<module>"
 
 
+def _control_nodes(node: ast.AST) -> list[ast.AST]:
+    """Return handler control-flow nodes without descending into nested scopes."""
+    rows: list[ast.AST] = []
+
+    def visit(current: ast.AST) -> None:
+        if current is not node and isinstance(
+            current, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
+        ):
+            return
+        rows.append(current)
+        for child in ast.iter_child_nodes(current):
+            visit(child)
+
+    visit(node)
+    return rows
+
+
+def _statement_terminates(node: ast.stmt) -> bool:
+    if isinstance(node, (ast.Raise, ast.Return, ast.Continue, ast.Break)):
+        return True
+    if isinstance(node, ast.If):
+        return bool(node.orelse) and _block_terminates(node.body) and _block_terminates(node.orelse)
+    if isinstance(node, (ast.With, ast.AsyncWith)):
+        return _block_terminates(node.body)
+    if isinstance(node, ast.Try):
+        if _block_terminates(node.finalbody):
+            return True
+        return bool(node.handlers) and _block_terminates(node.body) and all(
+            _block_terminates(handler.body) for handler in node.handlers
+        )
+    return False
+
+
+def _block_terminates(body: list[ast.stmt]) -> bool:
+    return any(_statement_terminates(statement) for statement in body)
+
+
 def _handler_action(node: ast.ExceptHandler) -> tuple[str, list[str]]:
-    calls = [ast.unparse(child.func) for child in ast.walk(node) if isinstance(child, ast.Call)]
+    control_nodes = _control_nodes(node)
+    calls = [ast.unparse(child.func) for child in control_nodes if isinstance(child, ast.Call)]
     lowered = [call.lower() for call in calls]
-    if any(isinstance(child, ast.Raise) for child in ast.walk(node)):
-        return "RERAISE", calls
+    direct_raises = sum(isinstance(child, ast.Raise) for child in control_nodes)
+    all_paths_terminate = _block_terminates(node.body)
+    if direct_raises:
+        return (
+            "RAISE_TERMINAL" if all_paths_terminate else "CONDITIONAL_RAISE_WITH_FALLTHROUGH",
+            calls,
+        )
     if any("rollback" in call for call in lowered):
         return "ROLLBACK_THEN_CONTINUE", calls
     if any(isinstance(child, ast.Continue) for child in ast.walk(node)):
@@ -942,6 +1084,72 @@ def _handler_action(node: ast.ExceptHandler) -> tuple[str, list[str]]:
     return "STATE_UPDATE_THEN_CONTINUE", calls
 
 
+def _candidate_id(family: str, path: str, line: int, discriminator: str = "") -> str:
+    return hashlib.sha256(f"{family}:{path}:{line}:{discriminator}".encode()).hexdigest()
+
+
+def _io_call(node: ast.Call, name: str) -> tuple[str, str] | None:
+    lowered = name.lower()
+    attribute = node.func.attr.lower() if isinstance(node.func, ast.Attribute) else ""
+    receiver = ast.unparse(node.func.value).lower() if isinstance(node.func, ast.Attribute) else ""
+    if name in NETWORK_CALLS:
+        return NETWORK_CALLS[name], "RECOGNIZED_IO_PRIMITIVE"
+    if name in {"open", "io.open"}:
+        mode = "r"
+        if len(node.args) > 1 and isinstance(node.args[1], ast.Constant):
+            mode = str(node.args[1].value)
+        for keyword in node.keywords:
+            if keyword.arg == "mode" and isinstance(keyword.value, ast.Constant):
+                mode = str(keyword.value.value)
+        operation = "FILE_WRITE" if any(marker in mode for marker in "wax+") else "FILE_READ"
+        return operation, "RECOGNIZED_IO_PRIMITIVE"
+    if lowered.endswith("write_json_atomic"):
+        return "FILE_ATOMIC_WRITE", "RECOGNIZED_IO_PRIMITIVE"
+    if attribute in DB_METHODS and any(
+        marker in receiver
+        for marker in ("session", "database", "db", "connection", "conn", "engine", "table", "op")
+    ):
+        return DB_METHODS[attribute], "RECOGNIZED_IO_PRIMITIVE"
+    if attribute == "get" and receiver.endswith("session"):
+        return "DB_READ", "RECOGNIZED_IO_PRIMITIVE"
+    if attribute in NETWORK_METHODS and any(
+        marker in receiver
+        for marker in ("client", "http", "provider", "request", "transport", "url")
+    ):
+        return "NETWORK_TRANSPORT", "RECOGNIZED_IO_PRIMITIVE"
+    if attribute in FILE_METHODS and (
+        attribute in {"write_text", "write_bytes", "writelines"}
+        or any(
+            marker in receiver
+            for marker in ("file", "path", "stream", "buffer", "handle", "output", "temp", "tmp")
+        )
+    ):
+        return FILE_METHODS[attribute], "RECOGNIZED_IO_PRIMITIVE"
+    if attribute in EXTERNAL_WRITE_METHODS:
+        return EXTERNAL_WRITE_METHODS[attribute], "RECOGNIZED_IO_PRIMITIVE"
+    if any(
+        marker in lowered
+        for marker in (
+            "http",
+            "request",
+            "urlopen",
+            "socket",
+            "execute",
+            "commit",
+            "flush",
+            "persist",
+            "save_",
+            "write_",
+            "upload",
+            "publish",
+            "send_message",
+            "put_object",
+        )
+    ):
+        return "UNCLASSIFIED_IO_PRIMITIVE", "UNCLASSIFIED"
+    return None
+
+
 def risk_candidates(files: dict[str, str]) -> dict[str, list[dict[str, Any]]]:
     rows: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for path, source in files.items():
@@ -961,41 +1169,48 @@ def risk_candidates(files: dict[str, str]) -> dict[str, list[dict[str, Any]]]:
                     isinstance(node.type, ast.Name)
                     and node.type.id in {"Exception", "BaseException"}
                 )
-                has_raise = any(isinstance(child, ast.Raise) for child in ast.walk(node))
-                if broad or not has_raise:
-                    handler_action, handler_calls = _handler_action(node)
-                    candidate = _candidate(
-                        path,
-                        node.lineno,
-                        "R2",
-                        (
-                            "R2_BROAD_RERAISE_CANDIDATE"
-                            if has_raise
-                            else "R2_NO_RAISE_HANDLER_CANDIDATE"
+                control_nodes = _control_nodes(node)
+                direct_raise_count = sum(isinstance(child, ast.Raise) for child in control_nodes)
+                nested_raise_count = (
+                    sum(isinstance(child, ast.Raise) for child in ast.walk(node))
+                    - direct_raise_count
+                )
+                all_paths_terminate = _block_terminates(node.body)
+                handler_action, handler_calls = _handler_action(node)
+                candidate = _candidate(
+                    path,
+                    node.lineno,
+                    "R2",
+                    (
+                        "R2_HANDLER_ALL_PATHS_TERMINATE_CANDIDATE"
+                        if all_paths_terminate
+                        else "R2_HANDLER_MAY_CONTINUE_CANDIDATE"
+                    ),
+                    "ERROR_PROPAGATION_AND_ROLLBACK_CONTRACT",
+                    status="PENDING_S07",
+                    target_gate="PENDING_S07",
+                )
+                candidate.update(
+                    {
+                        "candidate_id": _candidate_id("R2", path, node.lineno),
+                        "symbol": _scope_name(node, parents),
+                        "operation": (
+                            f"except {ast.unparse(node.type)}" if node.type else "bare except"
                         ),
-                        "ERROR_PROPAGATION_AND_ROLLBACK_CONTRACT",
-                        status="PENDING_S07",
-                        target_gate="PENDING_S07",
-                    )
-                    candidate.update(
-                        {
-                            "candidate_id": hashlib.sha256(
-                                f"R2:{path}:{node.lineno}".encode()
-                            ).hexdigest(),
-                            "symbol": _scope_name(node, parents),
-                            "operation": (
-                                f"except {ast.unparse(node.type)}" if node.type else "bare except"
-                            ),
-                            "handler_action": handler_action,
-                            "handler_calls": handler_calls,
-                            "has_explicit_raise": has_raise,
-                            "may_continue_after_handler": not has_raise,
-                            "source_excerpt": (
-                                ast.get_source_segment(source, node) or ast.unparse(node)
-                            )[:500],
-                        }
-                    )
-                    rows["R2"].append(candidate)
+                        "handler_action": handler_action,
+                        "handler_calls": handler_calls,
+                        "broad_handler": broad,
+                        "direct_raise_count": direct_raise_count,
+                        "nested_scope_raise_count": nested_raise_count,
+                        "all_paths_terminate_handler_control_flow": all_paths_terminate,
+                        "may_fallthrough": not all_paths_terminate,
+                        "denominator_status": "ENUMERATED_HANDLER",
+                        "source_excerpt": (
+                            ast.get_source_segment(source, node) or ast.unparse(node)
+                        )[:500],
+                    }
+                )
+                rows["R2"].append(candidate)
             if isinstance(node, ast.Call):
                 name = ast.unparse(node.func)
                 if name in {"os.getenv", "os.environ.get"} or name.endswith("settings.get"):
@@ -1009,47 +1224,30 @@ def risk_candidates(files: dict[str, str]) -> dict[str, list[dict[str, Any]]]:
                             target_gate="ACCEPTED_WITH_REASON",
                         )
                     )
-                io_name = name.lower()
-                is_commit = io_name.endswith(".commit")
-                is_external = io_name.endswith((".get", ".post", ".request")) and any(
-                    needle in io_name
-                    for needle in ("client", "http", "provider", "request", "session")
-                )
-                if is_commit or is_external:
+                io_classification = _io_call(node, name)
+                if io_classification:
+                    operation, io_status = io_classification
                     candidate = _candidate(
                         path,
                         node.lineno,
                         "R3",
-                        "R3_IO_TRANSACTION_CANDIDATE",
+                        (
+                            "UNCLASSIFIED_IO_PRIMITIVE"
+                            if io_status == "UNCLASSIFIED"
+                            else "R3_SIDE_EFFECT_PRIMITIVE_CANDIDATE"
+                        ),
                         "TRANSACTION_AND_EXTERNAL_IO_CONTRACT",
-                        status="PENDING_S07",
+                        status=io_status if io_status == "UNCLASSIFIED" else "PENDING_S07",
                         target_gate="PENDING_S07",
-                    )
-                    receiver = (
-                        ast.unparse(node.func.value)
-                        if isinstance(node.func, ast.Attribute)
-                        else ""
-                    )
-                    attribute = node.func.attr if isinstance(node.func, ast.Attribute) else ""
-                    operation = (
-                        "DB_COMMIT"
-                        if is_commit
-                        else "HTTP_REQUEST_CONSTRUCTION"
-                        if name == "urllib.request.Request"
-                        else "DB_READ"
-                        if attribute == "get" and receiver.endswith("session")
-                        else "MAPPING_LOOKUP"
-                        if attribute == "get"
-                        else "EXTERNAL_REQUEST_CALL"
                     )
                     candidate.update(
                         {
-                            "candidate_id": hashlib.sha256(
-                                f"R3:{path}:{node.lineno}".encode()
-                            ).hexdigest(),
+                            "candidate_id": _candidate_id("R3", path, node.lineno, name),
                             "symbol": _scope_name(node, parents),
                             "operation": operation,
                             "call": name,
+                            "io_primitive_status": io_status,
+                            "denominator_status": "ENUMERATED_IO_PRIMITIVE",
                             "source_excerpt": (
                                 ast.get_source_segment(source, node) or ast.unparse(node)
                             )[:500],
@@ -1077,79 +1275,192 @@ def risk_candidates(files: dict[str, str]) -> dict[str, list[dict[str, Any]]]:
     }
 
 
-CANARY_REACHABLE_FUNCTIONS = {
-    "src/w2/ingestion/future_refresh.py": {
-        "run",
-        "_request",
-        "_persist_matchday_endpoint_capture",
-        "_save_raw_payload_first",
-        "run_future_refresh_task",
-    },
-    "src/w2/ingestion/future_refresh_repository.py": {
-        "save_raw_payload",
-        "save_lineup_snapshots",
-        "write_task_audit",
-        "write_checkpoint_audit",
-        "write_run_audit",
-        "request_count_since",
-    },
-    "src/w2/matchday/repository.py": {
-        "validate_checkpoint_claim",
-        "transition_checkpoint",
-        "insert_endpoint_capture",
-        "link_endpoint_capture_plans",
-        "insert_market_observations",
-        "upsert_fixture_identities_with_business_changes",
-    },
-    "src/w2/providers/api_football.py": {"request_live"},
-    "src/w2/providers/ledger.py": {"record_request"},
-    "src/w2/providers/quota.py": {"parse_api_football_quota"},
-    "src/w2/prematch/read_model_projection.py": {"build", "write_frozen_analysis_artifacts"},
-    "src/w2/prematch/analysis_calculator.py": {
-        "public_analysis_card_bounded",
-        "_attach_dynamic_prematch_lifecycle",
-    },
-}
+def _module_path(module: str, files: dict[str, str]) -> str | None:
+    if not module.startswith("w2"):
+        return None
+    stem = "src/" + module.replace(".", "/")
+    for candidate in (f"{stem}.py", f"{stem}/__init__.py"):
+        if candidate in files:
+            return candidate
+    return None
+
+
+def call_edge_manifest(files: dict[str, str], base_sha: str = BASE_SHA) -> dict[str, Any]:
+    """Build an auditable static call-edge proposal rooted at the one-shot CLI."""
+    function_names: dict[str, set[str]] = defaultdict(set)
+    class_names: dict[str, set[str]] = defaultdict(set)
+    trees: dict[str, ast.Module] = {}
+    imports: dict[str, dict[str, tuple[str, str | None]]] = defaultdict(dict)
+    for path, source in files.items():
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:
+            continue
+        trees[path] = tree
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                function_names[path].add(node.name)
+            elif isinstance(node, ast.ClassDef):
+                class_names[path].add(node.name)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                import_target_path = _module_path(node.module, files)
+                if import_target_path:
+                    for alias in node.names:
+                        imports[path][alias.asname or alias.name] = (
+                            import_target_path,
+                            alias.name,
+                        )
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    import_target_path = _module_path(alias.name, files)
+                    if import_target_path:
+                        imports[path][alias.asname or alias.name.rsplit(".", 1)[-1]] = (
+                            import_target_path,
+                            None,
+                        )
+
+    edges: list[dict[str, Any]] = []
+    for path, tree in trees.items():
+        parents = {
+            child: parent
+            for parent in ast.walk(tree)
+            for child in ast.iter_child_nodes(parent)
+        }
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            caller = _scope_name(node, parents)
+            if caller == "<module>":
+                continue
+            expression = ast.unparse(node.func)
+            target_path: str | None = None
+            target_symbol: str | None = None
+            if isinstance(node.func, ast.Name):
+                name = node.func.id
+                if name in function_names[path]:
+                    target_path, target_symbol = path, name
+                elif name in imports[path]:
+                    target_path, target_symbol = imports[path][name]
+            elif isinstance(node.func, ast.Attribute):
+                target_symbol = node.func.attr
+                value = node.func.value
+                if isinstance(value, ast.Name) and value.id == "self":
+                    target_path = path if target_symbol in function_names[path] else None
+                elif isinstance(value, ast.Name) and value.id in imports[path]:
+                    imported_path, imported_symbol = imports[path][value.id]
+                    if imported_symbol is None:
+                        target_path = imported_path
+                elif isinstance(value, ast.Call) and isinstance(value.func, ast.Name):
+                    constructor = value.func.id
+                    if constructor in class_names[path]:
+                        target_path = path
+                    elif constructor in imports[path]:
+                        target_path = imports[path][constructor][0]
+                if target_path and target_symbol not in function_names[target_path]:
+                    target_path = None
+            caller_id = f"{path}:{caller}"
+            callee_id = f"{target_path}:{target_symbol}" if target_path and target_symbol else None
+            edge_id = hashlib.sha256(
+                f"{caller_id}:{node.lineno}:{expression}:{callee_id or 'UNRESOLVED'}".encode()
+            ).hexdigest()
+            edges.append(
+                {
+                    "edge_id": edge_id,
+                    "caller_id": caller_id,
+                    "path": path,
+                    "line": node.lineno,
+                    "call": expression,
+                    "callee_id": callee_id,
+                    "resolution": (
+                        "RESOLVED_STATIC_NAME" if callee_id else "UNRESOLVED_DYNAMIC_OR_EXTERNAL"
+                    ),
+                    "evidence": f"{path}@{base_sha}:{node.lineno}:{expression}",
+                }
+            )
+
+    reviewed_dynamic = (
+        (
+            "src/w2/ingestion/future_refresh.py:_request",
+            877,
+            "self.client.request_live",
+            "src/w2/providers/api_football.py:request_live",
+            "default FutureFixtureRefreshService client binds ApiFootballClient at lines 671-675",
+        ),
+        (
+            "src/w2/providers/api_football.py:record",
+            120,
+            "ledger.record_request",
+            "src/w2/providers/ledger.py:record_request",
+            "ProviderRequestLedger dynamic dispatch; concrete DB implementation remains "
+            "reviewer-bound",
+        ),
+    )
+    for caller_id, line, expression, callee_id, evidence in reviewed_dynamic:
+        edge_id = hashlib.sha256(
+            f"{caller_id}:{line}:{expression}:{callee_id}:PROPOSED".encode()
+        ).hexdigest()
+        edges.append(
+            {
+                "edge_id": edge_id,
+                "caller_id": caller_id,
+                "path": caller_id.rsplit(":", 1)[0],
+                "line": line,
+                "call": expression,
+                "callee_id": callee_id,
+                "resolution": "PROPOSED_REVIEWED_DYNAMIC_EDGE",
+                "evidence": evidence,
+            }
+        )
+
+    root = str(ONE_SHOT_CANARY_SCOPE["entrypoint"])
+    reachable = {root}
+    predecessor: dict[str, dict[str, Any]] = {}
+    changed = True
+    while changed:
+        changed = False
+        for edge in edges:
+            callee = edge["callee_id"]
+            if edge["caller_id"] in reachable and callee and callee not in reachable:
+                reachable.add(callee)
+                predecessor[callee] = edge
+                changed = True
+    chains: dict[str, list[str]] = {root: []}
+    for target in reachable - {root}:
+        current = target
+        chain: list[str] = []
+        seen: set[str] = set()
+        while current != root and current in predecessor and current not in seen:
+            seen.add(current)
+            edge = predecessor[current]
+            chain.append(edge["edge_id"])
+            current = edge["caller_id"]
+        if current == root:
+            chains[target] = list(reversed(chain))
+    auditable_edges = [edge for edge in edges if edge["caller_id"] in reachable]
+    return {
+        "root": root,
+        "edges": sorted(
+            auditable_edges, key=lambda row: (row["path"], row["line"], row["call"])
+        ),
+        "all_discovered_edge_count": len(edges),
+        "rooted_edge_count": len(auditable_edges),
+        "proposed_reachable_functions": sorted(chains),
+        "chains": chains,
+        "accepted_by_independent_reviewer": False,
+    }
 
 
 def _existing_blocker(candidate: dict[str, Any]) -> str | None:
-    path, symbol = candidate["path"], candidate["symbol"]
-    if path == "src/w2/ingestion/future_refresh.py":
-        if symbol == "_request":
-            return "C7"
-        if symbol == "_save_raw_payload_first":
-            return "C9" if candidate["line"] == 1159 else "C6"
-        if symbol == "_persist_matchday_endpoint_capture":
-            return "C6,C11"
-        if symbol == "run":
-            return "C6"
-        if symbol == "run_future_refresh_task":
-            return "C6,C10"
-    if path == "src/w2/ingestion/future_refresh_repository.py":
-        return {
-            "save_raw_payload": "C6,C11",
-            "save_lineup_snapshots": "C9",
-            "write_task_audit": "C6,C11",
-            "write_checkpoint_audit": "C6,C11",
-            "write_run_audit": "C6,C11",
-            "request_count_since": "C11",
-        }.get(symbol)
-    if path == "src/w2/matchday/repository.py":
-        return {
-            "validate_checkpoint_claim": "C5",
-            "transition_checkpoint": "C5,C6",
-            "insert_endpoint_capture": "C6,C11",
-            "link_endpoint_capture_plans": "C6,C11",
-            "insert_market_observations": "C6",
-            "upsert_fixture_identities_with_business_changes": "C3,C6",
-        }.get(symbol)
-    if path == "src/w2/prematch/read_model_projection.py":
-        return "C9"
-    if path == "src/w2/prematch/analysis_calculator.py":
-        return "C9" if symbol == "_attach_dynamic_prematch_lifecycle" else "C8"
-    if path == "src/w2/providers/ledger.py" and symbol == "record_request":
-        return "C11-A"
-    return None
+    exact = {
+        _candidate_id(
+            family,
+            path,
+            line,
+            "session.commit" if family == "R3" else "",
+        ): blocker
+        for family, path, line, blocker in EXACT_BLOCKER_SPECS
+    }
+    return exact.get(candidate["candidate_id"])
 
 
 def _deferred_gate(candidate: dict[str, Any]) -> str:
@@ -1158,7 +1469,7 @@ def _deferred_gate(candidate: dict[str, Any]) -> str:
         for field in ("path", "symbol", "operation")
     )
     if any(word in lowered for word in ("scheduler", "celery", "stage7i", "monitoring", "retry")):
-        return "GATE_B"
+        return "PROPOSED_GATE_B"
     if any(
         word in lowered
         for word in (
@@ -1177,13 +1488,15 @@ def _deferred_gate(candidate: dict[str, Any]) -> str:
             "xg_backfill",
         )
     ):
-        return "GATE_C"
+        return "PROPOSED_GATE_C"
     if any(word in lowered for word in ("infrastructure", "readiness", "deploy", "release")):
-        return "GATE_D"
-    return "ACCEPTED_WITH_REASON"
+        return "PROPOSED_GATE_D"
+    return "PROPOSED_ACCEPTED_WITH_REASON"
 
 
-def _gate_a_test_contract(candidate: dict[str, Any], blocker: str) -> dict[str, Any]:
+def _proposed_test_contract(
+    candidate: dict[str, Any], blocker: str, base_sha: str
+) -> dict[str, Any]:
     path = candidate["path"]
     if path == "src/w2/providers/ledger.py":
         target = "tests/unit/test_provider_ledger.py"
@@ -1199,174 +1512,185 @@ def _gate_a_test_contract(candidate: dict[str, Any], blocker: str) -> dict[str, 
         target = "tests/integration/test_future_refresh_db_persistence.py"
     else:
         target = "tests/unit/test_future_fixture_refresh.py"
-    pre_provider = path == "src/w2/matchday/repository.py" and candidate["symbol"] in {
-        "validate_checkpoint_claim",
-    }
-    if path == "src/w2/providers/ledger.py" and candidate["line"] <= 100:
-        trigger = "AFTER_FIRST_PROVIDER_ATTEMPT:CONFLICTING_REQUEST_LEDGER_IDENTITY"
+    pre_provider = path == "src/w2/matchday/repository.py" and candidate["symbol"] == (
+        "validate_checkpoint_claim"
+    )
+    if pre_provider:
+        stage = "BEFORE_FIRST_PROVIDER_REQUEST"
     elif path == "src/w2/providers/ledger.py":
-        trigger = "AFTER_FIRST_PROVIDER_ATTEMPT:QUOTA_EVIDENCE_COMMIT_FAILURE"
+        stage = "AFTER_PROVIDER_RESPONSE_LEDGER_STAGE"
+    elif path == "src/w2/ingestion/future_refresh.py" and candidate["symbol"] == "_request":
+        stage = "PROVIDER_ATTEMPT_OR_POST_RESPONSE_STAGE"
     else:
-        phase = (
-            "BEFORE_FIRST_PROVIDER_REQUEST"
+        stage = "PERSISTENCE_OR_EVIDENCE_STAGE_AFTER_ENTRY"
+    trigger = (
+        f"{stage}:INJECT_{candidate['operation'].upper().replace(' ', '_')}_AT_"
+        f"{path}@{base_sha}:{candidate['line']}"
+    )
+
+    def proposed_delta(value: int | str, evidence: str) -> dict[str, Any]:
+        return {
+            "value": value,
+            "status": (
+                "EVIDENCE_ATTACHED_PENDING_INDEPENDENT_REVIEW"
+                if value != "PENDING_REVIEW"
+                else "PENDING_REVIEW"
+            ),
+            "evidence": evidence,
+        }
+
+    provider_delta = proposed_delta(
+        0 if pre_provider else "PENDING_REVIEW",
+        (
+            f"{path}@{base_sha}:{candidate['line']} occurs before provider dispatch"
             if pre_provider
-            else "AFTER_FIRST_PROVIDER_ATTEMPT"
-        )
-        trigger = (
-            f"{phase}:INJECT_{candidate['operation'].upper().replace(' ', '_')}_AT_"
-            f"{path}:{candidate['line']}"
-        )
+            else (
+                f"{path}@{base_sha}:{candidate['line']} stage={stage}; exact prior-attempt count "
+                "depends on the independently reviewed candidate call sequence"
+            )
+        ),
+    )
+    business_delta = proposed_delta(
+        0 if pre_provider else "PENDING_REVIEW",
+        (
+            "checkpoint claim validation precedes Provider and business persistence"
+            if pre_provider
+            else (
+                f"{path}@{base_sha}:{candidate['line']} may follow earlier raw/ledger/business "
+                "writes; failed-path net delta needs stage-specific fault injection"
+            )
+        ),
+    )
+    evidence_delta = proposed_delta(
+        "PENDING_REVIEW",
+        (
+            f"{path}@{base_sha}:{candidate['line']} has no implemented Wave-1 fault injection; "
+            "durable evidence type and delta remain reviewer-bound"
+        ),
+    )
     return {
         "test_id": f"T00_GATE_A_{candidate['candidate_id'][:16]}",
+        "contract_status": "PROPOSED_TEST_CONTRACT",
+        "accepted_by_independent_reviewer": False,
         "target_test_file": target,
         "trigger": trigger,
-        "expected_terminal_status": "BLOCKED",
-        "expected_provider_call_delta": 0 if pre_provider else 1,
-        "expected_business_write_delta": 0,
-        "expected_evidence_delta": 1,
+        "failure_stage": stage,
+        "stage_evidence": (
+            f"{path}@{base_sha}:{candidate['line']}:{candidate['source_excerpt'][:180]}"
+        ),
+        "expected_terminal_status": {
+            "value": "BLOCKED",
+            "status": "PROPOSED_PENDING_INDEPENDENT_REVIEW",
+            "evidence": f"Issue #454 v5 blocker {blocker}",
+        },
+        "expected_provider_call_delta": provider_delta,
+        "expected_business_write_delta": business_delta,
+        "expected_evidence_delta": evidence_delta,
         "mapped_blocker": blocker,
     }
 
 
-def adjudicate_s07(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def adjudicate_s07(
+    candidates: list[dict[str, Any]],
+    call_manifest: dict[str, Any],
+    base_sha: str = BASE_SHA,
+) -> list[dict[str, Any]]:
     adjudicated: list[dict[str, Any]] = []
+    edge_by_id = {row["edge_id"]: row for row in call_manifest["edges"]}
     for original in candidates:
         row = dict(original)
         path, symbol = row["path"], row["symbol"]
-        reachable = symbol in CANARY_REACHABLE_FUNCTIONS.get(path, set())
+        function_id = f"{path}:{symbol}"
+        chain_ids = call_manifest["chains"].get(function_id, [])
+        reachable = function_id in call_manifest["chains"]
         operation = row["operation"]
-        db_commit = operation == "DB_COMMIT"
-        ledger_continue = (
-            path == "src/w2/providers/ledger.py"
-            and symbol == "record_request"
-            and row["risk_family"] == "R2"
-            and row.get("handler_action") == "ROLLBACK_THEN_CONTINUE"
+        blocker = _existing_blocker(row)
+        terminal_raise = row.get("handler_action") == "RAISE_TERMINAL"
+        read_or_rollback = operation in {"DB_READ", "FILE_READ", "DB_ROLLBACK"}
+        external_after_failure = (
+            "PROPOSED_TRUE"
+            if operation.startswith(("NETWORK_", "DB_", "FILE_", "OBJECT_", "MESSAGE_"))
+            else "PENDING_REVIEW"
         )
-        benign_operation = operation in {
-            "DB_READ",
-            "MAPPING_LOOKUP",
-            "HTTP_REQUEST_CONSTRUCTION",
-        }
-        post_provider_boundary = (
-            path == "src/w2/ingestion/future_refresh.py"
-            and symbol
+        business_write = (
+            "PROPOSED_TRUE"
+            if operation
             in {
-                "run",
-                "_request",
-                "_persist_matchday_endpoint_capture",
-                "_save_raw_payload_first",
-                "run_future_refresh_task",
+                "DB_COMMIT",
+                "DB_FLUSH",
+                "DB_WRITE_STAGE",
+                "DB_EXECUTE",
+                "FILE_WRITE",
+                "FILE_ATOMIC_WRITE",
             }
-        ) or ledger_continue
-        repository_write = reachable and (
-            db_commit
-            or ledger_continue
-            or path in {
-                "src/w2/ingestion/future_refresh_repository.py",
-                "src/w2/matchday/repository.py",
-                "src/w2/prematch/read_model_projection.py",
-            }
-            and symbol
-            not in {
-                "request_count_since",
-                "validate_checkpoint_claim",
-            }
+            else "PENDING_REVIEW"
         )
-        external_after_failure = reachable and (post_provider_boundary or db_commit)
-        business_write = bool(repository_write)
-        evidence_break = reachable and (
-            db_commit
-            or (path, symbol, row["line"])
-            in {
-                ("src/w2/providers/ledger.py", "record_request", 98),
-                ("src/w2/ingestion/future_refresh.py", "_request", 878),
-                ("src/w2/ingestion/future_refresh.py", "_save_raw_payload_first", 1159),
-                (
-                    "src/w2/prematch/analysis_calculator.py",
-                    "_attach_dynamic_prematch_lifecycle",
-                    2047,
-                ),
-            }
-        )
-        blocker = _existing_blocker(row) if reachable and not benign_operation else None
-        excluded = not reachable or benign_operation or (
-            row["risk_family"] == "R2"
-            and row.get("handler_action") == "RERAISE"
-            and not business_write
-            and not evidence_break
-        )
+        evidence_break = "PROPOSED_TRUE" if blocker else "PENDING_REVIEW"
+        excluded = "PROPOSED_TRUE" if terminal_raise or read_or_rollback else "PENDING_REVIEW"
         admission = {
-            "directly_affects_one_shot_foreground_canary": reachable
-            and (external_after_failure or business_write or evidence_break),
-            "code_or_runtime_evidence": True,
-            "not_excluded_by_preflight_or_isolation": not excluded,
-            "explicit_trigger_and_acceptance_criteria": blocker is not None,
-            "accepted_by_independent_reviewer": blocker is not None,
+            "directly_affects_one_shot_foreground_canary": (
+                "PROPOSED_TRUE" if reachable else "PENDING_REVIEW"
+            ),
+            "code_or_runtime_evidence": "EVIDENCE_ATTACHED",
+            "not_excluded_by_preflight_or_isolation": (
+                "PROPOSED_FALSE" if excluded == "PROPOSED_TRUE" else "PENDING_REVIEW"
+            ),
+            "explicit_trigger_and_acceptance_criteria": (
+                "PROPOSED_TRUE" if blocker else "PENDING_REVIEW"
+            ),
+            "accepted_by_independent_reviewer": False,
         }
-        if all(admission.values()):
-            final_gate = "GATE_A"
-        elif reachable and row["risk_family"] == "R2":
-            final_gate = "SAFE_DEGRADATION"
+        if (row["risk_family"], path, row["line"]) in PROPOSED_TEST_CONTRACT_SPECS:
+            proposed_gate = "PROPOSED_GATE_A"
+        elif row["risk_family"] == "R2" and terminal_raise:
+            proposed_gate = "PROPOSED_SAFE_DEGRADATION"
         elif reachable:
-            final_gate = "ACCEPTED_WITH_REASON"
+            proposed_gate = "PROPOSED_ACCEPTED_WITH_REASON"
         else:
-            final_gate = _deferred_gate(row)
-        final_classification = {
-            "GATE_A": "MAPPED_EXISTING_BLOCKER",
-            "GATE_B": "DEFERRED_REVIEWED_BOUNDARY",
-            "GATE_C": "DEFERRED_REVIEWED_BOUNDARY",
-            "GATE_D": "DEFERRED_REVIEWED_BOUNDARY",
-            "SAFE_DEGRADATION": "SAFE_DEGRADATION",
-            "ACCEPTED_WITH_REASON": "ACCEPTED_WITH_REASON",
-        }[final_gate]
-        chain = (
-            "scripts/run_prematch_refresh.py:main -> run_future_refresh_task -> "
-            f"{path}:{symbol}:{row['line']}"
-            if reachable
-            else (
-                "scripts/run_prematch_refresh.py:main static call boundary excludes "
-                f"{path}:{symbol}:{row['line']}"
-            )
-        )
+            proposed_gate = _deferred_gate(row)
+        chain = [edge_by_id[edge_id] for edge_id in chain_ids]
         row.update(
             {
-                "entrypoint_reachable_from_one_shot_canary": reachable,
+                "entrypoint_reachable_from_one_shot_canary": (
+                    "PROPOSED_REACHABLE" if reachable else "PENDING_CALL_EDGE_REVIEW"
+                ),
+                "candidate_call_edge_ids": chain_ids,
+                "candidate_call_edges": chain,
                 "external_side_effect_after_failure": external_after_failure,
                 "business_write_reachable": business_write,
                 "evidence_chain_break_possible": evidence_break,
                 "preflight_or_isolation_excludes": excluded,
                 "mapped_existing_blocker": blocker,
+                "blocker_mapping_basis": (
+                    f"EXACT_CANDIDATE_ID:{row['candidate_id']}" if blocker else "NO_EXACT_MAPPING"
+                ),
                 "review_evidence": [
                     f"{path}:{row['line']}:{row['source_excerpt'][:180]}",
-                    chain,
+                    f"call_edge_ids={','.join(chain_ids) if chain_ids else 'PENDING_REVIEW'}",
                     "#452 frozen one-shot scope; #454 v5 five-condition Gate-A rule",
                 ],
                 "gate_a_admission_conditions": admission,
-                "gate_a_admission_evidence": {
-                    "directly_affects_one_shot_foreground_canary": chain,
-                    "code_or_runtime_evidence": (
-                        f"{path}:{row['line']}:{row['source_excerpt'][:180]}"
-                    ),
-                    "not_excluded_by_preflight_or_isolation": (
-                        f"preflight_or_isolation_excludes={excluded}"
-                    ),
-                    "explicit_trigger_and_acceptance_criteria": (
-                        f"Issue #454 v5 existing blocker={blocker or 'NONE'}"
-                    ),
-                    "accepted_by_independent_reviewer": (
-                        f"existing frozen blocker acceptance={blocker or 'NONE'}; "
-                        "this candidate-to-blocker mapping remains PENDING_S07_8"
-                    ),
-                },
-                "final_target_gate": final_gate,
-                "target_gate": final_gate,
-                "classification": final_classification,
-                "status": "IMPLEMENTER_VERIFIED_PENDING_INDEPENDENT_REVIEW",
+                "proposed_target_gate": proposed_gate,
+                "final_target_gate": "PENDING_INDEPENDENT_REVIEW",
+                "target_gate": proposed_gate,
+                "classification": (
+                    "UNCLASSIFIED_IO_PRIMITIVE"
+                    if row.get("io_primitive_status") == "UNCLASSIFIED"
+                    else "PROPOSED_DISPOSITION_PENDING_INDEPENDENT_REVIEW"
+                ),
+                "status": (
+                    "UNCLASSIFIED"
+                    if row.get("io_primitive_status") == "UNCLASSIFIED"
+                    else "PROPOSED_PENDING_INDEPENDENT_REVIEW"
+                ),
                 "independent_review": "PENDING_S07_8",
+                "accepted_by_independent_reviewer": False,
             }
         )
-        if final_gate == "GATE_A":
-            row["gate_a_test_contract"] = _gate_a_test_contract(row, blocker or "")
+        if proposed_gate == "PROPOSED_GATE_A":
+            row["proposed_test_contract"] = _proposed_test_contract(
+                row, blocker or "", base_sha
+            )
         adjudicated.append(row)
     return adjudicated
 
@@ -1398,14 +1722,14 @@ def _guard_target(ref: str, test_name: str, line: int) -> str:
 
 def guard_matrix(config: AuditConfig) -> dict[str, Any]:
     ensure_pr450(config)
+    pr458_head = git("rev-parse", "HEAD")
     baseline = ast.parse(show(config.base_sha, DELIVERY_TEST))
     proposed = ast.parse(show(config.pr450_ref, DELIVERY_TEST))
-    working = ast.parse(Path(DELIVERY_TEST).read_text(encoding="utf-8"))
+    head_tree = ast.parse(show(pr458_head, DELIVERY_TEST))
     baseline_tests = _test_nodes(baseline)
     proposed_tests = _test_nodes(proposed)
-    working_tests = _test_nodes(working)
+    head_tests = _test_nodes(head_tree)
     proposed_assertions = _assertions_by_ast(proposed_tests)
-    working_assertions = _assertions_by_ast(working_tests)
     exact_rows: list[dict[str, Any]] = []
     removed_rows: list[dict[str, Any]] = []
     for test_name, test in baseline_tests.items():
@@ -1416,20 +1740,9 @@ def guard_matrix(config: AuditConfig) -> dict[str, Any]:
                     "current_equivalent": _guard_target(
                         config.pr450_head, test_name, proposed_tests[test_name].lineno
                     ),
-                    "classification": "RETAINED_EQUIVALENT",
+                    "classification": "RETAINED_IN_PR450",
+                    "trusted_main_classification": "RETAINED_ON_TRUSTED_MAIN",
                     "evidence": "exact test identity exists in PR #450",
-                }
-            )
-        elif test_name in working_tests:
-            removed_rows.append(
-                {
-                    "guard_id": f"TEST:{test_name}",
-                    "original_guard": test_name,
-                    "current_equivalent": _guard_target(
-                        "PR458_WORKTREE", test_name, working_tests[test_name].lineno
-                    ),
-                    "classification": "LOST_AND_RESTORED",
-                    "evidence": "absent from PR #450; concrete test restored in PR #458",
                 }
             )
         else:
@@ -1437,9 +1750,17 @@ def guard_matrix(config: AuditConfig) -> dict[str, Any]:
                 {
                     "guard_id": f"TEST:{test_name}",
                     "original_guard": test_name,
-                    "current_equivalent": None,
-                    "classification": "UNCLASSIFIED",
-                    "evidence": "no exact PR #450 target and no reviewed restoration",
+                    "current_equivalent": _guard_target(
+                        config.base_sha, test_name, baseline_tests[test_name].lineno
+                    ),
+                    "classification": "LOST_IN_PR450",
+                    "trusted_main_classification": "RETAINED_ON_TRUSTED_MAIN",
+                    "repair_requirement": "REPAIR_REQUIRED_IN_PR450",
+                    "pr458_head_contains_guard": test_name in head_tests,
+                    "evidence": (
+                        "absent from exact PR #450 head; retained at exact trusted main; "
+                        "PR #458 does not claim restoration"
+                    ),
                 }
             )
         for assertion in (node for node in ast.walk(test) if isinstance(node, ast.Assert)):
@@ -1455,7 +1776,8 @@ def guard_matrix(config: AuditConfig) -> dict[str, Any]:
                         "current_equivalent": _guard_target(
                             config.pr450_head, target_test, target_line
                         ),
-                        "classification": "RETAINED_EQUIVALENT",
+                        "classification": "RETAINED_IN_PR450",
+                        "trusted_main_classification": "RETAINED_ON_TRUSTED_MAIN",
                         "evidence": "normalized AST is exactly present in PR #450",
                     }
                 )
@@ -1473,38 +1795,52 @@ def guard_matrix(config: AuditConfig) -> dict[str, Any]:
                     ),
                     None,
                 )
-                classification = "RETAINED_EQUIVALENT" if target else "UNCLASSIFIED"
+                classification = "RETAINED_IN_PR450" if target else "LOST_IN_PR450"
                 equivalent = (
-                    _guard_target(config.pr450_head, target[0], target[1]) if target else None
+                    _guard_target(config.pr450_head, target[0], target[1])
+                    if target
+                    else _guard_target(config.base_sha, test_name, assertion.lineno)
                 )
                 evidence = review["evidence"] if target else "reviewed semantic target missing"
-            elif normalized in working_assertions:
-                target_test, target_line = working_assertions[normalized][0]
-                classification = "LOST_AND_RESTORED"
-                equivalent = _guard_target("PR458_WORKTREE", target_test, target_line)
-                evidence = "absent from PR #450; exact normalized guard restored in PR #458"
             elif digest in RETIRED_GUARD_REVIEWS:
                 classification = "INTENTIONALLY_RETIRED_WITH_EVIDENCE"
                 equivalent = None
                 evidence = RETIRED_GUARD_REVIEWS[digest]
             else:
-                classification = "UNCLASSIFIED"
-                equivalent = None
-                evidence = "no exact, reviewed semantic, restored, or retirement mapping"
+                classification = "LOST_IN_PR450"
+                equivalent = _guard_target(config.base_sha, test_name, assertion.lineno)
+                evidence = (
+                    "absent from exact PR #450 head; normalized assertion remains at exact "
+                    "trusted main and requires repair in PR #450"
+                )
             removed_rows.append(
                 {
                     "guard_id": f"ASSERT:{test_name}:{assertion.lineno}",
                     "original_guard": label,
                     "current_equivalent": equivalent,
                     "classification": classification,
+                    "trusted_main_classification": "RETAINED_ON_TRUSTED_MAIN",
+                    "repair_requirement": (
+                        "REPAIR_REQUIRED_IN_PR450"
+                        if classification == "LOST_IN_PR450"
+                        else "NOT_REQUIRED_WITH_REVIEWED_EVIDENCE"
+                    ),
                     "evidence": evidence,
                 }
             )
     return {
         "baseline": config.base_sha,
         "pr450_head": config.pr450_head,
+        "source_mode": "EXACT_GIT_OBJECTS_ONLY",
+        "pr458_changes_delivery_test": bool(
+            git("diff", "--name-only", config.base_sha, pr458_head, "--", DELIVERY_TEST)
+        ),
         "exact_equivalents": exact_rows,
         "removed_guards": removed_rows,
+        "repair_required_guards": sum(
+            row.get("repair_requirement") == "REPAIR_REQUIRED_IN_PR450"
+            for row in removed_rows
+        ),
         "unclassified_removed_guards": sum(
             row["classification"] == "UNCLASSIFIED" for row in removed_rows
         ),
@@ -1515,7 +1851,10 @@ def safe_report(config: AuditConfig) -> dict[str, Any]:
     files = python_files(config.base_sha)
     base_paths = set(tree_paths(config.base_sha))
     risks = risk_candidates(files)
-    s07_candidates = adjudicate_s07(risks.get("R2", []) + risks.get("R3", []))
+    call_manifest = call_edge_manifest(files, config.base_sha)
+    s07_candidates = adjudicate_s07(
+        risks.get("R2", []) + risks.get("R3", []), call_manifest, config.base_sha
+    )
     risks["R2"] = [row for row in s07_candidates if row["risk_family"] == "R2"]
     risks["R3"] = [row for row in s07_candidates if row["risk_family"] == "R3"]
     computations = computation_inventory(files)
@@ -1540,7 +1879,9 @@ def safe_report(config: AuditConfig) -> dict[str, Any]:
         "preflight_or_isolation_excludes",
         "mapped_existing_blocker",
         "review_evidence",
+        "proposed_target_gate",
         "final_target_gate",
+        "accepted_by_independent_reviewer",
     }
     validated_findings = [
         {
@@ -1562,25 +1903,32 @@ def safe_report(config: AuditConfig) -> dict[str, Any]:
         },
     ]
     guards = guard_matrix(config)
-    gate_a_contract_fields = {
+    proposed_contract_fields = {
         "test_id",
+        "contract_status",
+        "accepted_by_independent_reviewer",
         "target_test_file",
         "trigger",
+        "failure_stage",
+        "stage_evidence",
         "expected_terminal_status",
         "expected_provider_call_delta",
         "expected_business_write_delta",
         "expected_evidence_delta",
         "mapped_blocker",
     }
-    gate_a_test_contracts = [
-        row["gate_a_test_contract"]
+    proposed_test_contracts = [
+        row["proposed_test_contract"]
         for row in s07_candidates
-        if row["final_target_gate"] == "GATE_A"
+        if row["proposed_target_gate"] == "PROPOSED_GATE_A"
     ]
-    unclassified_gate_a_test_contracts = sum(
-        not gate_a_contract_fields.issubset(contract)
+    incomplete_proposed_test_contracts = sum(
+        not proposed_contract_fields.issubset(contract)
         or contract["target_test_file"] not in base_paths
-        for contract in gate_a_test_contracts
+        for contract in proposed_test_contracts
+    )
+    unclassified_io = sum(
+        row.get("io_primitive_status") == "UNCLASSIFIED" for row in s07_candidates
     )
     return {
         "schema_version": "w2.t00.safe.v1",
@@ -1594,24 +1942,30 @@ def safe_report(config: AuditConfig) -> dict[str, Any]:
         "findings": findings,
         "validated_findings": validated_findings,
         "one_shot_canary_scope": ONE_SHOT_CANARY_SCOPE,
-        "s07_gate_adjudication": {
+        "candidate_call_edge_manifest": call_manifest,
+        "s07_gate_proposals": {
             "candidates": s07_candidates,
-            "gate_a_test_contracts": gate_a_test_contracts,
+            "proposed_test_contracts": proposed_test_contracts,
             "counts": {
-                "total_pending_candidates": len(s07_candidates),
+                "r2_handler_denominator": len(risks.get("R2", [])),
+                "r3_side_effect_denominator": len(risks.get("R3", [])),
+                "total_candidates": len(s07_candidates),
                 **{
                     gate.lower(): sum(
-                        row["final_target_gate"] == gate for row in s07_candidates
+                        row["proposed_target_gate"] == gate for row in s07_candidates
                     )
-                    for gate in sorted(FINAL_TARGET_GATES)
+                    for gate in sorted(PROPOSED_TARGET_GATES)
                 },
+                "final_gate_a": 0,
                 "mapped_to_c1_c11": sum(
                     row["mapped_existing_blocker"] is not None for row in s07_candidates
                 ),
                 "new_finding_ids": [],
-                "pending_independent_review": len(s07_candidates),
-                "gate_a_test_contracts": len(gate_a_test_contracts),
-                "unclassified_gate_a_test_contracts": unclassified_gate_a_test_contracts,
+                "independent_review_pending": len(s07_candidates),
+                "unclassified_io_primitives": unclassified_io,
+                "proposed_test_contracts": len(proposed_test_contracts),
+                "independently_accepted_test_contracts": 0,
+                "incomplete_proposed_test_contracts": incomplete_proposed_test_contracts,
             },
         },
         "pr450_guard_matrix": guards,
@@ -1624,10 +1978,12 @@ def safe_report(config: AuditConfig) -> dict[str, Any]:
             )
             + sum(
                 not s07_fields.issubset(row)
-                or row["final_target_gate"] not in FINAL_TARGET_GATES
+                or row["proposed_target_gate"] not in PROPOSED_TARGET_GATES
+                or row["accepted_by_independent_reviewer"] is not False
                 for row in s07_candidates
             )
-            + unclassified_gate_a_test_contracts,
+            + incomplete_proposed_test_contracts,
+            "unclassified_io_primitives": unclassified_io,
             "unclassified_computation_authorities": sum(
                 row["classification"] == "UNCLASSIFIED" for row in computations
             ),
