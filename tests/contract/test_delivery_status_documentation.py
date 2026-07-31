@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 import yaml
@@ -11,7 +10,18 @@ CHECKLIST_PATH = (
     "W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md"
 )
 AUDIT_PATH = "docs/operations/W2_INDEPENDENT_FINAL_AUDIT_20260731.md"
+ASSET_AUDIT_PATH = "docs/operations/W2_ASSET_UNIQUENESS_AUDIT_20260731.md"
+REGISTRY_PATH = "docs/operations/W2_AUDIT_PERSPECTIVE_REGISTRY.md"
 CONTEXT_PATH = "AI_PROJECT_CONTEXT.md"
+EXECUTION_AUTHORITY = (
+    "https://github.com/QIUYEDALAO/w2-football-intelligence-engine/issues/454"
+)
+GOVERNANCE_AUTHORITY = (
+    "https://github.com/QIUYEDALAO/w2-football-intelligence-engine/issues/455"
+)
+COMPUTATION_AUTHORITY = (
+    "https://github.com/QIUYEDALAO/w2-football-intelligence-engine/issues/456"
+)
 
 CRITICAL_BLOCKERS = (
     "C1_PROVIDER_DEFAULT_FAIL_OPEN",
@@ -25,6 +35,7 @@ CRITICAL_BLOCKERS = (
     "C9_LINEUP_MATERIALIZATION_FAILURE_SWALLOWED",
     "C10_SCHEDULER_RESTART_POLICY_MISMATCH",
     "C11_LEDGER_INTEGRITY_AND_QUOTA_EVIDENCE_SILENT_FAILURE",
+    "R5_CANONICAL_SERIALIZATION_AUTHORITY_SPLIT",
 )
 REQUIRED_CANARY_DELTAS = (
     "actual_provider_calls_delta",
@@ -36,27 +47,64 @@ REQUIRED_CANARY_DELTAS = (
     "five_state_snapshot_delta",
     "exact_pair_delta",
 )
+RISK_FAMILIES = (
+    "R1_DEFAULT_ALLOW_OR_MISSING_AUTHORITY",
+    "R2_SILENT_FAILURE_OR_FAILURE_DOWNGRADE",
+    "R3_EXTERNAL_SIDE_EFFECT_LOCAL_STATE_NON_ATOMICITY",
+    "R4_AUTHORITY_SPLIT_CONCURRENCY_IDENTITY_DRIFT",
+    "R5_COMPUTATION_AUTHORITY_SPLIT",
+)
 
 
 def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-def test_project_state_v4_is_compact_current_authority() -> None:
+def test_project_state_v5_records_current_execution_and_r5_blocker() -> None:
     state = yaml.safe_load(read("PROJECT_STATE.yaml"))
 
-    assert state["schema_version"] == "w2.project_state.v4"
+    assert state["schema_version"] == "w2.project_state.v5"
     assert state["current_state_authority"] == "PROJECT_STATE.yaml"
-    assert state["task_authority"] == CHECKLIST_PATH
+    assert state["task_authority"] == EXECUTION_AUTHORITY
     assert state["handoff_authority"] == CONTEXT_PATH
     assert state["independent_audit_authority"] == AUDIT_PATH
-    assert state["current_task"] == "EVAL-02B"
-    assert state["current_status"] == "BLOCKED"
-    assert state["current_pr"] is None
-    assert state["next_task"] == "EVAL-02B"
-    assert state["next_required_action"] == (
-        "RUNTIME_SAFETY_AND_CONCURRENCY_REMEDIATION"
+    assert state["asset_uniqueness_audit_authority"] == ASSET_AUDIT_PATH
+    assert state["audit_perspective_registry_authority"] == REGISTRY_PATH
+    assert state["governance_incident_authority"] == GOVERNANCE_AUTHORITY
+    assert state["computation_authority_issue"] == COMPUTATION_AUTHORITY
+
+    assert state["current_task"] == "EVAL-02B-T00"
+    assert state["current_status"] == (
+        "BLOCKED_GOVERNANCE_RUNTIME_AND_COMPUTATION_AUTHORITY_REMEDIATION"
     )
+    assert state["quarantined_pr"] == 453
+    assert set(state["active_issues"]) == {454, 455, 456}
+    assert state["next_required_action"] == (
+        "T00_GOV_THEN_T00_SAFE_R1_R5_THEN_CANONICAL_SERIALIZATION_"
+        "THEN_TRUSTED_C9_REBUILD"
+    )
+
+    assert tuple(state["risk_families"]) == RISK_FAMILIES
+    assert all(
+        state["risk_families"][family] == "OPEN_SCAN_REQUIRED"
+        for family in RISK_FAMILIES
+    )
+
+    asset = state["asset_uniqueness"]
+    assert asset["issue"] == 456
+    assert asset["storage_layer"]["current_conclusion"] == (
+        "NO_CURRENT_EVIDENCE_OF_DELETION_RESIDUALS"
+    )
+    assert asset["storage_layer"]["reproducible_inventory_required"] is True
+    computation = asset["computation_layer"]
+    assert computation["status"] == "OPEN_BLOCKER"
+    assert computation["known_runtime_canonical_serializer_minimum_count"] == 6
+    assert computation["definitive_implementation_count"] == "PENDING_T00_R5"
+    assert computation["canonical_serializer_authority_count_target"] == 1
+    assert computation["pair_identity_contract_incomplete"] is True
+    assert computation["ensure_ascii_decision"] == "PENDING_MIGRATION_INVENTORY"
+    assert computation["historical_hash_in_place_rewrite_forbidden"] is True
+    assert computation["serializer_version_required"] is True
 
     for task in (
         "ARCH-P2-02",
@@ -73,59 +121,53 @@ def test_project_state_v4_is_compact_current_authority() -> None:
 
     eval_02b = state["tasks"]["EVAL-02B"]
     assert eval_02b["status"] == "BLOCKED"
-    assert eval_02b["contract_authority"] == "FROZEN"
+    assert eval_02b["contract_authority"] == (
+        "FROZEN_BUT_PAIR_SERIALIZATION_INCOMPLETE"
+    )
     assert eval_02b["write_side_execution_tranche"] == "COMPLETED"
     for number in ("01", "02", "03", "04"):
         assert eval_02b[f"write_side_implementation_{number}"] == "DONE"
-    assert eval_02b["write_side_ready"] is True
     assert eval_02b["end_to_end_status"] == "NOT_VALIDATED"
-    assert eval_02b["independent_rehearsal_receipt_review"] == "COMPLETE"
     assert eval_02b["a148_supervised_rehearsal"] == "SAFE_FAIL_CLOSED_ONLY"
     assert eval_02b["rehearsal_command_executed"] is False
     assert eval_02b["actual_provider_calls"] == 0
     assert tuple(eval_02b["critical_blockers"]) == CRITICAL_BLOCKERS
-    assert eval_02b["runtime_safety_remediation"] == "REQUIRED"
-    assert eval_02b["identity_provenance_gap_decision"] == (
-        "LEGACY_35_RESULTS_EXCLUDED_FROM_EVAL_02B"
+    assert eval_02b["current_execution_manifest_issue"] == 454
+    assert eval_02b["current_governance_incident_issue"] == 455
+    assert eval_02b["current_computation_authority_issue"] == 456
+    assert eval_02b["c9_contaminated_pr"] == 453
+    assert eval_02b["c9_clean_rebuild_required"] is True
+
+    execution_order = state["execution_order"]
+    assert execution_order.index("T00_SAFE_R1_R2_R3_R4_R5_AND_ASSET_INVENTORY") < (
+        execution_order.index(
+            "R5_CANONICAL_SERIALIZATION_AUTHORITY_AND_VERSIONED_MIGRATION"
+        )
     )
-    assert eval_02b["legacy_result_facts_retained"] is True
-    assert eval_02b["legacy_result_facts_mutated"] is False
-    assert eval_02b["legacy_result_eval_eligibility"] is False
-    assert eval_02b["future_only_pair_collection_required"] is True
-    assert eval_02b["scoring_implementation"] == "BLOCKED"
-    assert eval_02b["next_required_action"] == (
-        "RUNTIME_SAFETY_AND_CONCURRENCY_REMEDIATION"
-    )
-    for key in (
-        "provider_calls_authorized",
-        "runtime_collection_authorized",
-        "scheduler_start_authorized",
-        "persistent_scheduler_authorized",
-        "continuous_collection_authorized",
-        "recommendation_enabled",
-        "candidate_enabled",
-        "formal_recommendation_enabled",
-        "lock_enabled",
-        "production_release",
-    ):
-        assert eval_02b[key] is False
+    assert execution_order.index(
+        "R5_CANONICAL_SERIALIZATION_AUTHORITY_AND_VERSIONED_MIGRATION"
+    ) < execution_order.index("TRUSTED_MAIN_C9_REBUILD_NEW_DRAFT_PR")
 
     assert state["tasks"]["EVAL-03"]["status"] == "NOT_STARTED"
     assert state["architecture_convergence"]["status"] == "PASS"
+    assert state["architecture_convergence"]["scope_remains_valid"] is True
 
 
-def test_canary_contract_rejects_any_zero_required_delta() -> None:
+def test_canary_contract_requires_positive_lineage_and_hash_recomputation() -> None:
     state = yaml.safe_load(read("PROJECT_STATE.yaml"))
     canary = state["canary_acceptance"]
 
     assert canary["status"] == "NOT_AUTHORIZED"
     assert canary["decision_rule"] == (
-        "ALL_REQUIRED_DELTAS_POSITIVE_AND_FULL_LINEAGE_RECONCILED"
+        "ALL_REQUIRED_DELTAS_POSITIVE_FULL_LINEAGE_AND_"
+        "INDEPENDENT_HASH_RECOMPUTATION"
     )
     assert tuple(canary["required_deltas"]) == REQUIRED_CANARY_DELTAS
     assert all(canary["required_deltas"][key] == ">0" for key in REQUIRED_CANARY_DELTAS)
     assert canary["zero_required_delta_result"] == "FAILED"
     assert canary["lineage_mismatch_result"] == "FAILED"
+    assert canary["independent_hash_mismatch_result"] == "FAILED"
+    assert canary["nan_or_infinity_result"] == "FAILED"
     assert canary["auto_retry"] is False
     assert canary["authorization_restored_disabled_required"] is True
 
@@ -148,49 +190,50 @@ def test_canary_contract_rejects_any_zero_required_delta() -> None:
         "evaluation_id",
         "pair_hash",
         "exact_git_sha",
+        "serializer_version",
     } <= required_lineage
 
+    stop = state["codex_stop_line"]
+    assert stop["real_provider_call_executed"] is False
+    assert stop["real_canary_authorization_created"] is False
+    assert stop["auto_merge_executed"] is False
+    assert stop["stop_after_offline_evidence_package"] is True
 
-def test_ai_handoff_and_next_action_are_answer_first_and_safe() -> None:
+
+def test_handoff_documents_expose_r5_without_premature_serializer_decision() -> None:
     context = read(CONTEXT_PATH)
     next_action = read("NEXT_ACTION.md")
-    ledger = read("PROJECT_LEDGER.md")
     audit = read(AUDIT_PATH)
+    asset_audit = read(ASSET_AUDIT_PATH)
+    registry = read(REGISTRY_PATH)
     agents = read("AGENTS.md")
     copilot = read(".github/copilot-instructions.md")
 
-    for heading in (
-        "### Completed",
-        "### Current state",
-        "### Core engineering rules",
-        "### Real canary hard contract",
-        "## Critical remediation backlog",
-        "## Next action",
-    ):
-        assert heading in context
-
-    for link in (
-        "[AI_PROJECT_CONTEXT.md](AI_PROJECT_CONTEXT.md)",
-        "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)",
+    for path in (
+        CONTEXT_PATH,
+        "PROJECT_STATE.yaml",
         AUDIT_PATH,
-        CHECKLIST_PATH,
+        ASSET_AUDIT_PATH,
+        REGISTRY_PATH,
     ):
-        assert link in next_action
+        assert path in next_action
 
-    assert "SAFE_FAIL_CLOSED_ONLY" in context
-    assert "SAFE_FAIL_CLOSED_ONLY" in next_action
-    assert "RUNTIME_SAFETY_AND_CONCURRENCY_REMEDIATION" in next_action
-    assert "Any required zero delta" in context
-    assert "CANARY_FAILED" in next_action
-    assert "real canary" in next_action.lower()
-    assert "not authorized" in next_action.lower()
+    for text in (context, next_action, registry, agents, copilot):
+        assert "R5" in text
+        assert "#456" in text
 
-    assert "human decisions only" in ledger
-    assert "AI_PROJECT_CONTEXT.md" in ledger
-    assert "missing or unknown safety inputs deny execution" in ledger
-    assert "Any required zero delta" in ledger
-    assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", ledger)
-    assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", next_action)
+    assert "canonical serialization" in context.lower()
+    assert "canonical serialization" in next_action.lower()
+    assert "PENDING CONTRACT/MIGRATION DECISION" in next_action
+    assert "Do **not** choose `ensure_ascii=True` or `False`" in next_action
+    assert "ensure_ascii=True" in asset_audit
+    assert "ensure_ascii=False" in asset_audit
+    assert "allow_nan=False" in asset_audit
+    assert "97c6d410cc9167d2" in asset_audit
+    assert "3c6fe4e44f3ad08f" in asset_audit
+    assert "计算权威唯一性" in registry
+    assert "One business fact has one computation authority" in agents
+    assert "Do **not** choose `ensure_ascii=True` or `False`" in copilot
 
     for item in range(1, 12):
         assert f"### C{item}." in audit
@@ -198,13 +241,14 @@ def test_ai_handoff_and_next_action_are_answer_first_and_safe() -> None:
     assert "`readiness.py` is not a live-call path" in audit
     assert "actual_provider_calls_delta      > 0" in audit
     assert "exact_pair_delta                 > 0" in audit
-    assert "AI_PROJECT_CONTEXT.md" in agents
-    assert "A real canary fails if any required delta is zero" in agents
-    assert "Read `/AI_PROJECT_CONTEXT.md`" in copilot
-    assert "Required zero evidence is failure" in copilot
+
+    state = yaml.safe_load(read("PROJECT_STATE.yaml"))
+    assert state["asset_uniqueness"]["computation_layer"]["ensure_ascii_decision"] == (
+        "PENDING_MIGRATION_INVENTORY"
+    )
 
 
-def test_master_checklist_remains_task_and_frozen_contract_authority() -> None:
+def test_master_checklist_remains_frozen_contract_history_and_exposes_gap() -> None:
     checklist = read(CHECKLIST_PATH)
 
     assert "`PROJECT_STATE.yaml` 是 W2 **唯一当前机器可读状态快照**" in checklist
@@ -218,10 +262,17 @@ def test_master_checklist_remains_task_and_frozen_contract_authority() -> None:
     assert "PROBABILITY_SUM_TOLERANCE = 1e-9" in checklist
     assert "PRE_ELIGIBILITY_TIME_AUTHORITY = capture_at" in checklist
     assert "POST_ELIGIBILITY_TIME_AUTHORITY = capture_at" in checklist
-    assert (
-        "SAME_PROVIDER_X_BOOKMAKER_X_MARKET_X_SELECTION_X_EXACT_LINE"
-        in checklist
-    )
+    assert "PAIR_IDENTITY_SERIALIZATION" in checklist
+    assert "UTF8_CANONICAL_JSON_SORTED_KEYS_COMPACT" in checklist
+    assert "Canonical JSON 禁止 NaN/Infinity" in checklist
     assert "LEGACY_35_RESULTS_EXCLUDED_FROM_EVAL_02B" in checklist
     assert "WRITE_SIDE_IMPLEMENTATION_04 = DONE" in checklist
     assert "EVAL_03 = NOT_STARTED" in checklist
+
+    # The current frozen text does not settle ensure_ascii/version semantics.
+    # Project state and #456 therefore correctly retain a Gate-A contract blocker.
+    assert "ensure_ascii" not in checklist
+    state = yaml.safe_load(read("PROJECT_STATE.yaml"))
+    assert state["tasks"]["EVAL-02B"]["contract_authority"] == (
+        "FROZEN_BUT_PAIR_SERIALIZATION_INCOMPLETE"
+    )
