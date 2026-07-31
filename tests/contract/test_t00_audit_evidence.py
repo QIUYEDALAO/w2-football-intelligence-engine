@@ -8,6 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 REPORTS = (
     ROOT / "docs/operations/W2_T00_GOV_FINAL_20260731.md",
@@ -63,7 +65,7 @@ def _portable_repo(tmp_path: Path, *, include_pr: bool) -> tuple[Path, str, str 
     if not include_pr:
         return repo, base, None
     guard.write_text(
-        "def test_guard():\n    assert True\n\n\ndef test_new_guard():\n    assert 1 == 1\n",
+        "def test_new_guard():\n    assert 1 == 1\n",
         encoding="utf-8",
     )
     _git(repo, "add", guard.relative_to(repo).as_posix())
@@ -372,19 +374,24 @@ def test_r2_required_wave_1_regression_sites_are_classified() -> None:
     assert identity["proposed_target_gate"] == "PROPOSED_GATE_C"
 
 
-def test_pr450_guard_matrix_uses_exact_objects_and_leaves_repair_on_pr450() -> None:
+def test_pr450_guard_matrix_uses_exact_objects_and_leaves_repair_on_pr450(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, base, pr_head = _portable_repo(tmp_path, include_pr=True)
+    assert pr_head is not None
+    monkeypatch.chdir(repo)
     scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
     config = scanner["AuditConfig"](
-        scanner["BASE_SHA"],
-        "origin",
-        "refs/remotes/origin/main",
-        scanner["PR450_REF"],
-        scanner["PR450_HEAD"],
+        base,
+        "github-w2",
+        "refs/remotes/github-w2/main",
+        "refs/remotes/github-w2/pull/450/head",
+        pr_head,
     )
     matrix = scanner["guard_matrix"](config)
     assert matrix["source_mode"] == "EXACT_GIT_OBJECTS_ONLY"
     assert matrix["pr458_changes_delivery_test"] is False
-    assert matrix["repair_required_guards"] == 145
+    assert matrix["repair_required_guards"] == 2
     assert matrix["unclassified_removed_guards"] == 0
     assert all(row["classification"] == "LOST_IN_PR450" for row in matrix["removed_guards"])
     assert all(
