@@ -88,28 +88,44 @@ tasks:
     legacy_remediation_reopen_condition: EXACT_ORIGINAL_RAW_BLOB_RECOVERED
     required_blob_verification: SHA256(blob) == result.source_payload_sha256
     reopen_scope: IDENTITY_REMEDIATION_ONLY
-    write_side_implementation_authorized: true
-    write_side_execution_tranche: STACKED_IMPLEMENTATIONS_02_03_04
+    write_side_implementation_authorized: false
+    write_side_execution_tranche: COMPLETED
     write_side_implementation_01: DONE
     write_side_implementation_01_pr: 441
     write_side_implementation_01_merge_sha: 5c52a40a6f0b3afb8589c251bea0b7ba611012f5
     write_side_implementation_01_main_ci: 30583359805
-    write_side_implementation_02: AUTHORIZED
-    write_side_implementation_03: AUTHORIZED_AFTER_02
-    write_side_implementation_04: AUTHORIZED_AFTER_03
+    write_side_implementation_02: DONE
+    write_side_implementation_02_pr: 443
+    write_side_implementation_02_head: 8eaf04699414a1ebe65077e419651f567910c45d
+    write_side_implementation_02_merge_sha: 532e58c44fe388d7053d8c0b3c3b7d5fa934cacb
+    write_side_implementation_02_main_ci: 30598884065
+    write_side_implementation_03: DONE
+    write_side_implementation_03_pr: 444
+    write_side_implementation_03_head: b959e4a3a406fcc9898695643a17fac9c069281f
+    write_side_implementation_03_merge_sha: 882f69650d4773757529999e3f8292e8689231a2
+    write_side_implementation_03_main_ci: 30599432182
+    write_side_implementation_04: DONE
+    write_side_implementation_04_pr: 445
+    write_side_implementation_04_head: 05b55b5e1fc6583abbdee705a6b39bd263da4372
+    write_side_implementation_04_merge_sha: 308e1edc9ed1748a18cd64c9325521e54a5777ba
+    write_side_implementation_04_main_ci: 30599981432
     provider_calls_authorized: false
     scheduler_start_authorized: false
     write_side_readiness_design: FROZEN
-    write_side_ready: false
+    write_side_ready: true
     new_table_count: 0
     new_migration_count: 0
     lineup_event_production_caller: IMPLEMENTED
     canonical_lineup_event_atomic_write: IMPLEMENTED
-    post_lineup_refresh_plan_production_caller: MISSING
-    dynamic_evaluation_v2: DESIGNED
-    five_state_snapshot: DESIGNED
-    exact_pair_projector: DESIGNED
-    next_required_action: WRITE_SIDE_IMPLEMENTATION_02
+    post_lineup_refresh_plan_production_caller: IMPLEMENTED
+    dynamic_evaluation_v2: IMPLEMENTED
+    five_state_snapshot: IMPLEMENTED
+    exact_pair_projector: IMPLEMENTED
+    pair_evidence_authority: IMMUTABLE_ORIGINAL_EVALUATION
+    lifecycle_supersession_effect: DIAGNOSTIC_ONLY
+    pre_post_eligibility_requires_not_superseded: false
+    scoring_implementation: BLOCKED
+    next_required_action: FORWARD_COLLECTION_ACTIVATION_REVIEW
   EVAL-03:
     status: NOT_STARTED
 safety:

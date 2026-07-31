@@ -127,41 +127,70 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
             "SHA256(blob) == result.source_payload_sha256"
         ),
         "reopen_scope": "IDENTITY_REMEDIATION_ONLY",
-        "write_side_implementation_authorized": True,
-        "write_side_execution_tranche": "STACKED_IMPLEMENTATIONS_02_03_04",
+        "write_side_implementation_authorized": False,
+        "write_side_execution_tranche": "COMPLETED",
         "write_side_implementation_01": "DONE",
         "write_side_implementation_01_pr": 441,
         "write_side_implementation_01_merge_sha": (
             "5c52a40a6f0b3afb8589c251bea0b7ba611012f5"
         ),
         "write_side_implementation_01_main_ci": 30583359805,
-        "write_side_implementation_02": "AUTHORIZED",
-        "write_side_implementation_03": "AUTHORIZED_AFTER_02",
-        "write_side_implementation_04": "AUTHORIZED_AFTER_03",
+        "write_side_implementation_02": "DONE",
+        "write_side_implementation_02_pr": 443,
+        "write_side_implementation_02_head": (
+            "8eaf04699414a1ebe65077e419651f567910c45d"
+        ),
+        "write_side_implementation_02_merge_sha": (
+            "532e58c44fe388d7053d8c0b3c3b7d5fa934cacb"
+        ),
+        "write_side_implementation_02_main_ci": 30598884065,
+        "write_side_implementation_03": "DONE",
+        "write_side_implementation_03_pr": 444,
+        "write_side_implementation_03_head": (
+            "b959e4a3a406fcc9898695643a17fac9c069281f"
+        ),
+        "write_side_implementation_03_merge_sha": (
+            "882f69650d4773757529999e3f8292e8689231a2"
+        ),
+        "write_side_implementation_03_main_ci": 30599432182,
+        "write_side_implementation_04": "DONE",
+        "write_side_implementation_04_pr": 445,
+        "write_side_implementation_04_head": (
+            "05b55b5e1fc6583abbdee705a6b39bd263da4372"
+        ),
+        "write_side_implementation_04_merge_sha": (
+            "308e1edc9ed1748a18cd64c9325521e54a5777ba"
+        ),
+        "write_side_implementation_04_main_ci": 30599981432,
         "provider_calls_authorized": False,
         "scheduler_start_authorized": False,
         "write_side_readiness_design": "FROZEN",
-        "write_side_ready": False,
+        "write_side_ready": True,
         "new_table_count": 0,
         "new_migration_count": 0,
         "lineup_event_production_caller": "IMPLEMENTED",
         "canonical_lineup_event_atomic_write": "IMPLEMENTED",
-        "post_lineup_refresh_plan_production_caller": "MISSING",
-        "dynamic_evaluation_v2": "DESIGNED",
-        "five_state_snapshot": "DESIGNED",
-        "exact_pair_projector": "DESIGNED",
-        "next_required_action": "WRITE_SIDE_IMPLEMENTATION_02",
+        "post_lineup_refresh_plan_production_caller": "IMPLEMENTED",
+        "dynamic_evaluation_v2": "IMPLEMENTED",
+        "five_state_snapshot": "IMPLEMENTED",
+        "exact_pair_projector": "IMPLEMENTED",
+        "pair_evidence_authority": "IMMUTABLE_ORIGINAL_EVALUATION",
+        "lifecycle_supersession_effect": "DIAGNOSTIC_ONLY",
+        "pre_post_eligibility_requires_not_superseded": False,
+        "scoring_implementation": "BLOCKED",
+        "next_required_action": "FORWARD_COLLECTION_ACTIVATION_REVIEW",
     }
     assert state["tasks"]["EVAL-03"]["status"] == "NOT_STARTED"
     assert state["architecture_convergence"]["status"] == "PASS"
     assert "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)" in next_action
     assert CHECKLIST_PATH in next_action
     assert (
-        "当前：Implementation 01 已完成并合并；"
-        "WRITE_SIDE_READY = false。" in next_action
+        "当前：Implementation 01–04 已完成并合并；"
+        "WRITE_SIDE_READY = true。" in next_action
     )
     assert (
-        "下一步：按已授权 stacked tranche 执行 Implementation 02 → 03 → 04；"
+        "下一步：执行 FORWARD_COLLECTION_ACTIVATION_REVIEW；"
+        "这只是激活审查，"
         "Provider、scheduler、运行采集与 EVAL-02B 启动仍未授权，"
         "B7 EVAL-03 仍为 NOT_STARTED。"
         in next_action
@@ -275,23 +304,47 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "WRITE_SIDE_IMPLEMENTATION_01_MERGE_SHA =",
         "5c52a40a6f0b3afb8589c251bea0b7ba611012f5",
         "WRITE_SIDE_IMPLEMENTATION_01_MAIN_CI = 30583359805",
-        "WRITE_SIDE_IMPLEMENTATION_AUTHORIZED = true",
-        "WRITE_SIDE_EXECUTION_TRANCHE =",
-        "STACKED_IMPLEMENTATIONS_02_03_04",
-        "WRITE_SIDE_IMPLEMENTATION_02 = AUTHORIZED",
-        "WRITE_SIDE_IMPLEMENTATION_03 = AUTHORIZED_AFTER_02",
-        "WRITE_SIDE_IMPLEMENTATION_04 = AUTHORIZED_AFTER_03",
+        "WRITE_SIDE_IMPLEMENTATION_AUTHORIZED = false",
+        "WRITE_SIDE_EXECUTION_TRANCHE = COMPLETED",
+        "WRITE_SIDE_IMPLEMENTATION_02 = DONE",
+        "WRITE_SIDE_IMPLEMENTATION_02_PR = 443",
+        "WRITE_SIDE_IMPLEMENTATION_02_HEAD =",
+        "8eaf04699414a1ebe65077e419651f567910c45d",
+        "WRITE_SIDE_IMPLEMENTATION_02_MERGE_SHA =",
+        "532e58c44fe388d7053d8c0b3c3b7d5fa934cacb",
+        "WRITE_SIDE_IMPLEMENTATION_02_MAIN_CI = 30598884065",
+        "WRITE_SIDE_IMPLEMENTATION_03 = DONE",
+        "WRITE_SIDE_IMPLEMENTATION_03_PR = 444",
+        "WRITE_SIDE_IMPLEMENTATION_03_HEAD =",
+        "b959e4a3a406fcc9898695643a17fac9c069281f",
+        "WRITE_SIDE_IMPLEMENTATION_03_MERGE_SHA =",
+        "882f69650d4773757529999e3f8292e8689231a2",
+        "WRITE_SIDE_IMPLEMENTATION_03_MAIN_CI = 30599432182",
+        "WRITE_SIDE_IMPLEMENTATION_04 = DONE",
+        "WRITE_SIDE_IMPLEMENTATION_04_PR = 445",
+        "WRITE_SIDE_IMPLEMENTATION_04_HEAD =",
+        "05b55b5e1fc6583abbdee705a6b39bd263da4372",
+        "WRITE_SIDE_IMPLEMENTATION_04_MERGE_SHA =",
+        "308e1edc9ed1748a18cd64c9325521e54a5777ba",
+        "WRITE_SIDE_IMPLEMENTATION_04_MAIN_CI = 30599981432",
         "PROVIDER_CALLS_AUTHORIZED = false",
         "SCHEDULER_START_AUTHORIZED = false",
         "WRITE_SIDE_READINESS_DESIGN = FROZEN",
-        "WRITE_SIDE_READY = false",
+        "WRITE_SIDE_READY = true",
         "LINEUP_EVENT_PRODUCTION_CALLER = IMPLEMENTED",
         "CANONICAL_LINEUP_EVENT_ATOMIC_WRITE = IMPLEMENTED",
-        "POST_LINEUP_REFRESH_PLAN_PRODUCTION_CALLER = MISSING",
-        "DYNAMIC_EVALUATION_V2 = DESIGNED",
-        "FIVE_STATE_SNAPSHOT = DESIGNED",
-        "EXACT_PAIR_PROJECTOR = DESIGNED",
-        "NEXT_REQUIRED_ACTION = WRITE_SIDE_IMPLEMENTATION_02",
+        "POST_LINEUP_REFRESH_PLAN_PRODUCTION_CALLER = IMPLEMENTED",
+        "DYNAMIC_EVALUATION_V2 = IMPLEMENTED",
+        "FIVE_STATE_SNAPSHOT = IMPLEMENTED",
+        "EXACT_PAIR_PROJECTOR = IMPLEMENTED",
+        "PAIR_EVIDENCE_AUTHORITY =",
+        "IMMUTABLE_ORIGINAL_EVALUATION",
+        "LIFECYCLE_SUPERSESSION_EFFECT =",
+        "DIAGNOSTIC_ONLY",
+        "PRE_POST_ELIGIBILITY_REQUIRES_NOT_SUPERSEDED = false",
+        "SCORING_IMPLEMENTATION = BLOCKED",
+        "NEXT_REQUIRED_ACTION =",
+        "FORWARD_COLLECTION_ACTIVATION_REVIEW",
         "NEW_PROVIDER_FETCH_CAN_RESTORE_LEGACY_PROVENANCE = false",
         "FUZZY_IDENTITY_RECONSTRUCTION_ALLOWED = false",
         "TEAM_NAME_MATCH_ALLOWED = false",
@@ -449,7 +502,9 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "首发确认后第一个使用 fresh",
         "每场 fixture",
         "只允许一个 pair",
-        "跨赛季、跨联赛、marker-only 和 superseded 数据全部排除",
+        "跨赛季、跨联赛、marker-only 和原始状态不合格的数据",
+        "lifecycle supersession relation 仅作诊断",
+        "不影响原始合格 evidence",
         "禁止 fuzzy、名称猜测或跨 bookmaker/line 拼接",
     ):
         assert identity_rule in b5
@@ -604,7 +659,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "exact_quote_identity_complete == true",
         "model_settlement_distribution_valid == true",
         "state_not_marker_or_not_ready == true",
-        "superseded == false",
+        "original_state in ANALYSIS_PICK_ACTIVE | NO_EDGE_CURRENT",
         "PRE_LINEUP_INPUT_HASH_REQUIRED = false",
         "POST_LINEUP_INPUT_HASH_REQUIRED = true",
         "DYNAMIC_EVALUATION_V2_FIELDS =",
@@ -659,8 +714,23 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "WRITE_SIDE_IMPLEMENTATION_ORDER =",
         "01 -> 02 -> 03 -> 04",
         "WRITE_SIDE_READINESS_DESIGN = FROZEN",
-        "WRITE_SIDE_READY = false",
-        "NEXT_REQUIRED_ACTION = WRITE_SIDE_IMPLEMENTATION_02",
+        "WRITE_SIDE_READY = true",
+        "WRITE_SIDE_IMPLEMENTATION_AUTHORIZED = false",
+        "WRITE_SIDE_EXECUTION_TRANCHE = COMPLETED",
+        "WRITE_SIDE_IMPLEMENTATION_02 = DONE",
+        "WRITE_SIDE_IMPLEMENTATION_03 = DONE",
+        "WRITE_SIDE_IMPLEMENTATION_04 = DONE",
+        "DYNAMIC_EVALUATION_V2 = IMPLEMENTED",
+        "FIVE_STATE_SNAPSHOT = IMPLEMENTED",
+        "POST_LINEUP_REFRESH_PLAN_PRODUCTION_CALLER = IMPLEMENTED",
+        "EXACT_PAIR_PROJECTOR = IMPLEMENTED",
+        "PAIR_EVIDENCE_AUTHORITY =",
+        "IMMUTABLE_ORIGINAL_EVALUATION",
+        "LIFECYCLE_SUPERSESSION_EFFECT =",
+        "DIAGNOSTIC_ONLY",
+        "PRE_POST_ELIGIBILITY_REQUIRES_NOT_SUPERSEDED = false",
+        "NEXT_REQUIRED_ACTION =",
+        "FORWARD_COLLECTION_ACTIVATION_REVIEW",
     ):
         assert write_side_coordinate in b5
     for write_side_rule in (
@@ -690,7 +760,8 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "Pre 的",
         "`lineup_input_hash` 必须为空",
         "Post 的 hash 必须精确匹配 authoritative event",
-        "NOT_READY、marker 和 superseded evaluation 均不合格",
+        "NOT_READY、marker 和其他原始状态不合格的 evaluation 均不合格",
+        "supersession relation 只输出诊断信息",
         "必须全部参与 v2 identity hash",
         "继续使用现有 JSON payload，不改数据库表",
         "不得在一条 evaluation 同时保存",
@@ -710,11 +781,10 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "分别通过独立、可回滚 PR",
         "不得自动开启 Provider、",
         "scheduler 或运行采集",
-        "只授权 Implementation 02–04 的代码实现",
-        "不授权 Provider、scheduler、生产部署或运行采集",
-        "三个 stacked Draft PR",
-        "中间不创建状态闭环 PR",
-        "全部验收并合并后再统一更新最终权威状态",
+        "`FORWARD_COLLECTION_ACTIVATION_REVIEW` 只是激活审查",
+        "不授权 Provider、scheduler、",
+        "生产部署或运行采集",
+        "EVAL-02B gate 与 EVAL-03 均不得启动",
     ):
         assert write_side_rule in b5
     assert "DYNAMIC_EVALUATION_V2_EVAL_02B_ELIGIBLE = true" not in b5
@@ -726,7 +796,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "exact_quote_identity_complete == true\n"
         "model_settlement_distribution_valid == true\n"
         "state_not_marker_or_not_ready == true\n"
-        "superseded == false"
+        "original_state in ANALYSIS_PICK_ACTIVE | NO_EDGE_CURRENT"
     ) in b5
     assert (
         "POST_CONFIRMATION_ELIGIBILITY =\n"
@@ -738,8 +808,9 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "exact_quote_identity_complete == true\n"
         "model_settlement_distribution_valid == true\n"
         "state_not_marker_or_not_ready == true\n"
-        "superseded == false"
+        "original_state in ANALYSIS_PICK_ACTIVE | NO_EDGE_CURRENT"
     ) in b5
+    assert "superseded == false" not in b5
     assert (
         "EVAL-01A\n"
         "EVAL-01B\n"
