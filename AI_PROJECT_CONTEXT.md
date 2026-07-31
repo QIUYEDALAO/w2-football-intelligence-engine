@@ -116,7 +116,7 @@ See the independent audit for trigger, consequence, reproduction, fix, and risk 
 - Migration success must fence worker and scheduler startup.
 - Explicit Celery acknowledgement/retry contract.
 - PostgreSQL/Redis/worker failure-injection suite.
-- Cold-pull SLO, backup/restore, clock drift, resource exhaustion, supply-chain, permission, and secret/log review.
+- Cold-pull SLO, backup/restore, clock drift, resource exhaustion, supply-chain, permission, and credential/log exposure review.
 
 ## Accepted or bounded issues
 
