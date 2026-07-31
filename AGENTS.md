@@ -5,6 +5,7 @@ Before changing W2, read:
 - [`AI_PROJECT_CONTEXT.md`](AI_PROJECT_CONTEXT.md)
 - [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml)
 - [`NEXT_ACTION.md`](NEXT_ACTION.md)
+- [`docs/operations/W2_AUDIT_PERSPECTIVE_REGISTRY.md`](docs/operations/W2_AUDIT_PERSPECTIVE_REGISTRY.md)
 - GitHub Issue **#454 v3**
 - GitHub Issue **#455**
 
@@ -59,6 +60,39 @@ Preserve those refs for #455 evidence until T00-GOV is accepted.
 - A canary fails if any required delta is zero or the lineage cannot be reconciled.
 - Valid split-line behavior such as `2/2.5 -> 2.25` is intentional and tested; do not modify it without real contrary Provider evidence.
 - `src/w2/monitoring/readiness.py` is not a live Provider entrypoint. Its known issue is status aggregation.
+- A completion statement must name the audit perspectives it covers and the perspectives it explicitly does not cover.
+- Same-origin implementation tests do not replace an independent mathematical or business oracle.
+
+## Perspective-registry growth rules
+
+For every incident, anomaly, canary failure, staging deviation, production deviation, or new audit finding:
+
+1. Identify the registered audit perspective that should have caught it.
+2. If no existing perspective reasonably covers it, add a new perspective row in `W2_AUDIT_PERSPECTIVE_REGISTRY.md` in the same remediation.
+3. Record owner, independent reviewer, evidence, closing gate, and required regression test.
+4. Do not close the incident while `UNMAPPED_PERSPECTIVE > 0`.
+5. Major perspective closures require a reviewer independent of the implementation; otherwise classify the evidence as `SELF_REVIEWED_ONLY` or `PARTIAL`.
+
+## Incident-driven emergency-fix rule
+
+An emergency containment or hotfix is not finally closed when the normal path is restored.
+
+Before final closure, perform a post-incident cross-perspective review covering at least:
+
+```text
+R1 Default allow / missing authority
+R2 Silent failure / failure downgrade
+R3 External side effect / local-state non-atomicity
+R4 Authority split / concurrency / identity drift
+```
+
+Also review any affected data, time, security, recovery, or observability perspectives. Until this is complete, use:
+
+```text
+CONTAINED_PENDING_POST_INCIDENT_REVIEW
+```
+
+Do not mark the incident `CLOSED`. Record the exact emergency commit, the unreviewed failure paths, the independent reviewer, the registry update, and the new regression guards.
 
 ## Workflow governance red line
 
