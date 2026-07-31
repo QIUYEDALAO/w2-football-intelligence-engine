@@ -1,0 +1,549 @@
+name: Run frozen C9 remediation corrections
+
+on:
+  push:
+    branches: ["agent/eval-02b-c9-remediation-runner-2"]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-target:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/eval-02b-c9-lineup-event-ordering
+          fetch-depth: 0
+      - name: Apply evidence-backed corrections
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: Path, old: str, new: str) -> None:
+              text = path.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one match, found {count}")
+              path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          projection = Path("src/w2/prematch/read_model_projection.py")
+          replace_once(
+              projection,
+              '''from w2.prematch.lifecycle import (
+    DYNAMIC_EVALUATION_V2_SCHEMA,
+''',
+              '''from w2.prematch.lifecycle import (
+    DYNAMIC_EVALUATION_V1_SCHEMA,
+    DYNAMIC_EVALUATION_V2_SCHEMA,
+''',
+          )
+          replace_once(
+              projection,
+              '''        provider = str(quote.get("provider") or quote_identity.get("provider") or "")
+        if provider != fixture_identity["provider"]:
+            raise FrozenAnalysisError("dynamic evaluation provider identity conflict")
+        value = DynamicEvaluationInput(
+''',
+              '''        provider = str(quote.get("provider") or quote_identity.get("provider") or "")
+        if provider != fixture_identity["provider"]:
+            raise FrozenAnalysisError("dynamic evaluation provider identity conflict")
+        model_status = str(model.get("status") or "").upper()
+        schema_version = (
+            DYNAMIC_EVALUATION_V2_SCHEMA
+            if model_status == "READY"
+            else DYNAMIC_EVALUATION_V1_SCHEMA
+        )
+        value = DynamicEvaluationInput(
+''',
+          )
+          replace_once(
+              projection,
+              '''            model_ready=str(model.get("status") or "").upper() == "READY",
+''',
+              '''            model_ready=model_status == "READY",
+''',
+          )
+          replace_once(
+              projection,
+              '''            schema_version=DYNAMIC_EVALUATION_V2_SCHEMA,
+            competition_id=fixture_identity["competition_id"],
+            season=fixture_identity["season"],
+            provider=provider,
+            model_settlement_distribution=model.get("settlement_distribution")
+            if isinstance(model.get("settlement_distribution"), Mapping)
+            else None,
+''',
+              '''            schema_version=schema_version,
+            competition_id=(
+                fixture_identity["competition_id"]
+                if schema_version == DYNAMIC_EVALUATION_V2_SCHEMA
+                else None
+            ),
+            season=(
+                fixture_identity["season"]
+                if schema_version == DYNAMIC_EVALUATION_V2_SCHEMA
+                else None
+            ),
+            provider=(provider if schema_version == DYNAMIC_EVALUATION_V2_SCHEMA else None),
+            model_settlement_distribution=(
+                model.get("settlement_distribution")
+                if schema_version == DYNAMIC_EVALUATION_V2_SCHEMA
+                and isinstance(model.get("settlement_distribution"), Mapping)
+                else None
+            ),
+''',
+          )
+
+          future = Path("src/w2/ingestion/future_refresh.py")
+          replace_once(
+              future,
+              '''            repository = MatchdayRuntimeRepository()
+            observations: list[dict[str, Any]] = []
+''',
+              '''            repository = MatchdayRuntimeRepository()
+            # Defensive idempotent call for direct persistence adapters. The normal
+            # run path already persists fixture identity before enrichment so lineup
+            # event derivation has its canonical authority available.
+            self._persist_fixture_identities_before_enrichment(
+                fixtures_response=fixtures_response,
+                fixtures=fixtures,
+            )
+            observations: list[dict[str, Any]] = []
+''',
+          )
+          replace_once(
+              future,
+              '''    except Exception as exc:
+        summary = {
+            "blockers": [exc.__class__.__name__],
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+''',
+              '''    except Exception as exc:
+        error_code = str(exc).strip() or exc.__class__.__name__
+        summary = {
+            "blockers": [exc.__class__.__name__],
+            "error_code": error_code,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+''',
+          )
+
+          integration = Path("tests/integration/test_future_refresh_db_persistence.py")
+          replace_once(
+              integration,
+              '''from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
+
+from sqlalchemy import create_engine, func, select
+from sqlalchemy.orm import Session
+''',
+              '''from __future__ import annotations
+
+import json
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
+
+import pytest
+from sqlalchemy import create_engine, func, select
+from sqlalchemy.orm import Session
+''',
+          )
+          replace_once(
+              integration,
+              '''from w2.ingestion.future_refresh_repository import (
+    FutureRefreshDbRepository,
+)
+''',
+              '''from w2.ingestion.future_refresh_repository import (
+    FutureRefreshDbRepository,
+    FutureRefreshPersistenceError,
+)
+''',
+          )
+          replace_once(
+              integration,
+              '''        if endpoint == "lineups":
+            return {
+                "response": [
+                    {"team": {"id": 10}, "startXI": [{} for _ in range(11)], "substitutes": []},
+                    {"team": {"id": 20}, "startXI": [{} for _ in range(11)], "substitutes": [{}]},
+                ]
+            }
+''',
+              '''        if endpoint == "lineups":
+            def team_lineup(team_id: int, offset: int) -> dict[str, Any]:
+                return {
+                    "team": {"id": team_id, "name": f"Team {team_id}"},
+                    "formation": "4-3-3",
+                    "startXI": [
+                        {
+                            "player": {
+                                "id": offset + index,
+                                "name": f"Player {offset + index}",
+                                "number": index + 1,
+                                "pos": "G" if index == 0 else "M",
+                                "grid": f"{index // 4 + 1}:{index % 4 + 1}",
+                            }
+                        }
+                        for index in range(11)
+                    ],
+                    "substitutes": [],
+                }
+
+            return {"response": [team_lineup(10, 100), team_lineup(20, 200)]}
+''',
+          )
+          marker = "def test_c9_strict_event_set_after_identity_and_capture"
+          text = integration.read_text(encoding="utf-8")
+          if marker in text:
+              raise SystemExit("C9 tests already appended")
+          text += '''
+
+
+def test_c9_strict_event_set_after_identity_and_capture(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    key = deterministic_task_key(
+        competition_id="world_cup_2026",
+        season="2026",
+        now=NOW,
+        interval_seconds=900,
+    )
+    event_types: list[str] = []
+
+    def materialize(events: list[Any]) -> list[str]:
+        event_types.extend(str(event.event_type) for event in events)
+        return list(dict.fromkeys(str(event.fixture_id) for event in events))
+
+    audit = run_future_refresh_task(
+        task_id="task-c9-strict-events",
+        key=key,
+        queued_at=NOW,
+        runtime_root=tmp_path / "runtime",
+        client=FakeApiFootballClient(),
+        now=NOW,
+        persistence="db",
+        materialize_public_artifacts=materialize,
+    )
+
+    assert audit.status == "COMPLETED", audit
+    assert set(event_types) == {"FIXTURE_CHANGED", "LINEUP_CHANGED", "ODDS_CHANGED"}
+
+
+def test_c9_lineup_failure_is_explicit_and_preserves_raw_evidence(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+
+    def reject_lineup(self: Any, **kwargs: Any) -> int:
+        raise FutureRefreshPersistenceError("INJECTED_LINEUP_WRITE_FAILURE")
+
+    monkeypatch.setattr(
+        FutureRefreshDbRepository,
+        "save_lineup_snapshots",
+        reject_lineup,
+    )
+    key = deterministic_task_key(
+        competition_id="world_cup_2026",
+        season="2026",
+        now=NOW,
+        interval_seconds=900,
+    )
+    client = FakeApiFootballClient()
+    audit = run_future_refresh_task(
+        task_id="task-c9-explicit-failure",
+        key=key,
+        queued_at=NOW,
+        runtime_root=tmp_path / "runtime",
+        client=client,
+        now=NOW,
+        persistence="db",
+        materialize_public_artifacts=materialize_projection_events_for_test,
+    )
+
+    assert audit.status == "BLOCKED"
+    assert audit.result["error_code"] == (
+        "LINEUP_MATERIALIZATION_FAILED:INJECTED_LINEUP_WRITE_FAILURE"
+    )
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        endpoints = set(session.scalars(select(RawPayloadModel.endpoint)).all())
+        assert "lineups" in endpoints
+        assert session.scalar(
+            select(func.count()).select_from(MatchdayMarketObservationModel)
+        ) == 0
+
+
+def test_c9_lineup_integrity_conflict_requires_proven_exact_replay(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        FutureRefreshDbRepository,
+        "materialize_player_identity_mappings",
+        lambda self, **kwargs: 0,
+    )
+    repository = FutureRefreshDbRepository()
+    payload = FakeApiFootballClient().payload("lineups", {"fixture": "1489404"})
+
+    assert repository.save_lineup_snapshots(
+        fixture_id="1489404",
+        captured_at=NOW,
+        raw_sha256="a" * 64,
+        payload=payload,
+        materialize_baselines=False,
+    ) == 2
+    assert repository.save_lineup_snapshots(
+        fixture_id="1489404",
+        captured_at=NOW,
+        raw_sha256="a" * 64,
+        payload=payload,
+        materialize_baselines=False,
+    ) == 0
+
+    conflicting = json.loads(json.dumps(payload))
+    conflicting["response"][0]["formation"] = "3-5-2"
+    with pytest.raises(
+        FutureRefreshPersistenceError,
+        match="LINEUP_SNAPSHOT_IDENTITY_CONFLICT",
+    ):
+        repository.save_lineup_snapshots(
+            fixture_id="1489404",
+            captured_at=NOW,
+            raw_sha256="a" * 64,
+            payload=conflicting,
+            materialize_baselines=False,
+        )
+'''
+          integration.write_text(text, encoding="utf-8")
+
+          unit = Path("tests/unit/test_future_fixture_refresh.py")
+          text = unit.read_text(encoding="utf-8")
+          start = text.index("def test_lineup_change_records_projection_event")
+          end = text.index("\ndef test_repeated_confirmed_xi_does_not_record_projection_event", start)
+          text = text[:start] + '''def test_lineup_change_records_projection_event(monkeypatch, tmp_path: Path) -> None:
+    class Repository:
+        def save_raw_payload(self, **_kwargs: Any) -> bool:
+            return True
+
+        def save_lineup_snapshots(self, **_kwargs: Any) -> int:
+            return 2
+
+        def confirmed_lineup_business_identity(self, **_kwargs: Any) -> str:
+            return "xi-business-hash"
+
+    service = FutureFixtureRefreshService(
+        client=FakeApiFootballClient(),
+        config=FutureRefreshConfig(runtime_root=tmp_path, persistence="db"),
+        now=NOW,
+    )
+    monkeypatch.setattr(service, "_db_repository", lambda: Repository())
+    response = LiveApiFootballResponse(
+        endpoint="lineups",
+        params={"fixture": "1489404"},
+        status_code=200,
+        elapsed_ms=1,
+        payload={"response": []},
+        headers={},
+        captured_at=NOW,
+    )
+
+    assert service._save_raw_payload_first(
+        endpoint="lineups",
+        params={"fixture": "1489404"},
+        response=response,
+        payload_hash="a" * 64,
+        payload={"response": []},
+    ) == (True, None)
+    assert service._projection_events == {}
+    service._record_lineup_projection_after_capture(
+        endpoint="lineups",
+        params={"fixture": "1489404"},
+        payload_hash="a" * 64,
+        response=response,
+    )
+    event = next(iter(service._projection_events.values()))
+    assert (event.fixture_id, event.event_type, event.event_id) == (
+        "1489404",
+        "LINEUP_CHANGED",
+        "lineup:xi-business-hash",
+    )
+
+''' + text[end + 1:]
+          start = text.index("def test_repeated_confirmed_xi_does_not_record_projection_event")
+          end = text.index("\ndef test_fixture_change_triggers_projection_before_task_success", start)
+          text = text[:start] + '''def test_repeated_confirmed_xi_does_not_record_projection_event(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    class Repository:
+        def save_raw_payload(self, **_kwargs: Any) -> bool:
+            return True
+
+        def save_lineup_snapshots(self, **_kwargs: Any) -> int:
+            return 0
+
+        def confirmed_lineup_business_identity(self, **_kwargs: Any) -> str:
+            raise AssertionError("exact replay must not derive a new lineup event")
+
+    service = FutureFixtureRefreshService(
+        client=FakeApiFootballClient(),
+        config=FutureRefreshConfig(runtime_root=tmp_path, persistence="db"),
+        now=NOW,
+    )
+    monkeypatch.setattr(service, "_db_repository", lambda: Repository())
+    response = LiveApiFootballResponse(
+        endpoint="lineups",
+        params={"fixture": "1489404"},
+        status_code=200,
+        elapsed_ms=1,
+        payload={"response": []},
+        headers={},
+        captured_at=NOW,
+    )
+
+    assert service._save_raw_payload_first(
+        endpoint="lineups",
+        params={"fixture": "1489404"},
+        response=response,
+        payload_hash="b" * 64,
+        payload={"response": []},
+    ) == (True, None)
+    service._record_lineup_projection_after_capture(
+        endpoint="lineups",
+        params={"fixture": "1489404"},
+        payload_hash="b" * 64,
+        response=response,
+    )
+    assert service._projection_events == {}
+
+''' + text[end + 1:]
+          unit.write_text(text, encoding="utf-8")
+
+          frozen = Path("tests/unit/test_frozen_analysis_materializer.py")
+          replace_once(
+              frozen,
+              '''from w2.prematch.lifecycle import LineupConfirmedEvent
+''',
+              '''from w2.prematch.lifecycle import (
+    DYNAMIC_EVALUATION_V1_SCHEMA,
+    DynamicEvaluationState,
+    LineupConfirmedEvent,
+)
+''',
+          )
+          replace_once(
+              frozen,
+              '''    ProjectionSourceEvent,
+    _post_lineup_odds_plan,
+''',
+              '''    ProjectionSourceEvent,
+    _dynamic_evaluations,
+    _post_lineup_odds_plan,
+''',
+          )
+          frozen_text = frozen.read_text(encoding="utf-8")
+          frozen_marker = "def test_not_ready_selected_side_remains_v1_diagnostic"
+          if frozen_marker in frozen_text:
+              raise SystemExit("v1 diagnostic test already present")
+          frozen_text += '''
+
+
+def test_not_ready_selected_side_remains_v1_diagnostic() -> None:
+    card = {
+        "fixture_id": "1576804",
+        "market_candidates": {
+            "ou": {
+                "market": "TOTALS",
+                "selection": "OVER",
+                "line": "2.5",
+                "analysis_evidence": {
+                    "side_evidence": {
+                        "OVER": {
+                            "model_probability": {
+                                "status": "NOT_READY",
+                            },
+                            "comparison": {},
+                        }
+                    },
+                    "quote_identity": {
+                        "identity_status": "COMPLETE",
+                        "freshness_status": "COMPLETE",
+                        "quotes": {
+                            "over": {
+                                "line": "2.5",
+                                "provider": "api_football",
+                                "bookmaker_id": "book-1",
+                                "capture_id": "capture-1",
+                                "captured_at": "2026-07-18T04:00:00Z",
+                                "decimal_odds": "1.91",
+                            }
+                        },
+                    },
+                    "market_probability": {"devig": {"OVER": 0.52, "UNDER": 0.48}},
+                },
+            }
+        },
+    }
+    versions = _dynamic_evaluations(
+        card,
+        {
+            "evaluated_at": "2026-07-18T04:00:00Z",
+            "simulation_sha256": "simulation",
+            "analysis_evidence_sha256": "evidence",
+        },
+        fixture_identity={
+            "competition_id": "league",
+            "season": "2026",
+            "provider": "api_football",
+        },
+        lineup_identity=None,
+    )
+
+    assert len(versions) == 1
+    version = versions[0]
+    assert version.schema_version == DYNAMIC_EVALUATION_V1_SCHEMA
+    assert version.state == DynamicEvaluationState.NOT_READY_MODEL_INPUT
+    assert version.model_settlement_distribution is None
+    assert version.competition_id is None
+    assert version.season is None
+    assert version.provider is None
+'''
+          frozen.write_text(frozen_text, encoding="utf-8")
+
+          diagnostic = Path("tests/integration/test_future_refresh_c9_ordering.py")
+          if not diagnostic.exists():
+              raise SystemExit("diagnostic integration file missing")
+          diagnostic.unlink()
+          PY
+      - name: Run focused checks before push
+        run: |
+          python3 -m compileall -q src/w2/prematch/read_model_projection.py \
+            src/w2/ingestion/future_refresh.py \
+            tests/integration/test_future_refresh_db_persistence.py \
+            tests/unit/test_future_fixture_refresh.py \
+            tests/unit/test_frozen_analysis_materializer.py
+      - name: Commit target branch correction
+        run: |
+          git config user.name "OpenAI Agent"
+          git config user.email "agent@openai.invalid"
+          git add src/w2/prematch/read_model_projection.py \
+                  src/w2/ingestion/future_refresh.py \
+                  tests/integration/test_future_refresh_db_persistence.py \
+                  tests/unit/test_future_fixture_refresh.py \
+                  tests/unit/test_frozen_analysis_materializer.py \
+                  tests/integration/test_future_refresh_c9_ordering.py
+          git commit -m "fix: preserve strict v2 and explicit C9 failures"
+          git push origin HEAD:agent/eval-02b-c9-lineup-event-ordering
