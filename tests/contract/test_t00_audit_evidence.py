@@ -32,15 +32,21 @@ G10_S07_MARKERS = (
     "CONFLICTING_FIELDS = 0",
     "INCLUDED_PRODUCTION_ROOTS = apps/, migrations/, scripts/, src/w2/",
     "EXCLUDED_PYTHON_ROOTS = tests/: TEST_ONLY_NOT_PART_OF_PRODUCTION_DENOMINATOR",
+    "TOTAL_PRODUCTION_AST_CALLS = 42054",
+    "INTERNAL_PROJECT_CALLS = 10241",
+    "KNOWN_PURE_OR_LOCAL_TRANSFORMS = 9590",
+    "RECOGNIZED_SIDE_EFFECT_PRIMITIVES = 710",
+    "UNRESOLVED_EXTERNAL_CALLS = 6868",
+    "UNRESOLVED_DYNAMIC_CALLS = 14645",
+    "UNACCOUNTED_PRODUCTION_CALLS = 0",
     "R2_HANDLER_DENOMINATOR = 449",
-    "R3_SIDE_EFFECT_DENOMINATOR = 1501",
+    "R3_SIDE_EFFECT_DENOMINATOR = 22223",
     "REDIS_KV_PRIMITIVES = 2",
     "LOCK_DURABILITY_PRIMITIVES = 13",
     "PROCESS_EXECUTION_PRIMITIVES = 24",
-    "UNCLASSIFIED_IO_PRIMITIVES = 796",
     "PROPOSED_GATE_A = 30",
     "FINAL_GATE_A = 0",
-    "INDEPENDENT_REVIEW_PENDING = 1950",
+    "INDEPENDENT_REVIEW_PENDING = 22672",
     "MAPPED_TO_C1_C11 = 35",
     "NEW_FINDING_IDS = 0",
     "PROPOSED_TEST_CONTRACTS = 30",
@@ -224,12 +230,39 @@ def test_g10_6_matrix_attaches_evidence_but_is_not_self_verified() -> None:
 def test_s07_emits_only_pending_candidate_gate_proposals() -> None:
     scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
     files = scanner["python_files"](scanner["BASE_SHA"])
-    risks = scanner["risk_candidates"](files)
+    accounting = scanner["all_call_accounting"](files)
+    risks = scanner["risk_candidates"](files, accounting)
     call_manifest = scanner["call_edge_manifest"](files)
     candidates = scanner["adjudicate_s07"](risks["R2"] + risks["R3"], call_manifest)
     assert len(risks["R2"]) == 449
-    assert len(risks["R3"]) == 1501
-    assert len(candidates) == 1950
+    assert len(risks["R3"]) == 22223
+    assert len(candidates) == 22672
+    assert accounting["counts"] == {
+        "total_production_ast_calls": 42054,
+        "internal_project_call": 10241,
+        "known_pure_or_local_transform": 9590,
+        "recognized_side_effect_primitive": 710,
+        "unresolved_external_call": 6868,
+        "unresolved_dynamic_call": 14645,
+        "unaccounted_production_calls": 0,
+    }
+    assert accounting["counts"]["total_production_ast_calls"] == sum(
+        sum(isinstance(node, ast.Call) for node in ast.walk(ast.parse(source)))
+        for source in files.values()
+    )
+    assert all(
+        row["callable_signature"] in scanner["KNOWN_PURE_CALLS"]
+        and row["reason"] == scanner["KNOWN_PURE_CALLS"][row["callable_signature"]]
+        for row in accounting["calls"]
+        if row["disposition"] == "KNOWN_PURE_OR_LOCAL_TRANSFORM"
+    )
+    assert all(
+        row["callee_id"]
+        and row["callee_candidate_id"]
+        and row["callee_definition_line"] > 0
+        for row in accounting["calls"]
+        if row["disposition"] == "INTERNAL_PROJECT_CALL"
+    )
     assert len({row["candidate_id"] for row in candidates}) == len(candidates)
     assert all(
         row["proposed_target_gate"] in scanner["PROPOSED_TARGET_GATES"]
@@ -379,13 +412,12 @@ def writes(session, client, path, bucket, mystery, request, redis_client, handle
         "FILE_LOCK_OPERATION",
         "FILE_DURABILITY_SYNC",
         "PROCESS_EXECUTION",
-        "UNCLASSIFIED_IO_PRIMITIVE",
     } <= operations
-    unclassified = [row for row in rows if row["operation"] == "UNCLASSIFIED_IO_PRIMITIVE"]
-    assert any(row["call"] == "mystery.save_payload" for row in unclassified)
-    assert any(row["call"] == "redis_client.unknown_command" for row in unclassified)
-    assert any(row["call"] == "subprocess.call" for row in unclassified)
-    assert all(row["status"] == "UNCLASSIFIED" for row in unclassified)
+    unresolved = [row for row in rows if row["call_disposition"].startswith("UNRESOLVED_")]
+    assert any(row["call"] == "mystery.save_payload" for row in unresolved)
+    assert any(row["call"] == "redis_client.unknown_command" for row in unresolved)
+    assert any(row["call"] == "subprocess.call" for row in unresolved)
+    assert all(row["status"] == "UNCLASSIFIED" for row in unresolved)
     by_call = {row["call"]: row for row in rows}
     for call in (
         "redis_client.set",
@@ -417,6 +449,67 @@ def writes(session, client, path, bucket, mystery, request, redis_client, handle
     )
 
 
+def test_all_production_calls_have_exactly_one_auditable_disposition() -> None:
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    source = """
+import shutil
+import vendor_sdk
+
+def helper():
+    return None
+
+def entry(callback, payload):
+    helper()
+    len(payload)
+    shutil.copy2("a", "b")
+    vendor_sdk.unknown(payload)
+    callback(payload)
+"""
+    accounting = scanner["all_call_accounting"]({"src/w2/synthetic.py": source})
+    assert accounting["counts"] == {
+        "total_production_ast_calls": 5,
+        "internal_project_call": 1,
+        "known_pure_or_local_transform": 1,
+        "recognized_side_effect_primitive": 1,
+        "unresolved_external_call": 1,
+        "unresolved_dynamic_call": 1,
+        "unaccounted_production_calls": 0,
+    }
+    by_call = {row["call"]: row for row in accounting["calls"]}
+    internal = by_call["helper"]
+    assert internal["callee_id"] == "src/w2/synthetic.py:helper"
+    assert internal["callee_candidate_id"]
+    assert internal["callee_definition_line"] == 5
+    pure = by_call["len"]
+    assert pure["callable_signature"] == "builtins.len"
+    assert pure["reason"] == scanner["KNOWN_PURE_CALLS"]["builtins.len"]
+    assert by_call["shutil.copy2"]["operation"] == "FILE_COPY"
+    assert by_call["vendor_sdk.unknown"]["disposition"] == "UNRESOLVED_EXTERNAL_CALL"
+    assert by_call["callback"]["disposition"] == "UNRESOLVED_DYNAMIC_CALL"
+
+    with pytest.raises(scanner["AuditError"], match="ALL_CALL_ACCOUNTING_FAILED"):
+        scanner["validate_all_call_rows"](
+            [{"call_site_id": "unaccounted", "disposition": "UNCLASSIFIED"}]
+        )
+
+
+def test_r3_exact_trusted_main_shutil_copy_sites_are_side_effects() -> None:
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    files = scanner["python_files"](scanner["BASE_SHA"])
+    rows = scanner["all_call_accounting"](files)["calls"]
+    by_site = {(row["path"], row["line"], row["call"]): row for row in rows}
+    expected = {
+        ("src/w2/data_assets/registry.py", 193, "shutil.copy2"): "FILE_COPY",
+        ("src/w2/data_assets/registry.py", 196, "shutil.copytree"): "FILE_TREE_COPY",
+        ("scripts/audit_w2_runtime_authorities.py", 1179, "shutil.rmtree"): (
+            "FILE_TREE_DELETE"
+        ),
+    }
+    for site, operation in expected.items():
+        assert by_site[site]["disposition"] == "RECOGNIZED_SIDE_EFFECT_PRIMITIVE"
+        assert by_site[site]["operation"] == operation
+
+
 def test_r3_exact_trusted_main_redis_lock_and_durability_sites() -> None:
     scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
     files = scanner["python_files"](scanner["BASE_SHA"])
@@ -431,6 +524,12 @@ def test_r3_exact_trusted_main_redis_lock_and_durability_sites() -> None:
         ): "REDIS_KV_SCRIPT_WRITE",
         ("src/w2/ingestion/future_refresh.py", 351, "fcntl.flock"): "FILE_LOCK_OPERATION",
         ("src/w2/ingestion/future_refresh.py", 375, "os.fsync"): "FILE_DURABILITY_SYNC",
+        ("scripts/check_public_ingress.py", 55, "subprocess.run"): "PROCESS_EXECUTION",
+        (
+            "src/w2/operations/runtime_evidence.py",
+            24,
+            "subprocess.check_output",
+        ): "PROCESS_EXECUTION",
     }
     for site, operation in expected.items():
         assert by_site[site]["operation"] == operation

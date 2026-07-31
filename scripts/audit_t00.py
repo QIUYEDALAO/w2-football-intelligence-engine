@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import builtins
 import hashlib
 import json
 import re
@@ -299,6 +300,9 @@ FILE_CALLS = {
     "os.rename": "FILE_RENAME",
     "os.replace": "FILE_REPLACE",
     "os.unlink": "FILE_DELETE",
+    "shutil.copy2": "FILE_COPY",
+    "shutil.copytree": "FILE_TREE_COPY",
+    "shutil.rmtree": "FILE_TREE_DELETE",
 }
 DB_METHODS = {
     "add": "DB_WRITE_STAGE",
@@ -357,6 +361,62 @@ IO_RECEIVER_MARKERS = (
     "stream",
     "transport",
 )
+CALL_DISPOSITIONS = (
+    "INTERNAL_PROJECT_CALL",
+    "KNOWN_PURE_OR_LOCAL_TRANSFORM",
+    "RECOGNIZED_SIDE_EFFECT_PRIMITIVE",
+    "UNRESOLVED_EXTERNAL_CALL",
+    "UNRESOLVED_DYNAMIC_CALL",
+)
+KNOWN_PURE_CALLS = {
+    **{
+        f"builtins.{name}": "reviewed deterministic builtin or local-container transform"
+        for name in (
+            "abs",
+            "all",
+            "any",
+            "bool",
+            "bytes",
+            "dict",
+            "enumerate",
+            "filter",
+            "float",
+            "frozenset",
+            "int",
+            "isinstance",
+            "issubclass",
+            "len",
+            "list",
+            "map",
+            "max",
+            "min",
+            "range",
+            "repr",
+            "reversed",
+            "round",
+            "set",
+            "slice",
+            "sorted",
+            "str",
+            "sum",
+            "tuple",
+            "type",
+            "zip",
+        )
+    },
+    "copy.copy": "reviewed in-memory object copy",
+    "copy.deepcopy": "reviewed in-memory object copy",
+    "dataclasses.asdict": "reviewed in-memory dataclass transform",
+    "hashlib.sha256": "reviewed in-memory digest constructor",
+    "json.dumps": "reviewed in-memory JSON encoding",
+    "json.loads": "reviewed in-memory JSON decoding",
+    "re.compile": "reviewed in-memory regular-expression compilation",
+    "re.escape": "reviewed in-memory regular-expression escaping",
+    "re.fullmatch": "reviewed in-memory regular-expression match",
+    "re.match": "reviewed in-memory regular-expression match",
+    "re.search": "reviewed in-memory regular-expression search",
+    "re.sub": "reviewed in-memory regular-expression substitution",
+}
 
 
 class AuditError(RuntimeError):
@@ -1287,7 +1347,9 @@ def _io_call(node: ast.Call, name: str) -> tuple[str, str] | None:
     return None
 
 
-def risk_candidates(files: dict[str, str]) -> dict[str, list[dict[str, Any]]]:
+def risk_candidates(
+    files: dict[str, str], accounting: dict[str, Any] | None = None
+) -> dict[str, list[dict[str, Any]]]:
     rows: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for path, source in files.items():
         try:
@@ -1361,36 +1423,6 @@ def risk_candidates(files: dict[str, str]) -> dict[str, list[dict[str, Any]]]:
                             target_gate="ACCEPTED_WITH_REASON",
                         )
                     )
-                io_classification = _io_call(node, name)
-                if io_classification:
-                    operation, io_status = io_classification
-                    candidate = _candidate(
-                        path,
-                        node.lineno,
-                        "R3",
-                        (
-                            "UNCLASSIFIED_IO_PRIMITIVE"
-                            if io_status == "UNCLASSIFIED"
-                            else "R3_SIDE_EFFECT_PRIMITIVE_CANDIDATE"
-                        ),
-                        "TRANSACTION_AND_EXTERNAL_IO_CONTRACT",
-                        status=io_status if io_status == "UNCLASSIFIED" else "PENDING_S07",
-                        target_gate="PENDING_S07",
-                    )
-                    candidate.update(
-                        {
-                            "candidate_id": _candidate_id("R3", path, node.lineno, name),
-                            "symbol": _scope_name(node, parents),
-                            "operation": operation,
-                            "call": name,
-                            "io_primitive_status": io_status,
-                            "denominator_status": "ENUMERATED_IO_PRIMITIVE",
-                            "source_excerpt": (
-                                ast.get_source_segment(source, node) or ast.unparse(node)
-                            )[:500],
-                        }
-                    )
-                    rows["R3"].append(candidate)
         lowered = source.lower()
         if any(
             needle in lowered
@@ -1406,6 +1438,41 @@ def risk_candidates(files: dict[str, str]) -> dict[str, list[dict[str, Any]]]:
                     target_gate="GATE_B",
                 )
             )
+    accounting = accounting or all_call_accounting(files)
+    for call in accounting["calls"]:
+        disposition = call["disposition"]
+        if disposition not in {
+            "RECOGNIZED_SIDE_EFFECT_PRIMITIVE",
+            "UNRESOLVED_EXTERNAL_CALL",
+            "UNRESOLVED_DYNAMIC_CALL",
+        }:
+            continue
+        unresolved = disposition.startswith("UNRESOLVED_")
+        candidate = _candidate(
+            call["path"],
+            call["line"],
+            "R3",
+            disposition,
+            "TRANSACTION_AND_EXTERNAL_IO_CONTRACT",
+            status="UNCLASSIFIED" if unresolved else "PENDING_S07",
+            target_gate="PENDING_S07",
+        )
+        candidate.update(
+            {
+                "candidate_id": call["call_site_id"],
+                "call_site_id": call["call_site_id"],
+                "symbol": call["caller_id"].rsplit(":", 1)[-1],
+                "operation": call.get("operation", disposition),
+                "call": call["call"],
+                "call_disposition": disposition,
+                "io_primitive_status": (
+                    "UNCLASSIFIED" if unresolved else "RECOGNIZED_IO_PRIMITIVE"
+                ),
+                "denominator_status": "ENUMERATED_ALL_CALL_R3",
+                "source_excerpt": call["source_excerpt"],
+            }
+        )
+        rows["R3"].append(candidate)
     return {
         key: sorted(value, key=lambda row: (row["path"], row["line"]))
         for key, value in sorted(rows.items())
@@ -1422,23 +1489,32 @@ def _module_path(module: str, files: dict[str, str]) -> str | None:
     return None
 
 
-def call_edge_manifest(files: dict[str, str], base_sha: str = BASE_SHA) -> dict[str, Any]:
-    """Build an auditable static call-edge proposal rooted at the one-shot CLI."""
+def _root_name(node: ast.AST) -> str | None:
+    while isinstance(node, ast.Attribute):
+        node = node.value
+    return node.id if isinstance(node, ast.Name) else None
+
+
+def _static_call_edges(files: dict[str, str], base_sha: str) -> list[dict[str, Any]]:
     function_names: dict[str, set[str]] = defaultdict(set)
     class_names: dict[str, set[str]] = defaultdict(set)
+    definitions: dict[str, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
     trees: dict[str, ast.Module] = {}
     imports: dict[str, dict[str, tuple[str, str | None]]] = defaultdict(dict)
+    external_imports: dict[str, dict[str, str]] = defaultdict(dict)
     for path, source in files.items():
         try:
             tree = ast.parse(source)
-        except SyntaxError:
-            continue
+        except SyntaxError as exc:
+            raise AuditError(f"PRODUCTION_PYTHON_SYNTAX_ERROR: {path}:{exc.lineno}") from None
         trees[path] = tree
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 function_names[path].add(node.name)
+                definitions[path][node.name].append(node.lineno)
             elif isinstance(node, ast.ClassDef):
                 class_names[path].add(node.name)
+                definitions[path][node.name].append(node.lineno)
             elif isinstance(node, ast.ImportFrom) and node.module:
                 import_target_path = _module_path(node.module, files)
                 if import_target_path:
@@ -1446,6 +1522,11 @@ def call_edge_manifest(files: dict[str, str], base_sha: str = BASE_SHA) -> dict[
                         imports[path][alias.asname or alias.name] = (
                             import_target_path,
                             alias.name,
+                        )
+                else:
+                    for alias in node.names:
+                        external_imports[path][alias.asname or alias.name] = (
+                            f"{node.module}.{alias.name}"
                         )
             elif isinstance(node, ast.Import):
                 for alias in node.names:
@@ -1455,9 +1536,15 @@ def call_edge_manifest(files: dict[str, str], base_sha: str = BASE_SHA) -> dict[
                             import_target_path,
                             None,
                         )
+                    else:
+                        root_module = alias.name.split(".", 1)[0]
+                        external_imports[path][alias.asname or root_module] = (
+                            alias.name if alias.asname else root_module
+                        )
 
     edges: list[dict[str, Any]] = []
     for path, tree in trees.items():
+        source = files[path]
         parents = {
             child: parent
             for parent in ast.walk(tree)
@@ -1467,17 +1554,20 @@ def call_edge_manifest(files: dict[str, str], base_sha: str = BASE_SHA) -> dict[
             if not isinstance(node, ast.Call):
                 continue
             caller = _scope_name(node, parents)
-            if caller == "<module>":
-                continue
             expression = ast.unparse(node.func)
             target_path: str | None = None
             target_symbol: str | None = None
+            external_signature: str | None = None
             if isinstance(node.func, ast.Name):
                 name = node.func.id
-                if name in function_names[path]:
+                if name in function_names[path] or name in class_names[path]:
                     target_path, target_symbol = path, name
                 elif name in imports[path]:
                     target_path, target_symbol = imports[path][name]
+                elif name in external_imports[path]:
+                    external_signature = external_imports[path][name]
+                elif hasattr(builtins, name):
+                    external_signature = f"builtins.{name}"
             elif isinstance(node.func, ast.Attribute):
                 target_symbol = node.func.attr
                 value = node.func.value
@@ -1493,27 +1583,155 @@ def call_edge_manifest(files: dict[str, str], base_sha: str = BASE_SHA) -> dict[
                         target_path = path
                     elif constructor in imports[path]:
                         target_path = imports[path][constructor][0]
-                if target_path and target_symbol not in function_names[target_path]:
+                root_name = _root_name(value)
+                if root_name in external_imports[path]:
+                    external_signature = (
+                        external_imports[path][root_name]
+                        + ast.unparse(node.func)[len(root_name) :]
+                    )
+                if target_path and target_symbol not in (
+                    function_names[target_path] | class_names[target_path]
+                ):
                     target_path = None
             caller_id = f"{path}:{caller}"
-            callee_id = f"{target_path}:{target_symbol}" if target_path and target_symbol else None
+            definition_lines = (
+                definitions[target_path].get(target_symbol, [])
+                if target_path and target_symbol
+                else []
+            )
+            callee_id = (
+                f"{target_path}:{target_symbol}" if len(definition_lines) == 1 else None
+            )
+            callee_candidate_id = (
+                hashlib.sha256(
+                    f"PROJECT_CALLEE:{callee_id}:{definition_lines[0]}".encode()
+                ).hexdigest()
+                if callee_id
+                else None
+            )
+            primitive = _io_call(node, external_signature or expression)
+            call_site_id = hashlib.sha256(
+                f"CALL:{path}:{node.lineno}:{node.col_offset}:{expression}".encode()
+            ).hexdigest()
             edge_id = hashlib.sha256(
-                f"{caller_id}:{node.lineno}:{expression}:{callee_id or 'UNRESOLVED'}".encode()
+                f"{caller_id}:{node.lineno}:{node.col_offset}:{expression}:"
+                f"{callee_id or 'UNRESOLVED'}".encode()
             ).hexdigest()
             edges.append(
                 {
                     "edge_id": edge_id,
+                    "call_site_id": call_site_id,
                     "caller_id": caller_id,
                     "path": path,
                     "line": node.lineno,
+                    "column": node.col_offset,
                     "call": expression,
                     "callee_id": callee_id,
+                    "callee_candidate_id": callee_candidate_id,
+                    "callee_definition_line": definition_lines[0] if callee_id else None,
+                    "external_signature": external_signature,
+                    "primitive_operation": primitive[0] if primitive else None,
+                    "primitive_status": primitive[1] if primitive else None,
                     "resolution": (
-                        "RESOLVED_STATIC_NAME" if callee_id else "UNRESOLVED_DYNAMIC_OR_EXTERNAL"
+                        "RESOLVED_EXACT_PROJECT_CALLEE"
+                        if callee_id
+                        else (
+                            "UNRESOLVED_AMBIGUOUS_PROJECT_CALLEE"
+                            if target_path and target_symbol
+                            else (
+                                "RESOLVED_EXTERNAL_SIGNATURE"
+                                if external_signature
+                                else "UNRESOLVED_DYNAMIC_CALL"
+                            )
+                        )
                     ),
                     "evidence": f"{path}@{base_sha}:{node.lineno}:{expression}",
+                    "source_excerpt": (
+                        ast.get_source_segment(source, node) or ast.unparse(node)
+                    )[:500],
                 }
             )
+    return edges
+
+
+def validate_all_call_rows(rows: list[dict[str, Any]]) -> dict[str, int]:
+    counts = Counter(row.get("disposition") for row in rows)
+    unaccounted = sum(row.get("disposition") not in CALL_DISPOSITIONS for row in rows)
+    if unaccounted or len({row.get("call_site_id") for row in rows}) != len(rows):
+        raise AuditError(
+            "ALL_CALL_ACCOUNTING_FAILED: every production ast.Call must have one unique "
+            "call-site ID and exactly one disposition"
+        )
+    return {
+        "total_production_ast_calls": len(rows),
+        **{category.lower(): counts[category] for category in CALL_DISPOSITIONS},
+        "unaccounted_production_calls": unaccounted,
+    }
+
+
+def all_call_accounting(
+    files: dict[str, str], base_sha: str = BASE_SHA
+) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    for edge in _static_call_edges(files, base_sha):
+        signature = edge["external_signature"]
+        if edge["callee_id"] and edge["callee_candidate_id"]:
+            disposition = "INTERNAL_PROJECT_CALL"
+            reason = "exact project definition path/symbol/line resolved"
+        elif edge["primitive_status"] == "RECOGNIZED_IO_PRIMITIVE":
+            disposition = "RECOGNIZED_SIDE_EFFECT_PRIMITIVE"
+            reason = f"explicit primitive registry: {edge['primitive_operation']}"
+        elif signature in KNOWN_PURE_CALLS:
+            disposition = "KNOWN_PURE_OR_LOCAL_TRANSFORM"
+            reason = KNOWN_PURE_CALLS[signature]
+        elif signature:
+            disposition = "UNRESOLVED_EXTERNAL_CALL"
+            reason = "static external callable signature is not independently disposed"
+        else:
+            disposition = "UNRESOLVED_DYNAMIC_CALL"
+            reason = edge["resolution"]
+        row = {
+            "call_site_id": edge["call_site_id"],
+            "path": edge["path"],
+            "line": edge["line"],
+            "column": edge["column"],
+            "caller_id": edge["caller_id"],
+            "call": edge["call"],
+            "disposition": disposition,
+            "reason": reason,
+            "source_excerpt": edge["source_excerpt"],
+        }
+        if disposition == "INTERNAL_PROJECT_CALL":
+            row.update(
+                {
+                    "callee_id": edge["callee_id"],
+                    "callee_candidate_id": edge["callee_candidate_id"],
+                    "callee_definition_line": edge["callee_definition_line"],
+                    "call_edge_id": edge["edge_id"],
+                }
+            )
+        elif disposition == "KNOWN_PURE_OR_LOCAL_TRANSFORM":
+            row["callable_signature"] = signature
+        elif disposition == "RECOGNIZED_SIDE_EFFECT_PRIMITIVE":
+            row.update(
+                {
+                    "callable_signature": signature or edge["call"],
+                    "operation": edge["primitive_operation"],
+                }
+            )
+        elif disposition == "UNRESOLVED_EXTERNAL_CALL":
+            row["callable_signature"] = signature
+        rows.append(row)
+
+    return {
+        "calls": sorted(rows, key=lambda row: (row["path"], row["line"], row["column"])),
+        "counts": validate_all_call_rows(rows),
+    }
+
+
+def call_edge_manifest(files: dict[str, str], base_sha: str = BASE_SHA) -> dict[str, Any]:
+    """Build an auditable static call-edge proposal rooted at the one-shot CLI."""
+    edges = _static_call_edges(files, base_sha)
 
     reviewed_dynamic = (
         (
@@ -1588,16 +1806,13 @@ def call_edge_manifest(files: dict[str, str], base_sha: str = BASE_SHA) -> dict[
 
 
 def _existing_blocker(candidate: dict[str, Any]) -> str | None:
+    if candidate["risk_family"] == "R3" and candidate["operation"] != "DB_COMMIT":
+        return None
     exact = {
-        _candidate_id(
-            family,
-            path,
-            line,
-            "session.commit" if family == "R3" else "",
-        ): blocker
+        (family, path, line): blocker
         for family, path, line, blocker in EXACT_BLOCKER_SPECS
     }
-    return exact.get(candidate["candidate_id"])
+    return exact.get((candidate["risk_family"], candidate["path"], candidate["line"]))
 
 
 def _deferred_gate(candidate: dict[str, Any]) -> str:
@@ -1827,13 +2042,13 @@ def adjudicate_s07(
                 "final_target_gate": "PENDING_INDEPENDENT_REVIEW",
                 "target_gate": proposed_gate,
                 "classification": (
-                    "UNCLASSIFIED_IO_PRIMITIVE"
-                    if row.get("io_primitive_status") == "UNCLASSIFIED"
+                    row["call_disposition"]
+                    if row.get("call_disposition", "").startswith("UNRESOLVED_")
                     else "PROPOSED_DISPOSITION_PENDING_INDEPENDENT_REVIEW"
                 ),
                 "status": (
                     "UNCLASSIFIED"
-                    if row.get("io_primitive_status") == "UNCLASSIFIED"
+                    if row.get("call_disposition", "").startswith("UNRESOLVED_")
                     else "PROPOSED_PENDING_INDEPENDENT_REVIEW"
                 ),
                 "independent_review": "PENDING_S07_8",
@@ -2004,7 +2219,8 @@ def safe_report(config: AuditConfig) -> dict[str, Any]:
     production_scope = production_python_scope(config.base_sha)
     files = python_files(config.base_sha)
     base_paths = set(tree_paths(config.base_sha))
-    risks = risk_candidates(files)
+    accounting = all_call_accounting(files, config.base_sha)
+    risks = risk_candidates(files, accounting)
     call_manifest = call_edge_manifest(files, config.base_sha)
     s07_candidates = adjudicate_s07(
         risks.get("R2", []) + risks.get("R3", []), call_manifest, config.base_sha
@@ -2084,6 +2300,17 @@ def safe_report(config: AuditConfig) -> dict[str, Any]:
     unclassified_io = sum(
         row.get("io_primitive_status") == "UNCLASSIFIED" for row in s07_candidates
     )
+    accounting_counts = accounting["counts"]
+    derived_r3_denominator = sum(
+        accounting_counts[category.lower()]
+        for category in (
+            "RECOGNIZED_SIDE_EFFECT_PRIMITIVE",
+            "UNRESOLVED_EXTERNAL_CALL",
+            "UNRESOLVED_DYNAMIC_CALL",
+        )
+    )
+    if derived_r3_denominator != len(risks.get("R3", [])):
+        raise AuditError("R3_DENOMINATOR_DOES_NOT_MATCH_ALL_CALL_ACCOUNTING")
     return {
         "schema_version": "w2.t00.safe.v1",
         "base_sha": config.base_sha,
@@ -2091,6 +2318,7 @@ def safe_report(config: AuditConfig) -> dict[str, Any]:
         "pr450_ref": config.pr450_ref,
         "scan_strategy": "AST_FIRST_WITH_TEXT_FALLBACK",
         "production_python_scope": production_scope,
+        "all_call_accounting": accounting,
         "risk_candidates": risks,
         "storage_inventory": storage_inventory(files, config.base_sha),
         "computation_authorities": computations,
@@ -2102,6 +2330,7 @@ def safe_report(config: AuditConfig) -> dict[str, Any]:
             "candidates": s07_candidates,
             "proposed_test_contracts": proposed_test_contracts,
             "counts": {
+                **accounting_counts,
                 "r2_handler_denominator": len(risks.get("R2", [])),
                 "r3_side_effect_denominator": len(risks.get("R3", [])),
                 "total_candidates": len(s07_candidates),
