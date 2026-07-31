@@ -103,7 +103,12 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "forward_collection_activation_review": "PASS",
         "forward_collection_activation_review_status": "DONE",
         "existing_collection_pipeline": "REUSED",
-        "a148_supervised_rehearsal": "SELECTED",
+        "a148_supervised_rehearsal": "BLOCKED_PRECONDITION",
+        "rehearsal_status": "BLOCKED",
+        "rehearsal_as_of": "2026-07-31T05:10:47.160608Z",
+        "pr_448_head": "3466bd4419ff2339233fd659199a1dbf87370113",
+        "pr_448_merge_sha": "c61bff2e50248db8e37b154fd233d456b18e7d0e",
+        "pr_448_main_ci": 30605554667,
         "new_guard_framework": False,
         "new_activation_manifest_framework": False,
         "new_canary_cli": False,
@@ -119,12 +124,37 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "daily_request_budget": 120,
         "scheduler_mode": "NOT_STARTED",
         "scheduler_restart_policy": "no",
+        "scheduler_restart_policy_observed": "unless-stopped",
+        "scheduler_restart_policy_validation": "FAIL",
         "scheduler_container_started": False,
         "rehearsal_execution_mode": "MANUAL_FOREGROUND_ONE_SHOT",
         "rehearsal_entrypoint": "scripts/run_prematch_refresh.py",
+        "rehearsal_command_executed": False,
+        "projected_provider_calls": 10,
+        "actual_provider_calls": 0,
+        "request_count_by_endpoint": {},
+        "provider_request_ledger_delta": 0,
+        "raw_payload_delta": 0,
+        "endpoint_capture_delta": 0,
+        "checkpoint_audit_delta": 0,
+        "lineup_event_delta": 0,
+        "dynamic_evaluation_v2_delta": 0,
+        "five_state_snapshot_delta": 0,
+        "exact_pair_delta": 0,
+        "materialized_fixture_ids": [],
+        "read_model_data_time_before": "2026-07-30T15:05:44.392619Z",
+        "read_model_data_time_after": "2026-07-30T15:05:44.392619Z",
+        "dashboard_data_time_before": "2026-07-30T15:05:44.392619Z",
+        "dashboard_data_time_after": "2026-07-30T15:05:44.392619Z",
+        "celery_tasks_queued": 0,
+        "checkpoint_claim_delta": 0,
+        "flags_restored_disabled": True,
+        "rehearsal_blockers": [
+            "SCHEDULER_RESTART_POLICY_MISMATCH_EXPECTED_NO_OBSERVED_UNLESS_STOPPED"
+        ],
         "auto_retry": False,
-        "runtime_collection_authorized": True,
-        "runtime_collection_authorized_scope": "A148_ONE_SUPERVISED_REHEARSAL",
+        "runtime_collection_authorized": False,
+        "runtime_collection_authorized_scope": "NOT_APPLICABLE",
         "persistent_scheduler_authorized": False,
         "continuous_collection_authorized": False,
         "identity_remediation_design": "BLOCKED",
@@ -188,8 +218,8 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
             "308e1edc9ed1748a18cd64c9325521e54a5777ba"
         ),
         "write_side_implementation_04_main_ci": 30599981432,
-        "provider_calls_authorized": True,
-        "provider_calls_authorized_scope": "A148_ONE_SUPERVISED_REHEARSAL",
+        "provider_calls_authorized": False,
+        "provider_calls_authorized_scope": "NOT_APPLICABLE",
         "scheduler_start_authorized": False,
         "scheduler_start_authorized_scope": "NOT_APPLICABLE",
         "write_side_readiness_design": "FROZEN",
@@ -211,21 +241,21 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "lock_enabled": False,
         "production_release": False,
         "scoring_implementation": "BLOCKED",
-        "next_required_action": "A148_SUPERVISED_COLLECTION_REHEARSAL",
+        "next_required_action": "INDEPENDENT_REHEARSAL_RECEIPT_REVIEW",
     }
     assert state["tasks"]["EVAL-03"]["status"] == "NOT_STARTED"
     assert state["architecture_convergence"]["status"] == "PASS"
     assert "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)" in next_action
     assert CHECKLIST_PATH in next_action
     assert (
-        "当前：FORWARD_COLLECTION_ACTIVATION_REVIEW 已完成并通过；"
-        "WRITE_SIDE_READY = true。" in next_action
+        "当前：A148_SUPERVISED_COLLECTION_REHEARSAL 在 Provider 调用前因 "
+        "scheduler restart policy 前置条件不匹配而 fail-closed；Provider 调用、"
+        "业务写入、scheduler 与 Celery dispatch 均为 0，一次性授权已撤销。"
+        in next_action
     )
     assert (
-        "下一步：仅通过 scripts/run_prematch_refresh.py 按已冻结范围执行一次 "
-        "A148_SUPERVISED_COLLECTION_REHEARSAL（brasileirao_serie_a / 2026，"
-        "manual foreground one-shot）；scheduler 不启动，持续采集、"
-        "EVAL-02B gate 与 B7 EVAL-03 均未授权。"
+        "下一步：仅等待 INDEPENDENT_REHEARSAL_RECEIPT_REVIEW；持续采集、"
+        "重新演练、EVAL-02B gate 与 B7 EVAL-03 均未授权。"
         in next_action
     )
     assert "sole machine-readable project-status record" in ledger
@@ -325,7 +355,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "FORWARD_COLLECTION_ACTIVATION_REVIEW = PASS",
         "FORWARD_COLLECTION_ACTIVATION_REVIEW_STATUS = DONE",
         "EXISTING_COLLECTION_PIPELINE = REUSED",
-        "A148_SUPERVISED_REHEARSAL = SELECTED",
+        "A148_SUPERVISED_REHEARSAL = BLOCKED_PRECONDITION",
         "NEW_GUARD_FRAMEWORK = false",
         "NEW_ACTIVATION_MANIFEST_FRAMEWORK = false",
         "NEW_CANARY_CLI = false",
@@ -354,9 +384,9 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "SCHEDULER_RESTART_POLICY = no",
         "SCHEDULER_CONTAINER_STARTED = false",
         "AUTO_RETRY = false",
-        "RUNTIME_COLLECTION_AUTHORIZED = true",
+        "RUNTIME_COLLECTION_AUTHORIZED = false",
         "RUNTIME_COLLECTION_AUTHORIZED_SCOPE =",
-        "A148_ONE_SUPERVISED_REHEARSAL",
+        "NOT_APPLICABLE",
         "PERSISTENT_SCHEDULER_AUTHORIZED = false",
         "CONTINUOUS_COLLECTION_AUTHORIZED = false",
         "IDENTITY_REMEDIATION_DESIGN = BLOCKED",
@@ -396,7 +426,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "WRITE_SIDE_IMPLEMENTATION_04_MERGE_SHA =",
         "308e1edc9ed1748a18cd64c9325521e54a5777ba",
         "WRITE_SIDE_IMPLEMENTATION_04_MAIN_CI = 30599981432",
-        "PROVIDER_CALLS_AUTHORIZED = true",
+        "PROVIDER_CALLS_AUTHORIZED = false",
         "PROVIDER_CALLS_AUTHORIZED_SCOPE =",
         "SCHEDULER_START_AUTHORIZED = false",
         "SCHEDULER_START_AUTHORIZED_SCOPE =",
@@ -421,7 +451,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "PRODUCTION_RELEASE = false",
         "SCORING_IMPLEMENTATION = BLOCKED",
         "NEXT_REQUIRED_ACTION =",
-        "A148_SUPERVISED_COLLECTION_REHEARSAL",
+        "INDEPENDENT_REHEARSAL_RECEIPT_REVIEW",
         "NEW_PROVIDER_FETCH_CAN_RESTORE_LEGACY_PROVENANCE = false",
         "FUZZY_IDENTITY_RECONSTRUCTION_ALLOWED = false",
         "TEAM_NAME_MATCH_ALLOWED = false",
@@ -807,7 +837,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "DIAGNOSTIC_ONLY",
         "PRE_POST_ELIGIBILITY_REQUIRES_NOT_SUPERSEDED = false",
         "NEXT_REQUIRED_ACTION =",
-        "A148_SUPERVISED_COLLECTION_REHEARSAL",
+        "INDEPENDENT_REHEARSAL_RECEIPT_REVIEW",
     ):
         assert write_side_coordinate in b5
     assert "pre.capture_at < lineup_confirmed_at <= post.capture_at" in b5
@@ -917,6 +947,10 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "scheduler_started",
         "celery_tasks_queued",
         "checkpoint_claim_delta",
+        "REHEARSAL_COMMAND_EXECUTED",
+        "expected_scheduler_restart_policy",
+        "observed_scheduler_restart_policy",
+        "flags_restored_disabled",
     ):
         assert activation_receipt_field in b5
     for activation_boundary in (
@@ -935,9 +969,29 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "不得扩大 endpoint allowlist",
         "增加 Provider budget",
         "自动重试",
+        "REHEARSAL_STATUS = BLOCKED",
+        "REHEARSAL_COMMAND_EXECUTED = false",
+        "PR_448_MERGED_HEAD = 3466bd4419ff2339233fd659199a1dbf87370113",
+        "PR_448_MERGE_SHA = c61bff2e50248db8e37b154fd233d456b18e7d0e",
+        "PR_448_MAIN_CI = 30605554667 / SUCCESS",
+        "projected_provider_calls = 10",
+        "actual_provider_calls = 0",
+        "provider_request_ledger_delta = 0",
+        "raw_payload_delta = 0",
+        "endpoint_capture_delta = 0",
+        "dynamic_evaluation_v2_delta = 0",
+        "five_state_snapshot_delta = 0",
+        "materialized_fixture_ids = []",
+        "expected_scheduler_restart_policy = no",
+        "observed_scheduler_restart_policy = unless-stopped",
+        "flags_restored_disabled = true",
+        "SCHEDULER_RESTART_POLICY_MISMATCH_EXPECTED_NO_OBSERVED_UNLESS_STOPPED",
     ):
         assert activation_boundary in b5
     assert "SCHEDULER_START_AUTHORIZED = true" not in b5
+    assert "PROVIDER_CALLS_AUTHORIZED = true" not in b5
+    assert "RUNTIME_COLLECTION_AUTHORIZED = true" not in b5
+    assert "A148_ONE_SUPERVISED_REHEARSAL" not in b5
     assert "SCHEDULER_MODE =\nFOREGROUND_ONE_CYCLE" not in b5
     assert "ONE_SUPERVISED_CHECKPOINT_CYCLE" not in b5
     assert "DYNAMIC_EVALUATION_V2_EVAL_02B_ELIGIBLE = true" not in b5

@@ -5,5 +5,5 @@
 
 Task coordinates are maintained only in those authorities.
 
-当前：FORWARD_COLLECTION_ACTIVATION_REVIEW 已完成并通过；WRITE_SIDE_READY = true。
-下一步：仅通过 scripts/run_prematch_refresh.py 按已冻结范围执行一次 A148_SUPERVISED_COLLECTION_REHEARSAL（brasileirao_serie_a / 2026，manual foreground one-shot）；scheduler 不启动，持续采集、EVAL-02B gate 与 B7 EVAL-03 均未授权。
+当前：A148_SUPERVISED_COLLECTION_REHEARSAL 在 Provider 调用前因 scheduler restart policy 前置条件不匹配而 fail-closed；Provider 调用、业务写入、scheduler 与 Celery dispatch 均为 0，一次性授权已撤销。
+下一步：仅等待 INDEPENDENT_REHEARSAL_RECEIPT_REVIEW；持续采集、重新演练、EVAL-02B gate 与 B7 EVAL-03 均未授权。
