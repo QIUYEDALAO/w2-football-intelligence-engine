@@ -944,13 +944,32 @@ RPS 与 coverage 必须输出，但在新的预注册授权前不得作为 block
   和 exact line。
 - Pre 是首发确认前最后一个合格持久化评估；Post 是首发确认后第一个使用 fresh
   exact quote 的合格评估。
-- 必须满足 `pre.evaluated_at < lineup_confirmed_at <= post.capture_at`；每场 fixture
+- 必须满足 `pre.capture_at < lineup_confirmed_at <= post.capture_at`；每场 fixture
   只允许一个 pair。
 - 冲突、缺身份、缺赛果、跨赛季、跨联赛、marker-only 和原始状态不合格的数据
   全部排除；lifecycle supersession relation 仅作诊断，不影响原始合格 evidence。
 - 禁止 fuzzy、名称猜测或跨 bookmaker/line 拼接。
 
 ```text
+PRE_ELIGIBILITY_TIME_AUTHORITY = capture_at
+POST_ELIGIBILITY_TIME_AUTHORITY = capture_at
+
+PRE_EVALUATED_AT_ROLE =
+DETERMINISTIC_TIE_BREAKER_ONLY
+
+POST_EVALUATED_AT_ROLE =
+DETERMINISTIC_TIE_BREAKER_ONLY
+
+PRE_ORDER =
+capture_at DESC
+evaluated_at DESC
+evaluation_id DESC
+
+POST_ORDER =
+capture_at ASC
+evaluated_at ASC
+evaluation_id ASC
+
 PAIR_QUOTE_SCOPE =
 SAME_PROVIDER_X_BOOKMAKER_X_MARKET_X_SELECTION_X_EXACT_LINE
 
@@ -971,6 +990,10 @@ exact_line
 pre_evaluation_id
 post_evaluation_id
 ```
+
+Pre 是否发生在首发确认前只看 persisted `capture_at`，`evaluated_at` 不作为 eligibility
+boundary。开赛前已采集、但首发确认后才完成处理的 Pre 仍可合格；`evaluated_at` 仅在
+相同 `capture_at` 时用于稳定排序。
 
 Pre/Post 不得跨 provider、bookmaker、selection 或 line 配对。
 

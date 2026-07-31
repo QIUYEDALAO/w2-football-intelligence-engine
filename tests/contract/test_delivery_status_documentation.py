@@ -418,7 +418,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "REVALIDATE_AFTER_DAYS = 90",
         "REVALIDATE_AFTER_NEW_PAIRS = 60",
         "CI_CONTAINS_ZERO = FREEZE_ADJUSTMENT_TO_ZERO",
-        "pre.evaluated_at < lineup_confirmed_at <= post.capture_at",
+        "pre.capture_at < lineup_confirmed_at <= post.capture_at",
         "LEAGUE_SCOPE",
         "MARKET_SCOPE",
         "ENDPOINT_SCOPE",
@@ -733,6 +733,25 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "FORWARD_COLLECTION_ACTIVATION_REVIEW",
     ):
         assert write_side_coordinate in b5
+    assert "pre.capture_at < lineup_confirmed_at <= post.capture_at" in b5
+    assert "PRE_ELIGIBILITY_TIME_AUTHORITY = capture_at" in b5
+    assert "POST_ELIGIBILITY_TIME_AUTHORITY = capture_at" in b5
+    assert "PRE_EVALUATED_AT_ROLE =" in b5
+    assert "POST_EVALUATED_AT_ROLE =" in b5
+    assert "DETERMINISTIC_TIE_BREAKER_ONLY" in b5
+    assert "pre.evaluated_at < lineup_confirmed_at" not in b5
+    assert (
+        "PRE_ORDER =\n"
+        "capture_at DESC\n"
+        "evaluated_at DESC\n"
+        "evaluation_id DESC"
+    ) in b5
+    assert (
+        "POST_ORDER =\n"
+        "capture_at ASC\n"
+        "evaluated_at ASC\n"
+        "evaluation_id ASC"
+    ) in b5
     for write_side_rule in (
         "唯一方案是复用当前 production projection graph",
         "不新建平行写侧",
