@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -152,36 +153,97 @@ def materialized_fixture_ids(events: list[Any]) -> list[str]:
     return list(dict.fromkeys(str(event.fixture_id) for event in events))
 
 
-def test_c9_lineup_event_is_emitted_after_identity_and_capture_are_available(
+def _run_completed_refresh(
+    *,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    configure_sqlite_db(monkeypatch, tmp_path)
+    task_id: str,
+    materializer: Any = materialized_fixture_ids,
+) -> Any:
     key = deterministic_task_key(
         competition_id="world_cup_2026",
         season="2026",
         now=NOW,
         interval_seconds=900,
     )
-    event_types: list[str] = []
-
-    def materialize(events: list[Any]) -> list[str]:
-        event_types.extend(str(event.event_type) for event in events)
-        return materialized_fixture_ids(events)
-
-    audit = run_future_refresh_task(
-        task_id="task-c9-ordering",
+    return run_future_refresh_task(
+        task_id=task_id,
         key=key,
         queued_at=NOW,
         runtime_root=tmp_path / "runtime",
         client=C9FakeApiFootballClient(),
         now=NOW,
         persistence="db",
-        materialize_public_artifacts=materialize,
+        materialize_public_artifacts=materializer,
+    )
+
+
+def test_c9_lineup_event_is_emitted_after_identity_and_capture_are_available(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    event_types: list[str] = []
+
+    def materialize(events: list[Any]) -> list[str]:
+        event_types.extend(str(event.event_type) for event in events)
+        return materialized_fixture_ids(events)
+
+    audit = _run_completed_refresh(
+        tmp_path=tmp_path,
+        task_id="task-c9-ordering",
+        materializer=materialize,
     )
 
     assert audit.status == "COMPLETED", audit
     assert set(event_types) == {"FIXTURE_CHANGED", "LINEUP_CHANGED", "ODDS_CHANGED"}
+
+
+def test_generated_ready_model_distributions_satisfy_v2_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    audit = _run_completed_refresh(
+        tmp_path=tmp_path,
+        task_id="task-v2-distribution-contract",
+    )
+    assert audit.status == "COMPLETED", audit
+
+    from w2.prematch.analysis_calculator import ReadModelRepository, ReadModelService
+
+    card = ReadModelService(repository=ReadModelRepository()).public_analysis_card_bounded(
+        "1489404",
+        evaluation_time=NOW,
+        use_frozen_canary=False,
+    )
+    assert isinstance(card, dict), card
+    candidates = card.get("market_candidates")
+    assert isinstance(candidates, dict), card
+    ready_distributions: list[tuple[str, str, dict[str, Any], float]] = []
+    required_states = {"WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"}
+    for market_key, candidate in candidates.items():
+        if not isinstance(candidate, dict):
+            continue
+        evidence = candidate.get("analysis_evidence")
+        sides = evidence.get("side_evidence") if isinstance(evidence, dict) else None
+        if not isinstance(sides, dict):
+            continue
+        for selection, side in sides.items():
+            model = side.get("model_probability") if isinstance(side, dict) else None
+            if not isinstance(model, dict) or model.get("status") != "READY":
+                continue
+            distribution = model.get("settlement_distribution")
+            assert isinstance(distribution, dict), (market_key, selection, model)
+            values = {state: float(value) for state, value in distribution.items()}
+            total = sum(values.values())
+            ready_distributions.append((str(market_key), str(selection), distribution, total))
+            assert set(values) == required_states, ready_distributions[-1]
+            assert all(math.isfinite(value) and value >= 0 for value in values.values()), (
+                ready_distributions[-1]
+            )
+            assert abs(total - 1.0) <= 1e-9, ready_distributions[-1]
+
+    assert ready_distributions, card
 
 
 def test_c9_lineup_failure_is_explicit_and_preserves_paid_raw_evidence(
