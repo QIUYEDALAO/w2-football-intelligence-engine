@@ -1,12 +1,16 @@
-schema_version: w2.project_state.v3
+schema_version: w2.project_state.v4
 project: w2-football-intelligence-engine
 updated_at: "2026-07-31"
 current_state_authority: PROJECT_STATE.yaml
 task_authority: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
+handoff_authority: AI_PROJECT_CONTEXT.md
+independent_audit_authority: docs/operations/W2_INDEPENDENT_FINAL_AUDIT_20260731.md
 current_task: EVAL-02B
 current_status: BLOCKED
 current_pr: null
 next_task: EVAL-02B
+next_required_action: RUNTIME_SAFETY_AND_CONCURRENCY_REMEDIATION
+
 tasks:
   ARCH-P2-02:
     status: DONE
@@ -16,10 +20,6 @@ tasks:
     conclusion: PASS
     space_released_kib: 1853664
     space_released_gib: 1.77
-    removed_worktrees: 15
-    pruned_worktree_records: 1
-    removed_validation_databases: 20
-    removed_runtime_directories: 0
   ARCH-P2-04:
     status: DONE
     pr: 427
@@ -57,157 +57,129 @@ tasks:
     main_ci: 30556679131
   EVAL-02B:
     status: BLOCKED
-    start_authorized: false
-    audit_as_of: "2026-07-30T16:06:59.736350Z"
-    audit_sha256: c4099f973f46514c3105911eee9bf87accd20f98b2430998868716d8ae13e70d
-    data_blocker:
-      dynamic_prematch_evaluations: 0
-      lineup_confirmed_events: 0
-      exact_pre_post_pairs: 0
-      results_without_unique_canonical_competition_season_identity: 35
     contract_authority: FROZEN
-    data_acquisition_plan: AUTHORIZED
-    forward_collection_activation_review: PASS
-    forward_collection_activation_review_status: DONE
-    existing_collection_pipeline: REUSED
-    a148_supervised_rehearsal: BLOCKED_PRECONDITION
-    rehearsal_status: BLOCKED
-    rehearsal_as_of: "2026-07-31T05:10:47.160608Z"
-    pr_448_head: 3466bd4419ff2339233fd659199a1dbf87370113
-    pr_448_merge_sha: c61bff2e50248db8e37b154fd233d456b18e7d0e
-    pr_448_main_ci: 30605554667
-    new_guard_framework: false
-    new_activation_manifest_framework: false
-    new_canary_cli: false
-    provider_control_rewrite: false
-    new_collection_pipeline: false
-    rehearsal_competition_id: brasileirao_serie_a
-    rehearsal_season: "2026"
-    rehearsal_competition_audit_order: 1
-    market_scope:
-      - ASIAN_HANDICAP
-      - TOTALS
-    endpoint_scope:
-      - status
-      - fixtures
-      - odds
-      - lineups
-    capture_cadence: ONE_SUPERVISED_REFRESH_RUN
-    provider_call_limit: 30
-    daily_request_budget: 120
-    scheduler_mode: NOT_STARTED
-    scheduler_restart_policy: "no"
-    scheduler_restart_policy_observed: unless-stopped
-    scheduler_restart_policy_validation: FAIL
-    scheduler_container_started: false
-    rehearsal_execution_mode: MANUAL_FOREGROUND_ONE_SHOT
-    rehearsal_entrypoint: scripts/run_prematch_refresh.py
+    write_side_execution_tranche: COMPLETED
+    write_side_implementation_01: DONE
+    write_side_implementation_01_pr: 441
+    write_side_implementation_02: DONE
+    write_side_implementation_02_pr: 443
+    write_side_implementation_03: DONE
+    write_side_implementation_03_pr: 444
+    write_side_implementation_04: DONE
+    write_side_implementation_04_pr: 445
+    write_side_ready: true
+    end_to_end_status: NOT_VALIDATED
+    independent_rehearsal_receipt_review: COMPLETE
+    a148_supervised_rehearsal: SAFE_FAIL_CLOSED_ONLY
     rehearsal_command_executed: false
-    projected_provider_calls: 10
     actual_provider_calls: 0
-    request_count_by_endpoint: {}
     provider_request_ledger_delta: 0
     raw_payload_delta: 0
     endpoint_capture_delta: 0
-    checkpoint_audit_delta: 0
     lineup_event_delta: 0
     dynamic_evaluation_v2_delta: 0
     five_state_snapshot_delta: 0
     exact_pair_delta: 0
-    materialized_fixture_ids: []
-    read_model_data_time_before: "2026-07-30T15:05:44.392619Z"
-    read_model_data_time_after: "2026-07-30T15:05:44.392619Z"
-    dashboard_data_time_before: "2026-07-30T15:05:44.392619Z"
-    dashboard_data_time_after: "2026-07-30T15:05:44.392619Z"
-    celery_tasks_queued: 0
-    checkpoint_claim_delta: 0
-    flags_restored_disabled: true
-    rehearsal_blockers:
-      - SCHEDULER_RESTART_POLICY_MISMATCH_EXPECTED_NO_OBSERVED_UNLESS_STOPPED
-    auto_retry: false
-    runtime_collection_authorized: false
-    runtime_collection_authorized_scope: NOT_APPLICABLE
-    persistent_scheduler_authorized: false
-    continuous_collection_authorized: false
-    identity_remediation_design: BLOCKED
-    identity_remediation_execution_authorized: false
-    identity_remediation_audit_as_of: "2026-07-30T17:31:23.303986Z"
-    identity_remediation_audit_sha256: 8871fa588091b2daa8c72bd36837e044f462c194f9bc7804bcde27015d063ad0
-    exact_unique_candidate_count: 0
-    unresolved_result_count: 35
+    runtime_safety_remediation: REQUIRED
+    critical_blockers:
+      - C1_PROVIDER_DEFAULT_FAIL_OPEN
+      - C2_RUNTIME_AUTHORIZATION_BYPASS
+      - C3_CLI_SEASON_POLICY_MISMATCH
+      - C4_EXECUTE_DEFAULT_DB_PERSISTENCE
+      - C5_DB_RUN_LOCK_OPTIONAL
+      - C6_PROVIDER_LEDGER_NOT_ATOMIC
+      - C7_UNCERTAIN_TIMEOUT_RETRY
+      - C8_SCHEMA_OR_EMPTY_DATA_SILENT_SUCCESS
+      - C9_LINEUP_MATERIALIZATION_FAILURE_SWALLOWED
+      - C10_SCHEDULER_RESTART_POLICY_MISMATCH
+      - C11_LEDGER_INTEGRITY_AND_QUOTA_EVIDENCE_SILENT_FAILURE
     identity_provenance_gap_decision: LEGACY_35_RESULTS_EXCLUDED_FROM_EVAL_02B
     legacy_result_facts_retained: true
     legacy_result_facts_mutated: false
     legacy_result_eval_eligibility: false
     legacy_identity_remediation_closed: true
     future_only_pair_collection_required: true
-    new_provider_fetch_can_restore_legacy_provenance: false
-    fuzzy_identity_reconstruction_allowed: false
-    team_name_match_allowed: false
-    approximate_time_match_allowed: false
-    manual_competition_season_guess_allowed: false
-    legacy_remediation_reopen_condition: EXACT_ORIGINAL_RAW_BLOB_RECOVERED
-    required_blob_verification: SHA256(blob) == result.source_payload_sha256
-    reopen_scope: IDENTITY_REMEDIATION_ONLY
-    write_side_implementation_authorized: false
-    write_side_execution_tranche: COMPLETED
-    write_side_implementation_01: DONE
-    write_side_implementation_01_pr: 441
-    write_side_implementation_01_merge_sha: 5c52a40a6f0b3afb8589c251bea0b7ba611012f5
-    write_side_implementation_01_main_ci: 30583359805
-    write_side_implementation_02: DONE
-    write_side_implementation_02_pr: 443
-    write_side_implementation_02_head: 8eaf04699414a1ebe65077e419651f567910c45d
-    write_side_implementation_02_merge_sha: 532e58c44fe388d7053d8c0b3c3b7d5fa934cacb
-    write_side_implementation_02_main_ci: 30598884065
-    write_side_implementation_03: DONE
-    write_side_implementation_03_pr: 444
-    write_side_implementation_03_head: b959e4a3a406fcc9898695643a17fac9c069281f
-    write_side_implementation_03_merge_sha: 882f69650d4773757529999e3f8292e8689231a2
-    write_side_implementation_03_main_ci: 30599432182
-    write_side_implementation_04: DONE
-    write_side_implementation_04_pr: 445
-    write_side_implementation_04_head: 05b55b5e1fc6583abbdee705a6b39bd263da4372
-    write_side_implementation_04_merge_sha: 308e1edc9ed1748a18cd64c9325521e54a5777ba
-    write_side_implementation_04_main_ci: 30599981432
+    scoring_implementation: BLOCKED
     provider_calls_authorized: false
-    provider_calls_authorized_scope: NOT_APPLICABLE
+    runtime_collection_authorized: false
     scheduler_start_authorized: false
-    scheduler_start_authorized_scope: NOT_APPLICABLE
-    write_side_readiness_design: FROZEN
-    write_side_ready: true
-    new_table_count: 0
-    new_migration_count: 0
-    lineup_event_production_caller: IMPLEMENTED
-    canonical_lineup_event_atomic_write: IMPLEMENTED
-    post_lineup_refresh_plan_production_caller: IMPLEMENTED
-    dynamic_evaluation_v2: IMPLEMENTED
-    five_state_snapshot: IMPLEMENTED
-    exact_pair_projector: IMPLEMENTED
-    pair_evidence_authority: IMMUTABLE_ORIGINAL_EVALUATION
-    lifecycle_supersession_effect: DIAGNOSTIC_ONLY
-    pre_post_eligibility_requires_not_superseded: false
+    persistent_scheduler_authorized: false
+    continuous_collection_authorized: false
     recommendation_enabled: false
     candidate_enabled: false
     formal_recommendation_enabled: false
     lock_enabled: false
     production_release: false
-    scoring_implementation: BLOCKED
-    next_required_action: INDEPENDENT_REHEARSAL_RECEIPT_REVIEW
+    next_required_action: RUNTIME_SAFETY_AND_CONCURRENCY_REMEDIATION
   EVAL-03:
     status: NOT_STARTED
+
+engineering_principles:
+  default_deny_on_missing_or_unknown: REQUIRED
+  explicit_failure_after_external_side_effect: REQUIRED
+  idempotency_must_be_proven: REQUIRED
+  forbidden_patterns:
+    - MISSING_CONFIGURATION_IMPLIES_ALLOW
+    - INTEGRITY_ERROR_ROLLBACK_AND_CONTINUE_WITHOUT_RECONCILIATION
+    - PERSISTENCE_FAILURE_PASS
+    - EMPTY_REQUIRED_EVIDENCE_TREATED_AS_SUCCESS
+
+canary_acceptance:
+  status: NOT_AUTHORIZED
+  decision_rule: ALL_REQUIRED_DELTAS_POSITIVE_AND_FULL_LINEAGE_RECONCILED
+  required_deltas:
+    actual_provider_calls_delta: ">0"
+    provider_request_ledger_delta: ">0"
+    raw_payload_delta: ">0"
+    endpoint_capture_delta: ">0"
+    lineup_event_delta: ">0"
+    dynamic_evaluation_v2_delta: ">0"
+    five_state_snapshot_delta: ">0"
+    exact_pair_delta: ">0"
+  required_lineage_fields:
+    - run_id
+    - authorization_id
+    - competition_id
+    - season
+    - fixture_id
+    - provider
+    - bookmaker
+    - market
+    - selection
+    - exact_line
+    - capture_at
+    - raw_payload_sha256
+    - endpoint_capture_id
+    - lineup_input_hash
+    - evaluation_id
+    - pair_hash
+    - exact_git_sha
+  zero_required_delta_result: FAILED
+  lineage_mismatch_result: FAILED
+  auto_retry: false
+  authorization_restored_disabled_required: true
+
 safety:
   provider_calls: 0
   business_db_writes: 0
   scheduler_started: false
   production_started: false
-  reviewed_mapping_count_expected: 66
+  provider_calls_authorized: false
+  runtime_collection_authorized: false
+  scheduler_start_authorized: false
+  candidate_enabled: false
+  formal_recommendation_enabled: false
+  lock_enabled: false
+  production_release: false
+
 staging:
   production_deployed: false
   eval_01a_exact_head_acceptance: PASS
   eval_01b_exact_head_acceptance: PASS
   eval_01c_exact_head_acceptance: PASS
   eval_02a_exact_head_acceptance: PASS
+  eval_02b_live_chain_acceptance: NOT_EXECUTED
+
 architecture_convergence:
   status: PASS
   receipt: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
