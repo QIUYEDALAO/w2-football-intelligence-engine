@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Mapping
+import math
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
@@ -10,6 +12,7 @@ from sqlalchemy import Engine, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from w2.domain.enums import MarketType
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.dynamic_prematch_models import (
     DynamicPrematchEvaluationModel,
@@ -17,13 +20,26 @@ from w2.infrastructure.persistence.dynamic_prematch_models import (
     LineupConfirmedEventModel,
     T30ValidationSnapshotModel,
 )
-from w2.infrastructure.persistence.matchday_intake_models import MatchdayCheckpointPlanModel
+from w2.infrastructure.persistence.matchday_intake_models import (
+    MatchdayCheckpointPlanModel,
+    MatchdayFixtureIdentityModel,
+)
 from w2.prematch.lifecycle import (
+    DYNAMIC_EVALUATION_V2_SCHEMA,
+    EVAL_02B_DISTRIBUTION_TOLERANCE,
+    SETTLEMENT_STATE_ORDER,
     DynamicEvaluationState,
     DynamicEvaluationVersion,
     LineupConfirmedEvent,
     LockSnapshotResult,
 )
+
+PAIR_PROJECTOR_SCHEMA = "w2.eval_02b_exact_pair_projection.v1"
+_PAIR_MARKETS = {MarketType.ASIAN_HANDICAP.value, MarketType.TOTALS.value}
+_PAIR_ELIGIBLE_STATES = {
+    DynamicEvaluationState.ANALYSIS_PICK_ACTIVE.value,
+    DynamicEvaluationState.NO_EDGE_CURRENT.value,
+}
 
 
 class DynamicPrematchRepository:
@@ -436,3 +452,481 @@ def _parse_utc(value: Any) -> datetime | None:
     if not value:
         return None
     return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(UTC)
+
+
+@dataclass(frozen=True, kw_only=True)
+class ExactPairIdentity:
+    canonical_fixture_id: str
+    competition_id: str
+    season_id: str
+    provider_id: str
+    bookmaker_id: str
+    market: str
+    selection: str
+    exact_line: float
+    pre_evaluation_id: str
+    post_evaluation_id: str
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "canonical_fixture_id": self.canonical_fixture_id,
+            "competition_id": self.competition_id,
+            "season_id": self.season_id,
+            "provider_id": self.provider_id,
+            "bookmaker_id": self.bookmaker_id,
+            "market": self.market,
+            "selection": self.selection,
+            "exact_line": self.exact_line,
+            "pre_evaluation_id": self.pre_evaluation_id,
+            "post_evaluation_id": self.post_evaluation_id,
+        }
+
+    @property
+    def identity_hash(self) -> str:
+        return _pair_sha256(self.as_dict())
+
+
+@dataclass(frozen=True, kw_only=True)
+class ExactPrePostPair:
+    identity: ExactPairIdentity
+    identity_hash: str
+    kickoff_at: datetime
+    lineup_confirmed_at: datetime
+    pre_evaluated_at: datetime
+    pre_capture_at: datetime
+    post_evaluated_at: datetime
+    post_capture_at: datetime
+    lineup_input_hash: str
+    pre_capture_id: str
+    post_capture_id: str
+    pre_quote_identity_hash: str
+    post_quote_identity_hash: str
+    pre_superseded_by_evaluation_id: str | None
+    post_superseded_by_evaluation_id: str | None
+    baseline_distribution: dict[str, float]
+    candidate_distribution: dict[str, float]
+
+
+@dataclass(frozen=True, kw_only=True)
+class PairProjectionExclusion:
+    fixture_id: str
+    market: str | None
+    reason: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class ExactPairProjection:
+    schema_version: str
+    pairs: tuple[ExactPrePostPair, ...]
+    exclusions: tuple[PairProjectionExclusion, ...]
+
+
+@dataclass(frozen=True, kw_only=True)
+class _EligiblePairEvaluation:
+    evaluation_id: str
+    provider_id: str
+    bookmaker_id: str
+    market: str
+    selection: str
+    exact_line: float
+    capture_id: str
+    quote_identity_hash: str
+    lineup_input_hash: str | None
+    evaluated_at: datetime
+    capture_at: datetime
+    distribution: dict[str, float]
+
+    @property
+    def quote_scope(self) -> tuple[str, str, str, str, float]:
+        return (
+            self.provider_id,
+            self.bookmaker_id,
+            self.market,
+            self.selection,
+            self.exact_line,
+        )
+
+
+def project_exact_eval_02b_pairs(engine: Engine) -> ExactPairProjection:
+    """Derive exact immutable Pre/Post pairs without writing or running the gate."""
+    with Session(engine) as session:
+        fixtures = {
+            row.fixture_id: row
+            for row in session.scalars(
+                select(MatchdayFixtureIdentityModel).order_by(
+                    MatchdayFixtureIdentityModel.fixture_id
+                )
+            )
+        }
+        alias_index = _fixture_alias_index(fixtures.values())
+        identity_exclusions: set[tuple[str, str]] = set()
+        events: dict[str, list[LineupConfirmedEventModel]] = {}
+        for event in session.scalars(
+            select(LineupConfirmedEventModel).order_by(
+                LineupConfirmedEventModel.fixture_id,
+                LineupConfirmedEventModel.captured_at,
+                LineupConfirmedEventModel.event_id,
+            )
+        ):
+            fixture_id, blocker = _resolve_fixture_alias(event.fixture_id, alias_index)
+            if fixture_id is None:
+                identity_exclusions.add((event.fixture_id, blocker))
+            else:
+                events.setdefault(fixture_id, []).append(event)
+        evaluations: dict[str, list[DynamicPrematchEvaluationModel]] = {}
+        for evaluation_row in session.scalars(
+            select(DynamicPrematchEvaluationModel).order_by(
+                DynamicPrematchEvaluationModel.fixture_id,
+                DynamicPrematchEvaluationModel.market,
+                DynamicPrematchEvaluationModel.evaluated_at,
+                DynamicPrematchEvaluationModel.evaluation_id,
+            )
+        ):
+            fixture_id, blocker = _resolve_fixture_alias(
+                evaluation_row.fixture_id,
+                alias_index,
+            )
+            if fixture_id is None:
+                identity_exclusions.add((evaluation_row.fixture_id, blocker))
+            else:
+                evaluations.setdefault(fixture_id, []).append(evaluation_row)
+        superseded_by = {
+            row.superseded_evaluation_id: row.superseded_by_evaluation_id
+            for row in session.scalars(select(DynamicPrematchSupersessionModel))
+        }
+
+    pairs: list[ExactPrePostPair] = []
+    exclusions = [
+        PairProjectionExclusion(fixture_id=fixture_id, market=None, reason=reason)
+        for fixture_id, reason in sorted(identity_exclusions)
+    ]
+    for fixture_id in sorted(set(events) | set(evaluations)):
+        fixture = fixtures.get(fixture_id)
+        if fixture is None:
+            exclusions.append(
+                PairProjectionExclusion(
+                    fixture_id=fixture_id,
+                    market=None,
+                    reason="BLOCKED_FIXTURE_IDENTITY_MISSING",
+                )
+            )
+            continue
+        fixture_events = events.get(fixture_id, [])
+        if not fixture_events:
+            exclusions.append(
+                PairProjectionExclusion(
+                    fixture_id=fixture_id,
+                    market=None,
+                    reason="BLOCKED_LINEUP_EVENT_MISSING",
+                )
+            )
+            continue
+        if len(fixture_events) != 1 or not _event_matches_fixture(
+            fixture_events[0],
+            fixture,
+            alias_index,
+        ):
+            exclusions.append(
+                PairProjectionExclusion(
+                    fixture_id=fixture_id,
+                    market=None,
+                    reason="BLOCKED_LINEUP_EVENT_CONFLICT",
+                )
+            )
+            continue
+        event = fixture_events[0]
+        by_market: dict[str, list[_EligiblePairEvaluation]] = {}
+        fixture_evaluations = evaluations.get(fixture_id, [])
+        for row in fixture_evaluations:
+            eligible_evaluation = _eligible_pair_evaluation(row, fixture, alias_index)
+            if eligible_evaluation is not None:
+                by_market.setdefault(eligible_evaluation.market, []).append(
+                    eligible_evaluation
+                )
+        for market in sorted({row.market for row in fixture_evaluations}):
+            pair = _pair_market(
+                fixture,
+                event,
+                by_market.get(market, []),
+                superseded_by,
+            )
+            if pair is None:
+                exclusions.append(
+                    PairProjectionExclusion(
+                        fixture_id=fixture_id,
+                        market=market,
+                        reason="BLOCKED_EXACT_PRE_POST_PAIR_MISSING_OR_AMBIGUOUS",
+                    )
+                )
+            else:
+                pairs.append(pair)
+    return ExactPairProjection(
+        schema_version=PAIR_PROJECTOR_SCHEMA,
+        pairs=tuple(
+            sorted(
+                pairs,
+                key=lambda pair: (
+                    pair.kickoff_at,
+                    pair.identity.canonical_fixture_id,
+                    pair.identity.market,
+                ),
+            )
+        ),
+        exclusions=tuple(exclusions),
+    )
+
+
+def _fixture_alias_index(
+    fixtures: Iterable[MatchdayFixtureIdentityModel],
+) -> dict[str, set[str]]:
+    index: dict[str, set[str]] = {}
+    for fixture in fixtures:
+        aliases = {
+            fixture.fixture_id,
+            fixture.provider_fixture_id,
+            f"api_football:{fixture.provider_fixture_id}",
+        }
+        if fixture.fixture_id.startswith("api_football:"):
+            aliases.add(fixture.fixture_id.removeprefix("api_football:"))
+        for alias in aliases:
+            if alias:
+                index.setdefault(alias, set()).add(fixture.fixture_id)
+    return index
+
+
+def _resolve_fixture_alias(
+    fixture_id: str,
+    alias_index: dict[str, set[str]],
+) -> tuple[str | None, str]:
+    matches = alias_index.get(fixture_id, set())
+    if not matches:
+        return None, "BLOCKED_FIXTURE_IDENTITY_MISSING"
+    if len(matches) != 1:
+        return None, "BLOCKED_FIXTURE_IDENTITY_CONFLICT"
+    return next(iter(matches)), ""
+
+
+def _event_matches_fixture(
+    event: LineupConfirmedEventModel,
+    fixture: MatchdayFixtureIdentityModel,
+    alias_index: dict[str, set[str]],
+) -> bool:
+    payload = event.payload
+    event_fixture_id, _ = _resolve_fixture_alias(event.fixture_id, alias_index)
+    payload_fixture_id, _ = _resolve_fixture_alias(
+        str(payload.get("fixture_id") or ""),
+        alias_index,
+    )
+    captured_at = _pair_time(payload.get("captured_at"))
+    return bool(
+        payload.get("schema_version") == "w2.lineup_confirmed_event.v2"
+        and event_fixture_id == fixture.fixture_id
+        and payload_fixture_id == fixture.fixture_id
+        and payload.get("competition_id") == fixture.competition_id
+        and payload.get("season") == fixture.season
+        and payload.get("lineup_input_hash") == event.lineup_input_hash
+        and payload.get("checkpoint") == event.checkpoint == "LINEUP_CONFIRMED"
+        and captured_at == _pair_utc(event.captured_at)
+        and _pair_utc(event.captured_at) < _pair_utc(fixture.kickoff_utc)
+    )
+
+
+def _eligible_pair_evaluation(
+    row: DynamicPrematchEvaluationModel,
+    fixture: MatchdayFixtureIdentityModel,
+    alias_index: dict[str, set[str]],
+) -> _EligiblePairEvaluation | None:
+    payload = row.payload
+    row_fixture_id, _ = _resolve_fixture_alias(row.fixture_id, alias_index)
+    payload_fixture_id, _ = _resolve_fixture_alias(
+        str(payload.get("fixture_id") or ""),
+        alias_index,
+    )
+    if (
+        payload.get("schema_version") != DYNAMIC_EVALUATION_V2_SCHEMA
+        or row.original_state not in _PAIR_ELIGIBLE_STATES
+        or row.market not in _PAIR_MARKETS
+        or row_fixture_id != fixture.fixture_id
+        or payload_fixture_id != fixture.fixture_id
+        or payload.get("market") != row.market
+        or payload.get("selection") != row.selection
+        or payload.get("capture_id") != row.capture_id
+        or payload.get("quote_identity_hash") != row.quote_identity_hash
+        or payload.get("lineup_input_hash") != row.lineup_input_hash
+        or payload.get("competition_id") != fixture.competition_id
+        or payload.get("season") != fixture.season
+        or payload.get("provider") != fixture.provider
+    ):
+        return None
+    if any(
+        value is None or not str(value).strip()
+        for value in (
+            payload.get("bookmaker_id"),
+            payload.get("capture_id"),
+            payload.get("quote_identity_hash"),
+            payload.get("market"),
+            payload.get("selection"),
+        )
+    ):
+        return None
+    exact_line = _pair_float(payload.get("exact_line"))
+    capture_at = _pair_time(payload.get("capture_at"))
+    evaluated_at = _pair_time(payload.get("evaluated_at"))
+    distribution = _pair_distribution(payload.get("model_settlement_distribution"))
+    if (
+        exact_line is None
+        or capture_at is None
+        or evaluated_at is None
+        or distribution is None
+        or row.capture_at is None
+        or capture_at != _pair_utc(row.capture_at)
+        or evaluated_at != _pair_utc(row.evaluated_at)
+    ):
+        return None
+    return _EligiblePairEvaluation(
+        evaluation_id=row.evaluation_id,
+        provider_id=fixture.provider,
+        bookmaker_id=str(payload["bookmaker_id"]),
+        market=str(payload["market"]),
+        selection=str(payload["selection"]),
+        exact_line=exact_line,
+        capture_id=str(payload["capture_id"]),
+        quote_identity_hash=str(payload["quote_identity_hash"]),
+        lineup_input_hash=(
+            str(payload["lineup_input_hash"]) if payload.get("lineup_input_hash") else None
+        ),
+        evaluated_at=evaluated_at,
+        capture_at=capture_at,
+        distribution=distribution,
+    )
+
+
+def _pair_market(
+    fixture: MatchdayFixtureIdentityModel,
+    event: LineupConfirmedEventModel,
+    evaluations: list[_EligiblePairEvaluation],
+    superseded_by: dict[str, str],
+) -> ExactPrePostPair | None:
+    event_at = _pair_utc(event.captured_at)
+    groups: dict[tuple[str, str, str, str, float], list[_EligiblePairEvaluation]] = {}
+    for evaluation in evaluations:
+        groups.setdefault(evaluation.quote_scope, []).append(evaluation)
+    candidates: list[tuple[_EligiblePairEvaluation, _EligiblePairEvaluation]] = []
+    for rows in groups.values():
+        pre_rows = [
+            row
+            for row in rows
+            if row.lineup_input_hash is None and row.capture_at < event_at
+        ]
+        post_rows = [
+            row
+            for row in rows
+            if row.lineup_input_hash == event.lineup_input_hash and row.capture_at >= event_at
+        ]
+        if pre_rows and post_rows:
+            candidates.append(
+                (
+                    max(
+                        pre_rows,
+                        key=lambda row: (
+                            row.capture_at,
+                            row.evaluated_at,
+                            row.evaluation_id,
+                        ),
+                    ),
+                    min(
+                        post_rows,
+                        key=lambda row: (
+                            row.capture_at,
+                            row.evaluated_at,
+                            row.evaluation_id,
+                        ),
+                    ),
+                )
+            )
+    if len(candidates) != 1:
+        return None
+    pre_evaluation, post_evaluation = candidates[0]
+    identity = ExactPairIdentity(
+        canonical_fixture_id=fixture.fixture_id,
+        competition_id=fixture.competition_id,
+        season_id=fixture.season,
+        provider_id=pre_evaluation.provider_id,
+        bookmaker_id=pre_evaluation.bookmaker_id,
+        market=pre_evaluation.market,
+        selection=pre_evaluation.selection,
+        exact_line=pre_evaluation.exact_line,
+        pre_evaluation_id=pre_evaluation.evaluation_id,
+        post_evaluation_id=post_evaluation.evaluation_id,
+    )
+    return ExactPrePostPair(
+        identity=identity,
+        identity_hash=identity.identity_hash,
+        kickoff_at=_pair_utc(fixture.kickoff_utc),
+        lineup_confirmed_at=event_at,
+        pre_evaluated_at=pre_evaluation.evaluated_at,
+        pre_capture_at=pre_evaluation.capture_at,
+        post_evaluated_at=post_evaluation.evaluated_at,
+        post_capture_at=post_evaluation.capture_at,
+        lineup_input_hash=event.lineup_input_hash,
+        pre_capture_id=pre_evaluation.capture_id,
+        post_capture_id=post_evaluation.capture_id,
+        pre_quote_identity_hash=pre_evaluation.quote_identity_hash,
+        post_quote_identity_hash=post_evaluation.quote_identity_hash,
+        pre_superseded_by_evaluation_id=superseded_by.get(
+            pre_evaluation.evaluation_id
+        ),
+        post_superseded_by_evaluation_id=superseded_by.get(
+            post_evaluation.evaluation_id
+        ),
+        baseline_distribution=pre_evaluation.distribution,
+        candidate_distribution=post_evaluation.distribution,
+    )
+
+
+def _pair_distribution(value: object) -> dict[str, float] | None:
+    if not isinstance(value, dict) or set(value) != set(SETTLEMENT_STATE_ORDER):
+        return None
+    try:
+        result = {state: float(value[state]) for state in SETTLEMENT_STATE_ORDER}
+    except (TypeError, ValueError):
+        return None
+    if any(not math.isfinite(item) or item < 0 for item in result.values()):
+        return None
+    if abs(sum(result.values()) - 1.0) > EVAL_02B_DISTRIBUTION_TOLERANCE:
+        return None
+    return result
+
+
+def _pair_float(value: object) -> float | None:
+    if not isinstance(value, (str, int, float)):
+        return None
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    return result if math.isfinite(result) else None
+
+
+def _pair_time(value: object) -> datetime | None:
+    if isinstance(value, datetime):
+        return _pair_utc(value)
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(UTC)
+    except (TypeError, ValueError):
+        return None
+
+
+def _pair_utc(value: datetime) -> datetime:
+    return value.astimezone(UTC) if value.tzinfo else value.replace(tzinfo=UTC)
+
+
+def _pair_sha256(value: object) -> str:
+    payload = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
