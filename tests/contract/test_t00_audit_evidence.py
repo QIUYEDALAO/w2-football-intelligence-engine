@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import runpy
 import subprocess
 import sys
 from pathlib import Path
@@ -22,6 +23,22 @@ ZERO_MARKERS = (
     "UNCLASSIFIED_REMOVED_GUARDS = 0",
 )
 NONZERO_MARKERS = ("UNREVIEWED_MAIN_AUTOMATION_HUNKS = 145",)
+G10_S07_MARKERS = (
+    "SCRIPT_MATRIX_ROWS = 145",
+    "SCRIPT_MATRIX_FIELDS = 1160",
+    "IMPLEMENTER_VERIFIED_FIELDS = 1160",
+    "PENDING_INDEPENDENT_REVIEW_FIELDS = 1160",
+    "CONFLICTING_FIELDS = 0",
+    "TOTAL_PENDING_CANDIDATES = 222",
+    "GATE_A_FINAL = 25",
+    "GATE_B_FINAL = 14",
+    "GATE_C_FINAL = 79",
+    "GATE_D_FINAL = 3",
+    "SAFE_DEGRADATION = 3",
+    "ACCEPTED_WITH_REASON = 98",
+    "MAPPED_TO_C1_C11 = 28",
+    "NEW_FINDING_IDS = 0",
+)
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -77,6 +94,8 @@ def test_t00_reports_match_sha256_sidecars_and_close_all_classifications() -> No
     for marker in ZERO_MARKERS:
         assert marker in combined
     for marker in NONZERO_MARKERS:
+        assert marker in combined
+    for marker in G10_S07_MARKERS:
         assert marker in combined
 
 
@@ -143,3 +162,34 @@ def test_t00_missing_pr_ref_has_actionable_error_without_traceback(tmp_path: Pat
     assert "PR #450 exact ref/object" in result.stderr
     assert f"git fetch github-w2 refs/pull/450/head:{missing}" in result.stderr
     assert "Traceback" not in result.stderr
+
+
+def test_g10_6_matrix_is_implementer_verified_but_not_self_closed() -> None:
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    report = scanner["checklist_review"](scanner["BASE_SHA"])
+    assert report["script_matrix_rows"] == 145
+    assert report["script_matrix_fields"] == 1160
+    assert report["implementer_verified_fields"] == 1160
+    assert report["pending_independent_review_fields"] == 1160
+    assert report["conflicting_fields"] == 0
+    assert report["unreviewed"] == 145
+
+
+def test_s07_adjudicates_every_r2_r3_candidate_without_new_findings() -> None:
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    files = scanner["python_files"](scanner["BASE_SHA"])
+    risks = scanner["risk_candidates"](files)
+    candidates = scanner["adjudicate_s07"](risks["R2"] + risks["R3"])
+    assert len(candidates) == 222
+    assert all(row["final_target_gate"] in scanner["FINAL_TARGET_GATES"] for row in candidates)
+    assert all(row["target_gate"] != "PENDING_S07" for row in candidates)
+    assert all(row["independent_review"] == "PENDING_S07_8" for row in candidates)
+    assert sum(row["mapped_existing_blocker"] is not None for row in candidates) == 28
+    gate_a = [row for row in candidates if row["final_target_gate"] == "GATE_A"]
+    assert len(gate_a) == 25
+    assert all(all(row["gate_a_admission_conditions"].values()) for row in gate_a)
+    assert all(
+        set(row["gate_a_admission_evidence"])
+        == set(row["gate_a_admission_conditions"])
+        for row in gate_a
+    )

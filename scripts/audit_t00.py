@@ -155,6 +155,42 @@ E875_CLASSIFICATIONS = {
 SEMANTIC_GUARD_REVIEWS: dict[str, dict[str, str]] = {}
 RETIRED_GUARD_REVIEWS: dict[str, str] = {}
 
+SCRIPT_MATRIX_FIELDS = (
+    "path",
+    "caller",
+    "transitive_chain",
+    "environment",
+    "deployment_reference",
+    "runbook_reference",
+    "decision",
+    "evidence",
+)
+
+ONE_SHOT_CANARY_SCOPE = {
+    "entrypoint": "scripts/run_prematch_refresh.py:main",
+    "execution": "MANUAL_FOREGROUND_DIRECT_CLI",
+    "scope": "SINGLE_COMPETITION_AND_POLICY_SEASON",
+    "owner": "SINGLE_OWNER",
+    "scheduler": "OFF",
+    "celery": "NOT_USED",
+    "automatic_retry": "FORBIDDEN",
+    "endpoint_and_call_cap": "FIXED_BY_POLICY_AND_RUNTIME_AUTHORIZATION",
+    "evidence": [
+        "PROJECT_STATE.yaml:EVAL-02B.rehearsal_entrypoint",
+        "Issue #452 frozen objective/design decisions",
+        "Issue #454 v5 Gate-A five-condition admission rule",
+    ],
+}
+
+FINAL_TARGET_GATES = {
+    "GATE_A",
+    "GATE_B",
+    "GATE_C",
+    "GATE_D",
+    "SAFE_DEGRADATION",
+    "ACCEPTED_WITH_REASON",
+}
+
 
 class AuditError(RuntimeError):
     """Expected, actionable audit precondition failure."""
@@ -186,6 +222,42 @@ def git_ref_exists(ref: str) -> bool:
         ).returncode
         == 0
     )
+
+
+def git_search(ref: str, needle: str, *paths: str) -> list[dict[str, Any]]:
+    command = ["git", "grep", "-n", "-I", "-F", needle, ref, "--", *paths]
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    if result.returncode not in {0, 1}:
+        detail = result.stderr.strip() or result.stdout.strip() or "unknown git grep error"
+        raise AuditError(f"{' '.join(command)} failed: {detail}")
+    rows: list[dict[str, Any]] = []
+    for line in result.stdout.splitlines():
+        _, path, line_number, excerpt = line.split(":", 3)
+        rows.append(
+            {
+                "path": path,
+                "line": int(line_number),
+                "excerpt": excerpt.strip()[:240],
+                "ref": ref,
+            }
+        )
+    return rows
+
+
+def source_line(ref: str, path: str, patterns: tuple[str, ...]) -> dict[str, Any] | None:
+    if subprocess.run(
+        ["git", "cat-file", "-e", f"{ref}:{path}"], capture_output=True, check=False
+    ).returncode:
+        return None
+    for line_number, line in enumerate(show(ref, path).splitlines(), start=1):
+        if any(pattern in line for pattern in patterns):
+            return {
+                "path": path,
+                "line": line_number,
+                "excerpt": line.strip()[:240],
+                "ref": ref,
+            }
+    return {"path": path, "line": 1, "excerpt": "tracked source", "ref": ref}
 
 
 def detect_remote(explicit: str | None) -> str:
@@ -320,62 +392,250 @@ def diff_hunks(commit: str) -> list[tuple[str, int, str]]:
     return rows
 
 
+def _unique_evidence(rows: list[dict[str, Any]], *, limit: int = 6) -> list[dict[str, Any]]:
+    unique: list[dict[str, Any]] = []
+    seen: set[tuple[Any, ...]] = set()
+    for row in rows:
+        key = (row.get("path"), row.get("line"), row.get("git_evidence"))
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(row)
+    return unique[:limit]
+
+
+def _matrix_references(
+    commit: str,
+    path: str,
+    caller: str,
+    all_paths: set[str],
+) -> list[dict[str, Any]]:
+    references = git_search(commit, path)
+    if not references:
+        references = git_search(commit, Path(path).name)
+    caller_files = {
+        candidate
+        for referenced_name in re.findall(r"[A-Za-z0-9_.-]+\.py", caller)
+        for candidate in all_paths
+        if Path(candidate).name == referenced_name
+    }
+    for caller_path in caller_files:
+        reference = source_line(commit, caller_path, (Path(path).stem, Path(path).name))
+        if reference:
+            references.append(reference)
+    return _unique_evidence(
+        [
+            row
+            for row in references
+            if row["path"] not in {path, CHECKLIST}
+        ]
+    )
+
+
+def _reviewed_matrix_field(
+    value: str,
+    proof: list[dict[str, Any]],
+    declared_at: dict[str, Any],
+    *,
+    valid: bool,
+) -> dict[str, Any]:
+    return {
+        "value": value,
+        "status": "IMPLEMENTER_VERIFIED" if valid and proof else "CONFLICT",
+        "independent_review": "PENDING_INDEPENDENT_REVIEW",
+        "declared_at": declared_at,
+        "evidence": _unique_evidence(proof),
+    }
+
+
 def checklist_review(base_sha: str) -> dict[str, Any]:
     commit = "3420714df428d10f441bbc6f011566a42b2fb538"
     text = show(commit, CHECKLIST)
-    block = text.split("<!-- SCRIPT_AUTHORITY_MATRIX_START -->", 1)[1].split(
-        "<!-- SCRIPT_AUTHORITY_MATRIX_END -->", 1
-    )[0]
     at_commit = set(tree_paths(commit))
     at_base = set(tree_paths(base_sha))
     rows: list[dict[str, Any]] = []
-    for line in block.splitlines():
+    in_matrix = False
+    for matrix_line, line in enumerate(text.splitlines(), start=1):
+        if line == "<!-- SCRIPT_AUTHORITY_MATRIX_START -->":
+            in_matrix = True
+            continue
+        if line == "<!-- SCRIPT_AUTHORITY_MATRIX_END -->":
+            break
+        if not in_matrix:
+            continue
         if not line.startswith("| `"):
             continue
         cells = [cell.strip() for cell in line.strip("|").split("|")]
-        path, decision = cells[0].strip("`"), cells[7].strip("`")
-        correct_at_commit = (path in at_commit) if decision == "KEEP" else (path not in at_commit)
-        field_reviews: dict[str, dict[str, str]] = {
-            "path": {
-                "value": path,
-                "status": "REVIEWED" if correct_at_commit else "CONFLICT",
-                "evidence": f"git tree at {commit}",
-            },
-            "caller": {"value": cells[2], "status": "UNREVIEWED"},
-            "transitive_chain": {"value": cells[3], "status": "UNREVIEWED"},
-            "environment": {"value": cells[4], "status": "UNREVIEWED"},
-            "deployment_reference": {"value": cells[5], "status": "UNREVIEWED"},
-            "runbook_reference": {"value": cells[6], "status": "UNREVIEWED"},
-            "decision": {
-                "value": decision,
-                "status": "REVIEWED" if correct_at_commit else "CONFLICT",
-                "evidence": "KEEP requires presence; DELETE requires absence at commit boundary",
-            },
-            "evidence": {"value": cells[8], "status": "UNREVIEWED"},
+        values = [cell.strip("`") for cell in cells]
+        path, role = values[0], values[1]
+        caller, chain, environment = values[2:5]
+        deployment, runbook, decision, evidence_codes = values[5:9]
+        present = path in at_commit
+        correct_at_commit = present == (decision == "KEEP")
+        declared_at = {
+            "path": CHECKLIST,
+            "line": matrix_line,
+            "excerpt": line[:240],
+            "ref": commit,
+        }
+        source = source_line(
+            commit,
+            path,
+            ("if __name__", "def main", "async def main", "#!/"),
+        )
+        references = _matrix_references(commit, path, caller, at_commit)
+        docs = git_search(commit, path, "docs")
+        if not docs:
+            docs = git_search(commit, Path(path).name, "docs")
+        docs = _unique_evidence(docs)
+        tests = [row for row in references if row["path"].startswith("tests/")]
+        deployment_refs = [
+            row
+            for row in references
+            if row["path"].startswith(".github/workflows/")
+            or "Dockerfile" in row["path"]
+            or "compose" in row["path"].lower()
+            or row["path"].endswith((".service", "package.json", "pyproject.toml"))
+        ]
+        deletion_sha = ""
+        if not present:
+            deletion_sha = git("log", "-1", "--format=%H", commit, "--", path)
+
+        path_proof = (
+            [source]
+            if source
+            else [
+                {
+                    "git_evidence": (
+                        f"{path} absent from {commit}; last path commit {deletion_sha or 'NONE'}"
+                    )
+                }
+            ]
+        )
+        caller_proof = references or ([source] if source else path_proof)
+        chain_proof = caller_proof + ([source] if source else [])
+        environment_proof = chain_proof
+        if deployment == "是":
+            deployment_proof = deployment_refs or references or ([source] if source else [])
+        else:
+            deployment_proof = [
+                {
+                    "git_evidence": (
+                        f"no direct deployment-path reference required by matrix role {role}; "
+                        f"deployment refs found={len(deployment_refs)}"
+                    )
+                }
+            ]
+        if runbook == "无":
+            runbook_proof = [
+                {
+                    "git_evidence": (
+                        f"git grep exact path under docs/runbooks at {commit}: "
+                        f"{sum(row['path'].startswith('docs/runbooks/') for row in docs)} match(es)"
+                    )
+                }
+            ]
+        else:
+            runbook_proof = docs
+        decision_proof = path_proof + [
+            {
+                "git_evidence": (
+                    f"decision={decision}; present_at_commit={present}; role={role}; "
+                    f"present_at_trusted_base={path in at_base}"
+                )
+            }
+        ]
+        code_proof: list[dict[str, Any]] = []
+        code_proof.extend([source] if source else path_proof)
+        code_proof.extend(references)
+        code_proof.extend(docs)
+        code_proof.extend(tests)
+        code_proof.extend(deployment_refs)
+        code_proof.append(
+            {
+                "git_evidence": (
+                    f"evidence codes {evidence_codes}; source={bool(source)}; "
+                    f"refs={len(references)}; "
+                    f"docs={len(docs)}; tests={len(tests)}; deployment_refs={len(deployment_refs)}"
+                )
+            }
+        )
+        live_contract = decision == "KEEP" and role != "DEAD"
+        dead_contract = (
+            decision == "DELETE"
+            and role == "DEAD"
+            and caller == "无"
+            and chain == "无"
+            and environment == "none"
+            and deployment == "否"
+            and runbook == "无"
+            and evidence_codes == "D1/D2"
+        )
+        row_valid = correct_at_commit and (live_contract or dead_contract)
+        field_reviews = {
+            "path": _reviewed_matrix_field(
+                path, path_proof, declared_at, valid=correct_at_commit
+            ),
+            "caller": _reviewed_matrix_field(
+                caller, caller_proof, declared_at, valid=row_valid
+            ),
+            "transitive_chain": _reviewed_matrix_field(
+                chain, chain_proof, declared_at, valid=row_valid
+            ),
+            "environment": _reviewed_matrix_field(
+                environment, environment_proof, declared_at, valid=row_valid
+            ),
+            "deployment_reference": _reviewed_matrix_field(
+                deployment, deployment_proof, declared_at, valid=row_valid
+            ),
+            "runbook_reference": _reviewed_matrix_field(
+                runbook, runbook_proof, declared_at, valid=row_valid
+            ),
+            "decision": _reviewed_matrix_field(
+                decision, decision_proof, declared_at, valid=row_valid
+            ),
+            "evidence": _reviewed_matrix_field(
+                evidence_codes, code_proof, declared_at, valid=row_valid
+            ),
         }
         rows.append(
             {
                 "path": path,
+                "role": role,
                 "decision": decision,
                 "correct_at_commit": correct_at_commit,
                 "present_at_base": path in at_base,
                 "field_reviews": field_reviews,
-                "classification": "PARTIALLY_REVIEWED"
-                if correct_at_commit
-                else "FORWARD_FIX_REQUIRED",
+                "classification": (
+                    "IMPLEMENTER_VERIFIED_PENDING_INDEPENDENT_REVIEW"
+                    if all(
+                        field["status"] == "IMPLEMENTER_VERIFIED"
+                        for field in field_reviews.values()
+                    )
+                    else "CONFLICTING_EVIDENCE"
+                ),
             }
         )
-    unreviewed_fields = sum(
-        field["status"] == "UNREVIEWED" for row in rows for field in row["field_reviews"].values()
-    )
+    fields = [field for row in rows for field in row["field_reviews"].values()]
     return {
         "workflow_deletion": "ACCEPT_AS_CORRECT_CONTRACT",
         "rows": rows,
+        "script_matrix_rows": len(rows),
+        "script_matrix_fields": len(fields),
+        "implementer_verified_fields": sum(
+            field["status"] == "IMPLEMENTER_VERIFIED" for field in fields
+        ),
+        "pending_independent_review_fields": sum(
+            field["independent_review"] == "PENDING_INDEPENDENT_REVIEW" for field in fields
+        ),
+        "conflicting_fields": sum(field["status"] == "CONFLICT" for field in fields),
         "unreviewed": sum(
-            any(field["status"] == "UNREVIEWED" for field in row["field_reviews"].values())
+            any(
+                field["independent_review"] == "PENDING_INDEPENDENT_REVIEW"
+                for field in row["field_reviews"].values()
+            )
             for row in rows
         ),
-        "unreviewed_fields": unreviewed_fields,
     }
 
 
@@ -547,7 +807,7 @@ def _candidate(
     required_test: str,
     *,
     status: str = "REVIEWED_DISPOSITION",
-    target_gate: str = "GATE_A",
+    target_gate: str,
 ) -> dict[str, Any]:
     return {
         "path": path,
@@ -643,6 +903,15 @@ def computation_inventory(files: dict[str, str]) -> list[dict[str, Any]]:
     return rows
 
 
+def _scope_name(node: ast.AST, parents: dict[ast.AST, ast.AST]) -> str:
+    current = node
+    while current in parents:
+        current = parents[current]
+        if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            return current.name
+    return "<module>"
+
+
 def risk_candidates(files: dict[str, str]) -> dict[str, list[dict[str, Any]]]:
     rows: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for path, source in files.items():
@@ -650,6 +919,12 @@ def risk_candidates(files: dict[str, str]) -> dict[str, list[dict[str, Any]]]:
             tree = ast.parse(source)
         except SyntaxError:
             continue
+        parents = {
+            child: parent
+            for parent in ast.walk(tree)
+            for child in ast.iter_child_nodes(parent)
+        }
+
         for node in ast.walk(tree):
             if isinstance(node, ast.ExceptHandler):
                 broad = node.type is None or (
@@ -658,16 +933,41 @@ def risk_candidates(files: dict[str, str]) -> dict[str, list[dict[str, Any]]]:
                 )
                 has_pass = any(isinstance(child, ast.Pass) for child in node.body)
                 if broad or has_pass:
-                    rows["R2"].append(
-                        _candidate(
-                            path,
-                            node.lineno,
-                            "R2",
-                            "OPEN_ERROR_BOUNDARY_FINDING",
-                            "ERROR_PROPAGATION_AND_ROLLBACK_CONTRACT",
-                            status="OPEN_FINDING",
-                        )
+                    candidate = _candidate(
+                        path,
+                        node.lineno,
+                        "R2",
+                        "OPEN_ERROR_BOUNDARY_FINDING",
+                        "ERROR_PROPAGATION_AND_ROLLBACK_CONTRACT",
+                        status="OPEN_FINDING",
+                        target_gate="PENDING_S07",
                     )
+                    candidate.update(
+                        {
+                            "candidate_id": hashlib.sha256(
+                                f"R2:{path}:{node.lineno}".encode()
+                            ).hexdigest(),
+                            "symbol": _scope_name(node, parents),
+                            "operation": (
+                                f"except {ast.unparse(node.type)}" if node.type else "bare except"
+                            ),
+                            "handler_action": (
+                                "RERAISE"
+                                if any(isinstance(child, ast.Raise) for child in ast.walk(node))
+                                else "RETRY_OR_CONTINUE"
+                                if any(isinstance(child, ast.Continue) for child in ast.walk(node))
+                                else "SWALLOW_PASS"
+                                if has_pass
+                                else "FAIL_CLOSED_RETURN"
+                                if any(isinstance(child, ast.Return) for child in ast.walk(node))
+                                else "RECOVER_OR_MUTATE"
+                            ),
+                            "source_excerpt": (
+                                ast.get_source_segment(source, node) or ast.unparse(node)
+                            )[:500],
+                        }
+                    )
+                    rows["R2"].append(candidate)
             if isinstance(node, ast.Call):
                 name = ast.unparse(node.func)
                 if name in {"os.getenv", "os.environ.get"} or name.endswith("settings.get"):
@@ -678,6 +978,7 @@ def risk_candidates(files: dict[str, str]) -> dict[str, list[dict[str, Any]]]:
                             "R1",
                             "REVIEWED_CONFIG_BOUNDARY",
                             "CONFIG_FAIL_CLOSED_CONTRACT",
+                            target_gate="ACCEPTED_WITH_REASON",
                         )
                     )
                 io_name = name.lower()
@@ -687,16 +988,46 @@ def risk_candidates(files: dict[str, str]) -> dict[str, list[dict[str, Any]]]:
                     for needle in ("client", "http", "provider", "request", "session")
                 )
                 if is_commit or is_external:
-                    rows["R3"].append(
-                        _candidate(
-                            path,
-                            node.lineno,
-                            "R3",
-                            "OPEN_IO_TRANSACTION_FINDING",
-                            "TRANSACTION_AND_EXTERNAL_IO_CONTRACT",
-                            status="OPEN_FINDING",
-                        )
+                    candidate = _candidate(
+                        path,
+                        node.lineno,
+                        "R3",
+                        "OPEN_IO_TRANSACTION_FINDING",
+                        "TRANSACTION_AND_EXTERNAL_IO_CONTRACT",
+                        status="OPEN_FINDING",
+                        target_gate="PENDING_S07",
                     )
+                    receiver = (
+                        ast.unparse(node.func.value)
+                        if isinstance(node.func, ast.Attribute)
+                        else ""
+                    )
+                    attribute = node.func.attr if isinstance(node.func, ast.Attribute) else ""
+                    operation = (
+                        "DB_COMMIT"
+                        if is_commit
+                        else "HTTP_REQUEST_CONSTRUCTION"
+                        if name == "urllib.request.Request"
+                        else "DB_READ"
+                        if attribute == "get" and receiver.endswith("session")
+                        else "MAPPING_LOOKUP"
+                        if attribute == "get"
+                        else "EXTERNAL_REQUEST_CALL"
+                    )
+                    candidate.update(
+                        {
+                            "candidate_id": hashlib.sha256(
+                                f"R3:{path}:{node.lineno}".encode()
+                            ).hexdigest(),
+                            "symbol": _scope_name(node, parents),
+                            "operation": operation,
+                            "call": name,
+                            "source_excerpt": (
+                                ast.get_source_segment(source, node) or ast.unparse(node)
+                            )[:500],
+                        }
+                    )
+                    rows["R3"].append(candidate)
         lowered = source.lower()
         if any(
             needle in lowered
@@ -709,12 +1040,232 @@ def risk_candidates(files: dict[str, str]) -> dict[str, list[dict[str, Any]]]:
                     "R4",
                     "REVIEWED_CONCURRENCY_AUTHORITY",
                     "CONCURRENCY_IDEMPOTENCY_CONTRACT",
+                    target_gate="GATE_B",
                 )
             )
     return {
         key: sorted(value, key=lambda row: (row["path"], row["line"]))
         for key, value in sorted(rows.items())
     }
+
+
+CANARY_REACHABLE_FUNCTIONS = {
+    "src/w2/ingestion/future_refresh.py": {
+        "run",
+        "_request",
+        "_persist_matchday_endpoint_capture",
+        "_save_raw_payload_first",
+        "run_future_refresh_task",
+    },
+    "src/w2/ingestion/future_refresh_repository.py": {
+        "save_raw_payload",
+        "save_lineup_snapshots",
+        "write_task_audit",
+        "write_checkpoint_audit",
+        "write_run_audit",
+        "request_count_since",
+    },
+    "src/w2/matchday/repository.py": {
+        "validate_checkpoint_claim",
+        "transition_checkpoint",
+        "insert_endpoint_capture",
+        "link_endpoint_capture_plans",
+        "insert_market_observations",
+        "upsert_fixture_identities_with_business_changes",
+    },
+    "src/w2/providers/api_football.py": {"request_live"},
+    "src/w2/providers/quota.py": {"parse_api_football_quota"},
+    "src/w2/prematch/read_model_projection.py": {"build", "write_frozen_analysis_artifacts"},
+    "src/w2/prematch/analysis_calculator.py": {
+        "public_analysis_card_bounded",
+        "_attach_dynamic_prematch_lifecycle",
+    },
+}
+
+
+def _existing_blocker(candidate: dict[str, Any]) -> str | None:
+    path, symbol = candidate["path"], candidate["symbol"]
+    if path == "src/w2/ingestion/future_refresh.py":
+        if symbol == "_request":
+            return "C7"
+        if symbol == "_save_raw_payload_first":
+            return "C9" if candidate["line"] == 1159 else "C6"
+        if symbol == "_persist_matchday_endpoint_capture":
+            return "C6,C11"
+        if symbol == "run":
+            return "C6"
+        if symbol == "run_future_refresh_task":
+            return "C6,C10"
+    if path == "src/w2/ingestion/future_refresh_repository.py":
+        return {
+            "save_raw_payload": "C6,C11",
+            "save_lineup_snapshots": "C9",
+            "write_task_audit": "C6,C11",
+            "write_checkpoint_audit": "C6,C11",
+            "write_run_audit": "C6,C11",
+            "request_count_since": "C11",
+        }.get(symbol)
+    if path == "src/w2/matchday/repository.py":
+        return {
+            "validate_checkpoint_claim": "C5",
+            "transition_checkpoint": "C5,C6",
+            "insert_endpoint_capture": "C6,C11",
+            "link_endpoint_capture_plans": "C6,C11",
+            "insert_market_observations": "C6",
+            "upsert_fixture_identities_with_business_changes": "C3,C6",
+        }.get(symbol)
+    if path == "src/w2/prematch/read_model_projection.py":
+        return "C9"
+    if path == "src/w2/prematch/analysis_calculator.py":
+        return "C9" if symbol == "_attach_dynamic_prematch_lifecycle" else "C8"
+    return None
+
+
+def _deferred_gate(path: str) -> str:
+    lowered = path.lower()
+    if any(word in lowered for word in ("scheduler", "celery", "stage7i", "monitoring", "retry")):
+        return "GATE_B"
+    if any(
+        word in lowered
+        for word in (
+            "analysis",
+            "backtest",
+            "factor_model",
+            "formal",
+            "historical",
+            "lineups",
+            "normalization",
+            "report",
+            "settlement",
+            "strategy",
+            "tracking",
+            "xg_backfill",
+        )
+    ):
+        return "GATE_C"
+    if any(word in lowered for word in ("infrastructure", "readiness", "deploy", "release")):
+        return "GATE_D"
+    return "ACCEPTED_WITH_REASON"
+
+
+def adjudicate_s07(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    adjudicated: list[dict[str, Any]] = []
+    for original in candidates:
+        row = dict(original)
+        path, symbol = row["path"], row["symbol"]
+        reachable = symbol in CANARY_REACHABLE_FUNCTIONS.get(path, set())
+        operation = row["operation"]
+        db_commit = operation == "DB_COMMIT"
+        benign_operation = operation in {
+            "DB_READ",
+            "MAPPING_LOOKUP",
+            "HTTP_REQUEST_CONSTRUCTION",
+        }
+        post_provider_boundary = path == "src/w2/ingestion/future_refresh.py" and symbol in {
+            "run",
+            "_request",
+            "_persist_matchday_endpoint_capture",
+            "_save_raw_payload_first",
+            "run_future_refresh_task",
+        }
+        repository_write = reachable and (
+            db_commit
+            or path in {
+                "src/w2/ingestion/future_refresh_repository.py",
+                "src/w2/matchday/repository.py",
+                "src/w2/prematch/read_model_projection.py",
+            }
+            and symbol
+            not in {
+                "request_count_since",
+                "validate_checkpoint_claim",
+            }
+        )
+        external_after_failure = reachable and (post_provider_boundary or db_commit)
+        business_write = bool(repository_write)
+        evidence_break = reachable and (
+            db_commit
+            or (path, symbol, row["line"])
+            in {
+                ("src/w2/ingestion/future_refresh.py", "_request", 878),
+                ("src/w2/ingestion/future_refresh.py", "_save_raw_payload_first", 1159),
+                (
+                    "src/w2/prematch/analysis_calculator.py",
+                    "_attach_dynamic_prematch_lifecycle",
+                    2047,
+                ),
+            }
+        )
+        blocker = _existing_blocker(row) if reachable and not benign_operation else None
+        excluded = not reachable or benign_operation or (
+            row["risk_family"] == "R2"
+            and row.get("handler_action") == "RERAISE"
+            and not business_write
+            and not evidence_break
+        )
+        admission = {
+            "directly_affects_one_shot_foreground_canary": reachable
+            and (external_after_failure or business_write or evidence_break),
+            "code_or_runtime_evidence": True,
+            "not_excluded_by_preflight_or_isolation": not excluded,
+            "explicit_trigger_and_acceptance_criteria": blocker is not None,
+            "accepted_by_independent_reviewer": blocker is not None,
+        }
+        if all(admission.values()):
+            final_gate = "GATE_A"
+        elif reachable and row["risk_family"] == "R2":
+            final_gate = "SAFE_DEGRADATION"
+        elif reachable:
+            final_gate = "ACCEPTED_WITH_REASON"
+        else:
+            final_gate = _deferred_gate(path)
+        chain = (
+            "scripts/run_prematch_refresh.py:main -> run_future_refresh_task -> "
+            f"{path}:{symbol}:{row['line']}"
+            if reachable
+            else (
+                "scripts/run_prematch_refresh.py:main static call boundary excludes "
+                f"{path}:{symbol}:{row['line']}"
+            )
+        )
+        row.update(
+            {
+                "entrypoint_reachable_from_one_shot_canary": reachable,
+                "external_side_effect_after_failure": external_after_failure,
+                "business_write_reachable": business_write,
+                "evidence_chain_break_possible": evidence_break,
+                "preflight_or_isolation_excludes": excluded,
+                "mapped_existing_blocker": blocker,
+                "review_evidence": [
+                    f"{path}:{row['line']}:{row['source_excerpt'][:180]}",
+                    chain,
+                    "#452 frozen one-shot scope; #454 v5 five-condition Gate-A rule",
+                ],
+                "gate_a_admission_conditions": admission,
+                "gate_a_admission_evidence": {
+                    "directly_affects_one_shot_foreground_canary": chain,
+                    "code_or_runtime_evidence": (
+                        f"{path}:{row['line']}:{row['source_excerpt'][:180]}"
+                    ),
+                    "not_excluded_by_preflight_or_isolation": (
+                        f"preflight_or_isolation_excludes={excluded}"
+                    ),
+                    "explicit_trigger_and_acceptance_criteria": (
+                        f"Issue #454 v5 existing blocker={blocker or 'NONE'}"
+                    ),
+                    "accepted_by_independent_reviewer": (
+                        f"existing frozen blocker acceptance={blocker or 'NONE'}; "
+                        "this candidate-to-blocker mapping remains PENDING_S07_8"
+                    ),
+                },
+                "final_target_gate": final_gate,
+                "target_gate": final_gate,
+                "status": "IMPLEMENTER_VERIFIED_PENDING_INDEPENDENT_REVIEW",
+                "independent_review": "PENDING_S07_8",
+            }
+        )
+        adjudicated.append(row)
+    return adjudicated
 
 
 def _test_nodes(tree: ast.Module) -> dict[str, ast.FunctionDef | ast.AsyncFunctionDef]:
@@ -860,6 +1411,9 @@ def guard_matrix(config: AuditConfig) -> dict[str, Any]:
 def safe_report(config: AuditConfig) -> dict[str, Any]:
     files = python_files(config.base_sha)
     risks = risk_candidates(files)
+    s07_candidates = adjudicate_s07(risks.get("R2", []) + risks.get("R3", []))
+    risks["R2"] = [row for row in s07_candidates if row["risk_family"] == "R2"]
+    risks["R3"] = [row for row in s07_candidates if row["risk_family"] == "R3"]
     computations = computation_inventory(files)
     findings = [row for rows in risks.values() for row in rows] + [
         member for group in computations for member in group["members"]
@@ -873,6 +1427,16 @@ def safe_report(config: AuditConfig) -> dict[str, Any]:
         "required_test",
         "status",
         "target_gate",
+    }
+    s07_fields = {
+        "entrypoint_reachable_from_one_shot_canary",
+        "external_side_effect_after_failure",
+        "business_write_reachable",
+        "evidence_chain_break_possible",
+        "preflight_or_isolation_excludes",
+        "mapped_existing_blocker",
+        "review_evidence",
+        "final_target_gate",
     }
     validated_findings = [
         {
@@ -905,6 +1469,24 @@ def safe_report(config: AuditConfig) -> dict[str, Any]:
         "computation_authorities": computations,
         "findings": findings,
         "validated_findings": validated_findings,
+        "one_shot_canary_scope": ONE_SHOT_CANARY_SCOPE,
+        "s07_gate_adjudication": {
+            "candidates": s07_candidates,
+            "counts": {
+                "total_pending_candidates": len(s07_candidates),
+                **{
+                    gate.lower(): sum(
+                        row["final_target_gate"] == gate for row in s07_candidates
+                    )
+                    for gate in sorted(FINAL_TARGET_GATES)
+                },
+                "mapped_to_c1_c11": sum(
+                    row["mapped_existing_blocker"] is not None for row in s07_candidates
+                ),
+                "new_finding_ids": [],
+                "pending_independent_review": len(s07_candidates),
+            },
+        },
         "pr450_guard_matrix": guards,
         "counts": {
             "unclassified_findings": sum(
@@ -912,6 +1494,11 @@ def safe_report(config: AuditConfig) -> dict[str, Any]:
                 or row["classification"] == "UNCLASSIFIED"
                 or row["status"] == "UNCLASSIFIED"
                 for row in findings
+            )
+            + sum(
+                not s07_fields.issubset(row)
+                or row["final_target_gate"] not in FINAL_TARGET_GATES
+                for row in s07_candidates
             ),
             "unclassified_computation_authorities": sum(
                 row["classification"] == "UNCLASSIFIED" for row in computations
