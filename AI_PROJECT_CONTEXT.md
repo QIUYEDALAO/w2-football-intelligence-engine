@@ -82,7 +82,7 @@ pair_hash
 exact_git_sha
 ```
 
-If any required delta is zero, or any lineage link is missing/conflicting:
+Any required zero delta is failure. If any required delta is zero, or any lineage link is missing/conflicting:
 
 ```text
 CANARY = FAILED
