@@ -70,7 +70,12 @@ tasks:
     forward_collection_activation_review: PASS
     forward_collection_activation_review_status: DONE
     existing_collection_pipeline: REUSED
-    a148_supervised_rehearsal: SELECTED
+    a148_supervised_rehearsal: BLOCKED_PRECONDITION
+    rehearsal_status: BLOCKED
+    rehearsal_as_of: "2026-07-31T05:10:47.160608Z"
+    pr_448_head: 3466bd4419ff2339233fd659199a1dbf87370113
+    pr_448_merge_sha: c61bff2e50248db8e37b154fd233d456b18e7d0e
+    pr_448_main_ci: 30605554667
     new_guard_framework: false
     new_activation_manifest_framework: false
     new_canary_cli: false
@@ -92,12 +97,36 @@ tasks:
     daily_request_budget: 120
     scheduler_mode: NOT_STARTED
     scheduler_restart_policy: "no"
+    scheduler_restart_policy_observed: unless-stopped
+    scheduler_restart_policy_validation: FAIL
     scheduler_container_started: false
     rehearsal_execution_mode: MANUAL_FOREGROUND_ONE_SHOT
     rehearsal_entrypoint: scripts/run_prematch_refresh.py
+    rehearsal_command_executed: false
+    projected_provider_calls: 10
+    actual_provider_calls: 0
+    request_count_by_endpoint: {}
+    provider_request_ledger_delta: 0
+    raw_payload_delta: 0
+    endpoint_capture_delta: 0
+    checkpoint_audit_delta: 0
+    lineup_event_delta: 0
+    dynamic_evaluation_v2_delta: 0
+    five_state_snapshot_delta: 0
+    exact_pair_delta: 0
+    materialized_fixture_ids: []
+    read_model_data_time_before: "2026-07-30T15:05:44.392619Z"
+    read_model_data_time_after: "2026-07-30T15:05:44.392619Z"
+    dashboard_data_time_before: "2026-07-30T15:05:44.392619Z"
+    dashboard_data_time_after: "2026-07-30T15:05:44.392619Z"
+    celery_tasks_queued: 0
+    checkpoint_claim_delta: 0
+    flags_restored_disabled: true
+    rehearsal_blockers:
+      - SCHEDULER_RESTART_POLICY_MISMATCH_EXPECTED_NO_OBSERVED_UNLESS_STOPPED
     auto_retry: false
-    runtime_collection_authorized: true
-    runtime_collection_authorized_scope: A148_ONE_SUPERVISED_REHEARSAL
+    runtime_collection_authorized: false
+    runtime_collection_authorized_scope: NOT_APPLICABLE
     persistent_scheduler_authorized: false
     continuous_collection_authorized: false
     identity_remediation_design: BLOCKED
@@ -141,8 +170,8 @@ tasks:
     write_side_implementation_04_head: 05b55b5e1fc6583abbdee705a6b39bd263da4372
     write_side_implementation_04_merge_sha: 308e1edc9ed1748a18cd64c9325521e54a5777ba
     write_side_implementation_04_main_ci: 30599981432
-    provider_calls_authorized: true
-    provider_calls_authorized_scope: A148_ONE_SUPERVISED_REHEARSAL
+    provider_calls_authorized: false
+    provider_calls_authorized_scope: NOT_APPLICABLE
     scheduler_start_authorized: false
     scheduler_start_authorized_scope: NOT_APPLICABLE
     write_side_readiness_design: FROZEN
@@ -164,7 +193,7 @@ tasks:
     lock_enabled: false
     production_release: false
     scoring_implementation: BLOCKED
-    next_required_action: A148_SUPERVISED_COLLECTION_REHEARSAL
+    next_required_action: INDEPENDENT_REHEARSAL_RECEIPT_REVIEW
   EVAL-03:
     status: NOT_STARTED
 safety:

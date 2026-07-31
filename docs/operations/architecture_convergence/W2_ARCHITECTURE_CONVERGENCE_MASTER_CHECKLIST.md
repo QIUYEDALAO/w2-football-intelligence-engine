@@ -773,7 +773,7 @@ DATA_ACQUISITION_PLAN = AUTHORIZED
 FORWARD_COLLECTION_ACTIVATION_REVIEW = PASS
 FORWARD_COLLECTION_ACTIVATION_REVIEW_STATUS = DONE
 EXISTING_COLLECTION_PIPELINE = REUSED
-A148_SUPERVISED_REHEARSAL = SELECTED
+A148_SUPERVISED_REHEARSAL = BLOCKED_PRECONDITION
 NEW_GUARD_FRAMEWORK = false
 NEW_ACTIVATION_MANIFEST_FRAMEWORK = false
 NEW_CANARY_CLI = false
@@ -802,15 +802,15 @@ scripts/run_prematch_refresh.py
 SCHEDULER_RESTART_POLICY = no
 SCHEDULER_CONTAINER_STARTED = false
 AUTO_RETRY = false
-PROVIDER_CALLS_AUTHORIZED = true
+PROVIDER_CALLS_AUTHORIZED = false
 PROVIDER_CALLS_AUTHORIZED_SCOPE =
-A148_ONE_SUPERVISED_REHEARSAL
+NOT_APPLICABLE
 SCHEDULER_START_AUTHORIZED = false
 SCHEDULER_START_AUTHORIZED_SCOPE =
 NOT_APPLICABLE
-RUNTIME_COLLECTION_AUTHORIZED = true
+RUNTIME_COLLECTION_AUTHORIZED = false
 RUNTIME_COLLECTION_AUTHORIZED_SCOPE =
-A148_ONE_SUPERVISED_REHEARSAL
+NOT_APPLICABLE
 PERSISTENT_SCHEDULER_AUTHORIZED = false
 CONTINUOUS_COLLECTION_AUTHORIZED = false
 IDENTITY_REMEDIATION_DESIGN = BLOCKED
@@ -872,7 +872,7 @@ LOCK_ENABLED = false
 PRODUCTION_RELEASE = false
 SCORING_IMPLEMENTATION = BLOCKED
 NEXT_REQUIRED_ACTION =
-A148_SUPERVISED_COLLECTION_REHEARSAL
+INDEPENDENT_REHEARSAL_RECEIPT_REVIEW
 ```
 
 **预注册门禁合同（已冻结）**：
@@ -1606,18 +1606,18 @@ LIFECYCLE_SUPERSESSION_EFFECT =
 DIAGNOSTIC_ONLY
 PRE_POST_ELIGIBILITY_REQUIRES_NOT_SUPERSEDED = false
 NEXT_REQUIRED_ACTION =
-A148_SUPERVISED_COLLECTION_REHEARSAL
+INDEPENDENT_REHEARSAL_RECEIPT_REVIEW
 
 LEGACY_RESULT_EVAL_ELIGIBILITY = false
-PROVIDER_CALLS_AUTHORIZED = true
+PROVIDER_CALLS_AUTHORIZED = false
 PROVIDER_CALLS_AUTHORIZED_SCOPE =
-A148_ONE_SUPERVISED_REHEARSAL
+NOT_APPLICABLE
 SCHEDULER_START_AUTHORIZED = false
 SCHEDULER_START_AUTHORIZED_SCOPE =
 NOT_APPLICABLE
-RUNTIME_COLLECTION_AUTHORIZED = true
+RUNTIME_COLLECTION_AUTHORIZED = false
 RUNTIME_COLLECTION_AUTHORIZED_SCOPE =
-A148_ONE_SUPERVISED_REHEARSAL
+NOT_APPLICABLE
 PERSISTENT_SCHEDULER_AUTHORIZED = false
 CONTINUOUS_COLLECTION_AUTHORIZED = false
 SCORING_IMPLEMENTATION = BLOCKED
@@ -1638,7 +1638,7 @@ activation manifest、canary CLI、Provider control 或 collection pipeline。
 FORWARD_COLLECTION_ACTIVATION_REVIEW = PASS
 FORWARD_COLLECTION_ACTIVATION_REVIEW_STATUS = DONE
 EXISTING_COLLECTION_PIPELINE = REUSED
-A148_SUPERVISED_REHEARSAL = SELECTED
+A148_SUPERVISED_REHEARSAL = BLOCKED_PRECONDITION
 
 NEW_GUARD_FRAMEWORK = false
 NEW_ACTIVATION_MANIFEST_FRAMEWORK = false
@@ -1701,21 +1701,21 @@ python scripts/run_prematch_refresh.py \
 Celery scheduler dispatch；该约束只复用现有显式 competition 参数，不引入新 CLI 或
 pipeline。
 
-本 PR 合并后只授权上述一次 A-148 演练：
+该一次性 A-148 演练授权已在 fail-closed 前置核验后撤销：
 
 ```text
-PROVIDER_CALLS_AUTHORIZED = true
+PROVIDER_CALLS_AUTHORIZED = false
 PROVIDER_CALLS_AUTHORIZED_SCOPE =
-A148_ONE_SUPERVISED_REHEARSAL
+NOT_APPLICABLE
 
 SCHEDULER_START_AUTHORIZED = false
 SCHEDULER_START_AUTHORIZED_SCOPE =
 NOT_APPLICABLE
 SCHEDULER_CONTAINER_STARTED = false
 
-RUNTIME_COLLECTION_AUTHORIZED = true
+RUNTIME_COLLECTION_AUTHORIZED = false
 RUNTIME_COLLECTION_AUTHORIZED_SCOPE =
-A148_ONE_SUPERVISED_REHEARSAL
+NOT_APPLICABLE
 
 PERSISTENT_SCHEDULER_AUTHORIZED = false
 CONTINUOUS_COLLECTION_AUTHORIZED = false
@@ -1776,6 +1776,83 @@ future-refresh flags 全部恢复为 disabled；不得持续采集，不得自�
 不得扩大 endpoint allowlist，不得增加 Provider budget。随后只创建一个 final
 rehearsal receipt state PR，不得直接开启持续采集。
 EVAL-02B gate 与 EVAL-03 均不得启动。
+
+**A148 supervised collection rehearsal receipt（fail-closed）**：
+
+2026-07-31T05:10:47.160608Z 的 staging 前置核验确认 credential、数据库和 Provider
+request ledger 可用，当日 ledger 使用量为 0，scheduler 容器不存在且从未启动，
+Celery scheduler dispatch 为 0。生效部署 Compose 的 scheduler 服务却仍声明
+`restart: unless-stopped`，无法满足冻结合同要求的 `restart=no`。因此在任何 Provider
+调用或业务写入前停止；未修改部署配置、未创建 scheduler 容器、未执行 refresh 命令，
+并撤销一次性 Provider/runtime collection 授权。
+
+```text
+PR_448_MERGED_HEAD = 3466bd4419ff2339233fd659199a1dbf87370113
+PR_448_MERGE_SHA = c61bff2e50248db8e37b154fd233d456b18e7d0e
+PR_448_MAIN_CI = 30605554667 / SUCCESS
+
+REHEARSAL_STATUS = BLOCKED
+REHEARSAL_COMMAND_EXECUTED = false
+execution_mode = MANUAL_FOREGROUND_ONE_SHOT
+execution_entrypoint = scripts/run_prematch_refresh.py
+scheduler_started = false
+celery_tasks_queued = 0
+checkpoint_claim_delta = 0
+
+projected_provider_calls = 10
+actual_provider_calls = 0
+request_count_by_endpoint = {}
+provider_request_ledger_before = 312
+provider_request_ledger_after = 312
+provider_request_ledger_delta = 0
+raw_payload_before = 370
+raw_payload_after = 370
+raw_payload_delta = 0
+endpoint_capture_before = 231
+endpoint_capture_after = 231
+endpoint_capture_delta = 0
+checkpoint_audit_before = 1
+checkpoint_audit_after = 1
+checkpoint_audit_delta = 0
+lineup_event_before = 0
+lineup_event_after = 0
+lineup_event_delta = 0
+dynamic_evaluation_v2_before = 0
+dynamic_evaluation_v2_after = 0
+dynamic_evaluation_v2_delta = 0
+five_state_snapshot_before = 0
+five_state_snapshot_after = 0
+five_state_snapshot_delta = 0
+exact_pair_delta = 0
+materialized_fixture_ids = []
+read_model_data_time_before = 2026-07-30T15:05:44.392619Z
+read_model_data_time_after = 2026-07-30T15:05:44.392619Z
+dashboard_data_time_before = 2026-07-30T15:05:44.392619Z
+dashboard_data_time_after = 2026-07-30T15:05:44.392619Z
+
+expected_scheduler_restart_policy = no
+observed_scheduler_restart_policy = unless-stopped
+scheduler_container_started = false
+flags_restored_disabled = true
+blockers =
+SCHEDULER_RESTART_POLICY_MISMATCH_EXPECTED_NO_OBSERVED_UNLESS_STOPPED
+
+PROVIDER_CALLS_AUTHORIZED = false
+PROVIDER_CALLS_AUTHORIZED_SCOPE =
+NOT_APPLICABLE
+SCHEDULER_START_AUTHORIZED = false
+SCHEDULER_START_AUTHORIZED_SCOPE =
+NOT_APPLICABLE
+RUNTIME_COLLECTION_AUTHORIZED = false
+RUNTIME_COLLECTION_AUTHORIZED_SCOPE =
+NOT_APPLICABLE
+PERSISTENT_SCHEDULER_AUTHORIZED = false
+CONTINUOUS_COLLECTION_AUTHORIZED = false
+NEXT_REQUIRED_ACTION =
+INDEPENDENT_REHEARSAL_RECEIPT_REVIEW
+EVAL_02B = BLOCKED
+EVAL_03 = NOT_STARTED
+```
 
 此前冻结的身份修复实施流程保持休眠；只有满足上述 exact original raw blob 重开条件后，
 未来实施才必须默认 `dry-run`，先生成 canonical remediation manifest；每行状态只能是：
