@@ -37,9 +37,10 @@ compare(trusted_main, main) = identical
 
 当前 GitHub 证据已确认：
 
+- C7 的 broad-exception retry 最迟由 2026-06-23 的 `8e467e65...` 引入；
 - C5 最迟在 2026-06-25 的 `5e46a8b...` 中存在；
 - C1、C6、C11-A 明确由 2026-07-03 的 `97978194...` 引入；
-- C7 最迟在 2026-07-04 的 `f4d221bf...` 中存在；
+- C11-B 的当前具体形态来自 2026-07-05 的 `ac17e875...`；
 - C9 的根问题最迟在 2026-07-19 的 `d460055b...` 中存在；
 - C2/C3/C4、C8、C10 均已确认在 2026-07-22 架构总清单建立时存在。
 
@@ -143,14 +144,16 @@ CLI/policy、task key/业务 scope、check/lock、SELECT/INSERT、多个 current
 | 架构、权威、重复路径 | COMPLETE（冻结范围） | 已完成，不重开 |
 | 动态失败、缺失、并发、计费一致性 | IN_PROGRESS | Gate A 的 canary 路径必须关闭 |
 | workflow/供应链治理 | IN_PROGRESS | 可信 C9 重建前关闭 |
-| 数据与数学正确性 | PARTIAL | canary 验证直接冻结合同；Candidate/Formal 前完整独立 oracle |
+| 数据与数学正确性 | PARTIAL / SELF_REVIEWED_ONLY | canary 验证直接冻结合同；Candidate/Formal 前完成与实现同源测试分离的独立 oracle |
 | 时间与时序语义 | PARTIAL | canary 做目标链最小证明；scheduler 前全路径审计 |
 | 安全、权限、密钥、日志 | PARTIAL / NOT FULLY AUDITED | Production 前关闭 |
 | 恢复与灾备 | NOT_AUDITED / UNVERIFIED | Production 前真实演练 |
 | 可观测性 | PARTIAL | 持续 scheduler 前关闭 |
 | 性能与资源 | PARTIAL | 持续 scheduler/Production 前关闭 |
 
-一个视角完成不能写成整体完成。所有新任务/PR 必须回答：
+一个视角完成不能写成整体完成。已有数学测试多数与实现同源，测试覆盖率不能被扩大解释成独立数学正确性签字。
+
+所有新任务/PR 必须回答：
 
 1. 权威/fallback 是否改变；
 2. 外部调用或业务写入失败前后会怎样；
@@ -159,9 +162,45 @@ CLI/policy、task key/业务 scope、check/lock、SELECT/INSERT、多个 current
 5. 数学不变量与独立 oracle/golden vector；
 6. `capture_at`、as-of、kickoff、timezone、freshness；
 7. 权限、凭据和日志脱敏；
-8. 机器如何发现失败、如何恢复。
+8. 机器如何发现失败、如何恢复；
+9. 哪个登记视角本应抓到本任务/事故，登记表是否需增长；
+10. 实现者和独立 reviewer 分别是谁，是否完成 reviewer 轮换；
+11. 若是事故型紧急修复，R1–R4 事后复查是否完成。
 
 `不适用` 必须写理由。该规则用于避免验收继承规格盲区，但不会把完整 Production 审计提前塞进第一次人工前台 canary。
+
+### 视角登记表自扩展
+
+每次事故、异常、canary 失败、staging/production 偏差或新 audit finding，都必须回答：
+
+```text
+哪个登记视角本应抓到它？
+```
+
+- 已有视角可覆盖：更新该行证据、覆盖边界和遗漏原因；
+- 无视角可覆盖：在同一整改中新增视角；
+- 未完成映射，不得关闭任务或事故；
+- 无独立 reviewer 时只能标记 `SELF_REVIEWED_ONLY` 或 `PARTIAL`。
+
+最低关闭输出：
+
+```text
+INCIDENT_PERSPECTIVE_MAPPED = true
+NEW_PERSPECTIVE_REQUIRED = true|false
+REGISTRY_UPDATED = true
+UNMAPPED_PERSPECTIVE = 0
+REVIEWER_INDEPENDENT_OF_IMPLEMENTATION = true
+```
+
+### 事故型紧急修复的事后复查
+
+事故、hotfix、quota hard-stop 或 security containment 可以先止血，但在 R1–R4 和受影响额外视角完成独立事后复查前，只能标记：
+
+```text
+CONTAINED_PENDING_POST_INCIDENT_REVIEW
+```
+
+不能标记最终 `CLOSED`。`97978194...` 同时引入 C1、C6、C11-A，是该规则的仓库内证据。
 
 ## 6. 核心工程规则
 
@@ -173,6 +212,8 @@ CLI/policy、task key/业务 scope、check/lock、SELECT/INSERT、多个 current
 6. **No self-modifying workflow.** 业务代码只能通过本地正常编辑、commit、push 和 Draft PR 修改。
 7. **Context follows evidence.** `PROJECT_STATE`、本文件和 PR 描述不能领先于代码与 GitHub 事实。
 8. **Perspective coverage is explicit.** 任务完成只能声明其已验收视角，不能把局部完整扩大为系统整体完整。
+9. **Perspective registry self-expands.** 现实发现无法映射时必须新增视角，不能用静态表制造假完整。
+10. **Emergency containment requires post-incident review.** 恢复正常路径不等于事故最终关闭。
 
 ## 7. 真实 canary 硬合同
 
@@ -317,6 +358,7 @@ READY_FOR_INDEPENDENT_SECOND_REVIEW = true|false
 ### Gate C：Candidate / Formal / Lock
 
 - EV、五态、结算、CLV、校准的独立 oracle/recalculation；
+- 独立 oracle 必须与实现代码、同源测试和原规格分离；
 - 数据集、样本选择和时间切分正确性；
 - 产品阈值、guardrail 和回滚；
 - 每项能力独立授权。
@@ -341,7 +383,11 @@ canary 路径 MUST_FIX 为 0
 同类风险有 CI 防回归
 Gate A 故障注入通过
 trusted-base 离线 rehearsal 通过
-审计视角登记真实、无未审项目被误报为 PASS
+审计视角登记真实且可由现实事件扩展
+UNMAPPED_PERSPECTIVE = 0
+独立 reviewer 覆盖和轮换证据完整
+所有事故型修复的事后跨视角复查已完成
+未审项目没有被误报为 PASS
 独立二次验收通过
 ```
 
@@ -357,3 +403,5 @@ trusted-base 离线 rehearsal 通过
 6. 不调用真实 Provider，不启动 scheduler，不合并 PR。
 7. 所有结论必须带 exact SHA、CI run、故障注入和可复现输出。
 8. 每项完成声明必须写清已覆盖视角和明确未覆盖视角。
+9. 每次事故/异常必须完成视角映射；无匹配视角时立即扩展登记表。
+10. 事故型紧急修复在 R1–R4 事后独立复查前不得最终关闭。
