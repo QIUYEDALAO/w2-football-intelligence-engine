@@ -5,6 +5,7 @@ current_state_authority: PROJECT_STATE.yaml
 task_authority: https://github.com/QIUYEDALAO/w2-football-intelligence-engine/issues/454
 handoff_authority: AI_PROJECT_CONTEXT.md
 independent_audit_authority: docs/operations/W2_INDEPENDENT_FINAL_AUDIT_20260731.md
+audit_perspective_registry_authority: docs/operations/W2_AUDIT_PERSPECTIVE_REGISTRY.md
 governance_incident_authority: https://github.com/QIUYEDALAO/w2-football-intelligence-engine/issues/455
 
 current_task: EVAL-02B-T00
@@ -53,11 +54,58 @@ workflow_governance_incident:
     main_contamination: false
     independent_rerun_match: true
 
+known_defect_provenance:
+  C7:
+    earliest_verified_date: "2026-06-23"
+    earliest_verified_commit: 8e467e657836641975294aeea12066cc125307f7
+    note: BROAD_EXCEPTION_RETRY_WHILE_ATTEMPTS_REMAIN
+  C5:
+    earliest_verified_date: "2026-06-25"
+    earliest_verified_commit: 5e46a8bfa946fad018df2276e7dadf0d78ce2979
+  C1_C6_C11A:
+    earliest_verified_date: "2026-07-03"
+    earliest_verified_commit: 97978194ba577efebc1d9f12c17d92e15cc5b4b2
+  C11B:
+    earliest_verified_date: "2026-07-05"
+    earliest_verified_commit: ac17e8753726d172a5c82a5356594f8019271821
+  C9_ROOT:
+    latest_verified_pre_convergence_date: "2026-07-19"
+    latest_verified_pre_convergence_commit: d460055b48005fa58ec6f01e555db80a71fb966e
+  architecture_convergence_master_checklist_date: "2026-07-22"
+  conclusion: NO_EVIDENCE_C1_TO_C11_WERE_CREATED_BY_ARCHITECTURE_CONVERGENCE
+  absolute_no_defect_claim_allowed: false
+
 risk_families:
   R1_DEFAULT_ALLOW_OR_MISSING_AUTHORITY: OPEN_SCAN_REQUIRED
   R2_SILENT_FAILURE_OR_FAILURE_DOWNGRADE: OPEN_SCAN_REQUIRED
   R3_EXTERNAL_SIDE_EFFECT_LOCAL_STATE_NON_ATOMICITY: OPEN_SCAN_REQUIRED
   R4_AUTHORITY_SPLIT_CONCURRENCY_IDENTITY_DRIFT: OPEN_SCAN_REQUIRED
+
+audit_perspective_governance:
+  registry_self_expanding: true
+  incident_perspective_mapping_required: true
+  unmapped_perspective_required_for_closure: 0
+  new_perspective_required_when_no_existing_rule_covers_event: true
+  completion_must_list_covered_perspectives: true
+  completion_must_list_uncovered_perspectives: true
+  implementation_author_cannot_be_sole_independent_reviewer: true
+  independent_reviewer_required_for_major_gate_closure: true
+  reviewer_rotation_required_for_major_audit_tranches: true
+  no_independent_reviewer_status: SELF_REVIEWED_ONLY_OR_PARTIAL
+  same_origin_tests_are_not_independent_oracle: true
+  incident_driven_fix_post_review_required: true
+  incident_state_before_post_review: CONTAINED_PENDING_POST_INCIDENT_REVIEW
+  post_incident_minimum_perspectives:
+    - R1_DEFAULT_ALLOW_OR_MISSING_AUTHORITY
+    - R2_SILENT_FAILURE_OR_FAILURE_DOWNGRADE
+    - R3_EXTERNAL_SIDE_EFFECT_LOCAL_STATE_NON_ATOMICITY
+    - R4_AUTHORITY_SPLIT_CONCURRENCY_IDENTITY_DRIFT
+  post_incident_closure_requires:
+    - ALL_AFFECTED_EXTRA_PERSPECTIVES_REVIEWED
+    - UNCLASSIFIED_POST_INCIDENT_FINDINGS_ZERO
+    - REGRESSION_GUARDS_ADDED
+    - PERSPECTIVE_REGISTRY_UPDATED
+    - INDEPENDENT_REVIEW_COMPLETE
 
 t00_safe:
   status: NOT_STARTED
@@ -199,6 +247,8 @@ gate_a_one_shot_canary:
     - CANARY_PATH_FAULT_INJECTION
     - HARD_CANARY_VALIDATOR
     - OFFLINE_FAKE_PROVIDER_REHEARSAL
+    - PERSPECTIVE_MAPPING_COMPLETE
+    - INDEPENDENT_REVIEWER_RECORDED
     - INDEPENDENT_SECOND_REVIEW
 
 gate_b_continuous_operation:
@@ -224,6 +274,11 @@ engineering_principles:
   idempotency_must_be_proven: REQUIRED
   no_self_modifying_business_workflow: REQUIRED
   context_must_follow_verified_evidence: REQUIRED
+  perspective_coverage_must_be_explicit: REQUIRED
+  perspective_registry_must_self_expand: REQUIRED
+  incident_fix_requires_post_incident_review: REQUIRED
+  independent_reviewer_required_for_major_closure: REQUIRED
+  same_origin_tests_do_not_equal_independent_oracle: REQUIRED
   forbidden_patterns:
     - MISSING_CONFIGURATION_IMPLIES_ALLOW
     - INTEGRITY_ERROR_ROLLBACK_AND_CONTINUE_WITHOUT_RECONCILIATION
@@ -231,6 +286,9 @@ engineering_principles:
     - EMPTY_REQUIRED_EVIDENCE_TREATED_AS_SUCCESS
     - WORKFLOW_PUSHES_TO_BUSINESS_PR_BRANCH
     - AUTOMATION_COMMIT_USED_AS_IMPLEMENTATION_AUTHORITY
+    - UNMAPPED_INCIDENT_PERSPECTIVE_AT_CLOSURE
+    - INCIDENT_CLOSED_WITHOUT_POST_INCIDENT_R1_R4_REVIEW
+    - IMPLEMENTER_SELF_SIGNS_INDEPENDENT_COMPLETION
 
 canary_acceptance:
   status: NOT_AUTHORIZED
@@ -266,6 +324,8 @@ canary_acceptance:
   lineage_mismatch_result: FAILED
   auto_retry: false
   authorization_restored_disabled_required: true
+  unmapped_perspective_required: 0
+  independent_reviewer_required: true
 
 codex_stop_line:
   real_provider_call_executed: false
