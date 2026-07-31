@@ -1,78 +1,57 @@
 # W2 GitHub Copilot Instructions
 
-Read `/AI_PROJECT_CONTEXT.md`, `/PROJECT_STATE.yaml`, `/NEXT_ACTION.md`, `/AGENTS.md`, `/docs/operations/W2_INDEPENDENT_FINAL_AUDIT_20260731.md`, `/docs/operations/W2_ASSET_UNIQUENESS_AUDIT_20260731.md`, and `/docs/operations/W2_AUDIT_PERSPECTIVE_REGISTRY.md` before proposing or changing code.
+先读 `AI_PROJECT_CONTEXT.md`、`PROJECT_STATE.yaml`、`NEXT_ACTION.md`、两份审计、视角登记表，以及 GitHub Issue #454 v5、#455、#456。
 
-GitHub Issue **#454 v4** is the execution authority; #455 is the workflow-governance authority; #456 is the computation-authority authority.
-
-## Source and branch rules
-
-- First synchronize GitHub to a local clean worktree and record exact `origin/main`.
-- Do not work from PR #453 or any `agent/eval-02b-c9-*` branch.
-- Do not merge/rebase/cherry-pick `e875050f6bc0286aed389aadfce1e17b2063635a` or another automation-authored remediation commit.
-- PR #453 is quarantined evidence and must never be merged.
-
-## Current order
+## 权威与任务
 
 ```text
-T00-GOV
-T00-SAFE R1-R5 + asset inventory
-versioned canonical serialization authority/migration
-trusted-main C9 rebuild
-remaining Gate A one-shot-canary remediation
-offline fake-Provider rehearsal
-independent second review
+TOP_LEVEL_TASK = EVAL-02B
+CURRENT_WORKSTREAM = EVAL-02B-T00
+TASK_AUTHORITY = docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
+ACTIVE_EXECUTION_AUTHORITY = Issue #454 v5
+TRUSTED_MAIN = dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
 ```
 
-## Invariants
+#457 保持 OPEN，不由 Copilot 改变状态。
 
-1. Missing, malformed, stale, unknown or unverifiable safety inputs deny execution.
-2. Failures after a possible Provider side effect are persisted, surfaced, stop later calls and forbid automatic retry.
-3. Idempotency requires expected-constraint and full stored-business-field verification.
-4. Required zero evidence is failure.
-5. Canary PASS requires positive deltas, one reconciled lineage and independent pair-hash/seed recomputation.
-6. Context follows verified code/GitHub evidence.
-7. Completion statements name covered and uncovered audit perspectives.
-8. Same-origin tests do not replace an independent oracle.
-9. One business fact has one computation authority or explicitly versioned different definitions.
-10. Historical hashes are not overwritten without a versioned migration.
+## Source rules
 
-## R5 computation authority
+- 先 `git fetch --all --prune --tags` 并核对可信 main。
+- 从可信 main 的本地 clean worktree 工作。
+- 不使用 PR #453、`agent/eval-02b-c9-*`、`e875050f...` 或其他 automation-authored remediation。
+- 不创建会使用写权限改写业务 PR 分支的 workflow。
+- 仅通过正常 local edit/commit/push/Draft PR 提交实现。
 
-- Scan duplicate serializers, hashes, formulas, taxonomies, numeric types/rounding and same-name cross-layer classes.
-- The known six runtime canonical serializers are a minimum, not the final denominator.
-- Do **not** choose `ensure_ascii=True` or `False` until persisted hash domains and compatibility costs are inventoried.
-- The canonical serializer contract must explicitly freeze version, UTF-8, key order, compact separators, Unicode, `allow_nan=False`, numeric/Decimal/date/datetime and unsupported-type behavior.
-- Use one versioned authority under `src/w2/domain/`; retain explicit compatibility readers where required.
-- Do not rewrite historical identity/hash fields in place.
-- Add independent Chinese/NaN/numeric/datetime/pair-hash/bootstrap-seed golden vectors.
-- CI must reject a second unapproved canonical hash serializer.
-- Fair odds, market taxonomy and Brier/ECE convergence is Gate C unless T00 proves direct Gate A impact.
+## Core rules
 
-## Audit-perspective growth
+- Missing/unknown safety input = BLOCKED。
+- Provider 可能送达后，失败必须显式、持久化、停后续调用、禁止自动 retry。
+- 幂等需要预期约束和全部业务字段核验。
+- Required zero evidence = FAILED。
+- 一个事实只有一个版本化计算权威；历史 hash 不得无迁移覆盖。
+- 不得放宽 event、五态 `1e-9`、package matrix、delta、lineage、migration、fault-injection 或历史守卫。
+- `2/2.5 -> 2.25` 是已验证合同。
+- `readiness.py` 不是 Provider live-call 入口。
 
-Every incident/anomaly/new finding must map to an existing perspective or add a new perspective in the same remediation. Do not close with `UNMAPPED_PERSPECTIVE > 0`. Major closure requires an independent reviewer; otherwise status is `SELF_REVIEWED_ONLY` or `PARTIAL`.
+## R5
 
-## Emergency fixes
+在 SER-02 前不得选择 `ensure_ascii`。SER-05 independent oracle 必须由不同作者实现、不得 import 生产 serializer，并记录独立 reviewer。
 
-Containment is not final closure. Post-incident review covers R1–R4, plus R5 when hash/formula/taxonomy/precision is touched, and any other affected perspective.
+## Canary hard failures
 
 ```text
-CONTAINED_PENDING_POST_INCIDENT_REVIEW
+SERIALIZER_VERSION_MISSING
+INDEPENDENT_PAIR_HASH_MISMATCH
+INDEPENDENT_BOOTSTRAP_SEED_MISMATCH
+NAN_OR_INFINITY
+ANY_REQUIRED_DELTA_ZERO
+LINEAGE_MISMATCH
 ```
 
-## Workflow prohibition
-
-Do not add a workflow that uses `contents: write` to rewrite business implementation, pushes to a business PR branch, or configures a bot author and executes `git push`. All source changes are normal local edits/commits/pushes/Draft PRs.
-
-## Operational stop line
-
-Provider calls, real canary authorization, persistent scheduler, Candidate, Formal, Lock, Production and auto merge are not authorized. Stop after the offline evidence package and report:
+## Stop line
 
 ```text
 REAL_PROVIDER_CALL_EXECUTED = false
 REAL_CANARY_AUTHORIZATION_CREATED = false
 AUTO_MERGE_EXECUTED = false
-READY_FOR_INDEPENDENT_SECOND_REVIEW = true|false
 ```
-
-Do not modify tested split-line mapping `2/2.5 -> 2.25` without contrary Provider evidence. `readiness.py` is a status calculator, not a Provider live-call entrypoint.
