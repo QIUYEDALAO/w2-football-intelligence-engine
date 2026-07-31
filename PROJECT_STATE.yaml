@@ -87,11 +87,14 @@ tasks:
       - fixtures
       - odds
       - lineups
-    capture_cadence: ONE_SUPERVISED_CHECKPOINT_CYCLE
+    capture_cadence: ONE_SUPERVISED_REFRESH_RUN
     provider_call_limit: 30
     daily_request_budget: 120
-    scheduler_mode: FOREGROUND_ONE_CYCLE
+    scheduler_mode: NOT_STARTED
     scheduler_restart_policy: "no"
+    scheduler_container_started: false
+    rehearsal_execution_mode: MANUAL_FOREGROUND_ONE_SHOT
+    rehearsal_entrypoint: scripts/run_prematch_refresh.py
     auto_retry: false
     runtime_collection_authorized: true
     runtime_collection_authorized_scope: A148_ONE_SUPERVISED_REHEARSAL
@@ -140,8 +143,8 @@ tasks:
     write_side_implementation_04_main_ci: 30599981432
     provider_calls_authorized: true
     provider_calls_authorized_scope: A148_ONE_SUPERVISED_REHEARSAL
-    scheduler_start_authorized: true
-    scheduler_start_authorized_scope: FOREGROUND_ONE_CYCLE_RESTART_NO
+    scheduler_start_authorized: false
+    scheduler_start_authorized_scope: NOT_APPLICABLE
     write_side_readiness_design: FROZEN
     write_side_ready: true
     new_table_count: 0

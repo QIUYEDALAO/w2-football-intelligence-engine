@@ -114,11 +114,14 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "rehearsal_competition_audit_order": 1,
         "market_scope": ["ASIAN_HANDICAP", "TOTALS"],
         "endpoint_scope": ["status", "fixtures", "odds", "lineups"],
-        "capture_cadence": "ONE_SUPERVISED_CHECKPOINT_CYCLE",
+        "capture_cadence": "ONE_SUPERVISED_REFRESH_RUN",
         "provider_call_limit": 30,
         "daily_request_budget": 120,
-        "scheduler_mode": "FOREGROUND_ONE_CYCLE",
+        "scheduler_mode": "NOT_STARTED",
         "scheduler_restart_policy": "no",
+        "scheduler_container_started": False,
+        "rehearsal_execution_mode": "MANUAL_FOREGROUND_ONE_SHOT",
+        "rehearsal_entrypoint": "scripts/run_prematch_refresh.py",
         "auto_retry": False,
         "runtime_collection_authorized": True,
         "runtime_collection_authorized_scope": "A148_ONE_SUPERVISED_REHEARSAL",
@@ -187,8 +190,8 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "write_side_implementation_04_main_ci": 30599981432,
         "provider_calls_authorized": True,
         "provider_calls_authorized_scope": "A148_ONE_SUPERVISED_REHEARSAL",
-        "scheduler_start_authorized": True,
-        "scheduler_start_authorized_scope": "FOREGROUND_ONE_CYCLE_RESTART_NO",
+        "scheduler_start_authorized": False,
+        "scheduler_start_authorized_scope": "NOT_APPLICABLE",
         "write_side_readiness_design": "FROZEN",
         "write_side_ready": True,
         "new_table_count": 0,
@@ -219,9 +222,10 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "WRITE_SIDE_READY = true。" in next_action
     )
     assert (
-        "下一步：仅按已冻结范围执行一次 A148_SUPERVISED_COLLECTION_REHEARSAL"
-        "（brasileirao_serie_a / 2026，foreground one cycle，restart=no）；"
-        "持续采集、persistent scheduler、EVAL-02B gate 与 B7 EVAL-03 均未授权。"
+        "下一步：仅通过 scripts/run_prematch_refresh.py 按已冻结范围执行一次 "
+        "A148_SUPERVISED_COLLECTION_REHEARSAL（brasileirao_serie_a / 2026，"
+        "manual foreground one-shot）；scheduler 不启动，持续采集、"
+        "EVAL-02B gate 与 B7 EVAL-03 均未授权。"
         in next_action
     )
     assert "sole machine-readable project-status record" in ledger
@@ -338,12 +342,17 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "odds",
         "lineups",
         "CAPTURE_CADENCE =",
-        "ONE_SUPERVISED_CHECKPOINT_CYCLE",
+        "ONE_SUPERVISED_REFRESH_RUN",
         "PROVIDER_CALL_LIMIT = 30",
         "DAILY_REQUEST_BUDGET = 120",
         "SCHEDULER_MODE =",
-        "FOREGROUND_ONE_CYCLE",
+        "NOT_STARTED",
+        "REHEARSAL_EXECUTION_MODE =",
+        "MANUAL_FOREGROUND_ONE_SHOT",
+        "REHEARSAL_ENTRYPOINT =",
+        "scripts/run_prematch_refresh.py",
         "SCHEDULER_RESTART_POLICY = no",
+        "SCHEDULER_CONTAINER_STARTED = false",
         "AUTO_RETRY = false",
         "RUNTIME_COLLECTION_AUTHORIZED = true",
         "RUNTIME_COLLECTION_AUTHORIZED_SCOPE =",
@@ -389,9 +398,9 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "WRITE_SIDE_IMPLEMENTATION_04_MAIN_CI = 30599981432",
         "PROVIDER_CALLS_AUTHORIZED = true",
         "PROVIDER_CALLS_AUTHORIZED_SCOPE =",
-        "SCHEDULER_START_AUTHORIZED = true",
+        "SCHEDULER_START_AUTHORIZED = false",
         "SCHEDULER_START_AUTHORIZED_SCOPE =",
-        "FOREGROUND_ONE_CYCLE_RESTART_NO",
+        "NOT_APPLICABLE",
         "WRITE_SIDE_READINESS_DESIGN = FROZEN",
         "WRITE_SIDE_READY = true",
         "LINEUP_EVENT_PRODUCTION_CALLER = IMPLEMENTED",
@@ -870,11 +879,16 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "scheduler 或运行采集",
         "Forward collection activation review（已完成）",
         "不得建立平行 guard、",
-        "`scripts/run_prematch_refresh.py --competition-id",
-        "不得调用会遍历全部 enabled competitions 的持续 `run_forever` 模式",
+        "python scripts/run_prematch_refresh.py",
+        "--competition-id brasileirao_serie_a",
+        "--persistence db",
+        "本整改 PR 阶段不得执行该命令",
+        "`apps.scheduler.main.run_forever`",
+        "Celery scheduler dispatch",
         "未进入首发确认窗口时",
         "不自动判失败",
-        "final rehearsal receipt state PR",
+        "rehearsal receipt",
+        "state PR",
         "不得直接开启持续采集",
         "EVAL-02B gate 与 EVAL-03 均不得启动",
     ):
@@ -898,20 +912,34 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "dashboard_data_time_after",
         "scheduler_restart_policy",
         "blockers",
+        "execution_mode",
+        "execution_entrypoint",
+        "scheduler_started",
+        "celery_tasks_queued",
+        "checkpoint_claim_delta",
     ):
         assert activation_receipt_field in b5
     for activation_boundary in (
         "DB `audit_order` 最小值（1）作为唯一演练 scope",
+        "execution_mode = MANUAL_FOREGROUND_ONE_SHOT",
+        "execution_entrypoint = scripts/run_prematch_refresh.py",
+        "scheduler_started = false",
+        "celery_tasks_queued = 0",
+        "checkpoint_claim_delta = 0",
+        "`checkpoint_audit_delta = 0` 是允许结果",
+        "不得伪造 checkpoint cycle",
         "lineup_event_delta = 0",
         "exact_pair_delta = 0",
-        "停止 foreground",
-        "保持 `restart=no`",
-        "Provider、scheduler 与 future-refresh flags 全部恢复",
+        "scheduler container 未启动且 `restart=no`",
+        "future-refresh flags 全部恢复",
         "不得扩大 endpoint allowlist",
         "增加 Provider budget",
         "自动重试",
     ):
         assert activation_boundary in b5
+    assert "SCHEDULER_START_AUTHORIZED = true" not in b5
+    assert "SCHEDULER_MODE =\nFOREGROUND_ONE_CYCLE" not in b5
+    assert "ONE_SUPERVISED_CHECKPOINT_CYCLE" not in b5
     assert "DYNAMIC_EVALUATION_V2_EVAL_02B_ELIGIBLE = true" not in b5
     assert (
         "PRE_CONFIRMATION_ELIGIBILITY =\n"

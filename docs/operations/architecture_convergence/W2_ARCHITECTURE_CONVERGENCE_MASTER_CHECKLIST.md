@@ -790,19 +790,24 @@ fixtures
 odds
 lineups
 CAPTURE_CADENCE =
-ONE_SUPERVISED_CHECKPOINT_CYCLE
+ONE_SUPERVISED_REFRESH_RUN
 PROVIDER_CALL_LIMIT = 30
 DAILY_REQUEST_BUDGET = 120
 SCHEDULER_MODE =
-FOREGROUND_ONE_CYCLE
+NOT_STARTED
+REHEARSAL_EXECUTION_MODE =
+MANUAL_FOREGROUND_ONE_SHOT
+REHEARSAL_ENTRYPOINT =
+scripts/run_prematch_refresh.py
 SCHEDULER_RESTART_POLICY = no
+SCHEDULER_CONTAINER_STARTED = false
 AUTO_RETRY = false
 PROVIDER_CALLS_AUTHORIZED = true
 PROVIDER_CALLS_AUTHORIZED_SCOPE =
 A148_ONE_SUPERVISED_REHEARSAL
-SCHEDULER_START_AUTHORIZED = true
+SCHEDULER_START_AUTHORIZED = false
 SCHEDULER_START_AUTHORIZED_SCOPE =
-FOREGROUND_ONE_CYCLE_RESTART_NO
+NOT_APPLICABLE
 RUNTIME_COLLECTION_AUTHORIZED = true
 RUNTIME_COLLECTION_AUTHORIZED_SCOPE =
 A148_ONE_SUPERVISED_REHEARSAL
@@ -1607,9 +1612,9 @@ LEGACY_RESULT_EVAL_ELIGIBILITY = false
 PROVIDER_CALLS_AUTHORIZED = true
 PROVIDER_CALLS_AUTHORIZED_SCOPE =
 A148_ONE_SUPERVISED_REHEARSAL
-SCHEDULER_START_AUTHORIZED = true
+SCHEDULER_START_AUTHORIZED = false
 SCHEDULER_START_AUTHORIZED_SCOPE =
-FOREGROUND_ONE_CYCLE_RESTART_NO
+NOT_APPLICABLE
 RUNTIME_COLLECTION_AUTHORIZED = true
 RUNTIME_COLLECTION_AUTHORIZED_SCOPE =
 A148_ONE_SUPERVISED_REHEARSAL
@@ -1663,22 +1668,38 @@ odds
 lineups
 
 CAPTURE_CADENCE =
-ONE_SUPERVISED_CHECKPOINT_CYCLE
+ONE_SUPERVISED_REFRESH_RUN
 
 PROVIDER_CALL_LIMIT = 30
 DAILY_REQUEST_BUDGET = 120
 
 SCHEDULER_MODE =
-FOREGROUND_ONE_CYCLE
+NOT_STARTED
+
+REHEARSAL_EXECUTION_MODE =
+MANUAL_FOREGROUND_ONE_SHOT
+
+REHEARSAL_ENTRYPOINT =
+scripts/run_prematch_refresh.py
 
 SCHEDULER_RESTART_POLICY = no
+SCHEDULER_CONTAINER_STARTED = false
 AUTO_RETRY = false
 ```
 
-单一 competition 必须通过现有 `scripts/run_prematch_refresh.py --competition-id
-brasileirao_serie_a --season 2026 --execute` 与既有 worker/future-refresh path 执行；
-不得调用会遍历全部 enabled competitions 的持续 `run_forever` 模式。该约束只复用现有
-显式 competition 参数，不引入新 CLI 或 pipeline。
+单一 competition 必须通过现有脚本直接执行一次手工前台 refresh：
+
+```text
+python scripts/run_prematch_refresh.py \
+  --competition-id brasileirao_serie_a \
+  --season 2026 \
+  --persistence db \
+  --execute
+```
+
+本整改 PR 阶段不得执行该命令。演练不得调用 `apps.scheduler.main.run_forever`，不得进行
+Celery scheduler dispatch；该约束只复用现有显式 competition 参数，不引入新 CLI 或
+pipeline。
 
 本 PR 合并后只授权上述一次 A-148 演练：
 
@@ -1687,9 +1708,10 @@ PROVIDER_CALLS_AUTHORIZED = true
 PROVIDER_CALLS_AUTHORIZED_SCOPE =
 A148_ONE_SUPERVISED_REHEARSAL
 
-SCHEDULER_START_AUTHORIZED = true
+SCHEDULER_START_AUTHORIZED = false
 SCHEDULER_START_AUTHORIZED_SCOPE =
-FOREGROUND_ONE_CYCLE_RESTART_NO
+NOT_APPLICABLE
+SCHEDULER_CONTAINER_STARTED = false
 
 RUNTIME_COLLECTION_AUTHORIZED = true
 RUNTIME_COLLECTION_AUTHORIZED_SCOPE =
@@ -1731,13 +1753,28 @@ dashboard_data_time_before
 dashboard_data_time_after
 scheduler_restart_policy
 blockers
+execution_mode
+execution_entrypoint
+scheduler_started
+celery_tasks_queued
+checkpoint_claim_delta
 ```
 
-未进入首发确认窗口时，`lineup_event_delta = 0` 或 `exact_pair_delta = 0` 不自动判失败；
-但 receipt 必须证明对应 plan 与写侧链路无错误、无越权。演练结束后必须停止 foreground
-scheduler，保持 `restart=no`，将 Provider、scheduler 与 future-refresh flags 全部恢复
-为 disabled；不得扩大 endpoint allowlist、增加 Provider budget 或自动重试。随后只创建
-一个 final rehearsal receipt state PR，不得直接开启持续采集。
+```text
+execution_mode = MANUAL_FOREGROUND_ONE_SHOT
+execution_entrypoint = scripts/run_prematch_refresh.py
+scheduler_started = false
+celery_tasks_queued = 0
+checkpoint_claim_delta = 0
+```
+
+手工 one-shot 没有消费 checkpoint claim 时，`checkpoint_audit_delta = 0` 是允许结果，
+不得伪造 checkpoint cycle。未进入首发确认窗口时，`lineup_event_delta = 0` 或
+`exact_pair_delta = 0` 不自动判失败；但 receipt 必须证明对应 plan 与写侧链路无错误、
+无越权。演练前后必须核验 scheduler container 未启动且 `restart=no`，并将 Provider 与
+future-refresh flags 全部恢复为 disabled；不得持续采集，不得自动重试，
+不得扩大 endpoint allowlist，不得增加 Provider budget。随后只创建一个 final
+rehearsal receipt state PR，不得直接开启持续采集。
 EVAL-02B gate 与 EVAL-03 均不得启动。
 
 此前冻结的身份修复实施流程保持休眠；只有满足上述 exact original raw blob 重开条件后，
