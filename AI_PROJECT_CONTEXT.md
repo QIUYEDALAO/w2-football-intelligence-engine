@@ -5,6 +5,7 @@
 > 机器状态：[`PROJECT_STATE.yaml`](PROJECT_STATE.yaml)  
 > 当前动作：[`NEXT_ACTION.md`](NEXT_ACTION.md)  
 > 独立终审：[`docs/operations/W2_INDEPENDENT_FINAL_AUDIT_20260731.md`](docs/operations/W2_INDEPENDENT_FINAL_AUDIT_20260731.md)  
+> 审计视角登记：[`docs/operations/W2_AUDIT_PERSPECTIVE_REGISTRY.md`](docs/operations/W2_AUDIT_PERSPECTIVE_REGISTRY.md)  
 > 冻结执行总单：GitHub Issue **#454 v3**  
 > 自修改 workflow 治理事件：GitHub Issue **#455**
 
@@ -23,7 +24,7 @@ compare(trusted_main, main) = identical
 
 ## 2. 已完成
 
-- P0/P1/P2 架构收敛完成。
+- P0/P1/P2 架构收敛完成，其冻结范围继续保持有效，不因当前 C1–C11 重开。
 - 阶段 A 已合并任务完成；`ARCH-GOVERNANCE-01` 曾完成，但 post-merge consistency gate 后来退役。
 - EVAL-01A、EVAL-01B、EVAL-01C、EVAL-02A 在冻结实现范围内完成。
 - OPS-01 Runbook 文档完成；真实运行 enablement 未完成。
@@ -31,6 +32,25 @@ compare(trusted_main, main) = identical
 - exact-pair 核心合同已实现：以 `capture_at` 划分 Pre/Post，同 provider/bookmaker/market/selection/exact line，五态概率合法，歧义 fail-closed。
 - `2/2.5 -> 2.25` 等合法 split-line 语义是明确实现和测试合同，不是已证实缺陷。
 - `src/w2/monitoring/readiness.py` 是状态计算器，不是 Provider live-call 入口。
+
+### 架构清单与当前整改的关系
+
+当前 GitHub 证据已确认：
+
+- C5 最迟在 2026-06-25 的 `5e46a8b...` 中存在；
+- C1、C6、C11-A 明确由 2026-07-03 的 `97978194...` 引入；
+- C7 最迟在 2026-07-04 的 `f4d221bf...` 中存在；
+- C9 的根问题最迟在 2026-07-19 的 `d460055b...` 中存在；
+- C2/C3/C4、C8、C10 均已确认在 2026-07-22 架构总清单建立时存在。
+
+准确裁决：
+
+```text
+ARCHITECTURE_CONVERGENCE_SCOPE_REMAINS_VALID
+NO_EVIDENCE_C1_TO_C11_WERE_CREATED_BY_ARCHITECTURE_CONVERGENCE
+```
+
+这说明当前工作是补做动态失败、并发、计费一致性和治理视角，不是推翻已经完成的静态架构/权威收敛。T00 完成前，不把“收敛绝对没有引入任何其他缺陷”写成未经全量来源矩阵证明的绝对命题。
 
 ## 3. 当前状态
 
@@ -112,6 +132,37 @@ Provider 可能已计费，但 request ledger、quota、raw、capture 或业务�
 
 CLI/policy、task key/业务 scope、check/lock、SELECT/INSERT、多个 current authority 之间缺少原子约束。
 
+## 5A. 审计视角登记与门禁映射
+
+完整登记见 [`W2_AUDIT_PERSPECTIVE_REGISTRY.md`](docs/operations/W2_AUDIT_PERSPECTIVE_REGISTRY.md)。
+
+当前视角状态：
+
+| 视角 | 状态 | 关闭门禁 |
+|---|---|---|
+| 架构、权威、重复路径 | COMPLETE（冻结范围） | 已完成，不重开 |
+| 动态失败、缺失、并发、计费一致性 | IN_PROGRESS | Gate A 的 canary 路径必须关闭 |
+| workflow/供应链治理 | IN_PROGRESS | 可信 C9 重建前关闭 |
+| 数据与数学正确性 | PARTIAL | canary 验证直接冻结合同；Candidate/Formal 前完整独立 oracle |
+| 时间与时序语义 | PARTIAL | canary 做目标链最小证明；scheduler 前全路径审计 |
+| 安全、权限、密钥、日志 | PARTIAL / NOT FULLY AUDITED | Production 前关闭 |
+| 恢复与灾备 | NOT_AUDITED / UNVERIFIED | Production 前真实演练 |
+| 可观测性 | PARTIAL | 持续 scheduler 前关闭 |
+| 性能与资源 | PARTIAL | 持续 scheduler/Production 前关闭 |
+
+一个视角完成不能写成整体完成。所有新任务/PR 必须回答：
+
+1. 权威/fallback 是否改变；
+2. 外部调用或业务写入失败前后会怎样；
+3. 缺失、空、非法、陈旧数据返回什么；
+4. 重放、冲突和并发行为；
+5. 数学不变量与独立 oracle/golden vector；
+6. `capture_at`、as-of、kickoff、timezone、freshness；
+7. 权限、凭据和日志脱敏；
+8. 机器如何发现失败、如何恢复。
+
+`不适用` 必须写理由。该规则用于避免验收继承规格盲区，但不会把完整 Production 审计提前塞进第一次人工前台 canary。
+
 ## 6. 核心工程规则
 
 1. **Default deny on missing or unknown.** 缺失、非法、陈旧或不可验证意味着 `BLOCKED`。
@@ -121,6 +172,7 @@ CLI/policy、task key/业务 scope、check/lock、SELECT/INSERT、多个 current
 5. **Canary is evidence-chain acceptance.** 不是进程存活、HTTP 200 或“没有报错”。
 6. **No self-modifying workflow.** 业务代码只能通过本地正常编辑、commit、push 和 Draft PR 修改。
 7. **Context follows evidence.** `PROJECT_STATE`、本文件和 PR 描述不能领先于代码与 GitHub 事实。
+8. **Perspective coverage is explicit.** 任务完成只能声明其已验收视角，不能把局部完整扩大为系统整体完整。
 
 ## 7. 真实 canary 硬合同
 
@@ -208,7 +260,7 @@ MUST_FIX_FOR_CONTINUOUS
 ACCEPTED_WITH_REASON
 ```
 
-验收要求未分类项为 0，且 canary 路径 MUST_FIX 在准入前为 0。
+验收要求未分类项为 0，且 canary 路径 MUST_FIX 在准入前为 0。T00 完成时同步更新审计视角登记，不得把未审计视角写成 PASS。
 
 ### Step 4 — 从可信 main 重建 C9
 
@@ -234,6 +286,7 @@ ACCEPTED_WITH_REASON
 - migration-head 人工前置；
 - canary-path 故障注入；
 - hard canary validator；
+- 目标链最小时序证明和本次五态/pair 冻结数学合同；
 - fake Provider 离线 rehearsal。
 
 ### Step 6 — 强制停机与二次验收
@@ -247,7 +300,9 @@ AUTO_MERGE_EXECUTED = false
 READY_FOR_INDEPENDENT_SECOND_REVIEW = true|false
 ```
 
-## 9. 持续运行前置（Gate B，后置但不取消）
+## 9. 持续运行及后续产品门禁（后置但不取消）
+
+### Gate B：持续 scheduler / 多联赛
 
 - 完整自动 saga、补偿和本地重放；
 - 通用多 writer evaluation/lineup/supersession 串行化；
@@ -257,9 +312,23 @@ READY_FOR_INDEPENDENT_SECOND_REVIEW = true|false
 - 长任务 lease renewal 与 stale owner；
 - 多 competition quota 并发；
 - worker/scheduler/broker/Redis 全量故障矩阵；
-- cold-pull、备份恢复、灾备、时钟、资源、供应链、权限和凭据审计；
-- Candidate/Formal/Lock/Production 独立产品审批；
-- EVAL-03 独立启动决定。
+- 全路径时序语义、cold-pull、资源和背压。
+
+### Gate C：Candidate / Formal / Lock
+
+- EV、五态、结算、CLV、校准的独立 oracle/recalculation；
+- 数据集、样本选择和时间切分正确性；
+- 产品阈值、guardrail 和回滚；
+- 每项能力独立授权。
+
+### Gate D：Production
+
+- 备份恢复和灾备；
+- 时钟、容量和长期 soak；
+- 供应链、权限、密钥与日志暴露；
+- 独立安全和运营签字。
+
+EVAL-03 仍需独立启动决定。
 
 ## 10. 95% 的可验收含义
 
@@ -272,6 +341,7 @@ canary 路径 MUST_FIX 为 0
 同类风险有 CI 防回归
 Gate A 故障注入通过
 trusted-base 离线 rehearsal 通过
+审计视角登记真实、无未审项目被误报为 PASS
 独立二次验收通过
 ```
 
@@ -279,10 +349,11 @@ trusted-base 离线 rehearsal 通过
 
 ## 11. 接手检查清单
 
-1. 读本文件、`PROJECT_STATE.yaml`、`NEXT_ACTION.md`、#454、#455。
+1. 读本文件、`PROJECT_STATE.yaml`、`NEXT_ACTION.md`、审计视角登记、#454、#455。
 2. 从 GitHub 同步并验证 main SHA，不依赖聊天记忆。
 3. 保留污染 refs 作为证据，不在 PR #453 原地修复。
 4. 先 T00-GOV，再 T00-SAFE，再重建 C9。
 5. 不创建可向业务分支 push 的 workflow。
 6. 不调用真实 Provider，不启动 scheduler，不合并 PR。
 7. 所有结论必须带 exact SHA、CI run、故障注入和可复现输出。
+8. 每项完成声明必须写清已覆盖视角和明确未覆盖视角。
