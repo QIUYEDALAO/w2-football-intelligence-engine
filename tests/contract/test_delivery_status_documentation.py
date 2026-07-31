@@ -100,7 +100,30 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         },
         "contract_authority": "FROZEN",
         "data_acquisition_plan": "AUTHORIZED",
-        "runtime_collection_authorized": False,
+        "forward_collection_activation_review": "PASS",
+        "forward_collection_activation_review_status": "DONE",
+        "existing_collection_pipeline": "REUSED",
+        "a148_supervised_rehearsal": "SELECTED",
+        "new_guard_framework": False,
+        "new_activation_manifest_framework": False,
+        "new_canary_cli": False,
+        "provider_control_rewrite": False,
+        "new_collection_pipeline": False,
+        "rehearsal_competition_id": "brasileirao_serie_a",
+        "rehearsal_season": "2026",
+        "rehearsal_competition_audit_order": 1,
+        "market_scope": ["ASIAN_HANDICAP", "TOTALS"],
+        "endpoint_scope": ["status", "fixtures", "odds", "lineups"],
+        "capture_cadence": "ONE_SUPERVISED_CHECKPOINT_CYCLE",
+        "provider_call_limit": 30,
+        "daily_request_budget": 120,
+        "scheduler_mode": "FOREGROUND_ONE_CYCLE",
+        "scheduler_restart_policy": "no",
+        "auto_retry": False,
+        "runtime_collection_authorized": True,
+        "runtime_collection_authorized_scope": "A148_ONE_SUPERVISED_REHEARSAL",
+        "persistent_scheduler_authorized": False,
+        "continuous_collection_authorized": False,
         "identity_remediation_design": "BLOCKED",
         "identity_remediation_execution_authorized": False,
         "identity_remediation_audit_as_of": "2026-07-30T17:31:23.303986Z",
@@ -162,8 +185,10 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
             "308e1edc9ed1748a18cd64c9325521e54a5777ba"
         ),
         "write_side_implementation_04_main_ci": 30599981432,
-        "provider_calls_authorized": False,
-        "scheduler_start_authorized": False,
+        "provider_calls_authorized": True,
+        "provider_calls_authorized_scope": "A148_ONE_SUPERVISED_REHEARSAL",
+        "scheduler_start_authorized": True,
+        "scheduler_start_authorized_scope": "FOREGROUND_ONE_CYCLE_RESTART_NO",
         "write_side_readiness_design": "FROZEN",
         "write_side_ready": True,
         "new_table_count": 0,
@@ -177,22 +202,26 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "pair_evidence_authority": "IMMUTABLE_ORIGINAL_EVALUATION",
         "lifecycle_supersession_effect": "DIAGNOSTIC_ONLY",
         "pre_post_eligibility_requires_not_superseded": False,
+        "recommendation_enabled": False,
+        "candidate_enabled": False,
+        "formal_recommendation_enabled": False,
+        "lock_enabled": False,
+        "production_release": False,
         "scoring_implementation": "BLOCKED",
-        "next_required_action": "FORWARD_COLLECTION_ACTIVATION_REVIEW",
+        "next_required_action": "A148_SUPERVISED_COLLECTION_REHEARSAL",
     }
     assert state["tasks"]["EVAL-03"]["status"] == "NOT_STARTED"
     assert state["architecture_convergence"]["status"] == "PASS"
     assert "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)" in next_action
     assert CHECKLIST_PATH in next_action
     assert (
-        "当前：Implementation 01–04 已完成并合并；"
+        "当前：FORWARD_COLLECTION_ACTIVATION_REVIEW 已完成并通过；"
         "WRITE_SIDE_READY = true。" in next_action
     )
     assert (
-        "下一步：执行 FORWARD_COLLECTION_ACTIVATION_REVIEW；"
-        "这只是激活审查，"
-        "Provider、scheduler、运行采集与 EVAL-02B 启动仍未授权，"
-        "B7 EVAL-03 仍为 NOT_STARTED。"
+        "下一步：仅按已冻结范围执行一次 A148_SUPERVISED_COLLECTION_REHEARSAL"
+        "（brasileirao_serie_a / 2026，foreground one cycle，restart=no）；"
+        "持续采集、persistent scheduler、EVAL-02B gate 与 B7 EVAL-03 均未授权。"
         in next_action
     )
     assert "sole machine-readable project-status record" in ledger
@@ -289,7 +318,38 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     for frozen_coordinate in (
         "CONTRACT_AUTHORITY = FROZEN",
         "DATA_ACQUISITION_PLAN = AUTHORIZED",
-        "RUNTIME_COLLECTION_AUTHORIZED = false",
+        "FORWARD_COLLECTION_ACTIVATION_REVIEW = PASS",
+        "FORWARD_COLLECTION_ACTIVATION_REVIEW_STATUS = DONE",
+        "EXISTING_COLLECTION_PIPELINE = REUSED",
+        "A148_SUPERVISED_REHEARSAL = SELECTED",
+        "NEW_GUARD_FRAMEWORK = false",
+        "NEW_ACTIVATION_MANIFEST_FRAMEWORK = false",
+        "NEW_CANARY_CLI = false",
+        "PROVIDER_CONTROL_REWRITE = false",
+        "NEW_COLLECTION_PIPELINE = false",
+        "REHEARSAL_COMPETITION_ID = brasileirao_serie_a",
+        "REHEARSAL_SEASON = 2026",
+        "MARKET_SCOPE =",
+        "ASIAN_HANDICAP",
+        "TOTALS",
+        "ENDPOINT_SCOPE =",
+        "status",
+        "fixtures",
+        "odds",
+        "lineups",
+        "CAPTURE_CADENCE =",
+        "ONE_SUPERVISED_CHECKPOINT_CYCLE",
+        "PROVIDER_CALL_LIMIT = 30",
+        "DAILY_REQUEST_BUDGET = 120",
+        "SCHEDULER_MODE =",
+        "FOREGROUND_ONE_CYCLE",
+        "SCHEDULER_RESTART_POLICY = no",
+        "AUTO_RETRY = false",
+        "RUNTIME_COLLECTION_AUTHORIZED = true",
+        "RUNTIME_COLLECTION_AUTHORIZED_SCOPE =",
+        "A148_ONE_SUPERVISED_REHEARSAL",
+        "PERSISTENT_SCHEDULER_AUTHORIZED = false",
+        "CONTINUOUS_COLLECTION_AUTHORIZED = false",
         "IDENTITY_REMEDIATION_DESIGN = BLOCKED",
         "IDENTITY_REMEDIATION_EXECUTION_AUTHORIZED = false",
         "IDENTITY_PROVENANCE_GAP_DECISION =",
@@ -327,8 +387,11 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "WRITE_SIDE_IMPLEMENTATION_04_MERGE_SHA =",
         "308e1edc9ed1748a18cd64c9325521e54a5777ba",
         "WRITE_SIDE_IMPLEMENTATION_04_MAIN_CI = 30599981432",
-        "PROVIDER_CALLS_AUTHORIZED = false",
-        "SCHEDULER_START_AUTHORIZED = false",
+        "PROVIDER_CALLS_AUTHORIZED = true",
+        "PROVIDER_CALLS_AUTHORIZED_SCOPE =",
+        "SCHEDULER_START_AUTHORIZED = true",
+        "SCHEDULER_START_AUTHORIZED_SCOPE =",
+        "FOREGROUND_ONE_CYCLE_RESTART_NO",
         "WRITE_SIDE_READINESS_DESIGN = FROZEN",
         "WRITE_SIDE_READY = true",
         "LINEUP_EVENT_PRODUCTION_CALLER = IMPLEMENTED",
@@ -342,9 +405,14 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "LIFECYCLE_SUPERSESSION_EFFECT =",
         "DIAGNOSTIC_ONLY",
         "PRE_POST_ELIGIBILITY_REQUIRES_NOT_SUPERSEDED = false",
+        "RECOMMENDATION_ENABLED = false",
+        "CANDIDATE_ENABLED = false",
+        "FORMAL_RECOMMENDATION_ENABLED = false",
+        "LOCK_ENABLED = false",
+        "PRODUCTION_RELEASE = false",
         "SCORING_IMPLEMENTATION = BLOCKED",
         "NEXT_REQUIRED_ACTION =",
-        "FORWARD_COLLECTION_ACTIVATION_REVIEW",
+        "A148_SUPERVISED_COLLECTION_REHEARSAL",
         "NEW_PROVIDER_FETCH_CAN_RESTORE_LEGACY_PROVENANCE = false",
         "FUZZY_IDENTITY_RECONSTRUCTION_ALLOWED = false",
         "TEAM_NAME_MATCH_ALLOWED = false",
@@ -730,7 +798,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "DIAGNOSTIC_ONLY",
         "PRE_POST_ELIGIBILITY_REQUIRES_NOT_SUPERSEDED = false",
         "NEXT_REQUIRED_ACTION =",
-        "FORWARD_COLLECTION_ACTIVATION_REVIEW",
+        "A148_SUPERVISED_COLLECTION_REHEARSAL",
     ):
         assert write_side_coordinate in b5
     assert "pre.capture_at < lineup_confirmed_at <= post.capture_at" in b5
@@ -800,12 +868,50 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "分别通过独立、可回滚 PR",
         "不得自动开启 Provider、",
         "scheduler 或运行采集",
-        "`FORWARD_COLLECTION_ACTIVATION_REVIEW` 只是激活审查",
-        "不授权 Provider、scheduler、",
-        "生产部署或运行采集",
+        "Forward collection activation review（已完成）",
+        "不得建立平行 guard、",
+        "`scripts/run_prematch_refresh.py --competition-id",
+        "不得调用会遍历全部 enabled competitions 的持续 `run_forever` 模式",
+        "未进入首发确认窗口时",
+        "不自动判失败",
+        "final rehearsal receipt state PR",
+        "不得直接开启持续采集",
         "EVAL-02B gate 与 EVAL-03 均不得启动",
     ):
         assert write_side_rule in b5
+    for activation_receipt_field in (
+        "projected_provider_calls",
+        "actual_provider_calls",
+        "request_count_by_endpoint",
+        "provider_request_ledger_delta",
+        "raw_payload_delta",
+        "endpoint_capture_delta",
+        "checkpoint_audit_delta",
+        "lineup_event_delta",
+        "dynamic_evaluation_v2_delta",
+        "five_state_snapshot_delta",
+        "exact_pair_delta",
+        "materialized_fixture_ids",
+        "read_model_data_time_before",
+        "read_model_data_time_after",
+        "dashboard_data_time_before",
+        "dashboard_data_time_after",
+        "scheduler_restart_policy",
+        "blockers",
+    ):
+        assert activation_receipt_field in b5
+    for activation_boundary in (
+        "DB `audit_order` 最小值（1）作为唯一演练 scope",
+        "lineup_event_delta = 0",
+        "exact_pair_delta = 0",
+        "停止 foreground",
+        "保持 `restart=no`",
+        "Provider、scheduler 与 future-refresh flags 全部恢复",
+        "不得扩大 endpoint allowlist",
+        "增加 Provider budget",
+        "自动重试",
+    ):
+        assert activation_boundary in b5
     assert "DYNAMIC_EVALUATION_V2_EVAL_02B_ELIGIBLE = true" not in b5
     assert (
         "PRE_CONFIRMATION_ELIGIBILITY =\n"
