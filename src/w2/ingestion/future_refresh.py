@@ -1141,45 +1141,6 @@ class FutureFixtureRefreshService:
                     captured_at=response.captured_at,
                     payload=payload,
                 )
-                if endpoint == "lineups":
-                    fixture_id = str(params.get("fixture") or "")
-                    if not fixture_id:
-                        return False, "LINEUP_FIXTURE_ID_MISSING"
-                    try:
-                        previous_identity = repository.confirmed_lineup_business_identity(
-                            fixture_id=fixture_id
-                        )
-                        lineup_rows = repository.save_lineup_snapshots(
-                            fixture_id=fixture_id,
-                            captured_at=response.captured_at,
-                            raw_sha256=payload_hash,
-                            payload=payload,
-                        )
-                        current_identity = repository.confirmed_lineup_business_identity(
-                            fixture_id=fixture_id
-                        )
-                        if (
-                            lineup_rows > 0
-                            and current_identity is not None
-                            and current_identity != previous_identity
-                        ):
-                            self._record_projection_event(
-                                ProjectionSourceEvent.create(
-                                    fixture_id=fixture_id,
-                                    event_type="LINEUP_CHANGED",
-                                    event_id=f"lineup:{current_identity}",
-                                    event_at=response.captured_at,
-                                    payload={
-                                        "lineup_business_identity": current_identity,
-                                        "materialized_rows": lineup_rows,
-                                    },
-                                )
-                            )
-                    except FutureRefreshPersistenceError:
-                        # The raw response remains valid audit evidence even when
-                        # an incomplete/unidentified XI must fail closed for
-                        # lineup-feature materialization.
-                        pass
             elif self.config.persistence == "file":
                 file_fixture_id = params.get("fixture")
                 suffix = f"_{file_fixture_id}" if file_fixture_id else ""
@@ -1391,7 +1352,7 @@ class FutureFixtureRefreshService:
     def _fetch_feature_enrichment(
         self,
         fixtures: list[dict[str, Any]],
-    ) -> list[tuple[str, str, int]]:
+    ) -> list[tuple[str, str, LiveApiFootballResponse]]:
         if not self.config.feature_enrichment_enabled:
             return []
         allowed = {"statistics", "lineups", "injuries"}
@@ -1403,7 +1364,7 @@ class FutureFixtureRefreshService:
         budget = max(self.config.feature_enrichment_request_budget, 0)
         if budget == 0:
             return []
-        responses: list[tuple[str, str, int]] = []
+        responses: list[tuple[str, str, LiveApiFootballResponse]] = []
         batch_size = max(
             env_int(
                 "W2_PROVIDER_REFRESH_BATCH_SIZE",
@@ -1411,7 +1372,7 @@ class FutureFixtureRefreshService:
             ),
             1,
         )
-        pending: list[tuple[str, str, int]] = []
+        pending: list[tuple[str, str, LiveApiFootballResponse]] = []
         for item in fixtures:
             fixture_id = fixture_id_from_payload(item)
             if not fixture_id:
@@ -1448,7 +1409,7 @@ class FutureFixtureRefreshService:
                         )
                         continue
                 response = self._request(endpoint, {"fixture": fixture_id})
-                pending.append((fixture_id, endpoint, response_count(response.payload)))
+                pending.append((fixture_id, endpoint, response))
                 if len(pending) >= batch_size:
                     self._feature_enrichment_batch_count += 1
                     responses.extend(pending)
@@ -1463,7 +1424,7 @@ class FutureFixtureRefreshService:
         fixtures_response: LiveApiFootballResponse,
         fixtures: list[dict[str, Any]],
         odds_responses: list[tuple[str, LiveApiFootballResponse]],
-        enrichment_responses: list[tuple[str, str, int]],
+        enrichment_responses: list[tuple[str, str, LiveApiFootballResponse]],
         blockers: list[str],
     ) -> FutureRefreshResult:
         if self.config.persistence == "db":
@@ -1569,7 +1530,7 @@ class FutureFixtureRefreshService:
         fixtures_response: LiveApiFootballResponse,
         fixtures: list[dict[str, Any]],
         odds_responses: list[tuple[str, LiveApiFootballResponse]],
-        enrichment_responses: list[tuple[str, str, int]],
+        enrichment_responses: list[tuple[str, str, LiveApiFootballResponse]],
         blockers: list[str],
     ) -> FutureRefreshResult:
         try:
@@ -1581,9 +1542,16 @@ class FutureFixtureRefreshService:
                 fixtures=fixtures,
             )
             for fixture_identity in fixture_identities:
-                _persisted, changed_fixture_ids = (
-                    repository.upsert_fixture_identities_with_business_changes([fixture_identity])
-                )
+                try:
+                    _persisted, changed_fixture_ids = (
+                        repository.upsert_fixture_identities_with_business_changes(
+                            [fixture_identity]
+                        )
+                    )
+                except Exception as exc:
+                    raise FutureRefreshError(
+                        f"FIXTURE_IDENTITY_PERSISTENCE_FAILED:{exc.__class__.__name__}"
+                    ) from exc
                 if changed_fixture_ids:
                     fixture_id = str(
                         fixture_identity.get("provider_fixture_id")
@@ -1602,6 +1570,10 @@ class FutureFixtureRefreshService:
                                 payload=fixture_identity,
                             )
                         )
+            self._materialize_lineup_enrichment(
+                fixtures=fixtures,
+                enrichment_responses=enrichment_responses,
+            )
             observations: list[dict[str, Any]] = []
             for fixture_id, response in odds_responses:
                 from w2.matchday.intake_v2 import normalize_matchday_odds_payload
@@ -1699,6 +1671,88 @@ class FutureFixtureRefreshService:
         )
         self._write_audit(result)
         return result
+
+    def _materialize_lineup_enrichment(
+        self,
+        *,
+        fixtures: list[dict[str, Any]],
+        enrichment_responses: list[tuple[str, str, LiveApiFootballResponse]],
+    ) -> None:
+        kickoff_by_fixture = {
+            fixture_id: kickoff_from_payload(item)
+            for item in fixtures
+            if (fixture_id := fixture_id_from_payload(item))
+        }
+        repository = self._db_repository()
+        for fixture_id, endpoint, response in enrichment_responses:
+            if endpoint != "lineups":
+                continue
+            raw_record = self._raw_payload_record(
+                endpoint=endpoint,
+                params={"fixture": fixture_id},
+                payload=response.payload,
+            )
+            raw_sha = sha256_payload(
+                raw_record, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD
+            )
+            capture = self._matchday_capture_by_payload.get(
+                self._capture_lookup_key(
+                    endpoint=endpoint,
+                    params={"fixture": fixture_id},
+                    raw_payload_sha256=raw_sha,
+                    captured_at=response.captured_at,
+                )
+            )
+            if capture is None:
+                raise FutureRefreshError(
+                    "LINEUP_MATERIALIZATION_FAILED:ENDPOINT_CAPTURE_MISSING"
+                )
+            try:
+                previous_identity = repository.confirmed_lineup_business_identity(
+                    fixture_id=fixture_id
+                )
+                materialized_rows = repository.save_lineup_snapshots(
+                    fixture_id=fixture_id,
+                    captured_at=response.captured_at,
+                    raw_sha256=raw_sha,
+                    payload=raw_record,
+                    kickoff_at=kickoff_by_fixture.get(fixture_id),
+                    source_capture_id=str(capture["capture_id"]),
+                )
+                lineup_event = repository.canonical_lineup_confirmed_event(fixture_id)
+            except FutureRefreshPersistenceError as exc:
+                reason = str(exc)
+                if reason.startswith("LINEUP_MATERIALIZATION_FAILED:"):
+                    raise FutureRefreshError(reason) from exc
+                raise FutureRefreshError(
+                    f"LINEUP_MATERIALIZATION_FAILED:{reason}"
+                ) from exc
+            if lineup_event is None:
+                raise FutureRefreshError(
+                    "LINEUP_MATERIALIZATION_FAILED:CANONICAL_EVENT_MISSING"
+                )
+            exact_replay = (
+                materialized_rows == 0
+                and lineup_event.source_capture_id == str(capture["capture_id"])
+            )
+            if (
+                exact_replay
+                or materialized_rows > 0
+                and lineup_event.lineup_input_hash != previous_identity
+            ):
+                self._record_projection_event(
+                    ProjectionSourceEvent.create(
+                        fixture_id=fixture_id,
+                        event_type="LINEUP_CHANGED",
+                        event_id=f"lineup:{lineup_event.lineup_input_hash}",
+                        event_at=lineup_event.captured_at,
+                        payload={
+                            "lineup_business_identity": lineup_event.lineup_input_hash,
+                            "materialized_rows": materialized_rows,
+                            "source_capture_id": lineup_event.source_capture_id,
+                        },
+                    )
+                )
 
     def _fixtures_request_params(self) -> dict[str, str]:
         return {

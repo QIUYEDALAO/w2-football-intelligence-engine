@@ -274,31 +274,137 @@ class FutureRefreshDbRepository:
         ]
         if len(set(all_starter_ids)) != 22:
             raise FutureRefreshPersistenceError("LINEUP_FIXTURE_PLAYER_IDENTITY_CONFLICT")
+        expected = self._lineup_replay_spec(snapshots)
         with Session(self.engine) as session:
-            try:
-                for snapshot, players in snapshots:
-                    session.add(snapshot)
-                    session.flush()
-                    for player in players:
-                        session.add(
-                            StructuredLineupPlayerModel(
-                                lineup_snapshot_id=snapshot.id,
-                                mapping_status="MISSING",
-                                **player,
+            if self._lineup_replay_is_exact(session, expected):
+                materialized = 0
+            else:
+                try:
+                    for snapshot, players in snapshots:
+                        session.add(snapshot)
+                        session.flush()
+                        for player in players:
+                            session.add(
+                                StructuredLineupPlayerModel(
+                                    lineup_snapshot_id=snapshot.id,
+                                    mapping_status="MISSING",
+                                    **player,
+                                )
                             )
-                        )
-                session.commit()
-                materialized = len(snapshots)
-            except IntegrityError:
-                session.rollback()
-                return 0
-            except Exception as exc:
-                session.rollback()
-                raise FutureRefreshPersistenceError("LINEUP_MATERIALIZATION_FAILED") from exc
+                    session.commit()
+                    materialized = len(snapshots)
+                except IntegrityError:
+                    session.rollback()
+                    if not self._lineup_replay_is_exact(session, expected):
+                        raise FutureRefreshPersistenceError(
+                            "LINEUP_MATERIALIZATION_CONFLICT"
+                        ) from None
+                    materialized = 0
+                except Exception as exc:
+                    session.rollback()
+                    raise FutureRefreshPersistenceError(
+                        f"LINEUP_MATERIALIZATION_FAILED:{exc.__class__.__name__}"
+                    ) from exc
         self.materialize_player_identity_mappings(fixture_id=fixture_id, as_of=captured_at)
         if materialize_baselines:
             self.materialize_team_lineup_baselines(limit=4096)
         return materialized
+
+    @staticmethod
+    def _lineup_replay_spec(
+        snapshots: list[tuple[StructuredLineupSnapshotModel, list[dict[str, Any]]]],
+    ) -> list[dict[str, Any]]:
+        return sorted(
+            (
+                {
+                    "fixture_id": snapshot.fixture_id,
+                    "team_external_id": snapshot.team_external_id,
+                    "team_name": snapshot.team_name,
+                    "formation": snapshot.formation,
+                    "captured_at": iso_z(snapshot.captured_at),
+                    "confirmed": snapshot.confirmed,
+                    "authoritative_status": snapshot.authoritative_status,
+                    "raw_sha256": snapshot.raw_sha256,
+                    "lineup_identity_hash": snapshot.lineup_identity_hash,
+                    "source_capture_id": snapshot.source_capture_id,
+                    "schema_version": snapshot.schema_version,
+                    "players": sorted(
+                        (dict(player) for player in players),
+                        key=lambda player: (
+                            str(player["api_football_player_id"]),
+                            bool(player["starter"]),
+                        ),
+                    ),
+                }
+                for snapshot, players in snapshots
+            ),
+            key=lambda snapshot: str(snapshot["team_external_id"]),
+        )
+
+    def _lineup_replay_is_exact(
+        self,
+        session: Session,
+        expected: list[dict[str, Any]],
+    ) -> bool:
+        fixture_id = str(expected[0]["fixture_id"])
+        captured_at = str(expected[0]["captured_at"])
+        snapshots = [
+            row
+            for row in session.scalars(
+                select(StructuredLineupSnapshotModel).where(
+                    StructuredLineupSnapshotModel.fixture_id == fixture_id
+                )
+            )
+            if iso_z(row.captured_at) == captured_at
+        ]
+        if not snapshots:
+            return False
+        actual: list[dict[str, Any]] = []
+        for snapshot in snapshots:
+            players = list(
+                session.scalars(
+                    select(StructuredLineupPlayerModel).where(
+                        StructuredLineupPlayerModel.lineup_snapshot_id == snapshot.id
+                    )
+                )
+            )
+            actual.append(
+                {
+                    "fixture_id": snapshot.fixture_id,
+                    "team_external_id": snapshot.team_external_id,
+                    "team_name": snapshot.team_name,
+                    "formation": snapshot.formation,
+                    "captured_at": iso_z(snapshot.captured_at),
+                    "confirmed": snapshot.confirmed,
+                    "authoritative_status": snapshot.authoritative_status,
+                    "raw_sha256": snapshot.raw_sha256,
+                    "lineup_identity_hash": snapshot.lineup_identity_hash,
+                    "source_capture_id": snapshot.source_capture_id,
+                    "schema_version": snapshot.schema_version,
+                    "players": sorted(
+                        (
+                            {
+                                "api_football_player_id": player.api_football_player_id,
+                                "player_name": player.player_name,
+                                "starter": player.starter,
+                                "shirt_number": player.shirt_number,
+                                "provider_position": player.provider_position,
+                                "grid": player.grid,
+                                "captain": player.captain,
+                            }
+                            for player in players
+                        ),
+                        key=lambda player: (
+                            str(player["api_football_player_id"]),
+                            bool(player["starter"]),
+                        ),
+                    ),
+                }
+            )
+        actual.sort(key=lambda snapshot: str(snapshot["team_external_id"]))
+        if actual != expected:
+            raise FutureRefreshPersistenceError("LINEUP_MATERIALIZATION_CONFLICT")
+        return True
 
     def confirmed_lineup_business_identity(self, *, fixture_id: str) -> str | None:
         """Return the latest complete capture's canonical XI identity."""

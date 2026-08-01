@@ -1120,19 +1120,21 @@ def test_checkpoint_refresh_materializes_only_fixtures_with_new_observations(
     assert audit.result["materialized_fixture_ids"] == ["1489404"]
 
 
-def test_lineup_change_records_projection_event(monkeypatch, tmp_path: Path) -> None:
+def test_raw_lineup_persistence_defers_materialization_until_fixture_identity_exists(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
     class Repository:
-        identities = iter((None, "xi-business-hash"))
+        materialization_called = False
 
         def save_raw_payload(self, **_kwargs: Any) -> bool:
             return True
 
         def save_lineup_snapshots(self, **_kwargs: Any) -> int:
-            return 2
+            self.materialization_called = True
+            raise AssertionError("lineup materialization must be deferred")
 
-        def confirmed_lineup_business_identity(self, **_kwargs: Any) -> str | None:
-            return next(self.identities)
-
+    repository = Repository()
     service = FutureFixtureRefreshService(
         client=FakeApiFootballClient(),
         config=FutureRefreshConfig(
@@ -1141,7 +1143,7 @@ def test_lineup_change_records_projection_event(monkeypatch, tmp_path: Path) -> 
         ),
         now=NOW,
     )
-    monkeypatch.setattr(service, "_db_repository", lambda: Repository())
+    monkeypatch.setattr(service, "_db_repository", lambda: repository)
     response = LiveApiFootballResponse(
         endpoint="lineups",
         params={"fixture": "1489404"},
@@ -1159,51 +1161,7 @@ def test_lineup_change_records_projection_event(monkeypatch, tmp_path: Path) -> 
         payload_hash="a" * 64,
         payload={"response": []},
     ) == (True, None)
-    event = next(iter(service._projection_events.values()))
-    assert (event.fixture_id, event.event_type, event.event_id) == (
-        "1489404",
-        "LINEUP_CHANGED",
-        "lineup:xi-business-hash",
-    )
-
-
-def test_repeated_confirmed_xi_does_not_record_projection_event(
-    monkeypatch,
-    tmp_path: Path,
-) -> None:
-    class Repository:
-        def save_raw_payload(self, **_kwargs: Any) -> bool:
-            return True
-
-        def save_lineup_snapshots(self, **_kwargs: Any) -> int:
-            return 2
-
-        def confirmed_lineup_business_identity(self, **_kwargs: Any) -> str:
-            return "same-xi-business-hash"
-
-    service = FutureFixtureRefreshService(
-        client=FakeApiFootballClient(),
-        config=FutureRefreshConfig(runtime_root=tmp_path, persistence="db"),
-        now=NOW,
-    )
-    monkeypatch.setattr(service, "_db_repository", lambda: Repository())
-    response = LiveApiFootballResponse(
-        endpoint="lineups",
-        params={"fixture": "1489404"},
-        status_code=200,
-        elapsed_ms=1,
-        payload={"response": []},
-        headers={},
-        captured_at=NOW,
-    )
-
-    assert service._save_raw_payload_first(
-        endpoint="lineups",
-        params={"fixture": "1489404"},
-        response=response,
-        payload_hash="b" * 64,
-        payload={"response": []},
-    ) == (True, None)
+    assert repository.materialization_called is False
     assert service._projection_events == {}
 
 
