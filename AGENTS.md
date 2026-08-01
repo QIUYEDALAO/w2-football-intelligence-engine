@@ -36,16 +36,16 @@ main 漂移、workspace 不干净或来源不明时，停止代码编辑。
 
 ```text
 TOP_LEVEL_TASK = EVAL-02B
-ACTIVE_NEXT_ACTION = EXECUTE_WAVE_2_CANONICAL_SERIALIZATION_OFFLINE
+ACTIVE_NEXT_ACTION = EXECUTE_WAVE_3_C9_THEN_GATE_A_OFFLINE
 ACTIVE_CONTEXT_PR = 450
-CURRENT_WORKSTREAM = EVAL-02B-SER
-CURRENT_PHASE = WAVE_2_CANONICAL_SERIALIZATION
+CURRENT_WORKSTREAM = EVAL-02B-C9-AND-GATE-A
+CURRENT_PHASE = WAVE_3_C9_THEN_GATE_A_OFFLINE
 TASK_AUTHORITY = docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
 ACTIVE_EXECUTION_AUTHORITY = Issue #454 v5
 ```
 
 Wave 1 / T00 已完成并冻结；除非出现新的、明确批准的证据，不得重跑 T00 或调整其分母。
-Wave 2 Canonical Serialization 离线 implementer tranche 已获授权。
+Wave 2 已在 combined exact head 完成；Wave 3 已获授权，且必须先 C9、后 Gate A 离线整改。
 
 ## 污染隔离
 
@@ -101,8 +101,11 @@ FINAL_TEST_CONTRACT_SKELETONS = 30
 ROLE_FIELDS_CARRIED_TO_PR450 = 145
 ROLE_FIELD_DISPOSITION = CARRY_TO_PR450_DOCUMENTATION_REPAIR
 ISSUE_457_PROJECT_GATE = CLOSED_WITH_OWNER_RISK_ACCEPTANCE
-WAVE_2_AUTHORIZED = true
-NEXT_CODE_ACTION = SER_01_TO_SER_07
+WAVE_2 = CLOSED_WITH_EXISTING_C9_BLOCKER
+SER_05_INDEPENDENT_ORACLE = PASS
+PR_461 = INTEGRATED_INTO_PR_460
+WAVE_3_AUTHORIZED = true
+NEXT_CODE_ACTION = C9_TRUSTED_REBUILD_THEN_GATE_A_OFFLINE
 PR_450 = DRAFT
 PR_450_FINAL_ACCEPTANCE_REVIEW = COMPLETED
 PREDEPLOY_C9 = EXISTING_BLOCKER
@@ -117,8 +120,8 @@ AUTO_MERGE = FORBIDDEN
 PR #450 必须保留可信 main 的全部历史守卫，并校验 authority matrix 当前表头的
 列名、列顺序和列数。新增、删除、重命名或重排任一列都必须显式更新合同。
 不得在本阶段重新计算或重新分组 Wave 1 审计分母。PR #450 final acceptance review
-已发生；当前只执行 Wave 2 Canonical Serialization 离线 implementer tranche，且 C9
-predeploy 保持独立后续阻断。
+已发生；当前从 PR #460 combined head 执行 Wave 3，先可信 C9 重建，exact predeploy
+通过后再执行冻结的 Gate A 离线整改。
 
 ## Canary 硬失败
 

@@ -44,17 +44,20 @@ PR #450 = DRAFT / FINAL ACCEPTANCE REVIEW COMPLETED / NOT MERGE ELIGIBLE
 
 ```text
 TOP_LEVEL_TASK = EVAL-02B
-ACTIVE_NEXT_ACTION = EXECUTE_WAVE_2_CANONICAL_SERIALIZATION_OFFLINE
+ACTIVE_NEXT_ACTION = EXECUTE_WAVE_3_C9_THEN_GATE_A_OFFLINE
 ACTIVE_CONTEXT_PR = 450
-CURRENT_WORKSTREAM = EVAL-02B-SER
-CURRENT_PHASE = WAVE_2_CANONICAL_SERIALIZATION
+CURRENT_WORKSTREAM = EVAL-02B-C9-AND-GATE-A
+CURRENT_PHASE = WAVE_3_C9_THEN_GATE_A_OFFLINE
 EVAL-02B END-TO-END = BLOCKED / NOT VALIDATED
 EVAL-03 = NOT STARTED
 WAVE_1 = CLOSED_AND_FROZEN
 T00_RERUN = FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE
 ISSUE_457_PROJECT_GATE = CLOSED_WITH_OWNER_RISK_ACCEPTANCE
-WAVE_2_AUTHORIZED = true
-NEXT_CODE_ACTION = SER_01_TO_SER_07
+WAVE_2 = CLOSED_WITH_EXISTING_C9_BLOCKER
+SER_05_INDEPENDENT_ORACLE = PASS
+PR_461 = INTEGRATED_INTO_PR_460
+WAVE_3_AUTHORIZED = true
+NEXT_CODE_ACTION = C9_TRUSTED_REBUILD_THEN_GATE_A_OFFLINE
 PR_450 = DRAFT
 PR_450_FINAL_ACCEPTANCE_REVIEW = COMPLETED
 PREDEPLOY_C9 = EXISTING_BLOCKER
@@ -75,13 +78,15 @@ FINAL_EXACT_C1_C11_MAPPINGS = 35
 FINAL_TEST_CONTRACT_SKELETONS = 30
 ROLE_FIELDS_CARRIED_TO_PR450 = 145
 ROLE_FIELD_DISPOSITION = CARRY_TO_PR450_DOCUMENTATION_REPAIR
-WAVE_2_AUTHORIZED = true
+WAVE_2 = CLOSED_WITH_EXISTING_C9_BLOCKER
+SER_05_INDEPENDENT_ORACLE = PASS
+PR_461 = INTEGRATED_INTO_PR_460
 ```
 
 完整 all-call ledger 与 grouped effect inventory 保持冻结，不在 PR #450 重新分组。
 PR #450 只恢复可信 main 保留的 145 条历史守卫、承接 145 个 `role` 字段并硬守卫
 当前 authority matrix 的 9 个表头名称、顺序和列数。上述 28/35/30 是 Wave 1
-独立验收后的冻结集合，不授权 SER、C9 或 Gate A runtime remediation。
+独立验收后的冻结集合；Wave 3 只能实现该冻结集合，不得扩大分母。
 
 A148 只能定义为：
 
@@ -240,10 +245,9 @@ LINEAGE_MISMATCH
 
 ## #454 v5 历史执行顺序与当前边界
 
-Wave 1 / T00 已完成并冻结，PR #450 的 final acceptance review 已发生。本文件不把历史
-执行顺序重新发布为当前待办。当前唯一动作是 Wave 2 Canonical Serialization 离线 implementer
-tranche。Issue #457 项目 gate 已按 owner risk acceptance 关闭，残余风险继续保留。C9 predeploy
-保持独立后续阻断，PR #450 保持 Draft。
+Wave 1 / T00 已完成并冻结，Wave 2 independent serializer oracle 已通过。当前唯一动作是从
+PR #460 combined head 执行 Wave 3：先可信 C9 重建，exact predeploy 通过后再连续完成剩余
+Gate A 离线整改。Issue #457 项目 gate 已按 owner risk acceptance 关闭，PR #450 保持 Draft。
 
 ## Gate 分层
 
@@ -255,10 +259,10 @@ tranche。Issue #457 项目 gate 已按 owner risk acceptance 关闭，残余风
 ## 接手动作
 
 1. 先读本文件、`PROJECT_STATE.yaml`、`NEXT_ACTION.md` 和 #454/#457 最新 binding decision。
-2. 核对 `ACTIVE_NEXT_ACTION = EXECUTE_WAVE_2_CANONICAL_SERIALIZATION_OFFLINE` 与 `ACTIVE_CONTEXT_PR = 450`。
-3. 不重跑或扩大 T00；只执行 SER-01 至 SER-07 implementer tranche。
-4. 独立 oracle/golden expected outputs 必须由另一作者完成且不得 import 生产 serializer。
-5. 保持 PR #450 Draft；C9 predeploy 作为独立后续阻断，不得放宽断言。
+2. 核对 `ACTIVE_NEXT_ACTION = EXECUTE_WAVE_3_C9_THEN_GATE_A_OFFLINE` 与 `ACTIVE_CONTEXT_PR = 450`。
+3. 不重跑或扩大 T00；先完成 C9 exact predeploy，再执行冻结的 Gate A 离线整改。
+4. 不得使用、复制、merge 或 cherry-pick PR #453 / `e875050f...`。
+5. 保持 PR #450 Draft；不得放宽 C9 required event 断言。
 6. 不调用 Provider、不创建真实授权、不启动持续 scheduler、不部署、不自动合并。
 7. 最终输出：
 
