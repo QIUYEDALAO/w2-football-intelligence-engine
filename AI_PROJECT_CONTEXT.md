@@ -44,19 +44,22 @@ PR #450 = DRAFT / FINAL ACCEPTANCE REVIEW COMPLETED / NOT MERGE ELIGIBLE
 
 ```text
 TOP_LEVEL_TASK = EVAL-02B
-ACTIVE_NEXT_ACTION = WAIT_FOR_EXISTING_PHASE_MINUS_1_GATE
+ACTIVE_NEXT_ACTION = EXECUTE_WAVE_2_CANONICAL_SERIALIZATION_OFFLINE
 ACTIVE_CONTEXT_PR = 450
-CURRENT_WORKSTREAM = NONE_AUTHORIZED
-CURRENT_PHASE = WAITING_FOR_EXISTING_PHASE_MINUS_1_GATE
+CURRENT_WORKSTREAM = EVAL-02B-SER
+CURRENT_PHASE = WAVE_2_CANONICAL_SERIALIZATION
 EVAL-02B END-TO-END = BLOCKED / NOT VALIDATED
 EVAL-03 = NOT STARTED
 WAVE_1 = CLOSED_AND_FROZEN
 T00_RERUN = FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE
-NEXT_CODE_ACTION = NONE_AUTHORIZED
+ISSUE_457_PROJECT_GATE = CLOSED_WITH_OWNER_RISK_ACCEPTANCE
+WAVE_2_AUTHORIZED = true
+NEXT_CODE_ACTION = SER_01_TO_SER_07
 PR_450 = DRAFT
 PR_450_FINAL_ACCEPTANCE_REVIEW = COMPLETED
 PREDEPLOY_C9 = EXISTING_BLOCKER
 PROVIDER = OFF
+REAL_PROVIDER = OFF
 REAL_CANARY = NOT_AUTHORIZED
 PERSISTENT_SCHEDULER = OFF
 CANDIDATE / FORMAL / LOCK / PRODUCTION = OFF
@@ -72,7 +75,7 @@ FINAL_EXACT_C1_C11_MAPPINGS = 35
 FINAL_TEST_CONTRACT_SKELETONS = 30
 ROLE_FIELDS_CARRIED_TO_PR450 = 145
 ROLE_FIELD_DISPOSITION = CARRY_TO_PR450_DOCUMENTATION_REPAIR
-WAVE_2_AUTHORIZED = false
+WAVE_2_AUTHORIZED = true
 ```
 
 完整 all-call ledger 与 grouped effect inventory 保持冻结，不在 PR #450 重新分组。
@@ -128,8 +131,8 @@ DUPLICATE_TABLE_CREATION_IN_LINEAR_UPGRADE_PATH_WITHOUT_INTERVENING_DROP_OR_RENA
 
 ### R5 canonical serialization
 
-运行相关 serializer/hash writer inventory 已由 Wave 1 T00-R5 冻结；本阶段不重新计数，
-且 Wave 2 / SER 未获授权。
+运行相关 serializer/hash writer inventory 已由 Wave 1 T00-R5 冻结；本阶段不重新计数。
+Wave 2 / SER-01 至 SER-07 implementer tranche 已获授权。
 
 Gate A 必须先完成：
 
@@ -238,8 +241,9 @@ LINEAGE_MISMATCH
 ## #454 v5 历史执行顺序与当前边界
 
 Wave 1 / T00 已完成并冻结，PR #450 的 final acceptance review 已发生。本文件不把历史
-执行顺序重新发布为当前待办。当前唯一动作是等待现有 Phase -1 / Issue #457 gate；当前
-没有获授权的代码执行阶段。C9 predeploy 保持独立后续阻断，PR #450 保持 Draft。
+执行顺序重新发布为当前待办。当前唯一动作是 Wave 2 Canonical Serialization 离线 implementer
+tranche。Issue #457 项目 gate 已按 owner risk acceptance 关闭，残余风险继续保留。C9 predeploy
+保持独立后续阻断，PR #450 保持 Draft。
 
 ## Gate 分层
 
@@ -250,12 +254,13 @@ Wave 1 / T00 已完成并冻结，PR #450 的 final acceptance review 已发生�
 
 ## 接手动作
 
-1. 先读本文件、`PROJECT_STATE.yaml`、`NEXT_ACTION.md` 和 #454 最新 binding decision；#457 保持 OPEN。
-2. 核对 `ACTIVE_NEXT_ACTION = WAIT_FOR_EXISTING_PHASE_MINUS_1_GATE` 与 `ACTIVE_CONTEXT_PR = 450`。
-3. 不重跑 T00，不进入 Wave 2，不开始任何代码执行阶段。
-4. 保持 PR #450 Draft；C9 predeploy 作为独立后续阻断，不得放宽断言。
-5. 不调用 Provider、不创建真实授权、不启动持续 scheduler、不自动合并。
-6. 最终输出：
+1. 先读本文件、`PROJECT_STATE.yaml`、`NEXT_ACTION.md` 和 #454/#457 最新 binding decision。
+2. 核对 `ACTIVE_NEXT_ACTION = EXECUTE_WAVE_2_CANONICAL_SERIALIZATION_OFFLINE` 与 `ACTIVE_CONTEXT_PR = 450`。
+3. 不重跑或扩大 T00；只执行 SER-01 至 SER-07 implementer tranche。
+4. 独立 oracle/golden expected outputs 必须由另一作者完成且不得 import 生产 serializer。
+5. 保持 PR #450 Draft；C9 predeploy 作为独立后续阻断，不得放宽断言。
+6. 不调用 Provider、不创建真实授权、不启动持续 scheduler、不部署、不自动合并。
+7. 最终输出：
 
 ```text
 REAL_PROVIDER_CALL_EXECUTED = false

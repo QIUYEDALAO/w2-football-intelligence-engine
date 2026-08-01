@@ -244,14 +244,14 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "lock_enabled": False,
         "production_release": False,
         "scoring_implementation": "BLOCKED",
-        "next_required_action": "WAIT_FOR_EXISTING_PHASE_MINUS_1_GATE",
+        "next_required_action": "EXECUTE_WAVE_2_CANONICAL_SERIALIZATION_OFFLINE",
     }
     assert state["tasks"]["EVAL-03"]["status"] == "NOT_STARTED"
     assert state["architecture_convergence"]["status"] == "PASS"
     assert "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)" in next_action
     assert CHECKLIST_PATH in next_action
-    assert "ACTIVE_NEXT_ACTION = WAIT_FOR_EXISTING_PHASE_MINUS_1_GATE" in next_action
-    assert "NEXT_CODE_ACTION = NONE_AUTHORIZED" in next_action
+    assert "ACTIVE_NEXT_ACTION = EXECUTE_WAVE_2_CANONICAL_SERIALIZATION_OFFLINE" in next_action
+    assert "NEXT_CODE_ACTION = SER_01_TO_SER_07" in next_action
     assert "T00_RERUN = FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE" in next_action
     assert "Historical receipt / 历史回执" in next_action
     a148 = state["historical_receipts"]["a148"]

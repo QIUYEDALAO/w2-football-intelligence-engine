@@ -1,26 +1,30 @@
 # NEXT ACTION
 
-当前唯一动作：等待现有 Phase -1 / Issue #457 gate 的人工处置。当前没有获授权的代码执行阶段。
+当前唯一动作：执行 Wave 2 Canonical Serialization 离线 implementer tranche。Issue #457
+已由 owner risk acceptance 从项目执行 gate 中关闭；残余风险继续如实保留。
 
 ```text
-ACTIVE_NEXT_ACTION = WAIT_FOR_EXISTING_PHASE_MINUS_1_GATE
+ACTIVE_NEXT_ACTION = EXECUTE_WAVE_2_CANONICAL_SERIALIZATION_OFFLINE
 ACTIVE_CONTEXT_PR = 450
-CURRENT_WORKSTREAM = NONE_AUTHORIZED
-CURRENT_PHASE = WAITING_FOR_EXISTING_PHASE_MINUS_1_GATE
+CURRENT_WORKSTREAM = EVAL-02B-SER
+CURRENT_PHASE = WAVE_2_CANONICAL_SERIALIZATION
 WAVE_1 = CLOSED_AND_FROZEN
 WAVE_1_FINAL = PASS_WITH_BOUNDED_CARRY_FORWARD
 T00_RERUN = FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE
 FINAL_GATE_A_GROUPS = 28
 FINAL_EXACT_C1_C11_MAPPINGS = 35
 FINAL_TEST_CONTRACT_SKELETONS = 30
-WAVE_2_AUTHORIZED = false
-NEXT_CODE_ACTION = NONE_AUTHORIZED
+ISSUE_457_PROJECT_GATE = CLOSED_WITH_OWNER_RISK_ACCEPTANCE
+WAVE_2_AUTHORIZED = true
+NEXT_CODE_ACTION = SER_01_TO_SER_07
 PR_450 = DRAFT
 PR_450_FINAL_ACCEPTANCE_REVIEW = COMPLETED
 PREDEPLOY_C9 = EXISTING_BLOCKER
 PROVIDER = OFF
+REAL_PROVIDER = OFF
 REAL_CANARY = NOT_AUTHORIZED
 PERSISTENT_SCHEDULER = OFF
+CANDIDATE / FORMAL / LOCK / PRODUCTION = OFF
 AUTO_MERGE = FORBIDDEN
 ```
 
@@ -40,6 +44,6 @@ Wave 1 的 T00-R5 inventory 与 Issue #456 仍是冻结历史证据，不是当�
 
 ## Stop line
 
-不得重跑 T00，不得启动 SER、C9 重建、Gate A runtime remediation、Provider、真实 canary、
-persistent scheduler、Candidate、Formal、Lock、Production 或 merge。只有新的、明确批准的 GitHub
-证据才能改变上述状态。
+不得重跑或扩大 T00 分母。当前只允许 SER-01 至 SER-07 的离线 implementer 工作；不得
+编写独立 oracle/golden expected outputs，不得启动 C9 重建、Gate A runtime remediation、Provider、
+真实 canary、persistent scheduler、部署、Candidate、Formal、Lock、Production 或自动 merge。

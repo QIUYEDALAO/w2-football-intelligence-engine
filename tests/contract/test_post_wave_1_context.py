@@ -17,7 +17,7 @@ CONTEXT_PATH = "AI_PROJECT_CONTEXT.md"
 EXECUTION_AUTHORITY = (
     "https://github.com/QIUYEDALAO/w2-football-intelligence-engine/issues/454"
 )
-ACTIVE_NEXT_ACTION = "WAIT_FOR_EXISTING_PHASE_MINUS_1_GATE"
+ACTIVE_NEXT_ACTION = "EXECUTE_WAVE_2_CANONICAL_SERIALIZATION_OFFLINE"
 SUPERSEDED_A148_ACTION = "INDEPENDENT_REHEARSAL_RECEIPT_REVIEW"
 
 REQUIRED_CANARY_DELTAS = (
@@ -53,12 +53,14 @@ def test_project_state_v5_separates_task_and_execution_authorities() -> None:
     assert state["computation_authority_issue"] == 456
 
     assert state["current_task"] == "EVAL-02B"
-    assert state["current_workstream"] == "NONE_AUTHORIZED"
-    assert state["current_phase"] == "WAITING_FOR_EXISTING_PHASE_MINUS_1_GATE"
+    assert state["current_workstream"] == "EVAL-02B-SER"
+    assert state["current_phase"] == "WAVE_2_CANONICAL_SERIALIZATION"
     assert state["current_status"] == "BLOCKED"
-    assert state["current_status_detail"] == "WAVE_1_CLOSED_NO_CODE_PHASE_AUTHORIZED"
+    assert state["current_status_detail"] == (
+        "WAVE_2_CANONICAL_SERIALIZATION_IMPLEMENTER_AUTHORIZED"
+    )
     assert state["next_task"] == "EVAL-02B"
-    assert state["next_workstream"] == "NONE_AUTHORIZED"
+    assert state["next_workstream"] == "EVAL-02B-SER"
     assert state["active_next_action"] == ACTIVE_NEXT_ACTION
     assert state["tasks"]["EVAL-02B"]["next_required_action"] == ACTIVE_NEXT_ACTION
     assert "current_pr" in state
@@ -106,7 +108,8 @@ def test_project_state_v5_separates_task_and_execution_authorities() -> None:
     assert state["FINAL_GATE_A_GROUPS"] == 28
     assert state["FINAL_EXACT_C1_C11_MAPPINGS"] == 35
     assert state["FINAL_TEST_CONTRACT_SKELETONS"] == 30
-    assert state["WAVE_2_AUTHORIZED"] is False
+    assert state["ISSUE_457_PROJECT_GATE"] == "CLOSED_WITH_OWNER_RISK_ACCEPTANCE"
+    assert state["WAVE_2_AUTHORIZED"] is True
     assert state["wave_1_evidence"]["role_fields_carried_to_pr450"] == 145
     assert state["wave_1_evidence"]["authority_matrix_cell_universe"] == 1305
     assert state["wave_1_evidence"]["currently_accounted_fields"] == 1160
@@ -182,24 +185,27 @@ def test_handoff_documents_are_synchronized_to_v5() -> None:
         assert "#454 v5" in text
         assert "R5" in text
         assert "#456" in text
-        assert "ACTIVE_NEXT_ACTION = WAIT_FOR_EXISTING_PHASE_MINUS_1_GATE" in text
+        assert "ACTIVE_NEXT_ACTION = EXECUTE_WAVE_2_CANONICAL_SERIALIZATION_OFFLINE" in text
         assert "ACTIVE_CONTEXT_PR = 450" in text
-        assert "CURRENT_WORKSTREAM = NONE_AUTHORIZED" in text
-        assert "CURRENT_PHASE = WAITING_FOR_EXISTING_PHASE_MINUS_1_GATE" in text
+        assert "CURRENT_WORKSTREAM = EVAL-02B-SER" in text
+        assert "CURRENT_PHASE = WAVE_2_CANONICAL_SERIALIZATION" in text
         assert "WAVE_1 = CLOSED_AND_FROZEN" in text
         assert "WAVE_1_FINAL = PASS_WITH_BOUNDED_CARRY_FORWARD" in text
         assert "T00_RERUN = FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE" in text
         assert "FINAL_GATE_A_GROUPS = 28" in text
         assert "FINAL_EXACT_C1_C11_MAPPINGS = 35" in text
         assert "FINAL_TEST_CONTRACT_SKELETONS = 30" in text
-        assert "WAVE_2_AUTHORIZED = false" in text
-        assert "NEXT_CODE_ACTION = NONE_AUTHORIZED" in text
+        assert "ISSUE_457_PROJECT_GATE = CLOSED_WITH_OWNER_RISK_ACCEPTANCE" in text
+        assert "WAVE_2_AUTHORIZED = true" in text
+        assert "NEXT_CODE_ACTION = SER_01_TO_SER_07" in text
         assert "PR_450 = DRAFT" in text
         assert "PR_450_FINAL_ACCEPTANCE_REVIEW = COMPLETED" in text
         assert "PREDEPLOY_C9 = EXISTING_BLOCKER" in text
         assert "PROVIDER = OFF" in text
+        assert "REAL_PROVIDER = OFF" in text
         assert "REAL_CANARY = NOT_AUTHORIZED" in text
         assert "PERSISTENT_SCHEDULER = OFF" in text
+        assert "CANDIDATE / FORMAL / LOCK / PRODUCTION = OFF" in text
         assert "AUTO_MERGE = FORBIDDEN" in text
         assert SUPERSEDED_A148_ACTION not in text
 
@@ -224,7 +230,7 @@ def test_active_action_is_unique_current_and_historical_receipt_is_bounded() -> 
     expected_active_state = {
         "WAVE_1": "CLOSED_AND_FROZEN",
         "T00_RERUN": "FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE",
-        "NEXT_CODE_ACTION": "NONE_AUTHORIZED",
+        "NEXT_CODE_ACTION": "SER_01_TO_SER_07",
         "PR_450": "DRAFT",
         "PR_450_FINAL_ACCEPTANCE_REVIEW": "COMPLETED",
         "PREDEPLOY_C9": "EXISTING_BLOCKER",
@@ -235,7 +241,7 @@ def test_active_action_is_unique_current_and_historical_receipt_is_bounded() -> 
     }
     for key, value in expected_active_state.items():
         assert state[key] == value
-    assert state["WAVE_2_AUTHORIZED"] is False
+    assert state["WAVE_2_AUTHORIZED"] is True
     assert state["active_context_pr"] == 450
 
     assert state_text.count(SUPERSEDED_A148_ACTION) == 1
@@ -273,7 +279,7 @@ def test_master_checklist_remains_historical_task_authority() -> None:
     assert state["task_authority"] == CHECKLIST_PATH
     assert state["active_execution_authority"] == EXECUTION_AUTHORITY
     assert state["current_task"] == "EVAL-02B"
-    assert state["current_workstream"] == "NONE_AUTHORIZED"
+    assert state["current_workstream"] == "EVAL-02B-SER"
 
     assert "PAIR_IDENTITY_SERIALIZATION" in checklist
     assert "UTF8_CANONICAL_JSON_SORTED_KEYS_COMPACT" in checklist

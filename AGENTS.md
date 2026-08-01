@@ -12,7 +12,7 @@
 - Issue #455
 - Issue #456
 
-#457 保持 OPEN，Agent 不得自行改变其状态或严重度。
+#457 可保持 OPEN 作为运维风险记录；项目 gate 已由 binding decision 以 owner risk acceptance 关闭。
 
 ## 本地同步前置
 
@@ -36,16 +36,16 @@ main 漂移、workspace 不干净或来源不明时，停止代码编辑。
 
 ```text
 TOP_LEVEL_TASK = EVAL-02B
-ACTIVE_NEXT_ACTION = WAIT_FOR_EXISTING_PHASE_MINUS_1_GATE
+ACTIVE_NEXT_ACTION = EXECUTE_WAVE_2_CANONICAL_SERIALIZATION_OFFLINE
 ACTIVE_CONTEXT_PR = 450
-CURRENT_WORKSTREAM = NONE_AUTHORIZED
-CURRENT_PHASE = WAITING_FOR_EXISTING_PHASE_MINUS_1_GATE
+CURRENT_WORKSTREAM = EVAL-02B-SER
+CURRENT_PHASE = WAVE_2_CANONICAL_SERIALIZATION
 TASK_AUTHORITY = docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
 ACTIVE_EXECUTION_AUTHORITY = Issue #454 v5
 ```
 
 Wave 1 / T00 已完成并冻结；除非出现新的、明确批准的证据，不得重跑 T00 或调整其分母。
-当前没有获授权的代码执行阶段。
+Wave 2 Canonical Serialization 离线 implementer tranche 已获授权。
 
 ## 污染隔离
 
@@ -100,21 +100,25 @@ FINAL_EXACT_C1_C11_MAPPINGS = 35
 FINAL_TEST_CONTRACT_SKELETONS = 30
 ROLE_FIELDS_CARRIED_TO_PR450 = 145
 ROLE_FIELD_DISPOSITION = CARRY_TO_PR450_DOCUMENTATION_REPAIR
-WAVE_2_AUTHORIZED = false
-NEXT_CODE_ACTION = NONE_AUTHORIZED
+ISSUE_457_PROJECT_GATE = CLOSED_WITH_OWNER_RISK_ACCEPTANCE
+WAVE_2_AUTHORIZED = true
+NEXT_CODE_ACTION = SER_01_TO_SER_07
 PR_450 = DRAFT
 PR_450_FINAL_ACCEPTANCE_REVIEW = COMPLETED
 PREDEPLOY_C9 = EXISTING_BLOCKER
 PROVIDER = OFF
+REAL_PROVIDER = OFF
 REAL_CANARY = NOT_AUTHORIZED
 PERSISTENT_SCHEDULER = OFF
+CANDIDATE / FORMAL / LOCK / PRODUCTION = OFF
 AUTO_MERGE = FORBIDDEN
 ```
 
 PR #450 必须保留可信 main 的全部历史守卫，并校验 authority matrix 当前表头的
 列名、列顺序和列数。新增、删除、重命名或重排任一列都必须显式更新合同。
 不得在本阶段重新计算或重新分组 Wave 1 审计分母。PR #450 final acceptance review
-已发生；当前只等待现有 Phase -1 gate，且 C9 predeploy 保持独立后续阻断。
+已发生；当前只执行 Wave 2 Canonical Serialization 离线 implementer tranche，且 C9
+predeploy 保持独立后续阻断。
 
 ## Canary 硬失败
 
