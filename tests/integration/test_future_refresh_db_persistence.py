@@ -32,6 +32,11 @@ from w2.ingestion.future_refresh_repository import (
     FutureRefreshPersistenceError,
 )
 from w2.prematch.analysis_calculator import ReadModelRepository, ReadModelService
+from w2.prematch.read_model_projection import (
+    ProjectionSourceEvent,
+    ScopedAnalysisRepository,
+    materialize_projection_events,
+)
 from w2.providers.api_football import LiveApiFootballResponse
 
 NOW = datetime(2026, 6, 23, 10, 0, tzinfo=UTC)
@@ -279,6 +284,87 @@ def test_c9_fake_provider_emits_exact_required_event_set(
         "odds",
         "lineups",
     ]
+
+
+def test_c9_fake_provider_materializes_real_shadow_projection(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    class PredeployClient(FakeApiFootballClient):
+        def payload(self, endpoint: str, params: dict[str, str]) -> dict[str, Any]:
+            if endpoint != "odds":
+                return super().payload(endpoint, params)
+            return {
+                "response": [
+                    {
+                        "fixture": {"id": int(params["fixture"])},
+                        "bookmakers": [
+                            {
+                                "id": 1,
+                                "name": "Book A",
+                                "bets": [
+                                    {
+                                        "id": 4,
+                                        "name": "Asian Handicap",
+                                        "values": [
+                                            {"value": "Home -0.5", "odd": "1.91"},
+                                            {"value": "Away +0.5", "odd": "1.93"},
+                                        ],
+                                    },
+                                    {
+                                        "id": 5,
+                                        "name": "Goals Over/Under",
+                                        "values": [
+                                            {"value": "Over 2.5", "odd": "2.01"},
+                                            {"value": "Under 2.5", "odd": "1.82"},
+                                        ],
+                                    },
+                                ],
+                            }
+                        ],
+                    }
+                ]
+            }
+
+    configure_sqlite_db(monkeypatch, tmp_path)
+    audit = run_future_refresh_task(
+        task_id="task-c9-shadow",
+        key="checkpoint-refresh:test:c9-shadow",
+        queued_at=NOW,
+        runtime_root=tmp_path / "runtime",
+        client=PredeployClient(),
+        now=NOW,
+        persistence="db",
+        materialize_public_artifacts=materialize_projection_events_for_test,
+    )
+    assert audit.status == "COMPLETED"
+    repository = ReadModelRepository()
+
+    def calculate(
+        scoped_repository: ScopedAnalysisRepository,
+        fixture_id: str,
+        evaluated_at: datetime,
+    ) -> dict[str, Any] | None:
+        return ReadModelService(repository=scoped_repository).public_analysis_card_bounded(
+            fixture_id,
+            evaluation_time=evaluated_at,
+            use_frozen_canary=False,
+        )
+
+    fixture_id = "1489404"
+    event = ProjectionSourceEvent.create(
+        fixture_id=fixture_id,
+        event_type="ODDS_CHANGED",
+        event_id=f"c9-shadow:{fixture_id}",
+        event_at=NOW,
+        payload={"fixture_id": fixture_id, "source": "c9-contract"},
+    )
+
+    assert materialize_projection_events(
+        [event],
+        repository=repository,
+        calculate_analysis_card=calculate,
+    ) == [fixture_id]
 
 
 def test_lineup_materialization_failure_is_stable_and_preserves_raw_lineage(
