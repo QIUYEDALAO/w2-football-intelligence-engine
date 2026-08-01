@@ -20,7 +20,11 @@ from typing import Any
 V2 = "w2.canonical-json.v2"
 V1 = "w2.canonical-json.v1"
 
-RESERVED_TAGS = (
+# ADR-0019 names the five emitted tags; the oracle vector schema additionally
+# requires an unemitted key such as "$w2_type" to be rejected, so the whole
+# "$w2_" prefix namespace is treated as reserved.
+RESERVED_TAG_PREFIX = "$w2_"
+EMITTED_TAGS = (
     "$w2_float",
     "$w2_decimal",
     "$w2_date",
@@ -172,7 +176,7 @@ def _sorted_entries(
         if not isinstance(raw_key, str):
             raise OracleError("NON_STRING_KEY")
         key = nfc(raw_key) if normalize else raw_key
-        if key in RESERVED_TAGS:
+        if key.startswith(RESERVED_TAG_PREFIX):
             raise OracleError("RESERVED_TAG")
         if key in seen:
             raise OracleError("UNICODE_KEY_COLLISION")
