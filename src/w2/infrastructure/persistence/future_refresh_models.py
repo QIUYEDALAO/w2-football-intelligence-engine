@@ -14,6 +14,7 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -36,14 +37,25 @@ class FutureRefreshTaskAuditModel(Base):
 
 class GateARunReservationModel(Base):
     __tablename__ = "gate_a_run_reservations"
+    __table_args__ = (
+        Index(
+            "uq_gate_a_active_task_key",
+            "task_key",
+            unique=True,
+            postgresql_where=text("status = 'RESERVED'"),
+            sqlite_where=text("status = 'RESERVED'"),
+        ),
+    )
 
     lease_epoch: Mapped[int] = mapped_column(
         BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
     )
     authorization_id: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    task_key: Mapped[str] = mapped_column(String(255), nullable=False)
     competition_id: Mapped[str] = mapped_column(String(128), nullable=False)
     season: Mapped[str] = mapped_column(String(32), nullable=False)
     exact_head: Mapped[str] = mapped_column(String(64), nullable=False)
+    exact_tree: Mapped[str] = mapped_column(String(64), nullable=False)
     owner: Mapped[str] = mapped_column(String(64), nullable=False)
     reserved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -130,9 +142,7 @@ class FutureRefreshCheckpointAuditModel(Base):
 
 class RawPayloadModel(Base):
     __tablename__ = "raw_payload"
-    __table_args__ = (
-        Index("ix_raw_payload_endpoint_captured", "endpoint", "captured_at"),
-    )
+    __table_args__ = (Index("ix_raw_payload_endpoint_captured", "endpoint", "captured_at"),)
 
     sha256: Mapped[str] = mapped_column(String(64), primary_key=True)
     endpoint: Mapped[str] = mapped_column(String(64), nullable=False)

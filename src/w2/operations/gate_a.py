@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import json
 import re
+from base64 import b64decode
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -20,6 +23,10 @@ from w2.infrastructure.persistence.future_refresh_models import (
 
 GATE_A_AUTHORIZATION_SCHEMA = "w2.gate-a-one-shot-authorization.v1"
 GATE_A_ACTION = "ONE_SHOT_FOREGROUND_CANARY"
+GATE_A_TRUST_STORE_SCHEMA = "w2.gate-a-authorization-trust.v1"
+DEFAULT_TRUST_STORE = (
+    Path(__file__).resolve().parents[3] / "config/policies/gate_a_authorization_trust.v1.json"
+)
 
 
 class GateAError(RuntimeError):
@@ -29,40 +36,57 @@ class GateAError(RuntimeError):
 @dataclass(frozen=True, kw_only=True)
 class GateARuntimeAuthorization:
     authorization_id: str
+    task_key: str
     competition_id: str
     season: str
     persistence: str
     exact_head: str
+    exact_tree: str
     allowed_endpoints: frozenset[str]
     provider_call_cap: int
     issued_at: datetime
     expires_at: datetime
     author: str
     reviewer: str
+    approval_key_id: str
 
     @classmethod
-    def load(cls, path: Path) -> GateARuntimeAuthorization:
+    def load(
+        cls,
+        path: Path,
+        *,
+        trust_store_path: Path = DEFAULT_TRUST_STORE,
+    ) -> GateARuntimeAuthorization:
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise GateAError("GATE_A_AUTHORIZATION_UNREADABLE") from exc
         if not isinstance(payload, dict):
             raise GateAError("GATE_A_AUTHORIZATION_INVALID")
-        return cls.from_mapping(payload)
+        return cls.from_mapping(payload, trusted_public_keys=_load_trusted_keys(trust_store_path))
 
     @classmethod
-    def from_mapping(cls, payload: Mapping[str, Any]) -> GateARuntimeAuthorization:
+    def from_mapping(
+        cls,
+        payload: Mapping[str, Any],
+        *,
+        trusted_public_keys: Mapping[str, str] | None = None,
+    ) -> GateARuntimeAuthorization:
         required = {
             "authorization_id",
+            "task_key",
             "competition_id",
             "season",
             "exact_head",
+            "exact_tree",
             "allowed_endpoints",
             "provider_call_cap",
             "issued_at",
             "expires_at",
             "author",
             "reviewer",
+            "approval_key_id",
+            "approval_signature",
         }
         if (
             payload.get("schema_version") != GATE_A_AUTHORIZATION_SCHEMA
@@ -78,12 +102,17 @@ class GateARuntimeAuthorization:
         if not author or not reviewer or author == reviewer:
             raise GateAError("GATE_A_INDEPENDENT_REVIEW_REQUIRED")
         authorization_id = str(payload["authorization_id"]).strip()
+        task_key = str(payload["task_key"]).strip()
         exact_head = str(payload["exact_head"]).strip()
+        exact_tree = str(payload["exact_tree"]).strip()
         raw_endpoints = payload["allowed_endpoints"]
         if (
             not authorization_id
             or len(authorization_id) > 128
+            or not task_key
+            or len(task_key) > 255
             or re.fullmatch(r"[0-9a-f]{40}", exact_head) is None
+            or re.fullmatch(r"[0-9a-f]{40}", exact_tree) is None
             or not isinstance(raw_endpoints, list)
         ):
             raise GateAError("GATE_A_AUTHORIZATION_INVALID")
@@ -100,18 +129,31 @@ class GateARuntimeAuthorization:
         expires_at = _aware_utc(payload["expires_at"])
         if expires_at <= issued_at or expires_at - issued_at > timedelta(hours=1):
             raise GateAError("GATE_A_AUTHORIZATION_WINDOW_INVALID")
+        approval_key_id = str(payload["approval_key_id"]).strip()
+        _verify_approval_signature(
+            payload,
+            key_id=approval_key_id,
+            trusted_public_keys=(
+                trusted_public_keys
+                if trusted_public_keys is not None
+                else _load_trusted_keys(DEFAULT_TRUST_STORE)
+            ),
+        )
         return cls(
             authorization_id=authorization_id,
+            task_key=task_key,
             competition_id=str(payload["competition_id"]),
             season=str(payload["season"]),
             persistence="db",
             exact_head=exact_head,
+            exact_tree=exact_tree,
             allowed_endpoints=endpoints,
             provider_call_cap=cap,
             issued_at=issued_at,
             expires_at=expires_at,
             author=author,
             reviewer=reviewer,
+            approval_key_id=approval_key_id,
         )
 
     def validate_scope(
@@ -120,7 +162,10 @@ class GateARuntimeAuthorization:
         competition_id: str,
         season: str,
         persistence: str,
+        task_key: str,
         exact_head: str,
+        exact_tree: str,
+        policy_season: str,
         now: datetime,
     ) -> None:
         current = _aware_utc(now)
@@ -130,15 +175,22 @@ class GateARuntimeAuthorization:
             raise GateAError("GATE_A_COMPETITION_SCOPE_MISMATCH")
         if season != self.season:
             raise GateAError("GATE_A_SEASON_SCOPE_MISMATCH")
+        if policy_season != season or policy_season != self.season:
+            raise GateAError("GATE_A_POLICY_SEASON_MISMATCH")
         if persistence != "db":
             raise GateAError("GATE_A_DB_PERSISTENCE_REQUIRED")
+        if task_key != self.task_key:
+            raise GateAError("GATE_A_TASK_KEY_SCOPE_MISMATCH")
         if exact_head != self.exact_head:
             raise GateAError("GATE_A_EXACT_HEAD_MISMATCH")
+        if exact_tree != self.exact_tree:
+            raise GateAError("GATE_A_EXACT_TREE_MISMATCH")
 
 
 @dataclass(frozen=True, kw_only=True)
 class GateARunReservation:
     authorization_id: str
+    task_key: str
     owner: str
     lease_epoch: int
     provider_call_cap: int
@@ -237,9 +289,11 @@ def reserve_gate_a_run(
     with Session(engine) as session:
         row = GateARunReservationModel(
             authorization_id=authorization.authorization_id,
+            task_key=authorization.task_key,
             competition_id=authorization.competition_id,
             season=authorization.season,
             exact_head=authorization.exact_head,
+            exact_tree=authorization.exact_tree,
             owner=owner,
             reserved_at=_aware_utc(now),
             status="RESERVED",
@@ -253,30 +307,109 @@ def reserve_gate_a_run(
             session.rollback()
             existing = session.scalar(
                 select(GateARunReservationModel.lease_epoch).where(
-                    GateARunReservationModel.authorization_id
-                    == authorization.authorization_id
+                    GateARunReservationModel.authorization_id == authorization.authorization_id
+                )
+            )
+            active_task = session.scalar(
+                select(GateARunReservationModel.lease_epoch).where(
+                    GateARunReservationModel.task_key == authorization.task_key,
+                    GateARunReservationModel.status == "RESERVED",
                 )
             )
             code = (
                 "GATE_A_AUTHORIZATION_ALREADY_CONSUMED"
                 if existing is not None
-                else "GATE_A_RESERVATION_WRITE_FAILED"
+                else (
+                    "GATE_A_TASK_ALREADY_RESERVED"
+                    if active_task is not None
+                    else "GATE_A_RESERVATION_WRITE_FAILED"
+                )
             )
             raise GateAError(code) from None
         session.refresh(row)
         lease_epoch = row.lease_epoch
     return GateARunReservation(
         authorization_id=authorization.authorization_id,
+        task_key=authorization.task_key,
         owner=owner,
         lease_epoch=lease_epoch,
         provider_call_cap=authorization.provider_call_cap,
     )
 
 
+def _load_trusted_keys(path: Path) -> dict[str, str]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise GateAError("GATE_A_TRUST_STORE_UNAVAILABLE") from exc
+    keys = payload.get("trusted_ed25519_keys") if isinstance(payload, dict) else None
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schema_version") != GATE_A_TRUST_STORE_SCHEMA
+        or not isinstance(keys, dict)
+    ):
+        raise GateAError("GATE_A_TRUST_STORE_INVALID")
+    resolved = {str(key): str(value) for key, value in keys.items() if key and value}
+    if not resolved:
+        raise GateAError("GATE_A_TRUST_STORE_INVALID")
+    return resolved
+
+
+def _verify_approval_signature(
+    payload: Mapping[str, Any],
+    *,
+    key_id: str,
+    trusted_public_keys: Mapping[str, str],
+) -> None:
+    encoded_key = trusted_public_keys.get(key_id)
+    if not key_id or encoded_key is None:
+        raise GateAError("GATE_A_APPROVAL_KEY_UNTRUSTED")
+    try:
+        public_key = Ed25519PublicKey.from_public_bytes(b64decode(encoded_key, validate=True))
+        signature = b64decode(str(payload["approval_signature"]), validate=True)
+        public_key.verify(signature, authorization_signing_message(payload))
+    except (InvalidSignature, TypeError, ValueError) as exc:
+        raise GateAError("GATE_A_APPROVAL_SIGNATURE_INVALID") from exc
+
+
+def authorization_signing_message(payload: Mapping[str, Any]) -> bytes:
+    endpoints = payload.get("allowed_endpoints")
+    if not isinstance(endpoints, list) or not all(isinstance(item, str) for item in endpoints):
+        raise GateAError("GATE_A_AUTHORIZATION_INVALID")
+    values = (
+        payload.get("schema_version"),
+        payload.get("action"),
+        payload.get("review_status"),
+        "true" if payload.get("one_shot") is True else "false",
+        payload.get("authorization_id"),
+        payload.get("task_key"),
+        payload.get("competition_id"),
+        payload.get("season"),
+        payload.get("persistence"),
+        payload.get("exact_head"),
+        payload.get("exact_tree"),
+        ",".join(sorted(endpoints)),
+        payload.get("provider_call_cap"),
+        payload.get("issued_at"),
+        payload.get("expires_at"),
+        payload.get("author"),
+        payload.get("reviewer"),
+        payload.get("approval_key_id"),
+    )
+    message = bytearray(b"W2_GATE_A_AUTHORIZATION_V1")
+    for value in values:
+        encoded = str(value).encode("utf-8")
+        message.extend(len(encoded).to_bytes(4, "big"))
+        message.extend(encoded)
+    return bytes(message)
+
+
 def _aware_utc(value: Any) -> datetime:
     try:
-        parsed = value if isinstance(value, datetime) else datetime.fromisoformat(
-            str(value).replace("Z", "+00:00")
+        parsed = (
+            value
+            if isinstance(value, datetime)
+            else datetime.fromisoformat(str(value).replace("Z", "+00:00"))
         )
     except (TypeError, ValueError) as exc:
         raise GateAError("GATE_A_AUTHORIZATION_TIME_INVALID") from exc

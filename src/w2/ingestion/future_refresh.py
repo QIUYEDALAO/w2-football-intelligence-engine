@@ -2075,6 +2075,7 @@ def deterministic_task_key(
 def run_future_fixture_refresh(
     *,
     competition_id: str = "world_cup_2026",
+    season: str | None = None,
     runtime_root: Path | None = None,
     client: LiveApiFootballPort | None = None,
     now: datetime | None = None,
@@ -2089,6 +2090,8 @@ def run_future_fixture_refresh(
         competition_id=competition_id,
         runtime_root=runtime_root,
     )
+    if season is not None and season != config.season:
+        raise FutureRefreshError("GATE_A_POLICY_SEASON_MISMATCH")
     if persistence is not None:
         config = replace(config, persistence=persistence)
     if checkpoint_fixture_ids or refresh_checkpoints:
@@ -2128,6 +2131,7 @@ def run_future_refresh_task(
     owner: str | None = None,
     queued_at: datetime | None = None,
     competition_id: str = "world_cup_2026",
+    season: str | None = None,
     runtime_root: Path | None = None,
     client: LiveApiFootballPort | None = None,
     now: datetime | None = None,
@@ -2152,26 +2156,39 @@ def run_future_refresh_task(
     resolved_settings = settings or get_settings()
     lock: RefreshSingletonLock | None = None
     if resolved_persistence == "db":
-        try:
-            existing_task_key = FutureRefreshDbRepository(
-                settings=resolved_settings
-            ).task_key_exists(key)
-        except FutureRefreshPersistenceError as exc:
-            raise FutureRefreshError(f"PERSISTENCE_READ_FAILED:{exc}") from exc
-        if existing_task_key:
-            lock_acquired = False
-        elif redis_client is not None or resolved_settings.redis_url is not None:
-            lock = RefreshSingletonLock(
-                key=key,
-                owner=owner_marker,
-                ttl_seconds=900,
-                settings=resolved_settings,
-                runtime_root=root,
-                redis_client=redis_client,
-            )
-            lock_acquired = lock.acquire(now=started_at)
-        else:
+        if runtime_authorization is not None:
+            if (
+                provider_call_reservation is None
+                or provider_call_reservation.task_key != key
+                or provider_call_reservation.authorization_id
+                != runtime_authorization.authorization_id
+            ):
+                raise FutureRefreshError("GATE_A_TASK_KEY_DB_FENCE_REQUIRED")
             lock_acquired = True
+        else:
+            try:
+                existing_task_key = FutureRefreshDbRepository(
+                    settings=resolved_settings
+                ).task_key_exists(key)
+            except FutureRefreshPersistenceError as exc:
+                raise FutureRefreshError(f"PERSISTENCE_READ_FAILED:{exc}") from exc
+            if existing_task_key:
+                lock_acquired = False
+            elif redis_client is not None or resolved_settings.redis_url is not None:
+                lock = RefreshSingletonLock(
+                    key=key,
+                    owner=owner_marker,
+                    ttl_seconds=900,
+                    settings=resolved_settings,
+                    runtime_root=root,
+                    redis_client=redis_client,
+                )
+                lock_acquired = lock.acquire(now=started_at)
+            elif client is not None:
+                # Offline/fake-provider C9 has no live-capable client construction path.
+                lock_acquired = True
+            else:
+                raise FutureRefreshError("DB_TASK_KEY_FENCE_UNAVAILABLE")
     else:
         lock = RefreshSingletonLock(
             key=key,
@@ -2213,6 +2230,7 @@ def run_future_refresh_task(
     try:
         result = run_future_fixture_refresh(
             competition_id=competition_id,
+            season=season,
             runtime_root=root,
             client=client,
             now=started_at,

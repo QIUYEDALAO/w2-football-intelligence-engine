@@ -3,10 +3,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import re
 import subprocess
 import sys
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -29,19 +29,30 @@ def parse_utc(value: str | None) -> datetime:
     return parsed.astimezone(UTC) if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
-def exact_code_head() -> str:
-    configured = os.environ.get("W2_GIT_SHA", "").strip()
-    if FULL_GIT_SHA.fullmatch(configured):
-        return configured
+@dataclass(frozen=True)
+class ExactCodeIdentity:
+    head: str
+    tree: str
+
+
+def exact_code_identity() -> ExactCodeIdentity:
     try:
-        resolved = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+        dirty = subprocess.check_output(
+            ["git", "status", "--porcelain=v1", "--untracked-files=no"],
+            cwd=ROOT,
+            text=True,
+        ).strip()
+        head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+        tree = subprocess.check_output(
+            ["git", "rev-parse", "HEAD^{tree}"], cwd=ROOT, text=True
         ).strip()
     except (OSError, subprocess.CalledProcessError) as exc:
-        raise RuntimeError("GATE_A_EXACT_HEAD_UNAVAILABLE") from exc
-    if FULL_GIT_SHA.fullmatch(resolved) is None:
-        raise RuntimeError("GATE_A_EXACT_HEAD_UNAVAILABLE")
-    return resolved
+        raise RuntimeError("GATE_A_EXACT_CODE_IDENTITY_UNAVAILABLE") from exc
+    if dirty:
+        raise RuntimeError("GATE_A_EXACT_CODE_TREE_DIRTY")
+    if FULL_GIT_SHA.fullmatch(head) is None or FULL_GIT_SHA.fullmatch(tree) is None:
+        raise RuntimeError("GATE_A_EXACT_CODE_IDENTITY_UNAVAILABLE")
+    return ExactCodeIdentity(head=head, tree=tree)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -144,8 +155,14 @@ def main() -> int:
         print(json.dumps(dry_run_payload(args, now=now, key=key), ensure_ascii=False, indent=2))
         return 0
 
+    if args.persistence != "db":
+        parser.error("--execute requires explicit --persistence db")
+
     from w2.config import get_settings  # noqa: PLC0415
-    from w2.ingestion.future_refresh import run_future_refresh_task  # noqa: PLC0415
+    from w2.ingestion.future_refresh import (  # noqa: PLC0415
+        load_refresh_policy,
+        run_future_refresh_task,
+    )
     from w2.monitoring.readiness import schema_check  # noqa: PLC0415
     from w2.operations.gate_a import (  # noqa: PLC0415
         GateAError,
@@ -153,24 +170,22 @@ def main() -> int:
         reserve_gate_a_run,
     )
 
-    resolved_persistence = (
-        args.persistence or os.environ.get("W2_FUTURE_REFRESH_PERSISTENCE", "db")
-    ).lower()
-    if resolved_persistence not in {"db", "file"}:
-        parser.error(
-            "persistence must be 'db' or 'file' "
-            "(via --persistence or W2_FUTURE_REFRESH_PERSISTENCE)"
-        )
     if args.authorization_file is None:
         parser.error("--execute requires --authorization-file")
     try:
-        exact_head = exact_code_head()
+        identity = exact_code_identity()
+        policy = load_refresh_policy(competition_id=args.competition_id)
+        if args.season != policy.season:
+            raise GateAError("GATE_A_POLICY_SEASON_MISMATCH")
         authorization = GateARuntimeAuthorization.load(args.authorization_file)
         authorization.validate_scope(
             competition_id=args.competition_id,
             season=args.season,
-            persistence=resolved_persistence,
-            exact_head=exact_head,
+            policy_season=policy.season,
+            persistence=args.persistence,
+            task_key=key,
+            exact_head=identity.head,
+            exact_tree=identity.tree,
             now=datetime.now(UTC),
         )
     except (GateAError, RuntimeError) as exc:
@@ -191,12 +206,9 @@ def main() -> int:
         competition_id=args.competition_id,
         runtime_root=args.runtime_root,
         now=now,
-        persistence=resolved_persistence,
-        materialize_public_artifacts=(
-            materialize_shadow_projection_events
-            if resolved_persistence == "db"
-            else None
-        ),
+        persistence=args.persistence,
+        season=args.season,
+        materialize_public_artifacts=materialize_shadow_projection_events,
         runtime_authorization=authorization,
         provider_call_reservation=reservation,
     )
@@ -212,7 +224,9 @@ def main() -> int:
         },
     }
     print(json.dumps(payload, ensure_ascii=False, indent=2, default=str))
-    return 0 if audit.status in {"COMPLETED", "ALREADY_RUNNING"} else 1
+    if audit.status == "COMPLETED":
+        return 0
+    return 2 if audit.status == "ALREADY_RUNNING" else 1
 
 
 if __name__ == "__main__":

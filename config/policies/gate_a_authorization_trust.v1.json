@@ -1,0 +1,8 @@
+{
+  "schema_version": "w2.gate-a-authorization-trust.v1",
+  "trusted_ed25519_keys": {
+    "gate-a-independent-approval-2026-01": "w2NLbbJ2EwM+IMpkNHLI/sVYGz2iobmq6YCykUHW+tQ="
+  },
+  "private_keys_present": false,
+  "real_canary_authorization_created": false
+}

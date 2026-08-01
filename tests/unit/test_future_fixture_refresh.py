@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import json
+from base64 import b64encode
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from w2.ingestion.future_refresh import (
     FutureFixtureRefreshService,
@@ -19,31 +23,46 @@ from w2.ingestion.future_refresh import (
     run_future_refresh_task,
 )
 from w2.markets.quote_identity import evaluate_quote_freshness, project_quote_identity
-from w2.operations.gate_a import GateARuntimeAuthorization
+from w2.operations.gate_a import GateARuntimeAuthorization, authorization_signing_message
 from w2.providers.api_football import LiveApiFootballResponse
 
 NOW = datetime(2026, 6, 23, 10, 0, tzinfo=UTC)
 
 
 def _gate_a_authorization() -> GateARuntimeAuthorization:
+    signing_key = Ed25519PrivateKey.from_private_bytes(bytes(range(32)))
+    payload: dict[str, object] = {
+        "schema_version": "w2.gate-a-one-shot-authorization.v1",
+        "action": "ONE_SHOT_FOREGROUND_CANARY",
+        "review_status": "APPROVED",
+        "one_shot": True,
+        "persistence": "db",
+        "authorization_id": "offline-test",
+        "task_key": "future-refresh:world_cup_2026:2026:20260623T100000Z",
+        "competition_id": "world_cup_2026",
+        "season": "2026",
+        "exact_head": "a" * 40,
+        "exact_tree": "b" * 40,
+        "allowed_endpoints": ["status", "fixtures", "odds", "lineups"],
+        "provider_call_cap": 4,
+        "issued_at": "2026-06-23T09:59:00Z",
+        "expires_at": "2026-06-23T10:30:00Z",
+        "author": "implementer",
+        "reviewer": "reviewer",
+        "approval_key_id": "test-independent-key",
+    }
+    payload["approval_signature"] = b64encode(
+        signing_key.sign(authorization_signing_message(payload))
+    ).decode()
+    public_key = b64encode(
+        signing_key.public_key().public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+    ).decode()
     return GateARuntimeAuthorization.from_mapping(
-        {
-            "schema_version": "w2.gate-a-one-shot-authorization.v1",
-            "action": "ONE_SHOT_FOREGROUND_CANARY",
-            "review_status": "APPROVED",
-            "one_shot": True,
-            "persistence": "db",
-            "authorization_id": "offline-test",
-            "competition_id": "world_cup_2026",
-            "season": "2026",
-            "exact_head": "a" * 40,
-            "allowed_endpoints": ["status", "fixtures", "odds", "lineups"],
-            "provider_call_cap": 4,
-            "issued_at": "2026-06-23T09:59:00Z",
-            "expires_at": "2026-06-23T10:30:00Z",
-            "author": "implementer",
-            "reviewer": "reviewer",
-        }
+        payload,
+        trusted_public_keys={"test-independent-key": public_key},
     )
 
 

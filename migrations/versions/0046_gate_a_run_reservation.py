@@ -18,9 +18,11 @@ def upgrade() -> None:
         "gate_a_run_reservations",
         sa.Column("lease_epoch", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("authorization_id", sa.String(length=128), nullable=False),
+        sa.Column("task_key", sa.String(length=255), nullable=False),
         sa.Column("competition_id", sa.String(length=128), nullable=False),
         sa.Column("season", sa.String(length=32), nullable=False),
         sa.Column("exact_head", sa.String(length=64), nullable=False),
+        sa.Column("exact_tree", sa.String(length=64), nullable=False),
         sa.Column("owner", sa.String(length=64), nullable=False),
         sa.Column("reserved_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True),
@@ -30,6 +32,14 @@ def upgrade() -> None:
         sa.Column("last_endpoint", sa.String(length=64), nullable=True),
         sa.PrimaryKeyConstraint("lease_epoch"),
         sa.UniqueConstraint("authorization_id", name="uq_gate_a_authorization_once"),
+    )
+    op.create_index(
+        "uq_gate_a_active_task_key",
+        "gate_a_run_reservations",
+        ["task_key"],
+        unique=True,
+        postgresql_where=sa.text("status = 'RESERVED'"),
+        sqlite_where=sa.text("status = 'RESERVED'"),
     )
     op.create_table(
         "gate_a_provider_calls",
@@ -50,4 +60,5 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table("gate_a_provider_calls")
+    op.drop_index("uq_gate_a_active_task_key", table_name="gate_a_run_reservations")
     op.drop_table("gate_a_run_reservations")
