@@ -1,18 +1,24 @@
 # W2 Stage7H – VPS Staging Runbook
 
 **Task**: W2-STAGE7H-001-BUNDLE  
-**Server**: 118.196.30.136 (华东 2 / 上海, Volcengine)
-**Spec**: 4 vCPU / 8 GiB / 120 GiB SSD  
+**Server**: `${W2_VPS_HOST}` (approved runtime configuration)
+**Spec**: runtime-provided
 **OS**: Ubuntu 24.04 LTS
 
 ---
+
+## Runtime infrastructure inputs
+
+Set `W2_VPS_HOST`, `W2_SSH_TARGET`, and `W2_DEPLOY_ROOT` from the approved
+operator configuration. `W2_SSH_TARGET` must name a non-root key-only account.
+Do not commit their resolved values.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────┐
-│  Host: 118.196.30.136 (public)                  │
-│  UFW: inactive  │  SSH: :22                     │
+│  Host: ${W2_VPS_HOST} (runtime-injected)         │
+│  Host firewall: default-deny ingress             │
 │                                                  │
 │  systemd: w2-staging.service                     │
 │  ┌───────────────────────────────────────┐       │
@@ -27,7 +33,7 @@
 │  │  redis:6379                            │       │
 │  └───────────────────────────────────────┘       │
 │                                                  │
-│  /opt/w2/                                        │
+│  ${W2_DEPLOY_ROOT}/                                        │
 │    ├── deploy/                                   │
 │    │    ├── compose.staging.yml                  │
 │    │    ├── watch_staging_runtime.sh             │
@@ -80,13 +86,13 @@ sudo systemctl restart w2-staging.service
 
 # Status
 sudo systemctl status w2-staging.service --no-pager
-sudo docker compose -f /opt/w2/deploy/compose.staging.yml ps
+sudo docker compose -f "${W2_DEPLOY_ROOT}/deploy/compose.staging.yml" ps
 
 # View logs
 sudo journalctl -u w2-staging.service -f
-sudo docker compose -f /opt/w2/deploy/compose.staging.yml logs --tail=100 -f api
-sudo docker compose -f /opt/w2/deploy/compose.staging.yml logs --tail=100 -f worker
-sudo docker compose -f /opt/w2/deploy/compose.staging.yml logs --tail=100 -f scheduler
+sudo docker compose -f "${W2_DEPLOY_ROOT}/deploy/compose.staging.yml" logs --tail=100 -f api
+sudo docker compose -f "${W2_DEPLOY_ROOT}/deploy/compose.staging.yml" logs --tail=100 -f worker
+sudo docker compose -f "${W2_DEPLOY_ROOT}/deploy/compose.staging.yml" logs --tail=100 -f scheduler
 ```
 
 ## Deployment
@@ -94,12 +100,12 @@ sudo docker compose -f /opt/w2/deploy/compose.staging.yml logs --tail=100 -f sch
 ```bash
 # From local workspace
 bash scripts/deploy_stage7h_staging.sh \
-  root@118.196.30.136 \
+  "${W2_SSH_TARGET}" \
   ghcr.io/qiuyedalao/w2-football-intelligence-engine/python@sha256:<digest> \
   ghcr.io/qiuyedalao/w2-football-intelligence-engine/web@sha256:<digest>
 ```
 
-The deployment script assumes `/opt/w2/shared/.env` has already been provisioned
+The deployment script assumes `${W2_DEPLOY_ROOT}/shared/.env` has already been provisioned
 with mode `600`. It must not print or rewrite sensitive values.
 
 ## Dashboard Web Root
@@ -154,11 +160,11 @@ curl -fsS http://127.0.0.1:18000/metrics
 curl -I http://127.0.0.1:18080/
 
 # Docker
-sudo docker compose -f /opt/w2/current/infra/compose/compose.staging.yml ps
+sudo docker compose -f "${W2_DEPLOY_ROOT}/current/infra/compose/compose.staging.yml" ps
 sudo docker stats --no-stream
 
 # Full check
-python3 /opt/w2/deploy/check_w2_stage7h.py
+python3 "${W2_DEPLOY_ROOT}/deploy/check_w2_stage7h.py"
 ```
 
 ## Rollback
@@ -168,8 +174,8 @@ python3 /opt/w2/deploy/check_w2_stage7h.py
 sudo systemctl stop w2-staging.service
 
 # Point current to previous release
-ls /opt/w2/releases/
-ln -sfn /opt/w2/releases/<PREVIOUS_SHA> /opt/w2/current
+ls "${W2_DEPLOY_ROOT}/releases/"
+ln -sfn "${W2_DEPLOY_ROOT}/releases/<PREVIOUS_SHA>" "${W2_DEPLOY_ROOT}/current"
 
 # Restart
 sudo systemctl start w2-staging.service
@@ -182,7 +188,7 @@ Rollback does not:
 
 ## Security Notes
 
-- API key stored in `/opt/w2/shared/.env` (chmod 600)
+- API key stored in `${W2_DEPLOY_ROOT}/shared/.env` (chmod 600)
 - PostgreSQL credential auto-generated (32-byte hex)
 - No Docker group membership for `ubuntu`
 - All business ports bound to 127.0.0.1 only

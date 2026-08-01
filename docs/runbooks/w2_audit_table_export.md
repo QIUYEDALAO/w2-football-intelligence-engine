@@ -9,6 +9,9 @@
 
 The default mode combines a `/v1/dashboard` payload with existing read-only model rows. It opens a database session only to read existing models and does not write rows, mutate schema, call providers, or change recommendation logic.
 
+Set `W2_PUBLIC_BASE_URL` from the approved operator configuration. Do not
+commit its resolved value.
+
 Use `--no-db` for pure payload mode. In that mode, exported rows come only from the provided dashboard payload.
 
 Examples:
@@ -23,7 +26,7 @@ python scripts/export_w2_audit_tables.py \
 
 ```bash
 python scripts/export_w2_audit_tables.py \
-  --url "http://118.196.30.136/v1/dashboard?window=today&include_debug=true" \
+  --url "${W2_PUBLIC_BASE_URL}/v1/dashboard?window=today&include_debug=true" \
   --output-dir /tmp/w2_audit_tables \
   --format both \
   --timeout 20

@@ -215,6 +215,27 @@ def test_report_runner_cli_dry_run_prints_report_and_summary(tmp_path: Path) -> 
     assert not (tmp_path / "reports").exists()
 
 
+@pytest.mark.parametrize(
+    "script",
+    [
+        "scripts/run_w2_report_runner.py",
+        "scripts/publish_w2_static_report.py",
+    ],
+)
+def test_report_clis_require_explicit_base_url(script: str) -> None:
+    result = subprocess.run(
+        [sys.executable, script],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    assert "--base-url" in result.stderr
+    assert "required" in result.stderr
+    assert result.stdout == ""
+
+
 def test_report_runner_cli_file_sink_writes_report(tmp_path: Path) -> None:
     server, thread, base_url = _serve()
     try:

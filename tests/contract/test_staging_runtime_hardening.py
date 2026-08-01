@@ -182,9 +182,10 @@ def test_deploy_installs_documented_health_checker_without_source_upload() -> No
     installed_path = "/opt/w2/deploy/check_w2_stage7h.py"
 
     assert installed_path in deploy
-    assert installed_path in runbook
+    assert '"${W2_DEPLOY_ROOT}/deploy/check_w2_stage7h.py"' in runbook
+    assert "/opt/w2" not in runbook
     assert "install -o root -g root -m 0444" in deploy
-    assert "/opt/w2/current/scripts/check_w2_stage7h.py" not in runbook
+    assert "${W2_DEPLOY_ROOT}/current/scripts/check_w2_stage7h.py" not in runbook
 
 
 def test_runtime_healthchecks_and_release_probes_use_canonical_ready() -> None:

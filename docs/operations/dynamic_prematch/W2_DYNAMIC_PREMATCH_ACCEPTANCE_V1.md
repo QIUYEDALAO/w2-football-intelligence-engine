@@ -2,7 +2,7 @@
 
 PR #370 remains Draft. Exact release
 `81b4dd2bd4a23d6ad8f5782abf05f904a88c38a8` is deployed to
-`root@118.196.30.136`. GitHub Actions run `29916913849` passed `verify`,
+`root@<W2_VPS_HOST>`. GitHub Actions run `29916913849` passed `verify`,
 `staging-parity` and `predeploy-e2e`; all staging services are healthy.
 
 The dynamic EV and confirmed-lineup lifecycle is implemented and deployed:

@@ -2,6 +2,9 @@
 
 This runbook verifies that GitHub, the local repository, the deployed release, the Web build, the API process, and the dashboard data source are aligned.
 
+Set `W2_PUBLIC_BASE_URL` and `W2_DEPLOY_ROOT` from the approved operator
+configuration. Do not commit their resolved values.
+
 ## Local checks
 
 ```bash
@@ -17,12 +20,12 @@ The local `HEAD` must match the expected GitHub branch SHA before deployment.
 ## Runtime endpoints
 
 ```bash
-curl -s http://118.196.30.136/health | jq .
-curl -s http://118.196.30.136/ready | jq .
-curl -s http://118.196.30.136/meta.json | jq .
-curl -s http://118.196.30.136/v1/version | jq .
-curl -s 'http://118.196.30.136/v1/dashboard?window=today&include_debug=true' | jq .
-curl -s 'http://118.196.30.136/v1/dashboard?window=next36&include_debug=true' | jq .
+curl -s "${W2_PUBLIC_BASE_URL}/health" | jq .
+curl -s "${W2_PUBLIC_BASE_URL}/ready" | jq .
+curl -s "${W2_PUBLIC_BASE_URL}/meta.json" | jq .
+curl -s "${W2_PUBLIC_BASE_URL}/v1/version" | jq .
+curl -s "${W2_PUBLIC_BASE_URL}/v1/dashboard?window=today&include_debug=true" | jq .
+curl -s "${W2_PUBLIC_BASE_URL}/v1/dashboard?window=next36&include_debug=true" | jq .
 ```
 
 Expected fields:
@@ -39,21 +42,21 @@ If `/health` or `/ready` returns HTML, fix the Web nginx config so exact health 
 
 ```bash
 python scripts/verify_release_sync.py \
-  --base-url http://118.196.30.136 \
+  --base-url "${W2_PUBLIC_BASE_URL}" \
   --expected-sha "$(git rev-parse HEAD)" \
   --allow-empty-data
 ```
 
 Use `--min-fixtures N` and omit `--allow-empty-data` when staging is expected to have dashboard rows.
 
-If `api_git_sha` is `UNKNOWN`, check `/opt/w2/shared/release.env` and the `w2-staging.service` `EnvironmentFile` entry. A plain `systemctl restart w2-staging.service` must preserve the release SHA.
+If `api_git_sha` is `UNKNOWN`, check `${W2_DEPLOY_ROOT}/shared/release.env` and the `w2-staging.service` `EnvironmentFile` entry. A plain `systemctl restart w2-staging.service` must preserve the release SHA.
 
 ## Persistent release environment
 
 The deploy script writes public release metadata to:
 
 ```text
-/opt/w2/shared/release.env
+${W2_DEPLOY_ROOT}/shared/release.env
 ```
 
 Expected keys:
@@ -71,15 +74,15 @@ After a deployment or a systemd restart:
 
 ```bash
 sudo systemctl restart w2-staging.service
-curl -s http://118.196.30.136/meta.json | jq .web_git_sha
-curl -s http://118.196.30.136/v1/version | jq .api_git_sha
+curl -s "${W2_PUBLIC_BASE_URL}/meta.json" | jq .web_git_sha
+curl -s "${W2_PUBLIC_BASE_URL}/v1/version" | jq .api_git_sha
 python scripts/verify_release_sync.py \
-  --base-url http://118.196.30.136 \
+  --base-url "${W2_PUBLIC_BASE_URL}" \
   --expected-sha "$(git rev-parse HEAD)" \
   --allow-empty-data
 ```
 
-Do not store sensitive values in `release.env`; sensitive runtime values remain in `/opt/w2/shared/.env`.
+Do not store sensitive values in `release.env`; sensitive runtime values remain in `${W2_DEPLOY_ROOT}/shared/.env`.
 
 ## Explicit staging seed
 
