@@ -1,0 +1,867 @@
+{
+  "schema_version": "w2.canonical-serialization-oracle-vectors.v2",
+  "production_implementation_head": "ff0db4f874b263434290d502b7b787adfcde2964",
+  "production_implementation_path": "src/w2/domain/canonical_serialization.py",
+  "production_implementation_sha256": "bb348f0c775319d4420d04305414893ac90dc92ff8bfb196a1b42f0910c3d696",
+  "production_implementer": "xg3750150@gmail.com",
+  "adr_id": "ADR-0019",
+  "serializer_version": "w2.canonical-json.v2",
+  "oracle_author": "claude-oracle@w2.independent.invalid",
+  "oracle_source_path": "oracle/canonical_serialization_oracle.py",
+  "oracle_source_sha256": "72814fde6b968c1db31e8ef35161aa6d69b184ed55e4e7afb1e1daaa40800fbf",
+  "oracle_imports_production_serializer": false,
+  "review_status": "PENDING",
+  "reviewer_records": [
+    {
+      "reviewer": "ChatGPT GPT-5.6 Pro",
+      "status": "PENDING",
+      "recorded_at": "2026-08-01T22:26:17.872783+08:00"
+    }
+  ],
+  "mandatory_case_matrix": [
+    "unicode_nfc_key_order",
+    "unicode_key_collision",
+    "json_escaping",
+    "large_integer",
+    "large_decimal_context_independent",
+    "float64_min_subnormal",
+    "float64_max_finite",
+    "float64_adjacent",
+    "float64_power_of_ten_boundary",
+    "float64_point_one",
+    "float64_negative_zero",
+    "float64_nan_rejected",
+    "float64_infinity_rejected",
+    "bytes",
+    "aware_datetime",
+    "naive_datetime_rejected",
+    "unsupported_type_rejected",
+    "reserved_tag_rejected",
+    "legacy_v1_reserved_prefix_passthrough",
+    "legacy_v1_ascii",
+    "legacy_v1_read_model",
+    "legacy_v1_stage7i_supervision",
+    "legacy_v1_pair_identity",
+    "pair_identity",
+    "bootstrap_order_independent",
+    "invalid_pair_hash_rejected"
+  ],
+  "cases": [
+    {
+      "case_id": "unicode-nfc-key-order.0",
+      "category": "unicode_nfc_key_order",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "eval_02b.pair_identity",
+        "serializer_version": "w2.canonical-json.v2",
+        "value": {
+          "kind": "object",
+          "entries": [
+            {
+              "key": "𐀀",
+              "value": {
+                "kind": "string",
+                "value": "astral"
+              }
+            },
+            {
+              "key": "é",
+              "value": {
+                "kind": "string",
+                "value": "nfc"
+              }
+            },
+            {
+              "key": "",
+              "value": {
+                "kind": "string",
+                "value": "bmp"
+              }
+            }
+          ]
+        }
+      },
+      "oracle": {
+        "status": "success",
+        "canonical_utf8_hex": "7b22c3a9223a226e6663222c22ee8080223a22626d70222c22f0908080223a2261737472616c227d",
+        "sha256": "7b530e45453b0bb13127337012783c794b288f3acf985c97b1df53b2370448ae"
+      }
+    },
+    {
+      "case_id": "unicode-key-collision.0",
+      "category": "unicode_key_collision",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "eval_02b.pair_identity",
+        "serializer_version": "w2.canonical-json.v2",
+        "value": {
+          "kind": "object",
+          "entries": [
+            {
+              "key": "é",
+              "value": {
+                "kind": "integer",
+                "value": "1"
+              }
+            },
+            {
+              "key": "é",
+              "value": {
+                "kind": "integer",
+                "value": "2"
+              }
+            }
+          ]
+        }
+      },
+      "oracle": {
+        "status": "error",
+        "error_code": "UNICODE_KEY_COLLISION"
+      }
+    },
+    {
+      "case_id": "json-escaping.0",
+      "category": "json_escaping",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "eval_02b.pair_identity",
+        "serializer_version": "w2.canonical-json.v2",
+        "value": {
+          "kind": "object",
+          "entries": [
+            {
+              "key": "quote",
+              "value": {
+                "kind": "string",
+                "value": "\""
+              }
+            },
+            {
+              "key": "backslash",
+              "value": {
+                "kind": "string",
+                "value": "\\"
+              }
+            },
+            {
+              "key": "control",
+              "value": {
+                "kind": "string",
+                "value": "\u0000\b\t\n\f\r\u001f"
+              }
+            },
+            {
+              "key": "non_ascii",
+              "value": {
+                "kind": "string",
+                "value": "上海é"
+              }
+            }
+          ]
+        }
+      },
+      "oracle": {
+        "status": "success",
+        "canonical_utf8_hex": "7b226261636b736c617368223a225c5c222c22636f6e74726f6c223a225c75303030305c625c745c6e5c665c725c7530303166222c226e6f6e5f6173636969223a22e4b88ae6b5b7c3a9222c2271756f7465223a225c22227d",
+        "sha256": "aea18e4535808ef74bb1254cdee88541196739cedc542f46bfbdc64c7d7f0bc6"
+      }
+    },
+    {
+      "case_id": "large-integer.0",
+      "category": "large_integer",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "eval_02b.pair_identity",
+        "serializer_version": "w2.canonical-json.v2",
+        "value": {
+          "kind": "integer",
+          "value": "100000000000000000000000000000000000000000000000000000000000000000000000000000001"
+        }
+      },
+      "oracle": {
+        "status": "success",
+        "canonical_utf8_hex": "313030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303031",
+        "sha256": "58baed326fd18edcd6e220511b3aecdcfcca56895cca0607a78b5da887c44271"
+      }
+    },
+    {
+      "case_id": "large-decimal-context-independent.0",
+      "category": "large_decimal_context_independent",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "eval_02b.pair_identity",
+        "serializer_version": "w2.canonical-json.v2",
+        "value": {
+          "kind": "decimal",
+          "value": "123456789012345678901234567890.123400"
+        }
+      },
+      "oracle": {
+        "status": "success",
+        "canonical_utf8_hex": "7b222477325f646563696d616c223a223132333435363738393031323334353637383930313233343536373839302e31323334227d",
+        "sha256": "70e43f107b5f2807f45ef712201bbd997aec61cbd89839d616eb521406ff484c"
+      }
+    },
+    {
+      "case_id": "float64-min-subnormal.0",
+      "category": "float64_min_subnormal",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "eval_02b.pair_identity",
+        "serializer_version": "w2.canonical-json.v2",
+        "value": {
+          "kind": "float64",
+          "binary64_hex": "0000000000000001"
+        }
+      },
+      "oracle": {
+        "status": "success",
+        "canonical_utf8_hex": "7b222477325f666c6f6174223a2230303030303030303030303030303031227d",
+        "sha256": "ece05fc3061c27292821a4c29c79daef4b26c8a955bcd80d0829ac84b63f4779"
+      }
+    },
+    {
+      "case_id": "float64-max-finite.0",
+      "category": "float64_max_finite",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "eval_02b.pair_identity",
+        "serializer_version": "w2.canonical-json.v2",
+        "value": {
+          "kind": "float64",
+          "binary64_hex": "7fefffffffffffff"
+        }
+      },
+      "oracle": {
+        "status": "success",
+        "canonical_utf8_hex": "7b222477325f666c6f6174223a2237666566666666666666666666666666227d",
+        "sha256": "d38a7a7e38a1032434830b29e185b0c2bb9cee5177cb208078af4d7b592af918"
+      }
+    },
+    {
+      "case_id": "float64-adjacent.0",
+      "category": "float64_adjacent",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "eval_02b.pair_identity",
+        "serializer_version": "w2.canonical-json.v2",
+        "value": {
+          "kind": "float64",
+          "binary64_hex": "3ff0000000000000"
+        }
+      },
+      "oracle": {
+        "status": "success",
+        "canonical_utf8_hex": "7b222477325f666c6f6174223a2233666630303030303030303030303030227d",
+        "sha256": "a20856878b09208163110d938cba69c155a98e00d3897b1caede401e4ad18a17"
+      }
+    },
+    {
+      "case_id": "float64-adjacent.1",
+      "category": "float64_adjacent",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "eval_02b.pair_identity",
+        "serializer_version": "w2.canonical-json.v2",
+        "value": {
+          "kind": "float64",
+          "binary64_hex": "3ff0000000000001"
+        }
+      },
+      "oracle": {
+        "status": "success",
+        "canonical_utf8_hex": "7b222477325f666c6f6174223a2233666630303030303030303030303031227d",
+        "sha256": "79adb8b51fd1b290ede4e8365dabe7ce13ebea9d6877f70e4faecc0eb9b7425e"
+      }
+    },
+    {
+      "case_id": "float64-power-of-ten-boundary.0",
+      "category": "float64_power_of_ten_boundary",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "eval_02b.pair_identity",
+        "serializer_version": "w2.canonical-json.v2",
+        "value": {
+          "kind": "float64",
+          "binary64_hex": "4341c37937e08000"
+        }
+      },
+      "oracle": {
+        "status": "success",
+        "canonical_utf8_hex": "7b222477325f666c6f6174223a2234333431633337393337653038303030227d",
+        "sha256": "daaf05724e5f915f79aed2fb0c3a67c5ce14a9b80b0cc68709fac9fd9456c17e"
+      }
+    },
+    {
+      "case_id": "float64-point-one.0",
+      "category": "float64_point_one",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "eval_02b.pair_identity",
+        "serializer_version": "w2.canonical-json.v2",
+        "value": {
+          "kind": "float64",
+          "binary64_hex": "3fb999999999999a"
+        }
+      },
+      "oracle": {
+        "status": "success",
+        "canonical_utf8_hex": "7b222477325f666c6f6174223a2233666239393939393939393939393961227d",
+        "sha256": "202c70feffda59d775e632b57b916b64f24be33f9ce47b9a2a96d0931e819149"
+      }
+    },
+    {
+      "case_id": "float64-negative-zero.0",
+      "category": "float64_negative_zero",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "eval_02b.pair_identity",
+        "serializer_version": "w2.canonical-json.v2",
+        "value": {
+          "kind": "float64",
+          "binary64_hex": "8000000000000000"
+        }
+      },
+      "oracle": {
+        "status": "success",
+        "canonical_utf8_hex": "7b222477325f666c6f6174223a2230303030303030303030303030303030227d",
+        "sha256": "c8c364a0628a32ee13e52722f672db26a760e816392503153421d594d11921d8"
+      }
+    },
+    {
+      "case_id": "float64-nan-rejected.0",
+      "category": "float64_nan_rejected",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "eval_02b.pair_identity",
+        "serializer_version": "w2.canonical-json.v2",
+        "value": {
+          "kind": "float64",
+          "binary64_hex": "7ff8000000000000"
+        }
+      },
+      "oracle": {
+        "status": "error",
+        "error_code": "NON_FINITE_FLOAT"
+      }
+    },
+    {
+      "case_id": "float64-infinity-rejected.0",
+      "category": "float64_infinity_rejected",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "eval_02b.pair_identity",
+        "serializer_version": "w2.canonical-json.v2",
+        "value": {
+          "kind": "float64",
+          "binary64_hex": "7ff0000000000000"
+        }
+      },
+      "oracle": {
+        "status": "error",
+        "error_code": "NON_FINITE_FLOAT"
+      }
+    },
+    {
+      "case_id": "float64-infinity-rejected.1",
+      "category": "float64_infinity_rejected",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "eval_02b.pair_identity",
+        "serializer_version": "w2.canonical-json.v2",
+        "value": {
+          "kind": "float64",
+          "binary64_hex": "fff0000000000000"
+        }
+      },
+      "oracle": {
+        "status": "error",
+        "error_code": "NON_FINITE_FLOAT"
+      }
+    },
+    {
+      "case_id": "bytes.0",
+      "category": "bytes",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "eval_02b.pair_identity",
+        "serializer_version": "w2.canonical-json.v2",
+        "value": {
+          "kind": "bytes",
+          "value": "AP-Afw"
+        }
+      },
+      "oracle": {
+        "status": "success",
+        "canonical_utf8_hex": "7b222477325f6279746573223a2241502d416677227d",
+        "sha256": "f4b890b75504a14bea7964debda5c7176e6d80b7e65f7fc5637dcaf7f6cd370a"
+      }
+    },
+    {
+      "case_id": "aware-datetime.0",
+      "category": "aware_datetime",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "eval_02b.pair_identity",
+        "serializer_version": "w2.canonical-json.v2",
+        "value": {
+          "kind": "datetime",
+          "value": "2026-08-01T12:34:56.123456+08:00"
+        }
+      },
+      "oracle": {
+        "status": "success",
+        "canonical_utf8_hex": "7b222477325f6461746574696d65223a22323032362d30382d30315430343a33343a35362e3132333435365a227d",
+        "sha256": "8e4b3233f4e7ee51f193560d2bbe1e431cd6522c855573172ff9385138f637e8"
+      }
+    },
+    {
+      "case_id": "naive-datetime-rejected.0",
+      "category": "naive_datetime_rejected",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "eval_02b.pair_identity",
+        "serializer_version": "w2.canonical-json.v2",
+        "value": {
+          "kind": "naive_datetime",
+          "value": "2026-08-01T12:34:56.123456"
+        }
+      },
+      "oracle": {
+        "status": "error",
+        "error_code": "NAIVE_DATETIME"
+      }
+    },
+    {
+      "case_id": "unsupported-type-rejected.0",
+      "category": "unsupported_type_rejected",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "eval_02b.pair_identity",
+        "serializer_version": "w2.canonical-json.v2",
+        "value": {
+          "kind": "unsupported",
+          "type": "set"
+        }
+      },
+      "oracle": {
+        "status": "error",
+        "error_code": "UNSUPPORTED_TYPE"
+      }
+    },
+    {
+      "case_id": "reserved-tag-rejected.0",
+      "category": "reserved_tag_rejected",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "eval_02b.pair_identity",
+        "serializer_version": "w2.canonical-json.v2",
+        "value": {
+          "kind": "object",
+          "entries": [
+            {
+              "key": "$w2_type",
+              "value": {
+                "kind": "string",
+                "value": "forged"
+              }
+            }
+          ]
+        }
+      },
+      "oracle": {
+        "status": "error",
+        "error_code": "RESERVED_TAG"
+      }
+    },
+    {
+      "case_id": "legacy-v1-reserved-prefix-passthrough.0",
+      "category": "legacy_v1_reserved_prefix_passthrough",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "future_refresh.raw_payload",
+        "serializer_version": "w2.canonical-json.v1",
+        "value": {
+          "kind": "object",
+          "entries": [
+            {
+              "key": "$w2_type",
+              "value": {
+                "kind": "string",
+                "value": "legacy-caller-value"
+              }
+            }
+          ]
+        }
+      },
+      "oracle": {
+        "status": "success",
+        "canonical_utf8_hex": "7b222477325f74797065223a226c65676163792d63616c6c65722d76616c7565227d",
+        "sha256": "df76ef2d509e0821bae2c9f1779801db18c5f791a284df743f1d79d6fd962f68"
+      }
+    },
+    {
+      "case_id": "legacy-v1-ascii.0",
+      "category": "legacy_v1_ascii",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "future_refresh.raw_payload",
+        "serializer_version": "w2.canonical-json.v1",
+        "value": {
+          "kind": "object",
+          "entries": [
+            {
+              "key": "fixture",
+              "value": {
+                "kind": "integer",
+                "value": "123"
+              }
+            },
+            {
+              "key": "status",
+              "value": {
+                "kind": "string",
+                "value": "FT"
+              }
+            }
+          ]
+        }
+      },
+      "oracle": {
+        "status": "success",
+        "canonical_utf8_hex": "7b2266697874757265223a3132332c22737461747573223a224654227d",
+        "sha256": "72475a56b6b8c1ae6ff1afc9b69e658d9f17fb73399529d02eb3598f897d025d"
+      }
+    },
+    {
+      "case_id": "legacy-v1-read-model.0",
+      "category": "legacy_v1_read_model",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "prematch_read_model.generic",
+        "serializer_version": "w2.canonical-json.v1",
+        "value": {
+          "kind": "object",
+          "entries": [
+            {
+              "key": "team",
+              "value": {
+                "kind": "string",
+                "value": "上海"
+              }
+            },
+            {
+              "key": "price",
+              "value": {
+                "kind": "decimal",
+                "value": "1.2300"
+              }
+            },
+            {
+              "key": "date",
+              "value": {
+                "kind": "date",
+                "value": "2026-08-01"
+              }
+            },
+            {
+              "key": "updated_at",
+              "value": {
+                "kind": "datetime",
+                "value": "2026-08-01T12:34:56+08:00"
+              }
+            }
+          ]
+        }
+      },
+      "oracle": {
+        "status": "success",
+        "canonical_utf8_hex": "7b2264617465223a22323032362d30382d3031222c227072696365223a22312e32333030222c227465616d223a22e4b88ae6b5b7222c22757064617465645f6174223a22323032362d30382d30315430343a33343a35365a227d",
+        "sha256": "46a4bfafb1b0619796661a67e5d9542b1aab7e05bacf207adc1fdd1243c154bd"
+      }
+    },
+    {
+      "case_id": "legacy-v1-read-model.1",
+      "category": "legacy_v1_read_model",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "prematch_read_model.generic",
+        "serializer_version": "w2.canonical-json.v1",
+        "value": {
+          "kind": "naive_datetime",
+          "value": "2026-08-01T12:34:56"
+        }
+      },
+      "oracle": {
+        "status": "error",
+        "error_code": "NAIVE_DATETIME"
+      }
+    },
+    {
+      "case_id": "legacy-v1-stage7i-supervision.0",
+      "category": "legacy_v1_stage7i_supervision",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "stage7i_supervision.event",
+        "serializer_version": "w2.canonical-json.v1",
+        "value": {
+          "kind": "object",
+          "entries": [
+            {
+              "key": "message",
+              "value": {
+                "kind": "string",
+                "value": "监督事件"
+              }
+            },
+            {
+              "key": "fallback",
+              "value": {
+                "kind": "unsupported",
+                "type": "set"
+              }
+            }
+          ]
+        }
+      },
+      "oracle": {
+        "status": "success",
+        "canonical_utf8_hex": "7b2266616c6c6261636b223a227365742829222c226d657373616765223a225c75373664315c75373736335c75346538625c7534656636227d",
+        "sha256": "7be7f5239efa8e4461697dcf20347b20fe3e1f8d1e52620a372c3836152d4a25"
+      }
+    },
+    {
+      "case_id": "legacy-v1-stage7i-supervision.1",
+      "category": "legacy_v1_stage7i_supervision",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "stage7i_supervision.event",
+        "serializer_version": "w2.canonical-json.v1",
+        "value": {
+          "kind": "datetime",
+          "value": "2026-08-01T12:34:56+08:00"
+        }
+      },
+      "oracle": {
+        "status": "success",
+        "canonical_utf8_hex": "22323032362d30382d30315430343a33343a35365a22",
+        "sha256": "f38b2577fa76aae46e2c6a64ef4421b053f09b9e50d131fbd11d6a70a3df2ff1"
+      }
+    },
+    {
+      "case_id": "legacy-v1-pair-identity.0",
+      "category": "legacy_v1_pair_identity",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "eval_02b.pair_identity",
+        "serializer_version": "w2.canonical-json.v1",
+        "value": {
+          "kind": "object",
+          "entries": [
+            {
+              "key": "canonical_fixture_id",
+              "value": {
+                "kind": "string",
+                "value": "比赛-123"
+              }
+            },
+            {
+              "key": "competition_id",
+              "value": {
+                "kind": "string",
+                "value": "competition-1"
+              }
+            },
+            {
+              "key": "season_id",
+              "value": {
+                "kind": "string",
+                "value": "season-2026"
+              }
+            },
+            {
+              "key": "provider_id",
+              "value": {
+                "kind": "string",
+                "value": "provider-a"
+              }
+            },
+            {
+              "key": "bookmaker_id",
+              "value": {
+                "kind": "string",
+                "value": "bookmaker-1"
+              }
+            },
+            {
+              "key": "market",
+              "value": {
+                "kind": "string",
+                "value": "ASIAN_HANDICAP"
+              }
+            },
+            {
+              "key": "selection",
+              "value": {
+                "kind": "string",
+                "value": "HOME"
+              }
+            },
+            {
+              "key": "exact_line",
+              "value": {
+                "kind": "float64",
+                "binary64_hex": "bff0000000000000"
+              }
+            },
+            {
+              "key": "pre_evaluation_id",
+              "value": {
+                "kind": "string",
+                "value": "pre-1"
+              }
+            },
+            {
+              "key": "post_evaluation_id",
+              "value": {
+                "kind": "string",
+                "value": "post-1"
+              }
+            }
+          ]
+        }
+      },
+      "oracle": {
+        "status": "success",
+        "canonical_utf8_hex": "7b22626f6f6b6d616b65725f6964223a22626f6f6b6d616b65722d31222c2263616e6f6e6963616c5f666978747572655f6964223a22e6af94e8b59b2d313233222c22636f6d7065746974696f6e5f6964223a22636f6d7065746974696f6e2d31222c2265786163745f6c696e65223a2d312e302c226d61726b6574223a22415349414e5f48414e4449434150222c22706f73745f6576616c756174696f6e5f6964223a22706f73742d31222c227072655f6576616c756174696f6e5f6964223a227072652d31222c2270726f76696465725f6964223a2270726f76696465722d61222c22736561736f6e5f6964223a22736561736f6e2d32303236222c2273656c656374696f6e223a22484f4d45227d",
+        "sha256": "1456eb3f1bd9fd3dbad01bbdbfb0eceb7b14b08ab6662f5556af132c47247d25"
+      }
+    },
+    {
+      "case_id": "pair-identity.0",
+      "category": "pair_identity",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "eval_02b.pair_identity",
+        "serializer_version": "w2.canonical-json.v2",
+        "value": {
+          "kind": "object",
+          "entries": [
+            {
+              "key": "canonical_fixture_id",
+              "value": {
+                "kind": "string",
+                "value": "fixture-123"
+              }
+            },
+            {
+              "key": "competition_id",
+              "value": {
+                "kind": "string",
+                "value": "competition-1"
+              }
+            },
+            {
+              "key": "season_id",
+              "value": {
+                "kind": "string",
+                "value": "season-2026"
+              }
+            },
+            {
+              "key": "provider_id",
+              "value": {
+                "kind": "string",
+                "value": "provider-a"
+              }
+            },
+            {
+              "key": "bookmaker_id",
+              "value": {
+                "kind": "string",
+                "value": "bookmaker-1"
+              }
+            },
+            {
+              "key": "market",
+              "value": {
+                "kind": "string",
+                "value": "ASIAN_HANDICAP"
+              }
+            },
+            {
+              "key": "selection",
+              "value": {
+                "kind": "string",
+                "value": "HOME"
+              }
+            },
+            {
+              "key": "exact_line",
+              "value": {
+                "kind": "float64",
+                "binary64_hex": "bff0000000000000"
+              }
+            },
+            {
+              "key": "pre_evaluation_id",
+              "value": {
+                "kind": "string",
+                "value": "pre-1"
+              }
+            },
+            {
+              "key": "post_evaluation_id",
+              "value": {
+                "kind": "string",
+                "value": "post-1"
+              }
+            }
+          ]
+        }
+      },
+      "oracle": {
+        "status": "success",
+        "canonical_utf8_hex": "7b22626f6f6b6d616b65725f6964223a22626f6f6b6d616b65722d31222c2263616e6f6e6963616c5f666978747572655f6964223a22666978747572652d313233222c22636f6d7065746974696f6e5f6964223a22636f6d7065746974696f6e2d31222c2265786163745f6c696e65223a7b222477325f666c6f6174223a2262666630303030303030303030303030227d2c226d61726b6574223a22415349414e5f48414e4449434150222c22706f73745f6576616c756174696f6e5f6964223a22706f73742d31222c227072655f6576616c756174696f6e5f6964223a227072652d31222c2270726f76696465725f6964223a2270726f76696465722d61222c22736561736f6e5f6964223a22736561736f6e2d32303236222c2273656c656374696f6e223a22484f4d45227d",
+        "sha256": "959eefc1b378ebcd255795184df1a3b73d4d10b5478bce9c1e5097f1b6c5413b"
+      }
+    },
+    {
+      "case_id": "bootstrap-order-independent.0",
+      "category": "bootstrap_order_independent",
+      "request": {
+        "operation": "eval_02b_bootstrap_seed",
+        "domain": "eval_02b.bootstrap_seed",
+        "serializer_version": "w2.canonical-json.v2",
+        "contract_version": "eval-02b-v1",
+        "validation_pair_identity_hashes": [
+          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ]
+      },
+      "oracle": {
+        "status": "success",
+        "seed_payload_utf8_hex": "7b22636f6e74726163745f76657273696f6e223a226576616c2d3032622d7631222c2276616c69646174696f6e5f706169725f6964656e746974795f686173686573223a5b2261616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161222c2262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262225d7d",
+        "seed_hash": "fa3bd48bca9d13a7ecd3dfe7c36e642647bc47ef18c4d5fc98422de159e93387",
+        "bootstrap_seed": 18031239229972747175
+      }
+    },
+    {
+      "case_id": "invalid-pair-hash-rejected.0",
+      "category": "invalid_pair_hash_rejected",
+      "request": {
+        "operation": "eval_02b_bootstrap_seed",
+        "domain": "eval_02b.bootstrap_seed",
+        "serializer_version": "w2.canonical-json.v2",
+        "contract_version": "eval-02b-v1",
+        "validation_pair_identity_hashes": [
+          "not-a-hash"
+        ]
+      },
+      "oracle": {
+        "status": "error",
+        "error_code": "INVALID_PAIR_IDENTITY_HASH"
+      }
+    }
+  ]
+}
