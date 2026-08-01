@@ -37,6 +37,22 @@ TRUSTED_MAIN = dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
 
 在 SER-02 前不得选择 `ensure_ascii`。SER-05 independent oracle 必须由不同作者实现、不得 import 生产 serializer，并记录独立 reviewer。
 
+## Post-Wave-1 freeze
+
+```text
+WAVE_1_FINAL = PASS_WITH_BOUNDED_CARRY_FORWARD
+FINAL_GATE_A_GROUPS = 28
+FINAL_EXACT_C1_C11_MAPPINGS = 35
+FINAL_TEST_CONTRACT_SKELETONS = 30
+ROLE_FIELDS_CARRIED_TO_PR450 = 145
+ROLE_FIELD_DISPOSITION = CARRY_TO_PR450_DOCUMENTATION_REPAIR
+WAVE_2_AUTHORIZED = false
+```
+
+PR #450 只允许上下文和守卫收口：保留全部历史守卫，硬校验 authority matrix
+表头名称、顺序与列数，并显式承接 145 个 `role` 字段。不得重新计算或重新分组
+Wave 1 分母，不得启动 SER、C9 或 Gate A runtime remediation。
+
 ## Canary hard failures
 
 ```text

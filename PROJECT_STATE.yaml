@@ -1,9 +1,9 @@
-schema_version: w2.project_state.v5
+schema_version: w2.project_state.v3
 project: w2-football-intelligence-engine
-updated_at: "2026-07-31"
-
+updated_at: "2026-08-01"
 current_state_authority: PROJECT_STATE.yaml
 task_authority: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
+active_execution_schema_version: w2.active_execution.v1
 active_execution_authority: https://github.com/QIUYEDALAO/w2-football-intelligence-engine/issues/454
 master_task_and_receipt_authority: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
 handoff_authority: AI_PROJECT_CONTEXT.md
@@ -12,14 +12,11 @@ asset_uniqueness_audit_authority: docs/operations/W2_ASSET_UNIQUENESS_AUDIT_2026
 audit_perspective_registry_authority: docs/operations/W2_AUDIT_PERSPECTIVE_REGISTRY.md
 workflow_governance_issue: 455
 computation_authority_issue: 456
-infrastructure_exposure_issue: 457
-
-current_task: EVAL-02B
 current_workstream: EVAL-02B-T00
-current_phase: PHASE_00_LOCAL_SYNC_AND_T00_GOV
-current_status: BLOCKED
-current_status_detail: BLOCKED_GOVERNANCE_RUNTIME_AND_COMPUTATION_AUTHORITY_REMEDIATION
-current_pr: null
+current_phase: POST_WAVE_1_CONTEXT_AND_GUARD_CLOSURE
+current_status_detail: BLOCKED_PENDING_PHASE_MINUS_1_AND_PR450_FINAL_ACCEPTANCE
+next_workstream: WAIT_FOR_PR450_FINAL_ACCEPTANCE
+infrastructure_exposure_issue: 457
 quarantined_pr: 453
 active_issues:
   - 451
@@ -27,93 +24,10 @@ active_issues:
   - 455
   - 456
   - 457
+current_task: EVAL-02B
+current_status: BLOCKED
+current_pr: null
 next_task: EVAL-02B
-next_workstream: T00-GOV
-next_required_action: GITHUB_LOCAL_TRUSTED_SYNC_THEN_T00_GOV_THEN_T00_SAFE_R1_R5_THEN_CANONICAL_SERIALIZATION_THEN_TRUSTED_C9_REBUILD
-
-trusted_baseline:
-  repository: QIUYEDALAO/w2-football-intelligence-engine
-  main_sha: dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
-  main_matches_baseline: true
-  main_contaminated_by_e875050f: false
-  main_rollback_required: false
-
-frozen_execution_baseline:
-  issue: 454
-  version: v5_FINAL_FROZEN_BASELINE
-  scope_frozen: true
-  sequence_frozen: true
-  authorities_frozen: true
-  stop_line_frozen: true
-  acceptance_method_frozen: true
-  does_not_claim_system_safe: true
-  does_not_authorize_real_execution: true
-
-workflow_governance_incident:
-  status: OPEN_BLOCKER
-  issue: 455
-  quarantined_pr: 453
-  do_not_merge_pr_453: true
-  do_not_repair_pr_453_in_place: true
-  preserve_evidence_refs: true
-  replacement_pr_required: true
-  automation_commit:
-    sha: e875050f6bc0286aed389aadfce1e17b2063635a
-    implementation_authority: false
-    main_ancestor: false
-  t00_gov_acceptance:
-    unclassified_agent_workflows: 0
-    unclassified_agent_runs: 0
-    unclassified_automation_commits: 0
-    unexplained_branch_mutations: 0
-    main_contamination: false
-    independent_rerun_match: true
-
-risk_families:
-  R1_DEFAULT_ALLOW_OR_MISSING_AUTHORITY: OPEN_SCAN_REQUIRED
-  R2_SILENT_FAILURE_OR_FAILURE_DOWNGRADE: OPEN_SCAN_REQUIRED
-  R3_EXTERNAL_SIDE_EFFECT_LOCAL_STATE_NON_ATOMICITY: OPEN_SCAN_REQUIRED
-  R4_AUTHORITY_SPLIT_CONCURRENCY_IDENTITY_DRIFT: OPEN_SCAN_REQUIRED
-  R5_COMPUTATION_AUTHORITY_SPLIT: OPEN_SCAN_REQUIRED
-
-asset_uniqueness:
-  issue: 456
-  storage_layer:
-    current_conclusion: NO_CURRENT_EVIDENCE_OF_DELETION_RESIDUALS
-    reproducible_inventory_required: true
-    duplicate_table_creation_in_linear_upgrade_without_drop_or_rename: 0
-    runtime_directory_git_asset_present: false
-    reports_directory_git_asset_present: false
-  computation_layer:
-    status: OPEN_BLOCKER
-    known_runtime_canonical_serializer_minimum_count: 6
-    definitive_implementation_count: PENDING_T00_R5
-    canonical_serializer_authority_count_target: 1
-    pair_identity_contract_incomplete: true
-    ensure_ascii_decision: PENDING_MIGRATION_INVENTORY
-    historical_hash_in_place_rewrite_forbidden: true
-    serializer_version_required: true
-  migration_debt:
-    dynamic_current_orm_metadata_versions: "0002-0016"
-    historical_migration_rewrite_forbidden: true
-    replay_schema_golden_manifest_required: true
-
-t00_safe:
-  status: NOT_STARTED
-  reproducible_scan_required: true
-  base_sha_bound_required: true
-  output_sha256_required: true
-  unclassified_findings_required: 0
-  unclassified_computation_authorities_required: 0
-  storage_asset_inventory_reproducible_required: true
-  canary_path_must_fix_open_required_before_admission: 0
-  independent_rerun_match_required: true
-  classifications:
-    - SAFE_DEGRADATION
-    - MUST_FIX_FOR_CANARY
-    - MUST_FIX_FOR_CONTINUOUS
-    - ACCEPTED_WITH_REASON
-
 tasks:
   ARCH-P2-02:
     status: DONE
@@ -121,6 +35,12 @@ tasks:
   ARCH-P2-03:
     status: DONE
     conclusion: PASS
+    space_released_kib: 1853664
+    space_released_gib: 1.77
+    removed_worktrees: 15
+    pruned_worktree_records: 1
+    removed_validation_databases: 20
+    removed_runtime_directories: 0
   ARCH-P2-04:
     status: DONE
     pr: 427
@@ -158,70 +78,210 @@ tasks:
     main_ci: 30556679131
   EVAL-02B:
     status: BLOCKED
-    contract_authority: FROZEN_BUT_PAIR_SERIALIZATION_INCOMPLETE
-    write_side_execution_tranche: COMPLETED
-    write_side_implementation_01: DONE
-    write_side_implementation_02: DONE
-    write_side_implementation_03: DONE
-    write_side_implementation_04: DONE
-    end_to_end_status: NOT_VALIDATED
-    independent_rehearsal_receipt_review: COMPLETE
-    a148_supervised_rehearsal: SAFE_FAIL_CLOSED_ONLY
+    start_authorized: false
+    audit_as_of: "2026-07-30T16:06:59.736350Z"
+    audit_sha256: c4099f973f46514c3105911eee9bf87accd20f98b2430998868716d8ae13e70d
+    data_blocker:
+      dynamic_prematch_evaluations: 0
+      lineup_confirmed_events: 0
+      exact_pre_post_pairs: 0
+      results_without_unique_canonical_competition_season_identity: 35
+    contract_authority: FROZEN
+    data_acquisition_plan: AUTHORIZED
+    forward_collection_activation_review: PASS
+    forward_collection_activation_review_status: DONE
+    existing_collection_pipeline: REUSED
+    a148_supervised_rehearsal: BLOCKED_PRECONDITION
+    rehearsal_status: BLOCKED
+    rehearsal_as_of: "2026-07-31T05:10:47.160608Z"
+    pr_448_head: 3466bd4419ff2339233fd659199a1dbf87370113
+    pr_448_merge_sha: c61bff2e50248db8e37b154fd233d456b18e7d0e
+    pr_448_main_ci: 30605554667
+    new_guard_framework: false
+    new_activation_manifest_framework: false
+    new_canary_cli: false
+    provider_control_rewrite: false
+    new_collection_pipeline: false
+    rehearsal_competition_id: brasileirao_serie_a
+    rehearsal_season: "2026"
+    rehearsal_competition_audit_order: 1
+    market_scope:
+      - ASIAN_HANDICAP
+      - TOTALS
+    endpoint_scope:
+      - status
+      - fixtures
+      - odds
+      - lineups
+    capture_cadence: ONE_SUPERVISED_REFRESH_RUN
+    provider_call_limit: 30
+    daily_request_budget: 120
+    scheduler_mode: NOT_STARTED
+    scheduler_restart_policy: "no"
+    scheduler_restart_policy_observed: unless-stopped
+    scheduler_restart_policy_validation: FAIL
+    scheduler_container_started: false
+    rehearsal_execution_mode: MANUAL_FOREGROUND_ONE_SHOT
+    rehearsal_entrypoint: scripts/run_prematch_refresh.py
     rehearsal_command_executed: false
+    projected_provider_calls: 10
     actual_provider_calls: 0
+    request_count_by_endpoint: {}
     provider_request_ledger_delta: 0
     raw_payload_delta: 0
     endpoint_capture_delta: 0
+    checkpoint_audit_delta: 0
     lineup_event_delta: 0
     dynamic_evaluation_v2_delta: 0
     five_state_snapshot_delta: 0
     exact_pair_delta: 0
-    current_execution_manifest_issue: 454
-    current_governance_incident_issue: 455
-    current_computation_authority_issue: 456
-    current_infrastructure_issue: 457
-    c9_original_issue: 451
-    c9_contaminated_pr: 453
-    c9_clean_rebuild_required: true
-    critical_blockers:
-      - C1_PROVIDER_DEFAULT_FAIL_OPEN
-      - C2_RUNTIME_AUTHORIZATION_BYPASS
-      - C3_CLI_SEASON_POLICY_MISMATCH
-      - C4_EXECUTE_DEFAULT_DB_PERSISTENCE
-      - C5_DB_RUN_LOCK_OPTIONAL
-      - C6_PROVIDER_LEDGER_NOT_ATOMIC
-      - C7_UNCERTAIN_TIMEOUT_RETRY
-      - C8_SCHEMA_OR_EMPTY_DATA_SILENT_SUCCESS
-      - C9_LINEUP_MATERIALIZATION_FAILURE_SWALLOWED
-      - C10_SCHEDULER_RESTART_POLICY_MISMATCH
-      - C11_LEDGER_INTEGRITY_AND_QUOTA_EVIDENCE_SILENT_FAILURE
-      - R5_CANONICAL_SERIALIZATION_AUTHORITY_SPLIT
+    materialized_fixture_ids: []
+    read_model_data_time_before: "2026-07-30T15:05:44.392619Z"
+    read_model_data_time_after: "2026-07-30T15:05:44.392619Z"
+    dashboard_data_time_before: "2026-07-30T15:05:44.392619Z"
+    dashboard_data_time_after: "2026-07-30T15:05:44.392619Z"
+    celery_tasks_queued: 0
+    checkpoint_claim_delta: 0
+    flags_restored_disabled: true
+    rehearsal_blockers:
+      - SCHEDULER_RESTART_POLICY_MISMATCH_EXPECTED_NO_OBSERVED_UNLESS_STOPPED
+    auto_retry: false
+    runtime_collection_authorized: false
+    runtime_collection_authorized_scope: NOT_APPLICABLE
+    persistent_scheduler_authorized: false
+    continuous_collection_authorized: false
+    identity_remediation_design: BLOCKED
+    identity_remediation_execution_authorized: false
+    identity_remediation_audit_as_of: "2026-07-30T17:31:23.303986Z"
+    identity_remediation_audit_sha256: 8871fa588091b2daa8c72bd36837e044f462c194f9bc7804bcde27015d063ad0
+    exact_unique_candidate_count: 0
+    unresolved_result_count: 35
+    identity_provenance_gap_decision: LEGACY_35_RESULTS_EXCLUDED_FROM_EVAL_02B
+    legacy_result_facts_retained: true
+    legacy_result_facts_mutated: false
+    legacy_result_eval_eligibility: false
+    legacy_identity_remediation_closed: true
+    future_only_pair_collection_required: true
+    new_provider_fetch_can_restore_legacy_provenance: false
+    fuzzy_identity_reconstruction_allowed: false
+    team_name_match_allowed: false
+    approximate_time_match_allowed: false
+    manual_competition_season_guess_allowed: false
+    legacy_remediation_reopen_condition: EXACT_ORIGINAL_RAW_BLOB_RECOVERED
+    required_blob_verification: SHA256(blob) == result.source_payload_sha256
+    reopen_scope: IDENTITY_REMEDIATION_ONLY
+    write_side_implementation_authorized: false
+    write_side_execution_tranche: COMPLETED
+    write_side_implementation_01: DONE
+    write_side_implementation_01_pr: 441
+    write_side_implementation_01_merge_sha: 5c52a40a6f0b3afb8589c251bea0b7ba611012f5
+    write_side_implementation_01_main_ci: 30583359805
+    write_side_implementation_02: DONE
+    write_side_implementation_02_pr: 443
+    write_side_implementation_02_head: 8eaf04699414a1ebe65077e419651f567910c45d
+    write_side_implementation_02_merge_sha: 532e58c44fe388d7053d8c0b3c3b7d5fa934cacb
+    write_side_implementation_02_main_ci: 30598884065
+    write_side_implementation_03: DONE
+    write_side_implementation_03_pr: 444
+    write_side_implementation_03_head: b959e4a3a406fcc9898695643a17fac9c069281f
+    write_side_implementation_03_merge_sha: 882f69650d4773757529999e3f8292e8689231a2
+    write_side_implementation_03_main_ci: 30599432182
+    write_side_implementation_04: DONE
+    write_side_implementation_04_pr: 445
+    write_side_implementation_04_head: 05b55b5e1fc6583abbdee705a6b39bd263da4372
+    write_side_implementation_04_merge_sha: 308e1edc9ed1748a18cd64c9325521e54a5777ba
+    write_side_implementation_04_main_ci: 30599981432
+    provider_calls_authorized: false
+    provider_calls_authorized_scope: NOT_APPLICABLE
+    scheduler_start_authorized: false
+    scheduler_start_authorized_scope: NOT_APPLICABLE
+    write_side_readiness_design: FROZEN
+    write_side_ready: true
+    new_table_count: 0
+    new_migration_count: 0
+    lineup_event_production_caller: IMPLEMENTED
+    canonical_lineup_event_atomic_write: IMPLEMENTED
+    post_lineup_refresh_plan_production_caller: IMPLEMENTED
+    dynamic_evaluation_v2: IMPLEMENTED
+    five_state_snapshot: IMPLEMENTED
+    exact_pair_projector: IMPLEMENTED
+    pair_evidence_authority: IMMUTABLE_ORIGINAL_EVALUATION
+    lifecycle_supersession_effect: DIAGNOSTIC_ONLY
+    pre_post_eligibility_requires_not_superseded: false
+    recommendation_enabled: false
+    candidate_enabled: false
+    formal_recommendation_enabled: false
+    lock_enabled: false
+    production_release: false
     scoring_implementation: BLOCKED
-    next_required_action: GITHUB_LOCAL_TRUSTED_SYNC_THEN_T00_GOV
+    next_required_action: INDEPENDENT_REHEARSAL_RECEIPT_REVIEW
   EVAL-03:
     status: NOT_STARTED
+safety:
+  provider_calls: 0
+  business_db_writes: 0
+  scheduler_started: false
+  production_started: false
+  reviewed_mapping_count_expected: 66
+staging:
+  production_deployed: false
+  eval_01a_exact_head_acceptance: PASS
+  eval_01b_exact_head_acceptance: PASS
+  eval_01c_exact_head_acceptance: PASS
+  eval_02a_exact_head_acceptance: PASS
+architecture_convergence:
+  status: PASS
+  receipt: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
 
-execution_order:
-  - PHASE_MINUS_1_HUMAN_SECURITY_AND_READ_ONLY_T00_PARALLEL
-  - GITHUB_TO_LOCAL_TRUSTED_SYNC
-  - T00_GOV_WORKFLOW_RUN_COMMIT_PROVENANCE
-  - T00_SAFE_R1_R2_R3_R4_R5_AND_ASSET_INVENTORY
-  - R5_CANONICAL_SERIALIZATION_AUTHORITY_AND_VERSIONED_MIGRATION
-  - E875050F_HUNK_REVIEW
-  - TRUSTED_MAIN_C9_REBUILD_NEW_DRAFT_PR
-  - GATE_A_REMAINING_ONE_SHOT_CANARY_BLOCKERS
-  - OFFLINE_FAKE_PROVIDER_REHEARSAL
-  - CONTEXT_AND_EVIDENCE_SYNC
-  - INDEPENDENT_SECOND_REVIEW
-  - HUMAN_CANARY_AUTHORIZATION_DECISION
+WAVE_1_FINAL: PASS_WITH_BOUNDED_CARRY_FORWARD
+FINAL_GATE_A_GROUPS: 28
+FINAL_EXACT_C1_C11_MAPPINGS: 35
+FINAL_TEST_CONTRACT_SKELETONS: 30
+WAVE_2_AUTHORIZED: false
 
-guard_equivalence:
-  pr: 450
-  status: REQUIRED
-  unclassified_removed_guards_required: 0
-  known_guards_to_restore:
-    - HISTORICAL_PR_RANGE_EXPLICIT_NON_AUTHORITY
-    - RETIRED_STAGING_ADDRESS_ABSENCE
+wave_1_evidence:
+  artifact_pr: 458
+  artifact_head: 4079e663247148f2671f574ab8ba128ebd7ca5e3
+  all_call_completeness_ledger: ACCEPTED_AND_FROZEN
+  grouped_effect_inventory: ACCEPTED_AND_FROZEN
+  total_production_ast_calls: 42054
+  unaccounted_production_calls: 0
+  total_review_groups: 5671
+  authority_matrix_rows: 145
+  authority_matrix_columns: 9
+  authority_matrix_cell_universe: 1305
+  currently_accounted_fields: 1160
+  role_fields_carried_to_pr450: 145
+  role_field_disposition: CARRY_TO_PR450_DOCUMENTATION_REPAIR
+  independently_verified_role_fields: 0
+
+pr450_guard_closure:
+  original_guard_source: main@dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
+  repair_required_guards: 145
+  guards_repaired: 145
+  unclassified_removed_guards: 0
+  authority_matrix_rows: 145
+  authority_matrix_columns: 9
+  authority_matrix_header:
+    - path
+    - 唯一分类
+    - 直接调用方
+    - 传递调用链
+    - 运行环境
+    - 部署引用
+    - 运维文档
+    - 决定
+    - 证据
+
+execution_stop_line:
+  provider_calls_authorized: false
+  real_canary_authorization_authorized: false
+  persistent_scheduler_authorized: false
+  candidate_authorized: false
+  formal_authorized: false
+  lock_authorized: false
+  production_authorized: false
+  auto_merge_authorized: false
 
 oracle_independence:
   production_serializer_implementer_must_differ_from_oracle_author: true
@@ -231,7 +291,6 @@ oracle_independence:
 
 canary_acceptance:
   status: NOT_AUTHORIZED
-  decision_rule: ALL_REQUIRED_DELTAS_POSITIVE_FULL_LINEAGE_AND_INDEPENDENT_RECOMPUTATION
   required_deltas:
     actual_provider_calls_delta: ">0"
     provider_request_ledger_delta: ">0"
@@ -267,40 +326,9 @@ canary_acceptance:
   independent_bootstrap_seed_mismatch_result: FAILED
   nan_or_infinity_result: FAILED
   auto_retry: false
-  authorization_restored_disabled_required: true
-  independent_reviewer_required: true
-
-architecture_convergence:
-  status: PASS
-  scope_remains_valid: true
-  conclusion: NO_EVIDENCE_C1_TO_C11_WERE_CREATED_BY_ARCHITECTURE_CONVERGENCE
-  absolute_no_defect_claim_allowed: false
-
-staging:
-  production_deployed: false
-  eval_01a_exact_head_acceptance: PASS
-  eval_01b_exact_head_acceptance: PASS
-  eval_01c_exact_head_acceptance: PASS
-  eval_02a_exact_head_acceptance: PASS
 
 codex_stop_line:
   real_provider_call_executed: false
   real_canary_authorization_created: false
   auto_merge_executed: false
   stop_after_offline_evidence_package: true
-
-safety:
-  provider_calls: 0
-  business_db_writes: 0
-  scheduler_started: false
-  production_started: false
-  provider_calls_authorized: false
-  runtime_collection_authorized: false
-  scheduler_start_authorized: false
-  persistent_scheduler_authorized: false
-  continuous_collection_authorized: false
-  recommendation_enabled: false
-  candidate_enabled: false
-  formal_recommendation_enabled: false
-  lock_enabled: false
-  production_release: false

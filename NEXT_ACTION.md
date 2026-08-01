@@ -1,96 +1,29 @@
-# W2 Next Action
+# NEXT ACTION
 
-当前顶层任务：
+- Machine-readable status: [PROJECT_STATE.yaml](PROJECT_STATE.yaml)
+- Task order and specifications: [W2 architecture convergence master checklist](docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md)
 
-```text
-EVAL-02B
-```
+Task coordinates are maintained only in those authorities.
 
-当前工作流：
+当前：A148_SUPERVISED_COLLECTION_REHEARSAL 在 Provider 调用前因 scheduler restart policy 前置条件不匹配而 fail-closed；Provider 调用、业务写入、scheduler 与 Celery dispatch 均为 0，一次性授权已撤销。
+下一步：仅等待 INDEPENDENT_REHEARSAL_RECEIPT_REVIEW；持续采集、重新演练、EVAL-02B gate 与 B7 EVAL-03 均未授权。
 
-```text
-EVAL-02B-T00
-```
+## Post-Wave-1 当前动作
 
-当前执行权威：
+上面两行保留为已合并历史守卫文本，不再充当当前执行动作。当前绑定状态为：
 
-```text
-GitHub Issue #454 v5 FINAL FROZEN BASELINE
-```
-
-历史任务规格与已合并回执权威：
+当前执行权威为 GitHub Issue #454 v5；顶层任务仍是 `EVAL-02B`，当前 workstream
+为 `EVAL-02B-T00`。Issue #456 的 R5 工作与 Wave 2 均未获授权。
 
 ```text
-docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
+WAVE_1_FINAL = PASS_WITH_BOUNDED_CARRY_FORWARD
+FINAL_GATE_A_GROUPS = 28
+FINAL_EXACT_C1_C11_MAPPINGS = 35
+FINAL_TEST_CONTRACT_SKELETONS = 30
+WAVE_2_AUTHORIZED = false
 ```
 
-## 立即执行
-
-```text
-1. GitHub → 本地可信同步
-2. 建立 clean worktree
-3. T00-GOV（#455）
-4. T00-SAFE R1–R5 + 存储/计算资产 inventory
-5. R5 canonical serialization SER-01…SER-07（#456）
-6. 从可信 main 重建 C9
-7. 剩余 Gate A
-8. fake-Provider 离线 rehearsal
-9. 上下文/证据同步
-10. 独立二次验收
-```
-
-#457 保持 OPEN，状态不由本文件重定性。人工侧工作与只读 Git/T00 可以并行；真实运行开关继续关闭。
-
-## GitHub 本地同步前置
-
-```bash
-git remote -v
-git fetch --all --prune --tags
-git status --porcelain=v1
-git rev-parse origin/main
-git show -s --format='%H %P %an <%ae> %cn <%ce> %s' origin/main
-git for-each-ref --format='%(refname:short) %(objectname)' \
-  'refs/remotes/origin/agent/eval-02b-c9-*'
-```
-
-预期：
-
-```text
-origin/main = dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
-```
-
-若不一致，停止代码编辑并提交 drift/provenance 报告。
-
-## 禁止来源
-
-```text
-PR #453
-agent/eval-02b-c9-*
-e875050f6bc0286aed389aadfce1e17b2063635a
-任何 automation-authored remediation commit
-```
-
-## 当前禁止
-
-```text
-Provider call
-真实 canary authorization
-persistent scheduler
-Candidate
-Formal
-Lock
-Production
-auto merge
-```
-
-## 必读
-
-- [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml)
-- [`AI_PROJECT_CONTEXT.md`](AI_PROJECT_CONTEXT.md)
-- [`docs/operations/W2_INDEPENDENT_FINAL_AUDIT_20260731.md`](docs/operations/W2_INDEPENDENT_FINAL_AUDIT_20260731.md)
-- [`docs/operations/W2_ASSET_UNIQUENESS_AUDIT_20260731.md`](docs/operations/W2_ASSET_UNIQUENESS_AUDIT_20260731.md)
-- [`docs/operations/W2_AUDIT_PERSPECTIVE_REGISTRY.md`](docs/operations/W2_AUDIT_PERSPECTIVE_REGISTRY.md)
-- Issue #454 v5
-- Issue #455
-- Issue #456
-- Issue #457（保持现状）
+当前仅完成 PR #450 的上下文、145 条历史守卫和 145 个 `role` / `唯一分类`
+字段收口。PR #450 保持 Draft；等待 exact-head CI 与最终独立验收。Issue #457
+保持 OPEN。不得启动 SER、C9、Gate A runtime remediation、Provider、真实 canary、
+persistent scheduler、Candidate、Formal、Lock、Production 或 merge。

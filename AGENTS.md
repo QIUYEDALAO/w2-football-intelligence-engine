@@ -85,6 +85,22 @@ PR #453 = QUARANTINED / DO NOT MERGE / DO NOT REPAIR IN PLACE
 
 必须建立全部删除测试的守卫等价性矩阵，`UNCLASSIFIED_REMOVED_GUARDS = 0`。至少恢复 historical PR non-authority 和 retired staging-address absence guards。
 
+Post-Wave-1 冻结状态：
+
+```text
+WAVE_1_FINAL = PASS_WITH_BOUNDED_CARRY_FORWARD
+FINAL_GATE_A_GROUPS = 28
+FINAL_EXACT_C1_C11_MAPPINGS = 35
+FINAL_TEST_CONTRACT_SKELETONS = 30
+ROLE_FIELDS_CARRIED_TO_PR450 = 145
+ROLE_FIELD_DISPOSITION = CARRY_TO_PR450_DOCUMENTATION_REPAIR
+WAVE_2_AUTHORIZED = false
+```
+
+PR #450 必须保留可信 main 的全部历史守卫，并校验 authority matrix 当前表头的
+列名、列顺序和列数。新增、删除、重命名或重排任一列都必须显式更新合同。
+不得在本阶段重新计算或重新分组 Wave 1 审计分母。
+
 ## Canary 硬失败
 
 ```text
