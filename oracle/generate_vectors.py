@@ -30,7 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = ROOT / "docs/contracts/w2_canonical_serialization_oracle_vectors_v2.schema.json"
 ORACLE_SOURCE = "oracle/canonical_serialization_oracle.py"
 PRODUCTION_PATH = "src/w2/domain/canonical_serialization.py"
-PRODUCTION_HEAD = "af64ef9ec416ce9a9b166a1ddccdb601abac9447"
+PRODUCTION_HEAD = "d05d2b8e8e32bdeca286447ac7c6772d4100b5fc"
 
 
 def decode(node: dict[str, Any]) -> object:

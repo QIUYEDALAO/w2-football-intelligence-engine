@@ -138,20 +138,30 @@ def _tagged(tag: str, text: str, *, ensure_ascii: bool) -> str:
     ) + "}"
 
 
+def _utc_isoformat_z(value: datetime) -> str:
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
 def _legacy_default(value: object, profile: str) -> str | None:
     """Reproduce a frozen v1 default hook. Returns replacement text or None."""
     if profile == "typed":
+        # ADR-0019 frozen read-model hook: Decimal and date keep str(); aware
+        # datetime becomes UTC isoformat with "+00:00" replaced by "Z"; naive
+        # datetime is rejected.
         if isinstance(value, Decimal):
             return str(value)
         if isinstance(value, datetime):
-            return value.isoformat()
+            if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
+                raise OracleError("NAIVE_DATETIME")
+            return _utc_isoformat_z(value)
         if isinstance(value, date):
-            return value.isoformat()
+            return str(value)
         return None
     if profile == "str_utc":
-        if isinstance(value, datetime):
-            moment = value.astimezone(UTC) if value.tzinfo else value
-            return moment.isoformat()
+        # ADR-0019 frozen Stage7I hook: aware datetime becomes UTC isoformat
+        # with "Z"; every other unsupported object becomes str(value).
+        if isinstance(value, datetime) and value.tzinfo is not None:
+            return _utc_isoformat_z(value)
         return str(value)
     return None
 
@@ -168,7 +178,7 @@ def encode(value: object, *, version: str, domain: str) -> str:
 
 
 def _sorted_entries(
-    mapping: dict[Any, Any], *, normalize: bool
+    mapping: dict[Any, Any], *, normalize: bool, reserve_prefix: bool = True
 ) -> list[tuple[str, object]]:
     seen: dict[str, str] = {}
     entries: list[tuple[str, object]] = []
@@ -176,7 +186,7 @@ def _sorted_entries(
         if not isinstance(raw_key, str):
             raise OracleError("NON_STRING_KEY")
         key = nfc(raw_key) if normalize else raw_key
-        if key.startswith(RESERVED_TAG_PREFIX):
+        if reserve_prefix and key.startswith(RESERVED_TAG_PREFIX):
             raise OracleError("RESERVED_TAG")
         if key in seen:
             raise OracleError("UNICODE_KEY_COLLISION")
@@ -248,7 +258,9 @@ def _encode_v1(value: object, *, profile: dict[str, Any]) -> str:
         if isinstance(node, dict):
             parts = [
                 encode_string(key, ensure_ascii=ensure_ascii) + ":" + emit(item)
-                for key, item in _sorted_entries(node, normalize=False)
+                for key, item in _sorted_entries(
+                    node, normalize=False, reserve_prefix=False
+                )
             ]
             return "{" + ",".join(parts) + "}"
         replacement = _legacy_default(node, hook) if hook else None
