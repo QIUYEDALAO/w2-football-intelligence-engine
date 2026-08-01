@@ -26,6 +26,10 @@ ZERO_MARKERS = (
 NONZERO_MARKERS = ("UNREVIEWED_MAIN_AUTOMATION_HUNKS = 145",)
 G10_S07_MARKERS = (
     "SCRIPT_MATRIX_ROWS = 145",
+    "SCRIPT_MATRIX_COLUMNS = 9",
+    "SCRIPT_MATRIX_CELL_UNIVERSE = 1305",
+    "CURRENTLY_ACCOUNTED_FIELDS = 1160",
+    "ROLE_FIELDS_CARRIED_TO_PR450 = 145",
     "SCRIPT_MATRIX_FIELDS = 1160",
     "SCRIPT_MATRIX_EVIDENCE_ATTACHED = 1160",
     "INDEPENDENTLY_VERIFIED_FIELDS = 0",
@@ -230,6 +234,11 @@ def test_g10_6_matrix_attaches_evidence_but_is_not_self_verified() -> None:
     scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
     report = scanner["checklist_review"](scanner["BASE_SHA"])
     assert report["script_matrix_rows"] == 145
+    assert report["script_matrix_columns"] == 9
+    assert report["script_matrix_cell_universe"] == 1305
+    assert report["currently_accounted_fields"] == 1160
+    assert report["role_fields_carried_to_pr450"] == 145
+    assert report["unassigned_fields"] == 0
     assert report["script_matrix_fields"] == 1160
     assert report["evidence_attached_pending_independent_review_fields"] == 1160
     assert report["independently_verified_fields"] == 0
@@ -259,6 +268,27 @@ def test_g10_6_matrix_attaches_evidence_but_is_not_self_verified() -> None:
         len(group["covered_field_ids"]) + len(group["exception_field_ids"])
         for group in bundle["rule_groups"]
     ) == 1160
+    carried_roles = [
+        row["carry_forward_fields"]["role"] for row in report["rows"]
+    ]
+    assert len(carried_roles) == 145
+    assert all(
+        field["disposition"] == "CARRY_TO_PR450_DOCUMENTATION_REPAIR"
+        and field["independently_verified"] is False
+        and field["accepted_by_independent_reviewer"] is False
+        for field in carried_roles
+    )
+
+
+def test_script_matrix_columns_require_audited_or_explicit_carry_forward_type() -> None:
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    audited = scanner["SCRIPT_MATRIX_FIELDS"]
+    carried = scanner["SCRIPT_MATRIX_CARRY_FORWARD_FIELDS"]
+    columns = scanner["SCRIPT_MATRIX_COLUMN_ORDER"]
+    assert len(columns) == len(audited) + len(carried) == 9
+    scanner["validate_script_matrix_columns"](columns, 9)
+    with pytest.raises(scanner["AuditError"], match="UNASSIGNED_SCRIPT_MATRIX_COLUMN"):
+        scanner["validate_script_matrix_columns"]((*columns, "future_column"), 10)
 
 
 def test_s07_emits_complete_grouped_review_queue_without_self_acceptance() -> None:
@@ -674,6 +704,13 @@ def test_r2_required_wave_1_regression_sites_are_classified() -> None:
     assert ledger["proposed_target_gate"] == "PROPOSED_GATE_A"
     assert ledger["accepted_by_independent_reviewer"] is False
     assert ledger["blocker_mapping_basis"] == f"EXACT_CANDIDATE_ID:{ledger['candidate_id']}"
+
+    future_refresh = by_site[("src/w2/ingestion/future_refresh.py", 2098)]
+    assert future_refresh["mapped_existing_blocker"] == "C6"
+    assert "C10" not in future_refresh["mapped_existing_blocker"]
+    assert scanner["INDEPENDENT_BLOCKER_SCOPES"] == {
+        "C10": "FOREGROUND_ISOLATION_COMPOSE_RESTART_NO"
+    }
 
     settlement = by_site[("src/w2/dashboard/validation.py", 67)]
     assert settlement["handler_action"] == "DIAGNOSTIC_THEN_CONTINUE"

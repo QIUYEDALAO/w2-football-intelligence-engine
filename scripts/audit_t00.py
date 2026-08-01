@@ -170,6 +170,20 @@ SCRIPT_MATRIX_FIELDS = (
     "decision",
     "evidence",
 )
+SCRIPT_MATRIX_CARRY_FORWARD_FIELDS = {
+    "role": "CARRY_TO_PR450_DOCUMENTATION_REPAIR",
+}
+SCRIPT_MATRIX_COLUMN_ORDER = (
+    "path",
+    "role",
+    "caller",
+    "transitive_chain",
+    "environment",
+    "deployment_reference",
+    "runbook_reference",
+    "decision",
+    "evidence",
+)
 
 ONE_SHOT_CANARY_SCOPE = {
     "entrypoint": "scripts/run_prematch_refresh.py:main",
@@ -205,7 +219,7 @@ EXACT_BLOCKER_SPECS = (
     ("R2", "src/w2/ingestion/future_refresh.py", 1061, "C6,C11"),
     ("R2", "src/w2/ingestion/future_refresh.py", 1159, "C9"),
     ("R2", "src/w2/ingestion/future_refresh.py", 1181, "C6"),
-    ("R2", "src/w2/ingestion/future_refresh.py", 2098, "C6,C10"),
+    ("R2", "src/w2/ingestion/future_refresh.py", 2098, "C6"),
     ("R2", "src/w2/ingestion/future_refresh_repository.py", 194, "C6,C11"),
     ("R2", "src/w2/ingestion/future_refresh_repository.py", 292, "C9"),
     ("R2", "src/w2/ingestion/future_refresh_repository.py", 295, "C9"),
@@ -235,6 +249,9 @@ EXACT_BLOCKER_SPECS = (
     ("R3", "src/w2/providers/ledger.py", 97, "C11-A"),
     ("R3", "src/w2/providers/ledger.py", 141, "C11-A"),
 )
+INDEPENDENT_BLOCKER_SCOPES = {
+    "C10": "FOREGROUND_ISOLATION_COMPOSE_RESTART_NO",
+}
 
 # These are the 30 exact candidates that carried the prior Wave-1 Gate-A
 # templates. They remain proposals; the five other blocker mappings do not.
@@ -825,6 +842,17 @@ def grouped_field_review_bundle(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def validate_script_matrix_columns(column_types: tuple[str, ...], cell_count: int) -> None:
+    accounted = set(SCRIPT_MATRIX_FIELDS) | set(SCRIPT_MATRIX_CARRY_FORWARD_FIELDS)
+    if (
+        column_types != SCRIPT_MATRIX_COLUMN_ORDER
+        or len(column_types) != len(accounted)
+        or set(column_types) != accounted
+        or cell_count != len(column_types)
+    ):
+        raise AuditError("UNASSIGNED_SCRIPT_MATRIX_COLUMN")
+
+
 def checklist_review(base_sha: str) -> dict[str, Any]:
     commit = "3420714df428d10f441bbc6f011566a42b2fb538"
     text = show(commit, CHECKLIST)
@@ -844,6 +872,7 @@ def checklist_review(base_sha: str) -> dict[str, Any]:
             continue
         cells = [cell.strip() for cell in line.strip("|").split("|")]
         values = [cell.strip("`") for cell in cells]
+        validate_script_matrix_columns(SCRIPT_MATRIX_COLUMN_ORDER, len(values))
         path, role = values[0], values[1]
         caller, chain, environment = values[2:5]
         deployment, runbook, decision, evidence_codes = values[5:9]
@@ -988,6 +1017,19 @@ def checklist_review(base_sha: str) -> dict[str, Any]:
             {
                 "path": path,
                 "role": role,
+                "carry_forward_fields": {
+                    "role": {
+                        "field_id": hashlib.sha256(
+                            f"3420714d:{path}:{matrix_line}:role".encode()
+                        ).hexdigest(),
+                        "field_type": "role",
+                        "value": role,
+                        "disposition": SCRIPT_MATRIX_CARRY_FORWARD_FIELDS["role"],
+                        "independent_review_status": "NOT_REQUESTED_IN_PR458",
+                        "accepted_by_independent_reviewer": False,
+                        "independently_verified": False,
+                    }
+                },
                 "decision": decision,
                 "correct_at_commit": correct_at_commit,
                 "present_at_base": path in at_base,
@@ -1004,12 +1046,24 @@ def checklist_review(base_sha: str) -> dict[str, Any]:
             }
         )
     fields = [field for row in rows for field in row["field_reviews"].values()]
+    carried_fields = [
+        field for row in rows for field in row["carry_forward_fields"].values()
+    ]
+    cell_universe = len(rows) * len(SCRIPT_MATRIX_COLUMN_ORDER)
+    unassigned_fields = cell_universe - len(fields) - len(carried_fields)
+    if unassigned_fields:
+        raise AuditError("SCRIPT_MATRIX_CELL_ACCOUNTING_FAILED")
     review_bundle = grouped_field_review_bundle(rows)
     return {
         "workflow_deletion": "ACCEPT_AS_CORRECT_CONTRACT",
         "rows": rows,
         "grouped_field_review_bundle": review_bundle,
         "script_matrix_rows": len(rows),
+        "script_matrix_columns": len(SCRIPT_MATRIX_COLUMN_ORDER),
+        "script_matrix_cell_universe": cell_universe,
+        "currently_accounted_fields": len(fields),
+        "role_fields_carried_to_pr450": len(carried_fields),
+        "unassigned_fields": unassigned_fields,
         "script_matrix_fields": len(fields),
         "evidence_attached_pending_independent_review_fields": sum(
             field["status"] == "EVIDENCE_ATTACHED_PENDING_INDEPENDENT_REVIEW"
@@ -2772,6 +2826,11 @@ def safe_report(config: AuditConfig) -> dict[str, Any]:
             "id": f"C{index}",
             "classification": "HISTORICAL_VALIDATED_FINDING",
             "target_gate": "GATE_A",
+            **(
+                {"scope": INDEPENDENT_BLOCKER_SCOPES[f"C{index}"]}
+                if f"C{index}" in INDEPENDENT_BLOCKER_SCOPES
+                else {}
+            ),
         }
         for index in range(1, 12)
     ] + [
