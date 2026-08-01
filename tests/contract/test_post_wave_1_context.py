@@ -17,6 +17,8 @@ CONTEXT_PATH = "AI_PROJECT_CONTEXT.md"
 EXECUTION_AUTHORITY = (
     "https://github.com/QIUYEDALAO/w2-football-intelligence-engine/issues/454"
 )
+ACTIVE_NEXT_ACTION = "WAIT_FOR_EXISTING_PHASE_MINUS_1_GATE"
+SUPERSEDED_A148_ACTION = "INDEPENDENT_REHEARSAL_RECEIPT_REVIEW"
 
 REQUIRED_CANARY_DELTAS = (
     "actual_provider_calls_delta",
@@ -51,14 +53,18 @@ def test_project_state_v5_separates_task_and_execution_authorities() -> None:
     assert state["computation_authority_issue"] == 456
 
     assert state["current_task"] == "EVAL-02B"
-    assert state["current_workstream"] == "EVAL-02B-T00"
-    assert state["current_phase"] == "POST_WAVE_1_CONTEXT_AND_GUARD_CLOSURE"
+    assert state["current_workstream"] == "NONE_AUTHORIZED"
+    assert state["current_phase"] == "WAITING_FOR_EXISTING_PHASE_MINUS_1_GATE"
     assert state["current_status"] == "BLOCKED"
-    assert state["current_status_detail"] == (
-        "BLOCKED_PENDING_PHASE_MINUS_1_AND_PR450_FINAL_ACCEPTANCE"
-    )
+    assert state["current_status_detail"] == "WAVE_1_CLOSED_NO_CODE_PHASE_AUTHORIZED"
     assert state["next_task"] == "EVAL-02B"
-    assert state["next_workstream"] == "WAIT_FOR_PR450_FINAL_ACCEPTANCE"
+    assert state["next_workstream"] == "NONE_AUTHORIZED"
+    assert state["active_next_action"] == ACTIVE_NEXT_ACTION
+    assert state["tasks"]["EVAL-02B"]["next_required_action"] == ACTIVE_NEXT_ACTION
+    assert "current_pr" in state
+    assert state["current_pr_semantics"] == "CURRENT_BUSINESS_IMPLEMENTATION_PR_ONLY"
+    assert state["active_context_pr"] == 450
+    assert state["active_context_pr_semantics"] == "CURRENT_CONTEXT_AND_GUARD_PR"
     assert state["quarantined_pr"] == 453
     assert set(state["active_issues"]) == {451, 452, 455, 456, 457}
 
@@ -84,6 +90,17 @@ def test_project_state_v5_separates_task_and_execution_authorities() -> None:
     assert eval_02b["a148_supervised_rehearsal"] == "BLOCKED_PRECONDITION"
     assert eval_02b["rehearsal_command_executed"] is False
     assert eval_02b["actual_provider_calls"] == 0
+
+    a148 = state["historical_receipts"]["a148"]
+    assert a148["previous_next_required_action"] == SUPERSEDED_A148_ACTION
+    assert a148["fail_closed_barrier"] == "PASS"
+    assert a148["provider_execution"] == "NOT_EXECUTED"
+    assert a148["actual_provider_calls"] == 0
+    assert a148["business_db_writes"] == 0
+    assert a148["scheduler_started"] is False
+    assert a148["celery_tasks_queued"] == 0
+    assert a148["one_shot_authorization_revoked"] is True
+    assert a148["end_to_end_chain"] == "NOT_VALIDATED"
 
     assert state["WAVE_1_FINAL"] == "PASS_WITH_BOUNDED_CARRY_FORWARD"
     assert state["FINAL_GATE_A_GROUPS"] == 28
@@ -160,19 +177,33 @@ def test_handoff_documents_are_synchronized_to_v5() -> None:
     registry = read(REGISTRY_PATH)
     asset_audit = read(ASSET_AUDIT_PATH)
 
-    for text in (context, next_action, agents, copilot):
+    handoff_documents = (context, next_action, agents, copilot)
+    for text in handoff_documents:
         assert "#454 v5" in text
-        assert "EVAL-02B-T00" in text
         assert "R5" in text
         assert "#456" in text
+        assert "ACTIVE_NEXT_ACTION = WAIT_FOR_EXISTING_PHASE_MINUS_1_GATE" in text
+        assert "ACTIVE_CONTEXT_PR = 450" in text
+        assert "CURRENT_WORKSTREAM = NONE_AUTHORIZED" in text
+        assert "CURRENT_PHASE = WAITING_FOR_EXISTING_PHASE_MINUS_1_GATE" in text
+        assert "WAVE_1 = CLOSED_AND_FROZEN" in text
         assert "WAVE_1_FINAL = PASS_WITH_BOUNDED_CARRY_FORWARD" in text
+        assert "T00_RERUN = FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE" in text
         assert "FINAL_GATE_A_GROUPS = 28" in text
         assert "FINAL_EXACT_C1_C11_MAPPINGS = 35" in text
         assert "FINAL_TEST_CONTRACT_SKELETONS = 30" in text
         assert "WAVE_2_AUTHORIZED = false" in text
+        assert "NEXT_CODE_ACTION = NONE_AUTHORIZED" in text
+        assert "PR_450 = DRAFT" in text
+        assert "PR_450_FINAL_ACCEPTANCE_REVIEW = COMPLETED" in text
+        assert "PREDEPLOY_C9 = EXISTING_BLOCKER" in text
+        assert "PROVIDER = OFF" in text
+        assert "REAL_CANARY = NOT_AUTHORIZED" in text
+        assert "PERSISTENT_SCHEDULER = OFF" in text
+        assert "AUTO_MERGE = FORBIDDEN" in text
+        assert SUPERSEDED_A148_ACTION not in text
 
     assert "TOP_LEVEL_TASK = EVAL-02B" in context
-    assert "CURRENT_WORKSTREAM = EVAL-02B-T00" in context
     assert "PRODUCTION_SERIALIZER_IMPLEMENTER" in context
     assert "ORACLE_IMPORTS_PRODUCTION_SERIALIZER = false" in context
     assert "INDEPENDENT_PAIR_HASH_MISMATCH" in context
@@ -180,6 +211,57 @@ def test_handoff_documents_are_synchronized_to_v5() -> None:
     assert "ensure_ascii=True" in asset_audit
     assert "ensure_ascii=False" in asset_audit
     assert "计算权威唯一性" in registry
+
+
+def test_active_action_is_unique_current_and_historical_receipt_is_bounded() -> None:
+    state_text = read("PROJECT_STATE.yaml")
+    state = yaml.safe_load(state_text)
+    next_action = read("NEXT_ACTION.md")
+
+    assert state["active_next_action"] == ACTIVE_NEXT_ACTION
+    assert state["tasks"]["EVAL-02B"]["next_required_action"] == ACTIVE_NEXT_ACTION
+    assert f"ACTIVE_NEXT_ACTION = {ACTIVE_NEXT_ACTION}" in next_action
+    expected_active_state = {
+        "WAVE_1": "CLOSED_AND_FROZEN",
+        "T00_RERUN": "FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE",
+        "NEXT_CODE_ACTION": "NONE_AUTHORIZED",
+        "PR_450": "DRAFT",
+        "PR_450_FINAL_ACCEPTANCE_REVIEW": "COMPLETED",
+        "PREDEPLOY_C9": "EXISTING_BLOCKER",
+        "PROVIDER": "OFF",
+        "REAL_CANARY": "NOT_AUTHORIZED",
+        "PERSISTENT_SCHEDULER": "OFF",
+        "AUTO_MERGE": "FORBIDDEN",
+    }
+    for key, value in expected_active_state.items():
+        assert state[key] == value
+    assert state["WAVE_2_AUTHORIZED"] is False
+    assert state["active_context_pr"] == 450
+
+    assert state_text.count(SUPERSEDED_A148_ACTION) == 1
+    assert state["historical_receipts"]["a148"][
+        "previous_next_required_action"
+    ] == SUPERSEDED_A148_ACTION
+    assert state["active_next_action"] != SUPERSEDED_A148_ACTION
+    assert state["tasks"]["EVAL-02B"]["next_required_action"] != (
+        SUPERSEDED_A148_ACTION
+    )
+    assert SUPERSEDED_A148_ACTION not in next_action
+
+    forbidden_current_directions = (
+        "WAIT_FOR_PR450_FINAL_ACCEPTANCE",
+        "POST_WAVE_1_CONTEXT_AND_GUARD_CLOSURE",
+        "BLOCKED_PENDING_PHASE_MINUS_1_AND_PR450_FINAL_ACCEPTANCE",
+        "先执行只读 T00-GOV/T00-SAFE",
+    )
+    for document in (
+        state_text,
+        next_action,
+        read(CONTEXT_PATH),
+        read("AGENTS.md"),
+        read(".github/copilot-instructions.md"),
+    ):
+        assert all(stale not in document for stale in forbidden_current_directions)
 
 
 def test_master_checklist_remains_historical_task_authority() -> None:
@@ -191,7 +273,7 @@ def test_master_checklist_remains_historical_task_authority() -> None:
     assert state["task_authority"] == CHECKLIST_PATH
     assert state["active_execution_authority"] == EXECUTION_AUTHORITY
     assert state["current_task"] == "EVAL-02B"
-    assert state["current_workstream"] == "EVAL-02B-T00"
+    assert state["current_workstream"] == "NONE_AUTHORIZED"
 
     assert "PAIR_IDENTITY_SERIALIZATION" in checklist
     assert "UTF8_CANONICAL_JSON_SORTED_KEYS_COMPACT" in checklist

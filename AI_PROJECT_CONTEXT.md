@@ -25,7 +25,7 @@ trusted_main = dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
 main contaminated by e875050f = false
 main rollback required = false
 PR #453 = QUARANTINED / DO NOT MERGE / DO NOT REPAIR IN PLACE
-PR #450 = DRAFT / CHANGES REQUIRED
+PR #450 = DRAFT / FINAL ACCEPTANCE REVIEW COMPLETED / NOT MERGE ELIGIBLE
 ```
 
 ## 已完成
@@ -44,15 +44,23 @@ PR #450 = DRAFT / CHANGES REQUIRED
 
 ```text
 TOP_LEVEL_TASK = EVAL-02B
-CURRENT_WORKSTREAM = EVAL-02B-T00
-CURRENT_PHASE = POST_WAVE_1_CONTEXT_AND_GUARD_CLOSURE
+ACTIVE_NEXT_ACTION = WAIT_FOR_EXISTING_PHASE_MINUS_1_GATE
+ACTIVE_CONTEXT_PR = 450
+CURRENT_WORKSTREAM = NONE_AUTHORIZED
+CURRENT_PHASE = WAITING_FOR_EXISTING_PHASE_MINUS_1_GATE
 EVAL-02B END-TO-END = BLOCKED / NOT VALIDATED
 EVAL-03 = NOT STARTED
+WAVE_1 = CLOSED_AND_FROZEN
+T00_RERUN = FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE
+NEXT_CODE_ACTION = NONE_AUTHORIZED
+PR_450 = DRAFT
+PR_450_FINAL_ACCEPTANCE_REVIEW = COMPLETED
+PREDEPLOY_C9 = EXISTING_BLOCKER
 PROVIDER = OFF
-REAL CANARY = NOT AUTHORIZED
-PERSISTENT SCHEDULER = OFF
+REAL_CANARY = NOT_AUTHORIZED
+PERSISTENT_SCHEDULER = OFF
 CANDIDATE / FORMAL / LOCK / PRODUCTION = OFF
-AUTO MERGE = FORBIDDEN
+AUTO_MERGE = FORBIDDEN
 ```
 
 Wave 1 的绑定终态已经由 PR #458 exact-head 独立验收确认：
@@ -91,7 +99,8 @@ R4 Authority split / concurrency / identity drift
 R5 Computation authority split
 ```
 
-T00 必须提交 exact-SHA-bound、优先 AST、可复跑的扫描器；临时 grep 数量不是验收分母。
+Wave 1 的 T00 已用 exact-SHA-bound、优先 AST、可复跑扫描器完成并冻结；除非出现新的、
+明确批准的证据，不得重新执行或调整其分母。
 
 ## workflow 治理
 
@@ -109,7 +118,7 @@ T00 必须提交 exact-SHA-bound、优先 AST、可复跑的扫描器；临时 g
 
 ### 存储层
 
-当前人工审计没有发现删除残留；最终结论仍需 T00 复现。
+Wave 1 的存储 inventory 已完成并冻结；本阶段不重新执行 T00。
 
 ```text
 DUPLICATE_TABLE_CREATION_IN_LINEAR_UPGRADE_PATH_WITHOUT_INTERVENING_DROP_OR_RENAME = 0
@@ -119,7 +128,8 @@ DUPLICATE_TABLE_CREATION_IN_LINEAR_UPGRADE_PATH_WITHOUT_INTERVENING_DROP_OR_RENA
 
 ### R5 canonical serialization
 
-至少六个运行相关 serializer/hash writer 已确认存在参数分裂。最终数量由 T00-R5 决定。
+运行相关 serializer/hash writer inventory 已由 Wave 1 T00-R5 冻结；本阶段不重新计数，
+且 Wave 2 / SER 未获授权。
 
 Gate A 必须先完成：
 
@@ -225,24 +235,11 @@ ANY_REQUIRED_DELTA_ZERO
 LINEAGE_MISMATCH
 ```
 
-## #454 v5 冻结执行顺序
+## #454 v5 历史执行顺序与当前边界
 
-```text
-Phase -1 人工侧保持独立处理；只读 Git/T00 可并行
-→ GitHub 到本地可信同步
-→ T00-GOV (#455)
-→ T00-SAFE R1–R5 + 存储/计算资产 inventory
-→ R5 canonical serialization SER-01…SER-07 (#456)
-→ e875050f hunk review
-→ 从可信 main 重建 C9（新 Draft PR）
-→ 剩余 Gate A 一次性 canary 阻断项
-→ fake-Provider 离线 rehearsal
-→ 上下文和证据同步
-→ 独立二次验收
-→ 人工决定是否创建真实 canary 授权
-```
-
-Codex 必须在真实授权和真实 Provider 调用前停止。
+Wave 1 / T00 已完成并冻结，PR #450 的 final acceptance review 已发生。本文件不把历史
+执行顺序重新发布为当前待办。当前唯一动作是等待现有 Phase -1 / Issue #457 gate；当前
+没有获授权的代码执行阶段。C9 predeploy 保持独立后续阻断，PR #450 保持 Draft。
 
 ## Gate 分层
 
@@ -253,13 +250,12 @@ Codex 必须在真实授权和真实 Provider 调用前停止。
 
 ## 接手动作
 
-1. 先读本文件、`PROJECT_STATE.yaml`、`NEXT_ACTION.md`、#454 v5、#455、#456；#457 保持 OPEN 状态。
-2. 从 GitHub 完整 fetch，核对 `origin/main == dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6`。
-3. 从可信 main 创建 clean worktree；不得使用 PR #453 或污染分支。
-4. 先执行只读 T00-GOV/T00-SAFE；所有人工数量都必须由扫描器复现。
-5. 代码实现按 #454 v5 的 Gate 顺序拆成小 Draft PR。
-6. 不调用 Provider、不创建真实授权、不启动持续 scheduler、不自动合并。
-7. 最终输出：
+1. 先读本文件、`PROJECT_STATE.yaml`、`NEXT_ACTION.md` 和 #454 最新 binding decision；#457 保持 OPEN。
+2. 核对 `ACTIVE_NEXT_ACTION = WAIT_FOR_EXISTING_PHASE_MINUS_1_GATE` 与 `ACTIVE_CONTEXT_PR = 450`。
+3. 不重跑 T00，不进入 Wave 2，不开始任何代码执行阶段。
+4. 保持 PR #450 Draft；C9 predeploy 作为独立后续阻断，不得放宽断言。
+5. 不调用 Provider、不创建真实授权、不启动持续 scheduler、不自动合并。
+6. 最终输出：
 
 ```text
 REAL_PROVIDER_CALL_EXECUTED = false

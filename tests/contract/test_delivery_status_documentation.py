@@ -35,7 +35,10 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     assert state["task_authority"] == CHECKLIST_PATH
     assert state["current_task"] == "EVAL-02B"
     assert state["current_status"] == "BLOCKED"
-    assert state["current_pr"] is None
+    assert "current_pr" in state
+    assert state["current_pr_semantics"] == "CURRENT_BUSINESS_IMPLEMENTATION_PR_ONLY"
+    assert state["active_context_pr"] == 450
+    assert state["active_context_pr_semantics"] == "CURRENT_CONTEXT_AND_GUARD_PR"
     assert state["next_task"] == "EVAL-02B"
     assert state["tasks"]["ARCH-P2-02"] == {
         "status": "DONE",
@@ -241,23 +244,28 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "lock_enabled": False,
         "production_release": False,
         "scoring_implementation": "BLOCKED",
-        "next_required_action": "INDEPENDENT_REHEARSAL_RECEIPT_REVIEW",
+        "next_required_action": "WAIT_FOR_EXISTING_PHASE_MINUS_1_GATE",
     }
     assert state["tasks"]["EVAL-03"]["status"] == "NOT_STARTED"
     assert state["architecture_convergence"]["status"] == "PASS"
     assert "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)" in next_action
     assert CHECKLIST_PATH in next_action
-    assert (
-        "当前：A148_SUPERVISED_COLLECTION_REHEARSAL 在 Provider 调用前因 "
-        "scheduler restart policy 前置条件不匹配而 fail-closed；Provider 调用、"
-        "业务写入、scheduler 与 Celery dispatch 均为 0，一次性授权已撤销。"
-        in next_action
+    assert "ACTIVE_NEXT_ACTION = WAIT_FOR_EXISTING_PHASE_MINUS_1_GATE" in next_action
+    assert "NEXT_CODE_ACTION = NONE_AUTHORIZED" in next_action
+    assert "T00_RERUN = FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE" in next_action
+    assert "Historical receipt / 历史回执" in next_action
+    a148 = state["historical_receipts"]["a148"]
+    assert a148["previous_next_required_action"] == (
+        "INDEPENDENT_REHEARSAL_RECEIPT_REVIEW"
     )
-    assert (
-        "下一步：仅等待 INDEPENDENT_REHEARSAL_RECEIPT_REVIEW；持续采集、"
-        "重新演练、EVAL-02B gate 与 B7 EVAL-03 均未授权。"
-        in next_action
-    )
+    assert a148["fail_closed_barrier"] == "PASS"
+    assert a148["provider_execution"] == "NOT_EXECUTED"
+    assert a148["actual_provider_calls"] == 0
+    assert a148["business_db_writes"] == 0
+    assert a148["scheduler_started"] is False
+    assert a148["celery_tasks_queued"] == 0
+    assert a148["one_shot_authorization_revoked"] is True
+    assert a148["end_to_end_chain"] == "NOT_VALIDATED"
     assert "sole machine-readable project-status record" in ledger
     assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", ledger)
     assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", next_action)

@@ -1,29 +1,45 @@
 # NEXT ACTION
 
-- Machine-readable status: [PROJECT_STATE.yaml](PROJECT_STATE.yaml)
-- Task order and specifications: [W2 architecture convergence master checklist](docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md)
-
-Task coordinates are maintained only in those authorities.
-
-当前：A148_SUPERVISED_COLLECTION_REHEARSAL 在 Provider 调用前因 scheduler restart policy 前置条件不匹配而 fail-closed；Provider 调用、业务写入、scheduler 与 Celery dispatch 均为 0，一次性授权已撤销。
-下一步：仅等待 INDEPENDENT_REHEARSAL_RECEIPT_REVIEW；持续采集、重新演练、EVAL-02B gate 与 B7 EVAL-03 均未授权。
-
-## Post-Wave-1 当前动作
-
-上面两行保留为已合并历史守卫文本，不再充当当前执行动作。当前绑定状态为：
-
-当前执行权威为 GitHub Issue #454 v5；顶层任务仍是 `EVAL-02B`，当前 workstream
-为 `EVAL-02B-T00`。Issue #456 的 R5 工作与 Wave 2 均未获授权。
+当前唯一动作：等待现有 Phase -1 / Issue #457 gate 的人工处置。当前没有获授权的代码执行阶段。
 
 ```text
+ACTIVE_NEXT_ACTION = WAIT_FOR_EXISTING_PHASE_MINUS_1_GATE
+ACTIVE_CONTEXT_PR = 450
+CURRENT_WORKSTREAM = NONE_AUTHORIZED
+CURRENT_PHASE = WAITING_FOR_EXISTING_PHASE_MINUS_1_GATE
+WAVE_1 = CLOSED_AND_FROZEN
 WAVE_1_FINAL = PASS_WITH_BOUNDED_CARRY_FORWARD
+T00_RERUN = FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE
 FINAL_GATE_A_GROUPS = 28
 FINAL_EXACT_C1_C11_MAPPINGS = 35
 FINAL_TEST_CONTRACT_SKELETONS = 30
 WAVE_2_AUTHORIZED = false
+NEXT_CODE_ACTION = NONE_AUTHORIZED
+PR_450 = DRAFT
+PR_450_FINAL_ACCEPTANCE_REVIEW = COMPLETED
+PREDEPLOY_C9 = EXISTING_BLOCKER
+PROVIDER = OFF
+REAL_CANARY = NOT_AUTHORIZED
+PERSISTENT_SCHEDULER = OFF
+AUTO_MERGE = FORBIDDEN
 ```
 
-当前仅完成 PR #450 的上下文、145 条历史守卫和 145 个 `role` / `唯一分类`
-字段收口。PR #450 保持 Draft；等待 exact-head CI 与最终独立验收。Issue #457
-保持 OPEN。不得启动 SER、C9、Gate A runtime remediation、Provider、真实 canary、
-persistent scheduler、Candidate、Formal、Lock、Production 或 merge。
+- Machine-readable status: [PROJECT_STATE.yaml](PROJECT_STATE.yaml)
+- Task specifications and merged receipts: [W2 architecture convergence master checklist](docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md)
+- Active execution authority: GitHub Issue #454 v5
+
+PR #450 是当前上下文 PR，并继续保持 Draft。`current_pr: null` 仅表示当前没有业务实现 PR；
+`active_context_pr: 450` 表示当前上下文与守卫 PR。C9 predeploy 是独立后续阻断，不在本阶段修复。
+
+## Historical receipt / 历史回执
+
+A148 的旧动作和证据仅保存在 `PROJECT_STATE.yaml` 的 `historical_receipts.a148`。
+该历史回执继续保护：前置条件 fail-closed、Provider 调用与业务写入为 0、scheduler/Celery
+未启动、一次性授权已撤销、端到端链路未验收。它不是当前执行动作。
+Wave 1 的 T00-R5 inventory 与 Issue #456 仍是冻结历史证据，不是当前执行授权。
+
+## Stop line
+
+不得重跑 T00，不得启动 SER、C9 重建、Gate A runtime remediation、Provider、真实 canary、
+persistent scheduler、Candidate、Formal、Lock、Production 或 merge。只有新的、明确批准的 GitHub
+证据才能改变上述状态。
