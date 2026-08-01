@@ -1,27 +1,105 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://w2.local/contracts/canonical-serialization-oracle-vectors-v1.schema.json",
-  "title": "W2 canonical serialization independent oracle vectors",
+  "$id": "https://w2.local/contracts/canonical-serialization-oracle-vectors-v2.schema.json",
+  "title": "W2 canonical serialization independent oracle vectors v2",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "author", "oracle_imports_production_serializer", "cases"],
+  "required": [
+    "schema_version",
+    "production_implementation_head",
+    "adr_id",
+    "serializer_version",
+    "oracle_author",
+    "oracle_imports_production_serializer",
+    "review_status",
+    "reviewer_records",
+    "mandatory_case_matrix",
+    "cases"
+  ],
   "properties": {
-    "schema_version": {"const": "w2.canonical-serialization-oracle-vectors.v1"},
-    "author": {"type": "string", "minLength": 1},
+    "schema_version": {"const": "w2.canonical-serialization-oracle-vectors.v2"},
+    "production_implementation_head": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "adr_id": {"const": "ADR-0019"},
+    "serializer_version": {"const": "w2.canonical-json.v2"},
+    "oracle_author": {"type": "string", "minLength": 1},
     "oracle_imports_production_serializer": {"const": false},
-    "cases": {
+    "review_status": {"enum": ["PENDING", "APPROVED", "CHANGES_REQUIRED"]},
+    "reviewer_records": {
       "type": "array",
       "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reviewer", "status", "recorded_at"],
+        "properties": {
+          "reviewer": {"type": "string", "minLength": 1},
+          "status": {"enum": ["PENDING", "APPROVED", "CHANGES_REQUIRED"]},
+          "recorded_at": {"type": "string", "format": "date-time"}
+        }
+      }
+    },
+    "mandatory_case_matrix": {
+      "const": [
+        "unicode_nfc",
+        "unicode_key_collision",
+        "large_decimal_context_independent",
+        "float64_min_subnormal",
+        "float64_max_finite",
+        "float64_adjacent",
+        "float64_power_of_ten_boundary",
+        "float64_point_one",
+        "float64_negative_zero",
+        "float64_nan_rejected",
+        "float64_infinity_rejected",
+        "bytes",
+        "aware_datetime",
+        "naive_datetime_rejected",
+        "unsupported_type_rejected",
+        "reserved_tag_rejected",
+        "legacy_v1_compatibility",
+        "pair_identity",
+        "bootstrap_order_independent",
+        "invalid_pair_hash_rejected"
+      ]
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 22,
       "items": {"$ref": "#/$defs/case"}
     }
   },
   "$defs": {
+    "category": {
+      "enum": [
+        "unicode_nfc",
+        "unicode_key_collision",
+        "large_decimal_context_independent",
+        "float64_min_subnormal",
+        "float64_max_finite",
+        "float64_adjacent",
+        "float64_power_of_ten_boundary",
+        "float64_point_one",
+        "float64_negative_zero",
+        "float64_nan_rejected",
+        "float64_infinity_rejected",
+        "bytes",
+        "aware_datetime",
+        "naive_datetime_rejected",
+        "unsupported_type_rejected",
+        "reserved_tag_rejected",
+        "legacy_v1_compatibility",
+        "pair_identity",
+        "bootstrap_order_independent",
+        "invalid_pair_hash_rejected"
+      ]
+    },
     "case": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["case_id", "request", "oracle"],
+      "required": ["case_id", "category", "request", "oracle"],
       "properties": {
-        "case_id": {"type": "string", "minLength": 1},
+        "case_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$"},
+        "category": {"$ref": "#/$defs/category"},
         "request": {
           "oneOf": [
             {
@@ -75,22 +153,38 @@
             {
               "type": "object",
               "additionalProperties": false,
-              "required": ["status", "error_contains"],
+              "required": ["status", "error_code"],
               "properties": {
                 "status": {"const": "error"},
-                "error_contains": {"type": "string", "minLength": 1}
+                "error_code": {"$ref": "#/$defs/error_code"}
               }
             }
           ]
         }
       }
     },
+    "error_code": {
+      "enum": [
+        "UNSUPPORTED_SERIALIZER_VERSION",
+        "NON_FINITE_FLOAT",
+        "NON_FINITE_DECIMAL",
+        "NAIVE_DATETIME",
+        "NON_STRING_KEY",
+        "RESERVED_TAG",
+        "UNICODE_KEY_COLLISION",
+        "UNSUPPORTED_TYPE",
+        "LEGACY_DOMAIN_UNSUPPORTED",
+        "HISTORICAL_HASH_MISMATCH",
+        "BOOTSTRAP_CONTRACT_VERSION_REQUIRED",
+        "INVALID_PAIR_IDENTITY_HASH"
+      ]
+    },
     "node": {
       "oneOf": [
         {"type": "object", "additionalProperties": false, "required": ["kind"], "properties": {"kind": {"const": "null"}}},
         {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "boolean"}, "value": {"type": "boolean"}}},
         {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "integer"}, "value": {"type": "integer"}}},
-        {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "float"}, "value": {"type": "string", "minLength": 1}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "binary64_hex"], "properties": {"kind": {"const": "float64"}, "binary64_hex": {"type": "string", "pattern": "^[0-9a-f]{16}$"}}},
         {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "decimal"}, "value": {"type": "string", "minLength": 1}}},
         {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "string"}, "value": {"type": "string"}}},
         {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "bytes"}, "value": {"type": "string", "pattern": "^[A-Za-z0-9_-]*$"}}},

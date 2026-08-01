@@ -39,7 +39,7 @@ from w2.prematch.lifecycle import (
     LockSnapshotResult,
 )
 
-PAIR_PROJECTOR_SCHEMA = "w2.eval_02b_exact_pair_projection.v1"
+PAIR_PROJECTOR_SCHEMA = "w2.eval_02b_exact_pair_projection.v2"
 _PAIR_MARKETS = {MarketType.ASIAN_HANDICAP.value, MarketType.TOTALS.value}
 _PAIR_ELIGIBLE_STATES = {
     DynamicEvaluationState.ANALYSIS_PICK_ACTIVE.value,
@@ -495,6 +495,7 @@ class ExactPairIdentity:
 class ExactPrePostPair:
     identity: ExactPairIdentity
     identity_hash: str
+    hash_domain: str
     serializer_version: str
     kickoff_at: datetime
     lineup_confirmed_at: datetime
@@ -868,6 +869,7 @@ def _pair_market(
     return ExactPrePostPair(
         identity=identity,
         identity_hash=identity.identity_hash,
+        hash_domain=HashDomain.EVAL_02B_PAIR_IDENTITY.value,
         serializer_version=CURRENT_SERIALIZER_VERSION.value,
         kickoff_at=_pair_utc(fixture.kickoff_utc),
         lineup_confirmed_at=event_at,

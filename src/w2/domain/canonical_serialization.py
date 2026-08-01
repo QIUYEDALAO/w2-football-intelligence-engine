@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import math
+import struct
 import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -14,8 +15,27 @@ from enum import StrEnum
 from typing import Any
 
 
+class CanonicalErrorCode(StrEnum):
+    UNSUPPORTED_SERIALIZER_VERSION = "UNSUPPORTED_SERIALIZER_VERSION"
+    NON_FINITE_FLOAT = "NON_FINITE_FLOAT"
+    NON_FINITE_DECIMAL = "NON_FINITE_DECIMAL"
+    NAIVE_DATETIME = "NAIVE_DATETIME"
+    NON_STRING_KEY = "NON_STRING_KEY"
+    RESERVED_TAG = "RESERVED_TAG"
+    UNICODE_KEY_COLLISION = "UNICODE_KEY_COLLISION"
+    UNSUPPORTED_TYPE = "UNSUPPORTED_TYPE"
+    LEGACY_DOMAIN_UNSUPPORTED = "LEGACY_DOMAIN_UNSUPPORTED"
+    HISTORICAL_HASH_MISMATCH = "HISTORICAL_HASH_MISMATCH"
+    BOOTSTRAP_CONTRACT_VERSION_REQUIRED = "BOOTSTRAP_CONTRACT_VERSION_REQUIRED"
+    INVALID_PAIR_IDENTITY_HASH = "INVALID_PAIR_IDENTITY_HASH"
+
+
 class CanonicalSerializationError(ValueError):
     """The value cannot be represented by the selected canonical contract."""
+
+    def __init__(self, code: CanonicalErrorCode, message: str) -> None:
+        self.code = code
+        super().__init__(f"{code.value}: {message}")
 
 
 class SerializerVersion(StrEnum):
@@ -24,6 +44,8 @@ class SerializerVersion(StrEnum):
 
 
 CURRENT_SERIALIZER_VERSION = SerializerVersion.V2
+HASH_DOMAIN_IN_PREIMAGE = False
+SERIALIZER_VERSION_IN_PREIMAGE = False
 
 
 class HashDomain(StrEnum):
@@ -97,7 +119,10 @@ def canonical_bytes(
     if version is SerializerVersion.LEGACY_V1:
         return _legacy_bytes(value, domain)
     if version is not SerializerVersion.V2:
-        raise CanonicalSerializationError(f"unsupported serializer version: {version}")
+        raise CanonicalSerializationError(
+            CanonicalErrorCode.UNSUPPORTED_SERIALIZER_VERSION,
+            f"unsupported serializer version: {version}",
+        )
     normalized = _normalize_v2(value)
     return json.dumps(
         normalized,
@@ -131,6 +156,20 @@ def verify_sha256(
     return VersionedDigest(domain=domain, serializer_version=version, sha256=actual)
 
 
+def verify_versioned_digest(
+    value: object,
+    expected: VersionedDigest,
+    *,
+    domain: HashDomain,
+    serializer_version: SerializerVersion,
+) -> bool:
+    """Verify digest metadata before verifying its metadata-independent preimage."""
+    if expected.domain is not domain or expected.serializer_version is not serializer_version:
+        return False
+    actual = canonical_sha256(value, domain=domain, version=serializer_version)
+    return hmac.compare_digest(actual, expected.sha256)
+
+
 def prepare_hash_migration(
     value: object,
     historical_sha256: str,
@@ -145,7 +184,10 @@ def prepare_hash_migration(
         declared_version=historical_version,
     )
     if historical is None:
-        raise CanonicalSerializationError("historical hash does not match its declared version")
+        raise CanonicalSerializationError(
+            CanonicalErrorCode.HISTORICAL_HASH_MISMATCH,
+            "historical hash does not match its declared version",
+        )
     return HashMigration(
         historical=historical,
         replacement=VersionedDigest(
@@ -162,12 +204,18 @@ def eval_02b_bootstrap_seed(
     contract_version: str,
 ) -> int:
     if not contract_version.strip():
-        raise CanonicalSerializationError("bootstrap contract version is required")
+        raise CanonicalSerializationError(
+            CanonicalErrorCode.BOOTSTRAP_CONTRACT_VERSION_REQUIRED,
+            "bootstrap contract version is required",
+        )
     if any(
         len(value) != 64 or any(character not in "0123456789abcdef" for character in value)
         for value in validation_pair_identity_hashes
     ):
-        raise CanonicalSerializationError("bootstrap pair identity hash is invalid")
+        raise CanonicalSerializationError(
+            CanonicalErrorCode.INVALID_PAIR_IDENTITY_HASH,
+            "bootstrap pair identity hash is invalid",
+        )
     payload = {
         "contract_version": contract_version,
         "validation_pair_identity_hashes": sorted(validation_pair_identity_hashes),
@@ -196,7 +244,10 @@ def _legacy_bytes(value: object, domain: HashDomain) -> bytes:
         ensure_ascii = True
         allow_nan = True
     else:
-        raise CanonicalSerializationError(f"no legacy profile for domain: {domain}")
+        raise CanonicalSerializationError(
+            CanonicalErrorCode.LEGACY_DOMAIN_UNSUPPORTED,
+            f"no legacy profile for domain: {domain}",
+        )
     return json.dumps(
         value,
         ensure_ascii=ensure_ascii,
@@ -210,7 +261,10 @@ def _legacy_bytes(value: object, domain: HashDomain) -> bytes:
 def _legacy_read_model_default(value: object) -> str:
     if isinstance(value, datetime):
         if value.tzinfo is None:
-            raise CanonicalSerializationError("naive datetime rejected from frozen artifact")
+            raise CanonicalSerializationError(
+                CanonicalErrorCode.NAIVE_DATETIME,
+                "naive datetime rejected from frozen artifact",
+            )
         return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
     if isinstance(value, date | Decimal):
         return str(value)
@@ -230,15 +284,26 @@ def _normalize_v2(value: object) -> Any:
         return unicodedata.normalize("NFC", value)
     if isinstance(value, float):
         if not math.isfinite(value):
-            raise CanonicalSerializationError("NaN and Infinity are forbidden")
-        return {"$w2_float": _decimal_text(Decimal(str(value)))}
+            raise CanonicalSerializationError(
+                CanonicalErrorCode.NON_FINITE_FLOAT,
+                "NaN and Infinity are forbidden",
+            )
+        if value == 0.0:
+            value = 0.0
+        return {"$w2_float": struct.pack(">d", value).hex()}
     if isinstance(value, Decimal):
         if not value.is_finite():
-            raise CanonicalSerializationError("non-finite Decimal is forbidden")
+            raise CanonicalSerializationError(
+                CanonicalErrorCode.NON_FINITE_DECIMAL,
+                "non-finite Decimal is forbidden",
+            )
         return {"$w2_decimal": _decimal_text(value)}
     if isinstance(value, datetime):
         if value.tzinfo is None:
-            raise CanonicalSerializationError("naive datetime is forbidden")
+            raise CanonicalSerializationError(
+                CanonicalErrorCode.NAIVE_DATETIME,
+                "naive datetime is forbidden",
+            )
         utc = value.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
         return {"$w2_datetime": utc}
     if isinstance(value, date):
@@ -250,23 +315,52 @@ def _normalize_v2(value: object) -> Any:
         normalized: dict[str, Any] = {}
         for key, item in value.items():
             if not isinstance(key, str):
-                raise CanonicalSerializationError("object keys must be strings")
+                raise CanonicalSerializationError(
+                    CanonicalErrorCode.NON_STRING_KEY,
+                    "object keys must be strings",
+                )
             normalized_key = unicodedata.normalize("NFC", key)
             if normalized_key in _RESERVED_TAGS:
-                raise CanonicalSerializationError(f"reserved canonical key: {normalized_key}")
+                raise CanonicalSerializationError(
+                    CanonicalErrorCode.RESERVED_TAG,
+                    f"reserved canonical key: {normalized_key}",
+                )
             if normalized_key in normalized:
-                raise CanonicalSerializationError("Unicode normalization produced a duplicate key")
+                raise CanonicalSerializationError(
+                    CanonicalErrorCode.UNICODE_KEY_COLLISION,
+                    "Unicode normalization produced a duplicate key",
+                )
             normalized[normalized_key] = _normalize_v2(item)
         return normalized
     if isinstance(value, list | tuple):
         return [_normalize_v2(item) for item in value]
-    raise CanonicalSerializationError(f"unsupported canonical type: {type(value).__name__}")
+    raise CanonicalSerializationError(
+        CanonicalErrorCode.UNSUPPORTED_TYPE,
+        f"unsupported canonical type: {type(value).__name__}",
+    )
 
 
 def _decimal_text(value: Decimal) -> str:
     if value.is_zero():
         return "0"
-    text = format(value.normalize(), "f")
-    if "." in text:
-        text = text.rstrip("0").rstrip(".")
-    return text
+    sign, digits, exponent = value.as_tuple()
+    if not isinstance(exponent, int):
+        raise CanonicalSerializationError(
+            CanonicalErrorCode.NON_FINITE_DECIMAL,
+            "non-finite Decimal is forbidden",
+        )
+    coefficient = list(digits)
+    while coefficient[-1] == 0:
+        coefficient.pop()
+        exponent += 1
+    text = "".join(str(digit) for digit in coefficient)
+    if exponent >= 0:
+        text += "0" * exponent
+    else:
+        point = len(text) + exponent
+        text = (
+            f"{text[:point]}.{text[point:]}"
+            if point > 0
+            else f"0.{('0' * -point)}{text}"
+        )
+    return f"-{text}" if sign else text

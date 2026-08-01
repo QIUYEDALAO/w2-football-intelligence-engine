@@ -2,21 +2,28 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
+import sys
 from datetime import date, datetime, timedelta, timezone
-from decimal import Decimal
+from decimal import Decimal, localcontext
 
 import pytest
 
 from w2.domain.canonical_serialization import (
     CURRENT_SERIALIZER_VERSION,
+    HASH_DOMAIN_IN_PREIMAGE,
+    SERIALIZER_VERSION_IN_PREIMAGE,
+    CanonicalErrorCode,
     CanonicalSerializationError,
     HashDomain,
     SerializerVersion,
+    VersionedDigest,
     canonical_bytes,
     canonical_sha256,
     eval_02b_bootstrap_seed,
     prepare_hash_migration,
     verify_sha256,
+    verify_versioned_digest,
 )
 
 
@@ -36,8 +43,9 @@ def test_v2_is_utf8_sorted_compact_and_unicode_nfc() -> None:
 
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
 def test_v2_rejects_non_finite_float(value: float) -> None:
-    with pytest.raises(CanonicalSerializationError, match="NaN and Infinity"):
+    with pytest.raises(CanonicalSerializationError, match="NaN and Infinity") as error:
         canonical_bytes(value, domain=HashDomain.EVAL_02B_PAIR_IDENTITY)
+    assert error.value.code is CanonicalErrorCode.NON_FINITE_FLOAT
 
 
 @pytest.mark.parametrize("value", [Decimal("NaN"), Decimal("Infinity")])
@@ -55,10 +63,52 @@ def test_v2_numbers_preserve_types_and_normalize_negative_zero() -> None:
 
     assert value == {
         "decimal": {"$w2_decimal": "1.23"},
-        "float": {"$w2_float": "1"},
+        "float": {"$w2_float": "3ff0000000000000"},
         "int": 1,
-        "negative_zero": {"$w2_float": "0"},
+        "negative_zero": {"$w2_float": "0000000000000000"},
     }
+
+
+def test_decimal_is_exact_and_independent_of_decimal_context() -> None:
+    values = (
+        Decimal("123456789012345678901234567890.123400"),
+        Decimal("0.0000000000000000000000000000123400"),
+        Decimal("1E+100"),
+    )
+    outputs: list[list[bytes]] = []
+    for precision in (5, 28, 50):
+        with localcontext() as context:
+            context.prec = precision
+            outputs.append(
+                [
+                    canonical_bytes(value, domain=HashDomain.EVAL_02B_PAIR_IDENTITY)
+                    for value in values
+                ]
+            )
+
+    assert outputs[0] == outputs[1] == outputs[2]
+    assert json.loads(outputs[0][0]) == {
+        "$w2_decimal": "123456789012345678901234567890.1234"
+    }
+    assert json.loads(outputs[0][1]) == {"$w2_decimal": "0.00000000000000000000000000001234"}
+    assert json.loads(outputs[0][2]) == {"$w2_decimal": "1" + "0" * 100}
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        (0.0, "0000000000000000"),
+        (-0.0, "0000000000000000"),
+        (0.1, "3fb999999999999a"),
+        (float.fromhex("0x0.0000000000001p-1022"), "0000000000000001"),
+        (sys.float_info.max, "7fefffffffffffff"),
+        (math.nextafter(1.0, 2.0), "3ff0000000000001"),
+        (10.0, "4024000000000000"),
+    ],
+)
+def test_float_uses_big_endian_binary64(value: float, expected: str) -> None:
+    encoded = canonical_bytes(value, domain=HashDomain.EVAL_02B_PAIR_IDENTITY)
+    assert json.loads(encoded) == {"$w2_float": expected}
 
 
 def test_v2_date_datetime_and_bytes_are_typed() -> None:
@@ -164,6 +214,33 @@ def test_missing_version_is_legacy_only_and_v2_is_explicit() -> None:
         domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
         declared_version=SerializerVersion.V2,
     ) is not None
+
+
+def test_hash_domain_and_version_are_validated_metadata_not_preimage() -> None:
+    payload = {"value": "same canonical bytes"}
+    pair = VersionedDigest(
+        domain=HashDomain.EVAL_02B_PAIR_IDENTITY,
+        serializer_version=SerializerVersion.V2,
+        sha256=canonical_sha256(payload, domain=HashDomain.EVAL_02B_PAIR_IDENTITY),
+    )
+
+    assert HASH_DOMAIN_IN_PREIMAGE is False
+    assert SERIALIZER_VERSION_IN_PREIMAGE is False
+    assert pair.sha256 == canonical_sha256(
+        payload, domain=HashDomain.EVAL_02B_BOOTSTRAP_SEED
+    )
+    assert verify_versioned_digest(
+        payload,
+        pair,
+        domain=HashDomain.EVAL_02B_PAIR_IDENTITY,
+        serializer_version=SerializerVersion.V2,
+    )
+    assert not verify_versioned_digest(
+        payload,
+        pair,
+        domain=HashDomain.EVAL_02B_BOOTSTRAP_SEED,
+        serializer_version=SerializerVersion.V2,
+    )
 
 
 def test_bootstrap_seed_interface_is_order_independent() -> None:

@@ -598,11 +598,13 @@ def test_exact_pair_projector_is_deterministic_and_read_only() -> None:
     second = project_exact_eval_02b_pairs(engine)
 
     assert first == second
+    assert first.schema_version == "w2.eval_02b_exact_pair_projection.v2"
     assert len(first.pairs) == 1
     pair = first.pairs[0]
     assert pair.identity.canonical_fixture_id == "pair-fixture-1"
     assert pair.identity.pre_evaluation_id == "pair-pre"
     assert pair.identity.post_evaluation_id == "pair-post"
+    assert pair.hash_domain == HashDomain.EVAL_02B_PAIR_IDENTITY.value
     assert pair.serializer_version == CURRENT_SERIALIZER_VERSION.value
     assert pair.identity_hash == canonical_sha256(
         pair.identity.as_dict(), domain=HashDomain.EVAL_02B_PAIR_IDENTITY

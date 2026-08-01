@@ -1,7 +1,7 @@
 {
   "schema_version": "w2.canonical-serialization-legacy-exceptions.v1",
   "authority_path": "src/w2/domain/canonical_serialization.py",
-  "serializer_version": "w2.legacy-implicit-json.v1",
+  "legacy_profile_id": "w2.legacy-implicit-json.v1",
   "owner": "wave-2-canonical-serialization",
   "reason": "Frozen pre-Wave-2 domain; compatibility-only until its own versioned storage migration.",
   "test": "tests/contract/test_canonical_serialization_static_guard.py",
@@ -60,6 +60,19 @@
     {"path": "src/w2/tracking/finished_match_scoring_projection.py", "symbol": "_hash_value", "hash_domain": "legacy.tracking.finished_match_projection"},
     {"path": "src/w2/tracking/formal_results.py", "symbol": "stable_hash", "hash_domain": "legacy.tracking.formal_results"},
     {"path": "src/w2/tracking/forward_outcome_ledger.py", "symbol": "_canonical_sha256", "hash_domain": "legacy.tracking.forward_outcome_ledger"},
-    {"path": "src/w2/tracking/forward_shadow_evidence.py", "symbol": "_hash", "hash_domain": "legacy.tracking.forward_shadow_evidence"}
+    {"path": "src/w2/tracking/forward_shadow_evidence.py", "symbol": "_hash", "hash_domain": "legacy.tracking.forward_shadow_evidence"},
+    {"path": "scripts/audit_market_mainline_ladder.py", "symbol": "main", "hash_domain": "legacy.scripts.market_mainline_ladder"},
+    {"path": "scripts/audit_pr370_totals_quarter_ev.py", "symbol": "_hash", "hash_domain": "legacy.scripts.pr370_totals_quarter_ev"},
+    {"path": "scripts/audit_w2_runtime_authorities.py", "symbol": "_sha_payload", "hash_domain": "legacy.scripts.runtime_authorities"},
+    {"path": "scripts/build_fah_approval_package.py", "symbol": "_stable_hash", "hash_domain": "legacy.scripts.fah_approval_package"},
+    {"path": "scripts/build_stage7i_successor_candidates.py", "symbol": "canonical_json", "hash_domain": "legacy.scripts.stage7i_successor_candidates"},
+    {"path": "scripts/lmm_coverage_audit.py", "symbol": "_hash", "hash_domain": "legacy.scripts.lmm_coverage_audit"},
+    {"path": "scripts/probe_analysis_chain.py", "symbol": "_table_group_hash", "hash_domain": "legacy.scripts.analysis_chain_probe"},
+    {"path": "scripts/project_stage10c_matchday_read_model.py", "symbol": "canonical_sha256", "hash_domain": "legacy.scripts.stage10c_matchday_read_model"},
+    {"path": "scripts/run_arch_p1_03b_player_profiles.py", "symbol": "main", "hash_domain": "legacy.scripts.arch_p1_03b_player_profiles"},
+    {"path": "scripts/run_arch_p1_03b_squads_canary.py", "symbol": "main", "hash_domain": "legacy.scripts.arch_p1_03b_squads_canary"},
+    {"path": "scripts/run_stage13a_world_cup_dry_run.py", "symbol": "main", "hash_domain": "legacy.scripts.stage13a_world_cup_dry_run"},
+    {"path": "scripts/run_stage4b_live_smoke.py", "symbol": "payload_digest", "hash_domain": "legacy.scripts.stage4b_live_smoke_payload"},
+    {"path": "scripts/run_w2_pro_day1_sprint.py", "symbol": "_cache_path", "hash_domain": "legacy.scripts.pro_day1_cache_path"}
   ]
 }

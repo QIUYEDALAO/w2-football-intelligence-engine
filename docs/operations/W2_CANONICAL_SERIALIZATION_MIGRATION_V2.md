@@ -5,12 +5,19 @@
 1. A record with `serializer_version` is verified only with that version.
 2. A historical record without the field is interpreted as
    `w2.canonical-json.v1` only. The reader never guesses v2 after a v1 mismatch.
+   The guard-only identifier `w2.legacy-implicit-json.v1` is stored as
+   `legacy_profile_id`; it is not accepted or persisted as `serializer_version`.
 3. Existing future-refresh, ledger, Stage7I and read-model writers route through
    the sole authority using explicit v1 domain profiles, so their current
    persisted bytes and hashes do not change in this tranche.
 4. EVAL-02B exact pair projection emits
-   `serializer_version=w2.canonical-json.v2`. Bootstrap seed input uses the same
-   version and its own named domain.
+   `schema_version=w2.eval_02b_exact_pair_projection.v2`,
+   `serializer_version=w2.canonical-json.v2`, and the pair hash domain as
+   separate metadata. Bootstrap seed input uses the same serializer version and
+   its own named domain.
+5. `HASH_DOMAIN_IN_PREIMAGE=false` and
+   `SERIALIZER_VERSION_IN_PREIMAGE=false`. Domain and version are required
+   metadata; the digest value by itself does not prove either one.
 
 ## Append-only migration
 
@@ -23,8 +30,10 @@ For a domain whose storage schema is later approved for v2:
    version. Do not update or delete the historical digest.
 4. Dual-read by declared version. Dual-verify during backfill and reconcile
    artifact, ledger, projection and pair counts before switching a reader.
-5. Stop on any missing source payload, v1 mismatch, ambiguous version or
-   domain mismatch. Such a row is not backfilled.
+5. Stop on any missing source payload, v1 mismatch, ambiguous version, missing
+   domain metadata, or domain-metadata mismatch. The mismatch is detected by
+   comparing stored metadata with the requested domain, not by the digest
+   itself. Such a row is not backfilled.
 
 `prepare_hash_migration` models this operation as immutable historical and
 replacement `VersionedDigest` values. Tests require the input and old digest to
@@ -50,7 +59,8 @@ PERSISTENT_SCHEDULER = OFF
 ```
 
 The independent oracle/golden vector author must use
-`docs/contracts/w2_canonical_serialization_oracle_vectors_v1.schema.json` and
-must not import the production serializer. The implementer-provided harness
+`docs/contracts/w2_canonical_serialization_oracle_vectors_v2.schema.json` and
+must not import the production serializer. The schema records the production
+implementation head, ADR/version, author, reviewer records and mandatory case
+matrix. Errors use stable `error_code` values. The implementer-provided harness
 only compares that external output with production behavior.
-
