@@ -14,6 +14,21 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 SCHEMA = ROOT / "docs/contracts/w2_canonical_serialization_oracle_vectors_v2.schema.json"
 HARNESS = ROOT / "scripts/verify_canonical_serialization_oracle.py"
+VECTORS = ROOT / "oracle/w2_canonical_serialization_oracle_vectors_v2.json"
+
+
+def test_combined_oracle_vectors_match_production() -> None:
+    payload = json.loads(VECTORS.read_text(encoding="utf-8"))
+    assert len(payload["cases"]) == 30
+
+    result = subprocess.run(
+        [sys.executable, str(HARNESS), str(VECTORS)],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_oracle_input_schema_and_harness_are_ready(tmp_path: Path) -> None:
