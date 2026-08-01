@@ -19,9 +19,55 @@ from w2.ingestion.future_refresh import (
     run_future_refresh_task,
 )
 from w2.markets.quote_identity import evaluate_quote_freshness, project_quote_identity
+from w2.operations.gate_a import GateARuntimeAuthorization
 from w2.providers.api_football import LiveApiFootballResponse
 
 NOW = datetime(2026, 6, 23, 10, 0, tzinfo=UTC)
+
+
+def _gate_a_authorization() -> GateARuntimeAuthorization:
+    return GateARuntimeAuthorization.from_mapping(
+        {
+            "schema_version": "w2.gate-a-one-shot-authorization.v1",
+            "action": "ONE_SHOT_FOREGROUND_CANARY",
+            "review_status": "APPROVED",
+            "one_shot": True,
+            "persistence": "db",
+            "authorization_id": "offline-test",
+            "competition_id": "world_cup_2026",
+            "season": "2026",
+            "exact_head": "a" * 40,
+            "allowed_endpoints": ["status", "fixtures", "odds", "lineups"],
+            "provider_call_cap": 4,
+            "issued_at": "2026-06-23T09:59:00Z",
+            "expires_at": "2026-06-23T10:30:00Z",
+            "author": "implementer",
+            "reviewer": "reviewer",
+        }
+    )
+
+
+class _CallReservation:
+    def __init__(self) -> None:
+        self.endpoints: list[str] = []
+        self.final_statuses: list[str] = []
+        self.outcomes: list[tuple[int, str, str | None]] = []
+
+    def reserve_provider_call(self, endpoint: str) -> int:
+        self.endpoints.append(endpoint)
+        return len(self.endpoints)
+
+    def finalize(self, status: str) -> None:
+        self.final_statuses.append(status)
+
+    def record_provider_outcome(
+        self,
+        ordinal: int,
+        *,
+        state: str,
+        error_code: str | None = None,
+    ) -> None:
+        self.outcomes.append((ordinal, state, error_code))
 
 
 class FakeApiFootballClient:
@@ -147,6 +193,29 @@ class FakeApiFootballClient:
         if endpoint == "injuries":
             return {"response": []}
         raise AssertionError(endpoint)
+
+
+class _FailingProvider:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def request_live(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
+        self.calls += 1
+        raise TimeoutError("uncertain")
+
+
+class _SchemaDriftProvider(FakeApiFootballClient):
+    def payload(self, endpoint: str, params: dict[str, str]) -> dict[str, Any]:
+        if endpoint == "fixtures":
+            return {"response": {"unexpected": True}}
+        return super().payload(endpoint, params)
+
+
+class _EmptyFixturesProvider(FakeApiFootballClient):
+    def payload(self, endpoint: str, params: dict[str, str]) -> dict[str, Any]:
+        if endpoint == "fixtures":
+            return {"response": []}
+        return super().payload(endpoint, params)
 
 
 def test_canonical_market_keeps_only_full_time_asian_handicap_in_ah_pool() -> None:
@@ -748,6 +817,106 @@ def test_future_fixture_refresh_request_budget(tmp_path: Path) -> None:
 
     assert result.blockers == ["REQUEST_BUDGET_EXHAUSTED"]
     assert len(client.calls) == 1
+
+
+def test_provider_ingress_defaults_to_fail_closed(tmp_path: Path) -> None:
+    service = FutureFixtureRefreshService(
+        config=FutureRefreshConfig(runtime_root=tmp_path, persistence="file"),
+        now=NOW,
+    )
+    assert service.client.allow_live is False
+
+
+def test_gate_a_uncertain_delivery_reserves_once_and_never_retries(tmp_path: Path) -> None:
+    client = _FailingProvider()
+    reservation = _CallReservation()
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=FutureRefreshConfig(runtime_root=tmp_path, persistence="file"),
+        now=NOW,
+        sleep=lambda _: None,
+        runtime_authorization=_gate_a_authorization(),
+        provider_call_reservation=reservation,  # type: ignore[arg-type]
+    ).run()
+
+    assert result.status == "BLOCKED"
+    assert result.blockers == ["PROVIDER_DELIVERY_UNCERTAIN:TimeoutError"]
+    assert client.calls == 1
+    assert reservation.endpoints == ["status"]
+    assert reservation.outcomes == [(1, "DELIVERY_UNCERTAIN", "TimeoutError")]
+
+
+def test_gate_a_http_failure_is_not_automatically_retried(tmp_path: Path) -> None:
+    client = FakeApiFootballClient(status_code=429)
+    reservation = _CallReservation()
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=FutureRefreshConfig(runtime_root=tmp_path, persistence="file"),
+        now=NOW,
+        sleep=lambda _: None,
+        runtime_authorization=_gate_a_authorization(),
+        provider_call_reservation=reservation,  # type: ignore[arg-type]
+    ).run()
+
+    assert result.status == "BLOCKED"
+    assert result.blockers == ["PROVIDER_HTTP_429"]
+    assert client.calls == [("status", {})]
+    assert reservation.endpoints == ["status"]
+    assert reservation.outcomes == [(1, "RESPONSE_RECEIVED", None)]
+
+
+def test_gate_a_task_persists_blocked_terminal_state_and_finalizes_reservation(
+    tmp_path: Path,
+) -> None:
+    reservation = _CallReservation()
+    audit = run_future_refresh_task(
+        task_id="gate-a-task",
+        key="gate-a-key",
+        owner="foreground-owner",
+        competition_id="world_cup_2026",
+        runtime_root=tmp_path,
+        client=_FailingProvider(),
+        now=NOW,
+        persistence="file",
+        runtime_authorization=_gate_a_authorization(),
+        provider_call_reservation=reservation,  # type: ignore[arg-type]
+    )
+
+    assert audit.status == "BLOCKED"
+    assert audit.result["blockers"] == ["PROVIDER_DELIVERY_UNCERTAIN:TimeoutError"]
+    assert reservation.endpoints == ["status"]
+    assert reservation.final_statuses == ["BLOCKED"]
+
+
+def test_gate_a_schema_drift_fails_closed_after_evidence_capture(tmp_path: Path) -> None:
+    reservation = _CallReservation()
+    result = FutureFixtureRefreshService(
+        client=_SchemaDriftProvider(),
+        config=FutureRefreshConfig(runtime_root=tmp_path, persistence="file"),
+        now=NOW,
+        runtime_authorization=_gate_a_authorization(),
+        provider_call_reservation=reservation,  # type: ignore[arg-type]
+    ).run()
+
+    assert result.status == "BLOCKED"
+    assert result.blockers == ["PROVIDER_FIXTURES_SCHEMA_DRIFT"]
+    assert result.raw_payload_written_count == 2
+    assert reservation.endpoints == ["status", "fixtures"]
+
+
+def test_gate_a_abnormal_empty_fails_closed(tmp_path: Path) -> None:
+    reservation = _CallReservation()
+    result = FutureFixtureRefreshService(
+        client=_EmptyFixturesProvider(),
+        config=FutureRefreshConfig(runtime_root=tmp_path, persistence="file"),
+        now=NOW,
+        runtime_authorization=_gate_a_authorization(),
+        provider_call_reservation=reservation,  # type: ignore[arg-type]
+    ).run()
+
+    assert result.status == "BLOCKED"
+    assert result.blockers == ["PROVIDER_FIXTURES_EMPTY"]
+    assert result.raw_payload_written_count == 2
 
 
 def test_future_refresh_controlled_feature_enrichment_uses_budget_and_audit(

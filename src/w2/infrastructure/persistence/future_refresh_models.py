@@ -3,7 +3,18 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, Index, Integer, String, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from w2.infrastructure.database import Base
@@ -21,6 +32,41 @@ class FutureRefreshTaskAuditModel(Base):
     finished_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     result: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+
+class GateARunReservationModel(Base):
+    __tablename__ = "gate_a_run_reservations"
+
+    lease_epoch: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
+    )
+    authorization_id: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    competition_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    season: Mapped[str] = mapped_column(String(32), nullable=False)
+    exact_head: Mapped[str] = mapped_column(String(64), nullable=False)
+    owner: Mapped[str] = mapped_column(String(64), nullable=False)
+    reserved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    provider_call_cap: Mapped[int] = mapped_column(Integer, nullable=False)
+    provider_calls_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_endpoint: Mapped[str | None] = mapped_column(String(64))
+
+
+class GateAProviderCallModel(Base):
+    __tablename__ = "gate_a_provider_calls"
+
+    lease_epoch: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        ForeignKey("gate_a_run_reservations.lease_epoch"),
+        primary_key=True,
+    )
+    call_ordinal: Mapped[int] = mapped_column(Integer, primary_key=True)
+    endpoint: Mapped[str] = mapped_column(String(64), nullable=False)
+    state: Mapped[str] = mapped_column(String(32), nullable=False)
+    reserved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_code: Mapped[str | None] = mapped_column(String(128))
 
 
 class FutureRefreshRunAuditModel(Base):

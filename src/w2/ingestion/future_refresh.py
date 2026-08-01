@@ -29,6 +29,7 @@ from w2.ingestion.future_refresh_repository import (
     FutureRefreshPersistenceError,
 )
 from w2.markets.asian_handicap_scope import canonical_market_from_label
+from w2.operations.gate_a import GateARunReservation, GateARuntimeAuthorization
 from w2.prematch.read_model_projection import (
     ProjectionSourceEvent,
 )
@@ -682,10 +683,14 @@ class FutureFixtureRefreshService:
         sleep: Any | None = None,
         materialize_public_artifacts: Callable[[list[ProjectionSourceEvent]], list[str]]
         | None = None,
+        runtime_authorization: GateARuntimeAuthorization | None = None,
+        provider_call_reservation: GateARunReservation | None = None,
     ) -> None:
         self.config = config or config_from_policy()
+        self.runtime_authorization = runtime_authorization
+        self.provider_call_reservation = provider_call_reservation
         self.client = client or ApiFootballClient(
-            allow_live=True,
+            allow_live=runtime_authorization is not None,
             allowed_live_endpoints=self._allowed_live_endpoints(self.config),
         )
         self.now = now or utc_now()
@@ -710,10 +715,15 @@ class FutureFixtureRefreshService:
             set(config.feature_enrichment_endpoints) if config.feature_enrichment_enabled else set()
         )
         configured = base | (enrichment & {"statistics", "lineups", "injuries"})
-        return frozenset(configured & set(provider_endpoint_allowlist()))
+        endpoints = configured & set(provider_endpoint_allowlist())
+        if self.runtime_authorization is not None:
+            endpoints &= set(self.runtime_authorization.allowed_endpoints)
+        return frozenset(endpoints)
 
     def run(self) -> FutureRefreshResult:
         blockers: list[str] = []
+        if self.runtime_authorization is not None and self.provider_call_reservation is None:
+            raise FutureRefreshError("GATE_A_PROVIDER_CALL_RESERVATION_REQUIRED")
         if not self.config.enabled:
             result = FutureRefreshResult(
                 generated_at_utc=self.now,
@@ -837,7 +847,10 @@ class FutureFixtureRefreshService:
             )
             self._write_audit(result)
         except Exception as exc:
-            blockers.append(exc.__class__.__name__)
+            error_code = (
+                str(exc) if self.runtime_authorization is not None else exc.__class__.__name__
+            )
+            blockers.append(error_code)
             result = FutureRefreshResult(
                 generated_at_utc=self.now,
                 fixture_count=0,
@@ -849,9 +862,9 @@ class FutureFixtureRefreshService:
                 remaining_quota=self._latest_remaining,
                 selected_market_fixture_ids=[],
                 blockers=blockers,
-                status="PARTIAL_FAILED",
+                status="BLOCKED" if self.runtime_authorization is not None else "PARTIAL_FAILED",
                 raw_payload_written_count=self._raw_payload_written_count,
-                error_code=exc.__class__.__name__,
+                error_code=error_code,
             )
             self._write_audit(result)
         return result
@@ -886,11 +899,20 @@ class FutureFixtureRefreshService:
             if self._attempt_count >= self.config.request_budget:
                 raise FutureRefreshError("REQUEST_BUDGET_EXHAUSTED")
             self._attempt_count += 1
+            call_ordinal = None
+            if self.provider_call_reservation is not None:
+                call_ordinal = self.provider_call_reservation.reserve_provider_call(endpoint)
             captured_at = utc_now()
             started = time.monotonic()
             try:
                 response = self.client.request_live(endpoint, params)
             except Exception as exc:
+                if self.provider_call_reservation is not None and call_ordinal is not None:
+                    self.provider_call_reservation.record_provider_outcome(
+                        call_ordinal,
+                        state="DELIVERY_UNCERTAIN",
+                        error_code=exc.__class__.__name__,
+                    )
                 last_error = exc
                 self._audit.append(
                     {
@@ -905,10 +927,19 @@ class FutureFixtureRefreshService:
                         "error_code": exc.__class__.__name__,
                     }
                 )
+                if self.runtime_authorization is not None:
+                    raise FutureRefreshError(
+                        f"PROVIDER_DELIVERY_UNCERTAIN:{exc.__class__.__name__}"
+                    ) from exc
                 if attempt < max_attempts:
                     self.sleep(0.2 * (2 ** (attempt - 1)))
                     continue
                 raise FutureRefreshError(exc.__class__.__name__) from exc
+            if self.provider_call_reservation is not None and call_ordinal is not None:
+                self.provider_call_reservation.record_provider_outcome(
+                    call_ordinal,
+                    state="RESPONSE_RECEIVED",
+                )
             quota = parse_api_football_quota(
                 headers=response.headers,
                 payload=response.payload,
@@ -989,13 +1020,29 @@ class FutureFixtureRefreshService:
             )
             if not guard["allowed"]:
                 raise FutureRefreshError(str(guard["blocker"]))
+            if status == 429 and self.runtime_authorization is not None:
+                raise FutureRefreshError("PROVIDER_HTTP_429")
             if status == 429 and attempt < max_attempts:
                 self.sleep(0.2 * (2 ** (attempt - 1)))
                 continue
             if status >= 400:
                 raise FutureRefreshError(f"PROVIDER_HTTP_{status}")
+            if self.runtime_authorization is not None:
+                self._validate_gate_a_response(endpoint, response.payload)
             return response
         raise FutureRefreshError(last_error.__class__.__name__ if last_error else "REQUEST_FAILED")
+
+    @staticmethod
+    def _validate_gate_a_response(endpoint: str, payload: dict[str, Any]) -> None:
+        response = payload.get("response")
+        if endpoint == "status":
+            if not isinstance(response, dict):
+                raise FutureRefreshError("PROVIDER_STATUS_SCHEMA_DRIFT")
+            return
+        if not isinstance(response, list):
+            raise FutureRefreshError(f"PROVIDER_{endpoint.upper()}_SCHEMA_DRIFT")
+        if not response:
+            raise FutureRefreshError(f"PROVIDER_{endpoint.upper()}_EMPTY")
 
     def _persist_matchday_endpoint_capture(
         self,
@@ -2035,6 +2082,8 @@ def run_future_fixture_refresh(
     checkpoint_fixture_ids: tuple[str, ...] = (),
     refresh_checkpoints: tuple[dict[str, Any], ...] = (),
     materialize_public_artifacts: Callable[[list[ProjectionSourceEvent]], list[str]] | None = None,
+    runtime_authorization: GateARuntimeAuthorization | None = None,
+    provider_call_reservation: GateARunReservation | None = None,
 ) -> FutureRefreshResult:
     config = config_from_policy(
         competition_id=competition_id,
@@ -2067,6 +2116,8 @@ def run_future_fixture_refresh(
         config=config,
         now=now,
         materialize_public_artifacts=materialize_public_artifacts,
+        runtime_authorization=runtime_authorization,
+        provider_call_reservation=provider_call_reservation,
     ).run()
 
 
@@ -2089,6 +2140,8 @@ def run_future_refresh_task(
     checkpoint_fixture_ids: tuple[str, ...] = (),
     refresh_checkpoints: tuple[dict[str, Any], ...] = (),
     materialize_public_artifacts: Callable[[list[ProjectionSourceEvent]], list[str]] | None = None,
+    runtime_authorization: GateARuntimeAuthorization | None = None,
+    provider_call_reservation: GateARunReservation | None = None,
 ) -> RefreshTaskAudit:
     started_at = now or utc_now()
     owner_marker = owner or str(uuid4())
@@ -2167,6 +2220,8 @@ def run_future_refresh_task(
             checkpoint_fixture_ids=checkpoint_fixture_ids,
             refresh_checkpoints=refresh_checkpoints,
             materialize_public_artifacts=materialize_public_artifacts,
+            runtime_authorization=runtime_authorization,
+            provider_call_reservation=provider_call_reservation,
         )
         status = "COMPLETED" if not result.blockers else "BLOCKED"
         summary = {
@@ -2186,7 +2241,7 @@ def run_future_refresh_task(
         }
     except Exception as exc:
         summary = {
-            "blockers": [exc.__class__.__name__],
+            "blockers": [str(exc) or exc.__class__.__name__],
             "candidate": False,
             "formal_recommendation": False,
         }
@@ -2215,6 +2270,8 @@ def run_future_refresh_task(
         },
     )
     write_task_audit(root, audit, persistence=persistence)
+    if provider_call_reservation is not None:
+        provider_call_reservation.finalize(status)
     return audit
 
 

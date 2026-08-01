@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import re
+import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -13,6 +16,7 @@ if TYPE_CHECKING:
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
+FULL_GIT_SHA = re.compile(r"[0-9a-f]{40}")
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
@@ -25,6 +29,21 @@ def parse_utc(value: str | None) -> datetime:
     return parsed.astimezone(UTC) if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
+def exact_code_head() -> str:
+    configured = os.environ.get("W2_GIT_SHA", "").strip()
+    if FULL_GIT_SHA.fullmatch(configured):
+        return configured
+    try:
+        resolved = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+        ).strip()
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise RuntimeError("GATE_A_EXACT_HEAD_UNAVAILABLE") from exc
+    if FULL_GIT_SHA.fullmatch(resolved) is None:
+        raise RuntimeError("GATE_A_EXACT_HEAD_UNAVAILABLE")
+    return resolved
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run or plan the W2 prematch refresh task.",
@@ -35,6 +54,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--now-utc")
     parser.add_argument("--runtime-root", type=Path)
     parser.add_argument("--persistence", choices=("db", "file"))
+    parser.add_argument("--authorization-file", type=Path)
     parser.add_argument(
         "--execute",
         action="store_true",
@@ -124,7 +144,14 @@ def main() -> int:
         print(json.dumps(dry_run_payload(args, now=now, key=key), ensure_ascii=False, indent=2))
         return 0
 
+    from w2.config import get_settings  # noqa: PLC0415
     from w2.ingestion.future_refresh import run_future_refresh_task  # noqa: PLC0415
+    from w2.monitoring.readiness import schema_check  # noqa: PLC0415
+    from w2.operations.gate_a import (  # noqa: PLC0415
+        GateAError,
+        GateARuntimeAuthorization,
+        reserve_gate_a_run,
+    )
 
     resolved_persistence = (
         args.persistence or os.environ.get("W2_FUTURE_REFRESH_PERSISTENCE", "db")
@@ -134,6 +161,28 @@ def main() -> int:
             "persistence must be 'db' or 'file' "
             "(via --persistence or W2_FUTURE_REFRESH_PERSISTENCE)"
         )
+    if args.authorization_file is None:
+        parser.error("--execute requires --authorization-file")
+    try:
+        exact_head = exact_code_head()
+        authorization = GateARuntimeAuthorization.load(args.authorization_file)
+        authorization.validate_scope(
+            competition_id=args.competition_id,
+            season=args.season,
+            persistence=resolved_persistence,
+            exact_head=exact_head,
+            now=datetime.now(UTC),
+        )
+    except (GateAError, RuntimeError) as exc:
+        parser.error(str(exc))
+    schema_ready, schema_detail = schema_check(get_settings())
+    if not schema_ready:
+        parser.error(f"GATE_A_MIGRATION_HEAD_MISMATCH:{schema_detail}")
+    reservation = reserve_gate_a_run(
+        authorization,
+        owner=f"manual:{hashlib.sha256(key.encode()).hexdigest()[:16]}",
+        now=datetime.now(UTC),
+    )
 
     audit = run_future_refresh_task(
         task_id=f"{key}:manual",
@@ -148,6 +197,8 @@ def main() -> int:
             if resolved_persistence == "db"
             else None
         ),
+        runtime_authorization=authorization,
+        provider_call_reservation=reservation,
     )
     payload = {
         "status": audit.status,

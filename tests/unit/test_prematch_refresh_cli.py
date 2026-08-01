@@ -6,10 +6,36 @@ import sys
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
 import scripts.materialize_analysis_card_canary as canary_cli
 import scripts.run_prematch_refresh as refresh_cli
 
+from w2.operations.gate_a import GateAError
 from w2.prematch.analysis_calculator import ReadModelService
+
+
+class _Authorization:
+    authorization_id = "test-authorization"
+
+    def validate_scope(self, **kwargs: Any) -> None:
+        if kwargs["persistence"] != "db":
+            raise GateAError("GATE_A_DB_PERSISTENCE_REQUIRED")
+
+
+def _authorize_execute(monkeypatch: Any) -> object:
+    authorization = _Authorization()
+    reservation = object()
+    monkeypatch.setattr(
+        "w2.operations.gate_a.GateARuntimeAuthorization.load",
+        lambda _path: authorization,
+    )
+    monkeypatch.setattr(
+        "w2.operations.gate_a.reserve_gate_a_run",
+        lambda *_args, **_kwargs: reservation,
+    )
+    monkeypatch.setattr("w2.monitoring.readiness.schema_check", lambda _settings: (True, "ok"))
+    monkeypatch.setattr(refresh_cli.subprocess, "check_output", lambda *_args, **_kwargs: "a" * 40)
+    return reservation
 
 
 def test_prematch_refresh_defaults_to_no_provider_call_plan() -> None:
@@ -36,6 +62,63 @@ def test_prematch_refresh_defaults_to_no_provider_call_plan() -> None:
     assert payload["candidate"] is False
     assert payload["formal_recommendation"] is False
     assert payload["beats_market"] is False
+
+
+def test_prematch_refresh_execute_requires_explicit_authorization(
+    monkeypatch: Any,
+) -> None:
+    calls = 0
+
+    def run_future_refresh_task(**_kwargs: Any) -> SimpleNamespace:
+        nonlocal calls
+        calls += 1
+        return SimpleNamespace()
+
+    monkeypatch.setattr(
+        "w2.ingestion.future_refresh.run_future_refresh_task",
+        run_future_refresh_task,
+    )
+    monkeypatch.setattr(sys, "argv", ["run_prematch_refresh.py", "--execute"])
+
+    with pytest.raises(SystemExit):
+        refresh_cli.main()
+    assert calls == 0
+
+
+def test_prematch_refresh_migration_mismatch_blocks_before_reservation_and_provider(
+    monkeypatch: Any,
+) -> None:
+    calls = 0
+    _authorize_execute(monkeypatch)
+
+    def forbidden(*_args: Any, **_kwargs: Any) -> object:
+        nonlocal calls
+        calls += 1
+        return object()
+
+    monkeypatch.setattr(
+        "w2.monitoring.readiness.schema_check",
+        lambda _settings: (False, "database revision does not match code head"),
+    )
+    monkeypatch.setattr("w2.operations.gate_a.reserve_gate_a_run", forbidden)
+    monkeypatch.setattr(
+        "w2.ingestion.future_refresh.run_future_refresh_task",
+        forbidden,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_prematch_refresh.py",
+            "--execute",
+            "--authorization-file",
+            "authorization.json",
+        ],
+    )
+
+    with pytest.raises(SystemExit):
+        refresh_cli.main()
+    assert calls == 0
 
 
 def test_materialize_analysis_card_canary_executes_active_calculator_entry(
@@ -102,6 +185,7 @@ def test_prematch_refresh_execute_db_injects_shadow_composition_adapter(
     capsys: Any,
 ) -> None:
     captured: dict[str, Any] = {}
+    reservation = _authorize_execute(monkeypatch)
 
     def run_future_refresh_task(**kwargs: Any) -> SimpleNamespace:
         captured.update(kwargs)
@@ -124,6 +208,8 @@ def test_prematch_refresh_execute_db_injects_shadow_composition_adapter(
             "--execute",
             "--persistence",
             "db",
+            "--authorization-file",
+            "authorization.json",
             "--now-utc",
             "2026-07-18T05:00:00Z",
         ],
@@ -133,6 +219,7 @@ def test_prematch_refresh_execute_db_injects_shadow_composition_adapter(
     payload = json.loads(capsys.readouterr().out)
     assert payload["status"] == "COMPLETED"
     assert captured["persistence"] == "db"
+    assert captured["provider_call_reservation"] is reservation
     assert (
         captured["materialize_public_artifacts"]
         is refresh_cli.materialize_shadow_projection_events
@@ -144,6 +231,7 @@ def test_prematch_refresh_execute_defaults_to_db_and_injects_shadow_adapter(
     capsys: Any,
 ) -> None:
     captured: dict[str, Any] = {}
+    reservation = _authorize_execute(monkeypatch)
 
     def run_future_refresh_task(**kwargs: Any) -> SimpleNamespace:
         captured.update(kwargs)
@@ -165,6 +253,8 @@ def test_prematch_refresh_execute_defaults_to_db_and_injects_shadow_adapter(
         [
             "run_prematch_refresh.py",
             "--execute",
+            "--authorization-file",
+            "authorization.json",
             "--now-utc",
             "2026-07-18T05:00:00Z",
         ],
@@ -174,20 +264,22 @@ def test_prematch_refresh_execute_defaults_to_db_and_injects_shadow_adapter(
     payload = json.loads(capsys.readouterr().out)
     assert payload["status"] == "COMPLETED"
     assert captured["persistence"] == "db"
+    assert captured["provider_call_reservation"] is reservation
     assert (
         captured["materialize_public_artifacts"]
         is refresh_cli.materialize_shadow_projection_events
     )
 
 
-def test_prematch_refresh_execute_uses_file_env_without_shadow_adapter(
+def test_prematch_refresh_execute_rejects_file_persistence_before_provider_call(
     monkeypatch: Any,
     capsys: Any,
 ) -> None:
-    captured: dict[str, Any] = {}
+    calls = 0
 
     def run_future_refresh_task(**kwargs: Any) -> SimpleNamespace:
-        captured.update(kwargs)
+        nonlocal calls
+        calls += 1
         return SimpleNamespace(
             status="COMPLETED",
             task_id=kwargs["task_id"],
@@ -196,6 +288,7 @@ def test_prematch_refresh_execute_uses_file_env_without_shadow_adapter(
         )
 
     monkeypatch.setenv("W2_FUTURE_REFRESH_PERSISTENCE", "file")
+    _authorize_execute(monkeypatch)
     monkeypatch.setattr(
         "w2.ingestion.future_refresh.run_future_refresh_task",
         run_future_refresh_task,
@@ -206,13 +299,13 @@ def test_prematch_refresh_execute_uses_file_env_without_shadow_adapter(
         [
             "run_prematch_refresh.py",
             "--execute",
+            "--authorization-file",
+            "authorization.json",
             "--now-utc",
             "2026-07-18T05:00:00Z",
         ],
     )
 
-    assert refresh_cli.main() == 0
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["status"] == "COMPLETED"
-    assert captured["persistence"] == "file"
-    assert captured["materialize_public_artifacts"] is None
+    with pytest.raises(SystemExit):
+        refresh_cli.main()
+    assert calls == 0

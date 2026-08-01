@@ -36,6 +36,10 @@ class ProviderRequestLedger(Protocol):
         pass
 
 
+class ProviderLedgerError(RuntimeError):
+    pass
+
+
 def provider_request_hash(
     *,
     endpoint: str,
@@ -97,6 +101,29 @@ class DbProviderRequestLedger:
                 session.commit()
             except IntegrityError:
                 session.rollback()
+                existing_log = session.scalar(
+                    select(ProviderRequestLogModel).where(
+                        ProviderRequestLogModel.provider == provider,
+                        ProviderRequestLogModel.endpoint == endpoint,
+                        ProviderRequestLogModel.request_hash == request_hash,
+                    )
+                )
+                expected = (
+                    live,
+                    status_code,
+                    requested_at.astimezone(UTC),
+                    completed_at.astimezone(UTC),
+                    error,
+                )
+                actual = (
+                    existing_log.live,
+                    existing_log.status_code,
+                    _utc(existing_log.requested_at),
+                    _utc(existing_log.completed_at),
+                    existing_log.error,
+                ) if existing_log is not None else None
+                if actual != expected:
+                    raise ProviderLedgerError("PROVIDER_REQUEST_LEDGER_CONFLICT") from None
             except Exception:
                 session.rollback()
                 raise
@@ -115,14 +142,14 @@ class DbProviderRequestLedger:
             window_end = window_start + timedelta(days=1)
             used = max(quota.daily_limit - quota.daily_remaining, 0)
             with Session(engine) as session:
-                existing = session.scalar(
+                quota_usage = session.scalar(
                     select(QuotaUsageModel).where(
                         QuotaUsageModel.provider == provider,
                         QuotaUsageModel.endpoint == endpoint,
                         QuotaUsageModel.window_start == window_start,
                     )
                 )
-                if existing is None:
+                if quota_usage is None:
                     session.add(
                         QuotaUsageModel(
                             provider=provider,
@@ -134,9 +161,9 @@ class DbProviderRequestLedger:
                         )
                     )
                 else:
-                    existing.used = max(existing.used, used)
-                    existing.limit = quota.daily_limit
-                    existing.window_end = window_end
+                    quota_usage.used = max(quota_usage.used, used)
+                    quota_usage.limit = quota.daily_limit
+                    quota_usage.window_end = window_end
                 try:
                     session.commit()
                 except Exception:
@@ -148,3 +175,11 @@ def provider_request_ledger_from_env() -> ProviderRequestLedger | None:
     if os.environ.get("W2_PROVIDER_REQUEST_LEDGER_ENABLED", "false").lower() != "true":
         return None
     return DbProviderRequestLedger()
+
+
+def _utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
