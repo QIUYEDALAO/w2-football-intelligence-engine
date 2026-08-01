@@ -1,0 +1,165 @@
+{
+  "candidate": false,
+  "dirty_write_count": 0,
+  "fixture_count": 2,
+  "fixtures": [
+    {
+      "candidate": {
+        "bookmaker_count": 2,
+        "candidate": false,
+        "decimal_odds": "2.10",
+        "decision": "WATCH",
+        "fixture_id": "retro-gate5-001",
+        "formal_recommendation": false,
+        "hard_gate_reasons": [],
+        "line": null,
+        "market": "ONE_X_TWO",
+        "selection": "HOME"
+      },
+      "correlation": {
+        "backup": null,
+        "candidate": false,
+        "formal_recommendation": false,
+        "primary": {
+          "candidate": {
+            "bookmaker_count": 2,
+            "candidate": false,
+            "decimal_odds": "2.10",
+            "decision": "WATCH",
+            "fixture_id": "retro-gate5-001",
+            "formal_recommendation": false,
+            "hard_gate_reasons": [],
+            "line": null,
+            "market": "ONE_X_TWO",
+            "selection": "HOME"
+          },
+          "candidate_flag": false,
+          "formal_recommendation": false,
+          "role": "PRIMARY"
+        },
+        "suppressed_count": 0
+      },
+      "fixture_id": "retro-gate5-001",
+      "immutability_probe": {
+        "attempted": true,
+        "error": "LOCK_IMMUTABLE_APPEND_VERSION_REQUIRED",
+        "rejected": true
+      },
+      "lock_event": {
+        "actor": "gate5-retrospective-replay",
+        "candidate": false,
+        "event_id": "b76c9deed94092169dcba9c60ba8079e776327071804d0ba4597a52563bbbf64",
+        "event_time": "2024-06-01T12:00:00Z",
+        "event_type": "LOCK_CREATED",
+        "fixture_id": "retro-gate5-001",
+        "formal_recommendation": false,
+        "line": null,
+        "lock_id": "9e1fbde3bb668f3dad57db6be91e6905b64404d28f06dde772ca7fe9f083a37f",
+        "market": "ONE_X_TWO",
+        "payload": {
+          "candidate": false,
+          "fixture_id": "retro-gate5-001",
+          "formal_recommendation": false,
+          "line": null,
+          "market": "ONE_X_TWO",
+          "probability": "0.51",
+          "selection": "HOME",
+          "source": "RETROSPECTIVE_REPLAY"
+        },
+        "prior_event_id": null,
+        "probability": "0.51",
+        "reason": "machine validation only",
+        "selection": "HOME",
+        "version": 1
+      },
+      "mode": "RETROSPECTIVE",
+      "recommendation": null,
+      "retrospective_not_forward": true,
+      "settlement": {
+        "candidate": false,
+        "closing_decimal_odds": "2.05",
+        "clv_decimal": "-0.05",
+        "evaluated_at": "2024-06-01T16:01:00Z",
+        "fixture_id": "retro-gate5-001",
+        "formal_recommendation": false,
+        "line": null,
+        "locked_decimal_odds": "2.10",
+        "market": "ONE_X_TWO",
+        "outcome": "WIN",
+        "prediction_hash": "deb3858c7e9ad0d3df85e6de8531c533eb289a8cc01f8481be6f3ea773f96bf7",
+        "replay_hash": "937f0a89e6bc35f57b0c0ce2b3882b1f30bc23e6a2d9ae73c3a161a1692edb1e",
+        "selection": "HOME",
+        "settled_units": "1"
+      },
+      "settlement_replay_matches": true,
+      "shadow_audit": {
+        "candidate": false,
+        "dirty_write_count": 0,
+        "formal_recommendation": false,
+        "recommendation_emitted": false
+      }
+    },
+    {
+      "candidate": {
+        "bookmaker_count": 1,
+        "candidate": false,
+        "decimal_odds": null,
+        "decision": "SKIP",
+        "fixture_id": "retro-gate5-002",
+        "formal_recommendation": false,
+        "hard_gate_reasons": [
+          "CORE_MARKET_MISSING",
+          "BOOKMAKER_MIN_NOT_MET",
+          "ODDS_STALE"
+        ],
+        "line": null,
+        "market": null,
+        "selection": null
+      },
+      "correlation": {
+        "backup": null,
+        "candidate": false,
+        "formal_recommendation": false,
+        "primary": null,
+        "suppressed_count": 1
+      },
+      "fixture_id": "retro-gate5-002",
+      "immutability_probe": {
+        "attempted": false,
+        "error": null,
+        "rejected": false
+      },
+      "lock_event": null,
+      "mode": "RETROSPECTIVE",
+      "recommendation": null,
+      "retrospective_not_forward": true,
+      "settlement": null,
+      "settlement_replay_matches": false,
+      "shadow_audit": {
+        "candidate": false,
+        "dirty_write_count": 0,
+        "formal_recommendation": false,
+        "recommendation_emitted": false
+      }
+    }
+  ],
+  "formal_recommendation": false,
+  "gate5_acceptance": "NOT_REQUESTED_FORWARD_EVIDENCE_REQUIRED",
+  "generated_at": "2026-06-25T11:09:39.974226Z",
+  "lock_immutability_verified": true,
+  "mode": "RETROSPECTIVE",
+  "recommendation_count": 0,
+  "recommendation_emitted": false,
+  "retrospective_not_forward": true,
+  "schema_version": "W2_GATE5_RETROSPECTIVE_REPLAY_V1",
+  "settlement_replay_verified": true,
+  "shadow_db_audit": {
+    "candidate": false,
+    "dirty_write_count": 0,
+    "formal_recommendation": false,
+    "recommendation_count": 0,
+    "status": "PASS"
+  },
+  "skip_count": 1,
+  "watch_count": 1
+}
