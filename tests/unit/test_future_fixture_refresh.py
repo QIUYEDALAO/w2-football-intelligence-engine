@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from base64 import b64encode
 from datetime import UTC, datetime, timedelta
@@ -23,7 +24,11 @@ from w2.ingestion.future_refresh import (
     run_future_refresh_task,
 )
 from w2.markets.quote_identity import evaluate_quote_freshness, project_quote_identity
-from w2.operations.gate_a import GateARuntimeAuthorization, authorization_signing_message
+from w2.operations.gate_a import (
+    GateARuntimeAuthorization,
+    TrustedApprovalKey,
+    authorization_signing_message,
+)
 from w2.providers.api_football import LiveApiFootballResponse
 
 NOW = datetime(2026, 6, 23, 10, 0, tzinfo=UTC)
@@ -32,7 +37,7 @@ NOW = datetime(2026, 6, 23, 10, 0, tzinfo=UTC)
 def _gate_a_authorization() -> GateARuntimeAuthorization:
     signing_key = Ed25519PrivateKey.from_private_bytes(bytes(range(32)))
     payload: dict[str, object] = {
-        "schema_version": "w2.gate-a-one-shot-authorization.v1",
+        "schema_version": "w2.gate-a-one-shot-authorization.v2",
         "action": "ONE_SHOT_FOREGROUND_CANARY",
         "review_status": "APPROVED",
         "one_shot": True,
@@ -43,6 +48,9 @@ def _gate_a_authorization() -> GateARuntimeAuthorization:
         "season": "2026",
         "exact_head": "a" * 40,
         "exact_tree": "b" * 40,
+        "execution_mode": "COMPLETE_CLEAN_CHECKOUT",
+        "runtime_artifact_digest": None,
+        "complete_checkout_manifest_sha256": "c" * 64,
         "allowed_endpoints": ["status", "fixtures", "odds", "lineups"],
         "provider_call_cap": 4,
         "issued_at": "2026-06-23T09:59:00Z",
@@ -51,18 +59,33 @@ def _gate_a_authorization() -> GateARuntimeAuthorization:
         "reviewer": "reviewer",
         "approval_key_id": "test-independent-key",
     }
-    payload["approval_signature"] = b64encode(
-        signing_key.sign(authorization_signing_message(payload))
-    ).decode()
     public_key = b64encode(
         signing_key.public_key().public_bytes(
             encoding=serialization.Encoding.Raw,
             format=serialization.PublicFormat.Raw,
         )
     ).decode()
+    public_key_sha256 = hashlib.sha256(
+        signing_key.public_key().public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+    ).hexdigest()
+    payload["approval_public_key_sha256"] = public_key_sha256
+    payload["approval_custody_status"] = "INDEPENDENT_SIGNER_CONFIRMED"
+    payload["approval_signature"] = b64encode(
+        signing_key.sign(authorization_signing_message(payload))
+    ).decode()
     return GateARuntimeAuthorization.from_mapping(
         payload,
-        trusted_public_keys={"test-independent-key": public_key},
+        trusted_public_keys={
+            "test-independent-key": TrustedApprovalKey(
+                public_key_base64=public_key,
+                public_key_sha256=public_key_sha256,
+                custody_status="INDEPENDENT_SIGNER_CONFIRMED",
+                authorization_enabled=True,
+            )
+        },
     )
 
 

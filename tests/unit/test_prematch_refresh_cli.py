@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -41,7 +42,12 @@ def _authorize_execute(monkeypatch: Any) -> object:
     monkeypatch.setattr(
         refresh_cli,
         "exact_code_identity",
-        lambda: refresh_cli.ExactCodeIdentity(head="a" * 40, tree="b" * 40),
+        lambda: refresh_cli.ExactCodeIdentity(
+            head="a" * 40,
+            tree="b" * 40,
+            execution_mode="COMPLETE_CLEAN_CHECKOUT",
+            complete_checkout_manifest_sha256="c" * 64,
+        ),
     )
     return reservation
 
@@ -77,27 +83,65 @@ def test_exact_code_identity_uses_clean_git_head_and_tree_not_environment(
 ) -> None:
     monkeypatch.setenv("W2_GIT_SHA", "c" * 40)
 
-    def git_output(command: list[str], **_kwargs: Any) -> str:
-        if "status" in command:
-            return ""
-        return "a" * 40 if command[-1] == "HEAD" else "b" * 40
+    index = b"100644 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 0\tsrc/w2/a.py\0"
 
-    monkeypatch.setattr(refresh_cli.subprocess, "check_output", git_output)
+    def git_output(*args: str) -> bytes:
+        if args[0] == "status" or "--ignored" in args:
+            return b""
+        if args == ("rev-parse", "HEAD"):
+            return ("a" * 40 + "\n").encode()
+        if args == ("rev-parse", "HEAD^{tree}"):
+            return ("b" * 40 + "\n").encode()
+        assert args == ("ls-files", "-s", "-z")
+        return index
+
+    monkeypatch.setattr(refresh_cli, "_git_bytes", git_output)
+
+    manifest = hashlib.sha256(
+        b"W2_COMPLETE_CLEAN_CHECKOUT_V1\0"
+        + ("a" * 40).encode()
+        + b"\0"
+        + ("b" * 40).encode()
+        + b"\0"
+        + index
+    ).hexdigest()
 
     assert refresh_cli.exact_code_identity() == refresh_cli.ExactCodeIdentity(
         head="a" * 40,
         tree="b" * 40,
+        execution_mode="COMPLETE_CLEAN_CHECKOUT",
+        complete_checkout_manifest_sha256=manifest,
     )
 
 
 def test_exact_code_identity_rejects_dirty_checkout(monkeypatch: Any) -> None:
     monkeypatch.setattr(
-        refresh_cli.subprocess,
-        "check_output",
-        lambda *_args, **_kwargs: " M src/w2/providers/control.py",
+        refresh_cli,
+        "_git_bytes",
+        lambda *_args: b" M src/w2/providers/control.py",
     )
 
-    with pytest.raises(RuntimeError, match="GATE_A_EXACT_CODE_TREE_DIRTY"):
+    with pytest.raises(RuntimeError, match="GATE_A_COMPLETE_CHECKOUT_DIRTY_OR_UNTRACKED"):
+        refresh_cli.exact_code_identity()
+
+
+def test_exact_code_identity_rejects_ignored_executable(
+    monkeypatch: Any,
+    tmp_path: Any,
+) -> None:
+    ignored = tmp_path / "ignored.py"
+    ignored.write_text("pass\n")
+    monkeypatch.setattr(refresh_cli, "ROOT", tmp_path)
+
+    def git_output(*args: str) -> bytes:
+        if args[0] == "status":
+            return b""
+        if "--ignored" in args:
+            return b"ignored.py\0"
+        return b""
+
+    monkeypatch.setattr(refresh_cli, "_git_bytes", git_output)
+    with pytest.raises(RuntimeError, match="GATE_A_IGNORED_EXECUTABLE_CONTENT_PRESENT"):
         refresh_cli.exact_code_identity()
 
 
@@ -177,7 +221,12 @@ def test_prematch_refresh_policy_season_mismatch_blocks_before_authorization(
     monkeypatch.setattr(
         refresh_cli,
         "exact_code_identity",
-        lambda: refresh_cli.ExactCodeIdentity(head="a" * 40, tree="b" * 40),
+        lambda: refresh_cli.ExactCodeIdentity(
+            head="a" * 40,
+            tree="b" * 40,
+            execution_mode="COMPLETE_CLEAN_CHECKOUT",
+            complete_checkout_manifest_sha256="c" * 64,
+        ),
     )
     monkeypatch.setattr(
         "w2.ingestion.future_refresh.load_refresh_policy",

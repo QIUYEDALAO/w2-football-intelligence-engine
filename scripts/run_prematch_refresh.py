@@ -3,7 +3,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
+import stat
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -33,26 +35,70 @@ def parse_utc(value: str | None) -> datetime:
 class ExactCodeIdentity:
     head: str
     tree: str
+    execution_mode: str
+    runtime_artifact_digest: str | None = None
+    complete_checkout_manifest_sha256: str | None = None
+
+
+_IGNORED_EXECUTABLE_SUFFIXES = {
+    ".py",
+    ".pyc",
+    ".pyo",
+    ".pth",
+    ".so",
+    ".dylib",
+    ".sh",
+    ".bash",
+    ".zsh",
+    ".js",
+    ".mjs",
+    ".cjs",
+}
+
+
+def _git_bytes(*args: str) -> bytes:
+    return subprocess.check_output(["git", *args], cwd=ROOT)
+
+
+def _ignored_executable(path: Path) -> bool:
+    if path.is_symlink() or path.suffix.lower() in _IGNORED_EXECUTABLE_SUFFIXES:
+        return True
+    try:
+        return bool(path.stat().st_mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH))
+    except OSError:
+        return False
 
 
 def exact_code_identity() -> ExactCodeIdentity:
     try:
-        dirty = subprocess.check_output(
-            ["git", "status", "--porcelain=v1", "--untracked-files=no"],
-            cwd=ROOT,
-            text=True,
-        ).strip()
-        head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-        tree = subprocess.check_output(
-            ["git", "rev-parse", "HEAD^{tree}"], cwd=ROOT, text=True
-        ).strip()
+        dirty = _git_bytes("status", "--porcelain=v1", "-z", "--untracked-files=all")
+        ignored = _git_bytes("ls-files", "--others", "--ignored", "--exclude-standard", "-z")
+        head = _git_bytes("rev-parse", "HEAD").decode().strip()
+        tree = _git_bytes("rev-parse", "HEAD^{tree}").decode().strip()
+        index_manifest = _git_bytes("ls-files", "-s", "-z")
     except (OSError, subprocess.CalledProcessError) as exc:
         raise RuntimeError("GATE_A_EXACT_CODE_IDENTITY_UNAVAILABLE") from exc
     if dirty:
-        raise RuntimeError("GATE_A_EXACT_CODE_TREE_DIRTY")
+        raise RuntimeError("GATE_A_COMPLETE_CHECKOUT_DIRTY_OR_UNTRACKED")
+    ignored_paths = [ROOT / os.fsdecode(value) for value in ignored.split(b"\0") if value]
+    if any(_ignored_executable(path) for path in ignored_paths):
+        raise RuntimeError("GATE_A_IGNORED_EXECUTABLE_CONTENT_PRESENT")
     if FULL_GIT_SHA.fullmatch(head) is None or FULL_GIT_SHA.fullmatch(tree) is None:
         raise RuntimeError("GATE_A_EXACT_CODE_IDENTITY_UNAVAILABLE")
-    return ExactCodeIdentity(head=head, tree=tree)
+    manifest = hashlib.sha256(
+        b"W2_COMPLETE_CLEAN_CHECKOUT_V1\0"
+        + head.encode()
+        + b"\0"
+        + tree.encode()
+        + b"\0"
+        + index_manifest
+    ).hexdigest()
+    return ExactCodeIdentity(
+        head=head,
+        tree=tree,
+        execution_mode="COMPLETE_CLEAN_CHECKOUT",
+        complete_checkout_manifest_sha256=manifest,
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -186,6 +232,9 @@ def main() -> int:
             task_key=key,
             exact_head=identity.head,
             exact_tree=identity.tree,
+            execution_mode=identity.execution_mode,
+            runtime_artifact_digest=identity.runtime_artifact_digest,
+            complete_checkout_manifest_sha256=identity.complete_checkout_manifest_sha256,
             now=datetime.now(UTC),
         )
     except (GateAError, RuntimeError) as exc:

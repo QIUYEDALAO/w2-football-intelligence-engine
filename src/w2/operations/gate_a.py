@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from base64 import b64decode
@@ -21,7 +22,7 @@ from w2.infrastructure.persistence.future_refresh_models import (
     GateARunReservationModel,
 )
 
-GATE_A_AUTHORIZATION_SCHEMA = "w2.gate-a-one-shot-authorization.v1"
+GATE_A_AUTHORIZATION_SCHEMA = "w2.gate-a-one-shot-authorization.v2"
 GATE_A_ACTION = "ONE_SHOT_FOREGROUND_CANARY"
 GATE_A_TRUST_STORE_SCHEMA = "w2.gate-a-authorization-trust.v1"
 DEFAULT_TRUST_STORE = (
@@ -42,6 +43,9 @@ class GateARuntimeAuthorization:
     persistence: str
     exact_head: str
     exact_tree: str
+    execution_mode: str
+    runtime_artifact_digest: str | None
+    complete_checkout_manifest_sha256: str | None
     allowed_endpoints: frozenset[str]
     provider_call_cap: int
     issued_at: datetime
@@ -49,6 +53,8 @@ class GateARuntimeAuthorization:
     author: str
     reviewer: str
     approval_key_id: str
+    approval_public_key_sha256: str
+    approval_custody_status: str
 
     @classmethod
     def load(
@@ -70,7 +76,7 @@ class GateARuntimeAuthorization:
         cls,
         payload: Mapping[str, Any],
         *,
-        trusted_public_keys: Mapping[str, str] | None = None,
+        trusted_public_keys: Mapping[str, TrustedApprovalKey] | None = None,
     ) -> GateARuntimeAuthorization:
         required = {
             "authorization_id",
@@ -79,6 +85,7 @@ class GateARuntimeAuthorization:
             "season",
             "exact_head",
             "exact_tree",
+            "execution_mode",
             "allowed_endpoints",
             "provider_call_cap",
             "issued_at",
@@ -86,6 +93,8 @@ class GateARuntimeAuthorization:
             "author",
             "reviewer",
             "approval_key_id",
+            "approval_public_key_sha256",
+            "approval_custody_status",
             "approval_signature",
         }
         if (
@@ -105,6 +114,9 @@ class GateARuntimeAuthorization:
         task_key = str(payload["task_key"]).strip()
         exact_head = str(payload["exact_head"]).strip()
         exact_tree = str(payload["exact_tree"]).strip()
+        execution_mode = str(payload["execution_mode"]).strip()
+        runtime_artifact_digest = _optional_str(payload.get("runtime_artifact_digest"))
+        checkout_manifest = _optional_str(payload.get("complete_checkout_manifest_sha256"))
         raw_endpoints = payload["allowed_endpoints"]
         if (
             not authorization_id
@@ -116,6 +128,22 @@ class GateARuntimeAuthorization:
             or not isinstance(raw_endpoints, list)
         ):
             raise GateAError("GATE_A_AUTHORIZATION_INVALID")
+        if execution_mode == "IMMUTABLE_IMAGE":
+            if (
+                runtime_artifact_digest is None
+                or re.fullmatch(r"sha256:[0-9a-f]{64}", runtime_artifact_digest) is None
+                or checkout_manifest is not None
+            ):
+                raise GateAError("GATE_A_RUNTIME_ARTIFACT_IDENTITY_INVALID")
+        elif execution_mode == "COMPLETE_CLEAN_CHECKOUT":
+            if (
+                checkout_manifest is None
+                or re.fullmatch(r"[0-9a-f]{64}", checkout_manifest) is None
+                or runtime_artifact_digest is not None
+            ):
+                raise GateAError("GATE_A_RUNTIME_ARTIFACT_IDENTITY_INVALID")
+        else:
+            raise GateAError("GATE_A_EXECUTION_MODE_INVALID")
         endpoints = frozenset(str(value) for value in raw_endpoints)
         if not endpoints or not endpoints <= {"status", "fixtures", "odds", "lineups"}:
             raise GateAError("GATE_A_ENDPOINT_SCOPE_INVALID")
@@ -147,6 +175,9 @@ class GateARuntimeAuthorization:
             persistence="db",
             exact_head=exact_head,
             exact_tree=exact_tree,
+            execution_mode=execution_mode,
+            runtime_artifact_digest=runtime_artifact_digest,
+            complete_checkout_manifest_sha256=checkout_manifest,
             allowed_endpoints=endpoints,
             provider_call_cap=cap,
             issued_at=issued_at,
@@ -154,6 +185,8 @@ class GateARuntimeAuthorization:
             author=author,
             reviewer=reviewer,
             approval_key_id=approval_key_id,
+            approval_public_key_sha256=str(payload["approval_public_key_sha256"]),
+            approval_custody_status=str(payload["approval_custody_status"]),
         )
 
     def validate_scope(
@@ -165,6 +198,9 @@ class GateARuntimeAuthorization:
         task_key: str,
         exact_head: str,
         exact_tree: str,
+        execution_mode: str,
+        runtime_artifact_digest: str | None,
+        complete_checkout_manifest_sha256: str | None,
         policy_season: str,
         now: datetime,
     ) -> None:
@@ -185,6 +221,12 @@ class GateARuntimeAuthorization:
             raise GateAError("GATE_A_EXACT_HEAD_MISMATCH")
         if exact_tree != self.exact_tree:
             raise GateAError("GATE_A_EXACT_TREE_MISMATCH")
+        if execution_mode != self.execution_mode:
+            raise GateAError("GATE_A_EXECUTION_MODE_MISMATCH")
+        if runtime_artifact_digest != self.runtime_artifact_digest:
+            raise GateAError("GATE_A_RUNTIME_ARTIFACT_DIGEST_MISMATCH")
+        if complete_checkout_manifest_sha256 != self.complete_checkout_manifest_sha256:
+            raise GateAError("GATE_A_CHECKOUT_MANIFEST_MISMATCH")
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -286,6 +328,11 @@ def reserve_gate_a_run(
     now: datetime,
 ) -> GateARunReservation:
     engine = create_engine()
+    from w2.operations.gate_a_evidence_producer import (  # noqa: PLC0415
+        capture_gate_a_evidence_baseline,
+    )
+
+    evidence_baseline = capture_gate_a_evidence_baseline(engine, authorization)
     with Session(engine) as session:
         row = GateARunReservationModel(
             authorization_id=authorization.authorization_id,
@@ -294,6 +341,10 @@ def reserve_gate_a_run(
             season=authorization.season,
             exact_head=authorization.exact_head,
             exact_tree=authorization.exact_tree,
+            execution_mode=authorization.execution_mode,
+            runtime_artifact_digest=authorization.runtime_artifact_digest,
+            complete_checkout_manifest_sha256=authorization.complete_checkout_manifest_sha256,
+            evidence_baseline=evidence_baseline,
             owner=owner,
             reserved_at=_aware_utc(now),
             status="RESERVED",
@@ -337,7 +388,15 @@ def reserve_gate_a_run(
     )
 
 
-def _load_trusted_keys(path: Path) -> dict[str, str]:
+@dataclass(frozen=True)
+class TrustedApprovalKey:
+    public_key_base64: str
+    public_key_sha256: str
+    custody_status: str
+    authorization_enabled: bool
+
+
+def _load_trusted_keys(path: Path) -> dict[str, TrustedApprovalKey]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -349,7 +408,26 @@ def _load_trusted_keys(path: Path) -> dict[str, str]:
         or not isinstance(keys, dict)
     ):
         raise GateAError("GATE_A_TRUST_STORE_INVALID")
-    resolved = {str(key): str(value) for key, value in keys.items() if key and value}
+    resolved: dict[str, TrustedApprovalKey] = {}
+    for key_id, value in keys.items():
+        if not key_id or not isinstance(value, Mapping):
+            raise GateAError("GATE_A_TRUST_STORE_INVALID")
+        encoded = str(value.get("public_key_base64") or "")
+        fingerprint = str(value.get("public_key_sha256") or "")
+        custody = str(value.get("custody_status") or "")
+        enabled = value.get("authorization_enabled") is True
+        try:
+            raw_key = b64decode(encoded, validate=True)
+        except ValueError as exc:
+            raise GateAError("GATE_A_TRUST_STORE_INVALID") from exc
+        if len(raw_key) != 32 or fingerprint != hashlib.sha256(raw_key).hexdigest() or not custody:
+            raise GateAError("GATE_A_TRUST_STORE_INVALID")
+        resolved[str(key_id)] = TrustedApprovalKey(
+            public_key_base64=encoded,
+            public_key_sha256=fingerprint,
+            custody_status=custody,
+            authorization_enabled=enabled,
+        )
     if not resolved:
         raise GateAError("GATE_A_TRUST_STORE_INVALID")
     return resolved
@@ -359,13 +437,24 @@ def _verify_approval_signature(
     payload: Mapping[str, Any],
     *,
     key_id: str,
-    trusted_public_keys: Mapping[str, str],
+    trusted_public_keys: Mapping[str, TrustedApprovalKey],
 ) -> None:
-    encoded_key = trusted_public_keys.get(key_id)
-    if not key_id or encoded_key is None:
+    configured = trusted_public_keys.get(key_id)
+    if not key_id or configured is None:
         raise GateAError("GATE_A_APPROVAL_KEY_UNTRUSTED")
+    if not configured.authorization_enabled:
+        raise GateAError("GATE_A_APPROVAL_KEY_NOT_AUTHORIZATION_ENABLED")
+    if configured.custody_status != "INDEPENDENT_SIGNER_CONFIRMED":
+        raise GateAError("GATE_A_APPROVAL_KEY_CUSTODY_UNCONFIRMED")
+    if (
+        payload.get("approval_public_key_sha256") != configured.public_key_sha256
+        or payload.get("approval_custody_status") != configured.custody_status
+    ):
+        raise GateAError("GATE_A_APPROVAL_KEY_METADATA_MISMATCH")
     try:
-        public_key = Ed25519PublicKey.from_public_bytes(b64decode(encoded_key, validate=True))
+        public_key = Ed25519PublicKey.from_public_bytes(
+            b64decode(configured.public_key_base64, validate=True)
+        )
         signature = b64decode(str(payload["approval_signature"]), validate=True)
         public_key.verify(signature, authorization_signing_message(payload))
     except (InvalidSignature, TypeError, ValueError) as exc:
@@ -388,6 +477,9 @@ def authorization_signing_message(payload: Mapping[str, Any]) -> bytes:
         payload.get("persistence"),
         payload.get("exact_head"),
         payload.get("exact_tree"),
+        payload.get("execution_mode"),
+        payload.get("runtime_artifact_digest"),
+        payload.get("complete_checkout_manifest_sha256"),
         ",".join(sorted(endpoints)),
         payload.get("provider_call_cap"),
         payload.get("issued_at"),
@@ -395,6 +487,8 @@ def authorization_signing_message(payload: Mapping[str, Any]) -> bytes:
         payload.get("author"),
         payload.get("reviewer"),
         payload.get("approval_key_id"),
+        payload.get("approval_public_key_sha256"),
+        payload.get("approval_custody_status"),
     )
     message = bytearray(b"W2_GATE_A_AUTHORIZATION_V1")
     for value in values:
@@ -416,3 +510,10 @@ def _aware_utc(value: Any) -> datetime:
     if parsed.tzinfo is None:
         raise GateAError("GATE_A_AUTHORIZATION_TIME_INVALID")
     return parsed.astimezone(UTC)
+
+
+def _optional_str(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None

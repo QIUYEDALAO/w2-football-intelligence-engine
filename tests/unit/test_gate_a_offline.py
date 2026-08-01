@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 from base64 import b64encode
 from concurrent.futures import ThreadPoolExecutor
@@ -22,6 +23,7 @@ from w2.operations.gate_a import (
     GateAError,
     GateARunReservation,
     GateARuntimeAuthorization,
+    TrustedApprovalKey,
     authorization_signing_message,
     reserve_gate_a_run,
 )
@@ -37,12 +39,25 @@ PUBLIC_KEY = b64encode(
         format=serialization.PublicFormat.Raw,
     )
 ).decode()
-TRUSTED_KEYS = {"test-independent-key": PUBLIC_KEY}
+PUBLIC_KEY_SHA256 = hashlib.sha256(
+    SIGNING_KEY.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+).hexdigest()
+TRUSTED_KEYS = {
+    "test-independent-key": TrustedApprovalKey(
+        public_key_base64=PUBLIC_KEY,
+        public_key_sha256=PUBLIC_KEY_SHA256,
+        custody_status="INDEPENDENT_SIGNER_CONFIRMED",
+        authorization_enabled=True,
+    )
+}
 
 
 def authorization_payload(**overrides: object) -> dict[str, object]:
     payload: dict[str, object] = {
-        "schema_version": "w2.gate-a-one-shot-authorization.v1",
+        "schema_version": "w2.gate-a-one-shot-authorization.v2",
         "action": "ONE_SHOT_FOREGROUND_CANARY",
         "review_status": "APPROVED",
         "one_shot": True,
@@ -53,6 +68,9 @@ def authorization_payload(**overrides: object) -> dict[str, object]:
         "season": "2026",
         "exact_head": HEAD,
         "exact_tree": TREE,
+        "execution_mode": "COMPLETE_CLEAN_CHECKOUT",
+        "runtime_artifact_digest": None,
+        "complete_checkout_manifest_sha256": "c" * 64,
         "allowed_endpoints": ["status", "fixtures", "odds", "lineups"],
         "provider_call_cap": 4,
         "issued_at": (NOW - timedelta(minutes=1)).isoformat(),
@@ -60,6 +78,8 @@ def authorization_payload(**overrides: object) -> dict[str, object]:
         "author": "runtime-owner",
         "reviewer": "independent-reviewer",
         "approval_key_id": "test-independent-key",
+        "approval_public_key_sha256": PUBLIC_KEY_SHA256,
+        "approval_custody_status": "INDEPENDENT_SIGNER_CONFIRMED",
     }
     payload.update(overrides)
     if "approval_signature" not in overrides:
@@ -85,6 +105,9 @@ def test_authorization_is_independent_scoped_short_lived_and_db_only() -> None:
         task_key=TASK_KEY,
         exact_head=HEAD,
         exact_tree=TREE,
+        execution_mode="COMPLETE_CLEAN_CHECKOUT",
+        runtime_artifact_digest=None,
+        complete_checkout_manifest_sha256="c" * 64,
         policy_season="2026",
         now=NOW,
     )
@@ -103,6 +126,40 @@ def test_authorization_is_independent_scoped_short_lived_and_db_only() -> None:
         runtime_authorization(approval_signature=b64encode(b"not-a-signature").decode())
 
 
+def test_authorization_requires_independent_key_custody_and_supports_image_digest() -> None:
+    pending = TrustedApprovalKey(
+        public_key_base64=PUBLIC_KEY,
+        public_key_sha256=PUBLIC_KEY_SHA256,
+        custody_status="PENDING_INDEPENDENT_CUSTODY",
+        authorization_enabled=True,
+    )
+    payload = authorization_payload(approval_custody_status="PENDING_INDEPENDENT_CUSTODY")
+    with pytest.raises(GateAError, match="GATE_A_APPROVAL_KEY_CUSTODY_UNCONFIRMED"):
+        GateARuntimeAuthorization.from_mapping(
+            payload,
+            trusted_public_keys={"test-independent-key": pending},
+        )
+
+    disabled = TrustedApprovalKey(
+        public_key_base64=PUBLIC_KEY,
+        public_key_sha256=PUBLIC_KEY_SHA256,
+        custody_status="INDEPENDENT_SIGNER_CONFIRMED",
+        authorization_enabled=False,
+    )
+    with pytest.raises(GateAError, match="GATE_A_APPROVAL_KEY_NOT_AUTHORIZATION_ENABLED"):
+        GateARuntimeAuthorization.from_mapping(
+            authorization_payload(),
+            trusted_public_keys={"test-independent-key": disabled},
+        )
+
+    image = runtime_authorization(
+        execution_mode="IMMUTABLE_IMAGE",
+        complete_checkout_manifest_sha256=None,
+        runtime_artifact_digest="sha256:" + "e" * 64,
+    )
+    assert image.runtime_artifact_digest == "sha256:" + "e" * 64
+
+
 @pytest.mark.parametrize(
     ("field", "value", "code"),
     [
@@ -112,6 +169,12 @@ def test_authorization_is_independent_scoped_short_lived_and_db_only() -> None:
         ("task_key", "other", "GATE_A_TASK_KEY_SCOPE_MISMATCH"),
         ("exact_head", "b" * 40, "GATE_A_EXACT_HEAD_MISMATCH"),
         ("exact_tree", "c" * 40, "GATE_A_EXACT_TREE_MISMATCH"),
+        ("execution_mode", "IMMUTABLE_IMAGE", "GATE_A_EXECUTION_MODE_MISMATCH"),
+        (
+            "complete_checkout_manifest_sha256",
+            "d" * 64,
+            "GATE_A_CHECKOUT_MANIFEST_MISMATCH",
+        ),
         ("policy_season", "2027", "GATE_A_POLICY_SEASON_MISMATCH"),
         ("now", NOW + timedelta(hours=1), "GATE_A_AUTHORIZATION_EXPIRED"),
     ],
@@ -125,6 +188,9 @@ def test_authorization_scope_mismatch_fails_closed(field: str, value: object, co
         "task_key": TASK_KEY,
         "exact_head": HEAD,
         "exact_tree": TREE,
+        "execution_mode": "COMPLETE_CLEAN_CHECKOUT",
+        "runtime_artifact_digest": None,
+        "complete_checkout_manifest_sha256": "c" * 64,
         "policy_season": "2026",
         "now": NOW,
     }

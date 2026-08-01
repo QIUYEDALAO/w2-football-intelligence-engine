@@ -82,3 +82,62 @@ def test_every_explicit_live_constructor_uses_central_fail_closed_client() -> No
     client_source = (ROOT / "src/w2/providers/api_football.py").read_text(encoding="utf-8")
     assert "if provider_calls_disabled():" in client_source
     assert "self._require_endpoint_allowed(endpoint)" in client_source
+
+
+def test_admission_identity_evidence_and_oracle_authorities_are_closed() -> None:
+    entrypoint = (ROOT / "scripts/run_prematch_refresh.py").read_text(encoding="utf-8")
+    authorization = (ROOT / "src/w2/operations/gate_a.py").read_text(encoding="utf-8")
+    validator = (ROOT / "src/w2/operations/gate_a_evidence.py").read_text(encoding="utf-8")
+    producer = (ROOT / "src/w2/operations/gate_a_evidence_producer.py").read_text(encoding="utf-8")
+    trust = json.loads(
+        (ROOT / "config/policies/gate_a_authorization_trust.v1.json").read_text(encoding="utf-8")
+    )
+
+    assert "--untracked-files=no" not in entrypoint
+    assert '"--untracked-files=all"' in entrypoint
+    assert "GATE_A_IGNORED_EXECUTABLE_CONTENT_PRESENT" in entrypoint
+    assert "complete_checkout_manifest_sha256" in authorization
+    assert "runtime_artifact_digest" in authorization
+    assert "approval_public_key_sha256" in authorization
+    assert "INDEPENDENT_SIGNER_CONFIRMED" in authorization
+    assert "expected_binding" not in validator
+    assert "CALLER_ASSERTED_ARTIFACT_COUNT_REJECTED" in validator
+    assert "subprocess.run" in validator
+    assert '"-I"' in validator
+    assert "produce_gate_a_evidence" in producer
+    assert "GateARunReservationModel" in producer
+    assert "FutureRefreshTaskAuditModel" in producer
+    assert "RawPayloadModel" in producer
+    assert "MatchdayEndpointCaptureModel" in producer
+    assert "LineupConfirmedEventModel" in producer
+    assert "DynamicPrematchEvaluationModel" in producer
+    assert trust["private_keys_present"] is False
+    assert all(
+        key["authorization_enabled"] is False for key in trust["trusted_ed25519_keys"].values()
+    )
+
+    producer_sites = []
+    for root in ("src/w2", "apps", "scripts"):
+        for path in (ROOT / root).rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            producer_sites.extend(
+                (path.relative_to(ROOT).as_posix(), node.name)
+                for node in ast.walk(tree)
+                if isinstance(node, ast.FunctionDef) and node.name == "produce_gate_a_evidence"
+            )
+    assert producer_sites == [
+        ("src/w2/operations/gate_a_evidence_producer.py", "produce_gate_a_evidence")
+    ]
+
+    for path in (
+        ROOT / "oracle/canonical_serialization_oracle.py",
+        ROOT / "scripts/invoke_independent_canonical_oracle.py",
+    ):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        modules = {
+            alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Import)
+            for alias in node.names
+        } | {node.module or "" for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)}
+        assert not any(module == "w2" or module.startswith("w2.") for module in modules)

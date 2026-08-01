@@ -8,16 +8,37 @@ contracts. The machine authority is
 The only executable runtime is the direct foreground command
 `scripts/run_prematch_refresh.py --execute --authorization-file ...`. It is
 fail-closed by default, accepts a short-lived independently reviewed one-shot
-authorization for one competition/season/exact head, requires DB persistence
+authorization for one competition/season/exact runtime artifact, requires DB persistence
 and migration-head parity, and atomically fences concurrent owners with a
 PostgreSQL lease epoch plus per-call reservation. A possible Provider delivery
 stops automatic retry.
+
+Admission binds either an immutable image digest or a disposable complete-clean
+checkout manifest. Checkout mode rejects every tracked/untracked change and any
+ignored executable/importable content; `--untracked-files=no` is not accepted as
+cleanliness evidence. The repository contains only a disabled, retired public
+key record with its SHA-256 fingerprint. An authorization-capable key must be
+supplied by an independent signer with `INDEPENDENT_SIGNER_CONFIRMED` custody;
+Codex neither owns nor creates that private key.
 
 No authorization artifact is included in the repository. Scheduler, Celery,
 Compose restart, deployment, Candidate, Formal, Lock, Production, and real
 Provider execution remain outside this offline tranche.
 
-The hard evidence validator rejects a missing serializer version, independent
-pair/bootstrap mismatch, NaN/Infinity, any zero required canary delta, or raw
-payload/endpoint-capture lineage mismatch. This validator validates evidence;
-it does not create canary authorization.
+`scripts/produce_gate_a_admission_evidence.py` is the sole evidence producer.
+It accepts a signed authorization path, then reads the matching Gate-A
+reservation, task audit, provider-call ledger, raw payload and endpoint-capture
+rows, lineup events, dynamic v2 evaluations, five-state distributions, exact
+pair projection, and bootstrap inputs from database authorities. It records
+concrete primary-key/hash lineage and derives all eight before/after deltas;
+there is no caller-supplied count interface.
+
+`scripts/validate_gate_a_offline_evidence.py` accepts only the evidence package
+and signed authorization. It verifies the runtime-artifact binding, independently
+re-derives every delta from lineage, requires exact dynamic-v2 and five-state
+content (finite, nonnegative, exact keys, sum tolerance `1e-9`), and verifies
+the full exact-pair identity/capture lineage. Production pair hashes and the
+bootstrap seed are compared with results from the existing Claude-authored
+Oracle in a `python -I` subprocess whose source path/hash is bound in evidence;
+the subprocess and Oracle import no `w2` module. Any zero delta or mismatch is
+a hard `FAILED` result. Neither script creates a canary authorization.
