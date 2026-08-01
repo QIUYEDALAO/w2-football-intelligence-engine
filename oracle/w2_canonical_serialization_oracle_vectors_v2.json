@@ -1,21 +1,21 @@
 {
   "schema_version": "w2.canonical-serialization-oracle-vectors.v2",
-  "production_implementation_head": "af64ef9ec416ce9a9b166a1ddccdb601abac9447",
+  "production_implementation_head": "d05d2b8e8e32bdeca286447ac7c6772d4100b5fc",
   "production_implementation_path": "src/w2/domain/canonical_serialization.py",
-  "production_implementation_sha256": "27c6d03dae6f3ce78c0805e82d48d180aba25923d154a7d11ab569bc21c1cb9a",
-  "production_implementer": "xg3750150@gmail.com",
+  "production_implementation_sha256": "bb348f0c775319d4420d04305414893ac90dc92ff8bfb196a1b42f0910c3d696",
+  "production_implementer": "claude-oracle@w2.independent.invalid",
   "adr_id": "ADR-0019",
   "serializer_version": "w2.canonical-json.v2",
   "oracle_author": "claude-oracle@w2.independent.invalid",
   "oracle_source_path": "oracle/canonical_serialization_oracle.py",
-  "oracle_source_sha256": "ae6268324f855f4c433a0ae8b38aba3eef7588f65ec7fc1aa8e6810689e891fd",
+  "oracle_source_sha256": "72814fde6b968c1db31e8ef35161aa6d69b184ed55e4e7afb1e1daaa40800fbf",
   "oracle_imports_production_serializer": false,
   "review_status": "PENDING",
   "reviewer_records": [
     {
       "reviewer": "ChatGPT GPT-5.6 Pro",
       "status": "PENDING",
-      "recorded_at": "2026-08-01T21:13:14.101130+08:00"
+      "recorded_at": "2026-08-01T21:51:38.058601+08:00"
     }
   ],
   "mandatory_case_matrix": [
@@ -37,6 +37,7 @@
     "naive_datetime_rejected",
     "unsupported_type_rejected",
     "reserved_tag_rejected",
+    "legacy_v1_reserved_prefix_passthrough",
     "legacy_v1_ascii",
     "legacy_v1_read_model",
     "legacy_v1_stage7i_supervision",
@@ -474,6 +475,32 @@
       }
     },
     {
+      "case_id": "legacy-v1-reserved-prefix-passthrough.0",
+      "category": "legacy_v1_reserved_prefix_passthrough",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "future_refresh.raw_payload",
+        "serializer_version": "w2.canonical-json.v1",
+        "value": {
+          "kind": "object",
+          "entries": [
+            {
+              "key": "$w2_type",
+              "value": {
+                "kind": "string",
+                "value": "legacy-caller-value"
+              }
+            }
+          ]
+        }
+      },
+      "oracle": {
+        "status": "success",
+        "canonical_utf8_hex": "7b222477325f74797065223a226c65676163792d63616c6c65722d76616c7565227d",
+        "sha256": "df76ef2d509e0821bae2c9f1779801db18c5f791a284df743f1d79d6fd962f68"
+      }
+    },
+    {
       "case_id": "legacy-v1-ascii.0",
       "category": "legacy_v1_ascii",
       "request": {
@@ -549,8 +576,25 @@
       },
       "oracle": {
         "status": "success",
-        "canonical_utf8_hex": "7b2264617465223a22323032362d30382d3031222c227072696365223a22312e32333030222c227465616d223a22e4b88ae6b5b7222c22757064617465645f6174223a22323032362d30382d30315431323a33343a35362b30383a3030227d",
-        "sha256": "2be23f5f3387843582610addc5c46a82def174db14a9fa5291920ee9003a0649"
+        "canonical_utf8_hex": "7b2264617465223a22323032362d30382d3031222c227072696365223a22312e32333030222c227465616d223a22e4b88ae6b5b7222c22757064617465645f6174223a22323032362d30382d30315430343a33343a35365a227d",
+        "sha256": "46a4bfafb1b0619796661a67e5d9542b1aab7e05bacf207adc1fdd1243c154bd"
+      }
+    },
+    {
+      "case_id": "legacy-v1-read-model.1",
+      "category": "legacy_v1_read_model",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "prematch_read_model.generic",
+        "serializer_version": "w2.canonical-json.v1",
+        "value": {
+          "kind": "naive_datetime",
+          "value": "2026-08-01T12:34:56"
+        }
+      },
+      "oracle": {
+        "status": "error",
+        "error_code": "NAIVE_DATETIME"
       }
     },
     {
@@ -584,6 +628,24 @@
         "status": "success",
         "canonical_utf8_hex": "7b2266616c6c6261636b223a227365742829222c226d657373616765223a225c75373664315c75373736335c75346538625c7534656636227d",
         "sha256": "7be7f5239efa8e4461697dcf20347b20fe3e1f8d1e52620a372c3836152d4a25"
+      }
+    },
+    {
+      "case_id": "legacy-v1-stage7i-supervision.1",
+      "category": "legacy_v1_stage7i_supervision",
+      "request": {
+        "operation": "canonical_serialize",
+        "domain": "stage7i_supervision.event",
+        "serializer_version": "w2.canonical-json.v1",
+        "value": {
+          "kind": "datetime",
+          "value": "2026-08-01T12:34:56+08:00"
+        }
+      },
+      "oracle": {
+        "status": "success",
+        "canonical_utf8_hex": "22323032362d30382d30315430343a33343a35365a22",
+        "sha256": "f38b2577fa76aae46e2c6a64ef4421b053f09b9e50d131fbd11d6a70a3df2ff1"
       }
     },
     {
