@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://w2.local/contracts/canonical-serialization-oracle-vectors-v1.schema.json",
+  "title": "W2 canonical serialization independent oracle vectors",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "author", "oracle_imports_production_serializer", "cases"],
+  "properties": {
+    "schema_version": {"const": "w2.canonical-serialization-oracle-vectors.v1"},
+    "author": {"type": "string", "minLength": 1},
+    "oracle_imports_production_serializer": {"const": false},
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/case"}
+    }
+  },
+  "$defs": {
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_id", "request", "oracle"],
+      "properties": {
+        "case_id": {"type": "string", "minLength": 1},
+        "request": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["operation", "domain", "serializer_version", "value"],
+              "properties": {
+                "operation": {"const": "canonical_serialize"},
+                "domain": {"const": "eval_02b.pair_identity"},
+                "serializer_version": {"enum": ["w2.canonical-json.v1", "w2.canonical-json.v2"]},
+                "value": {"$ref": "#/$defs/node"}
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["operation", "domain", "serializer_version", "contract_version", "validation_pair_identity_hashes"],
+              "properties": {
+                "operation": {"const": "eval_02b_bootstrap_seed"},
+                "domain": {"const": "eval_02b.bootstrap_seed"},
+                "serializer_version": {"const": "w2.canonical-json.v2"},
+                "contract_version": {"type": "string", "minLength": 1},
+                "validation_pair_identity_hashes": {"type": "array", "items": {"type": "string"}}
+              }
+            }
+          ]
+        },
+        "oracle": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "canonical_utf8_hex", "sha256"],
+              "properties": {
+                "status": {"const": "success"},
+                "canonical_utf8_hex": {"type": "string", "pattern": "^[0-9a-f]*$"},
+                "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "seed_payload_utf8_hex", "seed_hash", "bootstrap_seed"],
+              "properties": {
+                "status": {"const": "success"},
+                "seed_payload_utf8_hex": {"type": "string", "pattern": "^[0-9a-f]*$"},
+                "seed_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                "bootstrap_seed": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615}
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "error_contains"],
+              "properties": {
+                "status": {"const": "error"},
+                "error_contains": {"type": "string", "minLength": 1}
+              }
+            }
+          ]
+        }
+      }
+    },
+    "node": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["kind"], "properties": {"kind": {"const": "null"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "boolean"}, "value": {"type": "boolean"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "integer"}, "value": {"type": "integer"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "float"}, "value": {"type": "string", "minLength": 1}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "decimal"}, "value": {"type": "string", "minLength": 1}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "string"}, "value": {"type": "string"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "bytes"}, "value": {"type": "string", "pattern": "^[A-Za-z0-9_-]*$"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "date"}, "value": {"type": "string", "format": "date"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "datetime"}, "value": {"type": "string", "format": "date-time"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "items"], "properties": {"kind": {"const": "array"}, "items": {"type": "array", "items": {"$ref": "#/$defs/node"}}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "entries"], "properties": {"kind": {"const": "object"}, "entries": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["key", "value"], "properties": {"key": {"type": "string"}, "value": {"$ref": "#/$defs/node"}}}}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "type"], "properties": {"kind": {"const": "unsupported"}, "type": {"const": "set"}}}
+      ]
+    }
+  }
+}

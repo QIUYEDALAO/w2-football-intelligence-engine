@@ -12,6 +12,11 @@ from sqlalchemy import Engine, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from w2.domain.canonical_serialization import (
+    CURRENT_SERIALIZER_VERSION,
+    HashDomain,
+    canonical_sha256,
+)
 from w2.domain.enums import MarketType
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.dynamic_prematch_models import (
@@ -490,6 +495,7 @@ class ExactPairIdentity:
 class ExactPrePostPair:
     identity: ExactPairIdentity
     identity_hash: str
+    serializer_version: str
     kickoff_at: datetime
     lineup_confirmed_at: datetime
     pre_evaluated_at: datetime
@@ -862,6 +868,7 @@ def _pair_market(
     return ExactPrePostPair(
         identity=identity,
         identity_hash=identity.identity_hash,
+        serializer_version=CURRENT_SERIALIZER_VERSION.value,
         kickoff_at=_pair_utc(fixture.kickoff_utc),
         lineup_confirmed_at=event_at,
         pre_evaluated_at=pre_evaluation.evaluated_at,
@@ -922,11 +929,4 @@ def _pair_utc(value: datetime) -> datetime:
 
 
 def _pair_sha256(value: object) -> str:
-    payload = json.dumps(
-        value,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-        allow_nan=False,
-    ).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
+    return canonical_sha256(value, domain=HashDomain.EVAL_02B_PAIR_IDENTITY)

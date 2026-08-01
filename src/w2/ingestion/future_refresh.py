@@ -18,6 +18,12 @@ from redis.exceptions import RedisError
 
 from w2.competitions.registry import CompetitionRegistry, CompetitionRegistryError
 from w2.config import Settings, get_settings
+from w2.domain.canonical_serialization import (
+    HashDomain,
+    SerializerVersion,
+    canonical_bytes,
+    canonical_sha256,
+)
 from w2.ingestion.future_refresh_repository import (
     FutureRefreshDbRepository,
     FutureRefreshPersistenceError,
@@ -158,11 +164,15 @@ def parse_utc(value: Any) -> datetime | None:
 
 
 def canonical_json(payload: Any) -> str:
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return canonical_bytes(
+        payload,
+        domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
+        version=SerializerVersion.LEGACY_V1,
+    ).decode("utf-8")
 
 
-def sha256_payload(payload: Any) -> str:
-    return hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()
+def sha256_payload(payload: Any, *, domain: HashDomain) -> str:
+    return canonical_sha256(payload, domain=domain, version=SerializerVersion.LEGACY_V1)
 
 
 def write_json_atomic(path: Path, payload: Any) -> None:
@@ -527,7 +537,9 @@ def observations_from_odds_payload(
     source_revision: str,
     raw_payload_sha256: str | None = None,
 ) -> list[dict[str, Any]]:
-    raw_hash = raw_payload_sha256 or sha256_payload(payload)
+    raw_hash = raw_payload_sha256 or sha256_payload(
+        payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD
+    )
     captured_at = iso(response.captured_at)
     capture_id = sha256_payload(
         {
@@ -537,7 +549,8 @@ def observations_from_odds_payload(
             "captured_at": captured_at,
             "raw_payload_sha256": raw_hash,
             "source_revision": source_revision,
-        }
+        },
+        domain=HashDomain.FUTURE_REFRESH_ENDPOINT_CAPTURE,
     )
     rows: list[dict[str, Any]] = []
     provider_updated = captured_at
@@ -580,7 +593,9 @@ def observations_from_odds_payload(
                         # while replaying the same response remains idempotent.
                         "captured_at": captured_at,
                     }
-                    observation_id = sha256_payload(identity)
+                    observation_id = sha256_payload(
+                        identity, domain=HashDomain.FUTURE_REFRESH_MARKET_OBSERVATION
+                    )
                     rows.append(
                         {
                             "observation_id": observation_id,
@@ -907,7 +922,9 @@ class FutureFixtureRefreshService:
                 params=params,
                 payload=response.payload,
             )
-            payload_sha = sha256_payload(raw_payload)
+            payload_sha = sha256_payload(
+                raw_payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD
+            )
             response_size = response_count(response.payload)
             raw_payload_persisted, raw_payload_error = self._save_raw_payload_first(
                 endpoint=endpoint,
@@ -1097,7 +1114,9 @@ class FutureFixtureRefreshService:
     ) -> tuple[str, str, str, str]:
         return (
             endpoint,
-            sha256_payload(sanitize_params(params)),
+            sha256_payload(
+                sanitize_params(params), domain=HashDomain.FUTURE_REFRESH_REQUEST_PARAMETERS
+            ),
             raw_payload_sha256,
             iso(captured_at),
         )
@@ -1207,7 +1226,8 @@ class FutureFixtureRefreshService:
         payload: dict[str, Any],
     ) -> str:
         return sha256_payload(
-            self._raw_payload_record(endpoint=endpoint, params=params, payload=payload)
+            self._raw_payload_record(endpoint=endpoint, params=params, payload=payload),
+            domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
         )
 
     def _diagnostic_code_for_response(
@@ -1484,7 +1504,11 @@ class FutureFixtureRefreshService:
                     ProjectionSourceEvent.create(
                         fixture_id=fixture_id,
                         event_type="ODDS_CHANGED",
-                        event_id=f"odds:{sha256_payload(response.payload)}",
+                        event_id="odds:"
+                        + sha256_payload(
+                            response.payload,
+                            domain=HashDomain.FUTURE_REFRESH_LINEUP_EVENT,
+                        ),
                         event_at=response.captured_at,
                         payload=response.payload,
                     )
@@ -1587,7 +1611,9 @@ class FutureFixtureRefreshService:
                     params={"fixture": fixture_id},
                     payload=response.payload,
                 )
-                raw_sha = sha256_payload(raw_record)
+                raw_sha = sha256_payload(
+                    raw_record, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD
+                )
                 capture = self._matchday_capture_by_payload.get(
                     self._capture_lookup_key(
                         endpoint="odds",
@@ -1693,7 +1719,7 @@ class FutureFixtureRefreshService:
             params=self._fixtures_request_params(),
             payload=fixtures_response.payload,
         )
-        raw_sha = sha256_payload(raw_record)
+        raw_sha = sha256_payload(raw_record, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD)
         capture = self._matchday_capture_by_payload.get(
             self._capture_lookup_key(
                 endpoint="fixtures",
@@ -1743,7 +1769,14 @@ class FutureFixtureRefreshService:
                 "payload": item,
                 "schema_version": "MatchdayFixtureIdentityV1",
             }
-            rows.append({**identity_body, "identity_hash": sha256_payload(identity_body)})
+            rows.append(
+                {
+                    **identity_body,
+                    "identity_hash": sha256_payload(
+                        identity_body, domain=HashDomain.FUTURE_REFRESH_FIXTURE_IDENTITY
+                    ),
+                }
+            )
         return rows
 
     def _audit_for_payload(self, payload_hash: str) -> dict[str, Any] | None:
@@ -1765,7 +1798,9 @@ class FutureFixtureRefreshService:
             "confidence": 1.0,
             "reliable": True,
             "conflict": False,
-            "evidence_sha256": sha256_payload(item),
+            "evidence_sha256": sha256_payload(
+                item, domain=HashDomain.FUTURE_REFRESH_EVIDENCE
+            ),
         }
 
     def _market_snapshot_from_observations(

@@ -6,6 +6,11 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
+from w2.domain.canonical_serialization import (
+    CURRENT_SERIALIZER_VERSION,
+    HashDomain,
+    canonical_sha256,
+)
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.dynamic_prematch_models import (
     DynamicPrematchEvaluationModel,
@@ -598,6 +603,10 @@ def test_exact_pair_projector_is_deterministic_and_read_only() -> None:
     assert pair.identity.canonical_fixture_id == "pair-fixture-1"
     assert pair.identity.pre_evaluation_id == "pair-pre"
     assert pair.identity.post_evaluation_id == "pair-post"
+    assert pair.serializer_version == CURRENT_SERIALIZER_VERSION.value
+    assert pair.identity_hash == canonical_sha256(
+        pair.identity.as_dict(), domain=HashDomain.EVAL_02B_PAIR_IDENTITY
+    )
     assert pair.baseline_distribution == PAIR_STATES
     assert pair.candidate_distribution == PAIR_STATES
     assert pair.pre_superseded_by_evaluation_id is None

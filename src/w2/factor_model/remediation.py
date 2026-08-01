@@ -10,6 +10,7 @@ from sqlalchemy import Engine, Select, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from w2.domain.canonical_serialization import HashDomain
 from w2.features.team_factors import TeamMatchHistory
 from w2.features.xg_materialization import FINISHED_STATUS, TeamXgMatch, parse_team_xg_matches
 from w2.identity import CanonicalIdentityRepository
@@ -497,7 +498,9 @@ class FactorModelRemediationService:
         *,
         fixture_id: str | None,
     ) -> str:
-        payload_hash = sha256_payload(response.payload)
+        payload_hash = sha256_payload(
+            response.payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD
+        )
         captured_at = normalize_utc(response.captured_at)
         requested_at = (
             normalize_utc(response.requested_at)
@@ -627,7 +630,9 @@ class FactorModelRemediationService:
                     fixture_payload=item,
                     statistics_payload=response.payload,
                     captured_at=response.captured_at,
-                    raw_payload_sha256=sha256_payload(response.payload),
+                    raw_payload_sha256=sha256_payload(
+                        response.payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD
+                    ),
                 )
             )
         if not xg_rows:
