@@ -34,6 +34,16 @@ frozen T00 denominator.
 | `src/w2/prematch/read_model_projection.py:242` | frozen artifact, manifest, projection, read-time and evaluation identities; checkpoints/DB | Unicode, float, `Decimal`, date, aware datetime | sorted, compact, `ensure_ascii=False`, implicit `allow_nan=True`, typed default hook | authority call with explicit read-model subdomains; v1 compatibility write/read |
 | `src/w2/prematch/repository.py:924` | EVAL-02B exact pair projection; currently ephemeral projection | Unicode, finite binary64 exact line | sorted, compact, `ensure_ascii=False`, `allow_nan=False` | new v2 pair identity with emitted serializer metadata and projector schema v2 |
 
+## Frozen legacy default hooks
+
+- Read-model v1: `Decimal -> str(value)` with trailing zeros preserved;
+  `date -> str(value)`; aware `datetime` converts to UTC ISO text and replaces
+  `+00:00` with `Z`; naive `datetime` is rejected.
+- Stage7I-supervision v1: aware `datetime` converts to UTC ISO text and replaces
+  `+00:00` with `Z`; every other unsupported object uses `str(value)`.
+- The `$w2_` caller-key reservation belongs only to v2. All v1 profiles retain
+  historical passthrough of mapping keys such as `$w2_type`.
+
 The EVAL-02B bootstrap seed had a frozen prose contract but no production
 serializer entry point. Wave 2 adds only that interface and names it
 `eval_02b.bootstrap_seed`; it does not create an oracle or expected output.

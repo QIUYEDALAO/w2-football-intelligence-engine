@@ -92,7 +92,7 @@ _ASCII_LEGACY_DOMAINS = (
         HashDomain.STAGE7I_SUPERVISION_EVENT,
     }
 )
-_RESERVED_TAGS = frozenset({"$w2_bytes", "$w2_date", "$w2_datetime", "$w2_decimal", "$w2_float"})
+_RESERVED_TAG_PREFIX = "$w2_"
 
 
 @dataclass(frozen=True)
@@ -324,7 +324,7 @@ def _normalize_v2(value: object) -> Any:
                     "object keys must be strings",
                 )
             normalized_key = unicodedata.normalize("NFC", key)
-            if normalized_key in _RESERVED_TAGS:
+            if normalized_key.startswith(_RESERVED_TAG_PREFIX):
                 raise CanonicalSerializationError(
                     CanonicalErrorCode.RESERVED_TAG,
                     f"reserved canonical key: {normalized_key}",

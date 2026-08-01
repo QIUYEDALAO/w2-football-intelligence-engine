@@ -52,8 +52,10 @@ bytes. V1 readers reproduce each affected historical family unchanged.
   U+0000 through U+001F use JSON escapes (`\b`, `\t`, `\n`, `\f`, `\r` where
   defined and lowercase `\u00xx` otherwise). Non-ASCII code points remain
   literal UTF-8 because `ensure_ascii=false`.
-- The five `$w2_*` tag keys are reserved in caller mappings to prevent typed
-  scalar/mapping ambiguity.
+- The entire `$w2_` prefix is reserved in v2 caller mapping keys to prevent
+  typed scalar/mapping ambiguity and preserve room for future tags. V2
+  currently emits only five typed tags: `$w2_bytes`, `$w2_date`,
+  `$w2_datetime`, `$w2_decimal`, and `$w2_float`.
 - Sets, custom objects and all unlisted types are rejected. There is no
   `default=str` fallback in v2.
 - Float/Decimal NaN and positive or negative Infinity are rejected before JSON
@@ -81,6 +83,22 @@ is relabelled as v2. New EVAL-02B pair identities and bootstrap seeds use v2;
 existing persistent writers stay on an explicit v1 profile until their schema
 stores the version alongside new writes.
 
+The frozen read-model v1 default hook is byte-significant:
+
+- `Decimal` becomes `str(value)`, including trailing zeros;
+- `date` becomes `str(value)`;
+- aware `datetime` is converted to UTC, serialized with `isoformat()`, and has
+  `+00:00` replaced by `Z`;
+- naive `datetime` is rejected.
+
+The frozen Stage7I-supervision v1 default hook converts aware `datetime` to UTC
+`isoformat()` text with `+00:00` replaced by `Z`; every other unsupported object
+becomes `str(value)`.
+
+The `$w2_` reservation is v2-only. Historical v1 profiles use their frozen
+plain `json.dumps` behavior and continue to serialize caller mapping keys such
+as `$w2_type` unchanged.
+
 The guard manifest value `w2.legacy-implicit-json.v1` is a
 `legacy_profile_id`, not a serializer version. The only legacy serializer
 version accepted by the runtime is `w2.canonical-json.v1`.
@@ -99,7 +117,8 @@ success/error outcome. Category labels alone are insufficient. The matrix
 includes NFC code-point key ordering, exact JSON escaping, an integer above
 64-bit and common decimal limits, both finite and non-finite binary64 edges,
 and each distinct critical v1 profile: ASCII, read-model typed default,
-Stage7I supervision fallback, and pair identity.
+Stage7I supervision fallback/datetime, pair identity, and v1 `$w2_` key
+passthrough.
 
 The handoff records and verifies the production Git head, production source
 path/SHA-256 and commit-author email. It also records the oracle author and

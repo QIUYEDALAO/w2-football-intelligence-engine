@@ -137,6 +137,14 @@
         "expected": {"status": "error", "error_code": "RESERVED_TAG"}
       }]
     },
+    "legacy_v1_reserved_prefix_passthrough": {
+      "variants": [{
+        "request": {"operation": "canonical_serialize", "domain": "future_refresh.raw_payload", "serializer_version": "w2.canonical-json.v1", "value": {"kind": "object", "entries": [
+          {"key": "$w2_type", "value": {"kind": "string", "value": "legacy-caller-value"}}
+        ]}},
+        "expected": {"status": "success"}
+      }]
+    },
     "legacy_v1_ascii": {
       "variants": [{
         "request": {"operation": "canonical_serialize", "domain": "future_refresh.raw_payload", "serializer_version": "w2.canonical-json.v1", "value": {"kind": "object", "entries": [
@@ -147,24 +155,36 @@
       }]
     },
     "legacy_v1_read_model": {
-      "variants": [{
-        "request": {"operation": "canonical_serialize", "domain": "prematch_read_model.generic", "serializer_version": "w2.canonical-json.v1", "value": {"kind": "object", "entries": [
-          {"key": "team", "value": {"kind": "string", "value": "上海"}},
-          {"key": "price", "value": {"kind": "decimal", "value": "1.2300"}},
-          {"key": "date", "value": {"kind": "date", "value": "2026-08-01"}},
-          {"key": "updated_at", "value": {"kind": "datetime", "value": "2026-08-01T12:34:56+08:00"}}
-        ]}},
-        "expected": {"status": "success"}
-      }]
+      "variants": [
+        {
+          "request": {"operation": "canonical_serialize", "domain": "prematch_read_model.generic", "serializer_version": "w2.canonical-json.v1", "value": {"kind": "object", "entries": [
+            {"key": "team", "value": {"kind": "string", "value": "上海"}},
+            {"key": "price", "value": {"kind": "decimal", "value": "1.2300"}},
+            {"key": "date", "value": {"kind": "date", "value": "2026-08-01"}},
+            {"key": "updated_at", "value": {"kind": "datetime", "value": "2026-08-01T12:34:56+08:00"}}
+          ]}},
+          "expected": {"status": "success"}
+        },
+        {
+          "request": {"operation": "canonical_serialize", "domain": "prematch_read_model.generic", "serializer_version": "w2.canonical-json.v1", "value": {"kind": "naive_datetime", "value": "2026-08-01T12:34:56"}},
+          "expected": {"status": "error", "error_code": "NAIVE_DATETIME"}
+        }
+      ]
     },
     "legacy_v1_stage7i_supervision": {
-      "variants": [{
-        "request": {"operation": "canonical_serialize", "domain": "stage7i_supervision.event", "serializer_version": "w2.canonical-json.v1", "value": {"kind": "object", "entries": [
-          {"key": "message", "value": {"kind": "string", "value": "监督事件"}},
-          {"key": "fallback", "value": {"kind": "unsupported", "type": "set"}}
-        ]}},
-        "expected": {"status": "success"}
-      }]
+      "variants": [
+        {
+          "request": {"operation": "canonical_serialize", "domain": "stage7i_supervision.event", "serializer_version": "w2.canonical-json.v1", "value": {"kind": "object", "entries": [
+            {"key": "message", "value": {"kind": "string", "value": "监督事件"}},
+            {"key": "fallback", "value": {"kind": "unsupported", "type": "set"}}
+          ]}},
+          "expected": {"status": "success"}
+        },
+        {
+          "request": {"operation": "canonical_serialize", "domain": "stage7i_supervision.event", "serializer_version": "w2.canonical-json.v1", "value": {"kind": "datetime", "value": "2026-08-01T12:34:56+08:00"}},
+          "expected": {"status": "success"}
+        }
+      ]
     },
     "legacy_v1_pair_identity": {
       "variants": [{
@@ -279,6 +299,7 @@
         "naive_datetime_rejected",
         "unsupported_type_rejected",
         "reserved_tag_rejected",
+        "legacy_v1_reserved_prefix_passthrough",
         "legacy_v1_ascii",
         "legacy_v1_read_model",
         "legacy_v1_stage7i_supervision",
@@ -290,7 +311,7 @@
     },
     "cases": {
       "type": "array",
-      "minItems": 27,
+      "minItems": 30,
       "items": {"$ref": "#/$defs/case"}
     }
   },
@@ -315,6 +336,7 @@
         "naive_datetime_rejected",
         "unsupported_type_rejected",
         "reserved_tag_rejected",
+        "legacy_v1_reserved_prefix_passthrough",
         "legacy_v1_ascii",
         "legacy_v1_read_model",
         "legacy_v1_stage7i_supervision",

@@ -164,7 +164,6 @@ def test_v2_date_datetime_and_bytes_are_typed() -> None:
     [
         (datetime(2026, 8, 1), "naive datetime"),
         ({1: "value"}, "object keys must be strings"),
-        ({"$w2_float": "1"}, "reserved canonical key"),
         ({"é": 1, "e\u0301": 2}, "duplicate key"),
         ({1, 2}, "unsupported canonical type"),
     ],
@@ -172,6 +171,13 @@ def test_v2_date_datetime_and_bytes_are_typed() -> None:
 def test_v2_rejects_ambiguous_or_unsupported_values(value: object, message: str) -> None:
     with pytest.raises(CanonicalSerializationError, match=message):
         canonical_bytes(value, domain=HashDomain.EVAL_02B_PAIR_IDENTITY)
+
+
+@pytest.mark.parametrize("key", ["$w2_float", "$w2_type", "$w2_future_tag"])
+def test_v2_rejects_the_entire_reserved_tag_prefix(key: str) -> None:
+    with pytest.raises(CanonicalSerializationError) as error:
+        canonical_bytes({key: "forged"}, domain=HashDomain.EVAL_02B_PAIR_IDENTITY)
+    assert error.value.code is CanonicalErrorCode.RESERVED_TAG
 
 
 def test_legacy_profiles_reproduce_existing_bytes() -> None:
@@ -199,6 +205,58 @@ def test_legacy_profiles_reproduce_existing_bytes() -> None:
         )
         == utf8_expected
     )
+
+
+def test_legacy_v1_preserves_reserved_prefix_mapping_keys() -> None:
+    payload = {"$w2_future_tag": "legacy", "$w2_type": "legacy"}
+
+    assert canonical_bytes(
+        payload,
+        domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
+        version=SerializerVersion.LEGACY_V1,
+    ) == json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode(
+        "utf-8"
+    )
+
+
+def test_legacy_read_model_hook_preserves_exact_historical_types() -> None:
+    domain = HashDomain.PREMATCH_READ_MODEL_GENERIC
+    value = {
+        "price": Decimal("1.2300"),
+        "date": date(2026, 8, 1),
+        "updated_at": datetime(2026, 8, 1, 12, 34, 56, tzinfo=timezone(timedelta(hours=8))),
+    }
+
+    assert json.loads(
+        canonical_bytes(value, domain=domain, version=SerializerVersion.LEGACY_V1)
+    ) == {
+        "price": "1.2300",
+        "date": "2026-08-01",
+        "updated_at": "2026-08-01T04:34:56Z",
+    }
+    with pytest.raises(CanonicalSerializationError) as error:
+        canonical_bytes(
+            datetime(2026, 8, 1, 12, 34, 56),
+            domain=domain,
+            version=SerializerVersion.LEGACY_V1,
+        )
+    assert error.value.code is CanonicalErrorCode.NAIVE_DATETIME
+
+
+def test_legacy_stage7i_hook_converts_datetime_and_stringifies_other_objects() -> None:
+    encoded = canonical_bytes(
+        {
+            "updated_at": datetime(2026, 8, 1, 12, 34, 56, tzinfo=timezone(timedelta(hours=8))),
+            "fallback": set(),
+        },
+        domain=HashDomain.STAGE7I_SUPERVISION_EVENT,
+        version=SerializerVersion.LEGACY_V1,
+    )
+
+    assert json.loads(encoded) == {
+        "updated_at": "2026-08-01T04:34:56Z",
+        "fallback": "set()",
+    }
 
 
 def test_migration_and_rollback_preserve_historical_digest() -> None:

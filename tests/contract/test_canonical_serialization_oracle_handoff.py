@@ -120,6 +120,50 @@ def test_oracle_handoff_rejects_category_labels_with_wrong_semantics() -> None:
     assert any("unicode_nfc_key_order[0]" in failure for failure in failures)
 
 
+def test_legacy_semantic_matrix_freezes_prefix_and_default_hooks() -> None:
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    contracts = schema["x-semantic-contracts"]
+
+    passthrough = contracts["legacy_v1_reserved_prefix_passthrough"]["variants"]
+    assert passthrough[0]["request"]["value"]["entries"] == [
+        {
+            "key": "$w2_type",
+            "value": {"kind": "string", "value": "legacy-caller-value"},
+        }
+    ]
+    assert passthrough[0]["expected"] == {"status": "success"}
+
+    read_model = contracts["legacy_v1_read_model"]["variants"]
+    assert [item["value"]["kind"] for item in read_model[0]["request"]["value"]["entries"]] == [
+        "string",
+        "decimal",
+        "date",
+        "datetime",
+    ]
+    read_model_values = {
+        item["key"]: item["value"].get("value")
+        for item in read_model[0]["request"]["value"]["entries"]
+    }
+    assert read_model_values == {
+        "team": "上海",
+        "price": "1.2300",
+        "date": "2026-08-01",
+        "updated_at": "2026-08-01T12:34:56+08:00",
+    }
+    assert read_model[1]["request"]["value"]["kind"] == "naive_datetime"
+    assert read_model[1]["expected"] == {
+        "status": "error",
+        "error_code": "NAIVE_DATETIME",
+    }
+
+    stage7i = contracts["legacy_v1_stage7i_supervision"]["variants"]
+    assert stage7i[1]["request"]["value"] == {
+        "kind": "datetime",
+        "value": "2026-08-01T12:34:56+08:00",
+    }
+    assert schema["properties"]["cases"]["minItems"] == 30
+
+
 def test_naive_datetime_schema_node_reaches_production_rejection() -> None:
     from scripts.verify_canonical_serialization_oracle import SEMANTIC_CONTRACTS, _decode
 
