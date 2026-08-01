@@ -19,9 +19,9 @@ The original 55 entries in
 SER-06 projection of already-frozen JSON-to-hash sites. They are not a new T00
 denominator. Each site has a distinct semantic domain and an explicit legacy
 profile; none is silently merged with the new authority. The bounded SER-06
-remediation adds 13 existing operational-script sites exposed by the required
-`scripts/` scan. This guard coverage change does not rerun or expand the frozen
-T00 denominator.
+remediation adds 19 existing operational/runtime sites exposed by the required
+production-root scan. This guard coverage change does not rerun or expand the
+frozen T00 denominator.
 
 ## Critical runtime writers frozen by Issue #456
 
@@ -44,7 +44,7 @@ serializer entry point. Wave 2 adds only that interface and names it
   named runtime authority for the critical writers and EVAL-02B pair/seed.
 - Missing serializer version is interpreted as legacy v1 only. It is never
   guessed to be v2.
-- The 68 frozen/guard-expanded sites remain compatibility-only exceptions with exact
+- The 74 frozen/guard-expanded sites remain compatibility-only exceptions with exact
   path, symbol, semantic domain, owner, reason and guard test. Their migrations
   are deferred to their owning Gate C/D work; new exceptions fail CI.
 - Raw byte/file digests and delimiter-based aggregate digests are not JSON

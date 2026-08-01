@@ -44,7 +44,14 @@ bytes. V1 readers reproduce each affected historical family unchanged.
   and `Z` in `{"$w2_datetime":"..."}`. Naive datetime is rejected.
 - `bytes` uses unpadded base64url in `{"$w2_bytes":"..."}`.
 - Lists and tuples become arrays. Mapping keys must be strings. Unicode key
-  collisions after NFC normalization are rejected.
+  collisions after NFC normalization are rejected. After NFC normalization,
+  object keys are ordered by ascending Unicode code point. This is not locale,
+  UTF-8 byte, or UTF-16 code-unit order; the contract includes BMP and astral
+  keys so independent implementations cannot accidentally substitute one.
+- JSON string escaping is exact: quotation mark and reverse solidus are escaped;
+  U+0000 through U+001F use JSON escapes (`\b`, `\t`, `\n`, `\f`, `\r` where
+  defined and lowercase `\u00xx` otherwise). Non-ASCII code points remain
+  literal UTF-8 because `ensure_ascii=false`.
 - The five `$w2_*` tag keys are reserved in caller mappings to prevent typed
   scalar/mapping ambiguity.
 - Sets, custom objects and all unlisted types are rejected. There is no
@@ -83,3 +90,20 @@ The EVAL-02B exact-pair projector schema is
 relabelled or overwritten. Every v2 pair emits both
 `hash_domain=eval_02b.pair_identity` and
 `serializer_version=w2.canonical-json.v2` beside `identity_hash`.
+
+## Independent oracle contract
+
+The v2 oracle schema binds every mandatory category to an exact operation,
+hash domain, serializer version, input-node shape, boundary values and declared
+success/error outcome. Category labels alone are insufficient. The matrix
+includes NFC code-point key ordering, exact JSON escaping, an integer above
+64-bit and common decimal limits, both finite and non-finite binary64 edges,
+and each distinct critical v1 profile: ASCII, read-model typed default,
+Stage7I supervision fallback, and pair identity.
+
+The handoff records and verifies the production Git head, production source
+path/SHA-256 and commit-author email. It also records the oracle author and
+oracle source path/SHA-256, verifies the source's commit-author email, requires
+implementer and oracle author to differ, and statically rejects any oracle
+source import from `w2`. The implementer supplies only the schema and harness;
+independent oracle output bytes and hashes are authored later.

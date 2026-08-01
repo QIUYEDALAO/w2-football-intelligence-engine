@@ -25,6 +25,7 @@ class CanonicalErrorCode(StrEnum):
     UNICODE_KEY_COLLISION = "UNICODE_KEY_COLLISION"
     UNSUPPORTED_TYPE = "UNSUPPORTED_TYPE"
     LEGACY_DOMAIN_UNSUPPORTED = "LEGACY_DOMAIN_UNSUPPORTED"
+    HISTORICAL_METADATA_MISMATCH = "HISTORICAL_METADATA_MISMATCH"
     HISTORICAL_HASH_MISMATCH = "HISTORICAL_HASH_MISMATCH"
     BOOTSTRAP_CONTRACT_VERSION_REQUIRED = "BOOTSTRAP_CONTRACT_VERSION_REQUIRED"
     INVALID_PAIR_IDENTITY_HASH = "INVALID_PAIR_IDENTITY_HASH"
@@ -74,9 +75,7 @@ class HashDomain(StrEnum):
     PREMATCH_READ_MODEL_PROJECTION = "prematch_read_model.projection"
     PREMATCH_READ_MODEL_READ_TIME = "prematch_read_model.read_time"
     PREMATCH_READ_MODEL_DYNAMIC_EVALUATION = "prematch_read_model.dynamic_evaluation"
-    PREMATCH_READ_MODEL_SIMULATION_RECONCILIATION = (
-        "prematch_read_model.simulation_reconciliation"
-    )
+    PREMATCH_READ_MODEL_SIMULATION_RECONCILIATION = "prematch_read_model.simulation_reconciliation"
     EVAL_02B_PAIR_IDENTITY = "eval_02b.pair_identity"
     EVAL_02B_BOOTSTRAP_SEED = "eval_02b.bootstrap_seed"
 
@@ -84,14 +83,16 @@ class HashDomain(StrEnum):
 _READ_MODEL_DOMAINS = frozenset(
     domain for domain in HashDomain if domain.value.startswith("prematch_read_model.")
 )
-_ASCII_LEGACY_DOMAINS = frozenset(HashDomain) - _READ_MODEL_DOMAINS - {
-    HashDomain.EVAL_02B_PAIR_IDENTITY,
-    HashDomain.EVAL_02B_BOOTSTRAP_SEED,
-    HashDomain.STAGE7I_SUPERVISION_EVENT,
-}
-_RESERVED_TAGS = frozenset(
-    {"$w2_bytes", "$w2_date", "$w2_datetime", "$w2_decimal", "$w2_float"}
+_ASCII_LEGACY_DOMAINS = (
+    frozenset(HashDomain)
+    - _READ_MODEL_DOMAINS
+    - {
+        HashDomain.EVAL_02B_PAIR_IDENTITY,
+        HashDomain.EVAL_02B_BOOTSTRAP_SEED,
+        HashDomain.STAGE7I_SUPERVISION_EVENT,
+    }
 )
+_RESERVED_TAGS = frozenset({"$w2_bytes", "$w2_date", "$w2_datetime", "$w2_decimal", "$w2_float"})
 
 
 @dataclass(frozen=True)
@@ -172,18 +173,23 @@ def verify_versioned_digest(
 
 def prepare_hash_migration(
     value: object,
-    historical_sha256: str,
+    historical: VersionedDigest,
     *,
     domain: HashDomain,
     historical_version: SerializerVersion = SerializerVersion.LEGACY_V1,
 ) -> HashMigration:
-    historical = verify_sha256(
+    if historical.domain is not domain or historical.serializer_version is not historical_version:
+        raise CanonicalSerializationError(
+            CanonicalErrorCode.HISTORICAL_METADATA_MISMATCH,
+            "historical domain/version metadata does not match migration request",
+        )
+    verified = verify_sha256(
         value,
-        historical_sha256,
+        historical.sha256,
         domain=domain,
         declared_version=historical_version,
     )
-    if historical is None:
+    if verified is None:
         raise CanonicalSerializationError(
             CanonicalErrorCode.HISTORICAL_HASH_MISMATCH,
             "historical hash does not match its declared version",
@@ -220,9 +226,7 @@ def eval_02b_bootstrap_seed(
         "contract_version": contract_version,
         "validation_pair_identity_hashes": sorted(validation_pair_identity_hashes),
     }
-    digest = bytes.fromhex(
-        canonical_sha256(payload, domain=HashDomain.EVAL_02B_BOOTSTRAP_SEED)
-    )
+    digest = bytes.fromhex(canonical_sha256(payload, domain=HashDomain.EVAL_02B_BOOTSTRAP_SEED))
     return int.from_bytes(digest[:8], "big", signed=False)
 
 
@@ -358,9 +362,5 @@ def _decimal_text(value: Decimal) -> str:
         text += "0" * exponent
     else:
         point = len(text) + exponent
-        text = (
-            f"{text[:point]}.{text[point:]}"
-            if point > 0
-            else f"0.{('0' * -point)}{text}"
-        )
+        text = f"{text[:point]}.{text[point:]}" if point > 0 else f"0.{('0' * -point)}{text}"
     return f"-{text}" if sign else text

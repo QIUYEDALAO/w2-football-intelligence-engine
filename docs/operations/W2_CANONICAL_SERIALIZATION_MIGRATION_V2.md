@@ -25,19 +25,24 @@ For a domain whose storage schema is later approved for v2:
 
 1. Add nullable `serializer_version_v2` and `sha256_v2` fields or an immutable
    versioned sidecar keyed by the original record identity.
-2. Verify the historical digest under its declared/implicit v1 profile.
-3. Compute v2 from the original business payload and append the v2 digest and
+2. Load the historical digest together with its actual stored domain and
+   serializer-version metadata. Verify those metadata values before reading the
+   preimage; a mismatch fails closed with `HISTORICAL_METADATA_MISMATCH`.
+3. Verify the historical digest under its declared/implicit v1 profile.
+4. Compute v2 from the original business payload and append the v2 digest and
    version. Do not update or delete the historical digest.
-4. Dual-read by declared version. Dual-verify during backfill and reconcile
+5. Dual-read by declared version. Dual-verify during backfill and reconcile
    artifact, ledger, projection and pair counts before switching a reader.
-5. Stop on any missing source payload, v1 mismatch, ambiguous version, missing
+6. Stop on any missing source payload, v1 mismatch, ambiguous version, missing
    domain metadata, or domain-metadata mismatch. The mismatch is detected by
    comparing stored metadata with the requested domain, not by the digest
    itself. Such a row is not backfilled.
 
-`prepare_hash_migration` models this operation as immutable historical and
-replacement `VersionedDigest` values. Tests require the input and old digest to
-remain unchanged.
+`prepare_hash_migration` accepts the actual stored `VersionedDigest`, compares
+its domain and serializer version with the requested migration profile, and
+only then verifies bytes. It returns immutable historical and replacement
+`VersionedDigest` values. Exact domain/version mismatch tests require the stable
+error above and require the input digest to remain byte-for-byte unchanged.
 
 ## Rollback
 
@@ -61,6 +66,11 @@ PERSISTENT_SCHEDULER = OFF
 The independent oracle/golden vector author must use
 `docs/contracts/w2_canonical_serialization_oracle_vectors_v2.schema.json` and
 must not import the production serializer. The schema records the production
-implementation head, ADR/version, author, reviewer records and mandatory case
-matrix. Errors use stable `error_code` values. The implementer-provided harness
-only compares that external output with production behavior.
+implementation head/path/SHA-256, production implementer, ADR/version, oracle
+author/source path/source SHA-256, reviewer records and mandatory semantic case
+matrix. The harness verifies both Git identities, requires the implementer and
+oracle author to differ, checks the production and oracle fingerprints, and
+statically rejects oracle imports from production. Mandatory legacy vectors
+cover the ASCII, read-model, Stage7I supervision and pair-identity v1 profiles.
+Errors use stable `error_code` values. The implementer-provided harness only
+compares that external output with production behavior.

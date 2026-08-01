@@ -88,6 +88,21 @@ def test_legacy_exceptions_are_exact_and_versioned() -> None:
             " return encoder.encode(value)\n",
             "serialize",
         ),
+        (
+            "src/w2/cross_function_writer.py",
+            "import hashlib\n"
+            "import json\n"
+            "def emit(value):\n"
+            " return json.dumps(value, sort_keys=True, separators=(',', ':'))\n"
+            "def digest(value):\n"
+            " return hashlib.sha256(emit(value).encode()).hexdigest()\n",
+            "emit",
+        ),
+        (
+            "src/w2/class_body_writer.py",
+            "import json\nclass Serializer:\n payload = json.dumps({'value': 1}, sort_keys=True)\n",
+            "Serializer.<class>",
+        ),
     ],
 )
 def test_guard_detects_synthetic_serializer_bypasses(

@@ -33,12 +33,44 @@ def test_v2_is_utf8_sorted_compact_and_unicode_nfc() -> None:
 
     encoded = canonical_bytes(composed, domain=HashDomain.EVAL_02B_PAIR_IDENTITY)
 
-    assert encoded == canonical_bytes(
-        decomposed, domain=HashDomain.EVAL_02B_PAIR_IDENTITY
-    )
+    assert encoded == canonical_bytes(decomposed, domain=HashDomain.EVAL_02B_PAIR_IDENTITY)
     assert b" " not in encoded
     assert b"\\u" not in encoded
     assert encoded.decode("utf-8").startswith('{"name":')
+
+
+def test_v2_orders_nfc_keys_by_unicode_code_point() -> None:
+    encoded = canonical_bytes(
+        {"\U00010000": "astral", "e\u0301": "nfc", "\ue000": "bmp"},
+        domain=HashDomain.EVAL_02B_PAIR_IDENTITY,
+    )
+
+    assert encoded == '{"é":"nfc","\ue000":"bmp","\U00010000":"astral"}'.encode()
+
+
+def test_v2_json_escaping_is_exact_and_non_ascii_stays_utf8() -> None:
+    encoded = canonical_bytes(
+        {
+            "quote": '"',
+            "backslash": "\\",
+            "control": "\x00\b\t\n\f\r\x1f",
+            "non_ascii": "上海é",
+        },
+        domain=HashDomain.EVAL_02B_PAIR_IDENTITY,
+    )
+
+    assert (
+        encoded
+        == (
+            '{"backslash":"\\\\","control":"\\u0000\\b\\t\\n\\f\\r\\u001f",'
+            '"non_ascii":"上海é","quote":"\\""}'
+        ).encode()
+    )
+
+
+def test_v2_preserves_arbitrary_precision_integer() -> None:
+    value = 10**80 + 1
+    assert canonical_bytes(value, domain=HashDomain.EVAL_02B_PAIR_IDENTITY) == str(value).encode()
 
 
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
@@ -87,9 +119,7 @@ def test_decimal_is_exact_and_independent_of_decimal_context() -> None:
             )
 
     assert outputs[0] == outputs[1] == outputs[2]
-    assert json.loads(outputs[0][0]) == {
-        "$w2_decimal": "123456789012345678901234567890.1234"
-    }
+    assert json.loads(outputs[0][0]) == {"$w2_decimal": "123456789012345678901234567890.1234"}
     assert json.loads(outputs[0][1]) == {"$w2_decimal": "0.00000000000000000000000000001234"}
     assert json.loads(outputs[0][2]) == {"$w2_decimal": "1" + "0" * 100}
 
@@ -153,35 +183,74 @@ def test_legacy_profiles_reproduce_existing_bytes() -> None:
         payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
     ).encode("utf-8")
 
-    assert canonical_bytes(
-        payload,
-        domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
-        version=SerializerVersion.LEGACY_V1,
-    ) == ascii_expected
-    assert canonical_bytes(
-        payload,
-        domain=HashDomain.PREMATCH_READ_MODEL_GENERIC,
-        version=SerializerVersion.LEGACY_V1,
-    ) == utf8_expected
+    assert (
+        canonical_bytes(
+            payload,
+            domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
+            version=SerializerVersion.LEGACY_V1,
+        )
+        == ascii_expected
+    )
+    assert (
+        canonical_bytes(
+            payload,
+            domain=HashDomain.PREMATCH_READ_MODEL_GENERIC,
+            version=SerializerVersion.LEGACY_V1,
+        )
+        == utf8_expected
+    )
 
 
 def test_migration_and_rollback_preserve_historical_digest() -> None:
     payload = {"home_cn": "上海海港", "price": 1.25}
-    historical = hashlib.sha256(
-        json.dumps(
-            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True
-        ).encode("utf-8")
+    historical_sha256 = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode(
+            "utf-8"
+        )
     ).hexdigest()
+    historical = VersionedDigest(
+        domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
+        serializer_version=SerializerVersion.LEGACY_V1,
+        sha256=historical_sha256,
+    )
 
     migration = prepare_hash_migration(
         payload, historical, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD
     )
 
-    assert migration.historical.sha256 == historical
+    assert migration.historical == historical
     assert migration.historical.serializer_version is SerializerVersion.LEGACY_V1
     assert migration.replacement.serializer_version is CURRENT_SERIALIZER_VERSION
     assert migration.rollback() == migration.historical
     assert payload == {"home_cn": "上海海港", "price": 1.25}
+
+
+@pytest.mark.parametrize(
+    "stored_domain, stored_version",
+    [
+        (HashDomain.OUTCOME_LEDGER_PAYLOAD, SerializerVersion.LEGACY_V1),
+        (HashDomain.FUTURE_REFRESH_RAW_PAYLOAD, SerializerVersion.V2),
+    ],
+)
+def test_migration_rejects_stored_metadata_mismatch_without_overwrite(
+    stored_domain: HashDomain, stored_version: SerializerVersion
+) -> None:
+    payload = {"home_cn": "上海海港"}
+    stored = VersionedDigest(
+        domain=stored_domain,
+        serializer_version=stored_version,
+        sha256="a" * 64,
+    )
+
+    with pytest.raises(CanonicalSerializationError) as error:
+        prepare_hash_migration(
+            payload,
+            stored,
+            domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
+        )
+
+    assert error.value.code is CanonicalErrorCode.HISTORICAL_METADATA_MISMATCH
+    assert stored.sha256 == "a" * 64
 
 
 def test_missing_version_is_legacy_only_and_v2_is_explicit() -> None:
@@ -193,12 +262,15 @@ def test_missing_version_is_legacy_only_and_v2_is_explicit() -> None:
     )
     current = canonical_sha256(payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD)
 
-    assert verify_sha256(
-        payload,
-        legacy,
-        domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
-        declared_version=None,
-    ) is not None
+    assert (
+        verify_sha256(
+            payload,
+            legacy,
+            domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
+            declared_version=None,
+        )
+        is not None
+    )
     assert (
         verify_sha256(
             payload,
@@ -208,12 +280,15 @@ def test_missing_version_is_legacy_only_and_v2_is_explicit() -> None:
         )
         is None
     )
-    assert verify_sha256(
-        payload,
-        current,
-        domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
-        declared_version=SerializerVersion.V2,
-    ) is not None
+    assert (
+        verify_sha256(
+            payload,
+            current,
+            domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
+            declared_version=SerializerVersion.V2,
+        )
+        is not None
+    )
 
 
 def test_hash_domain_and_version_are_validated_metadata_not_preimage() -> None:
@@ -226,9 +301,7 @@ def test_hash_domain_and_version_are_validated_metadata_not_preimage() -> None:
 
     assert HASH_DOMAIN_IN_PREIMAGE is False
     assert SERIALIZER_VERSION_IN_PREIMAGE is False
-    assert pair.sha256 == canonical_sha256(
-        payload, domain=HashDomain.EVAL_02B_BOOTSTRAP_SEED
-    )
+    assert pair.sha256 == canonical_sha256(payload, domain=HashDomain.EVAL_02B_BOOTSTRAP_SEED)
     assert verify_versioned_digest(
         payload,
         pair,
@@ -247,9 +320,7 @@ def test_bootstrap_seed_interface_is_order_independent() -> None:
     hashes = ["b" * 64, "a" * 64]
 
     first = eval_02b_bootstrap_seed(hashes, contract_version="w2.eval_02b_gate.v1")
-    second = eval_02b_bootstrap_seed(
-        list(reversed(hashes)), contract_version="w2.eval_02b_gate.v1"
-    )
+    second = eval_02b_bootstrap_seed(list(reversed(hashes)), contract_version="w2.eval_02b_gate.v1")
 
     assert first == second
     assert 0 <= first < 2**64

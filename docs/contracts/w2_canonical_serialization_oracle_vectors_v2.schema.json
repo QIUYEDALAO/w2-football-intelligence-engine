@@ -2,14 +2,230 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://w2.local/contracts/canonical-serialization-oracle-vectors-v2.schema.json",
   "title": "W2 canonical serialization independent oracle vectors v2",
+  "x-semantic-contracts": {
+    "unicode_nfc_key_order": {
+      "variants": [{
+        "request": {"operation": "canonical_serialize", "domain": "eval_02b.pair_identity", "serializer_version": "w2.canonical-json.v2", "value": {"kind": "object", "entries": [
+          {"key": "𐀀", "value": {"kind": "string", "value": "astral"}},
+          {"key": "é", "value": {"kind": "string", "value": "nfc"}},
+          {"key": "", "value": {"kind": "string", "value": "bmp"}}
+        ]}},
+        "expected": {"status": "success"}
+      }]
+    },
+    "unicode_key_collision": {
+      "variants": [{
+        "request": {"operation": "canonical_serialize", "domain": "eval_02b.pair_identity", "serializer_version": "w2.canonical-json.v2", "value": {"kind": "object", "entries": [
+          {"key": "é", "value": {"kind": "integer", "value": "1"}},
+          {"key": "é", "value": {"kind": "integer", "value": "2"}}
+        ]}},
+        "expected": {"status": "error", "error_code": "UNICODE_KEY_COLLISION"}
+      }]
+    },
+    "json_escaping": {
+      "variants": [{
+        "request": {"operation": "canonical_serialize", "domain": "eval_02b.pair_identity", "serializer_version": "w2.canonical-json.v2", "value": {"kind": "object", "entries": [
+          {"key": "quote", "value": {"kind": "string", "value": "\""}},
+          {"key": "backslash", "value": {"kind": "string", "value": "\\"}},
+          {"key": "control", "value": {"kind": "string", "value": "\u0000\b\t\n\f\r\u001f"}},
+          {"key": "non_ascii", "value": {"kind": "string", "value": "上海é"}}
+        ]}},
+        "expected": {"status": "success"}
+      }]
+    },
+    "large_integer": {
+      "variants": [{
+        "request": {"operation": "canonical_serialize", "domain": "eval_02b.pair_identity", "serializer_version": "w2.canonical-json.v2", "value": {"kind": "integer", "value": "100000000000000000000000000000000000000000000000000000000000000000000000000000001"}},
+        "expected": {"status": "success"}
+      }]
+    },
+    "large_decimal_context_independent": {
+      "variants": [{
+        "request": {"operation": "canonical_serialize", "domain": "eval_02b.pair_identity", "serializer_version": "w2.canonical-json.v2", "value": {"kind": "decimal", "value": "123456789012345678901234567890.123400"}},
+        "expected": {"status": "success"}
+      }]
+    },
+    "float64_min_subnormal": {
+      "variants": [{
+        "request": {"operation": "canonical_serialize", "domain": "eval_02b.pair_identity", "serializer_version": "w2.canonical-json.v2", "value": {"kind": "float64", "binary64_hex": "0000000000000001"}},
+        "expected": {"status": "success"}
+      }]
+    },
+    "float64_max_finite": {
+      "variants": [{
+        "request": {"operation": "canonical_serialize", "domain": "eval_02b.pair_identity", "serializer_version": "w2.canonical-json.v2", "value": {"kind": "float64", "binary64_hex": "7fefffffffffffff"}},
+        "expected": {"status": "success"}
+      }]
+    },
+    "float64_adjacent": {
+      "variants": [
+        {
+          "request": {"operation": "canonical_serialize", "domain": "eval_02b.pair_identity", "serializer_version": "w2.canonical-json.v2", "value": {"kind": "float64", "binary64_hex": "3ff0000000000000"}},
+          "expected": {"status": "success"}
+        },
+        {
+          "request": {"operation": "canonical_serialize", "domain": "eval_02b.pair_identity", "serializer_version": "w2.canonical-json.v2", "value": {"kind": "float64", "binary64_hex": "3ff0000000000001"}},
+          "expected": {"status": "success"}
+        }
+      ]
+    },
+    "float64_power_of_ten_boundary": {
+      "variants": [{
+        "request": {"operation": "canonical_serialize", "domain": "eval_02b.pair_identity", "serializer_version": "w2.canonical-json.v2", "value": {"kind": "float64", "binary64_hex": "4341c37937e08000"}},
+        "expected": {"status": "success"}
+      }]
+    },
+    "float64_point_one": {
+      "variants": [{
+        "request": {"operation": "canonical_serialize", "domain": "eval_02b.pair_identity", "serializer_version": "w2.canonical-json.v2", "value": {"kind": "float64", "binary64_hex": "3fb999999999999a"}},
+        "expected": {"status": "success"}
+      }]
+    },
+    "float64_negative_zero": {
+      "variants": [{
+        "request": {"operation": "canonical_serialize", "domain": "eval_02b.pair_identity", "serializer_version": "w2.canonical-json.v2", "value": {"kind": "float64", "binary64_hex": "8000000000000000"}},
+        "expected": {"status": "success"}
+      }]
+    },
+    "float64_nan_rejected": {
+      "variants": [{
+        "request": {"operation": "canonical_serialize", "domain": "eval_02b.pair_identity", "serializer_version": "w2.canonical-json.v2", "value": {"kind": "float64", "binary64_hex": "7ff8000000000000"}},
+        "expected": {"status": "error", "error_code": "NON_FINITE_FLOAT"}
+      }]
+    },
+    "float64_infinity_rejected": {
+      "variants": [
+        {
+          "request": {"operation": "canonical_serialize", "domain": "eval_02b.pair_identity", "serializer_version": "w2.canonical-json.v2", "value": {"kind": "float64", "binary64_hex": "7ff0000000000000"}},
+          "expected": {"status": "error", "error_code": "NON_FINITE_FLOAT"}
+        },
+        {
+          "request": {"operation": "canonical_serialize", "domain": "eval_02b.pair_identity", "serializer_version": "w2.canonical-json.v2", "value": {"kind": "float64", "binary64_hex": "fff0000000000000"}},
+          "expected": {"status": "error", "error_code": "NON_FINITE_FLOAT"}
+        }
+      ]
+    },
+    "bytes": {
+      "variants": [{
+        "request": {"operation": "canonical_serialize", "domain": "eval_02b.pair_identity", "serializer_version": "w2.canonical-json.v2", "value": {"kind": "bytes", "value": "AP-Afw"}},
+        "expected": {"status": "success"}
+      }]
+    },
+    "aware_datetime": {
+      "variants": [{
+        "request": {"operation": "canonical_serialize", "domain": "eval_02b.pair_identity", "serializer_version": "w2.canonical-json.v2", "value": {"kind": "datetime", "value": "2026-08-01T12:34:56.123456+08:00"}},
+        "expected": {"status": "success"}
+      }]
+    },
+    "naive_datetime_rejected": {
+      "variants": [{
+        "request": {"operation": "canonical_serialize", "domain": "eval_02b.pair_identity", "serializer_version": "w2.canonical-json.v2", "value": {"kind": "naive_datetime", "value": "2026-08-01T12:34:56.123456"}},
+        "expected": {"status": "error", "error_code": "NAIVE_DATETIME"}
+      }]
+    },
+    "unsupported_type_rejected": {
+      "variants": [{
+        "request": {"operation": "canonical_serialize", "domain": "eval_02b.pair_identity", "serializer_version": "w2.canonical-json.v2", "value": {"kind": "unsupported", "type": "set"}},
+        "expected": {"status": "error", "error_code": "UNSUPPORTED_TYPE"}
+      }]
+    },
+    "reserved_tag_rejected": {
+      "variants": [{
+        "request": {"operation": "canonical_serialize", "domain": "eval_02b.pair_identity", "serializer_version": "w2.canonical-json.v2", "value": {"kind": "object", "entries": [
+          {"key": "$w2_type", "value": {"kind": "string", "value": "forged"}}
+        ]}},
+        "expected": {"status": "error", "error_code": "RESERVED_TAG"}
+      }]
+    },
+    "legacy_v1_ascii": {
+      "variants": [{
+        "request": {"operation": "canonical_serialize", "domain": "future_refresh.raw_payload", "serializer_version": "w2.canonical-json.v1", "value": {"kind": "object", "entries": [
+          {"key": "fixture", "value": {"kind": "integer", "value": "123"}},
+          {"key": "status", "value": {"kind": "string", "value": "FT"}}
+        ]}},
+        "expected": {"status": "success"}
+      }]
+    },
+    "legacy_v1_read_model": {
+      "variants": [{
+        "request": {"operation": "canonical_serialize", "domain": "prematch_read_model.generic", "serializer_version": "w2.canonical-json.v1", "value": {"kind": "object", "entries": [
+          {"key": "team", "value": {"kind": "string", "value": "上海"}},
+          {"key": "price", "value": {"kind": "decimal", "value": "1.2300"}},
+          {"key": "date", "value": {"kind": "date", "value": "2026-08-01"}},
+          {"key": "updated_at", "value": {"kind": "datetime", "value": "2026-08-01T12:34:56+08:00"}}
+        ]}},
+        "expected": {"status": "success"}
+      }]
+    },
+    "legacy_v1_stage7i_supervision": {
+      "variants": [{
+        "request": {"operation": "canonical_serialize", "domain": "stage7i_supervision.event", "serializer_version": "w2.canonical-json.v1", "value": {"kind": "object", "entries": [
+          {"key": "message", "value": {"kind": "string", "value": "监督事件"}},
+          {"key": "fallback", "value": {"kind": "unsupported", "type": "set"}}
+        ]}},
+        "expected": {"status": "success"}
+      }]
+    },
+    "legacy_v1_pair_identity": {
+      "variants": [{
+        "request": {"operation": "canonical_serialize", "domain": "eval_02b.pair_identity", "serializer_version": "w2.canonical-json.v1", "value": {"kind": "object", "entries": [
+          {"key": "canonical_fixture_id", "value": {"kind": "string", "value": "比赛-123"}},
+          {"key": "competition_id", "value": {"kind": "string", "value": "competition-1"}},
+          {"key": "season_id", "value": {"kind": "string", "value": "season-2026"}},
+          {"key": "provider_id", "value": {"kind": "string", "value": "provider-a"}},
+          {"key": "bookmaker_id", "value": {"kind": "string", "value": "bookmaker-1"}},
+          {"key": "market", "value": {"kind": "string", "value": "ASIAN_HANDICAP"}},
+          {"key": "selection", "value": {"kind": "string", "value": "HOME"}},
+          {"key": "exact_line", "value": {"kind": "float64", "binary64_hex": "bff0000000000000"}},
+          {"key": "pre_evaluation_id", "value": {"kind": "string", "value": "pre-1"}},
+          {"key": "post_evaluation_id", "value": {"kind": "string", "value": "post-1"}}
+        ]}},
+        "expected": {"status": "success"}
+      }]
+    },
+    "pair_identity": {
+      "variants": [{
+        "request": {"operation": "canonical_serialize", "domain": "eval_02b.pair_identity", "serializer_version": "w2.canonical-json.v2", "value": {"kind": "object", "entries": [
+          {"key": "canonical_fixture_id", "value": {"kind": "string", "value": "fixture-123"}},
+          {"key": "competition_id", "value": {"kind": "string", "value": "competition-1"}},
+          {"key": "season_id", "value": {"kind": "string", "value": "season-2026"}},
+          {"key": "provider_id", "value": {"kind": "string", "value": "provider-a"}},
+          {"key": "bookmaker_id", "value": {"kind": "string", "value": "bookmaker-1"}},
+          {"key": "market", "value": {"kind": "string", "value": "ASIAN_HANDICAP"}},
+          {"key": "selection", "value": {"kind": "string", "value": "HOME"}},
+          {"key": "exact_line", "value": {"kind": "float64", "binary64_hex": "bff0000000000000"}},
+          {"key": "pre_evaluation_id", "value": {"kind": "string", "value": "pre-1"}},
+          {"key": "post_evaluation_id", "value": {"kind": "string", "value": "post-1"}}
+        ]}},
+        "expected": {"status": "success"}
+      }]
+    },
+    "bootstrap_order_independent": {
+      "variants": [{
+        "request": {"operation": "eval_02b_bootstrap_seed", "domain": "eval_02b.bootstrap_seed", "serializer_version": "w2.canonical-json.v2", "contract_version": "eval-02b-v1", "validation_pair_identity_hashes": ["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]},
+        "expected": {"status": "success"}
+      }]
+    },
+    "invalid_pair_hash_rejected": {
+      "variants": [{
+        "request": {"operation": "eval_02b_bootstrap_seed", "domain": "eval_02b.bootstrap_seed", "serializer_version": "w2.canonical-json.v2", "contract_version": "eval-02b-v1", "validation_pair_identity_hashes": ["not-a-hash"]},
+        "expected": {"status": "error", "error_code": "INVALID_PAIR_IDENTITY_HASH"}
+      }]
+    }
+  },
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_version",
     "production_implementation_head",
+    "production_implementation_path",
+    "production_implementation_sha256",
+    "production_implementer",
     "adr_id",
     "serializer_version",
     "oracle_author",
+    "oracle_source_path",
+    "oracle_source_sha256",
     "oracle_imports_production_serializer",
     "review_status",
     "reviewer_records",
@@ -19,9 +235,14 @@
   "properties": {
     "schema_version": {"const": "w2.canonical-serialization-oracle-vectors.v2"},
     "production_implementation_head": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "production_implementation_path": {"const": "src/w2/domain/canonical_serialization.py"},
+    "production_implementation_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "production_implementer": {"type": "string", "minLength": 1},
     "adr_id": {"const": "ADR-0019"},
     "serializer_version": {"const": "w2.canonical-json.v2"},
     "oracle_author": {"type": "string", "minLength": 1},
+    "oracle_source_path": {"type": "string", "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9_./-]+\\.py$"},
+    "oracle_source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "oracle_imports_production_serializer": {"const": false},
     "review_status": {"enum": ["PENDING", "APPROVED", "CHANGES_REQUIRED"]},
     "reviewer_records": {
@@ -40,8 +261,10 @@
     },
     "mandatory_case_matrix": {
       "const": [
-        "unicode_nfc",
+        "unicode_nfc_key_order",
         "unicode_key_collision",
+        "json_escaping",
+        "large_integer",
         "large_decimal_context_independent",
         "float64_min_subnormal",
         "float64_max_finite",
@@ -56,7 +279,10 @@
         "naive_datetime_rejected",
         "unsupported_type_rejected",
         "reserved_tag_rejected",
-        "legacy_v1_compatibility",
+        "legacy_v1_ascii",
+        "legacy_v1_read_model",
+        "legacy_v1_stage7i_supervision",
+        "legacy_v1_pair_identity",
         "pair_identity",
         "bootstrap_order_independent",
         "invalid_pair_hash_rejected"
@@ -64,15 +290,17 @@
     },
     "cases": {
       "type": "array",
-      "minItems": 22,
+      "minItems": 27,
       "items": {"$ref": "#/$defs/case"}
     }
   },
   "$defs": {
     "category": {
       "enum": [
-        "unicode_nfc",
+        "unicode_nfc_key_order",
         "unicode_key_collision",
+        "json_escaping",
+        "large_integer",
         "large_decimal_context_independent",
         "float64_min_subnormal",
         "float64_max_finite",
@@ -87,7 +315,10 @@
         "naive_datetime_rejected",
         "unsupported_type_rejected",
         "reserved_tag_rejected",
-        "legacy_v1_compatibility",
+        "legacy_v1_ascii",
+        "legacy_v1_read_model",
+        "legacy_v1_stage7i_supervision",
+        "legacy_v1_pair_identity",
         "pair_identity",
         "bootstrap_order_independent",
         "invalid_pair_hash_rejected"
@@ -108,7 +339,14 @@
               "required": ["operation", "domain", "serializer_version", "value"],
               "properties": {
                 "operation": {"const": "canonical_serialize"},
-                "domain": {"const": "eval_02b.pair_identity"},
+                "domain": {
+                  "enum": [
+                    "eval_02b.pair_identity",
+                    "future_refresh.raw_payload",
+                    "prematch_read_model.generic",
+                    "stage7i_supervision.event"
+                  ]
+                },
                 "serializer_version": {"enum": ["w2.canonical-json.v1", "w2.canonical-json.v2"]},
                 "value": {"$ref": "#/$defs/node"}
               }
@@ -174,6 +412,7 @@
         "UNICODE_KEY_COLLISION",
         "UNSUPPORTED_TYPE",
         "LEGACY_DOMAIN_UNSUPPORTED",
+        "HISTORICAL_METADATA_MISMATCH",
         "HISTORICAL_HASH_MISMATCH",
         "BOOTSTRAP_CONTRACT_VERSION_REQUIRED",
         "INVALID_PAIR_IDENTITY_HASH"
@@ -183,13 +422,14 @@
       "oneOf": [
         {"type": "object", "additionalProperties": false, "required": ["kind"], "properties": {"kind": {"const": "null"}}},
         {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "boolean"}, "value": {"type": "boolean"}}},
-        {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "integer"}, "value": {"type": "integer"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "integer"}, "value": {"type": "string", "pattern": "^-?(0|[1-9][0-9]*)$"}}},
         {"type": "object", "additionalProperties": false, "required": ["kind", "binary64_hex"], "properties": {"kind": {"const": "float64"}, "binary64_hex": {"type": "string", "pattern": "^[0-9a-f]{16}$"}}},
         {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "decimal"}, "value": {"type": "string", "minLength": 1}}},
         {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "string"}, "value": {"type": "string"}}},
         {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "bytes"}, "value": {"type": "string", "pattern": "^[A-Za-z0-9_-]*$"}}},
         {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "date"}, "value": {"type": "string", "format": "date"}}},
         {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "datetime"}, "value": {"type": "string", "format": "date-time"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "naive_datetime"}, "value": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?$"}}},
         {"type": "object", "additionalProperties": false, "required": ["kind", "items"], "properties": {"kind": {"const": "array"}, "items": {"type": "array", "items": {"$ref": "#/$defs/node"}}}},
         {"type": "object", "additionalProperties": false, "required": ["kind", "entries"], "properties": {"kind": {"const": "object"}, "entries": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["key", "value"], "properties": {"key": {"type": "string"}, "value": {"$ref": "#/$defs/node"}}}}}},
         {"type": "object", "additionalProperties": false, "required": ["kind", "type"], "properties": {"kind": {"const": "unsupported"}, "type": {"const": "set"}}}

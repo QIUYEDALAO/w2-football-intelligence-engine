@@ -73,6 +73,12 @@
     {"path": "scripts/run_arch_p1_03b_squads_canary.py", "symbol": "main", "hash_domain": "legacy.scripts.arch_p1_03b_squads_canary"},
     {"path": "scripts/run_stage13a_world_cup_dry_run.py", "symbol": "main", "hash_domain": "legacy.scripts.stage13a_world_cup_dry_run"},
     {"path": "scripts/run_stage4b_live_smoke.py", "symbol": "payload_digest", "hash_domain": "legacy.scripts.stage4b_live_smoke_payload"},
-    {"path": "scripts/run_w2_pro_day1_sprint.py", "symbol": "_cache_path", "hash_domain": "legacy.scripts.pro_day1_cache_path"}
+    {"path": "scripts/run_w2_pro_day1_sprint.py", "symbol": "_cache_path", "hash_domain": "legacy.scripts.pro_day1_cache_path"},
+    {"path": "scripts/check_w2_acceptance.py", "symbol": "_forbidden_word_hits", "hash_domain": "legacy.scripts.acceptance_forbidden_word_hits"},
+    {"path": "scripts/run_w2_pro_day1_sprint.py", "symbol": "run_phase0", "hash_domain": "legacy.scripts.pro_day1_phase0"},
+    {"path": "src/w2/audit_export/tables.py", "symbol": "_cell", "hash_domain": "legacy.audit_export.cell"},
+    {"path": "src/w2/competitions/league_whitelist_provider_audit.py", "symbol": "_has_xg", "hash_domain": "legacy.competitions.league_whitelist_xg"},
+    {"path": "src/w2/historical/dataset.py", "symbol": "stable_json", "hash_domain": "legacy.historical.dataset_json"},
+    {"path": "src/w2/historical/fah_repository.py", "symbol": "_source_snapshot_model", "hash_domain": "legacy.historical.fah_source_snapshot"}
   ]
 }

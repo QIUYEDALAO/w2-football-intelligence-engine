@@ -81,8 +81,7 @@ def _is_hash_call(name: str) -> bool:
 
 def _contains_json_writer(node: ast.AST, bindings: dict[str, str]) -> bool:
     return any(
-        isinstance(child, ast.Call)
-        and _is_json_writer(_qualified_name(child.func, bindings))
+        isinstance(child, ast.Call) and _is_json_writer(_qualified_name(child.func, bindings))
         for child in ast.walk(node)
     )
 
@@ -91,16 +90,19 @@ def _contains_name(node: ast.AST, names: set[str]) -> bool:
     return any(isinstance(child, ast.Name) and child.id in names for child in ast.walk(node))
 
 
-def _hashes_json(scope: ast.AST, bindings: dict[str, str]) -> bool:
+def _json_tainted_names(scope: ast.AST, bindings: dict[str, str]) -> set[str]:
     tainted: set[str] = set()
     for _ in range(2):
         for node in ast.walk(scope):
             if not isinstance(node, ast.Assign):
                 continue
             if _contains_json_writer(node.value, bindings) or _contains_name(node.value, tainted):
-                tainted.update(
-                    target.id for target in node.targets if isinstance(target, ast.Name)
-                )
+                tainted.update(target.id for target in node.targets if isinstance(target, ast.Name))
+    return tainted
+
+
+def _hashes_json(scope: ast.AST, bindings: dict[str, str]) -> bool:
+    tainted = _json_tainted_names(scope, bindings)
     return any(
         isinstance(node, ast.Call)
         and _is_hash_call(_qualified_name(node.func, bindings))
@@ -112,11 +114,19 @@ def _hashes_json(scope: ast.AST, bindings: dict[str, str]) -> bool:
     )
 
 
+def _returns_json(scope: ast.AST, bindings: dict[str, str]) -> bool:
+    tainted = _json_tainted_names(scope, bindings)
+    return any(
+        isinstance(node, ast.Return)
+        and node.value is not None
+        and (_contains_json_writer(node.value, bindings) or _contains_name(node.value, tainted))
+        for node in ast.walk(scope)
+    )
+
+
 def _scope_is_writer(scope: ast.AST, symbol: str, bindings: dict[str, str]) -> bool:
     calls = [node for node in ast.walk(scope) if isinstance(node, ast.Call)]
-    json_calls = [
-        call for call in calls if _is_json_writer(_qualified_name(call.func, bindings))
-    ]
+    json_calls = [call for call in calls if _is_json_writer(_qualified_name(call.func, bindings))]
     if not json_calls:
         return False
     if symbol == "<module>":
@@ -125,6 +135,7 @@ def _scope_is_writer(scope: ast.AST, symbol: str, bindings: dict[str, str]) -> b
     return (
         any(marker in lowered for marker in SERIALIZER_NAME_MARKERS)
         or _hashes_json(scope, bindings)
+        or _returns_json(scope, bindings)
     )
 
 
@@ -152,6 +163,13 @@ def _module_is_writer(tree: ast.Module, bindings: dict[str, str]) -> bool:
     return any(_is_json_writer(_qualified_name(call.func, bindings)) for call in visitor.calls)
 
 
+def _class_body_is_writer(node: ast.ClassDef, bindings: dict[str, str]) -> bool:
+    visitor = _ModuleCalls()
+    for statement in node.body:
+        visitor.visit(statement)
+    return any(_is_json_writer(_qualified_name(call.func, bindings)) for call in visitor.calls)
+
+
 def legacy_writer_sites(root: Path = ROOT) -> set[tuple[str, str]]:
     sites: set[tuple[str, str]] = set()
     for production_root in PRODUCTION_ROOTS:
@@ -166,6 +184,11 @@ def legacy_writer_sites(root: Path = ROOT) -> set[tuple[str, str]]:
             module_bindings = _bindings(tree)
             if _module_is_writer(tree, module_bindings):
                 sites.add((relative, "<module>"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ClassDef) and _class_body_is_writer(
+                    node, _bindings(node, module_bindings)
+                ):
+                    sites.add((relative, f"{node.name}.<class>"))
             for node in ast.walk(tree):
                 if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
                     continue

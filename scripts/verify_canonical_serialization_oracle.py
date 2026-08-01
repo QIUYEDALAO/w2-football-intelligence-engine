@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import base64
+import hashlib
 import json
 import struct
+import subprocess
 import sys
 from datetime import date, datetime
 from decimal import Decimal, localcontext
@@ -25,27 +28,10 @@ from w2.domain.canonical_serialization import (  # noqa: E402
 )
 
 SCHEMA = ROOT / "docs/contracts/w2_canonical_serialization_oracle_vectors_v2.schema.json"
+SCHEMA_DOCUMENT: dict[str, Any] = json.loads(SCHEMA.read_text(encoding="utf-8"))
+SEMANTIC_CONTRACTS: dict[str, dict[str, Any]] = SCHEMA_DOCUMENT["x-semantic-contracts"]
 MANDATORY_CASE_COUNTS = {
-    "unicode_nfc": 1,
-    "unicode_key_collision": 1,
-    "large_decimal_context_independent": 1,
-    "float64_min_subnormal": 1,
-    "float64_max_finite": 1,
-    "float64_adjacent": 2,
-    "float64_power_of_ten_boundary": 1,
-    "float64_point_one": 1,
-    "float64_negative_zero": 1,
-    "float64_nan_rejected": 1,
-    "float64_infinity_rejected": 2,
-    "bytes": 1,
-    "aware_datetime": 1,
-    "naive_datetime_rejected": 1,
-    "unsupported_type_rejected": 1,
-    "reserved_tag_rejected": 1,
-    "legacy_v1_compatibility": 1,
-    "pair_identity": 1,
-    "bootstrap_order_independent": 1,
-    "invalid_pair_hash_rejected": 1,
+    category: len(contract["variants"]) for category, contract in SEMANTIC_CONTRACTS.items()
 }
 
 
@@ -53,8 +39,10 @@ def _decode(node: dict[str, Any]) -> object:
     kind = node["kind"]
     if kind == "null":
         return None
-    if kind in {"boolean", "integer", "string"}:
+    if kind in {"boolean", "string"}:
         return node["value"]
+    if kind == "integer":
+        return int(node["value"])
     if kind == "float64":
         return struct.unpack(">d", bytes.fromhex(node["binary64_hex"]))[0]
     if kind == "decimal":
@@ -64,7 +52,7 @@ def _decode(node: dict[str, Any]) -> object:
         return base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4))
     if kind == "date":
         return date.fromisoformat(node["value"])
-    if kind == "datetime":
+    if kind in {"datetime", "naive_datetime"}:
         return datetime.fromisoformat(str(node["value"]).replace("Z", "+00:00"))
     if kind == "array":
         return [_decode(item) for item in node["items"]]
@@ -75,27 +63,142 @@ def _decode(node: dict[str, Any]) -> object:
     raise ValueError(f"unsupported oracle input kind: {kind}")
 
 
+def _declared_outcome(oracle: dict[str, Any]) -> dict[str, str]:
+    outcome = {"status": oracle.get("status", "")}
+    if oracle.get("status") == "error":
+        outcome["error_code"] = oracle.get("error_code", "")
+    return outcome
+
+
 def handoff_contract_failures(payload: dict[str, Any]) -> list[str]:
     cases = payload.get("cases", [])
     case_ids = [case.get("case_id") for case in cases]
     failures = ["case_id values must be unique"] if len(case_ids) != len(set(case_ids)) else []
-    categories = [case.get("category") for case in cases]
-    for category, minimum in MANDATORY_CASE_COUNTS.items():
-        if categories.count(category) < minimum:
-            failures.append(f"mandatory case category missing: {category} (minimum {minimum})")
+    for category, contract in SEMANTIC_CONTRACTS.items():
+        category_cases = [case for case in cases if case.get("category") == category]
+        unmatched = list(range(len(contract["variants"])))
+        for case in category_cases:
+            actual = {
+                "request": case.get("request"),
+                "expected": _declared_outcome(case.get("oracle", {})),
+            }
+            match = next(
+                (index for index in unmatched if actual == contract["variants"][index]),
+                None,
+            )
+            if match is None:
+                failures.append(
+                    f"{case.get('case_id')}: request/outcome does not match "
+                    f"mandatory semantic contract for {category}"
+                )
+            else:
+                unmatched.remove(match)
+        for index in unmatched:
+            failures.append(f"mandatory semantic variant missing: {category}[{index}]")
+    unknown = sorted({case.get("category") for case in cases} - set(SEMANTIC_CONTRACTS))
+    failures.extend(f"unknown mandatory case category: {category}" for category in unknown)
     author = payload.get("oracle_author")
+    if author == payload.get("production_implementer"):
+        failures.append("production implementer and oracle author must differ")
     if any(record.get("reviewer") == author for record in payload.get("reviewer_records", [])):
         failures.append("oracle author cannot be an independent reviewer")
     return failures
 
 
+def _git(root: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def _sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _imports_production_serializer(source: str) -> bool:
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            if any(alias.name == "w2" or alias.name.startswith("w2.") for alias in node.names):
+                return True
+        elif isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            if module == "w2" or module.startswith("w2.") or node.level:
+                return True
+    return False
+
+
+def identity_contract_failures(payload: dict[str, Any], *, root: Path = ROOT) -> list[str]:
+    failures: list[str] = []
+    try:
+        head = payload["production_implementation_head"]
+        production_path = payload["production_implementation_path"]
+        _git(root, "cat-file", "-e", f"{head}^{{commit}}")
+        if subprocess.run(
+            ["git", "merge-base", "--is-ancestor", head, "HEAD"],
+            cwd=root,
+            check=False,
+            capture_output=True,
+        ).returncode:
+            failures.append("production implementation head is not an ancestor of checkout HEAD")
+        blob = subprocess.run(
+            ["git", "show", f"{head}:{production_path}"],
+            cwd=root,
+            check=True,
+            capture_output=True,
+        ).stdout
+        if _sha256(blob) != payload["production_implementation_sha256"]:
+            failures.append("production implementation fingerprint does not match declared head")
+        current = (root / production_path).read_bytes()
+        if _sha256(current) != payload["production_implementation_sha256"]:
+            failures.append("checkout production implementation differs from bound fingerprint")
+        implementer = _git(root, "show", "-s", "--format=%ae", head)
+        if implementer != payload["production_implementer"]:
+            failures.append("production implementer does not match implementation commit author")
+
+        oracle_path = (root / payload["oracle_source_path"]).resolve()
+        oracle_path.relative_to(root.resolve())
+        if oracle_path == (root / production_path).resolve():
+            failures.append("oracle source must differ from production implementation")
+        source = oracle_path.read_bytes()
+        if _sha256(source) != payload["oracle_source_sha256"]:
+            failures.append("oracle source fingerprint does not match checkout source")
+        source_text = source.decode("utf-8")
+        if _imports_production_serializer(source_text):
+            failures.append("oracle source imports production code")
+        oracle_commit_author = _git(
+            root,
+            "log",
+            "-1",
+            "--format=%ae",
+            "--",
+            payload["oracle_source_path"],
+        )
+        if oracle_commit_author != payload["oracle_author"]:
+            failures.append("oracle author does not match oracle source commit author")
+    except (
+        KeyError,
+        OSError,
+        SyntaxError,
+        subprocess.CalledProcessError,
+        UnicodeError,
+        ValueError,
+    ) as exc:
+        failures.append(f"oracle identity verification failed: {exc}")
+    return failures
+
+
 def verify_vectors(path: Path) -> list[str]:
     payload = json.loads(path.read_text(encoding="utf-8"))
-    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
-    jsonschema.Draft202012Validator(schema, format_checker=jsonschema.FormatChecker()).validate(
-        payload
-    )
+    jsonschema.Draft202012Validator(
+        SCHEMA_DOCUMENT, format_checker=jsonschema.FormatChecker()
+    ).validate(payload)
     failures = handoff_contract_failures(payload)
+    failures.extend(identity_contract_failures(payload))
     for case in payload["cases"]:
         request = case["request"]
         expected = case["oracle"]
