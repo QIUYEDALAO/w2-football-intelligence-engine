@@ -1,72 +1,54 @@
 # Independent oracle difference report
 
 Oracle author: Claude Code (`claude-oracle@w2.independent.invalid`)
-Production implementation head: `af64ef9ec416ce9a9b166a1ddccdb601abac9447`
-Result: **CHANGES_REQUIRED** — two cases differ. No expected value in
-`w2_canonical_serialization_oracle_vectors_v2.json` was altered to match
-production. The oracle output stands as authored.
+Production implementation head: `ff0db4f874b263434290d502b7b787adfcde2964`
+Oracle head: `6e6f876891c2fea7e8972b78bce33e7c56d66900`
 
-## D-1 `reserved-tag-rejected.0` — production contradicts its own schema
+**Result: 30 of 30 cases agree. Zero mismatches.**
 
-The mandatory semantic contract in
-`docs/contracts/w2_canonical_serialization_oracle_vectors_v2.schema.json`
-declares, for a caller mapping containing the key `$w2_type`:
+## History of this report
 
-```json
-{"status": "error", "error_code": "RESERVED_TAG"}
-```
+The first run against `af64ef9e` found two differences. Both were
+specification problems, not oracle errors, and both were closed by the
+implementer without touching any oracle file or expected value.
 
-The oracle rejects it. The production harness reports
-`expected error but production succeeded`, so production accepts the key.
+**D-1 `reserved_tag_rejected` — closed.** ADR-0019 named five reserved tags
+while the vector schema required a sixth key, `$w2_type`, to be rejected. The
+oracle reserved the whole `$w2_` prefix so both documents were satisfied.
+ADR-0019 now states that the entire `$w2_` prefix is reserved in v2 and that
+the reservation is v2-only, with a new mandatory
+`legacy_v1_reserved_prefix_passthrough` category proving v1 still serializes
+such keys unchanged. The oracle's reading was adopted.
 
-Underlying ambiguity: ADR-0019 says "the five `$w2_*` tag keys are reserved",
-naming `$w2_float`, `$w2_decimal`, `$w2_date`, `$w2_datetime` and `$w2_bytes`.
-`$w2_type` is not one of the five, yet the schema requires it to be rejected.
-The oracle resolves this by reserving the whole `$w2_` prefix namespace, which
-satisfies both documents; production appears to reserve only the five exact
-names.
+**D-2 `legacy_v1_read_model` — closed.** The frozen documents recorded that the
+v1 read-model profile used a "typed default hook" but never stated the text it
+produced, so the output was not independently derivable. ADR-0019 now specifies
+it byte-for-byte: `Decimal` becomes `str(value)` with trailing zeros, `date`
+becomes `str(value)`, aware `datetime` is converted to UTC and emitted as
+`isoformat()` with `+00:00` replaced by `Z`, and naive `datetime` is rejected.
+The Stage7I-supervision hook is documented on the same terms. The oracle was
+updated from the specification; production output was not consulted.
 
-This must be adjudicated, not silently aligned. Either the ADR should state
-that the `$w2_` prefix is reserved and production should reject the prefix, or
-the schema's mandatory case is wrong. Reserving only the exact five leaves
-`$w2_type` and any future tag name available to a caller, which is the typed
-scalar/mapping ambiguity the reservation exists to prevent.
+## Author identity contamination — my error, remediated
 
-## D-2 `legacy-v1-read-model.0` — v1 typed default hook is underspecified
+Setting an independent Git identity with `git config user.email` inside a
+worktree writes to the shared repository config, so the production worktree
+inherited the oracle identity and one production commit was authored under it.
+`main` was never affected and no production content changed. The implementer
+re-authored the tip as `ff0db4f8` with an identical tree
+(`77b126ce…`, zero content diff), and my worktree now uses
+`extensions.worktreeConfig` so the identity cannot leak again.
 
-Oracle output for the `prematch_read_model.generic` v1 profile:
+## Current state
 
-```json
-{"date":"2026-08-01","price":"1.2300","team":"上海","updated_at":"2026-08-01T12:34:56+08:00"}
-```
+Every mandatory category agrees: NFC code-point key ordering, Unicode key
+collision rejection, exact JSON escaping, large integer, context-independent
+large `Decimal`, all binary64 boundaries including min subnormal, max finite,
+adjacent values, the power-of-ten boundary, 0.1 and negative zero, NaN and both
+infinities rejected, `bytes`, aware datetime, naive datetime rejection,
+unsupported type rejection, `$w2_` prefix rejection in v2 and passthrough in
+v1, the ASCII, read-model, Stage7I-supervision and pair-identity v1 profiles,
+v2 pair identity, bootstrap order independence and invalid pair hash rejection.
 
-The production harness reports `oracle mismatch`.
-
-Root cause is a specification gap rather than a disagreement about a stated
-rule. ADR-0019 says v1 domain profiles "reproduce the frozen `ensure_ascii`,
-default-hook and NaN behavior", and the SER-01 frozen inventory records that
-this domain uses `ensure_ascii=False`, implicit `allow_nan=True` and a "typed
-default hook". Neither document states the text that hook produces for
-`Decimal`, `date` or aware `datetime`. The oracle therefore had to choose an
-interpretation: `str(Decimal)` preserving trailing zeros, `date.isoformat()`
-and `datetime.isoformat()` with the original offset retained.
-
-An independent implementer cannot derive the byte-exact v1 read-model output
-from the frozen specification set. Until the hook's output text is written into
-ADR-0019 or the frozen inventory, this category cannot be independently
-verified, and a mismatch here is not by itself evidence of a production defect.
-
-## Categories that agree
-
-The remaining 25 of 27 cases match production, including NFC code-point key
-ordering, Unicode key collision rejection, exact JSON escaping, the large
-integer, context-independent large `Decimal`, all six binary64 boundary cases,
-NaN and both infinities rejected, `bytes`, aware datetime, naive datetime
-rejection, unsupported type rejection, the ASCII, Stage7I-supervision and pair
-identity v1 profiles, v2 pair identity, bootstrap order independence and
-invalid pair hash rejection.
-
-## Required action
-
-Adjudication by the final reviewer. The oracle author does not approve, reject
-or re-run its own vectors against an adjusted expectation.
+`review_status` remains `PENDING`. The oracle author does not approve its own
+vectors; adjudication belongs to the final reviewer.
