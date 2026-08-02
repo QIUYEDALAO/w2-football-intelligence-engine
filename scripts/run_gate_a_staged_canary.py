@@ -47,7 +47,7 @@ from w2.providers.api_football import ApiFootballClient  # noqa: E402
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the isolated staged Gate-A canary.")
     parser.add_argument("--authorization-file", type=Path, required=True)
-    parser.add_argument("--fixture-id", required=True)
+    parser.add_argument("--fixture-id")
     parser.add_argument("--competition-id", default="world_cup_2026")
     parser.add_argument("--season", required=True)
     parser.add_argument("--interval-seconds", type=int, default=900)
@@ -77,9 +77,7 @@ def _git_value(revision: str) -> str:
     import subprocess
 
     try:
-        value = subprocess.check_output(
-            ["git", "rev-parse", revision], cwd=ROOT, text=True
-        ).strip()
+        value = subprocess.check_output(["git", "rev-parse", revision], cwd=ROOT, text=True).strip()
     except (OSError, subprocess.CalledProcessError) as exc:
         raise GateAError("GATE_A_EXACT_CODE_IDENTITY_UNAVAILABLE") from exc
     if re.fullmatch(r"[0-9a-f]{40}", value) is None:
@@ -128,6 +126,8 @@ def main() -> int:
             competition_id=args.competition_id,
             season=args.season,
             policy_season=policy.season,
+            policy_provider_league_id=policy.provider_league_id,
+            policy_config_hash=policy.config_hash,
             persistence=args.persistence,
             task_key=key,
             fixture_id=args.fixture_id,
@@ -183,7 +183,7 @@ def main() -> int:
             {
                 "status": "COMPLETED",
                 "task_key": key,
-                "fixture_id": args.fixture_id,
+                "fixture_id": audit.result["selected_market_fixture_ids"][0],
                 "request_count": audit.result["request_count"],
                 "evidence": str(args.evidence_output),
             },

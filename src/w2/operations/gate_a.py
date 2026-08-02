@@ -16,16 +16,21 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from w2.domain.canonical_serialization import HashDomain, canonical_sha256
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.future_refresh_models import (
     GateAProviderCallModel,
     GateARunReservationModel,
 )
 
-GATE_A_AUTHORIZATION_SCHEMA = "w2.gate-a-one-shot-authorization.v3"
+GATE_A_AUTHORIZATION_SCHEMA = "w2.gate-a-one-shot-authorization.v4"
 GATE_A_ACTION = "ONE_SHOT_FOREGROUND_CANARY"
 GATE_A_CANARY_ENDPOINTS = frozenset({"status", "fixtures", "odds", "lineups"})
 GATE_A_CANARY_PROVIDER_CALL_CAP = 5
+GATE_A_EXACT_FIXTURE_SCOPE = "EXACT_FIXTURE_ID"
+GATE_A_WINDOW_FIXTURE_SCOPE = "SIGNED_KICKOFF_WINDOW"
+GATE_A_SELECTION_POLICY_VERSION = "w2.gate-a-fixture-selection.v1"
+GATE_A_SELECTION_RULE = "EARLIEST_KICKOFF_THEN_LOWEST_NUMERIC_FIXTURE_ID"
 GATE_A_TRUST_STORE_SCHEMA = "w2.gate-a-authorization-trust.v1"
 DEFAULT_TRUST_STORE = (
     Path(__file__).resolve().parents[3] / "config/policies/gate_a_authorization_trust.v1.json"
@@ -37,12 +42,27 @@ class GateAError(RuntimeError):
 
 
 @dataclass(frozen=True, kw_only=True)
+class GateAFixtureSelection:
+    selected_fixture_id: str
+    candidate_set_sha256: str
+    eligible_candidate_count: int
+    candidates: tuple[dict[str, str], ...]
+
+
+@dataclass(frozen=True, kw_only=True)
 class GateARuntimeAuthorization:
     authorization_id: str
     task_key: str
-    fixture_id: str
+    fixture_id: str | None
     competition_id: str
     season: str
+    provider_league_id: str
+    competition_policy_config_hash: str
+    fixture_scope_mode: str
+    kickoff_window_start_utc: datetime | None
+    kickoff_window_end_utc: datetime | None
+    selection_policy_version: str
+    selection_rule: str
     persistence: str
     exact_head: str
     exact_tree: str
@@ -87,6 +107,13 @@ class GateARuntimeAuthorization:
             "fixture_id",
             "competition_id",
             "season",
+            "provider_league_id",
+            "competition_policy_config_hash",
+            "fixture_scope_mode",
+            "kickoff_window_start_utc",
+            "kickoff_window_end_utc",
+            "selection_policy_version",
+            "selection_rule",
             "exact_head",
             "exact_tree",
             "execution_mode",
@@ -116,7 +143,14 @@ class GateARuntimeAuthorization:
             raise GateAError("GATE_A_INDEPENDENT_REVIEW_REQUIRED")
         authorization_id = str(payload["authorization_id"]).strip()
         task_key = str(payload["task_key"]).strip()
-        fixture_id = str(payload["fixture_id"]).strip()
+        fixture_id = _optional_str(payload["fixture_id"])
+        competition_id = str(payload["competition_id"]).strip()
+        season = str(payload["season"]).strip()
+        provider_league_id = str(payload["provider_league_id"]).strip()
+        policy_hash = str(payload["competition_policy_config_hash"]).strip()
+        fixture_scope_mode = str(payload["fixture_scope_mode"]).strip()
+        selection_policy_version = str(payload["selection_policy_version"]).strip()
+        selection_rule = str(payload["selection_rule"]).strip()
         exact_head = str(payload["exact_head"]).strip()
         exact_tree = str(payload["exact_tree"]).strip()
         execution_mode = str(payload["execution_mode"]).strip()
@@ -128,13 +162,36 @@ class GateARuntimeAuthorization:
             or len(authorization_id) > 128
             or not task_key
             or len(task_key) > 255
-            or not fixture_id
-            or len(fixture_id) > 128
+            or not competition_id
+            or not season
+            or not _positive_numeric(provider_league_id)
+            or re.fullmatch(r"[0-9a-f]{64}", policy_hash) is None
+            or selection_policy_version != GATE_A_SELECTION_POLICY_VERSION
+            or selection_rule != GATE_A_SELECTION_RULE
             or re.fullmatch(r"[0-9a-f]{40}", exact_head) is None
             or re.fullmatch(r"[0-9a-f]{40}", exact_tree) is None
             or not isinstance(raw_endpoints, list)
         ):
             raise GateAError("GATE_A_AUTHORIZATION_INVALID")
+        window_start = None
+        window_end = None
+        if fixture_scope_mode == GATE_A_EXACT_FIXTURE_SCOPE:
+            if not _positive_numeric(fixture_id):
+                raise GateAError("GATE_A_FIXTURE_SCOPE_INVALID")
+            if (
+                payload.get("kickoff_window_start_utc") is not None
+                or payload.get("kickoff_window_end_utc") is not None
+            ):
+                raise GateAError("GATE_A_KICKOFF_WINDOW_INVALID")
+        elif fixture_scope_mode == GATE_A_WINDOW_FIXTURE_SCOPE:
+            if fixture_id is not None:
+                raise GateAError("GATE_A_FIXTURE_SCOPE_INVALID")
+            window_start = _absolute_utc(payload["kickoff_window_start_utc"])
+            window_end = _absolute_utc(payload["kickoff_window_end_utc"])
+            if window_end <= window_start or window_end - window_start > timedelta(minutes=120):
+                raise GateAError("GATE_A_KICKOFF_WINDOW_INVALID")
+        else:
+            raise GateAError("GATE_A_FIXTURE_SCOPE_INVALID")
         if execution_mode == "IMMUTABLE_IMAGE":
             if (
                 runtime_artifact_digest is None
@@ -178,8 +235,15 @@ class GateARuntimeAuthorization:
             authorization_id=authorization_id,
             task_key=task_key,
             fixture_id=fixture_id,
-            competition_id=str(payload["competition_id"]),
-            season=str(payload["season"]),
+            competition_id=competition_id,
+            season=season,
+            provider_league_id=provider_league_id,
+            competition_policy_config_hash=policy_hash,
+            fixture_scope_mode=fixture_scope_mode,
+            kickoff_window_start_utc=window_start,
+            kickoff_window_end_utc=window_end,
+            selection_policy_version=selection_policy_version,
+            selection_rule=selection_rule,
             persistence="db",
             exact_head=exact_head,
             exact_tree=exact_tree,
@@ -204,13 +268,15 @@ class GateARuntimeAuthorization:
         season: str,
         persistence: str,
         task_key: str,
-        fixture_id: str,
+        fixture_id: str | None,
         exact_head: str,
         exact_tree: str,
         execution_mode: str,
         runtime_artifact_digest: str | None,
         complete_checkout_manifest_sha256: str | None,
         policy_season: str,
+        policy_provider_league_id: str,
+        policy_config_hash: str,
         now: datetime,
     ) -> None:
         current = _aware_utc(now)
@@ -222,11 +288,17 @@ class GateARuntimeAuthorization:
             raise GateAError("GATE_A_SEASON_SCOPE_MISMATCH")
         if policy_season != season or policy_season != self.season:
             raise GateAError("GATE_A_POLICY_SEASON_MISMATCH")
+        if policy_provider_league_id != self.provider_league_id:
+            raise GateAError("GATE_A_POLICY_PROVIDER_LEAGUE_MISMATCH")
+        if policy_config_hash != self.competition_policy_config_hash:
+            raise GateAError("GATE_A_POLICY_CONFIG_HASH_MISMATCH")
         if persistence != "db":
             raise GateAError("GATE_A_DB_PERSISTENCE_REQUIRED")
         if task_key != self.task_key:
             raise GateAError("GATE_A_TASK_KEY_SCOPE_MISMATCH")
-        if fixture_id != self.fixture_id:
+        if self.fixture_scope_mode == GATE_A_EXACT_FIXTURE_SCOPE and fixture_id != self.fixture_id:
+            raise GateAError("GATE_A_FIXTURE_SCOPE_MISMATCH")
+        if self.fixture_scope_mode == GATE_A_WINDOW_FIXTURE_SCOPE and fixture_id is not None:
             raise GateAError("GATE_A_FIXTURE_SCOPE_MISMATCH")
         if exact_head != self.exact_head:
             raise GateAError("GATE_A_EXACT_HEAD_MISMATCH")
@@ -247,20 +319,38 @@ class GateARunReservation:
     owner: str
     lease_epoch: int
     provider_call_cap: int
+    fixture_scope_mode: str
 
-    def reserve_provider_call(self, endpoint: str) -> int:
+    def reserve_provider_call(self, endpoint: str, *, fixture_id: str | None = None) -> int:
+        expected_before = {
+            "status": (0,),
+            "fixtures": (1,),
+            "odds": (2, 4),
+            "lineups": (3,),
+        }.get(endpoint)
+        if expected_before is None:
+            raise GateAError("GATE_A_PROVIDER_CALL_RESERVATION_REJECTED")
         engine = create_engine()
         with Session(engine) as session:
+            conditions = [
+                GateARunReservationModel.lease_epoch == self.lease_epoch,
+                GateARunReservationModel.authorization_id == self.authorization_id,
+                GateARunReservationModel.owner == self.owner,
+                GateARunReservationModel.status == "RESERVED",
+                GateARunReservationModel.provider_calls_used
+                < GateARunReservationModel.provider_call_cap,
+                GateARunReservationModel.provider_calls_used.in_(expected_before),
+            ]
+            if endpoint in {"odds", "lineups"}:
+                conditions.extend(
+                    [
+                        GateARunReservationModel.selected_fixture_id.is_not(None),
+                        GateARunReservationModel.selected_fixture_id == fixture_id,
+                    ]
+                )
             result = session.execute(
                 update(GateARunReservationModel)
-                .where(
-                    GateARunReservationModel.lease_epoch == self.lease_epoch,
-                    GateARunReservationModel.authorization_id == self.authorization_id,
-                    GateARunReservationModel.owner == self.owner,
-                    GateARunReservationModel.status == "RESERVED",
-                    GateARunReservationModel.provider_calls_used
-                    < GateARunReservationModel.provider_call_cap,
-                )
+                .where(*conditions)
                 .values(
                     provider_calls_used=GateARunReservationModel.provider_calls_used + 1,
                     last_endpoint=endpoint,
@@ -283,6 +373,48 @@ class GateARunReservation:
             )
             session.commit()
         return ordinal
+
+    def bind_selected_fixture(
+        self,
+        *,
+        fixture_id: str,
+        candidate_set_sha256: str,
+        discovery_capture_id: str,
+        eligible_candidate_count: int,
+        selected_at: datetime,
+    ) -> None:
+        if (
+            not _positive_numeric(fixture_id)
+            or re.fullmatch(r"[0-9a-f]{64}", candidate_set_sha256) is None
+            or not discovery_capture_id
+            or eligible_candidate_count < 1
+        ):
+            raise GateAError("GATE_A_FIXTURE_BINDING_FAILED")
+        engine = create_engine()
+        with Session(engine) as session:
+            result = session.execute(
+                update(GateARunReservationModel)
+                .where(
+                    GateARunReservationModel.lease_epoch == self.lease_epoch,
+                    GateARunReservationModel.authorization_id == self.authorization_id,
+                    GateARunReservationModel.owner == self.owner,
+                    GateARunReservationModel.status == "RESERVED",
+                    GateARunReservationModel.provider_calls_used == 2,
+                    GateARunReservationModel.last_endpoint == "fixtures",
+                    GateARunReservationModel.selected_fixture_id.is_(None),
+                )
+                .values(
+                    selected_fixture_id=fixture_id,
+                    fixture_candidate_set_sha256=candidate_set_sha256,
+                    fixture_discovery_capture_id=discovery_capture_id,
+                    eligible_candidate_count=eligible_candidate_count,
+                    fixture_selected_at=_aware_utc(selected_at),
+                )
+            )
+            if getattr(result, "rowcount", 0) != 1:
+                session.rollback()
+                raise GateAError("GATE_A_FIXTURE_BINDING_FAILED")
+            session.commit()
 
     def record_provider_outcome(
         self,
@@ -349,6 +481,12 @@ def reserve_gate_a_run(
             authorization_id=authorization.authorization_id,
             task_key=authorization.task_key,
             fixture_id=authorization.fixture_id,
+            provider_league_id=authorization.provider_league_id,
+            fixture_scope_mode=authorization.fixture_scope_mode,
+            kickoff_window_start_utc=authorization.kickoff_window_start_utc,
+            kickoff_window_end_utc=authorization.kickoff_window_end_utc,
+            selection_policy_version=authorization.selection_policy_version,
+            policy_config_hash=authorization.competition_policy_config_hash,
             competition_id=authorization.competition_id,
             season=authorization.season,
             exact_head=authorization.exact_head,
@@ -397,6 +535,7 @@ def reserve_gate_a_run(
         owner=owner,
         lease_epoch=lease_epoch,
         provider_call_cap=authorization.provider_call_cap,
+        fixture_scope_mode=authorization.fixture_scope_mode,
     )
 
 
@@ -487,6 +626,13 @@ def authorization_signing_message(payload: Mapping[str, Any]) -> bytes:
         payload.get("fixture_id"),
         payload.get("competition_id"),
         payload.get("season"),
+        payload.get("provider_league_id"),
+        payload.get("competition_policy_config_hash"),
+        payload.get("fixture_scope_mode"),
+        payload.get("kickoff_window_start_utc"),
+        payload.get("kickoff_window_end_utc"),
+        payload.get("selection_policy_version"),
+        payload.get("selection_rule"),
         payload.get("persistence"),
         payload.get("exact_head"),
         payload.get("exact_tree"),
@@ -503,7 +649,7 @@ def authorization_signing_message(payload: Mapping[str, Any]) -> bytes:
         payload.get("approval_public_key_sha256"),
         payload.get("approval_custody_status"),
     )
-    message = bytearray(b"W2_GATE_A_AUTHORIZATION_V3")
+    message = bytearray(b"W2_GATE_A_AUTHORIZATION_V4")
     for value in values:
         encoded = str(value).encode("utf-8")
         message.extend(len(encoded).to_bytes(4, "big"))
@@ -525,8 +671,123 @@ def _aware_utc(value: Any) -> datetime:
     return parsed.astimezone(UTC)
 
 
+def _absolute_utc(value: Any) -> datetime:
+    parsed = _aware_utc(value)
+    text = str(value)
+    if not (text.endswith("Z") or text.endswith("+00:00")):
+        raise GateAError("GATE_A_KICKOFF_WINDOW_INVALID")
+    return parsed
+
+
 def _optional_str(value: Any) -> str | None:
     if value is None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _positive_numeric(value: str | None) -> bool:
+    return bool(value and value.isascii() and value.isdigit() and int(value) > 0)
+
+
+def select_fixture_from_authorization(
+    payload: Mapping[str, Any],
+    authorization: GateARuntimeAuthorization,
+) -> GateAFixtureSelection:
+    if authorization.fixture_scope_mode not in {
+        GATE_A_EXACT_FIXTURE_SCOPE,
+        GATE_A_WINDOW_FIXTURE_SCOPE,
+    }:
+        raise GateAError("GATE_A_FIXTURE_SCOPE_INVALID")
+    response = payload.get("response")
+    if not isinstance(response, list):
+        raise GateAError("PROVIDER_FIXTURES_SCHEMA_DRIFT")
+    payload_hash_by_id: dict[str, str] = {}
+    candidates: list[dict[str, str]] = []
+    for item in response:
+        if not isinstance(item, Mapping):
+            continue
+        fixture = item.get("fixture")
+        league = item.get("league")
+        teams = item.get("teams")
+        if (
+            not isinstance(fixture, Mapping)
+            or not isinstance(league, Mapping)
+            or not isinstance(teams, Mapping)
+        ):
+            continue
+        fixture_id = str(fixture.get("id") or "")
+        if not _positive_numeric(fixture_id):
+            continue
+        if (
+            authorization.fixture_scope_mode == GATE_A_EXACT_FIXTURE_SCOPE
+            and fixture_id != authorization.fixture_id
+        ):
+            raise GateAError("GATE_A_FIXTURE_SCOPE_MISMATCH")
+        payload_hash = canonical_sha256(item, domain=HashDomain.FUTURE_REFRESH_EVIDENCE)
+        previous = payload_hash_by_id.get(fixture_id)
+        if previous is not None and previous != payload_hash:
+            raise GateAError("GATE_A_FIXTURE_CANDIDATE_CONFLICT")
+        if previous is not None:
+            continue
+        payload_hash_by_id[fixture_id] = payload_hash
+        status = fixture.get("status")
+        home = teams.get("home")
+        away = teams.get("away")
+        if (
+            not isinstance(status, Mapping)
+            or not isinstance(home, Mapping)
+            or not isinstance(away, Mapping)
+        ):
+            continue
+        try:
+            kickoff = _aware_utc(fixture.get("date"))
+        except GateAError:
+            continue
+        home_id = str(home.get("id") or "")
+        away_id = str(away.get("id") or "")
+        if (
+            str(status.get("short") or "") != "NS"
+            or str(league.get("id") or "") != authorization.provider_league_id
+            or str(league.get("season") or "") != authorization.season
+            or not _positive_numeric(home_id)
+            or not _positive_numeric(away_id)
+        ):
+            continue
+        if authorization.fixture_scope_mode == GATE_A_WINDOW_FIXTURE_SCOPE:
+            assert authorization.kickoff_window_start_utc is not None
+            assert authorization.kickoff_window_end_utc is not None
+            if not (
+                authorization.kickoff_window_start_utc
+                <= kickoff
+                <= authorization.kickoff_window_end_utc
+            ):
+                continue
+        candidates.append(
+            {
+                "fixture_id": fixture_id,
+                "kickoff_utc": kickoff.isoformat().replace("+00:00", "Z"),
+                "provider_league_id": authorization.provider_league_id,
+                "season": authorization.season,
+                "home_provider_team_id": home_id,
+                "away_provider_team_id": away_id,
+                "payload_sha256": payload_hash,
+            }
+        )
+    candidates.sort(key=lambda item: (item["kickoff_utc"], int(item["fixture_id"])))
+    if not candidates:
+        code = (
+            "GATE_A_NO_ELIGIBLE_FIXTURE_IN_SIGNED_WINDOW"
+            if authorization.fixture_scope_mode == GATE_A_WINDOW_FIXTURE_SCOPE
+            else "GATE_A_SIGNED_FIXTURE_NOT_ELIGIBLE"
+        )
+        raise GateAError(code)
+    return GateAFixtureSelection(
+        selected_fixture_id=candidates[0]["fixture_id"],
+        candidate_set_sha256=canonical_sha256(
+            candidates,
+            domain=HashDomain.FUTURE_REFRESH_EVIDENCE,
+        ),
+        eligible_candidate_count=len(candidates),
+        candidates=tuple(candidates),
+    )

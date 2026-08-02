@@ -18,6 +18,7 @@ from w2.prematch.analysis_calculator import ReadModelService
 class _Authorization:
     authorization_id = "test-authorization"
     fixture_id = "1489404"
+    fixture_scope_mode = "EXACT_FIXTURE_ID"
 
     def validate_scope(self, **kwargs: Any) -> None:
         if kwargs["persistence"] != "db":
@@ -37,7 +38,11 @@ def _authorize_execute(monkeypatch: Any) -> object:
     )
     monkeypatch.setattr(
         "w2.ingestion.future_refresh.load_refresh_policy",
-        lambda **_kwargs: SimpleNamespace(season="2026"),
+        lambda **_kwargs: SimpleNamespace(
+            season="2026",
+            provider_league_id="1",
+            config_hash="d" * 64,
+        ),
     )
     monkeypatch.setattr("w2.monitoring.readiness.schema_check", lambda _settings: (True, "ok"))
     monkeypatch.setattr(

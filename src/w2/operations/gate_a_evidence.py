@@ -18,9 +18,14 @@ from w2.domain.canonical_serialization import (
     canonical_sha256,
     eval_02b_bootstrap_seed,
 )
-from w2.operations.gate_a import GateARuntimeAuthorization
+from w2.operations.gate_a import (
+    GATE_A_EXACT_FIXTURE_SCOPE,
+    GATE_A_SELECTION_POLICY_VERSION,
+    GATE_A_WINDOW_FIXTURE_SCOPE,
+    GateARuntimeAuthorization,
+)
 
-GATE_A_EVIDENCE_SCHEMA = "w2.gate-a-admission-evidence.v5"
+GATE_A_EVIDENCE_SCHEMA = "w2.gate-a-admission-evidence.v6"
 SERIALIZER_VERSION = "w2.canonical-json.v2"
 ROOT = Path(__file__).resolve().parents[3]
 ORACLE_SOURCE = ROOT / "oracle/canonical_serialization_oracle.py"
@@ -37,6 +42,12 @@ REQUIRED_BINDING_FIELDS = {
     "authorization_id",
     "task_key",
     "fixture_id",
+    "provider_league_id",
+    "fixture_scope_mode",
+    "kickoff_window_start_utc",
+    "kickoff_window_end_utc",
+    "selection_policy_version",
+    "policy_config_hash",
     "competition",
     "policy_season",
     "exact_head",
@@ -106,6 +117,12 @@ def _validate_binding(value: Any, *, authorization: GateARuntimeAuthorization) -
         "authorization_id": authorization.authorization_id,
         "task_key": authorization.task_key,
         "fixture_id": authorization.fixture_id,
+        "provider_league_id": authorization.provider_league_id,
+        "fixture_scope_mode": authorization.fixture_scope_mode,
+        "kickoff_window_start_utc": _iso_or_none(authorization.kickoff_window_start_utc),
+        "kickoff_window_end_utc": _iso_or_none(authorization.kickoff_window_end_utc),
+        "selection_policy_version": authorization.selection_policy_version,
+        "policy_config_hash": authorization.competition_policy_config_hash,
         "competition": authorization.competition_id,
         "policy_season": authorization.season,
         "exact_head": authorization.exact_head,
@@ -137,6 +154,7 @@ def _validate_authority_lineage(
 ) -> None:
     signed = _mapping(lineage.get("signed_authorization"), "SIGNED_AUTHORIZATION_LINEAGE_INVALID")
     reservation = _mapping(lineage.get("reservation"), "RESERVATION_LINEAGE_INVALID")
+    selection = _mapping(lineage.get("fixture_selection"), "FIXTURE_SELECTION_LINEAGE_INVALID")
     audit = _mapping(lineage.get("task_audit"), "TASK_AUDIT_LINEAGE_INVALID")
     if (
         signed.get("approval_key_id") != authorization.approval_key_id
@@ -146,6 +164,14 @@ def _validate_authority_lineage(
         or reservation.get("authorization_id") != authorization.authorization_id
         or reservation.get("task_key") != authorization.task_key
         or reservation.get("fixture_id") != authorization.fixture_id
+        or reservation.get("provider_league_id") != authorization.provider_league_id
+        or reservation.get("fixture_scope_mode") != authorization.fixture_scope_mode
+        or reservation.get("kickoff_window_start_utc")
+        != _iso_or_none(authorization.kickoff_window_start_utc)
+        or reservation.get("kickoff_window_end_utc")
+        != _iso_or_none(authorization.kickoff_window_end_utc)
+        or reservation.get("selection_policy_version") != authorization.selection_policy_version
+        or reservation.get("policy_config_hash") != authorization.competition_policy_config_hash
         or reservation.get("status") != "COMPLETED"
         or audit.get("task_key") != authorization.task_key
         or audit.get("authorization_id") != authorization.authorization_id
@@ -153,6 +179,11 @@ def _validate_authority_lineage(
         or audit.get("status") != "COMPLETED"
     ):
         raise GateAEvidenceError("AUTHORITY_LINEAGE_MISMATCH")
+    selected_fixture_id = _validate_fixture_selection(
+        selection,
+        reservation=reservation,
+        authorization=authorization,
+    )
     provider_calls = _list_of_mappings(
         lineage.get("provider_calls"), "PROVIDER_CALL_LINEAGE_INVALID"
     )
@@ -162,9 +193,7 @@ def _validate_authority_lineage(
     ordinals = [row.get("ordinal") for row in provider_calls]
     provider_calls_used = reservation.get("provider_calls_used")
     provider_call_cap = reservation.get("provider_call_cap")
-    request_count = _mapping(
-        audit.get("result"), "AUTHORITY_LINEAGE_MISMATCH"
-    ).get("request_count")
+    request_count = _mapping(audit.get("result"), "AUTHORITY_LINEAGE_MISMATCH").get("request_count")
     if (
         isinstance(provider_calls_used, bool)
         or not isinstance(provider_calls_used, int)
@@ -191,22 +220,25 @@ def _validate_authority_lineage(
         "odds",
     ]:
         raise GateAEvidenceError("STAGED_PROVIDER_SEQUENCE_INVALID")
-    fixture_aliases = {
-        authorization.fixture_id,
-        (
-            authorization.fixture_id.removeprefix("api_football:")
-            if authorization.fixture_id.startswith("api_football:")
-            else f"api_football:{authorization.fixture_id}"
-        ),
-    }
+    fixture_aliases = _fixture_aliases(selected_fixture_id)
     captures = _list_of_mappings(
         lineage.get("endpoint_capture_rows"), "ENDPOINT_CAPTURE_LINEAGE_INVALID"
     )
-    if any(
-        row.get("fixture_id") is not None and row.get("fixture_id") not in fixture_aliases
-        for row in captures
-    ):
-        raise GateAEvidenceError("GATE_A_FIXTURE_SCOPE_MISMATCH")
+    discovery_capture_id = selection.get("discovery_endpoint_capture_id")
+    for row in captures:
+        endpoint = row.get("endpoint")
+        fixture_id = row.get("fixture_id")
+        if endpoint == "fixtures":
+            if row.get("capture_id") != discovery_capture_id or fixture_id is not None:
+                raise GateAEvidenceError("GATE_A_FIXTURE_DISCOVERY_LINEAGE_INVALID")
+        elif endpoint == "status":
+            if fixture_id is not None:
+                raise GateAEvidenceError("GATE_A_FIXTURE_SCOPE_MISMATCH")
+        elif endpoint in {"odds", "lineups"}:
+            if fixture_id not in fixture_aliases:
+                raise GateAEvidenceError("GATE_A_FIXTURE_SCOPE_MISMATCH")
+        else:
+            raise GateAEvidenceError("PROVIDER_ENDPOINT_OUTSIDE_SIGNED_SCOPE")
     source_sha = signed.get("source_sha256")
     if (
         not isinstance(source_sha, str)
@@ -214,6 +246,87 @@ def _validate_authority_lineage(
         or not isinstance(audit.get("result"), Mapping)
     ):
         raise GateAEvidenceError("AUTHORITY_LINEAGE_MISMATCH")
+
+
+def _validate_fixture_selection(
+    selection: Mapping[str, Any],
+    *,
+    reservation: Mapping[str, Any],
+    authorization: GateARuntimeAuthorization,
+) -> str:
+    candidates = _list_of_mappings(
+        selection.get("eligible_candidates"), "FIXTURE_SELECTION_LINEAGE_INVALID"
+    )
+    selected = selection.get("selected_fixture_id")
+    candidate_hash = selection.get("candidate_set_sha256")
+    if (
+        selection.get("fixture_scope_mode") != authorization.fixture_scope_mode
+        or selection.get("kickoff_window_start_utc")
+        != _iso_or_none(authorization.kickoff_window_start_utc)
+        or selection.get("kickoff_window_end_utc")
+        != _iso_or_none(authorization.kickoff_window_end_utc)
+        or selection.get("selection_policy_version") != GATE_A_SELECTION_POLICY_VERSION
+        or selection.get("policy_config_hash") != authorization.competition_policy_config_hash
+        or selection.get("provider_league_id") != authorization.provider_league_id
+        or not isinstance(selected, str)
+        or not selected.isascii()
+        or not selected.isdigit()
+        or int(selected) <= 0
+        or selection.get("reservation_selected_fixture_id") != selected
+        or reservation.get("selected_fixture_id") != selected
+        or reservation.get("fixture_candidate_set_sha256") != candidate_hash
+        or reservation.get("fixture_discovery_capture_id")
+        != selection.get("discovery_endpoint_capture_id")
+        or reservation.get("eligible_candidate_count") != len(candidates)
+        or selection.get("eligible_candidate_count") != len(candidates)
+        or reservation.get("fixture_selected_at") != selection.get("selected_at")
+        or not candidates
+        or candidates[0].get("fixture_id") != selected
+    ):
+        raise GateAEvidenceError("FIXTURE_SELECTION_LINEAGE_MISMATCH")
+    for candidate in candidates:
+        candidate_fixture_id = candidate.get("fixture_id")
+        if (
+            not isinstance(candidate_fixture_id, str)
+            or not candidate_fixture_id.isascii()
+            or not candidate_fixture_id.isdigit()
+            or int(candidate_fixture_id) <= 0
+        ):
+            raise GateAEvidenceError("FIXTURE_SELECTION_LINEAGE_INVALID")
+    if candidate_hash != canonical_sha256(candidates, domain=HashDomain.FUTURE_REFRESH_EVIDENCE):
+        raise GateAEvidenceError("FIXTURE_SELECTION_LINEAGE_MISMATCH")
+    ordered = sorted(
+        candidates,
+        key=lambda item: (str(item.get("kickoff_utc") or ""), int(str(item["fixture_id"]))),
+    )
+    if candidates != ordered:
+        raise GateAEvidenceError("FIXTURE_SELECTION_ORDER_INVALID")
+    if authorization.fixture_scope_mode == GATE_A_EXACT_FIXTURE_SCOPE:
+        if selected != authorization.fixture_id:
+            raise GateAEvidenceError("GATE_A_FIXTURE_SCOPE_MISMATCH")
+    elif authorization.fixture_scope_mode == GATE_A_WINDOW_FIXTURE_SCOPE:
+        assert authorization.kickoff_window_start_utc is not None
+        assert authorization.kickoff_window_end_utc is not None
+        for candidate in candidates:
+            kickoff = _parse_iso(candidate.get("kickoff_utc"), "FIXTURE_SELECTION_LINEAGE_INVALID")
+            if (
+                candidate.get("provider_league_id") != authorization.provider_league_id
+                or candidate.get("season") != authorization.season
+                or not authorization.kickoff_window_start_utc
+                <= kickoff
+                <= authorization.kickoff_window_end_utc
+            ):
+                raise GateAEvidenceError("GATE_A_FIXTURE_SCOPE_MISMATCH")
+    else:
+        raise GateAEvidenceError("GATE_A_FIXTURE_SCOPE_MISMATCH")
+    selected_at = _parse_iso(selection.get("selected_at"), "FIXTURE_SELECTION_LINEAGE_INVALID")
+    if not (
+        _parse_iso(reservation.get("reserved_at"), "FIXTURE_SELECTION_LINEAGE_INVALID")
+        <= selected_at
+        <= _parse_iso(reservation.get("finished_at"), "FIXTURE_SELECTION_LINEAGE_INVALID")
+    ):
+        raise GateAEvidenceError("FIXTURE_SELECTION_TIME_INVALID")
+    return selected
 
 
 def _production_pair_hashes(
@@ -301,12 +414,57 @@ def _validate_content(lineage: Mapping[str, Any], *, pair_rows: list[Mapping[str
     if any(row.get("raw_payload_sha256") not in raw_hashes for row in captures):
         raise GateAEvidenceError("RAW_ENDPOINT_LINEAGE_MISMATCH")
     capture_by_id = {row.get("capture_id"): row for row in captures}
+    selected = str(
+        _mapping(lineage.get("fixture_selection"), "FIXTURE_SELECTION_LINEAGE_INVALID").get(
+            "selected_fixture_id"
+        )
+        or ""
+    )
+    aliases = _fixture_aliases(selected)
+    fixture_identities = _list_of_mappings(
+        lineage.get("fixture_identity_rows"), "FIXTURE_IDENTITY_LINEAGE_INVALID"
+    )
+    if not fixture_identities:
+        raise GateAEvidenceError("FIXTURE_IDENTITY_LINEAGE_INVALID")
+    selection = _mapping(lineage.get("fixture_selection"), "FIXTURE_SELECTION_LINEAGE_INVALID")
+    discovery_capture_id = selection.get("discovery_endpoint_capture_id")
+    selected_candidate = next(
+        (
+            candidate
+            for candidate in _list_of_mappings(
+                selection.get("eligible_candidates"), "FIXTURE_SELECTION_LINEAGE_INVALID"
+            )
+            if candidate.get("fixture_id") == selected
+        ),
+        None,
+    )
+    for row in fixture_identities:
+        if (
+            selected_candidate is None
+            or row.get("fixture_id") not in aliases
+            or row.get("provider_fixture_id") != selected
+            or row.get("competition_id")
+            != _mapping(lineage.get("reservation"), "RESERVATION_LINEAGE_INVALID").get(
+                "competition_id"
+            )
+            or row.get("provider_league_id") != selection.get("provider_league_id")
+            or row.get("season")
+            != _mapping(lineage.get("reservation"), "RESERVATION_LINEAGE_INVALID").get("season")
+            or row.get("kickoff_utc") != selected_candidate.get("kickoff_utc")
+            or row.get("endpoint_capture_id") != discovery_capture_id
+            or row.get("raw_payload_sha256") not in raw_hashes
+        ):
+            raise GateAEvidenceError("FIXTURE_IDENTITY_LINEAGE_INVALID")
     lineup_rows = _list_of_mappings(
         lineage.get("lineup_event_rows"), "LINEUP_EVENT_LINEAGE_INVALID"
     )
     for row in lineup_rows:
         source = capture_by_id.get(row.get("source_capture_id"))
-        if source is None or source.get("raw_payload_sha256") != row.get("raw_sha256"):
+        if (
+            source is None
+            or source.get("raw_payload_sha256") != row.get("raw_sha256")
+            or row.get("fixture_id") not in aliases
+        ):
             raise GateAEvidenceError("LINEUP_CAPTURE_LINEAGE_MISMATCH")
     dynamics = _list_of_mappings(
         lineage.get("dynamic_evaluation_v2_rows"), "DYNAMIC_EVALUATION_LINEAGE_INVALID"
@@ -314,6 +472,7 @@ def _validate_content(lineage: Mapping[str, Any], *, pair_rows: list[Mapping[str
     if any(
         row.get("schema_version") != "w2.dynamic_quote_evaluation.v2"
         or row.get("capture_id") not in capture_by_id
+        or row.get("fixture_id") not in aliases
         for row in dynamics
     ):
         raise GateAEvidenceError("DYNAMIC_EVALUATION_V2_REQUIRED")
@@ -330,6 +489,9 @@ def _validate_content(lineage: Mapping[str, Any], *, pair_rows: list[Mapping[str
         ):
             raise GateAEvidenceError("FIVE_STATE_LINEAGE_HASH_MISMATCH")
     for pair in pair_rows:
+        identity = _mapping(pair.get("identity_input"), "EXACT_PAIR_EVIDENCE_INVALID")
+        if identity.get("canonical_fixture_id") not in aliases:
+            raise GateAEvidenceError("GATE_A_FIXTURE_SCOPE_MISMATCH")
         _validate_distribution(pair.get("baseline_distribution"))
         _validate_distribution(pair.get("candidate_distribution"))
 
@@ -496,3 +658,13 @@ def _contains_non_finite(value: Any) -> bool:
 
 def _file_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _fixture_aliases(fixture_id: str) -> set[str]:
+    if fixture_id.startswith("api_football:"):
+        return {fixture_id, fixture_id.removeprefix("api_football:")}
+    return {fixture_id, f"api_football:{fixture_id}"}
+
+
+def _iso_or_none(value: datetime | None) -> str | None:
+    return None if value is None else value.astimezone(UTC).isoformat().replace("+00:00", "Z")

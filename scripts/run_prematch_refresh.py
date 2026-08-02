@@ -224,10 +224,14 @@ def main() -> int:
         if args.season != policy.season:
             raise GateAError("GATE_A_POLICY_SEASON_MISMATCH")
         authorization = GateARuntimeAuthorization.load(args.authorization_file)
+        if authorization.fixture_scope_mode != "EXACT_FIXTURE_ID":
+            raise GateAError("GATE_A_STAGED_CANARY_REQUIRED")
         authorization.validate_scope(
             competition_id=args.competition_id,
             season=args.season,
             policy_season=policy.season,
+            policy_provider_league_id=policy.provider_league_id,
+            policy_config_hash=policy.config_hash,
             persistence=args.persistence,
             task_key=key,
             fixture_id=authorization.fixture_id,

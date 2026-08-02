@@ -8,18 +8,25 @@ contracts. The machine authority is
 The canary-only executable runtime is the direct foreground command
 `scripts/run_gate_a_staged_canary.py`. It does not alter the ordinary future-refresh
 or C9 path. It is fail-closed by default and accepts a short-lived independently
-reviewed one-shot authorization bound to one fixture, competition, season, task key,
-exact runtime artifact, the exact `status, fixtures, odds, lineups` endpoint set, and
-a five-call cap. It requires DB persistence and migration-head parity and atomically
-fences concurrent owners with a PostgreSQL lease epoch plus per-call reservation. A
-possible Provider delivery stops automatic retry.
+reviewed v4 one-shot authorization bound to a competition, season, Provider league,
+competition-policy hash, task key, exact runtime artifact, the exact `status,
+fixtures, odds, lineups` endpoint set, and a five-call cap. Fixture scope is either
+`EXACT_FIXTURE_ID` or an absolute UTC `SIGNED_KICKOFF_WINDOW` of at most 120 minutes.
+It requires DB persistence and migration-head parity and atomically fences concurrent
+owners with a PostgreSQL lease epoch plus per-call reservation. A possible Provider
+delivery stops automatic retry.
 
-The coordinator has one fixed order: `status → fixtures(signed fixture only) →
+The coordinator has one fixed order: `status → fixtures(signed scope only) →
 odds_pre → Pre dynamic-v2/five-state → lineups → canonical lineup event → odds_post
 → Post dynamic-v2/five-state → exact pair → DB evidence`. Pre capture must be before
 the lineup event and Post capture must be at or after it. The staged dynamic rows are
 derived from persisted exact same-line quotes by the production lifecycle writer;
 they are feasibility evidence only and cannot activate Candidate or Formal state.
+Window selection filters complete NS fixtures by the signed league, season, and UTC
+window, then selects by earliest kickoff and lowest numeric fixture ID. Migration
+0050 stores the signed scope and atomically binds the selected fixture and canonical
+candidate-set hash after the fixtures capture; odds, lineups, and business writes are
+rejected before that one-time binding.
 
 Admission binds either an immutable image digest or a disposable complete-clean
 checkout manifest. Checkout mode rejects every tracked/untracked change and any
@@ -48,6 +55,9 @@ the audit result, ordinals are contiguous, endpoints stay in signed scope, and
 the call cap is enforced. Raw-payload evidence counts only rows whose DB
 `inserted_at` proves first persistence after reservation, so a new capture of a
 pre-existing SHA yields a zero delta and fails admission.
+Evidence v6 independently recomputes the candidate set from the DB-backed discovery
+raw payload and binds its capture, count, hash, selected fixture, selection time, and
+fixture identity to every later fixture-scoped capture and artifact.
 
 The command requires exactly five received calls in the staged order and exact
 dynamic-v2 and five-state content (finite,

@@ -25,9 +25,16 @@ from w2.infrastructure.persistence.dynamic_prematch_models import (
 from w2.infrastructure.persistence.future_refresh_models import (
     RawPayloadModel,
 )
-from w2.infrastructure.persistence.matchday_intake_models import MatchdayEndpointCaptureModel
+from w2.infrastructure.persistence.matchday_intake_models import (
+    MatchdayEndpointCaptureModel,
+    MatchdayFixtureIdentityModel,
+)
 from w2.ingestion.future_refresh import FutureRefreshResult, run_future_refresh_task
-from w2.operations.gate_a import GateARuntimeAuthorization, reserve_gate_a_run
+from w2.operations.gate_a import (
+    GateARuntimeAuthorization,
+    reserve_gate_a_run,
+    select_fixture_from_authorization,
+)
 from w2.operations.gate_a_evidence import GateAEvidenceError, validate_gate_a_evidence
 from w2.operations.gate_a_evidence_producer import produce_gate_a_evidence
 from w2.prematch.repository import ExactPairIdentity, ExactPrePostPair
@@ -56,7 +63,7 @@ def test_cli_plan_to_signed_reservation_audit_producer_validator_e2e(
     authorization_file = tmp_path / "signed-authorization.json"
     trust_store = tmp_path / "trust.json"
     authorization_file.write_text(
-        json.dumps(authorization_payload(task_key=task_key, fixture_id="fixture-1")),
+        json.dumps(authorization_payload(task_key=task_key, fixture_id="12345")),
         encoding="utf-8",
     )
     trust_store.write_text(
@@ -75,25 +82,25 @@ def test_cli_plan_to_signed_reservation_audit_producer_validator_e2e(
         ),
         encoding="utf-8",
     )
-    auth = GateARuntimeAuthorization.load(
-        authorization_file, trust_store_path=trust_store
-    )
+    auth = GateARuntimeAuthorization.load(authorization_file, trust_store_path=trust_store)
     auth.validate_scope(
         competition_id="world_cup_2026",
         season="2026",
         persistence="db",
         task_key=task_key,
-        fixture_id="fixture-1",
+        fixture_id="12345",
         exact_head=auth.exact_head,
         exact_tree=auth.exact_tree,
         execution_mode=auth.execution_mode,
         runtime_artifact_digest=auth.runtime_artifact_digest,
         complete_checkout_manifest_sha256=auth.complete_checkout_manifest_sha256,
         policy_season="2026",
+        policy_provider_league_id="1",
+        policy_config_hash="d" * 64,
         now=NOW,
     )
     identity = ExactPairIdentity(
-        canonical_fixture_id="fixture-1",
+        canonical_fixture_id="12345",
         competition_id="world_cup_2026",
         season_id="2026",
         provider_id="api_football",
@@ -130,9 +137,30 @@ def test_cli_plan_to_signed_reservation_audit_producer_validator_e2e(
         lambda _engine: SimpleNamespace(pairs=(pair,)),
     )
     reservation = reserve_gate_a_run(auth, owner="owner", now=NOW - timedelta(minutes=1))
+    fixture_response = {
+        "response": [
+            {
+                "fixture": {
+                    "id": 12345,
+                    "date": (NOW + timedelta(hours=1)).isoformat(),
+                    "status": {"short": "NS"},
+                },
+                "league": {"id": 1, "season": 2026},
+                "teams": {"home": {"id": 10}, "away": {"id": 20}},
+            }
+        ]
+    }
     with Session(engine) as session:
         session.add_all(
             [
+                RawPayloadModel(
+                    sha256="0" * 64,
+                    endpoint="fixtures",
+                    captured_at=NOW - timedelta(seconds=30),
+                    inserted_at=raw_inserted_at,
+                    storage_uri="db://raw_payload/0",
+                    payload=fixture_response,
+                ),
                 RawPayloadModel(
                     sha256="1" * 64,
                     endpoint="odds",
@@ -142,8 +170,47 @@ def test_cli_plan_to_signed_reservation_audit_producer_validator_e2e(
                     payload={"response": []},
                 ),
                 MatchdayEndpointCaptureModel(
+                    capture_id="capture-fixtures",
+                    fixture_id=None,
+                    competition_id="world_cup_2026",
+                    checkpoint="FIXTURES",
+                    endpoint="fixtures",
+                    sanitized_params={"id": "12345"},
+                    params_hash="0" * 64,
+                    request_task_key=auth.task_key,
+                    attempt=1,
+                    requested_at=NOW - timedelta(seconds=30),
+                    provider_captured_at=NOW - timedelta(seconds=30),
+                    status_code=200,
+                    elapsed_ms=1,
+                    response_count=1,
+                    quota_values={},
+                    raw_payload_sha256="0" * 64,
+                    capture_status="CAPTURED",
+                ),
+                MatchdayFixtureIdentityModel(
+                    fixture_id="api_football:12345",
+                    provider="api_football",
+                    provider_fixture_id="12345",
+                    competition_id="world_cup_2026",
+                    provider_league_id="1",
+                    season="2026",
+                    kickoff_utc=NOW + timedelta(hours=1),
+                    fixture_status="NS",
+                    home_provider_team_id="10",
+                    away_provider_team_id="20",
+                    home_w2_team_id=None,
+                    away_w2_team_id=None,
+                    team_identity_status="PENDING",
+                    raw_payload_sha256="0" * 64,
+                    endpoint_capture_id="capture-fixtures",
+                    captured_at=NOW - timedelta(seconds=30),
+                    identity_hash="8" * 64,
+                    payload={},
+                ),
+                MatchdayEndpointCaptureModel(
                     capture_id="capture-post",
-                    fixture_id="fixture-1",
+                    fixture_id="12345",
                     competition_id="world_cup_2026",
                     checkpoint="LINEUP_CONFIRMED",
                     endpoint="odds",
@@ -162,7 +229,7 @@ def test_cli_plan_to_signed_reservation_audit_producer_validator_e2e(
                 ),
                 LineupConfirmedEventModel(
                     event_id="lineup-event-1",
-                    fixture_id="fixture-1",
+                    fixture_id="12345",
                     lineup_input_hash="lineup-hash",
                     captured_at=NOW,
                     checkpoint="LINEUP_CONFIRMED",
@@ -181,7 +248,7 @@ def test_cli_plan_to_signed_reservation_audit_producer_validator_e2e(
                 DynamicPrematchEvaluationModel(
                     evaluation_id=evaluation_id,
                     identity_hash=(evaluation_id + "0" * 64)[:64],
-                    fixture_id="fixture-1",
+                    fixture_id="12345",
                     market="ASIAN_HANDICAP",
                     selection="HOME",
                     checkpoint="LINEUP_CONFIRMED",
@@ -202,8 +269,19 @@ def test_cli_plan_to_signed_reservation_audit_producer_validator_e2e(
                 )
             )
         session.commit()
-    for endpoint in ("status", "fixtures", "odds", "lineups", "odds"):
+    for endpoint in ("status", "fixtures"):
         ordinal = reservation.reserve_provider_call(endpoint)
+        reservation.record_provider_outcome(ordinal, state="RESPONSE_RECEIVED")
+    selected = select_fixture_from_authorization(fixture_response, auth)
+    reservation.bind_selected_fixture(
+        fixture_id=selected.selected_fixture_id,
+        candidate_set_sha256=selected.candidate_set_sha256,
+        discovery_capture_id="capture-fixtures",
+        eligible_candidate_count=selected.eligible_candidate_count,
+        selected_at=NOW - timedelta(seconds=20),
+    )
+    for endpoint in ("odds", "lineups", "odds"):
+        ordinal = reservation.reserve_provider_call(endpoint, fixture_id="12345")
         reservation.record_provider_outcome(ordinal, state="RESPONSE_RECEIVED")
     monkeypatch.setattr(
         "w2.ingestion.future_refresh.run_future_fixture_refresh",
@@ -216,7 +294,7 @@ def test_cli_plan_to_signed_reservation_audit_producer_validator_e2e(
             ledger_appended_count=1,
             request_count=5,
             remaining_quota=1,
-            selected_market_fixture_ids=["fixture-1"],
+            selected_market_fixture_ids=["12345"],
         ),
     )
     audit = run_future_refresh_task(
@@ -244,10 +322,20 @@ def test_cli_plan_to_signed_reservation_audit_producer_validator_e2e(
             "after": 5,
             "delta": 5,
         }
+        assert evidence["artifact_counts"]["raw_payload"] == {
+            "before": 0,
+            "after": 2,
+            "delta": 2,
+        }
+        assert evidence["artifact_counts"]["endpoint_capture"] == {
+            "before": 0,
+            "after": 2,
+            "delta": 2,
+        }
         assert all(
             count == {"before": 0, "after": 1, "delta": 1}
             for name, count in evidence["artifact_counts"].items()
-            if name != "provider_calls"
+            if name not in {"provider_calls", "raw_payload", "endpoint_capture"}
         )
     else:
         assert evidence["artifact_counts"]["raw_payload"] == {
@@ -263,5 +351,8 @@ def test_cli_plan_to_signed_reservation_audit_producer_validator_e2e(
                     "source_sha256"
                 ],
             )
-    assert evidence["lineage"]["endpoint_capture_rows"][0]["capture_id"] == "capture-post"
+    assert {row["capture_id"] for row in evidence["lineage"]["endpoint_capture_rows"]} == {
+        "capture-fixtures",
+        "capture-post",
+    }
     assert len(evidence["lineage"]["exact_pair_source_rows"]) == 2

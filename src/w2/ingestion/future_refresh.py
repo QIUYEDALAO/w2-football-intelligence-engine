@@ -32,8 +32,11 @@ from w2.markets.asian_handicap_scope import canonical_market_from_label
 from w2.operations.gate_a import (
     GATE_A_CANARY_ENDPOINTS,
     GATE_A_CANARY_PROVIDER_CALL_CAP,
+    GATE_A_EXACT_FIXTURE_SCOPE,
+    GATE_A_WINDOW_FIXTURE_SCOPE,
     GateARunReservation,
     GateARuntimeAuthorization,
+    select_fixture_from_authorization,
 )
 from w2.prematch.read_model_projection import (
     ProjectionSourceEvent,
@@ -90,6 +93,7 @@ class CompetitionRefreshPolicy:
     daily_usage_scope: str
     checkpoint_mode: str
     trickle_backfill_daily_budget: int
+    config_hash: str
 
 
 @dataclass(frozen=True)
@@ -118,6 +122,7 @@ class FutureRefreshConfig:
     trickle_backfill_daily_budget: int = 0
     actual_provider_calls_today: int | None = None
     provider_refresh_batch_size: int = 3
+    policy_config_hash: str = ""
     checkpoint_fixture_ids: tuple[str, ...] = ()
     refresh_checkpoints: tuple[dict[str, Any], ...] = ()
 
@@ -286,6 +291,7 @@ def load_refresh_policy(
             daily_usage_scope=str(item.get("daily_usage_scope", "provider_quota")),
             checkpoint_mode=str(item.get("checkpoint_mode", "matchday_intake_v2_compatibility")),
             trickle_backfill_daily_budget=int(item.get("trickle_backfill_daily_budget", 0)),
+            config_hash=entry.config_hash,
         )
     raise FutureRefreshError("FUTURE_REFRESH_COMPETITION_NOT_REGISTERED")
 
@@ -320,6 +326,7 @@ def config_from_policy(
         daily_usage_scope=policy.daily_usage_scope,
         checkpoint_mode=policy.checkpoint_mode,
         trickle_backfill_daily_budget=policy.trickle_backfill_daily_budget,
+        policy_config_hash=policy.config_hash,
     )
 
 
@@ -877,7 +884,7 @@ class FutureFixtureRefreshService:
             self._write_audit(result)
         return result
 
-    def run_staged_gate_a_canary(self, fixture_id: str) -> FutureRefreshResult:
+    def run_staged_gate_a_canary(self, fixture_id: str | None = None) -> FutureRefreshResult:
         """Run the isolated five-call Pre/Lineup/Post feasibility path."""
         authorization = self.runtime_authorization
         if (
@@ -886,7 +893,10 @@ class FutureFixtureRefreshService:
             or self.config.persistence != "db"
         ):
             raise FutureRefreshError("GATE_A_STAGED_CANARY_AUTHORIZATION_REQUIRED")
-        if fixture_id != authorization.fixture_id:
+        if (
+            authorization.fixture_scope_mode == GATE_A_EXACT_FIXTURE_SCOPE
+            and fixture_id != authorization.fixture_id
+        ):
             raise FutureRefreshError("GATE_A_FIXTURE_SCOPE_MISMATCH")
         if (
             authorization.allowed_endpoints != GATE_A_CANARY_ENDPOINTS
@@ -895,9 +905,44 @@ class FutureFixtureRefreshService:
             raise FutureRefreshError("GATE_A_STAGED_CANARY_SCOPE_INVALID")
 
         self._request("status", {})
-        fixture_params = {"id": fixture_id}
-        fixtures_response = self._request("fixtures", fixture_params)
-        fixtures = self._signed_fixture_rows(fixtures_response.payload, fixture_id)
+        if authorization.fixture_scope_mode == GATE_A_WINDOW_FIXTURE_SCOPE:
+            assert authorization.kickoff_window_start_utc is not None
+            assert authorization.kickoff_window_end_utc is not None
+            fixture_params = {
+                "league": authorization.provider_league_id,
+                "season": authorization.season,
+                "from": authorization.kickoff_window_start_utc.date().isoformat(),
+                "to": authorization.kickoff_window_end_utc.date().isoformat(),
+            }
+        else:
+            assert fixture_id is not None
+            fixture_params = {"id": fixture_id}
+        fixtures_response = self._request("fixtures", fixture_params, allow_empty_response=True)
+        if authorization.fixture_scope_mode == GATE_A_WINDOW_FIXTURE_SCOPE:
+            selection = select_fixture_from_authorization(
+                fixtures_response.payload,
+                authorization,
+            )
+            fixture_id = selection.selected_fixture_id
+            fixtures = self._selected_fixture_rows(fixtures_response.payload, fixture_id)
+        else:
+            assert fixture_id is not None
+            fixtures = self._signed_fixture_rows(fixtures_response.payload, fixture_id)
+            selection = select_fixture_from_authorization(
+                fixtures_response.payload,
+                authorization,
+            )
+        discovery_capture_id = self._fixture_discovery_capture_id(
+            fixtures_response,
+            request_params=fixture_params,
+        )
+        self.provider_call_reservation.bind_selected_fixture(
+            fixture_id=fixture_id,
+            candidate_set_sha256=selection.candidate_set_sha256,
+            discovery_capture_id=discovery_capture_id,
+            eligible_candidate_count=selection.eligible_candidate_count,
+            selected_at=fixtures_response.captured_at,
+        )
         self._persist_canary_fixture_identity(
             fixtures_response,
             fixtures,
@@ -987,6 +1032,50 @@ class FutureFixtureRefreshService:
         )
         self._write_audit(result)
         return result
+
+    @staticmethod
+    def _selected_fixture_rows(
+        payload: dict[str, Any],
+        fixture_id: str,
+    ) -> list[dict[str, Any]]:
+        response = payload.get("response")
+        if not isinstance(response, list):
+            raise FutureRefreshError("PROVIDER_FIXTURES_SCHEMA_DRIFT")
+        row = next(
+            (
+                item
+                for item in response
+                if isinstance(item, dict) and fixture_id_from_payload(item) == fixture_id
+            ),
+            None,
+        )
+        if row is None:
+            raise FutureRefreshError("GATE_A_NO_ELIGIBLE_FIXTURE_IN_SIGNED_WINDOW")
+        return [row]
+
+    def _fixture_discovery_capture_id(
+        self,
+        response: LiveApiFootballResponse,
+        *,
+        request_params: dict[str, str],
+    ) -> str:
+        raw_record = self._raw_payload_record(
+            endpoint="fixtures",
+            params=request_params,
+            payload=response.payload,
+        )
+        raw_sha = sha256_payload(raw_record, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD)
+        capture = self._matchday_capture_by_payload.get(
+            self._capture_lookup_key(
+                endpoint="fixtures",
+                params=request_params,
+                raw_payload_sha256=raw_sha,
+                captured_at=response.captured_at,
+            )
+        )
+        if capture is None:
+            raise FutureRefreshError("GATE_A_FIXTURE_BINDING_FAILED")
+        return str(capture["capture_id"])
 
     def _signed_fixture_rows(
         self,
@@ -1115,7 +1204,13 @@ class FutureFixtureRefreshService:
                 season=self.config.season,
             )
 
-    def _request(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
+    def _request(
+        self,
+        endpoint: str,
+        params: dict[str, str],
+        *,
+        allow_empty_response: bool = False,
+    ) -> LiveApiFootballResponse:
         if not self._endpoint_authorized(endpoint):
             raise FutureRefreshError(f"ENDPOINT_NOT_AUTHORIZED:{endpoint}")
         last_error: Exception | None = None
@@ -1126,7 +1221,10 @@ class FutureFixtureRefreshService:
             self._attempt_count += 1
             call_ordinal = None
             if self.provider_call_reservation is not None:
-                call_ordinal = self.provider_call_reservation.reserve_provider_call(endpoint)
+                call_ordinal = self.provider_call_reservation.reserve_provider_call(
+                    endpoint,
+                    fixture_id=params.get("fixture"),
+                )
             captured_at = utc_now()
             started = time.monotonic()
             try:
@@ -1251,12 +1349,21 @@ class FutureFixtureRefreshService:
             if status >= 400:
                 raise FutureRefreshError(f"PROVIDER_HTTP_{status}")
             if self.runtime_authorization is not None:
-                self._validate_gate_a_response(endpoint, response.payload)
+                self._validate_gate_a_response(
+                    endpoint,
+                    response.payload,
+                    allow_empty_response=allow_empty_response,
+                )
             return response
         raise FutureRefreshError(last_error.__class__.__name__ if last_error else "REQUEST_FAILED")
 
     @staticmethod
-    def _validate_gate_a_response(endpoint: str, payload: dict[str, Any]) -> None:
+    def _validate_gate_a_response(
+        endpoint: str,
+        payload: dict[str, Any],
+        *,
+        allow_empty_response: bool,
+    ) -> None:
         response = payload.get("response")
         if endpoint == "status":
             if not isinstance(response, dict):
@@ -1264,7 +1371,7 @@ class FutureFixtureRefreshService:
             return
         if not isinstance(response, list):
             raise FutureRefreshError(f"PROVIDER_{endpoint.upper()}_SCHEMA_DRIFT")
-        if not response:
+        if not response and not allow_empty_response:
             raise FutureRefreshError(f"PROVIDER_{endpoint.upper()}_EMPTY")
 
     def _persist_matchday_endpoint_capture(
@@ -2536,7 +2643,7 @@ def run_staged_gate_a_canary_task(
     queued_at: datetime,
     competition_id: str,
     season: str,
-    fixture_id: str,
+    fixture_id: str | None,
     runtime_authorization: GateARuntimeAuthorization,
     provider_call_reservation: GateARunReservation,
     now: datetime | None = None,
@@ -2547,21 +2654,36 @@ def run_staged_gate_a_canary_task(
     evaluation_time = now or started_at
     if (
         key != runtime_authorization.task_key
-        or fixture_id != runtime_authorization.fixture_id
+        or (
+            runtime_authorization.fixture_scope_mode == GATE_A_EXACT_FIXTURE_SCOPE
+            and fixture_id != runtime_authorization.fixture_id
+        )
+        or (
+            runtime_authorization.fixture_scope_mode == GATE_A_WINDOW_FIXTURE_SCOPE
+            and fixture_id is not None
+        )
         or provider_call_reservation.task_key != key
         or provider_call_reservation.authorization_id != runtime_authorization.authorization_id
     ):
         raise FutureRefreshError("GATE_A_TASK_KEY_DB_FENCE_REQUIRED")
-    config = config_from_policy(competition_id=competition_id)
-    if season != config.season:
-        raise FutureRefreshError("GATE_A_POLICY_SEASON_MISMATCH")
+    try:
+        config = config_from_policy(competition_id=competition_id)
+        if season != config.season:
+            raise FutureRefreshError("GATE_A_POLICY_SEASON_MISMATCH")
+        if runtime_authorization.provider_league_id != config.league_id:
+            raise FutureRefreshError("GATE_A_POLICY_PROVIDER_LEAGUE_MISMATCH")
+        if runtime_authorization.competition_policy_config_hash != config.policy_config_hash:
+            raise FutureRefreshError("GATE_A_POLICY_CONFIG_HASH_MISMATCH")
+    except FutureRefreshError:
+        provider_call_reservation.finalize("BLOCKED")
+        raise
     config = replace(
         config,
         persistence="db",
         request_budget=GATE_A_CANARY_PROVIDER_CALL_CAP,
         max_fixture_candidates=1,
         max_odds_requests=2,
-        checkpoint_fixture_ids=(fixture_id,),
+        checkpoint_fixture_ids=((fixture_id,) if fixture_id is not None else ()),
         feature_enrichment_enabled=True,
         feature_enrichment_endpoints=("lineups",),
         feature_enrichment_request_budget=1,

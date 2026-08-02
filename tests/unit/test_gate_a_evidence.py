@@ -22,7 +22,11 @@ from w2.domain.canonical_serialization import (
     eval_02b_bootstrap_seed,
 )
 from w2.infrastructure.database import Base
-from w2.operations.gate_a import GateARuntimeAuthorization
+from w2.operations.gate_a import (
+    GATE_A_SELECTION_POLICY_VERSION,
+    GATE_A_SELECTION_RULE,
+    GateARuntimeAuthorization,
+)
 from w2.operations.gate_a_evidence import GateAEvidenceError, validate_gate_a_evidence
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -34,9 +38,16 @@ def authorization() -> GateARuntimeAuthorization:
     return GateARuntimeAuthorization(
         authorization_id="authorization-1",
         task_key="future-refresh:world_cup_2026:2026:bucket",
-        fixture_id="fixture-1",
+        fixture_id="12345",
         competition_id="world_cup_2026",
         season="2026",
+        provider_league_id="1",
+        competition_policy_config_hash="d" * 64,
+        fixture_scope_mode="EXACT_FIXTURE_ID",
+        kickoff_window_start_utc=None,
+        kickoff_window_end_utc=None,
+        selection_policy_version=GATE_A_SELECTION_POLICY_VERSION,
+        selection_rule=GATE_A_SELECTION_RULE,
         persistence="db",
         exact_head="a" * 40,
         exact_tree="b" * 40,
@@ -56,8 +67,20 @@ def authorization() -> GateARuntimeAuthorization:
 
 
 def valid_evidence() -> dict[str, object]:
+    candidates = [
+        {
+            "fixture_id": "12345",
+            "kickoff_utc": "2026-08-01T13:00:00Z",
+            "provider_league_id": "1",
+            "season": "2026",
+            "home_provider_team_id": "10",
+            "away_provider_team_id": "20",
+            "payload_sha256": "9" * 64,
+        }
+    ]
+    candidate_hash = canonical_sha256(candidates, domain=HashDomain.FUTURE_REFRESH_EVIDENCE)
     identity_input = {
-        "canonical_fixture_id": "fixture-1",
+        "canonical_fixture_id": "12345",
         "competition_id": "world_cup_2026",
         "season_id": "2026",
         "provider_id": "api_football",
@@ -84,7 +107,20 @@ def valid_evidence() -> dict[str, object]:
             "lease_epoch": 1,
             "authorization_id": "authorization-1",
             "task_key": "future-refresh:world_cup_2026:2026:bucket",
-            "fixture_id": "fixture-1",
+            "fixture_id": "12345",
+            "competition_id": "world_cup_2026",
+            "season": "2026",
+            "provider_league_id": "1",
+            "fixture_scope_mode": "EXACT_FIXTURE_ID",
+            "kickoff_window_start_utc": None,
+            "kickoff_window_end_utc": None,
+            "selection_policy_version": GATE_A_SELECTION_POLICY_VERSION,
+            "policy_config_hash": "d" * 64,
+            "selected_fixture_id": "12345",
+            "fixture_candidate_set_sha256": candidate_hash,
+            "fixture_discovery_capture_id": "capture-fixtures",
+            "eligible_candidate_count": 1,
+            "fixture_selected_at": "2026-08-01T11:59:30Z",
             "status": "COMPLETED",
             "reserved_at": "2026-08-01T11:59:00Z",
             "finished_at": "2026-08-01T12:01:00Z",
@@ -103,6 +139,21 @@ def valid_evidence() -> dict[str, object]:
                     "bootstrap_seed_evidence",
                 )
             },
+        },
+        "fixture_selection": {
+            "fixture_scope_mode": "EXACT_FIXTURE_ID",
+            "kickoff_window_start_utc": None,
+            "kickoff_window_end_utc": None,
+            "selection_policy_version": GATE_A_SELECTION_POLICY_VERSION,
+            "policy_config_hash": "d" * 64,
+            "provider_league_id": "1",
+            "discovery_endpoint_capture_id": "capture-fixtures",
+            "candidate_set_sha256": candidate_hash,
+            "eligible_candidate_count": 1,
+            "eligible_candidates": candidates,
+            "selected_fixture_id": "12345",
+            "selected_at": "2026-08-01T11:59:30Z",
+            "reservation_selected_fixture_id": "12345",
         },
         "task_audit": {
             "task_id": "task-1",
@@ -137,18 +188,26 @@ def valid_evidence() -> dict[str, object]:
         ],
         "endpoint_capture_rows": [
             {
+                "capture_id": "capture-fixtures",
+                "endpoint": "fixtures",
+                "fixture_id": None,
+                "request_task_key": "future-refresh:world_cup_2026:2026:bucket",
+                "raw_payload_sha256": "1" * 64,
+                "provider_captured_at": "2026-08-01T11:59:20Z",
+            },
+            {
                 "capture_id": "capture-post",
                 "endpoint": "odds",
-                "fixture_id": "fixture-1",
+                "fixture_id": "12345",
                 "request_task_key": "future-refresh:world_cup_2026:2026:bucket",
                 "raw_payload_sha256": "1" * 64,
                 "provider_captured_at": "2026-08-01T12:00:00Z",
-            }
+            },
         ],
         "lineup_event_rows": [
             {
                 "event_id": "event-1",
-                "fixture_id": "fixture-1",
+                "fixture_id": "12345",
                 "captured_at": "2026-08-01T11:59:00Z",
                 "source_capture_id": "capture-post",
                 "raw_sha256": "1" * 64,
@@ -157,7 +216,7 @@ def valid_evidence() -> dict[str, object]:
         "dynamic_evaluation_v2_rows": [
             {
                 "evaluation_id": "eval-post",
-                "fixture_id": "fixture-1",
+                "fixture_id": "12345",
                 "capture_id": "capture-post",
                 "capture_at": "2026-08-01T12:00:00Z",
                 "identity_hash": "2" * 64,
@@ -176,7 +235,7 @@ def valid_evidence() -> dict[str, object]:
         "exact_pair_source_rows": [
             {
                 "evaluation_id": "eval-pre",
-                "fixture_id": "fixture-1",
+                "fixture_id": "12345",
                 "provider_id": "api_football",
                 "bookmaker_id": "book-1",
                 "market": "ASIAN_HANDICAP",
@@ -188,7 +247,7 @@ def valid_evidence() -> dict[str, object]:
             },
             {
                 "evaluation_id": "eval-post",
-                "fixture_id": "fixture-1",
+                "fixture_id": "12345",
                 "provider_id": "api_football",
                 "bookmaker_id": "book-1",
                 "market": "ASIAN_HANDICAP",
@@ -198,6 +257,19 @@ def valid_evidence() -> dict[str, object]:
                 "capture_at": "2026-08-01T12:00:00Z",
                 "schema_version": "w2.dynamic_quote_evaluation.v2",
             },
+        ],
+        "fixture_identity_rows": [
+            {
+                "fixture_id": "api_football:12345",
+                "provider_fixture_id": "12345",
+                "competition_id": "world_cup_2026",
+                "provider_league_id": "1",
+                "season": "2026",
+                "kickoff_utc": "2026-08-01T13:00:00Z",
+                "raw_payload_sha256": "1" * 64,
+                "endpoint_capture_id": "capture-fixtures",
+                "identity_hash": "8" * 64,
+            }
         ],
     }
     artifact_counts = {
@@ -214,13 +286,20 @@ def valid_evidence() -> dict[str, object]:
         )
     }
     artifact_counts["provider_calls"] = {"before": 0, "after": 5, "delta": 5}
+    artifact_counts["endpoint_capture"] = {"before": 0, "after": 2, "delta": 2}
     return {
-        "schema_version": "w2.gate-a-admission-evidence.v5",
+        "schema_version": "w2.gate-a-admission-evidence.v6",
         "serializer_version": "w2.canonical-json.v2",
         "binding": {
             "authorization_id": "authorization-1",
             "task_key": "future-refresh:world_cup_2026:2026:bucket",
-            "fixture_id": "fixture-1",
+            "fixture_id": "12345",
+            "provider_league_id": "1",
+            "fixture_scope_mode": "EXACT_FIXTURE_ID",
+            "kickoff_window_start_utc": None,
+            "kickoff_window_end_utc": None,
+            "selection_policy_version": GATE_A_SELECTION_POLICY_VERSION,
+            "policy_config_hash": "d" * 64,
             "competition": "world_cup_2026",
             "policy_season": "2026",
             "exact_head": "a" * 40,
@@ -296,6 +375,21 @@ def test_gate_a_evidence_accepts_db_produced_package_and_independent_oracle() ->
             "lineage.provider_calls.0.endpoint",
             "injuries",
             "PROVIDER_ENDPOINT_OUTSIDE_SIGNED_SCOPE",
+        ),
+        (
+            "lineage.fixture_selection.candidate_set_sha256",
+            "0" * 64,
+            "FIXTURE_SELECTION_LINEAGE_MISMATCH",
+        ),
+        (
+            "lineage.fixture_identity_rows.0.provider_fixture_id",
+            "54321",
+            "FIXTURE_IDENTITY_LINEAGE_INVALID",
+        ),
+        (
+            "lineage.endpoint_capture_rows.1.fixture_id",
+            "54321",
+            "GATE_A_FIXTURE_SCOPE_MISMATCH",
         ),
     ],
 )
@@ -452,7 +546,7 @@ def test_valid_signed_authorization_cannot_admit_self_consistent_fabrication(
     signed = authorization_payload(
         authorization_id="authorization-1",
         task_key="future-refresh:world_cup_2026:2026:bucket",
-        fixture_id="fixture-1",
+        fixture_id="12345",
     )
     authorization_path.write_text(json.dumps(signed), encoding="utf-8")
     trust_path.write_text(

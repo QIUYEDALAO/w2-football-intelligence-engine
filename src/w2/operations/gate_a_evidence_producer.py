@@ -19,8 +19,15 @@ from w2.infrastructure.persistence.future_refresh_models import (
     GateARunReservationModel,
     RawPayloadModel,
 )
-from w2.infrastructure.persistence.matchday_intake_models import MatchdayEndpointCaptureModel
-from w2.operations.gate_a import GateAError, GateARuntimeAuthorization
+from w2.infrastructure.persistence.matchday_intake_models import (
+    MatchdayEndpointCaptureModel,
+    MatchdayFixtureIdentityModel,
+)
+from w2.operations.gate_a import (
+    GateAError,
+    GateARuntimeAuthorization,
+    select_fixture_from_authorization,
+)
 from w2.operations.gate_a_evidence import (
     GATE_A_EVIDENCE_SCHEMA,
     SERIALIZER_VERSION,
@@ -185,9 +192,51 @@ def produce_gate_a_evidence(
             if all_raw_hashes
             else []
         )
-        fixture_ids = _authorized_fixture_aliases(authorization) | {
+        discovery_capture = next(
+            (
+                row
+                for row in all_captures
+                if row.capture_id == reservation.fixture_discovery_capture_id
+            ),
+            None,
+        )
+        raw_by_sha = {row.sha256: row for row in all_raw_rows}
+        discovery_raw = (
+            raw_by_sha.get(discovery_capture.raw_payload_sha256)
+            if discovery_capture is not None
+            else None
+        )
+        if discovery_capture is None or discovery_raw is None:
+            raise GateAEvidenceError("GATE_A_FIXTURE_DISCOVERY_LINEAGE_INVALID")
+        try:
+            fixture_selection = select_fixture_from_authorization(
+                discovery_raw.payload,
+                authorization,
+            )
+        except GateAError as exc:
+            raise GateAEvidenceError("GATE_A_FIXTURE_SELECTION_RECOMPUTE_FAILED") from exc
+        if (
+            reservation.selected_fixture_id != fixture_selection.selected_fixture_id
+            or reservation.fixture_candidate_set_sha256 != fixture_selection.candidate_set_sha256
+            or reservation.eligible_candidate_count != fixture_selection.eligible_candidate_count
+        ):
+            raise GateAEvidenceError("GATE_A_FIXTURE_SELECTION_LINEAGE_MISMATCH")
+        fixture_ids = _fixture_aliases(fixture_selection.selected_fixture_id) | {
             str(row.fixture_id) for row in all_captures if row.fixture_id
         }
+        fixture_identity_rows = list(
+            session.scalars(
+                select(MatchdayFixtureIdentityModel)
+                .where(
+                    (MatchdayFixtureIdentityModel.fixture_id.in_(fixture_ids))
+                    | (
+                        MatchdayFixtureIdentityModel.provider_fixture_id
+                        == fixture_selection.selected_fixture_id
+                    )
+                )
+                .order_by(MatchdayFixtureIdentityModel.fixture_id)
+            )
+        )
         all_lineup_rows = (
             list(
                 session.scalars(
@@ -350,12 +399,40 @@ def produce_gate_a_evidence(
                 "authorization_id": reservation.authorization_id,
                 "task_key": reservation.task_key,
                 "fixture_id": reservation.fixture_id,
+                "competition_id": reservation.competition_id,
+                "season": reservation.season,
+                "provider_league_id": reservation.provider_league_id,
+                "fixture_scope_mode": reservation.fixture_scope_mode,
+                "kickoff_window_start_utc": _iso(reservation.kickoff_window_start_utc),
+                "kickoff_window_end_utc": _iso(reservation.kickoff_window_end_utc),
+                "selection_policy_version": reservation.selection_policy_version,
+                "policy_config_hash": reservation.policy_config_hash,
+                "selected_fixture_id": reservation.selected_fixture_id,
+                "fixture_candidate_set_sha256": reservation.fixture_candidate_set_sha256,
+                "fixture_discovery_capture_id": reservation.fixture_discovery_capture_id,
+                "eligible_candidate_count": reservation.eligible_candidate_count,
+                "fixture_selected_at": _iso(reservation.fixture_selected_at),
                 "status": reservation.status,
                 "reserved_at": _iso(reservation.reserved_at),
                 "finished_at": _iso(reservation.finished_at),
                 "provider_call_cap": reservation.provider_call_cap,
                 "provider_calls_used": reservation.provider_calls_used,
                 "evidence_baseline": baseline,
+            },
+            "fixture_selection": {
+                "fixture_scope_mode": authorization.fixture_scope_mode,
+                "kickoff_window_start_utc": _iso(authorization.kickoff_window_start_utc),
+                "kickoff_window_end_utc": _iso(authorization.kickoff_window_end_utc),
+                "selection_policy_version": authorization.selection_policy_version,
+                "policy_config_hash": authorization.competition_policy_config_hash,
+                "provider_league_id": authorization.provider_league_id,
+                "discovery_endpoint_capture_id": discovery_capture.capture_id,
+                "candidate_set_sha256": fixture_selection.candidate_set_sha256,
+                "eligible_candidate_count": fixture_selection.eligible_candidate_count,
+                "eligible_candidates": list(fixture_selection.candidates),
+                "selected_fixture_id": fixture_selection.selected_fixture_id,
+                "selected_at": _iso(reservation.fixture_selected_at),
+                "reservation_selected_fixture_id": reservation.selected_fixture_id,
             },
             "task_audit": {
                 "task_id": audit.task_id,
@@ -397,6 +474,20 @@ def produce_gate_a_evidence(
                     "provider_captured_at": _iso(row.provider_captured_at),
                 }
                 for row in captures
+            ],
+            "fixture_identity_rows": [
+                {
+                    "fixture_id": row.fixture_id,
+                    "provider_fixture_id": row.provider_fixture_id,
+                    "competition_id": row.competition_id,
+                    "provider_league_id": row.provider_league_id,
+                    "season": row.season,
+                    "kickoff_utc": _iso(row.kickoff_utc),
+                    "raw_payload_sha256": row.raw_payload_sha256,
+                    "endpoint_capture_id": row.endpoint_capture_id,
+                    "identity_hash": row.identity_hash,
+                }
+                for row in fixture_identity_rows
             ],
             "lineup_event_rows": [
                 {
@@ -476,6 +567,12 @@ def _reservation_matches_authorization(
     fields = (
         (reservation.task_key, authorization.task_key),
         (reservation.fixture_id, authorization.fixture_id),
+        (reservation.provider_league_id, authorization.provider_league_id),
+        (reservation.fixture_scope_mode, authorization.fixture_scope_mode),
+        (_iso(reservation.kickoff_window_start_utc), _iso(authorization.kickoff_window_start_utc)),
+        (_iso(reservation.kickoff_window_end_utc), _iso(authorization.kickoff_window_end_utc)),
+        (reservation.selection_policy_version, authorization.selection_policy_version),
+        (reservation.policy_config_hash, authorization.competition_policy_config_hash),
         (reservation.competition_id, authorization.competition_id),
         (reservation.season, authorization.season),
         (reservation.provider_call_cap, authorization.provider_call_cap),
@@ -494,6 +591,12 @@ def _reservation_matches_authorization(
 
 def _authorized_fixture_aliases(authorization: GateARuntimeAuthorization) -> set[str]:
     fixture_id = authorization.fixture_id
+    if fixture_id is None:
+        return set()
+    return _fixture_aliases(fixture_id)
+
+
+def _fixture_aliases(fixture_id: str) -> set[str]:
     if fixture_id.startswith("api_football:"):
         return {fixture_id, fixture_id.removeprefix("api_football:")}
     return {fixture_id, f"api_football:{fixture_id}"}
@@ -504,6 +607,12 @@ def _binding(authorization: GateARuntimeAuthorization) -> dict[str, str | None]:
         "authorization_id": authorization.authorization_id,
         "task_key": authorization.task_key,
         "fixture_id": authorization.fixture_id,
+        "provider_league_id": authorization.provider_league_id,
+        "fixture_scope_mode": authorization.fixture_scope_mode,
+        "kickoff_window_start_utc": _iso(authorization.kickoff_window_start_utc),
+        "kickoff_window_end_utc": _iso(authorization.kickoff_window_end_utc),
+        "selection_policy_version": authorization.selection_policy_version,
+        "policy_config_hash": authorization.competition_policy_config_hash,
         "competition": authorization.competition_id,
         "policy_season": authorization.season,
         "exact_head": authorization.exact_head,

@@ -15,6 +15,7 @@ import pytest
 from scripts.run_prematch_refresh import planned_task_key
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
+from sqlalchemy.orm import Session
 from tests.unit.test_gate_a_offline import (
     PUBLIC_KEY,
     PUBLIC_KEY_SHA256,
@@ -26,18 +27,25 @@ from w2.competitions.seed import seed_competition_runtime_authority
 from w2.config import get_settings
 from w2.infrastructure.database import Base
 from w2.infrastructure.database import create_engine as w2_create_engine
-from w2.ingestion.future_refresh import run_staged_gate_a_canary_task
+from w2.infrastructure.persistence.future_refresh_models import GateARunReservationModel
+from w2.ingestion.future_refresh import (
+    FutureRefreshError,
+    load_refresh_policy,
+    run_staged_gate_a_canary_task,
+)
 from w2.operations.gate_a import GateARuntimeAuthorization, reserve_gate_a_run
 from w2.prematch.repository import project_exact_eval_02b_pairs
 from w2.providers.api_football import LiveApiFootballResponse
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE_ID = "1489404"
+OTHER_FIXTURE_ID = "1489405"
 
 
 class _FakeProviderHandler(BaseHTTPRequestHandler):
     requests: list[str] = []
     kickoff_at: datetime
+    reverse_fixtures: bool = False
 
     def do_GET(self) -> None:  # noqa: N802
         type(self).requests.append(self.path)
@@ -56,20 +64,12 @@ class _FakeProviderHandler(BaseHTTPRequestHandler):
     def _payload(self) -> dict[str, Any]:
         if self.path == "/status":
             return {"response": {"requests": {"remaining": 7000}}}
-        if self.path.startswith("/fixtures?id="):
-            return {
-                "response": [
-                    {
-                        "fixture": {
-                            "id": int(FIXTURE_ID),
-                            "date": self.kickoff_at.isoformat(),
-                            "status": {"short": "NS"},
-                        },
-                        "league": {"id": 1, "season": 2026},
-                        "teams": {"home": {"id": 10}, "away": {"id": 20}},
-                    }
-                ]
-            }
+        if self.path.startswith("/fixtures?") and not self.path.startswith("/fixtures/lineups"):
+            fixtures = [
+                _fixture(int(FIXTURE_ID), self.kickoff_at, 10, 20),
+                _fixture(int(OTHER_FIXTURE_ID), self.kickoff_at + timedelta(minutes=10), 30, 40),
+            ]
+            return {"response": list(reversed(fixtures)) if self.reverse_fixtures else fixtures}
         if self.path.startswith("/odds?fixture="):
             return {
                 "response": [
@@ -110,8 +110,27 @@ def _lineup(team_id: int, offset: int) -> dict[str, Any]:
     }
 
 
+def _fixture(
+    fixture_id: int,
+    kickoff_at: datetime,
+    home_team_id: int,
+    away_team_id: int,
+) -> dict[str, Any]:
+    return {
+        "fixture": {
+            "id": fixture_id,
+            "date": kickoff_at.isoformat(),
+            "status": {"short": "NS"},
+        },
+        "league": {"id": 1, "season": 2026},
+        "teams": {"home": {"id": home_team_id}, "away": {"id": away_team_id}},
+    }
+
+
+@pytest.mark.parametrize("reverse_fixtures", [False, True])
 def test_actual_cli_fake_provider_staged_canary_from_fresh_postgres(
     tmp_path: Path,
+    reverse_fixtures: bool,
 ) -> None:
     source_url = os.environ.get("W2_TEST_POSTGRES_URL")
     if not source_url:
@@ -129,6 +148,7 @@ def test_actual_cli_fake_provider_staged_canary_from_fresh_postgres(
         now = datetime.now(UTC).replace(microsecond=0)
         _FakeProviderHandler.requests = []
         _FakeProviderHandler.kickoff_at = now + timedelta(hours=7)
+        _FakeProviderHandler.reverse_fixtures = reverse_fixtures
         env = os.environ.copy()
         env.update(
             {
@@ -149,6 +169,13 @@ def test_actual_cli_fake_provider_staged_canary_from_fresh_postgres(
             capture_output=True,
             text=True,
         )
+        with create_engine(database_url_text).connect() as connection:
+            policy_hash = connection.execute(
+                text(
+                    "SELECT payload ->> 'config_hash' FROM league_season "
+                    "WHERE competition_id = 'world_cup_2026' AND season = '2026'"
+                )
+            ).scalar_one()
         head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
         tree = subprocess.check_output(
             ["git", "rev-parse", "HEAD^{tree}"], cwd=ROOT, text=True
@@ -162,7 +189,12 @@ def test_actual_cli_fake_provider_staged_canary_from_fresh_postgres(
         authorization = authorization_payload(
             authorization_id=f"offline-staged-{uuid4().hex}",
             task_key=task_key,
-            fixture_id=FIXTURE_ID,
+            fixture_id=None,
+            fixture_scope_mode="SIGNED_KICKOFF_WINDOW",
+            provider_league_id="1",
+            competition_policy_config_hash=policy_hash,
+            kickoff_window_start_utc=(now + timedelta(hours=6, minutes=30)).isoformat(),
+            kickoff_window_end_utc=(now + timedelta(hours=7, minutes=30)).isoformat(),
             exact_head=head,
             exact_tree=tree,
             execution_mode="IMMUTABLE_IMAGE",
@@ -197,8 +229,6 @@ def test_actual_cli_fake_provider_staged_canary_from_fresh_postgres(
                 "scripts/run_gate_a_staged_canary.py",
                 "--authorization-file",
                 str(authorization_path),
-                "--fixture-id",
-                FIXTURE_ID,
                 "--season",
                 "2026",
                 "--persistence",
@@ -229,6 +259,8 @@ def test_actual_cli_fake_provider_staged_canary_from_fresh_postgres(
             "exact_pair": 1,
             "bootstrap_seed_evidence": 1,
         }
+        assert evidence["lineage"]["fixture_selection"]["selected_fixture_id"] == FIXTURE_ID
+        assert evidence["lineage"]["fixture_selection"]["eligible_candidate_count"] == 2
         assert [path.split("?", 1)[0] for path in _FakeProviderHandler.requests] == [
             "/status",
             "/fixtures",
@@ -269,19 +301,22 @@ class _SequenceClient:
         if endpoint == "status":
             return {"response": {"requests": {"remaining": 7000}}}
         if endpoint == "fixtures":
-            return {
-                "response": [
-                    {
-                        "fixture": {
-                            "id": int(FIXTURE_ID),
-                            "date": (self.now + timedelta(hours=7)).isoformat(),
-                            "status": {"short": "NS"},
-                        },
-                        "league": {"id": 1, "season": 2026},
-                        "teams": {"home": {"id": 10}, "away": {"id": 20}},
-                    }
-                ]
-            }
+            if self.scenario == "no_eligible":
+                return {"response": []}
+            league = 2 if self.scenario == "league_mismatch" else 1
+            season = 2027 if self.scenario == "season_mismatch" else 2026
+            kickoff = self.now + timedelta(hours=8 if self.scenario == "outside_window" else 7)
+            fixture = _fixture(int(FIXTURE_ID), kickoff, 10, 20)
+            fixture["league"] = {"id": league, "season": season}
+            if self.scenario == "fixture_conflict":
+                conflict = _fixture(
+                    int(FIXTURE_ID),
+                    kickoff + timedelta(minutes=1),
+                    10,
+                    20,
+                )
+                return {"response": [fixture, conflict]}
+            return {"response": [fixture]}
         if endpoint == "lineups":
             return (
                 {"response": []}
@@ -343,11 +378,17 @@ def _run_sqlite_staged(
             environment="test",
             updated_by="staged-negative-test",
         )
+    policy = load_refresh_policy(competition_id="world_cup_2026")
     authorization = GateARuntimeAuthorization.from_mapping(
         authorization_payload(
             authorization_id=f"staged-{scenario}",
             task_key=f"staged:{scenario}",
-            fixture_id=FIXTURE_ID,
+            fixture_id=None,
+            fixture_scope_mode="SIGNED_KICKOFF_WINDOW",
+            provider_league_id=policy.provider_league_id,
+            competition_policy_config_hash=policy.config_hash,
+            kickoff_window_start_utc=(now + timedelta(hours=6, minutes=30)).isoformat(),
+            kickoff_window_end_utc=(now + timedelta(hours=7, minutes=30)).isoformat(),
         ),
         trusted_public_keys=TRUSTED_KEYS,
     )
@@ -359,13 +400,17 @@ def _run_sqlite_staged(
         queued_at=now,
         competition_id="world_cup_2026",
         season="2026",
-        fixture_id=FIXTURE_ID,
+        fixture_id=None,
         runtime_authorization=authorization,
         provider_call_reservation=reservation,
         now=now,
         client=client,
     )
     pair_count = len(project_exact_eval_02b_pairs(engine).pairs)
+    with Session(engine) as session:
+        stored_reservation = session.get(GateARunReservationModel, reservation.lease_epoch)
+    assert stored_reservation is not None
+    assert stored_reservation.status == audit.status
     get_settings.cache_clear()
     return audit, client, pair_count
 
@@ -394,3 +439,77 @@ def test_changed_exact_line_cannot_form_pair(
     assert audit.status == "COMPLETED"
     assert client.calls == ["status", "fixtures", "odds", "lineups", "odds"]
     assert pair_count == 0
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    [
+        "no_eligible",
+        "league_mismatch",
+        "season_mismatch",
+        "outside_window",
+        "fixture_conflict",
+    ],
+)
+def test_invalid_fixture_discovery_stops_after_two_calls(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    scenario: str,
+) -> None:
+    audit, client, pair_count = _run_sqlite_staged(monkeypatch, tmp_path, scenario)
+    assert audit.status == "BLOCKED"
+    assert client.calls == ["status", "fixtures"]
+    assert pair_count == 0
+
+
+def test_policy_hash_drift_rejects_before_provider_call(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    now = datetime.now(UTC)
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'policy-drift.db'}"
+    monkeypatch.setenv("W2_DATABASE_URL", database_url)
+    monkeypatch.setenv("W2_ENVIRONMENT", "test")
+    get_settings.cache_clear()
+    engine = w2_create_engine()
+    Base.metadata.create_all(engine)
+    with engine.begin() as connection:
+        seed_competition_runtime_authority(
+            connection,
+            config_root=ROOT / "config",
+            environment="test",
+            updated_by="staged-policy-drift-test",
+        )
+    authorization = GateARuntimeAuthorization.from_mapping(
+        authorization_payload(
+            authorization_id="staged-policy-drift",
+            task_key="staged:policy-drift",
+            fixture_id=None,
+            fixture_scope_mode="SIGNED_KICKOFF_WINDOW",
+            competition_policy_config_hash="f" * 64,
+            kickoff_window_start_utc=(now + timedelta(hours=6, minutes=30)).isoformat(),
+            kickoff_window_end_utc=(now + timedelta(hours=7, minutes=30)).isoformat(),
+        ),
+        trusted_public_keys=TRUSTED_KEYS,
+    )
+    reservation = reserve_gate_a_run(authorization, owner="test", now=now)
+    client = _SequenceClient(now)
+    with pytest.raises(FutureRefreshError, match="GATE_A_POLICY_CONFIG_HASH_MISMATCH"):
+        run_staged_gate_a_canary_task(
+            task_id="task-policy-drift",
+            key=authorization.task_key,
+            queued_at=now,
+            competition_id="world_cup_2026",
+            season="2026",
+            fixture_id=None,
+            runtime_authorization=authorization,
+            provider_call_reservation=reservation,
+            now=now,
+            client=client,
+        )
+    assert client.calls == []
+    with Session(engine) as session:
+        stored_reservation = session.get(GateARunReservationModel, reservation.lease_epoch)
+    assert stored_reservation is not None
+    assert stored_reservation.status == "BLOCKED"
+    get_settings.cache_clear()

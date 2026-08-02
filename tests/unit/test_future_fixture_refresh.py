@@ -25,6 +25,8 @@ from w2.ingestion.future_refresh import (
 )
 from w2.markets.quote_identity import evaluate_quote_freshness, project_quote_identity
 from w2.operations.gate_a import (
+    GATE_A_SELECTION_POLICY_VERSION,
+    GATE_A_SELECTION_RULE,
     GateARuntimeAuthorization,
     TrustedApprovalKey,
     authorization_signing_message,
@@ -37,7 +39,7 @@ NOW = datetime(2026, 6, 23, 10, 0, tzinfo=UTC)
 def _gate_a_authorization() -> GateARuntimeAuthorization:
     signing_key = Ed25519PrivateKey.from_private_bytes(bytes(range(32)))
     payload: dict[str, object] = {
-        "schema_version": "w2.gate-a-one-shot-authorization.v3",
+        "schema_version": "w2.gate-a-one-shot-authorization.v4",
         "action": "ONE_SHOT_FOREGROUND_CANARY",
         "review_status": "APPROVED",
         "one_shot": True,
@@ -47,6 +49,13 @@ def _gate_a_authorization() -> GateARuntimeAuthorization:
         "fixture_id": "1001",
         "competition_id": "world_cup_2026",
         "season": "2026",
+        "provider_league_id": "1",
+        "competition_policy_config_hash": "d" * 64,
+        "fixture_scope_mode": "EXACT_FIXTURE_ID",
+        "kickoff_window_start_utc": None,
+        "kickoff_window_end_utc": None,
+        "selection_policy_version": GATE_A_SELECTION_POLICY_VERSION,
+        "selection_rule": GATE_A_SELECTION_RULE,
         "exact_head": "a" * 40,
         "exact_tree": "b" * 40,
         "execution_mode": "COMPLETE_CLEAN_CHECKOUT",
@@ -96,7 +105,8 @@ class _CallReservation:
         self.final_statuses: list[str] = []
         self.outcomes: list[tuple[int, str, str | None]] = []
 
-    def reserve_provider_call(self, endpoint: str) -> int:
+    def reserve_provider_call(self, endpoint: str, *, fixture_id: str | None = None) -> int:
+        del fixture_id
         self.endpoints.append(endpoint)
         return len(self.endpoints)
 
