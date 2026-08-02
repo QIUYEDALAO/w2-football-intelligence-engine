@@ -361,63 +361,64 @@ def test_checkpoint_missed_is_immutable_and_planned_due_becomes_missed() -> None
         raise AssertionError("MISSED -> CAPTURED must fail closed")
 
 
-def test_failed_checkpoint_is_not_rewritten_as_missed() -> None:
+def test_terminal_checkpoint_is_not_rewritten_as_missed() -> None:
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     repository = MatchdayRuntimeRepository(engine=engine)
     policy = competition_policies(load_matchday_policy())["allsvenskan"]
-    plan = next(
-        item
-        for item in build_checkpoint_plans(
-            fixture_id="api_football:failed",
-            competition_id="allsvenskan",
-            season="2026",
-            kickoff_utc=KICKOFF,
-            now=KICKOFF - timedelta(hours=25),
-            policy=policy,
+    for terminal_status in ("FAILED", "CAPTURED"):
+        plan = next(
+            item
+            for item in build_checkpoint_plans(
+                fixture_id=f"api_football:{terminal_status.lower()}",
+                competition_id="allsvenskan",
+                season="2026",
+                kickoff_utc=KICKOFF,
+                now=KICKOFF - timedelta(hours=25),
+                policy=policy,
+            )
+            if item.checkpoint == "T24_ODDS"
         )
-        if item.checkpoint == "T24_ODDS"
-    )
+        plan_id = repository.upsert_checkpoint_plan(plan)
+        repository.transition_checkpoint(
+            fixture_id=plan.fixture_id,
+            competition_id=plan.competition_id,
+            season=plan.season,
+            checkpoint=plan.checkpoint,
+            policy_version=plan.policy_version,
+            status="DUE",
+        )
+        repository.transition_checkpoint(
+            fixture_id=plan.fixture_id,
+            competition_id=plan.competition_id,
+            season=plan.season,
+            checkpoint=plan.checkpoint,
+            policy_version=plan.policy_version,
+            status=terminal_status,
+            capture_id="capture-terminal" if terminal_status == "CAPTURED" else None,
+        )
+        with Session(engine) as session:
+            row = session.get(MatchdayCheckpointPlanModel, plan_id)
+            assert row is not None
+            row.blockers = [f"{terminal_status}_EVIDENCE"]
+            session.commit()
 
-    plan_id = repository.upsert_checkpoint_plan(plan)
-    repository.transition_checkpoint(
-        fixture_id=plan.fixture_id,
-        competition_id=plan.competition_id,
-        season=plan.season,
-        checkpoint=plan.checkpoint,
-        policy_version=plan.policy_version,
-        status="DUE",
-    )
-    repository.transition_checkpoint(
-        fixture_id=plan.fixture_id,
-        competition_id=plan.competition_id,
-        season=plan.season,
-        checkpoint=plan.checkpoint,
-        policy_version=plan.policy_version,
-        status="FAILED",
-    )
-    with Session(engine) as session:
-        row = session.get(MatchdayCheckpointPlanModel, plan_id)
-        assert row is not None
-        row.blockers = ["PROVIDER_FAILED"]
-        session.commit()
+        missed = plan.as_dict()
+        missed.update(
+            {
+                "status": "MISSED",
+                "missed_at": plan.window_end.isoformat(),
+                "blockers": ["CHECKPOINT_MISSING"],
+            }
+        )
+        repository.upsert_checkpoint_plan(missed)
 
-    missed = plan.as_dict()
-    missed.update(
-        {
-            "status": "MISSED",
-            "missed_at": plan.window_end.isoformat(),
-            "blockers": ["CHECKPOINT_MISSING"],
-        }
-    )
-    repository.upsert_checkpoint_plan(missed)
-
-    with Session(engine) as session:
-        row = session.get(MatchdayCheckpointPlanModel, plan_id)
-        assert row is not None
-        assert row.status == "FAILED"
-        assert row.blockers == ["PROVIDER_FAILED"]
-        assert row.missed_at is None
+        with Session(engine) as session:
+            row = session.get(MatchdayCheckpointPlanModel, plan_id)
+            assert row is not None
+            assert row.status == terminal_status
+            assert row.blockers == [f"{terminal_status}_EVIDENCE"]
+            assert row.missed_at is None
 
 
 def test_observation_conflict_and_manifest_identity_fail_closed() -> None:
