@@ -1,11 +1,37 @@
 schema_version: w2.project_state.v3
 project: w2-football-intelligence-engine
-updated_at: "2026-07-31"
+updated_at: "2026-08-01"
 current_state_authority: PROJECT_STATE.yaml
 task_authority: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
+active_execution_schema_version: w2.active_execution.v1
+active_execution_authority: https://github.com/QIUYEDALAO/w2-football-intelligence-engine/issues/454
+master_task_and_receipt_authority: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
+handoff_authority: AI_PROJECT_CONTEXT.md
+independent_audit_authority: docs/operations/W2_INDEPENDENT_FINAL_AUDIT_20260731.md
+asset_uniqueness_audit_authority: docs/operations/W2_ASSET_UNIQUENESS_AUDIT_20260731.md
+audit_perspective_registry_authority: docs/operations/W2_AUDIT_PERSPECTIVE_REGISTRY.md
+workflow_governance_issue: 455
+computation_authority_issue: 456
+current_workstream: EVAL-02B-C9-AND-GATE-A
+current_phase: WAVE_3_C9_THEN_GATE_A_OFFLINE
+current_status_detail: WAVE_3_C9_TRUSTED_REBUILD_AUTHORIZED
+next_workstream: EVAL-02B-C9-AND-GATE-A
+active_next_action: EXECUTE_WAVE_3_C9_THEN_GATE_A_OFFLINE
+infrastructure_exposure_issue: 457
+issue_457_project_gate: CLOSED_WITH_OWNER_RISK_ACCEPTANCE
+quarantined_pr: 453
+active_issues:
+  - 451
+  - 452
+  - 455
+  - 456
+  - 457
 current_task: EVAL-02B
 current_status: BLOCKED
 current_pr: null
+current_pr_semantics: CURRENT_BUSINESS_IMPLEMENTATION_PR_ONLY
+active_context_pr: 450
+active_context_pr_semantics: CURRENT_CONTEXT_AND_GUARD_PR
 next_task: EVAL-02B
 tasks:
   ARCH-P2-02:
@@ -193,7 +219,7 @@ tasks:
     lock_enabled: false
     production_release: false
     scoring_implementation: BLOCKED
-    next_required_action: INDEPENDENT_REHEARSAL_RECEIPT_REVIEW
+    next_required_action: EXECUTE_WAVE_3_C9_THEN_GATE_A_OFFLINE
   EVAL-03:
     status: NOT_STARTED
 safety:
@@ -211,3 +237,137 @@ staging:
 architecture_convergence:
   status: PASS
   receipt: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
+
+WAVE_1_FINAL: PASS_WITH_BOUNDED_CARRY_FORWARD
+WAVE_1: CLOSED_AND_FROZEN
+CURRENT_WORKSTREAM: EVAL-02B-C9-AND-GATE-A
+CURRENT_PHASE: WAVE_3_C9_THEN_GATE_A_OFFLINE
+ACTIVE_NEXT_ACTION: EXECUTE_WAVE_3_C9_THEN_GATE_A_OFFLINE
+FINAL_GATE_A_GROUPS: 28
+FINAL_EXACT_C1_C11_MAPPINGS: 35
+FINAL_TEST_CONTRACT_SKELETONS: 30
+T00_RERUN: FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE
+ISSUE_457_PROJECT_GATE: CLOSED_WITH_OWNER_RISK_ACCEPTANCE
+WAVE_2: CLOSED_WITH_EXISTING_C9_BLOCKER
+SER_05_INDEPENDENT_ORACLE: PASS
+PR_461: INTEGRATED_INTO_PR_460
+WAVE_3_AUTHORIZED: true
+NEXT_CODE_ACTION: C9_TRUSTED_REBUILD_THEN_GATE_A_OFFLINE
+PR_450: DRAFT
+PR_450_FINAL_ACCEPTANCE_REVIEW: COMPLETED
+PREDEPLOY_C9: EXISTING_BLOCKER
+PROVIDER: "OFF"
+REAL_PROVIDER: "OFF"
+REAL_CANARY: NOT_AUTHORIZED
+PERSISTENT_SCHEDULER: "OFF"
+CANDIDATE: "OFF"
+FORMAL: "OFF"
+LOCK: "OFF"
+PRODUCTION: "OFF"
+AUTO_MERGE: FORBIDDEN
+
+historical_receipts:
+  a148:
+    previous_next_required_action: INDEPENDENT_REHEARSAL_RECEIPT_REVIEW
+    fail_closed_barrier: PASS
+    provider_execution: NOT_EXECUTED
+    actual_provider_calls: 0
+    business_db_writes: 0
+    scheduler_started: false
+    celery_tasks_queued: 0
+    one_shot_authorization_revoked: true
+    end_to_end_chain: NOT_VALIDATED
+
+wave_1_evidence:
+  artifact_pr: 458
+  artifact_head: 4079e663247148f2671f574ab8ba128ebd7ca5e3
+  all_call_completeness_ledger: ACCEPTED_AND_FROZEN
+  grouped_effect_inventory: ACCEPTED_AND_FROZEN
+  total_production_ast_calls: 42054
+  unaccounted_production_calls: 0
+  total_review_groups: 5671
+  authority_matrix_rows: 145
+  authority_matrix_columns: 9
+  authority_matrix_cell_universe: 1305
+  currently_accounted_fields: 1160
+  role_fields_carried_to_pr450: 145
+  role_field_disposition: CARRY_TO_PR450_DOCUMENTATION_REPAIR
+  independently_verified_role_fields: 0
+
+pr450_guard_closure:
+  original_guard_source: main@dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
+  repair_required_guards: 145
+  guards_repaired: 145
+  unclassified_removed_guards: 0
+  authority_matrix_rows: 145
+  authority_matrix_columns: 9
+  authority_matrix_header:
+    - path
+    - 唯一分类
+    - 直接调用方
+    - 传递调用链
+    - 运行环境
+    - 部署引用
+    - 运维文档
+    - 决定
+    - 证据
+
+execution_stop_line:
+  provider_calls_authorized: false
+  real_canary_authorization_authorized: false
+  persistent_scheduler_authorized: false
+  candidate_authorized: false
+  formal_authorized: false
+  lock_authorized: false
+  production_authorized: false
+  auto_merge_authorized: false
+
+oracle_independence:
+  production_serializer_implementer_must_differ_from_oracle_author: true
+  oracle_imports_production_serializer: false
+  independent_reviewer_recorded_required: true
+  otherwise_status: SELF_REVIEWED_ONLY
+
+canary_acceptance:
+  status: NOT_AUTHORIZED
+  required_deltas:
+    actual_provider_calls_delta: ">0"
+    provider_request_ledger_delta: ">0"
+    raw_payload_delta: ">0"
+    endpoint_capture_delta: ">0"
+    lineup_event_delta: ">0"
+    dynamic_evaluation_v2_delta: ">0"
+    five_state_snapshot_delta: ">0"
+    exact_pair_delta: ">0"
+  required_lineage_fields:
+    - run_id
+    - authorization_id
+    - competition_id
+    - season
+    - fixture_id
+    - provider
+    - bookmaker
+    - market
+    - selection
+    - exact_line
+    - capture_at
+    - raw_payload_sha256
+    - endpoint_capture_id
+    - lineup_input_hash
+    - evaluation_id
+    - pair_hash
+    - exact_git_sha
+    - serializer_version
+  zero_required_delta_result: FAILED
+  lineage_mismatch_result: FAILED
+  serializer_version_missing_result: FAILED
+  independent_pair_hash_mismatch_result: FAILED
+  independent_bootstrap_seed_mismatch_result: FAILED
+  nan_or_infinity_result: FAILED
+  auto_retry: false
+
+codex_stop_line:
+  real_provider_call_executed: false
+  real_canary_authorization_created: false
+  auto_merge_executed: false
+  stop_after_offline_evidence_package: true
