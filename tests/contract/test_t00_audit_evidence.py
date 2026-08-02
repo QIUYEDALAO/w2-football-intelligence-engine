@@ -1,0 +1,748 @@
+from __future__ import annotations
+
+import ast
+import hashlib
+import json
+import runpy
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[2]
+REPORTS = (
+    ROOT / "docs/operations/W2_T00_GOV_FINAL_20260731.md",
+    ROOT / "docs/operations/W2_T00_SAFE_R1_R5_20260731.md",
+)
+ZERO_MARKERS = (
+    "UNCLASSIFIED_WRITE_CAPABLE_WORKFLOWS = 0",
+    "UNCLASSIFIED_WORKFLOW_RUNS = 0",
+    "UNCLASSIFIED_AUTOMATION_COMMITS = 0",
+    "UNEXPLAINED_BRANCH_MUTATIONS = 0",
+    "UNCLASSIFIED_COMPUTATION_AUTHORITIES = 0",
+    "UNCLASSIFIED_REMOVED_GUARDS = 0",
+)
+NONZERO_MARKERS = ("UNREVIEWED_MAIN_AUTOMATION_HUNKS = 145",)
+G10_S07_MARKERS = (
+    "SCRIPT_MATRIX_ROWS = 145",
+    "SCRIPT_MATRIX_COLUMNS = 9",
+    "SCRIPT_MATRIX_CELL_UNIVERSE = 1305",
+    "CURRENTLY_ACCOUNTED_FIELDS = 1160",
+    "ROLE_FIELDS_CARRIED_TO_PR450 = 145",
+    "SCRIPT_MATRIX_FIELDS = 1160",
+    "SCRIPT_MATRIX_EVIDENCE_ATTACHED = 1160",
+    "INDEPENDENTLY_VERIFIED_FIELDS = 0",
+    "CONFLICTING_FIELDS = 0",
+    "INCLUDED_PRODUCTION_ROOTS = apps/, migrations/, scripts/, src/w2/",
+    "EXCLUDED_PYTHON_ROOTS = tests/: TEST_ONLY_NOT_PART_OF_PRODUCTION_DENOMINATOR",
+    "TOTAL_PRODUCTION_AST_CALLS = 42054",
+    "INTERNAL_PROJECT_CALLS = 10241",
+    "KNOWN_PURE_OR_LOCAL_TRANSFORMS = 9590",
+    "RECOGNIZED_SIDE_EFFECT_PRIMITIVES = 710",
+    "UNRESOLVED_EXTERNAL_CALLS = 6868",
+    "UNRESOLVED_DYNAMIC_CALLS = 14645",
+    "UNACCOUNTED_PRODUCTION_CALLS = 0",
+    "R2_HANDLER_DENOMINATOR = 449",
+    "R3_SIDE_EFFECT_DENOMINATOR = 22223",
+    "ALL_CALL_LEDGER_UNCHANGED = true",
+    "REDIS_KV_PRIMITIVES = 2",
+    "LOCK_DURABILITY_PRIMITIVES = 13",
+    "PROCESS_EXECUTION_PRIMITIVES = 24",
+    "TOTAL_REVIEW_GROUPS = 5671",
+    "CANARY_REVIEW_GROUPS = 1156",
+    "DEFERRED_REVIEW_GROUPS = 4515",
+    "REVIEW_EXCEPTION_SITES = 2245",
+    "UNASSIGNED_REVIEW_GROUP_MEMBERS = 0",
+    "UNGROUPED_UNRESOLVED_CALLS = 0",
+    "DUPLICATE_REVIEW_GROUP_MEMBERS = 0",
+    "PROPOSED_GATE_A_GROUPS = 28",
+    "FINAL_GATE_A_GROUPS = 0",
+    "FIELD_REVIEW_RULE_GROUPS = 8",
+    "FIELD_REVIEW_RULE_COVERED = 547",
+    "FIELD_REVIEW_EXCEPTIONS = 613",
+    "UNASSIGNED_FIELDS = 0",
+    "MAPPED_TO_C1_C11 = 35",
+    "NEW_FINDING_IDS = 0",
+    "PROPOSED_TEST_CONTRACTS = 30",
+    "INDEPENDENTLY_ACCEPTED_TEST_CONTRACTS = 0",
+    "PR450_REPAIR_REQUIRED_GUARDS = 145",
+)
+
+
+def _git(repo: Path, *args: str) -> str:
+    return subprocess.check_output(["git", "-C", str(repo), *args], text=True).strip()
+
+
+def _portable_repo(
+    tmp_path: Path, *, include_pr: bool, extra_python_path: str | None = None
+) -> tuple[Path, str, str | None]:
+    repo = tmp_path / "portable"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    _git(repo, "config", "user.name", "T00 Test")
+    _git(repo, "config", "user.email", "t00@example.invalid")
+    guard = repo / "tests/contract/test_delivery_status_documentation.py"
+    guard.parent.mkdir(parents=True)
+    guard.write_text("def test_guard():\n    assert True\n", encoding="utf-8")
+    if extra_python_path:
+        extra = repo / extra_python_path
+        extra.parent.mkdir(parents=True)
+        extra.write_text("def production_entrypoint():\n    return None\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "base")
+    base = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "remote", "add", "github-w2", ".")
+    _git(repo, "update-ref", "refs/remotes/github-w2/main", base)
+    if not include_pr:
+        return repo, base, None
+    guard.write_text(
+        "def test_new_guard():\n    assert 1 == 1\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", guard.relative_to(repo).as_posix())
+    _git(repo, "commit", "-qm", "pr")
+    pr_head = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "update-ref", "refs/remotes/github-w2/pull/450/head", pr_head)
+    _git(repo, "switch", "-q", "--detach", base)
+    return repo, base, pr_head
+
+
+def test_t00_scanner_is_syntax_valid_and_exact_base_bound() -> None:
+    scanner = ROOT / "scripts/audit_t00.py"
+    source = scanner.read_text(encoding="utf-8")
+    ast.parse(source)
+    assert 'BASE_SHA = "dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6"' in source
+    assert 'PR450_HEAD = "360931d7d84bcbe1416c7946992b5218b759fc8a"' in source
+    assert 'rev-list", "--objects", "--all' in source
+
+
+def test_t00_reports_match_sha256_sidecars_and_close_all_classifications() -> None:
+    combined = ""
+    for report in REPORTS:
+        content = report.read_bytes()
+        expected = (
+            report.with_suffix(report.suffix + ".sha256").read_text(encoding="utf-8").split()[0]
+        )
+        assert hashlib.sha256(content).hexdigest() == expected
+        combined += content.decode("utf-8")
+    for marker in ZERO_MARKERS:
+        assert marker in combined
+    for marker in NONZERO_MARKERS:
+        assert marker in combined
+    for marker in G10_S07_MARKERS:
+        assert marker in combined
+
+
+def test_t00_does_not_remove_historical_delivery_guards() -> None:
+    guard = (ROOT / "tests/contract/test_delivery_status_documentation.py").read_text(
+        encoding="utf-8"
+    )
+    assert "test_v3_task_authority_and_next_action_are_consistent" in guard
+    assert "test_historical_pr_range_is_explicitly_non_authoritative" in guard
+    assert "test_obsolete_staging_ip_is_absent_from_tracked_authority" in guard
+
+
+def test_production_python_roots_are_complete_and_apps_are_scanned() -> None:
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    scope = scanner["production_python_scope"](scanner["BASE_SHA"])
+    files = scanner["python_files"](scanner["BASE_SHA"])
+    assert scope["included_production_roots"] == [
+        "apps/",
+        "migrations/",
+        "scripts/",
+        "src/w2/",
+    ]
+    assert scope["excluded_python_roots"] == [
+        {"root": "tests/", "reason": "TEST_ONLY_NOT_PART_OF_PRODUCTION_DENOMINATOR"}
+    ]
+    assert scope["unclassified_python_roots"] == []
+    assert "apps/api/main.py" in files
+    assert "apps/worker/celery_app.py" in files
+    assert "migrations/env.py" in files
+
+
+def test_new_python_root_fails_until_classified(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, base, _ = _portable_repo(
+        tmp_path, include_pr=False, extra_python_path="new_service/worker.py"
+    )
+    monkeypatch.chdir(repo)
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    with pytest.raises(scanner["AuditError"], match="UNCLASSIFIED_PYTHON_ROOTS: new_service/"):
+        scanner["python_files"](base)
+
+
+def test_t00_safe_supports_github_w2_remote(tmp_path: Path) -> None:
+    repo, base, pr_head = _portable_repo(tmp_path, include_pr=True)
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts/audit_t00.py"),
+            "safe",
+            "--remote",
+            "github-w2",
+            "--base-sha",
+            base,
+            "--pr450-ref",
+            "refs/remotes/github-w2/pull/450/head",
+            "--pr450-head",
+            str(pr_head),
+            "--compact",
+        ],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    payload = json.loads(result.stdout)
+    assert payload["remote"] == "github-w2"
+    assert payload["counts"]["unclassified_removed_guards"] == 0
+
+
+def test_t00_missing_pr_ref_has_actionable_error_without_traceback(tmp_path: Path) -> None:
+    repo, base, _ = _portable_repo(tmp_path, include_pr=False)
+    missing = "refs/remotes/github-w2/pull/450/head"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts/audit_t00.py"),
+            "safe",
+            "--remote",
+            "github-w2",
+            "--base-sha",
+            base,
+            "--pr450-ref",
+            missing,
+            "--pr450-head",
+            "0" * 40,
+            "--compact",
+        ],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert "PR #450 exact ref/object" in result.stderr
+    assert f"git fetch github-w2 refs/pull/450/head:{missing}" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+def test_g10_6_matrix_attaches_evidence_but_is_not_self_verified() -> None:
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    report = scanner["checklist_review"](scanner["BASE_SHA"])
+    assert report["script_matrix_rows"] == 145
+    assert report["script_matrix_columns"] == 9
+    assert report["script_matrix_cell_universe"] == 1305
+    assert report["currently_accounted_fields"] == 1160
+    assert report["role_fields_carried_to_pr450"] == 145
+    assert report["unassigned_fields"] == 0
+    assert report["script_matrix_fields"] == 1160
+    assert report["evidence_attached_pending_independent_review_fields"] == 1160
+    assert report["independently_verified_fields"] == 0
+    assert report["pending_independent_review_fields"] == 1160
+    assert report["conflicting_fields"] == 0
+    assert report["unreviewed"] == 145
+    bundle = report["grouped_field_review_bundle"]
+    assert bundle["counts"] == {
+        "field_review_total": 1160,
+        "field_review_rule_groups": 8,
+        "field_review_rule_covered": 547,
+        "field_review_exceptions": 613,
+        "unassigned_fields": 0,
+        "duplicate_field_assignments": 0,
+        "independently_verified_fields": 0,
+    }
+    assert {group["field_type"] for group in bundle["rule_groups"]} == set(
+        scanner["SCRIPT_MATRIX_FIELDS"]
+    )
+    assert all(group["population_count"] == 145 for group in bundle["rule_groups"])
+    assert all(
+        group["independent_review_status"] == "PENDING_INDEPENDENT_REVIEW"
+        and group["accepted_by_independent_reviewer"] is False
+        for group in bundle["rule_groups"]
+    )
+    assert sum(
+        len(group["covered_field_ids"]) + len(group["exception_field_ids"])
+        for group in bundle["rule_groups"]
+    ) == 1160
+    carried_roles = [
+        row["carry_forward_fields"]["role"] for row in report["rows"]
+    ]
+    assert len(carried_roles) == 145
+    assert all(
+        field["disposition"] == "CARRY_TO_PR450_DOCUMENTATION_REPAIR"
+        and field["independently_verified"] is False
+        and field["accepted_by_independent_reviewer"] is False
+        for field in carried_roles
+    )
+
+
+def test_script_matrix_columns_require_audited_or_explicit_carry_forward_type() -> None:
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    audited = scanner["SCRIPT_MATRIX_FIELDS"]
+    carried = scanner["SCRIPT_MATRIX_CARRY_FORWARD_FIELDS"]
+    columns = scanner["SCRIPT_MATRIX_COLUMN_ORDER"]
+    assert len(columns) == len(audited) + len(carried) == 9
+    scanner["validate_script_matrix_columns"](columns, 9)
+    with pytest.raises(scanner["AuditError"], match="UNASSIGNED_SCRIPT_MATRIX_COLUMN"):
+        scanner["validate_script_matrix_columns"]((*columns, "future_column"), 10)
+
+
+def test_s07_emits_complete_grouped_review_queue_without_self_acceptance() -> None:
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    files = scanner["python_files"](scanner["BASE_SHA"])
+    accounting = scanner["all_call_accounting"](files)
+    risks = scanner["risk_candidates"](files, accounting)
+    call_manifest = scanner["call_edge_manifest"](files)
+    candidates = risks["R2"] + risks["R3"]
+    bundle = scanner["grouped_review_queue"](candidates, call_manifest)
+    assert len(risks["R2"]) == 449
+    assert len(risks["R3"]) == 22223
+    assert len(candidates) == 22672
+    assert accounting["counts"] == {
+        "total_production_ast_calls": 42054,
+        "internal_project_call": 10241,
+        "known_pure_or_local_transform": 9590,
+        "recognized_side_effect_primitive": 710,
+        "unresolved_external_call": 6868,
+        "unresolved_dynamic_call": 14645,
+        "unaccounted_production_calls": 0,
+    }
+    assert accounting["counts"]["total_production_ast_calls"] == sum(
+        sum(isinstance(node, ast.Call) for node in ast.walk(ast.parse(source)))
+        for source in files.values()
+    )
+    assert all(
+        row["callable_signature"] in scanner["KNOWN_PURE_CALLS"]
+        and row["reason"] == scanner["KNOWN_PURE_CALLS"][row["callable_signature"]]
+        for row in accounting["calls"]
+        if row["disposition"] == "KNOWN_PURE_OR_LOCAL_TRANSFORM"
+    )
+    assert all(
+        row["callee_id"]
+        and row["callee_candidate_id"]
+        and row["callee_definition_line"] > 0
+        for row in accounting["calls"]
+        if row["disposition"] == "INTERNAL_PROJECT_CALL"
+    )
+    assert len({row["candidate_id"] for row in candidates}) == len(candidates) == 22672
+    assert bundle["counts"] == {
+        "total_review_members": 22672,
+        "total_review_groups": 5671,
+        "canary_review_groups": 1156,
+        "deferred_review_groups": 4515,
+        "review_exception_sites": 2245,
+        "unassigned_review_group_members": 0,
+        "ungrouped_unresolved_calls": 0,
+        "duplicate_review_group_members": 0,
+        "proposed_gate_a_groups": 28,
+        "final_gate_a_groups": 0,
+        "independently_accepted_groups": 0,
+    }
+    groups = bundle["grouped_review_queue"]
+    assert sum(group["member_count"] for group in groups) == 22672
+    assert all(
+        group["member_count"] == len(group["member_call_site_ids"])
+        and group["independent_review_status"] == "PENDING_INDEPENDENT_REVIEW"
+        and group["accepted_by_independent_reviewer"] is False
+        for group in groups
+    )
+    assert all(
+        exception["independent_review_status"] == "PENDING_INDEPENDENT_REVIEW"
+        and exception["accepted_by_independent_reviewer"] is False
+        for exception in bundle["review_exceptions"]
+    )
+    assert len(bundle["member_assignments"]) == 22672
+    proposed_a = scanner["adjudicate_s07"](
+        [
+            row
+            for row in candidates
+            if (row["risk_family"], row["path"], row["line"])
+            in scanner["PROPOSED_TEST_CONTRACT_SPECS"]
+        ],
+        call_manifest,
+    )
+    assert len(proposed_a) == 30
+    assert all(
+        row["gate_a_admission_conditions"]["accepted_by_independent_reviewer"] is False
+        for row in proposed_a
+    )
+    contracts = [row["proposed_test_contract"] for row in proposed_a]
+    assert len({contract["test_id"] for contract in contracts}) == 30
+    assert all((ROOT / contract["target_test_file"]).is_file() for contract in contracts)
+    assert all(contract["contract_status"] == "PROPOSED_TEST_CONTRACT" for contract in contracts)
+    assert all(contract["accepted_by_independent_reviewer"] is False for contract in contracts)
+    assert all(contract["expected_terminal_status"]["value"] == "BLOCKED" for contract in contracts)
+    assert any(
+        contract["expected_provider_call_delta"]["value"] == "PENDING_REVIEW"
+        for contract in contracts
+    )
+    assert any(contract["expected_provider_call_delta"]["value"] == 0 for contract in contracts)
+    assert all(
+        contract["expected_evidence_delta"]["value"] == "PENDING_REVIEW"
+        for contract in contracts
+    )
+
+    no_raise_sites: set[tuple[str, int]] = set()
+    for path, source in files.items():
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:
+            continue
+        no_raise_sites.update(
+            (path, node.lineno)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ExceptHandler)
+        )
+    assert no_raise_sites <= {(row["path"], row["line"]) for row in risks["R2"]}
+
+
+def test_grouped_queue_roots_frontiers_defers_nonrooted_and_maps_exact_blockers() -> None:
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    files = scanner["python_files"](scanner["BASE_SHA"])
+    accounting = scanner["all_call_accounting"](files)
+    risks = scanner["risk_candidates"](files, accounting)
+    candidates = risks["R2"] + risks["R3"]
+    bundle = scanner["grouped_review_queue"](
+        candidates, scanner["call_edge_manifest"](files)
+    )
+    groups = bundle["grouped_review_queue"]
+    rooted_frontiers = [
+        group for group in groups if group["rule_id"] == "QUEUE_ROOTED_UNRESOLVED_FRONTIER"
+    ]
+    assert rooted_frontiers
+    assert all(
+        group["rooted_reachability"]["status"] == "ROOTED"
+        and group["proposed_disposition"] == "PROPOSED_CANARY_REVIEW"
+        for group in rooted_frontiers
+    )
+    deferred = [
+        group
+        for group in groups
+        if (
+            group["rule_id"].startswith("QUEUE_DEFER_")
+            or group["rule_id"] == "QUEUE_ACCEPT_NONROOTED_NO_INDICATOR"
+        )
+        and group["rooted_reachability"]["status"] == "NOT_ROOTED"
+    ]
+    assert deferred
+    assert all(not group["side_effect_indicators"] for group in deferred)
+    mapped = [row for row in candidates if scanner["_existing_blocker"](row)]
+    assert len(mapped) == 35
+    group_by_id = {group["review_group_id"]: group for group in groups}
+    for row in mapped:
+        group = group_by_id[bundle["member_assignments"][row["candidate_id"]]]
+        assert group["rule_id"] in {
+            "QUEUE_EXACT_GATE_A_CONTRACT",
+            "QUEUE_EXACT_C1_C11_MAPPING",
+        }
+        assert any(
+            exception["member_call_site_id"] == row["candidate_id"]
+            and "EXACT_C1_C11_MAPPING_REQUIRES_SITE_REVIEW" in exception["reasons"]
+            for exception in bundle["review_exceptions"]
+        )
+
+
+def test_r2_enumerates_call_only_and_all_no_raise_handler_shapes() -> None:
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    source = """
+def handlers(db, logger, metrics):
+    try: work()
+    except ValueError: pass
+    try: work()
+    except TypeError: return None
+    for _ in range(1):
+        try: work()
+        except KeyError: continue
+    try: work()
+    except RuntimeError: db.rollback()
+    try: work()
+    except OSError: logger.warning("failed")
+    try: work()
+    except LookupError: recover_state()
+    try: work()
+    except ArithmeticError: metrics.increment()
+"""
+    rows = scanner["risk_candidates"]({"src/w2/synthetic.py": source})["R2"]
+    assert {row["handler_action"] for row in rows} == {
+        "PASS",
+        "RETURN",
+        "CONTINUE",
+        "ROLLBACK_THEN_CONTINUE",
+        "DIAGNOSTIC_THEN_CONTINUE",
+        "RECOVERY_CALL_THEN_CONTINUE",
+        "CALL_ONLY_THEN_CONTINUE",
+    }
+    assert all(row["denominator_status"] == "ENUMERATED_HANDLER" for row in rows)
+
+
+def test_r2_conditional_and_nested_raises_do_not_hide_fallthrough() -> None:
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    source = """
+def handlers(flag):
+    try: work()
+    except ValueError:
+        if flag:
+            raise
+        recover_state()
+    try: work()
+    except TypeError:
+        def nested():
+            raise RuntimeError()
+        recover_state()
+"""
+    rows = scanner["risk_candidates"]({"src/w2/synthetic.py": source})["R2"]
+    conditional, nested = rows
+    assert conditional["handler_action"] == "CONDITIONAL_RAISE_WITH_FALLTHROUGH"
+    assert conditional["direct_raise_count"] == 1
+    assert conditional["may_fallthrough"] is True
+    assert nested["direct_raise_count"] == 0
+    assert nested["nested_scope_raise_count"] == 1
+    assert nested["may_fallthrough"] is True
+
+
+def test_r3_covers_actual_transports_and_write_primitives() -> None:
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    source = """
+def writes(session, client, path, bucket, mystery, request, redis_client, handle):
+    urllib.request.urlopen(request)
+    client.send(request)
+    session.execute(statement)
+    session.flush()
+    session.commit()
+    path.write_text("evidence")
+    bucket.put_object(Key="x", Body=b"x")
+    redis_client.set("lock", "owner")
+    redis_client.setnx("lock", "owner")
+    redis_client.eval("return 1", 0)
+    redis_client.expire("lock", 60)
+    redis_client.incr("counter")
+    redis_client.decr("counter")
+    redis_client.xadd("events", {"status": "ok"})
+    redis_client.delete("lock")
+    redis_client.unknown_command("value")
+    fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+    os.fsync(handle.fileno())
+    os.fdatasync(handle.fileno())
+    subprocess.run(["true"], check=True)
+    subprocess.Popen(["true"])
+    subprocess.check_call(["true"])
+    subprocess.check_output(["true"])
+    subprocess.call(["true"])
+    mystery.save_payload({})
+"""
+    rows = scanner["risk_candidates"]({"src/w2/synthetic.py": source})["R3"]
+    operations = {row["operation"] for row in rows}
+    assert {
+        "NETWORK_TRANSPORT",
+        "DB_EXECUTE",
+        "DB_FLUSH",
+        "DB_COMMIT",
+        "FILE_WRITE",
+        "OBJECT_STORE_WRITE",
+        "REDIS_KV_WRITE",
+        "REDIS_KV_SCRIPT_WRITE",
+        "FILE_LOCK_OPERATION",
+        "FILE_DURABILITY_SYNC",
+        "PROCESS_EXECUTION",
+    } <= operations
+    unresolved = [row for row in rows if row["call_disposition"].startswith("UNRESOLVED_")]
+    assert any(row["call"] == "mystery.save_payload" for row in unresolved)
+    assert any(row["call"] == "redis_client.unknown_command" for row in unresolved)
+    assert any(row["call"] == "subprocess.call" for row in unresolved)
+    assert all(row["status"] == "UNCLASSIFIED" for row in unresolved)
+    by_call = {row["call"]: row for row in rows}
+    for call in (
+        "redis_client.set",
+        "redis_client.setnx",
+        "redis_client.eval",
+        "redis_client.expire",
+        "redis_client.incr",
+        "redis_client.decr",
+        "redis_client.xadd",
+        "redis_client.delete",
+        "fcntl.flock",
+        "os.fsync",
+        "os.fdatasync",
+        "subprocess.run",
+        "subprocess.Popen",
+        "subprocess.check_call",
+        "subprocess.check_output",
+    ):
+        assert by_call[call]["io_primitive_status"] == "RECOGNIZED_IO_PRIMITIVE"
+
+    files = scanner["python_files"](scanner["BASE_SHA"])
+    actual = scanner["risk_candidates"](files)["R3"]
+    assert any(
+        row["path"] == "src/w2/providers/api_football.py"
+        and row["line"] == 139
+        and row["call"] == "urllib.request.urlopen"
+        and row["operation"] == "NETWORK_TRANSPORT"
+        for row in actual
+    )
+
+
+def test_all_production_calls_have_exactly_one_auditable_disposition() -> None:
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    source = """
+import shutil
+import vendor_sdk
+
+def helper():
+    return None
+
+def entry(callback, payload):
+    helper()
+    len(payload)
+    shutil.copy2("a", "b")
+    vendor_sdk.unknown(payload)
+    callback(payload)
+"""
+    accounting = scanner["all_call_accounting"]({"src/w2/synthetic.py": source})
+    assert accounting["counts"] == {
+        "total_production_ast_calls": 5,
+        "internal_project_call": 1,
+        "known_pure_or_local_transform": 1,
+        "recognized_side_effect_primitive": 1,
+        "unresolved_external_call": 1,
+        "unresolved_dynamic_call": 1,
+        "unaccounted_production_calls": 0,
+    }
+    by_call = {row["call"]: row for row in accounting["calls"]}
+    internal = by_call["helper"]
+    assert internal["callee_id"] == "src/w2/synthetic.py:helper"
+    assert internal["callee_candidate_id"]
+    assert internal["callee_definition_line"] == 5
+    pure = by_call["len"]
+    assert pure["callable_signature"] == "builtins.len"
+    assert pure["reason"] == scanner["KNOWN_PURE_CALLS"]["builtins.len"]
+    assert by_call["shutil.copy2"]["operation"] == "FILE_COPY"
+    assert by_call["vendor_sdk.unknown"]["disposition"] == "UNRESOLVED_EXTERNAL_CALL"
+    assert by_call["callback"]["disposition"] == "UNRESOLVED_DYNAMIC_CALL"
+
+    with pytest.raises(scanner["AuditError"], match="ALL_CALL_ACCOUNTING_FAILED"):
+        scanner["validate_all_call_rows"](
+            [{"call_site_id": "unaccounted", "disposition": "UNCLASSIFIED"}]
+        )
+
+
+def test_r3_exact_trusted_main_shutil_copy_sites_are_side_effects() -> None:
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    files = scanner["python_files"](scanner["BASE_SHA"])
+    rows = scanner["all_call_accounting"](files)["calls"]
+    by_site = {(row["path"], row["line"], row["call"]): row for row in rows}
+    expected = {
+        ("src/w2/data_assets/registry.py", 193, "shutil.copy2"): "FILE_COPY",
+        ("src/w2/data_assets/registry.py", 196, "shutil.copytree"): "FILE_TREE_COPY",
+        ("scripts/audit_w2_runtime_authorities.py", 1179, "shutil.rmtree"): (
+            "FILE_TREE_DELETE"
+        ),
+    }
+    for site, operation in expected.items():
+        assert by_site[site]["disposition"] == "RECOGNIZED_SIDE_EFFECT_PRIMITIVE"
+        assert by_site[site]["operation"] == operation
+
+
+def test_r3_exact_trusted_main_redis_lock_and_durability_sites() -> None:
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    files = scanner["python_files"](scanner["BASE_SHA"])
+    rows = scanner["risk_candidates"](files)["R3"]
+    by_site = {(row["path"], row["line"], row["call"]): row for row in rows}
+    expected = {
+        ("src/w2/ingestion/future_refresh.py", 344, "redis_client.set"): "REDIS_KV_WRITE",
+        (
+            "src/w2/ingestion/future_refresh.py",
+            389,
+            "redis_client.eval",
+        ): "REDIS_KV_SCRIPT_WRITE",
+        ("src/w2/ingestion/future_refresh.py", 351, "fcntl.flock"): "FILE_LOCK_OPERATION",
+        ("src/w2/ingestion/future_refresh.py", 375, "os.fsync"): "FILE_DURABILITY_SYNC",
+        ("scripts/check_public_ingress.py", 55, "subprocess.run"): "PROCESS_EXECUTION",
+        (
+            "src/w2/operations/runtime_evidence.py",
+            24,
+            "subprocess.check_output",
+        ): "PROCESS_EXECUTION",
+    }
+    for site, operation in expected.items():
+        assert by_site[site]["operation"] == operation
+        assert by_site[site]["io_primitive_status"] == "RECOGNIZED_IO_PRIMITIVE"
+
+
+def test_candidate_call_edges_are_rooted_and_candidate_id_bound() -> None:
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    files = scanner["python_files"](scanner["BASE_SHA"])
+    manifest = scanner["call_edge_manifest"](files)
+    assert manifest["root"] == "scripts/run_prematch_refresh.py:main"
+    assert manifest["accepted_by_independent_reviewer"] is False
+    assert "src/w2/providers/api_football.py:request_live" in manifest["chains"]
+    assert "src/w2/providers/ledger.py:record_request" in manifest["chains"]
+    assert any(
+        edge["caller_id"] == "scripts/run_prematch_refresh.py:main"
+        and edge["line"] == 138
+        and edge["callee_id"]
+        == "src/w2/ingestion/future_refresh.py:run_future_refresh_task"
+        for edge in manifest["edges"]
+    )
+
+
+def test_r2_required_wave_1_regression_sites_are_classified() -> None:
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    files = scanner["python_files"](scanner["BASE_SHA"])
+    risks = scanner["risk_candidates"](files)
+    candidates = scanner["adjudicate_s07"](
+        risks["R2"] + risks["R3"], scanner["call_edge_manifest"](files)
+    )
+    by_site = {(row["path"], row["line"]): row for row in candidates}
+
+    ledger = by_site[("src/w2/providers/ledger.py", 98)]
+    assert ledger["handler_action"] == "ROLLBACK_THEN_CONTINUE"
+    assert ledger["mapped_existing_blocker"] == "C11-A"
+    assert ledger["proposed_target_gate"] == "PROPOSED_GATE_A"
+    assert ledger["accepted_by_independent_reviewer"] is False
+    assert ledger["blocker_mapping_basis"] == f"EXACT_CANDIDATE_ID:{ledger['candidate_id']}"
+
+    future_refresh = by_site[("src/w2/ingestion/future_refresh.py", 2098)]
+    assert future_refresh["mapped_existing_blocker"] == "C6"
+    assert "C10" not in future_refresh["mapped_existing_blocker"]
+    assert scanner["INDEPENDENT_BLOCKER_SCOPES"] == {
+        "C10": "FOREGROUND_ISOLATION_COMPOSE_RESTART_NO"
+    }
+
+    settlement = by_site[("src/w2/dashboard/validation.py", 67)]
+    assert settlement["handler_action"] == "DIAGNOSTIC_THEN_CONTINUE"
+    assert settlement["proposed_target_gate"] == "PROPOSED_GATE_C"
+
+    identity = by_site[("src/w2/tracking/finished_match_scoring_projection.py", 394)]
+    assert identity["handler_action"] == "CALL_ONLY_THEN_CONTINUE"
+    assert identity["proposed_target_gate"] == "PROPOSED_GATE_C"
+
+
+def test_pr450_guard_matrix_uses_exact_objects_and_leaves_repair_on_pr450(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, base, pr_head = _portable_repo(tmp_path, include_pr=True)
+    assert pr_head is not None
+    monkeypatch.chdir(repo)
+    scanner = runpy.run_path(str(ROOT / "scripts/audit_t00.py"))
+    config = scanner["AuditConfig"](
+        base,
+        "github-w2",
+        "refs/remotes/github-w2/main",
+        "refs/remotes/github-w2/pull/450/head",
+        pr_head,
+    )
+    matrix = scanner["guard_matrix"](config)
+    assert matrix["source_mode"] == "EXACT_GIT_OBJECTS_ONLY"
+    assert matrix["pr458_changes_delivery_test"] is False
+    assert matrix["repair_required_guards"] == 2
+    assert matrix["unclassified_removed_guards"] == 0
+    assert all(row["classification"] == "LOST_IN_PR450" for row in matrix["removed_guards"])
+    assert all(
+        row["trusted_main_classification"] == "RETAINED_ON_TRUSTED_MAIN"
+        and row["repair_requirement"] == "REPAIR_REQUIRED_IN_PR450"
+        for row in matrix["removed_guards"]
+    )
