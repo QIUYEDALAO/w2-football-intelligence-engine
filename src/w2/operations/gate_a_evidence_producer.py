@@ -24,6 +24,7 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayFixtureIdentityModel,
 )
 from w2.operations.gate_a import (
+    GATE_A_OWNER_APPROVAL_MODE,
     GateAError,
     GateARuntimeAuthorization,
     select_fixture_from_authorization,
@@ -387,13 +388,7 @@ def produce_gate_a_evidence(
             for name, delta in deltas.items()
         },
         "lineage": {
-            "signed_authorization": {
-                "source_path": str(authorization_source),
-                "source_sha256": hashlib.sha256(authorization_source.read_bytes()).hexdigest(),
-                "approval_key_id": authorization.approval_key_id,
-                "approval_public_key_sha256": authorization.approval_public_key_sha256,
-                "approval_custody_status": authorization.approval_custody_status,
-            },
+            **_authorization_authority(authorization, authorization_source),
             "reservation": {
                 "lease_epoch": reservation.lease_epoch,
                 "authorization_id": reservation.authorization_id,
@@ -602,9 +597,39 @@ def _fixture_aliases(fixture_id: str) -> set[str]:
     return {fixture_id, f"api_football:{fixture_id}"}
 
 
-def _binding(authorization: GateARuntimeAuthorization) -> dict[str, str | None]:
+def _authorization_authority(
+    authorization: GateARuntimeAuthorization,
+    authorization_source: Path,
+) -> dict[str, dict[str, str | int | None]]:
+    common: dict[str, str | int | None] = {
+        "source_path": str(authorization_source),
+        "source_sha256": hashlib.sha256(authorization_source.read_bytes()).hexdigest(),
+        "approval_mode": authorization.approval_mode,
+    }
+    if authorization.approval_mode == GATE_A_OWNER_APPROVAL_MODE:
+        return {
+            "owner_authorization": {
+                **common,
+                "owner_decision_issue": authorization.owner_decision_issue,
+                "owner_decision_comment_id": authorization.owner_decision_comment_id,
+            }
+        }
+    return {
+        "signed_authorization": {
+            **common,
+            "approval_key_id": authorization.approval_key_id,
+            "approval_public_key_sha256": authorization.approval_public_key_sha256,
+            "approval_custody_status": authorization.approval_custody_status,
+        }
+    }
+
+
+def _binding(authorization: GateARuntimeAuthorization) -> dict[str, str | int | None]:
     return {
         "authorization_id": authorization.authorization_id,
+        "approval_mode": authorization.approval_mode,
+        "owner_decision_issue": authorization.owner_decision_issue,
+        "owner_decision_comment_id": authorization.owner_decision_comment_id,
         "task_key": authorization.task_key,
         "fixture_id": authorization.fixture_id,
         "provider_league_id": authorization.provider_league_id,

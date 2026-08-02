@@ -25,6 +25,10 @@ from w2.infrastructure.persistence.future_refresh_models import (
 
 GATE_A_AUTHORIZATION_SCHEMA = "w2.gate-a-one-shot-authorization.v4"
 GATE_A_ACTION = "ONE_SHOT_FOREGROUND_CANARY"
+GATE_A_SIGNED_APPROVAL_MODE = "INDEPENDENT_ED25519"
+GATE_A_OWNER_APPROVAL_MODE = "OWNER_APPROVED_UNSIGNED_ONE_SHOT"
+GATE_A_OWNER_DECISION_ISSUE = 454
+GATE_A_OWNER_DECISION_COMMENT_ID = 5155919529
 GATE_A_CANARY_ENDPOINTS = frozenset({"status", "fixtures", "odds", "lineups"})
 GATE_A_CANARY_PROVIDER_CALL_CAP = 5
 GATE_A_EXACT_FIXTURE_SCOPE = "EXACT_FIXTURE_ID"
@@ -75,9 +79,12 @@ class GateARuntimeAuthorization:
     expires_at: datetime
     author: str
     reviewer: str
-    approval_key_id: str
-    approval_public_key_sha256: str
-    approval_custody_status: str
+    approval_key_id: str | None
+    approval_public_key_sha256: str | None
+    approval_custody_status: str | None
+    approval_mode: str = GATE_A_SIGNED_APPROVAL_MODE
+    owner_decision_issue: int | None = None
+    owner_decision_comment_id: int | None = None
 
     @classmethod
     def load(
@@ -92,7 +99,10 @@ class GateARuntimeAuthorization:
             raise GateAError("GATE_A_AUTHORIZATION_UNREADABLE") from exc
         if not isinstance(payload, dict):
             raise GateAError("GATE_A_AUTHORIZATION_INVALID")
-        return cls.from_mapping(payload, trusted_public_keys=_load_trusted_keys(trust_store_path))
+        trusted_public_keys = None
+        if payload.get("approval_mode") != GATE_A_OWNER_APPROVAL_MODE:
+            trusted_public_keys = _load_trusted_keys(trust_store_path)
+        return cls.from_mapping(payload, trusted_public_keys=trusted_public_keys)
 
     @classmethod
     def from_mapping(
@@ -123,10 +133,6 @@ class GateARuntimeAuthorization:
             "expires_at",
             "author",
             "reviewer",
-            "approval_key_id",
-            "approval_public_key_sha256",
-            "approval_custody_status",
-            "approval_signature",
         }
         if (
             payload.get("schema_version") != GATE_A_AUTHORIZATION_SCHEMA
@@ -221,16 +227,54 @@ class GateARuntimeAuthorization:
         expires_at = _aware_utc(payload["expires_at"])
         if expires_at <= issued_at or expires_at - issued_at > timedelta(hours=1):
             raise GateAError("GATE_A_AUTHORIZATION_WINDOW_INVALID")
-        approval_key_id = str(payload["approval_key_id"]).strip()
-        _verify_approval_signature(
-            payload,
-            key_id=approval_key_id,
-            trusted_public_keys=(
-                trusted_public_keys
-                if trusted_public_keys is not None
-                else _load_trusted_keys(DEFAULT_TRUST_STORE)
-            ),
-        )
+        approval_mode = str(payload.get("approval_mode") or GATE_A_SIGNED_APPROVAL_MODE)
+        approval_key_id = None
+        approval_public_key_sha256 = None
+        approval_custody_status = None
+        owner_decision_issue = None
+        owner_decision_comment_id = None
+        if approval_mode == GATE_A_OWNER_APPROVAL_MODE:
+            if (
+                payload.get("owner_decision_issue") != GATE_A_OWNER_DECISION_ISSUE
+                or payload.get("owner_decision_comment_id")
+                != GATE_A_OWNER_DECISION_COMMENT_ID
+            ):
+                raise GateAError("GATE_A_OWNER_DECISION_RECEIPT_INVALID")
+            if any(
+                field in payload
+                for field in (
+                    "approval_key_id",
+                    "approval_public_key_sha256",
+                    "approval_custody_status",
+                    "approval_signature",
+                )
+            ):
+                raise GateAError("GATE_A_UNSIGNED_APPROVAL_CRYPTOGRAPHIC_FIELDS_FORBIDDEN")
+            owner_decision_issue = GATE_A_OWNER_DECISION_ISSUE
+            owner_decision_comment_id = GATE_A_OWNER_DECISION_COMMENT_ID
+        elif approval_mode == GATE_A_SIGNED_APPROVAL_MODE:
+            signed_fields = {
+                "approval_key_id",
+                "approval_public_key_sha256",
+                "approval_custody_status",
+                "approval_signature",
+            }
+            if not signed_fields.issubset(payload):
+                raise GateAError("GATE_A_AUTHORIZATION_INVALID")
+            approval_key_id = str(payload["approval_key_id"]).strip()
+            _verify_approval_signature(
+                payload,
+                key_id=approval_key_id,
+                trusted_public_keys=(
+                    trusted_public_keys
+                    if trusted_public_keys is not None
+                    else _load_trusted_keys(DEFAULT_TRUST_STORE)
+                ),
+            )
+            approval_public_key_sha256 = str(payload["approval_public_key_sha256"])
+            approval_custody_status = str(payload["approval_custody_status"])
+        else:
+            raise GateAError("GATE_A_APPROVAL_MODE_INVALID")
         return cls(
             authorization_id=authorization_id,
             task_key=task_key,
@@ -257,8 +301,11 @@ class GateARuntimeAuthorization:
             author=author,
             reviewer=reviewer,
             approval_key_id=approval_key_id,
-            approval_public_key_sha256=str(payload["approval_public_key_sha256"]),
-            approval_custody_status=str(payload["approval_custody_status"]),
+            approval_public_key_sha256=approval_public_key_sha256,
+            approval_custody_status=approval_custody_status,
+            approval_mode=approval_mode,
+            owner_decision_issue=owner_decision_issue,
+            owner_decision_comment_id=owner_decision_comment_id,
         )
 
     def validate_scope(

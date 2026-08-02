@@ -20,6 +20,7 @@ from w2.domain.canonical_serialization import (
 )
 from w2.operations.gate_a import (
     GATE_A_EXACT_FIXTURE_SCOPE,
+    GATE_A_OWNER_APPROVAL_MODE,
     GATE_A_SELECTION_POLICY_VERSION,
     GATE_A_WINDOW_FIXTURE_SCOPE,
     GateARuntimeAuthorization,
@@ -40,6 +41,9 @@ REQUIRED_ARTIFACTS = {
 }
 REQUIRED_BINDING_FIELDS = {
     "authorization_id",
+    "approval_mode",
+    "owner_decision_issue",
+    "owner_decision_comment_id",
     "task_key",
     "fixture_id",
     "provider_league_id",
@@ -113,8 +117,11 @@ def _validate_binding(value: Any, *, authorization: GateARuntimeAuthorization) -
     binding = _mapping(value, "EVIDENCE_BINDING_INVALID")
     if set(binding) != REQUIRED_BINDING_FIELDS:
         raise GateAEvidenceError("EVIDENCE_BINDING_INVALID")
-    expected: dict[str, str | None] = {
+    expected: dict[str, str | int | None] = {
         "authorization_id": authorization.authorization_id,
+        "approval_mode": authorization.approval_mode,
+        "owner_decision_issue": authorization.owner_decision_issue,
+        "owner_decision_comment_id": authorization.owner_decision_comment_id,
         "task_key": authorization.task_key,
         "fixture_id": authorization.fixture_id,
         "provider_league_id": authorization.provider_league_id,
@@ -137,7 +144,7 @@ def _validate_binding(value: Any, *, authorization: GateARuntimeAuthorization) -
         if actual is None or expected_value is None:
             if actual != expected_value:
                 raise GateAEvidenceError("EVIDENCE_BINDING_MISMATCH")
-        elif not hmac.compare_digest(str(actual), expected_value):
+        elif not hmac.compare_digest(str(actual), str(expected_value)):
             raise GateAEvidenceError("EVIDENCE_BINDING_MISMATCH")
     if authorization.execution_mode == "IMMUTABLE_IMAGE":
         if binding["runtime_artifact_digest"] is None:
@@ -152,15 +159,34 @@ def _validate_authority_lineage(
     authorization: GateARuntimeAuthorization,
     authorization_source_sha256: str,
 ) -> None:
-    signed = _mapping(lineage.get("signed_authorization"), "SIGNED_AUTHORIZATION_LINEAGE_INVALID")
+    if authorization.approval_mode == GATE_A_OWNER_APPROVAL_MODE:
+        authority = _mapping(
+            lineage.get("owner_authorization"), "OWNER_AUTHORIZATION_LINEAGE_INVALID"
+        )
+        authority_mismatch = (
+            "signed_authorization" in lineage
+            or authority.get("approval_mode") != authorization.approval_mode
+            or authority.get("owner_decision_issue") != authorization.owner_decision_issue
+            or authority.get("owner_decision_comment_id")
+            != authorization.owner_decision_comment_id
+        )
+    else:
+        authority = _mapping(
+            lineage.get("signed_authorization"), "SIGNED_AUTHORIZATION_LINEAGE_INVALID"
+        )
+        authority_mismatch = (
+            authority.get("approval_mode") != authorization.approval_mode
+            or authority.get("approval_key_id") != authorization.approval_key_id
+            or authority.get("approval_public_key_sha256")
+            != authorization.approval_public_key_sha256
+            or authority.get("approval_custody_status") != "INDEPENDENT_SIGNER_CONFIRMED"
+        )
     reservation = _mapping(lineage.get("reservation"), "RESERVATION_LINEAGE_INVALID")
     selection = _mapping(lineage.get("fixture_selection"), "FIXTURE_SELECTION_LINEAGE_INVALID")
     audit = _mapping(lineage.get("task_audit"), "TASK_AUDIT_LINEAGE_INVALID")
     if (
-        signed.get("approval_key_id") != authorization.approval_key_id
-        or signed.get("source_sha256") != authorization_source_sha256
-        or signed.get("approval_public_key_sha256") != authorization.approval_public_key_sha256
-        or signed.get("approval_custody_status") != "INDEPENDENT_SIGNER_CONFIRMED"
+        authority_mismatch
+        or authority.get("source_sha256") != authorization_source_sha256
         or reservation.get("authorization_id") != authorization.authorization_id
         or reservation.get("task_key") != authorization.task_key
         or reservation.get("fixture_id") != authorization.fixture_id
@@ -211,7 +237,7 @@ def _validate_authority_lineage(
     if any(row.get("lease_epoch") != lease_epoch for row in provider_calls):
         raise GateAEvidenceError("PROVIDER_CALL_LEASE_MISMATCH")
     if any(row.get("endpoint") not in authorization.allowed_endpoints for row in provider_calls):
-        raise GateAEvidenceError("PROVIDER_ENDPOINT_OUTSIDE_SIGNED_SCOPE")
+        raise GateAEvidenceError("PROVIDER_ENDPOINT_OUTSIDE_AUTHORIZED_SCOPE")
     if [row.get("endpoint") for row in provider_calls] != [
         "status",
         "fixtures",
@@ -238,8 +264,8 @@ def _validate_authority_lineage(
             if fixture_id not in fixture_aliases:
                 raise GateAEvidenceError("GATE_A_FIXTURE_SCOPE_MISMATCH")
         else:
-            raise GateAEvidenceError("PROVIDER_ENDPOINT_OUTSIDE_SIGNED_SCOPE")
-    source_sha = signed.get("source_sha256")
+            raise GateAEvidenceError("PROVIDER_ENDPOINT_OUTSIDE_AUTHORIZED_SCOPE")
+    source_sha = authority.get("source_sha256")
     if (
         not isinstance(source_sha, str)
         or re.fullmatch(r"[0-9a-f]{64}", source_sha) is None

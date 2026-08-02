@@ -103,6 +103,9 @@ def test_admission_identity_evidence_and_oracle_authorities_are_closed() -> None
     assert "runtime_artifact_digest" in authorization
     assert "approval_public_key_sha256" in authorization
     assert "INDEPENDENT_SIGNER_CONFIRMED" in authorization
+    assert "OWNER_APPROVED_UNSIGNED_ONE_SHOT" in authorization
+    assert "GATE_A_OWNER_DECISION_ISSUE = 454" in authorization
+    assert "GATE_A_OWNER_DECISION_COMMENT_ID = 5155919529" in authorization
     assert "expected_binding" not in validator
     assert "CALLER_ASSERTED_ARTIFACT_COUNT_REJECTED" in validator
     assert "subprocess.run" in validator

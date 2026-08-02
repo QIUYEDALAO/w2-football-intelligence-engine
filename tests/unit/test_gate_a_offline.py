@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 from base64 import b64encode
 from concurrent.futures import ThreadPoolExecutor
@@ -20,6 +21,7 @@ from w2.infrastructure.persistence.future_refresh_models import (
     GateARunReservationModel,
 )
 from w2.operations.gate_a import (
+    GATE_A_OWNER_APPROVAL_MODE,
     GATE_A_SELECTION_POLICY_VERSION,
     GATE_A_SELECTION_RULE,
     GateAError,
@@ -88,6 +90,7 @@ def authorization_payload(**overrides: object) -> dict[str, object]:
         "expires_at": (NOW + timedelta(minutes=30)).isoformat(),
         "author": "runtime-owner",
         "reviewer": "independent-reviewer",
+        "approval_mode": "INDEPENDENT_ED25519",
         "approval_key_id": "test-independent-key",
         "approval_public_key_sha256": PUBLIC_KEY_SHA256,
         "approval_custody_status": "INDEPENDENT_SIGNER_CONFIRMED",
@@ -105,6 +108,25 @@ def runtime_authorization(**overrides: object) -> GateARuntimeAuthorization:
         authorization_payload(**overrides),
         trusted_public_keys=TRUSTED_KEYS,
     )
+
+
+def unsigned_authorization_payload(**overrides: object) -> dict[str, object]:
+    values: dict[str, object] = {
+        "approval_mode": GATE_A_OWNER_APPROVAL_MODE,
+        "owner_decision_issue": 454,
+        "owner_decision_comment_id": 5155919529,
+    }
+    values.update(overrides)
+    payload = authorization_payload(**values)
+    for field in (
+        "approval_key_id",
+        "approval_public_key_sha256",
+        "approval_custody_status",
+        "approval_signature",
+    ):
+        if field not in overrides:
+            payload.pop(field, None)
+    return payload
 
 
 def window_authorization(**overrides: object) -> GateARuntimeAuthorization:
@@ -168,6 +190,37 @@ def test_authorization_is_independent_scoped_short_lived_and_db_only() -> None:
             runtime_authorization(**overrides)
     with pytest.raises(GateAError, match="GATE_A_APPROVAL_SIGNATURE_INVALID"):
         runtime_authorization(approval_signature=b64encode(b"not-a-signature").decode())
+
+
+def test_owner_approved_unsigned_authorization_needs_no_trust_store(tmp_path) -> None:
+    path = tmp_path / "owner-authorization.json"
+    path.write_text(json.dumps(unsigned_authorization_payload()), encoding="utf-8")
+
+    authorization = GateARuntimeAuthorization.load(
+        path,
+        trust_store_path=tmp_path / "missing-trust-store.json",
+    )
+
+    assert authorization.approval_mode == GATE_A_OWNER_APPROVAL_MODE
+    assert authorization.owner_decision_issue == 454
+    assert authorization.owner_decision_comment_id == 5155919529
+    assert authorization.approval_key_id is None
+
+
+@pytest.mark.parametrize(
+    "overrides,error",
+    [
+        ({"owner_decision_comment_id": 1}, "GATE_A_OWNER_DECISION_RECEIPT_INVALID"),
+        ({"approval_signature": "not-used"}, "GATE_A_UNSIGNED_APPROVAL_CRYPTOGRAPHIC"),
+    ],
+)
+def test_owner_approved_unsigned_authorization_rejects_wrong_receipt_or_signature(
+    overrides: dict[str, object],
+    error: str,
+) -> None:
+    payload = unsigned_authorization_payload(**overrides)
+    with pytest.raises(GateAError, match=error):
+        GateARuntimeAuthorization.from_mapping(payload)
 
 
 def test_authorization_requires_independent_key_custody_and_supports_image_digest() -> None:

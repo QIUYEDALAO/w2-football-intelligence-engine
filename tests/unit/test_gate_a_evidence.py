@@ -4,6 +4,7 @@ import hashlib
 import json
 import sys
 from copy import deepcopy
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -23,6 +24,7 @@ from w2.domain.canonical_serialization import (
 )
 from w2.infrastructure.database import Base
 from w2.operations.gate_a import (
+    GATE_A_OWNER_APPROVAL_MODE,
     GATE_A_SELECTION_POLICY_VERSION,
     GATE_A_SELECTION_RULE,
     GateARuntimeAuthorization,
@@ -99,6 +101,7 @@ def valid_evidence() -> dict[str, object]:
         "signed_authorization": {
             "source_path": "/independent/authorization.json",
             "source_sha256": "e" * 64,
+            "approval_mode": "INDEPENDENT_ED25519",
             "approval_key_id": "independent-key",
             "approval_public_key_sha256": "d" * 64,
             "approval_custody_status": "INDEPENDENT_SIGNER_CONFIRMED",
@@ -292,6 +295,9 @@ def valid_evidence() -> dict[str, object]:
         "serializer_version": "w2.canonical-json.v2",
         "binding": {
             "authorization_id": "authorization-1",
+            "approval_mode": "INDEPENDENT_ED25519",
+            "owner_decision_issue": None,
+            "owner_decision_comment_id": None,
             "task_key": "future-refresh:world_cup_2026:2026:bucket",
             "fixture_id": "12345",
             "provider_league_id": "1",
@@ -344,6 +350,42 @@ def test_gate_a_evidence_accepts_db_produced_package_and_independent_oracle() ->
     )
 
 
+def test_gate_a_evidence_records_owner_decision_without_cryptographic_claim() -> None:
+    owner_authorization = replace(
+        authorization(),
+        approval_mode=GATE_A_OWNER_APPROVAL_MODE,
+        owner_decision_issue=454,
+        owner_decision_comment_id=5155919529,
+        approval_key_id=None,
+        approval_public_key_sha256=None,
+        approval_custody_status=None,
+    )
+    payload = valid_evidence()
+    binding = payload["binding"]
+    lineage = payload["lineage"]
+    assert isinstance(binding, dict)
+    assert isinstance(lineage, dict)
+    binding.update(
+        approval_mode=GATE_A_OWNER_APPROVAL_MODE,
+        owner_decision_issue=454,
+        owner_decision_comment_id=5155919529,
+    )
+    lineage.pop("signed_authorization")
+    lineage["owner_authorization"] = {
+        "source_path": "/owner/authorization.json",
+        "source_sha256": "e" * 64,
+        "approval_mode": GATE_A_OWNER_APPROVAL_MODE,
+        "owner_decision_issue": 454,
+        "owner_decision_comment_id": 5155919529,
+    }
+
+    validate_gate_a_evidence(
+        payload,
+        authorization=owner_authorization,
+        authorization_source_sha256="e" * 64,
+    )
+
+
 @pytest.mark.parametrize(
     ("path", "value", "code"),
     [
@@ -374,7 +416,7 @@ def test_gate_a_evidence_accepts_db_produced_package_and_independent_oracle() ->
         (
             "lineage.provider_calls.0.endpoint",
             "injuries",
-            "PROVIDER_ENDPOINT_OUTSIDE_SIGNED_SCOPE",
+            "PROVIDER_ENDPOINT_OUTSIDE_AUTHORIZED_SCOPE",
         ),
         (
             "lineage.fixture_selection.candidate_set_sha256",

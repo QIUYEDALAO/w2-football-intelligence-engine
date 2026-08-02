@@ -67,6 +67,7 @@ def _gate_a_authorization() -> GateARuntimeAuthorization:
         "expires_at": "2026-06-23T10:30:00Z",
         "author": "implementer",
         "reviewer": "reviewer",
+        "approval_mode": "INDEPENDENT_ED25519",
         "approval_key_id": "test-independent-key",
     }
     public_key = b64encode(
