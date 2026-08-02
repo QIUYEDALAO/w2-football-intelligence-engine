@@ -27,7 +27,6 @@ from w2.competitions.seed import set_competition_enabled
 from w2.config import Settings
 from w2.infrastructure.cache import redis_status
 from w2.infrastructure.database import create_engine
-from w2.providers.api_football import ApiFootballClient
 
 
 @contextmanager
@@ -755,8 +754,8 @@ def test_worker_future_refresh_uses_allowlisted_live_client(monkeypatch) -> None
 
     result = future_fixture_refresh.run(competition_id="allsvenskan")
 
-    client = captured["client"]
-    assert isinstance(client, ApiFootballClient)
+    client: Any = captured["client"]
+    assert type(client).__name__ == "ApiFootballClient"
     assert client.allow_live is True
     assert client.allowed_live_endpoints == frozenset(
         {"status", "fixtures", "odds", "lineups"}
