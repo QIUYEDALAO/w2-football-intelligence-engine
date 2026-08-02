@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(SRC))
 
 from scripts.run_prematch_refresh import (  # noqa: E402
