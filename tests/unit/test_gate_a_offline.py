@@ -500,7 +500,7 @@ def test_postgres_runtime_fixture_binding_has_one_atomic_winner(
     assert sum(result.startswith("WINNER:") for result in results) == 1
     assert results.count("GATE_A_FIXTURE_BINDING_FAILED") == 1
     with Session(engine) as session:
-        stored = session.get(GateARunReservationModel, reservation.authorization_id)
+        stored = session.get(GateARunReservationModel, reservation.lease_epoch)
     assert stored is not None
     assert f"WINNER:{stored.selected_fixture_id}" in results
     get_settings.cache_clear()
