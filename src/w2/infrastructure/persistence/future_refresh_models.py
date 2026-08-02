@@ -23,7 +23,10 @@ from w2.infrastructure.database import Base
 
 class FutureRefreshTaskAuditModel(Base):
     __tablename__ = "future_refresh_task_audit"
-    __table_args__ = (Index("ix_future_refresh_task_audit_key", "key"),)
+    __table_args__ = (
+        Index("ix_future_refresh_task_audit_key", "key"),
+        UniqueConstraint("gate_a_lease_epoch", name="uq_future_refresh_task_audit_gate_a_lease"),
+    )
 
     task_id: Mapped[str] = mapped_column(String(255), primary_key=True)
     key: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -33,6 +36,11 @@ class FutureRefreshTaskAuditModel(Base):
     finished_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     result: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    gate_a_authorization_id: Mapped[str | None] = mapped_column(String(128))
+    gate_a_lease_epoch: Mapped[int | None] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        ForeignKey("gate_a_run_reservations.lease_epoch"),
+    )
 
 
 class GateARunReservationModel(Base):
@@ -151,6 +159,7 @@ class RawPayloadModel(Base):
     sha256: Mapped[str] = mapped_column(String(64), primary_key=True)
     endpoint: Mapped[str] = mapped_column(String(64), nullable=False)
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    inserted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     storage_uri: Mapped[str] = mapped_column(String(255), nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 

@@ -116,9 +116,13 @@ def produce_gate_a_evidence(
     *,
     engine: Engine,
     authorization_source: Path,
+    trust_store_path: Path | None = None,
 ) -> dict[str, Any]:
     """Build the sole Gate-A evidence package directly from signed and DB authorities."""
-    authorization = GateARuntimeAuthorization.load(authorization_source)
+    authorization = GateARuntimeAuthorization.load(
+        authorization_source,
+        **({"trust_store_path": trust_store_path} if trust_store_path is not None else {}),
+    )
     with Session(engine) as session:
         reservation = session.scalar(
             select(GateARunReservationModel).where(
@@ -143,12 +147,14 @@ def produce_gate_a_evidence(
             session.scalars(
                 select(FutureRefreshTaskAuditModel).where(
                     FutureRefreshTaskAuditModel.key == authorization.task_key,
-                    FutureRefreshTaskAuditModel.started_at >= reservation.reserved_at,
-                    FutureRefreshTaskAuditModel.finished_at <= reservation.finished_at,
+                    FutureRefreshTaskAuditModel.gate_a_authorization_id
+                    == authorization.authorization_id,
+                    FutureRefreshTaskAuditModel.gate_a_lease_epoch == reservation.lease_epoch,
+                    FutureRefreshTaskAuditModel.status == "COMPLETED",
                 )
             )
         )
-        if len(audits) != 1 or audits[0].status != "COMPLETED":
+        if len(audits) != 1:
             raise GateAEvidenceError("GATE_A_TASK_AUDIT_NOT_COMPLETED")
         audit = audits[0]
         provider_calls = list(
@@ -246,7 +252,14 @@ def produce_gate_a_evidence(
     captures = [
         row for row in all_captures if row.capture_id not in set(baseline["endpoint_capture"])
     ]
-    raw_rows = [row for row in all_raw_rows if row.sha256 not in set(baseline["raw_payload"])]
+    raw_rows = [
+        row
+        for row in all_raw_rows
+        if row.sha256 not in set(baseline["raw_payload"])
+        and row.inserted_at is not None
+        and _utc(row.inserted_at) >= _utc(reservation.reserved_at)
+        and _utc(row.inserted_at) <= _utc(reservation.finished_at)
+    ]
     lineup_rows = [
         row
         for row in all_lineup_rows
@@ -332,15 +345,31 @@ def produce_gate_a_evidence(
                 "lease_epoch": reservation.lease_epoch,
                 "authorization_id": reservation.authorization_id,
                 "task_key": reservation.task_key,
+                "status": reservation.status,
+                "reserved_at": _iso(reservation.reserved_at),
+                "finished_at": _iso(reservation.finished_at),
+                "provider_call_cap": reservation.provider_call_cap,
+                "provider_calls_used": reservation.provider_calls_used,
                 "evidence_baseline": baseline,
             },
             "task_audit": {
                 "task_id": audit.task_id,
+                "task_key": audit.key,
+                "authorization_id": audit.gate_a_authorization_id,
+                "lease_epoch": audit.gate_a_lease_epoch,
+                "planned_at": _iso(audit.queued_at),
+                "actual_execution_started_at": _iso(audit.started_at),
+                "finished_at": _iso(audit.finished_at),
                 "status": audit.status,
                 "result": audit.result,
             },
             "provider_calls": [
-                {"ordinal": row.call_ordinal, "endpoint": row.endpoint, "state": row.state}
+                {
+                    "lease_epoch": row.lease_epoch,
+                    "ordinal": row.call_ordinal,
+                    "endpoint": row.endpoint,
+                    "state": row.state,
+                }
                 for row in provider_calls
             ],
             "raw_payload_rows": [
@@ -348,6 +377,7 @@ def produce_gate_a_evidence(
                     "sha256": row.sha256,
                     "endpoint": row.endpoint,
                     "captured_at": _iso(row.captured_at),
+                    "inserted_at": _iso(row.inserted_at),
                     "storage_uri": row.storage_uri,
                 }
                 for row in raw_rows
@@ -441,6 +471,7 @@ def _reservation_matches_authorization(
         (reservation.task_key, authorization.task_key),
         (reservation.competition_id, authorization.competition_id),
         (reservation.season, authorization.season),
+        (reservation.provider_call_cap, authorization.provider_call_cap),
         (reservation.exact_head, authorization.exact_head),
         (reservation.exact_tree, authorization.exact_tree),
         (reservation.execution_mode, authorization.execution_mode),

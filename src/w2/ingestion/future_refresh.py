@@ -145,6 +145,8 @@ class RefreshTaskAudit:
     finished_at: str
     status: str
     result: dict[str, Any]
+    gate_a_authorization_id: str | None = None
+    gate_a_lease_epoch: int | None = None
 
 
 def utc_now() -> datetime:
@@ -2147,7 +2149,8 @@ def run_future_refresh_task(
     runtime_authorization: GateARuntimeAuthorization | None = None,
     provider_call_reservation: GateARunReservation | None = None,
 ) -> RefreshTaskAudit:
-    started_at = now or utc_now()
+    execution_started_at = utc_now()
+    evaluation_time = now or execution_started_at
     owner_marker = owner or str(uuid4())
     root = runtime_root or FutureRefreshConfig().runtime_root
     resolved_persistence = (
@@ -2183,7 +2186,7 @@ def run_future_refresh_task(
                     runtime_root=root,
                     redis_client=redis_client,
                 )
-                lock_acquired = lock.acquire(now=started_at)
+                lock_acquired = lock.acquire(now=evaluation_time)
             elif client is not None:
                 # Offline/fake-provider C9 has no live-capable client construction path.
                 lock_acquired = True
@@ -2198,7 +2201,7 @@ def run_future_refresh_task(
             runtime_root=root,
             redis_client=redis_client,
         )
-        lock_acquired = lock.acquire(now=started_at)
+        lock_acquired = lock.acquire(now=evaluation_time)
     if not lock_acquired:
         interval_metadata = {
             "requested_interval_seconds": requested_interval_seconds,
@@ -2209,8 +2212,8 @@ def run_future_refresh_task(
             task_id=task_id,
             key=key,
             owner=owner_marker,
-            queued_at=iso(queued_at or started_at),
-            started_at=iso(started_at),
+            queued_at=iso(queued_at or evaluation_time),
+            started_at=iso(execution_started_at),
             finished_at=iso(utc_now()),
             status="ALREADY_RUNNING",
             result={
@@ -2218,6 +2221,16 @@ def run_future_refresh_task(
                 "formal_recommendation": False,
                 **{k: v for k, v in interval_metadata.items() if v is not None},
             },
+            gate_a_authorization_id=(
+                runtime_authorization.authorization_id
+                if runtime_authorization is not None
+                else None
+            ),
+            gate_a_lease_epoch=(
+                getattr(provider_call_reservation, "lease_epoch", None)
+                if provider_call_reservation is not None
+                else None
+            ),
         )
         write_task_audit(root, audit, persistence=persistence)
         return audit
@@ -2233,7 +2246,7 @@ def run_future_refresh_task(
             season=season,
             runtime_root=root,
             client=client,
-            now=started_at,
+            now=evaluation_time,
             persistence=resolved_persistence,
             checkpoint_fixture_ids=checkpoint_fixture_ids,
             refresh_checkpoints=refresh_checkpoints,
@@ -2269,8 +2282,8 @@ def run_future_refresh_task(
         task_id=task_id,
         key=key,
         owner=owner_marker,
-        queued_at=iso(queued_at or started_at),
-        started_at=iso(started_at),
+        queued_at=iso(queued_at or evaluation_time),
+        started_at=iso(execution_started_at),
         finished_at=iso(utc_now()),
         status=status,
         result={
@@ -2286,6 +2299,14 @@ def run_future_refresh_task(
                 if value is not None
             },
         },
+        gate_a_authorization_id=(
+            runtime_authorization.authorization_id if runtime_authorization is not None else None
+        ),
+        gate_a_lease_epoch=(
+            getattr(provider_call_reservation, "lease_epoch", None)
+            if provider_call_reservation is not None
+            else None
+        ),
     )
     write_task_audit(root, audit, persistence=persistence)
     if provider_call_reservation is not None:

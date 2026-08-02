@@ -9,6 +9,7 @@ import re
 import subprocess
 import sys
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +20,7 @@ from w2.domain.canonical_serialization import (
 )
 from w2.operations.gate_a import GateARuntimeAuthorization
 
-GATE_A_EVIDENCE_SCHEMA = "w2.gate-a-admission-evidence.v3"
+GATE_A_EVIDENCE_SCHEMA = "w2.gate-a-admission-evidence.v4"
 SERIALIZER_VERSION = "w2.canonical-json.v2"
 ROOT = Path(__file__).resolve().parents[3]
 ORACLE_SOURCE = ROOT / "oracle/canonical_serialization_oracle.py"
@@ -75,10 +76,10 @@ def validate_gate_a_evidence(
     production_seed = _production_bootstrap(
         payload.get("bootstrap_seed_evidence"), production_hashes
     )
-    _validate_content(lineage, pair_rows=pair_rows)
     _validate_producer_counts(
         payload.get("artifact_counts"), lineage=lineage, pair_count=len(pair_rows)
     )
+    _validate_content(lineage, pair_rows=pair_rows)
     independent = _independent_recompute(
         payload.get("independent_oracle"),
         pair_rows=pair_rows,
@@ -142,6 +143,10 @@ def _validate_authority_lineage(
         or signed.get("approval_custody_status") != "INDEPENDENT_SIGNER_CONFIRMED"
         or reservation.get("authorization_id") != authorization.authorization_id
         or reservation.get("task_key") != authorization.task_key
+        or reservation.get("status") != "COMPLETED"
+        or audit.get("task_key") != authorization.task_key
+        or audit.get("authorization_id") != authorization.authorization_id
+        or audit.get("lease_epoch") != reservation.get("lease_epoch")
         or audit.get("status") != "COMPLETED"
     ):
         raise GateAEvidenceError("AUTHORITY_LINEAGE_MISMATCH")
@@ -150,6 +155,31 @@ def _validate_authority_lineage(
     )
     if any(row.get("state") != "RESPONSE_RECEIVED" for row in provider_calls):
         raise GateAEvidenceError("PROVIDER_CALL_OUTCOME_NOT_RECEIVED")
+    lease_epoch = reservation.get("lease_epoch")
+    ordinals = [row.get("ordinal") for row in provider_calls]
+    provider_calls_used = reservation.get("provider_calls_used")
+    provider_call_cap = reservation.get("provider_call_cap")
+    request_count = _mapping(
+        audit.get("result"), "AUTHORITY_LINEAGE_MISMATCH"
+    ).get("request_count")
+    if (
+        isinstance(provider_calls_used, bool)
+        or not isinstance(provider_calls_used, int)
+        or isinstance(provider_call_cap, bool)
+        or not isinstance(provider_call_cap, int)
+        or isinstance(request_count, bool)
+        or not isinstance(request_count, int)
+        or len(provider_calls) != provider_calls_used
+        or provider_calls_used != request_count
+        or provider_calls_used > provider_call_cap
+    ):
+        raise GateAEvidenceError("PROVIDER_CALL_COUNT_MISMATCH")
+    if ordinals != list(range(1, len(provider_calls) + 1)):
+        raise GateAEvidenceError("PROVIDER_CALL_ORDINALS_NOT_CONTIGUOUS")
+    if any(row.get("lease_epoch") != lease_epoch for row in provider_calls):
+        raise GateAEvidenceError("PROVIDER_CALL_LEASE_MISMATCH")
+    if any(row.get("endpoint") not in authorization.allowed_endpoints for row in provider_calls):
+        raise GateAEvidenceError("PROVIDER_ENDPOINT_OUTSIDE_SIGNED_SCOPE")
     source_sha = signed.get("source_sha256")
     if (
         not isinstance(source_sha, str)
@@ -231,6 +261,16 @@ def _validate_content(lineage: Mapping[str, Any], *, pair_rows: list[Mapping[str
         lineage.get("endpoint_capture_rows"), "ENDPOINT_CAPTURE_LINEAGE_INVALID"
     )
     raw_hashes = {row.get("sha256") for row in raw_rows}
+    reservation = _mapping(lineage.get("reservation"), "RESERVATION_LINEAGE_INVALID")
+    reserved_at = _parse_iso(reservation.get("reserved_at"), "RAW_PAYLOAD_INSERTION_INVALID")
+    finished_at = _parse_iso(reservation.get("finished_at"), "RAW_PAYLOAD_INSERTION_INVALID")
+    if any(
+        not reserved_at
+        <= _parse_iso(row.get("inserted_at"), "RAW_PAYLOAD_INSERTION_INVALID")
+        <= finished_at
+        for row in raw_rows
+    ):
+        raise GateAEvidenceError("RAW_PAYLOAD_INSERTION_INVALID")
     if any(row.get("raw_payload_sha256") not in raw_hashes for row in captures):
         raise GateAEvidenceError("RAW_ENDPOINT_LINEAGE_MISMATCH")
     capture_by_id = {row.get("capture_id"): row for row in captures}
@@ -397,6 +437,18 @@ def _mapping(value: Any, code: str) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         raise GateAEvidenceError(code)
     return value
+
+
+def _parse_iso(value: Any, code: str) -> datetime:
+    if not isinstance(value, str):
+        raise GateAEvidenceError(code)
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise GateAEvidenceError(code) from exc
+    if parsed.tzinfo is None:
+        raise GateAEvidenceError(code)
+    return parsed.astimezone(UTC)
 
 
 def _list_of_mappings(value: Any, code: str) -> list[Mapping[str, Any]]:

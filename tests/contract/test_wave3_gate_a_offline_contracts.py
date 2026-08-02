@@ -89,6 +89,9 @@ def test_admission_identity_evidence_and_oracle_authorities_are_closed() -> None
     authorization = (ROOT / "src/w2/operations/gate_a.py").read_text(encoding="utf-8")
     validator = (ROOT / "src/w2/operations/gate_a_evidence.py").read_text(encoding="utf-8")
     producer = (ROOT / "src/w2/operations/gate_a_evidence_producer.py").read_text(encoding="utf-8")
+    admission = (ROOT / "scripts/validate_gate_a_offline_evidence.py").read_text(
+        encoding="utf-8"
+    )
     trust = json.loads(
         (ROOT / "config/policies/gate_a_authorization_trust.v1.json").read_text(encoding="utf-8")
     )
@@ -111,6 +114,12 @@ def test_admission_identity_evidence_and_oracle_authorities_are_closed() -> None
     assert "MatchdayEndpointCaptureModel" in producer
     assert "LineupConfirmedEventModel" in producer
     assert "DynamicPrematchEvaluationModel" in producer
+    assert "FutureRefreshTaskAuditModel.gate_a_lease_epoch" in producer
+    assert "row.inserted_at" in producer
+    assert "produce_gate_a_evidence(" in admission
+    assert "validate_gate_a_evidence(" in admission
+    assert "CALLER_EVIDENCE_DB_RECOMPUTE_MISMATCH" in admission
+    assert not (ROOT / "scripts/produce_gate_a_admission_evidence.py").exists()
     assert trust["private_keys_present"] is False
     assert all(
         key["authorization_enabled"] is False for key in trust["trusted_ed25519_keys"].values()

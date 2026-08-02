@@ -151,6 +151,7 @@ class DatabaseRawPayloadObjectStore:
                 sha256=sha256,
                 endpoint=endpoint,
                 captured_at=captured_at,
+                inserted_at=datetime.now(UTC),
                 storage_uri=storage_uri,
                 payload=payload,
             )
@@ -2534,6 +2535,16 @@ class FutureRefreshDbRepository:
                         finished_at=parse_db_datetime(audit["finished_at"]),
                         status=str(audit["status"]),
                         result=dict(audit["result"]),
+                        gate_a_authorization_id=(
+                            str(audit["gate_a_authorization_id"])
+                            if audit.get("gate_a_authorization_id") is not None
+                            else None
+                        ),
+                        gate_a_lease_epoch=(
+                            int(audit["gate_a_lease_epoch"])
+                            if audit.get("gate_a_lease_epoch") is not None
+                            else None
+                        ),
                     )
                 )
                 session.commit()

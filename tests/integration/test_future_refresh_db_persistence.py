@@ -770,6 +770,39 @@ def test_scoped_raw_payload_and_xg_readers_enforce_fixed_limits(
     assert {row["team_id"] for row in xg} == {"home", "away"}
 
 
+def test_raw_payload_inserted_at_is_first_insert_authority(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    repository = FutureRefreshDbRepository()
+    sha256 = "f" * 64
+    repository.save_raw_payload(
+        sha256=sha256,
+        endpoint="odds",
+        captured_at=NOW,
+        payload={"response": []},
+    )
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        first = session.get(RawPayloadModel, sha256)
+        assert first is not None
+        first_inserted_at = first.inserted_at
+        assert first_inserted_at is not None
+
+    repository.save_raw_payload(
+        sha256=sha256,
+        endpoint="odds",
+        captured_at=NOW + timedelta(minutes=1),
+        payload={"response": []},
+    )
+    with Session(engine) as session:
+        replay = session.get(RawPayloadModel, sha256)
+        assert replay is not None
+        assert replay.inserted_at == first_inserted_at
+        assert session.scalar(select(func.count()).select_from(RawPayloadModel)) == 1
+
+
 def test_scoped_xg_snapshot_reader_uses_latest_pre_fixture_team_state(
     tmp_path: Path,
     monkeypatch: Any,
