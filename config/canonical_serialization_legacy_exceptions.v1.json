@@ -61,6 +61,8 @@
     {"path": "src/w2/tracking/formal_results.py", "symbol": "stable_hash", "hash_domain": "legacy.tracking.formal_results"},
     {"path": "src/w2/tracking/forward_outcome_ledger.py", "symbol": "_canonical_sha256", "hash_domain": "legacy.tracking.forward_outcome_ledger"},
     {"path": "src/w2/tracking/forward_shadow_evidence.py", "symbol": "_hash", "hash_domain": "legacy.tracking.forward_shadow_evidence"},
+    {"path": "scripts/audit_t00.py", "symbol": "grouped_review_queue", "hash_domain": "legacy.scripts.audit_t00_review_queue_identity"},
+    {"path": "scripts/audit_t00.py", "symbol": "verify_github_runs", "hash_domain": "legacy.scripts.audit_t00_github_run_metadata"},
     {"path": "scripts/audit_market_mainline_ladder.py", "symbol": "main", "hash_domain": "legacy.scripts.market_mainline_ladder"},
     {"path": "scripts/audit_pr370_totals_quarter_ev.py", "symbol": "_hash", "hash_domain": "legacy.scripts.pr370_totals_quarter_ev"},
     {"path": "scripts/audit_w2_runtime_authorities.py", "symbol": "_sha_payload", "hash_domain": "legacy.scripts.runtime_authorities"},

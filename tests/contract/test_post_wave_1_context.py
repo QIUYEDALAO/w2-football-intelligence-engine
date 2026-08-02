@@ -14,10 +14,11 @@ AUDIT_PATH = "docs/operations/W2_INDEPENDENT_FINAL_AUDIT_20260731.md"
 ASSET_AUDIT_PATH = "docs/operations/W2_ASSET_UNIQUENESS_AUDIT_20260731.md"
 REGISTRY_PATH = "docs/operations/W2_AUDIT_PERSPECTIVE_REGISTRY.md"
 CONTEXT_PATH = "AI_PROJECT_CONTEXT.md"
+CANARY_RECEIPT_PATH = "docs/operations/W2_WAVE4_REAL_CANARY_RECEIPT_20260802.md"
 EXECUTION_AUTHORITY = (
     "https://github.com/QIUYEDALAO/w2-football-intelligence-engine/issues/454"
 )
-ACTIVE_NEXT_ACTION = "EXECUTE_WAVE_3_C9_THEN_GATE_A_OFFLINE"
+ACTIVE_NEXT_ACTION = "VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE"
 SUPERSEDED_A148_ACTION = "INDEPENDENT_REHEARSAL_RECEIPT_REVIEW"
 
 REQUIRED_CANARY_DELTAS = (
@@ -53,14 +54,12 @@ def test_project_state_v5_separates_task_and_execution_authorities() -> None:
     assert state["computation_authority_issue"] == 456
 
     assert state["current_task"] == "EVAL-02B"
-    assert state["current_workstream"] == "EVAL-02B-C9-AND-GATE-A"
-    assert state["current_phase"] == "WAVE_3_C9_THEN_GATE_A_OFFLINE"
-    assert state["current_status"] == "BLOCKED"
-    assert state["current_status_detail"] == (
-        "WAVE_3_C9_TRUSTED_REBUILD_AUTHORIZED"
-    )
+    assert state["current_workstream"] == "MAINLINE_AND_DEPLOYMENT_CLOSURE"
+    assert state["current_phase"] == "FINAL_MAINLINE_INTEGRATION"
+    assert state["current_status"] == "PASS"
+    assert state["current_status_detail"] == "EVAL_02B_REAL_CHAIN_PROVEN"
     assert state["next_task"] == "EVAL-02B"
-    assert state["next_workstream"] == "EVAL-02B-C9-AND-GATE-A"
+    assert state["next_workstream"] == "MAINLINE_AND_DEPLOYMENT_CLOSURE"
     assert state["active_next_action"] == ACTIVE_NEXT_ACTION
     assert state["tasks"]["EVAL-02B"]["next_required_action"] == ACTIVE_NEXT_ACTION
     assert "current_pr" in state
@@ -84,7 +83,7 @@ def test_project_state_v5_separates_task_and_execution_authorities() -> None:
         assert state["tasks"][task]["status"] == "DONE"
 
     eval_02b = state["tasks"]["EVAL-02B"]
-    assert eval_02b["status"] == "BLOCKED"
+    assert eval_02b["status"] == "PASS"
     assert eval_02b["contract_authority"] == "FROZEN"
     assert eval_02b["write_side_execution_tranche"] == "COMPLETED"
     for number in ("01", "02", "03", "04"):
@@ -109,10 +108,20 @@ def test_project_state_v5_separates_task_and_execution_authorities() -> None:
     assert state["FINAL_EXACT_C1_C11_MAPPINGS"] == 35
     assert state["FINAL_TEST_CONTRACT_SKELETONS"] == 30
     assert state["ISSUE_457_PROJECT_GATE"] == "CLOSED_WITH_OWNER_RISK_ACCEPTANCE"
-    assert state["WAVE_2"] == "CLOSED_WITH_EXISTING_C9_BLOCKER"
+    assert state["TOP_LEVEL_TASK"] == "EVAL-02B"
+    assert state["WAVE_1"] == "PASS_AND_FROZEN"
+    assert state["WAVE_2"] == "PASS"
+    assert state["WAVE_3"] == "PASS"
+    assert state["WAVE_4_REAL_CANARY"] == "PASS"
+    assert state["EVAL_02B_REAL_CHAIN"] == "PROVEN"
+    assert state["REAL_CANARY_PROVIDER_CALLS"] == 5
+    assert state["REAL_CANARY_EVIDENCE_SHA256"] == (
+        "30e961cbedee33b5ec74bf3eabbd80a202ced3b9b21483160896812442ddd1f4"
+    )
     assert state["SER_05_INDEPENDENT_ORACLE"] == "PASS"
     assert state["PR_461"] == "INTEGRATED_INTO_PR_460"
-    assert state["WAVE_3_AUTHORIZED"] is True
+    assert eval_02b["real_chain"] == "PROVEN"
+    assert eval_02b["real_canary_provider_calls"] == 5
     assert state["wave_1_evidence"]["role_fields_carried_to_pr450"] == 145
     assert state["wave_1_evidence"]["authority_matrix_cell_universe"] == 1305
     assert state["wave_1_evidence"]["currently_accounted_fields"] == 1160
@@ -130,7 +139,7 @@ def test_canary_contract_requires_independent_hard_failures() -> None:
     state = yaml.safe_load(read("PROJECT_STATE.yaml"))
     canary = state["canary_acceptance"]
 
-    assert canary["status"] == "NOT_AUTHORIZED"
+    assert canary["status"] == "PASS"
     assert tuple(canary["required_deltas"]) == REQUIRED_CANARY_DELTAS
     assert all(canary["required_deltas"][key] == ">0" for key in REQUIRED_CANARY_DELTAS)
     assert canary["zero_required_delta_result"] == "FAILED"
@@ -140,6 +149,17 @@ def test_canary_contract_requires_independent_hard_failures() -> None:
     assert canary["independent_bootstrap_seed_mismatch_result"] == "FAILED"
     assert canary["nan_or_infinity_result"] == "FAILED"
     assert canary["auto_retry"] is False
+    assert canary["actual_provider_calls"] == 5
+    assert canary["provider_request_ledger_delta"] == 5
+    assert canary["raw_payload_delta"] == 4
+    assert canary["endpoint_capture_delta"] == 5
+    assert canary["lineup_event_delta"] == 1
+    assert canary["dynamic_evaluation_v2_delta"] == 2
+    assert canary["five_state_snapshot_delta"] == 2
+    assert canary["exact_pair_delta"] == 1
+    assert canary["bootstrap_seed_evidence_delta"] == 1
+    assert canary["independent_oracle"] == "PASS"
+    assert canary["db_admission_validator"] == "PASS"
 
     required_lineage = set(canary["required_lineage_fields"])
     assert {
@@ -172,7 +192,43 @@ def test_canary_contract_requires_independent_hard_failures() -> None:
     assert stop["real_provider_call_executed"] is False
     assert stop["real_canary_authorization_created"] is False
     assert stop["auto_merge_executed"] is False
-    assert stop["stop_after_offline_evidence_package"] is True
+    assert stop["stop_after_offline_evidence_package"] is False
+
+
+def test_wave4_receipt_is_complete_and_sanitized() -> None:
+    state = yaml.safe_load(read("PROJECT_STATE.yaml"))
+    receipt = read(CANARY_RECEIPT_PATH)
+
+    assert state["REAL_CANARY_RECEIPT"] == CANARY_RECEIPT_PATH
+    for evidence in (
+        "EXACT_HEAD = b74659e5afdc9047d1e84759df11c7f58f929c86",
+        "AUTHORIZATION_SHA256 = "
+        "51339d452bcbf590c8a9710b67e6df665a3d85f83140d1ae7663573146afdd79",
+        "EVIDENCE_SHA256 = "
+        "30e961cbedee33b5ec74bf3eabbd80a202ced3b9b21483160896812442ddd1f4",
+        "ACTUAL_PROVIDER_CALLS = 5",
+        "PROVIDER_REQUEST_LOG_DELTA = 5",
+        "RAW_PAYLOAD_DELTA = 4",
+        "ENDPOINT_CAPTURE_DELTA = 5",
+        "LINEUP_EVENT_DELTA = 1",
+        "DYNAMIC_EVALUATION_V2_DELTA = 2",
+        "FIVE_STATE_SNAPSHOT_DELTA = 2",
+        "EXACT_PAIR_DELTA = 1",
+        "BOOTSTRAP_SEED_EVIDENCE_DELTA = 1",
+        "INDEPENDENT_ORACLE = PASS",
+        "DB_ADMISSION_VALIDATOR = PASS",
+        "PRODUCT_DATABASE_WRITTEN = false",
+    ):
+        assert evidence in receipt
+
+    for redacted_field in (
+        "FIXTURE_ID =",
+        "API" + "_KEY =",
+        "DATABASE_URL =",
+        "VPS_ADDRESS =",
+        "PASS" + "WORD =",
+    ):
+        assert redacted_field not in receipt.upper()
 
 
 def test_handoff_documents_are_synchronized_to_v5() -> None:
@@ -188,30 +244,40 @@ def test_handoff_documents_are_synchronized_to_v5() -> None:
         assert "#454 v5" in text
         assert "R5" in text
         assert "#456" in text
-        assert "ACTIVE_NEXT_ACTION = EXECUTE_WAVE_3_C9_THEN_GATE_A_OFFLINE" in text
+        assert "ACTIVE_NEXT_ACTION = VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE" in text
         assert "ACTIVE_CONTEXT_PR = 450" in text
-        assert "CURRENT_WORKSTREAM = EVAL-02B-C9-AND-GATE-A" in text
-        assert "CURRENT_PHASE = WAVE_3_C9_THEN_GATE_A_OFFLINE" in text
-        assert "WAVE_1 = CLOSED_AND_FROZEN" in text
+        assert "CURRENT_WORKSTREAM = MAINLINE_AND_DEPLOYMENT_CLOSURE" in text
+        assert "CURRENT_PHASE = FINAL_MAINLINE_INTEGRATION" in text
+        assert "WAVE_1 = PASS_AND_FROZEN" in text
         assert "WAVE_1_FINAL = PASS_WITH_BOUNDED_CARRY_FORWARD" in text
         assert "T00_RERUN = FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE" in text
         assert "FINAL_GATE_A_GROUPS = 28" in text
         assert "FINAL_EXACT_C1_C11_MAPPINGS = 35" in text
         assert "FINAL_TEST_CONTRACT_SKELETONS = 30" in text
         assert "ISSUE_457_PROJECT_GATE = CLOSED_WITH_OWNER_RISK_ACCEPTANCE" in text
-        assert "WAVE_2 = CLOSED_WITH_EXISTING_C9_BLOCKER" in text
+        assert "WAVE_2 = PASS" in text
+        assert "WAVE_3 = PASS" in text
+        assert "WAVE_4_REAL_CANARY = PASS" in text
+        assert "EVAL_02B_REAL_CHAIN = PROVEN" in text
+        assert "REAL_CANARY_PROVIDER_CALLS = 5" in text
+        assert (
+            "REAL_CANARY_EVIDENCE_SHA256 = "
+            "30e961cbedee33b5ec74bf3eabbd80a202ced3b9b21483160896812442ddd1f4"
+        ) in text
         assert "SER_05_INDEPENDENT_ORACLE = PASS" in text
         assert "PR_461 = INTEGRATED_INTO_PR_460" in text
-        assert "WAVE_3_AUTHORIZED = true" in text
-        assert "NEXT_CODE_ACTION = C9_TRUSTED_REBUILD_THEN_GATE_A_OFFLINE" in text
-        assert "PR_450 = DRAFT" in text
+        assert "NEXT_CODE_ACTION = NONE_AUTHORIZED" in text
+        assert "PR_450 = ACCEPTED_HEAD_FOR_FINAL_INTEGRATION" in text
         assert "PR_450_FINAL_ACCEPTANCE_REVIEW = COMPLETED" in text
-        assert "PREDEPLOY_C9 = EXISTING_BLOCKER" in text
+        assert "PREDEPLOY_C9 = PASS" in text
         assert "PROVIDER = OFF" in text
         assert "REAL_PROVIDER = OFF" in text
-        assert "REAL_CANARY = NOT_AUTHORIZED" in text
+        assert "REAL_CANARY = PASS" in text
         assert "PERSISTENT_SCHEDULER = OFF" in text
-        assert "CANDIDATE / FORMAL / LOCK / PRODUCTION = OFF" in text
+        assert "CANDIDATE = OFF" in text
+        assert "FORMAL = OFF" in text
+        assert "LOCK = OFF" in text
+        assert "PRODUCTION = OFF" in text
         assert "AUTO_MERGE = FORBIDDEN" in text
         assert SUPERSEDED_A148_ACTION not in text
 
@@ -234,20 +300,21 @@ def test_active_action_is_unique_current_and_historical_receipt_is_bounded() -> 
     assert state["tasks"]["EVAL-02B"]["next_required_action"] == ACTIVE_NEXT_ACTION
     assert f"ACTIVE_NEXT_ACTION = {ACTIVE_NEXT_ACTION}" in next_action
     expected_active_state = {
-        "WAVE_1": "CLOSED_AND_FROZEN",
+        "WAVE_1": "PASS_AND_FROZEN",
         "T00_RERUN": "FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE",
-        "NEXT_CODE_ACTION": "C9_TRUSTED_REBUILD_THEN_GATE_A_OFFLINE",
-        "PR_450": "DRAFT",
+        "NEXT_CODE_ACTION": "NONE_AUTHORIZED",
+        "PR_450": "ACCEPTED_HEAD_FOR_FINAL_INTEGRATION",
         "PR_450_FINAL_ACCEPTANCE_REVIEW": "COMPLETED",
-        "PREDEPLOY_C9": "EXISTING_BLOCKER",
+        "PREDEPLOY_C9": "PASS",
         "PROVIDER": "OFF",
-        "REAL_CANARY": "NOT_AUTHORIZED",
+        "REAL_CANARY": "PASS",
         "PERSISTENT_SCHEDULER": "OFF",
         "AUTO_MERGE": "FORBIDDEN",
     }
     for key, value in expected_active_state.items():
         assert state[key] == value
-    assert state["WAVE_3_AUTHORIZED"] is True
+    assert state["WAVE_3"] == "PASS"
+    assert state["WAVE_4_REAL_CANARY"] == "PASS"
     assert state["active_context_pr"] == 450
 
     assert state_text.count(SUPERSEDED_A148_ACTION) == 1
@@ -285,7 +352,7 @@ def test_master_checklist_remains_historical_task_authority() -> None:
     assert state["task_authority"] == CHECKLIST_PATH
     assert state["active_execution_authority"] == EXECUTION_AUTHORITY
     assert state["current_task"] == "EVAL-02B"
-    assert state["current_workstream"] == "EVAL-02B-C9-AND-GATE-A"
+    assert state["current_workstream"] == "MAINLINE_AND_DEPLOYMENT_CLOSURE"
 
     assert "PAIR_IDENTITY_SERIALIZATION" in checklist
     assert "UTF8_CANONICAL_JSON_SORTED_KEYS_COMPACT" in checklist

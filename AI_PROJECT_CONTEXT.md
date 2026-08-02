@@ -16,6 +16,7 @@
 - 独立终审：`docs/operations/W2_INDEPENDENT_FINAL_AUDIT_20260731.md`
 - 资产唯一性审计：`docs/operations/W2_ASSET_UNIQUENESS_AUDIT_20260731.md`
 - 审计视角登记：`docs/operations/W2_AUDIT_PERSPECTIVE_REGISTRY.md`
+- Wave 4 脱敏永久回执：`docs/operations/W2_WAVE4_REAL_CANARY_RECEIPT_20260802.md`
 
 ## 可信基线
 
@@ -25,7 +26,7 @@ trusted_main = dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
 main contaminated by e875050f = false
 main rollback required = false
 PR #453 = QUARANTINED / DO NOT MERGE / DO NOT REPAIR IN PLACE
-PR #450 = DRAFT / FINAL ACCEPTANCE REVIEW COMPLETED / NOT MERGE ELIGIBLE
+PR #450 = FINAL ACCEPTANCE REVIEW COMPLETED / ACCEPTED HEAD IN FINAL INTEGRATION
 ```
 
 ## 已完成
@@ -44,28 +45,35 @@ PR #450 = DRAFT / FINAL ACCEPTANCE REVIEW COMPLETED / NOT MERGE ELIGIBLE
 
 ```text
 TOP_LEVEL_TASK = EVAL-02B
-ACTIVE_NEXT_ACTION = EXECUTE_WAVE_3_C9_THEN_GATE_A_OFFLINE
+ACTIVE_NEXT_ACTION = VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE
 ACTIVE_CONTEXT_PR = 450
-CURRENT_WORKSTREAM = EVAL-02B-C9-AND-GATE-A
-CURRENT_PHASE = WAVE_3_C9_THEN_GATE_A_OFFLINE
-EVAL-02B END-TO-END = BLOCKED / NOT VALIDATED
+CURRENT_WORKSTREAM = MAINLINE_AND_DEPLOYMENT_CLOSURE
+CURRENT_PHASE = FINAL_MAINLINE_INTEGRATION
+EVAL-02B END-TO-END = PROVEN
 EVAL-03 = NOT STARTED
-WAVE_1 = CLOSED_AND_FROZEN
+WAVE_1 = PASS_AND_FROZEN
 T00_RERUN = FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE
 ISSUE_457_PROJECT_GATE = CLOSED_WITH_OWNER_RISK_ACCEPTANCE
-WAVE_2 = CLOSED_WITH_EXISTING_C9_BLOCKER
+WAVE_2 = PASS
+WAVE_3 = PASS
+WAVE_4_REAL_CANARY = PASS
+EVAL_02B_REAL_CHAIN = PROVEN
+REAL_CANARY_PROVIDER_CALLS = 5
+REAL_CANARY_EVIDENCE_SHA256 = 30e961cbedee33b5ec74bf3eabbd80a202ced3b9b21483160896812442ddd1f4
 SER_05_INDEPENDENT_ORACLE = PASS
 PR_461 = INTEGRATED_INTO_PR_460
-WAVE_3_AUTHORIZED = true
-NEXT_CODE_ACTION = C9_TRUSTED_REBUILD_THEN_GATE_A_OFFLINE
-PR_450 = DRAFT
+NEXT_CODE_ACTION = NONE_AUTHORIZED
+PR_450 = ACCEPTED_HEAD_FOR_FINAL_INTEGRATION
 PR_450_FINAL_ACCEPTANCE_REVIEW = COMPLETED
-PREDEPLOY_C9 = EXISTING_BLOCKER
+PREDEPLOY_C9 = PASS
 PROVIDER = OFF
 REAL_PROVIDER = OFF
-REAL_CANARY = NOT_AUTHORIZED
+REAL_CANARY = PASS
 PERSISTENT_SCHEDULER = OFF
-CANDIDATE / FORMAL / LOCK / PRODUCTION = OFF
+CANDIDATE = OFF
+FORMAL = OFF
+LOCK = OFF
+PRODUCTION = OFF
 AUTO_MERGE = FORBIDDEN
 ```
 
@@ -78,7 +86,7 @@ FINAL_EXACT_C1_C11_MAPPINGS = 35
 FINAL_TEST_CONTRACT_SKELETONS = 30
 ROLE_FIELDS_CARRIED_TO_PR450 = 145
 ROLE_FIELD_DISPOSITION = CARRY_TO_PR450_DOCUMENTATION_REPAIR
-WAVE_2 = CLOSED_WITH_EXISTING_C9_BLOCKER
+WAVE_2 = PASS
 SER_05_INDEPENDENT_ORACLE = PASS
 PR_461 = INTEGRATED_INTO_PR_460
 ```
@@ -86,7 +94,7 @@ PR_461 = INTEGRATED_INTO_PR_460
 完整 all-call ledger 与 grouped effect inventory 保持冻结，不在 PR #450 重新分组。
 PR #450 只恢复可信 main 保留的 145 条历史守卫、承接 145 个 `role` 字段并硬守卫
 当前 authority matrix 的 9 个表头名称、顺序和列数。上述 28/35/30 是 Wave 1
-独立验收后的冻结集合；Wave 3 只能实现该冻结集合，不得扩大分母。
+独立验收后的冻结集合；Wave 3 已按该冻结集合完成，分母继续保持冻结。
 
 A148 只能定义为：
 
@@ -137,9 +145,7 @@ DUPLICATE_TABLE_CREATION_IN_LINEAR_UPGRADE_PATH_WITHOUT_INTERVENING_DROP_OR_RENA
 ### R5 canonical serialization
 
 运行相关 serializer/hash writer inventory 已由 Wave 1 T00-R5 冻结；本阶段不重新计数。
-Wave 2 / SER-01 至 SER-07 implementer tranche 已获授权。
-
-Gate A 必须先完成：
+Wave 2 / SER-01 至 SER-07、独立 Oracle 与 Gate A 已完成验收。下列合同继续永久有效：
 
 1. 全量 hash/serializer inventory；
 2. SER-02 ADR 与版本化合同；
@@ -245,9 +251,11 @@ LINEAGE_MISMATCH
 
 ## #454 v5 历史执行顺序与当前边界
 
-Wave 1 / T00 已完成并冻结，Wave 2 independent serializer oracle 已通过。当前唯一动作是从
-PR #460 combined head 执行 Wave 3：先可信 C9 重建，exact predeploy 通过后再连续完成剩余
-Gate A 离线整改。Issue #457 项目 gate 已按 owner risk acceptance 关闭，PR #450 保持 Draft。
+Wave 1 / T00 已完成并冻结；Wave 2 independent serializer oracle、Wave 3 C9 与 Gate A、
+Wave 4 单次真实 Canary 均已验收通过，`EVAL_02B_REAL_CHAIN = PROVEN`。当前唯一下一动作是
+`VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE`，但本 final integration PR 不执行部署；必须等待
+mainline 整合完成后的新 binding execution decision。Issue #457 项目 gate 已按 owner risk
+acceptance 关闭，PR #450 accepted head 已纳入 final integration。
 
 ## Gate 分层
 
@@ -259,16 +267,17 @@ Gate A 离线整改。Issue #457 项目 gate 已按 owner risk acceptance 关闭
 ## 接手动作
 
 1. 先读本文件、`PROJECT_STATE.yaml`、`NEXT_ACTION.md` 和 #454/#457 最新 binding decision。
-2. 核对 `ACTIVE_NEXT_ACTION = EXECUTE_WAVE_3_C9_THEN_GATE_A_OFFLINE` 与 `ACTIVE_CONTEXT_PR = 450`。
-3. 不重跑或扩大 T00；先完成 C9 exact predeploy，再执行冻结的 Gate A 离线整改。
+2. 核对 `ACTIVE_NEXT_ACTION = VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE` 与 `ACTIVE_CONTEXT_PR = 450`。
+3. 不重跑或扩大 T00；不要重新执行已通过的 C9、Gate A 或真实 Canary。
 4. 不得使用、复制、merge 或 cherry-pick PR #453 / `e875050f...`。
-5. 保持 PR #450 Draft；不得放宽 C9 required event 断言。
-6. 不调用 Provider、不创建真实授权、不启动持续 scheduler、不部署、不自动合并。
+5. 保留 PR #450 恢复的历史守卫与 145 个 role 字段账目；不得放宽 C9 required event 断言。
+6. 当前整合轮不调用 Provider、不创建新授权、不启动持续 scheduler、不部署、不自动合并。
 7. 最终输出：
 
 ```text
-REAL_PROVIDER_CALL_EXECUTED = false
-REAL_CANARY_AUTHORIZATION_CREATED = false
+REAL_PROVIDER_CALL_EXECUTED_IN_THIS_INTEGRATION = false
+PERSISTENT_SCHEDULER_STARTED = false
+DEPLOYMENT_EXECUTED = false
 AUTO_MERGE_EXECUTED = false
-READY_FOR_INDEPENDENT_SECOND_REVIEW = true|false
+READY_FOR_FINAL_MAIN_MERGE = true|false
 ```

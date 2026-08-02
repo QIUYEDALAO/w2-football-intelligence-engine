@@ -196,11 +196,11 @@ def test_p2_05_is_done_and_eval_02b_is_current() -> None:
     assert "- [ ]" not in section
     assert "W2_ARCHITECTURE_CONVERGENCE_COMPLETE = PASS" in section
     assert state["current_task"] == "EVAL-02B"
-    assert state["current_status"] == "BLOCKED"
+    assert state["current_status"] == "PASS"
     assert state["current_pr"] is None
     assert state["tasks"]["ARCH-P2-05"]["status"] == "DONE"
     assert state["tasks"]["EVAL-01A"]["status"] == "DONE"
     assert state["tasks"]["EVAL-01B"]["status"] == "DONE"
     assert state["tasks"]["EVAL-01C"]["status"] == "DONE"
     assert state["tasks"]["EVAL-02A"]["status"] == "DONE"
-    assert state["tasks"]["EVAL-02B"]["status"] == "BLOCKED"
+    assert state["tasks"]["EVAL-02B"]["status"] == "PASS"

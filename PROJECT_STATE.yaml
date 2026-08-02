@@ -1,6 +1,6 @@
 schema_version: w2.project_state.v3
 project: w2-football-intelligence-engine
-updated_at: "2026-08-01"
+updated_at: "2026-08-02"
 current_state_authority: PROJECT_STATE.yaml
 task_authority: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
 active_execution_schema_version: w2.active_execution.v1
@@ -12,11 +12,11 @@ asset_uniqueness_audit_authority: docs/operations/W2_ASSET_UNIQUENESS_AUDIT_2026
 audit_perspective_registry_authority: docs/operations/W2_AUDIT_PERSPECTIVE_REGISTRY.md
 workflow_governance_issue: 455
 computation_authority_issue: 456
-current_workstream: EVAL-02B-C9-AND-GATE-A
-current_phase: WAVE_3_C9_THEN_GATE_A_OFFLINE
-current_status_detail: WAVE_3_C9_TRUSTED_REBUILD_AUTHORIZED
-next_workstream: EVAL-02B-C9-AND-GATE-A
-active_next_action: EXECUTE_WAVE_3_C9_THEN_GATE_A_OFFLINE
+current_workstream: MAINLINE_AND_DEPLOYMENT_CLOSURE
+current_phase: FINAL_MAINLINE_INTEGRATION
+current_status_detail: EVAL_02B_REAL_CHAIN_PROVEN
+next_workstream: MAINLINE_AND_DEPLOYMENT_CLOSURE
+active_next_action: VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE
 infrastructure_exposure_issue: 457
 issue_457_project_gate: CLOSED_WITH_OWNER_RISK_ACCEPTANCE
 quarantined_pr: 453
@@ -27,7 +27,7 @@ active_issues:
   - 456
   - 457
 current_task: EVAL-02B
-current_status: BLOCKED
+current_status: PASS
 current_pr: null
 current_pr_semantics: CURRENT_BUSINESS_IMPLEMENTATION_PR_ONLY
 active_context_pr: 450
@@ -82,7 +82,7 @@ tasks:
     merge_sha: 427cb2203d943304582e5aa3f6b55e5d6b8adce0
     main_ci: 30556679131
   EVAL-02B:
-    status: BLOCKED
+    status: PASS
     start_authorized: false
     audit_as_of: "2026-07-30T16:06:59.736350Z"
     audit_sha256: c4099f973f46514c3105911eee9bf87accd20f98b2430998868716d8ae13e70d
@@ -219,7 +219,10 @@ tasks:
     lock_enabled: false
     production_release: false
     scoring_implementation: BLOCKED
-    next_required_action: EXECUTE_WAVE_3_C9_THEN_GATE_A_OFFLINE
+    real_canary_provider_calls: 5
+    real_canary_evidence_sha256: 30e961cbedee33b5ec74bf3eabbd80a202ced3b9b21483160896812442ddd1f4
+    real_chain: PROVEN
+    next_required_action: VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE
   EVAL-03:
     status: NOT_STARTED
 safety:
@@ -238,27 +241,33 @@ architecture_convergence:
   status: PASS
   receipt: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
 
+TOP_LEVEL_TASK: EVAL-02B
 WAVE_1_FINAL: PASS_WITH_BOUNDED_CARRY_FORWARD
-WAVE_1: CLOSED_AND_FROZEN
-CURRENT_WORKSTREAM: EVAL-02B-C9-AND-GATE-A
-CURRENT_PHASE: WAVE_3_C9_THEN_GATE_A_OFFLINE
-ACTIVE_NEXT_ACTION: EXECUTE_WAVE_3_C9_THEN_GATE_A_OFFLINE
+WAVE_1: PASS_AND_FROZEN
+WAVE_2: PASS
+WAVE_3: PASS
+WAVE_4_REAL_CANARY: PASS
+EVAL_02B_REAL_CHAIN: PROVEN
+CURRENT_WORKSTREAM: MAINLINE_AND_DEPLOYMENT_CLOSURE
+CURRENT_PHASE: FINAL_MAINLINE_INTEGRATION
+ACTIVE_NEXT_ACTION: VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE
 FINAL_GATE_A_GROUPS: 28
 FINAL_EXACT_C1_C11_MAPPINGS: 35
 FINAL_TEST_CONTRACT_SKELETONS: 30
 T00_RERUN: FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE
 ISSUE_457_PROJECT_GATE: CLOSED_WITH_OWNER_RISK_ACCEPTANCE
-WAVE_2: CLOSED_WITH_EXISTING_C9_BLOCKER
 SER_05_INDEPENDENT_ORACLE: PASS
 PR_461: INTEGRATED_INTO_PR_460
-WAVE_3_AUTHORIZED: true
-NEXT_CODE_ACTION: C9_TRUSTED_REBUILD_THEN_GATE_A_OFFLINE
-PR_450: DRAFT
+NEXT_CODE_ACTION: NONE_AUTHORIZED
+PR_450: ACCEPTED_HEAD_FOR_FINAL_INTEGRATION
 PR_450_FINAL_ACCEPTANCE_REVIEW: COMPLETED
-PREDEPLOY_C9: EXISTING_BLOCKER
+PREDEPLOY_C9: PASS
 PROVIDER: "OFF"
 REAL_PROVIDER: "OFF"
-REAL_CANARY: NOT_AUTHORIZED
+REAL_CANARY: PASS
+REAL_CANARY_PROVIDER_CALLS: 5
+REAL_CANARY_EVIDENCE_SHA256: 30e961cbedee33b5ec74bf3eabbd80a202ced3b9b21483160896812442ddd1f4
+REAL_CANARY_RECEIPT: docs/operations/W2_WAVE4_REAL_CANARY_RECEIPT_20260802.md
 PERSISTENT_SCHEDULER: "OFF"
 CANDIDATE: "OFF"
 FORMAL: "OFF"
@@ -329,7 +338,19 @@ oracle_independence:
   otherwise_status: SELF_REVIEWED_ONLY
 
 canary_acceptance:
-  status: NOT_AUTHORIZED
+  status: PASS
+  actual_provider_calls: 5
+  provider_request_ledger_delta: 5
+  raw_payload_delta: 4
+  endpoint_capture_delta: 5
+  lineup_event_delta: 1
+  dynamic_evaluation_v2_delta: 2
+  five_state_snapshot_delta: 2
+  exact_pair_delta: 1
+  bootstrap_seed_evidence_delta: 1
+  evidence_sha256: 30e961cbedee33b5ec74bf3eabbd80a202ced3b9b21483160896812442ddd1f4
+  independent_oracle: PASS
+  db_admission_validator: PASS
   required_deltas:
     actual_provider_calls_delta: ">0"
     provider_request_ledger_delta: ">0"
@@ -370,4 +391,4 @@ codex_stop_line:
   real_provider_call_executed: false
   real_canary_authorization_created: false
   auto_merge_executed: false
-  stop_after_offline_evidence_package: true
+  stop_after_offline_evidence_package: false

@@ -36,16 +36,16 @@ main 漂移、workspace 不干净或来源不明时，停止代码编辑。
 
 ```text
 TOP_LEVEL_TASK = EVAL-02B
-ACTIVE_NEXT_ACTION = EXECUTE_WAVE_3_C9_THEN_GATE_A_OFFLINE
+ACTIVE_NEXT_ACTION = VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE
 ACTIVE_CONTEXT_PR = 450
-CURRENT_WORKSTREAM = EVAL-02B-C9-AND-GATE-A
-CURRENT_PHASE = WAVE_3_C9_THEN_GATE_A_OFFLINE
+CURRENT_WORKSTREAM = MAINLINE_AND_DEPLOYMENT_CLOSURE
+CURRENT_PHASE = FINAL_MAINLINE_INTEGRATION
 TASK_AUTHORITY = docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
 ACTIVE_EXECUTION_AUTHORITY = Issue #454 v5
 ```
 
 Wave 1 / T00 已完成并冻结；除非出现新的、明确批准的证据，不得重跑 T00 或调整其分母。
-Wave 2 已在 combined exact head 完成；Wave 3 已获授权，且必须先 C9、后 Gate A 离线整改。
+Wave 2、Wave 3 和 Wave 4 单次真实 Canary 已通过，EVAL-02B 真实链路已证明。
 
 ## 污染隔离
 
@@ -60,7 +60,8 @@ PR #453 = QUARANTINED / DO NOT MERGE / DO NOT REPAIR IN PLACE
 - `e875050f6bc0286aed389aadfce1e17b2063635a`；
 - 其他 automation-authored remediation。
 
-所有实现必须在可信 main 的本地 clean worktree 中正常 edit/commit/push，并以 Draft PR 提交。
+所有实现必须在可信 main 的本地 clean worktree中正常 edit/commit/push。当前 final integration
+按 binding decision 创建非 Draft PR，并且只允许 merge commit；禁止 squash 与 auto-merge。
 
 ## 不可协商规则
 
@@ -93,7 +94,7 @@ Post-Wave-1 冻结状态：
 
 ```text
 WAVE_1_FINAL = PASS_WITH_BOUNDED_CARRY_FORWARD
-WAVE_1 = CLOSED_AND_FROZEN
+WAVE_1 = PASS_AND_FROZEN
 T00_RERUN = FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE
 FINAL_GATE_A_GROUPS = 28
 FINAL_EXACT_C1_C11_MAPPINGS = 35
@@ -101,27 +102,34 @@ FINAL_TEST_CONTRACT_SKELETONS = 30
 ROLE_FIELDS_CARRIED_TO_PR450 = 145
 ROLE_FIELD_DISPOSITION = CARRY_TO_PR450_DOCUMENTATION_REPAIR
 ISSUE_457_PROJECT_GATE = CLOSED_WITH_OWNER_RISK_ACCEPTANCE
-WAVE_2 = CLOSED_WITH_EXISTING_C9_BLOCKER
+WAVE_2 = PASS
+WAVE_3 = PASS
+WAVE_4_REAL_CANARY = PASS
+EVAL_02B_REAL_CHAIN = PROVEN
+REAL_CANARY_PROVIDER_CALLS = 5
+REAL_CANARY_EVIDENCE_SHA256 = 30e961cbedee33b5ec74bf3eabbd80a202ced3b9b21483160896812442ddd1f4
 SER_05_INDEPENDENT_ORACLE = PASS
 PR_461 = INTEGRATED_INTO_PR_460
-WAVE_3_AUTHORIZED = true
-NEXT_CODE_ACTION = C9_TRUSTED_REBUILD_THEN_GATE_A_OFFLINE
-PR_450 = DRAFT
+NEXT_CODE_ACTION = NONE_AUTHORIZED
+PR_450 = ACCEPTED_HEAD_FOR_FINAL_INTEGRATION
 PR_450_FINAL_ACCEPTANCE_REVIEW = COMPLETED
-PREDEPLOY_C9 = EXISTING_BLOCKER
+PREDEPLOY_C9 = PASS
 PROVIDER = OFF
 REAL_PROVIDER = OFF
-REAL_CANARY = NOT_AUTHORIZED
+REAL_CANARY = PASS
 PERSISTENT_SCHEDULER = OFF
-CANDIDATE / FORMAL / LOCK / PRODUCTION = OFF
+CANDIDATE = OFF
+FORMAL = OFF
+LOCK = OFF
+PRODUCTION = OFF
 AUTO_MERGE = FORBIDDEN
 ```
 
 PR #450 必须保留可信 main 的全部历史守卫，并校验 authority matrix 当前表头的
 列名、列顺序和列数。新增、删除、重命名或重排任一列都必须显式更新合同。
 不得在本阶段重新计算或重新分组 Wave 1 审计分母。PR #450 final acceptance review
-已发生；当前从 PR #460 combined head 执行 Wave 3，先可信 C9 重建，exact predeploy
-通过后再执行冻结的 Gate A 离线整改。
+已发生，其 accepted head 已纳入 final integration。不得重新执行已经通过的 C9、Gate A
+或真实 Canary。
 
 ## Canary 硬失败
 
@@ -138,13 +146,15 @@ LINEAGE_MISMATCH
 
 ## 执行停止线
 
-不得调用真实 Provider、创建真实 canary 授权、启动持续 scheduler、开放 Candidate/Formal/Lock/Production 或自动合并。
+本轮不得调用 Provider、创建新 canary 授权、启动持续 scheduler、部署、开放
+Candidate/Formal/Lock/Production 或自动合并。
 
 最终输出：
 
 ```text
-REAL_PROVIDER_CALL_EXECUTED = false
-REAL_CANARY_AUTHORIZATION_CREATED = false
+REAL_PROVIDER_CALL_EXECUTED_IN_THIS_INTEGRATION = false
+PERSISTENT_SCHEDULER_STARTED = false
+DEPLOYMENT_EXECUTED = false
 AUTO_MERGE_EXECUTED = false
-READY_FOR_INDEPENDENT_SECOND_REVIEW = true|false
+READY_FOR_FINAL_MAIN_MERGE = true|false
 ```
