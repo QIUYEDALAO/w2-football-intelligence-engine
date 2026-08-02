@@ -10,8 +10,39 @@ from w2.providers.api_football import ApiFootballClient, LiveNetworkDisabledErro
 from w2.providers.control import ProviderCallsDisabledError
 
 
+@pytest.mark.parametrize("configured", [None, "", "invalid", "TRUE-ish"])
+def test_api_football_global_provider_switch_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+    configured: str | None,
+) -> None:
+    if configured is None:
+        monkeypatch.delenv("W2_PROVIDER_CALLS_DISABLED", raising=False)
+    else:
+        monkeypatch.setenv("W2_PROVIDER_CALLS_DISABLED", configured)
+    monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "status")
+    client = ApiFootballClient(
+        allow_live=True,
+        allowed_live_endpoints=frozenset({"status"}),
+    )
+
+    with pytest.raises(ProviderCallsDisabledError, match="PROVIDER_CALLS_DISABLED"):
+        client.request_live("status", {})
+
+
+def test_api_football_missing_global_endpoint_allowlist_is_empty(monkeypatch) -> None:
+    monkeypatch.setenv("W2_PROVIDER_CALLS_DISABLED", "false")
+    monkeypatch.delenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", raising=False)
+    client = ApiFootballClient(
+        allow_live=True,
+        allowed_live_endpoints=frozenset({"status"}),
+    )
+
+    with pytest.raises(LiveNetworkDisabledError, match="live endpoint not approved: status"):
+        client.request_live("status", {})
+
+
 def test_api_football_live_endpoint_allowlist_blocks_unapproved_endpoint(monkeypatch) -> None:
-    monkeypatch.delenv("W2_PROVIDER_CALLS_DISABLED", raising=False)
+    monkeypatch.setenv("W2_PROVIDER_CALLS_DISABLED", "false")
     client = ApiFootballClient(
         allow_live=True,
         allowed_live_endpoints=frozenset({"statistics", "lineups", "injuries"}),
@@ -42,7 +73,7 @@ def test_api_football_statistics_uses_fixtures_statistics_http_path(monkeypatch)
         captured["timeout"] = str(timeout)
         return FakeResponse()
 
-    monkeypatch.delenv("W2_PROVIDER_CALLS_DISABLED", raising=False)
+    monkeypatch.setenv("W2_PROVIDER_CALLS_DISABLED", "false")
     monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "statistics")
     monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "test-key")
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
@@ -77,7 +108,7 @@ def test_api_football_squads_uses_players_squads_http_path(monkeypatch) -> None:
         captured["url"] = request.full_url
         return FakeResponse()
 
-    monkeypatch.delenv("W2_PROVIDER_CALLS_DISABLED", raising=False)
+    monkeypatch.setenv("W2_PROVIDER_CALLS_DISABLED", "false")
     monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "squads")
     monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "test-key")
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
@@ -111,7 +142,7 @@ def test_api_football_player_profile_uses_players_http_path(monkeypatch) -> None
         captured["url"] = request.full_url
         return FakeResponse()
 
-    monkeypatch.delenv("W2_PROVIDER_CALLS_DISABLED", raising=False)
+    monkeypatch.setenv("W2_PROVIDER_CALLS_DISABLED", "false")
     monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "players")
     monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "test-key")
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
@@ -145,7 +176,7 @@ def test_api_football_profiles_uses_players_profiles_http_path(monkeypatch) -> N
         captured["url"] = request.full_url
         return FakeResponse()
 
-    monkeypatch.delenv("W2_PROVIDER_CALLS_DISABLED", raising=False)
+    monkeypatch.setenv("W2_PROVIDER_CALLS_DISABLED", "false")
     monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "player_profiles")
     monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "test-key")
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
@@ -195,7 +226,8 @@ def test_api_football_request_live_records_provider_ledger(monkeypatch) -> None:
         def read(self) -> bytes:
             return json.dumps({"response": []}).encode()
 
-    monkeypatch.delenv("W2_PROVIDER_CALLS_DISABLED", raising=False)
+    monkeypatch.setenv("W2_PROVIDER_CALLS_DISABLED", "false")
+    monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "odds")
     monkeypatch.delenv("W2_PROVIDER_REQUEST_LEDGER_ENABLED", raising=False)
     monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "test-key")
     monkeypatch.setattr(urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse())
@@ -234,7 +266,8 @@ def test_api_football_http_error_records_one_sanitized_ledger_row(monkeypatch) -
             fp=None,
         )
 
-    monkeypatch.delenv("W2_PROVIDER_CALLS_DISABLED", raising=False)
+    monkeypatch.setenv("W2_PROVIDER_CALLS_DISABLED", "false")
+    monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "lineups")
     monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "redacted-sentinel")
     monkeypatch.setattr(urllib.request, "urlopen", fail_transport)
     client = ApiFootballClient(
@@ -278,7 +311,8 @@ def test_api_football_transport_failure_records_one_sanitized_ledger_row(
         calls += 1
         raise failure
 
-    monkeypatch.delenv("W2_PROVIDER_CALLS_DISABLED", raising=False)
+    monkeypatch.setenv("W2_PROVIDER_CALLS_DISABLED", "false")
+    monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "lineups")
     monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "redacted-sentinel")
     monkeypatch.setattr(urllib.request, "urlopen", fail_transport)
     client = ApiFootballClient(

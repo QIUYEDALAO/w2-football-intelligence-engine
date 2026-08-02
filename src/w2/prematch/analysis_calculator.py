@@ -2044,7 +2044,12 @@ class ReadModelService:
             return
         try:
             lifecycle = reader(fixture_id)
-        except Exception:
+        except Exception as exc:
+            card["dynamic_prematch"] = {
+                "status": "BLOCKED",
+                "blockers": [f"DYNAMIC_LIFECYCLE_READ_FAILED:{exc.__class__.__name__}"],
+                "versions": [],
+            }
             return
         if not isinstance(lifecycle, dict) or not lifecycle.get("versions"):
             return

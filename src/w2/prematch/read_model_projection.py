@@ -25,6 +25,7 @@ from w2.domain.recommendation_capabilities import load_recommendation_capability
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.operations.observability import default_metric_registry
 from w2.prematch.lifecycle import (
+    DYNAMIC_EVALUATION_V1_SCHEMA,
     DYNAMIC_EVALUATION_V2_SCHEMA,
     DynamicEvaluationInput,
     DynamicEvaluationVersion,
@@ -1100,6 +1101,13 @@ def _dynamic_evaluations(
         provider = str(quote.get("provider") or quote_identity.get("provider") or "")
         if provider != fixture_identity["provider"]:
             raise FrozenAnalysisError("dynamic evaluation provider identity conflict")
+        distribution = model.get("settlement_distribution")
+        model_ready = str(model.get("status") or "").upper() == "READY"
+        schema_version = (
+            DYNAMIC_EVALUATION_V1_SCHEMA
+            if not model_ready and not isinstance(distribution, Mapping)
+            else DYNAMIC_EVALUATION_V2_SCHEMA
+        )
         value = DynamicEvaluationInput(
             fixture_id=fixture_id,
             market=str(candidate.get("market") or default_market),
@@ -1134,7 +1142,7 @@ def _dynamic_evaluations(
             == "COMPLETE",
             quote_fresh=str(quote_identity.get("freshness_status") or "COMPLETE").upper()
             == "COMPLETE",
-            model_ready=str(model.get("status") or "").upper() == "READY",
+            model_ready=model_ready,
             market_probability_ready=bool(devig),
             identity_conflict=False,
             model_probability=_float_or_none(model.get("effective_probability")),
@@ -1145,13 +1153,21 @@ def _dynamic_evaluations(
             lineup_input_hash=lineup_input_hash,
             lineup_confirmed_at=(lineup_confirmed_at if post_lineup_quote else None),
             post_lineup_quote=post_lineup_quote,
-            schema_version=DYNAMIC_EVALUATION_V2_SCHEMA,
-            competition_id=fixture_identity["competition_id"],
-            season=fixture_identity["season"],
-            provider=provider,
-            model_settlement_distribution=model.get("settlement_distribution")
-            if isinstance(model.get("settlement_distribution"), Mapping)
-            else None,
+            schema_version=schema_version,
+            competition_id=(
+                fixture_identity["competition_id"]
+                if schema_version == DYNAMIC_EVALUATION_V2_SCHEMA
+                else None
+            ),
+            season=(
+                fixture_identity["season"]
+                if schema_version == DYNAMIC_EVALUATION_V2_SCHEMA
+                else None
+            ),
+            provider=provider if schema_version == DYNAMIC_EVALUATION_V2_SCHEMA else None,
+            model_settlement_distribution=(
+                distribution if isinstance(distribution, Mapping) else None
+            ),
         )
         versions.append(classify_evaluation(value))
     return versions

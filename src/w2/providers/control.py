@@ -45,7 +45,13 @@ def env_csv_set(name: str, *, default: set[str] | frozenset[str]) -> frozenset[s
 
 
 def provider_calls_disabled() -> bool:
-    return env_flag("W2_PROVIDER_CALLS_DISABLED", default=False)
+    raw = os.environ.get("W2_PROVIDER_CALLS_DISABLED")
+    if raw is None:
+        return True
+    normalized = raw.strip().lower()
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return True
 
 
 def provider_scheduler_enabled() -> bool:
@@ -55,7 +61,7 @@ def provider_scheduler_enabled() -> bool:
 def provider_endpoint_allowlist() -> frozenset[str]:
     return env_csv_set(
         "W2_PROVIDER_ENDPOINT_ALLOWLIST",
-        default={"status", "fixtures", "odds", "lineups"},
+        default=set(),
     )
 
 

@@ -3,7 +3,19 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, Index, Integer, String, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from w2.infrastructure.database import Base
@@ -11,7 +23,10 @@ from w2.infrastructure.database import Base
 
 class FutureRefreshTaskAuditModel(Base):
     __tablename__ = "future_refresh_task_audit"
-    __table_args__ = (Index("ix_future_refresh_task_audit_key", "key"),)
+    __table_args__ = (
+        Index("ix_future_refresh_task_audit_key", "key"),
+        UniqueConstraint("gate_a_lease_epoch", name="uq_future_refresh_task_audit_gate_a_lease"),
+    )
 
     task_id: Mapped[str] = mapped_column(String(255), primary_key=True)
     key: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -21,6 +36,73 @@ class FutureRefreshTaskAuditModel(Base):
     finished_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     result: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    gate_a_authorization_id: Mapped[str | None] = mapped_column(String(128))
+    gate_a_lease_epoch: Mapped[int | None] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        ForeignKey("gate_a_run_reservations.lease_epoch"),
+    )
+
+
+class GateARunReservationModel(Base):
+    __tablename__ = "gate_a_run_reservations"
+    __table_args__ = (
+        Index(
+            "uq_gate_a_active_task_key",
+            "task_key",
+            unique=True,
+            postgresql_where=text("status = 'RESERVED'"),
+            sqlite_where=text("status = 'RESERVED'"),
+        ),
+    )
+
+    lease_epoch: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
+    )
+    authorization_id: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    task_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    fixture_id: Mapped[str | None] = mapped_column(String(128))
+    provider_league_id: Mapped[str | None] = mapped_column(String(64))
+    fixture_scope_mode: Mapped[str | None] = mapped_column(String(32))
+    kickoff_window_start_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    kickoff_window_end_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    selection_policy_version: Mapped[str | None] = mapped_column(String(64))
+    policy_config_hash: Mapped[str | None] = mapped_column(String(64))
+    selected_fixture_id: Mapped[str | None] = mapped_column(String(128))
+    fixture_candidate_set_sha256: Mapped[str | None] = mapped_column(String(64))
+    fixture_discovery_capture_id: Mapped[str | None] = mapped_column(String(64))
+    eligible_candidate_count: Mapped[int | None] = mapped_column(Integer)
+    fixture_selected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    competition_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    season: Mapped[str] = mapped_column(String(32), nullable=False)
+    exact_head: Mapped[str] = mapped_column(String(64), nullable=False)
+    exact_tree: Mapped[str] = mapped_column(String(64), nullable=False)
+    execution_mode: Mapped[str | None] = mapped_column(String(32))
+    runtime_artifact_digest: Mapped[str | None] = mapped_column(String(80))
+    complete_checkout_manifest_sha256: Mapped[str | None] = mapped_column(String(64))
+    evidence_baseline: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    owner: Mapped[str] = mapped_column(String(64), nullable=False)
+    reserved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    provider_call_cap: Mapped[int] = mapped_column(Integer, nullable=False)
+    provider_calls_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_endpoint: Mapped[str | None] = mapped_column(String(64))
+
+
+class GateAProviderCallModel(Base):
+    __tablename__ = "gate_a_provider_calls"
+
+    lease_epoch: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        ForeignKey("gate_a_run_reservations.lease_epoch"),
+        primary_key=True,
+    )
+    call_ordinal: Mapped[int] = mapped_column(Integer, primary_key=True)
+    endpoint: Mapped[str] = mapped_column(String(64), nullable=False)
+    state: Mapped[str] = mapped_column(String(32), nullable=False)
+    reserved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_code: Mapped[str | None] = mapped_column(String(128))
 
 
 class FutureRefreshRunAuditModel(Base):
@@ -84,13 +166,12 @@ class FutureRefreshCheckpointAuditModel(Base):
 
 class RawPayloadModel(Base):
     __tablename__ = "raw_payload"
-    __table_args__ = (
-        Index("ix_raw_payload_endpoint_captured", "endpoint", "captured_at"),
-    )
+    __table_args__ = (Index("ix_raw_payload_endpoint_captured", "endpoint", "captured_at"),)
 
     sha256: Mapped[str] = mapped_column(String(64), primary_key=True)
     endpoint: Mapped[str] = mapped_column(String(64), nullable=False)
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    inserted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     storage_uri: Mapped[str] = mapped_column(String(255), nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 

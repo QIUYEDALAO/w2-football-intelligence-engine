@@ -25,11 +25,18 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayEndpointCaptureModel,
     MatchdayMarketObservationModel,
 )
+from w2.infrastructure.persistence.models import StructuredLineupSnapshotModel
 from w2.ingestion.future_refresh import deterministic_task_key, run_future_refresh_task
 from w2.ingestion.future_refresh_repository import (
     FutureRefreshDbRepository,
+    FutureRefreshPersistenceError,
 )
 from w2.prematch.analysis_calculator import ReadModelRepository, ReadModelService
+from w2.prematch.read_model_projection import (
+    ProjectionSourceEvent,
+    ScopedAnalysisRepository,
+    materialize_projection_events,
+)
 from w2.providers.api_football import LiveApiFootballResponse
 
 NOW = datetime(2026, 6, 23, 10, 0, tzinfo=UTC)
@@ -136,10 +143,29 @@ class FakeApiFootballClient:
                 ]
             }
         if endpoint == "lineups":
+            def team_lineup(team_id: int, offset: int) -> dict[str, Any]:
+                return {
+                    "team": {"id": team_id, "name": f"Team {team_id}"},
+                    "formation": "4-3-3",
+                    "startXI": [
+                        {
+                            "player": {
+                                "id": offset + index,
+                                "name": f"Player {offset + index}",
+                                "number": index + 1,
+                                "pos": "G" if index == 0 else "M",
+                                "grid": f"{index // 4 + 1}:{index % 4 + 1}",
+                            }
+                        }
+                        for index in range(11)
+                    ],
+                    "substitutes": [],
+                }
+
             return {
                 "response": [
-                    {"team": {"id": 10}, "startXI": [{} for _ in range(11)], "substitutes": []},
-                    {"team": {"id": 20}, "startXI": [{} for _ in range(11)], "substitutes": [{}]},
+                    team_lineup(10, 100),
+                    team_lineup(20, 200),
                 ]
             }
         if endpoint == "injuries":
@@ -217,6 +243,206 @@ def test_db_persistence_completes_with_read_only_runtime_and_is_idempotent(
         observation = session.scalar(select(MatchdayMarketObservationModel))
         assert observation is not None
         assert observation.live is False
+
+
+def test_c9_fake_provider_emits_exact_required_event_set(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    observed_event_types: list[str] = []
+
+    def materialize(events: list[Any]) -> list[str]:
+        observed_event_types.extend(str(event.event_type) for event in events)
+        return list(dict.fromkeys(str(event.fixture_id) for event in events))
+
+    client = FakeApiFootballClient()
+    audit = run_future_refresh_task(
+        task_id="task-c9-event-set",
+        key="checkpoint-refresh:test:c9-event-set",
+        queued_at=NOW,
+        runtime_root=tmp_path / "runtime",
+        client=client,
+        now=NOW,
+        persistence="db",
+        materialize_public_artifacts=materialize,
+    )
+
+    assert audit.status == "COMPLETED"
+    assert audit.result["request_count"] == 4
+    assert audit.result["fixture_count"] > 0
+    assert set(observed_event_types) == {
+        "FIXTURE_CHANGED",
+        "LINEUP_CHANGED",
+        "ODDS_CHANGED",
+    }
+    assert audit.result["candidate"] is False
+    assert audit.result["formal_recommendation"] is False
+    assert [endpoint for endpoint, _params in client.calls] == [
+        "status",
+        "fixtures",
+        "odds",
+        "lineups",
+    ]
+
+
+def test_c9_fake_provider_materializes_real_shadow_projection(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    class PredeployClient(FakeApiFootballClient):
+        def payload(self, endpoint: str, params: dict[str, str]) -> dict[str, Any]:
+            if endpoint != "odds":
+                return super().payload(endpoint, params)
+            return {
+                "response": [
+                    {
+                        "fixture": {"id": int(params["fixture"])},
+                        "bookmakers": [
+                            {
+                                "id": 1,
+                                "name": "Book A",
+                                "bets": [
+                                    {
+                                        "id": 4,
+                                        "name": "Asian Handicap",
+                                        "values": [
+                                            {"value": "Home -0.5", "odd": "1.91"},
+                                            {"value": "Away +0.5", "odd": "1.93"},
+                                        ],
+                                    },
+                                    {
+                                        "id": 5,
+                                        "name": "Goals Over/Under",
+                                        "values": [
+                                            {"value": "Over 2.5", "odd": "2.01"},
+                                            {"value": "Under 2.5", "odd": "1.82"},
+                                        ],
+                                    },
+                                ],
+                            }
+                        ],
+                    }
+                ]
+            }
+
+    configure_sqlite_db(monkeypatch, tmp_path)
+    audit = run_future_refresh_task(
+        task_id="task-c9-shadow",
+        key="checkpoint-refresh:test:c9-shadow",
+        queued_at=NOW,
+        runtime_root=tmp_path / "runtime",
+        client=PredeployClient(),
+        now=NOW,
+        persistence="db",
+        materialize_public_artifacts=materialize_projection_events_for_test,
+    )
+    assert audit.status == "COMPLETED"
+    repository = ReadModelRepository()
+
+    def calculate(
+        scoped_repository: ScopedAnalysisRepository,
+        fixture_id: str,
+        evaluated_at: datetime,
+    ) -> dict[str, Any] | None:
+        return ReadModelService(repository=scoped_repository).public_analysis_card_bounded(
+            fixture_id,
+            evaluation_time=evaluated_at,
+            use_frozen_canary=False,
+        )
+
+    fixture_id = "1489404"
+    event = ProjectionSourceEvent.create(
+        fixture_id=fixture_id,
+        event_type="ODDS_CHANGED",
+        event_id=f"c9-shadow:{fixture_id}",
+        event_at=NOW,
+        payload={"fixture_id": fixture_id, "source": "c9-contract"},
+    )
+
+    assert materialize_projection_events(
+        [event],
+        repository=repository,
+        calculate_analysis_card=calculate,
+    ) == [fixture_id]
+
+
+def test_lineup_materialization_failure_is_stable_and_preserves_raw_lineage(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+
+    def reject_lineup(self: Any, **_kwargs: Any) -> int:
+        raise FutureRefreshPersistenceError("STARTING_XI_INCOMPLETE")
+
+    monkeypatch.setattr(FutureRefreshDbRepository, "save_lineup_snapshots", reject_lineup)
+    audit = run_future_refresh_task(
+        task_id="task-lineup-fail",
+        key="checkpoint-refresh:test:lineup-fail",
+        queued_at=NOW,
+        runtime_root=tmp_path / "runtime",
+        client=FakeApiFootballClient(),
+        now=NOW,
+        persistence="db",
+        materialize_public_artifacts=materialize_projection_events_for_test,
+    )
+
+    assert audit.status == "BLOCKED"
+    assert audit.result["blockers"] == [
+        "LINEUP_MATERIALIZATION_FAILED:STARTING_XI_INCOMPLETE"
+    ]
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        assert session.scalar(
+            select(func.count()).select_from(RawPayloadModel).where(
+                RawPayloadModel.endpoint == "lineups"
+            )
+        ) == 1
+        assert session.scalar(
+            select(func.count()).select_from(MatchdayEndpointCaptureModel).where(
+                MatchdayEndpointCaptureModel.endpoint == "lineups"
+            )
+        ) == 1
+        assert session.scalar(
+            select(func.count()).select_from(StructuredLineupSnapshotModel)
+        ) == 0
+
+
+def test_fixture_identity_failure_blocks_lineup_materialization_with_stable_reason(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+
+    def reject_identity(self: Any, _rows: list[dict[str, Any]]) -> tuple[int, list[str]]:
+        raise RuntimeError("injected identity failure")
+
+    monkeypatch.setattr(
+        "w2.matchday.repository.MatchdayRuntimeRepository."
+        "upsert_fixture_identities_with_business_changes",
+        reject_identity,
+    )
+    audit = run_future_refresh_task(
+        task_id="task-fixture-identity-fail",
+        key="checkpoint-refresh:test:fixture-identity-fail",
+        queued_at=NOW,
+        runtime_root=tmp_path / "runtime",
+        client=FakeApiFootballClient(),
+        now=NOW,
+        persistence="db",
+        materialize_public_artifacts=materialize_projection_events_for_test,
+    )
+
+    assert audit.status == "BLOCKED"
+    assert audit.result["blockers"] == [
+        "FIXTURE_IDENTITY_PERSISTENCE_FAILED:RuntimeError"
+    ]
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        assert session.scalar(
+            select(func.count()).select_from(StructuredLineupSnapshotModel)
+        ) == 0
 
 
 def test_raw_payload_failure_blocks_db_runtime_processing(
@@ -542,6 +768,39 @@ def test_scoped_raw_payload_and_xg_readers_enforce_fixed_limits(
     assert [row["payload"]["parameters"]["fixture"] for row in raw] == ["target"]
     assert len(xg) == 40
     assert {row["team_id"] for row in xg} == {"home", "away"}
+
+
+def test_raw_payload_inserted_at_is_first_insert_authority(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    repository = FutureRefreshDbRepository()
+    sha256 = "f" * 64
+    repository.save_raw_payload(
+        sha256=sha256,
+        endpoint="odds",
+        captured_at=NOW,
+        payload={"response": []},
+    )
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        first = session.get(RawPayloadModel, sha256)
+        assert first is not None
+        first_inserted_at = first.inserted_at
+        assert first_inserted_at is not None
+
+    repository.save_raw_payload(
+        sha256=sha256,
+        endpoint="odds",
+        captured_at=NOW + timedelta(minutes=1),
+        payload={"response": []},
+    )
+    with Session(engine) as session:
+        replay = session.get(RawPayloadModel, sha256)
+        assert replay is not None
+        assert replay.inserted_at == first_inserted_at
+        assert session.scalar(select(func.count()).select_from(RawPayloadModel)) == 1
 
 
 def test_scoped_xg_snapshot_reader_uses_latest_pre_fixture_team_state(

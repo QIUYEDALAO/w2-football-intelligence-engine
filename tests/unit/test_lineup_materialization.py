@@ -214,6 +214,63 @@ def test_lineup_materialization_is_atomic_structured_and_idempotent() -> None:
     assert player_count == 22
 
 
+def test_lineup_conflict_replay_is_rejected_without_overwriting_history() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = FutureRefreshDbRepository(engine=engine)
+    captured_at = datetime(2026, 7, 19, tzinfo=UTC)
+    payload = {"response": [_team(10, 100), _team(20, 200)]}
+    repository.save_lineup_snapshots(
+        fixture_id="fixture-1",
+        captured_at=captured_at,
+        raw_sha256="a" * 64,
+        payload=payload,
+    )
+    conflict = {"response": [_team(10, 100), _team(20, 200)]}
+    conflict["response"][0]["formation"] = "3-4-3"  # type: ignore[index]
+
+    with pytest.raises(
+        FutureRefreshPersistenceError,
+        match="LINEUP_MATERIALIZATION_CONFLICT",
+    ):
+        repository.save_lineup_snapshots(
+            fixture_id="fixture-1",
+            captured_at=captured_at,
+            raw_sha256="a" * 64,
+            payload=conflict,
+        )
+
+    with Session(engine) as session:
+        snapshots = session.scalars(select(StructuredLineupSnapshotModel)).all()
+        assert {snapshot.formation for snapshot in snapshots} == {"4-3-3"}
+        assert session.scalar(select(func.count(StructuredLineupPlayerModel.id))) == 22
+
+
+def test_lineup_integrity_failure_rolls_back_all_snapshots_and_players() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = FutureRefreshDbRepository(engine=engine)
+    payload = {"response": [_team(10, 100), _team(20, 200)]}
+    payload["response"][0]["substitutes"] = [  # type: ignore[index]
+        {"player": {"id": 100, "name": "Duplicate Player"}}
+    ]
+
+    with pytest.raises(
+        FutureRefreshPersistenceError,
+        match="LINEUP_MATERIALIZATION_CONFLICT",
+    ):
+        repository.save_lineup_snapshots(
+            fixture_id="fixture-1",
+            captured_at=datetime(2026, 7, 19, tzinfo=UTC),
+            raw_sha256="a" * 64,
+            payload=payload,
+        )
+
+    with Session(engine) as session:
+        assert session.scalar(select(func.count(StructuredLineupSnapshotModel.id))) == 0
+        assert session.scalar(select(func.count(StructuredLineupPlayerModel.id))) == 0
+
+
 def test_lineup_business_identity_ignores_repeat_capture_and_changes_with_xi() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
