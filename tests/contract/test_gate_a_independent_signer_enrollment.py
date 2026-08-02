@@ -63,14 +63,18 @@ def test_repository_holds_no_private_key_and_no_authorization() -> None:
         check=True,
     ).stdout.split()
     assert not [name for name in tracked if name.endswith((".key", ".pem"))]
-    markers = ("PRIVATE KEY", "BEGIN OPENSSH PRIVATE")
-    hits = subprocess.run(
-        ["git", "grep", "-lE", "|".join(markers)],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    ).stdout.split()
+    marker = "PRIVATE" + " KEY"
+    hits = [
+        name
+        for name in subprocess.run(
+            ["git", "grep", "-l", marker],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout.split()
+        if name != str(Path(__file__).relative_to(ROOT))
+    ]
     assert hits == []
 
 
