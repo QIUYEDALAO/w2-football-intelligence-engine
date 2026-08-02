@@ -6,6 +6,18 @@
       "public_key_sha256": "b18b4745f650271827f1094fd4e90b74441be65d0c897393e9f0785ecf86779c",
       "custody_status": "RETIRED_CODEX_GENERATED_PUBLIC_KEY_NOT_ADMISSION_ELIGIBLE",
       "authorization_enabled": false
+    },
+    "w2-gate-a-signer-aef8c11a9e88657a": {
+      "public_key_base64": "emHNDlgOghDR2CW+DJWLpZjb3OC6JkjZgzYm7yV/hu4=",
+      "public_key_sha256": "aef8c11a9e88657a86b6d2882e5254ee73d8f71a95e2bcf8ed8c6660173e557f",
+      "custody_status": "INDEPENDENT_SIGNER_CONFIRMED",
+      "authorization_enabled": true,
+      "signer_role": "CLAUDE_CODE_INDEPENDENT_SIGNER",
+      "executor_role": "CODEX",
+      "custody_scope": "SINGLE_USE_ONE_CANARY_THEN_PRIVATE_KEY_DELETED",
+      "custody_boundary": "ROLE_SEPARATION_ONLY_NOT_OS_USER_ISOLATION",
+      "private_key_storage": "OUTSIDE_REPOSITORY_MODE_0600_UNENCRYPTED",
+      "owner_accepted_simplification": true
     }
   },
   "required_authorization_custody_status": "INDEPENDENT_SIGNER_CONFIRMED",
