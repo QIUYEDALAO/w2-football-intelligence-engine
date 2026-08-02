@@ -1,0 +1,55 @@
+# W2 VPS Postdeploy Receipt — 2026-08-02
+
+This receipt is intentionally sanitized. It contains no VPS address, public URL, database name,
+credential, API key, fixture identifier, or unredacted log.
+
+```text
+AUDIT_BASELINE_SHA = dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
+CURRENT_MAIN_SHA = fe03a8267d7086c87557c267afb12d32433bd2cf
+DEPLOYED_SHA = fe03a8267d7086c87557c267afb12d32433bd2cf
+MAIN_POST_MERGE_CI_RUN = 30746096431
+MAIN_POST_MERGE_CI = PASS
+
+PYTHON_IMAGE = ghcr.io/qiuyedalao/w2-football-intelligence-engine/python@sha256:86c36ed1df69cf80b5e98d9f836426deb3a3160425f67071a88a28226464c677
+WEB_IMAGE = ghcr.io/qiuyedalao/w2-football-intelligence-engine/web@sha256:2a8748c445d8af1a08f3d49c565464d10006425257d372428ea14e7513c44cdb
+
+PREDEPLOY_DATABASE_BACKUP = PASS
+PREDEPLOY_DATABASE_BACKUP_SHA256 = a984f297de2899629b0e66e1f160fe8a7b9158e94573c70e1d64f15618c71b34
+PREDEPLOY_ENV_MODE = 0600
+COLD_PULL_ROLLBACKS = 2
+COLD_PULL_ROLLBACK_RESULT = PASS
+WARM_SWITCH = PASS
+WARM_SWITCH_DURATION_SECONDS = 35
+
+HEALTH = PASS
+READY = PASS
+API_GIT_SHA = fe03a8267d7086c87557c267afb12d32433bd2cf
+WEB_GIT_SHA = fe03a8267d7086c87557c267afb12d32433bd2cf
+RELEASE_ID_MATCH = true
+MIGRATION_HEAD = 0050_gate_a_runtime_selection
+RELEASE_SYNC = PASS
+
+RUNNING_SERVICES = api,postgres,redis,web,worker
+SCHEDULER_RUNNING_COUNT = 0
+REAL_PROVIDER_CALL_DELTA = 0
+PROVIDER_REQUEST_LOG_COUNT_BEFORE = 312
+PROVIDER_REQUEST_LOG_COUNT_AFTER = 312
+
+W2_PROVIDER_CALLS_DISABLED = true
+W2_PROVIDER_SCHEDULER_ENABLED = false
+W2_RECOMMENDATION_ENABLED = false
+W2_CANDIDATE_ENABLED = false
+W2_FORMAL_RECOMMENDATION_ENABLED = false
+W2_PRODUCTION_RELEASE = false
+
+CANARY_DATABASE_DELETED = true
+CANARY_ROLE_DELETED = true
+AUTHORIZATION_SHA256 = 51339d452bcbf590c8a9710b67e6df665a3d85f83140d1ae7663573146afdd79
+CANARY_EVIDENCE_SHA256 = 30e961cbedee33b5ec74bf3eabbd80a202ced3b9b21483160896812442ddd1f4
+
+AUTO_MERGE_EXECUTED = false
+```
+
+The cold-pull attempts changed no accepted runtime state: each exceeded the deploy script SLO and
+completed its built-in rollback. Both exact main digests were then cached without changing running
+services, followed by the successful warm switch above.

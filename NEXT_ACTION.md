@@ -1,15 +1,24 @@
 # NEXT ACTION
 
-当前唯一动作：完成 mainline 整合后，由新的 binding execution decision 执行 VPS 部署与
-postdeploy 收口。本 PR 只整合已验收 heads、同步上下文和永久脱敏回执；不部署、不调用
-Provider、不启动 scheduler，也不开放 Candidate、Formal、Lock 或 Production。
+当前唯一动作：`POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT`。正式 main
+`fe03a8267d7086c87557c267afb12d32433bd2cf` 已部署并通过 postdeploy 验收；后续仍不得调用
+Provider、启动 scheduler 或开放 Candidate、Formal、Lock、Production，除非 #454 给出新的
+binding execution decision。
 
 ```text
 TOP_LEVEL_TASK = EVAL-02B
-ACTIVE_NEXT_ACTION = VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE
-ACTIVE_CONTEXT_PR = 450
-CURRENT_WORKSTREAM = MAINLINE_AND_DEPLOYMENT_CLOSURE
-CURRENT_PHASE = FINAL_MAINLINE_INTEGRATION
+ACTIVE_NEXT_ACTION = POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT
+ACTIVE_CONTEXT_PR = POSTDEPLOY_CONTEXT_PR_PENDING
+CURRENT_WORKSTREAM = POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT
+CURRENT_PHASE = POSTDEPLOY_CLOSURE_COMPLETE
+AUDIT_BASELINE_SHA = dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
+CURRENT_MAIN_SHA = fe03a8267d7086c87557c267afb12d32433bd2cf
+DEPLOYED_SHA = fe03a8267d7086c87557c267afb12d32433bd2cf
+VPS_DEPLOYMENT = PASS
+MIGRATION_HEAD = 0050_gate_a_runtime_selection
+RELEASE_SYNC = PASS
+REAL_PROVIDER_CALL_DELTA = 0
+CANARY_DATABASE_DELETED = true
 WAVE_1 = PASS_AND_FROZEN
 WAVE_1_FINAL = PASS_WITH_BOUNDED_CARRY_FORWARD
 WAVE_2 = PASS
@@ -45,9 +54,10 @@ AUTO_MERGE = FORBIDDEN
 - Active execution authority: GitHub Issue #454 v5
 - R5 computation authority: GitHub Issue #456
 - Wave 4 sanitized receipt: [W2 Wave 4 Real Canary Receipt](docs/operations/W2_WAVE4_REAL_CANARY_RECEIPT_20260802.md)
+- Postdeploy sanitized receipt: [W2 VPS Postdeploy Receipt](docs/operations/W2_VPS_POSTDEPLOY_RECEIPT_20260802.md)
 
-`current_pr: null` 只表示当前没有业务实现 PR；`active_context_pr: 450` 保留已验收的
-上下文与守卫来源。PR #450 的 accepted head 由本次 final integration 以 merge commit 承接。
+`current_pr: null` 只表示当前没有业务实现 PR；`active_context_pr` 将在本次 postdeploy
+context PR 创建后回填。PR #450 仍是历史守卫来源，不再是当前上下文 PR。
 
 ## Historical receipt / 历史回执
 
@@ -58,6 +68,6 @@ Canary 回执。Wave 1 的 T00-R5 inventory 与 Issue #456 继续冻结，不得
 
 ## Stop line
 
-本轮不得调用 Provider、创建新的真实授权、启动 persistent scheduler、部署、开放
-Candidate/Formal/Lock/Production 或自动 merge。部署与 postdeploy 收口必须等待 mainline
-整合完成后的新 binding execution decision。
+本轮不得调用 Provider、创建新的真实授权、启动 persistent scheduler、再次部署、开放
+Candidate/Formal/Lock/Production 或自动 merge。观察期与采集 policy rollout 需要新的
+binding execution decision 才能改变当前关闭状态。

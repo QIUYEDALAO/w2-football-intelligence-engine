@@ -12,11 +12,16 @@ asset_uniqueness_audit_authority: docs/operations/W2_ASSET_UNIQUENESS_AUDIT_2026
 audit_perspective_registry_authority: docs/operations/W2_AUDIT_PERSPECTIVE_REGISTRY.md
 workflow_governance_issue: 455
 computation_authority_issue: 456
-current_workstream: MAINLINE_AND_DEPLOYMENT_CLOSURE
-current_phase: FINAL_MAINLINE_INTEGRATION
-current_status_detail: EVAL_02B_REAL_CHAIN_PROVEN
-next_workstream: MAINLINE_AND_DEPLOYMENT_CLOSURE
-active_next_action: VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE
+audit_baseline_sha: dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
+current_main_sha: fe03a8267d7086c87557c267afb12d32433bd2cf
+deployed_sha: fe03a8267d7086c87557c267afb12d32433bd2cf
+main_post_merge_ci: 30746096431
+deployment_receipt: docs/operations/W2_VPS_POSTDEPLOY_RECEIPT_20260802.md
+current_workstream: POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT
+current_phase: POSTDEPLOY_CLOSURE_COMPLETE
+current_status_detail: VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE_PASS
+next_workstream: POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT
+active_next_action: POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT
 infrastructure_exposure_issue: 457
 issue_457_project_gate: CLOSED_WITH_OWNER_RISK_ACCEPTANCE
 quarantined_pr: 453
@@ -30,8 +35,8 @@ current_task: EVAL-02B
 current_status: PASS
 current_pr: null
 current_pr_semantics: CURRENT_BUSINESS_IMPLEMENTATION_PR_ONLY
-active_context_pr: 450
-active_context_pr_semantics: CURRENT_CONTEXT_AND_GUARD_PR
+active_context_pr: null
+active_context_pr_semantics: POSTDEPLOY_CONTEXT_PR_PENDING
 next_task: EVAL-02B
 tasks:
   ARCH-P2-02:
@@ -222,7 +227,7 @@ tasks:
     real_canary_provider_calls: 5
     real_canary_evidence_sha256: 30e961cbedee33b5ec74bf3eabbd80a202ced3b9b21483160896812442ddd1f4
     real_chain: PROVEN
-    next_required_action: VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE
+    next_required_action: POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT
   EVAL-03:
     status: NOT_STARTED
 safety:
@@ -233,6 +238,14 @@ safety:
   reviewed_mapping_count_expected: 66
 staging:
   production_deployed: false
+  vps_deployed: true
+  deployed_sha: fe03a8267d7086c87557c267afb12d32433bd2cf
+  main_post_merge_ci: 30746096431
+  migration_head: 0050_gate_a_runtime_selection
+  release_sync: PASS
+  scheduler_running_count: 0
+  real_provider_call_delta: 0
+  canary_database_deleted: true
   eval_01a_exact_head_acceptance: PASS
   eval_01b_exact_head_acceptance: PASS
   eval_01c_exact_head_acceptance: PASS
@@ -248,9 +261,18 @@ WAVE_2: PASS
 WAVE_3: PASS
 WAVE_4_REAL_CANARY: PASS
 EVAL_02B_REAL_CHAIN: PROVEN
-CURRENT_WORKSTREAM: MAINLINE_AND_DEPLOYMENT_CLOSURE
-CURRENT_PHASE: FINAL_MAINLINE_INTEGRATION
-ACTIVE_NEXT_ACTION: VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE
+AUDIT_BASELINE_SHA: dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
+CURRENT_MAIN_SHA: fe03a8267d7086c87557c267afb12d32433bd2cf
+DEPLOYED_SHA: fe03a8267d7086c87557c267afb12d32433bd2cf
+CURRENT_WORKSTREAM: POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT
+CURRENT_PHASE: POSTDEPLOY_CLOSURE_COMPLETE
+ACTIVE_NEXT_ACTION: POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT
+VPS_DEPLOYMENT: PASS
+MAIN_POST_MERGE_CI: 30746096431
+MIGRATION_HEAD: 0050_gate_a_runtime_selection
+RELEASE_SYNC: PASS
+REAL_PROVIDER_CALL_DELTA: 0
+CANARY_DATABASE_DELETED: true
 FINAL_GATE_A_GROUPS: 28
 FINAL_EXACT_C1_C11_MAPPINGS: 35
 FINAL_TEST_CONTRACT_SKELETONS: 30
