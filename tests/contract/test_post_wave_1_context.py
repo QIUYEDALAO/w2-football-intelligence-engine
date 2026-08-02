@@ -65,8 +65,8 @@ def test_project_state_v5_separates_task_and_execution_authorities() -> None:
     assert state["tasks"]["EVAL-02B"]["next_required_action"] == ACTIVE_NEXT_ACTION
     assert "current_pr" in state
     assert state["current_pr_semantics"] == "CURRENT_BUSINESS_IMPLEMENTATION_PR_ONLY"
-    assert state["active_context_pr"] is None
-    assert state["active_context_pr_semantics"] == "POSTDEPLOY_CONTEXT_PR_PENDING"
+    assert state["active_context_pr"] == 465
+    assert state["active_context_pr_semantics"] == "CURRENT_POSTDEPLOY_CONTEXT_PR"
     assert state["audit_baseline_sha"] == "dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6"
     assert state["current_main_sha"] == "fe03a8267d7086c87557c267afb12d32433bd2cf"
     assert state["deployed_sha"] == state["current_main_sha"]
@@ -289,7 +289,7 @@ def test_handoff_documents_are_synchronized_to_v5() -> None:
         assert "R5" in text
         assert "#456" in text
         assert f"ACTIVE_NEXT_ACTION = {ACTIVE_NEXT_ACTION}" in text
-        assert "ACTIVE_CONTEXT_PR = POSTDEPLOY_CONTEXT_PR_PENDING" in text
+        assert "ACTIVE_CONTEXT_PR = 465" in text
         assert f"CURRENT_WORKSTREAM = {ACTIVE_NEXT_ACTION}" in text
         assert "CURRENT_PHASE = POSTDEPLOY_CLOSURE_COMPLETE" in text
         assert "AUDIT_BASELINE_SHA = dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6" in text
@@ -362,7 +362,7 @@ def test_active_action_is_unique_current_and_historical_receipt_is_bounded() -> 
         assert state[key] == value
     assert state["WAVE_3"] == "PASS"
     assert state["WAVE_4_REAL_CANARY"] == "PASS"
-    assert state["active_context_pr"] is None
+    assert state["active_context_pr"] == 465
 
     assert state_text.count(SUPERSEDED_A148_ACTION) == 1
     assert state["historical_receipts"]["a148"][

@@ -35,8 +35,8 @@ current_task: EVAL-02B
 current_status: PASS
 current_pr: null
 current_pr_semantics: CURRENT_BUSINESS_IMPLEMENTATION_PR_ONLY
-active_context_pr: null
-active_context_pr_semantics: POSTDEPLOY_CONTEXT_PR_PENDING
+active_context_pr: 465
+active_context_pr_semantics: CURRENT_POSTDEPLOY_CONTEXT_PR
 next_task: EVAL-02B
 tasks:
   ARCH-P2-02:

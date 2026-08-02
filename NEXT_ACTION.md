@@ -8,7 +8,7 @@ binding execution decision。
 ```text
 TOP_LEVEL_TASK = EVAL-02B
 ACTIVE_NEXT_ACTION = POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT
-ACTIVE_CONTEXT_PR = POSTDEPLOY_CONTEXT_PR_PENDING
+ACTIVE_CONTEXT_PR = 465
 CURRENT_WORKSTREAM = POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT
 CURRENT_PHASE = POSTDEPLOY_CLOSURE_COMPLETE
 AUDIT_BASELINE_SHA = dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
@@ -56,8 +56,8 @@ AUTO_MERGE = FORBIDDEN
 - Wave 4 sanitized receipt: [W2 Wave 4 Real Canary Receipt](docs/operations/W2_WAVE4_REAL_CANARY_RECEIPT_20260802.md)
 - Postdeploy sanitized receipt: [W2 VPS Postdeploy Receipt](docs/operations/W2_VPS_POSTDEPLOY_RECEIPT_20260802.md)
 
-`current_pr: null` 只表示当前没有业务实现 PR；`active_context_pr` 将在本次 postdeploy
-context PR 创建后回填。PR #450 仍是历史守卫来源，不再是当前上下文 PR。
+`current_pr: null` 只表示当前没有业务实现 PR；`active_context_pr: 465` 是本次 postdeploy
+context PR。PR #450 仍是历史守卫来源，不再是当前上下文 PR。
 
 ## Historical receipt / 历史回执
 

@@ -37,8 +37,8 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     assert state["current_status"] == "PASS"
     assert "current_pr" in state
     assert state["current_pr_semantics"] == "CURRENT_BUSINESS_IMPLEMENTATION_PR_ONLY"
-    assert state["active_context_pr"] is None
-    assert state["active_context_pr_semantics"] == "POSTDEPLOY_CONTEXT_PR_PENDING"
+    assert state["active_context_pr"] == 465
+    assert state["active_context_pr_semantics"] == "CURRENT_POSTDEPLOY_CONTEXT_PR"
     assert state["next_task"] == "EVAL-02B"
     assert state["tasks"]["ARCH-P2-02"] == {
         "status": "DONE",
