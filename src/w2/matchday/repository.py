@@ -102,6 +102,8 @@ class MatchdayRuntimeRepository:
                 raise MatchdayRepositoryError("CHECKPOINT_PLAN_CONFLICT")
             if existing.status == "MISSED" and incoming_status == "CAPTURED":
                 raise MatchdayRepositoryError("MISSED_CHECKPOINT_IMMUTABLE")
+            if existing.status == "FAILED" and incoming_status == "MISSED":
+                return plan_id
             existing.status = _transition_status(existing.status, incoming_status)
             existing.missed_at = (
                 _dt(payload["missed_at"]) if payload.get("missed_at") else existing.missed_at
