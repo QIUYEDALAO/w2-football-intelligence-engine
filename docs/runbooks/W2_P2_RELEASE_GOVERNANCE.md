@@ -2,6 +2,9 @@
 
 Status: governance baseline for P2 T17-T20.
 
+Set `W2_PUBLIC_BASE_URL` from the approved operator configuration. Do not
+commit its resolved value.
+
 ## Purpose
 
 This runbook makes P2 review repeatable. It covers August validation planning,
@@ -55,9 +58,9 @@ cd apps/web && npm run typecheck && npm run build
 For staging acceptance:
 
 ```bash
-python scripts/verify_release_sync.py --base-url http://118.196.30.136 --expected-sha <SHA>
-curl -s http://118.196.30.136/v1/validation/summary
-curl -s http://118.196.30.136/v1/providers/status
+python scripts/verify_release_sync.py --base-url "${W2_PUBLIC_BASE_URL}" --expected-sha <SHA>
+curl -s "${W2_PUBLIC_BASE_URL}/v1/validation/summary"
+curl -s "${W2_PUBLIC_BASE_URL}/v1/providers/status"
 python scripts/run_w2_handicap_walkforward.py --dry-run
 ```
 
