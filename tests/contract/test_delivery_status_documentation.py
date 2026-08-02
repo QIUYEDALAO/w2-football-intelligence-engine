@@ -37,8 +37,8 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     assert state["current_status"] == "PASS"
     assert "current_pr" in state
     assert state["current_pr_semantics"] == "CURRENT_BUSINESS_IMPLEMENTATION_PR_ONLY"
-    assert state["active_context_pr"] == 450
-    assert state["active_context_pr_semantics"] == "CURRENT_CONTEXT_AND_GUARD_PR"
+    assert state["active_context_pr"] == 465
+    assert state["active_context_pr_semantics"] == "CURRENT_POSTDEPLOY_CONTEXT_PR"
     assert state["next_task"] == "EVAL-02B"
     assert state["tasks"]["ARCH-P2-02"] == {
         "status": "DONE",
@@ -249,13 +249,16 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
             "30e961cbedee33b5ec74bf3eabbd80a202ced3b9b21483160896812442ddd1f4"
         ),
         "real_chain": "PROVEN",
-        "next_required_action": "VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE",
+        "next_required_action": "POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT",
     }
     assert state["tasks"]["EVAL-03"]["status"] == "NOT_STARTED"
     assert state["architecture_convergence"]["status"] == "PASS"
     assert "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)" in next_action
     assert CHECKLIST_PATH in next_action
-    assert "ACTIVE_NEXT_ACTION = VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE" in next_action
+    assert (
+        "ACTIVE_NEXT_ACTION = POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT"
+        in next_action
+    )
     assert "NEXT_CODE_ACTION = NONE_AUTHORIZED" in next_action
     assert "T00_RERUN = FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE" in next_action
     assert "Historical receipt / 历史回执" in next_action
@@ -273,7 +276,11 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     assert a148["end_to_end_chain"] == "NOT_VALIDATED"
     assert "sole machine-readable project-status record" in ledger
     assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", ledger)
-    assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", next_action)
+    assert set(re.findall(r"\b[0-9a-f]{40}\b", next_action)) == {
+        "dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6",
+        "fe03a8267d7086c87557c267afb12d32433bd2cf",
+    }
+    assert not re.search(r"CI:\s*\d+", next_action)
     assert "`PROJECT_STATE.yaml` 是 W2 **唯一当前机器可读状态快照**" in checklist
     assert "唯一任务顺序、任务规格和已合并完成回执权威" in checklist
     assert "状态只更新本文件" not in checklist
@@ -1112,6 +1119,14 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
             assert task not in next_action
         assert task not in checklist
     assert state["staging"]["production_deployed"] is False
+    assert state["staging"]["vps_deployed"] is True
+    assert state["staging"]["deployed_sha"] == (
+        "fe03a8267d7086c87557c267afb12d32433bd2cf"
+    )
+    assert state["staging"]["migration_head"] == "0050_gate_a_runtime_selection"
+    assert state["staging"]["release_sync"] == "PASS"
+    assert state["staging"]["scheduler_running_count"] == 0
+    assert state["staging"]["real_provider_call_delta"] == 0
     assert state["staging"]["eval_01a_exact_head_acceptance"] == "PASS"
     assert state["staging"]["eval_01b_exact_head_acceptance"] == "PASS"
     assert state["staging"]["eval_01c_exact_head_acceptance"] == "PASS"

@@ -15,10 +15,11 @@ ASSET_AUDIT_PATH = "docs/operations/W2_ASSET_UNIQUENESS_AUDIT_20260731.md"
 REGISTRY_PATH = "docs/operations/W2_AUDIT_PERSPECTIVE_REGISTRY.md"
 CONTEXT_PATH = "AI_PROJECT_CONTEXT.md"
 CANARY_RECEIPT_PATH = "docs/operations/W2_WAVE4_REAL_CANARY_RECEIPT_20260802.md"
+POSTDEPLOY_RECEIPT_PATH = "docs/operations/W2_VPS_POSTDEPLOY_RECEIPT_20260802.md"
 EXECUTION_AUTHORITY = (
     "https://github.com/QIUYEDALAO/w2-football-intelligence-engine/issues/454"
 )
-ACTIVE_NEXT_ACTION = "VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE"
+ACTIVE_NEXT_ACTION = "POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT"
 SUPERSEDED_A148_ACTION = "INDEPENDENT_REHEARSAL_RECEIPT_REVIEW"
 
 REQUIRED_CANARY_DELTAS = (
@@ -54,18 +55,22 @@ def test_project_state_v5_separates_task_and_execution_authorities() -> None:
     assert state["computation_authority_issue"] == 456
 
     assert state["current_task"] == "EVAL-02B"
-    assert state["current_workstream"] == "MAINLINE_AND_DEPLOYMENT_CLOSURE"
-    assert state["current_phase"] == "FINAL_MAINLINE_INTEGRATION"
+    assert state["current_workstream"] == ACTIVE_NEXT_ACTION
+    assert state["current_phase"] == "POSTDEPLOY_CLOSURE_COMPLETE"
     assert state["current_status"] == "PASS"
-    assert state["current_status_detail"] == "EVAL_02B_REAL_CHAIN_PROVEN"
+    assert state["current_status_detail"] == "VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE_PASS"
     assert state["next_task"] == "EVAL-02B"
-    assert state["next_workstream"] == "MAINLINE_AND_DEPLOYMENT_CLOSURE"
+    assert state["next_workstream"] == ACTIVE_NEXT_ACTION
     assert state["active_next_action"] == ACTIVE_NEXT_ACTION
     assert state["tasks"]["EVAL-02B"]["next_required_action"] == ACTIVE_NEXT_ACTION
     assert "current_pr" in state
     assert state["current_pr_semantics"] == "CURRENT_BUSINESS_IMPLEMENTATION_PR_ONLY"
-    assert state["active_context_pr"] == 450
-    assert state["active_context_pr_semantics"] == "CURRENT_CONTEXT_AND_GUARD_PR"
+    assert state["active_context_pr"] == 465
+    assert state["active_context_pr_semantics"] == "CURRENT_POSTDEPLOY_CONTEXT_PR"
+    assert state["audit_baseline_sha"] == "dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6"
+    assert state["current_main_sha"] == "fe03a8267d7086c87557c267afb12d32433bd2cf"
+    assert state["deployed_sha"] == state["current_main_sha"]
+    assert state["main_post_merge_ci"] == 30746096431
     assert state["quarantined_pr"] == 453
     assert set(state["active_issues"]) == {451, 452, 455, 456, 457}
 
@@ -231,6 +236,45 @@ def test_wave4_receipt_is_complete_and_sanitized() -> None:
         assert redacted_field not in receipt.upper()
 
 
+def test_postdeploy_receipt_and_state_are_complete_and_sanitized() -> None:
+    state = yaml.safe_load(read("PROJECT_STATE.yaml"))
+    receipt = read(POSTDEPLOY_RECEIPT_PATH)
+
+    assert state["deployment_receipt"] == POSTDEPLOY_RECEIPT_PATH
+    staging = state["staging"]
+    assert staging["production_deployed"] is False
+    assert staging["vps_deployed"] is True
+    assert staging["deployed_sha"] == "fe03a8267d7086c87557c267afb12d32433bd2cf"
+    assert staging["main_post_merge_ci"] == 30746096431
+    assert staging["migration_head"] == "0050_gate_a_runtime_selection"
+    assert staging["release_sync"] == "PASS"
+    assert staging["scheduler_running_count"] == 0
+    assert staging["real_provider_call_delta"] == 0
+    assert staging["canary_database_deleted"] is True
+    for evidence in (
+        "MAIN_POST_MERGE_CI_RUN = 30746096431",
+        "DEPLOYED_SHA = fe03a8267d7086c87557c267afb12d32433bd2cf",
+        "MIGRATION_HEAD = 0050_gate_a_runtime_selection",
+        "HEALTH = PASS",
+        "READY = PASS",
+        "RELEASE_SYNC = PASS",
+        "SCHEDULER_RUNNING_COUNT = 0",
+        "REAL_PROVIDER_CALL_DELTA = 0",
+        "CANARY_DATABASE_DELETED = true",
+        "AUTO_MERGE_EXECUTED = false",
+    ):
+        assert evidence in receipt
+    for redacted_field in (
+        "VPS_ADDRESS =",
+        "PUBLIC_URL =",
+        "DATABASE_NAME =",
+        "DATABASE_URL =",
+        "API" + "_KEY =",
+        "PASS" + "WORD =",
+    ):
+        assert redacted_field not in receipt.upper()
+
+
 def test_handoff_documents_are_synchronized_to_v5() -> None:
     context = read(CONTEXT_PATH)
     next_action = read("NEXT_ACTION.md")
@@ -244,10 +288,13 @@ def test_handoff_documents_are_synchronized_to_v5() -> None:
         assert "#454 v5" in text
         assert "R5" in text
         assert "#456" in text
-        assert "ACTIVE_NEXT_ACTION = VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE" in text
-        assert "ACTIVE_CONTEXT_PR = 450" in text
-        assert "CURRENT_WORKSTREAM = MAINLINE_AND_DEPLOYMENT_CLOSURE" in text
-        assert "CURRENT_PHASE = FINAL_MAINLINE_INTEGRATION" in text
+        assert f"ACTIVE_NEXT_ACTION = {ACTIVE_NEXT_ACTION}" in text
+        assert "ACTIVE_CONTEXT_PR = 465" in text
+        assert f"CURRENT_WORKSTREAM = {ACTIVE_NEXT_ACTION}" in text
+        assert "CURRENT_PHASE = POSTDEPLOY_CLOSURE_COMPLETE" in text
+        assert "AUDIT_BASELINE_SHA = dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6" in text
+        assert "CURRENT_MAIN_SHA = fe03a8267d7086c87557c267afb12d32433bd2cf" in text
+        assert "DEPLOYED_SHA = fe03a8267d7086c87557c267afb12d32433bd2cf" in text
         assert "WAVE_1 = PASS_AND_FROZEN" in text
         assert "WAVE_1_FINAL = PASS_WITH_BOUNDED_CARRY_FORWARD" in text
         assert "T00_RERUN = FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE" in text
@@ -315,7 +362,7 @@ def test_active_action_is_unique_current_and_historical_receipt_is_bounded() -> 
         assert state[key] == value
     assert state["WAVE_3"] == "PASS"
     assert state["WAVE_4_REAL_CANARY"] == "PASS"
-    assert state["active_context_pr"] == 450
+    assert state["active_context_pr"] == 465
 
     assert state_text.count(SUPERSEDED_A148_ACTION) == 1
     assert state["historical_receipts"]["a148"][
@@ -352,7 +399,7 @@ def test_master_checklist_remains_historical_task_authority() -> None:
     assert state["task_authority"] == CHECKLIST_PATH
     assert state["active_execution_authority"] == EXECUTION_AUTHORITY
     assert state["current_task"] == "EVAL-02B"
-    assert state["current_workstream"] == "MAINLINE_AND_DEPLOYMENT_CLOSURE"
+    assert state["current_workstream"] == ACTIVE_NEXT_ACTION
 
     assert "PAIR_IDENTITY_SERIALIZATION" in checklist
     assert "UTF8_CANONICAL_JSON_SORTED_KEYS_COMPACT" in checklist

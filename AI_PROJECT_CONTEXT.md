@@ -17,12 +17,15 @@
 - 资产唯一性审计：`docs/operations/W2_ASSET_UNIQUENESS_AUDIT_20260731.md`
 - 审计视角登记：`docs/operations/W2_AUDIT_PERSPECTIVE_REGISTRY.md`
 - Wave 4 脱敏永久回执：`docs/operations/W2_WAVE4_REAL_CANARY_RECEIPT_20260802.md`
+- VPS postdeploy 脱敏回执：`docs/operations/W2_VPS_POSTDEPLOY_RECEIPT_20260802.md`
 
 ## 可信基线
 
 ```text
 repository = QIUYEDALAO/w2-football-intelligence-engine
-trusted_main = dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
+audit_baseline_sha = dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
+current_main_sha = fe03a8267d7086c87557c267afb12d32433bd2cf
+deployed_sha = fe03a8267d7086c87557c267afb12d32433bd2cf
 main contaminated by e875050f = false
 main rollback required = false
 PR #453 = QUARANTINED / DO NOT MERGE / DO NOT REPAIR IN PLACE
@@ -45,10 +48,18 @@ PR #450 = FINAL ACCEPTANCE REVIEW COMPLETED / ACCEPTED HEAD IN FINAL INTEGRATION
 
 ```text
 TOP_LEVEL_TASK = EVAL-02B
-ACTIVE_NEXT_ACTION = VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE
-ACTIVE_CONTEXT_PR = 450
-CURRENT_WORKSTREAM = MAINLINE_AND_DEPLOYMENT_CLOSURE
-CURRENT_PHASE = FINAL_MAINLINE_INTEGRATION
+ACTIVE_NEXT_ACTION = POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT
+ACTIVE_CONTEXT_PR = 465
+CURRENT_WORKSTREAM = POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT
+CURRENT_PHASE = POSTDEPLOY_CLOSURE_COMPLETE
+AUDIT_BASELINE_SHA = dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
+CURRENT_MAIN_SHA = fe03a8267d7086c87557c267afb12d32433bd2cf
+DEPLOYED_SHA = fe03a8267d7086c87557c267afb12d32433bd2cf
+VPS_DEPLOYMENT = PASS
+MIGRATION_HEAD = 0050_gate_a_runtime_selection
+RELEASE_SYNC = PASS
+REAL_PROVIDER_CALL_DELTA = 0
+CANARY_DATABASE_DELETED = true
 EVAL-02B END-TO-END = PROVEN
 EVAL-03 = NOT STARTED
 WAVE_1 = PASS_AND_FROZEN
@@ -252,10 +263,11 @@ LINEAGE_MISMATCH
 ## #454 v5 历史执行顺序与当前边界
 
 Wave 1 / T00 已完成并冻结；Wave 2 independent serializer oracle、Wave 3 C9 与 Gate A、
-Wave 4 单次真实 Canary 均已验收通过，`EVAL_02B_REAL_CHAIN = PROVEN`。当前唯一下一动作是
-`VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE`，但本 final integration PR 不执行部署；必须等待
-mainline 整合完成后的新 binding execution decision。Issue #457 项目 gate 已按 owner risk
-acceptance 关闭，PR #450 accepted head 已纳入 final integration。
+Wave 4 单次真实 Canary 均已验收通过，`EVAL_02B_REAL_CHAIN = PROVEN`。正式 main
+`fe03a8267d7086c87557c267afb12d32433bd2cf` 已使用其 post-merge CI immutable digests 部署，
+migration、health、ready、release sync 均通过，部署期间 Provider 增量为 0，scheduler 保持关闭。
+当前唯一下一动作是 `POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT`。Issue #457 项目
+gate 已按 owner risk acceptance 关闭，PR #450 accepted head 已纳入 main。
 
 ## Gate 分层
 
@@ -267,17 +279,18 @@ acceptance 关闭，PR #450 accepted head 已纳入 final integration。
 ## 接手动作
 
 1. 先读本文件、`PROJECT_STATE.yaml`、`NEXT_ACTION.md` 和 #454/#457 最新 binding decision。
-2. 核对 `ACTIVE_NEXT_ACTION = VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE` 与 `ACTIVE_CONTEXT_PR = 450`。
+2. 核对 `CURRENT_MAIN_SHA = DEPLOYED_SHA = fe03a826...` 与
+   `ACTIVE_NEXT_ACTION = POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT`。
 3. 不重跑或扩大 T00；不要重新执行已通过的 C9、Gate A 或真实 Canary。
 4. 不得使用、复制、merge 或 cherry-pick PR #453 / `e875050f...`。
 5. 保留 PR #450 恢复的历史守卫与 145 个 role 字段账目；不得放宽 C9 required event 断言。
-6. 当前整合轮不调用 Provider、不创建新授权、不启动持续 scheduler、不部署、不自动合并。
+6. postdeploy context PR 不调用 Provider、不创建新授权、不启动持续 scheduler、不再次部署、不自动合并。
 7. 最终输出：
 
 ```text
-REAL_PROVIDER_CALL_EXECUTED_IN_THIS_INTEGRATION = false
+REAL_PROVIDER_CALL_EXECUTED_IN_POSTDEPLOY = false
 PERSISTENT_SCHEDULER_STARTED = false
-DEPLOYMENT_EXECUTED = false
+DEPLOYMENT_STATUS = PASS
 AUTO_MERGE_EXECUTED = false
-READY_FOR_FINAL_MAIN_MERGE = true|false
+READY_FOR_FINAL_DEPLOYMENT_ACCEPTANCE = true|false
 ```
