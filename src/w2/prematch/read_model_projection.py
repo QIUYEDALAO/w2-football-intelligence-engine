@@ -395,8 +395,6 @@ class AnalysisCardCanaryMaterializer:
             raise FrozenAnalysisError("scoped fixture input missing")
         identity = _fixture_identity(fixture_id, fixture_payload)
         observations = self.repository.future_market_observations_for_fixtures([fixture_id])
-        if not observations:
-            raise FrozenAnalysisError("scoped observation input missing")
         if len(observations) > MAX_OBSERVATIONS_PER_FIXTURE:
             raise FrozenAnalysisError("scoped observation input exceeds bound")
         if any(str(row.get("fixture_id") or "") != fixture_id for row in observations):
@@ -528,7 +526,9 @@ class AnalysisCardCanaryMaterializer:
                 lineup_identity=dynamic_lineup_identity,
             )
         )
-        if not evaluations:
+        if not evaluations and (
+            card.get("decision_tier") != "NOT_READY" or card.get("pick") is not None
+        ):
             raise FrozenAnalysisError("dynamic evaluation unavailable")
         primary = min(evaluations, key=lambda item: item.evaluation_id) if evaluations else None
         event_at = _normalize_evaluation_time(event.event_at)

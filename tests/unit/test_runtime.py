@@ -8,6 +8,7 @@ from apps.scheduler import main as scheduler_main
 from apps.scheduler.main import (
     due_checkpoint_refresh_batch,
     forward_outcome_ledger_tick,
+    future_fixture_refresh_competition_ids,
     future_fixture_refresh_tick,
     heartbeat,
     market_timeline_refresh_tick,
@@ -65,6 +66,29 @@ def test_scheduler_future_refresh_disabled_by_default(monkeypatch) -> None:
     assert xg_history_backfill_tick()["status"] == "DISABLED"
     assert market_timeline_refresh_tick()["status"] == "DISABLED"
     assert forward_outcome_ledger_tick()["status"] == "DISABLED"
+
+
+def test_scheduler_future_refresh_intersects_runtime_allowlist(monkeypatch) -> None:
+    class Entry:
+        def __init__(self, competition_id: str) -> None:
+            self.competition_id = competition_id
+            self.enabled = True
+            self.refresh_switches = {"fixtures": True}
+
+    class Registry:
+        def entries(self) -> dict[str, Entry]:
+            return {
+                competition_id: Entry(competition_id)
+                for competition_id in ("allsvenskan", "eliteserien", "world_cup_2026")
+            }
+
+    monkeypatch.setenv(
+        "W2_FUTURE_REFRESH_COMPETITION_ALLOWLIST",
+        "allsvenskan,eliteserien",
+    )
+    monkeypatch.setattr("w2.competitions.registry.CompetitionRegistry", Registry)
+
+    assert future_fixture_refresh_competition_ids() == ("allsvenskan", "eliteserien")
 
 
 def test_scheduler_future_refresh_dispatches_checkpoint_worker_task_without_running_provider(
@@ -727,6 +751,40 @@ def test_worker_provider_master_switch_blocks_direct_tasks(monkeypatch) -> None:
 
     assert result["status"] == "SKIPPED_PROVIDER_SCHEDULER_DISABLED"
     assert result["result"]["provider_calls"] == 0
+
+
+def test_worker_future_refresh_uses_allowlisted_live_client(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class Audit:
+        task_id = "task"
+        key = "key"
+        status = "COMPLETED"
+        result: dict[str, object] = {}
+
+    def fake_run_future_refresh_task(**kwargs: object) -> Audit:
+        captured.update(kwargs)
+        return Audit()
+
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setenv(
+        "W2_PROVIDER_ENDPOINT_ALLOWLIST",
+        "status,fixtures,odds,lineups",
+    )
+    monkeypatch.setattr(
+        "apps.worker.celery_app.run_future_refresh_task",
+        fake_run_future_refresh_task,
+    )
+
+    result = future_fixture_refresh.run(competition_id="allsvenskan")
+
+    client: Any = captured["client"]
+    assert type(client).__name__ == "ApiFootballClient"
+    assert client.allow_live is True
+    assert client.allowed_live_endpoints == frozenset(
+        {"status", "fixtures", "odds", "lineups"}
+    )
+    assert result["status"] == "COMPLETED"
 
 
 def test_scheduler_checkpoint_batch_has_no_due_without_pending_plan(monkeypatch) -> None:

@@ -1763,6 +1763,24 @@ class FutureFixtureRefreshService:
                 if not self._endpoint_authorized(endpoint):
                     self._append_unauthorized_endpoint_skip(endpoint, fixture_id)
                     continue
+                if self._attempt_count >= self.config.request_budget:
+                    self._audit.append(
+                        {
+                            "endpoint": endpoint,
+                            "params": {"fixture": fixture_id},
+                            "attempt": 0,
+                            "status_code": None,
+                            "elapsed_ms": 0,
+                            "captured_at_utc": iso(utc_now()),
+                            "remaining_quota": self._latest_remaining,
+                            "payload_sha256": None,
+                            "error_code": "FEATURE_ENRICHMENT_SKIPPED_REQUEST_BUDGET",
+                        }
+                    )
+                    if pending:
+                        self._feature_enrichment_batch_count += 1
+                        responses.extend(pending)
+                    return responses
                 if len(responses) + len(pending) >= budget:
                     if pending:
                         self._feature_enrichment_batch_count += 1

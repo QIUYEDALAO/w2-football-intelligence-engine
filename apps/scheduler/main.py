@@ -75,13 +75,19 @@ def forward_outcome_ledger_enabled() -> bool:
 def future_fixture_refresh_competition_ids() -> tuple[str, ...]:
     from w2.competitions.registry import CompetitionRegistry
 
-    return tuple(
+    registered = tuple(
         sorted(
             entry.competition_id
             for entry in CompetitionRegistry().entries().values()
             if entry.enabled and entry.refresh_switches.get("fixtures") is True
         )
     )
+    allowed = {
+        item.strip()
+        for item in os.environ.get("W2_FUTURE_REFRESH_COMPETITION_ALLOWLIST", "").split(",")
+        if item.strip()
+    }
+    return tuple(item for item in registered if not allowed or item in allowed)
 
 
 def matchday_checkpoint_policies() -> dict[str, Any]:

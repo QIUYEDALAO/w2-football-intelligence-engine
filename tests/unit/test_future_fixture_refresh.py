@@ -1046,6 +1046,35 @@ def test_future_refresh_endpoint_allowlist_skips_unauthorized_enrichment(
     )
 
 
+def test_future_refresh_skips_optional_enrichment_at_request_budget(tmp_path: Path) -> None:
+    client = FakeApiFootballClient()
+    config = FutureRefreshConfig(
+        runtime_root=tmp_path,
+        persistence="file",
+        request_budget=3,
+        max_odds_requests=1,
+        feature_enrichment_enabled=True,
+        feature_enrichment_endpoints=("lineups",),
+        feature_enrichment_request_budget=1,
+    )
+
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=config,
+        now=NOW,
+        sleep=lambda _: None,
+    ).run()
+    audit = json.loads((tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8"))
+
+    assert result.blockers == []
+    assert result.request_count == 3
+    assert [endpoint for endpoint, _params in client.calls] == ["status", "fixtures", "odds"]
+    assert result.feature_enrichment_payload_count == 0
+    assert audit["requests"][-1]["error_code"] == (
+        "FEATURE_ENRICHMENT_SKIPPED_REQUEST_BUDGET"
+    )
+
+
 def test_future_refresh_tick_hard_cap_blocks_before_provider_call(tmp_path: Path) -> None:
     client = FakeApiFootballClient()
     config = FutureRefreshConfig(

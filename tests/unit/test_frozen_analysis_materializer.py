@@ -446,8 +446,15 @@ def test_missing_or_conflicting_scoped_inputs_fail_closed(
     error_key = ("w2_materializer_results_total", (("status", "ERROR"),))
     errors_before = registry.labelled_counters.get(error_key, 0)
 
-    with pytest.raises(FrozenAnalysisError, match="observation input missing"):
-        materializer.build("1576804", evaluated_at=datetime.now(UTC))
+    artifact = materializer.build(
+        "1576804",
+        evaluated_at=datetime.now(UTC),
+        source_event=_event(),
+    )
+    assert artifact.evaluations == ()
+    assert artifact.payload["analysis_card"]["decision_tier"] == "NOT_READY"
+    assert artifact.payload["source_evaluation_id"] is None
+    assert validate_frozen_analysis_payload("1576804", artifact.payload).evaluations == ()
 
     repository.observations = [{"fixture_id": "other"}]
     with pytest.raises(FrozenAnalysisError, match="observation identity conflict"):
@@ -456,7 +463,7 @@ def test_missing_or_conflicting_scoped_inputs_fail_closed(
     repository.fixture["fixture"]["id"] = "other"
     with pytest.raises(FrozenAnalysisError, match="fixture identity conflict"):
         materializer.build("1576804", evaluated_at=datetime.now(UTC))
-    assert registry.labelled_counters[error_key] == errors_before + 3
+    assert registry.labelled_counters[error_key] == errors_before + 2
 
 
 def test_write_is_idempotent_and_reader_verifies_hash(
