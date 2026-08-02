@@ -297,6 +297,12 @@ async function installRoutes(
 ): Promise<void> {
   const contract = scenarioContract[scenario];
   const dayViewPayload = dayView(scenario);
+  if (readyCardCount === 0) {
+    dayViewPayload.cards = [];
+    dayViewPayload.counts.total = 0;
+    dayViewPayload.counts.analysis_pick = 0;
+    dayViewPayload.counts.ready = 0;
+  }
   if (scheduledWait) {
     dayViewPayload.cards[0].kickoff_utc = "2026-07-20T12:00:00Z";
     dayViewPayload.cards[0].next_eval_at = "2026-07-20T06:00:00Z";
@@ -397,12 +403,25 @@ async function installRoutes(
   });
 }
 
+test("empty DayView keeps the dashboard usable instead of leaving only navigation", async ({
+  page,
+}) => {
+  await installRoutes(page, "READY", 0);
+  await page.goto("/");
+
+  await expect(page.locator(".empty-section")).toContainText(/暂无比赛|暂无可展示比赛/);
+  await expect(page.locator(".release-sync")).toBeVisible();
+  await expect(page.locator(".refresh-button")).toBeVisible();
+  await expect(page.locator("[data-ui='boss-decision-console']")).toHaveCount(0);
+});
+
 test("READY renders the unified pick and verified analysis-card", async ({
   page,
 }) => {
   await installRoutes(page, "READY");
   await page.goto("/");
 
+  await expect(page.locator("[data-ui='boss-decision-console']")).toBeVisible();
   const row = page.locator("[data-fixture-id='fixture-ready']");
   await expect(row).toContainText("READY Home vs READY Away");
   await expect(row).toContainText("主队 -0.5 @1.91");
