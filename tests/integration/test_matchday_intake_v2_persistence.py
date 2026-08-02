@@ -25,7 +25,11 @@ from w2.matchday.intake_v2 import (
     public_manifest_read,
     stable_hash,
 )
-from w2.matchday.repository import MatchdayRepositoryError, MatchdayRuntimeRepository
+from w2.matchday.repository import (
+    MatchdayRepositoryError,
+    MatchdayRuntimeRepository,
+    normalize_repo_time,
+)
 
 NOW = datetime(2026, 7, 20, 12, 0, tzinfo=UTC)
 KICKOFF = datetime(2026, 7, 20, 18, 0, tzinfo=UTC)
@@ -361,12 +365,12 @@ def test_checkpoint_missed_is_immutable_and_planned_due_becomes_missed() -> None
         raise AssertionError("MISSED -> CAPTURED must fail closed")
 
 
-def test_terminal_checkpoint_is_not_rewritten_as_missed() -> None:
+def test_terminal_checkpoint_is_not_rewritten_by_rescheduled_missed_plan() -> None:
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     repository = MatchdayRuntimeRepository(engine=engine)
     policy = competition_policies(load_matchday_policy())["allsvenskan"]
-    for terminal_status in ("FAILED", "CAPTURED"):
+    for terminal_status in ("FAILED", "CAPTURED", "MISSED"):
         plan = next(
             item
             for item in build_checkpoint_plans(
@@ -402,15 +406,21 @@ def test_terminal_checkpoint_is_not_rewritten_as_missed() -> None:
             assert row is not None
             row.blockers = [f"{terminal_status}_EVIDENCE"]
             session.commit()
+            terminal_missed_at = row.missed_at
 
-        missed = plan.as_dict()
-        missed.update(
-            {
-                "status": "MISSED",
-                "missed_at": plan.window_end.isoformat(),
-                "blockers": ["CHECKPOINT_MISSING"],
-            }
+        missed = next(
+            item
+            for item in build_checkpoint_plans(
+                fixture_id=plan.fixture_id,
+                competition_id=plan.competition_id,
+                season=plan.season,
+                kickoff_utc=KICKOFF + timedelta(days=1),
+                now=KICKOFF + timedelta(days=2),
+                policy=policy,
+            )
+            if item.checkpoint == plan.checkpoint
         )
+        assert missed.status == "MISSED"
         repository.upsert_checkpoint_plan(missed)
 
         with Session(engine) as session:
@@ -418,7 +428,9 @@ def test_terminal_checkpoint_is_not_rewritten_as_missed() -> None:
             assert row is not None
             assert row.status == terminal_status
             assert row.blockers == [f"{terminal_status}_EVIDENCE"]
-            assert row.missed_at is None
+            assert row.missed_at == terminal_missed_at
+            assert normalize_repo_time(row.kickoff_utc) == KICKOFF
+            assert normalize_repo_time(row.scheduled_at) == plan.scheduled_at
 
 
 def test_observation_conflict_and_manifest_identity_fail_closed() -> None:

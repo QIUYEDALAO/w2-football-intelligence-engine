@@ -96,17 +96,17 @@ class MatchdayRuntimeRepository:
         incoming_status = str(payload["status"])
         existing = session.get(MatchdayCheckpointPlanModel, plan_id)
         if existing is not None:
+            if incoming_status == "MISSED" and existing.status in {
+                *_TERMINAL_CHECKPOINT_STATUSES,
+                "FAILED",
+            }:
+                return plan_id
             if normalize_repo_time(existing.scheduled_at) != normalize_repo_time(
                 _dt(payload["scheduled_at"])
             ):
                 raise MatchdayRepositoryError("CHECKPOINT_PLAN_CONFLICT")
             if existing.status == "MISSED" and incoming_status == "CAPTURED":
                 raise MatchdayRepositoryError("MISSED_CHECKPOINT_IMMUTABLE")
-            if incoming_status == "MISSED" and existing.status in {
-                *_TERMINAL_CHECKPOINT_STATUSES,
-                "FAILED",
-            }:
-                return plan_id
             existing.status = _transition_status(existing.status, incoming_status)
             existing.missed_at = (
                 _dt(payload["missed_at"]) if payload.get("missed_at") else existing.missed_at
