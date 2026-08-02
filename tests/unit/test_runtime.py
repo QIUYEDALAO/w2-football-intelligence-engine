@@ -8,6 +8,7 @@ from apps.scheduler import main as scheduler_main
 from apps.scheduler.main import (
     due_checkpoint_refresh_batch,
     forward_outcome_ledger_tick,
+    future_fixture_refresh_competition_ids,
     future_fixture_refresh_tick,
     heartbeat,
     market_timeline_refresh_tick,
@@ -65,6 +66,29 @@ def test_scheduler_future_refresh_disabled_by_default(monkeypatch) -> None:
     assert xg_history_backfill_tick()["status"] == "DISABLED"
     assert market_timeline_refresh_tick()["status"] == "DISABLED"
     assert forward_outcome_ledger_tick()["status"] == "DISABLED"
+
+
+def test_scheduler_future_refresh_intersects_runtime_allowlist(monkeypatch) -> None:
+    class Entry:
+        def __init__(self, competition_id: str) -> None:
+            self.competition_id = competition_id
+            self.enabled = True
+            self.refresh_switches = {"fixtures": True}
+
+    class Registry:
+        def entries(self) -> dict[str, Entry]:
+            return {
+                competition_id: Entry(competition_id)
+                for competition_id in ("allsvenskan", "eliteserien", "world_cup_2026")
+            }
+
+    monkeypatch.setenv(
+        "W2_FUTURE_REFRESH_COMPETITION_ALLOWLIST",
+        "allsvenskan,eliteserien",
+    )
+    monkeypatch.setattr("w2.competitions.registry.CompetitionRegistry", Registry)
+
+    assert future_fixture_refresh_competition_ids() == ("allsvenskan", "eliteserien")
 
 
 def test_scheduler_future_refresh_dispatches_checkpoint_worker_task_without_running_provider(
