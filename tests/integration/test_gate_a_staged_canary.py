@@ -119,9 +119,7 @@ def test_actual_cli_fake_provider_staged_canary_from_fresh_postgres(
     database_name = f"w2_staged_{uuid4().hex[:12]}"
     source = make_url(source_url)
     admin_url = source.set(database="postgres")
-    database_url_text = source.set(database=database_name).render_as_string(
-        hide_password=False
-    )
+    database_url_text = source.set(database=database_name).render_as_string(False)
     with create_engine(admin_url, isolation_level="AUTOCOMMIT").connect() as connection:
         connection.execute(text(f'CREATE DATABASE "{database_name}"'))
     server = HTTPServer(("127.0.0.1", 0), _FakeProviderHandler)
