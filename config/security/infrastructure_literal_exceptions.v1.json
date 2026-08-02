@@ -1,0 +1,89 @@
+{
+  "schema_version": "w2.infrastructure_literal_exceptions.v1",
+  "active_roots": [
+    "scripts",
+    "docs/runbooks"
+  ],
+  "forbidden_address_sha256": [
+    "5aedccb769015a02785918ab71eb0ce53dbab9e99c850949e31fd75201a01afa"
+  ],
+  "archive_exceptions": [
+    {
+      "path": "docs/archive/W2_HTML_DASHBOARD_V3_ACCEPTANCE_2026-07-03.md",
+      "address_sha256": "5aedccb769015a02785918ab71eb0ce53dbab9e99c850949e31fd75201a01afa",
+      "owner": "W2 security governance",
+      "reason": "Preserve the signed historical dashboard acceptance record.",
+      "scope": "Exact archived file only; not executable or active guidance."
+    },
+    {
+      "path": "docs/archive/operations/A-150_LEGACY_AH_CLEANUP_EXECUTION_2026-07-04.md",
+      "address_sha256": "5aedccb769015a02785918ab71eb0ce53dbab9e99c850949e31fd75201a01afa",
+      "owner": "W2 security governance",
+      "reason": "Preserve the historical cleanup execution receipt.",
+      "scope": "Exact archived file only; not executable or active guidance."
+    },
+    {
+      "path": "docs/archive/operations/A-151_STATIC_REPORT_WEB_ROOT.md",
+      "address_sha256": "5aedccb769015a02785918ab71eb0ce53dbab9e99c850949e31fd75201a01afa",
+      "owner": "W2 security governance",
+      "reason": "Preserve the historical static-report acceptance receipt.",
+      "scope": "Exact archived file only; not executable or active guidance."
+    },
+    {
+      "path": "docs/archive/operations/factor_model_remediation/W2_ANALYSIS_RECOMMENDATION_CLOSURE_REPORT_2026-07-21.md",
+      "address_sha256": "5aedccb769015a02785918ab71eb0ce53dbab9e99c850949e31fd75201a01afa",
+      "owner": "W2 security governance",
+      "reason": "Preserve the historical remediation closure evidence.",
+      "scope": "Exact archived file only; not executable or active guidance."
+    },
+    {
+      "path": "docs/archive/operations/factor_model_remediation/W2_HISTORICAL_SETTLED_VALIDATION_VISIBILITY_AUDIT_2026-07-21.json",
+      "address_sha256": "5aedccb769015a02785918ab71eb0ce53dbab9e99c850949e31fd75201a01afa",
+      "owner": "W2 security governance",
+      "reason": "Preserve the machine-readable historical visibility audit.",
+      "scope": "Exact archived file only; not executable or active guidance."
+    },
+    {
+      "path": "docs/archive/operations/factor_model_remediation/W2_HISTORICAL_SETTLED_VALIDATION_VISIBILITY_AUDIT_2026-07-21.md",
+      "address_sha256": "5aedccb769015a02785918ab71eb0ce53dbab9e99c850949e31fd75201a01afa",
+      "owner": "W2 security governance",
+      "reason": "Preserve the human-readable historical visibility audit.",
+      "scope": "Exact archived file only; not executable or active guidance."
+    },
+    {
+      "path": "docs/archive/operations/factor_model_remediation/W2_PR370_FINAL_EXACT_SHA_V3_SAFETY_PARITY_PACKAGE_2026-07-21.json",
+      "address_sha256": "5aedccb769015a02785918ab71eb0ce53dbab9e99c850949e31fd75201a01afa",
+      "owner": "W2 security governance",
+      "reason": "Preserve the machine-readable exact-SHA safety package.",
+      "scope": "Exact archived file only; not executable or active guidance."
+    },
+    {
+      "path": "docs/archive/operations/factor_model_remediation/W2_PR370_FINAL_EXACT_SHA_V3_SAFETY_PARITY_PACKAGE_2026-07-21.md",
+      "address_sha256": "5aedccb769015a02785918ab71eb0ce53dbab9e99c850949e31fd75201a01afa",
+      "owner": "W2 security governance",
+      "reason": "Preserve the human-readable exact-SHA safety package.",
+      "scope": "Exact archived file only; not executable or active guidance."
+    },
+    {
+      "path": "docs/archive/operations/factor_model_remediation/W2_PR370_FINAL_PRODUCT_CORRECTNESS_CONTEXT_2026-07-21.md",
+      "address_sha256": "5aedccb769015a02785918ab71eb0ce53dbab9e99c850949e31fd75201a01afa",
+      "owner": "W2 security governance",
+      "reason": "Preserve the historical final correctness context.",
+      "scope": "Exact archived file only; not executable or active guidance."
+    },
+    {
+      "path": "docs/archive/operations/factor_model_remediation/W2_PR370_FORWARD_VALIDATION_RESTORATION_EVIDENCE_2026-07-21.json",
+      "address_sha256": "5aedccb769015a02785918ab71eb0ce53dbab9e99c850949e31fd75201a01afa",
+      "owner": "W2 security governance",
+      "reason": "Preserve the machine-readable forward-validation evidence.",
+      "scope": "Exact archived file only; not executable or active guidance."
+    },
+    {
+      "path": "docs/archive/operations/factor_model_remediation/W2_PR370_FORWARD_VALIDATION_RESTORATION_EVIDENCE_2026-07-21.md",
+      "address_sha256": "5aedccb769015a02785918ab71eb0ce53dbab9e99c850949e31fd75201a01afa",
+      "owner": "W2 security governance",
+      "reason": "Preserve the human-readable forward-validation evidence.",
+      "scope": "Exact archived file only; not executable or active guidance."
+    }
+  ]
+}

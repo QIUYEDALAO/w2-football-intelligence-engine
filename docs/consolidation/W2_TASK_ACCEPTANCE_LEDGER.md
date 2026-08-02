@@ -24,7 +24,7 @@
 
 **修正后的下一步(不是等 F2 八月,而是现在)= S14**:建真正的 L1 老板视角 dashboard + 用**世界杯**跑一次 live 全流程,把可见产品立起来。
 
-**✅ 已解决(S14 + S15)**:dashboard 已交付并**部署 live**——**http://118.196.30.136/ 可直接打开**(新 boss-view L1 首屏,旧组件折 L2,只列未开赛世界杯)。系统不再是"八月待命":staging 可见产品已上线。production 对外仍待模型国际赛验证 / 八月五大。
+**✅ 已解决(S14 + S15)**:dashboard 已交付并**部署 live**——**http://<W2_VPS_HOST>/ 可直接打开**(新 boss-view L1 首屏,旧组件折 L2,只列未开赛世界杯)。系统不再是"八月待命":staging 可见产品已上线。production 对外仍待模型国际赛验证 / 八月五大。
 
 ## 🔴 战略裁决 + V3 进展(2026-07 · 市场基准 eval)
 
@@ -36,13 +36,13 @@
 - 市场基准(gap = 模型 − 市场,同批):**11 联赛全部落后 Pinnacle 收盘** +0.013(法甲)~+0.055(瑞典超);blend 全纯市场最优 → **模型零增量**。**"五大好/在赛弱""0.99 够用""锚八月"均推翻**(挪超第二好、德甲最差档;MLS 达标 .027;阿甲观察档)。
 - **方向转市场锚定**:展示概率 = 去 vig 市场,模型 = 分歧雷达(gap ≤ 0.04 达标),EV 腿门槛改前向 CLV,联赛按 §4 准入矩阵(非月份)。**历史路线记录见 `docs/archive/consolidation/W2_REVISED_ROADMAP_2026_07.md`；当前任务权威见 v3 master checklist。**
 
-**V3 执行进展(2026-07-07)**:#205 战略产物进 main(`f28df3b`);#204(Draft `a47321f`,staging 已部署 http://118.196.30.136/)完成 **R1.0**(前向 ledger + odds 时间线 staging 自动调度已接)+ **R2.1**(DayView 输出 `MARKET_DEVIG` 市场概率,假"未就绪"已被真实概率取代)。**下一步**:R2.3(staging 启用 4 个 odds-PASS 在赛联赛,单独审批)+ R2.2(dashboard 三态验收 / 设计定案)。
+**V3 执行进展(2026-07-07)**:#205 战略产物进 main(`f28df3b`);#204(Draft `a47321f`,staging 已部署 http://<W2_VPS_HOST>/)完成 **R1.0**(前向 ledger + odds 时间线 staging 自动调度已接)+ **R2.1**(DayView 输出 `MARKET_DEVIG` 市场概率,假"未就绪"已被真实概率取代)。**下一步**:R2.3(staging 启用 4 个 odds-PASS 在赛联赛,单独审批)+ R2.2(dashboard 三态验收 / 设计定案)。
 
 ## 当前状态速览(读者先看这里)
 
 | 维度 | 起点 | 现在 |
 |---|---|---|
-| 主干 | 无 always-on 日线,靠 stage 脚本临时拼 | `w2-matchday` 入口 + 统一 DecisionCard + 受控刷新 + 审计 + 复盘。**老板视角 dashboard 已交付并部署 live**(#200/#201/#202):新 boss-view L1 首屏替换旧首屏、旧 32 组件折入 L2;**staging URL http://118.196.30.136/ 可直接打开**,旧静态报表移 `/static-report/` |
+| 主干 | 无 always-on 日线,靠 stage 脚本临时拼 | `w2-matchday` 入口 + 统一 DecisionCard + 受控刷新 + 审计 + 复盘。**老板视角 dashboard 已交付并部署 live**(#200/#201/#202):新 boss-view L1 首屏替换旧首屏、旧 32 组件折入 L2;**staging URL http://<W2_VPS_HOST>/ 可直接打开**,旧静态报表移 `/static-report/` |
 | 决策契约 | FORMAL/CANDIDATE/ANALYSIS_PICK/RECOMMEND 四套词并存,dashboard 读取时现场调和 | 唯一 `DecisionTier` 落 domain;dashboard 读 `decision_tier`,旧字段仅兼容 shim |
 | 白名单 | 仅 `world_cup_2026` enabled | 14 联赛 profile;`league_id` 硬门;**mapping+fixtures 14/14 PASS**;odds 真矩阵:**世界杯+巴西+中超+瑞典超+挪超 PASS**,阿甲/MLS 薄(二级源),五大待八月;全部 `enabled=false` |
 | 数据 | 免费 100/天、当前赛季被 plan 挡住 | 已开 Pro(7,500/天、解锁当前赛季 + odds);历史验证已用免费 Understat 完成 |
@@ -145,7 +145,7 @@
 - **去向**:合并 + 部署到现有实例(用户要求:直接替换现有 dashboard)。
 
 ### S15 · 合并 #200 + 部署 live 替换现有 dashboard(#200/#201/#202)
-- **执行**:#200(boss-view)/#201(`/`=React root、旧静态报表移 `/static-report/`)/#202(默认北京自然日)合并 main;部署 staging SHA `cd98a2`。**现有 dashboard http://118.196.30.136/ 打开即新 boss-view 首屏**,只列未开赛世界杯(阿根廷vs埃及、瑞士vs哥伦比亚),旧完场场次已去,无枚举泄漏;`/health`、`/ready`、`/day-view` 验证 PASS。
+- **执行**:#200(boss-view)/#201(`/`=React root、旧静态报表移 `/static-report/`)/#202(默认北京自然日)合并 main;部署 staging SHA `cd98a2`。**现有 dashboard http://<W2_VPS_HOST>/ 打开即新 boss-view 首屏**,只列未开赛世界杯(阿根廷vs埃及、瑞士vs哥伦比亚),旧完场场次已去,无枚举泄漏;`/health`、`/ready`、`/day-view` 验证 PASS。
 - **验收**:我核实——**可见产品首次真部署、用户可直接打开 ✓**(纪律教训:我此前把"升级 dashboard UI"错当成需审批的"部署",拖成 Draft;这是纯前端替换,本该直接做)。当前 2 场为 `NOT_READY`(盘口/首发未齐)= 诚实的"不能出就给可执行原因",非失败。production 未动、零 enable。
 - **去向**:临近开球数据齐 → 转 analysis-pick;production 对外仍待模型国际赛验证 / 八月五大。
 

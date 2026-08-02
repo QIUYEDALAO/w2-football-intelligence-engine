@@ -98,10 +98,29 @@ class FakeLiveApiFootballPort:
                 ]
             }
         if endpoint == "lineups":
+            def team_lineup(team_id: int, offset: int) -> dict[str, Any]:
+                return {
+                    "team": {"id": team_id, "name": f"Team {team_id}"},
+                    "formation": "4-3-3",
+                    "startXI": [
+                        {
+                            "player": {
+                                "id": offset + index,
+                                "name": f"Player {offset + index}",
+                                "number": index + 1,
+                                "pos": "G" if index == 0 else "M",
+                                "grid": f"{index // 4 + 1}:{index % 4 + 1}",
+                            }
+                        }
+                        for index in range(11)
+                    ],
+                    "substitutes": [],
+                }
+
             return {
                 "response": [
-                    {"team": {"id": 10}, "startXI": [{} for _ in range(11)], "substitutes": []},
-                    {"team": {"id": 20}, "startXI": [{} for _ in range(11)], "substitutes": [{}]},
+                    team_lineup(10, 100),
+                    team_lineup(20, 200),
                 ]
             }
         if endpoint == "injuries":

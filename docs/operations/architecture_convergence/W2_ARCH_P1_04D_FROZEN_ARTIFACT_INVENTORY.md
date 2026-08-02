@@ -5,7 +5,7 @@
 
 ## 采集与校验方式
 
-- staging host：`118.196.30.136`（只读 SSH）
+- staging host：`<W2_VPS_HOST>`（只读 SSH）
 - 表：`read_model_checkpoint`；frozen canary key 前缀：`analysis-card:frozen:v1:`
 - captured_at（每条 artifact 的 DB `created_at`，UTC）：2026-07-22T02:19:04Z
 - 采集：只读 SELECT 导出 8 条 `{checkpoint_key, source_hash(表列), payload}`，

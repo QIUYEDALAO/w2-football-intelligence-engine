@@ -34,8 +34,11 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     assert state["current_state_authority"] == "PROJECT_STATE.yaml"
     assert state["task_authority"] == CHECKLIST_PATH
     assert state["current_task"] == "EVAL-02B"
-    assert state["current_status"] == "BLOCKED"
-    assert state["current_pr"] is None
+    assert state["current_status"] == "PASS"
+    assert "current_pr" in state
+    assert state["current_pr_semantics"] == "CURRENT_BUSINESS_IMPLEMENTATION_PR_ONLY"
+    assert state["active_context_pr"] == 450
+    assert state["active_context_pr_semantics"] == "CURRENT_CONTEXT_AND_GUARD_PR"
     assert state["next_task"] == "EVAL-02B"
     assert state["tasks"]["ARCH-P2-02"] == {
         "status": "DONE",
@@ -86,7 +89,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "main_ci": 30556679131,
     }
     assert state["tasks"]["EVAL-02B"] == {
-        "status": "BLOCKED",
+        "status": "PASS",
         "start_authorized": False,
         "audit_as_of": "2026-07-30T16:06:59.736350Z",
         "audit_sha256": (
@@ -241,23 +244,33 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "lock_enabled": False,
         "production_release": False,
         "scoring_implementation": "BLOCKED",
-        "next_required_action": "INDEPENDENT_REHEARSAL_RECEIPT_REVIEW",
+        "real_canary_provider_calls": 5,
+        "real_canary_evidence_sha256": (
+            "30e961cbedee33b5ec74bf3eabbd80a202ced3b9b21483160896812442ddd1f4"
+        ),
+        "real_chain": "PROVEN",
+        "next_required_action": "VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE",
     }
     assert state["tasks"]["EVAL-03"]["status"] == "NOT_STARTED"
     assert state["architecture_convergence"]["status"] == "PASS"
     assert "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)" in next_action
     assert CHECKLIST_PATH in next_action
-    assert (
-        "当前：A148_SUPERVISED_COLLECTION_REHEARSAL 在 Provider 调用前因 "
-        "scheduler restart policy 前置条件不匹配而 fail-closed；Provider 调用、"
-        "业务写入、scheduler 与 Celery dispatch 均为 0，一次性授权已撤销。"
-        in next_action
+    assert "ACTIVE_NEXT_ACTION = VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE" in next_action
+    assert "NEXT_CODE_ACTION = NONE_AUTHORIZED" in next_action
+    assert "T00_RERUN = FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE" in next_action
+    assert "Historical receipt / 历史回执" in next_action
+    a148 = state["historical_receipts"]["a148"]
+    assert a148["previous_next_required_action"] == (
+        "INDEPENDENT_REHEARSAL_RECEIPT_REVIEW"
     )
-    assert (
-        "下一步：仅等待 INDEPENDENT_REHEARSAL_RECEIPT_REVIEW；持续采集、"
-        "重新演练、EVAL-02B gate 与 B7 EVAL-03 均未授权。"
-        in next_action
-    )
+    assert a148["fail_closed_barrier"] == "PASS"
+    assert a148["provider_execution"] == "NOT_EXECUTED"
+    assert a148["actual_provider_calls"] == 0
+    assert a148["business_db_writes"] == 0
+    assert a148["scheduler_started"] is False
+    assert a148["celery_tasks_queued"] == 0
+    assert a148["one_shot_authorization_revoked"] is True
+    assert a148["end_to_end_chain"] == "NOT_VALIDATED"
     assert "sole machine-readable project-status record" in ledger
     assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", ledger)
     assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", next_action)
@@ -508,6 +521,12 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
         "ordered_pairs[VALIDATION_START_INDEX:]",
         "PAIR_IDENTITY_SERIALIZATION =",
         "UTF8_CANONICAL_JSON_SORTED_KEYS_COMPACT",
+        "PAIR_IDENTITY_SERIALIZER_VERSION =",
+        "w2.canonical-json.v2",
+        "PAIR_IDENTITY_ENSURE_ASCII = false",
+        "PAIR_IDENTITY_UNICODE = NFC",
+        "PAIR_IDENTITY_ALLOW_NAN = false",
+        "PAIR_IDENTITY_TYPE_RULES =",
         "PAIR_IDENTITY_HASH =",
         "SHA256(PAIR_IDENTITY_SERIALIZATION)",
         "BOOTSTRAP_SEED_PAYLOAD =",
@@ -1089,7 +1108,8 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     assert "W2_ARCHITECTURE_CONVERGENCE_COMPLETE = PASS" in checklist
     for task in FORBIDDEN_TASKS:
         assert task not in state
-        assert task not in next_action
+        if task != "CLOSURE":
+            assert task not in next_action
         assert task not in checklist
     assert state["staging"]["production_deployed"] is False
     assert state["staging"]["eval_01a_exact_head_acceptance"] == "PASS"

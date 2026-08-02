@@ -3,6 +3,9 @@
 Stage7I observation must run through the installed W2 package entrypoint, not a
 repository script path.
 
+Set `W2_DEPLOY_ROOT` from the approved operator configuration. Do not commit
+its resolved value.
+
 ```bash
 w2-stage7i-observer \
   --expected-revision "$EXPECTED_REVISION" \
@@ -22,6 +25,6 @@ uv run python -m w2.observability.stage7i_observer_cli \
   --json
 ```
 
-The observer reads actual revision from `/opt/w2/current/DEPLOYMENT_REVISION`
+The observer reads actual revision from `${W2_DEPLOY_ROOT}/current/DEPLOYMENT_REVISION`
 unless `--current` is supplied. It does not read `.env`, API keys, database
 credentials, reports, W1 files, or runtime provider payloads.

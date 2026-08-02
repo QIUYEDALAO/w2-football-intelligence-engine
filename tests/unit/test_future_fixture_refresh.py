@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import hashlib
 import json
+from base64 import b64encode
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from w2.ingestion.future_refresh import (
     FutureFixtureRefreshService,
@@ -19,9 +24,104 @@ from w2.ingestion.future_refresh import (
     run_future_refresh_task,
 )
 from w2.markets.quote_identity import evaluate_quote_freshness, project_quote_identity
+from w2.operations.gate_a import (
+    GATE_A_SELECTION_POLICY_VERSION,
+    GATE_A_SELECTION_RULE,
+    GateARuntimeAuthorization,
+    TrustedApprovalKey,
+    authorization_signing_message,
+)
 from w2.providers.api_football import LiveApiFootballResponse
 
 NOW = datetime(2026, 6, 23, 10, 0, tzinfo=UTC)
+
+
+def _gate_a_authorization() -> GateARuntimeAuthorization:
+    signing_key = Ed25519PrivateKey.from_private_bytes(bytes(range(32)))
+    payload: dict[str, object] = {
+        "schema_version": "w2.gate-a-one-shot-authorization.v4",
+        "action": "ONE_SHOT_FOREGROUND_CANARY",
+        "review_status": "APPROVED",
+        "one_shot": True,
+        "persistence": "db",
+        "authorization_id": "offline-test",
+        "task_key": "future-refresh:world_cup_2026:2026:20260623T100000Z",
+        "fixture_id": "1001",
+        "competition_id": "world_cup_2026",
+        "season": "2026",
+        "provider_league_id": "1",
+        "competition_policy_config_hash": "d" * 64,
+        "fixture_scope_mode": "EXACT_FIXTURE_ID",
+        "kickoff_window_start_utc": None,
+        "kickoff_window_end_utc": None,
+        "selection_policy_version": GATE_A_SELECTION_POLICY_VERSION,
+        "selection_rule": GATE_A_SELECTION_RULE,
+        "exact_head": "a" * 40,
+        "exact_tree": "b" * 40,
+        "execution_mode": "COMPLETE_CLEAN_CHECKOUT",
+        "runtime_artifact_digest": None,
+        "complete_checkout_manifest_sha256": "c" * 64,
+        "allowed_endpoints": ["status", "fixtures", "odds", "lineups"],
+        "provider_call_cap": 5,
+        "issued_at": "2026-06-23T09:59:00Z",
+        "expires_at": "2026-06-23T10:30:00Z",
+        "author": "implementer",
+        "reviewer": "reviewer",
+        "approval_mode": "INDEPENDENT_ED25519",
+        "approval_key_id": "test-independent-key",
+    }
+    public_key = b64encode(
+        signing_key.public_key().public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+    ).decode()
+    public_key_sha256 = hashlib.sha256(
+        signing_key.public_key().public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+    ).hexdigest()
+    payload["approval_public_key_sha256"] = public_key_sha256
+    payload["approval_custody_status"] = "INDEPENDENT_SIGNER_CONFIRMED"
+    payload["approval_signature"] = b64encode(
+        signing_key.sign(authorization_signing_message(payload))
+    ).decode()
+    return GateARuntimeAuthorization.from_mapping(
+        payload,
+        trusted_public_keys={
+            "test-independent-key": TrustedApprovalKey(
+                public_key_base64=public_key,
+                public_key_sha256=public_key_sha256,
+                custody_status="INDEPENDENT_SIGNER_CONFIRMED",
+                authorization_enabled=True,
+            )
+        },
+    )
+
+
+class _CallReservation:
+    def __init__(self) -> None:
+        self.endpoints: list[str] = []
+        self.final_statuses: list[str] = []
+        self.outcomes: list[tuple[int, str, str | None]] = []
+
+    def reserve_provider_call(self, endpoint: str, *, fixture_id: str | None = None) -> int:
+        del fixture_id
+        self.endpoints.append(endpoint)
+        return len(self.endpoints)
+
+    def finalize(self, status: str) -> None:
+        self.final_statuses.append(status)
+
+    def record_provider_outcome(
+        self,
+        ordinal: int,
+        *,
+        state: str,
+        error_code: str | None = None,
+    ) -> None:
+        self.outcomes.append((ordinal, state, error_code))
 
 
 class FakeApiFootballClient:
@@ -147,6 +247,29 @@ class FakeApiFootballClient:
         if endpoint == "injuries":
             return {"response": []}
         raise AssertionError(endpoint)
+
+
+class _FailingProvider:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def request_live(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
+        self.calls += 1
+        raise TimeoutError("uncertain")
+
+
+class _SchemaDriftProvider(FakeApiFootballClient):
+    def payload(self, endpoint: str, params: dict[str, str]) -> dict[str, Any]:
+        if endpoint == "fixtures":
+            return {"response": {"unexpected": True}}
+        return super().payload(endpoint, params)
+
+
+class _EmptyFixturesProvider(FakeApiFootballClient):
+    def payload(self, endpoint: str, params: dict[str, str]) -> dict[str, Any]:
+        if endpoint == "fixtures":
+            return {"response": []}
+        return super().payload(endpoint, params)
 
 
 def test_canonical_market_keeps_only_full_time_asian_handicap_in_ah_pool() -> None:
@@ -750,6 +873,106 @@ def test_future_fixture_refresh_request_budget(tmp_path: Path) -> None:
     assert len(client.calls) == 1
 
 
+def test_provider_ingress_defaults_to_fail_closed(tmp_path: Path) -> None:
+    service = FutureFixtureRefreshService(
+        config=FutureRefreshConfig(runtime_root=tmp_path, persistence="file"),
+        now=NOW,
+    )
+    assert service.client.allow_live is False
+
+
+def test_gate_a_uncertain_delivery_reserves_once_and_never_retries(tmp_path: Path) -> None:
+    client = _FailingProvider()
+    reservation = _CallReservation()
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=FutureRefreshConfig(runtime_root=tmp_path, persistence="file"),
+        now=NOW,
+        sleep=lambda _: None,
+        runtime_authorization=_gate_a_authorization(),
+        provider_call_reservation=reservation,  # type: ignore[arg-type]
+    ).run()
+
+    assert result.status == "BLOCKED"
+    assert result.blockers == ["PROVIDER_DELIVERY_UNCERTAIN:TimeoutError"]
+    assert client.calls == 1
+    assert reservation.endpoints == ["status"]
+    assert reservation.outcomes == [(1, "DELIVERY_UNCERTAIN", "TimeoutError")]
+
+
+def test_gate_a_http_failure_is_not_automatically_retried(tmp_path: Path) -> None:
+    client = FakeApiFootballClient(status_code=429)
+    reservation = _CallReservation()
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=FutureRefreshConfig(runtime_root=tmp_path, persistence="file"),
+        now=NOW,
+        sleep=lambda _: None,
+        runtime_authorization=_gate_a_authorization(),
+        provider_call_reservation=reservation,  # type: ignore[arg-type]
+    ).run()
+
+    assert result.status == "BLOCKED"
+    assert result.blockers == ["PROVIDER_HTTP_429"]
+    assert client.calls == [("status", {})]
+    assert reservation.endpoints == ["status"]
+    assert reservation.outcomes == [(1, "RESPONSE_RECEIVED", None)]
+
+
+def test_gate_a_task_persists_blocked_terminal_state_and_finalizes_reservation(
+    tmp_path: Path,
+) -> None:
+    reservation = _CallReservation()
+    audit = run_future_refresh_task(
+        task_id="gate-a-task",
+        key="gate-a-key",
+        owner="foreground-owner",
+        competition_id="world_cup_2026",
+        runtime_root=tmp_path,
+        client=_FailingProvider(),
+        now=NOW,
+        persistence="file",
+        runtime_authorization=_gate_a_authorization(),
+        provider_call_reservation=reservation,  # type: ignore[arg-type]
+    )
+
+    assert audit.status == "BLOCKED"
+    assert audit.result["blockers"] == ["PROVIDER_DELIVERY_UNCERTAIN:TimeoutError"]
+    assert reservation.endpoints == ["status"]
+    assert reservation.final_statuses == ["BLOCKED"]
+
+
+def test_gate_a_schema_drift_fails_closed_after_evidence_capture(tmp_path: Path) -> None:
+    reservation = _CallReservation()
+    result = FutureFixtureRefreshService(
+        client=_SchemaDriftProvider(),
+        config=FutureRefreshConfig(runtime_root=tmp_path, persistence="file"),
+        now=NOW,
+        runtime_authorization=_gate_a_authorization(),
+        provider_call_reservation=reservation,  # type: ignore[arg-type]
+    ).run()
+
+    assert result.status == "BLOCKED"
+    assert result.blockers == ["PROVIDER_FIXTURES_SCHEMA_DRIFT"]
+    assert result.raw_payload_written_count == 2
+    assert reservation.endpoints == ["status", "fixtures"]
+
+
+def test_gate_a_abnormal_empty_fails_closed(tmp_path: Path) -> None:
+    reservation = _CallReservation()
+    result = FutureFixtureRefreshService(
+        client=_EmptyFixturesProvider(),
+        config=FutureRefreshConfig(runtime_root=tmp_path, persistence="file"),
+        now=NOW,
+        runtime_authorization=_gate_a_authorization(),
+        provider_call_reservation=reservation,  # type: ignore[arg-type]
+    ).run()
+
+    assert result.status == "BLOCKED"
+    assert result.blockers == ["PROVIDER_FIXTURES_EMPTY"]
+    assert result.raw_payload_written_count == 2
+
+
 def test_future_refresh_controlled_feature_enrichment_uses_budget_and_audit(
     tmp_path: Path,
 ) -> None:
@@ -1120,19 +1343,21 @@ def test_checkpoint_refresh_materializes_only_fixtures_with_new_observations(
     assert audit.result["materialized_fixture_ids"] == ["1489404"]
 
 
-def test_lineup_change_records_projection_event(monkeypatch, tmp_path: Path) -> None:
+def test_raw_lineup_persistence_defers_materialization_until_fixture_identity_exists(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
     class Repository:
-        identities = iter((None, "xi-business-hash"))
+        materialization_called = False
 
         def save_raw_payload(self, **_kwargs: Any) -> bool:
             return True
 
         def save_lineup_snapshots(self, **_kwargs: Any) -> int:
-            return 2
+            self.materialization_called = True
+            raise AssertionError("lineup materialization must be deferred")
 
-        def confirmed_lineup_business_identity(self, **_kwargs: Any) -> str | None:
-            return next(self.identities)
-
+    repository = Repository()
     service = FutureFixtureRefreshService(
         client=FakeApiFootballClient(),
         config=FutureRefreshConfig(
@@ -1141,7 +1366,7 @@ def test_lineup_change_records_projection_event(monkeypatch, tmp_path: Path) -> 
         ),
         now=NOW,
     )
-    monkeypatch.setattr(service, "_db_repository", lambda: Repository())
+    monkeypatch.setattr(service, "_db_repository", lambda: repository)
     response = LiveApiFootballResponse(
         endpoint="lineups",
         params={"fixture": "1489404"},
@@ -1159,51 +1384,7 @@ def test_lineup_change_records_projection_event(monkeypatch, tmp_path: Path) -> 
         payload_hash="a" * 64,
         payload={"response": []},
     ) == (True, None)
-    event = next(iter(service._projection_events.values()))
-    assert (event.fixture_id, event.event_type, event.event_id) == (
-        "1489404",
-        "LINEUP_CHANGED",
-        "lineup:xi-business-hash",
-    )
-
-
-def test_repeated_confirmed_xi_does_not_record_projection_event(
-    monkeypatch,
-    tmp_path: Path,
-) -> None:
-    class Repository:
-        def save_raw_payload(self, **_kwargs: Any) -> bool:
-            return True
-
-        def save_lineup_snapshots(self, **_kwargs: Any) -> int:
-            return 2
-
-        def confirmed_lineup_business_identity(self, **_kwargs: Any) -> str:
-            return "same-xi-business-hash"
-
-    service = FutureFixtureRefreshService(
-        client=FakeApiFootballClient(),
-        config=FutureRefreshConfig(runtime_root=tmp_path, persistence="db"),
-        now=NOW,
-    )
-    monkeypatch.setattr(service, "_db_repository", lambda: Repository())
-    response = LiveApiFootballResponse(
-        endpoint="lineups",
-        params={"fixture": "1489404"},
-        status_code=200,
-        elapsed_ms=1,
-        payload={"response": []},
-        headers={},
-        captured_at=NOW,
-    )
-
-    assert service._save_raw_payload_first(
-        endpoint="lineups",
-        params={"fixture": "1489404"},
-        response=response,
-        payload_hash="b" * 64,
-        payload={"response": []},
-    ) == (True, None)
+    assert repository.materialization_called is False
     assert service._projection_events == {}
 
 

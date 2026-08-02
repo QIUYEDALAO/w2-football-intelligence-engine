@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -11,6 +9,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from w2.config import Settings
+from w2.domain.canonical_serialization import (
+    HashDomain,
+    SerializerVersion,
+    canonical_sha256,
+)
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.stage7i_lifecycle_models import (
     Stage7ILifecycleEventModel,
@@ -54,18 +57,12 @@ def iso(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-def canonical_json(payload: Any) -> bytes:
-    return json.dumps(
-        payload,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-        default=lambda value: iso(value) if isinstance(value, datetime) else str(value),
-    ).encode()
-
-
 def stable_id(*parts: Any) -> str:
-    return hashlib.sha256(canonical_json(parts)).hexdigest()
+    return canonical_sha256(
+        parts,
+        domain=HashDomain.STAGE7I_SUPERVISION_EVENT,
+        version=SerializerVersion.LEGACY_V1,
+    )
 
 
 def _json_safe(payload: dict[str, Any]) -> dict[str, Any]:

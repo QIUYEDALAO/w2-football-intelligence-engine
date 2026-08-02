@@ -122,6 +122,11 @@ def _schema_check(settings: Settings) -> tuple[bool, str]:
     return True, f"database revision matches {code_head}"
 
 
+def schema_check(settings: Settings) -> tuple[bool, str]:
+    """Public migration-head preflight used by bounded foreground commands."""
+    return _schema_check(settings)
+
+
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:

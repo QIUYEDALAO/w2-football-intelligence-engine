@@ -97,6 +97,21 @@ def _observation(fixture_id: str) -> dict[str, Any]:
     }
 
 
+def test_dynamic_lifecycle_read_failure_is_explicitly_blocked() -> None:
+    class Repository:
+        def dynamic_prematch_lifecycle(self, _fixture_id: str) -> dict[str, Any]:
+            raise RuntimeError("database unavailable")
+
+    card: dict[str, Any] = {"fixture_id": "fixture-1"}
+    ReadModelService(repository=cast(Any, Repository()))._attach_dynamic_prematch_lifecycle(card)
+
+    assert card["dynamic_prematch"] == {
+        "status": "BLOCKED",
+        "blockers": ["DYNAMIC_LIFECYCLE_READ_FAILED:RuntimeError"],
+        "versions": [],
+    }
+
+
 def _bounded_card_builder(
     service: ReadModelService,
     fixture_id: str,

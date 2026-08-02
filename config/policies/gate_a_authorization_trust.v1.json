@@ -1,0 +1,14 @@
+{
+  "schema_version": "w2.gate-a-authorization-trust.v1",
+  "trusted_ed25519_keys": {
+    "gate-a-independent-approval-2026-01": {
+      "public_key_base64": "w2NLbbJ2EwM+IMpkNHLI/sVYGz2iobmq6YCykUHW+tQ=",
+      "public_key_sha256": "b18b4745f650271827f1094fd4e90b74441be65d0c897393e9f0785ecf86779c",
+      "custody_status": "RETIRED_CODEX_GENERATED_PUBLIC_KEY_NOT_ADMISSION_ELIGIBLE",
+      "authorization_enabled": false
+    }
+  },
+  "required_authorization_custody_status": "INDEPENDENT_SIGNER_CONFIRMED",
+  "private_keys_present": false,
+  "real_canary_authorization_created": false
+}

@@ -780,6 +780,74 @@ def test_event_projection_write_is_idempotent_for_evaluation_and_checkpoint(
         assert checkpoint.payload["projection_hash"] == artifact.payload["projection_hash"]
 
 
+def test_not_ready_model_without_distribution_writes_ineligible_v1_marker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_ready_projection(monkeypatch)
+
+    def calculate(
+        repository: Any,
+        fixture_id: str,
+        evaluated_at: datetime,
+    ) -> dict[str, Any] | None:
+        card = _calculate_projection(repository, fixture_id, evaluated_at)
+        assert card is not None
+        model = card["market_candidates"]["ou"]["analysis_evidence"]["side_evidence"][
+            "OVER"
+        ]["model_probability"]
+        model["status"] = "NOT_READY"
+        model.pop("settlement_distribution")
+        return card
+
+    event = _event()
+    artifact = AnalysisCardCanaryMaterializer(
+        ScopedRepository(),
+        calculate_analysis_card=calculate,
+    ).build(
+        "1576804",
+        evaluated_at=event.event_at,
+        source_event=event,
+    )
+
+    assert len(artifact.evaluations) == 1
+    marker = artifact.evaluations[0]
+    assert marker.schema_version == "w2.dynamic_quote_evaluation.v1"
+    assert marker.state.value == "NOT_READY_MODEL_INPUT"
+    assert marker.model_settlement_distribution is None
+
+
+def test_ready_model_without_distribution_remains_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_ready_projection(monkeypatch)
+
+    def calculate(
+        repository: Any,
+        fixture_id: str,
+        evaluated_at: datetime,
+    ) -> dict[str, Any] | None:
+        card = _calculate_projection(repository, fixture_id, evaluated_at)
+        assert card is not None
+        card["market_candidates"]["ou"]["analysis_evidence"]["side_evidence"]["OVER"][
+            "model_probability"
+        ].pop("settlement_distribution")
+        return card
+
+    event = _event()
+    with pytest.raises(
+        ValueError,
+        match="DYNAMIC_EVALUATION_V2_DISTRIBUTION_INVALID",
+    ):
+        AnalysisCardCanaryMaterializer(
+            ScopedRepository(),
+            calculate_analysis_card=calculate,
+        ).build(
+            "1576804",
+            evaluated_at=event.event_at,
+            source_event=event,
+        )
+
+
 def test_lineup_odds_plan_replay_is_zero_write(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

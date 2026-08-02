@@ -15,6 +15,10 @@ from w2.infrastructure.persistence.league_models import LeagueSeasonModel
 
 def pytest_configure() -> None:
     os.environ.setdefault("W2_ENVIRONMENT", "test")
+    os.environ.setdefault(
+        "W2_PROVIDER_ENDPOINT_ALLOWLIST",
+        "status,fixtures,odds,lineups",
+    )
     root = Path(tempfile.mkdtemp(prefix="w2-pytest-competition-db-"))
     database_url = f"sqlite+pysqlite:///{root / 'authority.db'}"
     os.environ["W2_DATABASE_URL"] = database_url

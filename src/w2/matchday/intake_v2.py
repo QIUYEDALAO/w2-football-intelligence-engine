@@ -562,6 +562,7 @@ def endpoint_capture_contract(
     attempt: int = 1,
     quota_values: Mapping[str, Any] | None = None,
     provider_event_time: str | None = None,
+    request_task_key_override: str | None = None,
 ) -> dict[str, Any]:
     requested = normalize_utc(requested_at)
     captured = normalize_utc(provider_captured_at)
@@ -583,7 +584,7 @@ def endpoint_capture_contract(
         "endpoint": endpoint,
         "sanitized_params": sanitized,
         "params_hash": stable_hash(sanitized),
-        "request_task_key": request_task_key(endpoint, sanitized),
+        "request_task_key": request_task_key_override or request_task_key(endpoint, sanitized),
         "attempt": attempt,
         "requested_at": iso_z(requested),
         "provider_captured_at": iso_z(captured),

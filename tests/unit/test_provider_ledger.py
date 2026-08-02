@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
@@ -11,7 +12,7 @@ from w2.infrastructure.persistence.ingestion_models import (
     ProviderRequestLogModel,
     QuotaUsageModel,
 )
-from w2.providers.ledger import DbProviderRequestLedger
+from w2.providers.ledger import DbProviderRequestLedger, ProviderLedgerError
 
 NOW = datetime(2026, 7, 3, 1, 0, tzinfo=UTC)
 
@@ -117,3 +118,31 @@ def test_db_provider_ledger_uses_header_limit_basis_for_quota_usage(
     assert usage is not None
     assert usage.used == 5
     assert usage.limit == 100
+
+
+def test_db_provider_ledger_accepts_only_exact_duplicate(monkeypatch, tmp_path) -> None:
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'ledger.db'}"
+    monkeypatch.setenv("W2_DATABASE_URL", database_url)
+    get_settings.cache_clear()
+    engine = create_engine(database_url)
+    Base.metadata.create_all(engine)
+    ledger = DbProviderRequestLedger()
+    kwargs = {
+        "provider": "api_football",
+        "endpoint": "odds",
+        "params": {"fixture": "1489404"},
+        "live": True,
+        "status_code": 200,
+        "requested_at": NOW,
+        "completed_at": NOW,
+        "headers": {},
+        "payload": {"response": []},
+    }
+
+    ledger.record_request(**kwargs)
+    ledger.record_request(**kwargs)
+    with Session(engine) as session:
+        assert len(list(session.scalars(select(ProviderRequestLogModel)))) == 1
+
+    with pytest.raises(ProviderLedgerError, match="PROVIDER_REQUEST_LEDGER_CONFLICT"):
+        ledger.record_request(**{**kwargs, "status_code": 503})

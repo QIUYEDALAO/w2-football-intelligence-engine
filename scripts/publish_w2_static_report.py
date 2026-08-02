@@ -33,7 +33,7 @@ def main() -> int:
             "Publish the current W2 football-day HTML report as the static web root."
         )
     )
-    parser.add_argument("--base-url", default="http://118.196.30.136")
+    parser.add_argument("--base-url", required=True)
     parser.add_argument("--window", default="today")
     parser.add_argument("--runtime-root", type=Path, default=Path("runtime"))
     parser.add_argument(

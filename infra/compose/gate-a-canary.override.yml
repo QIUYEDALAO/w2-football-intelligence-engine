@@ -1,0 +1,6 @@
+# One-shot Gate-A canary isolation. Apply only to the bounded foreground run.
+# The normal staging compose file keeps its long-running scheduler policy unchanged.
+services:
+  scheduler:
+    profiles: ["persistent-scheduler"]
+    restart: "no"
