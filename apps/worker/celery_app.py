@@ -10,7 +10,12 @@ from w2.ingestion.future_refresh import deterministic_task_key, run_future_refre
 from w2.ingestion.market_timeline_refresh import run_market_timeline_refresh
 from w2.ingestion.xg_backfill import run_xg_history_backfill
 from w2.prematch.read_model_projection import ProjectionSourceEvent
-from w2.providers.control import PROVIDER_SCHEDULER_DISABLED, provider_scheduler_enabled
+from w2.providers.api_football import ApiFootballClient
+from w2.providers.control import (
+    PROVIDER_SCHEDULER_DISABLED,
+    provider_endpoint_allowlist,
+    provider_scheduler_enabled,
+)
 
 settings = get_settings()
 
@@ -123,6 +128,10 @@ def future_fixture_refresh(
         checkpoint_fixture_ids=tuple(checkpoint_fixture_ids or ()),
         refresh_checkpoints=tuple(refresh_checkpoints or ()),
         materialize_public_artifacts=_materialize_shadow_projection_events,
+        client=ApiFootballClient(
+            allow_live=True,
+            allowed_live_endpoints=provider_endpoint_allowlist(),
+        ),
     )
     return {
         "task_id": audit.task_id,

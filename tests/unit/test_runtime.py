@@ -27,6 +27,7 @@ from w2.competitions.seed import set_competition_enabled
 from w2.config import Settings
 from w2.infrastructure.cache import redis_status
 from w2.infrastructure.database import create_engine
+from w2.providers.api_football import ApiFootballClient
 
 
 @contextmanager
@@ -727,6 +728,40 @@ def test_worker_provider_master_switch_blocks_direct_tasks(monkeypatch) -> None:
 
     assert result["status"] == "SKIPPED_PROVIDER_SCHEDULER_DISABLED"
     assert result["result"]["provider_calls"] == 0
+
+
+def test_worker_future_refresh_uses_allowlisted_live_client(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class Audit:
+        task_id = "task"
+        key = "key"
+        status = "COMPLETED"
+        result: dict[str, object] = {}
+
+    def fake_run_future_refresh_task(**kwargs: object) -> Audit:
+        captured.update(kwargs)
+        return Audit()
+
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setenv(
+        "W2_PROVIDER_ENDPOINT_ALLOWLIST",
+        "status,fixtures,odds,lineups",
+    )
+    monkeypatch.setattr(
+        "apps.worker.celery_app.run_future_refresh_task",
+        fake_run_future_refresh_task,
+    )
+
+    result = future_fixture_refresh.run(competition_id="allsvenskan")
+
+    client = captured["client"]
+    assert isinstance(client, ApiFootballClient)
+    assert client.allow_live is True
+    assert client.allowed_live_endpoints == frozenset(
+        {"status", "fixtures", "odds", "lineups"}
+    )
+    assert result["status"] == "COMPLETED"
 
 
 def test_scheduler_checkpoint_batch_has_no_due_without_pending_plan(monkeypatch) -> None:
