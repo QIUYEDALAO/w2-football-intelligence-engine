@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
-from decimal import Decimal
+from datetime import UTC, datetime
 from time import monotonic
 from typing import Any, Protocol, cast
 
@@ -13,6 +10,17 @@ from sqlalchemy import select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
+from w2.domain.canonical_serialization import (
+    CanonicalSerializationError,
+    HashDomain,
+    SerializerVersion,
+)
+from w2.domain.canonical_serialization import (
+    canonical_bytes as serialize_canonical_bytes,
+)
+from w2.domain.canonical_serialization import (
+    canonical_sha256 as serialize_canonical_sha256,
+)
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.operations.observability import default_metric_registry
@@ -160,7 +168,8 @@ class ProjectionSourceEvent:
                     "event_id": normalized_id,
                     "event_at": normalized_at,
                     "payload": payload,
-                }
+                },
+                domain=HashDomain.PREMATCH_READ_MODEL_SOURCE_EVENT,
             ),
         )
 
@@ -229,28 +238,30 @@ def _projection_source_identity(
     return identity
 
 
-def _json_default(value: object) -> str:
-    if isinstance(value, datetime):
-        if value.tzinfo is None:
-            raise FrozenAnalysisError("naive datetime rejected from frozen artifact")
-        return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
-    if isinstance(value, date | Decimal):
-        return str(value)
-    raise TypeError(f"unsupported frozen artifact value: {type(value).__name__}")
+def canonical_json_bytes(
+    payload: object,
+    *,
+    domain: HashDomain = HashDomain.PREMATCH_READ_MODEL_GENERIC,
+) -> bytes:
+    try:
+        return serialize_canonical_bytes(
+            payload, domain=domain, version=SerializerVersion.LEGACY_V1
+        )
+    except CanonicalSerializationError as exc:
+        raise FrozenAnalysisError(str(exc)) from exc
 
 
-def canonical_json_bytes(payload: object) -> bytes:
-    return json.dumps(
-        payload,
-        sort_keys=True,
-        ensure_ascii=False,
-        separators=(",", ":"),
-        default=_json_default,
-    ).encode("utf-8")
-
-
-def canonical_sha256(payload: object) -> str:
-    return hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+def canonical_sha256(
+    payload: object,
+    *,
+    domain: HashDomain = HashDomain.PREMATCH_READ_MODEL_GENERIC,
+) -> str:
+    try:
+        return serialize_canonical_sha256(
+            payload, domain=domain, version=SerializerVersion.LEGACY_V1
+        )
+    except CanonicalSerializationError as exc:
+        raise FrozenAnalysisError(str(exc)) from exc
 
 
 def analysis_card_canary_key(fixture_id: str) -> str:
@@ -410,12 +421,28 @@ class AnalysisCardCanaryMaterializer:
         input_manifest = {
             "evaluated_at": evaluation_time,
             "competition_id": str(card.get("competition_id") or identity["competition_id"]),
-            "fixture_payload_sha256": canonical_sha256(fixture_payload),
+            "fixture_payload_sha256": canonical_sha256(
+                fixture_payload, domain=HashDomain.PREMATCH_READ_MODEL_FIXTURE_INPUT
+            ),
             "observation_count": len(observations),
-            "observation_sha256": sorted(canonical_sha256(row) for row in observations),
-            "quote_identity_sha256": canonical_sha256(card.get("quote_identity_audit") or {}),
-            "simulation_sha256": canonical_sha256(card.get("simulation") or {}),
-            "analysis_evidence_sha256": canonical_sha256(_analysis_evidence(card)),
+            "observation_sha256": sorted(
+                canonical_sha256(
+                    row, domain=HashDomain.PREMATCH_READ_MODEL_OBSERVATION_INPUT
+                )
+                for row in observations
+            ),
+            "quote_identity_sha256": canonical_sha256(
+                card.get("quote_identity_audit") or {},
+                domain=HashDomain.PREMATCH_READ_MODEL_QUOTE_IDENTITY,
+            ),
+            "simulation_sha256": canonical_sha256(
+                card.get("simulation") or {},
+                domain=HashDomain.PREMATCH_READ_MODEL_SIMULATION,
+            ),
+            "analysis_evidence_sha256": canonical_sha256(
+                _analysis_evidence(card),
+                domain=HashDomain.PREMATCH_READ_MODEL_ANALYSIS_EVIDENCE,
+            ),
             # This is part of source identity, not merely metadata: a code
             # change to how same-line evidence is projected must force a new
             # immutable public artifact rather than serving an old projection.
@@ -439,14 +466,20 @@ class AnalysisCardCanaryMaterializer:
                 "input_manifest": input_manifest,
                 "analysis_card": card,
             }
-            artifact_hash = canonical_sha256(artifact_body)
+            artifact_hash = canonical_sha256(
+                artifact_body, domain=HashDomain.PREMATCH_READ_MODEL_ARTIFACT
+            )
             payload = {**artifact_body, "artifact_hash": artifact_hash}
             return FrozenAnalysisArtifact(
                 checkpoint_key=key,
-                source_hash=canonical_sha256(input_manifest),
+                source_hash=canonical_sha256(
+                    input_manifest, domain=HashDomain.PREMATCH_READ_MODEL_SOURCE_MANIFEST
+                ),
                 artifact_hash=artifact_hash,
                 payload=payload,
-                canonical_bytes=canonical_json_bytes(payload),
+                canonical_bytes=canonical_json_bytes(
+                    payload, domain=HashDomain.PREMATCH_READ_MODEL_ARTIFACT
+                ),
             )
 
         read_time_reference = self.calculate_analysis_card(
@@ -519,17 +552,25 @@ class AnalysisCardCanaryMaterializer:
             "shadow_reconciliation": reconciliation,
         }
         lineup_event_payload_sha256 = (
-            canonical_sha256(lineup_event.as_dict()) if lineup_event is not None else None
+            canonical_sha256(
+                lineup_event.as_dict(), domain=HashDomain.PREMATCH_READ_MODEL_LINEUP_EVENT
+            )
+            if lineup_event is not None
+            else None
         )
         if lineup_event_payload_sha256 is not None:
             artifact_body["lineup_event_payload_sha256"] = lineup_event_payload_sha256
         projection_hash = (
             _projection_business_hash(artifact_body)
             if source_event is not None
-            else canonical_sha256(artifact_body)
+            else canonical_sha256(
+                artifact_body, domain=HashDomain.PREMATCH_READ_MODEL_PROJECTION
+            )
         )
         projected_payload = {**artifact_body, "projection_hash": projection_hash}
-        artifact_hash = canonical_sha256(projected_payload)
+        artifact_hash = canonical_sha256(
+            projected_payload, domain=HashDomain.PREMATCH_READ_MODEL_ARTIFACT
+        )
         payload = {**projected_payload, "artifact_hash": artifact_hash}
         return FrozenAnalysisArtifact(
             checkpoint_key=key,
@@ -539,11 +580,14 @@ class AnalysisCardCanaryMaterializer:
                     source_event_hash=event.event_hash,
                     source_evaluation_hashes=sorted(item.identity_hash for item in evaluations),
                     lineup_event_payload_sha256=lineup_event_payload_sha256,
-                )
+                ),
+                domain=HashDomain.PREMATCH_READ_MODEL_SOURCE_MANIFEST,
             ),
             artifact_hash=artifact_hash,
             payload=payload,
-            canonical_bytes=canonical_json_bytes(payload),
+            canonical_bytes=canonical_json_bytes(
+                payload, domain=HashDomain.PREMATCH_READ_MODEL_ARTIFACT
+            ),
             evaluations=evaluations,
             lineup_event=lineup_event,
             read_time_reference=read_time_reference,
@@ -621,7 +665,9 @@ def validate_frozen_analysis_payload(
         expected_projection_hash = (
             _projection_business_hash(projection_body)
             if payload.get("checkpoint_namespace") == "shadow"
-            else canonical_sha256(projection_body)
+            else canonical_sha256(
+                projection_body, domain=HashDomain.PREMATCH_READ_MODEL_PROJECTION
+            )
         )
         if not projection_hash or expected_projection_hash != projection_hash:
             raise FrozenAnalysisError("checkpoint projection hash mismatch")
@@ -629,14 +675,22 @@ def validate_frozen_analysis_payload(
         if (
             not isinstance(shadow, dict)
             or shadow.get("match") is not True
-            or shadow.get("read_time_hash") != canonical_sha256(card)
-            or shadow.get("projected_hash") != canonical_sha256(card)
+            or shadow.get("read_time_hash")
+            != canonical_sha256(card, domain=HashDomain.PREMATCH_READ_MODEL_READ_TIME)
+            or shadow.get("projected_hash")
+            != canonical_sha256(card, domain=HashDomain.PREMATCH_READ_MODEL_READ_TIME)
             or shadow.get("differences") != []
         ):
             raise FrozenAnalysisError("projection shadow reconciliation mismatch")
     artifact_hash = str(payload.get("artifact_hash") or "")
     artifact_body = {key: value for key, value in payload.items() if key != "artifact_hash"}
-    if not artifact_hash or canonical_sha256(artifact_body) != artifact_hash:
+    if (
+        not artifact_hash
+        or canonical_sha256(
+            artifact_body, domain=HashDomain.PREMATCH_READ_MODEL_ARTIFACT
+        )
+        != artifact_hash
+    ):
         raise FrozenAnalysisError("checkpoint artifact hash mismatch")
     evaluations: tuple[DynamicEvaluationVersion, ...] = ()
     if has_projection_metadata:
@@ -671,17 +725,22 @@ def validate_frozen_analysis_payload(
                     if payload.get("source_event_type") == "LINEUP_CHANGED"
                     else None
                 ),
-            )
+            ),
+            domain=HashDomain.PREMATCH_READ_MODEL_SOURCE_MANIFEST,
         )
         if has_projection_metadata
-        else canonical_sha256(manifest)
+        else canonical_sha256(
+            manifest, domain=HashDomain.PREMATCH_READ_MODEL_SOURCE_MANIFEST
+        )
     )
     return FrozenAnalysisArtifact(
         checkpoint_key=_checkpoint_key_for_payload(fixture_id, payload),
         source_hash=source_hash,
         artifact_hash=artifact_hash,
         payload=payload,
-        canonical_bytes=canonical_json_bytes(payload),
+        canonical_bytes=canonical_json_bytes(
+            payload, domain=HashDomain.PREMATCH_READ_MODEL_ARTIFACT
+        ),
         evaluations=evaluations,
     )
 
@@ -693,7 +752,8 @@ def _projection_business_hash(payload: dict[str, Any]) -> str:
             key: value
             for key, value in payload.items()
             if key not in {"last_projected_at", "projection_hash", "artifact_hash"}
-        }
+        },
+        domain=HashDomain.PREMATCH_READ_MODEL_PROJECTION,
     )
 
 
@@ -752,7 +812,12 @@ def _advisory_policy_identity(
             else "INVALID"
         ),
     }
-    return {**body, "identity_hash": canonical_sha256(body)}
+    return {
+        **body,
+        "identity_hash": canonical_sha256(
+            body, domain=HashDomain.PREMATCH_READ_MODEL_DYNAMIC_EVALUATION
+        ),
+    }
 
 
 def _validate_advisory_policy_identity(value: Any) -> None:
@@ -767,7 +832,10 @@ def _validate_advisory_policy_identity(value: Any) -> None:
     if (
         value.get("applicability") != "APPLICABLE_ADVISORY"
         or value.get("validation_status") not in {"VALID", "INVALID", "MISSING"}
-        or value.get("identity_hash") != canonical_sha256(body)
+        or value.get("identity_hash")
+        != canonical_sha256(
+            body, domain=HashDomain.PREMATCH_READ_MODEL_DYNAMIC_EVALUATION
+        )
         or (
             value.get("checkpoint_key") is not None
             and value.get("checkpoint_key") != POLICY_CHECKPOINT_KEY
@@ -803,8 +871,12 @@ def _reconcile_analysis_cards(
 ) -> dict[str, Any]:
     differences = _difference_fields(read_time_card, projected_card)
     return {
-        "read_time_hash": canonical_sha256(read_time_card),
-        "projected_hash": canonical_sha256(projected_card),
+        "read_time_hash": canonical_sha256(
+            read_time_card, domain=HashDomain.PREMATCH_READ_MODEL_READ_TIME
+        ),
+        "projected_hash": canonical_sha256(
+            projected_card, domain=HashDomain.PREMATCH_READ_MODEL_READ_TIME
+        ),
         "match": not differences,
         "differences": differences,
     }
@@ -845,7 +917,8 @@ def write_frozen_analysis_artifacts(
                         raise FrozenAnalysisError("lineup projection source event unavailable")
                     _validate_lineup_event_binding(event, original.lineup_event)
                     if draft.payload.get("lineup_event_payload_sha256") != canonical_sha256(
-                        original.lineup_event.as_dict()
+                        original.lineup_event.as_dict(),
+                        domain=HashDomain.PREMATCH_READ_MODEL_LINEUP_EVENT,
                     ):
                         raise FrozenAnalysisError("lineup event payload identity mismatch")
                     repository.append_lineup_event_in_session(
@@ -1042,13 +1115,16 @@ def _dynamic_evaluations(
             )
             or None,
             quote_identity_hash=str(quote_identity.get("quote_identity_hash") or "")
-            or canonical_sha256(quote_identity),
+            or canonical_sha256(
+                quote_identity, domain=HashDomain.PREMATCH_READ_MODEL_QUOTE_IDENTITY
+            ),
             model_input_hash=canonical_sha256(
                 {
                     "simulation": manifest.get("simulation_sha256"),
                     "analysis_evidence": manifest.get("analysis_evidence_sha256"),
                     "lineup_input_hash": lineup_input_hash,
-                }
+                },
+                domain=HashDomain.PREMATCH_READ_MODEL_DYNAMIC_EVALUATION,
             ),
             evaluated_at=evaluated_at,
             checkpoint=_latest_checkpoint(card),

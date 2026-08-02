@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import fcntl
-import hashlib
 import json
 import os
 import signal
@@ -12,6 +11,11 @@ from pathlib import Path
 from typing import Any, Protocol
 from uuid import uuid4
 
+from w2.domain.canonical_serialization import (
+    HashDomain,
+    SerializerVersion,
+    canonical_sha256,
+)
 from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
 from w2.providers.quota import parse_api_football_quota
 
@@ -77,12 +81,12 @@ def iso(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-def canonical_json(payload: Any) -> bytes:
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
-
-
 def sha256_payload(payload: Any) -> str:
-    return hashlib.sha256(canonical_json(payload)).hexdigest()
+    return canonical_sha256(
+        payload,
+        domain=HashDomain.STAGE7I_LIFECYCLE_PAYLOAD,
+        version=SerializerVersion.LEGACY_V1,
+    )
 
 
 def load_json(path: Path, default: Any) -> Any:
@@ -184,7 +188,11 @@ def has_live_or_suspended_market(payload: dict[str, Any]) -> bool:
 
 
 def stable_event_id(*parts: Any) -> str:
-    return hashlib.sha256(canonical_json(parts)).hexdigest()
+    return canonical_sha256(
+        parts,
+        domain=HashDomain.STAGE7I_LIFECYCLE_EVENT,
+        version=SerializerVersion.LEGACY_V1,
+    )
 
 
 class FileLock:

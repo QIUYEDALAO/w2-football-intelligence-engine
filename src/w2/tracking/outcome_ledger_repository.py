@@ -11,6 +11,11 @@ from typing import Any
 from sqlalchemy import Engine, or_, select
 from sqlalchemy.orm import Session
 
+from w2.domain.canonical_serialization import (
+    HashDomain,
+    SerializerVersion,
+    canonical_sha256,
+)
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.future_refresh_models import RawPayloadModel
 from w2.infrastructure.persistence.matchday_intake_models import (
@@ -83,12 +88,12 @@ class ImportRecord:
     source_line_number: int | None
 
 
-def canonical_json(payload: Mapping[str, Any]) -> str:
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-
-
 def payload_sha256(payload: Mapping[str, Any]) -> str:
-    return hashlib.sha256(canonical_json(payload).encode()).hexdigest()
+    return canonical_sha256(
+        payload,
+        domain=HashDomain.OUTCOME_LEDGER_PAYLOAD,
+        version=SerializerVersion.LEGACY_V1,
+    )
 
 
 def _runtime_capture_sha256(
@@ -146,8 +151,11 @@ def business_key(payload: Mapping[str, Any], record_type: str | None = None) -> 
         identity = payload
     if not kind or not identity:
         raise OutcomeLedgerError("OUTCOME_LEDGER_IDENTITY_INCOMPLETE")
-    encoded = canonical_json({"record_type": kind, "identity": identity}).encode()
-    return hashlib.sha256(encoded).hexdigest()
+    return canonical_sha256(
+        {"record_type": kind, "identity": identity},
+        domain=HashDomain.OUTCOME_LEDGER_BUSINESS_KEY,
+        version=SerializerVersion.LEGACY_V1,
+    )
 
 
 def _parse_time(value: Any) -> datetime | None:

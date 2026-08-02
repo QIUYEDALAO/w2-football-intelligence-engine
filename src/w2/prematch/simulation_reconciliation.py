@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from w2.domain.canonical_serialization import HashDomain
 from w2.prematch.read_model_projection import canonical_sha256
 
 MATCH = "MATCH"
@@ -61,7 +62,12 @@ def reconcile_simulation(card: Mapping[str, Any]) -> str:
     top_present = _present(top)
     legacy_present = _present(legacy)
     if top_present and legacy_present:
-        return MATCH if canonical_sha256(top) == canonical_sha256(legacy) else MISMATCH
+        domain = HashDomain.PREMATCH_READ_MODEL_SIMULATION_RECONCILIATION
+        return (
+            MATCH
+            if canonical_sha256(top, domain=domain) == canonical_sha256(legacy, domain=domain)
+            else MISMATCH
+        )
     if top_present:
         return TOP_LEVEL_ONLY
     if legacy_present:

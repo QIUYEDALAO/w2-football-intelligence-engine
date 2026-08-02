@@ -412,7 +412,7 @@ Dockerfile、Compose、workflow、Runbook 和历史/恢复入口，避免把离�
 TOP_LEVEL_PACKAGE_COUNT = 40
 MAPPED_PACKAGE_COUNT = 40
 UNMAPPED_PACKAGE_COUNT = 0
-DEPENDENCY_EDGE_COUNT = 128
+DEPENDENCY_EDGE_COUNT = 130
 CYCLE_COUNT = 1
 RUNTIME_REACHABLE_PACKAGE_COUNT = 27
 OFFLINE_ONLY_PACKAGE_COUNT = 13
@@ -429,8 +429,8 @@ DELETED_PACKAGE_COUNT = 0
 | `competitions` | 8 | apps:1;scripts:11;migrations:1;tests:21 | api,backtest,features,ingestion,matchday,monitoring,operations,prematch,strategy | infrastructure,providers | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `dashboard` | 16 | apps:1;scripts:2;migrations:0;tests:16 | api,matchday,prematch | domain,prematch,settlement,strategy | SCC-1 | - | YES | YES | PYTHON_IMAGE | PUBLIC_READ | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `data_assets` | 2 | apps:0;scripts:1;migrations:0;tests:1 | - | - | - | - | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | SCRIPT_ENTRY;ASSET_REGISTRY |
-| `domain` | 14 | apps:0;scripts:2;migrations:0;tests:21 | analysis,api,audit_export,backtest,dashboard,features,historical,ingestion,markets,matchday,migration,models,normalization,operations,prematch,pricing,readiness,recovery,replay,reporting,schemas,settlement,strategy,tracking | lineups,readiness,tracking | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
-| `factor_model` | 2 | apps:0;scripts:1;migrations:0;tests:1 | - | features,identity,infrastructure,ingestion,matchday,providers,ratings | - | - | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | SCRIPT_ENTRY;OFFLINE_REMEDIATION |
+| `domain` | 15 | apps:0;scripts:3;migrations:0;tests:24 | analysis,api,audit_export,backtest,dashboard,factor_model,features,historical,ingestion,markets,matchday,migration,models,monitoring,normalization,operations,prematch,pricing,readiness,recovery,replay,reporting,schemas,settlement,strategy,tracking | lineups,readiness,tracking | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `factor_model` | 2 | apps:0;scripts:1;migrations:0;tests:1 | - | domain,features,identity,infrastructure,ingestion,matchday,providers,ratings | - | - | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | SCRIPT_ENTRY;OFFLINE_REMEDIATION |
 | `features` | 8 | apps:0;scripts:0;migrations:0;tests:7 | factor_model,ingestion,prematch,ratings,strategy | competitions,domain,markets | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `formal` | 2 | apps:0;scripts:1;migrations:0;tests:2 | strategy | - | - | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `gates` | 2 | apps:0;scripts:0;migrations:0;tests:0 | - | strategy | - | w2-gate5-preflight | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | CONSOLE_ENTRYPOINT |
@@ -443,7 +443,7 @@ DELETED_PACKAGE_COUNT = 0
 | `matchday` | 11 | apps:1;scripts:3;migrations:2;tests:9 | api,factor_model,ingestion,prematch,refresh | competitions,dashboard,domain,infrastructure,providers,readiness,refresh,strategy | SCC-1 | w2-matchday | YES | YES | PYTHON_IMAGE | RUNTIME_ENTRYPOINT | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `migration` | 3 | apps:0;scripts:2;migrations:0;tests:1 | - | domain | - | - | NO | NO | PYTHON_IMAGE | MIGRATION_ONLY | KEEP_MIGRATION | 2_SCRIPT_ENTRIES;MIGRATION_RECOVERY |
 | `models` | 12 | apps:0;scripts:2;migrations:0;tests:8 | api,backtest,operations,recovery,strategy | domain | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
-| `monitoring` | 5 | apps:1;scripts:3;migrations:0;tests:4 | api | competitions,infrastructure,providers | - | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `monitoring` | 5 | apps:1;scripts:3;migrations:0;tests:4 | api | competitions,domain,infrastructure,providers | - | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `normalization` | 2 | apps:0;scripts:2;migrations:0;tests:1 | ingestion | domain | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `observability` | 2 | apps:0;scripts:0;migrations:0;tests:0 | - | - | - | w2-stage7i-observer | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | CONSOLE_ENTRYPOINT |
 | `operations` | 11 | apps:1;scripts:7;migrations:0;tests:9 | api,prematch,providers,security | competitions,domain,infrastructure,models | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
@@ -948,6 +948,23 @@ ordered_pairs[VALIDATION_START_INDEX:]
 
 PAIR_IDENTITY_SERIALIZATION =
 UTF8_CANONICAL_JSON_SORTED_KEYS_COMPACT
+
+PAIR_IDENTITY_SERIALIZER_VERSION =
+w2.canonical-json.v2
+
+PAIR_IDENTITY_ENSURE_ASCII = false
+PAIR_IDENTITY_UNICODE = NFC
+PAIR_IDENTITY_ALLOW_NAN = false
+PAIR_IDENTITY_TYPE_RULES =
+INT_JSON_NUMBER_FLOAT64_BIG_ENDIAN_HEX_DECIMAL_CONTEXT_FREE_DATE_DATETIME_BYTES_TYPED_UNSUPPORTED_REJECTED
+
+HASH_DOMAIN_IN_PREIMAGE = false
+SERIALIZER_VERSION_IN_PREIMAGE = false
+HASH_DOMAIN_AND_SERIALIZER_VERSION_METADATA_REQUIRED = true
+PAIR_IDENTITY_HASH_DOMAIN = eval_02b.pair_identity
+
+PAIR_PROJECTOR_SCHEMA =
+w2.eval_02b_exact_pair_projection.v2
 
 PAIR_IDENTITY_HASH =
 SHA256(PAIR_IDENTITY_SERIALIZATION)

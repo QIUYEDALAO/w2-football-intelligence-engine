@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from w2.competitions.registry import CompetitionRegistry
+from w2.domain.canonical_serialization import HashDomain
 from w2.features.xg_materialization import (
     FINISHED_STATUS,
     TeamXgMatch,
@@ -213,7 +214,9 @@ class XgHistoryBackfillService:
                 if response.status_code >= 400:
                     blockers.append(f"STATISTICS_HTTP_{response.status_code}:{fixture_id}")
                     continue
-                payload_hash = sha256_payload(response.payload)
+                payload_hash = sha256_payload(
+                    response.payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD
+                )
                 self._save_raw(response)
                 xg_rows.extend(
                     parse_team_xg_matches(
@@ -269,7 +272,9 @@ class XgHistoryBackfillService:
             observed_at=response.captured_at,
         )
         self._remaining_quota = quota.daily_remaining
-        payload_hash = sha256_payload(response.payload)
+        payload_hash = sha256_payload(
+            response.payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD
+        )
         self._audit.append(
             {
                 "endpoint": endpoint,
@@ -316,7 +321,9 @@ class XgHistoryBackfillService:
 
     def _save_raw(self, response: LiveApiFootballResponse) -> None:
         self.repository.save_raw_payload(
-            sha256=sha256_payload(response.payload),
+            sha256=sha256_payload(
+                response.payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD
+            ),
             endpoint=response.endpoint,
             captured_at=response.captured_at,
             payload=response.payload,
