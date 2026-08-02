@@ -57,13 +57,14 @@ TRUSTED_KEYS = {
 
 def authorization_payload(**overrides: object) -> dict[str, object]:
     payload: dict[str, object] = {
-        "schema_version": "w2.gate-a-one-shot-authorization.v2",
+        "schema_version": "w2.gate-a-one-shot-authorization.v3",
         "action": "ONE_SHOT_FOREGROUND_CANARY",
         "review_status": "APPROVED",
         "one_shot": True,
         "persistence": "db",
         "authorization_id": "gate-a-test-1",
         "task_key": TASK_KEY,
+        "fixture_id": "12345",
         "competition_id": "world_cup_2026",
         "season": "2026",
         "exact_head": HEAD,
@@ -72,7 +73,7 @@ def authorization_payload(**overrides: object) -> dict[str, object]:
         "runtime_artifact_digest": None,
         "complete_checkout_manifest_sha256": "c" * 64,
         "allowed_endpoints": ["status", "fixtures", "odds", "lineups"],
-        "provider_call_cap": 4,
+        "provider_call_cap": 5,
         "issued_at": (NOW - timedelta(minutes=1)).isoformat(),
         "expires_at": (NOW + timedelta(minutes=30)).isoformat(),
         "author": "runtime-owner",
@@ -103,6 +104,7 @@ def test_authorization_is_independent_scoped_short_lived_and_db_only() -> None:
         season="2026",
         persistence="db",
         task_key=TASK_KEY,
+        fixture_id="12345",
         exact_head=HEAD,
         exact_tree=TREE,
         execution_mode="COMPLETE_CLEAN_CHECKOUT",
@@ -116,7 +118,7 @@ def test_authorization_is_independent_scoped_short_lived_and_db_only() -> None:
         ({"author": "same", "reviewer": "same"}, "GATE_A_INDEPENDENT_REVIEW_REQUIRED"),
         ({"one_shot": False}, "GATE_A_AUTHORIZATION_INVALID"),
         ({"persistence": "file"}, "GATE_A_AUTHORIZATION_INVALID"),
-        ({"provider_call_cap": 11}, "GATE_A_PROVIDER_CALL_CAP_INVALID"),
+        ({"provider_call_cap": 4}, "GATE_A_PROVIDER_CALL_CAP_INVALID"),
         ({"allowed_endpoints": ["injuries"]}, "GATE_A_ENDPOINT_SCOPE_INVALID"),
     )
     for overrides, code in failures:
@@ -167,6 +169,7 @@ def test_authorization_requires_independent_key_custody_and_supports_image_diges
         ("season", "2027", "GATE_A_SEASON_SCOPE_MISMATCH"),
         ("persistence", "file", "GATE_A_DB_PERSISTENCE_REQUIRED"),
         ("task_key", "other", "GATE_A_TASK_KEY_SCOPE_MISMATCH"),
+        ("fixture_id", "other", "GATE_A_FIXTURE_SCOPE_MISMATCH"),
         ("exact_head", "b" * 40, "GATE_A_EXACT_HEAD_MISMATCH"),
         ("exact_tree", "c" * 40, "GATE_A_EXACT_TREE_MISMATCH"),
         ("execution_mode", "IMMUTABLE_IMAGE", "GATE_A_EXECUTION_MODE_MISMATCH"),
@@ -186,6 +189,7 @@ def test_authorization_scope_mismatch_fails_closed(field: str, value: object, co
         "season": "2026",
         "persistence": "db",
         "task_key": TASK_KEY,
+        "fixture_id": "12345",
         "exact_head": HEAD,
         "exact_tree": TREE,
         "execution_mode": "COMPLETE_CLEAN_CHECKOUT",
@@ -205,7 +209,7 @@ def test_db_reservation_is_one_shot_fenced_and_atomically_capped(monkeypatch, tm
     get_settings.cache_clear()
     engine = create_engine(database_url)
     Base.metadata.create_all(engine)
-    authorization = runtime_authorization(provider_call_cap=2)
+    authorization = runtime_authorization()
 
     reservation = reserve_gate_a_run(authorization, owner="foreground", now=NOW)
     assert reservation.reserve_provider_call("status") == 1
@@ -216,6 +220,9 @@ def test_db_reservation_is_one_shot_fenced_and_atomically_capped(monkeypatch, tm
         state="DELIVERY_UNCERTAIN",
         error_code="TimeoutError",
     )
+    for endpoint in ("odds", "lineups", "odds"):
+        ordinal = reservation.reserve_provider_call(endpoint)
+        reservation.record_provider_outcome(ordinal, state="RESPONSE_RECEIVED")
     with pytest.raises(GateAError, match="GATE_A_PROVIDER_CALL_RESERVATION_REJECTED"):
         reservation.reserve_provider_call("odds")
     with pytest.raises(GateAError, match="GATE_A_AUTHORIZATION_ALREADY_CONSUMED"):
@@ -232,7 +239,7 @@ def test_db_reservation_is_one_shot_fenced_and_atomically_capped(monkeypatch, tm
         task_key=reservation.task_key,
         owner=reservation.owner,
         lease_epoch=reservation.lease_epoch + 1,
-        provider_call_cap=2,
+        provider_call_cap=5,
     )
     with pytest.raises(GateAError, match="GATE_A_LEASE_EPOCH_REJECTED"):
         stale.finalize("FAILED")
@@ -247,12 +254,15 @@ def test_db_reservation_is_one_shot_fenced_and_atomically_capped(monkeypatch, tm
     assert row is not None
     assert (row.status, row.provider_calls_used, row.last_endpoint) == (
         "COMPLETED",
-        2,
-        "fixtures",
+        5,
+        "odds",
     )
     assert [(call.endpoint, call.state, call.error_code) for call in calls] == [
         ("status", "RESPONSE_RECEIVED", None),
         ("fixtures", "DELIVERY_UNCERTAIN", "TimeoutError"),
+        ("odds", "RESPONSE_RECEIVED", None),
+        ("lineups", "RESPONSE_RECEIVED", None),
+        ("odds", "RESPONSE_RECEIVED", None),
     ]
     get_settings.cache_clear()
 

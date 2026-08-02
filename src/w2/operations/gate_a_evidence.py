@@ -20,7 +20,7 @@ from w2.domain.canonical_serialization import (
 )
 from w2.operations.gate_a import GateARuntimeAuthorization
 
-GATE_A_EVIDENCE_SCHEMA = "w2.gate-a-admission-evidence.v4"
+GATE_A_EVIDENCE_SCHEMA = "w2.gate-a-admission-evidence.v5"
 SERIALIZER_VERSION = "w2.canonical-json.v2"
 ROOT = Path(__file__).resolve().parents[3]
 ORACLE_SOURCE = ROOT / "oracle/canonical_serialization_oracle.py"
@@ -36,6 +36,7 @@ REQUIRED_ARTIFACTS = {
 REQUIRED_BINDING_FIELDS = {
     "authorization_id",
     "task_key",
+    "fixture_id",
     "competition",
     "policy_season",
     "exact_head",
@@ -104,6 +105,7 @@ def _validate_binding(value: Any, *, authorization: GateARuntimeAuthorization) -
     expected: dict[str, str | None] = {
         "authorization_id": authorization.authorization_id,
         "task_key": authorization.task_key,
+        "fixture_id": authorization.fixture_id,
         "competition": authorization.competition_id,
         "policy_season": authorization.season,
         "exact_head": authorization.exact_head,
@@ -143,6 +145,7 @@ def _validate_authority_lineage(
         or signed.get("approval_custody_status") != "INDEPENDENT_SIGNER_CONFIRMED"
         or reservation.get("authorization_id") != authorization.authorization_id
         or reservation.get("task_key") != authorization.task_key
+        or reservation.get("fixture_id") != authorization.fixture_id
         or reservation.get("status") != "COMPLETED"
         or audit.get("task_key") != authorization.task_key
         or audit.get("authorization_id") != authorization.authorization_id
@@ -180,6 +183,30 @@ def _validate_authority_lineage(
         raise GateAEvidenceError("PROVIDER_CALL_LEASE_MISMATCH")
     if any(row.get("endpoint") not in authorization.allowed_endpoints for row in provider_calls):
         raise GateAEvidenceError("PROVIDER_ENDPOINT_OUTSIDE_SIGNED_SCOPE")
+    if [row.get("endpoint") for row in provider_calls] != [
+        "status",
+        "fixtures",
+        "odds",
+        "lineups",
+        "odds",
+    ]:
+        raise GateAEvidenceError("STAGED_PROVIDER_SEQUENCE_INVALID")
+    fixture_aliases = {
+        authorization.fixture_id,
+        (
+            authorization.fixture_id.removeprefix("api_football:")
+            if authorization.fixture_id.startswith("api_football:")
+            else f"api_football:{authorization.fixture_id}"
+        ),
+    }
+    captures = _list_of_mappings(
+        lineage.get("endpoint_capture_rows"), "ENDPOINT_CAPTURE_LINEAGE_INVALID"
+    )
+    if any(
+        row.get("fixture_id") is not None and row.get("fixture_id") not in fixture_aliases
+        for row in captures
+    ):
+        raise GateAEvidenceError("GATE_A_FIXTURE_SCOPE_MISMATCH")
     source_sha = signed.get("source_sha256")
     if (
         not isinstance(source_sha, str)

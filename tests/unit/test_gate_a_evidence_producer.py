@@ -56,7 +56,8 @@ def test_cli_plan_to_signed_reservation_audit_producer_validator_e2e(
     authorization_file = tmp_path / "signed-authorization.json"
     trust_store = tmp_path / "trust.json"
     authorization_file.write_text(
-        json.dumps(authorization_payload(task_key=task_key)), encoding="utf-8"
+        json.dumps(authorization_payload(task_key=task_key, fixture_id="fixture-1")),
+        encoding="utf-8",
     )
     trust_store.write_text(
         json.dumps(
@@ -82,6 +83,7 @@ def test_cli_plan_to_signed_reservation_audit_producer_validator_e2e(
         season="2026",
         persistence="db",
         task_key=task_key,
+        fixture_id="fixture-1",
         exact_head=auth.exact_head,
         exact_tree=auth.exact_tree,
         execution_mode=auth.execution_mode,
@@ -200,8 +202,9 @@ def test_cli_plan_to_signed_reservation_audit_producer_validator_e2e(
                 )
             )
         session.commit()
-    ordinal = reservation.reserve_provider_call("odds")
-    reservation.record_provider_outcome(ordinal, state="RESPONSE_RECEIVED")
+    for endpoint in ("status", "fixtures", "odds", "lineups", "odds"):
+        ordinal = reservation.reserve_provider_call(endpoint)
+        reservation.record_provider_outcome(ordinal, state="RESPONSE_RECEIVED")
     monkeypatch.setattr(
         "w2.ingestion.future_refresh.run_future_fixture_refresh",
         lambda **_kwargs: FutureRefreshResult(
@@ -211,7 +214,7 @@ def test_cli_plan_to_signed_reservation_audit_producer_validator_e2e(
             market_snapshot_count=1,
             feature_enrichment_payload_count=1,
             ledger_appended_count=1,
-            request_count=1,
+            request_count=5,
             remaining_quota=1,
             selected_market_fixture_ids=["fixture-1"],
         ),
@@ -236,9 +239,15 @@ def test_cli_plan_to_signed_reservation_audit_producer_validator_e2e(
         trust_store_path=trust_store,
     )
     if raw_inserted_at == NOW:
+        assert evidence["artifact_counts"]["provider_calls"] == {
+            "before": 0,
+            "after": 5,
+            "delta": 5,
+        }
         assert all(
             count == {"before": 0, "after": 1, "delta": 1}
-            for count in evidence["artifact_counts"].values()
+            for name, count in evidence["artifact_counts"].items()
+            if name != "provider_calls"
         )
     else:
         assert evidence["artifact_counts"]["raw_payload"] == {

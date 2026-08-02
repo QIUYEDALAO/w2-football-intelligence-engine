@@ -22,8 +22,10 @@ from w2.infrastructure.persistence.future_refresh_models import (
     GateARunReservationModel,
 )
 
-GATE_A_AUTHORIZATION_SCHEMA = "w2.gate-a-one-shot-authorization.v2"
+GATE_A_AUTHORIZATION_SCHEMA = "w2.gate-a-one-shot-authorization.v3"
 GATE_A_ACTION = "ONE_SHOT_FOREGROUND_CANARY"
+GATE_A_CANARY_ENDPOINTS = frozenset({"status", "fixtures", "odds", "lineups"})
+GATE_A_CANARY_PROVIDER_CALL_CAP = 5
 GATE_A_TRUST_STORE_SCHEMA = "w2.gate-a-authorization-trust.v1"
 DEFAULT_TRUST_STORE = (
     Path(__file__).resolve().parents[3] / "config/policies/gate_a_authorization_trust.v1.json"
@@ -38,6 +40,7 @@ class GateAError(RuntimeError):
 class GateARuntimeAuthorization:
     authorization_id: str
     task_key: str
+    fixture_id: str
     competition_id: str
     season: str
     persistence: str
@@ -81,6 +84,7 @@ class GateARuntimeAuthorization:
         required = {
             "authorization_id",
             "task_key",
+            "fixture_id",
             "competition_id",
             "season",
             "exact_head",
@@ -112,6 +116,7 @@ class GateARuntimeAuthorization:
             raise GateAError("GATE_A_INDEPENDENT_REVIEW_REQUIRED")
         authorization_id = str(payload["authorization_id"]).strip()
         task_key = str(payload["task_key"]).strip()
+        fixture_id = str(payload["fixture_id"]).strip()
         exact_head = str(payload["exact_head"]).strip()
         exact_tree = str(payload["exact_tree"]).strip()
         execution_mode = str(payload["execution_mode"]).strip()
@@ -123,6 +128,8 @@ class GateARuntimeAuthorization:
             or len(authorization_id) > 128
             or not task_key
             or len(task_key) > 255
+            or not fixture_id
+            or len(fixture_id) > 128
             or re.fullmatch(r"[0-9a-f]{40}", exact_head) is None
             or re.fullmatch(r"[0-9a-f]{40}", exact_tree) is None
             or not isinstance(raw_endpoints, list)
@@ -145,13 +152,13 @@ class GateARuntimeAuthorization:
         else:
             raise GateAError("GATE_A_EXECUTION_MODE_INVALID")
         endpoints = frozenset(str(value) for value in raw_endpoints)
-        if not endpoints or not endpoints <= {"status", "fixtures", "odds", "lineups"}:
+        if endpoints != GATE_A_CANARY_ENDPOINTS or len(raw_endpoints) != len(endpoints):
             raise GateAError("GATE_A_ENDPOINT_SCOPE_INVALID")
         try:
             cap = int(payload["provider_call_cap"])
         except (TypeError, ValueError) as exc:
             raise GateAError("GATE_A_PROVIDER_CALL_CAP_INVALID") from exc
-        if not 1 <= cap <= 10:
+        if cap != GATE_A_CANARY_PROVIDER_CALL_CAP:
             raise GateAError("GATE_A_PROVIDER_CALL_CAP_INVALID")
         issued_at = _aware_utc(payload["issued_at"])
         expires_at = _aware_utc(payload["expires_at"])
@@ -170,6 +177,7 @@ class GateARuntimeAuthorization:
         return cls(
             authorization_id=authorization_id,
             task_key=task_key,
+            fixture_id=fixture_id,
             competition_id=str(payload["competition_id"]),
             season=str(payload["season"]),
             persistence="db",
@@ -196,6 +204,7 @@ class GateARuntimeAuthorization:
         season: str,
         persistence: str,
         task_key: str,
+        fixture_id: str,
         exact_head: str,
         exact_tree: str,
         execution_mode: str,
@@ -217,6 +226,8 @@ class GateARuntimeAuthorization:
             raise GateAError("GATE_A_DB_PERSISTENCE_REQUIRED")
         if task_key != self.task_key:
             raise GateAError("GATE_A_TASK_KEY_SCOPE_MISMATCH")
+        if fixture_id != self.fixture_id:
+            raise GateAError("GATE_A_FIXTURE_SCOPE_MISMATCH")
         if exact_head != self.exact_head:
             raise GateAError("GATE_A_EXACT_HEAD_MISMATCH")
         if exact_tree != self.exact_tree:
@@ -337,6 +348,7 @@ def reserve_gate_a_run(
         row = GateARunReservationModel(
             authorization_id=authorization.authorization_id,
             task_key=authorization.task_key,
+            fixture_id=authorization.fixture_id,
             competition_id=authorization.competition_id,
             season=authorization.season,
             exact_head=authorization.exact_head,
@@ -472,6 +484,7 @@ def authorization_signing_message(payload: Mapping[str, Any]) -> bytes:
         "true" if payload.get("one_shot") is True else "false",
         payload.get("authorization_id"),
         payload.get("task_key"),
+        payload.get("fixture_id"),
         payload.get("competition_id"),
         payload.get("season"),
         payload.get("persistence"),
@@ -490,7 +503,7 @@ def authorization_signing_message(payload: Mapping[str, Any]) -> bytes:
         payload.get("approval_public_key_sha256"),
         payload.get("approval_custody_status"),
     )
-    message = bytearray(b"W2_GATE_A_AUTHORIZATION_V1")
+    message = bytearray(b"W2_GATE_A_AUTHORIZATION_V3")
     for value in values:
         encoded = str(value).encode("utf-8")
         message.extend(len(encoded).to_bytes(4, "big"))

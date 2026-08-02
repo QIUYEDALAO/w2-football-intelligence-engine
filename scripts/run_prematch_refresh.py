@@ -230,6 +230,7 @@ def main() -> int:
             policy_season=policy.season,
             persistence=args.persistence,
             task_key=key,
+            fixture_id=authorization.fixture_id,
             exact_head=identity.head,
             exact_tree=identity.tree,
             execution_mode=identity.execution_mode,

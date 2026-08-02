@@ -29,7 +29,12 @@ from w2.ingestion.future_refresh_repository import (
     FutureRefreshPersistenceError,
 )
 from w2.markets.asian_handicap_scope import canonical_market_from_label
-from w2.operations.gate_a import GateARunReservation, GateARuntimeAuthorization
+from w2.operations.gate_a import (
+    GATE_A_CANARY_ENDPOINTS,
+    GATE_A_CANARY_PROVIDER_CALL_CAP,
+    GateARunReservation,
+    GateARuntimeAuthorization,
+)
 from w2.prematch.read_model_projection import (
     ProjectionSourceEvent,
 )
@@ -133,6 +138,7 @@ class FutureRefreshResult:
     raw_payload_written_count: int = 0
     error_code: str | None = None
     materialized_fixture_ids: list[str] = field(default_factory=list)
+    exact_pair_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -871,6 +877,223 @@ class FutureFixtureRefreshService:
             self._write_audit(result)
         return result
 
+    def run_staged_gate_a_canary(self, fixture_id: str) -> FutureRefreshResult:
+        """Run the isolated five-call Pre/Lineup/Post feasibility path."""
+        authorization = self.runtime_authorization
+        if (
+            authorization is None
+            or self.provider_call_reservation is None
+            or self.config.persistence != "db"
+        ):
+            raise FutureRefreshError("GATE_A_STAGED_CANARY_AUTHORIZATION_REQUIRED")
+        if fixture_id != authorization.fixture_id:
+            raise FutureRefreshError("GATE_A_FIXTURE_SCOPE_MISMATCH")
+        if (
+            authorization.allowed_endpoints != GATE_A_CANARY_ENDPOINTS
+            or authorization.provider_call_cap != GATE_A_CANARY_PROVIDER_CALL_CAP
+        ):
+            raise FutureRefreshError("GATE_A_STAGED_CANARY_SCOPE_INVALID")
+
+        self._request("status", {})
+        fixture_params = {"id": fixture_id}
+        fixtures_response = self._request("fixtures", fixture_params)
+        fixtures = self._signed_fixture_rows(fixtures_response.payload, fixture_id)
+        self._persist_canary_fixture_identity(
+            fixtures_response,
+            fixtures,
+            request_params=fixture_params,
+        )
+        # The staged path begins evaluation at odds_pre. Fixture identity is
+        # already durable and must not trigger an earlier empty-market build.
+        self._projection_events.clear()
+
+        odds_pre = self._request("odds", {"fixture": fixture_id})
+        _pre_inserted, pre_rows = self._persist_canary_odds(fixture_id, odds_pre)
+        pre_capture_at = odds_pre.captured_at
+        from w2.operations.gate_a_staged import (
+            materialize_staged_dynamic_v2,
+            persist_staged_lineup_event,
+        )
+
+        materialize_staged_dynamic_v2(
+            pre_rows,
+            captured_at=pre_capture_at,
+            lineup_input_hash=None,
+            lineup_confirmed_at=None,
+            checkpoint="GATE_A_STAGED_PRE",
+            competition_id=self.config.competition_id,
+            season=self.config.season,
+        )
+        self._projection_events.clear()
+        materialized = [fixture_id]
+
+        lineups = self._request("lineups", {"fixture": fixture_id})
+        if response_count(lineups.payload) == 0:
+            raise FutureRefreshError("GATE_A_CANARY_LINEUPS_EMPTY")
+        self._materialize_lineup_enrichment(
+            fixtures=fixtures,
+            enrichment_responses=[(fixture_id, "lineups", lineups)],
+        )
+        canonical_lineup = self._db_repository().canonical_lineup_confirmed_event(fixture_id)
+        if canonical_lineup is None:
+            raise FutureRefreshError("LINEUP_MATERIALIZATION_FAILED:CANONICAL_EVENT_MISSING")
+        persist_staged_lineup_event(canonical_lineup)
+        lineup_events = [
+            event
+            for event in self._projection_events.values()
+            if event.event_type == "LINEUP_CHANGED"
+        ]
+        if len(lineup_events) != 1 or pre_capture_at >= lineup_events[0].event_at:
+            raise FutureRefreshError("GATE_A_CANARY_PRE_LINEUP_ORDER_INVALID")
+        lineup_event_at = lineup_events[0].event_at
+        lineup_hash = str(lineup_events[0].event_id).removeprefix("lineup:")
+        self._projection_events.clear()
+
+        odds_post = self._request("odds", {"fixture": fixture_id})
+        if odds_post.captured_at < lineup_event_at:
+            raise FutureRefreshError("GATE_A_CANARY_POST_LINEUP_ORDER_INVALID")
+        appended, post_rows = self._persist_canary_odds(fixture_id, odds_post)
+        materialize_staged_dynamic_v2(
+            post_rows,
+            captured_at=odds_post.captured_at,
+            lineup_input_hash=lineup_hash,
+            lineup_confirmed_at=lineup_event_at,
+            checkpoint="GATE_A_STAGED_POST",
+            competition_id=self.config.competition_id,
+            season=self.config.season,
+        )
+        self._projection_events.clear()
+
+        from w2.infrastructure.database import create_engine
+        from w2.prematch.repository import project_exact_eval_02b_pairs
+
+        pair_count = sum(
+            pair.identity.canonical_fixture_id in {fixture_id, f"api_football:{fixture_id}"}
+            for pair in project_exact_eval_02b_pairs(create_engine()).pairs
+        )
+        result = FutureRefreshResult(
+            generated_at_utc=utc_now(),
+            fixture_count=1,
+            mapping_count=1,
+            market_snapshot_count=2,
+            feature_enrichment_payload_count=1,
+            ledger_appended_count=appended,
+            request_count=self._attempt_count,
+            remaining_quota=self._latest_remaining,
+            selected_market_fixture_ids=[fixture_id],
+            raw_payload_written_count=self._raw_payload_written_count,
+            materialized_fixture_ids=list(dict.fromkeys(materialized)),
+            exact_pair_count=pair_count,
+        )
+        self._write_audit(result)
+        return result
+
+    def _signed_fixture_rows(
+        self,
+        payload: dict[str, Any],
+        fixture_id: str,
+    ) -> list[dict[str, Any]]:
+        response = payload.get("response")
+        if not isinstance(response, list) or not response:
+            raise FutureRefreshError("GATE_A_SIGNED_FIXTURE_NOT_FOUND")
+        if any(
+            not isinstance(item, dict) or fixture_id_from_payload(item) != fixture_id
+            for item in response
+        ):
+            raise FutureRefreshError("GATE_A_FIXTURE_SCOPE_MISMATCH")
+        rows = self._future_fixtures(payload)
+        if len(rows) != 1 or fixture_id_from_payload(rows[0]) != fixture_id:
+            raise FutureRefreshError("GATE_A_SIGNED_FIXTURE_NOT_ELIGIBLE")
+        return rows
+
+    def _persist_canary_fixture_identity(
+        self,
+        response: LiveApiFootballResponse,
+        fixtures: list[dict[str, Any]],
+        *,
+        request_params: dict[str, str],
+    ) -> None:
+        from w2.matchday.repository import MatchdayRuntimeRepository
+
+        identities = self._fixture_identities_from_response(
+            fixtures_response=response,
+            fixtures=fixtures,
+            request_params=request_params,
+        )
+        if len(identities) != 1:
+            raise FutureRefreshError("FIXTURE_IDENTITY_PERSISTENCE_FAILED:IDENTITY_MISSING")
+        try:
+            _persisted, changed = (
+                MatchdayRuntimeRepository().upsert_fixture_identities_with_business_changes(
+                    identities
+                )
+            )
+        except Exception as exc:
+            raise FutureRefreshError(
+                f"FIXTURE_IDENTITY_PERSISTENCE_FAILED:{exc.__class__.__name__}"
+            ) from exc
+        if changed:
+            identity = identities[0]
+            self._record_projection_event(
+                ProjectionSourceEvent.create(
+                    fixture_id=str(identity["provider_fixture_id"]),
+                    event_type="FIXTURE_CHANGED",
+                    event_id=f"fixture:{identity['identity_hash']}",
+                    event_at=response.captured_at,
+                    payload=identity,
+                )
+            )
+
+    def _persist_canary_odds(
+        self,
+        fixture_id: str,
+        response: LiveApiFootballResponse,
+    ) -> tuple[int, list[dict[str, Any]]]:
+        from w2.matchday.intake_v2 import normalize_matchday_odds_payload
+        from w2.matchday.repository import MatchdayRuntimeRepository
+
+        params = {"fixture": fixture_id}
+        raw_record = self._raw_payload_record(
+            endpoint="odds", params=params, payload=response.payload
+        )
+        raw_sha = sha256_payload(raw_record, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD)
+        capture = self._matchday_capture_by_payload.get(
+            self._capture_lookup_key(
+                endpoint="odds",
+                params=params,
+                raw_payload_sha256=raw_sha,
+                captured_at=response.captured_at,
+            )
+        )
+        if capture is None:
+            raise FutureRefreshError("ENDPOINT_CAPTURE_REQUIRED_BEFORE_NORMALIZATION")
+        rows, rejections = normalize_matchday_odds_payload(
+            response.payload,
+            captured_at=response.captured_at,
+            ingested_at=utc_now(),
+            raw_payload_sha256=raw_sha,
+            source_revision=self.config.source_revision,
+            capture_id=str(capture["capture_id"]),
+            competition_id=self.config.competition_id,
+        )
+        if any(item.get("reason") == "OBSERVATION_IDENTITY_CONFLICT" for item in rejections):
+            raise FutureRefreshError("OBSERVATION_NORMALIZATION_CONFLICT")
+        inserted = MatchdayRuntimeRepository().insert_market_observations(rows)
+        if inserted > 0:
+            self._record_projection_event(
+                ProjectionSourceEvent.create(
+                    fixture_id=fixture_id,
+                    event_type="ODDS_CHANGED",
+                    event_id=f"odds:{capture['capture_id']}",
+                    event_at=response.captured_at,
+                    payload={
+                        "observation_ids": sorted(str(row["observation_id"]) for row in rows),
+                        "inserted": inserted,
+                    },
+                )
+            )
+        return inserted, rows
+
     def _validate_checkpoint_claims(self) -> None:
         if self.config.persistence != "db" or not self.config.refresh_checkpoints:
             return
@@ -955,9 +1178,7 @@ class FutureFixtureRefreshService:
                 params=params,
                 payload=response.payload,
             )
-            payload_sha = sha256_payload(
-                raw_payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD
-            )
+            payload_sha = sha256_payload(raw_payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD)
             response_size = response_count(response.payload)
             raw_payload_persisted, raw_payload_error = self._save_raw_payload_first(
                 endpoint=endpoint,
@@ -1106,6 +1327,11 @@ class FutureFixtureRefreshService:
                     "daily_limit_source": quota.daily_limit_source,
                     "burst_source": quota.burst_source,
                 },
+                request_task_key_override=(
+                    self.runtime_authorization.task_key
+                    if self.runtime_authorization is not None
+                    else None
+                ),
             )
             repository = MatchdayRuntimeRepository()
             repository.insert_endpoint_capture(capture)
@@ -1632,9 +1858,7 @@ class FutureFixtureRefreshService:
                     params={"fixture": fixture_id},
                     payload=response.payload,
                 )
-                raw_sha = sha256_payload(
-                    raw_record, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD
-                )
+                raw_sha = sha256_payload(raw_record, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD)
                 capture = self._matchday_capture_by_payload.get(
                     self._capture_lookup_key(
                         endpoint="odds",
@@ -1741,9 +1965,7 @@ class FutureFixtureRefreshService:
                 params={"fixture": fixture_id},
                 payload=response.payload,
             )
-            raw_sha = sha256_payload(
-                raw_record, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD
-            )
+            raw_sha = sha256_payload(raw_record, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD)
             capture = self._matchday_capture_by_payload.get(
                 self._capture_lookup_key(
                     endpoint=endpoint,
@@ -1753,9 +1975,7 @@ class FutureFixtureRefreshService:
                 )
             )
             if capture is None:
-                raise FutureRefreshError(
-                    "LINEUP_MATERIALIZATION_FAILED:ENDPOINT_CAPTURE_MISSING"
-                )
+                raise FutureRefreshError("LINEUP_MATERIALIZATION_FAILED:ENDPOINT_CAPTURE_MISSING")
             try:
                 previous_identity = repository.confirmed_lineup_business_identity(
                     fixture_id=fixture_id
@@ -1773,16 +1993,11 @@ class FutureFixtureRefreshService:
                 reason = str(exc)
                 if reason.startswith("LINEUP_MATERIALIZATION_FAILED:"):
                     raise FutureRefreshError(reason) from exc
-                raise FutureRefreshError(
-                    f"LINEUP_MATERIALIZATION_FAILED:{reason}"
-                ) from exc
+                raise FutureRefreshError(f"LINEUP_MATERIALIZATION_FAILED:{reason}") from exc
             if lineup_event is None:
-                raise FutureRefreshError(
-                    "LINEUP_MATERIALIZATION_FAILED:CANONICAL_EVENT_MISSING"
-                )
-            exact_replay = (
-                materialized_rows == 0
-                and lineup_event.source_capture_id == str(capture["capture_id"])
+                raise FutureRefreshError("LINEUP_MATERIALIZATION_FAILED:CANONICAL_EVENT_MISSING")
+            exact_replay = materialized_rows == 0 and lineup_event.source_capture_id == str(
+                capture["capture_id"]
             )
             if (
                 exact_replay
@@ -1816,17 +2031,19 @@ class FutureFixtureRefreshService:
         *,
         fixtures_response: LiveApiFootballResponse,
         fixtures: list[dict[str, Any]],
+        request_params: dict[str, str] | None = None,
     ) -> list[dict[str, Any]]:
+        params = request_params or self._fixtures_request_params()
         raw_record = self._raw_payload_record(
             endpoint="fixtures",
-            params=self._fixtures_request_params(),
+            params=params,
             payload=fixtures_response.payload,
         )
         raw_sha = sha256_payload(raw_record, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD)
         capture = self._matchday_capture_by_payload.get(
             self._capture_lookup_key(
                 endpoint="fixtures",
-                params=self._fixtures_request_params(),
+                params=params,
                 raw_payload_sha256=raw_sha,
                 captured_at=fixtures_response.captured_at,
             )
@@ -1901,9 +2118,7 @@ class FutureFixtureRefreshService:
             "confidence": 1.0,
             "reliable": True,
             "conflict": False,
-            "evidence_sha256": sha256_payload(
-                item, domain=HashDomain.FUTURE_REFRESH_EVIDENCE
-            ),
+            "evidence_sha256": sha256_payload(item, domain=HashDomain.FUTURE_REFRESH_EVIDENCE),
         }
 
     def _market_snapshot_from_observations(
@@ -2311,6 +2526,90 @@ def run_future_refresh_task(
     write_task_audit(root, audit, persistence=persistence)
     if provider_call_reservation is not None:
         provider_call_reservation.finalize(status)
+    return audit
+
+
+def run_staged_gate_a_canary_task(
+    *,
+    task_id: str,
+    key: str,
+    queued_at: datetime,
+    competition_id: str,
+    season: str,
+    fixture_id: str,
+    runtime_authorization: GateARuntimeAuthorization,
+    provider_call_reservation: GateARunReservation,
+    now: datetime | None = None,
+    client: LiveApiFootballPort | None = None,
+) -> RefreshTaskAudit:
+    """Execute only the signed five-call staged canary and bind its DB audit."""
+    started_at = utc_now()
+    evaluation_time = now or started_at
+    if (
+        key != runtime_authorization.task_key
+        or fixture_id != runtime_authorization.fixture_id
+        or provider_call_reservation.task_key != key
+        or provider_call_reservation.authorization_id != runtime_authorization.authorization_id
+    ):
+        raise FutureRefreshError("GATE_A_TASK_KEY_DB_FENCE_REQUIRED")
+    config = config_from_policy(competition_id=competition_id)
+    if season != config.season:
+        raise FutureRefreshError("GATE_A_POLICY_SEASON_MISMATCH")
+    config = replace(
+        config,
+        persistence="db",
+        request_budget=GATE_A_CANARY_PROVIDER_CALL_CAP,
+        max_fixture_candidates=1,
+        max_odds_requests=2,
+        checkpoint_fixture_ids=(fixture_id,),
+        feature_enrichment_enabled=True,
+        feature_enrichment_endpoints=("lineups",),
+        feature_enrichment_request_budget=1,
+    )
+    status = "BLOCKED"
+    summary: dict[str, Any]
+    service = FutureFixtureRefreshService(
+        client=client,
+        config=config,
+        now=evaluation_time,
+        runtime_authorization=runtime_authorization,
+        provider_call_reservation=provider_call_reservation,
+    )
+    try:
+        result = service.run_staged_gate_a_canary(fixture_id)
+        status = "COMPLETED"
+        summary = {
+            "fixture_count": result.fixture_count,
+            "request_count": result.request_count,
+            "raw_payload_written_count": result.raw_payload_written_count,
+            "selected_market_fixture_ids": result.selected_market_fixture_ids,
+            "materialized_fixture_ids": result.materialized_fixture_ids,
+            "exact_pair_count": result.exact_pair_count,
+            "blockers": [],
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+    except Exception as exc:
+        summary = {
+            "request_count": service._attempt_count,
+            "blockers": [str(exc) or exc.__class__.__name__],
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+    audit = RefreshTaskAudit(
+        task_id=task_id,
+        key=key,
+        owner=provider_call_reservation.owner,
+        queued_at=iso(queued_at),
+        started_at=iso(started_at),
+        finished_at=iso(utc_now()),
+        status=status,
+        result=summary,
+        gate_a_authorization_id=runtime_authorization.authorization_id,
+        gate_a_lease_epoch=provider_call_reservation.lease_epoch,
+    )
+    write_task_audit(config.runtime_root, audit, persistence="db")
+    provider_call_reservation.finalize(status)
     return audit
 
 

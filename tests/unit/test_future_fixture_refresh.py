@@ -37,13 +37,14 @@ NOW = datetime(2026, 6, 23, 10, 0, tzinfo=UTC)
 def _gate_a_authorization() -> GateARuntimeAuthorization:
     signing_key = Ed25519PrivateKey.from_private_bytes(bytes(range(32)))
     payload: dict[str, object] = {
-        "schema_version": "w2.gate-a-one-shot-authorization.v2",
+        "schema_version": "w2.gate-a-one-shot-authorization.v3",
         "action": "ONE_SHOT_FOREGROUND_CANARY",
         "review_status": "APPROVED",
         "one_shot": True,
         "persistence": "db",
         "authorization_id": "offline-test",
         "task_key": "future-refresh:world_cup_2026:2026:20260623T100000Z",
+        "fixture_id": "1001",
         "competition_id": "world_cup_2026",
         "season": "2026",
         "exact_head": "a" * 40,
@@ -52,7 +53,7 @@ def _gate_a_authorization() -> GateARuntimeAuthorization:
         "runtime_artifact_digest": None,
         "complete_checkout_manifest_sha256": "c" * 64,
         "allowed_endpoints": ["status", "fixtures", "odds", "lineups"],
-        "provider_call_cap": 4,
+        "provider_call_cap": 5,
         "issued_at": "2026-06-23T09:59:00Z",
         "expires_at": "2026-06-23T10:30:00Z",
         "author": "implementer",

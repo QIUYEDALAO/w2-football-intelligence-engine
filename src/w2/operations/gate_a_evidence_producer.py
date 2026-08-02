@@ -57,7 +57,9 @@ def capture_gate_a_evidence_baseline(
             )
         )
         raw_hashes = {row.raw_payload_sha256 for row in captures}
-        fixture_ids = {str(row.fixture_id) for row in captures if row.fixture_id}
+        fixture_ids = _authorized_fixture_aliases(authorization) | {
+            str(row.fixture_id) for row in captures if row.fixture_id
+        }
         lineup_rows = (
             list(
                 session.scalars(
@@ -183,7 +185,9 @@ def produce_gate_a_evidence(
             if all_raw_hashes
             else []
         )
-        fixture_ids = {str(row.fixture_id) for row in all_captures if row.fixture_id}
+        fixture_ids = _authorized_fixture_aliases(authorization) | {
+            str(row.fixture_id) for row in all_captures if row.fixture_id
+        }
         all_lineup_rows = (
             list(
                 session.scalars(
@@ -345,6 +349,7 @@ def produce_gate_a_evidence(
                 "lease_epoch": reservation.lease_epoch,
                 "authorization_id": reservation.authorization_id,
                 "task_key": reservation.task_key,
+                "fixture_id": reservation.fixture_id,
                 "status": reservation.status,
                 "reserved_at": _iso(reservation.reserved_at),
                 "finished_at": _iso(reservation.finished_at),
@@ -386,6 +391,7 @@ def produce_gate_a_evidence(
                 {
                     "capture_id": row.capture_id,
                     "endpoint": row.endpoint,
+                    "fixture_id": row.fixture_id,
                     "request_task_key": row.request_task_key,
                     "raw_payload_sha256": row.raw_payload_sha256,
                     "provider_captured_at": _iso(row.provider_captured_at),
@@ -469,6 +475,7 @@ def _reservation_matches_authorization(
 ) -> None:
     fields = (
         (reservation.task_key, authorization.task_key),
+        (reservation.fixture_id, authorization.fixture_id),
         (reservation.competition_id, authorization.competition_id),
         (reservation.season, authorization.season),
         (reservation.provider_call_cap, authorization.provider_call_cap),
@@ -485,10 +492,18 @@ def _reservation_matches_authorization(
         raise GateAError("GATE_A_RESERVATION_AUTHORIZATION_MISMATCH")
 
 
+def _authorized_fixture_aliases(authorization: GateARuntimeAuthorization) -> set[str]:
+    fixture_id = authorization.fixture_id
+    if fixture_id.startswith("api_football:"):
+        return {fixture_id, fixture_id.removeprefix("api_football:")}
+    return {fixture_id, f"api_football:{fixture_id}"}
+
+
 def _binding(authorization: GateARuntimeAuthorization) -> dict[str, str | None]:
     return {
         "authorization_id": authorization.authorization_id,
         "task_key": authorization.task_key,
+        "fixture_id": authorization.fixture_id,
         "competition": authorization.competition_id,
         "policy_season": authorization.season,
         "exact_head": authorization.exact_head,

@@ -5,13 +5,21 @@ This tranche implements the final Wave 1 denominator without reopening T00:
 contracts. The machine authority is
 `config/policies/gate_a_offline_contracts.v1.json`.
 
-The only executable runtime is the direct foreground command
-`scripts/run_prematch_refresh.py --execute --authorization-file ...`. It is
-fail-closed by default, accepts a short-lived independently reviewed one-shot
-authorization for one competition/season/exact runtime artifact, requires DB persistence
-and migration-head parity, and atomically fences concurrent owners with a
-PostgreSQL lease epoch plus per-call reservation. A possible Provider delivery
-stops automatic retry.
+The canary-only executable runtime is the direct foreground command
+`scripts/run_gate_a_staged_canary.py`. It does not alter the ordinary future-refresh
+or C9 path. It is fail-closed by default and accepts a short-lived independently
+reviewed one-shot authorization bound to one fixture, competition, season, task key,
+exact runtime artifact, the exact `status, fixtures, odds, lineups` endpoint set, and
+a five-call cap. It requires DB persistence and migration-head parity and atomically
+fences concurrent owners with a PostgreSQL lease epoch plus per-call reservation. A
+possible Provider delivery stops automatic retry.
+
+The coordinator has one fixed order: `status → fixtures(signed fixture only) →
+odds_pre → Pre dynamic-v2/five-state → lineups → canonical lineup event → odds_post
+→ Post dynamic-v2/five-state → exact pair → DB evidence`. Pre capture must be before
+the lineup event and Post capture must be at or after it. The staged dynamic rows are
+derived from persisted exact same-line quotes by the production lifecycle writer;
+they are feasibility evidence only and cannot activate Candidate or Formal state.
 
 Admission binds either an immutable image digest or a disposable complete-clean
 checkout manifest. Checkout mode rejects every tracked/untracked change and any
@@ -41,7 +49,8 @@ the call cap is enforced. Raw-payload evidence counts only rows whose DB
 `inserted_at` proves first persistence after reservation, so a new capture of a
 pre-existing SHA yields a zero delta and fails admission.
 
-The command requires exact dynamic-v2 and five-state content (finite,
+The command requires exactly five received calls in the staged order and exact
+dynamic-v2 and five-state content (finite,
 nonnegative, exact keys, sum tolerance `1e-9`) and full exact-pair identity and
 capture lineage. Production pair hashes and bootstrap seed are compared with
 the existing Claude-authored Oracle in a `python -I` subprocess whose source

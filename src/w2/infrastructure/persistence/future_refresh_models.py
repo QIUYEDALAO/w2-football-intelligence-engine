@@ -60,6 +60,7 @@ class GateARunReservationModel(Base):
     )
     authorization_id: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
     task_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    fixture_id: Mapped[str] = mapped_column(String(128), nullable=False)
     competition_id: Mapped[str] = mapped_column(String(128), nullable=False)
     season: Mapped[str] = mapped_column(String(32), nullable=False)
     exact_head: Mapped[str] = mapped_column(String(64), nullable=False)

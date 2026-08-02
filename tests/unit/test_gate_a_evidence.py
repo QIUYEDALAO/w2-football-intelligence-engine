@@ -34,6 +34,7 @@ def authorization() -> GateARuntimeAuthorization:
     return GateARuntimeAuthorization(
         authorization_id="authorization-1",
         task_key="future-refresh:world_cup_2026:2026:bucket",
+        fixture_id="fixture-1",
         competition_id="world_cup_2026",
         season="2026",
         persistence="db",
@@ -43,7 +44,7 @@ def authorization() -> GateARuntimeAuthorization:
         runtime_artifact_digest=None,
         complete_checkout_manifest_sha256="c" * 64,
         allowed_endpoints=frozenset({"status", "fixtures", "odds", "lineups"}),
-        provider_call_cap=4,
+        provider_call_cap=5,
         issued_at=NOW - timedelta(minutes=1),
         expires_at=NOW + timedelta(minutes=30),
         author="implementer",
@@ -83,11 +84,12 @@ def valid_evidence() -> dict[str, object]:
             "lease_epoch": 1,
             "authorization_id": "authorization-1",
             "task_key": "future-refresh:world_cup_2026:2026:bucket",
+            "fixture_id": "fixture-1",
             "status": "COMPLETED",
             "reserved_at": "2026-08-01T11:59:00Z",
             "finished_at": "2026-08-01T12:01:00Z",
-            "provider_call_cap": 4,
-            "provider_calls_used": 1,
+            "provider_call_cap": 5,
+            "provider_calls_used": 5,
             "evidence_baseline": {
                 name: []
                 for name in (
@@ -111,15 +113,18 @@ def valid_evidence() -> dict[str, object]:
             "actual_execution_started_at": "2026-08-01T11:59:01Z",
             "finished_at": "2026-08-01T12:00:30Z",
             "status": "COMPLETED",
-            "result": {"fixture_count": 1, "request_count": 1},
+            "result": {"fixture_count": 1, "request_count": 5},
         },
         "provider_calls": [
             {
                 "lease_epoch": 1,
-                "ordinal": 1,
-                "endpoint": "fixtures",
+                "ordinal": ordinal,
+                "endpoint": endpoint,
                 "state": "RESPONSE_RECEIVED",
             }
+            for ordinal, endpoint in enumerate(
+                ("status", "fixtures", "odds", "lineups", "odds"), start=1
+            )
         ],
         "raw_payload_rows": [
             {
@@ -134,6 +139,7 @@ def valid_evidence() -> dict[str, object]:
             {
                 "capture_id": "capture-post",
                 "endpoint": "odds",
+                "fixture_id": "fixture-1",
                 "request_task_key": "future-refresh:world_cup_2026:2026:bucket",
                 "raw_payload_sha256": "1" * 64,
                 "provider_captured_at": "2026-08-01T12:00:00Z",
@@ -207,12 +213,14 @@ def valid_evidence() -> dict[str, object]:
             "bootstrap_seed_evidence",
         )
     }
+    artifact_counts["provider_calls"] = {"before": 0, "after": 5, "delta": 5}
     return {
-        "schema_version": "w2.gate-a-admission-evidence.v4",
+        "schema_version": "w2.gate-a-admission-evidence.v5",
         "serializer_version": "w2.canonical-json.v2",
         "binding": {
             "authorization_id": "authorization-1",
             "task_key": "future-refresh:world_cup_2026:2026:bucket",
+            "fixture_id": "fixture-1",
             "competition": "world_cup_2026",
             "policy_season": "2026",
             "exact_head": "a" * 40,
@@ -380,9 +388,7 @@ def test_caller_evidence_is_canonical_compare_only(
         evidence_cli.GateARuntimeAuthorization, "load", lambda _path, **_kwargs: authorization()
     )
     monkeypatch.setattr(evidence_cli, "create_engine", lambda: object())
-    monkeypatch.setattr(
-        evidence_cli, "produce_gate_a_evidence", lambda **_kwargs: authoritative
-    )
+    monkeypatch.setattr(evidence_cli, "produce_gate_a_evidence", lambda **_kwargs: authoritative)
     monkeypatch.setattr(
         sys,
         "argv",
@@ -446,6 +452,7 @@ def test_valid_signed_authorization_cannot_admit_self_consistent_fabrication(
     signed = authorization_payload(
         authorization_id="authorization-1",
         task_key="future-refresh:world_cup_2026:2026:bucket",
+        fixture_id="fixture-1",
     )
     authorization_path.write_text(json.dumps(signed), encoding="utf-8")
     trust_path.write_text(
@@ -464,9 +471,7 @@ def test_valid_signed_authorization_cannot_admit_self_consistent_fabrication(
         ),
         encoding="utf-8",
     )
-    authorization = GateARuntimeAuthorization.load(
-        authorization_path, trust_store_path=trust_path
-    )
+    authorization = GateARuntimeAuthorization.load(authorization_path, trust_store_path=trust_path)
     fabricated = valid_evidence()
     lineage = fabricated["lineage"]
     assert isinstance(lineage, dict)

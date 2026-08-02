@@ -17,6 +17,7 @@ from w2.prematch.analysis_calculator import ReadModelService
 
 class _Authorization:
     authorization_id = "test-authorization"
+    fixture_id = "1489404"
 
     def validate_scope(self, **kwargs: Any) -> None:
         if kwargs["persistence"] != "db":
