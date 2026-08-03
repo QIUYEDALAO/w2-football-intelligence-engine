@@ -35,6 +35,7 @@ from w2.infrastructure.persistence.ingestion_models import (
 )
 from w2.infrastructure.persistence.market_projection_view import current_market_projection
 from w2.infrastructure.persistence.matchday_intake_models import (
+    MatchdayCheckpointPlanModel,
     MatchdayEndpointCaptureModel,
     MatchdayFixtureIdentityModel,
     MatchdayMarketObservationModel,
@@ -2617,10 +2618,10 @@ class FutureRefreshDbRepository:
                 )
             )
             next_refresh_tick = session.scalar(
-                select(func.min(FutureRefreshCheckpointPlanModel.due_at)).where(
-                    FutureRefreshCheckpointPlanModel.fixture_id.in_(ids),
-                    FutureRefreshCheckpointPlanModel.status == "PENDING",
-                    FutureRefreshCheckpointPlanModel.due_at >= reference,
+                select(func.min(MatchdayCheckpointPlanModel.scheduled_at)).where(
+                    MatchdayCheckpointPlanModel.fixture_id.in_(canonical_ids),
+                    MatchdayCheckpointPlanModel.status == "PLANNED",
+                    MatchdayCheckpointPlanModel.scheduled_at >= reference,
                 )
             )
         return {

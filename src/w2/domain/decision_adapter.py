@@ -22,7 +22,9 @@ from w2.domain.enums import (
 )
 from w2.lineups.intelligence import lineup_requirement as competition_lineup_requirement
 from w2.readiness.data_gate import (
+    DataFreshnessPolicy,
     DataReadinessResult,
+    build_data_readiness_from_legacy_payload,
     result_from_mapping,
 )
 from w2.tracking.advisory_blind_spot_policy import (
@@ -73,7 +75,11 @@ def build_decision_contract_fields(
 ) -> dict[str, Any]:
     data_readiness = _data_readiness_result(
         card=card,
+        market=market,
+        recommendation=recommendation,
         readiness=readiness,
+        as_of=as_of,
+        kickoff_utc=kickoff_utc,
     )
     data_status = data_readiness.data_status
     evaluated_candidate = _selected_market_candidate(card, market)
@@ -444,7 +450,11 @@ def _market_anchor_blocks_pick(
 def _data_readiness_result(
     *,
     card: Mapping[str, Any],
+    market: Mapping[str, Any] | None,
+    recommendation: Mapping[str, Any] | None,
     readiness: Mapping[str, Any] | None,
+    as_of: datetime,
+    kickoff_utc: datetime,
 ) -> DataReadinessResult:
     for payload in (
         readiness,
@@ -455,18 +465,29 @@ def _data_readiness_result(
             parsed = result_from_mapping(payload)
             if parsed is not None:
                 return parsed
-    reason_human, action = _reason_text(DecisionReasonCode.COVERAGE_NONE)
-    return DataReadinessResult(
-        data_status=DataStatus.BLOCKED,
-        missing_fields=("data_readiness",),
-        stale_fields=(),
-        reason_code=DecisionReasonCode.COVERAGE_NONE,
-        reason_human=reason_human,
-        action=action,
-        next_eval_at=None,
-        provider_budget_status=None,
-        field_statuses=(),
-        blocking_fields=("data_readiness",),
+    if not _as_mapping(_get(card, "data_readiness")):
+        reason_human, action = _reason_text(DecisionReasonCode.COVERAGE_NONE)
+        return DataReadinessResult(
+            data_status=DataStatus.BLOCKED,
+            missing_fields=("data_readiness",),
+            stale_fields=(),
+            reason_code=DecisionReasonCode.COVERAGE_NONE,
+            reason_human=reason_human,
+            action=action,
+            next_eval_at=None,
+            provider_budget_status=None,
+            field_statuses=(),
+            blocking_fields=("data_readiness",),
+        )
+    return build_data_readiness_from_legacy_payload(
+        card=card,
+        market=market,
+        recommendation=recommendation,
+        analysis_readiness=readiness,
+        provider_status=_as_mapping(_get(card, "provider_status")),
+        as_of=as_of,
+        kickoff_utc=kickoff_utc,
+        policy=DataFreshnessPolicy(),
     )
 
 

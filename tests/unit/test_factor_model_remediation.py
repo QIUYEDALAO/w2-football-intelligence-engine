@@ -72,6 +72,7 @@ def test_provider_team_extraction_uses_fixture_identity_hashes_as_evidence() -> 
 
     assert teams[0]["provider_team_id"] == "367"
     assert teams[0]["display_name"] == "BK Hacken"
+    assert teams[0]["country"] == "Sweden"
     assert teams[0]["evidence_hashes"] == [fixture.identity_hash]
 
 
@@ -130,6 +131,7 @@ def _fixture(
 ) -> MatchdayFixtureIdentityModel:
     payload = {
         "fixture": {"id": int(provider_fixture_id), "date": now.isoformat()},
+        "league": {"id": 113, "country": "Sweden", "season": 2026},
         "teams": {
             "home": {"id": int(home_team_id), "name": home_name},
             "away": {"id": int(away_team_id), "name": away_name},

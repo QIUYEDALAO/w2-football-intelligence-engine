@@ -317,6 +317,7 @@ async function installRoutes(
       captured_at: "2026-07-17T14:48:45Z",
       executable: false,
       bookmaker_count: 10,
+      bookmakers: ["Betano"],
       markets: {
         ah: {
           line: "-0.5",
@@ -324,6 +325,9 @@ async function installRoutes(
           away_line: "+0.5",
           home_price: 1.82,
           away_price: 1.86,
+          bookmaker_name: "Betano",
+          captured_at: "2026-07-17T14:48:45Z",
+          freshness_status: "STALE",
         },
         ou: {
           line: "2.75",
@@ -598,8 +602,25 @@ test("stored early odds remain visible as reference while waiting for the premat
   await expect(row).toContainText("旧报价仅供参考，等待下一次受控采集");
   await row.click();
   await expect(page.locator("[data-ui='selected-match-panel']")).toContainText("继续观察");
-  await expect(row).not.toContainText("1.82");
+  await expect(row).toContainText("真实参考盘口（不可执行）");
+  await expect(row).toContainText("1.82");
+  await expect(row).toContainText("Betano");
+  await expect(row).toContainText("新鲜度 STALE");
   await expect(row).not.toContainText("1万次模拟");
+});
+
+test("scheduled collection does not label data-not-ready fixtures as high risk", async ({
+  page,
+}) => {
+  await installRoutes(page, "BLOCKED");
+  await page.goto("/");
+  await page.getByRole("button", { name: "全部赛程 1/1 场" }).click();
+
+  const row = page.locator("[data-fixture-id='fixture-blocked']");
+  await expect(row).toContainText("数据未就绪 · 中风险");
+  await expect(row).not.toContainText("高风险");
+  await expect(page.locator(".topbar")).toContainText("高风险赛事0");
+  await expect(page.locator(".risk-strip")).not.toContainText("自动采集当前暂停");
 });
 
 test("enabled leagues and club teams render localized Chinese names", async ({

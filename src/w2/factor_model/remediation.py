@@ -899,6 +899,12 @@ def provider_teams_from_fixtures(
     by_id: dict[str, dict[str, Any]] = {}
     for fixture in fixtures:
         payload = fixture.payload if isinstance(fixture.payload, dict) else {}
+        league = payload.get("league")
+        country = (
+            str(league.get("country") or "").strip() or None
+            if isinstance(league, dict)
+            else None
+        )
         teams = payload.get("teams") if isinstance(payload.get("teams"), dict) else {}
         for side, provider_id in (
             ("home", fixture.home_provider_team_id),
@@ -915,7 +921,7 @@ def provider_teams_from_fixtures(
                 {
                     "provider_team_id": provider_id,
                     "display_name": display_name,
-                    "country": "Sweden",
+                    "country": country,
                     "evidence_hashes": set(),
                 },
             )

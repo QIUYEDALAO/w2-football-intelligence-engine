@@ -253,7 +253,44 @@ function quoteModel(card: DashboardDayViewCard) {
   const quote = selectedQuote(card);
   const market = text(candidate.market || card.pick?.market);
   const selection = text(candidate.selection || card.pick?.selection);
-  if (!market || !selection || !Object.keys(quote).length) return null;
+  if (!market || !selection || !Object.keys(quote).length) {
+    const reference = record(card.last_known_odds);
+    if (text(reference.status) !== "REFERENCE_ONLY" || reference.executable !== false) return null;
+    const markets = record(reference.markets);
+    const ah = record(markets.ah);
+    const ou = record(markets.ou);
+    const source = Object.keys(ah).length ? ah : ou;
+    if (!Object.keys(source).length) return null;
+    const isAh = source === ah;
+    const bookmakers = Array.isArray(reference.bookmakers)
+      ? reference.bookmakers.map(text).filter(Boolean)
+      : [];
+    return {
+      referenceOnly: true,
+      freshnessStatus: text(source.freshness_status) || "UNKNOWN",
+      marketPolicyLabel: "REFERENCE_ONLY · 不可执行",
+      candidateRole: "MARKET_MAINLINE" as const,
+      marketMainlineLine: text(source.line || source.home_line || source.over_line),
+      marketMainlineBookmakerCount: numberValue(source.bookmaker_count) ?? bookmakers.length,
+      marketMainlineVoteCount: 0,
+      marketMainlineOverPrice: numberValue(source.over_price),
+      marketMainlineUnderPrice: numberValue(source.under_price),
+      marketMainlineHomePrice: numberValue(source.home_price),
+      marketMainlineAwayPrice: numberValue(source.away_price),
+      bookmaker: text(source.bookmaker_name) || bookmakers.join(" / ") || "已审计报价",
+      capturedAt: text(source.captured_at || reference.captured_at),
+      marketLabel: isAh ? "让球" : "大小球",
+      selectionLabel: "双边参考",
+      line: text(source.line || source.home_line || source.over_line),
+      odds: 0,
+      marketProbability: null,
+      modelProbability: null,
+      probabilityDelta: null,
+      expectedValue: null,
+      uncertainty: null,
+      ladder: [],
+    };
+  }
   const normalizedSelection = selection.toUpperCase().replace("_AH", "");
   const mainline = record(evaluatedCandidateRecord.market_mainline);
   const ladderEvaluation = record(evaluatedCandidateRecord.market_ladder_evaluation);
@@ -291,6 +328,7 @@ function quoteModel(card: DashboardDayViewCard) {
     ? "ALTERNATE_LINE" as const
     : "MARKET_MAINLINE" as const;
   return {
+    freshnessStatus: text(quoteIdentity.freshness_status) || "UNKNOWN",
     marketPolicyLabel: text(mainline.selection_policy || "主线政策待确认"),
     candidateRole,
     marketMainlineLine: text(mainline.line || candidate.line),

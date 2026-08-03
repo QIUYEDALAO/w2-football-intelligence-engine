@@ -3,7 +3,7 @@ from __future__ import annotations
 import inspect
 import json
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -18,7 +18,10 @@ from w2.infrastructure.persistence.market_projection_view import (
     PROJECTION_VIEW_NAME,
     current_market_projection,
 )
-from w2.infrastructure.persistence.matchday_intake_models import MatchdayMarketObservationModel
+from w2.infrastructure.persistence.matchday_intake_models import (
+    MatchdayCheckpointPlanModel,
+    MatchdayMarketObservationModel,
+)
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 from w2.prematch import analysis_calculator as calculation_repository
 
@@ -129,6 +132,72 @@ def test_matchday_observation_is_the_only_database_read_authority() -> None:
         )["odds_last_confirmed_at"]
         == "2026-07-23T01:02:03Z"
     )
+
+
+def test_api_refresh_status_reads_canonical_scheduler_plan(
+    monkeypatch: Any,
+) -> None:
+    engine = _engine()
+    now = datetime(2026, 8, 3, 1, 20, tzinfo=UTC)
+    scheduled_at = now + timedelta(hours=3)
+    with Session(engine) as session:
+        session.add(
+            MatchdayCheckpointPlanModel(
+                plan_id="api-canonical-plan",
+                fixture_id="api_football:123",
+                competition_id="brasileirao_serie_a",
+                season="2026",
+                policy_version="test-policy",
+                checkpoint="T12",
+                kickoff_utc=now + timedelta(hours=12),
+                scheduled_at=scheduled_at,
+                window_start=scheduled_at,
+                window_end=scheduled_at + timedelta(minutes=5),
+                endpoints=["odds"],
+                status="PLANNED",
+                blockers=[],
+                plan_hash="b" * 64,
+            )
+        )
+        session.commit()
+    monkeypatch.setattr(api_repository, "create_engine", lambda: engine)
+
+    status = api_repository.ReadModelRepository().market_refresh_status_for_fixtures(
+        ["123"],
+        now=now,
+    )
+
+    assert status["next_refresh_tick"] == "2026-08-03T04:20:00Z"
+
+
+def test_api_dashboard_card_overrides_provider_league_with_canonical_competition() -> None:
+    class Repository:
+        @staticmethod
+        def analysis_card_projection(_fixture_id: str) -> dict[str, Any]:
+            return {
+                "fixture_id": "123",
+                "competition_id": "71",
+                "decision_tier": "NOT_READY",
+                "recommendation_decision_v3": {
+                    "competition_id": "71",
+                    "outcome": "NOT_READY",
+                },
+            }
+
+    card = api_repository.ReadModelService(
+        repository=Repository(),  # type: ignore[arg-type]
+    )._project_dashboard_card(
+        {
+            "fixture_id": "123",
+            "competition_id": "71",
+            "kickoff_utc": "2026-08-10T00:00:00Z",
+            "status": "NS",
+        },
+        canonical_competition_id="brasileirao_serie_a",
+    )
+
+    assert card["competition_id"] == "brasileirao_serie_a"
+    assert card["recommendation_decision_v3"]["competition_id"] == "brasileirao_serie_a"
 
 
 def test_fixture_scoped_timeline_reads_history_not_current_projection() -> None:

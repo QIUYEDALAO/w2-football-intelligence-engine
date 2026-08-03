@@ -2222,6 +2222,9 @@ class ReadModelService:
             else "SKIP"
         )
         if tier not in {"ANALYSIS_PICK", "RECOMMEND"}:
+            reference_odds = self._reference_odds_from_quote_audit(projected)
+            if reference_odds:
+                projected["last_known_odds"] = reference_odds
             projected["current_odds"] = {}
             projected["candidate"] = False
             projected["formal_recommendation"] = False
@@ -2229,6 +2232,51 @@ class ReadModelService:
         self._enforce_non_pick_scoreline_invariant(projected)
         self._validate_public_v3_card_parity(projected)
         return projected
+
+    @staticmethod
+    def _reference_odds_from_quote_audit(card: dict[str, Any]) -> dict[str, Any] | None:
+        audit = card.get("quote_identity_audit")
+        if not isinstance(audit, dict):
+            return None
+        markets: dict[str, Any] = {}
+        captured_at: list[str] = []
+        bookmakers: set[str] = set()
+        for key, sides in (("ah", ("home", "away")), ("ou", ("over", "under"))):
+            identity = audit.get(key)
+            if not isinstance(identity, dict) or identity.get("identity_status") != "COMPLETE":
+                continue
+            quotes = identity.get("quotes")
+            if not isinstance(quotes, dict):
+                continue
+            pair = [quotes.get(side) for side in sides]
+            if any(not isinstance(quote, dict) for quote in pair):
+                continue
+            left, right = cast(tuple[dict[str, Any], dict[str, Any]], tuple(pair))
+            market = {
+                "line": left.get("line"),
+                f"{sides[0]}_line": left.get("line"),
+                f"{sides[1]}_line": right.get("line"),
+                f"{sides[0]}_price": left.get("decimal_odds"),
+                f"{sides[1]}_price": right.get("decimal_odds"),
+                "bookmaker_id": identity.get("bookmaker_id"),
+                "bookmaker_name": left.get("bookmaker_name") or right.get("bookmaker_name"),
+                "captured_at": identity.get("captured_at"),
+                "freshness_status": identity.get("freshness_status"),
+            }
+            markets[key] = market
+            if market["captured_at"]:
+                captured_at.append(str(market["captured_at"]))
+            if market["bookmaker_name"]:
+                bookmakers.add(str(market["bookmaker_name"]))
+        if not markets:
+            return None
+        return {
+            "status": "REFERENCE_ONLY",
+            "executable": False,
+            "captured_at": max(captured_at, default=None),
+            "bookmakers": sorted(bookmakers),
+            "markets": markets,
+        }
 
     def _fail_closed_public_analysis_card(
         self,
