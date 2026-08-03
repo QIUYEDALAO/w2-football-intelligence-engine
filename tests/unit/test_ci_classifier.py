@@ -24,13 +24,16 @@ def test_delivery_paths_require_full_quality_without_images_or_deploy() -> None:
         "scripts/ci_shards.py",
         "scripts/release_manifest.py",
         "scripts/dev_check.py",
+        "scripts/deploy_stage7h_staging.sh",
         "scripts/classify_ci.py",
         "ci/pytest_durations.v1.json",
         "tests/contract/test_delivery_pipeline.py",
+        "tests/contract/test_staging_runtime_hardening.py",
         "tests/contract/test_arch_p2_05_final_acceptance.py",
         "tests/unit/test_ci_classifier.py",
         "tests/unit/test_ci_shards.py",
         "tests/unit/test_release_manifest.py",
+        "tests/unit/test_release_evidence.py",
         "docs/operations/W2_DELIVERY_PIPELINE_LEAD_TIME_RECOVERY.md",
     )
     for path in paths:
