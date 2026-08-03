@@ -215,7 +215,7 @@ function DecisionRow({
         </div>
         {scoreline ? <div className="scoreline-inline"><b>模型比分</b> {scoreline}</div> : null}
       </div>
-      <div className={`risk-level ${item.riskLevel}`}><span>{item.status === "not-ready" ? "数据未就绪" : `${item.risk}风险`}</span><small>{item.riskNote}</small></div>
+      <div className={`risk-level ${item.riskLevel}`}><span>{item.risk}风险</span><small>{item.riskNote}</small></div>
       <div className="next-action"><strong>{item.nextAction}</strong><span>{item.nextDetail}</span></div>
     </button>
   );
