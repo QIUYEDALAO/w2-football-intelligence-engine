@@ -911,6 +911,8 @@ export interface DashboardDayViewCard {
   outcome_tracked: boolean;
   lock_eligible: boolean;
   recommendation_id?: string | null;
+  lineup_requirement?: string | null;
+  risk_reason_codes?: string[];
   reason_code?: string | null;
   action?: string | null;
   next_eval_at?: string | null;
