@@ -157,6 +157,13 @@ def _patch_ready_projection(monkeypatch: pytest.MonkeyPatch) -> None:
             "decision_tier": "ANALYSIS_ONLY",
             "pick": None,
             "evaluated_at": evaluation_time.astimezone(UTC).isoformat(),
+            "simulation": {
+                "status": "READY",
+                "lambda_home": 1.4,
+                "lambda_away": 0.9,
+                "scoreline_picks": [],
+                "ou_probabilities": {"ladder": []},
+            },
             "market_candidates": {
                 "ou": {
                     "market": "TOTALS",
@@ -227,14 +234,36 @@ def _calculate_projection(
     )
 
 
+def _scoreline_reference(
+    card: dict[str, Any],
+    version: Any,
+    quote_identity: dict[str, Any],
+) -> dict[str, Any]:
+    del card, quote_identity
+    return {
+        "source": "formal_simulation",
+        "scoreline_projection": {
+            "status": "READY",
+            "decision_hash": version.identity_hash,
+            "top3": [
+                {"scoreline": "1-0"},
+                {"scoreline": "2-0"},
+                {"scoreline": "2-1"},
+            ],
+        },
+    }
+
+
 def _materializer(
     repository: ScopedRepository,
     *,
     clock: Any | None = None,
 ) -> AnalysisCardCanaryMaterializer:
+
     return AnalysisCardCanaryMaterializer(
         repository,
         calculate_analysis_card=_calculate_projection,
+        build_scoreline_reference=_scoreline_reference,
         clock=clock,
     )
 
@@ -864,9 +893,9 @@ def test_not_ready_model_without_distribution_writes_ineligible_v1_marker(
     ) -> dict[str, Any] | None:
         card = _calculate_projection(repository, fixture_id, evaluated_at)
         assert card is not None
-        model = card["market_candidates"]["ou"]["analysis_evidence"]["side_evidence"][
-            "OVER"
-        ]["model_probability"]
+        model = card["market_candidates"]["ou"]["analysis_evidence"]["side_evidence"]["OVER"][
+            "model_probability"
+        ]
         model["status"] = "NOT_READY"
         model.pop("settlement_distribution")
         return card
@@ -1040,9 +1069,7 @@ def test_lineup_odds_plan_spec_conflict_rolls_back_projection_unit(
                 status=str(conflicting["status"]),
                 missed_at=conflicting["missed_at"],
                 capture_id=conflicting["capture_id"],
-                current_unscheduled_capture_id=conflicting[
-                    "current_unscheduled_capture_id"
-                ],
+                current_unscheduled_capture_id=conflicting["current_unscheduled_capture_id"],
                 blockers=list(conflicting["blockers"]),
                 plan_hash=str(conflicting["plan_hash"]),
             )
@@ -1093,6 +1120,7 @@ def test_single_event_shadow_matches_post_write_current_read_with_lifecycle(
     materializer = AnalysisCardCanaryMaterializer(
         repository,
         calculate_analysis_card=calculate,
+        build_scoreline_reference=_scoreline_reference,
     )
     artifact = materializer.build(
         "1576804",
@@ -1131,6 +1159,10 @@ def test_single_event_shadow_matches_post_write_current_read_with_lifecycle(
         assert evaluation.payload["provider"] == "api_football"
         assert evaluation.payload["lineup_input_hash"] is None
         assert evaluation.payload["state"] == "ANALYSIS_PICK_ACTIVE"
+        assert (
+            evaluation.payload["scoreline_reference"]["scoreline_projection"]["status"] == "READY"
+        )
+        assert len(evaluation.payload["scoreline_reference"]["scoreline_projection"]["top3"]) == 3
         assert evaluation.payload["model_settlement_distribution"] == {
             "WIN": 0.48,
             "HALF_WIN": 0.10,

@@ -42,6 +42,7 @@ def build_dashboard_day_view(
         for card in _dashboard_cards(dashboard_payload)
         if _is_prematch_card(card, as_of=as_of)
     ]
+    cards.sort(key=_dashboard_card_order)
     counts = _counts(cards)
     view = {
         "generated_at": generated_at,
@@ -77,6 +78,14 @@ def _dashboard_cards(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     if not isinstance(rows, Sequence) or isinstance(rows, str | bytes | bytearray):
         return []
     return [row for row in rows if isinstance(row, Mapping)]
+
+
+def _dashboard_card_order(card: Mapping[str, Any]) -> tuple[int, str, str]:
+    return (
+        0 if card.get("decision_tier") == DecisionTier.ANALYSIS_PICK.value else 1,
+        _optional_text(card.get("kickoff_utc")) or "9999-12-31T23:59:59Z",
+        _optional_text(card.get("fixture_id")) or "",
+    )
 
 
 def _is_prematch_card(card: Mapping[str, Any], *, as_of: datetime) -> bool:
@@ -255,6 +264,17 @@ def _reconcile_dynamic_decision(projected: dict[str, Any]) -> dict[str, Any]:
         contract,
         manifest=load_recommendation_capability_manifest(),
     ).as_dict()
+    scoreline_reference = _mapping_copy(row.get("scoreline_reference"))
+    scoreline_projection = _mapping_copy(scoreline_reference.get("scoreline_projection"))
+    if scoreline_projection.get("status") == "READY":
+        scoreline_projection.update(
+            {
+                "source_evaluation_hash": row.get("identity_hash"),
+                "public_decision_hash": reconciled.get("decision_hash"),
+            }
+        )
+        scoreline_reference["direction_top3"] = _mapping_list(scoreline_projection.get("top3"))
+        scoreline_reference["scoreline_projection"] = scoreline_projection
     readiness = _mapping_copy(projected.get("data_readiness"))
     readiness.update(
         {
@@ -280,6 +300,15 @@ def _reconcile_dynamic_decision(projected: dict[str, Any]) -> dict[str, Any]:
         "one_liner": "当前动态评估已形成分析方向",
         "card_hash": contract["card_hash"],
         "recommendation_decision_v3": reconciled,
+        "scoreline_picks": _mapping_list(scoreline_projection.get("top3")),
+        "scoreline_reference": scoreline_reference,
+        "scoreline_readiness": {
+            "status": scoreline_projection.get("status"),
+            "reason": scoreline_projection.get("reason"),
+            "source": "persisted_dynamic_evaluation",
+        }
+        if scoreline_projection
+        else _mapping_copy(projected.get("scoreline_readiness")),
         "decision_projection": {
             "status": "RECONCILED",
             "source": "dynamic_prematch.current",

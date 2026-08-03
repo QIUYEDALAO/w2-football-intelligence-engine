@@ -5,7 +5,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from uuid import uuid4
 
@@ -164,6 +164,8 @@ def due_checkpoint_refresh_batch(
     worker_id: str | None = None,
 ) -> dict[str, Any]:
     from w2.ingestion.checkpoint_refresh import (
+        POSTMATCH_RESULT_CHECKPOINT,
+        postmatch_result_checkpoint_plan,
         projected_calls_for_checkpoint_batch,
         select_checkpoint_batch,
     )
@@ -206,6 +208,18 @@ def due_checkpoint_refresh_batch(
                 policy=policy,
             )
         )
+        if kickoff >= now - timedelta(hours=36) and kickoff <= now + timedelta(
+            hours=policy.discovery_horizon_hours
+        ):
+            plans.append(
+                postmatch_result_checkpoint_plan(
+                    fixture_id=f"{policy.provider}:{provider_fixture_id}",
+                    competition_id=competition_id,
+                    season=policy.season,
+                    kickoff_utc=kickoff,
+                    now=now,
+                )
+            )
     generated_plan_ids = {stable_hash(plan.natural_identity) for plan in plans}
     for plan in plans:
         repository.upsert_checkpoint_plan(plan)
@@ -217,6 +231,7 @@ def due_checkpoint_refresh_batch(
             for row in repository.claim_due_checkpoint_plans(
                 now=now,
                 worker_id=claim_worker_id,
+                plan_ids=generated_plan_ids,
                 limit=int(os.environ.get("W2_CHECKPOINT_REFRESH_MAX_DUE", "100")),
             )
             if row.get("id") in generated_plan_ids
@@ -235,8 +250,14 @@ def due_checkpoint_refresh_batch(
         )
         for row in due_rows
     ]
+    postmatch_mode = bool(due_plans and due_plans[0].checkpoint == POSTMATCH_RESULT_CHECKPOINT)
+    same_mode_plans = [
+        plan
+        for plan in due_plans
+        if (plan.checkpoint == POSTMATCH_RESULT_CHECKPOINT) is postmatch_mode
+    ]
     selected_raw, projected_calls = select_checkpoint_batch(
-        cast(Any, due_plans),
+        cast(Any, same_mode_plans),
         hard_cap=provider_refresh_tick_hard_cap(),
     )
     selected = cast(list[ClaimedCheckpointPlan], selected_raw)
@@ -276,6 +297,7 @@ def due_checkpoint_refresh_batch(
         "all_due_projected_calls": projected_calls_for_checkpoint_batch(cast(Any, due_plans)),
         "tick_hard_cap": provider_refresh_tick_hard_cap(),
         "checkpoints": selected_rows,
+        "refresh_mode": "POSTMATCH_RESULT" if postmatch_mode else "PREMATCH",
         "scheduler_checkpoint_writer": "matchday_checkpoint_plans",
         "legacy_checkpoint_writer_count": 0,
     }

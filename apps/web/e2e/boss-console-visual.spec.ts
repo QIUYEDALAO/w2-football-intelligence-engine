@@ -5,6 +5,7 @@ import {
   adaptDashboardV2ToBossConsole,
   dedupeLeaguePerformance,
 } from "../src/reference/boss-console/boss-console-adapter";
+import { adaptDashboardV2 } from "../src/reference/dashboard-v2/dashboard-v2-adapter";
 import { bossConsoleFixture } from "../src/reference/boss-console/boss-console.fixture";
 import { dashboardV2ReferenceFixture } from "../src/reference/dashboard-v2/dashboard-v2-reference.fixture";
 
@@ -299,6 +300,70 @@ test.describe("Boss Decision Console source contract", () => {
       "0-2",
       "1-2",
     ]);
+  });
+
+  test("not-ready collection states are not mislabeled as high-risk exceptions", () => {
+    const fixture = structuredClone(dashboardV2ReferenceFixture);
+    fixture.fixtures[0] = {
+      ...fixture.fixtures[0],
+      decisionTier: "NOT_READY",
+      decisionOutcome: "NOT_READY",
+      dataStatus: "BLOCKED",
+      reasonCode: "MARKET_UNAVAILABLE",
+      reasonLabel: "Provider 已返回数据，但没有可比较的完整双边盘口",
+      oddsCollectionStatus: "MARKET_UNAVAILABLE",
+    };
+
+    const model = adaptDashboardV2ToBossConsole(fixture);
+
+    expect(model.decisions[0].riskLevel).toBe("medium");
+    expect(model.decisions[0].riskNote).toBe(
+      "Provider 已返回数据，但没有可比较的完整双边盘口",
+    );
+    expect(model.riskExceptionCount).toBe(
+      model.decisions.filter((item) => item.riskLevel === "high").length,
+    );
+  });
+
+  test("NO_EDGE decision truth is not masked by a stale market-unavailable fallback", () => {
+    const dayView = {
+      generated_at: "2026-08-04T00:00:00Z",
+      date: "2026-08-04",
+      football_day: "2026-08-04",
+      selected_football_day: "2026-08-04",
+      environment: "staging",
+      timezone: "Asia/Shanghai",
+      window: "future",
+      source: "read_model",
+      would_write_checkpoint: false,
+      provider_calls: 0,
+      db_writes: 0,
+      counts: {},
+      freshness: {},
+      cards: [{
+        fixture_id: "no-edge-1",
+        kickoff_utc: "2026-08-05T12:00:00Z",
+        decision_tier: "SKIP",
+        recommendation_decision_v3: {
+          outcome: "NO_EDGE",
+          reason: { code: "NO_ANALYSIS_EDGE", message: "数据完整但没有分析优势" },
+        },
+        data_status: "READY",
+        lifecycle_status: "EVALUATED",
+        outcome_tracked: false,
+        lock_eligible: false,
+        reason_code: "MARKET_UNAVAILABLE",
+        missing_fields: [],
+        stale_fields: [],
+        scoreline_picks: [],
+        data_refresh: { odds_status: "READY" },
+      }],
+    } as unknown as Parameters<typeof adaptDashboardV2>[0];
+
+    const model = adaptDashboardV2(dayView, undefined, undefined);
+
+    expect(model.fixtures[0].reasonLabel).toBe("数据完整但没有分析优势");
+    expect(model.fixtures[0].decisionOutcome).toBe("NO_EDGE");
   });
 
   test("scoreline display keeps sample counts, constraints and blockers truthful", async ({ page }) => {

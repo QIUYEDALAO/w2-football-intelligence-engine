@@ -41,6 +41,7 @@ from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
+    MatchdayEndpointCaptureModel,
     MatchdayFixtureIdentityModel,
     MatchdayMarketObservationModel,
 )
@@ -489,6 +490,97 @@ class ReadModelRepository:
             "next_refresh_tick": _iso_or_none(next_tick),
         }
 
+    def market_collection_status_for_fixtures(
+        self,
+        fixture_ids: list[str],
+        *,
+        now: datetime | None = None,
+    ) -> dict[str, dict[str, Any]]:
+        provider_ids = {
+            str(fixture_id or "").removeprefix("api_football:")
+            for fixture_id in fixture_ids
+            if str(fixture_id or "").strip()
+        }
+        canonical_ids = {f"api_football:{fixture_id}" for fixture_id in provider_ids}
+        if not canonical_ids:
+            return {}
+        reference = now or datetime.now(UTC)
+        with Session(create_engine()) as session:
+            captures = list(
+                session.scalars(
+                    select(MatchdayEndpointCaptureModel)
+                    .where(
+                        MatchdayEndpointCaptureModel.endpoint == "odds",
+                        MatchdayEndpointCaptureModel.fixture_id.in_(canonical_ids),
+                    )
+                    .order_by(MatchdayEndpointCaptureModel.provider_captured_at.desc())
+                )
+            )
+            observed_capture_ids = set(
+                session.scalars(
+                    select(MatchdayMarketObservationModel.capture_id).where(
+                        MatchdayMarketObservationModel.fixture_id.in_(canonical_ids)
+                    )
+                )
+            )
+            plans = session.execute(
+                select(
+                    MatchdayCheckpointPlanModel.fixture_id,
+                    MatchdayCheckpointPlanModel.scheduled_at,
+                    MatchdayCheckpointPlanModel.endpoints,
+                    MatchdayCheckpointPlanModel.status,
+                ).where(
+                    MatchdayCheckpointPlanModel.fixture_id.in_(canonical_ids),
+                    MatchdayCheckpointPlanModel.status.in_(("PLANNED", "DUE")),
+                )
+            ).all()
+        latest: dict[str, MatchdayEndpointCaptureModel] = {}
+        for capture in captures:
+            if capture.fixture_id and capture.fixture_id not in latest:
+                latest[capture.fixture_id] = capture
+        next_by_fixture: dict[str, tuple[datetime, str]] = {}
+        for fixture_id, scheduled_at, endpoints, plan_status in plans:
+            if "odds" not in set(endpoints or []):
+                continue
+            if not isinstance(scheduled_at, datetime):
+                continue
+            scheduled = (
+                scheduled_at.replace(tzinfo=UTC)
+                if scheduled_at.tzinfo is None
+                else scheduled_at.astimezone(UTC)
+            )
+            current = next_by_fixture.get(fixture_id)
+            if current is None or scheduled < current[0]:
+                next_by_fixture[fixture_id] = (scheduled, plan_status)
+        result: dict[str, dict[str, Any]] = {}
+        for canonical_id in canonical_ids:
+            current_capture = latest.get(canonical_id)
+            next_plan = next_by_fixture.get(canonical_id)
+            if current_capture is None:
+                status = (
+                    "WINDOW_DUE"
+                    if next_plan and (next_plan[1] == "DUE" or next_plan[0] <= reference)
+                    else "WAITING_WINDOW"
+                    if next_plan
+                    else "NOT_SCHEDULED"
+                )
+            elif current_capture.response_count == 0:
+                status = "PROVIDER_EMPTY"
+            elif current_capture.capture_id not in observed_capture_ids:
+                status = "MARKET_UNAVAILABLE"
+            else:
+                status = "READY"
+            payload = {
+                "odds_status": status,
+                "last_refresh_hint": _iso_or_none(
+                    current_capture.provider_captured_at if current_capture is not None else None
+                ),
+                "next_refresh_at": _iso_or_none(next_plan[0] if next_plan else None),
+            }
+            result[canonical_id] = payload
+            result[canonical_id.removeprefix("api_football:")] = payload
+        return result
+
     def canonical_competitions_for_fixtures(
         self,
         fixture_ids: list[str],
@@ -720,6 +812,24 @@ class ReadModelService:
             for item in fixtures
         ]
         selected = self._filter_dashboard_cards(cards, requested_date=requested_date, window=window)
+        collection_reader = getattr(
+            self.repository,
+            "market_collection_status_for_fixtures",
+            None,
+        )
+        collection_status = (
+            collection_reader([str(card.get("fixture_id") or "") for card in selected])
+            if callable(collection_reader)
+            else {}
+        )
+        for card in selected:
+            fixture_status = collection_status.get(str(card.get("fixture_id") or ""))
+            if fixture_status:
+                current_refresh = card.get("data_refresh")
+                card["data_refresh"] = {
+                    **(current_refresh if isinstance(current_refresh, dict) else {}),
+                    **fixture_status,
+                }
         recommendations = [
             card
             for card in selected

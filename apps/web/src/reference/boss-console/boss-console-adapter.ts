@@ -19,8 +19,12 @@ import type {
 } from "./boss-console-model";
 
 function riskLevel(fixture: DashboardV2FixtureModel): BossRiskLevel {
-  if (fixture.dataStatus === "BLOCKED" || fixture.decisionTier === "NOT_READY") return "high";
   if (fixture.quote?.candidateRole === "ALTERNATE_LINE") return "high";
+  if (
+    fixture.decisionOutcome === "SYSTEM_DEGRADED"
+    || /(?:CONFLICT|SCHEMA_DRIFT|QUOTA|FAILED|ERROR)/.test(fixture.reasonCode || "")
+  ) return "high";
+  if (fixture.dataStatus === "BLOCKED" || fixture.decisionTier === "NOT_READY") return "medium";
   if (fixture.dataFacts.some((fact) => fact.includes("首发") && !fact.includes("已就绪"))) {
     return "medium";
   }
@@ -176,7 +180,7 @@ export function adaptDashboardV2ToBossConsole(model: DashboardV2ViewModel): Boss
       riskLevel: risk,
       riskNote:
         status === "not-ready"
-          ? fixture.reasonLabel || "数据未齐"
+          ? fixture.reasonLabel || "等待受控采集"
           : risk === "high"
             ? "证据波动"
             : risk === "low"

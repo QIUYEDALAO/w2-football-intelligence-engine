@@ -159,6 +159,7 @@ def materialize_shadow_projection_events(
     events: list[ProjectionSourceEvent],
 ) -> list[str]:
     """Manual DB composition adapter with the worker's current-reader semantics."""
+    from w2.dashboard.scorelines import scoreline_reference_from_card
     from w2.prematch.analysis_calculator import ReadModelRepository, ReadModelService
     from w2.prematch.read_model_projection import (
         ScopedAnalysisRepository,
@@ -180,10 +181,24 @@ def materialize_shadow_projection_events(
             use_frozen_canary=False,
         )
 
+    def build_scoreline_reference(card, version, quote_identity):  # type: ignore[no-untyped-def]
+        return scoreline_reference_from_card(
+            card,
+            recommendation={
+                "market": version.market,
+                "selection": version.selection,
+                "line": version.exact_line,
+                "tier": "ANALYSIS_PICK",
+                "quote_identity": quote_identity,
+            },
+            decision_hash=version.identity_hash,
+        )
+
     return materialize_projection_events(
         events,
         repository=cast(ScopedAnalysisRepository, repository),
         calculate_analysis_card=calculate,
+        build_scoreline_reference=build_scoreline_reference,
     )
 
 

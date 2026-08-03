@@ -38,6 +38,7 @@ def _materialize_shadow_projection_events(
     events: list[ProjectionSourceEvent],
 ) -> list[str]:
     """Composition-root adapter for write-side projection calculation."""
+    from w2.dashboard.scorelines import scoreline_reference_from_card
     from w2.prematch.analysis_calculator import ReadModelRepository, ReadModelService
     from w2.prematch.read_model_projection import (
         ScopedAnalysisRepository,
@@ -59,10 +60,24 @@ def _materialize_shadow_projection_events(
             use_frozen_canary=False,
         )
 
+    def build_scoreline_reference(card, version, quote_identity):  # type: ignore[no-untyped-def]
+        return scoreline_reference_from_card(
+            card,
+            recommendation={
+                "market": version.market,
+                "selection": version.selection,
+                "line": version.exact_line,
+                "tier": "ANALYSIS_PICK",
+                "quote_identity": quote_identity,
+            },
+            decision_hash=version.identity_hash,
+        )
+
     return materialize_projection_events(
         events,
         repository=cast(ScopedAnalysisRepository, repository),
         calculate_analysis_card=calculate,
+        build_scoreline_reference=build_scoreline_reference,
     )
 
 
@@ -128,6 +143,7 @@ def future_fixture_refresh(
         checkpoint_fixture_ids=tuple(checkpoint_fixture_ids or ()),
         refresh_checkpoints=tuple(refresh_checkpoints or ()),
         materialize_public_artifacts=_materialize_shadow_projection_events,
+        materialize_results=_materialize_outcome_results,
         client=ApiFootballClient(
             allow_live=True,
             allowed_live_endpoints=provider_endpoint_allowlist(),
@@ -254,12 +270,8 @@ def result_materialize(
         "formal_recommendation": False,
         "provider_calls": 0,
         "db_writes": result.get("db_writes", 0),
-        "scoring_projection_status": result.get(
-            "scoring_projection_status", "NO_DUE_WORK"
-        ),
-        "scoring_projection_db_writes": result.get(
-            "scoring_projection_db_writes", 0
-        ),
+        "scoring_projection_status": result.get("scoring_projection_status", "NO_DUE_WORK"),
+        "scoring_projection_db_writes": result.get("scoring_projection_db_writes", 0),
         "lock_capture_write": False,
         "settlement_write": False,
     }
@@ -300,22 +312,26 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
     )
     return {
         **capture,
-        "status": (
-            "BLOCKED"
-            if materialization["status"] == "BLOCKED"
-            else capture["status"]
-        ),
+        "status": ("BLOCKED" if materialization["status"] == "BLOCKED" else capture["status"]),
         "db_writes": sum(
-            int(item.get("db_writes", 0))
-            for item in (capture, materialization, settlement)
+            int(item.get("db_writes", 0)) for item in (capture, materialization, settlement)
         ),
         "result_materialization": materialization,
         "outcome_settlement": settlement,
     }
 
 
+def _materialize_outcome_results(
+    fixture_ids: tuple[str, ...],
+    now: datetime,
+) -> dict[str, object]:
+    return _run_result_materialize(fixture_ids=list(fixture_ids), now=now)
+
+
 def _run_result_materialize(
-    *, fixture_ids: list[str] | None = None
+    *,
+    fixture_ids: list[str] | None = None,
+    now: datetime | None = None,
 ) -> dict[str, object]:
     from w2.tracking.outcome_result_refresh import run_outcome_result_refresh
 
@@ -323,4 +339,5 @@ def _run_result_materialize(
         fixture_ids=fixture_ids,
         dry_run=False,
         write_db=True,
+        now=now,
     )
