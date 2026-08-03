@@ -20,12 +20,15 @@ DELIVERY_FILES = {
     "scripts/ci_shards.py",
     "scripts/classify_ci.py",
     "scripts/dev_check.py",
+    "scripts/deploy_stage7h_staging.sh",
     "scripts/release_manifest.py",
     "tests/contract/test_delivery_pipeline.py",
+    "tests/contract/test_staging_runtime_hardening.py",
     "tests/contract/test_arch_p2_05_final_acceptance.py",
     "tests/unit/test_ci_classifier.py",
     "tests/unit/test_ci_shards.py",
     "tests/unit/test_release_manifest.py",
+    "tests/unit/test_release_evidence.py",
     "docs/operations/W2_DELIVERY_PIPELINE_LEAD_TIME_RECOVERY.md",
 }
 PYTHON_ROOTS = ("src/", "apps/api/", "apps/scheduler/", "apps/worker/", "tests/")

@@ -27,6 +27,7 @@ from w2.prematch.read_model_projection import (
     ANALYSIS_CARD_SHADOW_PREFIX,
     AnalysisCardCanaryMaterializer,
     FrozenAnalysisError,
+    HashDomain,
     ProjectionSourceEvent,
     _post_lineup_odds_plan,
     canonical_sha256,
@@ -1211,6 +1212,17 @@ def test_same_source_event_replay_adds_scoreline_contract_as_new_immutable_evalu
         repository,
         calculate_analysis_card=calculate,
     ).build("1576804", evaluated_at=event.event_at, source_event=event)
+    assert "scoreline_projection_contract_version" not in legacy.payload["input_manifest"]
+    assert legacy.evaluations[0].model_input_hash == canonical_sha256(
+        {
+            "simulation": legacy.payload["input_manifest"]["simulation_sha256"],
+            "analysis_evidence": legacy.payload["input_manifest"][
+                "analysis_evidence_sha256"
+            ],
+            "lineup_input_hash": None,
+        },
+        domain=HashDomain.PREMATCH_READ_MODEL_DYNAMIC_EVALUATION,
+    )
     write_frozen_analysis_artifacts(engine, [legacy])
 
     recovered = AnalysisCardCanaryMaterializer(

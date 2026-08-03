@@ -118,6 +118,14 @@ def test_deploy_is_pull_only_and_health_checked() -> None:
     assert "COLD_PULL_END_TO_END" in text
 
 
+def test_deploy_uploads_to_revision_scoped_remote_directory() -> None:
+    text = read(DEPLOY)
+    assert 'REMOTE_TMP_DIR="/tmp/w2-deploy-${REVISION}"' in text
+    assert '"${SSH_HOST}:${REMOTE_TMP_DIR}/"' in text
+    assert '"${REMOTE_TMP_DIR}/release.env"' in text
+    assert '"${SSH_HOST}:/tmp/"' not in text
+
+
 def test_health_check_targets_the_canonical_compose_project_and_cohort() -> None:
     text = read(HEALTH_CHECK)
     assert 'COMPOSE_PROJECT = "w2-staging"' in text
@@ -204,8 +212,7 @@ def test_deploy_writes_release_metadata_with_root_owned_install() -> None:
     assert 'BUILD_TIME="$(date' not in text
     assert "VITE_BUILD_TIME" not in text
     assert (
-        "sudo install -o root -g root -m 0644 /tmp/release.env "
-        "/opt/w2/shared/release.env"
+        'sudo install -o root -g root -m 0644 "${REMOTE_TMP_DIR}/release.env"'
     ) in text
 
 

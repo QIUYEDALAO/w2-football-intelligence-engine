@@ -27,6 +27,7 @@ for image in "${PYTHON_IMAGE}" "${WEB_IMAGE}"; do
     exit 2
   fi
 done
+REMOTE_TMP_DIR="/tmp/w2-deploy-${REVISION}"
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
@@ -48,19 +49,27 @@ install -m 0444 "${ROOT}/scripts/check_w2_stage7h.py" \
 } >"${TMP_DIR}/release.env"
 
 # Only deployment configuration and read-only operational assets cross the wire.
+ssh "${SSH_HOST}" install -d -m 0700 "${REMOTE_TMP_DIR}"
 scp "${TMP_DIR}/compose.staging.yml" "${TMP_DIR}/controlled-future-refresh.override.yml" \
   "${TMP_DIR}/w2-staging.service" \
   "${TMP_DIR}/w2-staging-watchdog.service" "${TMP_DIR}/w2-staging-watchdog.timer" \
   "${TMP_DIR}/watch_staging_runtime.sh" "${TMP_DIR}/check_w2_stage7h.py" \
-  "${TMP_DIR}/release.env" "${SSH_HOST}:/tmp/"
+  "${TMP_DIR}/release.env" "${SSH_HOST}:${REMOTE_TMP_DIR}/"
 
 ssh "${SSH_HOST}" bash -s -- \
-  "${REVISION}" "${DEPLOY_MODE}" "${PYTHON_IMAGE}" "${WEB_IMAGE}" <<'REMOTE'
+  "${REVISION}" "${DEPLOY_MODE}" "${PYTHON_IMAGE}" "${WEB_IMAGE}" \
+  "${REMOTE_TMP_DIR}" <<'REMOTE'
 set -Eeuo pipefail
 REVISION="$1"
 DEPLOY_MODE="$2"
 PYTHON_IMAGE="$3"
 WEB_IMAGE="$4"
+REMOTE_TMP_DIR="$5"
+if [ "${REMOTE_TMP_DIR}" != "/tmp/w2-deploy-${REVISION}" ] || \
+  [ ! -d "${REMOTE_TMP_DIR}" ] || [ -L "${REMOTE_TMP_DIR}" ]; then
+  echo "invalid remote deployment staging directory" >&2
+  exit 2
+fi
 COMPOSE=(sudo docker compose -p w2-staging -f /opt/w2/deploy/compose.staging.yml
   -f /opt/w2/deploy/controlled-future-refresh.override.yml
   --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env)
@@ -167,17 +176,20 @@ sudo install -d -o 10001 -g 10001 -m 0775 \
   /opt/w2/shared/runtime/market_timeline_snapshots \
   /opt/w2/shared/runtime/reports/public \
   /opt/w2/shared/runtime/independent_signal_backfill/raw_payloads
-sudo install -o root -g root -m 0644 /tmp/compose.staging.yml /opt/w2/deploy/compose.staging.yml
-sudo install -o root -g root -m 0644 /tmp/controlled-future-refresh.override.yml \
+sudo install -o root -g root -m 0644 "${REMOTE_TMP_DIR}/compose.staging.yml" \
+  /opt/w2/deploy/compose.staging.yml
+sudo install -o root -g root -m 0644 \
+  "${REMOTE_TMP_DIR}/controlled-future-refresh.override.yml" \
   /opt/w2/deploy/controlled-future-refresh.override.yml
 sudo install -o root -g root -m 0755 \
-  /tmp/watch_staging_runtime.sh /opt/w2/deploy/watch_staging_runtime.sh
+  "${REMOTE_TMP_DIR}/watch_staging_runtime.sh" /opt/w2/deploy/watch_staging_runtime.sh
 sudo install -o root -g root -m 0444 \
-  /tmp/check_w2_stage7h.py /opt/w2/deploy/check_w2_stage7h.py
-sudo install -o root -g root -m 0644 /tmp/w2-staging.service /etc/systemd/system/w2-staging.service
-sudo install -o root -g root -m 0644 /tmp/w2-staging-watchdog.service \
+  "${REMOTE_TMP_DIR}/check_w2_stage7h.py" /opt/w2/deploy/check_w2_stage7h.py
+sudo install -o root -g root -m 0644 "${REMOTE_TMP_DIR}/w2-staging.service" \
+  /etc/systemd/system/w2-staging.service
+sudo install -o root -g root -m 0644 "${REMOTE_TMP_DIR}/w2-staging-watchdog.service" \
   /etc/systemd/system/w2-staging-watchdog.service
-sudo install -o root -g root -m 0644 /tmp/w2-staging-watchdog.timer \
+sudo install -o root -g root -m 0644 "${REMOTE_TMP_DIR}/w2-staging-watchdog.timer" \
   /etc/systemd/system/w2-staging-watchdog.timer
 
 if sudo docker image inspect "${PYTHON_IMAGE}" >/dev/null 2>&1 &&
@@ -193,7 +205,8 @@ if [ -f /opt/w2/shared/release.env ]; then
   sudo install -o root -g root -m 0644 \
     /opt/w2/shared/release.env /opt/w2/shared/release.previous.env
 fi
-sudo install -o root -g root -m 0644 /tmp/release.env /opt/w2/shared/release.env
+sudo install -o root -g root -m 0644 "${REMOTE_TMP_DIR}/release.env" \
+  /opt/w2/shared/release.env
 ACTIVATED=true
 
 sudo docker pull "${PYTHON_IMAGE}" </dev/null

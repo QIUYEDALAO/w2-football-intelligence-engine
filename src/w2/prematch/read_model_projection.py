@@ -1132,6 +1132,15 @@ def _dynamic_evaluations(
             if not model_ready and not isinstance(distribution, Mapping)
             else DYNAMIC_EVALUATION_V2_SCHEMA
         )
+        model_input_identity = {
+            "simulation": manifest.get("simulation_sha256"),
+            "analysis_evidence": manifest.get("analysis_evidence_sha256"),
+            "lineup_input_hash": lineup_input_hash,
+        }
+        if "scoreline_projection_contract_version" in manifest:
+            model_input_identity["scoreline_projection_contract_version"] = manifest[
+                "scoreline_projection_contract_version"
+            ]
         value = DynamicEvaluationInput(
             fixture_id=fixture_id,
             market=str(candidate.get("market") or default_market),
@@ -1151,14 +1160,7 @@ def _dynamic_evaluations(
                 quote_identity, domain=HashDomain.PREMATCH_READ_MODEL_QUOTE_IDENTITY
             ),
             model_input_hash=canonical_sha256(
-                {
-                    "simulation": manifest.get("simulation_sha256"),
-                    "analysis_evidence": manifest.get("analysis_evidence_sha256"),
-                    "lineup_input_hash": lineup_input_hash,
-                    "scoreline_projection_contract_version": manifest.get(
-                        "scoreline_projection_contract_version"
-                    ),
-                },
+                model_input_identity,
                 domain=HashDomain.PREMATCH_READ_MODEL_DYNAMIC_EVALUATION,
             ),
             evaluated_at=evaluated_at,
