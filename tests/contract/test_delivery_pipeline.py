@@ -54,6 +54,15 @@ def test_release_candidate_uses_exact_head_once_and_has_parallel_lpt_shards() ->
     assert raw.count("file: Dockerfile.python") == 1
     assert raw.count("file: Dockerfile.web") == 1
     assert raw.count("ref: ${{ inputs.expected_head_sha }}") >= 10
+    for job in jobs.values():
+        for step in job.get("steps", []):
+            if step.get("uses") == "actions/checkout@v4":
+                assert step["with"] == {
+                    "ref": "${{ inputs.expected_head_sha }}",
+                    "fetch-depth": 0,
+                }
+    assert '--network-alias api' in raw
+    assert 'docker network create "$smoke_network"' in raw
     assert "merge_group" not in raw
     assert "W2_PROVIDER_CALLS_DISABLED: \"true\"" in raw
     assert "W2_PROVIDER_SCHEDULER_ENABLED: \"false\"" in raw
