@@ -50,6 +50,9 @@ def test_release_candidate_uses_exact_head_once_and_has_parallel_lpt_shards() ->
     assert jobs["unit-contract"]["strategy"]["matrix"]["shard"] == [0, 1, 2, 3]
     assert jobs["integration"]["strategy"]["matrix"]["shard"] == [0, 1]
     assert jobs["release-required"]["name"] == "RELEASE_REQUIRED"
+    assert payload["permissions"]["statuses"] == "write"
+    assert 'statuses/${SOURCE_SHA}' in raw
+    assert "-f context=RELEASE_REQUIRED" in raw
     assert raw.count("uses: docker/build-push-action@v6") == 2
     assert raw.count("file: Dockerfile.python") == 1
     assert raw.count("file: Dockerfile.web") == 1
@@ -107,6 +110,8 @@ def test_finalize_script_reuses_manifest_digests_and_does_not_enable_product_fla
     assert "deploy_stage7h_staging.sh" in raw
     assert "gh pr merge" in raw
     assert "--auto" not in raw
+    assert "mergeStateStatus" in raw
+    assert 'merge_state" = CLEAN' in raw
     assert "W2_CANDIDATE" not in raw
     assert "W2_FORMAL" not in raw
     assert "W2_PROVIDER" not in raw

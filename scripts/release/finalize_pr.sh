@@ -164,6 +164,13 @@ fi
 
 test "$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json headRefOid --jq .headRefOid)" = "$source_sha"
 test "$(git -C "$ROOT" ls-remote origin refs/heads/main | awk '{print $1}')" = "$base_main_sha"
+deadline="$(( $(date +%s) + TIMEOUT_SECONDS ))"
+while [ "$(date +%s)" -lt "$deadline" ]; do
+  merge_state="$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json mergeStateStatus --jq .mergeStateStatus)"
+  [ "$merge_state" = CLEAN ] && break
+  sleep 5
+done
+test "${merge_state:-UNKNOWN}" = CLEAN
 gh pr merge "$PR_NUMBER" --repo "$GH_REPO" --merge --delete-branch=false >/dev/null
 main_merge_sha=NOT_MERGED
 for attempt in $(seq 1 30); do
