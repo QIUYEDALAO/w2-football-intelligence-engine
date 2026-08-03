@@ -163,6 +163,7 @@ def test_scheduler_to_celery_eager_future_refresh_smoke_is_fake_and_idempotent(
     def fake_runtime_run_task(**kwargs: Any) -> future_refresh_core.RefreshTaskAudit:
         patched_kwargs = dict(kwargs)
         patched_kwargs.pop("now", None)
+        patched_kwargs.pop("client", None)
         return original_run_task(
             **patched_kwargs,
             runtime_root=runtime_root,
