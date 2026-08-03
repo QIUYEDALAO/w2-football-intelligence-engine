@@ -16,6 +16,9 @@ def _args(path: Path) -> argparse.Namespace:
         base_main_sha="3" * 40,
         workflow_run_id="123",
         change_class="runtime",
+        quality_required="FULL",
+        images_required="true",
+        deployable="true",
         quality_job=["static-contract=success", "unit-contract=success"],
         python_image_digest="sha256:" + "4" * 64,
         web_image_digest="sha256:" + "5" * 64,
@@ -50,9 +53,32 @@ def test_docs_manifest_requires_not_required_image_identity(tmp_path: Path) -> N
     path = tmp_path / "release-manifest.json"
     args = _args(path)
     args.change_class = "docs"
+    args.quality_required = "DOCS"
+    args.images_required = "false"
+    args.deployable = "false"
     args.python_image_digest = "NOT_REQUIRED"
     args.web_image_digest = "NOT_REQUIRED"
     args.python_image_ref = "NOT_REQUIRED"
     args.web_image_ref = "NOT_REQUIRED"
     create(args)
     verify(argparse.Namespace(manifest=path, expect=[]))
+
+
+def test_delivery_manifest_is_full_quality_without_images_or_deploy(tmp_path: Path) -> None:
+    path = tmp_path / "release-manifest.json"
+    args = _args(path)
+    args.change_class = "delivery"
+    args.quality_required = "FULL"
+    args.images_required = "false"
+    args.deployable = "false"
+    args.python_image_digest = "NOT_REQUIRED"
+    args.web_image_digest = "NOT_REQUIRED"
+    args.python_image_ref = "NOT_REQUIRED"
+    args.web_image_ref = "NOT_REQUIRED"
+    create(args)
+    verify(
+        argparse.Namespace(
+            manifest=path,
+            expect=["quality_required=FULL", "images_required=False", "deployable=False"],
+        )
+    )

@@ -93,7 +93,7 @@ jobs:
 
   preflight:
     needs: classify
-    if: needs.classify.outputs.change_class == 'infra' || needs.classify.outputs.change_class == 'unknown'
+    if: contains(fromJSON('["delivery", "runtime", "unknown"]'), needs.classify.outputs.change_class)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

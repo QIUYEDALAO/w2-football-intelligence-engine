@@ -10,12 +10,12 @@ IMAGE_TRANSPORT = LOCAL_OCI_RELAY_PRIMARY / GHCR_ARCHIVE_AND_FALLBACK
 
 One exact PR head receives one complete Release Candidate validation and one Python/Web
 immutable image build. A merge commit may promote those digests only when its tree equals the
-validated source tree. Missing or mismatched evidence fails closed and dispatches the legacy Full
-CI compatibility workflow once.
+validated source tree. Missing or mismatched evidence fails closed and dispatches the same Release
+Candidate workflow once for the exact main merge SHA.
 
 The post-merge `pr_number=0` rehearsal path is deliberately non-promotable. It accepts only the
-current `origin/main`: `force_full=false, deployable=false` exercises docs-only manifest creation;
-`force_full=true, deployable=true` exercises all quality and image jobs. Promotion rejects manifests
+current `origin/main`: classification explicitly determines whether images and deployment are
+required. `force_full=true` exercises the complete quality matrix. Promotion rejects manifests
 whose `rehearsal` field is true.
 
 ## Before
@@ -41,7 +41,6 @@ seconds.
 - `.github/workflows/release-candidate.yml`: the sole complete quality matrix and image builder.
 - `.github/workflows/main-promote.yml`: verifies manifest, SHA, tree and digest; never runs Full pytest
   or builds images.
-- `.github/workflows/ci.yml`: manual compatibility fallback only.
 - `scripts/dev_check.py`: local fast feedback; explicitly not a Full CI substitute.
 - `scripts/release/finalize_pr.sh`: wait, validate, preheat, merge, promote, deploy and verify without
   intermediate user confirmation.
@@ -75,22 +74,22 @@ must not be a pre-merge requirement. Auto-merge remains disabled.
 
 ## Acceptance receipt
 
-The final measured values come from exact-head PR Fast run `30828165126`, successful runtime
-rehearsal `30830656941`, and the existing local OCI relay receipt. The first bootstrap runtime
-rehearsal exposed shallow-checkout and smoke-network compatibility defects; PR `#481` corrected
-only those workflow/test-contract issues before the final successful rehearsal.
+The final measured values come from exact-head PR Fast run `30828165126`, final successful Release
+Candidate run `30832166843`, and the existing local OCI relay receipt.
+
+`INITIAL_REHEARSAL_FOUND_COMPATIBILITY_ISSUES = true`
 
 ```text
 LOCAL_FEEDBACK_TIME = 3.51 seconds (target <= 180 seconds)
 PR_FAST_CHECK = 41 seconds (target <= 240 seconds)
-FULL_QUALITY_WALL_TIME = 426 seconds (first-run target <= 480 seconds)
+FULL_QUALITY_WALL_TIME = 403 seconds (first-run target <= 480 seconds)
 FULL_QUALITY_P50 = PENDING_5_RUNTIME_RUNS (target <= 360 seconds)
 FULL_CI_EXECUTIONS_PER_RUNTIME_CHANGE = 1
 RELEASE_IMAGE_BUILD_COUNT = 1 Python + 1 Web per exact source SHA
-SOURCE_SHA = 722267862e5b55b684e72af79a3ff553b780de97
-SOURCE_TREE_SHA = 373d16036e1ccd798ff5b2b8471df63dc8dc6c9c
+SOURCE_SHA = ef53ac3779cbfb4dfc6ef89cd4d3f664c23310c4
+SOURCE_TREE_SHA = 26ad90cd0bb627859f7f56b637add77c1b66d62c
 SOURCE_TREE_PROMOTION_CHECK = PASS
-RELEASE_MANIFEST_SHA256 = ac3827456790c278a84c93c9c04cf0558f4958ca2dd44d230e4ebbe18346c498
+RELEASE_MANIFEST_SHA256 = 15da77f306199aff1e5690ddd343c84a1f6ee8c10fd219010615110bf54d09a1
 VPS_PREHEAT = 295 seconds (target <= 300 seconds)
 SERVICE_SWITCH = 9 seconds (target <= 60 seconds)
 DUPLICATE_MAIN_FULL_CI = false
