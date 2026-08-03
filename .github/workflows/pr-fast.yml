@@ -1,0 +1,126 @@
+name: W2 PR Fast
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: pr-fast-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  classify:
+    runs-on: ubuntu-latest
+    outputs:
+      change_class: ${{ steps.plan.outputs.change_class }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - id: plan
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 scripts/classify_ci.py --base "$BASE_SHA" --head "$HEAD_SHA" --github-output "$GITHUB_OUTPUT"
+
+  docs:
+    needs: classify
+    if: needs.classify.outputs.change_class == 'docs'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv sync --python 3.12 --all-groups --frozen
+      - env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: uv run python scripts/dev_check.py --base "$BASE_SHA"
+
+  web:
+    needs: classify
+    if: needs.classify.outputs.change_class == 'web'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('apps/web/package-lock.json') }}
+      - run: uv sync --python 3.12 --all-groups --frozen
+      - run: npm --prefix apps/web ci
+      - working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: uv run python scripts/dev_check.py --base "$BASE_SHA"
+
+  python:
+    needs: classify
+    if: needs.classify.outputs.change_class == 'python'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv sync --python 3.12 --all-groups --frozen
+      - env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: uv run python scripts/dev_check.py --base "$BASE_SHA"
+
+  preflight:
+    needs: classify
+    if: needs.classify.outputs.change_class == 'infra' || needs.classify.outputs.change_class == 'unknown'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv sync --python 3.12 --all-groups --frozen
+      - env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: uv run python scripts/dev_check.py --base "$BASE_SHA"
+
+  pr-fast-required:
+    name: PR_FAST_REQUIRED
+    if: always()
+    needs: [classify, docs, web, python, preflight]
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          CLASSIFY: ${{ needs.classify.result }}
+          DOCS: ${{ needs.docs.result }}
+          WEB: ${{ needs.web.result }}
+          PYTHON: ${{ needs.python.result }}
+          PREFLIGHT: ${{ needs.preflight.result }}
+        run: |
+          test "$CLASSIFY" = success
+          test "$(printf '%s\n' "$DOCS" "$WEB" "$PYTHON" "$PREFLIGHT" | grep -c '^success$')" = 1
+          ! printf '%s\n' "$DOCS" "$WEB" "$PYTHON" "$PREFLIGHT" | grep -Eq '^(failure|cancelled)$'

@@ -37,11 +37,14 @@ def test_docs_only_schedules_no_runtime_jobs() -> None:
             plan.images,
         )
     )
+    assert plan.change_class == "docs"
 
 
 def test_python_web_migration_and_infra_schedule_their_jobs() -> None:
     assert classify(["src/w2/domain/model.py"]).python_focused
+    assert classify(["src/w2/domain/model.py"]).change_class == "python"
     assert classify(["apps/web/src/page.tsx"]).web
+    assert classify(["apps/web/src/page.tsx"]).change_class == "web"
 
     migration = classify(["migrations/versions/0044_example.py"])
     assert migration.full and migration.migration and migration.verify
@@ -50,6 +53,7 @@ def test_python_web_migration_and_infra_schedule_their_jobs() -> None:
     assert infra.compose and infra.staging_parity and infra.predeploy_e2e
     assert infra.images
     assert not infra.verify
+    assert infra.change_class == "infra"
 
 
 def test_python_scripts_keep_python_domain_and_deploy_python_is_full() -> None:
@@ -78,6 +82,7 @@ def test_mixed_unknown_empty_and_forced_plans_fail_safe_to_full_ci() -> None:
         assert plan.full and plan.verify
         assert plan.web and plan.migration
         assert plan.compose and plan.staging_parity and plan.predeploy_e2e
+        assert plan.change_class == "unknown"
     assert classify(["docs/readme.md"], force_full=True).full
 
 
@@ -186,9 +191,10 @@ def test_ci_workflow_has_stable_aggregate_for_real_quality_jobs() -> None:
     assert "POST_MERGE_CHECKLIST_CONSISTENCY_GATE" not in ci
     assert "governance-light" not in ci
     assert "detached acceptance" not in ci.lower()
-    assert "types: [opened, synchronize, reopened]" in ci
-    assert "github.event_name != 'pull_request'" not in ci
-    assert "github.event.before" in ci
+    trigger = ci.split("permissions:", 1)[0]
+    assert "pull_request:" not in trigger
+    assert "push:" not in trigger
+    assert "workflow_dispatch:" in trigger
     assert "github.event_name == 'workflow_dispatch' && inputs.full" in ci
 
 

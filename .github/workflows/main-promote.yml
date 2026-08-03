@@ -1,0 +1,115 @@
+name: W2 Main Promotion
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: main-promote
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write
+  pull-requests: read
+  packages: read
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    outputs:
+      source_sha: ${{ steps.promote.outputs.source_sha }}
+      source_tree_sha: ${{ steps.promote.outputs.source_tree_sha }}
+      release_run_id: ${{ steps.promote.outputs.release_run_id }}
+      python_image_ref: ${{ steps.promote.outputs.python_image_ref }}
+      web_image_ref: ${{ steps.promote.outputs.web_image_ref }}
+      mode: ${{ steps.promote.outputs.mode }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: docker/setup-buildx-action@v3
+        if: vars.W2_RELEASE_PROMOTION_V1_ENABLED == 'true'
+      - uses: docker/login-action@v3
+        if: vars.W2_RELEASE_PROMOTION_V1_ENABLED == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: promote
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ENABLED: ${{ vars.W2_RELEASE_PROMOTION_V1_ENABLED }}
+        run: |
+          set -euo pipefail
+          if [ "$ENABLED" != true ]; then
+            echo 'mode=BOOTSTRAP_NOOP' >>"$GITHUB_OUTPUT"
+            echo 'W2 Release Candidate promotion is not activated yet.'
+            exit 0
+          fi
+          test "$(git rev-list --parents -n 1 HEAD | wc -w | tr -d ' ')" = 3
+          source_sha="$(git rev-parse HEAD^2)"
+          base_main_sha="$(git rev-parse HEAD^1)"
+          source_tree_sha="$(git rev-parse "${source_sha}^{tree}")"
+          main_tree_sha="$(git rev-parse 'HEAD^{tree}')"
+          test "$main_tree_sha" = "$source_tree_sha"
+          pr_json="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls")"
+          pr_number="$(jq -r --arg source "$source_sha" '[.[] | select(.head.sha == $source and .merged_at != null)] | first | .number // empty' <<<"$pr_json")"
+          test -n "$pr_number"
+          runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/release-candidate.yml/runs?event=workflow_dispatch&status=success&head_sha=${source_sha}&per_page=100")"
+          run_id="$(jq -r --arg source "$source_sha" '[.workflow_runs[] | select(.head_sha == $source and .conclusion == "success")] | sort_by(.run_number) | last | .id // empty' <<<"$runs")"
+          test -n "$run_id"
+          mkdir -p "$RUNNER_TEMP/release"
+          gh run download "$run_id" --name "release-candidate-${source_sha}" --dir "$RUNNER_TEMP/release"
+          manifest="$RUNNER_TEMP/release/release-manifest-${source_sha}.json"
+          manifest_sha="$(python3 scripts/release_manifest.py verify --manifest "$manifest" --expect "pr_number=${pr_number}" --expect "source_sha=${source_sha}" --expect "source_tree_sha=${source_tree_sha}" --expect "base_main_sha=${base_main_sha}" --expect rehearsal=False)"
+          change_class="$(jq -r .change_class "$manifest")"
+          python_ref="$(jq -r .python_image_ref "$manifest")"
+          web_ref="$(jq -r .web_image_ref "$manifest")"
+          if [ "$change_class" != docs ]; then
+            docker buildx imagetools inspect "$python_ref" >/dev/null
+            docker buildx imagetools inspect "$web_ref" >/dev/null
+          fi
+          {
+            echo "source_sha=$source_sha"
+            echo "source_tree_sha=$source_tree_sha"
+            echo "release_run_id=$run_id"
+            echo "python_image_ref=$python_ref"
+            echo "web_image_ref=$web_ref"
+            echo 'mode=PROMOTED'
+          } >>"$GITHUB_OUTPUT"
+          {
+            echo "PROMOTION_REQUIRED=PASS"
+            echo "SOURCE_SHA=$source_sha"
+            echo "SOURCE_TREE_SHA=$source_tree_sha"
+            echo "MAIN_TREE_SHA=$main_tree_sha"
+            echo "RELEASE_MANIFEST_SHA256=$manifest_sha"
+            echo 'DUPLICATE_MAIN_FULL_CI=false'
+            echo 'DUPLICATE_MAIN_IMAGE_BUILD=false'
+          } >>"$GITHUB_STEP_SUMMARY"
+      - name: Trigger fail-closed compatibility Full CI once
+        if: failure() && vars.W2_RELEASE_PROMOTION_V1_ENABLED == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          existing="$(gh run list --workflow ci.yml --commit "$GITHUB_SHA" --event workflow_dispatch --limit 20 --json databaseId --jq length)"
+          if [ "$existing" = 0 ]; then
+            gh workflow run ci.yml --ref "$GITHUB_SHA" -f full=true
+            echo 'FALLBACK_FULL_CI_EXECUTED=true' >>"$GITHUB_STEP_SUMMARY"
+          else
+            echo 'FALLBACK_FULL_CI_EXECUTED=false (existing exact-head fallback found)' >>"$GITHUB_STEP_SUMMARY"
+          fi
+
+  promotion-required:
+    name: PROMOTION_REQUIRED
+    if: always()
+    needs: promote
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          RESULT: ${{ needs.promote.result }}
+          MODE: ${{ needs.promote.outputs.mode }}
+        run: |
+          test "$RESULT" = success
+          case "$MODE" in PROMOTED|BOOTSTRAP_NOOP) ;; *) exit 1 ;; esac
