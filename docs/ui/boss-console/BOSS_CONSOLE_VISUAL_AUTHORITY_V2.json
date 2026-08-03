@@ -28,13 +28,13 @@
       "sha256": "613472d2eaca7ef3a8f2a5909d45e4fa233b55d59cbf8d1d502cb2ba5fef5c2c"
     },
     "apps/web/src/reference/boss-console/boss-console-adapter.ts": {
-      "sha256": "af4f8bbc2c890db8af5c74924e10bb308cac5d8520e5712852f8008d6fa30bf7"
+      "sha256": "50160da32c797157a7dff4eeff8ccae41afa867dd0b732eda17efb2ae9f058c1"
     },
     "apps/web/src/reference/boss-console/boss-console.fixture.ts": {
       "sha256": "e8def82c4191ee6051f7e706e5c0986a3970820bbf826bdc3e45a166a96ef77e"
     },
     "apps/web/e2e/boss-console-visual.spec.ts": {
-      "sha256": "e507aedf3bbca6b58e0351638332e57ee8d3c4b6e860f779365967c8ca55c87d"
+      "sha256": "23f5d5e7b905ccef40334d962086aae4b2de5c859954b722de6d142809b39810"
     },
     "docs/ui/boss-console/golden/v2.1/reference/boss-console-wide-2048.png": {
       "sha256": "6bb86d797cc7609f37e0c7230087b319f7a3b97607acbdad3fdec29a98334699"
