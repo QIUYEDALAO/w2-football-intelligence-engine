@@ -294,6 +294,7 @@ async function installRoutes(
   scenario: Scenario,
   readyCardCount = 1,
   scheduledWait = false,
+  authoritativeNoEdge = false,
 ): Promise<void> {
   const contract = scenarioContract[scenario];
   const dayViewPayload = dayView(scenario);
@@ -335,6 +336,25 @@ async function installRoutes(
           under_price: 1.93,
         },
       },
+    };
+  }
+  if (authoritativeNoEdge) {
+    dayViewPayload.cards[0].data_status = "READY";
+    dayViewPayload.cards[0].data_refresh = { odds_status: "READY" };
+    dayViewPayload.cards[0].recommendation_decision_v3 = {
+      schema_version: "w2.recommendation_decision.v3",
+      outcome: "NO_EDGE",
+      reason: {
+        code: "NO_ANALYSIS_EDGE",
+        message: "数据完整但没有分析优势",
+      },
+      next_action: "WAIT",
+      selected_candidate: null,
+      evaluated_candidate: null,
+      statuses: {},
+      warnings: [],
+      audit_refs: {},
+      decision_hash: "no-edge-authority",
     };
   }
   if (scenario === "READY" && readyCardCount > 1) {
@@ -608,6 +628,24 @@ test("reference-only odds state that real odds are ready while model decision is
   await expect(row).toContainText("新鲜度 STALE");
   await expect(row).not.toContainText("未通过 EV、Delta 与 EV-SE");
   await expect(row).not.toContainText("1万次模拟");
+});
+
+test("v3 NO_EDGE truth is not masked by the reference-only fallback", async ({
+  page,
+}) => {
+  await installRoutes(page, "STALE", 1, true, true);
+  await page.goto("/");
+  await page.getByRole("button", { name: "全部赛程 1/1 场" }).click();
+
+  const row = page
+    .locator("[data-fixture-id]")
+    .filter({ hasText: "STALE Home" });
+  await expect(row).toContainText("当前完整快照未通过 EV、Delta 与 EV-SE 稳健门");
+  await expect(row).not.toContainText("模型决策未就绪");
+  await row.click();
+  await expect(page.locator("[data-ui='selected-match-panel']")).toContainText(
+    "NO_EDGE · 不强行产生推荐",
+  );
 });
 
 test("scheduled collection does not label data-not-ready fixtures as high risk", async ({

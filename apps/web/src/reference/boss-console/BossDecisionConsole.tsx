@@ -66,7 +66,10 @@ export function applyProductionDashboardTruth(
     const bookmaker = text(market.bookmaker_name) || bookmakers[0] || "已审计报价";
     const capturedAt = text(market.captured_at || reference.captured_at) || "UNKNOWN";
     const freshness = text(market.freshness_status) || "UNKNOWN";
-    const modelDecisionNotReady = referenceOnly && decision.modelProbability == null;
+    const decisionV3 = record(card?.recommendation_decision_v3);
+    const modelDecisionNotReady = referenceOnly
+      && decision.modelProbability == null
+      && text(decisionV3.outcome) !== "NO_EDGE";
     return {
       ...decision,
       ...(modelDecisionNotReady ? {
