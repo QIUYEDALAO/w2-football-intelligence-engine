@@ -30,9 +30,7 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
       - uses: docker/setup-buildx-action@v3
-        if: vars.W2_RELEASE_PROMOTION_V1_ENABLED == 'true'
       - uses: docker/login-action@v3
-        if: vars.W2_RELEASE_PROMOTION_V1_ENABLED == 'true'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -40,14 +38,8 @@ jobs:
       - id: promote
         env:
           GH_TOKEN: ${{ github.token }}
-          ENABLED: ${{ vars.W2_RELEASE_PROMOTION_V1_ENABLED }}
         run: |
           set -euo pipefail
-          if [ "$ENABLED" != true ]; then
-            echo 'mode=BOOTSTRAP_NOOP' >>"$GITHUB_OUTPUT"
-            echo 'W2 Release Candidate promotion is not activated yet.'
-            exit 0
-          fi
           test "$(git rev-list --parents -n 1 HEAD | wc -w | tr -d ' ')" = 3
           source_sha="$(git rev-parse HEAD^2)"
           base_main_sha="$(git rev-parse HEAD^1)"
@@ -57,17 +49,42 @@ jobs:
           pr_json="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls")"
           pr_number="$(jq -r --arg source "$source_sha" '[.[] | select(.head.sha == $source and .merged_at != null)] | first | .number // empty' <<<"$pr_json")"
           test -n "$pr_number"
+
+          mkdir -p "$RUNNER_TEMP/release"
           runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/release-candidate.yml/runs?event=workflow_dispatch&status=success&head_sha=${source_sha}&per_page=100")"
           run_id="$(jq -r --arg source "$source_sha" '[.workflow_runs[] | select(.head_sha == $source and .conclusion == "success")] | sort_by(.run_number) | last | .id // empty' <<<"$runs")"
-          test -n "$run_id"
-          mkdir -p "$RUNNER_TEMP/release"
-          gh run download "$run_id" --name "release-candidate-${source_sha}" --dir "$RUNNER_TEMP/release"
+          mode=PROMOTED
           manifest="$RUNNER_TEMP/release/release-manifest-${source_sha}.json"
-          manifest_sha="$(python3 scripts/release_manifest.py verify --manifest "$manifest" --expect "pr_number=${pr_number}" --expect "source_sha=${source_sha}" --expect "source_tree_sha=${source_tree_sha}" --expect "base_main_sha=${base_main_sha}" --expect rehearsal=False)"
-          change_class="$(jq -r .change_class "$manifest")"
+          if [ -z "$run_id" ] || ! gh run download "$run_id" --name "release-candidate-${source_sha}" --dir "$RUNNER_TEMP/release" || \
+             ! manifest_sha="$(python3 scripts/release_manifest.py verify --manifest "$manifest" --expect "pr_number=${pr_number}" --expect "source_sha=${source_sha}" --expect "source_tree_sha=${source_tree_sha}" --expect "base_main_sha=${base_main_sha}" --expect rehearsal=False)"; then
+            rm -rf -- "$RUNNER_TEMP/release"
+            mkdir -p "$RUNNER_TEMP/release"
+            classification="$RUNNER_TEMP/classification"
+            python3 scripts/classify_ci.py --base "$base_main_sha" --head "$GITHUB_SHA" --force-full --github-output "$classification"
+            deployable="$(sed -n 's/^deployable=//p' "$classification")"
+            triggered_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            gh workflow run release-candidate.yml --ref main \
+              -f pr_number=0 -f "expected_head_sha=${GITHUB_SHA}" -f force_full=true -f "deployable=${deployable}"
+            deadline=$(( $(date +%s) + 3600 ))
+            run_id=""
+            while [ "$(date +%s)" -lt "$deadline" ]; do
+              run_id="$(gh run list --workflow release-candidate.yml --commit "$GITHUB_SHA" --event workflow_dispatch --limit 20 --json databaseId,headSha,createdAt --jq "map(select(.headSha == \"${GITHUB_SHA}\" and .createdAt >= \"${triggered_at}\")) | sort_by(.createdAt) | first | .databaseId // empty")"
+              [ -z "$run_id" ] || break
+              sleep 5
+            done
+            test -n "$run_id"
+            gh run watch "$run_id" --exit-status
+            source_sha="$GITHUB_SHA"
+            source_tree_sha="$main_tree_sha"
+            manifest="$RUNNER_TEMP/release/release-manifest-${source_sha}.json"
+            gh run download "$run_id" --name "release-candidate-${source_sha}" --dir "$RUNNER_TEMP/release"
+            manifest_sha="$(python3 scripts/release_manifest.py verify --manifest "$manifest" --expect pr_number=0 --expect "source_sha=${source_sha}" --expect "source_tree_sha=${source_tree_sha}" --expect "base_main_sha=${base_main_sha}" --expect rehearsal=True)"
+            mode=FALLBACK_PROMOTED
+          fi
           python_ref="$(jq -r .python_image_ref "$manifest")"
           web_ref="$(jq -r .web_image_ref "$manifest")"
-          if [ "$change_class" != docs ]; then
+          images_required="$(jq -r .images_required "$manifest")"
+          if [ "$images_required" = true ]; then
             docker buildx imagetools inspect "$python_ref" >/dev/null
             docker buildx imagetools inspect "$web_ref" >/dev/null
           fi
@@ -77,10 +94,10 @@ jobs:
             echo "release_run_id=$run_id"
             echo "python_image_ref=$python_ref"
             echo "web_image_ref=$web_ref"
-            echo 'mode=PROMOTED'
+            echo "mode=$mode"
           } >>"$GITHUB_OUTPUT"
           {
-            echo "PROMOTION_REQUIRED=PASS"
+            echo 'PROMOTION_REQUIRED=PASS'
             echo "SOURCE_SHA=$source_sha"
             echo "SOURCE_TREE_SHA=$source_tree_sha"
             echo "MAIN_TREE_SHA=$main_tree_sha"
@@ -88,18 +105,6 @@ jobs:
             echo 'DUPLICATE_MAIN_FULL_CI=false'
             echo 'DUPLICATE_MAIN_IMAGE_BUILD=false'
           } >>"$GITHUB_STEP_SUMMARY"
-      - name: Trigger fail-closed compatibility Full CI once
-        if: failure() && vars.W2_RELEASE_PROMOTION_V1_ENABLED == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          existing="$(gh run list --workflow ci.yml --commit "$GITHUB_SHA" --event workflow_dispatch --limit 20 --json databaseId --jq length)"
-          if [ "$existing" = 0 ]; then
-            gh workflow run ci.yml --ref "$GITHUB_SHA" -f full=true
-            echo 'FALLBACK_FULL_CI_EXECUTED=true' >>"$GITHUB_STEP_SUMMARY"
-          else
-            echo 'FALLBACK_FULL_CI_EXECUTED=false (existing exact-head fallback found)' >>"$GITHUB_STEP_SUMMARY"
-          fi
 
   promotion-required:
     name: PROMOTION_REQUIRED
@@ -112,4 +117,4 @@ jobs:
           MODE: ${{ needs.promote.outputs.mode }}
         run: |
           test "$RESULT" = success
-          case "$MODE" in PROMOTED|BOOTSTRAP_NOOP) ;; *) exit 1 ;; esac
+          case "$MODE" in PROMOTED|FALLBACK_PROMOTED) ;; *) exit 1 ;; esac

@@ -16,6 +16,12 @@ DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 REF_RE = re.compile(r"^ghcr\.io/[a-z0-9._/-]+@(sha256:[0-9a-f]{64})$")
 
 
+def _boolean(value: str) -> bool:
+    if value not in {"true", "false"}:
+        raise ValueError(f"invalid boolean: {value}")
+    return value == "true"
+
+
 def _pairs(values: list[str]) -> dict[str, str]:
     result: dict[str, str] = {}
     for value in values:
@@ -34,22 +40,25 @@ def create(args: argparse.Namespace) -> None:
     quality = _pairs(args.quality_job)
     if not quality or any(value != "success" for value in quality.values()):
         raise ValueError("all quality jobs must be present and successful")
-    docs_only = args.change_class == "docs"
+    images_required = _boolean(args.images_required)
+    deployable = _boolean(args.deployable)
+    if deployable and not images_required:
+        raise ValueError("deployable release must require images")
     for digest in (args.python_image_digest, args.web_image_digest):
-        if docs_only:
+        if not images_required:
             if digest != "NOT_REQUIRED":
-                raise ValueError("docs-only image digests must be NOT_REQUIRED")
+                raise ValueError("non-image release digests must be NOT_REQUIRED")
         elif not DIGEST_RE.fullmatch(digest):
             raise ValueError("runtime image digest is invalid")
     for reference, digest in (
         (args.python_image_ref, args.python_image_digest),
         (args.web_image_ref, args.web_image_digest),
     ):
-        if docs_only and reference != "NOT_REQUIRED":
-            raise ValueError("docs-only image references must be NOT_REQUIRED")
-        if not docs_only and (match := REF_RE.fullmatch(reference)) is None:
+        if not images_required and reference != "NOT_REQUIRED":
+            raise ValueError("non-image release references must be NOT_REQUIRED")
+        if images_required and (match := REF_RE.fullmatch(reference)) is None:
             raise ValueError("runtime image reference is invalid")
-        if not docs_only and match.group(1) != digest:
+        if images_required and match.group(1) != digest:
             raise ValueError("runtime image reference and digest differ")
     payload: dict[str, Any] = {
         "schema_version": "w2.release-candidate.v1",
@@ -60,6 +69,9 @@ def create(args: argparse.Namespace) -> None:
         "workflow_run_id": args.workflow_run_id,
         "created_at": datetime.now(UTC).isoformat(),
         "change_class": args.change_class,
+        "quality_required": args.quality_required,
+        "images_required": images_required,
+        "deployable": deployable,
         "quality_jobs": quality,
         "python_image_digest": args.python_image_digest,
         "web_image_digest": args.web_image_digest,
@@ -95,6 +107,9 @@ def verify(args: argparse.Namespace) -> None:
         "workflow_run_id",
         "created_at",
         "change_class",
+        "quality_required",
+        "images_required",
+        "deployable",
         "quality_jobs",
         "python_image_digest",
         "web_image_digest",
@@ -126,23 +141,30 @@ def verify(args: argparse.Namespace) -> None:
     for field, value in expected.items():
         if str(payload.get(field)) != value:
             raise ValueError(f"release manifest {field} mismatch")
-    docs_only = payload["change_class"] == "docs"
+    if payload["quality_required"] not in {"DOCS", "FULL"}:
+        raise ValueError("invalid quality_required")
+    images_required = payload["images_required"]
+    deployable = payload["deployable"]
+    if not isinstance(images_required, bool) or not isinstance(deployable, bool):
+        raise ValueError("release booleans are invalid")
+    if deployable and not images_required:
+        raise ValueError("deployable release must require images")
     for field in ("python_image_digest", "web_image_digest"):
         value = str(payload[field])
-        if docs_only and value != "NOT_REQUIRED":
-            raise ValueError(f"docs-only {field} must be NOT_REQUIRED")
-        if not docs_only and not DIGEST_RE.fullmatch(value):
+        if not images_required and value != "NOT_REQUIRED":
+            raise ValueError(f"non-image {field} must be NOT_REQUIRED")
+        if images_required and not DIGEST_RE.fullmatch(value):
             raise ValueError(f"runtime {field} is invalid")
     for reference_field, digest_field in (
         ("python_image_ref", "python_image_digest"),
         ("web_image_ref", "web_image_digest"),
     ):
         reference = str(payload[reference_field])
-        if docs_only and reference != "NOT_REQUIRED":
-            raise ValueError(f"docs-only {reference_field} must be NOT_REQUIRED")
-        if not docs_only and (match := REF_RE.fullmatch(reference)) is None:
+        if not images_required and reference != "NOT_REQUIRED":
+            raise ValueError(f"non-image {reference_field} must be NOT_REQUIRED")
+        if images_required and (match := REF_RE.fullmatch(reference)) is None:
             raise ValueError(f"runtime {reference_field} is invalid")
-        if not docs_only and match.group(1) != payload[digest_field]:
+        if images_required and match.group(1) != payload[digest_field]:
             raise ValueError(f"runtime {reference_field} and {digest_field} differ")
     print(expected_digest)
 
@@ -158,6 +180,9 @@ def main() -> int:
     create_parser.add_argument("--base-main-sha", required=True)
     create_parser.add_argument("--workflow-run-id", required=True)
     create_parser.add_argument("--change-class", required=True)
+    create_parser.add_argument("--quality-required", choices=("DOCS", "FULL"), required=True)
+    create_parser.add_argument("--images-required", required=True)
+    create_parser.add_argument("--deployable", required=True)
     create_parser.add_argument("--quality-job", action="append", default=[])
     create_parser.add_argument("--python-image-digest", required=True)
     create_parser.add_argument("--web-image-digest", required=True)

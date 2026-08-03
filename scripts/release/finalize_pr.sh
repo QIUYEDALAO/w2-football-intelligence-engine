@@ -115,9 +115,9 @@ git -C "$ROOT" merge-base --is-ancestor "$base_main_sha" "$source_sha" || {
   exit 1
 }
 source_tree_sha="$(git -C "$ROOT" rev-parse "${source_sha}^{tree}")"
-change_class="$(python3 "$ROOT/scripts/classify_ci.py" --base "$base_main_sha" --head "$source_sha" | sed -n 's/^change_class=//p')"
-deployable=true
-[ "$change_class" = docs ] && deployable=false
+classification="$(python3 "$ROOT/scripts/classify_ci.py" --base "$base_main_sha" --head "$source_sha")"
+deployable="$(sed -n 's/^deployable=//p' <<<"$classification")"
+test "$deployable" = true -o "$deployable" = false
 
 triggered_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 release_started="$(date +%s)"
@@ -142,6 +142,9 @@ manifest="$relay_dir/release-manifest-${source_sha}.json"
 manifest_sha="$(python3 "$ROOT/scripts/release_manifest.py" verify --manifest "$manifest" \
   --expect "pr_number=$PR_NUMBER" --expect "source_sha=$source_sha" \
   --expect "source_tree_sha=$source_tree_sha" --expect "base_main_sha=$base_main_sha")"
+manifest_deployable="$(jq -r .deployable "$manifest")"
+test "$manifest_deployable" = "$deployable"
+deployable="$manifest_deployable"
 python_ref="$(jq -r .python_image_ref "$manifest")"
 web_ref="$(jq -r .web_image_ref "$manifest")"
 
@@ -171,7 +174,7 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
   sleep 5
 done
 test "${merge_state:-UNKNOWN}" = CLEAN
-gh pr merge "$PR_NUMBER" --repo "$GH_REPO" --merge --delete-branch=false >/dev/null
+gh pr merge "$PR_NUMBER" --repo "$GH_REPO" --merge --delete-branch >/dev/null
 main_merge_sha=NOT_MERGED
 for attempt in $(seq 1 30); do
   main_merge_sha="$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json mergeCommit --jq '.mergeCommit.oid // empty')"
@@ -220,3 +223,28 @@ printf '%s\n' \
   "ROLLBACK_EXECUTED=$rollback" \
   "DEPLOYMENT_EXECUTED=$deployment" \
   "FINAL_RESULT=$result"
+
+git -C "$ROOT" fetch --prune origin --quiet
+git -C "$ROOT" merge-base --is-ancestor "$source_sha" origin/main
+source_worktree="$(git -C "$ROOT" worktree list --porcelain | awk -v branch="refs/heads/${source_branch}" '
+  /^worktree / { path=substr($0, 10) }
+  /^branch / && substr($0, 8) == branch { print path }
+')"
+if [ -n "$source_worktree" ]; then
+  test -z "$(git -C "$source_worktree" status --porcelain)"
+  common_dir="$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)"
+  if [ "$source_worktree" = "$ROOT" ]; then
+    parent_pid="$$"
+    nohup bash -c '
+      while kill -0 "$1" 2>/dev/null; do sleep 1; done
+      cd /
+      git --git-dir="$2" worktree remove --force "$3"
+      git --git-dir="$2" branch -D "$4"
+      git --git-dir="$2" worktree prune
+    ' _ "$parent_pid" "$common_dir" "$source_worktree" "$source_branch" >/dev/null 2>&1 &
+  else
+    git -C "$ROOT" worktree remove --force "$source_worktree"
+    git -C "$ROOT" branch -D "$source_branch"
+    git -C "$ROOT" worktree prune
+  fi
+fi

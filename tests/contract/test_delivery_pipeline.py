@@ -54,6 +54,10 @@ def test_release_candidate_uses_exact_head_once_and_has_parallel_lpt_shards() ->
     assert 'statuses/${SOURCE_SHA}' in raw
     assert "-f context=RELEASE_REQUIRED" in raw
     assert raw.count("uses: docker/build-push-action@v6") == 2
+    assert 'DOCKER_BUILD_RECORD_UPLOAD: "false"' in raw
+    assert "retention-days: 7" in raw
+    assert "needs.identity.outputs.images_required == 'true'" in raw
+    assert "candidate-cleanup:" in raw
     assert raw.count("file: Dockerfile.python") == 1
     assert raw.count("file: Dockerfile.web") == 1
     assert raw.count("ref: ${{ inputs.expected_head_sha }}") >= 10
@@ -78,18 +82,22 @@ def test_main_only_promotes_or_dispatches_fail_closed_fallback() -> None:
     assert "pytest" not in raw
     assert "docker/build-push-action" not in raw
     assert "git rev-parse 'HEAD^{tree}'" in raw
-    assert "gh workflow run ci.yml" in raw
-    assert "FALLBACK_FULL_CI_EXECUTED=true" in raw
+    assert "gh workflow run release-candidate.yml" in raw
+    assert "pr_number=0" in raw
+    assert "force_full=true" in raw
+    assert "FALLBACK_PROMOTED" in raw
+    assert "ci.yml" not in raw
+    assert "W2_RELEASE_PROMOTION_V1_ENABLED" not in raw
+    assert "BOOTSTRAP_NOOP" not in raw
 
 
-def test_legacy_ci_is_manual_fallback_and_required_names_are_unique() -> None:
-    assert triggers("ci.yml").keys() == {"workflow_dispatch"}
+def test_legacy_ci_is_deleted_and_required_names_are_unique() -> None:
+    assert not (WORKFLOWS / "ci.yml").exists()
     names: list[str] = []
-    for filename in ("ci.yml", "pr-fast.yml", "release-candidate.yml", "main-promote.yml"):
+    for filename in ("pr-fast.yml", "release-candidate.yml", "main-promote.yml"):
         for job in workflow(filename)["jobs"].values():
             name = job.get("name")
             required = {
-                "CI_REQUIRED",
                 "PR_FAST_REQUIRED",
                 "RELEASE_REQUIRED",
                 "PROMOTION_REQUIRED",
@@ -97,7 +105,6 @@ def test_legacy_ci_is_manual_fallback_and_required_names_are_unique() -> None:
             if name in required:
                 names.append(name)
     assert sorted(names) == [
-        "CI_REQUIRED",
         "PROMOTION_REQUIRED",
         "PR_FAST_REQUIRED",
         "RELEASE_REQUIRED",
@@ -109,12 +116,30 @@ def test_finalize_script_reuses_manifest_digests_and_does_not_enable_product_fla
     assert "relay_immutable_images_via_local.sh" in raw
     assert "deploy_stage7h_staging.sh" in raw
     assert "gh pr merge" in raw
+    assert "--merge --delete-branch" in raw
+    assert 'manifest_deployable="$(jq -r .deployable "$manifest")"' in raw
+    assert "worktree remove --force" in raw
     assert "--auto" not in raw
     assert "mergeStateStatus" in raw
     assert 'merge_state" = CLEAN' in raw
     assert "W2_CANDIDATE" not in raw
     assert "W2_FORMAL" not in raw
     assert "W2_PROVIDER" not in raw
+
+
+def test_manifest_downloads_are_exact_and_build_records_are_disabled() -> None:
+    release = text("release-candidate.yml")
+    promote = text("main-promote.yml")
+    finalize = (ROOT / "scripts/release/finalize_pr.sh").read_text(encoding="utf-8")
+    assert '.dockerbuild' not in release
+    assert 'DOCKER_BUILD_RECORD_UPLOAD: "false"' in release
+    assert 'release-candidate-${source_sha}' in promote
+    assert 'release-candidate-${source_sha}' in finalize
+    for raw in (promote, finalize):
+        assert "gh run download" in raw
+        assert "--name \"release-candidate-${source_sha}\"" in raw
+        assert "--pattern" not in raw
+        assert "--name '*'" not in raw
 
 
 def test_context_records_release_candidate_promotion_without_changing_next_action() -> None:

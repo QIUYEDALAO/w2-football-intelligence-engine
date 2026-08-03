@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-safe path classifier for W2 pull-request CI."""
+"""Fail-safe path classifier for W2 delivery validation."""
 
 from __future__ import annotations
 
@@ -14,129 +14,82 @@ DOC_STATUS_FILES = {
     "PROJECT_LEDGER.md",
     "tests/contract/test_delivery_status_documentation.py",
 }
+DELIVERY_FILES = {
+    ".gitignore",
+    "ci/pytest_durations.v1.json",
+    "scripts/ci_shards.py",
+    "scripts/classify_ci.py",
+    "scripts/dev_check.py",
+    "scripts/release_manifest.py",
+    "tests/contract/test_delivery_pipeline.py",
+    "tests/contract/test_arch_p2_05_final_acceptance.py",
+    "tests/unit/test_ci_classifier.py",
+    "tests/unit/test_ci_shards.py",
+    "tests/unit/test_release_manifest.py",
+    "docs/operations/W2_DELIVERY_PIPELINE_LEAD_TIME_RECOVERY.md",
+}
 PYTHON_ROOTS = ("src/", "apps/api/", "apps/scheduler/", "apps/worker/", "tests/")
 WEB_ROOTS = ("apps/web/",)
-MIGRATION_ROOTS = ("migrations/",)
-INFRA_ROOTS = ("infra/",)
-INFRA_FILES = {
+RUNTIME_ROOTS = ("migrations/", "infra/", "config/", "contracts/")
+RUNTIME_FILES = {
     "docker-compose.yml",
     "Dockerfile.python",
     "Dockerfile.web",
-}
-FULL_CI_FILES = {
-    ".github/workflows/ci.yml",
-    "scripts/classify_ci.py",
-    "scripts/check_w2_all.py",
     "alembic.ini",
     "pyproject.toml",
     "uv.lock",
 }
-CI_JOB_NAMES = (
-    "python_focused",
-    "web",
-    "migration",
-    "compose",
-    "staging_parity",
-    "predeploy_e2e",
-    "verify",
-    "images",
-)
 
 
 @dataclass(frozen=True)
 class CiPlan:
-    python_focused: bool = False
-    web: bool = False
-    migration: bool = False
-    compose: bool = False
-    staging_parity: bool = False
-    predeploy_e2e: bool = False
-    verify: bool = False
-    images: bool = False
-    full: bool = False
-    change_class: str = "docs"
+    change_class: str
+    quality_required: str
+    images_required: bool
+    deployable: bool
 
     def outputs(self) -> dict[str, str]:
-        return {key: str(value).lower() for key, value in vars(self).items()}
+        return {
+            "change_class": self.change_class,
+            "quality_required": self.quality_required,
+            "images_required": str(self.images_required).lower(),
+            "deployable": str(self.deployable).lower(),
+        }
 
 
-def _domains(path: str) -> set[str]:
+def _domain(path: str) -> str:
     pure = PurePosixPath(path)
     if pure.is_absolute() or ".." in pure.parts or path in {"", "."}:
-        return {"unknown"}
-    if path in FULL_CI_FILES or path.startswith(".github/"):
-        return {"unknown"}
-    if path.startswith(MIGRATION_ROOTS):
-        return {"migration"}
-    if path.startswith(WEB_ROOTS):
-        return {"web"}
-    if path.startswith(INFRA_ROOTS) or path in INFRA_FILES:
-        return {"infra"}
-    if path.startswith("scripts/"):
-        if pure.suffix == ".py":
-            return {"python", "infra"} if "deploy" in pure.name else {"python"}
-        return {"infra"} if pure.suffix == ".sh" else {"unknown"}
+        return "unknown"
+    if path.startswith((".github/workflows/", "scripts/release/")) or path in DELIVERY_FILES:
+        return "delivery"
     if path in DOC_STATUS_FILES or path.startswith("docs/"):
-        return {"docs"}
-    if path.startswith(PYTHON_ROOTS) or path.startswith(("config/", "contracts/")):
-        return {"python"}
+        return "docs"
+    if path.startswith(WEB_ROOTS):
+        return "web"
+    if path.startswith(RUNTIME_ROOTS) or path in RUNTIME_FILES:
+        return "runtime"
+    if path.startswith("scripts/"):
+        return "runtime"
+    if path.startswith(PYTHON_ROOTS):
+        return "python"
     if pure.suffix.lower() in {".md", ".markdown"}:
-        return {"docs"}
-    return {"unknown"}
+        return "docs"
+    return "unknown"
 
 
 def classify(paths: list[str], *, force_full: bool = False) -> CiPlan:
-    domains = set().union(*(_domains(path) for path in paths)) if paths else set()
-    heavy_domains = domains - {"docs"}
-    full = (
-        force_full
-        or not paths
-        or "unknown" in domains
-        or "migration" in domains
-        or len(heavy_domains) > 1
-    )
-    if full:
-        return CiPlan(
-            web=True,
-            migration=True,
-            compose=True,
-            staging_parity=True,
-            predeploy_e2e=True,
-            verify=True,
-            images=True,
-            full=True,
-            change_class="unknown",
-        )
-    if heavy_domains == {"python"}:
-        return CiPlan(python_focused=True, images=True, change_class="python")
-    if heavy_domains == {"web"}:
-        return CiPlan(web=True, images=True, change_class="web")
-    if heavy_domains == {"infra"}:
-        return CiPlan(
-            compose=True,
-            staging_parity=True,
-            predeploy_e2e=True,
-            images=True,
-            change_class="infra",
-        )
-    return CiPlan()
-
-
-def ci_required_passes(expected: dict[str, bool], results: dict[str, str]) -> bool:
-    return results.get("classify") == "success" and all(
-        results.get(job) == ("success" if expected.get(job) else "skipped")
-        for job in CI_JOB_NAMES
-    )
-
-
-def _key_values(values: list[str]) -> dict[str, str]:
-    pairs: dict[str, str] = {}
-    for value in values:
-        key, separator, item = value.partition("=")
-        if not separator or not key or not item:
-            raise ValueError(f"invalid KEY=VALUE pair: {value}")
-        pairs[key] = item
-    return pairs
+    domains = {_domain(path) for path in paths}
+    if domains and domains <= {"docs"}:
+        return CiPlan("docs", "FULL" if force_full else "DOCS", False, False)
+    if domains and domains <= {"docs", "delivery"}:
+        return CiPlan("delivery", "FULL", False, False)
+    if not domains or "unknown" in domains or len(domains - {"docs"}) > 1:
+        return CiPlan("unknown", "FULL", True, True)
+    change_class = next(iter(domains - {"docs"}), "unknown")
+    if change_class == "delivery":
+        return CiPlan("delivery", "FULL", False, False)
+    return CiPlan(change_class, "FULL", True, True)
 
 
 def changed_paths(base: str, head: str) -> list[str]:
@@ -150,10 +103,8 @@ def changed_paths(base: str, head: str) -> list[str]:
 
 
 def resolve_plan(base: str, head: str, *, force_full: bool = False) -> CiPlan:
-    if force_full:
-        return classify([], force_full=True)
     try:
-        return classify(changed_paths(base, head))
+        return classify(changed_paths(base, head), force_full=force_full)
     except subprocess.CalledProcessError:
         return classify([], force_full=True)
 
@@ -165,14 +116,7 @@ def main() -> int:
     parser.add_argument("--path", action="append", default=[])
     parser.add_argument("--force-full", action="store_true")
     parser.add_argument("--github-output", type=Path)
-    parser.add_argument("--expected-job", action="append", default=[])
-    parser.add_argument("--result", action="append", default=[])
     args = parser.parse_args()
-    if args.result:
-        expected = {
-            key: value == "true" for key, value in _key_values(args.expected_job).items()
-        }
-        return 0 if ci_required_passes(expected, _key_values(args.result)) else 1
     if args.path:
         plan = classify(args.path, force_full=args.force_full)
     else:

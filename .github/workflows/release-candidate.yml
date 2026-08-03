@@ -34,6 +34,7 @@ permissions:
   statuses: write
 
 env:
+  DOCKER_BUILD_RECORD_UPLOAD: "false"
   W2_ENVIRONMENT: test
   W2_PROVIDER_CALLS_DISABLED: "true"
   W2_PROVIDER_SCHEDULER_ENABLED: "false"
@@ -52,7 +53,9 @@ jobs:
       source_tree_sha: ${{ steps.identity.outputs.source_tree_sha }}
       base_main_sha: ${{ steps.identity.outputs.base_main_sha }}
       change_class: ${{ steps.identity.outputs.change_class }}
-      docs_only: ${{ steps.identity.outputs.docs_only }}
+      quality_required: ${{ steps.identity.outputs.quality_required }}
+      images_required: ${{ steps.identity.outputs.images_required }}
+      deployable: ${{ steps.identity.outputs.deployable }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -73,14 +76,8 @@ jobs:
           base_main_sha="$(git rev-parse origin/main)"
           if [ "$PR_NUMBER" = 0 ]; then
             test "$EXPECTED_HEAD_SHA" = "$base_main_sha"
-            if [ "$FORCE_FULL" = true ] && [ "$DEPLOYABLE" = true ]; then
-              change_class=unknown
-            elif [ "$FORCE_FULL" = false ] && [ "$DEPLOYABLE" = false ]; then
-              change_class=docs
-            else
-              echo 'invalid rehearsal input combination' >&2
-              exit 1
-            fi
+            base_main_sha="$(git rev-parse "${EXPECTED_HEAD_SHA}^1")"
+            python3 scripts/classify_ci.py --base "$base_main_sha" --head "$EXPECTED_HEAD_SHA" --force-full --github-output "$RUNNER_TEMP/classification"
           else
             pr_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")"
             test "$(jq -r .state <<<"$pr_json")" = open
@@ -101,27 +98,28 @@ jobs:
             checks="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${EXPECTED_HEAD_SHA}/check-runs?per_page=100")"
             test "$(jq -r '[.check_runs[] | select(.name == "PR_FAST_REQUIRED")] | sort_by(.started_at) | last | .conclusion // empty' <<<"$checks")" = success
             python3 scripts/classify_ci.py --base "$base_main_sha" --head "$EXPECTED_HEAD_SHA" --github-output "$RUNNER_TEMP/classification"
-            change_class="$(sed -n 's/^change_class=//p' "$RUNNER_TEMP/classification")"
-            if [ "$change_class" != docs ]; then
-              test "$DEPLOYABLE" = true
-              test "$FORCE_FULL" = true
-            fi
           fi
+          change_class="$(sed -n 's/^change_class=//p' "$RUNNER_TEMP/classification")"
+          quality_required="$(sed -n 's/^quality_required=//p' "$RUNNER_TEMP/classification")"
+          images_required="$(sed -n 's/^images_required=//p' "$RUNNER_TEMP/classification")"
+          deployable="$(sed -n 's/^deployable=//p' "$RUNNER_TEMP/classification")"
+          test "$DEPLOYABLE" = "$deployable"
+          if [ "$quality_required" = FULL ]; then test "$FORCE_FULL" = true; fi
           test -z "$(git status --porcelain)"
           source_tree_sha="$(git rev-parse "${EXPECTED_HEAD_SHA}^{tree}")"
-          docs_only=false
-          [ "$change_class" = docs ] && docs_only=true
           {
             echo "source_sha=$EXPECTED_HEAD_SHA"
             echo "source_tree_sha=$source_tree_sha"
             echo "base_main_sha=$base_main_sha"
             echo "change_class=$change_class"
-            echo "docs_only=$docs_only"
+            echo "quality_required=$quality_required"
+            echo "images_required=$images_required"
+            echo "deployable=$deployable"
           } >>"$GITHUB_OUTPUT"
 
   docs-quality:
     needs: identity
-    if: needs.identity.outputs.docs_only == 'true'
+    if: needs.identity.outputs.quality_required == 'DOCS'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -140,7 +138,7 @@ jobs:
 
   static-contract:
     needs: identity
-    if: needs.identity.outputs.docs_only == 'false'
+    if: needs.identity.outputs.quality_required == 'FULL'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -160,7 +158,7 @@ jobs:
 
   unit-contract:
     needs: identity
-    if: needs.identity.outputs.docs_only == 'false'
+    if: needs.identity.outputs.quality_required == 'FULL'
     strategy:
       fail-fast: false
       matrix:
@@ -203,7 +201,7 @@ jobs:
 
   integration:
     needs: identity
-    if: needs.identity.outputs.docs_only == 'false'
+    if: needs.identity.outputs.quality_required == 'FULL'
     strategy:
       fail-fast: false
       matrix:
@@ -246,7 +244,7 @@ jobs:
 
   staging-parity:
     needs: identity
-    if: needs.identity.outputs.docs_only == 'false'
+    if: needs.identity.outputs.quality_required == 'FULL'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -262,7 +260,7 @@ jobs:
 
   migration-schema:
     needs: identity
-    if: needs.identity.outputs.docs_only == 'false'
+    if: needs.identity.outputs.quality_required == 'FULL'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -293,7 +291,7 @@ jobs:
 
   predeploy-e2e:
     needs: identity
-    if: needs.identity.outputs.docs_only == 'false'
+    if: needs.identity.outputs.quality_required == 'FULL'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -309,7 +307,7 @@ jobs:
 
   web:
     needs: identity
-    if: needs.identity.outputs.docs_only == 'false'
+    if: needs.identity.outputs.quality_required == 'FULL'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -335,7 +333,7 @@ jobs:
 
   compose-packaging:
     needs: identity
-    if: needs.identity.outputs.docs_only == 'false'
+    if: needs.identity.outputs.quality_required == 'FULL'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -351,7 +349,7 @@ jobs:
 
   build-python-image:
     needs: identity
-    if: needs.identity.outputs.docs_only == 'false'
+    if: needs.identity.outputs.images_required == 'true'
     permissions:
       contents: read
       packages: write
@@ -387,7 +385,7 @@ jobs:
 
   build-web-image:
     needs: identity
-    if: needs.identity.outputs.docs_only == 'false'
+    if: needs.identity.outputs.images_required == 'true'
     permissions:
       contents: read
       packages: write
@@ -426,7 +424,7 @@ jobs:
 
   image-smoke:
     needs: [identity, build-python-image, build-web-image]
-    if: needs.identity.outputs.docs_only == 'false'
+    if: needs.identity.outputs.images_required == 'true'
     permissions:
       contents: read
       packages: read
@@ -486,7 +484,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr_number }}
           SOURCE_SHA: ${{ needs.identity.outputs.source_sha }}
-          DOCS_ONLY: ${{ needs.identity.outputs.docs_only }}
+          QUALITY_REQUIRED: ${{ needs.identity.outputs.quality_required }}
+          IMAGES_REQUIRED: ${{ needs.identity.outputs.images_required }}
           IDENTITY_RESULT: ${{ needs.identity.result }}
           DOCS_RESULT: ${{ needs.docs-quality.result }}
           STATIC_RESULT: ${{ needs.static-contract.result }}
@@ -508,30 +507,39 @@ jobs:
             test "$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .state)" = open
             test "$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .head.sha)" = "$SOURCE_SHA"
           fi
-          if [ "$DOCS_ONLY" = true ]; then
+          if [ "$QUALITY_REQUIRED" = DOCS ]; then
             test "$DOCS_RESULT" = success
-            for result in "$STATIC_RESULT" "$UNIT_RESULT" "$INTEGRATION_RESULT" "$STAGING_RESULT" "$MIGRATION_RESULT" "$PREDEPLOY_RESULT" "$WEB_RESULT" "$COMPOSE_RESULT" "$PYTHON_IMAGE_RESULT" "$WEB_IMAGE_RESULT" "$IMAGE_SMOKE_RESULT"; do test "$result" = skipped; done
+            for result in "$STATIC_RESULT" "$UNIT_RESULT" "$INTEGRATION_RESULT" "$STAGING_RESULT" "$MIGRATION_RESULT" "$PREDEPLOY_RESULT" "$WEB_RESULT" "$COMPOSE_RESULT"; do test "$result" = skipped; done
           else
             test "$DOCS_RESULT" = skipped
-            for result in "$STATIC_RESULT" "$UNIT_RESULT" "$INTEGRATION_RESULT" "$STAGING_RESULT" "$MIGRATION_RESULT" "$PREDEPLOY_RESULT" "$WEB_RESULT" "$COMPOSE_RESULT" "$PYTHON_IMAGE_RESULT" "$WEB_IMAGE_RESULT" "$IMAGE_SMOKE_RESULT"; do test "$result" = success; done
+            for result in "$STATIC_RESULT" "$UNIT_RESULT" "$INTEGRATION_RESULT" "$STAGING_RESULT" "$MIGRATION_RESULT" "$PREDEPLOY_RESULT" "$WEB_RESULT" "$COMPOSE_RESULT"; do test "$result" = success; done
+          fi
+          if [ "$IMAGES_REQUIRED" = true ]; then
+            for result in "$PYTHON_IMAGE_RESULT" "$WEB_IMAGE_RESULT" "$IMAGE_SMOKE_RESULT"; do test "$result" = success; done
+          else
+            for result in "$PYTHON_IMAGE_RESULT" "$WEB_IMAGE_RESULT" "$IMAGE_SMOKE_RESULT"; do test "$result" = skipped; done
           fi
       - name: Create immutable release manifest
         env:
-          DOCS_ONLY: ${{ needs.identity.outputs.docs_only }}
+          QUALITY_REQUIRED: ${{ needs.identity.outputs.quality_required }}
+          IMAGES_REQUIRED: ${{ needs.identity.outputs.images_required }}
           PYTHON_DIGEST: ${{ needs.build-python-image.outputs.digest }}
           WEB_DIGEST: ${{ needs.build-web-image.outputs.digest }}
         run: |
-          if [ "$DOCS_ONLY" = true ]; then
+          if [ "$IMAGES_REQUIRED" = false ]; then
             python_digest=NOT_REQUIRED
             web_digest=NOT_REQUIRED
             python_ref=NOT_REQUIRED
             web_ref=NOT_REQUIRED
-            quality=(--quality-job docs-quality=success)
           else
             python_digest="$PYTHON_DIGEST"
             web_digest="$WEB_DIGEST"
             python_ref="${PYTHON_IMAGE}@${PYTHON_DIGEST}"
             web_ref="${WEB_IMAGE}@${WEB_DIGEST}"
+          fi
+          if [ "$QUALITY_REQUIRED" = DOCS ]; then
+            quality=(--quality-job docs-quality=success)
+          else
             quality=(--quality-job static-contract=success --quality-job unit-contract=success --quality-job integration=success --quality-job staging-parity=success --quality-job migration-schema=success --quality-job predeploy-e2e=success --quality-job web=success --quality-job compose-packaging=success)
           fi
           manifest="release-manifest-${{ needs.identity.outputs.source_sha }}.json"
@@ -543,6 +551,9 @@ jobs:
             --base-main-sha "${{ needs.identity.outputs.base_main_sha }}" \
             --workflow-run-id "$GITHUB_RUN_ID" \
             --change-class "${{ needs.identity.outputs.change_class }}" \
+            --quality-required "${{ needs.identity.outputs.quality_required }}" \
+            --images-required "${{ needs.identity.outputs.images_required }}" \
+            --deployable "${{ needs.identity.outputs.deployable }}" \
             "${quality[@]}" \
             --python-image-digest "$python_digest" \
             --web-image-digest "$web_digest" \
@@ -556,7 +567,7 @@ jobs:
             release-manifest-${{ needs.identity.outputs.source_sha }}.json
             release-manifest-${{ needs.identity.outputs.source_sha }}.json.sha256
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
 
   release-required:
     name: RELEASE_REQUIRED
@@ -580,3 +591,44 @@ jobs:
               -f target_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
               >/dev/null
           fi
+
+  candidate-cleanup:
+    if: always() && needs.release-required.result != 'success'
+    needs: [identity, manifest, release-required]
+    permissions:
+      actions: write
+      contents: read
+      packages: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete failed, cancelled, or stale candidate assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          SOURCE_SHA: ${{ inputs.expected_head_sha }}
+          RELEASE_RESULT: ${{ needs.release-required.result }}
+          IMAGES_REQUIRED: ${{ needs.identity.outputs.images_required }}
+        run: |
+          set -euo pipefail
+          if [ "$RELEASE_RESULT" != success ]; then
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?per_page=100" \
+              --jq '.artifacts[].id' | while read -r artifact_id; do
+                gh api --method DELETE "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}"
+              done
+          fi
+          [ "$IMAGES_REQUIRED" = true ] || exit 0
+          if [ "$PR_NUMBER" != 0 ]; then
+            successful="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/release-candidate.yml/runs?event=workflow_dispatch&status=success&head_sha=${SOURCE_SHA}&per_page=100" --jq '.total_count')"
+            [ "$successful" = 0 ] || exit 0
+          fi
+          owner="${GITHUB_REPOSITORY%%/*}"
+          for package in w2-football-intelligence-engine%2Fpython w2-football-intelligence-engine%2Fweb; do
+            gh api --paginate "orgs/${owner}/packages/container/${package}/versions?per_page=100" 2>/dev/null || \
+              gh api --paginate "users/${owner}/packages/container/${package}/versions?per_page=100"
+          done | jq -s --arg source "$SOURCE_SHA" \
+            '[flatten[] | select(.metadata.container.tags == [$source]) | .id] | unique[]' | \
+            while read -r version_id; do
+              for package in w2-football-intelligence-engine%2Fpython w2-football-intelligence-engine%2Fweb; do
+                gh api --method DELETE "users/${owner}/packages/container/${package}/versions/${version_id}" 2>/dev/null || true
+              done
+            done

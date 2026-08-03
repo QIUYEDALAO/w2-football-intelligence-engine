@@ -129,7 +129,7 @@ def test_single_authorities_and_production_fallback_guards_remain_active() -> No
 def test_deployment_is_pull_only_and_has_no_server_build_path() -> None:
     deploy = _text(ROOT / "scripts/deploy_stage7h_staging.sh")
     compose = yaml.safe_load(_text(ROOT / "infra/compose/compose.staging.yml"))
-    workflow = _text(ROOT / ".github/workflows/ci.yml")
+    workflow = _text(ROOT / ".github/workflows/release-candidate.yml")
     for forbidden in (
         "docker build",
         "compose build",
