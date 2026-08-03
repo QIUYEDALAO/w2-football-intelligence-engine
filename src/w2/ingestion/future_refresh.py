@@ -238,6 +238,13 @@ def fixture_id_from_payload(item: dict[str, Any]) -> str:
     return str(item.get("fixture", {}).get("id") or "")
 
 
+def _api_football_fixture_id(fixture_id: str) -> str:
+    prefix, separator, provider_fixture_id = fixture_id.partition(":")
+    if separator and prefix == "api_football" and provider_fixture_id:
+        return provider_fixture_id
+    return fixture_id
+
+
 def kickoff_from_payload(item: dict[str, Any]) -> datetime | None:
     return parse_utc(item.get("fixture", {}).get("date"))
 
@@ -1711,7 +1718,10 @@ class FutureFixtureRefreshService:
         response = payload.get("response")
         if not isinstance(response, list):
             return []
-        allowed_fixture_ids = set(self.config.checkpoint_fixture_ids)
+        allowed_fixture_ids = {
+            _api_football_fixture_id(fixture_id)
+            for fixture_id in self.config.checkpoint_fixture_ids
+        }
         rows: list[dict[str, Any]] = []
         for item in response:
             if not isinstance(item, dict):
@@ -2371,7 +2381,10 @@ class FutureFixtureRefreshService:
                 fixture_id=fixture_id,
                 checkpoint=name,
                 as_of=result.generated_at_utc,
-                calls_used=max(calls_by_fixture.get(fixture_id, 0), 0),
+                calls_used=max(
+                    calls_by_fixture.get(_api_football_fixture_id(fixture_id), 0),
+                    0,
+                ),
                 status=status,
                 details={
                     "contract": "w2.checkpoint_refresh.v1",
