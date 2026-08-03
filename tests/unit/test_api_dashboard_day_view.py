@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
 import pytest
@@ -39,9 +40,7 @@ class RecordingDashboardService:
             "version": {"api_git_sha": "sha"},
             "debug": {},
             "performance": {},
-            "recommendations": [
-                {"fixture_id": "not-counted", "decision_tier": "RECOMMEND"}
-            ],
+            "recommendations": [{"fixture_id": "not-counted", "decision_tier": "RECOMMEND"}],
             "all": [
                 {
                     "fixture_id": "fixture-1",
@@ -95,9 +94,7 @@ def test_dashboard_day_view_endpoint_reads_requested_window(
     monkeypatch.setattr(routers, "service", service)
     client = TestClient(app)
 
-    response = client.get(
-        "/v1/dashboard/day-view?date=2026-07-05&window=future&timezone=UTC"
-    )
+    response = client.get("/v1/dashboard/day-view?date=2026-07-05&window=future&timezone=UTC")
 
     assert response.status_code == 200
     payload = response.json()
@@ -139,15 +136,11 @@ def test_dashboard_day_view_endpoint_missing_contract_is_system_degraded(
     monkeypatch.setattr(routers, "service", service)
     client = TestClient(app, raise_server_exceptions=False)
 
-    response = client.get(
-        "/v1/dashboard/day-view?date=2026-07-05&window=future&timezone=UTC"
-    )
+    response = client.get("/v1/dashboard/day-view?date=2026-07-05&window=future&timezone=UTC")
 
     assert response.status_code == 503
     assert response.json()["code"] == "SYSTEM_DEGRADED"
-    assert response.json()["message"] == (
-        "DECISION_CONTRACT_MISSING:fixture-1"
-    )
+    assert response.json()["message"] == ("DECISION_CONTRACT_MISSING:fixture-1")
 
 
 @pytest.mark.parametrize(
@@ -191,9 +184,7 @@ def test_dashboard_day_view_endpoint_malformed_contract_is_system_degraded(
     monkeypatch.setattr(routers, "service", service)
     client = TestClient(app, raise_server_exceptions=False)
 
-    response = client.get(
-        "/v1/dashboard/day-view?date=2026-07-05&window=future&timezone=UTC"
-    )
+    response = client.get("/v1/dashboard/day-view?date=2026-07-05&window=future&timezone=UTC")
 
     assert response.status_code == 503
     assert response.json()["code"] == "SYSTEM_DEGRADED"
@@ -211,6 +202,7 @@ def _attach_active_dynamic_evidence(card: dict[str, Any]) -> None:
             "quote_identity_hash": quote_hash,
             "identity_status": "COMPLETE",
             "freshness_status": "COMPLETE",
+            "quotes": {"away": {"line": "1.25"}},
         },
         "market_probability": {"devig": {"HOME": 0.49, "AWAY": 0.51}},
         "model_probability": {
@@ -253,6 +245,7 @@ def _attach_active_dynamic_evidence(card: dict[str, Any]) -> None:
             {
                 "schema_version": "w2.dynamic_quote_evaluation.v2",
                 "evaluation_id": "evaluation-active",
+                "identity_hash": "evaluation-hash",
                 "fixture_id": "fixture-1",
                 "evaluated_at": "2026-07-05T00:00:00Z",
                 "state": "ANALYSIS_PICK_ACTIVE",
@@ -268,6 +261,19 @@ def _attach_active_dynamic_evidence(card: dict[str, Any]) -> None:
                 "blockers": [],
                 "superseded_by_evaluation_id": None,
                 "immutable": True,
+                "scoreline_reference": {
+                    "source": "formal_simulation",
+                    "label": "模拟比分参考",
+                    "scoreline_projection": {
+                        "status": "READY",
+                        "decision_hash": "evaluation-hash",
+                        "top3": [
+                            {"scoreline": "0-1", "sample_count": 1200},
+                            {"scoreline": "0-2", "sample_count": 900},
+                            {"scoreline": "1-2", "sample_count": 800},
+                        ],
+                    },
+                },
             }
         ]
     }
@@ -281,7 +287,8 @@ def test_day_view_reconciles_identity_matched_active_dynamic_evidence(
 
     def dashboard_with_dynamic_evidence(**kwargs: Any) -> dict[str, Any]:
         payload = original_dashboard(**kwargs)
-        _attach_active_dynamic_evidence(payload["all"][0])
+        card = payload["all"][0]
+        _attach_active_dynamic_evidence(card)
         return payload
 
     monkeypatch.setattr(service, "public_dashboard", dashboard_with_dynamic_evidence)
@@ -299,9 +306,49 @@ def test_day_view_reconciles_identity_matched_active_dynamic_evidence(
     assert card["data_status"] == "READY"
     assert card["data_readiness"]["data_status"] == "READY"
     assert card["recommendation_decision_v3"]["outcome"] == "ANALYSIS_PICK"
+    assert card["scoreline_reference"]["scoreline_projection"]["status"] == "READY"
+    assert len(card["scoreline_reference"]["scoreline_projection"]["top3"]) == 3
     assert card["lock_eligible"] is False
     assert card["decision_projection"]["provider_calls"] == 0
     assert card["decision_projection"]["db_writes"] == 0
+
+
+def test_day_view_orders_analysis_pick_first_then_kickoff_and_fixture_id(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    service = RecordingDashboardService()
+    original_dashboard = service.dashboard
+
+    def dashboard_with_unsorted_cards(**kwargs: Any) -> dict[str, Any]:
+        payload = original_dashboard(**kwargs)
+        pick = payload["all"][0]
+        pick["kickoff_utc"] = "2026-07-05T12:00:00Z"
+        _attach_active_dynamic_evidence(pick)
+        earlier_b = deepcopy(pick)
+        earlier_b["fixture_id"] = "fixture-b"
+        earlier_b["kickoff_utc"] = "2026-07-05T08:00:00Z"
+        earlier_b.pop("dynamic_prematch", None)
+        earlier_b["recommendation_decision_v3"] = {"outcome": "NOT_READY"}
+        earlier_a = deepcopy(earlier_b)
+        earlier_a["fixture_id"] = "fixture-a"
+        earlier_a["kickoff_utc"] = "2026-07-05T08:00:00Z"
+        payload["all"] = [earlier_b, pick, earlier_a]
+        return payload
+
+    monkeypatch.setattr(service, "public_dashboard", dashboard_with_unsorted_cards)
+    monkeypatch.setattr(routers, "service", service)
+
+    payload = (
+        TestClient(app)
+        .get("/v1/dashboard/day-view?date=2026-07-05&window=future&timezone=UTC")
+        .json()
+    )
+
+    assert [card["fixture_id"] for card in payload["cards"]] == [
+        "fixture-1",
+        "fixture-a",
+        "fixture-b",
+    ]
 
 
 def test_day_view_keeps_identity_mismatched_dynamic_evidence_not_ready(

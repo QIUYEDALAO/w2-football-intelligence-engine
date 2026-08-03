@@ -28,6 +28,7 @@ from w2.competitions.seed import set_competition_enabled
 from w2.config import Settings
 from w2.infrastructure.cache import redis_status
 from w2.infrastructure.database import create_engine
+from w2.ingestion.checkpoint_refresh import postmatch_result_checkpoint_plan
 
 
 @contextmanager
@@ -58,6 +59,22 @@ def test_celery_ping_task_has_no_business_side_effect() -> None:
 
 def test_scheduler_heartbeat_does_not_call_external_api() -> None:
     assert heartbeat() == "w2 scheduler heartbeat"
+
+
+def test_postmatch_result_checkpoint_is_single_bounded_status_fixture_refresh() -> None:
+    kickoff = datetime(2026, 8, 3, 17, tzinfo=UTC)
+    plan = postmatch_result_checkpoint_plan(
+        fixture_id="api_football:1494237",
+        competition_id="allsvenskan",
+        season="2026",
+        kickoff_utc=kickoff,
+        now=kickoff.replace(hour=21),
+    )
+
+    assert plan.status == "DUE"
+    assert plan.checkpoint == "POSTMATCH_RESULT"
+    assert plan.scheduled_at == kickoff.replace(hour=20)
+    assert plan.endpoints == ("status", "fixtures")
 
 
 def test_scheduler_future_refresh_disabled_by_default(monkeypatch) -> None:
@@ -781,9 +798,7 @@ def test_worker_future_refresh_uses_allowlisted_live_client(monkeypatch) -> None
     client: Any = captured["client"]
     assert type(client).__name__ == "ApiFootballClient"
     assert client.allow_live is True
-    assert client.allowed_live_endpoints == frozenset(
-        {"status", "fixtures", "odds", "lineups"}
-    )
+    assert client.allowed_live_endpoints == frozenset({"status", "fixtures", "odds", "lineups"})
     assert result["status"] == "COMPLETED"
 
 
@@ -832,11 +847,15 @@ def test_scheduler_checkpoint_batch_ignores_due_rows_outside_current_fixture_set
         }
     ]
 
+    claimed_plan_ids: set[str] | None = None
+
     class FakeRepository:
         def upsert_checkpoint_plan(self, plan: object) -> str:
             return "plan"
 
         def claim_due_checkpoint_plans(self, **kwargs: object) -> list[dict[str, Any]]:
+            nonlocal claimed_plan_ids
+            claimed_plan_ids = kwargs.get("plan_ids")  # type: ignore[assignment]
             return [
                 {
                     "id": "checkpoint:9999:open",
@@ -871,6 +890,8 @@ def test_scheduler_checkpoint_batch_ignores_due_rows_outside_current_fixture_set
     assert result["generated_plan_count"] > 0
     assert result["due_checkpoint_count"] == 0
     assert result["selected_checkpoint_count"] == 0
+    assert claimed_plan_ids
+    assert "checkpoint:9999:open" not in claimed_plan_ids
 
 
 def test_worker_future_refresh_task_is_registered() -> None:

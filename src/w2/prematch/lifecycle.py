@@ -101,6 +101,7 @@ class DynamicEvaluationVersion:
     season: str | None = None
     provider: str | None = None
     model_settlement_distribution: dict[str, float] | None = None
+    scoreline_reference: dict[str, Any] | None = None
 
     def as_dict(
         self,

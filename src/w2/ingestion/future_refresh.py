@@ -73,6 +73,9 @@ class LiveApiFootballPort(Protocol):
         pass
 
 
+ResultMaterializer = Callable[[tuple[str, ...], datetime], dict[str, Any]]
+
+
 @dataclass(frozen=True)
 class CompetitionRefreshPolicy:
     competition_id: str
@@ -126,6 +129,7 @@ class FutureRefreshConfig:
     policy_config_hash: str = ""
     checkpoint_fixture_ids: tuple[str, ...] = ()
     refresh_checkpoints: tuple[dict[str, Any], ...] = ()
+    result_refresh_fixture_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -714,6 +718,7 @@ class FutureFixtureRefreshService:
         sleep: Any | None = None,
         materialize_public_artifacts: Callable[[list[ProjectionSourceEvent]], list[str]]
         | None = None,
+        materialize_results: ResultMaterializer | None = None,
         runtime_authorization: GateARuntimeAuthorization | None = None,
         provider_call_reservation: GateARunReservation | None = None,
     ) -> None:
@@ -727,6 +732,7 @@ class FutureFixtureRefreshService:
         self.now = now or utc_now()
         self.sleep = sleep or time.sleep
         self.materialize_public_artifacts = materialize_public_artifacts
+        self.materialize_results = materialize_results
         self._attempt_count = 0
         self._latest_remaining: int | None = None
         self._audit: list[dict[str, Any]] = []
@@ -1729,6 +1735,9 @@ class FutureFixtureRefreshService:
             fixture_id = fixture_id_from_payload(item)
             if allowed_fixture_ids and fixture_id not in allowed_fixture_ids:
                 continue
+            if self.config.result_refresh_fixture_ids:
+                rows.append(item)
+                continue
             status = item.get("fixture", {}).get("status", {}).get("short")
             kickoff = kickoff_from_payload(item)
             if status != "NS" or kickoff is None or kickoff <= self.now:
@@ -1973,7 +1982,7 @@ class FutureFixtureRefreshService:
                     raise FutureRefreshError(
                         f"FIXTURE_IDENTITY_PERSISTENCE_FAILED:{exc.__class__.__name__}"
                     ) from exc
-                if changed_fixture_ids:
+                if changed_fixture_ids and not self.config.result_refresh_fixture_ids:
                     fixture_id = str(
                         fixture_identity.get("provider_fixture_id")
                         or fixture_identity.get("fixture_id")
@@ -2069,6 +2078,18 @@ class FutureFixtureRefreshService:
             ]
         except FutureRefreshPersistenceError as exc:
             raise FutureRefreshError(f"PERSISTENCE_WRITE_FAILED:{exc}") from exc
+        if self.config.result_refresh_fixture_ids:
+            if self.materialize_results is None:
+                raise FutureRefreshError("RESULT_MATERIALIZER_UNAVAILABLE")
+            result_refresh = self.materialize_results(
+                self.config.result_refresh_fixture_ids,
+                self.now,
+            )
+            materialized_fixture_ids = list(result_refresh["confirmed_fixture_ids"])
+            if result_refresh["status"] == "BLOCKED":
+                blockers.extend(str(item) for item in result_refresh.get("blockers", []))
+        else:
+            materialized_fixture_ids = self._materialize_refreshed_public_artifacts()
         mappings = [self._mapping_from_fixture(item) for item in fixtures]
         markets = [
             self._market_snapshot_from_observations(fixture_id, latest_rows)
@@ -2086,7 +2107,7 @@ class FutureFixtureRefreshService:
             selected_market_fixture_ids=[fixture_id for fixture_id, _ in odds_responses],
             blockers=blockers,
             raw_payload_written_count=self._raw_payload_written_count,
-            materialized_fixture_ids=self._materialize_refreshed_public_artifacts(),
+            materialized_fixture_ids=materialized_fixture_ids,
         )
         self._write_audit(result)
         return result
@@ -2165,6 +2186,19 @@ class FutureFixtureRefreshService:
                 )
 
     def _fixtures_request_params(self) -> dict[str, str]:
+        if self.config.result_refresh_fixture_ids:
+            kickoff_dates = [
+                parsed.date()
+                for item in self.config.refresh_checkpoints
+                if (parsed := parse_utc(item.get("kickoff_utc"))) is not None
+            ]
+            start = min(kickoff_dates, default=self.now.date())
+            return {
+                "league": self.config.league_id,
+                "season": self.config.season,
+                "from": start.isoformat(),
+                "to": self.now.date().isoformat(),
+            }
         return {
             "league": self.config.league_id,
             "season": self.config.season,
@@ -2477,6 +2511,7 @@ def run_future_fixture_refresh(
     checkpoint_fixture_ids: tuple[str, ...] = (),
     refresh_checkpoints: tuple[dict[str, Any], ...] = (),
     materialize_public_artifacts: Callable[[list[ProjectionSourceEvent]], list[str]] | None = None,
+    materialize_results: ResultMaterializer | None = None,
     runtime_authorization: GateARuntimeAuthorization | None = None,
     provider_call_reservation: GateARunReservation | None = None,
 ) -> FutureRefreshResult:
@@ -2489,6 +2524,14 @@ def run_future_fixture_refresh(
     if persistence is not None:
         config = replace(config, persistence=persistence)
     if checkpoint_fixture_ids or refresh_checkpoints:
+        result_refresh_fixture_ids = (
+            tuple(dict.fromkeys(checkpoint_fixture_ids))
+            if any(
+                str(item.get("checkpoint") or "") == "POSTMATCH_RESULT"
+                for item in refresh_checkpoints
+            )
+            else ()
+        )
         lineups_count = sum(
             1 for item in refresh_checkpoints if "lineups" in set(item.get("endpoints") or [])
         )
@@ -2496,6 +2539,7 @@ def run_future_fixture_refresh(
             config,
             checkpoint_fixture_ids=tuple(dict.fromkeys(checkpoint_fixture_ids)),
             refresh_checkpoints=tuple(refresh_checkpoints),
+            result_refresh_fixture_ids=result_refresh_fixture_ids,
             max_fixture_candidates=max(len(set(checkpoint_fixture_ids)), 1),
             max_odds_requests=sum(
                 1 for item in refresh_checkpoints if "odds" in set(item.get("endpoints") or [])
@@ -2513,6 +2557,7 @@ def run_future_fixture_refresh(
         config=config,
         now=now,
         materialize_public_artifacts=materialize_public_artifacts,
+        materialize_results=materialize_results,
         runtime_authorization=runtime_authorization,
         provider_call_reservation=provider_call_reservation,
     ).run()
@@ -2538,6 +2583,7 @@ def run_future_refresh_task(
     checkpoint_fixture_ids: tuple[str, ...] = (),
     refresh_checkpoints: tuple[dict[str, Any], ...] = (),
     materialize_public_artifacts: Callable[[list[ProjectionSourceEvent]], list[str]] | None = None,
+    materialize_results: ResultMaterializer | None = None,
     runtime_authorization: GateARuntimeAuthorization | None = None,
     provider_call_reservation: GateARunReservation | None = None,
 ) -> RefreshTaskAudit:
@@ -2643,6 +2689,7 @@ def run_future_refresh_task(
             checkpoint_fixture_ids=checkpoint_fixture_ids,
             refresh_checkpoints=refresh_checkpoints,
             materialize_public_artifacts=materialize_public_artifacts,
+            materialize_results=materialize_results,
             runtime_authorization=runtime_authorization,
             provider_call_reservation=provider_call_reservation,
         )

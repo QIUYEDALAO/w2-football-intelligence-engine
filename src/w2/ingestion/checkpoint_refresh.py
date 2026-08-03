@@ -9,6 +9,7 @@ from w2.matchday.intake_v2 import (
     POLICY_VERSION as MATCHDAY_INTAKE_POLICY_VERSION,
 )
 from w2.matchday.intake_v2 import (
+    CheckpointPlan,
     MatchdayCompetitionPolicy,
     build_checkpoint_plans,
     competition_policies,
@@ -28,6 +29,9 @@ WORLD_CUP_BUDGET_RESERVE = 20
 JUMP_CONFIRMATION_CHECKPOINT = "LINE_JUMP_CONFIRMATION"
 LINEUP_CONFIRMED_CHECKPOINT = "LINEUP_CONFIRMED"
 T30_VALIDATION_CHECKPOINT = "T-30m_VALIDATION_LOCK"
+POSTMATCH_RESULT_CHECKPOINT = "POSTMATCH_RESULT"
+POSTMATCH_RESULT_DELAY = timedelta(hours=3)
+POSTMATCH_RESULT_GRACE = timedelta(hours=33)
 
 
 @dataclass(frozen=True)
@@ -55,6 +59,43 @@ class FixtureCheckpointPlan:
 
 def normalize_utc(value: datetime) -> datetime:
     return value.astimezone(UTC) if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+def postmatch_result_checkpoint_plan(
+    *,
+    fixture_id: str,
+    competition_id: str,
+    season: str,
+    kickoff_utc: datetime,
+    now: datetime,
+) -> CheckpointPlan:
+    kickoff = normalize_utc(kickoff_utc)
+    current = normalize_utc(now)
+    scheduled = kickoff + POSTMATCH_RESULT_DELAY
+    window_end = scheduled + POSTMATCH_RESULT_GRACE
+    status = "PLANNED"
+    blockers: tuple[str, ...] = ()
+    missed_at = None
+    if current > window_end:
+        status = "MISSED"
+        blockers = ("CHECKPOINT_MISSING",)
+        missed_at = current
+    elif scheduled <= current <= window_end:
+        status = "DUE"
+    return CheckpointPlan(
+        fixture_id=fixture_id,
+        competition_id=competition_id,
+        season=season,
+        checkpoint=POSTMATCH_RESULT_CHECKPOINT,
+        kickoff_utc=kickoff,
+        scheduled_at=scheduled,
+        window_start=scheduled,
+        window_end=window_end,
+        endpoints=("status", "fixtures"),
+        status=status,
+        blockers=blockers,
+        missed_at=missed_at,
+    )
 
 
 def checkpoint_plan_for_fixture(

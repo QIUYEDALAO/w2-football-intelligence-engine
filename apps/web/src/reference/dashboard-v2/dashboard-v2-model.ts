@@ -118,7 +118,10 @@ export interface DashboardV2FixtureModel {
   homeTeam: string;
   awayTeam: string;
   decisionTier: DashboardV2DecisionTier;
+  decisionOutcome?: string;
   dataStatus: DashboardV2DataStatus;
+  reasonCode?: string;
+  oddsCollectionStatus?: string;
   reasonLabel: string | null;
   nextEvaluationAt: string | null;
   primaryMarketLabel: string;

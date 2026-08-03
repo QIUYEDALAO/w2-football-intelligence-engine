@@ -381,6 +381,13 @@ function fixtureModel(
   const dynamic = dynamicSnapshot(card);
   const quote = quoteModel(card);
   const lineupSummary = lineupFacts(card);
+  const decision = record(card.recommendation_decision_v3);
+  const decisionReason = record(decision.reason);
+  const outcome = text(decision.outcome).toUpperCase();
+  const reasonCode = text(decisionReason.code || card.reason_code).toUpperCase();
+  const refresh = record(card.data_refresh);
+  const oddsCollectionStatus = text(refresh.odds_status).toUpperCase()
+    || (card.next_eval_at ? "WAITING_WINDOW" : "NOT_SCHEDULED");
   const sourceAbsent = dynamic?.state === "NOT_READY_SOURCE_ABSENT"
     || (
       text(card.reason_code) === "CURRENT_QUOTE_MISSING"
@@ -394,12 +401,25 @@ function fixtureModel(
     homeTeam: translateTeam(card.home_team_name || "主队"),
     awayTeam: translateTeam(card.away_team_name || "客队"),
     decisionTier: decisionTier(card),
+    decisionOutcome: outcome,
     dataStatus: card.data_status,
+    reasonCode,
+    oddsCollectionStatus,
     reasonLabel: quote?.referenceOnly && quote.modelProbability == null
         ? "真实参考赔率已就绪，模型决策未就绪"
-        : sourceAbsent
-      ? "当前采集窗口尚未取得完整盘口"
-      : card.reason_code || card.recommendation_decision_v3?.reason?.message || null,
+        : outcome === "NO_EDGE"
+          ? text(decisionReason.message) || "数据完整，但当前没有分析优势"
+          : oddsCollectionStatus === "WAITING_WINDOW"
+            ? "尚未到受控赔率采集窗口"
+            : oddsCollectionStatus === "WINDOW_DUE"
+              ? "已到受控赔率采集窗口，等待当前采集"
+            : oddsCollectionStatus === "PROVIDER_EMPTY"
+              ? "已到采集窗口，Provider 暂无赔率"
+              : oddsCollectionStatus === "MARKET_UNAVAILABLE"
+                ? "Provider 已返回数据，但没有可比较的完整双边盘口"
+                : sourceAbsent
+                  ? "当前采集窗口尚未取得完整盘口"
+                  : text(decisionReason.message) || card.reason_code || null,
     nextEvaluationAt: card.next_eval_at ?? null,
     primaryMarketLabel: primaryMarketLabel(card),
     secondaryMarketLabel: secondaryMarketLabel(card),

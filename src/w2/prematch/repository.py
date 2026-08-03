@@ -215,9 +215,7 @@ class DynamicPrematchRepository:
                 status=str(plan["status"]),
                 missed_at=_plan_optional_time(plan.get("missed_at")),
                 capture_id=str(plan.get("capture_id") or "") or None,
-                current_unscheduled_capture_id=str(
-                    plan.get("current_unscheduled_capture_id") or ""
-                )
+                current_unscheduled_capture_id=str(plan.get("current_unscheduled_capture_id") or "")
                 or None,
                 blockers=list(plan.get("blockers") or []),
                 plan_hash=str(plan["plan_hash"]),
@@ -365,6 +363,9 @@ def _version_from_payload(payload: dict[str, Any]) -> DynamicEvaluationVersion:
             for key, value in payload["model_settlement_distribution"].items()
         }
         if isinstance(payload.get("model_settlement_distribution"), dict)
+        else None,
+        scoreline_reference=dict(payload["scoreline_reference"])
+        if isinstance(payload.get("scoreline_reference"), dict)
         else None,
     )
 
@@ -647,9 +648,7 @@ def project_exact_eval_02b_pairs(engine: Engine) -> ExactPairProjection:
         for row in fixture_evaluations:
             eligible_evaluation = _eligible_pair_evaluation(row, fixture, alias_index)
             if eligible_evaluation is not None:
-                by_market.setdefault(eligible_evaluation.market, []).append(
-                    eligible_evaluation
-                )
+                by_market.setdefault(eligible_evaluation.market, []).append(eligible_evaluation)
         for market in sorted({row.market for row in fixture_evaluations}):
             pair = _pair_market(
                 fixture,
@@ -821,9 +820,7 @@ def _pair_market(
     candidates: list[tuple[_EligiblePairEvaluation, _EligiblePairEvaluation]] = []
     for rows in groups.values():
         pre_rows = [
-            row
-            for row in rows
-            if row.lineup_input_hash is None and row.capture_at < event_at
+            row for row in rows if row.lineup_input_hash is None and row.capture_at < event_at
         ]
         post_rows = [
             row
@@ -882,12 +879,8 @@ def _pair_market(
         post_capture_id=post_evaluation.capture_id,
         pre_quote_identity_hash=pre_evaluation.quote_identity_hash,
         post_quote_identity_hash=post_evaluation.quote_identity_hash,
-        pre_superseded_by_evaluation_id=superseded_by.get(
-            pre_evaluation.evaluation_id
-        ),
-        post_superseded_by_evaluation_id=superseded_by.get(
-            post_evaluation.evaluation_id
-        ),
+        pre_superseded_by_evaluation_id=superseded_by.get(pre_evaluation.evaluation_id),
+        post_superseded_by_evaluation_id=superseded_by.get(post_evaluation.evaluation_id),
         baseline_distribution=pre_evaluation.distribution,
         candidate_distribution=post_evaluation.distribution,
     )

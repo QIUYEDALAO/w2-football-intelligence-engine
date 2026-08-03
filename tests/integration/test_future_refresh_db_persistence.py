@@ -4,10 +4,13 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import pytest
+from apps.worker.celery_app import _materialize_outcome_results
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
 import w2.prematch.analysis_calculator as api_repository
+from w2.api.repository import ReadModelRepository as DashboardReadModelRepository
 from w2.config import get_settings
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.future_refresh_models import (
@@ -26,12 +29,14 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayEndpointCaptureModel,
     MatchdayMarketObservationModel,
 )
-from w2.infrastructure.persistence.models import StructuredLineupSnapshotModel
+from w2.infrastructure.persistence.models import ResultModel, StructuredLineupSnapshotModel
+from w2.ingestion.checkpoint_refresh import postmatch_result_checkpoint_plan
 from w2.ingestion.future_refresh import deterministic_task_key, run_future_refresh_task
 from w2.ingestion.future_refresh_repository import (
     FutureRefreshDbRepository,
     FutureRefreshPersistenceError,
 )
+from w2.matchday.repository import MatchdayRuntimeRepository
 from w2.prematch.analysis_calculator import ReadModelRepository, ReadModelService
 from w2.prematch.read_model_projection import (
     ProjectionSourceEvent,
@@ -144,6 +149,7 @@ class FakeApiFootballClient:
                 ]
             }
         if endpoint == "lineups":
+
             def team_lineup(team_id: int, offset: int) -> dict[str, Any]:
                 return {
                     "team": {"id": team_id, "name": f"Team {team_id}"},
@@ -172,6 +178,30 @@ class FakeApiFootballClient:
         if endpoint == "injuries":
             return {"response": []}
         raise AssertionError(endpoint)
+
+
+class FinishedFixtureClient(FakeApiFootballClient):
+    def payload(self, endpoint: str, params: dict[str, str]) -> dict[str, Any]:
+        if endpoint == "fixtures":
+            return {
+                "response": [
+                    {
+                        "fixture": {
+                            "id": 1489404,
+                            "date": (NOW - timedelta(hours=4)).isoformat(),
+                            "status": {"short": "FT"},
+                        },
+                        "league": {"id": 1, "name": "World Cup", "round": "Group K"},
+                        "teams": {
+                            "home": {"id": 10, "name": "Team A"},
+                            "away": {"id": 20, "name": "Team B"},
+                        },
+                        "goals": {"home": 2, "away": 1},
+                        "score": {"fulltime": {"home": 2, "away": 1}},
+                    }
+                ]
+            }
+        return super().payload(endpoint, params)
 
 
 def configure_sqlite_db(monkeypatch: Any, tmp_path: Path) -> None:
@@ -244,6 +274,59 @@ def test_db_persistence_completes_with_read_only_runtime_and_is_idempotent(
         observation = session.scalar(select(MatchdayMarketObservationModel))
         assert observation is not None
         assert observation.live is False
+    assert (
+        DashboardReadModelRepository().market_collection_status_for_fixtures(["1489404"], now=NOW)[
+            "1489404"
+        ]["odds_status"]
+        == "READY"
+    )
+
+
+def test_postmatch_checkpoint_fetches_once_and_materializes_real_result(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "status,fixtures,odds,lineups")
+    kickoff = NOW - timedelta(hours=4)
+    repository = MatchdayRuntimeRepository()
+    plan = postmatch_result_checkpoint_plan(
+        fixture_id="api_football:1489404",
+        competition_id="world_cup_2026",
+        season="2026",
+        kickoff_utc=kickoff,
+        now=NOW,
+    )
+    repository.upsert_checkpoint_plan(plan)
+    checkpoints = repository.claim_due_checkpoint_plans(now=NOW, worker_id="postmatch-test")
+    assert len(checkpoints) == 1
+    client = FinishedFixtureClient()
+
+    audit = run_future_refresh_task(
+        task_id="postmatch-result-task",
+        key="postmatch-result:world_cup_2026:1489404",
+        queued_at=NOW,
+        runtime_root=tmp_path / "runtime",
+        client=client,
+        now=NOW,
+        persistence="db",
+        checkpoint_fixture_ids=("api_football:1489404",),
+        refresh_checkpoints=(checkpoints[0],),
+        materialize_public_artifacts=materialize_projection_events_for_test,
+        materialize_results=_materialize_outcome_results,
+    )
+
+    assert audit.status == "COMPLETED"
+    assert [endpoint for endpoint, _params in client.calls] == ["status", "fixtures"]
+    assert audit.result["materialized_fixture_ids"] == ["api_football:1489404"]
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        result = session.scalar(select(ResultModel))
+        checkpoint = session.scalar(select(MatchdayCheckpointPlanModel))
+        assert result is not None
+        assert (result.home_goals, result.away_goals, result.result_status) == (2, 1, "FT")
+        assert checkpoint is not None
+        assert checkpoint.status == "CAPTURED"
 
 
 def test_c9_fake_provider_emits_exact_required_event_set(
@@ -390,24 +473,26 @@ def test_lineup_materialization_failure_is_stable_and_preserves_raw_lineage(
     )
 
     assert audit.status == "BLOCKED"
-    assert audit.result["blockers"] == [
-        "LINEUP_MATERIALIZATION_FAILED:STARTING_XI_INCOMPLETE"
-    ]
+    assert audit.result["blockers"] == ["LINEUP_MATERIALIZATION_FAILED:STARTING_XI_INCOMPLETE"]
     engine = create_engine(get_settings().database_url.get_secret_value())
     with Session(engine) as session:
-        assert session.scalar(
-            select(func.count()).select_from(RawPayloadModel).where(
-                RawPayloadModel.endpoint == "lineups"
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(RawPayloadModel)
+                .where(RawPayloadModel.endpoint == "lineups")
             )
-        ) == 1
-        assert session.scalar(
-            select(func.count()).select_from(MatchdayEndpointCaptureModel).where(
-                MatchdayEndpointCaptureModel.endpoint == "lineups"
+            == 1
+        )
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(MatchdayEndpointCaptureModel)
+                .where(MatchdayEndpointCaptureModel.endpoint == "lineups")
             )
-        ) == 1
-        assert session.scalar(
-            select(func.count()).select_from(StructuredLineupSnapshotModel)
-        ) == 0
+            == 1
+        )
+        assert session.scalar(select(func.count()).select_from(StructuredLineupSnapshotModel)) == 0
 
 
 def test_fixture_identity_failure_blocks_lineup_materialization_with_stable_reason(
@@ -436,14 +521,10 @@ def test_fixture_identity_failure_blocks_lineup_materialization_with_stable_reas
     )
 
     assert audit.status == "BLOCKED"
-    assert audit.result["blockers"] == [
-        "FIXTURE_IDENTITY_PERSISTENCE_FAILED:RuntimeError"
-    ]
+    assert audit.result["blockers"] == ["FIXTURE_IDENTITY_PERSISTENCE_FAILED:RuntimeError"]
     engine = create_engine(get_settings().database_url.get_secret_value())
     with Session(engine) as session:
-        assert session.scalar(
-            select(func.count()).select_from(StructuredLineupSnapshotModel)
-        ) == 0
+        assert session.scalar(select(func.count()).select_from(StructuredLineupSnapshotModel)) == 0
 
 
 def test_raw_payload_failure_blocks_db_runtime_processing(
@@ -614,9 +695,63 @@ def test_fixture_scoped_market_refresh_status_reads_canonical_matchday_plan(
         )
         session.commit()
 
-    assert FutureRefreshDbRepository().market_refresh_status_for_fixtures(
+    assert FutureRefreshDbRepository().market_refresh_status_for_fixtures(["fixture"], now=NOW)[
+        "next_refresh_tick"
+    ] == scheduled_at.isoformat().replace("+00:00", "Z")
+    assert DashboardReadModelRepository().market_collection_status_for_fixtures(
         ["fixture"], now=NOW
-    )["next_refresh_tick"] == scheduled_at.isoformat().replace("+00:00", "Z")
+    )["fixture"] == {
+        "odds_status": "WAITING_WINDOW",
+        "last_refresh_hint": None,
+        "next_refresh_at": scheduled_at.isoformat().replace("+00:00", "Z"),
+    }
+
+
+@pytest.mark.parametrize(
+    ("response_count", "expected_status"),
+    [(0, "PROVIDER_EMPTY"), (2, "MARKET_UNAVAILABLE")],
+)
+def test_market_collection_status_distinguishes_empty_provider_from_unmapped_market(
+    tmp_path: Path,
+    monkeypatch: Any,
+    response_count: int,
+    expected_status: str,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        session.add(
+            MatchdayEndpointCaptureModel(
+                capture_id="capture",
+                fixture_id="api_football:fixture",
+                competition_id="world_cup_2026",
+                checkpoint="T60",
+                endpoint="odds",
+                sanitized_params={"fixture": "fixture"},
+                params_hash="a" * 64,
+                request_task_key="test",
+                attempt=1,
+                requested_at=NOW,
+                provider_captured_at=NOW,
+                status_code=200,
+                elapsed_ms=1,
+                response_count=response_count,
+                quota_values={},
+                raw_payload_sha256="b" * 64,
+                provider_event_time=None,
+                capture_status="CAPTURED",
+                error_code=None,
+            )
+        )
+        session.commit()
+
+    assert DashboardReadModelRepository().market_collection_status_for_fixtures(
+        ["fixture"], now=NOW
+    )["fixture"] == {
+        "odds_status": expected_status,
+        "last_refresh_hint": NOW.isoformat().replace("+00:00", "Z"),
+        "next_refresh_at": None,
+    }
 
 
 def test_db_persistence_allows_retry_after_blocked_task_key(

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from time import monotonic
 from typing import Any, Protocol, cast
@@ -64,6 +64,10 @@ class ScopedAnalysisRepository(Protocol):
 
 AnalysisCardCalculator = Callable[
     [ScopedAnalysisRepository, str, datetime],
+    dict[str, Any] | None,
+]
+ScorelineReferenceBuilder = Callable[
+    [dict[str, Any], DynamicEvaluationVersion, dict[str, Any]],
     dict[str, Any] | None,
 ]
 
@@ -337,10 +341,12 @@ class AnalysisCardCanaryMaterializer:
         repository: ScopedAnalysisRepository,
         *,
         calculate_analysis_card: AnalysisCardCalculator,
+        build_scoreline_reference: ScorelineReferenceBuilder | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.repository = repository
         self.calculate_analysis_card = calculate_analysis_card
+        self.build_scoreline_reference = build_scoreline_reference
         self.clock = clock or (lambda: datetime.now(UTC))
 
     def build(
@@ -425,9 +431,7 @@ class AnalysisCardCanaryMaterializer:
             ),
             "observation_count": len(observations),
             "observation_sha256": sorted(
-                canonical_sha256(
-                    row, domain=HashDomain.PREMATCH_READ_MODEL_OBSERVATION_INPUT
-                )
+                canonical_sha256(row, domain=HashDomain.PREMATCH_READ_MODEL_OBSERVATION_INPUT)
                 for row in observations
             ),
             "quote_identity_sha256": canonical_sha256(
@@ -524,6 +528,7 @@ class AnalysisCardCanaryMaterializer:
                 input_manifest,
                 fixture_identity=dynamic_fixture_identity,
                 lineup_identity=dynamic_lineup_identity,
+                build_scoreline_reference=self.build_scoreline_reference,
             )
         )
         if not evaluations and card.get("pick") is not None:
@@ -550,6 +555,13 @@ class AnalysisCardCanaryMaterializer:
             "analysis_card": card,
             "shadow_reconciliation": reconciliation,
         }
+        scoreline_references = {
+            item.identity_hash: item.scoreline_reference
+            for item in evaluations
+            if item.scoreline_reference is not None
+        }
+        if scoreline_references:
+            artifact_body["source_evaluation_scoreline_references"] = scoreline_references
         lineup_event_payload_sha256 = (
             canonical_sha256(
                 lineup_event.as_dict(), domain=HashDomain.PREMATCH_READ_MODEL_LINEUP_EVENT
@@ -562,9 +574,7 @@ class AnalysisCardCanaryMaterializer:
         projection_hash = (
             _projection_business_hash(artifact_body)
             if source_event is not None
-            else canonical_sha256(
-                artifact_body, domain=HashDomain.PREMATCH_READ_MODEL_PROJECTION
-            )
+            else canonical_sha256(artifact_body, domain=HashDomain.PREMATCH_READ_MODEL_PROJECTION)
         )
         projected_payload = {**artifact_body, "projection_hash": projection_hash}
         artifact_hash = canonical_sha256(
@@ -664,9 +674,7 @@ def validate_frozen_analysis_payload(
         expected_projection_hash = (
             _projection_business_hash(projection_body)
             if payload.get("checkpoint_namespace") == "shadow"
-            else canonical_sha256(
-                projection_body, domain=HashDomain.PREMATCH_READ_MODEL_PROJECTION
-            )
+            else canonical_sha256(projection_body, domain=HashDomain.PREMATCH_READ_MODEL_PROJECTION)
         )
         if not projection_hash or expected_projection_hash != projection_hash:
             raise FrozenAnalysisError("checkpoint projection hash mismatch")
@@ -685,9 +693,7 @@ def validate_frozen_analysis_payload(
     artifact_body = {key: value for key, value in payload.items() if key != "artifact_hash"}
     if (
         not artifact_hash
-        or canonical_sha256(
-            artifact_body, domain=HashDomain.PREMATCH_READ_MODEL_ARTIFACT
-        )
+        or canonical_sha256(artifact_body, domain=HashDomain.PREMATCH_READ_MODEL_ARTIFACT)
         != artifact_hash
     ):
         raise FrozenAnalysisError("checkpoint artifact hash mismatch")
@@ -706,6 +712,24 @@ def validate_frozen_analysis_payload(
                 fixture_identity={str(key): str(value) for key, value in fixture_identity.items()},
                 lineup_identity=cast(dict[str, str] | None, lineup_identity),
             )
+        )
+        scoreline_references = payload.get("source_evaluation_scoreline_references", {})
+        if not isinstance(scoreline_references, dict) or any(
+            not isinstance(identity_hash, str) or not isinstance(reference, dict)
+            for identity_hash, reference in scoreline_references.items()
+        ):
+            raise FrozenAnalysisError("checkpoint scoreline reference invalid")
+        evaluation_hashes = {item.identity_hash for item in evaluations}
+        if not set(scoreline_references).issubset(evaluation_hashes):
+            raise FrozenAnalysisError("checkpoint scoreline reference identity mismatch")
+        evaluations = tuple(
+            replace(
+                item,
+                scoreline_reference=dict(scoreline_references[item.identity_hash]),
+            )
+            if item.identity_hash in scoreline_references
+            else item
+            for item in evaluations
         )
     primary = min(evaluations, key=lambda item: item.evaluation_id) if evaluations else None
     if primary is not None and (
@@ -728,9 +752,7 @@ def validate_frozen_analysis_payload(
             domain=HashDomain.PREMATCH_READ_MODEL_SOURCE_MANIFEST,
         )
         if has_projection_metadata
-        else canonical_sha256(
-            manifest, domain=HashDomain.PREMATCH_READ_MODEL_SOURCE_MANIFEST
-        )
+        else canonical_sha256(manifest, domain=HashDomain.PREMATCH_READ_MODEL_SOURCE_MANIFEST)
     )
     return FrozenAnalysisArtifact(
         checkpoint_key=_checkpoint_key_for_payload(fixture_id, payload),
@@ -832,9 +854,7 @@ def _validate_advisory_policy_identity(value: Any) -> None:
         value.get("applicability") != "APPLICABLE_ADVISORY"
         or value.get("validation_status") not in {"VALID", "INVALID", "MISSING"}
         or value.get("identity_hash")
-        != canonical_sha256(
-            body, domain=HashDomain.PREMATCH_READ_MODEL_DYNAMIC_EVALUATION
-        )
+        != canonical_sha256(body, domain=HashDomain.PREMATCH_READ_MODEL_DYNAMIC_EVALUATION)
         or (
             value.get("checkpoint_key") is not None
             and value.get("checkpoint_key") != POLICY_CHECKPOINT_KEY
@@ -1041,6 +1061,7 @@ def _dynamic_evaluations(
     *,
     fixture_identity: dict[str, str],
     lineup_identity: dict[str, str] | None,
+    build_scoreline_reference: ScorelineReferenceBuilder | None = None,
 ) -> list[DynamicEvaluationVersion]:
     if any(not fixture_identity.get(field) for field in ("competition_id", "season", "provider")):
         raise FrozenAnalysisError("dynamic evaluation fixture identity incomplete")
@@ -1167,7 +1188,13 @@ def _dynamic_evaluations(
                 distribution if isinstance(distribution, Mapping) else None
             ),
         )
-        versions.append(classify_evaluation(value))
+        version = classify_evaluation(value)
+        if version.state.value == "ANALYSIS_PICK_ACTIVE" and build_scoreline_reference:
+            version = replace(
+                version,
+                scoreline_reference=build_scoreline_reference(card, version, quote_identity),
+            )
+        versions.append(version)
     return versions
 
 
@@ -1258,6 +1285,7 @@ def materialize_projection_events(
     *,
     repository: ScopedAnalysisRepository,
     calculate_analysis_card: AnalysisCardCalculator,
+    build_scoreline_reference: ScorelineReferenceBuilder | None = None,
     engine: Engine | None = None,
 ) -> list[str]:
     ordered = sorted(
@@ -1278,6 +1306,7 @@ def materialize_projection_events(
     materializer = AnalysisCardCanaryMaterializer(
         repository,
         calculate_analysis_card=calculate_analysis_card,
+        build_scoreline_reference=build_scoreline_reference,
     )
     for event in ordered:
         artifact = materializer.build(

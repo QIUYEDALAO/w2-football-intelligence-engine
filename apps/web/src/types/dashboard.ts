@@ -173,6 +173,7 @@ export interface DataRefreshStatus {
   lineups_captured_at?: string | null;
   statistics_captured_at?: string | null;
   last_refresh_hint?: string | null;
+  next_refresh_at?: string | null;
 }
 
 export interface LineMovementPayload {

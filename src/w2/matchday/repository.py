@@ -96,10 +96,7 @@ class MatchdayRuntimeRepository:
         incoming_status = str(payload["status"])
         existing = session.get(MatchdayCheckpointPlanModel, plan_id)
         if existing is not None:
-            if incoming_status == "MISSED" and existing.status in {
-                *_TERMINAL_CHECKPOINT_STATUSES,
-                "FAILED",
-            }:
+            if existing.status in {*_TERMINAL_CHECKPOINT_STATUSES, "FAILED"}:
                 return plan_id
             if normalize_repo_time(existing.scheduled_at) != normalize_repo_time(
                 _dt(payload["scheduled_at"])
@@ -227,9 +224,12 @@ class MatchdayRuntimeRepository:
         *,
         now: datetime,
         worker_id: str,
+        plan_ids: set[str] | None = None,
         limit: int = 100,
         lease_seconds: int = 900,
     ) -> list[dict[str, Any]]:
+        if plan_ids is not None and not plan_ids:
+            return []
         current = normalize_repo_time(now)
         expires_at = current + timedelta(seconds=lease_seconds)
         with Session(self.engine) as session:
@@ -251,6 +251,8 @@ class MatchdayRuntimeRepository:
                 )
                 .limit(limit)
             )
+            if plan_ids is not None:
+                query = query.where(MatchdayCheckpointPlanModel.plan_id.in_(plan_ids))
             if self.engine.dialect.name == "postgresql":
                 query = query.with_for_update(skip_locked=True)
             rows = list(session.scalars(query))
