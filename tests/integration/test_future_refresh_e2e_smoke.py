@@ -218,7 +218,7 @@ def test_scheduler_to_celery_eager_future_refresh_smoke_is_fake_and_idempotent(
             "tick_hard_cap": 100,
             "checkpoints": [
                 {
-                    "fixture_id": "1489404",
+                    "fixture_id": "api_football:1489404",
                     "checkpoint": "T24",
                     "kickoff_utc": "2026-06-24T17:00:00Z",
                     "due_at": "2026-06-23T17:00:00Z",
@@ -287,4 +287,8 @@ def test_scheduler_to_celery_eager_future_refresh_smoke_is_fake_and_idempotent(
         "status",
         "fixtures",
         "odds",
+    ]
+    assert fake_client.calls[-1] == ("odds", {"fixture": "1489404"})
+    assert dispatched[0]["kwargs"]["checkpoint_fixture_ids"] == [
+        "api_football:1489404"
     ]
