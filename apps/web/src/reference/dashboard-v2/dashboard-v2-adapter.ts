@@ -36,7 +36,8 @@ function numberValue(value: unknown): number | null {
 }
 
 function selectedCandidate(card: DashboardDayViewCard): UnknownRecord {
-  return record(card.recommendation_decision_v3?.selected_candidate);
+  const selected = record(card.recommendation_decision_v3?.selected_candidate);
+  return Object.keys(selected).length ? selected : evaluatedCandidate(card);
 }
 
 function evaluatedCandidate(card: DashboardDayViewCard): UnknownRecord {
@@ -80,8 +81,20 @@ function nextCheckpoint(checkpoint: string): string | null {
 
 function dynamicSnapshot(card: DashboardDayViewCard): DashboardV2FixtureModel["dynamicSnapshot"] {
   const lifecycle = record(card.dynamic_prematch);
-  const current = Array.isArray(lifecycle.current) ? lifecycle.current.map(record) : [];
-  const selected = current[0];
+  const current = Array.isArray(lifecycle.current)
+    ? lifecycle.current
+      .map(record)
+      .filter((row) => text(row.state) !== "SUPERSEDED" && !text(row.superseded_by_evaluation_id))
+    : [];
+  const evaluatedHash = text(record(evaluatedCandidate(card).quote_identity).quote_identity_hash);
+  const selected = current.sort((left, right) => {
+    const priority = (row: UnknownRecord) =>
+      (text(row.state) === "ANALYSIS_PICK_ACTIVE" ? 4 : 0)
+      + (evaluatedHash && text(row.quote_identity_hash) === evaluatedHash ? 2 : 0);
+    return priority(right) - priority(left)
+      || text(right.evaluated_at).localeCompare(text(left.evaluated_at))
+      || text(left.market).localeCompare(text(right.market));
+  })[0];
   if (!selected) return null;
   const evaluatedAt = text(selected.evaluated_at) || null;
   const capturedAt = text(selected.capture_at) || null;
@@ -366,6 +379,7 @@ function fixtureModel(
   const ratings = fieldReadiness(card, "ratings");
   const lineups = fieldReadiness(card, "lineups");
   const dynamic = dynamicSnapshot(card);
+  const quote = quoteModel(card);
   const lineupSummary = lineupFacts(card);
   const sourceAbsent = dynamic?.state === "NOT_READY_SOURCE_ABSENT"
     || (
@@ -381,14 +395,16 @@ function fixtureModel(
     awayTeam: translateTeam(card.away_team_name || "客队"),
     decisionTier: decisionTier(card),
     dataStatus: card.data_status,
-    reasonLabel: sourceAbsent
+    reasonLabel: quote?.referenceOnly && quote.modelProbability == null
+        ? "真实参考赔率已就绪，模型决策未就绪"
+        : sourceAbsent
       ? "当前采集窗口尚未取得完整盘口"
       : card.reason_code || card.recommendation_decision_v3?.reason?.message || null,
     nextEvaluationAt: card.next_eval_at ?? null,
     primaryMarketLabel: primaryMarketLabel(card),
     secondaryMarketLabel: secondaryMarketLabel(card),
     scorelineSummary: projection?.status === "READY" ? projection.top3.map((row) => row.scoreline).join(" · ") : null,
-    quote: quoteModel(card),
+    quote,
     scorelineProjection: projection,
     modelLabel: text(model.model_version || candidate.model_version || "分析模型"),
     calibrationLabel:
@@ -446,9 +462,13 @@ export function adaptDashboardV2(
       nextRefreshAt: dayView.freshness.next_refresh_tick ?? null,
     },
     ledger: {
+      available: Boolean(cohort),
+      source: performance?.forward_ledger?.source ?? null,
       rangeLabel: performance?.forward_ledger?.evidence_window.first_capture_at && performance.forward_ledger.evidence_window.latest_capture_at
         ? `${performance.forward_ledger.evidence_window.first_capture_at.slice(5, 10)} 至 ${performance.forward_ledger.evidence_window.latest_capture_at.slice(5, 10)}`
-        : "积累中",
+        : performance?.forward_ledger?.evidence_window.latest_outcome_at
+          ? `截至 ${performance.forward_ledger.evidence_window.latest_outcome_at.slice(5, 10)}`
+          : "投影不可用",
       validationCount: cohort?.validation_count ?? 0,
       settledCount: cohort?.processed_count ?? 0,
       pendingCount: cohort?.pending_count ?? 0,

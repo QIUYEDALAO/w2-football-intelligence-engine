@@ -135,6 +135,166 @@ def _performance_tier_row(
     }
 
 
+def _checkpoint_clv(window: PerformanceWindowProjection) -> dict[str, Any]:
+    sample_count = window.clv_sample_count
+    return {
+        "sample_count": sample_count,
+        "candidate_count": sample_count,
+        "missing_count": max(window.canonical_settled_count - sample_count, 0),
+        "median_decimal": window.clv_median,
+        "positive_count": window.clv_positive_count,
+        "negative_count": max(sample_count - window.clv_positive_count, 0),
+        "push_count": 0,
+        "line_changed_count": 0,
+        "stale_closing_count": 0,
+        "insufficient_snapshot_count": max(
+            window.canonical_settled_count - sample_count,
+            0,
+        ),
+        "method": window.clv_method,
+    }
+
+
+def _checkpoint_outcomes(window: PerformanceWindowProjection) -> dict[str, Any]:
+    return {
+        "settled_sample_count": window.canonical_settled_count,
+        "hit_count": window.canonical_hit_count,
+        "miss_count": window.canonical_miss_count,
+        "push_count": window.canonical_push_count,
+        "void_count": window.canonical_void_count,
+        "decisive_count": window.canonical_decisive_count,
+        "hit_rate": window.canonical_hit_rate,
+    }
+
+
+def _checkpoint_league_row(
+    competition_id: str,
+    cohort: PerformanceCohortProjection,
+) -> dict[str, Any]:
+    window = cohort.windows["90d"]
+    return {
+        "competition_id": competition_id,
+        "league": competition_id,
+        "processed_count": window.fixture_checkpoint_count,
+        "eligible_count": window.canonical_settled_count,
+        "excluded_count": max(
+            window.fixture_checkpoint_count - window.canonical_settled_count,
+            0,
+        ),
+        "decisive_count": window.canonical_decisive_count,
+        "outcomes": _checkpoint_outcomes(window),
+        "clv": _checkpoint_clv(window),
+        "rate_status": (
+            "AVAILABLE" if window.canonical_hit_rate_status == "AVAILABLE" else "INSUFFICIENT"
+        ),
+    }
+
+
+def _dashboard_forward_ledger_from_checkpoints(
+    rows: list[Checkpoint],
+) -> dict[str, Any] | None:
+    """Adapt bounded performance checkpoints to the Dashboard ledger contract."""
+    cohorts: dict[str, tuple[Checkpoint, PerformanceCohortProjection]] = {}
+    try:
+        for row in rows:
+            cohorts[row.key] = (row, PerformanceCohortProjection.model_validate(row.payload))
+    except ValidationError:
+        return None
+    selected = cohorts.get("performance:cohort:all")
+    if selected is None:
+        return None
+    selected_row, global_cohort = selected
+    window = global_cohort.windows["90d"]
+    if global_cohort.checkpoint_key != selected_row.key or not selected_row.source_hash:
+        return None
+    league_prefix = "performance:cohort:league:"
+    leagues = [
+        _checkpoint_league_row(row.key.removeprefix(league_prefix), cohort)
+        for row, cohort in cohorts.values()
+        if row.key.startswith(league_prefix)
+        and not row.key.startswith("performance:cohort:league-tier:")
+    ]
+    leagues.sort(key=lambda row: str(row["competition_id"]))
+    processed = window.fixture_checkpoint_count
+    eligible = window.canonical_settled_count
+    excluded = max(processed - eligible, 0)
+    outcomes = _checkpoint_outcomes(window)
+    clv = _checkpoint_clv(window)
+    anchor = global_cohort.scoring_window_anchor.astimezone(UTC).isoformat().replace("+00:00", "Z")
+    return {
+        "schema_version": "w2.dashboard_forward_ledger_projection.v1",
+        "source": "performance_checkpoint",
+        "sample_target": window.sample_target,
+        "record_count": processed,
+        "fixture_count": processed,
+        "settled_sample_count": eligible,
+        "hit_count": window.canonical_hit_count,
+        "miss_count": window.canonical_miss_count,
+        "push_count": window.canonical_push_count,
+        "void_count": window.canonical_void_count,
+        "hit_rate": window.canonical_hit_rate,
+        "validation_fixture_count": processed,
+        "validation_settled_fixture_count": processed,
+        "validation_pending_fixture_count": 0,
+        "validation_pending_status": {
+            "waiting_finish_count": 0,
+            "postponed_count": 0,
+            "result_missing_count": 0,
+            "settlement_error_count": 0,
+            "details": [],
+        },
+        "outcomes_validation": outcomes,
+        "outcomes_canonical": outcomes,
+        "performance_cohort": {
+            "validation_count": processed,
+            "processed_count": processed,
+            "eligible_count": eligible,
+            "excluded_count": excluded,
+            "recovered_count": 0,
+            "pending_count": 0,
+            "outcomes": outcomes,
+            "clv": clv,
+            "by_league": leagues,
+            "exclusions": [],
+            "recoveries": [],
+            "integrity_status": "PASS",
+            "invariants": {
+                "processed_equals_eligible_plus_excluded": processed == eligible + excluded,
+                "eligible_equals_canonical_outcomes": eligible
+                == window.canonical_hit_count
+                + window.canonical_miss_count
+                + window.canonical_push_count
+                + window.canonical_void_count,
+            },
+        },
+        "outcomes": outcomes,
+        "outcomes_shadow": {
+            "settled_sample_count": 0,
+            "hit_count": 0,
+            "miss_count": 0,
+            "push_count": 0,
+            "void_count": 0,
+            "hit_rate": None,
+        },
+        "canonical_settled_fixture_count": eligible,
+        "canonical_excluded_count": excluded,
+        "canonical_excluded_by_reason": window.not_scorable_by_reason,
+        "validation_excluded_count": excluded,
+        "validation_excluded_by_reason": window.not_scorable_by_reason,
+        "evidence_window": {
+            "first_capture_at": None,
+            "latest_capture_at": None,
+            "latest_outcome_at": anchor,
+        },
+        "accumulation_label": f"历史评分 checkpoint {eligible}/{window.sample_target}",
+        "clv": clv,
+        "by_league": [],
+        "by_league_validation": [],
+        "mock_data": False,
+        "checkpoint_metadata": _checkpoint_metadata(selected_row),
+    }
+
+
 class ReadModelRepository:
     """Single production read authority backed by ``read_model_checkpoint``."""
 
@@ -570,6 +730,13 @@ class ReadModelService:
         generated_at = datetime.now(UTC)
         start, end = football_day_window(requested_date)
         performance = dashboard_performance(selected)
+        checkpoint_reader = getattr(self.repository, "checkpoints", None)
+        if callable(checkpoint_reader):
+            forward_ledger = _dashboard_forward_ledger_from_checkpoints(
+                checkpoint_reader("performance:cohort:")
+            )
+            if forward_ledger is not None:
+                performance["forward_ledger"] = forward_ledger
         refresh_reader = getattr(self.repository, "market_refresh_status_for_fixtures", None)
         refresh_status = (
             refresh_reader([str(card.get("fixture_id") or "") for card in selected])

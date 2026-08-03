@@ -17,10 +17,43 @@ from w2.api.repository import (
     Checkpoint,
     ReadModelRepository,
     ReadModelService,
+    _dashboard_forward_ledger_from_checkpoints,
 )
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 
 NOW = datetime(2026, 7, 30, tzinfo=UTC)
+
+
+def test_dashboard_ledger_projection_uses_bounded_performance_checkpoints() -> None:
+    rows = [
+        _cohort("performance:cohort:all", finished=41, settled=16),
+        _cohort("performance:cohort:league:allsvenskan", finished=3, settled=0),
+        _cohort("performance:cohort:league:103", finished=11, settled=6),
+        _cohort(
+            "performance:cohort:league-tier:103:STRICT",
+            finished=8,
+            settled=5,
+        ),
+    ]
+
+    payload = _dashboard_forward_ledger_from_checkpoints(rows)
+
+    assert payload is not None
+    cohort = payload["performance_cohort"]
+    assert payload["source"] == "performance_checkpoint"
+    assert payload["mock_data"] is False
+    assert cohort["validation_count"] == 41
+    assert cohort["processed_count"] == 41
+    assert cohort["eligible_count"] == 16
+    assert cohort["excluded_count"] == 25
+    assert [row["competition_id"] for row in cohort["by_league"]] == [
+        "103",
+        "allsvenskan",
+    ]
+
+
+def test_dashboard_ledger_projection_missing_checkpoint_is_not_fake_zero() -> None:
+    assert _dashboard_forward_ledger_from_checkpoints([]) is None
 
 
 class PerformanceRepository:

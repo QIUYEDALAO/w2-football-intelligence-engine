@@ -17,6 +17,8 @@ export interface DashboardV2ReleaseModel {
 }
 
 export interface DashboardV2LedgerModel {
+  available: boolean;
+  source: string | null;
   rangeLabel: string;
   validationCount: number;
   settledCount: number;

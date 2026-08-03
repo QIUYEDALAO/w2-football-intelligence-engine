@@ -589,7 +589,7 @@ test("Shanghai queue clock advances while canonical time formatting handles matc
   ).toEqual({ primary: "时间待定", secondary: "无有效时间" });
 });
 
-test("stored early odds remain visible as reference while waiting for the prematch refresh", async ({
+test("reference-only odds state that real odds are ready while model decision is not", async ({
   page,
 }) => {
   await installRoutes(page, "STALE", 1, true);
@@ -599,13 +599,14 @@ test("stored early odds remain visible as reference while waiting for the premat
   const row = page
     .locator("[data-fixture-id]")
     .filter({ hasText: "STALE Home" });
-  await expect(row).toContainText("旧报价仅供参考，等待下一次受控采集");
+  await expect(row).toContainText("真实参考赔率已就绪，模型决策未就绪");
   await row.click();
   await expect(page.locator("[data-ui='selected-match-panel']")).toContainText("继续观察");
   await expect(row).toContainText("真实参考盘口（不可执行）");
   await expect(row).toContainText("1.82");
   await expect(row).toContainText("Betano");
   await expect(row).toContainText("新鲜度 STALE");
+  await expect(row).not.toContainText("未通过 EV、Delta 与 EV-SE");
   await expect(row).not.toContainText("1万次模拟");
 });
 
@@ -796,7 +797,6 @@ test("post-match validation uses one unified public ledger at desktop and 824px"
   );
   const verification = page.locator("[data-ui='forward-validation-panel']");
   await expect(verification).not.toContainText("全部已处理");
-  await expect(verification).not.toContainText("历史");
   await expect(verification).not.toContainText("恢复");
   await expect(verification).not.toContainText("审计");
   await expect(verification).not.toContainText("LEGACY");
@@ -825,6 +825,19 @@ test("post-match validation uses one unified public ledger at desktop and 824px"
 
   await page.setViewportSize({ width: 824, height: 1100 });
   await expect(page.locator("[data-ui='boss-decision-console']")).toBeVisible();
+});
+
+test("missing forward ledger is explicit and never rendered as fake zeroes", async ({
+  page,
+}) => {
+  await installRoutes(page, "BLOCKED");
+  await page.goto("/");
+
+  const ledger = page.locator("[data-ui='forward-validation-panel']");
+  await expect(ledger).toContainText("账本 checkpoint 投影不可用");
+  await expect(ledger).toContainText("未用 0 代替缺失数据");
+  await expect(ledger).not.toContainText("验证总记录0");
+  await expect(ledger).not.toContainText("0 - 0 - 0");
 });
 
 for (const scenario of [
