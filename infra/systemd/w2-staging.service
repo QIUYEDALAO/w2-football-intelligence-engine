@@ -28,24 +28,28 @@ WorkingDirectory=/opt/w2/deploy
 
 ExecStart=/usr/bin/sudo /usr/bin/docker compose \
   -f /opt/w2/deploy/compose.staging.yml \
+  -f /opt/w2/deploy/controlled-future-refresh.override.yml \
   --env-file /opt/w2/shared/.env \
   --env-file /opt/w2/shared/release.env \
-  up -d --remove-orphans api worker web
+  up -d --remove-orphans api worker scheduler web
 
 ExecStop=/usr/bin/sudo /usr/bin/docker compose \
   -f /opt/w2/deploy/compose.staging.yml \
+  -f /opt/w2/deploy/controlled-future-refresh.override.yml \
   --env-file /opt/w2/shared/.env \
   --env-file /opt/w2/shared/release.env \
   down
 
 ExecReload=/usr/bin/sudo /usr/bin/docker compose \
   -f /opt/w2/deploy/compose.staging.yml \
+  -f /opt/w2/deploy/controlled-future-refresh.override.yml \
   --env-file /opt/w2/shared/.env \
   --env-file /opt/w2/shared/release.env \
   restart
 
 ExecStartPost=/usr/bin/sudo /usr/bin/docker compose \
   -f /opt/w2/deploy/compose.staging.yml \
+  -f /opt/w2/deploy/controlled-future-refresh.override.yml \
   --env-file /opt/w2/shared/.env \
   --env-file /opt/w2/shared/release.env \
   ps

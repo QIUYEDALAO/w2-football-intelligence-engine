@@ -85,9 +85,9 @@ def test_recovery_script_is_staging_only_and_uses_safe_prunes() -> None:
 
 def test_deploy_is_pull_only_and_health_checked() -> None:
     text = read(DEPLOY)
-    assert '"${COMPOSE[@]}" pull migration api worker web' in text
+    assert '"${COMPOSE[@]}" pull migration api worker scheduler web' in text
     assert '"${COMPOSE[@]}" run --rm migration' in text
-    assert '"${COMPOSE[@]}" up -d --remove-orphans api worker web' in text
+    assert '"${COMPOSE[@]}" up -d --remove-orphans api worker scheduler web' in text
     compose_commands = [
         line.strip()
         for line in text.splitlines()
@@ -122,6 +122,10 @@ def test_health_check_targets_the_canonical_compose_project_and_cohort() -> None
     text = read(HEALTH_CHECK)
     assert 'COMPOSE_PROJECT = "w2-staging"' in text
     assert 'COMPOSE_FILE = "/opt/w2/deploy/compose.staging.yml"' in text
+    assert (
+        'CONTROLLED_REFRESH_OVERRIDE = '
+        '"/opt/w2/deploy/controlled-future-refresh.override.yml"'
+    ) in text
     assert 'ENV_FILE = "/opt/w2/shared/.env"' in text
     assert 'name = svc.get("Service", "?")' in text
     assert 'ledger.get("schema_version") != "w2.forward_ledger_performance.v3"' in text
@@ -130,6 +134,35 @@ def test_health_check_targets_the_canonical_compose_project_and_cohort() -> None
     assert 'fail("performance cohort CLV candidate partition is inconsistent")' in text
     assert 'cohort.get("integrity_status") != "PASS"' in text
     assert 'fail("performance cohort evidence and settlement integrity is not PASS")' in text
+
+
+def test_controlled_future_refresh_is_source_controlled_and_deployed_with_scheduler() -> None:
+    override_path = ROOT / "infra/compose/controlled-future-refresh.override.yml"
+    override = yaml.safe_load(override_path.read_text(encoding="utf-8"))
+    worker = override["services"]["worker"]["environment"]
+    scheduler = override["services"]["scheduler"]["environment"]
+    for environment in (worker, scheduler):
+        assert environment["W2_PROVIDER_HTTP_MAX_ATTEMPTS"] == "1"
+        assert environment["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == "status,fixtures,odds,lineups"
+        assert environment["W2_PROVIDER_REQUEST_LEDGER_ENABLED"] == "true"
+        assert environment["W2_PROVIDER_REFRESH_TICK_HARD_CAP"] == "30"
+        assert environment["W2_PROVIDER_DAILY_HARD_CAP"] == "120"
+        assert environment["W2_CANDIDATE_ENABLED"] == "false"
+        assert environment["W2_FORMAL_RECOMMENDATION_ENABLED"] == "false"
+        assert environment["W2_PRODUCTION_RELEASE"] == "false"
+    assert scheduler["W2_FUTURE_FIXTURE_REFRESH_ENABLED"] == "true"
+    assert scheduler["W2_FUTURE_REFRESH_COMPETITION_ALLOWLIST"].split(",") == [
+        "brasileirao_serie_a",
+        "chinese_super_league",
+        "allsvenskan",
+        "eliteserien",
+    ]
+    deploy = read(DEPLOY)
+    unit = read(ROOT / "infra/systemd/w2-staging.service")
+    assert "controlled-future-refresh.override.yml" in deploy
+    assert "controlled-future-refresh.override.yml" in unit
+    assert "api worker scheduler web" in deploy
+    assert "api worker scheduler web" in unit
 
 
 def test_staging_legacy_recovery_manifest_contains_only_unique_capture_cases() -> None:
