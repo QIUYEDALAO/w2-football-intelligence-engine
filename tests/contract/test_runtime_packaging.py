@@ -73,6 +73,13 @@ def test_runtime_entrypoints_do_not_resync_the_environment() -> None:
         assert environment["W2_RUNTIME_ROOT"] == "/app/runtime"
 
 
+def test_release_identity_does_not_invalidate_python_dependency_layers() -> None:
+    text = (Path(__file__).resolve().parents[2] / "Dockerfile.python").read_text(encoding="utf-8")
+    assert text.index("ARG W2_GIT_SHA=UNKNOWN") > text.rindex("RUN uv sync")
+    assert text.index("ENV W2_GIT_SHA=${W2_GIT_SHA}") > text.rindex("RUN uv sync")
+    assert "chown -R w2:w2 /app/.venv" not in text
+
+
 def test_dockerignore_excludes_runtime_reports_and_private_inputs() -> None:
     text = (Path(__file__).resolve().parents[2] / ".dockerignore").read_text(encoding="utf-8")
     for entry in ("runtime", "reports", ".env", ".env.*", "data/raw", "data/processed"):
