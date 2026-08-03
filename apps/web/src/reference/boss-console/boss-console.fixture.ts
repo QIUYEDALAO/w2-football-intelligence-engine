@@ -91,8 +91,6 @@ export const bossConsoleFixture: BossConsoleModel = {
     nextRefreshAt: null,
   },
   ledger: {
-    available: true,
-    source: "performance_checkpoint",
     rangeLabel: "07-07 至 07-21",
     validationCount: 28,
     settledCount: 23,

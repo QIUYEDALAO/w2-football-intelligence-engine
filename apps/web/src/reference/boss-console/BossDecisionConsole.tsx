@@ -46,7 +46,15 @@ export function applyProductionDashboardTruth(
       && reference.executable === false
       && Object.keys(market).length > 0;
     const notReady = decision.status === "not-ready" || decision.dataRisk === "阻断";
-    if (!referenceOnly && !notReady) return decision;
+    const dynamicGateProjectionMissing = decision.lifecycleState === "NO_EDGE_CURRENT"
+      && [
+        decision.modelProbability,
+        decision.marketProbability,
+        decision.probabilityDelta,
+        decision.expectedValue,
+        decision.uncertainty,
+      ].some((value) => value == null);
+    if (!referenceOnly && !notReady && !dynamicGateProjectionMissing) return decision;
     const isAh = market === ah;
     const line = text(market.line || market.home_line || market.over_line);
     const prices = isAh
@@ -58,8 +66,14 @@ export function applyProductionDashboardTruth(
     const bookmaker = text(market.bookmaker_name) || bookmakers[0] || "已审计报价";
     const capturedAt = text(market.captured_at || reference.captured_at) || "UNKNOWN";
     const freshness = text(market.freshness_status) || "UNKNOWN";
+    const modelDecisionNotReady = referenceOnly && decision.modelProbability == null;
     return {
       ...decision,
+      ...(modelDecisionNotReady ? {
+        recommendation: "真实参考赔率已就绪，模型决策未就绪",
+      } : dynamicGateProjectionMissing ? {
+        recommendation: "动态评估已记录；完整模型与市场概率未投影，暂不展示稳健门结论",
+      } : {}),
       ...(notReady ? {
         risk: "数据未就绪 · 中",
         riskLevel: "medium" as const,
@@ -89,5 +103,16 @@ export function BossDecisionConsole(props: BossDecisionConsoleProps) {
     props.performance,
     props.release,
   );
-  return <BossDecisionConsoleReference model={applyProductionDashboardTruth(model, props.dayView)} />;
+  const truthfulModel = applyProductionDashboardTruth(model, props.dayView);
+  return (
+    <>
+      {truthfulModel.ledger.available === false ? (
+        <section data-ui="forward-ledger-unavailable" aria-label="前向验证账本不可用">
+          <strong>前向验证统一账本</strong>
+          <p>账本 checkpoint 投影不可用；未用 0 代替缺失数据。</p>
+        </section>
+      ) : null}
+      <BossDecisionConsoleReference model={truthfulModel} />
+    </>
+  );
 }

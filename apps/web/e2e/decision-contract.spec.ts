@@ -833,11 +833,12 @@ test("missing forward ledger is explicit and never rendered as fake zeroes", asy
   await installRoutes(page, "BLOCKED");
   await page.goto("/");
 
-  const ledger = page.locator("[data-ui='forward-validation-panel']");
-  await expect(ledger).toContainText("账本 checkpoint 投影不可用");
-  await expect(ledger).toContainText("未用 0 代替缺失数据");
-  await expect(ledger).not.toContainText("验证总记录0");
-  await expect(ledger).not.toContainText("0 - 0 - 0");
+  const unavailable = page.locator("[data-ui='forward-ledger-unavailable']");
+  const console = page.locator("[data-ui='boss-decision-console']");
+  await expect(unavailable).toContainText("账本 checkpoint 投影不可用");
+  await expect(unavailable).toContainText("未用 0 代替缺失数据");
+  await expect(console).not.toContainText("验证总记录0");
+  await expect(console).not.toContainText("0 - 0 - 0");
 });
 
 for (const scenario of [

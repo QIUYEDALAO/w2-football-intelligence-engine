@@ -17,22 +17,22 @@ export interface DashboardV2ReleaseModel {
 }
 
 export interface DashboardV2LedgerModel {
-  available: boolean;
-  source: string | null;
+  available?: boolean;
+  source?: string | null;
   rangeLabel: string;
-  validationCount: number;
-  settledCount: number;
-  pendingCount: number;
-  eligibleCount: number;
-  evidenceRepairPendingCount: number;
-  hitCount: number;
-  missCount: number;
-  pushCount: number;
+  validationCount: number | "—";
+  settledCount: number | "—";
+  pendingCount: number | "—";
+  eligibleCount: number | "—";
+  evidenceRepairPendingCount: number | "—";
+  hitCount: number | "—";
+  missCount: number | "—";
+  pushCount: number | "—";
   voidCount: number;
-  decisiveCount: number;
+  decisiveCount: number | "—";
   hitRate: number | null;
   clvMedian: number | null;
-  clvSampleCount: number;
+  clvSampleCount: number | "—";
 }
 
 export interface DashboardV2HealthModel {

@@ -19,7 +19,6 @@ import type {
 } from "./boss-console-model";
 
 function riskLevel(fixture: DashboardV2FixtureModel): BossRiskLevel {
-  if (fixture.quote?.referenceOnly && fixture.quote.modelProbability == null) return "medium";
   if (fixture.dataStatus === "BLOCKED" || fixture.decisionTier === "NOT_READY") return "high";
   if (fixture.quote?.candidateRole === "ALTERNATE_LINE") return "high";
   if (fixture.dataFacts.some((fact) => fact.includes("首发") && !fact.includes("已就绪"))) {
@@ -64,9 +63,6 @@ function decisionReasons(fixture: DashboardV2FixtureModel): string[] {
 }
 
 function noEdgeCopy(fixture: DashboardV2FixtureModel): string {
-  if (fixture.quote?.referenceOnly && fixture.quote.modelProbability == null) {
-    return "真实参考赔率已就绪，模型决策未就绪";
-  }
   if (fixture.dataStatus === "STALE") {
     return "旧报价仅供参考，等待下一次受控采集";
   }
@@ -80,10 +76,7 @@ function noEdgeCopy(fixture: DashboardV2FixtureModel): string {
   if (ev != null && evMinusSe != null && evMinusSe <= 0) {
     return `EV ${ev >= 0 ? "+" : ""}${(ev * 100).toFixed(1)}%，但 EV-SE = ${(evMinusSe * 100).toFixed(1)}%，稳健性未通过`;
   }
-  if (fixture.dynamicSnapshot?.state === "NO_EDGE_CURRENT") {
-    return "动态评估已记录；完整模型与市场概率未投影，暂不展示稳健门结论";
-  }
-  return "模型决策证据未完整投影，暂不展示 EV、Delta 与 EV-SE 门槛结论";
+  return "当前完整快照未通过 EV、Delta 与 EV-SE 稳健门";
 }
 
 function decisionRisks(fixture: DashboardV2FixtureModel): string[] {
@@ -163,9 +156,7 @@ export function adaptDashboardV2ToBossConsole(model: DashboardV2ViewModel): Boss
           ? fixture.primaryMarketLabel.replace(/^让球 · |^大小球 · /, "")
           : status === "watch"
             ? noEdgeCopy(fixture)
-            : fixture.quote?.referenceOnly && fixture.quote.modelProbability == null
-              ? "真实参考赔率已就绪，模型决策未就绪"
-              : fixture.reasonLabel || "尚未进入完整评估窗口",
+            : fixture.reasonLabel || "尚未进入完整评估窗口",
       modelProbability: fixture.quote?.modelProbability ?? null,
       marketProbability: fixture.quote?.marketProbability ?? null,
       probabilityDelta: fixture.quote?.probabilityDelta ?? null,

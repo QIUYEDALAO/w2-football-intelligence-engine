@@ -150,14 +150,12 @@ def _reconcile_dynamic_decision(projected: dict[str, Any]) -> dict[str, Any]:
     row = rows[0]
     selection = str(evaluated.get("selection") or "").replace("_AH", "")
     quote_hash = str(identity.get("quote_identity_hash") or "")
-    real_values = (
-        _finite(model.get("effective_probability")),
-        _finite(market.get(selection)),
-        _finite(comparison.get("current_ev")),
-        _finite(comparison.get("probability_delta")),
-        _finite(comparison.get("current_ev_minus_se")),
-        _finite(model.get("ev_se")),
-    )
+    model_probability = _finite(model.get("effective_probability"))
+    market_probability = _finite(market.get(selection))
+    current_ev = _finite(comparison.get("current_ev"))
+    probability_delta = _finite(comparison.get("probability_delta"))
+    current_ev_minus_se = _finite(comparison.get("current_ev_minus_se"))
+    ev_se = _finite(model.get("ev_se"))
     identity_matches = (
         row.get("schema_version") == "w2.dynamic_quote_evaluation.v2"
         and row.get("immutable") is True
@@ -185,21 +183,23 @@ def _reconcile_dynamic_decision(projected: dict[str, Any]) -> dict[str, Any]:
         or model.get("status") != "READY"
         or comparison.get("status") != "READY"
         or comparison.get("analysis_direction_allowed") is not True
-        or any(value is None for value in real_values)
-        or not 0 <= real_values[0] <= 1
-        or not 0 <= real_values[1] <= 1
-        or not _same_number(comparison.get("current_ev"), model.get("expected_value"))
-        or not _same_number(
-            comparison.get("current_ev_minus_se"),
-            float(comparison["current_ev"]) - float(model["ev_se"]),
-        )
-        or not _same_number(
-            comparison.get("probability_delta"),
-            float(model["effective_probability"]) - float(market[selection]),
-        )
         or not executable
         or not _same_number(executable.get("line"), evaluated.get("line"))
         or (_finite(executable.get("decimal_odds")) or 0) <= 1
+    ):
+        return projected
+    if (
+        model_probability is None
+        or market_probability is None
+        or current_ev is None
+        or probability_delta is None
+        or current_ev_minus_se is None
+        or ev_se is None
+        or not 0 <= model_probability <= 1
+        or not 0 <= market_probability <= 1
+        or not _same_number(current_ev, model.get("expected_value"))
+        or not _same_number(current_ev_minus_se, current_ev - ev_se)
+        or not _same_number(probability_delta, model_probability - market_probability)
     ):
         return projected
 

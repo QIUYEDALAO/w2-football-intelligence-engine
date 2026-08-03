@@ -53,8 +53,6 @@ export const dashboardV2ReferenceFixture: DashboardV2ViewModel = {
     nextRefreshAt: null,
   },
   ledger: {
-    available: true,
-    source: "performance_checkpoint",
     rangeLabel: "07-07 至 07-21",
     validationCount: 26,
     settledCount: 23,

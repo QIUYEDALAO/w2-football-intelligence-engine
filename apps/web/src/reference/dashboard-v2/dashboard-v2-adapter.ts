@@ -443,6 +443,7 @@ export function adaptDashboardV2(
   release: ReleaseSyncState | undefined,
 ): DashboardV2ViewModel {
   const cohort = performance?.forward_ledger?.performance_cohort;
+  const unavailable = "—" as const;
   const fixtures = dayView.cards.map((card) => fixtureModel(card, performance));
   const visibleQuoteTimes = fixtures
     .map((fixture) => fixture.quote?.capturedAt)
@@ -469,19 +470,19 @@ export function adaptDashboardV2(
         : performance?.forward_ledger?.evidence_window.latest_outcome_at
           ? `截至 ${performance.forward_ledger.evidence_window.latest_outcome_at.slice(5, 10)}`
           : "投影不可用",
-      validationCount: cohort?.validation_count ?? 0,
-      settledCount: cohort?.processed_count ?? 0,
-      pendingCount: cohort?.pending_count ?? 0,
-      eligibleCount: cohort?.eligible_count ?? 0,
-      evidenceRepairPendingCount: cohort?.excluded_count ?? 0,
-      hitCount: cohort?.outcomes.hit_count ?? 0,
-      missCount: cohort?.outcomes.miss_count ?? 0,
-      pushCount: cohort?.outcomes.push_count ?? 0,
+      validationCount: cohort?.validation_count ?? unavailable,
+      settledCount: cohort?.processed_count ?? unavailable,
+      pendingCount: cohort?.pending_count ?? unavailable,
+      eligibleCount: cohort?.eligible_count ?? unavailable,
+      evidenceRepairPendingCount: cohort?.excluded_count ?? unavailable,
+      hitCount: cohort?.outcomes.hit_count ?? unavailable,
+      missCount: cohort?.outcomes.miss_count ?? unavailable,
+      pushCount: cohort?.outcomes.push_count ?? unavailable,
       voidCount: cohort?.outcomes.void_count ?? 0,
-      decisiveCount: cohort?.outcomes.decisive_count ?? 0,
+      decisiveCount: cohort?.outcomes.decisive_count ?? unavailable,
       hitRate: cohort?.outcomes.hit_rate ?? null,
       clvMedian: cohort?.clv.median_decimal ?? null,
-      clvSampleCount: cohort?.clv.sample_count ?? 0,
+      clvSampleCount: cohort?.clv.sample_count ?? unavailable,
     },
     health: {
       automaticCollectionPaused: !dayView.freshness.refreshing && !dayView.freshness.next_refresh_tick,
