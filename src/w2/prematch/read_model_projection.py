@@ -44,6 +44,7 @@ ANALYSIS_EVIDENCE_CONTRACT_VERSION = "w2.analysis-market-evidence.v2"
 ANALYSIS_CARD_CANARY_PREFIX = "analysis-card:frozen:v1:"
 ANALYSIS_CARD_SHADOW_PREFIX = "analysis-card:shadow:v1:"
 PROJECTION_VERSION = "w2.prematch-read-model-projection.v1"
+SCORELINE_PROJECTION_CONTRACT_VERSION = "w2.scoreline_projection.v1"
 ANALYSIS_CARD_CANARY_FIXTURES = frozenset({"1576804", "1494701", "1494210"})
 MAX_OBSERVATIONS_PER_FIXTURE = 256
 MAX_PUBLIC_FIXTURES = 512
@@ -461,6 +462,10 @@ class AnalysisCardCanaryMaterializer:
                 evaluated_at=evaluated_at,
             ),
         }
+        if self.build_scoreline_reference is not None:
+            input_manifest["scoreline_projection_contract_version"] = (
+                SCORELINE_PROJECTION_CONTRACT_VERSION
+            )
         if source_event is None:
             artifact_body: dict[str, Any] = {
                 "schema_version": ANALYSIS_CARD_CANARY_SCHEMA,
@@ -1150,6 +1155,9 @@ def _dynamic_evaluations(
                     "simulation": manifest.get("simulation_sha256"),
                     "analysis_evidence": manifest.get("analysis_evidence_sha256"),
                     "lineup_input_hash": lineup_input_hash,
+                    "scoreline_projection_contract_version": manifest.get(
+                        "scoreline_projection_contract_version"
+                    ),
                 },
                 domain=HashDomain.PREMATCH_READ_MODEL_DYNAMIC_EVALUATION,
             ),

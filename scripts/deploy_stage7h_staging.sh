@@ -31,6 +31,8 @@ done
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 install -m 0644 "${ROOT}/infra/compose/compose.staging.yml" "${TMP_DIR}/compose.staging.yml"
+install -m 0644 "${ROOT}/infra/compose/controlled-future-refresh.override.yml" \
+  "${TMP_DIR}/controlled-future-refresh.override.yml"
 install -m 0644 "${ROOT}/infra/systemd/w2-staging.service" "${TMP_DIR}/w2-staging.service"
 install -m 0644 "${ROOT}/infra/systemd/w2-staging-watchdog.service" \
   "${TMP_DIR}/w2-staging-watchdog.service"
@@ -46,7 +48,8 @@ install -m 0444 "${ROOT}/scripts/check_w2_stage7h.py" \
 } >"${TMP_DIR}/release.env"
 
 # Only deployment configuration and read-only operational assets cross the wire.
-scp "${TMP_DIR}/compose.staging.yml" "${TMP_DIR}/w2-staging.service" \
+scp "${TMP_DIR}/compose.staging.yml" "${TMP_DIR}/controlled-future-refresh.override.yml" \
+  "${TMP_DIR}/w2-staging.service" \
   "${TMP_DIR}/w2-staging-watchdog.service" "${TMP_DIR}/w2-staging-watchdog.timer" \
   "${TMP_DIR}/watch_staging_runtime.sh" "${TMP_DIR}/check_w2_stage7h.py" \
   "${TMP_DIR}/release.env" "${SSH_HOST}:/tmp/"
@@ -59,6 +62,7 @@ DEPLOY_MODE="$2"
 PYTHON_IMAGE="$3"
 WEB_IMAGE="$4"
 COMPOSE=(sudo docker compose -p w2-staging -f /opt/w2/deploy/compose.staging.yml
+  -f /opt/w2/deploy/controlled-future-refresh.override.yml
   --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env)
 DEPLOY_STARTED="$(date +%s)"
 ACTIVATED=false
@@ -103,7 +107,7 @@ assert image["registry_digest"] == {"status": "AVAILABLE", "value": expected_dig
 ' "${expected_python_id}" "${expected_registry_digest}" || return 1
 
   expected_web_id="$(sudo docker image inspect --format '{{.Id}}' "${expected_web_ref}")"
-  for service in api worker; do
+  for service in api worker scheduler; do
     container_id="$("${COMPOSE[@]}" ps -q "${service}")"
     [ -n "${container_id}" ] || return 1
     [ "$(sudo docker inspect --format '{{.Image}}' "${container_id}")" = \
@@ -117,7 +121,7 @@ assert image["registry_digest"] == {"status": "AVAILABLE", "value": expected_dig
     "${expected_web_id}" ] || return 1
   [ "$(sudo docker inspect --format '{{.Config.Image}}' "${web_id}")" = \
     "${expected_web_ref}" ] || return 1
-  [ "$("${COMPOSE[@]}" ps --status running -q scheduler | wc -l)" -eq 0 ]
+  [ "$("${COMPOSE[@]}" ps --status running -q scheduler | wc -l)" -eq 1 ]
 }
 
 wait_for_runtime() {
@@ -142,9 +146,9 @@ rollback() {
   rollback_started="$(date +%s)"
   sudo install -o root -g root -m 0644 \
     /opt/w2/shared/release.previous.env /opt/w2/shared/release.env
-  if "${COMPOSE[@]}" pull migration api worker web </dev/null &&
+  if "${COMPOSE[@]}" pull migration api worker scheduler web </dev/null &&
     "${COMPOSE[@]}" run --rm migration </dev/null &&
-    "${COMPOSE[@]}" up -d --remove-orphans api worker web </dev/null &&
+    "${COMPOSE[@]}" up -d --remove-orphans api worker scheduler web </dev/null &&
     wait_for_runtime; then
     rollback_seconds="$(( $(date +%s) - rollback_started ))"
     echo "rollback=PASS duration_seconds=${rollback_seconds} target_seconds=120"
@@ -164,6 +168,8 @@ sudo install -d -o 10001 -g 10001 -m 0775 \
   /opt/w2/shared/runtime/reports/public \
   /opt/w2/shared/runtime/independent_signal_backfill/raw_payloads
 sudo install -o root -g root -m 0644 /tmp/compose.staging.yml /opt/w2/deploy/compose.staging.yml
+sudo install -o root -g root -m 0644 /tmp/controlled-future-refresh.override.yml \
+  /opt/w2/deploy/controlled-future-refresh.override.yml
 sudo install -o root -g root -m 0755 \
   /tmp/watch_staging_runtime.sh /opt/w2/deploy/watch_staging_runtime.sh
 sudo install -o root -g root -m 0444 \
@@ -233,9 +239,9 @@ if [ "${DEPLOY_MODE}" = "web" ]; then
   "${COMPOSE[@]}" up -d --no-deps web </dev/null
   TARGET_SECONDS=180
 else
-  "${COMPOSE[@]}" pull migration api worker web </dev/null
+  "${COMPOSE[@]}" pull migration api worker scheduler web </dev/null
   "${COMPOSE[@]}" run --rm migration </dev/null
-  "${COMPOSE[@]}" up -d --remove-orphans api worker web </dev/null
+  "${COMPOSE[@]}" up -d --remove-orphans api worker scheduler web </dev/null
   TARGET_SECONDS=300
 fi
 

@@ -1,0 +1,29 @@
+services:
+  worker:
+    environment:
+      W2_PROVIDER_CALLS_DISABLED: "false"
+      W2_PROVIDER_SCHEDULER_ENABLED: "true"
+      W2_PROVIDER_HTTP_MAX_ATTEMPTS: "1"
+      W2_PROVIDER_ENDPOINT_ALLOWLIST: "status,fixtures,odds,lineups"
+      W2_PROVIDER_REQUEST_LEDGER_ENABLED: "true"
+      W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
+      W2_PROVIDER_DAILY_HARD_CAP: "120"
+      W2_CANDIDATE_ENABLED: "false"
+      W2_FORMAL_RECOMMENDATION_ENABLED: "false"
+      W2_PRODUCTION_RELEASE: "false"
+  scheduler:
+    environment:
+      W2_PROVIDER_CALLS_DISABLED: "false"
+      W2_PROVIDER_SCHEDULER_ENABLED: "true"
+      W2_FUTURE_FIXTURE_REFRESH_ENABLED: "true"
+      W2_FUTURE_REFRESH_COMPETITION_ALLOWLIST: "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien"
+      W2_PROVIDER_HTTP_MAX_ATTEMPTS: "1"
+      W2_PROVIDER_ENDPOINT_ALLOWLIST: "status,fixtures,odds,lineups"
+      W2_PROVIDER_REQUEST_LEDGER_ENABLED: "true"
+      W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
+      W2_PROVIDER_DAILY_HARD_CAP: "120"
+      W2_MARKET_TIMELINE_REFRESH_ENABLED: "false"
+      W2_XG_BACKFILL_ENABLED: "false"
+      W2_CANDIDATE_ENABLED: "false"
+      W2_FORMAL_RECOMMENDATION_ENABLED: "false"
+      W2_PRODUCTION_RELEASE: "false"

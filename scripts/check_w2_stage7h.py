@@ -21,11 +21,11 @@ from urllib.error import URLError
 from urllib.request import urlopen
 
 COMPOSE_FILE = "/opt/w2/deploy/compose.staging.yml"
+CONTROLLED_REFRESH_OVERRIDE = "/opt/w2/deploy/controlled-future-refresh.override.yml"
 ENV_FILE = "/opt/w2/shared/.env"
 RELEASE_ENV_FILE = "/opt/w2/shared/release.env"
 COMPOSE_PROJECT = "w2-staging"
-CORE_RUNNING_SERVICES = {"postgres", "redis", "api", "worker", "web"}
-SCHEDULER_SERVICE = "scheduler"
+CORE_RUNNING_SERVICES = {"postgres", "redis", "api", "worker", "scheduler", "web"}
 
 
 def ok(msg: str) -> None:
@@ -114,6 +114,8 @@ def main() -> None:
             RELEASE_ENV_FILE,
             "-f",
             COMPOSE_FILE,
+            "-f",
+            CONTROLLED_REFRESH_OVERRIDE,
             "ps",
             "--format",
             "json",
@@ -124,9 +126,6 @@ def main() -> None:
 
     services = compose_services(r.stdout.strip())
 
-    scheduler_intentionally_stopped = (
-        os.environ.get("W2_PROVIDER_SCHEDULER_ENABLED", "false").lower() != "true"
-    )
     expected = set(CORE_RUNNING_SERVICES)
     running_services = set()
     for svc in services:
@@ -146,12 +145,6 @@ def main() -> None:
     missing = expected - running_services
     if missing:
         fail(f"Missing services: {missing}")
-    if SCHEDULER_SERVICE not in running_services:
-        if scheduler_intentionally_stopped:
-            ok("scheduler: intentionally stopped for controlled staging")
-        else:
-            fail("scheduler is stopped while W2_PROVIDER_SCHEDULER_ENABLED=true")
-
     # ── 3. Port check (public) ───────────────────────────────
     r = run("ss", "-lntup")
     if r.returncode == 0:

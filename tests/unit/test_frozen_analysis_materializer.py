@@ -1182,6 +1182,68 @@ def test_single_event_shadow_matches_post_write_current_read_with_lifecycle(
         assert "lineup_event_payload_sha256" not in artifact.payload
 
 
+def test_same_source_event_replay_adds_scoreline_contract_as_new_immutable_evaluation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_ready_projection(monkeypatch)
+    engine = _engine(dynamic=True)
+
+    class CurrentReadRepository(ScopedRepository):
+        def dynamic_prematch_lifecycle(self, fixture_id: str) -> dict[str, Any]:
+            return DynamicPrematchRepository(engine).lifecycle(fixture_id)
+
+    repository = CurrentReadRepository()
+
+    def calculate(
+        scoped_repository: Any,
+        fixture_id: str,
+        evaluated_at: datetime,
+    ) -> dict[str, Any] | None:
+        card = _calculate_projection(scoped_repository, fixture_id, evaluated_at)
+        assert card is not None
+        lifecycle = scoped_repository.dynamic_prematch_lifecycle(fixture_id)
+        if lifecycle.get("versions"):
+            card["dynamic_prematch"] = lifecycle
+        return card
+
+    event = _event()
+    legacy = AnalysisCardCanaryMaterializer(
+        repository,
+        calculate_analysis_card=calculate,
+    ).build("1576804", evaluated_at=event.event_at, source_event=event)
+    write_frozen_analysis_artifacts(engine, [legacy])
+
+    recovered = AnalysisCardCanaryMaterializer(
+        repository,
+        calculate_analysis_card=calculate,
+        build_scoreline_reference=_scoreline_reference,
+    ).build("1576804", evaluated_at=event.event_at, source_event=event)
+    write_frozen_analysis_artifacts(engine, [recovered])
+
+    persisted = read_shadow_analysis_artifact(engine, "1576804")
+    assert persisted is not None
+    assert persisted.payload["source_event_hash"] == legacy.payload["source_event_hash"]
+    assert (
+        persisted.payload["input_manifest"]["scoreline_projection_contract_version"]
+        == "w2.scoreline_projection.v1"
+    )
+    with Session(engine) as session:
+        evaluations = list(
+            session.scalars(
+                select(DynamicPrematchEvaluationModel).order_by(
+                    DynamicPrematchEvaluationModel.evaluation_id
+                )
+            )
+        )
+        assert len(evaluations) == 2
+        assert evaluations[0].identity_hash != evaluations[1].identity_hash
+        assert sum(row.payload.get("scoreline_reference") is not None for row in evaluations) == 1
+        assert session.query(DynamicPrematchSupersessionModel).count() == 1
+    current = persisted.payload["analysis_card"]["dynamic_prematch"]["current"]
+    assert len(current) == 1
+    assert current[0]["scoreline_reference"]["scoreline_projection"]["status"] == "READY"
+
+
 def test_lineup_source_event_binding_fails_closed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
