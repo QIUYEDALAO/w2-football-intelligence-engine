@@ -307,7 +307,7 @@ class ReadModelRepository:
             for fixture_id in fixture_ids
             if (value := str(fixture_id or "").strip())
         }
-        if not ids or len(ids) > 64:
+        if not ids:
             return {"odds_last_confirmed_at": None, "next_refresh_tick": None}
         reference = now or datetime.now(UTC)
         with Session(create_engine()) as session:
@@ -335,7 +335,7 @@ class ReadModelRepository:
     ) -> dict[str, str]:
         normalized = {str(fixture_id or "").strip() for fixture_id in fixture_ids}
         normalized.discard("")
-        if not normalized or len(normalized) > 64:
+        if not normalized:
             return {}
         provider_ids = {value.removeprefix("api_football:") for value in normalized}
         canonical_ids = {f"api_football:{value}" for value in provider_ids}
