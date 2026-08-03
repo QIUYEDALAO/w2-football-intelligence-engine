@@ -2194,6 +2194,16 @@ class FutureFixtureRefreshService:
                 captured_at=fixtures_response.captured_at,
             )
         )
+        team_mapping: dict[str, str] = {}
+        if self.config.persistence == "db":
+            reader = getattr(self._db_repository(), "provider_team_mapping", None)
+            if callable(reader):
+                team_mapping = reader(
+                    provider="api_football",
+                    competition_id=self.config.competition_id,
+                    season=self.config.season,
+                    as_of=fixtures_response.captured_at,
+                )
         rows: list[dict[str, Any]] = []
         for item in fixtures:
             if not isinstance(item, dict):
@@ -2215,6 +2225,10 @@ class FutureFixtureRefreshService:
             if not provider_fixture_id or kickoff is None:
                 continue
             fixture_id = f"api_football:{provider_fixture_id}"
+            home_provider_team_id = str(home.get("id") or "")
+            away_provider_team_id = str(away.get("id") or "")
+            home_w2_team_id = team_mapping.get(home_provider_team_id)
+            away_w2_team_id = team_mapping.get(away_provider_team_id)
             identity_body = {
                 "fixture_id": fixture_id,
                 "provider": "api_football",
@@ -2224,11 +2238,15 @@ class FutureFixtureRefreshService:
                 "season": str(league.get("season") or self.config.season),
                 "kickoff_utc": iso(kickoff),
                 "fixture_status": str(status.get("short") or ""),
-                "home_provider_team_id": str(home.get("id") or ""),
-                "away_provider_team_id": str(away.get("id") or ""),
-                "home_w2_team_id": None,
-                "away_w2_team_id": None,
-                "team_identity_status": "REVIEW_REQUIRED",
+                "home_provider_team_id": home_provider_team_id,
+                "away_provider_team_id": away_provider_team_id,
+                "home_w2_team_id": home_w2_team_id,
+                "away_w2_team_id": away_w2_team_id,
+                "team_identity_status": (
+                    "PROVIDER_PRIMARY_READY"
+                    if home_w2_team_id and away_w2_team_id
+                    else "REVIEW_REQUIRED"
+                ),
                 "raw_payload_sha256": raw_sha,
                 "endpoint_capture_id": str(capture["capture_id"]) if capture else None,
                 "captured_at": iso(fixtures_response.captured_at),

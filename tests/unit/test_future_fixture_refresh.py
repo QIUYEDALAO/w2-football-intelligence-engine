@@ -299,6 +299,38 @@ class _EmptyFixturesProvider(FakeApiFootballClient):
         return super().payload(endpoint, params)
 
 
+def test_fixture_identity_uses_existing_provider_team_authority(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    class Repository:
+        @staticmethod
+        def provider_team_mapping(**kwargs: Any) -> dict[str, str]:
+            assert kwargs["provider"] == "api_football"
+            assert kwargs["competition_id"] == "world_cup_2026"
+            assert kwargs["season"] == "2026"
+            assert kwargs["as_of"] == NOW
+            return {"10": "w2:team:10", "20": "w2:team:20"}
+
+    client = FakeApiFootballClient()
+    response = client.request_live("fixtures", {})
+    service = FutureFixtureRefreshService(
+        client=client,
+        config=FutureRefreshConfig(runtime_root=tmp_path, persistence="db"),
+        now=NOW,
+    )
+    monkeypatch.setattr(service, "_db_repository", Repository)
+
+    identities = service._fixture_identities_from_response(
+        fixtures_response=response,
+        fixtures=service._future_fixtures(response.payload),
+    )
+
+    assert identities[0]["home_w2_team_id"] == "w2:team:10"
+    assert identities[0]["away_w2_team_id"] == "w2:team:20"
+    assert identities[0]["team_identity_status"] == "PROVIDER_PRIMARY_READY"
+
+
 def test_canonical_market_keeps_only_full_time_asian_handicap_in_ah_pool() -> None:
     assert canonical_market("Asian Handicap") == "ASIAN_HANDICAP"
     assert canonical_market("Handicap") == "ASIAN_HANDICAP"

@@ -1877,6 +1877,23 @@ class FutureRefreshDbRepository:
             )
         return projected
 
+    def provider_team_mapping(
+        self,
+        *,
+        provider: str,
+        competition_id: str,
+        season: str,
+        as_of: datetime,
+    ) -> dict[str, str]:
+        with Session(self.engine) as session:
+            return CanonicalIdentityRepository.provider_team_mapping_in_session(
+                session,
+                provider=provider,
+                competition=competition_id,
+                season=season,
+                as_of=as_of,
+            )
+
     def team_xg_matches_for_w2_teams(
         self,
         team_ids: list[str],
