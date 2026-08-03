@@ -1,6 +1,6 @@
 schema_version: w2.project_state.v3
 project: w2-football-intelligence-engine
-updated_at: "2026-08-02"
+updated_at: "2026-08-03"
 current_state_authority: PROJECT_STATE.yaml
 task_authority: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
 active_execution_schema_version: w2.active_execution.v1
@@ -13,15 +13,16 @@ audit_perspective_registry_authority: docs/operations/W2_AUDIT_PERSPECTIVE_REGIS
 workflow_governance_issue: 455
 computation_authority_issue: 456
 audit_baseline_sha: dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
-current_main_sha: fe03a8267d7086c87557c267afb12d32433bd2cf
-deployed_sha: fe03a8267d7086c87557c267afb12d32433bd2cf
-main_post_merge_ci: 30746096431
-deployment_receipt: docs/operations/W2_VPS_POSTDEPLOY_RECEIPT_20260802.md
-current_workstream: POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT
-current_phase: POSTDEPLOY_CLOSURE_COMPLETE
-current_status_detail: VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE_PASS
-next_workstream: POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT
-active_next_action: POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT
+current_main_sha: 3b38e283959394459671e441132c1e1cb9d1f019
+deployed_sha: 3b38e283959394459671e441132c1e1cb9d1f019
+main_post_merge_ci: 30761641987
+deployment_receipt: docs/operations/W2_PRODUCTION_RECOVERY_RECEIPT_20260803.md
+historical_postdeploy_receipt: docs/operations/W2_VPS_POSTDEPLOY_RECEIPT_20260802.md
+current_workstream: POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS
+current_phase: PRODUCTION_RECOVERY_CONTEXT_CLOSURE_COMPLETE
+current_status_detail: DASHBOARD_REAL_DATA_RECOVERY_PASS_CONTROLLED_COLLECTION_ON
+next_workstream: POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS
+active_next_action: POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS
 infrastructure_exposure_issue: 457
 issue_457_project_gate: CLOSED_WITH_OWNER_RISK_ACCEPTANCE
 quarantined_pr: 453
@@ -35,8 +36,8 @@ current_task: EVAL-02B
 current_status: PASS
 current_pr: null
 current_pr_semantics: CURRENT_BUSINESS_IMPLEMENTATION_PR_ONLY
-active_context_pr: 465
-active_context_pr_semantics: CURRENT_POSTDEPLOY_CONTEXT_PR
+active_context_pr: null
+active_context_pr_semantics: NO_ACTIVE_CONTEXT_PR_AFTER_CLOSURE
 next_task: EVAL-02B
 tasks:
   ARCH-P2-02:
@@ -227,16 +228,21 @@ tasks:
     real_canary_provider_calls: 5
     real_canary_evidence_sha256: 30e961cbedee33b5ec74bf3eabbd80a202ced3b9b21483160896812442ddd1f4
     real_chain: PROVEN
-    next_required_action: POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT
+    next_required_action: POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS
   EVAL-03:
     status: NOT_STARTED
 safety:
+  scope: CONTEXT_CLOSURE
   provider_calls: 0
+  context_closure_provider_call_delta: 0
   business_db_writes: 0
   scheduler_started: false
+  scheduler_restarted_in_context_closure: false
+  deployment_executed_in_context_closure: false
   production_started: false
   reviewed_mapping_count_expected: 66
 staging:
+  scope: HISTORICAL_POSTDEPLOY_RECEIPT
   production_deployed: false
   vps_deployed: true
   deployed_sha: fe03a8267d7086c87557c267afb12d32433bd2cf
@@ -254,6 +260,47 @@ architecture_convergence:
   status: PASS
   receipt: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
 
+production_recovery:
+  status: PASS
+  receipt: docs/operations/W2_PRODUCTION_RECOVERY_RECEIPT_20260803.md
+  dashboard_real_data_recovery: PASS
+  public_dashboard_cards: 51
+  production_future_fixtures: 51
+  provider_request_delta: 58
+  endpoint_capture_delta: 58
+  provider_errors: 0
+  provider_ledger_reconciled: true
+  staging_seed_used: false
+  collection_ready_competitions:
+    - brasileirao_serie_a
+    - chinese_super_league
+    - allsvenskan
+    - eliteserien
+  registered_competitions_missing_future_refresh_and_matchday_policy:
+    - argentina_primera
+    - bundesliga
+    - eredivisie
+    - la_liga
+    - ligue_1
+    - mls
+    - premier_league
+    - primeira_liga
+    - serie_a
+  persistent_scheduler: ON_CONTROLLED
+  scheduler_concurrency: 1
+  provider_attempts: 1
+  daily_hard_cap: 120
+  tick_hard_cap: 30
+  dynamic_evaluation_v2: 0
+  explicit_not_ready_cards: 51
+  dynamic_evaluation_production_recovery: PENDING
+  eval_03: NOT_STARTED
+  cold_pull_slo: NOT_PROVEN
+  candidate: "OFF"
+  formal: "OFF"
+  lock: "OFF"
+  production: "OFF"
+
 TOP_LEVEL_TASK: EVAL-02B
 WAVE_1_FINAL: PASS_WITH_BOUNDED_CARRY_FORWARD
 WAVE_1: PASS_AND_FROZEN
@@ -262,16 +309,16 @@ WAVE_3: PASS
 WAVE_4_REAL_CANARY: PASS
 EVAL_02B_REAL_CHAIN: PROVEN
 AUDIT_BASELINE_SHA: dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
-CURRENT_MAIN_SHA: fe03a8267d7086c87557c267afb12d32433bd2cf
-DEPLOYED_SHA: fe03a8267d7086c87557c267afb12d32433bd2cf
-CURRENT_WORKSTREAM: POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT
-CURRENT_PHASE: POSTDEPLOY_CLOSURE_COMPLETE
-ACTIVE_NEXT_ACTION: POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT
+CURRENT_MAIN_SHA: 3b38e283959394459671e441132c1e1cb9d1f019
+DEPLOYED_SHA: 3b38e283959394459671e441132c1e1cb9d1f019
+CURRENT_WORKSTREAM: POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS
+CURRENT_PHASE: PRODUCTION_RECOVERY_CONTEXT_CLOSURE_COMPLETE
+ACTIVE_NEXT_ACTION: POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS
 VPS_DEPLOYMENT: PASS
-MAIN_POST_MERGE_CI: 30746096431
+MAIN_POST_MERGE_CI: 30761641987
 MIGRATION_HEAD: 0050_gate_a_runtime_selection
 RELEASE_SYNC: PASS
-REAL_PROVIDER_CALL_DELTA: 0
+REAL_PROVIDER_CALL_DELTA: 58
 CANARY_DATABASE_DELETED: true
 FINAL_GATE_A_GROUPS: 28
 FINAL_EXACT_C1_C11_MAPPINGS: 35
@@ -284,18 +331,34 @@ NEXT_CODE_ACTION: NONE_AUTHORIZED
 PR_450: ACCEPTED_HEAD_FOR_FINAL_INTEGRATION
 PR_450_FINAL_ACCEPTANCE_REVIEW: COMPLETED
 PREDEPLOY_C9: PASS
-PROVIDER: "OFF"
-REAL_PROVIDER: "OFF"
+PROVIDER: ON_CONTROLLED
+REAL_PROVIDER: ON_CONTROLLED
 REAL_CANARY: PASS
 REAL_CANARY_PROVIDER_CALLS: 5
 REAL_CANARY_EVIDENCE_SHA256: 30e961cbedee33b5ec74bf3eabbd80a202ced3b9b21483160896812442ddd1f4
 REAL_CANARY_RECEIPT: docs/operations/W2_WAVE4_REAL_CANARY_RECEIPT_20260802.md
-PERSISTENT_SCHEDULER: "OFF"
+PERSISTENT_SCHEDULER: ON_CONTROLLED
 CANDIDATE: "OFF"
 FORMAL: "OFF"
 LOCK: "OFF"
 PRODUCTION: "OFF"
 AUTO_MERGE: FORBIDDEN
+
+DASHBOARD_REAL_DATA_RECOVERY: PASS
+PUBLIC_DASHBOARD_CARDS: 51
+PRODUCTION_FUTURE_FIXTURES: 51
+PROVIDER_REQUEST_DELTA: 58
+ENDPOINT_CAPTURE_DELTA: 58
+PROVIDER_ERRORS: 0
+SCHEDULER_CONCURRENCY: 1
+PROVIDER_ATTEMPTS: 1
+DAILY_HARD_CAP: 120
+TICK_HARD_CAP: 30
+DYNAMIC_EVALUATION_V2: 0
+EXPLICIT_NOT_READY_CARDS: 51
+DYNAMIC_EVALUATION_PRODUCTION_RECOVERY: PENDING
+EVAL-03: NOT_STARTED
+COLD_PULL_SLO: NOT_PROVEN
 
 historical_receipts:
   a148:
@@ -344,9 +407,10 @@ pr450_guard_closure:
     - 证据
 
 execution_stop_line:
-  provider_calls_authorized: false
+  provider_calls_in_context_closure_authorized: false
   real_canary_authorization_authorized: false
-  persistent_scheduler_authorized: false
+  scheduler_restart_in_context_closure_authorized: false
+  deployment_in_context_closure_authorized: false
   candidate_authorized: false
   formal_authorized: false
   lock_authorized: false
@@ -410,7 +474,9 @@ canary_acceptance:
   auto_retry: false
 
 codex_stop_line:
-  real_provider_call_executed: false
+  context_closure_provider_call_delta: 0
   real_canary_authorization_created: false
+  scheduler_restarted_in_context_closure: false
+  deployment_executed_in_context_closure: false
   auto_merge_executed: false
   stop_after_offline_evidence_package: false

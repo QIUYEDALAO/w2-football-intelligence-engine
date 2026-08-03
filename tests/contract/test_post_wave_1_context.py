@@ -16,10 +16,12 @@ REGISTRY_PATH = "docs/operations/W2_AUDIT_PERSPECTIVE_REGISTRY.md"
 CONTEXT_PATH = "AI_PROJECT_CONTEXT.md"
 CANARY_RECEIPT_PATH = "docs/operations/W2_WAVE4_REAL_CANARY_RECEIPT_20260802.md"
 POSTDEPLOY_RECEIPT_PATH = "docs/operations/W2_VPS_POSTDEPLOY_RECEIPT_20260802.md"
+RECOVERY_RECEIPT_PATH = "docs/operations/W2_PRODUCTION_RECOVERY_RECEIPT_20260803.md"
 EXECUTION_AUTHORITY = (
     "https://github.com/QIUYEDALAO/w2-football-intelligence-engine/issues/454"
 )
-ACTIVE_NEXT_ACTION = "POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT"
+ACTIVE_NEXT_ACTION = "POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS"
+CURRENT_SHA = "3b38e283959394459671e441132c1e1cb9d1f019"
 SUPERSEDED_A148_ACTION = "INDEPENDENT_REHEARSAL_RECEIPT_REVIEW"
 
 REQUIRED_CANARY_DELTAS = (
@@ -56,21 +58,24 @@ def test_project_state_v5_separates_task_and_execution_authorities() -> None:
 
     assert state["current_task"] == "EVAL-02B"
     assert state["current_workstream"] == ACTIVE_NEXT_ACTION
-    assert state["current_phase"] == "POSTDEPLOY_CLOSURE_COMPLETE"
+    assert state["current_phase"] == "PRODUCTION_RECOVERY_CONTEXT_CLOSURE_COMPLETE"
     assert state["current_status"] == "PASS"
-    assert state["current_status_detail"] == "VPS_DEPLOYMENT_AND_POSTDEPLOY_CLOSURE_PASS"
+    assert (
+        state["current_status_detail"]
+        == "DASHBOARD_REAL_DATA_RECOVERY_PASS_CONTROLLED_COLLECTION_ON"
+    )
     assert state["next_task"] == "EVAL-02B"
     assert state["next_workstream"] == ACTIVE_NEXT_ACTION
     assert state["active_next_action"] == ACTIVE_NEXT_ACTION
     assert state["tasks"]["EVAL-02B"]["next_required_action"] == ACTIVE_NEXT_ACTION
     assert "current_pr" in state
     assert state["current_pr_semantics"] == "CURRENT_BUSINESS_IMPLEMENTATION_PR_ONLY"
-    assert state["active_context_pr"] == 465
-    assert state["active_context_pr_semantics"] == "CURRENT_POSTDEPLOY_CONTEXT_PR"
+    assert state["active_context_pr"] is None
+    assert state["active_context_pr_semantics"] == "NO_ACTIVE_CONTEXT_PR_AFTER_CLOSURE"
     assert state["audit_baseline_sha"] == "dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6"
-    assert state["current_main_sha"] == "fe03a8267d7086c87557c267afb12d32433bd2cf"
+    assert state["current_main_sha"] == CURRENT_SHA
     assert state["deployed_sha"] == state["current_main_sha"]
-    assert state["main_post_merge_ci"] == 30746096431
+    assert state["main_post_merge_ci"] == 30761641987
     assert state["quarantined_pr"] == 453
     assert set(state["active_issues"]) == {451, 452, 455, 456, 457}
 
@@ -194,8 +199,10 @@ def test_canary_contract_requires_independent_hard_failures() -> None:
     assert oracle["independent_reviewer_recorded_required"] is True
 
     stop = state["codex_stop_line"]
-    assert stop["real_provider_call_executed"] is False
+    assert stop["context_closure_provider_call_delta"] == 0
     assert stop["real_canary_authorization_created"] is False
+    assert stop["scheduler_restarted_in_context_closure"] is False
+    assert stop["deployment_executed_in_context_closure"] is False
     assert stop["auto_merge_executed"] is False
     assert stop["stop_after_offline_evidence_package"] is False
 
@@ -240,7 +247,7 @@ def test_postdeploy_receipt_and_state_are_complete_and_sanitized() -> None:
     state = yaml.safe_load(read("PROJECT_STATE.yaml"))
     receipt = read(POSTDEPLOY_RECEIPT_PATH)
 
-    assert state["deployment_receipt"] == POSTDEPLOY_RECEIPT_PATH
+    assert state["historical_postdeploy_receipt"] == POSTDEPLOY_RECEIPT_PATH
     staging = state["staging"]
     assert staging["production_deployed"] is False
     assert staging["vps_deployed"] is True
@@ -275,6 +282,89 @@ def test_postdeploy_receipt_and_state_are_complete_and_sanitized() -> None:
         assert redacted_field not in receipt.upper()
 
 
+def test_production_recovery_receipt_and_state_are_complete_and_sanitized() -> None:
+    state = yaml.safe_load(read("PROJECT_STATE.yaml"))
+    receipt = read(RECOVERY_RECEIPT_PATH)
+    recovery = state["production_recovery"]
+
+    assert state["deployment_receipt"] == RECOVERY_RECEIPT_PATH
+    assert recovery["receipt"] == RECOVERY_RECEIPT_PATH
+    assert recovery["status"] == "PASS"
+    assert recovery["dashboard_real_data_recovery"] == "PASS"
+    assert recovery["public_dashboard_cards"] == 51
+    assert recovery["production_future_fixtures"] == 51
+    assert recovery["provider_request_delta"] == 58
+    assert recovery["endpoint_capture_delta"] == 58
+    assert recovery["provider_errors"] == 0
+    assert recovery["provider_ledger_reconciled"] is True
+    assert recovery["staging_seed_used"] is False
+    assert recovery["collection_ready_competitions"] == [
+        "brasileirao_serie_a",
+        "chinese_super_league",
+        "allsvenskan",
+        "eliteserien",
+    ]
+    assert recovery["registered_competitions_missing_future_refresh_and_matchday_policy"] == [
+        "argentina_primera",
+        "bundesliga",
+        "eredivisie",
+        "la_liga",
+        "ligue_1",
+        "mls",
+        "premier_league",
+        "primeira_liga",
+        "serie_a",
+    ]
+    assert recovery["persistent_scheduler"] == "ON_CONTROLLED"
+    assert recovery["scheduler_concurrency"] == 1
+    assert recovery["provider_attempts"] == 1
+    assert recovery["daily_hard_cap"] == 120
+    assert recovery["tick_hard_cap"] == 30
+    assert recovery["dynamic_evaluation_v2"] == 0
+    assert recovery["explicit_not_ready_cards"] == 51
+    assert recovery["dynamic_evaluation_production_recovery"] == "PENDING"
+    assert recovery["eval_03"] == "NOT_STARTED"
+    assert recovery["cold_pull_slo"] == "NOT_PROVEN"
+    assert {recovery[key] for key in ("candidate", "formal", "lock", "production")} == {
+        "OFF"
+    }
+
+    for evidence in (
+        f"CURRENT_MAIN_SHA = {CURRENT_SHA}",
+        f"DEPLOYED_SHA = {CURRENT_SHA}",
+        "DASHBOARD_REAL_DATA_RECOVERY = PASS",
+        "PUBLIC_DASHBOARD_CARDS = 51",
+        "PRODUCTION_FUTURE_FIXTURES = 51",
+        "PROVIDER_REQUEST_DELTA = 58",
+        "ENDPOINT_CAPTURE_DELTA = 58",
+        "PROVIDER_ERRORS = 0",
+        "PERSISTENT_SCHEDULER = ON_CONTROLLED",
+        "SCHEDULER_CONCURRENCY = 1",
+        "PROVIDER_ATTEMPTS = 1",
+        "DAILY_HARD_CAP = 120",
+        "TICK_HARD_CAP = 30",
+        "DYNAMIC_EVALUATION_V2 = 0",
+        "EXPLICIT_NOT_READY_CARDS = 51",
+        "EVAL-03 = NOT STARTED",
+        "COLD_PULL_SLO = NOT_PROVEN",
+        f"ACTIVE_NEXT_ACTION = {ACTIVE_NEXT_ACTION}",
+    ):
+        assert evidence in receipt
+
+    for redacted_field in (
+        "FIXTURE_ID =",
+        "VPS_ADDRESS =",
+        "PUBLIC_URL =",
+        "DATABASE_NAME =",
+        "DATABASE_URL =",
+        "CONTAINER_ID =",
+        "RAW_PAYLOAD =",
+        "API" + "_KEY =",
+        "PASS" + "WORD =",
+    ):
+        assert redacted_field not in receipt.upper()
+
+
 def test_handoff_documents_are_synchronized_to_v5() -> None:
     context = read(CONTEXT_PATH)
     next_action = read("NEXT_ACTION.md")
@@ -285,48 +375,55 @@ def test_handoff_documents_are_synchronized_to_v5() -> None:
 
     handoff_documents = (context, next_action, agents, copilot)
     for text in handoff_documents:
-        assert "#454 v5" in text
-        assert "R5" in text
-        assert "#456" in text
+        assert "TOP_LEVEL_TASK = EVAL-02B" in text
         assert f"ACTIVE_NEXT_ACTION = {ACTIVE_NEXT_ACTION}" in text
-        assert "ACTIVE_CONTEXT_PR = 465" in text
+        assert "ACTIVE_CONTEXT_PR = NONE" in text
         assert f"CURRENT_WORKSTREAM = {ACTIVE_NEXT_ACTION}" in text
-        assert "CURRENT_PHASE = POSTDEPLOY_CLOSURE_COMPLETE" in text
+        assert "CURRENT_PHASE = PRODUCTION_RECOVERY_CONTEXT_CLOSURE_COMPLETE" in text
         assert "AUDIT_BASELINE_SHA = dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6" in text
-        assert "CURRENT_MAIN_SHA = fe03a8267d7086c87557c267afb12d32433bd2cf" in text
-        assert "DEPLOYED_SHA = fe03a8267d7086c87557c267afb12d32433bd2cf" in text
-        assert "WAVE_1 = PASS_AND_FROZEN" in text
-        assert "WAVE_1_FINAL = PASS_WITH_BOUNDED_CARRY_FORWARD" in text
-        assert "T00_RERUN = FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE" in text
-        assert "FINAL_GATE_A_GROUPS = 28" in text
-        assert "FINAL_EXACT_C1_C11_MAPPINGS = 35" in text
-        assert "FINAL_TEST_CONTRACT_SKELETONS = 30" in text
-        assert "ISSUE_457_PROJECT_GATE = CLOSED_WITH_OWNER_RISK_ACCEPTANCE" in text
-        assert "WAVE_2 = PASS" in text
-        assert "WAVE_3 = PASS" in text
-        assert "WAVE_4_REAL_CANARY = PASS" in text
-        assert "EVAL_02B_REAL_CHAIN = PROVEN" in text
-        assert "REAL_CANARY_PROVIDER_CALLS = 5" in text
+        assert f"CURRENT_MAIN_SHA = {CURRENT_SHA}" in text
+        assert f"DEPLOYED_SHA = {CURRENT_SHA}" in text
+        assert "DASHBOARD_REAL_DATA_RECOVERY = PASS" in text
+        assert "PUBLIC_DASHBOARD_CARDS = 51" in text
+        assert "PRODUCTION_FUTURE_FIXTURES = 51" in text
+        assert "PROVIDER_REQUEST_DELTA = 58" in text
+        assert "ENDPOINT_CAPTURE_DELTA = 58" in text
+        assert "PROVIDER_ERRORS = 0" in text
         assert (
-            "REAL_CANARY_EVIDENCE_SHA256 = "
-            "30e961cbedee33b5ec74bf3eabbd80a202ced3b9b21483160896812442ddd1f4"
+            "COLLECTION_READY_COMPETITIONS = "
+            "brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien"
         ) in text
-        assert "SER_05_INDEPENDENT_ORACLE = PASS" in text
-        assert "PR_461 = INTEGRATED_INTO_PR_460" in text
+        assert "PROVIDER = ON_CONTROLLED" in text
+        assert "REAL_PROVIDER = ON_CONTROLLED" in text
+        assert "PERSISTENT_SCHEDULER = ON_CONTROLLED" in text
+        assert "SCHEDULER_CONCURRENCY = 1" in text
+        assert "PROVIDER_ATTEMPTS = 1" in text
+        assert "DAILY_HARD_CAP = 120" in text
+        assert "TICK_HARD_CAP = 30" in text
+        assert "DYNAMIC_EVALUATION_V2 = 0" in text
+        assert "EXPLICIT_NOT_READY_CARDS = 51" in text
+        assert "DYNAMIC_EVALUATION_PRODUCTION_RECOVERY = PENDING" in text
+        assert "EVAL-03 = NOT STARTED" in text
+        assert "COLD_PULL_SLO = NOT_PROVEN" in text
         assert "NEXT_CODE_ACTION = NONE_AUTHORIZED" in text
-        assert "PR_450 = ACCEPTED_HEAD_FOR_FINAL_INTEGRATION" in text
-        assert "PR_450_FINAL_ACCEPTANCE_REVIEW = COMPLETED" in text
-        assert "PREDEPLOY_C9 = PASS" in text
-        assert "PROVIDER = OFF" in text
-        assert "REAL_PROVIDER = OFF" in text
-        assert "REAL_CANARY = PASS" in text
-        assert "PERSISTENT_SCHEDULER = OFF" in text
         assert "CANDIDATE = OFF" in text
         assert "FORMAL = OFF" in text
         assert "LOCK = OFF" in text
         assert "PRODUCTION = OFF" in text
         assert "AUTO_MERGE = FORBIDDEN" in text
         assert SUPERSEDED_A148_ACTION not in text
+        for competition_id in (
+            "argentina_primera",
+            "bundesliga",
+            "eredivisie",
+            "la_liga",
+            "ligue_1",
+            "mls",
+            "premier_league",
+            "primeira_liga",
+            "serie_a",
+        ):
+            assert competition_id in text
 
     assert "TOP_LEVEL_TASK = EVAL-02B" in context
     assert "PRODUCTION_SERIALIZER_IMPLEMENTER" in context
@@ -353,16 +450,17 @@ def test_active_action_is_unique_current_and_historical_receipt_is_bounded() -> 
         "PR_450": "ACCEPTED_HEAD_FOR_FINAL_INTEGRATION",
         "PR_450_FINAL_ACCEPTANCE_REVIEW": "COMPLETED",
         "PREDEPLOY_C9": "PASS",
-        "PROVIDER": "OFF",
+        "PROVIDER": "ON_CONTROLLED",
+        "REAL_PROVIDER": "ON_CONTROLLED",
         "REAL_CANARY": "PASS",
-        "PERSISTENT_SCHEDULER": "OFF",
+        "PERSISTENT_SCHEDULER": "ON_CONTROLLED",
         "AUTO_MERGE": "FORBIDDEN",
     }
     for key, value in expected_active_state.items():
         assert state[key] == value
     assert state["WAVE_3"] == "PASS"
     assert state["WAVE_4_REAL_CANARY"] == "PASS"
-    assert state["active_context_pr"] == 465
+    assert state["active_context_pr"] is None
 
     assert state_text.count(SUPERSEDED_A148_ACTION) == 1
     assert state["historical_receipts"]["a148"][
