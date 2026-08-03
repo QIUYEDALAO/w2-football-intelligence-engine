@@ -500,7 +500,7 @@ function normalizeAnalysisReadiness(payload: unknown) {
 
 function normalizeDataRefresh(payload: unknown): DataRefreshStatus | null {
   const record = asRecord(payload);
-  const status = textValue(record.status);
+  const status = textValue(record.status) || textValue(record.odds_status);
   if (!status) return null;
   return {
     status,

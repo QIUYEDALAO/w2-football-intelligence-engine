@@ -298,6 +298,9 @@ async function installRoutes(
 ): Promise<void> {
   const contract = scenarioContract[scenario];
   const dayViewPayload = dayView(scenario);
+  if (scenario === "BLOCKED") {
+    dayViewPayload.cards[0].data_refresh = { odds_status: "PROVIDER_EMPTY" };
+  }
   if (readyCardCount === 0) {
     dayViewPayload.cards = [];
     dayViewPayload.counts.total = 0;
@@ -656,6 +659,8 @@ test("scheduled collection does not label data-not-ready fixtures as high risk",
   await page.getByRole("button", { name: "全部赛程 1/1 场" }).click();
 
   const row = page.locator("[data-fixture-id='fixture-blocked']");
+  await expect(row).toContainText("已到采集窗口，Provider 暂无赔率");
+  await expect(row).not.toContainText("尚未到受控赔率采集窗口");
   await expect(row).toContainText("数据未就绪 · 中风险");
   await expect(row).not.toContainText("高风险");
   await expect(page.locator(".topbar")).toContainText("高风险赛事0");
