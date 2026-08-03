@@ -18,14 +18,15 @@
 - 审计视角登记：`docs/operations/W2_AUDIT_PERSPECTIVE_REGISTRY.md`
 - Wave 4 脱敏永久回执：`docs/operations/W2_WAVE4_REAL_CANARY_RECEIPT_20260802.md`
 - VPS postdeploy 脱敏回执：`docs/operations/W2_VPS_POSTDEPLOY_RECEIPT_20260802.md`
+- Production recovery 脱敏回执：`docs/operations/W2_PRODUCTION_RECOVERY_RECEIPT_20260803.md`
 
 ## 可信基线
 
 ```text
 repository = QIUYEDALAO/w2-football-intelligence-engine
 audit_baseline_sha = dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
-current_main_sha = fe03a8267d7086c87557c267afb12d32433bd2cf
-deployed_sha = fe03a8267d7086c87557c267afb12d32433bd2cf
+current_main_sha = 3b38e283959394459671e441132c1e1cb9d1f019
+deployed_sha = 3b38e283959394459671e441132c1e1cb9d1f019
 main contaminated by e875050f = false
 main rollback required = false
 PR #453 = QUARANTINED / DO NOT MERGE / DO NOT REPAIR IN PLACE
@@ -36,7 +37,7 @@ PR #450 = FINAL ACCEPTANCE REVIEW COMPLETED / ACCEPTED HEAD IN FINAL INTEGRATION
 
 - P0/P1/P2 架构收敛按冻结范围完成，历史完成回执继续有效。
 - 阶段 A、EVAL-01A/B/C、EVAL-02A 在冻结实现范围内完成。
-- OPS-01 Runbook 文档完成，runtime enablement 未完成。
+- OPS-01 Runbook 文档完成；四个 collection-ready 联赛的受控 runtime collection 已启用。
 - EVAL-02B 预注册合同、Legacy 35 永久排除决策、写侧 Implementation 01–04 完成。
 - exact-pair 核心实现具备 `capture_at` 边界、同 provider/bookmaker/market/selection/exact line、五态合法性与歧义 fail-closed。
 - `2/2.5 -> 2.25` 是明确测试合同，不是已证实缺陷。
@@ -48,17 +49,17 @@ PR #450 = FINAL ACCEPTANCE REVIEW COMPLETED / ACCEPTED HEAD IN FINAL INTEGRATION
 
 ```text
 TOP_LEVEL_TASK = EVAL-02B
-ACTIVE_NEXT_ACTION = POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT
-ACTIVE_CONTEXT_PR = 465
-CURRENT_WORKSTREAM = POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT
-CURRENT_PHASE = POSTDEPLOY_CLOSURE_COMPLETE
+ACTIVE_NEXT_ACTION = POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS
+ACTIVE_CONTEXT_PR = NONE
+CURRENT_WORKSTREAM = POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS
+CURRENT_PHASE = PRODUCTION_RECOVERY_CONTEXT_CLOSURE_COMPLETE
 AUDIT_BASELINE_SHA = dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
-CURRENT_MAIN_SHA = fe03a8267d7086c87557c267afb12d32433bd2cf
-DEPLOYED_SHA = fe03a8267d7086c87557c267afb12d32433bd2cf
+CURRENT_MAIN_SHA = 3b38e283959394459671e441132c1e1cb9d1f019
+DEPLOYED_SHA = 3b38e283959394459671e441132c1e1cb9d1f019
 VPS_DEPLOYMENT = PASS
 MIGRATION_HEAD = 0050_gate_a_runtime_selection
 RELEASE_SYNC = PASS
-REAL_PROVIDER_CALL_DELTA = 0
+REAL_PROVIDER_CALL_DELTA = 58
 CANARY_DATABASE_DELETED = true
 EVAL-02B END-TO-END = PROVEN
 EVAL-03 = NOT STARTED
@@ -77,16 +78,64 @@ NEXT_CODE_ACTION = NONE_AUTHORIZED
 PR_450 = ACCEPTED_HEAD_FOR_FINAL_INTEGRATION
 PR_450_FINAL_ACCEPTANCE_REVIEW = COMPLETED
 PREDEPLOY_C9 = PASS
-PROVIDER = OFF
-REAL_PROVIDER = OFF
+PROVIDER = ON_CONTROLLED
+REAL_PROVIDER = ON_CONTROLLED
 REAL_CANARY = PASS
-PERSISTENT_SCHEDULER = OFF
+PERSISTENT_SCHEDULER = ON_CONTROLLED
 CANDIDATE = OFF
 FORMAL = OFF
 LOCK = OFF
 PRODUCTION = OFF
 AUTO_MERGE = FORBIDDEN
 ```
+
+## Production recovery 闭环
+
+```text
+DASHBOARD_REAL_DATA_RECOVERY = PASS
+PUBLIC_DASHBOARD_CARDS = 51
+PRODUCTION_FUTURE_FIXTURES = 51
+PROVIDER_REQUEST_DELTA = 58
+ENDPOINT_CAPTURE_DELTA = 58
+PROVIDER_ERRORS = 0
+
+COLLECTION_READY_COMPETITIONS = brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien
+PERSISTENT_SCHEDULER = ON_CONTROLLED
+SCHEDULER_CONCURRENCY = 1
+PROVIDER_ATTEMPTS = 1
+DAILY_HARD_CAP = 120
+TICK_HARD_CAP = 30
+
+DYNAMIC_EVALUATION_V2 = 0
+EXPLICIT_NOT_READY_CARDS = 51
+DYNAMIC_EVALUATION_PRODUCTION_RECOVERY = PENDING
+CANDIDATE = OFF
+FORMAL = OFF
+LOCK = OFF
+PRODUCTION = OFF
+
+ACTIVE_NEXT_ACTION = POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS
+EVAL-03 = NOT STARTED
+COLD_PULL_SLO = NOT_PROVEN
+```
+
+其余已注册但尚未同时接入 future-refresh 与 matchday policy 的联赛保持注册，不得从
+白名单删除：
+
+- `argentina_primera`
+- `bundesliga`
+- `eredivisie`
+- `la_liga`
+- `ligue_1`
+- `mls`
+- `premier_league`
+- `primeira_liga`
+- `serie_a`
+
+上述 58 次 Provider request 与 58 条 endpoint capture 一一对账，Provider error 为 0。
+当前公网 51 张卡片都是显式 `NOT_READY`；`DYNAMIC_EVALUATION_V2 = 0`，因此不得宣称
+production dynamic evaluation 已恢复。cold-pull 两次超过部署 SLO 并回滚，warm switch
+成功不能替代 cold-pull SLO 证明。
 
 Wave 1 的绑定终态已经由 PR #458 exact-head 独立验收确认：
 
@@ -264,33 +313,32 @@ LINEAGE_MISMATCH
 
 Wave 1 / T00 已完成并冻结；Wave 2 independent serializer oracle、Wave 3 C9 与 Gate A、
 Wave 4 单次真实 Canary 均已验收通过，`EVAL_02B_REAL_CHAIN = PROVEN`。正式 main
-`fe03a8267d7086c87557c267afb12d32433bd2cf` 已使用其 post-merge CI immutable digests 部署，
-migration、health、ready、release sync 均通过，部署期间 Provider 增量为 0，scheduler 保持关闭。
-当前唯一下一动作是 `POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT`。Issue #457 项目
+`3b38e283959394459671e441132c1e1cb9d1f019` 已使用其 post-merge CI immutable digests 部署，
+Dashboard 真实数据恢复通过，四联赛 scheduler 以受控模式运行。
+当前唯一下一动作是 `POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS`。Issue #457 项目
 gate 已按 owner risk acceptance 关闭，PR #450 accepted head 已纳入 main。
 
 ## Gate 分层
 
 - **Gate A：** 一次人工前台 canary。
-- **Gate B：** 持续 scheduler、多联赛、自动恢复、Celery、长期 lease、完整 readiness/progress、容量与背压。
+- **Gate B：** 四联赛受控 scheduler 与 Celery 已运行；自动恢复、长期 soak、完整 readiness/progress、容量与背压仍待证明。
 - **Gate C：** fair odds、market taxonomy、Brier/ECE、EV/五态/结算/CLV 独立数学 oracle，以及 Candidate/Formal/Lock。
 - **Gate D：** migration replay、备份恢复、灾备、安全权限、凭据与日志、长期 soak 和 Production。
 
 ## 接手动作
 
 1. 先读本文件、`PROJECT_STATE.yaml`、`NEXT_ACTION.md` 和 #454/#457 最新 binding decision。
-2. 核对 `CURRENT_MAIN_SHA = DEPLOYED_SHA = fe03a826...` 与
-   `ACTIVE_NEXT_ACTION = POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT`。
+2. 核对 `CURRENT_MAIN_SHA = DEPLOYED_SHA = 3b38e283...` 与
+   `ACTIVE_NEXT_ACTION = POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS`。
 3. 不重跑或扩大 T00；不要重新执行已通过的 C9、Gate A 或真实 Canary。
 4. 不得使用、复制、merge 或 cherry-pick PR #453 / `e875050f...`。
 5. 保留 PR #450 恢复的历史守卫与 145 个 role 字段账目；不得放宽 C9 required event 断言。
-6. postdeploy context PR 不调用 Provider、不创建新授权、不启动持续 scheduler、不再次部署、不自动合并。
+6. context-only PR 不调用 Provider、不创建新授权、不重启或扩大现有 scheduler、不再次部署、不自动合并。
 7. 最终输出：
 
 ```text
-REAL_PROVIDER_CALL_EXECUTED_IN_POSTDEPLOY = false
-PERSISTENT_SCHEDULER_STARTED = false
-DEPLOYMENT_STATUS = PASS
+CONTEXT_CLOSURE_PROVIDER_CALL_DELTA = 0
+SCHEDULER_RESTARTED_IN_CONTEXT_CLOSURE = false
+DEPLOYMENT_EXECUTED_IN_CONTEXT_CLOSURE = false
 AUTO_MERGE_EXECUTED = false
-READY_FOR_FINAL_DEPLOYMENT_ACCEPTANCE = true|false
 ```

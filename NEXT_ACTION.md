@@ -1,47 +1,43 @@
 # NEXT ACTION
 
-当前唯一动作：`POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT`。正式 main
-`fe03a8267d7086c87557c267afb12d32433bd2cf` 已部署并通过 postdeploy 验收；后续仍不得调用
-Provider、启动 scheduler 或开放 Candidate、Formal、Lock、Production，除非 #454 给出新的
-binding execution decision。
+当前唯一动作：`POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS`。
+生产 Dashboard 与真实未来比赛已经恢复；后续只观察受控采集、恢复 production dynamic
+evaluation readiness，并证明 cold-pull SLO。EVAL-03 尚未开始。
 
 ```text
 TOP_LEVEL_TASK = EVAL-02B
-ACTIVE_NEXT_ACTION = POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT
-ACTIVE_CONTEXT_PR = 465
-CURRENT_WORKSTREAM = POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT
-CURRENT_PHASE = POSTDEPLOY_CLOSURE_COMPLETE
+ACTIVE_NEXT_ACTION = POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS
+ACTIVE_CONTEXT_PR = NONE
+CURRENT_WORKSTREAM = POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS
+CURRENT_PHASE = PRODUCTION_RECOVERY_CONTEXT_CLOSURE_COMPLETE
 AUDIT_BASELINE_SHA = dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
-CURRENT_MAIN_SHA = fe03a8267d7086c87557c267afb12d32433bd2cf
-DEPLOYED_SHA = fe03a8267d7086c87557c267afb12d32433bd2cf
-VPS_DEPLOYMENT = PASS
-MIGRATION_HEAD = 0050_gate_a_runtime_selection
-RELEASE_SYNC = PASS
-REAL_PROVIDER_CALL_DELTA = 0
-CANARY_DATABASE_DELETED = true
-WAVE_1 = PASS_AND_FROZEN
-WAVE_1_FINAL = PASS_WITH_BOUNDED_CARRY_FORWARD
-WAVE_2 = PASS
-WAVE_3 = PASS
-WAVE_4_REAL_CANARY = PASS
-EVAL_02B_REAL_CHAIN = PROVEN
-REAL_CANARY_PROVIDER_CALLS = 5
-REAL_CANARY_EVIDENCE_SHA256 = 30e961cbedee33b5ec74bf3eabbd80a202ced3b9b21483160896812442ddd1f4
+CURRENT_MAIN_SHA = 3b38e283959394459671e441132c1e1cb9d1f019
+DEPLOYED_SHA = 3b38e283959394459671e441132c1e1cb9d1f019
+
+DASHBOARD_REAL_DATA_RECOVERY = PASS
+PUBLIC_DASHBOARD_CARDS = 51
+PRODUCTION_FUTURE_FIXTURES = 51
+PROVIDER_REQUEST_DELTA = 58
+ENDPOINT_CAPTURE_DELTA = 58
+PROVIDER_ERRORS = 0
+
+COLLECTION_READY_COMPETITIONS = brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien
+PROVIDER = ON_CONTROLLED
+REAL_PROVIDER = ON_CONTROLLED
+PERSISTENT_SCHEDULER = ON_CONTROLLED
+SCHEDULER_CONCURRENCY = 1
+PROVIDER_ATTEMPTS = 1
+DAILY_HARD_CAP = 120
+TICK_HARD_CAP = 30
+
+DYNAMIC_EVALUATION_V2 = 0
+EXPLICIT_NOT_READY_CARDS = 51
+DYNAMIC_EVALUATION_PRODUCTION_RECOVERY = PENDING
+EVAL-03 = NOT STARTED
+COLD_PULL_SLO = NOT_PROVEN
 T00_RERUN = FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE
-FINAL_GATE_A_GROUPS = 28
-FINAL_EXACT_C1_C11_MAPPINGS = 35
-FINAL_TEST_CONTRACT_SKELETONS = 30
-ISSUE_457_PROJECT_GATE = CLOSED_WITH_OWNER_RISK_ACCEPTANCE
-SER_05_INDEPENDENT_ORACLE = PASS
-PR_461 = INTEGRATED_INTO_PR_460
 NEXT_CODE_ACTION = NONE_AUTHORIZED
-PR_450 = ACCEPTED_HEAD_FOR_FINAL_INTEGRATION
-PR_450_FINAL_ACCEPTANCE_REVIEW = COMPLETED
-PREDEPLOY_C9 = PASS
-PROVIDER = OFF
-REAL_PROVIDER = OFF
-REAL_CANARY = PASS
-PERSISTENT_SCHEDULER = OFF
+
 CANDIDATE = OFF
 FORMAL = OFF
 LOCK = OFF
@@ -49,25 +45,44 @@ PRODUCTION = OFF
 AUTO_MERGE = FORBIDDEN
 ```
 
-- Machine-readable status: [PROJECT_STATE.yaml](PROJECT_STATE.yaml)
-- Task specifications and merged receipts: [W2 architecture convergence master checklist](docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md)
-- Active execution authority: GitHub Issue #454 v5
-- R5 computation authority: GitHub Issue #456
-- Wave 4 sanitized receipt: [W2 Wave 4 Real Canary Receipt](docs/operations/W2_WAVE4_REAL_CANARY_RECEIPT_20260802.md)
-- Postdeploy sanitized receipt: [W2 VPS Postdeploy Receipt](docs/operations/W2_VPS_POSTDEPLOY_RECEIPT_20260802.md)
+## Missing collection policy coverage
 
-`current_pr: null` 只表示当前没有业务实现 PR；`active_context_pr: 465` 是本次 postdeploy
-context PR。PR #450 仍是历史守卫来源，不再是当前上下文 PR。
+以下已注册联赛不得从白名单删除；它们尚未同时接入 future-refresh 与 matchday policy：
+
+- `argentina_primera`
+- `bundesliga`
+- `eredivisie`
+- `la_liga`
+- `ligue_1`
+- `mls`
+- `premier_league`
+- `primeira_liga`
+- `serie_a`
+
+## Boundaries
+
+- 现有 scheduler 只允许四个 collection-ready 联赛，保持 concurrency=1、attempts=1、
+  daily hard cap=120、tick hard cap=30、ledger 与 Redis/DB dedupe。
+- 不扩大 scheduler allowlist，不调用 Provider，不重启 scheduler，不重新部署。
+- Candidate、Formal、Lock、Production 继续关闭。
+- `DYNAMIC_EVALUATION_V2 = 0` 不能声明 production dynamic evaluation 已恢复；当前 51 张
+  公网卡片均为显式 `NOT_READY`。
+- cold-pull 已发生超时回滚，只有 warm switch 成功，因此 cold-pull SLO 仍为 `NOT_PROVEN`。
+
+- Machine-readable status: [PROJECT_STATE.yaml](PROJECT_STATE.yaml)
+- Production recovery receipt: [W2 Production Recovery Receipt](docs/operations/W2_PRODUCTION_RECOVERY_RECEIPT_20260803.md)
+- Historical task specifications and receipts: [W2 architecture convergence master checklist](docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md)
 
 ## Historical receipt / 历史回执
 
-A148 的旧动作和证据仅保存在 `PROJECT_STATE.yaml` 的 `historical_receipts.a148`。
-该历史回执继续保护当时的 fail-closed、Provider 零调用、业务零写入、scheduler/Celery
-未启动、一次性授权撤销和端到端链路未验收事实；它不覆盖此后验收通过的 Wave 4 真实
-Canary 回执。Wave 1 的 T00-R5 inventory 与 Issue #456 继续冻结，不得重跑或改分母。
+Wave 1–4、A148、PR #450 与旧 VPS postdeploy 事实继续保留为历史证据；它们不得覆盖
+上述 production recovery 当前状态。
 
-## Stop line
+## Context-only stop line
 
-本轮不得调用 Provider、创建新的真实授权、启动 persistent scheduler、再次部署、开放
-Candidate/Formal/Lock/Production 或自动 merge。观察期与采集 policy rollout 需要新的
-binding execution decision 才能改变当前关闭状态。
+```text
+CONTEXT_CLOSURE_PROVIDER_CALL_DELTA = 0
+SCHEDULER_RESTARTED_IN_CONTEXT_CLOSURE = false
+DEPLOYMENT_EXECUTED_IN_CONTEXT_CLOSURE = false
+AUTO_MERGE_EXECUTED = false
+```

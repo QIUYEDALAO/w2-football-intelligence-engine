@@ -37,8 +37,8 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     assert state["current_status"] == "PASS"
     assert "current_pr" in state
     assert state["current_pr_semantics"] == "CURRENT_BUSINESS_IMPLEMENTATION_PR_ONLY"
-    assert state["active_context_pr"] == 465
-    assert state["active_context_pr_semantics"] == "CURRENT_POSTDEPLOY_CONTEXT_PR"
+    assert state["active_context_pr"] is None
+    assert state["active_context_pr_semantics"] == "NO_ACTIVE_CONTEXT_PR_AFTER_CLOSURE"
     assert state["next_task"] == "EVAL-02B"
     assert state["tasks"]["ARCH-P2-02"] == {
         "status": "DONE",
@@ -249,14 +249,14 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
             "30e961cbedee33b5ec74bf3eabbd80a202ced3b9b21483160896812442ddd1f4"
         ),
         "real_chain": "PROVEN",
-        "next_required_action": "POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT",
+        "next_required_action": "POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS",
     }
     assert state["tasks"]["EVAL-03"]["status"] == "NOT_STARTED"
     assert state["architecture_convergence"]["status"] == "PASS"
     assert "[PROJECT_STATE.yaml](PROJECT_STATE.yaml)" in next_action
     assert CHECKLIST_PATH in next_action
     assert (
-        "ACTIVE_NEXT_ACTION = POSTDEPLOY_OBSERVATION_AND_COLLECTION_POLICY_ROLLOUT"
+        "ACTIVE_NEXT_ACTION = POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS"
         in next_action
     )
     assert "NEXT_CODE_ACTION = NONE_AUTHORIZED" in next_action
@@ -278,7 +278,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
     assert not re.search(r"\b[0-9a-f]{40}\b|CI:\s*\d+", ledger)
     assert set(re.findall(r"\b[0-9a-f]{40}\b", next_action)) == {
         "dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6",
-        "fe03a8267d7086c87557c267afb12d32433bd2cf",
+        "3b38e283959394459671e441132c1e1cb9d1f019",
     }
     assert not re.search(r"CI:\s*\d+", next_action)
     assert "`PROJECT_STATE.yaml` 是 W2 **唯一当前机器可读状态快照**" in checklist
@@ -1119,6 +1119,7 @@ def test_v3_task_authority_and_next_action_are_consistent() -> None:
             assert task not in next_action
         assert task not in checklist
     assert state["staging"]["production_deployed"] is False
+    assert state["staging"]["scope"] == "HISTORICAL_POSTDEPLOY_RECEIPT"
     assert state["staging"]["vps_deployed"] is True
     assert state["staging"]["deployed_sha"] == (
         "fe03a8267d7086c87557c267afb12d32433bd2cf"
