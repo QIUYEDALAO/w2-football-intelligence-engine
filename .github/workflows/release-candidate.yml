@@ -145,6 +145,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.expected_head_sha }}
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
@@ -187,6 +188,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.expected_head_sha }}
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
@@ -229,6 +231,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.expected_head_sha }}
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
@@ -248,6 +251,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.expected_head_sha }}
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
@@ -275,6 +279,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.expected_head_sha }}
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
@@ -293,6 +298,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.expected_head_sha }}
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
@@ -308,6 +314,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.expected_head_sha }}
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -333,6 +340,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.expected_head_sha }}
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
@@ -438,8 +446,11 @@ jobs:
           docker run --rm --entrypoint python "$python_ref" -c "from apps.worker.celery_app import ping; assert ping.run() == 'pong'"
           docker run --rm --entrypoint python "$python_ref" -c "from apps.scheduler.main import heartbeat; assert 'heartbeat' in heartbeat()"
           docker run --rm --entrypoint alembic "$python_ref" --help >/dev/null
-          container="$(docker run -d -p 18081:8080 "$web_ref")"
-          trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
+          smoke_network="w2-image-smoke-${GITHUB_RUN_ID}"
+          docker network create "$smoke_network" >/dev/null
+          api_id="$(docker run -d --network "$smoke_network" --network-alias api --entrypoint python "$python_ref" -m http.server 8000)"
+          container="$(docker run -d --network "$smoke_network" -p 18081:8080 "$web_ref")"
+          trap 'docker rm -f "$container" "$api_id" >/dev/null 2>&1 || true; docker network rm "$smoke_network" >/dev/null 2>&1 || true' EXIT
           for attempt in $(seq 1 12); do
             curl -fsS http://127.0.0.1:18081/ >/dev/null && exit 0
             sleep 2
