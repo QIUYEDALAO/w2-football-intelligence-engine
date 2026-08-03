@@ -75,16 +75,24 @@ must not be a pre-merge requirement. Auto-merge remains disabled.
 
 ## Acceptance receipt
 
-The final measured values are filled from the exact-head PR run and the two post-merge rehearsals.
-Targets are not reported as passes before evidence exists.
+The final measured values come from exact-head PR Fast run `30828165126`, successful runtime
+rehearsal `30830656941`, and the existing local OCI relay receipt. The first bootstrap runtime
+rehearsal exposed shallow-checkout and smoke-network compatibility defects; PR `#481` corrected
+only those workflow/test-contract issues before the final successful rehearsal.
 
 ```text
 LOCAL_FEEDBACK_TIME = 3.51 seconds (target <= 180 seconds)
-PR_FAST_CHECK = PENDING_MEASUREMENT (target <= 240 seconds)
-FULL_QUALITY_WALL_TIME = PENDING_MEASUREMENT (first-run target <= 480 seconds)
+PR_FAST_CHECK = 41 seconds (target <= 240 seconds)
+FULL_QUALITY_WALL_TIME = 426 seconds (first-run target <= 480 seconds)
 FULL_QUALITY_P50 = PENDING_5_RUNTIME_RUNS (target <= 360 seconds)
-FULL_CI_EXECUTIONS_PER_RUNTIME_CHANGE = 1_BY_CONTRACT
-RELEASE_IMAGE_BUILD_COUNT = 1_BY_CONTRACT
+FULL_CI_EXECUTIONS_PER_RUNTIME_CHANGE = 1
+RELEASE_IMAGE_BUILD_COUNT = 1 Python + 1 Web per exact source SHA
+SOURCE_SHA = 722267862e5b55b684e72af79a3ff553b780de97
+SOURCE_TREE_SHA = 373d16036e1ccd798ff5b2b8471df63dc8dc6c9c
+SOURCE_TREE_PROMOTION_CHECK = PASS
+RELEASE_MANIFEST_SHA256 = ac3827456790c278a84c93c9c04cf0558f4958ca2dd44d230e4ebbe18346c498
+VPS_PREHEAT = 295 seconds (target <= 300 seconds)
+SERVICE_SWITCH = 9 seconds (target <= 60 seconds)
 DUPLICATE_MAIN_FULL_CI = false
 DUPLICATE_MAIN_IMAGE_BUILD = false
 HUMAN_BABYSITTING_REQUIRED = false
