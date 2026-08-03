@@ -466,6 +466,71 @@ def test_missing_or_conflicting_scoped_inputs_fail_closed(
     assert registry.labelled_counters[error_key] == errors_before + 2
 
 
+def test_non_pick_watch_projects_without_dynamic_evaluation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def watch(
+        _self: ReadModelService,
+        fixture_id: str,
+        *,
+        evaluation_time: datetime | None = None,
+        use_frozen_canary: bool = True,
+    ) -> dict[str, Any]:
+        assert evaluation_time is not None
+        assert use_frozen_canary is False
+        return {
+            "fixture_id": fixture_id,
+            "decision": "SKIP",
+            "decision_tier": "WATCH",
+            "pick": None,
+            "evaluated_at": evaluation_time.astimezone(UTC).isoformat(),
+        }
+
+    monkeypatch.setattr(ReadModelService, "public_analysis_card_bounded", watch)
+    event = _event()
+    artifact = _materializer(ScopedRepository()).build(
+        "1576804",
+        evaluated_at=event.event_at,
+        source_event=event,
+    )
+
+    assert artifact.evaluations == ()
+    assert artifact.payload["analysis_card"]["decision_tier"] == "WATCH"
+    assert artifact.payload["analysis_card"]["pick"] is None
+    assert artifact.payload["source_evaluation_id"] is None
+
+
+def test_pick_without_dynamic_evaluation_remains_blocked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def pick(
+        _self: ReadModelService,
+        fixture_id: str,
+        *,
+        evaluation_time: datetime | None = None,
+        use_frozen_canary: bool = True,
+    ) -> dict[str, Any]:
+        assert evaluation_time is not None
+        assert use_frozen_canary is False
+        return {
+            "fixture_id": fixture_id,
+            "decision": "PICK",
+            "decision_tier": "ANALYSIS_PICK",
+            "pick": {"selection": "OVER"},
+            "evaluated_at": evaluation_time.astimezone(UTC).isoformat(),
+        }
+
+    monkeypatch.setattr(ReadModelService, "public_analysis_card_bounded", pick)
+    event = _event()
+
+    with pytest.raises(FrozenAnalysisError, match="dynamic evaluation unavailable"):
+        _materializer(ScopedRepository()).build(
+            "1576804",
+            evaluated_at=event.event_at,
+            source_event=event,
+        )
+
+
 def test_write_is_idempotent_and_reader_verifies_hash(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

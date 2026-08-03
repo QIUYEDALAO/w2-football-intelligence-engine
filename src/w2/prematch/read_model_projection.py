@@ -526,9 +526,7 @@ class AnalysisCardCanaryMaterializer:
                 lineup_identity=dynamic_lineup_identity,
             )
         )
-        if not evaluations and (
-            card.get("decision_tier") != "NOT_READY" or card.get("pick") is not None
-        ):
+        if not evaluations and card.get("pick") is not None:
             raise FrozenAnalysisError("dynamic evaluation unavailable")
         primary = min(evaluations, key=lambda item: item.evaluation_id) if evaluations else None
         event_at = _normalize_evaluation_time(event.event_at)
