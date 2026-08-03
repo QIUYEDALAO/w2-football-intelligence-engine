@@ -1,0 +1,558 @@
+name: W2 Release Candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Open PR number; 0 is reserved for post-merge rehearsal
+        required: true
+        type: string
+      expected_head_sha:
+        description: Exact lowercase source commit SHA
+        required: true
+        type: string
+      force_full:
+        description: Require the complete quality matrix
+        required: true
+        default: true
+        type: boolean
+      deployable:
+        description: Build immutable release images for runtime changes
+        required: true
+        default: true
+        type: boolean
+
+concurrency:
+  group: release-candidate-pr-${{ inputs.pr_number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+  checks: read
+  pull-requests: read
+
+env:
+  W2_ENVIRONMENT: test
+  W2_PROVIDER_CALLS_DISABLED: "true"
+  W2_PROVIDER_SCHEDULER_ENABLED: "false"
+  W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS: "900"
+  W2_PROVIDER_ENDPOINT_ALLOWLIST: status,fixtures,odds,lineups
+  W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
+  W2_XG_BACKFILL_ENABLED: "false"
+  PYTHON_IMAGE: ghcr.io/qiuyedalao/w2-football-intelligence-engine/python
+  WEB_IMAGE: ghcr.io/qiuyedalao/w2-football-intelligence-engine/web
+
+jobs:
+  identity:
+    runs-on: ubuntu-latest
+    outputs:
+      source_sha: ${{ steps.identity.outputs.source_sha }}
+      source_tree_sha: ${{ steps.identity.outputs.source_tree_sha }}
+      base_main_sha: ${{ steps.identity.outputs.base_main_sha }}
+      change_class: ${{ steps.identity.outputs.change_class }}
+      docs_only: ${{ steps.identity.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_head_sha }}
+          fetch-depth: 0
+      - id: identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          EXPECTED_HEAD_SHA: ${{ inputs.expected_head_sha }}
+          FORCE_FULL: ${{ inputs.force_full }}
+          DEPLOYABLE: ${{ inputs.deployable }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          git fetch --no-tags origin main
+          base_main_sha="$(git rev-parse origin/main)"
+          if [ "$PR_NUMBER" = 0 ]; then
+            test "$EXPECTED_HEAD_SHA" = "$base_main_sha"
+            if [ "$FORCE_FULL" = true ] && [ "$DEPLOYABLE" = true ]; then
+              change_class=unknown
+            elif [ "$FORCE_FULL" = false ] && [ "$DEPLOYABLE" = false ]; then
+              change_class=docs
+            else
+              echo 'invalid rehearsal input combination' >&2
+              exit 1
+            fi
+          else
+            pr_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")"
+            test "$(jq -r .state <<<"$pr_json")" = open
+            test "$(jq -r .base.ref <<<"$pr_json")" = main
+            test "$(jq -r .head.sha <<<"$pr_json")" = "$EXPECTED_HEAD_SHA"
+            mergeable="$(jq -r '.mergeable // "pending"' <<<"$pr_json")"
+            for attempt in 1 2 3 4 5; do
+              [ "$mergeable" != pending ] && break
+              sleep 3
+              pr_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")"
+              mergeable="$(jq -r '.mergeable // "pending"' <<<"$pr_json")"
+            done
+            test "$mergeable" = true
+            if ! git merge-base --is-ancestor origin/main "$EXPECTED_HEAD_SHA"; then
+              echo 'RELEASE_CANDIDATE=STALE_BASE' >&2
+              exit 1
+            fi
+            checks="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${EXPECTED_HEAD_SHA}/check-runs?per_page=100")"
+            test "$(jq -r '[.check_runs[] | select(.name == "PR_FAST_REQUIRED")] | sort_by(.started_at) | last | .conclusion // empty' <<<"$checks")" = success
+            python3 scripts/classify_ci.py --base "$base_main_sha" --head "$EXPECTED_HEAD_SHA" --github-output "$RUNNER_TEMP/classification"
+            change_class="$(sed -n 's/^change_class=//p' "$RUNNER_TEMP/classification")"
+            if [ "$change_class" != docs ]; then
+              test "$DEPLOYABLE" = true
+              test "$FORCE_FULL" = true
+            fi
+          fi
+          test -z "$(git status --porcelain)"
+          source_tree_sha="$(git rev-parse "${EXPECTED_HEAD_SHA}^{tree}")"
+          docs_only=false
+          [ "$change_class" = docs ] && docs_only=true
+          {
+            echo "source_sha=$EXPECTED_HEAD_SHA"
+            echo "source_tree_sha=$source_tree_sha"
+            echo "base_main_sha=$base_main_sha"
+            echo "change_class=$change_class"
+            echo "docs_only=$docs_only"
+          } >>"$GITHUB_OUTPUT"
+
+  docs-quality:
+    needs: identity
+    if: needs.identity.outputs.docs_only == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_head_sha }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv sync --python 3.12 --all-groups --frozen
+      - run: |
+          git diff --check "${{ needs.identity.outputs.base_main_sha }}...${{ needs.identity.outputs.source_sha }}"
+          uv run python scripts/check_tracked_outputs.py
+          uv run pytest -q tests/contract/test_delivery_status_documentation.py tests/contract/test_delivery_pipeline.py
+          uv run python tests/secret_scan.py
+
+  static-contract:
+    needs: identity
+    if: needs.identity.outputs.docs_only == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_head_sha }}
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv sync --python 3.12 --all-groups --frozen
+      - run: uv run python scripts/check_w2_stage1_contracts.py
+      - run: uv run python scripts/check_tracked_outputs.py
+      - run: uv run python scripts/check_w2_all.py
+      - run: uv run ruff check .
+      - run: uv run mypy src apps
+      - run: uv run python tests/secret_scan.py
+
+  unit-contract:
+    needs: identity
+    if: needs.identity.outputs.docs_only == 'false'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: w2
+          POSTGRES_USER: w2_user
+          POSTGRES_PASSWORD: placeholder_password
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U w2_user -d w2" --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      W2_DATABASE_URL: postgresql+psycopg://w2_user:placeholder_password@127.0.0.1:5432/w2
+      W2_TEST_POSTGRES_URL: postgresql+psycopg://w2_user:placeholder_password@127.0.0.1:5432/w2
+      W2_REDIS_URL: redis://127.0.0.1:6379/0
+      W2_CELERY_BROKER_URL: redis://127.0.0.1:6379/1
+      W2_CELERY_RESULT_BACKEND: redis://127.0.0.1:6379/2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_head_sha }}
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv sync --python 3.12 --all-groups --frozen
+      - env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          files="$(uv run python scripts/ci_shards.py show --kind unit-contract --count 4 --index "$SHARD")"
+          test -n "$files"
+          uv run pytest -q $files
+
+  integration:
+    needs: identity
+    if: needs.identity.outputs.docs_only == 'false'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: w2
+          POSTGRES_USER: w2_user
+          POSTGRES_PASSWORD: placeholder_password
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U w2_user -d w2" --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      W2_DATABASE_URL: postgresql+psycopg://w2_user:placeholder_password@127.0.0.1:5432/w2
+      W2_TEST_POSTGRES_URL: postgresql+psycopg://w2_user:placeholder_password@127.0.0.1:5432/w2
+      W2_REDIS_URL: redis://127.0.0.1:6379/0
+      W2_CELERY_BROKER_URL: redis://127.0.0.1:6379/1
+      W2_CELERY_RESULT_BACKEND: redis://127.0.0.1:6379/2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_head_sha }}
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv sync --python 3.12 --all-groups --frozen
+      - env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          files="$(uv run python scripts/ci_shards.py show --kind integration --count 2 --index "$SHARD")"
+          test -n "$files"
+          uv run pytest -q $files
+
+  staging-parity:
+    needs: identity
+    if: needs.identity.outputs.docs_only == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_head_sha }}
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv sync --python 3.12 --all-groups --frozen
+      - run: uv run pytest -q tests/integration/test_future_refresh_staging_parity.py tests/integration/test_future_refresh_e2e_smoke.py
+      - run: uv run python scripts/check_w2_future_refresh_staging_contract.py
+
+  migration-schema:
+    needs: identity
+    if: needs.identity.outputs.docs_only == 'false'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: w2
+          POSTGRES_USER: w2_user
+          POSTGRES_PASSWORD: placeholder_password
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U w2_user -d w2" --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      W2_DATABASE_URL: postgresql+psycopg://w2_user:placeholder_password@127.0.0.1:5432/w2
+      W2_TEST_POSTGRES_URL: postgresql+psycopg://w2_user:placeholder_password@127.0.0.1:5432/w2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_head_sha }}
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv sync --python 3.12 --all-groups --frozen
+      - run: |
+          uv run alembic upgrade head
+          uv run alembic downgrade -1
+          uv run alembic upgrade head
+          uv run pytest -q tests/integration/test_migrations.py
+
+  predeploy-e2e:
+    needs: identity
+    if: needs.identity.outputs.docs_only == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_head_sha }}
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv sync --python 3.12 --all-groups --frozen
+      - run: bash scripts/run_predeploy_e2e_smoke.sh
+      - run: uv run pytest -q tests/contract/test_predeploy_e2e_regressions.py tests/unit/test_analysis_card_api.py
+
+  web:
+    needs: identity
+    if: needs.identity.outputs.docs_only == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_head_sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('apps/web/package-lock.json') }}
+      - run: npm --prefix apps/web ci
+      - working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - run: python3 scripts/check_boss_console_baseline.py
+      - run: npm --prefix apps/web run typecheck
+      - run: npm --prefix apps/web run build
+      - run: npm --prefix apps/web run test:e2e
+
+  compose-packaging:
+    needs: identity
+    if: needs.identity.outputs.docs_only == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_head_sha }}
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv sync --python 3.12 --all-groups --frozen
+      - run: docker compose config
+      - run: uv run pytest -q tests/contract/test_runtime_packaging.py tests/contract/test_compose_env_dedup.py tests/contract/test_compose_staging_ports.py
+
+  build-python-image:
+    needs: identity
+    if: needs.identity.outputs.docs_only == 'false'
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_head_sha }}
+          fetch-depth: 0
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        run: echo "created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$GITHUB_OUTPUT"
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.python
+          push: true
+          tags: ${{ env.PYTHON_IMAGE }}:${{ needs.identity.outputs.source_sha }}
+          build-args: |
+            W2_GIT_SHA=${{ needs.identity.outputs.source_sha }}
+            W2_RELEASE_ID=${{ needs.identity.outputs.source_sha }}
+            W2_BUILD_TIME=${{ steps.meta.outputs.created }}
+          cache-from: type=registry,ref=${{ env.PYTHON_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.PYTHON_IMAGE }}:buildcache,mode=max
+
+  build-web-image:
+    needs: identity
+    if: needs.identity.outputs.docs_only == 'false'
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_head_sha }}
+          fetch-depth: 0
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        run: echo "created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$GITHUB_OUTPUT"
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.web
+          push: true
+          tags: ${{ env.WEB_IMAGE }}:${{ needs.identity.outputs.source_sha }}
+          build-args: |
+            VITE_GIT_SHA=${{ needs.identity.outputs.source_sha }}
+            W2_RELEASE_ID=${{ needs.identity.outputs.source_sha }}
+            VITE_BUILD_TIME=${{ steps.meta.outputs.created }}
+            VITE_DASHBOARD_DATA_MODE=api
+            VITE_W2_MARKET_ANCHOR_DISPLAY_ENABLED=true
+            VITE_W2_MARKET_ANCHOR_MIN_DIVERGENCE=0.05
+          cache-from: type=registry,ref=${{ env.WEB_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.WEB_IMAGE }}:buildcache,mode=max
+
+  image-smoke:
+    needs: [identity, build-python-image, build-web-image]
+    if: needs.identity.outputs.docs_only == 'false'
+    permissions:
+      contents: read
+      packages: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - env:
+          PYTHON_DIGEST: ${{ needs.build-python-image.outputs.digest }}
+          WEB_DIGEST: ${{ needs.build-web-image.outputs.digest }}
+        run: |
+          python_ref="${PYTHON_IMAGE}@${PYTHON_DIGEST}"
+          web_ref="${WEB_IMAGE}@${WEB_DIGEST}"
+          docker run --rm --entrypoint python "$python_ref" -c "from apps.api.main import app; assert app"
+          docker run --rm --entrypoint python "$python_ref" -c "from apps.worker.celery_app import ping; assert ping.run() == 'pong'"
+          docker run --rm --entrypoint python "$python_ref" -c "from apps.scheduler.main import heartbeat; assert 'heartbeat' in heartbeat()"
+          docker run --rm --entrypoint alembic "$python_ref" --help >/dev/null
+          container="$(docker run -d -p 18081:8080 "$web_ref")"
+          trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 12); do
+            curl -fsS http://127.0.0.1:18081/ >/dev/null && exit 0
+            sleep 2
+          done
+          docker logs "$container"
+          exit 1
+
+  manifest:
+    if: always()
+    needs:
+      - identity
+      - docs-quality
+      - static-contract
+      - unit-contract
+      - integration
+      - staging-parity
+      - migration-schema
+      - predeploy-e2e
+      - web
+      - compose-packaging
+      - build-python-image
+      - build-web-image
+      - image-smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_head_sha }}
+          fetch-depth: 0
+      - name: Revalidate exact source and quality results
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          SOURCE_SHA: ${{ needs.identity.outputs.source_sha }}
+          DOCS_ONLY: ${{ needs.identity.outputs.docs_only }}
+          IDENTITY_RESULT: ${{ needs.identity.result }}
+          DOCS_RESULT: ${{ needs.docs-quality.result }}
+          STATIC_RESULT: ${{ needs.static-contract.result }}
+          UNIT_RESULT: ${{ needs.unit-contract.result }}
+          INTEGRATION_RESULT: ${{ needs.integration.result }}
+          STAGING_RESULT: ${{ needs.staging-parity.result }}
+          MIGRATION_RESULT: ${{ needs.migration-schema.result }}
+          PREDEPLOY_RESULT: ${{ needs.predeploy-e2e.result }}
+          WEB_RESULT: ${{ needs.web.result }}
+          COMPOSE_RESULT: ${{ needs.compose-packaging.result }}
+          PYTHON_IMAGE_RESULT: ${{ needs.build-python-image.result }}
+          WEB_IMAGE_RESULT: ${{ needs.build-web-image.result }}
+          IMAGE_SMOKE_RESULT: ${{ needs.image-smoke.result }}
+        run: |
+          set -euo pipefail
+          test "$IDENTITY_RESULT" = success
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          if [ "$PR_NUMBER" != 0 ]; then
+            test "$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .state)" = open
+            test "$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .head.sha)" = "$SOURCE_SHA"
+          fi
+          if [ "$DOCS_ONLY" = true ]; then
+            test "$DOCS_RESULT" = success
+            for result in "$STATIC_RESULT" "$UNIT_RESULT" "$INTEGRATION_RESULT" "$STAGING_RESULT" "$MIGRATION_RESULT" "$PREDEPLOY_RESULT" "$WEB_RESULT" "$COMPOSE_RESULT" "$PYTHON_IMAGE_RESULT" "$WEB_IMAGE_RESULT" "$IMAGE_SMOKE_RESULT"; do test "$result" = skipped; done
+          else
+            test "$DOCS_RESULT" = skipped
+            for result in "$STATIC_RESULT" "$UNIT_RESULT" "$INTEGRATION_RESULT" "$STAGING_RESULT" "$MIGRATION_RESULT" "$PREDEPLOY_RESULT" "$WEB_RESULT" "$COMPOSE_RESULT" "$PYTHON_IMAGE_RESULT" "$WEB_IMAGE_RESULT" "$IMAGE_SMOKE_RESULT"; do test "$result" = success; done
+          fi
+      - name: Create immutable release manifest
+        env:
+          DOCS_ONLY: ${{ needs.identity.outputs.docs_only }}
+          PYTHON_DIGEST: ${{ needs.build-python-image.outputs.digest }}
+          WEB_DIGEST: ${{ needs.build-web-image.outputs.digest }}
+        run: |
+          if [ "$DOCS_ONLY" = true ]; then
+            python_digest=NOT_REQUIRED
+            web_digest=NOT_REQUIRED
+            python_ref=NOT_REQUIRED
+            web_ref=NOT_REQUIRED
+            quality=(--quality-job docs-quality=success)
+          else
+            python_digest="$PYTHON_DIGEST"
+            web_digest="$WEB_DIGEST"
+            python_ref="${PYTHON_IMAGE}@${PYTHON_DIGEST}"
+            web_ref="${WEB_IMAGE}@${WEB_DIGEST}"
+            quality=(--quality-job static-contract=success --quality-job unit-contract=success --quality-job integration=success --quality-job staging-parity=success --quality-job migration-schema=success --quality-job predeploy-e2e=success --quality-job web=success --quality-job compose-packaging=success)
+          fi
+          manifest="release-manifest-${{ needs.identity.outputs.source_sha }}.json"
+          python3 scripts/release_manifest.py create \
+            --output "$manifest" \
+            --pr-number "${{ inputs.pr_number }}" \
+            --source-sha "${{ needs.identity.outputs.source_sha }}" \
+            --source-tree-sha "${{ needs.identity.outputs.source_tree_sha }}" \
+            --base-main-sha "${{ needs.identity.outputs.base_main_sha }}" \
+            --workflow-run-id "$GITHUB_RUN_ID" \
+            --change-class "${{ needs.identity.outputs.change_class }}" \
+            "${quality[@]}" \
+            --python-image-digest "$python_digest" \
+            --web-image-digest "$web_digest" \
+            --python-image-ref "$python_ref" \
+            --web-image-ref "$web_ref"
+          python3 scripts/release_manifest.py verify --manifest "$manifest" --expect "source_sha=${{ needs.identity.outputs.source_sha }}" --expect "source_tree_sha=${{ needs.identity.outputs.source_tree_sha }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-candidate-${{ needs.identity.outputs.source_sha }}
+          path: |
+            release-manifest-${{ needs.identity.outputs.source_sha }}.json
+            release-manifest-${{ needs.identity.outputs.source_sha }}.json.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+  release-required:
+    name: RELEASE_REQUIRED
+    if: always()
+    needs: [identity, manifest]
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          IDENTITY: ${{ needs.identity.result }}
+          MANIFEST: ${{ needs.manifest.result }}
+        run: test "$IDENTITY" = success -a "$MANIFEST" = success

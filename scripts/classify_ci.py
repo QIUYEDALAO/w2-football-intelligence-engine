@@ -54,6 +54,7 @@ class CiPlan:
     verify: bool = False
     images: bool = False
     full: bool = False
+    change_class: str = "docs"
 
     def outputs(self) -> dict[str, str]:
         return {key: str(value).lower() for key, value in vars(self).items()}
@@ -104,13 +105,20 @@ def classify(paths: list[str], *, force_full: bool = False) -> CiPlan:
             verify=True,
             images=True,
             full=True,
+            change_class="unknown",
         )
     if heavy_domains == {"python"}:
-        return CiPlan(python_focused=True, images=True)
+        return CiPlan(python_focused=True, images=True, change_class="python")
     if heavy_domains == {"web"}:
-        return CiPlan(web=True, images=True)
+        return CiPlan(web=True, images=True, change_class="web")
     if heavy_domains == {"infra"}:
-        return CiPlan(compose=True, staging_parity=True, predeploy_e2e=True, images=True)
+        return CiPlan(
+            compose=True,
+            staging_parity=True,
+            predeploy_e2e=True,
+            images=True,
+            change_class="infra",
+        )
     return CiPlan()
 
 

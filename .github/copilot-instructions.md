@@ -14,8 +14,8 @@ CURRENT_PHASE = PRODUCTION_RECOVERY_CONTEXT_CLOSURE_COMPLETE
 TASK_AUTHORITY = docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
 ACTIVE_EXECUTION_AUTHORITY = Issue #454 v5
 AUDIT_BASELINE_SHA = dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
-CURRENT_MAIN_SHA = 3b38e283959394459671e441132c1e1cb9d1f019
-DEPLOYED_SHA = 3b38e283959394459671e441132c1e1cb9d1f019
+CURRENT_MAIN_SHA = 8c6086e37ba62c138bdf059997ca760accef7067
+DEPLOYED_SHA = 8c6086e37ba62c138bdf059997ca760accef7067
 ```
 
 #457 可保持 OPEN 作为运维风险记录；项目 gate 已由 binding decision 以 owner risk acceptance 关闭。
@@ -24,7 +24,7 @@ Wave 2、Wave 3 和 Wave 4 单次真实 Canary 已通过，EVAL-02B 真实链路
 
 ## Source rules
 
-- 先 `git fetch --all --prune --tags` 并核对 current main `3b38e283...`；`dbc8e1e8...`
+- 先 `git fetch --all --prune --tags` 并核对 current main `8c6086e3...`；`dbc8e1e8...`
   只作为历史审计基线。
 - 从可信 main 的本地 clean worktree 工作。
 - 不使用 PR #453、`agent/eval-02b-c9-*`、`e875050f...` 或其他 automation-authored remediation。
@@ -81,6 +81,22 @@ LOCK = OFF
 PRODUCTION = OFF
 AUTO_MERGE = FORBIDDEN
 ```
+
+## Delivery pipeline
+
+```text
+DELIVERY_MODEL = RELEASE_CANDIDATE_PROMOTION_V1
+MERGE_QUEUE = NOT_AVAILABLE_CURRENT_PERSONAL_REPOSITORY
+PR_FAST_REQUIRED = ENABLED
+RELEASE_REQUIRED = ENABLED
+MAIN_DUPLICATE_FULL_CI = DISABLED
+MAIN_DUPLICATE_IMAGE_BUILD = DISABLED
+IMAGE_TRANSPORT = LOCAL_OCI_RELAY_PRIMARY / GHCR_ARCHIVE_AND_FALLBACK
+```
+
+PR Fast 仅提供快速反馈。唯一完整验证和唯一 Python/Web 发布镜像构建必须绑定同一 PR
+head 并由 `release-candidate.yml` 完成；main 仅验证 Release Manifest、tree SHA 和 digest
+后晋级。缺失或不一致时失败关闭，不得跨 SHA 复用。
 
 ## Production recovery contract
 
