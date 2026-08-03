@@ -80,6 +80,17 @@ def test_release_identity_does_not_invalidate_python_dependency_layers() -> None
     assert "chown -R w2:w2 /app/.venv" not in text
 
 
+def test_local_image_relay_preserves_immutable_digest() -> None:
+    text = (
+        Path(__file__).resolve().parents[2] / "scripts/relay_immutable_images_via_local.sh"
+    ).read_text(encoding="utf-8")
+    assert "@sha256:[0-9a-f]{64}" in text
+    assert 'skopeo copy --all "docker://$image_ref"' in text
+    assert "ctr -n moby images import --all-platforms --digests" in text
+    assert 'docker image inspect "$image_ref"' in text
+    assert "docker pull" not in text
+
+
 def test_dockerignore_excludes_runtime_reports_and_private_inputs() -> None:
     text = (Path(__file__).resolve().parents[2] / ".dockerignore").read_text(encoding="utf-8")
     for entry in ("runtime", "reports", ".env", ".env.*", "data/raw", "data/processed"):
