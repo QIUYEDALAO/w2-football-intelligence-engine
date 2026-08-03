@@ -368,8 +368,8 @@ jobs:
             W2_GIT_SHA=${{ env.EXACT_HEAD }}
             W2_RELEASE_ID=${{ env.EXACT_HEAD }}
             W2_BUILD_TIME=${{ steps.build-meta.outputs.created }}
-          cache-from: type=gha,scope=w2-python
-          cache-to: type=gha,mode=max,scope=w2-python
+          cache-from: type=registry,ref=${{ env.PYTHON_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.PYTHON_IMAGE }}:buildcache,mode=max
       - name: Build and push Web image
         id: web-image
         uses: docker/build-push-action@v6
@@ -385,8 +385,8 @@ jobs:
             VITE_DASHBOARD_DATA_MODE=api
             VITE_W2_MARKET_ANCHOR_DISPLAY_ENABLED=true
             VITE_W2_MARKET_ANCHOR_MIN_DIVERGENCE=0.05
-          cache-from: type=gha,scope=w2-web
-          cache-to: type=gha,mode=max,scope=w2-web
+          cache-from: type=registry,ref=${{ env.WEB_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.WEB_IMAGE }}:buildcache,mode=max
       - name: Smoke final immutable images
         env:
           PYTHON_DIGEST: ${{ steps.python.outputs.digest }}

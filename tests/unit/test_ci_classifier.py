@@ -161,7 +161,12 @@ def test_ci_workflow_has_stable_aggregate_for_real_quality_jobs() -> None:
         "verify",
     ]
     assert "docker/build-push-action@v6" in ci
-    assert "cache-to: type=gha" in ci
+    assert "cache-from: type=gha" not in ci
+    assert "cache-to: type=gha" not in ci
+    for image in ("PYTHON_IMAGE", "WEB_IMAGE"):
+        cache_ref = f"type=registry,ref=${{{{ env.{image} }}}}:buildcache"
+        assert f"cache-from: {cache_ref}" in ci
+        assert f"cache-to: {cache_ref},mode=max" in ci
     assert "steps.python.outputs.digest" in ci
     assert "steps.web-image.outputs.digest" in ci
     for job, output in (
