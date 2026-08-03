@@ -14,6 +14,7 @@ from w2.ingestion.future_refresh import (
     FutureFixtureRefreshService,
     FutureRefreshConfig,
     FutureRefreshError,
+    FutureRefreshResult,
     RefreshSingletonLock,
     canonical_market,
     config_from_policy,
@@ -21,6 +22,7 @@ from w2.ingestion.future_refresh import (
     load_refresh_policy,
     observations_from_odds_payload,
     parse_line,
+    refresh_progress_status,
     run_future_refresh_task,
 )
 from w2.markets.quote_identity import evaluate_quote_freshness, project_quote_identity
@@ -34,6 +36,31 @@ from w2.operations.gate_a import (
 from w2.providers.api_football import LiveApiFootballResponse
 
 NOW = datetime(2026, 6, 23, 10, 0, tzinfo=UTC)
+
+
+def _refresh_result(**overrides: Any) -> FutureRefreshResult:
+    values: dict[str, Any] = {
+        "generated_at_utc": NOW,
+        "fixture_count": 1,
+        "mapping_count": 1,
+        "market_snapshot_count": 0,
+        "feature_enrichment_payload_count": 0,
+        "ledger_appended_count": 0,
+        "request_count": 1,
+        "remaining_quota": 99,
+        "selected_market_fixture_ids": ["1001"],
+    }
+    values.update(overrides)
+    return FutureRefreshResult(**values)
+
+
+def test_refresh_progress_distinguishes_data_empty_and_failure() -> None:
+    assert refresh_progress_status(_refresh_result(market_snapshot_count=1)) == "DATA_PROGRESS"
+    assert refresh_progress_status(_refresh_result()) == "PROVIDER_EMPTY"
+    assert (
+        refresh_progress_status(_refresh_result(blockers=["PROVIDER_REQUEST_FAILED"]))
+        == "FAILED"
+    )
 
 
 def _gate_a_authorization() -> GateARuntimeAuthorization:

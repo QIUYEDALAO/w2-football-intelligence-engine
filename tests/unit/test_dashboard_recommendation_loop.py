@@ -169,15 +169,22 @@ def test_dashboard_fails_closed_for_pre_lmm_pick_without_canonical_selection() -
     assert card["lifecycle_status"] == "DRAFT"
     assert card["outcome_tracked"] is False
     assert card["lock_eligible"] is False
-    assert card["reason_code"] == "COVERAGE_NONE"
+    assert card["reason_code"] == "MARKET_UNAVAILABLE"
     assert card["pick"] is None
-    assert card["non_pick"]["reason_code"] == "COVERAGE_NONE"
+    assert card["non_pick"]["reason_code"] == "MARKET_UNAVAILABLE"
     assert card["decision_contract"]["decision_tier"] == "NOT_READY"
     assert card["decision_contract"]["environment"] == "staging"
     assert card["data_readiness"]["source"] == "w2.readiness.data_gate.v1"
     assert card["data_readiness"]["data_status"] == "BLOCKED"
-    assert card["data_readiness"]["reason_code"] == "COVERAGE_NONE"
-    assert card["data_readiness"]["missing_fields"] == ["data_readiness"]
+    assert card["data_readiness"]["reason_code"] == "MARKET_UNAVAILABLE"
+    assert card["data_readiness"]["missing_fields"] == [
+        "market",
+        "odds",
+        "lineups",
+        "xg",
+        "ratings",
+        "team_value",
+    ]
     assert card["decision_contract"]["data_readiness"]["source"] == "w2.readiness.data_gate.v1"
     assert card["recommendation"] is None
     assert card["result"]["final_score"] == "2-1"

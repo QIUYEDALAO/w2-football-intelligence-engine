@@ -61,6 +61,8 @@ export interface DashboardV2ScorelineProjection {
 }
 
 export interface DashboardV2QuoteModel {
+  referenceOnly?: boolean;
+  freshnessStatus?: string;
   marketPolicyLabel: string;
   candidateRole?: "MARKET_MAINLINE" | "ALTERNATE_LINE";
   marketMainlineLine?: string;

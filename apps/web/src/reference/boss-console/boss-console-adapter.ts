@@ -19,7 +19,7 @@ import type {
 } from "./boss-console-model";
 
 function riskLevel(fixture: DashboardV2FixtureModel): BossRiskLevel {
-  if (fixture.dataStatus === "BLOCKED" || fixture.decisionTier === "NOT_READY") return "high";
+  if (fixture.dataStatus === "BLOCKED" || fixture.decisionTier === "NOT_READY") return "medium";
   if (fixture.quote?.candidateRole === "ALTERNATE_LINE") return "high";
   if (fixture.dataFacts.some((fact) => fact.includes("首发") && !fact.includes("已就绪"))) {
     return "medium";
@@ -166,10 +166,14 @@ export function adaptDashboardV2ToBossConsole(model: DashboardV2ViewModel): Boss
       candidateRole: quote?.candidateRole ?? null,
       marketPolicyLabel: quote?.marketPolicyLabel ?? null,
       marketMainlineLabel: quote
-        ? `市场主线：${quote.marketMainlineLine} · ${quote.marketMainlineBookmakerCount}家完整双边 · ${quote.marketMainlineVoteCount}票 · ${mainlinePrices}`
+        ? quote.referenceOnly
+          ? `真实参考盘口（不可执行）：${quote.marketMainlineLine} · ${mainlinePrices}`
+          : `市场主线：${quote.marketMainlineLine} · ${quote.marketMainlineBookmakerCount}家完整双边 · ${quote.marketMainlineVoteCount}票 · ${mainlinePrices}`
         : null,
       executionQuoteLabel: quote
-        ? `分析选择：${fixture.primaryMarketLabel} · ${quote.candidateRole === "ALTERNATE_LINE" ? "替代盘" : "市场主线"} · ${quote.bookmaker}`
+        ? quote.referenceOnly
+          ? `来源：${quote.bookmaker} · 采集时间 ${quote.capturedAt} · 新鲜度 ${quote.freshnessStatus}`
+          : `分析选择：${fixture.primaryMarketLabel} · ${quote.candidateRole === "ALTERNATE_LINE" ? "替代盘" : "市场主线"} · ${quote.bookmaker}`
         : null,
       marketLadder: quote?.ladder ?? [],
       risk: riskCopy(risk),
@@ -201,7 +205,11 @@ export function adaptDashboardV2ToBossConsole(model: DashboardV2ViewModel): Boss
       risks: decisionRisks(fixture),
       dataRisk: fixture.dataStatus === "BLOCKED" ? "阻断" : fixture.dataStatus,
       marketIdentityRisk:
-        quote?.candidateRole === "ALTERNATE_LINE" ? "替代盘，禁止冒充主线" : "主线身份完整",
+        quote?.referenceOnly
+          ? "参考报价完整，禁止执行"
+          : quote?.candidateRole === "ALTERNATE_LINE"
+            ? "替代盘，禁止冒充主线"
+            : "主线身份完整",
       lineupRisk: fixture.dataFacts.some(
         (fact) => fact.includes("首发") && !fact.includes("已就绪"),
       ) ? "首发待确认" : "首发证据已就绪",

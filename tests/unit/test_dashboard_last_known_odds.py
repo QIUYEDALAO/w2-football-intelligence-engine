@@ -79,3 +79,50 @@ def test_dashboard_reference_odds_fail_closed_on_cross_fixture_rows() -> None:
     service._attach_last_known_odds(cards)
 
     assert "last_known_odds" not in cards[0]
+
+
+def test_complete_quote_audit_projects_reference_only_odds_with_source_time() -> None:
+    card = {
+        "quote_identity_audit": {
+            "ah": {
+                "identity_status": "COMPLETE",
+                "freshness_status": "COMPLETE",
+                "bookmaker_id": "32",
+                "captured_at": "2026-08-02T16:03:15Z",
+                "quotes": {
+                    "home": {
+                        "line": "-0.25",
+                        "decimal_odds": "2.02",
+                        "bookmaker_name": "Betano",
+                    },
+                    "away": {
+                        "line": "0.25",
+                        "decimal_odds": "1.83",
+                        "bookmaker_name": "Betano",
+                    },
+                },
+            }
+        }
+    }
+
+    snapshot = ReadModelService._reference_odds_from_quote_audit(card)
+
+    assert snapshot == {
+        "status": "REFERENCE_ONLY",
+        "executable": False,
+        "captured_at": "2026-08-02T16:03:15Z",
+        "bookmakers": ["Betano"],
+        "markets": {
+            "ah": {
+                "line": "-0.25",
+                "home_line": "-0.25",
+                "away_line": "0.25",
+                "home_price": "2.02",
+                "away_price": "1.83",
+                "bookmaker_id": "32",
+                "bookmaker_name": "Betano",
+                "captured_at": "2026-08-02T16:03:15Z",
+                "freshness_status": "COMPLETE",
+            }
+        },
+    }

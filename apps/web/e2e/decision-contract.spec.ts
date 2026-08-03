@@ -598,7 +598,8 @@ test("stored early odds remain visible as reference while waiting for the premat
   await expect(row).toContainText("旧报价仅供参考，等待下一次受控采集");
   await row.click();
   await expect(page.locator("[data-ui='selected-match-panel']")).toContainText("继续观察");
-  await expect(row).not.toContainText("1.82");
+  await expect(row).toContainText("真实参考盘口（不可执行）");
+  await expect(row).toContainText("1.82");
   await expect(row).not.toContainText("1万次模拟");
 });
 

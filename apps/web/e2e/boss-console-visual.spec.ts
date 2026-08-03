@@ -1,11 +1,13 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
+import type { DashboardDayView } from "../src/types/dashboard";
 import { kickoffDisplay } from "../src/reference/boss-console/BossDecisionConsoleReference";
 import {
   adaptDashboardV2ToBossConsole,
   dedupeLeaguePerformance,
 } from "../src/reference/boss-console/boss-console-adapter";
 import { bossConsoleFixture } from "../src/reference/boss-console/boss-console.fixture";
+import { adaptDashboardV2 } from "../src/reference/dashboard-v2/dashboard-v2-adapter";
 import { dashboardV2ReferenceFixture } from "../src/reference/dashboard-v2/dashboard-v2-reference.fixture";
 
 const FIXTURE_URL = "/__visual/boss-console";
@@ -299,6 +301,89 @@ test.describe("Boss Decision Console source contract", () => {
       "0-2",
       "1-2",
     ]);
+  });
+
+  test("scheduled collection and reference-only odds stay truthful for not-ready cards", () => {
+    const dayView = {
+      generated_at: "2026-08-03T01:20:00Z",
+      date: "2026-08-03",
+      football_day: "2026-08-03",
+      selected_football_day: "2026-08-03",
+      environment: "staging",
+      timezone: "Asia/Shanghai",
+      window: "today",
+      source: "read_model_checkpoint",
+      would_write_checkpoint: false,
+      provider_calls: 0,
+      db_writes: 0,
+      counts: {
+        total: 1,
+        lock_eligible: 0,
+        outcome_tracked: 0,
+        analysis_pick: 0,
+        recommend: 0,
+        watch: 0,
+        not_ready: 1,
+        skip: 0,
+        ready: 0,
+        partial: 0,
+        stale: 0,
+        blocked: 1,
+      },
+      freshness: {
+        page_updated_at: "2026-08-03T01:20:00Z",
+        odds_last_confirmed_at: "2026-08-02T16:03:15Z",
+        next_refresh_tick: "2026-08-03T05:00:00Z",
+        refreshing: false,
+      },
+      cards: [{
+        fixture_id: "1492326",
+        kickoff_utc: "2026-08-10T00:00:00Z",
+        competition_id: "brasileirao_serie_a",
+        competition_name: "Brasileirao Serie A",
+        home_team_name: "Bahia",
+        away_team_name: "Vasco da Gama",
+        status: "NS",
+        decision_tier: "NOT_READY",
+        data_status: "BLOCKED",
+        lifecycle_status: "DRAFT",
+        outcome_tracked: false,
+        lock_eligible: false,
+        reason_code: "MODEL_FEATURES_MISSING",
+        missing_fields: ["ratings"],
+        stale_fields: [],
+        scoreline_picks: [],
+        last_known_odds: {
+          status: "REFERENCE_ONLY",
+          executable: false,
+          captured_at: "2026-08-02T16:03:15Z",
+          bookmakers: ["Betano"],
+          markets: {
+            ah: {
+              line: "-0.25",
+              home_price: "2.02",
+              away_price: "1.83",
+              bookmaker_name: "Betano",
+              captured_at: "2026-08-02T16:03:15Z",
+              freshness_status: "COMPLETE",
+            },
+          },
+        },
+      }],
+    } satisfies DashboardDayView;
+
+    const model = adaptDashboardV2(dayView, undefined, undefined);
+    const boss = adaptDashboardV2ToBossConsole(model);
+
+    expect(model.health.automaticCollectionPaused).toBe(false);
+    expect(model.fixtures[0].quote?.referenceOnly).toBe(true);
+    expect(boss.runtime.schedulerStatus).toBe("RUNNING");
+    expect(boss.riskExceptionCount).toBe(0);
+    expect(boss.decisions[0].riskLevel).toBe("medium");
+    expect(boss.decisions[0].marketMainlineLabel).toContain("真实参考盘口（不可执行）");
+    expect(boss.decisions[0].executionQuoteLabel).toContain("Betano");
+    expect(boss.decisions[0].executionQuoteLabel).toContain("2026-08-02T16:03:15Z");
+    expect(boss.decisions[0].executionQuoteLabel).toContain("新鲜度 COMPLETE");
   });
 
   test("scoreline display keeps sample counts, constraints and blockers truthful", async ({ page }) => {

@@ -39,6 +39,7 @@ from w2.operations.gate_a import (
     select_fixture_from_authorization,
 )
 from w2.prematch.read_model_projection import (
+    FrozenAnalysisError,
     ProjectionSourceEvent,
 )
 from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
@@ -158,6 +159,14 @@ class RefreshTaskAudit:
     result: dict[str, Any]
     gate_a_authorization_id: str | None = None
     gate_a_lease_epoch: int | None = None
+
+
+def refresh_progress_status(result: FutureRefreshResult) -> str:
+    if result.blockers or result.status in {"BLOCKED", "PARTIAL_FAILED", "FAILED"}:
+        return "FAILED"
+    if result.market_snapshot_count > 0 or result.materialized_fixture_ids:
+        return "DATA_PROGRESS"
+    return "PROVIDER_EMPTY"
 
 
 def utc_now() -> datetime:
@@ -863,7 +872,9 @@ class FutureFixtureRefreshService:
             self._write_audit(result)
         except Exception as exc:
             error_code = (
-                str(exc) if self.runtime_authorization is not None else exc.__class__.__name__
+                str(exc)
+                if self.runtime_authorization is not None or isinstance(exc, FrozenAnalysisError)
+                else exc.__class__.__name__
             )
             blockers.append(error_code)
             result = FutureRefreshResult(
@@ -2314,6 +2325,7 @@ class FutureFixtureRefreshService:
             "selected_market_fixture_ids": result.selected_market_fixture_ids,
             "blockers": result.blockers,
             "status": result.status,
+            "progress_status": refresh_progress_status(result),
             "error_code": result.error_code,
             "requests": self._audit,
             "candidate": False,
@@ -2353,7 +2365,8 @@ class FutureFixtureRefreshService:
             name = str(checkpoint.get("checkpoint") or "")
             if not fixture_id or not name:
                 continue
-            status = "COMPLETED" if not result.blockers else result.status
+            progress_status = refresh_progress_status(result)
+            status = "COMPLETED" if progress_status == "DATA_PROGRESS" else progress_status
             repository.write_checkpoint_audit(
                 fixture_id=fixture_id,
                 checkpoint=name,
@@ -2365,6 +2378,7 @@ class FutureFixtureRefreshService:
                     "request_count": result.request_count,
                     "selected_market_fixture_ids": result.selected_market_fixture_ids,
                     "blockers": result.blockers,
+                    "progress_status": progress_status,
                     "endpoints": list(checkpoint.get("endpoints") or []),
                     "source": checkpoint.get("source"),
                 },
@@ -2382,7 +2396,14 @@ class FutureFixtureRefreshService:
             return
         from w2.matchday.repository import MatchdayRuntimeRepository
 
-        status = "FAILED" if result.blockers else "CAPTURED"
+        progress_status = refresh_progress_status(result)
+        status = (
+            "FAILED"
+            if progress_status == "FAILED"
+            else "CAPTURED"
+            if progress_status == "DATA_PROGRESS"
+            else "PROVIDER_EMPTY"
+        )
         repository = MatchdayRuntimeRepository()
         repository.transition_checkpoint(
             fixture_id=str(checkpoint.get("fixture_id") or ""),
@@ -2594,7 +2615,14 @@ def run_future_refresh_task(
             runtime_authorization=runtime_authorization,
             provider_call_reservation=provider_call_reservation,
         )
-        status = "COMPLETED" if not result.blockers else "BLOCKED"
+        progress_status = refresh_progress_status(result)
+        status = (
+            "COMPLETED"
+            if progress_status == "DATA_PROGRESS"
+            else "BLOCKED"
+            if progress_status == "FAILED"
+            else progress_status
+        )
         summary = {
             "fixture_count": result.fixture_count,
             "mapping_count": result.mapping_count,
@@ -2609,6 +2637,7 @@ def run_future_refresh_task(
             "checkpoint_fixture_ids": list(checkpoint_fixture_ids),
             "refresh_checkpoints": list(refresh_checkpoints),
             "materialized_fixture_ids": result.materialized_fixture_ids,
+            "progress_status": progress_status,
         }
     except Exception as exc:
         summary = {

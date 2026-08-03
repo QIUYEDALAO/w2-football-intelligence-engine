@@ -22,6 +22,7 @@ from w2.infrastructure.persistence.ingestion_models import (
     QuotaUsageModel,
 )
 from w2.infrastructure.persistence.matchday_intake_models import (
+    MatchdayCheckpointPlanModel,
     MatchdayEndpointCaptureModel,
     MatchdayMarketObservationModel,
 )
@@ -583,6 +584,39 @@ def test_fixture_scoped_market_refresh_status_never_reports_past_tick(
         "odds_last_confirmed_at": None,
         "next_refresh_tick": None,
     }
+
+
+def test_fixture_scoped_market_refresh_status_reads_canonical_matchday_plan(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    scheduled_at = NOW + timedelta(minutes=30)
+    with Session(engine) as session:
+        session.add(
+            MatchdayCheckpointPlanModel(
+                plan_id="canonical-plan",
+                fixture_id="api_football:fixture",
+                competition_id="world_cup_2026",
+                season="2026",
+                policy_version="test-policy",
+                checkpoint="T30",
+                kickoff_utc=NOW + timedelta(hours=1),
+                scheduled_at=scheduled_at,
+                window_start=scheduled_at,
+                window_end=scheduled_at + timedelta(minutes=5),
+                endpoints=["odds"],
+                status="PLANNED",
+                blockers=[],
+                plan_hash="a" * 64,
+            )
+        )
+        session.commit()
+
+    assert FutureRefreshDbRepository().market_refresh_status_for_fixtures(
+        ["fixture"], now=NOW
+    )["next_refresh_tick"] == scheduled_at.isoformat().replace("+00:00", "Z")
 
 
 def test_db_persistence_allows_retry_after_blocked_task_key(

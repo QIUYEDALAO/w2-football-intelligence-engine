@@ -661,6 +661,24 @@ def test_missing_canonical_readiness_and_analysis_evidence_fail_closed() -> None
     assert missing_evidence["model_market_divergence"]["status"] == "MISSING"  # type: ignore[index]
 
 
+def test_legacy_readiness_summary_does_not_collapse_to_generic_coverage_none() -> None:
+    fields = _fields(
+        card={
+            "data_readiness": {
+                "market_observations": 0,
+                "bookmakers": 0,
+                "odds_snapshots": 0,
+                "xg": False,
+                "lineups_status": "NOT_REQUESTED",
+            }
+        },
+        readiness={"status": "BLOCKED", "blockers": ["MARKET_NOT_READY"]},
+    )
+
+    assert fields["reason_code"] == DecisionReasonCode.MARKET_UNAVAILABLE.value
+    assert fields["reason_code"] != DecisionReasonCode.COVERAGE_NONE.value
+
+
 _DELETE = object()
 _CANONICAL_MUTATIONS = (
     (("schema_version",), _DELETE),

@@ -15,7 +15,7 @@ from time import monotonic
 from typing import Any, Literal, cast
 
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -39,6 +39,11 @@ from w2.dashboard.validation_summary import validation_summary
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
+from w2.infrastructure.persistence.matchday_intake_models import (
+    MatchdayCheckpointPlanModel,
+    MatchdayFixtureIdentityModel,
+    MatchdayMarketObservationModel,
+)
 from w2.lineups.intelligence import lineup_requirement
 from w2.matchday.timezone import (
     BEIJING_TZ,
@@ -86,6 +91,14 @@ def _parse_datetime(value: Any) -> datetime | None:
     if parsed.tzinfo is None:
         return None
     return parsed.astimezone(UTC)
+
+
+def _iso_or_none(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _checkpoint_metadata(row: Checkpoint) -> dict[str, Any]:
@@ -283,6 +296,63 @@ class ReadModelRepository:
             ),
         }
 
+    def market_refresh_status_for_fixtures(
+        self,
+        fixture_ids: list[str],
+        *,
+        now: datetime | None = None,
+    ) -> dict[str, str | None]:
+        ids = {
+            value if value.startswith("api_football:") else f"api_football:{value}"
+            for fixture_id in fixture_ids
+            if (value := str(fixture_id or "").strip())
+        }
+        if not ids or len(ids) > 64:
+            return {"odds_last_confirmed_at": None, "next_refresh_tick": None}
+        reference = now or datetime.now(UTC)
+        with Session(create_engine()) as session:
+            odds_at = session.scalar(
+                select(func.max(MatchdayMarketObservationModel.captured_at)).where(
+                    MatchdayMarketObservationModel.fixture_id.in_(ids),
+                    MatchdayMarketObservationModel.live.is_(False),
+                )
+            )
+            next_tick = session.scalar(
+                select(func.min(MatchdayCheckpointPlanModel.scheduled_at)).where(
+                    MatchdayCheckpointPlanModel.fixture_id.in_(ids),
+                    MatchdayCheckpointPlanModel.status == "PLANNED",
+                    MatchdayCheckpointPlanModel.scheduled_at >= reference,
+                )
+            )
+        return {
+            "odds_last_confirmed_at": _iso_or_none(odds_at),
+            "next_refresh_tick": _iso_or_none(next_tick),
+        }
+
+    def canonical_competitions_for_fixtures(
+        self,
+        fixture_ids: list[str],
+    ) -> dict[str, str]:
+        normalized = {str(fixture_id or "").strip() for fixture_id in fixture_ids}
+        normalized.discard("")
+        if not normalized or len(normalized) > 64:
+            return {}
+        provider_ids = {value.removeprefix("api_football:") for value in normalized}
+        canonical_ids = {f"api_football:{value}" for value in provider_ids}
+        with Session(create_engine()) as session:
+            rows = session.execute(
+                select(
+                    MatchdayFixtureIdentityModel.fixture_id,
+                    MatchdayFixtureIdentityModel.provider_fixture_id,
+                    MatchdayFixtureIdentityModel.competition_id,
+                ).where(MatchdayFixtureIdentityModel.fixture_id.in_(canonical_ids))
+            ).all()
+        output: dict[str, str] = {}
+        for fixture_id, provider_fixture_id, competition_id in rows:
+            output[str(fixture_id)] = str(competition_id)
+            output[str(provider_fixture_id)] = str(competition_id)
+        return output
+
 
 class ReadModelService:
     def __init__(self, repository: ReadModelRepository | None = None) -> None:
@@ -474,7 +544,21 @@ class ReadModelService:
 
         version = self.version()
         fixtures = self.repository.dashboard_latest_fixtures()[:MAX_PUBLIC_FIXTURES]
-        cards = [self._project_dashboard_card(item) for item in fixtures]
+        identity_reader = getattr(self.repository, "canonical_competitions_for_fixtures", None)
+        canonical_competitions = (
+            identity_reader([str(item.get("fixture_id") or "") for item in fixtures])
+            if callable(identity_reader)
+            else {}
+        )
+        cards = [
+            self._project_dashboard_card(
+                item,
+                canonical_competition_id=canonical_competitions.get(
+                    str(item.get("fixture_id") or "")
+                ),
+            )
+            for item in fixtures
+        ]
         selected = self._filter_dashboard_cards(cards, requested_date=requested_date, window=window)
         recommendations = [
             card
@@ -486,11 +570,18 @@ class ReadModelService:
         generated_at = datetime.now(UTC)
         start, end = football_day_window(requested_date)
         performance = dashboard_performance(selected)
+        refresh_reader = getattr(self.repository, "market_refresh_status_for_fixtures", None)
+        refresh_status = (
+            refresh_reader([str(card.get("fixture_id") or "") for card in selected])
+            if callable(refresh_reader)
+            else {"odds_last_confirmed_at": None, "next_refresh_tick": None}
+        )
         payload = {
             "generated_at": generated_at,
             "page_updated_at": generated_at,
-            "odds_last_confirmed_at": self._latest_projection_time(selected, "source_event_at"),
-            "next_refresh_tick": None,
+            "odds_last_confirmed_at": refresh_status["odds_last_confirmed_at"]
+            or self._latest_projection_time(selected, "source_event_at"),
+            "next_refresh_tick": refresh_status["next_refresh_tick"],
             "date": requested_date.isoformat(),
             "selected_date": requested_date.isoformat(),
             "selected_football_day": requested_date.isoformat(),
@@ -535,7 +626,12 @@ class ReadModelService:
         self._dashboard_response_cache[cache_key] = (now_tick, deepcopy(payload))
         return payload
 
-    def _project_dashboard_card(self, fixture: dict[str, Any]) -> dict[str, Any]:
+    def _project_dashboard_card(
+        self,
+        fixture: dict[str, Any],
+        *,
+        canonical_competition_id: str | None = None,
+    ) -> dict[str, Any]:
         fixture_id = str(fixture.get("fixture_id") or fixture.get("provider_fixture_id") or "")
         if not fixture_id:
             raise SystemDegradedError("DASHBOARD_FIXTURE_IDENTITY_MISSING")
@@ -554,7 +650,9 @@ class ReadModelService:
             **deepcopy(card),
             "fixture_id": fixture_id,
             "kickoff_utc": fixture.get("kickoff_utc") or card.get("kickoff_utc"),
-            "competition_id": fixture.get("competition_id") or card.get("competition_id"),
+            "competition_id": canonical_competition_id
+            or fixture.get("competition_id")
+            or card.get("competition_id"),
             "competition_name": fixture.get("competition_name") or card.get("competition_name"),
             "home_team_id": fixture.get("home_team_id"),
             "home_team_name": fixture.get("home_team_name") or card.get("home_name"),
@@ -566,6 +664,9 @@ class ReadModelService:
             "candidate": False,
         }
         decision = merged.get("recommendation_decision_v3")
+        if isinstance(decision, dict) and canonical_competition_id:
+            decision = {**decision, "competition_id": canonical_competition_id}
+            merged["recommendation_decision_v3"] = decision
         selected = (
             cast(dict[str, Any], decision).get("selected_candidate")
             if isinstance(decision, dict)

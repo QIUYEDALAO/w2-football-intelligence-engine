@@ -230,13 +230,20 @@ def build_data_readiness_from_legacy_payload(
     if provider_budget_remaining is not None and provider_budget_remaining <= 0:
         provider_budget_exhausted = True
 
-    market_available = _truthy(_get(available_inputs, "market_observations")) or _truthy(
-        _get(available_inputs, "bookmakers"),
+    market_available = any(
+        _truthy(value)
+        for value in (
+            _get(available_inputs, "market_observations"),
+            _get(available_inputs, "bookmakers"),
+            _get(raw_data_readiness, "market_observations"),
+            _get(raw_data_readiness, "bookmakers"),
+        )
     )
     market_available = market_available or bool(market) or bool(recommendation)
     odds_available = (
         _truthy(_get(available_inputs, "odds_snapshots"))
         or _truthy(_get(available_inputs, "current_odds"))
+        or _truthy(_get(raw_data_readiness, "odds_snapshots"))
         or bool(current_odds)
         or _has_market_odds(market)
         or _has_market_odds(recommendation)
