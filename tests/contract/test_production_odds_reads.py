@@ -20,6 +20,7 @@ from w2.infrastructure.persistence.market_projection_view import (
 )
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
+    MatchdayFixtureIdentityModel,
     MatchdayMarketObservationModel,
 )
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
@@ -168,6 +169,62 @@ def test_api_refresh_status_reads_canonical_scheduler_plan(
     )
 
     assert status["next_refresh_tick"] == "2026-08-03T04:20:00Z"
+
+
+def test_api_dashboard_metadata_supports_more_than_64_fixtures(monkeypatch: Any) -> None:
+    engine = _engine()
+    now = datetime(2026, 8, 3, 1, 20, tzinfo=UTC)
+    fixture_id = "api_football:1064"
+    scheduled_at = now + timedelta(hours=3)
+    with Session(engine) as session:
+        session.add(
+            MatchdayFixtureIdentityModel(
+                fixture_id=fixture_id,
+                provider="api_football",
+                provider_fixture_id="1064",
+                competition_id="allsvenskan",
+                provider_league_id="113",
+                season="2026",
+                kickoff_utc=now + timedelta(hours=12),
+                fixture_status="NS",
+                home_provider_team_id="1",
+                away_provider_team_id="2",
+                home_w2_team_id="api_football:1",
+                away_w2_team_id="api_football:2",
+                team_identity_status="PROVIDER_PRIMARY_READY",
+                raw_payload_sha256="a" * 64,
+                captured_at=now,
+                identity_hash="b" * 64,
+                payload={},
+            )
+        )
+        session.add(
+            MatchdayCheckpointPlanModel(
+                plan_id="api-plan-over-64",
+                fixture_id=fixture_id,
+                competition_id="allsvenskan",
+                season="2026",
+                policy_version="test-policy",
+                checkpoint="T12",
+                kickoff_utc=now + timedelta(hours=12),
+                scheduled_at=scheduled_at,
+                window_start=scheduled_at,
+                window_end=scheduled_at + timedelta(minutes=5),
+                endpoints=["odds"],
+                status="PLANNED",
+                blockers=[],
+                plan_hash="c" * 64,
+            )
+        )
+        session.commit()
+    monkeypatch.setattr(api_repository, "create_engine", lambda: engine)
+    fixture_ids = [str(1000 + index) for index in range(65)]
+    repository = api_repository.ReadModelRepository()
+
+    assert repository.canonical_competitions_for_fixtures(fixture_ids)["1064"] == "allsvenskan"
+    assert repository.market_refresh_status_for_fixtures(fixture_ids, now=now)[
+        "next_refresh_tick"
+    ] == "2026-08-03T04:20:00Z"
 
 
 def test_api_dashboard_card_overrides_provider_league_with_canonical_competition() -> None:
