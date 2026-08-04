@@ -29,6 +29,7 @@ from w2.replay.real_fixture import (
     _database_value,
     _materializer,
     _seed_source_context,
+    _source_runtime_environment,
     export_real_fixture_bundle,
     load_verified_bundle,
     network_disabled,
@@ -252,6 +253,16 @@ def test_source_context_restores_canonical_float_for_numeric_columns() -> None:
     value = _database_value(Column(Numeric), {"$w2_float": "3ff8000000000000"})
 
     assert value == Decimal("1.5")
+
+
+def test_replay_uses_database_authority_runtime_environment() -> None:
+    context = {
+        "tables": {
+            "league_season": [{"payload": {"environment": "staging"}}],
+        }
+    }
+
+    assert _source_runtime_environment(context) == "staging"
 
 
 def test_incomplete_database_reports_exact_missing_field_without_writing(

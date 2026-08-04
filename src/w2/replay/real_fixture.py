@@ -1173,13 +1173,37 @@ def export_real_fixture_bundle(
     )
 
 
+def _source_runtime_environment(context: Mapping[str, Any]) -> str:
+    tables = context.get("tables")
+    seasons = tables.get("league_season") if isinstance(tables, Mapping) else None
+    if seasons == []:
+        return "test"
+    if not isinstance(seasons, list):
+        raise RealFixtureReplayError("SOURCE_CONTEXT_RUNTIME_ENVIRONMENT_MISSING")
+    environments = {
+        str(payload["environment"]).strip().lower()
+        for row in seasons
+        if isinstance(row, Mapping)
+        and isinstance((payload := row.get("payload")), Mapping)
+        and isinstance(payload.get("environment"), str)
+        and str(payload["environment"]).strip()
+    }
+    if len(environments) != 1:
+        raise RealFixtureReplayError("SOURCE_CONTEXT_RUNTIME_ENVIRONMENT_INVALID")
+    return environments.pop()
+
+
 @contextmanager
-def _replay_environment(database_url: str, source_git_sha: str) -> Iterator[None]:
+def _replay_environment(
+    database_url: str,
+    source_git_sha: str,
+    runtime_environment: str,
+) -> Iterator[None]:
     from w2.config import get_settings
 
     values = {
         "W2_DATABASE_URL": database_url,
-        "W2_ENVIRONMENT": "test",
+        "W2_ENVIRONMENT": runtime_environment,
         "W2_GIT_SHA": source_git_sha,
         "W2_PROVIDER_CALLS_DISABLED": "true",
         "W2_PROVIDER_ENDPOINT_ALLOWLIST": "status,fixtures,odds,lineups",
@@ -1361,7 +1385,12 @@ def _replay_once(
         raise RealFixtureReplayError("REPLAY_BUNDLE_JSON_SHAPE_INVALID")
     if source_reference.get("authority") != "SOURCE_REFERENCE_ONLY_NOT_REPLAY_EXPECTED":
         raise RealFixtureReplayError("SOURCE_REFERENCE_AUTHORITY_INVALID")
-    with _replay_environment(database_url, source_git_sha), network_disabled():
+    runtime_environment = _source_runtime_environment(context)
+    with _replay_environment(
+        database_url,
+        source_git_sha,
+        runtime_environment,
+    ), network_disabled():
         # Importing persistence registers every current table and the current
         # market projection view before the isolated schema is created.
         import w2.infrastructure.persistence  # noqa: F401
