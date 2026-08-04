@@ -2909,8 +2909,6 @@ class ReadModelService:
         item: dict[str, Any],
         observations: list[dict[str, Any]],
     ) -> dict[str, Any] | None:
-        if not observations:
-            return None
         fixture = item.get("fixture", {}) if isinstance(item.get("fixture"), dict) else {}
         teams = item.get("teams", {}) if isinstance(item.get("teams"), dict) else {}
         home = teams.get("home", {}) if isinstance(teams.get("home"), dict) else {}
@@ -2982,6 +2980,17 @@ class ReadModelService:
                     )
             except SQLAlchemyError:
                 snapshots = []
+            snapshots = [
+                row
+                for row in snapshots
+                if (snapshot_time := parse_provider_time(row.get("as_of_time"))) is not None
+                and snapshot_time <= kickoff
+                and (parse_int(row.get("match_count")) or 0) >= 3
+                and all(
+                    row.get(field) is not None
+                    for field in ("rolling_xg_for", "rolling_xg_against")
+                )
+            ]
             self._team_xg_snapshots_by_fixture_cache[fixture_id] = snapshots
         home_xg = [
             self._team_xg_feature_snapshot(row, observed_at_cap=context.as_of)
@@ -3064,8 +3073,6 @@ class ReadModelService:
         feature_observations = mainline_observations or observations
         market_snapshots = self._market_snapshots_from_observations(feature_observations)
         bookmaker_quotes = self._bookmaker_quotes_from_observations(feature_observations)
-        if not market_snapshots and not home_xg and not away_xg:
-            return None
         registry = CompetitionRegistry()
         try:
             coverage = registry.require_enabled(competition_id).coverage_profile

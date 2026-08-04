@@ -115,7 +115,11 @@ export function BossDecisionConsole(props: BossDecisionConsoleProps) {
           <p>账本 checkpoint 投影不可用；未用 0 代替缺失数据。</p>
         </section>
       ) : null}
-      <BossDecisionConsoleReference model={truthfulModel} />
+      <BossDecisionConsoleReference
+        model={truthfulModel}
+        dayView={props.dayView}
+        performance={props.performance}
+      />
     </>
   );
 }

@@ -69,9 +69,9 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 const MARKET_ANCHOR_DISPLAY_ENABLED =
-  import.meta.env.VITE_W2_MARKET_ANCHOR_DISPLAY_ENABLED === "true";
+  import.meta.env?.VITE_W2_MARKET_ANCHOR_DISPLAY_ENABLED === "true";
 const MARKET_ANCHOR_MIN_DIVERGENCE = Number(
-  import.meta.env.VITE_W2_MARKET_ANCHOR_MIN_DIVERGENCE ?? 0.05,
+  import.meta.env?.VITE_W2_MARKET_ANCHOR_MIN_DIVERGENCE ?? 0.05,
 );
 
 type ScheduleFilter = "all" | "recommended" | "hide-not-ready";
@@ -1724,6 +1724,7 @@ export function BossDecisionView({
   return (
     <section className="boss-dashboard" aria-label="老板视角决策页">
       <MatchdayHeader dayView={dayView} release={release} />
+      <DecisionCounts dayView={dayView} performance={performance} />
       <TrustStrip performance={performance} leagueRows={leagueRows} />
       <HealthStrip dayView={dayView} />
       {isWorldCup(dayView) ? (

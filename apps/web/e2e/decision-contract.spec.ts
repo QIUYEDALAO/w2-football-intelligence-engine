@@ -69,6 +69,15 @@ function dayView(scenario: Scenario) {
       partial: 0,
       stale: scenario === "STALE" ? 1 : 0,
       blocked: !ready && scenario !== "STALE" ? 1 : 0,
+      identity_not_ready: 0,
+      xg_not_ready: ready ? 0 : 1,
+      model_ready: ready ? 1 : 0,
+      waiting_fresh_quote: scenario === "STALE" ? 1 : 0,
+      executable_quote: ready ? 1 : 0,
+      no_edge: 0,
+      lineup_pending: 1,
+      ratings_enhancement_missing: 1,
+      team_value_enhancement_missing: 1,
     },
     freshness: {
       page_updated_at: "2026-07-18T10:00:00Z",
@@ -483,7 +492,41 @@ test("empty DayView keeps the dashboard usable instead of leaving only navigatio
   await expect(page.locator(".empty-section")).toContainText(/暂无比赛|暂无可展示比赛/);
   await expect(page.locator(".release-sync")).toBeVisible();
   await expect(page.locator(".refresh-button")).toBeVisible();
+  await expect(page.locator(".decision-counts")).toContainText("未来比赛");
+  await expect(page.locator(".decision-counts")).toContainText("模型 READY");
   await expect(page.locator("[data-ui='boss-decision-console']")).toHaveCount(0);
+});
+
+test("dashboard mounts API count parity and keeps release gates off", async ({ page }) => {
+  await installRoutes(page, "READY");
+  await page.goto("/");
+
+  const expected = {
+    "未来比赛": "1",
+    "身份未就绪": "0",
+    "xG 未就绪": "0",
+    "模型 READY": "1",
+    "等待新鲜赔率": "0",
+    "当前可执行赔率": "1",
+    NO_EDGE: "0",
+    "分析建议": "1",
+    "阵容待确认": "1",
+    "ratings 增强缺失": "1",
+    "team value 增强缺失": "1",
+  };
+  const counts = page.locator(".decision-counts");
+  await expect(counts).toBeVisible();
+  for (const [label, value] of Object.entries(expected)) {
+    const metric = counts.locator(".decision-count").filter({
+      has: page.getByText(label, { exact: true }),
+    });
+    await expect(metric.locator("strong")).toHaveText(value);
+  }
+
+  await page.getByRole("button", { name: "打开系统状态" }).click();
+  for (const label of ["Candidate", "Formal Recommendation", "Lock", "Production"]) {
+    await expect(page.locator(".system-item").filter({ hasText: label })).toContainText("OFF");
+  }
 });
 
 test("READY renders the unified pick and verified analysis-card", async ({

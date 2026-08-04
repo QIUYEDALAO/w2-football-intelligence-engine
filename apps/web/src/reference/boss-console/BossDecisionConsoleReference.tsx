@@ -4,11 +4,15 @@ import type {
   BossConsoleModel,
   BossDecisionItem,
 } from "./boss-console-model";
+import type { DashboardDayView, DashboardPerformance } from "../../types/dashboard";
+import { DecisionCounts } from "../../components/BossDecisionView";
 
 type FilterId = "priority" | "all" | "risk";
 
 export interface BossDecisionConsoleReferenceProps {
   model: BossConsoleModel;
+  dayView?: DashboardDayView;
+  performance?: DashboardPerformance;
   fixedNow?: Date;
   prototypeCopy?: boolean;
 }
@@ -365,7 +369,7 @@ function SystemDrawer({ model, open, onClose }: { model: BossConsoleModel; open:
   );
 }
 
-export function BossDecisionConsoleReference({ model, fixedNow, prototypeCopy = false }: BossDecisionConsoleReferenceProps) {
+export function BossDecisionConsoleReference({ model, dayView, performance, fixedNow, prototypeCopy = false }: BossDecisionConsoleReferenceProps) {
   const now = useMinuteClock(fixedNow);
   const [filter, setFilter] = useState<FilterId>("priority");
   const [selectedId, setSelectedId] = useState(model.selectedDecisionId ?? model.decisions[0]?.id ?? "");
@@ -411,6 +415,8 @@ export function BossDecisionConsoleReference({ model, fixedNow, prototypeCopy = 
         </div>
         <div className="snapshot-block"><div className="snapshot-times"><div className="snapshot-time"><span>全局最近赔率</span><strong>{dateTimeLabel(model.release.oddsConfirmedAt)}</strong></div><div className="snapshot-time"><span>页面刷新</span><strong>{dateTimeLabel(model.release.pageUpdatedAt)}</strong></div><div className="snapshot-time"><span>快照年龄</span><strong className={timeSequenceAnomaly ? "is-anomaly" : undefined}>{timeSequenceAnomaly ? "时间状态异常" : ageLabel(model.release.oddsConfirmedAt, now)}</strong></div><div className="snapshot-time"><span>自动采集</span><strong className={model.automaticCollectionPaused ? "is-paused" : "is-running"}>{model.automaticCollectionPaused ? "已暂停" : "运行中"}</strong></div></div><button className="status-button" onClick={() => setDrawerOpen(true)} aria-label="打开系统状态">⚙</button></div>
       </header>
+
+      {dayView ? <DecisionCounts dayView={dayView} performance={performance} /> : null}
 
       <section className="risk-strip" aria-label="风险与例外"><strong>风险与例外</strong><p>自动采集当前{model.automaticCollectionPaused ? "暂停" : "运行"}；赛事高风险 {model.eventRiskExceptionCount}；数据/采集阻断 {model.operationalRiskExceptionCount}；首发待确认 {model.lineupPendingCount}；验证证据待补 {model.ledger.evidenceRepairPendingCount}。</p><div className="risk-meta">最后检查 {dateTimeLabel(model.lastCheckedAt)}</div></section>
 

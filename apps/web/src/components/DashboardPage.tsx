@@ -5,6 +5,7 @@ import { textValue } from "../lib/normalize";
 import type { DashboardMode, DashboardView, LoadState } from "../types/dashboard";
 import { BossDecisionConsole } from "../reference/boss-console/BossDecisionConsole";
 import { DataDiagnosticsPanel } from "./DataDiagnosticsPanel";
+import { DecisionCounts } from "./BossDecisionView";
 import { EmptySection } from "./EmptySection";
 import { ReleaseSyncBadge } from "./ReleaseSyncBadge";
 import { SkeletonCard } from "./SkeletonCard";
@@ -128,6 +129,9 @@ export function DashboardPage() {
             title={textValue(view.day_view?.degradation?.title, empty.title)}
             detail={textValue(view.day_view?.degradation?.message, empty.detail)}
           />
+          {view.day_view ? (
+            <DecisionCounts dayView={view.day_view} performance={view.performance} />
+          ) : null}
           {showDiagnostics ? <DataDiagnosticsPanel debug={view.debug} release={view.release} /> : null}
         </>
       ) : null}
