@@ -474,6 +474,65 @@ def test_day_view_projects_canonical_top_level_simulation() -> None:
     assert card["simulation"] == {"status": "READY", "simulation": simulation}
 
 
+def test_day_view_model_readiness_counts_match_projected_cards() -> None:
+    payload = _payload_with_contract(_non_pick_contract())
+    payload["all"][0].update(
+        {
+            "competition_id": "allsvenskan",
+            "simulation": {
+                "status": "READY",
+                "input_readiness": {
+                    "ratings_used_in_lambda": False,
+                    "squad_value_used_in_lambda": False,
+                },
+            },
+            "market_candidates": {
+                "ah": {
+                    "quote_status": "COMPLETE",
+                    "quote_usage": "EXECUTABLE",
+                }
+            },
+            "data_refresh": {"lineups_status": "NOT_REQUESTED"},
+        }
+    )
+
+    counts = build_dashboard_day_view(payload, environment="staging")["counts"]
+
+    assert counts["identity_not_ready"] == 0
+    assert counts["xg_not_ready"] == 0
+    assert counts["model_ready"] == 1
+    assert counts["waiting_fresh_quote"] == 0
+    assert counts["executable_quote"] == 1
+    assert counts["lineup_pending"] == 1
+    assert counts["ratings_enhancement_missing"] == 1
+    assert counts["team_value_enhancement_missing"] == 1
+    card = build_dashboard_day_view(payload, environment="staging")["cards"][0]
+    assert card["analysis_state"] == "MODEL_INPUT_NOT_READY"
+
+
+def test_day_view_distinguishes_model_ready_reference_quote() -> None:
+    payload = _payload_with_contract(_non_pick_contract())
+    payload["all"][0].update(
+        {
+            "competition_id": "allsvenskan",
+            "simulation": {"status": "READY", "input_readiness": {}},
+            "market_candidates": {
+                "ah": {
+                    "quote_status": "COMPLETE",
+                    "freshness_status": "STALE",
+                    "quote_usage": "REFERENCE_ONLY",
+                }
+            },
+        }
+    )
+
+    view = build_dashboard_day_view(payload, environment="staging")
+
+    assert view["counts"]["waiting_fresh_quote"] == 1
+    assert view["cards"][0]["analysis_state"] == "WAITING_FRESH_QUOTE"
+    assert view["cards"][0]["analysis_blocker"] == "QUOTE_REFERENCE_ONLY"
+
+
 def test_day_view_ignores_removed_shadow_simulation_source() -> None:
     payload = _payload_with_contract(_pick_contract())
     payload["all"][0]["pricing_shadow"] = {"simulation": {"status": "READY", "simulations": 10000}}

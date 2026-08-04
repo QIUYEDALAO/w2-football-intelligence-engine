@@ -44,6 +44,9 @@ class XgBackfillRepository(Protocol):
     def fixture_payloads(self) -> list[dict[str, Any]]:
         pass
 
+    def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
+        pass
+
     def save_raw_payload(
         self,
         *,
@@ -231,9 +234,7 @@ class XgHistoryBackfillService:
             xg_rows = []
         match_rows = [self._xg_match_dict(row) for row in xg_rows]
         persisted_xg_rows = self._persisted_xg_matches()
-        rolling_inputs = {
-            row.id: row for row in [*persisted_xg_rows, *xg_rows]
-        }
+        rolling_inputs = {row.id: row for row in [*persisted_xg_rows, *xg_rows]}
         snapshot_rows = self._rolling_snapshot_rows(
             future_fixtures=future_fixtures,
             materialized_matches=list(rolling_inputs.values()),
@@ -255,6 +256,63 @@ class XgHistoryBackfillService:
             remaining_quota=self._remaining_quota,
             blockers=blockers,
             requests=self._audit,
+        )
+
+    def run_saved_raw(self) -> XgBackfillResult:
+        """Materialize xG from persisted fixture/statistics evidence only."""
+        fixtures = self.repository.fixture_payloads()
+        future_fixtures = [item for item in fixtures if self._is_target_future_fixture(item)]
+        fixture_by_id = {
+            fixture_id_from_payload(item): item
+            for item in fixtures
+            if fixture_id_from_payload(item)
+        }
+        parsed: dict[str, TeamXgMatch] = {}
+        for raw in self.repository.raw_payloads("statistics"):
+            payload = raw.get("payload")
+            captured_at = parse_utc(raw.get("captured_at"))
+            fixture_id = self._statistics_fixture_id(payload)
+            fixture = fixture_by_id.get(fixture_id)
+            if not isinstance(payload, dict) or captured_at is None or fixture is None:
+                continue
+            for row in parse_team_xg_matches(
+                fixture_payload=fixture,
+                statistics_payload=payload,
+                captured_at=captured_at,
+                raw_payload_sha256=str(raw.get("sha256") or ""),
+            ):
+                previous = parsed.get(row.id)
+                if previous is not None and self._xg_values(previous) != self._xg_values(row):
+                    raise XgBackfillError(f"SAVED_XG_CONFLICT:{row.id}")
+                parsed.setdefault(row.id, row)
+
+        persisted = {row.id: row for row in self._persisted_xg_matches()}
+        for row_id, row in parsed.items():
+            previous = persisted.get(row_id)
+            if previous is not None and self._xg_values(previous) != self._xg_values(row):
+                raise XgBackfillError(f"SAVED_XG_CONFLICT:{row_id}")
+        new_rows = [row for row_id, row in parsed.items() if row_id not in persisted]
+        rolling_inputs = {**persisted, **parsed}
+        snapshots = self._rolling_snapshot_rows(
+            future_fixtures=future_fixtures,
+            materialized_matches=list(rolling_inputs.values()),
+        )
+        try:
+            upserted_matches = self.repository.upsert_team_xg_matches(
+                [self._xg_match_dict(row) for row in new_rows]
+            )
+            upserted_snapshots = self.repository.upsert_team_xg_rolling_snapshots(snapshots)
+        except FutureRefreshPersistenceError as exc:
+            raise XgBackfillError(f"PERSISTENCE_WRITE_FAILED:{exc}") from exc
+        return XgBackfillResult(
+            generated_at_utc=self.now,
+            team_count=len(self._world_cup_team_ids(future_fixtures)),
+            historical_fixture_count=len({row.fixture_id for row in parsed.values()}),
+            statistics_request_count=0,
+            team_xg_match_rows=upserted_matches,
+            rolling_snapshot_rows=upserted_snapshots,
+            remaining_quota=None,
+            requests=[],
         )
 
     def _request(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
@@ -321,9 +379,7 @@ class XgHistoryBackfillService:
 
     def _save_raw(self, response: LiveApiFootballResponse) -> None:
         self.repository.save_raw_payload(
-            sha256=sha256_payload(
-                response.payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD
-            ),
+            sha256=sha256_payload(response.payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD),
             endpoint=response.endpoint,
             captured_at=response.captured_at,
             payload=response.payload,
@@ -331,6 +387,28 @@ class XgHistoryBackfillService:
 
     def _attempt_count(self) -> int:
         return len(self._audit)
+
+    @staticmethod
+    def _statistics_fixture_id(payload: Any) -> str:
+        if not isinstance(payload, dict):
+            return ""
+        parameters = payload.get("parameters")
+        if not isinstance(parameters, dict):
+            return ""
+        return str(parameters.get("fixture") or "")
+
+    @staticmethod
+    def _xg_values(row: TeamXgMatch) -> tuple[Any, ...]:
+        return (
+            row.fixture_id,
+            row.team_id,
+            row.opponent_team_id,
+            row.kickoff_at,
+            row.xg_for,
+            row.xg_against,
+            row.goals_for,
+            row.goals_against,
+        )
 
     def _world_cup_team_ids(self, fixtures: list[dict[str, Any]]) -> set[str]:
         ids: set[str] = set()
@@ -493,6 +571,26 @@ def run_xg_history_backfill(
             source_revision=os.environ.get("W2_SERVICE_VERSION", "LOCAL_UNDEPLOYED"),
         ),
     ).run()
+
+
+def materialize_saved_xg(
+    *,
+    repository: XgBackfillRepository | None = None,
+    now: datetime | None = None,
+) -> XgBackfillResult:
+    return XgHistoryBackfillService(
+        repository=repository,
+        now=now,
+        config=XgBackfillConfig(
+            competition_id=os.environ.get(
+                "W2_XG_BACKFILL_COMPETITION_ID",
+                "world_cup_2026",
+            ),
+            min_rolling_matches=int(os.environ.get("W2_XG_MIN_ROLLING_MATCHES", "3")),
+            max_rolling_matches=int(os.environ.get("W2_XG_MAX_ROLLING_MATCHES", "5")),
+            source_revision=os.environ.get("W2_SERVICE_VERSION", "LOCAL_UNDEPLOYED"),
+        ),
+    ).run_saved_raw()
 
 
 def write_backfill_report(path: Path, result: XgBackfillResult) -> None:

@@ -518,6 +518,8 @@ def _input_readiness(inputs: SimulationInputs) -> dict[str, Any]:
             "lambda_sigma_away": inputs.lambda_sigma_away,
             "squad_value_ready": inputs.home_squad_value_eur is not None
             and inputs.away_squad_value_eur is not None,
+            "squad_value_used_in_lambda": inputs.home_squad_value_eur is not None
+            and inputs.away_squad_value_eur is not None,
         }
     )
     return readiness

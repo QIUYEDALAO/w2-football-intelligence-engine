@@ -132,7 +132,9 @@ def materialize_rolling_xg(
     eligible = [
         row
         for row in matches
-        if row.team_id == team_id and row.kickoff_at.astimezone(UTC) < cutoff
+        if row.team_id == team_id
+        and row.kickoff_at.astimezone(UTC) < cutoff
+        and row.captured_at.astimezone(UTC) < cutoff
     ]
     eligible.sort(key=lambda row: row.kickoff_at)
     selected = eligible[-window:]

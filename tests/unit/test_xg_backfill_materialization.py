@@ -3,12 +3,15 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import pytest
+
 from w2.features.xg_materialization import (
     materialize_rolling_xg,
     parse_team_xg_matches,
 )
 from w2.ingestion.xg_backfill import (
     XgBackfillConfig,
+    XgBackfillError,
     XgHistoryBackfillService,
     run_xg_history_backfill,
 )
@@ -76,7 +79,7 @@ def test_rolling_xg_materialization_is_strictly_as_of() -> None:
             parse_team_xg_matches(
                 fixture_payload=finished_fixture(f"h{index}", NOW - timedelta(days=5 - index)),
                 statistics_payload=statistics(home_xg=str(1.0 + index), away_xg="0.5"),
-                captured_at=NOW,
+                captured_at=NOW - timedelta(hours=1),
                 raw_payload_sha256=f"{index}" * 64,
             )
         )
@@ -227,6 +230,9 @@ class FakeRepository:
         self.raw.append((endpoint, sha256))
         return f"db://raw_payload/{sha256}"
 
+    def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
+        return []
+
     def upsert_team_xg_matches(self, matches: list[dict[str, Any]]) -> int:
         self.matches = matches
         return len(matches)
@@ -294,6 +300,106 @@ class MultiCompetitionRepository(FakeRepository):
 class BrokenUsageRepository(FakeRepository):
     def request_count_since(self, since: datetime) -> int:
         raise RuntimeError("usage audit unavailable")
+
+
+class SavedRawRepository(FakeRepository):
+    def fixture_payloads(self) -> list[dict[str, Any]]:
+        rows = super().fixture_payloads()
+        rows.extend(
+            finished_fixture(
+                f"saved-{index}",
+                NOW - timedelta(days=5 - index),
+            )
+            for index in range(4)
+        )
+        return rows
+
+    def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
+        assert endpoint == "statistics"
+        return [
+            {
+                "sha256": f"{index}" * 64,
+                "captured_at": NOW.isoformat(),
+                "payload": {
+                    **statistics(home_xg=str(1.2 + index / 10), away_xg="0.8"),
+                    "parameters": {"fixture": f"saved-{index}"},
+                },
+            }
+            for index in range(4)
+        ]
+
+
+class NoCallClient(FakeClient):
+    def request_live(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
+        raise AssertionError("saved-raw materialization must not call Provider")
+
+
+class ShortSavedRawRepository(SavedRawRepository):
+    def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
+        return super().raw_payloads(endpoint)[:2]
+
+
+class ConflictingSavedRawRepository(SavedRawRepository):
+    def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
+        rows = super().raw_payloads(endpoint)
+        rows.append(
+            {
+                "sha256": "f" * 64,
+                "captured_at": NOW.isoformat(),
+                "payload": {
+                    **statistics(home_xg="9.9", away_xg="0.8"),
+                    "parameters": {"fixture": "saved-0"},
+                },
+            }
+        )
+        return rows
+
+
+def test_saved_statistics_raw_materializes_xg_and_is_idempotent() -> None:
+    repository = SavedRawRepository()
+    service = XgHistoryBackfillService(
+        client=NoCallClient(),
+        repository=repository,
+        config=XgBackfillConfig(min_rolling_matches=3),
+        now=NOW,
+    )
+
+    first = service.run_saved_raw()
+    second = service.run_saved_raw()
+
+    assert first.as_dict()["provider_calls"] == 0
+    assert first.team_xg_match_rows == 8
+    assert first.rolling_snapshot_rows == 2
+    assert second.team_xg_match_rows == 0
+    assert second.rolling_snapshot_rows == 2
+
+
+def test_saved_statistics_raw_with_less_than_three_matches_has_no_snapshot() -> None:
+    repository = ShortSavedRawRepository()
+    result = XgHistoryBackfillService(
+        client=NoCallClient(),
+        repository=repository,
+        config=XgBackfillConfig(min_rolling_matches=3),
+        now=NOW,
+    ).run_saved_raw()
+
+    assert result.team_xg_match_rows == 4
+    assert result.rolling_snapshot_rows == 0
+
+
+def test_saved_statistics_raw_conflict_fails_closed() -> None:
+    repository = ConflictingSavedRawRepository()
+
+    with pytest.raises(XgBackfillError, match="SAVED_XG_CONFLICT:saved-0:10"):
+        XgHistoryBackfillService(
+            client=NoCallClient(),
+            repository=repository,
+            config=XgBackfillConfig(min_rolling_matches=3),
+            now=NOW,
+        ).run_saved_raw()
+
+    assert repository.matches == []
+    assert repository.snapshots == []
 
 
 def test_xg_backfill_uses_fake_provider_audits_and_materializes_snapshots() -> None:

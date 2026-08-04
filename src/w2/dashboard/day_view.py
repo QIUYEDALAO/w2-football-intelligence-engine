@@ -124,6 +124,8 @@ def _day_view_card(card: Mapping[str, Any]) -> dict[str, Any]:
         card=card,
     )
     projected = _apply_v4_authority(_contract_card(card, contract))
+    projected["analysis_state"] = _analysis_state(projected)
+    projected["analysis_blocker"] = _analysis_blocker(projected)
     _validate_projection_card(projected)
     return projected
 
@@ -367,6 +369,14 @@ def _counts(cards: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     by_lifecycle_status = {status.value: 0 for status in LifecycleStatus}
     lock_eligible = 0
     outcome_tracked = 0
+    identity_not_ready = 0
+    xg_not_ready = 0
+    model_ready = 0
+    waiting_fresh_quote = 0
+    executable_quote = 0
+    lineup_pending = 0
+    ratings_enhancement_missing = 0
+    team_value_enhancement_missing = 0
     for card in cards:
         decision_tier = _optional_text(card.get("decision_tier"))
         data_status = _optional_text(card.get("data_status"))
@@ -381,6 +391,27 @@ def _counts(cards: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             lock_eligible += 1
         if card.get("outcome_tracked") is True:
             outcome_tracked += 1
+        if not _optional_text(card.get("competition_id")):
+            identity_not_ready += 1
+        simulation = _mapping(card.get("simulation"))
+        simulation_ready = simulation.get("status") == "READY"
+        if simulation_ready:
+            model_ready += 1
+            readiness = _mapping(_mapping(simulation.get("simulation")).get("input_readiness"))
+            if readiness.get("ratings_used_in_lambda") is not True:
+                ratings_enhancement_missing += 1
+            if readiness.get("squad_value_used_in_lambda") is not True:
+                team_value_enhancement_missing += 1
+        else:
+            xg_not_ready += 1
+        has_executable = _has_executable_quote(card)
+        if has_executable:
+            executable_quote += 1
+        elif simulation_ready:
+            waiting_fresh_quote += 1
+        refresh = _mapping(card.get("data_refresh"))
+        if str(refresh.get("lineups_status") or "UNKNOWN") not in {"READY", "COMPLETE"}:
+            lineup_pending += 1
 
     return {
         "total": len(cards),
@@ -395,10 +426,60 @@ def _counts(cards: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "partial": by_data_status[DataStatus.PARTIAL.value],
         "stale": by_data_status[DataStatus.STALE.value],
         "blocked": by_data_status[DataStatus.BLOCKED.value],
+        "identity_not_ready": identity_not_ready,
+        "xg_not_ready": xg_not_ready,
+        "model_ready": model_ready,
+        "waiting_fresh_quote": waiting_fresh_quote,
+        "executable_quote": executable_quote,
+        "no_edge": by_decision_tier[DecisionTier.SKIP.value],
+        "lineup_pending": lineup_pending,
+        "ratings_enhancement_missing": ratings_enhancement_missing,
+        "team_value_enhancement_missing": team_value_enhancement_missing,
         "by_decision_tier": by_decision_tier,
         "by_data_status": by_data_status,
         "by_lifecycle_status": by_lifecycle_status,
     }
+
+
+def _has_executable_quote(card: Mapping[str, Any]) -> bool:
+    candidates = _mapping(card.get("market_candidates"))
+    return any(
+        isinstance(candidate, Mapping)
+        and candidate.get("quote_usage") == "EXECUTABLE"
+        and candidate.get("quote_status") == "COMPLETE"
+        for candidate in candidates.values()
+    )
+
+
+def _analysis_state(card: Mapping[str, Any]) -> str:
+    if not _optional_text(card.get("competition_id")):
+        return "IDENTITY_DATA_MISSING"
+    if _mapping(card.get("simulation")).get("status") != "READY":
+        return "MODEL_INPUT_NOT_READY"
+    if not _has_executable_quote(card):
+        return "WAITING_FRESH_QUOTE"
+    tier = _optional_text(card.get("decision_tier"))
+    if tier == DecisionTier.ANALYSIS_PICK.value:
+        return "ANALYSIS_PICK"
+    if tier == DecisionTier.SKIP.value:
+        return "NO_EDGE"
+    return "MODEL_INPUT_NOT_READY"
+
+
+def _analysis_blocker(card: Mapping[str, Any]) -> str | None:
+    state = _analysis_state(card)
+    if state != "WAITING_FRESH_QUOTE":
+        return state if state.endswith("_MISSING") or state.endswith("_NOT_READY") else None
+    candidates = [
+        candidate
+        for candidate in _mapping(card.get("market_candidates")).values()
+        if isinstance(candidate, Mapping)
+    ]
+    if any(candidate.get("quote_usage") == "REFERENCE_ONLY" for candidate in candidates):
+        return "QUOTE_REFERENCE_ONLY"
+    if any(candidate.get("freshness_status") == "STALE" for candidate in candidates):
+        return "QUOTE_STALE"
+    return "QUOTE_INCOMPLETE"
 
 
 def _freshness(
