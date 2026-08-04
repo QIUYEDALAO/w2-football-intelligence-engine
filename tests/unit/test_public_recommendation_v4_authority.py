@@ -305,6 +305,25 @@ def test_only_complete_same_candidate_formal_evidence_is_admitted() -> None:
     assert decision.outcome is RecommendationOutcomeV4.FORMAL_RECOMMEND
 
 
+def test_all_ineligible_candidates_emit_no_public_pick() -> None:
+    authoritative = deepcopy(_decision()["authoritative_input"])
+    assert isinstance(authoritative, dict)
+    authoritative["decimal_odds"] = "1.5"
+    authoritative["expected_value"] = "0.025"
+    authoritative["formal_admission"] = {
+        "status": "NOT_READY",
+        "readiness_hash": None,
+        "approval_hash": None,
+        "candidate_identity_hash": None,
+    }
+
+    decision = build_recommendation_decision_v4(authoritative)
+
+    assert decision.outcome is RecommendationOutcomeV4.NO_EDGE
+    assert decision.selected_candidate is None
+    assert _recommendation_from_v4(decision, formal_recommendation=None) is None
+
+
 def test_repository_current_projection_uses_v4_not_historical_v3_direction() -> None:
     decision = _decision()
     contract = _contract(decision)

@@ -58,6 +58,9 @@ recommendation_authority_replay_closure:
   legacy_object_can_create_public_pick: false
   decision_schema_version: w2.recommendation_decision.v4
   real_fixture_offline_replay: PASS
+  real_fixture_prematch_recommendation_replay: PASS
+  postmatch_ledger_replay: PENDING
+  postmatch_ledger_replay_reason: NO_SETTLEMENT_ELIGIBLE_PREMATCH_PICK_IN_SOURCE_LEDGER
   network_calls_during_replay: 0
   real_provider_calls_executed: 0
   manual_evaluation_inserts: 0

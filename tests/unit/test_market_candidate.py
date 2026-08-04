@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from w2.markets import analysis_evidence
+from w2.markets.analysis_evidence import build_analysis_market_evidence
 from w2.markets.market_candidate import (
     _best_evaluated_side,
     build_market_candidates,
@@ -97,37 +99,64 @@ def test_admission_eligible_ou_beats_higher_robust_but_ineligible_ah() -> None:
     assert select_authoritative_market_candidate({"ah": ah, "ou": totals}) == totals
 
 
-def test_admission_eligible_ah_side_beats_higher_robust_ineligible_side() -> None:
-    evidence = {
-        "status": "COMPLETE",
-        "side_evidence": {
-            "HOME": {
-                "line": "-0.5",
-                "model_probability": {
-                    "status": "READY",
-                    "expected_value": 0.20,
-                    "ev_se": 0.01,
+def test_production_shaped_ah_side_admission_prefers_eligible_side(
+    monkeypatch,
+) -> None:
+    def side_evidence(*, selection: str, line, **_kwargs):
+        eligible = selection == "AWAY"
+        return {
+            "line": str(line),
+            "model_probability": {
+                "status": "READY",
+                "expected_value": 0.10 if eligible else 0.20,
+                "ev_se": 0.02 if eligible else 0.01,
+                "effective_probability": 0.60 if eligible else 0.65,
+                "settlement_distribution": {
+                    "WIN": 0.5,
+                    "HALF_WIN": 0.0,
+                    "PUSH": 0.0,
+                    "HALF_LOSS": 0.2,
+                    "LOSS": 0.3,
                 },
-                "comparison": {"cashflow_price_edge": 0.04},
+                "fair_decimal_odds": 1.8,
             },
-            "AWAY": {
-                "line": "0.5",
-                "model_probability": {
-                    "status": "READY",
-                    "expected_value": 0.10,
-                    "ev_se": 0.02,
-                },
-                "comparison": {"cashflow_price_edge": 0.06},
+            "comparison": {
+                "analysis_direction_allowed": eligible,
+                "status": "READY" if eligible else "NO_EDGE",
+                "cashflow_price_edge": 0.06 if eligible else 0.04,
             },
-        },
-    }
+        }
 
+    monkeypatch.setattr(analysis_evidence, "_side_evidence", side_evidence)
+    evidence = build_analysis_market_evidence(
+        fixture_id="fixture-1",
+        competition_id="allsvenskan",
+        market="ASIAN_HANDICAP",
+        selection=None,
+        line="-0.5",
+        quote_identity_audit={"ah": _audit()},
+        simulation=_ready_simulation(),
+    )
+    assert evidence["status"] == "NO_EDGE"
     assert _best_evaluated_side(
         evidence,
         market="ASIAN_HANDICAP",
         odds={"home_line": "-0.5", "away_line": "0.5"},
         quote_complete=True,
     ) == "AWAY"
+
+    candidate = build_market_candidates(
+        markets=[_market("ASIAN_HANDICAP")],
+        quote_identity_audit={"ah": _audit()},
+        current_odds={"ah": {"home_line": "-0.5", "away_line": "0.5"}},
+        pricing_shadow={},
+        simulation=_ready_simulation(),
+        fixture_id="fixture-1",
+        competition_id="allsvenskan",
+    )["ah"]
+
+    assert candidate["selection"] == "AWAY"
+    assert candidate["analysis_direction_allowed"] is True
 
 
 def test_fresh_ah_and_stale_ou_are_independent_candidates() -> None:

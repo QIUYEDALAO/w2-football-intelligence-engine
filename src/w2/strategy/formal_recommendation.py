@@ -8,13 +8,11 @@ from uuid import NAMESPACE_URL, uuid5
 
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.formal.readiness import validate_formal_ah_readiness
-from w2.markets.settlement_probability import effective_settlement_probability
 from w2.markets.value_engine import SettlementDistribution, fair_decimal_odds
 from w2.strategy.simulate import (
     READY,
     SimulationOutput,
     ah_expected_value,
-    ah_expected_value_uncertainty_from_lambdas,
 )
 
 FORMAL_EV_THRESHOLD = 0.035
@@ -122,9 +120,13 @@ def build_formal_recommendation(
         formal_ah_readiness=formal_ah_readiness,
         analysis_readiness=analysis_readiness,
     )
+    if ah_market_candidate is None:
+        return _watch("AH_MARKET_CANDIDATE_REQUIRED")
     candidate_evaluation = _candidate_evaluation(ah_market_candidate)
     candidate_odds = _candidate_pair_odds(ah_market_candidate)
-    canonical_odds = candidate_odds if ah_market_candidate is not None else current_odds
+    if candidate_evaluation is None or candidate_odds is None:
+        return _watch("AH_MARKET_CANDIDATE_NOT_EXECUTABLE")
+    canonical_odds = candidate_odds
     ah = canonical_ah_market(current_odds=canonical_odds, pricing_shadow=pricing_shadow)
     blockers = _blockers(
         fixture_status=fixture_status,
@@ -134,8 +136,6 @@ def build_formal_recommendation(
         pricing_shadow=pricing_shadow,
         analysis_readiness=analysis_readiness,
     )
-    if ah_market_candidate is not None and (candidate_evaluation is None or candidate_odds is None):
-        blockers.append("AH_MARKET_CANDIDATE_NOT_EXECUTABLE")
     blockers.extend(readiness_gate)
     if blockers:
         return FormalRecommendationResult(
@@ -154,63 +154,7 @@ def build_formal_recommendation(
         return _watch("FORMAL_UNCERTAINTY_NOT_VALIDATED", canonical_ah_market=ah)
     prices = {"HOME": ah.home_price, "AWAY": ah.away_price}
     devig = _devig_probabilities(prices)
-    selected_evaluation: tuple[
-        str,
-        float,
-        float | None,
-        float,
-        float,
-        float,
-        dict[str, Any],
-    ]
-    if candidate_evaluation is not None:
-        selected_evaluation = candidate_evaluation
-    else:
-        home_distribution, home_ev, home_ev_se = _settlement_distribution_with_ev_se(
-            simulation,
-            "HOME",
-            ah.home_line,
-            ah.home_price,
-        )
-        away_distribution, away_ev, away_ev_se = _settlement_distribution_with_ev_se(
-            simulation,
-            "AWAY",
-            ah.away_line,
-            ah.away_price,
-        )
-        if home_distribution is None or away_distribution is None:
-            return _watch("MISSING_AH_SETTLEMENT_DISTRIBUTION", canonical_ah_market=ah)
-        if home_ev is None or away_ev is None:
-            return _watch("INVALID_AH_EV_INPUTS", canonical_ah_market=ah)
-        home_model = _effective_cover_probability(home_distribution)
-        away_model = _effective_cover_probability(away_distribution)
-        if home_model is None or away_model is None:
-            return _watch("INVALID_AH_SETTLEMENT_DISTRIBUTION", canonical_ah_market=ah)
-        candidates = [
-            (
-                "HOME",
-                home_ev,
-                home_ev_se,
-                home_model,
-                ah.home_line,
-                ah.home_price,
-                home_distribution,
-            ),
-            (
-                "AWAY",
-                away_ev,
-                away_ev_se,
-                away_model,
-                ah.away_line,
-                ah.away_price,
-                away_distribution,
-            ),
-        ]
-        selected_evaluation = max(
-            candidates,
-            key=lambda item: item[1],
-        )
-    side, ev, ev_se, model_probability, line, price, distribution = selected_evaluation
+    side, ev, ev_se, model_probability, line, price, distribution = candidate_evaluation
     fair_price = _five_state_fair_odds(distribution)
     if fair_price is None:
         return _watch("INVALID_AH_SETTLEMENT_DISTRIBUTION", canonical_ah_market=ah)
@@ -380,6 +324,7 @@ def _candidate_evaluation(
         not isinstance(comparison, dict)
         or comparison.get("analysis_direction_allowed") is not True
         or candidate.get("analysis_direction_allowed") is not True
+        or candidate.get("candidate_role") != "MARKET_MAINLINE"
         or not isinstance(model, dict)
         or model.get("status") != "READY"
     ):
@@ -691,66 +636,6 @@ def _watch(
     )
 
 
-def _settlement_distribution_from_ladder(
-    simulation: SimulationOutput,
-    side: str,
-    line: float,
-) -> dict[str, Any] | None:
-    ladder = (
-        simulation.ah_probabilities.get("ladder")
-        if isinstance(simulation.ah_probabilities, dict)
-        else None
-    )
-    if isinstance(ladder, list):
-        for row in ladder:
-            if not isinstance(row, dict):
-                continue
-            row_line = _number(row.get("home_line"))
-            if row_line is None or abs(row_line - (line if side == "HOME" else -line)) > 0.001:
-                continue
-            key = (
-                "home_settlement_distribution" if side == "HOME" else "away_settlement_distribution"
-            )
-            distribution = row.get(key)
-            if isinstance(distribution, dict):
-                return distribution
-    return None
-
-
-def _settlement_distribution_with_ev_se(
-    simulation: SimulationOutput,
-    side: str,
-    line: float,
-    price: float,
-) -> tuple[dict[str, Any] | None, float | None, float | None]:
-    ladder_distribution = _settlement_distribution_from_ladder(simulation, side, line)
-    scenario_distribution, scenario_ev, ev_se = ah_expected_value_uncertainty_from_lambdas(
-        lambda_home=simulation.lambda_home,
-        lambda_away=simulation.lambda_away,
-        lambda_sigma_home=simulation.lambda_sigma_home or 0.0,
-        lambda_sigma_away=simulation.lambda_sigma_away or 0.0,
-        rho=_simulation_rho(simulation),
-        selection=side,
-        line=line,
-        decimal_price=price,
-    )
-    if ladder_distribution is not None:
-        return (
-            ladder_distribution,
-            ah_expected_value(ladder_distribution, decimal_price=price),
-            ev_se,
-        )
-    return scenario_distribution, scenario_ev, ev_se
-
-
-def _simulation_rho(simulation: SimulationOutput) -> float:
-    calibration = simulation.calibration if isinstance(simulation.calibration, dict) else {}
-    params = calibration.get("params")
-    if not isinstance(params, dict):
-        return 0.0
-    return _number(params.get("dixon_coles_rho")) or 0.0
-
-
 def _lambda_uncertainty_validated(simulation: SimulationOutput) -> bool:
     calibration = simulation.calibration if isinstance(simulation.calibration, dict) else {}
     method = str(calibration.get("lambda_uncertainty_method") or "").lower()
@@ -759,10 +644,6 @@ def _lambda_uncertainty_validated(simulation: SimulationOutput) -> bool:
     sigma_home = _number(simulation.lambda_sigma_home)
     sigma_away = _number(simulation.lambda_sigma_away)
     return sigma_home is not None and sigma_away is not None and (sigma_home > 0 or sigma_away > 0)
-
-
-def _effective_cover_probability(distribution: dict[str, Any]) -> float | None:
-    return effective_settlement_probability(distribution)
 
 
 def _devig_probabilities(prices: dict[str, float]) -> dict[str, float]:

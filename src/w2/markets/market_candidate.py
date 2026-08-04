@@ -507,7 +507,11 @@ def _best_evaluated_side(
         candidates.append(
             (
                 _admission_eligible(
-                    evidence_complete=quote_complete and evidence.get("status") == "COMPLETE",
+                    evidence_complete=(
+                        quote_complete
+                        and evidence.get("quote_evidence_status") == "READY"
+                        and comparison.get("status") in {"READY", "NO_EDGE"}
+                    ),
                     candidate_role=role,
                     expected_value=ev,
                     uncertainty=uncertainty,

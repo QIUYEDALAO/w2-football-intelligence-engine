@@ -67,6 +67,11 @@ def test_recommendation_authority_closure_is_synchronized() -> None:
         "legacy_object_can_create_public_pick": False,
         "decision_schema_version": "w2.recommendation_decision.v4",
         "real_fixture_offline_replay": "PASS",
+        "real_fixture_prematch_recommendation_replay": "PASS",
+        "postmatch_ledger_replay": "PENDING",
+        "postmatch_ledger_replay_reason": (
+            "NO_SETTLEMENT_ELIGIBLE_PREMATCH_PICK_IN_SOURCE_LEDGER"
+        ),
         "network_calls_during_replay": 0,
         "real_provider_calls_executed": 0,
         "manual_evaluation_inserts": 0,
@@ -104,6 +109,13 @@ def test_sanitized_manifest_is_schema_valid_and_bound_to_receipt() -> None:
     assert all(item["size_bytes"] > 0 for item in receipts)
 
     receipt = _read(RECEIPT_PATH)
+    assert "REAL_FIXTURE_PREMATCH_RECOMMENDATION_REPLAY = PASS" in receipt
+    assert "POSTMATCH_LEDGER_REPLAY = PENDING" in receipt
+    assert (
+        "POSTMATCH_LEDGER_REPLAY_REASON = "
+        "NO_SETTLEMENT_ELIGIBLE_PREMATCH_PICK_IN_SOURCE_LEDGER"
+    ) in receipt
+    assert "RAW_TO_LEDGER_FULL_CHAIN_REPLAY = PASS" not in receipt
     manifest_sha = hashlib.sha256(manifest_bytes).hexdigest()
     assert f"SANITIZED_MANIFEST_SHA256 = {manifest_sha}" in receipt
     assert f"SOURCE_GIT_SHA = {manifest['source_git_sha']}" in receipt

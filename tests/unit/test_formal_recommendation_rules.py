@@ -6,7 +6,6 @@ from dataclasses import replace
 
 from w2.formal.readiness import evaluate_formal_ah_readiness
 from w2.strategy.formal_recommendation import (
-    _settlement_distribution_with_ev_se,
     build_formal_recommendation,
     canonical_ah_market,
     formal_recommendation_id,
@@ -16,7 +15,6 @@ from w2.strategy.simulate import (
     READY,
     SimulationInputs,
     SimulationOutput,
-    ah_expected_value_uncertainty_from_lambdas,
     run_simulation,
 )
 
@@ -152,29 +150,6 @@ def reverse_value_simulation() -> SimulationOutput:
     )
 
 
-def off_ladder_simulation(*, rho: float = 0.12) -> SimulationOutput:
-    return SimulationOutput(
-        model_version="w2.formal.exact_dc_poisson.v1",
-        calibration_version="w2.formal.lambda_baseline_prior.v1",
-        calibration_status="BASELINE_PRIOR",
-        lambda_home=1.4,
-        lambda_away=1.2,
-        lambda_sigma_home=0.35,
-        lambda_sigma_away=0.35,
-        fair_ah=-0.25,
-        fair_ou=2.75,
-        scoreline_picks=[],
-        score_matrix_summary={"home_win": 0.4, "draw": 0.27, "away_win": 0.33},
-        ah_probabilities={"ladder": []},
-        ou_probabilities={},
-        input_readiness={"xg_ready": True},
-        status=READY,
-        simulations=10_000,
-        seed=456,
-        calibration={"params": {"dixon_coles_rho": rho}},
-    )
-
-
 def ev_gate_simulation(
     *,
     lambda_sigma_home: float = 0.001,
@@ -244,6 +219,7 @@ def _authoritative_ah_candidate() -> dict[str, object]:
         "market": "ASIAN_HANDICAP",
         "selection": "HOME",
         "line": "-0.25",
+        "candidate_role": "MARKET_MAINLINE",
         "quote_status": "COMPLETE",
         "quote_usage": "EXECUTABLE",
         "quotes": {"executable": executable},
@@ -333,6 +309,43 @@ def test_formal_consumes_exact_selected_candidate_and_five_state_fair_odds() -> 
             ]
         )
     )
+
+
+def test_formal_requires_authoritative_ah_candidate() -> None:
+    result = build_formal_recommendation(
+        fixture_status="UPCOMING",
+        simulation=ev_gate_simulation(),
+        current_odds={"ah": {"home_line": 0.0, "home_price": 2.0, "away_price": 2.0}},
+        pricing_shadow={**ready_shadow(fair_ah=0.0), "market_ah": 0.0},
+        analysis_readiness=ready_analysis(),
+        home_team_name="Home",
+        away_team_name="Away",
+        enabled=True,
+    )
+
+    assert result.tier == "WATCH"
+    assert result.blockers == ["AH_MARKET_CANDIDATE_REQUIRED"]
+    assert result.recommendation is None
+
+
+def test_formal_rejects_non_executable_authoritative_ah_candidate() -> None:
+    candidate = _authoritative_ah_candidate()
+    candidate["analysis_direction_allowed"] = False
+    result = build_formal_recommendation(
+        fixture_status="UPCOMING",
+        simulation=ev_gate_simulation(),
+        current_odds=None,
+        ah_market_candidate=candidate,
+        pricing_shadow={**ready_shadow(fair_ah=0.0), "market_ah": -0.25},
+        analysis_readiness=ready_analysis(),
+        home_team_name="Home",
+        away_team_name="Away",
+        enabled=True,
+    )
+
+    assert result.tier == "WATCH"
+    assert result.blockers == ["AH_MARKET_CANDIDATE_NOT_EXECUTABLE"]
+    assert result.recommendation is None
 
 
 def test_formal_recommendation_id_is_stable_for_same_payload() -> None:
@@ -491,56 +504,6 @@ def test_missing_ev_uncertainty_returns_watch() -> None:
     assert result.tier == "WATCH"
     assert "EV_UNCERTAINTY_MISSING" in result.blockers
     assert result.recommendation is None
-
-
-def test_off_ladder_formal_fallback_uses_scenario_ev_uncertainty() -> None:
-    formal_simulation = off_ladder_simulation()
-
-    distribution, ev, ev_se = _settlement_distribution_with_ev_se(
-        formal_simulation,
-        "HOME",
-        -3.5,
-        1.91,
-    )
-    scenario_distribution, scenario_ev, scenario_ev_se = ah_expected_value_uncertainty_from_lambdas(
-        lambda_home=1.4,
-        lambda_away=1.2,
-        lambda_sigma_home=0.35,
-        lambda_sigma_away=0.35,
-        rho=0.12,
-        selection="HOME",
-        line=-3.5,
-        decimal_price=1.91,
-    )
-
-    assert distribution == scenario_distribution
-    assert ev == scenario_ev
-    assert ev_se == scenario_ev_se
-    assert ev_se is not None and ev_se > 0.0
-    assert distribution is not None
-    assert abs(sum(distribution.values()) - 1.0) < 0.02
-
-
-def test_off_ladder_formal_fallback_uses_simulation_rho() -> None:
-    zero_rho_distribution, _, _ = _settlement_distribution_with_ev_se(
-        off_ladder_simulation(rho=0.0),
-        "HOME",
-        -0.25,
-        1.91,
-    )
-    dc_distribution, _, _ = _settlement_distribution_with_ev_se(
-        off_ladder_simulation(rho=0.12),
-        "HOME",
-        -0.25,
-        1.91,
-    )
-
-    assert zero_rho_distribution is not None
-    assert dc_distribution is not None
-    assert any(
-        abs(zero_rho_distribution[outcome] - dc_distribution[outcome]) > 0.000001
-        for outcome in zero_rho_distribution
-    )
 
 
 def test_formal_away_when_simulation_and_price_are_self_consistent() -> None:
