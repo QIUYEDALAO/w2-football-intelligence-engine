@@ -117,7 +117,10 @@ def test_out_file_to_non_tmp_path_is_blocked(tmp_path: Path) -> None:
     _write_report(audit_dir, "brasileirao_serie_a")
 
     with pytest.raises(SystemExit, match="OUT_FILE_MUST_BE_UNDER_TMP"):
-        build_diagnosis(audit_dirs=[audit_dir], out_file=Path("diagnosis.json"))
+        build_diagnosis(
+            audit_dirs=[audit_dir],
+            out_file=Path("/w2-non-tmp/diagnosis.json"),
+        )
 
 
 def _write_summary(audit_dir: Path, calls: int) -> None:

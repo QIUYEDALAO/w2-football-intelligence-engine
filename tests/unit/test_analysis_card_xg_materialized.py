@@ -270,20 +270,38 @@ class FakeDbRepository:
             return []
         return [
             {
+                "endpoint_capture_id": "lineups-capture-1489410",
                 "captured_at": (NOW - timedelta(minutes=10)).isoformat().replace(
                     "+00:00",
                     "Z",
                 ),
+                "raw_payload_sha256": "d" * 64,
                 "payload": {
                     "parameters": {"fixture": "1489410"},
                     "response": [
                         {
                             "team": {"id": 10},
-                            "startXI": [{"player": {"id": 1, "name": "Home GK"}}],
+                            "startXI": [
+                                {
+                                    "player": {
+                                        "id": 1000 + index,
+                                        "name": f"Home Starter {index}",
+                                    }
+                                }
+                                for index in range(1, 12)
+                            ],
                         },
                         {
                             "team": {"id": 20},
-                            "startXI": [{"player": {"id": 2, "name": "Away GK"}}],
+                            "startXI": [
+                                {
+                                    "player": {
+                                        "id": 2000 + index,
+                                        "name": f"Away Starter {index}",
+                                    }
+                                }
+                                for index in range(1, 12)
+                            ],
                         },
                     ],
                 },
@@ -348,6 +366,21 @@ class FakeDbRepository:
         return _complete_future_observations(rows)
 
 
+class FakeDbRepositoryWithAuthoritativeLineup(FakeDbRepository):
+    def matchday_fixture_identity(self, fixture_id: str) -> dict[str, Any] | None:
+        if fixture_id not in {"1489410", "api_football:1489410"}:
+            return None
+        return {
+            "status": "PROVIDER_PRIMARY_READY",
+            "fixture_id": "api_football:1489410",
+            "provider_fixture_id": "1489410",
+            "kickoff_utc": KICKOFF.isoformat().replace("+00:00", "Z"),
+            "home_provider_team_id": "10",
+            "away_provider_team_id": "20",
+            "identity_hash": "fixture-identity",
+        }
+
+
 class FakeCanonicalDbRepository(FakeDbRepository):
     def matchday_fixture_identity(self, fixture_id: str) -> dict[str, Any] | None:
         if fixture_id not in {"1489410", "api_football:1489410"}:
@@ -358,6 +391,7 @@ class FakeCanonicalDbRepository(FakeDbRepository):
             "provider_fixture_id": "1489410",
             "competition_id": "world_cup_2026",
             "season": "2026",
+            "kickoff_utc": KICKOFF.isoformat().replace("+00:00", "Z"),
             "home_provider_team_id": "10",
             "away_provider_team_id": "20",
             "home_w2_team_id": "w2:team:home",
@@ -614,7 +648,11 @@ def test_public_bounded_uncertainty_excludes_xg_captured_after_evaluation_time(
 
 
 def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) -> None:
-    monkeypatch.setattr(api_repository, "future_refresh_db_repository", lambda: FakeDbRepository())
+    monkeypatch.setattr(
+        api_repository,
+        "future_refresh_db_repository",
+        lambda: FakeDbRepositoryWithAuthoritativeLineup(),
+    )
     service = ReadModelService(repository=cast(Any, FakeReadRepository()))
 
     card = service.analysis_card("1489410")

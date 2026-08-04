@@ -1,6 +1,6 @@
 schema_version: w2.project_state.v3
 project: w2-football-intelligence-engine
-updated_at: "2026-08-03"
+updated_at: "2026-08-04"
 current_state_authority: PROJECT_STATE.yaml
 task_authority: docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
 active_execution_schema_version: w2.active_execution.v1
@@ -17,6 +17,8 @@ current_main_sha: 8c6086e37ba62c138bdf059997ca760accef7067
 deployed_sha: 8c6086e37ba62c138bdf059997ca760accef7067
 main_post_merge_ci: 30761641987
 deployment_receipt: docs/operations/W2_PRODUCTION_RECOVERY_RECEIPT_20260803.md
+recommendation_authority_replay_receipt: docs/operations/W2_RECOMMENDATION_AUTHORITY_REAL_FIXTURE_REPLAY_RECEIPT_20260804.md
+real_fixture_replay_sanitized_manifest: docs/operations/W2_REAL_FIXTURE_REPLAY_SANITIZED_MANIFEST_20260804.json
 historical_postdeploy_receipt: docs/operations/W2_VPS_POSTDEPLOY_RECEIPT_20260802.md
 current_workstream: POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS
 current_phase: PRODUCTION_RECOVERY_CONTEXT_CLOSURE_COMPLETE
@@ -46,6 +48,30 @@ current_pr_semantics: CURRENT_BUSINESS_IMPLEMENTATION_PR_ONLY
 active_context_pr: null
 active_context_pr_semantics: NO_ACTIVE_CONTEXT_PR_AFTER_CLOSURE
 next_task: EVAL-02B
+recommendation_authority_replay_closure:
+  status: PASS
+  receipt: docs/operations/W2_RECOMMENDATION_AUTHORITY_REAL_FIXTURE_REPLAY_RECEIPT_20260804.md
+  sanitized_manifest: docs/operations/W2_REAL_FIXTURE_REPLAY_SANITIZED_MANIFEST_20260804.json
+  public_recommendation_authority: SINGLE
+  public_direction_writer_count: 1
+  public_decision_authority_count: 1
+  legacy_object_can_create_public_pick: false
+  decision_schema_version: w2.recommendation_decision.v4
+  real_fixture_offline_replay: PASS
+  network_calls_during_replay: 0
+  real_provider_calls_executed: 0
+  manual_evaluation_inserts: 0
+  manual_pair_inserts: 0
+  manual_checkpoint_inserts: 0
+  db_recompute_byte_identical: true
+  replay_idempotent: true
+  lineup_validator_authority_count: 1
+  lineup_numeric_value_model: NOT_IMPLEMENTED
+  lineup_numeric_adjustment: "OFF"
+  candidate: "OFF"
+  formal: "OFF"
+  lock: "OFF"
+  production: "OFF"
 tasks:
   ARCH-P2-02:
     status: DONE
@@ -366,6 +392,10 @@ EXPLICIT_NOT_READY_CARDS: 51
 DYNAMIC_EVALUATION_PRODUCTION_RECOVERY: PENDING
 EVAL-03: NOT_STARTED
 COLD_PULL_SLO: NOT_PROVEN
+PUBLIC_RECOMMENDATION_AUTHORITY: SINGLE
+REAL_FIXTURE_OFFLINE_REPLAY: PASS
+LINEUP_NUMERIC_VALUE_MODEL: NOT_IMPLEMENTED
+LINEUP_NUMERIC_ADJUSTMENT: "OFF"
 
 historical_receipts:
   a148:

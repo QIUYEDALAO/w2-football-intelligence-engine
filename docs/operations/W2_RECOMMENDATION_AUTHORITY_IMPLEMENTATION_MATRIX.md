@@ -30,3 +30,22 @@ Baseline scoped counts:
 - `UNIQUE_DIRECT_TEST_ONLY_CALLER_FUNCTION_COUNT = 7`
 
 Not reproduced: complete production quote candidates are not devoid of provenance, and Boss Console is not devoid of every risk subfield. The defects are that V3 does not enforce that provenance and the public headline/filter still collapses unrelated risk domains.
+
+## Implemented closure
+
+| Contract | Final result |
+|---|---|
+| Public direction writer | `1` — V4 selected candidate |
+| Public decision authority | `1` — `w2.recommendation_decision.v4` |
+| Legacy current-public consumers | `0`; V3 is history/settlement only |
+| Required immutable identity | `21/21` fields with single-field mutation coverage |
+| Formal pricing | Five-state cash-flow fair odds; independent oracle `PASS` |
+| Analysis admission | EV, EV-minus-SE and cash-flow price edge; legacy 5pp delta diagnostic only |
+| Lineup readiness | One validator consumed by all four paths; numeric adjustment `OFF` |
+| Dashboard risk | Four independent axes with backend/frontend parity `PASS` |
+| Dead code | Six symbols and nine direct test-only call sites removed; production callers removed `0` |
+| Real fixture replay | Saved four-endpoint sequence, network `0`, Provider `0`, byte-identical twice |
+
+Replay evidence is recorded in
+`W2_RECOMMENDATION_AUTHORITY_REAL_FIXTURE_REPLAY_RECEIPT_20260804.md`; the private raw bundle is not
+tracked.
