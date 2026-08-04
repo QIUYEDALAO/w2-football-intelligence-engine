@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -78,5 +79,19 @@ def test_manifest_fails_closed_for_production_without_public(tmp_path: Path) -> 
 
 def test_legacy_environment_switch_is_admission_only(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("W2_FORMAL_RECOMMENDATION_ENABLED", "true")
+
+    assert formal_recommendations_enabled() is False
+
+
+def test_manifest_enabled_but_environment_disabled_is_not_formal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("W2_FORMAL_RECOMMENDATION_ENABLED", raising=False)
+    monkeypatch.setattr(
+        "w2.strategy.formal_recommendation.load_recommendation_capability_manifest",
+        lambda: SimpleNamespace(
+            capability=lambda _name: SimpleNamespace(feature_enabled=True)
+        ),
+    )
 
     assert formal_recommendations_enabled() is False

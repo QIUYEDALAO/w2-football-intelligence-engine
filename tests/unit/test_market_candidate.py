@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from w2.markets.market_candidate import (
+    _best_evaluated_side,
     build_market_candidates,
     candidate_is_executable,
     select_authoritative_market_candidate,
@@ -52,6 +53,81 @@ def _ready_simulation() -> dict[str, object]:
             "params": {"dixon_coles_rho": 0.0},
         },
     }
+
+
+def _evaluated_candidate(
+    *, market: str, selection: str, expected_value: float, uncertainty: float, edge: float
+) -> dict[str, object]:
+    return {
+        "market": market,
+        "selection": selection,
+        "line": "2.5" if market == "TOTALS" else "-0.5",
+        "candidate_role": "MARKET_MAINLINE",
+        "quote_status": "COMPLETE",
+        "quote_usage": "EXECUTABLE",
+        "quotes": {"executable": {"decimal_odds": "1.9"}},
+        "analysis_evidence": {
+            "status": "COMPLETE",
+            "model_probability": {
+                "status": "READY",
+                "expected_value": expected_value,
+                "ev_se": uncertainty,
+            },
+            "comparison": {"cashflow_price_edge": edge},
+        },
+    }
+
+
+def test_admission_eligible_ou_beats_higher_robust_but_ineligible_ah() -> None:
+    ah = _evaluated_candidate(
+        market="ASIAN_HANDICAP",
+        selection="HOME",
+        expected_value=0.20,
+        uncertainty=0.01,
+        edge=0.04,
+    )
+    totals = _evaluated_candidate(
+        market="TOTALS",
+        selection="OVER",
+        expected_value=0.10,
+        uncertainty=0.02,
+        edge=0.06,
+    )
+
+    assert select_authoritative_market_candidate({"ah": ah, "ou": totals}) == totals
+
+
+def test_admission_eligible_ah_side_beats_higher_robust_ineligible_side() -> None:
+    evidence = {
+        "status": "COMPLETE",
+        "side_evidence": {
+            "HOME": {
+                "line": "-0.5",
+                "model_probability": {
+                    "status": "READY",
+                    "expected_value": 0.20,
+                    "ev_se": 0.01,
+                },
+                "comparison": {"cashflow_price_edge": 0.04},
+            },
+            "AWAY": {
+                "line": "0.5",
+                "model_probability": {
+                    "status": "READY",
+                    "expected_value": 0.10,
+                    "ev_se": 0.02,
+                },
+                "comparison": {"cashflow_price_edge": 0.06},
+            },
+        },
+    }
+
+    assert _best_evaluated_side(
+        evidence,
+        market="ASIAN_HANDICAP",
+        odds={"home_line": "-0.5", "away_line": "0.5"},
+        quote_complete=True,
+    ) == "AWAY"
 
 
 def test_fresh_ah_and_stale_ou_are_independent_candidates() -> None:

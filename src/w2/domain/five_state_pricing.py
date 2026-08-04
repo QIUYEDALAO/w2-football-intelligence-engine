@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
+MIN_CASHFLOW_PRICE_EDGE = Decimal("0.05")
+
 
 @dataclass(frozen=True, kw_only=True)
 class SettlementDistribution:

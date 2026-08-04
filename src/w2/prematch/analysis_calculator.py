@@ -70,8 +70,11 @@ from w2.domain.recommendation_decision_v4 import (
     RecommendationOutcomeV4,
     authoritative_input_from_market_candidate,
     build_recommendation_decision_v4,
+    candidate_identity_hash,
+    valid_kickoff_identity,
     validate_decision_v4_identity,
 )
+from w2.formal.readiness import validate_formal_ah_readiness
 from w2.features.engine import FeatureInputs, build_feature_set
 from w2.features.framework import FeatureContext
 from w2.features.live_factors import TeamXgSnapshot
@@ -515,6 +518,8 @@ def _build_public_recommendation_decision_v4(
     row: Mapping[str, Any],
     candidate: Mapping[str, Any] | None,
     formal_recommendation: Mapping[str, Any] | None,
+    formal_result: Any = None,
+    analysis_readiness: Mapping[str, Any] | None = None,
 ) -> RecommendationDecisionV4:
     selected = dict(candidate) if isinstance(candidate, Mapping) else {}
     provenance = card.get("frozen_artifact_provenance")
@@ -533,9 +538,7 @@ def _build_public_recommendation_decision_v4(
         "kickoff_utc": kickoff_utc,
     }
     market = str(selected.get("market") or "")
-    formal_capability_enabled = (
-        load_recommendation_capability_manifest().capability("formal_ah").feature_enabled
-    )
+    formal_capability_enabled = formal_recommendations_enabled()
     capability_status = (
         "FORMAL_ENABLED"
         if market == "ASIAN_HANDICAP" and formal_capability_enabled
@@ -543,6 +546,7 @@ def _build_public_recommendation_decision_v4(
         if market == "ASIAN_HANDICAP"
         else "ANALYSIS_ONLY"
     )
+    kickoff_revision = card.get("kickoff_revision") or row.get("kickoff_revision")
     authoritative_fixture_identity = {
         **fixture_identity,
         "fixture_id": fixture_id,
@@ -552,9 +556,9 @@ def _build_public_recommendation_decision_v4(
         ),
         "kickoff_utc": kickoff_utc,
         "identity_hash": str(
-            card.get("kickoff_revision")
-            or row.get("kickoff_revision")
-            or canonical_sha256(
+            kickoff_revision
+            if valid_kickoff_identity(kickoff_revision)
+            else canonical_sha256(
                 kickoff_identity,
                 domain=HashDomain.PREMATCH_READ_MODEL_FIXTURE_INPUT,
             )
@@ -566,7 +570,98 @@ def _build_public_recommendation_decision_v4(
         kickoff_utc=kickoff_utc,
         capability_status=capability_status,
     )
+    authoritative_input["formal_admission"] = _public_formal_admission(
+        authoritative_input=authoritative_input,
+        formal_recommendation=formal_recommendation,
+        formal_result=formal_result,
+        analysis_readiness=analysis_readiness,
+        formal_capability_enabled=formal_capability_enabled,
+    )
     return build_recommendation_decision_v4(authoritative_input)
+
+
+def _public_formal_admission(
+    *,
+    authoritative_input: Mapping[str, Any],
+    formal_recommendation: Mapping[str, Any] | None,
+    formal_result: Any,
+    analysis_readiness: Mapping[str, Any] | None,
+    formal_capability_enabled: bool,
+) -> dict[str, Any]:
+    empty = {
+        "readiness_hash": None,
+        "approval_hash": None,
+        "candidate_identity_hash": None,
+    }
+    if authoritative_input.get("market") != "ASIAN_HANDICAP":
+        return {"status": "NOT_APPLICABLE", **empty}
+    if not formal_capability_enabled:
+        return {"status": "DISABLED", **empty}
+    if (
+        not isinstance(formal_recommendation, Mapping)
+        or getattr(formal_result, "formal_eligible", False) is not True
+    ):
+        return {"status": "NOT_READY", **empty}
+    nested = _mapping(analysis_readiness).get("formal_ah_readiness")
+    if not isinstance(nested, Mapping):
+        return {"status": "NOT_READY", **empty}
+    try:
+        readiness = validate_formal_ah_readiness(nested)
+    except ValueError:
+        return {"status": "NOT_READY", **empty}
+    readiness_hash = readiness.get("readiness_hash")
+    approval_hash = readiness.get("approval_hash")
+    if (
+        readiness.get("formal_eligible") is not True
+        or _mapping(readiness.get("approval_status")).get("passed") is not True
+        or not _lower_sha256(readiness_hash)
+        or not _lower_sha256(approval_hash)
+        or not _formal_identity_matches(authoritative_input, formal_recommendation)
+    ):
+        return {"status": "NOT_READY", **empty}
+    return {
+        "status": "PASSED",
+        "readiness_hash": readiness_hash,
+        "approval_hash": approval_hash,
+        "candidate_identity_hash": candidate_identity_hash(authoritative_input),
+    }
+
+
+def _mapping(value: Any) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _formal_identity_matches(
+    authoritative_input: Mapping[str, Any],
+    formal_recommendation: Mapping[str, Any],
+) -> bool:
+    selection = str(formal_recommendation.get("selection") or "").removesuffix("_AH")
+    if (
+        formal_recommendation.get("market") != authoritative_input.get("market")
+        or selection != authoritative_input.get("selection")
+        or _float_or_none(formal_recommendation.get("line"))
+        != _float_or_none(authoritative_input.get("exact_line"))
+        or _float_or_none(formal_recommendation.get("odds"))
+        != _float_or_none(authoritative_input.get("decimal_odds"))
+    ):
+        return False
+    identity = _mapping(formal_recommendation.get("quote_identity"))
+    mainline = _mapping(authoritative_input.get("canonical_mainline_identity"))
+    return identity == {
+        "provider": authoritative_input.get("provider"),
+        "bookmaker_id": authoritative_input.get("bookmaker_id"),
+        "capture_id": authoritative_input.get("capture_id"),
+        "captured_at": authoritative_input.get("captured_at"),
+        "observation_ids": authoritative_input.get("quote_observation_ids"),
+        "raw_payload_sha256": authoritative_input.get("raw_payload_sha256"),
+        "source_revision": authoritative_input.get("source_revision"),
+        "quote_identity_hash": mainline.get("quote_identity_hash"),
+    }
+
+
+def _lower_sha256(value: Any) -> bool:
+    text = value if isinstance(value, str) else ""
+    return len(text) == 64 and all(character in "0123456789abcdef" for character in text)
 
 
 def _recommendation_from_v4(
@@ -591,8 +686,10 @@ def _recommendation_from_v4(
         "source_revision": authoritative.get("source_revision"),
         "quote_identity_hash": mainline.get("quote_identity_hash"),
     }
-    if decision.outcome is RecommendationOutcomeV4.FORMAL_RECOMMEND and isinstance(
-        formal_recommendation, Mapping
+    if (
+        decision.outcome is RecommendationOutcomeV4.FORMAL_RECOMMEND
+        and isinstance(formal_recommendation, Mapping)
+        and _formal_identity_matches(authoritative, formal_recommendation)
     ):
         return {**formal_recommendation, "quote_identity": quote_identity}
     if decision.outcome is not RecommendationOutcomeV4.ANALYSIS_PICK:
@@ -6502,6 +6599,21 @@ class ReadModelService:
                 "recommendation_id": recommendation_id,
                 "id": recommendation_id,
             }
+        if formal_recommendation is not None:
+            quote_identity = _mapping(_mapping(authoritative_candidate).get("quote_identity"))
+            formal_recommendation = {
+                **formal_recommendation,
+                "quote_identity": {
+                    "provider": quote_identity.get("provider"),
+                    "bookmaker_id": quote_identity.get("bookmaker_id"),
+                    "capture_id": quote_identity.get("capture_id"),
+                    "captured_at": quote_identity.get("captured_at"),
+                    "observation_ids": quote_identity.get("observation_ids"),
+                    "raw_payload_sha256": quote_identity.get("raw_payload_sha256"),
+                    "source_revision": quote_identity.get("source_revision"),
+                    "quote_identity_hash": quote_identity.get("quote_identity_hash"),
+                },
+            }
         formal_blockers = list(formal_result.blockers)
         if formal_result.formal_eligible and formal_recommendation is None:
             blocker = _formal_payload_blocker(formal_result)
@@ -6525,6 +6637,8 @@ class ReadModelService:
             row=row,
             candidate=authoritative_candidate,
             formal_recommendation=formal_recommendation,
+            formal_result=formal_result,
+            analysis_readiness=analysis_readiness,
         )
         recommendation = _recommendation_from_v4(
             decision_v4,

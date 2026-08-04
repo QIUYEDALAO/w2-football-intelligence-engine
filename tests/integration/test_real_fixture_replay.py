@@ -28,6 +28,7 @@ from w2.replay.real_fixture import (
     RealFixtureReplayError,
     _database_value,
     _materializer,
+    _postmatch_ledger_replay,
     _seed_source_context,
     _source_runtime_environment,
     export_real_fixture_bundle,
@@ -35,6 +36,7 @@ from w2.replay.real_fixture import (
     network_disabled,
     replay_real_fixture_bundle,
 )
+from w2.tracking.outcome_ledger_repository import business_key
 
 FIXTURE_ID = "990001"
 SOURCE_SHA = "a" * 40
@@ -213,12 +215,16 @@ def test_real_fixture_raw_replay_is_offline_byte_identical_and_idempotent(
         current_migration_head=MIGRATION_HEAD,
     )
     assert receipt["REAL_FIXTURE_OFFLINE_REPLAY"] == "PASS"
+    assert receipt["REAL_FIXTURE_PREMATCH_RECOMMENDATION_REPLAY"] == "PASS"
     assert receipt["NETWORK_CALLS_DURING_REPLAY"] == 0
     assert receipt["MANUAL_EVALUATION_INSERTS"] == 0
     assert receipt["MANUAL_PAIR_INSERTS"] == 0
     assert receipt["MANUAL_CHECKPOINT_INSERTS"] == 0
     assert receipt["DB_RECOMPUTE_BYTE_IDENTICAL"] is True
     assert receipt["REPLAY_IDEMPOTENT"] is True
+    assert receipt["POSTMATCH_LEDGER_REPLAY"] == "PENDING"
+    assert receipt["POSTMATCH_LEDGER_REPLAY_REASON"] == "SAVED_RESULT_EVIDENCE_MISSING"
+    assert receipt["MANUAL_LEDGER_INSERTS"] == 0
 
     sanitized = json.loads((bundle_root / "manifest.sanitized.json").read_bytes())
     logical_paths = {item["logical_path"] for item in sanitized["file_receipts"]}
@@ -263,6 +269,47 @@ def test_replay_uses_database_authority_runtime_environment() -> None:
     }
 
     assert _source_runtime_environment(context) == "staging"
+
+
+def test_saved_result_without_prematch_pick_keeps_postmatch_replay_pending() -> None:
+    payload = {
+        "schema_version": "w2.forward_outcome_ledger.v3",
+        "record_type": "capture",
+        "fixture_id": "1494232",
+        "captured_at": "2026-08-03T11:02:51Z",
+        "capture_identity_hash": "a" * 64,
+        "pick": {},
+        "shadow_pick": None,
+    }
+    replay = _postmatch_ledger_replay(
+        {
+            "outcome_ledger": [
+                {
+                    "business_key": business_key(payload, "capture"),
+                    "record_type": "capture",
+                    "payload": payload,
+                }
+            ],
+            "results": [
+                {
+                    "fixture_id": "api_football:1494232",
+                    "result_status": "FT",
+                    "home_goals": 0,
+                    "away_goals": 2,
+                }
+            ],
+        }
+    )
+
+    assert replay == {
+        "POSTMATCH_LEDGER_REPLAY": "PENDING",
+        "POSTMATCH_LEDGER_REPLAY_REASON": (
+            "NO_SETTLEMENT_ELIGIBLE_PREMATCH_PICK_IN_SOURCE_LEDGER"
+        ),
+        "LEDGER_BUSINESS_IDENTITY_MATCH": True,
+        "SOURCE_SETTLEMENT_ELIGIBLE_CAPTURE_COUNT": 0,
+        "MANUAL_LEDGER_INSERTS": 0,
+    }
 
 
 def test_incomplete_database_reports_exact_missing_field_without_writing(

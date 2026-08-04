@@ -15,6 +15,7 @@ from w2.domain.canonical_serialization import (
     canonical_sha256,
 )
 from w2.domain.five_state_pricing import (
+    MIN_CASHFLOW_PRICE_EDGE,
     SettlementDistribution,
     cashflow_price_edge,
     expected_value,
@@ -22,8 +23,9 @@ from w2.domain.five_state_pricing import (
 )
 
 RECOMMENDATION_SCHEMA_VERSION = "w2.recommendation_decision.v4"
-MIN_CASHFLOW_PRICE_EDGE = Decimal("0.05")
+FIXTURE_IDENTITY_VERSION_PREFIX = "w2.fixture_identity.v1:"
 FIVE_STATE_OUTCOMES = ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")
+FORMAL_ADMISSION_STATUSES = {"DISABLED", "NOT_APPLICABLE", "NOT_READY", "PASSED"}
 
 IDENTITY_REQUIRED_FIELDS = (
     "fixture_id",
@@ -59,6 +61,7 @@ _REQUIRED_INPUT_FIELDS = (
     "uncertainty",
     "readiness",
     "capability_status",
+    "formal_admission",
 )
 _OPTIONAL_DIAGNOSTIC_FIELDS = (
     "model_probability",
@@ -115,6 +118,7 @@ def authoritative_input_from_market_candidate(
     fixture_identity: Mapping[str, Any],
     kickoff_utc: object,
     capability_status: str,
+    formal_admission: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     quote_identity = _mapping(candidate.get("quote_identity"))
     executable = _mapping(_mapping(candidate.get("quotes")).get("executable"))
@@ -171,6 +175,17 @@ def authoritative_input_from_market_candidate(
             "model_status": model.get("status"),
         },
         "capability_status": capability_status,
+        "formal_admission": dict(
+            formal_admission
+            or {
+                "status": "NOT_APPLICABLE"
+                if candidate.get("market") != "ASIAN_HANDICAP"
+                else "DISABLED",
+                "readiness_hash": None,
+                "approval_hash": None,
+                "candidate_identity_hash": None,
+            }
+        ),
         "model_probability": model.get("effective_probability"),
         "market_probability": market_probabilities.get(str(candidate.get("selection") or "")),
         "probability_delta_diagnostic": comparison.get("probability_delta"),
@@ -255,6 +270,8 @@ def _normalize_input(value: Mapping[str, Any]) -> tuple[dict[str, Any], list[str
     payload = {field: value.get(field) for field in _REQUIRED_INPUT_FIELDS}
     payload.update({field: value.get(field) for field in _OPTIONAL_DIAGNOSTIC_FIELDS})
     blockers: list[str] = []
+    raw_source_revision = value.get("source_revision")
+    raw_kickoff_identity = value.get("kickoff_revision_or_fixture_identity_hash")
     for field in _REQUIRED_INPUT_FIELDS:
         raw = payload[field]
         if raw is None or (isinstance(raw, str) and not raw.strip()):
@@ -352,6 +369,8 @@ def _normalize_input(value: Mapping[str, Any]) -> tuple[dict[str, Any], list[str
         or not _sha256(mainline.get("quote_identity_hash"))
     ):
         blockers.append("CANONICAL_MAINLINE_IDENTITY_INCOMPLETE")
+    if not _sha256(mainline.get("quote_identity_hash")):
+        blockers.append("INVALID_QUOTE_IDENTITY_HASH")
     readiness = _mapping(payload["readiness"])
     if readiness.get("quote_identity_status") != "COMPLETE":
         blockers.append("QUOTE_IDENTITY_NOT_READY")
@@ -388,6 +407,11 @@ def _normalize_input(value: Mapping[str, Any]) -> tuple[dict[str, Any], list[str
     for field in ("raw_payload_sha256", "model_input_manifest_hash"):
         if not _sha256(payload[field]):
             blockers.append(f"INVALID_{field.upper()}")
+    if not _sha40(raw_source_revision):
+        blockers.append("INVALID_SOURCE_REVISION")
+    if not _kickoff_identity(raw_kickoff_identity):
+        blockers.append("INVALID_KICKOFF_REVISION_OR_FIXTURE_IDENTITY_HASH")
+    payload["formal_admission"] = _formal_admission(payload, blockers)
     return payload, sorted(set(blockers))
 
 
@@ -412,10 +436,8 @@ def _outcome(
         or cashflow_edge < MIN_CASHFLOW_PRICE_EDGE
     ):
         return RecommendationOutcomeV4.NO_EDGE, "CASHFLOW_EDGE_INSUFFICIENT", "五态现金流优势不足"
-    if (
-        payload.get("capability_status") == "FORMAL_ENABLED"
-        and payload.get("market") == "ASIAN_HANDICAP"
-    ):
+    formal_admission = _mapping(payload.get("formal_admission"))
+    if formal_admission.get("status") == "PASSED":
         return RecommendationOutcomeV4.FORMAL_RECOMMEND, "FORMAL_ADMITTED", "正式推荐已通过能力门"
     return RecommendationOutcomeV4.ANALYSIS_PICK, "ANALYSIS_ONLY", "当前仅提供分析参考"
 
@@ -570,6 +592,89 @@ def _decimal_text(value: Decimal) -> str:
 def _sha256(value: Any) -> bool:
     text = str(value or "")
     return len(text) == 64 and all(character in "0123456789abcdef" for character in text)
+
+
+def _sha40(value: Any) -> bool:
+    text = value if isinstance(value, str) else ""
+    return len(text) == 40 and all(character in "0123456789abcdef" for character in text)
+
+
+def _kickoff_identity(value: Any) -> bool:
+    text = value if isinstance(value, str) else ""
+    if _sha256(text):
+        return True
+    if not text.startswith(FIXTURE_IDENTITY_VERSION_PREFIX):
+        return False
+    return _sha256(text.removeprefix(FIXTURE_IDENTITY_VERSION_PREFIX))
+
+
+def valid_kickoff_identity(value: Any) -> bool:
+    return _kickoff_identity(value)
+
+
+def candidate_identity_hash(authoritative_input: Mapping[str, Any]) -> str:
+    mainline = _mapping(authoritative_input.get("canonical_mainline_identity"))
+    return canonical_sha256(
+        {
+            "market": str(authoritative_input.get("market") or "").strip(),
+            "selection": str(authoritative_input.get("selection") or "").strip(),
+            "exact_line": _normalized_decimal(authoritative_input.get("exact_line")),
+            "decimal_odds": _normalized_decimal(authoritative_input.get("decimal_odds")),
+            "provider": str(authoritative_input.get("provider") or "").strip(),
+            "bookmaker_id": str(authoritative_input.get("bookmaker_id") or "").strip(),
+            "capture_id": str(authoritative_input.get("capture_id") or "").strip(),
+            "captured_at": _utc_text(authoritative_input.get("captured_at")),
+            "quote_observation_ids": _canonical_observation_ids(
+                authoritative_input.get("quote_observation_ids")
+            ),
+            "quote_identity_hash": str(mainline.get("quote_identity_hash") or ""),
+        },
+        domain=HashDomain.RECOMMENDATION_DECISION_V4,
+        version=SerializerVersion.V2,
+    )
+
+
+def _formal_admission(payload: Mapping[str, Any], blockers: list[str]) -> dict[str, Any]:
+    raw = payload.get("formal_admission")
+    if not isinstance(raw, Mapping):
+        blockers.append("INVALID_FORMAL_ADMISSION")
+        return {}
+    admission = {
+        "status": raw.get("status"),
+        "readiness_hash": raw.get("readiness_hash"),
+        "approval_hash": raw.get("approval_hash"),
+        "candidate_identity_hash": raw.get("candidate_identity_hash"),
+    }
+    status = admission["status"]
+    if status not in FORMAL_ADMISSION_STATUSES:
+        blockers.append("INVALID_FORMAL_ADMISSION_STATUS")
+        return admission
+    if status == "NOT_APPLICABLE" and payload.get("market") == "ASIAN_HANDICAP":
+        blockers.append("FORMAL_ADMISSION_MARKET_CONFLICT")
+    if status == "PASSED":
+        if payload.get("market") != "ASIAN_HANDICAP":
+            blockers.append("FORMAL_ADMISSION_MARKET_CONFLICT")
+        if payload.get("capability_status") != "FORMAL_ENABLED":
+            blockers.append("FORMAL_ADMISSION_CAPABILITY_CONFLICT")
+        for field in ("readiness_hash", "approval_hash", "candidate_identity_hash"):
+            if not _sha256(admission[field]):
+                blockers.append(f"INVALID_FORMAL_ADMISSION_{field.upper()}")
+        if admission["candidate_identity_hash"] != candidate_identity_hash(payload):
+            blockers.append("FORMAL_CANDIDATE_IDENTITY_MISMATCH")
+    return admission
+
+
+def _normalized_decimal(value: Any) -> str | None:
+    parsed = _decimal(value)
+    return _decimal_text(parsed) if parsed is not None else None
+
+
+def _canonical_observation_ids(value: Any) -> dict[str, str] | list[str]:
+    if isinstance(value, Mapping):
+        return dict(sorted((str(key).strip(), str(item).strip()) for key, item in value.items()))
+    if isinstance(value, Sequence) and not isinstance(value, str | bytes):
+        return sorted(str(item).strip() for item in value)
+    return []
 
 
 def _mapping(value: object) -> Mapping[str, Any]:

@@ -40,6 +40,7 @@ from w2.infrastructure.persistence.models import (
 )
 from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerModel
 from w2.providers.api_football import LiveApiFootballResponse
+from w2.tracking.outcome_ledger_repository import business_key
 
 ROOT = Path(__file__).resolve().parents[3]
 PRIVATE_SCHEMA = ROOT / "contracts/replay/w2_real_fixture_bundle.v1.schema.json"
@@ -1474,8 +1475,49 @@ def _replay_once(
         "source_dynamic_evaluation_count": len(source_reference["dynamic_evaluations"]),
         "source_outcome_ledger_count": len(source_reference["outcome_ledger"]),
         "source_result_count": len(source_reference["results"]),
+        **_postmatch_ledger_replay(source_reference),
     }
     return actual, metadata
+
+
+def _postmatch_ledger_replay(source_reference: Mapping[str, Any]) -> dict[str, Any]:
+    raw_ledger = source_reference.get("outcome_ledger")
+    raw_results = source_reference.get("results")
+    ledger = [dict(row) for row in raw_ledger] if isinstance(raw_ledger, list) else []
+    results = [dict(row) for row in raw_results] if isinstance(raw_results, list) else []
+    identities_match = bool(ledger) and all(
+        isinstance(row.get("payload"), Mapping)
+        and business_key(cast(Mapping[str, Any], row["payload"]), str(row.get("record_type") or ""))
+        == row.get("business_key")
+        for row in ledger
+    )
+    settlement_candidates = [
+        row
+        for row in ledger
+        if row.get("record_type") == "capture"
+        and isinstance(row.get("payload"), Mapping)
+        and _source_capture_has_pick(cast(Mapping[str, Any], row["payload"]))
+    ]
+    return {
+        "POSTMATCH_LEDGER_REPLAY": "PENDING",
+        "POSTMATCH_LEDGER_REPLAY_REASON": (
+            "NO_SETTLEMENT_ELIGIBLE_PREMATCH_PICK_IN_SOURCE_LEDGER"
+            if results and not settlement_candidates
+            else "SAVED_RESULT_EVIDENCE_MISSING"
+            if not results
+            else "SETTLEMENT_REPLAY_NOT_PROVEN"
+        ),
+        "LEDGER_BUSINESS_IDENTITY_MATCH": identities_match,
+        "SOURCE_SETTLEMENT_ELIGIBLE_CAPTURE_COUNT": len(settlement_candidates),
+        "MANUAL_LEDGER_INSERTS": 0,
+    }
+
+
+def _source_capture_has_pick(payload: Mapping[str, Any]) -> bool:
+    return any(
+        isinstance(value, Mapping) and bool(value)
+        for value in (payload.get("pick"), payload.get("shadow_pick"))
+    )
 
 
 def replay_real_fixture_bundle(
@@ -1501,6 +1543,7 @@ def replay_real_fixture_bundle(
     return {
         "schema_version": "w2.real-fixture-replay-receipt.v1",
         "REAL_FIXTURE_OFFLINE_REPLAY": "PASS",
+        "REAL_FIXTURE_PREMATCH_RECOMMENDATION_REPLAY": "PASS",
         "NETWORK_CALLS_DURING_REPLAY": 0,
         "REAL_PROVIDER_CALLS_EXECUTED": 0,
         "MANUAL_EVALUATION_INSERTS": 0,

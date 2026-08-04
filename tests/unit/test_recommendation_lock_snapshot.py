@@ -9,6 +9,7 @@ from w2.domain.canonical_serialization import CURRENT_SERIALIZER_VERSION
 from w2.domain.recommendation_decision_v4 import (
     RECOMMENDATION_SCHEMA_VERSION,
     build_recommendation_decision_v4,
+    candidate_identity_hash,
 )
 from w2.infrastructure.persistence.recommendation_lock_snapshot import (
     build_recommendation_lock_snapshot,
@@ -271,13 +272,12 @@ def _card() -> dict[str, object]:
 
 
 def _decision_v4(*, capability_status: str = "FORMAL_ENABLED") -> dict[str, object]:
-    return build_recommendation_decision_v4(
-        {
+    payload: dict[str, object] = {
             "fixture_id": "fixture-1",
             "competition_id": "world_cup_2026",
             "season": "2026",
             "kickoff_utc": "2026-06-22T03:00:00Z",
-            "kickoff_revision_or_fixture_identity_hash": "kickoff-revision-1",
+            "kickoff_revision_or_fixture_identity_hash": "d" * 64,
             "provider": "api-football",
             "bookmaker_id": "unibet",
             "market": "ASIAN_HANDICAP",
@@ -290,7 +290,7 @@ def _decision_v4(*, capability_status: str = "FORMAL_ENABLED") -> dict[str, obje
                 "away": "observation-away",
             },
             "raw_payload_sha256": "a" * 64,
-            "source_revision": "source-revision-1",
+            "source_revision": "e" * 40,
             "model_version": "model-v1",
             "calibration_version": "calibration-v1",
             "serializer_version": CURRENT_SERIALIZER_VERSION.value,
@@ -322,8 +322,22 @@ def _decision_v4(*, capability_status: str = "FORMAL_ENABLED") -> dict[str, obje
                 "model_status": "READY",
             },
             "capability_status": capability_status,
+            "formal_admission": {
+                "status": "PASSED" if capability_status == "FORMAL_ENABLED" else "DISABLED",
+                "readiness_hash": "f" * 64
+                if capability_status == "FORMAL_ENABLED"
+                else None,
+                "approval_hash": "1" * 64
+                if capability_status == "FORMAL_ENABLED"
+                else None,
+                "candidate_identity_hash": None,
+            },
         }
-    ).as_dict()
+    admission = payload["formal_admission"]
+    assert isinstance(admission, dict)
+    if capability_status == "FORMAL_ENABLED":
+        admission["candidate_identity_hash"] = candidate_identity_hash(payload)
+    return build_recommendation_decision_v4(payload).as_dict()
 
 
 def _quote_identity() -> dict[str, object]:

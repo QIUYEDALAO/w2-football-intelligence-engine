@@ -9,6 +9,7 @@ from collections.abc import Mapping
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
 
+from w2.domain.five_state_pricing import MIN_CASHFLOW_PRICE_EDGE as V4_MIN_CASHFLOW_PRICE_EDGE
 from w2.markets.devig import DevigMethod, devig
 from w2.markets.settlement_probability import effective_settlement_probability
 from w2.markets.value_engine import (
@@ -22,7 +23,7 @@ from w2.strategy.simulate import _exact_score_matrix
 
 SCHEMA_VERSION = "w2.analysis_market_evidence.v1"
 MIN_MARKET_ANCHOR_DIVERGENCE = 0.05
-MIN_CASHFLOW_PRICE_EDGE = 0.05
+MIN_CASHFLOW_PRICE_EDGE = float(V4_MIN_CASHFLOW_PRICE_EDGE)
 _KEYS = {"ASIAN_HANDICAP": ("ah", ("HOME", "AWAY")), "TOTALS": ("ou", ("OVER", "UNDER"))}
 
 

@@ -1,16 +1,21 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from copy import deepcopy
+from types import SimpleNamespace
 
 from w2.api.repository import _apply_repository_v4_authority
 from w2.dashboard.day_view import build_dashboard_day_view
 from w2.domain.recommendation_decision_v4 import (
     RecommendationOutcomeV4,
     build_recommendation_decision_v4,
+    candidate_identity_hash,
 )
 from w2.prematch.analysis_calculator import (
     ReadModelService,
     _build_public_recommendation_decision_v4,
+    _public_formal_admission,
     _recommendation_from_v4,
 )
 
@@ -47,7 +52,7 @@ def _candidate() -> dict[str, object]:
                 "away": "observation-away",
             },
             "raw_payload_sha256": "a" * 64,
-            "source_revision": "source-revision-1",
+            "source_revision": "d" * 40,
             "quote_identity_hash": "c" * 64,
         },
         "analysis_evidence": {
@@ -149,23 +154,24 @@ def test_public_v4_input_reuses_exact_candidate_identity_and_manifest_gate() -> 
         "quote_identity_hash": "c" * 64,
     }
     assert authoritative["capability_status"] == "FORMAL_DISABLED"
+    assert authoritative["formal_admission"]["status"] == "DISABLED"
 
 
 def test_formal_recommendation_carries_exact_v4_quote_identity() -> None:
     materialized = _decision()
     authoritative = deepcopy(materialized["authoritative_input"])
     authoritative["capability_status"] = "FORMAL_ENABLED"
+    authoritative["formal_admission"] = {
+        "status": "PASSED",
+        "readiness_hash": "e" * 64,
+        "approval_hash": "f" * 64,
+        "candidate_identity_hash": candidate_identity_hash(authoritative),
+    }
     decision = build_recommendation_decision_v4(authoritative)
 
     recommendation = _recommendation_from_v4(
         decision,
-        formal_recommendation={
-            "tier": "FORMAL",
-            "market": "ASIAN_HANDICAP",
-            "selection": "AWAY_AH",
-            "line": "0.5",
-            "odds": "1.6",
-        },
+        formal_recommendation=_formal_payload(authoritative),
     )
 
     assert decision.outcome is RecommendationOutcomeV4.FORMAL_RECOMMEND
@@ -180,9 +186,123 @@ def test_formal_recommendation_carries_exact_v4_quote_identity() -> None:
             "away": "observation-away",
         },
         "raw_payload_sha256": "a" * 64,
-        "source_revision": "source-revision-1",
+        "source_revision": "d" * 40,
         "quote_identity_hash": "c" * 64,
     }
+
+
+def _formal_readiness(*, approved: bool = True) -> dict[str, object]:
+    body: dict[str, object] = {
+        "schema_version": "w2.formal_ah_readiness.v1",
+        "actual_hashes": {"evidence": "a" * 64},
+        "approved_hashes": {"evidence": "a" * 64} if approved else {},
+        "approval_status": {"passed": approved},
+        "approval_hash": "b" * 64 if approved else None,
+        "formal_eligible": approved,
+    }
+    body["readiness_hash"] = hashlib.sha256(
+        json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return body
+
+
+def _formal_payload(authoritative: dict[str, object]) -> dict[str, object]:
+    mainline = authoritative["canonical_mainline_identity"]
+    assert isinstance(mainline, dict)
+    return {
+        "tier": "FORMAL",
+        "market": "ASIAN_HANDICAP",
+        "selection": "AWAY_AH",
+        "line": authoritative["exact_line"],
+        "odds": authoritative["decimal_odds"],
+        "quote_identity": {
+            "provider": authoritative["provider"],
+            "bookmaker_id": authoritative["bookmaker_id"],
+            "capture_id": authoritative["capture_id"],
+            "captured_at": authoritative["captured_at"],
+            "observation_ids": authoritative["quote_observation_ids"],
+            "raw_payload_sha256": authoritative["raw_payload_sha256"],
+            "source_revision": authoritative["source_revision"],
+            "quote_identity_hash": mainline["quote_identity_hash"],
+        },
+    }
+
+
+def test_manifest_enabled_but_environment_disabled_cannot_admit_formal() -> None:
+    authoritative = deepcopy(_decision()["authoritative_input"])
+    assert isinstance(authoritative, dict)
+    admission = _public_formal_admission(
+        authoritative_input=authoritative,
+        formal_recommendation=_formal_payload(authoritative),
+        formal_result=SimpleNamespace(formal_eligible=True),
+        analysis_readiness={"formal_ah_readiness": _formal_readiness()},
+        formal_capability_enabled=False,
+    )
+
+    assert admission["status"] == "DISABLED"
+
+
+def test_enabled_gates_without_human_approval_cannot_admit_formal() -> None:
+    authoritative = deepcopy(_decision()["authoritative_input"])
+    assert isinstance(authoritative, dict)
+    admission = _public_formal_admission(
+        authoritative_input=authoritative,
+        formal_recommendation=_formal_payload(authoritative),
+        formal_result=SimpleNamespace(formal_eligible=True),
+        analysis_readiness={"formal_ah_readiness": _formal_readiness(approved=False)},
+        formal_capability_enabled=True,
+    )
+
+    assert admission["status"] == "NOT_READY"
+
+
+def test_empty_formal_result_cannot_admit_formal() -> None:
+    authoritative = deepcopy(_decision()["authoritative_input"])
+    assert isinstance(authoritative, dict)
+    admission = _public_formal_admission(
+        authoritative_input=authoritative,
+        formal_recommendation=None,
+        formal_result=SimpleNamespace(formal_eligible=False),
+        analysis_readiness={"formal_ah_readiness": _formal_readiness()},
+        formal_capability_enabled=True,
+    )
+
+    assert admission["status"] == "NOT_READY"
+
+
+def test_formal_payload_candidate_identity_mismatch_cannot_admit_formal() -> None:
+    authoritative = deepcopy(_decision()["authoritative_input"])
+    assert isinstance(authoritative, dict)
+    formal = _formal_payload(authoritative)
+    formal["line"] = "0.75"
+    admission = _public_formal_admission(
+        authoritative_input=authoritative,
+        formal_recommendation=formal,
+        formal_result=SimpleNamespace(formal_eligible=True),
+        analysis_readiness={"formal_ah_readiness": _formal_readiness()},
+        formal_capability_enabled=True,
+    )
+
+    assert admission["status"] == "NOT_READY"
+
+
+def test_only_complete_same_candidate_formal_evidence_is_admitted() -> None:
+    authoritative = deepcopy(_decision()["authoritative_input"])
+    assert isinstance(authoritative, dict)
+    authoritative["capability_status"] = "FORMAL_ENABLED"
+    admission = _public_formal_admission(
+        authoritative_input=authoritative,
+        formal_recommendation=_formal_payload(authoritative),
+        formal_result=SimpleNamespace(formal_eligible=True),
+        analysis_readiness={"formal_ah_readiness": _formal_readiness()},
+        formal_capability_enabled=True,
+    )
+    authoritative["formal_admission"] = admission
+
+    decision = build_recommendation_decision_v4(authoritative)
+
+    assert admission["status"] == "PASSED"
+    assert decision.outcome is RecommendationOutcomeV4.FORMAL_RECOMMEND
 
 
 def test_repository_current_projection_uses_v4_not_historical_v3_direction() -> None:

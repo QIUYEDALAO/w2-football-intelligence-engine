@@ -80,7 +80,7 @@ def _analysis_v4_decision() -> dict[str, object]:
             "competition_id": "world_cup_2026",
             "season": "2026",
             "kickoff_utc": "2026-07-07T16:00:00Z",
-            "kickoff_revision_or_fixture_identity_hash": "kickoff-revision-1",
+            "kickoff_revision_or_fixture_identity_hash": "d" * 64,
             "provider": "api-football",
             "bookmaker_id": "unibet",
             "market": "ASIAN_HANDICAP",
@@ -93,7 +93,7 @@ def _analysis_v4_decision() -> dict[str, object]:
                 "away": "observation-away",
             },
             "raw_payload_sha256": "a" * 64,
-            "source_revision": "source-revision-1",
+            "source_revision": "e" * 40,
             "model_version": "model-v1",
             "calibration_version": "calibration-v1",
             "serializer_version": CURRENT_SERIALIZER_VERSION.value,
@@ -125,6 +125,12 @@ def _analysis_v4_decision() -> dict[str, object]:
                 "model_status": "READY",
             },
             "capability_status": "FORMAL_DISABLED",
+            "formal_admission": {
+                "status": "DISABLED",
+                "readiness_hash": None,
+                "approval_hash": None,
+                "candidate_identity_hash": None,
+            },
         }
     ).as_dict()
 

@@ -69,6 +69,7 @@ def evaluate_formal_ah_readiness(
         "global_gates": gates,
         "fixture_gates": fixture_gates,
         "approval_status": approval,
+        "approval_hash": approval.get("approval_hash"),
         "approved_hashes": approval.get("accepted_hashes") or {},
         "actual_hashes": actual_hashes,
         "missing_actual_hashes": missing_actual_hashes,
@@ -197,7 +198,12 @@ def _approval_status(
                 "accepted_hashes": dict(hashes),
                 "mismatched_hash": key,
             }
-    return {"passed": True, "reason": None, "accepted_hashes": dict(hashes)}
+    return {
+        "passed": True,
+        "reason": None,
+        "accepted_hashes": dict(hashes),
+        "approval_hash": actual_hash,
+    }
 
 
 def _actual_hashes(

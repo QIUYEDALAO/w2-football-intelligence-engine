@@ -12,6 +12,7 @@ from w2.domain.canonical_serialization import CURRENT_SERIALIZER_VERSION
 from w2.domain.recommendation_decision_v4 import (
     RECOMMENDATION_SCHEMA_VERSION,
     build_recommendation_decision_v4,
+    candidate_identity_hash,
 )
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.models import (
@@ -382,13 +383,12 @@ def _formal_card(fixture_id: str, kickoff_utc: datetime) -> dict[str, object]:
 
 
 def _formal_decision_v4(fixture_id: str, kickoff_utc: datetime) -> dict[str, object]:
-    return build_recommendation_decision_v4(
-        {
+    payload: dict[str, object] = {
             "fixture_id": fixture_id,
             "competition_id": "synthetic_cup",
             "season": "2026",
             "kickoff_utc": kickoff_utc.isoformat().replace("+00:00", "Z"),
-            "kickoff_revision_or_fixture_identity_hash": "kickoff-revision-1",
+            "kickoff_revision_or_fixture_identity_hash": "d" * 64,
             "provider": "api-football",
             "bookmaker_id": "unibet",
             "market": "ASIAN_HANDICAP",
@@ -401,7 +401,7 @@ def _formal_decision_v4(fixture_id: str, kickoff_utc: datetime) -> dict[str, obj
                 "away": "observation-away",
             },
             "raw_payload_sha256": "a" * 64,
-            "source_revision": "source-revision-1",
+            "source_revision": "e" * 40,
             "model_version": "model-v1",
             "calibration_version": "calibration-v1",
             "serializer_version": CURRENT_SERIALIZER_VERSION.value,
@@ -433,8 +433,17 @@ def _formal_decision_v4(fixture_id: str, kickoff_utc: datetime) -> dict[str, obj
                 "model_status": "READY",
             },
             "capability_status": "FORMAL_ENABLED",
+            "formal_admission": {
+                "status": "PASSED",
+                "readiness_hash": "f" * 64,
+                "approval_hash": "1" * 64,
+                "candidate_identity_hash": None,
+            },
         }
-    ).as_dict()
+    admission = payload["formal_admission"]
+    assert isinstance(admission, dict)
+    admission["candidate_identity_hash"] = candidate_identity_hash(payload)
+    return build_recommendation_decision_v4(payload).as_dict()
 
 
 def _quote_identity(decision: dict[str, object]) -> dict[str, object]:
