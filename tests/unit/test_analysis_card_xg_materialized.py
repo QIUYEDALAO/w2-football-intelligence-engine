@@ -194,6 +194,11 @@ class FakeReadRepository:
         ]
 
 
+class FakeReadRepositoryWithoutOdds(FakeReadRepository):
+    def future_market_observations(self) -> list[dict[str, Any]]:
+        return []
+
+
 class FakeReadRepositoryWithStaleDashboardFixture(FakeReadRepository):
     def dashboard_fixture(self, fixture_id: str) -> dict[str, Any] | None:
         if fixture_id != "1489410":
@@ -535,6 +540,73 @@ class FakeCanonicalDbRepository(FakeDbRepository):
         return [row for row in rows if row["team_id"] in team_ids]
 
 
+class FakeCanonicalDbRepositoryCurrentXg(FakeCanonicalDbRepository):
+    def team_xg_rolling_snapshots_for_w2_teams(
+        self,
+        team_ids: list[str],
+        *,
+        before: datetime,
+        competition_id: str,
+        season: str,
+    ) -> list[dict[str, Any]]:
+        return [
+            {**row, "as_of_time": (NOW - timedelta(minutes=1)).isoformat()}
+            for row in super().team_xg_rolling_snapshots_for_w2_teams(
+                team_ids,
+                before=before,
+                competition_id=competition_id,
+                season=season,
+            )
+        ]
+
+
+class FakeCanonicalDbRepositoryWithoutRatings(FakeCanonicalDbRepositoryCurrentXg):
+    def team_rating_snapshots_for_w2_teams(
+        self,
+        team_ids: list[str],
+        *,
+        before: datetime,
+    ) -> list[dict[str, Any]]:
+        return []
+
+
+class FakeCanonicalDbRepositoryWithSingleSideXg(FakeCanonicalDbRepositoryCurrentXg):
+    def team_xg_rolling_snapshots_for_w2_teams(
+        self,
+        team_ids: list[str],
+        *,
+        before: datetime,
+        competition_id: str,
+        season: str,
+    ) -> list[dict[str, Any]]:
+        return super().team_xg_rolling_snapshots_for_w2_teams(
+            team_ids,
+            before=before,
+            competition_id=competition_id,
+            season=season,
+        )[:1]
+
+
+class FakeCanonicalDbRepositoryWithFutureXg(FakeCanonicalDbRepositoryCurrentXg):
+    def team_xg_rolling_snapshots_for_w2_teams(
+        self,
+        team_ids: list[str],
+        *,
+        before: datetime,
+        competition_id: str,
+        season: str,
+    ) -> list[dict[str, Any]]:
+        return [
+            {**row, "as_of_time": (KICKOFF + timedelta(minutes=1)).isoformat()}
+            for row in super().team_xg_rolling_snapshots_for_w2_teams(
+                team_ids,
+                before=before,
+                competition_id=competition_id,
+                season=season,
+            )
+        ]
+
+
 def test_read_model_line_value_prefers_split_selection_over_stale_stored_line() -> None:
     service = ReadModelService(repository=cast(Any, FakeReadRepository()))
     row = {"selection": "Over 2/2.5", "line": "2.5"}
@@ -645,6 +717,38 @@ def test_public_bounded_uncertainty_excludes_xg_captured_after_evaluation_time(
         "replay-10-2" not in fixture_id
         for fixture_id in audit["groups"]["home_attack_xg_for"]["fixture_ids"]
     )
+
+
+@pytest.mark.parametrize(
+    ("repository", "expected_status"),
+    [
+        (FakeCanonicalDbRepositoryCurrentXg(), "READY"),
+        (FakeCanonicalDbRepositoryWithoutRatings(), "READY"),
+        (FakeCanonicalDbRepositoryWithSingleSideXg(), "INSUFFICIENT_INPUTS"),
+        (FakeCanonicalDbRepositoryWithFutureXg(), "INSUFFICIENT_INPUTS"),
+    ],
+)
+def test_bilateral_xg_controls_simulation_without_market_observations(
+    monkeypatch,
+    repository: FakeCanonicalDbRepository,
+    expected_status: str,
+) -> None:
+    monkeypatch.setattr(api_repository, "future_refresh_db_repository", lambda: repository)
+    service = ReadModelService(repository=cast(Any, FakeReadRepositoryWithoutOdds()))
+
+    card = service.public_analysis_card_bounded(
+        "1489410",
+        evaluation_time=NOW,
+        use_frozen_canary=False,
+    )
+
+    assert card is not None
+    assert card["simulation"]["status"] == expected_status
+    assert card["pick"] is None
+    if isinstance(repository, FakeCanonicalDbRepositoryWithoutRatings):
+        assert card["simulation"]["input_readiness"]["xg_ready"] is True
+        assert card["simulation"]["input_readiness"]["ratings_used_in_lambda"] is False
+        assert card["simulation"]["input_readiness"]["squad_value_used_in_lambda"] is False
 
 
 def test_analysis_card_uses_materialized_xg_and_market_snapshots(monkeypatch) -> None:

@@ -108,6 +108,7 @@ class IndependentSourceStore:
         return [
             {
                 "team_id": "10",
+                "match_count": 4,
                 "as_of_time": "2026-07-01T12:00:00Z",
                 "rolling_xg_for": 1.8,
                 "rolling_xg_against": 0.7,
@@ -116,6 +117,7 @@ class IndependentSourceStore:
             },
             {
                 "team_id": "20",
+                "match_count": 4,
                 "as_of_time": "2026-07-01T12:00:00Z",
                 "rolling_xg_for": 0.7,
                 "rolling_xg_against": 1.8,
