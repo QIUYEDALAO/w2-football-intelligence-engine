@@ -1217,6 +1217,15 @@ function normalizeCounts(payload: unknown): DashboardDayViewCounts {
     partial: numberValue(record.partial),
     stale: numberValue(record.stale),
     blocked: numberValue(record.blocked),
+    identity_not_ready: numberValue(record.identity_not_ready),
+    xg_not_ready: numberValue(record.xg_not_ready),
+    model_ready: numberValue(record.model_ready),
+    waiting_fresh_quote: numberValue(record.waiting_fresh_quote),
+    executable_quote: numberValue(record.executable_quote),
+    no_edge: numberValue(record.no_edge),
+    lineup_pending: numberValue(record.lineup_pending),
+    ratings_enhancement_missing: numberValue(record.ratings_enhancement_missing),
+    team_value_enhancement_missing: numberValue(record.team_value_enhancement_missing),
     by_decision_tier: Object.fromEntries(
       Object.entries(byDecision).map(([key, value]) => [
         key,
@@ -1292,6 +1301,18 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     data_readiness: asRecord(record.data_readiness),
     data_refresh: normalizeDataRefresh(record.data_refresh),
     analysis_readiness: asRecord(record.analysis_readiness),
+    analysis_state: textValue(record.analysis_state) || null,
+    analysis_blocker: textValue(record.analysis_blocker) || null,
+    simulation: Object.keys(asRecord(record.simulation)).length
+      ? {
+          status: textValue(asRecord(record.simulation).status) || undefined,
+          simulation: Object.keys(asRecord(asRecord(record.simulation).simulation)).length
+            ? asRecord(asRecord(record.simulation).simulation)
+            : null,
+          source_status:
+            textValue(asRecord(record.simulation).source_status) || undefined,
+        }
+      : undefined,
     current_odds: dataStatus === "READY" && Object.keys(pick).length
       ? asRecord(record.current_odds)
       : {},

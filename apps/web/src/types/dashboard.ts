@@ -899,6 +899,15 @@ export interface DashboardDayViewCounts {
   partial: number;
   stale: number;
   blocked: number;
+  identity_not_ready: number;
+  xg_not_ready: number;
+  model_ready: number;
+  waiting_fresh_quote: number;
+  executable_quote: number;
+  no_edge: number;
+  lineup_pending: number;
+  ratings_enhancement_missing: number;
+  team_value_enhancement_missing: number;
   by_decision_tier?: Record<string, number>;
   by_data_status?: Record<string, number>;
   by_lifecycle_status?: Record<string, number>;
@@ -949,6 +958,13 @@ export interface DashboardDayViewCard {
   data_readiness?: Record<string, unknown>;
   data_refresh?: DataRefreshStatus | null;
   analysis_readiness?: Record<string, unknown>;
+  analysis_state?: string | null;
+  analysis_blocker?: string | null;
+  simulation?: {
+    status?: string;
+    simulation?: Record<string, unknown> | null;
+    source_status?: string;
+  };
   current_odds?: Record<string, unknown>;
   last_known_odds?: Record<string, unknown>;
   market_probabilities?: Record<string, unknown>;

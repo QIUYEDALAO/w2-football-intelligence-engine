@@ -424,6 +424,13 @@ class AnalysisCardCanaryMaterializer:
         card = _scope_advisory_policy(card)
         if str(card.get("fixture_id") or "") != fixture_id:
             raise FrozenAnalysisError("analysis-card fixture identity conflict")
+        simulation = card.get("simulation")
+        simulation_readiness = (
+            simulation.get("input_readiness") if isinstance(simulation, Mapping) else None
+        )
+        simulation_readiness = (
+            simulation_readiness if isinstance(simulation_readiness, Mapping) else {}
+        )
         input_manifest = {
             "evaluated_at": evaluation_time,
             "competition_id": str(card.get("competition_id") or identity["competition_id"]),
@@ -443,6 +450,9 @@ class AnalysisCardCanaryMaterializer:
                 card.get("simulation") or {},
                 domain=HashDomain.PREMATCH_READ_MODEL_SIMULATION,
             ),
+            "ratings_used_in_lambda": simulation_readiness.get("ratings_used_in_lambda") is True,
+            "squad_value_used_in_lambda": simulation_readiness.get("squad_value_used_in_lambda")
+            is True,
             "analysis_evidence_sha256": canonical_sha256(
                 _analysis_evidence(card),
                 domain=HashDomain.PREMATCH_READ_MODEL_ANALYSIS_EVIDENCE,

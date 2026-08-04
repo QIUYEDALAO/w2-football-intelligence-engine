@@ -910,8 +910,17 @@ export function DecisionCounts({
   ).length;
   const cohort = performance?.forward_ledger?.performance_cohort;
   const metrics = [
-    [lockLabel, dayView.counts.lock_eligible, "审批候选由 DecisionCard 给出"],
+    ["未来比赛", dayView.counts.total, "当前赛前窗口"],
+    ["身份未就绪", dayView.counts.identity_not_ready, "canonical fixture/team identity"],
+    ["xG 未就绪", dayView.counts.xg_not_ready, "真实历史 xG 不足"],
+    ["模型 READY", dayView.counts.model_ready, "xG 基线模拟已生成"],
+    ["等待新鲜赔率", dayView.counts.waiting_fresh_quote, "旧盘只作参考"],
+    ["当前可执行赔率", dayView.counts.executable_quote, "身份和新鲜度完整"],
+    ["NO_EDGE", dayView.counts.no_edge, "三项优势门未全部通过"],
     ["分析建议", readyRecommendations, "分析级证据完整后才置顶"],
+    ["阵容待确认", dayView.counts.lineup_pending, "远离开球仅作 advisory"],
+    ["ratings 增强缺失", dayView.counts.ratings_enhancement_missing, "不阻断 xG 基线"],
+    ["team value 增强缺失", dayView.counts.team_value_enhancement_missing, "不使用代理值"],
     [
       "纳入统计",
       cohort?.eligible_count ?? 0,
@@ -922,6 +931,7 @@ export function DecisionCounts({
       dayView.counts.not_ready + dayView.counts.watch + dayView.counts.skip,
       "按开球时间继续观察",
     ],
+    [lockLabel, dayView.counts.lock_eligible, "Candidate / Formal / Lock / Production 均关闭"],
   ] as const;
   return (
     <section className="decision-counts" aria-label="今日决策计数">
@@ -950,6 +960,17 @@ export function EvidencePanel({
   const reasons = reasonSummary(cards);
   if (selectedCard) {
     const ledgerState = validationLedgerState(selectedCard, performance);
+    const simulation = asRecord(selectedCard.simulation?.simulation);
+    const inputReadiness = asRecord(simulation.input_readiness);
+    const ratingsUsed = inputReadiness.ratings_used_in_lambda === true;
+    const valueUsed = inputReadiness.squad_value_used_in_lambda === true;
+    const modelBasis = selectedCard.simulation?.status !== "READY"
+      ? "MODEL_INPUT_NOT_READY"
+      : ratingsUsed
+        ? valueUsed
+          ? "XG_PLUS_RATING_AND_VALUE"
+          : "XG_PLUS_RATING"
+        : "XG_ONLY_BASELINE";
     return (
       <aside className="evidence-panel" aria-label="选中比赛证据预览">
         <span>选中比赛证据</span>
@@ -962,6 +983,16 @@ export function EvidencePanel({
           {evidenceStatements(selectedCard).map((statement) => (
             <strong key={statement}>{statement}</strong>
           ))}
+        </div>
+        <div className="tracking-note">
+          <span>模型基础</span>
+          <strong>{modelBasis}</strong>
+          <small>
+            校准状态 {textValue(simulation.calibration_status, "BASELINE_PRIOR")} · Formal OFF
+            {!ratingsUsed || !valueUsed ? " · 模型增强项未完整" : ""}
+            {selectedCard.analysis_state ? ` · ${selectedCard.analysis_state}` : ""}
+            {selectedCard.analysis_blocker ? ` (${selectedCard.analysis_blocker})` : ""}
+          </small>
         </div>
         {selectedCard.scoreline_reference?.scoreline_projection?.status === "READY" ? (
           <div className="scoreline-projection-panel">

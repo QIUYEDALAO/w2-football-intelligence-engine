@@ -341,6 +341,33 @@ def test_same_inputs_produce_identical_bytes_and_hashes(
     assert repository.global_calls == 0
 
 
+def test_input_manifest_declares_optional_model_enhancements_unused() -> None:
+    evaluated_at = datetime(2026, 7, 18, 5, 0, tzinfo=UTC)
+    state = {"policy": _ready_policy(evaluated_at, advisory_clv=0.05)}
+    calculate = _policy_projection(state)
+
+    def xg_only_projection(repository: Any, fixture_id: str, at: datetime) -> dict[str, Any]:
+        card = calculate(repository, fixture_id, at)
+        card["simulation"] = {
+            "status": "READY",
+            "input_readiness": {
+                "xg_ready": True,
+                "ratings_used_in_lambda": False,
+                "squad_value_used_in_lambda": False,
+            },
+        }
+        return card
+
+    artifact = AnalysisCardCanaryMaterializer(
+        ScopedRepository(),
+        calculate_analysis_card=xg_only_projection,
+    ).build("1576804", evaluated_at=evaluated_at)
+
+    manifest = artifact.payload["input_manifest"]
+    assert manifest["ratings_used_in_lambda"] is False
+    assert manifest["squad_value_used_in_lambda"] is False
+
+
 def test_advisory_policy_identity_changes_source_and_rematerializes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
