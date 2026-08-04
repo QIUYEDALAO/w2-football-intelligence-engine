@@ -18,8 +18,8 @@ from w2.matchday.intake_v2 import (
     build_checkpoint_plans,
     competition_policies,
     endpoint_capture_contract,
+    freshness_status,
     load_matchday_policy,
-    market_batch_audit,
     materialize_evidence_manifest,
     normalize_matchday_odds_payload,
     public_manifest_read,
@@ -73,7 +73,7 @@ def test_matchday_intake_v2_isolated_persistence_smoke() -> None:
         capture_id=str(capture["capture_id"]),
         competition_id="allsvenskan",
     )
-    audit = market_batch_audit(rows, evaluated_at=NOW, max_age_seconds=3600)
+    audit = _manifest_market_audit_fixture(rows, evaluated_at=NOW)
     manifest = materialize_evidence_manifest(
         fixture_identity=fixture,
         competition_policy=policy,
@@ -483,7 +483,7 @@ def test_observation_conflict_and_manifest_identity_fail_closed() -> None:
         generated_at=NOW,
         checkpoint_plans=[],
         endpoint_captures=[capture],
-        market_audit=market_batch_audit(rows, evaluated_at=NOW, max_age_seconds=3600),
+        market_audit=_manifest_market_audit_fixture(rows, evaluated_at=NOW),
         enrichments={},
         model_evidence={"status": "NOT_READY"},
     )
@@ -850,6 +850,40 @@ def test_fixture_identity_older_replay_cannot_overwrite_latest_capture() -> None
         assert stored.captured_at.replace(tzinfo=UTC) == NOW + timedelta(seconds=31)
         assert stored.home_w2_team_id == "w2:team:home"
         assert stored.team_identity_status == "PROVIDER_PRIMARY_READY"
+
+
+def _manifest_market_audit_fixture(
+    rows: list[dict[str, object]], *, evaluated_at: datetime
+) -> dict[str, object]:
+    home = next(
+        row
+        for row in rows
+        if row["canonical_market"] == "ASIAN_HANDICAP"
+        and row["canonical_selection"] == "HOME"
+    )
+    away = next(
+        row
+        for row in rows
+        if row["canonical_market"] == "ASIAN_HANDICAP"
+        and row["canonical_selection"] == "AWAY"
+    )
+    pair = {
+        "market": "ASIAN_HANDICAP",
+        "line": "-0.25",
+        "left": home,
+        "right": away,
+        "status": "COMPLETE",
+        "freshness": freshness_status(
+            [home, away],
+            evaluated_at=evaluated_at,
+            max_age_seconds=1800,
+        ),
+    }
+    return {
+        "independent_candidates": [pair],
+        "integrity_status": "PASS",
+        "audit_hash": "integration-market-audit-fixture",
+    }
 
 
 def _odds_payload() -> dict[str, object]:

@@ -169,9 +169,10 @@ def test_dashboard_fails_closed_for_pre_lmm_pick_without_canonical_selection() -
     assert card["lifecycle_status"] == "DRAFT"
     assert card["outcome_tracked"] is False
     assert card["lock_eligible"] is False
-    assert card["reason_code"] == "MARKET_UNAVAILABLE"
+    assert card["reason_code"] == "IDENTITY_NOT_READY"
     assert card["pick"] is None
-    assert card["non_pick"]["reason_code"] == "MARKET_UNAVAILABLE"
+    assert card["non_pick"]["reason_code"] == "IDENTITY_NOT_READY"
+    assert "MISSING_MARKET" in card["recommendation_decision_v4"]["blockers"]
     assert card["decision_contract"]["decision_tier"] == "NOT_READY"
     assert card["decision_contract"]["environment"] == "staging"
     assert card["data_readiness"]["source"] == "w2.readiness.data_gate.v1"

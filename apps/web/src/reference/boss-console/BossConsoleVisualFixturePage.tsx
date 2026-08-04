@@ -113,7 +113,11 @@ export function BossConsoleVisualFixturePage() {
                 uncertainty: 0.08,
               },
             ],
-            dataRisk: "READY",
+            dataIntegrityRisk: {
+              level: "none",
+              label: "数据身份与证据完整",
+              code: null,
+            },
             marketIdentityRisk: "主线身份完整",
             lineupRisk: "首发待确认",
             nextAction: "计划复核：赛前30分钟",

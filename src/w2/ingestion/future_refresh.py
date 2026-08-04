@@ -24,6 +24,10 @@ from w2.domain.canonical_serialization import (
     canonical_bytes,
     canonical_sha256,
 )
+from w2.ingestion.authoritative_lineup import (
+    AuthoritativeLineupError,
+    validate_authoritative_lineup,
+)
 from w2.ingestion.future_refresh_repository import (
     FutureRefreshDbRepository,
     FutureRefreshPersistenceError,
@@ -2123,6 +2127,14 @@ class FutureFixtureRefreshService:
             for item in fixtures
             if (fixture_id := fixture_id_from_payload(item))
         }
+        teams_by_fixture = {
+            fixture_id: (
+                str(item.get("teams", {}).get("home", {}).get("id") or ""),
+                str(item.get("teams", {}).get("away", {}).get("id") or ""),
+            )
+            for item in fixtures
+            if (fixture_id := fixture_id_from_payload(item))
+        }
         repository = self._db_repository()
         for fixture_id, endpoint, response in enrichment_responses:
             if endpoint != "lineups":
@@ -2144,6 +2156,12 @@ class FutureFixtureRefreshService:
             if capture is None:
                 raise FutureRefreshError("LINEUP_MATERIALIZATION_FAILED:ENDPOINT_CAPTURE_MISSING")
             try:
+                validate_authoritative_lineup(
+                    raw_record.get("response"),
+                    expected_team_ids=teams_by_fixture.get(fixture_id),
+                    captured_at=response.captured_at,
+                    kickoff_utc=kickoff_by_fixture.get(fixture_id),
+                )
                 previous_identity = repository.confirmed_lineup_business_identity(
                     fixture_id=fixture_id
                 )
@@ -2154,8 +2172,13 @@ class FutureFixtureRefreshService:
                     payload=raw_record,
                     kickoff_at=kickoff_by_fixture.get(fixture_id),
                     source_capture_id=str(capture["capture_id"]),
+                    expected_team_ids=teams_by_fixture.get(fixture_id),
                 )
                 lineup_event = repository.canonical_lineup_confirmed_event(fixture_id)
+            except AuthoritativeLineupError as exc:
+                raise FutureRefreshError(
+                    f"LINEUP_MATERIALIZATION_FAILED:{exc.code}"
+                ) from exc
             except FutureRefreshPersistenceError as exc:
                 reason = str(exc)
                 if reason.startswith("LINEUP_MATERIALIZATION_FAILED:"):

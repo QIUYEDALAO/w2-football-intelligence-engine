@@ -19,6 +19,7 @@ import type {
   PricingShadowFactor,
   RecommendationPick,
   RecommendationDecisionV3,
+  RecommendationDecisionV4,
   ReleaseMeta,
   ReleaseSyncState,
   ValidationSummary,
@@ -812,41 +813,12 @@ function normalizeBookmakerHypothesis(payload: unknown) {
   };
 }
 
-function normalizeRecommendationPick(
-  payload: unknown,
-): RecommendationPick | null {
-  const record = asRecord(payload);
-  if (!Object.keys(record).length) return null;
-  return {
-    ...(record as unknown as RecommendationPick),
-    tier: textValue(record.tier, "WATCH") as RecommendationPick["tier"],
-    market: textValue(record.market, "UNKNOWN"),
-    market_label_cn: textValue(record.market_label_cn, "市场"),
-    selection: textValue(record.selection, "WATCH"),
-    selection_label_cn: textValue(record.selection_label_cn),
-    line: textValue(record.line),
-    odds: textValue(record.odds),
-    hong_kong_odds: textValue(record.hong_kong_odds),
-    model_probability: numberValue(record.model_probability) ?? undefined,
-    confidence: numberValue(record.confidence) ?? undefined,
-    confidence_label: textValue(record.confidence_label),
-    reasons: asArray(record.reasons)
-      .map((item) => textValue(item))
-      .filter(Boolean),
-    risks: asArray(record.risks)
-      .map((item) => textValue(item))
-      .filter(Boolean),
-    value_explanation: textValue(record.value_explanation),
-    candidate: record.candidate === true,
-    formal_recommendation: record.formal_recommendation === true,
-  };
-}
-
 function normalizeCard(payload: unknown): DashboardMatchCard {
   const record = asRecord(payload);
+  const decisionV4 = normalizeRecommendationDecisionV4(record.recommendation_decision_v4);
   const decisionV3 = normalizeRecommendationDecisionV3(record.recommendation_decision_v3);
-  const v3Pick = decisionV3 ? recommendationFromV3(decisionV3) : null;
-  const v3IsPick = decisionV3?.outcome === "ANALYSIS_PICK" || decisionV3?.outcome === "FORMAL_RECOMMEND";
+  const v4Pick = decisionV4 ? recommendationFromV4(decisionV4) : null;
+  const v4IsPick = decisionV4?.outcome === "ANALYSIS_PICK" || decisionV4?.outcome === "FORMAL_RECOMMEND";
   return {
     fixture_id: textValue(record.fixture_id, "unknown-fixture"),
     kickoff_utc: textValue(record.kickoff_utc),
@@ -864,9 +836,9 @@ function normalizeCard(payload: unknown): DashboardMatchCard {
     data_readiness: asRecord(record.data_readiness),
     data_refresh: normalizeDataRefresh(record.data_refresh),
     analysis_readiness: normalizeAnalysisReadiness(record.analysis_readiness),
-    recommendation: decisionV3 ? v3Pick : normalizeRecommendationPick(record.recommendation),
-    candidate: record.candidate === true,
-    formal_recommendation: decisionV3 ? decisionV3.outcome === "FORMAL_RECOMMEND" : record.formal_recommendation === true,
+    recommendation: v4Pick,
+    candidate: false,
+    formal_recommendation: decisionV4?.outcome === "FORMAL_RECOMMEND",
     formal_suppressed: record.formal_suppressed === true,
     formal_suppressed_reason:
       textValue(record.formal_suppressed_reason) || null,
@@ -888,7 +860,7 @@ function normalizeCard(payload: unknown): DashboardMatchCard {
     validation: record.validation
       ? (asRecord(record.validation) as unknown as ValidationSummary)
       : null,
-    current_odds: v3IsPick ? asRecord(record.current_odds) : {},
+    current_odds: v4IsPick ? asRecord(record.current_odds) : {},
     last_known_odds: asRecord(record.last_known_odds),
     odds_movement: asRecord(record.odds_movement),
     market_strip: asArray(record.market_strip).map((item) => asRecord(item)),
@@ -899,6 +871,7 @@ function normalizeCard(payload: unknown): DashboardMatchCard {
       record.bookmaker_hypothesis,
     ),
     pricing_shadow: normalizePricingShadow(record.pricing_shadow),
+    recommendation_decision_v4: decisionV4,
     recommendation_decision_v3: decisionV3,
     missing_inputs: asArray(record.missing_inputs)
       .map((item) => textValue(item))
@@ -914,6 +887,7 @@ function normalizeRecommendationDecisionV3(payload: unknown): RecommendationDeci
   const reason = asRecord(record.reason);
   return {
     schema_version: "w2.recommendation_decision.v3",
+    authority_scope: "HISTORY_ONLY",
     outcome: outcome as RecommendationDecisionV3["outcome"],
     reason: Object.keys(reason).length ? { code: textValue(reason.code), message: textValue(reason.message) } : null,
     next_action: textValue(record.next_action) || null,
@@ -925,21 +899,61 @@ function normalizeRecommendationDecisionV3(payload: unknown): RecommendationDeci
   };
 }
 
-function recommendationFromV3(decision: RecommendationDecisionV3): RecommendationPick | null {
+function normalizeRecommendationDecisionV4(payload: unknown): RecommendationDecisionV4 | null {
+  const record = asRecord(payload);
+  if (textValue(record.schema_version) !== "w2.recommendation_decision.v4") return null;
+  const outcome = textValue(record.outcome);
+  if (!["NOT_READY", "NO_EDGE", "ANALYSIS_PICK", "FORMAL_RECOMMEND"].includes(outcome)) return null;
+  const authoritativeInput = asRecord(record.authoritative_input);
+  if (!Object.keys(authoritativeInput).length) return null;
+  const selectedCandidate = asRecord(record.selected_candidate);
+  if (
+    ["ANALYSIS_PICK", "FORMAL_RECOMMEND"].includes(outcome)
+    && ["market", "selection", "exact_line", "decimal_odds", "bookmaker_id", "captured_at"]
+      .some((field) => !textValue(selectedCandidate[field]))
+  ) return null;
+  const decisionHash = textValue(record.decision_hash);
+  if (!decisionHash) return null;
+  const reason = asRecord(record.reason);
+  return {
+    schema_version: "w2.recommendation_decision.v4",
+    authority_scope: "CURRENT",
+    fixture_id: textValue(record.fixture_id) || null,
+    competition_id: textValue(record.competition_id) || null,
+    season: textValue(record.season) || null,
+    kickoff_utc: textValue(record.kickoff_utc) || null,
+    outcome: outcome as RecommendationDecisionV4["outcome"],
+    reason: Object.keys(reason).length ? { code: textValue(reason.code), message: textValue(reason.message) } : null,
+    authoritative_input: authoritativeInput,
+    selected_candidate: Object.keys(selectedCandidate)
+      ? selectedCandidate
+      : null,
+    blockers: asArray(record.blockers).map((item) => textValue(item)).filter(Boolean),
+    decision_hash: decisionHash,
+  };
+}
+
+function recommendationFromV4(decision: RecommendationDecisionV4): RecommendationPick | null {
   const candidate = asRecord(decision.selected_candidate);
-  if (!candidate || !["ANALYSIS_PICK", "FORMAL_RECOMMEND"].includes(decision.outcome)) return null;
+  if (!Object.keys(candidate).length || !["ANALYSIS_PICK", "FORMAL_RECOMMEND"].includes(decision.outcome)) return null;
   const market = textValue(candidate.market);
+  const selection = textValue(candidate.selection);
+  const selectionLabel = market === "TOTALS"
+    ? selection === "OVER" ? "大" : selection === "UNDER" ? "小" : selection
+    : market === "ASIAN_HANDICAP"
+      ? selection === "HOME" ? "主队" : selection === "AWAY" ? "客队" : selection
+      : selection;
   return {
     tier: decision.outcome === "FORMAL_RECOMMEND" ? "FORMAL" : "ANALYSIS_PICK",
     market,
     market_label_cn: market === "TOTALS" ? "大小球" : market === "ASIAN_HANDICAP" ? "让球" : market,
-    selection: textValue(candidate.selection),
-    selection_label_cn: textValue(candidate.selection),
-    line: textValue(candidate.line) || undefined,
-    odds: textValue(candidate.odds) || undefined,
+    selection,
+    selection_label_cn: selectionLabel,
+    line: textValue(candidate.exact_line ?? candidate.line) || undefined,
+    odds: textValue(candidate.decimal_odds ?? candidate.odds) || undefined,
     confidence: 0,
     reasons: decision.reason?.message ? [decision.reason.message] : [],
-    risks: decision.warnings ?? [],
+    risks: decision.blockers,
   };
 }
 
@@ -1223,17 +1237,19 @@ function normalizeCounts(payload: unknown): DashboardDayViewCounts {
 
 function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
   const record = asRecord(payload);
+  const decisionV4 = normalizeRecommendationDecisionV4(record.recommendation_decision_v4);
   const decisionV3 = normalizeRecommendationDecisionV3(record.recommendation_decision_v3);
   const nonPick = asRecord(record.non_pick);
-  const pick = decisionV3 ? asRecord(decisionV3.selected_candidate) : asRecord(record.pick);
-  const decisionTier = decisionV3
-    ? ({ FORMAL_RECOMMEND: "RECOMMEND", ANALYSIS_PICK: "ANALYSIS_PICK", NOT_READY: "NOT_READY", NO_EDGE: "SKIP", SYSTEM_DEGRADED: "NOT_READY" }[decisionV3.outcome] as DashboardDayViewCard["decision_tier"])
-    : textValue(record.decision_tier, "SKIP") as DashboardDayViewCard["decision_tier"];
+  const pick = asRecord(decisionV4?.selected_candidate);
+  const decisionTier = decisionV4
+    ? ({ FORMAL_RECOMMEND: "RECOMMEND", ANALYSIS_PICK: "ANALYSIS_PICK", NOT_READY: "NOT_READY", NO_EDGE: "SKIP" }[decisionV4.outcome] as DashboardDayViewCard["decision_tier"])
+    : "NOT_READY";
   const dataStatus = textValue(
     record.data_status,
     "PARTIAL",
   ) as DashboardDayViewCard["data_status"];
   const actionable =
+    decisionV4 != null &&
     dataStatus === "READY" &&
     ["RECOMMEND", "ANALYSIS_PICK"].includes(decisionTier);
   return {
@@ -1257,8 +1273,13 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     recommendation_id: actionable
       ? textValue(record.recommendation_id) || null
       : null,
-    reason_code: decisionV3?.reason?.code || textValue(record.reason_code) || textValue(nonPick.reason_code) || null,
-    action: decisionV3?.next_action || textValue(record.action) || textValue(nonPick.action) || null,
+    reason_code: decisionV4?.reason?.code
+      || (decisionV4 ? textValue(record.reason_code) : "CURRENT_RECOMMENDATION_AUTHORITY_V4_MISSING")
+      || textValue(nonPick.reason_code)
+      || null,
+    action: decisionV4
+      ? textValue(record.action) || textValue(nonPick.action) || null
+      : "WAIT_V4_AUTHORITY",
     next_eval_at:
       textValue(record.next_eval_at) || textValue(nonPick.next_eval_at) || null,
     provider_budget_status: textValue(record.provider_budget_status) || null,
@@ -1271,7 +1292,9 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     data_readiness: asRecord(record.data_readiness),
     data_refresh: normalizeDataRefresh(record.data_refresh),
     analysis_readiness: asRecord(record.analysis_readiness),
-    current_odds: dataStatus === "READY" && Boolean(decisionV3?.selected_candidate ?? !decisionV3) ? asRecord(record.current_odds) : {},
+    current_odds: dataStatus === "READY" && Object.keys(pick).length
+      ? asRecord(record.current_odds)
+      : {},
     last_known_odds: asRecord(record.last_known_odds),
     market_probabilities: asRecord(record.market_probabilities),
     odds_movement: asRecord(record.odds_movement),
@@ -1301,28 +1324,15 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
             disclaimer: textValue(pick.disclaimer) || null,
           }
         : null,
-    secondary_picks: actionable
-      ? asArray(record.secondary_picks)
-          .slice(0, 1)
-          .map((item) => {
-            const secondary = asRecord(item);
-            return {
-              market: textValue(secondary.market) || null,
-              tendency: textValue(secondary.tendency) || null,
-              lean: textValue(secondary.lean) || null,
-              line: textValue(secondary.line) || null,
-              odds: textValue(secondary.odds) || null,
-              decision_score: numberValue(secondary.decision_score),
-            };
-          })
-      : [],
+    secondary_picks: [],
     market_selection_audit: asArray(record.market_selection_audit).map((item) =>
       asRecord(item),
     ),
     lineup_provenance: asRecord(record.lineup_provenance),
     non_pick: Object.keys(nonPick).length ? nonPick : null,
-    one_liner: textValue(record.one_liner) || null,
+    one_liner: decisionV4 ? textValue(record.one_liner) || null : null,
     card_hash: textValue(record.card_hash) || null,
+    recommendation_decision_v4: decisionV4,
     recommendation_decision_v3: decisionV3,
     diagnostics: asRecord(record.diagnostics),
   };

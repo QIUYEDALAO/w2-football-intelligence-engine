@@ -9,6 +9,10 @@ from typing import Any
 
 from w2.domain.canonical_decision_projection import project_canonical_decision
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
+from w2.domain.recommendation_decision_v4 import (
+    RecommendationOutcomeV4,
+    validate_decision_v4_identity,
+)
 from w2.tracking.outcome_ledger_repository import OutcomeLedgerRepository
 
 SCHEMA_VERSION = "w2.forward_outcome_ledger.v3"
@@ -114,32 +118,28 @@ def build_forward_outcome_records(
         fixture_id = _text(card.get("fixture_id"))
         if not fixture_id:
             continue
-        v3 = _mapping(card.get("recommendation_decision_v3"))
-        canonical = project_canonical_decision(v3) if v3 else {}
-        if v3 and isinstance(canonical.get("pick"), Mapping):
-            shadow_picks = [canonical["pick"]]
+        canonical = _validated_v4_projection(card)
+        if isinstance(canonical.get("pick"), Mapping):
+            capture_candidates = [canonical["pick"]]
         else:
-            # A V3 NO_EDGE/NOT_READY decision has no canonical pick, but it
-            # may still contain a complete same-line pricing snapshot.  Keep
-            # that snapshot in the isolated shadow ledger so evidence can
-            # accumulate without making a recommendation visible or formal.
-            shadow_picks = _shadow_picks(card)
-        for shadow_pick in shadow_picks or [None]:
-            capture_pick = _capture_pick(card, shadow_pick)
-            recommendation_scope = _recommendation_scope(card, capture_pick)
+            capture_candidates = _shadow_picks(card)
+        for capture_candidate in capture_candidates or [None]:
+            capture_pick = _capture_pick(card, capture_candidate)
+            recommendation_scope = _recommendation_scope(canonical, capture_pick)
             fixture_identity = _fixture_identity(card)
             quote_provenance = _quote_provenance(card)
             artifact_provenance = _artifact_provenance(card)
             probability_identity = _probability_identity(card)
             lifecycle_metadata = _lifecycle_metadata(card)
-            decision_hash = _optional_text(
-                canonical.get("decision_hash") or v3.get("decision_hash")
+            decision_hash = _optional_text(canonical.get("decision_hash"))
+            shadow_pick = (
+                capture_candidate if _mapping(capture_candidate).get("shadow") is True else None
             )
-            capture_identity = {
+            capture_identity: dict[str, Any] = {
                 "fixture_identity": fixture_identity,
                 "recommendation_scope": recommendation_scope,
                 "pick": _mapping_copy(capture_pick),
-                "secondary_picks": _secondary_picks(card),
+                "secondary_picks": [],
                 "shadow_pick": shadow_pick,
                 "quote_provenance": quote_provenance,
                 "artifact_provenance": artifact_provenance,
@@ -161,19 +161,15 @@ def build_forward_outcome_records(
                     "competition_name": _optional_text(card.get("competition_name")),
                     "home_team_name": _optional_text(card.get("home_team_name")),
                     "away_team_name": _optional_text(card.get("away_team_name")),
-                    "decision_tier": _text(
-                        canonical.get("decision_tier") or card.get("decision_tier") or "SKIP"
-                    ),
+                    "decision_tier": _text(canonical.get("decision_tier") or "NOT_READY"),
                     "data_status": _text(card.get("data_status") or "PARTIAL"),
-                    "reason_code": _optional_text(
-                        canonical.get("reason_code") or card.get("reason_code")
-                    ),
-                    "action": _optional_text(canonical.get("next_action") or card.get("action")),
+                    "reason_code": _optional_text(canonical.get("reason_code")),
+                    "action": _optional_text(canonical.get("next_action")),
                     "probability_source": _optional_text(card.get("probability_source")),
                     "model_market_divergence": _mapping_copy(card.get("model_market_divergence")),
                     "shadow_pick": shadow_pick,
                     "pick": _mapping_copy(capture_pick),
-                    "secondary_picks": _secondary_picks(card),
+                    "secondary_picks": [],
                     "non_pick": _mapping_copy(card.get("non_pick")),
                     "current_odds": _market_odds_summary(card.get("current_odds")),
                     "card_hash": _optional_text(card.get("card_hash")),
@@ -186,12 +182,8 @@ def build_forward_outcome_records(
                     "checkpoint": lifecycle_metadata["checkpoint"],
                     "lineup_input_hash": lifecycle_metadata["lineup_input_hash"],
                     "capture_identity_hash": _canonical_sha256(capture_identity),
-                    "outcome_tracked": bool(canonical.get("outcome_tracked"))
-                    if v3
-                    else bool(card.get("outcome_tracked") is True),
-                    "lock_eligible": bool(canonical.get("lock_eligible"))
-                    if v3
-                    else bool(card.get("lock_eligible") is True),
+                    "outcome_tracked": bool(canonical.get("outcome_tracked")),
+                    "lock_eligible": bool(canonical.get("lock_eligible")),
                     "decision_hash": decision_hash,
                     "recommendation_id": _optional_text(card.get("recommendation_id")),
                     "source": _optional_text(card.get("source")),
@@ -200,6 +192,26 @@ def build_forward_outcome_records(
                 }
             )
     return rows
+
+
+def _validated_v4_projection(card: Mapping[str, Any]) -> dict[str, Any]:
+    decision = _mapping(card.get("recommendation_decision_v4"))
+    if not decision:
+        return {}
+    try:
+        decision_hash = validate_decision_v4_identity(decision)
+    except ValueError as exc:
+        raise ValueError("FORWARD_CAPTURE_RECOMMENDATION_DECISION_V4_INVALID") from exc
+    outcome = _text(decision.get("outcome"))
+    if outcome not in {item.value for item in RecommendationOutcomeV4}:
+        raise ValueError("FORWARD_CAPTURE_RECOMMENDATION_DECISION_V4_INVALID")
+    if _text(decision.get("fixture_id")) != _text(card.get("fixture_id")):
+        raise ValueError("FORWARD_CAPTURE_RECOMMENDATION_DECISION_V4_INVALID")
+    selected = decision.get("selected_candidate")
+    is_pick = outcome in {"ANALYSIS_PICK", "FORMAL_RECOMMEND"}
+    if is_pick != isinstance(selected, Mapping):
+        raise ValueError("FORWARD_CAPTURE_RECOMMENDATION_DECISION_V4_INVALID")
+    return {**project_canonical_decision(decision), "decision_hash": decision_hash}
 
 
 def backfill_outcomes(
@@ -395,7 +407,7 @@ def _outcome_record(
 ) -> dict[str, Any] | None:
     market = _text(item.get("market"))
     selection = _text(item.get("selection"))
-    quote = _quote(entry, market, selection)
+    quote = _captured_quote(item) or _quote(entry, market, selection)
     status = _text(result.get("status") or "FT").upper()
     void_reason = _optional_text(result.get("void_reason"))
     home_goals = _int(result.get("home_goals"))
@@ -752,14 +764,9 @@ def _market_odds_summary(value: Any) -> dict[str, Any]:
 
 def _capture_pick(
     card: Mapping[str, Any],
-    shadow_pick: Mapping[str, Any] | None,
+    candidate: Mapping[str, Any] | None,
 ) -> dict[str, Any] | None:
-    if shadow_pick is not None:
-        return _normalize_pick_for_capture(card, shadow_pick)
-    pick = card.get("pick")
-    if not isinstance(pick, Mapping):
-        return None
-    return _normalize_pick_for_capture(card, pick)
+    return _normalize_pick_for_capture(card, candidate) if candidate is not None else None
 
 
 def _normalize_pick_for_capture(
@@ -771,6 +778,14 @@ def _normalize_pick_for_capture(
     selection = _normalized_capture_selection(market, normalized.get("selection"))
     if selection:
         normalized["selection"] = selection
+        selected_line = normalized.get("exact_line") or normalized.get("line")
+        selected_price = normalized.get("decimal_odds") or normalized.get("odds")
+        if _optional_text(selected_line) is not None and _number(selected_price) is not None:
+            normalized["line"] = selected_line
+            normalized["entry_line"] = selected_line
+            normalized["odds"] = selected_price
+            normalized["entry_price"] = selected_price
+            return normalized
         quote = _quote(
             {"current_odds": _market_odds_summary(card.get("current_odds"))},
             market,
@@ -786,6 +801,10 @@ def _normalize_pick_for_capture(
     return normalized
 
 
+def _captured_quote(item: Mapping[str, Any]) -> tuple[str, float] | None:
+    return _line_price(item.get("entry_line"), item.get("entry_price"))
+
+
 def _normalized_capture_selection(market: str, selection: Any) -> str:
     raw = _text(selection).upper()
     if market == "ASIAN_HANDICAP":
@@ -798,21 +817,16 @@ def _normalized_capture_selection(market: str, selection: Any) -> str:
     return raw
 
 
-def _recommendation_scope(card: Mapping[str, Any], capture_pick: Mapping[str, Any] | None) -> str:
+def _recommendation_scope(
+    canonical: Mapping[str, Any],
+    capture_pick: Mapping[str, Any] | None,
+) -> str:
     if capture_pick and capture_pick.get("shadow") is True:
         return "SHADOW"
-    tier = _text(card.get("decision_tier"))
-    if (
-        tier == "RECOMMEND"
-        and card.get("lock_eligible") is True
-        and isinstance(capture_pick, Mapping)
-    ):
+    outcome = _text(canonical.get("outcome"))
+    if outcome == "FORMAL_RECOMMEND" and isinstance(capture_pick, Mapping):
         return "OFFICIAL"
-    if (
-        tier == "ANALYSIS_PICK"
-        and card.get("outcome_tracked") is True
-        and isinstance(capture_pick, Mapping)
-    ):
+    if outcome == "ANALYSIS_PICK" and isinstance(capture_pick, Mapping):
         return "VALIDATION"
     if capture_pick:
         return "SHADOW"
@@ -933,13 +947,6 @@ def _mapping(value: Any) -> Mapping[str, Any]:
 
 def _mapping_copy(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
-
-
-def _secondary_picks(card: Mapping[str, Any]) -> list[dict[str, Any]]:
-    value = card.get("secondary_picks")
-    if not isinstance(value, Sequence) or isinstance(value, str | bytes | bytearray):
-        return []
-    return [dict(item) for item in value if isinstance(item, Mapping)][:1]
 
 
 def _optional_text(value: Any) -> str | None:

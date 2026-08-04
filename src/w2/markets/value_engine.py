@@ -242,6 +242,15 @@ def fair_decimal_odds(distribution: SettlementDistribution) -> Decimal:
     )
 
 
+def cashflow_price_edge(decimal_odds: Decimal, fair_odds: Decimal) -> Decimal:
+    """Return executable price advantage over the five-state break-even price."""
+    if decimal_odds <= 1:
+        raise ValueError("decimal odds must be greater than 1")
+    if fair_odds < 1:
+        raise ValueError("fair decimal odds must be at least 1")
+    return decimal_odds / fair_odds - Decimal("1")
+
+
 def binary_distribution(probability: Decimal) -> SettlementDistribution:
     if not Decimal("0") <= probability <= Decimal("1"):
         raise ValueError("probability must be within [0, 1]")

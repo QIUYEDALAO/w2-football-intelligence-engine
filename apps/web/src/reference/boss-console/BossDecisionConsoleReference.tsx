@@ -173,6 +173,13 @@ function shortHash(value: string): string {
   return value === "—" ? value : value.slice(0, 7);
 }
 
+function hasRiskException(item: BossDecisionItem): boolean {
+  return item.eventRisk.level === "high"
+    || item.dataIntegrityRisk.level === "high"
+    || item.modelUncertainty.level === "high"
+    || item.collectionRuntimeRisk.level === "high";
+}
+
 function DecisionRow({
   item,
   selected,
@@ -188,6 +195,12 @@ function DecisionRow({
   const scoreline = item.status === "pick" && item.scorelineProjection?.status === "READY"
     ? item.scorelineProjection.top3.map((row) => row.scoreline).join(" · ")
     : null;
+  const hasMetrics = [
+    item.modelProbability,
+    item.marketProbability,
+    item.probabilityDelta,
+    item.expectedValue,
+  ].some((value) => value != null);
   return (
     <button
       className={`decision-row status-${item.status}${selected ? " is-selected" : ""}`}
@@ -202,7 +215,7 @@ function DecisionRow({
         <strong>{item.recommendation}</strong>
         {item.marketMainlineLabel ? <div className="market-layer"><b>{item.marketMainlineLabel}</b><span>{item.executionQuoteLabel}</span></div> : null}
         <div className="metric-line">
-          {item.modelProbability == null ? (
+          {!hasMetrics ? (
             <span><b>状态</b> {item.recommendation}</span>
           ) : (
             <>
@@ -215,7 +228,10 @@ function DecisionRow({
         </div>
         {scoreline ? <div className="scoreline-inline"><b>模型比分</b> {scoreline}</div> : null}
       </div>
-      <div className={`risk-level ${item.riskLevel}`}><span>{item.risk}风险</span><small>{item.riskNote}</small></div>
+      <div className={`risk-level ${item.eventRisk.level}`}>
+        <span>赛事风险 {item.eventRisk.label}</span>
+        <small>数据完整性 {item.dataIntegrityRisk.label}</small>
+      </div>
       <div className="next-action"><strong>{item.nextAction}</strong><span>{item.nextDetail}</span></div>
     </button>
   );
@@ -313,7 +329,7 @@ function DetailPanel({ item, now }: { item: BossDecisionItem; now: Date }) {
       <div className="detail-sections">
         {item.lineupFacts.length > 0 ? <section className="detail-section"><h3>首发变化证据</h3><ul>{item.lineupFacts.map((fact) => <li key={fact}>{fact}</li>)}</ul></section> : null}
         <section className="detail-section"><h3>核心依据</h3><ul>{item.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></section>
-        <section className="detail-section risks"><h3>风险与失效条件</h3>{item.marketPolicyLabel ? <div className="risk-breakdown"><span>数据风险 <b>{item.dataRisk}</b></span><span>盘口身份 <b>{item.marketIdentityRisk}</b></span><span>首发风险 <b>{item.lineupRisk}</b></span><span>EV 标准误 <b>±{formatPercent(item.uncertainty)}</b></span></div> : null}<ul>{item.risks.map((risk) => <li key={risk}>{risk}</li>)}</ul></section>
+        <section className="detail-section risks"><h3>风险与失效条件</h3><div className="risk-breakdown"><span>赛事风险 <b>{item.eventRisk.label}</b></span><span>数据完整性 <b>{item.dataIntegrityRisk.label}</b></span><span>模型不确定性 <b>{item.modelUncertainty.label}</b></span><span>采集运行 <b>{item.collectionRuntimeRisk.label}</b></span><span>盘口身份 <b>{item.marketIdentityRisk}</b></span><span>首发状态 <b>{item.lineupRisk}</b></span></div><ul>{item.risks.map((risk) => <li key={risk}>{risk}</li>)}</ul></section>
         <section className="detail-section">
           <h3>下一动作</h3>
           <div className="next-action-box"><strong>{item.marketPolicyLabel ? item.nextAction : item.status === "pick" ? `${item.nextAction}重新评估` : item.nextAction}</strong><span>{item.marketPolicyLabel ? item.nextDetail : `触发条件：${item.nextDetail}。`}</span></div>
@@ -337,8 +353,10 @@ function SystemDrawer({ model, open, onClose }: { model: BossConsoleModel; open:
           <div className="system-item"><span>API / Worker / Web</span><strong className="pass">{model.runtime.serviceStatus}</strong></div>
           <div className="system-item"><span>Provider Calls</span><strong className="off">{model.runtime.providerStatus}</strong></div>
           <div className="system-item"><span>Scheduler</span><strong className="off">{model.runtime.schedulerStatus}</strong></div>
+          <div className="system-item"><span>Candidate</span><strong className="off">{model.runtime.candidateStatus}</strong></div>
           <div className="system-item"><span>Formal Recommendation</span><strong className="off">{model.runtime.formalStatus}</strong></div>
-          <div className="system-item"><span>Lock / Production</span><strong className="off">{model.runtime.lockProductionStatus}</strong></div>
+          <div className="system-item"><span>Lock</span><strong className="off">{model.runtime.lockStatus}</strong></div>
+          <div className="system-item"><span>Production</span><strong className="off">{model.runtime.productionStatus}</strong></div>
           {timeSequenceAnomaly ? <div className="system-item anomaly"><span>时间状态异常</span><code>odds={model.release.oddsConfirmedAt ?? "null"}<br />page={model.release.pageUpdatedAt}</code></div> : null}
         </div>
         <div className="drawer-warning">这是老板层的系统摘要，不展示密钥、原始 payload、内部主机信息或完整 SHA。技术审计应进入独立 L2 页面。</div>
@@ -354,7 +372,7 @@ export function BossDecisionConsoleReference({ model, fixedNow, prototypeCopy = 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const filtered = useMemo(() => {
     if (filter === "priority") return model.decisions.filter((item) => item.status === "pick");
-    if (filter === "risk") return model.decisions.filter((item) => item.riskLevel === "high" || item.status === "not-ready");
+    if (filter === "risk") return model.decisions.filter(hasRiskException);
     return model.decisions;
   }, [filter, model.decisions]);
   const selected = model.decisions.find((item) => item.id === selectedId) ?? filtered[0] ?? model.decisions[0];
@@ -373,7 +391,7 @@ export function BossDecisionConsoleReference({ model, fixedNow, prototypeCopy = 
     const candidates = nextFilter === "priority"
       ? model.decisions.filter((item) => item.status === "pick")
       : nextFilter === "risk"
-        ? model.decisions.filter((item) => item.riskLevel === "high" || item.status === "not-ready")
+        ? model.decisions.filter(hasRiskException)
         : model.decisions;
     if (!candidates.some((item) => item.id === selectedId)) setSelectedId(candidates[0]?.id ?? model.decisions[0]?.id ?? "");
   }
@@ -389,17 +407,17 @@ export function BossDecisionConsoleReference({ model, fixedNow, prototypeCopy = 
           <div className="headline-kpi watch"><span>继续观察</span><strong>{watchCount}</strong></div>
           <div className="headline-kpi formal"><span>正式建议</span><strong>0</strong></div>
           <div className="headline-kpi pending"><span>待结算</span><strong>{model.ledger.pendingCount}</strong></div>
-          <div className="headline-kpi alert"><span>高风险赛事</span><strong>{model.riskExceptionCount}</strong></div>
+          <div className="headline-kpi alert"><span>赛事高风险</span><strong>{model.eventRiskExceptionCount}</strong></div>
         </div>
         <div className="snapshot-block"><div className="snapshot-times"><div className="snapshot-time"><span>全局最近赔率</span><strong>{dateTimeLabel(model.release.oddsConfirmedAt)}</strong></div><div className="snapshot-time"><span>页面刷新</span><strong>{dateTimeLabel(model.release.pageUpdatedAt)}</strong></div><div className="snapshot-time"><span>快照年龄</span><strong className={timeSequenceAnomaly ? "is-anomaly" : undefined}>{timeSequenceAnomaly ? "时间状态异常" : ageLabel(model.release.oddsConfirmedAt, now)}</strong></div><div className="snapshot-time"><span>自动采集</span><strong className={model.automaticCollectionPaused ? "is-paused" : "is-running"}>{model.automaticCollectionPaused ? "已暂停" : "运行中"}</strong></div></div><button className="status-button" onClick={() => setDrawerOpen(true)} aria-label="打开系统状态">⚙</button></div>
       </header>
 
-      <section className="risk-strip" aria-label="风险与例外"><strong>风险与例外</strong><p>自动采集当前{model.automaticCollectionPaused ? "暂停" : "运行"}；高风险赛事 {model.riskExceptionCount}；首发待确认 {model.lineupPendingCount}；验证证据待补 {model.ledger.evidenceRepairPendingCount}。</p><div className="risk-meta">最后检查 {dateTimeLabel(model.lastCheckedAt)}</div></section>
+      <section className="risk-strip" aria-label="风险与例外"><strong>风险与例外</strong><p>自动采集当前{model.automaticCollectionPaused ? "暂停" : "运行"}；赛事高风险 {model.eventRiskExceptionCount}；数据/采集阻断 {model.operationalRiskExceptionCount}；首发待确认 {model.lineupPendingCount}；验证证据待补 {model.ledger.evidenceRepairPendingCount}。</p><div className="risk-meta">最后检查 {dateTimeLabel(model.lastCheckedAt)}</div></section>
 
       <main className="workspace">
         <section className="panel decision-panel" data-ui="decision-panel">
           <div className="panel-header"><div className="panel-title"><span>Executive Queue</span><h2>今日重点决策</h2><p>分析建议置顶；其余严格按开球时间。{prototypeCopy ? "固定数据用于视觉验收。" : "所有数值均来自当前冻结证据。"}</p></div><div className="filter-tabs" role="tablist" aria-label="决策筛选"><button className={`filter-tab${filter === "priority" ? " is-active" : ""}`} onClick={() => selectFilter("priority")}>决策优先</button><button className={`filter-tab${filter === "all" ? " is-active" : ""}`} onClick={() => selectFilter("all")}>全部赛程 {model.decisions.length}/{model.decisions.length} 场</button><button className={`filter-tab${filter === "risk" ? " is-active" : ""}`} onClick={() => selectFilter("risk")}>仅看异常</button></div></div>
-          <div className="decision-table-head" aria-hidden="true"><span>序号</span><span>开球</span><span>比赛</span><span>结论与核心差异</span><span>风险状态</span><span>下一动作</span></div>
+          <div className="decision-table-head" aria-hidden="true"><span>序号</span><span>开球</span><span>比赛</span><span>结论与核心差异</span><span>风险分轴</span><span>下一动作</span></div>
           <div className="decision-list" data-ui="schedule-scroller">{filtered.length ? filtered.map((item) => <DecisionRow key={item.id} item={item} selected={item.id === selected.id} now={now} onSelect={setSelectedId} />) : <div className="empty-list">当前筛选条件下没有比赛</div>}</div>
         </section>
         <DetailPanel item={selected} now={now} />
@@ -410,7 +428,7 @@ export function BossDecisionConsoleReference({ model, fixedNow, prototypeCopy = 
         <article className="panel" data-ui="league-performance-panel"><div className="panel-header"><div className="panel-title"><span>League Performance</span><h2>联赛表现</h2><p>命中率、CLV 与样本量必须同时展示。</p></div></div><div className="league-table"><div className="league-row head"><span>联赛</span><span>样本</span><span>结果</span><span>临场 CLV</span><span>状态</span></div>{model.leaguePerformance.map((row) => <div className="league-row" key={row.league}><strong>{row.league}</strong><span>{row.eligibleCount}</span><span>{row.hitCount}-{row.missCount}-{row.pushCount}</span><span className={row.clvMedian == null ? undefined : row.clvMedian >= 0 ? "clv-positive" : "clv-negative"}>{row.clvMedian == null ? "暂无" : `${row.clvMedian > 0 ? "+" : ""}${row.clvMedian.toFixed(3)}`}（n={row.clvSampleCount}）</span><span className="sample-state">{row.statusLabel}</span></div>)}</div><p className="league-note">临场 CLV = 推荐赔率 − 开赛前 30 分钟内的同盘口赔率。n &lt; 5 时只作观察，不做绩效结论。</p></article>
       </section>
 
-      <footer className="footer-note"><span><strong>产品边界：</strong>分析建议 ≠ 正式推荐；正式建议、锁单与生产发布仍保持关闭。</span><span>W2 Boss Decision Console v2.1</span></footer>
+      <footer className="footer-note"><span><strong>产品边界：</strong>分析建议 ≠ 正式推荐；Candidate、Formal、Lock、Production 均保持关闭。</span><span>W2 Boss Decision Console v2.1</span></footer>
       <SystemDrawer model={model} open={drawerOpen} onClose={() => setDrawerOpen(false)} />
     </div>
   );

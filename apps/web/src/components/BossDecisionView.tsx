@@ -426,20 +426,15 @@ function marketSourceLabel(card: DashboardDayViewCard): string {
   const preferred =
     card.pick?.market === "TOTALS" ? asRecord(odds.ou) : asRecord(odds.ah);
   const selected = asRecord(
-    card.recommendation_decision_v3?.selected_candidate,
+    card.recommendation_decision_v4?.selected_candidate,
   );
-  const identity = asRecord(selected.quote_identity);
-  const quotes = asRecord(identity.quotes);
-  const selection = textValue(selected.selection).toLowerCase();
-  const selectedQuote = asRecord(quotes[selection]);
   const source =
-    textValue(selectedQuote.bookmaker_name) ||
+    textValue(selected.bookmaker_id) ||
+    textValue(selected.provider) ||
     textValue(preferred.bookmaker) ||
-    textValue(preferred.source) ||
-    textValue(identity.bookmaker_id);
+    textValue(preferred.source);
   const capturedAt =
-    textValue(selectedQuote.captured_at) ||
-    textValue(identity.captured_at) ||
+    textValue(selected.captured_at) ||
     textValue(preferred.captured_at);
   const parts = [
     "主线选择：多庄共识",
@@ -982,8 +977,8 @@ export function EvidencePanel({
             )}
             <small>
               一致样本 {selectedCard.scoreline_reference.scoreline_projection.consistent_sample_count?.toLocaleString()} / 10,000
-              {selectedCard.recommendation_decision_v3?.decision_hash
-                ? ` · ${shortSha(selectedCard.recommendation_decision_v3.decision_hash)}`
+              {selectedCard.recommendation_decision_v4?.decision_hash
+                ? ` · ${shortSha(selectedCard.recommendation_decision_v4.decision_hash)}`
                 : ""}
             </small>
           </div>

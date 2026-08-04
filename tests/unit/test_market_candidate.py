@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from w2.markets.market_candidate import build_market_candidates, candidate_is_executable
+from w2.markets.market_candidate import (
+    build_market_candidates,
+    candidate_is_executable,
+    select_authoritative_market_candidate,
+)
 from w2.strategy.formal_recommendation import _candidate_executable_odds
 
 
@@ -58,7 +62,8 @@ def test_fresh_ah_and_stale_ou_are_independent_candidates() -> None:
         pricing_shadow={},
     )
 
-    assert candidate_is_executable(candidates["ah"])
+    assert candidates["ah"]["quote_status"] == "COMPLETE"
+    assert not candidate_is_executable(candidates["ah"])
     assert not candidate_is_executable(candidates["ou"])
     assert candidates["ou"]["quote_status"] == "STALE"
     assert candidates["ou"]["quotes"]["executable"] is None
@@ -73,7 +78,8 @@ def test_fresh_ou_is_not_blocked_by_stale_ah() -> None:
     )
 
     assert not candidate_is_executable(candidates["ah"])
-    assert candidate_is_executable(candidates["ou"])
+    assert candidates["ou"]["quote_status"] == "COMPLETE"
+    assert not candidate_is_executable(candidates["ou"])
 
 
 def test_conflict_is_reference_only_and_never_ev_eligible() -> None:
@@ -109,11 +115,17 @@ def test_formal_ah_can_only_consume_executable_candidate_quote() -> None:
     candidates = build_market_candidates(
         markets=[_market("ASIAN_HANDICAP")],
         quote_identity_audit={"ah": _audit()},
-        current_odds={"ah": {"home_price": 1.9}},
+        current_odds={"ah": {"home_line": "-0.5", "away_line": "0.5"}},
         pricing_shadow={},
+        fixture_id="fixture-1",
+        competition_id="allsvenskan",
+        simulation=_ready_simulation(),
     )
-    assert _candidate_executable_odds(candidates["ah"]) == {
-        "line": "-0.5",
+    candidate = candidates["ah"]
+    selected = str(candidate["selection"]).lower()
+    expected_quote = _audit()["quotes"][selected]  # type: ignore[index]
+    assert _candidate_executable_odds(candidate) == {
+        "line": expected_quote["line"],  # type: ignore[index]
         "decimal_odds": "1.9",
         "provider": None,
         "bookmaker_id": None,
@@ -123,8 +135,8 @@ def test_formal_ah_can_only_consume_executable_candidate_quote() -> None:
         "observation_id": None,
     }
 
-    candidates["ah"]["quote_status"] = "STALE"
-    assert _candidate_executable_odds(candidates["ah"]) is None
+    candidate["quote_status"] = "STALE"
+    assert _candidate_executable_odds(candidate) is None
 
 
 def test_same_line_evidence_uses_only_authoritative_quote_pair() -> None:
@@ -155,11 +167,11 @@ def test_same_line_evidence_uses_only_authoritative_quote_pair() -> None:
     assert evidence["evidence_hash"]
 
 
-def test_no_pick_retains_complete_quote_and_side_evidence() -> None:
+def test_model_selects_direction_without_bookmaker_intent() -> None:
     candidates = build_market_candidates(
         markets=[{"market": "ASIAN_HANDICAP", "line": "-0.5"}],
         quote_identity_audit={"ah": _audit()},
-        current_odds={},
+        current_odds={"ah": {"home_line": "-0.5", "away_line": "0.5"}},
         pricing_shadow={},
         fixture_id="fixture-1",
         competition_id="allsvenskan",
@@ -167,17 +179,42 @@ def test_no_pick_retains_complete_quote_and_side_evidence() -> None:
     )
 
     candidate = candidates["ah"]
-    assert candidate["selection"] is None
+    assert candidate["selection"] in {"HOME", "AWAY"}
+    assert candidate["bookmaker_intent_selection"] is None
     assert candidate["quote_status"] == "COMPLETE"
-    assert candidate["quote_usage"] == "COMPARISON_ONLY"
-    assert candidate["analysis_evidence_status"] == "NO_EDGE"
-    assert candidate["analysis_evidence"]["comparison"]["status"] == "NO_EDGE"
+    assert candidate["quote_usage"] == "EXECUTABLE"
+    assert candidate["analysis_evidence_status"] == "COMPLETE"
     assert set(candidate["side_evidence"]) == {"HOME", "AWAY"}
     assert all(
         row["model_probability"]["status"] == "READY"
         for row in candidate["side_evidence"].values()
     )
-    assert candidate_is_executable(candidate) is False
+    assert candidate_is_executable(candidate) is True
+    assert select_authoritative_market_candidate(candidates) == candidate
+
+
+def test_bookmaker_intent_cannot_change_authoritative_direction() -> None:
+    inputs = {
+        "quote_identity_audit": {"ah": _audit()},
+        "current_odds": {"ah": {"home_line": "-0.5", "away_line": "0.5"}},
+        "pricing_shadow": {},
+        "fixture_id": "fixture-1",
+        "competition_id": "allsvenskan",
+        "simulation": _ready_simulation(),
+    }
+    home_intent = build_market_candidates(
+        markets=[{"market": "ASIAN_HANDICAP", "tendency": "HOME", "line": "-0.5"}],
+        **inputs,
+    )["ah"]
+    away_intent = build_market_candidates(
+        markets=[{"market": "ASIAN_HANDICAP", "tendency": "AWAY", "line": "-0.5"}],
+        **inputs,
+    )["ah"]
+
+    assert home_intent["bookmaker_intent_selection"] == "HOME"
+    assert away_intent["bookmaker_intent_selection"] == "AWAY"
+    assert home_intent["selection"] == away_intent["selection"]
+    assert home_intent["analysis_evidence"] == away_intent["analysis_evidence"]
 
 
 def test_no_pick_with_current_odds_is_comparison_only() -> None:
@@ -379,15 +416,17 @@ def test_away_minus_point_seven_five_keeps_negative_selected_line() -> None:
     quotes["home"]["line"] = "0.75"
     quotes["away"]["line"] = "-0.75"
     candidate = build_market_candidates(
-        markets=[{"market": "ASIAN_HANDICAP", "tendency": "AWAY", "line": "0.75"}],
+        markets=[{"market": "ASIAN_HANDICAP", "tendency": "HOME", "line": "0.75"}],
         quote_identity_audit={"ah": audit},
         current_odds={"ah": {"home_price": 1.88, "away_price": 1.90}},
         pricing_shadow={},
         fixture_id="fixture-1",
         competition_id="allsvenskan",
-        simulation=_ready_simulation(),
+        simulation={**_ready_simulation(), "lambda_home": 1.0, "lambda_away": 1.9},
     )["ah"]
 
+    assert candidate["selection"] == "AWAY"
+    assert candidate["bookmaker_intent_selection"] == "HOME"
     assert candidate["line"] == "-0.75"
     assert candidate["quotes"]["executable"]["line"] == "-0.75"
     assert candidate["analysis_evidence"]["selected_side_line"] == "-0.75"
@@ -403,15 +442,17 @@ def test_home_minus_one_point_two_five_keeps_negative_selected_line() -> None:
     quotes["home"]["line"] = "-1.25"
     quotes["away"]["line"] = "1.25"
     candidate = build_market_candidates(
-        markets=[{"market": "ASIAN_HANDICAP", "tendency": "HOME", "line": "-1.25"}],
+        markets=[{"market": "ASIAN_HANDICAP", "tendency": "AWAY", "line": "-1.25"}],
         quote_identity_audit={"ah": audit},
         current_odds={"ah": {"home_price": 1.90, "away_price": 1.90}},
         pricing_shadow={},
         fixture_id="fixture-1",
         competition_id="allsvenskan",
-        simulation=_ready_simulation(),
+        simulation={**_ready_simulation(), "lambda_home": 2.5, "lambda_away": 0.5},
     )["ah"]
 
+    assert candidate["selection"] == "HOME"
+    assert candidate["bookmaker_intent_selection"] == "AWAY"
     assert candidate["line"] == "-1.25"
     assert candidate["quotes"]["executable"]["line"] == "-1.25"
     assert candidate["side_evidence"]["AWAY"]["line"] == "1.25"

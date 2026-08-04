@@ -528,7 +528,8 @@ def test_real_ah_alias_candidate_stays_analysis_pick(
     card = _canonical_candidate(market)
     candidate = card["market_candidates"]["ah"]  # type: ignore[index]
 
-    assert candidate["selection"] == alias  # type: ignore[index]
+    assert candidate["selection"] == canonical  # type: ignore[index]
+    assert candidate["bookmaker_intent_selection"] == alias  # type: ignore[index]
     assert candidate["analysis_evidence"]["selection"] == canonical  # type: ignore[index]
 
     fields = _fields(

@@ -49,6 +49,10 @@ from w2.infrastructure.persistence.models import (
     TeamLineupBaselineModel,
     TransfermarktPlayerReferenceModel,
 )
+from w2.ingestion.authoritative_lineup import (
+    AuthoritativeLineupError,
+    validate_authoritative_lineup,
+)
 from w2.lineups.intelligence import (
     build_team_baseline,
     build_team_rotation_prior,
@@ -207,41 +211,39 @@ class FutureRefreshDbRepository:
         materialize_baselines: bool = True,
         kickoff_at: datetime | None = None,
         source_capture_id: str | None = None,
+        expected_team_ids: tuple[str, str] | None = None,
     ) -> int:
-        if captured_at.tzinfo is None:
-            raise FutureRefreshPersistenceError("LINEUP_CAPTURE_TIMEZONE_INVALID")
-        if kickoff_at is not None:
-            resolved_kickoff = (
-                kickoff_at.astimezone(UTC)
-                if kickoff_at.tzinfo is not None
-                else kickoff_at.replace(tzinfo=UTC)
+        with Session(self.engine) as identity_session:
+            identities = _fixture_identity_candidates(identity_session, fixture_id)
+        if len(identities) > 1:
+            raise FutureRefreshPersistenceError("LINEUP_FIXTURE_IDENTITY_CONFLICT")
+        if identities:
+            identity = identities[0]
+            expected_team_ids = (
+                identity.home_provider_team_id,
+                identity.away_provider_team_id,
             )
-            if captured_at.astimezone(UTC) >= resolved_kickoff:
-                raise FutureRefreshPersistenceError("POST_KICKOFF_LINEUP_REJECTED")
+            kickoff_at = kickoff_at or parse_db_datetime(identity.kickoff_utc)
         response = payload.get("response")
-        if not isinstance(response, list):
-            raise FutureRefreshPersistenceError("LINEUP_RESPONSE_INVALID")
+        try:
+            validated = validate_authoritative_lineup(
+                response,
+                expected_team_ids=expected_team_ids,
+                captured_at=captured_at,
+                kickoff_utc=kickoff_at,
+            )
+        except AuthoritativeLineupError as exc:
+            raise FutureRefreshPersistenceError(exc.code) from exc
         snapshots: list[tuple[StructuredLineupSnapshotModel, list[dict[str, Any]]]] = []
-        for team_row in response:
-            if not isinstance(team_row, dict):
-                continue
-            team = team_row.get("team")
-            team_id = str(team.get("id") or "") if isinstance(team, dict) else ""
-            team_name = str(team.get("name") or "") if isinstance(team, dict) else ""
-            if not team_id:
-                continue
-            starters = self._lineup_players(team_row.get("startXI"), starter=True)
-            substitutes = self._lineup_players(team_row.get("substitutes"), starter=False)
-            starter_ids = [str(player["api_football_player_id"]) for player in starters]
-            if len(starters) != 11:
-                raise FutureRefreshPersistenceError("STARTING_XI_INCOMPLETE")
-            if len(set(starter_ids)) != len(starter_ids):
-                raise FutureRefreshPersistenceError("DUPLICATE_STARTER")
+        for team in validated.teams:
+            starters = [player.as_persistence_dict(starter=True) for player in team.starters]
+            substitutes = [player.as_persistence_dict(starter=False) for player in team.substitutes]
+            starter_ids = [player.player_id for player in team.starters]
             lineup_identity_hash = hashlib.sha256(
                 json.dumps(
                     {
                         "fixture_id": str(fixture_id),
-                        "team_external_id": team_id,
+                        "team_external_id": team.team_id,
                         "starters": sorted(starter_ids),
                     },
                     sort_keys=True,
@@ -252,9 +254,9 @@ class FutureRefreshDbRepository:
                 (
                     StructuredLineupSnapshotModel(
                         fixture_id=fixture_id,
-                        team_external_id=team_id,
-                        team_name=team_name or team_id,
-                        formation=str(team_row.get("formation") or "") or None,
+                        team_external_id=team.team_id,
+                        team_name=team.team_name,
+                        formation=team.formation,
                         captured_at=captured_at,
                         confirmed=True,
                         authoritative_status="COMPLETE",
@@ -266,16 +268,6 @@ class FutureRefreshDbRepository:
                     [*starters, *substitutes],
                 )
             )
-        if len(snapshots) != 2 or len({item[0].team_external_id for item in snapshots}) != 2:
-            raise FutureRefreshPersistenceError("LINEUP_TEAMS_INCOMPLETE")
-        all_starter_ids = [
-            str(player["api_football_player_id"])
-            for _snapshot, players in snapshots
-            for player in players
-            if bool(player.get("starter"))
-        ]
-        if len(set(all_starter_ids)) != 22:
-            raise FutureRefreshPersistenceError("LINEUP_FIXTURE_PLAYER_IDENTITY_CONFLICT")
         expected = self._lineup_replay_spec(snapshots)
         with Session(self.engine) as session:
             if self._lineup_replay_is_exact(session, expected):
@@ -504,7 +496,6 @@ class FutureRefreshDbRepository:
             if (
                 len(rows) != 2
                 or len(by_team) != 2
-                or captured_at >= kickoff
                 or any(
                     not row.confirmed
                     or row.authoritative_status != "COMPLETE"
@@ -519,11 +510,28 @@ class FutureRefreshDbRepository:
                 continue
             home_starters = sorted(starter_ids.get(home.id, []))
             away_starters = sorted(starter_ids.get(away.id, []))
-            if (
-                len(home_starters) != 11
-                or len(away_starters) != 11
-                or len(set(home_starters + away_starters)) != 22
-            ):
+            try:
+                validate_authoritative_lineup(
+                    [
+                        {
+                            "team_id": home.team_external_id,
+                            "team_name": home.team_name,
+                            "starters": [{"player_id": player_id} for player_id in home_starters],
+                        },
+                        {
+                            "team_id": away.team_external_id,
+                            "team_name": away.team_name,
+                            "starters": [{"player_id": player_id} for player_id in away_starters],
+                        },
+                    ],
+                    expected_team_ids=(
+                        identity.home_provider_team_id,
+                        identity.away_provider_team_id,
+                    ),
+                    captured_at=captured_at,
+                    kickoff_utc=kickoff,
+                )
+            except AuthoritativeLineupError:
                 continue
             events.append(
                 LineupConfirmedEvent(
@@ -1612,30 +1620,6 @@ class FutureRefreshDbRepository:
             "skipped_fixture_metadata_count": len(snapshots) - len(rows),
             "provider_calls": 0,
         }
-
-    @staticmethod
-    def _lineup_players(value: Any, *, starter: bool) -> list[dict[str, Any]]:
-        if not isinstance(value, list):
-            return []
-        players: list[dict[str, Any]] = []
-        for wrapper in value:
-            player = wrapper.get("player") if isinstance(wrapper, dict) else None
-            if not isinstance(player, dict) or player.get("id") is None:
-                continue
-            players.append(
-                {
-                    "api_football_player_id": str(player["id"]),
-                    "player_name": str(player.get("name") or ""),
-                    "starter": starter,
-                    "shirt_number": int(player["number"])
-                    if player.get("number") is not None
-                    else None,
-                    "provider_position": str(player.get("pos") or "") or None,
-                    "grid": str(player.get("grid") or "") or None,
-                    "captain": bool(player.get("captain", False)),
-                }
-            )
-        return players
 
     def latest_market_observations(self) -> list[dict[str, Any]]:
         return self._canonical_market_observations_for_fixtures(None)

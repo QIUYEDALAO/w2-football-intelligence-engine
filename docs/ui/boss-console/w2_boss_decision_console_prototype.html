@@ -519,8 +519,9 @@
       box-shadow: 0 0 0 4px rgba(243, 201, 105, 0.10);
     }
 
-    .risk-level.low span::before { background: var(--green); box-shadow: 0 0 0 4px rgba(114, 213, 152, 0.10); }
+    .risk-level.none span::before { background: var(--green); box-shadow: 0 0 0 4px rgba(114, 213, 152, 0.10); }
     .risk-level.high span::before { background: var(--red); box-shadow: 0 0 0 4px rgba(255, 123, 114, 0.10); }
+    .risk-level.unknown span::before { background: var(--muted-2); box-shadow: 0 0 0 4px rgba(112, 135, 124, 0.10); }
 
     .risk-level small {
       display: block;
@@ -821,6 +822,26 @@
     }
 
     .detail-section.risks li::before { background: var(--amber); }
+
+    .risk-breakdown {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .risk-breakdown span {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 7px 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: 9px;
+    }
+
+    .risk-breakdown b { color: #dce9e3; font-weight: 750; }
 
     .next-action-box {
       margin-top: 10px;
@@ -1296,6 +1317,7 @@
       .kickoff b { font-size: 15px; }
       .matchup strong, .decision-main strong { font-size: 12px; }
       .risk-level small { max-width: 78px; }
+      .risk-breakdown { grid-template-columns: 1fr; }
 
       .detail-panel {
         margin-top: 12px;
@@ -1348,7 +1370,7 @@
         <div class="headline-kpi watch"><span>继续观察</span><strong>3</strong></div>
         <div class="headline-kpi formal"><span>正式建议</span><strong>0</strong></div>
         <div class="headline-kpi pending"><span>待结算</span><strong>5</strong></div>
-        <div class="headline-kpi alert"><span>高风险赛事</span><strong>2</strong></div>
+        <div class="headline-kpi alert"><span>赛事高风险</span><strong>1</strong></div>
       </div>
 
       <div class="snapshot-block">
@@ -1364,7 +1386,7 @@
 
     <section class="risk-strip" aria-label="风险与例外">
       <strong>风险与例外</strong>
-      <p>自动采集当前暂停；高风险赛事 2；首发待确认 5；验证证据待补 7。</p>
+      <p>自动采集当前暂停；赛事高风险 1；数据/采集阻断 6；首发待确认 2；验证证据待补 7。</p>
       <div class="risk-meta">最后检查 07-21 20:31</div>
     </section>
 
@@ -1388,7 +1410,7 @@
           <span>开球</span>
           <span>比赛</span>
           <span>结论与核心差异</span>
-          <span>风险状态</span>
+          <span>风险分轴</span>
           <span>下一动作</span>
         </div>
         <div class="decision-list" id="decisionList"></div>
@@ -1432,6 +1454,7 @@
 
           <section class="detail-section risks">
             <h3>风险与失效条件</h3>
+            <div class="risk-breakdown" id="riskBreakdown"></div>
             <ul id="riskList"></ul>
           </section>
 
@@ -1520,7 +1543,7 @@
     </section>
 
     <footer class="footer-note">
-      <span><strong>产品边界：</strong>分析建议 ≠ 正式推荐；正式建议、锁单与生产发布仍保持关闭。</span>
+      <span><strong>产品边界：</strong>分析建议 ≠ 正式推荐；Candidate、Formal、Lock、Production 均保持关闭。</span>
       <span>W2 Boss Decision Console v2.1</span>
     </footer>
   </div>
@@ -1542,8 +1565,10 @@
         <div class="system-item"><span>API / Worker / Web</span><strong class="pass">HEALTHY</strong></div>
         <div class="system-item"><span>Provider Calls</span><strong class="off">DISABLED</strong></div>
         <div class="system-item"><span>Scheduler</span><strong class="off">STOPPED</strong></div>
-        <div class="system-item"><span>Formal Recommendation</span><strong class="off">DISABLED</strong></div>
-        <div class="system-item"><span>Lock / Production</span><strong class="off">DISABLED</strong></div>
+        <div class="system-item"><span>Candidate</span><strong class="off">OFF</strong></div>
+        <div class="system-item"><span>Formal Recommendation</span><strong class="off">OFF</strong></div>
+        <div class="system-item"><span>Lock</span><strong class="off">OFF</strong></div>
+        <div class="system-item"><span>Production</span><strong class="off">OFF</strong></div>
       </div>
 
       <div class="drawer-warning">
@@ -1562,8 +1587,9 @@
       {
         id: "1494218", priority: "P1", dateLabel: "07-25 周六", time: "21:00", countdown: "4天后", league: "瑞典超 · 常规赛第14轮",
         match: "代格福什 vs 尤尔加登", status: "pick", decision: "分析建议", recommendation: "客队 -0.75 @1.90",
-        model: 56.8, market: 49.7, delta: 7.1, ev: 7.4, uncertainty: 4.4, risk: "中", riskClass: "medium",
-        riskNote: "首发未确认", next: "赛前30分钟", nextDetail: "新盘口 / 首发 / 阵容异常",
+        model: 56.8, market: 49.7, delta: 7.1, ev: 7.4, uncertainty: 4.4,
+        eventRisk: "未评估", eventRiskClass: "unknown", dataIntegrityRisk: "数据身份与证据完整", dataIntegrityRiskClass: "none",
+        modelUncertainty: "EV 标准误 ±4.4%", collectionRuntimeRisk: "调度暂停（受控状态）", marketIdentityRisk: "主线身份完整", lineupRisk: "首发待确认", next: "赛前30分钟", nextDetail: "新盘口 / 首发 / 阵容异常",
         snapshot: "07-21 18:59", ledger: "8aab83c", scoreline: readyScoreline("10ad2a2dec", "e04aa5d8ef", "全部符合：客队 -0.75", [["0-1", 1130], ["0-2", 980], ["1-2", 870]]),
         reasons: ["模型与同盘口市场概率差达到 +7.1pp", "真实 xG 与球队评级方向一致", "执行报价与推荐方向、盘口线完全绑定"],
         risks: ["首发尚未公布，阵容变化可能影响结论", "盘口若由 -0.75 跳到 -1.0 需重新计算", "EV 标准误 ±4.4%，正式推荐能力仍未开放"]
@@ -1571,8 +1597,9 @@
       {
         id: "1494223", priority: "P2", dateLabel: "07-26 周日", time: "20:00", countdown: "5天后", league: "瑞典超 · 常规赛第14轮",
         match: "天狼星 vs 哥德堡", status: "pick", decision: "分析建议", recommendation: "小 3.5 @1.98",
-        model: 62.0, market: 55.0, delta: 7.0, ev: 6.1, uncertainty: 3.8, risk: "低", riskClass: "low",
-        riskNote: "盘口稳定", next: "首发公布后", nextDetail: "首发 / 伤停 / 总进球线变化",
+        model: 62.0, market: 55.0, delta: 7.0, ev: 6.1, uncertainty: 3.8,
+        eventRisk: "未评估", eventRiskClass: "unknown", dataIntegrityRisk: "数据身份与证据完整", dataIntegrityRiskClass: "none",
+        modelUncertainty: "EV 标准误 ±3.8%", collectionRuntimeRisk: "调度暂停（受控状态）", marketIdentityRisk: "主线身份完整", lineupRisk: "首发待确认", next: "首发公布后", nextDetail: "首发 / 伤停 / 总进球线变化",
         snapshot: "07-21 18:59", ledger: "d4c81b2", scoreline: readyScoreline("22be819dec", "f18ca4e1ef", "全部符合：小 3.5", [["1-1", 1060], ["1-0", 930], ["0-1", 850]]),
         reasons: ["总进球模型明显低于市场定价", "双方近期防守 xG 波动较小", "同一 bookmaker、同一 3.5 盘口完成双边去水"],
         risks: ["早盘样本仍有限", "若主力前锋确认复出需重新评估", "赔率低于 1.82 时价值优势可能消失"]
@@ -1580,8 +1607,9 @@
       {
         id: "1494222", priority: "P3", dateLabel: "07-26 周日", time: "20:00", countdown: "5天后", league: "瑞典超 · 常规赛第14轮",
         match: "布洛马波卡纳 vs 哈马比", status: "pick", decision: "分析建议", recommendation: "客队 -1.25 @1.92",
-        model: 58.3, market: 49.5, delta: 8.8, ev: 9.4, uncertainty: 5.2, risk: "高", riskClass: "high",
-        riskNote: "深盘波动", next: "盘口变动即重评", nextDetail: "盘口 / 首发 / 伤停",
+        model: 58.3, market: 49.5, delta: 8.8, ev: 9.4, uncertainty: 5.2,
+        eventRisk: "高：深盘波动", eventRiskClass: "high", dataIntegrityRisk: "数据身份与证据完整", dataIntegrityRiskClass: "none",
+        modelUncertainty: "EV 标准误 ±5.2%", collectionRuntimeRisk: "调度暂停（受控状态）", marketIdentityRisk: "主线身份完整", lineupRisk: "首发待确认", next: "盘口变动即重评", nextDetail: "盘口 / 首发 / 伤停",
         snapshot: "07-21 18:59", ledger: "b37f20a", scoreline: readyScoreline("33cf920dec", "a29db5f2ef", "全部符合：客队 -1.25", [["0-2", 1010], ["1-3", 890], ["0-3", 740]]),
         reasons: ["客队进攻评级与近期 xG 优势显著", "模型在 -1.25 盘口仍保留正 EV", "市场分歧超过分析级门槛"],
         risks: ["深盘对早早丢球与红牌高度敏感", "当前不确定性偏高，属于高风险分析建议", "若盘口升至 -1.5，必须废止当前结论"]
@@ -1589,8 +1617,9 @@
       {
         id: "1494217", priority: "P4", dateLabel: "07-26 周日", time: "22:30", countdown: "5天后", league: "瑞典超 · 常规赛第14轮",
         match: "马尔默 vs 埃尔夫斯堡", status: "pick", decision: "分析建议", recommendation: "大 2.5 @1.85",
-        model: 60.2, market: 54.1, delta: 6.1, ev: 5.6, uncertainty: 4.1, risk: "中", riskClass: "medium",
-        riskNote: "阵容待定", next: "赛前60分钟", nextDetail: "首发 / 天气 / 总进球线",
+        model: 60.2, market: 54.1, delta: 6.1, ev: 5.6, uncertainty: 4.1,
+        eventRisk: "未评估", eventRiskClass: "unknown", dataIntegrityRisk: "数据身份与证据完整", dataIntegrityRiskClass: "none",
+        modelUncertainty: "EV 标准误 ±4.1%", collectionRuntimeRisk: "调度暂停（受控状态）", marketIdentityRisk: "主线身份完整", lineupRisk: "首发待确认", next: "赛前60分钟", nextDetail: "首发 / 天气 / 总进球线",
         snapshot: "07-21 18:59", ledger: "9ae41dd", scoreline: readyScoreline("44da031dec", "b30ec6a3ef", "全部符合：大 2.5", [["2-1", 1080], ["2-2", 920], ["3-1", 810]]),
         reasons: ["双方进攻 xG 均高于联赛中位数", "模型比分分布集中在 2-1 / 2-2 / 3-1", "2.5 盘口双边报价完整且新鲜"],
         risks: ["若核心攻击手缺阵，进球预期会下降", "临场盘口升至 3.0 后需重新比较", "天气与场地信息尚未进入正式门禁"]
@@ -1598,8 +1627,9 @@
       {
         id: "1494220", priority: "P5", dateLabel: "07-27 周一", time: "01:00", countdown: "6天后", league: "瑞典超 · 常规赛第14轮",
         match: "赫根 vs AIK Stockholm", status: "pick", decision: "分析建议", recommendation: "小 3.5 @1.91",
-        model: 62.4, market: 56.7, delta: 5.7, ev: 4.9, uncertainty: 3.6, risk: "低", riskClass: "low",
-        riskNote: "优势较窄", next: "赛前30分钟", nextDetail: "临场总进球线 / 首发",
+        model: 62.4, market: 56.7, delta: 5.7, ev: 4.9, uncertainty: 3.6,
+        eventRisk: "未评估", eventRiskClass: "unknown", dataIntegrityRisk: "数据身份与证据完整", dataIntegrityRiskClass: "none",
+        modelUncertainty: "EV 标准误 ±3.6%", collectionRuntimeRisk: "调度暂停（受控状态）", marketIdentityRisk: "主线身份完整", lineupRisk: "首发待确认", next: "赛前30分钟", nextDetail: "临场总进球线 / 首发",
         snapshot: "07-21 18:59", ledger: "1f6de40", scoreline: readyScoreline("55eb142dec", "c41fd7b4ef", "全部符合：小 3.5", [["1-1", 1110], ["1-0", 900], ["0-1", 820]]),
         reasons: ["总进球模型低于当前市场预期", "盘口仍处于可执行范围", "模型—市场差刚超过分析门槛"],
         risks: ["优势边际较小，临场价格变化可能抹平 EV", "若盘口降至 3.25 需重新计算", "当前只属于分析建议，不属于正式推荐"]
@@ -1607,8 +1637,9 @@
       {
         id: "1494224", priority: "W1", dateLabel: "07-24 周五", time: "01:00", countdown: "3天后", league: "瑞典超 · 常规赛第14轮",
         match: "北雪平 vs 瓦尔贝里", status: "watch", decision: "继续观察", recommendation: "优势不足 · 暂不选方向",
-        model: 51.4, market: 49.9, delta: 1.5, ev: 0.8, uncertainty: 4.9, risk: "中", riskClass: "medium",
-        riskNote: "分歧不足", next: "等待新盘口", nextDetail: "下一次受控采集",
+        model: 51.4, market: 49.9, delta: 1.5, ev: 0.8, uncertainty: 4.9,
+        eventRisk: "未评估", eventRiskClass: "unknown", dataIntegrityRisk: "数据身份与证据完整", dataIntegrityRiskClass: "none",
+        modelUncertainty: "EV 标准误 ±4.9%", collectionRuntimeRisk: "调度暂停（受控状态）", marketIdentityRisk: "主线身份完整", lineupRisk: "首发证据未进入建议门", next: "等待新盘口", nextDetail: "下一次受控采集",
         snapshot: "07-21 18:59", ledger: "—", scoreline: null,
         reasons: ["模型和市场接近，不足以形成分析方向", "盘口证据完整，但价值差未达到门槛", "保持 NO_EDGE 比强行推荐更可信"],
         risks: ["暂无可执行方向", "临场盘口变化后结论可能改变", "当前不进入统一前向验证账本分母"]
@@ -1616,8 +1647,9 @@
       {
         id: "1494221", priority: "W2", dateLabel: "07-25 周六", time: "23:30", countdown: "4天后", league: "瑞典超 · 常规赛第14轮",
         match: "米亚尔比 vs 厄斯特松德", status: "watch", decision: "继续观察", recommendation: "模型优势不足",
-        model: 52.6, market: 50.4, delta: 2.2, ev: 1.3, uncertainty: 4.2, risk: "低", riskClass: "low",
-        riskNote: "NO_EDGE", next: "赛前60分钟", nextDetail: "等待盘口收敛",
+        model: 52.6, market: 50.4, delta: 2.2, ev: 1.3, uncertainty: 4.2,
+        eventRisk: "未评估", eventRiskClass: "unknown", dataIntegrityRisk: "数据身份与证据完整", dataIntegrityRiskClass: "none",
+        modelUncertainty: "EV 标准误 ±4.2%", collectionRuntimeRisk: "调度暂停（受控状态）", marketIdentityRisk: "主线身份完整", lineupRisk: "首发证据未进入建议门", next: "赛前60分钟", nextDetail: "等待盘口收敛",
         snapshot: "07-21 18:59", ledger: "—", scoreline: null,
         reasons: ["模型概率虽略高于市场，但未达到 +5pp", "模型 EV 不足", "当前正确动作是继续观察"],
         risks: ["不应把小幅分歧包装成推荐", "若出现同线价格改善再重新评估", "不进入命中率分母"]
@@ -1625,8 +1657,9 @@
       {
         id: "1494219", priority: "W3", dateLabel: "07-26 周日", time: "22:00", countdown: "5天后", league: "瑞典超 · 常规赛第14轮",
         match: "卡尔马 vs 哈尔姆斯塔德", status: "watch", decision: "继续观察", recommendation: "NO_EDGE · 不操作",
-        model: 49.8, market: 49.2, delta: 0.6, ev: 0.2, uncertainty: 3.9, risk: "低", riskClass: "low",
-        riskNote: "无优势", next: "等待临场", nextDetail: "新报价或阵容变化",
+        model: 49.8, market: 49.2, delta: 0.6, ev: 0.2, uncertainty: 3.9,
+        eventRisk: "未评估", eventRiskClass: "unknown", dataIntegrityRisk: "数据身份与证据完整", dataIntegrityRiskClass: "none",
+        modelUncertainty: "EV 标准误 ±3.9%", collectionRuntimeRisk: "调度暂停（受控状态）", marketIdentityRisk: "主线身份完整", lineupRisk: "首发证据未进入建议门", next: "等待临场", nextDetail: "新报价或阵容变化",
         snapshot: "07-21 18:59", ledger: "—", scoreline: null,
         reasons: ["模型与市场高度一致", "没有可解释的价格优势", "NO_EDGE 是诚实结论"],
         risks: ["不建议为了增加推荐数量降低门槛", "临场市场变化可能重新打开机会", "仅保留观察记录"]
@@ -1635,8 +1668,9 @@
         id: `future-${index + 1}`, priority: `N${index + 1}`, dateLabel: ["07-27 周一","07-28 周二","07-29 周三","07-30 周四","07-31 周五","08-01 周六"][index], time: ["19:00","20:30","21:00","22:00","23:00","00:30"][index],
         countdown: `${6 + index}天后`, league: "瑞典超 · 未来赛程", match: ["韦纳穆 vs 北雪平","哥德堡盖斯 vs 天狼星","尤尔加登 vs 马尔默","AIK vs 哈马比","赫根 vs 代格福什","埃尔夫斯堡 vs 米亚尔比"][index],
         status: "not-ready", decision: "暂不可判断", recommendation: index % 2 ? "等待首轮盘口" : "尚未进入临场窗口",
-        model: null, market: null, delta: null, ev: null, uncertainty: null, risk: "中", riskClass: "medium",
-        riskNote: index % 2 ? "盘口未齐" : "未到采集时点", next: "待安排", nextDetail: "受控采集窗口",
+        model: null, market: null, delta: null, ev: null, uncertainty: null,
+        eventRisk: "未评估", eventRiskClass: "unknown", dataIntegrityRisk: "数据证据缺失", dataIntegrityRiskClass: "high",
+        modelUncertainty: "dynamic evaluation 与不确定性待就绪", collectionRuntimeRisk: "调度暂停（受控状态）", marketIdentityRisk: "盘口身份待确认", lineupRisk: "首发证据未进入建议门", next: "待安排", nextDetail: "受控采集窗口",
         snapshot: "—", ledger: "—", scoreline: null,
         reasons: ["比赛尚未进入完整评估窗口", "当前不展示虚假概率或推荐", "达到采集条件后自动进入决策队列"],
         risks: ["盘口或首发数据尚不完整", "不可用历史快照替代当前执行报价", "保持 NOT_READY"]
@@ -1653,7 +1687,12 @@
 
     function filteredDecisions() {
       if (activeFilter === "priority") return decisions.filter(item => item.status === "pick");
-      if (activeFilter === "risk") return decisions.filter(item => item.riskClass === "high" || item.status === "not-ready");
+      if (activeFilter === "risk") return decisions.filter(item => (
+        item.eventRiskClass === "high"
+        || item.dataIntegrityRiskClass === "high"
+        || item.modelUncertaintyClass === "high"
+        || item.collectionRuntimeRiskClass === "high"
+      ));
       return decisions;
     }
 
@@ -1665,7 +1704,7 @@
       }
       list.innerHTML = rows.map(item => {
         const statusClass = `status-${item.status}`;
-        const riskClass = item.riskClass || "medium";
+        const riskClass = item.eventRiskClass || "unknown";
         const metrics = item.model == null
           ? `<span><b>状态</b> ${item.recommendation}</span>`
           : `<span><b>模型</b> ${fmtPercent(item.model)}</span><span><b>市场</b> ${fmtPercent(item.market)}</span><span><b>差值</b> ${fmtDelta(item.delta)}</span><span><b>EV</b> ${fmtEv(item.ev)}</span>`;
@@ -1678,7 +1717,7 @@
             <div class="kickoff"><strong>${item.dateLabel}</strong><b>${item.time}</b><span>${item.countdown}</span></div>
             <div class="matchup"><strong>${item.match}</strong><span>${item.league}</span></div>
             <div class="decision-main"><strong>${item.recommendation}</strong><div class="metric-line">${metrics}</div>${scoreline}</div>
-            <div class="risk-level ${riskClass}"><span>${item.risk}风险</span><small>${item.riskNote}</small></div>
+            <div class="risk-level ${riskClass}"><span>赛事风险 ${item.eventRisk}</span><small>数据完整性 ${item.dataIntegrityRisk}</small></div>
             <div class="next-action"><strong>${item.next}</strong><span>${item.nextDetail}</span></div>
           </button>`;
       }).join("");
@@ -1725,6 +1764,14 @@
         scorelinePanel.innerHTML = `<div class="scoreline-head"><h3>模型比分 Top 3</h3><span>${item.scoreline.simulationsCompleted.toLocaleString("en-US")} 次模拟</span></div><div class="scoreline-list">${item.scoreline.top3.map(row => `<div class="scoreline-row"><strong>${row.scoreline}</strong><span>${fmtPercent(row.probability * 100)}</span><small>${row.sampleCount.toLocaleString("en-US")}次</small></div>`).join("")}</div><div class="scoreline-foot"><strong>一致样本 ${item.scoreline.consistentSampleCount.toLocaleString("en-US")} / ${item.scoreline.simulationsCompleted.toLocaleString("en-US")}</strong><span>${item.scoreline.consistencyLabel}</span><code>decision ${item.scoreline.decisionHash.slice(0, 7)} · evidence ${item.scoreline.evidenceHash.slice(0, 7)}</code></div>`;
       }
       document.getElementById("reasonList").innerHTML = item.reasons.map(text => `<li>${text}</li>`).join("");
+      document.getElementById("riskBreakdown").innerHTML = [
+        ["赛事风险", item.eventRisk],
+        ["数据完整性", item.dataIntegrityRisk],
+        ["模型不确定性", item.modelUncertainty],
+        ["采集运行", item.collectionRuntimeRisk],
+        ["盘口身份", item.marketIdentityRisk],
+        ["首发状态", item.lineupRisk],
+      ].map(([label, value]) => `<span>${label} <b>${value}</b></span>`).join("");
       document.getElementById("riskList").innerHTML = item.risks.map(text => `<li>${text}</li>`).join("");
       document.getElementById("nextActionTitle").textContent = item.status === "pick" ? `${item.next}重新评估` : item.next;
       document.getElementById("nextActionDetail").textContent = `触发条件：${item.nextDetail}。`;

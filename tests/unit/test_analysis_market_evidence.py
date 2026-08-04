@@ -129,3 +129,33 @@ def test_selected_side_blocks_when_uncertainty_is_not_validated() -> None:
     assert evidence["model_evidence_status"] == "NOT_READY"
     assert evidence["comparison"]["reason_code"] == "MODEL_UNCERTAINTY_NOT_READY"
     assert evidence["model_probability"]["reason_code"] == "MODEL_UNCERTAINTY_NOT_READY"
+
+
+def test_five_state_cashflow_edge_replaces_legacy_probability_delta_gate() -> None:
+    evidence = build_analysis_market_evidence(
+        fixture_id="fixture-1",
+        competition_id="allsvenskan",
+        market="ASIAN_HANDICAP",
+        selection="HOME",
+        line="-0.25",
+        quote_identity_audit=_quote_audit(),
+        simulation=_ready_simulation(),
+    )
+
+    model = evidence["model_probability"]
+    distribution = model["settlement_distribution"]
+    oracle_fair_odds = 1 + (distribution["LOSS"] + 0.5 * distribution["HALF_LOSS"]) / (
+        distribution["WIN"] + 0.5 * distribution["HALF_WIN"]
+    )
+    comparison = evidence["comparison"]
+
+    assert abs(model["fair_decimal_odds"] - round(oracle_fair_odds, 4)) < 0.000001
+    assert comparison["probability_delta"] < comparison["required_delta"]
+    assert comparison["probability_delta_admission_gate"] is False
+    assert comparison["cashflow_price_edge"] == round(
+        1.95 / model["fair_decimal_odds"] - 1,
+        6,
+    )
+    assert comparison["cashflow_price_edge"] >= comparison["required_cashflow_price_edge"]
+    assert comparison["current_ev_minus_se"] > 0
+    assert comparison["analysis_direction_allowed"] is True

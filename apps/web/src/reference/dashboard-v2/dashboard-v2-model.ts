@@ -83,6 +83,7 @@ export interface DashboardV2QuoteModel {
   marketProbability: number | null;
   modelProbability: number | null;
   probabilityDelta: number | null;
+  cashflowPriceEdge: number | null;
   expectedValue: number | null;
   uncertainty: number | null;
   ladder?: DashboardV2MarketLadderRow[];

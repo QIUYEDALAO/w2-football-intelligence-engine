@@ -8,6 +8,11 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from w2.domain.canonical_serialization import CURRENT_SERIALIZER_VERSION
+from w2.domain.recommendation_decision_v4 import (
+    RECOMMENDATION_SCHEMA_VERSION,
+    build_recommendation_decision_v4,
+)
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.models import (
     CompetitionModel,
@@ -310,6 +315,7 @@ def test_settlement_is_append_only(session: Session) -> None:
 
 
 def _formal_card(fixture_id: str, kickoff_utc: datetime) -> dict[str, object]:
+    decision_v4 = _formal_decision_v4(fixture_id, kickoff_utc)
     return {
         "fixture_id": fixture_id,
         "generated_at": NOW.isoformat().replace("+00:00", "Z"),
@@ -318,6 +324,8 @@ def _formal_card(fixture_id: str, kickoff_utc: datetime) -> dict[str, object]:
         "away_team_name": "Synthetic Away",
         "competition_name": "Synthetic Cup",
         "formal_recommendation": True,
+        "recommendation_decision_v3": {"outcome": "NOT_READY"},
+        "recommendation_decision_v4": decision_v4,
         "recommendation": {
             "tier": "FORMAL",
             "market": "ASIAN_HANDICAP",
@@ -326,6 +334,7 @@ def _formal_card(fixture_id: str, kickoff_utc: datetime) -> dict[str, object]:
             "line": "-0.25",
             "odds": "1.91",
             "expected_value": "0.112465",
+            "quote_identity": _quote_identity(decision_v4),
             "ah_settlement_distribution": {
                 "win": 0.52,
                 "half_win": 0.0,
@@ -369,6 +378,77 @@ def _formal_card(fixture_id: str, kickoff_utc: datetime) -> dict[str, object]:
             "xg_status": "READY",
         },
         "data_profile": "real-db",
+    }
+
+
+def _formal_decision_v4(fixture_id: str, kickoff_utc: datetime) -> dict[str, object]:
+    return build_recommendation_decision_v4(
+        {
+            "fixture_id": fixture_id,
+            "competition_id": "synthetic_cup",
+            "season": "2026",
+            "kickoff_utc": kickoff_utc.isoformat().replace("+00:00", "Z"),
+            "kickoff_revision_or_fixture_identity_hash": "kickoff-revision-1",
+            "provider": "api-football",
+            "bookmaker_id": "unibet",
+            "market": "ASIAN_HANDICAP",
+            "selection": "HOME",
+            "exact_line": "-0.25",
+            "capture_id": "capture-1",
+            "captured_at": NOW.isoformat().replace("+00:00", "Z"),
+            "quote_observation_ids": {
+                "home": "observation-home",
+                "away": "observation-away",
+            },
+            "raw_payload_sha256": "a" * 64,
+            "source_revision": "source-revision-1",
+            "model_version": "model-v1",
+            "calibration_version": "calibration-v1",
+            "serializer_version": CURRENT_SERIALIZER_VERSION.value,
+            "recommendation_schema_version": RECOMMENDATION_SCHEMA_VERSION,
+            "quote_schema_version": "w2.quote_identity.v1",
+            "model_input_manifest_hash": "b" * 64,
+            "decimal_odds": "1.91",
+            "canonical_mainline_identity": {
+                "market": "ASIAN_HANDICAP",
+                "line": "-0.25",
+                "selected_side_line": "-0.25",
+                "candidate_role": "MARKET_MAINLINE",
+                "quote_identity_hash": "c" * 64,
+            },
+            "settlement_distribution": {
+                "WIN": "0.5",
+                "HALF_WIN": "0.1",
+                "PUSH": "0.1",
+                "HALF_LOSS": "0.1",
+                "LOSS": "0.2",
+            },
+            "fair_odds": "1.4545",
+            "expected_value": "0.2505",
+            "uncertainty": "0.01",
+            "readiness": {
+                "status": "READY",
+                "quote_identity_status": "COMPLETE",
+                "quote_freshness_status": "COMPLETE",
+                "model_status": "READY",
+            },
+            "capability_status": "FORMAL_ENABLED",
+        }
+    ).as_dict()
+
+
+def _quote_identity(decision: dict[str, object]) -> dict[str, object]:
+    authoritative = decision["authoritative_input"]
+    mainline = authoritative["canonical_mainline_identity"]
+    return {
+        "provider": authoritative["provider"],
+        "bookmaker_id": authoritative["bookmaker_id"],
+        "capture_id": authoritative["capture_id"],
+        "captured_at": authoritative["captured_at"],
+        "observation_ids": authoritative["quote_observation_ids"],
+        "raw_payload_sha256": authoritative["raw_payload_sha256"],
+        "source_revision": authoritative["source_revision"],
+        "quote_identity_hash": mainline["quote_identity_hash"],
     }
 
 

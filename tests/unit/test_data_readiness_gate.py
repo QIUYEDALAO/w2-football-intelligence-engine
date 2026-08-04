@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from w2.domain.enums import DataStatus, DecisionReasonCode
+from w2.domain.recommendation_decision_v4 import build_recommendation_decision_v4
 from w2.readiness.data_gate import (
     DataFreshnessPolicy,
     DataReadinessInput,
@@ -231,19 +232,27 @@ def test_readiness_result_round_trips_blocking_advisory_and_warnings() -> None:
 def test_selected_market_quote_time_is_not_polluted_by_other_market() -> None:
     fresh_ah = NOW - timedelta(minutes=5)
     stale_ou = NOW - timedelta(minutes=31)
+    decision_v4 = build_recommendation_decision_v4(
+        {
+            "fixture_id": "fixture-1",
+            "kickoff_utc": KICKOFF,
+            "captured_at": fresh_ah,
+            "readiness": {
+                "quote_identity_status": "COMPLETE",
+                "quote_freshness_status": "COMPLETE",
+                "model_status": "NOT_READY",
+            },
+        }
+    ).as_dict()
     result = build_data_readiness_from_legacy_payload(
         card={
             "fixture_id": "fixture-1",
             "data_readiness": {"market_observations": 4, "bookmakers": 1},
-            "decision_contract": {
-                "selected_market_candidate": {
-                    "market": "ASIAN_HANDICAP",
-                    "quote_identity": {
-                        "identity_status": "COMPLETE",
-                        "freshness_status": "COMPLETE",
-                        "captured_at": fresh_ah.isoformat(),
-                    },
-                }
+            "recommendation_decision_v4": decision_v4,
+            "recommendation_decision_v3": {
+                "selected_candidate": {
+                    "quote_identity": {"captured_at": stale_ou.isoformat()},
+                },
             },
             "quote_identity_audit": {
                 "ah": {

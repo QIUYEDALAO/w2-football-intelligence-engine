@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 from w2.domain.enums import DataStatus, DecisionReasonCode
+from w2.domain.recommendation_decision_v4 import validate_decision_v4_identity
 from w2.markets.quote_identity import QUOTE_IDENTITY_SCHEMA_VERSION
 
 READINESS_SOURCE: Literal["w2.readiness.data_gate.v1"] = "w2.readiness.data_gate.v1"
@@ -297,14 +298,19 @@ def build_data_readiness_from_legacy_payload(
 
 
 def _authoritative_quote_captured_at(card: Mapping[str, Any]) -> datetime | None:
-    candidate = _selected_or_evaluated_market_candidate(card)
-    if candidate:
-        quote_identity = _as_mapping(candidate.get("quote_identity"))
+    decision_v4 = _as_mapping(card.get("recommendation_decision_v4"))
+    if decision_v4:
+        try:
+            validate_decision_v4_identity(decision_v4)
+        except ValueError:
+            return None
+        authoritative_input = _as_mapping(decision_v4.get("authoritative_input"))
+        readiness = _as_mapping(authoritative_input.get("readiness"))
         if (
-            _first_text(quote_identity.get("identity_status")) == "COMPLETE"
-            and _first_text(quote_identity.get("freshness_status")) != "INCOMPLETE"
+            readiness.get("quote_identity_status") == "COMPLETE"
+            and readiness.get("quote_freshness_status") != "INCOMPLETE"
         ):
-            return _parse_utc(quote_identity.get("captured_at"))
+            return _parse_utc(authoritative_input.get("captured_at"))
 
     audit = _as_mapping(card.get("quote_identity_audit"))
     captured: list[datetime] = []
@@ -320,27 +326,6 @@ def _authoritative_quote_captured_at(card: Mapping[str, Any]) -> datetime | None
         if parsed is not None:
             captured.append(parsed)
     return min(captured) if captured else None
-
-
-def _selected_or_evaluated_market_candidate(card: Mapping[str, Any]) -> Mapping[str, Any]:
-    decision_v3 = _as_mapping(card.get("recommendation_decision_v3"))
-    for key in ("selected_candidate", "evaluated_candidate"):
-        candidate = _as_mapping(decision_v3.get(key))
-        if candidate:
-            return candidate
-    contract = _as_mapping(card.get("decision_contract"))
-    for key in ("selected_market_candidate", "pick"):
-        candidate = _as_mapping(contract.get(key))
-        if candidate:
-            return candidate
-    candidates = _as_mapping(card.get("market_candidates"))
-    for key in ("selected", "evaluated"):
-        candidate = _as_mapping(candidates.get(key))
-        if candidate:
-            return candidate
-    return {}
-
-
 def result_from_mapping(payload: Mapping[str, Any]) -> DataReadinessResult | None:
     source = payload.get("source") or payload.get("readiness_source")
     if source != READINESS_SOURCE:

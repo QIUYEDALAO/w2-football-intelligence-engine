@@ -6,12 +6,13 @@ from typing import Any
 
 from w2.dashboard.date_navigation import build_date_navigation
 from w2.dashboard.degradation import build_dashboard_degradation
-from w2.domain.decision_card import compute_card_hash
 from w2.domain.decision_contract import validate_decision_contract
 from w2.domain.enums import DataStatus, DecisionTier, LifecycleStatus
 from w2.domain.environment_policy import build_environment_policy_stamp
-from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
-from w2.domain.recommendation_decision_v3 import project_decision_v3
+from w2.domain.recommendation_decision_v4 import (
+    RecommendationOutcomeV4,
+    validate_decision_v4_identity,
+)
 from w2.prematch.simulation_reconciliation import (
     PublicSimulationReadViolation,
     canonical_public_simulation,
@@ -122,221 +123,61 @@ def _day_view_card(card: Mapping[str, Any]) -> dict[str, Any]:
         fixture_id=card.get("fixture_id"),
         card=card,
     )
-    projected = _reconcile_dynamic_decision(_contract_card(card, contract))
+    projected = _apply_v4_authority(_contract_card(card, contract))
     _validate_projection_card(projected)
     return projected
 
 
-def _reconcile_dynamic_decision(projected: dict[str, Any]) -> dict[str, Any]:
-    """Reconcile a persisted active lifecycle without recalculating its evidence."""
-    decision = _mapping(projected.get("recommendation_decision_v3"))
-    evaluated = _mapping(decision.get("evaluated_candidate"))
-    evidence = _mapping(evaluated.get("analysis_evidence"))
-    comparison = _mapping(evidence.get("comparison"))
-    model = _mapping(evidence.get("model_probability"))
-    market = _mapping(_mapping(evidence.get("market_probability")).get("devig"))
-    identity = _mapping(evaluated.get("quote_identity"))
-    executable = _mapping(_mapping(evaluated.get("quotes")).get("executable"))
-    current = _mapping(projected.get("dynamic_prematch")).get("current")
-    if not isinstance(current, Sequence) or isinstance(current, str | bytes | bytearray):
-        return projected
-    rows = [
-        _mapping(row)
-        for row in current
-        if isinstance(row, Mapping)
-        and row.get("state") == "ANALYSIS_PICK_ACTIVE"
-        and row.get("superseded_by_evaluation_id") in {None, ""}
-    ]
-    rows.sort(
-        key=lambda row: (
-            str(row.get("evaluated_at") or ""),
-            str(row.get("evaluation_id") or ""),
-        ),
-        reverse=True,
-    )
-    if not rows:
-        return projected
-    row = rows[0]
-    selection = str(evaluated.get("selection") or "").replace("_AH", "")
-    quote_hash = str(identity.get("quote_identity_hash") or "")
-    model_probability = _finite(model.get("effective_probability"))
-    market_probability = _finite(market.get(selection))
-    current_ev = _finite(comparison.get("current_ev"))
-    probability_delta = _finite(comparison.get("probability_delta"))
-    current_ev_minus_se = _finite(comparison.get("current_ev_minus_se"))
-    ev_se = _finite(model.get("ev_se"))
-    identity_matches = (
-        row.get("schema_version") == "w2.dynamic_quote_evaluation.v2"
-        and row.get("immutable") is True
-        and not _string_list(row.get("blockers"))
-        and str(row.get("fixture_id") or "") == str(projected.get("fixture_id") or "")
-        and bool(quote_hash)
-        and str(row.get("quote_identity_hash") or "") == quote_hash
-        and identity.get("identity_status") == "COMPLETE"
-        and identity.get("freshness_status") == "COMPLETE"
-        and str(row.get("market") or "") == str(evaluated.get("market") or "")
-        and str(row.get("selection") or "").replace("_AH", "") == selection
-        and str(row.get("capture_id") or "") == str(executable.get("capture_id") or "")
-        and str(row.get("bookmaker_id") or "") == str(executable.get("bookmaker_id") or "")
-        and _same_number(row.get("exact_line"), evaluated.get("line"))
-        and _same_number(row.get("current_ev"), comparison.get("current_ev"))
-        and _same_number(row.get("current_delta"), comparison.get("probability_delta"))
-        and _same_number(
-            row.get("current_ev_minus_se"),
-            comparison.get("current_ev_minus_se"),
-        )
-    )
-    if (
-        not identity_matches
-        or evidence.get("status") != "COMPLETE"
-        or model.get("status") != "READY"
-        or comparison.get("status") != "READY"
-        or comparison.get("analysis_direction_allowed") is not True
-        or not executable
-        or not _same_number(executable.get("line"), evaluated.get("line"))
-        or (_finite(executable.get("decimal_odds")) or 0) <= 1
-    ):
-        return projected
-    if (
-        model_probability is None
-        or market_probability is None
-        or current_ev is None
-        or probability_delta is None
-        or current_ev_minus_se is None
-        or ev_se is None
-        or not 0 <= model_probability <= 1
-        or not 0 <= market_probability <= 1
-        or not _same_number(current_ev, model.get("expected_value"))
-        or not _same_number(current_ev_minus_se, current_ev - ev_se)
-        or not _same_number(probability_delta, model_probability - market_probability)
-    ):
-        return projected
-
-    pick = {
-        "market": evaluated.get("market"),
-        "selection": evaluated.get("selection"),
-        "line": executable.get("line"),
-        "odds": executable.get("decimal_odds"),
-        "fair_line": evaluated.get("fair_line"),
-        "market_line": evaluated.get("market_line"),
-        "value_edge": comparison.get("probability_delta"),
-        "key_factors": ["动态评估与冻结报价、模型证据身份一致"],
-        "risks": ["ANALYSIS_ONLY_FORMAL_DISABLED"],
-        "invalidation": "EXACT_QUOTE_IDENTITY_OR_MODEL_INPUT_CHANGED",
-        "quote_identity": dict(identity),
-        "model_probability": dict(model),
-        "market_probability": evidence.get("market_probability"),
-        "probability_delta": comparison.get("probability_delta"),
-        "expected_value": comparison.get("current_ev"),
-        "uncertainty": model.get("ev_se"),
-        "disclaimer": "分析参考·非稳赢；production 动作需 RECOMMEND",
-    }
-    contract = {
-        "fixture_id": projected.get("fixture_id"),
-        "competition_id": projected.get("competition_id"),
-        "kickoff_utc": projected.get("kickoff_utc"),
-        "decision_tier": "ANALYSIS_PICK",
-        "data_status": "READY",
-        "lifecycle_status": projected.get("lifecycle_status"),
-        "outcome_tracked": True,
-        "lock_eligible": False,
-        "recommendation_id": None,
-        "lineup_requirement": projected.get("lineup_requirement"),
-        "risk_reason_codes": projected.get("risk_reason_codes"),
-        "probability_source": projected.get("probability_source"),
-        "model_market_divergence": projected.get("model_market_divergence"),
-        "provenance": {
-            "source": "read_model_checkpoint",
-            "projection": "dynamic_lifecycle_reconciliation.v1",
-            "evaluation_id": row.get("evaluation_id"),
-        },
-        "pick": pick,
-        "non_pick": None,
-        "one_liner": "当前动态评估已形成分析方向",
-        "integrity_status": "PASS",
-        "quote_provenance_status": "COMPLETE",
-        "selected_market_candidate": dict(evaluated),
-        "warnings": list(decision.get("warnings") or []),
-        "as_of": row.get("evaluated_at"),
-    }
-    contract["card_hash"] = compute_card_hash(contract)
-    reconciled = project_decision_v3(
-        contract,
-        manifest=load_recommendation_capability_manifest(),
-    ).as_dict()
-    scoreline_reference = _mapping_copy(row.get("scoreline_reference"))
-    scoreline_projection = _mapping_copy(scoreline_reference.get("scoreline_projection"))
-    if scoreline_projection.get("status") == "READY":
-        scoreline_projection.update(
-            {
-                "source_evaluation_hash": row.get("identity_hash"),
-                "public_decision_hash": reconciled.get("decision_hash"),
-            }
-        )
-        scoreline_reference["direction_top3"] = _mapping_list(scoreline_projection.get("top3"))
-        scoreline_reference["scoreline_projection"] = scoreline_projection
-    readiness = _mapping_copy(projected.get("data_readiness"))
-    readiness.update(
-        {
-            "data_status": "READY",
-            "reason_code": None,
-            "reason_human": "动态评估所需报价与模型证据已就绪",
-            "action": "持续监控新盘口或模型输入",
-            "decision_projection_status": "RECONCILED",
+def _apply_v4_authority(projected: dict[str, Any]) -> dict[str, Any]:
+    """Use V4 as current authority; V3 remains historical evidence only."""
+    decision = projected.get("recommendation_decision_v4")
+    if not isinstance(decision, Mapping) or not decision:
+        if projected.get("decision_tier") not in {
+            DecisionTier.ANALYSIS_PICK.value,
+            DecisionTier.RECOMMEND.value,
+        }:
+            projected["recommendation_decision_v3_role"] = "HISTORY_ONLY"
+            return projected
+        return {
+            **projected,
+            "decision_tier": DecisionTier.NOT_READY.value,
+            "data_status": DataStatus.BLOCKED.value,
+            "outcome_tracked": False,
+            "lock_eligible": False,
+            "recommendation_id": None,
+            "reason_code": "CURRENT_V4_AUTHORITY_MISSING",
+            "action": "WAIT",
+            "pick": None,
+            "non_pick": {
+                "reason_code": "CURRENT_V4_AUTHORITY_MISSING",
+                "reason_human": "当前推荐缺少 V4 权威身份",
+                "action": "等待 V4 权威投影",
+                "next_eval_at": None,
+            },
+            "one_liner": "当前推荐缺少 V4 权威身份",
+            "scoreline_picks": [],
+            "scoreline_reference": {},
+            "recommendation_decision_v3_role": "HISTORY_ONLY",
         }
-    )
-    return {
-        **projected,
-        "decision_tier": "ANALYSIS_PICK",
-        "data_status": "READY",
-        "outcome_tracked": True,
-        "lock_eligible": False,
-        "recommendation_id": None,
-        "reason_code": "ANALYSIS_ONLY",
-        "action": "MONITOR",
-        "data_readiness": readiness,
-        "pick": pick,
-        "non_pick": None,
-        "one_liner": "当前动态评估已形成分析方向",
-        "card_hash": contract["card_hash"],
-        "recommendation_decision_v3": reconciled,
-        "scoreline_picks": _mapping_list(scoreline_projection.get("top3")),
-        "scoreline_reference": scoreline_reference,
-        "scoreline_readiness": {
-            "status": scoreline_projection.get("status"),
-            "reason": scoreline_projection.get("reason"),
-            "source": "persisted_dynamic_evaluation",
-        }
-        if scoreline_projection
-        else _mapping_copy(projected.get("scoreline_readiness")),
-        "decision_projection": {
-            "status": "RECONCILED",
-            "source": "dynamic_prematch.current",
-            "evaluation_id": row.get("evaluation_id"),
-            "provider_calls": 0,
-            "db_writes": 0,
-        },
-    }
-
-
-def _finite(value: Any) -> float | None:
-    if isinstance(value, bool):
-        return None
     try:
-        parsed = float(value)
-    except (TypeError, ValueError):
-        return None
-    return parsed if parsed == parsed and abs(parsed) != float("inf") else None
-
-
-def _same_number(left: Any, right: Any) -> bool:
-    left_number = _finite(left)
-    right_number = _finite(right)
-    return (
-        left_number is not None
-        and right_number is not None
-        and abs(left_number - right_number) <= 0.000001
-    )
+        validate_decision_v4_identity(decision)
+    except ValueError as exc:
+        raise ProjectionCardContractViolation(str(exc)) from exc
+    expected_tier = {
+        RecommendationOutcomeV4.FORMAL_RECOMMEND.value: DecisionTier.RECOMMEND.value,
+        RecommendationOutcomeV4.ANALYSIS_PICK.value: DecisionTier.ANALYSIS_PICK.value,
+        RecommendationOutcomeV4.NO_EDGE.value: DecisionTier.SKIP.value,
+        RecommendationOutcomeV4.NOT_READY.value: DecisionTier.NOT_READY.value,
+    }.get(str(decision.get("outcome") or ""))
+    if expected_tier is None or projected.get("decision_tier") != expected_tier:
+        raise ProjectionCardContractViolation("DECISION_V4_CURRENT_TIER_CONFLICT")
+    selected = decision.get("selected_candidate")
+    if (expected_tier in {DecisionTier.ANALYSIS_PICK.value, DecisionTier.RECOMMEND.value}) != (
+        isinstance(selected, Mapping) and isinstance(projected.get("pick"), Mapping)
+    ):
+        raise ProjectionCardContractViolation("DECISION_V4_CURRENT_PICK_CONFLICT")
+    projected["recommendation_decision_v3_role"] = "HISTORY_ONLY"
+    return projected
 
 
 def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict[str, Any]:
@@ -401,7 +242,9 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         "quote_identity_audit": _mapping_copy(card.get("quote_identity_audit")),
         "frozen_artifact_provenance": _mapping_copy(card.get("frozen_artifact_provenance")),
         "artifact_hash": _optional_text(card.get("artifact_hash")),
+        "recommendation_decision_v4": _mapping_copy(card.get("recommendation_decision_v4")),
         "recommendation_decision_v3": _mapping_copy(card.get("recommendation_decision_v3")),
+        "recommendation_decision_v3_role": "HISTORY_ONLY",
     }
 
 

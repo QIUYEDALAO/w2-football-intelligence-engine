@@ -190,6 +190,10 @@ test.describe("Boss Decision Console source contract", () => {
     await page.getByRole("button", { name: "打开系统状态" }).click();
     const drawer = page.locator(".drawer-backdrop");
     await expect(drawer).toHaveAttribute("aria-hidden", "false");
+    await expect(drawer).toContainText(/Candidate\s*OFF/);
+    await expect(drawer).toContainText(/Formal Recommendation\s*OFF/);
+    await expect(drawer).toContainText(/Lock\s*OFF/);
+    await expect(drawer).toContainText(/Production\s*OFF/);
     await page.keyboard.press("Escape");
     await expect(drawer).toHaveAttribute("aria-hidden", "true");
   });
@@ -240,6 +244,10 @@ test.describe("Boss Decision Console source contract", () => {
     await expect(selected).toContainText("计划复核：赛前30分钟");
     await expect(selected).toContainText("状态：受控采集尚未安排");
     await expect(selected).toContainText(/盘口身份\s*主线身份完整/);
+    await expect(selected).toContainText(/赛事风险\s*未评估/);
+    await expect(selected).toContainText(/数据完整性\s*数据身份与证据完整/);
+    await expect(selected).toContainText(/模型不确定性\s*EV 标准误/);
+    await expect(selected).toContainText(/采集运行\s*调度暂停（受控状态）/);
     await selected.locator("[data-ui='market-ladder'] summary").click();
     await expect(selected.locator("[data-ui='market-ladder']")).toContainText("2.75");
     await expect(selected.locator("[data-ui='market-ladder']")).toContainText(
@@ -316,13 +324,95 @@ test.describe("Boss Decision Console source contract", () => {
 
     const model = adaptDashboardV2ToBossConsole(fixture);
 
-    expect(model.decisions[0].riskLevel).toBe("medium");
-    expect(model.decisions[0].riskNote).toBe(
-      "Provider 已返回数据，但没有可比较的完整双边盘口",
+    expect(model.decisions[0].eventRisk).toEqual({
+      level: "unknown",
+      label: "未评估",
+      code: null,
+    });
+    expect(model.decisions[0].dataIntegrityRisk).toEqual({
+      level: "high",
+      label: "赔率缺失：Provider 已返回数据，但没有可比较的完整双边盘口",
+      code: "MARKET_UNAVAILABLE",
+    });
+    expect(model.eventRiskExceptionCount).toBe(
+      model.decisions.filter((item) => item.eventRisk.level === "high").length,
     );
-    expect(model.riskExceptionCount).toBe(
-      model.decisions.filter((item) => item.riskLevel === "high").length,
-    );
+  });
+
+  test("backend reason codes stay on their owning risk axes", () => {
+    const adapt = (overrides: Partial<(typeof dashboardV2ReferenceFixture.fixtures)[number]>) => {
+      const source = structuredClone(dashboardV2ReferenceFixture);
+      source.health.automaticCollectionPaused = false;
+      source.fixtures = [{ ...source.fixtures[0], ...overrides }];
+      return adaptDashboardV2ToBossConsole(source).decisions[0];
+    };
+
+    const teamMapping = adapt({
+      decisionTier: "NOT_READY",
+      dataStatus: "BLOCKED",
+      reasonCode: "TEAM_MAPPING_MISSING",
+      reasonLabel: "客队 Provider identity 尚未映射",
+    });
+    expect(teamMapping.eventRisk.level).toBe("unknown");
+    expect(teamMapping.dataIntegrityRisk.label).toContain("球队映射缺失");
+
+    const xg = adapt({
+      decisionTier: "NOT_READY",
+      dataStatus: "BLOCKED",
+      reasonCode: "XG_MISSING",
+      reasonLabel: "真实 xG 未物化",
+      dataFacts: ["盘口身份 完整", "真实 xG XG_MISSING", "内部评级 已就绪", "首发 已就绪"],
+    });
+    expect(xg.dataIntegrityRisk.label).toContain("xG 缺失");
+
+    const lineup = adapt({
+      decisionTier: "NOT_READY",
+      dataStatus: "BLOCKED",
+      reasonCode: "LINEUP_NOT_CONFIRMED",
+      reasonLabel: "首发未确认",
+      dataFacts: ["盘口身份 完整", "真实 xG 已就绪", "内部评级 已就绪", "首发 未到采集时间"],
+    });
+    expect(lineup.dataIntegrityRisk.level).toBe("none");
+    expect(lineup.lineupRisk).toBe("首发待确认");
+
+    const calibration = adapt({
+      reasonCode: "CALIBRATION_UNVERIFIED",
+      calibrationLabel: "基线先验模型 · 尚未完成正式校准验证",
+    });
+    expect(calibration.modelUncertainty.label).toContain("calibration 未验证");
+
+    const dynamic = adapt({
+      decisionTier: "NOT_READY",
+      dataStatus: "BLOCKED",
+      reasonCode: "DYNAMIC_EVALUATION_MISSING",
+      reasonLabel: "动态评估缺失",
+      dynamicSnapshot: null,
+    });
+    expect(dynamic.dataIntegrityRisk.level).toBe("none");
+    expect(dynamic.modelUncertainty.level).toBe("high");
+    expect(dynamic.modelUncertainty.code).toBe("DYNAMIC_EVALUATION_MISSING");
+    expect(dynamic.modelUncertainty.label).toContain("dynamic evaluation 缺失");
+    expect(dynamic.modelUncertainty.label).toContain("calibration 未验证");
+
+    const schema = adapt({
+      decisionTier: "NOT_READY",
+      decisionOutcome: "SYSTEM_DEGRADED",
+      dataStatus: "BLOCKED",
+      reasonCode: "SCHEMA_DRIFT",
+      reasonLabel: "响应 schema 漂移",
+    });
+    expect(schema.eventRisk.level).toBe("unknown");
+    expect(schema.dataIntegrityRisk.level).toBe("high");
+    expect(schema.collectionRuntimeRisk.level).toBe("high");
+
+    const quota = adapt({
+      decisionTier: "NOT_READY",
+      dataStatus: "BLOCKED",
+      reasonCode: "PROVIDER_QUOTA_FAILED",
+      reasonLabel: "Provider 配额硬顶触发",
+    });
+    expect(quota.eventRisk.level).toBe("unknown");
+    expect(quota.collectionRuntimeRisk.label).toContain("Provider 配额异常");
   });
 
   test("NO_EDGE decision truth is not masked by a stale market-unavailable fallback", () => {
@@ -344,9 +434,22 @@ test.describe("Boss Decision Console source contract", () => {
         fixture_id: "no-edge-1",
         kickoff_utc: "2026-08-05T12:00:00Z",
         decision_tier: "SKIP",
-        recommendation_decision_v3: {
+        recommendation_decision_v4: {
+          schema_version: "w2.recommendation_decision.v4",
           outcome: "NO_EDGE",
           reason: { code: "NO_ANALYSIS_EDGE", message: "数据完整但没有分析优势" },
+          authoritative_input: {
+            fixture_id: "no-edge-1",
+            model_version: "test-model",
+            calibration_version: "test-calibration",
+            readiness: {
+              quote_identity_status: "COMPLETE",
+              quote_freshness_status: "COMPLETE",
+              model_status: "READY",
+            },
+          },
+          selected_candidate: null,
+          blockers: [],
         },
         data_status: "READY",
         lifecycle_status: "EVALUATED",

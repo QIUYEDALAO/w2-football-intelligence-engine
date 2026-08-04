@@ -231,6 +231,52 @@ def ev_gate_simulation(
     )
 
 
+def _authoritative_ah_candidate() -> dict[str, object]:
+    distribution = {
+        "WIN": 0.5,
+        "HALF_WIN": 0.0,
+        "PUSH": 0.0,
+        "HALF_LOSS": 0.2,
+        "LOSS": 0.3,
+    }
+    executable = {"line": "-0.25", "decimal_odds": "1.9"}
+    return {
+        "market": "ASIAN_HANDICAP",
+        "selection": "HOME",
+        "line": "-0.25",
+        "quote_status": "COMPLETE",
+        "quote_usage": "EXECUTABLE",
+        "quotes": {"executable": executable},
+        "quote_identity": {
+            "identity_status": "COMPLETE",
+            "freshness_status": "COMPLETE",
+            "provider": "provider",
+            "bookmaker_id": "bookmaker",
+            "captured_at": "2026-08-08T15:00:00Z",
+            "quotes": {
+                "home": executable,
+                "away": {"line": "0.25", "decimal_odds": "2.0"},
+            },
+        },
+        "analysis_direction_allowed": True,
+        "analysis_evidence": {
+            "status": "COMPLETE",
+            "market": "ASIAN_HANDICAP",
+            "selection": "HOME",
+            "selected_side_line": "-0.25",
+            "comparison": {"analysis_direction_allowed": True},
+            "model_probability": {
+                "status": "READY",
+                "effective_probability": 0.5,
+                "settlement_distribution": distribution,
+                "fair_decimal_odds": 1.8,
+                "expected_value": 0.05,
+                "ev_se": 0.001,
+            },
+        },
+    }
+
+
 def test_formal_home_when_simulation_and_price_are_self_consistent() -> None:
     result = build_formal_recommendation(
         fixture_status="UPCOMING",
@@ -250,6 +296,43 @@ def test_formal_home_when_simulation_and_price_are_self_consistent() -> None:
     assert result.recommendation["beats_market_required"] is False
     assert result.recommendation["ev_se"] > 0.0
     assert result.recommendation["expected_value"] < 0.15
+
+
+def test_formal_consumes_exact_selected_candidate_and_five_state_fair_odds() -> None:
+    result = build_formal_recommendation(
+        fixture_status="UPCOMING",
+        simulation=ev_gate_simulation(),
+        current_odds={
+            "ah": {
+                "home_line": -0.25,
+                "away_line": 0.25,
+                "home_price": 1.6,
+                "away_price": 2.4,
+            }
+        },
+        ah_market_candidate=_authoritative_ah_candidate(),
+        pricing_shadow={**ready_shadow(fair_ah=0.0), "market_ah": -0.25},
+        analysis_readiness=ready_analysis(),
+        home_team_name="Home",
+        away_team_name="Away",
+        enabled=True,
+    )
+
+    assert result.tier == "FORMAL"
+    assert result.recommendation is not None
+    assert result.recommendation["selection"] == "HOME_AH"
+    assert result.recommendation["line"] == "-0.25"
+    assert result.recommendation["odds"] == "1.90"
+    assert result.recommendation["fair_odds"] == "1.80"
+    assert result.recommendation["fair_odds"] != "2.00"
+    assert (
+        result.recommendation["ah_settlement_distribution"]
+        == (
+            _authoritative_ah_candidate()["analysis_evidence"]["model_probability"][
+                "settlement_distribution"
+            ]
+        )
+    )
 
 
 def test_formal_recommendation_id_is_stable_for_same_payload() -> None:
@@ -419,17 +502,15 @@ def test_off_ladder_formal_fallback_uses_scenario_ev_uncertainty() -> None:
         -3.5,
         1.91,
     )
-    scenario_distribution, scenario_ev, scenario_ev_se = (
-        ah_expected_value_uncertainty_from_lambdas(
-            lambda_home=1.4,
-            lambda_away=1.2,
-            lambda_sigma_home=0.35,
-            lambda_sigma_away=0.35,
-            rho=0.12,
-            selection="HOME",
-            line=-3.5,
-            decimal_price=1.91,
-        )
+    scenario_distribution, scenario_ev, scenario_ev_se = ah_expected_value_uncertainty_from_lambdas(
+        lambda_home=1.4,
+        lambda_away=1.2,
+        lambda_sigma_home=0.35,
+        lambda_sigma_away=0.35,
+        rho=0.12,
+        selection="HOME",
+        line=-3.5,
+        decimal_price=1.91,
     )
 
     assert distribution == scenario_distribution

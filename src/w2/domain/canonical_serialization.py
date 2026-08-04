@@ -50,6 +50,7 @@ SERIALIZER_VERSION_IN_PREIMAGE = False
 
 
 class HashDomain(StrEnum):
+    RECOMMENDATION_DECISION_V4 = "recommendation_decision.v4"
     FUTURE_REFRESH_RAW_PAYLOAD = "future_refresh.raw_payload"
     FUTURE_REFRESH_ENDPOINT_CAPTURE = "future_refresh.endpoint_capture"
     FUTURE_REFRESH_MARKET_OBSERVATION = "future_refresh.market_observation"

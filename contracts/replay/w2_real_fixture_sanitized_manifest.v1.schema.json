@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://w2.local/contracts/replay/w2_real_fixture_sanitized_manifest.v1.schema.json",
+  "title": "W2 sanitized real-fixture replay receipt manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "private_bundle_schema_version",
+    "bundle_id",
+    "source_git_sha",
+    "migration_head",
+    "serializer_version",
+    "fixture_id_sha256",
+    "competition_id",
+    "season",
+    "kickoff_utc",
+    "export_snapshot_identity_sha256",
+    "file_receipts",
+    "expected",
+    "contains_raw_payloads"
+  ],
+  "properties": {
+    "schema_version": {"const": "w2.real-fixture-sanitized-manifest.v1"},
+    "private_bundle_schema_version": {"const": "w2.real-fixture-bundle.v1"},
+    "bundle_id": {"$ref": "#/$defs/sha256"},
+    "source_git_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "migration_head": {"type": "string", "minLength": 1},
+    "serializer_version": {"const": "w2.canonical-json.v2"},
+    "fixture_id_sha256": {"$ref": "#/$defs/sha256"},
+    "competition_id": {"type": "string", "minLength": 1},
+    "season": {"type": "string", "minLength": 1},
+    "kickoff_utc": {"type": "string", "format": "date-time"},
+    "export_snapshot_identity_sha256": {"$ref": "#/$defs/sha256"},
+    "file_receipts": {
+      "type": "array",
+      "minItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["logical_path", "sha256", "size_bytes", "kind"],
+        "properties": {
+          "logical_path": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$"
+          },
+          "sha256": {"$ref": "#/$defs/sha256"},
+          "size_bytes": {"type": "integer", "minimum": 1},
+          "kind": {
+            "enum": ["RAW_PAYLOAD", "SOURCE_CONTEXT", "SOURCE_REFERENCE"]
+          }
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recompute_mode", "source_reference_sha256"],
+      "properties": {
+        "recompute_mode": {
+          "const": "FIRST_ISOLATED_RECOMPUTE_THEN_SECOND_COMPARE"
+        },
+        "source_reference_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "contains_raw_payloads": {"const": false}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

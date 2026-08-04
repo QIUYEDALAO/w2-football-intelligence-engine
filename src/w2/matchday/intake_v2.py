@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -23,9 +22,7 @@ MATCHDAY_FIXTURE_IDENTITY_VERSION = "MatchdayFixtureIdentityV1"
 MATCHDAY_TEAM_CROSSWALK_VERSION = "MatchdayTeamCrosswalkV1"
 MATCHDAY_ENDPOINT_CAPTURE_VERSION = "MatchdayEndpointCaptureV1"
 MATCHDAY_MARKET_OBSERVATION_VERSION = "MatchdayMarketObservationV2"
-MATCHDAY_MARKET_BATCH_AUDIT_VERSION = "MatchdayMarketBatchAuditV1"
 MATCHDAY_EVIDENCE_MANIFEST_VERSION = "MatchdayEvidenceManifestV1"
-MATCHDAY_ENRICHMENT_POLICY_VERSION = "MatchdayEnrichmentPolicyV1"
 
 CHECKPOINT_STATUSES = {
     "PLANNED",
@@ -693,113 +690,6 @@ def normalize_matchday_odds_payload(
     return _dedupe_observations(rows, rejected), rejected
 
 
-def market_batch_audit(
-    observations: Sequence[Mapping[str, Any]],
-    *,
-    evaluated_at: datetime,
-    max_age_seconds: int,
-    normalization_rejections: Sequence[Mapping[str, Any]] = (),
-) -> dict[str, Any]:
-    grouped: dict[tuple[str, str, str, str], list[Mapping[str, Any]]] = defaultdict(list)
-    for row in observations:
-        grouped[
-            (
-                str(row.get("fixture_id")),
-                str(row.get("provider")),
-                str(row.get("bookmaker_id")),
-                str(row.get("capture_batch_id")),
-            )
-        ].append(row)
-    ah_candidates = []
-    ou_candidates = []
-    one_x_two_batches = []
-    joint_ready = []
-    rejections = [dict(item) for item in normalization_rejections]
-    freshness = {}
-    recommendation_max_age_seconds = min(max_age_seconds, 30 * 60)
-    for key, rows in grouped.items():
-        fixture_id, provider, bookmaker_id, batch_id = key
-        fresh = freshness_status(
-            rows,
-            evaluated_at=evaluated_at,
-            max_age_seconds=recommendation_max_age_seconds,
-        )
-        for row in rows:
-            freshness[str(row.get("observation_id"))] = fresh
-        ah = _ah_pair(rows)
-        ou = _pair(rows, market="TOTALS", left="OVER", right="UNDER")
-        one_x_two = _triplet(rows, market="1X2", selections=("HOME", "DRAW", "AWAY"))
-        if ah:
-            ah_candidates.append({**ah, "freshness": fresh})
-        else:
-            rejections.append(
-                {
-                    "fixture_id": fixture_id,
-                    "bookmaker_id": bookmaker_id,
-                    "reason": "AH_PAIR_INCOMPLETE",
-                }
-            )
-        if ou:
-            ou_candidates.append({**ou, "freshness": fresh})
-        else:
-            rejections.append(
-                {
-                    "fixture_id": fixture_id,
-                    "bookmaker_id": bookmaker_id,
-                    "reason": "OU_PAIR_INCOMPLETE",
-                }
-            )
-        if one_x_two:
-            one_x_two_batches.append({**one_x_two, "freshness": fresh})
-        else:
-            rejections.append(
-                {
-                    "fixture_id": fixture_id,
-                    "bookmaker_id": bookmaker_id,
-                    "reason": "ONE_X_TWO_INCOMPLETE",
-                }
-            )
-        if ah and ou and one_x_two:
-            joint_ready.append(
-                {
-                    "fixture_id": fixture_id,
-                    "provider": provider,
-                    "bookmaker_id": bookmaker_id,
-                    "capture_batch_id": batch_id,
-                    "status": "JOINT_MARKET_BASELINE_READY",
-                    "ah": ah,
-                    "ou": ou,
-                    "one_x_two": one_x_two,
-                    "freshness": fresh,
-                }
-            )
-    joint_status = (
-        "JOINT_MARKET_BASELINE_READY" if joint_ready else "JOINT_MARKET_BASELINE_INCOMPLETE"
-    )
-    payload = {
-        "schema_version": MATCHDAY_MARKET_BATCH_AUDIT_VERSION,
-        "ah_complete_sets": len(ah_candidates),
-        "ou_complete_sets": len(ou_candidates),
-        "one_x_two_complete_sets": len(one_x_two_batches),
-        "same_family_joint_sets": len(joint_ready),
-        "joint_status": joint_status,
-        "ah_candidates": ah_candidates,
-        "ou_candidates": ou_candidates,
-        "one_x_two_batches": one_x_two_batches,
-        "joint_market_baselines": joint_ready,
-        "independent_candidates": [*ah_candidates, *ou_candidates],
-        "rejections": rejections,
-        "integrity_status": "CONFLICT"
-        if any(item.get("reason") == "OBSERVATION_IDENTITY_CONFLICT" for item in rejections)
-        else "PASS",
-        "freshness": freshness,
-        "collection_refresh_max_age_seconds": max_age_seconds,
-        "recommendation_quote_max_age_seconds": recommendation_max_age_seconds,
-    }
-    payload["audit_hash"] = stable_hash(payload)
-    return payload
-
-
 def freshness_status(
     rows: Sequence[Mapping[str, Any]],
     *,
@@ -841,46 +731,6 @@ def freshness_status(
         "evaluated_at": iso_z(evaluated_at),
         "age_seconds": age,
         "max_age_seconds": max_age_seconds,
-    }
-
-
-def enrichment_status(
-    *,
-    competition_policy: MatchdayCompetitionPolicy,
-    endpoint: str,
-    kickoff_utc: datetime,
-    evaluated_at: datetime,
-    payload: Mapping[str, Any] | None,
-) -> dict[str, Any]:
-    if endpoint in {"injuries", "statistics"}:
-        return {
-            "schema_version": MATCHDAY_ENRICHMENT_POLICY_VERSION,
-            "endpoint": endpoint,
-            "status": competition_policy.feature_enrichment_policy.get(
-                endpoint, "DISABLED_BY_POLICY"
-            ),
-            "as_of_safe_model_input": False,
-        }
-    if endpoint != "lineups":
-        raise ValueError("UNSUPPORTED_ENRICHMENT_ENDPOINT")
-    minutes_to_kickoff = int(
-        (normalize_utc(kickoff_utc) - normalize_utc(evaluated_at)).total_seconds() // 60
-    )
-    if payload is None and minutes_to_kickoff > 60:
-        status = "EXPECTED_NOT_AVAILABLE"
-    else:
-        response = _list(payload.get("response")) if payload else []
-        status = "PROVIDER_EMPTY" if not response else _lineup_response_status(response)
-    return {
-        "schema_version": MATCHDAY_ENRICHMENT_POLICY_VERSION,
-        "endpoint": "lineups",
-        "requirement": competition_policy.lineup_requirement,
-        "status": status,
-        "blocks_analysis": (
-            competition_policy.lineup_requirement == "STRICT" and status != "COMPLETE"
-        ),
-        "numeric_ah_adjustment_enabled": False,
-        "numeric_ou_adjustment_enabled": False,
     }
 
 
@@ -1230,80 +1080,6 @@ def decimal_odds(value: Any) -> str | None:
     return str(parsed.normalize())
 
 
-def _ah_pair(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any] | None:
-    home_rows = [
-        row
-        for row in rows
-        if row.get("canonical_market") == "ASIAN_HANDICAP"
-        and row.get("canonical_selection") == "HOME"
-    ]
-    away_rows = [
-        row
-        for row in rows
-        if row.get("canonical_market") == "ASIAN_HANDICAP"
-        and row.get("canonical_selection") == "AWAY"
-    ]
-    for home in sorted(home_rows, key=lambda item: str(item.get("line"))):
-        home_line = _decimal_or_none(home.get("line"))
-        if home_line is None:
-            continue
-        for away in away_rows:
-            away_line = _decimal_or_none(away.get("line"))
-            if away_line is not None and home_line + away_line == Decimal("0"):
-                return {
-                    "market": "ASIAN_HANDICAP",
-                    "line": str(home_line.normalize()),
-                    "left": dict(home),
-                    "right": dict(away),
-                    "status": "COMPLETE",
-                }
-    return None
-
-
-def _pair(
-    rows: Sequence[Mapping[str, Any]],
-    *,
-    market: str,
-    left: str,
-    right: str,
-) -> dict[str, Any] | None:
-    by_line: dict[str, dict[str, Mapping[str, Any]]] = defaultdict(dict)
-    for row in rows:
-        if row.get("canonical_market") != market:
-            continue
-        by_line[str(row.get("line"))][str(row.get("canonical_selection"))] = row
-    for line, selections in sorted(by_line.items()):
-        if left in selections and right in selections:
-            return {
-                "market": market,
-                "line": line,
-                "left": dict(selections[left]),
-                "right": dict(selections[right]),
-                "status": "COMPLETE",
-            }
-    return None
-
-
-def _triplet(
-    rows: Sequence[Mapping[str, Any]],
-    *,
-    market: str,
-    selections: tuple[str, str, str],
-) -> dict[str, Any] | None:
-    found = {
-        str(row.get("canonical_selection")): row
-        for row in rows
-        if row.get("canonical_market") == market
-    }
-    if all(selection in found for selection in selections):
-        return {
-            "market": market,
-            "selections": {key: dict(found[key]) for key in selections},
-            "status": "COMPLETE",
-        }
-    return None
-
-
 def _decimal_or_none(value: Any) -> Decimal | None:
     try:
         return Decimal(str(value))
@@ -1477,11 +1253,6 @@ def _selected_analysis_candidate(model_evidence: Mapping[str, Any]) -> dict[str,
         if item.get("market") == selection.primary_market:
             return item
     return None
-
-
-def _lineup_response_status(response: Sequence[Any]) -> str:
-    teams = [item for item in response if isinstance(item, Mapping)]
-    return "COMPLETE" if len(teams) >= 2 else "CONFLICT"
 
 
 def _competition_id_for_provider_league(

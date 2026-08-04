@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from w2.domain.recommendation_decision_v4 import validate_decision_v4_identity
 from w2.infrastructure.persistence.models import RecommendationLockModel
 
 SNAPSHOT_SCHEMA_VERSION = "w2.recommendation_lock_snapshot.v1"
@@ -95,6 +96,7 @@ def build_recommendation_lock_snapshot(
             "expected_value": _decimal_text(expected_value),
             "ev_se": _decimal_text(_decimal(recommendation.get("ev_se"))),
             "reverse_factor_value": bool(recommendation.get("reverse_factor_value")),
+            "quote_identity": _dict_or_none(recommendation.get("quote_identity")),
         },
         "market": {
             "fair_ah": _decimal_text(_decimal(pricing.get("fair_ah"))),
@@ -193,9 +195,20 @@ def _require_formal_ah_recommendation(
     card: dict[str, Any],
     recommendation: dict[str, Any],
 ) -> None:
-    decision_v3 = _dict(card.get("recommendation_decision_v3"))
-    if decision_v3 and decision_v3.get("outcome") != "FORMAL_RECOMMEND":
-        raise ValueError("LOCK_SNAPSHOT_REQUIRES_V3_FORMAL_RECOMMEND")
+    decision_v4 = _dict(card.get("recommendation_decision_v4"))
+    if not decision_v4:
+        raise ValueError("LOCK_SNAPSHOT_REQUIRES_VALID_V4")
+    try:
+        validate_decision_v4_identity(decision_v4)
+    except ValueError as exc:
+        raise ValueError("LOCK_SNAPSHOT_REQUIRES_VALID_V4") from exc
+    if decision_v4.get("outcome") != "FORMAL_RECOMMEND":
+        raise ValueError("LOCK_SNAPSHOT_REQUIRES_V4_FORMAL_RECOMMEND")
+    selected = _dict(decision_v4.get("selected_candidate"))
+    if not selected:
+        raise ValueError("LOCK_SNAPSHOT_REQUIRES_V4_SELECTED_CANDIDATE")
+    if _string(decision_v4.get("fixture_id")) != _string(card.get("fixture_id")):
+        raise ValueError("LOCK_SNAPSHOT_V4_FIXTURE_CONFLICT")
     if card.get("formal_recommendation") is not True:
         raise ValueError("LOCK_SNAPSHOT_REQUIRES_FORMAL")
     if str(recommendation.get("tier") or "").upper() != "FORMAL":
@@ -206,6 +219,46 @@ def _require_formal_ah_recommendation(
         raise ValueError("LOCK_SNAPSHOT_REQUIRES_AH_SELECTION")
     if _decimal(recommendation.get("line")) is None:
         raise ValueError("LOCK_SNAPSHOT_REQUIRES_LINE")
+    if str(selected.get("market") or "").upper() != str(recommendation.get("market") or "").upper():
+        raise ValueError("LOCK_SNAPSHOT_V4_MARKET_CONFLICT")
+    if _ah_selection(selected.get("selection")) != _ah_selection(recommendation.get("selection")):
+        raise ValueError("LOCK_SNAPSHOT_V4_SELECTION_CONFLICT")
+    if _decimal(selected.get("exact_line") or selected.get("line")) != _decimal(
+        recommendation.get("line")
+    ):
+        raise ValueError("LOCK_SNAPSHOT_V4_LINE_CONFLICT")
+    if _decimal(selected.get("decimal_odds") or selected.get("odds")) != _decimal(
+        recommendation.get("odds")
+    ):
+        raise ValueError("LOCK_SNAPSHOT_V4_QUOTE_CONFLICT")
+    _require_same_quote_identity(decision_v4, recommendation)
+
+
+def _ah_selection(value: Any) -> str:
+    return str(value or "").upper().removesuffix("_AH")
+
+
+def _require_same_quote_identity(
+    decision_v4: dict[str, Any],
+    recommendation: dict[str, Any],
+) -> None:
+    authoritative = _dict(decision_v4.get("authoritative_input"))
+    mainline = _dict(authoritative.get("canonical_mainline_identity"))
+    actual = _dict(recommendation.get("quote_identity"))
+    if not actual:
+        raise ValueError("LOCK_SNAPSHOT_REQUIRES_QUOTE_IDENTITY")
+    expected = {
+        "provider": authoritative.get("provider"),
+        "bookmaker_id": authoritative.get("bookmaker_id"),
+        "capture_id": authoritative.get("capture_id"),
+        "captured_at": authoritative.get("captured_at"),
+        "observation_ids": authoritative.get("quote_observation_ids"),
+        "raw_payload_sha256": authoritative.get("raw_payload_sha256"),
+        "source_revision": authoritative.get("source_revision"),
+        "quote_identity_hash": mainline.get("quote_identity_hash"),
+    }
+    if any(actual.get(field) != value for field, value in expected.items()):
+        raise ValueError("LOCK_SNAPSHOT_V4_QUOTE_IDENTITY_CONFLICT")
 
 
 def _direction_top3(card: dict[str, Any]) -> Any | None:

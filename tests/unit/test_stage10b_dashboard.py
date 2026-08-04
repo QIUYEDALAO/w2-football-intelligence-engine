@@ -200,8 +200,13 @@ def test_legacy_snapshot_projection_is_not_a_production_read_fallback(
     assert response.status_code == 200
     card = response.json()["card"]
     assert card["fixture_id"] == "1489399"
-    assert card["recommendation_decision_v3"]["outcome"] == "SYSTEM_DEGRADED"
-    assert card["reason_code"] == "LINEUP_REQUIREMENT_IDENTITY_MISSING"
+    assert card["recommendation_decision_v4"]["outcome"] == "NOT_READY"
+    assert card["recommendation_decision_v3_role"] == "HISTORY_ONLY"
+    assert card["projection_health"] == {
+        "status": "SYSTEM_DEGRADED",
+        "reason_code": "LINEUP_REQUIREMENT_IDENTITY_MISSING",
+    }
+    assert card["pick"] is None
     get_settings.cache_clear()
 
 

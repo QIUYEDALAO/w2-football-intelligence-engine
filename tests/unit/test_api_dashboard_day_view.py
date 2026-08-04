@@ -279,7 +279,7 @@ def _attach_active_dynamic_evidence(card: dict[str, Any]) -> None:
     }
 
 
-def test_day_view_reconciles_identity_matched_active_dynamic_evidence(
+def test_day_view_does_not_rebuild_current_pick_from_historical_v3_evidence(
     monkeypatch: MonkeyPatch,
 ) -> None:
     service = RecordingDashboardService()
@@ -300,20 +300,18 @@ def test_day_view_reconciles_identity_matched_active_dynamic_evidence(
     assert response.status_code == 200
     payload = response.json()
     card = payload["cards"][0]
-    assert payload["counts"]["analysis_pick"] == 1
-    assert payload["counts"]["not_ready"] == 0
-    assert card["decision_tier"] == "ANALYSIS_PICK"
-    assert card["data_status"] == "READY"
-    assert card["data_readiness"]["data_status"] == "READY"
-    assert card["recommendation_decision_v3"]["outcome"] == "ANALYSIS_PICK"
-    assert card["scoreline_reference"]["scoreline_projection"]["status"] == "READY"
-    assert len(card["scoreline_reference"]["scoreline_projection"]["top3"]) == 3
+    assert payload["counts"]["analysis_pick"] == 0
+    assert payload["counts"]["not_ready"] == 1
+    assert card["decision_tier"] == "NOT_READY"
+    assert card["data_status"] == "BLOCKED"
+    assert card["recommendation_decision_v3"]["outcome"] == "NOT_READY"
+    assert card["recommendation_decision_v3_role"] == "HISTORY_ONLY"
+    assert card["scoreline_reference"] == {}
     assert card["lock_eligible"] is False
-    assert card["decision_projection"]["provider_calls"] == 0
-    assert card["decision_projection"]["db_writes"] == 0
+    assert "decision_projection" not in card
 
 
-def test_day_view_orders_analysis_pick_first_then_kickoff_and_fixture_id(
+def test_day_view_orders_legacy_dynamic_cards_by_kickoff_and_fixture_id(
     monkeypatch: MonkeyPatch,
 ) -> None:
     service = RecordingDashboardService()
@@ -345,10 +343,11 @@ def test_day_view_orders_analysis_pick_first_then_kickoff_and_fixture_id(
     )
 
     assert [card["fixture_id"] for card in payload["cards"]] == [
-        "fixture-1",
         "fixture-a",
         "fixture-b",
+        "fixture-1",
     ]
+    assert all(card["decision_tier"] == "NOT_READY" for card in payload["cards"])
 
 
 def test_day_view_keeps_identity_mismatched_dynamic_evidence_not_ready(

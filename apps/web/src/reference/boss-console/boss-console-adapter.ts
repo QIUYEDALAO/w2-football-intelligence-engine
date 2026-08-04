@@ -15,24 +15,109 @@ import type {
 import type {
   BossConsoleModel,
   BossDecisionItem,
-  BossRiskLevel,
+  BossRiskAxis,
 } from "./boss-console-model";
 
-function riskLevel(fixture: DashboardV2FixtureModel): BossRiskLevel {
-  if (fixture.quote?.candidateRole === "ALTERNATE_LINE") return "high";
-  if (
-    fixture.decisionOutcome === "SYSTEM_DEGRADED"
-    || /(?:CONFLICT|SCHEMA_DRIFT|QUOTA|FAILED|ERROR)/.test(fixture.reasonCode || "")
-  ) return "high";
-  if (fixture.dataStatus === "BLOCKED" || fixture.decisionTier === "NOT_READY") return "medium";
-  if (fixture.dataFacts.some((fact) => fact.includes("首发") && !fact.includes("已就绪"))) {
-    return "medium";
-  }
-  return "low";
+function axis(
+  level: BossRiskAxis["level"],
+  label: string,
+  code: string | null = null,
+): BossRiskAxis {
+  return { level, label, code };
 }
 
-function riskCopy(level: BossRiskLevel): string {
-  return level === "high" ? "高" : level === "low" ? "低" : "中";
+function eventRisk(fixture: DashboardV2FixtureModel): BossRiskAxis {
+  const code = fixture.reasonCode || "";
+  if (code === "EVENT_RISK_HIGH") return axis("high", "高", code);
+  if (code === "EVENT_RISK_MEDIUM") return axis("attention", "中", code);
+  if (code === "EVENT_RISK_LOW") return axis("none", "低", code);
+  return axis("unknown", "未评估", null);
+}
+
+function dataIntegrityRisk(fixture: DashboardV2FixtureModel): BossRiskAxis {
+  const code = fixture.reasonCode || "";
+  const reason = fixture.reasonLabel || code;
+  const blockers: string[] = [];
+  if (/(?:SCHEMA|CONFLICT)/.test(code)) blockers.push(`Schema/数据冲突：${reason}`);
+  if (/(?:TEAM.*(?:MAPP|IDENTITY)|(?:MAPP|IDENTITY).*TEAM)/.test(code)) {
+    blockers.push(`球队映射缺失：${reason}`);
+  }
+  if (
+    /(?:ODDS|MARKET|QUOTE)/.test(code)
+    || ["PROVIDER_EMPTY", "MARKET_UNAVAILABLE"].includes(fixture.oddsCollectionStatus || "")
+  ) {
+    blockers.push(`赔率缺失：${reason}`);
+  }
+  const xg = fixture.dataFacts.find((fact) => fact.startsWith("真实 xG") && !fact.includes("已就绪"));
+  if (/(?:^|_)XG(?:_|$)/.test(code) || xg) {
+    blockers.push(`xG 缺失：${xg?.replace(/^真实 xG\s*/, "") || reason}`);
+  }
+  const marketIdentity = fixture.dataFacts.find(
+    (fact) => fact.startsWith("盘口身份") && !fact.includes("完整"),
+  );
+  if (marketIdentity) blockers.push(marketIdentity);
+  if (blockers.length) {
+    return axis("high", blockers.join("；"), code || fixture.oddsCollectionStatus || null);
+  }
+  if (/(?:DYNAMIC|CALIBRATION|LINEUP)/.test(code)) {
+    return axis("none", "数据身份与证据无独立阻断", null);
+  }
+  if (fixture.dataStatus === "BLOCKED") {
+    return axis("high", reason || "数据证据阻断", code || null);
+  }
+  if (fixture.dataStatus === "STALE") return axis("attention", "赔率快照已过期", code || null);
+  if (fixture.dataStatus === "PARTIAL") return axis("attention", reason || "数据证据不完整", code || null);
+  return axis("none", "数据身份与证据完整", null);
+}
+
+function modelUncertainty(fixture: DashboardV2FixtureModel): BossRiskAxis {
+  const code = fixture.reasonCode || "";
+  const uncertainty = fixture.quote?.uncertainty;
+  const blockers: string[] = [];
+  const warnings: string[] = [];
+  if (/(?:DYNAMIC.*(?:MISSING|UNAVAILABLE|NOT_READY))/.test(code)) {
+    blockers.push("dynamic evaluation 缺失");
+  } else if (!fixture.dynamicSnapshot) {
+    warnings.push("dynamic evaluation 尚未投影");
+  }
+  if (
+    /CALIBRATION/.test(code)
+    || /(?:尚未|待确认|BASELINE|UNVERIFIED)/i.test(fixture.calibrationLabel)
+  ) {
+    warnings.push(`calibration 未验证：${fixture.calibrationLabel}`);
+  }
+  if (uncertainty == null) {
+    warnings.push("模型不确定性尚未量化");
+  }
+  if (blockers.length) return axis("high", [...blockers, ...warnings].join("；"), code || null);
+  if (warnings.length) return axis("attention", warnings.join("；"), code || null);
+  if (uncertainty == null) return axis("attention", "模型不确定性尚未量化", code || null);
+  return axis("none", `EV 标准误 ±${(uncertainty * 100).toFixed(1)}%`, null);
+}
+
+function collectionRuntimeRisk(
+  fixture: DashboardV2FixtureModel,
+  automaticCollectionPaused: boolean,
+): BossRiskAxis {
+  const code = fixture.reasonCode || "";
+  const reason = fixture.reasonLabel || code;
+  if (fixture.decisionOutcome === "SYSTEM_DEGRADED") {
+    return axis("high", `系统降级：${reason || "SYSTEM_DEGRADED"}`, code || "SYSTEM_DEGRADED");
+  }
+  if (/(?:SCHEMA|CONFLICT)/.test(code)) return axis("high", `Schema/数据冲突：${reason}`, code);
+  if (/QUOTA/.test(code)) return axis("high", `Provider 配额异常：${reason}`, code);
+  if (/(?:FAILED|ERROR)/.test(code)) return axis("high", `采集运行失败：${reason}`, code);
+  if (automaticCollectionPaused) return axis("attention", "调度暂停（受控状态）", null);
+  if (fixture.oddsCollectionStatus === "WAITING_WINDOW") {
+    return axis("none", "等待合法采集窗口", null);
+  }
+  if (fixture.oddsCollectionStatus === "WINDOW_DUE") {
+    return axis("attention", "采集窗口已到，等待任务", null);
+  }
+  if (["PROVIDER_EMPTY", "MARKET_UNAVAILABLE"].includes(fixture.oddsCollectionStatus || "")) {
+    return axis("none", "Provider 请求已完成，本轮无可用赔率", null);
+  }
+  return axis("none", "采集运行正常", null);
 }
 
 function decisionStatus(fixture: DashboardV2FixtureModel): BossDecisionItem["status"] {
@@ -70,17 +155,16 @@ function noEdgeCopy(fixture: DashboardV2FixtureModel): string {
   if (fixture.dataStatus === "STALE") {
     return "旧报价仅供参考，等待下一次受控采集";
   }
-  const delta = fixture.quote?.probabilityDelta;
-  const threshold = fixture.dynamicSnapshot?.requiredDelta ?? 0.05;
-  if (delta != null && delta < threshold) {
-    return `Delta ${delta >= 0 ? "+" : ""}${(delta * 100).toFixed(1)}pp，低于 ${(threshold * 100).toFixed(1)}pp 门槛，尚差 ${((threshold - delta) * 100).toFixed(1)}pp`;
+  const cashflowEdge = fixture.quote?.cashflowPriceEdge;
+  if (cashflowEdge != null && cashflowEdge < 0.05) {
+    return `五态现金流价格优势 ${(cashflowEdge * 100).toFixed(1)}%，低于 5.0% 门槛`;
   }
   const ev = fixture.quote?.expectedValue;
   const evMinusSe = fixture.dynamicSnapshot?.currentEvMinusSe;
   if (ev != null && evMinusSe != null && evMinusSe <= 0) {
     return `EV ${ev >= 0 ? "+" : ""}${(ev * 100).toFixed(1)}%，但 EV-SE = ${(evMinusSe * 100).toFixed(1)}%，稳健性未通过`;
   }
-  return "当前完整快照未通过 EV、Delta 与 EV-SE 稳健门";
+  return "当前完整快照未通过 EV、五态现金流价格优势与 EV-SE 稳健门";
 }
 
 function decisionRisks(fixture: DashboardV2FixtureModel): string[] {
@@ -137,7 +221,6 @@ export function dedupeLeaguePerformance(
 export function adaptDashboardV2ToBossConsole(model: DashboardV2ViewModel): BossConsoleModel {
   const decisions = model.fixtures.map((fixture, index) => {
     const status = decisionStatus(fixture);
-    const risk = riskLevel(fixture);
     const [action, detail] = nextAction(fixture, model.health.automaticCollectionPaused);
     const quote = fixture.quote;
     const dynamic = fixture.dynamicSnapshot;
@@ -176,16 +259,13 @@ export function adaptDashboardV2ToBossConsole(model: DashboardV2ViewModel): Boss
         ? `分析选择：${fixture.primaryMarketLabel} · ${quote.candidateRole === "ALTERNATE_LINE" ? "替代盘" : "市场主线"} · ${quote.bookmaker}`
         : null,
       marketLadder: quote?.ladder ?? [],
-      risk: riskCopy(risk),
-      riskLevel: risk,
-      riskNote:
-        status === "not-ready"
-          ? fixture.reasonLabel || "等待受控采集"
-          : risk === "high"
-            ? "证据波动"
-            : risk === "low"
-              ? "盘口稳定"
-              : "首发未确认",
+      eventRisk: eventRisk(fixture),
+      dataIntegrityRisk: dataIntegrityRisk(fixture),
+      modelUncertainty: modelUncertainty(fixture),
+      collectionRuntimeRisk: collectionRuntimeRisk(
+        fixture,
+        model.health.automaticCollectionPaused,
+      ),
       lineupPending: fixture.dataFacts.some(
         (fact) => fact.includes("首发") && !fact.includes("已就绪"),
       ),
@@ -203,7 +283,6 @@ export function adaptDashboardV2ToBossConsole(model: DashboardV2ViewModel): Boss
       ledgerDetail: fixture.tracking.detail,
       reasons: decisionReasons(fixture),
       risks: decisionRisks(fixture),
-      dataRisk: fixture.dataStatus === "BLOCKED" ? "阻断" : fixture.dataStatus,
       marketIdentityRisk:
         quote?.candidateRole === "ALTERNATE_LINE" ? "替代盘，禁止冒充主线" : "主线身份完整",
       lineupRisk: fixture.dataFacts.some(
@@ -219,8 +298,16 @@ export function adaptDashboardV2ToBossConsole(model: DashboardV2ViewModel): Boss
     selectedDecisionId: model.selectedFixtureId,
     leaguePerformance: dedupeLeaguePerformance(model.leaguePerformance),
     automaticCollectionPaused: model.health.automaticCollectionPaused,
-    riskExceptionCount: new Set(
-      decisions.filter((item) => item.riskLevel === "high").map((item) => item.id),
+    eventRiskExceptionCount: new Set(
+      decisions.filter((item) => item.eventRisk.level === "high").map((item) => item.id),
+    ).size,
+    operationalRiskExceptionCount: new Set(
+      decisions
+        .filter((item) => (
+          item.dataIntegrityRisk.level === "high"
+          || item.collectionRuntimeRisk.level === "high"
+        ))
+        .map((item) => item.id),
     ).size,
     lineupPendingCount: new Set(
       decisions.filter((item) => item.lineupPending).map((item) => item.id),
@@ -231,8 +318,10 @@ export function adaptDashboardV2ToBossConsole(model: DashboardV2ViewModel): Boss
       serviceStatus: "HEALTHY",
       providerStatus: model.health.automaticCollectionPaused ? "DISABLED" : "ENABLED",
       schedulerStatus: model.health.automaticCollectionPaused ? "STOPPED" : "RUNNING",
-      formalStatus: "DISABLED",
-      lockProductionStatus: "DISABLED",
+      candidateStatus: "OFF",
+      formalStatus: "OFF",
+      lockStatus: "OFF",
+      productionStatus: "OFF",
     },
   };
 }

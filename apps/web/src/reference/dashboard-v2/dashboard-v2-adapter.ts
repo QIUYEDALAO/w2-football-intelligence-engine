@@ -36,35 +36,16 @@ function numberValue(value: unknown): number | null {
 }
 
 function selectedCandidate(card: DashboardDayViewCard): UnknownRecord {
-  const selected = record(card.recommendation_decision_v3?.selected_candidate);
-  return Object.keys(selected).length ? selected : evaluatedCandidate(card);
-}
-
-function evaluatedCandidate(card: DashboardDayViewCard): UnknownRecord {
-  return record(record(card.recommendation_decision_v3).evaluated_candidate);
+  return record(card.recommendation_decision_v4?.selected_candidate);
 }
 
 function selectedAnalysisEvidence(card: DashboardDayViewCard): UnknownRecord {
-  const decision = record(card.recommendation_decision_v3);
-  const evaluated = record(decision.evaluated_candidate);
-  const evaluatedEvidence = record(evaluated.analysis_evidence);
-  if (Object.keys(evaluatedEvidence).length) return evaluatedEvidence;
-  const candidate = selectedCandidate(card);
-  const nested = record(candidate.analysis_evidence);
-  return Object.keys(nested).length ? nested : candidate;
-}
-
-function selectedQuoteIdentity(card: DashboardDayViewCard): UnknownRecord {
-  const evidenceIdentity = record(selectedAnalysisEvidence(card).quote_identity);
-  return Object.keys(evidenceIdentity).length
-    ? evidenceIdentity
-    : record(selectedCandidate(card).quote_identity);
+  return record(card.recommendation_decision_v4?.authoritative_input);
 }
 
 function selectedQuote(card: DashboardDayViewCard): UnknownRecord {
   const candidate = selectedCandidate(card);
-  const selection = text(candidate.selection).toLowerCase().replace("_ah", "");
-  return record(record(selectedQuoteIdentity(card).quotes)[selection]);
+  return Object.keys(candidate).length ? candidate : selectedAnalysisEvidence(card);
 }
 
 function fieldReadiness(card: DashboardDayViewCard, field: string): UnknownRecord {
@@ -86,11 +67,9 @@ function dynamicSnapshot(card: DashboardDayViewCard): DashboardV2FixtureModel["d
       .map(record)
       .filter((row) => text(row.state) !== "SUPERSEDED" && !text(row.superseded_by_evaluation_id))
     : [];
-  const evaluatedHash = text(record(evaluatedCandidate(card).quote_identity).quote_identity_hash);
   const selected = current.sort((left, right) => {
     const priority = (row: UnknownRecord) =>
-      (text(row.state) === "ANALYSIS_PICK_ACTIVE" ? 4 : 0)
-      + (evaluatedHash && text(row.quote_identity_hash) === evaluatedHash ? 2 : 0);
+      (text(row.state) === "ANALYSIS_PICK_ACTIVE" ? 4 : 0);
     return priority(right) - priority(left)
       || text(right.evaluated_at).localeCompare(text(left.evaluated_at))
       || text(left.market).localeCompare(text(right.market));
@@ -126,7 +105,8 @@ function lineupFacts(card: DashboardDayViewCard): string[] {
   const features = Array.isArray(lineup.lineup_change_features)
     ? lineup.lineup_change_features.map(record)
     : [];
-  if (lineup.confirmed !== true) return ["尚未到公布窗口或确认首发尚未取得"];
+  const modelBoundary = "首发当前用于状态确认、阵容证据和首发后赔率刷新，尚未参与模型概率数值调整。";
+  if (lineup.confirmed !== true) return ["尚未到公布窗口或确认首发尚未取得", modelBoundary];
   const facts = ["确认首发 11/11 · 双方已确认"];
   for (const feature of features.slice(0, 2)) {
     const continuity = numberValue(feature.starter_continuity);
@@ -137,21 +117,16 @@ function lineupFacts(card: DashboardDayViewCard): string[] {
     const valuation = numberValue(feature.valuation_coverage);
     if (mapping != null || valuation != null) facts.push(`映射覆盖 ${((mapping ?? 0) * 100).toFixed(1)}% · 估值覆盖 ${((valuation ?? 0) * 100).toFixed(1)}%`);
   }
-  facts.push("模型影响：仅 advisory · 数值调整关闭");
+  facts.push(modelBoundary);
   return facts.slice(0, 6);
 }
 
 function decisionTier(card: DashboardDayViewCard): DashboardV2DecisionTier {
-  const outcome = text(card.recommendation_decision_v3?.outcome).toUpperCase();
+  const outcome = text(card.recommendation_decision_v4?.outcome).toUpperCase();
   if (outcome === "ANALYSIS_PICK") return "ANALYSIS_PICK";
   if (outcome === "NO_EDGE") return "NO_EDGE";
-  if (outcome === "NOT_READY" || outcome === "SYSTEM_DEGRADED") return "NOT_READY";
-  if (card.decision_tier === "ANALYSIS_PICK" || card.decision_tier === "RECOMMEND") {
-    return "ANALYSIS_PICK";
-  }
-  if (card.decision_tier === "NOT_READY") return "NOT_READY";
-  if (card.decision_tier === "SKIP") return "SKIP";
-  return "WATCH";
+  if (outcome === "FORMAL_RECOMMEND") return "ANALYSIS_PICK";
+  return "NOT_READY";
 }
 
 function selectionLabel(market: string, selection: string): string {
@@ -183,14 +158,8 @@ function primaryMarketLabel(card: DashboardDayViewCard): string {
   return `${marketLabel(market)} · ${selectionLabel(market, selection)}${line ? ` ${line}` : ""}${odds != null ? ` @${odds.toFixed(2)}` : ""}`;
 }
 
-function secondaryMarketLabel(card: DashboardDayViewCard): string | null {
-  const pick = card.secondary_picks?.[0];
-  if (!pick) return null;
-  const market = text(pick.market);
-  const selection = text(pick.tendency || pick.lean);
-  const line = text(pick.line);
-  const odds = numberValue(pick.odds);
-  return `${marketLabel(market)} · ${selectionLabel(market, selection)}${line ? ` ${line}` : ""}${odds != null ? ` @${odds.toFixed(2)}` : ""}`;
+function secondaryMarketLabel(_card: DashboardDayViewCard): string | null {
+  return null;
 }
 
 function scorelineProjection(card: DashboardDayViewCard): DashboardV2ScorelineProjection | null {
@@ -227,7 +196,7 @@ function scorelineProjection(card: DashboardDayViewCard): DashboardV2ScorelinePr
     simulationsCompleted: projection.simulations_completed ?? 0,
     consistentSampleCount: projection.consistent_sample_count ?? 0,
     consistencyLabel: `全部符合：${primary}${secondaryConstraints.length ? ` · 次推${secondaryConstraints.join(" · ")}` : ""}`,
-    decisionHash: projection.decision_hash ?? card.recommendation_decision_v3?.decision_hash ?? "",
+    decisionHash: projection.decision_hash ?? card.recommendation_decision_v4?.decision_hash ?? "",
     evidenceHash: projection.evidence_hash ?? "",
     blocker: projection.reason ?? null,
     top3,
@@ -257,15 +226,11 @@ function trackingModel(
 
 function quoteModel(card: DashboardDayViewCard) {
   const candidate = selectedCandidate(card);
-  const evaluatedCandidateRecord = evaluatedCandidate(card);
   const evidence = selectedAnalysisEvidence(card);
-  const comparison = record(evidence.comparison);
-  const model = record(evidence.model_probability);
-  const marketProbability = record(record(evidence.market_probability).devig);
-  const quoteIdentity = selectedQuoteIdentity(card);
+  const readiness = record(evidence.readiness);
   const quote = selectedQuote(card);
-  const market = text(candidate.market || card.pick?.market);
-  const selection = text(candidate.selection || card.pick?.selection);
+  const market = text(candidate.market || evidence.market);
+  const selection = text(candidate.selection || evidence.selection);
   if (!market || !selection || !Object.keys(quote).length) {
     const reference = record(card.last_known_odds);
     if (text(reference.status) !== "REFERENCE_ONLY" || reference.executable !== false) return null;
@@ -299,26 +264,19 @@ function quoteModel(card: DashboardDayViewCard) {
       marketProbability: null,
       modelProbability: null,
       probabilityDelta: null,
+      cashflowPriceEdge: null,
       expectedValue: null,
       uncertainty: null,
       ladder: [],
     };
   }
-  const normalizedSelection = selection.toUpperCase().replace("_AH", "");
-  const mainline = record(evaluatedCandidateRecord.market_mainline);
-  const ladderEvaluation = record(evaluatedCandidateRecord.market_ladder_evaluation);
-  const evaluatedRows = Array.isArray(ladderEvaluation.candidates)
-    ? ladderEvaluation.candidates.map(record)
-    : [];
+  const mainline = record(evidence.canonical_mainline_identity);
   const oddsEntry = record(record(card.current_odds)[market === "TOTALS" ? "ou" : "ah"]);
   const candidateLines = oddsEntry.candidate_lines;
   const ladder = Array.isArray(candidateLines)
     ? candidateLines.map((raw) => {
       const row = record(raw);
       const lineValue = text(row.line);
-      const evaluation = evaluatedRows.find(
-        (item) => text(item.line) === lineValue && text(item.selection) === normalizedSelection,
-      ) ?? evaluatedRows.find((item) => text(item.line) === lineValue) ?? {};
       return {
         line: lineValue,
         completePairBookmakerCount: numberValue(
@@ -329,39 +287,44 @@ function quoteModel(card: DashboardDayViewCard) {
         rightPrice: numberValue(row.median_under_price ?? row.median_away_price),
         status: text(row.status || "REJECTED"),
         reason: text(row.reason) || null,
-        modelProbability: numberValue(evaluation.model_probability),
-        marketProbability: numberValue(evaluation.market_probability),
-        probabilityDelta: numberValue(evaluation.probability_delta),
-        expectedValue: numberValue(evaluation.expected_value),
-        uncertainty: numberValue(evaluation.uncertainty),
+        modelProbability: null,
+        marketProbability: null,
+        probabilityDelta: null,
+        cashflowPriceEdge: null,
+        expectedValue: null,
+        uncertainty: null,
       };
     })
     : [];
-  const candidateRole = text(evaluatedCandidateRecord.candidate_role) === "ALTERNATE_LINE"
-    ? "ALTERNATE_LINE" as const
-    : "MARKET_MAINLINE" as const;
   return {
-    freshnessStatus: text(quoteIdentity.freshness_status) || "UNKNOWN",
-    marketPolicyLabel: text(mainline.selection_policy || "主线政策待确认"),
-    candidateRole,
-    marketMainlineLine: text(mainline.line || candidate.line),
+    freshnessStatus: text(readiness.quote_freshness_status) || "UNKNOWN",
+    marketPolicyLabel: "V4 唯一权威主线",
+    candidateRole: "MARKET_MAINLINE" as const,
+    marketMainlineLine: text(
+      mainline.line || mainline.home_line || mainline.over_line || candidate.exact_line,
+    ),
     marketMainlineBookmakerCount: numberValue(mainline.complete_pair_bookmaker_count) ?? 0,
     marketMainlineVoteCount: numberValue(mainline.bookmaker_vote_count) ?? 0,
     marketMainlineOverPrice: numberValue(mainline.median_over_price),
     marketMainlineUnderPrice: numberValue(mainline.median_under_price),
     marketMainlineHomePrice: numberValue(mainline.median_home_price),
     marketMainlineAwayPrice: numberValue(mainline.median_away_price),
-    bookmaker: text(quote.bookmaker_name || quoteIdentity.bookmaker_id || "已审计报价"),
-    capturedAt: text(quote.captured_at || quoteIdentity.captured_at),
+    bookmaker: text(quote.bookmaker_id || quote.provider || "已审计报价"),
+    capturedAt: text(quote.captured_at),
     marketLabel: marketLabel(market),
     selectionLabel: selectionLabel(market, selection),
-    line: text(quote.line || candidate.line || card.pick?.line),
-    odds: numberValue(quote.decimal_odds || candidate.odds || card.pick?.odds) ?? 0,
-    marketProbability: numberValue(marketProbability[normalizedSelection]),
-    modelProbability: numberValue(model.effective_probability),
-    probabilityDelta: numberValue(comparison.probability_delta ?? evidence.probability_delta),
-    expectedValue: numberValue(model.expected_value ?? evidence.expected_value),
-    uncertainty: numberValue(model.ev_se ?? evidence.uncertainty),
+    line: text(quote.exact_line || quote.line),
+    odds: numberValue(quote.decimal_odds || quote.odds) ?? 0,
+    marketProbability: numberValue(quote.market_probability ?? evidence.market_probability),
+    modelProbability: numberValue(quote.model_probability ?? evidence.model_probability),
+    probabilityDelta: numberValue(
+      quote.probability_delta_diagnostic ?? evidence.probability_delta_diagnostic,
+    ),
+    cashflowPriceEdge: numberValue(
+      quote.cashflow_price_edge ?? evidence.cashflow_price_edge,
+    ),
+    expectedValue: numberValue(quote.expected_value ?? evidence.expected_value),
+    uncertainty: numberValue(quote.uncertainty ?? evidence.uncertainty),
     ladder,
   };
 }
@@ -371,17 +334,15 @@ function fixtureModel(
   performance?: DashboardPerformance,
 ): DashboardV2FixtureModel {
   const projection = scorelineProjection(card);
-  const candidate = selectedCandidate(card);
   const evidence = selectedAnalysisEvidence(card);
-  const model = record(evidence.model_probability);
-  const quoteIdentity = selectedQuoteIdentity(card);
+  const readiness = record(evidence.readiness);
   const xg = fieldReadiness(card, "xg");
   const ratings = fieldReadiness(card, "ratings");
   const lineups = fieldReadiness(card, "lineups");
   const dynamic = dynamicSnapshot(card);
   const quote = quoteModel(card);
   const lineupSummary = lineupFacts(card);
-  const decision = record(card.recommendation_decision_v3);
+  const decision = record(card.recommendation_decision_v4);
   const decisionReason = record(decision.reason);
   const outcome = text(decision.outcome).toUpperCase();
   const reasonCode = text(decisionReason.code || card.reason_code).toUpperCase();
@@ -426,13 +387,13 @@ function fixtureModel(
     scorelineSummary: projection?.status === "READY" ? projection.top3.map((row) => row.scoreline).join(" · ") : null,
     quote,
     scorelineProjection: projection,
-    modelLabel: text(model.model_version || candidate.model_version || "分析模型"),
+    modelLabel: text(evidence.model_version || "分析模型"),
     calibrationLabel:
-      text(model.calibration_status).toUpperCase() === "BASELINE_PRIOR"
-        ? "基线先验模型 · 尚未完成正式校准验证"
-        : text(model.calibration_status || "校准状态待确认"),
+      text(evidence.calibration_version)
+        ? `校准版本 ${text(evidence.calibration_version)}`
+        : "校准状态待确认",
     dataFacts: [
-      `盘口身份 ${text(quoteIdentity.identity_status).toUpperCase() === "COMPLETE" ? "完整" : "待确认"}`,
+      `盘口身份 ${text(readiness.quote_identity_status).toUpperCase() === "COMPLETE" ? "完整" : "待确认"}`,
       `真实 xG ${xg.present === true ? "已就绪" : text(xg.reason_code || "待确认")}`,
       `内部评级 ${ratings.present === true ? "已就绪" : text(ratings.reason_code || "待确认")}`,
       `首发 ${lineups.present === true ? "已就绪" : "未到采集时间"}`,
@@ -464,7 +425,12 @@ export function adaptDashboardV2(
 ): DashboardV2ViewModel {
   const cohort = performance?.forward_ledger?.performance_cohort;
   const unavailable = "—" as const;
-  const fixtures = dayView.cards.map((card) => fixtureModel(card, performance));
+  const fixtures = dayView.cards
+    .map((card) => fixtureModel(card, performance))
+    .sort((left, right) =>
+      left.kickoffUtc.localeCompare(right.kickoffUtc)
+      || left.fixtureId.localeCompare(right.fixtureId),
+    );
   const visibleQuoteTimes = fixtures
     .map((fixture) => fixture.quote?.capturedAt)
     .filter((value): value is string => Boolean(value))

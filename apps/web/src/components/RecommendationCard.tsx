@@ -126,9 +126,9 @@ const FORMAL_BLOCKER_LABELS: Record<string, string> = {
 const REQUIRED_SIGNAL_GROUPS = ["xg", "team_fixture_history", "h2h", "squad_value", "ratings"];
 
 function verdictState(match: DashboardMatchCard): VerdictState {
-  const outcome = match.recommendation_decision_v3?.outcome;
+  const outcome = match.recommendation_decision_v4?.outcome;
   if (outcome === "ANALYSIS_PICK" || outcome === "FORMAL_RECOMMEND") return "REFERENCE";
-  if (outcome === "SYSTEM_DEGRADED" || outcome === "NOT_READY") return "INSUFFICIENT";
+  if (outcome === "NOT_READY") return "INSUFFICIENT";
   if (outcome === "NO_EDGE") return "WATCH";
   return "INSUFFICIENT";
 }
@@ -215,6 +215,10 @@ function oddsRecord(match: DashboardMatchCard, market: string): Record<string, u
 }
 
 function displayPick(match: DashboardMatchCard): RecommendationPick | null {
+  if (!match.recommendation_decision_v4
+    || !["ANALYSIS_PICK", "FORMAL_RECOMMEND"].includes(match.recommendation_decision_v4.outcome)) {
+    return null;
+  }
   const pick = match.recommendation;
   if (!pick) return null;
   const marketOdds = oddsRecord(match, pick.market);
@@ -299,8 +303,8 @@ function displayReason(reason: string): string {
 }
 
 function formalReason(match: DashboardMatchCard): string {
-  const v3Reason = match.recommendation_decision_v3?.reason?.message;
-  if (v3Reason) return v3Reason;
+  const v4Reason = match.recommendation_decision_v4?.reason?.message;
+  if (v4Reason) return v4Reason;
   if (match.formal_suppressed_reason) {
     return `正式推荐被抑制：${formalSuppressedReasonLabel(match.formal_suppressed_reason)}`;
   }
@@ -359,31 +363,16 @@ function dataLine(match: DashboardMatchCard): string {
 }
 
 function actionabilityLine(match: DashboardMatchCard): string {
-  const v3 = match.recommendation_decision_v3;
-  if (v3?.outcome === "SYSTEM_DEGRADED") return "数据链异常，等待系统复核";
-  if (v3?.outcome === "NOT_READY") return v3.reason?.message || "数据未就绪，等待下一次复核";
-  if (v3?.outcome === "NO_EDGE") return "数据完整但未形成分析优势";
-  if (v3?.outcome === "ANALYSIS_PICK") {
-    return v3.selected_candidate?.market === "TOTALS"
+  const v4 = match.recommendation_decision_v4;
+  if (!v4) return "当前 V4 推荐权威缺失；V3 仅用于历史展示";
+  if (v4.outcome === "NOT_READY") return v4.reason?.message || "数据未就绪，等待下一次复核";
+  if (v4.outcome === "NO_EDGE") return "数据完整但未形成分析优势";
+  if (v4.outcome === "ANALYSIS_PICK") {
+    return v4.selected_candidate?.market === "TOTALS"
       ? "大小球分析参考，正式推荐当前仅支持全场让球"
       : "赛前分析参考，尚未开放正式推荐";
   }
-  if (v3?.outcome === "FORMAL_RECOMMEND") return "正式推荐：已通过全部前置条件";
-  if (match.recommendation?.tier === "FORMAL") return "正式推荐：赛前真实数据与模拟策略自洽";
-  const items = readinessItems({ data_readiness: match.data_readiness });
-  const oddsReady = Boolean(items.find((item) => item.key === "odds")?.ready);
-  const lineupsReady = Boolean(items.find((item) => item.key === "lineups")?.ready);
-  const phase = matchPhase(match.kickoff_utc, match.status);
-  if (phase === "LIVE") return "已开赛：赛前判断停止更新";
-  if (phase === "FINISHED") return "已完场：查看复盘验证";
-  if (requiresPrematchReview(phase)) {
-    if (!lineupsReady) return "临场待确认：首发未出，开赛前需复核";
-    if (!oddsReady) return "临场待确认：盘口快照不足，需复核";
-    return "临场可参考：仍需赛前复核阵容与盘口跳线";
-  }
-  if (ahMainlineBlocker(match)) return "全场让球主盘口不明确，保持观察";
-  if (!oddsReady) return "等待盘口快照后再看";
-  return "赛前分析参考，等待正式条件";
+  return "正式推荐：已通过全部前置条件";
 }
 
 function canShowScoreline(match: DashboardMatchCard): boolean {
