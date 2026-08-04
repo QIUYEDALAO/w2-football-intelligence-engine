@@ -1,8 +1,8 @@
 {
   "schema_version": "w2.canonical-serialization-oracle-vectors.v2",
-  "production_implementation_head": "ff0db4f874b263434290d502b7b787adfcde2964",
+  "production_implementation_head": "ec646df3cf7562b3becd3dfa330cf5fd698fd12a",
   "production_implementation_path": "src/w2/domain/canonical_serialization.py",
-  "production_implementation_sha256": "bb348f0c775319d4420d04305414893ac90dc92ff8bfb196a1b42f0910c3d696",
+  "production_implementation_sha256": "93af9db2489816c5248ef3fb8f2788d685249d3ba86740c3518b3f797fd534a0",
   "production_implementer": "xg3750150@gmail.com",
   "adr_id": "ADR-0019",
   "serializer_version": "w2.canonical-json.v2",

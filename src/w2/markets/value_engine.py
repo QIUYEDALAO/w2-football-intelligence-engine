@@ -2,11 +2,26 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from enum import StrEnum
 from typing import Any
 
 from w2.domain.enums import MarketType, SettlementOutcome
+from w2.domain.five_state_pricing import (
+    SettlementDistribution as SettlementDistribution,
+)
+from w2.domain.five_state_pricing import (
+    cashflow_price_edge as cashflow_price_edge,
+)
+from w2.domain.five_state_pricing import (
+    expected_value as expected_value,
+)
+from w2.domain.five_state_pricing import (
+    fair_decimal_odds as fair_decimal_odds,
+)
+from w2.domain.five_state_pricing import (
+    fair_hk_odds as fair_hk_odds,
+)
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
 
 ScoreMatrix = dict[tuple[int, int], Decimal]
@@ -38,42 +53,6 @@ class OddsQuote:
     suspended: bool
     live: bool
     provenance: str
-
-
-@dataclass(frozen=True, kw_only=True)
-class SettlementDistribution:
-    full_win_probability: Decimal = Decimal("0")
-    half_win_probability: Decimal = Decimal("0")
-    push_probability: Decimal = Decimal("0")
-    half_loss_probability: Decimal = Decimal("0")
-    full_loss_probability: Decimal = Decimal("0")
-
-    def normalized(self) -> SettlementDistribution:
-        total = (
-            self.full_win_probability
-            + self.half_win_probability
-            + self.push_probability
-            + self.half_loss_probability
-            + self.full_loss_probability
-        )
-        if total == 0:
-            raise ValueError("settlement distribution has zero probability")
-        return SettlementDistribution(
-            full_win_probability=self.full_win_probability / total,
-            half_win_probability=self.half_win_probability / total,
-            push_probability=self.push_probability / total,
-            half_loss_probability=self.half_loss_probability / total,
-            full_loss_probability=self.full_loss_probability / total,
-        )
-
-    def as_dict(self) -> dict[str, str]:
-        return {
-            "full_win_probability": str(self.full_win_probability),
-            "half_win_probability": str(self.half_win_probability),
-            "push_probability": str(self.push_probability),
-            "half_loss_probability": str(self.half_loss_probability),
-            "full_loss_probability": str(self.full_loss_probability),
-        }
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -208,37 +187,6 @@ def _distribution_from_outcome_map(
         push_probability=totals[SettlementOutcome.PUSH],
         half_loss_probability=totals[SettlementOutcome.HALF_LOSS],
         full_loss_probability=totals[SettlementOutcome.LOSS],
-    )
-
-
-def expected_value(decimal_odds: Decimal, distribution: SettlementDistribution) -> Decimal:
-    hk_profit = decimal_odds - Decimal("1")
-    return (
-        distribution.full_win_probability * hk_profit
-        + distribution.half_win_probability * Decimal("0.5") * hk_profit
-        - distribution.half_loss_probability * Decimal("0.5")
-        - distribution.full_loss_probability
-    )
-
-
-def fair_hk_odds(distribution: SettlementDistribution) -> Decimal:
-    numerator = (
-        distribution.full_loss_probability
-        + Decimal("0.5") * distribution.half_loss_probability
-    )
-    denominator = (
-        distribution.full_win_probability
-        + Decimal("0.5") * distribution.half_win_probability
-    )
-    if denominator == 0:
-        raise ValueError("fair odds denominator is zero")
-    return (numerator / denominator).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
-
-
-def fair_decimal_odds(distribution: SettlementDistribution) -> Decimal:
-    return (fair_hk_odds(distribution) + Decimal("1")).quantize(
-        Decimal("0.0001"),
-        rounding=ROUND_HALF_UP,
     )
 
 

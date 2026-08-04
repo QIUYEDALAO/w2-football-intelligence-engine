@@ -169,9 +169,10 @@ def test_dashboard_fails_closed_for_pre_lmm_pick_without_canonical_selection() -
     assert card["lifecycle_status"] == "DRAFT"
     assert card["outcome_tracked"] is False
     assert card["lock_eligible"] is False
-    assert card["reason_code"] == "MARKET_UNAVAILABLE"
+    assert card["reason_code"] == "IDENTITY_NOT_READY"
     assert card["pick"] is None
-    assert card["non_pick"]["reason_code"] == "MARKET_UNAVAILABLE"
+    assert card["non_pick"]["reason_code"] == "IDENTITY_NOT_READY"
+    assert "MISSING_MARKET" in card["recommendation_decision_v4"]["blockers"]
     assert card["decision_contract"]["decision_tier"] == "NOT_READY"
     assert card["decision_contract"]["environment"] == "staging"
     assert card["data_readiness"]["source"] == "w2.readiness.data_gate.v1"
@@ -905,7 +906,7 @@ def test_dashboard_does_not_fill_missing_ah_from_runtime_timeline(
 
     assert card["current_odds"] == {"ou": {"line": "2.5", "price": 1.9}}
     assert card["market_timeline"]["status"] == "INSUFFICIENT"
-    assert "MISSING_AH_MARKET" in card["pricing_shadow"]["formal_blockers"]
+    assert "AH_MARKET_CANDIDATE_REQUIRED" in card["pricing_shadow"]["formal_blockers"]
     assert card["formal_recommendation"] is False
     assert card["recommendation"]["tier"] == "WATCH"
     assert card["recommendation"]["formal_recommendation"] is False
@@ -1400,8 +1401,9 @@ def test_dashboard_ignores_invalid_timeline_ah_price_pair(
     assert card["current_odds"]["ah"]["home_price"] == 1.94
     assert card["current_odds"]["ah"]["away_price"] == 1.96
     assert card["current_odds"]["ah"]["source"] == "read_model_mainline"
-    assert card["pricing_shadow"]["canonical_ah_market_validation_status"] == "READY"
-    assert card["pricing_shadow"]["canonical_ah_market_blocker"] is None
+    assert "AH_MARKET_CANDIDATE_REQUIRED" in card["pricing_shadow"]["formal_blockers"]
+    assert "canonical_ah_market_validation_status" not in card["pricing_shadow"]
+    assert "canonical_ah_market_blocker" not in card["pricing_shadow"]
 
 
 def test_dashboard_hides_formal_simulation_scorelines_without_public_pick() -> None:

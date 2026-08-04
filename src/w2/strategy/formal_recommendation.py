@@ -2,17 +2,17 @@ from __future__ import annotations
 
 import os
 from dataclasses import asdict, dataclass
+from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.formal.readiness import validate_formal_ah_readiness
-from w2.markets.settlement_probability import effective_settlement_probability
+from w2.markets.value_engine import SettlementDistribution, fair_decimal_odds
 from w2.strategy.simulate import (
     READY,
     SimulationOutput,
     ah_expected_value,
-    ah_expected_value_uncertainty_from_lambdas,
 )
 
 FORMAL_EV_THRESHOLD = 0.035
@@ -120,8 +120,13 @@ def build_formal_recommendation(
         formal_ah_readiness=formal_ah_readiness,
         analysis_readiness=analysis_readiness,
     )
-    executable_odds = _candidate_executable_odds(ah_market_candidate)
-    canonical_odds = {"ah": executable_odds} if executable_odds is not None else current_odds
+    if ah_market_candidate is None:
+        return _watch("AH_MARKET_CANDIDATE_REQUIRED")
+    candidate_evaluation = _candidate_evaluation(ah_market_candidate)
+    candidate_odds = _candidate_pair_odds(ah_market_candidate)
+    if candidate_evaluation is None or candidate_odds is None:
+        return _watch("AH_MARKET_CANDIDATE_NOT_EXECUTABLE")
+    canonical_odds = candidate_odds
     ah = canonical_ah_market(current_odds=canonical_odds, pricing_shadow=pricing_shadow)
     blockers = _blockers(
         fixture_status=fixture_status,
@@ -131,8 +136,6 @@ def build_formal_recommendation(
         pricing_shadow=pricing_shadow,
         analysis_readiness=analysis_readiness,
     )
-    if ah_market_candidate is not None and executable_odds is None:
-        blockers.append("AH_MARKET_CANDIDATE_NOT_EXECUTABLE")
     blockers.extend(readiness_gate)
     if blockers:
         return FormalRecommendationResult(
@@ -149,36 +152,12 @@ def build_formal_recommendation(
         return _watch((ah.blocker if ah else None) or "MISSING_AH_MARKET", canonical_ah_market=ah)
     if not _lambda_uncertainty_validated(simulation):
         return _watch("FORMAL_UNCERTAINTY_NOT_VALIDATED", canonical_ah_market=ah)
-    home_distribution, home_ev, home_ev_se = _settlement_distribution_with_ev_se(
-        simulation,
-        "HOME",
-        ah.home_line,
-        ah.home_price,
-    )
-    away_distribution, away_ev, away_ev_se = _settlement_distribution_with_ev_se(
-        simulation,
-        "AWAY",
-        ah.away_line,
-        ah.away_price,
-    )
-    if home_distribution is None or away_distribution is None:
-        return _watch("MISSING_AH_SETTLEMENT_DISTRIBUTION", canonical_ah_market=ah)
-    if home_ev is None or away_ev is None:
-        return _watch("INVALID_AH_EV_INPUTS", canonical_ah_market=ah)
-    home_model = _effective_cover_probability(home_distribution)
-    away_model = _effective_cover_probability(away_distribution)
-    if home_model is None or away_model is None:
-        return _watch("INVALID_AH_SETTLEMENT_DISTRIBUTION", canonical_ah_market=ah)
     prices = {"HOME": ah.home_price, "AWAY": ah.away_price}
     devig = _devig_probabilities(prices)
-    candidates = [
-        ("HOME", home_ev, home_ev_se, home_model, ah.home_line, ah.home_price, home_distribution),
-        ("AWAY", away_ev, away_ev_se, away_model, ah.away_line, ah.away_price, away_distribution),
-    ]
-    side, ev, ev_se, model_probability, line, price, distribution = max(
-        candidates,
-        key=lambda item: item[1],
-    )
+    side, ev, ev_se, model_probability, line, price, distribution = candidate_evaluation
+    fair_price = _five_state_fair_odds(distribution)
+    if fair_price is None:
+        return _watch("INVALID_AH_SETTLEMENT_DISTRIBUTION", canonical_ah_market=ah)
     if ev_se is None:
         return _watch("EV_UNCERTAINTY_MISSING", canonical_ah_market=ah)
     if ev > FORMAL_MAX_IMPLAUSIBLE_EV:
@@ -226,7 +205,7 @@ def build_formal_recommendation(
         "line": _format_line(line),
         "odds": _format_price(price),
         "model_probability": round(model_probability, 6),
-        "fair_odds": _format_price(1 / model_probability) if model_probability > 0 else None,
+        "fair_odds": _format_price(fair_price),
         "risk_adjusted_ev": _format_edge(ev),
         "expected_value": round(ev, 6),
         "ev_se": ev_se,
@@ -280,6 +259,154 @@ def _candidate_executable_odds(candidate: dict[str, Any] | None) -> dict[str, An
     quotes = candidate.get("quotes")
     executable = quotes.get("executable") if isinstance(quotes, dict) else None
     return dict(executable) if isinstance(executable, dict) else None
+
+
+def _candidate_pair_odds(candidate: dict[str, Any] | None) -> dict[str, Any] | None:
+    executable = _candidate_executable_odds(candidate)
+    if executable is None or not isinstance(candidate, dict):
+        return None
+    identity = candidate.get("quote_identity")
+    if not isinstance(identity, dict) or (
+        identity.get("identity_status") != "COMPLETE"
+        or identity.get("freshness_status") != "COMPLETE"
+    ):
+        return None
+    quotes = identity.get("quotes")
+    if not isinstance(quotes, dict):
+        return None
+    home = quotes.get("home")
+    away = quotes.get("away")
+    if not isinstance(home, dict) or not isinstance(away, dict):
+        return None
+    home_line = _number(home.get("line"))
+    away_line = _number(away.get("line"))
+    home_price = _number(home.get("decimal_odds"))
+    away_price = _number(away.get("decimal_odds"))
+    if (
+        home_line is None
+        or away_line is None
+        or abs(home_line + away_line) > 0.001
+        or home_price is None
+        or away_price is None
+        or home_price <= 1
+        or away_price <= 1
+    ):
+        return None
+    side = str(candidate.get("selection") or "")
+    selected = home if side == "HOME" else away if side == "AWAY" else None
+    if selected is None or not _same_quote(selected, executable):
+        return None
+    return {
+        "ah": {
+            "home_line": home_line,
+            "away_line": away_line,
+            "home_price": home_price,
+            "away_price": away_price,
+            "source": identity.get("provider"),
+            "captured_at": identity.get("captured_at"),
+            "bookmaker_count": 1,
+        }
+    }
+
+
+def _candidate_evaluation(
+    candidate: dict[str, Any] | None,
+) -> tuple[str, float, float, float, float, float, dict[str, Any]] | None:
+    executable = _candidate_executable_odds(candidate)
+    if executable is None or not isinstance(candidate, dict):
+        return None
+    evidence = candidate.get("analysis_evidence")
+    if not isinstance(evidence, dict) or evidence.get("status") != "COMPLETE":
+        return None
+    comparison = evidence.get("comparison")
+    model = evidence.get("model_probability")
+    if (
+        not isinstance(comparison, dict)
+        or comparison.get("analysis_direction_allowed") is not True
+        or candidate.get("analysis_direction_allowed") is not True
+        or candidate.get("candidate_role") != "MARKET_MAINLINE"
+        or not isinstance(model, dict)
+        or model.get("status") != "READY"
+    ):
+        return None
+    side = str(candidate.get("selection") or "")
+    line = _number(candidate.get("line"))
+    evidence_line = _number(evidence.get("selected_side_line"))
+    quote_line = _number(executable.get("line"))
+    price = _number(executable.get("decimal_odds"))
+    ev = _number(model.get("expected_value"))
+    ev_se = _number(model.get("ev_se"))
+    model_probability = _number(model.get("effective_probability"))
+    distribution = model.get("settlement_distribution")
+    if (
+        side not in {"HOME", "AWAY"}
+        or evidence.get("market") != "ASIAN_HANDICAP"
+        or evidence.get("selection") != side
+        or line is None
+        or evidence_line is None
+        or quote_line is None
+        or abs(line - evidence_line) > 0.001
+        or abs(line - quote_line) > 0.001
+        or price is None
+        or price <= 1
+        or ev is None
+        or ev_se is None
+        or model_probability is None
+        or not isinstance(distribution, dict)
+    ):
+        return None
+    fair_price = _five_state_fair_odds(distribution)
+    candidate_fair_price = _number(model.get("fair_decimal_odds"))
+    recomputed_ev = ah_expected_value(distribution, decimal_price=price)
+    if (
+        fair_price is None
+        or candidate_fair_price is None
+        or abs(fair_price - candidate_fair_price) > 0.00011
+        or recomputed_ev is None
+        or abs(recomputed_ev - ev) > 0.000001
+    ):
+        return None
+    return side, ev, ev_se, model_probability, line, price, distribution
+
+
+def _five_state_fair_odds(distribution: dict[str, Any]) -> float | None:
+    keys = {"WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"}
+    if set(distribution) != keys:
+        return None
+    try:
+        values = {key: Decimal(str(distribution[key])) for key in keys}
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+    if any(not value.is_finite() or value < 0 for value in values.values()):
+        return None
+    if abs(sum(values.values(), Decimal("0")) - 1) > Decimal("0.00001"):
+        return None
+    settlement = SettlementDistribution(
+        full_win_probability=values["WIN"],
+        half_win_probability=values["HALF_WIN"],
+        push_probability=values["PUSH"],
+        half_loss_probability=values["HALF_LOSS"],
+        full_loss_probability=values["LOSS"],
+    )
+    try:
+        return float(fair_decimal_odds(settlement))
+    except ValueError:
+        return None
+
+
+def _same_quote(authoritative: dict[str, Any], executable: dict[str, Any]) -> bool:
+    authoritative_line = _number(authoritative.get("line"))
+    executable_line = _number(executable.get("line"))
+    authoritative_price = _number(authoritative.get("decimal_odds"))
+    executable_price = _number(executable.get("decimal_odds"))
+    return bool(
+        authoritative_line is not None
+        and executable_line is not None
+        and abs(authoritative_line - executable_line) <= 0.001
+        and authoritative_price is not None
+        and executable_price is not None
+        and abs(authoritative_price - executable_price) <= 0.000001
+    )
 
 
 def _formal_ah_readiness_gate(
@@ -509,66 +636,6 @@ def _watch(
     )
 
 
-def _settlement_distribution_from_ladder(
-    simulation: SimulationOutput,
-    side: str,
-    line: float,
-) -> dict[str, Any] | None:
-    ladder = (
-        simulation.ah_probabilities.get("ladder")
-        if isinstance(simulation.ah_probabilities, dict)
-        else None
-    )
-    if isinstance(ladder, list):
-        for row in ladder:
-            if not isinstance(row, dict):
-                continue
-            row_line = _number(row.get("home_line"))
-            if row_line is None or abs(row_line - (line if side == "HOME" else -line)) > 0.001:
-                continue
-            key = (
-                "home_settlement_distribution" if side == "HOME" else "away_settlement_distribution"
-            )
-            distribution = row.get(key)
-            if isinstance(distribution, dict):
-                return distribution
-    return None
-
-
-def _settlement_distribution_with_ev_se(
-    simulation: SimulationOutput,
-    side: str,
-    line: float,
-    price: float,
-) -> tuple[dict[str, Any] | None, float | None, float | None]:
-    ladder_distribution = _settlement_distribution_from_ladder(simulation, side, line)
-    scenario_distribution, scenario_ev, ev_se = ah_expected_value_uncertainty_from_lambdas(
-        lambda_home=simulation.lambda_home,
-        lambda_away=simulation.lambda_away,
-        lambda_sigma_home=simulation.lambda_sigma_home or 0.0,
-        lambda_sigma_away=simulation.lambda_sigma_away or 0.0,
-        rho=_simulation_rho(simulation),
-        selection=side,
-        line=line,
-        decimal_price=price,
-    )
-    if ladder_distribution is not None:
-        return (
-            ladder_distribution,
-            ah_expected_value(ladder_distribution, decimal_price=price),
-            ev_se,
-        )
-    return scenario_distribution, scenario_ev, ev_se
-
-
-def _simulation_rho(simulation: SimulationOutput) -> float:
-    calibration = simulation.calibration if isinstance(simulation.calibration, dict) else {}
-    params = calibration.get("params")
-    if not isinstance(params, dict):
-        return 0.0
-    return _number(params.get("dixon_coles_rho")) or 0.0
-
-
 def _lambda_uncertainty_validated(simulation: SimulationOutput) -> bool:
     calibration = simulation.calibration if isinstance(simulation.calibration, dict) else {}
     method = str(calibration.get("lambda_uncertainty_method") or "").lower()
@@ -576,13 +643,7 @@ def _lambda_uncertainty_validated(simulation: SimulationOutput) -> bool:
         return False
     sigma_home = _number(simulation.lambda_sigma_home)
     sigma_away = _number(simulation.lambda_sigma_away)
-    return sigma_home is not None and sigma_away is not None and (
-        sigma_home > 0 or sigma_away > 0
-    )
-
-
-def _effective_cover_probability(distribution: dict[str, Any]) -> float | None:
-    return effective_settlement_probability(distribution)
+    return sigma_home is not None and sigma_away is not None and (sigma_home > 0 or sigma_away > 0)
 
 
 def _devig_probabilities(prices: dict[str, float]) -> dict[str, float]:

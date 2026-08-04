@@ -19,6 +19,8 @@
 - Wave 4 脱敏永久回执：`docs/operations/W2_WAVE4_REAL_CANARY_RECEIPT_20260802.md`
 - VPS postdeploy 脱敏回执：`docs/operations/W2_VPS_POSTDEPLOY_RECEIPT_20260802.md`
 - Production recovery 脱敏回执：`docs/operations/W2_PRODUCTION_RECOVERY_RECEIPT_20260803.md`
+- 推荐权威与真实 fixture 重放回执：`docs/operations/W2_RECOMMENDATION_AUTHORITY_REAL_FIXTURE_REPLAY_RECEIPT_20260804.md`
+- 真实 fixture 重放脱敏 manifest：`docs/operations/W2_REAL_FIXTURE_REPLAY_SANITIZED_MANIFEST_20260804.json`
 
 ## 可信基线
 
@@ -118,6 +120,23 @@ ACTIVE_NEXT_ACTION = POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS
 EVAL-03 = NOT STARTED
 COLD_PULL_SLO = NOT_PROVEN
 ```
+
+## Recommendation authority 与真实 fixture 重放闭环
+
+```text
+PUBLIC_RECOMMENDATION_AUTHORITY = SINGLE
+REAL_FIXTURE_OFFLINE_REPLAY = PASS
+LINEUP_NUMERIC_VALUE_MODEL = NOT_IMPLEMENTED
+LINEUP_NUMERIC_ADJUSTMENT = OFF
+CANDIDATE = OFF
+FORMAL = OFF
+LOCK = OFF
+PRODUCTION = OFF
+```
+
+当前公共推荐只认 `w2.recommendation_decision.v4`；历史 V3 仅供展示、历史读取与结算。
+真实 fixture 已从保存的四端点 raw evidence 开始，在网络禁用条件下两次独立复算并得到相同
+canonical bytes。首发只参与 readiness、证据和首发后赔率刷新，尚未进入模型概率数值调整。
 
 ## Delivery pipeline
 

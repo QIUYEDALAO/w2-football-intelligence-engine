@@ -9,10 +9,13 @@ from collections.abc import Mapping
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
 
+from w2.domain.five_state_pricing import MIN_CASHFLOW_PRICE_EDGE as V4_MIN_CASHFLOW_PRICE_EDGE
 from w2.markets.devig import DevigMethod, devig
 from w2.markets.settlement_probability import effective_settlement_probability
 from w2.markets.value_engine import (
+    cashflow_price_edge,
     expected_value,
+    fair_decimal_odds,
     settlement_distribution_ah,
     settlement_distribution_totals,
 )
@@ -20,6 +23,7 @@ from w2.strategy.simulate import _exact_score_matrix
 
 SCHEMA_VERSION = "w2.analysis_market_evidence.v1"
 MIN_MARKET_ANCHOR_DIVERGENCE = 0.05
+MIN_CASHFLOW_PRICE_EDGE = float(V4_MIN_CASHFLOW_PRICE_EDGE)
 _KEYS = {"ASIAN_HANDICAP": ("ah", ("HOME", "AWAY")), "TOTALS": ("ou", ("OVER", "UNDER"))}
 
 
@@ -39,6 +43,7 @@ def build_analysis_market_evidence(
     base: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "evidence_contract_version": "w2.analysis-market-evidence.v2",
+        "pricing_contract_version": "w2.five-state-cashflow-edge.v1",
         "fixture_id": fixture_id,
         "competition_id": competition_id,
         "market": market,
@@ -197,12 +202,14 @@ def _side_evidence(
             },
         }
     delta = round(float(model["effective_probability"]) - float(market_probability), 6)
+    fair_price = Decimal(str(model["fair_decimal_odds"]))
+    price_edge = round(float(cashflow_price_edge(price, fair_price)), 6)
     current_ev = float(model.get("expected_value", 0.0))
     current_ev_se = float(model.get("ev_se", 0.0))
     current_ev_minus_se = round(current_ev - current_ev_se, 6)
     allowed = bool(
         current_ev > 0
-        and delta >= MIN_MARKET_ANCHOR_DIVERGENCE
+        and price_edge >= MIN_CASHFLOW_PRICE_EDGE
         and current_ev_minus_se > 0
     )
     return {
@@ -210,15 +217,22 @@ def _side_evidence(
         "model_probability": model,
         "comparison": {
             "probability_delta": delta,
+            "probability_delta_admission_gate": False,
+            "cashflow_price_edge": price_edge,
             "current_ev": round(current_ev, 6),
             "current_delta": delta,
+            "current_cashflow_price_edge": price_edge,
             "current_ev_minus_se": current_ev_minus_se,
             "required_ev": 0.0,
             "required_delta": MIN_MARKET_ANCHOR_DIVERGENCE,
+            "required_cashflow_price_edge": MIN_CASHFLOW_PRICE_EDGE,
             "required_ev_minus_se": 0.0,
             "shortfall": {
                 "ev": round(max(-current_ev, 0.0), 6),
                 "delta": round(max(MIN_MARKET_ANCHOR_DIVERGENCE - delta, 0.0), 6),
+                "cashflow_price_edge": round(
+                    max(MIN_CASHFLOW_PRICE_EDGE - price_edge, 0.0), 6
+                ),
                 "ev_minus_se": round(max(-current_ev_minus_se, 0.0), 6),
             },
             "analysis_direction_allowed": allowed,
@@ -241,8 +255,7 @@ def _side_lines_match(
             and line_by_side.get("AWAY") == -canonical_line
         )
     return (
-        line_by_side.get("OVER") == canonical_line
-        and line_by_side.get("UNDER") == canonical_line
+        line_by_side.get("OVER") == canonical_line and line_by_side.get("UNDER") == canonical_line
     )
 
 
@@ -305,6 +318,10 @@ def _model_evidence(
     effective = effective_settlement_probability(settlement_distribution)
     if effective is None:
         return {"status": "NOT_READY", "reason_code": "INVALID_SETTLEMENT_DISTRIBUTION"}
+    try:
+        fair_price = fair_decimal_odds(distribution)
+    except ValueError:
+        return {"status": "NOT_READY", "reason_code": "FAIR_ODDS_NOT_READY"}
     ev = float(expected_value(price, distribution))
     ev_se = _ev_uncertainty(
         market=market,
@@ -336,6 +353,7 @@ def _model_evidence(
         "calibration_version": sim.get("calibration_version"),
         "model_input_hash": _hash_mapping(sim.get("input_manifest") or sim.get("inputs") or {}),
         "settlement_distribution": settlement_distribution,
+        "fair_decimal_odds": float(fair_price),
         "effective_probability": effective,
         "expected_value": ev,
         "ev_se": ev_se,

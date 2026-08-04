@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://w2.local/contracts/replay/w2_real_fixture_bundle.v1.schema.json",
+  "title": "W2 private real-fixture replay bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "bundle_id",
+    "source_git_sha",
+    "migration_head",
+    "serializer_version",
+    "fixture",
+    "export_transaction",
+    "replay",
+    "files",
+    "requests",
+    "expected"
+  ],
+  "properties": {
+    "schema_version": {"const": "w2.real-fixture-bundle.v1"},
+    "bundle_id": {"$ref": "#/$defs/sha256"},
+    "source_git_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "migration_head": {"type": "string", "minLength": 1},
+    "serializer_version": {"const": "w2.canonical-json.v2"},
+    "fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fixture_id",
+        "fixture_id_sha256",
+        "identity_hash",
+        "competition_id",
+        "provider_league_id",
+        "season",
+        "kickoff_utc"
+      ],
+      "properties": {
+        "fixture_id": {"type": "string", "minLength": 1},
+        "fixture_id_sha256": {"$ref": "#/$defs/sha256"},
+        "identity_hash": {"$ref": "#/$defs/sha256"},
+        "competition_id": {"type": "string", "minLength": 1},
+        "provider_league_id": {"type": "string", "minLength": 1},
+        "season": {"type": "string", "minLength": 1},
+        "kickoff_utc": {"type": "string", "format": "date-time"}
+      }
+    },
+    "export_transaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "database_dialect",
+        "isolation_level",
+        "read_only",
+        "snapshot_identity_sha256",
+        "exported_at_utc"
+      ],
+      "properties": {
+        "database_dialect": {"enum": ["postgresql", "sqlite"]},
+        "isolation_level": {"type": "string", "minLength": 1},
+        "read_only": {"const": true},
+        "snapshot_identity_sha256": {"$ref": "#/$defs/sha256"},
+        "exported_at_utc": {"type": "string", "format": "date-time"}
+      }
+    },
+    "replay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "now_utc",
+        "ingested_at_utc",
+        "projected_at_utc",
+        "expected_endpoint_sequence"
+      ],
+      "properties": {
+        "now_utc": {"type": "string", "format": "date-time"},
+        "ingested_at_utc": {"type": "string", "format": "date-time"},
+        "projected_at_utc": {"type": "string", "format": "date-time"},
+        "expected_endpoint_sequence": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "status"},
+            {"const": "fixtures"},
+            {"const": "odds"},
+            {"const": "lineups"}
+          ],
+          "items": false,
+          "minItems": 4,
+          "maxItems": 4
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "minItems": 6,
+      "items": {"$ref": "#/$defs/file"}
+    },
+    "requests": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {"$ref": "#/$defs/request"}
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recompute_mode", "source_reference_path"],
+      "properties": {
+        "recompute_mode": {
+          "const": "FIRST_ISOLATED_RECOMPUTE_THEN_SECOND_COMPARE"
+        },
+        "source_reference_path": {"$ref": "#/$defs/path"}
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$"
+    },
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "size_bytes", "kind"],
+      "properties": {
+        "path": {"$ref": "#/$defs/path"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "size_bytes": {"type": "integer", "minimum": 1},
+        "kind": {
+          "enum": ["RAW_PAYLOAD", "SOURCE_CONTEXT", "SOURCE_REFERENCE"]
+        }
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ordinal",
+        "endpoint",
+        "params",
+        "status_code",
+        "elapsed_ms",
+        "requested_at_utc",
+        "captured_at_utc",
+        "headers",
+        "payload_path",
+        "capture_id",
+        "raw_payload_sha256"
+      ],
+      "properties": {
+        "ordinal": {"type": "integer", "minimum": 1, "maximum": 4},
+        "endpoint": {"enum": ["status", "fixtures", "odds", "lineups"]},
+        "params": {
+          "type": "object",
+          "additionalProperties": {"type": "string"}
+        },
+        "status_code": {"type": "integer", "minimum": 100, "maximum": 599},
+        "elapsed_ms": {"type": "integer", "minimum": 0},
+        "requested_at_utc": {"type": "string", "format": "date-time"},
+        "captured_at_utc": {"type": "string", "format": "date-time"},
+        "headers": {
+          "type": "object",
+          "additionalProperties": {"type": "string"}
+        },
+        "payload_path": {"$ref": "#/$defs/path"},
+        "capture_id": {"$ref": "#/$defs/sha256"},
+        "raw_payload_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}

@@ -53,6 +53,22 @@ PRODUCTION = OFF
 AUTO_MERGE = FORBIDDEN
 ```
 
+## Recommendation authority 与真实 fixture replay closure
+
+```text
+PUBLIC_RECOMMENDATION_AUTHORITY = SINGLE
+REAL_FIXTURE_OFFLINE_REPLAY = PASS
+LINEUP_NUMERIC_VALUE_MODEL = NOT_IMPLEMENTED
+LINEUP_NUMERIC_ADJUSTMENT = OFF
+CANDIDATE = OFF
+FORMAL = OFF
+LOCK = OFF
+PRODUCTION = OFF
+```
+
+- Closure receipt: [W2 recommendation authority and real-fixture replay receipt](docs/operations/W2_RECOMMENDATION_AUTHORITY_REAL_FIXTURE_REPLAY_RECEIPT_20260804.md)
+- Sanitized manifest: [W2 real-fixture replay sanitized manifest](docs/operations/W2_REAL_FIXTURE_REPLAY_SANITIZED_MANIFEST_20260804.json)
+
 ## Missing collection policy coverage
 
 以下已注册联赛不得从白名单删除；它们尚未同时接入 future-refresh 与 matchday policy：

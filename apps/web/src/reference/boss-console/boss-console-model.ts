@@ -6,7 +6,13 @@ import type {
 } from "../dashboard-v2/dashboard-v2-model";
 
 export type BossDecisionStatus = "pick" | "watch" | "not-ready";
-export type BossRiskLevel = "low" | "medium" | "high";
+export type BossRiskAxisLevel = "none" | "attention" | "high" | "unknown";
+
+export interface BossRiskAxis {
+  level: BossRiskAxisLevel;
+  label: string;
+  code: string | null;
+}
 
 export interface BossDecisionItem {
   id: string;
@@ -29,9 +35,10 @@ export interface BossDecisionItem {
   marketMainlineLabel: string | null;
   executionQuoteLabel: string | null;
   marketLadder: import("../dashboard-v2/dashboard-v2-model").DashboardV2MarketLadderRow[];
-  risk: string;
-  riskLevel: BossRiskLevel;
-  riskNote: string;
+  eventRisk: BossRiskAxis;
+  dataIntegrityRisk: BossRiskAxis;
+  modelUncertainty: BossRiskAxis;
+  collectionRuntimeRisk: BossRiskAxis;
   lineupPending: boolean;
   nextAction: string;
   nextDetail: string;
@@ -47,7 +54,6 @@ export interface BossDecisionItem {
   ledgerDetail: string;
   reasons: string[];
   risks: string[];
-  dataRisk: string;
   marketIdentityRisk: string;
   lineupRisk: string;
 }
@@ -57,8 +63,10 @@ export interface BossConsoleRuntime {
   serviceStatus: string;
   providerStatus: string;
   schedulerStatus: string;
+  candidateStatus: string;
   formalStatus: string;
-  lockProductionStatus: string;
+  lockStatus: string;
+  productionStatus: string;
 }
 
 export interface BossConsoleModel {
@@ -68,7 +76,8 @@ export interface BossConsoleModel {
   selectedDecisionId: string | null;
   leaguePerformance: DashboardV2LeaguePerformanceRow[];
   automaticCollectionPaused: boolean;
-  riskExceptionCount: number;
+  eventRiskExceptionCount: number;
+  operationalRiskExceptionCount: number;
   lineupPendingCount: number;
   lastCheckedAt: string | null;
   runtime: BossConsoleRuntime;

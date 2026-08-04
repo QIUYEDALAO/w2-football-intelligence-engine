@@ -175,14 +175,14 @@ def test_deletions_keep_direct_evidence_and_known_retained_items() -> None:
 
     cycle = re.search(r"^CYCLE_1_MEMBERS = (.+)$", checklist, re.MULTILINE)
     assert cycle
-    assert len(cycle.group(1).split(",")) == 22
+    assert len(cycle.group(1).split(",")) == 24
     schemas = next(
         line for line in checklist.splitlines() if line.startswith("| `schemas` |")
     )
     assert "KEEP_OFFLINE" in schemas
     assert "INVESTIGATION_REQUIRED" in schemas
     assert "PACKAGE_CYCLE_COUNT = 1" in checklist
-    assert "CYCLIC_PACKAGE_COUNT = 22" in checklist
+    assert "CYCLIC_PACKAGE_COUNT = 24" in checklist
 
 
 def test_p2_05_is_done_and_eval_02b_is_current() -> None:

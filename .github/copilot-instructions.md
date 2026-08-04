@@ -22,6 +22,25 @@ DEPLOYED_SHA = 8c6086e37ba62c138bdf059997ca760accef7067
 Wave 1 / T00 已完成并冻结；除非出现新的、明确批准的证据，不得重跑 T00。
 Wave 2、Wave 3 和 Wave 4 单次真实 Canary 已通过，EVAL-02B 真实链路已证明。
 
+## Recommendation authority closure
+
+先读 `docs/operations/W2_RECOMMENDATION_AUTHORITY_REAL_FIXTURE_REPLAY_RECEIPT_20260804.md`
+与 `docs/operations/W2_REAL_FIXTURE_REPLAY_SANITIZED_MANIFEST_20260804.json`。
+
+```text
+PUBLIC_RECOMMENDATION_AUTHORITY = SINGLE
+REAL_FIXTURE_OFFLINE_REPLAY = PASS
+LINEUP_NUMERIC_VALUE_MODEL = NOT_IMPLEMENTED
+LINEUP_NUMERIC_ADJUSTMENT = OFF
+CANDIDATE = OFF
+FORMAL = OFF
+LOCK = OFF
+PRODUCTION = OFF
+```
+
+当前公共 pick 只能来自 hash-valid V4；V3 仅允许历史展示与结算。不得提交私有 raw replay
+bundle，也不得把首发 readiness 误写成已实现首发数值模型。
+
 ## Source rules
 
 - 先 `git fetch --all --prune --tags` 并核对 current main `8c6086e3...`；`dbc8e1e8...`

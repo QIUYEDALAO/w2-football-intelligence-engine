@@ -53,20 +53,39 @@ from w2.dashboard.status_labels import (
 )
 from w2.dashboard.validation import validate_recommendation
 from w2.dashboard.validation_summary import validation_summary
+from w2.domain.canonical_serialization import (
+    HashDomain,
+    canonical_sha256,
+)
 from w2.domain.decision_adapter import build_decision_contract_fields
+from w2.domain.decision_card import compute_card_hash
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.domain.recommendation_decision_v3 import (
     project_decision_v3,
     validate_decision_v3_card_parity,
     validate_decision_v3_identity,
 )
+from w2.domain.recommendation_decision_v4 import (
+    RecommendationDecisionV4,
+    RecommendationOutcomeV4,
+    authoritative_input_from_market_candidate,
+    build_recommendation_decision_v4,
+    candidate_identity_hash,
+    valid_kickoff_identity,
+    validate_decision_v4_identity,
+)
 from w2.features.engine import FeatureInputs, build_feature_set
 from w2.features.framework import FeatureContext
 from w2.features.live_factors import TeamXgSnapshot
 from w2.features.market_factors import BookmakerQuote
 from w2.features.team_factors import TeamMatchHistory, TeamRatingSnapshot, TeamValueSnapshot
+from w2.formal.readiness import validate_formal_ah_readiness
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
+from w2.ingestion.authoritative_lineup import (
+    AuthoritativeLineupError,
+    validate_authoritative_lineup,
+)
 from w2.ingestion.future_refresh import parse_line
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 from w2.lineups.intelligence import (
@@ -82,7 +101,10 @@ from w2.markets.asian_handicap_mainline import (
 from w2.markets.asian_handicap_scope import (
     is_full_time_totals_observation,
 )
-from w2.markets.market_candidate import build_market_candidates
+from w2.markets.market_candidate import (
+    build_market_candidates,
+    select_authoritative_market_candidate,
+)
 from w2.markets.movement import MarketSnapshot
 from w2.markets.poisson import (
     INDEPENDENT_XG_POISSON_MODEL_VERSION,
@@ -488,6 +510,279 @@ def _formal_payload_blocker(formal_result: Any) -> str:
     if reason:
         return str(reason)
     return "INVALID_FORMAL_RECOMMENDATION_PAYLOAD"
+
+
+def _build_public_recommendation_decision_v4(
+    *,
+    card: Mapping[str, Any],
+    row: Mapping[str, Any],
+    candidate: Mapping[str, Any] | None,
+    formal_recommendation: Mapping[str, Any] | None,
+    formal_result: Any = None,
+    analysis_readiness: Mapping[str, Any] | None = None,
+) -> RecommendationDecisionV4:
+    selected = dict(candidate) if isinstance(candidate, Mapping) else {}
+    provenance = card.get("frozen_artifact_provenance")
+    provenance = dict(provenance) if isinstance(provenance, Mapping) else {}
+    fixture_identity = provenance.get("fixture_identity")
+    fixture_identity = dict(fixture_identity) if isinstance(fixture_identity, Mapping) else {}
+    input_manifest = provenance.get("input_manifest")
+    input_manifest = dict(input_manifest) if isinstance(input_manifest, Mapping) else {}
+    dynamic_identity = input_manifest.get("dynamic_fixture_identity")
+    dynamic_identity = dict(dynamic_identity) if isinstance(dynamic_identity, Mapping) else {}
+    fixture_id = str(row.get("fixture_id") or card.get("fixture_id") or "")
+    kickoff_utc = row.get("kickoff_utc") or card.get("kickoff_utc")
+    kickoff_identity = {
+        **fixture_identity,
+        "fixture_id": fixture_id,
+        "kickoff_utc": kickoff_utc,
+    }
+    market = str(selected.get("market") or "")
+    formal_capability_enabled = formal_recommendations_enabled()
+    capability_status = (
+        "FORMAL_ENABLED"
+        if market == "ASIAN_HANDICAP" and formal_capability_enabled
+        else "FORMAL_DISABLED"
+        if market == "ASIAN_HANDICAP"
+        else "ANALYSIS_ONLY"
+    )
+    kickoff_revision = card.get("kickoff_revision") or row.get("kickoff_revision")
+    authoritative_fixture_identity = {
+        **fixture_identity,
+        "fixture_id": fixture_id,
+        "competition_id": str(row.get("competition_id") or card.get("competition_id") or ""),
+        "season": str(
+            dynamic_identity.get("season") or card.get("season") or row.get("season") or ""
+        ),
+        "kickoff_utc": kickoff_utc,
+        "identity_hash": str(
+            kickoff_revision
+            if valid_kickoff_identity(kickoff_revision)
+            else canonical_sha256(
+                kickoff_identity,
+                domain=HashDomain.PREMATCH_READ_MODEL_FIXTURE_INPUT,
+            )
+        ),
+    }
+    authoritative_input = authoritative_input_from_market_candidate(
+        selected,
+        fixture_identity=authoritative_fixture_identity,
+        kickoff_utc=kickoff_utc,
+        capability_status=capability_status,
+    )
+    authoritative_input["formal_admission"] = _public_formal_admission(
+        authoritative_input=authoritative_input,
+        formal_recommendation=formal_recommendation,
+        formal_result=formal_result,
+        analysis_readiness=analysis_readiness,
+        formal_capability_enabled=formal_capability_enabled,
+    )
+    return build_recommendation_decision_v4(authoritative_input)
+
+
+def _public_formal_admission(
+    *,
+    authoritative_input: Mapping[str, Any],
+    formal_recommendation: Mapping[str, Any] | None,
+    formal_result: Any,
+    analysis_readiness: Mapping[str, Any] | None,
+    formal_capability_enabled: bool,
+) -> dict[str, Any]:
+    empty = {
+        "readiness_hash": None,
+        "approval_hash": None,
+        "candidate_identity_hash": None,
+    }
+    if authoritative_input.get("market") != "ASIAN_HANDICAP":
+        return {"status": "NOT_APPLICABLE", **empty}
+    if not formal_capability_enabled:
+        return {"status": "DISABLED", **empty}
+    if (
+        not isinstance(formal_recommendation, Mapping)
+        or getattr(formal_result, "formal_eligible", False) is not True
+    ):
+        return {"status": "NOT_READY", **empty}
+    nested = _mapping(analysis_readiness).get("formal_ah_readiness")
+    if not isinstance(nested, Mapping):
+        return {"status": "NOT_READY", **empty}
+    try:
+        readiness = validate_formal_ah_readiness(nested)
+    except ValueError:
+        return {"status": "NOT_READY", **empty}
+    readiness_hash = readiness.get("readiness_hash")
+    approval_hash = readiness.get("approval_hash")
+    if (
+        readiness.get("formal_eligible") is not True
+        or _mapping(readiness.get("approval_status")).get("passed") is not True
+        or not _lower_sha256(readiness_hash)
+        or not _lower_sha256(approval_hash)
+        or not _formal_identity_matches(authoritative_input, formal_recommendation)
+    ):
+        return {"status": "NOT_READY", **empty}
+    return {
+        "status": "PASSED",
+        "readiness_hash": readiness_hash,
+        "approval_hash": approval_hash,
+        "candidate_identity_hash": candidate_identity_hash(authoritative_input),
+    }
+
+
+def _mapping(value: Any) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _formal_identity_matches(
+    authoritative_input: Mapping[str, Any],
+    formal_recommendation: Mapping[str, Any],
+) -> bool:
+    selection = str(formal_recommendation.get("selection") or "").removesuffix("_AH")
+    if (
+        formal_recommendation.get("market") != authoritative_input.get("market")
+        or selection != authoritative_input.get("selection")
+        or _float_or_none(formal_recommendation.get("line"))
+        != _float_or_none(authoritative_input.get("exact_line"))
+        or _float_or_none(formal_recommendation.get("odds"))
+        != _float_or_none(authoritative_input.get("decimal_odds"))
+    ):
+        return False
+    identity = _mapping(formal_recommendation.get("quote_identity"))
+    mainline = _mapping(authoritative_input.get("canonical_mainline_identity"))
+    return identity == {
+        "provider": authoritative_input.get("provider"),
+        "bookmaker_id": authoritative_input.get("bookmaker_id"),
+        "capture_id": authoritative_input.get("capture_id"),
+        "captured_at": authoritative_input.get("captured_at"),
+        "observation_ids": authoritative_input.get("quote_observation_ids"),
+        "raw_payload_sha256": authoritative_input.get("raw_payload_sha256"),
+        "source_revision": authoritative_input.get("source_revision"),
+        "quote_identity_hash": mainline.get("quote_identity_hash"),
+    }
+
+
+def _lower_sha256(value: Any) -> bool:
+    text = value if isinstance(value, str) else ""
+    return len(text) == 64 and all(character in "0123456789abcdef" for character in text)
+
+
+def _recommendation_from_v4(
+    decision: RecommendationDecisionV4,
+    *,
+    formal_recommendation: Mapping[str, Any] | None,
+) -> dict[str, Any] | None:
+    validate_decision_v4_identity(decision)
+    selected = decision.selected_candidate
+    if selected is None:
+        return None
+    authoritative = decision.authoritative_input.as_dict()
+    mainline = authoritative.get("canonical_mainline_identity")
+    mainline = dict(mainline) if isinstance(mainline, Mapping) else {}
+    quote_identity = {
+        "provider": authoritative.get("provider"),
+        "bookmaker_id": authoritative.get("bookmaker_id"),
+        "capture_id": authoritative.get("capture_id"),
+        "captured_at": authoritative.get("captured_at"),
+        "observation_ids": authoritative.get("quote_observation_ids"),
+        "raw_payload_sha256": authoritative.get("raw_payload_sha256"),
+        "source_revision": authoritative.get("source_revision"),
+        "quote_identity_hash": mainline.get("quote_identity_hash"),
+    }
+    if (
+        decision.outcome is RecommendationOutcomeV4.FORMAL_RECOMMEND
+        and isinstance(formal_recommendation, Mapping)
+        and _formal_identity_matches(authoritative, formal_recommendation)
+    ):
+        return {**formal_recommendation, "quote_identity": quote_identity}
+    if decision.outcome is not RecommendationOutcomeV4.ANALYSIS_PICK:
+        return None
+    return {
+        "tier": "ANALYSIS_PICK",
+        "decision_tier": "ANALYSIS_PICK",
+        "market": selected.get("market"),
+        "selection": selected.get("selection"),
+        "line": selected.get("exact_line"),
+        "odds": selected.get("decimal_odds"),
+        "fair_odds": selected.get("fair_odds"),
+        "expected_value": selected.get("expected_value"),
+        "ev_se": selected.get("uncertainty"),
+        "cashflow_price_edge": selected.get("cashflow_price_edge"),
+        "quote_identity": quote_identity,
+        "candidate": False,
+        "formal_recommendation": False,
+        "disclaimer": "分析参考·非稳赢；production 动作需 RECOMMEND",
+    }
+
+
+def _decision_contract_from_v4(
+    contract: Mapping[str, Any],
+    decision: RecommendationDecisionV4,
+) -> dict[str, Any]:
+    projected = dict(contract)
+    projected.pop("decision_contract", None)
+    outcome = decision.outcome
+    pick_outcome = outcome in {
+        RecommendationOutcomeV4.ANALYSIS_PICK,
+        RecommendationOutcomeV4.FORMAL_RECOMMEND,
+    }
+    tier = {
+        RecommendationOutcomeV4.FORMAL_RECOMMEND: "RECOMMEND",
+        RecommendationOutcomeV4.ANALYSIS_PICK: "ANALYSIS_PICK",
+        RecommendationOutcomeV4.NO_EDGE: "SKIP",
+        RecommendationOutcomeV4.NOT_READY: "NOT_READY",
+    }[outcome]
+    selected = decision.selected_candidate
+    pick = (
+        {
+            "market": selected.get("market"),
+            "selection": selected.get("selection"),
+            "line": selected.get("exact_line"),
+            "odds": selected.get("decimal_odds"),
+            "fair_odds": selected.get("fair_odds"),
+            "expected_value": selected.get("expected_value"),
+            "uncertainty": selected.get("uncertainty"),
+            "value_edge": selected.get("cashflow_price_edge"),
+            "key_factors": ["同一权威候选五态现金流定价"],
+            "risks": ["ANALYSIS_ONLY_FORMAL_DISABLED"] if tier == "ANALYSIS_PICK" else [],
+            "invalidation": "EXACT_QUOTE_IDENTITY_OR_MODEL_INPUT_CHANGED",
+            "disclaimer": "分析参考·非稳赢；production 动作需 RECOMMEND",
+        }
+        if pick_outcome and selected is not None
+        else None
+    )
+    non_pick = (
+        None
+        if pick is not None
+        else {
+            "reason_code": decision.reason_code,
+            "reason_human": decision.reason_message,
+            "action": "等待下一次权威证据刷新",
+            "next_eval_at": projected.get("next_eval_at"),
+        }
+    )
+    projected.update(
+        {
+            "decision_tier": tier,
+            "data_status": "READY"
+            if outcome is not RecommendationOutcomeV4.NOT_READY
+            else "BLOCKED",
+            "outcome_tracked": pick is not None,
+            "lock_eligible": False,
+            "recommendation_id": (
+                projected.get("recommendation_id")
+                if outcome is RecommendationOutcomeV4.FORMAL_RECOMMEND
+                else None
+            ),
+            "pick": pick,
+            "non_pick": non_pick,
+            "reason_code": decision.reason_code,
+            "action": "MONITOR" if pick is not None else "WAIT",
+            "one_liner": decision.reason_message,
+            "selected_market_candidate": dict(selected) if selected is not None else None,
+            "recommendation_authority": "RECOMMENDATION_DECISION_V4",
+        }
+    )
+    projected["card_hash"] = compute_card_hash(projected)
+    projected["decision_contract"] = dict(projected)
+    return projected
 
 
 class ReadModelRepository:
@@ -2208,7 +2503,9 @@ class ReadModelService:
                     "action",
                     "next_eval_at",
                     "card_hash",
+                    "recommendation_decision_v4",
                     "recommendation_decision_v3",
+                    "recommendation_decision_v3_role",
                 )
             },
             "decision_contract": contract,
@@ -2230,7 +2527,7 @@ class ReadModelService:
             projected["formal_recommendation"] = False
             self._clear_public_market_picks(projected, watch=tier == "WATCH")
         self._enforce_non_pick_scoreline_invariant(projected)
-        self._validate_public_v3_card_parity(projected)
+        self._retain_valid_history_v3(projected)
         return projected
 
     @staticmethod
@@ -2311,14 +2608,25 @@ class ReadModelService:
 
     def _attach_fail_closed_public_v3(self, card: dict[str, Any], *, blocker: str) -> None:
         contract = self._fail_closed_decision_contract(card, blocker=blocker)
-        decision = project_decision_v3(
-            contract,
-            manifest=load_recommendation_capability_manifest(),
-        ).as_dict()
-        validate_decision_v3_identity(decision)
         card["card_hash"] = contract["card_hash"]
         card["decision_contract"] = contract
-        card["recommendation_decision_v3"] = decision
+        card["recommendation_decision_v4"] = _build_public_recommendation_decision_v4(
+            card=card,
+            row=card,
+            candidate=None,
+            formal_recommendation=None,
+        ).as_dict()
+        card["recommendation_decision_v3_role"] = "HISTORY_ONLY"
+        try:
+            decision = project_decision_v3(
+                contract,
+                manifest=load_recommendation_capability_manifest(),
+            ).as_dict()
+        except (KeyError, TypeError, ValueError):
+            card.pop("recommendation_decision_v3", None)
+        else:
+            decision["authority_role"] = "HISTORY_ONLY"
+            card["recommendation_decision_v3"] = decision
         for key in (
             "lineup_requirement",
             "risk_reason_codes",
@@ -2326,7 +2634,7 @@ class ReadModelService:
             "non_pick",
         ):
             card[key] = contract[key]
-        self._validate_public_v3_card_parity(card)
+        self._retain_valid_history_v3(card)
 
     def _fail_closed_decision_contract(
         self,
@@ -2381,17 +2689,25 @@ class ReadModelService:
         contract["decision_contract"] = dict(contract)
         return contract
 
-    def _validate_public_v3_card_parity(self, card: dict[str, Any]) -> None:
+    def _retain_valid_history_v3(self, card: dict[str, Any]) -> None:
         decision = card.get("recommendation_decision_v3")
         contract = card.get("decision_contract")
         if not isinstance(decision, dict) or not isinstance(contract, dict):
-            raise ValueError("PUBLIC_ANALYSIS_V3_MISSING")
-        validate_decision_v3_identity(decision)
-        validate_decision_v3_card_parity(
-            decision,
-            card_hash=card.get("card_hash"),
-            decision_contract_card_hash=contract.get("card_hash"),
-        )
+            card.pop("recommendation_decision_v3", None)
+            card["recommendation_decision_v3_role"] = "HISTORY_ONLY"
+            return
+        try:
+            validate_decision_v3_identity(decision)
+            validate_decision_v3_card_parity(
+                decision,
+                card_hash=card.get("card_hash"),
+                decision_contract_card_hash=contract.get("card_hash"),
+            )
+        except (KeyError, TypeError, ValueError):
+            card.pop("recommendation_decision_v3", None)
+        else:
+            decision["authority_role"] = "HISTORY_ONLY"
+        card["recommendation_decision_v3_role"] = "HISTORY_ONLY"
 
     def _enforce_non_pick_scoreline_invariant(self, card: dict[str, Any]) -> None:
         """Do not expose directional scorelines without a canonical public pick."""
@@ -4773,8 +5089,29 @@ class ReadModelService:
             status = "PROVIDER_EMPTY"
             ready = False
         elif endpoint == "lineups":
-            ready = self._lineups_ready(response)
-            status = "READY" if ready else "PARTIAL"
+            identity = self._canonical_fixture_identity(fixture_id)
+            captured_at = _parse_utc_text(latest.get("captured_at"))
+            kickoff = _parse_utc_text(identity.get("kickoff_utc")) if identity else None
+            if identity is None or captured_at is None or kickoff is None:
+                ready = False
+                status = "LINEUP_CAPTURE_IDENTITY_INCOMPLETE"
+            else:
+                try:
+                    validate_authoritative_lineup(
+                        response,
+                        expected_team_ids=(
+                            str(identity.get("home_provider_team_id") or ""),
+                            str(identity.get("away_provider_team_id") or ""),
+                        ),
+                        captured_at=captured_at,
+                        kickoff_utc=kickoff,
+                    )
+                except AuthoritativeLineupError as exc:
+                    ready = False
+                    status = exc.code
+                else:
+                    ready = True
+                    status = "READY"
         else:
             ready = True
             status = "READY"
@@ -4849,18 +5186,6 @@ class ReadModelService:
                 if isinstance(fixture, dict) and fixture.get("id") is not None:
                     return str(fixture["id"])
         return None
-
-    def _lineups_ready(self, response: Any) -> bool:
-        if not isinstance(response, list) or len(response) < 2:
-            return False
-        ready_teams = 0
-        for item in response:
-            if not isinstance(item, dict):
-                continue
-            start_xi = item.get("startXI")
-            if isinstance(start_xi, list) and start_xi:
-                ready_teams += 1
-        return ready_teams >= 2
 
     def _market_probabilities_from_observations(
         self,
@@ -6227,29 +6552,16 @@ class ReadModelService:
                 "away_cn": row.get("away_team_name"),
             },
         )
-        stored_decision_contract = card.get("decision_contract")
-        contract_pick = (
-            stored_decision_contract.get("pick")
-            if isinstance(stored_decision_contract, dict)
-            else None
-        )
         markets = [item for item in card.get("markets", []) if isinstance(item, dict)]
-        primary_market = str(card.get("primary_market") or "")
+        market_candidates = (
+            card.get("market_candidates") if isinstance(card.get("market_candidates"), dict) else {}
+        )
+        authoritative_candidate = select_authoritative_market_candidate(market_candidates)
+        authoritative_market = str((authoritative_candidate or {}).get("market") or "")
         picked = next(
-            (
-                item
-                for item in markets
-                if _public_market_is_primary_pick(item)
-                and str(item.get("market") or "") == primary_market
-            ),
+            (item for item in markets if str(item.get("market") or "") == authoritative_market),
             None,
         )
-        if picked is None and isinstance(contract_pick, dict):
-            contract_market = str(contract_pick.get("market") or "")
-            picked = next(
-                (item for item in markets if str(item.get("market") or "") == contract_market),
-                None,
-            )
         scoreline_picks = scoreline_picks_from_card(card)
         result = result_from_dashboard_row(row)
         analysis_readiness = build_analysis_readiness(
@@ -6264,11 +6576,7 @@ class ReadModelService:
             current_odds=card.get("current_odds")
             if isinstance(card.get("current_odds"), dict)
             else None,
-            ah_market_candidate=(
-                card.get("market_candidates", {}).get("ah")
-                if isinstance(card.get("market_candidates"), dict)
-                else None
-            ),
+            ah_market_candidate=authoritative_candidate,
             pricing_shadow=card.get("pricing_shadow")
             if isinstance(card.get("pricing_shadow"), dict)
             else None,
@@ -6291,6 +6599,21 @@ class ReadModelService:
                 "recommendation_id": recommendation_id,
                 "id": recommendation_id,
             }
+        if formal_recommendation is not None:
+            quote_identity = _mapping(_mapping(authoritative_candidate).get("quote_identity"))
+            formal_recommendation = {
+                **formal_recommendation,
+                "quote_identity": {
+                    "provider": quote_identity.get("provider"),
+                    "bookmaker_id": quote_identity.get("bookmaker_id"),
+                    "capture_id": quote_identity.get("capture_id"),
+                    "captured_at": quote_identity.get("captured_at"),
+                    "observation_ids": quote_identity.get("observation_ids"),
+                    "raw_payload_sha256": quote_identity.get("raw_payload_sha256"),
+                    "source_revision": quote_identity.get("source_revision"),
+                    "quote_identity_hash": quote_identity.get("quote_identity_hash"),
+                },
+            }
         formal_blockers = list(formal_result.blockers)
         if formal_result.formal_eligible and formal_recommendation is None:
             blocker = _formal_payload_blocker(formal_result)
@@ -6309,7 +6632,18 @@ class ReadModelService:
                 pricing_shadow["canonical_ah_market_validation_status"] = canonical_market.get(
                     "validation_status",
                 )
-        recommendation = formal_recommendation or build_recommendation(card, picked)
+        decision_v4 = _build_public_recommendation_decision_v4(
+            card=card,
+            row=row,
+            candidate=authoritative_candidate,
+            formal_recommendation=formal_recommendation,
+            formal_result=formal_result,
+            analysis_readiness=analysis_readiness,
+        )
+        recommendation = _recommendation_from_v4(
+            decision_v4,
+            formal_recommendation=formal_recommendation,
+        )
         if recommendation is None:
             recommendation = build_watch_recommendation(
                 readiness=analysis_readiness,
@@ -6373,6 +6707,7 @@ class ReadModelService:
                 if kickoff_for_contract is not None
                 else {}
             )
+        decision_contract = _decision_contract_from_v4(decision_contract, decision_v4)
         non_pick = decision_contract.get("non_pick")
         if isinstance(non_pick, dict):
             for key in ("reason_code", "action", "next_eval_at"):
@@ -6388,28 +6723,24 @@ class ReadModelService:
             and decision_contract.get("decision_tier") in {"ANALYSIS_PICK", "RECOMMEND"}
             else None
         )
-        decision_v3 = (
-            project_decision_v3(
-                decision_contract,
-                manifest=load_recommendation_capability_manifest(),
-            ).as_dict()
-            if decision_contract
-            else None
-        )
+        try:
+            decision_v3 = (
+                project_decision_v3(
+                    decision_contract,
+                    manifest=load_recommendation_capability_manifest(),
+                ).as_dict()
+                if decision_contract
+                else None
+            )
+        except (KeyError, TypeError, ValueError):
+            decision_v3 = None
+        if isinstance(decision_v3, dict):
+            decision_v3["authority_role"] = "HISTORY_ONLY"
         scoreline_reference = (
             scoreline_reference_from_card(
                 card,
-                recommendation=(
-                    cast(dict[str, Any], decision_v3.get("selected_candidate"))
-                    if isinstance(decision_v3, dict)
-                    and isinstance(decision_v3.get("selected_candidate"), dict)
-                    else scoreline_decision
-                ),
-                decision_hash=(
-                    str(decision_v3.get("decision_hash") or "")
-                    if isinstance(decision_v3, dict)
-                    else None
-                ),
+                recommendation=scoreline_decision,
+                decision_hash=decision_v4.decision_hash,
             )
             if scoreline_decision is not None
             else None
@@ -6493,7 +6824,9 @@ class ReadModelService:
             "formal_recommendation": bool(recommendation.get("formal_recommendation"))
             if recommendation
             else False,
+            "recommendation_decision_v4": decision_v4.as_dict(),
             "recommendation_decision_v3": decision_v3,
+            "recommendation_decision_v3_role": "HISTORY_ONLY",
             **decision_contract,
         }
 

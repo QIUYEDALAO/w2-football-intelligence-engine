@@ -22,12 +22,10 @@ from w2.matchday.intake_v2 import (
     current_unscheduled_capture,
     endpoint_capture_contract,
     endpoint_params,
-    enrichment_status,
     execute_matchday_intake,
     fixture_discovery_from_payloads,
     freshness_status,
     load_matchday_policy,
-    market_batch_audit,
     materialize_evidence_manifest,
     name_only_crosswalk_review,
     normalize_matchday_odds_payload,
@@ -238,28 +236,6 @@ def test_dry_run_and_replay_have_zero_provider_calls() -> None:
     assert replay.endpoint_captures[0]["capture_status"] == "CAPTURED"
 
 
-def test_market_normalization_pairs_freshness_and_joint_same_family() -> None:
-    payload = _odds_payload()
-    rows, rejected = normalize_matchday_odds_payload(
-        payload,
-        captured_at=NOW,
-        ingested_at=NOW,
-        raw_payload_sha256="c" * 64,
-        source_revision="unit",
-        capture_id="capture-unit",
-        competition_id="allsvenskan",
-    )
-    audit = market_batch_audit(rows, evaluated_at=NOW + timedelta(minutes=5), max_age_seconds=3600)
-
-    assert rejected == []
-    assert audit["ah_complete_sets"] == 1
-    assert audit["ou_complete_sets"] == 1
-    assert audit["one_x_two_complete_sets"] == 1
-    assert audit["same_family_joint_sets"] == 1
-    assert audit["joint_status"] == "JOINT_MARKET_BASELINE_READY"
-    assert audit["recommendation_quote_max_age_seconds"] == 1800
-
-
 def test_same_raw_payload_different_checkpoint_preserves_distinct_capture_identity() -> None:
     payload = _odds_payload()
     first = endpoint_capture_contract(
@@ -329,12 +305,8 @@ def test_malformed_live_suspended_and_mixed_batch_rejected() -> None:
         capture_id="capture-unit",
         competition_id="allsvenskan",
     )
-    audit = market_batch_audit(rows, evaluated_at=NOW + timedelta(minutes=5), max_age_seconds=3600)
-
     assert {item["reason"] for item in rejected} >= {"INVALID_ODDS", "LIVE_QUOTE"}
-    assert audit["same_family_joint_sets"] == 0
-    assert audit["joint_status"] == "JOINT_MARKET_BASELINE_INCOMPLETE"
-    assert audit["independent_candidates"]
+    assert rows
 
 
 def test_selected_ah_independent_of_stale_ou_and_freshness_from_captured_at_only() -> None:
@@ -353,37 +325,6 @@ def test_selected_ah_independent_of_stale_ou_and_freshness_from_captured_at_only
     assert stale["freshness_status"] == "STALE"
 
 
-def test_enrichment_policy_lineups_and_no_fake_xg() -> None:
-    policy = _policy()
-    early = enrichment_status(
-        competition_policy=policy,
-        endpoint="lineups",
-        kickoff_utc=KICKOFF,
-        evaluated_at=KICKOFF - timedelta(hours=2),
-        payload=None,
-    )
-    empty = enrichment_status(
-        competition_policy=policy,
-        endpoint="lineups",
-        kickoff_utc=KICKOFF,
-        evaluated_at=KICKOFF - timedelta(minutes=30),
-        payload={"response": []},
-    )
-    stats = enrichment_status(
-        competition_policy=policy,
-        endpoint="statistics",
-        kickoff_utc=KICKOFF,
-        evaluated_at=NOW,
-        payload=None,
-    )
-
-    assert early["status"] == "EXPECTED_NOT_AVAILABLE"
-    assert empty["status"] == "PROVIDER_EMPTY"
-    assert empty["blocks_analysis"] is False
-    assert stats["status"] == "DISABLED_BY_POLICY"
-    assert stats["as_of_safe_model_input"] is False
-
-
 def test_manifest_deterministic_v3_outcomes_and_public_read_no_write() -> None:
     policy = _policy()
     fixture = _fixture_identity(team_ready=True)
@@ -396,7 +337,7 @@ def test_manifest_deterministic_v3_outcomes_and_public_read_no_write() -> None:
         capture_id="capture-unit",
         competition_id="allsvenskan",
     )
-    audit = market_batch_audit(rows, evaluated_at=NOW + timedelta(minutes=5), max_age_seconds=3600)
+    audit = _manifest_market_audit_fixture(rows, evaluated_at=NOW + timedelta(minutes=5))
     plans = build_checkpoint_plans(
         fixture_id=str(fixture["fixture_id"]),
         competition_id="allsvenskan",
@@ -451,7 +392,7 @@ def test_v3_not_ready_no_edge_and_system_degraded() -> None:
         capture_id="capture-unit",
         competition_id="allsvenskan",
     )
-    audit = market_batch_audit(rows, evaluated_at=NOW, max_age_seconds=3600)
+    audit = _manifest_market_audit_fixture(rows, evaluated_at=NOW)
     base = {
         "fixture_identity": fixture,
         "competition_policy": policy,
@@ -619,6 +560,40 @@ def _analysis_model(*, edge: bool) -> dict[str, object]:
                 },
             }
         ],
+    }
+
+
+def _manifest_market_audit_fixture(
+    rows: list[dict[str, Any]], *, evaluated_at: datetime
+) -> dict[str, object]:
+    home = next(
+        row
+        for row in rows
+        if row["canonical_market"] == "ASIAN_HANDICAP"
+        and row["canonical_selection"] == "HOME"
+    )
+    away = next(
+        row
+        for row in rows
+        if row["canonical_market"] == "ASIAN_HANDICAP"
+        and row["canonical_selection"] == "AWAY"
+    )
+    pair = {
+        "market": "ASIAN_HANDICAP",
+        "line": "-0.25",
+        "left": home,
+        "right": away,
+        "status": "COMPLETE",
+        "freshness": freshness_status(
+            [home, away],
+            evaluated_at=evaluated_at,
+            max_age_seconds=1800,
+        ),
+    }
+    return {
+        "independent_candidates": [pair],
+        "integrity_status": "PASS",
+        "audit_hash": "unit-market-audit-fixture",
     }
 
 

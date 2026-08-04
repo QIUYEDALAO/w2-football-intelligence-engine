@@ -9,6 +9,8 @@
 - `docs/operations/W2_ASSET_UNIQUENESS_AUDIT_20260731.md`
 - `docs/operations/W2_AUDIT_PERSPECTIVE_REGISTRY.md`
 - `docs/operations/W2_PRODUCTION_RECOVERY_RECEIPT_20260803.md`
+- `docs/operations/W2_RECOMMENDATION_AUTHORITY_REAL_FIXTURE_REPLAY_RECEIPT_20260804.md`
+- `docs/operations/W2_REAL_FIXTURE_REPLAY_SANITIZED_MANIFEST_20260804.json`
 - GitHub Issue #454 v5 FINAL
 - Issue #455
 - Issue #456
@@ -51,6 +53,22 @@ ACTIVE_EXECUTION_AUTHORITY = Issue #454 v5
 
 Wave 1 / T00 已完成并冻结；除非出现新的、明确批准的证据，不得重跑 T00 或调整其分母。
 Wave 2、Wave 3 和 Wave 4 单次真实 Canary 已通过，EVAL-02B 真实链路已证明。
+
+## Recommendation authority closure
+
+```text
+PUBLIC_RECOMMENDATION_AUTHORITY = SINGLE
+REAL_FIXTURE_OFFLINE_REPLAY = PASS
+LINEUP_NUMERIC_VALUE_MODEL = NOT_IMPLEMENTED
+LINEUP_NUMERIC_ADJUSTMENT = OFF
+CANDIDATE = OFF
+FORMAL = OFF
+LOCK = OFF
+PRODUCTION = OFF
+```
+
+当前公共 pick 只能来自 hash-valid V4；V3 不得产生当前公共方向。首发 validator 唯一，首发
+数值模型未实现。私有 raw replay bundle 不得提交 Git；只能引用脱敏 manifest 与回执。
 
 ## 污染隔离
 

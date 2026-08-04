@@ -12,6 +12,11 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from w2.domain.canonical_serialization import CURRENT_SERIALIZER_VERSION
+from w2.domain.recommendation_decision_v4 import (
+    RECOMMENDATION_SCHEMA_VERSION,
+    build_recommendation_decision_v4,
+)
 from w2.infrastructure.persistence.models import ResultModel
 from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerModel
 from w2.tracking.forward_outcome_ledger import (
@@ -66,6 +71,68 @@ def _day_view() -> dict[str, object]:
             }
         ],
     }
+
+
+def _analysis_v4_decision() -> dict[str, object]:
+    return build_recommendation_decision_v4(
+        {
+            "fixture_id": "fixture-1",
+            "competition_id": "world_cup_2026",
+            "season": "2026",
+            "kickoff_utc": "2026-07-07T16:00:00Z",
+            "kickoff_revision_or_fixture_identity_hash": "d" * 64,
+            "provider": "api-football",
+            "bookmaker_id": "unibet",
+            "market": "ASIAN_HANDICAP",
+            "selection": "AWAY",
+            "exact_line": "+1.25",
+            "capture_id": "capture-1",
+            "captured_at": "2026-07-07T12:00:00Z",
+            "quote_observation_ids": {
+                "home": "observation-home",
+                "away": "observation-away",
+            },
+            "raw_payload_sha256": "a" * 64,
+            "source_revision": "e" * 40,
+            "model_version": "model-v1",
+            "calibration_version": "calibration-v1",
+            "serializer_version": CURRENT_SERIALIZER_VERSION.value,
+            "recommendation_schema_version": RECOMMENDATION_SCHEMA_VERSION,
+            "quote_schema_version": "w2.quote_identity.v1",
+            "model_input_manifest_hash": "b" * 64,
+            "decimal_odds": "1.93",
+            "canonical_mainline_identity": {
+                "market": "ASIAN_HANDICAP",
+                "line": "-1.25",
+                "selected_side_line": "+1.25",
+                "candidate_role": "MARKET_MAINLINE",
+                "quote_identity_hash": "c" * 64,
+            },
+            "settlement_distribution": {
+                "WIN": "0.5",
+                "HALF_WIN": "0.1",
+                "PUSH": "0.1",
+                "HALF_LOSS": "0.1",
+                "LOSS": "0.2",
+            },
+            "fair_odds": "1.4545",
+            "expected_value": "0.2615",
+            "uncertainty": "0.01",
+            "readiness": {
+                "status": "READY",
+                "quote_identity_status": "COMPLETE",
+                "quote_freshness_status": "COMPLETE",
+                "model_status": "READY",
+            },
+            "capability_status": "FORMAL_DISABLED",
+            "formal_admission": {
+                "status": "DISABLED",
+                "readiness_hash": None,
+                "approval_hash": None,
+                "candidate_identity_hash": None,
+            },
+        }
+    ).as_dict()
 
 
 def test_forward_outcome_ledger_dry_run_does_not_write(tmp_path: Path) -> None:
@@ -127,7 +194,7 @@ def test_capture_supersession_is_append_only_and_removes_pending_entry(tmp_path:
     assert row["target_capture_identity_hash"] == capture_hash
 
 
-def test_forward_capture_identity_preserves_at_most_one_strict_secondary() -> None:
+def test_forward_capture_does_not_consume_legacy_secondary_picks_without_v4() -> None:
     day_view = _day_view()
     card = day_view["cards"][0]  # type: ignore[index]
     card["secondary_picks"] = [  # type: ignore[index]
@@ -138,9 +205,7 @@ def test_forward_capture_identity_preserves_at_most_one_strict_secondary() -> No
         day_view,
         captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
     )
-    assert records[0]["secondary_picks"] == [
-        {"market": "TOTALS", "selection": "UNDER", "line": "2.5"}
-    ]
+    assert records[0]["secondary_picks"] == []
 
 
 def test_forward_outcome_ledger_write_is_idempotent(tmp_path: Path) -> None:
@@ -270,19 +335,22 @@ def test_forward_outcome_ledger_validation_pick_binds_entry_quote(
                 "line": "+1.25",
                 "odds": None,
             },
+            "recommendation_decision_v4": _analysis_v4_decision(),
             "recommendation_decision_v3": {
                 "schema_version": "w2.recommendation_decision.v3",
                 "outcome": "ANALYSIS_PICK",
                 "selected_candidate": {
                     "market": "ASIAN_HANDICAP",
-                    "selection": "AWAY",
-                    "line": "+1.25",
-                    "odds": None,
+                    "selection": "HOME",
+                    "line": "-1.25",
+                    "odds": "1.91",
                 },
-                "decision_hash": "decision-hash",
+                "decision_hash": "legacy-v3-decision-hash",
             },
         }
     )
+    card["current_odds"]["ah"]["away_line"] = "+1.5"
+    card["current_odds"]["ah"]["away_price"] = "2.05"
 
     payload = run_forward_outcome_ledger(
         day_view,
@@ -298,9 +366,36 @@ def test_forward_outcome_ledger_validation_pick_binds_entry_quote(
     assert rows[0]["outcome_tracked"] is True
     assert rows[0]["lock_eligible"] is False
     assert rows[0]["pick"]["selection"] == "AWAY_AH"
-    assert rows[0]["pick"]["entry_line"] == "+1.25"
-    assert rows[0]["pick"]["entry_price"] == 1.93
-    assert rows[0]["pick"]["odds"] == 1.93
+    assert rows[0]["pick"]["entry_line"] == "1.25"
+    assert rows[0]["pick"]["entry_price"] == "1.93"
+    assert rows[0]["pick"]["odds"] == "1.93"
+    assert rows[0]["decision_hash"] == _analysis_v4_decision()["decision_hash"]
+
+
+def test_forward_outcome_ledger_rejects_tampered_v4_without_v3_fallback() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]  # type: ignore[index]
+    decision = _analysis_v4_decision()
+    decision["selected_candidate"]["selection"] = "HOME"
+    card["recommendation_decision_v4"] = decision  # type: ignore[index]
+    card["recommendation_decision_v3"] = {  # type: ignore[index]
+        "outcome": "ANALYSIS_PICK",
+        "selected_candidate": {
+            "market": "ASIAN_HANDICAP",
+            "selection": "AWAY",
+            "line": "+1.25",
+            "odds": "1.93",
+        },
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="FORWARD_CAPTURE_RECOMMENDATION_DECISION_V4_INVALID",
+    ):
+        build_forward_outcome_records(
+            day_view,
+            captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
+        )
 
 
 def test_forward_outcome_ledger_uses_public_team_name_fallbacks(
@@ -387,14 +482,27 @@ def test_forward_outcome_ledger_rejects_cross_line_ou_shadow(tmp_path: Path) -> 
     assert [row["shadow_pick"]["market"] for row in records] == ["ASIAN_HANDICAP"]
 
 
-def test_v3_no_edge_still_captures_isolated_same_line_shadow_markets() -> None:
+def test_legacy_v3_pick_cannot_create_new_recommendation_capture() -> None:
     day_view = _day_view()
     card = day_view["cards"][0]  # type: ignore[index]
     card["decision_tier"] = "ANALYSIS_PICK"  # type: ignore[index]
     card["outcome_tracked"] = True  # type: ignore[index]
+    card["pick"] = {  # type: ignore[index]
+        "market": "ASIAN_HANDICAP",
+        "selection": "AWAY",
+        "line": "+1.25",
+        "odds": "1.93",
+    }
     card["recommendation_decision_v3"] = {  # type: ignore[index]
         "schema_version": "w2.recommendation_decision.v3",
-        "outcome": "NO_EDGE",
+        "outcome": "ANALYSIS_PICK",
+        "selected_candidate": {
+            "market": "ASIAN_HANDICAP",
+            "selection": "AWAY",
+            "line": "+1.25",
+            "odds": "1.93",
+        },
+        "decision_hash": "legacy-v3-decision-hash",
     }
     card["current_odds"]["ou"] = {  # type: ignore[index]
         "line": "2.5",
@@ -408,11 +516,15 @@ def test_v3_no_edge_still_captures_isolated_same_line_shadow_markets() -> None:
         captured_at=datetime(2026, 7, 7, 12, 0, tzinfo=UTC),
     )
 
-    assert {
-        (row["recommendation_scope"], row["shadow_pick"]["market"])
-        for row in records
-    } == {("SHADOW", "ASIAN_HANDICAP"), ("SHADOW", "TOTALS")}
+    assert {(row["recommendation_scope"], row["shadow_pick"]["market"]) for row in records} == {
+        ("SHADOW", "ASIAN_HANDICAP"),
+        ("SHADOW", "TOTALS"),
+    }
     assert all(row["not_a_lock"] is True for row in records)
+    assert all(row["decision_hash"] is None for row in records)
+    assert all(row["decision_tier"] == "NOT_READY" for row in records)
+    assert all(row["outcome_tracked"] is False for row in records)
+    assert all(row["pick"]["selection"] != "AWAY_AH" for row in records)
 
 
 def test_forward_outcome_backfill_deduplicates_same_capture_across_day_files(

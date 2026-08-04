@@ -523,8 +523,9 @@
       box-shadow: 0 0 0 4px rgba(243, 201, 105, 0.10);
     }
 
-    .risk-level.low span::before { background: var(--green); box-shadow: 0 0 0 4px rgba(114, 213, 152, 0.10); }
+    .risk-level.none span::before { background: var(--green); box-shadow: 0 0 0 4px rgba(114, 213, 152, 0.10); }
     .risk-level.high span::before { background: var(--red); box-shadow: 0 0 0 4px rgba(255, 123, 114, 0.10); }
+    .risk-level.unknown span::before { background: var(--muted-2); box-shadow: 0 0 0 4px rgba(112, 135, 124, 0.10); }
 
     .risk-level small {
       display: block;

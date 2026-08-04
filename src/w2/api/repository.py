@@ -36,7 +36,13 @@ from w2.dashboard.date_window import (
 from w2.dashboard.performance import dashboard_performance
 from w2.dashboard.results import normalize_match_status
 from w2.dashboard.validation_summary import validation_summary
+from w2.domain.decision_card import compute_card_hash
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
+from w2.domain.recommendation_decision_v4 import (
+    RecommendationOutcomeV4,
+    build_recommendation_decision_v4,
+    validate_decision_v4_identity,
+)
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.infrastructure.persistence.matchday_intake_models import (
@@ -108,6 +114,125 @@ def _checkpoint_metadata(row: Checkpoint) -> dict[str, Any]:
         "source_hash": row.source_hash,
         "created_at": row.created_at.isoformat().replace("+00:00", "Z"),
     }
+
+
+def _apply_repository_v4_authority(card: dict[str, Any]) -> dict[str, Any]:
+    decision_value = card.get("recommendation_decision_v4")
+    authority_missing = not isinstance(decision_value, dict) or not decision_value
+    fallback_reason_code = str(card.get("reason_code") or "CURRENT_V4_AUTHORITY_MISSING")
+    fallback_non_pick = card.get("non_pick")
+    fallback_reason_human = (
+        str(fallback_non_pick.get("reason_human") or "当前推荐缺少 V4 权威身份")
+        if isinstance(fallback_non_pick, dict)
+        else "当前推荐缺少 V4 权威身份"
+    )
+    if authority_missing:
+        decision = build_recommendation_decision_v4(
+            {
+                "fixture_id": card.get("fixture_id"),
+                "competition_id": card.get("competition_id"),
+                "season": card.get("season"),
+                "kickoff_utc": card.get("kickoff_utc"),
+            }
+        ).as_dict()
+        card["recommendation_decision_v4"] = decision
+    else:
+        decision = cast(dict[str, Any], decision_value)
+    card["recommendation_decision_v3_role"] = "HISTORY_ONLY"
+    try:
+        validate_decision_v4_identity(decision)
+    except ValueError as exc:
+        raise SystemDegradedError("RECOMMENDATION_DECISION_V4_INVALID") from exc
+    outcome = str(decision.get("outcome") or "")
+    tier = {
+        RecommendationOutcomeV4.FORMAL_RECOMMEND.value: "RECOMMEND",
+        RecommendationOutcomeV4.ANALYSIS_PICK.value: "ANALYSIS_PICK",
+        RecommendationOutcomeV4.NO_EDGE.value: "SKIP",
+        RecommendationOutcomeV4.NOT_READY.value: "NOT_READY",
+    }.get(outcome)
+    if tier is None:
+        raise SystemDegradedError("RECOMMENDATION_DECISION_V4_OUTCOME_INVALID")
+    selected = decision.get("selected_candidate")
+    pick = (
+        {
+            "market": selected.get("market"),
+            "selection": selected.get("selection"),
+            "line": selected.get("exact_line"),
+            "odds": selected.get("decimal_odds"),
+            "fair_odds": selected.get("fair_odds"),
+            "expected_value": selected.get("expected_value"),
+            "uncertainty": selected.get("uncertainty"),
+            "value_edge": selected.get("cashflow_price_edge"),
+            "key_factors": ["同一权威候选五态现金流定价"],
+            "risks": ["ANALYSIS_ONLY_FORMAL_DISABLED"] if tier == "ANALYSIS_PICK" else [],
+            "invalidation": "EXACT_QUOTE_IDENTITY_OR_MODEL_INPUT_CHANGED",
+            "disclaimer": "分析参考·非稳赢；production 动作需 RECOMMEND",
+        }
+        if isinstance(selected, dict) and tier in {"ANALYSIS_PICK", "RECOMMEND"}
+        else None
+    )
+    if (tier in {"ANALYSIS_PICK", "RECOMMEND"}) != (pick is not None):
+        raise SystemDegradedError("RECOMMENDATION_DECISION_V4_PICK_INVALID")
+    reason_value = decision.get("reason")
+    reason = reason_value if isinstance(reason_value, dict) else {}
+    projected_reason_code = (
+        fallback_reason_code if authority_missing else str(reason.get("code") or "")
+    )
+    projected_reason_human = (
+        fallback_reason_human
+        if authority_missing
+        else str(reason.get("message") or "证据尚未就绪")
+    )
+    projected_non_pick = (
+        None
+        if pick is not None
+        else {
+            "reason_code": projected_reason_code or "NOT_READY",
+            "reason_human": projected_reason_human,
+            "action": "等待下一次权威证据刷新",
+            "next_eval_at": None,
+        }
+    )
+    contract_value = card.get("decision_contract")
+    contract = dict(contract_value) if isinstance(contract_value, dict) else {}
+    contract.update(
+        {
+            "decision_tier": tier,
+            "data_status": "BLOCKED" if tier == "NOT_READY" else "READY",
+            "outcome_tracked": pick is not None,
+            "lock_eligible": False,
+            "recommendation_id": None,
+            "pick": pick,
+            "non_pick": projected_non_pick,
+            "reason_code": projected_reason_code,
+            "action": "MONITOR" if pick is not None else "WAIT",
+            "recommendation_authority": "RECOMMENDATION_DECISION_V4",
+        }
+    )
+    if contract:
+        contract["card_hash"] = compute_card_hash(contract)
+        card["decision_contract"] = contract
+    card.update(
+        {
+            "decision_tier": tier,
+            "data_status": contract.get("data_status"),
+            "outcome_tracked": pick is not None,
+            "lock_eligible": False,
+            "recommendation_id": None,
+            "pick": pick,
+            "non_pick": projected_non_pick,
+            "reason_code": contract.get("reason_code"),
+            "action": contract.get("action"),
+            "card_hash": contract.get("card_hash"),
+            "recommendation_decision_v3_role": "HISTORY_ONLY",
+        }
+    )
+    return card
+
+
+def _projection_is_system_degraded(card: dict[str, Any]) -> bool:
+    health = card.get("projection_health")
+    return isinstance(health, dict) and health.get("status") == "SYSTEM_DEGRADED"
 
 
 def _performance_cohort_key(*, league: str | None, tier: str) -> str:
@@ -384,6 +509,7 @@ class ReadModelRepository:
             raise SystemDegradedError("ANALYSIS_PROJECTION_IDENTITY_MISMATCH")
         payload = deepcopy(artifact.payload)
         card = cast(dict[str, Any], deepcopy(payload["analysis_card"]))
+        card["projection_health"] = {"status": "READY", "reason_code": None}
         card["read_model_projection"] = {
             "checkpoint_key": row.key,
             "projection_version": payload["projection_version"],
@@ -884,12 +1010,7 @@ class ReadModelService:
                     [card for card in cards if card.get("read_model_projection")]
                 ),
                 "system_degraded_count": len(
-                    [
-                        card
-                        for card in cards
-                        if cast(dict[str, Any], card["recommendation_decision_v3"]).get("outcome")
-                        == "SYSTEM_DEGRADED"
-                    ]
+                    [card for card in cards if _projection_is_system_degraded(card)]
                 ),
             }
             if include_debug
@@ -940,10 +1061,8 @@ class ReadModelService:
             "formal_recommendation": False,
             "candidate": False,
         }
-        decision = merged.get("recommendation_decision_v3")
-        if isinstance(decision, dict) and canonical_competition_id:
-            decision = {**decision, "competition_id": canonical_competition_id}
-            merged["recommendation_decision_v3"] = decision
+        merged = _apply_repository_v4_authority(merged)
+        decision = merged.get("recommendation_decision_v4")
         selected = (
             cast(dict[str, Any], decision).get("selected_candidate")
             if isinstance(decision, dict)
@@ -953,7 +1072,7 @@ class ReadModelService:
             {
                 **cast(dict[str, Any], selected),
                 "tier": merged.get("decision_tier"),
-                "formal_recommendation": False,
+                "formal_recommendation": merged.get("decision_tier") == "RECOMMEND",
             }
             if isinstance(selected, dict)
             and str(merged.get("decision_tier") or "") in {"RECOMMEND", "ANALYSIS_PICK"}
@@ -1020,16 +1139,10 @@ class ReadModelService:
                 "action": "等待权威读模型投影",
                 "next_eval_at": None,
             },
-            "recommendation_decision_v3": {
-                "schema_version": "w2.recommendation_decision.v3",
-                "outcome": "SYSTEM_DEGRADED",
-                "reason": {
-                    "code": effective_blocker,
-                    "message": "权威读模型投影尚未就绪",
-                },
-                "selected_candidate": None,
-                "evaluated_candidate": None,
-                "decision_hash": None,
+            "recommendation_decision_v3_role": "HISTORY_ONLY",
+            "projection_health": {
+                "status": "SYSTEM_DEGRADED",
+                "reason_code": effective_blocker,
             },
             "read_model_projection": None,
         }
@@ -1296,12 +1409,14 @@ class ReadModelService:
         del evaluation_time, use_frozen_canary
         projection = self.repository.analysis_card_projection(fixture_id)
         if projection is not None:
-            return projection
+            return _apply_repository_v4_authority(projection)
         fixture = self.repository.dashboard_fixture(fixture_id) or {}
-        return self._system_degraded_card(
-            fixture_id,
-            "ANALYSIS_PROJECTION_NOT_READY",
-            competition_id=str(fixture.get("competition_id") or "") or None,
+        return _apply_repository_v4_authority(
+            self._system_degraded_card(
+                fixture_id,
+                "ANALYSIS_PROJECTION_NOT_READY",
+                competition_id=str(fixture.get("competition_id") or "") or None,
+            )
         )
 
     def odds_timeline(self, fixture_id: str) -> list[dict[str, Any]]:

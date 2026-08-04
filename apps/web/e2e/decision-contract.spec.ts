@@ -19,7 +19,7 @@ const scenarioContract = {
     decision: "WATCH",
     data: "STALE",
     reason: "DATA_STALE_ODDS",
-    tierLabel: "继续观察",
+    tierLabel: "暂不可判断",
   },
   BLOCKED: {
     decision: "NOT_READY",
@@ -225,55 +225,58 @@ function dayView(scenario: Scenario) {
           frozen_artifact_status:
             scenario === "CHECKPOINT_MISSING" ? "MISSING" : "VERIFIED",
         },
-        ...(ready ? { recommendation_decision_v3: {
-          schema_version: "w2.recommendation_decision.v3",
+        ...(ready ? { recommendation_decision_v4: {
+          schema_version: "w2.recommendation_decision.v4",
+          fixture_id: `fixture-${scenario.toLowerCase()}`,
+          competition_id: "test-league",
+          season: "2026",
+          kickoff_utc: "2026-07-19T12:00:00Z",
           outcome: "ANALYSIS_PICK",
           reason: {
             code: "ANALYSIS_ONLY",
             message: "当前仅提供分析参考",
           },
-          next_action: "MONITOR",
+          authoritative_input: {
+            fixture_id: `fixture-${scenario.toLowerCase()}`,
+            competition_id: "test-league",
+            season: "2026",
+            kickoff_utc: "2026-07-19T12:00:00Z",
+            market: "ASIAN_HANDICAP",
+            selection: "HOME",
+            exact_line: "-0.5",
+            decimal_odds: "1.91",
+            bookmaker_id: "Betano",
+            captured_at: "2026-07-18T09:55:00Z",
+            canonical_mainline_identity: { market: "ASIAN_HANDICAP", line: "-0.5" },
+            model_version: "w2.formal.exact_dc_poisson.v1",
+            calibration_version: "baseline-prior-v1",
+            expected_value: "0.146",
+            uncertainty: "0.04",
+            model_probability: "0.60",
+            market_probability: "0.52",
+            probability_delta_diagnostic: "0.08",
+            readiness: {
+              quote_identity_status: "COMPLETE",
+              quote_freshness_status: "COMPLETE",
+              model_status: "READY",
+            },
+          },
           selected_candidate: {
             market: "ASIAN_HANDICAP",
             selection: "HOME",
+            exact_line: "-0.5",
+            decimal_odds: "1.91",
             line: "-0.5",
-            odds: null,
+            odds: "1.91",
+            bookmaker_id: "Betano",
+            captured_at: "2026-07-18T09:55:00Z",
+            expected_value: "0.146",
+            uncertainty: "0.04",
+            model_probability: "0.60",
+            market_probability: "0.52",
+            probability_delta_diagnostic: "0.08",
           },
-          evaluated_candidate: {
-            analysis_evidence: {
-              comparison: {
-                probability_delta: 0.08,
-                status: "READY",
-              },
-              market_probability: {
-                devig: { HOME: 0.52, AWAY: 0.48 },
-              },
-              model_probability: {
-                calibration_status: "BASELINE_PRIOR",
-                effective_probability: 0.6,
-                expected_value: 0.146,
-                ev_se: 0.04,
-                model_version: "w2.formal.exact_dc_poisson.v1",
-              },
-              quote_identity: {
-                bookmaker_id: "32",
-                captured_at: "2026-07-18T09:55:00Z",
-                identity_status: "COMPLETE",
-                quotes: {
-                  home: {
-                    bookmaker_name: "Betano",
-                    captured_at: "2026-07-18T09:55:00Z",
-                    decimal_odds: "1.91",
-                    line: "-0.5",
-                    selection: "HOME",
-                  },
-                },
-              },
-            },
-          },
-          statuses: {},
-          warnings: [],
-          audit_refs: {},
+          blockers: [],
           decision_hash: `hash-${scenario}`,
         } } : {}),
       },
@@ -295,6 +298,7 @@ async function installRoutes(
   readyCardCount = 1,
   scheduledWait = false,
   authoritativeNoEdge = false,
+  legacyV3Only = false,
 ): Promise<void> {
   const contract = scenarioContract[scenario];
   const dayViewPayload = dayView(scenario);
@@ -344,20 +348,60 @@ async function installRoutes(
   if (authoritativeNoEdge) {
     dayViewPayload.cards[0].data_status = "READY";
     dayViewPayload.cards[0].data_refresh = { odds_status: "READY" };
-    dayViewPayload.cards[0].recommendation_decision_v3 = {
-      schema_version: "w2.recommendation_decision.v3",
+    dayViewPayload.cards[0].recommendation_decision_v4 = {
+      schema_version: "w2.recommendation_decision.v4",
+      fixture_id: dayViewPayload.cards[0].fixture_id,
+      competition_id: "test-league",
+      season: "2026",
+      kickoff_utc: dayViewPayload.cards[0].kickoff_utc,
       outcome: "NO_EDGE",
       reason: {
         code: "NO_ANALYSIS_EDGE",
         message: "数据完整但没有分析优势",
       },
-      next_action: "WAIT",
+      authoritative_input: {
+        fixture_id: dayViewPayload.cards[0].fixture_id,
+        competition_id: "test-league",
+        season: "2026",
+        kickoff_utc: dayViewPayload.cards[0].kickoff_utc,
+        market: "ASIAN_HANDICAP",
+        selection: "HOME",
+        exact_line: "-0.5",
+        decimal_odds: "1.91",
+        bookmaker_id: "Betano",
+        captured_at: "2026-07-18T09:55:00Z",
+        canonical_mainline_identity: { market: "ASIAN_HANDICAP", line: "-0.5" },
+        model_version: "w2.formal.exact_dc_poisson.v1",
+        calibration_version: "baseline-prior-v1",
+        expected_value: "0",
+        uncertainty: "0.04",
+        cashflow_price_edge: "0.01",
+        readiness: {
+          quote_identity_status: "COMPLETE",
+          quote_freshness_status: "COMPLETE",
+          model_status: "READY",
+        },
+      },
       selected_candidate: null,
-      evaluated_candidate: null,
-      statuses: {},
-      warnings: [],
-      audit_refs: {},
+      blockers: [],
       decision_hash: "no-edge-authority",
+    };
+  }
+  if (legacyV3Only) {
+    const card = dayViewPayload.cards[0] as unknown as Record<string, unknown>;
+    delete card.recommendation_decision_v4;
+    card.decision_tier = "ANALYSIS_PICK";
+    card.recommendation_decision_v3 = {
+      schema_version: "w2.recommendation_decision.v3",
+      outcome: "ANALYSIS_PICK",
+      reason: { code: "LEGACY_V3_PICK", message: "V3 历史伪推荐不得公开" },
+      selected_candidate: {
+        market: "ASIAN_HANDICAP",
+        selection: "AWAY",
+        line: "-9.25",
+        odds: "9.99",
+      },
+      decision_hash: "legacy-v3-history-only",
     };
   }
   if (scenario === "READY" && readyCardCount > 1) {
@@ -559,6 +603,13 @@ test("Shanghai queue clock advances while canonical time formatting handles matc
       },
       {
         ...template,
+        fixture_id: "fixture-tie-a",
+        home_team_name: "Tie Home",
+        away_team_name: "Tie Away",
+        kickoff_utc: "2026-12-31T12:45:00Z",
+      },
+      {
+        ...template,
         fixture_id: "fixture-live",
         home_team_name: "Live Home",
         away_team_name: "Live Away",
@@ -578,7 +629,20 @@ test("Shanghai queue clock advances while canonical time formatting handles matc
     await json(route, payload);
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "全部赛程 4/4 场" }).click();
+  await page.getByRole("button", { name: "全部赛程 5/5 场" }).click();
+
+  await expect(page.locator("[data-fixture-id]")).toHaveCount(5);
+  expect(
+    await page.locator("[data-fixture-id]").evaluateAll((rows) =>
+      rows.map((row) => row.getAttribute("data-fixture-id")),
+    ),
+  ).toEqual([
+    "fixture-finished",
+    "fixture-live",
+    "fixture-tie-a",
+    "fixture-today",
+    "fixture-tomorrow",
+  ]);
 
   const today = page.locator("[data-fixture-id]").filter({ hasText: "Today Home" });
   await expect(today).toContainText("20:45");
@@ -624,16 +688,16 @@ test("reference-only odds state that real odds are ready while model decision is
     .filter({ hasText: "STALE Home" });
   await expect(row).toContainText("真实参考赔率已就绪，模型决策未就绪");
   await row.click();
-  await expect(page.locator("[data-ui='selected-match-panel']")).toContainText("继续观察");
+  await expect(page.locator("[data-ui='selected-match-panel']")).toContainText("暂不可判断");
   await expect(row).toContainText("真实参考盘口（不可执行）");
   await expect(row).toContainText("1.82");
   await expect(row).toContainText("Betano");
   await expect(row).toContainText("新鲜度 STALE");
-  await expect(row).not.toContainText("未通过 EV、Delta 与 EV-SE");
+  await expect(row).not.toContainText("未通过 EV、五态现金流价格优势与 EV-SE");
   await expect(row).not.toContainText("1万次模拟");
 });
 
-test("v3 NO_EDGE truth is not masked by the reference-only fallback", async ({
+test("V4 NO_EDGE truth is not masked by the reference-only fallback", async ({
   page,
 }) => {
   await installRoutes(page, "STALE", 1, true, true);
@@ -643,7 +707,7 @@ test("v3 NO_EDGE truth is not masked by the reference-only fallback", async ({
   const row = page
     .locator("[data-fixture-id]")
     .filter({ hasText: "STALE Home" });
-  await expect(row).toContainText("当前完整快照未通过 EV、Delta 与 EV-SE 稳健门");
+  await expect(row).toContainText("五态现金流价格优势 1.0%，低于 5.0% 门槛");
   await expect(row).not.toContainText("模型决策未就绪");
   await row.click();
   await expect(page.locator("[data-ui='selected-match-panel']")).toContainText(
@@ -661,10 +725,29 @@ test("scheduled collection does not label data-not-ready fixtures as high risk",
   const row = page.locator("[data-fixture-id='fixture-blocked']");
   await expect(row).toContainText("已到采集窗口，Provider 暂无赔率");
   await expect(row).not.toContainText("尚未到受控赔率采集窗口");
-  await expect(row).toContainText("数据未就绪 · 中风险");
-  await expect(row).not.toContainText("高风险");
-  await expect(page.locator(".topbar")).toContainText("高风险赛事0");
+  await expect(row).toContainText("赛事风险 未评估");
+  await expect(row).toContainText("数据完整性 赔率缺失");
+  await expect(row).not.toContainText("赛事风险 高");
+  await expect(page.locator(".topbar")).toContainText("赛事高风险0");
   await expect(page.locator(".risk-strip")).not.toContainText("自动采集当前暂停");
+  await expect(page.locator("[data-ui='selected-match-panel']")).toContainText(
+    "首发当前用于状态确认、阵容证据和首发后赔率刷新，尚未参与模型概率数值调整。",
+  );
+});
+
+test("legacy V3 is history-only and cannot create a current public pick", async ({
+  page,
+}) => {
+  await installRoutes(page, "READY", 1, false, false, true);
+  await page.goto("/");
+  await page.getByRole("button", { name: "全部赛程 1/1 场" }).click();
+
+  const row = page.locator("[data-fixture-id='fixture-ready']");
+  await expect(page.locator(".topbar")).toContainText("分析建议0");
+  await expect(row).toHaveClass(/status-not-ready/);
+  await expect(row).not.toContainText("-9.25");
+  await expect(row).not.toContainText("9.99");
+  await expect(page.locator("body")).not.toContainText("V3 历史伪推荐不得公开");
 });
 
 test("enabled leagues and club teams render localized Chinese names", async ({

@@ -557,6 +557,8 @@ export interface DashboardMatchCard {
   market_divergence?: MarketDivergencePayload | null;
   bookmaker_hypothesis?: BookmakerHypothesisPayload | null;
   pricing_shadow?: PricingShadow | null;
+  recommendation_decision_v4?: RecommendationDecisionV4 | null;
+  /** Historical display/audit only; never a current recommendation authority. */
   recommendation_decision_v3?: RecommendationDecisionV3 | null;
   missing_inputs: string[];
 }
@@ -570,6 +572,7 @@ export type RecommendationOutcomeV3 =
 
 export interface RecommendationDecisionV3 {
   schema_version: "w2.recommendation_decision.v3";
+  authority_scope: "HISTORY_ONLY";
   outcome: RecommendationOutcomeV3;
   reason?: { code?: string; message?: string } | null;
   next_action?: string | null;
@@ -577,6 +580,27 @@ export interface RecommendationDecisionV3 {
   evaluated_candidate?: Record<string, unknown> | null;
   statuses?: Record<string, string>;
   warnings?: string[];
+  decision_hash?: string;
+}
+
+export type RecommendationOutcomeV4 =
+  | "NOT_READY"
+  | "NO_EDGE"
+  | "ANALYSIS_PICK"
+  | "FORMAL_RECOMMEND";
+
+export interface RecommendationDecisionV4 {
+  schema_version: "w2.recommendation_decision.v4";
+  authority_scope: "CURRENT";
+  fixture_id?: string | null;
+  competition_id?: string | null;
+  season?: string | null;
+  kickoff_utc?: string | null;
+  outcome: RecommendationOutcomeV4;
+  reason?: { code?: string; message?: string } | null;
+  authoritative_input: Record<string, unknown>;
+  selected_candidate?: Record<string, unknown> | null;
+  blockers: string[];
   decision_hash?: string;
 }
 
@@ -906,6 +930,8 @@ export interface DashboardDayViewCard {
   status?: string | null;
   source?: string | null;
   decision_tier: DecisionTier;
+  recommendation_decision_v4?: RecommendationDecisionV4 | null;
+  /** Historical display/audit only; never a current recommendation authority. */
   recommendation_decision_v3?: RecommendationDecisionV3 | null;
   data_status: DataStatus;
   lifecycle_status: LifecycleStatus;

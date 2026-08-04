@@ -238,7 +238,6 @@ def test_day_view_projects_valid_decision_contract_card() -> None:
     assert contract_card["pick"] is None
 
 
-
 def test_day_view_missing_decision_contract_fails_closed() -> None:
     payload = {
         "generated_at": "2026-07-05T00:00:00Z",
@@ -352,7 +351,7 @@ def test_day_view_production_includes_production_environment_policy() -> None:
     assert view["environment_policy"]["lock_policy"]["lock_eligible_policy"] == "recommend_only"
 
 
-def test_day_view_degradation_reflects_refreshing_payload() -> None:
+def test_day_view_missing_v4_pick_authority_blocks_even_while_refreshing() -> None:
     contract = _pick_contract()
     view = build_dashboard_day_view(
         {
@@ -372,7 +371,8 @@ def test_day_view_degradation_reflects_refreshing_payload() -> None:
     )
 
     assert view["freshness"]["refreshing"] is True
-    assert view["degradation"]["state"] == "REFRESHING"
+    assert view["degradation"]["state"] == "BLOCKED_DAY"
+    assert view["cards"][0]["reason_code"] == "CURRENT_V4_AUTHORITY_MISSING"
 
 
 def test_day_view_module_does_not_call_strategy_decider() -> None:
@@ -476,9 +476,7 @@ def test_day_view_projects_canonical_top_level_simulation() -> None:
 
 def test_day_view_ignores_removed_shadow_simulation_source() -> None:
     payload = _payload_with_contract(_pick_contract())
-    payload["all"][0]["pricing_shadow"] = {
-        "simulation": {"status": "READY", "simulations": 10000}
-    }
+    payload["all"][0]["pricing_shadow"] = {"simulation": {"status": "READY", "simulations": 10000}}
 
     card = build_dashboard_day_view(payload, environment="staging")["cards"][0]
 
@@ -569,9 +567,7 @@ def test_projection_rejects_unknown_source_status() -> None:
     payload = _payload_with_contract(_pick_contract())
     payload["all"][0]["simulation"] = {"status": "PENDING", "simulations": 1}
 
-    with pytest.raises(
-        ProjectionCardContractViolation, match="UNKNOWN_STATE"
-    ):
+    with pytest.raises(ProjectionCardContractViolation, match="UNKNOWN_STATE"):
         build_dashboard_day_view(payload, environment="staging")
 
 

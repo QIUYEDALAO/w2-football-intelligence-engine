@@ -45,7 +45,8 @@ export function applyProductionDashboardTruth(
     const referenceOnly = text(reference.status) === "REFERENCE_ONLY"
       && reference.executable === false
       && Object.keys(market).length > 0;
-    const notReady = decision.status === "not-ready" || decision.dataRisk === "阻断";
+    const notReady = decision.status === "not-ready"
+      || decision.dataIntegrityRisk.level === "high";
     const dynamicGateProjectionMissing = decision.lifecycleState === "NO_EDGE_CURRENT"
       && [
         decision.modelProbability,
@@ -66,10 +67,10 @@ export function applyProductionDashboardTruth(
     const bookmaker = text(market.bookmaker_name) || bookmakers[0] || "已审计报价";
     const capturedAt = text(market.captured_at || reference.captured_at) || "UNKNOWN";
     const freshness = text(market.freshness_status) || "UNKNOWN";
-    const decisionV3 = record(card?.recommendation_decision_v3);
+    const decisionV4 = record(card?.recommendation_decision_v4);
     const modelDecisionNotReady = referenceOnly
       && decision.modelProbability == null
-      && text(decisionV3.outcome) !== "NO_EDGE";
+      && text(decisionV4.outcome) !== "NO_EDGE";
     return {
       ...decision,
       ...(modelDecisionNotReady ? {
@@ -77,10 +78,12 @@ export function applyProductionDashboardTruth(
       } : dynamicGateProjectionMissing ? {
         recommendation: "动态评估已记录；完整模型与市场概率未投影，暂不展示稳健门结论",
       } : {}),
-      ...(notReady ? {
-        risk: "数据未就绪 · 中",
-        riskLevel: "medium" as const,
-        riskNote: decision.riskNote || "数据未齐",
+      ...(dynamicGateProjectionMissing ? {
+        modelUncertainty: {
+          level: "attention" as const,
+          label: "dynamic evaluation 投影不完整",
+          code: "DYNAMIC_EVALUATION_PROJECTION_MISSING",
+        },
       } : {}),
       ...(referenceOnly ? {
         marketPolicyLabel: "REFERENCE_ONLY · 不可执行",
@@ -93,9 +96,6 @@ export function applyProductionDashboardTruth(
   return {
     ...model,
     decisions,
-    riskExceptionCount: new Set(
-      decisions.filter((decision) => decision.riskLevel === "high").map((decision) => decision.id),
-    ).size,
   };
 }
 

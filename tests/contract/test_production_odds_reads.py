@@ -222,12 +222,13 @@ def test_api_dashboard_metadata_supports_more_than_64_fixtures(monkeypatch: Any)
     repository = api_repository.ReadModelRepository()
 
     assert repository.canonical_competitions_for_fixtures(fixture_ids)["1064"] == "allsvenskan"
-    assert repository.market_refresh_status_for_fixtures(fixture_ids, now=now)[
-        "next_refresh_tick"
-    ] == "2026-08-03T04:20:00Z"
+    assert (
+        repository.market_refresh_status_for_fixtures(fixture_ids, now=now)["next_refresh_tick"]
+        == "2026-08-03T04:20:00Z"
+    )
 
 
-def test_api_dashboard_card_overrides_provider_league_with_canonical_competition() -> None:
+def test_api_dashboard_card_keeps_historical_v3_identity_immutable() -> None:
     class Repository:
         @staticmethod
         def analysis_card_projection(_fixture_id: str) -> dict[str, Any]:
@@ -254,7 +255,8 @@ def test_api_dashboard_card_overrides_provider_league_with_canonical_competition
     )
 
     assert card["competition_id"] == "brasileirao_serie_a"
-    assert card["recommendation_decision_v3"]["competition_id"] == "brasileirao_serie_a"
+    assert card["recommendation_decision_v3"]["competition_id"] == "71"
+    assert card["recommendation_decision_v3_role"] == "HISTORY_ONLY"
 
 
 def test_fixture_scoped_timeline_reads_history_not_current_projection() -> None:

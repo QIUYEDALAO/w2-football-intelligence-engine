@@ -1,4 +1,4 @@
-"""Canonical, market-scoped candidate projection for recommendation V3.
+"""Canonical, market-scoped recommendation candidate projection.
 
 This module intentionally projects evidence already present on an analysis card.  It
 does not select a line, query a provider, or infer quote identity from legacy
@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from w2.domain.five_state_pricing import MIN_CASHFLOW_PRICE_EDGE
 from w2.markets.analysis_evidence import build_analysis_market_evidence
 
 MARKET_CANDIDATE_SCHEMA_VERSION = "w2.market_candidate.v1"
@@ -74,6 +75,61 @@ def candidate_is_executable(candidate: Mapping[str, Any] | None) -> bool:
     )
 
 
+def select_authoritative_market_candidate(
+    candidates: Mapping[str, Mapping[str, Any]] | None,
+) -> dict[str, Any] | None:
+    """Choose one evaluated mainline without consulting bookmaker intent."""
+    ranked: list[tuple[bool, float, float, float, str, str, dict[str, Any]]] = []
+    for raw in (candidates or {}).values():
+        candidate = dict(raw)
+        evidence = _mapping(candidate.get("analysis_evidence"))
+        comparison = _mapping(evidence.get("comparison"))
+        model = _mapping(evidence.get("model_probability"))
+        ev = _number(model.get("expected_value"))
+        uncertainty = _number(model.get("ev_se"))
+        cashflow_edge = _number(comparison.get("cashflow_price_edge"))
+        if (
+            not candidate_is_executable(candidate)
+            or candidate.get("candidate_role") != "MARKET_MAINLINE"
+            or evidence.get("status") != "COMPLETE"
+            or model.get("status") != "READY"
+            or ev is None
+            or uncertainty is None
+            or cashflow_edge is None
+        ):
+            continue
+        ranked.append(
+            (
+                _admission_eligible(
+                    evidence_complete=True,
+                    candidate_role=str(candidate.get("candidate_role") or ""),
+                    expected_value=ev,
+                    uncertainty=uncertainty,
+                    cashflow_edge=cashflow_edge,
+                ),
+                ev - uncertainty,
+                cashflow_edge,
+                ev,
+                str(candidate.get("market") or ""),
+                str(candidate.get("selection") or ""),
+                candidate,
+            )
+        )
+    if not ranked:
+        return None
+    return sorted(
+        ranked,
+        key=lambda item: (
+            not item[0],
+            -item[1],
+            -item[2],
+            -item[3],
+            item[4],
+            item[5],
+        ),
+    )[0][6]
+
+
 def _candidate(
     *,
     market: str,
@@ -87,12 +143,11 @@ def _candidate(
 ) -> dict[str, Any]:
     identity_status = _text(audit.get("identity_status"), "INCOMPLETE")
     freshness_status = _text(audit.get("freshness_status"), "INCOMPLETE")
-    selection = market_row.get("tendency")
-    line = market_row.get("line")
-    if line is None:
-        line = audit.get("selected_line")
+    bookmaker_intent_selection = market_row.get("tendency")
+    selection = None
+    line = audit.get("selected_line")
     quote_complete = identity_status == "COMPLETE" and freshness_status == "COMPLETE"
-    if selection is None and quote_complete and line is not None:
+    if quote_complete and line is not None:
         comparison_evidence = build_analysis_market_evidence(
             fixture_id=fixture_id,
             competition_id=competition_id,
@@ -102,7 +157,12 @@ def _candidate(
             quote_identity_audit={_KEYS[market]: audit},
             simulation=simulation,
         )
-        selection = _best_analysis_side(comparison_evidence)
+        selection = _best_evaluated_side(
+            comparison_evidence,
+            market=market,
+            odds=odds,
+            quote_complete=quote_complete,
+        )
     selected_quote = _authoritative_executable_quote(audit, selection)
     selected_side_line = selected_quote.get("line") if selected_quote else None
     executable_odds = selected_quote if selection is not None else {}
@@ -177,6 +237,7 @@ def _candidate(
         "formal_capability": (
             "CODE_PRESENT_BUT_DISABLED" if market == "ASIAN_HANDICAP" else "NOT_IMPLEMENTED"
         ),
+        "bookmaker_intent_selection": bookmaker_intent_selection,
         "selection": selection,
         "line": evidence.get("selected_side_line") if selection is not None else line,
         "candidate_role": candidate_role,
@@ -417,22 +478,74 @@ def _candidate_role(
     return "MARKET_MAINLINE" if _same_line(line, mainline) else "ALTERNATE_LINE"
 
 
-def _best_analysis_side(evidence: Mapping[str, Any]) -> str | None:
+def _best_evaluated_side(
+    evidence: Mapping[str, Any],
+    *,
+    market: str,
+    odds: Mapping[str, Any],
+    quote_complete: bool,
+) -> str | None:
     side_evidence = _mapping(evidence.get("side_evidence"))
-    candidates: list[tuple[float, str]] = []
+    candidates: list[tuple[bool, float, float, float, str]] = []
     for side, raw in side_evidence.items():
         row = _mapping(raw)
         comparison = _mapping(row.get("comparison"))
         model = _mapping(row.get("model_probability"))
-        if comparison.get("analysis_direction_allowed") is not True:
+        if model.get("status") != "READY":
             continue
         ev = _number(model.get("expected_value"))
-        if ev is None:
+        uncertainty = _number(model.get("ev_se"))
+        cashflow_edge = _number(comparison.get("cashflow_price_edge"))
+        if ev is None or uncertainty is None or cashflow_edge is None:
             continue
-        candidates.append((ev, str(side)))
+        role = _candidate_role(
+            market=market,
+            selection=side,
+            line=row.get("line"),
+            odds=odds,
+        )
+        candidates.append(
+            (
+                _admission_eligible(
+                    evidence_complete=(
+                        quote_complete
+                        and evidence.get("quote_evidence_status") == "READY"
+                        and comparison.get("status") in {"READY", "NO_EDGE"}
+                    ),
+                    candidate_role=role,
+                    expected_value=ev,
+                    uncertainty=uncertainty,
+                    cashflow_edge=cashflow_edge,
+                ),
+                ev - uncertainty,
+                cashflow_edge,
+                ev,
+                str(side),
+            )
+        )
     if not candidates:
         return None
-    return max(candidates)[1]
+    return sorted(
+        candidates,
+        key=lambda item: (not item[0], -item[1], -item[2], -item[3], item[4]),
+    )[0][4]
+
+
+def _admission_eligible(
+    *,
+    evidence_complete: bool,
+    candidate_role: str,
+    expected_value: float,
+    uncertainty: float,
+    cashflow_edge: float,
+) -> bool:
+    return bool(
+        evidence_complete
+        and candidate_role == "MARKET_MAINLINE"
+        and expected_value > 0
+        and expected_value - uncertainty > 0
+        and cashflow_edge >= float(MIN_CASHFLOW_PRICE_EDGE)
+    )
 
 
 def _reference_quote(audit: Mapping[str, Any]) -> dict[str, Any] | None:
