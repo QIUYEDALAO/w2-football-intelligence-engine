@@ -6,6 +6,7 @@ from dataclasses import replace
 
 from w2.formal.readiness import evaluate_formal_ah_readiness
 from w2.strategy.formal_recommendation import (
+    _five_state_fair_odds,
     build_formal_recommendation,
     canonical_ah_market,
     formal_recommendation_id,
@@ -15,6 +16,7 @@ from w2.strategy.simulate import (
     READY,
     SimulationInputs,
     SimulationOutput,
+    ah_expected_value,
     run_simulation,
 )
 
@@ -206,19 +208,41 @@ def ev_gate_simulation(
     )
 
 
-def _authoritative_ah_candidate() -> dict[str, object]:
-    distribution = {
-        "WIN": 0.5,
-        "HALF_WIN": 0.0,
-        "PUSH": 0.0,
-        "HALF_LOSS": 0.2,
-        "LOSS": 0.3,
+def _authoritative_ah_candidate(
+    *,
+    selection: str = "HOME",
+    home_line: float = -0.25,
+    home_price: float = 1.9,
+    away_price: float = 2.0,
+    expected_value: float = 0.05,
+    ev_se: float | None = 0.001,
+    distribution: dict[str, float] | None = None,
+) -> dict[str, object]:
+    away_line = -home_line
+    selected_line = home_line if selection == "HOME" else away_line
+    selected_price = home_price if selection == "HOME" else away_price
+    if distribution is None:
+        win_probability = (1 + expected_value) / selected_price
+        distribution = {
+            "WIN": win_probability,
+            "HALF_WIN": 0.0,
+            "PUSH": 0.0,
+            "HALF_LOSS": 0.0,
+            "LOSS": 1 - win_probability,
+        }
+    fair_price = _five_state_fair_odds(distribution)
+    recomputed_ev = ah_expected_value(distribution, decimal_price=selected_price)
+    assert fair_price is not None
+    assert recomputed_ev is not None
+    quotes = {
+        "home": {"line": str(home_line), "decimal_odds": str(home_price)},
+        "away": {"line": str(away_line), "decimal_odds": str(away_price)},
     }
-    executable = {"line": "-0.25", "decimal_odds": "1.9"}
+    executable = quotes[selection.lower()]
     return {
         "market": "ASIAN_HANDICAP",
-        "selection": "HOME",
-        "line": "-0.25",
+        "selection": selection,
+        "line": str(selected_line),
         "candidate_role": "MARKET_MAINLINE",
         "quote_status": "COMPLETE",
         "quote_usage": "EXECUTABLE",
@@ -229,25 +253,25 @@ def _authoritative_ah_candidate() -> dict[str, object]:
             "provider": "provider",
             "bookmaker_id": "bookmaker",
             "captured_at": "2026-08-08T15:00:00Z",
-            "quotes": {
-                "home": executable,
-                "away": {"line": "0.25", "decimal_odds": "2.0"},
-            },
+            "quotes": quotes,
         },
         "analysis_direction_allowed": True,
         "analysis_evidence": {
             "status": "COMPLETE",
             "market": "ASIAN_HANDICAP",
-            "selection": "HOME",
-            "selected_side_line": "-0.25",
-            "comparison": {"analysis_direction_allowed": True},
+            "selection": selection,
+            "selected_side_line": str(selected_line),
+            "comparison": {
+                "analysis_direction_allowed": True,
+                "cashflow_price_edge": selected_price / fair_price - 1,
+            },
             "model_probability": {
                 "status": "READY",
-                "effective_probability": 0.5,
+                "effective_probability": (1 + recomputed_ev) / selected_price,
                 "settlement_distribution": distribution,
-                "fair_decimal_odds": 1.8,
-                "expected_value": 0.05,
-                "ev_se": 0.001,
+                "fair_decimal_odds": fair_price,
+                "expected_value": recomputed_ev,
+                "ev_se": ev_se,
             },
         },
     }
@@ -258,6 +282,11 @@ def test_formal_home_when_simulation_and_price_are_self_consistent() -> None:
         fixture_status="UPCOMING",
         simulation=ev_gate_simulation(),
         current_odds={"ah": {"home_line": 0.0, "home_price": 2.0, "away_price": 2.0}},
+        ah_market_candidate=_authoritative_ah_candidate(
+            home_line=0.0,
+            home_price=2.0,
+            away_price=2.0,
+        ),
         pricing_shadow={**ready_shadow(fair_ah=0.0), "market_ah": 0.0},
         analysis_readiness=ready_analysis(),
         home_team_name="Home",
@@ -286,7 +315,15 @@ def test_formal_consumes_exact_selected_candidate_and_five_state_fair_odds() -> 
                 "away_price": 2.4,
             }
         },
-        ah_market_candidate=_authoritative_ah_candidate(),
+        ah_market_candidate=_authoritative_ah_candidate(
+            distribution={
+                "WIN": 0.5,
+                "HALF_WIN": 0.0,
+                "PUSH": 0.0,
+                "HALF_LOSS": 0.2,
+                "LOSS": 0.3,
+            }
+        ),
         pricing_shadow={**ready_shadow(fair_ah=0.0), "market_ah": -0.25},
         analysis_readiness=ready_analysis(),
         home_team_name="Home",
@@ -304,9 +341,15 @@ def test_formal_consumes_exact_selected_candidate_and_five_state_fair_odds() -> 
     assert (
         result.recommendation["ah_settlement_distribution"]
         == (
-            _authoritative_ah_candidate()["analysis_evidence"]["model_probability"][
-                "settlement_distribution"
-            ]
+            _authoritative_ah_candidate(
+                distribution={
+                    "WIN": 0.5,
+                    "HALF_WIN": 0.0,
+                    "PUSH": 0.0,
+                    "HALF_LOSS": 0.2,
+                    "LOSS": 0.3,
+                }
+            )["analysis_evidence"]["model_probability"]["settlement_distribution"]
         )
     )
 
@@ -376,6 +419,11 @@ def test_formal_ev_se_uses_lambda_uncertainty() -> None:
         fixture_status="UPCOMING",
         simulation=ev_gate_simulation(lambda_sigma_home=0.1, lambda_sigma_away=0.1),
         current_odds={"ah": {"home_line": 0.0, "home_price": 2.08, "away_price": 1.8}},
+        ah_market_candidate=_authoritative_ah_candidate(
+            home_line=0.0,
+            home_price=2.08,
+            away_price=1.8,
+        ),
         pricing_shadow={**ready_shadow(fair_ah=0.0), "market_ah": 0.0},
         analysis_readiness=ready_analysis(),
         home_team_name="Home",
@@ -394,6 +442,11 @@ def test_zero_sigma_blocks_formal_uncertainty_validation() -> None:
         fixture_status="UPCOMING",
         simulation=ev_gate_simulation(lambda_sigma_home=0.0, lambda_sigma_away=0.0),
         current_odds={"ah": {"home_line": 0.0, "home_price": 2.0, "away_price": 2.0}},
+        ah_market_candidate=_authoritative_ah_candidate(
+            home_line=0.0,
+            home_price=2.0,
+            away_price=2.0,
+        ),
         pricing_shadow={**ready_shadow(fair_ah=0.0, leader="HOME"), "market_ah": 0.0},
         analysis_readiness=ready_analysis(),
         home_team_name="Home",
@@ -411,6 +464,12 @@ def test_ev_within_uncertainty_band_returns_watch() -> None:
         fixture_status="UPCOMING",
         simulation=ev_gate_simulation(lambda_sigma_home=0.35, lambda_sigma_away=0.35),
         current_odds={"ah": {"home_line": 0.0, "home_price": 2.0, "away_price": 2.0}},
+        ah_market_candidate=_authoritative_ah_candidate(
+            home_line=0.0,
+            home_price=2.0,
+            away_price=2.0,
+            ev_se=0.02,
+        ),
         pricing_shadow={**ready_shadow(fair_ah=0.0, leader="HOME"), "market_ah": 0.0},
         analysis_readiness=ready_analysis(),
         home_team_name="Home",
@@ -427,6 +486,12 @@ def test_formal_blocks_implausibly_high_ev() -> None:
         fixture_status="UPCOMING",
         simulation=ev_gate_simulation(),
         current_odds={"ah": {"home_line": 0.0, "home_price": 2.3, "away_price": 1.7}},
+        ah_market_candidate=_authoritative_ah_candidate(
+            home_line=0.0,
+            home_price=2.3,
+            away_price=1.7,
+            expected_value=0.2,
+        ),
         pricing_shadow={**ready_shadow(fair_ah=0.0, leader="HOME"), "market_ah": 0.0},
         analysis_readiness=ready_analysis(),
         home_team_name="Home",
@@ -450,6 +515,11 @@ def test_formal_blocks_wide_fair_market_ah_gap() -> None:
                 "away_price": 1.86,
             }
         },
+        ah_market_candidate=_authoritative_ah_candidate(
+            home_line=-2.5,
+            home_price=1.93,
+            away_price=1.86,
+        ),
         pricing_shadow={**ready_shadow(fair_ah=-0.25, leader="HOME"), "market_ah": -2.5},
         analysis_readiness=ready_analysis(),
         home_team_name="Colombia",
@@ -461,7 +531,7 @@ def test_formal_blocks_wide_fair_market_ah_gap() -> None:
     assert "AH_FAIR_MARKET_GAP_TOO_WIDE" in result.blockers
 
 
-def test_formal_blocks_selected_mainline_consensus_conflict() -> None:
+def test_formal_does_not_reselect_from_legacy_mainline_consensus() -> None:
     result = build_formal_recommendation(
         fixture_status="UPCOMING",
         simulation=replace(ev_gate_simulation(), fair_ah=-2.5),
@@ -477,6 +547,11 @@ def test_formal_blocks_selected_mainline_consensus_conflict() -> None:
                 ],
             }
         },
+        ah_market_candidate=_authoritative_ah_candidate(
+            home_line=-2.5,
+            home_price=1.93,
+            away_price=1.86,
+        ),
         pricing_shadow={**ready_shadow(fair_ah=-2.5, leader="HOME"), "market_ah": -2.5},
         analysis_readiness=ready_analysis(),
         home_team_name="Colombia",
@@ -484,9 +559,10 @@ def test_formal_blocks_selected_mainline_consensus_conflict() -> None:
         enabled=True,
     )
 
-    assert result.tier == "WATCH"
-    assert "AH_MAINLINE_CONSENSUS_CONFLICT" in result.blockers
-    assert result.recommendation is None
+    assert "AH_MAINLINE_CONSENSUS_CONFLICT" not in result.blockers
+    if result.recommendation is not None:
+        assert result.recommendation["selection"] == "HOME_AH"
+        assert result.recommendation["line"] == "-2.5"
 
 
 def test_missing_ev_uncertainty_returns_watch() -> None:
@@ -494,6 +570,12 @@ def test_missing_ev_uncertainty_returns_watch() -> None:
         fixture_status="UPCOMING",
         simulation=ev_gate_simulation(lambda_home=None),
         current_odds={"ah": {"home_line": 0.0, "home_price": 2.0, "away_price": 2.0}},
+        ah_market_candidate=_authoritative_ah_candidate(
+            home_line=0.0,
+            home_price=2.0,
+            away_price=2.0,
+            ev_se=None,
+        ),
         pricing_shadow={**ready_shadow(fair_ah=0.0, leader="HOME"), "market_ah": 0.0},
         analysis_readiness=ready_analysis(),
         home_team_name="Home",
@@ -502,7 +584,7 @@ def test_missing_ev_uncertainty_returns_watch() -> None:
     )
 
     assert result.tier == "WATCH"
-    assert "EV_UNCERTAINTY_MISSING" in result.blockers
+    assert result.blockers == ["AH_MARKET_CANDIDATE_NOT_EXECUTABLE"]
     assert result.recommendation is None
 
 
@@ -537,6 +619,12 @@ def test_formal_away_when_simulation_and_price_are_self_consistent() -> None:
         fixture_status="UPCOMING",
         simulation=away_simulation,
         current_odds={"ah": {"home_line": 0.0, "home_price": 2.0, "away_price": 2.0}},
+        ah_market_candidate=_authoritative_ah_candidate(
+            selection="AWAY",
+            home_line=0.0,
+            home_price=2.0,
+            away_price=2.0,
+        ),
         pricing_shadow={**ready_shadow(fair_ah=0.0, leader="AWAY"), "market_ah": 0.0},
         analysis_readiness=ready_analysis(),
         home_team_name="Home",
@@ -561,6 +649,13 @@ def test_scoreline_reverse_value_sets_reverse_flag_without_changing_ev_gate() ->
                 "away_price": 2.05,
             }
         },
+        ah_market_candidate=_authoritative_ah_candidate(
+            selection="AWAY",
+            home_line=-0.25,
+            home_price=1.85,
+            away_price=2.05,
+            expected_value=0.1,
+        ),
         pricing_shadow={**ready_shadow(fair_ah=0.0, leader="HOME"), "market_ah": -0.25},
         analysis_readiness=ready_analysis(),
         home_team_name="Home",
@@ -593,6 +688,14 @@ def test_reverse_value_threshold_includes_ev_uncertainty_penalty() -> None:
                 "away_price": 2.05,
             }
         },
+        ah_market_candidate=_authoritative_ah_candidate(
+            selection="AWAY",
+            home_line=-0.25,
+            home_price=1.85,
+            away_price=2.05,
+            expected_value=0.1,
+            ev_se=0.03,
+        ),
         pricing_shadow={**ready_shadow(fair_ah=0.0, leader="HOME"), "market_ah": -0.25},
         analysis_readiness=ready_analysis(),
         home_team_name="Home",
@@ -636,6 +739,11 @@ def test_simulation_insufficient_returns_watch() -> None:
         fixture_status="UPCOMING",
         simulation=insufficient,
         current_odds={"ah": {"home_line": 0.5, "home_price": 1.95, "away_price": 1.95}},
+        ah_market_candidate=_authoritative_ah_candidate(
+            home_line=0.5,
+            home_price=1.95,
+            away_price=1.95,
+        ),
         pricing_shadow=ready_shadow(),
         analysis_readiness=ready_analysis(),
         home_team_name="Home",
@@ -660,7 +768,7 @@ def test_market_missing_returns_watch() -> None:
     )
 
     assert result.tier == "WATCH"
-    assert "MISSING_AH_MARKET" in result.blockers
+    assert result.blockers == ["AH_MARKET_CANDIDATE_REQUIRED"]
 
 
 def test_canonical_ah_uses_pricing_shadow_market_line_with_real_prices() -> None:
@@ -848,6 +956,11 @@ def test_formal_does_not_report_missing_ah_when_shadow_line_and_prices_exist() -
                 "away_price": 1.95,
             }
         },
+        ah_market_candidate=_authoritative_ah_candidate(
+            home_line=0.5,
+            home_price=1.95,
+            away_price=1.95,
+        ),
         pricing_shadow={**ready_shadow(), "market_ah": 0.5},
         analysis_readiness=ready_analysis(),
         home_team_name="Home",
@@ -863,6 +976,11 @@ def test_config_off_suppresses_formal_and_keeps_formal_ineligible() -> None:
         fixture_status="UPCOMING",
         simulation=ev_gate_simulation(),
         current_odds={"ah": {"home_line": 0.0, "home_price": 2.0, "away_price": 2.0}},
+        ah_market_candidate=_authoritative_ah_candidate(
+            home_line=0.0,
+            home_price=2.0,
+            away_price=2.0,
+        ),
         pricing_shadow={**ready_shadow(fair_ah=0.0), "market_ah": 0.0},
         analysis_readiness=ready_analysis(),
         home_team_name="Home",
@@ -881,6 +999,11 @@ def test_formal_builder_rejects_forged_readiness_dict() -> None:
         fixture_status="UPCOMING",
         simulation=ev_gate_simulation(),
         current_odds={"ah": {"home_line": 0.0, "home_price": 2.0, "away_price": 2.0}},
+        ah_market_candidate=_authoritative_ah_candidate(
+            home_line=0.0,
+            home_price=2.0,
+            away_price=2.0,
+        ),
         pricing_shadow={**ready_shadow(fair_ah=0.0), "market_ah": 0.0},
         analysis_readiness={
             "status": "READY",
@@ -913,6 +1036,13 @@ def test_reverse_value_requires_explicit_price_value_copy() -> None:
                 "away_price": 2.05,
             }
         },
+        ah_market_candidate=_authoritative_ah_candidate(
+            selection="AWAY",
+            home_line=-0.25,
+            home_price=1.85,
+            away_price=2.05,
+            expected_value=0.1,
+        ),
         pricing_shadow={**ready_shadow(fair_ah=0.0, leader="HOME"), "market_ah": -0.25},
         analysis_readiness=ready_analysis(),
         home_team_name="Home",
@@ -950,6 +1080,13 @@ def test_neutral_fair_line_allows_price_value_on_receiving_side() -> None:
                 "away_price": 1.97,
             }
         },
+        ah_market_candidate=_authoritative_ah_candidate(
+            selection="AWAY",
+            home_line=-0.5,
+            home_price=1.91,
+            away_price=1.97,
+            expected_value=0.1,
+        ),
         pricing_shadow={**ready_shadow(fair_ah=0.0, leader="HOME"), "market_ah": -0.5},
         analysis_readiness=ready_analysis(),
         home_team_name="Home",
@@ -980,6 +1117,11 @@ def test_formal_blocks_implausible_ah_prices_from_alternate_or_wrong_market() ->
                 "away_price": 12.50,
             }
         },
+        ah_market_candidate=_authoritative_ah_candidate(
+            home_line=-1.0,
+            home_price=5.3,
+            away_price=12.5,
+        ),
         pricing_shadow={**ready_shadow(fair_ah=-0.25, leader="HOME"), "market_ah": -1.0},
         analysis_readiness=ready_analysis(),
         home_team_name="Brazil",
@@ -1004,6 +1146,11 @@ def test_formal_blocks_underround_prices_even_when_cover_probability_looks_large
                 "away_price": 3.75,
             }
         },
+        ah_market_candidate=_authoritative_ah_candidate(
+            home_line=-0.5,
+            home_price=2.87,
+            away_price=3.75,
+        ),
         pricing_shadow={**ready_shadow(fair_ah=0.0, leader="HOME"), "market_ah": -0.5},
         analysis_readiness=ready_analysis(),
         home_team_name="Netherlands",
@@ -1032,6 +1179,11 @@ def test_formal_computes_ah_settlement_distribution_when_ladder_line_missing() -
                 "away_price": 1.95,
             }
         },
+        ah_market_candidate=_authoritative_ah_candidate(
+            home_line=-3.5,
+            home_price=1.85,
+            away_price=1.95,
+        ),
         pricing_shadow={**ready_shadow(fair_ah=-1.25, leader="HOME"), "market_ah": -3.5},
         analysis_readiness=ready_analysis(),
         home_team_name="Germany",
@@ -1051,6 +1203,11 @@ def test_finished_fixture_never_emits_new_formal() -> None:
         fixture_status="FINISHED",
         simulation=simulation(),
         current_odds={"ah": {"home_line": 0.5, "home_price": 1.95, "away_price": 1.95}},
+        ah_market_candidate=_authoritative_ah_candidate(
+            home_line=0.5,
+            home_price=1.95,
+            away_price=1.95,
+        ),
         pricing_shadow=ready_shadow(),
         analysis_readiness=ready_analysis(),
         home_team_name="Home",

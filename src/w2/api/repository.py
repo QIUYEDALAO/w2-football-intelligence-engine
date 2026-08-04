@@ -117,8 +117,8 @@ def _checkpoint_metadata(row: Checkpoint) -> dict[str, Any]:
 
 
 def _apply_repository_v4_authority(card: dict[str, Any]) -> dict[str, Any]:
-    decision = card.get("recommendation_decision_v4")
-    authority_missing = not isinstance(decision, dict) or not decision
+    decision_value = card.get("recommendation_decision_v4")
+    authority_missing = not isinstance(decision_value, dict) or not decision_value
     fallback_reason_code = str(card.get("reason_code") or "CURRENT_V4_AUTHORITY_MISSING")
     fallback_non_pick = card.get("non_pick")
     fallback_reason_human = (
@@ -136,6 +136,8 @@ def _apply_repository_v4_authority(card: dict[str, Any]) -> dict[str, Any]:
             }
         ).as_dict()
         card["recommendation_decision_v4"] = decision
+    else:
+        decision = cast(dict[str, Any], decision_value)
     card["recommendation_decision_v3_role"] = "HISTORY_ONLY"
     try:
         validate_decision_v4_identity(decision)

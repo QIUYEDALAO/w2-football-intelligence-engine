@@ -906,7 +906,7 @@ def test_dashboard_does_not_fill_missing_ah_from_runtime_timeline(
 
     assert card["current_odds"] == {"ou": {"line": "2.5", "price": 1.9}}
     assert card["market_timeline"]["status"] == "INSUFFICIENT"
-    assert "MISSING_AH_MARKET" in card["pricing_shadow"]["formal_blockers"]
+    assert "AH_MARKET_CANDIDATE_REQUIRED" in card["pricing_shadow"]["formal_blockers"]
     assert card["formal_recommendation"] is False
     assert card["recommendation"]["tier"] == "WATCH"
     assert card["recommendation"]["formal_recommendation"] is False
@@ -1401,8 +1401,9 @@ def test_dashboard_ignores_invalid_timeline_ah_price_pair(
     assert card["current_odds"]["ah"]["home_price"] == 1.94
     assert card["current_odds"]["ah"]["away_price"] == 1.96
     assert card["current_odds"]["ah"]["source"] == "read_model_mainline"
-    assert card["pricing_shadow"]["canonical_ah_market_validation_status"] == "READY"
-    assert card["pricing_shadow"]["canonical_ah_market_blocker"] is None
+    assert "AH_MARKET_CANDIDATE_REQUIRED" in card["pricing_shadow"]["formal_blockers"]
+    assert "canonical_ah_market_validation_status" not in card["pricing_shadow"]
+    assert "canonical_ah_market_blocker" not in card["pricing_shadow"]
 
 
 def test_dashboard_hides_formal_simulation_scorelines_without_public_pick() -> None:

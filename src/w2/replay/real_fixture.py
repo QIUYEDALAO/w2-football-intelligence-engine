@@ -1387,11 +1387,14 @@ def _replay_once(
     if source_reference.get("authority") != "SOURCE_REFERENCE_ONLY_NOT_REPLAY_EXPECTED":
         raise RealFixtureReplayError("SOURCE_REFERENCE_AUTHORITY_INVALID")
     runtime_environment = _source_runtime_environment(context)
-    with _replay_environment(
-        database_url,
-        source_git_sha,
-        runtime_environment,
-    ), network_disabled():
+    with (
+        _replay_environment(
+            database_url,
+            source_git_sha,
+            runtime_environment,
+        ),
+        network_disabled(),
+    ):
         # Importing persistence registers every current table and the current
         # market projection view before the isolated schema is created.
         import w2.infrastructure.persistence  # noqa: F401

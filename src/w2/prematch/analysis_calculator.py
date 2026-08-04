@@ -74,12 +74,12 @@ from w2.domain.recommendation_decision_v4 import (
     valid_kickoff_identity,
     validate_decision_v4_identity,
 )
-from w2.formal.readiness import validate_formal_ah_readiness
 from w2.features.engine import FeatureInputs, build_feature_set
 from w2.features.framework import FeatureContext
 from w2.features.live_factors import TeamXgSnapshot
 from w2.features.market_factors import BookmakerQuote
 from w2.features.team_factors import TeamMatchHistory, TeamRatingSnapshot, TeamValueSnapshot
+from w2.formal.readiness import validate_formal_ah_readiness
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.ingestion.authoritative_lineup import (
