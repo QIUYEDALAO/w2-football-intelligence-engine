@@ -19,7 +19,10 @@
       "sha256": "a62d132ff11261bcbfebf8dabf1cbb976f1fcd56608e3d2a751b3ee5125a6421"
     },
     "apps/web/src/reference/boss-console/BossDecisionConsoleReference.tsx": {
-      "sha256": "214f1bc60e52f4613e205807b506d48d99b24963e13406ac9647af633eba0ef5"
+      "sha256": "bfe8bd4199ce4deed412818f1b0cd032f055b8d49131f2083dbfced19f59f41a"
+    },
+    "apps/web/src/components/DecisionCounts.tsx": {
+      "sha256": "c1b3f940587c1a25610c5e762f955c12541a7da40f006e9ce7818e5d376c9d6e"
     },
     "apps/web/src/reference/boss-console/boss-decision-console.css": {
       "sha256": "77a09e39c20733682502778e7880e35aa5d4fc4ba739a02fad79d72ca57c8d2f"

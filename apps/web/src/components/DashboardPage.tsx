@@ -5,7 +5,7 @@ import { textValue } from "../lib/normalize";
 import type { DashboardMode, DashboardView, LoadState } from "../types/dashboard";
 import { BossDecisionConsole } from "../reference/boss-console/BossDecisionConsole";
 import { DataDiagnosticsPanel } from "./DataDiagnosticsPanel";
-import { DecisionCounts } from "./BossDecisionView";
+import { DecisionCounts } from "./DecisionCounts";
 import { EmptySection } from "./EmptySection";
 import { ReleaseSyncBadge } from "./ReleaseSyncBadge";
 import { SkeletonCard } from "./SkeletonCard";

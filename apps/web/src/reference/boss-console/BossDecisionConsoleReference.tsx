@@ -5,7 +5,7 @@ import type {
   BossDecisionItem,
 } from "./boss-console-model";
 import type { DashboardDayView, DashboardPerformance } from "../../types/dashboard";
-import { DecisionCounts } from "../../components/BossDecisionView";
+import { DecisionCounts } from "../../components/DecisionCounts";
 
 type FilterId = "priority" | "all" | "risk";
 

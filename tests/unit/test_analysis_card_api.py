@@ -135,6 +135,7 @@ class ExistingFeatureStore:
         return [
             {
                 "team_id": "10",
+                "match_count": 4,
                 "as_of_time": "2026-06-26T12:00:00Z",
                 "rolling_xg_for": 1.7,
                 "rolling_xg_against": 0.8,
@@ -143,6 +144,7 @@ class ExistingFeatureStore:
             },
             {
                 "team_id": "20",
+                "match_count": 4,
                 "as_of_time": "2026-06-26T12:00:00Z",
                 "rolling_xg_for": 0.8,
                 "rolling_xg_against": 1.4,
@@ -398,7 +400,7 @@ def test_analysis_card_falls_back_for_db_fixture_when_dashboard_exists() -> None
 
     assert card is not None
     assert card["fixture_id"] == "db-world-cup-fixture"
-    assert card["source"] == "future_refresh_without_analysis_payload"
+    assert card["source"] == "db_feature_materialized_analysis"
     assert card["candidate"] is False
     assert card["formal_recommendation"] is False
     assert card["competition_cn"] == "World Cup · Group Stage - 3"
@@ -413,8 +415,11 @@ def test_analysis_card_falls_back_for_db_fixture_when_dashboard_exists() -> None
         "FIRST_HALF_GOALS",
         "SCORE",
     }
-    assert card["markets"][0]["reasons"] == ["AH_ANALYSIS_INPUT_UNAVAILABLE"]
-    assert card["markets"][1]["reasons"] == ["OU_ANALYSIS_INPUT_UNAVAILABLE"]
+    assert card["data_readiness"]["market_observations"] == 2
+    assert all(market.get("odds") is None for market in card["markets"])
+    assert card.get("pick") is None
+    assert card["markets"][0]["reasons"] == ["无有效主盘"]
+    assert card["markets"][1]["reasons"] == ["无有效主盘"]
 
 
 def test_fixture_list_includes_team_names_for_loading_cards() -> None:

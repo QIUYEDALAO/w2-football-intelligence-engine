@@ -161,6 +161,7 @@ class XgStore:
         rows = [
             {
                 "team_id": "10",
+                "match_count": 4,
                 "as_of_time": (KICKOFF - timedelta(hours=1)).isoformat(),
                 "rolling_xg_for": 2.2,
                 "rolling_xg_against": 0.6,
@@ -169,6 +170,7 @@ class XgStore:
             },
             {
                 "team_id": "20",
+                "match_count": 4,
                 "as_of_time": (KICKOFF - timedelta(hours=1)).isoformat(),
                 "rolling_xg_for": 0.7,
                 "rolling_xg_against": 1.8,
