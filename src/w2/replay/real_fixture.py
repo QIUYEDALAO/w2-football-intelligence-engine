@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import os
 import socket
+import struct
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
@@ -1209,6 +1210,14 @@ def _database_value(column: Any, value: Any) -> Any:
     if isinstance(column.type, DateTime):
         return _parse_utc(str(value))
     if isinstance(column.type, Numeric):
+        if isinstance(value, Mapping) and set(value) == {"$w2_float"}:
+            encoded = value["$w2_float"]
+            if not isinstance(encoded, str) or len(encoded) != 16:
+                raise RealFixtureReplayError("SOURCE_CONTEXT_FLOAT_INVALID")
+            try:
+                value = struct.unpack(">d", bytes.fromhex(encoded))[0]
+            except (ValueError, struct.error) as exc:
+                raise RealFixtureReplayError("SOURCE_CONTEXT_FLOAT_INVALID") from exc
         return Decimal(str(value))
     return value
 

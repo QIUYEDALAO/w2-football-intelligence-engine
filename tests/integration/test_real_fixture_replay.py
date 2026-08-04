@@ -3,11 +3,12 @@ from __future__ import annotations
 import json
 import socket
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 import pytest
-from sqlalchemy import create_engine, delete
+from sqlalchemy import Column, Numeric, create_engine, delete
 
 from w2.config import get_settings
 from w2.infrastructure.database import Base
@@ -25,6 +26,7 @@ from w2.replay.real_fixture import (
     BundleIncompleteError,
     NetworkAccessAttempted,
     RealFixtureReplayError,
+    _database_value,
     _materializer,
     _seed_source_context,
     export_real_fixture_bundle,
@@ -244,6 +246,12 @@ def test_bundle_hash_tamper_is_rejected_before_replay(
 def test_network_guard_fails_closed() -> None:
     with network_disabled(), pytest.raises(NetworkAccessAttempted):
         socket.create_connection(("127.0.0.1", 9))
+
+
+def test_source_context_restores_canonical_float_for_numeric_columns() -> None:
+    value = _database_value(Column(Numeric), {"$w2_float": "3ff8000000000000"})
+
+    assert value == Decimal("1.5")
 
 
 def test_incomplete_database_reports_exact_missing_field_without_writing(
