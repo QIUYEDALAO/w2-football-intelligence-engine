@@ -544,9 +544,22 @@ def test_missing_projection_is_explicit_system_degraded_not_empty() -> None:
     card = service.public_analysis_card_bounded("fixture-1")
 
     assert card is not None
-    assert card["recommendation_decision_v3"]["outcome"] == "SYSTEM_DEGRADED"
+    assert card["recommendation_decision_v4"]["schema_version"] == (
+        "w2.recommendation_decision.v4"
+    )
+    assert card["recommendation_decision_v4"]["outcome"] == "NOT_READY"
+    assert card["recommendation_decision_v4"]["selected_candidate"] is None
+    assert card["recommendation_decision_v3_role"] == "HISTORY_ONLY"
+    assert "recommendation_decision_v3" not in card
+    assert card["projection_health"] == {
+        "status": "SYSTEM_DEGRADED",
+        "reason_code": "ANALYSIS_PROJECTION_NOT_READY",
+    }
     assert card["decision_tier"] == "NOT_READY"
     assert card["data_status"] == "BLOCKED"
+    assert card["pick"] is None
+    assert card["outcome_tracked"] is False
+    assert card["lock_eligible"] is False
     assert card["current_odds"] == {}
 
 
