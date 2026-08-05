@@ -1,23 +1,78 @@
 # W2 Repository Agent Instructions
 
-在修改 W2 前，必须读取：
+Before any W2 change, read:
 
+- `NEXT_ACTION.md`
 - `AI_PROJECT_CONTEXT.md`
 - `PROJECT_STATE.yaml`
-- `NEXT_ACTION.md`
-- `docs/operations/W2_INDEPENDENT_FINAL_AUDIT_20260731.md`
-- `docs/operations/W2_ASSET_UNIQUENESS_AUDIT_20260731.md`
-- `docs/operations/W2_AUDIT_PERSPECTIVE_REGISTRY.md`
-- `docs/operations/W2_PRODUCTION_RECOVERY_RECEIPT_20260803.md`
-- `docs/operations/W2_RECOMMENDATION_AUTHORITY_REAL_FIXTURE_REPLAY_RECEIPT_20260804.md`
-- `docs/operations/W2_REAL_FIXTURE_REPLAY_SANITIZED_MANIFEST_20260804.json`
-- GitHub Issue #454 v5 FINAL
-- Issue #455
-- Issue #456
+- `AI_QUANT_PROJECT_CONTEXT.md`
+- `QUANT_PROJECT_STATE.yaml`
+- `QUANT_AGENTS.md`
+- `docs/operations/W2_QUANT_PROGRAM_MASTER_CHECKLIST.md`
+- `docs/architecture/W2_SPORTTERY_QUANT_RESEARCH_PROTOCOL_V2_3_1.md`
+- `docs/operations/W2_QUANT_FREEZE_A0_BINDING_20260805.md`
+- the historical architecture checklist and independent audit receipts.
 
-#457 可保持 OPEN 作为运维风险记录；项目 gate 已由 binding decision 以 owner risk acceptance 关闭。
+## Current quant program
 
-## 本地同步前置
+```text
+TOP_LEVEL_PROGRAM = W2_SPORTTERY_QUANT_RESEARCH_PLATFORM
+ACTIVE_NEXT_ACTION = W2_QUANT_L1_OFFLINE_FOUNDATION
+CURRENT_WORKSTREAM = W2_QUANT_CONTEXT_FREEZE_A0
+CURRENT_PHASE = QUANT_CONTEXT_CLOSURE
+CURRENT_MAIN_SHA = 75159bfd71bb7492eece86da29cdb32e6f25d9c6
+DEPLOYED_SOURCE_SHA = f1718ec4d74e3038fd6240429df6efca42d0a520
+FREEZE_A0 = APPROVED_WITH_BINDING_ERRATA_A
+FREEZE_A1 = DEFERRED_OWNER_API_AND_LICENSE
+TRACK1_FORWARD_CLOCK = NOT_STARTED
+LIVE_CAPTURE_ENABLED = false
+```
+
+The only newly authorised code objective after this context PR is merged is
+`W2_QUANT_L1_OFFLINE_FOUNDATION`.
+
+## Quant code boundary
+
+New quant code must be isolated under:
+
+```text
+src/w2/quant_research/
+scripts/quant/
+```
+
+It must not be placed in:
+
+```text
+src/w2/prematch/
+src/w2/strategy/
+RecommendationDecisionV4
+existing future-refresh business paths
+```
+
+Required reuse:
+
+- `src/w2/domain/canonical_serialization.py`;
+- `w2.canonical-json.v2`;
+- existing PostgreSQL/Alembic and canonical fixture/team identities through explicit ports.
+
+Do not create a second canonical serializer, generic HTTP transport, database engine or fixture
+identity.
+
+Freeze A0 stop line:
+
+```text
+REAL_PROVIDER_CALLS = 0
+LIVE_CAPTURE_ENABLED = false
+TRACK1_FORWARD_CLOCK = NOT_STARTED
+PRODUCTION_DB_MODIFIED = false
+DEPLOYMENT_EXECUTED = false
+```
+
+Do not implement live adapters, collector activation, strategies, Shadow orders, Kelly,
+bankroll/risk, portfolio, 2×1 or real-money workflows. Do not modify the existing Scheduler,
+Provider allowlist, V4 or Dashboard.
+
+## Source and branch rules
 
 ```bash
 git remote -v
@@ -27,16 +82,38 @@ git rev-parse origin/main
 git show -s --format='%H %P %an <%ae> %cn <%ce> %s' origin/main
 ```
 
-当前正式 main（部署与后续工作的来源）：
+- start from the latest trusted `origin/main` in a clean worktree;
+- stop on source drift or a dirty workspace;
+- do not use PR #453, `agent/eval-02b-c9-*`, `e875050f...` or automation-authored remediation;
+- one bounded task per PR; merge commit only; no squash or auto-merge.
 
-```text
-8c6086e37ba62c138bdf059997ca760accef7067
-```
+## Operational safety rules retained
 
-历史审计基线仍为 `dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6`；不得把它误写成
-当前 main。main 漂移、workspace 不干净或来源不明时，停止代码编辑。
+1. Missing, illegal, stale, unknown or unverifiable authority fails closed.
+2. After a possible external Provider side effect, failure is persisted, surfaced, stops later
+   calls and forbids automatic retry.
+3. Idempotency requires the expected constraint and all stored business fields to agree.
+4. Required empty, swallowed failure, no lock or not executed is not success.
+5. One business fact has one versioned computation authority.
+6. Historical identity and hash are not overwritten without migration.
+7. Do not delete, skip, xfail or weaken required event, five-state `1e-9`, package matrix,
+   delta, lineage, migration, fault-injection or historical guards.
+8. Workflows may not push business implementation into PR branches.
+9. Same-source tests are not an independent oracle.
+10. Completion reports must distinguish implementation from independent review.
 
-## 任务层级
+## R5 canonical serialization
+
+- production authority: `src/w2/domain/canonical_serialization.py`;
+- current contract: `w2.canonical-json.v2`, UTF-8, sorted compact keys, `allow_nan=False`;
+- historical v1 profiles remain explicit compatibility contracts;
+- SER-05 oracle author differs from production implementer and does not import production
+  serializer;
+- CI rejects a second unauthorised serializer or hash writer.
+
+## Historical operational compatibility record
+
+The following is retained as completed operational history, not as the current quant action:
 
 ```text
 TOP_LEVEL_TASK = EVAL-02B
@@ -47,126 +124,6 @@ CURRENT_PHASE = PRODUCTION_RECOVERY_CONTEXT_CLOSURE_COMPLETE
 AUDIT_BASELINE_SHA = dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
 CURRENT_MAIN_SHA = 8c6086e37ba62c138bdf059997ca760accef7067
 DEPLOYED_SHA = 8c6086e37ba62c138bdf059997ca760accef7067
-TASK_AUTHORITY = docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
-ACTIVE_EXECUTION_AUTHORITY = Issue #454 v5
-```
-
-Wave 1 / T00 已完成并冻结；除非出现新的、明确批准的证据，不得重跑 T00 或调整其分母。
-Wave 2、Wave 3 和 Wave 4 单次真实 Canary 已通过，EVAL-02B 真实链路已证明。
-
-## Recommendation authority closure
-
-```text
-PUBLIC_RECOMMENDATION_AUTHORITY = SINGLE
-REAL_FIXTURE_OFFLINE_REPLAY = PASS
-LINEUP_NUMERIC_VALUE_MODEL = NOT_IMPLEMENTED
-LINEUP_NUMERIC_ADJUSTMENT = OFF
-CANDIDATE = OFF
-FORMAL = OFF
-LOCK = OFF
-PRODUCTION = OFF
-```
-
-当前公共 pick 只能来自 hash-valid V4；V3 不得产生当前公共方向。首发 validator 唯一，首发
-数值模型未实现。私有 raw replay bundle 不得提交 Git；只能引用脱敏 manifest 与回执。
-
-## 污染隔离
-
-```text
-PR #453 = QUARANTINED / DO NOT MERGE / DO NOT REPAIR IN PLACE
-```
-
-禁止 merge、rebase、cherry-pick 或复制：
-
-- PR #453；
-- `agent/eval-02b-c9-*`；
-- `e875050f6bc0286aed389aadfce1e17b2063635a`；
-- 其他 automation-authored remediation。
-
-所有实现必须在可信 main 的本地 clean worktree中正常 edit/commit/push。当前 final integration
-按 binding decision 创建非 Draft PR，并且只允许 merge commit；禁止 squash 与 auto-merge。
-
-## 不可协商规则
-
-1. 缺失、非法、陈旧、未知或不可验证的安全输入必须拒绝。
-2. Provider 可能收到请求后，后续失败必须持久化、冒泡、停止调用并禁止自动 retry。
-3. 幂等必须证明预期约束与全部存储业务字段一致。
-4. Required empty、吞异常、无锁、未执行都不是成功。
-5. 同一业务事实只能有一个可版本化、可独立复算的计算权威；不同定义需显式版本化。
-6. 历史 identity/hash 不得无迁移方案覆盖。
-7. 不得删除、skip、xfail 或放宽 required event、五态 `1e-9`、package matrix、delta、lineage、migration、故障注入或历史守卫。
-8. 禁止 workflow 向业务 PR 分支 push 或使用写权限自改实现。
-9. 同源测试不等于独立 oracle。
-10. 完成声明必须列明覆盖/未覆盖视角、implementer 和独立 reviewer。
-
-## R5 canonical serialization
-
-- 先 inventory，再在 SER-02 裁决 `ensure_ascii`；
-- 强制 `allow_nan=False`；
-- 合同明确 serializer version、UTF-8、Unicode、number/Decimal/date/datetime 和 unsupported type；
-- 建立 `src/w2/domain/` 唯一版本化 authority；
-- 不覆盖历史 hash；
-- SER-05 oracle 由不同作者实现且不得 import 生产 serializer；
-- CI 阻止第二个未授权 serializer/hash writer。
-
-## PR #450 守卫
-
-必须建立全部删除测试的守卫等价性矩阵，`UNCLASSIFIED_REMOVED_GUARDS = 0`。至少恢复 historical PR non-authority 和 retired staging-address absence guards。
-
-Post-Wave-1 冻结状态：
-
-```text
-WAVE_1_FINAL = PASS_WITH_BOUNDED_CARRY_FORWARD
-WAVE_1 = PASS_AND_FROZEN
-T00_RERUN = FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE
-FINAL_GATE_A_GROUPS = 28
-FINAL_EXACT_C1_C11_MAPPINGS = 35
-FINAL_TEST_CONTRACT_SKELETONS = 30
-ROLE_FIELDS_CARRIED_TO_PR450 = 145
-ROLE_FIELD_DISPOSITION = CARRY_TO_PR450_DOCUMENTATION_REPAIR
-ISSUE_457_PROJECT_GATE = CLOSED_WITH_OWNER_RISK_ACCEPTANCE
-WAVE_2 = PASS
-WAVE_3 = PASS
-WAVE_4_REAL_CANARY = PASS
-EVAL_02B_REAL_CHAIN = PROVEN
-REAL_CANARY_PROVIDER_CALLS = 5
-REAL_CANARY_EVIDENCE_SHA256 = 30e961cbedee33b5ec74bf3eabbd80a202ced3b9b21483160896812442ddd1f4
-SER_05_INDEPENDENT_ORACLE = PASS
-PR_461 = INTEGRATED_INTO_PR_460
-NEXT_CODE_ACTION = NONE_AUTHORIZED
-PR_450 = ACCEPTED_HEAD_FOR_FINAL_INTEGRATION
-PR_450_FINAL_ACCEPTANCE_REVIEW = COMPLETED
-PREDEPLOY_C9 = PASS
-PROVIDER = ON_CONTROLLED
-REAL_PROVIDER = ON_CONTROLLED
-REAL_CANARY = PASS
-PERSISTENT_SCHEDULER = ON_CONTROLLED
-CANDIDATE = OFF
-FORMAL = OFF
-LOCK = OFF
-PRODUCTION = OFF
-AUTO_MERGE = FORBIDDEN
-```
-
-## Delivery pipeline
-
-```text
-DELIVERY_MODEL = RELEASE_CANDIDATE_PROMOTION_V1
-MERGE_QUEUE = NOT_AVAILABLE_CURRENT_PERSONAL_REPOSITORY
-PR_FAST_REQUIRED = ENABLED
-RELEASE_REQUIRED = ENABLED
-MAIN_DUPLICATE_FULL_CI = DISABLED
-MAIN_DUPLICATE_IMAGE_BUILD = DISABLED
-IMAGE_TRANSPORT = LOCAL_OCI_RELAY_PRIMARY / GHCR_ARCHIVE_AND_FALLBACK
-```
-
-一个 PR head 只能有一个可晋级 Release Candidate。PR Fast 不构建镜像；完整质量矩阵和
-Python/Web immutable image 仅在 `release-candidate.yml` 执行一次；main 只允许校验并晋级
-相同 digest。证据缺失或 source/base/tree 不一致必须失败关闭并调用兼容 Full CI。
-
-Production recovery 当前合同：
-
-```text
 DASHBOARD_REAL_DATA_RECOVERY = PASS
 PUBLIC_DASHBOARD_CARDS = 51
 PRODUCTION_FUTURE_FIXTURES = 51
@@ -174,6 +131,9 @@ PROVIDER_REQUEST_DELTA = 58
 ENDPOINT_CAPTURE_DELTA = 58
 PROVIDER_ERRORS = 0
 COLLECTION_READY_COMPETITIONS = brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien
+PROVIDER = ON_CONTROLLED
+REAL_PROVIDER = ON_CONTROLLED
+PERSISTENT_SCHEDULER = ON_CONTROLLED
 SCHEDULER_CONCURRENCY = 1
 PROVIDER_ATTEMPTS = 1
 DAILY_HARD_CAP = 120
@@ -183,41 +143,25 @@ EXPLICIT_NOT_READY_CARDS = 51
 DYNAMIC_EVALUATION_PRODUCTION_RECOVERY = PENDING
 EVAL-03 = NOT STARTED
 COLD_PULL_SLO = NOT_PROVEN
+NEXT_CODE_ACTION = NONE_AUTHORIZED
+CANDIDATE = OFF
+FORMAL = OFF
+LOCK = OFF
+PRODUCTION = OFF
+AUTO_MERGE = FORBIDDEN
 ```
 
-尚缺 future-refresh 与 matchday policy 的已注册联赛：`argentina_primera`、`bundesliga`、
-`eredivisie`、`la_liga`、`ligue_1`、`mls`、`premier_league`、`primeira_liga`、`serie_a`。
-不得通过删除注册或缩减白名单消除该清单。
+Registered historical policy gaps remain recorded:
 
-PR #450 必须保留可信 main 的全部历史守卫，并校验 authority matrix 当前表头的
-列名、列顺序和列数。新增、删除、重命名或重排任一列都必须显式更新合同。
-不得在本阶段重新计算或重新分组 Wave 1 审计分母。PR #450 final acceptance review
-已发生，其 accepted head 已纳入 final integration。不得重新执行已经通过的 C9、Gate A
-或真实 Canary。
+- `argentina_primera`
+- `bundesliga`
+- `eredivisie`
+- `la_liga`
+- `ligue_1`
+- `mls`
+- `premier_league`
+- `primeira_liga`
+- `serie_a`
 
-## Canary 硬失败
-
-```text
-SERIALIZER_VERSION_MISSING
-INDEPENDENT_PAIR_HASH_MISMATCH
-INDEPENDENT_BOOTSTRAP_SEED_MISMATCH
-NAN_OR_INFINITY
-ANY_REQUIRED_DELTA_ZERO
-LINEAGE_MISMATCH
-```
-
-全部必须终止 canary，不得 warning 或人工改判。
-
-## 执行停止线
-
-context-only 闭环不得调用 Provider、创建新 canary 授权、重启或扩大现有 scheduler、
-再次部署、开放 Candidate/Formal/Lock/Production 或自动合并。
-
-最终输出：
-
-```text
-CONTEXT_CLOSURE_PROVIDER_CALL_DELTA = 0
-SCHEDULER_RESTARTED_IN_CONTEXT_CLOSURE = false
-DEPLOYMENT_EXECUTED_IN_CONTEXT_CLOSURE = false
-AUTO_MERGE_EXECUTED = false
-```
+The operational V4 chain, Wave 1–4 receipts, real canary, independent oracle and real-fixture
+replay remain historical evidence. Candidate, Formal, Lock and Production stay off.
