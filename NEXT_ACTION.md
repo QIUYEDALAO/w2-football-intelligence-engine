@@ -7,10 +7,13 @@ W2 采用双轨架构：现有 V4 / Dashboard / 受控 Scheduler 继续运行；
 ## Current authority
 
 - Quant machine state: [`QUANT_PROJECT_STATE.yaml`](QUANT_PROJECT_STATE.yaml)
+- Quant AI handoff: [`AI_QUANT_PROJECT_CONTEXT.md`](AI_QUANT_PROJECT_CONTEXT.md)
+- Quant agent instructions: [`QUANT_AGENTS.md`](QUANT_AGENTS.md)
 - Quant task order: [`W2_QUANT_PROGRAM_MASTER_CHECKLIST.md`](docs/operations/W2_QUANT_PROGRAM_MASTER_CHECKLIST.md)
 - Freeze A0 binding: [`W2_QUANT_FREEZE_A0_BINDING_20260805.md`](docs/operations/W2_QUANT_FREEZE_A0_BINDING_20260805.md)
 - Research protocol: [`W2_SPORTTERY_QUANT_RESEARCH_PROTOCOL_V2_3_1.md`](docs/architecture/W2_SPORTTERY_QUANT_RESEARCH_PROTOCOL_V2_3_1.md)
 - Existing operational state remains in [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml)
+- Historical operational task authority remains [`docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md`](docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md)
 
 ```text
 TOP_LEVEL_PROGRAM = W2_SPORTTERY_QUANT_RESEARCH_PLATFORM
