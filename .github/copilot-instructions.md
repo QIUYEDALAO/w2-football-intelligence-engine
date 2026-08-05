@@ -1,9 +1,72 @@
 # W2 GitHub Copilot Instructions
 
-先读 `AI_PROJECT_CONTEXT.md`、`PROJECT_STATE.yaml`、`NEXT_ACTION.md`、production recovery
-脱敏回执、两份审计、视角登记表，以及 GitHub Issue #454 v5、#455、#456。
+Read `NEXT_ACTION.md` first. For quant-research work, also read:
 
-## 权威与任务
+- `QUANT_PROJECT_STATE.yaml`
+- `AI_QUANT_PROJECT_CONTEXT.md`
+- `QUANT_AGENTS.md`
+- `docs/operations/W2_QUANT_PROGRAM_MASTER_CHECKLIST.md`
+- `docs/architecture/W2_SPORTTERY_QUANT_RESEARCH_PROTOCOL_V2_3_1.md`
+- `docs/operations/W2_QUANT_FREEZE_A0_BINDING_20260805.md`
+
+## Current quant authority
+
+```text
+TOP_LEVEL_PROGRAM = W2_SPORTTERY_QUANT_RESEARCH_PLATFORM
+ACTIVE_NEXT_ACTION = W2_QUANT_L1_OFFLINE_FOUNDATION
+CURRENT_WORKSTREAM = W2_QUANT_CONTEXT_FREEZE_A0
+CURRENT_PHASE = QUANT_CONTEXT_CLOSURE
+CURRENT_MAIN_SHA = 75159bfd71bb7492eece86da29cdb32e6f25d9c6
+DEPLOYED_SOURCE_SHA = f1718ec4d74e3038fd6240429df6efca42d0a520
+FREEZE_A0 = APPROVED_WITH_BINDING_ERRATA_A
+FREEZE_A1 = DEFERRED_OWNER_API_AND_LICENSE
+TRACK1_FORWARD_CLOCK = NOT_STARTED
+LIVE_CAPTURE_ENABLED = false
+```
+
+Only `W2_QUANT_L1_OFFLINE_FOUNDATION` is authorised after the context PR merges.
+
+## Quant placement
+
+```text
+allowed:   src/w2/quant_research/ and scripts/quant/
+forbidden: src/w2/prematch/, src/w2/strategy/, RecommendationDecisionV4,
+           existing future-refresh business paths
+```
+
+Reuse `src/w2/domain/canonical_serialization.py` with `w2.canonical-json.v2`.
+Do not introduce a second serializer, generic HTTP client, fixture identity or database engine.
+
+Freeze A0 requires:
+
+```text
+REAL_PROVIDER_CALLS = 0
+LIVE_CAPTURE_ENABLED = false
+TRACK1_FORWARD_CLOCK = NOT_STARTED
+PRODUCTION_DB_MODIFIED = false
+DEPLOYMENT_EXECUTED = false
+```
+
+Do not implement live adapters, collector activation, strategy selection, Shadow orders,
+Kelly, bankroll/risk, portfolio, 2×1 or real-money workflows. Do not change the operational
+Scheduler, Provider allowlist, V4 or Dashboard.
+
+## Core safety rules
+
+- missing or unverifiable authority fails closed;
+- possible Provider delivery followed by failure is persisted and stops later calls;
+- idempotency verifies the constraint and every stored business field;
+- required zero evidence is failure;
+- one business fact has one versioned computation authority;
+- historical identity/hash is never silently overwritten;
+- no skip, xfail or weakened required-event, five-state, package-matrix, migration, lineage or
+  fault-injection guard;
+- no workflow write-back to business PR branches;
+- merge commit only; no squash or auto-merge.
+
+## Historical operational compatibility record
+
+The following remains completed operational history and is not the current quant action:
 
 ```text
 TOP_LEVEL_TASK = EVAL-02B
@@ -11,115 +74,9 @@ ACTIVE_NEXT_ACTION = POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS
 ACTIVE_CONTEXT_PR = NONE
 CURRENT_WORKSTREAM = POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS
 CURRENT_PHASE = PRODUCTION_RECOVERY_CONTEXT_CLOSURE_COMPLETE
-TASK_AUTHORITY = docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md
-ACTIVE_EXECUTION_AUTHORITY = Issue #454 v5
 AUDIT_BASELINE_SHA = dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
 CURRENT_MAIN_SHA = 8c6086e37ba62c138bdf059997ca760accef7067
 DEPLOYED_SHA = 8c6086e37ba62c138bdf059997ca760accef7067
-```
-
-#457 可保持 OPEN 作为运维风险记录；项目 gate 已由 binding decision 以 owner risk acceptance 关闭。
-Wave 1 / T00 已完成并冻结；除非出现新的、明确批准的证据，不得重跑 T00。
-Wave 2、Wave 3 和 Wave 4 单次真实 Canary 已通过，EVAL-02B 真实链路已证明。
-
-## Recommendation authority closure
-
-先读 `docs/operations/W2_RECOMMENDATION_AUTHORITY_REAL_FIXTURE_REPLAY_RECEIPT_20260804.md`
-与 `docs/operations/W2_REAL_FIXTURE_REPLAY_SANITIZED_MANIFEST_20260804.json`。
-
-```text
-PUBLIC_RECOMMENDATION_AUTHORITY = SINGLE
-REAL_FIXTURE_OFFLINE_REPLAY = PASS
-LINEUP_NUMERIC_VALUE_MODEL = NOT_IMPLEMENTED
-LINEUP_NUMERIC_ADJUSTMENT = OFF
-CANDIDATE = OFF
-FORMAL = OFF
-LOCK = OFF
-PRODUCTION = OFF
-```
-
-当前公共 pick 只能来自 hash-valid V4；V3 仅允许历史展示与结算。不得提交私有 raw replay
-bundle，也不得把首发 readiness 误写成已实现首发数值模型。
-
-## Source rules
-
-- 先 `git fetch --all --prune --tags` 并核对 current main `8c6086e3...`；`dbc8e1e8...`
-  只作为历史审计基线。
-- 从可信 main 的本地 clean worktree 工作。
-- 不使用 PR #453、`agent/eval-02b-c9-*`、`e875050f...` 或其他 automation-authored remediation。
-- 不创建会使用写权限改写业务 PR 分支的 workflow。
-- 仅通过正常 local edit/commit/push/PR 提交实现；本 final integration PR 必须非 Draft，
-  只允许 merge commit，禁止 squash 与 auto-merge。
-
-## Core rules
-
-- Missing/unknown safety input = BLOCKED。
-- Provider 可能送达后，失败必须显式、持久化、停后续调用、禁止自动 retry。
-- 幂等需要预期约束和全部业务字段核验。
-- Required zero evidence = FAILED。
-- 一个事实只有一个版本化计算权威；历史 hash 不得无迁移覆盖。
-- 不得放宽 event、五态 `1e-9`、package matrix、delta、lineage、migration、fault-injection 或历史守卫。
-- `2/2.5 -> 2.25` 是已验证合同。
-- `readiness.py` 不是 Provider live-call 入口。
-
-## R5
-
-在 SER-02 前不得选择 `ensure_ascii`。SER-05 independent oracle 必须由不同作者实现、不得 import 生产 serializer，并记录独立 reviewer。
-
-## Post-Wave-1 freeze
-
-```text
-WAVE_1_FINAL = PASS_WITH_BOUNDED_CARRY_FORWARD
-WAVE_1 = PASS_AND_FROZEN
-T00_RERUN = FORBIDDEN_UNLESS_NEW_APPROVED_EVIDENCE
-FINAL_GATE_A_GROUPS = 28
-FINAL_EXACT_C1_C11_MAPPINGS = 35
-FINAL_TEST_CONTRACT_SKELETONS = 30
-ROLE_FIELDS_CARRIED_TO_PR450 = 145
-ROLE_FIELD_DISPOSITION = CARRY_TO_PR450_DOCUMENTATION_REPAIR
-ISSUE_457_PROJECT_GATE = CLOSED_WITH_OWNER_RISK_ACCEPTANCE
-WAVE_2 = PASS
-WAVE_3 = PASS
-WAVE_4_REAL_CANARY = PASS
-EVAL_02B_REAL_CHAIN = PROVEN
-REAL_CANARY_PROVIDER_CALLS = 5
-REAL_CANARY_EVIDENCE_SHA256 = 30e961cbedee33b5ec74bf3eabbd80a202ced3b9b21483160896812442ddd1f4
-SER_05_INDEPENDENT_ORACLE = PASS
-PR_461 = INTEGRATED_INTO_PR_460
-NEXT_CODE_ACTION = NONE_AUTHORIZED
-PR_450 = ACCEPTED_HEAD_FOR_FINAL_INTEGRATION
-PR_450_FINAL_ACCEPTANCE_REVIEW = COMPLETED
-PREDEPLOY_C9 = PASS
-PROVIDER = ON_CONTROLLED
-REAL_PROVIDER = ON_CONTROLLED
-REAL_CANARY = PASS
-PERSISTENT_SCHEDULER = ON_CONTROLLED
-CANDIDATE = OFF
-FORMAL = OFF
-LOCK = OFF
-PRODUCTION = OFF
-AUTO_MERGE = FORBIDDEN
-```
-
-## Delivery pipeline
-
-```text
-DELIVERY_MODEL = RELEASE_CANDIDATE_PROMOTION_V1
-MERGE_QUEUE = NOT_AVAILABLE_CURRENT_PERSONAL_REPOSITORY
-PR_FAST_REQUIRED = ENABLED
-RELEASE_REQUIRED = ENABLED
-MAIN_DUPLICATE_FULL_CI = DISABLED
-MAIN_DUPLICATE_IMAGE_BUILD = DISABLED
-IMAGE_TRANSPORT = LOCAL_OCI_RELAY_PRIMARY / GHCR_ARCHIVE_AND_FALLBACK
-```
-
-PR Fast 仅提供快速反馈。唯一完整验证和唯一 Python/Web 发布镜像构建必须绑定同一 PR
-head 并由 `release-candidate.yml` 完成；main 仅验证 Release Manifest、tree SHA 和 digest
-后晋级。缺失或不一致时失败关闭，不得跨 SHA 复用。
-
-## Production recovery contract
-
-```text
 DASHBOARD_REAL_DATA_RECOVERY = PASS
 PUBLIC_DASHBOARD_CARDS = 51
 PRODUCTION_FUTURE_FIXTURES = 51
@@ -127,6 +84,9 @@ PROVIDER_REQUEST_DELTA = 58
 ENDPOINT_CAPTURE_DELTA = 58
 PROVIDER_ERRORS = 0
 COLLECTION_READY_COMPETITIONS = brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien
+PROVIDER = ON_CONTROLLED
+REAL_PROVIDER = ON_CONTROLLED
+PERSISTENT_SCHEDULER = ON_CONTROLLED
 SCHEDULER_CONCURRENCY = 1
 PROVIDER_ATTEMPTS = 1
 DAILY_HARD_CAP = 120
@@ -136,33 +96,14 @@ EXPLICIT_NOT_READY_CARDS = 51
 DYNAMIC_EVALUATION_PRODUCTION_RECOVERY = PENDING
 EVAL-03 = NOT STARTED
 COLD_PULL_SLO = NOT_PROVEN
+NEXT_CODE_ACTION = NONE_AUTHORIZED
+CANDIDATE = OFF
+FORMAL = OFF
+LOCK = OFF
+PRODUCTION = OFF
+AUTO_MERGE = FORBIDDEN
 ```
 
-Missing future-refresh and matchday policy coverage remains registered for:
+Historical registered competition-policy gaps:
 `argentina_primera`, `bundesliga`, `eredivisie`, `la_liga`, `ligue_1`, `mls`,
-`premier_league`, `primeira_liga`, and `serie_a`. Do not delete those registrations.
-
-PR #450 只允许上下文和守卫收口：保留全部历史守卫，硬校验 authority matrix
-表头名称、顺序与列数，并显式承接 145 个 `role` 字段。不得重新计算或重新分组
-Wave 1 分母。PR #450 final acceptance review 已发生，其 accepted head 已纳入 final
-integration；不得重新执行已经通过的 C9、Gate A 或真实 Canary。
-
-## Canary hard failures
-
-```text
-SERIALIZER_VERSION_MISSING
-INDEPENDENT_PAIR_HASH_MISMATCH
-INDEPENDENT_BOOTSTRAP_SEED_MISMATCH
-NAN_OR_INFINITY
-ANY_REQUIRED_DELTA_ZERO
-LINEAGE_MISMATCH
-```
-
-## Stop line
-
-```text
-CONTEXT_CLOSURE_PROVIDER_CALL_DELTA = 0
-SCHEDULER_RESTARTED_IN_CONTEXT_CLOSURE = false
-DEPLOYMENT_EXECUTED_IN_CONTEXT_CLOSURE = false
-AUTO_MERGE_EXECUTED = false
-```
+`premier_league`, `primeira_liga`, `serie_a`.
