@@ -1,10 +1,10 @@
 # W2 Project Decision Ledger
 
-This file records human decisions only. Machine-readable current operational state belongs in
-[PROJECT_STATE.yaml](PROJECT_STATE.yaml); task order, specifications, and merged completion
-receipts for the historical operational program belong in the
+This file records human decisions only. `PROJECT_STATE.yaml` remains the sole machine-readable
+project-status record for the existing operational W2 track. Task order, specifications, and
+merged completion receipts for the historical operational program belong in the
 [v3 master checklist](docs/operations/architecture_convergence/W2_ARCHITECTURE_CONVERGENCE_MASTER_CHECKLIST.md).
-The quant-research program has a separate machine state and task authority in
+The quant-research program has a separate bounded machine state and task authority in
 [QUANT_PROJECT_STATE.yaml](QUANT_PROJECT_STATE.yaml) and
 [W2_QUANT_PROGRAM_MASTER_CHECKLIST.md](docs/operations/W2_QUANT_PROGRAM_MASTER_CHECKLIST.md).
 The AI handoff summary is [AI_PROJECT_CONTEXT.md](AI_PROJECT_CONTEXT.md). Historical evidence
@@ -33,7 +33,8 @@ remains under `docs/archive/` and in Git history.
 
 ## 2026-07-29 — Status record convergence
 
-- `PROJECT_STATE.yaml` is the sole machine-readable operational-status record.
+- `PROJECT_STATE.yaml` is the sole machine-readable project-status record for the operational
+  track.
 - This ledger contains decisions, not task status, commit coordinates, CI receipts, or
   operational evidence.
 - `NEXT_ACTION.md` is an index to the current authorities.
