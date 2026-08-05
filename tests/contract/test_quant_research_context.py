@@ -69,8 +69,12 @@ def test_quant_protocol_and_binding_authorities_are_present() -> None:
     binding = read(BINDING)
     master = read(MASTER)
 
+    expected_source_sha = (
+        "SOURCE_SHA256 = "
+        "b724bd3daf37d395966f78514ed1011e1ae95f6507ed959cd7d9d03f584142eb"
+    )
     assert "PROTOCOL_VERSION = v2.3.1" in protocol
-    assert "SOURCE_SHA256 = b724bd3daf37d395966f78514ed1011e1ae95f6507ed959cd7d9d03f584142eb" in protocol
+    assert expected_source_sha in protocol
     assert "HHAD_DECISION = OPTION_B" in protocol
     for part in range(1, 5):
         assert (
