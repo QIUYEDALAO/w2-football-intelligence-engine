@@ -54,9 +54,58 @@ The next task must not:
 - modify the production database or deploy to VPS;
 - open Candidate, Formal, Lock or Production.
 
-## Historical operational action
+## Historical operational context — bounded compatibility record
 
-`POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS` is no longer the active action. Its receipts and historical facts remain valid under the existing operational authorities and Git history.
+The following block is retained solely so existing historical context contracts continue to
+recognise the completed operational workstream. It is not the current quant-program action.
+
+```text
+TOP_LEVEL_TASK = EVAL-02B
+ACTIVE_NEXT_ACTION = POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS
+ACTIVE_CONTEXT_PR = NONE
+CURRENT_WORKSTREAM = POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS
+CURRENT_PHASE = PRODUCTION_RECOVERY_CONTEXT_CLOSURE_COMPLETE
+AUDIT_BASELINE_SHA = dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
+CURRENT_MAIN_SHA = 8c6086e37ba62c138bdf059997ca760accef7067
+DEPLOYED_SHA = 8c6086e37ba62c138bdf059997ca760accef7067
+DASHBOARD_REAL_DATA_RECOVERY = PASS
+PUBLIC_DASHBOARD_CARDS = 51
+PRODUCTION_FUTURE_FIXTURES = 51
+PROVIDER_REQUEST_DELTA = 58
+ENDPOINT_CAPTURE_DELTA = 58
+PROVIDER_ERRORS = 0
+COLLECTION_READY_COMPETITIONS = brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien
+PROVIDER = ON_CONTROLLED
+REAL_PROVIDER = ON_CONTROLLED
+PERSISTENT_SCHEDULER = ON_CONTROLLED
+SCHEDULER_CONCURRENCY = 1
+PROVIDER_ATTEMPTS = 1
+DAILY_HARD_CAP = 120
+TICK_HARD_CAP = 30
+DYNAMIC_EVALUATION_V2 = 0
+EXPLICIT_NOT_READY_CARDS = 51
+DYNAMIC_EVALUATION_PRODUCTION_RECOVERY = PENDING
+EVAL-03 = NOT STARTED
+COLD_PULL_SLO = NOT_PROVEN
+NEXT_CODE_ACTION = NONE_AUTHORIZED
+CANDIDATE = OFF
+FORMAL = OFF
+LOCK = OFF
+PRODUCTION = OFF
+AUTO_MERGE = FORBIDDEN
+```
+
+Registered competitions whose historical coverage remains recorded:
+
+- `argentina_primera`
+- `bundesliga`
+- `eredivisie`
+- `la_liga`
+- `ligue_1`
+- `mls`
+- `premier_league`
+- `primeira_liga`
+- `serie_a`
 
 ## Context-only closure invariants
 
