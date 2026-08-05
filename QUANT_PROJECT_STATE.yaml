@@ -8,6 +8,8 @@ protocol_version: v2.3.1
 protocol_path: docs/architecture/W2_SPORTTERY_QUANT_RESEARCH_PROTOCOL_V2_3_1.md
 binding_path: docs/operations/W2_QUANT_FREEZE_A0_BINDING_20260805.md
 task_authority: docs/operations/W2_QUANT_PROGRAM_MASTER_CHECKLIST.md
+handoff_authority: AI_QUANT_PROJECT_CONTEXT.md
+agent_instructions: QUANT_AGENTS.md
 active_next_action: W2_QUANT_L1_OFFLINE_FOUNDATION
 current_phase: QUANT_CONTEXT_CLOSURE
 current_status: IN_PROGRESS
