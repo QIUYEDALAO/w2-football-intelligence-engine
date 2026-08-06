@@ -63,6 +63,7 @@ ALLOWLIST = (
     "never log or store",
     "Secret scan",
     "secret scan",
+    "Secret 扫描",
     "password auto-generated",
     "32-byte hex",
     "printing secrets",

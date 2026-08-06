@@ -1,0 +1,44 @@
+schema_version: w2.quant_project_state.v1
+program: W2_SPORTTERY_QUANT_RESEARCH_PLATFORM
+updated_at: "2026-08-05"
+repository: QIUYEDALAO/w2-football-intelligence-engine
+base_main_sha: 75159bfd71bb7492eece86da29cdb32e6f25d9c6
+deployed_source_sha: f1718ec4d74e3038fd6240429df6efca42d0a520
+protocol_version: v2.3.1
+protocol_path: docs/architecture/W2_SPORTTERY_QUANT_RESEARCH_PROTOCOL_V2_3_1.md
+binding_path: docs/operations/W2_QUANT_FREEZE_A0_BINDING_20260805.md
+task_authority: docs/operations/W2_QUANT_PROGRAM_MASTER_CHECKLIST.md
+handoff_authority: AI_QUANT_PROJECT_CONTEXT.md
+agent_instructions: QUANT_AGENTS.md
+active_next_action: W2_QUANT_L1_OFFLINE_FOUNDATION
+current_phase: QUANT_CONTEXT_CLOSURE
+current_status: IN_PROGRESS
+architecture: SAME_REPOSITORY_INDEPENDENT_BOUNDED_CONTEXT
+existing_v4_recommendation_chain: PRESERVED_AND_UNMODIFIED
+freeze_a0_offline_engineering: APPROVED_WITH_BINDING_ERRATA_A
+freeze_a1_live_collection: DEFERRED_OWNER_API_AND_LICENSE
+track1_forward_clock: NOT_STARTED
+quant_runtime_code: NOT_STARTED
+quant_provider_calls: 0
+quant_deployment: NOT_AUTHORIZED
+live_capture_enabled: false
+l2_strategy_engine: NOT_AUTHORIZED
+l3_shadow_ledger: NOT_AUTHORIZED
+l4_bankroll_risk: NOT_AUTHORIZED
+phase_a: NOT_AUTHORIZED
+phase_b: NOT_AUTHORIZED
+portfolio: NOT_AUTHORIZED
+two_leg_parlay: NOT_AUTHORIZED
+real_money: NOT_AUTHORIZED
+operational_track:
+  scheduler: ON_CONTROLLED
+  candidate: "OFF"
+  formal: "OFF"
+  lock: "OFF"
+  production: "OFF"
+context_closure:
+  runtime_code_changed: false
+  database_migration_created: false
+  provider_calls: 0
+  images_built: 0
+  deployment_executed: false
