@@ -1,70 +1,88 @@
-# W2 Quant Research Agent Instructions
+# W2 Football Quant Agent Instructions
 
-Before changing the quant-research program, read in order:
+Before any Phase 0.5 work, read in order from branch `context/current`:
 
-1. `QUANT_PROJECT_STATE.yaml`
-2. `NEXT_ACTION.md`
-3. `AI_QUANT_PROJECT_CONTEXT.md`
-4. `docs/operations/W2_QUANT_PROGRAM_MASTER_CHECKLIST.md`
-5. `docs/architecture/W2_SPORTTERY_QUANT_RESEARCH_PROTOCOL_V2_3_1.md`
-6. `docs/operations/W2_QUANT_FREEZE_A0_BINDING_20260805.md`
-7. the existing operational `AGENTS.md` safety rules.
+1. `CURRENT_CONTEXT.md`
+2. `CURRENT_STATE.yaml`
+3. `CURRENT_TASK_CHECKLIST.md`
+4. `NEXT_ACTION.md`
+5. `AI_QUANT_PROJECT_CONTEXT.md`
+
+Context is updated directly on `context/current`; do not create a context PR or run context CI.
 
 ## Current task
 
 ```text
-ACTIVE_NEXT_ACTION = W2_QUANT_L1_OFFLINE_FOUNDATION
-FREEZE_A0 = APPROVED_WITH_BINDING_ERRATA_A
-FREEZE_A1 = DEFERRED_OWNER_API_AND_LICENSE
+ACTIVE_NEXT_ACTION = W2_PHASE_0_5_R1_D_TRAIN_AND_V_MANIFEST
+PROTOCOL_FROZEN = true
+EXECUTION = AUTHORIZED_STAGEWISE
 ```
 
-## Source and workspace
+## Workspace
 
-- fetch and verify the latest trusted `origin/main`;
-- use a new clean worktree;
-- stop on main drift or a dirty source tree;
-- do not use quarantined or automation-authored remediation history;
-- keep one PR for the bounded task.
+- use a clean local research worktree based on the verified source head;
+- recompute B1–B5 and the relevant-code manifest before result access;
+- stop on any source, artifact, split or guard drift;
+- keep generated data and reports outside tracked production paths;
+- do not deploy.
 
-## Code boundary
-
-All new quant production code belongs under:
+## Result-access discipline
 
 ```text
-src/w2/quant_research/
-scripts/quant/
+R0: D/V/H closed.
+R1: D training results only.
+R2: freeze V candidate prediction and selection manifests while V remains closed.
+R2B: V opens once; H remains closed.
+R3/R4: refit D+V and freeze H manifests while H remains closed.
+R5: H opens once; no model or selection change afterward.
 ```
 
-Do not place it in:
+Never read V or H results early. Never use H results for model fit, threshold choice, feature choice, market scope, devig choice or selection changes.
+
+## Frozen research scope
 
 ```text
-src/w2/prematch/
-src/w2/strategy/
-RecommendationDecisionV4
-existing future-refresh business paths
+SOURCE = FOOTBALL_DATA_MMZ_ONLY
+D = 2019_20,2020_21,2021_22
+V = 2022_23,2023_24
+H = 2024_25,2025_26
+
+PRIMARY_PREDICTIVE = OU_2_5,AH_HALF_GOAL_LINES
+PRIMARY_ECONOMIC = OU_2_5
+ODDS_SOURCE = PINNACLE_ONLY
 ```
 
-## Required reuse
+M2 and M4 parameters are fixed by `CURRENT_CONTEXT.md`. M4 PRE and CLOSE must be trained independently.
 
-- canonical serialization: `src/w2/domain/canonical_serialization.py`;
-- serializer contract: `w2.canonical-json.v2`;
-- PostgreSQL/Alembic framework;
-- existing fixture/team identity through explicit read-only ports;
-- existing request transport only in a later Freeze A1 adapter.
+## Prohibited work
 
-Do not create a second canonical serializer, generic database engine, fixture identity or HTTP
-transport.
+- no production code/model changes;
+- no Provider calls;
+- no Signal Ledger or product strategy implementation;
+- no Portfolio, Risk, Kelly, Dashboard or 2×1;
+- no changes to V4, Scheduler, Provider allowlist or production DB;
+- no real-money or automated betting.
 
-## Freeze A0 hard stops
+## Statistical integrity
+
+- current `ev_se` is `EV_SCENARIO_SD`, not sampling standard error;
+- use only the frozen two-stage bootstrap and Holm family;
+- line-moved orders remain in PRE ROI at original PRE line and price;
+- same-line CLV is exploratory only;
+- individual-league and M1/M3 results cannot independently trigger GO;
+- actual selected-order count, not eligible population, determines economic power.
+
+## Current required stop
+
+Finish R1/R2 with:
 
 ```text
-REAL_PROVIDER_CALLS = 0
-LIVE_CAPTURE_ENABLED = false
-TRACK1_FORWARD_CLOCK = NOT_STARTED
-PRODUCTION_DB_MODIFIED = false
+V_CANDIDATE_PREDICTION_MANIFEST_SHA256 = frozen
+V_PRE_SELECTION_CANDIDATE_MANIFEST_SHA256 = frozen
+V_RESULT_COLUMNS_READ = false
+H_RESULT_COLUMNS_READ = false
+PROVIDER_CALLS = 0
 DEPLOYMENT_EXECUTED = false
 ```
 
-Do not implement strategies, Shadow orders, Kelly, bankroll/risk, portfolio, 2×1 or real-money
-execution. Do not change the existing operational Scheduler, Provider allowlist, V4 or
-Dashboard. Candidate, Formal, Lock and Production stay off.
+Then stop for review.
