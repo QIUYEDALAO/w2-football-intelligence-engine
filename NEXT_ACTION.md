@@ -1,6 +1,6 @@
 # NEXT ACTION
 
-当前唯一工作：`W2_PHASE_0_5_FROZEN_ARTIFACT_RECOVERY`。
+当前唯一工作：`W2_PHASE_0_5_R1_D_TRAIN_AND_V_MANIFEST`。
 
 W2 暂不建设竞彩专线，也暂不建设完整量化平台。当前只执行 **Pinnacle Closing Mainline AH + OU 2.5 边际存在性检验**。只有最终裁决为 `ECONOMIC_EDGE_CANDIDATE`，才允许起草完整的 W2 Football Quant Platform 改造总设计。
 
@@ -16,23 +16,24 @@ W2 暂不建设竞彩专线，也暂不建设完整量化平台。当前只执�
 PROGRAM = W2_FOOTBALL_QUANT_EDGE_EXISTENCE
 PROTOCOL = W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
 PROTOCOL_FROZEN = true
-EXECUTION = BLOCKED_UNTIL_ARTIFACT_RECOVERY
-ACTIVE_NEXT_ACTION = W2_PHASE_0_5_FROZEN_ARTIFACT_RECOVERY
-CURRENT_STATUS = BLOCKED_ARTIFACT_CUSTODY_RECOVERY
-CURRENT_GATE = ARTIFACT_CUSTODY_RECOVERY
+EXECUTION = AUTHORIZED_STAGEWISE
+ACTIVE_NEXT_ACTION = W2_PHASE_0_5_R1_D_TRAIN_AND_V_MANIFEST
+CURRENT_STATUS = READY_R1_AFTER_EXACT_ARTIFACT_RECOVERY
+CURRENT_GATE = R1_D_TRAINING
 
-D_RESULT_ACCESS = CLOSED
+D_RESULT_ACCESS = AUTHORIZED_FOR_R1_TRAINING_ONLY
 V_RESULT_ACCESS = CLOSED
 H_RESULT_ACCESS = CLOSED
 ```
 
 ## Immediate work
 
-1. 搜索并核验 Freeze 0A 的六份原始冻结产物和 156 个源文件。
-2. 优先恢复 exact bytes；任一原始产物不可证明时，不得声称 RC3 B1 恢复。
-3. 若只能恢复原始 source dataset，使用 outcome-blind 合同生成新的 RC3R1 binding pack。
-4. D/V/H 结果始终关闭；不拟合模型，不生成 V manifest。
-5. 恢复 PASS 后才把 `W2_PHASE_0_5_R1_D_TRAIN_AND_V_MANIFEST` 设为下一动作。
+1. 使用只读 canonical RC3 pack，记录 R1 的精确输入身份。
+2. 只解封 D 结果列；V/H 保持关闭。
+3. 按 20 个 division 拟合纯进球 Dixon-Coles M2，并搜索 41 个 train-only rho 值。
+4. 分别拟合所有冻结的 M4 PRE 与 M4 CLOSE L2 候选，参数完全隔离。
+5. 对 V 生成全部候选预测与 PRE 选择，不读取 V 赛果。
+6. 冻结两个 V manifest SHA-256，并停在 V 结果解封前回报。
 
 ## Stop lines
 

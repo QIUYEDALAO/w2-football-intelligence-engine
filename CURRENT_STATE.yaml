@@ -8,18 +8,20 @@ program: W2_FOOTBALL_QUANT_EDGE_EXISTENCE
 protocol: W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
 protocol_frozen: true
 binding_erratum: STAGED_OUTCOME_ACCESS_AND_HOLDOUT_EXECUTION
-execution_authority: BLOCKED_UNTIL_ARTIFACT_RECOVERY
-active_next_action: W2_PHASE_0_5_FROZEN_ARTIFACT_RECOVERY
-current_status: BLOCKED_ARTIFACT_CUSTODY_RECOVERY
-current_gate: ARTIFACT_CUSTODY_RECOVERY
+execution_authority: AUTHORIZED_STAGEWISE
+active_next_action: W2_PHASE_0_5_R1_D_TRAIN_AND_V_MANIFEST
+current_status: READY_R1_AFTER_EXACT_ARTIFACT_RECOVERY
+current_gate: R1_D_TRAINING
 
 source_head_observed: 84e642f3ea26464574f75ee4d520b38bcf24073a
-relevant_code_manifest_status: PENDING_ARTIFACT_RECOVERY_RECHECK
-artifact_binding_status: FAIL_FROZEN_ARTIFACTS_NOT_FOUND_RECOVERY_ACTIVE
+relevant_code_manifest_status: PASS_EXACT_RECOVERY_RECHECK
+artifact_binding_status: PASS_EXACT_RC3_BYTES_RECOVERED
+canonical_frozen_directory: /Users/liudehua/.hermes/workspace/w2-phase05-frozen-authority/rc3
+frozen_pack_manifest_sha256: 198894a2f0ae92735e5c3fbed016e61df8093376f890244e6ca04824ac2b7e16
 
 result_access:
-  mode: CLOSED_DURING_ARTIFACT_RECOVERY
-  d: CLOSED
+  mode: STAGED_SPLIT_GATES
+  d: AUTHORIZED_FOR_R1_TRAINING_ONLY
   v: CLOSED
   h: CLOSED
 

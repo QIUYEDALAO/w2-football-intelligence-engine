@@ -8,8 +8,8 @@ This is the complete current task order for W2. Context updates are made directl
 PROGRAM = W2_FOOTBALL_QUANT_EDGE_EXISTENCE
 PROTOCOL = W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
 PROTOCOL_FROZEN = true
-EXECUTION = BLOCKED_UNTIL_ARTIFACT_RECOVERY
-ACTIVE_TASK = W2_PHASE_0_5_FROZEN_ARTIFACT_RECOVERY
+EXECUTION = AUTHORIZED_STAGEWISE
+ACTIVE_TASK = Q05-R1-D-TRAIN-AND-V-MANIFEST
 ```
 
 No task below authorizes production changes, Provider calls, deployment, Signal Ledger, strategy productization, portfolio construction or real-money execution.
@@ -63,7 +63,7 @@ LINE_MOVED = 19053
 ## Q05-02 — Freeze 0B machine binding
 
 ```text
-STATUS = PASS_REPORTED_REVERIFY_BEFORE_EXECUTION
+STATUS = PASS_EXACT_ARTIFACT_RECOVERY_RECHECK
 ```
 
 Before reading any result column, recompute and require PASS:
@@ -92,7 +92,7 @@ Stop immediately if any artifact, code blob, split membership or result-access g
 ## Q05-R1 — D training and candidate construction
 
 ```text
-STATUS = BLOCKED_UNTIL_ARTIFACT_RECOVERY_PASS
+STATUS = NEXT
 RESULT_ACCESS = D_ONLY
 ```
 
@@ -426,8 +426,7 @@ Applies to every task:
 ## Current handoff
 
 ```text
-NEXT = W2_PHASE_0_5_FROZEN_ARTIFACT_RECOVERY
-AFTER_RECOVERY_PASS = Q05-R1
-STOP_POINT = ORIGINAL_RC3_RECOVERED_OR_RC3R1_FROZEN_PENDING_REVIEW
-EXPECTED_REPORT = ARTIFACT_CUSTODY_RECOVERY_RECEIPT_RESULTS_UNREAD
+NEXT = Q05-R1
+STOP_POINT = V_CANDIDATE_PREDICTION_MANIFEST_SHA256_FROZEN
+EXPECTED_REPORT = R1_COMPLETE_R2_MANIFESTS_FROZEN_V_RESULTS_UNREAD
 ```

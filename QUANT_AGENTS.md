@@ -13,9 +13,9 @@ Context is updated directly on `context/current`; do not create a context PR or 
 ## Current task
 
 ```text
-ACTIVE_NEXT_ACTION = W2_PHASE_0_5_FROZEN_ARTIFACT_RECOVERY
+ACTIVE_NEXT_ACTION = W2_PHASE_0_5_R1_D_TRAIN_AND_V_MANIFEST
 PROTOCOL_FROZEN = true
-EXECUTION = BLOCKED_UNTIL_ARTIFACT_RECOVERY
+EXECUTION = AUTHORIZED_STAGEWISE
 ```
 
 ## Workspace

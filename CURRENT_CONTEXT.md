@@ -9,8 +9,8 @@ W2 is no longer pursuing a Sporttery-specific quant system. The existing operati
 ```text
 TOP_LEVEL_PROGRAM = W2_FOOTBALL_QUANT_EDGE_EXISTENCE
 CURRENT_RESEARCH = PINNACLE_CLOSING_MAINLINE_AH_AND_OU25
-ACTIVE_NEXT_ACTION = W2_PHASE_0_5_FROZEN_ARTIFACT_RECOVERY
-CURRENT_STATUS = BLOCKED_ARTIFACT_CUSTODY_RECOVERY
+ACTIVE_NEXT_ACTION = W2_PHASE_0_5_R1_D_TRAIN_AND_V_MANIFEST
+CURRENT_STATUS = READY_R1_AFTER_EXACT_ARTIFACT_RECOVERY
 ```
 
 The current task is **Phase 0.5 edge-existence testing**, not Signal Ledger, strategy, portfolio, risk, Dashboard or deployment work.
@@ -34,14 +34,16 @@ Only `ECONOMIC_EDGE_CANDIDATE` authorizes preparation of the full W2 Football Qu
 PROTOCOL = W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
 PROTOCOL_FROZEN = true
 BINDING_ERRATUM_E1 = STAGED_OUTCOME_ACCESS_AND_HOLDOUT_EXECUTION
-MODEL_EVALUATION_EXECUTION = BLOCKED_UNTIL_ARTIFACT_RECOVERY
-RESULT_ACCESS = CLOSED_DURING_ARTIFACT_RECOVERY
-D_RESULT_ACCESS = CLOSED
+MODEL_EVALUATION_EXECUTION = AUTHORIZED_STAGEWISE
+RESULT_ACCESS = STAGED_SPLIT_GATES
+D_RESULT_ACCESS = AUTHORIZED_FOR_R1_TRAINING_ONLY
 V_RESULT_ACCESS = CLOSED
 H_RESULT_ACCESS = CLOSED
 ```
 
-Machine-binding B1–B5 was reported PASS and must be recomputed before execution:
+The exact original RC3 pack is preserved read-only at
+`/Users/liudehua/.hermes/workspace/w2-phase05-frozen-authority/rc3/`.
+Machine-binding B1–B5 was recomputed after recovery and passed:
 
 ```text
 B1 ARTIFACT_SHA_BINDING

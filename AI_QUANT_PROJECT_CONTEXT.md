@@ -15,9 +15,9 @@ These files on branch `context/current` are the current mutable authority. Conte
 PROGRAM = W2_FOOTBALL_QUANT_EDGE_EXISTENCE
 PROTOCOL = W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
 PROTOCOL_FROZEN = true
-EXECUTION = BLOCKED_UNTIL_ARTIFACT_RECOVERY
-ACTIVE_NEXT_ACTION = W2_PHASE_0_5_FROZEN_ARTIFACT_RECOVERY
-CURRENT_STATUS = BLOCKED_ARTIFACT_CUSTODY_RECOVERY
+EXECUTION = AUTHORIZED_STAGEWISE
+ACTIVE_NEXT_ACTION = W2_PHASE_0_5_R1_D_TRAIN_AND_V_MANIFEST
+CURRENT_STATUS = READY_R1_AFTER_EXACT_ARTIFACT_RECOVERY
 ```
 
 Do not build a quant platform yet. First determine whether W2 has out-of-sample predictive or economic edge in Pinnacle AH/OU markets.
@@ -47,9 +47,9 @@ M1 / M3 = secondary, cross-source, not gating
 ## Current outcome-access gate
 
 ```text
-D = closed during artifact recovery
-V = closed during artifact recovery
-H = closed during artifact recovery
+D = training-only for R1
+V = closed until all V candidate prediction/selection manifests are frozen
+H = closed until final H prediction/selection manifests are frozen
 ```
 
 V and H use static evaluation:
@@ -61,12 +61,15 @@ H = refit D+V; no H-outcome model update
 
 ## Immediate handoff
 
-The current execution must:
+The next execution must:
 
-1. Recover and verify the exact original Freeze 0A artifact bytes.
-2. Keep D, V and H result access closed.
-3. If exact artifacts are unavailable, verify the original source dataset before any RC3R1 regeneration.
-4. Do not fit M2/M4 or generate V manifests until artifact recovery passes.
+1. Bind R1 to the recovered read-only RC3 pack.
+2. Unlock D results only.
+3. Fit M2 for 20 divisions and 41 rho candidates per division.
+4. Fit all frozen M4 PRE and M4 CLOSE L2 candidates independently.
+5. Generate V candidate prediction and PRE-selection manifests without reading V outcomes.
+6. Freeze both V SHA-256 values.
+7. Stop and report before opening V results.
 
 ## Non-negotiable boundaries
 
