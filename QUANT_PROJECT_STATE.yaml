@@ -1,44 +1,118 @@
-schema_version: w2.quant_project_state.v1
-program: W2_SPORTTERY_QUANT_RESEARCH_PLATFORM
-updated_at: "2026-08-05"
+schema_version: w2.quant_project_state.v2
+updated_at: "2026-08-07"
 repository: QIUYEDALAO/w2-football-intelligence-engine
-base_main_sha: 75159bfd71bb7492eece86da29cdb32e6f25d9c6
-deployed_source_sha: f1718ec4d74e3038fd6240429df6efca42d0a520
-protocol_version: v2.3.1
-protocol_path: docs/architecture/W2_SPORTTERY_QUANT_RESEARCH_PROTOCOL_V2_3_1.md
-binding_path: docs/operations/W2_QUANT_FREEZE_A0_BINDING_20260805.md
-task_authority: docs/operations/W2_QUANT_PROGRAM_MASTER_CHECKLIST.md
-handoff_authority: AI_QUANT_PROJECT_CONTEXT.md
-agent_instructions: QUANT_AGENTS.md
-active_next_action: W2_QUANT_L1_OFFLINE_FOUNDATION
-current_phase: QUANT_CONTEXT_CLOSURE
-current_status: IN_PROGRESS
-architecture: SAME_REPOSITORY_INDEPENDENT_BOUNDED_CONTEXT
-existing_v4_recommendation_chain: PRESERVED_AND_UNMODIFIED
-freeze_a0_offline_engineering: APPROVED_WITH_BINDING_ERRATA_A
-freeze_a1_live_collection: DEFERRED_OWNER_API_AND_LICENSE
-track1_forward_clock: NOT_STARTED
-quant_runtime_code: NOT_STARTED
-quant_provider_calls: 0
-quant_deployment: NOT_AUTHORIZED
-live_capture_enabled: false
-l2_strategy_engine: NOT_AUTHORIZED
-l3_shadow_ledger: NOT_AUTHORIZED
-l4_bankroll_risk: NOT_AUTHORIZED
-phase_a: NOT_AUTHORIZED
-phase_b: NOT_AUTHORIZED
-portfolio: NOT_AUTHORIZED
-two_leg_parlay: NOT_AUTHORIZED
-real_money: NOT_AUTHORIZED
-operational_track:
+context_branch: context/current
+context_update_mode: DIRECT_NO_PR_NO_CI_NO_RELEASE
+
+program: W2_FOOTBALL_QUANT_EDGE_EXISTENCE
+protocol: W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
+protocol_frozen: true
+binding_erratum: STAGED_OUTCOME_ACCESS_AND_HOLDOUT_EXECUTION
+execution_authority: AUTHORIZED_STAGEWISE
+active_next_action: W2_PHASE_0_5_R1_D_TRAIN_AND_V_MANIFEST
+current_gate: R1_D_TRAINING
+
+source_head_observed: 84e642f3ea26464574f75ee4d520b38bcf24073a
+binding_checks:
+  b1_artifact_sha: PASS_REPORTED_REVERIFY_BEFORE_EXECUTION
+  b2_coverage_exclusive: PASS_REPORTED_REVERIFY_BEFORE_EXECUTION
+  b3_split_exclusive: PASS_REPORTED_REVERIFY_BEFORE_EXECUTION
+  b4_code_manifest: PASS_REPORTED_REVERIFY_BEFORE_EXECUTION
+  b5_result_columns_closed: PASS_REPORTED_REVERIFY_BEFORE_EXECUTION
+
+result_access:
+  mode: STAGED_SPLIT_GATES
+  d: AUTHORIZED_FOR_TRAINING_ONLY_AFTER_R0_RECHECK
+  v: FORBIDDEN_UNTIL_V_CANDIDATE_MANIFESTS_FROZEN
+  h: FORBIDDEN_UNTIL_H_PREDICTION_AND_SELECTION_MANIFESTS_FROZEN
+
+splits:
+  d: [2019_20, 2020_21, 2021_22]
+  v: [2022_23, 2023_24]
+  h: [2024_25, 2025_26]
+  v_mode: STATIC_TRAIN_D_NO_V_OUTCOME_UPDATE
+  h_mode: STATIC_REFIT_D_PLUS_V_NO_H_OUTCOME_UPDATE
+
+source_universe:
+  confirmatory: FOOTBALL_DATA_MMZ_ONLY
+  division_count: 20
+  division_season_count: 140
+  mmz_rows: 51035
+  new_series: EXCLUDED_NO_PINNACLE_AH_OU_CURRENT_SOURCE
+
+populations:
+  ah_half_closing_predictive: 10816
+  ah_half_pre_economic: 10693
+  ah_half_same_line_clv: 6479
+  ou25_closing_predictive: 46483
+  ou25_pre_economic: 46313
+  ou25_same_line_clv: 46301
+  line_comparable: 50958
+  same_line: 31905
+  line_moved: 19053
+  line_moved_rate_percent: 37.39
+  h_ou25_eligible: 10123
+  h_ah_half_eligible: 2437
+
+markets:
+  primary_predictive: [OU_2_5, AH_HALF_GOAL_LINES]
+  primary_economic: OU_2_5
+  ah_half_economic: EXPLORATORY_POWER_DEPENDENT
+  ah_integer_quarter: EXPLORATORY_FIVE_STATE_ONLY
+  odds_source: PINNACLE_ONLY
+  fallback: FORBIDDEN
+
+models:
+  m0_pre: PINNACLE_PRE_MARKET_ONLY
+  m0_close: PINNACLE_CLOSE_MARKET_ONLY
+  m2: PURE_GOALS_DIXON_COLES_PER_DIVISION
+  rho_grid: {min: -0.20, max: 0.20, step: 0.01, train_only: true}
+  m4_pre: M4_PRE_BINARY_RESIDUAL_V1
+  m4_close: M4_CLOSE_BINARY_RESIDUAL_V1
+  m4_family: BINARY_LOGISTIC_RESIDUAL_WITH_MARKET_LOGIT_OFFSET_AND_L2
+  m4_features: [INTERCEPT, MODEL_MARKET_LOGIT_GAP]
+  l2_grid: [0.01, 0.1, 1.0, 10.0]
+  m1_m3: SECONDARY_NOT_GATING
+
+selection:
+  market: OU_2_5
+  minimum_predicted_ev: 0.03
+  max_primary_per_fixture_market: 1
+  exact_tie: NO_SELECTION_TIE
+  stake_units: 1
+  kelly: false
+  compounding: false
+  close_fields_allowed: false
+
+statistics:
+  primary_devig: PROPORTIONAL
+  sensitivity_devig: POWER
+  predictive_lift: PINNACLE_MARKET_LOG_LOSS_MINUS_MODEL_LOG_LOSS
+  minimum_practical_predictive_lift_nats: 0.002
+  minimum_practical_realized_roi: 0.03
+  bootstrap: TWO_STAGE_COMPETITION_SEASON_AND_FIXTURE
+  resamples: 20000
+  seed: 2026080601
+  ci: TWO_SIDED_PERCENTILE_95
+  predictive_multiple_testing: HOLM_ALPHA_0_05
+  ev_se_semantics: EV_SCENARIO_SD_NOT_SAMPLING_SE
+
+verdicts:
+  - INSUFFICIENT_EVIDENCE
+  - NO_EDGE
+  - PREDICTIVE_INCREMENT_ONLY
+  - ECONOMIC_EDGE_CANDIDATE
+
+stop_lines:
+  production_code_change: false
+  production_model_change: false
+  signal_ledger_development: false
+  portfolio_development: false
+  provider_calls: 0
+  deployment_executed: false
+  real_money: NOT_AUTHORIZED
   scheduler: ON_CONTROLLED
   candidate: "OFF"
   formal: "OFF"
   lock: "OFF"
   production: "OFF"
-context_closure:
-  runtime_code_changed: false
-  database_migration_created: false
-  provider_calls: 0
-  images_built: 0
-  deployment_executed: false
