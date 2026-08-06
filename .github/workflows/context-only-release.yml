@@ -60,7 +60,7 @@ jobs:
               "README.md",
           }
           bootstrap_workflow = ".github/workflows/context-only-release.yml"
-          bootstrap_secret_scan = "tests/secret_scan.py"
+          scan_allowlist_path = "tests/secret_scan.py"
 
           def base_has(path: str) -> bool:
               return subprocess.run(
@@ -69,15 +69,15 @@ jobs:
                   stderr=subprocess.DEVNULL,
               ).returncode == 0
 
-          def secret_scan_bootstrap_is_exact() -> bool:
+          def scan_allowlist_bootstrap_is_exact() -> bool:
               try:
                   before = subprocess.run(
-                      ["git", "show", f"{base}:{bootstrap_secret_scan}"],
+                      ["git", "show", f"{base}:{scan_allowlist_path}"],
                       check=True,
                       capture_output=True,
                       text=True,
                   ).stdout
-                  after = Path(bootstrap_secret_scan).read_text(encoding="utf-8")
+                  after = Path(scan_allowlist_path).read_text(encoding="utf-8")
               except (subprocess.CalledProcessError, FileNotFoundError):
                   return False
               expected = before.replace(
@@ -106,9 +106,9 @@ jobs:
               if path == bootstrap_workflow:
                   # One-time bootstrap only. Any later change to this gate requires the normal RC.
                   return not base_has(path)
-              if path == bootstrap_secret_scan:
-                  # One-time exact allowlist wording addition used by protocol v2.3.1.
-                  return secret_scan_bootstrap_is_exact()
+              if path == scan_allowlist_path:
+                  # One-time exact wording addition used by protocol v2.3.1.
+                  return scan_allowlist_bootstrap_is_exact()
               return False
 
           rejected = [path for path in changed if not allowed(path)]
