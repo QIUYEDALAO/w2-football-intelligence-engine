@@ -81,8 +81,8 @@ jobs:
               except (subprocess.CalledProcessError, FileNotFoundError):
                   return False
               expected = before.replace(
-                  '    "secret scan",\n',
-                  '    "secret scan",\n    "Secret 扫描",\n',
+                  '    "Secret scan",\n    "secret scan",\n',
+                  '    "Secret scan",\n    "secret scan",\n    "Secret 扫描",\n',
                   1,
               )
               return after == expected
