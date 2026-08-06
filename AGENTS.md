@@ -1,169 +1,82 @@
 # W2 Repository Agent Instructions
 
-Before any W2 change, read:
+For current W2 work, read branch `context/current` in this order:
 
-- `NEXT_ACTION.md`
-- `AI_PROJECT_CONTEXT.md`
-- `PROJECT_STATE.yaml`
-- `AI_QUANT_PROJECT_CONTEXT.md`
-- `QUANT_PROJECT_STATE.yaml`
-- `QUANT_AGENTS.md`
-- `docs/operations/W2_QUANT_PROGRAM_MASTER_CHECKLIST.md`
-- `docs/architecture/W2_SPORTTERY_QUANT_RESEARCH_PROTOCOL_V2_3_1.md`
-- `docs/operations/W2_QUANT_FREEZE_A0_BINDING_20260805.md`
-- the historical architecture checklist and independent audit receipts.
+1. `CURRENT_CONTEXT.md`
+2. `CURRENT_STATE.yaml`
+3. `CURRENT_TASK_CHECKLIST.md`
+4. `NEXT_ACTION.md`
+5. `AI_QUANT_PROJECT_CONTEXT.md`
+6. `QUANT_AGENTS.md`
 
-## Current quant program
+Context updates are direct replacements on `context/current`; do not create a context PR or run context CI. Runtime code, tests, migrations, workflows and deployment changes still require the normal delivery process.
+
+## Current program
 
 ```text
-TOP_LEVEL_PROGRAM = W2_SPORTTERY_QUANT_RESEARCH_PLATFORM
-ACTIVE_NEXT_ACTION = W2_QUANT_L1_OFFLINE_FOUNDATION
-CURRENT_WORKSTREAM = W2_QUANT_CONTEXT_FREEZE_A0
-CURRENT_PHASE = QUANT_CONTEXT_CLOSURE
-CURRENT_MAIN_SHA = 75159bfd71bb7492eece86da29cdb32e6f25d9c6
-DEPLOYED_SOURCE_SHA = f1718ec4d74e3038fd6240429df6efca42d0a520
-FREEZE_A0 = APPROVED_WITH_BINDING_ERRATA_A
-FREEZE_A1 = DEFERRED_OWNER_API_AND_LICENSE
-TRACK1_FORWARD_CLOCK = NOT_STARTED
-LIVE_CAPTURE_ENABLED = false
-DELIVERY_MODEL = RELEASE_CANDIDATE_PROMOTION_V1
+PROGRAM = W2_FOOTBALL_QUANT_EDGE_EXISTENCE
+PROTOCOL = W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
+PROTOCOL_FROZEN = true
+ACTIVE_NEXT_ACTION = W2_PHASE_0_5_R1_D_TRAIN_AND_V_MANIFEST
 ```
 
-The only newly authorised code objective after this context PR is merged is
-`W2_QUANT_L1_OFFLINE_FOUNDATION`.
+The current work is a local, stage-gated AH/OU edge-existence study. It is not quant-platform implementation.
 
-## Quant code boundary
+## Required start procedure
 
-New quant code must be isolated under:
+- verify the source head and clean worktree;
+- recompute B1–B5 and the relevant-code manifest before reading results;
+- keep D/V/H result access physically separated;
+- stop on any artifact, source, split or guard drift.
+
+## Result-access rules
 
 ```text
-src/w2/quant_research/
-scripts/quant/
+D = training-only after R0 recheck
+V = closed until V candidate prediction and selection manifests are frozen
+H = closed until final H prediction and selection manifests are frozen
 ```
 
-It must not be placed in:
+Never use V/H outcomes before the corresponding gate. Never change the frozen protocol after observing V or H results.
+
+## Frozen scope
 
 ```text
-src/w2/prematch/
-src/w2/strategy/
-RecommendationDecisionV4
-existing future-refresh business paths
+SOURCE = FOOTBALL_DATA_MMZ_ONLY
+D = 2019_20,2020_21,2021_22
+V = 2022_23,2023_24
+H = 2024_25,2025_26
+PRIMARY_PREDICTIVE = OU_2_5,AH_HALF_GOAL_LINES
+PRIMARY_ECONOMIC = OU_2_5
+ODDS_SOURCE = PINNACLE_ONLY
 ```
 
-Required reuse:
+## Hard stops
 
-- `src/w2/domain/canonical_serialization.py`;
-- `w2.canonical-json.v2`;
-- existing PostgreSQL/Alembic and canonical fixture/team identities through explicit ports.
+- no production code/model change;
+- no Provider call;
+- no Signal Ledger, strategy product, Portfolio, Risk, Kelly, Dashboard or 2×1;
+- no modification to V4, Scheduler, Provider allowlist or production DB;
+- no deployment or real-money action;
+- Candidate, Formal, Lock and Production remain off.
 
-Do not create a second canonical serializer, generic HTTP transport, database engine or fixture
-identity.
+## Statistical integrity
 
-Freeze A0 stop line:
+- `ev_se` is scenario dispersion, not sampling standard error;
+- PRE and CLOSE residual models are trained separately;
+- one primary selection per fixture/market;
+- line-moved orders stay in PRE ROI at the original PRE line/price;
+- same-line CLV and individual-league results are exploratory only;
+- actual selected-order count determines economic power;
+- use only the frozen bootstrap, seed, metrics and Holm family.
+
+## Current required stop point
 
 ```text
-REAL_PROVIDER_CALLS = 0
-LIVE_CAPTURE_ENABLED = false
-TRACK1_FORWARD_CLOCK = NOT_STARTED
-PRODUCTION_DB_MODIFIED = false
-DEPLOYMENT_EXECUTED = false
+V_CANDIDATE_PREDICTION_MANIFEST_SHA256 = frozen
+V_PRE_SELECTION_CANDIDATE_MANIFEST_SHA256 = frozen
+V_RESULT_COLUMNS_READ = false
+H_RESULT_COLUMNS_READ = false
 ```
 
-Do not implement live adapters, collector activation, strategies, Shadow orders, Kelly,
-bankroll/risk, portfolio, 2×1 or real-money workflows. Do not modify the existing Scheduler,
-Provider allowlist, V4 or Dashboard.
-
-## Source and branch rules
-
-```bash
-git remote -v
-git fetch --all --prune --tags
-git status --porcelain=v1
-git rev-parse origin/main
-git show -s --format='%H %P %an <%ae> %cn <%ce> %s' origin/main
-```
-
-- start from the latest trusted `origin/main` in a clean worktree;
-- stop on source drift or a dirty workspace;
-- do not use PR #453, `agent/eval-02b-c9-*`, `e875050f...` or automation-authored remediation;
-- one bounded task per PR; merge commit only; no squash or auto-merge.
-
-## Operational safety rules retained
-
-1. Missing, illegal, stale, unknown or unverifiable authority fails closed.
-2. After a possible external Provider side effect, failure is persisted, surfaced, stops later
-   calls and forbids automatic retry.
-3. Idempotency requires the expected constraint and all stored business fields to agree.
-4. Required empty, swallowed failure, no lock or not executed is not success.
-5. One business fact has one versioned computation authority.
-6. Historical identity and hash are not overwritten without migration.
-7. Do not delete, skip, xfail or weaken required event, five-state `1e-9`, package matrix,
-   delta, lineage, migration, fault-injection or historical guards.
-8. Workflows may not push business implementation into PR branches.
-9. Same-source tests are not an independent oracle.
-10. Completion reports must distinguish implementation from independent review.
-
-## R5 canonical serialization
-
-- production authority: `src/w2/domain/canonical_serialization.py`;
-- current contract: `w2.canonical-json.v2`, UTF-8, sorted compact keys, `allow_nan=False`;
-- historical v1 profiles remain explicit compatibility contracts;
-- SER-05 oracle author differs from production implementer and does not import production
-  serializer;
-- CI rejects a second unauthorised serializer or hash writer.
-
-## Historical operational compatibility record
-
-The following is retained as completed operational history, not as the current quant action:
-
-```text
-TOP_LEVEL_TASK = EVAL-02B
-ACTIVE_NEXT_ACTION = POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS
-ACTIVE_CONTEXT_PR = NONE
-CURRENT_WORKSTREAM = POST_RECOVERY_OBSERVATION_AND_DYNAMIC_EVALUATION_READINESS
-CURRENT_PHASE = PRODUCTION_RECOVERY_CONTEXT_CLOSURE_COMPLETE
-AUDIT_BASELINE_SHA = dbc8e1e8aa74a7613fd7121bf6026890c3ee06c6
-CURRENT_MAIN_SHA = 8c6086e37ba62c138bdf059997ca760accef7067
-DEPLOYED_SHA = 8c6086e37ba62c138bdf059997ca760accef7067
-DASHBOARD_REAL_DATA_RECOVERY = PASS
-PUBLIC_DASHBOARD_CARDS = 51
-PRODUCTION_FUTURE_FIXTURES = 51
-PROVIDER_REQUEST_DELTA = 58
-ENDPOINT_CAPTURE_DELTA = 58
-PROVIDER_ERRORS = 0
-COLLECTION_READY_COMPETITIONS = brasileirao_serie_a,chinese_super_league,allsvenskan,eliteserien
-PROVIDER = ON_CONTROLLED
-REAL_PROVIDER = ON_CONTROLLED
-PERSISTENT_SCHEDULER = ON_CONTROLLED
-SCHEDULER_CONCURRENCY = 1
-PROVIDER_ATTEMPTS = 1
-DAILY_HARD_CAP = 120
-TICK_HARD_CAP = 30
-DYNAMIC_EVALUATION_V2 = 0
-EXPLICIT_NOT_READY_CARDS = 51
-DYNAMIC_EVALUATION_PRODUCTION_RECOVERY = PENDING
-EVAL-03 = NOT STARTED
-COLD_PULL_SLO = NOT_PROVEN
-NEXT_CODE_ACTION = NONE_AUTHORIZED
-CANDIDATE = OFF
-FORMAL = OFF
-LOCK = OFF
-PRODUCTION = OFF
-AUTO_MERGE = FORBIDDEN
-DELIVERY_MODEL = RELEASE_CANDIDATE_PROMOTION_V1
-```
-
-Registered historical policy gaps remain recorded:
-
-- `argentina_primera`
-- `bundesliga`
-- `eredivisie`
-- `la_liga`
-- `ligue_1`
-- `mls`
-- `premier_league`
-- `primeira_liga`
-- `serie_a`
-
-The operational V4 chain, Wave 1–4 receipts, real canary, independent oracle and real-fixture
-replay remain historical evidence. Candidate, Formal, Lock and Production stay off.
+Stop and report at that point.
