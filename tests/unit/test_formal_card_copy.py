@@ -87,6 +87,8 @@ def test_dashboard_defaults_to_intelligence_console_with_previous_views_retained
     assert "Market Overview" in intelligence_console
     assert "Match Intelligence" in intelligence_console
     assert "Data &amp; Operations Summary" in intelligence_console
+    assert "MarketOverviewCounts" in intelligence_console
+    assert "DecisionCounts" not in intelligence_console
     assert "MODEL_MARKET_DISAGREEMENT" in intelligence_console
     assert "差异仅用于模型校准与特征复核" in intelligence_console
     assert "BossDecisionConsoleReference" in boss_console

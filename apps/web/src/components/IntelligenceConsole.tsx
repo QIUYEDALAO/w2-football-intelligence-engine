@@ -4,7 +4,7 @@ import type {
   IntelligenceState,
   ReleaseSyncState,
 } from "../types/dashboard";
-import { DecisionCounts } from "./DecisionCounts";
+import { MarketOverviewCounts } from "./MarketOverviewCounts";
 
 const STATE_LABELS: Record<IntelligenceState, string> = {
   MARKET_STABLE: "市场稳定 / 未检测到显著异常",
@@ -82,7 +82,7 @@ export function IntelligenceConsole({ dayView, release, emptyDetail }: { dayView
   return (
     <div className="intelligence-shell" data-ui="football-intelligence">
       <header className="intelligence-hero"><div><span className="intelligence-kicker">W2</span><h1>W2 Football Intelligence</h1><p>W2 Football Market Intelligence &amp; Model Diagnostics</p></div><div className="intelligence-mode">{dayView.environment.toUpperCase()} · READ ONLY</div></header>
-      <section aria-labelledby="market-overview-heading"><div className="intelligence-section-heading"><span>Market Overview</span><h2 id="market-overview-heading">市场总览</h2><p>零项显著警报是有效结果，不会通过降低阈值制造内容。</p></div><DecisionCounts dayView={dayView} /></section>
+      <section aria-labelledby="market-overview-heading"><div className="intelligence-section-heading"><span>Market Overview</span><h2 id="market-overview-heading">市场总览</h2><p>零项显著警报是有效结果，不会通过降低阈值制造内容。</p></div><MarketOverviewCounts dayView={dayView} /></section>
       <section aria-labelledby="match-intelligence-heading"><div className="intelligence-section-heading"><span>Match Intelligence</span><h2 id="match-intelligence-heading">比赛情报</h2><p>市场事实、数据质量与模型诊断相互独立。</p></div>{dayView.cards.length ? <div className="intelligence-grid">{dayView.cards.map((card) => <IntelligenceCard card={card} key={card.fixture_id} />)}</div> : <div className="intelligence-empty"><strong>当前足球日没有比赛</strong><p>{emptyDetail || "这是明确的空日状态；不会虚构稳定比赛。"}</p></div>}</section>
       <section aria-labelledby="operations-heading"><div className="intelligence-section-heading"><span>Data &amp; Operations Summary</span><h2 id="operations-heading">数据与运行摘要</h2></div><div className="intelligence-ops"><div><span>页面更新时间</span><strong>{dayView.freshness.page_updated_at || "待确认"}</strong></div><div><span>最近确认赔率</span><strong>{dayView.freshness.odds_last_confirmed_at || "待确认"}</strong></div><div><span>下次检查点</span><strong>{dayView.freshness.next_refresh_tick || "待确认"}</strong></div><div><span>Provider</span><strong>{dayView.freshness.provider_budget_status || "UNKNOWN"}</strong></div><div><span>Scheduler</span><strong>ON · CONTROLLED</strong></div><div><span>API / Web SHA</span><strong className={release.mismatch ? "is-incident" : "is-ok"}>{release.api_git_sha.slice(0, 7)} / {release.web_git_sha.slice(0, 7)} · {release.mismatch ? "MISMATCH" : "SYNC"}</strong></div><div><span>Safety switches</span><strong>Candidate OFF · Formal OFF · Lock OFF · Production OFF</strong></div></div></section>
     </div>
