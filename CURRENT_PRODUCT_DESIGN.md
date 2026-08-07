@@ -11,6 +11,8 @@ PRODUCT_ROLE = MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 BETTING_EDGE_CLAIM = FORBIDDEN
 RECOMMENDATION_AUTHORITY = NOT_A_PRODUCT_GOAL
 REAL_MONEY = NOT_AUTHORIZED
+OWNER_DECISION = APPROVED_CONTINUE_UNTIL_ACCEPTED
+ACTIVE_RUNTIME_PR = 493
 ```
 
 The existing W2 data, identity, odds, model, Scheduler, replay and Dashboard infrastructure is preserved. The public shell changes from recommendation-first to intelligence-first.
@@ -252,22 +254,51 @@ No opportunity score.
 
 ## 8. Three-round delivery plan
 
-### Round 1 — authorized now
+### Round 1 — authorized and in remediation
 
 ```text
 TASK = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
+ACTIVE_RUNTIME_PR = 493
+ROUND_1_STATUS = IN_PROGRESS_REMEDIATION
 ACTIVE_WHITELIST = 13_UNCHANGED
 LEAGUE_EXPANSION = false
 PROVIDER_POLICY_CHANGE = false
 SCHEDULER_POLICY_CHANGE = false
-NEW_PROVIDER_CALLS = 0
+NEW_PROVIDER_CALLS_INITIATED_BY_R1 = 0
 ```
 
-Use one bounded runtime PR, one final exact-head Full Release Candidate, one merge and one deployment.
+Explicit owner continuation authority is `ROUND_1_OWNER_CONTINUATION_AUTHORIZATION.md`.
+
+Delivery-count wording is binding as follows:
+
+```text
+ONE_RUNTIME_PR = PR_493_ONLY
+PR_FAST_ATTEMPTS = AS_NEEDED_AFTER_EACH_SOURCE_HEAD_CHANGE
+FULL_RC_ATTEMPTS = AS_NEEDED_UNTIL_FINAL_SUCCESS
+FAILED_PR_FAST_OR_FULL_RC_ATTEMPTS_CONSUME_FINAL_SUCCESS_SLOT = false
+FAILED_FULL_RC_31151557970_IS_FINAL_RC = false
+ONE_SUCCESSFUL_FINAL_EXACT_HEAD_FULL_RC = true
+ONE_FINAL_MERGE = true
+ONE_FINAL_ACCEPTED_DEPLOYMENT = true
+```
+
+Therefore **`one final exact-head Full Release Candidate` means one successful final RC on the final accepted head; it is not a cap of one RC attempt.**
+
+For any in-scope failure:
+
+```text
+FAIL_CLOSED = DO_NOT_ADVANCE_PAST_FAILED_GATE
+FAIL_CLOSED != ABANDON_ROUND_1
+DIAGNOSE -> MINIMAL_FIX_IN_PR_493 -> LOCAL_VALIDATION -> NEW_HEAD_PR_FAST -> NEW_EXACT_HEAD_FULL_RC -> REPEAT_IF_NEEDED
+```
+
+No new owner authorization is required for bounded Round 1 remediation, PR Fast re-runs or replacement exact-head Full RC attempts.
 
 Detailed execution authority: `ROUND_1_CODEX_EXECUTION.md`.
 
 Binding acceptance authority: `ROUND_1_ACCEPTANCE_CRITERIA.md`.
+
+Round 1 closes only after final RC success, one merge commit, same-verified-source API/Web deployment, public API/browser acceptance and all acceptance criteria PASS.
 
 ### Round 2 — blocked
 
