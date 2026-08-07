@@ -9,9 +9,9 @@ protocol: W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
 protocol_frozen: true
 binding_erratum: STAGED_OUTCOME_ACCESS_AND_HOLDOUT_EXECUTION
 execution_authority: AUTHORIZED_STAGEWISE
-active_next_action: W2_PHASE_0_5_R1_D_TRAIN_AND_V_MANIFEST
-current_status: READY_R1_AFTER_EXACT_ARTIFACT_RECOVERY
-current_gate: R1_D_TRAINING
+active_next_action: W2_PHASE_0_5_R2B_V_EVALUATION_AND_CONDITIONAL_H_MANIFEST_FREEZE
+current_status: R1_R2_FREEZE_REPORTED_PREUNLOCK_RECHECK_REQUIRED
+current_gate: R2B_V_ONE_TIME_EVALUATION
 
 source_head_observed: 84e642f3ea26464574f75ee4d520b38bcf24073a
 relevant_code_manifest_status: PASS_EXACT_RECOVERY_RECHECK
@@ -19,11 +19,32 @@ artifact_binding_status: PASS_EXACT_RC3_BYTES_RECOVERED
 canonical_frozen_directory: /Users/liudehua/.hermes/workspace/w2-phase05-frozen-authority/rc3
 frozen_pack_manifest_sha256: 198894a2f0ae92735e5c3fbed016e61df8093376f890244e6ca04824ac2b7e16
 
+r1_r2_freeze:
+  implementation_status: REPORTED_COMPLETE
+  receipt_path: /Users/liudehua/.hermes/workspace/w2-phase05-research/r1_v_manifest_20260807/artifacts/R1_R2_FREEZE_RECEIPT.json
+  d_training_rows: 21518
+  m2_divisions_fitted: 20
+  m4_candidate_structure: PRE_AND_CLOSE_X_OU_AND_AH_X_4_L2
+  v_candidate_prediction_rows: 14909
+  v_pre_selection_candidate_rows: 59636
+  v_candidate_prediction_manifest_sha256: 591314c9f13fc3256ca51aef6c65953150f40912e776ff8d6347b1701d24033f
+  v_pre_selection_candidate_manifest_sha256: e582585aaa57ac5cac894a2fad071dfadfa6ad7890b84ba4c8b3d74e4bd3fe13
+  v_results_read: false
+  h_results_read: false
+  preunlock_machine_recheck_required: true
+
 result_access:
   mode: STAGED_SPLIT_GATES
-  d: AUTHORIZED_FOR_R1_TRAINING_ONLY
-  v: CLOSED
+  d: AUTHORIZED_FOR_EXISTING_TRAINING_AND_CONDITIONAL_D_PLUS_V_REFIT
+  v: AUTHORIZED_ONCE_ONLY_AFTER_R1_R2_FREEZE_RECHECK_PASS
   h: CLOSED
+
+conditional_execution:
+  preunlock_action: REHASH_AND_VALIDATE_R1_R2_FREEZE_PACK
+  on_preunlock_failure: STOP_BLOCKED_KEEP_V_AND_H_CLOSED
+  on_v_gate_failure: STOP_FINALIZE_NO_EDGE_OR_INSUFFICIENT_EVIDENCE_KEEP_H_PERMANENTLY_CLOSED
+  on_v_gate_pass: RUN_R3_D_PLUS_V_REFIT_THEN_R4_FREEZE_H_PREDICTIONS_AND_SELECTIONS
+  hard_stop: STOP_BEFORE_H_RESULT_ACCESS
 
 split:
   d: [2019_20, 2020_21, 2021_22]
@@ -37,20 +58,6 @@ source_universe:
   division_season_units: 140
   mmz_rows: 51035
   new_series: EXCLUDED_CURRENT_SOURCE_HAS_NO_PINNACLE_AH_OU
-
-populations:
-  ah_half_closing_predictive: 10816
-  ah_half_pre_economic: 10693
-  ah_half_same_line_clv: 6479
-  ou25_closing_predictive: 46483
-  ou25_pre_economic: 46313
-  ou25_same_line_clv: 46301
-  line_comparable: 50958
-  same_line: 31905
-  line_moved: 19053
-  line_moved_rate_percent: 37.39
-  h_ou25_eligible: 10123
-  h_ah_half_eligible: 2437
 
 markets:
   primary_predictive: [OU_2_5, AH_HALF_GOAL_LINES]
@@ -105,6 +112,7 @@ final_verdicts:
   - ECONOMIC_EDGE_CANDIDATE
 
 stop_lines:
+  h_result_access: false
   production_code_change: false
   production_model_change: false
   signal_ledger_development: false
