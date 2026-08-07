@@ -1,98 +1,75 @@
 # W2 Market Intelligence Agent Instructions
 
-Read from branch `context/current` before acting:
+Read current authority from `origin/context/current` before acting.
 
-1. `CURRENT_CONTEXT.md`
-2. `CURRENT_STATE.yaml`
-3. `CURRENT_PRODUCT_DESIGN.md`
-4. `CURRENT_TASK_CHECKLIST.md`
-5. `NEXT_ACTION.md`
-6. `AI_QUANT_PROJECT_CONTEXT.md`
+Required execution files:
 
-Context updates do not use PR or CI. Runtime changes use the normal guarded delivery process.
+```text
+CURRENT_CONTEXT.md
+CURRENT_STATE.yaml
+CURRENT_PRODUCT_DESIGN.md
+CURRENT_TASK_CHECKLIST.md
+NEXT_ACTION.md
+ROUND_1_CODEX_EXECUTION.md
+ROUND_1_ACCEPTANCE_CRITERIA.md
+```
 
-## Current task
+Current task:
 
 ```text
 ACTIVE_NEXT_ACTION = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
 PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 ```
 
-The Phase 0.5 quant hypothesis is closed with `NO_EDGE`. Do not reopen H or retune the failed model family.
+The Phase 0.5 hypothesis is closed with `NO_EDGE`. Do not reopen H or retune the failed model family.
+
+Permanent guard:
+
+```text
+MODEL_MARKET_DIVERGENCE != MARKET_OPPORTUNITY
+```
+
+## League boundary
+
+```text
+ACTIVE_WHITELIST = 13_UNCHANGED_IN_ROUND_1
+FUTURE_CANDIDATE_UNION = 17_NOT_STARTED
+```
+
+The European `5 + 6` cohort is not the whitelist. Future arithmetic is 13 existing + 4 net-new. Round 1 performs no league expansion and no new Provider calls.
 
 ## Round 1 scope
 
-One bounded API/Web runtime change:
+- intelligence-first public product;
+- seven deterministic intelligence states;
+- four independent event/data/model/collection risk dimensions;
+- `MARKET_STABLE`/zero-alert result is valid;
+- V4 remains diagnostic input, not public product authority;
+- market facts remain independent of V4 selection;
+- divergence never creates opportunity/value/edge/recommendation meaning;
+- preserve the existing 13 whitelist, Provider policy and Scheduler behavior.
 
-- reposition the public product as market intelligence and model diagnostics;
-- implement deterministic intelligence states;
-- split event/data/model/collection risk dimensions;
-- render `MARKET_STABLE` and zero-alert days as valid results;
-- prevent model divergence from producing opportunity/recommendation language;
-- preserve current V4 calculations as diagnostic input;
-- preserve current league set, Provider policy and Scheduler behavior.
+Detailed implementation is binding in `ROUND_1_CODEX_EXECUTION.md`.
 
-Required states:
+Acceptance is binding in `ROUND_1_ACCEPTANCE_CRITERIA.md`.
 
-```text
-MARKET_STABLE
-MARKET_MOVEMENT
-MARKET_ANOMALY
-MODEL_MARKET_DISAGREEMENT
-DATA_INCOMPLETE
-MODEL_DIAGNOSTIC_WARNING
-COLLECTION_INCIDENT
-```
-
-Required guard:
+## Prohibited Round 1 work
 
 ```text
-MODEL_MARKET_DIVERGENCE_AS_OPPORTUNITY = FORBIDDEN
+league expansion
+new Provider calls
+Provider allowlist/policy changes
+Scheduler policy changes
+full Market Radar scoring
+full Model Lab analytics
+Signal Ledger for execution
+Portfolio
+Risk/Kelly
+2x1
+real money
+betting-edge claims
 ```
 
-## Round 1 prohibited work
+Candidate, Formal, Lock and Production remain OFF.
 
-- no league expansion;
-- no new Provider calls or allowlist changes;
-- no Scheduler policy changes;
-- no full Market Radar scoring yet;
-- no Model Lab analytics beyond semantic shell/diagnostic presentation;
-- no Signal Ledger, Shadow, Portfolio, Risk, Kelly or 2×1;
-- no real-money or betting-edge claims;
-- no changes to Candidate/Formal/Lock/Production.
-
-## Delivery
-
-- use one clean worktree;
-- use one runtime PR for the whole Round 1 goal;
-- run focused tests during development;
-- one exact-head full Release Candidate;
-- one merge and one deployment;
-- browser acceptance with real data and zero console errors;
-- stop after Round 1 acceptance.
-
-## Future design guard
-
-Round 3 Market Radar must include:
-
-```text
-OVERROUND_PERCENTILE = REQUIRED_ALERT_COVARIATE
-```
-
-Overround adjusts market-noise/confidence. High-overround isolated movement is not automatically informative and should normally classify as `THIN_MARKET_NOISE` unless stronger evidence exists. Exact thresholds are frozen only after the Round 2 live capability audit.
-
-## Permanent boundaries
-
-```text
-BETTING_EDGE_CLAIM = FORBIDDEN
-MODEL_DIVERGENCE_AS_OPPORTUNITY = FORBIDDEN
-SIGNAL_LEDGER_FOR_EXECUTION = NOT_AUTHORIZED
-PORTFOLIO = NOT_AUTHORIZED
-RISK_KELLY = NOT_AUTHORIZED
-REAL_MONEY = NOT_AUTHORIZED
-
-CANDIDATE = OFF
-FORMAL = OFF
-LOCK = OFF
-PRODUCTION = OFF
-```
+Use one runtime PR, one final exact-head Full Release Candidate, one merge and one deployment; stop after public acceptance.
