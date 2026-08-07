@@ -7,6 +7,8 @@ context_update_mode: direct_branch_no_pr_no_ci_no_history
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
 owner_product_decision: APPROVED_CONTINUE_UNTIL_ACCEPTED
+owner_continuation_authorization: ROUND_1_OWNER_CONTINUATION_AUTHORIZATION.md
+owner_authorization_id: W2_MI_R1_CONTINUE_UNTIL_ACCEPTED_20260807
 active_next_action: W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
 next_code_action: W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
 current_status: ROUND_1_IN_PROGRESS_REMEDIATION
@@ -18,8 +20,13 @@ acceptance_authority: ROUND_1_ACCEPTANCE_CRITERIA.md
 
 failure_semantics:
   fail_closed_meaning: DO_NOT_ADVANCE_PAST_FAILED_GATE
-  fail_closed_does_not_mean: ABANDON_ROUND_1
+  fail_closed_does_not_mean: ABANDON_ROUND_1_OR_WAIT_FOR_OWNER
   bounded_remediation_requires_new_owner_authorization: false
+  pr_fast_rerun_after_source_change_requires_new_owner_authorization: false
+  replacement_full_rc_after_failed_rc_requires_new_owner_authorization: false
+  repeat_pr_fast_and_full_rc_until_success_authorized: true
+  failed_validation_attempts_consume_final_success_slot: false
+  failed_rc_attempts_consume_final_success_slot: false
   scope_expansion_requires_new_owner_authorization: true
   remediation_pr: 493
   create_second_round_1_pr: false
@@ -31,8 +38,11 @@ first_round_1_attempt:
   failed_head_sha: 5479e1f1f419e2fc15b69882aaa0c323c966ce1d
   pr_fast_run: 31151508691
   pr_fast_result: SUCCESS
+  pr_fast_consumes_final_success_slot: false
   full_rc_run: 31151557970
   full_rc_result: FAILURE
+  full_rc_is_final_success: false
+  full_rc_consumes_final_success_slot: false
   failed_gate: BOSS_CONSOLE_PROTECTED_BASELINE
   failed_file: apps/web/src/components/DecisionCounts.tsx
   expected_sha256: c1b3f940587c1a25610c5e762f955c12541a7da40f006e9ce7818e5d376c9d6e
@@ -49,6 +59,9 @@ current_required_remediation:
   create_intelligence_only_market_overview_component: true
   public_intelligence_root_imports_legacy_decision_counts: false
   preserve_intelligence_first_product: true
+  after_source_change_run_new_pr_fast: true
+  after_new_pr_fast_success_run_replacement_exact_head_full_rc: true
+  if_replacement_rc_fails_repeat_bounded_remediation: true
 
 phase_0_5:
   protocol: W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
@@ -153,8 +166,13 @@ round_1:
   status: IN_PROGRESS_REMEDIATION
   runtime_pr: 493
   one_runtime_pr: true
+  allow_remediation_commits_in_pr_493: true
+  pr_fast_attempts: AS_NEEDED_AFTER_EACH_SOURCE_HEAD_CHANGE
+  full_rc_attempts: AS_NEEDED_UNTIL_FINAL_SUCCESS
   multiple_failed_validation_attempts_allowed: true
   multiple_failed_rc_attempts_allowed: true
+  failed_attempts_consume_final_success_slot: false
+  failed_full_rc_31151557970_is_final_rc: false
   one_successful_final_exact_head_release_candidate: true
   one_merge: true
   one_final_accepted_deployment: true
@@ -169,11 +187,15 @@ round_1:
   round_2_capability_audit: NOT_STARTED
   round_3_market_radar: NOT_STARTED
   completion_conditions:
+    - FINAL_PR_FAST_REQUIRED_SUCCESS
     - FINAL_EXACT_HEAD_FULL_RC_SUCCESS
+    - FINAL_RC_SOURCE_SHA_EQUALS_FINAL_PR_HEAD_SHA
+    - FINAL_RC_TREE_AND_IMAGE_DIGESTS_VERIFIED
     - MERGE_SUCCESS
     - API_WEB_SAME_VERIFIED_SOURCE_DEPLOYMENT_SUCCESS
     - PUBLIC_API_ACCEPTANCE_PASS
     - PUBLIC_BROWSER_ACCEPTANCE_PASS
+    - BROWSER_CONSOLE_ERRORS_ZERO
     - ALL_BINDING_ACCEPTANCE_CRITERIA_PASS
 
 round_2:
