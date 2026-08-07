@@ -7,103 +7,64 @@ context_update_mode: DIRECT_NO_PR_NO_CI_NO_RELEASE
 program: W2_FOOTBALL_QUANT_EDGE_EXISTENCE
 protocol: W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
 protocol_frozen: true
-binding_erratum: STAGED_OUTCOME_ACCESS_AND_HOLDOUT_EXECUTION
-execution_authority: AUTHORIZED_STAGEWISE
-active_next_action: W2_PHASE_0_5_R1_D_TRAIN_AND_V_MANIFEST
-current_gate: R1_D_TRAINING
+phase_0_5_status: COMPLETE
+final_verdict: NO_EDGE
+execution_authority: STOPPED_BY_V_GATE
+active_next_action: OWNER_DECISION_REQUIRED_AFTER_NO_EDGE
+next_code_action: NONE_AUTHORIZED
+current_gate: PROGRAM_DIRECTION_DECISION
 
 source_head_observed: 84e642f3ea26464574f75ee4d520b38bcf24073a
-binding_checks:
-  b1_artifact_sha: PASS_REPORTED_REVERIFY_BEFORE_EXECUTION
-  b2_coverage_exclusive: PASS_REPORTED_REVERIFY_BEFORE_EXECUTION
-  b3_split_exclusive: PASS_REPORTED_REVERIFY_BEFORE_EXECUTION
-  b4_code_manifest: PASS_REPORTED_REVERIFY_BEFORE_EXECUTION
-  b5_result_columns_closed: PASS_REPORTED_REVERIFY_BEFORE_EXECUTION
+
+r1_r2:
+  status: PASS
+  d_training_rows: 21518
+  m2_divisions_fitted: 20
+  v_candidate_prediction_rows: 14909
+  v_pre_selection_candidate_rows: 59636
+  v_candidate_prediction_manifest_sha256: 591314c9f13fc3256ca51aef6c65953150f40912e776ff8d6347b1701d24033f
+  v_pre_selection_candidate_manifest_sha256: e582585aaa57ac5cac894a2fad071dfadfa6ad7890b84ba4c8b3d74e4bd3fe13
+
+r2b:
+  receipt_path: /Users/liudehua/.hermes/workspace/w2-phase05-research/r2b_v_evaluation_20260807/artifacts/R2B_V_GATE_RECEIPT.json
+  preunlock_checks: 41/41_PASS
+  deterministic_artifacts: 9/9_PASS
+  v_rows_read_once: 14909
+  ou_close_best_predictive_lift: -0.0000758
+  ah_close_best_predictive_lift: -0.0006467
+  ou_pre_best_selection_count: 7566
+  ou_pre_best_strategy_roi: -0.0532
+  continuation_gate: FAIL
+  final_verdict: NO_EDGE
+  independently_recomputed_by_chatgpt: false
 
 result_access:
-  mode: STAGED_SPLIT_GATES
-  d: AUTHORIZED_FOR_TRAINING_ONLY_AFTER_R0_RECHECK
-  v: FORBIDDEN_UNTIL_V_CANDIDATE_MANIFESTS_FROZEN
-  h: FORBIDDEN_UNTIL_H_PREDICTION_AND_SELECTION_MANIFESTS_FROZEN
+  d: TRAINING_READ_COMPLETE
+  v: ONE_TIME_READ_COMPLETE
+  h: PERMANENTLY_CLOSED
 
-splits:
-  d: [2019_20, 2020_21, 2021_22]
-  v: [2022_23, 2023_24]
-  h: [2024_25, 2025_26]
-  v_mode: STATIC_TRAIN_D_NO_V_OUTCOME_UPDATE
-  h_mode: STATIC_REFIT_D_PLUS_V_NO_H_OUTCOME_UPDATE
+cancelled_by_gate:
+  r3_final_refit: true
+  r4_h_manifest_freeze: true
+  r5_h_audit: true
 
-source_universe:
-  confirmatory: FOOTBALL_DATA_MMZ_ONLY
-  division_count: 20
-  division_season_count: 140
-  mmz_rows: 51035
-  new_series: EXCLUDED_NO_PINNACLE_AH_OU_CURRENT_SOURCE
+product_decision:
+  quant_platform_authorized: false
+  signal_ledger_authorized: false
+  shadow_authorized: false
+  portfolio_authorized: false
+  risk_kelly_authorized: false
+  recommended_role: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 
-populations:
-  ah_half_closing_predictive: 10816
-  ah_half_pre_economic: 10693
-  ah_half_same_line_clv: 6479
-  ou25_closing_predictive: 46483
-  ou25_pre_economic: 46313
-  ou25_same_line_clv: 46301
-  line_comparable: 50958
-  same_line: 31905
-  line_moved: 19053
-  line_moved_rate_percent: 37.39
-  h_ou25_eligible: 10123
-  h_ah_half_eligible: 2437
-
-markets:
-  primary_predictive: [OU_2_5, AH_HALF_GOAL_LINES]
-  primary_economic: OU_2_5
-  ah_half_economic: EXPLORATORY_POWER_DEPENDENT
-  ah_integer_quarter: EXPLORATORY_FIVE_STATE_ONLY
-  odds_source: PINNACLE_ONLY
-  fallback: FORBIDDEN
-
-models:
-  m0_pre: PINNACLE_PRE_MARKET_ONLY
-  m0_close: PINNACLE_CLOSE_MARKET_ONLY
-  m2: PURE_GOALS_DIXON_COLES_PER_DIVISION
-  rho_grid: {min: -0.20, max: 0.20, step: 0.01, train_only: true}
-  m4_pre: M4_PRE_BINARY_RESIDUAL_V1
-  m4_close: M4_CLOSE_BINARY_RESIDUAL_V1
-  m4_family: BINARY_LOGISTIC_RESIDUAL_WITH_MARKET_LOGIT_OFFSET_AND_L2
-  m4_features: [INTERCEPT, MODEL_MARKET_LOGIT_GAP]
-  l2_grid: [0.01, 0.1, 1.0, 10.0]
-  m1_m3: SECONDARY_NOT_GATING
-
-selection:
-  market: OU_2_5
-  minimum_predicted_ev: 0.03
-  max_primary_per_fixture_market: 1
-  exact_tie: NO_SELECTION_TIE
-  stake_units: 1
-  kelly: false
-  compounding: false
-  close_fields_allowed: false
-
-statistics:
-  primary_devig: PROPORTIONAL
-  sensitivity_devig: POWER
-  predictive_lift: PINNACLE_MARKET_LOG_LOSS_MINUS_MODEL_LOG_LOSS
-  minimum_practical_predictive_lift_nats: 0.002
-  minimum_practical_realized_roi: 0.03
-  bootstrap: TWO_STAGE_COMPETITION_SEASON_AND_FIXTURE
-  resamples: 20000
-  seed: 2026080601
-  ci: TWO_SIDED_PERCENTILE_95
-  predictive_multiple_testing: HOLM_ALPHA_0_05
-  ev_se_semantics: EV_SCENARIO_SD_NOT_SAMPLING_SE
-
-verdicts:
-  - INSUFFICIENT_EVIDENCE
-  - NO_EDGE
-  - PREDICTIVE_INCREMENT_ONLY
-  - ECONOMIC_EDGE_CANDIDATE
+future_quant_rule:
+  new_information_source_required: true
+  new_model_or_edge_hypothesis_required: true
+  new_pre_registered_protocol_required: true
+  reuse_v_h_for_retuning_forbidden: true
 
 stop_lines:
+  open_h_results: false
+  rerun_with_changed_thresholds: false
   production_code_change: false
   production_model_change: false
   signal_ledger_development: false
