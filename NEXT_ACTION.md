@@ -6,96 +6,120 @@ Current action:
 W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
 ```
 
-Current product authority:
+## Required authorities
 
-- `CURRENT_CONTEXT.md`
-- `CURRENT_STATE.yaml`
-- `CURRENT_PRODUCT_DESIGN.md`
-- `CURRENT_TASK_CHECKLIST.md`
+Read current authority from `origin/context/current` in this order:
 
-These files are maintained directly on `context/current`; context updates do not use PR or CI.
+1. `CURRENT_CONTEXT.md`
+2. `CURRENT_STATE.yaml`
+3. `CURRENT_PRODUCT_DESIGN.md`
+4. `CURRENT_TASK_CHECKLIST.md`
+5. `NEXT_ACTION.md`
+6. `ROUND_1_CODEX_EXECUTION.md`
+7. `ROUND_1_ACCEPTANCE_CRITERIA.md`
+8. `AI_PROJECT_CONTEXT.md`
+9. `AI_QUANT_PROJECT_CONTEXT.md`
+10. `AGENTS.md`
+11. `QUANT_AGENTS.md`
+12. `.github/copilot-instructions.md`
 
-## Owner decision
+Use latest `origin/main` as code baseline. Use `origin/context/current` as current task/product authority when old `main` context conflicts.
+
+## Binding league correction
+
+Current active whitelist:
 
 ```text
-PRODUCT_NAME = W2 Football Intelligence
-PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
-OWNER_DECISION = APPROVED
+ACTIVE_WHITELIST = 13
+ROUND_1_WHITELIST_CHANGE = FORBIDDEN
 ```
 
-Phase 0.5 ended with `NO_EDGE`. Do not retune the failed model family on V/H outcomes and do not reopen H. The permanent product guard is:
+Round 1 must preserve exactly these 13 identities:
 
 ```text
-MODEL_MARKET_DIVERGENCE != MARKET_OPPORTUNITY
+chinese_super_league
+allsvenskan
+eliteserien
+premier_league
+la_liga
+bundesliga
+serie_a
+ligue_1
+brasileirao_serie_a
+argentina_primera
+mls
+eredivisie
+primeira_liga
 ```
+
+The European `5 + 6` grouping is **not** the total whitelist.
+
+The six Extended Radar names contain two existing whitelist competitions (`Eredivisie`, `Primeira Liga`) and only four net-new future candidates:
+
+```text
+Belgian Pro League
+Turkish Super Lig
+Greek Super League
+Scottish Premiership
+```
+
+Therefore future Round 2 planning uses:
+
+```text
+13 EXISTING + 4 NET_NEW = 17 TOTAL CANDIDATES
+```
+
+Do not add the four new candidates in Round 1.
 
 ## Round 1 objective
 
-Convert the public product from recommendation-first to intelligence-first while preserving the existing data/model/scheduler foundations.
+Convert the public product from recommendation-first to intelligence-first while preserving the existing operational foundations.
 
 Required outcomes:
 
-1. Replace public recommendation/pick language with market-intelligence and model-diagnostic language.
-2. Implement deterministic intelligence states:
-   - `MARKET_STABLE`
-   - `MARKET_MOVEMENT`
-   - `MARKET_ANOMALY`
-   - `MODEL_MARKET_DISAGREEMENT`
-   - `DATA_INCOMPLETE`
-   - `MODEL_DIAGNOSTIC_WARNING`
-   - `COLLECTION_INCIDENT`
-3. Split risk into event/data/model/collection dimensions.
-4. Make market stability and zero material alerts a valid non-empty result.
-5. Prevent model/market divergence from generating opportunity, edge, recommendation or pick language anywhere in API/read-model/web output.
-6. Reposition V4 as a diagnostic input rather than the public product authority.
-7. Preserve current real cards, empty-day behavior, release SHA visibility and operational health.
+1. Public identity becomes `W2 Football Intelligence`.
+2. Implement the seven deterministic intelligence states and frozen precedence.
+3. Implement four independent risk dimensions.
+4. `MARKET_STABLE` and zero material alerts become valid non-empty results.
+5. `RecommendationDecisionV4` is retained but becomes `DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY`.
+6. Model-market divergence cannot produce opportunity/value/edge/recommendation semantics anywhere in the public projection or browser UI.
+7. Real market facts remain visible independently of V4 pick/no-pick state when their own data/freshness truth permits it.
+8. Public page forms `Market Overview`, `Match Intelligence`, `Data & Operations Summary`.
+9. Existing real cards, empty-day state, release SHA and operational health remain truthful.
+10. Current 13 whitelist identities remain unchanged.
+
+## Execution and acceptance
+
+Codex execution authority:
+
+```text
+ROUND_1_CODEX_EXECUTION.md
+```
+
+Binding acceptance criteria:
+
+```text
+ROUND_1_ACCEPTANCE_CRITERIA.md
+```
+
+Do not substitute a self-invented task decomposition for those files.
 
 ## Round 1 boundaries
 
 ```text
 LEAGUE_EXPANSION = false
+ACTIVE_WHITELIST = 13_UNCHANGED
 PROVIDER_POLICY_CHANGE = false
+PROVIDER_ALLOWLIST_CHANGE = false
 SCHEDULER_POLICY_CHANGE = false
 NEW_PROVIDER_CALLS = 0
 ROUND_2_CAPABILITY_AUDIT = NOT_STARTED
 ROUND_3_MARKET_RADAR = NOT_STARTED
-```
-
-Use one bounded runtime PR, one exact-head full validation and one deployment. Do not split Round 1 into multiple delivery cycles.
-
-## Later rounds
-
-Round 2, after Round 1 acceptance:
-
-```text
-11 first-division candidates
-14-day read-only API-Football capability audit
-no recommendation/profit output
-```
-
-Round 3, after Round 2 capability decisions:
-
-```text
-Market Radar + Model Lab
-only promoted leagues
-overround percentile required as alert confidence/noise covariate
-```
-
-The exact Round 3 alert formula is frozen after live Round 2 distributions, not before.
-
-## Permanent stop lines
-
-```text
-BETTING_EDGE_CLAIM = FORBIDDEN
-MODEL_DIVERGENCE_AS_OPPORTUNITY = FORBIDDEN
-SIGNAL_LEDGER_FOR_EXECUTION = NOT_AUTHORIZED
-PORTFOLIO = NOT_AUTHORIZED
-RISK_KELLY = NOT_AUTHORIZED
-TWO_LEG_PARLAY = NOT_AUTHORIZED
-REAL_MONEY = NOT_AUTHORIZED
 
 CANDIDATE = OFF
 FORMAL = OFF
 LOCK = OFF
 PRODUCTION = OFF
 ```
+
+Use one bounded runtime PR, one final exact-head Full Release Candidate, one merge, one deployment and one public browser acceptance. Stop after Round 1 PASS; do not begin Round 2 automatically.
