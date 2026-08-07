@@ -2,136 +2,196 @@
 
 This is the mutable current authority for W2. It is maintained directly on branch `context/current` without a pull request, CI, Release Candidate, image build or deployment. Superseded context is replaced rather than retained as current authority.
 
-## Phase 0.5 is complete
+Read with:
+
+- `CURRENT_STATE.yaml`
+- `CURRENT_PRODUCT_DESIGN.md`
+- `CURRENT_TASK_CHECKLIST.md`
+- `NEXT_ACTION.md`
+
+## Owner product decision
 
 ```text
-PROGRAM = W2_FOOTBALL_QUANT_EDGE_EXISTENCE
-PROTOCOL = W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
-PROTOCOL_FROZEN = true
+PRODUCT_NAME = W2 Football Intelligence
+PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
+OWNER_DECISION = APPROVED
+ACTIVE_NEXT_ACTION = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
+```
+
+W2 is not being rebuilt as a betting or profit-claiming quant platform. The existing W2 data, identity, odds, model, scheduler, replay and dashboard infrastructure is preserved and repositioned as market intelligence and model diagnostics.
+
+## Evidence boundary
+
+Phase 0.5 ended with:
+
+```text
 FINAL_VERDICT = NO_EDGE
-ACTIVE_NEXT_ACTION = OWNER_DECISION_REQUIRED_AFTER_NO_EDGE
-NEXT_CODE_ACTION = NONE_AUTHORIZED
-H_RESULT_ACCESS = PERMANENTLY_CLOSED
-```
-
-The frozen V gate failed. The protocol therefore forbids R3, R4 and any H audit.
-
-## Decisive V evidence
-
-Reported receipt:
-
-```text
-/Users/liudehua/.hermes/workspace/w2-phase05-research/
-r2b_v_evaluation_20260807/artifacts/R2B_V_GATE_RECEIPT.json
-```
-
-Reported machine evidence:
-
-```text
-R2A_PRECHECK = 41/41 PASS
-DETERMINISTIC_ARTIFACT_RECHECK = 9 PASS
-V_ROWS_READ_ONCE = 14909
-
 OU_CLOSE_BEST_PREDICTIVE_LIFT = -0.0000758
 AH_CLOSE_BEST_PREDICTIVE_LIFT = -0.0006467
-
-OU_PRE_BEST_FROZEN_SELECTION_COUNT = 7566
-OU_PRE_BEST_FROZEN_STRATEGY_ROI = -5.32_PERCENT
-
-V_CONTINUATION_GATE = FAIL
-FINAL_VERDICT = NO_EDGE
+OU_PRE_FROZEN_SELECTIONS = 7566
+OU_PRE_FROZEN_STRATEGY_ROI = -5.32_PERCENT
 H_RESULT_ACCESS = PERMANENTLY_CLOSED
 ```
 
-`PREDICTIVE_LIFT = market_log_loss - model_log_loss`; both best values are negative, so even the best frozen residual candidates did not improve on Pinnacle closing probabilities in V. The frozen PRE strategy also lost 5.32% over 7,566 selections. This is not a low-sample `INSUFFICIENT_EVIDENCE` outcome; under the frozen continuation contract it is `NO_EDGE`.
-
-The receipt bytes were not independently recomputed by ChatGPT because the file is local to the operator machine. The current context records the machine receipt and its declared protocol outcome.
-
-## Binding consequence
-
-The following work is not authorized:
+The tested model/selection family may not be retuned on V/H outcomes. This evidence creates a permanent product rule:
 
 ```text
-R3_D_PLUS_V_REFIT
-R4_H_PREDICTION_AND_SELECTION_FREEZE
-R5_H_AUDIT
-SIGNAL_LEDGER_DEVELOPMENT
-SHADOW_STRATEGY_PRODUCTIZATION
-PORTFOLIO
-RISK
-KELLY
-QUANT_DASHBOARD
-REAL_MONEY
+MODEL_MARKET_DIVERGENCE != MARKET_OPPORTUNITY
 ```
 
-Do not open H to search for a reversal. Do not change the 3% selection threshold, model features, L2 grid, devig method, market scope or split assignment and rerun the same protocol. That would convert the held-out design into post-result tuning.
+Model/market divergence is a diagnostic state. It must never be displayed as value, edge, opportunity, recommendation or execution guidance.
 
-## Product conclusion
+## New product questions
 
-The tested hypothesis failed:
+W2 should answer:
+
+- what is happening in the market;
+- whether quotes and identities are complete and fresh;
+- whether a market move is persistent, confirmed or noisy;
+- whether the model is calibrated and stable;
+- which leagues, providers, data sources or model components require attention.
+
+It should not answer what to bet or how much to stake.
+
+## Product structure
 
 ```text
-PURE_GOALS_DIXON_COLES
-+
-PINNACLE_MARKET_ANCHORED_BINARY_RESIDUAL
-+
-FROZEN_PRE_SELECTION_RULE
+Market Overview
+Market Radar
+Model Lab
+Match Intelligence
+Data & Operations
 ```
 
-has not shown predictive or economic edge in the V seasons for the tested OU 2.5 / AH half-line universe.
-
-This does not prove that every possible football model is impossible. It proves that W2 must not build a quant platform around this tested model family and selection rule.
-
-Recommended role for the existing W2 system:
+Top-level states:
 
 ```text
-W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
+MARKET_STABLE
+MARKET_MOVEMENT
+MARKET_ANOMALY
+MODEL_MARKET_DISAGREEMENT
+DATA_INCOMPLETE
+MODEL_DIAGNOSTIC_WARNING
+COLLECTION_INCIDENT
 ```
 
-Existing useful assets remain:
-
-- real fixtures, odds, raw payload and capture identity;
-- data quality and coverage monitoring;
-- market movement and freshness diagnostics;
-- probability calibration and market-baseline comparison;
-- model research and replay infrastructure;
-- operational Dashboard and controlled scheduler.
-
-A future quant attempt requires all three:
+Risk dimensions:
 
 ```text
-NEW_INFORMATION_SOURCE
-NEW_MODEL_OR_EDGE_HYPOTHESIS
-NEW_PRE_REGISTERED_PROTOCOL
+EVENT_RISK
+DATA_RISK
+MODEL_RISK
+COLLECTION_RISK
 ```
 
-It may not reuse V/H results to tune the failed hypothesis.
+`NOT_READY` or `BLOCKED` must not be translated into betting risk.
 
-## Existing operational track
+## League plan
+
+First-division candidate set:
+
+### Core Benchmark
 
 ```text
+Premier League
+La Liga
+Bundesliga
+Serie A
+Ligue 1
+```
+
+### Extended Radar Candidates
+
+```text
+Eredivisie
+Belgian Pro League
+Primeira Liga
+Turkish Super Lig
+Greek Super League
+Scottish Premiership
+```
+
+These 11 leagues are candidates, not automatically ready. Second-tier leagues begin as `REGISTERED` or `COVERAGE_MONITORING`.
+
+Live capability levels:
+
+```text
+REGISTERED
+COVERAGE_MONITORING
+MARKET_INTELLIGENCE_READY
+MODEL_DIAGNOSTICS_READY
+DEGRADED
+```
+
+Promotion requires the Round 2 14-day API-Football capability audit.
+
+## Overround alert covariate
+
+Historical analysis found that, within the 11 first-division candidates, higher PRE-to-CLOSE line-movement rates were strongly associated with higher overround. Therefore frequent movement may indicate a thinner, less trusted market rather than stronger information.
+
+Mandatory design rule:
+
+```text
+OVERROUND_PERCENTILE = REQUIRED_ALERT_COVARIATE
+```
+
+For the same move:
+
+- lower-overround market context may support higher information confidence;
+- higher-overround context requires stronger magnitude, persistence or independent bookmaker confirmation;
+- an isolated high-overround move should normally classify as `THIN_MARKET_NOISE`;
+- `OVERROUND_SPIKE` is a separate market event, not an opportunity.
+
+Exact formulas and thresholds are not frozen until Round 2 produces live league × market × time-to-kickoff distributions.
+
+## Three-round implementation
+
+### Round 1 — Product semantics and status reframe
+
+```text
+TASK = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
+STATUS = AUTHORIZED_NEXT
+LEAGUE_EXPANSION = false
+PROVIDER_POLICY_CHANGE = false
+```
+
+One runtime PR, one full validation, one deployment. Change recommendation-first language and state mapping to intelligence-first semantics. Preserve current league/provider configuration.
+
+### Round 2 — First-division Provider capability audit
+
+```text
+TASK = W2_MI_R2_FIRST_DIVISION_PROVIDER_CAPABILITY_AUDIT
+STATUS = BLOCKED_UNTIL_ROUND_1_ACCEPTED
+DURATION = 14_DAYS
+MODE = READ_ONLY_CONTROLLED
+```
+
+Test the 11 candidates using actual API-Football coverage, freshness, errors, identity quality and call cost. Collect live overround/movement distributions. Do not recommend or infer value.
+
+### Round 3 — Market Radar and Model Lab
+
+```text
+TASK = W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB
+STATUS = BLOCKED_UNTIL_ROUND_2_CAPABILITY_DECISION
+AUTHORIZED_LEAGUES = ROUND_2_PROMOTED_ONLY
+```
+
+Implement market timelines, anomaly read models, overround-adjusted confidence/noise scoring, bookmaker confirmation, persistence/reversal logic, calibration and model drift views.
+
+## Current hard boundary
+
+```text
+BETTING_EDGE_CLAIM = FORBIDDEN
+MODEL_DIVERGENCE_AS_OPPORTUNITY = FORBIDDEN
+SIGNAL_LEDGER_FOR_EXECUTION = NOT_AUTHORIZED
+PORTFOLIO = NOT_AUTHORIZED
+RISK_KELLY = NOT_AUTHORIZED
+TWO_LEG_PARLAY = NOT_AUTHORIZED
+REAL_MONEY = NOT_AUTHORIZED
+
 PERSISTENT_SCHEDULER = ON_CONTROLLED
 CANDIDATE = OFF
 FORMAL = OFF
 LOCK = OFF
 PRODUCTION = OFF
-```
-
-The deployed W2 operational system remains unchanged.
-
-## Current stop line
-
-```text
-NO_ACTIVE_QUANT_CODE_TASK = true
-H_RESULT_COLUMNS_READ = false
-PROVIDER_CALLS = 0
-PRODUCTION_CODE_CHANGE = false
-PRODUCTION_MODEL_CHANGE = false
-PRODUCTION_DB_WRITES = 0
-SIGNAL_LEDGER_DEVELOPMENT = false
-PORTFOLIO_DEVELOPMENT = false
-PR_CREATED = false
-CI_RUN = false
-DEPLOYMENT_EXECUTED = false
-REAL_MONEY = NOT_AUTHORIZED
 ```
