@@ -16,11 +16,81 @@ This is the mutable current authority for W2. It is maintained directly on branc
 ```text
 PRODUCT_NAME = W2 Football Intelligence
 PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
-OWNER_DECISION = APPROVED
+OWNER_DECISION = APPROVED_CONTINUE_UNTIL_ACCEPTED
 ACTIVE_NEXT_ACTION = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
+ACTIVE_RUNTIME_PR = 493
+ROUND_1_STATUS = IN_PROGRESS_REMEDIATION
 ```
 
 W2 is being repositioned from a recommendation-first public shell into a football market-intelligence and model-diagnostics platform while preserving the existing data, identity, odds, model, Scheduler, replay and Dashboard foundations.
+
+## Binding remediation behavior
+
+Round 1 must continue in the same PR #493 until every binding acceptance gate passes.
+
+```text
+FAIL_CLOSED = DO_NOT_ADVANCE_PAST_FAILED_GATE
+FAIL_CLOSED != ABANDON_ROUND_1
+```
+
+For an in-scope Round 1 failure:
+
+```text
+DIAGNOSE
+-> MINIMAL_FIX_IN_PR_493
+-> LOCAL_VALIDATION
+-> EXACT_HEAD_PR_FAST
+-> EXACT_HEAD_FULL_RC
+-> REPEAT_IF_NEEDED
+```
+
+No new owner authorization is required for bounded remediation inside the already approved Round 1 scope.
+
+A new owner authorization is required only if a proposed correction would expand scope or cross a permanent stop line.
+
+Round 1 is complete only when:
+
+```text
+FINAL_EXACT_HEAD_FULL_RC = SUCCESS
+MERGE = SUCCESS
+API_WEB_SAME_VERIFIED_SOURCE_DEPLOYMENT = SUCCESS
+PUBLIC_API_ACCEPTANCE = PASS
+PUBLIC_BROWSER_ACCEPTANCE = PASS
+ROUND_1_ACCEPTANCE_CRITERIA = ALL_PASS
+ROUND_1 = PASS
+```
+
+Until then Round 1 remains `IN_PROGRESS_REMEDIATION` and Round 2/3 remain `NOT_STARTED`.
+
+## Current failed attempt
+
+The first Full RC is retained as failure evidence:
+
+```text
+AUDITED_BASE_MAIN_SHA = 84e642f3ea26464574f75ee4d520b38bcf24073a
+RUNTIME_PR_NUMBER = 493
+FAILED_HEAD_SHA = 5479e1f1f419e2fc15b69882aaa0c323c966ce1d
+PR_FAST_RUN = 31151508691
+PR_FAST_RESULT = SUCCESS
+FAILED_FULL_RC_RUN = 31151557970
+FAILED_FULL_RC_RESULT = FAILURE
+FAILED_GATE = BOSS_CONSOLE_PROTECTED_BASELINE
+FAILED_FILE = apps/web/src/components/DecisionCounts.tsx
+EXPECTED_SHA256 = c1b3f940587c1a25610c5e762f955c12541a7da40f006e9ce7818e5d376c9d6e
+FAILED_ACTUAL_SHA256 = 4d16bdcede5cf96d17ecf346e1872b5db58139c470ef1227786a6667166a7d5a
+MERGE = NOT_EXECUTED
+DEPLOYMENT = NOT_EXECUTED
+```
+
+The immediate remediation is binding:
+
+- restore protected `DecisionCounts.tsx` exactly to the base/main user-approved authority;
+- do not change protected visual hashes to bless the new version;
+- do not weaken the baseline checker;
+- move new Market Overview counters into a separate intelligence-only component;
+- make the public intelligence root use that component instead of protected legacy DecisionCounts;
+- preserve all Round 1 intelligence-first semantics;
+- rerun exact-head validation until the final Full RC succeeds.
 
 ## Evidence boundary
 
@@ -125,7 +195,7 @@ Future candidate union after explicit Round 2 authorization:
 13 EXISTING + 4 NET_NEW = 17 TOTAL CANDIDATES
 ```
 
-Round 1 performs **zero** league registration/enablement/audit/scheduling/provider calls.
+Round 1 performs zero league registration/enablement/audit/scheduling/provider expansion calls.
 
 ## Product authority
 
@@ -139,16 +209,19 @@ V4 and historical settlement/replay evidence remain preserved. Public intelligen
 
 ```text
 TASK = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
-STATUS = AUTHORIZED_NEXT
+STATUS = IN_PROGRESS_REMEDIATION
+ACTIVE_RUNTIME_PR = 493
 ONE_RUNTIME_PR = true
-ONE_FINAL_EXACT_HEAD_RC = true
+MULTIPLE_FAILED_VALIDATION_ATTEMPTS_ALLOWED = true
+ONE_SUCCESSFUL_FINAL_EXACT_HEAD_RC = true
 ONE_MERGE = true
-ONE_DEPLOYMENT = true
+ONE_FINAL_ACCEPTED_DEPLOYMENT = true
+PUBLIC_ACCEPTANCE_REQUIRED = true
 ACTIVE_WHITELIST = 13_UNCHANGED
 LEAGUE_EXPANSION = false
 PROVIDER_POLICY_CHANGE = false
 SCHEDULER_POLICY_CHANGE = false
-NEW_PROVIDER_CALLS = 0
+NEW_PROVIDER_CALLS_INITIATED_BY_R1 = 0
 ```
 
 Detailed execution authority: `ROUND_1_CODEX_EXECUTION.md`.
