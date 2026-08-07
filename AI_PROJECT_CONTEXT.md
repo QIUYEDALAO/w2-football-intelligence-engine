@@ -1,18 +1,8 @@
 # W2 AI Project Context
 
-Current mutable context is maintained on branch `context/current`. Read:
+Current mutable authority is maintained on branch `context/current`.
 
-- `CURRENT_CONTEXT.md`
-- `CURRENT_STATE.yaml`
-- `CURRENT_PRODUCT_DESIGN.md`
-- `CURRENT_TASK_CHECKLIST.md`
-- `NEXT_ACTION.md`
-- `AI_QUANT_PROJECT_CONTEXT.md`
-- `QUANT_AGENTS.md`
-
-Context changes are direct replacements and do not use PR, CI, Release Candidate, image build or deployment.
-
-## Current product decision
+## Current program
 
 ```text
 PRODUCT = W2 Football Intelligence
@@ -21,67 +11,87 @@ OWNER_DECISION = APPROVED
 ACTIVE_NEXT_ACTION = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
 ```
 
-The deployed operational W2 data, identity, odds, model, Scheduler, replay and Dashboard foundations are preserved. The product is being reframed from a recommendation console into a market-intelligence and model-diagnostics platform.
+Read `ROUND_1_CODEX_EXECUTION.md` for execution and `ROUND_1_ACCEPTANCE_CRITERIA.md` for acceptance.
 
-## Phase 0.5 evidence boundary
+Phase 0.5 is closed with `NO_EDGE`; H is permanently closed under that protocol.
 
-```text
-FINAL_VERDICT = NO_EDGE
-OU_CLOSE_BEST_PREDICTIVE_LIFT = -0.0000758
-AH_CLOSE_BEST_PREDICTIVE_LIFT = -0.0006467
-OU_PRE_FROZEN_SELECTIONS = 7566
-OU_PRE_FROZEN_STRATEGY_ROI = -5.32_PERCENT
-H_RESULT_ACCESS = PERMANENTLY_CLOSED
-```
-
-Do not retune that model family with V/H results. Permanent product rule:
+Permanent product rule:
 
 ```text
 MODEL_MARKET_DIVERGENCE != MARKET_OPPORTUNITY
+RecommendationDecisionV4 = DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY
 ```
+
+## League correction
+
+Current active whitelist baseline is 13 and must not change in Round 1:
+
+```text
+chinese_super_league
+allsvenskan
+eliteserien
+premier_league
+la_liga
+bundesliga
+serie_a
+ligue_1
+brasileirao_serie_a
+argentina_primera
+mls
+eredivisie
+primeira_liga
+```
+
+The European `5 + 6` grouping is not a replacement whitelist. `Eredivisie` and `Primeira Liga` are already in the baseline 13. The future net-new candidates are only:
+
+```text
+Belgian Pro League
+Turkish Super Lig
+Greek Super League
+Scottish Premiership
+```
+
+Future Round 2 candidate union:
+
+```text
+13 EXISTING + 4 NET_NEW = 17
+```
+
+Round 1 performs zero league additions and zero new Provider calls.
 
 ## Round 1
 
-Round 1 changes product semantics only:
+One bounded API/Web runtime change:
 
-- intelligence-first public page;
-- market/model/data/collection states;
-- event/data/model/collection risk dimensions;
-- stable market as a valid result;
-- no opportunity/recommendation language from model divergence;
-- V4 retained as diagnostic evidence input;
-- no league, Provider or Scheduler expansion.
+- intelligence-first public product;
+- seven deterministic intelligence states;
+- four independent risk dimensions;
+- `MARKET_STABLE`/zero alerts as valid output;
+- V4 diagnostic-only product role;
+- divergence guard across API/read-model/Web/browser;
+- market facts independent from V4 pick/no-pick state;
+- public shell: Market Overview / Match Intelligence / Data & Operations Summary;
+- existing 13 whitelist unchanged;
+- current Scheduler/Provider policy preserved.
 
-One runtime PR, one exact-head full validation, one deployment, then stop.
-
-## League program after Round 1
-
-Candidate first divisions:
+Delivery:
 
 ```text
-Core Benchmark:
-Premier League, La Liga, Bundesliga, Serie A, Ligue 1
-
-Extended Radar Candidates:
-Eredivisie, Belgian Pro League, Primeira Liga, Turkish Super Lig,
-Greek Super League, Scottish Premiership
+ONE_RUNTIME_PR = true
+ONE_FINAL_EXACT_HEAD_FULL_RC = true
+ONE_MERGE = true
+ONE_DEPLOYMENT = true
 ```
 
-Promotion requires the 14-day API-Football capability audit. Historical football-data behavior is not live Provider authority.
+## Later rounds
 
-## Market Radar guard
+Round 2 is blocked until Round 1 PASS and explicit owner authorization. Its future candidate universe is 17, not 11.
+
+Round 3 remains blocked and must require:
 
 ```text
 OVERROUND_PERCENTILE = REQUIRED_ALERT_COVARIATE
 ```
-
-Historical evidence indicates that higher first-division PRE-to-CLOSE movement rates co-occurred with higher overround. Therefore frequent movement may reflect thin-market noise.
-
-- lower overround can support higher information confidence;
-- high overround requires stronger magnitude, persistence or independent bookmaker confirmation;
-- isolated high-overround movement normally maps to `THIN_MARKET_NOISE`;
-- high overround is not high value;
-- exact alert parameters wait for live Round 2 distributions.
 
 ## Permanent boundaries
 
