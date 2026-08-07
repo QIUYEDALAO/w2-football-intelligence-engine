@@ -1,6 +1,6 @@
 # W2 Football Intelligence — Current Product Design
 
-This is the current product-design authority for W2. It is maintained on branch `context/current` and is replaced directly when the owner changes the product direction. It is not a historical archive and does not use a context PR or CI.
+This is the current product-design authority for W2 on branch `context/current`.
 
 ## 1. Product decision
 
@@ -13,111 +13,80 @@ RECOMMENDATION_AUTHORITY = NOT_A_PRODUCT_GOAL
 REAL_MONEY = NOT_AUTHORIZED
 ```
 
-The existing W2 data, identity, odds, model, scheduler, replay and dashboard infrastructure is preserved. The product shell changes from a single-match recommendation console into a market-intelligence and model-diagnostics platform.
+The existing W2 data, identity, odds, model, Scheduler, replay and Dashboard infrastructure is preserved. The public shell changes from recommendation-first to intelligence-first.
 
-Phase 0.5 ended with `NO_EDGE` for the tested model/selection family. That evidence is a permanent product guard:
+Permanent product guard:
 
 ```text
 MODEL_MARKET_DIVERGENCE != MARKET_OPPORTUNITY
+RecommendationDecisionV4 = DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY
 ```
 
-A large model/market difference must be presented as a diagnostic condition, never as a value opportunity, recommendation, positive EV claim or execution signal.
+A model-market difference is a diagnostic condition, never a value/opportunity/recommendation/positive-EV claim.
 
 ## 2. Product questions
 
-The platform should answer:
+W2 should answer:
 
-1. What is happening in the football market now?
-2. Is the market stable, moving, noisy, stale or internally inconsistent?
-3. Is the data complete and fresh enough to trust the display?
-4. Is the model calibrated and behaving consistently with its historical quality?
-5. Which leagues, providers, markets or model components need attention?
+1. What is happening in the market?
+2. Is the market stable, moving, anomalous, stale or incomplete?
+3. Is the data complete/fresh/trustworthy?
+4. Is the model calibrated/reliable or showing warning/disagreement?
+5. Which matches, leagues, data paths or runtime systems need attention?
 
-It should not answer:
+It should not answer what to bet, how much to stake, or which side has positive edge.
 
-```text
-What should I bet?
-How much should I stake?
-Which selection has positive edge?
-```
-
-## 3. Product surfaces
+## 3. Round 1 public surfaces
 
 ### 3.1 Market Overview
 
-- monitored leagues and future fixtures;
-- market-complete fixtures;
-- quote freshness;
-- market-stable count;
-- material market-movement count;
-- data/model/collection incidents;
-- Provider health and refresh status.
-
-Zero material alerts is a valid product result:
+Minimum counters:
 
 ```text
-MARKET_STATUS = STABLE
+monitored fixtures
+market-complete fixtures
+fresh quotes
+market-stable fixtures
+market-movement fixtures
+model diagnostic warnings
+data incidents
+collection incidents
 ```
 
-The UI must not lower thresholds merely to create content.
+Zero material alerts is a valid success result. Do not lower thresholds to create content.
 
-### 3.2 Market Radar
+### 3.2 Match Intelligence
 
-Market events may include:
+Retain real match cards as diagnostic surfaces with existing truthful evidence where available:
 
-```text
-CONFIRMED_MARKET_MOVE
-THIN_MARKET_NOISE
-PRICE_REVERSAL
-BOOKMAKER_DISAGREEMENT
-OVERROUND_SPIKE
-STALE_MARKET
-MISSING_COUNTERSIDE
-SCHEMA_OR_IDENTITY_INCIDENT
-```
+- fixture/team/competition identity;
+- AH/OU current or last-known market facts;
+- line/price/freshness/capture time;
+- existing market movement evidence;
+- lineup/data readiness;
+- model/market probabilities and diagnostic disagreement;
+- model-quality context;
+- evidence lineage and blockers.
 
-A Radar event is market intelligence, not a recommendation.
+Market facts must not disappear merely because V4 has no pick/selected candidate or says `NOT_READY/NO_EDGE`.
 
-### 3.3 Model Lab
+Never promote stale/reference-only quotes into current/executable truth.
 
-- market vs model Log Loss;
-- Brier score and calibration;
-- ECE and drift;
-- model/market divergence distribution;
-- feature readiness and staleness;
-- league, season and odds-band diagnostics;
-- model trust state.
+### 3.3 Data & Operations Summary
 
-Model divergence must always include historical model-quality context. If the model has not demonstrated market increment, the default interpretation is model review, not market mispricing.
+Preserve operational truth:
 
-### 3.4 Match Intelligence
+- Provider/Scheduler status;
+- quote freshness and stale incidents;
+- identity/mapping/data issues;
+- release SHA and API/Web synchronization;
+- Candidate/Formal/Lock/Production state.
 
-The existing match card is retained as a diagnostic surface with:
+Historical settlement/performance may remain as clearly historical diagnostics, not as proof of current betting edge.
 
-- fixture and identity;
-- AH/OU current market state and timeline;
-- line/price changes;
-- quote freshness and overround;
-- lineup/injury/fact readiness;
-- model and market probabilities;
-- model-quality disclaimer;
-- raw evidence lineage and blockers.
+## 4. Intelligence state taxonomy
 
-Remove recommendation-first language such as `pick`, `recommended side`, `high-value opportunity` and generic `high-risk match`.
-
-### 3.5 Data & Operations
-
-- endpoint coverage and success rate;
-- Scheduler checkpoints;
-- Provider quota and errors;
-- identity/mapping conflicts;
-- stale-data incidents;
-- result reconciliation;
-- league capability level.
-
-## 4. Status and risk taxonomy
-
-Top-level intelligence states:
+Every public fixture/card/read-model projection has one top-level state:
 
 ```text
 MARKET_STABLE
@@ -129,6 +98,24 @@ MODEL_DIAGNOSTIC_WARNING
 COLLECTION_INCIDENT
 ```
 
+Frozen Round 1 precedence:
+
+```text
+COLLECTION_INCIDENT
+> DATA_INCOMPLETE
+> MODEL_DIAGNOSTIC_WARNING
+> MARKET_ANOMALY
+> MODEL_MARKET_DISAGREEMENT
+> MARKET_MOVEMENT
+> MARKET_STABLE
+```
+
+Secondary reason codes remain deterministic so lower-precedence facts are not lost.
+
+Round 1 may only map existing explicit movement/anomaly evidence. New market-alert formulas belong to Round 3.
+
+## 5. Risk dimensions
+
 Risk/incident dimensions are separate:
 
 ```text
@@ -138,34 +125,52 @@ MODEL_RISK
 COLLECTION_RISK
 ```
 
-`NOT_READY`, `BLOCKED` or missing data must never be mapped to a betting-risk conclusion.
+Rules:
 
-## 5. League capability model
+- `NOT_READY/BLOCKED` is not a high-risk match;
+- identity/xG/quote/readiness problems -> data/model readiness;
+- Provider/Scheduler/schema/runtime failures -> collection;
+- actual injury/lineup/event facts -> event;
+- model readiness/calibration/feature staleness/divergence -> model;
+- do not combine data and collection back into one generic risk;
+- no risk dimension implies a recommendation.
 
-Each league has one current capability state:
+## 6. League plan — corrected authority
+
+### 6.1 Existing active whitelist baseline
+
+W2 currently has **13 active-whitelist competitions**. Round 1 preserves them exactly.
 
 ```text
-REGISTERED
-COVERAGE_MONITORING
-MARKET_INTELLIGENCE_READY
-MODEL_DIAGNOSTICS_READY
-DEGRADED
+ACTIVE_WHITELIST_BASELINE_COUNT = 13
+ROUND_1_WHITELIST_CHANGE = FORBIDDEN
 ```
 
-There is no current state named:
+Baseline identities:
 
 ```text
-RECOMMENDATION_READY
-POSITIVE_EV_READY
-FORMAL_READY
-AUTO_EXECUTION_READY
+chinese_super_league
+allsvenskan
+eliteserien
+premier_league
+la_liga
+bundesliga
+serie_a
+ligue_1
+brasileirao_serie_a
+argentina_primera
+mls
+eredivisie
+primeira_liga
 ```
 
-### 5.1 First-division target set
+Whitelist membership does not mean every league is currently high-frequency Provider collection-ready or market-intelligence-ready. Capability and collection policy are separate.
 
-The 11 first-division candidates are split by product role, not by profitability:
+### 6.2 European market-role cohort — not the whitelist
 
-#### Core Benchmark
+The earlier `5 + 6` grouping is retained only as a European market-role lens.
+
+Core Benchmark — 5 already inside the baseline 13:
 
 ```text
 Premier League
@@ -175,87 +180,65 @@ Serie A
 Ligue 1
 ```
 
-These are high-quality reference markets. Low overround and fewer alerts are not product defects.
-
-#### Extended Radar Candidates
+Extended Radar — 6:
 
 ```text
-Eredivisie
+Eredivisie              existing baseline
+Primeira Liga           existing baseline
+Belgian Pro League      net-new candidate
+Turkish Super Lig       net-new candidate
+Greek Super League      net-new candidate
+Scottish Premiership    net-new candidate
+```
+
+Do not label Extended Radar as high-value or imply that more line movement means better information.
+
+### 6.3 Future expansion arithmetic
+
+The next capability-audit universe is not 11. It is the union:
+
+```text
+CURRENT_BASELINE = 13
+NET_NEW = 4
+FUTURE_CANDIDATE_UNION = 17
+```
+
+The four net-new candidates are:
+
+```text
 Belgian Pro League
-Primeira Liga
 Turkish Super Lig
 Greek Super League
 Scottish Premiership
 ```
 
-Do not label this group `high value` or imply that more movement means more useful information. The group exists to broaden market-structure coverage.
+Round 1 does not register, enable, call, schedule or audit these four leagues.
 
-Second-tier leagues remain `REGISTERED` or `COVERAGE_MONITORING` initially.
+### 6.4 Capability states
 
-### 5.2 Live promotion authority
-
-Historical football-data coverage does not prove API-Football live capability. Promotion to `MARKET_INTELLIGENCE_READY` requires a 14-day read-only Provider capability audit.
-
-Audit metrics:
+Each league may later have one product capability state:
 
 ```text
-fixture identity success
-AH pair completeness
-OU pair completeness
-quote timestamp coverage
-freshness distribution
-Provider error rate
-team mapping conflicts
-result reconciliation
-calls per fixture
-lineup return rate near kickoff
-schema drift count
+REGISTERED
+COVERAGE_MONITORING
+MARKET_INTELLIGENCE_READY
+MODEL_DIAGNOSTICS_READY
+DEGRADED
 ```
 
-No league is promoted merely because it is in the 11-league target set.
+There is no `RECOMMENDATION_READY`, `POSITIVE_EV_READY`, `FORMAL_READY` or `AUTO_EXECUTION_READY` product state.
 
-## 6. Market Radar scoring contract
+## 7. Market Radar guard for later rounds
 
-### 6.1 Mandatory evidence
-
-Radar scoring must consider:
-
-```text
-line movement magnitude
-price movement magnitude
-time to kickoff
-movement persistence
-price reversal
-bookmaker confirmation/dispersion
-quote freshness
-market overround and overround percentile
-league/market/time-bucket baseline
-```
-
-### 6.2 Overround is a noise/confidence covariate
-
-Historical analysis showed that, among the 11 first-division candidates, PRE-to-CLOSE line-movement rate was strongly positively associated with overround. Therefore higher movement frequency can reflect a thinner, less trusted market rather than higher information value.
-
-Mandatory rule:
+Round 3 must require:
 
 ```text
 OVERROUND_PERCENTILE = REQUIRED_ALERT_COVARIATE
 ```
 
-Overround is not only a display field. It adjusts the confidence required for a market-movement alert.
+Higher overround may indicate thin/noisy markets and is not high value. Exact thresholds, persistence rules, bookmaker-confirmation rules and alert formulas wait for Round 2 live distributions.
 
-For the same observed movement:
-
-- lower-overround markets may receive higher information confidence;
-- higher-overround markets require stronger magnitude, persistence or multi-book confirmation;
-- a high-overround isolated move should normally classify as `THIN_MARKET_NOISE`, not a high-severity intelligence event;
-- an overround increase may separately produce `OVERROUND_SPIKE`.
-
-No hard numeric adjustment is frozen before the 14-day Provider audit. Round 2 must collect the live distributions needed to define league × market × time-to-kickoff conditional percentiles. Round 3 freezes the exact alert model before deployment.
-
-### 6.3 Alert confidence, not opportunity score
-
-Radar should expose separate fields:
+Public Radar outputs may later include:
 
 ```text
 MOVEMENT_MAGNITUDE
@@ -265,73 +248,48 @@ CONFIRMATION_COUNT
 ALERT_SEVERITY
 ```
 
-It must not expose an `opportunity score` derived from model divergence or market movement.
+No opportunity score.
 
-### 6.4 Minimum high-severity rule
+## 8. Three-round delivery plan
 
-A high-severity market-movement alert cannot be created solely from one large move. It must also satisfy frozen evidence rules such as persistence, freshness, low-noise overround context or independent bookmaker confirmation.
-
-## 7. Three-round delivery plan
-
-### Round 1 — Product semantics and status reframe
+### Round 1 — authorized now
 
 ```text
 TASK = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
+ACTIVE_WHITELIST = 13_UNCHANGED
 LEAGUE_EXPANSION = false
 PROVIDER_POLICY_CHANGE = false
+SCHEDULER_POLICY_CHANGE = false
+NEW_PROVIDER_CALLS = 0
 ```
 
-One bounded runtime PR and one deployment.
+Use one bounded runtime PR, one final exact-head Full Release Candidate, one merge and one deployment.
 
-Scope:
+Detailed execution authority: `ROUND_1_CODEX_EXECUTION.md`.
 
-- change the public product from recommendation-first to intelligence-first;
-- implement the intelligence states and four risk dimensions;
-- make `MARKET_STABLE` a valid result;
-- remove model-divergence-as-opportunity language;
-- preserve V4 and existing model evidence only as diagnostic inputs;
-- preserve Scheduler and current league/provider configuration;
-- add regression tests proving `MODEL_MARKET_DIVERGENCE` cannot generate recommendation/value language.
+Binding acceptance authority: `ROUND_1_ACCEPTANCE_CRITERIA.md`.
 
-### Round 2 — First-division capability audit
+### Round 2 — blocked
 
 ```text
 TASK = W2_MI_R2_FIRST_DIVISION_PROVIDER_CAPABILITY_AUDIT
+STATUS = BLOCKED_UNTIL_ROUND_1_ACCEPTED_AND_OWNER_AUTHORIZED
 DURATION = 14_DAYS
-TARGET_LEAGUES = 11_FIRST_DIVISIONS
 MODE = READ_ONLY_CONTROLLED
+TARGET_CANDIDATE_UNION = 17
 ```
 
-Scope:
+Audit the wider union without automatically promoting all members to high-frequency collection or readiness.
 
-- register/map the 11 candidate leagues without declaring them ready;
-- collect fixtures/status at low frequency;
-- collect odds only at bounded windows/frequencies;
-- collect lineups only near kickoff where justified;
-- report API-Football coverage, quality and cost;
-- classify each league into the capability model;
-- collect live overround and movement distributions needed by Round 3;
-- do not produce recommendations or opportunities.
-
-### Round 3 — Market Radar and Model Lab
+### Round 3 — blocked
 
 ```text
 TASK = W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB
+STATUS = BLOCKED_UNTIL_ROUND_2_CAPABILITY_DECISION
 AUTHORIZED_LEAGUES = ROUND_2_PROMOTED_ONLY
 ```
 
-Scope:
-
-- build market timeline and anomaly read models;
-- implement league/market/time-bucket percentile baselines;
-- make overround percentile a mandatory alert covariate;
-- calibrate thin-market noise penalties from Round 2 data;
-- implement bookmaker agreement, persistence and reversal evidence;
-- build Model Lab calibration/drift views;
-- preserve the permanent model-divergence guard;
-- deploy only for leagues that pass Round 2 capability gates.
-
-## 8. Permanent stop lines
+## 9. Permanent stop lines
 
 ```text
 BETTING_EDGE_CLAIM = FORBIDDEN
@@ -347,5 +305,3 @@ FORMAL = OFF
 LOCK = OFF
 PRODUCTION = OFF
 ```
-
-A future quant program requires a new information source, genuinely new edge/model hypothesis and a new pre-registered protocol. The failed Phase 0.5 V/H data cannot be used for post-result tuning.
