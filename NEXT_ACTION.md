@@ -3,75 +3,95 @@
 Current action:
 
 ```text
-OWNER_DECISION_REQUIRED_AFTER_NO_EDGE
+W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
 ```
 
-There is no authorized quant code task.
+Current product authority:
 
-## Final Phase 0.5 result
+- `CURRENT_CONTEXT.md`
+- `CURRENT_STATE.yaml`
+- `CURRENT_PRODUCT_DESIGN.md`
+- `CURRENT_TASK_CHECKLIST.md`
+
+These files are maintained directly on `context/current`; context updates do not use PR or CI.
+
+## Owner decision
 
 ```text
-FINAL_VERDICT = NO_EDGE
-V_CONTINUATION_GATE = FAIL
-H_RESULT_ACCESS = PERMANENTLY_CLOSED
-NEXT_CODE_ACTION = NONE_AUTHORIZED
+PRODUCT_NAME = W2 Football Intelligence
+PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
+OWNER_DECISION = APPROVED
 ```
 
-Reported V evidence:
+Phase 0.5 ended with `NO_EDGE`. Do not retune the failed model family on V/H outcomes and do not reopen H. The permanent product guard is:
 
 ```text
-OU_CLOSE_BEST_PREDICTIVE_LIFT = -0.0000758
-AH_CLOSE_BEST_PREDICTIVE_LIFT = -0.0006467
-OU_PRE_FROZEN_SELECTIONS = 7566
-OU_PRE_FROZEN_STRATEGY_ROI = -5.32_PERCENT
+MODEL_MARKET_DIVERGENCE != MARKET_OPPORTUNITY
 ```
 
-The tested model/selection family did not beat Pinnacle closing prediction and did not produce positive PRE-price economics in V. Do not run R3, R4 or R5. Do not open H.
+## Round 1 objective
 
-## Current owner decision
+Convert the public product from recommendation-first to intelligence-first while preserving the existing data/model/scheduler foundations.
 
-Choose the next product direction before authorizing any new code:
+Required outcomes:
 
-### Recommended direction
+1. Replace public recommendation/pick language with market-intelligence and model-diagnostic language.
+2. Implement deterministic intelligence states:
+   - `MARKET_STABLE`
+   - `MARKET_MOVEMENT`
+   - `MARKET_ANOMALY`
+   - `MODEL_MARKET_DISAGREEMENT`
+   - `DATA_INCOMPLETE`
+   - `MODEL_DIAGNOSTIC_WARNING`
+   - `COLLECTION_INCIDENT`
+3. Split risk into event/data/model/collection dimensions.
+4. Make market stability and zero material alerts a valid non-empty result.
+5. Prevent model/market divergence from generating opportunity, edge, recommendation or pick language anywhere in API/read-model/web output.
+6. Reposition V4 as a diagnostic input rather than the public product authority.
+7. Preserve current real cards, empty-day behavior, release SHA visibility and operational health.
+
+## Round 1 boundaries
 
 ```text
-W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
+LEAGUE_EXPANSION = false
+PROVIDER_POLICY_CHANGE = false
+SCHEDULER_POLICY_CHANGE = false
+NEW_PROVIDER_CALLS = 0
+ROUND_2_CAPABILITY_AUDIT = NOT_STARTED
+ROUND_3_MARKET_RADAR = NOT_STARTED
 ```
 
-Use the existing W2 assets for:
+Use one bounded runtime PR, one exact-head full validation and one deployment. Do not split Round 1 into multiple delivery cycles.
 
-- data coverage and freshness;
-- market movement and anomaly monitoring;
-- model calibration and market comparison;
-- signal diagnostics without profit claims;
-- operational research and replay.
+## Later rounds
 
-### Alternative research direction
-
-A new quant research program is allowed only with:
+Round 2, after Round 1 acceptance:
 
 ```text
-NEW_INFORMATION_SOURCE
-NEW_MODEL_OR_EDGE_HYPOTHESIS
-NEW_PRE_REGISTERED_PROTOCOL
+11 first-division candidates
+14-day read-only API-Football capability audit
+no recommendation/profit output
 ```
 
-The failed Phase 0.5 hypothesis may not be retuned using V/H outcomes.
-
-## Prohibited work
+Round 3, after Round 2 capability decisions:
 
 ```text
-OPEN_H_RESULTS = false
-RERUN_WITH_CHANGED_THRESHOLD = false
-SIGNAL_LEDGER_DEVELOPMENT = false
-PORTFOLIO_DEVELOPMENT = false
-PROVIDER_CALLS = 0
-PRODUCTION_CODE_CHANGE = false
-PRODUCTION_MODEL_CHANGE = false
-PRODUCTION_DB_WRITES = 0
-PR_CREATED = false
-CI_RUN = false
-DEPLOYMENT_EXECUTED = false
+Market Radar + Model Lab
+only promoted leagues
+overround percentile required as alert confidence/noise covariate
+```
+
+The exact Round 3 alert formula is frozen after live Round 2 distributions, not before.
+
+## Permanent stop lines
+
+```text
+BETTING_EDGE_CLAIM = FORBIDDEN
+MODEL_DIVERGENCE_AS_OPPORTUNITY = FORBIDDEN
+SIGNAL_LEDGER_FOR_EXECUTION = NOT_AUTHORIZED
+PORTFOLIO = NOT_AUTHORIZED
+RISK_KELLY = NOT_AUTHORIZED
+TWO_LEG_PARLAY = NOT_AUTHORIZED
 REAL_MONEY = NOT_AUTHORIZED
 
 CANDIDATE = OFF
@@ -79,5 +99,3 @@ FORMAL = OFF
 LOCK = OFF
 PRODUCTION = OFF
 ```
-
-Codex must stop and wait for the owner decision. Context is maintained directly on `context/current`; no context PR or CI is required.
