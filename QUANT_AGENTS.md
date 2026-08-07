@@ -1,58 +1,98 @@
-# W2 Football Quant Agent Instructions
+# W2 Market Intelligence Agent Instructions
 
-Read from branch `context/current`:
+Read from branch `context/current` before acting:
 
 1. `CURRENT_CONTEXT.md`
 2. `CURRENT_STATE.yaml`
-3. `CURRENT_TASK_CHECKLIST.md`
-4. `NEXT_ACTION.md`
-5. `AI_QUANT_PROJECT_CONTEXT.md`
+3. `CURRENT_PRODUCT_DESIGN.md`
+4. `CURRENT_TASK_CHECKLIST.md`
+5. `NEXT_ACTION.md`
+6. `AI_QUANT_PROJECT_CONTEXT.md`
 
-Context updates do not use PR or CI.
+Context updates do not use PR or CI. Runtime changes use the normal guarded delivery process.
 
-## Current state
-
-```text
-PHASE_0_5_STATUS = COMPLETE
-FINAL_VERDICT = NO_EDGE
-ACTIVE_NEXT_ACTION = OWNER_DECISION_REQUIRED_AFTER_NO_EDGE
-NEXT_CODE_ACTION = NONE_AUTHORIZED
-H_RESULT_ACCESS = PERMANENTLY_CLOSED
-```
-
-## Mandatory stop
-
-Do not continue R3, R4 or R5. Do not open H. Do not retune the failed protocol using V/H outcomes.
-
-Forbidden:
-
-- changing the 3% PRE selection threshold;
-- adding features based on V results;
-- changing L2 grid, devig, market scope or split assignment;
-- building Signal Ledger, Shadow positions, Portfolio, Risk, Kelly, Dashboard or 2×1;
-- changing production models, V4, Scheduler, Provider allowlist or production DB;
-- Provider calls, PR, CI, deployment or real-money work.
-
-## Final evidence
+## Current task
 
 ```text
-OU_CLOSE_BEST_PREDICTIVE_LIFT = -0.0000758
-AH_CLOSE_BEST_PREDICTIVE_LIFT = -0.0006467
-OU_PRE_BEST_FROZEN_SELECTIONS = 7566
-OU_PRE_BEST_FROZEN_STRATEGY_ROI = -5.32_PERCENT
-V_CONTINUATION_GATE = FAIL
+ACTIVE_NEXT_ACTION = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
+PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 ```
 
-## Allowed future work
+The Phase 0.5 quant hypothesis is closed with `NO_EDGE`. Do not reopen H or retune the failed model family.
 
-No code is currently authorized.
+## Round 1 scope
 
-The recommended next product direction is:
+One bounded API/Web runtime change:
+
+- reposition the public product as market intelligence and model diagnostics;
+- implement deterministic intelligence states;
+- split event/data/model/collection risk dimensions;
+- render `MARKET_STABLE` and zero-alert days as valid results;
+- prevent model divergence from producing opportunity/recommendation language;
+- preserve current V4 calculations as diagnostic input;
+- preserve current league set, Provider policy and Scheduler behavior.
+
+Required states:
 
 ```text
-W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
+MARKET_STABLE
+MARKET_MOVEMENT
+MARKET_ANOMALY
+MODEL_MARKET_DISAGREEMENT
+DATA_INCOMPLETE
+MODEL_DIAGNOSTIC_WARNING
+COLLECTION_INCIDENT
 ```
 
-A future quant experiment requires a new information source, a genuinely new model/edge hypothesis and a new pre-registered protocol. The current Phase 0.5 evidence cannot be reused for post-result tuning.
+Required guard:
 
-Wait for the owner decision.
+```text
+MODEL_MARKET_DIVERGENCE_AS_OPPORTUNITY = FORBIDDEN
+```
+
+## Round 1 prohibited work
+
+- no league expansion;
+- no new Provider calls or allowlist changes;
+- no Scheduler policy changes;
+- no full Market Radar scoring yet;
+- no Model Lab analytics beyond semantic shell/diagnostic presentation;
+- no Signal Ledger, Shadow, Portfolio, Risk, Kelly or 2×1;
+- no real-money or betting-edge claims;
+- no changes to Candidate/Formal/Lock/Production.
+
+## Delivery
+
+- use one clean worktree;
+- use one runtime PR for the whole Round 1 goal;
+- run focused tests during development;
+- one exact-head full Release Candidate;
+- one merge and one deployment;
+- browser acceptance with real data and zero console errors;
+- stop after Round 1 acceptance.
+
+## Future design guard
+
+Round 3 Market Radar must include:
+
+```text
+OVERROUND_PERCENTILE = REQUIRED_ALERT_COVARIATE
+```
+
+Overround adjusts market-noise/confidence. High-overround isolated movement is not automatically informative and should normally classify as `THIN_MARKET_NOISE` unless stronger evidence exists. Exact thresholds are frozen only after the Round 2 live capability audit.
+
+## Permanent boundaries
+
+```text
+BETTING_EDGE_CLAIM = FORBIDDEN
+MODEL_DIVERGENCE_AS_OPPORTUNITY = FORBIDDEN
+SIGNAL_LEDGER_FOR_EXECUTION = NOT_AUTHORIZED
+PORTFOLIO = NOT_AUTHORIZED
+RISK_KELLY = NOT_AUTHORIZED
+REAL_MONEY = NOT_AUTHORIZED
+
+CANDIDATE = OFF
+FORMAL = OFF
+LOCK = OFF
+PRODUCTION = OFF
+```
