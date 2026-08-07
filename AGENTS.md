@@ -6,77 +6,59 @@ For current W2 work, read branch `context/current` in this order:
 2. `CURRENT_STATE.yaml`
 3. `CURRENT_TASK_CHECKLIST.md`
 4. `NEXT_ACTION.md`
-5. `AI_QUANT_PROJECT_CONTEXT.md`
-6. `QUANT_AGENTS.md`
+5. `AI_PROJECT_CONTEXT.md`
+6. `AI_QUANT_PROJECT_CONTEXT.md`
+7. `QUANT_AGENTS.md`
 
-Context updates are direct replacements on `context/current`; do not create a context PR or run context CI. Runtime code, tests, migrations, workflows and deployment changes still require the normal delivery process.
+Context updates are direct replacements on `context/current`; do not create a context PR or run context CI. Runtime code, tests, migrations, workflows and deployments still require the normal guarded delivery process.
 
-## Current program
+## Current state
 
 ```text
 PROGRAM = W2_FOOTBALL_QUANT_EDGE_EXISTENCE
-PROTOCOL = W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
-PROTOCOL_FROZEN = true
-ACTIVE_NEXT_ACTION = W2_PHASE_0_5_R1_D_TRAIN_AND_V_MANIFEST
+PHASE_0_5_STATUS = COMPLETE
+FINAL_VERDICT = NO_EDGE
+ACTIVE_NEXT_ACTION = OWNER_DECISION_REQUIRED_AFTER_NO_EDGE
+NEXT_CODE_ACTION = NONE_AUTHORIZED
+H_RESULT_ACCESS = PERMANENTLY_CLOSED
 ```
 
-The current work is a local, stage-gated AH/OU edge-existence study. It is not quant-platform implementation.
+The frozen V gate failed. Do not continue R3/R4/R5, open H, retune the failed hypothesis on V/H outcomes, or build the quant platform.
 
-## Required start procedure
-
-- verify the source head and clean worktree;
-- recompute B1–B5 and the relevant-code manifest before reading results;
-- keep D/V/H result access physically separated;
-- stop on any artifact, source, split or guard drift.
-
-## Result-access rules
+## Final evidence
 
 ```text
-D = training-only after R0 recheck
-V = closed until V candidate prediction and selection manifests are frozen
-H = closed until final H prediction and selection manifests are frozen
+OU_CLOSE_BEST_PREDICTIVE_LIFT = -0.0000758
+AH_CLOSE_BEST_PREDICTIVE_LIFT = -0.0006467
+OU_PRE_BEST_FROZEN_SELECTIONS = 7566
+OU_PRE_BEST_FROZEN_STRATEGY_ROI = -5.32_PERCENT
+V_CONTINUATION_GATE = FAIL
 ```
 
-Never use V/H outcomes before the corresponding gate. Never change the frozen protocol after observing V or H results.
-
-## Frozen scope
+## Current product recommendation
 
 ```text
-SOURCE = FOOTBALL_DATA_MMZ_ONLY
-D = 2019_20,2020_21,2021_22
-V = 2022_23,2023_24
-H = 2024_25,2025_26
-PRIMARY_PREDICTIVE = OU_2_5,AH_HALF_GOAL_LINES
-PRIMARY_ECONOMIC = OU_2_5
-ODDS_SOURCE = PINNACLE_ONLY
+W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
+```
+
+No implementation is authorized until the owner chooses the next product direction.
+
+A future quant experiment requires all of:
+
+```text
+NEW_INFORMATION_SOURCE
+NEW_MODEL_OR_EDGE_HYPOTHESIS
+NEW_PRE_REGISTERED_PROTOCOL
 ```
 
 ## Hard stops
 
+- no H result access;
+- no threshold, feature, L2, devig, market or split changes followed by a rerun of this protocol;
+- no Signal Ledger, Shadow, Portfolio, Risk, Kelly, Dashboard or 2×1 build;
 - no production code/model change;
-- no Provider call;
-- no Signal Ledger, strategy product, Portfolio, Risk, Kelly, Dashboard or 2×1;
-- no modification to V4, Scheduler, Provider allowlist or production DB;
-- no deployment or real-money action;
+- no Provider call, production DB write or deployment;
+- no real-money action;
 - Candidate, Formal, Lock and Production remain off.
 
-## Statistical integrity
-
-- `ev_se` is scenario dispersion, not sampling standard error;
-- PRE and CLOSE residual models are trained separately;
-- one primary selection per fixture/market;
-- line-moved orders stay in PRE ROI at the original PRE line/price;
-- same-line CLV and individual-league results are exploratory only;
-- actual selected-order count determines economic power;
-- use only the frozen bootstrap, seed, metrics and Holm family.
-
-## Current required stop point
-
-```text
-V_CANDIDATE_PREDICTION_MANIFEST_SHA256 = frozen
-V_PRE_SELECTION_CANDIDATE_MANIFEST_SHA256 = frozen
-V_RESULT_COLUMNS_READ = false
-H_RESULT_COLUMNS_READ = false
-```
-
-Stop and report at that point.
+Codex must wait for the owner decision.
