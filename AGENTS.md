@@ -4,61 +4,84 @@ For current W2 work, read branch `context/current` in this order:
 
 1. `CURRENT_CONTEXT.md`
 2. `CURRENT_STATE.yaml`
-3. `CURRENT_TASK_CHECKLIST.md`
-4. `NEXT_ACTION.md`
-5. `AI_PROJECT_CONTEXT.md`
-6. `AI_QUANT_PROJECT_CONTEXT.md`
-7. `QUANT_AGENTS.md`
+3. `CURRENT_PRODUCT_DESIGN.md`
+4. `CURRENT_TASK_CHECKLIST.md`
+5. `NEXT_ACTION.md`
+6. `AI_PROJECT_CONTEXT.md`
+7. `AI_QUANT_PROJECT_CONTEXT.md`
+8. `QUANT_AGENTS.md`
 
 Context updates are direct replacements on `context/current`; do not create a context PR or run context CI. Runtime code, tests, migrations, workflows and deployments still require the normal guarded delivery process.
 
-## Current state
+## Current program
 
 ```text
-PROGRAM = W2_FOOTBALL_QUANT_EDGE_EXISTENCE
-PHASE_0_5_STATUS = COMPLETE
-FINAL_VERDICT = NO_EDGE
-ACTIVE_NEXT_ACTION = OWNER_DECISION_REQUIRED_AFTER_NO_EDGE
-NEXT_CODE_ACTION = NONE_AUTHORIZED
-H_RESULT_ACCESS = PERMANENTLY_CLOSED
+PRODUCT = W2 Football Intelligence
+PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
+OWNER_DECISION = APPROVED
+ACTIVE_NEXT_ACTION = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
 ```
 
-The frozen V gate failed. Do not continue R3/R4/R5, open H, retune the failed hypothesis on V/H outcomes, or build the quant platform.
+Phase 0.5 ended with `NO_EDGE`; H is permanently closed under that protocol. Do not retune the failed hypothesis on V/H outcomes.
 
-## Final evidence
+Permanent product guard:
 
 ```text
-OU_CLOSE_BEST_PREDICTIVE_LIFT = -0.0000758
-AH_CLOSE_BEST_PREDICTIVE_LIFT = -0.0006467
-OU_PRE_BEST_FROZEN_SELECTIONS = 7566
-OU_PRE_BEST_FROZEN_STRATEGY_ROI = -5.32_PERCENT
-V_CONTINUATION_GATE = FAIL
+MODEL_MARKET_DIVERGENCE != MARKET_OPPORTUNITY
 ```
 
-## Current product recommendation
+## Current runtime task
+
+Round 1 is a single bounded API/Web semantic refactor:
+
+- recommendation-first to intelligence-first;
+- deterministic market/model/data/collection states;
+- separate event/data/model/collection risk dimensions;
+- stable market/zero alerts as a valid result;
+- V4 retained as diagnostic evidence input, not public product authority;
+- no league, Provider or Scheduler expansion.
+
+## Required Round 1 states
 
 ```text
-W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
+MARKET_STABLE
+MARKET_MOVEMENT
+MARKET_ANOMALY
+MODEL_MARKET_DISAGREEMENT
+DATA_INCOMPLETE
+MODEL_DIAGNOSTIC_WARNING
+COLLECTION_INCIDENT
 ```
 
-No implementation is authorized until the owner chooses the next product direction.
+## Round 1 delivery
 
-A future quant experiment requires all of:
+- latest trusted `origin/main`;
+- one clean worktree;
+- one bounded runtime PR;
+- one exact-head full validation;
+- one merge and one deployment;
+- stop after public acceptance.
 
-```text
-NEW_INFORMATION_SOURCE
-NEW_MODEL_OR_EDGE_HYPOTHESIS
-NEW_PRE_REGISTERED_PROTOCOL
-```
+## Prohibited Round 1 work
 
-## Hard stops
-
-- no H result access;
-- no threshold, feature, L2, devig, market or split changes followed by a rerun of this protocol;
-- no Signal Ledger, Shadow, Portfolio, Risk, Kelly, Dashboard or 2×1 build;
-- no production code/model change;
-- no Provider call, production DB write or deployment;
-- no real-money action;
+- no new leagues;
+- no new Provider calls/allowlist changes;
+- no Scheduler policy changes;
+- no full Market Radar or Model Lab analytics yet;
+- no Signal Ledger, Shadow, Portfolio, Risk, Kelly or 2×1;
+- no edge/profit/recommendation claim;
 - Candidate, Formal, Lock and Production remain off.
 
-Codex must wait for the owner decision.
+## Future Market Radar guard
+
+Round 3 must require:
+
+```text
+OVERROUND_PERCENTILE = REQUIRED_ALERT_COVARIATE
+```
+
+Higher overround is a thin-market/noise condition, not a value signal. An isolated move in a high-overround context should normally be `THIN_MARKET_NOISE` unless persistence or independent bookmaker confirmation supports a stronger alert.
+
+## Operational safety
+
+All existing fail-closed, identity, canonical serialization, Provider ledger, migration, deployment and production safety rules remain in force. Runtime changes must not weaken any existing guard.
