@@ -10,6 +10,7 @@ CURRENT_STATE.yaml
 CURRENT_PRODUCT_DESIGN.md
 CURRENT_TASK_CHECKLIST.md
 NEXT_ACTION.md
+ROUND_1_OWNER_CONTINUATION_AUTHORIZATION.md
 ROUND_1_CODEX_EXECUTION.md
 ROUND_1_ACCEPTANCE_CRITERIA.md
 ```
@@ -19,6 +20,8 @@ Current task:
 ```text
 ACTIVE_NEXT_ACTION = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
 PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
+ACTIVE_RUNTIME_PR = 493
+OWNER_DECISION = APPROVED_CONTINUE_UNTIL_ACCEPTED
 ```
 
 The Phase 0.5 hypothesis is closed with `NO_EDGE`. Do not reopen H or retune the failed model family.
@@ -51,13 +54,42 @@ The European `5 + 6` cohort is not the whitelist. Future arithmetic is 13 existi
 
 Detailed implementation is binding in `ROUND_1_CODEX_EXECUTION.md`.
 
+Explicit continuation authorization is binding in `ROUND_1_OWNER_CONTINUATION_AUTHORIZATION.md`.
+
 Acceptance is binding in `ROUND_1_ACCEPTANCE_CRITERIA.md`.
+
+## Delivery — failure attempts do not consume the final slot
+
+```text
+ONE_RUNTIME_PR = PR_493_ONLY
+PR_FAST_ATTEMPTS = AS_NEEDED_AFTER_SOURCE_HEAD_CHANGE
+FULL_RC_ATTEMPTS = AS_NEEDED_UNTIL_FINAL_SUCCESS
+FAILED_ATTEMPTS_CONSUME_FINAL_SUCCESS_SLOT = false
+FAILED_FULL_RC_31151557970_IS_FINAL_RC = false
+ONE_SUCCESSFUL_FINAL_EXACT_HEAD_FULL_RC = true
+ONE_FINAL_MERGE = true
+ONE_FINAL_ACCEPTED_DEPLOYMENT = true
+```
+
+`one final exact-head Full Release Candidate` means the one **successful** RC on the final accepted head, not a one-attempt limit.
+
+For every bounded in-scope failure:
+
+```text
+DIAGNOSE -> MINIMAL_FIX_IN_PR_493 -> LOCAL_VALIDATION -> NEW_EXACT_HEAD_PR_FAST -> NEW_EXACT_HEAD_FULL_RC -> REPEAT_IF_NEEDED
+```
+
+No additional owner authorization is required for PR #493 remediation commits, replacement PR Fast runs or replacement exact-head Full RC attempts.
+
+Do not merge/deploy while any required gate is failing.
+
+Stop only after final RC success, merge commit, same-source API/Web deployment, public API/browser acceptance and all Round 1 acceptance criteria PASS.
 
 ## Prohibited Round 1 work
 
 ```text
 league expansion
-new Provider calls
+new Provider calls initiated by Round 1
 Provider allowlist/policy changes
 Scheduler policy changes
 full Market Radar scoring
@@ -71,5 +103,3 @@ betting-edge claims
 ```
 
 Candidate, Formal, Lock and Production remain OFF.
-
-Use one runtime PR, one final exact-head Full Release Candidate, one merge and one deployment; stop after public acceptance.
