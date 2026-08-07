@@ -103,8 +103,8 @@ def test_stale_decision_contract_projects_the_same_no_pick_semantics_everywhere(
     assert decision["lock_eligible"] is False
     assert projected["pick"] is None
     assert projected["lock_eligible"] is False
-    assert projected["current_odds"] == {}
+    assert projected["current_odds"] == {"ah": {"home_line": "-0.25", "home_price": 1.95}}
     assert projected["recommendation_decision_v3_role"] == "HISTORY_ONLY"
     assert tracked["pick"] == {}
-    assert tracked["current_odds"] == {}
+    assert tracked["current_odds"] == {"ah": {"home_line": "-0.25", "home_price": 1.95}}
     assert tracked["decision_hash"] == decision_v4.decision_hash

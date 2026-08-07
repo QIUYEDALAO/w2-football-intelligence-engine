@@ -888,6 +888,14 @@ export interface ReleaseSyncState {
 
 export interface DashboardDayViewCounts {
   total: number;
+  monitored_fixtures: number;
+  market_complete_fixtures: number;
+  fresh_quotes: number;
+  market_stable_fixtures: number;
+  market_movement_fixtures: number;
+  model_diagnostic_warnings: number;
+  data_incidents: number;
+  collection_incidents: number;
   lock_eligible: number;
   outcome_tracked: number;
   analysis_pick: number;
@@ -911,6 +919,23 @@ export interface DashboardDayViewCounts {
   by_decision_tier?: Record<string, number>;
   by_data_status?: Record<string, number>;
   by_lifecycle_status?: Record<string, number>;
+  by_intelligence_state?: Record<string, number>;
+}
+
+export type IntelligenceState =
+  | "MARKET_STABLE"
+  | "MARKET_MOVEMENT"
+  | "MARKET_ANOMALY"
+  | "MODEL_MARKET_DISAGREEMENT"
+  | "DATA_INCOMPLETE"
+  | "MODEL_DIAGNOSTIC_WARNING"
+  | "COLLECTION_INCIDENT";
+
+export interface IntelligenceRiskDimension {
+  dimension: "EVENT_RISK" | "DATA_RISK" | "MODEL_RISK" | "COLLECTION_RISK";
+  status: "OK" | "ATTENTION" | "INCIDENT";
+  reason_codes: string[];
+  explanation: string;
 }
 
 export interface DashboardDayViewFreshness {
@@ -938,6 +963,10 @@ export interface DashboardDayViewCard {
   away_team_name?: string | null;
   status?: string | null;
   source?: string | null;
+  intelligence_state: IntelligenceState;
+  intelligence_reason_codes: string[];
+  risk_dimensions: Record<string, IntelligenceRiskDimension>;
+  recommendation_decision_v4_role: "DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY";
   decision_tier: DecisionTier;
   recommendation_decision_v4?: RecommendationDecisionV4 | null;
   /** Historical display/audit only; never a current recommendation authority. */
@@ -966,9 +995,11 @@ export interface DashboardDayViewCard {
     source_status?: string;
   };
   current_odds?: Record<string, unknown>;
+  market_candidates?: Record<string, unknown>;
   last_known_odds?: Record<string, unknown>;
   market_probabilities?: Record<string, unknown>;
   odds_movement?: Record<string, unknown>;
+  market_movement?: Record<string, unknown>;
   probability_source?: string | null;
   model_market_divergence?: Record<string, unknown>;
   market_strip?: Array<Record<string, unknown>>;

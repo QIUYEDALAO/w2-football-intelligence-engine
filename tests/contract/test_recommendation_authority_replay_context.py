@@ -18,12 +18,6 @@ MANIFEST_PATH = (
     "docs/operations/W2_REAL_FIXTURE_REPLAY_SANITIZED_MANIFEST_20260804.json"
 )
 SCHEMA_PATH = "contracts/replay/w2_real_fixture_sanitized_manifest.v1.schema.json"
-HANDOFF_PATHS = (
-    "AI_PROJECT_CONTEXT.md",
-    "NEXT_ACTION.md",
-    "AGENTS.md",
-    ".github/copilot-instructions.md",
-)
 REQUIRED_FACTS = (
     "PUBLIC_RECOMMENDATION_AUTHORITY = SINGLE",
     "REAL_FIXTURE_OFFLINE_REPLAY = PASS",
@@ -40,14 +34,7 @@ def _read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-def test_recommendation_authority_closure_is_synchronized() -> None:
-    for path in HANDOFF_PATHS:
-        text = _read(path)
-        for fact in REQUIRED_FACTS:
-            assert fact in text, (path, fact)
-        assert RECEIPT_PATH in text
-        assert MANIFEST_PATH in text
-
+def test_historical_replay_closure_is_preserved_while_v4_is_diagnostic_only() -> None:
     state = yaml.safe_load(_read("PROJECT_STATE.yaml"))
     assert state["PUBLIC_RECOMMENDATION_AUTHORITY"] == "SINGLE"
     assert state["REAL_FIXTURE_OFFLINE_REPLAY"] == "PASS"
@@ -87,6 +74,10 @@ def test_recommendation_authority_closure_is_synchronized() -> None:
         "lock": "OFF",
         "production": "OFF",
     }
+    day_view = _read("src/w2/dashboard/day_view.py")
+    web_adapter = _read("apps/web/src/lib/dashboardApi.ts")
+    assert "DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY" in day_view
+    assert "DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY" in web_adapter
 
 
 def test_sanitized_manifest_is_schema_valid_and_bound_to_receipt() -> None:

@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { clearCachedDashboardView, fetchDashboardView, getCachedDashboardView } from "../lib/dashboardApi";
 import { footballDayShanghai } from "../lib/formatters";
 import { textValue } from "../lib/normalize";
 import type { DashboardMode, DashboardView, LoadState } from "../types/dashboard";
-import { BossDecisionConsole } from "../reference/boss-console/BossDecisionConsole";
 import { DataDiagnosticsPanel } from "./DataDiagnosticsPanel";
-import { DecisionCounts } from "./DecisionCounts";
 import { EmptySection } from "./EmptySection";
+import { IntelligenceConsole } from "./IntelligenceConsole";
 import { ReleaseSyncBadge } from "./ReleaseSyncBadge";
 import { SkeletonCard } from "./SkeletonCard";
 
@@ -91,8 +90,6 @@ export function DashboardPage() {
     };
   }, [date, mode, refreshKey]);
 
-  const legacyMatches = useMemo(() => view?.all ?? [], [view]);
-
   const empty = emptyCopy(mode);
   const showDiagnostics = shouldShowDiagnostics();
   const hasDayViewCards = Boolean(view?.day_view?.cards.length);
@@ -125,13 +122,9 @@ export function DashboardPage() {
 
       {state === "empty" && view ? (
         <>
-          <EmptySection
-            title={textValue(view.day_view?.degradation?.title, empty.title)}
-            detail={textValue(view.day_view?.degradation?.message, empty.detail)}
-          />
           {view.day_view ? (
-            <DecisionCounts dayView={view.day_view} performance={view.performance} />
-          ) : null}
+            <IntelligenceConsole dayView={view.day_view} release={view.release} emptyDetail={textValue(view.day_view.degradation?.message, empty.detail)} />
+          ) : <EmptySection title={empty.title} detail={empty.detail} />}
           {showDiagnostics ? <DataDiagnosticsPanel debug={view.debug} release={view.release} /> : null}
         </>
       ) : null}
@@ -139,7 +132,7 @@ export function DashboardPage() {
       {state === "ok" && view ? (
         <>
           {view.day_view ? (
-            <BossDecisionConsole dayView={view.day_view} legacyMatches={legacyMatches} performance={view.performance} release={view.release} />
+            <IntelligenceConsole dayView={view.day_view} release={view.release} />
           ) : (
             <EmptySection title={empty.title} detail={empty.detail} />
           )}
@@ -158,7 +151,7 @@ export function DashboardPage() {
         </>
       ) : null}
 
-      {!hasDayViewCards ? <footer className="dashboard-disclaimer">赛前推荐仅由真实输入和策略规则生成；数据不足时保持观察，赛后统计仅在完场后展示。</footer> : null}
+      {!hasDayViewCards ? <footer className="dashboard-disclaimer">市场事实与模型诊断分开展示；数据不足时保持真实空态。</footer> : null}
     </div>
   );
 }

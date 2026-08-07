@@ -223,7 +223,7 @@ def test_day_view_projects_valid_decision_contract_card() -> None:
     assert contract_card["source"] == "decision_contract"
     assert contract_card["decision_tier"] == "WATCH"
     assert contract_card["data_status"] == "BLOCKED"
-    assert contract_card["current_odds"] == {}
+    assert contract_card["current_odds"]["ah"]["home_line"] == "-0.25"
     assert contract_card["last_known_odds"]["status"] == "REFERENCE_ONLY"
     assert contract_card["last_known_odds"]["executable"] is False
     assert contract_card["market_probabilities"] == {}
@@ -236,6 +236,10 @@ def test_day_view_projects_valid_decision_contract_card() -> None:
     assert contract_card["probability_source"] == "MARKET_DEVIG"
     assert contract_card["model_market_divergence"]["magnitude"] == 0.12
     assert contract_card["pick"] is None
+    assert contract_card["intelligence_state"] == "DATA_INCOMPLETE"
+    assert contract_card["recommendation_decision_v4_role"] == (
+        "DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY"
+    )
 
 
 def test_day_view_missing_decision_contract_fails_closed() -> None:
@@ -351,7 +355,7 @@ def test_day_view_production_includes_production_environment_policy() -> None:
     assert view["environment_policy"]["lock_policy"]["lock_eligible_policy"] == "recommend_only"
 
 
-def test_day_view_missing_v4_pick_authority_blocks_even_while_refreshing() -> None:
+def test_day_view_missing_v4_remains_diagnostic_only_while_refreshing() -> None:
     contract = _pick_contract()
     view = build_dashboard_day_view(
         {
@@ -371,8 +375,12 @@ def test_day_view_missing_v4_pick_authority_blocks_even_while_refreshing() -> No
     )
 
     assert view["freshness"]["refreshing"] is True
-    assert view["degradation"]["state"] == "BLOCKED_DAY"
-    assert view["cards"][0]["reason_code"] == "CURRENT_V4_AUTHORITY_MISSING"
+    assert view["degradation"]["state"] == "REFRESHING"
+    assert view["cards"][0]["decision_tier"] == "ANALYSIS_PICK"
+    assert view["cards"][0]["intelligence_state"] == "DATA_INCOMPLETE"
+    assert view["cards"][0]["recommendation_decision_v4_role"] == (
+        "DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY"
+    )
 
 
 def test_day_view_module_does_not_call_strategy_decider() -> None:
@@ -507,7 +515,7 @@ def test_day_view_model_readiness_counts_match_projected_cards() -> None:
     assert counts["ratings_enhancement_missing"] == 1
     assert counts["team_value_enhancement_missing"] == 1
     card = build_dashboard_day_view(payload, environment="staging")["cards"][0]
-    assert card["analysis_state"] == "MODEL_INPUT_NOT_READY"
+    assert card["analysis_state"] == "DATA_INCOMPLETE"
 
 
 def test_day_view_distinguishes_model_ready_reference_quote() -> None:
@@ -529,8 +537,8 @@ def test_day_view_distinguishes_model_ready_reference_quote() -> None:
     view = build_dashboard_day_view(payload, environment="staging")
 
     assert view["counts"]["waiting_fresh_quote"] == 1
-    assert view["cards"][0]["analysis_state"] == "WAITING_FRESH_QUOTE"
-    assert view["cards"][0]["analysis_blocker"] == "QUOTE_REFERENCE_ONLY"
+    assert view["cards"][0]["analysis_state"] == "DATA_INCOMPLETE"
+    assert view["cards"][0]["analysis_blocker"] == "DATA_STATUS_PARTIAL"
 
 
 def test_day_view_ignores_removed_shadow_simulation_source() -> None:
