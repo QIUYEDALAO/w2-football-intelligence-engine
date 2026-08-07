@@ -8,8 +8,9 @@ This is the mutable current authority for W2. It is maintained directly on branc
 2. `CURRENT_PRODUCT_DESIGN.md`
 3. `CURRENT_TASK_CHECKLIST.md`
 4. `NEXT_ACTION.md`
-5. `ROUND_1_CODEX_EXECUTION.md`
-6. `ROUND_1_ACCEPTANCE_CRITERIA.md`
+5. `ROUND_1_OWNER_CONTINUATION_AUTHORIZATION.md`
+6. `ROUND_1_CODEX_EXECUTION.md`
+7. `ROUND_1_ACCEPTANCE_CRITERIA.md`
 
 ## Owner product decision
 
@@ -17,6 +18,7 @@ This is the mutable current authority for W2. It is maintained directly on branc
 PRODUCT_NAME = W2 Football Intelligence
 PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 OWNER_DECISION = APPROVED_CONTINUE_UNTIL_ACCEPTED
+OWNER_AUTHORIZATION_ID = W2_MI_R1_CONTINUE_UNTIL_ACCEPTED_20260807
 ACTIVE_NEXT_ACTION = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
 ACTIVE_RUNTIME_PR = 493
 ROUND_1_STATUS = IN_PROGRESS_REMEDIATION
@@ -24,38 +26,50 @@ ROUND_1_STATUS = IN_PROGRESS_REMEDIATION
 
 W2 is being repositioned from a recommendation-first public shell into a football market-intelligence and model-diagnostics platform while preserving the existing data, identity, odds, model, Scheduler, replay and Dashboard foundations.
 
-## Binding remediation behavior
+## Binding continuation and delivery-count interpretation
 
-Round 1 must continue in the same PR #493 until every binding acceptance gate passes.
+`ROUND_1_OWNER_CONTINUATION_AUTHORIZATION.md` is explicit owner authority for continuing PR #493 until acceptance.
 
 ```text
-FAIL_CLOSED = DO_NOT_ADVANCE_PAST_FAILED_GATE
-FAIL_CLOSED != ABANDON_ROUND_1
+ALLOW_REMEDIATION_COMMITS_IN_PR_493 = true
+ALLOW_NEW_PR_FAST_AFTER_SOURCE_CHANGE = true
+ALLOW_REPLACEMENT_EXACT_HEAD_FULL_RC_AFTER_FAILED_RC = true
+ALLOW_REPEAT_PR_FAST_AND_FULL_RC_UNTIL_FINAL_SUCCESS = true
+FAILED_VALIDATION_OR_RC_ATTEMPTS_CONSUME_FINAL_SUCCESS_SLOT = false
+FAILED_FULL_RC_RUN_31151557970_IS_FINAL_RC = false
+ONE_SUCCESSFUL_FINAL_EXACT_HEAD_FULL_RC = true
 ```
+
+The historical phrase `one PR Fast` or `one final exact-head Full RC` must not be read as a one-attempt lifetime cap. It means one **successful final RC** on the final accepted head and one final merge/deployment.
 
 For an in-scope Round 1 failure:
 
 ```text
+FAIL_CLOSED = DO_NOT_ADVANCE_PAST_FAILED_GATE
+FAIL_CLOSED != ABANDON_ROUND_1_OR_WAIT_FOR_OWNER
 DIAGNOSE
 -> MINIMAL_FIX_IN_PR_493
 -> LOCAL_VALIDATION
--> EXACT_HEAD_PR_FAST
--> EXACT_HEAD_FULL_RC
+-> NEW_EXACT_HEAD_PR_FAST
+-> NEW_EXACT_HEAD_FULL_RC
 -> REPEAT_IF_NEEDED
 ```
 
-No new owner authorization is required for bounded remediation inside the already approved Round 1 scope.
+No new owner authorization is required for bounded remediation commits, replacement PR Fast runs, or replacement exact-head Full RC attempts inside the already approved Round 1 scope.
 
 A new owner authorization is required only if a proposed correction would expand scope or cross a permanent stop line.
 
 Round 1 is complete only when:
 
 ```text
+FINAL_PR_FAST_REQUIRED = SUCCESS
 FINAL_EXACT_HEAD_FULL_RC = SUCCESS
+FINAL_RC_SOURCE_SHA = FINAL_PR_HEAD_SHA
 MERGE = SUCCESS
 API_WEB_SAME_VERIFIED_SOURCE_DEPLOYMENT = SUCCESS
 PUBLIC_API_ACCEPTANCE = PASS
 PUBLIC_BROWSER_ACCEPTANCE = PASS
+BROWSER_CONSOLE_ERRORS = 0
 ROUND_1_ACCEPTANCE_CRITERIA = ALL_PASS
 ROUND_1 = PASS
 ```
@@ -64,7 +78,7 @@ Until then Round 1 remains `IN_PROGRESS_REMEDIATION` and Round 2/3 remain `NOT_S
 
 ## Current failed attempt
 
-The first Full RC is retained as failure evidence:
+The first Full RC is retained as failure evidence and does not count as the final successful RC:
 
 ```text
 AUDITED_BASE_MAIN_SHA = 84e642f3ea26464574f75ee4d520b38bcf24073a
@@ -74,6 +88,7 @@ PR_FAST_RUN = 31151508691
 PR_FAST_RESULT = SUCCESS
 FAILED_FULL_RC_RUN = 31151557970
 FAILED_FULL_RC_RESULT = FAILURE
+FAILED_FULL_RC_COUNTS_AS_FINAL_SUCCESS = false
 FAILED_GATE = BOSS_CONSOLE_PROTECTED_BASELINE
 FAILED_FILE = apps/web/src/components/DecisionCounts.tsx
 EXPECTED_SHA256 = c1b3f940587c1a25610c5e762f955c12541a7da40f006e9ce7818e5d376c9d6e
@@ -90,7 +105,9 @@ The immediate remediation is binding:
 - move new Market Overview counters into a separate intelligence-only component;
 - make the public intelligence root use that component instead of protected legacy DecisionCounts;
 - preserve all Round 1 intelligence-first semantics;
-- rerun exact-head validation until the final Full RC succeeds.
+- after the source-changing fix, run a new PR Fast on the new head;
+- after that PR Fast passes, trigger a replacement exact-head Full RC on that new head;
+- if that RC fails for another in-scope reason, repeat the remediation loop without requesting another owner authorization.
 
 ## Evidence boundary
 
@@ -212,7 +229,11 @@ TASK = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
 STATUS = IN_PROGRESS_REMEDIATION
 ACTIVE_RUNTIME_PR = 493
 ONE_RUNTIME_PR = true
+PR_FAST_ATTEMPTS = AS_NEEDED_AFTER_SOURCE_HEAD_CHANGE
+FULL_RC_ATTEMPTS = AS_NEEDED_UNTIL_FINAL_SUCCESS
 MULTIPLE_FAILED_VALIDATION_ATTEMPTS_ALLOWED = true
+MULTIPLE_FAILED_RC_ATTEMPTS_ALLOWED = true
+FAILED_ATTEMPTS_CONSUME_FINAL_SUCCESS_SLOT = false
 ONE_SUCCESSFUL_FINAL_EXACT_HEAD_RC = true
 ONE_MERGE = true
 ONE_FINAL_ACCEPTED_DEPLOYMENT = true
@@ -223,6 +244,8 @@ PROVIDER_POLICY_CHANGE = false
 SCHEDULER_POLICY_CHANGE = false
 NEW_PROVIDER_CALLS_INITIATED_BY_R1 = 0
 ```
+
+Explicit owner continuation authority: `ROUND_1_OWNER_CONTINUATION_AUTHORIZATION.md`.
 
 Detailed execution authority: `ROUND_1_CODEX_EXECUTION.md`.
 
