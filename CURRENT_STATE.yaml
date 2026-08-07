@@ -6,12 +6,14 @@ context_update_mode: direct_branch_no_pr_no_ci_no_history
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-product_design_path: CURRENT_PRODUCT_DESIGN.md
 owner_product_decision: APPROVED
 active_next_action: W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
 next_code_action: W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
 current_status: READY_ROUND_1
 current_gate: ROUND_1_PRODUCT_SEMANTICS
+
+execution_authority: ROUND_1_CODEX_EXECUTION.md
+acceptance_authority: ROUND_1_ACCEPTANCE_CRITERIA.md
 
 phase_0_5:
   protocol: W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
@@ -19,10 +21,6 @@ phase_0_5:
   final_verdict: NO_EDGE
   v_continuation_gate: FAIL
   h_result_access: PERMANENTLY_CLOSED
-  ou_close_best_predictive_lift: -0.0000758
-  ah_close_best_predictive_lift: -0.0006467
-  ou_pre_best_selection_count: 7566
-  ou_pre_best_strategy_roi: -0.0532
   tested_hypothesis_retuning_forbidden: true
 
 product_contract:
@@ -41,6 +39,15 @@ intelligence_states:
   - MODEL_DIAGNOSTIC_WARNING
   - COLLECTION_INCIDENT
 
+intelligence_state_precedence:
+  - COLLECTION_INCIDENT
+  - DATA_INCOMPLETE
+  - MODEL_DIAGNOSTIC_WARNING
+  - MARKET_ANOMALY
+  - MODEL_MARKET_DISAGREEMENT
+  - MARKET_MOVEMENT
+  - MARKET_STABLE
+
 risk_dimensions:
   - EVENT_RISK
   - DATA_RISK
@@ -55,52 +62,84 @@ league_capability_states:
   - DEGRADED
 
 league_plan:
-  first_division_target_count: 11
-  core_benchmark:
-    - Premier League
-    - La Liga
-    - Bundesliga
-    - Serie A
-    - Ligue 1
-  extended_radar_candidates:
+  active_whitelist_baseline_count: 13
+  round_1_whitelist_change: false
+  active_whitelist_baseline:
+    - chinese_super_league
+    - allsvenskan
+    - eliteserien
+    - premier_league
+    - la_liga
+    - bundesliga
+    - serie_a
+    - ligue_1
+    - brasileirao_serie_a
+    - argentina_primera
+    - mls
+    - eredivisie
+    - primeira_liga
+  european_market_role_cohort:
+    core_benchmark:
+      - Premier League
+      - La Liga
+      - Bundesliga
+      - Serie A
+      - Ligue 1
+    extended_radar:
+      - Eredivisie
+      - Primeira Liga
+      - Belgian Pro League
+      - Turkish Super Lig
+      - Greek Super League
+      - Scottish Premiership
+  already_in_baseline_from_extended_radar:
     - Eredivisie
-    - Belgian Pro League
     - Primeira Liga
+  round_2_net_new_candidates:
+    - Belgian Pro League
     - Turkish Super Lig
     - Greek Super League
     - Scottish Premiership
-  second_tier_initial_state: COVERAGE_MONITORING_ONLY
-  live_promotion_authority: 14_DAY_PROVIDER_CAPABILITY_AUDIT
+  round_2_future_candidate_union_count: 17
+  round_2_future_candidate_union_rule: EXISTING_13_UNION_NET_NEW_4
+  round_2_status: BLOCKED_UNTIL_ROUND_1_ACCEPTED_AND_OWNER_AUTHORIZED
 
 market_radar_contract:
   overround_percentile_required_alert_covariate: true
-  overround_role: MARKET_THINNESS_AND_NOISE_CONFIDENCE_COVARIATE
   high_overround_is_high_value: false
   high_overround_is_high_information: false
   alert_model_freeze_stage: ROUND_3_AFTER_ROUND_2_LIVE_DISTRIBUTIONS
   isolated_high_overround_move_default: THIN_MARKET_NOISE
   model_divergence_in_alert_opportunity_score: FORBIDDEN
 
-three_round_plan:
-  round_1:
-    task: W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
-    status: AUTHORIZED_NEXT
-    league_expansion: false
-    provider_policy_change: false
-    scheduler_change: false
-    one_runtime_pr: true
-    one_release_and_deployment: true
-  round_2:
-    task: W2_MI_R2_FIRST_DIVISION_PROVIDER_CAPABILITY_AUDIT
-    status: BLOCKED_UNTIL_ROUND_1_ACCEPTED
-    duration_days: 14
-    mode: READ_ONLY_CONTROLLED
-    target_first_divisions: 11
-  round_3:
-    task: W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB
-    status: BLOCKED_UNTIL_ROUND_2_CAPABILITY_DECISION
-    authorized_leagues: ROUND_2_PROMOTED_ONLY
-    overround_covariate_required: true
+round_1:
+  task: W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
+  status: AUTHORIZED_NEXT
+  one_runtime_pr: true
+  one_final_exact_head_release_candidate: true
+  one_merge: true
+  one_deployment: true
+  league_expansion: false
+  active_whitelist_expected_count: 13
+  provider_policy_change: false
+  provider_allowlist_change: false
+  scheduler_policy_change: false
+  new_provider_calls: 0
+  round_2_capability_audit: NOT_STARTED
+  round_3_market_radar: NOT_STARTED
+
+round_2:
+  task: W2_MI_R2_FIRST_DIVISION_PROVIDER_CAPABILITY_AUDIT
+  status: BLOCKED_UNTIL_ROUND_1_ACCEPTED_AND_OWNER_AUTHORIZED
+  duration_days: 14
+  mode: READ_ONLY_CONTROLLED
+  target_candidate_union_count: 17
+
+round_3:
+  task: W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB
+  status: BLOCKED_UNTIL_ROUND_2_CAPABILITY_DECISION
+  authorized_leagues: ROUND_2_PROMOTED_ONLY
+  overround_covariate_required: true
 
 operational_track:
   existing_w2_preserved: true
@@ -110,12 +149,11 @@ operational_track:
   lock: "OFF"
   production: "OFF"
 
-round_1_stop_lines:
-  league_expansion: false
-  provider_calls_for_new_leagues: 0
-  provider_allowlist_change: false
-  scheduler_policy_change: false
-  quant_signal_ledger: false
+permanent_stop_lines:
+  betting_edge_claim: false
+  model_divergence_as_opportunity: false
+  quant_signal_ledger_for_execution: false
   portfolio: false
   risk_kelly: false
+  two_leg_parlay: false
   real_money: NOT_AUTHORIZED
