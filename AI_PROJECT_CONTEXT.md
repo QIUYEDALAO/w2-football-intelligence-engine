@@ -4,6 +4,7 @@ Current mutable context is maintained on branch `context/current`. Read:
 
 - `CURRENT_CONTEXT.md`
 - `CURRENT_STATE.yaml`
+- `CURRENT_PRODUCT_DESIGN.md`
 - `CURRENT_TASK_CHECKLIST.md`
 - `NEXT_ACTION.md`
 - `AI_QUANT_PROJECT_CONTEXT.md`
@@ -11,63 +12,86 @@ Current mutable context is maintained on branch `context/current`. Read:
 
 Context changes are direct replacements and do not use PR, CI, Release Candidate, image build or deployment.
 
-## Current decision
+## Current product decision
 
 ```text
-PROGRAM = W2_FOOTBALL_QUANT_EDGE_EXISTENCE
-PHASE_0_5_STATUS = COMPLETE
-FINAL_VERDICT = NO_EDGE
-ACTIVE_NEXT_ACTION = OWNER_DECISION_REQUIRED_AFTER_NO_EDGE
-NEXT_CODE_ACTION = NONE_AUTHORIZED
-H_RESULT_ACCESS = PERMANENTLY_CLOSED
+PRODUCT = W2 Football Intelligence
+PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
+OWNER_DECISION = APPROVED
+ACTIVE_NEXT_ACTION = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
 ```
 
-Phase 0.5 tested whether a pure-goals per-division Dixon-Coles model plus a Pinnacle-anchored binary residual model could provide predictive or PRE-price economic edge in OU 2.5 and AH half-line markets.
+The deployed operational W2 data, identity, odds, model, Scheduler, replay and Dashboard foundations are preserved. The product is being reframed from a recommendation console into a market-intelligence and model-diagnostics platform.
 
-Reported V results:
+## Phase 0.5 evidence boundary
 
 ```text
+FINAL_VERDICT = NO_EDGE
 OU_CLOSE_BEST_PREDICTIVE_LIFT = -0.0000758
 AH_CLOSE_BEST_PREDICTIVE_LIFT = -0.0006467
 OU_PRE_FROZEN_SELECTIONS = 7566
 OU_PRE_FROZEN_STRATEGY_ROI = -5.32_PERCENT
-V_CONTINUATION_GATE = FAIL
+H_RESULT_ACCESS = PERMANENTLY_CLOSED
 ```
 
-The best frozen candidates did not improve on Pinnacle closing prediction, and the frozen PRE strategy remained negative. R3/R4 were not executed and H is permanently closed under the protocol.
-
-## Product implication
-
-Do not build the W2 Football Quant Platform around this tested model/selection hypothesis.
-
-Recommended role:
+Do not retune that model family with V/H results. Permanent product rule:
 
 ```text
-W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
+MODEL_MARKET_DIVERGENCE != MARKET_OPPORTUNITY
 ```
 
-Existing W2 assets remain useful for:
+## Round 1
 
-- fixture, team, raw-payload and quote identity;
-- data coverage, freshness and anomaly monitoring;
-- market movement and price diagnostics;
-- probability calibration and market-baseline evaluation;
-- research replay and evidence tooling;
-- the deployed Dashboard and controlled Scheduler.
+Round 1 changes product semantics only:
 
-A future quant program is allowed only with a genuinely new information source, model/edge hypothesis and pre-registered protocol. V/H outcomes from this protocol may not be used to tune the failed hypothesis.
+- intelligence-first public page;
+- market/model/data/collection states;
+- event/data/model/collection risk dimensions;
+- stable market as a valid result;
+- no opportunity/recommendation language from model divergence;
+- V4 retained as diagnostic evidence input;
+- no league, Provider or Scheduler expansion.
 
-## Hard boundaries
+One runtime PR, one exact-head full validation, one deployment, then stop.
+
+## League program after Round 1
+
+Candidate first divisions:
 
 ```text
-OPEN_H_RESULTS = false
-RERUN_FAILED_PROTOCOL_WITH_CHANGED_PARAMETERS = false
-PRODUCTION_CODE_CHANGE = false
-PRODUCTION_MODEL_CHANGE = false
-SIGNAL_LEDGER_DEVELOPMENT = false
-PORTFOLIO_DEVELOPMENT = false
-PROVIDER_CALLS = 0
-DEPLOYMENT_EXECUTED = false
+Core Benchmark:
+Premier League, La Liga, Bundesliga, Serie A, Ligue 1
+
+Extended Radar Candidates:
+Eredivisie, Belgian Pro League, Primeira Liga, Turkish Super Lig,
+Greek Super League, Scottish Premiership
+```
+
+Promotion requires the 14-day API-Football capability audit. Historical football-data behavior is not live Provider authority.
+
+## Market Radar guard
+
+```text
+OVERROUND_PERCENTILE = REQUIRED_ALERT_COVARIATE
+```
+
+Historical evidence indicates that higher first-division PRE-to-CLOSE movement rates co-occurred with higher overround. Therefore frequent movement may reflect thin-market noise.
+
+- lower overround can support higher information confidence;
+- high overround requires stronger magnitude, persistence or independent bookmaker confirmation;
+- isolated high-overround movement normally maps to `THIN_MARKET_NOISE`;
+- high overround is not high value;
+- exact alert parameters wait for live Round 2 distributions.
+
+## Permanent boundaries
+
+```text
+BETTING_EDGE_CLAIM = FORBIDDEN
+MODEL_DIVERGENCE_AS_OPPORTUNITY = FORBIDDEN
+SIGNAL_LEDGER_FOR_EXECUTION = NOT_AUTHORIZED
+PORTFOLIO = NOT_AUTHORIZED
+RISK_KELLY = NOT_AUTHORIZED
+TWO_LEG_PARLAY = NOT_AUTHORIZED
 REAL_MONEY = NOT_AUTHORIZED
 
 PERSISTENT_SCHEDULER = ON_CONTROLLED
@@ -76,5 +100,3 @@ FORMAL = OFF
 LOCK = OFF
 PRODUCTION = OFF
 ```
-
-No code action is currently authorized. Wait for the owner product-direction decision.
