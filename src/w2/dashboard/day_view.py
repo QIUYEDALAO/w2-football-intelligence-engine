@@ -6,13 +6,11 @@ from typing import Any
 
 from w2.dashboard.date_navigation import build_date_navigation
 from w2.dashboard.degradation import build_dashboard_degradation
+from w2.dashboard.intelligence import build_intelligence_projection, intelligence_state_rank
 from w2.domain.decision_contract import validate_decision_contract
 from w2.domain.enums import DataStatus, DecisionTier, LifecycleStatus
 from w2.domain.environment_policy import build_environment_policy_stamp
-from w2.domain.recommendation_decision_v4 import (
-    RecommendationOutcomeV4,
-    validate_decision_v4_identity,
-)
+from w2.domain.recommendation_decision_v4 import validate_decision_v4_identity
 from w2.prematch.simulation_reconciliation import (
     PublicSimulationReadViolation,
     canonical_public_simulation,
@@ -83,7 +81,7 @@ def _dashboard_cards(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
 
 def _dashboard_card_order(card: Mapping[str, Any]) -> tuple[int, str, str]:
     return (
-        0 if card.get("decision_tier") == DecisionTier.ANALYSIS_PICK.value else 1,
+        intelligence_state_rank(card.get("intelligence_state")),
         _optional_text(card.get("kickoff_utc")) or "9999-12-31T23:59:59Z",
         _optional_text(card.get("fixture_id")) or "",
     )
@@ -123,62 +121,28 @@ def _day_view_card(card: Mapping[str, Any]) -> dict[str, Any]:
         fixture_id=card.get("fixture_id"),
         card=card,
     )
-    projected = _apply_v4_authority(_contract_card(card, contract))
-    projected["analysis_state"] = _analysis_state(projected)
-    projected["analysis_blocker"] = _analysis_blocker(projected)
+    projected = _annotate_v4_role(_contract_card(card, contract))
+    projected.update(build_intelligence_projection(projected))
+    projected["analysis_state"] = projected["intelligence_state"]
+    projected["analysis_blocker"] = (
+        projected["intelligence_reason_codes"][0]
+        if projected["intelligence_state"] not in {"MARKET_STABLE", "MARKET_MOVEMENT"}
+        else None
+    )
     _validate_projection_card(projected)
     return projected
 
 
-def _apply_v4_authority(projected: dict[str, Any]) -> dict[str, Any]:
-    """Use V4 as current authority; V3 remains historical evidence only."""
+def _annotate_v4_role(projected: dict[str, Any]) -> dict[str, Any]:
+    """Validate V4 identity when present, but never use it as public product authority."""
     decision = projected.get("recommendation_decision_v4")
-    if not isinstance(decision, Mapping) or not decision:
-        if projected.get("decision_tier") not in {
-            DecisionTier.ANALYSIS_PICK.value,
-            DecisionTier.RECOMMEND.value,
-        }:
-            projected["recommendation_decision_v3_role"] = "HISTORY_ONLY"
-            return projected
-        return {
-            **projected,
-            "decision_tier": DecisionTier.NOT_READY.value,
-            "data_status": DataStatus.BLOCKED.value,
-            "outcome_tracked": False,
-            "lock_eligible": False,
-            "recommendation_id": None,
-            "reason_code": "CURRENT_V4_AUTHORITY_MISSING",
-            "action": "WAIT",
-            "pick": None,
-            "non_pick": {
-                "reason_code": "CURRENT_V4_AUTHORITY_MISSING",
-                "reason_human": "当前推荐缺少 V4 权威身份",
-                "action": "等待 V4 权威投影",
-                "next_eval_at": None,
-            },
-            "one_liner": "当前推荐缺少 V4 权威身份",
-            "scoreline_picks": [],
-            "scoreline_reference": {},
-            "recommendation_decision_v3_role": "HISTORY_ONLY",
-        }
-    try:
-        validate_decision_v4_identity(decision)
-    except ValueError as exc:
-        raise ProjectionCardContractViolation(str(exc)) from exc
-    expected_tier = {
-        RecommendationOutcomeV4.FORMAL_RECOMMEND.value: DecisionTier.RECOMMEND.value,
-        RecommendationOutcomeV4.ANALYSIS_PICK.value: DecisionTier.ANALYSIS_PICK.value,
-        RecommendationOutcomeV4.NO_EDGE.value: DecisionTier.SKIP.value,
-        RecommendationOutcomeV4.NOT_READY.value: DecisionTier.NOT_READY.value,
-    }.get(str(decision.get("outcome") or ""))
-    if expected_tier is None or projected.get("decision_tier") != expected_tier:
-        raise ProjectionCardContractViolation("DECISION_V4_CURRENT_TIER_CONFLICT")
-    selected = decision.get("selected_candidate")
-    if (expected_tier in {DecisionTier.ANALYSIS_PICK.value, DecisionTier.RECOMMEND.value}) != (
-        isinstance(selected, Mapping) and isinstance(projected.get("pick"), Mapping)
-    ):
-        raise ProjectionCardContractViolation("DECISION_V4_CURRENT_PICK_CONFLICT")
+    if isinstance(decision, Mapping) and decision:
+        try:
+            validate_decision_v4_identity(decision)
+        except ValueError as exc:
+            raise ProjectionCardContractViolation(str(exc)) from exc
     projected["recommendation_decision_v3_role"] = "HISTORY_ONLY"
+    projected["recommendation_decision_v4_role"] = "DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY"
     return projected
 
 
@@ -187,9 +151,6 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
     data_status = str(contract["data_status"])
     lifecycle_status = str(contract["lifecycle_status"])
     market_context = _market_context_fields(card)
-    if data_status != DataStatus.READY.value or decision_tier == DecisionTier.NOT_READY.value:
-        market_context["current_odds"] = {}
-        market_context["market_probabilities"] = {}
     decision_pick = contract["pick"]
     has_directional_pick = decision_tier in {
         DecisionTier.ANALYSIS_PICK.value,
@@ -236,6 +197,7 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         ],
         "lineup_provenance": _mapping_copy(card.get("lineup_provenance")),
         "dynamic_prematch": _mapping_copy(card.get("dynamic_prematch")),
+        "projection_health": _mapping_copy(card.get("projection_health")),
         "non_pick": _mapping_copy(contract["non_pick"])
         if isinstance(contract["non_pick"], Mapping)
         else None,
@@ -270,6 +232,7 @@ def _market_context_fields(card: Mapping[str, Any]) -> dict[str, Any]:
         "last_known_odds": _mapping_copy(card.get("last_known_odds")),
         "market_probabilities": _market_probabilities(card),
         "odds_movement": _mapping_copy(card.get("odds_movement")),
+        "market_movement": _mapping_copy(card.get("market_movement")),
         "market_strip": _mapping_list(card.get("market_strip")),
         "data_refresh": _mapping_copy(card.get("data_refresh")),
         "analysis_readiness": _mapping_copy(card.get("analysis_readiness")),
@@ -377,8 +340,21 @@ def _counts(cards: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     lineup_pending = 0
     ratings_enhancement_missing = 0
     team_value_enhancement_missing = 0
+    by_intelligence_state = {state: 0 for state in (
+        "MARKET_STABLE",
+        "MARKET_MOVEMENT",
+        "MARKET_ANOMALY",
+        "MODEL_MARKET_DISAGREEMENT",
+        "DATA_INCOMPLETE",
+        "MODEL_DIAGNOSTIC_WARNING",
+        "COLLECTION_INCIDENT",
+    )}
+    market_complete = 0
     for card in cards:
         decision_tier = _optional_text(card.get("decision_tier"))
+        intelligence_state = _optional_text(card.get("intelligence_state"))
+        if intelligence_state in by_intelligence_state:
+            by_intelligence_state[intelligence_state] += 1
         data_status = _optional_text(card.get("data_status"))
         lifecycle_status = _optional_text(card.get("lifecycle_status"))
         if decision_tier in by_decision_tier:
@@ -405,6 +381,8 @@ def _counts(cards: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         else:
             xg_not_ready += 1
         has_executable = _has_executable_quote(card)
+        if has_executable or bool(_mapping(card.get("current_odds"))):
+            market_complete += 1
         if has_executable:
             executable_quote += 1
         elif simulation_ready:
@@ -415,6 +393,14 @@ def _counts(cards: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
 
     return {
         "total": len(cards),
+        "monitored_fixtures": len(cards),
+        "market_complete_fixtures": market_complete,
+        "fresh_quotes": executable_quote,
+        "market_stable_fixtures": by_intelligence_state["MARKET_STABLE"],
+        "market_movement_fixtures": by_intelligence_state["MARKET_MOVEMENT"],
+        "model_diagnostic_warnings": by_intelligence_state["MODEL_DIAGNOSTIC_WARNING"],
+        "data_incidents": by_intelligence_state["DATA_INCOMPLETE"],
+        "collection_incidents": by_intelligence_state["COLLECTION_INCIDENT"],
         "lock_eligible": lock_eligible,
         "outcome_tracked": outcome_tracked,
         "analysis_pick": by_decision_tier[DecisionTier.ANALYSIS_PICK.value],
@@ -438,6 +424,7 @@ def _counts(cards: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "by_decision_tier": by_decision_tier,
         "by_data_status": by_data_status,
         "by_lifecycle_status": by_lifecycle_status,
+        "by_intelligence_state": by_intelligence_state,
     }
 
 
@@ -449,37 +436,6 @@ def _has_executable_quote(card: Mapping[str, Any]) -> bool:
         and candidate.get("quote_status") == "COMPLETE"
         for candidate in candidates.values()
     )
-
-
-def _analysis_state(card: Mapping[str, Any]) -> str:
-    if not _optional_text(card.get("competition_id")):
-        return "IDENTITY_DATA_MISSING"
-    if _mapping(card.get("simulation")).get("status") != "READY":
-        return "MODEL_INPUT_NOT_READY"
-    if not _has_executable_quote(card):
-        return "WAITING_FRESH_QUOTE"
-    tier = _optional_text(card.get("decision_tier"))
-    if tier == DecisionTier.ANALYSIS_PICK.value:
-        return "ANALYSIS_PICK"
-    if tier == DecisionTier.SKIP.value:
-        return "NO_EDGE"
-    return "MODEL_INPUT_NOT_READY"
-
-
-def _analysis_blocker(card: Mapping[str, Any]) -> str | None:
-    state = _analysis_state(card)
-    if state != "WAITING_FRESH_QUOTE":
-        return state if state.endswith("_MISSING") or state.endswith("_NOT_READY") else None
-    candidates = [
-        candidate
-        for candidate in _mapping(card.get("market_candidates")).values()
-        if isinstance(candidate, Mapping)
-    ]
-    if any(candidate.get("quote_usage") == "REFERENCE_ONLY" for candidate in candidates):
-        return "QUOTE_REFERENCE_ONLY"
-    if any(candidate.get("freshness_status") == "STALE" for candidate in candidates):
-        return "QUOTE_STALE"
-    return "QUOTE_INCOMPLETE"
 
 
 def _freshness(

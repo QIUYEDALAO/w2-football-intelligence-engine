@@ -1206,6 +1206,14 @@ function normalizeCounts(payload: unknown): DashboardDayViewCounts {
   const byLifecycle = asRecord(record.by_lifecycle_status);
   return {
     total: numberValue(record.total),
+    monitored_fixtures: numberValue(record.monitored_fixtures),
+    market_complete_fixtures: numberValue(record.market_complete_fixtures),
+    fresh_quotes: numberValue(record.fresh_quotes),
+    market_stable_fixtures: numberValue(record.market_stable_fixtures),
+    market_movement_fixtures: numberValue(record.market_movement_fixtures),
+    model_diagnostic_warnings: numberValue(record.model_diagnostic_warnings),
+    data_incidents: numberValue(record.data_incidents),
+    collection_incidents: numberValue(record.collection_incidents),
     lock_eligible: numberValue(record.lock_eligible),
     outcome_tracked: numberValue(record.outcome_tracked),
     analysis_pick: numberValue(record.analysis_pick),
@@ -1241,6 +1249,12 @@ function normalizeCounts(payload: unknown): DashboardDayViewCounts {
         numberValue(value),
       ]),
     ),
+    by_intelligence_state: Object.fromEntries(
+      Object.entries(asRecord(record.by_intelligence_state)).map(([key, value]) => [
+        key,
+        numberValue(value),
+      ]),
+    ),
   };
 }
 
@@ -1249,18 +1263,12 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
   const decisionV4 = normalizeRecommendationDecisionV4(record.recommendation_decision_v4);
   const decisionV3 = normalizeRecommendationDecisionV3(record.recommendation_decision_v3);
   const nonPick = asRecord(record.non_pick);
-  const pick = asRecord(decisionV4?.selected_candidate);
-  const decisionTier = decisionV4
-    ? ({ FORMAL_RECOMMEND: "RECOMMEND", ANALYSIS_PICK: "ANALYSIS_PICK", NOT_READY: "NOT_READY", NO_EDGE: "SKIP" }[decisionV4.outcome] as DashboardDayViewCard["decision_tier"])
-    : "NOT_READY";
+  const pick = asRecord(record.pick);
+  const decisionTier = textValue(record.decision_tier, "NOT_READY") as DashboardDayViewCard["decision_tier"];
   const dataStatus = textValue(
     record.data_status,
     "PARTIAL",
   ) as DashboardDayViewCard["data_status"];
-  const actionable =
-    decisionV4 != null &&
-    dataStatus === "READY" &&
-    ["RECOMMEND", "ANALYSIS_PICK"].includes(decisionTier);
   return {
     fixture_id: textValue(record.fixture_id, "unknown-fixture"),
     kickoff_utc: textValue(record.kickoff_utc) || null,
@@ -1271,24 +1279,23 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     away_team_name: textValue(record.away_team_name) || null,
     status: textValue(record.status) || null,
     source: textValue(record.source) || null,
+    intelligence_state: textValue(record.intelligence_state, "DATA_INCOMPLETE") as DashboardDayViewCard["intelligence_state"],
+    intelligence_reason_codes: asArray(record.intelligence_reason_codes)
+      .map((item) => textValue(item))
+      .filter(Boolean),
+    risk_dimensions: asRecord(record.risk_dimensions) as DashboardDayViewCard["risk_dimensions"],
+    recommendation_decision_v4_role: "DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY",
     decision_tier: decisionTier,
     data_status: dataStatus,
     lifecycle_status: textValue(
       record.lifecycle_status,
       "DRAFT",
     ) as DashboardDayViewCard["lifecycle_status"],
-    outcome_tracked: actionable && Boolean(record.outcome_tracked),
-    lock_eligible: actionable && Boolean(record.lock_eligible),
-    recommendation_id: actionable
-      ? textValue(record.recommendation_id) || null
-      : null,
-    reason_code: decisionV4?.reason?.code
-      || (decisionV4 ? textValue(record.reason_code) : "CURRENT_RECOMMENDATION_AUTHORITY_V4_MISSING")
-      || textValue(nonPick.reason_code)
-      || null,
-    action: decisionV4
-      ? textValue(record.action) || textValue(nonPick.action) || null
-      : "WAIT_V4_AUTHORITY",
+    outcome_tracked: Boolean(record.outcome_tracked),
+    lock_eligible: Boolean(record.lock_eligible),
+    recommendation_id: textValue(record.recommendation_id) || null,
+    reason_code: textValue(record.reason_code) || textValue(nonPick.reason_code) || null,
+    action: textValue(record.action) || textValue(nonPick.action) || null,
     next_eval_at:
       textValue(record.next_eval_at) || textValue(nonPick.next_eval_at) || null,
     provider_budget_status: textValue(record.provider_budget_status) || null,
@@ -1313,12 +1320,12 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
             textValue(asRecord(record.simulation).source_status) || undefined,
         }
       : undefined,
-    current_odds: dataStatus === "READY" && Object.keys(pick).length
-      ? asRecord(record.current_odds)
-      : {},
+    current_odds: asRecord(record.current_odds),
+    market_candidates: asRecord(record.market_candidates),
     last_known_odds: asRecord(record.last_known_odds),
     market_probabilities: asRecord(record.market_probabilities),
     odds_movement: asRecord(record.odds_movement),
+    market_movement: asRecord(record.market_movement),
     probability_source: textValue(record.probability_source) || null,
     model_market_divergence: asRecord(record.model_market_divergence),
     market_strip: asArray(record.market_strip).map((item) => asRecord(item)),
@@ -1336,7 +1343,7 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     ),
     scoreline_simulations: numberValue(record.scoreline_simulations) || null,
     pick:
-      actionable && Object.keys(pick).length
+      Object.keys(pick).length
         ? {
             market: textValue(pick.market) || null,
             selection: textValue(pick.selection) || null,
@@ -1350,8 +1357,9 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
       asRecord(item),
     ),
     lineup_provenance: asRecord(record.lineup_provenance),
+    dynamic_prematch: asRecord(record.dynamic_prematch),
     non_pick: Object.keys(nonPick).length ? nonPick : null,
-    one_liner: decisionV4 ? textValue(record.one_liner) || null : null,
+    one_liner: textValue(record.one_liner) || null,
     card_hash: textValue(record.card_hash) || null,
     recommendation_decision_v4: decisionV4,
     recommendation_decision_v3: decisionV3,

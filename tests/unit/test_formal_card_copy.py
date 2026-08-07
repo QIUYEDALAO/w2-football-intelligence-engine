@@ -66,8 +66,11 @@ def test_formal_card_copy_surfaces_locked_prematch_recommendations() -> None:
     assert "locked_pre_match_recommendation" in types
 
 
-def test_dashboard_defaults_to_boss_console_with_previous_views_retained_for_rollback() -> None:
+def test_dashboard_defaults_to_intelligence_console_with_previous_views_retained() -> None:
     page = (ROOT / "apps/web/src/components/DashboardPage.tsx").read_text()
+    intelligence_console = (
+        ROOT / "apps/web/src/components/IntelligenceConsole.tsx"
+    ).read_text()
     boss_view = (ROOT / "apps/web/src/components/BossDecisionView.tsx").read_text()
     boss_console = (
         ROOT / "apps/web/src/reference/boss-console/BossDecisionConsole.tsx"
@@ -77,8 +80,17 @@ def test_dashboard_defaults_to_boss_console_with_previous_views_retained_for_rol
     assert 'const mode: DashboardMode = "future"' in page
     assert "未来 36 小时暂无比赛" in page
     assert "未来 14 天暂无可展示比赛" in page
-    assert "BossDecisionConsole" in page
+    assert "IntelligenceConsole" in page
+    assert "BossDecisionConsole" not in page
     assert "BossDecisionView" not in page
+    assert "W2 Football Intelligence" in intelligence_console
+    assert "Market Overview" in intelligence_console
+    assert "Match Intelligence" in intelligence_console
+    assert "Data &amp; Operations Summary" in intelligence_console
+    assert "MarketOverviewCounts" in intelligence_console
+    assert "DecisionCounts" not in intelligence_console
+    assert "MODEL_MARKET_DISAGREEMENT" in intelligence_console
+    assert "差异仅用于模型校准与特征复核" in intelligence_console
     assert "BossDecisionConsoleReference" in boss_console
     assert "adaptBossDecisionConsole" in boss_console
     assert "footballDayShanghai()" in page
