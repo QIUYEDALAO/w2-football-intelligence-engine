@@ -1,6 +1,6 @@
 # W2 Current Task Checklist
 
-This is the complete current task order for W2. It is maintained directly on branch `context/current`; context updates do not use PR or CI. Runtime changes continue to use the normal guarded delivery process.
+This is the complete current task order for W2. It is maintained directly on branch `context/current`; context updates do not use PR or CI. Runtime changes continue to use the guarded PR / Release Candidate / deployment process.
 
 ## Program status
 
@@ -12,10 +12,16 @@ ACTIVE_TASK = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
 NEXT_CODE_TASK = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
 ```
 
-Current design authority:
+Execution authority:
 
 ```text
-CURRENT_PRODUCT_DESIGN.md
+ROUND_1_CODEX_EXECUTION.md
+```
+
+Acceptance authority:
+
+```text
+ROUND_1_ACCEPTANCE_CRITERIA.md
 ```
 
 Permanent product guard:
@@ -31,23 +37,10 @@ MODEL_MARKET_DIVERGENCE != MARKET_OPPORTUNITY
 ```text
 STATUS = DONE
 FINAL_VERDICT = NO_EDGE
-```
-
-Decisive evidence:
-
-```text
-OU_CLOSE_BEST_PREDICTIVE_LIFT = -0.0000758
-AH_CLOSE_BEST_PREDICTIVE_LIFT = -0.0006467
-OU_PRE_FROZEN_SELECTIONS = 7566
-OU_PRE_FROZEN_STRATEGY_ROI = -5.32_PERCENT
 H_RESULT_ACCESS = PERMANENTLY_CLOSED
 ```
 
-Consequences:
-
-- do not retune the failed protocol on V/H outcomes;
-- do not build a profit-claiming Signal Ledger, Portfolio, Risk/Kelly or execution product;
-- preserve the evidence as a model-quality/product-design guard.
+Do not reopen, retune, or build execution products around the failed hypothesis.
 
 ---
 
@@ -58,31 +51,76 @@ STATUS = NEXT_AUTHORIZED
 TASK = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
 CHANGE_CLASS = RUNTIME_API_AND_WEB
 ONE_PR = true
-ONE_RELEASE = true
+ONE_RELEASE_CANDIDATE = true
+ONE_MERGE = true
 ONE_DEPLOYMENT = true
-LEAGUE_EXPANSION = false
-PROVIDER_POLICY_CHANGE = false
-SCHEDULER_POLICY_CHANGE = false
 ```
+
+### R1.0 League baseline correction — hard boundary
+
+The current active whitelist is **13**, not 11.
+
+```text
+ACTIVE_WHITELIST_BASELINE_COUNT = 13
+ROUND_1_WHITELIST_CHANGE = FORBIDDEN
+```
+
+Baseline identities:
+
+```text
+chinese_super_league
+allsvenskan
+eliteserien
+premier_league
+la_liga
+bundesliga
+serie_a
+ligue_1
+brasileirao_serie_a
+argentina_primera
+mls
+eredivisie
+primeira_liga
+```
+
+The European `5 + 6` grouping is a future market-role cohort, **not a replacement whitelist**.
+
+Of the six Extended Radar names, `Eredivisie` and `Primeira Liga` are already in the 13 baseline. Only four are net-new:
+
+```text
+Belgian Pro League
+Turkish Super Lig
+Greek Super League
+Scottish Premiership
+```
+
+Future candidate union after owner-authorized Round 2 planning:
+
+```text
+13 EXISTING + 4 NET_NEW = 17 TOTAL CANDIDATES
+```
+
+Round 1 must leave all 13 unchanged and must not register/enable/call/schedule the four new candidates.
 
 ### R1.1 Source and scope
 
-- start from the latest trusted `origin/main` in one clean worktree;
-- use one bounded branch and one PR;
-- preserve the existing V4 calculations, Scheduler, Provider policy and current league set;
-- do not add new Provider calls;
-- do not implement Round 2 or Round 3 early.
+- latest trusted `origin/main` in one clean worktree;
+- task authority from `origin/context/current`;
+- one bounded runtime branch and one PR;
+- preserve Scheduler, Provider policy, current 13 whitelist, V4 calculations and historical settlement/replay;
+- no new Provider calls;
+- no Round 2/3 implementation.
 
 ### R1.2 Product identity
 
-Change the public product identity to:
+Public product identity:
 
 ```text
 W2 Football Intelligence
 W2 Football Market Intelligence & Model Diagnostics
 ```
 
-The top-level user question changes from `what should I pick?` to:
+Top-level product questions become:
 
 ```text
 what is happening in the market?
@@ -93,7 +131,7 @@ what needs attention?
 
 ### R1.3 Intelligence states
 
-Implement one explicit top-level state per card/fixture/read-model projection:
+Each public fixture/read-model card exposes exactly one:
 
 ```text
 MARKET_STABLE
@@ -105,11 +143,23 @@ MODEL_DIAGNOSTIC_WARNING
 COLLECTION_INCIDENT
 ```
 
-State precedence and reason codes must be deterministic and tested.
+Frozen Round 1 precedence:
 
-### R1.4 Risk dimensions
+```text
+COLLECTION_INCIDENT
+> DATA_INCOMPLETE
+> MODEL_DIAGNOSTIC_WARNING
+> MARKET_ANOMALY
+> MODEL_MARKET_DISAGREEMENT
+> MARKET_MOVEMENT
+> MARKET_STABLE
+```
 
-Replace generic `high/medium/low risk` semantics with independent dimensions:
+Preserve secondary deterministic reason codes.
+
+Do not invent Round 3 alert thresholds in Round 1.
+
+### R1.4 Four risk dimensions
 
 ```text
 EVENT_RISK
@@ -118,65 +168,70 @@ MODEL_RISK
 COLLECTION_RISK
 ```
 
-Rules:
-
-- `NOT_READY` and `BLOCKED` are not betting-risk states;
-- missing xG/ratings/lineups become data or model readiness reasons;
-- Provider/Scheduler failures become collection incidents;
-- event/lineup facts remain event-risk evidence;
+- `NOT_READY/BLOCKED` is not high betting risk;
+- identity/xG/quote/readiness problems -> data/model readiness;
+- Provider/Scheduler/schema/runtime -> collection;
+- actual lineup/injury/event facts -> event;
+- model calibration/simulation/feature staleness/divergence -> model;
+- do not collapse data + collection into one generic risk;
 - no dimension implies a recommendation.
 
-### R1.5 Permanent divergence guard
-
-Machine and UI guard:
+### R1.5 Public authority switch
 
 ```text
-MODEL_MARKET_DIVERGENCE_AS_OPPORTUNITY = FORBIDDEN
+RecommendationDecisionV4 = DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY
 ```
 
-A model/market difference may display:
+Do not delete V4 or settlement/history.
 
-```text
-model-market disagreement
-model calibration review required
-model feature may be stale
-market information not explained by model
-```
+Public card state, visibility, market facts, priority, counters and wording must no longer be controlled by V4 recommendation outcome alone.
 
-It may not display or emit:
+### R1.6 Permanent divergence guard
+
+Model-market divergence may produce diagnostic disagreement/model-review language only.
+
+It may not produce or rank:
 
 ```text
 value opportunity
 positive edge
-recommended side
 market mispricing
+recommended side
 high-confidence pick
+价值机会
+正 EV 机会
+推荐方向
+值得介入
 ```
 
-The guard must apply to API/read-model output, web adapters, labels, tooltips, counters and browser-visible text.
+Remove the public chain where divergence status/magnitude/direction_allowed determines recommendation readiness.
 
-### R1.6 Market stable as a valid result
+### R1.7 Market fact independence
 
-The system must explicitly show:
+Real current/last-known AH/OU facts must not disappear merely because V4 is `NOT_READY`, `NO_EDGE`, has no selected candidate or no pick.
+
+Never promote stale/reference-only quote evidence to current/executable.
+
+### R1.8 MARKET_STABLE
 
 ```text
-MARKET_STABLE
-no material market anomaly detected
+MARKET_STABLE = VALID_SUCCESS_RESULT
+ZERO_MATERIAL_ALERTS = VALID_SUCCESS_RESULT
 ```
 
-A zero-alert day is successful operation, not an empty/error state. Do not lower thresholds to populate the page.
+Stable fixtures render non-empty. Do not lower thresholds to manufacture alerts.
 
-### R1.7 Page structure
+A truly fixture-empty day remains a real empty-day state; do not fabricate stable fixtures.
 
-Round 1 may reorganize the existing page into an intelligence-first shell:
+### R1.9 Public page structure
+
+Minimum public shell:
 
 ```text
 Market Overview
 Match Intelligence
-Data & Operations summary
+Data & Operations Summary
 ```
-
-Round 1 does not yet implement the full Market Radar or Model Lab analytics.
 
 Minimum overview counters:
 
@@ -191,134 +246,68 @@ data incidents
 collection incidents
 ```
 
-### R1.8 Existing V4 role
+Do not use analysis picks, formal recommendations, lock eligible, NO_EDGE, opportunity or positive EV as primary Market Overview KPIs.
 
-```text
-RecommendationDecisionV4 = DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY
-```
+### R1.10 Tests and acceptance
 
-Do not delete V4 or settlement history. Stop presenting V4 as a public betting recommendation authority.
+All requirements in `ROUND_1_ACCEPTANCE_CRITERIA.md` are mandatory.
 
-### R1.9 Round 1 tests
+At minimum prove:
 
-At minimum:
+1. active whitelist remains exact 13 with identity diff empty;
+2. `MODEL_MARKET_DISAGREEMENT` never produces recommendation/opportunity language;
+3. `NOT_READY/BLOCKED` maps to data/model/collection semantics, not high-risk match;
+4. `MARKET_STABLE` renders a valid non-empty state;
+5. four risk dimensions remain independent;
+6. market facts remain visible independently of V4 pick state;
+7. current real cards still render;
+8. empty-day behavior remains explicit and nonblank;
+9. API/Web release SHA sync remains correct;
+10. Candidate/Formal/Lock/Production remain OFF;
+11. Provider/Scheduler policy and call counts remain unchanged;
+12. browser console errors = 0.
 
-1. `MODEL_MARKET_DISAGREEMENT` never produces opportunity/recommendation language.
-2. `NOT_READY/BLOCKED` maps to data/model/collection state, not high-risk match.
-3. stable market renders a non-empty valid state.
-4. event/data/model/collection risk dimensions remain separate.
-5. current real data cards still render.
-6. empty-day behavior remains explicit and non-blank.
-7. API/Web release SHA remains synchronized.
-8. Candidate/Formal/Lock/Production remain off.
-9. Provider/Scheduler configuration and call counts are unchanged by this PR.
-10. browser console errors = 0.
-
-### R1.10 Delivery
+### R1.11 Delivery
 
 - focused local tests during implementation;
-- PR fast check;
-- one exact-head full Release Candidate;
-- merge once;
-- deploy the verified immutable API/Web images once;
-- public browser acceptance;
-- do not begin Round 2 automatically.
+- one PR Fast;
+- one final exact-head Full Release Candidate on the final PR head;
+- merge once using merge commit only;
+- deploy verified immutable API/Web images once;
+- public browser acceptance once;
+- stop after Round 1 acceptance.
 
 Round 1 completion state:
 
 ```text
 PRODUCT_SEMANTICS = INTELLIGENCE_FIRST
-LEAGUE_SET = UNCHANGED
+ACTIVE_WHITELIST = 13_UNCHANGED
+FUTURE_CANDIDATE_UNION = 17_NOT_STARTED
 MARKET_RADAR_FULL_ANALYTICS = NOT_YET_IMPLEMENTED
 MODEL_LAB_FULL_ANALYTICS = NOT_YET_IMPLEMENTED
 ```
 
 ---
 
-## MI-R2 — First-division Provider capability audit
+## MI-R2 — Provider capability audit
 
 ```text
-STATUS = BLOCKED_UNTIL_MI_R1_ACCEPTED
+STATUS = BLOCKED_UNTIL_MI_R1_ACCEPTED_AND_OWNER_AUTHORIZED
 TASK = W2_MI_R2_FIRST_DIVISION_PROVIDER_CAPABILITY_AUDIT
-DURATION = 14_DAYS
 MODE = READ_ONLY_CONTROLLED
+DURATION = 14_DAYS
+TARGET_CANDIDATE_UNION = 17
 ```
 
-### R2.1 Candidate leagues
+Round 2 target is the **union of the existing 13 whitelist competitions and 4 net-new European first-division candidates**, not a replacement 11-league whitelist.
 
-Core Benchmark:
+The `5 + 6` European cohort remains a product-analysis lens inside the wider 17-candidate universe.
 
-```text
-Premier League
-La Liga
-Bundesliga
-Serie A
-Ligue 1
-```
+No competition is promoted merely by membership in the target pool.
 
-Extended Radar Candidates:
+Round 2 must separately audit live API-Football coverage, freshness, identity, AH/OU completeness, quote timestamps, Provider errors, lineup availability, schema drift, overround/movement distribution, bookmaker agreement and call cost.
 
-```text
-Eredivisie
-Belgian Pro League
-Primeira Liga
-Turkish Super Lig
-Greek Super League
-Scottish Premiership
-```
-
-The label `Extended Radar` does not imply higher value or stronger information.
-
-### R2.2 Capability levels
-
-```text
-REGISTERED
-COVERAGE_MONITORING
-MARKET_INTELLIGENCE_READY
-MODEL_DIAGNOSTICS_READY
-DEGRADED
-```
-
-No recommendation/profitability capability level exists.
-
-### R2.3 Endpoint/frequency separation
-
-- fixtures/status: low-frequency baseline monitoring;
-- odds: bounded capture windows and per-league caps;
-- lineups: near-kickoff only where justified;
-- expensive statistics/injuries: opt-in by diagnostic need;
-- call volume is governed by league count × fixtures × endpoint × frequency × retry.
-
-### R2.4 Audit metrics
-
-```text
-fixture identity success
-AH pair completeness
-OU pair completeness
-quote timestamp coverage
-quote freshness distribution
-Provider error rate
-schema drift
-team mapping conflicts
-result reconciliation
-calls per fixture
-lineup return rate near kickoff
-overround distribution
-line/price movement distribution
-bookmaker coverage and agreement
-```
-
-Before the first live audit call, freeze exact qualification thresholds and quotas. Historical football-data measurements cannot substitute for API-Football capability evidence.
-
-### R2.5 Round 2 output
-
-- league-by-league capability matrix;
-- promoted/degraded decision with reasons;
-- live movement/overround baseline by league, market and time-to-kickoff bucket;
-- call-cost and quota report;
-- no recommendation or opportunity output.
-
-Do not begin Round 3 automatically.
+Do not begin Round 2 automatically.
 
 ---
 
@@ -326,82 +315,13 @@ Do not begin Round 3 automatically.
 
 ```text
 STATUS = BLOCKED_UNTIL_MI_R2_CAPABILITY_DECISION
-TASK = W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB
 AUTHORIZED_LEAGUES = ROUND_2_PROMOTED_ONLY
-```
-
-### R3.1 Market Radar events
-
-```text
-CONFIRMED_MARKET_MOVE
-THIN_MARKET_NOISE
-PRICE_REVERSAL
-BOOKMAKER_DISAGREEMENT
-OVERROUND_SPIKE
-STALE_MARKET
-MISSING_COUNTERSIDE
-SCHEMA_OR_IDENTITY_INCIDENT
-```
-
-### R3.2 Mandatory alert evidence
-
-```text
-line movement magnitude
-price movement magnitude
-time to kickoff
-persistence
-reversal
-bookmaker confirmation/dispersion
-freshness
-overround percentile
-league/market/time-bucket baseline
-```
-
-### R3.3 Overround alert covariate
-
-```text
 OVERROUND_PERCENTILE = REQUIRED_ALERT_COVARIATE
 ```
 
-Overround is a market-thinness/noise confidence covariate, not just a display field.
+Round 3 freezes exact market alert thresholds only after Round 2 live distributions exist.
 
-For the same observed move:
-
-- lower-overround context can support higher information confidence;
-- higher-overround context requires stronger magnitude, persistence or independent bookmaker confirmation;
-- isolated high-overround moves should normally become `THIN_MARKET_NOISE`;
-- an overround increase may separately create `OVERROUND_SPIKE`;
-- high overround must never be interpreted as high value.
-
-Exact thresholds/formulas are frozen only after Round 2 live distributions are available.
-
-### R3.4 Model Lab
-
-- market vs model Log Loss;
-- Brier and calibration;
-- ECE and drift;
-- model/market divergence distribution;
-- feature readiness/staleness;
-- league/season/odds-band diagnostics;
-- model trust state.
-
-Permanent rule:
-
-```text
-MODEL_MARKET_DIVERGENCE != MARKET_OPPORTUNITY
-```
-
-### R3.5 Radar output fields
-
-```text
-MOVEMENT_MAGNITUDE
-MARKET_CONFIDENCE
-NOISE_RISK
-CONFIRMATION_COUNT
-ALERT_SEVERITY
-```
-
-Do not create an opportunity score.
+No opportunity score.
 
 ---
 
@@ -409,6 +329,7 @@ Do not create an opportunity score.
 
 ```text
 BETTING_EDGE_CLAIM = FORBIDDEN
+MODEL_DIVERGENCE_AS_OPPORTUNITY = FORBIDDEN
 SIGNAL_LEDGER_FOR_EXECUTION = NOT_AUTHORIZED
 PORTFOLIO = NOT_AUTHORIZED
 RISK_KELLY = NOT_AUTHORIZED
@@ -420,5 +341,3 @@ FORMAL = OFF
 LOCK = OFF
 PRODUCTION = OFF
 ```
-
-A future quant program requires a new information source, genuinely new edge/model hypothesis and a new pre-registered protocol. The failed Phase 0.5 V/H evidence may not be used for post-result tuning.
