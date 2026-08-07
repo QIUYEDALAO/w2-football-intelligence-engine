@@ -1,274 +1,198 @@
 # W2 Current Task Checklist
 
-This is the complete current task order for W2. Context updates are made directly on branch `context/current`; no pull request or CI is required for this file.
+This is the complete current task order for W2. It is maintained directly on branch `context/current`; context updates do not use PR or CI.
 
-## Program status
+## Program
 
 ```text
 PROGRAM = W2_FOOTBALL_QUANT_EDGE_EXISTENCE
 PROTOCOL = W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
 PROTOCOL_FROZEN = true
 EXECUTION = AUTHORIZED_STAGEWISE
-ACTIVE_TASK = Q05-R1-D-TRAIN-AND-V-MANIFEST
+ACTIVE_TASK = Q05-R2B-V-EVALUATION-AND-CONDITIONAL-R3-R4
 ```
 
-No task below authorizes production changes, Provider calls, deployment, Signal Ledger, strategy productization, portfolio construction or real-money execution.
+No task below authorizes Provider calls, production changes, deployment, Signal Ledger, Portfolio, Kelly, 2×1 or real-money execution.
 
 ---
 
-## Q05-00 — Context reset
+## Q05-00 — Direction and protocol freeze
 
 ```text
 STATUS = DONE
 ```
 
 - Stop the Sporttery-specific implementation direction.
-- Preserve only the final Sporttery research findings as research evidence; old Sporttery context is not current authority.
-- Set W2 Phase 0.5 AH/OU edge existence as the only active workstream.
-- Preserve the deployed operational W2 system unchanged.
+- Preserve the operational W2 system unchanged.
+- Freeze Phase 0.5 AH/OU edge-existence protocol and staged result-access gates.
 
 ---
 
-## Q05-01 — Outcome-blind source inventory
+## Q05-01 — Outcome-blind inventory and RC3 binding
 
 ```text
-STATUS = DONE_REPORTED
-FREEZE_0A = PASS
+STATUS = DONE
 ```
 
-Completed facts:
-
-- 156/156 source downloads succeeded.
-- 20 mmz divisions × 7 seasons = 140 complete division-season units.
-- `new/` cumulative series has no usable Pinnacle AH/OU pairs for this protocol.
-- Outcome-blind negative test passed: semantic projection unchanged when result values changed.
-- Result-field access attempts fail closed.
-- Existing fuzzy/result-dependent join was not used.
-
-Accepted population authority:
-
-```text
-AH_HALF_CLOSING_PREDICTIVE = 10816
-AH_HALF_PRE_ECONOMIC = 10693
-AH_HALF_SAME_LINE_CLV = 6479
-OU25_CLOSING_PREDICTIVE = 46483
-OU25_PRE_ECONOMIC = 46313
-OU25_SAME_LINE_CLV = 46301
-SAME_LINE = 31905
-LINE_MOVED = 19053
-```
+- 156 source files recovered and bound.
+- 20 divisions × 7 seasons = 140 mutually exclusive division-season units.
+- D/V/H = 3/2/2 seasons.
+- RC3 canonical pack recovered read-only.
+- B1–B5 passed after exact-byte recovery.
 
 ---
 
-## Q05-02 — Freeze 0B machine binding
+## Q05-R1 — D training
 
 ```text
-STATUS = PASS_EXACT_ARTIFACT_RECOVERY_RECHECK
+STATUS = DONE_REPORTED_PREUNLOCK_RECHECK_REQUIRED
 ```
 
-Before reading any result column, recompute and require PASS:
-
-- B1 `ARTIFACT_SHA_BINDING`
-- B2 `COVERAGE_AND_MUTUAL_EXCLUSIVITY`
-- B3 `NO_COMPETITION_SEASON_SPANS_SPLITS`
-- B4 `RELEVANT_CODE_MANIFEST_BINDING`
-- B5 `RESULT_COLUMNS_CLOSED`
-
-Required output:
+Reported implementation:
 
 ```text
-B1_TO_B5 = PASS
-CURRENT_RELEVANT_CODE_MANIFEST_SHA256 = <recomputed>
-CURRENT_REPOSITORY_HEAD = <observed>
-D_RESULT_ACCESS = CLOSED
-V_RESULT_ACCESS = CLOSED
-H_RESULT_ACCESS = CLOSED
-```
-
-Stop immediately if any artifact, code blob, split membership or result-access guard differs from the frozen protocol.
-
----
-
-## Q05-R1 — D training and candidate construction
-
-```text
-STATUS = NEXT
-RESULT_ACCESS = D_ONLY
-```
-
-### R1.1 Unlock D only
-
-- Permit result columns only for `2019/20`, `2020/21`, `2021/22`.
-- Keep every V and H result column inaccessible.
-- Record the exact D source-file and training-population hashes.
-
-### R1.2 Fit M2
-
-For each of the 20 divisions:
-
-- build the pure-goals training population from exact football-data rows;
-- fit Dixon-Coles attack/defence and home baseline;
-- search train-only `rho = -0.20 ... +0.20`, step `0.01`;
-- emit fitted-match count, training cutoff, parameters and model hash;
-- fail closed for insufficient training data.
-
-Required artifacts:
-
-```text
-M2_DIVISION_MODEL_MANIFEST.json
-M2_TRAINING_POPULATION_MANIFEST.json
-M2_MODEL_HASHES.json
-```
-
-### R1.3 Fit M4 CLOSE candidates
-
-Use D results and CLOSE-only inputs. For each pre-registered L2 value:
-
-```text
-0.01
-0.1
-1.0
-10.0
-```
-
-fit:
-
-```text
-logit(p_final) = logit(p_market) + beta0 + beta1 * (logit(p_M2) - logit(p_market))
-```
-
-Generate separate model/training/feature/parameter hashes.
-
-### R1.4 Fit M4 PRE candidates
-
-Repeat independently with PRE-only inputs. Do not share fitted parameters with M4 CLOSE. No CLOSE column may be visible to the PRE training or selection path.
-
-### R1.5 R1 stop conditions
-
-R1 must finish with:
-
-```text
+D_TRAINING_ROWS = 21518
+M2_DIVISIONS_FITTED = 20
+M2_RHO_GRID = -0.20_TO_+0.20_STEP_0.01
+M4_CANDIDATES = PRE/CLOSE × OU/AH × 4 L2
 D_RESULT_COLUMNS_READ = true
 V_RESULT_COLUMNS_READ = false
 H_RESULT_COLUMNS_READ = false
-PROVIDER_CALLS = 0
-PRODUCTION_CODE_CHANGE = false
-PRODUCTION_MODEL_CHANGE = false
 ```
+
+The R2B task must validate the referenced M2/M4 manifests before V unlock.
 
 ---
 
-## Q05-R2 — Freeze V candidate predictions and selections
+## Q05-R2 — V prediction and PRE-selection freeze
 
 ```text
-STATUS = BLOCKED_UNTIL_R1_COMPLETE
+STATUS = DONE_REPORTED_PREUNLOCK_RECHECK_REQUIRED
+```
+
+Reported artifacts:
+
+```text
+V_CANDIDATE_PREDICTION_ROWS = 14909
+V_PRE_SELECTION_CANDIDATE_ROWS = 59636
+
+V_CANDIDATE_PREDICTION_MANIFEST_SHA256 =
+591314c9f13fc3256ca51aef6c65953150f40912e776ff8d6347b1701d24033f
+
+V_PRE_SELECTION_CANDIDATE_MANIFEST_SHA256 =
+e582585aaa57ac5cac894a2fad071dfadfa6ad7890b84ba4c8b3d74e4bd3fe13
+```
+
+Receipt:
+
+```text
+/Users/liudehua/.hermes/workspace/w2-phase05-research/
+r1_v_manifest_20260807/artifacts/R1_R2_FREEZE_RECEIPT.json
+```
+
+V/H outcomes were reported unread. This must be revalidated before the one-time V unlock.
+
+---
+
+## Q05-R2A — Pre-unlock freeze verification
+
+```text
+STATUS = NEXT_PRECONDITION
 V_RESULTS = CLOSED
+H_RESULTS = CLOSED
 ```
 
-Using only D-fitted candidates and V market/identity fields, generate for every candidate:
+Must pass before R2B:
 
-### V candidate prediction manifest
+1. Recompute both V artifact hashes and match the frozen values.
+2. Validate the full R1/R2 receipt and referenced source/model manifests.
+3. Confirm deterministic rerun byte identity.
+4. Confirm M4 PRE visible CLOSE-field count = 0.
+5. Confirm PRE and CLOSE model/training/parameter hashes are isolated.
+6. Confirm all 16 expected M4 candidate models exist:
+   - 2 phases × 2 markets × 4 L2 values.
+7. Confirm V/H outcome-read count = 0 during R1/R2.
+8. Confirm Provider calls, production writes, tracked-source changes, PR, CI and deployment = 0.
 
-- fixture natural identity;
-- division and season;
-- market and line;
-- PRE/CLOSE Pinnacle prices;
-- M0 probability;
-- M2 probability;
-- each M4 PRE/CLOSE candidate probability;
-- model, parameter, feature and source hashes.
-
-### V PRE selection candidate manifest
-
-For OU 2.5 only:
-
-- calculate OVER and UNDER predicted EV from M4 PRE and PRE odds;
-- select the higher side only when predicted EV is at least 3%;
-- exact tie => `NO_SELECTION_TIE`;
-- lower than 3% => `NO_SELECTION`;
-- maximum one primary selection per fixture/market;
-- fixed one-unit stake;
-- no CLOSE inputs.
-
-Freeze:
+Failure result:
 
 ```text
-V_CANDIDATE_PREDICTION_MANIFEST_SHA256
-V_PRE_SELECTION_CANDIDATE_MANIFEST_SHA256
+BLOCKED_R1_R2_FREEZE_RECHECK
 ```
 
-Then stop. Do not read V results in this task.
+Keep V/H closed and stop.
 
 ---
 
 ## Q05-R2B — One-time V evaluation
 
 ```text
-STATUS = BLOCKED_UNTIL_V_MANIFESTS_FROZEN
+STATUS = AUTHORIZED_AFTER_R2A_PASS
+V_RESULTS = ONE_TIME_ACCESS
 H_RESULTS = CLOSED
+V_EVALUATION_MODE = STATIC_TRAIN_D_NO_V_OUTCOME_UPDATE
 ```
 
-### R2B.1 Unlock V once
+### Predictive evaluation
 
-After both V manifest hashes are frozen, open V results once.
+For every frozen L2 candidate:
 
-### R2B.2 Evaluate candidate models
-
-For OU 2.5 and AH half-goal prediction populations:
-
+- OU 2.5 M4 CLOSE vs M0 CLOSE;
+- AH half-goal M4 CLOSE vs M0 CLOSE;
 - paired Log Loss;
-- Brier score;
+- Brier;
 - calibration diagnostics;
 - `PREDICTIVE_LIFT = market_log_loss - model_log_loss`;
-- paired fixture-level diagnostics;
-- coverage and exclusion matrices.
+- fixture-paired coverage and exclusion matrix.
 
-### R2B.3 Select L2 only from frozen grid
+### V economic proxy
 
-- choose the L2 candidate using V only;
-- do not add features, models or thresholds;
-- do not change market scope, devig or split assignment.
+For each frozen M4 PRE L2 candidate:
 
-### R2B.4 Evaluate V PRE economic proxy
+- settle only frozen OU 2.5 PRE selections;
+- retain original PRE line and PRE odds;
+- fixed 1 unit;
+- line-moved orders remain included;
+- same-line CLV remains exploratory;
+- report selected-order count, ROI and concentration diagnostics.
 
-- settle the already frozen OU 2.5 PRE selections at original PRE line/price;
-- fixed one unit;
-- line movement remains included in ROI;
-- same-line CLV remains exploratory only.
+### Hyperparameter selection
 
-### R2B.5 Apply V gate
+Select only among:
 
-If V does not meet the frozen continuation gate:
+```text
+L2 = 0.01, 0.1, 1.0, 10.0
+```
+
+Use V only. Do not add features, models, thresholds, markets or devig methods.
+
+### V continuation gate
+
+If V fails the frozen gate:
 
 ```text
 H_RESULT_ACCESS = PERMANENTLY_CLOSED
+FINAL_VERDICT = NO_EDGE | INSUFFICIENT_EVIDENCE
 ```
 
-Issue either:
+Stop.
 
-```text
-NO_EDGE
-or
-INSUFFICIENT_EVIDENCE
-```
-
-and stop.
-
-If V passes, continue to R3 without changing the protocol.
+If V passes, continue automatically to R3 and R4.
 
 ---
 
-## Q05-R3 — Final D+V refit
+## Q05-R3 — Conditional final D+V refit
 
 ```text
-STATUS = BLOCKED_UNTIL_V_GATE_PASS
+STATUS = CONDITIONAL_ON_V_GATE_PASS
+H_RESULTS = CLOSED
 ```
 
-Refit on D+V using the fixed algorithm and V-selected hyperparameters:
+Refit with frozen algorithms and V-selected L2:
 
-- final per-division M2 models;
-- final M4 PRE model;
-- final M4 CLOSE model.
+- final per-division M2 on D+V;
+- final M4 PRE on D+V;
+- final M4 CLOSE on D+V.
 
 Freeze:
 
@@ -285,22 +209,21 @@ No H result may be read.
 
 ---
 
-## Q05-R4 — Freeze H predictions and selections
+## Q05-R4 — Conditional H prediction and selection freeze
 
 ```text
-STATUS = BLOCKED_UNTIL_R3_COMPLETE
+STATUS = CONDITIONAL_ON_R3_COMPLETE
 H_RESULTS = CLOSED
 H_EVALUATION_MODE = STATIC_REFIT_D_PLUS_V_NO_H_OUTCOME_UPDATE
 ```
 
-Using the final D+V models and H market/identity fields only:
+Using final D+V models and H non-result fields only:
 
 - generate all H predictions;
-- generate the frozen OU 2.5 PRE selections;
-- record selected and no-selection reasons;
-- calculate actual selected-order count without reading results;
-- calculate the design-side economic MDE from the selected count;
-- do not update the model between 2024/25 and 2025/26.
+- generate frozen OU 2.5 PRE selections;
+- record selected/no-selection reasons;
+- calculate selected-order count and design-side economic MDE without outcomes;
+- do not update the model between H seasons.
 
 Freeze:
 
@@ -309,124 +232,61 @@ H_PREDICTION_MANIFEST_SHA256
 H_SELECTION_MANIFEST_SHA256
 ```
 
-Then stop before reading any H result.
-
-If selected-order count is too small for the frozen economic test, pre-register:
-
-```text
-ECONOMIC_RESULT = INSUFFICIENT_EVIDENCE
-```
-
-Prediction evaluation may still proceed.
+Then stop before H result access.
 
 ---
 
 ## Q05-R5 — One-time H audit
 
 ```text
-STATUS = BLOCKED_UNTIL_H_MANIFESTS_FROZEN
+STATUS = BLOCKED_UNTIL_H_MANIFESTS_FROZEN_AND_CHATGPT_REVIEW
 ```
 
-### R5.1 Unlock H once
-
-Only after both H manifest hashes are frozen.
-
-### R5.2 Predictive evaluation
-
-For OU 2.5 and AH half-goal:
-
-- market-only vs M4 CLOSE paired Log Loss;
-- Brier and calibration;
-- two-stage competition-season/fixture bootstrap;
-- 20,000 resamples, seed `2026080601`;
-- Holm correction across the two primary prediction tests;
-- minimum practical predictive lift `0.002` nats/fixture.
-
-### R5.3 Economic evaluation
-
-For frozen OU 2.5 PRE selections:
-
-- fixed-unit realized ROI;
-- point estimate threshold at least 3%;
-- 95% bootstrap lower bound greater than zero;
-- report achieved MDE using actual selected-order count;
-- line-moved orders remain included at their original PRE line and price.
-
-### R5.4 Stability and concentration
-
-Required:
-
-- leave-one-season-out;
-- leave-one-tier/group-out;
-- top 5% fixture profit contribution;
-- competition-season and fixture clustering;
-- model coverage and exclusion bias;
-- market score on model-included subset vs full eligible universe.
-
-Individual leagues remain exploratory and cannot independently reverse the pooled verdict.
-
-### R5.5 Prohibitions after H opens
-
-```text
-H_MODEL_REFIT = FORBIDDEN
-H_SELECTION_CHANGE = FORBIDDEN
-H_THRESHOLD_CHANGE = FORBIDDEN
-H_LEAGUE_SCOPE_CHANGE = FORBIDDEN
-H_DEVIG_CHANGE = FORBIDDEN
-```
+No automatic H unlock is allowed in the current task.
 
 ---
 
-## Q05-R6 — Final verdict and next program
+## Q05-R6 — Final verdict
 
 ```text
-STATUS = BLOCKED_UNTIL_R5_COMPLETE
+STATUS = BLOCKED_UNTIL_R5
 ```
 
-### `INSUFFICIENT_EVIDENCE`
+Allowed final verdicts:
 
-- no claim that edge is absent;
-- do not build the quant platform;
-- decide whether a new forward-data protocol is worth starting.
+```text
+INSUFFICIENT_EVIDENCE
+NO_EDGE
+PREDICTIVE_INCREMENT_ONLY
+ECONOMIC_EDGE_CANDIDATE
+```
 
-### `NO_EDGE`
+Consequences:
 
-- stop the quant-platform build;
-- preserve W2 as operational data, analysis and market-monitoring infrastructure;
-- do not create Signal Ledger, Portfolio, Risk or Quant Dashboard.
-
-### `PREDICTIVE_INCREMENT_ONLY`
-
-- authorize only a minimal forward immutable Signal Ledger and fixed-unit Shadow measurement design;
-- no portfolio, Kelly, risk engine or full quant Dashboard;
-- require a new forward protocol.
-
-### `ECONOMIC_EDGE_CANDIDATE`
-
-- authorize drafting `W2_FOOTBALL_QUANT_PLATFORM_TOTAL_DESIGN_V1`;
-- design Signal Ledger, Strategy Registry, fixed-unit Shadow, settlement, attribution, portfolio and risk in later separately authorized phases;
-- still no real money, auto betting, Candidate, Formal, Lock or Production.
+- `NO_EDGE`: stop quant-platform development.
+- `PREDICTIVE_INCREMENT_ONLY`: at most design a minimal forward Signal Ledger and fixed-unit Shadow measurement.
+- `ECONOMIC_EDGE_CANDIDATE`: authorize the full W2 Football Quant Platform total-design document.
+- No verdict authorizes real money.
 
 ---
 
-## Q05-HYGIENE — Execution hygiene
-
-Applies to every task:
-
-- use a clean local research worktree based on the verified source head;
-- no Provider calls or production DB writes;
-- no release images or deployment;
-- no runtime output, source data, database dump or generated report committed to main;
-- store artifacts locally with exact SHA-256 manifests;
-- delete failed/temp artifacts that are not part of the frozen evidence package;
-- do not revive old Sporttery implementation context;
-- do not change production rho or V4 during Phase 0.5;
-- current `ev_se` is diagnostic scenario dispersion only and cannot be used as statistical standard error.
-
-## Current handoff
+## Current hard stop
 
 ```text
-NEXT = Q05-R1
-STOP_POINT = V_CANDIDATE_PREDICTION_MANIFEST_SHA256_FROZEN
-EXPECTED_REPORT = R1_COMPLETE_R2_MANIFESTS_FROZEN_V_RESULTS_UNREAD
+H_RESULT_COLUMNS_READ = false
+PROVIDER_CALLS = 0
+PRODUCTION_CODE_CHANGE = false
+PRODUCTION_MODEL_CHANGE = false
+PRODUCTION_DB_WRITES = 0
+SIGNAL_LEDGER_DEVELOPMENT = false
+PORTFOLIO_DEVELOPMENT = false
+PR_CREATED = false
+CI_RUN = false
+DEPLOYMENT_EXECUTED = false
+REAL_MONEY = NOT_AUTHORIZED
+
+CANDIDATE = OFF
+FORMAL = OFF
+LOCK = OFF
+PRODUCTION = OFF
 ```
