@@ -6,14 +6,49 @@ context_update_mode: direct_branch_no_pr_no_ci_no_history
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: APPROVED
+owner_product_decision: APPROVED_CONTINUE_UNTIL_ACCEPTED
 active_next_action: W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
 next_code_action: W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
-current_status: READY_ROUND_1
-current_gate: ROUND_1_PRODUCT_SEMANTICS
+current_status: ROUND_1_IN_PROGRESS_REMEDIATION
+current_gate: ROUND_1_PROTECTED_BASELINE_REMEDIATION
+active_runtime_pr: 493
 
 execution_authority: ROUND_1_CODEX_EXECUTION.md
 acceptance_authority: ROUND_1_ACCEPTANCE_CRITERIA.md
+
+failure_semantics:
+  fail_closed_meaning: DO_NOT_ADVANCE_PAST_FAILED_GATE
+  fail_closed_does_not_mean: ABANDON_ROUND_1
+  bounded_remediation_requires_new_owner_authorization: false
+  scope_expansion_requires_new_owner_authorization: true
+  remediation_pr: 493
+  create_second_round_1_pr: false
+  continue_until_all_acceptance_pass: true
+
+first_round_1_attempt:
+  audited_base_main_sha: 84e642f3ea26464574f75ee4d520b38bcf24073a
+  pr_number: 493
+  failed_head_sha: 5479e1f1f419e2fc15b69882aaa0c323c966ce1d
+  pr_fast_run: 31151508691
+  pr_fast_result: SUCCESS
+  full_rc_run: 31151557970
+  full_rc_result: FAILURE
+  failed_gate: BOSS_CONSOLE_PROTECTED_BASELINE
+  failed_file: apps/web/src/components/DecisionCounts.tsx
+  expected_sha256: c1b3f940587c1a25610c5e762f955c12541a7da40f006e9ce7818e5d376c9d6e
+  actual_sha256: 4d16bdcede5cf96d17ecf346e1872b5db58139c470ef1227786a6667166a7d5a
+  merge_executed: false
+  deployment_executed: false
+  public_browser_acceptance: NOT_RUN
+
+current_required_remediation:
+  restore_protected_decision_counts: true
+  decision_counts_required_sha256: c1b3f940587c1a25610c5e762f955c12541a7da40f006e9ce7818e5d376c9d6e
+  update_protected_visual_manifest_hashes: false
+  weaken_baseline_checker: false
+  create_intelligence_only_market_overview_component: true
+  public_intelligence_root_imports_legacy_decision_counts: false
+  preserve_intelligence_first_product: true
 
 phase_0_5:
   protocol: W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
@@ -29,6 +64,7 @@ product_contract:
   betting_edge_claim: FORBIDDEN
   market_stable_is_valid_result: true
   existing_v4_role: DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY
+  protected_legacy_boss_console_authority_preserved: true
 
 intelligence_states:
   - MARKET_STABLE
@@ -114,19 +150,31 @@ market_radar_contract:
 
 round_1:
   task: W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
-  status: AUTHORIZED_NEXT
+  status: IN_PROGRESS_REMEDIATION
+  runtime_pr: 493
   one_runtime_pr: true
-  one_final_exact_head_release_candidate: true
+  multiple_failed_validation_attempts_allowed: true
+  multiple_failed_rc_attempts_allowed: true
+  one_successful_final_exact_head_release_candidate: true
   one_merge: true
-  one_deployment: true
+  one_final_accepted_deployment: true
+  final_public_acceptance_required: true
+  continue_until_all_acceptance_pass: true
   league_expansion: false
   active_whitelist_expected_count: 13
   provider_policy_change: false
   provider_allowlist_change: false
   scheduler_policy_change: false
-  new_provider_calls: 0
+  new_provider_calls_initiated_by_round_1: 0
   round_2_capability_audit: NOT_STARTED
   round_3_market_radar: NOT_STARTED
+  completion_conditions:
+    - FINAL_EXACT_HEAD_FULL_RC_SUCCESS
+    - MERGE_SUCCESS
+    - API_WEB_SAME_VERIFIED_SOURCE_DEPLOYMENT_SUCCESS
+    - PUBLIC_API_ACCEPTANCE_PASS
+    - PUBLIC_BROWSER_ACCEPTANCE_PASS
+    - ALL_BINDING_ACCEPTANCE_CRITERIA_PASS
 
 round_2:
   task: W2_MI_R2_FIRST_DIVISION_PROVIDER_CAPABILITY_AUDIT
