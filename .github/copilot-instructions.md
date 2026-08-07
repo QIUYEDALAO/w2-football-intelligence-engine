@@ -11,46 +11,42 @@ Read from branch `context/current` before acting:
 
 ```text
 PROGRAM = W2_FOOTBALL_QUANT_EDGE_EXISTENCE
-PROTOCOL = W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
-PROTOCOL_FROZEN = true
-ACTIVE_NEXT_ACTION = W2_PHASE_0_5_R2B_V_EVALUATION_AND_CONDITIONAL_H_MANIFEST_FREEZE
+PHASE_0_5_STATUS = COMPLETE
+FINAL_VERDICT = NO_EDGE
+ACTIVE_NEXT_ACTION = OWNER_DECISION_REQUIRED_AFTER_NO_EDGE
+NEXT_CODE_ACTION = NONE_AUTHORIZED
+H_RESULT_ACCESS = PERMANENTLY_CLOSED
 ```
 
-## Current work
-
-- re-hash and verify the R1/R2 freeze pack before any V outcome access;
-- open V outcomes once only after the precheck passes;
-- evaluate only the frozen model/L2 candidates and frozen OU 2.5 PRE selections;
-- if V fails, keep H permanently closed and stop;
-- if V passes, refit final D+V models, freeze H predictions and H PRE selections, then stop before H outcomes.
-
-## Result gates
+## Evidence
 
 ```text
-D = existing training and conditional D+V refit
-V = one-time access after pre-unlock verification
-H = closed throughout this task
+OU_CLOSE_BEST_PREDICTIVE_LIFT = -0.0000758
+AH_CLOSE_BEST_PREDICTIVE_LIFT = -0.0006467
+OU_PRE_BEST_FROZEN_SELECTIONS = 7566
+OU_PRE_BEST_FROZEN_STRATEGY_ROI = -5.32_PERCENT
+V_CONTINUATION_GATE = FAIL
 ```
 
-No H read. No feature, threshold, market, devig or candidate change after protocol freeze.
+## Mandatory stop
 
-## Frozen scope
+Do not:
+
+- run R3, R4 or R5;
+- open H results;
+- change threshold, features, L2 grid, devig method, market scope or split assignment and rerun;
+- build Signal Ledger, Shadow, Portfolio, Risk, Kelly, 2×1 or Quant Dashboard;
+- change production code/models, V4, Scheduler, Provider allowlist or production DB;
+- call Providers, create PR/CI, deploy or perform real-money work.
+
+No code is authorized until the owner chooses the next product direction.
+
+Recommended direction:
 
 ```text
-SOURCE = FOOTBALL_DATA_MMZ_ONLY
-D = 2019_20,2020_21,2021_22
-V = 2022_23,2023_24
-H = 2024_25,2025_26
-PRIMARY_PREDICTIVE = OU_2_5,AH_HALF_GOAL_LINES
-PRIMARY_ECONOMIC = OU_2_5
-ODDS = PINNACLE_ONLY
-L2 = 0.01,0.1,1.0,10.0
+W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 ```
 
-## Hard stop
+A future quant experiment requires a new information source, a new edge/model hypothesis and a new pre-registered protocol.
 
-Do not modify production code, production models, V4, Scheduler, Provider allowlist, production DB or Dashboard. Do not call Providers, deploy, create PR/CI, build Signal Ledger, Portfolio, Risk, Kelly, 2×1 or real-money workflows.
-
-`ev_se` is scenario sensitivity, not sampling standard error, and must not be used as a confidence bound.
-
-Context updates on `context/current` do not use PR or CI. Runtime changes still use the normal guarded delivery process.
+Context updates on `context/current` do not use PR or CI. Runtime changes still require the normal guarded delivery process.
