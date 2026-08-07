@@ -7,9 +7,11 @@ This is the complete current task order for W2. It is maintained directly on bra
 ```text
 PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 PRODUCT = W2 Football Intelligence
-OWNER_DECISION = APPROVED
+OWNER_DECISION = APPROVED_CONTINUE_UNTIL_ACCEPTED
 ACTIVE_TASK = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
 NEXT_CODE_TASK = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
+ACTIVE_RUNTIME_PR = 493
+ROUND_1_STATUS = IN_PROGRESS_REMEDIATION
 ```
 
 Execution authority:
@@ -47,16 +49,79 @@ Do not reopen, retune, or build execution products around the failed hypothesis.
 ## MI-R1 — Product semantics and status reframe
 
 ```text
-STATUS = NEXT_AUTHORIZED
+STATUS = IN_PROGRESS_REMEDIATION
 TASK = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
 CHANGE_CLASS = RUNTIME_API_AND_WEB
-ONE_PR = true
-ONE_RELEASE_CANDIDATE = true
+ONE_RUNTIME_PR = true
+ACTIVE_RUNTIME_PR = 493
+MULTIPLE_FAILED_VALIDATION_ATTEMPTS_ALLOWED = true
+ONE_SUCCESSFUL_FINAL_RC_ON_FINAL_HEAD = true
 ONE_MERGE = true
-ONE_DEPLOYMENT = true
+ONE_FINAL_ACCEPTED_DEPLOYMENT = true
 ```
 
-### R1.0 League baseline correction — hard boundary
+### R1.0 Completion semantics — hard boundary
+
+```text
+FAIL_CLOSED = DO_NOT_ADVANCE_PAST_FAILED_GATE
+FAIL_CLOSED != ABANDON_ROUND_1
+```
+
+If a required gate fails but the fix is still inside authorized Round 1 scope, Codex must:
+
+1. retain the failed evidence;
+2. identify the exact root cause;
+3. make the smallest correction in the same PR #493;
+4. rerun local affected checks;
+5. obtain new exact-head PR Fast success;
+6. run new exact-head Full RC;
+7. repeat until all acceptance gates pass.
+
+No additional owner authorization is required for an in-scope Round 1 remediation.
+
+Owner authorization is required only for scope expansion or stop-line changes.
+
+Round 1 is not DONE until:
+
+```text
+FINAL_EXACT_HEAD_FULL_RC = SUCCESS
+MERGE = SUCCESS
+API_WEB_SAME_VERIFIED_SOURCE_DEPLOYMENT = SUCCESS
+PUBLIC_API_ACCEPTANCE = PASS
+PUBLIC_BROWSER_ACCEPTANCE = PASS
+ROUND_1_ACCEPTANCE_CRITERIA = ALL_PASS
+ROUND_1 = PASS
+```
+
+### R1.1 Current failed attempt — retained evidence
+
+```text
+AUDITED_BASE_MAIN_SHA = 84e642f3ea26464574f75ee4d520b38bcf24073a
+RUNTIME_PR_NUMBER = 493
+FAILED_HEAD_SHA = 5479e1f1f419e2fc15b69882aaa0c323c966ce1d
+PR_FAST_RUN = 31151508691
+PR_FAST_RESULT = SUCCESS
+FAILED_FULL_RC_RUN = 31151557970
+FAILED_FULL_RC_RESULT = FAILURE
+FAILED_GATE = BOSS_CONSOLE_PROTECTED_BASELINE
+FAILED_FILE = apps/web/src/components/DecisionCounts.tsx
+EXPECTED_SHA256 = c1b3f940587c1a25610c5e762f955c12541a7da40f006e9ce7818e5d376c9d6e
+FAILED_ACTUAL_SHA256 = 4d16bdcede5cf96d17ecf346e1872b5db58139c470ef1227786a6667166a7d5a
+MERGE = NOT_EXECUTED
+DEPLOY = NOT_EXECUTED
+```
+
+Mandatory next remediation:
+
+- restore protected `DecisionCounts.tsx` exactly to the base/main authority;
+- do not update protected manifest hashes;
+- do not weaken baseline checker;
+- create an intelligence-only Market Overview counter component;
+- make `IntelligenceConsole` consume the intelligence-only component;
+- add a regression guard that the public intelligence root does not import protected legacy DecisionCounts;
+- preserve the Round 1 intelligence-first public implementation.
+
+### R1.2 League baseline correction — hard boundary
 
 The current active whitelist is **13**, not 11.
 
@@ -83,7 +148,7 @@ eredivisie
 primeira_liga
 ```
 
-The European `5 + 6` grouping is a future market-role cohort, **not a replacement whitelist**.
+The European `5 + 6` grouping is a future market-role cohort, not a replacement whitelist.
 
 Of the six Extended Radar names, `Eredivisie` and `Primeira Liga` are already in the 13 baseline. Only four are net-new:
 
@@ -102,16 +167,17 @@ Future candidate union after owner-authorized Round 2 planning:
 
 Round 1 must leave all 13 unchanged and must not register/enable/call/schedule the four new candidates.
 
-### R1.1 Source and scope
+### R1.3 Source and scope
 
-- latest trusted `origin/main` in one clean worktree;
+- continue only PR #493;
 - task authority from `origin/context/current`;
-- one bounded runtime branch and one PR;
 - preserve Scheduler, Provider policy, current 13 whitelist, V4 calculations and historical settlement/replay;
-- no new Provider calls;
-- no Round 2/3 implementation.
+- no new Provider calls initiated by Round 1;
+- no Round 2/3 implementation;
+- no second remediation PR;
+- no bypass of protected CI/visual authority.
 
-### R1.2 Product identity
+### R1.4 Product identity
 
 Public product identity:
 
@@ -120,7 +186,7 @@ W2 Football Intelligence
 W2 Football Market Intelligence & Model Diagnostics
 ```
 
-Top-level product questions become:
+Top-level product questions:
 
 ```text
 what is happening in the market?
@@ -129,7 +195,7 @@ is the model behaving reliably?
 what needs attention?
 ```
 
-### R1.3 Intelligence states
+### R1.5 Intelligence states
 
 Each public fixture/read-model card exposes exactly one:
 
@@ -143,7 +209,7 @@ MODEL_DIAGNOSTIC_WARNING
 COLLECTION_INCIDENT
 ```
 
-Frozen Round 1 precedence:
+Frozen precedence:
 
 ```text
 COLLECTION_INCIDENT
@@ -159,7 +225,7 @@ Preserve secondary deterministic reason codes.
 
 Do not invent Round 3 alert thresholds in Round 1.
 
-### R1.4 Four risk dimensions
+### R1.6 Four risk dimensions
 
 ```text
 EVENT_RISK
@@ -176,7 +242,7 @@ COLLECTION_RISK
 - do not collapse data + collection into one generic risk;
 - no dimension implies a recommendation.
 
-### R1.5 Public authority switch
+### R1.7 Public authority switch
 
 ```text
 RecommendationDecisionV4 = DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY
@@ -186,7 +252,7 @@ Do not delete V4 or settlement/history.
 
 Public card state, visibility, market facts, priority, counters and wording must no longer be controlled by V4 recommendation outcome alone.
 
-### R1.6 Permanent divergence guard
+### R1.8 Permanent divergence guard
 
 Model-market divergence may produce diagnostic disagreement/model-review language only.
 
@@ -204,15 +270,15 @@ high-confidence pick
 值得介入
 ```
 
-Remove the public chain where divergence status/magnitude/direction_allowed determines recommendation readiness.
+Remove the public chain where divergence status/magnitude/direction_allowed determines recommendation readiness/opportunity priority.
 
-### R1.7 Market fact independence
+### R1.9 Market fact independence
 
 Real current/last-known AH/OU facts must not disappear merely because V4 is `NOT_READY`, `NO_EDGE`, has no selected candidate or no pick.
 
 Never promote stale/reference-only quote evidence to current/executable.
 
-### R1.8 MARKET_STABLE
+### R1.10 MARKET_STABLE
 
 ```text
 MARKET_STABLE = VALID_SUCCESS_RESULT
@@ -223,7 +289,7 @@ Stable fixtures render non-empty. Do not lower thresholds to manufacture alerts.
 
 A truly fixture-empty day remains a real empty-day state; do not fabricate stable fixtures.
 
-### R1.9 Public page structure
+### R1.11 Public page structure
 
 Minimum public shell:
 
@@ -248,34 +314,68 @@ collection incidents
 
 Do not use analysis picks, formal recommendations, lock eligible, NO_EDGE, opportunity or positive EV as primary Market Overview KPIs.
 
-### R1.10 Tests and acceptance
+### R1.12 Protected compatibility
 
-All requirements in `ROUND_1_ACCEPTANCE_CRITERIA.md` are mandatory.
+Required:
+
+```text
+BOSS_CONSOLE_PROTECTED_BASELINE = PASS
+PUBLIC_INTELLIGENCE_ROOT_LEGACY_DECISION_COUNTS_IMPORT = false
+```
+
+The old protected Boss Console can remain for compatibility/reference, but the public intelligence root must not depend on changing its protected DecisionCounts component.
+
+### R1.13 Tests and acceptance
+
+Every item in `ROUND_1_ACCEPTANCE_CRITERIA.md` is mandatory.
 
 At minimum prove:
 
-1. active whitelist remains exact 13 with identity diff empty;
-2. `MODEL_MARKET_DISAGREEMENT` never produces recommendation/opportunity language;
-3. `NOT_READY/BLOCKED` maps to data/model/collection semantics, not high-risk match;
-4. `MARKET_STABLE` renders a valid non-empty state;
-5. four risk dimensions remain independent;
-6. market facts remain visible independently of V4 pick state;
-7. current real cards still render;
-8. empty-day behavior remains explicit and nonblank;
-9. API/Web release SHA sync remains correct;
-10. Candidate/Formal/Lock/Production remain OFF;
-11. Provider/Scheduler policy and call counts remain unchanged;
-12. browser console errors = 0.
+1. active whitelist exact 13 with identity diff empty;
+2. protected Boss Console baseline PASS;
+3. public intelligence root no longer imports legacy DecisionCounts;
+4. `MODEL_MARKET_DISAGREEMENT` never produces recommendation/opportunity language;
+5. `NOT_READY/BLOCKED` maps to data/model/collection semantics, not high-risk match;
+6. `MARKET_STABLE` renders valid non-empty state;
+7. four risk dimensions remain independent;
+8. market facts remain visible independently of V4 pick state;
+9. Market Overview counter reconciliation passes;
+10. current real cards still render;
+11. empty-day behavior remains explicit and nonblank;
+12. API/Web release SHA sync remains correct;
+13. Candidate/Formal/Lock/Production remain OFF;
+14. Provider/Scheduler policy and whitelist remain unchanged;
+15. browser console errors = 0;
+16. final public API/browser acceptance PASS.
 
-### R1.11 Delivery
+### R1.14 Delivery loop until accepted
 
-- focused local tests during implementation;
-- one PR Fast;
-- one final exact-head Full Release Candidate on the final PR head;
+For every remediation head:
+
+- run affected focused local tests;
+- run protected Web baseline if Web is touched;
+- Web typecheck/build/E2E when Web is touched;
+- required Python/static/contract tests for backend changes;
+- push only to PR #493;
+- require exact-head `PR_FAST_REQUIRED = SUCCESS`;
+- run a new exact-head Full RC;
+- if RC fails, do not merge/deploy; remediate and repeat.
+
+A source change invalidates the previous RC as final release evidence.
+
+Multiple failed validation/RC attempts are allowed and must be retained in the final receipt.
+
+Only one successful final RC on the final head may authorize merge/deploy.
+
+After final RC PASS:
+
+- freeze final head;
 - merge once using merge commit only;
-- deploy verified immutable API/Web images once;
-- public browser acceptance once;
-- stop after Round 1 acceptance.
+- deploy the verified immutable API/Web release identity;
+- run public API acceptance;
+- run public browser acceptance;
+- if deployment/browser acceptance fails, remain IN_PROGRESS and remediate within Round 1 until PASS;
+- stop only after complete Round 1 acceptance.
 
 Round 1 completion state:
 
@@ -283,8 +383,13 @@ Round 1 completion state:
 PRODUCT_SEMANTICS = INTELLIGENCE_FIRST
 ACTIVE_WHITELIST = 13_UNCHANGED
 FUTURE_CANDIDATE_UNION = 17_NOT_STARTED
+BOSS_CONSOLE_PROTECTED_BASELINE = PASS
+MODEL_MARKET_DIVERGENCE_AS_OPPORTUNITY = FORBIDDEN
+FINAL_EXACT_HEAD_FULL_RC = SUCCESS
+PUBLIC_BROWSER_ACCEPTANCE = PASS
 MARKET_RADAR_FULL_ANALYTICS = NOT_YET_IMPLEMENTED
 MODEL_LAB_FULL_ANALYTICS = NOT_YET_IMPLEMENTED
+ROUND_1 = PASS
 ```
 
 ---
@@ -299,13 +404,11 @@ DURATION = 14_DAYS
 TARGET_CANDIDATE_UNION = 17
 ```
 
-Round 2 target is the **union of the existing 13 whitelist competitions and 4 net-new European first-division candidates**, not a replacement 11-league whitelist.
+Round 2 target is the union of the existing 13 whitelist competitions and four net-new European first-division candidates, not a replacement 11-league whitelist.
 
 The `5 + 6` European cohort remains a product-analysis lens inside the wider 17-candidate universe.
 
 No competition is promoted merely by membership in the target pool.
-
-Round 2 must separately audit live API-Football coverage, freshness, identity, AH/OU completeness, quote timestamps, Provider errors, lineup availability, schema drift, overround/movement distribution, bookmaker agreement and call cost.
 
 Do not begin Round 2 automatically.
 
