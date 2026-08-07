@@ -4,60 +4,103 @@ repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 context_update_mode: direct_branch_no_pr_no_ci_no_history
 
-program: W2_FOOTBALL_QUANT_EDGE_EXISTENCE
-protocol: W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
-protocol_frozen: true
-phase: PHASE_0_5_COMPLETE
-final_verdict: NO_EDGE
-execution_authority: STOPPED_BY_V_GATE
-active_next_action: OWNER_DECISION_REQUIRED_AFTER_NO_EDGE
-next_code_action: NONE_AUTHORIZED
-current_status: NO_EDGE_FINAL_H_PERMANENTLY_CLOSED
-current_gate: PROGRAM_DIRECTION_DECISION
+program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
+product_name: W2 Football Intelligence
+product_design_path: CURRENT_PRODUCT_DESIGN.md
+owner_product_decision: APPROVED
+active_next_action: W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
+next_code_action: W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
+current_status: READY_ROUND_1
+current_gate: ROUND_1_PRODUCT_SEMANTICS
 
-source_head_observed: 84e642f3ea26464574f75ee4d520b38bcf24073a
-canonical_frozen_directory: /Users/liudehua/.hermes/workspace/w2-phase05-frozen-authority/rc3
-frozen_pack_manifest_sha256: 198894a2f0ae92735e5c3fbed016e61df8093376f890244e6ca04824ac2b7e16
-
-r1_r2_freeze:
-  status: PASS
-  d_training_rows: 21518
-  m2_divisions_fitted: 20
-  v_candidate_prediction_rows: 14909
-  v_pre_selection_candidate_rows: 59636
-  v_candidate_prediction_manifest_sha256: 591314c9f13fc3256ca51aef6c65953150f40912e776ff8d6347b1701d24033f
-  v_pre_selection_candidate_manifest_sha256: e582585aaa57ac5cac894a2fad071dfadfa6ad7890b84ba4c8b3d74e4bd3fe13
-
-r2b_v_gate:
-  receipt_path: /Users/liudehua/.hermes/workspace/w2-phase05-research/r2b_v_evaluation_20260807/artifacts/R2B_V_GATE_RECEIPT.json
-  preunlock_checks_passed: 41
-  preunlock_checks_total: 41
-  deterministic_artifacts_passed: 9
-  v_rows_read_once: 14909
+phase_0_5:
+  protocol: W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
+  status: COMPLETE
+  final_verdict: NO_EDGE
+  v_continuation_gate: FAIL
+  h_result_access: PERMANENTLY_CLOSED
   ou_close_best_predictive_lift: -0.0000758
   ah_close_best_predictive_lift: -0.0006467
-  ou_pre_best_frozen_selection_count: 7566
-  ou_pre_best_frozen_strategy_roi: -0.0532
-  continuation_gate: FAIL
-  final_verdict: NO_EDGE
-  independently_recomputed_by_chatgpt: false
+  ou_pre_best_selection_count: 7566
+  ou_pre_best_strategy_roi: -0.0532
+  tested_hypothesis_retuning_forbidden: true
 
-result_access:
-  mode: CLOSED_AFTER_PROTOCOL_DECISION
-  d: TRAINING_READ_COMPLETE
-  v: ONE_TIME_READ_COMPLETE
-  h: PERMANENTLY_CLOSED
+product_contract:
+  recommendation_first_ui: REPLACED_BY_INTELLIGENCE_FIRST
+  model_market_divergence_as_opportunity: FORBIDDEN
+  betting_edge_claim: FORBIDDEN
+  market_stable_is_valid_result: true
+  existing_v4_role: DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY
 
-phase_outcome:
-  predictive_increment_proven: false
-  economic_edge_candidate: false
-  quant_platform_authorized: false
-  signal_ledger_authorized: false
-  portfolio_risk_authorized: false
-  h_audit_authorized: false
+intelligence_states:
+  - MARKET_STABLE
+  - MARKET_MOVEMENT
+  - MARKET_ANOMALY
+  - MODEL_MARKET_DISAGREEMENT
+  - DATA_INCOMPLETE
+  - MODEL_DIAGNOSTIC_WARNING
+  - COLLECTION_INCIDENT
 
-recommended_product_role: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
-future_quant_research_rule: NEW_HYPOTHESIS_NEW_PROTOCOL_NEW_INFORMATION_REQUIRED
+risk_dimensions:
+  - EVENT_RISK
+  - DATA_RISK
+  - MODEL_RISK
+  - COLLECTION_RISK
+
+league_capability_states:
+  - REGISTERED
+  - COVERAGE_MONITORING
+  - MARKET_INTELLIGENCE_READY
+  - MODEL_DIAGNOSTICS_READY
+  - DEGRADED
+
+league_plan:
+  first_division_target_count: 11
+  core_benchmark:
+    - Premier League
+    - La Liga
+    - Bundesliga
+    - Serie A
+    - Ligue 1
+  extended_radar_candidates:
+    - Eredivisie
+    - Belgian Pro League
+    - Primeira Liga
+    - Turkish Super Lig
+    - Greek Super League
+    - Scottish Premiership
+  second_tier_initial_state: COVERAGE_MONITORING_ONLY
+  live_promotion_authority: 14_DAY_PROVIDER_CAPABILITY_AUDIT
+
+market_radar_contract:
+  overround_percentile_required_alert_covariate: true
+  overround_role: MARKET_THINNESS_AND_NOISE_CONFIDENCE_COVARIATE
+  high_overround_is_high_value: false
+  high_overround_is_high_information: false
+  alert_model_freeze_stage: ROUND_3_AFTER_ROUND_2_LIVE_DISTRIBUTIONS
+  isolated_high_overround_move_default: THIN_MARKET_NOISE
+  model_divergence_in_alert_opportunity_score: FORBIDDEN
+
+three_round_plan:
+  round_1:
+    task: W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
+    status: AUTHORIZED_NEXT
+    league_expansion: false
+    provider_policy_change: false
+    scheduler_change: false
+    one_runtime_pr: true
+    one_release_and_deployment: true
+  round_2:
+    task: W2_MI_R2_FIRST_DIVISION_PROVIDER_CAPABILITY_AUDIT
+    status: BLOCKED_UNTIL_ROUND_1_ACCEPTED
+    duration_days: 14
+    mode: READ_ONLY_CONTROLLED
+    target_first_divisions: 11
+  round_3:
+    task: W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB
+    status: BLOCKED_UNTIL_ROUND_2_CAPABILITY_DECISION
+    authorized_leagues: ROUND_2_PROMOTED_ONLY
+    overround_covariate_required: true
 
 operational_track:
   existing_w2_preserved: true
@@ -67,14 +110,12 @@ operational_track:
   lock: "OFF"
   production: "OFF"
 
-stop_lines:
-  open_h_results: false
-  rerun_phase_0_5_with_changed_thresholds: false
-  tune_on_v_results: false
-  production_code_change: false
-  production_model_change: false
-  signal_ledger_development: false
-  portfolio_development: false
-  provider_calls: 0
-  deployment_executed: false
+round_1_stop_lines:
+  league_expansion: false
+  provider_calls_for_new_leagues: 0
+  provider_allowlist_change: false
+  scheduler_policy_change: false
+  quant_signal_ledger: false
+  portfolio: false
+  risk_kelly: false
   real_money: NOT_AUTHORIZED
