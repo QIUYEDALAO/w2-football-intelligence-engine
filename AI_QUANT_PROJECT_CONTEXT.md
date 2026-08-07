@@ -1,15 +1,6 @@
 # W2 Market Intelligence — AI Handoff
 
-Read first from branch `context/current`:
-
-1. `CURRENT_CONTEXT.md`
-2. `CURRENT_STATE.yaml`
-3. `CURRENT_PRODUCT_DESIGN.md`
-4. `CURRENT_TASK_CHECKLIST.md`
-5. `NEXT_ACTION.md`
-6. `QUANT_AGENTS.md`
-
-Context updates do not use PR, CI, Release Candidate, image build or deployment.
+Current authority is `context/current`.
 
 ## Current decision
 
@@ -20,38 +11,74 @@ OWNER_DECISION = APPROVED
 ACTIVE_NEXT_ACTION = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
 ```
 
-Phase 0.5 is closed with `NO_EDGE`; H is permanently closed under that protocol. The current work is product repositioning, not another betting-edge experiment.
+Phase 0.5 is closed with `NO_EDGE`; H is permanently closed. Current work is product repositioning, not another betting-edge experiment.
 
-## Permanent evidence guard
+Permanent evidence guard:
 
 ```text
 MODEL_MARKET_DIVERGENCE != MARKET_OPPORTUNITY
 ```
 
-The Phase 0.5 V evidence showed that the least-regularized model created many apparent selections but did not beat Pinnacle and lost money, while stronger regularization collapsed back toward the market. Therefore model divergence is a model-quality diagnostic, never an opportunity score.
-
-Forbidden language/meaning from divergence alone:
+V4 product role:
 
 ```text
-value opportunity
-positive edge
-market mispricing
-recommended side
-high-confidence pick
+RecommendationDecisionV4 = DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY
 ```
 
-## Round 1 handoff
+## League baseline correction
 
-Implement one bounded API/Web semantic refactor:
+Current active whitelist baseline:
 
 ```text
-TASK = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
-LEAGUE_EXPANSION = false
-PROVIDER_POLICY_CHANGE = false
-SCHEDULER_POLICY_CHANGE = false
+COUNT = 13
+ROUND_1_CHANGE = FORBIDDEN
 ```
 
-Required states:
+The 13 identities are:
+
+```text
+chinese_super_league
+allsvenskan
+eliteserien
+premier_league
+la_liga
+bundesliga
+serie_a
+ligue_1
+brasileirao_serie_a
+argentina_primera
+mls
+eredivisie
+primeira_liga
+```
+
+The European `5 + 6` grouping is not a replacement whitelist. Only four members are net-new relative to the current 13:
+
+```text
+Belgian Pro League
+Turkish Super Lig
+Greek Super League
+Scottish Premiership
+```
+
+Future candidate union:
+
+```text
+13 + 4 = 17
+```
+
+Do not add/audit/call/schedule these four during Round 1.
+
+## Round 1 execution
+
+Read:
+
+```text
+ROUND_1_CODEX_EXECUTION.md
+ROUND_1_ACCEPTANCE_CRITERIA.md
+```
+
+Implement one bounded API/Web semantic refactor only. Required public states:
 
 ```text
 MARKET_STABLE
@@ -72,38 +99,11 @@ MODEL_RISK
 COLLECTION_RISK
 ```
 
-`NOT_READY`/`BLOCKED` must not map to betting risk. A stable market/zero-alert day must render as a valid non-empty result.
-
-Preserve existing real data, V4 evidence, Scheduler, Provider policy and current leagues. V4 becomes diagnostic input rather than the public product authority.
+Preserve current 13 whitelist, current Provider/Scheduler policy and historical V4/settlement evidence.
 
 ## Delivery
 
-- one clean worktree;
-- one bounded runtime PR;
-- focused local feedback during implementation;
-- one exact-head full Release Candidate;
-- one merge and one deployment;
-- public browser acceptance;
-- stop after Round 1; do not start the league audit automatically.
-
-## Future rounds
-
-Round 2:
-
-```text
-11 first-division candidates
-14-day read-only Provider capability audit
-```
-
-Round 3:
-
-```text
-Market Radar + Model Lab
-only Round 2 promoted leagues
-OVERROUND_PERCENTILE = REQUIRED_ALERT_COVARIATE
-```
-
-Overround is a market-thinness/noise confidence covariate. High-overround isolated moves should normally be classified as `THIN_MARKET_NOISE`; exact formulas wait for live Round 2 distributions.
+One clean worktree, one runtime PR, one final exact-head Full Release Candidate, one merge and one deployment; stop after public acceptance.
 
 ## Hard boundaries
 
