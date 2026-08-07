@@ -1,98 +1,118 @@
-# W2 Football Quant — AI Handoff
+# W2 Market Intelligence — AI Handoff
 
 Read first from branch `context/current`:
 
 1. `CURRENT_CONTEXT.md`
 2. `CURRENT_STATE.yaml`
-3. `CURRENT_TASK_CHECKLIST.md`
-4. `NEXT_ACTION.md`
-5. `QUANT_AGENTS.md`
+3. `CURRENT_PRODUCT_DESIGN.md`
+4. `CURRENT_TASK_CHECKLIST.md`
+5. `NEXT_ACTION.md`
+6. `QUANT_AGENTS.md`
 
 Context updates do not use PR, CI, Release Candidate, image build or deployment.
 
-## Final Phase 0.5 decision
+## Current decision
 
 ```text
-PROGRAM = W2_FOOTBALL_QUANT_EDGE_EXISTENCE
-PROTOCOL = W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
-PROTOCOL_FROZEN = true
-PHASE_0_5_STATUS = COMPLETE
-FINAL_VERDICT = NO_EDGE
-ACTIVE_NEXT_ACTION = OWNER_DECISION_REQUIRED_AFTER_NO_EDGE
-NEXT_CODE_ACTION = NONE_AUTHORIZED
-H_RESULT_ACCESS = PERMANENTLY_CLOSED
+PRODUCT_NAME = W2 Football Intelligence
+PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
+OWNER_DECISION = APPROVED
+ACTIVE_NEXT_ACTION = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
 ```
 
-## Evidence summary
+Phase 0.5 is closed with `NO_EDGE`; H is permanently closed under that protocol. The current work is product repositioning, not another betting-edge experiment.
+
+## Permanent evidence guard
 
 ```text
-R2A_PRECHECK = 41/41 PASS
-V_ROWS_READ_ONCE = 14909
-OU_CLOSE_BEST_PREDICTIVE_LIFT = -0.0000758
-AH_CLOSE_BEST_PREDICTIVE_LIFT = -0.0006467
-OU_PRE_BEST_FROZEN_SELECTIONS = 7566
-OU_PRE_BEST_FROZEN_STRATEGY_ROI = -5.32_PERCENT
-V_CONTINUATION_GATE = FAIL
+MODEL_MARKET_DIVERGENCE != MARKET_OPPORTUNITY
 ```
 
-The best frozen OU and AH residual candidates did not improve on Pinnacle closing prediction in V. The frozen PRE OU 2.5 strategy also lost 5.32%. R3/R4 were not executed and H must never be opened under this protocol.
+The Phase 0.5 V evidence showed that the least-regularized model created many apparent selections but did not beat Pinnacle and lost money, while stronger regularization collapsed back toward the market. Therefore model divergence is a model-quality diagnostic, never an opportunity score.
 
-## Meaning
-
-The following tested hypothesis failed:
+Forbidden language/meaning from divergence alone:
 
 ```text
-PURE_GOALS_DIXON_COLES_PER_DIVISION
-+
-PINNACLE_MARKET_ANCHORED_BINARY_RESIDUAL
-+
-FROZEN_3_PERCENT_PRE_EV_SELECTION
+value opportunity
+positive edge
+market mispricing
+recommended side
+high-confidence pick
 ```
 
-Do not:
+## Round 1 handoff
 
-- lower or change the threshold and rerun the same V/H data;
-- add features based on V results;
-- open H to search for reversal;
-- build Signal Ledger, Shadow, Portfolio, Risk, Kelly or Quant Dashboard around this hypothesis;
-- claim economic or predictive edge.
-
-## Recommended W2 role
+Implement one bounded API/Web semantic refactor:
 
 ```text
-W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
+TASK = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
+LEAGUE_EXPANSION = false
+PROVIDER_POLICY_CHANGE = false
+SCHEDULER_POLICY_CHANGE = false
 ```
 
-The existing W2 remains valuable for:
-
-- real fixture and odds data;
-- identity and raw-payload authority;
-- market freshness and movement monitoring;
-- data quality and coverage;
-- calibration and market-baseline comparison;
-- model diagnostics and historical replay;
-- the existing controlled Dashboard and scheduler.
-
-Any future quant research requires:
+Required states:
 
 ```text
-NEW_INFORMATION_SOURCE
-NEW_MODEL_OR_EDGE_HYPOTHESIS
-NEW_PRE_REGISTERED_PROTOCOL
+MARKET_STABLE
+MARKET_MOVEMENT
+MARKET_ANOMALY
+MODEL_MARKET_DISAGREEMENT
+DATA_INCOMPLETE
+MODEL_DIAGNOSTIC_WARNING
+COLLECTION_INCIDENT
 ```
 
-## Current boundary
+Required risk dimensions:
 
 ```text
-NO_ACTIVE_CODE_TASK = true
-H_RESULT_COLUMNS_READ = false
-PROVIDER_CALLS = 0
-PRODUCTION_CODE_CHANGE = false
-PRODUCTION_MODEL_CHANGE = false
-PRODUCTION_DB_WRITES = 0
-SIGNAL_LEDGER_DEVELOPMENT = false
-PORTFOLIO_DEVELOPMENT = false
-DEPLOYMENT_EXECUTED = false
+EVENT_RISK
+DATA_RISK
+MODEL_RISK
+COLLECTION_RISK
+```
+
+`NOT_READY`/`BLOCKED` must not map to betting risk. A stable market/zero-alert day must render as a valid non-empty result.
+
+Preserve existing real data, V4 evidence, Scheduler, Provider policy and current leagues. V4 becomes diagnostic input rather than the public product authority.
+
+## Delivery
+
+- one clean worktree;
+- one bounded runtime PR;
+- focused local feedback during implementation;
+- one exact-head full Release Candidate;
+- one merge and one deployment;
+- public browser acceptance;
+- stop after Round 1; do not start the league audit automatically.
+
+## Future rounds
+
+Round 2:
+
+```text
+11 first-division candidates
+14-day read-only Provider capability audit
+```
+
+Round 3:
+
+```text
+Market Radar + Model Lab
+only Round 2 promoted leagues
+OVERROUND_PERCENTILE = REQUIRED_ALERT_COVARIATE
+```
+
+Overround is a market-thinness/noise confidence covariate. High-overround isolated moves should normally be classified as `THIN_MARKET_NOISE`; exact formulas wait for live Round 2 distributions.
+
+## Hard boundaries
+
+```text
+BETTING_EDGE_CLAIM = FORBIDDEN
+SIGNAL_LEDGER_FOR_EXECUTION = NOT_AUTHORIZED
+PORTFOLIO = NOT_AUTHORIZED
+RISK_KELLY = NOT_AUTHORIZED
+TWO_LEG_PARLAY = NOT_AUTHORIZED
 REAL_MONEY = NOT_AUTHORIZED
 
 CANDIDATE = OFF
@@ -100,5 +120,3 @@ FORMAL = OFF
 LOCK = OFF
 PRODUCTION = OFF
 ```
-
-Codex must wait for the owner product-direction decision.
