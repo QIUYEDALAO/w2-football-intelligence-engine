@@ -11,8 +11,38 @@ Current runtime vehicle and owner authorization:
 ```text
 ACTIVE_RUNTIME_PR = 493
 OWNER_DECISION = APPROVED_CONTINUE_UNTIL_ACCEPTED
+OWNER_AUTHORIZATION_ID = W2_MI_R1_CONTINUE_UNTIL_ACCEPTED_20260807
 ROUND_1_STATUS = IN_PROGRESS_REMEDIATION
 ```
+
+## Explicit owner continuation authorization
+
+Read and obey:
+
+```text
+ROUND_1_OWNER_CONTINUATION_AUTHORIZATION.md
+```
+
+The owner explicitly authorizes:
+
+```text
+允许在 PR #493 上提交 Round 1 修复，
+重新运行 PR Fast，
+并以新 final head 触发替代性的 exact-head Full RC；
+失败的 run 31151557970 不计作最终 RC。
+```
+
+This permission is not limited to a single replacement attempt. For every bounded in-scope Round 1 source correction:
+
+```text
+ALLOW_NEW_PR_FAST_AFTER_SOURCE_CHANGE = true
+ALLOW_REPLACEMENT_EXACT_HEAD_FULL_RC_AFTER_FAILED_RC = true
+ALLOW_REPEAT_PR_FAST_AND_FULL_RC_UNTIL_FINAL_SUCCESS = true
+FAILED_ATTEMPTS_CONSUME_FINAL_SUCCESS_SLOT = false
+ONE_SUCCESSFUL_FINAL_EXACT_HEAD_FULL_RC = true
+```
+
+Therefore a failed PR Fast or Full RC is retained as evidence but does not exhaust the owner authorization or final successful delivery slot.
 
 ## Binding completion instruction
 
@@ -26,7 +56,7 @@ FAIL_CLOSED != STOP_WORK_AND_WAIT_FOR_OWNER
 For an in-scope Round 1 failure:
 
 ```text
-DIAGNOSE -> MINIMAL_FIX_IN_PR_493 -> LOCAL_VALIDATION -> PR_FAST -> EXACT_HEAD_FULL_RC -> REPEAT_IF_NEEDED
+DIAGNOSE -> MINIMAL_FIX_IN_PR_493 -> LOCAL_VALIDATION -> NEW_EXACT_HEAD_PR_FAST -> NEW_EXACT_HEAD_FULL_RC -> REPEAT_IF_NEEDED
 ```
 
 No new owner authorization is required for bounded remediation inside the already approved Round 1 scope.
@@ -38,11 +68,14 @@ Do not merge or deploy while any required gate is failing.
 Round 1 ends only after:
 
 ```text
+FINAL_PR_FAST_REQUIRED = SUCCESS
 FINAL_EXACT_HEAD_FULL_RC = SUCCESS
+FINAL_RC_SOURCE_SHA = FINAL_PR_HEAD_SHA
 MERGE = SUCCESS
 API_WEB_SAME_VERIFIED_SOURCE_DEPLOYMENT = SUCCESS
 PUBLIC_API_ACCEPTANCE = PASS
 PUBLIC_BROWSER_ACCEPTANCE = PASS
+BROWSER_CONSOLE_ERRORS = 0
 ROUND_1_ACCEPTANCE_CRITERIA = ALL_PASS
 ROUND_1 = PASS
 ```
@@ -57,6 +90,7 @@ PR_FAST_RUN = 31151508691
 PR_FAST_RESULT = SUCCESS
 FAILED_FULL_RC_RUN = 31151557970
 FAILED_FULL_RC_RESULT = FAILURE
+FAILED_FULL_RC_COUNTS_AS_FINAL_SUCCESS = false
 FAILED_GATE = BOSS_CONSOLE_PROTECTED_BASELINE
 FAILED_FILE = apps/web/src/components/DecisionCounts.tsx
 EXPECTED_SHA256 = c1b3f940587c1a25610c5e762f955c12541a7da40f006e9ce7818e5d376c9d6e
@@ -70,7 +104,9 @@ Mandatory first remediation:
 3. move Round 1 Market Overview counters to a new intelligence-only component such as `MarketOverviewCounts.tsx`;
 4. make `IntelligenceConsole` consume the new intelligence-only component;
 5. add a regression guard proving the public intelligence root does not import the protected legacy `DecisionCounts` component;
-6. preserve all Round 1 intelligence-first behavior.
+6. preserve all Round 1 intelligence-first behavior;
+7. push the fix to PR #493, obtain a new PR Fast success on the new head, then trigger a replacement exact-head Full RC on that new head;
+8. if that replacement RC fails for another in-scope reason, repeat without requesting owner authorization.
 
 Full implementation and remediation authority:
 
@@ -93,13 +129,14 @@ Read current authority from `origin/context/current` in this order:
 3. `CURRENT_PRODUCT_DESIGN.md`
 4. `CURRENT_TASK_CHECKLIST.md`
 5. `NEXT_ACTION.md`
-6. `ROUND_1_CODEX_EXECUTION.md`
-7. `ROUND_1_ACCEPTANCE_CRITERIA.md`
-8. `AI_PROJECT_CONTEXT.md`
-9. `AI_QUANT_PROJECT_CONTEXT.md`
-10. `AGENTS.md`
-11. `QUANT_AGENTS.md`
-12. `.github/copilot-instructions.md`
+6. `ROUND_1_OWNER_CONTINUATION_AUTHORIZATION.md`
+7. `ROUND_1_CODEX_EXECUTION.md`
+8. `ROUND_1_ACCEPTANCE_CRITERIA.md`
+9. `AI_PROJECT_CONTEXT.md`
+10. `AI_QUANT_PROJECT_CONTEXT.md`
+11. `AGENTS.md`
+12. `QUANT_AGENTS.md`
+13. `.github/copilot-instructions.md`
 
 Use PR #493 / its current head as the active Round 1 implementation. Use `origin/context/current` as current task/product authority when old `main` context conflicts.
 
