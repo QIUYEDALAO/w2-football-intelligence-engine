@@ -13,76 +13,92 @@ Context is updated directly on `context/current`; do not create a context PR or 
 ## Current task
 
 ```text
-ACTIVE_NEXT_ACTION = W2_PHASE_0_5_R1_D_TRAIN_AND_V_MANIFEST
+ACTIVE_NEXT_ACTION = W2_PHASE_0_5_R2B_V_EVALUATION_AND_CONDITIONAL_H_MANIFEST_FREEZE
 PROTOCOL_FROZEN = true
 EXECUTION = AUTHORIZED_STAGEWISE
 ```
 
-## Workspace
+## Required flow
 
-- use a clean local research worktree based on the verified source head;
-- recompute B1–B5 and the relevant-code manifest before result access;
-- stop on any source, artifact, split or guard drift;
-- keep generated data and reports outside tracked production paths;
-- do not deploy.
+1. Revalidate the R1/R2 freeze pack and both V manifest hashes without V outcomes.
+2. If any validation fails, keep V/H closed and stop.
+3. If validation passes, open V results once.
+4. Evaluate frozen model/L2 candidates and frozen OU 2.5 PRE selections only.
+5. If V fails, permanently close H and stop with `NO_EDGE` or `INSUFFICIENT_EVIDENCE`.
+6. If V passes, refit fixed final models on D+V, generate/freeze H prediction and PRE-selection manifests without H outcomes, then stop.
+
+## Workspace and evidence
+
+- use the existing canonical frozen RC3 pack and R1/R2 artifact directory;
+- do not regenerate or silently replace frozen V manifests;
+- recompute exact file-byte SHA-256 values before V unlock;
+- record all result-column access;
+- generated research artifacts remain outside tracked production paths;
+- no PR, CI or deployment.
 
 ## Result-access discipline
 
 ```text
-R0: D/V/H closed.
-R1: D training results only.
-R2: freeze V candidate prediction and selection manifests while V remains closed.
-R2B: V opens once; H remains closed.
-R3/R4: refit D+V and freeze H manifests while H remains closed.
-R5: H opens once; no model or selection change afterward.
+D = existing training data and conditional D+V refit
+V = one-time access only after pre-unlock verification
+H = closed throughout the current task
 ```
 
-Never read V or H results early. Never use H results for model fit, threshold choice, feature choice, market scope, devig choice or selection changes.
+Never read H results. Never use V/H results to add features, models, markets, thresholds, devig methods or candidates.
 
-## Frozen research scope
+## Frozen scope
 
 ```text
 SOURCE = FOOTBALL_DATA_MMZ_ONLY
 D = 2019_20,2020_21,2021_22
 V = 2022_23,2023_24
 H = 2024_25,2025_26
-
 PRIMARY_PREDICTIVE = OU_2_5,AH_HALF_GOAL_LINES
 PRIMARY_ECONOMIC = OU_2_5
 ODDS_SOURCE = PINNACLE_ONLY
+L2_GRID = 0.01,0.1,1.0,10.0
 ```
 
-M2 and M4 parameters are fixed by `CURRENT_CONTEXT.md`. M4 PRE and CLOSE must be trained independently.
+M4 PRE and CLOSE are independently trained and hashed. CLOSE information may not influence PRE selection.
+
+## Statistical integrity
+
+- `ev_se` is `EV_SCENARIO_SD`, not sampling standard error;
+- use V only to select among the frozen L2 grid;
+- predictive lift is `market_log_loss - model_log_loss`;
+- line-moved orders remain in PRE ROI at original PRE line/price;
+- same-line CLV is exploratory only;
+- actual selected-order count determines economic power;
+- M1/M3, AH economics, integer/quarter lines and individual leagues cannot independently trigger GO.
 
 ## Prohibited work
 
 - no production code/model changes;
 - no Provider calls;
-- no Signal Ledger or product strategy implementation;
-- no Portfolio, Risk, Kelly, Dashboard or 2×1;
-- no changes to V4, Scheduler, Provider allowlist or production DB;
+- no production DB writes;
+- no Signal Ledger, Portfolio, Risk, Kelly, Dashboard or 2×1;
+- no changes to V4, Scheduler or Provider allowlist;
+- no H result access;
 - no real-money or automated betting.
 
-## Statistical integrity
+## Current stop line
 
-- current `ev_se` is `EV_SCENARIO_SD`, not sampling standard error;
-- use only the frozen two-stage bootstrap and Holm family;
-- line-moved orders remain in PRE ROI at original PRE line and price;
-- same-line CLV is exploratory only;
-- individual-league and M1/M3 results cannot independently trigger GO;
-- actual selected-order count, not eligible population, determines economic power.
+The current execution must end in one of two states:
 
-## Current required stop
-
-Finish R1/R2 with:
+### V gate fails
 
 ```text
-V_CANDIDATE_PREDICTION_MANIFEST_SHA256 = frozen
-V_PRE_SELECTION_CANDIDATE_MANIFEST_SHA256 = frozen
-V_RESULT_COLUMNS_READ = false
-H_RESULT_COLUMNS_READ = false
-PROVIDER_CALLS = 0
-DEPLOYMENT_EXECUTED = false
+H_RESULT_ACCESS = PERMANENTLY_CLOSED
+FINAL_VERDICT = NO_EDGE | INSUFFICIENT_EVIDENCE
 ```
 
-Then stop for review.
+### V gate passes
+
+```text
+FINAL_MODELS = FROZEN
+H_PREDICTION_MANIFEST_SHA256 = FROZEN
+H_SELECTION_MANIFEST_SHA256 = FROZEN
+H_RESULT_COLUMNS_READ = false
+```
+
+Do not automatically start the one-time H audit.
