@@ -1,5 +1,5 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-07"
+updated_at: "2026-08-08"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 context_update_mode: direct_branch_no_pr_no_ci_no_history
@@ -9,14 +9,15 @@ product_name: W2 Football Intelligence
 owner_product_decision: APPROVED_CONTINUE_UNTIL_ACCEPTED
 owner_continuation_authorization: ROUND_1_OWNER_CONTINUATION_AUTHORIZATION.md
 owner_authorization_id: W2_MI_R1_CONTINUE_UNTIL_ACCEPTED_20260807
-active_next_action: W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
-next_code_action: W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
-current_status: ROUND_1_IN_PROGRESS_REMEDIATION
-current_gate: ROUND_1_PROTECTED_BASELINE_REMEDIATION
+active_next_action: AWAIT_OWNER_ROUND_2_AUTHORIZATION
+next_code_action: NONE_AUTHORIZED
+current_status: ROUND_1_PASS_STOPPED
+current_gate: OWNER_AUTHORIZATION_REQUIRED_FOR_ROUND_2
 active_runtime_pr: 493
 
 execution_authority: ROUND_1_CODEX_EXECUTION.md
 acceptance_authority: ROUND_1_ACCEPTANCE_CRITERIA.md
+final_receipt: ROUND_1_FINAL_RECEIPT.md
 
 failure_semantics:
   fail_closed_meaning: DO_NOT_ADVANCE_PAST_FAILED_GATE
@@ -151,7 +152,7 @@ league_plan:
     - Scottish Premiership
   round_2_future_candidate_union_count: 17
   round_2_future_candidate_union_rule: EXISTING_13_UNION_NET_NEW_4
-  round_2_status: BLOCKED_UNTIL_ROUND_1_ACCEPTED_AND_OWNER_AUTHORIZED
+  round_2_status: BLOCKED_UNTIL_OWNER_AUTHORIZED
 
 market_radar_contract:
   overround_percentile_required_alert_covariate: true
@@ -163,10 +164,10 @@ market_radar_contract:
 
 round_1:
   task: W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
-  status: IN_PROGRESS_REMEDIATION
+  status: PASS
   runtime_pr: 493
   one_runtime_pr: true
-  allow_remediation_commits_in_pr_493: true
+  allow_remediation_commits_in_pr_493: false
   pr_fast_attempts: AS_NEEDED_AFTER_EACH_SOURCE_HEAD_CHANGE
   full_rc_attempts: AS_NEEDED_UNTIL_FINAL_SUCCESS
   multiple_failed_validation_attempts_allowed: true
@@ -177,7 +178,7 @@ round_1:
   one_merge: true
   one_final_accepted_deployment: true
   final_public_acceptance_required: true
-  continue_until_all_acceptance_pass: true
+  continue_until_all_acceptance_pass: false
   league_expansion: false
   active_whitelist_expected_count: 13
   provider_policy_change: false
@@ -186,6 +187,16 @@ round_1:
   new_provider_calls_initiated_by_round_1: 0
   round_2_capability_audit: NOT_STARTED
   round_3_market_radar: NOT_STARTED
+  final_delivery:
+    final_pr_head_sha: 602665885a2cbaf87e5f6c6ceb8c73926244e471
+    final_source_tree_sha: 98338ab28bd67977faf19d186c0198ece6348d78
+    final_pr_fast_run: 31160303899
+    final_full_rc_run: 31160377637
+    merge_sha: f7860813646ce9718931dff331c09ce2fe7a71ba
+    deployed_release_identity: 602665885a2cbaf87e5f6c6ceb8c73926244e471
+    public_api_acceptance: PASS
+    public_browser_acceptance: PASS
+    browser_console_errors: 0
   completion_conditions:
     - FINAL_PR_FAST_REQUIRED_SUCCESS
     - FINAL_EXACT_HEAD_FULL_RC_SUCCESS
@@ -200,7 +211,7 @@ round_1:
 
 round_2:
   task: W2_MI_R2_FIRST_DIVISION_PROVIDER_CAPABILITY_AUDIT
-  status: BLOCKED_UNTIL_ROUND_1_ACCEPTED_AND_OWNER_AUTHORIZED
+  status: BLOCKED_UNTIL_OWNER_AUTHORIZED
   duration_days: 14
   mode: READ_ONLY_CONTROLLED
   target_candidate_union_count: 17

@@ -254,12 +254,12 @@ No opportunity score.
 
 ## 8. Three-round delivery plan
 
-### Round 1 — authorized and in remediation
+### Round 1 — accepted
 
 ```text
 TASK = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
 ACTIVE_RUNTIME_PR = 493
-ROUND_1_STATUS = IN_PROGRESS_REMEDIATION
+ROUND_1_STATUS = PASS
 ACTIVE_WHITELIST = 13_UNCHANGED
 LEAGUE_EXPANSION = false
 PROVIDER_POLICY_CHANGE = false
@@ -267,7 +267,7 @@ SCHEDULER_POLICY_CHANGE = false
 NEW_PROVIDER_CALLS_INITIATED_BY_R1 = 0
 ```
 
-Explicit owner continuation authority is `ROUND_1_OWNER_CONTINUATION_AUTHORIZATION.md`.
+Historical owner continuation authority is `ROUND_1_OWNER_CONTINUATION_AUTHORIZATION.md`; final evidence is `ROUND_1_FINAL_RECEIPT.md`.
 
 Delivery-count wording is binding as follows:
 
@@ -304,7 +304,7 @@ Round 1 closes only after final RC success, one merge commit, same-verified-sour
 
 ```text
 TASK = W2_MI_R2_FIRST_DIVISION_PROVIDER_CAPABILITY_AUDIT
-STATUS = BLOCKED_UNTIL_ROUND_1_ACCEPTED_AND_OWNER_AUTHORIZED
+STATUS = BLOCKED_UNTIL_OWNER_AUTHORIZED
 DURATION = 14_DAYS
 MODE = READ_ONLY_CONTROLLED
 TARGET_CANDIDATE_UNION = 17

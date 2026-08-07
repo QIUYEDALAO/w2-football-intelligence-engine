@@ -8,12 +8,15 @@ Current authority is `context/current`.
 PRODUCT_NAME = W2 Football Intelligence
 PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 OWNER_DECISION = APPROVED_CONTINUE_UNTIL_ACCEPTED
-ACTIVE_NEXT_ACTION = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
+ACTIVE_NEXT_ACTION = AWAIT_OWNER_ROUND_2_AUTHORIZATION
 ACTIVE_RUNTIME_PR = 493
-ROUND_1_STATUS = IN_PROGRESS_REMEDIATION
+ROUND_1_STATUS = PASS
+ROUND_2_STATUS = NOT_STARTED
 ```
 
-Phase 0.5 is closed with `NO_EDGE`; H is permanently closed. Current work is product repositioning, not another betting-edge experiment.
+Phase 0.5 is closed with `NO_EDGE`; H is permanently closed. Round 1 is accepted; no new code task is authorized.
+
+All later PR #493 remediation language is historical only. Do not resume it.
 
 Permanent evidence guard:
 

@@ -12,21 +12,28 @@ Read before runtime work:
 6. `ROUND_1_OWNER_CONTINUATION_AUTHORIZATION.md`
 7. `ROUND_1_CODEX_EXECUTION.md`
 8. `ROUND_1_ACCEPTANCE_CRITERIA.md`
-9. `AI_PROJECT_CONTEXT.md`
-10. `AI_QUANT_PROJECT_CONTEXT.md`
-11. `QUANT_AGENTS.md`
+9. `ROUND_1_FINAL_RECEIPT.md`
+10. `AI_PROJECT_CONTEXT.md`
+11. `AI_QUANT_PROJECT_CONTEXT.md`
+12. `QUANT_AGENTS.md`
 
 Use latest `origin/main` as code baseline; use `origin/context/current` as current task authority.
 
 ```text
 PRODUCT = W2 Football Intelligence
 PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
-ACTIVE_NEXT_ACTION = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
+ACTIVE_NEXT_ACTION = AWAIT_OWNER_ROUND_2_AUTHORIZATION
 ACTIVE_RUNTIME_PR = 493
 OWNER_DECISION = APPROVED_CONTINUE_UNTIL_ACCEPTED
+ROUND_1_STATUS = PASS
+ROUND_2_STATUS = NOT_STARTED
 ```
 
 Phase 0.5 is closed with `NO_EDGE`; do not reopen H or retune the failed hypothesis.
+
+All later Round 1 remediation language in this file is retained as historical
+delivery policy only. PR #493 is merged; it must not receive new work. No new
+runtime task is authorized until the owner sets a new current action.
 
 Permanent product guard:
 
@@ -107,4 +114,4 @@ PRODUCTION = OFF
 
 No Signal Ledger for execution, Portfolio, Risk/Kelly, 2x1, auto-betting, real-money or betting-edge claim.
 
-If a proposed remediation crosses a permanent stop line or expands outside Round 1, request owner authorization for that expansion. Ordinary PR #493 fixes, PR Fast re-runs and replacement exact-head Full RC attempts are already authorized.
+The historical PR #493 remediation authority ended when Round 1 passed.

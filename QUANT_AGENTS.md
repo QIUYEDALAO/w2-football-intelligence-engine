@@ -13,18 +13,24 @@ NEXT_ACTION.md
 ROUND_1_OWNER_CONTINUATION_AUTHORIZATION.md
 ROUND_1_CODEX_EXECUTION.md
 ROUND_1_ACCEPTANCE_CRITERIA.md
+ROUND_1_FINAL_RECEIPT.md
 ```
 
 Current task:
 
 ```text
-ACTIVE_NEXT_ACTION = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
+ACTIVE_NEXT_ACTION = AWAIT_OWNER_ROUND_2_AUTHORIZATION
 PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 ACTIVE_RUNTIME_PR = 493
 OWNER_DECISION = APPROVED_CONTINUE_UNTIL_ACCEPTED
+ROUND_1_STATUS = PASS
+ROUND_2_STATUS = NOT_STARTED
 ```
 
 The Phase 0.5 hypothesis is closed with `NO_EDGE`. Do not reopen H or retune the failed model family.
+
+All later Round 1 remediation language is historical only. PR #493 is merged;
+do not resume it or begin Round 2 without a new explicit owner action.
 
 Permanent guard:
 

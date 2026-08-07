@@ -8,10 +8,10 @@ This is the complete current task order for W2. It is maintained directly on bra
 PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 PRODUCT = W2 Football Intelligence
 OWNER_DECISION = APPROVED_CONTINUE_UNTIL_ACCEPTED
-ACTIVE_TASK = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
-NEXT_CODE_TASK = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
+ACTIVE_TASK = AWAIT_OWNER_ROUND_2_AUTHORIZATION
+NEXT_CODE_TASK = NONE_AUTHORIZED
 ACTIVE_RUNTIME_PR = 493
-ROUND_1_STATUS = IN_PROGRESS_REMEDIATION
+ROUND_1_STATUS = PASS
 ```
 
 Execution authority:
@@ -49,7 +49,7 @@ Do not reopen, retune, or build execution products around the failed hypothesis.
 ## MI-R1 — Product semantics and status reframe
 
 ```text
-STATUS = IN_PROGRESS_REMEDIATION
+STATUS = PASS
 TASK = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
 CHANGE_CLASS = RUNTIME_API_AND_WEB
 ONE_RUNTIME_PR = true
@@ -81,7 +81,7 @@ No additional owner authorization is required for an in-scope Round 1 remediatio
 
 Owner authorization is required only for scope expansion or stop-line changes.
 
-Round 1 is not DONE until:
+Round 1 completion conditions, now satisfied:
 
 ```text
 FINAL_EXACT_HEAD_FULL_RC = SUCCESS
@@ -93,7 +93,7 @@ ROUND_1_ACCEPTANCE_CRITERIA = ALL_PASS
 ROUND_1 = PASS
 ```
 
-### R1.1 Current failed attempt — retained evidence
+### R1.1 Historical failed attempt — retained evidence
 
 ```text
 AUDITED_BASE_MAIN_SHA = 84e642f3ea26464574f75ee4d520b38bcf24073a
@@ -111,15 +111,17 @@ MERGE = NOT_EXECUTED
 DEPLOY = NOT_EXECUTED
 ```
 
-Mandatory next remediation:
+Completed remediation:
 
-- restore protected `DecisionCounts.tsx` exactly to the base/main authority;
-- do not update protected manifest hashes;
-- do not weaken baseline checker;
-- create an intelligence-only Market Overview counter component;
-- make `IntelligenceConsole` consume the intelligence-only component;
-- add a regression guard that the public intelligence root does not import protected legacy DecisionCounts;
-- preserve the Round 1 intelligence-first public implementation.
+- restored protected `DecisionCounts.tsx` exactly to the base/main authority;
+- preserved protected manifest hashes and the baseline checker;
+- created the intelligence-only Market Overview counter component;
+- made `IntelligenceConsole` consume the intelligence-only component;
+- added the legacy DecisionCounts import regression guard;
+- preserved the intelligence-first public implementation;
+- passed final PR Fast, exact-head Full RC, merge, deployment and public acceptance.
+
+Complete evidence: `ROUND_1_FINAL_RECEIPT.md`.
 
 ### R1.2 League baseline correction — hard boundary
 
@@ -397,7 +399,7 @@ ROUND_1 = PASS
 ## MI-R2 — Provider capability audit
 
 ```text
-STATUS = BLOCKED_UNTIL_MI_R1_ACCEPTED_AND_OWNER_AUTHORIZED
+STATUS = BLOCKED_UNTIL_OWNER_AUTHORIZED
 TASK = W2_MI_R2_FIRST_DIVISION_PROVIDER_CAPABILITY_AUDIT
 MODE = READ_ONLY_CONTROLLED
 DURATION = 14_DAYS

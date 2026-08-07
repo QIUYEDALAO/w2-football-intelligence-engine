@@ -11,6 +11,7 @@ This is the mutable current authority for W2. It is maintained directly on branc
 5. `ROUND_1_OWNER_CONTINUATION_AUTHORIZATION.md`
 6. `ROUND_1_CODEX_EXECUTION.md`
 7. `ROUND_1_ACCEPTANCE_CRITERIA.md`
+8. `ROUND_1_FINAL_RECEIPT.md`
 
 ## Owner product decision
 
@@ -19,16 +20,20 @@ PRODUCT_NAME = W2 Football Intelligence
 PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 OWNER_DECISION = APPROVED_CONTINUE_UNTIL_ACCEPTED
 OWNER_AUTHORIZATION_ID = W2_MI_R1_CONTINUE_UNTIL_ACCEPTED_20260807
-ACTIVE_NEXT_ACTION = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
+ACTIVE_NEXT_ACTION = AWAIT_OWNER_ROUND_2_AUTHORIZATION
 ACTIVE_RUNTIME_PR = 493
-ROUND_1_STATUS = IN_PROGRESS_REMEDIATION
+ROUND_1_STATUS = PASS
+ROUND_2_STATUS = NOT_STARTED
 ```
 
-W2 is being repositioned from a recommendation-first public shell into a football market-intelligence and model-diagnostics platform while preserving the existing data, identity, odds, model, Scheduler, replay and Dashboard foundations.
+W2 has been repositioned from a recommendation-first public shell into a football market-intelligence and model-diagnostics platform while preserving the existing data, identity, odds, model, Scheduler, replay and Dashboard foundations.
 
-## Binding continuation and delivery-count interpretation
+Final delivery and public-acceptance evidence is recorded in
+`ROUND_1_FINAL_RECEIPT.md`. No Round 2 work is authorized.
 
-`ROUND_1_OWNER_CONTINUATION_AUTHORIZATION.md` is explicit owner authority for continuing PR #493 until acceptance.
+## Historical continuation and delivery-count interpretation
+
+`ROUND_1_OWNER_CONTINUATION_AUTHORIZATION.md` was the explicit owner authority for continuing PR #493 until acceptance. It is retained as history and no longer authorizes new runtime work after Round 1 PASS.
 
 ```text
 ALLOW_REMEDIATION_COMMITS_IN_PR_493 = true
@@ -74,9 +79,9 @@ ROUND_1_ACCEPTANCE_CRITERIA = ALL_PASS
 ROUND_1 = PASS
 ```
 
-Until then Round 1 remains `IN_PROGRESS_REMEDIATION` and Round 2/3 remain `NOT_STARTED`.
+All Round 1 completion conditions are satisfied. Round 2/3 remain `NOT_STARTED`.
 
-## Current failed attempt
+## Historical failed attempt
 
 The first Full RC is retained as failure evidence and does not count as the final successful RC:
 
@@ -97,17 +102,15 @@ MERGE = NOT_EXECUTED
 DEPLOYMENT = NOT_EXECUTED
 ```
 
-The immediate remediation is binding:
+The final successful remediation completed the binding work:
 
-- restore protected `DecisionCounts.tsx` exactly to the base/main user-approved authority;
-- do not change protected visual hashes to bless the new version;
-- do not weaken the baseline checker;
-- move new Market Overview counters into a separate intelligence-only component;
-- make the public intelligence root use that component instead of protected legacy DecisionCounts;
-- preserve all Round 1 intelligence-first semantics;
-- after the source-changing fix, run a new PR Fast on the new head;
-- after that PR Fast passes, trigger a replacement exact-head Full RC on that new head;
-- if that RC fails for another in-scope reason, repeat the remediation loop without requesting another owner authorization.
+- restored protected `DecisionCounts.tsx` exactly to the base/main user-approved authority;
+- preserved the protected visual hashes and baseline checker;
+- moved Market Overview counters into a separate intelligence-only component;
+- made the public intelligence root independent of protected legacy DecisionCounts;
+- preserved all Round 1 intelligence-first semantics;
+- passed the new-head PR Fast and replacement exact-head Full RC;
+- merged, deployed and passed public API/browser acceptance.
 
 ## Evidence boundary
 
@@ -226,7 +229,7 @@ V4 and historical settlement/replay evidence remain preserved. Public intelligen
 
 ```text
 TASK = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
-STATUS = IN_PROGRESS_REMEDIATION
+STATUS = PASS
 ACTIVE_RUNTIME_PR = 493
 ONE_RUNTIME_PR = true
 PR_FAST_ATTEMPTS = AS_NEEDED_AFTER_SOURCE_HEAD_CHANGE
@@ -238,6 +241,9 @@ ONE_SUCCESSFUL_FINAL_EXACT_HEAD_RC = true
 ONE_MERGE = true
 ONE_FINAL_ACCEPTED_DEPLOYMENT = true
 PUBLIC_ACCEPTANCE_REQUIRED = true
+PUBLIC_API_ACCEPTANCE = PASS
+PUBLIC_BROWSER_ACCEPTANCE = PASS
+BROWSER_CONSOLE_ERRORS = 0
 ACTIVE_WHITELIST = 13_UNCHANGED
 LEAGUE_EXPANSION = false
 PROVIDER_POLICY_CHANGE = false

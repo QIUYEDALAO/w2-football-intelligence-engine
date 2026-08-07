@@ -10,24 +10,29 @@ Before acting, read from `origin/context/current`:
 6. `ROUND_1_OWNER_CONTINUATION_AUTHORIZATION.md`
 7. `ROUND_1_CODEX_EXECUTION.md`
 8. `ROUND_1_ACCEPTANCE_CRITERIA.md`
-9. `AI_PROJECT_CONTEXT.md`
-10. `AI_QUANT_PROJECT_CONTEXT.md`
-11. `AGENTS.md`
-12. `QUANT_AGENTS.md`
+9. `ROUND_1_FINAL_RECEIPT.md`
+10. `AI_PROJECT_CONTEXT.md`
+11. `AI_QUANT_PROJECT_CONTEXT.md`
+12. `AGENTS.md`
+13. `QUANT_AGENTS.md`
 
-Use current PR #493 as the only Round 1 runtime implementation. Use `origin/context/current` as current task/product authority when old context on `main` conflicts.
+PR #493 is merged and Round 1 is accepted. Use `origin/context/current` as current task/product authority when old context on `main` conflicts. Do not begin Round 2 without new explicit owner authorization.
 
 ```text
 PRODUCT = W2 Football Intelligence
 PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
-ACTIVE_NEXT_ACTION = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
+ACTIVE_NEXT_ACTION = AWAIT_OWNER_ROUND_2_AUTHORIZATION
 ACTIVE_RUNTIME_PR = 493
 OWNER_DECISION = APPROVED_CONTINUE_UNTIL_ACCEPTED
 OWNER_AUTHORIZATION_ID = W2_MI_R1_CONTINUE_UNTIL_ACCEPTED_20260807
-ROUND_1_STATUS = IN_PROGRESS_REMEDIATION
+ROUND_1_STATUS = PASS
+ROUND_2_STATUS = NOT_STARTED
 ```
 
-## Explicit continuation authorization — binding
+## Historical continuation authorization — satisfied
+
+This section is retained as delivery history only. It does not authorize new
+commits, PR Fast runs, RC runs or deployments after Round 1 PASS.
 
 The owner explicitly authorizes all of the following without another approval, while the work remains inside bounded Round 1 scope:
 

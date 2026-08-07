@@ -8,14 +8,18 @@ Current mutable authority is maintained on branch `context/current`.
 PRODUCT = W2 Football Intelligence
 PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 OWNER_DECISION = APPROVED_CONTINUE_UNTIL_ACCEPTED
-ACTIVE_NEXT_ACTION = W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
+ACTIVE_NEXT_ACTION = AWAIT_OWNER_ROUND_2_AUTHORIZATION
 ACTIVE_RUNTIME_PR = 493
-ROUND_1_STATUS = IN_PROGRESS_REMEDIATION
+ROUND_1_STATUS = PASS
+ROUND_2_STATUS = NOT_STARTED
 ```
 
-Read `ROUND_1_OWNER_CONTINUATION_AUTHORIZATION.md` for explicit owner continuation authority, `ROUND_1_CODEX_EXECUTION.md` for execution, and `ROUND_1_ACCEPTANCE_CRITERIA.md` for acceptance.
+Read `ROUND_1_FINAL_RECEIPT.md` for final delivery evidence. Do not begin Round 2 without new explicit owner authorization.
 
 Phase 0.5 is closed with `NO_EDGE`; H is permanently closed under that protocol.
+
+All later PR #493 remediation language is historical only. Round 1 PASS ended
+that continuation authority.
 
 Permanent product rule:
 

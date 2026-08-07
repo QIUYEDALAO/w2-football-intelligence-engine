@@ -1,5 +1,5 @@
 schema_version: w2.market_intelligence_project_state.v1
-updated_at: "2026-08-07"
+updated_at: "2026-08-08"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 context_update_mode: DIRECT_NO_PR_NO_CI_NO_RELEASE
@@ -8,10 +8,10 @@ product: W2 Football Intelligence
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_design_path: CURRENT_PRODUCT_DESIGN.md
 owner_decision: APPROVED
-active_next_action: W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
-next_code_action: W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
-current_round: MI_R1
-current_status: READY
+active_next_action: AWAIT_OWNER_ROUND_2_AUTHORIZATION
+next_code_action: NONE_AUTHORIZED
+current_round: MI_R1_COMPLETE
+current_status: ROUND_1_PASS_STOPPED
 
 phase_0_5:
   status: COMPLETE
@@ -31,7 +31,7 @@ product_guard:
 
 round_1:
   task: W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
-  status: AUTHORIZED
+  status: PASS
   change_class: RUNTIME_API_AND_WEB
   one_pr: true
   one_release: true
@@ -42,10 +42,10 @@ round_1:
 
 round_2:
   task: W2_MI_R2_FIRST_DIVISION_PROVIDER_CAPABILITY_AUDIT
-  status: BLOCKED_UNTIL_ROUND_1_ACCEPTED
+  status: BLOCKED_UNTIL_OWNER_AUTHORIZED
   duration_days: 14
   mode: READ_ONLY_CONTROLLED
-  target_first_division_count: 11
+  target_candidate_union_count: 17
 
 round_3:
   task: W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB
