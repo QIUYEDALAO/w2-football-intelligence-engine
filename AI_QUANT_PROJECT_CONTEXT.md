@@ -1,13 +1,14 @@
 # W2 Football Quant — AI Handoff
 
-Read first:
+Read first from branch `context/current`:
 
 1. `CURRENT_CONTEXT.md`
 2. `CURRENT_STATE.yaml`
 3. `CURRENT_TASK_CHECKLIST.md`
 4. `NEXT_ACTION.md`
+5. `QUANT_AGENTS.md`
 
-These files on branch `context/current` are the current mutable authority. Context updates do not use PR, CI, Release Candidate, image build or deployment.
+Context updates do not use PR, CI, Release Candidate, image build or deployment.
 
 ## Current decision
 
@@ -15,90 +16,101 @@ These files on branch `context/current` are the current mutable authority. Conte
 PROGRAM = W2_FOOTBALL_QUANT_EDGE_EXISTENCE
 PROTOCOL = W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
 PROTOCOL_FROZEN = true
-EXECUTION = AUTHORIZED_STAGEWISE
-ACTIVE_NEXT_ACTION = W2_PHASE_0_5_R1_D_TRAIN_AND_V_MANIFEST
-CURRENT_STATUS = READY_R1_AFTER_EXACT_ARTIFACT_RECOVERY
+ACTIVE_NEXT_ACTION = W2_PHASE_0_5_R2B_V_EVALUATION_AND_CONDITIONAL_H_MANIFEST_FREEZE
+CURRENT_STATUS = R1_R2_FREEZE_REPORTED_PREUNLOCK_RECHECK_REQUIRED
 ```
 
-Do not build a quant platform yet. First determine whether W2 has out-of-sample predictive or economic edge in Pinnacle AH/OU markets.
+Do not build the quant platform yet. The current decision is whether frozen D-trained models and PRE selection rules survive the V seasons.
 
-## Current scope
+## R1/R2 reported freeze
 
 ```text
-CONFIRMATORY_SOURCE = FOOTBALL_DATA_MMZ_ONLY
-D = 2019_20,2020_21,2021_22
-V = 2022_23,2023_24
-H = 2024_25,2025_26
+D_TRAINING_ROWS = 21518
+M2_DIVISIONS_FITTED = 20
+V_CANDIDATE_PREDICTION_ROWS = 14909
+V_PRE_SELECTION_CANDIDATE_ROWS = 59636
 
-PRIMARY_PREDICTIVE = OU_2_5,AH_HALF_GOAL_LINES
-PRIMARY_ECONOMIC = OU_2_5
-PINNACLE_ONLY = true
+V_CANDIDATE_PREDICTION_MANIFEST_SHA256 =
+591314c9f13fc3256ca51aef6c65953150f40912e776ff8d6347b1701d24033f
+
+V_PRE_SELECTION_CANDIDATE_MANIFEST_SHA256 =
+e582585aaa57ac5cac894a2fad071dfadfa6ad7890b84ba4c8b3d74e4bd3fe13
 ```
 
-Primary models:
+Receipt:
 
 ```text
-M0_PRE / M0_CLOSE = Pinnacle market-only
-M2 = pure-goals Dixon-Coles per division, train-only rho grid
-M4_PRE / M4_CLOSE = separately trained binary market-residual models
-M1 / M3 = secondary, cross-source, not gating
+/Users/liudehua/.hermes/workspace/w2-phase05-research/
+r1_v_manifest_20260807/artifacts/R1_R2_FREEZE_RECEIPT.json
 ```
 
-## Current outcome-access gate
+## Current result gate
 
 ```text
-D = training-only for R1
-V = closed until all V candidate prediction/selection manifests are frozen
-H = closed until final H prediction/selection manifests are frozen
+D = available for existing training and conditional final refit
+V = one-time unlock only after freeze recheck passes
+H = closed
 ```
 
-V and H use static evaluation:
+## Immediate execution
+
+### Step 1 — Pre-unlock recheck
+
+Re-hash and validate the full R1/R2 freeze pack without V outcomes. Confirm:
+
+- both frozen V SHA values;
+- deterministic rerun identity;
+- all 16 M4 candidates;
+- M4 PRE visible CLOSE-field count = 0;
+- PRE/CLOSE parameter and training isolation;
+- V/H outcome reads = 0 during R1/R2;
+- Provider, production write, PR, CI and deployment = 0.
+
+Failure keeps V/H closed and stops.
+
+### Step 2 — Open V once
+
+After the precheck passes:
+
+- calculate paired Log Loss, Brier, calibration and predictive lift for OU 2.5 and AH half-goal markets;
+- settle frozen OU 2.5 PRE selections at original PRE line/price;
+- evaluate all four frozen L2 values only;
+- choose final L2 using V only;
+- do not add features, markets, thresholds or candidates.
+
+### Step 3 — Conditional continuation
+
+If V fails:
 
 ```text
-V = train D; no V-outcome model update
-H = refit D+V; no H-outcome model update
+H_RESULT_ACCESS = PERMANENTLY_CLOSED
+FINAL_VERDICT = NO_EDGE | INSUFFICIENT_EVIDENCE
 ```
 
-## Immediate handoff
+Stop.
 
-The next execution must:
+If V passes:
 
-1. Bind R1 to the recovered read-only RC3 pack.
-2. Unlock D results only.
-3. Fit M2 for 20 divisions and 41 rho candidates per division.
-4. Fit all frozen M4 PRE and M4 CLOSE L2 candidates independently.
-5. Generate V candidate prediction and PRE-selection manifests without reading V outcomes.
-6. Freeze both V SHA-256 values.
-7. Stop and report before opening V results.
+- refit final M2/M4 PRE/M4 CLOSE on D+V;
+- freeze final model/training/feature/parameter hashes;
+- generate and freeze H prediction and H PRE-selection manifests without H outcomes;
+- calculate H selected-order count and design-side MDE;
+- stop before H result access.
 
-## Non-negotiable boundaries
+## Non-negotiable boundary
 
 ```text
+H_RESULT_COLUMNS_READ = false
+PROVIDER_CALLS = 0
 PRODUCTION_CODE_CHANGE = false
 PRODUCTION_MODEL_CHANGE = false
+PRODUCTION_DB_WRITES = 0
 SIGNAL_LEDGER_DEVELOPMENT = false
 PORTFOLIO_DEVELOPMENT = false
-PROVIDER_CALLS = 0
+PR_CREATED = false
+CI_RUN = false
 DEPLOYMENT_EXECUTED = false
 REAL_MONEY = NOT_AUTHORIZED
 ```
 
-Do not modify V4, production rho, Scheduler, Provider allowlist, production DB or Dashboard.
-
-Current `ev_se` is lambda-scenario EV dispersion, not sampling standard error. It must not be used as a confidence interval or statistical admission gate.
-
-## Final decision mapping
-
-```text
-INSUFFICIENT_EVIDENCE
-→ no edge claim; consider a new evidence protocol only.
-
-NO_EDGE
-→ stop quant-platform development.
-
-PREDICTIVE_INCREMENT_ONLY
-→ at most design a minimal forward Signal Ledger and fixed-unit Shadow measurement.
-
-ECONOMIC_EDGE_CANDIDATE
-→ authorize the full W2 Football Quant Platform total-design document; still no real money.
-```
+Current `ev_se` is lambda-scenario dispersion, not sampling standard error. It may not be used as a confidence interval or admission gate.
