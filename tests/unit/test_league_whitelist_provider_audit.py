@@ -283,6 +283,8 @@ def test_provider_bookmaker_depth_requires_minimum_bookmakers(monkeypatch) -> No
         "observed_has_ah": True,
         "observed_has_line": True,
         "observed_has_ou": True,
+        "observed_has_price": False,
+        "observed_has_quote_timestamp": False,
     }
     assert payload["results"][0]["can_enable"] is False
 
@@ -313,6 +315,8 @@ def test_provider_bookmaker_depth_requires_line_presence(monkeypatch) -> None:  
         "observed_has_ah": True,
         "observed_has_line": False,
         "observed_has_ou": True,
+        "observed_has_price": False,
+        "observed_has_quote_timestamp": False,
     }
     assert payload["results"][0]["can_enable"] is False
 
@@ -338,6 +342,8 @@ def test_provider_bookmaker_depth_passes_with_minimum_bookmakers_and_lines(
         "observed_has_ah": True,
         "observed_has_line": True,
         "observed_has_ou": True,
+        "observed_has_price": False,
+        "observed_has_quote_timestamp": False,
     }
 
 

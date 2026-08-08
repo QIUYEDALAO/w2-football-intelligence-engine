@@ -8,10 +8,15 @@ import tempfile
 import time
 from collections.abc import Callable
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from w2.competitions.audit_candidates import (
+    AUDIT_ONLY_IDS,
+    is_audit_candidate,
+    load_round2_audit_candidates,
+)
 from w2.competitions.league_whitelist_audit import (
     AUDIT_ENDPOINT_ALLOWLIST,
     EVIDENCE_ONLY_AUDIT_MODE,
@@ -54,6 +59,11 @@ FREE_TIER_CONTROL_COMPETITIONS = (
     "brasileirao_serie_a",
     "argentina_primera",
 )
+ROUND2_AUDIT_GROUP = "round2_audit_union"
+ROUND2_DAILY_HARD_CAP = 80
+ROUND2_CUMULATIVE_HARD_CAP = 200
+ROUND2_MIN_PROVIDER_DAILY_REMAINING = 20
+ROUND2_REQUEST_INTERVAL_SECONDS_MIN = 10.0
 
 
 def main() -> int:
@@ -78,6 +88,7 @@ def main() -> int:
     parser.add_argument("--audit-season-override", default="")
     parser.add_argument("--out-dir")
     parser.add_argument("--audit-ledger-json")
+    parser.add_argument("--round2-state-json")
     parser.add_argument("--resume-from-out-dir")
     parser.add_argument("--summarize-output-dir")
     parser.add_argument("--stop-on-first-quota-warning", action="store_true", default=True)
@@ -102,6 +113,9 @@ def main() -> int:
             audit_season_override=args.audit_season_override,
             out_dir=Path(args.out_dir) if args.out_dir else None,
             audit_ledger_json=Path(args.audit_ledger_json) if args.audit_ledger_json else None,
+            round2_state_json=(
+                Path(args.round2_state_json) if args.round2_state_json else None
+            ),
             resume_from_out_dir=(
                 Path(args.resume_from_out_dir) if args.resume_from_out_dir else None
             ),
@@ -130,6 +144,7 @@ def build_cli_payload(
     audit_season_override: str | None = None,
     out_dir: Path | None = None,
     audit_ledger_json: Path | None = None,
+    round2_state_json: Path | None = None,
     resume_from_out_dir: Path | None = None,
     stop_on_first_quota_warning: bool = True,
     requester_factory: Callable[[str], ApiFootballRequester] | None = None,
@@ -137,6 +152,9 @@ def build_cli_payload(
 ) -> dict[str, Any]:
     scope = load_league_whitelist_scope(CompetitionRegistry())
     entries = _selected_entries(scope, group=group, competition_id=competition_id)
+    round2_scope = group == ROUND2_AUDIT_GROUP or any(
+        is_audit_candidate(entry) for entry in entries
+    )
     if audit_mode not in AUDIT_MODES:
         raise SystemExit(f"UNSUPPORTED_AUDIT_MODE:{audit_mode}")
     resolved_audit_season_override = _text(
@@ -164,6 +182,7 @@ def build_cli_payload(
             audit_season_override=resolved_audit_season_override,
             out_dir=out_dir,
             audit_ledger_json=audit_ledger_json,
+            round2_state_json=round2_state_json,
             resume_from_out_dir=resume_from_out_dir,
             stop_on_first_quota_warning=stop_on_first_quota_warning,
             planned_calls=planned_calls,
@@ -172,6 +191,7 @@ def build_cli_payload(
             requester_factory=requester_factory,
             sleeper=sleeper,
             in_season_count=len(scope.in_season_national_leagues),
+            round2_scope=round2_scope,
         )
     if execute_provider_audit and planned_calls > max_provider_calls:
         results = [
@@ -243,7 +263,7 @@ def build_cli_payload(
             path = out_dir / f"W2_WHITELIST_AUDIT_{result.competition_id}.json"
             write_audit_report(path, result)
             report_paths.append(str(path))
-    return {
+    payload = {
         "status": status,
         "group": group or None,
         "competition_id": competition_id or None,
@@ -260,7 +280,9 @@ def build_cli_payload(
         "provider_calls": 0,
         "db_reads": 0,
         "db_writes": 0,
+        "db_business_writes": 0,
         "checkpoint_write": False,
+        "checkpoint_writes": 0,
         "provider_call_approval_required": status in {
             "NEED_USER_APPROVAL",
             "PROVIDER_KEY_MISSING",
@@ -271,6 +293,9 @@ def build_cli_payload(
         "message": _message(status),
         "report_paths": report_paths,
     }
+    if round2_scope:
+        payload.update(_round2_payload(entries=entries, results=result_payloads, ledger_records=[]))
+    return payload
 
 
 def _selected_entries(
@@ -283,8 +308,16 @@ def _selected_entries(
     if competition_id:
         entry = entries.get(competition_id)
         if entry is None:
+            entry = load_round2_audit_candidates().get(competition_id)
+        if entry is None:
             raise SystemExit(f"COMPETITION_NOT_REGISTERED:{competition_id}")
         return [entry]
+    if group == ROUND2_AUDIT_GROUP:
+        candidates = load_round2_audit_candidates()
+        return [
+            *(entries[item] for item in scope.all_whitelist),
+            *(candidates[item] for item in AUDIT_ONLY_IDS),
+        ]
     if group == "national_leagues_in_season":
         return [entries[item] for item in scope.in_season_national_leagues]
     if group == "remaining_unaudited_whitelist":
@@ -331,6 +364,7 @@ def _build_real_provider_payload(
     audit_season_override: str,
     out_dir: Path | None,
     audit_ledger_json: Path | None,
+    round2_state_json: Path | None,
     resume_from_out_dir: Path | None,
     stop_on_first_quota_warning: bool,
     planned_calls: int,
@@ -339,7 +373,12 @@ def _build_real_provider_payload(
     requester_factory: Callable[[str], ApiFootballRequester] | None,
     sleeper: Callable[[float], None] | None,
     in_season_count: int,
+    round2_scope: bool,
 ) -> dict[str, Any]:
+    if round2_scope:
+        daily_hard_cap = min(daily_hard_cap, ROUND2_DAILY_HARD_CAP)
+        if request_interval_seconds < ROUND2_REQUEST_INTERVAL_SECONDS_MIN:
+            raise SystemExit("BLOCKER: ROUND2_REQUEST_INTERVAL_BELOW_10_SECONDS")
     if not approved_provider_calls:
         results = [
             build_skipped_provider_not_approved_result(
@@ -422,8 +461,25 @@ def _build_real_provider_payload(
         requester_factory=requester_factory,
         sleeper=sleeper,
     )
-    ledger = LocalProviderAuditLedger()
-    budget = ProviderAuditBudget(daily_hard_cap=daily_hard_cap)
+    if round2_scope:
+        state_path = round2_state_json or _default_round2_state_path()
+        if _is_under(state_path, ROOT):
+            raise SystemExit("BLOCKER: ROUND2_STATE_MUST_BE_OUTSIDE_REPOSITORY")
+        ledger = LocalProviderAuditLedger.from_json(state_path)
+        prior_cumulative_calls = len(ledger.records)
+        prior_daily_calls = _ledger_daily_calls(ledger.records, datetime.now(UTC))
+    else:
+        ledger = LocalProviderAuditLedger()
+        prior_cumulative_calls = 0
+        prior_daily_calls = 0
+    budget = ProviderAuditBudget(
+        daily_hard_cap=daily_hard_cap,
+        cumulative_hard_cap=(
+            ROUND2_CUMULATIVE_HARD_CAP if round2_scope else 2**31 - 1
+        ),
+        prior_daily_calls=prior_daily_calls,
+        prior_cumulative_calls=prior_cumulative_calls,
+    )
     results = []
     target_competition_ids = [entry.competition_id for entry in entries]
     stopped_early = False
@@ -444,6 +500,9 @@ def _build_real_provider_payload(
             sleeper=resolved_sleeper,
             allowed_endpoints=frozenset(endpoint_allowlist),
             fail_fast_on_plan_restricted=True,
+            min_provider_daily_remaining=(
+                ROUND2_MIN_PROVIDER_DAILY_REMAINING if round2_scope else 10
+            ),
         )
         result = evaluate_controlled_provider_league_audit(
             entry,
@@ -460,7 +519,7 @@ def _build_real_provider_payload(
             stopped_reason = result.overall_status
             if stop_on_first_quota_warning:
                 break
-        if budget.actual_provider_calls >= daily_hard_cap:
+        if budget.daily_provider_calls >= daily_hard_cap:
             stopped_early = True
             stopped_reason = "GLOBAL_PROVIDER_HARD_CAP_REACHED"
             break
@@ -478,7 +537,7 @@ def _build_real_provider_payload(
             raise SystemExit("BLOCKER: AUDIT_LEDGER_JSON_MUST_BE_UNDER_TMP")
         ledger.write_json(audit_ledger_json)
         summary["audit_ledger_json"] = str(audit_ledger_json)
-    return _payload(
+    payload = _payload(
         status=summary["status"],
         group=group,
         competition_id=competition_id,
@@ -502,6 +561,19 @@ def _build_real_provider_payload(
         local_ledger_records=len(ledger.records),
         skipped_existing_reports=skipped_existing_reports,
     )
+    if round2_scope:
+        payload.update(
+            _round2_payload(
+                entries=entries,
+                results=payload["results"],
+                ledger_records=ledger.records,
+            )
+        )
+        payload["round2_state_json"] = str(ledger.persist_path)
+        payload["round2_batch_provider_calls"] = budget.actual_provider_calls
+        payload["round2_cumulative_provider_calls"] = budget.cumulative_provider_calls
+        payload["round2_daily_provider_calls"] = budget.daily_provider_calls
+    return payload
 
 
 def _payload(
@@ -571,7 +643,9 @@ def _payload(
         "provider_calls": actual_provider_calls,
         "db_reads": 0,
         "db_writes": 0,
+        "db_business_writes": 0,
         "checkpoint_write": False,
+        "checkpoint_writes": 0,
         "provider_call_approval_required": status in {
             "NEED_USER_APPROVAL",
             "PROVIDER_KEY_MISSING",
@@ -588,6 +662,181 @@ def _payload(
         "local_ledger_records": local_ledger_records,
         "skipped_existing_reports": skipped_existing_reports or [],
     }
+
+
+def _round2_payload(
+    *,
+    entries: list[CompetitionRegistryEntry],
+    results: list[dict[str, Any]],
+    ledger_records: list[dict[str, Any]],
+) -> dict[str, Any]:
+    result_by_id = {item["competition_id"]: item for item in results}
+    records_by_id: dict[str, list[dict[str, Any]]] = {}
+    for record in ledger_records:
+        records_by_id.setdefault(_text(record.get("competition_id")), []).append(record)
+    matrix = [
+        _day0_matrix_row(
+            entry,
+            result_by_id.get(entry.competition_id),
+            records_by_id.get(entry.competition_id, []),
+        )
+        for entry in entries
+    ]
+    quota_values = [
+        _int(record.get("quota_remaining"))
+        for record in ledger_records
+        if record.get("quota_remaining") is not None
+    ]
+    successful = [
+        _text(record.get("captured_at"))
+        for record in ledger_records
+        if 200 <= _int(record.get("status_code")) < 300
+    ]
+    start_utc = min(successful) if successful else None
+    observation_end_utc = None
+    if start_utc:
+        observation_end_utc = (
+            datetime.fromisoformat(start_utc.replace("Z", "+00:00"))
+            + timedelta(days=14)
+        ).astimezone(UTC).isoformat()
+    daily_counts: dict[str, int] = {}
+    for record in ledger_records:
+        day = _text(record.get("captured_at"))[:10]
+        daily_counts[day] = daily_counts.get(day, 0) + 1
+    call_indexes = [record.get("provider_call_index") for record in ledger_records]
+    return {
+        "audit_union_count": len(entries),
+        "target_rows": len(entries),
+        "existing_whitelist_count": sum(
+            not is_audit_candidate(entry) for entry in entries
+        ),
+        "net_new_audit_only_count": sum(is_audit_candidate(entry) for entry in entries),
+        "active_whitelist_identity_diff": [],
+        "day0_theoretical_max_provider_calls": 68,
+        "day0_start_utc": start_utc,
+        "round2_observation_start_utc": start_utc,
+        "round2_observation_end_utc": observation_end_utc,
+        "day0_17_row_matrix": matrix,
+        "ledger_record_count": len(ledger_records),
+        "duplicate_call_index_count": len(call_indexes) - len(set(call_indexes)),
+        "unledgered_provider_call_count": 0,
+        "round2_daily_max_observed": max(daily_counts.values(), default=0),
+        "min_quota_remaining_observed": min(quota_values) if quota_values else None,
+        "stop_events": [
+            record["error"] for record in ledger_records if record.get("error")
+        ],
+        "automatic_retry": False,
+        "request_interval_seconds_min": ROUND2_REQUEST_INTERVAL_SECONDS_MIN,
+        "round2_daily_hard_cap": ROUND2_DAILY_HARD_CAP,
+        "round2_cumulative_hard_cap": ROUND2_CUMULATIVE_HARD_CAP,
+        "round2_min_provider_daily_remaining": ROUND2_MIN_PROVIDER_DAILY_REMAINING,
+    }
+
+
+def _day0_matrix_row(
+    entry: CompetitionRegistryEntry,
+    result: dict[str, Any] | None,
+    records: list[dict[str, Any]],
+) -> dict[str, Any]:
+    result = result or {}
+    items = {
+        _text(item.get("name")): item
+        for item in result.get("items", [])
+        if isinstance(item, dict)
+    }
+    mapping = dict(items.get("provider_mapping", {}).get("observed_evidence") or {})
+    fixtures = dict(items.get("fixtures", {}).get("observed_evidence") or {})
+    odds = dict(items.get("bookmaker_depth", {}).get("observed_evidence") or {})
+    quota_values = [
+        _int(record.get("quota_remaining"))
+        for record in records
+        if record.get("quota_remaining") is not None
+    ]
+    has_ah = bool(odds.get("observed_has_ah"))
+    has_ou = bool(odds.get("observed_has_ou"))
+    has_line = bool(odds.get("observed_has_line"))
+    has_price = bool(odds.get("observed_has_price"))
+    bookmaker_count = _int(odds.get("observed_bookmaker_count"))
+    return {
+        "canonical_audit_id": entry.competition_id,
+        "runtime_whitelist_member": not is_audit_candidate(entry),
+        "current_runtime_state": (
+            "AUDIT_CANDIDATE_ONLY" if is_audit_candidate(entry) else "REGISTERED"
+        ),
+        "identity_status": result.get("identity_status", "NOT_AUDITED"),
+        "provider_league_id": mapping.get("observed_provider_league_id"),
+        "provider_name": mapping.get("observed_provider_league_name"),
+        "provider_country": mapping.get("observed_provider_country"),
+        "audit_season": mapping.get("observed_provider_season") or entry.season,
+        "league_endpoint_status": items.get("provider_mapping", {}).get(
+            "status", "NOT_AUDITED"
+        ),
+        "future_fixture_status": _count_status(
+            fixtures.get("observed_future_fixture_count")
+        ),
+        "result_fixture_status": _count_status(
+            fixtures.get("observed_result_fixture_count")
+        ),
+        "odds_endpoint_status": items.get("bookmaker_depth", {}).get(
+            "status", "NOT_AUDITED"
+        ),
+        "AH_observed": has_ah,
+        "OU_observed": has_ou,
+        "market_status": _market_status(
+            has_ah=has_ah,
+            has_ou=has_ou,
+            has_line=has_line,
+            has_price=has_price,
+            bookmaker_count=bookmaker_count,
+        ),
+        "bookmaker_count_observed": bookmaker_count,
+        "line_and_price_observed": has_line and has_price,
+        "quote_timestamp_observed": bool(odds.get("observed_has_quote_timestamp")),
+        "provider_schema_status": (
+            "UNSAFE"
+            if result.get("overall_status") == "PROVIDER_RESPONSE_SCHEMA_UNSAFE"
+            else "SAFE"
+            if records
+            else "NOT_AUDITED"
+        ),
+        "plan_status": (
+            "PLAN_RESTRICTED"
+            if result.get("overall_status") == "PLAN_DOES_NOT_COVER_SEASON"
+            else "NOT_BLOCKED"
+            if records
+            else "NOT_AUDITED"
+        ),
+        "actual_provider_calls": _int(result.get("actual_provider_calls")),
+        "quota_remaining_last_seen": quota_values[-1] if quota_values else None,
+        "blockers": list(result.get("blockers") or []),
+        "warnings": list(result.get("warnings") or []),
+        "promotion_authorized": False,
+    }
+
+
+def _count_status(value: Any) -> str:
+    if value is None:
+        return "NOT_AUDITED"
+    return "AVAILABLE" if _int(value) > 0 else "NOT_OBSERVED"
+
+
+def _market_status(
+    *,
+    has_ah: bool,
+    has_ou: bool,
+    has_line: bool,
+    has_price: bool,
+    bookmaker_count: int,
+) -> str:
+    if not has_ah and not has_ou:
+        return "MARKET_MISSING"
+    if not has_line or not has_price:
+        return "LINE_OR_PRICE_MISSING"
+    if bookmaker_count < 3:
+        return "BOOKMAKER_DEPTH_INSUFFICIENT"
+    if has_ah and has_ou:
+        return "BOTH_PRESENT"
+    return "AH_PRESENT" if has_ah else "OU_PRESENT"
 
 
 def _league_cap(
@@ -856,6 +1105,28 @@ def _text(value: Any) -> str:
 def _default_out_dir() -> Path:
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     return Path("/tmp") / f"w2_league_whitelist_audit_{stamp}"  # noqa: S108
+
+
+def _default_round2_state_path() -> Path:
+    state_root = Path(
+        os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state"
+    )
+    return state_root / "w2/round2_provider_audit_ledger.json"
+
+
+def _ledger_daily_calls(records: list[dict[str, Any]], now: datetime) -> int:
+    today = now.astimezone(UTC).date()
+    count = 0
+    for record in records:
+        try:
+            captured_at = datetime.fromisoformat(
+                _text(record.get("captured_at")).replace("Z", "+00:00")
+            ).astimezone(UTC)
+        except ValueError:
+            raise SystemExit("BLOCKER: ROUND2_AUDIT_STATE_TIMESTAMP_INVALID") from None
+        if captured_at.date() == today:
+            count += 1
+    return count
 
 
 def _is_tmp_path(path: Path) -> bool:

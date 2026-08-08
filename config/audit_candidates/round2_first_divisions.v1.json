@@ -1,0 +1,57 @@
+{
+  "schema_version": "w2.audit_candidates.v1",
+  "candidates": [
+    {
+      "audit_candidate_id": "belgian_pro_league",
+      "display_name": "Belgian Pro League",
+      "country": "Belgium",
+      "provider": "api_football",
+      "provider_query_name": "Jupiler Pro League",
+      "provider_query_country": "Belgium",
+      "provider_exact_names": ["Jupiler Pro League"],
+      "provider_country_aliases": ["Belgium"],
+      "season_strategy": "CURRENT_UTC_YEAR",
+      "runtime_whitelist_member": false,
+      "scheduler_member": false
+    },
+    {
+      "audit_candidate_id": "turkish_super_lig",
+      "display_name": "Turkish Super Lig",
+      "country": "Turkey",
+      "provider": "api_football",
+      "provider_query_name": "Süper Lig",
+      "provider_query_country": "Turkey",
+      "provider_exact_names": ["Süper Lig"],
+      "provider_country_aliases": ["Turkey"],
+      "season_strategy": "CURRENT_UTC_YEAR",
+      "runtime_whitelist_member": false,
+      "scheduler_member": false
+    },
+    {
+      "audit_candidate_id": "greek_super_league",
+      "display_name": "Greek Super League",
+      "country": "Greece",
+      "provider": "api_football",
+      "provider_query_name": "Super League 1",
+      "provider_query_country": "Greece",
+      "provider_exact_names": ["Super League 1"],
+      "provider_country_aliases": ["Greece"],
+      "season_strategy": "CURRENT_UTC_YEAR",
+      "runtime_whitelist_member": false,
+      "scheduler_member": false
+    },
+    {
+      "audit_candidate_id": "scottish_premiership",
+      "display_name": "Scottish Premiership",
+      "country": "Scotland",
+      "provider": "api_football",
+      "provider_query_name": "Premiership",
+      "provider_query_country": "Scotland",
+      "provider_exact_names": ["Premiership"],
+      "provider_country_aliases": ["Scotland"],
+      "season_strategy": "CURRENT_UTC_YEAR",
+      "runtime_whitelist_member": false,
+      "scheduler_member": false
+    }
+  ]
+}

@@ -18,6 +18,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
+from w2.competitions.audit_candidates import is_audit_candidate
 from w2.competitions.league_whitelist_audit import (
     AUDIT_ENDPOINT_ALLOWLIST,
     EVIDENCE_ONLY_AUDIT_MODE,
@@ -50,6 +51,7 @@ API_FOOTBALL_HTTP_PATHS = {
 }
 STOP_STATUSES = {
     "GLOBAL_PROVIDER_HARD_CAP_REACHED",
+    "ROUND2_CUMULATIVE_HARD_CAP_REACHED",
     "LEAGUE_PROVIDER_HARD_CAP_REACHED",
     "PLAN_DOES_NOT_COVER_SEASON",
     "PROVIDER_HTTP_429",
@@ -59,6 +61,8 @@ STOP_STATUSES = {
     "PROVIDER_RESPONSE_SCHEMA_UNSAFE",
     "PROVIDER_KEY_INVALID",
     "PROVIDER_PAYLOAD_ERROR",
+    "PROVIDER_NETWORK_ERROR",
+    "IDENTITY_REVIEW_REQUIRED",
 }
 
 
@@ -80,19 +84,63 @@ class ApiFootballRequester(Protocol):
 @dataclass
 class ProviderAuditBudget:
     daily_hard_cap: int
+    cumulative_hard_cap: int = 2**31 - 1
+    prior_daily_calls: int = 0
+    prior_cumulative_calls: int = 0
     actual_provider_calls: int = 0
 
     def reserve_call(self, *, league_calls: int, league_hard_cap: int) -> None:
-        if self.actual_provider_calls >= self.daily_hard_cap:
+        if self.prior_daily_calls + self.actual_provider_calls >= self.daily_hard_cap:
             raise ProviderAuditStopped("GLOBAL_PROVIDER_HARD_CAP_REACHED")
+        if self.cumulative_provider_calls >= self.cumulative_hard_cap:
+            raise ProviderAuditStopped("ROUND2_CUMULATIVE_HARD_CAP_REACHED")
         if league_calls >= league_hard_cap:
             raise ProviderAuditStopped("LEAGUE_PROVIDER_HARD_CAP_REACHED")
         self.actual_provider_calls += 1
+
+    @property
+    def cumulative_provider_calls(self) -> int:
+        return self.prior_cumulative_calls + self.actual_provider_calls
+
+    @property
+    def daily_provider_calls(self) -> int:
+        return self.prior_daily_calls + self.actual_provider_calls
 
 
 @dataclass
 class LocalProviderAuditLedger:
     records: list[dict[str, Any]] = field(default_factory=list)
+    persist_path: Path | None = None
+
+    @classmethod
+    def from_json(cls, path: Path) -> LocalProviderAuditLedger:
+        if not path.exists():
+            return cls(persist_path=path)
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ProviderAuditStopped("ROUND2_AUDIT_STATE_INVALID") from exc
+        if not isinstance(payload, list) or not all(isinstance(item, dict) for item in payload):
+            raise ProviderAuditStopped("ROUND2_AUDIT_STATE_INVALID")
+        allowed = {
+            "competition_id",
+            "endpoint",
+            "league_id",
+            "fixture_id",
+            "status_code",
+            "response_count",
+            "provider_call_index",
+            "league_call_index",
+            "quota_remaining",
+            "captured_at",
+            "error",
+        }
+        if any(set(item) != allowed for item in payload):
+            raise ProviderAuditStopped("ROUND2_AUDIT_STATE_FIELDS_INVALID")
+        indexes = [item.get("provider_call_index") for item in payload]
+        if indexes != list(range(1, len(payload) + 1)):
+            raise ProviderAuditStopped("ROUND2_AUDIT_STATE_CALL_INDEX_INVALID")
+        return cls(records=[dict(item) for item in payload], persist_path=path)
 
     def record(
         self,
@@ -124,6 +172,8 @@ class LocalProviderAuditLedger:
                 "error": error,
             }
         )
+        if self.persist_path is not None:
+            self.write_json(self.persist_path)
 
     def write_json(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -146,6 +196,7 @@ class ApiFootballLeagueAuditProvider:
     sleeper: Callable[[float], None] = time.sleep
     allowed_endpoints: frozenset[str] = AUDIT_PROVIDER_ENDPOINT_ALLOWLIST
     fail_fast_on_plan_restricted: bool = False
+    min_provider_daily_remaining: int = 10
     league_calls: int = 0
 
     def get_league(self, league_id: str, season: str) -> dict[str, Any]:
@@ -166,6 +217,27 @@ class ApiFootballLeagueAuditProvider:
             "season": str(season_row.get("year") or season),
             "team_count": _int(row.get("team_count") if isinstance(row, dict) else None),
         }
+
+    def find_leagues(self, *, name: str, country: str, season: str) -> list[dict[str, Any]]:
+        payload = self._request(
+            "leagues",
+            {"name": name, "country": country, "season": season},
+        )
+        matches: list[dict[str, Any]] = []
+        for row in _response_list(payload):
+            league = _mapping(row.get("league"))
+            observed_country = _mapping(row.get("country"))
+            season_row = _matching_season(row.get("seasons"), season)
+            matches.append(
+                {
+                    "id": _text(league.get("id") or row.get("id")),
+                    "name": _text(league.get("name") or row.get("name")),
+                    "country": _text(observed_country.get("name") or row.get("country")),
+                    "season": _text(season_row.get("year")),
+                    "team_count": _int(row.get("team_count")),
+                }
+            )
+        return matches
 
     def get_fixtures(
         self,
@@ -236,13 +308,40 @@ class ApiFootballLeagueAuditProvider:
         self.league_calls += 1
         if self.request_interval_seconds > 0:
             self.sleeper(self.request_interval_seconds)
-        status_code, headers, payload = self._perform_request(endpoint, params)
+        try:
+            status_code, headers, payload = self._perform_request(endpoint, params)
+        except (OSError, urllib.error.URLError):
+            captured_at = datetime.now(UTC)
+            self.ledger.record(
+                competition_id=self.competition_id,
+                endpoint=endpoint,
+                league_id=league_id,
+                fixture_id=fixture_id,
+                status_code=0,
+                response_count=0,
+                provider_call_index=self.budget.cumulative_provider_calls,
+                league_call_index=self.league_calls,
+                quota_remaining=None,
+                captured_at=captured_at,
+                error="PROVIDER_NETWORK_ERROR",
+            )
+            raise ProviderAuditStopped("PROVIDER_NETWORK_ERROR") from None
         captured_at = datetime.now(UTC)
         response_count = _response_count(payload)
         quota = parse_api_football_quota(headers=headers, payload=payload, observed_at=captured_at)
         payload_error = _provider_payload_error(payload)
-        error = payload_error or (
-            None if status_code < 400 else f"PROVIDER_HTTP_{status_code}"
+        quota_error = None
+        if quota.daily_remaining is not None and quota.daily_remaining <= 0:
+            quota_error = "DAILY_QUOTA_EXHAUSTED"
+        elif (
+            quota.daily_remaining is not None
+            and quota.daily_remaining <= self.min_provider_daily_remaining
+        ):
+            quota_error = "QUOTA_WARNING"
+        error = (
+            payload_error
+            or (None if status_code < 400 else f"PROVIDER_HTTP_{status_code}")
+            or quota_error
         )
         self.ledger.record(
             competition_id=self.competition_id,
@@ -251,7 +350,7 @@ class ApiFootballLeagueAuditProvider:
             fixture_id=fixture_id,
             status_code=status_code,
             response_count=response_count,
-            provider_call_index=self.budget.actual_provider_calls,
+            provider_call_index=self.budget.cumulative_provider_calls,
             league_call_index=self.league_calls,
             quota_remaining=quota.daily_remaining,
             captured_at=captured_at,
@@ -259,9 +358,9 @@ class ApiFootballLeagueAuditProvider:
         )
         if status_code == 429:
             raise ProviderAuditStopped("PROVIDER_HTTP_429")
-        if quota.daily_remaining is not None and quota.daily_remaining <= 0:
+        if quota_error == "DAILY_QUOTA_EXHAUSTED":
             raise ProviderAuditStopped("DAILY_QUOTA_EXHAUSTED")
-        if quota.daily_remaining is not None and quota.daily_remaining <= 10:
+        if quota_error == "QUOTA_WARNING":
             raise ProviderAuditStopped("QUOTA_WARNING")
         if payload_error == "PROVIDER_PLAN_RESTRICTED" and self.fail_fast_on_plan_restricted:
             raise ProviderAuditStopped("PLAN_DOES_NOT_COVER_SEASON")
@@ -402,7 +501,44 @@ def evaluate_evidence_only_provider_league_audit(
     ]
     try:
         historical_override = bool(_text(audit_season_override))
-        league = provider.get_league(league_id, configured_season)
+        if is_audit_candidate(entry):
+            league, mapping_item = _resolve_audit_candidate_identity(
+                entry,
+                provider=provider,
+                season=configured_season,
+            )
+            if mapping_item.status is not AuditItemStatus.PASS:
+                result = build_league_whitelist_audit_result(
+                    entry,
+                    environment=environment,
+                    provider_calls=provider.league_calls,
+                    hard_cap=provider.league_hard_cap,
+                    items=(mapping_item,),
+                    blockers=("IDENTITY_REVIEW_REQUIRED",),
+                    warnings=tuple(warnings),
+                    planned_provider_calls=evidence_only_provider_calls_for_audit(),
+                    actual_provider_calls=provider.league_calls,
+                    provider_call_approval_required=False,
+                    overall_status="IDENTITY_REVIEW_REQUIRED",
+                )
+                return replace(
+                    result,
+                    endpoint_allowlist=EVIDENCE_ONLY_ENDPOINT_ALLOWLIST,
+                    audit_mode=EVIDENCE_ONLY_AUDIT_MODE_OUTPUT,
+                    can_enable=False,
+                    enablement_evaluated=False,
+                    evidence_only=True,
+                    identity_status="IDENTITY_REVIEW_REQUIRED",
+                )
+            league_id = _text(league.get("id"))
+        else:
+            league = provider.get_league(league_id, configured_season)
+            mapping_item = _provider_mapping_item(
+                entry,
+                league,
+                season=configured_season,
+                configured_season=configured_season,
+            )
         if historical_override:
             future: list[dict[str, Any]] = []
             results = provider.get_results(league_id, configured_season)
@@ -432,21 +568,25 @@ def evaluate_evidence_only_provider_league_audit(
             }
         fixture_ids = _fixture_ids_from_rows(*fixture_rows, *results)
         sample = fixture_ids[:1]
-        items = (
-            _provider_mapping_item(
-                entry,
-                league,
-                season=configured_season,
-                configured_season=configured_season,
-            ),
-            _fixtures_item(
+        fixtures_item = _fixtures_item(
                 fixture_rows,
                 query_params=fixture_query_params,
                 audit_cohort=entry.audit_cohort,
                 configured_season=configured_season,
                 audit_mode=EVIDENCE_ONLY_AUDIT_MODE,
                 has_recent_results=bool(results),
-            ),
+            )
+        fixtures_item = replace(
+            fixtures_item,
+            observed_evidence={
+                **dict(fixtures_item.observed_evidence or {}),
+                "observed_future_fixture_count": len(future),
+                "observed_result_fixture_count": len(results),
+            },
+        )
+        items = (
+            mapping_item,
+            fixtures_item,
             _bookmaker_depth_item(sample, provider),
         )
         result = build_league_whitelist_audit_result(
@@ -469,6 +609,11 @@ def evaluate_evidence_only_provider_league_audit(
             can_enable=False,
             enablement_evaluated=False,
             evidence_only=True,
+            identity_status=(
+                "EXACT_AND_UNAMBIGUOUS"
+                if mapping_item.status is AuditItemStatus.PASS
+                else "IDENTITY_REVIEW_REQUIRED"
+            ),
         )
     except ProviderAuditStopped as exc:
         result = build_league_whitelist_audit_result(
@@ -498,7 +643,82 @@ def evaluate_evidence_only_provider_league_audit(
             can_enable=False,
             enablement_evaluated=False,
             evidence_only=True,
+            identity_status=(
+                "PLAN_RESTRICTED"
+                if exc.status == "PLAN_DOES_NOT_COVER_SEASON"
+                else "IDENTITY_REVIEW_REQUIRED"
+                if is_audit_candidate(entry)
+                else "NOT_AUDITED"
+            ),
         )
+
+
+def _resolve_audit_candidate_identity(
+    entry: CompetitionRegistryEntry,
+    *,
+    provider: ApiFootballLeagueAuditProvider,
+    season: str,
+) -> tuple[dict[str, Any], AuditItem]:
+    expected_names = {
+        _exact_identity_text(item)
+        for item in entry.profile_payload.get("provider_exact_names", [])
+        if _exact_identity_text(item)
+    }
+    expected_countries = {
+        _exact_identity_text(item)
+        for item in entry.profile_payload.get("provider_country_aliases", [])
+        if _exact_identity_text(item)
+    }
+    matches = provider.find_leagues(
+        name=_text(entry.profile_payload.get("provider_query_name")),
+        country=_text(entry.profile_payload.get("provider_query_country")),
+        season=season,
+    )
+    exact = [
+        item
+        for item in matches
+        if _text(item.get("id"))
+        and _exact_identity_text(item.get("name")) in expected_names
+        and _exact_identity_text(item.get("country")) in expected_countries
+        and _text(item.get("season")) == _text(season)
+    ]
+    evidence = {
+        "identity_match_count": len(exact),
+        "provider_response_count": len(matches),
+        "expected_provider_names": sorted(expected_names),
+        "expected_provider_countries": sorted(expected_countries),
+        "expected_provider_season": _text(season),
+        "observed_candidates": [
+            {
+                "provider_league_id": _text(item.get("id")),
+                "provider_name": _text(item.get("name")),
+                "provider_country": _text(item.get("country")),
+                "provider_season": _text(item.get("season")),
+            }
+            for item in matches
+        ],
+    }
+    if len(exact) != 1:
+        return {}, AuditItem(
+            name="provider_mapping",
+            status=AuditItemStatus.FAIL,
+            message="IDENTITY_REVIEW_REQUIRED",
+            observed_evidence=evidence,
+        )
+    league = exact[0]
+    return league, AuditItem(
+        name="provider_mapping",
+        status=AuditItemStatus.PASS,
+        message="EXACT_AND_UNAMBIGUOUS",
+        observed_evidence={
+            **evidence,
+            "observed_provider_league_id": _text(league.get("id")),
+            "observed_provider_league_name": _text(league.get("name")),
+            "observed_provider_country": _text(league.get("country")),
+            "observed_provider_season": _text(league.get("season")),
+            "observed_provider_team_count": _int(league.get("team_count")),
+        },
+    )
 
 
 def _audit_season(
@@ -587,11 +807,6 @@ def _default_api_football_request(
             return response.status, _sanitize_headers(response.headers), _load_payload(raw)
     except urllib.error.HTTPError as exc:
         return exc.code, _sanitize_headers(exc.headers), _load_payload(exc.read())
-    except urllib.error.URLError:
-        time.sleep(0.2)
-        with urllib.request.urlopen(request, timeout=20) as response:  # noqa: S310
-            raw = response.read()
-            return response.status, _sanitize_headers(response.headers), _load_payload(raw)
 
 
 def _provider_mapping_item(
@@ -867,7 +1082,26 @@ def _provider_mapping_evidence(
 
 
 def _bookmaker_observed_evidence(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    return bookmaker_observed_evidence(rows, lowercase_market_names=True)
+    return {
+        **bookmaker_observed_evidence(rows, lowercase_market_names=True),
+        "observed_has_price": _nested_key_has_value(rows, {"odd", "odds", "price"}),
+        "observed_has_quote_timestamp": _nested_key_has_value(
+            rows,
+            {"update", "updated_at", "timestamp", "captured_at"},
+        ),
+    }
+
+
+def _nested_key_has_value(value: Any, keys: set[str]) -> bool:
+    if isinstance(value, dict):
+        return any(
+            (str(key).lower() in keys and item not in (None, "", []))
+            or _nested_key_has_value(item, keys)
+            for key, item in value.items()
+        )
+    if isinstance(value, list):
+        return any(_nested_key_has_value(item, keys) for item in value)
+    return False
 
 
 def _empty_fixtures_message(
@@ -1028,6 +1262,10 @@ def _normalized_provider_key(api_key_env_name: str) -> str:
 
 def _norm(value: Any) -> str:
     return _text(value).strip().lower()
+
+
+def _exact_identity_text(value: Any) -> str:
+    return " ".join(_text(value).casefold().split())
 
 
 def _text(value: Any) -> str:

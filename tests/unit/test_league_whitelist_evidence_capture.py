@@ -52,6 +52,8 @@ def test_provider_audit_report_captures_sanitized_observed_evidence(
         "observed_has_ah": True,
         "observed_has_line": True,
         "observed_has_ou": False,
+        "observed_has_price": False,
+        "observed_has_quote_timestamp": False,
     }
     assert report["can_enable"] is False
 
@@ -95,6 +97,8 @@ def test_provider_audit_report_keeps_bookmaker_depth_evidence_when_depth_is_too_
         "observed_has_ah": True,
         "observed_has_line": True,
         "observed_has_ou": True,
+        "observed_has_price": False,
+        "observed_has_quote_timestamp": False,
     }
     assert payload["provider_calls"] == len(payload["results"][0]["items"])
     assert report["can_enable"] is False
