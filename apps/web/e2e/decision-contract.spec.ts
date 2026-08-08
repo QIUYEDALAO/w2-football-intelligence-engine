@@ -7,6 +7,35 @@ const riskDimensions = {
   COLLECTION_RISK: { dimension: "COLLECTION_RISK", status: "OK", reason_codes: [], explanation: "采集运行未见异常" },
 };
 
+const statePrecedence = ["COLLECTION_INCIDENT", "DATA_INCOMPLETE", "MODEL_DIAGNOSTIC_WARNING", "MARKET_ANOMALY", "MODEL_MARKET_DISAGREEMENT", "MARKET_MOVEMENT", "MARKET_STABLE"];
+
+const phase05 = {
+  protocol: "W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3",
+  final_verdict: "NO_EDGE",
+  v_continuation_gate: "FAIL",
+  ou_pre_best_frozen_selections: 7566,
+  ou_pre_best_frozen_strategy_roi: "-5.32%",
+  historical_incremental_edge: "NOT_PROVEN",
+  h_result_access: "PERMANENTLY_CLOSED",
+  reexecuted: false,
+};
+
+function timeline(lines: string[]) {
+  const points = lines.map((canonical_line, index) => ({
+    capture_id: `capture-${index + 1}`,
+    captured_at: `2026-08-07T23:${50 + index}:00Z`,
+    canonical_line,
+    bookmaker_count: 3,
+  }));
+  return {
+    status: points.length === 0 ? "INSUFFICIENT_NO_TIMELINE_EVIDENCE" : points.length === 1 ? "INSUFFICIENT_SINGLE_SNAPSHOT" : "MOVEMENT_COMPARISON_ELIGIBLE",
+    valid_snapshot_count: points.length,
+    distinct_captured_at_count: points.length,
+    same_line_comparable_snapshot_count: points.length,
+    points,
+  };
+}
+
 function card(overrides: Record<string, unknown> = {}) {
   return {
     fixture_id: "stable-fixture",
@@ -35,6 +64,25 @@ function card(overrides: Record<string, unknown> = {}) {
     market_probabilities: { over: 0.51, under: 0.49 },
     market_movement: { status: "READY", pattern: "STABLE", line_moved: false },
     model_market_divergence: {},
+    market_radar: {
+      schema_version: "w2.market-radar.v1",
+      authority: "REAL_PERSISTED_MARKET_EVIDENCE",
+      evidence: { accepted_observation_count: 6, rejected_observation_count: 0 },
+      statistical_anomaly: { calibration_status: "NOT_CALIBRATED", detected: false },
+      markets: {
+        ASIAN_HANDICAP: { status: "INSUFFICIENT", current: null, snapshot_count: 0, observation_count: 0, timeline: timeline([]), movement: { status: "INSUFFICIENT" }, movement_history: [] },
+        TOTALS: { status: "READY", current: { canonical_line: "2.5", bookmaker_count: 3, prices: { OVER: { median: 1.93 }, UNDER: { median: 1.95 } }, freshness: { status: "COMPLETE" } }, snapshot_count: 2, observation_count: 12, timeline: timeline(["2.5", "2.5"]), movement: { status: "STABLE" }, movement_history: [{ status: "STABLE" }] },
+      },
+    },
+    model_lab: {
+      schema_version: "w2.model-lab.v1",
+      authority: "DIAGNOSTIC_ONLY",
+      historical_validation: phase05,
+      markets: {
+        ASIAN_HANDICAP: { status: "MARKET_NOT_READY", market: "ASIAN_HANDICAP", bookmaker_count: 0, diagnostics: [], blockers: ["MARKET_NOT_READY"] },
+        TOTALS: { status: "COMPARABLE_WITHIN_MARKET_RANGE", market: "TOTALS", bookmaker_count: 3, model_version: "model-v1", calibration_status: "READY", diagnostics: [{ selection: "OVER", model_effective_settlement_probability: 0.51, market_probability_median: 0.5, market_probability_min: 0.48, market_probability_max: 0.52, distance_outside_market_range: 0 }], blockers: [] },
+      },
+    },
     scoreline_picks: [],
     pick: null,
     non_pick: { reason_code: "OBSERVE", action: "WAIT" },
@@ -50,12 +98,20 @@ function dayView(empty = false) {
       home_team_name: "Diagnostic Home",
       away_team_name: "Diagnostic Away",
       intelligence_state: "MODEL_MARKET_DISAGREEMENT",
-      intelligence_reason_codes: ["MODEL_MARKET_DISAGREEMENT_OBSERVED"],
+      intelligence_reason_codes: ["MODEL_MARKET_DISAGREEMENT_ASIAN_HANDICAP"],
       risk_dimensions: {
         ...riskDimensions,
-        MODEL_RISK: { dimension: "MODEL_RISK", status: "ATTENTION", reason_codes: ["MODEL_MARKET_DISAGREEMENT_OBSERVED"], explanation: "模型与市场差异待复核" },
+        MODEL_RISK: { dimension: "MODEL_RISK", status: "ATTENTION", reason_codes: ["MODEL_MARKET_DISAGREEMENT_ASIAN_HANDICAP"], explanation: "模型与市场差异待复核" },
       },
-      model_market_divergence: { status: "READY", magnitude: 0.08, direction_allowed: true },
+      model_lab: {
+        schema_version: "w2.model-lab.v1",
+        authority: "DIAGNOSTIC_ONLY",
+        historical_validation: phase05,
+        markets: {
+          ASIAN_HANDICAP: { status: "MODEL_OUTSIDE_MARKET_RANGE", market: "ASIAN_HANDICAP", bookmaker_count: 4, model_version: "model-v1", calibration_status: "READY", diagnostics: [{ selection: "HOME", model_effective_settlement_probability: 0.63, market_probability_median: 0.51, market_probability_min: 0.49, market_probability_max: 0.53, distance_outside_market_range: 0.1 }], blockers: [] },
+          TOTALS: { status: "COMPARABLE_WITHIN_MARKET_RANGE", market: "TOTALS", bookmaker_count: 3, model_version: "model-v1", calibration_status: "READY", diagnostics: [], blockers: [] },
+        },
+      },
     }),
     card({
       fixture_id: "not-ready-fixture",
@@ -70,10 +126,19 @@ function dayView(empty = false) {
       },
       decision_tier: "NOT_READY",
       data_status: "BLOCKED",
-      current_odds: { ah: { home_line: "-0.25", home_price: 1.91, away_price: 1.97, captured_at: "2026-08-07T23:54:00Z" } },
+      market_radar: {
+        schema_version: "w2.market-radar.v1",
+        authority: "REAL_PERSISTED_MARKET_EVIDENCE",
+        evidence: { accepted_observation_count: 6 },
+        statistical_anomaly: { calibration_status: "NOT_CALIBRATED", detected: false },
+        markets: {
+          ASIAN_HANDICAP: { status: "READY", current: { canonical_line: "-0.25", bookmaker_count: 3, prices: { HOME: { median: 1.91 }, AWAY: { median: 1.97 } }, freshness: { status: "COMPLETE" } }, snapshot_count: 1, observation_count: 6, timeline: timeline(["-0.25"]), movement: { status: "INSUFFICIENT" }, movement_history: [] },
+          TOTALS: { status: "INSUFFICIENT", current: null, snapshot_count: 0, observation_count: 0, timeline: timeline([]), movement: { status: "INSUFFICIENT" }, movement_history: [] },
+        },
+      },
       recommendation_decision_v4: { outcome: "NOT_READY" },
     }),
-  ];
+  ].sort((left, right) => statePrecedence.indexOf(String(left.intelligence_state)) - statePrecedence.indexOf(String(right.intelligence_state)));
   return {
     request_id: "e2e",
     generated_at: "2026-08-08T00:00:00Z",
@@ -116,6 +181,11 @@ function dayView(empty = false) {
       lineup_pending: 0,
       ratings_enhancement_missing: 0,
       team_value_enhancement_missing: 0,
+      by_intelligence_state: {
+        DATA_INCOMPLETE: empty ? 0 : 1,
+        MODEL_MARKET_DISAGREEMENT: empty ? 0 : 1,
+        MARKET_STABLE: empty ? 0 : 1,
+      },
     },
     freshness: {
       page_updated_at: "2026-08-08T00:00:00Z",
@@ -169,9 +239,11 @@ test("public root is intelligence-first with truthful operations", async ({ page
   await expect(page.getByText("Match Intelligence", { exact: true })).toBeVisible();
   await expect(page.getByText("Data & Operations Summary", { exact: true })).toBeVisible();
   await expect(page.locator(".decision-counts")).toContainText("监测比赛3");
-  await expect(page.locator(".decision-counts")).toContainText("市场稳定1");
-  await expect(page.locator(".intelligence-ops")).toContainText("Candidate OFF · Formal OFF · Lock OFF · Production OFF");
-  await expect(page.locator(".intelligence-ops")).toContainText("e2e0001 / e2e0001 · SYNC");
+  await expect(page.locator(".decision-count")).toHaveCount(5);
+  await expect(page.locator(".decision-counts")).toContainText("模型市场分歧1");
+  await expect(page.locator("[data-ui='attention-feed'] li").first()).toContainText("DATA_INCOMPLETE");
+  await expect(page.locator(".intelligence-ops-details")).toContainText("Candidate OFF · Formal OFF · Lock OFF · Production OFF");
+  await expect(page.locator(".intelligence-ops").first()).toContainText("e2e0001 / e2e0001 · SYNC");
   expect(consoleErrors).toEqual([]);
 });
 
@@ -183,6 +255,10 @@ test("stable state is a meaningful non-empty result", async ({ page }) => {
   await expect(stable).toBeVisible();
   await expect(stable).toContainText("市场稳定 / 未检测到显著异常");
   await expect(stable).toContainText("MARKET_STABLE_NO_MATERIAL_ALERT");
+  await expect(stable.locator("[data-ui='market-radar']")).toContainText("主盘口 2.5");
+  await expect(stable.locator("[data-ui='model-lab']")).toContainText("COMPARABLE_WITHIN_MARKET_RANGE");
+  await expect(stable.locator("[data-ui='phase-0-5-context']")).toContainText("NO_EDGE");
+  await expect(stable.locator("[data-ui='phase-0-5-context']")).toContainText("HISTORICAL_INCREMENTAL_EDGE=NOT_PROVEN");
 });
 
 test("divergence stays diagnostic and never becomes public recommendation semantics", async ({ page }) => {
@@ -191,11 +267,28 @@ test("divergence stays diagnostic and never becomes public recommendation semant
 
   const disagreement = page.locator("[data-intelligence-state='MODEL_MARKET_DISAGREEMENT']");
   await expect(disagreement).toContainText("模型与市场存在分歧");
-  await expect(disagreement).toContainText("差异仅用于模型校准与特征复核");
+  await expect(disagreement).toContainText("优先检查模型校准、特征时效、盘口身份和数据质量");
   const body = page.locator("body");
   for (const forbidden of ["价值机会", "正 EV 机会", "市场错误定价", "推荐方向", "高置信度选择", "值得介入"]) {
     await expect(body).not.toContainText(forbidden);
   }
+});
+
+test("zero one and multi-point timelines never fabricate a movement path", async ({ page }) => {
+  await installRoutes(page);
+  await page.goto("/");
+
+  const stable = page.locator("[data-intelligence-state='MARKET_STABLE']");
+  const emptyTimeline = stable.locator("[data-timeline-state='INSUFFICIENT_NO_TIMELINE_EVIDENCE']");
+  await expect(emptyTimeline).toHaveAttribute("data-real-point-count", "0");
+  await expect(emptyTimeline.locator("polyline")).toHaveCount(0);
+  const multiTimeline = stable.locator("[data-timeline-state='MOVEMENT_COMPARISON_ELIGIBLE']");
+  await expect(multiTimeline).toHaveAttribute("data-real-point-count", "2");
+  await expect(multiTimeline.locator("polyline")).toHaveCount(1);
+
+  const singleTimeline = page.locator("[data-ui='match-intelligence-card']").filter({ hasText: "No Pick Home" }).locator("[data-timeline-state='INSUFFICIENT_SINGLE_SNAPSHOT']");
+  await expect(singleTimeline).toHaveAttribute("data-real-point-count", "1");
+  await expect(singleTimeline.locator("polyline")).toHaveCount(0);
 });
 
 test("market facts survive V4 not-ready and four risk axes stay separate", async ({ page }) => {
@@ -203,8 +296,9 @@ test("market facts survive V4 not-ready and four risk axes stay separate", async
   await page.goto("/");
 
   const notReady = page.locator("[data-ui='match-intelligence-card']").filter({ hasText: "No Pick Home" });
-  await expect(notReady).toContainText("当前市场事实");
-  await expect(notReady).toContainText("home_line: -0.25");
+  await expect(notReady).toContainText("Market Radar · 市场雷达");
+  await expect(notReady).toContainText("主盘口 -0.25");
+  await expect(notReady).toContainText("INSUFFICIENT");
   await expect(notReady).toContainText("赛事风险");
   await expect(notReady).toContainText("数据风险");
   await expect(notReady).toContainText("模型风险");

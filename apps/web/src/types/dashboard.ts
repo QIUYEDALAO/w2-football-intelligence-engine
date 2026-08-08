@@ -953,6 +953,78 @@ export interface DashboardDayViewFreshness {
   data_status_summary?: Record<string, number>;
 }
 
+export interface MarketRadarPayload {
+  schema_version: "w2.market-radar.v1";
+  authority: "REAL_PERSISTED_MARKET_EVIDENCE";
+  evidence: Record<string, unknown>;
+  statistical_anomaly: {
+    calibration_status: "NOT_CALIBRATED" | "CALIBRATED";
+    detected: boolean;
+  };
+  markets: Record<
+    "ASIAN_HANDICAP" | "TOTALS",
+    {
+      status: "READY" | "INSUFFICIENT";
+      current: Record<string, unknown> | null;
+      snapshot_count: number;
+      observation_count: number;
+      timeline: {
+        status:
+          | "INSUFFICIENT_NO_TIMELINE_EVIDENCE"
+          | "INSUFFICIENT_SINGLE_SNAPSHOT"
+          | "MOVEMENT_COMPARISON_ELIGIBLE";
+        valid_snapshot_count: number;
+        distinct_captured_at_count: number;
+        earliest_captured_at?: string | null;
+        latest_captured_at?: string | null;
+        same_line_comparable_snapshot_count: number;
+        raw_payload_lineage_complete: boolean;
+        endpoint_capture_lineage_complete: boolean;
+        points: Array<Record<string, unknown>>;
+      };
+      movement: Record<string, unknown>;
+      movement_history: Array<Record<string, unknown>>;
+    }
+  >;
+}
+
+export interface ModelLabPayload {
+  schema_version: "w2.model-lab.v1";
+  authority: "DIAGNOSTIC_ONLY";
+  diagnostic_semantics: Record<string, string>;
+  historical_validation: {
+    protocol: string;
+    final_verdict: "NO_EDGE";
+    v_continuation_gate: "FAIL";
+    ou_close_best_predictive_lift: number;
+    ah_close_best_predictive_lift: number;
+    ou_pre_best_frozen_selections: 7566;
+    ou_pre_best_frozen_strategy_roi: "-5.32%";
+    historical_incremental_edge: "NOT_PROVEN";
+    h_result_access: "PERMANENTLY_CLOSED";
+    reexecuted: false;
+  };
+  markets: Record<
+    "ASIAN_HANDICAP" | "TOTALS",
+    {
+      status:
+        | "MODEL_NOT_READY"
+        | "MARKET_NOT_READY"
+        | "INSUFFICIENT_BOOKMAKER_DEPTH"
+        | "COMPARABLE_WITHIN_MARKET_RANGE"
+        | "MODEL_OUTSIDE_MARKET_RANGE";
+      market: string;
+      canonical_line?: string | null;
+      bookmaker_count: number;
+      model_version?: string | null;
+      calibration_version?: string | null;
+      calibration_status?: string | null;
+      diagnostics: Array<Record<string, unknown>>;
+      blockers: string[];
+    }
+  >;
+}
+
 export interface DashboardDayViewCard {
   fixture_id: string;
   kickoff_utc?: string | null;
@@ -1000,6 +1072,8 @@ export interface DashboardDayViewCard {
   market_probabilities?: Record<string, unknown>;
   odds_movement?: Record<string, unknown>;
   market_movement?: Record<string, unknown>;
+  market_radar?: MarketRadarPayload | null;
+  model_lab?: ModelLabPayload | null;
   probability_source?: string | null;
   model_market_divergence?: Record<string, unknown>;
   market_strip?: Array<Record<string, unknown>>;
@@ -1051,6 +1125,7 @@ export interface DashboardDayView {
   freshness: DashboardDayViewFreshness;
   navigation?: Record<string, unknown>;
   degradation?: Record<string, unknown>;
+  performance?: Record<string, unknown>;
   cards: DashboardDayViewCard[];
 }
 

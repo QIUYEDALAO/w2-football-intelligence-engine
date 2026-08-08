@@ -116,6 +116,7 @@ from w2.markets.quote_identity import (
     project_quote_identity,
     unavailable_quote_identity,
 )
+from w2.markets.round3_intelligence import build_round3_intelligence
 from w2.markets.totals_mainline import (
     CANONICAL_TOTALS_MAINLINE_POLICY,
     select_canonical_totals_mainline,
@@ -1070,6 +1071,21 @@ class ReadModelRepository:
                 "market_observation_timeline_for_fixtures",
                 None,
             )
+            if db_repository is not None
+            else None
+        )
+        return cast(list[dict[str, Any]], reader(fixture_ids)) if callable(reader) else []
+
+    def round3_market_evidence_for_fixtures(
+        self,
+        fixture_ids: list[str],
+    ) -> list[dict[str, Any]]:
+        fixture_ids = list(dict.fromkeys(fixture_id for fixture_id in fixture_ids if fixture_id))
+        if not fixture_ids or len(fixture_ids) > 64:
+            return []
+        db_repository = future_refresh_db_repository()
+        reader = (
+            getattr(db_repository, "round3_market_evidence_for_fixtures", None)
             if db_repository is not None
             else None
         )
@@ -5690,6 +5706,7 @@ class ReadModelService:
             else None,
         )
         self._attach_scoreline_pricing_fields(decorated)
+        self._attach_round3_intelligence(decorated)
         self._attach_market_movement_fields(decorated)
         self._attach_ah_display_contract(decorated)
         decorated["bookmaker_intent"] = self._decorate_bookmaker_intent(
@@ -5762,6 +5779,29 @@ class ReadModelService:
                 else "SKIP"
             )
         return decorated
+
+    def _attach_round3_intelligence(self, card: dict[str, Any]) -> None:
+        reader = getattr(self.repository, "round3_market_evidence_for_fixtures", None)
+        if not callable(reader):
+            return
+        fixture_id = str(card.get("fixture_id") or "")
+        competition_id = str(card.get("competition_id") or "")
+        kickoff = _parse_utc_text(card.get("kickoff_utc"))
+        if not fixture_id or not competition_id or kickoff is None:
+            return
+        evidence = cast(list[dict[str, Any]], reader([fixture_id]))
+        card.update(
+            build_round3_intelligence(
+                evidence,
+                fixture_id=fixture_id,
+                competition_id=competition_id,
+                kickoff_utc=kickoff,
+                simulation=card.get("simulation")
+                if isinstance(card.get("simulation"), dict)
+                else None,
+                as_of=self._analysis_evaluation_time_override or datetime.now(UTC),
+            )
+        )
 
     def _attach_market_candidate_evidence_projection(
         self,
@@ -5964,6 +6004,7 @@ class ReadModelService:
         home_name = str(home.get("name") or "主队")
         away_name = str(away.get("name") or "客队")
         return {
+            "competition_id": str(league.get("id") or ""),
             "kickoff_utc": fixture.get("date"),
             "competition_name": competition,
             "competition_cn": competition_cn,

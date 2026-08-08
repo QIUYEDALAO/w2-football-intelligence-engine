@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy import Engine, and_, desc, func, or_, select
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from w2.config import Settings
 from w2.identity import CanonicalIdentityRepository
@@ -33,6 +33,7 @@ from w2.infrastructure.persistence.ingestion_models import (
     ProviderRequestLogModel,
     QuotaUsageModel,
 )
+from w2.infrastructure.persistence.league_models import LeagueProfileModel
 from w2.infrastructure.persistence.market_projection_view import current_market_projection
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
@@ -67,6 +68,8 @@ class FutureRefreshPersistenceError(RuntimeError):
 
 
 SCOPED_OBSERVATION_ROWS_PER_MARKET = 128
+ROUND3_EVIDENCE_ROWS_PER_FIXTURE = 4096
+ROUND3_ACTIVE_WHITELIST_SIZE = 13
 
 
 def parse_db_datetime(value: Any) -> datetime:
@@ -86,6 +89,16 @@ def _fixture_aliases(fixture_id: str) -> tuple[str, ...]:
     if value.isdigit():
         return (value, f"api_football:{value}")
     return (value,)
+
+
+def _round3_active_whitelist(rows: list[tuple[str, Any]]) -> set[str]:
+    competition_ids = {
+        str(competition_id)
+        for competition_id, payload in rows
+        if isinstance(payload, dict)
+        and payload.get("scope_group") in {"top_five", "national_leagues"}
+    }
+    return competition_ids if len(competition_ids) == ROUND3_ACTIVE_WHITELIST_SIZE else set()
 
 
 def _fixture_identity_candidates(
@@ -1701,6 +1714,158 @@ class FutureRefreshDbRepository:
             }
             for row in rows
         ]
+
+    def round3_market_evidence_for_fixtures(
+        self,
+        fixture_ids: list[str],
+    ) -> list[dict[str, Any]]:
+        """Read real market history and its complete persisted lineage."""
+        ids = [fixture_id for fixture_id in dict.fromkeys(fixture_ids) if fixture_id]
+        if not ids or len(ids) > 64:
+            return []
+        canonical_ids = {
+            value if value.startswith("api_football:") else f"api_football:{value}" for value in ids
+        }
+        observation_raw = aliased(RawPayloadModel)
+        capture_raw = aliased(RawPayloadModel)
+        identity_raw = aliased(RawPayloadModel)
+        ranked = (
+            select(
+                MatchdayMarketObservationModel.observation_id.label("observation_id"),
+                func.row_number()
+                .over(
+                    partition_by=MatchdayMarketObservationModel.fixture_id,
+                    order_by=(
+                        MatchdayMarketObservationModel.captured_at.desc(),
+                        MatchdayMarketObservationModel.observation_id.desc(),
+                    ),
+                )
+                .label("row_number"),
+            )
+            .where(MatchdayMarketObservationModel.fixture_id.in_(canonical_ids))
+            .subquery()
+        )
+        try:
+            with Session(self.engine) as session:
+                active_whitelist = _round3_active_whitelist(
+                    [
+                        (str(competition_id), payload)
+                        for competition_id, payload in session.execute(
+                            select(
+                                LeagueProfileModel.competition_id,
+                                LeagueProfileModel.payload,
+                            )
+                        )
+                    ]
+                )
+                rows = session.execute(
+                    select(
+                        MatchdayMarketObservationModel,
+                        MatchdayEndpointCaptureModel,
+                        MatchdayFixtureIdentityModel,
+                        observation_raw.sha256,
+                        observation_raw.storage_uri,
+                        observation_raw.payload["synthetic"].as_boolean(),
+                        observation_raw.payload["test_only"].as_boolean(),
+                        capture_raw.sha256,
+                        identity_raw.sha256,
+                    )
+                    .join(
+                        ranked,
+                        MatchdayMarketObservationModel.observation_id == ranked.c.observation_id,
+                    )
+                    .outerjoin(
+                        MatchdayEndpointCaptureModel,
+                        MatchdayEndpointCaptureModel.capture_id
+                        == MatchdayMarketObservationModel.capture_id,
+                    )
+                    .outerjoin(
+                        MatchdayFixtureIdentityModel,
+                        MatchdayFixtureIdentityModel.fixture_id
+                        == MatchdayMarketObservationModel.fixture_id,
+                    )
+                    .outerjoin(
+                        observation_raw,
+                        observation_raw.sha256 == MatchdayMarketObservationModel.raw_payload_sha256,
+                    )
+                    .outerjoin(
+                        capture_raw,
+                        capture_raw.sha256 == MatchdayEndpointCaptureModel.raw_payload_sha256,
+                    )
+                    .outerjoin(
+                        identity_raw,
+                        identity_raw.sha256 == MatchdayFixtureIdentityModel.raw_payload_sha256,
+                    )
+                    .where(ranked.c.row_number <= ROUND3_EVIDENCE_ROWS_PER_FIXTURE)
+                    .order_by(
+                        MatchdayMarketObservationModel.fixture_id,
+                        MatchdayMarketObservationModel.captured_at,
+                        MatchdayMarketObservationModel.observation_id,
+                    )
+                ).all()
+        except Exception as exc:
+            raise FutureRefreshPersistenceError("ROUND3_MARKET_EVIDENCE_QUERY_FAILED") from exc
+        evidence = []
+        for (
+            observation,
+            capture,
+            identity,
+            raw_sha,
+            raw_uri,
+            raw_synthetic,
+            raw_test_only,
+            capture_sha,
+            identity_sha,
+        ) in rows:
+            evidence.append(
+                {
+                    "observation_id": observation.observation_id,
+                    "fixture_id": observation.fixture_id,
+                    "provider_fixture_id": observation.provider_fixture_id,
+                    "competition_id": observation.competition_id,
+                    "provider": observation.provider,
+                    "bookmaker_id": observation.bookmaker_id,
+                    "bookmaker_name": observation.bookmaker_name,
+                    "capture_id": observation.capture_id,
+                    "raw_market_label": observation.raw_market_label,
+                    "canonical_market": observation.canonical_market,
+                    "canonical_selection": observation.canonical_selection,
+                    "line": observation.line,
+                    "decimal_odds": observation.decimal_odds,
+                    "suspended": observation.suspended,
+                    "live": observation.live,
+                    "provider_updated_at": observation.provider_updated_at or None,
+                    "captured_at": iso_z(observation.captured_at),
+                    "raw_payload_sha256": observation.raw_payload_sha256,
+                    "source_revision": observation.source_revision,
+                    "raw_storage_uri": raw_uri,
+                    "synthetic": raw_synthetic is True or raw_test_only is True,
+                    "raw_lineage_present": bool(raw_sha),
+                    "capture_lineage_present": bool(capture and capture_sha),
+                    "fixture_identity_present": bool(identity and identity_sha),
+                    "runtime_whitelist_member": observation.competition_id in active_whitelist,
+                    "capture_identity_conflict": bool(
+                        capture
+                        and (
+                            capture.capture_id != observation.capture_id
+                            or capture.fixture_id not in _fixture_aliases(observation.fixture_id)
+                            or capture.competition_id != observation.competition_id
+                            or capture.raw_payload_sha256 != observation.raw_payload_sha256
+                            or capture.endpoint != "odds"
+                        )
+                    ),
+                    "identity_conflict": bool(
+                        identity
+                        and (
+                            identity.fixture_id != observation.fixture_id
+                            or identity.provider_fixture_id != observation.provider_fixture_id
+                            or identity.competition_id != observation.competition_id
+                            or identity.provider != observation.provider
+                        )
+                    ),
+                }
+            )
+        return evidence
 
     def matchday_fixture_identity(self, fixture_id: str) -> dict[str, Any] | None:
         with Session(self.engine) as session:

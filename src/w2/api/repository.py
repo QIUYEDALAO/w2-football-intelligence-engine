@@ -731,7 +731,6 @@ class ReadModelRepository:
             output[str(provider_fixture_id)] = str(competition_id)
         return output
 
-
 class ReadModelService:
     def __init__(self, repository: ReadModelRepository | None = None) -> None:
         self.repository = repository or ReadModelRepository()
@@ -966,6 +965,12 @@ class ReadModelService:
         generated_at = datetime.now(UTC)
         start, end = football_day_window(requested_date)
         performance = dashboard_performance(selected)
+        performance["round3_read_path"] = {
+            "additional_query_count": 0,
+            "fixture_count": len(selected),
+            "provider_calls": 0,
+            "source": "analysis_card_checkpoint",
+        }
         checkpoint_reader = getattr(self.repository, "checkpoints", None)
         if callable(checkpoint_reader):
             forward_ledger = _dashboard_forward_ledger_from_checkpoints(
@@ -1012,6 +1017,7 @@ class ReadModelService:
                 "system_degraded_count": len(
                     [card for card in cards if _projection_is_system_degraded(card)]
                 ),
+                "round3_read_path": performance["round3_read_path"],
             }
             if include_debug
             else {},

@@ -60,6 +60,7 @@ def build_dashboard_day_view(
         "db_writes": 0,
         "counts": counts,
         "freshness": _freshness(dashboard_payload, cards, counts),
+        "performance": _mapping_copy(dashboard_payload.get("performance")),
         "cards": cards,
     }
     view["navigation"] = build_date_navigation(
@@ -233,6 +234,8 @@ def _market_context_fields(card: Mapping[str, Any]) -> dict[str, Any]:
         "market_probabilities": _market_probabilities(card),
         "odds_movement": _mapping_copy(card.get("odds_movement")),
         "market_movement": _mapping_copy(card.get("market_movement")),
+        "market_radar": _mapping_copy(card.get("market_radar")),
+        "model_lab": _mapping_copy(card.get("model_lab")),
         "market_strip": _mapping_list(card.get("market_strip")),
         "data_refresh": _mapping_copy(card.get("data_refresh")),
         "analysis_readiness": _mapping_copy(card.get("analysis_readiness")),

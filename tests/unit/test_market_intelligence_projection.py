@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from w2.dashboard.day_view import build_dashboard_day_view
+from w2.dashboard.day_view import _dashboard_card_order, build_dashboard_day_view
 from w2.dashboard.intelligence import (
     INTELLIGENCE_STATES,
     RISK_DIMENSIONS,
@@ -24,6 +24,28 @@ def _base_card() -> dict[str, Any]:
         "risk_reason_codes": [],
         "model_market_divergence": {},
         "market_movement": {"status": "READY", "pattern": "STABLE", "line_moved": False},
+        "market_radar": {
+            "statistical_anomaly": {
+                "calibration_status": "NOT_CALIBRATED",
+                "detected": False,
+            },
+            "markets": {
+                "ASIAN_HANDICAP": {"movement": {"status": "STABLE"}},
+                "TOTALS": {"movement": {"status": "STABLE"}},
+            },
+        },
+        "model_lab": {
+            "markets": {
+                "ASIAN_HANDICAP": {
+                    "market": "ASIAN_HANDICAP",
+                    "status": "COMPARABLE_WITHIN_MARKET_RANGE",
+                },
+                "TOTALS": {
+                    "market": "TOTALS",
+                    "status": "COMPARABLE_WITHIN_MARKET_RANGE",
+                },
+            }
+        },
     }
 
 
@@ -33,15 +55,35 @@ def _base_card() -> dict[str, Any]:
         ("MARKET_STABLE", {}),
         (
             "MARKET_MOVEMENT",
-            {"market_movement": {"status": "READY", "pattern": "ONE_WAY", "line_moved": True}},
+            {
+                "market_radar": {
+                    "markets": {"ASIAN_HANDICAP": {"movement": {"status": "PRICE_MOVEMENT"}}}
+                }
+            },
         ),
         (
             "MODEL_MARKET_DISAGREEMENT",
-            {"model_market_divergence": {"status": "READY", "magnitude": 0.08}},
+            {
+                "model_lab": {
+                    "markets": {
+                        "ASIAN_HANDICAP": {
+                            "market": "ASIAN_HANDICAP",
+                            "status": "MODEL_OUTSIDE_MARKET_RANGE",
+                        }
+                    }
+                }
+            },
         ),
         (
             "MARKET_ANOMALY",
-            {"market_movement": {"status": "READY", "pattern": "JUMP_LINE", "line_moved": True}},
+            {
+                "market_radar": {
+                    "statistical_anomaly": {
+                        "calibration_status": "CALIBRATED",
+                        "detected": True,
+                    }
+                }
+            },
         ),
         ("MODEL_DIAGNOSTIC_WARNING", {"simulation": {"status": "UNAVAILABLE"}}),
         ("DATA_INCOMPLETE", {"data_status": "BLOCKED"}),
@@ -66,8 +108,18 @@ def test_frozen_precedence_and_reason_order_are_deterministic() -> None:
         "provider_budget_status": "EXHAUSTED",
         "data_status": "BLOCKED",
         "simulation": {"status": "UNAVAILABLE"},
-        "market_movement": {"status": "READY", "pattern": "JUMP_LINE", "line_moved": True},
-        "model_market_divergence": {"status": "READY", "magnitude": 0.08},
+        "market_radar": {
+            "statistical_anomaly": {"calibration_status": "CALIBRATED", "detected": True},
+            "markets": {"ASIAN_HANDICAP": {"movement": {"status": "LINE_MOVEMENT"}}},
+        },
+        "model_lab": {
+            "markets": {
+                "ASIAN_HANDICAP": {
+                    "market": "ASIAN_HANDICAP",
+                    "status": "MODEL_OUTSIDE_MARKET_RANGE",
+                }
+            }
+        },
     }
 
     first = build_intelligence_projection(card)
@@ -79,9 +131,9 @@ def test_frozen_precedence_and_reason_order_are_deterministic() -> None:
         "COLLECTION_PROVIDER_BUDGET_EXHAUSTED",
         "DATA_STATUS_BLOCKED",
         "MODEL_SIMULATION_NOT_READY",
-        "MARKET_ANOMALY_JUMP_LINE",
-        "MODEL_MARKET_DISAGREEMENT_OBSERVED",
-        "MARKET_MOVEMENT_JUMP_LINE",
+        "MARKET_ANOMALY_CALIBRATED_DETECTION",
+        "MODEL_MARKET_DISAGREEMENT_ASIAN_HANDICAP",
+        "MARKET_MOVEMENT_LINE_MOVEMENT",
     ]
     assert INTELLIGENCE_STATES == (
         "COLLECTION_INCIDENT",
@@ -94,6 +146,55 @@ def test_frozen_precedence_and_reason_order_are_deterministic() -> None:
     )
 
 
+def test_attention_order_uses_only_precedence_kickoff_and_fixture_id() -> None:
+    cards = [
+        {
+            "fixture_id": "z",
+            "kickoff_utc": "2026-08-08T12:00:00Z",
+            "intelligence_state": "MARKET_STABLE",
+        },
+        {
+            "fixture_id": "b",
+            "kickoff_utc": "2026-08-08T11:00:00Z",
+            "intelligence_state": "DATA_INCOMPLETE",
+        },
+        {
+            "fixture_id": "a",
+            "kickoff_utc": "2026-08-08T11:00:00Z",
+            "intelligence_state": "DATA_INCOMPLETE",
+        },
+        {
+            "fixture_id": "c",
+            "kickoff_utc": "2026-08-08T10:00:00Z",
+            "intelligence_state": "COLLECTION_INCIDENT",
+        },
+    ]
+    assert [card["fixture_id"] for card in sorted(cards, key=_dashboard_card_order)] == [
+        "c",
+        "a",
+        "b",
+        "z",
+    ]
+
+
+def test_sparse_timeline_never_defaults_to_market_stable() -> None:
+    card = {
+        **_base_card(),
+        "market_radar": {
+            "statistical_anomaly": {"calibration_status": "NOT_CALIBRATED", "detected": False},
+            "markets": {
+                "ASIAN_HANDICAP": {"movement": {"status": "INSUFFICIENT"}},
+                "TOTALS": {"movement": {"status": "INSUFFICIENT"}},
+            },
+        },
+    }
+
+    projection = build_intelligence_projection(card)
+
+    assert projection["intelligence_state"] == "DATA_INCOMPLETE"
+    assert "DATA_MARKET_TIMELINE_INSUFFICIENT" in projection["intelligence_reason_codes"]
+
+
 def test_four_risk_dimensions_remain_independent() -> None:
     projection = build_intelligence_projection(
         {
@@ -101,7 +202,14 @@ def test_four_risk_dimensions_remain_independent() -> None:
             "data_status": "BLOCKED",
             "simulation": {"status": "UNAVAILABLE"},
             "risk_reason_codes": ["INJURY_CONFIRMED", "SCHEMA_ERROR"],
-            "model_market_divergence": {"status": "READY", "magnitude": 0.08},
+            "model_lab": {
+                "markets": {
+                    "ASIAN_HANDICAP": {
+                        "market": "ASIAN_HANDICAP",
+                        "status": "MODEL_OUTSIDE_MARKET_RANGE",
+                    }
+                }
+            },
         }
     )
     risks = projection["risk_dimensions"]
@@ -214,9 +322,7 @@ def test_market_stable_is_non_empty_and_zero_alerts_are_valid() -> None:
 
     assert len(view["cards"]) == 1
     assert view["cards"][0]["intelligence_state"] == "MARKET_STABLE"
-    assert view["cards"][0]["intelligence_reason_codes"] == [
-        "MARKET_STABLE_NO_MATERIAL_ALERT"
-    ]
+    assert view["cards"][0]["intelligence_reason_codes"] == ["MARKET_STABLE_NO_MATERIAL_ALERT"]
     assert view["counts"]["market_stable_fixtures"] == 1
     assert view["counts"]["market_movement_fixtures"] == 0
     assert view["counts"]["model_diagnostic_warnings"] == 0

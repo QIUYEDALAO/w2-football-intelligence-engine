@@ -54,9 +54,7 @@ def build_intelligence_projection(card: Mapping[str, Any]) -> dict[str, Any]:
                 "模型诊断未见警告",
                 attention_codes=set(disagreement),
             ),
-            "COLLECTION_RISK": _risk_dimension(
-                "COLLECTION_RISK", collection, "采集运行未见异常"
-            ),
+            "COLLECTION_RISK": _risk_dimension("COLLECTION_RISK", collection, "采集运行未见异常"),
         },
     }
 
@@ -101,8 +99,7 @@ def _collection_reasons(card: Mapping[str, Any]) -> list[str]:
         reasons.append("COLLECTION_SYSTEM_DEGRADED")
     for code in _source_reason_codes(card):
         if any(
-            marker in code
-            for marker in ("PROVIDER", "SCHEDULER", "SCHEMA", "RUNTIME", "QUOTA")
+            marker in code for marker in ("PROVIDER", "SCHEDULER", "SCHEMA", "RUNTIME", "QUOTA")
         ):
             reasons.append(f"COLLECTION_{code}")
         elif any(marker in code for marker in ("COLLECTION_FAILED", "COLLECTION_ERROR")):
@@ -121,6 +118,19 @@ def _data_reasons(card: Mapping[str, Any]) -> list[str]:
         reasons.append("DATA_REQUIRED_INPUT_MISSING")
     if _string_list(card.get("stale_fields")):
         reasons.append("DATA_FIELD_STALE")
+    radar_markets = _mapping(_mapping(card.get("market_radar")).get("markets"))
+    comparable_statuses = {
+        "STABLE",
+        "PRICE_MOVEMENT",
+        "LINE_MOVEMENT",
+        "LINE_AND_PRICE_MOVEMENT",
+    }
+    if radar_markets and not any(
+        str(_mapping(_mapping(value).get("movement")).get("status") or "").upper()
+        in comparable_statuses
+        for value in radar_markets.values()
+    ):
+        reasons.append("DATA_MARKET_TIMELINE_INSUFFICIENT")
     for code in _source_reason_codes(card):
         if any(
             marker in code
@@ -135,10 +145,15 @@ def _model_reasons(card: Mapping[str, Any]) -> list[str]:
     simulation = _mapping(card.get("simulation"))
     if str(simulation.get("status") or "").upper() != "READY":
         reasons.append("MODEL_SIMULATION_NOT_READY")
+    model_markets = _mapping(_mapping(card.get("model_lab")).get("markets"))
+    if any(
+        str(_mapping(value).get("status") or "").upper() == "MODEL_NOT_READY"
+        for value in model_markets.values()
+    ):
+        reasons.append("MODEL_LAB_NOT_READY")
     for code in _source_reason_codes(card):
         if any(
-            marker in code
-            for marker in ("MODEL", "CALIBRATION", "SIMULATION", "FEATURE_STALE")
+            marker in code for marker in ("MODEL", "CALIBRATION", "SIMULATION", "FEATURE_STALE")
         ):
             reasons.append(code if code.startswith("MODEL_") else f"MODEL_{code}")
     return reasons
@@ -153,46 +168,33 @@ def _event_reasons(card: Mapping[str, Any]) -> list[str]:
 
 
 def _market_anomaly_reasons(card: Mapping[str, Any]) -> list[str]:
-    movement = _movement(card)
-    status = str(movement.get("status") or "").upper()
-    pattern = str(movement.get("pattern") or "").upper()
-    if status == "ANOMALY" or movement.get("anomaly") is True or pattern == "JUMP_LINE":
-        return [f"MARKET_ANOMALY_{pattern or status or 'EXPLICIT'}"]
+    anomaly = _mapping(_mapping(card.get("market_radar")).get("statistical_anomaly"))
+    if anomaly.get("calibration_status") == "CALIBRATED" and anomaly.get("detected") is True:
+        return ["MARKET_ANOMALY_CALIBRATED_DETECTION"]
     return []
 
 
 def _market_movement_reasons(card: Mapping[str, Any]) -> list[str]:
-    movement = _movement(card)
-    if str(movement.get("status") or "").upper() != "READY":
-        return []
-    pattern = str(movement.get("pattern") or "").upper()
-    if movement.get("line_moved") is True or pattern not in {"", "STABLE", "INSUFFICIENT"}:
-        return [f"MARKET_MOVEMENT_{pattern or 'LINE'}"]
-    return []
+    markets = _mapping(_mapping(card.get("market_radar")).get("markets"))
+    return sorted(
+        {
+            f"MARKET_MOVEMENT_{str(_mapping(_mapping(value).get('movement')).get('status'))}"
+            for value in markets.values()
+            if str(_mapping(_mapping(value).get("movement")).get("status") or "").upper()
+            in {"PRICE_MOVEMENT", "LINE_MOVEMENT", "LINE_AND_PRICE_MOVEMENT"}
+        }
+    )
 
 
 def _model_market_disagreement_reasons(card: Mapping[str, Any]) -> list[str]:
-    divergence = _mapping(card.get("model_market_divergence"))
-    status = str(divergence.get("status") or "").upper()
-    magnitude = divergence.get("magnitude")
-    explicit = divergence.get("disagreement") is True or status in {
-        "READY",
-        "SIGNIFICANT",
-        "ACTIONABLE",
-    }
-    if (
-        explicit
-        and isinstance(magnitude, int | float)
-        and not isinstance(magnitude, bool)
-        and magnitude > 0
-    ):
-        return ["MODEL_MARKET_DISAGREEMENT_OBSERVED"]
-    return []
-
-
-def _movement(card: Mapping[str, Any]) -> Mapping[str, Any]:
-    movement = _mapping(card.get("market_movement"))
-    return movement or _mapping(card.get("odds_movement"))
+    markets = _mapping(_mapping(card.get("model_lab")).get("markets"))
+    return sorted(
+        {
+            f"MODEL_MARKET_DISAGREEMENT_{str(_mapping(value).get('market') or 'UNKNOWN')}"
+            for value in markets.values()
+            if str(_mapping(value).get("status") or "").upper() == "MODEL_OUTSIDE_MARKET_RANGE"
+        }
+    )
 
 
 def _source_reason_codes(card: Mapping[str, Any]) -> list[str]:
@@ -202,11 +204,7 @@ def _source_reason_codes(card: Mapping[str, Any]) -> list[str]:
         *_string_list(card.get("risk_reason_codes")),
     ]
     return sorted(
-        {
-            str(value).strip().upper()
-            for value in values
-            if value is not None and str(value).strip()
-        }
+        {str(value).strip().upper() for value in values if value is not None and str(value).strip()}
     )
 
 
