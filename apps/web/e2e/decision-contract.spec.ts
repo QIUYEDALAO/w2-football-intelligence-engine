@@ -1,316 +1,319 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import type {
+  IntelligenceState,
+  IntelligenceWorkspace,
+  WorkspaceMarket,
+  WorkspaceMatch,
+  WorkspaceRisks,
+} from "../src/types/intelligenceWorkspace";
 
-const riskDimensions = {
-  EVENT_RISK: { dimension: "EVENT_RISK", status: "OK", reason_codes: [], explanation: "未发现明确赛事风险证据" },
-  DATA_RISK: { dimension: "DATA_RISK", status: "OK", reason_codes: [], explanation: "数据证据完整" },
-  MODEL_RISK: { dimension: "MODEL_RISK", status: "OK", reason_codes: [], explanation: "模型诊断未见警告" },
-  COLLECTION_RISK: { dimension: "COLLECTION_RISK", status: "OK", reason_codes: [], explanation: "采集运行未见异常" },
-};
+const STATES: IntelligenceState[] = [
+  "COLLECTION_INCIDENT",
+  "DATA_INCOMPLETE",
+  "MODEL_DIAGNOSTIC_WARNING",
+  "MARKET_ANOMALY",
+  "MODEL_MARKET_DISAGREEMENT",
+  "MARKET_MOVEMENT",
+  "MARKET_STABLE",
+];
 
-const statePrecedence = ["COLLECTION_INCIDENT", "DATA_INCOMPLETE", "MODEL_DIAGNOSTIC_WARNING", "MARKET_ANOMALY", "MODEL_MARKET_DISAGREEMENT", "MARKET_MOVEMENT", "MARKET_STABLE"];
+function risks(attention?: keyof WorkspaceRisks): WorkspaceRisks {
+  return Object.fromEntries(["EVENT_RISK", "DATA_RISK", "MODEL_RISK", "COLLECTION_RISK"].map((axis) => [axis, {
+    dimension: axis,
+    status: axis === attention ? "ATTENTION" : "OK",
+    reason_codes: axis === attention ? [`${axis}_ATTENTION`] : [],
+    explanation: axis === attention ? `${axis} requires review` : `No current ${axis} evidence`,
+  }])) as WorkspaceRisks;
+}
 
-const phase05 = {
-  protocol: "W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3",
-  final_verdict: "NO_EDGE",
-  v_continuation_gate: "FAIL",
-  ou_pre_best_frozen_selections: 7566,
-  ou_pre_best_frozen_strategy_roi: "-5.32%",
-  historical_incremental_edge: "NOT_PROVEN",
-  h_result_access: "PERMANENTLY_CLOSED",
-  reexecuted: false,
-};
-
-function timeline(lines: string[]) {
-  const points = lines.map((canonical_line, index) => ({
-    capture_id: `capture-${index + 1}`,
-    captured_at: `2026-08-07T23:${50 + index}:00Z`,
-    canonical_line,
-    bookmaker_count: 3,
-  }));
+function market(name: "ASIAN_HANDICAP" | "TOTALS", count: number): WorkspaceMarket {
+  const snapshotState = count === 0 ? "NO_TIMELINE_EVIDENCE" : count === 1 ? "ONE_OBSERVATION_NOT_A_TREND" : "DISCRETE_REAL_PATH";
   return {
-    status: points.length === 0 ? "INSUFFICIENT_NO_TIMELINE_EVIDENCE" : points.length === 1 ? "INSUFFICIENT_SINGLE_SNAPSHOT" : "MOVEMENT_COMPARISON_ELIGIBLE",
-    valid_snapshot_count: points.length,
-    distinct_captured_at_count: points.length,
-    same_line_comparable_snapshot_count: points.length,
-    points,
+    market: name,
+    status: count ? "READY" : "INSUFFICIENT",
+    snapshot_state: snapshotState,
+    snapshot_count: count,
+    observation_count: count * 4,
+    main_line: count ? (name === "ASIAN_HANDICAP" ? "-0.25" : "2.5") : null,
+    bookmaker_count: count ? 4 : 0,
+    prices: count ? { HOME: 1.94, AWAY: 1.96 } : {},
+    probabilities: count ? { HOME: 0.505, AWAY: 0.495 } : {},
+    freshness: { status: count ? "FRESH" : "NOT_AVAILABLE" },
+    timeline_points: Array.from({ length: count }, (_, index) => ({
+      capture_id: `${name.toLowerCase()}-${index + 1}`,
+      captured_at: `2026-08-09T0${index + 1}:00:00Z`,
+      canonical_line: name === "ASIAN_HANDICAP" ? "-0.25" : "2.5",
+      bookmaker_count: 4,
+      prices: { HOME: 1.94 + index / 100 },
+      probabilities: { HOME: 0.505 - index / 100 },
+    })),
+    movement: { status: count >= 2 ? "STABLE" : "INSUFFICIENT" },
+    reason_codes: count >= 2 ? ["DISCRETE_REAL_PATH"] : [snapshotState],
   };
 }
 
-function card(overrides: Record<string, unknown> = {}) {
+function match(fixtureId: string, state: IntelligenceState, snapshotCount: number): WorkspaceMatch {
+  const matchRisks = risks(state === "COLLECTION_INCIDENT" ? "COLLECTION_RISK" : state === "DATA_INCOMPLETE" ? "DATA_RISK" : state === "MODEL_DIAGNOSTIC_WARNING" ? "MODEL_RISK" : undefined);
+  const relation = (marketName: "ASIAN_HANDICAP" | "TOTALS") => ({
+    market: marketName,
+    status: state === "MODEL_MARKET_DISAGREEMENT" ? "MODEL_OUTSIDE_MARKET_RANGE" : "COMPARABLE_WITHIN_MARKET_RANGE",
+    canonical_line: marketName === "ASIAN_HANDICAP" ? "-0.25" : "2.5",
+    bookmaker_count: 4,
+    freshness_status: "FRESH",
+    diagnostics: state === "MODEL_MARKET_DISAGREEMENT" ? [{ selection: "HOME", model: 0.61, market_median: 0.5 }] : [],
+    blockers: [],
+  });
   return {
-    fixture_id: "stable-fixture",
-    kickoff_utc: "2026-08-08T12:00:00Z",
-    kickoff_beijing: "2026-08-08 20:00",
+    fixture_id: fixtureId,
     competition_id: "premier_league",
     competition_name: "Premier League",
-    home_team_name: "Stable Home",
-    away_team_name: "Stable Away",
+    kickoff_utc: "2026-08-10T12:00:00Z",
+    home_team_name: `Home ${fixtureId}`,
+    away_team_name: `Away ${fixtureId}`,
     status: "NS",
-    source: "dashboard_read_model",
-    intelligence_state: "MARKET_STABLE",
-    intelligence_reason_codes: ["MARKET_STABLE_NO_MATERIAL_ALERT"],
-    risk_dimensions: riskDimensions,
-    recommendation_decision_v4_role: "DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY",
-    decision_tier: "SKIP",
-    data_status: "READY",
-    lifecycle_status: "DRAFT",
-    outcome_tracked: false,
-    lock_eligible: false,
-    recommendation_id: null,
-    missing_fields: [],
-    stale_fields: [],
-    current_odds: { ou: { line: "2.5", over_price: 1.93, under_price: 1.95, captured_at: "2026-08-07T23:55:00Z" } },
-    last_known_odds: {},
-    market_probabilities: { over: 0.51, under: 0.49 },
-    market_movement: { status: "READY", pattern: "STABLE", line_moved: false },
-    model_market_divergence: {},
-    market_radar: {
-      schema_version: "w2.market-radar.v1",
-      authority: "REAL_PERSISTED_MARKET_EVIDENCE",
-      evidence: { accepted_observation_count: 6, rejected_observation_count: 0 },
-      statistical_anomaly: { calibration_status: "NOT_CALIBRATED", detected: false },
-      markets: {
-        ASIAN_HANDICAP: { status: "INSUFFICIENT", current: null, snapshot_count: 0, observation_count: 0, timeline: timeline([]), movement: { status: "INSUFFICIENT" }, movement_history: [] },
-        TOTALS: { status: "READY", current: { canonical_line: "2.5", bookmaker_count: 3, prices: { OVER: { median: 1.93 }, UNDER: { median: 1.95 } }, freshness: { status: "COMPLETE" } }, snapshot_count: 2, observation_count: 12, timeline: timeline(["2.5", "2.5"]), movement: { status: "STABLE" }, movement_history: [{ status: "STABLE" }] },
-      },
+    intelligence_state: state,
+    intelligence_reason_codes: [`${state}_FACTUAL_EVIDENCE`],
+    risks: matchRisks,
+    readiness: {
+      status: state === "DATA_INCOMPLETE" ? "BLOCKED" : "READY",
+      reason_code: state === "DATA_INCOMPLETE" ? "LINEUPS_NOT_READY" : "EVIDENCE_READY",
+      reason_codes: [`${state}_FACTUAL_EVIDENCE`],
+      missing_fields: state === "DATA_INCOMPLETE" ? ["lineups"] : [],
+      stale_fields: [],
+      action: "WAIT_FOR_NEXT_SCHEDULED_EVALUATION",
+      next_eval_at: "2026-08-10T11:00:00Z",
+      provider_budget_status: "PROTECTED",
+      lineup_status: state === "DATA_INCOMPLETE" ? "PROVIDER_EMPTY" : "AVAILABLE",
+      lineup_expectation: "EXPECTED_NEAR_KICKOFF",
     },
+    market_fact: {
+      status: snapshotCount ? "READY" : "INSUFFICIENT",
+      main_line: snapshotCount ? "-0.25" : null,
+      current_odds: snapshotCount ? { HOME: 1.94, AWAY: 1.96 } : {},
+      market_probabilities: snapshotCount ? { HOME: 0.505, AWAY: 0.495 } : {},
+      price_reference: "LAST_AVAILABLE_PREMATCH_SNAPSHOT",
+      canonical_close_status: "NOT_OBTAINABLE_FROM_CURRENT_PROVIDER",
+    },
+    w2_analysis: {
+      status: "ANALYSIS_REFERENCE",
+      proof_status: "NOT_PROVEN",
+      decision_tier: state === "DATA_INCOMPLETE" ? "NOT_READY" : "WATCH",
+      analysis_state: state,
+      reason_codes: [`${state}_FACTUAL_EVIDENCE`],
+      model_view: { status: "READY", model_version: "w2-existing-v1", calibration_version: "cal-v1", calibration_status: "AVAILABLE", simulations_completed: 10_000 },
+      model_market_relation: { ASIAN_HANDICAP: relation("ASIAN_HANDICAP"), TOTALS: relation("TOTALS") },
+    },
+    formal_recommendation: { status: "OFF", reason: "PRODUCT_AUTHORITY_DISABLED" },
+    market_radar: { schema_version: "w2.market-radar.v1", markets: { ASIAN_HANDICAP: market("ASIAN_HANDICAP", snapshotCount), TOTALS: market("TOTALS", snapshotCount) } },
     model_lab: {
       schema_version: "w2.model-lab.v1",
-      authority: "DIAGNOSTIC_ONLY",
-      historical_validation: phase05,
-      markets: {
-        ASIAN_HANDICAP: { status: "MARKET_NOT_READY", market: "ASIAN_HANDICAP", bookmaker_count: 0, diagnostics: [], blockers: ["MARKET_NOT_READY"] },
-        TOTALS: { status: "COMPARABLE_WITHIN_MARKET_RANGE", market: "TOTALS", bookmaker_count: 3, model_version: "model-v1", calibration_status: "READY", diagnostics: [{ selection: "OVER", model_effective_settlement_probability: 0.51, market_probability_median: 0.5, market_probability_min: 0.48, market_probability_max: 0.52, distance_outside_market_range: 0 }], blockers: [] },
+      w2_model: { status: "READY", model_version: "w2-existing-v1", calibration_status: "AVAILABLE" },
+      market: {
+        ASIAN_HANDICAP: { status: snapshotCount ? "READY" : "INSUFFICIENT", main_line: snapshotCount ? "-0.25" : null, bookmaker_count: snapshotCount ? 4 : 0, freshness: { status: snapshotCount ? "FRESH" : "NOT_AVAILABLE" } },
+        TOTALS: { status: snapshotCount ? "READY" : "INSUFFICIENT", main_line: snapshotCount ? "2.5" : null, bookmaker_count: snapshotCount ? 4 : 0, freshness: { status: snapshotCount ? "FRESH" : "NOT_AVAILABLE" } },
       },
+      api_football_prediction: { status: "NOT_AVAILABLE", role: "EXTERNAL_MODEL_BENCHMARK", reason_code: "API_FOOTBALL_PREDICTION_NOT_PROJECTED" },
+      relation: { ASIAN_HANDICAP: relation("ASIAN_HANDICAP"), TOTALS: relation("TOTALS") },
+      historical_validation: { final_verdict: "NO_EDGE", v_continuation_gate: "FAIL", historical_incremental_edge: "NOT_PROVEN", h_result_access: "PERMANENTLY_CLOSED", reexecuted: false },
     },
-    scoreline_picks: [],
-    pick: null,
-    non_pick: { reason_code: "OBSERVE", action: "WAIT" },
-    ...overrides,
+    scoreline_reference: snapshotCount === 2 ? {
+      label: "MODEL_SCORELINE_REFERENCE", proof_status: "NOT_PROVEN", status: "READY", simulations_completed: 10_000,
+      top3: [
+        { scoreline: "1-0", unconditional_probability: 0.15, sample_count: 1500 },
+        { scoreline: "1-1", unconditional_probability: 0.12, sample_count: 1200 },
+        { scoreline: "0-0", unconditional_probability: 0.1, sample_count: 1000 },
+      ],
+    } : { label: "MODEL_SCORELINE_REFERENCE", proof_status: "NOT_PROVEN", status: "UNAVAILABLE", simulations_completed: null, top3: [] },
+    evidence: { card_hash: `card-${fixtureId}`, artifact_hash: `artifact-${fixtureId}`, source: "decision_contract", source_event_at: "2026-08-09T02:00:00Z", decision_role: "DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY" },
   };
 }
 
-function dayView(empty = false) {
-  const cards = empty ? [] : [
-    card(),
-    card({
-      fixture_id: "disagreement-fixture",
-      home_team_name: "Diagnostic Home",
-      away_team_name: "Diagnostic Away",
-      intelligence_state: "MODEL_MARKET_DISAGREEMENT",
-      intelligence_reason_codes: ["MODEL_MARKET_DISAGREEMENT_ASIAN_HANDICAP"],
-      risk_dimensions: {
-        ...riskDimensions,
-        MODEL_RISK: { dimension: "MODEL_RISK", status: "ATTENTION", reason_codes: ["MODEL_MARKET_DISAGREEMENT_ASIAN_HANDICAP"], explanation: "模型与市场差异待复核" },
-      },
-      model_lab: {
-        schema_version: "w2.model-lab.v1",
-        authority: "DIAGNOSTIC_ONLY",
-        historical_validation: phase05,
-        markets: {
-          ASIAN_HANDICAP: { status: "MODEL_OUTSIDE_MARKET_RANGE", market: "ASIAN_HANDICAP", bookmaker_count: 4, model_version: "model-v1", calibration_status: "READY", diagnostics: [{ selection: "HOME", model_effective_settlement_probability: 0.63, market_probability_median: 0.51, market_probability_min: 0.49, market_probability_max: 0.53, distance_outside_market_range: 0.1 }], blockers: [] },
-          TOTALS: { status: "COMPARABLE_WITHIN_MARKET_RANGE", market: "TOTALS", bookmaker_count: 3, model_version: "model-v1", calibration_status: "READY", diagnostics: [], blockers: [] },
-        },
-      },
-    }),
-    card({
-      fixture_id: "not-ready-fixture",
-      home_team_name: "No Pick Home",
-      away_team_name: "No Pick Away",
-      intelligence_state: "DATA_INCOMPLETE",
-      intelligence_reason_codes: ["DATA_STATUS_BLOCKED", "MODEL_SIMULATION_NOT_READY"],
-      risk_dimensions: {
-        ...riskDimensions,
-        DATA_RISK: { dimension: "DATA_RISK", status: "INCIDENT", reason_codes: ["DATA_STATUS_BLOCKED"], explanation: "数据尚未完整" },
-        MODEL_RISK: { dimension: "MODEL_RISK", status: "INCIDENT", reason_codes: ["MODEL_SIMULATION_NOT_READY"], explanation: "模型尚未就绪" },
-      },
-      decision_tier: "NOT_READY",
-      data_status: "BLOCKED",
-      market_radar: {
-        schema_version: "w2.market-radar.v1",
-        authority: "REAL_PERSISTED_MARKET_EVIDENCE",
-        evidence: { accepted_observation_count: 6 },
-        statistical_anomaly: { calibration_status: "NOT_CALIBRATED", detected: false },
-        markets: {
-          ASIAN_HANDICAP: { status: "READY", current: { canonical_line: "-0.25", bookmaker_count: 3, prices: { HOME: { median: 1.91 }, AWAY: { median: 1.97 } }, freshness: { status: "COMPLETE" } }, snapshot_count: 1, observation_count: 6, timeline: timeline(["-0.25"]), movement: { status: "INSUFFICIENT" }, movement_history: [] },
-          TOTALS: { status: "INSUFFICIENT", current: null, snapshot_count: 0, observation_count: 0, timeline: timeline([]), movement: { status: "INSUFFICIENT" }, movement_history: [] },
-        },
-      },
-      recommendation_decision_v4: { outcome: "NOT_READY" },
-    }),
-  ].sort((left, right) => statePrecedence.indexOf(String(left.intelligence_state)) - statePrecedence.indexOf(String(right.intelligence_state)));
-  return {
-    request_id: "e2e",
-    generated_at: "2026-08-08T00:00:00Z",
-    date: "2026-08-08",
-    football_day: "2026-08-08",
-    selected_football_day: "2026-08-08",
-    environment: "staging",
+function workspace(scenario = "default"): IntelligenceWorkspace {
+  let matches = [match("zero", "DATA_INCOMPLETE", 0), match("one", "MODEL_MARKET_DISAGREEMENT", 1), match("two", "MARKET_STABLE", 2)];
+  if (scenario === "empty") matches = [];
+  if (scenario === "seven-states") matches = STATES.map((state, index) => match(`state-${index}`, state, index % 3));
+  const attention = matches.map((item) => ({
+    fixture_id: item.fixture_id,
+    kickoff_utc: item.kickoff_utc,
+    intelligence_state: item.intelligence_state,
+    reason_codes: item.intelligence_reason_codes,
+    affected_domains: [item.intelligence_state.split("_")[0]],
+    factual_summary: `${item.intelligence_state}: ${item.intelligence_reason_codes.join(", ")}`,
+    readiness_status: item.readiness.status,
+    readiness_context: { reason_code: item.readiness.reason_code, missing_fields: item.readiness.missing_fields, stale_fields: item.readiness.stale_fields, action: item.readiness.action },
+    next_eval_at: item.readiness.next_eval_at,
+    risks: item.risks,
+  }));
+  const payload: IntelligenceWorkspace = {
+    request_id: "e2e-unified",
+    schema_version: "w2.dashboard-intelligence-workspace.v1",
+    generated_at: "2026-08-09T02:00:00Z",
+    date: "2026-08-09",
     timezone: "Asia/Shanghai",
-    window: "future",
-    source: "dashboard_read_model",
-    provider_calls: 0,
-    db_writes: 0,
-    counts: {
-      total: cards.length,
-      monitored_fixtures: cards.length,
-      market_complete_fixtures: cards.length,
-      fresh_quotes: cards.length,
-      market_stable_fixtures: empty ? 0 : 1,
-      market_movement_fixtures: 0,
-      model_diagnostic_warnings: 0,
-      data_incidents: empty ? 0 : 1,
-      collection_incidents: 0,
-      lock_eligible: 0,
-      outcome_tracked: 0,
-      analysis_pick: 0,
-      recommend: 0,
-      watch: 0,
-      not_ready: empty ? 0 : 1,
-      skip: empty ? 0 : 2,
-      ready: empty ? 0 : 2,
-      partial: 0,
-      stale: 0,
-      blocked: empty ? 0 : 1,
-      identity_not_ready: 0,
-      xg_not_ready: empty ? 0 : 1,
-      model_ready: empty ? 0 : 2,
-      waiting_fresh_quote: 0,
-      executable_quote: cards.length,
-      no_edge: 0,
-      lineup_pending: 0,
-      ratings_enhancement_missing: 0,
-      team_value_enhancement_missing: 0,
-      by_intelligence_state: {
-        DATA_INCOMPLETE: empty ? 0 : 1,
-        MODEL_MARKET_DISAGREEMENT: empty ? 0 : 1,
-        MARKET_STABLE: empty ? 0 : 1,
-      },
+    window: "today",
+    source: "dashboard_day_view+performance_checkpoint+replay_front_door",
+    selected_fixture_id: matches.at(-1)?.fixture_id || null,
+    read_contract: { provider_calls: 0, db_writes: 0, would_write_checkpoint: false, no_call_on_read: true },
+    runtime: { product: "FOOTBALL_MARKET_INTELLIGENCE_PLUS_MODEL_DIAGNOSTICS", public_dashboard_authority: "NEW_INTELLIGENCE_WORKSPACE_ONLY", active_whitelist_count: 13, free_bridge_mode: "SHADOW_ONLY", candidate: "OFF", formal: "OFF", lock: "OFF", production: "OFF" },
+    navigation: { current_date: "2026-08-09" },
+    attention,
+    matches,
+    validation: {
+      probability: { status: "SAMPLE_BUILDING", sample_count: 12, model_brier: 0.21, market_brier: 0.22, model_minus_market_brier: -0.01, model_log_loss: 0.61, market_log_loss: 0.62, model_minus_market_log_loss: -0.01, model_calibration_error: 0.04, market_calibration_error: 0.05, model_reliability_bins: [{ lower: 0.4, upper: 0.5, count: 6, mean_confidence: 0.46, accuracy: 0.5 }], market_reliability_bins: [{ lower: 0.4, upper: 0.5, count: 6, mean_confidence: 0.48, accuracy: 0.5 }], checkpoint_metadata: { checkpoint_key: "performance:cohort:all" } },
+      directional: { status: "SAMPLE_BUILDING", validation_n: 12, decisive_n: 6, correct: 4, wrong: 2, push: 1, void: 1, direction_accuracy: 4 / 6, effective_n: 6, market_direction_benchmark: "NOT_DEFINED" },
+      league_performance: [{ league: "Premier League", validation_n: 12, decisive_n: 6, correct: 4, wrong: 2, push: 1, void: 1, direction_accuracy: 4 / 6, brier: 0.21, calibration: 0.04, statistical_status: "SAMPLE_BUILDING" }],
+      forward_validation_records: { status: "AVAILABLE", validation_count: 12, eligible_count: 8, excluded_count: 2, pending_count: 2, outcomes: { hit_count: 4, miss_count: 2, push_count: 1, void_count: 1 }, checkpoint_metadata: { checkpoint_key: "performance:cohort:all" } },
+      history_replay: { status: "AVAILABLE_WITH_GAPS", known_at: { has_day_view: true, generated_at: "2026-08-09T02:00:00Z", source: "dashboard_read_model", checkpoint_key: "dashboard:day_view:2026-08-09" }, decision_summary: { total_cards: matches.length, lock_eligible_count: 0, by_decision_tier: { WATCH: matches.length }, by_data_status: { READY: Math.max(matches.length - 1, 0) } }, reason_summary: [{ reason_code: "MARKET_STABLE_ALL_AVAILABLE_MARKETS", count: 1 }], outcome_tracking_summary: { tracked_count: 8, matched_outcome_count: 6, missing_outcome_count: 2 }, card_hash_checks: [{ fixture_id: "two", status: "MATCH" }], replay_gaps: ["MISSING_OUTCOMES_FOR_2_FIXTURES"] },
     },
-    freshness: {
-      page_updated_at: "2026-08-08T00:00:00Z",
-      odds_last_confirmed_at: "2026-08-07T23:55:00Z",
-      next_refresh_tick: "2026-08-08T00:15:00Z",
-      provider_budget_status: "PROTECTED",
-      refreshing: false,
-      staleness: { stale_cards: 0, blocked_cards: empty ? 0 : 1, stale_or_blocked_cards: empty ? 0 : 1 },
-    },
-    degradation: empty ? { title: "当前足球日没有比赛", message: "明确空日，不虚构比赛。" } : {},
-    cards,
+    external_intelligence: { weather: { status: "NOT_CONNECTED", affects_match_readiness: false }, news: { status: "NOT_CONNECTED", affects_match_readiness: false }, sentiment: { status: "NOT_CONNECTED", affects_match_readiness: false }, advanced_xg: { status: "NOT_CONNECTED", affects_match_readiness: false } },
+    freshness: { domains: Object.fromEntries(["fixtures", "events", "statistics", "players", "lineups", "odds_prematch", "odds_live", "injuries", "predictions", "standings", "teams_statistics", "page_projection"].map((domain) => [domain, { domain: domain.toUpperCase(), availability: domain === "odds_live" ? "FORBIDDEN_AS_BENCHMARK" : "AVAILABLE", status: domain === "events" ? "NOT_AVAILABLE" : "AVAILABLE", source: domain === "events" ? "not_projected" : `${domain}_checkpoint`, source_as_of: domain === "events" ? null : "2026-08-09T02:00:00Z", provider_refresh_authority: "SCHEDULED_ONLY", readiness_semantics: domain === "events" ? "SOURCE_AS_OF_NOT_PROJECTED" : "SOURCE_VALUE_ONLY", no_call_on_read: true }])) },
+    data_operations: { read_model_source: "dashboard_read_model", checkpoint_key: "dashboard:day_view:2026-08-09", degradation: { state: scenario === "empty" ? "EMPTY_DAY" : "HEALTHY" }, counts: { total: matches.length }, system_health: scenario === "collection-incident" ? "DEGRADED" : "HEALTHY", provider_budget_status: scenario === "collection-incident" ? "PROTECTED_DEGRADED" : "PROTECTED" },
   };
+  const first = payload.matches[0];
+  if (first && scenario === "lineup-too-early") { first.readiness.lineup_expectation = "NOT_EXPECTED_YET"; first.readiness.lineup_status = "TOO_EARLY"; first.readiness.reason_code = "LINEUP_WINDOW_NOT_OPEN"; }
+  if (first && scenario === "lineup-absent") { first.readiness.lineup_expectation = "EXPECTED"; first.readiness.lineup_status = "PROVIDER_EMPTY"; first.readiness.reason_code = "LINEUP_EXPECTED_BUT_ABSENT"; }
+  if (first && scenario === "injuries-stale") { first.readiness.stale_fields = ["injuries"]; first.intelligence_reason_codes = ["INJURIES_STALE"]; }
+  if (first && scenario === "market-stale") { first.market_radar.markets.ASIAN_HANDICAP.freshness = { status: "STALE" }; first.intelligence_reason_codes = ["MARKET_STALE"]; }
+  if (first && scenario === "collection-incident") { first.intelligence_state = "COLLECTION_INCIDENT"; first.intelligence_reason_codes = ["COLLECTION_PROVIDER_INCIDENT"]; }
+  if (first && scenario === "model-not-ready") { first.w2_analysis.model_view.status = "UNAVAILABLE"; first.model_lab.w2_model.status = "UNAVAILABLE"; first.intelligence_reason_codes = ["MODEL_SIMULATION_NOT_READY"]; }
+  if (scenario === "validation-insufficient") { payload.validation.probability.status = "INSUFFICIENT"; payload.validation.probability.sample_count = 0; payload.validation.probability.model_reliability_bins = []; payload.validation.probability.market_reliability_bins = []; payload.validation.directional.status = "INSUFFICIENT"; payload.validation.directional.effective_n = 0; }
+  if (first && !["default", "empty", "seven-states", "validation-insufficient"].includes(scenario)) payload.selected_fixture_id = first.fixture_id;
+  return payload;
 }
 
 async function json(route: Route, body: unknown): Promise<void> {
   await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
 }
 
-async function installRoutes(page: Page, empty = false): Promise<void> {
-  await page.route("**/*", async (route) => {
+async function installWorkspace(page: Page, scenario = "default"): Promise<string[]> {
+  const apiReads: string[] = [];
+  await page.clock.install({ time: new Date("2026-08-09T06:00:00Z") });
+  await page.route("**/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path === "/meta.json") return json(route, { web_git_sha: "e2e0001", release_id: "e2e", data_mode: "api" });
-    if (path === "/v1/version") return json(route, {
-      service: "w2",
-      environment: "staging",
-      api_git_sha: "e2e0001",
-      release_id: "e2e",
-      data_profile: "real-db",
-      data_source: "dashboard_read_model",
-      database_ready: true,
-      read_model_fixture_count: empty ? 0 : 3,
-      matchday_card_count: empty ? 0 : 3,
-      result_event_count: 0,
-      generated_at: "2026-08-08T00:00:00Z",
-    });
-    if (path === "/v1/formal/tracking/summary") return json(route, null);
-    if (path === "/v1/dashboard/day-view") return json(route, dayView(empty));
-    return route.continue();
+    apiReads.push(path);
+    if (path === "/v1/dashboard/intelligence-workspace") return json(route, workspace(scenario));
+    return route.fulfill({ status: 418, json: { error: "LEGACY_ENDPOINT_FORBIDDEN" } });
   });
+  return apiReads;
 }
 
-test("public root is intelligence-first with truthful operations", async ({ page }) => {
-  const consoleErrors: string[] = [];
-  page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
-  await installRoutes(page);
-  await page.goto("/");
+test.use({ viewport: { width: 1536, height: 1024 }, locale: "en-GB", timezoneId: "Asia/Shanghai", deviceScaleFactor: 1 });
 
-  await expect(page).toHaveTitle("W2 Football Intelligence");
-  await expect(page.getByRole("heading", { name: "W2 Football Intelligence" })).toBeVisible();
-  await expect(page.getByText("Market Overview", { exact: true })).toBeVisible();
-  await expect(page.getByText("Match Intelligence", { exact: true })).toBeVisible();
-  await expect(page.getByText("Data & Operations Summary", { exact: true })).toBeVisible();
-  await expect(page.locator(".decision-counts")).toContainText("监测比赛3");
-  await expect(page.locator(".decision-count")).toHaveCount(5);
-  await expect(page.locator(".decision-counts")).toContainText("模型市场分歧1");
-  await expect(page.locator("[data-ui='attention-feed'] li").first()).toContainText("DATA_INCOMPLETE");
-  await expect(page.locator(".intelligence-ops-details")).toContainText("Candidate OFF · Formal OFF · Lock OFF · Production OFF");
-  await expect(page.locator(".intelligence-ops").first()).toContainText("e2e0001 / e2e0001 · SYNC");
-  expect(consoleErrors).toEqual([]);
+test("public root consumes only the unified read model and exposes every P3/P4 surface", async ({ page }) => {
+  const reads = await installWorkspace(page);
+  await page.goto("/");
+  await expect(page.locator(".unified-workspace")).toHaveAttribute("data-schema-version", "w2.dashboard-intelligence-workspace.v1");
+  await expect(page.locator(".unified-workspace")).toHaveAttribute("data-public-authority", "NEW_INTELLIGENCE_WORKSPACE_ONLY");
+  for (const surface of ["attention", "match-board", "match-inspector", "market-radar", "model-lab", "scoreline-top3", "validation", "league-performance", "history-replay", "external-intelligence", "data-operations"]) await expect(page.locator(`[data-ui='${surface}']`)).toBeVisible();
+  await expect(page.locator(".workspace-topbar")).toContainText("13 LEAGUES");
+  await expect(page.locator(".workspace-topbar")).toContainText("SHADOW_ONLY");
+  await expect(page.locator(".workspace-topbar")).toContainText("FORMAL OFF");
+  expect(new Set(reads)).toEqual(new Set(["/v1/dashboard/intelligence-workspace"]));
 });
 
-test("stable state is a meaningful non-empty result", async ({ page }) => {
-  await installRoutes(page);
+test("all seven intelligence states and the exact four risk axes render without semantic promotion", async ({ page }) => {
+  await installWorkspace(page, "seven-states");
   await page.goto("/");
-
-  const stable = page.locator("[data-intelligence-state='MARKET_STABLE']");
-  await expect(stable).toBeVisible();
-  await expect(stable).toContainText("市场稳定 / 未检测到显著异常");
-  await expect(stable).toContainText("MARKET_STABLE_NO_MATERIAL_ALERT");
-  await expect(stable.locator("[data-ui='market-radar']")).toContainText("主盘口 2.5");
-  await expect(stable.locator("[data-ui='model-lab']")).toContainText("COMPARABLE_WITHIN_MARKET_RANGE");
-  await expect(stable.locator("[data-ui='phase-0-5-context']")).toContainText("NO_EDGE");
-  await expect(stable.locator("[data-ui='phase-0-5-context']")).toContainText("HISTORICAL_INCREMENTAL_EDGE=NOT_PROVEN");
+  for (const state of STATES) await expect(page.locator(`[data-intelligence-state='${state}']`).first()).toBeVisible();
+  const inspector = page.locator("[data-ui='match-inspector']");
+  for (const axis of ["EVENT_RISK", "DATA_RISK", "MODEL_RISK", "COLLECTION_RISK"]) await expect(inspector.locator(`[data-risk-axis='${axis}']`)).toHaveCount(1);
+  await expect(inspector).toContainText("ANALYSIS_REFERENCE");
+  await expect(inspector).toContainText("NOT_PROVEN");
+  await expect(inspector).toContainText("PRODUCT_AUTHORITY_DISABLED");
 });
 
-test("divergence stays diagnostic and never becomes public recommendation semantics", async ({ page }) => {
-  await installRoutes(page);
+test("zero one and two-plus snapshots remain factual discrete evidence", async ({ page }) => {
+  await installWorkspace(page);
   await page.goto("/");
-
-  const disagreement = page.locator("[data-intelligence-state='MODEL_MARKET_DISAGREEMENT']");
-  await expect(disagreement).toContainText("模型与市场存在分歧");
-  await expect(disagreement).toContainText("优先检查模型校准、特征时效、盘口身份和数据质量");
-  const body = page.locator("body");
-  for (const forbidden of ["价值机会", "正 EV 机会", "市场错误定价", "推荐方向", "高置信度选择", "值得介入"]) {
-    await expect(body).not.toContainText(forbidden);
+  for (const [fixture, state, points] of [["zero", "NO_TIMELINE_EVIDENCE", "0"], ["one", "ONE_OBSERVATION_NOT_A_TREND", "1"], ["two", "DISCRETE_REAL_PATH", "2"]] as const) {
+    await page.locator(`[data-fixture-id='${fixture}']`).click();
+    const timeline = page.locator(`[data-snapshot-state='${state}']`).first();
+    await expect(timeline).toHaveAttribute("data-real-point-count", points);
+    await expect(timeline.locator("svg, canvas, polyline")).toHaveCount(0);
   }
 });
 
-test("zero one and multi-point timelines never fabricate a movement path", async ({ page }) => {
-  await installRoutes(page);
+test("scoreline READY is exactly 10000 with unconditional probability and sample count", async ({ page }) => {
+  await installWorkspace(page);
   await page.goto("/");
-
-  const stable = page.locator("[data-intelligence-state='MARKET_STABLE']");
-  const emptyTimeline = stable.locator("[data-timeline-state='INSUFFICIENT_NO_TIMELINE_EVIDENCE']");
-  await expect(emptyTimeline).toHaveAttribute("data-real-point-count", "0");
-  await expect(emptyTimeline.locator("polyline")).toHaveCount(0);
-  const multiTimeline = stable.locator("[data-timeline-state='MOVEMENT_COMPARISON_ELIGIBLE']");
-  await expect(multiTimeline).toHaveAttribute("data-real-point-count", "2");
-  await expect(multiTimeline.locator("polyline")).toHaveCount(1);
-
-  const singleTimeline = page.locator("[data-ui='match-intelligence-card']").filter({ hasText: "No Pick Home" }).locator("[data-timeline-state='INSUFFICIENT_SINGLE_SNAPSHOT']");
-  await expect(singleTimeline).toHaveAttribute("data-real-point-count", "1");
-  await expect(singleTimeline.locator("polyline")).toHaveCount(0);
+  const scoreline = page.locator("[data-ui='scoreline-top3']");
+  await expect(scoreline).toContainText("simulations_completed=10000");
+  await expect(scoreline).toContainText("unconditional_probability");
+  await expect(scoreline).toContainText("sample_count=1500");
+  await expect(scoreline).toContainText("15.0%");
+  await expect(scoreline).not.toContainText("generic probability");
 });
 
-test("market facts survive V4 not-ready and four risk axes stay separate", async ({ page }) => {
-  await installRoutes(page);
-  await page.goto("/");
+for (const [scenario, expected] of [
+  ["lineup-too-early", "NOT_EXPECTED_YET / TOO_EARLY"],
+  ["lineup-absent", "EXPECTED / PROVIDER_EMPTY"],
+  ["injuries-stale", "INJURIES_STALE"],
+  ["market-stale", "STALE"],
+  ["collection-incident", "PROTECTED_DEGRADED"],
+  ["model-not-ready", "MODEL_SIMULATION_NOT_READY"],
+  ["validation-insufficient", "INSUFFICIENT"],
+] as const) {
+  test(`truth scenario ${scenario} stays explicit`, async ({ page }) => {
+    await installWorkspace(page, scenario);
+    await page.goto("/");
+    await expect(page.locator(".workspace-main")).toContainText(expected);
+  });
+}
 
-  const notReady = page.locator("[data-ui='match-intelligence-card']").filter({ hasText: "No Pick Home" });
-  await expect(notReady).toContainText("Market Radar · 市场雷达");
-  await expect(notReady).toContainText("主盘口 -0.25");
-  await expect(notReady).toContainText("INSUFFICIENT");
-  await expect(notReady).toContainText("赛事风险");
-  await expect(notReady).toContainText("数据风险");
-  await expect(notReady).toContainText("模型风险");
-  await expect(notReady).toContainText("采集风险");
+test("SAMPLE_BUILDING, external NOT_CONNECTED, replay evidence and replay gaps are explicit", async ({ page }) => {
+  await installWorkspace(page);
+  await page.goto("/");
+  await expect(page.locator("[data-ui='validation']")).toContainText("SAMPLE_BUILDING");
+  await expect(page.locator("[data-ui='validation']")).toContainText("NOT_DEFINED");
+  await expect(page.locator("[data-ui='external-intelligence'] strong")).toHaveCount(4);
+  await expect(page.locator("[data-ui='external-intelligence']")).toContainText("NOT_CONNECTED");
+  await expect(page.locator("[data-ui='external-intelligence']")).toContainText("affects_match_readiness=false");
+  await expect(page.locator("[data-ui='history-replay']")).toContainText("AVAILABLE_WITH_GAPS");
+  await expect(page.locator("[data-ui='history-replay']")).toContainText("MISSING_OUTCOMES_FOR_2_FIXTURES");
+  await expect(page.locator("[data-ui='history-replay']")).toContainText("Hash checks1");
 });
 
-test("a truly empty day remains explicit without fabricating stable cards", async ({ page }) => {
-  await installRoutes(page, true);
+test("empty day is explicit and never fabricates a match", async ({ page }) => {
+  await installWorkspace(page, "empty");
   await page.goto("/");
+  await expect(page.locator("[data-ui='match-board']")).toContainText("Empty football day");
+  await expect(page.locator(".match-board-row")).toHaveCount(0);
+  await expect(page.locator("[data-ui='match-inspector']")).toContainText("No selected fixture");
+});
 
-  await expect(page.locator(".intelligence-empty")).toContainText("当前足球日没有比赛");
-  await expect(page.locator(".intelligence-empty")).toContainText("明确空日，不虚构比赛");
-  await expect(page.locator("[data-ui='match-intelligence-card']")).toHaveCount(0);
-  await expect(page.locator(".decision-counts")).toContainText("监测比赛0");
+test("public copy excludes forbidden decision and commercial semantics", async ({ page }) => {
+  await installWorkspace(page);
+  await page.goto("/");
+  const body = page.locator("body");
+  for (const forbidden of ["CLV", "ROI", "expected_value", "value_score", "opportunity_score", "market_pick", "anonymous_live_odds_benchmark", "Recommendation Board", "Boss Decision Console"]) await expect(body).not.toContainText(forbidden);
+  await expect(body).toContainText("优先检查模型校准、特征时效、盘口身份和数据质量");
+  await expect(body).toContainText("Formal recommendation is OFF");
+});
+
+test("fixed visual authority is deterministic at 1536x1024", async ({ page }) => {
+  await installWorkspace(page);
+  await page.goto("/");
+  await page.addStyleTag({ content: "*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}html{scroll-behavior:auto!important}" });
+  await expect(page.locator("[data-ui='match-board']")).toBeVisible();
+  await expect(page).toHaveScreenshot("intelligence-workspace-1536x1024.png", { animations: "disabled", fullPage: false });
+});
+
+for (const viewport of [{ width: 1920, height: 1080 }, { width: 1440, height: 900 }, { width: 1366, height: 768 }]) {
+  test(`responsive geometry ${viewport.width}x${viewport.height} has no page overflow`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await installWorkspace(page);
+    await page.goto("/");
+    const geometry = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+    expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
+    await expect(page.locator("[data-ui='attention']")).toBeVisible();
+    await expect(page.locator("[data-ui='match-board']")).toBeVisible();
+    await expect(page).toHaveScreenshot(`intelligence-workspace-${viewport.width}x${viewport.height}.png`, { animations: "disabled", fullPage: false });
+  });
+}
+
+test("endpoint failure stays fail-closed without legacy fallback", async ({ page }) => {
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 503, json: { code: "SYSTEM_DEGRADED" } }));
+  await page.goto("/");
+  await expect(page.locator(".workspace-load-state--error")).toContainText("Unified workspace unavailable");
+  await expect(page.locator(".workspace-load-state--error")).toContainText("no legacy dashboard or synthetic data");
 });

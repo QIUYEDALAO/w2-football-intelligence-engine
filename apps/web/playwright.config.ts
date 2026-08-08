@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
-  snapshotPathTemplate: "../../docs/ui/boss-console/golden/{arg}{ext}",
+  snapshotPathTemplate: "../../docs/ui/intelligence-workspace/golden/{arg}{ext}",
   fullyParallel: false,
   retries: 0,
   reporter: "line",
