@@ -1,16 +1,16 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-08T20:50:59+08:00"
+updated_at: "2026-08-09T01:11:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: POST_R3_READINESS_ATTRIBUTION_PATH_A_NATURAL_EVIDENCE_ACCUMULATION
-owner_authorization_id: W2_MI_POST_R3_READINESS_ROOT_CAUSE_ATTRIBUTION_20260808
-active_next_action: AWAIT_PATH_A_NATURAL_EVIDENCE_COMPLETION_AND_OWNER_REVIEW
-next_code_action: NONE_NATURAL_EVIDENCE_EVENT_REQUIRED
-current_status: POST_R3_READINESS_ATTRIBUTION_PASS_PATH_A
-current_gate: POST_R3_READINESS_ATTRIBUTION_CLOSED
+owner_product_decision: DASHBOARD_INTELLIGENCE_WORKSPACE_FINAL_REFACTOR_P0
+owner_authorization_id: W2_DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN_20260809
+active_next_action: EXECUTE_DASHBOARD_INTELLIGENCE_WORKSPACE_P0_ONLY
+next_code_action: DOCS_ONLY_P0_PRODUCT_SPEC
+current_status: DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN_AUTHORIZED
+current_gate: DASHBOARD_P0_AUTHORIZED
 
 prior_rounds:
   round_1: PASS
@@ -166,6 +166,42 @@ post_r3_readiness_attribution:
   completion_condition: REAL_FIXTURES_CROSS_EXISTING_T12_T6_T3_T60_LIFECYCLE_WITH_EXPLICIT_TERMINAL_EVIDENCE_THEN_REPROJECT_AND_OWNER_REVIEW
   arbitrary_calendar_wait: false
   round_4: NOT_STARTED
+
+dashboard_intelligence_workspace:
+  authority: DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN.md
+  workstream: DASHBOARD_INTELLIGENCE_WORKSPACE_FINAL_REFACTOR
+  status: MASTER_PLAN_AUTHORIZED_P0_PENDING_EXECUTION
+  current_execution_authorization: P0_ONLY
+  p0_output: DASHBOARD_INTELLIGENCE_WORKSPACE_PRODUCT_SPEC.md
+  p0_scope: DOCS_ONLY
+  p0_after: OWNER_REVIEW_A
+  p1: NOT_STARTED
+  p2: NOT_STARTED
+  p3: NOT_STARTED
+  p4: NOT_STARTED
+  p5: NOT_STARTED
+  p5_5: NOT_STARTED
+  p6: BLUEPRINT_ONLY_NOT_AUTHORIZED
+  round_4_relation: INDEPENDENT_NOT_AUTHORIZATION
+  product_position: FOOTBALL_MARKET_INTELLIGENCE_PLUS_MODEL_DIAGNOSTICS
+  public_dashboard_target: NEW_INTELLIGENCE_WORKSPACE_ONLY
+  exact_runtime_whitelist: 13
+  external_intelligence:
+    weather: NOT_CONNECTED
+    news: NOT_CONNECTED
+    sentiment: NOT_CONNECTED
+    advanced_xg: NOT_CONNECTED
+  market_direction_benchmark: NOT_DEFINED
+  public_clv: FORBIDDEN
+  public_roi: FORBIDDEN
+  canonical_close: NOT_OBTAINABLE_FROM_CURRENT_PROVIDER
+  current_price_reference: LAST_AVAILABLE_PREMATCH_SNAPSHOT
+  lineup_whitelist_coverage_verified: 1_OF_13_CHINESE_SUPER_LEAGUE_ONLY
+  owner_gates:
+    after_p0: OWNER_REVIEW_A
+    after_p2: OWNER_REVIEW_B
+    after_p5: OWNER_REVIEW_C
+  deletion_authority: P5_5_ONLY_AFTER_P5_PASS_AND_OWNER_APPROVAL
 
 phase_0_5_frozen_context:
   protocol: W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
