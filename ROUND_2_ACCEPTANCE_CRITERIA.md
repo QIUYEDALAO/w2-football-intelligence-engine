@@ -2,20 +2,20 @@
 
 Current acceptance standard for `W2_MI_R2_FIRST_DIVISION_PROVIDER_CAPABILITY_AUDIT`.
 
-Newest owner override:
+Newest owner authorities:
 
 ```text
 ROUND_2_TERMINAL_CLOSURE_AUTHORIZATION.md
+REPOSITORY_HYGIENE_POLICY.md
 ```
-
-This file supersedes the former mandatory 14-calendar-day completion gate.
 
 ```text
 REQUIRE_14_ELAPSED_DAYS = false
 ALLOW_TERMINAL_EVIDENCE_EARLY_CLOSURE = true
+TASK_PASS_REQUIRES_REPOSITORY_HYGIENE_PASS = true
 ```
 
-Round 2 PASS means the audit is complete, truthful, safe and non-promotional. It does not require Provider capability to be good.
+Round 2 PASS means the audit is complete, truthful, safe, non-promotional and leaves no known unnecessary task debris behind.
 
 ## A. Source and completed R2-A identity
 
@@ -67,9 +67,9 @@ Every Provider call must have exactly one sanitized ledger record. No secret mat
 
 ## D. Terminal-blocker early closure — hard gate
 
-The old rule requiring observation through 2026-08-22 is removed.
+The former requirement to wait until 2026-08-22 is removed.
 
-Early closure is valid when all of the following are true:
+Required:
 
 ```text
 TERMINAL_PROVIDER_BLOCKER_ROWS = 17
@@ -79,15 +79,13 @@ NEW_PROVIDER_PLAN_OR_POLICY_CHANGE_AUTHORIZED = false
 NEW_PERSISTENT_COLLECTION_AUTHORIZED = false
 ```
 
-For this Round 2 instance these conditions are already satisfied by Day-0 evidence.
-
-Do not mark R2-C blocked merely because 14 days have not elapsed.
+Do not block R2-C because 14 days have not elapsed.
 
 ## E. Persisted temporal evidence truth — hard gate
 
 Use the already collected R2-B snapshot and optionally one final read-only freeze snapshot.
 
-Current evidence baseline includes:
+Current evidence baseline:
 
 ```text
 DAYVIEW_CARDS = 64
@@ -100,78 +98,27 @@ SAMPLED_ODDS_TIMELINES = 4
 TIMELINE_ITEMS = 0
 ```
 
-Acceptance rule:
+Rule:
 
 ```text
 NO_REAL_TEMPORAL_SAMPLE => TEMPORAL_EVIDENCE_INSUFFICIENT
 ```
 
-Fail if missing evidence is converted into fabricated freshness, overround, movement, bookmaker or readiness distributions.
-
-There is no minimum elapsed-day requirement.
+No fabricated freshness, overround, movement, bookmaker or readiness distributions.
 
 ## F. Final 17-row capability matrix — hard gate
 
-Exactly 17 unique rows are required.
-
-Each row must include:
-
-```text
-canonical audit ID
-display name
-current runtime membership
-audit-only candidate flag
-provider identity status
-provider plan status
-provider league ID if verified
-future fixture status
-result fixture status
-AH status
-OU status
-bookmaker depth status
-lineup status
-injury status
-statistics status
-schema status
-temporal evidence status
-Provider call cost
-blockers
-warnings
-current capability state
-recommended future capability state
-promotion_authorized
-```
-
-For unsupported Provider fields after `PLAN_RESTRICTED`, use truthful NOT_AUDITED/PLAN_RESTRICTED semantics.
-
-For absent temporal evidence use `TEMPORAL_EVIDENCE_INSUFFICIENT`.
-
-Every row must satisfy:
+Exactly 17 unique rows are required. Each row must truthfully include Provider identity/plan, fixtures/results, AH/OU, bookmaker, lineup/injury/statistics, schema, temporal evidence, call cost, blockers/warnings, current/recommended capability state and:
 
 ```text
 promotion_authorized = false
 ```
 
-## G. Allowed final audit outcomes
+Unsupported Provider fields after `PLAN_RESTRICTED` must remain NOT_AUDITED/PLAN_RESTRICTED. Missing temporal evidence must remain `TEMPORAL_EVIDENCE_INSUFFICIENT`.
 
-Allowed outcomes include:
+## G. Runtime, safety and semantic invariants — hard gate
 
-```text
-PLAN_RESTRICTED
-TEMPORAL_EVIDENCE_INSUFFICIENT
-DEGRADED
-CAPABILITY_PARTIAL
-CAPABILITY_CONFIRMED
-IDENTITY_REVIEW_REQUIRED
-SCHEMA_UNSAFE
-PROVIDER_QUOTA_BLOCKED
-```
-
-Do not invent CAPABILITY_CONFIRMED where the evidence does not support it.
-
-## H. Runtime and safety invariants — hard gate
-
-Required final evidence:
+Required:
 
 ```text
 ACTIVE_WHITELIST = 13_UNCHANGED
@@ -188,13 +135,6 @@ LOCK = OFF
 PRODUCTION = OFF
 H_RESULT_ACCESS = PERMANENTLY_CLOSED
 ROUND_3 = NOT_STARTED
-```
-
-## I. Product semantic invariants — hard gate
-
-Required:
-
-```text
 PRODUCT = W2 Football Intelligence
 PRODUCT_SEMANTICS = INTELLIGENCE_FIRST
 MODEL_MARKET_DIVERGENCE != MARKET_OPPORTUNITY
@@ -205,55 +145,60 @@ HIGH_OVERROUND_AS_INFORMATION = FORBIDDEN
 OPPORTUNITY_SCORE = FORBIDDEN
 ```
 
-## J. Heartbeat/time-gate cleanup
+## H. Repository hygiene — mandatory final hard gate
 
-The daily `w2-mi-round-2` heartbeat must no longer be required for acceptance.
+Before Round 2 may be declared PASS, execute `REPOSITORY_HYGIENE_POLICY.md`.
 
-If Codex controls it, final closure must stop/disable it.
+Required procedure:
 
-Required final status:
+1. enumerate files/assets added, changed, superseded or exposed as obsolete by Round 2;
+2. classify each `KEEP`, `DELETE`, `RETAIN_FOR_EVIDENCE`, or `REVIEW_REQUIRED`;
+3. prove deletion safety with repository references/imports/entrypoints/workflows/config/test/CI searches;
+4. delete all provably dead task assets;
+5. remove dead imports/exports/flags/tests/docs caused by those deletions;
+6. rerun focused and repository-required checks after cleanup.
+
+Specifically inspect:
+
+```text
+Round 2 temporary audit scaffolding
+one-off debug helpers
+tracked dry-run scratch outputs
+superseded audit fixtures
+obsolete observation-heartbeat glue
+stale 14-day-only control artifacts
+unused duplicate task/context entrypoints
+```
+
+Do not delete reusable league-audit tooling, migrations/history, final receipts, sanitized audit evidence required for traceability, CI/release scripts still used, or protected baselines.
+
+Required final receipt fields:
+
+```text
+REPOSITORY_HYGIENE = PASS
+DEAD_ASSETS_FOUND = <count>
+DEAD_ASSETS_DELETED = <count>
+OBSOLETE_CODE_LINES_REMOVED = <count when measurable>
+RETAINED_FOR_EVIDENCE = <list/count>
+UNRESOLVED_HYGIENE_ITEMS = 0
+```
+
+A known dead asset may not be silently left behind. If deletion safety is unresolved, record the exact dependency and do not claim hygiene PASS without justification.
+
+## I. Heartbeat/time-gate cleanup
+
+The daily `w2-mi-round-2` heartbeat is not required for acceptance. If Codex controls it, stop/disable it during closure.
 
 ```text
 WAITING_FOR_NEXT_DAILY_SNAPSHOT = false
 WAITING_FOR_2026_08_22 = false
 ```
 
-## K. Final receipt — hard gate
+## J. Final receipt — hard gate
 
-Create `ROUND_2_FINAL_RECEIPT.md` with at least:
+Create `ROUND_2_FINAL_RECEIPT.md` containing source/PR/CI identities, Day-0 evidence, final 17-row matrix, temporal-evidence summary, runtime/safety diffs, heartbeat final state, and repository-hygiene evidence.
 
-```text
-ROUND2_INITIAL_MAIN_SHA
-ROUND2_EXECUTION_BASE_SHA
-AUDIT_TOOLING_PR_NUMBER
-AUDIT_TOOLING_FINAL_HEAD_SHA
-AUDIT_TOOLING_MERGE_SHA
-PR_FAST/FULL_RC/MAIN_PROMOTION evidence
-ACTIVE_WHITELIST_BEFORE
-ACTIVE_WHITELIST_AFTER
-ACTIVE_WHITELIST_IDENTITY_DIFF
-AUDIT_UNION_COUNT
-DAY0_ACTUAL_PROVIDER_CALLS
-ROUND2_CUMULATIVE_PROVIDER_CALLS
-PLAN_RESTRICTED_ROWS
-FINAL_17_ROW_CAPABILITY_MATRIX
-TEMPORAL_EVIDENCE_SUMMARY
-PROVIDER_POLICY_DIFF
-PROVIDER_ALLOWLIST_DIFF
-SCHEDULER_POLICY_DIFF
-NEW_PERSISTENT_COLLECTION_JOBS
-NEW_ENABLED_LEAGUES
-NEW_SCHEDULED_LEAGUES
-NEW_DAYVIEW_LEAGUES
-HEARTBEAT_FINAL_STATUS
-CANDIDATE
-FORMAL
-LOCK
-PRODUCTION
-ROUND_3
-```
-
-## L. Completion
+## K. Completion
 
 Expected final state if all gates pass:
 
@@ -263,6 +208,7 @@ ACTIVE_WHITELIST = 13_UNCHANGED
 AUDIT_UNION = 17_COMPLETE_WITH_TRUTHFUL_OUTCOMES
 NET_NEW_AUDIT_CANDIDATES = 4_NOT_ENABLED
 WAIT_14_DAYS = false
+REPOSITORY_HYGIENE = PASS
 ROUND_3 = NOT_STARTED
 NEXT = AWAIT_OWNER_POST_R2_CAPABILITY_DECISION
 ```
