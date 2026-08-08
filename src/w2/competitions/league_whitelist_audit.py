@@ -137,6 +137,10 @@ class LeagueWhitelistAuditResult:
     audit_mode: str = "enablement"
     enablement_evaluated: bool = True
     evidence_only: bool = False
+    runtime_whitelist_member: bool = True
+    current_runtime_state: str = "REGISTERED"
+    identity_status: str = "NOT_AUDITED"
+    promotion_authorized: bool = False
     source: str = AUDIT_SOURCE
 
     def as_dict(self) -> dict[str, Any]:
@@ -168,6 +172,10 @@ class LeagueWhitelistAuditResult:
             "audit_mode": self.audit_mode,
             "enablement_evaluated": self.enablement_evaluated,
             "evidence_only": self.evidence_only,
+            "runtime_whitelist_member": self.runtime_whitelist_member,
+            "current_runtime_state": self.current_runtime_state,
+            "identity_status": self.identity_status,
+            "promotion_authorized": self.promotion_authorized,
             "source": self.source,
         }
 
@@ -626,6 +634,7 @@ def _result(
     provider_call_approval_required: bool,
     overall_status: str | None = None,
 ) -> LeagueWhitelistAuditResult:
+    audit_candidate_only = entry.profile_payload.get("audit_candidate_only") is True
     item_blockers = tuple(
         f"{item.name}:{item.status.value}"
         for item in items
@@ -662,6 +671,10 @@ def _result(
         planned_provider_calls_by_endpoint=planned_provider_calls_by_endpoint(),
         actual_provider_calls=actual_provider_calls,
         provider_call_approval_required=provider_call_approval_required,
+        runtime_whitelist_member=not audit_candidate_only,
+        current_runtime_state=(
+            "AUDIT_CANDIDATE_ONLY" if audit_candidate_only else "REGISTERED"
+        ),
     )
 
 
