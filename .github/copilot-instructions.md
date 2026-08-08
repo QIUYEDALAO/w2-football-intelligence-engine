@@ -7,26 +7,29 @@ Read in order:
 ```text
 1. CURRENT_STATE.yaml
 2. NEXT_ACTION.md
-3. FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_AUTHORIZATION.md
-4. FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_ACCEPTANCE.md
-5. FREE_PLAN_FIXTURE_CENTRIC_VALIDATION.md
-6. FREE_PLAN_DAILY_CALL_BUDGET.md
+3. ROUND_3_OWNER_AUTHORIZATION.md
+4. ROUND_3_CODEX_EXECUTION.md
+5. ROUND_3_ACCEPTANCE_CRITERIA.md
+6. FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_RECEIPT.md
 7. REPOSITORY_HYGIENE_POLICY.md
 ```
 
 ```text
-ACTIVE_NEXT_ACTION = W2_MI_FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_CLOSURE
-OWNER_DECISION = APPROVED_EXECUTE_CONTINUOUSLY
-API_FOOTBALL_PRO_RENEWAL = NOT_AUTHORIZED_NOW
-ROUND_3 = NOT_STARTED
+ACTIVE_NEXT_ACTION = W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB
+OWNER_DECISION = APPROVED_CONTINUOUS_EXECUTION
+ROUND_3 = AUTHORIZED_IN_PROGRESS
 ```
 
-Do not stop after a sub-step. Review/fix PR #495, pass all gates, merge, add one bounded existing-scheduler Shadow integration PR if needed, pass release gates, deploy through normal immutable release procedure, prove rollback, activate `SHADOW_ONLY`, run bounded real Free-plan acceptance, execute repository hygiene, write the final receipt, then stop before Round 3.
+Do not stop after a sub-step. Execute the full Round-3 goal through code audit, evidence eligibility, Market Radar, Model Lab, seven-state/public integration, tests/CI, merge, immutable staging deployment, real persisted-evidence acceptance, rollback, repository hygiene and `ROUND_3_FINAL_RECEIPT.md`.
 
-For in-scope failures: fail closed at the gate, repair minimally, rerun and continue without requesting owner approval again.
+For in-scope failures:
 
-Mandatory pre-merge correction: current PR #495 effectively limits Free bridge use to 60/day by subtracting a 20-call reserve from an 80 cap while the quota helper also protects reserve. Final semantics must be Provider 100/day, W2 max 80/day, at least 20 remaining; no double subtraction.
+```text
+STOP_AT_FAILED_GATE -> MINIMAL_FIX -> RERUN -> CONTINUE
+```
 
-Quota accounting must be shared across all API-Football traffic using the same account/key and survive restart. Bridge-local accounting alone is forbidden.
+Market Radar reports facts, not opportunities. Model Lab is diagnostic-only. Do not use legacy EV, cashflow price edge, analysis-direction or recommendation eligibility as Round-3 public authority. Do not invent statistical anomaly thresholds. Public `MODEL_MARKET_DISAGREEMENT` requires ready/fresh same-line evidence, >=3 bookmakers and model probability outside the real bookmaker de-vig probability range.
 
-Keep exact existing 13 whitelist, four audit-only leagues unreachable, no second scheduler daemon, no paid renewal, no new Provider, Candidate/Formal/Lock/Production OFF and Round 3 not started. `REPOSITORY_HYGIENE_POLICY.md` is mandatory before PASS.
+Development/CI manual Provider calls = 0. Dashboard/API reads trigger 0 Provider calls. Preserve Free plan 100/day, W2 max 80, reserve 20, SHADOW_ONLY bridge, exact active 13 whitelist, four audit-only unreachable, Candidate/Formal/Lock/Production OFF, H closed, no paid renewal and no real money.
+
+`REPOSITORY_HYGIENE_POLICY.md` is mandatory before PASS.
