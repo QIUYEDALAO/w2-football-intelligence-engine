@@ -1,54 +1,40 @@
 # W2 Repository Agent Instructions
 
-Current mutable authority is `origin/context/current`.
+Current authority is `origin/context/current`.
 
 Read first:
 
 ```text
 1. CURRENT_STATE.yaml
 2. NEXT_ACTION.md
-3. FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_RECEIPT.md
-4. FREE_PLAN_DAILY_CALL_BUDGET.md
-5. REPOSITORY_HYGIENE_POLICY.md
+3. ROUND_3_OWNER_AUTHORIZATION.md
+4. ROUND_3_CODEX_EXECUTION.md
+5. ROUND_3_ACCEPTANCE_CRITERIA.md
+6. FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_RECEIPT.md
+7. REPOSITORY_HYGIENE_POLICY.md
 ```
 
 ```text
 PRODUCT = W2 Football Intelligence
-FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME = PASS
-ACTIVE_NEXT_ACTION = AWAIT_OWNER_ROUND_3_OR_BIG_FIVE_COLLECTION_DECISION
+ACTIVE_NEXT_ACTION = W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB
+ROUND_3 = AUTHORIZED_IN_PROGRESS
 FREE_BRIDGE_MODE = SHADOW_ONLY
-ACTIVE_WHITELIST = 13_UNCHANGED
-ROUND_3 = NOT_STARTED
+ACTIVE_WHITELIST = EXACT_EXISTING_13
 ```
 
-The runtime-closure authorization is consumed. Do not repeat Provider
-acceptance, modify deployment, change the whitelist, purchase/cut over a
-Provider, enable recommendation gates or start Round 3 without new owner
-authority.
+Execute Round 3 continuously through evidence audit, Market Radar, Model Lab, public integration, CI, merge, immutable staging deployment, real persisted-evidence acceptance, rollback, hygiene and final receipt. In-scope failures are repaired and rerun without owner reapproval.
 
-The deployed bridge is data infrastructure only. It is owned by the existing
-scheduler, uses the shared persistent quota ledger and canonical evidence
-contracts, and must preserve Provider 100 / W2 maximum 80 / minimum remaining
-20 with no automatic retries.
-
-For any future implementation or code modification in this project, invoke the
-project Ponytail skill when available and use it as a minimum-change constraint
-plus final simplification review. Correctness, safety, compatibility, tests and
-governance remain higher priority than brevity.
-
-Permanent boundaries:
+Market Radar = factual market intelligence. Model Lab = diagnostic comparison only.
 
 ```text
-PROVIDER_PURCHASE_OR_RENEWAL = NOT_AUTHORIZED_NOW
-PROVIDER_CUTOVER = NOT_AUTHORIZED
-ACTIVE_WHITELIST = EXACT_EXISTING_13
-AUDIT_ONLY_PROMOTION = NOT_AUTHORIZED
-CANDIDATE = OFF
-FORMAL = OFF
-LOCK = OFF
-PRODUCTION = OFF
-ROUND_3 = NOT_STARTED
-H_RESULT_ACCESS = PERMANENTLY_CLOSED
+MOVEMENT != OPPORTUNITY
+ANOMALY != OPPORTUNITY
+MODEL_MARKET_DIVERGENCE != MARKET_OPPORTUNITY
 BETTING_EDGE_CLAIM = FORBIDDEN
-REAL_MONEY = NOT_AUTHORIZED
 ```
+
+Round-3 public authority must not use legacy EV/cashflow-edge/analysis-direction fields. Do not invent statistical anomaly thresholds. Model-market disagreement requires ready/fresh same-line evidence, >=3 bookmakers and model probability outside the observed real bookmaker de-vig probability range.
+
+Preserve Free Provider 100/day, W2 max 80/day, minimum remaining 20, no automatic retry, exact active 13, four audit-only unreachable, Candidate/Formal/Lock/Production OFF, H permanently closed and no real-money execution.
+
+`REPOSITORY_HYGIENE_POLICY.md` is mandatory before PASS.
