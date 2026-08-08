@@ -47,6 +47,14 @@ round_2:
   r2_b_latest_public_data_incomplete_cards: 64
   r2_b_latest_public_provider_calls: 0
   r2_b_latest_public_db_writes: 0
+  r2_b_public_readiness_rows: 5
+  r2_b_public_readiness_404_rows: 12
+  r2_b_public_readiness_provenance_status: NOT_ACCEPTABLE_AS_REAL_CAPABILITY_PROOF
+  r2_b_public_read_model_coverage_status: MISMATCHED_AND_INSUFFICIENT
+  r2_b_sampled_odds_timelines: 4
+  r2_b_sampled_odds_timelines_with_items: 0
+  r2_b_data_health_status: SYSTEM_DEGRADED
+  r2_b_provider_status: SYSTEM_DEGRADED
   r2_c_status: BLOCKED_UNTIL_R2_B_WINDOW_COMPLETE
   duration_days: 14
   observation_start_utc: "2026-08-08T01:53:55.509495+00:00"

@@ -120,3 +120,51 @@ R2_B_TEMPORAL_EVIDENCE_STATUS = OPEN_ZERO_WITHIN_WINDOW_QUOTE_ROWS
 FINAL_17_ROW_CAPABILITY_MATRIX = NOT_DUE
 PROMOTION_AUTHORIZED = false
 ```
+
+### Public readiness and timeline inventory
+
+Additional read-only endpoints inspected during the same snapshot:
+
+```text
+GET /v1/leagues
+GET /v1/leagues/{competition_id}/readiness for all 17 audit IDs
+GET /v1/data-health
+GET /v1/providers/status
+GET /v1/fixtures/{fixture_id}/odds-timeline for one fixture per displayed league
+```
+
+```text
+PUBLIC_LEAGUE_READINESS_ROWS = 5
+PUBLIC_LEAGUE_READINESS_404_ROWS = 12
+PUBLIC_READINESS_EXISTING_WHITELIST_ROWS = 5
+PUBLIC_READINESS_AUDIT_ONLY_ROWS = 0
+PUBLIC_RESULTS_READY_ROWS = 5
+PUBLIC_AH_MISSING_ROWS = 5
+PUBLIC_OU_PARTIAL_ROWS = 5
+PUBLIC_TIMELINE_MISSING_ROWS = 5
+PUBLIC_READINESS_MANUAL_REVIEW_ROWS = 5
+DATA_HEALTH_STATUS = SYSTEM_DEGRADED
+DATA_HEALTH_REASON = DATA_HEALTH_PROJECTION_NOT_READY
+PROVIDER_STATUS = SYSTEM_DEGRADED
+PROVIDER_CREDENTIAL_STATUS = UNKNOWN
+PROVIDER_REMAINING_QUOTA = null
+PROVIDER_STATUS_BLOCKER = PROVIDER_STATUS_PROJECTION_NOT_READY
+SAMPLED_ODDS_TIMELINES = 4
+SAMPLED_ODDS_TIMELINES_WITH_ITEMS = 0
+```
+
+The five readiness rows were limited to `premier_league`, `la_liga`,
+`bundesliga`, `serie_a` and `ligue_1`. Their rollover payloads contained
+synthetic-pattern team identifiers such as `<competition>-<season>-home-<n>` and
+empty retained-team sets. They therefore cannot prove real Provider identity,
+team or fixture capability for Round 2.
+
+The DayView showed four different existing leagues whose readiness endpoints
+returned 404. This is a truthful read-model coverage mismatch, not evidence that
+those leagues are absent from the runtime whitelist.
+
+```text
+PUBLIC_READ_MODEL_COVERAGE_STATUS = MISMATCHED_AND_INSUFFICIENT
+PUBLIC_READINESS_PROVENANCE_STATUS = NOT_ACCEPTABLE_AS_REAL_CAPABILITY_PROOF
+WITHIN_WINDOW_TIMELINE_ITEMS_OBSERVED = 0
+```
