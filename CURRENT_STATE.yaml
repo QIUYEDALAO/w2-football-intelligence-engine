@@ -1,127 +1,80 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-08T15:48:04+08:00"
+updated_at: "2026-08-08T16:16:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_CLOSURE_COMPLETE
-active_next_action: AWAIT_OWNER_ROUND_3_OR_BIG_FIVE_COLLECTION_DECISION
-next_code_action: NONE_PENDING_NEW_OWNER_AUTHORITY
-current_status: FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_PASS
-current_gate: CLOSED_BEFORE_ROUND_3
+owner_product_decision: APPROVED_R3_MARKET_RADAR_MODEL_LAB_CONTINUOUS_EXECUTION
+owner_authorization_id: W2_MI_R3_MARKET_RADAR_MODEL_LAB_20260808
+active_next_action: W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB
+next_code_action: R3_EVIDENCE_RADAR_MODEL_LAB_PUBLIC_INTEGRATION
+current_status: ROUND_3_AUTHORIZED_IN_PROGRESS
+current_gate: R3_EVIDENCE_ELIGIBILITY_AND_LIVE_CODE_AUDIT
 
-round_1:
-  status: PASS
-round_2:
-  status: PASS_WITH_TERMINAL_PROVIDER_PLAN_RESTRICTION
-post_r2_access_decision:
-  status: PASS_FREE_PLAN_SEASON_RESTRICTION_CONFIRMED
-  root_cause: FREE_PLAN_SEASON_ENTITLEMENT_RESTRICTION
+prior_rounds:
+  round_1: PASS
+  round_2: PASS_WITH_TERMINAL_PROVIDER_PLAN_RESTRICTION
+  post_r2_access_decision: PASS_FREE_PLAN_SEASON_RESTRICTION_CONFIRMED
+  free_plan_bridge_controlled_runtime: PASS
+  free_plan_bridge_receipt: FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_RECEIPT.md
 
-provider_account:
-  plan: FREE
-  active: true
-  daily_limit: 100
-  paid_renewal_authorized_now: false
-
-free_fixture_validation:
-  outcome: FREE_FIXTURE_CENTRIC_CURRENT_DATA_WORKS
-  fixture_date_no_season: ACCESSIBLE
-  fixture_by_id: ACCESSIBLE
-  odds_by_fixture: ACCESSIBLE_AH_OU_PRESENT
-  statistics_by_fixture: ACCESSIBLE
-  fixtures_by_ids: PLAN_RESTRICTED
-  original_proof_provider_calls: 5
-
-controlled_runtime_closure:
-  task: W2_MI_FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_CLOSURE
-  status: PASS
-  receipt: FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_RECEIPT.md
-  authorization: FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_AUTHORIZATION.md
-  acceptance: FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_ACCEPTANCE.md
-  pr_495:
-    state: MERGED
-    final_head_sha: 5d1761106d1bc1b9c55e1ef923b5603ef490c027
-    merge_sha: eccab2542fa68bb0ae557e6f073dfdd927297f07
-    quota_double_reserve_fixed: true
-    pr_fast: PASS
-    release_candidate: PASS
-  runtime_integration_pr:
-    number: 496
-    state: MERGED
-    final_head_sha: a55111b4955f70c84539ac44d07858a8d80e7f81
-    merge_sha: c241b877a4168659f465163108f7a53fb8fd82a5
-    pr_fast: PASS
-    release_candidate: PASS
-  final_main_sha: c241b877a4168659f465163108f7a53fb8fd82a5
-  deployment:
-    target: W2_STAGING
-    source_sha: c241b877a4168659f465163108f7a53fb8fd82a5
-    python_oci_digest: sha256:8c71abd5ccc3d946fdc3365e9ce863789b3081ecc8e73fa90d61b088d972abaf
-    web_oci_digest: sha256:ceea1489dee6a43aff648f27dc36a6c7d572819569c95f9057580c24385d87d1
-    immutable_manifest_sha256: 80dba9cb96f8cc0cea7ff71400821813ef3b15def9090f66a315db6c0b258235
-    immutable_release: PASS
-    service_health: PASS_6_OF_6
-  runtime:
-    code_default: "OFF"
-    deployed_mode: SHADOW_ONLY
-    scheduler_owner: EXISTING_W2_SCHEDULER
-    independent_scheduler_daemon: false
-    active_whitelist_before: 13
-    active_whitelist_after: 13
-    audit_only_runtime_intersection: 0
-  quota:
-    provider_daily_limit: 100
-    w2_daily_call_ceiling: 80
-    min_provider_daily_remaining: 20
-    effective_w2_ceiling: 80
-    automatic_retry: false
-    shared_persistent_ledger: PASS
-    acceptance_ledger_before: 26
-    acceptance_ledger_after: 28
-    task_real_validation_calls: 2
-    final_provider_remaining_at_acceptance: 93
-  real_shadow_acceptance:
-    status: PASS
-    fixture_id: "1575448"
-    competition_id: primeira_liga
-    provider_league_id: "94"
-    discovery_calls: 1
-    odds_calls: 1
-    fixture_identity: PASS
-    ah_observations: 182
-    ou_observations: 240
-    bookmaker_count: 14
-    raw_capture_lineage_rows: 464
-    cache_rerun_provider_calls: 0
-    restart_cache_rerun_provider_calls: 0
-  rollback:
-    mechanism: FEATURE_FLAG_ONE_STEP
-    status: PASS
-    disabled_provider_calls: 0
-    evidence_preserved: true
-    whitelist_preserved: true
-
-repository_hygiene:
-  authority: REPOSITORY_HYGIENE_POLICY.md
-  status: PASS
-  dead_assets_found: 0
-  dead_assets_deleted: 0
-  unresolved_hygiene_items: 0
+runtime_baseline:
+  main_sha_at_r3_authorization: c241b877a4168659f465163108f7a53fb8fd82a5
+  free_bridge_mode: SHADOW_ONLY
+  api_football_plan: FREE
+  provider_daily_limit: 100
+  w2_daily_call_ceiling: 80
+  min_provider_daily_remaining: 20
+  automatic_retry: false
+  active_whitelist: EXACT_EXISTING_13
+  audit_only_runtime_reachability: 0
 
 round_3:
   task: W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB
-  status: NOT_STARTED
+  status: AUTHORIZED_IN_PROGRESS
+  owner_authorization: ROUND_3_OWNER_AUTHORIZATION.md
+  execution_authority: ROUND_3_CODEX_EXECUTION.md
+  acceptance_authority: ROUND_3_ACCEPTANCE_CRITERIA.md
+  continuous_bounded_remediation_without_owner_reapproval: true
+  max_prs: 2
+  manual_provider_calls_for_dev_ci: 0
+  manual_provider_calls_for_runtime_acceptance_default: 0
+  immutable_staging_deployment_authorized_after_gates: true
+  market_radar:
+    required_statuses:
+      - INSUFFICIENT
+      - STABLE
+      - PRICE_MOVEMENT
+      - LINE_MOVEMENT
+      - LINE_AND_PRICE_MOVEMENT
+    statistical_anomaly_threshold_must_not_be_invented: true
+  model_lab:
+    role: DIAGNOSTIC_ONLY
+    minimum_public_bookmaker_depth: 3
+    disagreement_rule: MODEL_EFFECTIVE_PROBABILITY_OUTSIDE_REAL_SAME_LINE_BOOKMAKER_RANGE
+  public_surfaces:
+    - Market Overview
+    - Match Intelligence
+    - Data & Operations Summary
+  repository_hygiene_required_before_pass: true
+  expected_final_receipt: ROUND_3_FINAL_RECEIPT.md
+
+product_contract:
+  intelligence_first: true
+  model_market_divergence_as_opportunity: FORBIDDEN
+  betting_edge_claim: FORBIDDEN
+  recommendation_decision_v4_role: DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY
+  high_overround_as_value: FORBIDDEN
+  high_overround_as_high_information: FORBIDDEN
 
 permanent_stop_lines:
   api_football_pro_renewal: NOT_AUTHORIZED_NOW
-  active_whitelist: EXACT_EXISTING_13
   new_provider_purchase: NOT_AUTHORIZED
   new_provider_cutover: NOT_AUTHORIZED
+  active_whitelist_change: false
+  audit_only_promotion: false
   h_result_access: PERMANENTLY_CLOSED
-  betting_edge_claim: false
-  model_divergence_as_opportunity: false
   candidate: "OFF"
   formal: "OFF"
   lock: "OFF"
