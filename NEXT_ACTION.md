@@ -1,12 +1,14 @@
 # NEXT ACTION
 
 ```text
-ACTIVE_NEXT_ACTION = OWNER_REVIEW_B
-CURRENT_GATE = OWNER_REVIEW_B
-P0 = PASS_APPROVED
-P1 = PASS_CONTRACT_CONSISTENCY
-P2 = COMPLETE_READY_FOR_REVIEW
+ACTIVE_NEXT_ACTION = EXECUTE_OWNER_REVIEW_B_BOUNDED_REMEDIATION
+CURRENT_GATE = OWNER_REVIEW_B_REMEDIATION
+OWNER_REVIEW_B = CHANGES_REQUIRED
+REMEDIATION_AUTHORITY = OWNER_REVIEW_B_REMEDIATION.md
+PR = 498
+REVIEWED_HEAD = a067adbd1d2796cc69ea10bd8cff9aeadf7abee9
 P3 = NOT_STARTED_NOT_AUTHORIZED
+AFTER_REMEDIATION = STOP_FOR_OWNER_REVIEW_B_REREVIEW
 ROUND_4 = NOT_STARTED
 ```
 
@@ -15,67 +17,120 @@ ROUND_4 = NOT_STARTED
 ```text
 1. CURRENT_STATE.yaml
 2. NEXT_ACTION.md
-3. OWNER_REVIEW_B_PACKET.md
-4. OWNER_REVIEW_A_APPROVAL.md
-5. DASHBOARD_INTELLIGENCE_WORKSPACE_PRODUCT_SPEC.md
-6. W2_FINAL_EXECUTION_MASTER_PLAN.md
-7. DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN.md
-8. POST_R3_READINESS_ATTRIBUTION_REPORT.md
-9. POST_R3_READINESS_ATTRIBUTION_MATRIX.json
-10. REPOSITORY_HYGIENE_POLICY.md
+3. OWNER_REVIEW_B_REMEDIATION.md
+4. OWNER_REVIEW_B_PACKET.md
+5. OWNER_REVIEW_A_APPROVAL.md
+6. DASHBOARD_INTELLIGENCE_WORKSPACE_PRODUCT_SPEC.md
+7. DASHBOARD_DATA_CONTRACT.md on PR #498
+8. PERFECT_INTELLIGENCE_CAPABILITY_MATRIX.md on PR #498
+9. FRESHNESS_CONTRACT.md on PR #498
+10. W2_FINAL_EXECUTION_MASTER_PLAN.md
+11. DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN.md
+12. REPOSITORY_HYGIENE_POLICY.md
 ```
 
-## Current terminal state
+## Required bounded remediation on existing PR #498
 
-The approved P1→P2 segment is complete on PR #498 at exact head
-`a067adbd1d2796cc69ea10bd8cff9aeadf7abee9` against exact main/base
-`f0fe9d332d05a84f1ef04be86fd9fb44b69d69e3`.
+Do not redesign P1/P2. Preserve the one unified read model and close only the Owner Review B contract findings.
+
+### 1. Complete the P0 → P1 → P2 field binding
+
+P1/P2 must add/bind the P0-required Attention fields that are currently missing from the Attention contract:
 
 ```text
-P1_SELF_CHECK = PASS
-P1_CONTRACT_CONSISTENCY = PASS
-ONE_FINAL_UNIFIED_DASHBOARD_READ_MODEL = COMPLETE_READY_FOR_REVIEW
-PR_FAST_REQUIRED = PASS
-FULL_CI_RUN = 31273222764
-RELEASE_REQUIRED = PASS
+affected domain
+factual summary
+readiness context/status
+next_eval_at when available
+```
+
+Use existing state/reason/readiness evidence only. No Provider call or new signal.
+
+The existing replay front door already emits `decision_summary`; add it to the final P2 history/replay schema, adapter, sample and tests so the final contract can answer what W2 judged and why.
+
+### 2. Freeze the exact seven states and four risks in schema/tests
+
+The final P2 schema must fail closed to the exact approved seven intelligence states and exact four risk dimensions:
+
+```text
+EVENT_RISK
+DATA_RISK
+MODEL_RISK
+COLLECTION_RISK
+```
+
+Correct the P2 fixture that currently uses lower-case keys and `market_risk`. Add negative tests for unknown state, missing/extra risk dimension, and `MARKET_RISK`.
+
+### 3. Freeze Scoreline Top 3 semantics
+
+For `scoreline_reference.status = READY`:
+
+```text
+simulations_completed = 10000
+probability exposed to P3 = explicit unconditional_probability
+sample_count preserved
+label = MODEL_SCORELINE_REFERENCE
+proof_status = NOT_PROVEN
+```
+
+Reuse the existing scoreline engine output. No simulation/recalculation on API read. Add negative/positive contract tests.
+
+## Keep all accepted P2 behavior unchanged
+
+Keep:
+
+- one `w2.dashboard-intelligence-workspace.v1` read model;
+- current endpoint and checkpoint-only/pure projection boundary;
+- no-call/no-write fail-closed behavior;
+- 0/1/2+ snapshot semantics;
+- NOT_CONNECTED / NOT_DEFINED / NOT_PROVEN;
+- API-Football Prediction explicit NOT_AVAILABLE;
+- public ROI/CLV and legacy-authority exclusion;
+- probability/directional/league/forward validation foundation;
+- domain freshness and lineup 1/13 limitation;
+- Formal/Candidate/Lock/Production OFF.
+
+## Forbidden
+
+- P3 UI work
+- new PR architecture or second read model
+- Provider calls
+- Scheduler/cadence changes
+- whitelist changes
+- model/factor/threshold changes
+- external-source connection
+- Phase 0.5 rerun
+- Round 4
+- Candidate/Formal/Lock/Production enablement
+- legacy deletion
+
+## Required terminal evidence
+
+After fixes on PR #498:
+
+```text
+NEW_EXACT_HEAD_SHA
+UPDATED_P1_CONTRACTS
+UPDATED_SCHEMA_AND_ADAPTER
+UPDATED_DETERMINISTIC_SAMPLE
+ATTENTION_FIELD_BINDING_TESTS = PASS
+EXACT_SEVEN_STATE_FOUR_RISK_TESTS = PASS
+SCORELINE_10000_UNCONDITIONAL_TESTS = PASS
+REPLAY_DECISION_SUMMARY_TEST = PASS
+EXISTING_ZERO_ONE_MULTI_TESTS = PASS
+EXISTING_FORBIDDEN_FIELD_TESTS = PASS
+EXISTING_NO_CALL_ON_READ_TESTS = PASS
+FULL_EXACT_HEAD_CI_RELEASE_REQUIRED = PASS
 REPOSITORY_HYGIENE = PASS
-NEXT = OWNER_REVIEW_B
+WORKTREE = CLEAN
 ```
 
-Owner Review B evidence is in `OWNER_REVIEW_B_PACKET.md`.
-
-## Stop condition
-
-No implementation step is authorized while Owner Review B is pending.
+Then stop:
 
 ```text
+NEXT = OWNER_REVIEW_B_REREVIEW
 P3 = NOT_AUTHORIZED
 ROUND_4 = NOT_STARTED
-CANDIDATE = OFF
-FORMAL = OFF
-LOCK = OFF
-PRODUCTION = OFF
 ```
 
-Do not merge approval into implementation authority. A future Owner decision
-must explicitly update `CURRENT_STATE.yaml` and this file before any P3 work.
-
-## Frozen boundaries
-
-```text
-PHASE_0_5_REEXECUTION = FORBIDDEN
-H_RESULT_ACCESS = PERMANENTLY_CLOSED
-HISTORICAL_STEP_4_POST4 = SUPERSEDED_AS_STANDALONE_WORKSTREAM
-REBUILD_OLD_L1_L2_BOSS_DASHBOARD = NO
-PROVIDER_CALL_FROM_DASHBOARD_WORK = 0
-SCHEDULER_OR_CADENCE_CHANGE = 0
-ACTIVE_WHITELIST = EXACT_EXISTING_13
-MODEL_OR_THRESHOLD_CHANGE = 0
-EXTERNAL_INTELLIGENCE_CONNECTION = 0
-PUBLIC_CLV = FORBIDDEN
-PUBLIC_ROI = FORBIDDEN
-REAL_MONEY = NOT_AUTHORIZED
-```
-
-Parallel Path A natural evidence accumulation remains background runtime only
-and is unchanged by this P1/P2 delivery.
+Do not merge or start P3 automatically.
