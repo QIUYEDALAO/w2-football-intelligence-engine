@@ -188,15 +188,32 @@ def provider_daily_hard_cap_decision(
     planned_calls: int,
     daily_cap: int = API_FOOTBALL_DAILY_BUDGET,
     reserve_bucket: int = API_FOOTBALL_RESERVE_BUCKET,
+    provider_remaining: int | None = None,
+    min_provider_remaining: int = 0,
+    require_provider_remaining: bool = False,
 ) -> dict[str, Any]:
     actual = max(actual_calls_today, 0)
     planned = max(planned_calls, 0)
     projected_total = actual + planned
     remaining_after_plan = daily_cap - projected_total
+    provider_remaining_after_plan = (
+        provider_remaining - planned if provider_remaining is not None else None
+    )
     if projected_total > daily_cap:
         allowed = False
         blocker = "DAILY_PROVIDER_HARD_CAP_EXCEEDED"
         mode = "HARD_CAP"
+    elif require_provider_remaining and provider_remaining is None:
+        allowed = False
+        blocker = "DAILY_QUOTA_UNKNOWN"
+        mode = "BLOCKED"
+    elif (
+        provider_remaining_after_plan is not None
+        and provider_remaining_after_plan < min_provider_remaining
+    ):
+        allowed = False
+        blocker = "PROVIDER_RESERVE_PROTECTED"
+        mode = "RESERVE_PROTECTED"
     elif remaining_after_plan < reserve_bucket:
         allowed = False
         blocker = "PROVIDER_RESERVE_PROTECTED"
@@ -215,4 +232,7 @@ def provider_daily_hard_cap_decision(
         "daily_cap": daily_cap,
         "reserve_bucket": reserve_bucket,
         "remaining_after_plan": remaining_after_plan,
+        "provider_remaining": provider_remaining,
+        "min_provider_remaining": min_provider_remaining,
+        "provider_remaining_after_plan": provider_remaining_after_plan,
     }
