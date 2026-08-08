@@ -68,6 +68,10 @@ Do not repeat the same-day snapshot unless a separately observed public incident
 requires evidence preservation. This is an agent evidence cadence, not a new
 Provider or production collection schedule.
 
+The current Codex task is resumed by thread heartbeat `w2-mi-round-2` at 10:05
+Asia/Shanghai daily. The heartbeat must be stopped after the Round 2 final
+receipt. It is not a production Scheduler or Provider collection job.
+
 ## Current R2-B action
 
 Use only existing persisted W2 captures/read models and already-authorized
