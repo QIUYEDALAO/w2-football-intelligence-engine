@@ -1,16 +1,16 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-09T03:05:00+08:00"
+updated_at: "2026-08-09T03:14:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: W2_OWNER_REVIEW_B_PENDING
-owner_authorization_id: W2_OWNER_REVIEW_A_APPROVAL_V1
-active_next_action: OWNER_REVIEW_B
-next_code_action: NONE_PENDING_OWNER_REVIEW_B
-current_status: P2_COMPLETE_READY_FOR_OWNER_REVIEW_B
-current_gate: OWNER_REVIEW_B
+owner_product_decision: W2_OWNER_REVIEW_B_CHANGES_REQUIRED
+owner_authorization_id: W2_OWNER_REVIEW_B_REMEDIATION_V1
+active_next_action: EXECUTE_OWNER_REVIEW_B_BOUNDED_REMEDIATION
+next_code_action: REMEDIATE_PR_498_P1_P2_CONTRACT_ONLY
+current_status: OWNER_REVIEW_B_CHANGES_REQUIRED
+current_gate: OWNER_REVIEW_B_REMEDIATION
 
 runtime_baseline:
   final_main_sha: f0fe9d332d05a84f1ef04be86fd9fb44b69d69e3
@@ -84,25 +84,32 @@ owner_review_a:
   next_owner_gate: OWNER_REVIEW_B
 
 owner_review_b:
-  status: PENDING_OWNER_DECISION
+  status: CHANGES_REQUIRED
+  review_authority: OWNER_REVIEW_B_REMEDIATION.md
   packet: OWNER_REVIEW_B_PACKET.md
-  p1: PASS_CONTRACT_CONSISTENCY
-  p2: COMPLETE_READY_FOR_REVIEW
+  p1_initial_result: PASS_CONTRACT_CONSISTENCY_CLAIMED
+  p1_review_result: BOUNDED_CONTRACT_COVERAGE_REMEDIATION_REQUIRED
+  p2_initial_result: COMPLETE_READY_FOR_REVIEW_CLAIMED
+  p2_review_result: BOUNDED_SCHEMA_CONTRACT_REMEDIATION_REQUIRED
   exact_main_sha: f0fe9d332d05a84f1ef04be86fd9fb44b69d69e3
   exact_base_sha: f0fe9d332d05a84f1ef04be86fd9fb44b69d69e3
-  exact_head_sha: a067adbd1d2796cc69ea10bd8cff9aeadf7abee9
+  reviewed_head_sha: a067adbd1d2796cc69ea10bd8cff9aeadf7abee9
+  reviewed_context_sha: 131ab138cc4c6b04f65c0a36e4e86d32652d8dd1
   pr_number: 498
-  pr_url: https://github.com/QIUYEDALAO/w2-football-intelligence-engine/pull/498
-  full_ci_run: 31273222764
-  full_ci_status: PASS_RELEASE_REQUIRED
-  repository_hygiene: PASS
-  p3: NOT_STARTED_NOT_AUTHORIZED
-  round_4: NOT_STARTED
+  full_ci_run_reviewed: 31273222764
+  full_ci_status_reviewed: PASS_RELEASE_REQUIRED
+  findings:
+    - P0_ATTENTION_AND_REPLAY_FIELDS_NOT_FULLY_BOUND_IN_P1_P2
+    - SEVEN_STATE_AND_FOUR_RISK_INVARIANTS_NOT_FAIL_CLOSED_IN_FINAL_SCHEMA
+    - SCORELINE_10000_AND_UNCONDITIONAL_PROBABILITY_NOT_EXPLICITLY_BOUND
+  remediation_scope: EXISTING_PR_498_ONLY
+  p3: NOT_AUTHORIZED
+  next: OWNER_REVIEW_B_REREVIEW
 
 final_execution_plan:
   authority: W2_FINAL_EXECUTION_MASTER_PLAN.md
   detailed_dashboard_authority: DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN.md
-  current_phase_authority: OWNER_REVIEW_A_APPROVAL.md
+  current_phase_authority: OWNER_REVIEW_B_REMEDIATION.md
   historical_reconciliation_stage: CANCELLED_NOT_A_DEVELOPMENT_STAGE
   historical_step4_post4: SUPERSEDED_AS_STANDALONE_WORKSTREAM
   rebuild_old_boss_l1_l2_dashboard: false
@@ -120,8 +127,8 @@ final_execution_plan:
     provider_scheduler_safety: BACKGROUND_RUNTIME_ONLY
   current_development_chain:
     p0: PASS_APPROVED
-    p1: PASS
-    p2: COMPLETE_READY_FOR_REVIEW
+    p1: BOUNDED_CONTRACT_COVERAGE_REMEDIATION_REQUIRED
+    p2: BOUNDED_SCHEMA_CONTRACT_REMEDIATION_REQUIRED
     p3: NOT_STARTED_NOT_AUTHORIZED
     p4: NOT_STARTED
     p5: NOT_STARTED
@@ -129,13 +136,14 @@ final_execution_plan:
     p6: BLUEPRINT_ONLY_NOT_AUTHORIZED
   owner_gates:
     owner_review_a: APPROVED
-    after_p2: OWNER_REVIEW_B
+    owner_review_b: CHANGES_REQUIRED
+    after_p2_remediation: OWNER_REVIEW_B_REREVIEW
     after_p5: OWNER_REVIEW_C
 
 dashboard_intelligence_workspace:
   workstream: DASHBOARD_INTELLIGENCE_WORKSPACE_FINAL_REFACTOR
-  status: P2_COMPLETE_READY_FOR_OWNER_REVIEW_B
-  current_execution_authorization: STOP_OWNER_REVIEW_B
+  status: P2_BOUNDED_REMEDIATION_REQUIRED
+  current_execution_authorization: PR498_P1_P2_CONTRACT_REMEDIATION_ONLY
   p0_output: DASHBOARD_INTELLIGENCE_WORKSPACE_PRODUCT_SPEC.md
   p1_outputs:
     - PERFECT_INTELLIGENCE_CAPABILITY_MATRIX
@@ -143,23 +151,19 @@ dashboard_intelligence_workspace:
     - DASHBOARD_DATA_CONTRACT
     - FRESHNESS_CONTRACT
   p2_target: ONE_FINAL_UNIFIED_DASHBOARD_READ_MODEL
-  p2_required_outputs:
-    - EXPLICIT_SCHEMA
-    - API_PAYLOAD_CONTRACT
-    - DETERMINISTIC_SAMPLE_PAYLOAD
-    - CONTRACT_TESTS
-    - ZERO_ONE_MULTI_SNAPSHOT_REPRESENTATION
-    - READINESS_REASON_CODE_REPRESENTATION
-    - NOT_CONNECTED_NOT_DEFINED_NOT_PROVEN_REPRESENTATION
-    - NO_CALL_ON_READ_PROOF
-  p2_delivery: NORMAL_PR_CI_WORKFLOW
   p2_pr: 498
-  p2_head_sha: a067adbd1d2796cc69ea10bd8cff9aeadf7abee9
-  p2_full_ci_run: 31273222764
-  p2_full_ci: PASS_RELEASE_REQUIRED
-  p2_repository_hygiene: PASS
+  p2_reviewed_head_sha: a067adbd1d2796cc69ea10bd8cff9aeadf7abee9
+  p2_full_ci_run_reviewed: 31273222764
+  p2_full_ci_reviewed: PASS_RELEASE_REQUIRED
+  remediation_required:
+    p0_attention_fields: true
+    replay_decision_summary: true
+    exact_seven_state_schema: true
+    exact_four_risk_schema: true
+    scoreline_unconditional_probability: true
+    scoreline_ready_10000_invariant: true
   p2_stop_before: P3
-  p2_after: OWNER_REVIEW_B
+  p2_after_remediation: OWNER_REVIEW_B_REREVIEW
   public_dashboard_target: NEW_INTELLIGENCE_WORKSPACE_ONLY
   product_position: FOOTBALL_MARKET_INTELLIGENCE_PLUS_MODEL_DIAGNOSTICS
   exact_runtime_whitelist: 13
