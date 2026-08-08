@@ -3,10 +3,10 @@
 Current action:
 
 ```text
-ACTIVE_NEXT_ACTION = W2_MI_R2_AUDIT_FOUNDATION_AND_DAY0_BASELINE
+ACTIVE_NEXT_ACTION = W2_MI_R2_B_FOURTEEN_DAY_READ_ONLY_OBSERVATION
 ROUND_1 = PASS
 ROUND_2 = AUTHORIZED_IN_PROGRESS
-ROUND_2_PHASE = R2_A_AUDIT_FOUNDATION_AND_DAY0_BASELINE
+ROUND_2_PHASE = R2_B_FOURTEEN_DAY_READ_ONLY_OBSERVATION
 ROUND_3 = NOT_STARTED
 ```
 
@@ -22,12 +22,13 @@ Read from `origin/context/current` in this order:
 6. `ROUND_2_OWNER_AUTHORIZATION.md`
 7. `ROUND_2_CODEX_EXECUTION.md`
 8. `ROUND_2_ACCEPTANCE_CRITERIA.md`
-9. `ROUND_1_FINAL_RECEIPT.md`
-10. `AI_PROJECT_CONTEXT.md`
-11. `AI_QUANT_PROJECT_CONTEXT.md`
-12. `AGENTS.md`
-13. `QUANT_AGENTS.md`
-14. `.github/copilot-instructions.md`
+9. `ROUND_2_DAY0_RECEIPT.md`
+10. `ROUND_1_FINAL_RECEIPT.md`
+11. `AI_PROJECT_CONTEXT.md`
+12. `AI_QUANT_PROJECT_CONTEXT.md`
+13. `AGENTS.md`
+14. `QUANT_AGENTS.md`
+15. `.github/copilot-instructions.md`
 
 Use latest trusted `origin/main` as code baseline. Round 2 initial main is:
 
@@ -37,24 +38,40 @@ f7860813646ce9718931dff331c09ce2fe7a71ba
 
 Re-resolve main before editing and record any advancement separately.
 
-## Immediate R2-A objective
+## Completed R2-A foundation and Day-0 baseline
 
-Build and validate the audit foundation required to inspect the 17-competition union without changing runtime whitelist membership.
-
-Required first sequence:
+R2-A is frozen in `ROUND_2_DAY0_RECEIPT.md`:
 
 ```text
-1. audit current main + current runtime authorities
-2. create one bounded Round 2 audit-tooling PR
-3. add audit-only descriptor support for the four net-new candidates outside runtime whitelist discovery
-4. add deterministic Provider-backed identity resolution; no guessed league IDs
-5. preserve existing evidence-only/coverage/enablement audit modes
-6. add cumulative quota ledger + 20-call Provider reserve guard
-7. prove dry-run union count = 17 and Provider calls = 0
-8. complete required PR/CI validation
-9. only after tooling acceptance, run controlled Day-0 evidence-only Provider baseline
-10. record exact observation start timestamp and start the 14-day R2-B evidence window
+AUDIT_TOOLING_PR = 494
+AUDIT_TOOLING_MERGE_SHA = b04dcc7e521dce413740bcf754b1a45755a3e83e
+DRY_RUN_ROWS = 17
+DRY_RUN_PROVIDER_CALLS = 0
+DAY0_ACTUAL_PROVIDER_CALLS = 17
+DAY0_PLAN_RESTRICTED_ROWS = 17
+DEEPER_CAPABILITY_PROBE_CALLS = 0
+ACTIVE_WHITELIST = 13_UNCHANGED
 ```
+
+## Current R2-B action
+
+Use only existing persisted W2 captures/read models and already-authorized
+production collection for the fourteen-day observation window:
+
+```text
+ROUND2_OBSERVATION_START_UTC = 2026-08-08T01:53:55.509495+00:00
+ROUND2_OBSERVATION_END_UTC = 2026-08-22T01:53:55.509495+00:00
+NEW_PERSISTENT_COLLECTION_JOBS = 0
+```
+
+Do not finish R2-B before the exact end timestamp. Inspect truthful freshness,
+AH/OU, bookmaker depth/agreement, overround, movement, missingness,
+Provider/schema incidents and call cost where existing evidence permits. Record
+`TEMPORAL_EVIDENCE_INSUFFICIENT` wherever it does not.
+
+After the window ends, execute R2-C exactly as authorized: build the final 17-row
+capability matrix and Round 2 receipt, keep `promotion_authorized = false` for
+every row, and stop before Round 3.
 
 ## Audit universe
 

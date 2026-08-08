@@ -10,11 +10,12 @@ Before acting, read from `origin/context/current`:
 6. `ROUND_2_OWNER_AUTHORIZATION.md`
 7. `ROUND_2_CODEX_EXECUTION.md`
 8. `ROUND_2_ACCEPTANCE_CRITERIA.md`
-9. `ROUND_1_FINAL_RECEIPT.md`
-10. `AI_PROJECT_CONTEXT.md`
-11. `AI_QUANT_PROJECT_CONTEXT.md`
-12. `AGENTS.md`
-13. `QUANT_AGENTS.md`
+9. `ROUND_2_DAY0_RECEIPT.md`
+10. `ROUND_1_FINAL_RECEIPT.md`
+11. `AI_PROJECT_CONTEXT.md`
+12. `AI_QUANT_PROJECT_CONTEXT.md`
+13. `AGENTS.md`
+14. `QUANT_AGENTS.md`
 
 Use latest trusted `origin/main` as code baseline and `origin/context/current` as current task authority.
 
@@ -23,7 +24,7 @@ PRODUCT = W2 Football Intelligence
 PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 ROUND_1 = PASS
 ROUND_2 = AUTHORIZED_IN_PROGRESS
-ACTIVE_NEXT_ACTION = W2_MI_R2_AUDIT_FOUNDATION_AND_DAY0_BASELINE
+ACTIVE_NEXT_ACTION = W2_MI_R2_B_FOURTEEN_DAY_READ_ONLY_OBSERVATION
 ROUND_3 = NOT_STARTED
 ```
 
@@ -48,31 +49,11 @@ scottish_premiership
 
 They must remain outside runtime CompetitionRegistry whitelist membership, Scheduler, future-refresh, DayView and public product selection.
 
-## R2-A first
+## R2-A result
 
-Create one bounded audit-tooling PR.
-
-Provider calls during PR development/CI:
-
-```text
-0
-```
-
-The PR must add/confirm:
-
-```text
-audit-only descriptor support outside runtime whitelist discovery
-deterministic Provider-backed identity resolution
-no fuzzy or guessed league IDs
-existing audit modes preserved
-17-row zero-call dry-run
-persistent sanitized cumulative audit ledger
-quota reserve and hard-cap enforcement
-multi-day resume without cumulative-budget reset
-no automatic retries
-```
-
-Do not change public W2 product semantics, production Provider policy/allowlist or production Scheduler policy.
+R2-A is complete in `ROUND_2_DAY0_RECEIPT.md`. The merged audit tooling passed
+its 17-row zero-call dry-run. Day-0 made 17 `/leagues` calls; all rows stopped at
+`PLAN_RESTRICTED`, so no deeper calls were eligible.
 
 ## Controlled Provider audit authorization
 
@@ -96,7 +77,14 @@ If quota/plan/identity/schema/hard-cap stops the batch, preserve evidence and re
 
 ## R2-B
 
-The first successful Day-0 baseline starts a 14-calendar-day observation window.
+The active 14-calendar-day observation window is:
+
+```text
+START = 2026-08-08T01:53:55.509495+00:00
+END = 2026-08-22T01:53:55.509495+00:00
+```
+
+Do not repeat Day-0 calls during R2-B.
 
 Use existing W2 persisted captures/read models and already-authorized production collection for temporal evidence.
 

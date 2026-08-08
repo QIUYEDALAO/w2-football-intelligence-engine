@@ -7,7 +7,7 @@ PRODUCT = W2 Football Intelligence
 PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 ROUND_1 = PASS
 ROUND_2 = AUTHORIZED_IN_PROGRESS
-ACTIVE_NEXT_ACTION = W2_MI_R2_AUDIT_FOUNDATION_AND_DAY0_BASELINE
+ACTIVE_NEXT_ACTION = W2_MI_R2_B_FOURTEEN_DAY_READ_ONLY_OBSERVATION
 ROUND_3 = NOT_STARTED
 ```
 
@@ -17,6 +17,7 @@ Read:
 ROUND_2_OWNER_AUTHORIZATION.md
 ROUND_2_CODEX_EXECUTION.md
 ROUND_2_ACCEPTANCE_CRITERIA.md
+ROUND_2_DAY0_RECEIPT.md
 ROUND_1_FINAL_RECEIPT.md
 ```
 
@@ -57,35 +58,23 @@ NET_NEW_RUNTIME_STATE = AUDIT_CANDIDATE_ONLY
 
 The four net-new candidates must stay outside runtime whitelist/Scheduler/future-refresh/DayView.
 
-## Current R2-A work
+## Current R2-B work
 
-Codex must create one bounded audit-tooling PR that:
-
-- supports 13 registered + 4 audit-only descriptors;
-- keeps audit-only descriptors outside runtime CompetitionRegistry discovery;
-- resolves net-new Provider identity deterministically from real `/leagues` evidence;
-- forbids fuzzy/guessed identity;
-- preserves existing audit modes;
-- adds persistent sanitized cumulative audit-call accounting;
-- enforces daily cap 80, cumulative cap 200, Provider remaining reserve 20, interval >=10s and no automatic retry;
-- proves dry-run 17 rows with Provider calls 0;
-- performs zero Provider calls during PR development/CI.
-
-After tooling acceptance, owner-authorized controlled audit calls may run through the Round 2 audit path.
-
-Day-0 starts with evidence-only semantics:
+R2-A is complete in `ROUND_2_DAY0_RECEIPT.md`. PR `#494` delivered the audit
+foundation and zero-call 17-row dry-run. Day-0 recorded one `/leagues` request
+for each row; all 17 were plan-restricted, so no deeper calls were eligible.
 
 ```text
-4 planned calls per competition
-17 targets
-68 theoretical max for first complete baseline
+ROUND2_OBSERVATION_START_UTC = 2026-08-08T01:53:55.509495+00:00
+ROUND2_OBSERVATION_END_UTC = 2026-08-22T01:53:55.509495+00:00
 ```
 
-Do not raise limits to complete the batch.
+Use only existing persisted evidence and authorized production collection.
+Do not repeat Day-0 calls or create a new collection schedule during R2-B.
 
 ## R2-B/R2-C
 
-The first successful Day-0 baseline starts a 14-calendar-day observation window.
+The Day-0 evidence capture started the 14-calendar-day observation window above.
 
 Temporal evidence comes from existing persisted W2 captures/read models and already-authorized production collection. No new persistent polling for net-new candidates is authorized.
 

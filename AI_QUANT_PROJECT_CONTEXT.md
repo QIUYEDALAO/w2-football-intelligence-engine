@@ -7,7 +7,7 @@ PRODUCT = W2 Football Intelligence
 PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 ROUND_1 = PASS
 ROUND_2 = AUTHORIZED_IN_PROGRESS
-ACTIVE_NEXT_ACTION = W2_MI_R2_AUDIT_FOUNDATION_AND_DAY0_BASELINE
+ACTIVE_NEXT_ACTION = W2_MI_R2_B_FOURTEEN_DAY_READ_ONLY_OBSERVATION
 ROUND_3 = NOT_STARTED
 ```
 
@@ -30,6 +30,7 @@ Read:
 ROUND_2_OWNER_AUTHORIZATION.md
 ROUND_2_CODEX_EXECUTION.md
 ROUND_2_ACCEPTANCE_CRITERIA.md
+ROUND_2_DAY0_RECEIPT.md
 ```
 
 Round 2 is a Provider/coverage capability audit, not another edge experiment.
@@ -53,38 +54,20 @@ scottish_premiership
 
 They must remain outside runtime whitelist membership and all production Scheduler/DayView paths.
 
-## R2-A
+## R2-A result
 
-Create one bounded audit-tooling PR and no product-semantic refactor.
-
-Required:
-
-- audit-only descriptor namespace outside runtime whitelist discovery;
-- deterministic Provider-backed identity resolution;
-- no fuzzy or guessed Provider IDs;
-- 17-row dry-run with zero Provider calls;
-- cumulative sanitized audit ledger;
-- Provider reserve and hard caps;
-- no automatic retries;
-- no Provider calls during PR development/CI.
-
-After R2-A tooling is accepted, controlled Provider audit calls are owner-authorized only through the audit path.
-
-```text
-DAY0_EVIDENCE_ONLY_CALLS_PER_COMPETITION = 4
-DAY0_THEORETICAL_MAX = 68
-ROUND2_DAILY_AUDIT_HARD_CAP = 80
-ROUND2_CUMULATIVE_AUDIT_HARD_CAP = 200
-ROUND2_MIN_PROVIDER_DAILY_REMAINING = 20
-REQUEST_INTERVAL_SECONDS_MIN = 10
-AUTOMATIC_RETRY = false
-```
-
-Quota/plan/identity/schema blockers are valid outcomes. Never raise limits or weaken guards.
+R2-A is complete in `ROUND_2_DAY0_RECEIPT.md`. The Day-0 matrix has 17 truthful
+`PLAN_RESTRICTED` rows, 17 total `/leagues` calls, zero deeper calls and zero
+promotion-authorized rows.
 
 ## R2-B
 
-The first successful Day-0 baseline starts a 14-calendar-day read-only observation window.
+The active read-only observation window is:
+
+```text
+START = 2026-08-08T01:53:55.509495+00:00
+END = 2026-08-22T01:53:55.509495+00:00
+```
 
 Use real persisted W2 captures and existing authorized production collection. Do not create new persistent polling for the four audit-only candidates.
 

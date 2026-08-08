@@ -11,12 +11,13 @@ This is the mutable current authority for W2. It is maintained directly on `cont
 5. `ROUND_2_OWNER_AUTHORIZATION.md`
 6. `ROUND_2_CODEX_EXECUTION.md`
 7. `ROUND_2_ACCEPTANCE_CRITERIA.md`
-8. `ROUND_1_FINAL_RECEIPT.md`
-9. `AI_PROJECT_CONTEXT.md`
-10. `AI_QUANT_PROJECT_CONTEXT.md`
-11. `AGENTS.md`
-12. `QUANT_AGENTS.md`
-13. `.github/copilot-instructions.md`
+8. `ROUND_2_DAY0_RECEIPT.md`
+9. `ROUND_1_FINAL_RECEIPT.md`
+10. `AI_PROJECT_CONTEXT.md`
+11. `AI_QUANT_PROJECT_CONTEXT.md`
+12. `AGENTS.md`
+13. `QUANT_AGENTS.md`
+14. `.github/copilot-instructions.md`
 
 ## Current decision
 
@@ -25,7 +26,7 @@ PRODUCT = W2 Football Intelligence
 PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 ROUND_1 = PASS
 ROUND_2 = AUTHORIZED_IN_PROGRESS
-ACTIVE_NEXT_ACTION = W2_MI_R2_AUDIT_FOUNDATION_AND_DAY0_BASELINE
+ACTIVE_NEXT_ACTION = W2_MI_R2_B_FOURTEEN_DAY_READ_ONLY_OBSERVATION
 ROUND_3 = NOT_STARTED
 ```
 
@@ -90,12 +91,20 @@ R2_C = FINAL_CAPABILITY_DECISION
 Current phase:
 
 ```text
-R2_A = ACTIVE
+R2_A = COMPLETE_WITH_TRUTHFUL_PLAN_RESTRICTIONS
+R2_B = ACTIVE_UNTIL_2026-08-22T01:53:55.509495+00:00
+R2_C = BLOCKED_UNTIL_R2_B_WINDOW_COMPLETE
 ```
 
-R2-A first builds one bounded audit-tooling PR with zero Provider calls during development/CI. The tooling must support audit-only candidates outside runtime whitelist discovery, deterministic Provider-backed identity resolution, cumulative quota accounting and fail-closed resume.
+R2-A audit tooling was delivered in PR `#494` and merged as
+`b04dcc7e521dce413740bcf754b1a45755a3e83e`. PR/CI Provider calls were zero.
+The 17-row dry-run recorded 68 planned calls, zero actual calls and zero business
+writes.
 
-Only after R2-A tooling gates pass may controlled real Provider audit calls begin.
+The authorized Day-0 audit then made exactly one `/leagues` request for each of
+the 17 audit rows. Every request was recorded once and returned a truthful
+`PROVIDER_PLAN_RESTRICTED` result. No fixtures, odds or deeper capability calls
+were eligible. See `ROUND_2_DAY0_RECEIPT.md`.
 
 ## Provider audit authorization
 
@@ -126,8 +135,8 @@ The four net-new Provider league IDs must be observed from deterministic `/leagu
 The exact observation window starts when the first successful Day-0 baseline is captured:
 
 ```text
-ROUND2_OBSERVATION_START_UTC = PENDING_DAY0
-ROUND2_OBSERVATION_END_UTC = START + 14 calendar days
+ROUND2_OBSERVATION_START_UTC = 2026-08-08T01:53:55.509495+00:00
+ROUND2_OBSERVATION_END_UTC = 2026-08-22T01:53:55.509495+00:00
 ```
 
 Temporal evidence comes from existing persisted W2 captures/read models and already-authorized production collection. Round 2 does not authorize a new persistent polling scheduler for audit-only candidates.

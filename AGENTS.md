@@ -12,11 +12,12 @@ Read before work:
 6. `ROUND_2_OWNER_AUTHORIZATION.md`
 7. `ROUND_2_CODEX_EXECUTION.md`
 8. `ROUND_2_ACCEPTANCE_CRITERIA.md`
-9. `ROUND_1_FINAL_RECEIPT.md`
-10. `AI_PROJECT_CONTEXT.md`
-11. `AI_QUANT_PROJECT_CONTEXT.md`
-12. `QUANT_AGENTS.md`
-13. `.github/copilot-instructions.md`
+9. `ROUND_2_DAY0_RECEIPT.md`
+10. `ROUND_1_FINAL_RECEIPT.md`
+11. `AI_PROJECT_CONTEXT.md`
+12. `AI_QUANT_PROJECT_CONTEXT.md`
+13. `QUANT_AGENTS.md`
+14. `.github/copilot-instructions.md`
 
 Use latest trusted `origin/main` as code baseline and `origin/context/current` as task authority.
 
@@ -24,7 +25,7 @@ Use latest trusted `origin/main` as code baseline and `origin/context/current` a
 PRODUCT = W2 Football Intelligence
 ROUND_1 = PASS
 ROUND_2 = AUTHORIZED_IN_PROGRESS
-ACTIVE_NEXT_ACTION = W2_MI_R2_AUDIT_FOUNDATION_AND_DAY0_BASELINE
+ACTIVE_NEXT_ACTION = W2_MI_R2_B_FOURTEEN_DAY_READ_ONLY_OBSERVATION
 ROUND_3 = NOT_STARTED
 ```
 
@@ -56,31 +57,18 @@ AUDIT_CANDIDATE_RUNTIME_REACHABILITY = 0
 
 Do not add the four to CompetitionRegistry runtime whitelist, Scheduler, future-refresh, DayView or public cards.
 
-## R2-A first
+## Current phase
 
-Create one bounded audit-tooling PR.
-
-Allowed work:
-
-```text
-audit CLI
-audit-only descriptor support
-Provider audit adapter
-exact identity resolution
-quota/cumulative-budget guard
-resume/report tooling
-focused tests/docs
-```
-
-Before real Provider calls:
+R2-A is complete in `ROUND_2_DAY0_RECEIPT.md`. PR `#494` is merged; its
+17-row dry-run made zero Provider calls. Day-0 made 17 `/leagues` calls and all
+17 rows stopped truthfully at `PLAN_RESTRICTED`; no deeper calls are eligible.
 
 ```text
-DRY_RUN_ROWS = 17
-PROVIDER_CALLS_DURING_PR_DEV_CI = 0
-DB_BUSINESS_WRITES = 0
+R2_A = COMPLETE_WITH_TRUTHFUL_PLAN_RESTRICTIONS
+R2_B = ACTIVE
+ROUND2_OBSERVATION_START_UTC = 2026-08-08T01:53:55.509495+00:00
+ROUND2_OBSERVATION_END_UTC = 2026-08-22T01:53:55.509495+00:00
 ```
-
-Net-new Provider IDs must be observed from deterministic Provider `/leagues` evidence. No fuzzy matching or guessed IDs.
 
 ## Controlled Provider audit authorization
 
@@ -105,7 +93,8 @@ HTTP 429, quota warning/exhaustion, plan restriction, schema unsafe, invalid key
 
 ## R2-B/R2-C
 
-First successful Day-0 baseline starts the 14-calendar-day observation window.
+The Day-0 evidence capture started the 14-calendar-day observation window shown
+above. Do not repeat Day-0 calls during R2-B.
 
 Use existing persisted W2 evidence and existing authorized production collection. No new persistent polling schedule for the four audit-only candidates.
 

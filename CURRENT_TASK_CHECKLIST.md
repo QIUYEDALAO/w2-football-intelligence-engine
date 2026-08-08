@@ -9,7 +9,7 @@ PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 PRODUCT = W2 Football Intelligence
 ROUND_1 = PASS
 ACTIVE_TASK = W2_MI_R2_FIRST_DIVISION_PROVIDER_CAPABILITY_AUDIT
-ACTIVE_PHASE = R2_A_AUDIT_FOUNDATION_AND_DAY0_BASELINE
+ACTIVE_PHASE = R2_B_FOURTEEN_DAY_READ_ONLY_OBSERVATION
 ROUND_2 = AUTHORIZED_IN_PROGRESS
 ROUND_3 = NOT_STARTED
 ```
@@ -21,6 +21,8 @@ Round 2 owner authorization: `ROUND_2_OWNER_AUTHORIZATION.md`.
 Round 2 execution authority: `ROUND_2_CODEX_EXECUTION.md`.
 
 Round 2 acceptance authority: `ROUND_2_ACCEPTANCE_CRITERIA.md`.
+
+R2-A/Day-0 evidence: `ROUND_2_DAY0_RECEIPT.md`.
 
 Permanent guard:
 
@@ -110,49 +112,50 @@ NET_NEW_DAYVIEW_ADDITIONS = 0
 ### R2-A — Audit foundation and Day-0 baseline
 
 ```text
-STATUS = NEXT_AUTHORIZED
+STATUS = COMPLETE_WITH_TRUTHFUL_PLAN_RESTRICTIONS
 ```
 
 Checklist:
 
-- [ ] Record exact current `origin/main` SHA; initial Round 2 main was `f7860813646ce9718931dff331c09ce2fe7a71ba`.
-- [ ] Audit current competition registry, Provider audit CLI, Provider hard stops, quota code and production Scheduler/Provider authorities.
-- [ ] Create one bounded Round 2 audit-tooling PR.
-- [ ] Add a non-runtime audit-only candidate descriptor authority outside runtime whitelist discovery.
-- [ ] Support the 13 registered + 4 audit-only union without adding the four to CompetitionRegistry runtime membership.
-- [ ] Implement deterministic Provider-backed identity resolution for the four net-new candidates.
-- [ ] No fuzzy identity, no guessed Provider league IDs, no first-result-wins.
-- [ ] Preserve existing `enablement`, `coverage-inventory`, `evidence-only` audit modes.
-- [ ] Preserve evidence-only Day-0 endpoint set: leagues/fixtures/odds.
-- [ ] Add/confirm cumulative Round 2 call ledger surviving multi-day resume.
-- [ ] Add hard quota reserve `provider daily remaining > 20` to continue.
-- [ ] Daily audit cap = 80; cumulative Round 2 cap = 200; request interval >= 10 seconds; automatic retry = false.
-- [ ] Prove audit candidate runtime reachability = 0.
-- [ ] Dry-run all 17: 17 unique rows, Provider calls 0, DB business writes 0.
-- [ ] All focused and repository-required tests pass before real Provider calls.
-- [ ] Provider calls during PR development/CI = 0.
-- [ ] Merge/accept audit tooling under normal repository governance.
-- [ ] Execute Day-0 `evidence-only` Provider baseline with explicit audit authorization.
-- [ ] First complete Day-0 theoretical max = 68 calls; actual must not exceed 68.
-- [ ] Stop/resume on quota/plan/schema/identity blockers rather than increasing limits.
-- [ ] Produce sanitized Day-0 17-row capability matrix.
-- [ ] Record exact `ROUND2_OBSERVATION_START_UTC` at first successful Day-0 baseline.
+- [x] Record exact current `origin/main` SHA; initial Round 2 main was `f7860813646ce9718931dff331c09ce2fe7a71ba`.
+- [x] Audit current competition registry, Provider audit CLI, Provider hard stops, quota code and production Scheduler/Provider authorities.
+- [x] Create one bounded Round 2 audit-tooling PR.
+- [x] Add a non-runtime audit-only candidate descriptor authority outside runtime whitelist discovery.
+- [x] Support the 13 registered + 4 audit-only union without adding the four to CompetitionRegistry runtime membership.
+- [x] Implement deterministic Provider-backed identity resolution for the four net-new candidates.
+- [x] No fuzzy identity, no guessed Provider league IDs, no first-result-wins.
+- [x] Preserve existing `enablement`, `coverage-inventory`, `evidence-only` audit modes.
+- [x] Preserve evidence-only Day-0 endpoint set: leagues/fixtures/odds.
+- [x] Add/confirm cumulative Round 2 call ledger surviving multi-day resume.
+- [x] Add hard quota reserve `provider daily remaining > 20` to continue.
+- [x] Daily audit cap = 80; cumulative Round 2 cap = 200; request interval >= 10 seconds; automatic retry = false.
+- [x] Prove audit candidate runtime reachability = 0.
+- [x] Dry-run all 17: 17 unique rows, Provider calls 0, DB business writes 0.
+- [x] All focused and repository-required tests pass before real Provider calls.
+- [x] Provider calls during PR development/CI = 0.
+- [x] Merge/accept audit tooling under normal repository governance.
+- [x] Execute Day-0 `evidence-only` Provider baseline with explicit audit authorization.
+- [x] First complete Day-0 theoretical max = 68 calls; actual = 17 after per-row plan hard stops.
+- [x] Stop/resume on quota/plan/schema/identity blockers rather than increasing limits.
+- [x] Produce sanitized Day-0 17-row capability matrix.
+- [x] Record exact `ROUND2_OBSERVATION_START_UTC` at first Day-0 evidence capture.
 
 ### R2-A deeper capability probes
 
-- [ ] Deep-probe only exact identity + plan-covered + fixture-available rows.
-- [ ] Allowed endpoints only: leagues, fixtures, odds, lineups, injuries, statistics.
-- [ ] Do not invent Provider squad-value coverage.
-- [ ] Preserve existing bookmaker-depth contract; do not weaken minimum depth.
-- [ ] Round 2 cumulative Provider calls remain <= 200.
-- [ ] Every actual call has exactly one sanitized ledger record.
-- [ ] No automatic retry after HTTP 429/quota warning/plan restriction/schema failure/payload error.
+- [x] Deep-probe only exact identity + plan-covered + fixture-available rows; zero rows were eligible.
+- [x] Allowed endpoints only: leagues, fixtures, odds, lineups, injuries, statistics; no deeper calls were made.
+- [x] Do not invent Provider squad-value coverage.
+- [x] Preserve existing bookmaker-depth contract; do not weaken minimum depth.
+- [x] Round 2 cumulative Provider calls remain <= 200; current cumulative count = 17.
+- [x] Every actual call has exactly one sanitized ledger record.
+- [x] No automatic retry after HTTP 429/quota warning/plan restriction/schema failure/payload error.
 
 ### R2-B — Fourteen-day read-only observation
 
 ```text
-STATUS = BLOCKED_UNTIL_R2_A_DAY0_BASELINE
-WINDOW = DAY0_START + 14_CALENDAR_DAYS
+STATUS = ACTIVE
+WINDOW_START = 2026-08-08T01:53:55.509495+00:00
+WINDOW_END = 2026-08-22T01:53:55.509495+00:00
 ```
 
 Checklist:

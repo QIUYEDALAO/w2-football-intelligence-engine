@@ -7,10 +7,10 @@ context_update_mode: direct_branch_no_pr_no_ci_no_history
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
 owner_product_decision: APPROVED
-active_next_action: W2_MI_R2_AUDIT_FOUNDATION_AND_DAY0_BASELINE
-next_code_action: W2_MI_R2_AUDIT_FOUNDATION_AND_DAY0_BASELINE
+active_next_action: W2_MI_R2_B_FOURTEEN_DAY_READ_ONLY_OBSERVATION
+next_code_action: NONE_R2_B_IS_READ_ONLY
 current_status: ROUND_2_AUTHORIZED_IN_PROGRESS
-current_gate: R2_A_AUDIT_FOUNDATION
+current_gate: R2_B_OBSERVATION_WINDOW
 
 round_1:
   task: W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
@@ -26,14 +26,21 @@ round_1:
 round_2:
   task: W2_MI_R2_FIRST_DIVISION_PROVIDER_CAPABILITY_AUDIT
   status: AUTHORIZED_IN_PROGRESS
-  phase: R2_A_AUDIT_FOUNDATION_AND_DAY0_BASELINE
+  phase: R2_B_FOURTEEN_DAY_READ_ONLY_OBSERVATION
   owner_authorization: ROUND_2_OWNER_AUTHORIZATION.md
   execution_authority: ROUND_2_CODEX_EXECUTION.md
   acceptance_authority: ROUND_2_ACCEPTANCE_CRITERIA.md
+  day0_receipt: ROUND_2_DAY0_RECEIPT.md
   initial_main_sha: f7860813646ce9718931dff331c09ce2fe7a71ba
+  audit_tooling_pr: 494
+  audit_tooling_head_sha: 581d970aab0bec8df34ae5a211a20c1c50cb7948
+  audit_tooling_merge_sha: b04dcc7e521dce413740bcf754b1a45755a3e83e
+  r2_a_status: COMPLETE_WITH_TRUTHFUL_PLAN_RESTRICTIONS
+  r2_b_status: ACTIVE
+  r2_c_status: BLOCKED_UNTIL_R2_B_WINDOW_COMPLETE
   duration_days: 14
-  observation_start_utc: PENDING_FIRST_SUCCESSFUL_DAY0_BASELINE
-  observation_end_utc: PENDING_START_PLUS_14_DAYS
+  observation_start_utc: "2026-08-08T01:53:55.509495+00:00"
+  observation_end_utc: "2026-08-22T01:53:55.509495+00:00"
   mode: CONTROLLED_READ_ONLY_PROVIDER_CAPABILITY_AUDIT
   audit_union_count: 17
   existing_whitelist_count: 13
@@ -41,10 +48,30 @@ round_2:
   active_whitelist_change_authorized: false
   production_scheduler_change_authorized: false
   production_provider_policy_change_authorized: false
+  production_provider_allowlist_change_authorized: false
   persistent_collection_for_net_new_authorized: false
   controlled_provider_audit_calls_authorized: true
   day0_evidence_only_calls_per_competition: 4
   day0_theoretical_max_calls: 68
+  day0_actual_calls: 17
+  cumulative_audit_calls: 17
+  day0_leagues_calls: 17
+  day0_fixtures_calls: 0
+  day0_odds_calls: 0
+  deeper_capability_probe_calls: 0
+  day0_plan_restricted_rows: 17
+  day0_promotion_authorized_rows: 0
+  day0_min_request_interval_seconds_observed: 11
+  min_quota_remaining_observed: UNAVAILABLE_FROM_PROVIDER_RESPONSE
+  dry_run_sha256: 458e6648004d5c1489ca544758b06dad1c93bcd7583df7f70ddd7b9c3fd91b44
+  day0_matrix_sha256: 85df3fd4d03296d96262dd2c0d8ed72fdeff097b66423ab45cb47d39ad583e23
+  sanitized_provider_ledger_sha256: 498c53d146117902ce22c49644e257a6fa4dcede148e11867b33d46d43cea37e
+  provider_calls_during_pr_or_ci: 0
+  production_db_writes: 0
+  active_whitelist_identity_diff: []
+  new_enabled_leagues: 0
+  new_scheduled_leagues: 0
+  new_dayview_leagues: 0
   daily_audit_hard_cap: 80
   cumulative_audit_hard_cap: 200
   min_provider_daily_remaining: 20
