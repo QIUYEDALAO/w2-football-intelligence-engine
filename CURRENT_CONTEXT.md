@@ -12,12 +12,13 @@ This is the mutable current authority for W2. It is maintained directly on `cont
 6. `ROUND_2_CODEX_EXECUTION.md`
 7. `ROUND_2_ACCEPTANCE_CRITERIA.md`
 8. `ROUND_2_DAY0_RECEIPT.md`
-9. `ROUND_1_FINAL_RECEIPT.md`
-10. `AI_PROJECT_CONTEXT.md`
-11. `AI_QUANT_PROJECT_CONTEXT.md`
-12. `AGENTS.md`
-13. `QUANT_AGENTS.md`
-14. `.github/copilot-instructions.md`
+9. `ROUND_2_OBSERVATION_LOG.md`
+10. `ROUND_1_FINAL_RECEIPT.md`
+11. `AI_PROJECT_CONTEXT.md`
+12. `AI_QUANT_PROJECT_CONTEXT.md`
+13. `AGENTS.md`
+14. `QUANT_AGENTS.md`
+15. `.github/copilot-instructions.md`
 
 ## Current decision
 
@@ -105,6 +106,10 @@ The authorized Day-0 audit then made exactly one `/leagues` request for each of
 the 17 audit rows. Every request was recorded once and returned a truthful
 `PROVIDER_PLAN_RESTRICTED` result. No fixtures, odds or deeper capability calls
 were eligible. See `ROUND_2_DAY0_RECEIPT.md`.
+
+R2-B read-only snapshots are recorded in `ROUND_2_OBSERVATION_LOG.md`. The first
+snapshot found zero within-window quote rows; pre-window last-known quotes remain
+reference-only and cannot satisfy temporal evidence acceptance.
 
 ## Provider audit authorization
 

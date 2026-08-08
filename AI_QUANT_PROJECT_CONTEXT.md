@@ -31,6 +31,7 @@ ROUND_2_OWNER_AUTHORIZATION.md
 ROUND_2_CODEX_EXECUTION.md
 ROUND_2_ACCEPTANCE_CRITERIA.md
 ROUND_2_DAY0_RECEIPT.md
+ROUND_2_OBSERVATION_LOG.md
 ```
 
 Round 2 is a Provider/coverage capability audit, not another edge experiment.

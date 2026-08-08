@@ -11,11 +11,12 @@ Before acting, read from `origin/context/current`:
 7. `ROUND_2_CODEX_EXECUTION.md`
 8. `ROUND_2_ACCEPTANCE_CRITERIA.md`
 9. `ROUND_2_DAY0_RECEIPT.md`
-10. `ROUND_1_FINAL_RECEIPT.md`
-11. `AI_PROJECT_CONTEXT.md`
-12. `AI_QUANT_PROJECT_CONTEXT.md`
-13. `AGENTS.md`
-14. `QUANT_AGENTS.md`
+10. `ROUND_2_OBSERVATION_LOG.md`
+11. `ROUND_1_FINAL_RECEIPT.md`
+12. `AI_PROJECT_CONTEXT.md`
+13. `AI_QUANT_PROJECT_CONTEXT.md`
+14. `AGENTS.md`
+15. `QUANT_AGENTS.md`
 
 Use latest trusted `origin/main` as code baseline and `origin/context/current` as current task authority.
 

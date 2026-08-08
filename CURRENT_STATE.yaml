@@ -31,12 +31,22 @@ round_2:
   execution_authority: ROUND_2_CODEX_EXECUTION.md
   acceptance_authority: ROUND_2_ACCEPTANCE_CRITERIA.md
   day0_receipt: ROUND_2_DAY0_RECEIPT.md
+  observation_log: ROUND_2_OBSERVATION_LOG.md
   initial_main_sha: f7860813646ce9718931dff331c09ce2fe7a71ba
   audit_tooling_pr: 494
   audit_tooling_head_sha: 581d970aab0bec8df34ae5a211a20c1c50cb7948
   audit_tooling_merge_sha: b04dcc7e521dce413740bcf754b1a45755a3e83e
   r2_a_status: COMPLETE_WITH_TRUTHFUL_PLAN_RESTRICTIONS
   r2_b_status: ACTIVE
+  r2_b_snapshot_count: 1
+  r2_b_within_window_quote_rows_observed: 0
+  r2_b_latest_public_snapshot_utc: "2026-08-08T02:17:09.560956+00:00"
+  r2_b_latest_public_dayview_cards: 64
+  r2_b_latest_public_current_odds_cards: 0
+  r2_b_latest_public_blocked_cards: 64
+  r2_b_latest_public_data_incomplete_cards: 64
+  r2_b_latest_public_provider_calls: 0
+  r2_b_latest_public_db_writes: 0
   r2_c_status: BLOCKED_UNTIL_R2_B_WINDOW_COMPLETE
   duration_days: 14
   observation_start_utc: "2026-08-08T01:53:55.509495+00:00"
