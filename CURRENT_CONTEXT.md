@@ -1,24 +1,6 @@
 # W2 Current Context
 
-This is the mutable current authority for W2 on `context/current`.
-
-## Read order
-
-```text
-1. CURRENT_STATE.yaml
-2. NEXT_ACTION.md
-3. ROUND_2_FINAL_RECEIPT.md
-4. ROUND_2_FINAL_CAPABILITY_MATRIX.json
-5. ROUND_2_TERMINAL_CLOSURE_AUTHORIZATION.md
-6. ROUND_2_ACCEPTANCE_CRITERIA.md
-7. REPOSITORY_HYGIENE_POLICY.md
-8. ROUND_2_DAY0_RECEIPT.md
-9. ROUND_2_OBSERVATION_LOG.md
-10. ROUND_2_ACCEPTANCE_EVIDENCE_INDEX.md
-11. ROUND_1_FINAL_RECEIPT.md
-12. CURRENT_PRODUCT_DESIGN.md
-13. CURRENT_TASK_CHECKLIST.md
-```
+Current mutable authority is `origin/context/current`.
 
 ## Current decision
 
@@ -26,54 +8,28 @@ This is the mutable current authority for W2 on `context/current`.
 PRODUCT = W2 Football Intelligence
 ROUND_1 = PASS
 ROUND_2 = PASS_WITH_TERMINAL_PROVIDER_PLAN_RESTRICTION
-ACTIVE_NEXT_ACTION = AWAIT_OWNER_POST_R2_CAPABILITY_DECISION
+ACTIVE_NEXT_ACTION = W2_MI_POST_R2_PROVIDER_ACCESS_AND_DATA_SOURCE_DECISION
+POST_R2_ACCESS_DECISION = AUTHORIZED_IN_PROGRESS
 ROUND_3 = NOT_STARTED
-WAIT_14_DAYS = false
-REPOSITORY_HYGIENE = PASS
 ```
 
-Round 2 closed truthfully with 17/17 Provider rows `PLAN_RESTRICTED`, 17/17
-temporal outcomes `TEMPORAL_EVIDENCE_INSUFFICIENT`, and zero promotions. The
-active whitelist remains the exact existing 13; four audit-only candidates
-remain outside runtime, Scheduler, future refresh and DayView.
+Read current execution authority in this order:
 
 ```text
-FINAL_MATRIX_SHA256 = 9eded59fbfb01913c5ad8a90880bd5fa0acc819565b62e9f5a05ce6055e57ab6
-R2_C_PROVIDER_CALLS = 0
-R2_C_DB_BUSINESS_WRITES = 0
-UNRESOLVED_HYGIENE_ITEMS = 0
-HEARTBEAT_w2-mi-round-2 = DELETED
+1. CURRENT_STATE.yaml
+2. NEXT_ACTION.md
+3. POST_R2_PROVIDER_ACCESS_DATA_SOURCE_DECISION.md
+4. ROUND_2_FINAL_RECEIPT.md
+5. ROUND_2_FINAL_CAPABILITY_MATRIX.json
+6. REPOSITORY_HYGIENE_POLICY.md
 ```
 
-## Permanent repository hygiene
+Round 2 is closed: 17/17 Provider rows are `PLAN_RESTRICTED`, 17/17 temporal evidence is insufficient, zero rows are promotion-authorized, and the runtime whitelist remains exact 13.
 
-`REPOSITORY_HYGIENE_POLICY.md` applies to every future W2 task.
+The current task is to determine the real cause of the Provider access block and choose the viable data-source architecture before Round 3. Up to 8 new read-only diagnostic Provider calls are authorized only if retained evidence and official current Provider documentation cannot distinguish the cause. No retry, business write, 17-league rebatch, purchase, Provider cutover, production Scheduler change, league enablement or Round 3 implementation is authorized.
 
-```text
-TASK_FULLY_CLOSED = FUNCTIONAL_ACCEPTANCE_PASS + REPOSITORY_HYGIENE_PASS
-```
+If an internal W2 season/request/configuration defect is proven, one bounded fix PR is authorized. If the blocker is external entitlement/coverage/account scope, produce a current data-source decision matrix and one preferred recommendation plus fallback instead of making a fake code fix.
 
-Delete only assets proven unused by repository evidence. Preserve reusable
-tooling, migrations/history, final receipts, required audit evidence,
-CI/release authorities and protected baselines.
+`REPOSITORY_HYGIENE_POLICY.md` remains mandatory before PASS.
 
-## Permanent product and safety guards
-
-```text
-MODEL_MARKET_DIVERGENCE != MARKET_OPPORTUNITY
-RecommendationDecisionV4 = DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY
-BETTING_EDGE_CLAIM = FORBIDDEN
-HIGH_OVERROUND != HIGH_VALUE
-HIGH_OVERROUND != HIGH_INFORMATION
-ACTIVE_WHITELIST = 13_UNCHANGED
-PROVIDER_POLICY_CHANGE = false
-PROVIDER_ALLOWLIST_CHANGE = false
-SCHEDULER_POLICY_CHANGE = false
-NEW_PERSISTENT_COLLECTION_FOR_NET_NEW = false
-CANDIDATE = OFF
-FORMAL = OFF
-LOCK = OFF
-PRODUCTION = OFF
-ROUND_3 = NOT_STARTED
-H_RESULT_ACCESS = PERMANENTLY_CLOSED
-```
+Permanent guards remain: intelligence-first semantics; active whitelist 13 unless separately authorized; V4 diagnostic-only; no betting-edge/opportunity claim; Candidate/Formal/Lock/Production OFF; H permanently closed; no real-money execution; Round 3 not started.
