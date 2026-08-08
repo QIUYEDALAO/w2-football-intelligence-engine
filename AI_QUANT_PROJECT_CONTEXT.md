@@ -1,150 +1,134 @@
 # W2 Market Intelligence — AI Handoff
 
-Current authority is `context/current`.
-
-## Current decision
+Current authority is `origin/context/current`.
 
 ```text
-PRODUCT_NAME = W2 Football Intelligence
+PRODUCT = W2 Football Intelligence
 PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
-OWNER_DECISION = APPROVED_CONTINUE_UNTIL_ACCEPTED
-ACTIVE_NEXT_ACTION = AWAIT_OWNER_ROUND_2_AUTHORIZATION
-ACTIVE_RUNTIME_PR = 493
-ROUND_1_STATUS = PASS
-ROUND_2_STATUS = NOT_STARTED
+ROUND_1 = PASS
+ROUND_2 = AUTHORIZED_IN_PROGRESS
+ACTIVE_NEXT_ACTION = W2_MI_R2_AUDIT_FOUNDATION_AND_DAY0_BASELINE
+ROUND_3 = NOT_STARTED
 ```
 
-Phase 0.5 is closed with `NO_EDGE`; H is permanently closed. Round 1 is accepted; no new code task is authorized.
+Phase 0.5 remains closed with `NO_EDGE`; H remains permanently closed.
 
-All later PR #493 remediation language is historical only. Do not resume it.
-
-Permanent evidence guard:
+Permanent evidence guards:
 
 ```text
 MODEL_MARKET_DIVERGENCE != MARKET_OPPORTUNITY
-```
-
-V4 product role:
-
-```text
+HIGH_OVERROUND != HIGH_VALUE
+HIGH_OVERROUND != HIGH_INFORMATION
 RecommendationDecisionV4 = DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY
 ```
 
-## League baseline correction
+## Round 2 authority
 
-Current active whitelist baseline:
-
-```text
-COUNT = 13
-ROUND_1_CHANGE = FORBIDDEN
-```
-
-The 13 identities are:
+Read:
 
 ```text
-chinese_super_league
-allsvenskan
-eliteserien
-premier_league
-la_liga
-bundesliga
-serie_a
-ligue_1
-brasileirao_serie_a
-argentina_primera
-mls
-eredivisie
-primeira_liga
+ROUND_2_OWNER_AUTHORIZATION.md
+ROUND_2_CODEX_EXECUTION.md
+ROUND_2_ACCEPTANCE_CRITERIA.md
 ```
 
-The European `5 + 6` grouping is not a replacement whitelist. Only four members are net-new relative to the current 13:
+Round 2 is a Provider/coverage capability audit, not another edge experiment.
+
+## Audit universe
 
 ```text
-Belgian Pro League
-Turkish Super Lig
-Greek Super League
-Scottish Premiership
+CURRENT_ACTIVE_WHITELIST = 13
+AUDIT_ONLY_NET_NEW = 4
+AUDIT_UNION = 17
 ```
 
-Future candidate union:
+Net-new audit-only IDs:
 
 ```text
-13 + 4 = 17
+belgian_pro_league
+turkish_super_lig
+greek_super_league
+scottish_premiership
 ```
 
-Do not add/audit/call/schedule these four during Round 1.
+They must remain outside runtime whitelist membership and all production Scheduler/DayView paths.
 
-## Round 1 execution
+## R2-A
 
-Read in this order for continuation/delivery authority:
+Create one bounded audit-tooling PR and no product-semantic refactor.
+
+Required:
+
+- audit-only descriptor namespace outside runtime whitelist discovery;
+- deterministic Provider-backed identity resolution;
+- no fuzzy or guessed Provider IDs;
+- 17-row dry-run with zero Provider calls;
+- cumulative sanitized audit ledger;
+- Provider reserve and hard caps;
+- no automatic retries;
+- no Provider calls during PR development/CI.
+
+After R2-A tooling is accepted, controlled Provider audit calls are owner-authorized only through the audit path.
 
 ```text
-ROUND_1_OWNER_CONTINUATION_AUTHORIZATION.md
-ROUND_1_CODEX_EXECUTION.md
-ROUND_1_ACCEPTANCE_CRITERIA.md
+DAY0_EVIDENCE_ONLY_CALLS_PER_COMPETITION = 4
+DAY0_THEORETICAL_MAX = 68
+ROUND2_DAILY_AUDIT_HARD_CAP = 80
+ROUND2_CUMULATIVE_AUDIT_HARD_CAP = 200
+ROUND2_MIN_PROVIDER_DAILY_REMAINING = 20
+REQUEST_INTERVAL_SECONDS_MIN = 10
+AUTOMATIC_RETRY = false
 ```
 
-Implement/finish one bounded API/Web semantic refactor in PR #493 only. Required public states:
+Quota/plan/identity/schema blockers are valid outcomes. Never raise limits or weaken guards.
+
+## R2-B
+
+The first successful Day-0 baseline starts a 14-calendar-day read-only observation window.
+
+Use real persisted W2 captures and existing authorized production collection. Do not create new persistent polling for the four audit-only candidates.
+
+Describe freshness, overround, movement, bookmaker depth/agreement, missingness and schema/provider incidents where real samples exist.
+
+Do not freeze Round 3 alert thresholds.
+
+## R2-C
+
+Produce exactly 17 final capability rows with truthful ready/partial/blocked/insufficient outcomes.
+
+Allowed product capability recommendations:
 
 ```text
-MARKET_STABLE
-MARKET_MOVEMENT
-MARKET_ANOMALY
-MODEL_MARKET_DISAGREEMENT
-DATA_INCOMPLETE
-MODEL_DIAGNOSTIC_WARNING
-COLLECTION_INCIDENT
+REGISTERED
+COVERAGE_MONITORING
+MARKET_INTELLIGENCE_READY
+MODEL_DIAGNOSTICS_READY
+DEGRADED
 ```
 
-Required risk dimensions:
+The four net-new current runtime states remain `AUDIT_CANDIDATE_ONLY`.
 
 ```text
-EVENT_RISK
-DATA_RISK
-MODEL_RISK
-COLLECTION_RISK
+promotion_authorized = false
 ```
 
-Preserve current 13 whitelist, current Provider/Scheduler policy and historical V4/settlement evidence.
-
-## Delivery — explicit continuation authority
-
-```text
-ONE_RUNTIME_PR = PR_493_ONLY
-ALLOW_REMEDIATION_COMMITS_IN_PR_493 = true
-ALLOW_NEW_PR_FAST_AFTER_SOURCE_CHANGE = true
-ALLOW_REPLACEMENT_EXACT_HEAD_FULL_RC_AFTER_FAILED_RC = true
-ALLOW_REPEAT_PR_FAST_AND_FULL_RC_UNTIL_FINAL_SUCCESS = true
-FAILED_ATTEMPTS_CONSUME_FINAL_SUCCESS_SLOT = false
-FAILED_FULL_RC_31151557970_IS_FINAL_RC = false
-ONE_SUCCESSFUL_FINAL_EXACT_HEAD_FULL_RC = true
-ONE_FINAL_MERGE = true
-ONE_FINAL_ACCEPTED_DEPLOYMENT = true
-```
-
-There is **no one-attempt limit** on PR Fast or Full RC during bounded Round 1 remediation.
-
-A source-changing remediation must obtain a new exact-head PR Fast success and then run a new replacement exact-head Full RC. If that RC fails for an in-scope reason, continue fixing PR #493 and repeat. No additional owner authorization is required.
-
-```text
-FAIL_CLOSED = DO_NOT_ADVANCE_PAST_FAILED_GATE
-FAIL_CLOSED != ABANDON_ROUND_1
-```
-
-Only the final successful RC on the final accepted head can authorize merge/deployment.
-
-Stop only after final RC success, merge commit, same-source deployment, public API/browser acceptance and all Round 1 acceptance criteria PASS.
+for every row.
 
 ## Hard boundaries
 
 ```text
+ACTIVE_WHITELIST = 13_UNCHANGED
+PRODUCTION_PROVIDER_POLICY_CHANGE = false
+PRODUCTION_PROVIDER_ALLOWLIST_CHANGE = false
+PRODUCTION_SCHEDULER_POLICY_CHANGE = false
+NEW_PERSISTENT_COLLECTION_FOR_NET_NEW = false
+ROUND_3 = NOT_STARTED
 BETTING_EDGE_CLAIM = FORBIDDEN
 SIGNAL_LEDGER_FOR_EXECUTION = NOT_AUTHORIZED
 PORTFOLIO = NOT_AUTHORIZED
 RISK_KELLY = NOT_AUTHORIZED
 TWO_LEG_PARLAY = NOT_AUTHORIZED
 REAL_MONEY = NOT_AUTHORIZED
-
 CANDIDATE = OFF
 FORMAL = OFF
 LOCK = OFF
