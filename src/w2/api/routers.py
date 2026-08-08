@@ -15,6 +15,7 @@ from w2.api.schemas import (
     BacktestLatestResponse,
     CompetitionOperationsProfileResponse,
     DashboardDayViewResponse,
+    DashboardIntelligenceWorkspaceResponse,
     DashboardResponse,
     DashboardSummaryResponse,
     DataHealthResponse,
@@ -47,9 +48,11 @@ from w2.api.schemas import (
 )
 from w2.config import Environment, get_settings
 from w2.dashboard.day_view import build_dashboard_day_view
+from w2.dashboard.workspace import build_dashboard_intelligence_workspace
 from w2.domain.decision_contract import DecisionContractViolation
 from w2.monitoring.health import HealthPayload, build_health_payload
 from w2.monitoring.readiness import ReadinessPayload, build_readiness_payload
+from w2.replay.front_door import build_replay_front_door
 
 public_router = APIRouter(prefix="/v1", tags=["public-read"])
 ops_router = APIRouter(prefix="/ops", tags=["operations-read"])
@@ -180,6 +183,39 @@ def dashboard_day_view(
     return {
         "request_id": request_id(request),
         **day_view,
+    }
+
+
+@public_router.get(
+    "/dashboard/intelligence-workspace",
+    response_model=DashboardIntelligenceWorkspaceResponse,
+)
+def dashboard_intelligence_workspace(
+    request: Request,
+    date: str | None = None,
+    window: str = "today",
+    timezone: str = "Asia/Shanghai",
+) -> dict[str, Any]:
+    normalized_window = window if window in DASHBOARD_WINDOWS else "today"
+    payload = service.public_dashboard(
+        target_date=date,
+        window=normalized_window,
+        timezone=timezone,
+        include_debug=False,
+    )
+    day_view = build_dashboard_day_view(
+        payload,
+        environment=get_settings().environment.value,
+    )
+    replay = build_replay_front_door(
+        football_day=day_view["football_day"],
+        environment=day_view["environment"],
+        day_view=day_view,
+        as_of=day_view.get("generated_at"),
+    )
+    return {
+        "request_id": request_id(request),
+        **build_dashboard_intelligence_workspace(day_view, replay=replay),
     }
 
 

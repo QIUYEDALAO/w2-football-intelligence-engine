@@ -182,6 +182,385 @@ class DashboardDayViewResponse(BaseModel):
     cards: list[dict[str, Any]]
 
 
+class WorkspaceReadContract(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    provider_calls: Literal[0]
+    db_writes: Literal[0]
+    would_write_checkpoint: Literal[False]
+    no_call_on_read: Literal[True]
+
+
+class WorkspaceRuntime(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product: Literal["FOOTBALL_MARKET_INTELLIGENCE_PLUS_MODEL_DIAGNOSTICS"]
+    public_dashboard_authority: Literal["NEW_INTELLIGENCE_WORKSPACE_ONLY"]
+    active_whitelist_count: Literal[13]
+    free_bridge_mode: Literal["SHADOW_ONLY"]
+    candidate: Literal["OFF"]
+    formal: Literal["OFF"]
+    lock: Literal["OFF"]
+    production: Literal["OFF"]
+
+
+class WorkspaceAttentionItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    fixture_id: str
+    kickoff_utc: datetime | str | None
+    intelligence_state: str
+    reason_codes: list[str]
+    risks: dict[str, Any]
+
+
+class WorkspaceTimelinePoint(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    capture_id: str | None
+    captured_at: datetime | str | None
+    canonical_line: str | None
+    bookmaker_count: int = Field(ge=0)
+    prices: dict[str, Any]
+    probabilities: dict[str, Any]
+
+
+class WorkspaceMarket(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    market: Literal["ASIAN_HANDICAP", "TOTALS"]
+    status: str
+    snapshot_state: Literal[
+        "NO_TIMELINE_EVIDENCE",
+        "ONE_OBSERVATION_NOT_A_TREND",
+        "DISCRETE_REAL_PATH",
+    ]
+    snapshot_count: int = Field(ge=0)
+    observation_count: int = Field(ge=0)
+    main_line: str | None
+    bookmaker_count: int = Field(ge=0)
+    prices: dict[str, Any]
+    probabilities: dict[str, Any]
+    freshness: dict[str, Any]
+    timeline_points: list[WorkspaceTimelinePoint]
+    movement: dict[str, Any]
+    reason_codes: list[str]
+
+
+class WorkspaceReadiness(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: str
+    reason_code: str | None
+    reason_codes: list[str]
+    missing_fields: list[str]
+    stale_fields: list[str]
+    action: str | None
+    next_eval_at: datetime | str | None
+    provider_budget_status: str | None
+    lineup_status: str | None
+    lineup_expectation: str | None
+
+
+class WorkspaceMarketFact(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: str
+    main_line: str | None
+    current_odds: dict[str, Any]
+    market_probabilities: dict[str, Any]
+    price_reference: Literal["LAST_AVAILABLE_PREMATCH_SNAPSHOT"]
+    canonical_close_status: Literal["NOT_OBTAINABLE_FROM_CURRENT_PROVIDER"]
+
+
+class WorkspaceModelView(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: str
+    model_version: str | None
+    calibration_version: str | None
+    calibration_status: str | None
+    simulations_completed: int | None = Field(default=None, ge=1)
+
+
+class WorkspaceModelRelation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    market: Literal["ASIAN_HANDICAP", "TOTALS"]
+    status: str
+    canonical_line: str | None
+    bookmaker_count: int = Field(ge=0)
+    freshness_status: str | None
+    diagnostics: list[dict[str, Any]]
+    blockers: list[str]
+
+
+class WorkspaceW2Analysis(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["ANALYSIS_REFERENCE"]
+    proof_status: Literal["NOT_PROVEN"]
+    decision_tier: str
+    analysis_state: str
+    reason_codes: list[str]
+    model_view: WorkspaceModelView
+    model_market_relation: dict[str, WorkspaceModelRelation]
+
+
+class WorkspaceFormalRecommendation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["OFF"]
+    reason: Literal["PRODUCT_AUTHORITY_DISABLED"]
+
+
+class WorkspaceMarketRadar(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: str
+    markets: dict[str, WorkspaceMarket]
+
+
+class WorkspaceModelSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: str
+    model_version: str | None
+    calibration_status: str | None
+
+
+class WorkspaceMarketSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: str
+    main_line: str | None
+    bookmaker_count: int = Field(ge=0)
+    freshness: dict[str, Any]
+
+
+class WorkspaceApiFootballPrediction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["NOT_AVAILABLE"]
+    role: Literal["EXTERNAL_MODEL_BENCHMARK"]
+    reason_code: Literal["API_FOOTBALL_PREDICTION_NOT_PROJECTED"]
+
+
+class WorkspaceModelLab(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: str
+    w2_model: WorkspaceModelSummary
+    market: dict[str, WorkspaceMarketSummary]
+    api_football_prediction: WorkspaceApiFootballPrediction
+    relation: dict[str, WorkspaceModelRelation]
+    historical_validation: dict[str, Any]
+
+
+class WorkspaceScoreline(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    scoreline: str
+    probability: float | None
+    sample_count: int | None = Field(default=None, ge=0)
+
+
+class WorkspaceScorelineReference(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    label: Literal["MODEL_SCORELINE_REFERENCE"]
+    proof_status: Literal["NOT_PROVEN"]
+    status: Literal["READY", "UNAVAILABLE"]
+    simulations_completed: int | None = Field(default=None, ge=1)
+    top3: list[WorkspaceScoreline] = Field(max_length=3)
+
+
+class WorkspaceEvidence(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    card_hash: str | None
+    artifact_hash: str | None
+    source: str | None
+    source_event_at: str | None
+    decision_role: Literal["DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY"]
+
+
+class WorkspaceMatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    fixture_id: str
+    competition_id: str | None
+    competition_name: str | None
+    kickoff_utc: datetime | str | None
+    home_team_name: str | None
+    away_team_name: str | None
+    status: str | None
+    intelligence_state: str
+    intelligence_reason_codes: list[str]
+    risks: dict[str, Any]
+    readiness: WorkspaceReadiness
+    market_fact: WorkspaceMarketFact
+    w2_analysis: WorkspaceW2Analysis
+    formal_recommendation: WorkspaceFormalRecommendation
+    market_radar: WorkspaceMarketRadar
+    model_lab: WorkspaceModelLab
+    scoreline_reference: WorkspaceScorelineReference
+    evidence: WorkspaceEvidence
+
+
+class WorkspaceProbabilityValidation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["AVAILABLE", "SAMPLE_BUILDING", "INSUFFICIENT"]
+    sample_count: int = Field(ge=0)
+    model_brier: float | None
+    market_brier: float | None
+    model_minus_market_brier: float | None
+    model_log_loss: float | None
+    market_log_loss: float | None
+    model_minus_market_log_loss: float | None
+    model_calibration_error: float | None
+    market_calibration_error: float | None
+    model_reliability_bins: list[dict[str, Any]]
+    market_reliability_bins: list[dict[str, Any]]
+    checkpoint_metadata: dict[str, Any]
+
+
+class WorkspaceDirectionalValidation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["AVAILABLE", "SAMPLE_BUILDING", "INSUFFICIENT"]
+    validation_n: int = Field(ge=0)
+    decisive_n: int = Field(ge=0)
+    correct: int = Field(ge=0)
+    wrong: int = Field(ge=0)
+    push: int = Field(ge=0)
+    void: int = Field(ge=0)
+    direction_accuracy: float | None
+    effective_n: int = Field(ge=0)
+    market_direction_benchmark: Literal["NOT_DEFINED"]
+
+
+class WorkspaceLeaguePerformance(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    league: str
+    validation_n: int = Field(ge=0)
+    decisive_n: int = Field(ge=0)
+    correct: int = Field(ge=0)
+    wrong: int = Field(ge=0)
+    push: int = Field(ge=0)
+    void: int = Field(ge=0)
+    direction_accuracy: float | None
+    brier: float | None
+    calibration: float | None
+    statistical_status: Literal["AVAILABLE", "SAMPLE_BUILDING", "INSUFFICIENT"]
+
+
+class WorkspaceForwardValidationRecords(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["AVAILABLE", "INSUFFICIENT"]
+    validation_count: int = Field(ge=0)
+    eligible_count: int = Field(ge=0)
+    excluded_count: int = Field(ge=0)
+    pending_count: int = Field(ge=0)
+    outcomes: dict[str, Any]
+    checkpoint_metadata: dict[str, Any]
+
+
+class WorkspaceHistoryReplay(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: str
+    known_at: dict[str, Any]
+    reason_summary: list[dict[str, Any]]
+    outcome_tracking_summary: dict[str, Any]
+    card_hash_checks: list[dict[str, Any]]
+    replay_gaps: list[str]
+
+
+class WorkspaceValidation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    probability: WorkspaceProbabilityValidation
+    directional: WorkspaceDirectionalValidation
+    league_performance: list[WorkspaceLeaguePerformance]
+    forward_validation_records: WorkspaceForwardValidationRecords
+    history_replay: WorkspaceHistoryReplay
+
+
+class WorkspaceExternalSource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["NOT_CONNECTED"]
+    affects_match_readiness: Literal[False]
+
+
+class WorkspaceExternalIntelligence(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    weather: WorkspaceExternalSource
+    news: WorkspaceExternalSource
+    sentiment: WorkspaceExternalSource
+    advanced_xg: WorkspaceExternalSource
+
+
+class WorkspaceFreshnessDomain(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    domain: str
+    availability: str
+    status: str
+    source: str
+    source_as_of: datetime | str | None
+    provider_refresh_authority: str
+    readiness_semantics: Literal[
+        "SOURCE_VALUE_ONLY",
+        "SOURCE_AS_OF_NOT_PROJECTED",
+    ]
+    no_call_on_read: Literal[True]
+
+
+class WorkspaceFreshness(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    domains: dict[str, WorkspaceFreshnessDomain]
+
+
+class WorkspaceDataOperations(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    read_model_source: str
+    checkpoint_key: str
+    degradation: dict[str, Any]
+    counts: dict[str, Any]
+    system_health: str
+    provider_budget_status: str
+
+
+class DashboardIntelligenceWorkspaceResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: str
+    schema_version: Literal["w2.dashboard-intelligence-workspace.v1"]
+    generated_at: datetime | str | None
+    date: str
+    timezone: str
+    window: str
+    source: Literal["dashboard_day_view+performance_checkpoint+replay_front_door"]
+    selected_fixture_id: str | None
+    read_contract: WorkspaceReadContract
+    runtime: WorkspaceRuntime
+    navigation: dict[str, Any]
+    attention: list[WorkspaceAttentionItem]
+    matches: list[WorkspaceMatch]
+    validation: WorkspaceValidation
+    external_intelligence: WorkspaceExternalIntelligence
+    freshness: WorkspaceFreshness
+    data_operations: WorkspaceDataOperations
+
+
 class DashboardSummaryResponse(BaseModel):
     request_id: str
     generated_at: datetime
@@ -255,6 +634,9 @@ class PerformanceWindowProjection(BaseModel):
     not_scorable_count: int = Field(ge=0)
     blocked_count: int = Field(ge=0)
     not_scorable_by_reason: dict[str, int]
+    model_brier: float | None = None
+    market_brier: float | None = None
+    model_minus_market_brier: float | None = None
     model_log_loss: float | None
     market_log_loss: float | None
     model_minus_market_log_loss: float | None

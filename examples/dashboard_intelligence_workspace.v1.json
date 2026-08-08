@@ -1,0 +1,230 @@
+{
+  "attention": [],
+  "data_operations": {
+    "checkpoint_key": "dashboard:day_view:2026-08-09",
+    "counts": {"total": 0},
+    "degradation": {"state": "EMPTY_DAY"},
+    "provider_budget_status": "OK",
+    "read_model_source": "dashboard_read_model",
+    "system_health": "EMPTY_DAY"
+  },
+  "date": "2026-08-09",
+  "external_intelligence": {
+    "advanced_xg": {"affects_match_readiness": false, "status": "NOT_CONNECTED"},
+    "news": {"affects_match_readiness": false, "status": "NOT_CONNECTED"},
+    "sentiment": {"affects_match_readiness": false, "status": "NOT_CONNECTED"},
+    "weather": {"affects_match_readiness": false, "status": "NOT_CONNECTED"}
+  },
+  "freshness": {
+    "domains": {
+      "events": {
+        "availability": "NOT_AVAILABLE",
+        "domain": "EVENTS",
+        "no_call_on_read": true,
+        "provider_refresh_authority": "~15s",
+        "readiness_semantics": "SOURCE_AS_OF_NOT_PROJECTED",
+        "source": "not_projected",
+        "source_as_of": null,
+        "status": "NOT_AVAILABLE"
+      },
+      "fixtures": {
+        "availability": "AVAILABLE",
+        "domain": "FIXTURES",
+        "no_call_on_read": true,
+        "provider_refresh_authority": "~15s",
+        "readiness_semantics": "SOURCE_VALUE_ONLY",
+        "source": "fixtures_checkpoint",
+        "source_as_of": "2026-08-09T02:00:00Z",
+        "status": "AVAILABLE"
+      },
+      "injuries": {
+        "availability": "PARTIAL",
+        "domain": "INJURIES",
+        "no_call_on_read": true,
+        "provider_refresh_authority": "~4h",
+        "readiness_semantics": "SOURCE_AS_OF_NOT_PROJECTED",
+        "source": "data_refresh.injuries",
+        "source_as_of": null,
+        "status": "NOT_AVAILABLE"
+      },
+      "lineups": {
+        "availability": "PARTIAL_1_OF_13_VERIFIED",
+        "domain": "LINEUPS",
+        "no_call_on_read": true,
+        "provider_refresh_authority": "~15m",
+        "readiness_semantics": "SOURCE_AS_OF_NOT_PROJECTED",
+        "source": "data_refresh.lineups",
+        "source_as_of": null,
+        "status": "NOT_AVAILABLE"
+      },
+      "odds_live": {
+        "availability": "FORBIDDEN_AS_BENCHMARK",
+        "domain": "ODDS_LIVE",
+        "no_call_on_read": true,
+        "provider_refresh_authority": "~5s",
+        "readiness_semantics": "SOURCE_AS_OF_NOT_PROJECTED",
+        "source": "excluded",
+        "source_as_of": null,
+        "status": "NOT_AVAILABLE"
+      },
+      "odds_prematch": {
+        "availability": "AVAILABLE_WHEN_OBSERVED",
+        "domain": "ODDS_PREMATCH",
+        "no_call_on_read": true,
+        "provider_refresh_authority": "~3h",
+        "readiness_semantics": "SOURCE_AS_OF_NOT_PROJECTED",
+        "source": "market_radar.current",
+        "source_as_of": null,
+        "status": "NOT_AVAILABLE"
+      },
+      "page_projection": {
+        "availability": "AVAILABLE",
+        "domain": "PAGE_PROJECTION",
+        "no_call_on_read": true,
+        "provider_refresh_authority": "internal",
+        "readiness_semantics": "SOURCE_VALUE_ONLY",
+        "source": "dashboard_day_view",
+        "source_as_of": "2026-08-09T02:00:00Z",
+        "status": "AVAILABLE"
+      },
+      "players": {
+        "availability": "NOT_AVAILABLE",
+        "domain": "PLAYERS",
+        "no_call_on_read": true,
+        "provider_refresh_authority": "~1m",
+        "readiness_semantics": "SOURCE_AS_OF_NOT_PROJECTED",
+        "source": "not_projected",
+        "source_as_of": null,
+        "status": "NOT_AVAILABLE"
+      },
+      "predictions": {
+        "availability": "PARTIAL_NOT_PROJECTED",
+        "domain": "PREDICTIONS",
+        "no_call_on_read": true,
+        "provider_refresh_authority": "~1h",
+        "readiness_semantics": "SOURCE_AS_OF_NOT_PROJECTED",
+        "source": "not_projected",
+        "source_as_of": null,
+        "status": "NOT_AVAILABLE"
+      },
+      "standings": {
+        "availability": "NOT_AVAILABLE",
+        "domain": "STANDINGS",
+        "no_call_on_read": true,
+        "provider_refresh_authority": "~1h",
+        "readiness_semantics": "SOURCE_AS_OF_NOT_PROJECTED",
+        "source": "not_projected",
+        "source_as_of": null,
+        "status": "NOT_AVAILABLE"
+      },
+      "statistics": {
+        "availability": "PARTIAL",
+        "domain": "STATISTICS",
+        "no_call_on_read": true,
+        "provider_refresh_authority": "~1m",
+        "readiness_semantics": "SOURCE_AS_OF_NOT_PROJECTED",
+        "source": "data_refresh.statistics",
+        "source_as_of": null,
+        "status": "NOT_AVAILABLE"
+      },
+      "teams_statistics": {
+        "availability": "NOT_AVAILABLE",
+        "domain": "TEAMS_STATISTICS",
+        "no_call_on_read": true,
+        "provider_refresh_authority": "~12h / ~2 daily",
+        "readiness_semantics": "SOURCE_AS_OF_NOT_PROJECTED",
+        "source": "not_projected",
+        "source_as_of": null,
+        "status": "NOT_AVAILABLE"
+      }
+    }
+  },
+  "generated_at": "2026-08-09T02:00:00Z",
+  "matches": [],
+  "navigation": {"current_date": "2026-08-09"},
+  "read_contract": {
+    "db_writes": 0,
+    "no_call_on_read": true,
+    "provider_calls": 0,
+    "would_write_checkpoint": false
+  },
+  "request_id": "deterministic-sample",
+  "runtime": {
+    "active_whitelist_count": 13,
+    "candidate": "OFF",
+    "formal": "OFF",
+    "free_bridge_mode": "SHADOW_ONLY",
+    "lock": "OFF",
+    "product": "FOOTBALL_MARKET_INTELLIGENCE_PLUS_MODEL_DIAGNOSTICS",
+    "production": "OFF",
+    "public_dashboard_authority": "NEW_INTELLIGENCE_WORKSPACE_ONLY"
+  },
+  "schema_version": "w2.dashboard-intelligence-workspace.v1",
+  "selected_fixture_id": null,
+  "source": "dashboard_day_view+performance_checkpoint+replay_front_door",
+  "timezone": "Asia/Shanghai",
+  "validation": {
+    "directional": {
+      "correct": 0,
+      "decisive_n": 0,
+      "direction_accuracy": null,
+      "effective_n": 0,
+      "market_direction_benchmark": "NOT_DEFINED",
+      "push": 0,
+      "status": "INSUFFICIENT",
+      "validation_n": 0,
+      "void": 0,
+      "wrong": 0
+    },
+    "forward_validation_records": {
+      "checkpoint_metadata": {},
+      "eligible_count": 0,
+      "excluded_count": 0,
+      "outcomes": {},
+      "pending_count": 0,
+      "status": "INSUFFICIENT",
+      "validation_count": 0
+    },
+    "history_replay": {
+      "card_hash_checks": [],
+      "known_at": {
+        "checkpoint_key": "dashboard:day_view:2026-08-09",
+        "generated_at": "2026-08-09T02:00:00Z",
+        "has_day_view": true,
+        "source": "dashboard_read_model"
+      },
+      "outcome_tracking_summary": {
+        "matched_fixture_ids": [],
+        "matched_outcome_count": 0,
+        "missing_outcome_count": 0,
+        "missing_outcome_fixture_ids": [],
+        "tracked_count": 0,
+        "tracked_fixture_ids": []
+      },
+      "reason_summary": [],
+      "replay_gaps": [
+        "MISSING_AUDIT_MANIFEST",
+        "MISSING_AUDIT_TABLES",
+        "MISSING_OUTCOMES"
+      ],
+      "status": "MISSING_OUTCOMES"
+    },
+    "league_performance": [],
+    "probability": {
+      "checkpoint_metadata": {},
+      "market_brier": null,
+      "market_calibration_error": null,
+      "market_log_loss": null,
+      "market_reliability_bins": [],
+      "model_brier": null,
+      "model_calibration_error": null,
+      "model_log_loss": null,
+      "model_minus_market_brier": null,
+      "model_minus_market_log_loss": null,
+      "model_reliability_bins": [],
+      "sample_count": 0,
+      "status": "INSUFFICIENT"
+    }
+  },
+  "window": "today"
+}

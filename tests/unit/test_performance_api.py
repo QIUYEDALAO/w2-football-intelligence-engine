@@ -56,6 +56,50 @@ def test_dashboard_ledger_projection_missing_checkpoint_is_not_fake_zero() -> No
     assert _dashboard_forward_ledger_from_checkpoints([]) is None
 
 
+def test_dashboard_ledger_projects_existing_probability_metrics() -> None:
+    row = _cohort("performance:cohort:all", finished=12, settled=7)
+    payload = deepcopy(row.payload)
+    payload["windows"]["90d"].update(
+        {
+            "scored_count": 12,
+            "model_brier": 0.21,
+            "market_brier": 0.22,
+            "model_minus_market_brier": -0.01,
+            "model_log_loss": 0.61,
+            "market_log_loss": 0.62,
+            "model_minus_market_log_loss": -0.01,
+            "model_ece": 0.04,
+            "market_ece": 0.05,
+        }
+    )
+    projected = _dashboard_forward_ledger_from_checkpoints(
+        [
+            Checkpoint(
+                key=row.key,
+                source_hash=row.source_hash,
+                created_at=row.created_at,
+                payload=payload,
+            )
+        ]
+    )
+
+    assert projected is not None
+    assert projected["probability_validation"] == {
+        "status": "SAMPLE_BUILDING",
+        "sample_count": 12,
+        "model_brier": 0.21,
+        "market_brier": 0.22,
+        "model_minus_market_brier": -0.01,
+        "model_log_loss": 0.61,
+        "market_log_loss": 0.62,
+        "model_minus_market_log_loss": -0.01,
+        "model_ece": 0.04,
+        "market_ece": 0.05,
+        "model_reliability_bins": _bins(),
+        "market_reliability_bins": _bins(),
+    }
+
+
 class PerformanceRepository:
     def __init__(self, rows: list[Checkpoint]) -> None:
         self.rows = rows

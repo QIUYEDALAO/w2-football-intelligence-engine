@@ -313,6 +313,32 @@ def _checkpoint_league_row(
         "rate_status": (
             "AVAILABLE" if window.canonical_hit_rate_status == "AVAILABLE" else "INSUFFICIENT"
         ),
+        "model_brier": window.model_brier,
+        "model_ece": window.model_ece,
+    }
+
+
+def _checkpoint_probability(window: PerformanceWindowProjection) -> dict[str, Any]:
+    status = (
+        "AVAILABLE"
+        if window.sample_progress_status == "TARGET_REACHED"
+        else "SAMPLE_BUILDING"
+        if window.scored_count
+        else "INSUFFICIENT"
+    )
+    return {
+        "status": status,
+        "sample_count": window.scored_count,
+        "model_brier": window.model_brier,
+        "market_brier": window.market_brier,
+        "model_minus_market_brier": window.model_minus_market_brier,
+        "model_log_loss": window.model_log_loss,
+        "market_log_loss": window.market_log_loss,
+        "model_minus_market_log_loss": window.model_minus_market_log_loss,
+        "model_ece": window.model_ece,
+        "market_ece": window.market_ece,
+        "model_reliability_bins": [row.model_dump() for row in window.model_reliability_bins],
+        "market_reliability_bins": [row.model_dump() for row in window.market_reliability_bins],
     }
 
 
@@ -371,6 +397,7 @@ def _dashboard_forward_ledger_from_checkpoints(
         },
         "outcomes_validation": outcomes,
         "outcomes_canonical": outcomes,
+        "probability_validation": _checkpoint_probability(window),
         "performance_cohort": {
             "validation_count": processed,
             "processed_count": processed,
