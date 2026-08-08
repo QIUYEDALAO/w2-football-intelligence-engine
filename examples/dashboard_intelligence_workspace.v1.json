@@ -187,6 +187,12 @@
     },
     "history_replay": {
       "card_hash_checks": [],
+      "decision_summary": {
+        "by_data_status": {},
+        "by_decision_tier": {},
+        "lock_eligible_count": 0,
+        "total_cards": 0
+      },
       "known_at": {
         "checkpoint_key": "dashboard:day_view:2026-08-09",
         "generated_at": "2026-08-09T02:00:00Z",

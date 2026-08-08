@@ -39,10 +39,15 @@ declared availability/readiness state and never authorize fabrication.
 | `attention[].fixture_id`, `kickoff_utc` | DayView card identity | `AVAILABLE` | `FIXTURES` | only real cards | `true` |
 | `attention[].intelligence_state` | `build_intelligence_projection` | `AVAILABLE` | `PAGE_PROJECTION` | frozen seven-state precedence | `true` |
 | `attention[].reason_codes` | `intelligence_reason_codes` | `AVAILABLE` | relevant source domains | empty only for impossible invalid state; stable has explicit code | `true` |
-| `attention[].risks` | DayView `risk_dimensions` | `AVAILABLE` | relevant source domains | four independent dimensions | `true` |
+| `attention[].affected_domains` | existing intelligence state/reason evidence | `AVAILABLE` | relevant source domains | deterministic EVENT/DATA/MODEL/COLLECTION/MARKET domain projection; no new signal | `true` |
+| `attention[].factual_summary` | existing intelligence state + reason codes | `AVAILABLE` | `PAGE_PROJECTION` | factual source-code summary only; no recommendation language | `true` |
+| `attention[].readiness_status` | DayView `data_status` | `AVAILABLE` | relevant source domains | existing readiness value preserved | `true` |
+| `attention[].readiness_context` | Decision/Data Readiness `reason_code`, `missing_fields`, `stale_fields`, `action` | `AVAILABLE` | relevant source domains | source blockers/context preserved; no frontend reconstruction | `true` |
+| `attention[].next_eval_at` | Decision Contract | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | relevant source domains | null when source has no next evaluation | `true` |
+| `attention[].risks` | DayView `risk_dimensions` | `AVAILABLE` | relevant source domains | exact `EVENT_RISK`/`DATA_RISK`/`MODEL_RISK`/`COLLECTION_RISK`; no extra/missing axis | `true` |
 | `matches[].fixture_id`, `competition_id`, `competition_name` | DayView card identity | `AVAILABLE` | `FIXTURES` | missing identity fails existing DayView contract | `true` |
 | `matches[].kickoff_utc`, `home_team_name`, `away_team_name`, `status` | DayView card identity | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `FIXTURES` | null only when existing source lacks optional display name/status | `true` |
-| `matches[].intelligence_state`, `intelligence_reason_codes`, `risks` | existing intelligence projection | `AVAILABLE` | relevant source domains | frozen state/risk semantics | `true` |
+| `matches[].intelligence_state`, `intelligence_reason_codes`, `risks` | existing intelligence projection | `AVAILABLE` | relevant source domains | exact seven states and exact four production-shaped risk axes; fail closed | `true` |
 
 ## Readiness and product layers per match
 
@@ -81,7 +86,8 @@ declared availability/readiness state and never authorize fabrication.
 | `matches[].model_lab.relation` | existing Model Lab market statuses | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `ODDS_PREMATCH` | no opportunity semantics | `true` |
 | `matches[].model_lab.historical_validation` | frozen Phase 0.5 context | `AVAILABLE` | `NONE` | `NO_EDGE`, `NOT_PROVEN`, no rerun | `true` |
 | `matches[].scoreline_reference.label`, `proof_status` | approved P0 semantics | `AVAILABLE` | `NONE` | `MODEL_SCORELINE_REFERENCE`, `NOT_PROVEN` | `true` |
-| `matches[].scoreline_reference.status`, `simulations_completed`, `top3` | existing scoreline reference/canonical simulation | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | no second engine; empty when unavailable | `true` |
+| `matches[].scoreline_reference.status`, `simulations_completed` | existing `scoreline_projection` | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | `READY` requires exactly 10,000 completed seeded simulations; no simulation on read | `true` |
+| `matches[].scoreline_reference.top3[].scoreline`, `sample_count`, `unconditional_probability` | existing `scoreline_projection.top3` | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | explicit unconditional probability; generic/conditional probability is not substituted | `true` |
 | `matches[].evidence.card_hash`, `artifact_hash`, `source`, `source_event_at`, `decision_role` | DayView/frozen projection identity | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | traceability only | `true` |
 
 ## Validation, league performance, records and replay
@@ -98,7 +104,8 @@ declared availability/readiness state and never authorize fabrication.
 | `validation.directional.market_direction_benchmark` | approved P0 constant | `NOT_DEFINED` | `NONE` | never zero/estimated | `true` |
 | `validation.league_performance[]` fields | `performance:cohort:league:*` | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | `AVAILABLE/SAMPLE_BUILDING/INSUFFICIENT` | `true` |
 | `validation.forward_validation_records` | bounded forward-ledger checkpoint adapter | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | counts/outcomes/exclusions only; no CLV/ROI | `true` |
-| `validation.history_replay` | existing replay front door over same DayView | `AVAILABLE` | `PAGE_PROJECTION` | known-at/reasons/outcomes/hash checks; read only | `true` |
+| `validation.history_replay.known_at`, `reason_summary`, `outcome_tracking_summary`, `card_hash_checks`, `replay_gaps` | existing replay front door over same DayView | `AVAILABLE` | `PAGE_PROJECTION` | existing history evidence preserved; read only | `true` |
+| `validation.history_replay.decision_summary` | existing replay front-door `decision_summary` | `AVAILABLE` | `PAGE_PROJECTION` | exact total/tier/data-status/lock-eligible counts answer what W2 judged; no second replay engine | `true` |
 
 League row fields are exactly: `league`, `validation_n`, `decisive_n`,
 `correct`, `wrong`, `push`, `void`, `direction_accuracy`, `brier`,

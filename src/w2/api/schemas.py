@@ -1,9 +1,19 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+IntelligenceState = Literal[
+    "COLLECTION_INCIDENT",
+    "DATA_INCOMPLETE",
+    "MODEL_DIAGNOSTIC_WARNING",
+    "MARKET_ANOMALY",
+    "MODEL_MARKET_DISAGREEMENT",
+    "MARKET_MOVEMENT",
+    "MARKET_STABLE",
+]
 
 
 class ErrorPayload(BaseModel):
@@ -204,14 +214,60 @@ class WorkspaceRuntime(BaseModel):
     production: Literal["OFF"]
 
 
+class WorkspaceRiskDimension(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    dimension: Literal["EVENT_RISK", "DATA_RISK", "MODEL_RISK", "COLLECTION_RISK"]
+    status: Literal["OK", "ATTENTION", "INCIDENT"]
+    reason_codes: list[str]
+    explanation: str
+
+
+class WorkspaceRisks(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event_risk: WorkspaceRiskDimension = Field(alias="EVENT_RISK")
+    data_risk: WorkspaceRiskDimension = Field(alias="DATA_RISK")
+    model_risk: WorkspaceRiskDimension = Field(alias="MODEL_RISK")
+    collection_risk: WorkspaceRiskDimension = Field(alias="COLLECTION_RISK")
+
+    @model_validator(mode="after")
+    def dimensions_match_axes(self) -> WorkspaceRisks:
+        axes = {
+            "EVENT_RISK": self.event_risk,
+            "DATA_RISK": self.data_risk,
+            "MODEL_RISK": self.model_risk,
+            "COLLECTION_RISK": self.collection_risk,
+        }
+        if any(dimension.dimension != name for name, dimension in axes.items()):
+            raise ValueError("risk dimension must match its axis")
+        return self
+
+
+class WorkspaceAttentionReadinessContext(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason_code: str | None
+    missing_fields: list[str]
+    stale_fields: list[str]
+    action: str | None
+
+
 class WorkspaceAttentionItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     fixture_id: str
     kickoff_utc: datetime | str | None
-    intelligence_state: str
+    intelligence_state: IntelligenceState
     reason_codes: list[str]
-    risks: dict[str, Any]
+    affected_domains: list[
+        Literal["EVENT", "DATA", "MODEL", "COLLECTION", "MARKET"]
+    ] = Field(min_length=1)
+    factual_summary: str = Field(min_length=1)
+    readiness_status: str
+    readiness_context: WorkspaceAttentionReadinessContext
+    next_eval_at: datetime | str | None
+    risks: WorkspaceRisks
 
 
 class WorkspaceTimelinePoint(BaseModel):
@@ -361,18 +417,33 @@ class WorkspaceScoreline(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     scoreline: str
-    probability: float | None
-    sample_count: int | None = Field(default=None, ge=0)
+    unconditional_probability: float = Field(ge=0, le=1)
+    sample_count: int = Field(ge=0)
 
 
-class WorkspaceScorelineReference(BaseModel):
+class WorkspaceScorelineReferenceBase(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     label: Literal["MODEL_SCORELINE_REFERENCE"]
     proof_status: Literal["NOT_PROVEN"]
-    status: Literal["READY", "UNAVAILABLE"]
+
+
+class WorkspaceReadyScorelineReference(WorkspaceScorelineReferenceBase):
+    status: Literal["READY"]
+    simulations_completed: Literal[10_000]
+    top3: list[WorkspaceScoreline] = Field(min_length=1, max_length=3)
+
+
+class WorkspaceUnavailableScorelineReference(WorkspaceScorelineReferenceBase):
+    status: Literal["UNAVAILABLE"]
     simulations_completed: int | None = Field(default=None, ge=1)
-    top3: list[WorkspaceScoreline] = Field(max_length=3)
+    top3: list[WorkspaceScoreline] = Field(max_length=0)
+
+
+WorkspaceScorelineReference = Annotated[
+    WorkspaceReadyScorelineReference | WorkspaceUnavailableScorelineReference,
+    Field(discriminator="status"),
+]
 
 
 class WorkspaceEvidence(BaseModel):
@@ -395,9 +466,9 @@ class WorkspaceMatch(BaseModel):
     home_team_name: str | None
     away_team_name: str | None
     status: str | None
-    intelligence_state: str
+    intelligence_state: IntelligenceState
     intelligence_reason_codes: list[str]
-    risks: dict[str, Any]
+    risks: WorkspaceRisks
     readiness: WorkspaceReadiness
     market_fact: WorkspaceMarketFact
     w2_analysis: WorkspaceW2Analysis
@@ -469,11 +540,21 @@ class WorkspaceForwardValidationRecords(BaseModel):
     checkpoint_metadata: dict[str, Any]
 
 
+class WorkspaceReplayDecisionSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    total_cards: int = Field(ge=0)
+    lock_eligible_count: int = Field(ge=0)
+    by_decision_tier: dict[str, int]
+    by_data_status: dict[str, int]
+
+
 class WorkspaceHistoryReplay(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     status: str
     known_at: dict[str, Any]
+    decision_summary: WorkspaceReplayDecisionSummary
     reason_summary: list[dict[str, Any]]
     outcome_tracking_summary: dict[str, Any]
     card_hash_checks: list[dict[str, Any]]

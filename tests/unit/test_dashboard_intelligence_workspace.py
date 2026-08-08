@@ -41,6 +41,23 @@ def _market(snapshot_count: int) -> dict[str, Any]:
     }
 
 
+def _risks() -> dict[str, Any]:
+    return {
+        dimension: {
+            "dimension": dimension,
+            "status": "OK",
+            "reason_codes": [],
+            "explanation": "No current evidence",
+        }
+        for dimension in (
+            "EVENT_RISK",
+            "DATA_RISK",
+            "MODEL_RISK",
+            "COLLECTION_RISK",
+        )
+    }
+
+
 def _card(fixture_id: str, snapshot_count: int) -> dict[str, Any]:
     return {
         "fixture_id": fixture_id,
@@ -52,12 +69,7 @@ def _card(fixture_id: str, snapshot_count: int) -> dict[str, Any]:
         "status": "NS",
         "intelligence_state": "MARKET_STABLE",
         "intelligence_reason_codes": ["MARKET_STABLE_ALL_AVAILABLE_MARKETS"],
-        "risk_dimensions": {
-            "collection_risk": False,
-            "data_risk": False,
-            "model_risk": False,
-            "market_risk": False,
-        },
+        "risk_dimensions": _risks(),
         "data_status": "READY",
         "reason_code": None,
         "missing_fields": [],
@@ -96,9 +108,22 @@ def _card(fixture_id: str, snapshot_count: int) -> dict[str, Any]:
             },
         },
         "scoreline_simulations": 10000,
-        "scoreline_picks": [
-            {"scoreline": "1-0", "probability": 0.15, "sample_count": 1500}
-        ],
+        "scoreline_picks": [{"scoreline": "9-9", "probability": 0.99, "sample_count": 9900}],
+        "scoreline_reference": {
+            "scoreline_projection": {
+                "status": "READY",
+                "simulations_completed": 10000,
+                "top3": [
+                    {
+                        "scoreline": "1-0",
+                        "sample_count": 1500,
+                        "unconditional_probability": 0.15,
+                        "conditional_probability": 0.3,
+                        "probability": 0.99,
+                    }
+                ],
+            }
+        },
         "data_refresh": {
             "statistics_status": "AVAILABLE",
             "statistics_captured_at": "2026-08-09T01:00:00Z",
@@ -200,6 +225,12 @@ def _workspace(day_view: dict[str, Any]) -> dict[str, Any]:
                 "missing_outcome_fixture_ids": [],
             },
             "card_hash_checks": [],
+            "decision_summary": {
+                "total_cards": 3,
+                "lock_eligible_count": 3,
+                "by_decision_tier": {"WATCH": 3},
+                "by_data_status": {"READY": 3},
+            },
             "replay_gaps": ["MISSING_OUTCOMES"],
         },
     )
@@ -230,6 +261,38 @@ def test_workspace_is_deterministic_explicit_and_schema_valid() -> None:
         "no_call_on_read": True,
     }
     assert first["runtime"]["formal"] == "OFF"
+    assert first["attention"][0] == {
+        "fixture_id": "fixture-zero",
+        "kickoff_utc": "2026-08-10T10:00:00Z",
+        "intelligence_state": "MARKET_STABLE",
+        "reason_codes": ["MARKET_STABLE_ALL_AVAILABLE_MARKETS"],
+        "affected_domains": ["MARKET"],
+        "factual_summary": ("MARKET_STABLE: MARKET_STABLE_ALL_AVAILABLE_MARKETS"),
+        "readiness_status": "READY",
+        "readiness_context": {
+            "reason_code": None,
+            "missing_fields": [],
+            "stale_fields": [],
+            "action": None,
+        },
+        "next_eval_at": None,
+        "risks": _risks(),
+    }
+    assert first["validation"]["history_replay"]["decision_summary"] == {
+        "total_cards": 3,
+        "lock_eligible_count": 3,
+        "by_decision_tier": {"WATCH": 3},
+        "by_data_status": {"READY": 3},
+    }
+    scoreline = first["matches"][0]["scoreline_reference"]
+    assert scoreline["simulations_completed"] == 10_000
+    assert scoreline["top3"] == [
+        {
+            "scoreline": "1-0",
+            "unconditional_probability": 0.15,
+            "sample_count": 1500,
+        }
+    ]
     assert first["validation"]["directional"]["market_direction_benchmark"] == (
         "NOT_DEFINED"
     )
@@ -276,6 +339,48 @@ def test_workspace_schema_fails_closed_on_read_side_effects(
     day_view["provider_calls"] = provider_calls
     day_view["db_writes"] = db_writes
     payload = _workspace(day_view)
+
+    with pytest.raises(ValueError):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "test-request", **payload}
+        )
+
+
+@pytest.mark.parametrize("collection", ["attention", "matches"])
+def test_workspace_schema_rejects_unknown_intelligence_state(collection: str) -> None:
+    payload = _workspace(_day_view())
+    payload[collection][0]["intelligence_state"] = "UNKNOWN_STATE"
+
+    with pytest.raises(ValueError):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "test-request", **payload}
+        )
+
+
+def test_workspace_schema_rejects_missing_risk_axis() -> None:
+    payload = _workspace(_day_view())
+    del payload["attention"][0]["risks"]["EVENT_RISK"]
+
+    with pytest.raises(ValueError):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "test-request", **payload}
+        )
+
+
+@pytest.mark.parametrize("axis", ["EXTRA_RISK", "MARKET_RISK", "event_risk"])
+def test_workspace_schema_rejects_extra_or_market_risk_axis(axis: str) -> None:
+    payload = _workspace(_day_view())
+    payload["matches"][0]["risks"][axis] = deepcopy(payload["matches"][0]["risks"]["EVENT_RISK"])
+
+    with pytest.raises(ValueError):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "test-request", **payload}
+        )
+
+
+def test_workspace_schema_rejects_ready_scoreline_without_10000_samples() -> None:
+    payload = _workspace(_day_view())
+    payload["matches"][0]["scoreline_reference"]["simulations_completed"] = 9_999
 
     with pytest.raises(ValueError):
         DashboardIntelligenceWorkspaceResponse.model_validate(

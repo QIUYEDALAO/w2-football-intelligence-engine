@@ -74,6 +74,12 @@ def _empty_replay(day_view: dict[str, Any]) -> dict[str, Any]:
             "missing_outcome_fixture_ids": [],
         },
         "card_hash_checks": [],
+        "decision_summary": {
+            "total_cards": 0,
+            "lock_eligible_count": 0,
+            "by_decision_tier": {},
+            "by_data_status": {},
+        },
         "replay_gaps": [
             "MISSING_AUDIT_MANIFEST",
             "MISSING_AUDIT_TABLES",
@@ -106,6 +112,12 @@ def test_committed_sample_is_deterministic_and_schema_valid() -> None:
     keys = _keys(sample)
     assert keys.isdisjoint(PROHIBITED_FIELDS)
     assert not any(key.lower().endswith(("_roi", "_clv")) for key in keys)
+    assert sample["validation"]["history_replay"]["decision_summary"] == {
+        "total_cards": 0,
+        "lock_eligible_count": 0,
+        "by_decision_tier": {},
+        "by_data_status": {},
+    }
 
 
 def test_workspace_is_a_pure_adapter_without_provider_or_scheduler_imports() -> None:
@@ -126,11 +138,42 @@ def test_workspace_is_a_pure_adapter_without_provider_or_scheduler_imports() -> 
 
 
 def test_openapi_publishes_only_the_unified_workspace_response_contract() -> None:
-    operation = app.openapi()["paths"]["/v1/dashboard/intelligence-workspace"]["get"]
+    openapi = app.openapi()
+    operation = openapi["paths"]["/v1/dashboard/intelligence-workspace"]["get"]
     response = operation["responses"]["200"]["content"]["application/json"]["schema"]
 
     assert response == {
         "$ref": "#/components/schemas/DashboardIntelligenceWorkspaceResponse"
+    }
+
+    schemas = openapi["components"]["schemas"]
+    states = {
+        "COLLECTION_INCIDENT",
+        "DATA_INCOMPLETE",
+        "MODEL_DIAGNOSTIC_WARNING",
+        "MARKET_ANOMALY",
+        "MODEL_MARKET_DISAGREEMENT",
+        "MARKET_MOVEMENT",
+        "MARKET_STABLE",
+    }
+    assert set(
+        schemas["WorkspaceAttentionItem"]["properties"]["intelligence_state"]["enum"]
+    ) == states
+    assert set(schemas["WorkspaceMatch"]["properties"]["intelligence_state"]["enum"]) == states
+    assert set(schemas["WorkspaceRisks"]["properties"]) == {
+        "EVENT_RISK",
+        "DATA_RISK",
+        "MODEL_RISK",
+        "COLLECTION_RISK",
+    }
+    assert schemas["WorkspaceRisks"]["additionalProperties"] is False
+    assert schemas["WorkspaceReadyScorelineReference"]["properties"][
+        "simulations_completed"
+    ]["const"] == 10_000
+    assert set(schemas["WorkspaceScoreline"]["properties"]) == {
+        "scoreline",
+        "unconditional_probability",
+        "sample_count",
     }
 
 

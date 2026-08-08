@@ -24,6 +24,7 @@ DOMAIN_CONTRACT = {
     "teams_statistics": ("NOT_AVAILABLE", "not_projected", "~12h / ~2 daily"),
     "page_projection": ("AVAILABLE", "dashboard_day_view", "internal"),
 }
+AFFECTED_DOMAIN_ORDER = ("EVENT", "DATA", "MODEL", "COLLECTION", "MARKET")
 
 
 def build_dashboard_intelligence_workspace(
@@ -68,6 +69,18 @@ def build_dashboard_intelligence_workspace(
                 "kickoff_utc": item["kickoff_utc"],
                 "intelligence_state": item["intelligence_state"],
                 "reason_codes": item["intelligence_reason_codes"],
+                "affected_domains": _affected_domains(
+                    item["intelligence_state"], item["intelligence_reason_codes"]
+                ),
+                "factual_summary": _factual_summary(
+                    item["intelligence_state"], item["intelligence_reason_codes"]
+                ),
+                "readiness_status": item["readiness"]["status"],
+                "readiness_context": {
+                    key: item["readiness"][key]
+                    for key in ("reason_code", "missing_fields", "stale_fields", "action")
+                },
+                "next_eval_at": item["readiness"]["next_eval_at"],
                 "risks": item["risks"],
             }
             for item in matches
@@ -185,7 +198,7 @@ def _match(card: Mapping[str, Any]) -> dict[str, Any]:
                 _mapping(model_lab.get("historical_validation"))
             ),
         },
-        "scoreline_reference": _scoreline(card, inner_simulation),
+        "scoreline_reference": _scoreline(card),
         "evidence": {
             "card_hash": _optional_text(card.get("card_hash")),
             "artifact_hash": _optional_text(card.get("artifact_hash")),
@@ -251,14 +264,14 @@ def _model_relation(raw: Mapping[str, Any], name: str) -> dict[str, Any]:
     }
 
 
-def _scoreline(card: Mapping[str, Any], simulation: Mapping[str, Any]) -> dict[str, Any]:
+def _scoreline(card: Mapping[str, Any]) -> dict[str, Any]:
     reference = _mapping(card.get("scoreline_reference"))
     projection = _mapping(reference.get("scoreline_projection"))
-    rows = _mapping_list(card.get("scoreline_picks")) or _mapping_list(projection.get("top3"))
+    rows = _mapping_list(projection.get("top3"))
     top3 = [
         {
             "scoreline": _text(row.get("scoreline")),
-            "probability": _number(row.get("probability")),
+            "unconditional_probability": _number(row.get("unconditional_probability")),
             "sample_count": _optional_int(row.get("sample_count")),
         }
         for row in rows[:3]
@@ -269,10 +282,7 @@ def _scoreline(card: Mapping[str, Any], simulation: Mapping[str, Any]) -> dict[s
         "label": "MODEL_SCORELINE_REFERENCE",
         "proof_status": "NOT_PROVEN",
         "status": status,
-        "simulations_completed": _positive_int(
-            card.get("scoreline_simulations"),
-            simulation.get("simulations"),
-        ),
+        "simulations_completed": _positive_int(projection.get("simulations_completed")),
         "top3": top3,
     }
 
@@ -346,6 +356,7 @@ def _validation(forward: Mapping[str, Any], replay: Mapping[str, Any]) -> dict[s
                 key: _mapping(replay.get("known_at_summary")).get(key)
                 for key in ("has_day_view", "generated_at", "source", "checkpoint_key")
             },
+            "decision_summary": dict(_mapping(replay.get("decision_summary"))),
             "reason_summary": _mapping_list(replay.get("reason_summary")),
             "outcome_tracking_summary": dict(
                 _mapping(replay.get("outcome_tracking_summary"))
@@ -475,6 +486,16 @@ def _historical_validation(source: Mapping[str, Any]) -> dict[str, Any]:
         )
         if key in source
     }
+
+
+def _affected_domains(state: Any, reason_codes: Any) -> list[str]:
+    evidence = [_text(state), *_string_list(reason_codes)]
+    return [domain for domain in AFFECTED_DOMAIN_ORDER if any(domain in item for item in evidence)]
+
+
+def _factual_summary(state: Any, reason_codes: Any) -> str:
+    reasons = _string_list(reason_codes)
+    return f"{_text(state)}: {', '.join(reasons)}"
 
 
 def _directional_status(outcomes: Mapping[str, Any]) -> str:
