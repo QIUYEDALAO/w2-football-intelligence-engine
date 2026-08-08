@@ -6,8 +6,8 @@ PRODUCT = W2 Football Intelligence
 ROUND_1 = PASS
 ROUND_2 = PASS_WITH_TERMINAL_PROVIDER_PLAN_RESTRICTION
 FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME = PASS
-ACTIVE_TASK = W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB
-ROUND_3 = AUTHORIZED_IN_PROGRESS
+ACTIVE_TASK = AWAIT_OWNER_POST_R3_PRODUCT_DECISION
+ROUND_3 = PASS_MARKET_RADAR_MODEL_LAB
 ```
 
 Binding authority:
@@ -20,27 +20,27 @@ ROUND_3_ACCEPTANCE_CRITERIA.md
 
 ## Continuous Round-3 closeout
 
-- [ ] Re-fetch latest `origin/main` and `origin/context/current`; record exact SHAs.
-- [ ] Independently audit real persisted-market/read-model/public paths.
-- [ ] Define and test real-evidence eligibility/rejection contract.
-- [ ] Build canonical same-line AH/OU market timeline.
-- [ ] Build Market Radar current facts, bookmaker depth, de-vig/overround and factual movement contract.
-- [ ] Record statistical anomaly calibration as `CALIBRATED` or truthful `NOT_CALIBRATED`; do not invent a threshold.
-- [ ] Build Model Lab same-line >=3-bookmaker market-range diagnostic.
-- [ ] Ensure `MODEL_MARKET_DISAGREEMENT` only when model probability lies outside the observed real bookmaker de-vig range after readiness gates.
-- [ ] Isolate legacy EV/cashflow-edge/analysis-direction semantics from Round-3 public authority.
-- [ ] Preserve seven-state precedence and four risk dimensions.
-- [ ] Integrate API/read model without Provider calls on dashboard reads.
-- [ ] Integrate `Market Radar` and `Model Lab` into existing public surfaces.
-- [ ] Prove no N+1/provider-on-read behavior.
-- [ ] Pass focused/full tests, Ruff, Mypy, Web gates, secret scan, PR Fast and required Release Candidate.
-- [ ] Merge accepted Round-3 PR(s), maximum 2.
-- [ ] Deploy accepted final main through immutable W2 staging release.
-- [ ] Run real persisted-evidence acceptance without manufacturing market/model readiness.
-- [ ] Verify non-destructive rollback.
-- [ ] Execute `REPOSITORY_HYGIENE_POLICY.md` with unresolved items 0.
-- [ ] Create `ROUND_3_FINAL_RECEIPT.md`.
-- [ ] Update `context/current` to final Round-3 state and stop at `AWAIT_OWNER_POST_R3_PRODUCT_DECISION`.
+- [x] Re-fetch latest `origin/main` and `origin/context/current`; record exact SHAs.
+- [x] Independently audit real persisted-market/read-model/public paths.
+- [x] Define and test real-evidence eligibility/rejection contract.
+- [x] Build canonical same-line AH/OU market timeline.
+- [x] Build Market Radar current facts, bookmaker depth, de-vig/overround and factual movement contract.
+- [x] Record truthful `NOT_CALIBRATED`; no anomaly threshold was invented.
+- [x] Build Model Lab same-line >=3-bookmaker market-range diagnostic.
+- [x] Gate disagreement on model readiness, same-line evidence, depth and freshness.
+- [x] Isolate legacy edge semantics from Round-3 authority.
+- [x] Preserve seven-state precedence and four risk dimensions.
+- [x] Integrate the existing frozen checkpoint API/read model with zero Provider calls on reads.
+- [x] Integrate `Market Radar` and `Model Lab` into existing public surfaces.
+- [x] Prove no read-time N+1 market query or Provider-on-read behavior.
+- [x] Pass focused/full tests, Ruff, Mypy, Web, Playwright, secret, PR Fast and Release Candidate gates.
+- [x] Merge PR #497, the only Round-3 PR.
+- [x] Deploy accepted final main through immutable W2 staging release.
+- [x] Run real persisted-evidence acceptance without manufacturing readiness.
+- [x] Verify non-destructive old-image rollback and Round-3 restore.
+- [x] Execute `REPOSITORY_HYGIENE_POLICY.md` with unresolved items 0.
+- [x] Create `ROUND_3_FINAL_RECEIPT.md`.
+- [x] Update `context/current` and stop at `AWAIT_OWNER_POST_R3_PRODUCT_DECISION`.
 
 ## Runtime invariants
 
