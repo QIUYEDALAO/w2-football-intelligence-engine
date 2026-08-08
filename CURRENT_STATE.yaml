@@ -9,9 +9,19 @@ product_name: W2 Football Intelligence
 owner_product_decision: APPROVED_CLOSE_WITH_CURRENT_TERMINAL_EVIDENCE
 owner_authorization_id: W2_MI_R2_TERMINAL_EARLY_CLOSURE_20260808
 active_next_action: W2_MI_R2_C_FINAL_CAPABILITY_DECISION_NOW
-next_code_action: NONE_R2_C_IS_EVIDENCE_CLOSURE
+next_code_action: NONE_R2_C_IS_EVIDENCE_AND_HYGIENE_CLOSURE
 current_status: ROUND_2_AUTHORIZED_R2_C_NOW
-current_gate: R2_C_FINAL_CAPABILITY_DECISION
+current_gate: R2_C_FINAL_CAPABILITY_DECISION_AND_REPOSITORY_HYGIENE
+
+repository_hygiene:
+  authority: REPOSITORY_HYGIENE_POLICY.md
+  permanent_rule: true
+  task_pass_requires_hygiene_pass: true
+  delete_provably_dead_assets: true
+  deletion_requires_reference_and_runtime_evidence: true
+  preserve_reusable_tooling: true
+  preserve_required_migrations_history_and_audit_evidence: true
+  unresolved_hygiene_items_required_for_pass: 0
 
 round_1:
   status: PASS
@@ -23,11 +33,12 @@ round_1:
 round_2:
   task: W2_MI_R2_FIRST_DIVISION_PROVIDER_CAPABILITY_AUDIT
   status: AUTHORIZED_R2_C_NOW
-  phase: R2_C_FINAL_CAPABILITY_DECISION
+  phase: R2_C_FINAL_CAPABILITY_DECISION_AND_HYGIENE
   terminal_closure_authority: ROUND_2_TERMINAL_CLOSURE_AUTHORIZATION.md
   owner_authorization: ROUND_2_OWNER_AUTHORIZATION.md
   execution_authority: ROUND_2_CODEX_EXECUTION.md
   acceptance_authority: ROUND_2_ACCEPTANCE_CRITERIA.md
+  hygiene_authority: REPOSITORY_HYGIENE_POLICY.md
   day0_receipt: ROUND_2_DAY0_RECEIPT.md
   observation_log: ROUND_2_OBSERVATION_LOG.md
   audit_tooling_pr: 494
@@ -70,10 +81,15 @@ round_2:
     timeline_items: 0
     evidence_status: TEMPORAL_EVIDENCE_INSUFFICIENT_OR_DEGRADED
   terminal_closure_reason: ALL_17_PROVIDER_ROWS_PLAN_RESTRICTED_AND_WAITING_CANNOT_ADD_AUTHORIZED_PROVIDER_CAPABILITY_EVIDENCE
+  completion_requires:
+    - FINAL_17_ROW_CAPABILITY_MATRIX
+    - REPOSITORY_HYGIENE_PASS
+    - UNRESOLVED_HYGIENE_ITEMS_ZERO
+    - ROUND_2_FINAL_RECEIPT
 
 failure_semantics:
   fail_closed_meaning: DO_NOT_ADVANCE_PAST_FAILED_GATE
-  fail_closed_does_not_mean: WAIT_14_DAYS
+  fail_closed_does_not_mean: WAIT_14_DAYS_OR_ABANDON_CURRENT_ROUND
   bounded_round_2_remediation_requires_new_owner_authorization: false
   scope_expansion_requires_new_owner_authorization: true
 
