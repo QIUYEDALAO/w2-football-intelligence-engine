@@ -1,15 +1,15 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-08"
+updated_at: "2026-08-08T15:48:04+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: APPROVED_FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_CLOSURE
-active_next_action: W2_MI_FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_CLOSURE
-next_code_action: REVIEW_FIX_MERGE_AND_SHADOW_INTEGRATE_PR_495
-current_status: FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_AUTHORIZED_IN_PROGRESS
-current_gate: PR_495_FINAL_AUDIT_AND_QUOTA_SEMANTICS
+owner_product_decision: FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_CLOSURE_COMPLETE
+active_next_action: AWAIT_OWNER_ROUND_3_OR_BIG_FIVE_COLLECTION_DECISION
+next_code_action: NONE_PENDING_NEW_OWNER_AUTHORITY
+current_status: FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_PASS
+current_gate: CLOSED_BEFORE_ROUND_3
 
 round_1:
   status: PASS
@@ -32,45 +32,83 @@ free_fixture_validation:
   odds_by_fixture: ACCESSIBLE_AH_OU_PRESENT
   statistics_by_fixture: ACCESSIBLE
   fixtures_by_ids: PLAN_RESTRICTED
-  proof_provider_calls: 5
+  original_proof_provider_calls: 5
 
 controlled_runtime_closure:
   task: W2_MI_FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_CLOSURE
+  status: PASS
+  receipt: FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_RECEIPT.md
   authorization: FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_AUTHORIZATION.md
   acceptance: FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_ACCEPTANCE.md
-  status: AUTHORIZED_IN_PROGRESS
   pr_495:
-    state: OPEN
-    head_sha: d73882dcee3c37819f248f6048bc2308c146feb1
-    mergeable: true
+    state: MERGED
+    final_head_sha: 5d1761106d1bc1b9c55e1ef923b5603ef490c027
+    merge_sha: eccab2542fa68bb0ae557e6f073dfdd927297f07
+    quota_double_reserve_fixed: true
     pr_fast: PASS
-  mandatory_premerge_issue:
-    code: FREE_QUOTA_DOUBLE_RESERVE_SUBTRACTION
-    description: CURRENT_80_CAP_PLUS_20_RESERVE_PATH_EFFECTIVELY_CAPS_AT_60
-    required_semantics: PROVIDER_100_W2_MAX_80_KEEP_20
-    must_fix_before_merge: true
-  provider_daily_limit: 100
-  w2_daily_call_ceiling: 80
-  min_provider_daily_remaining: 20
-  automatic_retry: false
-  shared_quota_accounting_required: true
-  bridge_local_counter_as_sole_authority_allowed: false
-  task_real_validation_call_hard_cap: 20
-  runtime_mode_target: SHADOW_ONLY
-  independent_new_scheduler_daemon_authorized: false
-  existing_scheduler_integration_authorized: true
-  deployment_authorized_after_all_release_gates: true
-  shadow_activation_authorized_after_rollback_gate: true
-  active_whitelist_change_authorized: false
-  audit_only_promotion_authorized: false
-  round_3_authorized: false
-  repository_hygiene_required: true
-  continuous_bounded_remediation_without_owner_reapproval: true
+    release_candidate: PASS
+  runtime_integration_pr:
+    number: 496
+    state: MERGED
+    final_head_sha: a55111b4955f70c84539ac44d07858a8d80e7f81
+    merge_sha: c241b877a4168659f465163108f7a53fb8fd82a5
+    pr_fast: PASS
+    release_candidate: PASS
+  final_main_sha: c241b877a4168659f465163108f7a53fb8fd82a5
+  deployment:
+    target: W2_STAGING
+    source_sha: c241b877a4168659f465163108f7a53fb8fd82a5
+    python_oci_digest: sha256:8c71abd5ccc3d946fdc3365e9ce863789b3081ecc8e73fa90d61b088d972abaf
+    web_oci_digest: sha256:ceea1489dee6a43aff648f27dc36a6c7d572819569c95f9057580c24385d87d1
+    immutable_manifest_sha256: 80dba9cb96f8cc0cea7ff71400821813ef3b15def9090f66a315db6c0b258235
+    immutable_release: PASS
+    service_health: PASS_6_OF_6
+  runtime:
+    code_default: "OFF"
+    deployed_mode: SHADOW_ONLY
+    scheduler_owner: EXISTING_W2_SCHEDULER
+    independent_scheduler_daemon: false
+    active_whitelist_before: 13
+    active_whitelist_after: 13
+    audit_only_runtime_intersection: 0
+  quota:
+    provider_daily_limit: 100
+    w2_daily_call_ceiling: 80
+    min_provider_daily_remaining: 20
+    effective_w2_ceiling: 80
+    automatic_retry: false
+    shared_persistent_ledger: PASS
+    acceptance_ledger_before: 26
+    acceptance_ledger_after: 28
+    task_real_validation_calls: 2
+    final_provider_remaining_at_acceptance: 93
+  real_shadow_acceptance:
+    status: PASS
+    fixture_id: "1575448"
+    competition_id: primeira_liga
+    provider_league_id: "94"
+    discovery_calls: 1
+    odds_calls: 1
+    fixture_identity: PASS
+    ah_observations: 182
+    ou_observations: 240
+    bookmaker_count: 14
+    raw_capture_lineage_rows: 464
+    cache_rerun_provider_calls: 0
+    restart_cache_rerun_provider_calls: 0
+  rollback:
+    mechanism: FEATURE_FLAG_ONE_STEP
+    status: PASS
+    disabled_provider_calls: 0
+    evidence_preserved: true
+    whitelist_preserved: true
 
 repository_hygiene:
   authority: REPOSITORY_HYGIENE_POLICY.md
-  permanent_rule: true
-  task_pass_requires_hygiene_pass: true
+  status: PASS
+  dead_assets_found: 0
+  dead_assets_deleted: 0
+  unresolved_hygiene_items: 0
 
 round_3:
   task: W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB

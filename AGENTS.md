@@ -1,31 +1,54 @@
 # W2 Repository Agent Instructions
 
-Current authority is `origin/context/current`.
+Current mutable authority is `origin/context/current`.
 
 Read first:
 
 ```text
 1. CURRENT_STATE.yaml
 2. NEXT_ACTION.md
-3. FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_AUTHORIZATION.md
-4. FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_ACCEPTANCE.md
-5. FREE_PLAN_FIXTURE_CENTRIC_VALIDATION.md
-6. FREE_PLAN_DAILY_CALL_BUDGET.md
-7. REPOSITORY_HYGIENE_POLICY.md
+3. FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_RECEIPT.md
+4. FREE_PLAN_DAILY_CALL_BUDGET.md
+5. REPOSITORY_HYGIENE_POLICY.md
 ```
 
 ```text
 PRODUCT = W2 Football Intelligence
-ACTIVE_NEXT_ACTION = W2_MI_FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_CLOSURE
-OWNER_DECISION = APPROVED_EXECUTE_CONTINUOUSLY
-API_FOOTBALL_PRO_RENEWAL = NOT_AUTHORIZED_NOW
+FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME = PASS
+ACTIVE_NEXT_ACTION = AWAIT_OWNER_ROUND_3_OR_BIG_FIVE_COLLECTION_DECISION
+FREE_BRIDGE_MODE = SHADOW_ONLY
+ACTIVE_WHITELIST = 13_UNCHANGED
 ROUND_3 = NOT_STARTED
 ```
 
-Execute the entire authorized chain continuously. Do not stop after PR #495 review, one failing gate, merge, deployment or first shadow run. For bounded in-scope failures: fail closed, fix, rerun and continue.
+The runtime-closure authorization is consumed. Do not repeat Provider
+acceptance, modify deployment, change the whitelist, purchase/cut over a
+Provider, enable recommendation gates or start Round 3 without new owner
+authority.
 
-Known mandatory pre-merge issue: PR #495 currently double-protects the Free reserve, making the effective bridge ceiling 60. Required semantics are provider limit 100, W2 max 80, remaining reserve at least 20. Fix and test before merge.
+The deployed bridge is data infrastructure only. It is owned by the existing
+scheduler, uses the shared persistent quota ledger and canonical evidence
+contracts, and must preserve Provider 100 / W2 maximum 80 / minimum remaining
+20 with no automatic retries.
 
-Shared API-Football quota truth must include all W2 traffic on the same key/account. A bridge-local counter alone is not acceptable. Existing scheduler/operations framework owns runtime; no second scheduler daemon.
+For any future implementation or code modification in this project, invoke the
+project Ponytail skill when available and use it as a minimum-change constraint
+plus final simplification review. Correctness, safety, compatibility, tests and
+governance remain higher priority than brevity.
 
-Final runtime target is `SHADOW_ONLY`, exact existing 13 whitelist, no audit-only league promotion, no recommendation gates and no Round 3. `REPOSITORY_HYGIENE_POLICY.md` is mandatory before PASS.
+Permanent boundaries:
+
+```text
+PROVIDER_PURCHASE_OR_RENEWAL = NOT_AUTHORIZED_NOW
+PROVIDER_CUTOVER = NOT_AUTHORIZED
+ACTIVE_WHITELIST = EXACT_EXISTING_13
+AUDIT_ONLY_PROMOTION = NOT_AUTHORIZED
+CANDIDATE = OFF
+FORMAL = OFF
+LOCK = OFF
+PRODUCTION = OFF
+ROUND_3 = NOT_STARTED
+H_RESULT_ACCESS = PERMANENTLY_CLOSED
+BETTING_EDGE_CLAIM = FORBIDDEN
+REAL_MONEY = NOT_AUTHORIZED
+```

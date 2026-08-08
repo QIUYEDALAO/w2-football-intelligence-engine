@@ -2,120 +2,111 @@
 
 ```text
 PROVIDER_DAILY_LIMIT = 100
-W2_DAILY_HARD_CAP = 80
-MIN_PROVIDER_RESERVE = 20
-BRIDGE_IMPLEMENTATION_CAP = 80
-BRIDGE_IMPLEMENTATION_RESERVE = 20
-EFFECTIVE_BRIDGE_PLANNER_CEILING = 60
+W2_DAILY_CALL_CEILING = 80
+MIN_PROVIDER_DAILY_REMAINING = 20
+EFFECTIVE_W2_CEILING = 80_NOT_60
 AUTOMATIC_RETRY = false
 NO_IDLE_POLLING = true
-DEFAULT_RUNTIME_STATE = DISABLED
+CODE_DEFAULT = OFF
+DEPLOYED_RUNTIME_MODE = SHADOW_ONLY
 ```
 
-## Budget interpretation
+## Correct budget interpretation
 
-The Provider account exposes 100 requests/day. W2 may never cross its own
-80-call hard cap and must leave at least 20 Provider calls unused. The bounded
-PR is deliberately more conservative: its planner applies the 20-call reserve
-inside the 80-call W2 cap, so it schedules at most 60 total bridge calls when
-starting from zero. This leaves 40 calls against the Provider's 100-call limit
-and therefore satisfies both owner guards even if some account usage is outside
-the bridge ledger.
+W2 may record at most 80 calls in one UTC Provider day and must also preserve
+at least 20 calls in the Provider's 100-call allowance. These are two views of
+the same reserve and must not be subtracted twice.
 
-The planner receives `actual_calls_today` from the controlled call ledger. Its
-remaining schedulable capacity is:
+For each planned call, the runtime requires both:
 
 ```text
-max(80 - 20 - actual_calls_today, 0)
+shared_actual_calls_today + planned_calls <= 80
+provider_remaining_after_call >= 20
 ```
 
-Once that capacity is zero, it returns
-`FREE_DAILY_RESERVE_PROTECTED` and schedules no request.
+The runtime passes `reserve_bucket=0` to the W2 80-call ceiling check, while
+the Provider remaining check separately enforces the 20-call reserve. It
+therefore permits call 80 when Provider capacity supports it, and blocks call
+81. The superseded `80 - 20 - actual` interpretation is invalid.
 
-## Priority policy
+## Shared quota truth
 
-| Priority | Purpose | Scheduling rule |
+The bridge does not trust a process-local counter. It reads the persistent
+`provider_request_logs` and `quota_usage` records shared by API-Football
+traffic on the same account. Provider limit/remaining evidence and the local
+ledger are reconciled; the stricter available capacity wins.
+
+Process restart does not reset the daily count. Unknown Provider remaining
+blocks nonessential calls. A known daily limit other than 100 blocks the Free
+bridge before business calls.
+
+## Priority and cadence
+
+| Priority | State | Allowed behavior |
 |---|---|---|
-| P0 | date discovery and fixture identity/detail | only one UTC-date discovery when its formal request key is not cached; detail only for a real due target fixture |
-| P1 | pre-match odds | only for a discovered target fixture supplied as due by the caller |
-| P2 | statistics, injuries or lineups | optional; only an explicitly requested allowed endpoint for a due target fixture |
-| P3 | live polling | not implemented or enabled by this bridge; requires separate justification and authority |
+| P0 | DISCOVERY | at most one no-season UTC-date discovery when the formal request key is not cached |
+| P1 | PREMATCH_MARKET | single-fixture odds only for an existing-whitelist fixture in a due checkpoint window |
+| P2 | LINEUP_WINDOW | single-fixture lineup only when due and after all selected P1 calls |
+| none | POSTMATCH_STATISTICS | state is recorded, but automatic statistics calls are disabled |
 
-Priority is not permission to consume the full budget. No target fixture means
-no follow-up call even when quota remains.
+The existing scheduler runs the bridge every 300 seconds, but freshness keys
+and checkpoint state prevent fixed-frequency Provider polling. No due target
+means zero fixture follow-ups. Fresh discovery/odds/lineup evidence means zero
+duplicate Provider calls.
 
-## Cache and de-duplication
-
-The bridge does not create a second cache or evidence model. It derives cache
-keys with the existing formal `request_task_key` contract and accepts the keys
-already represented by endpoint captures. A cached date discovery or cached
-fixture follow-up is omitted from the plan.
-
-Fixture IDs are de-duplicated twice:
-
-1. the existing fixture discovery contract resolves repeated Provider rows;
-2. the bridge de-duplicates caller-supplied due fixture IDs and intersects them
-   with fixtures in the existing target-league set.
-
-The real Free-plan proof rejected `/fixtures?ids=...`. Therefore:
+## Request shapes
 
 ```text
-FREE_DEFAULT_IDS_BATCHING = false
-FREE_DEFAULT_DETAIL_SHAPE = /fixtures?id=<one_fixture_id>
+DATE_DISCOVERY = /fixtures?date=<UTC date>
+ODDS = /odds?fixture=<single fixture id>
+LINEUPS = /lineups?fixture=<single fixture id>
+FIXTURE_DETAIL = NOT_REQUIRED_WHEN_DISCOVERY_HAS_CANONICAL_IDENTITY
+IDS_BATCHING = false
+AUTOMATIC_STATISTICS = false
+LIVE_ODDS = false
 ```
 
-The code retains batches of at most 20 only behind an explicit
-`provider_ids_batching=true` capability flag for an account/provider where that
-request shape has separately been proven. It is not enabled for the current
-Free account.
+The Free account rejected `fixtures?ids=...`; the deployed runtime never uses
+that shape.
 
-## Call scenarios
-
-These are ceilings, not polling targets.
-
-| Scenario | Maximum planned calls with empty cache | Formula |
-|---|---:|---|
-| no target fixture on the date | 1 | one date discovery, then zero follow-ups |
-| repeated tick after cached no-target discovery | 0 | cached discovery and no idle polling |
-| one target, detail + odds | 3 | `1 + 2 × 1` |
-| one target, detail + odds + one enrichment | 4 | `1 + 3 × 1` |
-| N targets, detail + odds | `1 + 2N` | truncated before the effective ceiling |
-| N targets, detail + odds + one enrichment | `1 + 3N` | truncated before the effective ceiling |
-
-With no earlier daily usage, the conservative 60-call effective ceiling permits
-at most 29 targets with discovery/detail/odds, or 19 targets when each also has
-one enrichment call. Earlier usage, cached calls, and priority determine the
-actual number. The planner truncates lower-priority tail calls rather than
-breaching the reserve.
-
-## Validation-day accounting
+## Controlled acceptance accounting
 
 ```text
-TASK_CALLS_ATTEMPTED = 5
-SUCCESSFUL_DATA_CALLS = 4
-EXPECTEDLY_RESTRICTED_CAPABILITY_PROBE = 1
-RETRIES = 0
-FINAL_CONFIRMED_DAILY_REMAINING_HEADER = 96
-REQUIRED_RESERVE = 20
-RESERVE_RESULT = PASS
+ACCEPTANCE_UTC_DATE = 2026-08-08
+SHARED_LOCAL_LEDGER_BEFORE = 26
+SHARED_LOCAL_LEDGER_AFTER = 28
+TASK_NEW_REAL_CALLS = 2
+TASK_CALL_HARD_CAP = 20
+TASK_CALL_RESULT = PASS
+PROVIDER_DAILY_LIMIT = 100
+FINAL_PROVIDER_REMAINING = 93
+REQUIRED_REMAINING = 20
+AUTOMATIC_RETRIES = 0
 ```
 
-The unsupported `ids` probe returned no quota header and remains counted among
-attempted calls. There is no attempt to spend the remaining allowance.
+The two calls were one date discovery and one odds request for fixture
+`1575448`. A direct fresh-cache rerun used zero calls. After worker/scheduler
+restart, the first scheduled rerun also used zero calls, proving restart-safe
+ledger and cache behavior.
+
+Provider remaining is a point-in-time acceptance value. Later authorized
+`SHADOW_ONLY` scheduler cycles may consume calls for newly due fixtures, but
+the persistent 80-call W2 ceiling and 20-call Provider reserve remain binding.
 
 ## Operational stop rules
 
-The disabled bridge must remain fail-closed unless a later owner-authorized
-task wires it into a controlled runtime. Any such task must keep these rules:
-
 ```text
+MODE != SHADOW_ONLY => ZERO_BRIDGE_CALLS
 NO_TARGET_FIXTURE => ZERO_FOLLOW_UP_CALLS
 CACHED_REQUEST_KEY => ZERO_DUPLICATE_CALLS
-QUOTA_CAPACITY_ZERO => ZERO_CALLS
+W2_DAILY_COUNT >= 80 => ZERO_CALLS
+PROVIDER_REMAINING <= 20 => ZERO_CALLS
+PROVIDER_REMAINING_UNKNOWN => ZERO_NONESSENTIAL_CALLS
 TRANSPORT_OR_PROVIDER_ERROR => NO_AUTOMATIC_RETRY
-LIVE_ODDS => ONLY_FOR_ACTUALLY_LIVE_FIXTURE_AND_SEPARATE_AUTHORITY
-LEAGUE_FILTER => EXISTING_ACTIVE_13_ONLY
+LEAGUE_FILTER => EXACT_EXISTING_13
+AUDIT_ONLY_LEAGUES => RUNTIME_UNREACHABLE
 ```
 
-This budget does not authorize PR merge, Provider cutover, Scheduler changes,
-persistent collection, league enablement or Round 3.
+This budget authorizes shadow evidence collection only. It does not authorize
+paid renewal, Provider cutover, league enablement, recommendations, production
+release semantics, real-money actions or Round 3.
