@@ -48,6 +48,7 @@ SCORELINE_PROJECTION_CONTRACT_VERSION = "w2.scoreline_projection.v1"
 ANALYSIS_CARD_CANARY_FIXTURES = frozenset({"1576804", "1494701", "1494210"})
 MAX_OBSERVATIONS_PER_FIXTURE = 256
 MAX_PUBLIC_FIXTURES = 512
+MAX_ROUND3_EVIDENCE_ROWS_PER_FIXTURE = 4096
 
 
 class FrozenAnalysisError(ValueError):
@@ -82,12 +83,14 @@ class _FrozenScopedInputs:
         fixture_id: str,
         fixture_payload: dict[str, Any],
         observations: list[dict[str, Any]],
+        round3_evidence: list[dict[str, Any]] | None = None,
         session: Session | None = None,
     ) -> None:
         self.delegate = delegate
         self.fixture_id = fixture_id
         self.fixture = fixture_payload
         self.observations = observations
+        self.round3_evidence = round3_evidence
         self.session = session
 
     def fixture_payload(self, fixture_id: str) -> dict[str, Any] | None:
@@ -113,7 +116,17 @@ class _FrozenScopedInputs:
         return reader(fixture_id) if callable(reader) else {}
 
     def __getattr__(self, name: str) -> Any:
+        if name == "round3_market_evidence_for_fixtures" and self.round3_evidence is not None:
+            return self._round3_market_evidence_for_fixtures
         return getattr(self.delegate, name)
+
+    def _round3_market_evidence_for_fixtures(
+        self,
+        fixture_ids: list[str],
+    ) -> list[dict[str, Any]]:
+        if fixture_ids != [self.fixture_id] or self.round3_evidence is None:
+            raise FrozenAnalysisError("materializer requested an unexpected round3 fixture scope")
+        return [dict(row) for row in self.round3_evidence]
 
 
 @dataclass(frozen=True)
@@ -406,12 +419,34 @@ class AnalysisCardCanaryMaterializer:
             raise FrozenAnalysisError("scoped observation input exceeds bound")
         if any(str(row.get("fixture_id") or "") != fixture_id for row in observations):
             raise FrozenAnalysisError("scoped observation identity conflict")
+        round3_reader = getattr(
+            self.repository,
+            "round3_market_evidence_for_fixtures",
+            None,
+        )
+        round3_projection_enabled = callable(round3_reader)
+        round3_evidence = (
+            cast(list[dict[str, Any]], round3_reader([fixture_id]))
+            if callable(round3_reader)
+            else []
+        )
+        if len(round3_evidence) > MAX_ROUND3_EVIDENCE_ROWS_PER_FIXTURE:
+            raise FrozenAnalysisError("round3 evidence input exceeds bound")
+        canonical_fixture_id = (
+            fixture_id
+            if fixture_id.startswith("api_football:")
+            else f"api_football:{fixture_id}"
+        )
+        fixture_aliases = {fixture_id, canonical_fixture_id}
+        if any(str(row.get("fixture_id") or "") not in fixture_aliases for row in round3_evidence):
+            raise FrozenAnalysisError("round3 evidence fixture identity conflict")
 
         frozen_inputs = _FrozenScopedInputs(
             self.repository,
             fixture_id,
             fixture_payload,
             observations,
+            round3_evidence if round3_projection_enabled else None,
             session,
         )
         card = self.calculate_analysis_card(
@@ -472,6 +507,25 @@ class AnalysisCardCanaryMaterializer:
                 evaluated_at=evaluated_at,
             ),
         }
+        if round3_projection_enabled:
+            input_manifest.update(
+                {
+                    "round3_evidence_count": len(round3_evidence),
+                    "round3_evidence_sha256": sorted(
+                        canonical_sha256(
+                            {
+                                key: value
+                                for key, value in row.items()
+                                # Runtime eligibility is projection policy, not
+                                # immutable Provider/lineage source identity.
+                                if key != "runtime_whitelist_member"
+                            },
+                            domain=HashDomain.PREMATCH_READ_MODEL_OBSERVATION_INPUT,
+                        )
+                        for row in round3_evidence
+                    ),
+                }
+            )
         if self.build_scoreline_reference is not None:
             input_manifest["scoreline_projection_contract_version"] = (
                 SCORELINE_PROJECTION_CONTRACT_VERSION

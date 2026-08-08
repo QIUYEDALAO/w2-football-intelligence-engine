@@ -341,6 +341,86 @@ def test_same_inputs_produce_identical_bytes_and_hashes(
     assert repository.global_calls == 0
 
 
+def test_round3_projection_is_materialized_into_the_frozen_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del monkeypatch
+
+    class Round3Repository(ScopedRepository):
+        def round3_market_evidence_for_fixtures(
+            self,
+            fixture_ids: list[str],
+        ) -> list[dict[str, Any]]:
+            assert fixture_ids == [self.fixture_id]
+            rows = []
+            for bookmaker in ("1", "2", "3"):
+                for selection, price in (("OVER", "1.92"), ("UNDER", "1.94")):
+                    rows.append(
+                        {
+                            "observation_id": f"{bookmaker}:{selection}",
+                            "fixture_id": f"api_football:{self.fixture_id}",
+                            "provider_fixture_id": self.fixture_id,
+                            "competition_id": "league",
+                            "provider": "api_football",
+                            "bookmaker_id": bookmaker,
+                            "bookmaker_name": f"Book {bookmaker}",
+                            "capture_id": "capture-1",
+                            "raw_market_label": "Goals Over/Under",
+                            "canonical_market": "TOTALS",
+                            "canonical_selection": selection,
+                            "line": "2.5",
+                            "decimal_odds": price,
+                            "suspended": False,
+                            "live": False,
+                            "captured_at": datetime(2026, 7, 18, 4, 0, tzinfo=UTC),
+                            "raw_payload_sha256": "a" * 64,
+                            "source_revision": "provider-v1",
+                            "raw_storage_uri": "raw://capture-1",
+                            "synthetic": False,
+                            "raw_lineage_present": True,
+                            "capture_lineage_present": True,
+                            "fixture_identity_present": True,
+                            "runtime_whitelist_member": True,
+                            "capture_identity_conflict": False,
+                            "identity_conflict": False,
+                        }
+                    )
+            return rows
+
+    def calculate_round3(
+        repository: Any,
+        fixture_id: str,
+        evaluated_at: datetime,
+    ) -> dict[str, Any]:
+        card: dict[str, Any] = {
+            "fixture_id": fixture_id,
+            "competition_id": "league",
+            "kickoff_utc": "2026-07-19T12:00:00Z",
+            "decision": "SKIP",
+            "decision_tier": "NOT_READY",
+            "simulation": {"status": "INSUFFICIENT_DATA"},
+        }
+        service = ReadModelService(repository=repository)
+        service._analysis_evaluation_time_override = evaluated_at
+        service._attach_round3_intelligence(card)
+        return card
+
+    artifact = AnalysisCardCanaryMaterializer(
+        repository=Round3Repository(),
+        calculate_analysis_card=calculate_round3,
+        build_scoreline_reference=_scoreline_reference,
+    ).build(
+        "1576804",
+        evaluated_at=datetime(2026, 7, 18, 5, 0, tzinfo=UTC),
+    )
+    card = artifact.payload["analysis_card"]
+
+    assert artifact.payload["input_manifest"]["round3_evidence_count"] == 6
+    assert card["market_radar"]["markets"]["TOTALS"]["status"] == "READY"
+    assert card["market_radar"]["markets"]["TOTALS"]["snapshot_count"] == 1
+    assert card["model_lab"]["markets"]["TOTALS"]["status"] == "MODEL_NOT_READY"
+
+
 def test_input_manifest_declares_optional_model_enhancements_unused() -> None:
     evaluated_at = datetime(2026, 7, 18, 5, 0, tzinfo=UTC)
     state = {"policy": _ready_policy(evaluated_at, advisory_clv=0.05)}

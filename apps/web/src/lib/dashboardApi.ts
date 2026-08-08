@@ -1326,6 +1326,12 @@ function normalizeDayViewCard(payload: unknown): DashboardDayViewCard {
     market_probabilities: asRecord(record.market_probabilities),
     odds_movement: asRecord(record.odds_movement),
     market_movement: asRecord(record.market_movement),
+    market_radar: Object.keys(asRecord(record.market_radar)).length
+      ? asRecord(record.market_radar) as unknown as DashboardDayViewCard["market_radar"]
+      : null,
+    model_lab: Object.keys(asRecord(record.model_lab)).length
+      ? asRecord(record.model_lab) as unknown as DashboardDayViewCard["model_lab"]
+      : null,
     probability_source: textValue(record.probability_source) || null,
     model_market_divergence: asRecord(record.model_market_divergence),
     market_strip: asArray(record.market_strip).map((item) => asRecord(item)),
@@ -1415,6 +1421,7 @@ function normalizeDashboardDayView(payload: unknown): DashboardDayView {
     },
     navigation: asRecord(record.navigation),
     degradation: asRecord(record.degradation),
+    performance: asRecord(record.performance),
     cards: asArray(record.cards).map(normalizeDayViewCard),
   };
 }
