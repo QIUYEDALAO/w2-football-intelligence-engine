@@ -6,6 +6,7 @@ from typing import cast
 from celery import Celery
 
 from w2.config import get_settings
+from w2.ingestion.free_fixture_runtime import run_free_fixture_bridge_shadow
 from w2.ingestion.future_refresh import deterministic_task_key, run_future_refresh_task
 from w2.ingestion.market_timeline_refresh import run_market_timeline_refresh
 from w2.ingestion.xg_backfill import run_xg_history_backfill
@@ -84,6 +85,30 @@ def _materialize_shadow_projection_events(
 @celery_app.task(name="w2.ping")
 def ping() -> str:
     return "pong"
+
+
+@celery_app.task(name="w2.free_fixture_bridge")
+def free_fixture_bridge(queued_at_utc: str | None = None) -> dict[str, object]:
+    if not provider_scheduler_enabled():
+        return {
+            "status": PROVIDER_SCHEDULER_DISABLED,
+            "blockers": [PROVIDER_SCHEDULER_DISABLED],
+            "provider_calls": 0,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+    now = (
+        datetime.fromisoformat(queued_at_utc.replace("Z", "+00:00")).astimezone(UTC)
+        if queued_at_utc
+        else datetime.now(UTC)
+    )
+    return run_free_fixture_bridge_shadow(
+        now=now,
+        client=ApiFootballClient(
+            allow_live=True,
+            allowed_live_endpoints=provider_endpoint_allowlist(),
+        ),
+    )
 
 
 @celery_app.task(name="w2.future_fixture_refresh", bind=True)

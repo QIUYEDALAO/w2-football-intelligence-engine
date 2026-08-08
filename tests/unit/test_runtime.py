@@ -8,6 +8,7 @@ from apps.scheduler import main as scheduler_main
 from apps.scheduler.main import (
     due_checkpoint_refresh_batch,
     forward_outcome_ledger_tick,
+    free_fixture_bridge_tick,
     future_fixture_refresh_competition_ids,
     future_fixture_refresh_tick,
     heartbeat,
@@ -17,6 +18,7 @@ from apps.scheduler.main import (
 from apps.worker.celery_app import (
     celery_app,
     forward_outcome_ledger,
+    free_fixture_bridge,
     future_fixture_refresh,
     market_timeline_refresh,
     ping,
@@ -83,6 +85,55 @@ def test_scheduler_future_refresh_disabled_by_default(monkeypatch) -> None:
     assert xg_history_backfill_tick()["status"] == "DISABLED"
     assert market_timeline_refresh_tick()["status"] == "DISABLED"
     assert forward_outcome_ledger_tick()["status"] == "DISABLED"
+    assert free_fixture_bridge_tick()["status"] == "DISABLED"
+
+
+def test_free_fixture_bridge_scheduler_enqueues_one_deduplicated_shadow_task(
+    monkeypatch,
+) -> None:
+    sent: list[dict[str, object]] = []
+    now = datetime(2026, 8, 8, 5, tzinfo=UTC)
+    monkeypatch.setenv("W2_FREE_BRIDGE_MODE", "SHADOW_ONLY")
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setattr(
+        scheduler_main,
+        "datetime",
+        type(
+            "FrozenDatetime",
+            (),
+            {"now": staticmethod(lambda tz=None: now)},
+        ),
+    )
+    monkeypatch.setattr(
+        scheduler_main,
+        "provider_task_key_gate",
+        lambda **kwargs: type(
+            "Gate",
+            (),
+            {"allowed": True, "status": "ACQUIRED", "backend": "redis"},
+        )(),
+    )
+    monkeypatch.setattr(
+        celery_app,
+        "send_task",
+        lambda name, **kwargs: sent.append({"name": name, **kwargs}),
+    )
+
+    result = free_fixture_bridge_tick()
+
+    assert result["status"] == "QUEUED"
+    assert str(result["task_key"]).startswith("free-fixture-bridge:")
+    assert result["provider_calls"] == 0
+    assert sent[0]["name"] == "w2.free_fixture_bridge"
+
+
+def test_free_fixture_bridge_worker_master_switch_prevents_provider_calls(monkeypatch) -> None:
+    monkeypatch.delenv("W2_PROVIDER_SCHEDULER_ENABLED", raising=False)
+
+    result = free_fixture_bridge.run(queued_at_utc="2026-08-08T05:00:00Z")
+
+    assert result["status"] == "SKIPPED_PROVIDER_SCHEDULER_DISABLED"
+    assert result["provider_calls"] == 0
 
 
 def test_scheduler_future_refresh_intersects_runtime_allowlist(monkeypatch) -> None:

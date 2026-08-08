@@ -23,6 +23,7 @@ DEFAULT_CHECKPOINT_POLL_SECONDS = 60
 DEFAULT_XG_BACKFILL_INTERVAL_SECONDS = 6 * 60 * 60
 DEFAULT_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS = 10 * 60
 DEFAULT_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS = 10 * 60
+DEFAULT_FREE_FIXTURE_BRIDGE_INTERVAL_SECONDS = 5 * 60
 
 
 @dataclass(frozen=True)
@@ -70,6 +71,76 @@ def market_timeline_refresh_enabled() -> bool:
 
 def forward_outcome_ledger_enabled() -> bool:
     return os.environ.get("W2_FORWARD_OUTCOME_LEDGER_ENABLED", "false").lower() == "true"
+
+
+def free_fixture_bridge_enabled() -> bool:
+    from w2.ingestion.free_fixture_runtime import free_fixture_bridge_enabled as enabled
+
+    return enabled()
+
+
+def free_fixture_bridge_interval_seconds() -> int:
+    try:
+        return max(
+            int(
+                os.environ.get(
+                    "W2_FREE_BRIDGE_INTERVAL_SECONDS",
+                    str(DEFAULT_FREE_FIXTURE_BRIDGE_INTERVAL_SECONDS),
+                )
+            ),
+            60,
+        )
+    except ValueError:
+        return DEFAULT_FREE_FIXTURE_BRIDGE_INTERVAL_SECONDS
+
+
+def free_fixture_bridge_tick() -> dict[str, object]:
+    if not free_fixture_bridge_enabled():
+        return {
+            "status": "DISABLED",
+            "provider_calls": 0,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+    if not provider_scheduler_enabled():
+        return {
+            "status": PROVIDER_SCHEDULER_DISABLED,
+            "blockers": [PROVIDER_SCHEDULER_DISABLED],
+            "provider_calls": 0,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+    from apps.worker.celery_app import celery_app
+
+    now = datetime.now(UTC)
+    interval = free_fixture_bridge_interval_seconds()
+    bucket = int(now.timestamp()) // interval
+    task_key = f"free-fixture-bridge:{bucket}"
+    gate = provider_task_key_gate(task_key=task_key, ttl_seconds=interval)
+    if not gate.allowed:
+        return {
+            "status": gate.status,
+            "task_key": task_key,
+            "dedup_backend": gate.backend,
+            "provider_calls": 0,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+    task_id = f"{task_key}:{uuid4()}"
+    celery_app.send_task(
+        "w2.free_fixture_bridge",
+        kwargs={"queued_at_utc": now.isoformat().replace("+00:00", "Z")},
+        task_id=task_id,
+    )
+    return {
+        "status": "QUEUED",
+        "task_id": task_id,
+        "task_key": task_key,
+        "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+        "provider_calls": 0,
+        "candidate": False,
+        "formal_recommendation": False,
+    }
 
 
 def future_fixture_refresh_competition_ids() -> tuple[str, ...]:
@@ -619,8 +690,19 @@ def run_forever() -> None:
     next_xg_backfill_at = datetime.now(UTC)
     next_market_timeline_refresh_at = datetime.now(UTC)
     next_forward_outcome_ledger_at = datetime.now(UTC)
+    next_free_fixture_bridge_at = datetime.now(UTC)
     while True:
         heartbeat()
+        if free_fixture_bridge_enabled() and datetime.now(UTC) >= next_free_fixture_bridge_at:
+            try:
+                result = free_fixture_bridge_tick()
+                logger.info("w2 free fixture bridge %s", result)
+            except Exception:
+                logger.exception("w2 free fixture bridge failed")
+            next_free_fixture_bridge_at = datetime.fromtimestamp(
+                datetime.now(UTC).timestamp() + free_fixture_bridge_interval_seconds(),
+                tz=UTC,
+            )
         if future_fixture_refresh_enabled() and datetime.now(UTC) >= next_refresh_at:
             try:
                 result = future_fixture_refresh_tick()

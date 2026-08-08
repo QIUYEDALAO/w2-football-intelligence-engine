@@ -87,7 +87,7 @@ def load_compose(path: Path) -> dict[str, Any]:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
-@pytest.mark.parametrize(("path", "common_count"), [(FORMAL, 34), (LITE, 30)])
+@pytest.mark.parametrize(("path", "common_count"), [(FORMAL, 36), (LITE, 32)])
 def test_runtime_services_share_one_common_environment_anchor(
     path: Path,
     common_count: int,
@@ -148,7 +148,7 @@ def test_safety_switches_keep_their_values_and_ownership(path: Path) -> None:
 
 @pytest.mark.skipif(shutil.which("docker") is None, reason="Docker Compose unavailable")
 @pytest.mark.parametrize("path", [FORMAL, LITE])
-def test_compose_expansion_matches_baseline_except_removed_eval_01a_env(
+def test_compose_expansion_matches_authorized_runtime_delta(
     path: Path,
     tmp_path: Path,
 ) -> None:
@@ -226,4 +226,10 @@ def test_compose_expansion_matches_baseline_except_removed_eval_01a_env(
         expected = dict(baseline_services[service]["environment"])
         for name in REMOVED_EVAL_01A_ENV[path][service]:
             expected.pop(name)
+        expected.update(
+            {
+                "W2_FREE_BRIDGE_MODE": "OFF",
+                "W2_FREE_BRIDGE_INTERVAL_SECONDS": "300",
+            }
+        )
         assert current_services[service]["environment"] == expected
