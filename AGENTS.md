@@ -7,28 +7,31 @@ Read first:
 ```text
 1. CURRENT_STATE.yaml
 2. NEXT_ACTION.md
-3. POST_R2_PROVIDER_ACCESS_DATA_SOURCE_DECISION.md
-4. ROUND_2_FINAL_RECEIPT.md
-5. ROUND_2_FINAL_CAPABILITY_MATRIX.json
-6. REPOSITORY_HYGIENE_POLICY.md
+3. FREE_PLAN_FIXTURE_CENTRIC_BRIDGE.md
+4. POST_R2_PROVIDER_ACCESS_ROOT_CAUSE.md
+5. POST_R2_DATA_SOURCE_DECISION_MATRIX.md
+6. ROUND_2_FINAL_RECEIPT.md
+7. REPOSITORY_HYGIENE_POLICY.md
 ```
 
 ```text
 PRODUCT = W2 Football Intelligence
 ROUND_1 = PASS
 ROUND_2 = PASS_WITH_TERMINAL_PROVIDER_PLAN_RESTRICTION
-ACTIVE_NEXT_ACTION = W2_MI_POST_R2_PROVIDER_ACCESS_AND_DATA_SOURCE_DECISION
+POST_R2_ACCESS_DECISION = PASS_FREE_PLAN_SEASON_RESTRICTION_CONFIRMED
+ACTIVE_NEXT_ACTION = W2_MI_FREE_PLAN_FIXTURE_CENTRIC_BRIDGE
+OWNER_DECISION = DO_NOT_RENEW_API_FOOTBALL_PRO_NOW
 ROUND_3 = NOT_STARTED
 ```
 
-Current job: determine the real cause of 17/17 `PLAN_RESTRICTED` and decide the viable data-source path before Round 3.
+Current job: determine whether the active API-Football Free account can provide current-season W2 data through no-season fixture-centric request shapes (`fixtures?date`, `fixtures?live`, fixture IDs, odds by fixture/date, injuries/statistics by fixture) even though league+season enumeration for 2025/2026 is plan-restricted.
 
-Bounded diagnosis is owner-authorized now. If retained evidence and official current Provider documentation are insufficient, use at most 8 new read-only diagnostic Provider calls, no retries, no business writes. Do not repeat the 17-league batch.
+Use the existing Free account only. Target 5-8 new calls, hard max 12, no retries, daily W2 hard cap 80 and reserve at least 20. Do not repeat the 17-league season audit.
 
-If and only if an internal W2 season/request/configuration defect is proven, one bounded fix PR is authorized. If the blocker is external plan/coverage/account entitlement, do not create a fake code fix; produce the required data-source decision matrix and recommendation instead.
+If a useful fixture-centric path is proven, one bounded bridge PR is authorized, disabled by default, reusing existing W2 raw/identity/market contracts and adding quota planning/cache/deduplication rather than a parallel data model.
 
-No purchase, subscription/account change, Provider cutover, production Scheduler change, persistent collection expansion, league enablement or Round 3 implementation is authorized.
+If current fixture-centric access is also blocked, do not ask for Pro renewal merely to keep engineering moving; proceed to the zero-cost/low-cost source bridge decision defined in `FREE_PLAN_FIXTURE_CENTRIC_BRIDGE.md`.
 
-Every task must pass `REPOSITORY_HYGIENE_POLICY.md` before PASS.
+No Provider purchase/renewal, production activation, Scheduler change, persistent collection expansion, league enablement or Round 3 is authorized by this validation alone.
 
-Permanent guards: active whitelist remains 13 unless separately authorized; intelligence-first semantics; no betting-edge/opportunity claim; Candidate/Formal/Lock/Production OFF; H permanently closed; no real-money execution.
+Every task must pass `REPOSITORY_HYGIENE_POLICY.md` before PASS. Permanent guards remain: active whitelist 13 unless separately authorized; intelligence-first; no betting-edge/opportunity claim; Candidate/Formal/Lock/Production OFF; H permanently closed; no real-money execution.
