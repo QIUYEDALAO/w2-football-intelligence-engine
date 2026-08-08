@@ -5,11 +5,11 @@ context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: AWAIT_OWNER_API_FOOTBALL_PLAN_OR_DATA_SOURCE_DECISION
-active_next_action: AWAIT_OWNER_API_FOOTBALL_PLAN_OR_DATA_SOURCE_DECISION
-next_code_action: NONE_UNTIL_NEW_OWNER_AUTHORIZATION
-current_status: POST_R2_ACCESS_DECISION_PASS_FREE_PLAN_SEASON_RESTRICTION_CONFIRMED
-current_gate: OWNER_PROVIDER_SPEND_AND_SOURCE_DECISION
+owner_product_decision: DO_NOT_RENEW_API_FOOTBALL_PRO_NOW_USE_ZERO_COST_BRIDGE_FIRST
+active_next_action: W2_MI_FREE_PLAN_FIXTURE_CENTRIC_BRIDGE
+next_code_action: BOUNDED_VALIDATION_THEN_CONDITIONAL_DISABLED_BRIDGE_PR
+current_status: FREE_PLAN_FIXTURE_CENTRIC_BRIDGE_AUTHORIZED_IN_PROGRESS
+current_gate: NO_SEASON_CURRENT_FIXTURE_ACCESS_VALIDATION
 
 round_1:
   status: PASS
@@ -22,20 +22,16 @@ round_2:
   audit_tooling_pr: 494
   audit_tooling_merge_sha: b04dcc7e521dce413740bcf754b1a45755a3e83e
   audit_union_count: 17
-  plan_restricted_rows: 17
-  temporal_evidence_insufficient_rows: 17
-  promotion_authorized_rows: 0
   active_whitelist: 13_UNCHANGED
-  heartbeat_final_state: DELETED
-  repository_hygiene: PASS
 
-provider_account_owner_fact:
-  paid_subscription: EXPIRED
-  expected_current_plan: FREE
-  expected_api_key_active: true
-  expected_daily_quota: 100
-  api_disabled: false
-  quota_exhaustion_is_round2_plan_restriction_explanation: false
+post_r2_access_decision:
+  status: PASS_FREE_PLAN_SEASON_RESTRICTION_CONFIRMED
+  root_cause: FREE_PLAN_SEASON_ENTITLEMENT_RESTRICTION
+  diagnostic_provider_calls: 4
+  internal_fix_required: false
+  internal_fix_pr: NONE
+
+provider_account:
   confirmed_plan: FREE
   confirmed_active: true
   confirmed_daily_quota: 100
@@ -43,72 +39,61 @@ provider_account_owner_fact:
     season_2024: ACCESSIBLE
     season_2025: PLAN_RESTRICTED
     season_2026: PLAN_RESTRICTED
-  confirmed_root_cause: FREE_PLAN_SEASON_ENTITLEMENT_RESTRICTION
 
-post_r2_access_decision:
-  task: W2_MI_POST_R2_PROVIDER_ACCESS_AND_DATA_SOURCE_DECISION
-  authority: POST_R2_PROVIDER_ACCESS_DATA_SOURCE_DECISION.md
-  status: PASS_FREE_PLAN_SEASON_RESTRICTION_CONFIRMED
-  round_3_must_remain_not_started: true
-  root_cause_required: true
-  diagnosis_priority:
-    - VERIFY_STATUS_FREE_ACTIVE_LIMIT_100
-    - VERIFY_SEASON_2026_ACCESS_ON_KNOWN_CROSS_YEAR_LEAGUE
-    - COMPARE_ADJACENT_SEASON_ACCESS
-    - VERIFY_CALENDAR_YEAR_CONTROL_IF_NEEDED
-    - ONLY_THEN_CONSIDER_PROVIDER_OR_PLAN_CHANGE
-  allowed_root_cause_classes:
-    - FREE_PLAN_SEASON_ENTITLEMENT_RESTRICTION
-    - SEASON_PARAMETER_OR_SEASON_MAPPING_DEFECT
-    - PROVIDER_COVERAGE_GAP
-    - ACCOUNT_OR_KEY_ENTITLEMENT_MISMATCH
-    - REQUEST_SHAPE_OR_CLIENT_DEFECT
-    - MULTIPLE_CAUSES
-    - UNRESOLVED
-  max_new_diagnostic_provider_calls: 8
-  target_new_diagnostic_provider_calls: 3_TO_5
+owner_cost_decision:
+  api_football_pro_renewal_authorized_now: false
+  reason: PREVIOUS_PAID_CAPACITY_MATERIALLY_UNDERUSED_AND_CURRENT_HIGH_CAPACITY_ACCESS_NOT_YET_JUSTIFIED
+  reconsider_paid_access_when: BIG_FIVE_ACTUAL_MATCH_COLLECTION_WINDOW_AND_DEMONSTRATED_CURRENT_SEASON_NEED
+  paid_plan_is_current_engineering_prerequisite: false
+
+free_plan_fixture_centric_bridge:
+  authority: FREE_PLAN_FIXTURE_CENTRIC_BRIDGE.md
+  status: AUTHORIZED_IN_PROGRESS
+  mission: TEST_CURRENT_DATA_WITHOUT_SEASON_ENUMERATION
+  documented_request_shapes:
+    - FIXTURES_BY_DATE_NO_SEASON
+    - FIXTURES_LIVE_NO_SEASON
+    - FIXTURE_BY_ID
+    - FIXTURES_BY_IDS_UP_TO_20
+    - ODDS_BY_FIXTURE
+    - ODDS_BY_DATE
+    - LIVE_ODDS_BY_FIXTURE
+    - INJURIES_BY_FIXTURE
+    - FIXTURE_STATISTICS_BY_FIXTURE
+  max_new_provider_calls: 12
+  target_new_provider_calls: 5_TO_8
+  free_daily_limit: 100
+  w2_free_daily_hard_cap: 80
+  min_daily_reserve: 20
   automatic_retry: false
-  business_db_writes: 0
-  checkpoint_writes: 0
-  internal_fix_pr_authorized_only_if_internal_defect_proven: true
-  provider_purchase_or_plan_change_authorized: false
-  provider_cutover_authorized: false
-  production_scheduler_change_authorized: false
-  persistent_collection_expansion_authorized: false
-  league_enablement_authorized: false
-  expected_outputs:
-    - POST_R2_PROVIDER_ACCESS_ROOT_CAUSE.md
-    - POST_R2_DATA_SOURCE_DECISION_MATRIX.md
-  completed_outputs:
-    - POST_R2_PROVIDER_ACCESS_ROOT_CAUSE.md
-    - POST_R2_DATA_SOURCE_DECISION_MATRIX.md
-  diagnostic_provider_calls: 4
-  automatic_retries: 0
-  root_cause: FREE_PLAN_SEASON_ENTITLEMENT_RESTRICTION
-  root_cause_confidence: HIGH
-  internal_fix_required: false
-  internal_fix_pr: NONE
-  current_api_football_free_path_viable: false
-  recommended_primary_data_source_path: API_FOOTBALL_PRO_RENEWAL_AND_BOUNDED_REVALIDATION
-  recommended_fallback_path: SPORTMONKS_GROWTH_PLUS_PREMIUM_ODDS_AFTER_COVERAGE_TRIAL
-  estimated_primary_monthly_data_cost: USD_19
-  estimated_fallback_monthly_data_cost: EUR_228_TO_252_EX_VAT
-  next: AWAIT_OWNER_API_FOOTBALL_PLAN_OR_DATA_SOURCE_DECISION
-  repository_hygiene_required_before_pass: true
+  business_db_writes_during_proof: 0
+  checkpoint_writes_during_proof: 0
+  proof_outcomes:
+    - FREE_FIXTURE_CENTRIC_CURRENT_DATA_WORKS
+    - FIXTURE_DISCOVERY_WORKS_BUT_ODDS_OR_EXTENDED_DATA_BLOCKED
+    - CURRENT_FIXTURE_DATA_ALSO_SEASON_ENTITLEMENT_BLOCKED
+    - NO_TARGET_FIXTURE_AVAILABLE_FOR_VALID_CONTROL
+    - PROVIDER_SCHEMA_OR_OTHER_BLOCKER
+  bounded_bridge_pr_authorized_if_useful_path_proven: true
+  bridge_pr_default_runtime_state: DISABLED
+  production_activation_authorized_by_validation_alone: false
+  production_scheduler_change_authorized_by_validation_alone: false
+  persistent_collection_expansion_authorized_by_validation_alone: false
+  required_outputs:
+    - FREE_PLAN_FIXTURE_CENTRIC_VALIDATION.md
+    - FREE_PLAN_DAILY_CALL_BUDGET.md
+
+zero_cost_fallback:
+  evaluate_only_if_fixture_centric_api_football_free_is_blocked: true
+  dedicated_odds_candidate: THE_ODDS_API_STARTER_FREE
+  documented_free_credits_per_month: 500
+  soccer_spreads_totals_must_be_verified_not_assumed: true
+  historical_odds_on_free: false
 
 repository_hygiene:
   authority: REPOSITORY_HYGIENE_POLICY.md
   permanent_rule: true
   task_pass_requires_hygiene_pass: true
-  current_task_result: PASS
-  dead_assets_found: 1_TRANSIENT_DIAGNOSTIC_SCRIPT
-  dead_assets_deleted: 1_TRANSIENT_DIAGNOSTIC_SCRIPT
-  obsolete_code_lines_removed: 0
-  retained_for_evidence:
-    - POST_R2_PROVIDER_ACCESS_ROOT_CAUSE.md
-    - POST_R2_DATA_SOURCE_DECISION_MATRIX.md
-    - EXISTING_ROUND_2_RECEIPTS_AND_SANITIZED_EVIDENCE
-  unresolved_hygiene_items: 0
 
 round_3:
   task: W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB
@@ -116,6 +101,8 @@ round_3:
 
 permanent_stop_lines:
   active_whitelist: 13_UNCHANGED_UNLESS_NEW_OWNER_AUTHORIZATION
+  provider_purchase_or_renewal: NOT_AUTHORIZED_NOW
+  provider_cutover: NOT_AUTHORIZED
   h_result_access: PERMANENTLY_CLOSED
   betting_edge_claim: false
   model_divergence_as_opportunity: false
