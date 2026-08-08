@@ -1,36 +1,28 @@
 # W2 AI Project Context
 
-Current mutable authority is maintained on branch `context/current`.
-
-## Current program
+Current authority is `origin/context/current`.
 
 ```text
 PRODUCT = W2 Football Intelligence
 PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
-OWNER_DECISION = APPROVED_CONTINUE_UNTIL_ACCEPTED
-ACTIVE_NEXT_ACTION = AWAIT_OWNER_ROUND_2_AUTHORIZATION
-ACTIVE_RUNTIME_PR = 493
-ROUND_1_STATUS = PASS
-ROUND_2_STATUS = NOT_STARTED
+ROUND_1 = PASS
+ROUND_2 = AUTHORIZED_IN_PROGRESS
+ACTIVE_NEXT_ACTION = W2_MI_R2_AUDIT_FOUNDATION_AND_DAY0_BASELINE
+ROUND_3 = NOT_STARTED
 ```
 
-Read `ROUND_1_FINAL_RECEIPT.md` for final delivery evidence. Do not begin Round 2 without new explicit owner authorization.
-
-Phase 0.5 is closed with `NO_EDGE`; H is permanently closed under that protocol.
-
-All later PR #493 remediation language is historical only. Round 1 PASS ended
-that continuation authority.
-
-Permanent product rule:
+Read:
 
 ```text
-MODEL_MARKET_DIVERGENCE != MARKET_OPPORTUNITY
-RecommendationDecisionV4 = DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY
+ROUND_2_OWNER_AUTHORIZATION.md
+ROUND_2_CODEX_EXECUTION.md
+ROUND_2_ACCEPTANCE_CRITERIA.md
+ROUND_1_FINAL_RECEIPT.md
 ```
 
-## League correction
+## Round 2 universe
 
-Current active whitelist baseline is 13 and must not change in Round 1:
+Existing active whitelist remains 13:
 
 ```text
 chinese_super_league
@@ -48,89 +40,76 @@ eredivisie
 primeira_liga
 ```
 
-The European `5 + 6` grouping is not a replacement whitelist. `Eredivisie` and `Primeira Liga` are already in the baseline 13. The future net-new candidates are only:
+Audit-only candidates:
 
 ```text
-Belgian Pro League
-Turkish Super Lig
-Greek Super League
-Scottish Premiership
+belgian_pro_league
+turkish_super_lig
+greek_super_league
+scottish_premiership
 ```
 
-Future Round 2 candidate union:
-
 ```text
-13 EXISTING + 4 NET_NEW = 17
+AUDIT_UNION = 17
+ACTIVE_WHITELIST = 13_UNCHANGED
+NET_NEW_RUNTIME_STATE = AUDIT_CANDIDATE_ONLY
 ```
 
-Round 1 performs zero league additions and zero new Provider calls initiated by Round 1.
+The four net-new candidates must stay outside runtime whitelist/Scheduler/future-refresh/DayView.
 
-## Round 1
+## Current R2-A work
 
-One bounded API/Web runtime change in PR #493:
+Codex must create one bounded audit-tooling PR that:
 
-- intelligence-first public product;
-- seven deterministic intelligence states;
-- four independent risk dimensions;
-- `MARKET_STABLE`/zero alerts as valid output;
-- V4 diagnostic-only product role;
-- divergence guard across API/read-model/Web/browser;
-- market facts independent from V4 pick/no-pick state;
-- public shell: Market Overview / Match Intelligence / Data & Operations Summary;
-- existing 13 whitelist unchanged;
-- current Scheduler/Provider policy preserved.
+- supports 13 registered + 4 audit-only descriptors;
+- keeps audit-only descriptors outside runtime CompetitionRegistry discovery;
+- resolves net-new Provider identity deterministically from real `/leagues` evidence;
+- forbids fuzzy/guessed identity;
+- preserves existing audit modes;
+- adds persistent sanitized cumulative audit-call accounting;
+- enforces daily cap 80, cumulative cap 200, Provider remaining reserve 20, interval >=10s and no automatic retry;
+- proves dry-run 17 rows with Provider calls 0;
+- performs zero Provider calls during PR development/CI.
 
-## Delivery authorization — no attempt cap
+After tooling acceptance, owner-authorized controlled audit calls may run through the Round 2 audit path.
+
+Day-0 starts with evidence-only semantics:
 
 ```text
-ONE_RUNTIME_PR = PR_493_ONLY
-ALLOW_NEW_PR_FAST_AFTER_SOURCE_CHANGE = true
-ALLOW_REPLACEMENT_EXACT_HEAD_FULL_RC_AFTER_FAILED_RC = true
-ALLOW_REPEAT_PR_FAST_AND_FULL_RC_UNTIL_FINAL_SUCCESS = true
-FAILED_PR_FAST_OR_RC_ATTEMPTS_CONSUME_FINAL_SUCCESS_SLOT = false
-FAILED_FULL_RC_RUN_31151557970_IS_FINAL_RC = false
-ONE_SUCCESSFUL_FINAL_EXACT_HEAD_FULL_RC = true
-ONE_FINAL_MERGE = true
-ONE_FINAL_ACCEPTED_DEPLOYMENT = true
+4 planned calls per competition
+17 targets
+68 theoretical max for first complete baseline
 ```
 
-The words `one final exact-head Full RC` mean **one successful final RC**, not only one attempt.
+Do not raise limits to complete the batch.
 
-Every new source head requires a new PR Fast. After that exact head is green, a replacement exact-head Full RC is explicitly authorized. If it fails for an in-scope reason, preserve the evidence, repair PR #493 and repeat until success. No additional owner authorization is required.
+## R2-B/R2-C
 
-```text
-FAIL_CLOSED = DO_NOT_ADVANCE_PAST_FAILED_GATE
-FAIL_CLOSED != STOP_WORK_AND_WAIT_FOR_OWNER
-```
+The first successful Day-0 baseline starts a 14-calendar-day observation window.
 
-Current failed RC `31151557970` remains historical failure evidence and does not satisfy or consume the final successful RC requirement.
+Temporal evidence comes from existing persisted W2 captures/read models and already-authorized production collection. No new persistent polling for net-new candidates is authorized.
 
-Round 1 ends only after successful final RC + merge commit + same-source deployment + public API/browser acceptance + all acceptance gates PASS.
+At the end, produce exactly 17 truthful capability rows. Insufficient evidence is valid and blocks readiness claims.
 
-## Later rounds
+No row is automatically enabled/promoted.
 
-Round 2 is blocked until Round 1 PASS and explicit owner authorization. Its future candidate universe is 17, not 11.
-
-Round 3 remains blocked and must require:
+## Permanent guards
 
 ```text
-OVERROUND_PERCENTILE = REQUIRED_ALERT_COVARIATE
-```
-
-## Permanent boundaries
-
-```text
+MODEL_MARKET_DIVERGENCE != MARKET_OPPORTUNITY
+HIGH_OVERROUND != HIGH_VALUE
+HIGH_OVERROUND != HIGH_INFORMATION
+RecommendationDecisionV4 = DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY
 BETTING_EDGE_CLAIM = FORBIDDEN
-MODEL_DIVERGENCE_AS_OPPORTUNITY = FORBIDDEN
-SIGNAL_LEDGER_FOR_EXECUTION = NOT_AUTHORIZED
-PORTFOLIO = NOT_AUTHORIZED
-RISK_KELLY = NOT_AUTHORIZED
-TWO_LEG_PARLAY = NOT_AUTHORIZED
-REAL_MONEY = NOT_AUTHORIZED
-
-PERSISTENT_SCHEDULER = ON_CONTROLLED
+ACTIVE_WHITELIST = 13_UNCHANGED
+PRODUCTION_PROVIDER_POLICY_CHANGE = false
+PRODUCTION_SCHEDULER_POLICY_CHANGE = false
+ROUND_3 = NOT_STARTED
 CANDIDATE = OFF
 FORMAL = OFF
 LOCK = OFF
 PRODUCTION = OFF
+H_RESULT_ACCESS = PERMANENTLY_CLOSED
 ```
+
+For bounded Round 2 failures, fail closed at the gate, fix inside the authorized audit scope, and continue. New owner authorization is required only for scope expansion or permanent-stop-line changes.
