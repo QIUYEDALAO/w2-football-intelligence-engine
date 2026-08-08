@@ -2,135 +2,78 @@ schema_version: w2.current_context.v1
 updated_at: "2026-08-08"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
-context_update_mode: direct_branch_no_pr_no_ci_no_history
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: APPROVED_CLOSE_WITH_CURRENT_TERMINAL_EVIDENCE
-owner_authorization_id: W2_MI_R2_TERMINAL_EARLY_CLOSURE_20260808
-active_next_action: AWAIT_OWNER_POST_R2_CAPABILITY_DECISION
-next_code_action: NONE_UNTIL_OWNER_DECISION
-current_status: ROUND_2_PASS_WITH_TERMINAL_PROVIDER_PLAN_RESTRICTION
-current_gate: AWAIT_OWNER_POST_R2_CAPABILITY_DECISION
-
-repository_hygiene:
-  authority: REPOSITORY_HYGIENE_POLICY.md
-  permanent_rule: true
-  status: PASS
-  task_pass_requires_hygiene_pass: true
-  delete_provably_dead_assets: true
-  deletion_requires_reference_and_runtime_evidence: true
-  preserve_reusable_tooling: true
-  preserve_required_migrations_history_and_audit_evidence: true
-  dead_assets_found: 1
-  dead_assets_deleted: 1
-  dead_repository_assets_found: 0
-  obsolete_code_lines_removed: 0
-  retained_for_evidence: 8
-  unresolved_hygiene_items: 0
+owner_product_decision: APPROVED_EXECUTE_POST_R2_ACCESS_DECISION_NOW
+active_next_action: W2_MI_POST_R2_PROVIDER_ACCESS_AND_DATA_SOURCE_DECISION
+next_code_action: CONDITIONAL_ONLY_IF_INTERNAL_W2_DEFECT_IS_PROVEN
+current_status: POST_R2_ACCESS_DECISION_AUTHORIZED_IN_PROGRESS
+current_gate: PROVIDER_ACCESS_ROOT_CAUSE_AND_DATA_SOURCE_DECISION
 
 round_1:
   status: PASS
   final_receipt: ROUND_1_FINAL_RECEIPT.md
-  runtime_pr: 493
-  final_pr_head_sha: 602665885a2cbaf87e5f6c6ceb8c73926244e471
-  merge_sha: f7860813646ce9718931dff331c09ce2fe7a71ba
 
 round_2:
-  task: W2_MI_R2_FIRST_DIVISION_PROVIDER_CAPABILITY_AUDIT
   status: PASS_WITH_TERMINAL_PROVIDER_PLAN_RESTRICTION
-  phase: COMPLETE
-  terminal_closure_authority: ROUND_2_TERMINAL_CLOSURE_AUTHORIZATION.md
-  owner_authorization: ROUND_2_OWNER_AUTHORIZATION.md
-  execution_authority: ROUND_2_CODEX_EXECUTION.md
-  acceptance_authority: ROUND_2_ACCEPTANCE_CRITERIA.md
-  hygiene_authority: REPOSITORY_HYGIENE_POLICY.md
-  day0_receipt: ROUND_2_DAY0_RECEIPT.md
-  observation_log: ROUND_2_OBSERVATION_LOG.md
-  final_capability_matrix: ROUND_2_FINAL_CAPABILITY_MATRIX.json
-  final_capability_matrix_sha256: 9eded59fbfb01913c5ad8a90880bd5fa0acc819565b62e9f5a05ce6055e57ab6
   final_receipt: ROUND_2_FINAL_RECEIPT.md
+  final_capability_matrix: ROUND_2_FINAL_CAPABILITY_MATRIX.json
   audit_tooling_pr: 494
   audit_tooling_merge_sha: b04dcc7e521dce413740bcf754b1a45755a3e83e
-  r2_a_status: COMPLETE_WITH_TRUTHFUL_PLAN_RESTRICTIONS
-  r2_b_status: TERMINATED_EARLY_BY_OWNER_TERMINAL_EVIDENCE_AUTHORITY
-  r2_c_status: COMPLETE
-  wait_14_days: false
-  heartbeat_required: false
-  heartbeat_id: w2-mi-round-2
-  heartbeat_final_state: DELETED
-  replacement_heartbeat_created: false
   audit_union_count: 17
-  existing_whitelist_count: 13
-  net_new_audit_only_count: 4
-  active_whitelist_change_authorized: false
-  production_scheduler_change_authorized: false
-  production_provider_policy_change_authorized: false
-  production_provider_allowlist_change_authorized: false
-  persistent_collection_for_net_new_authorized: false
   plan_restricted_rows: 17
   temporal_evidence_insufficient_rows: 17
   promotion_authorized_rows: 0
-  dry_run_provider_calls: 0
-  day0_provider_calls: 17
-  r2_c_provider_calls: 0
-  cumulative_audit_calls: 17
-  day0_fixtures_calls: 0
-  day0_odds_calls: 0
-  deeper_capability_probe_calls: 0
-  first_temporal_snapshot:
-    dayview_cards: 64
-    data_incomplete_cards: 64
-    current_odds_cards: 0
-    within_window_quote_rows: 0
-    readiness_rows: 5
-    readiness_404_rows: 12
-    sampled_odds_timelines: 4
-    timeline_items: 0
-    evidence_status: TEMPORAL_EVIDENCE_INSUFFICIENT
-  runtime_invariants:
-    active_whitelist: 13_UNCHANGED
-    provider_policy_diff: EMPTY
-    provider_allowlist_diff: EMPTY
-    scheduler_policy_diff: EMPTY
-    new_persistent_collection_jobs: 0
-    new_enabled_leagues: 0
-    new_scheduled_leagues: 0
-    new_dayview_leagues: 0
-  terminal_closure_reason: ALL_17_PROVIDER_ROWS_PLAN_RESTRICTED_AND_WAITING_CANNOT_ADD_AUTHORIZED_PROVIDER_CAPABILITY_EVIDENCE
+  active_whitelist: 13_UNCHANGED
+  heartbeat_final_state: DELETED
+  repository_hygiene: PASS
 
-failure_semantics:
-  fail_closed_meaning: DO_NOT_ADVANCE_PAST_FAILED_GATE
-  scope_expansion_requires_new_owner_authorization: true
+post_r2_access_decision:
+  task: W2_MI_POST_R2_PROVIDER_ACCESS_AND_DATA_SOURCE_DECISION
+  authority: POST_R2_PROVIDER_ACCESS_DATA_SOURCE_DECISION.md
+  status: AUTHORIZED_IN_PROGRESS
+  round_3_must_remain_not_started: true
+  root_cause_required: true
+  allowed_root_cause_classes:
+    - PLAN_ENTITLEMENT_RESTRICTION
+    - SEASON_PARAMETER_OR_SEASON_MAPPING_DEFECT
+    - PROVIDER_COVERAGE_GAP
+    - ACCOUNT_OR_KEY_ENTITLEMENT_MISMATCH
+    - REQUEST_SHAPE_OR_CLIENT_DEFECT
+    - MULTIPLE_CAUSES
+    - UNRESOLVED
+  max_new_diagnostic_provider_calls: 8
+  automatic_retry: false
+  business_db_writes: 0
+  checkpoint_writes: 0
+  internal_fix_pr_authorized_only_if_internal_defect_proven: true
+  provider_purchase_or_plan_change_authorized: false
+  provider_cutover_authorized: false
+  production_scheduler_change_authorized: false
+  persistent_collection_expansion_authorized: false
+  league_enablement_authorized: false
+  expected_outputs:
+    - POST_R2_PROVIDER_ACCESS_ROOT_CAUSE.md
+    - POST_R2_DATA_SOURCE_DECISION_MATRIX.md
+  repository_hygiene_required_before_pass: true
 
-product_contract:
-  product_semantics: INTELLIGENCE_FIRST
-  model_market_divergence_as_opportunity: FORBIDDEN
-  betting_edge_claim: FORBIDDEN
-  existing_v4_role: DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY
-
-league_plan:
-  active_whitelist_baseline_count: 13
-  net_new_runtime_state: AUDIT_CANDIDATE_ONLY
-  audit_union_count: 17
+repository_hygiene:
+  authority: REPOSITORY_HYGIENE_POLICY.md
+  permanent_rule: true
+  task_pass_requires_hygiene_pass: true
 
 round_3:
   task: W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB
-  status: NOT_STARTED_AWAIT_OWNER_POST_R2_CAPABILITY_DECISION
+  status: NOT_STARTED
 
-operational_track:
-  scheduler: ON_CONTROLLED_UNCHANGED_BY_R2
+permanent_stop_lines:
+  active_whitelist: 13_UNCHANGED_UNLESS_NEW_OWNER_AUTHORIZATION
+  h_result_access: PERMANENTLY_CLOSED
+  betting_edge_claim: false
+  model_divergence_as_opportunity: false
   candidate: "OFF"
   formal: "OFF"
   lock: "OFF"
   production: "OFF"
-
-permanent_stop_lines:
-  h_result_access: PERMANENTLY_CLOSED
-  betting_edge_claim: false
-  model_divergence_as_opportunity: false
-  quant_signal_ledger_for_execution: false
-  portfolio: false
-  risk_kelly: false
-  two_leg_parlay: false
   real_money: NOT_AUTHORIZED
