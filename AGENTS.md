@@ -2,116 +2,143 @@
 
 Current task authority is `origin/context/current`.
 
-Read before runtime work:
+Read before work:
 
 1. `CURRENT_CONTEXT.md`
 2. `CURRENT_STATE.yaml`
 3. `CURRENT_PRODUCT_DESIGN.md`
 4. `CURRENT_TASK_CHECKLIST.md`
 5. `NEXT_ACTION.md`
-6. `ROUND_1_OWNER_CONTINUATION_AUTHORIZATION.md`
-7. `ROUND_1_CODEX_EXECUTION.md`
-8. `ROUND_1_ACCEPTANCE_CRITERIA.md`
+6. `ROUND_2_OWNER_AUTHORIZATION.md`
+7. `ROUND_2_CODEX_EXECUTION.md`
+8. `ROUND_2_ACCEPTANCE_CRITERIA.md`
 9. `ROUND_1_FINAL_RECEIPT.md`
 10. `AI_PROJECT_CONTEXT.md`
 11. `AI_QUANT_PROJECT_CONTEXT.md`
 12. `QUANT_AGENTS.md`
+13. `.github/copilot-instructions.md`
 
-Use latest `origin/main` as code baseline; use `origin/context/current` as current task authority.
+Use latest trusted `origin/main` as code baseline and `origin/context/current` as task authority.
 
 ```text
 PRODUCT = W2 Football Intelligence
-PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
-ACTIVE_NEXT_ACTION = AWAIT_OWNER_ROUND_2_AUTHORIZATION
-ACTIVE_RUNTIME_PR = 493
-OWNER_DECISION = APPROVED_CONTINUE_UNTIL_ACCEPTED
-ROUND_1_STATUS = PASS
-ROUND_2_STATUS = NOT_STARTED
+ROUND_1 = PASS
+ROUND_2 = AUTHORIZED_IN_PROGRESS
+ACTIVE_NEXT_ACTION = W2_MI_R2_AUDIT_FOUNDATION_AND_DAY0_BASELINE
+ROUND_3 = NOT_STARTED
 ```
 
-Phase 0.5 is closed with `NO_EDGE`; do not reopen H or retune the failed hypothesis.
+## Current Round 2 scope
 
-All later Round 1 remediation language in this file is retained as historical
-delivery policy only. PR #493 is merged; it must not receive new work. No new
-runtime task is authorized until the owner sets a new current action.
+Round 2 audits 17 competitions:
 
-Permanent product guard:
+```text
+13 existing active-whitelist competitions
++
+4 audit-only candidates
+```
+
+Audit-only IDs:
+
+```text
+belgian_pro_league
+turkish_super_lig
+greek_super_league
+scottish_premiership
+```
+
+They are **not runtime whitelist members** in Round 2.
+
+```text
+ACTIVE_WHITELIST = 13_UNCHANGED
+AUDIT_CANDIDATE_RUNTIME_REACHABILITY = 0
+```
+
+Do not add the four to CompetitionRegistry runtime whitelist, Scheduler, future-refresh, DayView or public cards.
+
+## R2-A first
+
+Create one bounded audit-tooling PR.
+
+Allowed work:
+
+```text
+audit CLI
+audit-only descriptor support
+Provider audit adapter
+exact identity resolution
+quota/cumulative-budget guard
+resume/report tooling
+focused tests/docs
+```
+
+Before real Provider calls:
+
+```text
+DRY_RUN_ROWS = 17
+PROVIDER_CALLS_DURING_PR_DEV_CI = 0
+DB_BUSINESS_WRITES = 0
+```
+
+Net-new Provider IDs must be observed from deterministic Provider `/leagues` evidence. No fuzzy matching or guessed IDs.
+
+## Controlled Provider audit authorization
+
+After R2-A tooling acceptance, controlled real Provider calls are authorized only through the Round 2 audit path.
+
+```text
+DAY0_EVIDENCE_ONLY_PLANNED_PER_COMPETITION = 4
+DAY0_THEORETICAL_MAX = 68
+DAILY_AUDIT_HARD_CAP = 80
+CUMULATIVE_AUDIT_HARD_CAP = 200
+MIN_PROVIDER_DAILY_REMAINING = 20
+REQUEST_INTERVAL_SECONDS_MIN = 10
+AUTOMATIC_RETRY = false
+STOP_ON_FIRST_QUOTA_WARNING = true
+```
+
+Do not use production future-refresh calls to satisfy Round 2 audit requirements.
+
+Every Provider call requires exactly one sanitized ledger record.
+
+HTTP 429, quota warning/exhaustion, plan restriction, schema unsafe, invalid key, payload error, endpoint authorization failure and hard caps remain fail-closed.
+
+## R2-B/R2-C
+
+First successful Day-0 baseline starts the 14-calendar-day observation window.
+
+Use existing persisted W2 evidence and existing authorized production collection. No new persistent polling schedule for the four audit-only candidates.
+
+If temporal evidence is insufficient, record it as insufficient.
+
+At observation end, produce exactly 17 final capability rows. No automatic enablement/promotion.
+
+## Continuation semantics
+
+```text
+FAIL_CLOSED = DO_NOT_ADVANCE_PAST_FAILED_GATE
+FAIL_CLOSED != ABANDON_ROUND_2
+```
+
+Bounded audit-tooling remediation and audit-batch resume inside the owner-authorized scope/budgets do not require another owner approval.
+
+Do not bypass blockers by raising budgets, enabling retries, widening production allowlists, modifying Scheduler or guessing identity.
+
+## Permanent guards
 
 ```text
 MODEL_MARKET_DIVERGENCE != MARKET_OPPORTUNITY
+HIGH_OVERROUND != HIGH_VALUE
+HIGH_OVERROUND != HIGH_INFORMATION
+BETTING_EDGE_CLAIM = FORBIDDEN
 RecommendationDecisionV4 = DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY
-```
-
-## League hard boundary
-
-```text
-ACTIVE_WHITELIST_BASELINE_COUNT = 13
-ROUND_1_WHITELIST_CHANGE = FORBIDDEN
-FUTURE_CANDIDATE_UNION = 17_NOT_STARTED
-```
-
-The 17 arithmetic is `13 existing + 4 net-new`; the European `5 + 6` cohort is not a replacement whitelist.
-
-Round 1 must not add/register/enable/audit/call/schedule the four net-new candidates.
-
-## Round 1
-
-One bounded API/Web runtime refactor in the existing PR #493:
-
-- intelligence-first public product;
-- seven deterministic intelligence states;
-- four independent risk dimensions;
-- `MARKET_STABLE` and zero alerts as valid results;
-- V4 diagnostic-only public product role;
-- market facts independent from V4 pick/no-pick state;
-- no model-divergence opportunity/recommendation semantics;
-- current 13 whitelist unchanged;
-- Provider/Scheduler policy unchanged.
-
-Detailed execution: `ROUND_1_CODEX_EXECUTION.md`.
-
-Explicit continuation authorization: `ROUND_1_OWNER_CONTINUATION_AUTHORIZATION.md`.
-
-Acceptance: `ROUND_1_ACCEPTANCE_CRITERIA.md`.
-
-## Delivery — binding interpretation
-
-```text
-ONE_RUNTIME_PR = PR_493_ONLY
-PR_FAST_ATTEMPTS = AS_NEEDED_AFTER_SOURCE_HEAD_CHANGE
-FULL_RC_ATTEMPTS = AS_NEEDED_UNTIL_FINAL_SUCCESS
-FAILED_PR_FAST_OR_RC_ATTEMPTS_CONSUME_FINAL_SUCCESS_SLOT = false
-FAILED_FULL_RC_31151557970_IS_FINAL_RC = false
-ONE_SUCCESSFUL_FINAL_RC_ON_FINAL_HEAD = true
-ONE_MERGE_COMMIT = true
-ONE_FINAL_ACCEPTED_DEPLOYMENT = true
-```
-
-A failed gate means do not advance past that gate, **not** stop work and wait for owner.
-
-For every bounded Round 1 failure:
-
-```text
-DIAGNOSE -> MINIMAL_FIX_IN_PR_493 -> LOCAL_VALIDATION -> NEW_HEAD_PR_FAST -> NEW_EXACT_HEAD_FULL_RC -> REPEAT_IF_NEEDED
-```
-
-No additional owner authorization is required for this remediation loop.
-
-Do not merge or deploy until the final exact-head Full RC succeeds. Stop only after merge, same-source deployment, public API/browser acceptance and every Round 1 acceptance criterion pass.
-
-## Hard stop
-
-```text
-LEAGUE_EXPANSION = false
-NEW_PROVIDER_CALLS_INITIATED_BY_R1 = 0
-ROUND_2 = NOT_STARTED
+PRODUCTION_PROVIDER_POLICY_CHANGE = false
+PRODUCTION_SCHEDULER_POLICY_CHANGE = false
 ROUND_3 = NOT_STARTED
 CANDIDATE = OFF
 FORMAL = OFF
 LOCK = OFF
 PRODUCTION = OFF
+H_RESULT_ACCESS = PERMANENTLY_CLOSED
+REAL_MONEY = NOT_AUTHORIZED
 ```
-
-No Signal Ledger for execution, Portfolio, Risk/Kelly, 2x1, auto-betting, real-money or betting-edge claim.
-
-The historical PR #493 remediation authority ended when Round 1 passed.
