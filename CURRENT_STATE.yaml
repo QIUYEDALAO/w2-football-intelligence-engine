@@ -6,79 +6,66 @@ context_update_mode: direct_branch_no_pr_no_ci_no_history
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: APPROVED_CONTINUE_UNTIL_ACCEPTED
-owner_continuation_authorization: ROUND_1_OWNER_CONTINUATION_AUTHORIZATION.md
-owner_authorization_id: W2_MI_R1_CONTINUE_UNTIL_ACCEPTED_20260807
-active_next_action: AWAIT_OWNER_ROUND_2_AUTHORIZATION
-next_code_action: NONE_AUTHORIZED
-current_status: ROUND_1_PASS_STOPPED
-current_gate: OWNER_AUTHORIZATION_REQUIRED_FOR_ROUND_2
-active_runtime_pr: 493
+owner_product_decision: APPROVED
+active_next_action: W2_MI_R2_AUDIT_FOUNDATION_AND_DAY0_BASELINE
+next_code_action: W2_MI_R2_AUDIT_FOUNDATION_AND_DAY0_BASELINE
+current_status: ROUND_2_AUTHORIZED_IN_PROGRESS
+current_gate: R2_A_AUDIT_FOUNDATION
 
-execution_authority: ROUND_1_CODEX_EXECUTION.md
-acceptance_authority: ROUND_1_ACCEPTANCE_CRITERIA.md
-final_receipt: ROUND_1_FINAL_RECEIPT.md
+round_1:
+  task: W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
+  status: PASS
+  final_receipt: ROUND_1_FINAL_RECEIPT.md
+  runtime_pr: 493
+  final_pr_head_sha: 602665885a2cbaf87e5f6c6ceb8c73926244e471
+  merge_sha: f7860813646ce9718931dff331c09ce2fe7a71ba
+  public_api_acceptance: PASS
+  public_browser_acceptance: PASS
+  browser_console_errors: 0
+
+round_2:
+  task: W2_MI_R2_FIRST_DIVISION_PROVIDER_CAPABILITY_AUDIT
+  status: AUTHORIZED_IN_PROGRESS
+  phase: R2_A_AUDIT_FOUNDATION_AND_DAY0_BASELINE
+  owner_authorization: ROUND_2_OWNER_AUTHORIZATION.md
+  execution_authority: ROUND_2_CODEX_EXECUTION.md
+  acceptance_authority: ROUND_2_ACCEPTANCE_CRITERIA.md
+  initial_main_sha: f7860813646ce9718931dff331c09ce2fe7a71ba
+  duration_days: 14
+  observation_start_utc: PENDING_FIRST_SUCCESSFUL_DAY0_BASELINE
+  observation_end_utc: PENDING_START_PLUS_14_DAYS
+  mode: CONTROLLED_READ_ONLY_PROVIDER_CAPABILITY_AUDIT
+  audit_union_count: 17
+  existing_whitelist_count: 13
+  net_new_audit_only_count: 4
+  active_whitelist_change_authorized: false
+  production_scheduler_change_authorized: false
+  production_provider_policy_change_authorized: false
+  persistent_collection_for_net_new_authorized: false
+  controlled_provider_audit_calls_authorized: true
+  day0_evidence_only_calls_per_competition: 4
+  day0_theoretical_max_calls: 68
+  daily_audit_hard_cap: 80
+  cumulative_audit_hard_cap: 200
+  min_provider_daily_remaining: 20
+  request_interval_seconds_min: 10
+  automatic_retry: false
+  stop_on_first_quota_warning: true
+  bounded_remediation_without_new_owner_authorization: true
+  round_3: NOT_STARTED
 
 failure_semantics:
   fail_closed_meaning: DO_NOT_ADVANCE_PAST_FAILED_GATE
-  fail_closed_does_not_mean: ABANDON_ROUND_1_OR_WAIT_FOR_OWNER
-  bounded_remediation_requires_new_owner_authorization: false
-  pr_fast_rerun_after_source_change_requires_new_owner_authorization: false
-  replacement_full_rc_after_failed_rc_requires_new_owner_authorization: false
-  repeat_pr_fast_and_full_rc_until_success_authorized: true
-  failed_validation_attempts_consume_final_success_slot: false
-  failed_rc_attempts_consume_final_success_slot: false
+  fail_closed_does_not_mean: ABANDON_CURRENT_AUTHORIZED_ROUND
+  bounded_round_2_remediation_requires_new_owner_authorization: false
   scope_expansion_requires_new_owner_authorization: true
-  remediation_pr: 493
-  create_second_round_1_pr: false
-  continue_until_all_acceptance_pass: true
-
-first_round_1_attempt:
-  audited_base_main_sha: 84e642f3ea26464574f75ee4d520b38bcf24073a
-  pr_number: 493
-  failed_head_sha: 5479e1f1f419e2fc15b69882aaa0c323c966ce1d
-  pr_fast_run: 31151508691
-  pr_fast_result: SUCCESS
-  pr_fast_consumes_final_success_slot: false
-  full_rc_run: 31151557970
-  full_rc_result: FAILURE
-  full_rc_is_final_success: false
-  full_rc_consumes_final_success_slot: false
-  failed_gate: BOSS_CONSOLE_PROTECTED_BASELINE
-  failed_file: apps/web/src/components/DecisionCounts.tsx
-  expected_sha256: c1b3f940587c1a25610c5e762f955c12541a7da40f006e9ce7818e5d376c9d6e
-  actual_sha256: 4d16bdcede5cf96d17ecf346e1872b5db58139c470ef1227786a6667166a7d5a
-  merge_executed: false
-  deployment_executed: false
-  public_browser_acceptance: NOT_RUN
-
-current_required_remediation:
-  restore_protected_decision_counts: true
-  decision_counts_required_sha256: c1b3f940587c1a25610c5e762f955c12541a7da40f006e9ce7818e5d376c9d6e
-  update_protected_visual_manifest_hashes: false
-  weaken_baseline_checker: false
-  create_intelligence_only_market_overview_component: true
-  public_intelligence_root_imports_legacy_decision_counts: false
-  preserve_intelligence_first_product: true
-  after_source_change_run_new_pr_fast: true
-  after_new_pr_fast_success_run_replacement_exact_head_full_rc: true
-  if_replacement_rc_fails_repeat_bounded_remediation: true
-
-phase_0_5:
-  protocol: W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
-  status: COMPLETE
-  final_verdict: NO_EDGE
-  v_continuation_gate: FAIL
-  h_result_access: PERMANENTLY_CLOSED
-  tested_hypothesis_retuning_forbidden: true
 
 product_contract:
-  recommendation_first_ui: REPLACED_BY_INTELLIGENCE_FIRST
+  product_semantics: INTELLIGENCE_FIRST
   model_market_divergence_as_opportunity: FORBIDDEN
   betting_edge_claim: FORBIDDEN
   market_stable_is_valid_result: true
   existing_v4_role: DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY
-  protected_legacy_boss_console_authority_preserved: true
 
 intelligence_states:
   - MARKET_STABLE
@@ -89,31 +76,14 @@ intelligence_states:
   - MODEL_DIAGNOSTIC_WARNING
   - COLLECTION_INCIDENT
 
-intelligence_state_precedence:
-  - COLLECTION_INCIDENT
-  - DATA_INCOMPLETE
-  - MODEL_DIAGNOSTIC_WARNING
-  - MARKET_ANOMALY
-  - MODEL_MARKET_DISAGREEMENT
-  - MARKET_MOVEMENT
-  - MARKET_STABLE
-
 risk_dimensions:
   - EVENT_RISK
   - DATA_RISK
   - MODEL_RISK
   - COLLECTION_RISK
 
-league_capability_states:
-  - REGISTERED
-  - COVERAGE_MONITORING
-  - MARKET_INTELLIGENCE_READY
-  - MODEL_DIAGNOSTICS_READY
-  - DEGRADED
-
 league_plan:
   active_whitelist_baseline_count: 13
-  round_1_whitelist_change: false
   active_whitelist_baseline:
     - chinese_super_league
     - allsvenskan
@@ -128,103 +98,35 @@ league_plan:
     - mls
     - eredivisie
     - primeira_liga
-  european_market_role_cohort:
-    core_benchmark:
-      - Premier League
-      - La Liga
-      - Bundesliga
-      - Serie A
-      - Ligue 1
-    extended_radar:
-      - Eredivisie
-      - Primeira Liga
-      - Belgian Pro League
-      - Turkish Super Lig
-      - Greek Super League
-      - Scottish Premiership
-  already_in_baseline_from_extended_radar:
-    - Eredivisie
-    - Primeira Liga
-  round_2_net_new_candidates:
-    - Belgian Pro League
-    - Turkish Super Lig
-    - Greek Super League
-    - Scottish Premiership
-  round_2_future_candidate_union_count: 17
-  round_2_future_candidate_union_rule: EXISTING_13_UNION_NET_NEW_4
-  round_2_status: BLOCKED_UNTIL_OWNER_AUTHORIZED
+  net_new_audit_candidates:
+    - belgian_pro_league
+    - turkish_super_lig
+    - greek_super_league
+    - scottish_premiership
+  audit_union_count: 17
+  net_new_runtime_state: AUDIT_CANDIDATE_ONLY
+
+league_capability_states:
+  - REGISTERED
+  - COVERAGE_MONITORING
+  - MARKET_INTELLIGENCE_READY
+  - MODEL_DIAGNOSTICS_READY
+  - DEGRADED
 
 market_radar_contract:
   overround_percentile_required_alert_covariate: true
   high_overround_is_high_value: false
   high_overround_is_high_information: false
-  alert_model_freeze_stage: ROUND_3_AFTER_ROUND_2_LIVE_DISTRIBUTIONS
-  isolated_high_overround_move_default: THIN_MARKET_NOISE
-  model_divergence_in_alert_opportunity_score: FORBIDDEN
-
-round_1:
-  task: W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
-  status: PASS
-  runtime_pr: 493
-  one_runtime_pr: true
-  allow_remediation_commits_in_pr_493: false
-  pr_fast_attempts: AS_NEEDED_AFTER_EACH_SOURCE_HEAD_CHANGE
-  full_rc_attempts: AS_NEEDED_UNTIL_FINAL_SUCCESS
-  multiple_failed_validation_attempts_allowed: true
-  multiple_failed_rc_attempts_allowed: true
-  failed_attempts_consume_final_success_slot: false
-  failed_full_rc_31151557970_is_final_rc: false
-  one_successful_final_exact_head_release_candidate: true
-  one_merge: true
-  one_final_accepted_deployment: true
-  final_public_acceptance_required: true
-  continue_until_all_acceptance_pass: false
-  league_expansion: false
-  active_whitelist_expected_count: 13
-  provider_policy_change: false
-  provider_allowlist_change: false
-  scheduler_policy_change: false
-  new_provider_calls_initiated_by_round_1: 0
-  round_2_capability_audit: NOT_STARTED
-  round_3_market_radar: NOT_STARTED
-  final_delivery:
-    final_pr_head_sha: 602665885a2cbaf87e5f6c6ceb8c73926244e471
-    final_source_tree_sha: 98338ab28bd67977faf19d186c0198ece6348d78
-    final_pr_fast_run: 31160303899
-    final_full_rc_run: 31160377637
-    merge_sha: f7860813646ce9718931dff331c09ce2fe7a71ba
-    deployed_release_identity: 602665885a2cbaf87e5f6c6ceb8c73926244e471
-    public_api_acceptance: PASS
-    public_browser_acceptance: PASS
-    browser_console_errors: 0
-  completion_conditions:
-    - FINAL_PR_FAST_REQUIRED_SUCCESS
-    - FINAL_EXACT_HEAD_FULL_RC_SUCCESS
-    - FINAL_RC_SOURCE_SHA_EQUALS_FINAL_PR_HEAD_SHA
-    - FINAL_RC_TREE_AND_IMAGE_DIGESTS_VERIFIED
-    - MERGE_SUCCESS
-    - API_WEB_SAME_VERIFIED_SOURCE_DEPLOYMENT_SUCCESS
-    - PUBLIC_API_ACCEPTANCE_PASS
-    - PUBLIC_BROWSER_ACCEPTANCE_PASS
-    - BROWSER_CONSOLE_ERRORS_ZERO
-    - ALL_BINDING_ACCEPTANCE_CRITERIA_PASS
-
-round_2:
-  task: W2_MI_R2_FIRST_DIVISION_PROVIDER_CAPABILITY_AUDIT
-  status: BLOCKED_UNTIL_OWNER_AUTHORIZED
-  duration_days: 14
-  mode: READ_ONLY_CONTROLLED
-  target_candidate_union_count: 17
+  round_3_threshold_freeze_in_round_2: false
+  model_divergence_in_opportunity_score: FORBIDDEN
 
 round_3:
   task: W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB
-  status: BLOCKED_UNTIL_ROUND_2_CAPABILITY_DECISION
-  authorized_leagues: ROUND_2_PROMOTED_ONLY
-  overround_covariate_required: true
+  status: NOT_STARTED_BLOCKED_UNTIL_ROUND_2_COMPLETE_AND_OWNER_DECISION
 
 operational_track:
   existing_w2_preserved: true
-  scheduler: ON_CONTROLLED
+  scheduler: ON_CONTROLLED_UNCHANGED_BY_R2
   candidate: "OFF"
   formal: "OFF"
   lock: "OFF"
