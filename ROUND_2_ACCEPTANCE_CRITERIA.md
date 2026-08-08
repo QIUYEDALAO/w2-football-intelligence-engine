@@ -63,7 +63,7 @@ LEDGER_DUPLICATE_PROVIDER_CALL_INDEXES = 0
 AUTOMATIC_RETRY = false
 ```
 
-Every Provider call must have exactly one sanitized ledger record. No secret material may appear in Git/context/artifacts.
+Every Provider call must have exactly one sanitized ledger record. No credential material may appear in Git/context/artifacts.
 
 ## D. Terminal-blocker early closure — hard gate
 

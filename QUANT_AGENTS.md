@@ -1,38 +1,22 @@
 # W2 Market Intelligence / Quant Agent Instructions
 
-Current authority is `origin/context/current`.
-
-Read:
-
-```text
-ROUND_2_TERMINAL_CLOSURE_AUTHORIZATION.md
-CURRENT_STATE.yaml
-NEXT_ACTION.md
-ROUND_2_ACCEPTANCE_CRITERIA.md
-REPOSITORY_HYGIENE_POLICY.md
-ROUND_2_DAY0_RECEIPT.md
-```
+Read `CURRENT_STATE.yaml`, `NEXT_ACTION.md`,
+`ROUND_2_FINAL_RECEIPT.md` and `ROUND_2_FINAL_CAPABILITY_MATRIX.json`.
 
 ```text
 ROUND_1 = PASS
-ROUND_2 = AUTHORIZED_R2_C_NOW
-WAIT_14_DAYS = false
+ROUND_2 = PASS_WITH_TERMINAL_PROVIDER_PLAN_RESTRICTION
+ACTIVE_NEXT_ACTION = AWAIT_OWNER_POST_R2_CAPABILITY_DECISION
 ROUND_3 = NOT_STARTED
 ```
 
-Round 2 is a capability audit, not an edge experiment.
+Round 2 is a completed capability audit, not an edge experiment. All 17 rows
+remain Provider-plan restricted, every promotion flag is false, and the four
+net-new candidates remain audit-only.
 
-Current evidence:
-
-```text
-AUDIT_UNION = 17
-PLAN_RESTRICTED_ROWS = 17
-ACTIVE_WHITELIST = 13_UNCHANGED
-```
-
-Execute final 17-row capability closure now. Missing time-series evidence is `TEMPORAL_EVIDENCE_INSUFFICIENT`; do not wait or fabricate distributions.
-
-Before PASS, run `REPOSITORY_HYGIENE_POLICY.md` and delete provably dead task assets. Preserve reusable validated audit tooling and required evidence/history.
+Do not restart R2-B, create collection, enable leagues or start Round 3 without
+new owner authorization. Run `REPOSITORY_HYGIENE_POLICY.md` before any future
+task PASS.
 
 Hard guards:
 
@@ -47,6 +31,5 @@ CANDIDATE = OFF
 FORMAL = OFF
 LOCK = OFF
 PRODUCTION = OFF
-ROUND_3 = NOT_STARTED
 REAL_MONEY = NOT_AUTHORIZED
 ```

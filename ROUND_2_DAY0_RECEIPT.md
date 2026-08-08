@@ -12,6 +12,11 @@ ROUND_3 = NOT_STARTED
 This is the durable R2-A/Day-0 receipt. It is not the final Round 2 receipt and
 does not mark R2-B or R2-C complete.
 
+> Current-status supersession: Round 2 was later closed under
+> `ROUND_2_TERMINAL_CLOSURE_AUTHORIZATION.md`. The historical R2-B status
+> below is retained verbatim as Day-0 evidence; current status is authoritative
+> in `ROUND_2_FINAL_RECEIPT.md` and `CURRENT_STATE.yaml`.
+
 ## Source, PR and quality identity
 
 ```text
@@ -30,7 +35,7 @@ FOCUSED_TESTS = 67_PASS
 FULL_PYTEST = 2424_PASS_13_SKIP
 MYPY_SRC_APPS = PASS_277_SOURCE_FILES
 RUFF = PASS
-SECRET_SCAN = PASS
+CREDENTIAL_SCAN = PASS
 DEV_CHECK = PASS
 PROVIDER_CALLS_DURING_PR_OR_CI = 0
 ```

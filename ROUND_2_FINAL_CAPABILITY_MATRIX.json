@@ -1,0 +1,938 @@
+{
+  "schema_version": "w2.mi.round2.final_capability_matrix.v1",
+  "generated_at_utc": "2026-08-08T03:07:30Z",
+  "terminal_closure_authorization_id": "W2_MI_R2_TERMINAL_EARLY_CLOSURE_20260808",
+  "source_evidence": {
+    "audit_tooling_merge_sha": "b04dcc7e521dce413740bcf754b1a45755a3e83e",
+    "dry_run_sha256": "458e6648004d5c1489ca544758b06dad1c93bcd7583df7f70ddd7b9c3fd91b44",
+    "day0_matrix_sha256": "85df3fd4d03296d96262dd2c0d8ed72fdeff097b66423ab45cb47d39ad583e23",
+    "sanitized_provider_ledger_sha256": "498c53d146117902ce22c49644e257a6fa4dcede148e11867b33d46d43cea37e"
+  },
+  "row_count": 17,
+  "runtime_whitelist_row_count": 13,
+  "audit_only_row_count": 4,
+  "promotion_authorized_count": 0,
+  "rows": [
+    {
+      "canonical_audit_id": "premier_league",
+      "display_name": "Premier League",
+      "runtime_whitelist_member": true,
+      "audit_only": false,
+      "current_capability_state": "REGISTERED",
+      "recommended_capability_state": "DEGRADED",
+      "provider_identity": {
+        "status": "PLAN_RESTRICTED",
+        "plan_status": "PLAN_RESTRICTED",
+        "league_id": null,
+        "name": null,
+        "country": null,
+        "audit_season": "2026"
+      },
+      "fixtures_results": {
+        "future_fixtures_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "results_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "markets": {
+        "ah_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "ou_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "bookmaker": {
+        "status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "count_observed": 0
+      },
+      "line_and_price_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "quote_timestamp_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "extended_capabilities": {
+        "lineup_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "injury_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "statistics_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "provider_schema_status": "RESPONSE_LIST_OBSERVED",
+      "temporal_evidence": {
+        "status": "TEMPORAL_EVIDENCE_INSUFFICIENT",
+        "real_sample_count": 0,
+        "distribution_status": "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      },
+      "call_cost": {
+        "provider_calls": 1,
+        "class": "ONE_IDENTITY_CALL_TERMINAL_STOP"
+      },
+      "blockers": [
+        "PLAN_DOES_NOT_COVER_SEASON",
+        "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      ],
+      "warnings": [
+        "EVIDENCE_ONLY_NOT_ENABLEMENT"
+      ],
+      "audit_outcome": "PLAN_RESTRICTED",
+      "promotion_authorized": false
+    },
+    {
+      "canonical_audit_id": "la_liga",
+      "display_name": "La Liga",
+      "runtime_whitelist_member": true,
+      "audit_only": false,
+      "current_capability_state": "REGISTERED",
+      "recommended_capability_state": "DEGRADED",
+      "provider_identity": {
+        "status": "PLAN_RESTRICTED",
+        "plan_status": "PLAN_RESTRICTED",
+        "league_id": null,
+        "name": null,
+        "country": null,
+        "audit_season": "2026"
+      },
+      "fixtures_results": {
+        "future_fixtures_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "results_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "markets": {
+        "ah_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "ou_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "bookmaker": {
+        "status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "count_observed": 0
+      },
+      "line_and_price_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "quote_timestamp_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "extended_capabilities": {
+        "lineup_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "injury_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "statistics_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "provider_schema_status": "RESPONSE_LIST_OBSERVED",
+      "temporal_evidence": {
+        "status": "TEMPORAL_EVIDENCE_INSUFFICIENT",
+        "real_sample_count": 0,
+        "distribution_status": "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      },
+      "call_cost": {
+        "provider_calls": 1,
+        "class": "ONE_IDENTITY_CALL_TERMINAL_STOP"
+      },
+      "blockers": [
+        "PLAN_DOES_NOT_COVER_SEASON",
+        "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      ],
+      "warnings": [
+        "EVIDENCE_ONLY_NOT_ENABLEMENT"
+      ],
+      "audit_outcome": "PLAN_RESTRICTED",
+      "promotion_authorized": false
+    },
+    {
+      "canonical_audit_id": "bundesliga",
+      "display_name": "Bundesliga",
+      "runtime_whitelist_member": true,
+      "audit_only": false,
+      "current_capability_state": "REGISTERED",
+      "recommended_capability_state": "DEGRADED",
+      "provider_identity": {
+        "status": "PLAN_RESTRICTED",
+        "plan_status": "PLAN_RESTRICTED",
+        "league_id": null,
+        "name": null,
+        "country": null,
+        "audit_season": "2026"
+      },
+      "fixtures_results": {
+        "future_fixtures_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "results_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "markets": {
+        "ah_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "ou_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "bookmaker": {
+        "status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "count_observed": 0
+      },
+      "line_and_price_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "quote_timestamp_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "extended_capabilities": {
+        "lineup_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "injury_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "statistics_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "provider_schema_status": "RESPONSE_LIST_OBSERVED",
+      "temporal_evidence": {
+        "status": "TEMPORAL_EVIDENCE_INSUFFICIENT",
+        "real_sample_count": 0,
+        "distribution_status": "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      },
+      "call_cost": {
+        "provider_calls": 1,
+        "class": "ONE_IDENTITY_CALL_TERMINAL_STOP"
+      },
+      "blockers": [
+        "PLAN_DOES_NOT_COVER_SEASON",
+        "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      ],
+      "warnings": [
+        "EVIDENCE_ONLY_NOT_ENABLEMENT"
+      ],
+      "audit_outcome": "PLAN_RESTRICTED",
+      "promotion_authorized": false
+    },
+    {
+      "canonical_audit_id": "serie_a",
+      "display_name": "Serie A",
+      "runtime_whitelist_member": true,
+      "audit_only": false,
+      "current_capability_state": "REGISTERED",
+      "recommended_capability_state": "DEGRADED",
+      "provider_identity": {
+        "status": "PLAN_RESTRICTED",
+        "plan_status": "PLAN_RESTRICTED",
+        "league_id": null,
+        "name": null,
+        "country": null,
+        "audit_season": "2026"
+      },
+      "fixtures_results": {
+        "future_fixtures_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "results_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "markets": {
+        "ah_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "ou_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "bookmaker": {
+        "status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "count_observed": 0
+      },
+      "line_and_price_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "quote_timestamp_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "extended_capabilities": {
+        "lineup_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "injury_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "statistics_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "provider_schema_status": "RESPONSE_LIST_OBSERVED",
+      "temporal_evidence": {
+        "status": "TEMPORAL_EVIDENCE_INSUFFICIENT",
+        "real_sample_count": 0,
+        "distribution_status": "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      },
+      "call_cost": {
+        "provider_calls": 1,
+        "class": "ONE_IDENTITY_CALL_TERMINAL_STOP"
+      },
+      "blockers": [
+        "PLAN_DOES_NOT_COVER_SEASON",
+        "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      ],
+      "warnings": [
+        "EVIDENCE_ONLY_NOT_ENABLEMENT"
+      ],
+      "audit_outcome": "PLAN_RESTRICTED",
+      "promotion_authorized": false
+    },
+    {
+      "canonical_audit_id": "ligue_1",
+      "display_name": "Ligue 1",
+      "runtime_whitelist_member": true,
+      "audit_only": false,
+      "current_capability_state": "REGISTERED",
+      "recommended_capability_state": "DEGRADED",
+      "provider_identity": {
+        "status": "PLAN_RESTRICTED",
+        "plan_status": "PLAN_RESTRICTED",
+        "league_id": null,
+        "name": null,
+        "country": null,
+        "audit_season": "2026"
+      },
+      "fixtures_results": {
+        "future_fixtures_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "results_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "markets": {
+        "ah_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "ou_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "bookmaker": {
+        "status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "count_observed": 0
+      },
+      "line_and_price_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "quote_timestamp_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "extended_capabilities": {
+        "lineup_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "injury_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "statistics_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "provider_schema_status": "RESPONSE_LIST_OBSERVED",
+      "temporal_evidence": {
+        "status": "TEMPORAL_EVIDENCE_INSUFFICIENT",
+        "real_sample_count": 0,
+        "distribution_status": "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      },
+      "call_cost": {
+        "provider_calls": 1,
+        "class": "ONE_IDENTITY_CALL_TERMINAL_STOP"
+      },
+      "blockers": [
+        "PLAN_DOES_NOT_COVER_SEASON",
+        "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      ],
+      "warnings": [
+        "EVIDENCE_ONLY_NOT_ENABLEMENT"
+      ],
+      "audit_outcome": "PLAN_RESTRICTED",
+      "promotion_authorized": false
+    },
+    {
+      "canonical_audit_id": "brasileirao_serie_a",
+      "display_name": "Campeonato Brasileiro Serie A",
+      "runtime_whitelist_member": true,
+      "audit_only": false,
+      "current_capability_state": "REGISTERED",
+      "recommended_capability_state": "DEGRADED",
+      "provider_identity": {
+        "status": "PLAN_RESTRICTED",
+        "plan_status": "PLAN_RESTRICTED",
+        "league_id": null,
+        "name": null,
+        "country": null,
+        "audit_season": "2026"
+      },
+      "fixtures_results": {
+        "future_fixtures_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "results_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "markets": {
+        "ah_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "ou_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "bookmaker": {
+        "status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "count_observed": 0
+      },
+      "line_and_price_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "quote_timestamp_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "extended_capabilities": {
+        "lineup_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "injury_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "statistics_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "provider_schema_status": "RESPONSE_LIST_OBSERVED",
+      "temporal_evidence": {
+        "status": "TEMPORAL_EVIDENCE_INSUFFICIENT",
+        "real_sample_count": 0,
+        "distribution_status": "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      },
+      "call_cost": {
+        "provider_calls": 1,
+        "class": "ONE_IDENTITY_CALL_TERMINAL_STOP"
+      },
+      "blockers": [
+        "PLAN_DOES_NOT_COVER_SEASON",
+        "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      ],
+      "warnings": [
+        "EVIDENCE_ONLY_NOT_ENABLEMENT"
+      ],
+      "audit_outcome": "PLAN_RESTRICTED",
+      "promotion_authorized": false
+    },
+    {
+      "canonical_audit_id": "argentina_primera",
+      "display_name": "Liga Profesional de Futbol",
+      "runtime_whitelist_member": true,
+      "audit_only": false,
+      "current_capability_state": "REGISTERED",
+      "recommended_capability_state": "DEGRADED",
+      "provider_identity": {
+        "status": "PLAN_RESTRICTED",
+        "plan_status": "PLAN_RESTRICTED",
+        "league_id": null,
+        "name": null,
+        "country": null,
+        "audit_season": "2026"
+      },
+      "fixtures_results": {
+        "future_fixtures_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "results_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "markets": {
+        "ah_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "ou_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "bookmaker": {
+        "status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "count_observed": 0
+      },
+      "line_and_price_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "quote_timestamp_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "extended_capabilities": {
+        "lineup_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "injury_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "statistics_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "provider_schema_status": "RESPONSE_LIST_OBSERVED",
+      "temporal_evidence": {
+        "status": "TEMPORAL_EVIDENCE_INSUFFICIENT",
+        "real_sample_count": 0,
+        "distribution_status": "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      },
+      "call_cost": {
+        "provider_calls": 1,
+        "class": "ONE_IDENTITY_CALL_TERMINAL_STOP"
+      },
+      "blockers": [
+        "PLAN_DOES_NOT_COVER_SEASON",
+        "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      ],
+      "warnings": [
+        "EVIDENCE_ONLY_NOT_ENABLEMENT",
+        "EXPECTED_TEAM_COUNT_AND_CALENDAR_EXACT_MATCH_REVIEW"
+      ],
+      "audit_outcome": "PLAN_RESTRICTED",
+      "promotion_authorized": false
+    },
+    {
+      "canonical_audit_id": "mls",
+      "display_name": "Major League Soccer",
+      "runtime_whitelist_member": true,
+      "audit_only": false,
+      "current_capability_state": "REGISTERED",
+      "recommended_capability_state": "DEGRADED",
+      "provider_identity": {
+        "status": "PLAN_RESTRICTED",
+        "plan_status": "PLAN_RESTRICTED",
+        "league_id": null,
+        "name": null,
+        "country": null,
+        "audit_season": "2026"
+      },
+      "fixtures_results": {
+        "future_fixtures_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "results_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "markets": {
+        "ah_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "ou_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "bookmaker": {
+        "status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "count_observed": 0
+      },
+      "line_and_price_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "quote_timestamp_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "extended_capabilities": {
+        "lineup_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "injury_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "statistics_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "provider_schema_status": "RESPONSE_LIST_OBSERVED",
+      "temporal_evidence": {
+        "status": "TEMPORAL_EVIDENCE_INSUFFICIENT",
+        "real_sample_count": 0,
+        "distribution_status": "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      },
+      "call_cost": {
+        "provider_calls": 1,
+        "class": "ONE_IDENTITY_CALL_TERMINAL_STOP"
+      },
+      "blockers": [
+        "PLAN_DOES_NOT_COVER_SEASON",
+        "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      ],
+      "warnings": [
+        "EVIDENCE_ONLY_NOT_ENABLEMENT",
+        "WORLD_CUP_CALENDAR_PERTURBATION_REVIEW"
+      ],
+      "audit_outcome": "PLAN_RESTRICTED",
+      "promotion_authorized": false
+    },
+    {
+      "canonical_audit_id": "chinese_super_league",
+      "display_name": "Chinese Super League",
+      "runtime_whitelist_member": true,
+      "audit_only": false,
+      "current_capability_state": "REGISTERED",
+      "recommended_capability_state": "DEGRADED",
+      "provider_identity": {
+        "status": "PLAN_RESTRICTED",
+        "plan_status": "PLAN_RESTRICTED",
+        "league_id": null,
+        "name": null,
+        "country": null,
+        "audit_season": "2026"
+      },
+      "fixtures_results": {
+        "future_fixtures_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "results_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "markets": {
+        "ah_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "ou_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "bookmaker": {
+        "status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "count_observed": 0
+      },
+      "line_and_price_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "quote_timestamp_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "extended_capabilities": {
+        "lineup_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "injury_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "statistics_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "provider_schema_status": "RESPONSE_LIST_OBSERVED",
+      "temporal_evidence": {
+        "status": "TEMPORAL_EVIDENCE_INSUFFICIENT",
+        "real_sample_count": 0,
+        "distribution_status": "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      },
+      "call_cost": {
+        "provider_calls": 1,
+        "class": "ONE_IDENTITY_CALL_TERMINAL_STOP"
+      },
+      "blockers": [
+        "PLAN_DOES_NOT_COVER_SEASON",
+        "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      ],
+      "warnings": [
+        "EVIDENCE_ONLY_NOT_ENABLEMENT",
+        "PER_MATCH_INTEGRITY_GATE_FOR_ABNORMAL_ODDS_OR_DEAD_MARKETS"
+      ],
+      "audit_outcome": "PLAN_RESTRICTED",
+      "promotion_authorized": false
+    },
+    {
+      "canonical_audit_id": "allsvenskan",
+      "display_name": "Allsvenskan",
+      "runtime_whitelist_member": true,
+      "audit_only": false,
+      "current_capability_state": "REGISTERED",
+      "recommended_capability_state": "DEGRADED",
+      "provider_identity": {
+        "status": "PLAN_RESTRICTED",
+        "plan_status": "PLAN_RESTRICTED",
+        "league_id": null,
+        "name": null,
+        "country": null,
+        "audit_season": "2026"
+      },
+      "fixtures_results": {
+        "future_fixtures_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "results_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "markets": {
+        "ah_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "ou_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "bookmaker": {
+        "status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "count_observed": 0
+      },
+      "line_and_price_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "quote_timestamp_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "extended_capabilities": {
+        "lineup_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "injury_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "statistics_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "provider_schema_status": "RESPONSE_LIST_OBSERVED",
+      "temporal_evidence": {
+        "status": "TEMPORAL_EVIDENCE_INSUFFICIENT",
+        "real_sample_count": 0,
+        "distribution_status": "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      },
+      "call_cost": {
+        "provider_calls": 1,
+        "class": "ONE_IDENTITY_CALL_TERMINAL_STOP"
+      },
+      "blockers": [
+        "PLAN_DOES_NOT_COVER_SEASON",
+        "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      ],
+      "warnings": [
+        "EVIDENCE_ONLY_NOT_ENABLEMENT"
+      ],
+      "audit_outcome": "PLAN_RESTRICTED",
+      "promotion_authorized": false
+    },
+    {
+      "canonical_audit_id": "eliteserien",
+      "display_name": "Eliteserien",
+      "runtime_whitelist_member": true,
+      "audit_only": false,
+      "current_capability_state": "REGISTERED",
+      "recommended_capability_state": "DEGRADED",
+      "provider_identity": {
+        "status": "PLAN_RESTRICTED",
+        "plan_status": "PLAN_RESTRICTED",
+        "league_id": null,
+        "name": null,
+        "country": null,
+        "audit_season": "2026"
+      },
+      "fixtures_results": {
+        "future_fixtures_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "results_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "markets": {
+        "ah_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "ou_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "bookmaker": {
+        "status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "count_observed": 0
+      },
+      "line_and_price_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "quote_timestamp_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "extended_capabilities": {
+        "lineup_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "injury_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "statistics_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "provider_schema_status": "RESPONSE_LIST_OBSERVED",
+      "temporal_evidence": {
+        "status": "TEMPORAL_EVIDENCE_INSUFFICIENT",
+        "real_sample_count": 0,
+        "distribution_status": "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      },
+      "call_cost": {
+        "provider_calls": 1,
+        "class": "ONE_IDENTITY_CALL_TERMINAL_STOP"
+      },
+      "blockers": [
+        "PLAN_DOES_NOT_COVER_SEASON",
+        "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      ],
+      "warnings": [
+        "EVIDENCE_ONLY_NOT_ENABLEMENT"
+      ],
+      "audit_outcome": "PLAN_RESTRICTED",
+      "promotion_authorized": false
+    },
+    {
+      "canonical_audit_id": "eredivisie",
+      "display_name": "Eredivisie",
+      "runtime_whitelist_member": true,
+      "audit_only": false,
+      "current_capability_state": "REGISTERED",
+      "recommended_capability_state": "DEGRADED",
+      "provider_identity": {
+        "status": "PLAN_RESTRICTED",
+        "plan_status": "PLAN_RESTRICTED",
+        "league_id": null,
+        "name": null,
+        "country": null,
+        "audit_season": "2026"
+      },
+      "fixtures_results": {
+        "future_fixtures_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "results_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "markets": {
+        "ah_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "ou_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "bookmaker": {
+        "status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "count_observed": 0
+      },
+      "line_and_price_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "quote_timestamp_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "extended_capabilities": {
+        "lineup_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "injury_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "statistics_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "provider_schema_status": "RESPONSE_LIST_OBSERVED",
+      "temporal_evidence": {
+        "status": "TEMPORAL_EVIDENCE_INSUFFICIENT",
+        "real_sample_count": 0,
+        "distribution_status": "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      },
+      "call_cost": {
+        "provider_calls": 1,
+        "class": "ONE_IDENTITY_CALL_TERMINAL_STOP"
+      },
+      "blockers": [
+        "PLAN_DOES_NOT_COVER_SEASON",
+        "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      ],
+      "warnings": [
+        "EVIDENCE_ONLY_NOT_ENABLEMENT"
+      ],
+      "audit_outcome": "PLAN_RESTRICTED",
+      "promotion_authorized": false
+    },
+    {
+      "canonical_audit_id": "primeira_liga",
+      "display_name": "Primeira Liga",
+      "runtime_whitelist_member": true,
+      "audit_only": false,
+      "current_capability_state": "REGISTERED",
+      "recommended_capability_state": "DEGRADED",
+      "provider_identity": {
+        "status": "PLAN_RESTRICTED",
+        "plan_status": "PLAN_RESTRICTED",
+        "league_id": null,
+        "name": null,
+        "country": null,
+        "audit_season": "2026"
+      },
+      "fixtures_results": {
+        "future_fixtures_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "results_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "markets": {
+        "ah_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "ou_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "bookmaker": {
+        "status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "count_observed": 0
+      },
+      "line_and_price_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "quote_timestamp_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "extended_capabilities": {
+        "lineup_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "injury_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "statistics_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "provider_schema_status": "RESPONSE_LIST_OBSERVED",
+      "temporal_evidence": {
+        "status": "TEMPORAL_EVIDENCE_INSUFFICIENT",
+        "real_sample_count": 0,
+        "distribution_status": "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      },
+      "call_cost": {
+        "provider_calls": 1,
+        "class": "ONE_IDENTITY_CALL_TERMINAL_STOP"
+      },
+      "blockers": [
+        "PLAN_DOES_NOT_COVER_SEASON",
+        "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      ],
+      "warnings": [
+        "EVIDENCE_ONLY_NOT_ENABLEMENT"
+      ],
+      "audit_outcome": "PLAN_RESTRICTED",
+      "promotion_authorized": false
+    },
+    {
+      "canonical_audit_id": "belgian_pro_league",
+      "display_name": "Belgian Pro League",
+      "runtime_whitelist_member": false,
+      "audit_only": true,
+      "current_capability_state": "AUDIT_CANDIDATE_ONLY",
+      "recommended_capability_state": "DEGRADED",
+      "provider_identity": {
+        "status": "PLAN_RESTRICTED",
+        "plan_status": "PLAN_RESTRICTED",
+        "league_id": null,
+        "name": null,
+        "country": null,
+        "audit_season": "2026"
+      },
+      "fixtures_results": {
+        "future_fixtures_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "results_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "markets": {
+        "ah_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "ou_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "bookmaker": {
+        "status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "count_observed": 0
+      },
+      "line_and_price_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "quote_timestamp_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "extended_capabilities": {
+        "lineup_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "injury_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "statistics_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "provider_schema_status": "RESPONSE_LIST_OBSERVED",
+      "temporal_evidence": {
+        "status": "TEMPORAL_EVIDENCE_INSUFFICIENT",
+        "real_sample_count": 0,
+        "distribution_status": "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      },
+      "call_cost": {
+        "provider_calls": 1,
+        "class": "ONE_IDENTITY_CALL_TERMINAL_STOP"
+      },
+      "blockers": [
+        "PLAN_DOES_NOT_COVER_SEASON",
+        "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      ],
+      "warnings": [
+        "EVIDENCE_ONLY_NOT_ENABLEMENT"
+      ],
+      "audit_outcome": "PLAN_RESTRICTED",
+      "promotion_authorized": false
+    },
+    {
+      "canonical_audit_id": "turkish_super_lig",
+      "display_name": "Turkish Super Lig",
+      "runtime_whitelist_member": false,
+      "audit_only": true,
+      "current_capability_state": "AUDIT_CANDIDATE_ONLY",
+      "recommended_capability_state": "DEGRADED",
+      "provider_identity": {
+        "status": "PLAN_RESTRICTED",
+        "plan_status": "PLAN_RESTRICTED",
+        "league_id": null,
+        "name": null,
+        "country": null,
+        "audit_season": "2026"
+      },
+      "fixtures_results": {
+        "future_fixtures_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "results_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "markets": {
+        "ah_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "ou_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "bookmaker": {
+        "status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "count_observed": 0
+      },
+      "line_and_price_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "quote_timestamp_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "extended_capabilities": {
+        "lineup_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "injury_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "statistics_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "provider_schema_status": "RESPONSE_LIST_OBSERVED",
+      "temporal_evidence": {
+        "status": "TEMPORAL_EVIDENCE_INSUFFICIENT",
+        "real_sample_count": 0,
+        "distribution_status": "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      },
+      "call_cost": {
+        "provider_calls": 1,
+        "class": "ONE_IDENTITY_CALL_TERMINAL_STOP"
+      },
+      "blockers": [
+        "PLAN_DOES_NOT_COVER_SEASON",
+        "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      ],
+      "warnings": [
+        "EVIDENCE_ONLY_NOT_ENABLEMENT"
+      ],
+      "audit_outcome": "PLAN_RESTRICTED",
+      "promotion_authorized": false
+    },
+    {
+      "canonical_audit_id": "greek_super_league",
+      "display_name": "Greek Super League",
+      "runtime_whitelist_member": false,
+      "audit_only": true,
+      "current_capability_state": "AUDIT_CANDIDATE_ONLY",
+      "recommended_capability_state": "DEGRADED",
+      "provider_identity": {
+        "status": "PLAN_RESTRICTED",
+        "plan_status": "PLAN_RESTRICTED",
+        "league_id": null,
+        "name": null,
+        "country": null,
+        "audit_season": "2026"
+      },
+      "fixtures_results": {
+        "future_fixtures_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "results_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "markets": {
+        "ah_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "ou_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "bookmaker": {
+        "status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "count_observed": 0
+      },
+      "line_and_price_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "quote_timestamp_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "extended_capabilities": {
+        "lineup_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "injury_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "statistics_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "provider_schema_status": "RESPONSE_LIST_OBSERVED",
+      "temporal_evidence": {
+        "status": "TEMPORAL_EVIDENCE_INSUFFICIENT",
+        "real_sample_count": 0,
+        "distribution_status": "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      },
+      "call_cost": {
+        "provider_calls": 1,
+        "class": "ONE_IDENTITY_CALL_TERMINAL_STOP"
+      },
+      "blockers": [
+        "PLAN_DOES_NOT_COVER_SEASON",
+        "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      ],
+      "warnings": [
+        "EVIDENCE_ONLY_NOT_ENABLEMENT"
+      ],
+      "audit_outcome": "PLAN_RESTRICTED",
+      "promotion_authorized": false
+    },
+    {
+      "canonical_audit_id": "scottish_premiership",
+      "display_name": "Scottish Premiership",
+      "runtime_whitelist_member": false,
+      "audit_only": true,
+      "current_capability_state": "AUDIT_CANDIDATE_ONLY",
+      "recommended_capability_state": "DEGRADED",
+      "provider_identity": {
+        "status": "PLAN_RESTRICTED",
+        "plan_status": "PLAN_RESTRICTED",
+        "league_id": null,
+        "name": null,
+        "country": null,
+        "audit_season": "2026"
+      },
+      "fixtures_results": {
+        "future_fixtures_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "results_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "markets": {
+        "ah_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "ou_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "bookmaker": {
+        "status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "count_observed": 0
+      },
+      "line_and_price_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "quote_timestamp_status": "NOT_AUDITED_PLAN_RESTRICTED",
+      "extended_capabilities": {
+        "lineup_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "injury_status": "NOT_AUDITED_PLAN_RESTRICTED",
+        "statistics_status": "NOT_AUDITED_PLAN_RESTRICTED"
+      },
+      "provider_schema_status": "RESPONSE_LIST_OBSERVED",
+      "temporal_evidence": {
+        "status": "TEMPORAL_EVIDENCE_INSUFFICIENT",
+        "real_sample_count": 0,
+        "distribution_status": "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      },
+      "call_cost": {
+        "provider_calls": 1,
+        "class": "ONE_IDENTITY_CALL_TERMINAL_STOP"
+      },
+      "blockers": [
+        "PLAN_DOES_NOT_COVER_SEASON",
+        "TEMPORAL_EVIDENCE_INSUFFICIENT"
+      ],
+      "warnings": [
+        "EVIDENCE_ONLY_NOT_ENABLEMENT"
+      ],
+      "audit_outcome": "PLAN_RESTRICTED",
+      "promotion_authorized": false
+    }
+  ]
+}

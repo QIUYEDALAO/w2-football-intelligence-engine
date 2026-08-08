@@ -1,40 +1,21 @@
 # W2 Market Intelligence — AI Handoff
 
-Current authority is `origin/context/current`.
-
 ```text
 ROUND_1 = PASS
-ROUND_2 = AUTHORIZED_R2_C_NOW
-WAIT_14_DAYS = false
+ROUND_2 = PASS_WITH_TERMINAL_PROVIDER_PLAN_RESTRICTION
+ACTIVE_NEXT_ACTION = AWAIT_OWNER_POST_R2_CAPABILITY_DECISION
 ROUND_3 = NOT_STARTED
 ```
 
-Phase 0.5 remains closed with `NO_EDGE`; H remains permanently closed.
+Phase 0.5 remains closed with `NO_EDGE`; H remains permanently closed. Round 2
+closed with 17/17 `PLAN_RESTRICTED`, 17/17 temporal insufficiency, no
+promotions and the exact existing 13-league runtime whitelist.
 
-Current evidence:
+Use `ROUND_2_FINAL_RECEIPT.md` and
+`ROUND_2_FINAL_CAPABILITY_MATRIX.json` as the completion evidence. Do not
+restart observation, recreate the heartbeat or enter Round 3 without new owner
+authority.
 
-```text
-AUDIT_UNION = 17
-PLAN_RESTRICTED_ROWS = 17
-ACTIVE_WHITELIST = 13_UNCHANGED
-```
-
-Execute final capability closure now. Missing temporal evidence stays `TEMPORAL_EVIDENCE_INSUFFICIENT`; no waiting or fabricated distributions.
-
-Before any task/round PASS, `REPOSITORY_HYGIENE_POLICY.md` is mandatory. Delete provably dead code/files/assets, remove stale references and rerun required tests. Keep reusable validated tooling and required historical/audit evidence.
-
-Hard guards:
-
-```text
-MODEL_MARKET_DIVERGENCE != MARKET_OPPORTUNITY
-HIGH_OVERROUND != HIGH_VALUE
-HIGH_OVERROUND != HIGH_INFORMATION
-BETTING_EDGE_CLAIM = FORBIDDEN
-ACTIVE_WHITELIST = 13_UNCHANGED
-CANDIDATE = OFF
-FORMAL = OFF
-LOCK = OFF
-PRODUCTION = OFF
-ROUND_3 = NOT_STARTED
-REAL_MONEY = NOT_AUTHORIZED
-```
+`REPOSITORY_HYGIENE_POLICY.md` is mandatory before every future PASS. Hard
+guards remain: no opportunity/value/edge reinterpretation,
+Candidate/Formal/Lock/Production OFF, and no real-money execution.

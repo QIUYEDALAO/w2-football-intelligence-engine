@@ -5,11 +5,11 @@ This is the mutable current authority for W2 on `context/current`.
 ## Read order
 
 ```text
-1. ROUND_2_TERMINAL_CLOSURE_AUTHORIZATION.md
-2. CURRENT_STATE.yaml
-3. NEXT_ACTION.md
-4. ROUND_2_OWNER_AUTHORIZATION.md
-5. ROUND_2_CODEX_EXECUTION.md
+1. CURRENT_STATE.yaml
+2. NEXT_ACTION.md
+3. ROUND_2_FINAL_RECEIPT.md
+4. ROUND_2_FINAL_CAPABILITY_MATRIX.json
+5. ROUND_2_TERMINAL_CLOSURE_AUTHORIZATION.md
 6. ROUND_2_ACCEPTANCE_CRITERIA.md
 7. REPOSITORY_HYGIENE_POLICY.md
 8. ROUND_2_DAY0_RECEIPT.md
@@ -18,9 +18,6 @@ This is the mutable current authority for W2 on `context/current`.
 11. ROUND_1_FINAL_RECEIPT.md
 12. CURRENT_PRODUCT_DESIGN.md
 13. CURRENT_TASK_CHECKLIST.md
-14. AGENTS.md
-15. QUANT_AGENTS.md
-16. .github/copilot-instructions.md
 ```
 
 ## Current decision
@@ -28,73 +25,39 @@ This is the mutable current authority for W2 on `context/current`.
 ```text
 PRODUCT = W2 Football Intelligence
 ROUND_1 = PASS
-ROUND_2 = AUTHORIZED_R2_C_NOW
-ACTIVE_NEXT_ACTION = W2_MI_R2_C_FINAL_CAPABILITY_DECISION_NOW
-WAIT_14_DAYS = false
+ROUND_2 = PASS_WITH_TERMINAL_PROVIDER_PLAN_RESTRICTION
+ACTIVE_NEXT_ACTION = AWAIT_OWNER_POST_R2_CAPABILITY_DECISION
 ROUND_3 = NOT_STARTED
-TASK_PASS_REQUIRES_REPOSITORY_HYGIENE_PASS = true
+WAIT_14_DAYS = false
+REPOSITORY_HYGIENE = PASS
 ```
 
-The former mandatory 14-day elapsed-time gate is superseded by `ROUND_2_TERMINAL_CLOSURE_AUTHORIZATION.md`.
-
-## Current evidence
+Round 2 closed truthfully with 17/17 Provider rows `PLAN_RESTRICTED`, 17/17
+temporal outcomes `TEMPORAL_EVIDENCE_INSUFFICIENT`, and zero promotions. The
+active whitelist remains the exact existing 13; four audit-only candidates
+remain outside runtime, Scheduler, future refresh and DayView.
 
 ```text
-AUDIT_UNION = 17
-AUDIT_TOOLING_PR = 494
-AUDIT_TOOLING_MERGE_SHA = b04dcc7e521dce413740bcf754b1a45755a3e83e
-DAY0_PROVIDER_CALLS = 17
-PLAN_RESTRICTED_ROWS = 17
-FIXTURES_CALLS = 0
-ODDS_CALLS = 0
-DEEPER_PROBE_CALLS = 0
-ACTIVE_WHITELIST = 13_UNCHANGED
+FINAL_MATRIX_SHA256 = 9eded59fbfb01913c5ad8a90880bd5fa0acc819565b62e9f5a05ce6055e57ab6
+R2_C_PROVIDER_CALLS = 0
+R2_C_DB_BUSINESS_WRITES = 0
+UNRESOLVED_HYGIENE_ITEMS = 0
+HEARTBEAT_w2-mi-round-2 = DELETED
 ```
-
-Persisted snapshot truth:
-
-```text
-DAYVIEW_CARDS = 64
-DATA_INCOMPLETE = 64
-CURRENT_ODDS_CARDS = 0
-WITHIN_WINDOW_QUOTE_ROWS = 0
-READINESS_ROWS = 5
-READINESS_404_ROWS = 12
-SAMPLED_ODDS_TIMELINES = 4
-TIMELINE_ITEMS = 0
-```
-
-Missing temporal evidence is `TEMPORAL_EVIDENCE_INSUFFICIENT`; waiting alone is not a gate.
-
-## Immediate R2-C closure
-
-```text
-VERIFY EVIDENCE
--> OPTIONAL FINAL READ-ONLY FREEZE SNAPSHOT
--> FINAL 17-ROW CAPABILITY MATRIX
--> REPOSITORY HYGIENE PASS
--> DELETE PROVABLY DEAD TASK ASSETS
--> RERUN REQUIRED TESTS
--> ROUND_2_FINAL_RECEIPT.md
--> STOP HEARTBEAT IF CONTROLLED
--> UPDATE CONTEXT TO ROUND_2 PASS
--> STOP BEFORE ROUND_3
-```
-
-Default new Provider calls = 0. Every final row has `promotion_authorized=false`.
 
 ## Permanent repository hygiene
 
-`REPOSITORY_HYGIENE_POLICY.md` applies to every current and future W2 task.
+`REPOSITORY_HYGIENE_POLICY.md` applies to every future W2 task.
 
 ```text
-TASK_GOAL_REACHED != TASK_FULLY_CLOSED
 TASK_FULLY_CLOSED = FUNCTIONAL_ACCEPTANCE_PASS + REPOSITORY_HYGIENE_PASS
 ```
 
-Delete assets only when repository evidence proves they are unused. Preserve reusable tooling, migrations/history, final receipts, required audit evidence, CI/release authorities and protected baselines.
+Delete only assets proven unused by repository evidence. Preserve reusable
+tooling, migrations/history, final receipts, required audit evidence,
+CI/release authorities and protected baselines.
 
-## Permanent product/safety guards
+## Permanent product and safety guards
 
 ```text
 MODEL_MARKET_DIVERGENCE != MARKET_OPPORTUNITY
@@ -113,12 +76,4 @@ LOCK = OFF
 PRODUCTION = OFF
 ROUND_3 = NOT_STARTED
 H_RESULT_ACCESS = PERMANENTLY_CLOSED
-```
-
-Expected final Round 2 state if all revised acceptance and hygiene gates pass:
-
-```text
-ROUND_2 = PASS_WITH_TERMINAL_PROVIDER_PLAN_RESTRICTION
-REPOSITORY_HYGIENE = PASS
-NEXT = AWAIT_OWNER_POST_R2_CAPABILITY_DECISION
 ```

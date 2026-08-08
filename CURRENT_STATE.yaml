@@ -8,20 +8,26 @@ program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
 owner_product_decision: APPROVED_CLOSE_WITH_CURRENT_TERMINAL_EVIDENCE
 owner_authorization_id: W2_MI_R2_TERMINAL_EARLY_CLOSURE_20260808
-active_next_action: W2_MI_R2_C_FINAL_CAPABILITY_DECISION_NOW
-next_code_action: NONE_R2_C_IS_EVIDENCE_AND_HYGIENE_CLOSURE
-current_status: ROUND_2_AUTHORIZED_R2_C_NOW
-current_gate: R2_C_FINAL_CAPABILITY_DECISION_AND_REPOSITORY_HYGIENE
+active_next_action: AWAIT_OWNER_POST_R2_CAPABILITY_DECISION
+next_code_action: NONE_UNTIL_OWNER_DECISION
+current_status: ROUND_2_PASS_WITH_TERMINAL_PROVIDER_PLAN_RESTRICTION
+current_gate: AWAIT_OWNER_POST_R2_CAPABILITY_DECISION
 
 repository_hygiene:
   authority: REPOSITORY_HYGIENE_POLICY.md
   permanent_rule: true
+  status: PASS
   task_pass_requires_hygiene_pass: true
   delete_provably_dead_assets: true
   deletion_requires_reference_and_runtime_evidence: true
   preserve_reusable_tooling: true
   preserve_required_migrations_history_and_audit_evidence: true
-  unresolved_hygiene_items_required_for_pass: 0
+  dead_assets_found: 1
+  dead_assets_deleted: 1
+  dead_repository_assets_found: 0
+  obsolete_code_lines_removed: 0
+  retained_for_evidence: 8
+  unresolved_hygiene_items: 0
 
 round_1:
   status: PASS
@@ -32,8 +38,8 @@ round_1:
 
 round_2:
   task: W2_MI_R2_FIRST_DIVISION_PROVIDER_CAPABILITY_AUDIT
-  status: AUTHORIZED_R2_C_NOW
-  phase: R2_C_FINAL_CAPABILITY_DECISION_AND_HYGIENE
+  status: PASS_WITH_TERMINAL_PROVIDER_PLAN_RESTRICTION
+  phase: COMPLETE
   terminal_closure_authority: ROUND_2_TERMINAL_CLOSURE_AUTHORIZATION.md
   owner_authorization: ROUND_2_OWNER_AUTHORIZATION.md
   execution_authority: ROUND_2_CODEX_EXECUTION.md
@@ -41,19 +47,19 @@ round_2:
   hygiene_authority: REPOSITORY_HYGIENE_POLICY.md
   day0_receipt: ROUND_2_DAY0_RECEIPT.md
   observation_log: ROUND_2_OBSERVATION_LOG.md
+  final_capability_matrix: ROUND_2_FINAL_CAPABILITY_MATRIX.json
+  final_capability_matrix_sha256: 9eded59fbfb01913c5ad8a90880bd5fa0acc819565b62e9f5a05ce6055e57ab6
+  final_receipt: ROUND_2_FINAL_RECEIPT.md
   audit_tooling_pr: 494
   audit_tooling_merge_sha: b04dcc7e521dce413740bcf754b1a45755a3e83e
   r2_a_status: COMPLETE_WITH_TRUTHFUL_PLAN_RESTRICTIONS
   r2_b_status: TERMINATED_EARLY_BY_OWNER_TERMINAL_EVIDENCE_AUTHORITY
-  r2_c_status: EXECUTE_NOW
+  r2_c_status: COMPLETE
   wait_14_days: false
-  former_observation_end_utc: "2026-08-22T01:53:55.509495+00:00"
-  former_observation_end_is_completion_gate: false
-  daily_snapshot_required: false
-  next_snapshot_required: false
   heartbeat_required: false
-  heartbeat_id_if_present: w2-mi-round-2
-  heartbeat_should_stop_after_final_receipt: true
+  heartbeat_id: w2-mi-round-2
+  heartbeat_final_state: DELETED
+  replacement_heartbeat_created: false
   audit_union_count: 17
   existing_whitelist_count: 13
   net_new_audit_only_count: 4
@@ -62,14 +68,16 @@ round_2:
   production_provider_policy_change_authorized: false
   production_provider_allowlist_change_authorized: false
   persistent_collection_for_net_new_authorized: false
-  default_new_provider_calls_for_r2_c: 0
-  day0_actual_calls: 17
+  plan_restricted_rows: 17
+  temporal_evidence_insufficient_rows: 17
+  promotion_authorized_rows: 0
+  dry_run_provider_calls: 0
+  day0_provider_calls: 17
+  r2_c_provider_calls: 0
   cumulative_audit_calls: 17
-  day0_plan_restricted_rows: 17
   day0_fixtures_calls: 0
   day0_odds_calls: 0
   deeper_capability_probe_calls: 0
-  promotion_authorized_rows: 0
   first_temporal_snapshot:
     dayview_cards: 64
     data_incomplete_cards: 64
@@ -79,18 +87,20 @@ round_2:
     readiness_404_rows: 12
     sampled_odds_timelines: 4
     timeline_items: 0
-    evidence_status: TEMPORAL_EVIDENCE_INSUFFICIENT_OR_DEGRADED
+    evidence_status: TEMPORAL_EVIDENCE_INSUFFICIENT
+  runtime_invariants:
+    active_whitelist: 13_UNCHANGED
+    provider_policy_diff: EMPTY
+    provider_allowlist_diff: EMPTY
+    scheduler_policy_diff: EMPTY
+    new_persistent_collection_jobs: 0
+    new_enabled_leagues: 0
+    new_scheduled_leagues: 0
+    new_dayview_leagues: 0
   terminal_closure_reason: ALL_17_PROVIDER_ROWS_PLAN_RESTRICTED_AND_WAITING_CANNOT_ADD_AUTHORIZED_PROVIDER_CAPABILITY_EVIDENCE
-  completion_requires:
-    - FINAL_17_ROW_CAPABILITY_MATRIX
-    - REPOSITORY_HYGIENE_PASS
-    - UNRESOLVED_HYGIENE_ITEMS_ZERO
-    - ROUND_2_FINAL_RECEIPT
 
 failure_semantics:
   fail_closed_meaning: DO_NOT_ADVANCE_PAST_FAILED_GATE
-  fail_closed_does_not_mean: WAIT_14_DAYS_OR_ABANDON_CURRENT_ROUND
-  bounded_round_2_remediation_requires_new_owner_authorization: false
   scope_expansion_requires_new_owner_authorization: true
 
 product_contract:
@@ -106,7 +116,7 @@ league_plan:
 
 round_3:
   task: W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB
-  status: NOT_STARTED_BLOCKED_UNTIL_ROUND_2_COMPLETE_AND_OWNER_DECISION
+  status: NOT_STARTED_AWAIT_OWNER_POST_R2_CAPABILITY_DECISION
 
 operational_track:
   scheduler: ON_CONTROLLED_UNCHANGED_BY_R2
@@ -116,6 +126,7 @@ operational_track:
   production: "OFF"
 
 permanent_stop_lines:
+  h_result_access: PERMANENTLY_CLOSED
   betting_edge_claim: false
   model_divergence_as_opportunity: false
   quant_signal_ledger_for_execution: false

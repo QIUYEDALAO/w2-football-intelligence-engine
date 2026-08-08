@@ -69,3 +69,11 @@ remains under `docs/archive/` and in Git history.
   its Candidate, Formal, Lock and Production capabilities remain off.
 - Strategy execution, Shadow orders, bankroll/risk simulation, portfolio construction, 2×1 and
   real-money execution are not authorized.
+
+## 2026-08-08 — Round 2 terminal capability closure
+
+- The owner removed the elapsed-time gate because all 17 Provider rows were terminally
+  plan-restricted and waiting alone could not create authorized capability evidence.
+- Round 2 closes with the active 13-league whitelist unchanged, four candidates remaining
+  audit-only, zero promotion-authorized rows and repository hygiene passing.
+- Round 3 remains not started pending an explicit post-R2 owner capability decision.

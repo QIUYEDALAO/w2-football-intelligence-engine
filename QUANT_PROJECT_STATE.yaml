@@ -7,11 +7,11 @@ context_update_mode: DIRECT_NO_PR_NO_CI_NO_RELEASE
 product: W2 Football Intelligence
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_design_path: CURRENT_PRODUCT_DESIGN.md
-owner_decision: APPROVED
-active_next_action: AWAIT_OWNER_ROUND_2_AUTHORIZATION
-next_code_action: NONE_AUTHORIZED
-current_round: MI_R1_COMPLETE
-current_status: ROUND_1_PASS_STOPPED
+owner_decision: APPROVED_CLOSE_WITH_CURRENT_TERMINAL_EVIDENCE
+active_next_action: AWAIT_OWNER_POST_R2_CAPABILITY_DECISION
+next_code_action: NONE_UNTIL_OWNER_DECISION
+current_round: MI_R2_COMPLETE
+current_status: ROUND_2_PASS_WITH_TERMINAL_PROVIDER_PLAN_RESTRICTION
 
 phase_0_5:
   status: COMPLETE
@@ -39,18 +39,31 @@ round_1:
   league_expansion: false
   provider_policy_change: false
   scheduler_policy_change: false
+  merge_sha: f7860813646ce9718931dff331c09ce2fe7a71ba
 
 round_2:
   task: W2_MI_R2_FIRST_DIVISION_PROVIDER_CAPABILITY_AUDIT
-  status: BLOCKED_UNTIL_OWNER_AUTHORIZED
-  duration_days: 14
-  mode: READ_ONLY_CONTROLLED
+  status: PASS_WITH_TERMINAL_PROVIDER_PLAN_RESTRICTION
+  audit_tooling_pr: 494
+  audit_tooling_merge_sha: b04dcc7e521dce413740bcf754b1a45755a3e83e
+  final_matrix: ROUND_2_FINAL_CAPABILITY_MATRIX.json
+  final_matrix_sha256: 9eded59fbfb01913c5ad8a90880bd5fa0acc819565b62e9f5a05ce6055e57ab6
+  final_receipt: ROUND_2_FINAL_RECEIPT.md
+  wait_14_days: false
   target_candidate_union_count: 17
+  active_whitelist_count: 13
+  net_new_audit_only_count: 4
+  plan_restricted_rows: 17
+  temporal_evidence_insufficient_rows: 17
+  promotion_authorized_rows: 0
+  repository_hygiene: PASS
+  unresolved_hygiene_items: 0
+  heartbeat_final_state: DELETED
 
 round_3:
   task: W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB
-  status: BLOCKED_UNTIL_ROUND_2_CAPABILITY_DECISION
-  authorized_leagues: ROUND_2_PROMOTED_ONLY
+  status: NOT_STARTED_AWAIT_OWNER_POST_R2_CAPABILITY_DECISION
+  authorized_leagues: NONE
   overround_percentile_required_alert_covariate: true
 
 league_candidates:
@@ -77,7 +90,7 @@ capability_states:
   - DEGRADED
 
 operational_track:
-  scheduler: ON_CONTROLLED
+  scheduler: ON_CONTROLLED_UNCHANGED_BY_R2
   candidate: "OFF"
   formal: "OFF"
   lock: "OFF"
