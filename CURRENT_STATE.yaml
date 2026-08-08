@@ -39,6 +39,11 @@ round_2:
   r2_a_status: COMPLETE_WITH_TRUTHFUL_PLAN_RESTRICTIONS
   r2_b_status: ACTIVE
   r2_b_snapshot_count: 1
+  r2_b_snapshot_policy: MAX_ONE_READ_ONLY_SNAPSHOT_PER_UTC_DAY_UNLESS_INCIDENT
+  r2_b_next_snapshot_not_before_utc: "2026-08-09T02:00:00+00:00"
+  r2_b_snapshot_source_policy: EXISTING_PERSISTED_READ_MODELS_ONLY
+  r2_b_snapshot_provider_calls_allowed: 0
+  r2_b_snapshot_business_writes_allowed: 0
   r2_b_within_window_quote_rows_observed: 0
   r2_b_latest_public_snapshot_utc: "2026-08-08T02:17:09.560956+00:00"
   r2_b_latest_public_dayview_cards: 64

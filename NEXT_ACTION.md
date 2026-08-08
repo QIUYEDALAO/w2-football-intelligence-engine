@@ -57,6 +57,16 @@ ACTIVE_WHITELIST = 13_UNCHANGED
 R2-B snapshot evidence is appended to `ROUND_2_OBSERVATION_LOG.md`. Snapshot 1
 contains zero within-window quote rows and does not support a readiness claim.
 
+```text
+NEXT_READ_ONLY_SNAPSHOT_NOT_BEFORE_UTC = 2026-08-09T02:00:00+00:00
+SNAPSHOT_PROVIDER_CALLS = 0
+SNAPSHOT_BUSINESS_WRITES = 0
+```
+
+Do not repeat the same-day snapshot unless a separately observed public incident
+requires evidence preservation. This is an agent evidence cadence, not a new
+Provider or production collection schedule.
+
 ## Current R2-B action
 
 Use only existing persisted W2 captures/read models and already-authorized
