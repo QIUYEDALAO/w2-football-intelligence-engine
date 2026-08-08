@@ -8,13 +8,14 @@ ROUND_3 = NOT_STARTED
 WAIT_14_DAYS = false
 ```
 
-Newest authority:
+Newest authorities:
 
 ```text
 ROUND_2_TERMINAL_CLOSURE_AUTHORIZATION.md
+REPOSITORY_HYGIENE_POLICY.md
 ```
 
-It supersedes all older instructions that require R2-B to remain open until 2026-08-22.
+They supersede all older instructions that require R2-B to remain open until 2026-08-22 and make repository hygiene mandatory before task PASS.
 
 ## Execute now
 
@@ -33,13 +34,16 @@ Required sequence:
 8. preserve PLAN_RESTRICTED for all 17 Provider rows unless newer real evidence exists
 9. mark absent temporal evidence TEMPORAL_EVIDENCE_INSUFFICIENT
 10. set promotion_authorized=false on all 17 rows
-11. create ROUND_2_FINAL_RECEIPT.md
-12. stop/disable w2-mi-round-2 heartbeat if Codex controls it
-13. update context/current to final Round 2 state
-14. stop before Round 3
+11. execute REPOSITORY_HYGIENE_POLICY.md against Round 2 changes and newly obsolete assets
+12. delete every provably dead/unused Round 2 code/file/asset and remove resulting stale references
+13. rerun required focused/static/contract tests after cleanup
+14. create ROUND_2_FINAL_RECEIPT.md including hygiene evidence
+15. stop/disable w2-mi-round-2 heartbeat if Codex controls it
+16. update context/current to final Round 2 state
+17. stop before Round 3
 ```
 
-## Evidence already frozen
+## Frozen evidence
 
 ```text
 AUDIT_TOOLING_PR = 494
@@ -53,7 +57,7 @@ DEEPER_PROBE_CALLS = 0
 ACTIVE_WHITELIST = 13_UNCHANGED
 ```
 
-First persisted-evidence snapshot:
+Persisted snapshot truth:
 
 ```text
 DAYVIEW_CARDS = 64
@@ -68,6 +72,17 @@ TIMELINE_ITEMS = 0
 
 Do not turn missing evidence into invented distributions.
 
+## Hygiene completion requirement
+
+Round 2 cannot be marked PASS until:
+
+```text
+REPOSITORY_HYGIENE = PASS
+UNRESOLVED_HYGIENE_ITEMS = 0
+```
+
+Do not delete reusable audit tooling or required historical/audit evidence just to reduce file count. Delete only assets proven dead by repository evidence.
+
 ## Completion target
 
 If revised `ROUND_2_ACCEPTANCE_CRITERIA.md` passes:
@@ -76,6 +91,7 @@ If revised `ROUND_2_ACCEPTANCE_CRITERIA.md` passes:
 ROUND_2 = PASS_WITH_TERMINAL_PROVIDER_PLAN_RESTRICTION
 ACTIVE_WHITELIST = 13_UNCHANGED
 NET_NEW_RUNTIME_PROMOTIONS = 0
+REPOSITORY_HYGIENE = PASS
 ROUND_3 = NOT_STARTED
 NEXT = AWAIT_OWNER_POST_R2_CAPABILITY_DECISION
 ```
