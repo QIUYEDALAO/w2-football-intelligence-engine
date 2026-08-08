@@ -1,16 +1,16 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-09T01:11:00+08:00"
+updated_at: "2026-08-09T01:20:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: DASHBOARD_INTELLIGENCE_WORKSPACE_FINAL_REFACTOR_P0
-owner_authorization_id: W2_DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN_20260809
-active_next_action: EXECUTE_DASHBOARD_INTELLIGENCE_WORKSPACE_P0_ONLY
-next_code_action: DOCS_ONLY_P0_PRODUCT_SPEC
-current_status: DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN_AUTHORIZED
-current_gate: DASHBOARD_P0_AUTHORIZED
+owner_product_decision: W2_MASTER_TASK_RECONCILIATION_R0
+owner_authorization_id: W2_MASTER_TASK_LEDGER_AND_RECONCILIATION_20260809
+active_next_action: EXECUTE_R0_LEGACY_TASK_RECONCILIATION_ONLY
+next_code_action: READ_ONLY_TASK_RECONCILIATION_CONTEXT_DOCS_ONLY
+current_status: MASTER_TASK_LEDGER_R0_AUTHORIZED
+current_gate: R0_TASK_RECONCILIATION_AUTHORIZED
 
 prior_rounds:
   round_1: PASS
@@ -167,13 +167,37 @@ post_r3_readiness_attribution:
   arbitrary_calendar_wait: false
   round_4: NOT_STARTED
 
+master_task_ledger:
+  authority: W2_MASTER_TASK_LEDGER_AND_RECONCILIATION.md
+  status: R0_AUTHORIZED_PENDING_EXECUTION
+  current_execution_authorization: R0_LEGACY_TASK_RECONCILIATION_ONLY
+  source_next_phase_tasklist: REQUIRED_TO_RECONCILE
+  older_master_backlog_packages: REQUIRED_TO_RECOVER_AND_RECONCILE
+  silent_task_dropping: FORBIDDEN
+  completion_classifications:
+    - DONE_PROVEN
+    - PARTIAL_PROVEN
+    - NOT_IMPLEMENTED
+    - SUPERSEDED_BY_CURRENT_CONTRACT
+    - CONFLICTS_WITH_CURRENT_CONTRACT
+    - RETAIN_AS_BACKGROUND_RUNTIME
+    - RETAIN_FOR_EVIDENCE
+    - UNKNOWN_INSUFFICIENT_EVIDENCE
+  r0_product_code_changes: false
+  r0_provider_calls: 0
+  r0_db_business_writes: 0
+  r0_scheduler_changes: false
+  r0_after: OWNER_TASK_LEDGER_REVIEW
+  p0_before_r0_owner_approval: FORBIDDEN
+
 dashboard_intelligence_workspace:
   authority: DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN.md
   workstream: DASHBOARD_INTELLIGENCE_WORKSPACE_FINAL_REFACTOR
-  status: MASTER_PLAN_AUTHORIZED_P0_PENDING_EXECUTION
-  current_execution_authorization: P0_ONLY
+  status: MASTER_PLAN_AUTHORIZED_BLOCKED_BY_R0_RECONCILIATION
+  current_execution_authorization: AFTER_R0_OWNER_APPROVAL
   p0_output: DASHBOARD_INTELLIGENCE_WORKSPACE_PRODUCT_SPEC.md
   p0_scope: DOCS_ONLY
+  p0: NOT_STARTED
   p0_after: OWNER_REVIEW_A
   p1: NOT_STARTED
   p2: NOT_STARTED
@@ -198,6 +222,7 @@ dashboard_intelligence_workspace:
   current_price_reference: LAST_AVAILABLE_PREMATCH_SNAPSHOT
   lineup_whitelist_coverage_verified: 1_OF_13_CHINESE_SUPER_LEAGUE_ONLY
   owner_gates:
+    before_p0: OWNER_TASK_LEDGER_REVIEW
     after_p0: OWNER_REVIEW_A
     after_p2: OWNER_REVIEW_B
     after_p5: OWNER_REVIEW_C
