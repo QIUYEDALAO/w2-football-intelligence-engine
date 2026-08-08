@@ -1,12 +1,12 @@
 # NEXT ACTION
 
 ```text
-ACTIVE_NEXT_ACTION = EXECUTE_DASHBOARD_INTELLIGENCE_WORKSPACE_P0_ONLY
-FINAL_EXECUTION_MASTER = W2_FINAL_EXECUTION_MASTER_PLAN.md
-DASHBOARD_DETAIL_MASTER = DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN.md
-CURRENT_GATE = DASHBOARD_P0_AUTHORIZED
-P0 = AUTHORIZED
-AFTER_P0 = STOP_FOR_OWNER_REVIEW_A
+ACTIVE_NEXT_ACTION = OWNER_REVIEW_A
+CURRENT_GATE = OWNER_REVIEW_A
+P0 = COMPLETE
+P0_OUTPUT = DASHBOARD_INTELLIGENCE_WORKSPACE_PRODUCT_SPEC.md
+P1 = NOT_STARTED
+NEXT_CODE_ACTION = NONE_AUTHORIZED_PENDING_OWNER_REVIEW_A
 ROUND_4 = NOT_STARTED
 ```
 
@@ -15,84 +15,65 @@ ROUND_4 = NOT_STARTED
 ```text
 1. CURRENT_STATE.yaml
 2. NEXT_ACTION.md
-3. W2_FINAL_EXECUTION_MASTER_PLAN.md
-4. DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN.md
-5. POST_R3_READINESS_ATTRIBUTION_REPORT.md
-6. POST_R3_READINESS_ATTRIBUTION_MATRIX.json
-7. ROUND_3_FINAL_RECEIPT.md
-8. REPOSITORY_HYGIENE_POLICY.md
+3. DASHBOARD_INTELLIGENCE_WORKSPACE_PRODUCT_SPEC.md
+4. W2_FINAL_EXECUTION_MASTER_PLAN.md
+5. DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN.md
+6. POST_R3_READINESS_ATTRIBUTION_REPORT.md
+7. POST_R3_READINESS_ATTRIBUTION_MATRIX.json
+8. ROUND_3_FINAL_RECEIPT.md
+9. REPOSITORY_HYGIENE_POLICY.md
 ```
 
-## Final task decision
+## Owner Review A
 
-The standalone R0 reconciliation stage is cancelled. Historical tasks have already been resolved into the final execution plan according to current product need and current-main capability.
+Review the P0 product specification for:
 
-Historical Step 4 / “Post4” is **not** a separate workstream and must not be rebuilt as the old L1/L2/Boss Dashboard. Its surviving capabilities are absorbed into the final phases:
+- final Football Market Intelligence + Model Diagnostics semantics
+- complete panel/field and Market/W2 Analysis/Validation/Formal boundaries
+- frozen seven-state/four-risk semantics and exact 13 whitelist
+- data/freshness, Market Memory, canonical-close, and lineup limits
+- probability-first Validation and exact `NOT_DEFINED`, `NOT_PROVEN`, and
+  `NOT_CONNECTED` meanings
+- approved 1536×1024 visual authority and P5 acceptance approach
+- historical-task disposition and P0→P6 governance
 
-```text
-frontend contract convergence -> P2/P3
-executive fast scan -> P3 Match Board + Attention + Inspector
-old lock/recommendation ordering -> SUPERSEDED / DO NOT IMPLEMENT
-technical diagnostics -> P3 Model Lab + Data/Ops + readiness/evidence
-empty/stale/API/budget degradation -> P3 render + P5 acceptance
-historical date navigation/replay -> P4 + P5
-```
+P1 requires an explicit Owner approval and authorization after this review.
+No phase advances automatically.
 
-Existing Decision Contract, Data Readiness, DayView sources, degradation helpers, scoreline projection, replay/date navigation, probability scoring and forward validation/ledger assets are reuse inputs, not separate redevelopment projects.
-
-## Current P0 task
-
-Only P0 is authorized now.
-
-P0 is documentation-only. It must create/finalize `DASHBOARD_INTELLIGENCE_WORKSPACE_PRODUCT_SPEC.md` and freeze:
-
-- final Intelligence Workspace product semantics and information architecture
-- every required panel/field and Market/Model/Analysis/Validation/Formal boundary
-- seven-state/four-risk semantics and exact 13 whitelist
-- final data/freshness/Market Memory/canonical-close/lineup evidence boundaries
-- Validation priority and `NOT_DEFINED` / `NOT_PROVEN` / `NOT_CONNECTED` semantics
-- approved 1536×1024 visual authority
-- historical-task disposition from `W2_FINAL_EXECUTION_MASTER_PLAN.md`
-- P0→P6 governance, Owner gates, stop lines and final acceptance criteria
-
-P0 must not implement UI or business code.
-
-## Post-R3 Track A remains background runtime
-
-`PATH_A_NATURAL_EVIDENCE_ACCUMULATION` continues only under the already-authorized runtime policy and does not block P0. Dashboard work must not change its Scheduler, cadence, Provider plan, quota policy or whitelist.
+## Frozen historical and runtime decisions
 
 ```text
+R0 = CANCELLED_NOT_A_DEVELOPMENT_STAGE
+HISTORICAL_STEP_4_POST4 = SUPERSEDED_AS_STANDALONE_WORKSTREAM
+REBUILD_OLD_L1_L2_BOSS_DASHBOARD = NO
+REUSE_EXISTING_CAPABILITIES = YES
+
+PATH_A = NATURAL_EVIDENCE_ACCUMULATION_BACKGROUND_RUNTIME_ONLY
 FREE_BRIDGE_MODE = SHADOW_ONLY
 ACTIVE_WHITELIST = 13_UNCHANGED
+PROVIDER_OR_SCHEDULER_CHANGE = false
+CADENCE_CHANGE = false
+H_RESULT_ACCESS = PERMANENTLY_CLOSED
+PHASE_0_5_REEXECUTION = FORBIDDEN
 CANDIDATE = OFF
 FORMAL = OFF
 LOCK = OFF
 PRODUCTION = OFF
-H_RESULT_ACCESS = PERMANENTLY_CLOSED
 ROUND_4 = NOT_STARTED
 ```
 
-## P0 forbidden scope
+## P0 closure
 
-- product/business code changes
-- UI implementation
-- Provider calls/probes
-- database business writes
-- Scheduler/cadence changes
-- whitelist changes
-- model retraining/new factors/threshold changes
-- Phase 0.5 rerun
-- Round 4
-- Candidate / Formal / Lock / Production changes
-- legacy code deletion
-
-Required terminal state:
+P0 changed context documentation only. It made no product/UI change, Provider
+call, database business write, Scheduler/cadence change, whitelist change,
+model change, deployment, or legacy deletion.
 
 ```text
-P0 = COMPLETE
-P0_OUTPUT = DASHBOARD_INTELLIGENCE_WORKSPACE_PRODUCT_SPEC.md
+P0_SELF_CHECK = PASS
+REPOSITORY_HYGIENE = PASS
+DEAD_ASSETS_FOUND = 0
+DEAD_ASSETS_DELETED = 0
+UNRESOLVED_HYGIENE_ITEMS = 0
 NEXT = OWNER_REVIEW_A
 P1 = NOT_STARTED
 ```
-
-Do not start P1 automatically.
