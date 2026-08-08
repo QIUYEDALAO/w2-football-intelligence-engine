@@ -30,6 +30,7 @@ round_2:
   owner_authorization: ROUND_2_OWNER_AUTHORIZATION.md
   execution_authority: ROUND_2_CODEX_EXECUTION.md
   acceptance_authority: ROUND_2_ACCEPTANCE_CRITERIA.md
+  acceptance_evidence_index: ROUND_2_ACCEPTANCE_EVIDENCE_INDEX.md
   day0_receipt: ROUND_2_DAY0_RECEIPT.md
   observation_log: ROUND_2_OBSERVATION_LOG.md
   initial_main_sha: f7860813646ce9718931dff331c09ce2fe7a71ba

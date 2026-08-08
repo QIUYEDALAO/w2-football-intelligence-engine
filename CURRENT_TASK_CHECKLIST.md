@@ -22,6 +22,8 @@ Round 2 execution authority: `ROUND_2_CODEX_EXECUTION.md`.
 
 Round 2 acceptance authority: `ROUND_2_ACCEPTANCE_CRITERIA.md`.
 
+Round 2 acceptance evidence map: `ROUND_2_ACCEPTANCE_EVIDENCE_INDEX.md`.
+
 R2-A/Day-0 evidence: `ROUND_2_DAY0_RECEIPT.md`.
 
 Permanent guard:

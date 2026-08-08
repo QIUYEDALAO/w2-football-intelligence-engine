@@ -22,14 +22,15 @@ Read from `origin/context/current` in this order:
 6. `ROUND_2_OWNER_AUTHORIZATION.md`
 7. `ROUND_2_CODEX_EXECUTION.md`
 8. `ROUND_2_ACCEPTANCE_CRITERIA.md`
-9. `ROUND_2_DAY0_RECEIPT.md`
-10. `ROUND_2_OBSERVATION_LOG.md`
-11. `ROUND_1_FINAL_RECEIPT.md`
-12. `AI_PROJECT_CONTEXT.md`
-13. `AI_QUANT_PROJECT_CONTEXT.md`
-14. `AGENTS.md`
-15. `QUANT_AGENTS.md`
-16. `.github/copilot-instructions.md`
+9. `ROUND_2_ACCEPTANCE_EVIDENCE_INDEX.md`
+10. `ROUND_2_DAY0_RECEIPT.md`
+11. `ROUND_2_OBSERVATION_LOG.md`
+12. `ROUND_1_FINAL_RECEIPT.md`
+13. `AI_PROJECT_CONTEXT.md`
+14. `AI_QUANT_PROJECT_CONTEXT.md`
+15. `AGENTS.md`
+16. `QUANT_AGENTS.md`
+17. `.github/copilot-instructions.md`
 
 Use latest trusted `origin/main` as code baseline. Round 2 initial main is:
 

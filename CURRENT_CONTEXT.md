@@ -11,14 +11,15 @@ This is the mutable current authority for W2. It is maintained directly on `cont
 5. `ROUND_2_OWNER_AUTHORIZATION.md`
 6. `ROUND_2_CODEX_EXECUTION.md`
 7. `ROUND_2_ACCEPTANCE_CRITERIA.md`
-8. `ROUND_2_DAY0_RECEIPT.md`
-9. `ROUND_2_OBSERVATION_LOG.md`
-10. `ROUND_1_FINAL_RECEIPT.md`
-11. `AI_PROJECT_CONTEXT.md`
-12. `AI_QUANT_PROJECT_CONTEXT.md`
-13. `AGENTS.md`
-14. `QUANT_AGENTS.md`
-15. `.github/copilot-instructions.md`
+8. `ROUND_2_ACCEPTANCE_EVIDENCE_INDEX.md`
+9. `ROUND_2_DAY0_RECEIPT.md`
+10. `ROUND_2_OBSERVATION_LOG.md`
+11. `ROUND_1_FINAL_RECEIPT.md`
+12. `AI_PROJECT_CONTEXT.md`
+13. `AI_QUANT_PROJECT_CONTEXT.md`
+14. `AGENTS.md`
+15. `QUANT_AGENTS.md`
+16. `.github/copilot-instructions.md`
 
 ## Current decision
 
