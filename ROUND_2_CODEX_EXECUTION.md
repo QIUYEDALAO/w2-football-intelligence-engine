@@ -1,549 +1,177 @@
 # W2 MI Round 2 — Codex Execution Authority
 
-This file is the binding execution authority for:
+Binding current execution authority.
 
 ```text
 TASK = W2_MI_R2_FIRST_DIVISION_PROVIDER_CAPABILITY_AUDIT
-PRODUCT = W2 Football Intelligence
-PROGRAM = W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 OWNER_AUTHORIZATION = ROUND_2_OWNER_AUTHORIZATION.md
+TERMINAL_CLOSURE_AUTHORIZATION = ROUND_2_TERMINAL_CLOSURE_AUTHORIZATION.md
 ROUND_1 = PASS
-ROUND_2 = AUTHORIZED_IN_PROGRESS
+ROUND_2 = AUTHORIZED_R2_C_NOW
 ROUND_3 = NOT_STARTED
+WAIT_14_DAYS = false
 ```
 
-## 0. Mission
+## 0. Precedence
 
-Determine, with code/runtime/provider evidence, what W2 can **reliably observe** across the 17-competition audit universe.
-
-Round 2 is a capability audit, not a league-expansion release and not a betting-edge experiment.
-
-Questions to answer per competition:
-
-1. Is Provider identity exact and unambiguous?
-2. Is the current/audit season actually covered by the account plan?
-3. Are future fixtures and finished results observable?
-4. Are AH and OU markets observable with truthful line/price/timestamp evidence?
-5. Is bookmaker depth/confirmation usable or thin/noisy?
-6. Are lineups, injuries and fixture statistics/xG-capable inputs available where probed?
-7. Are Provider schemas stable enough for W2 ingestion?
-8. What real freshness/coverage/overround/movement evidence already exists during the 14-day window?
-9. What is the observed call cost and blocker profile?
-10. Which product capability state is supportable without guessing or auto-promotion?
-
-## 1. Source authority and starting point
-
-Before editing or calling Provider:
-
-```bash
-git fetch origin main context/current --prune
-```
-
-Initial audited main at Round 2 authorization:
+Read in this order:
 
 ```text
-ROUND_2_INITIAL_MAIN_SHA = f7860813646ce9718931dff331c09ce2fe7a71ba
+1. ROUND_2_TERMINAL_CLOSURE_AUTHORIZATION.md
+2. CURRENT_STATE.yaml
+3. NEXT_ACTION.md
+4. ROUND_2_OWNER_AUTHORIZATION.md
+5. ROUND_2_CODEX_EXECUTION.md
+6. ROUND_2_ACCEPTANCE_CRITERIA.md
+7. ROUND_2_DAY0_RECEIPT.md
+8. ROUND_2_OBSERVATION_LOG.md
+9. ROUND_2_ACCEPTANCE_EVIDENCE_INDEX.md
+10. ROUND_1_FINAL_RECEIPT.md
 ```
 
-Resolve current `origin/main` again at execution time and record the exact SHA. If main has advanced, perform a bounded compatibility review; do not silently discard the Round 1 delivery baseline.
+Any older statement requiring 14 elapsed days is superseded.
 
-Read `origin/context/current` in this order:
+## 1. Established evidence
 
-1. `CURRENT_CONTEXT.md`
-2. `CURRENT_STATE.yaml`
-3. `CURRENT_PRODUCT_DESIGN.md`
-4. `CURRENT_TASK_CHECKLIST.md`
-5. `NEXT_ACTION.md`
-6. `ROUND_2_OWNER_AUTHORIZATION.md`
-7. `ROUND_2_CODEX_EXECUTION.md`
-8. `ROUND_2_ACCEPTANCE_CRITERIA.md`
-9. `ROUND_1_FINAL_RECEIPT.md`
-10. `AI_PROJECT_CONTEXT.md`
-11. `AI_QUANT_PROJECT_CONTEXT.md`
-12. `AGENTS.md`
-13. `QUANT_AGENTS.md`
-14. `.github/copilot-instructions.md`
-
-Use code/runtime/provider evidence as truth. Do not treat old PR descriptions, comments or archived status prose as current runtime truth.
-
-## 2. Audit universe — binding
-
-Existing active whitelist remains exactly 13:
+R2-A is complete:
 
 ```text
-chinese_super_league
-allsvenskan
-eliteserien
-premier_league
-la_liga
-bundesliga
-serie_a
-ligue_1
-brasileirao_serie_a
-argentina_primera
-mls
-eredivisie
-primeira_liga
+AUDIT_TOOLING_PR = 494
+AUDIT_TOOLING_MERGE_SHA = b04dcc7e521dce413740bcf754b1a45755a3e83e
+DRY_RUN_ROWS = 17
+DRY_RUN_PROVIDER_CALLS = 0
+DAY0_PROVIDER_CALLS = 17
+DAY0_PLAN_RESTRICTED_ROWS = 17
+FIXTURES_CALLS = 0
+ODDS_CALLS = 0
+DEEPER_PROBE_CALLS = 0
+ACTIVE_WHITELIST = 13_UNCHANGED
 ```
 
-Net-new audit-only candidates:
+R2-B snapshot 1 established:
 
 ```text
-belgian_pro_league
-turkish_super_lig
-greek_super_league
-scottish_premiership
+DAYVIEW_CARDS = 64
+DATA_INCOMPLETE = 64
+CURRENT_ODDS_CARDS = 0
+WITHIN_WINDOW_QUOTE_ROWS = 0
+READINESS_ROWS = 5
+READINESS_404_ROWS = 12
+SAMPLED_ODDS_TIMELINES = 4
+TIMELINE_ITEMS = 0
 ```
 
-Audit union:
+This is enough to classify current persisted temporal evidence as insufficient/degraded. Do not wait for time to pass solely to repeat the same absence.
+
+## 2. Immediate R2-C execution
+
+Execute now:
 
 ```text
-13 EXISTING + 4 AUDIT_ONLY = 17
+ACTIVE_NEXT_ACTION = W2_MI_R2_C_FINAL_CAPABILITY_DECISION_NOW
 ```
 
-The four audit-only candidates must not become runtime whitelist entries merely to satisfy the current registry-based CLI.
+Sequence:
 
-## 3. R2-A — audit foundation PR
+1. `git fetch origin main context/current --prune`.
+2. Record latest exact `origin/main` and `origin/context/current` SHAs.
+3. Verify PR #494 merge SHA and Day-0 evidence hashes/ledger identities.
+4. If needed, take one final read-only snapshot only to freeze the current persisted evidence state.
+5. New Provider calls default to 0. Do not repeat `/leagues`, fixtures, odds or deeper probes merely to re-prove `PLAN_RESTRICTED`.
+6. Do not wait for the next daily snapshot or the former 2026-08-22 deadline.
+7. Build exactly 17 final capability rows.
+8. Preserve `PLAN_RESTRICTED` as the Provider audit outcome for all 17 unless newer real evidence already exists.
+9. Mark unavailable temporal distributions `TEMPORAL_EVIDENCE_INSUFFICIENT`.
+10. Set `promotion_authorized=false` on all 17 rows.
+11. Produce `ROUND_2_FINAL_RECEIPT.md`.
+12. Update `CURRENT_STATE.yaml`, `NEXT_ACTION.md`, `CURRENT_TASK_CHECKLIST.md`, agent handoff files and Copilot instructions to the final Round 2 state.
+13. Stop/disable the `w2-mi-round-2` heartbeat if Codex controls it. Do not create a replacement heartbeat.
+14. Stop before Round 3.
 
-### 3.1 One bounded audit-tooling PR
+## 3. Final 17-row required fields
 
-Create one Round 2 audit-tooling PR from current trusted main.
-
-Allowed change areas are limited to audit tooling/config/tests/docs required to support the 17-union audit, such as:
-
-```text
-scripts/run_w2_league_whitelist_audit.py
-src/w2/competitions/league_whitelist_audit.py
-src/w2/competitions/league_whitelist_provider_audit.py
-new audit-only candidate descriptor loader/module
-config/audit_candidates/*
-focused tests for audit scope/identity/budget/resume/reporting
-Round 2 sanitized report schema/docs
-```
-
-Do not change public API/Web product behavior in this PR unless a test-only import adjustment is unavoidable and proven non-runtime.
-
-### 3.2 Audit-only candidate authority
-
-Implement a candidate descriptor authority outside runtime whitelist discovery.
-
-Recommended path:
+Each row must include at least:
 
 ```text
-config/audit_candidates/round2_first_divisions.v1.json
-```
-
-The descriptor must include only audit metadata, for example:
-
-```text
-audit_candidate_id
+canonical_audit_id
 display_name
-country
-provider
-provider_query_name
-provider_query_country
-season_strategy
-runtime_whitelist_member = false
-scheduler_member = false
+current_runtime_membership
+audit_only_candidate
+provider_identity_status
+provider_plan_status
+provider_league_id_if_verified
+future_fixture_status
+result_fixture_status
+ah_status
+ou_status
+bookmaker_depth_status
+lineup_status
+injury_status
+statistics_status
+schema_status
+temporal_evidence_status
+provider_call_cost
+blockers
+warnings
+current_capability_state
+recommended_future_capability_state
+promotion_authorized
 ```
 
-Do not hard-code guessed API-Football league IDs for the four net-new candidates.
+No unsupported field may be guessed.
 
-The audit CLI must support the union of:
+## 4. Correct interpretation of PASS
+
+Round 2 PASS means the audit process completed truthfully.
+
+It does **not** mean the Provider currently supports these leagues for W2.
+
+Expected evidence class:
 
 ```text
-registered existing competition entries
-+
-audit-only descriptors
+17 / 17 Provider rows = PLAN_RESTRICTED
+Temporal evidence = INSUFFICIENT_OR_DEGRADED_AS_OBSERVED
+Promotion rows = 0
 ```
 
-without inserting audit-only candidates into `CompetitionRegistry` runtime membership.
-
-### 3.3 Exact Provider identity resolution
-
-For an audit-only descriptor, allow a `leagues` lookup sufficient to resolve Provider identity.
-
-Required match contract:
-
-```text
-ONE_UNIQUE_MATCH
-provider league ID observed from response
-name compatible with descriptor
-country exact/approved alias
-season actually present
-```
+## 5. No automatic promotion
 
 Forbidden:
 
 ```text
-fuzzy nearest-name auto-selection
-manual guessed league ID
-first-result-wins
-country mismatch acceptance
-season assumption without evidence
+active whitelist additions
+league enablement
+future-refresh additions
+Scheduler additions
+DayView additions
+new persistent collection
+Provider plan/policy changes
+Provider allowlist changes
+Round 3
+alert-threshold freeze
+opportunity/value/edge semantics
+Candidate/Formal/Lock/Production enablement
 ```
 
-Ambiguity -> `IDENTITY_REVIEW_REQUIRED` and stop deeper calls for that candidate.
-
-### 3.4 Preserve existing audit modes
-
-Do not break existing modes:
+## 6. Fail-closed
 
 ```text
-enablement
-coverage-inventory
-evidence-only
-```
-
-Round 2 Day-0 must begin with `evidence-only` semantics.
-
-Existing evidence-only endpoints remain:
-
-```text
-leagues
-fixtures
-odds
-```
-
-Existing evidence-only planned calls remain 4 per competition unless exact code evidence requires a smaller count. Do not increase the Day-0 endpoint set merely for convenience.
-
-### 3.5 Shared quota safety
-
-Add/confirm a Round 2 audit reserve guard:
-
-```text
-ROUND2_AUDIT_DAILY_HARD_CAP = 80
-ROUND2_AUDIT_CUMULATIVE_HARD_CAP = 200
-ROUND2_MIN_PROVIDER_DAILY_REMAINING = 20
-REQUEST_INTERVAL_SECONDS >= 10
-AUTOMATIC_RETRY = false
-STOP_ON_FIRST_QUOTA_WARNING = true
-```
-
-A Provider response showing remaining daily quota `<= 20` must stop further Round 2 calls for that day.
-
-If a stricter existing W2 quota/reserve rule applies, the stricter rule wins.
-
-Cumulative call accounting must survive multi-day resume. Do not reset the cumulative budget merely by starting a new process.
-
-Implement sanitized persistent Round 2 audit state outside the repository or in another explicitly non-secret/non-raw store. Do not persist credentials or raw provider payloads.
-
-Required persistent audit metadata includes:
-
-```text
-audited competition
-endpoint
-captured_at
-status code
-response count
-quota remaining when available
-call index
-blocker/error code
-sanitized identity/market capability evidence
-```
-
-### 3.6 No retry or hidden extra calls
-
-No automatic retry on HTTP errors, empty results, plan restriction or schema problems.
-
-Every actual Provider request must increment the audit ledger exactly once before any subsequent request.
-
-No fallback probing may silently exceed per-league/global/cumulative budgets.
-
-### 3.7 R2-A local/CI acceptance before real calls
-
-Before the first real Round 2 Provider call:
-
-- all new audit-tool tests PASS;
-- dry-run across all 17 returns 17 target rows and `actual_provider_calls=0`;
-- existing 13 runtime whitelist identity set remains unchanged;
-- audit-only descriptors are proven unreachable by runtime CompetitionRegistry/Scheduler/DayView;
-- quota/reserve/cumulative-cap tests PASS;
-- ambiguous identity tests fail closed;
-- existing audit CLI regression tests remain green;
-- repository lint/static/contract requirements pass.
-
-Provider calls during PR development/CI must remain 0.
-
-Use normal PR/CI governance. If the PR changes source under normal required checks, continue bounded remediation until the final audit-tooling head is accepted. Do not deploy product runtime solely to claim audit-tooling success.
-
-If a secure secret-bearing execution environment requires the merged tooling to be present there, use the repository's approved secure operational path; do not copy the API key to a new location.
-
-## 4. R2-A Day-0 controlled Provider baseline
-
-Only after the audit foundation is accepted may Codex execute real audit calls.
-
-### 4.1 Day-0 first pass
-
-Run evidence-only baseline across the 17-union with explicit owner-approved flags.
-
-Theoretical planned maximum:
-
-```text
-17 * 4 = 68 calls
-```
-
-Hard execution rules:
-
-```text
-actual calls <= 68 for the first complete Day-0 evidence-only pass
-Round2 daily calls <= 80
-Round2 cumulative calls <= 200
-quota remaining > 20 to continue
-no retry
-```
-
-If quota/plan/schema/identity stop conditions prevent finishing all 17 in one day, preserve evidence and resume later. Do not raise limits.
-
-### 4.2 Day-0 outputs
-
-Produce a sanitized 17-row matrix with at least:
-
-```text
-audit_candidate_id / competition_id
-runtime_whitelist_member
-identity_status
-provider_league_id if uniquely observed
-provider_name
-provider_country
-audit_season
-league_endpoint_status
-future_fixture_status
-result_fixture_status
-odds_endpoint_status
-AH_observed
-OU_observed
-bookmaker_count_observed
-line_and_price_observed
-quote_timestamp_observed
-provider_schema_status
-plan_status
-actual_provider_calls
-quota_remaining_last_seen
-blockers
-warnings
-```
-
-Net-new candidate rows remain `AUDIT_CANDIDATE_ONLY` regardless of Provider success.
-
-## 5. R2-A deeper capability probes
-
-After Day-0 identity/fixture evidence is available, run deeper probes only where justified.
-
-Eligibility for deeper probe:
-
-```text
-identity = EXACT_AND_UNAMBIGUOUS
-plan coverage not blocked
-fixture evidence available
-no hard stop active
-```
-
-Use the existing controlled audit endpoints only:
-
-```text
-leagues
-fixtures
-odds
-lineups
-injuries
-statistics
-```
-
-Do not add unrelated endpoints.
-
-Deep capability evidence may include:
-
-```text
-fixture statistics availability
-lineup availability
-injury availability
-AH/OU bookmaker depth
-future/results availability
-schema safety
-```
-
-Do not call `squad_value` Provider endpoints; the current audit contract treats squad value as non-Provider/local-source capability.
-
-The theoretical full audit is 7 calls per competition, but Round 2 may not simply execute `17 * 7` if it would violate daily/cumulative/reserve guards. Split/resume and skip ineligible leagues.
-
-Total Round 2 audit calls across Day-0 + deeper probes must remain `<= 200`.
-
-## 6. R2-B — 14-day read-only observation window
-
-The observation window begins at the timestamp of the first successful Day-0 baseline capture:
-
-```text
-ROUND2_OBSERVATION_START_UTC = exact timestamp
-ROUND2_OBSERVATION_END_UTC = START + 14 calendar days
-```
-
-Round 2 does **not** authorize a new persistent Provider polling scheduler for the four audit-only candidates.
-
-Use existing W2 persisted runtime captures/read models and already-authorized production collection as the temporal evidence source.
-
-Read-only observation may inspect:
-
-```text
-endpoint captures
-market observations
-AH/OU lines and prices
-captured_at/freshness
-bookmaker agreement/depth
-overround
-line movement
-fixture identity
-lineup availability
-Provider errors/schema incidents
-existing collection cadence/call cost
-```
-
-Do not write business facts merely to improve coverage.
-
-If a competition has insufficient existing temporal captures during the 14-day window, record `TEMPORAL_EVIDENCE_INSUFFICIENT`. That is a valid Round 2 result and blocks readiness claims.
-
-### 6.1 Distribution outputs for Round 3 planning
-
-Produce descriptive evidence only; do not freeze alert thresholds.
-
-For each league × market with enough observations, report available distributions such as:
-
-```text
-sample count
-fixture count
-observation-time count
-freshness distribution
-overround count/min/p25/p50/p75/p90/p95/max when computable
-line movement descriptive distribution
-bookmaker confirmation/depth distribution
-missingness/schema-error rates
-```
-
-Reuse existing checkpoint/time-to-kickoff identities if already authoritative. If no authoritative buckets exist, retain continuous time-to-kickoff evidence or descriptive grouping solely for analysis; do not turn an ad hoc bucket into a Round 3 product threshold.
-
-Permanent guard:
-
-```text
-HIGH_OVERROUND != HIGH_VALUE
-HIGH_OVERROUND != HIGH_INFORMATION
-```
-
-## 7. R2-C — final capability decision
-
-At the end of the 14-day window, build one 17-row final capability matrix.
-
-Allowed audit outcomes include:
-
-```text
-CAPABILITY_CONFIRMED
-CAPABILITY_PARTIAL
-IDENTITY_REVIEW_REQUIRED
-PLAN_RESTRICTED
-TEMPORAL_EVIDENCE_INSUFFICIENT
-SCHEMA_UNSAFE
-PROVIDER_QUOTA_BLOCKED
-DEGRADED
-```
-
-Existing product capability recommendations may use only:
-
-```text
-REGISTERED
-COVERAGE_MONITORING
-MARKET_INTELLIGENCE_READY
-MODEL_DIAGNOSTICS_READY
-DEGRADED
-```
-
-For the four net-new audit-only candidates, do not output `REGISTERED` as current state; record `AUDIT_CANDIDATE_ONLY` plus a recommended future capability decision.
-
-No product capability recommendation is an enablement action.
-
-### 7.1 No automatic promotion
-
-Round 2 must never directly:
-
-```text
-change enabled false -> true
-add competition to active whitelist
-add competition to future-refresh policy
-add competition to Scheduler
-add competition to DayView
-open recommendation gates
-```
-
-A future enablement/promotion requires a separate owner-authorized task after Round 2.
-
-## 8. Evidence standard
-
-Only accept:
-
-```text
-code
-runtime config
-DB/schema/migrations when relevant
-sanitized Provider response-derived evidence
-Provider call ledger
-real persisted captures
-real API/read-model evidence
-tests
-CI logs/results
-```
-
-Do not accept PR description or code comment self-claims as proof.
-
-Do not commit raw Provider payloads, credentials, headers containing secret material, private database contents or other sensitive data.
-
-## 9. Fail-closed continuation semantics
-
-For an in-scope failure:
-
-```text
-FAIL_CLOSED = STOP_AT_FAILED_GATE
+FAIL_CLOSED = DO_NOT_ADVANCE_PAST_FAILED_GATE
+FAIL_CLOSED != WAIT_14_DAYS
 FAIL_CLOSED != ABANDON_ROUND_2
 ```
 
-Codex may diagnose and minimally repair the Round 2 audit tooling inside the same audit-tooling PR and continue validation without asking for owner authorization again.
+If final matrix/report/context consistency fails, fix it within Round 2 and continue now. Do not restore the old time gate.
 
-Provider audit batches may resume later under the same authorization if stopped by quota/plan/time-window constraints, provided all budgets and stop lines remain intact.
+## 7. Completion
 
-Do not bypass a blocker by widening allowlists, raising budgets, adding retries, guessing identities or enabling leagues.
+Round 2 can close when revised `ROUND_2_ACCEPTANCE_CRITERIA.md` passes.
 
-## 10. Final receipt
-
-Round 2 final receipt must include:
+Expected final state:
 
 ```text
-ROUND2_CODE_BASELINE_SHA
-AUDIT_TOOLING_PR_NUMBER
-AUDIT_TOOLING_FINAL_HEAD_SHA
-CI/PR_FAST/FULL_QUALITY_RESULTS as applicable
-ACTIVE_WHITELIST_BEFORE
-ACTIVE_WHITELIST_AFTER
-ACTIVE_WHITELIST_IDENTITY_DIFF
-AUDIT_UNION_COUNT
-NET_NEW_AUDIT_ONLY_COUNT
-DAY0_START_UTC
-OBSERVATION_END_UTC
-DAY0_PLANNED_PROVIDER_CALLS
-DAY0_ACTUAL_PROVIDER_CALLS
-ROUND2_CUMULATIVE_PROVIDER_CALLS
-ROUND2_DAILY_MAX_OBSERVED
-MIN_QUOTA_REMAINING_OBSERVED
-STOP_EVENTS
-17_ROW_CAPABILITY_MATRIX
-TEMPORAL_DISTRIBUTION_EVIDENCE_SUMMARY
-PROVIDER_POLICY_DIFF
-PROVIDER_ALLOWLIST_DIFF
-SCHEDULER_POLICY_DIFF
-NEW_PERSISTENT_COLLECTION_JOBS
-CANDIDATE
-FORMAL
-LOCK
-PRODUCTION
-ROUND_3
+ROUND_2 = PASS_WITH_TERMINAL_PROVIDER_PLAN_RESTRICTION
+ACTIVE_WHITELIST = 13_UNCHANGED
+ROUND_3 = NOT_STARTED
+NEXT = AWAIT_OWNER_POST_R2_CAPABILITY_DECISION
 ```
-
-Round 2 can be marked PASS only under `ROUND_2_ACCEPTANCE_CRITERIA.md`.
-
-After Round 2 PASS, stop. Do not begin Round 3 automatically.
