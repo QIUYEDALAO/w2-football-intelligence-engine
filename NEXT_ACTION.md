@@ -1,12 +1,12 @@
 # NEXT ACTION
 
 ```text
-ACTIVE_NEXT_ACTION = EXECUTE_R0_LEGACY_TASK_RECONCILIATION_ONLY
-MASTER_TASK_LEDGER = W2_MASTER_TASK_LEDGER_AND_RECONCILIATION.md
-DASHBOARD_MASTER_PLAN = DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN.md
-CURRENT_GATE = R0_TASK_RECONCILIATION_AUTHORIZED
-P0 = NOT_STARTED
-AFTER_R0 = STOP_FOR_OWNER_TASK_LEDGER_REVIEW
+ACTIVE_NEXT_ACTION = EXECUTE_DASHBOARD_INTELLIGENCE_WORKSPACE_P0_ONLY
+FINAL_EXECUTION_MASTER = W2_FINAL_EXECUTION_MASTER_PLAN.md
+DASHBOARD_DETAIL_MASTER = DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN.md
+CURRENT_GATE = DASHBOARD_P0_AUTHORIZED
+P0 = AUTHORIZED
+AFTER_P0 = STOP_FOR_OWNER_REVIEW_A
 ROUND_4 = NOT_STARTED
 ```
 
@@ -15,47 +15,55 @@ ROUND_4 = NOT_STARTED
 ```text
 1. CURRENT_STATE.yaml
 2. NEXT_ACTION.md
-3. W2_MASTER_TASK_LEDGER_AND_RECONCILIATION.md
+3. W2_FINAL_EXECUTION_MASTER_PLAN.md
 4. DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN.md
 5. POST_R3_READINESS_ATTRIBUTION_REPORT.md
 6. POST_R3_READINESS_ATTRIBUTION_MATRIX.json
 7. ROUND_3_FINAL_RECEIPT.md
 8. REPOSITORY_HYGIENE_POLICY.md
-9. older retained task/backlog/package authorities discovered during R0
 ```
 
-## Owner decision — reconcile all prior W2 tasks before Dashboard P0
+## Final task decision
 
-The Dashboard / Intelligence Workspace workstream remains approved, but P0 must not begin until the historical task ledger has been reconciled against current repository reality.
+The standalone R0 reconciliation stage is cancelled. Historical tasks have already been resolved into the final execution plan according to current product need and current-main capability.
 
-R0 must audit every task in `W2_MASTER_TASK_LEDGER_AND_RECONCILIATION.md`, including the legacy Step 4 / historical “Post4” Dashboard work, and recover any older P0–P8/package/Gate/dependency tasks from repository history or retained authorities that are not yet represented.
-
-No legacy task may disappear merely because a newer Dashboard plan exists. Obsolete semantics may be marked superseded, but surviving capabilities must be mapped forward explicitly.
-
-R0 completion classifications must be evidence-backed:
+Historical Step 4 / “Post4” is **not** a separate workstream and must not be rebuilt as the old L1/L2/Boss Dashboard. Its surviving capabilities are absorbed into the final phases:
 
 ```text
-DONE_PROVEN
-PARTIAL_PROVEN
-NOT_IMPLEMENTED
-SUPERSEDED_BY_CURRENT_CONTRACT
-CONFLICTS_WITH_CURRENT_CONTRACT
-RETAIN_AS_BACKGROUND_RUNTIME
-RETAIN_FOR_EVIDENCE
-UNKNOWN_INSUFFICIENT_EVIDENCE
+frontend contract convergence -> P2/P3
+executive fast scan -> P3 Match Board + Attention + Inspector
+old lock/recommendation ordering -> SUPERSEDED / DO NOT IMPLEMENT
+technical diagnostics -> P3 Model Lab + Data/Ops + readiness/evidence
+empty/stale/API/budget degradation -> P3 render + P5 acceptance
+historical date navigation/replay -> P4 + P5
 ```
 
-R0 must use current code, DB models/migrations, tests, runtime/read evidence and call evidence where applicable. Do not accept PR descriptions, status files or comments as proof of completion.
+Existing Decision Contract, Data Readiness, DayView sources, degradation helpers, scoreline projection, replay/date navigation, probability scoring and forward validation/ledger assets are reuse inputs, not separate redevelopment projects.
 
-## Post-R3 Track A remains active background work
+## Current P0 task
 
-The prior Post-R3 readiness attribution remains closed with `PATH_A_NATURAL_EVIDENCE_ACCUMULATION`. Existing natural evidence accumulation may continue only under the already-authorized runtime policy. R0 and Dashboard work must not alter it.
+Only P0 is authorized now.
+
+P0 is documentation-only. It must create/finalize `DASHBOARD_INTELLIGENCE_WORKSPACE_PRODUCT_SPEC.md` and freeze:
+
+- final Intelligence Workspace product semantics and information architecture
+- every required panel/field and Market/Model/Analysis/Validation/Formal boundary
+- seven-state/four-risk semantics and exact 13 whitelist
+- final data/freshness/Market Memory/canonical-close/lineup evidence boundaries
+- Validation priority and `NOT_DEFINED` / `NOT_PROVEN` / `NOT_CONNECTED` semantics
+- approved 1536×1024 visual authority
+- historical-task disposition from `W2_FINAL_EXECUTION_MASTER_PLAN.md`
+- P0→P6 governance, Owner gates, stop lines and final acceptance criteria
+
+P0 must not implement UI or business code.
+
+## Post-R3 Track A remains background runtime
+
+`PATH_A_NATURAL_EVIDENCE_ACCUMULATION` continues only under the already-authorized runtime policy and does not block P0. Dashboard work must not change its Scheduler, cadence, Provider plan, quota policy or whitelist.
 
 ```text
-POST_R3_READINESS_ATTRIBUTION = PASS_PATH_A_NATURAL_EVIDENCE_ACCUMULATION
 FREE_BRIDGE_MODE = SHADOW_ONLY
 ACTIVE_WHITELIST = 13_UNCHANGED
-AUDIT_ONLY_RUNTIME_REACHABILITY = 0
 CANDIDATE = OFF
 FORMAL = OFF
 LOCK = OFF
@@ -64,36 +72,27 @@ H_RESULT_ACCESS = PERMANENTLY_CLOSED
 ROUND_4 = NOT_STARTED
 ```
 
-## R0 scope
-
-Allowed writes:
-
-- `W2_MASTER_TASK_LEDGER_AND_RECONCILIATION.md`
-- `CURRENT_STATE.yaml`
-- `NEXT_ACTION.md`
-- additional `context/current` reconciliation evidence if needed
-
-Forbidden during R0:
+## P0 forbidden scope
 
 - product/business code changes
 - UI implementation
-- migrations or database business writes
-- Provider calls or probes
+- Provider calls/probes
+- database business writes
 - Scheduler/cadence changes
 - whitelist changes
-- model retraining, new factors, or threshold changes
+- model retraining/new factors/threshold changes
 - Phase 0.5 rerun
 - Round 4
 - Candidate / Formal / Lock / Production changes
 - legacy code deletion
 
-Required completion state:
+Required terminal state:
 
 ```text
-R0 = COMPLETE
-LEGACY_TASKS = FULLY_RECONCILED_OR_EXPLICITLY_UNRESOLVED_WITH_EVIDENCE
-P0 = NOT_STARTED
-NEXT = OWNER_TASK_LEDGER_REVIEW
+P0 = COMPLETE
+P0_OUTPUT = DASHBOARD_INTELLIGENCE_WORKSPACE_PRODUCT_SPEC.md
+NEXT = OWNER_REVIEW_A
+P1 = NOT_STARTED
 ```
 
-Do not start Dashboard P0 automatically.
+Do not start P1 automatically.
