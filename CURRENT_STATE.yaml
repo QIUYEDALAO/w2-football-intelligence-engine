@@ -5,11 +5,11 @@ context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: APPROVED_EXECUTE_POST_R2_ACCESS_DECISION_NOW
-active_next_action: W2_MI_POST_R2_PROVIDER_ACCESS_AND_DATA_SOURCE_DECISION
-next_code_action: CONDITIONAL_ONLY_IF_INTERNAL_W2_DEFECT_IS_PROVEN
-current_status: POST_R2_ACCESS_DECISION_AUTHORIZED_IN_PROGRESS
-current_gate: FREE_PLAN_SEASON_ENTITLEMENT_AND_ACCESS_ROOT_CAUSE
+owner_product_decision: AWAIT_OWNER_API_FOOTBALL_PLAN_OR_DATA_SOURCE_DECISION
+active_next_action: AWAIT_OWNER_API_FOOTBALL_PLAN_OR_DATA_SOURCE_DECISION
+next_code_action: NONE_UNTIL_NEW_OWNER_AUTHORIZATION
+current_status: POST_R2_ACCESS_DECISION_PASS_FREE_PLAN_SEASON_RESTRICTION_CONFIRMED
+current_gate: OWNER_PROVIDER_SPEND_AND_SOURCE_DECISION
 
 round_1:
   status: PASS
@@ -36,12 +36,19 @@ provider_account_owner_fact:
   expected_daily_quota: 100
   api_disabled: false
   quota_exhaustion_is_round2_plan_restriction_explanation: false
-  primary_hypothesis: FREE_PLAN_SEASON_ENTITLEMENT_RESTRICTION_ON_SEASON_2026
+  confirmed_plan: FREE
+  confirmed_active: true
+  confirmed_daily_quota: 100
+  confirmed_season_access:
+    season_2024: ACCESSIBLE
+    season_2025: PLAN_RESTRICTED
+    season_2026: PLAN_RESTRICTED
+  confirmed_root_cause: FREE_PLAN_SEASON_ENTITLEMENT_RESTRICTION
 
 post_r2_access_decision:
   task: W2_MI_POST_R2_PROVIDER_ACCESS_AND_DATA_SOURCE_DECISION
   authority: POST_R2_PROVIDER_ACCESS_DATA_SOURCE_DECISION.md
-  status: AUTHORIZED_IN_PROGRESS
+  status: PASS_FREE_PLAN_SEASON_RESTRICTION_CONFIRMED
   round_3_must_remain_not_started: true
   root_cause_required: true
   diagnosis_priority:
@@ -72,12 +79,36 @@ post_r2_access_decision:
   expected_outputs:
     - POST_R2_PROVIDER_ACCESS_ROOT_CAUSE.md
     - POST_R2_DATA_SOURCE_DECISION_MATRIX.md
+  completed_outputs:
+    - POST_R2_PROVIDER_ACCESS_ROOT_CAUSE.md
+    - POST_R2_DATA_SOURCE_DECISION_MATRIX.md
+  diagnostic_provider_calls: 4
+  automatic_retries: 0
+  root_cause: FREE_PLAN_SEASON_ENTITLEMENT_RESTRICTION
+  root_cause_confidence: HIGH
+  internal_fix_required: false
+  internal_fix_pr: NONE
+  current_api_football_free_path_viable: false
+  recommended_primary_data_source_path: API_FOOTBALL_PRO_RENEWAL_AND_BOUNDED_REVALIDATION
+  recommended_fallback_path: SPORTMONKS_GROWTH_PLUS_PREMIUM_ODDS_AFTER_COVERAGE_TRIAL
+  estimated_primary_monthly_data_cost: USD_19
+  estimated_fallback_monthly_data_cost: EUR_228_TO_252_EX_VAT
+  next: AWAIT_OWNER_API_FOOTBALL_PLAN_OR_DATA_SOURCE_DECISION
   repository_hygiene_required_before_pass: true
 
 repository_hygiene:
   authority: REPOSITORY_HYGIENE_POLICY.md
   permanent_rule: true
   task_pass_requires_hygiene_pass: true
+  current_task_result: PASS
+  dead_assets_found: 1_TRANSIENT_DIAGNOSTIC_SCRIPT
+  dead_assets_deleted: 1_TRANSIENT_DIAGNOSTIC_SCRIPT
+  obsolete_code_lines_removed: 0
+  retained_for_evidence:
+    - POST_R2_PROVIDER_ACCESS_ROOT_CAUSE.md
+    - POST_R2_DATA_SOURCE_DECISION_MATRIX.md
+    - EXISTING_ROUND_2_RECEIPTS_AND_SANITIZED_EVIDENCE
+  unresolved_hygiene_items: 0
 
 round_3:
   task: W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB
