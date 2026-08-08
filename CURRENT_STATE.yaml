@@ -6,71 +6,43 @@ context_update_mode: direct_branch_no_pr_no_ci_no_history
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: APPROVED
-active_next_action: W2_MI_R2_B_FOURTEEN_DAY_READ_ONLY_OBSERVATION
-next_code_action: NONE_R2_B_IS_READ_ONLY
-current_status: ROUND_2_AUTHORIZED_IN_PROGRESS
-current_gate: R2_B_OBSERVATION_WINDOW
+owner_product_decision: APPROVED_CLOSE_WITH_CURRENT_TERMINAL_EVIDENCE
+owner_authorization_id: W2_MI_R2_TERMINAL_EARLY_CLOSURE_20260808
+active_next_action: W2_MI_R2_C_FINAL_CAPABILITY_DECISION_NOW
+next_code_action: NONE_R2_C_IS_EVIDENCE_CLOSURE
+current_status: ROUND_2_AUTHORIZED_R2_C_NOW
+current_gate: R2_C_FINAL_CAPABILITY_DECISION
 
 round_1:
-  task: W2_MI_R1_PRODUCT_SEMANTICS_AND_STATUS_REFRAME
   status: PASS
   final_receipt: ROUND_1_FINAL_RECEIPT.md
   runtime_pr: 493
   final_pr_head_sha: 602665885a2cbaf87e5f6c6ceb8c73926244e471
   merge_sha: f7860813646ce9718931dff331c09ce2fe7a71ba
-  public_api_acceptance: PASS
-  public_browser_acceptance: PASS
-  browser_console_errors: 0
 
 round_2:
   task: W2_MI_R2_FIRST_DIVISION_PROVIDER_CAPABILITY_AUDIT
-  status: AUTHORIZED_IN_PROGRESS
-  phase: R2_B_FOURTEEN_DAY_READ_ONLY_OBSERVATION
+  status: AUTHORIZED_R2_C_NOW
+  phase: R2_C_FINAL_CAPABILITY_DECISION
+  terminal_closure_authority: ROUND_2_TERMINAL_CLOSURE_AUTHORIZATION.md
   owner_authorization: ROUND_2_OWNER_AUTHORIZATION.md
   execution_authority: ROUND_2_CODEX_EXECUTION.md
   acceptance_authority: ROUND_2_ACCEPTANCE_CRITERIA.md
-  acceptance_evidence_index: ROUND_2_ACCEPTANCE_EVIDENCE_INDEX.md
   day0_receipt: ROUND_2_DAY0_RECEIPT.md
   observation_log: ROUND_2_OBSERVATION_LOG.md
-  initial_main_sha: f7860813646ce9718931dff331c09ce2fe7a71ba
   audit_tooling_pr: 494
-  audit_tooling_head_sha: 581d970aab0bec8df34ae5a211a20c1c50cb7948
   audit_tooling_merge_sha: b04dcc7e521dce413740bcf754b1a45755a3e83e
   r2_a_status: COMPLETE_WITH_TRUTHFUL_PLAN_RESTRICTIONS
-  r2_b_status: ACTIVE
-  r2_b_snapshot_count: 1
-  r2_b_snapshot_policy: MAX_ONE_READ_ONLY_SNAPSHOT_PER_UTC_DAY_UNLESS_INCIDENT
-  r2_b_next_snapshot_not_before_utc: "2026-08-09T02:00:00+00:00"
-  r2_b_snapshot_source_policy: EXISTING_PERSISTED_READ_MODELS_ONLY
-  r2_b_snapshot_provider_calls_allowed: 0
-  r2_b_snapshot_business_writes_allowed: 0
-  r2_b_thread_heartbeat_automation_id: w2-mi-round-2
-  r2_b_thread_heartbeat_schedule: DAILY_10_05_ASIA_SHANGHAI
-  r2_b_thread_heartbeat_is_production_scheduler: false
-  r2_b_thread_heartbeat_is_provider_collection: false
-  r2_b_thread_heartbeat_stop_after_round_2: true
-  r2_b_within_window_quote_rows_observed: 0
-  r2_b_latest_public_snapshot_utc: "2026-08-08T02:17:09.560956+00:00"
-  r2_b_latest_public_dayview_cards: 64
-  r2_b_latest_public_current_odds_cards: 0
-  r2_b_latest_public_blocked_cards: 64
-  r2_b_latest_public_data_incomplete_cards: 64
-  r2_b_latest_public_provider_calls: 0
-  r2_b_latest_public_db_writes: 0
-  r2_b_public_readiness_rows: 5
-  r2_b_public_readiness_404_rows: 12
-  r2_b_public_readiness_provenance_status: NOT_ACCEPTABLE_AS_REAL_CAPABILITY_PROOF
-  r2_b_public_read_model_coverage_status: MISMATCHED_AND_INSUFFICIENT
-  r2_b_sampled_odds_timelines: 4
-  r2_b_sampled_odds_timelines_with_items: 0
-  r2_b_data_health_status: SYSTEM_DEGRADED
-  r2_b_provider_status: SYSTEM_DEGRADED
-  r2_c_status: BLOCKED_UNTIL_R2_B_WINDOW_COMPLETE
-  duration_days: 14
-  observation_start_utc: "2026-08-08T01:53:55.509495+00:00"
-  observation_end_utc: "2026-08-22T01:53:55.509495+00:00"
-  mode: CONTROLLED_READ_ONLY_PROVIDER_CAPABILITY_AUDIT
+  r2_b_status: TERMINATED_EARLY_BY_OWNER_TERMINAL_EVIDENCE_AUTHORITY
+  r2_c_status: EXECUTE_NOW
+  wait_14_days: false
+  former_observation_end_utc: "2026-08-22T01:53:55.509495+00:00"
+  former_observation_end_is_completion_gate: false
+  daily_snapshot_required: false
+  next_snapshot_required: false
+  heartbeat_required: false
+  heartbeat_id_if_present: w2-mi-round-2
+  heartbeat_should_stop_after_final_receipt: true
   audit_union_count: 17
   existing_whitelist_count: 13
   net_new_audit_only_count: 4
@@ -79,40 +51,29 @@ round_2:
   production_provider_policy_change_authorized: false
   production_provider_allowlist_change_authorized: false
   persistent_collection_for_net_new_authorized: false
-  controlled_provider_audit_calls_authorized: true
-  day0_evidence_only_calls_per_competition: 4
-  day0_theoretical_max_calls: 68
+  default_new_provider_calls_for_r2_c: 0
   day0_actual_calls: 17
   cumulative_audit_calls: 17
-  day0_leagues_calls: 17
+  day0_plan_restricted_rows: 17
   day0_fixtures_calls: 0
   day0_odds_calls: 0
   deeper_capability_probe_calls: 0
-  day0_plan_restricted_rows: 17
-  day0_promotion_authorized_rows: 0
-  day0_min_request_interval_seconds_observed: 11
-  min_quota_remaining_observed: UNAVAILABLE_FROM_PROVIDER_RESPONSE
-  dry_run_sha256: 458e6648004d5c1489ca544758b06dad1c93bcd7583df7f70ddd7b9c3fd91b44
-  day0_matrix_sha256: 85df3fd4d03296d96262dd2c0d8ed72fdeff097b66423ab45cb47d39ad583e23
-  sanitized_provider_ledger_sha256: 498c53d146117902ce22c49644e257a6fa4dcede148e11867b33d46d43cea37e
-  provider_calls_during_pr_or_ci: 0
-  production_db_writes: 0
-  active_whitelist_identity_diff: []
-  new_enabled_leagues: 0
-  new_scheduled_leagues: 0
-  new_dayview_leagues: 0
-  daily_audit_hard_cap: 80
-  cumulative_audit_hard_cap: 200
-  min_provider_daily_remaining: 20
-  request_interval_seconds_min: 10
-  automatic_retry: false
-  stop_on_first_quota_warning: true
-  bounded_remediation_without_new_owner_authorization: true
-  round_3: NOT_STARTED
+  promotion_authorized_rows: 0
+  first_temporal_snapshot:
+    dayview_cards: 64
+    data_incomplete_cards: 64
+    current_odds_cards: 0
+    within_window_quote_rows: 0
+    readiness_rows: 5
+    readiness_404_rows: 12
+    sampled_odds_timelines: 4
+    timeline_items: 0
+    evidence_status: TEMPORAL_EVIDENCE_INSUFFICIENT_OR_DEGRADED
+  terminal_closure_reason: ALL_17_PROVIDER_ROWS_PLAN_RESTRICTED_AND_WAITING_CANNOT_ADD_AUTHORIZED_PROVIDER_CAPABILITY_EVIDENCE
 
 failure_semantics:
   fail_closed_meaning: DO_NOT_ADVANCE_PAST_FAILED_GATE
-  fail_closed_does_not_mean: ABANDON_CURRENT_AUTHORIZED_ROUND
+  fail_closed_does_not_mean: WAIT_14_DAYS
   bounded_round_2_remediation_requires_new_owner_authorization: false
   scope_expansion_requires_new_owner_authorization: true
 
@@ -120,68 +81,18 @@ product_contract:
   product_semantics: INTELLIGENCE_FIRST
   model_market_divergence_as_opportunity: FORBIDDEN
   betting_edge_claim: FORBIDDEN
-  market_stable_is_valid_result: true
   existing_v4_role: DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY
-
-intelligence_states:
-  - MARKET_STABLE
-  - MARKET_MOVEMENT
-  - MARKET_ANOMALY
-  - MODEL_MARKET_DISAGREEMENT
-  - DATA_INCOMPLETE
-  - MODEL_DIAGNOSTIC_WARNING
-  - COLLECTION_INCIDENT
-
-risk_dimensions:
-  - EVENT_RISK
-  - DATA_RISK
-  - MODEL_RISK
-  - COLLECTION_RISK
 
 league_plan:
   active_whitelist_baseline_count: 13
-  active_whitelist_baseline:
-    - chinese_super_league
-    - allsvenskan
-    - eliteserien
-    - premier_league
-    - la_liga
-    - bundesliga
-    - serie_a
-    - ligue_1
-    - brasileirao_serie_a
-    - argentina_primera
-    - mls
-    - eredivisie
-    - primeira_liga
-  net_new_audit_candidates:
-    - belgian_pro_league
-    - turkish_super_lig
-    - greek_super_league
-    - scottish_premiership
-  audit_union_count: 17
   net_new_runtime_state: AUDIT_CANDIDATE_ONLY
-
-league_capability_states:
-  - REGISTERED
-  - COVERAGE_MONITORING
-  - MARKET_INTELLIGENCE_READY
-  - MODEL_DIAGNOSTICS_READY
-  - DEGRADED
-
-market_radar_contract:
-  overround_percentile_required_alert_covariate: true
-  high_overround_is_high_value: false
-  high_overround_is_high_information: false
-  round_3_threshold_freeze_in_round_2: false
-  model_divergence_in_opportunity_score: FORBIDDEN
+  audit_union_count: 17
 
 round_3:
   task: W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB
   status: NOT_STARTED_BLOCKED_UNTIL_ROUND_2_COMPLETE_AND_OWNER_DECISION
 
 operational_track:
-  existing_w2_preserved: true
   scheduler: ON_CONTROLLED_UNCHANGED_BY_R2
   candidate: "OFF"
   formal: "OFF"
