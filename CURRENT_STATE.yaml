@@ -1,26 +1,25 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-09T01:20:00+08:00"
+updated_at: "2026-08-09T01:28:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: W2_MASTER_TASK_RECONCILIATION_R0
-owner_authorization_id: W2_MASTER_TASK_LEDGER_AND_RECONCILIATION_20260809
-active_next_action: EXECUTE_R0_LEGACY_TASK_RECONCILIATION_ONLY
-next_code_action: READ_ONLY_TASK_RECONCILIATION_CONTEXT_DOCS_ONLY
-current_status: MASTER_TASK_LEDGER_R0_AUTHORIZED
-current_gate: R0_TASK_RECONCILIATION_AUTHORIZED
+owner_product_decision: W2_FINAL_EXECUTION_MASTER_PLAN_DASHBOARD_P0
+owner_authorization_id: W2_FINAL_EXECUTION_MASTER_PLAN_20260809
+active_next_action: EXECUTE_DASHBOARD_INTELLIGENCE_WORKSPACE_P0_ONLY
+next_code_action: DOCS_ONLY_P0_PRODUCT_SPEC
+current_status: FINAL_EXECUTION_PLAN_AUTHORIZED_P0_ACTIVE
+current_gate: DASHBOARD_P0_AUTHORIZED
 
 prior_rounds:
   round_1: PASS
   round_2: PASS_WITH_TERMINAL_PROVIDER_PLAN_RESTRICTION
   post_r2_access_decision: PASS_FREE_PLAN_SEASON_RESTRICTION_CONFIRMED
   free_plan_bridge_controlled_runtime: PASS
-  free_plan_bridge_receipt: FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_RECEIPT.md
+  round_3: PASS_MARKET_RADAR_MODEL_LAB
 
 runtime_baseline:
-  main_sha_at_r3_authorization: c241b877a4168659f465163108f7a53fb8fd82a5
   final_main_sha: f0fe9d332d05a84f1ef04be86fd9fb44b69d69e3
   deployed_source_sha: 51ebbeabc5497ce48708b3587705e2922c4805da
   free_bridge_mode: SHADOW_ONLY
@@ -35,70 +34,20 @@ runtime_baseline:
 round_3:
   task: W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB
   status: PASS_MARKET_RADAR_MODEL_LAB
-  owner_authorization: ROUND_3_OWNER_AUTHORIZATION.md
-  execution_authority: ROUND_3_CODEX_EXECUTION.md
-  acceptance_authority: ROUND_3_ACCEPTANCE_CRITERIA.md
-  dashboard_reality_addendum: ROUND_3_DASHBOARD_REALITY_AND_VISUAL_SEMANTICS_ADDENDUM.md
-  continuous_bounded_remediation_without_owner_reapproval: true
-  max_prs: 2
-  manual_provider_calls_for_dev_ci: 0
-  manual_provider_calls_for_runtime_acceptance_default: 0
-  immutable_staging_deployment_authorized_after_gates: true
-  mandatory_first_gate:
-    exact_active_ui_chain_proven: REQUIRED
-    real_timeline_depth_audit_before_chart: REQUIRED
-    zero_one_multi_snapshot_ui_tests: REQUIRED
-    collection_cadence_expansion_for_ui_authorized: false
-  market_radar:
-    required_statuses:
-      - INSUFFICIENT
-      - STABLE
-      - PRICE_MOVEMENT
-      - LINE_MOVEMENT
-      - LINE_AND_PRICE_MOVEMENT
-    statistical_anomaly_threshold_must_not_be_invented: true
-    zero_snapshot_semantics: INSUFFICIENT_NO_TIMELINE_EVIDENCE
-    one_snapshot_semantics: INSUFFICIENT_SINGLE_SNAPSHOT
-    movement_requires_comparable_real_snapshots: true
-    fake_or_interpolated_timeline_points_allowed: false
-  model_lab:
-    role: DIAGNOSTIC_ONLY
-    minimum_public_bookmaker_depth: 3
-    disagreement_rule: MODEL_EFFECTIVE_PROBABILITY_OUTSIDE_REAL_SAME_LINE_BOOKMAKER_RANGE
-    visual_semantics: MONITORING_WARNING_NOT_OPPORTUNITY
-    phase_0_5_frozen_no_edge_context_required: true
-  public_surfaces:
-    - Market Overview
-    - Match Intelligence
-    - Data & Operations Summary
-  cockpit_refinement:
-    round_1_reopen_authorized: false
-    top_primary_counter_max: 5
-    attention_feed_authority: FROZEN_SEVEN_STATE_PRECEDENCE_THEN_KICKOFF
-    hidden_opportunity_score_allowed: false
-  repository_hygiene_required_before_pass: true
-  expected_final_receipt: ROUND_3_FINAL_RECEIPT.md
   final_receipt: ROUND_3_FINAL_RECEIPT.md
   pr_number: 497
   pr_final_head_sha: 51ebbeabc5497ce48708b3587705e2922c4805da
   pr_merge_sha: f0fe9d332d05a84f1ef04be86fd9fb44b69d69e3
-  release_candidate_run_id: 31251401584
-  main_promotion_run_id: 31251800708
   exact_active_ui_chain_proven: PASS
+  public_chain: APP_TO_DASHBOARD_PAGE_TO_INTELLIGENCE_CONSOLE
   real_timeline_depth_audited: PASS
   sparse_timeline_ui: PASS_ZERO_ONE_MULTI
   fake_or_interpolated_timeline_points: 0
-  model_outside_range_positive_opportunity_encoding: 0
   phase_0_5_frozen_context_visible: PASS
   phase_0_5_reexecution: false
   attention_feed_frozen_precedence_only: PASS
-  statistical_anomaly_calibration: NOT_CALIBRATED
-  manual_provider_calls_dev_ci_acceptance: 0
   public_read_provider_calls: 0
   repository_hygiene: PASS
-  unresolved_hygiene_items: 0
-  rollback: PASS_NON_DESTRUCTIVE
-  next: AWAIT_OWNER_POST_R3_PRODUCT_DECISION
 
 post_r3_readiness_attribution:
   task: W2_MI_POST_R3_READINESS_ROOT_CAUSE_ATTRIBUTION
@@ -108,7 +57,6 @@ post_r3_readiness_attribution:
   frozen_as_of: "2026-08-08T10:19:12Z"
   report: POST_R3_READINESS_ATTRIBUTION_REPORT.md
   matrix: POST_R3_READINESS_ATTRIBUTION_MATRIX.json
-  matrix_sha256: 01999b11e5eea10cf4d68460bb5ba6d1f71c83820709adaaa104a1e5992c58fa
   checkpoint_fixture_count: 69
   frozen_future_fixture_count: 64
   fixture_market_count: 128
@@ -122,94 +70,62 @@ post_r3_readiness_attribution:
     insufficient_bookmaker_depth: 1
     comparable_within_market_range: 0
     model_outside_market_range: 0
-  primary_blockers:
-    no_current_snapshot: 90
-    expected_stale_between_checkpoints: 29
-    due_window_but_no_fresh_capture: 6
-    insufficient_bookmaker_depth: 1
-    model_simulation_not_ready: 1
-    model_calibration_not_ready: 1
-  movement_comparison_eligible:
-    total: 27
-    market_not_ready: 24
-    expected_stale_between_checkpoints: 21
-    due_window_but_no_fresh_capture: 3
-    no_current_snapshot: 0
-    current_snapshot_stale_residual: 0
-    market_construction_failure: 0
-    identity_or_lineage_failure: 0
-    other_market_not_ready: 0
-    non_market_readiness: 3
-  due_window_trace:
-    fixture_count: 3
-    fixture_market_count: 6
-    quota_capacity: AVAILABLE
-    attribution: TRANSIENT_CONTROLLED_ROLLBACK_RESTORE_INTERVAL
-    persistent_collection_defect: NOT_PROVEN
-  data_quality:
-    composite_key_duplicates: 0
-    required_field_missing: 0
-    post_kickoff_rows: 0
-    projection_event_mismatches: 0
-    receipt_reconciliation: PASS
   provider_calls: 0
   database_business_writes: 0
   new_collection_tasks: 0
   production_code_changes: false
-  bounded_remediation_pr: NOT_CREATED_NO_RECURRING_INTERNAL_BUG_PROVEN
   repository_hygiene: PASS
-  dead_assets_found: 1
-  dead_assets_deleted: 1
-  obsolete_code_lines_removed: 0
-  retained_for_evidence: POST_R3_READINESS_ATTRIBUTION_REPORT_AND_128_ROW_MATRIX
-  unresolved_hygiene_items: 0
   completion_condition: REAL_FIXTURES_CROSS_EXISTING_T12_T6_T3_T60_LIFECYCLE_WITH_EXPLICIT_TERMINAL_EVIDENCE_THEN_REPROJECT_AND_OWNER_REVIEW
-  arbitrary_calendar_wait: false
   round_4: NOT_STARTED
+  relation_to_dashboard_work: PARALLEL_BACKGROUND_RUNTIME_NOT_BLOCKING_DASHBOARD_P0
 
-master_task_ledger:
-  authority: W2_MASTER_TASK_LEDGER_AND_RECONCILIATION.md
-  status: R0_AUTHORIZED_PENDING_EXECUTION
-  current_execution_authorization: R0_LEGACY_TASK_RECONCILIATION_ONLY
-  source_next_phase_tasklist: REQUIRED_TO_RECONCILE
-  older_master_backlog_packages: REQUIRED_TO_RECOVER_AND_RECONCILE
-  silent_task_dropping: FORBIDDEN
-  completion_classifications:
-    - DONE_PROVEN
-    - PARTIAL_PROVEN
-    - NOT_IMPLEMENTED
-    - SUPERSEDED_BY_CURRENT_CONTRACT
-    - CONFLICTS_WITH_CURRENT_CONTRACT
-    - RETAIN_AS_BACKGROUND_RUNTIME
-    - RETAIN_FOR_EVIDENCE
-    - UNKNOWN_INSUFFICIENT_EVIDENCE
-  r0_product_code_changes: false
-  r0_provider_calls: 0
-  r0_db_business_writes: 0
-  r0_scheduler_changes: false
-  r0_after: OWNER_TASK_LEDGER_REVIEW
-  p0_before_r0_owner_approval: FORBIDDEN
+final_execution_plan:
+  authority: W2_FINAL_EXECUTION_MASTER_PLAN.md
+  detailed_dashboard_authority: DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN.md
+  historical_reconciliation_stage: CANCELLED_NOT_A_DEVELOPMENT_STAGE
+  superseded_reconciliation_file: W2_MASTER_TASK_LEDGER_AND_RECONCILIATION.md
+  historical_step4_post4: SUPERSEDED_AS_STANDALONE_WORKSTREAM
+  rebuild_old_boss_l1_l2_dashboard: false
+  reuse_existing_capabilities:
+    decision_contract: true
+    data_readiness: true
+    dashboard_day_view_sources: true
+    dashboard_degradation_sources: true
+    diagnostics_sources: true
+    date_navigation: true
+    replay_front_door: true
+    scoreline_projection: true
+    probability_scoring: true
+    forward_validation_ledger: true
+    provider_scheduler_safety: BACKGROUND_RUNTIME_ONLY
+  current_development_chain:
+    p0: AUTHORIZED
+    p1: NOT_STARTED
+    p2: NOT_STARTED
+    p3: NOT_STARTED
+    p4: NOT_STARTED
+    p5: NOT_STARTED
+    p5_5: NOT_STARTED
+    p6: BLUEPRINT_ONLY_NOT_AUTHORIZED
+  owner_gates:
+    after_p0: OWNER_REVIEW_A
+    after_p2: OWNER_REVIEW_B
+    after_p5: OWNER_REVIEW_C
 
 dashboard_intelligence_workspace:
-  authority: DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN.md
   workstream: DASHBOARD_INTELLIGENCE_WORKSPACE_FINAL_REFACTOR
-  status: MASTER_PLAN_AUTHORIZED_BLOCKED_BY_R0_RECONCILIATION
-  current_execution_authorization: AFTER_R0_OWNER_APPROVAL
+  status: P0_AUTHORIZED_PENDING_EXECUTION
+  current_execution_authorization: P0_ONLY
   p0_output: DASHBOARD_INTELLIGENCE_WORKSPACE_PRODUCT_SPEC.md
   p0_scope: DOCS_ONLY
-  p0: NOT_STARTED
-  p0_after: OWNER_REVIEW_A
-  p1: NOT_STARTED
-  p2: NOT_STARTED
-  p3: NOT_STARTED
-  p4: NOT_STARTED
-  p5: NOT_STARTED
-  p5_5: NOT_STARTED
-  p6: BLUEPRINT_ONLY_NOT_AUTHORIZED
-  round_4_relation: INDEPENDENT_NOT_AUTHORIZATION
-  product_position: FOOTBALL_MARKET_INTELLIGENCE_PLUS_MODEL_DIAGNOSTICS
   public_dashboard_target: NEW_INTELLIGENCE_WORKSPACE_ONLY
+  product_position: FOOTBALL_MARKET_INTELLIGENCE_PLUS_MODEL_DIAGNOSTICS
   exact_runtime_whitelist: 13
+  p2_target: ONE_FINAL_UNIFIED_DASHBOARD_READ_MODEL
+  p3_target: NEW_INTELLIGENCE_WORKSPACE_UI
+  p4_target: VALIDATION_LEAGUE_PERFORMANCE_FORWARD_RECORDS_HISTORY_REPLAY
+  p5_target: FULL_CHAIN_TRUTH_AND_VISUAL_ACCEPTANCE
+  p5_5_target: CONTROLLED_LEGACY_CLEANUP
   external_intelligence:
     weather: NOT_CONNECTED
     news: NOT_CONNECTED
@@ -221,11 +137,6 @@ dashboard_intelligence_workspace:
   canonical_close: NOT_OBTAINABLE_FROM_CURRENT_PROVIDER
   current_price_reference: LAST_AVAILABLE_PREMATCH_SNAPSHOT
   lineup_whitelist_coverage_verified: 1_OF_13_CHINESE_SUPER_LEAGUE_ONLY
-  owner_gates:
-    before_p0: OWNER_TASK_LEDGER_REVIEW
-    after_p0: OWNER_REVIEW_A
-    after_p2: OWNER_REVIEW_B
-    after_p5: OWNER_REVIEW_C
   deletion_authority: P5_5_ONLY_AFTER_P5_PASS_AND_OWNER_APPROVAL
 
 phase_0_5_frozen_context:
@@ -255,6 +166,8 @@ permanent_stop_lines:
   active_whitelist_change: false
   audit_only_promotion: false
   h_result_access: PERMANENTLY_CLOSED
+  phase_0_5_reexecution: FORBIDDEN
+  round_4: NOT_STARTED
   candidate: "OFF"
   formal: "OFF"
   lock: "OFF"
