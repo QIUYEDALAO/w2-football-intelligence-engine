@@ -1,5 +1,5 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-08T16:16:00+08:00"
+updated_at: "2026-08-08T16:57:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
@@ -8,9 +8,9 @@ product_name: W2 Football Intelligence
 owner_product_decision: APPROVED_R3_MARKET_RADAR_MODEL_LAB_CONTINUOUS_EXECUTION
 owner_authorization_id: W2_MI_R3_MARKET_RADAR_MODEL_LAB_20260808
 active_next_action: W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB
-next_code_action: R3_EVIDENCE_RADAR_MODEL_LAB_PUBLIC_INTEGRATION
+next_code_action: R3_A0_ACTIVE_UI_AND_TIMELINE_REALITY_GATE
 current_status: ROUND_3_AUTHORIZED_IN_PROGRESS
-current_gate: R3_EVIDENCE_ELIGIBILITY_AND_LIVE_CODE_AUDIT
+current_gate: R3_A0_ACTIVE_UI_AND_TIMELINE_REALITY_GATE
 
 prior_rounds:
   round_1: PASS
@@ -36,11 +36,17 @@ round_3:
   owner_authorization: ROUND_3_OWNER_AUTHORIZATION.md
   execution_authority: ROUND_3_CODEX_EXECUTION.md
   acceptance_authority: ROUND_3_ACCEPTANCE_CRITERIA.md
+  dashboard_reality_addendum: ROUND_3_DASHBOARD_REALITY_AND_VISUAL_SEMANTICS_ADDENDUM.md
   continuous_bounded_remediation_without_owner_reapproval: true
   max_prs: 2
   manual_provider_calls_for_dev_ci: 0
   manual_provider_calls_for_runtime_acceptance_default: 0
   immutable_staging_deployment_authorized_after_gates: true
+  mandatory_first_gate:
+    exact_active_ui_chain_proven: REQUIRED
+    real_timeline_depth_audit_before_chart: REQUIRED
+    zero_one_multi_snapshot_ui_tests: REQUIRED
+    collection_cadence_expansion_for_ui_authorized: false
   market_radar:
     required_statuses:
       - INSUFFICIENT
@@ -49,16 +55,38 @@ round_3:
       - LINE_MOVEMENT
       - LINE_AND_PRICE_MOVEMENT
     statistical_anomaly_threshold_must_not_be_invented: true
+    zero_snapshot_semantics: INSUFFICIENT_NO_TIMELINE_EVIDENCE
+    one_snapshot_semantics: INSUFFICIENT_SINGLE_SNAPSHOT
+    movement_requires_comparable_real_snapshots: true
+    fake_or_interpolated_timeline_points_allowed: false
   model_lab:
     role: DIAGNOSTIC_ONLY
     minimum_public_bookmaker_depth: 3
     disagreement_rule: MODEL_EFFECTIVE_PROBABILITY_OUTSIDE_REAL_SAME_LINE_BOOKMAKER_RANGE
+    visual_semantics: MONITORING_WARNING_NOT_OPPORTUNITY
+    phase_0_5_frozen_no_edge_context_required: true
   public_surfaces:
     - Market Overview
     - Match Intelligence
     - Data & Operations Summary
+  cockpit_refinement:
+    round_1_reopen_authorized: false
+    top_primary_counter_max: 5
+    attention_feed_authority: FROZEN_SEVEN_STATE_PRECEDENCE_THEN_KICKOFF
+    hidden_opportunity_score_allowed: false
   repository_hygiene_required_before_pass: true
   expected_final_receipt: ROUND_3_FINAL_RECEIPT.md
+
+phase_0_5_frozen_context:
+  protocol: W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
+  final_verdict: NO_EDGE
+  v_continuation_gate: FAIL
+  ou_close_best_predictive_lift: -0.0000758
+  ah_close_best_predictive_lift: -0.0006467
+  ou_pre_best_frozen_selections: 7566
+  ou_pre_best_frozen_strategy_roi: -5.32%
+  h_result_access: PERMANENTLY_CLOSED
+  reexecution_authorized: false
 
 product_contract:
   intelligence_first: true
@@ -72,6 +100,7 @@ permanent_stop_lines:
   api_football_pro_renewal: NOT_AUTHORIZED_NOW
   new_provider_purchase: NOT_AUTHORIZED
   new_provider_cutover: NOT_AUTHORIZED
+  collection_cadence_expansion_for_chart_density: NOT_AUTHORIZED
   active_whitelist_change: false
   audit_only_promotion: false
   h_result_access: PERMANENTLY_CLOSED
