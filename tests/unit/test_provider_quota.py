@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+import pytest
+
 from w2.ingestion.quota_budget import independent_signal_quota_decision
 from w2.prematch.analysis_calculator import ReadModelService
 from w2.providers.quota import (
@@ -241,6 +243,61 @@ def test_provider_daily_hard_cap_blocks_exhaustion() -> None:
 
     assert decision["allowed"] is False
     assert decision["blocker"] == "DAILY_PROVIDER_HARD_CAP_EXCEEDED"
+
+
+def test_provider_daily_hard_cap_reconciles_local_ceiling_and_provider_reserve() -> None:
+    allowed = provider_daily_hard_cap_decision(
+        actual_calls_today=79,
+        planned_calls=1,
+        daily_cap=80,
+        reserve_bucket=0,
+        provider_remaining=21,
+        min_provider_remaining=20,
+        require_provider_remaining=True,
+    )
+    assert allowed["allowed"] is True
+    assert allowed["projected_total"] == 80
+    assert allowed["provider_remaining_after_plan"] == 20
+
+    local_blocked = provider_daily_hard_cap_decision(
+        actual_calls_today=80,
+        planned_calls=1,
+        daily_cap=80,
+        reserve_bucket=0,
+        provider_remaining=100,
+        min_provider_remaining=20,
+        require_provider_remaining=True,
+    )
+    assert local_blocked["blocker"] == "DAILY_PROVIDER_HARD_CAP_EXCEEDED"
+
+
+@pytest.mark.parametrize("remaining", [20, 19])
+def test_provider_daily_hard_cap_preserves_provider_reserve(remaining: int) -> None:
+    decision = provider_daily_hard_cap_decision(
+        actual_calls_today=5,
+        planned_calls=1,
+        daily_cap=80,
+        reserve_bucket=0,
+        provider_remaining=remaining,
+        min_provider_remaining=20,
+        require_provider_remaining=True,
+    )
+    assert decision["allowed"] is False
+    assert decision["blocker"] == "PROVIDER_RESERVE_PROTECTED"
+
+
+def test_provider_daily_hard_cap_fails_closed_when_provider_quota_is_unknown() -> None:
+    decision = provider_daily_hard_cap_decision(
+        actual_calls_today=5,
+        planned_calls=1,
+        daily_cap=80,
+        reserve_bucket=0,
+        provider_remaining=None,
+        min_provider_remaining=20,
+        require_provider_remaining=True,
+    )
+    assert decision["allowed"] is False
+    assert decision["blocker"] == "DAILY_QUOTA_UNKNOWN"
 
 
 def test_matchday_refresh_projected_calls_feed_hard_stop_contract() -> None:

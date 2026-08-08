@@ -1036,7 +1036,11 @@ def test_request_count_since_includes_provider_request_logs(
             )
         session.commit()
 
-    assert FutureRefreshDbRepository().request_count_since(since) >= 120
+    before_restart = FutureRefreshDbRepository().request_count_since(since)
+    after_restart = FutureRefreshDbRepository().request_count_since(since)
+
+    assert before_restart >= 120
+    assert after_restart == before_restart
 
 
 def test_request_count_since_includes_quota_usage(
