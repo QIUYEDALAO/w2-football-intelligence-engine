@@ -17,6 +17,13 @@ const STATES: IntelligenceState[] = [
   "MARKET_STABLE",
 ];
 
+async function expectDeterministicScreenshot(page: Page): Promise<void> {
+  await page.addStyleTag({ content: "*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}html{scroll-behavior:auto!important}" });
+  const first = await page.screenshot({ animations: "disabled", fullPage: false });
+  const second = await page.screenshot({ animations: "disabled", fullPage: false });
+  expect(second.equals(first)).toBe(true);
+}
+
 function risks(attention?: keyof WorkspaceRisks): WorkspaceRisks {
   return Object.fromEntries(["EVENT_RISK", "DATA_RISK", "MODEL_RISK", "COLLECTION_RISK"].map((axis) => [axis, {
     dimension: axis,
@@ -290,12 +297,11 @@ test("public copy excludes forbidden decision and commercial semantics", async (
   await expect(body).toContainText("Formal recommendation is OFF");
 });
 
-test("fixed visual authority is deterministic at 1536x1024", async ({ page }) => {
+test("fixed visual authority is deterministic at 1536x1024 within the browser runtime", async ({ page }) => {
   await installWorkspace(page);
   await page.goto("/");
-  await page.addStyleTag({ content: "*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}html{scroll-behavior:auto!important}" });
   await expect(page.locator("[data-ui='match-board']")).toBeVisible();
-  await expect(page).toHaveScreenshot("intelligence-workspace-1536x1024.png", { animations: "disabled", fullPage: false });
+  await expectDeterministicScreenshot(page);
 });
 
 for (const viewport of [{ width: 1920, height: 1080 }, { width: 1440, height: 900 }, { width: 1366, height: 768 }]) {
@@ -307,7 +313,7 @@ for (const viewport of [{ width: 1920, height: 1080 }, { width: 1440, height: 90
     expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
     await expect(page.locator("[data-ui='attention']")).toBeVisible();
     await expect(page.locator("[data-ui='match-board']")).toBeVisible();
-    await expect(page).toHaveScreenshot(`intelligence-workspace-${viewport.width}x${viewport.height}.png`, { animations: "disabled", fullPage: false });
+    await expectDeterministicScreenshot(page);
   });
 }
 

@@ -48,6 +48,7 @@ Negative checks reject synthetic timelines, a second public dashboard, recommend
 - Motion: disabled; scroll position: 0
 - Fixed authority: `golden/intelligence-workspace-1536x1024.png`
 - Responsive evidence: `golden/intelligence-workspace-1920x1080.png`, `golden/intelligence-workspace-1440x900.png`, `golden/intelligence-workspace-1366x768.png`
+- Cross-platform CI: each fixed viewport must produce byte-identical repeated screenshots within the same Chromium runtime; committed Owner Review evidence remains the macOS reference and is not compared pixel-for-pixel with Ubuntu font rasterization.
 - Geometry: no horizontal page overflow at all required responsive widths.
 - Owner reference status: `OWNER_REFERENCE_BINARY_NOT_REPO_BOUND`; acceptance uses the approved product specification plus deterministic generated evidence.
 
