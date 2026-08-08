@@ -6,8 +6,9 @@ PRODUCT = W2 Football Intelligence
 ROUND_1 = PASS
 ROUND_2 = PASS_WITH_TERMINAL_PROVIDER_PLAN_RESTRICTION
 FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME = PASS
-ACTIVE_TASK = AWAIT_OWNER_POST_R3_PRODUCT_DECISION
+ACTIVE_TASK = AWAIT_PATH_A_NATURAL_EVIDENCE_COMPLETION_AND_OWNER_REVIEW
 ROUND_3 = PASS_MARKET_RADAR_MODEL_LAB
+POST_R3_READINESS_ATTRIBUTION = PASS_PATH_A_NATURAL_EVIDENCE_ACCUMULATION
 ```
 
 Binding authority:
@@ -16,7 +17,31 @@ Binding authority:
 ROUND_3_OWNER_AUTHORIZATION.md
 ROUND_3_CODEX_EXECUTION.md
 ROUND_3_ACCEPTANCE_CRITERIA.md
+POST_R3_READINESS_ATTRIBUTION_REPORT.md
+POST_R3_READINESS_ATTRIBUTION_MATRIX.json
 ```
+
+## Post-R3 readiness attribution
+
+- [x] Re-fetch and bind exact `origin/main` and `origin/context/current`.
+- [x] Prove exact-main `_market_radar`, `_snapshot`, `_model_lab_market`, bridge,
+      checkpoint, cache, quota and scheduler semantics.
+- [x] Reconcile the frozen 64-fixture / 128-market Round-3 public cohort.
+- [x] Produce deterministic `PRIMARY_BLOCKER` plus `SECONDARY_BLOCKERS` for all
+      128 rows.
+- [x] Reconcile timeline `0:92 / 1:9 / 2+:27` and Model Lab `125 / 2 / 1`.
+- [x] Independently enumerate all 27 movement-comparison-eligible rows.
+- [x] Trace the six due-window rows through scheduler, task gate, cache, request
+      ledger, endpoint capture and normalization.
+- [x] Prove no recurring internal collection defect and create no fake PR.
+- [x] Select `PATH_A_NATURAL_EVIDENCE_ACCUMULATION` with an event-based, not
+      calendar-based, completion condition.
+- [x] Generate `POST_R3_READINESS_ATTRIBUTION_REPORT.md` and the 128-row JSON
+      matrix.
+- [x] Preserve zero Provider calls, zero business writes and zero new collection
+      tasks for this gate.
+- [x] Execute repository hygiene with unresolved items 0.
+- [x] Stop before Round 4.
 
 ## Continuous Round-3 closeout
 

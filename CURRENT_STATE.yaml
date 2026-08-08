@@ -1,16 +1,16 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-08T18:37:52+08:00"
+updated_at: "2026-08-08T20:50:59+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: ROUND_3_COMPLETED_AWAIT_POST_R3_PRODUCT_DECISION
-owner_authorization_id: W2_MI_R3_MARKET_RADAR_MODEL_LAB_20260808
-active_next_action: AWAIT_OWNER_POST_R3_PRODUCT_DECISION
-next_code_action: NONE_OWNER_DECISION_REQUIRED
-current_status: ROUND_3_PASS_MARKET_RADAR_MODEL_LAB
-current_gate: ROUND_3_CLOSED
+owner_product_decision: POST_R3_READINESS_ATTRIBUTION_PATH_A_NATURAL_EVIDENCE_ACCUMULATION
+owner_authorization_id: W2_MI_POST_R3_READINESS_ROOT_CAUSE_ATTRIBUTION_20260808
+active_next_action: AWAIT_PATH_A_NATURAL_EVIDENCE_COMPLETION_AND_OWNER_REVIEW
+next_code_action: NONE_NATURAL_EVIDENCE_EVENT_REQUIRED
+current_status: POST_R3_READINESS_ATTRIBUTION_PASS_PATH_A
+current_gate: POST_R3_READINESS_ATTRIBUTION_CLOSED
 
 prior_rounds:
   round_1: PASS
@@ -99,6 +99,73 @@ round_3:
   unresolved_hygiene_items: 0
   rollback: PASS_NON_DESTRUCTIVE
   next: AWAIT_OWNER_POST_R3_PRODUCT_DECISION
+
+post_r3_readiness_attribution:
+  task: W2_MI_POST_R3_READINESS_ROOT_CAUSE_ATTRIBUTION
+  status: PASS_READ_ONLY_ATTRIBUTION
+  selected_path: PATH_A_NATURAL_EVIDENCE_ACCUMULATION
+  exact_main_sha: f0fe9d332d05a84f1ef04be86fd9fb44b69d69e3
+  frozen_as_of: "2026-08-08T10:19:12Z"
+  report: POST_R3_READINESS_ATTRIBUTION_REPORT.md
+  matrix: POST_R3_READINESS_ATTRIBUTION_MATRIX.json
+  matrix_sha256: 01999b11e5eea10cf4d68460bb5ba6d1f71c83820709adaaa104a1e5992c58fa
+  checkpoint_fixture_count: 69
+  frozen_future_fixture_count: 64
+  fixture_market_count: 128
+  timeline_depth:
+    zero: 92
+    one: 9
+    two_plus: 27
+  model_lab_status:
+    market_not_ready: 125
+    model_not_ready: 2
+    insufficient_bookmaker_depth: 1
+    comparable_within_market_range: 0
+    model_outside_market_range: 0
+  primary_blockers:
+    no_current_snapshot: 90
+    expected_stale_between_checkpoints: 29
+    due_window_but_no_fresh_capture: 6
+    insufficient_bookmaker_depth: 1
+    model_simulation_not_ready: 1
+    model_calibration_not_ready: 1
+  movement_comparison_eligible:
+    total: 27
+    market_not_ready: 24
+    expected_stale_between_checkpoints: 21
+    due_window_but_no_fresh_capture: 3
+    no_current_snapshot: 0
+    current_snapshot_stale_residual: 0
+    market_construction_failure: 0
+    identity_or_lineage_failure: 0
+    other_market_not_ready: 0
+    non_market_readiness: 3
+  due_window_trace:
+    fixture_count: 3
+    fixture_market_count: 6
+    quota_capacity: AVAILABLE
+    attribution: TRANSIENT_CONTROLLED_ROLLBACK_RESTORE_INTERVAL
+    persistent_collection_defect: NOT_PROVEN
+  data_quality:
+    composite_key_duplicates: 0
+    required_field_missing: 0
+    post_kickoff_rows: 0
+    projection_event_mismatches: 0
+    receipt_reconciliation: PASS
+  provider_calls: 0
+  database_business_writes: 0
+  new_collection_tasks: 0
+  production_code_changes: false
+  bounded_remediation_pr: NOT_CREATED_NO_RECURRING_INTERNAL_BUG_PROVEN
+  repository_hygiene: PASS
+  dead_assets_found: 1
+  dead_assets_deleted: 1
+  obsolete_code_lines_removed: 0
+  retained_for_evidence: POST_R3_READINESS_ATTRIBUTION_REPORT_AND_128_ROW_MATRIX
+  unresolved_hygiene_items: 0
+  completion_condition: REAL_FIXTURES_CROSS_EXISTING_T12_T6_T3_T60_LIFECYCLE_WITH_EXPLICIT_TERMINAL_EVIDENCE_THEN_REPROJECT_AND_OWNER_REVIEW
+  arbitrary_calendar_wait: false
+  round_4: NOT_STARTED
 
 phase_0_5_frozen_context:
   protocol: W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
