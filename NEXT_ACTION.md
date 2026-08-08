@@ -1,94 +1,112 @@
 # NEXT ACTION
 
 ```text
-ACTIVE_NEXT_ACTION = AWAIT_OWNER_FREE_BRIDGE_PR_REVIEW_AND_CONTROLLED_ACTIVATION_DECISION
-OWNER_DECISION = DO_NOT_RENEW_API_FOOTBALL_PRO_NOW
+ACTIVE_NEXT_ACTION = W2_MI_FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_CLOSURE
+OWNER_DECISION = APPROVED_EXECUTE_CONTINUOUSLY
+API_FOOTBALL_PRO_RENEWAL = NOT_AUTHORIZED_NOW
 ROUND_1 = PASS
 ROUND_2 = PASS_WITH_TERMINAL_PROVIDER_PLAN_RESTRICTION
-POST_R2_ACCESS_DECISION = PASS_FREE_PLAN_SEASON_RESTRICTION_CONFIRMED
-FREE_PLAN_FIXTURE_CENTRIC_VALIDATION = FREE_FIXTURE_CENTRIC_CURRENT_DATA_WORKS
-FREE_PLAN_IDS_PARAMETER = PLAN_RESTRICTED
-BRIDGE_PR = 495_OPEN_CI_PASS_DISABLED_BY_DEFAULT
+FREE_FIXTURE_VALIDATION = FREE_FIXTURE_CENTRIC_CURRENT_DATA_WORKS
+PR_495 = OPEN_MERGEABLE_FAST_CI_PASS
 ROUND_3 = NOT_STARTED
-NEXT_CODE_ACTION = NONE_WITHOUT_NEW_OWNER_AUTHORITY
 ```
 
-The owner explicitly does **not** authorize API-Football Pro renewal now. The previous paid month materially under-used the 7,500/day purchased capacity. Paid current-season access may be reconsidered when the Big Five enter the actual match collection window; it is not a prerequisite for present engineering work.
-
-Completed task evidence:
+Binding authorities:
 
 ```text
-FREE_PLAN_FIXTURE_CENTRIC_VALIDATION.md
-FREE_PLAN_DAILY_CALL_BUDGET.md
-POST_R2_PROVIDER_ACCESS_ROOT_CAUSE.md
-PR https://github.com/QIUYEDALAO/w2-football-intelligence-engine/pull/495
+FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_AUTHORIZATION.md
+FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_ACCEPTANCE.md
+REPOSITORY_HYGIENE_POLICY.md
 ```
 
-## Immediate objective
+## Goal
 
-The no-season proof and bounded implementation are complete. The current stop
-line is owner review of the open, CI-green, disabled-by-default PR. No merge,
-runtime wiring, Provider cutover or activation is authorized by the completed
-validation alone.
-
-The five-call proof established:
+Do not stop after one sub-step. Complete the entire chain:
 
 ```text
-CURRENT_2026_FIXTURE_DISCOVERY_WITHOUT_SEASON = ACCESSIBLE
-FIXTURE_DETAIL_BY_ID = ACCESSIBLE
-ODDS_BY_FIXTURE = ACCESSIBLE_WITH_AH_AND_OU
-STATISTICS_BY_FIXTURE = ACCESSIBLE
-FIXTURES_BY_IDS = FREE_PLAN_RESTRICTED
+REFETCH
+-> INDEPENDENTLY AUDIT PR #495
+-> FIX QUOTA/OTHER IN-SCOPE DEFECTS
+-> RUN ALL PRE-MERGE GATES
+-> MERGE PR #495
+-> REFETCH MAIN
+-> ADD ONE BOUNDED EXISTING-SCHEDULER SHADOW INTEGRATION PR IF NEEDED
+-> RUN PR/RC GATES
+-> MERGE
+-> DEPLOY THROUGH NORMAL IMMUTABLE RELEASE PATH
+-> VERIFY ONE-STEP ROLLBACK
+-> ACTIVATE FREE BRIDGE SHADOW_ONLY
+-> RUN BOUNDED REAL FREE-PLAN ACCEPTANCE
+-> REPOSITORY HYGIENE
+-> FINAL RECEIPT
+-> STOP BEFORE ROUND 3
 ```
 
-## Completed sequence
+For in-scope failures, fail closed at the failed gate, fix, rerun and continue. Do not ask the owner again merely because a test/CI/runtime acceptance failed.
+
+## Known mandatory pre-merge fix
+
+Independent review found PR #495 currently models:
 
 ```text
-1. fetched origin/main b04dcc7e and origin/context/current 8cbbba09
-2. used the existing Free account with no purchase or account change
-3. attempted exactly five calls, no retry or write
-4. validated real fixture 1493055 in league 128, season 2026
-5. retained a final confirmed daily remaining header of 96
-6. classified FREE_FIXTURE_CENTRIC_CURRENT_DATA_WORKS
-7. recorded FREE_PLAN_IDS_PARAMETER_RESTRICTED without a fake workaround
-8. created PR #495, disabled by default, with cache-key reuse, local dedupe,
-   capability-gated batching, quota planning and no-idle-polling
-9. passed 43 focused/contract tests, full Ruff, strict mypy and PR Fast CI
-10. completed repository hygiene
-11. stopped before PR merge, runtime activation and Round 3
+daily_hard_cap = 80
+reserve = 20
 ```
 
-## What is waiting
+but then computes capacity as `80 - 20 - actual`, while the shared quota helper also protects the reserve. This makes the effective W2 ceiling 60.
 
-Owner may review PR #495 and later issue a separate bounded decision for merge
-and controlled activation. A future task must define runtime ownership, call-ledger
-source, cache freshness windows, target-match scheduling and rollback evidence.
-Those actions must not be inferred from this waiting state.
-
-## Hard boundaries
+Required semantics are exactly:
 
 ```text
-API_FOOTBALL_PRO_RENEWAL = NOT_AUTHORIZED_NOW
-MAX_NEW_PROVIDER_CALLS = 12
-TARGET_NEW_PROVIDER_CALLS = 5_TO_8
-FREE_DAILY_LIMIT = 100
-FREE_DAILY_HARD_CAP_FOR_W2 = 80
-MIN_DAILY_RESERVE = 20
-NEW_PROVIDER_VALIDATION_CALLS = 0_WITHOUT_NEW_AUTHORITY
+PROVIDER_DAILY_LIMIT = 100
+W2_DAILY_CALL_CEILING = 80
+MIN_PROVIDER_DAILY_REMAINING = 20
+EFFECTIVE_W2_CEILING = 80_NOT_60
+```
+
+Fix and test this before PR #495 may merge.
+
+## Other hard requirements
+
+- quota accounting must reconcile all API-Football traffic sharing the same key, not only bridge calls;
+- process restart must not reset daily usage truth;
+- local ledger and Provider remaining/limit evidence must reconcile; stricter wins;
+- Free defaults to single fixture ID; `fixtures?ids` stays disabled because it was plan-restricted;
+- no idle polling, duplicate request keys or unnecessary fresh-cache calls;
+- avoid redundant fixture-detail calls when discovery already provides canonical identity evidence;
+- only existing 13 whitelist competitions may receive follow-up calls;
+- four audit-only leagues remain runtime-unreachable;
+- runtime owner must live in the existing scheduler/operations framework; no second daemon;
+- collection states must cover discovery, prematch market, lineup window and postmatch statistics with deterministic quota priority;
+- optional enrichment must yield before core market evidence on heavy days;
+- bridge activation is `SHADOW_ONLY`;
+- Candidate/Formal/Lock/Production remain OFF;
+- no Round 3 work.
+
+## Provider budget
+
+```text
+FREE_PROVIDER_LIMIT = 100/day
+W2_MAX = 80/day
+RESERVE = at least 20/day
+TASK_NEW_REAL_ACCEPTANCE_CALLS <= 20
 AUTOMATIC_RETRY = false
-BUSINESS_WRITES_DURING_PROOF = 0
-PR_MERGE = NOT_AUTHORIZED_BY_THIS_COMPLETION
-PRODUCTION_SCHEDULER_CHANGE = NOT_AUTHORIZED_BY_VALIDATION_ALONE
-PERSISTENT_COLLECTION_EXPANSION = NOT_AUTHORIZED_BY_VALIDATION_ALONE
-ACTIVE_WHITELIST = 13_UNCHANGED
-NET_NEW_LEAGUE_ENABLEMENT = 0
-ROUND_3 = NOT_STARTED
-CANDIDATE = OFF
-FORMAL = OFF
-LOCK = OFF
-PRODUCTION = OFF
 ```
 
-Do not request owner money merely because season enumeration remains blocked.
-Do not merge or activate the bridge, start Round 3, or spend additional Provider
-quota unless a later owner instruction explicitly changes the stop line.
+Use fewer calls when possible. No spending for the sake of consuming quota.
+
+## Completion
+
+Only stop successfully when `FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_ACCEPTANCE.md` is fully PASS and `FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME_RECEIPT.md` exists.
+
+Expected final state:
+
+```text
+FREE_PLAN_BRIDGE_CONTROLLED_RUNTIME = PASS
+FREE_BRIDGE_MODE = SHADOW_ONLY
+API_FOOTBALL_PRO_RENEWAL = NOT_REQUIRED_NOW
+ACTIVE_WHITELIST = 13_UNCHANGED
+REPOSITORY_HYGIENE = PASS
+ROUND_3 = NOT_STARTED
+NEXT = AWAIT_OWNER_ROUND_3_OR_BIG_FIVE_COLLECTION_DECISION
+```
