@@ -23,6 +23,8 @@ x-common-env: &common-env
   W2_PROVIDER_ENDPOINT_ALLOWLIST: "status,fixtures,odds,lineups"
   W2_PROVIDER_REFRESH_TICK_HARD_CAP: "30"
   W2_PROVIDER_DAILY_HARD_CAP: "120"
+  W2_FREE_BRIDGE_MODE: ${W2_FREE_BRIDGE_MODE:-OFF}
+  W2_FREE_BRIDGE_INTERVAL_SECONDS: "300"
   W2_MARKET_ANCHOR_DISPLAY_ENABLED: ${W2_MARKET_ANCHOR_DISPLAY_ENABLED:-true}
   W2_MARKET_ANCHOR_MIN_DIVERGENCE: ${W2_MARKET_ANCHOR_MIN_DIVERGENCE:-0.05}
   W2_XG_BACKFILL_ENABLED: "false"
@@ -218,7 +220,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "from apps.scheduler.main import heartbeat, future_fixture_refresh_contract_ready, future_fixture_refresh_enabled; assert 'heartbeat' in heartbeat(); assert not future_fixture_refresh_enabled() or future_fixture_refresh_contract_ready()"]
+      test: ["CMD", "python", "-c", "from apps.scheduler.main import heartbeat, future_fixture_refresh_contract_ready, future_fixture_refresh_enabled; from w2.ingestion.free_fixture_runtime import free_fixture_bridge_mode; assert 'heartbeat' in heartbeat(); assert not future_fixture_refresh_enabled() or future_fixture_refresh_contract_ready(); assert free_fixture_bridge_mode() in {'OFF', 'SHADOW_ONLY'}"]
       interval: 30s
       timeout: 10s
       retries: 3

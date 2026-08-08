@@ -141,7 +141,6 @@ def test_matchday_intake_v2_isolated_persistence_smoke() -> None:
             )
         )
         session.commit()
-
     with Session(engine) as session:
         assert session.query(MatchdayEndpointCaptureModel).count() == 1
         assert session.query(MatchdayCheckpointPlanModel).count() == 1
@@ -177,6 +176,40 @@ def test_matchday_intake_v2_isolated_persistence_smoke() -> None:
     public = public_manifest_read(manifest)
     assert public["provider_calls"] == 0
     assert public["db_writes"] == 0
+
+
+def test_latest_endpoint_capture_reuses_persisted_raw_payload_after_restart() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    payload = _odds_payload()
+    capture = endpoint_capture_contract(
+        endpoint="odds",
+        params={"fixture": "100"},
+        requested_at=NOW,
+        provider_captured_at=NOW,
+        status_code=200,
+        elapsed_ms=10,
+        payload=payload,
+        fixture_id="api_football:100",
+        competition_id="allsvenskan",
+    )
+    repository.save_raw_payload(
+        sha256=str(capture["raw_payload_sha256"]),
+        endpoint="odds",
+        captured_at=NOW,
+        payload=payload,
+    )
+    repository.insert_endpoint_capture(capture)
+
+    cached = MatchdayRuntimeRepository(engine=engine).latest_endpoint_capture(
+        request_task_key=str(capture["request_task_key"]),
+        since=NOW - timedelta(minutes=1),
+    )
+
+    assert cached is not None
+    assert cached["capture"]["capture_id"] == capture["capture_id"]
+    assert cached["payload"] == payload
 
 
 def test_checkpoint_state_machine_due_claim_capture_and_single_winner() -> None:

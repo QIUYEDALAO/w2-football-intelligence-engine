@@ -2771,3 +2771,27 @@ class FutureRefreshDbRepository:
             int(provider_request_logs or 0),
             int(quota_usage or 0),
         )
+
+    def provider_quota_snapshot(self, day_start: datetime) -> dict[str, int | None]:
+        start = parse_db_datetime(day_start).replace(hour=0, minute=0, second=0, microsecond=0)
+        end = start + timedelta(days=1)
+        try:
+            with Session(self.engine) as session:
+                rows = list(
+                    session.scalars(
+                        select(QuotaUsageModel).where(
+                            QuotaUsageModel.provider == "api_football",
+                            QuotaUsageModel.window_start >= start,
+                            QuotaUsageModel.window_start < end,
+                        )
+                    )
+                )
+        except Exception as exc:
+            raise FutureRefreshPersistenceError("QUOTA_SNAPSHOT_READ_FAILED") from exc
+        if not rows:
+            return {"daily_limit": None, "used": None, "remaining": None}
+        return {
+            "daily_limit": min(int(row.limit) for row in rows),
+            "used": max(int(row.used) for row in rows),
+            "remaining": min(max(int(row.limit) - int(row.used), 0) for row in rows),
+        }

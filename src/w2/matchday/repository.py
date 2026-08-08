@@ -429,6 +429,38 @@ class MatchdayRuntimeRepository:
                 raise MatchdayRepositoryError("CAPTURE_IDENTITY_CONFLICT") from None
         return str(capture["capture_id"])
 
+    def latest_endpoint_capture(
+        self,
+        *,
+        request_task_key: str,
+        since: datetime,
+    ) -> dict[str, Any] | None:
+        with Session(self.engine) as session:
+            row = session.execute(
+                select(MatchdayEndpointCaptureModel, RawPayloadModel)
+                .join(
+                    RawPayloadModel,
+                    RawPayloadModel.sha256 == MatchdayEndpointCaptureModel.raw_payload_sha256,
+                )
+                .where(
+                    MatchdayEndpointCaptureModel.request_task_key == request_task_key,
+                    MatchdayEndpointCaptureModel.provider_captured_at
+                    >= normalize_repo_time(since),
+                    MatchdayEndpointCaptureModel.capture_status.in_(
+                        ("CAPTURED", "PROVIDER_EMPTY")
+                    ),
+                )
+                .order_by(MatchdayEndpointCaptureModel.provider_captured_at.desc())
+                .limit(1)
+            ).first()
+        if row is None:
+            return None
+        capture, raw_payload = row
+        return {
+            "capture": _capture_payload(capture),
+            "payload": dict(raw_payload.payload),
+        }
+
     def insert_market_observations(self, observations: Sequence[Mapping[str, Any]]) -> int:
         count = 0
         with Session(self.engine) as session:

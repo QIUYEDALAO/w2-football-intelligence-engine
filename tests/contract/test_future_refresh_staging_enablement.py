@@ -16,6 +16,7 @@ from w2.infrastructure.database import create_engine
 from w2.refresh.matchday_schedule import MatchdayRefreshPolicy, build_matchday_refresh_plan
 
 ROOT = Path(__file__).resolve().parents[2]
+CONTROLLED_OVERRIDE = ROOT / "infra/compose/controlled-future-refresh.override.yml"
 COMPOSE_PATHS = [
     ROOT / "infra/compose/compose.staging.yml",
     ROOT / "infra/compose/staging-lite.override.yml",
@@ -47,6 +48,7 @@ def test_staging_compose_defaults_future_refresh_and_provider_calls_disabled() -
         assert scheduler["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == "status,fixtures,odds,lineups"
         assert scheduler["W2_PROVIDER_REFRESH_TICK_HARD_CAP"] == "30"
         assert scheduler["W2_PROVIDER_DAILY_HARD_CAP"] == "120"
+        assert scheduler["W2_FREE_BRIDGE_MODE"] == "${W2_FREE_BRIDGE_MODE:-OFF}"
         assert "W2_STAGING_ENABLED_COMPETITIONS" not in scheduler
         assert scheduler["W2_XG_BACKFILL_ENABLED"] == "false"
         assert scheduler["W2_MARKET_TIMELINE_REFRESH_ENABLED"] == "true"
@@ -111,6 +113,23 @@ def test_staging_compose_keeps_production_and_recommendation_flags_off() -> None
         assert scheduler["W2_CANDIDATE_ENABLED"] == "false"
         assert scheduler["W2_PRODUCTION_RELEASE"] == "false"
         assert scheduler["W2_EXTERNAL_ALERTING"] == "false"
+
+
+def test_controlled_override_selects_single_free_shadow_collection_owner() -> None:
+    payload = load_compose(CONTROLLED_OVERRIDE)
+    worker = payload["services"]["worker"]["environment"]
+    scheduler = payload["services"]["scheduler"]["environment"]
+
+    assert worker["W2_FREE_BRIDGE_MODE"] == "${W2_FREE_BRIDGE_MODE:-OFF}"
+    assert scheduler["W2_FREE_BRIDGE_MODE"] == "${W2_FREE_BRIDGE_MODE:-OFF}"
+    assert scheduler["W2_FUTURE_FIXTURE_REFRESH_ENABLED"] == "false"
+    assert worker["W2_PROVIDER_HTTP_MAX_ATTEMPTS"] == "1"
+    assert scheduler["W2_PROVIDER_HTTP_MAX_ATTEMPTS"] == "1"
+    assert worker["W2_PROVIDER_DAILY_HARD_CAP"] == "80"
+    assert scheduler["W2_PROVIDER_DAILY_HARD_CAP"] == "80"
+    assert worker["W2_CANDIDATE_ENABLED"] == "false"
+    assert worker["W2_FORMAL_RECOMMENDATION_ENABLED"] == "false"
+    assert worker["W2_PRODUCTION_RELEASE"] == "false"
 
 
 def test_world_cup_legacy_policy_does_not_restore_league_whitelist() -> None:

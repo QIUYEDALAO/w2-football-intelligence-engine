@@ -87,7 +87,7 @@ def load_compose(path: Path) -> dict[str, Any]:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
-@pytest.mark.parametrize(("path", "common_count"), [(FORMAL, 34), (LITE, 30)])
+@pytest.mark.parametrize(("path", "common_count"), [(FORMAL, 36), (LITE, 32)])
 def test_runtime_services_share_one_common_environment_anchor(
     path: Path,
     common_count: int,
