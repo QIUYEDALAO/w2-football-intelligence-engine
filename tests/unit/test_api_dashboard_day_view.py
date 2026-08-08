@@ -121,6 +121,39 @@ def test_dashboard_day_view_endpoint_reads_requested_window(
     assert payload["would_write_checkpoint"] is False
 
 
+def test_intelligence_workspace_twenty_reads_are_stable_and_side_effect_free(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    service = RecordingDashboardService()
+    monkeypatch.setattr(routers, "service", service)
+    client = TestClient(app)
+
+    responses = [
+        client.get(
+            "/v1/dashboard/intelligence-workspace"
+            "?date=2026-07-05&window=future&timezone=UTC"
+        )
+        for _ in range(20)
+    ]
+    payloads = [
+        {key: value for key, value in response.json().items() if key != "request_id"}
+        for response in responses
+    ]
+
+    assert {response.status_code for response in responses} == {200}
+    assert all(payload == payloads[0] for payload in payloads)
+    assert len(service.calls) == 20
+    assert all(call["include_debug"] is False for call in service.calls)
+    assert payloads[0]["read_contract"] == {
+        "provider_calls": 0,
+        "db_writes": 0,
+        "would_write_checkpoint": False,
+        "no_call_on_read": True,
+    }
+    assert payloads[0]["runtime"]["formal"] == "OFF"
+    assert payloads[0]["matches"][0]["formal_recommendation"]["status"] == "OFF"
+
+
 def test_dashboard_day_view_endpoint_missing_contract_is_system_degraded(
     monkeypatch: MonkeyPatch,
 ) -> None:
