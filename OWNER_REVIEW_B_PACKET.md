@@ -2,7 +2,7 @@
 
 ```text
 AUTHORITY = W2_DASHBOARD_OWNER_REVIEW_B_PACKET_V1
-STATUS = READY_FOR_OWNER_REVIEW_B
+STATUS = REMEDIATION_COMPLETE_READY_FOR_OWNER_REVIEW_B_REREVIEW
 P1 = PASS_CONTRACT_CONSISTENCY
 P2 = COMPLETE_READY_FOR_REVIEW
 P3 = NOT_STARTED_NOT_AUTHORIZED
@@ -14,13 +14,14 @@ ROUND_4 = NOT_STARTED
 | Item | Exact value |
 |---|---|
 | latest `origin/main` / PR base | `f0fe9d332d05a84f1ef04be86fd9fb44b69d69e3` |
-| P2 head | `a067adbd1d2796cc69ea10bd8cff9aeadf7abee9` |
+| P2 remediated head | `eeafd2658cffb38dab8e6ed4b7b521e157d106ef` |
 | PR | [#498](https://github.com/QIUYEDALAO/w2-football-intelligence-engine/pull/498) |
 | branch | `codex/dashboard-unified-read-model` |
 | PR Fast | `PR_FAST_REQUIRED = PASS` |
-| exact-head Full CI | [run 31273222764](https://github.com/QIUYEDALAO/w2-football-intelligence-engine/actions/runs/31273222764) |
+| remediation PR Fast | [run 31274671562](https://github.com/QIUYEDALAO/w2-football-intelligence-engine/actions/runs/31274671562) |
+| exact-head Full CI | [run 31274704745](https://github.com/QIUYEDALAO/w2-football-intelligence-engine/actions/runs/31274704745) |
 | Full CI terminal gate | `RELEASE_REQUIRED = PASS` |
-| prior context/current | `fe271557d97caabc611584fbd505d84cb63861bf` |
+| remediation context base | `fc70423caf4e01a950d8414d08d68d6a67e51798` |
 
 PR #498 remains open for Owner Review B. Main is not represented as containing
 P2 until the PR is approved and merged.
@@ -38,7 +39,7 @@ AVAILABILITY / FRESHNESS_DOMAIN / READINESS_SEMANTICS / NO_CALL_ON_READ`.
 | Freshness Contract | `FRESHNESS_CONTRACT.md` | `PASS` |
 
 ```text
-P1_FIELD_BINDINGS = PASS (65 bound rows)
+P1_FIELD_BINDINGS = PASS (73 bound rows)
 P1_SOURCE_EVIDENCE = PASS
 P1_CONTRACT_CONSISTENCY = PASS
 UNRESOLVED_SOURCE_FRESHNESS_READINESS_CONFLICTS = 0
@@ -83,6 +84,21 @@ It reuses existing DayView, Round-3 Intelligence/Attention/Market Radar/Model
 Lab, scoreline, performance/calibration checkpoints and replay front door. It
 does not create a second Decision Contract, readiness engine, scoreline engine,
 replay engine or probability-scoring engine.
+
+## Owner Review B bounded remediation closure
+
+```text
+ATTENTION_AFFECTED_DOMAINS = BOUND_TO_EXISTING_STATE_AND_REASON_EVIDENCE
+ATTENTION_FACTUAL_SUMMARY = BOUND_TO_EXISTING_STATE_AND_REASON_EVIDENCE
+ATTENTION_READINESS_CONTEXT_AND_NEXT_EVAL = BOUND_TO_EXISTING_READINESS
+HISTORY_REPLAY_DECISION_SUMMARY = PRESERVED_FROM_REPLAY_FRONT_DOOR
+INTELLIGENCE_STATE_SCHEMA = EXACT_SEVEN_FAIL_CLOSED
+RISK_SCHEMA = EXACT_EVENT_DATA_MODEL_COLLECTION_FAIL_CLOSED
+SCORELINE_READY_SIMULATIONS = EXACT_10000
+SCORELINE_DISPLAY_PROBABILITY = UNCONDITIONAL_PROBABILITY
+SCORELINE_SAMPLE_COUNT = PRESERVED
+SCORELINE_SIMULATION_ON_API_READ = 0
+```
 
 ## Required semantics and contract evidence
 
@@ -137,18 +153,32 @@ No runtime Provider call was made for P1/P2.
 Local exact-worktree results:
 
 ```text
-ruff = PASS
+focused remediation + endpoint + package-matrix tests = 60 passed
+ruff = PASS (281 source files)
 mypy src apps = PASS (281 source files)
-focused P2 + package-matrix tests = 56 passed
-full pytest before final allowlist tightening = 2501 passed, 13 environment skips
-post-tightening focused tests = PASS
+W2 all-stage verification = PASS
+tracked-output check = PASS
+secret scan = PASS
 git diff --check = PASS
 ```
 
-GitHub exact-head Full CI run `31273222764` passed static contracts, four unit
+GitHub exact-head Full CI run `31274704745` passed static contracts, four unit
 shards, two integration shards, PostgreSQL migration-schema, staging parity,
 predeploy E2E, Web typecheck/build/E2E, compose packaging, immutable image
 build/smoke, secret scan, manifest revalidation and `RELEASE_REQUIRED`.
+
+## Bounded remediation changed files
+
+```text
+CURRENT_W2_GAP_MATRIX.md
+DASHBOARD_DATA_CONTRACT.md
+PERFECT_INTELLIGENCE_CAPABILITY_MATRIX.md
+examples/dashboard_intelligence_workspace.v1.json
+src/w2/api/schemas.py
+src/w2/dashboard/workspace.py
+tests/contract/test_dashboard_intelligence_workspace_contract.py
+tests/unit/test_dashboard_intelligence_workspace.py
+```
 
 ## Changed files
 
@@ -206,4 +236,4 @@ ACTIVE_WHITELIST_CHANGE = 0
 MODEL_OR_THRESHOLD_CHANGE = 0
 ```
 
-The next action is Owner Review B only. This packet does not authorize P3.
+The next action is Owner Review B rereview only. This packet does not authorize P3 or merge PR #498.

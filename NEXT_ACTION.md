@@ -1,16 +1,17 @@
 # NEXT ACTION
 
 ```text
-ACTIVE_NEXT_ACTION = EXECUTE_OWNER_REVIEW_B_BOUNDED_REMEDIATION
-CURRENT_GATE = OWNER_REVIEW_B_REMEDIATION
-OWNER_REVIEW_B = CHANGES_REQUIRED
+ACTIVE_NEXT_ACTION = STOP_FOR_OWNER_REVIEW_B_REREVIEW
+CURRENT_GATE = OWNER_REVIEW_B_REREVIEW
+OWNER_REVIEW_B = REMEDIATION_COMPLETE_READY_FOR_REREVIEW
 REMEDIATION_AUTHORITY = OWNER_REVIEW_B_REMEDIATION.md
 CODEX_PROTOCOL = CODEX_EXECUTION_PROTOCOL.md
 STANDARD_RECEIPT = CODEX_EXECUTION_RECEIPT.md
 PR = 498
-REVIEWED_HEAD = a067adbd1d2796cc69ea10bd8cff9aeadf7abee9
+REMEDIATED_HEAD = eeafd2658cffb38dab8e6ed4b7b521e157d106ef
+FULL_CI_RUN = 31274704745
+RELEASE_REQUIRED = PASS
 P3 = NOT_STARTED_NOT_AUTHORIZED
-AFTER_REMEDIATION = STOP_FOR_OWNER_REVIEW_B_REREVIEW
 ROUND_4 = NOT_STARTED
 ```
 
@@ -32,68 +33,13 @@ ROUND_4 = NOT_STARTED
 13. REPOSITORY_HYGIENE_POLICY.md
 ```
 
-## Required bounded remediation on existing PR #498
+## Current action
 
-Do not redesign P1/P2. Preserve the one unified read model and close only the Owner Review B contract findings.
+The bounded remediation on existing PR #498 is complete and exact-head Full CI is green. The only current action is Owner Review B rereview.
 
-### 1. Complete the P0 → P1 → P2 field binding
+No development phase is authorized while this gate is pending.
 
-P1/P2 must add/bind the P0-required Attention fields currently missing from the Attention contract:
-
-```text
-affected domain
-factual summary
-readiness context/status
-next_eval_at when available
-```
-
-Use existing state/reason/readiness evidence only. No Provider call or new signal.
-
-The existing replay front door already emits `decision_summary`; add it to the final P2 history/replay schema, adapter, sample and tests so the final contract can answer what W2 judged and why.
-
-### 2. Freeze the exact seven states and four risks in schema/tests
-
-The final P2 schema must fail closed to the exact approved seven intelligence states and exact four risk dimensions:
-
-```text
-EVENT_RISK
-DATA_RISK
-MODEL_RISK
-COLLECTION_RISK
-```
-
-Correct the P2 fixture that currently uses lower-case keys and `market_risk`. Add negative tests for unknown state, missing/extra risk dimension, and `MARKET_RISK`.
-
-### 3. Freeze Scoreline Top 3 semantics
-
-For `scoreline_reference.status = READY`:
-
-```text
-simulations_completed = 10000
-probability exposed to P3 = explicit unconditional_probability
-sample_count preserved
-label = MODEL_SCORELINE_REFERENCE
-proof_status = NOT_PROVEN
-```
-
-Reuse the existing scoreline engine output. No simulation/recalculation on API read. Add negative/positive contract tests.
-
-## Keep all accepted P2 behavior unchanged
-
-Keep:
-
-- one `w2.dashboard-intelligence-workspace.v1` read model;
-- current endpoint and checkpoint-only/pure projection boundary;
-- no-call/no-write fail-closed behavior;
-- 0/1/2+ snapshot semantics;
-- NOT_CONNECTED / NOT_DEFINED / NOT_PROVEN;
-- API-Football Prediction explicit NOT_AVAILABLE;
-- public ROI/CLV and legacy-authority exclusion;
-- probability/directional/league/forward validation foundation;
-- domain freshness and lineup 1/13 limitation;
-- Formal/Candidate/Lock/Production OFF.
-
-## Forbidden
+## Stop lines
 
 - P3 UI work
 - new PR architecture or second read model
@@ -107,15 +53,16 @@ Keep:
 - Candidate/Formal/Lock/Production enablement
 - legacy deletion
 
-## Required terminal evidence
+## Owner rereview evidence
 
 After fixes on PR #498:
 
 ```text
-NEW_EXACT_HEAD_SHA
-UPDATED_P1_CONTRACTS
-UPDATED_SCHEMA_AND_ADAPTER
-UPDATED_DETERMINISTIC_SAMPLE
+NEW_EXACT_HEAD_SHA = eeafd2658cffb38dab8e6ed4b7b521e157d106ef
+EXACT_MAIN_AND_BASE_SHA = f0fe9d332d05a84f1ef04be86fd9fb44b69d69e3
+PR_FAST_RUN = 31274671562
+FULL_EXACT_HEAD_CI_RUN = 31274704745
+RELEASE_REQUIRED = PASS
 ATTENTION_FIELD_BINDING_TESTS = PASS
 EXACT_SEVEN_STATE_FOUR_RISK_TESTS = PASS
 SCORELINE_10000_UNCONDITIONAL_TESTS = PASS
@@ -123,14 +70,9 @@ REPLAY_DECISION_SUMMARY_TEST = PASS
 EXISTING_ZERO_ONE_MULTI_TESTS = PASS
 EXISTING_FORBIDDEN_FIELD_TESTS = PASS
 EXISTING_NO_CALL_ON_READ_TESTS = PASS
-FULL_EXACT_HEAD_CI_RELEASE_REQUIRED = PASS
 REPOSITORY_HYGIENE = PASS
 WORKTREE = CLEAN
 ```
-
-Before declaring completion, Codex must also update `CODEX_EXECUTION_RECEIPT.md`, `CURRENT_STATE.yaml`, and `NEXT_ACTION.md` according to `CODEX_EXECUTION_PROTOCOL.md`.
-
-Then stop:
 
 ```text
 NEXT = OWNER_REVIEW_B_REREVIEW
@@ -138,4 +80,4 @@ P3 = NOT_AUTHORIZED
 ROUND_4 = NOT_STARTED
 ```
 
-Do not merge or start P3 automatically.
+Do not merge, start P3, or reinterpret this rereview gate as approval.
