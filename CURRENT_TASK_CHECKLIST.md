@@ -6,11 +6,52 @@ PRODUCT = W2 Football Intelligence
 ROUND_1 = PASS
 ROUND_2 = PASS_WITH_TERMINAL_PROVIDER_PLAN_RESTRICTION
 POST_R2_ACCESS_DECISION = PASS_FREE_PLAN_SEASON_RESTRICTION_CONFIRMED
-ACTIVE_TASK = AWAIT_OWNER_API_FOOTBALL_PLAN_OR_DATA_SOURCE_DECISION
+ACTIVE_TASK = AWAIT_OWNER_FREE_BRIDGE_PR_REVIEW_AND_CONTROLLED_ACTIVATION_DECISION
+FREE_PLAN_FIXTURE_CENTRIC_VALIDATION = FREE_FIXTURE_CENTRIC_CURRENT_DATA_WORKS
+FREE_PLAN_IDS_PARAMETER = PLAN_RESTRICTED
+BRIDGE_PR = 495_OPEN_CI_PASS_DISABLED_BY_DEFAULT
 ROUND_3 = NOT_STARTED
 ```
 
-## Completed Post-R2 access decision
+## Completed Free-plan fixture-centric bridge
+
+- [x] Re-fetched latest `origin/main` and `origin/context/current`; used
+  `b04dcc7e521dce413740bcf754b1a45755a3e83e` and
+  `8cbbba09199b7178808b4b9f3a85a9a5b240b771` as execution bases.
+- [x] Read the task authorities in the required order.
+- [x] Used the existing active Free account; no purchase, renewal or account
+  change occurred.
+- [x] Called `/fixtures?date=2026-08-08` without `season`; obtained 1,153
+  fixtures and 25 current target-league matches.
+- [x] Selected real fixture 1493055 in Argentina Primera, league 128,
+  response season 2026.
+- [x] Verified fixture detail by `id`.
+- [x] Verified `/odds?fixture=1493055`: 14 bookmakers with AH and OU present.
+- [x] Verified fixture-scoped statistics, including xG fields in this control.
+- [x] Did not test live odds because the fixture was full-time.
+- [x] Proved Free rejects the `ids` parameter and retained single-`id` as the
+  default bridge behavior.
+- [x] Attempted exactly five Provider calls, no retries or writes; final
+  confirmed daily remaining header was 96.
+- [x] Classified `FREE_FIXTURE_CENTRIC_CURRENT_DATA_WORKS` with caveat
+  `FREE_PLAN_IDS_PARAMETER_RESTRICTED`.
+- [x] Created bounded PR
+  [#495](https://github.com/QIUYEDALAO/w2-football-intelligence-engine/pull/495)
+  at head `d73882dcee3c37819f248f6048bc2308c146feb1`, disabled by default.
+- [x] Reused formal raw payload, endpoint capture, fixture identity and AH/OU
+  normalization; added no duplicate data model.
+- [x] Added request-key cache reuse, fixture-ID de-duplication,
+  capability-gated 20-ID batching, quota planning and no-idle-polling.
+- [x] Passed 43 focused/contract tests, full Ruff, strict mypy on 278 source
+  files and all required PR Fast CI checks.
+- [x] Generated `FREE_PLAN_FIXTURE_CENTRIC_VALIDATION.md` and
+  `FREE_PLAN_DAILY_CALL_BUDGET.md`.
+- [x] Executed repository hygiene and removed both transient one-shot
+  diagnostic scripts after retaining their sanitized evidence.
+- [x] Kept active whitelist exact 13, PR unmerged, runtime disabled and Round 3
+  not started.
+
+## Previously completed Post-R2 access decision
 
 - [x] Re-fetched latest `origin/main` and `origin/context/current`; used
   `b04dcc7e521dce413740bcf754b1a45755a3e83e` and
@@ -49,10 +90,10 @@ ROUND_3 = NOT_STARTED
 
 ```text
 REPOSITORY_HYGIENE = PASS
-DEAD_ASSETS_FOUND = 1_TRANSIENT_DIAGNOSTIC_SCRIPT
-DEAD_ASSETS_DELETED = 1_TRANSIENT_DIAGNOSTIC_SCRIPT
+DEAD_ASSETS_FOUND = 2_TRANSIENT_DIAGNOSTIC_SCRIPTS
+DEAD_ASSETS_DELETED = 2_TRANSIENT_DIAGNOSTIC_SCRIPTS
 OBSOLETE_CODE_LINES_REMOVED = 0
-RETAINED_FOR_EVIDENCE = 2_POST_R2_REPORTS_PLUS_EXISTING_ROUND_2_EVIDENCE
+RETAINED_FOR_EVIDENCE = 2_FREE_BRIDGE_REPORTS_PLUS_SANITIZED_LEDGER_SUMMARY
 UNRESOLVED_HYGIENE_ITEMS = 0
 ```
 
@@ -62,6 +103,8 @@ UNRESOLVED_HYGIENE_ITEMS = 0
 PURCHASE_OR_PLAN_CHANGE
 CREDENTIAL_REPLACEMENT
 PROVIDER_CUTOVER
+ADDITIONAL_PROVIDER_VALIDATION_CALLS
+PR_495_MERGE_OR_RUNTIME_ACTIVATION
 PRODUCTION_SCHEDULER_CHANGE
 PERSISTENT_COLLECTION_EXPANSION
 LEAGUE_ENABLEMENT
@@ -72,8 +115,9 @@ CANDIDATE/FORMAL/LOCK/PRODUCTION_ENABLEMENT
 ## Waiting state
 
 ```text
-NEXT = AWAIT_OWNER_API_FOOTBALL_PLAN_OR_DATA_SOURCE_DECISION
+NEXT = AWAIT_OWNER_FREE_BRIDGE_PR_REVIEW_AND_CONTROLLED_ACTIVATION_DECISION
 ```
 
-After an owner decision, the next task must define a bounded current-season
-capability validation. It must not infer Round-3 or production authority.
+After an owner decision, a later task may define bounded PR merge and controlled
+activation acceptance. It must not infer Scheduler, persistent-collection,
+league-expansion, production or Round-3 authority.

@@ -8,6 +8,7 @@ ORIGIN_CONTEXT_CURRENT_BASE = e9534b2864849c66f5864a24515cb3ef82c51614
 ROOT_CAUSE = FREE_PLAN_SEASON_ENTITLEMENT_RESTRICTION
 ROOT_CAUSE_CONFIDENCE = HIGH
 INTERNAL_W2_FIX_REQUIRED = false
+FIXTURE_CENTRIC_ADDENDUM = FREE_FIXTURE_CENTRIC_CURRENT_DATA_WORKS
 ROUND_3 = NOT_STARTED
 ```
 
@@ -109,9 +110,38 @@ ROOT_CAUSE_CLASSIFICATION = FREE_PLAN_SEASON_ENTITLEMENT_RESTRICTION
 ROOT_CAUSE_CONFIDENCE = HIGH
 INTERNAL_FIX_REQUIRED = false
 INTERNAL_FIX_PR = NONE
-CURRENT_API_FOOTBALL_FREE_PATH_VIABLE = false
+CURRENT_API_FOOTBALL_FREE_SEASON_ENUMERATION_PATH_VIABLE = false
+CURRENT_API_FOOTBALL_FREE_FIXTURE_CENTRIC_PATH_VIABLE = true
 ```
 
-Free remains a functioning API tier, but it cannot supply W2's required current
-2025/26 and 2026 data. A spend/data-source owner decision is required before the
-current-season capability audit can resume. Round 3 remains not started.
+Free remains a functioning API tier. The original diagnostic proves that its
+`league + season` enumeration path cannot supply W2's required 2025/26 and 2026
+rows. It does not establish that every current-data request shape is blocked.
+
+## 2026-08-08 fixture-centric addendum
+
+A subsequent owner-authorized, five-call no-season proof established:
+
+```text
+GET /fixtures?date=2026-08-08 = CURRENT_2026_FIXTURES_ACCESSIBLE
+GET /fixtures?id=1493055 = ACCESSIBLE
+GET /odds?fixture=1493055 = ACCESSIBLE_WITH_AH_AND_OU
+GET /fixtures/statistics?fixture=1493055 = ACCESSIBLE
+GET /fixtures?ids=1493055-1523228 = FREE_PLAN_IDS_PARAMETER_RESTRICTED
+```
+
+Therefore the historical root-cause conclusion remains correct but its scope is
+now explicit:
+
+```text
+CURRENT_API_FOOTBALL_FREE_SEASON_ENUMERATION_PATH_VIABLE = false
+CURRENT_API_FOOTBALL_FREE_FIXTURE_CENTRIC_PATH_VIABLE = true
+FREE_FIXTURE_CENTRIC_CLASSIFICATION = FREE_FIXTURE_CENTRIC_CURRENT_DATA_WORKS
+FREE_MULTI_FIXTURE_IDS_CAPABILITY = PLAN_RESTRICTED
+PAID_PLAN_IS_CURRENT_ENGINEERING_PREREQUISITE = false
+```
+
+The Free bridge must use date discovery and single-fixture `id` follow-ups,
+cache and de-duplicate locally, and remain disabled until separately reviewed.
+No Provider purchase, Scheduler change, persistent collection expansion or
+Round-3 start follows from this addendum.

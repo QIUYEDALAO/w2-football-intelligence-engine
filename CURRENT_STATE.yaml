@@ -6,10 +6,10 @@ context_branch: context/current
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
 owner_product_decision: DO_NOT_RENEW_API_FOOTBALL_PRO_NOW_USE_ZERO_COST_BRIDGE_FIRST
-active_next_action: W2_MI_FREE_PLAN_FIXTURE_CENTRIC_BRIDGE
-next_code_action: BOUNDED_VALIDATION_THEN_CONDITIONAL_DISABLED_BRIDGE_PR
-current_status: FREE_PLAN_FIXTURE_CENTRIC_BRIDGE_AUTHORIZED_IN_PROGRESS
-current_gate: NO_SEASON_CURRENT_FIXTURE_ACCESS_VALIDATION
+active_next_action: AWAIT_OWNER_FREE_BRIDGE_PR_REVIEW_AND_CONTROLLED_ACTIVATION_DECISION
+next_code_action: NONE_WITHOUT_NEW_OWNER_AUTHORITY
+current_status: FREE_PLAN_FIXTURE_CENTRIC_BRIDGE_IMPLEMENTED_IN_OPEN_PR_DISABLED_BY_DEFAULT
+current_gate: BRIDGE_PR_OPEN_CI_PASS_RUNTIME_DISABLED
 
 round_1:
   status: PASS
@@ -48,7 +48,7 @@ owner_cost_decision:
 
 free_plan_fixture_centric_bridge:
   authority: FREE_PLAN_FIXTURE_CENTRIC_BRIDGE.md
-  status: AUTHORIZED_IN_PROGRESS
+  status: IMPLEMENTED_IN_OPEN_PR_DISABLED_BY_DEFAULT
   mission: TEST_CURRENT_DATA_WITHOUT_SEASON_ENUMERATION
   documented_request_shapes:
     - FIXTURES_BY_DATE_NO_SEASON
@@ -76,6 +76,36 @@ free_plan_fixture_centric_bridge:
     - PROVIDER_SCHEMA_OR_OTHER_BLOCKER
   bounded_bridge_pr_authorized_if_useful_path_proven: true
   bridge_pr_default_runtime_state: DISABLED
+  validation_outcome: FREE_FIXTURE_CENTRIC_CURRENT_DATA_WORKS
+  validation_caveat: FREE_PLAN_IDS_PARAMETER_RESTRICTED
+  validation_fixture_id: 1493055
+  validation_fixture_league_id: 128
+  validation_fixture_season: 2026
+  validation_provider_calls_attempted: 5
+  validation_automatic_retries: 0
+  validation_final_confirmed_daily_remaining: 96
+  fixture_date_no_season: ACCESSIBLE
+  fixture_detail_by_id: ACCESSIBLE
+  odds_by_fixture:
+    status: ACCESSIBLE
+    bookmaker_count: 14
+    asian_handicap: PRESENT
+    goals_over_under: PRESENT
+  statistics_by_fixture: ACCESSIBLE
+  fixtures_by_ids: FREE_PLAN_RESTRICTED
+  free_default_ids_batching: false
+  code_pr:
+    number: 495
+    url: https://github.com/QIUYEDALAO/w2-football-intelligence-engine/pull/495
+    state: OPEN
+    base_sha: b04dcc7e521dce413740bcf754b1a45755a3e83e
+    head_sha: d73882dcee3c37819f248f6048bc2308c146feb1
+    mergeable: true
+    ci: PASS
+    merged: false
+  focused_and_contract_tests: 43_PASS
+  ruff: PASS
+  mypy_strict: PASS_278_SOURCE_FILES
   production_activation_authorized_by_validation_alone: false
   production_scheduler_change_authorized_by_validation_alone: false
   persistent_collection_expansion_authorized_by_validation_alone: false
@@ -94,6 +124,11 @@ repository_hygiene:
   authority: REPOSITORY_HYGIENE_POLICY.md
   permanent_rule: true
   task_pass_requires_hygiene_pass: true
+  status: PASS
+  dead_assets_found: 2_TRANSIENT_DIAGNOSTIC_SCRIPTS
+  dead_assets_deleted: 2_TRANSIENT_DIAGNOSTIC_SCRIPTS
+  obsolete_code_lines_removed: 0
+  unresolved_hygiene_items: 0
 
 round_3:
   task: W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB

@@ -203,6 +203,29 @@ ROUND_3 = NOT_STARTED
 NEXT = ZERO_COST_ODDS_OR_SOURCE_BRIDGE_DECISION
 ```
 
+## Execution result — 2026-08-08
+
+```text
+PHASE_A = PASS
+OUTCOME = FREE_FIXTURE_CENTRIC_CURRENT_DATA_WORKS
+CAVEAT = FREE_PLAN_IDS_PARAMETER_RESTRICTED
+PROVIDER_CALLS_ATTEMPTED = 5
+FINAL_CONFIRMED_DAILY_REMAINING = 96
+PHASE_B = IMPLEMENTED_IN_PR_495_DISABLED_BY_DEFAULT
+PR_FAST_CI = PASS
+PR_MERGED = false
+RUNTIME_ACTIVATED = false
+REPOSITORY_HYGIENE = PASS
+ROUND_3 = NOT_STARTED
+NEXT = AWAIT_OWNER_FREE_BRIDGE_PR_REVIEW_AND_CONTROLLED_ACTIVATION_DECISION
+```
+
+The final evidence is in `FREE_PLAN_FIXTURE_CENTRIC_VALIDATION.md` and
+`FREE_PLAN_DAILY_CALL_BUDGET.md`. Free date discovery, fixture detail, odds and
+fixture statistics worked without `season`. The Free account rejected only the
+multi-fixture `ids` parameter, so PR #495 defaults to single-ID follow-ups and
+keeps batching behind a disabled capability flag.
+
 ## Permanent boundaries
 
 ```text
