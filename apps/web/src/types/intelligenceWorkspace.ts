@@ -191,6 +191,8 @@ export interface WorkspaceValidation {
   };
   directional: {
     status: "AVAILABLE" | "SAMPLE_BUILDING" | "INSUFFICIENT";
+    source_status: "AVAILABLE" | "SAMPLE_BUILDING" | "INSUFFICIENT";
+    probability_evidence_ready: boolean;
     validation_n: number;
     decisive_n: number;
     correct: number;
@@ -203,6 +205,11 @@ export interface WorkspaceValidation {
   };
   league_performance: Array<{
     league: string;
+    source_league: string;
+    competition_id: string;
+    canonical_competition_id: string | null;
+    competition_name: string | null;
+    identity_status: "RESOLVED" | "UNRESOLVED";
     validation_n: number;
     decisive_n: number;
     correct: number;
@@ -211,14 +218,19 @@ export interface WorkspaceValidation {
     void: number;
     direction_accuracy: number | null;
     brier: number | null;
+    log_loss: number | null;
     calibration: number | null;
     statistical_status: "AVAILABLE" | "SAMPLE_BUILDING" | "INSUFFICIENT";
+    source_statistical_status: "AVAILABLE" | "SAMPLE_BUILDING" | "INSUFFICIENT";
+    probability_evidence_ready: boolean;
   }>;
   forward_validation_records: {
     status: "AVAILABLE" | "INSUFFICIENT";
     validation_count: number;
     eligible_count: number;
     excluded_count: number;
+    excluded_share: number;
+    excluded_by_reason: Record<string, number>;
     pending_count: number;
     outcomes: Record<string, unknown>;
     checkpoint_metadata: Record<string, unknown>;

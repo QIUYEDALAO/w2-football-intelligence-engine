@@ -296,10 +296,16 @@ def _checkpoint_outcomes(window: PerformanceWindowProjection) -> dict[str, Any]:
 def _checkpoint_league_row(
     competition_id: str,
     cohort: PerformanceCohortProjection,
+    identities: dict[str, tuple[str, str]],
 ) -> dict[str, Any]:
     window = cohort.windows["90d"]
+    canonical_id, canonical_name = identities.get(competition_id, ("", ""))
     return {
         "competition_id": competition_id,
+        "canonical_competition_id": canonical_id or None,
+        "competition_name": canonical_name or None,
+        "source_league": competition_id,
+        "identity_status": "RESOLVED" if canonical_id and canonical_name else "UNRESOLVED",
         "league": competition_id,
         "processed_count": window.fixture_checkpoint_count,
         "eligible_count": window.canonical_settled_count,
@@ -314,8 +320,26 @@ def _checkpoint_league_row(
             "AVAILABLE" if window.canonical_hit_rate_status == "AVAILABLE" else "INSUFFICIENT"
         ),
         "model_brier": window.model_brier,
+        "model_log_loss": window.model_log_loss,
         "model_ece": window.model_ece,
     }
+
+
+def _competition_identity_authority() -> dict[str, tuple[str, str]]:
+    """Read existing runtime identity authority; unresolved rows remain fail-closed."""
+    try:
+        entries = CompetitionRegistry().entries()
+    except CompetitionRegistryError:
+        return {}
+    identities: dict[str, tuple[str, str]] = {}
+    for competition_id, entry in entries.items():
+        name = str(entry.profile_payload.get("name") or competition_id)
+        identity = (competition_id, name)
+        identities[competition_id] = identity
+        provider_id = str(entry.provider_mapping.get("api_football_league_id") or "")
+        if provider_id:
+            identities[provider_id] = identity
+    return identities
 
 
 def _checkpoint_probability(window: PerformanceWindowProjection) -> dict[str, Any]:
@@ -360,8 +384,9 @@ def _dashboard_forward_ledger_from_checkpoints(
     if global_cohort.checkpoint_key != selected_row.key or not selected_row.source_hash:
         return None
     league_prefix = "performance:cohort:league:"
+    identities = _competition_identity_authority()
     leagues = [
-        _checkpoint_league_row(row.key.removeprefix(league_prefix), cohort)
+        _checkpoint_league_row(row.key.removeprefix(league_prefix), cohort, identities)
         for row, cohort in cohorts.values()
         if row.key.startswith(league_prefix)
         and not row.key.startswith("performance:cohort:league-tier:")

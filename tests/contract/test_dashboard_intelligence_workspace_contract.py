@@ -175,6 +175,18 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
         "unconditional_probability",
         "sample_count",
     }
+    assert {
+        "source_league",
+        "competition_id",
+        "canonical_competition_id",
+        "competition_name",
+        "identity_status",
+        "source_statistical_status",
+        "probability_evidence_ready",
+    } <= set(schemas["WorkspaceLeaguePerformance"]["properties"])
+    assert {"excluded_share", "excluded_by_reason"} <= set(
+        schemas["WorkspaceForwardValidationRecords"]["properties"]
+    )
 
 
 def test_p1_contract_set_is_complete_and_field_bound() -> None:

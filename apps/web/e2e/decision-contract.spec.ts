@@ -180,9 +180,9 @@ function workspace(scenario = "default"): IntelligenceWorkspace {
     matches,
     validation: {
       probability: { status: "SAMPLE_BUILDING", sample_count: 12, model_brier: 0.21, market_brier: 0.22, model_minus_market_brier: -0.01, model_log_loss: 0.61, market_log_loss: 0.62, model_minus_market_log_loss: -0.01, model_calibration_error: 0.04, market_calibration_error: 0.05, model_reliability_bins: [{ lower: 0.4, upper: 0.5, count: 6, mean_confidence: 0.46, accuracy: 0.5 }], market_reliability_bins: [{ lower: 0.4, upper: 0.5, count: 6, mean_confidence: 0.48, accuracy: 0.5 }], checkpoint_metadata: { checkpoint_key: "performance:cohort:all" } },
-      directional: { status: "SAMPLE_BUILDING", validation_n: 12, decisive_n: 6, correct: 4, wrong: 2, push: 1, void: 1, direction_accuracy: 4 / 6, effective_n: 6, market_direction_benchmark: "NOT_DEFINED" },
-      league_performance: [{ league: "Premier League", validation_n: 12, decisive_n: 6, correct: 4, wrong: 2, push: 1, void: 1, direction_accuracy: 4 / 6, brier: 0.21, calibration: 0.04, statistical_status: "SAMPLE_BUILDING" }],
-      forward_validation_records: { status: "AVAILABLE", validation_count: 12, eligible_count: 8, excluded_count: 2, pending_count: 2, outcomes: { hit_count: 4, miss_count: 2, push_count: 1, void_count: 1 }, checkpoint_metadata: { checkpoint_key: "performance:cohort:all" } },
+      directional: { status: "SAMPLE_BUILDING", source_status: "AVAILABLE", probability_evidence_ready: false, validation_n: 12, decisive_n: 6, correct: 4, wrong: 2, push: 1, void: 1, direction_accuracy: 4 / 6, effective_n: 6, market_direction_benchmark: "NOT_DEFINED" },
+      league_performance: [{ league: "39", source_league: "39", competition_id: "39", canonical_competition_id: "premier_league", competition_name: "Premier League", identity_status: "RESOLVED", validation_n: 12, decisive_n: 6, correct: 4, wrong: 2, push: 1, void: 1, direction_accuracy: 4 / 6, brier: 0.21, log_loss: 0.61, calibration: 0.04, statistical_status: "SAMPLE_BUILDING", source_statistical_status: "AVAILABLE", probability_evidence_ready: false }],
+      forward_validation_records: { status: "AVAILABLE", validation_count: 12, eligible_count: 8, excluded_count: 2, excluded_share: 2 / 12, excluded_by_reason: { MARKET_IDENTITY_NOT_READY: 2 }, pending_count: 2, outcomes: { hit_count: 4, miss_count: 2, push_count: 1, void_count: 1 }, checkpoint_metadata: { checkpoint_key: "performance:cohort:all" } },
       history_replay: { status: "AVAILABLE_WITH_GAPS", known_at: { has_day_view: true, generated_at: "2026-08-09T02:00:00Z", source: "dashboard_read_model", checkpoint_key: "dashboard:day_view:2026-08-09" }, decision_summary: { total_cards: matches.length, lock_eligible_count: 0, by_decision_tier: { WATCH: matches.length }, by_data_status: { READY: Math.max(matches.length - 1, 0) } }, reason_summary: [{ reason_code: "MARKET_STABLE_ALL_AVAILABLE_MARKETS", count: 1 }], outcome_tracking_summary: { tracked_count: 8, matched_outcome_count: 6, missing_outcome_count: 2 }, card_hash_checks: [{ fixture_id: "two", status: "MATCH" }], replay_gaps: ["MISSING_OUTCOMES_FOR_2_FIXTURES"] },
     },
     external_intelligence: { weather: { status: "NOT_CONNECTED", affects_match_readiness: false }, news: { status: "NOT_CONNECTED", affects_match_readiness: false }, sentiment: { status: "NOT_CONNECTED", affects_match_readiness: false }, advanced_xg: { status: "NOT_CONNECTED", affects_match_readiness: false } },
@@ -198,6 +198,33 @@ function workspace(scenario = "default"): IntelligenceWorkspace {
   if (first && scenario === "model-not-ready") { first.w2_analysis.model_view.status = "UNAVAILABLE"; first.model_lab.w2_model.status = "UNAVAILABLE"; first.intelligence_reason_codes = ["MODEL_SIMULATION_NOT_READY"]; }
   if (scenario === "validation-insufficient") { payload.validation.probability.status = "INSUFFICIENT"; payload.validation.probability.sample_count = 0; payload.validation.probability.model_reliability_bins = []; payload.validation.probability.market_reliability_bins = []; payload.validation.directional.status = "INSUFFICIENT"; payload.validation.directional.effective_n = 0; }
   if (scenario === "validation-metadata-missing") payload.validation.probability.checkpoint_metadata = {};
+  if (scenario === "d13-truth") {
+    payload.generated_at = "2026-08-09T06:00:00Z";
+    payload.selected_fixture_id = matches[0].fixture_id;
+    matches[0].readiness.next_eval_at = "2026-08-09T05:00:00Z";
+    matches[0].readiness.lineup_expectation = "ADVISORY";
+    matches[0].readiness.reason_code = "IDENTITY_NOT_READY";
+    matches[0].model_lab.market.ASIAN_HANDICAP.status = "INSUFFICIENT";
+    matches[0].model_lab.market.TOTALS.status = "INSUFFICIENT";
+    matches[0].model_lab.relation.ASIAN_HANDICAP.status = "MARKET_NOT_READY";
+    payload.attention[0].next_eval_at = matches[0].readiness.next_eval_at;
+    payload.validation.probability.status = "INSUFFICIENT";
+    payload.validation.probability.model_brier = null;
+    payload.validation.probability.market_brier = null;
+    payload.validation.probability.model_log_loss = null;
+    payload.validation.probability.model_calibration_error = null;
+    payload.validation.directional.status = "SAMPLE_BUILDING";
+    payload.validation.directional.source_status = "AVAILABLE";
+    payload.validation.directional.probability_evidence_ready = false;
+    payload.validation.directional.direction_accuracy = 0.8;
+    payload.validation.directional.effective_n = 5;
+    payload.validation.league_performance = [
+      { league: "103", source_league: "103", competition_id: "103", canonical_competition_id: "eliteserien", competition_name: "Eliteserien", identity_status: "RESOLVED", validation_n: 5, decisive_n: 5, correct: 4, wrong: 1, push: 0, void: 0, direction_accuracy: 0.8, brier: null, log_loss: null, calibration: null, statistical_status: "SAMPLE_BUILDING", source_statistical_status: "AVAILABLE", probability_evidence_ready: false },
+      { league: "999", source_league: "999", competition_id: "999", canonical_competition_id: null, competition_name: null, identity_status: "UNRESOLVED", validation_n: 2, decisive_n: 1, correct: 1, wrong: 0, push: 0, void: 0, direction_accuracy: 1, brier: null, log_loss: null, calibration: null, statistical_status: "SAMPLE_BUILDING", source_statistical_status: "AVAILABLE", probability_evidence_ready: false },
+    ];
+    payload.validation.forward_validation_records = { ...payload.validation.forward_validation_records, validation_count: 56, eligible_count: 16, excluded_count: 40, excluded_share: 40 / 56, pending_count: 0, excluded_by_reason: { MARKET_IDENTITY_NOT_READY: 25, SCORELINE_NOT_READY: 10, RESULT_MISSING: 5 } };
+    payload.data_operations.provider_budget_status = "UNKNOWN";
+  }
   if (first && !["default", "empty", "seven-states", "validation-insufficient", "layout"].includes(scenario)) payload.selected_fixture_id = first.fixture_id;
   return payload;
 }
@@ -281,7 +308,7 @@ test("ORC-05 compact header exposes source update time and system health", async
   await installWorkspace(page);
   await page.goto("/");
   const context = page.locator("[data-ui='header-context']");
-  await expect(context).toContainText("更新 08/09 10:00");
+  await expect(context).toContainText("更新 2026-08-09 10:00");
   await expect(context).toContainText("系统 健康");
 });
 
@@ -295,6 +322,40 @@ test("ORC-06 Scoreline shows model and readiness context for ready and unavailab
   await expect(scoreline).toContainText("不可用");
   await expect(scoreline.locator("[data-ui='scoreline-context']")).toContainText("就绪 阻塞");
   await expect(scoreline.locator(".technical-details")).toContainText("LINEUPS_NOT_READY");
+});
+
+test("D13 truth rendering fails closed without changing source evidence", async ({ page }) => {
+  await installWorkspace(page, "d13-truth");
+  await page.goto("/");
+  const primary = page.locator(".workspace-main");
+  await expect(primary).toContainText("评估时间已过期");
+  await expect(primary).not.toContainText("下次评估 2026-08-09 13:00");
+  await expect(page.locator("[data-ui='validation']")).toContainText("概率质量证据不足，方向指标仅作样本记录");
+  await expect(page.locator("[data-ui='validation']")).not.toContainText("80.0%");
+  await expect(page.locator("[data-ui='exclusion-reasons']")).toContainText("排除原因");
+  await expect(page.locator("[data-ui='validation']")).toContainText("排除 40（71.4%）");
+  const leagues = page.locator("[data-ui='league-performance']");
+  await expect(leagues).toContainText("挪威超");
+  await expect(leagues).toContainText("联赛名称待解析（ID: 999）");
+  await expect(leagues).toContainText("有验证样本的联赛 2（运行白名单 13）");
+  await expect(leagues).not.toContainText("可用 80.0%");
+  const modelSummary = page.locator(".model-lab-grid > div").nth(1);
+  await expect(modelSummary.locator("strong")).toHaveText("证据不足");
+  await expect(modelSummary).toContainText("让球：证据不足；大小球：证据不足");
+  const scoreline = page.locator("[data-ui='scoreline-top3']");
+  await expect(scoreline.locator(".workspace-section-heading")).toContainText("比分参考");
+  await expect(scoreline.locator(".workspace-section-heading")).not.toContainText("10,000 次既有模拟");
+  await expect(primary).toContainText("额度未读取（只读页面不查询 Provider）");
+  await expect(page.locator(".sidebar-health")).toContainText("系统 / 数据健康");
+  await expect(page.locator(".sidebar-health")).toContainText("Provider 额度读取");
+  await expect(page.getByLabel("工作台日期")).toHaveAttribute("type", "text");
+  await expect(page.getByLabel("工作台日期")).toHaveValue("2026-08-09");
+  const publicCopy = await page.locator(".workspace-main").evaluate((element) => {
+    const copy = element.cloneNode(true) as HTMLElement;
+    copy.querySelectorAll("details").forEach((details) => details.remove());
+    return copy.innerText;
+  });
+  expect(publicCopy).not.toMatch(/\b(?:ADVISORY|MARKET_NOT_READY|IDENTITY_NOT_READY|UNKNOWN)\b/);
 });
 
 test("all seven intelligence states and the exact four risk axes render without semantic promotion", async ({ page }) => {
@@ -336,7 +397,7 @@ for (const [scenario, expected, canonical] of [
   ["lineup-absent", "来源数据为空", "PROVIDER_EMPTY"],
   ["injuries-stale", "伤停信息已过期", "INJURIES_STALE"],
   ["market-stale", "已过期", "STALE"],
-  ["collection-incident", "额度受保护（降级）", "PROTECTED_DEGRADED"],
+  ["collection-incident", "额度受保护（降级）", "COLLECTION_PROVIDER_INCIDENT"],
   ["model-not-ready", "模型模拟未就绪", "MODEL_SIMULATION_NOT_READY"],
   ["validation-insufficient", "证据不足", "INSUFFICIENT"],
   ["validation-metadata-missing", "技术详情", "CHECKPOINT_METADATA_NOT_AVAILABLE"],
@@ -379,7 +440,7 @@ test("public copy excludes forbidden decision and commercial semantics", async (
   await expect(body).toContainText("正式建议保持关闭");
 });
 
-test("1536x1024 owner viewport contains the complete primary console", async ({ page }) => {
+test("1536x1024 owner viewport preserves complete primary document flow", async ({ page }) => {
   await installWorkspace(page, "layout");
   await page.goto("/");
   await expect(page.locator(".match-board-row")).toHaveCount(6);
@@ -390,8 +451,8 @@ test("1536x1024 owner viewport contains the complete primary console", async ({ 
   for (const surface of ["attention", "market-radar", "external-intelligence", "match-board", "match-inspector", "model-lab", "scoreline-top3", "validation", "league-performance"]) {
     const box = await page.locator(`[data-ui='${surface}']`).boundingBox();
     expect(box, surface).not.toBeNull();
-    expect(box!.y, surface).toBeGreaterThanOrEqual(0);
-    expect(box!.y + box!.height, surface).toBeLessThanOrEqual(1024);
+    expect(box!.width, surface).toBeGreaterThan(0);
+    expect(box!.height, surface).toBeGreaterThan(0);
   }
   const primaryText = await page.locator(".workspace-grid").evaluate((element) => {
     const copy = element.cloneNode(true) as HTMLElement;
@@ -402,23 +463,55 @@ test("1536x1024 owner viewport contains the complete primary console", async ({ 
   await expectDeterministicScreenshot(page);
 });
 
-for (const viewport of [{ width: 2048, height: 1084 }, { width: 1920, height: 1080 }, { width: 1440, height: 900 }, { width: 1366, height: 768 }, { width: 390, height: 844 }]) {
-  test(`responsive geometry ${viewport.width}x${viewport.height} has no page overflow`, async ({ page }) => {
+for (const viewport of [{ width: 1280, height: 720 }, { width: 1280, height: 800 }, { width: 1366, height: 768 }, { width: 1440, height: 900 }, { width: 1512, height: 982 }, { width: 1536, height: 1024 }, { width: 1920, height: 1080 }]) {
+  test(`D13 responsive acceptance ${viewport.width}x${viewport.height}`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport);
     await installWorkspace(page, "layout");
     await page.goto("/");
+    await page.addStyleTag({ content: "*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}html{scroll-behavior:auto!important}" });
     const geometry = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
     expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
-    if (viewport.width > 620) {
-      const statusGeometry = await page.locator(".topbar-status").evaluate((element) => ({ scrollWidth: element.scrollWidth, clientWidth: element.clientWidth }));
-      expect(statusGeometry.scrollWidth).toBeLessThanOrEqual(statusGeometry.clientWidth);
-    }
+    const columns = await page.locator(".workspace-grid").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length);
+    expect(columns).toBe(viewport.width <= 1512 ? 2 : 3);
+    const fontSizes = await page.evaluate(() => Object.fromEntries(Object.entries({
+      heading: ".workspace-section-heading h2",
+      primaryRow: ".match-board-row > strong",
+      primaryValue: ".workspace-key-value strong",
+      leagueRow: ".league-table-row",
+      secondary: ".workspace-section-heading span",
+    }).map(([name, selector]) => [name, Number.parseFloat(getComputedStyle(document.querySelector(selector)!).fontSize)])));
+    expect(fontSizes.heading).toBeGreaterThanOrEqual(16);
+    for (const name of ["primaryRow", "primaryValue", "leagueRow"] as const) expect(fontSizes[name]).toBeGreaterThanOrEqual(12);
+    expect(fontSizes.secondary).toBeGreaterThanOrEqual(10);
     await expect(page.locator("[data-ui='attention']")).toBeVisible();
     await expect(page.locator("[data-ui='match-board']")).toBeVisible();
-    if (viewport.width > 620) {
-      await expect(page.locator(".topbar-status")).toContainText("13 联赛");
-      await expect(page.locator(".topbar-status")).toContainText("PRODUCTION OFF");
+    const directPanels = await page.locator(".workspace-grid > .workspace-panel, .workspace-grid > .selected-column").evaluateAll((elements) => elements.map((element) => {
+      const box = element.getBoundingClientRect();
+      return { left: box.left, right: box.right, top: box.top, bottom: box.bottom };
+    }));
+    for (let left = 0; left < directPanels.length; left += 1) for (let right = left + 1; right < directPanels.length; right += 1) {
+      const a = directPanels[left]; const b = directPanels[right];
+      const overlapWidth = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+      const overlapHeight = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+      expect(overlapWidth > 1 && overlapHeight > 1, `panels ${left}/${right} overlap`).toBe(false);
     }
+    for (const selector of [".attention-table", ".match-board-body", ".league-table"]) {
+      const scroll = await page.locator(selector).evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight, overflowY: getComputedStyle(element).overflowY }));
+      expect(["auto", "scroll"]).toContain(scroll.overflowY);
+      expect(scroll.clientHeight).toBeGreaterThan(0);
+    }
+    await page.locator("[data-ui='validation']").scrollIntoViewIfNeeded();
+    const stickyClearance = await page.evaluate(() => {
+      const header = document.querySelector(".workspace-topbar")!.getBoundingClientRect();
+      const panel = document.querySelector("[data-ui='validation']")!.getBoundingClientRect();
+      return { headerBottom: header.bottom, panelTop: panel.top, sticky: getComputedStyle(document.querySelector(".workspace-topbar")!).position === "sticky" };
+    });
+    if (stickyClearance.sticky) expect(stickyClearance.panelTop).toBeGreaterThanOrEqual(stickyClearance.headerBottom - 1);
+    for (const [position, ratio] of [["top", 0], ["middle", 0.5], ["bottom", 1]] as const) {
+      await page.evaluate((value) => window.scrollTo(0, (document.documentElement.scrollHeight - innerHeight) * value), ratio);
+      await page.screenshot({ animations: "disabled", path: testInfo.outputPath(`dashboard-${viewport.width}x${viewport.height}-${position}.png`) });
+    }
+    await page.evaluate(() => window.scrollTo(0, 0));
     await expectDeterministicScreenshot(page);
   });
 }

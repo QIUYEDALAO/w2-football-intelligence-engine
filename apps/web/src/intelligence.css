@@ -1481,3 +1481,314 @@ summary {
     grid-template-columns: 1fr;
   }
 }
+
+/* Owner 13-inch remediation: readable public text and natural document flow. */
+.workspace-sidebar nav a,
+.topbar-title strong,
+.topbar-actions input,
+.topbar-actions button,
+.workspace-key-value strong,
+.attention-row > div:first-child > strong,
+.match-board-row > strong,
+.inspector-grid strong,
+.relation-grid strong,
+.workspace-risk strong,
+.market-prices strong,
+.model-lab-grid strong,
+.model-relations strong,
+.phase-context strong,
+.scoreline-grid strong,
+.scoreline-grid b,
+.forward-strip strong,
+.league-table-row,
+.workspace-empty strong {
+  font-size: 12px;
+}
+
+.workspace-brand small,
+.sidebar-health span,
+.sidebar-contract span,
+.sidebar-health small,
+.topbar-title small,
+.topbar-status > span,
+.topbar-actions label span,
+.workspace-authority,
+.workspace-section-heading span,
+.workspace-section-heading p,
+.workspace-key-value span,
+.workspace-state,
+.attention-row p,
+.attention-row small,
+.attention-row time,
+.text-action,
+.match-board-head,
+.match-board-row time,
+.match-board-row small,
+.match-board-row > b,
+.selected-summary > div > span:last-child,
+.selected-summary small,
+.inspector-grid span,
+.relation-grid span,
+.workspace-risk span,
+.inspector-grid small,
+.relation-grid small,
+.workspace-risk small,
+.reason-summary span,
+.market-card > header span,
+.market-card > header small,
+.model-relations header span,
+.market-prices > span,
+.market-prices p,
+.discrete-timeline span,
+.discrete-timeline small,
+.discrete-timeline p,
+.discrete-timeline time,
+.discrete-timeline li span,
+.external-grid span,
+.external-grid small,
+.model-lab-grid span,
+.model-lab-grid small,
+.model-relations small,
+.phase-context span,
+.phase-context small,
+.scoreline-context,
+.scoreline-grid span,
+.scoreline-grid small,
+.forward-strip span,
+.forward-strip small,
+.league-table-head,
+.workspace-footer,
+.read-contract strong,
+.freshness-contract article span,
+.freshness-contract article small,
+.workspace-empty span {
+  font-size: 10px;
+}
+
+.workspace-brand strong,
+.topbar-title strong {
+  font-size: 14px;
+}
+
+.workspace-section-heading h2 {
+  font-size: 16px;
+}
+
+.selected-summary strong,
+.market-card > header b {
+  font-size: 16px;
+}
+
+.technical-details,
+.technical-details summary,
+.freshness-contract summary,
+.technical-details code,
+.read-contract code,
+.workspace-footer code,
+.external-grid code {
+  font-size: 8px;
+}
+
+.workspace-panel {
+  overflow: visible;
+  scroll-margin-top: 92px;
+}
+
+.workspace-grid {
+  height: auto;
+  min-height: 0;
+  grid-template-rows: minmax(260px, auto) minmax(540px, auto) minmax(280px, auto);
+}
+
+.selected-column {
+  grid-template-rows: auto auto;
+}
+
+.inspector-panel,
+.market-card,
+.model-lab-panel,
+.scoreline-panel {
+  overflow: visible;
+}
+
+.attention-table,
+.match-board-body,
+.league-table {
+  max-height: 420px;
+  overflow: auto;
+  scrollbar-color: var(--workspace-cyan) rgba(255, 255, 255, 0.06);
+  scrollbar-width: auto;
+}
+
+.attention-table::-webkit-scrollbar,
+.match-board-body::-webkit-scrollbar,
+.league-table::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.attention-table::-webkit-scrollbar-thumb,
+.match-board-body::-webkit-scrollbar-thumb,
+.league-table::-webkit-scrollbar-thumb {
+  border: 2px solid var(--workspace-panel);
+  border-radius: 8px;
+  background: var(--workspace-cyan);
+}
+
+.attention-row {
+  min-height: 58px;
+  padding: 7px 8px;
+  line-height: 1.35;
+}
+
+.match-board-row {
+  min-height: 64px;
+}
+
+.league-table-row {
+  min-height: 42px;
+  padding-block: 6px;
+}
+
+.league-table-row > .technical-details {
+  grid-column: 1 / -1;
+}
+
+.probability-warning {
+  margin-top: 6px !important;
+  padding: 7px 9px;
+  border-left: 2px solid var(--workspace-amber);
+  background: rgba(214, 173, 103, 0.05);
+  color: var(--workspace-amber);
+  font-size: 11px;
+}
+
+.exclusion-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 7px 9px;
+  border: 1px solid rgba(120, 168, 221, 0.16);
+  background: rgba(120, 168, 221, 0.04);
+  font-size: 11px;
+}
+
+.exclusion-reasons span {
+  color: var(--workspace-muted);
+}
+
+.exclusion-reasons b {
+  color: var(--workspace-text);
+}
+
+@media (max-width: 1512px) {
+  .workspace-topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .topbar-status {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    flex-wrap: wrap;
+  }
+
+  .workspace-panel {
+    scroll-margin-top: 124px;
+  }
+
+  .workspace-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto;
+    grid-template-areas:
+      "attention radar"
+      "matches selected"
+      "external model"
+      "validation validation"
+      "leagues leagues";
+  }
+
+  .attention-panel,
+  .market-radar-panel,
+  .external-panel,
+  .model-lab-panel,
+  .validation-panel,
+  .league-panel {
+    min-height: 280px;
+  }
+
+  .match-board-panel,
+  .selected-column {
+    min-height: 520px;
+  }
+}
+
+@media (max-width: 1366px) {
+  .unified-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-sidebar {
+    position: static;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    width: 100%;
+    height: auto;
+    padding: 10px 14px;
+    border-right: 0;
+    border-bottom: 1px solid var(--workspace-line);
+  }
+
+  .workspace-brand {
+    margin: 0;
+  }
+
+  .workspace-brand small,
+  .sidebar-health,
+  .sidebar-contract {
+    display: none;
+  }
+
+  .workspace-sidebar nav {
+    display: flex;
+    justify-self: end;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .workspace-sidebar nav a {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 620px) {
+  .workspace-topbar,
+  .workspace-grid,
+  .workspace-secondary-grid,
+  .history-grid,
+  .operations-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-grid {
+    grid-template-areas:
+      "attention"
+      "radar"
+      "external"
+      "matches"
+      "selected"
+      "model"
+      "validation"
+      "leagues";
+  }
+
+  .workspace-topbar {
+    position: static;
+  }
+
+  .workspace-panel {
+    scroll-margin-top: 12px;
+  }
+}

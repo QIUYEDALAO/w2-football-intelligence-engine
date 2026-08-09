@@ -292,6 +292,16 @@ def _validation(forward: Mapping[str, Any], replay: Mapping[str, Any]) -> dict[s
     outcomes = _mapping(forward.get("outcomes_canonical"))
     cohort = _mapping(forward.get("performance_cohort"))
     leagues = _mapping_list(cohort.get("by_league"))
+    probability_ready = _probability_evidence_ready(probability)
+    source_directional_status = _directional_status(outcomes)
+    validation_count = max(0, _int(cohort.get("validation_count")))
+    excluded_count = max(0, _int(cohort.get("excluded_count")))
+    excluded_by_reason = dict(
+        _mapping(
+            forward.get("validation_excluded_by_reason")
+            or forward.get("canonical_excluded_by_reason")
+        )
+    )
     return {
         "probability": {
             "status": _text(probability.get("status"), "INSUFFICIENT"),
@@ -317,8 +327,16 @@ def _validation(forward: Mapping[str, Any], replay: Mapping[str, Any]) -> dict[s
             "checkpoint_metadata": dict(_mapping(forward.get("checkpoint_metadata"))),
         },
         "directional": {
-            "status": _directional_status(outcomes),
-            "validation_n": max(0, _int(cohort.get("validation_count"))),
+            "status": (
+                source_directional_status
+                if probability_ready
+                else "SAMPLE_BUILDING"
+                if outcomes
+                else "INSUFFICIENT"
+            ),
+            "source_status": source_directional_status,
+            "probability_evidence_ready": probability_ready,
+            "validation_n": validation_count,
             "decisive_n": max(0, _int(outcomes.get("decisive_count"))),
             "correct": max(0, _int(outcomes.get("hit_count"))),
             "wrong": max(0, _int(outcomes.get("miss_count"))),
@@ -331,9 +349,11 @@ def _validation(forward: Mapping[str, Any], replay: Mapping[str, Any]) -> dict[s
         "league_performance": [_league(row) for row in leagues],
         "forward_validation_records": {
             "status": "AVAILABLE" if forward else "INSUFFICIENT",
-            "validation_count": max(0, _int(cohort.get("validation_count"))),
+            "validation_count": validation_count,
             "eligible_count": max(0, _int(cohort.get("eligible_count"))),
-            "excluded_count": max(0, _int(cohort.get("excluded_count"))),
+            "excluded_count": excluded_count,
+            "excluded_share": excluded_count / validation_count if validation_count else 0.0,
+            "excluded_by_reason": excluded_by_reason,
             "pending_count": max(0, _int(cohort.get("pending_count"))),
             "outcomes": {
                 key: outcomes.get(key)
@@ -371,8 +391,23 @@ def _league(row: Mapping[str, Any]) -> dict[str, Any]:
     outcomes = _mapping(row.get("outcomes"))
     decisive = max(0, _int(outcomes.get("decisive_count")))
     validation_n = max(0, _int(row.get("processed_count")))
+    source_status = _statistical_status(_text(row.get("rate_status")), validation_n)
+    probability_ready = source_status == "AVAILABLE" and all(
+        _number(row.get(field)) is not None
+        for field in ("model_brier", "model_log_loss", "model_ece")
+    )
     return {
         "league": _text(row.get("league"), row.get("competition_id")),
+        "source_league": _text(row.get("source_league"), row.get("league")),
+        "competition_id": _text(row.get("competition_id"), row.get("league")),
+        "canonical_competition_id": _optional_text(row.get("canonical_competition_id")),
+        "competition_name": _optional_text(row.get("competition_name")),
+        "identity_status": (
+            "RESOLVED"
+            if _text(row.get("identity_status")) == "RESOLVED"
+            and _optional_text(row.get("competition_name"))
+            else "UNRESOLVED"
+        ),
         "validation_n": validation_n,
         "decisive_n": decisive,
         "correct": max(0, _int(outcomes.get("hit_count"))),
@@ -381,10 +416,17 @@ def _league(row: Mapping[str, Any]) -> dict[str, Any]:
         "void": max(0, _int(outcomes.get("void_count"))),
         "direction_accuracy": _number(outcomes.get("hit_rate")),
         "brier": _number(row.get("model_brier")),
+        "log_loss": _number(row.get("model_log_loss")),
         "calibration": _number(row.get("model_ece")),
-        "statistical_status": _statistical_status(
-            _text(row.get("rate_status")), validation_n
+        "statistical_status": (
+            source_status
+            if probability_ready
+            else "SAMPLE_BUILDING"
+            if validation_n
+            else "INSUFFICIENT"
         ),
+        "source_statistical_status": source_status,
+        "probability_evidence_ready": probability_ready,
     }
 
 
@@ -503,6 +545,13 @@ def _directional_status(outcomes: Mapping[str, Any]) -> str:
     if outcomes.get("hit_rate") is not None:
         return "AVAILABLE"
     return "SAMPLE_BUILDING" if decisive else "INSUFFICIENT"
+
+
+def _probability_evidence_ready(probability: Mapping[str, Any]) -> bool:
+    return _text(probability.get("status")) == "AVAILABLE" and all(
+        _number(probability.get(field)) is not None
+        for field in ("model_brier", "model_log_loss", "model_ece")
+    )
 
 
 def _statistical_status(rate_status: str, validation_n: int) -> str:
