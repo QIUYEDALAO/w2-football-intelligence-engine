@@ -11,6 +11,11 @@ PR_501_CONTEXT = 24b6b8a5174c755ef5688c79aaa6be549ce1c5f0
 ROUND_4 = NOT_STARTED
 P6 = NOT_AUTHORIZED
 TARGET = DASHBOARD_OWNER_13IN_TRUTH_READABILITY_ACCEPTANCE_PASS
+RESULT = DASHBOARD_OWNER_13IN_TRUTH_READABILITY_ACCEPTANCE_PASS
+PR_502_HEAD = b260af16567b91e7a9b8c93cb7fa7af93501d466
+PR_503_HEAD = 1661157040a2b84f99934f2858f842b8ccbd350e
+FINAL_MAIN = 5f8066187acc323d23ac4d73da7115100a58aa48
+DEPLOYED_SOURCE = 1661157040a2b84f99934f2858f842b8ccbd350e
 ```
 
 ## Owner decision
@@ -294,3 +299,29 @@ DASHBOARD_OWNER_13IN_TRUTH_READABILITY_ACCEPTANCE_PASS
 DASHBOARD_OWNER_13IN_REMEDIATION_BLOCKED_SOURCE_EVIDENCE
 DASHBOARD_OWNER_13IN_REMEDIATION_ROLLED_BACK
 ```
+
+## Terminal closure — 2026-08-09
+
+All D13-01 through D13-13 findings are `CLOSED_PASS`.
+
+PR #502 implemented the bounded read-model truth and responsive-readability
+closure. The required deployed 1280x720 real-data smoke then found one remaining
+aggregate-price object rendering overflow; PR #503 closed that defect with a
+three-file presentation/test change. Both exact heads passed Full CI and
+`RELEASE_REQUIRED`, merged, and deployed through `LOCAL_OCI_RELAY_PRIMARY`.
+
+The final deployed Web/API source is
+`1661157040a2b84f99934f2858f842b8ccbd350e` on main
+`5f8066187acc323d23ac4d73da7115100a58aa48`. The final 1280x720 browser check
+reported `scroll_width=client_width=1265`, rendered persisted median `1.89`,
+showed no aggregate-object leak, and showed Chinese primary copy for data
+staleness, market movement and blocked-day semantics.
+
+Runtime controls remained frozen: Provider calls and DB business writes were
+zero; Scheduler/cadence, 13-league whitelist, models and thresholds were
+unchanged; Candidate/Formal/Lock/Production remain `OFF`; Round4 remains
+`NOT_STARTED`; P6 remains `NOT_AUTHORIZED`.
+
+This authority is exhausted at
+`DASHBOARD_OWNER_13IN_TRUTH_READABILITY_ACCEPTANCE_PASS` and does not authorize
+any next phase.
