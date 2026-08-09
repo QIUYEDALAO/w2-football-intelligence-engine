@@ -1,18 +1,17 @@
 # NEXT ACTION
 
 ```text
-ACTIVE_NEXT_ACTION = OWNER_REVIEW_C_OWNER_APPROVAL
-CURRENT_GATE = OWNER_REVIEW_C_OWNER_APPROVAL
-OWNER_REVIEW_C_TECHNICAL_REREVIEW = PASS
-TECHNICAL_REVIEW_AUTHORITY = OWNER_REVIEW_C_REREVIEW_RESULT.md
-IMPLEMENTATION_PR = 499
-EXACT_REVIEWED_HEAD = a6a5bf899ae889a77e3b4387da5ce1955d460e5e
-EXACT_MAIN_AND_BASE = f14136f07d69ece09e61fec6b1dd546e67c0267c
-EXACT_HEAD_FULL_CI = PASS_RUN_31294467530
-RELEASE_REQUIRED = PASS
-MERGE_PR_499 = NOT_AUTHORIZED_UNTIL_OWNER_APPROVAL
-P5_5 = NOT_STARTED_NOT_AUTHORIZED
+ACTIVE_NEXT_ACTION = EXECUTE_P5_5_CONTROLLED_LEGACY_CLEANUP
+CURRENT_GATE = P5_5_ACTIVE
+OWNER_REVIEW_C = APPROVED
+OWNER_AUTHORITY = OWNER_REVIEW_C_APPROVAL_AND_P5_5_AUTHORIZATION.md
+STARTING_MAIN = f931702f617f432ba66c90f08828090f094d8ba5
+P3 = PASS_APPROVED_MERGED
+P4 = PASS_APPROVED_MERGED
+P5 = PASS_APPROVED_MERGED
+P5_5 = AUTHORIZED_ACTIVE
 ROUND_4 = NOT_STARTED
+P6 = BLUEPRINT_ONLY_NOT_AUTHORIZED
 ```
 
 ## Binding read order
@@ -21,51 +20,46 @@ ROUND_4 = NOT_STARTED
 1. CODEX_EXECUTION_PROTOCOL.md
 2. CURRENT_STATE.yaml
 3. NEXT_ACTION.md
-4. OWNER_REVIEW_C_REREVIEW_RESULT.md
-5. OWNER_REVIEW_C_REREVIEW_PACKET.md
-6. OWNER_REVIEW_C_REMEDIATION.md
-7. OWNER_REVIEW_C_PACKET.md
-8. OWNER_REVIEW_B_APPROVAL_AND_P3_P5_AUTHORIZATION.md
-9. DASHBOARD_INTELLIGENCE_WORKSPACE_PRODUCT_SPEC.md
-10. W2_FINAL_EXECUTION_MASTER_PLAN.md
-11. DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN.md
-12. REPOSITORY_HYGIENE_POLICY.md
+4. OWNER_REVIEW_C_APPROVAL_AND_P5_5_AUTHORIZATION.md
+5. OWNER_REVIEW_C_REREVIEW_RESULT.md
+6. REPOSITORY_HYGIENE_POLICY.md
+7. W2_FINAL_EXECUTION_MASTER_PLAN.md
+8. DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN.md
 ```
 
 ## Current action
 
-Independent Owner Review C technical rereview is complete and PASS at exact PR #499 head `a6a5bf899ae889a77e3b4387da5ce1955d460e5e`.
+Execute P5.5 as one continuous proof-driven legacy cleanup stage from latest compatible `origin/main`.
 
-All six bounded presentation findings are closed in the actual final UI source and explicit E2E contracts. Exact-head Full CI run `31294467530` and aggregate `RELEASE_REQUIRED` are PASS. Repository Hygiene is PASS.
+Do not delete by filename/history alone. Before every deletion prove non-reachability through route/import/entrypoint/runtime/build/test/config/workflow/reference evidence. Preserve useful helpers and protected evidence dependencies. If safety cannot be proven, retain and classify rather than guess.
 
-There is no remaining development task before the Owner decision.
+Candidates include obsolete Boss/L1/L2/recommendation/performance presentation, adapters/styles/flags/tests and other assets that are no longer part of the public unified Intelligence Workspace.
 
-The only current action is:
+Run in-scope remediation automatically until all final gates pass. Do not stop for intermediate cleanup batches.
+
+## Final acceptance
 
 ```text
-OWNER APPROVE OR REJECT OWNER REVIEW C
+PUBLIC_AUTHORITY = NEW_INTELLIGENCE_WORKSPACE_ONLY
+TYPESCRIPT = PASS
+WEB_BUILD = PASS
+UNIT_CONTRACT_INTEGRATION = PASS
+WEB_E2E = PASS
+REFERENCE_SEARCH = PASS
+EXACT_HEAD_FULL_CI = PASS
+RELEASE_REQUIRED = PASS
+REPOSITORY_HYGIENE = PASS
+WORKTREE = CLEAN
 ```
 
-## If Owner approves
+If all final gates PASS and no new product/runtime authority is required, technical closure is automatically approved; record exact identities and mark the workstream `REPOSITORY_FULLY_CLOSED`.
 
-A later explicit context update may then:
-
-1. authorize merge of PR #499 only at the exact reviewed head (or re-review if the head moved);
-2. record the resulting main merge SHA;
-3. separately authorize the bounded P5.5 proof-driven legacy cleanup;
-4. keep Round 4, Candidate, Formal, Lock, Production, Provider-plan, Scheduler/cadence, whitelist and model changes closed unless separately authorized.
-
-Do not infer P5.5 authority merely from this technical PASS.
-
-## Frozen stop lines
+## Stop lines
 
 ```text
-MERGE_PR_499 = NO_UNTIL_OWNER_APPROVAL
-P5_5 = NOT_STARTED_NOT_AUTHORIZED
-LEGACY_DELETION = NOT_AUTHORIZED
 PROVIDER_CALL_OR_PLAN_CHANGE = NOT_AUTHORIZED
 SCHEDULER_OR_CADENCE_CHANGE = NOT_AUTHORIZED
-WHITELIST_CHANGE = NOT_AUTHORIZED
+ACTIVE_WHITELIST_CHANGE = NOT_AUTHORIZED
 MODEL_FACTOR_THRESHOLD_RETRAINING = NOT_AUTHORIZED
 EXTERNAL_INTELLIGENCE_CONNECTION = NOT_AUTHORIZED
 PHASE_0_5_REEXECUTION = FORBIDDEN
@@ -76,4 +70,5 @@ FORMAL = OFF
 LOCK = OFF
 PRODUCTION = OFF
 REAL_MONEY = NOT_AUTHORIZED
+P6_EXECUTION = NOT_AUTHORIZED
 ```
