@@ -1,21 +1,24 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-10T04:08:00+08:00"
+updated_at: "2026-08-10T04:20:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: DASHBOARD_V41_POSTDEPLOY_READY_FOR_OWNER_ACCEPTANCE
-owner_authorization_id: W2_LAST_48H_RECONCILIATION_AND_DASHBOARD_V41_EXECUTION_V1
-active_next_action: OWNER_DASHBOARD_V41_POSTDEPLOY_ACCEPTANCE
-next_code_action: NONE_OWNER_REVIEW_REQUIRED
-current_status: DASHBOARD_V41_POSTDEPLOY_READY_FOR_OWNER_ACCEPTANCE
-current_gate: OWNER_DASHBOARD_V41_POSTDEPLOY_ACCEPTANCE
-terminal_gate: OWNER_DASHBOARD_V41_POSTDEPLOY_ACCEPTANCE
+owner_product_decision: W2_DASHBOARD_V41_POSTDEPLOY_BOUNDED_REMEDIATION
+owner_authorization_id: W2_DASHBOARD_V41_POSTDEPLOY_BOUNDED_REMEDIATION_V1
+active_next_action: EXECUTE_DASHBOARD_V41_POSTDEPLOY_BOUNDED_REMEDIATION
+next_code_action: D16_01_THROUGH_D16_07_CONTINUOUS_FIX_TEST_MERGE_REDEPLOY
+current_status: DASHBOARD_V41_POSTDEPLOY_CHANGES_REQUIRED_BOUNDED
+current_gate: DASHBOARD_V41_POSTDEPLOY_REMEDIATION_ACTIVE
+terminal_gate: OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
 
 runtime_baseline:
-  final_main_sha: c6d8c6c7304d302f31bea5a88967e3bc9e945b37
-  deployed_source_sha: 05cdc3c1c6dbadbfe20899e941ca404274ff786f
+  reviewed_main_sha: c6d8c6c7304d302f31bea5a88967e3bc9e945b37
+  reviewed_source_head_sha: 05cdc3c1c6dbadbfe20899e941ca404274ff786f
+  reviewed_pr: 506
+  reviewed_release_required: PASS
+  reviewed_deployment: PASS
   public_schema: w2.dashboard-intelligence-workspace.v1
   public_endpoint: GET_/v1/dashboard/intelligence-workspace
   free_bridge_mode: SHADOW_ONLY
@@ -27,114 +30,24 @@ runtime_baseline:
   lock: "OFF"
   production: "OFF"
 
-last_48h_reconciliation:
-  authority: W2_LAST_48H_RECONCILIATION_AND_DASHBOARD_V41_EXECUTION_PLAN.md
-  reconciliation_status: PASS
-  current_main_verified: c6d8c6c7304d302f31bea5a88967e3bc9e945b37
-  current_release_required: PASS
-  completed_prs_reviewed:
-    - 494
-    - 495
-    - 496
-    - 497
-    - 498
-    - 499
-    - 500
-    - 501
-    - 502
-    - 503
-    - 504
-    - 505
-    - 506
-  classification:
-    provider_and_data_foundation: CLOSED_RETAIN
-    round3_market_model_foundation: CLOSED_RETAIN
-    unified_read_model: CLOSED_RETAIN
-    validation_replay_secondary_capabilities: CLOSED_RETAIN
-    legacy_cleanup: CLOSED_RETAIN
-    d13_d14_d15_truth_semantics: CLOSED_RETAIN
-    old_first_screen_information_architecture: CLOSED_SUPERSEDED_PRESENTATION
-    dashboard_v41_design: OWNER_APPROVED
-    dashboard_v41_production_implementation: CLOSED_PASS
-    dashboard_v41_deployment: CLOSED_PASS_OWNER_ACCEPTANCE_PENDING
-    round4: DEFERRED_NOT_AUTHORIZED
-    p6: DEFERRED_NOT_AUTHORIZED
-
-completed_scope:
-  mi_round2_audit_foundation:
-    pr: 494
-    status: CLOSED_RETAIN
-  free_fixture_bridge_planner:
-    pr: 495
-    status: CLOSED_RETAIN
-  free_bridge_shadow_runtime:
-    pr: 496
-    status: CLOSED_RETAIN
-  round3_market_radar_model_lab:
-    pr: 497
-    status: CLOSED_RETAIN
-  dashboard_contracts_and_read_model:
-    pr: 498
-    status: CLOSED_RETAIN
-  p3_p4_p5_capabilities:
-    pr: 499
-    status: CLOSED_RETAIN_BACKEND_AND_SECONDARY_CAPABILITIES
-    first_screen_presentation: SUPERSEDED_BY_V41
-  p5_5_legacy_cleanup:
-    pr: 500
-    status: CLOSED_RETAIN
-  chinese_responsive_and_live_price_truth:
-    prs: [501, 502, 503]
-    status: TRUTH_FIXES_RETAIN_PRESENTATION_SUPERSEDED
-  canonical_identity_collection_semantics:
-    pr: 504
-    status: CLOSED_RETAIN
-  market_evidence_consistency:
-    pr: 505
-    status: CLOSED_RETAIN
-  dashboard_v41:
-    pr: 506
-    source_head_sha: 05cdc3c1c6dbadbfe20899e941ca404274ff786f
-    final_main_sha: c6d8c6c7304d302f31bea5a88967e3bc9e945b37
-    status: POSTDEPLOY_READY_FOR_OWNER_ACCEPTANCE
-  vps_local_oci_relay:
-    status: PASS
-  post_r3_track_a:
-    closure_status: CLOSED_PASS
-    closure_result: TRACK_A_CLOSED_PASS
-
-superseded_completion_claims:
-  - P3_P4_P5_OLD_FIRST_SCREEN_IS_FINAL
-  - PR_501_VISUAL_PARITY_IS_FINAL_PRODUCT_ACCEPTANCE
-  - D13_D14_D15_TERMINAL_LABELS_EQUAL_FINAL_UX_COMPLETION
-  - SAME_RENDER_SCREENSHOT_EQUALITY_IS_VISUAL_ACCEPTANCE
-  - NO_OVERFLOW_ONLY_IS_VISUAL_ACCEPTANCE
-
-prior_design_reset:
-  authority: DASHBOARD_OWNER_INFORMATION_ARCHITECTURE_RESET.md
-  prior_stage: IA_DESIGN_FREEZE_ONLY
-  result: OWNER_DASHBOARD_IA_DESIGN_REVIEW_PASS
-  superseded_by: W2_LAST_48H_RECONCILIATION_AND_DASHBOARD_V41_EXECUTION_PLAN.md
-  implementation_before_design_freeze: NO_LONGER_BLOCKED_DESIGN_IS_APPROVED
+completed_and_retained:
+  pr_494_mi_round2_audit_foundation: CLOSED_RETAIN
+  pr_495_free_fixture_bridge_planner: CLOSED_RETAIN
+  pr_496_free_bridge_shadow_runtime: CLOSED_RETAIN
+  pr_497_round3_market_radar_model_lab: CLOSED_RETAIN
+  pr_498_unified_dashboard_read_model: CLOSED_RETAIN
+  pr_499_validation_performance_replay_capabilities: CLOSED_RETAIN_BACKEND_SECONDARY
+  pr_500_legacy_dashboard_cleanup: CLOSED_RETAIN
+  prs_501_503_chinese_responsive_live_price_truth: TRUTH_RETAIN_PRESENTATION_SUPERSEDED
+  pr_504_canonical_identity_collection_semantics: CLOSED_RETAIN
+  pr_505_market_evidence_consistency: CLOSED_RETAIN
+  vps_local_oci_relay: PASS_RETAIN
+  post_r3_track_a: TRACK_A_CLOSED_PASS
 
 v41_owner_design_freeze:
   status: PASS_OWNER_APPROVED
-  owner_reference_source: OWNER_LOCAL_W2_DESIGN_V4
-  repo_materialization: PASS_V41_0
-  base_template: w2_v4_base(1).html
-  editable_states:
-    - w2_v4_A_正常日(1).html
-    - w2_v4_B_阻塞日(1).html
-    - w2_v4_C_平静日(1).html
-    - w2_v4_E_证据过期(1).html
-    - w2_v4_F_空比赛日(1).html
-  visual_references:
-    - W2_v41_A_正常日.png
-    - W2_v41_B_阻塞日.png
-    - W2_v41_C_平静日.png
-    - W2_v41_D_窄屏1180.png
-    - W2_v41_E_证据过期.png
-    - W2_v41_F_空比赛日.png
+  authority: W2_LAST_48H_RECONCILIATION_AND_DASHBOARD_V41_EXECUTION_PLAN.md
+  reference_set_repo_bound: PASS
   first_screen_hierarchy:
     - L1_TODAY_SUMMARY
     - L2_PRIORITY_SHORTLIST
@@ -149,93 +62,80 @@ v41_owner_design_freeze:
     day_mode: NORMAL
     default_focus_type: MATCH
     market_evidence_status: STALE
-  responsive_reference:
-    viewport_width: 1180
-    business_state: NOT_A_DAY_MODE
-  design_truth_rules:
-    priority_counts_grouped_by_primary_reason: true
-    default_focus_information_usefulness_not_betting_value: true
-    blocked_day_global_incident_not_arbitrary_match: true
-    calm_day_global_summary_not_forced_match: true
-    empty_day_never_borrows_other_date: true
-    stale_market_memory_visible_but_not_comparison_authority: true
-    trend_and_cross_sectional_evidence_separate: true
-    relative_time_derived_from_source_timestamps: true
-    scoreline_requires_model_identity_and_exact_10000: true
-    validation_requires_valid_checkpoint: true
-    external_empty_cards_not_first_screen: true
-    one_compact_system_status_entry: true
+  responsive_1180_is_day_mode: false
 
-v41_continuous_execution:
-  authority: W2_LAST_48H_RECONCILIATION_AND_DASHBOARD_V41_EXECUTION_PLAN.md
-  continuous_execution_to_terminal: true
-  owner_relay_between_phases: NOT_REQUIRED
-  v41_0_reference_materialization: PASS
-  v41_1_read_model_contract: PASS
-  v41_2_react_css_implementation: PASS
-  v41_3_truth_visual_accessibility_acceptance: PASS
-  v41_4_full_ci_repository_closure: PASS
-  v41_5_merge_and_local_oci_relay_deploy: PASS
-  v41_6_real_postdeploy_acceptance: PASS
-  v41_7_round4_packet_refresh_only: PASS_STOPPED
-  auto_merge_after_exact_head_pass: true
-  deployment_after_merge: required
-  deployment_transport: LOCAL_OCI_RELAY_PRIMARY
-  terminal_classifications:
-    - DASHBOARD_V41_POSTDEPLOY_READY_FOR_OWNER_ACCEPTANCE
-    - DASHBOARD_V41_DEPLOYMENT_ROLLED_BACK
-    - DASHBOARD_V41_SCOPE_BLOCKED_OWNER_DECISION_REQUIRED
-
-v41_terminal_evidence:
-  classification: DASHBOARD_V41_POSTDEPLOY_READY_FOR_OWNER_ACCEPTANCE
-  receipt: DASHBOARD_V41_POSTDEPLOY_ACCEPTANCE_RECEIPT.md
-  pr: 506
+pr_506_initial_v41_delivery:
   source_head_sha: 05cdc3c1c6dbadbfe20899e941ca404274ff786f
-  source_tree_sha: 071187ba78381640028efb27b6a1e46c585176d2
   final_main_sha: c6d8c6c7304d302f31bea5a88967e3bc9e945b37
+  merged: true
+  deployed: true
   full_ci_run: 31332734693
-  promotion_run: 31333287529
   release_required: PASS
   deployment_transport: LOCAL_OCI_RELAY_PRIMARY
-  warm_switch: PASS_38_SECONDS_LT_300
   health: PASS
-  ready: PASS_5_CRITICAL_CHECKS
+  ready: PASS
   release_sync: PASS
-  current_real_day: NORMAL_MATCH
-  owner_device_1366_smoke: PASS_NO_HORIZONTAL_OVERFLOW
   provider_call_delta_on_read: 0
   business_write_delta_on_read: 0
+  technical_delivery_result: PASS_RETAIN
+  final_owner_product_acceptance: CHANGES_REQUIRED_BOUNDED
 
-v41_read_model_contract:
-  additive_existing_endpoint: true
-  required_fields:
-    - day_mode
-    - default_focus_type
-    - default_focus_fixture_id
-    - priority_reason_primary
-    - priority_reason_secondary
-    - global_incident
-    - day_summary
-    - empty_day_navigation
-    - trend_evidence_status
-    - cross_sectional_comparison_status
-    - latest_snapshot_at
-    - freshness_max_age_seconds
-    - next_eval_at
-    - global_validation_checkpoint_status
-  allowed_pairs:
-    NORMAL: MATCH
-    BLOCKED: GLOBAL_INCIDENT
-    CALM: DAY_SUMMARY
-    EMPTY: EMPTY_STATE
-  invalid_pairs_fail_closed: true
-  no_provider_call_on_read: true
-  no_business_write_on_read: true
+v41_postdeploy_owner_review:
+  status: CHANGES_REQUIRED_BOUNDED
+  remediation_authority: DASHBOARD_V41_POSTDEPLOY_BOUNDED_REMEDIATION.md
+  independent_root_cause_correction:
+    live_serialized_pair_from_receipt: NORMAL_MATCH
+    visible_blocked_day_source: data_operations.system_health
+    finding: PUBLIC_DAY_MODE_SYSTEM_HEALTH_AUTHORITY_CONFLICT
+    note: NOT_PROVEN_AS_LITERAL_BLOCKED_PLUS_MATCH_SERIALIZED_PAIR
+  findings:
+    D16_01_page_mode_system_health_authority_conflict: OPEN_P0
+    D16_02_priority_eligibility_and_default_focus: OPEN_P0
+    D16_03_primary_reason_visual_auditability: OPEN_P0
+    D16_04_chinese_first_dimension_specific_risk_copy: OPEN_P1
+    D16_05_causal_source_bound_match_summary: OPEN_P1
+    D16_06_remove_first_screen_nested_vertical_scroll: OPEN_P1
+    D16_07_global_validation_checkpoint_state_coherence: OPEN_P1
+  screenshot_observations:
+    visible_system_badge: BLOCKED_DAY
+    visible_priority_count: 3
+    visible_selected_focus: MATCH
+    selected_match_zero_snapshot_evidence: true
+    raw_english_risk_codes_visible: true
+    nested_focus_scroll_visible: true
+    quality_unavailable_with_timestamp_visible: true
+
+v41_remediation_contract:
+  authority: W2_DASHBOARD_V41_POSTDEPLOY_BOUNDED_REMEDIATION_V1
+  continuous_execution: true
+  owner_relay_between_steps: NOT_REQUIRED
+  ordinary_failures: FIX_REVALIDATE_CONTINUE
+  automatic_merge_after_exact_head_pass: true
+  redeployment_required: true
+  deployment_transport: LOCAL_OCI_RELAY_PRIMARY
+  rollback_baseline_main: c6d8c6c7304d302f31bea5a88967e3bc9e945b37
+  terminal_gate: OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
+  required_results:
+    - D16_01_THROUGH_D16_07_CLOSED
+    - REAL_SHAPE_PRIORITY_AND_MODE_TESTS_PASS
+    - NO_CONTRADICTORY_PUBLIC_DAY_MODE_LABEL
+    - NO_ZERO_EVIDENCE_DEFAULT_FOCUS_WHEN_USABLE_EVIDENCE_EXISTS
+    - PRIMARY_REASON_COUNTS_AUDITABLE
+    - CHINESE_FIRST_RISK_COPY
+    - CAUSAL_MATCH_SUMMARY
+    - NO_NESTED_FIRST_SCREEN_VERTICAL_SCROLL
+    - CHECKPOINT_AVAILABLE_STALE_INCOMPLETE_MISSING_COHERENT
+    - FULL_CI_PASS
+    - RELEASE_REQUIRED_PASS
+    - REPOSITORY_HYGIENE_PASS
+    - LOCAL_OCI_RELAY_REDEPLOY_PASS
+    - POSTDEPLOY_REAL_PAYLOAD_PASS
+    - READ_PROVIDER_CALL_DELTA_0
+    - READ_BUSINESS_WRITE_DELTA_0
 
 accepted_truths_must_not_regress:
   public_dashboard_authority: NEW_INTELLIGENCE_WORKSPACE_ONLY
   schema_version: w2.dashboard-intelligence-workspace.v1
-  blocked_day_fail_closed: true
   read_provider_calls: 0_REQUIRED
   read_db_business_writes: 0_REQUIRED
   no_call_on_read: true
@@ -260,37 +160,12 @@ accepted_truths_must_not_regress:
 round4:
   status: NOT_STARTED
   execution_authority: NOT_GRANTED
-  existing_packet: ROUND4_READINESS_DECISION_PACKET.md
-  existing_packet_evidence_foundation: RETAIN
-  existing_packet_exact_release_identity: CURRENT_FINAL_V41
-  required_after_v41: REFRESHED_STOPPED_FOR_OWNER_DECISION
+  packet: ROUND4_READINESS_DECISION_PACKET.md
+  current_packet_exact_release_identity: PR_506_RELEASE
+  required_after_remediation: REFRESH_TO_REMEDIATED_EXACT_RELEASE_ONLY_THEN_STOP
 
 p6:
   status: BLUEPRINT_ONLY_NOT_AUTHORIZED
-  current_required_scope: false
-
-auto_approval_policy:
-  enabled: true
-  v41_routine_technical_gates: AUTO_APPROVE_AFTER_INDEPENDENT_PASS
-  v41_merge_after_exact_head_pass: AUTO_APPROVE
-  v41_deploy_after_merge: AUTO_APPROVE
-  v41_final_product_device_gate: OWNER_REVIEW_REQUIRED_ONCE
-  round4_start: OWNER_EXPLICIT_AUTHORITY_REQUIRED
-  must_stop_early_for:
-    - MIGRATION_PROVEN_UNAVOIDABLE
-    - PRODUCT_SEMANTICS_OUTSIDE_V41_AUTHORITY
-    - OWNER_REFERENCE_ARTIFACT_UNAVAILABLE_OR_UNVERIFIABLE
-    - PROVIDER_PLAN_OR_NEW_PROVIDER
-    - SCHEDULER_OR_CADENCE_CHANGE
-    - ACTIVE_WHITELIST_CHANGE
-    - MODEL_FACTOR_THRESHOLD_RETRAINING
-    - EXTERNAL_INTELLIGENCE_ACTIVATION
-    - PHASE_0_5_REEXECUTION
-    - ROUND_4_START
-    - CANDIDATE_FORMAL_LOCK_PRODUCTION_ENABLEMENT
-    - REAL_MONEY_AUTHORITY
-    - P6_EXECUTION
-    - CRITICAL_DEPLOYMENT_FAILURE_AFTER_ROLLBACK
 
 permanent_stop_lines:
   new_provider_or_plan: NOT_AUTHORIZED
