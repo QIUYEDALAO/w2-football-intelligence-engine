@@ -41,6 +41,19 @@ PASS. Automated scenarios cover:
 
 Negative checks reject synthetic timelines, a second public dashboard, recommendation promotion, commercial metric fields, anonymous live-odds benchmarks, and legacy fallback. Scoreline `READY` displays exactly 10,000 existing simulations, `unconditional_probability`, and `sample_count`; the API read does not simulate.
 
+### Owner Review C bounded remediation
+
+PASS. The final presentation contract now includes:
+
+1. typed `AH` / `OU` Match Board main-line facts with explicit unavailable state;
+2. source-bound two-sided Market Radar prices with no fabricated missing side;
+3. Probability Validation checkpoint/cohort identity and explicit missing metadata;
+4. League Performance `Decisive N` alongside all previously accepted columns;
+5. compact header update time and system-health context from the unified payload;
+6. Scoreline model/readiness status and reason for both READY and UNAVAILABLE states.
+
+Focused Owner Review C Playwright acceptance is 26 PASS, including one test per remediation item and all prior truth/negative contracts.
+
 ## Visual evidence
 
 - Browser: fixed Chromium, DPR 1, `en-GB`, `Asia/Shanghai`
@@ -48,6 +61,7 @@ Negative checks reject synthetic timelines, a second public dashboard, recommend
 - Motion: disabled; scroll position: 0
 - Fixed authority: `golden/intelligence-workspace-1536x1024.png`
 - Responsive evidence: `golden/intelligence-workspace-1920x1080.png`, `golden/intelligence-workspace-1440x900.png`, `golden/intelligence-workspace-1366x768.png`
+- Owner Review C regeneration SHA-256: `1536x1024=9885c74c33274fac4a9f0c8a0e2e64970168b568eb33b48bc8ab7ccaec2760c9`, `1920x1080=6435947e59ec1465715e14c2fbc6df99243532de56b1e867b892addd40fc435f`, `1440x900=00f38ec8eff39f27228ba7fc1bb6756454b78a405eb527e354323a12109b2110`, `1366x768=db2e88fbf9f2fe0ddcf2fd06c3bd1f8d06ce2e56ac8c5deb50123239fe762b3d`.
 - Cross-platform CI: each fixed viewport must produce byte-identical repeated screenshots within the same Chromium runtime; committed Owner Review evidence remains the macOS reference and is not compared pixel-for-pixel with Ubuntu font rasterization.
 - Geometry: no horizontal page overflow at all required responsive widths.
 - Owner reference status: `OWNER_REFERENCE_BINARY_NOT_REPO_BOUND`; acceptance uses the approved product specification plus deterministic generated evidence.

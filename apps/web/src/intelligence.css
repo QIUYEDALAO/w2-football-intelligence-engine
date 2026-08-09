@@ -708,6 +708,44 @@ input {
   margin-top: 9px;
 }
 
+.market-prices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.market-prices > span,
+.market-prices p {
+  margin: 0;
+  padding: 7px;
+  border-radius: 6px;
+  background: rgba(77, 215, 209, 0.04);
+  color: var(--workspace-muted);
+  font-size: 9px;
+}
+
+.market-prices > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.market-prices small {
+  color: var(--workspace-muted);
+  font-size: 8px;
+}
+
+.market-prices strong {
+  color: var(--workspace-cyan);
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.market-prices p {
+  grid-column: 1 / -1;
+}
+
 .discrete-timeline {
   display: grid;
   gap: 7px;
@@ -817,6 +855,13 @@ input {
   gap: 7px;
 }
 
+.scoreline-context {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  margin-bottom: 7px;
+}
+
 .scoreline-grid article {
   display: grid;
   justify-items: center;
@@ -905,6 +950,23 @@ input {
   font-size: 9px;
 }
 
+.validation-checkpoint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 7px;
+  background: rgba(121, 169, 255, 0.045);
+  color: var(--workspace-muted);
+  font-size: 9px;
+}
+
+.validation-checkpoint code {
+  color: var(--workspace-blue);
+  overflow-wrap: anywhere;
+}
+
 .contract-note strong {
   color: var(--workspace-amber);
 }
@@ -917,10 +979,10 @@ input {
 .league-table-head,
 .league-table-row {
   display: grid;
-  grid-template-columns: minmax(130px, 1.5fr) repeat(8, minmax(64px, 0.7fr)) minmax(100px, 1fr);
+  grid-template-columns: minmax(130px, 1.5fr) repeat(9, minmax(64px, 0.7fr)) minmax(100px, 1fr);
   align-items: center;
   gap: 7px;
-  min-width: 900px;
+  min-width: 970px;
 }
 
 .league-table-head {
@@ -1159,13 +1221,8 @@ input {
   }
 }
 
-@media (max-width: 900px) {
-  .workspace-main {
-    padding: 12px 12px 40px;
-  }
-
+@media (max-width: 1480px) {
   .workspace-topbar {
-    position: static;
     grid-template-columns: 1fr auto;
   }
 
@@ -1174,6 +1231,16 @@ input {
     grid-row: 2;
     justify-content: flex-start;
     overflow-x: auto;
+  }
+}
+
+@media (max-width: 900px) {
+  .workspace-main {
+    padding: 12px 12px 40px;
+  }
+
+  .workspace-topbar {
+    position: static;
   }
 
   .workspace-two-column,
@@ -1248,6 +1315,10 @@ input {
   .scoreline-grid {
     grid-template-columns: repeat(3, minmax(82px, 1fr));
     overflow-x: auto;
+  }
+
+  .scoreline-context {
+    grid-template-columns: 1fr;
   }
 }
 

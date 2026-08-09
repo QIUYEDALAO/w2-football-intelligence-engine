@@ -35,6 +35,7 @@ function risks(attention?: keyof WorkspaceRisks): WorkspaceRisks {
 
 function market(name: "ASIAN_HANDICAP" | "TOTALS", count: number): WorkspaceMarket {
   const snapshotState = count === 0 ? "NO_TIMELINE_EVIDENCE" : count === 1 ? "ONE_OBSERVATION_NOT_A_TREND" : "DISCRETE_REAL_PATH";
+  const sides = name === "ASIAN_HANDICAP" ? ["HOME", "AWAY"] : ["OVER", "UNDER"];
   return {
     market: name,
     status: count ? "READY" : "INSUFFICIENT",
@@ -43,24 +44,27 @@ function market(name: "ASIAN_HANDICAP" | "TOTALS", count: number): WorkspaceMark
     observation_count: count * 4,
     main_line: count ? (name === "ASIAN_HANDICAP" ? "-0.25" : "2.5") : null,
     bookmaker_count: count ? 4 : 0,
-    prices: count ? { HOME: 1.94, AWAY: 1.96 } : {},
-    probabilities: count ? { HOME: 0.505, AWAY: 0.495 } : {},
+    prices: count ? { [sides[0]]: 1.94, [sides[1]]: 1.96 } : {},
+    probabilities: count ? { [sides[0]]: 0.505, [sides[1]]: 0.495 } : {},
     freshness: { status: count ? "FRESH" : "NOT_AVAILABLE" },
     timeline_points: Array.from({ length: count }, (_, index) => ({
       capture_id: `${name.toLowerCase()}-${index + 1}`,
       captured_at: `2026-08-09T0${index + 1}:00:00Z`,
       canonical_line: name === "ASIAN_HANDICAP" ? "-0.25" : "2.5",
       bookmaker_count: 4,
-      prices: { HOME: 1.94 + index / 100 },
-      probabilities: { HOME: 0.505 - index / 100 },
+      prices: { [sides[0]]: 1.94 + index / 100 },
+      probabilities: { [sides[0]]: 0.505 - index / 100 },
     })),
     movement: { status: count >= 2 ? "STABLE" : "INSUFFICIENT" },
     reason_codes: count >= 2 ? ["DISCRETE_REAL_PATH"] : [snapshotState],
   };
 }
 
-function match(fixtureId: string, state: IntelligenceState, snapshotCount: number): WorkspaceMatch {
+function match(fixtureId: string, state: IntelligenceState, snapshotCount: number, primaryMarket: "ASIAN_HANDICAP" | "TOTALS" = "ASIAN_HANDICAP", secondarySnapshotCount = 0): WorkspaceMatch {
   const matchRisks = risks(state === "COLLECTION_INCIDENT" ? "COLLECTION_RISK" : state === "DATA_INCOMPLETE" ? "DATA_RISK" : state === "MODEL_DIAGNOSTIC_WARNING" ? "MODEL_RISK" : undefined);
+  const ah = market("ASIAN_HANDICAP", primaryMarket === "ASIAN_HANDICAP" ? snapshotCount : secondarySnapshotCount);
+  const totals = market("TOTALS", primaryMarket === "TOTALS" ? snapshotCount : secondarySnapshotCount);
+  const primary = primaryMarket === "ASIAN_HANDICAP" ? ah : totals;
   const relation = (marketName: "ASIAN_HANDICAP" | "TOTALS") => ({
     market: marketName,
     status: state === "MODEL_MARKET_DISAGREEMENT" ? "MODEL_OUTSIDE_MARKET_RANGE" : "COMPARABLE_WITHIN_MARKET_RANGE",
@@ -95,9 +99,9 @@ function match(fixtureId: string, state: IntelligenceState, snapshotCount: numbe
     },
     market_fact: {
       status: snapshotCount ? "READY" : "INSUFFICIENT",
-      main_line: snapshotCount ? "-0.25" : null,
-      current_odds: snapshotCount ? { HOME: 1.94, AWAY: 1.96 } : {},
-      market_probabilities: snapshotCount ? { HOME: 0.505, AWAY: 0.495 } : {},
+      main_line: primary.main_line,
+      current_odds: primary.prices,
+      market_probabilities: primary.probabilities,
       price_reference: "LAST_AVAILABLE_PREMATCH_SNAPSHOT",
       canonical_close_status: "NOT_OBTAINABLE_FROM_CURRENT_PROVIDER",
     },
@@ -111,13 +115,13 @@ function match(fixtureId: string, state: IntelligenceState, snapshotCount: numbe
       model_market_relation: { ASIAN_HANDICAP: relation("ASIAN_HANDICAP"), TOTALS: relation("TOTALS") },
     },
     formal_recommendation: { status: "OFF", reason: "PRODUCT_AUTHORITY_DISABLED" },
-    market_radar: { schema_version: "w2.market-radar.v1", markets: { ASIAN_HANDICAP: market("ASIAN_HANDICAP", snapshotCount), TOTALS: market("TOTALS", snapshotCount) } },
+    market_radar: { schema_version: "w2.market-radar.v1", markets: { ASIAN_HANDICAP: ah, TOTALS: totals } },
     model_lab: {
       schema_version: "w2.model-lab.v1",
       w2_model: { status: "READY", model_version: "w2-existing-v1", calibration_status: "AVAILABLE" },
       market: {
-        ASIAN_HANDICAP: { status: snapshotCount ? "READY" : "INSUFFICIENT", main_line: snapshotCount ? "-0.25" : null, bookmaker_count: snapshotCount ? 4 : 0, freshness: { status: snapshotCount ? "FRESH" : "NOT_AVAILABLE" } },
-        TOTALS: { status: snapshotCount ? "READY" : "INSUFFICIENT", main_line: snapshotCount ? "2.5" : null, bookmaker_count: snapshotCount ? 4 : 0, freshness: { status: snapshotCount ? "FRESH" : "NOT_AVAILABLE" } },
+        ASIAN_HANDICAP: { status: ah.status, main_line: ah.main_line, bookmaker_count: ah.bookmaker_count, freshness: ah.freshness },
+        TOTALS: { status: totals.status, main_line: totals.main_line, bookmaker_count: totals.bookmaker_count, freshness: totals.freshness },
       },
       api_football_prediction: { status: "NOT_AVAILABLE", role: "EXTERNAL_MODEL_BENCHMARK", reason_code: "API_FOOTBALL_PREDICTION_NOT_PROJECTED" },
       relation: { ASIAN_HANDICAP: relation("ASIAN_HANDICAP"), TOTALS: relation("TOTALS") },
@@ -136,9 +140,10 @@ function match(fixtureId: string, state: IntelligenceState, snapshotCount: numbe
 }
 
 function workspace(scenario = "default"): IntelligenceWorkspace {
-  let matches = [match("zero", "DATA_INCOMPLETE", 0), match("one", "MODEL_MARKET_DISAGREEMENT", 1), match("two", "MARKET_STABLE", 2)];
+  let matches = [match("zero", "DATA_INCOMPLETE", 0), match("one", "MODEL_MARKET_DISAGREEMENT", 1, "TOTALS"), match("two", "MARKET_STABLE", 2, "ASIAN_HANDICAP", 2)];
   if (scenario === "empty") matches = [];
   if (scenario === "seven-states") matches = STATES.map((state, index) => match(`state-${index}`, state, index % 3));
+  if (scenario === "default") delete matches[1].market_radar.markets.TOTALS.prices.UNDER;
   const attention = matches.map((item) => ({
     fixture_id: item.fixture_id,
     kickoff_utc: item.kickoff_utc,
@@ -184,6 +189,7 @@ function workspace(scenario = "default"): IntelligenceWorkspace {
   if (first && scenario === "collection-incident") { first.intelligence_state = "COLLECTION_INCIDENT"; first.intelligence_reason_codes = ["COLLECTION_PROVIDER_INCIDENT"]; }
   if (first && scenario === "model-not-ready") { first.w2_analysis.model_view.status = "UNAVAILABLE"; first.model_lab.w2_model.status = "UNAVAILABLE"; first.intelligence_reason_codes = ["MODEL_SIMULATION_NOT_READY"]; }
   if (scenario === "validation-insufficient") { payload.validation.probability.status = "INSUFFICIENT"; payload.validation.probability.sample_count = 0; payload.validation.probability.model_reliability_bins = []; payload.validation.probability.market_reliability_bins = []; payload.validation.directional.status = "INSUFFICIENT"; payload.validation.directional.effective_n = 0; }
+  if (scenario === "validation-metadata-missing") payload.validation.probability.checkpoint_metadata = {};
   if (first && !["default", "empty", "seven-states", "validation-insufficient"].includes(scenario)) payload.selected_fixture_id = first.fixture_id;
   return payload;
 }
@@ -216,6 +222,69 @@ test("public root consumes only the unified read model and exposes every P3/P4 s
   await expect(page.locator(".workspace-topbar")).toContainText("SHADOW_ONLY");
   await expect(page.locator(".workspace-topbar")).toContainText("FORMAL OFF");
   expect(new Set(reads)).toEqual(new Set(["/v1/dashboard/intelligence-workspace"]));
+});
+
+test("ORC-01 Match Board identifies AH and OU main-line facts without side semantics", async ({ page }) => {
+  await installWorkspace(page);
+  await page.goto("/");
+  const facts = await page.locator(".match-board-market").allTextContents();
+  expect(facts).toEqual(["MARKET NOT AVAILABLE", "OU 2.5", "AH -0.25"]);
+  expect(facts.every((value) => !/(HOME|AWAY|OVER|UNDER)/.test(value))).toBe(true);
+});
+
+test("ORC-02 Market Radar renders only available two-sided prices", async ({ page }) => {
+  await installWorkspace(page);
+  await page.goto("/");
+  const radar = page.locator("[data-ui='market-radar']");
+  const ah = radar.locator("[data-market='ASIAN_HANDICAP'] [data-ui='market-prices']");
+  const totals = radar.locator("[data-market='TOTALS'] [data-ui='market-prices']");
+  await expect(ah).toContainText("HOME");
+  await expect(ah).toContainText("AWAY");
+  await expect(ah).toContainText("1.94");
+  await expect(ah).toContainText("1.96");
+  await expect(totals).toContainText("OVER");
+  await expect(totals).toContainText("UNDER");
+  await page.locator("[data-fixture-id='zero']").click();
+  await expect(radar.locator(".market-prices p")).toHaveCount(2);
+  await expect(radar.locator(".market-prices p").first()).toHaveText("PRICE_EVIDENCE_NOT_AVAILABLE");
+  await page.locator("[data-fixture-id='one']").click();
+  await expect(totals.locator(":scope > span")).toHaveCount(1);
+  await expect(totals).toContainText("OVER");
+  await expect(totals).not.toContainText("UNDER");
+});
+
+test("ORC-03 Probability Validation exposes source checkpoint identity", async ({ page }) => {
+  await installWorkspace(page);
+  await page.goto("/");
+  await expect(page.locator("[data-ui='validation-checkpoint']")).toContainText("checkpoint_key=performance:cohort:all");
+});
+
+test("ORC-04 League Performance includes Decisive N and its source value", async ({ page }) => {
+  await installWorkspace(page);
+  await page.goto("/");
+  const table = page.locator("[data-ui='league-performance']");
+  await expect(table.locator(".league-table-head")).toContainText("Decisive N");
+  await expect(table.locator(".league-table-row > span").nth(1)).toHaveText("6");
+});
+
+test("ORC-05 compact header exposes source update time and system health", async ({ page }) => {
+  await installWorkspace(page);
+  await page.goto("/");
+  const context = page.locator("[data-ui='header-context']");
+  await expect(context).toContainText("Updated 09 Aug, 10:00");
+  await expect(context).toContainText("Health HEALTHY");
+});
+
+test("ORC-06 Scoreline shows model and readiness context for ready and unavailable states", async ({ page }) => {
+  await installWorkspace(page);
+  await page.goto("/");
+  const scoreline = page.locator("[data-ui='scoreline-top3']");
+  await expect(scoreline.locator("[data-ui='scoreline-context']")).toContainText("Model statusREADY");
+  await expect(scoreline.locator("[data-ui='scoreline-context']")).toContainText("ReadinessREADY");
+  await page.locator("[data-fixture-id='zero']").click();
+  await expect(scoreline).toContainText("UNAVAILABLE");
+  await expect(scoreline.locator("[data-ui='scoreline-context']")).toContainText("ReadinessBLOCKED");
+  await expect(scoreline.locator("[data-ui='scoreline-context']")).toContainText("LINEUPS_NOT_READY");
 });
 
 test("all seven intelligence states and the exact four risk axes render without semantic promotion", async ({ page }) => {
@@ -259,6 +328,7 @@ for (const [scenario, expected] of [
   ["collection-incident", "PROTECTED_DEGRADED"],
   ["model-not-ready", "MODEL_SIMULATION_NOT_READY"],
   ["validation-insufficient", "INSUFFICIENT"],
+  ["validation-metadata-missing", "CHECKPOINT_METADATA_NOT_AVAILABLE"],
 ] as const) {
   test(`truth scenario ${scenario} stays explicit`, async ({ page }) => {
     await installWorkspace(page, scenario);
@@ -297,23 +367,29 @@ test("public copy excludes forbidden decision and commercial semantics", async (
   await expect(body).toContainText("Formal recommendation is OFF");
 });
 
-test("fixed visual authority is deterministic at 1536x1024 within the browser runtime", async ({ page }) => {
+test("fixed visual authority is deterministic at 1536x1024 within the browser runtime", async ({ page }, testInfo) => {
   await installWorkspace(page);
   await page.goto("/");
   await expect(page.locator("[data-ui='match-board']")).toBeVisible();
   await expectDeterministicScreenshot(page);
+  if (process.env.UPDATE_WORKSPACE_SCREENSHOTS === "1") await page.screenshot({ animations: "disabled", fullPage: false, path: testInfo.snapshotPath("intelligence-workspace-1536x1024.png") });
 });
 
 for (const viewport of [{ width: 1920, height: 1080 }, { width: 1440, height: 900 }, { width: 1366, height: 768 }]) {
-  test(`responsive geometry ${viewport.width}x${viewport.height} has no page overflow`, async ({ page }) => {
+  test(`responsive geometry ${viewport.width}x${viewport.height} has no page overflow`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport);
     await installWorkspace(page);
     await page.goto("/");
     const geometry = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
     expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
+    const statusGeometry = await page.locator(".topbar-status").evaluate((element) => ({ scrollWidth: element.scrollWidth, clientWidth: element.clientWidth }));
+    expect(statusGeometry.scrollWidth).toBeLessThanOrEqual(statusGeometry.clientWidth);
     await expect(page.locator("[data-ui='attention']")).toBeVisible();
     await expect(page.locator("[data-ui='match-board']")).toBeVisible();
+    await expect(page.locator(".topbar-status")).toContainText("13 LEAGUES");
+    await expect(page.locator(".topbar-status")).toContainText("PRODUCTION OFF");
     await expectDeterministicScreenshot(page);
+    if (process.env.UPDATE_WORKSPACE_SCREENSHOTS === "1") await page.screenshot({ animations: "disabled", fullPage: false, path: testInfo.snapshotPath(`intelligence-workspace-${viewport.width}x${viewport.height}.png`) });
   });
 }
 
