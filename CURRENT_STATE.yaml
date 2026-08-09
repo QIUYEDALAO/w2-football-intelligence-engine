@@ -1,20 +1,20 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-09T15:43:00+08:00"
+updated_at: "2026-08-09T20:15:41+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: W2_DASHBOARD_OWNER_VISUAL_PARITY_ZH_CN_REMEDIATION
+owner_product_decision: W2_DASHBOARD_OWNER_VISUAL_UX_ACCEPTANCE_PASS
 owner_authorization_id: W2_DASHBOARD_OWNER_VISUAL_PARITY_ZH_CN_REMEDIATION_V1
-active_next_action: EXECUTE_DASHBOARD_OWNER_VISUAL_PARITY_ZH_CN_REMEDIATION
-next_code_action: FRONTEND_PRESENTATION_LAYOUT_LOCALIZATION_ONLY
-current_status: DASHBOARD_OWNER_VISUAL_UX_REMEDIATION_AUTHORIZED_ACTIVE
-current_gate: DASHBOARD_OWNER_VISUAL_UX_ACCEPTANCE
+active_next_action: OWNER_ROUND4_DECISION_REQUIRED
+next_code_action: NONE_OWNER_DECISION_REQUIRED
+current_status: DASHBOARD_OWNER_VISUAL_UX_ACCEPTANCE_PASS
+current_gate: OWNER_ROUND4_DECISION_REQUIRED
 
 runtime_baseline:
-  final_main_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
-  deployed_source_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
+  final_main_sha: 62cf3efc6676d23688c3b6268ca822025b3c9148
+  deployed_source_sha: da280c54d93d3ac6b0041e7e543f441c61542a62
   free_bridge_mode: SHADOW_ONLY
   active_whitelist: EXACT_EXISTING_13
   provider_policy: UNCHANGED
@@ -35,28 +35,32 @@ prior_completed_scope:
   vps_local_relay_deployment: PASS
   track_a: TRACK_A_CLOSED_PASS
   pre_round4_functional_scope: COMPLETE
+  dashboard_owner_visual_ux: DASHBOARD_OWNER_VISUAL_UX_ACCEPTANCE_PASS
 
 owner_visual_review:
-  status: CHANGES_REQUIRED
+  status: DASHBOARD_OWNER_VISUAL_UX_ACCEPTANCE_PASS
   authority: DASHBOARD_OWNER_VISUAL_PARITY_ZH_CN_REMEDIATION.md
   finding: FUNCTIONAL_ACCEPTANCE_DID_NOT_EQUAL_OWNER_VISUAL_UX_ACCEPTANCE
-  current_deployed_ui:
+  previous_deployed_ui:
     public_authority: NEW_INTELLIGENCE_WORKSPACE_ONLY
     primary_language: ENGLISH_HEAVY
     desktop_layout: LONG_VERTICAL_STACK
     raw_enum_reason_codes_primary: true
     owner_visual_acceptance: FAIL
-  owner_target:
+  accepted_deployed_ui:
     primary_viewport: 1536x1024
     primary_language: zh-CN
     composition: COMPACT_MULTI_COLUMN_EXECUTIVE_INTELLIGENCE_CONSOLE
+    public_authority: NEW_INTELLIGENCE_WORKSPACE_ONLY
+    raw_enum_reason_codes_primary: false
+    owner_visual_acceptance: PASS
     reference_method:
       - OWNER_PROVIDED_TARGET_SCREENSHOT
       - REPO_BOUND_BOSS_CONSOLE_VISUAL_COMPOSITION_REFERENCE_ONLY
     legacy_product_semantics_restoration: FORBIDDEN
 
 visual_remediation:
-  status: AUTHORIZED_ACTIVE
+  status: COMPLETE_PASS
   scope:
     - CHINESE_FIRST_PUBLIC_UI
     - COMPACT_1536X1024_MULTI_COLUMN_LAYOUT
@@ -70,8 +74,8 @@ visual_remediation:
   keep_backend_schema_unchanged: true
   keep_seven_state_contract: true
   keep_four_risk_contract: true
-  provider_calls_from_ui: 0_REQUIRED
-  db_business_writes_from_ui: 0_REQUIRED
+  provider_calls_from_ui: 0
+  db_business_writes_from_ui: 0
   vps_deployment_after_merge: LOCAL_OCI_RELAY_PRIMARY
   terminal_target: DASHBOARD_OWNER_VISUAL_UX_ACCEPTANCE_PASS
 
@@ -90,15 +94,18 @@ post_r3_track_a:
 
 vps_deployment:
   status: VPS_LOCAL_RELAY_DEPLOYMENT_ACCEPTANCE_PASS
-  final_deployed_source_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
+  final_deployed_source_sha: da280c54d93d3ac6b0041e7e543f441c61542a62
+  merged_main_sha: 62cf3efc6676d23688c3b6268ca822025b3c9148
+  python_image_digest: sha256:6ed3e254a1d1a6f014eb61e3b2cc0596094edfa4311a284d6f5e36abc1884c31
+  web_image_digest: sha256:b48c3ee0a4bcaa1281bc708045be10d6fab6dabbefd56051efd505b5768629cb
   image_transport: LOCAL_OCI_RELAY_PRIMARY
-  warm_switch_seconds: 39
+  warm_switch_seconds: 44
   postdeploy_acceptance: PASS
 
 auto_approval_policy:
   enabled: true
   rule: AUTO_APPROVE_AFTER_INDEPENDENT_TECHNICAL_PASS_WHEN_CURRENT_OWNER_AUTHORITY_FULLY_DEFINES_PRODUCT_AND_NO_NEW_RUNTIME_AUTHORITY_IS_REQUIRED
-  current_visual_remediation_may_continue_without_owner_relay: true
+  current_visual_remediation_may_continue_without_owner_relay: false
   must_stop_for:
     - PRODUCT_SEMANTICS_OUTSIDE_CURRENT_VISUAL_AUTHORITY
     - PROVIDER_PLAN_OR_NEW_PROVIDER
