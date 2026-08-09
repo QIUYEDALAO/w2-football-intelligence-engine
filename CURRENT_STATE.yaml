@@ -1,16 +1,16 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-09T04:46:00+08:00"
+updated_at: "2026-08-09T11:55:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: W2_P3_P5_COMPLETE_READY_FOR_OWNER_REVIEW_C
-owner_authorization_id: W2_OWNER_REVIEW_B_APPROVAL_P3_P5_CONTINUOUS_V1
-active_next_action: OWNER_REVIEW_C
-next_code_action: NONE_PENDING_OWNER_REVIEW_C
-current_status: P5_COMPLETE_READY_FOR_OWNER_REVIEW_C
-current_gate: OWNER_REVIEW_C
+owner_product_decision: W2_OWNER_REVIEW_C_BOUNDED_REMEDIATION_REQUIRED
+owner_authorization_id: W2_OWNER_REVIEW_C_REMEDIATION_V1
+active_next_action: EXECUTE_OWNER_REVIEW_C_BOUNDED_REMEDIATION
+next_code_action: REMEDIATE_PR_499_FINAL_UI_CONTRACT_ONLY
+current_status: OWNER_REVIEW_C_CHANGES_REQUIRED_BOUNDED
+current_gate: OWNER_REVIEW_C_REMEDIATION
 
 runtime_baseline:
   final_main_sha: f14136f07d69ece09e61fec6b1dd546e67c0267c
@@ -67,7 +67,7 @@ post_r3_readiness_attribution:
     comparable_within_market_range: 0
     model_outside_market_range: 0
   completion_condition: REAL_FIXTURES_CROSS_EXISTING_T12_T6_T3_T60_LIFECYCLE_WITH_EXPLICIT_TERMINAL_EVIDENCE_THEN_REPROJECT_AND_OWNER_REVIEW
-  relation_to_dashboard_work: PARALLEL_BACKGROUND_RUNTIME_NOT_BLOCKING_P3_P5
+  relation_to_dashboard_work: PARALLEL_BACKGROUND_RUNTIME_NOT_BLOCKING_OWNER_REVIEW_C_REMEDIATION
   dashboard_work_may_change_runtime_policy: false
   round_4: NOT_STARTED
 
@@ -107,7 +107,7 @@ owner_review_b:
 final_execution_plan:
   authority: W2_FINAL_EXECUTION_MASTER_PLAN.md
   detailed_dashboard_authority: DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN.md
-  current_phase_authority: OWNER_REVIEW_B_APPROVAL_AND_P3_P5_AUTHORIZATION.md
+  current_phase_authority: OWNER_REVIEW_C_REMEDIATION.md
   historical_reconciliation_stage: CANCELLED_NOT_A_DEVELOPMENT_STAGE
   historical_step4_post4: SUPERSEDED_AS_STANDALONE_WORKSTREAM
   rebuild_old_boss_l1_l2_dashboard: false
@@ -128,25 +128,26 @@ final_execution_plan:
     p0: PASS_APPROVED
     p1: PASS_APPROVED
     p2: PASS_MERGED_MAIN_F14136F
-    p3: PASS
-    p4: PASS
-    p5: COMPLETE_READY_FOR_OWNER_REVIEW_C
+    p3: ARCHITECTURE_ACCEPTED_UI_CONTRACT_REMEDIATION
+    p4: ARCHITECTURE_ACCEPTED_UI_CONTRACT_REMEDIATION
+    p5: BOUNDED_FINAL_UI_CONTRACT_REMEDIATION_REQUIRED
     p5_5: NOT_STARTED_NOT_AUTHORIZED
     p6: BLUEPRINT_ONLY_NOT_AUTHORIZED
   continuity:
-    intermediate_owner_gate_between_p3_p4_p5: false
+    intermediate_owner_gate_between_remediation_items: false
     in_scope_failure_remediation_without_owner_relay: true
-    terminal_owner_gate: OWNER_REVIEW_C
+    terminal_owner_gate: OWNER_REVIEW_C_REREVIEW
   owner_gates:
     owner_review_a: APPROVED
     owner_review_b: APPROVED
-    after_p5: OWNER_REVIEW_C
+    owner_review_c: CHANGES_REQUIRED_BOUNDED
+    after_remediation: OWNER_REVIEW_C_REREVIEW
     p5_5_requires_owner_review_c_approval: true
 
 dashboard_intelligence_workspace:
   workstream: DASHBOARD_INTELLIGENCE_WORKSPACE_FINAL_REFACTOR
-  status: P5_COMPLETE_READY_FOR_OWNER_REVIEW_C
-  current_execution_authorization: COMPLETE_STOPPED_AT_OWNER_REVIEW_C
+  status: OWNER_REVIEW_C_BOUNDED_UI_REMEDIATION_REQUIRED
+  current_execution_authorization: PR499_FINAL_UI_CONTRACT_REMEDIATION_ONLY
   p0_output: DASHBOARD_INTELLIGENCE_WORKSPACE_PRODUCT_SPEC.md
   p1_outputs:
     - PERFECT_INTELLIGENCE_CAPABILITY_MATRIX
@@ -161,17 +162,23 @@ dashboard_intelligence_workspace:
   p3_target: NEW_INTELLIGENCE_WORKSPACE_UI_ONLY
   p4_target: VALIDATION_LEAGUE_PERFORMANCE_FORWARD_RECORDS_HISTORY_REPLAY
   p5_target: FULL_CHAIN_TRUTHFULNESS_VISUAL_REPOSITORY_ACCEPTANCE
-  p3_result: PASS
-  p4_result: PASS
-  p5_result: COMPLETE_READY_FOR_OWNER_REVIEW_C
   implementation_pr: 499
   implementation_pr_state: OPEN_DRAFT
   implementation_base_sha: f14136f07d69ece09e61fec6b1dd546e67c0267c
-  implementation_head_sha: e9fda39783b7e0ce80cff635e9e2d61dd51bf73f
-  exact_head_full_ci_run: 31277321425
-  release_required: PASS
-  repository_hygiene: PASS
-  p5_after: OWNER_REVIEW_C
+  reviewed_head_sha: e9fda39783b7e0ce80cff635e9e2d61dd51bf73f
+  reviewed_full_ci_run: 31277321425
+  reviewed_release_required: PASS
+  architecture_and_truth_acceptance: PASS
+  remediation_required:
+    typed_match_board_main_line: true
+    market_radar_two_sided_prices: true
+    validation_checkpoint_identity: true
+    league_performance_decisive_n: true
+    header_update_system_health: true
+    scoreline_model_readiness_context: true
+  remediation_authority: OWNER_REVIEW_C_REMEDIATION.md
+  remediation_after: OWNER_REVIEW_C_REREVIEW
+  repository_hygiene_before_remediation: PASS
   p5_5: NOT_AUTHORIZED
   public_dashboard_target: NEW_INTELLIGENCE_WORKSPACE_ONLY
   product_position: FOOTBALL_MARKET_INTELLIGENCE_PLUS_MODEL_DIAGNOSTICS
@@ -191,16 +198,27 @@ dashboard_intelligence_workspace:
     viewport: 1536x1024
     dpr: 1
     owner_reference_binary_repo_bound: UNVERIFIED
-    missing_binary_behavior: CONTINUE_NONDESTRUCTIVE_P3_P5_AND_CARRY_TO_OWNER_REVIEW_C
+    final_owner_visual_signoff: REQUIRED_AT_OWNER_REVIEW_C_REREVIEW
   deletion_authority: P5_5_ONLY_AFTER_P5_PASS_AND_OWNER_REVIEW_C_APPROVAL
 
 owner_review_c:
-  status: READY_FOR_OWNER_REVIEW
-  packet: OWNER_REVIEW_C_PACKET.md
-  execution_receipt: CODEX_EXECUTION_RECEIPT.md
+  status: CHANGES_REQUIRED_BOUNDED
+  review_authority: OWNER_REVIEW_C_REMEDIATION.md
+  reviewed_packet: OWNER_REVIEW_C_PACKET.md
+  reviewed_execution_receipt: CODEX_EXECUTION_RECEIPT.md
   implementation_pr: 499
-  implementation_head_sha: e9fda39783b7e0ce80cff635e9e2d61dd51bf73f
-  release_required: PASS
+  reviewed_head_sha: e9fda39783b7e0ce80cff635e9e2d61dd51bf73f
+  reviewed_full_ci_run: 31277321425
+  reviewed_release_required: PASS
+  findings:
+    - MATCH_BOARD_MAIN_LINE_MARKET_IDENTITY_MISSING
+    - MARKET_RADAR_TWO_SIDED_PRICES_NOT_VISIBLE
+    - VALIDATION_CHECKPOINT_COHORT_IDENTITY_NOT_VISIBLE
+    - LEAGUE_PERFORMANCE_DECISIVE_N_MISSING
+    - HEADER_DATA_UPDATE_SYSTEM_HEALTH_CONTEXT_MISSING
+    - SCORELINE_MODEL_READINESS_CONTEXT_NOT_VISIBLE
+  remediation_scope: EXISTING_PR_499_ONLY
+  next: OWNER_REVIEW_C_REREVIEW
   p5_5: NOT_STARTED_NOT_AUTHORIZED
   round_4: NOT_STARTED
 
