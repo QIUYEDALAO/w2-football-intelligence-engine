@@ -151,6 +151,7 @@ def _match(card: Mapping[str, Any]) -> dict[str, Any]:
         },
         "market_fact": {
             "status": primary["status"] if primary else "INSUFFICIENT",
+            "source_status": primary["source_status"] if primary else "INSUFFICIENT",
             "main_line": primary["main_line"] if primary else None,
             "current_odds": primary["prices"] if primary else {},
             "market_probabilities": primary["probabilities"] if primary else {},
@@ -195,6 +196,7 @@ def _match(card: Mapping[str, Any]) -> dict[str, Any]:
             "market": {
                 name: {
                     "status": item["status"],
+                    "source_status": item["source_status"],
                     "main_line": item["main_line"],
                     "bookmaker_count": item["bookmaker_count"],
                     "freshness": item["freshness"],
@@ -229,6 +231,18 @@ def _market(raw: Mapping[str, Any], name: str) -> dict[str, Any]:
     timeline = _mapping(raw.get("timeline"))
     movement = _mapping(raw.get("movement"))
     count = max(0, _int(raw.get("snapshot_count")))
+    source_status = _text(raw.get("status"), "INSUFFICIENT")
+    freshness = dict(_mapping(current.get("freshness")))
+    freshness_status = _text(freshness.get("status"), "NOT_AVAILABLE")
+    public_status = (
+        "INSUFFICIENT"
+        if not current
+        else "READY"
+        if freshness_status in {"COMPLETE", "CURRENT", "FRESH"}
+        else "STALE"
+        if freshness_status == "STALE"
+        else "INSUFFICIENT"
+    )
     points = [
         {
             "capture_id": _optional_text(point.get("capture_id")),
@@ -240,27 +254,45 @@ def _market(raw: Mapping[str, Any], name: str) -> dict[str, Any]:
         }
         for point in _mapping_list(timeline.get("points"))
     ]
+    movement_payload = {
+        key: movement.get(key)
+        for key in (
+            "status",
+            "reason_code",
+            "from_captured_at",
+            "to_captured_at",
+            "line_delta",
+            "price_delta",
+            "probability_delta",
+        )
+        if key in movement
+    }
+    if not movement_payload.get("status"):
+        movement_payload = {
+            "status": "INSUFFICIENT",
+            "reason_code": _text(
+                timeline.get("status"),
+                "INSUFFICIENT_NO_TIMELINE_EVIDENCE",
+            ),
+        }
     return {
         "market": name,
-        "status": _text(raw.get("status"), "INSUFFICIENT"),
+        "status": public_status,
+        "source_status": source_status,
         "snapshot_state": SNAPSHOT_STATES.get(count, "DISCRETE_REAL_PATH"),
         "snapshot_count": count,
         "observation_count": max(0, _int(raw.get("observation_count"))),
+        "bookmaker_pair_count": sum(point["bookmaker_count"] for point in points),
+        "quote_row_count": max(0, _int(raw.get("observation_count"))),
         "main_line": _optional_text(current.get("canonical_line")),
         "bookmaker_count": max(0, _int(current.get("bookmaker_count"))),
         "prices": dict(_mapping(current.get("prices"))),
         "probabilities": dict(_mapping(current.get("probabilities"))),
-        "freshness": dict(_mapping(current.get("freshness"))),
+        "freshness": freshness,
         "timeline_points": points,
-        "movement": {
-            key: movement.get(key)
-            for key in ("status", "reason_code", "line_delta", "price_delta", "probability_delta")
-            if key in movement
-        },
+        "movement": movement_payload,
         "reason_codes": [
-            str(value)
-            for value in (movement.get("reason_code"), timeline.get("status"))
-            if value
+            str(value) for value in (movement.get("reason_code"), timeline.get("status")) if value
         ],
     }
 
@@ -322,22 +354,14 @@ def _validation(forward: Mapping[str, Any], replay: Mapping[str, Any]) -> dict[s
             "sample_count": max(0, _int(probability.get("sample_count"))),
             "model_brier": _number(probability.get("model_brier")),
             "market_brier": _number(probability.get("market_brier")),
-            "model_minus_market_brier": _number(
-                probability.get("model_minus_market_brier")
-            ),
+            "model_minus_market_brier": _number(probability.get("model_minus_market_brier")),
             "model_log_loss": _number(probability.get("model_log_loss")),
             "market_log_loss": _number(probability.get("market_log_loss")),
-            "model_minus_market_log_loss": _number(
-                probability.get("model_minus_market_log_loss")
-            ),
+            "model_minus_market_log_loss": _number(probability.get("model_minus_market_log_loss")),
             "model_calibration_error": _number(probability.get("model_ece")),
             "market_calibration_error": _number(probability.get("market_ece")),
-            "model_reliability_bins": _mapping_list(
-                probability.get("model_reliability_bins")
-            ),
-            "market_reliability_bins": _mapping_list(
-                probability.get("market_reliability_bins")
-            ),
+            "model_reliability_bins": _mapping_list(probability.get("model_reliability_bins")),
+            "market_reliability_bins": _mapping_list(probability.get("market_reliability_bins")),
             "checkpoint_metadata": dict(_mapping(forward.get("checkpoint_metadata"))),
         },
         "directional": {
@@ -400,9 +424,7 @@ def _validation(forward: Mapping[str, Any], replay: Mapping[str, Any]) -> dict[s
             },
             "decision_summary": dict(_mapping(replay.get("decision_summary"))),
             "reason_summary": _mapping_list(replay.get("reason_summary")),
-            "outcome_tracking_summary": dict(
-                _mapping(replay.get("outcome_tracking_summary"))
-            ),
+            "outcome_tracking_summary": dict(_mapping(replay.get("outcome_tracking_summary"))),
             "card_hash_checks": _mapping_list(replay.get("card_hash_checks")),
             "replay_gaps": _string_list(replay.get("replay_gaps")),
         },
@@ -500,9 +522,7 @@ def _freshness_domains(
     }
 
 
-def _card_domain(
-    cards: Sequence[Mapping[str, Any]], name: str
-) -> tuple[str, Any]:
+def _card_domain(cards: Sequence[Mapping[str, Any]], name: str) -> tuple[str, Any]:
     statuses: list[str] = []
     captured: list[str] = []
     for card in cards:
@@ -516,9 +536,7 @@ def _card_domain(
     return (sorted(set(statuses))[0] if statuses else "NOT_AVAILABLE", max(captured, default=None))
 
 
-def _data_operations(
-    day_view: Mapping[str, Any], freshness: Mapping[str, Any]
-) -> dict[str, Any]:
+def _data_operations(day_view: Mapping[str, Any], freshness: Mapping[str, Any]) -> dict[str, Any]:
     counts = _mapping(day_view.get("counts"))
     safe_counts = {
         key: counts.get(key)
@@ -544,9 +562,7 @@ def _data_operations(
         "degradation": degradation,
         "counts": safe_counts,
         "system_health": _text(degradation.get("state"), "UNKNOWN"),
-        "provider_budget_status": _text(
-            freshness.get("provider_budget_status"), "UNKNOWN"
-        ),
+        "provider_budget_status": _text(freshness.get("provider_budget_status"), "UNKNOWN"),
     }
 
 

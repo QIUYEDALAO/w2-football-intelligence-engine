@@ -225,9 +225,9 @@ class WorkspaceRiskDimension(BaseModel):
     status: Literal["OK", "ATTENTION", "INCIDENT"]
     reason_codes: list[str]
     explanation: str
-    assessment_status: Literal[
-        "ASSESSED_CURRENT", "ASSESSED_INCIDENT", "STALE", "UNASSESSED"
-    ] | None = None
+    assessment_status: (
+        Literal["ASSESSED_CURRENT", "ASSESSED_INCIDENT", "STALE", "UNASSESSED"] | None
+    ) = None
     evidence_basis: str | None = None
     source_as_of: datetime | str | None = None
 
@@ -269,9 +269,9 @@ class WorkspaceAttentionItem(BaseModel):
     kickoff_utc: datetime | str | None
     intelligence_state: IntelligenceState
     reason_codes: list[str]
-    affected_domains: list[
-        Literal["EVENT", "DATA", "MODEL", "COLLECTION", "MARKET"]
-    ] = Field(min_length=1)
+    affected_domains: list[Literal["EVENT", "DATA", "MODEL", "COLLECTION", "MARKET"]] = Field(
+        min_length=1
+    )
     factual_summary: str = Field(min_length=1)
     readiness_status: str
     readiness_context: WorkspaceAttentionReadinessContext
@@ -290,11 +290,45 @@ class WorkspaceTimelinePoint(BaseModel):
     probabilities: dict[str, Any]
 
 
+class WorkspaceMovement(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal[
+        "INSUFFICIENT",
+        "STABLE",
+        "PRICE_MOVEMENT",
+        "LINE_MOVEMENT",
+        "LINE_AND_PRICE_MOVEMENT",
+    ]
+    reason_code: str | None = None
+    from_captured_at: datetime | str | None = None
+    to_captured_at: datetime | str | None = None
+    line_delta: str | None = None
+    price_delta: dict[str, float] | None = None
+    probability_delta: dict[str, float] | None = None
+
+    @model_validator(mode="after")
+    def movement_evidence_is_visible(self) -> WorkspaceMovement:
+        if self.status != "INSUFFICIENT" and any(
+            value is None
+            for value in (
+                self.from_captured_at,
+                self.to_captured_at,
+                self.line_delta,
+                self.price_delta,
+                self.probability_delta,
+            )
+        ):
+            raise ValueError("movement status requires visible from/to and delta evidence")
+        return self
+
+
 class WorkspaceMarket(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     market: Literal["ASIAN_HANDICAP", "TOTALS"]
-    status: str
+    status: Literal["READY", "STALE", "INSUFFICIENT"]
+    source_status: str
     snapshot_state: Literal[
         "NO_TIMELINE_EVIDENCE",
         "ONE_OBSERVATION_NOT_A_TREND",
@@ -302,14 +336,29 @@ class WorkspaceMarket(BaseModel):
     ]
     snapshot_count: int = Field(ge=0)
     observation_count: int = Field(ge=0)
+    bookmaker_pair_count: int = Field(ge=0)
+    quote_row_count: int = Field(ge=0)
     main_line: str | None
     bookmaker_count: int = Field(ge=0)
     prices: dict[str, Any]
     probabilities: dict[str, Any]
     freshness: dict[str, Any]
     timeline_points: list[WorkspaceTimelinePoint]
-    movement: dict[str, Any]
+    movement: WorkspaceMovement
     reason_codes: list[str]
+
+    @model_validator(mode="after")
+    def readiness_matches_freshness(self) -> WorkspaceMarket:
+        freshness = str(self.freshness.get("status") or "NOT_AVAILABLE")
+        if self.status == "READY" and freshness not in {"COMPLETE", "CURRENT", "FRESH"}:
+            raise ValueError("READY market evidence must be current")
+        if self.status == "STALE" and freshness != "STALE":
+            raise ValueError("STALE market evidence must have stale freshness")
+        if self.quote_row_count != self.observation_count:
+            raise ValueError("quote_row_count must preserve observation_count")
+        if self.quote_row_count != self.bookmaker_pair_count * 2:
+            raise ValueError("each bookmaker pair must preserve two quote rows")
+        return self
 
 
 class WorkspaceReadiness(BaseModel):
@@ -330,7 +379,8 @@ class WorkspaceReadiness(BaseModel):
 class WorkspaceMarketFact(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    status: str
+    status: Literal["READY", "STALE", "INSUFFICIENT"]
+    source_status: str
     main_line: str | None
     current_odds: dict[str, Any]
     market_probabilities: dict[str, Any]
@@ -399,7 +449,8 @@ class WorkspaceModelSummary(BaseModel):
 class WorkspaceMarketSummary(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    status: str
+    status: Literal["READY", "STALE", "INSUFFICIENT"]
+    source_status: str
     main_line: str | None
     bookmaker_count: int = Field(ge=0)
     freshness: dict[str, Any]
@@ -489,6 +540,24 @@ class WorkspaceMatch(BaseModel):
     scoreline_reference: WorkspaceScorelineReference
     evidence: WorkspaceEvidence
 
+    @model_validator(mode="after")
+    def market_readiness_is_consistent(self) -> WorkspaceMatch:
+        for name, market in self.market_radar.markets.items():
+            summary = self.model_lab.market.get(name)
+            if summary is None or (summary.status, summary.source_status) != (
+                market.status,
+                market.source_status,
+            ):
+                raise ValueError("market readiness must match across radar and model lab")
+        if self.market_fact.main_line is not None and not any(
+            market.main_line == self.market_fact.main_line
+            and (market.status, market.source_status)
+            == (self.market_fact.status, self.market_fact.source_status)
+            for market in self.market_radar.markets.values()
+        ):
+            raise ValueError("market fact must use canonical market readiness")
+        return self
+
 
 class WorkspaceProbabilityValidation(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -523,9 +592,7 @@ class WorkspaceDirectionalValidation(BaseModel):
     direction_accuracy: float | None
     effective_n: int = Field(ge=0)
     market_direction_benchmark: Literal["NOT_DEFINED"]
-    only_record_reason: Literal[
-        "PROBABILITY_QUALITY_NOT_READY", "SAMPLE_INSUFFICIENT"
-    ] | None
+    only_record_reason: Literal["PROBABILITY_QUALITY_NOT_READY", "SAMPLE_INSUFFICIENT"] | None
 
 
 class WorkspaceLeaguePerformance(BaseModel):
@@ -536,9 +603,7 @@ class WorkspaceLeaguePerformance(BaseModel):
     source_aliases: list[str]
     source_checkpoint_keys: list[str]
     scope_group: str
-    aggregation_status: Literal[
-        "SOURCE_CHECKPOINT", "FIXTURE_RECONSTRUCTED", "CONFLICT"
-    ]
+    aggregation_status: Literal["SOURCE_CHECKPOINT", "FIXTURE_RECONSTRUCTED", "CONFLICT"]
     competition_id: str
     canonical_competition_id: str | None
     competition_name: str | None
@@ -556,9 +621,10 @@ class WorkspaceLeaguePerformance(BaseModel):
     statistical_status: Literal["AVAILABLE", "SAMPLE_BUILDING", "INSUFFICIENT"]
     source_statistical_status: Literal["AVAILABLE", "SAMPLE_BUILDING", "INSUFFICIENT"]
     probability_evidence_ready: bool
-    only_record_reason: Literal[
-        "PROBABILITY_QUALITY_NOT_READY", "SAMPLE_INSUFFICIENT", "AGGREGATION_CONFLICT"
-    ] | None
+    only_record_reason: (
+        Literal["PROBABILITY_QUALITY_NOT_READY", "SAMPLE_INSUFFICIENT", "AGGREGATION_CONFLICT"]
+        | None
+    )
     market_direction_benchmark: Literal["NOT_DEFINED"]
 
 

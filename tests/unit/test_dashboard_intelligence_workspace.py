@@ -26,7 +26,7 @@ def _market(snapshot_count: int) -> dict[str, Any]:
     return {
         "status": "READY" if snapshot_count else "INSUFFICIENT",
         "snapshot_count": snapshot_count,
-        "observation_count": snapshot_count,
+        "observation_count": snapshot_count * 4,
         "current": (
             {
                 "canonical_line": "-0.25",
@@ -39,7 +39,25 @@ def _market(snapshot_count: int) -> dict[str, Any]:
             else {}
         ),
         "timeline": {"status": "READY", "points": points},
-        "movement": {"status": "STABLE"},
+        "movement": (
+            {
+                "status": "STABLE",
+                "from_captured_at": points[0]["captured_at"],
+                "to_captured_at": points[-1]["captured_at"],
+                "line_delta": "0",
+                "price_delta": {"HOME": 0.0, "AWAY": 0.0},
+                "probability_delta": {"HOME": 0.0, "AWAY": 0.0},
+            }
+            if snapshot_count > 1
+            else {
+                "status": "INSUFFICIENT",
+                "reason_code": (
+                    "INSUFFICIENT_SINGLE_SNAPSHOT"
+                    if snapshot_count
+                    else "INSUFFICIENT_NO_TIMELINE_EVIDENCE"
+                ),
+            }
+        ),
     }
 
 
@@ -303,9 +321,7 @@ def test_workspace_is_deterministic_explicit_and_schema_valid() -> None:
             "sample_count": 1500,
         }
     ]
-    assert first["validation"]["directional"]["market_direction_benchmark"] == (
-        "NOT_DEFINED"
-    )
+    assert first["validation"]["directional"]["market_direction_benchmark"] == ("NOT_DEFINED")
     assert {
         item["market_radar"]["markets"]["ASIAN_HANDICAP"]["snapshot_state"]
         for item in first["matches"]
@@ -314,6 +330,60 @@ def test_workspace_is_deterministic_explicit_and_schema_valid() -> None:
         "ONE_OBSERVATION_NOT_A_TREND",
         "DISCRETE_REAL_PATH",
     }
+
+
+def test_public_market_readiness_is_single_source_bound_authority() -> None:
+    day_view = _day_view()
+    market = day_view["cards"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]
+    market["current"]["freshness"] = {"status": "STALE"}
+
+    payload = _workspace(day_view)
+    match = payload["matches"][2]
+    radar = match["market_radar"]["markets"]["ASIAN_HANDICAP"]
+
+    assert radar["status"] == "STALE"
+    assert radar["source_status"] == "READY"
+    assert radar["bookmaker_pair_count"] == 4
+    assert radar["quote_row_count"] == radar["observation_count"] == 8
+    assert match["market_fact"]["status"] == "STALE"
+    assert match["market_fact"]["source_status"] == "READY"
+    assert match["model_lab"]["market"]["ASIAN_HANDICAP"]["status"] == "STALE"
+    assert match["model_lab"]["market"]["ASIAN_HANDICAP"]["source_status"] == "READY"
+
+
+def test_unknown_market_freshness_fails_closed_as_insufficient() -> None:
+    day_view = _day_view()
+    day_view["cards"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]["current"][
+        "freshness"
+    ] = {"status": "UNKNOWN"}
+
+    market = _workspace(day_view)["matches"][2]["market_radar"]["markets"][
+        "ASIAN_HANDICAP"
+    ]
+
+    assert market["status"] == "INSUFFICIENT"
+    assert market["source_status"] == "READY"
+
+
+def test_workspace_schema_rejects_ready_market_with_stale_freshness() -> None:
+    payload = _workspace(_day_view())
+    market = payload["matches"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]
+    market["freshness"] = {"status": "STALE"}
+
+    with pytest.raises(ValueError, match="READY market evidence must be current"):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "test-request", **payload}
+        )
+
+
+def test_workspace_schema_rejects_competing_public_market_readiness() -> None:
+    payload = _workspace(_day_view())
+    payload["matches"][2]["model_lab"]["market"]["ASIAN_HANDICAP"]["status"] = "STALE"
+
+    with pytest.raises(ValueError, match="market readiness must match"):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "test-request", **payload}
+        )
 
 
 def test_workspace_allowlist_excludes_legacy_product_authority_fields() -> None:
@@ -334,8 +404,7 @@ def test_workspace_allowlist_excludes_legacy_product_authority_fields() -> None:
     )
     assert not any(key.lower().endswith(("_roi", "_clv")) for key in keys)
     assert all(
-        item["formal_recommendation"]
-        == {"status": "OFF", "reason": "PRODUCT_AUTHORITY_DISABLED"}
+        item["formal_recommendation"] == {"status": "OFF", "reason": "PRODUCT_AUTHORITY_DISABLED"}
         for item in payload["matches"]
     )
 
@@ -492,9 +561,7 @@ def test_tournament_performance_is_separate_from_league_performance() -> None:
     validation = _workspace(day_view)["validation"]
 
     assert validation["league_performance"] == []
-    assert validation["tournament_performance"][0]["canonical_competition_id"] == (
-        "world_cup_2026"
-    )
+    assert validation["tournament_performance"][0]["canonical_competition_id"] == ("world_cup_2026")
 
 
 def test_workspace_schema_rejects_invalid_canonical_aggregation_state() -> None:
