@@ -1,270 +1,128 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-09T12:57:00+08:00"
+updated_at: "2026-08-09T13:10:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: W2_OWNER_REVIEW_C_TECHNICAL_PASS_AWAITING_OWNER_APPROVAL
-owner_authorization_id: W2_OWNER_REVIEW_C_INDEPENDENT_REREVIEW_RESULT_V1
-active_next_action: OWNER_REVIEW_C_OWNER_APPROVAL
-next_code_action: NONE_PENDING_OWNER_REVIEW_C_OWNER_APPROVAL
-current_status: OWNER_REVIEW_C_TECHNICAL_REREVIEW_PASS_AWAITING_OWNER_APPROVAL
-current_gate: OWNER_REVIEW_C_OWNER_APPROVAL
+owner_product_decision: W2_OWNER_REVIEW_C_APPROVED_P5_5_AUTHORIZED
+owner_authorization_id: W2_OWNER_REVIEW_C_APPROVAL_AND_P5_5_AUTHORIZATION_V1
+active_next_action: EXECUTE_P5_5_CONTROLLED_LEGACY_CLEANUP
+next_code_action: P5_5_PROOF_DRIVEN_LEGACY_CLEANUP
+current_status: P5_5_AUTHORIZED_ACTIVE
+current_gate: P5_5_ACTIVE
 
 runtime_baseline:
-  final_main_sha: f14136f07d69ece09e61fec6b1dd546e67c0267c
+  final_main_sha: f931702f617f432ba66c90f08828090f094d8ba5
   deployed_source_sha: 51ebbeabc5497ce48708b3587705e2922c4805da
   free_bridge_mode: SHADOW_ONLY
-  api_football_plan: FREE
-  provider_daily_limit: 100
-  w2_daily_call_ceiling: 80
-  min_provider_daily_remaining: 20
-  automatic_retry: false
   active_whitelist: EXACT_EXISTING_13
-  audit_only_runtime_reachability: 0
+  provider_policy: UNCHANGED
+  scheduler_cadence: UNCHANGED
+  candidate: "OFF"
+  formal: "OFF"
+  lock: "OFF"
+  production: "OFF"
 
-prior_rounds:
-  round_1: PASS
-  round_2: PASS_WITH_TERMINAL_PROVIDER_PLAN_RESTRICTION
-  post_r2_access_decision: PASS_FREE_PLAN_SEASON_RESTRICTION_CONFIRMED
-  free_plan_bridge_controlled_runtime: PASS
-  round_3: PASS_MARKET_RADAR_MODEL_LAB
-
-round_3:
-  task: W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB
-  final_receipt: ROUND_3_FINAL_RECEIPT.md
-  pr_number: 497
-  pr_final_head_sha: 51ebbeabc5497ce48708b3587705e2922c4805da
-  pr_merge_sha: f0fe9d332d05a84f1ef04be86fd9fb44b69d69e3
-  exact_active_ui_chain_proven: PASS
-  public_chain: APP_TO_DASHBOARD_PAGE_TO_INTELLIGENCE_CONSOLE
-  real_timeline_depth_audited: PASS
-  sparse_timeline_ui: PASS_ZERO_ONE_MULTI
-  fake_or_interpolated_timeline_points: 0
-  phase_0_5_frozen_context_visible: PASS
-  public_read_provider_calls: 0
-  repository_hygiene: PASS
-
-post_r3_readiness_attribution:
-  task: W2_MI_POST_R3_READINESS_ROOT_CAUSE_ATTRIBUTION
-  status: PASS_READ_ONLY_ATTRIBUTION
-  selected_path: PATH_A_NATURAL_EVIDENCE_ACCUMULATION
-  exact_main_sha_at_attribution: f0fe9d332d05a84f1ef04be86fd9fb44b69d69e3
-  report: POST_R3_READINESS_ATTRIBUTION_REPORT.md
-  matrix: POST_R3_READINESS_ATTRIBUTION_MATRIX.json
-  checkpoint_fixture_count: 69
-  frozen_future_fixture_count: 64
-  fixture_market_count: 128
-  timeline_depth:
-    zero: 92
-    one: 9
-    two_plus: 27
-  model_lab_status:
-    market_not_ready: 125
-    model_not_ready: 2
-    insufficient_bookmaker_depth: 1
-    comparable_within_market_range: 0
-    model_outside_market_range: 0
-  completion_condition: REAL_FIXTURES_CROSS_EXISTING_T12_T6_T3_T60_LIFECYCLE_WITH_EXPLICIT_TERMINAL_EVIDENCE_THEN_REPROJECT_AND_OWNER_REVIEW
-  relation_to_dashboard_work: PARALLEL_BACKGROUND_RUNTIME_NOT_BLOCKING_OWNER_REVIEW_C
-  dashboard_work_may_change_runtime_policy: false
-  round_4: NOT_STARTED
-
-owner_review_a:
-  status: APPROVED
-  approval_authority: OWNER_REVIEW_A_APPROVAL.md
-  approved_context_sha: 0c7d2e9a74de3338c3884751bc83f9e44f0471b5
-  approved_p0_spec: DASHBOARD_INTELLIGENCE_WORKSPACE_PRODUCT_SPEC.md
-  p0: PASS
-  p1: AUTHORIZED
-  p2: AUTHORIZED_AFTER_P1_SELF_CHECK_PASS
-  next_owner_gate: OWNER_REVIEW_B
-
-owner_review_b:
-  status: APPROVED
-  technical_rereview_result: PASS
-  technical_rereview_authority: OWNER_REVIEW_B_REREVIEW_RESULT.md
-  owner_approval_authority: OWNER_REVIEW_B_APPROVAL_AND_P3_P5_AUTHORIZATION.md
-  p1: PASS
-  p2: PASS
-  pr_number: 498
-  pr_head_sha: eeafd2658cffb38dab8e6ed4b7b521e157d106ef
-  pr_full_ci_run: 31274704745
-  pr_release_required: PASS
-  pr_state: MERGED
-  merge_main_sha: f14136f07d69ece09e61fec6b1dd546e67c0267c
-  contract_findings_closed:
-    attention_and_replay_field_binding: PASS
-    seven_state_four_risk_fail_closed: PASS
-    scoreline_10000_unconditional: PASS
-  p3: AUTHORIZED
-  p4: AUTHORIZED_AFTER_P3_LOCAL_ACCEPTANCE_PASS
-  p5: AUTHORIZED_AFTER_P4_LOCAL_ACCEPTANCE_PASS
-  p5_5: NOT_AUTHORIZED
-  next_owner_gate: OWNER_REVIEW_C
+owner_reviews:
+  owner_review_a: APPROVED
+  owner_review_b: APPROVED
+  owner_review_c:
+    technical_rereview: PASS
+    owner_approval: APPROVED_AUTOMATIC
+    authority: OWNER_REVIEW_C_APPROVAL_AND_P5_5_AUTHORIZATION.md
+    pr: 499
+    reviewed_head_sha: a6a5bf899ae889a77e3b4387da5ce1955d460e5e
+    exact_head_full_ci_run: 31294467530
+    release_required: PASS
+    merge_main_sha: f931702f617f432ba66c90f08828090f094d8ba5
 
 final_execution_plan:
   authority: W2_FINAL_EXECUTION_MASTER_PLAN.md
   detailed_dashboard_authority: DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN.md
-  current_phase_authority: OWNER_REVIEW_C_REREVIEW_RESULT.md
-  historical_reconciliation_stage: CANCELLED_NOT_A_DEVELOPMENT_STAGE
+  current_phase_authority: OWNER_REVIEW_C_APPROVAL_AND_P5_5_AUTHORIZATION.md
   historical_step4_post4: SUPERSEDED_AS_STANDALONE_WORKSTREAM
   rebuild_old_boss_l1_l2_dashboard: false
-  reuse_existing_capabilities:
-    decision_contract: true
-    data_readiness: true
-    dashboard_day_view_sources: true
-    dashboard_degradation_sources: true
-    diagnostics_sources: true
-    date_navigation: true
-    replay_front_door: true
-    scoreline_projection: true
-    probability_scoring: true
-    forward_validation_ledger: true
-    unified_dashboard_read_model: true
-    provider_scheduler_safety: BACKGROUND_RUNTIME_ONLY
-  current_development_chain:
-    p0: PASS_APPROVED
-    p1: PASS_APPROVED
-    p2: PASS_MERGED_MAIN_F14136F
-    p3: PASS_TECHNICALLY_ACCEPTED
-    p4: PASS_TECHNICALLY_ACCEPTED
-    p5: PASS_TECHNICALLY_ACCEPTED
-    p5_5: NOT_STARTED_NOT_AUTHORIZED
-    p6: BLUEPRINT_ONLY_NOT_AUTHORIZED
-  continuity:
-    intermediate_owner_gate_between_p3_p4_p5: false
-    in_scope_failure_remediation_without_owner_relay: true
-    current_terminal_owner_gate: OWNER_REVIEW_C_OWNER_APPROVAL
-  owner_gates:
-    owner_review_a: APPROVED
-    owner_review_b: APPROVED
-    owner_review_c_technical_rereview: PASS
-    owner_review_c_owner_approval: PENDING
-    p5_5_requires_owner_review_c_approval: true
+  p0: PASS_APPROVED
+  p1: PASS_APPROVED
+  p2: PASS_MERGED
+  p3: PASS_APPROVED_MERGED
+  p4: PASS_APPROVED_MERGED
+  p5: PASS_APPROVED_MERGED
+  p5_5: AUTHORIZED_ACTIVE
+  p6: BLUEPRINT_ONLY_NOT_AUTHORIZED
 
-dashboard_intelligence_workspace:
-  workstream: DASHBOARD_INTELLIGENCE_WORKSPACE_FINAL_REFACTOR
-  status: OWNER_REVIEW_C_TECHNICAL_PASS_AWAITING_OWNER_APPROVAL
-  current_execution_authorization: NONE_PENDING_OWNER_APPROVAL
-  p0_output: DASHBOARD_INTELLIGENCE_WORKSPACE_PRODUCT_SPEC.md
-  p1_outputs:
-    - PERFECT_INTELLIGENCE_CAPABILITY_MATRIX
-    - CURRENT_W2_GAP_MATRIX
-    - DASHBOARD_DATA_CONTRACT
-    - FRESHNESS_CONTRACT
-  p2_target: ONE_FINAL_UNIFIED_DASHBOARD_READ_MODEL
-  p2_pr: 498
-  p2_main_sha: f14136f07d69ece09e61fec6b1dd546e67c0267c
-  p2_schema: w2.dashboard-intelligence-workspace.v1
-  p2_endpoint: GET_/v1/dashboard/intelligence-workspace
-  p3_target: NEW_INTELLIGENCE_WORKSPACE_UI_ONLY
-  p4_target: VALIDATION_LEAGUE_PERFORMANCE_FORWARD_RECORDS_HISTORY_REPLAY
-  p5_target: FULL_CHAIN_TRUTHFULNESS_VISUAL_REPOSITORY_ACCEPTANCE
-  p3_result: PASS
-  p4_result: PASS
-  p5_result: PASS
-  implementation_pr: 499
-  implementation_pr_state: OPEN_DRAFT_NOT_MERGED
-  implementation_base_sha: f14136f07d69ece09e61fec6b1dd546e67c0267c
-  exact_reviewed_head_sha: a6a5bf899ae889a77e3b4387da5ce1955d460e5e
-  exact_head_pr_fast_run: 31294443933
-  exact_head_full_ci_run: 31294467530
-  release_required: PASS
-  architecture_and_truth_acceptance: PASS
-  owner_review_c_remediation:
-    typed_match_board_main_line: PASS
-    market_radar_two_sided_prices: PASS
-    validation_checkpoint_identity: PASS
-    league_performance_decisive_n: PASS
-    header_update_system_health: PASS
-    scoreline_model_readiness_context: PASS
-    four_viewport_screenshots: PASS
-    exact_head_full_ci: PASS
-    repository_hygiene: PASS
-  technical_rereview_authority: OWNER_REVIEW_C_REREVIEW_RESULT.md
-  repository_hygiene: PASS
-  p5_5: NOT_STARTED_NOT_AUTHORIZED
-  public_dashboard_target: NEW_INTELLIGENCE_WORKSPACE_ONLY
-  product_position: FOOTBALL_MARKET_INTELLIGENCE_PLUS_MODEL_DIAGNOSTICS
-  exact_runtime_whitelist: 13
-  external_intelligence:
-    weather: NOT_CONNECTED
-    news: NOT_CONNECTED
-    sentiment: NOT_CONNECTED
-    advanced_xg: NOT_CONNECTED
-  market_direction_benchmark: NOT_DEFINED
-  public_clv: FORBIDDEN
-  public_roi: FORBIDDEN
-  canonical_close: NOT_OBTAINABLE_FROM_CURRENT_PROVIDER
-  current_price_reference: LAST_AVAILABLE_PREMATCH_SNAPSHOT
-  lineup_whitelist_coverage_verified: 1_OF_13_CHINESE_SUPER_LEAGUE_ONLY
-  visual_authority:
-    viewport: 1536x1024
-    dpr: 1
-    deterministic_four_view_golden: PASS
-    owner_reference_binary_repo_bound: false
-    technical_visual_acceptance: PASS_AGAINST_FROZEN_SPEC_AND_GOLDENS
-    final_owner_approval: PENDING
-  deletion_authority: P5_5_ONLY_AFTER_P5_PASS_AND_OWNER_REVIEW_C_APPROVAL
+auto_approval_policy:
+  enabled: true
+  rule: AUTO_APPROVE_AFTER_INDEPENDENT_TECHNICAL_PASS_WHEN_NO_NEW_PRODUCT_OR_RUNTIME_AUTHORITY_IS_REQUIRED
+  may_continue_without_owner_relay: true
+  must_stop_for:
+    - NEW_PRODUCT_SEMANTICS
+    - PROVIDER_PLAN_OR_NEW_PROVIDER
+    - SCHEDULER_OR_CADENCE_CHANGE
+    - ACTIVE_WHITELIST_CHANGE
+    - MODEL_FACTOR_THRESHOLD_RETRAINING
+    - EXTERNAL_INTELLIGENCE_ACTIVATION
+    - PHASE_0_5_REEXECUTION
+    - ROUND_4_START
+    - CANDIDATE_FORMAL_LOCK_PRODUCTION_ENABLEMENT
+    - REAL_MONEY_AUTHORITY
+    - P6_EXECUTION
 
-owner_review_c:
-  status: TECHNICAL_REREVIEW_PASS_AWAITING_OWNER_APPROVAL
-  initial_packet: OWNER_REVIEW_C_PACKET.md
-  remediation_authority: OWNER_REVIEW_C_REMEDIATION.md
-  rereview_packet: OWNER_REVIEW_C_REREVIEW_PACKET.md
-  independent_rereview_result: OWNER_REVIEW_C_REREVIEW_RESULT.md
-  implementation_pr: 499
-  implementation_pr_state: OPEN_DRAFT_NOT_MERGED
-  exact_reviewed_head_sha: a6a5bf899ae889a77e3b4387da5ce1955d460e5e
-  exact_head_full_ci_run: 31294467530
-  release_required: PASS
-  findings_closed:
-    - MATCH_BOARD_MAIN_LINE_MARKET_IDENTITY_PASS
-    - MARKET_RADAR_TWO_SIDED_PRICES_PASS
-    - VALIDATION_CHECKPOINT_COHORT_IDENTITY_PASS
-    - LEAGUE_PERFORMANCE_DECISIVE_N_PASS
-    - HEADER_DATA_UPDATE_SYSTEM_HEALTH_CONTEXT_PASS
-    - SCORELINE_MODEL_READINESS_CONTEXT_PASS
-  next: OWNER_REVIEW_C_OWNER_APPROVAL
-  merge_pr_499: NOT_AUTHORIZED_UNTIL_OWNER_APPROVAL
-  p5_5: NOT_STARTED_NOT_AUTHORIZED
+post_r3_readiness_attribution:
+  status: PASS_READ_ONLY_ATTRIBUTION
+  selected_path: PATH_A_NATURAL_EVIDENCE_ACCUMULATION
+  relation_to_p5_5: PARALLEL_BACKGROUND_RUNTIME_NOT_BLOCKING
   round_4: NOT_STARTED
 
-phase_0_5_frozen_context:
-  protocol: W2_PHASE_0_5_AH_OU_EDGE_EXISTENCE_PROTOCOL_V1_RC3
-  final_verdict: NO_EDGE
-  v_continuation_gate: FAIL
-  ou_close_best_predictive_lift: -0.0000758
-  ah_close_best_predictive_lift: -0.0006467
-  ou_pre_best_frozen_selections: 7566
-  ou_pre_best_frozen_strategy_roi: -5.32%
-  h_result_access: PERMANENTLY_CLOSED
-  reexecution_authorized: false
-
-product_contract:
-  intelligence_first: true
-  model_market_divergence_as_opportunity: FORBIDDEN
-  betting_edge_claim: FORBIDDEN
-  recommendation_decision_v4_role: DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY
-  high_overround_as_value: FORBIDDEN
-  high_overround_as_high_information: FORBIDDEN
+p5_5:
+  status: AUTHORIZED_ACTIVE
+  scope: CONTROLLED_PROOF_DRIVEN_LEGACY_CLEANUP
+  deletion_requires_proof:
+    - route
+    - import
+    - entrypoint
+    - runtime
+    - build
+    - tests
+    - config
+    - workflow
+    - reference_search
+  candidates:
+    - OLD_BOSS_UI
+    - OLD_L1_L2_PRESENTATION
+    - LEGACY_RECOMMENDATION_PRESENTATION
+    - LEGACY_PERFORMANCE_PRESENTATION
+    - LEGACY_ADAPTERS_STYLES_FLAGS_TESTS_IF_PROVEN_UNREACHABLE
+  preserve_if_referenced:
+    - USEFUL_HELPERS
+    - PROTECTED_EVIDENCE_ASSETS
+  final_gates:
+    - TYPESCRIPT
+    - WEB_BUILD
+    - UNIT_CONTRACT_INTEGRATION
+    - WEB_E2E
+    - PUBLIC_AUTHORITY_CHECK
+    - REFERENCE_SEARCH
+    - EXACT_HEAD_FULL_CI
+    - RELEASE_REQUIRED
+    - REPOSITORY_HYGIENE
+    - CLEAN_WORKTREE
+  terminal_behavior: AUTO_APPROVE_TECHNICAL_CLOSURE_IF_ALL_PASS_AND_NO_NEW_AUTHORITY_REQUIRED
+  terminal_status: REPOSITORY_FULLY_CLOSED
 
 permanent_stop_lines:
-  api_football_pro_renewal: NOT_AUTHORIZED_NOW
-  new_provider_purchase: NOT_AUTHORIZED
-  new_provider_cutover: NOT_AUTHORIZED
-  collection_cadence_expansion_for_chart_density: NOT_AUTHORIZED
-  active_whitelist_change: false
-  audit_only_promotion: false
-  h_result_access: PERMANENTLY_CLOSED
+  provider_plan_change: NOT_AUTHORIZED
+  scheduler_or_cadence_change: NOT_AUTHORIZED
+  active_whitelist_change: NOT_AUTHORIZED
+  model_factor_threshold_retraining: NOT_AUTHORIZED
+  external_intelligence_connection: NOT_AUTHORIZED
   phase_0_5_reexecution: FORBIDDEN
+  h_result_access: PERMANENTLY_CLOSED
   round_4: NOT_STARTED
   candidate: "OFF"
   formal: "OFF"
   lock: "OFF"
   production: "OFF"
   real_money: NOT_AUTHORIZED
-  merge_pr_499: NOT_AUTHORIZED_UNTIL_OWNER_APPROVAL
-  p5_5: NOT_AUTHORIZED
+  p6_execution: NOT_AUTHORIZED
