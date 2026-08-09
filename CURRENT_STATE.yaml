@@ -1,16 +1,16 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-09T20:15:41+08:00"
+updated_at: "2026-08-09T20:24:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: W2_DASHBOARD_OWNER_VISUAL_UX_ACCEPTANCE_PASS
-owner_authorization_id: W2_DASHBOARD_OWNER_VISUAL_PARITY_ZH_CN_REMEDIATION_V1
-active_next_action: OWNER_ROUND4_DECISION_REQUIRED
-next_code_action: NONE_OWNER_DECISION_REQUIRED
-current_status: DASHBOARD_OWNER_VISUAL_UX_ACCEPTANCE_PASS
-current_gate: OWNER_ROUND4_DECISION_REQUIRED
+owner_product_decision: W2_DASHBOARD_OWNER_13IN_TRUTH_READABILITY_REMEDIATION
+owner_authorization_id: W2_DASHBOARD_OWNER_13IN_TRUTH_READABILITY_REMEDIATION_V1
+active_next_action: EXECUTE_DASHBOARD_OWNER_13IN_TRUTH_READABILITY_REMEDIATION
+next_code_action: DASHBOARD_READ_MODEL_TRUTH_AND_RESPONSIVE_UX_CLOSURE
+current_status: DASHBOARD_OWNER_13IN_CHANGES_REQUIRED
+current_gate: DASHBOARD_OWNER_13IN_REMEDIATION_ACTIVE
 
 runtime_baseline:
   final_main_sha: 62cf3efc6676d23688c3b6268ca822025b3c9148
@@ -35,49 +35,74 @@ prior_completed_scope:
   vps_local_relay_deployment: PASS
   track_a: TRACK_A_CLOSED_PASS
   pre_round4_functional_scope: COMPLETE
-  dashboard_owner_visual_ux: DASHBOARD_OWNER_VISUAL_UX_ACCEPTANCE_PASS
 
 owner_visual_review:
-  status: DASHBOARD_OWNER_VISUAL_UX_ACCEPTANCE_PASS
-  authority: DASHBOARD_OWNER_VISUAL_PARITY_ZH_CN_REMEDIATION.md
-  finding: FUNCTIONAL_ACCEPTANCE_DID_NOT_EQUAL_OWNER_VISUAL_UX_ACCEPTANCE
-  previous_deployed_ui:
-    public_authority: NEW_INTELLIGENCE_WORKSPACE_ONLY
-    primary_language: ENGLISH_HEAVY
-    desktop_layout: LONG_VERTICAL_STACK
-    raw_enum_reason_codes_primary: true
-    owner_visual_acceptance: FAIL
-  accepted_deployed_ui:
-    primary_viewport: 1536x1024
-    primary_language: zh-CN
-    composition: COMPACT_MULTI_COLUMN_EXECUTIVE_INTELLIGENCE_CONSOLE
-    public_authority: NEW_INTELLIGENCE_WORKSPACE_ONLY
-    raw_enum_reason_codes_primary: false
-    owner_visual_acceptance: PASS
-    reference_method:
-      - OWNER_PROVIDED_TARGET_SCREENSHOT
-      - REPO_BOUND_BOSS_CONSOLE_VISUAL_COMPOSITION_REFERENCE_ONLY
-    legacy_product_semantics_restoration: FORBIDDEN
+  prior_pr501_technical_result: PASS_MERGED_DEPLOYED
+  prior_pr501_claimed_owner_visual_result: DASHBOARD_OWNER_VISUAL_UX_ACCEPTANCE_PASS
+  final_owner_visual_result: REVOKED_CHANGES_REQUIRED
+  reason: REAL_13_INCH_DEVICE_READABILITY_AND_TRUTH_FINDINGS
+  authority: DASHBOARD_OWNER_13IN_TRUTH_READABILITY_REMEDIATION.md
+  round4_blocked_until_remediation_terminal: true
 
-visual_remediation:
-  status: COMPLETE_PASS
-  scope:
-    - CHINESE_FIRST_PUBLIC_UI
-    - COMPACT_1536X1024_MULTI_COLUMN_LAYOUT
-    - OWNER_TARGET_INFORMATION_HIERARCHY
-    - INTERNAL_SCROLL_FOR_ATTENTION_AND_MATCH_BOARD
-    - SELECTED_MATCH_CENTERED_VISUAL_PRIORITY
-    - REUSE_TRANSLATE_TEAM_COMPETITION_REASON
-    - HIDE_CANONICAL_CODES_BEHIND_TECHNICAL_DETAILS
-    - DETERMINISTIC_VISUAL_REGRESSION
-  keep_unified_endpoint_only: true
-  keep_backend_schema_unchanged: true
-  keep_seven_state_contract: true
-  keep_four_risk_contract: true
-  provider_calls_from_ui: 0
-  db_business_writes_from_ui: 0
-  vps_deployment_after_merge: LOCAL_OCI_RELAY_PRIMARY
-  terminal_target: DASHBOARD_OWNER_VISUAL_UX_ACCEPTANCE_PASS
+owner_13in_findings:
+  D13_01_league_identity_numeric_ids: OPEN_P0
+  D13_02_past_next_eval_labeled_next: OPEN_P0
+  D13_03_small_sample_public_available_precision: OPEN_P0
+  D13_04_direction_accuracy_dominates_without_probability_metrics: OPEN_P0
+  D13_05_exclusion_reason_distribution_missing: OPEN_P0
+  D13_06_13inch_text_too_small_and_three_column_overcompression: OPEN_P0
+  D13_07_overlap_sticky_nested_scroll_geometry: OPEN_P0
+  D13_08_duplicate_market_status_copy: OPEN_P1
+  D13_09_scoreline_10000_heading_when_unavailable: OPEN_P1
+  D13_10_provider_budget_unknown_semantics: OPEN_P1
+  D13_11_unlocalized_canonical_enums_primary_copy: OPEN_P1
+  D13_12_date_format_inconsistent: OPEN_P1
+  D13_13_health_budget_labels_ambiguous: OPEN_P1
+
+confirmed_code_evidence:
+  tracking_min_decisive_rate_threshold: 5_EXISTING_DO_NOT_CHANGE_FOR_UI_PASS
+  league_checkpoint_identity: PROVIDER_COMPETITION_ID_CAN_REACH_WORKSPACE_AS_LEAGUE
+  exclusion_reason_source_exists: true
+  workspace_exclusion_reason_projection_missing: true
+  provider_budget_unknown_allowed_by_contract_no_provider_call: true
+  current_css_primary_text_floor_observed: 6_TO_9_PX_IN_MULTIPLE_SURFACES
+  current_responsive_three_column_persists_through_1180PX_BREAKPOINT: true
+
+accepted_truths_must_not_regress:
+  public_dashboard_authority: NEW_INTELLIGENCE_WORKSPACE_ONLY
+  schema_version: w2.dashboard-intelligence-workspace.v1
+  blocked_day_fail_closed: true
+  read_provider_calls: 0_REQUIRED
+  read_db_business_writes: 0_REQUIRED
+  no_call_on_read: true
+  market_timeline: REAL_DISCRETE_0_1_2_PLUS_NO_INTERPOLATION
+  external_intelligence: NOT_CONNECTED_NON_BLOCKING
+  phase_0_5: FROZEN_NO_EDGE_NOT_PROVEN_NO_RERUN
+  active_whitelist: EXACT_EXISTING_13
+  free_bridge_mode: SHADOW_ONLY
+  candidate_formal_lock_production: OFF
+  track_a: CLOSED_PASS
+
+remediation_scope:
+  frontend_responsive_layout: AUTHORIZED
+  frontend_localization_rendering: AUTHORIZED
+  unified_workspace_adapter_additive_source_bound_fields: AUTHORIZED
+  competition_identity_resolution_from_existing_authority: AUTHORIZED
+  persisted_exclusion_reason_projection: AUTHORIZED
+  migrations: NOT_AUTHORIZED_NOT_REQUIRED
+  provider_calls: FORBIDDEN
+  db_business_writes: FORBIDDEN
+  scheduler_cadence_changes: FORBIDDEN
+  whitelist_changes: FORBIDDEN
+  model_factor_threshold_retraining: FORBIDDEN
+  change_min_decisive_samples_for_rate_for_ui_pass: FORBIDDEN
+  synthetic_data: FORBIDDEN
+
+vps_deployment_after_acceptance:
+  required: true
+  image_transport: LOCAL_OCI_RELAY_PRIMARY
+  vps_direct_ghcr_bulk_pull: FORBIDDEN_AS_PRIMARY_TRANSPORT
+  postdeploy_no_call_no_write_acceptance: REQUIRED
 
 post_r3_track_a:
   closure_status: CLOSED_PASS
@@ -86,28 +111,15 @@ post_r3_track_a:
     zero: 89
     one: 8
     two_plus: 31
-  current_model_lab_status:
-    MARKET_NOT_READY: 128
   recurring_internal_defect: NOT_PROVEN
-  round4_readiness_decision_packet: ROUND4_READINESS_DECISION_PACKET.md
   round_4: NOT_STARTED
-
-vps_deployment:
-  status: VPS_LOCAL_RELAY_DEPLOYMENT_ACCEPTANCE_PASS
-  final_deployed_source_sha: da280c54d93d3ac6b0041e7e543f441c61542a62
-  merged_main_sha: 62cf3efc6676d23688c3b6268ca822025b3c9148
-  python_image_digest: sha256:6ed3e254a1d1a6f014eb61e3b2cc0596094edfa4311a284d6f5e36abc1884c31
-  web_image_digest: sha256:b48c3ee0a4bcaa1281bc708045be10d6fab6dabbefd56051efd505b5768629cb
-  image_transport: LOCAL_OCI_RELAY_PRIMARY
-  warm_switch_seconds: 44
-  postdeploy_acceptance: PASS
 
 auto_approval_policy:
   enabled: true
-  rule: AUTO_APPROVE_AFTER_INDEPENDENT_TECHNICAL_PASS_WHEN_CURRENT_OWNER_AUTHORITY_FULLY_DEFINES_PRODUCT_AND_NO_NEW_RUNTIME_AUTHORITY_IS_REQUIRED
-  current_visual_remediation_may_continue_without_owner_relay: false
+  current_remediation_may_continue_without_owner_relay: true
+  terminal_target: DASHBOARD_OWNER_13IN_TRUTH_READABILITY_ACCEPTANCE_PASS
   must_stop_for:
-    - PRODUCT_SEMANTICS_OUTSIDE_CURRENT_VISUAL_AUTHORITY
+    - PRODUCT_SEMANTICS_OUTSIDE_CURRENT_REMEDIATION_AUTHORITY
     - PROVIDER_PLAN_OR_NEW_PROVIDER
     - SCHEDULER_OR_CADENCE_CHANGE
     - ACTIVE_WHITELIST_CHANGE
