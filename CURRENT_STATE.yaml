@@ -1,5 +1,5 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-09T14:26:00+08:00"
+updated_at: "2026-08-09T14:54:19+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
@@ -7,10 +7,10 @@ program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
 owner_product_decision: W2_VPS_DEPLOYMENT_AND_POSTDEPLOY_ACCEPTANCE
 owner_authorization_id: W2_VPS_DEPLOYMENT_POSTDEPLOY_ACCEPTANCE_V1
-active_next_action: EXECUTE_CONTROLLED_VPS_DEPLOYMENT_AND_POSTDEPLOY_ACCEPTANCE
-next_code_action: VPS_DEPLOYMENT_POSTDEPLOY_ACCEPTANCE_WITH_CONDITIONAL_TRACK_A_REFRESH
-current_status: VPS_DEPLOYMENT_AUTHORIZED_ACTIVE
-current_gate: VPS_DEPLOYMENT_AND_POSTDEPLOY_ACCEPTANCE
+active_next_action: STOP_VPS_DEPLOYMENT_ROLLED_BACK_AWAIT_OWNER_DIRECTION
+next_code_action: NONE
+current_status: VPS_DEPLOYMENT_ROLLED_BACK
+current_gate: VPS_DEPLOYMENT_ROLLBACK_TERMINAL
 
 runtime_baseline:
   final_main_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
@@ -87,7 +87,7 @@ global_completion_gate:
   project_complete_requires_track_a_closed_pass: true
   approved_main_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
   current_deployed_source_sha: 51ebbeabc5497ce48708b3587705e2922c4805da
-  vps_deployment_status: AUTHORIZED_ACTIVE
+  vps_deployment_status: VPS_DEPLOYMENT_ROLLED_BACK
   vps_authority: VPS_DEPLOYMENT_AND_POSTDEPLOY_ACCEPTANCE_AUTHORIZATION.md
   code_complete_does_not_equal_project_complete: true
   deployment_pass_while_track_a_waits_status: DEPLOYED_WAITING_FOR_NATURAL_EVIDENCE
@@ -105,10 +105,24 @@ global_completion_gate:
     - POST_DEPLOY_VISUAL_SMOKE_PASS
 
 vps_deployment:
-  status: AUTHORIZED_ACTIVE
+  status: VPS_DEPLOYMENT_ROLLED_BACK
   authority: VPS_DEPLOYMENT_AND_POSTDEPLOY_ACCEPTANCE_AUTHORIZATION.md
+  receipt: VPS_DEPLOYMENT_POSTDEPLOY_ACCEPTANCE_RECEIPT.md
   target_source_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
   predeploy_measured_source_sha: 51ebbeabc5497ce48708b3587705e2922c4805da
+  final_deployed_source_sha: 51ebbeabc5497ce48708b3587705e2922c4805da
+  exact_context_base_sha: efdc6f62eb6f0776f3c1a8d91cf95eea24011cc3
+  exact_main_release_candidate_run: 31299328162
+  release_required: PASS
+  immutable_manifest_sha256: e56bdef5c3bdcae04ae80f601a3fd845bb5ae407da9fdea56d8f474c6c5ae1e7
+  predeploy_backup: PASS
+  rollout_failure: COLD_PULL_END_TO_END_304_SECONDS_EXCEEDED_300_SECOND_TARGET
+  rollback: PASS
+  rollback_duration_seconds: 33
+  postdeploy_acceptance: NOT_RUN_ROLLOUT_GATE_FAILED
+  conditional_track_a_refresh: NOT_RUN_DEPLOYMENT_DID_NOT_PASS
+  provider_calls_caused_by_execution: 0
+  db_business_writes_caused_by_execution: 0
   use_existing_deployment_path_only: true
   predeploy_backup_required: true
   rollback_required: true
@@ -121,6 +135,7 @@ vps_deployment:
     - VPS_DEPLOYMENT_ACCEPTANCE_PASS
     - VPS_DEPLOYMENT_ROLLED_BACK
     - POSTDEPLOY_DEFECT_FOUND
+  terminal_classification: VPS_DEPLOYMENT_ROLLED_BACK
 
 p5_5:
   status: PASS_AUTO_APPROVED_MERGED

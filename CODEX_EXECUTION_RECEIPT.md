@@ -2,29 +2,26 @@
 
 ```text
 AUTHORITY = W2_CODEX_EXECUTION_RECEIPT_LATEST
-STATUS = COMPLETE_WAIT_MORE_NATURAL_EVIDENCE
-EXECUTION_TASK = W2_POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE
-TERMINAL_GATE = POST_R3_TRACK_A_WAIT_MORE_NATURAL_EVIDENCE
-TERMINAL_CLASSIFICATION = WAIT_MORE_NATURAL_EVIDENCE
+STATUS = COMPLETE_TERMINAL
+EXECUTION_TASK = W2_VPS_DEPLOYMENT_AND_POSTDEPLOY_ACCEPTANCE
+TERMINAL_GATE = VPS_DEPLOYMENT_ROLLBACK_TERMINAL
+TERMINAL_CLASSIFICATION = VPS_DEPLOYMENT_ROLLED_BACK
 EXACT_ORIGIN_MAIN_SHA = d61768ecf8457a72df80a5cb0220072de76dfdd4
-EXACT_CONTEXT_BASE_SHA = 713b8aea3cc1cef81d729b5f21b3ee54a61a4962
-AUDIT_AS_OF = 2026-08-09T06:10:16.671712Z
-RUNTIME_DEPLOYED_SOURCE_SHA = 51ebbeabc5497ce48708b3587705e2922c4805da
-READ_SOURCE = PUBLIC_DB_BACKED_DASHBOARD_READ_API
-FROZEN_BASELINE_AS_OF = 2026-08-08T10:19:12Z
-FROZEN_BASELINE_ROWS = 128
-FROZEN_BASELINE_SHA256 = 01999b11e5eea10cf4d68460bb5ba6d1f71c83820709adaaa104a1e5992c58fa
-ENDED_POST_RESTORE_WINDOWS = 38
-IN_WINDOW_CAPTURE_WINDOWS = 8
-INCOMPLETE_TERMINAL_TRACE_WINDOWS = 30
-CHECKPOINT_CLASS_COVERAGE = T12_2; T6_2; T3_2; T60_2
-REPRESENTED_ACTIVE_COMPETITION_COVERAGE = ALLSVENSKAN; BRASILEIRAO_SERIE_A; CHINESE_SUPER_LEAGUE; ELITESERIEN
-DUE_WINDOW_RECURRENCE = RECURRENCE_CONDITION_OBSERVED_CAUSE_NOT_PROVEN
-RECURRING_INTERNAL_DEFECT = NOT_PROVEN
-CURRENT_ROUND3_REPROJECTION = NOT_AVAILABLE_SOURCE_BOUND_FIELDS_INCOMPLETE
-ROUND4_READINESS_DECISION_PACKET = NOT_CREATED_EVIDENCE_INSUFFICIENT
-PROVIDER_CALLS_FOR_AUDIT = 0
-DB_BUSINESS_WRITES = 0
+EXACT_CONTEXT_BASE_SHA = efdc6f62eb6f0776f3c1a8d91cf95eea24011cc3
+TARGET_SOURCE_SHA = d61768ecf8457a72df80a5cb0220072de76dfdd4
+PREDEPLOY_SOURCE_SHA = 51ebbeabc5497ce48708b3587705e2922c4805da
+FINAL_DEPLOYED_SOURCE_SHA = 51ebbeabc5497ce48708b3587705e2922c4805da
+RELEASE_CANDIDATE_RUN = 31299328162
+RELEASE_REQUIRED = PASS
+PREDEPLOY_BACKUP = PASS
+ROLLBACK_AVAILABILITY = PASS
+ROLLOUT_GATE = FAIL_COLD_PULL_END_TO_END_304S_GT_300S
+ROLLBACK = PASS_33S_LT_120S
+POSTDEPLOY_ACCEPTANCE = NOT_RUN_ROLLOUT_GATE_FAILED
+CONDITIONAL_TRACK_A_REFRESH = NOT_RUN_DEPLOYMENT_DID_NOT_PASS
+TRACK_A = WAIT_MORE_NATURAL_EVIDENCE
+PROVIDER_CALLS_FOR_EXECUTION = 0
+DB_BUSINESS_WRITES_FOR_EXECUTION = 0
 PRODUCTION_CODE_CHANGES = 0
 SCHEDULER_OR_CADENCE_CHANGED = false
 WHITELIST_CHANGED = false
@@ -36,46 +33,48 @@ FORMAL_STATUS = OFF
 LOCK_STATUS = OFF
 PRODUCTION_STATUS = OFF
 P6_STATUS = BLUEPRINT_ONLY_NOT_AUTHORIZED
-VPS_DEPLOYMENT_STATUS = PENDING_NOT_AUTHORIZED_BY_TRACK_A
-OVERALL_W2_PROJECT_STATUS = NOT_COMPLETE_VPS_DEPLOYMENT_GATE_PENDING
+OVERALL_W2_PROJECT_STATUS = NOT_COMPLETE_VPS_DEPLOYMENT_ROLLED_BACK_TRACK_A_WAITING
 REPOSITORY_HYGIENE = PASS
-UNRESOLVED_ITEMS = SOURCE_BOUND_TERMINAL_TRACE_AND_POST_BASELINE_REPROJECTION
-NEXT_GATE = WAIT_FOR_SOURCE_BOUND_NATURAL_EVIDENCE
+NEXT_GATE = OWNER_DIRECTION_REQUIRED
 ```
 
 ## Result
 
-At `2026-08-09T06:10:16.671712Z`, 38 normal checkpoint windows had ended after
-the controlled Round-3 interval. Eight windows have a persisted latest capture
-inside the legal window, with two examples for each T12/T6/T3/T60 class and
-coverage across every currently represented active competition.
+The exact approved main and context refs were fetched immediately before the
+switch and had not moved. Exact-main Full CI, image smoke, `RELEASE_REQUIRED`,
+immutable-manifest verification, database backup and rollback availability all
+passed.
 
-A post-restore no-fresh-capture recurrence condition is also visible. Fixture
-`1523233` crossed T6 at `05:35–06:05Z`, but its latest capture remained the T12
-capture at `00:01:23Z` and its next public refresh advanced to T3. The exposed
-read surface does not carry the terminal checkpoint reason, task ID,
-request-ledger row, quota state or new capture identity required to attribute
-that miss. Therefore neither `TRACK_A_CLOSED_PASS` nor
-`RECURRING_INTERNAL_DEFECT_PROVEN` is supported.
+The existing deployment script pulled the approved digest-bound images, ran its
+existing migration step and activated the application services. The immutable
+cold-pull end-to-end gate then measured 304 seconds against its frozen
+300-second target and failed closed. The script automatically restored the
+measured predeploy release in 33 seconds and verified health and digests.
 
-The persisted Round-3 projection remains frozen at source event
-`2026-08-08T10:19:12Z`. The accepted 0/1/2+ and Model Lab baseline is retained
-without reinterpretation; no synthetic post-baseline reprojection was made.
+The final API and Web source identity is
+`51ebbeabc5497ce48708b3587705e2922c4805da`. All six services are healthy and
+the API readiness checks for database, Redis, schema, mounts and artifacts pass.
+The Provider/request/capture and business-data baselines were unchanged across
+the execution window.
+
+The rollout did not pass, so successful-deployment postdeploy Dashboard/API/
+visual acceptance and the conditional source-bound Track A refresh were not
+run. No retry or threshold relaxation is authorized.
 
 ## Evidence artifacts
 
 ```text
-REPORT = POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_REPORT.md
-MATRIX = POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_MATRIX.json
-MATRIX_SHA256 = adf0dc4844851e2f96f6d15d11b9688212748f817fbc543be85a6f4ae72a227c
+DEPLOYMENT_RECEIPT = VPS_DEPLOYMENT_POSTDEPLOY_ACCEPTANCE_RECEIPT.md
+TRACK_A_REPORT = POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_REPORT.md
+TRACK_A_MATRIX = POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_MATRIX.json
 ROUND4_PACKET = ABSENT_BY_DESIGN
 ```
 
-## Repository Hygiene and frozen controls
+## Repository hygiene and frozen controls
 
-Only `CURRENT_STATE.yaml`, `NEXT_ACTION.md`, this receipt and the two Track A
-evidence artifacts changed. No production code, runtime schema, migration,
-Scheduler, configuration, test, dependency or product asset changed.
+Only `CURRENT_STATE.yaml`, `NEXT_ACTION.md`, this receipt and the new sanitized
+deployment receipt changed. No production code, schema, migration, Scheduler,
+runtime configuration, test, dependency or product asset changed in Git.
 
 ```text
 REPOSITORY_HYGIENE = PASS
@@ -93,5 +92,4 @@ LOCK = OFF
 PRODUCTION = OFF
 P6 = BLUEPRINT_ONLY_NOT_AUTHORIZED
 ROUND_4 = NOT_STARTED
-VPS_DEPLOYMENT = REQUIRED_FOR_OVERALL_COMPLETION_BUT_NOT_AUTHORIZED_BY_THIS_TRACK_A_TASK
 ```
