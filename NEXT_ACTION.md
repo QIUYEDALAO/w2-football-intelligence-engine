@@ -1,23 +1,23 @@
 # NEXT ACTION
 
 ```text
-ACTIVE_NEXT_ACTION = EXECUTE_DASHBOARD_IA_DESIGN_FREEZE
-CURRENT_GATE = DASHBOARD_IA_DESIGN_FREEZE_ACTIVE
-AUTHORITY = DASHBOARD_OWNER_INFORMATION_ARCHITECTURE_RESET.md
+ACTIVE_NEXT_ACTION = EXECUTE_DASHBOARD_V41_CONTINUOUS_IMPLEMENTATION_TO_POSTDEPLOY_OWNER_GATE
+CURRENT_GATE = DASHBOARD_V41_CONTINUOUS_EXECUTION_ACTIVE
+AUTHORITY = W2_LAST_48H_RECONCILIATION_AND_DASHBOARD_V41_EXECUTION_PLAN.md
 BASE_MAIN = d2740a573c748cfaef38c66e951618e8782e09d0
-PR_505 = MERGED_DEPLOYED_TECHNICAL_TRUTH_PASS_PRODUCT_UX_REVOKED
+CURRENT_DEPLOYED_SOURCE = 4370393be9b2593ec008d150daa9bf39ddbf265f
+V41_DESIGN_FREEZE = PASS_OWNER_APPROVED
 TRACK_A = TRACK_A_CLOSED_PASS
 ROUND_4 = NOT_STARTED
 P6 = NOT_AUTHORIZED
-CURRENT_PHASE = DESIGN_ONLY
-TERMINAL_GATE = OWNER_DASHBOARD_IA_DESIGN_REVIEW
+TERMINAL_GATE = OWNER_DASHBOARD_V41_POSTDEPLOY_ACCEPTANCE
 ```
 
-## Binding correction
+## Reconciled meaning
 
-Do not open another incremental Dxx production-UI patch round on the current layout.
+The last two days of Provider/data foundation, Round 3, unified read model, validation/replay, canonical identity, collection truth, stale Market Memory, movement evidence, quote-count semantics and repository cleanup are complete and retained.
 
-The current Dashboard truth contract is substantially improved, but the deployed page remains a long technical report with the wrong default focus and no frozen product-level visual target. The next task is to freeze the information architecture and target screen before touching production React/CSS again.
+The old first-screen information architecture is superseded. Do not redo the backend foundations or reopen D13/D14/D15 as separate patch rounds. Implement the Owner-approved V4.1 first screen while preserving those truths.
 
 ## Binding read order
 
@@ -25,78 +25,123 @@ The current Dashboard truth contract is substantially improved, but the deployed
 1. CODEX_EXECUTION_PROTOCOL.md
 2. CURRENT_STATE.yaml
 3. NEXT_ACTION.md
-4. DASHBOARD_OWNER_INFORMATION_ARCHITECTURE_RESET.md
-5. current deployed/main Dashboard screenshots and real payload shape
-6. Owner-provided compact cockpit reference / repo-bound composition reference
-7. D13/D14/D15 truth contracts and accepted tests
+4. W2_LAST_48H_RECONCILIATION_AND_DASHBOARD_V41_EXECUTION_PLAN.md
+5. DASHBOARD_OWNER_INFORMATION_ARCHITECTURE_RESET.md as historical design rationale
+6. current origin/main unified read-model and Dashboard code
+7. Owner-local W2设计_v4/ latest V4.1 HTML/PNG artifacts
+8. D13/D14/D15 tests and accepted truth contracts
+9. ROUND4_READINESS_DECISION_PACKET.md only for later packet refresh, not execution
 ```
 
-## Stage A — execute continuously
+## Execute continuously
 
-1. Inspect current real production screenshots/data shape and current UI/component/CSS structure.
-2. Produce the new information architecture around:
-   `今日摘要 -> 优先短名单 -> 所选比赛情报 -> 诊断上下文`.
-3. Create an editable design source. Figma is preferred if available; a repo-bound static HTML prototype is acceptable.
-4. Create `REAL_SHAPE_DASHBOARD_DESIGN_FIXTURE.json` representing a realistic mixed day: several blocked matches plus at least one evidence-rich fixture with real 2+ snapshot/market-memory shapes. Also create a degraded/blocked-day design state.
-5. Create repo-bound target screenshots at exactly 1280x720, 1512x982 and 1536x1024.
-6. Create `DASHBOARD_IA_DESIGN_SPEC.md` defining layout, hierarchy, default-focus policy, typography, contrast, component behavior and secondary-view boundaries.
-7. Create `DESIGN_REVIEW_PACKET.md` mapping every current Owner/Claude finding to the frozen target.
-8. Include the remaining semantic cleanup in the design contract: dimension-specific risk reasons, league status matching the actual only-record blocker, and one model-unavailability explanation authority.
-9. Do not change production React/CSS/read-model behavior during Stage A.
-10. Do not deploy Stage A.
+### V41-0 — Reference authority
 
-## Non-negotiable product rules
+- Verify the latest Owner V4.1 artifact set.
+- Copy sanitized editable HTML/PNG references into `docs/ui/dashboard-v4.1/reference/`.
+- Record hashes.
+- Generate repo-bound visual targets at 1280x720, 1180 responsive, 1366x768, 1512x982 and 1536x1024.
+- Create the design spec, state matrix, review packet and realistic fixture JSON.
+
+### V41-1 — Read-model contract
+
+Add source-bound additive fields on the existing endpoint:
 
 ```text
-DEFAULT_SELECTION = NOT_MATCHES_ZERO
-DEFAULT_SELECTION = MOST_USEFUL_SOURCE_BOUND_EVIDENCE_NOT_BETTING_VALUE
-FIRST_SCREEN = BOUNDED_DASHBOARD_NOT_LONG_REPORT
-EMPTY_NOT_CONNECTED_TECHNICAL_SECTIONS = SECONDARY_BY_DEFAULT
-GOVERNANCE_STATUS = ONE_COMPACT_SYSTEM_ENTRY_NOT_REPEATED_EVERYWHERE
-PUBLIC_BODY_TEXT >= 13PX
-SECONDARY_TEXT >= 12PX
-VISIBLE_TECHNICAL_TEXT >= 11PX
-NORMAL_TEXT_CONTRAST >= 4.5_TO_1
-DATES_AND_MATCH_NAMES = NO_AVOIDABLE_TRUNCATION
-1280x720 = USABLE_FIRST_SCREEN
-200_PERCENT_ZOOM = USABLE
-KEYBOARD_FOCUS_ORDER = MATCHES_VISUAL_HIERARCHY
+day_mode = NORMAL | BLOCKED | CALM | EMPTY
+default_focus_type = MATCH | GLOBAL_INCIDENT | DAY_SUMMARY | EMPTY_STATE
+default_focus_fixture_id
+priority_reason_primary
+priority_reason_secondary[]
 ```
 
-## Visual quality gate
-
-The existing same-render screenshot equality test is only a determinism check and cannot be treated as visual acceptance.
-
-Stage B will require a stored approved target and real image-diff/`toHaveScreenshot`-style regression. The deterministic test data must use the same default-focus rule as production.
-
-## Stop
-
-Stop after all Stage-A artifacts are committed and coherent at:
+Lock the only valid mappings:
 
 ```text
-OWNER_DASHBOARD_IA_DESIGN_REVIEW
+NORMAL  <-> MATCH
+BLOCKED <-> GLOBAL_INCIDENT
+CALM    <-> DAY_SUMMARY
+EMPTY   <-> EMPTY_STATE
 ```
 
-Do not implement the production redesign, merge production UI changes, deploy, start Round4 or enter P6 before that design gate is cleared.
+E stale evidence remains `NORMAL + MATCH + STALE`; D 1180 is responsive only.
+
+Add global incident/day summary/empty navigation, trend versus cross-sectional evidence, raw timestamps/freshness threshold, and valid global-validation checkpoint status. Fail closed on impossible combinations and stale/unknown evidence.
+
+### V41-2 — Production UI
+
+- Replace the current first-screen composition with one clean V4.1 component system.
+- Never select `matches[0]` as product policy.
+- Use the read-model focus authority.
+- Render NORMAL/BLOCKED/CALM/EMPTY and stale Market Memory exactly as frozen.
+- Keep Scoreline compact and conditional.
+- Keep full validation, performance, replay, external intelligence and Data/Ops secondary.
+- Refactor/rewrite CSS; do not append another override block.
+- Do not restore Boss/recommendation surfaces.
+
+### V41-3 — Acceptance
+
+Require contract, truth, time arithmetic, default-focus parity, no-call/no-write, five business-state fixtures plus 1180 responsive, stored-target image diff, 200% zoom, keyboard, contrast and no-overflow acceptance.
+
+### V41-4 — Full gate
+
+Run focused and full Python tests, Ruff, MyPy, Web typecheck/build/E2E, all V4.1 visual baselines, staging parity, secret/tracked/protected-evidence checks, Repository Hygiene, exact-head Full CI and `RELEASE_REQUIRED`.
+
+### V41-5 — Merge and deploy
+
+After exact-head PASS, merge automatically and deploy through the existing local OCI relay path. Do not use VPS-direct GHCR bulk pulling as the primary transport.
+
+### V41-6 — Postdeploy
+
+Verify exact Web/API identity, health, ready, release sync, unified endpoint, V4.1 focus fields, real current day-mode rendering, exact 13 competitions, SHADOW_ONLY and zero read calls/writes.
+
+### V41-7 — Round4 packet refresh only
+
+Refresh the Round4 decision packet to the final V4.1 exact release identity, then stop. Do not start Round4.
+
+## Do not stop between phases
+
+Ordinary implementation, CSS, test, screenshot, CI or deployment-preparation failures are in scope:
+
+```text
+fix -> revalidate -> continue
+```
+
+Do not ask the Owner to relay a new instruction after V41-0, V41-1, V41-2, V41-3, V41-4, merge or deployment.
+
+Stop early only for a proven migration requirement, missing/unverifiable Owner reference, out-of-scope product semantics, runtime-policy change, security/data-integrity conflict, or critical deployment failure after automatic rollback.
+
+## Terminal classifications
+
+```text
+DASHBOARD_V41_POSTDEPLOY_READY_FOR_OWNER_ACCEPTANCE
+DASHBOARD_V41_DEPLOYMENT_ROLLED_BACK
+DASHBOARD_V41_SCOPE_BLOCKED_OWNER_DECISION_REQUIRED
+```
 
 ## Frozen stop lines
 
 ```text
-PRODUCTION_UI_IMPLEMENTATION_BEFORE_DESIGN_FREEZE = FORBIDDEN
-VPS_DEPLOYMENT_STAGE_A = FORBIDDEN
-ROUND_4_START = NOT_AUTHORIZED
-P6_EXECUTION = NOT_AUTHORIZED
 NEW_PROVIDER_OR_PLAN = NOT_AUTHORIZED
 MANUAL_PROVIDER_PROBE = FORBIDDEN
 SCHEDULER_OR_CADENCE_CHANGE = NOT_AUTHORIZED
 ACTIVE_WHITELIST_CHANGE = NOT_AUTHORIZED
 MODEL_FACTOR_THRESHOLD_CHANGE = NOT_AUTHORIZED
+MODEL_RETRAINING = NOT_AUTHORIZED
+MARKET_DIRECTION_BENCHMARK_DEFINITION = NOT_AUTHORIZED
 EXTERNAL_INTELLIGENCE_ACTIVATION = NOT_AUTHORIZED
 PHASE_0_5_REEXECUTION = FORBIDDEN
 H_RESULT_ACCESS = PERMANENTLY_CLOSED
+ROUND_4_START = NOT_AUTHORIZED
+P6_EXECUTION = NOT_AUTHORIZED
 CANDIDATE = OFF
 FORMAL = OFF
 LOCK = OFF
 PRODUCTION = OFF
 REAL_MONEY = NOT_AUTHORIZED
+READ_PROVIDER_CALLS = 0_REQUIRED
+READ_DB_BUSINESS_WRITES = 0_REQUIRED
+VPS_DIRECT_GHCR_BULK_IMAGE_PULL = FORBIDDEN_AS_PRIMARY_TRANSPORT
+IMAGE_TRANSPORT = LOCAL_OCI_RELAY_PRIMARY
+DELETE_PROTECTED_HISTORICAL_EVIDENCE = FORBIDDEN
 ```
