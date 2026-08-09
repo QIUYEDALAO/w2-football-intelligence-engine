@@ -46,7 +46,7 @@ Negative checks reject synthetic timelines, a second public dashboard, recommend
 PASS. The final presentation contract now includes:
 
 1. typed `AH` / `OU` Match Board main-line facts with explicit unavailable state;
-2. source-bound two-sided Market Radar prices with no fabricated missing side;
+2. source-bound two-sided Market Radar prices with every missing side explicitly `NOT_AVAILABLE` and never fabricated;
 3. Probability Validation checkpoint/cohort identity and explicit missing metadata;
 4. League Performance `Decisive N` alongside all previously accepted columns;
 5. compact header update time and system-health context from the unified payload;

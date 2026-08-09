@@ -157,11 +157,20 @@ function MarketTimeline({ market }: { market: WorkspaceMarket }) {
   );
 }
 
+function MarketPrices({ market }: { market: WorkspaceMarket }) {
+  if (!Object.keys(market.prices).length) return <div className="market-prices" data-ui="market-prices"><p>PRICE_EVIDENCE_NOT_AVAILABLE</p></div>;
+  const sides = market.market === "ASIAN_HANDICAP" ? ["HOME", "AWAY"] : ["OVER", "UNDER"];
+  return <div className="market-prices" data-ui="market-prices">{sides.map((side) => {
+    const available = Object.prototype.hasOwnProperty.call(market.prices, side);
+    return <span data-price-side={side} key={side}><small>{side}</small><strong>{available ? text(market.prices[side]) : "NOT_AVAILABLE"}</strong></span>;
+  })}</div>;
+}
+
 function MarketRadar({ match }: { match: WorkspaceMatch | null }) {
   return (
     <section className="workspace-panel" id="market-radar" data-ui="market-radar">
       <SectionHeading eyebrow="Persisted evidence" title="Market Radar" detail="0 / 1 / 2+ snapshots stay discrete; no interpolation or synthetic path." />
-      {match ? <div className="market-grid">{Object.values(match.market_radar.markets).map((market) => <article className="market-card" data-market={market.market} key={market.market}><header><div><span>{market.market}</span><strong>{market.status}</strong></div><b>{market.main_line || "NO_MAIN_LINE"}</b></header><div className="market-metrics"><KeyValue label="Bookmakers" value={market.bookmaker_count} /><KeyValue label="Freshness" value={market.freshness.status || "NOT_AVAILABLE"} /><KeyValue label="Movement" value={market.movement.status || "INSUFFICIENT"} /></div><div className="market-prices" data-ui="market-prices">{Object.entries(market.prices).length ? Object.entries(market.prices).map(([side, price]) => <span key={side}><small>{side}</small><strong>{text(price)}</strong></span>) : <p>PRICE_EVIDENCE_NOT_AVAILABLE</p>}</div><MarketTimeline market={market} /></article>)}</div> : <div className="workspace-empty"><span>No selected market evidence.</span></div>}
+      {match ? <div className="market-grid">{Object.values(match.market_radar.markets).map((market) => <article className="market-card" data-market={market.market} key={market.market}><header><div><span>{market.market}</span><strong>{market.status}</strong></div><b>{market.main_line || "NO_MAIN_LINE"}</b></header><div className="market-metrics"><KeyValue label="Bookmakers" value={market.bookmaker_count} /><KeyValue label="Freshness" value={market.freshness.status || "NOT_AVAILABLE"} /><KeyValue label="Movement" value={market.movement.status || "INSUFFICIENT"} /></div><MarketPrices market={market} /><MarketTimeline market={market} /></article>)}</div> : <div className="workspace-empty"><span>No selected market evidence.</span></div>}
     </section>
   );
 }

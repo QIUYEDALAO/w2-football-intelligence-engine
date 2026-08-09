@@ -232,7 +232,7 @@ test("ORC-01 Match Board identifies AH and OU main-line facts without side seman
   expect(facts.every((value) => !/(HOME|AWAY|OVER|UNDER)/.test(value))).toBe(true);
 });
 
-test("ORC-02 Market Radar renders only available two-sided prices", async ({ page }) => {
+test("ORC-02 Market Radar renders two-sided prices and explicitly marks missing evidence", async ({ page }) => {
   await installWorkspace(page);
   await page.goto("/");
   const radar = page.locator("[data-ui='market-radar']");
@@ -248,9 +248,9 @@ test("ORC-02 Market Radar renders only available two-sided prices", async ({ pag
   await expect(radar.locator(".market-prices p")).toHaveCount(2);
   await expect(radar.locator(".market-prices p").first()).toHaveText("PRICE_EVIDENCE_NOT_AVAILABLE");
   await page.locator("[data-fixture-id='one']").click();
-  await expect(totals.locator(":scope > span")).toHaveCount(1);
-  await expect(totals).toContainText("OVER");
-  await expect(totals).not.toContainText("UNDER");
+  await expect(totals.locator(":scope > span")).toHaveCount(2);
+  await expect(totals.locator("[data-price-side='OVER']")).toContainText("1.94");
+  await expect(totals.locator("[data-price-side='UNDER']")).toHaveText("UNDERNOT_AVAILABLE");
 });
 
 test("ORC-03 Probability Validation exposes source checkpoint identity", async ({ page }) => {
