@@ -285,6 +285,13 @@ def test_workspace_is_deterministic_explicit_and_schema_valid() -> None:
         "no_call_on_read": True,
     }
     assert first["runtime"]["formal"] == "OFF"
+    assert first["day_mode"] == "NORMAL"
+    assert first["default_focus_type"] == "MATCH"
+    assert first["default_focus_fixture_id"] == "fixture-two"
+    assert first["selected_fixture_id"] == "fixture-two"
+    assert first["today_summary"]["primary_reason_counts"] == {
+        "FRESH_MARKET_EVIDENCE": 1
+    }
     assert first["football_day_timezone"] == "Asia/Shanghai"
     assert first["football_day_cutoff_hour"] == 12
     assert first["football_day_start_utc"] == "2026-08-09T04:00:00Z"
@@ -330,6 +337,187 @@ def test_workspace_is_deterministic_explicit_and_schema_valid() -> None:
         "ONE_OBSERVATION_NOT_A_TREND",
         "DISCRETE_REAL_PATH",
     }
+
+
+def test_default_focus_is_order_independent_and_information_useful() -> None:
+    day_view = _day_view()
+    expected = _workspace(day_view)["default_focus_fixture_id"]
+    day_view["cards"].reverse()
+
+    assert expected == "fixture-two"
+    assert _workspace(day_view)["default_focus_fixture_id"] == expected
+
+
+def test_day_mode_focus_pairs_are_derived_for_all_four_modes() -> None:
+    empty = _day_view()
+    empty["cards"] = []
+    empty["degradation"] = {"state": "EMPTY_DAY"}
+    empty_payload = _workspace(empty)
+    assert (empty_payload["day_mode"], empty_payload["default_focus_type"]) == (
+        "EMPTY",
+        "EMPTY_STATE",
+    )
+    assert empty_payload["global_focus"]["status"] == "EMPTY"
+
+    calm = _day_view()
+    for card in calm["cards"]:
+        card["market_radar"]["markets"]["ASIAN_HANDICAP"] = _market(0)
+        card["intelligence_state"] = "MARKET_STABLE"
+        card["model_lab"]["markets"]["ASIAN_HANDICAP"] = {
+            "status": "MARKET_NOT_READY"
+        }
+    calm_payload = _workspace(calm)
+    assert (calm_payload["day_mode"], calm_payload["default_focus_type"]) == (
+        "CALM",
+        "DAY_SUMMARY",
+    )
+    assert calm_payload["global_focus"]["status"] == "CALM"
+
+    blocked = _day_view()
+    blocked["degradation"] = {
+        "state": "BLOCKED_DAY",
+        "reason_code": "COLLECTION_PROVIDER_EMPTY",
+    }
+    for card in blocked["cards"]:
+        card["intelligence_state"] = "COLLECTION_INCIDENT"
+        card["intelligence_reason_codes"] = ["COLLECTION_PROVIDER_EMPTY"]
+    blocked_payload = _workspace(blocked)
+    assert (blocked_payload["day_mode"], blocked_payload["default_focus_type"]) == (
+        "BLOCKED",
+        "GLOBAL_INCIDENT",
+    )
+    assert blocked_payload["global_focus"]["reason_code"] == "COLLECTION_PROVIDER_EMPTY"
+    assert blocked_payload["default_focus_fixture_id"] is None
+    assert blocked_payload["today_summary"]["priority_match_count"] == 0
+    assert blocked_payload["today_summary"]["primary_reason_counts"] == {}
+    assert blocked_payload["global_focus"]["affected_fixture_count"] == 3
+
+
+@pytest.mark.parametrize(
+    ("day_mode", "focus_type", "fixture_id"),
+    [
+        ("BLOCKED", "MATCH", "fixture-two"),
+        ("EMPTY", "EMPTY_STATE", "fixture-two"),
+        ("NORMAL", "MATCH", None),
+        ("CALM", "DAY_SUMMARY", "fixture-two"),
+    ],
+)
+def test_schema_rejects_impossible_day_mode_focus_pairs(
+    day_mode: str,
+    focus_type: str,
+    fixture_id: str | None,
+) -> None:
+    payload = _workspace(_day_view())
+    payload["day_mode"] = day_mode
+    payload["default_focus_type"] = focus_type
+    payload["default_focus_fixture_id"] = fixture_id
+    payload["selected_fixture_id"] = fixture_id
+
+    with pytest.raises(ValueError):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "test-request", **payload}
+        )
+
+
+def test_primary_reason_grouping_counts_each_match_once() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][2]
+    card["intelligence_state"] = "MODEL_DIAGNOSTIC_WARNING"
+    card["market_radar"]["markets"]["ASIAN_HANDICAP"]["movement"] = {
+        "status": "LINE_MOVEMENT",
+        "from_captured_at": "2026-08-09T00:00:00Z",
+        "to_captured_at": "2026-08-09T01:00:00Z",
+        "line_delta": "-0.25",
+        "price_delta": {"HOME": 0.0, "AWAY": 0.0},
+        "probability_delta": {"HOME": 0.0, "AWAY": 0.0},
+    }
+
+    payload = _workspace(day_view)
+    match = next(item for item in payload["matches"] if item["fixture_id"] == "fixture-two")
+
+    assert match["priority_reason_primary"] == "MARKET_MOVEMENT"
+    assert match["priority_reason_secondary"] == [
+        "FRESH_MARKET_EVIDENCE",
+        "MODEL_DIAGNOSTIC",
+    ]
+    assert payload["today_summary"]["priority_match_count"] == 1
+    assert payload["today_summary"]["primary_reason_counts"] == {"MARKET_MOVEMENT": 1}
+
+
+def test_trend_and_cross_sectional_statuses_are_independent() -> None:
+    day_view = _day_view()
+    day_view["cards"] = [_card("fixture-one", 1)]
+    market = _workspace(day_view)["matches"][0]["market_radar"]["markets"][
+        "ASIAN_HANDICAP"
+    ]
+
+    assert market["trend_evidence_status"] == "INSUFFICIENT"
+    assert market["cross_sectional_comparison_status"] == "AVAILABLE"
+    assert market["latest_snapshot_at"] == "2026-08-09T00:00:00Z"
+
+
+def test_bookmaker_count_change_without_line_or_price_change_remains_stable() -> None:
+    day_view = _day_view()
+    source = day_view["cards"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]
+    source["timeline"]["points"][1]["bookmaker_count"] = 9
+
+    market = _workspace(day_view)["matches"][2]["market_radar"]["markets"][
+        "ASIAN_HANDICAP"
+    ]
+
+    assert market["movement"]["status"] == "STABLE"
+    assert market["trend_evidence_status"] == "AVAILABLE"
+
+
+def test_ready_scoreline_fails_closed_when_identity_or_model_readiness_is_missing() -> None:
+    missing_identity = _day_view()
+    missing_identity["cards"][0]["competition_id"] = None
+    assert _workspace(missing_identity)["matches"][0]["scoreline_reference"]["status"] == (
+        "UNAVAILABLE"
+    )
+
+    prior_only = _day_view()
+    prior_only["cards"][0]["simulation"]["simulation"]["calibration_status"] = (
+        "BASELINE_PRIOR"
+    )
+    assert _workspace(prior_only)["matches"][0]["scoreline_reference"]["status"] == (
+        "UNAVAILABLE"
+    )
+
+
+def test_lineup_before_expected_window_is_not_a_priority_reason() -> None:
+    day_view = _day_view()
+    card = _card("too-early", 0)
+    card["lineup_requirement"] = "NOT_EXPECTED_YET"
+    card["data_refresh"]["lineups_status"] = "PROVIDER_EMPTY"
+    day_view["cards"] = [card]
+
+    match = _workspace(day_view)["matches"][0]
+
+    assert match["priority_reason_primary"] is None
+    assert "LINEUP_PENDING" not in match["priority_reason_secondary"]
+
+
+def test_global_model_quality_uses_exact_freshness_boundary_and_fails_closed() -> None:
+    day_view = _day_view()
+    day_view["performance"]["forward_ledger"]["checkpoint_metadata"] = {
+        "checkpoint_key": "performance:cohort:all",
+        "checkpoint_generated_at": "2026-08-09T02:00:00Z",
+    }
+    day_view["generated_at"] = "2026-08-10T02:00:00Z"
+
+    current = _workspace(day_view)["global_model_quality"]
+    assert current["status"] == "AVAILABLE"
+    assert current["model_log_loss"] == 0.61
+
+    day_view["generated_at"] = "2026-08-10T02:00:01Z"
+    stale = _workspace(day_view)["global_model_quality"]
+    assert stale["status"] == "STALE"
+    assert stale["model_log_loss"] is None
+
+    del day_view["performance"]["forward_ledger"]["checkpoint_metadata"]
+    missing = _workspace(day_view)["global_model_quality"]
+    assert missing["status"] == "NOT_AVAILABLE"
 
 
 def test_public_market_readiness_is_single_source_bound_authority() -> None:

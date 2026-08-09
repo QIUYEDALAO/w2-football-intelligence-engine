@@ -74,3 +74,24 @@ FIRST_APPEARANCE_TIME = UNMEASURED
 
 Optional External Intelligence is separately `NOT_CONNECTED` and never makes
 match readiness incomplete.
+
+## V4.1 time presentation
+
+V4.1 publishes raw time authority rather than authored relative labels:
+
+```text
+generated_at
+kickoff_utc
+latest_snapshot_at
+freshness_max_age_seconds
+next_eval_at
+checkpoint_generated_at
+```
+
+The client derives countdowns and ages from these values across timezone and
+football-day boundaries. `next_eval_at <= generated_at` is displayed as
+expired, never as a next evaluation. Market `READY` remains source-bound;
+`STALE` and `READY` cannot coexist for the same public market. A global model
+quality checkpoint is current at the exact configured boundary and fails
+closed immediately beyond it. None of these reads refreshes Provider data or
+changes Scheduler cadence.

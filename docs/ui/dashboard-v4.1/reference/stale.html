@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="zh" data-theme="dark"><head><meta charset="utf-8">
+<title>W2 情报工作台</title>
+<style>
+:root{
+  --bg:#0B1013; --rail:#0E151A; --panel:#131A1F; --focus:#17222A;
+  --ink:#E6EDF0; --ink-2:#9DAEB6; --ink-3:#8496A0;
+  --line:#232E35; --line-2:#1B242A; --line-3:#2E3C45;
+  --accent:#5BA8BE; --accent-soft:#16303A; --accent-line:#2E6C80;
+  --crit:#D07A6F; --crit-bg:#2E1C19; --warn:#CBA05A; --warn-bg:#2B2317;
+  --nom:#6FA687; --undef:#7A888F;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC",system-ui,sans-serif;
+  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column}
+.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+.lbl{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:500}
+.note{font-size:12.5px;color:var(--ink-2);line-height:1.5}
+
+/* TOP */
+.top{display:flex;align-items:center;gap:18px;padding:0 22px;height:50px;flex:none;
+  background:var(--rail);border-bottom:1px solid var(--line)}
+.brand{font-size:13px;font-weight:600;letter-spacing:.04em}.brand span{color:var(--accent)}
+.sep{width:1px;height:18px;background:var(--line-3)}
+.dnav{display:flex;align-items:center;gap:2px}
+.dnav button{background:none;border:1px solid var(--line-3);color:var(--ink-2);width:24px;height:24px;
+  border-radius:2px;cursor:pointer;font-size:13px;line-height:1;padding:0;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.dnav button:hover,.dnav button:focus-visible{color:var(--accent);border-color:var(--accent)}
+.dnav .d{font-size:14px;font-weight:600;padding:0 10px;letter-spacing:-.01em;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.dnav .today{width:auto;padding:0 9px;font-size:11.5px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;padding:3px 9px;border-radius:2px;
+  border:1px solid var(--line-3);color:var(--ink-2);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.pill.ok{color:var(--nom);border-color:color-mix(in srgb,var(--nom) 40%,transparent)}
+.pill.ro{color:var(--accent);border-color:var(--accent-line)}
+.pill.dg{color:var(--crit);border-color:color-mix(in srgb,var(--crit) 42%,transparent);background:var(--crit-bg)}
+.top .r{margin-left:auto;display:flex;align-items:center;gap:15px}
+.lnk{font-size:12px;color:var(--ink-2);text-decoration:none;border-bottom:1px solid var(--line-3);padding-bottom:1px}
+.lnk:hover,.lnk:focus-visible{color:var(--accent);border-color:var(--accent)}
+.badge{font-size:10px;color:var(--ink-3);border:1px solid var(--line-3);border-radius:8px;
+  padding:0 5px;margin-left:5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+
+/* L1 */
+.l1{display:flex;align-items:flex-start;gap:34px;padding:14px 22px 12px;flex:none}
+.l1 .grp{display:flex;flex-direction:column;gap:3px}
+.l1 .sub{display:flex;gap:16px;padding-left:2px}
+.l1 .sub .s{font-size:12.5px;color:var(--ink-2);display:flex;align-items:baseline;gap:5px}
+.l1 .sub .s i{font-style:normal;color:var(--ink-3);font-family:ui-monospace,Menlo,monospace;font-size:11px}
+.l1 .sub .s b{font-weight:600;font-family:ui-monospace,Menlo,monospace;font-size:14px}
+.l1 .sub .s.a b{color:var(--accent)} .l1 .sub .s.w b{color:var(--warn)} .l1 .sub .s.c b{color:var(--crit)}
+.l1 .u{display:flex;align-items:baseline;gap:9px}
+.l1 .n{font-size:31px;font-weight:600;letter-spacing:-.02em;line-height:1;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.l1 .t{font-size:14px;color:var(--ink-2)}
+.l1 .n.a{color:var(--accent)} .l1 .n.w{color:var(--warn)} .l1 .n.c{color:var(--crit)}
+.l1 .day{margin-left:auto;text-align:right}
+
+/* MAIN */
+.main{flex:1;display:grid;grid-template-columns:360px minmax(0,1fr);gap:16px;
+  padding:0 22px 14px;min-height:0}
+.l2{display:flex;flex-direction:column;min-height:0}
+.l2 .hd{display:flex;align-items:baseline;justify-content:space-between;padding:0 0 7px}
+.l2 .grp{font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;padding:13px 0 6px;
+  border-bottom:1px solid var(--line-2)}
+.l2 .grp:first-child{padding-top:0}
+.l2 .list{flex:1;overflow:auto}
+.row{display:flex;gap:10px;padding:11px 10px 11px 0;border-bottom:1px solid var(--line-2);align-items:flex-start}
+.row .stripe{width:3px;align-self:stretch;flex:none;border-radius:2px;margin-left:1px}
+.row.on{background:var(--focus);margin:0 -10px;padding-left:10px;border-left:2px solid var(--accent)}
+.row .bd{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.row .lg{font-size:10.5px;color:var(--ink-3);letter-spacing:.06em;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.row .m{font-size:14.5px;font-weight:600;letter-spacing:-.01em}
+.row .r{font-size:12.5px;color:var(--ink-2);display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.row time{font-size:12px;color:var(--ink-3);white-space:nowrap;padding-top:14px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.row.agg{align-items:center}.row.agg time{padding-top:0}
+.sa{background:var(--accent)}.sw{background:var(--warn)}.sc{background:var(--crit)}
+.sn{background:var(--nom)}.sg{background:var(--line-3)}
+.tag{font-size:10.5px;padding:1px 6px;border-radius:2px;white-space:nowrap;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.tag.a{color:var(--accent);background:var(--accent-soft)}
+.tag.w{color:var(--warn);background:var(--warn-bg)}
+.tag.c{color:var(--crit);background:var(--crit-bg)}
+.tag.n{color:var(--nom);border:1px solid color-mix(in srgb,var(--nom) 34%,transparent)}
+.tag.g{color:var(--ink-3);border:1px solid var(--line-3)}
+.l2 .ft{padding-top:10px}
+
+/* L3 */
+.l3{background:var(--panel);border:1px solid var(--accent-line);border-radius:4px;
+  display:flex;flex-direction:column;min-height:0;overflow:hidden;
+  box-shadow:0 0 0 1px rgba(91,168,190,.06),0 18px 44px -22px rgba(0,0,0,.9)}
+.l3-h{display:flex;align-items:flex-start;gap:18px;padding:15px 18px 12px;border-bottom:1px solid var(--line-2)}
+.l3-h h1{margin:0;font-size:27px;font-weight:600;letter-spacing:-.025em}
+.l3-h .meta{font-size:13px;color:var(--ink-2);margin-top:3px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.l3-h .ko{margin-left:auto;text-align:right;flex:none}
+.l3-h .ko .v{font-size:27px;font-weight:600;letter-spacing:-.02em;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.sum{padding:11px 18px;background:var(--accent-soft);border-bottom:1px solid var(--line-2);
+  font-size:13px;color:var(--ink);line-height:1.55}
+.sum .k{color:var(--accent);font-weight:600}
+.sum.q{background:var(--warn-bg)} .sum.q .k{color:var(--warn)}
+.sum.n{background:transparent}.sum.n .k{color:var(--nom)}
+.l3-b{flex:1;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);min-height:0;overflow:auto}
+.l3-l{padding:15px 18px;display:flex;flex-direction:column;gap:15px;border-right:1px solid var(--line-2)}
+.l3-r{padding:14px 18px;display:flex;flex-direction:column;gap:11px}
+
+.band{display:flex;border:1px solid var(--line);border-radius:3px;overflow:hidden}
+.band>div{flex:1;padding:9px 12px;border-right:1px solid var(--line-2);min-width:0}
+.band>div:last-child{border-right:0}
+.band .k{font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.band .mk{font-size:11px;color:var(--ink-3);margin-top:4px}
+.band .v{font-size:16px;font-weight:600;margin-top:1px;letter-spacing:-.01em}
+.band .v.mono{font-size:19px}
+.band .v.off{color:var(--ink-2);font-size:15px}
+
+.rad-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:9px}
+.rad-h .ln{font-size:38px;font-weight:600;letter-spacing:-.03em;line-height:1;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.snaps{display:flex;border:1px solid var(--line);border-radius:3px;overflow:hidden}
+.snaps>div{flex:1;padding:11px 12px;border-right:1px solid var(--line-2)}
+.snaps>div:last-child{border-right:0;background:var(--focus)}
+.snaps .t{font-size:11px;color:var(--ink-3);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.snaps .l{font-size:21px;font-weight:600;margin:3px 0 1px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.snaps .b{font-size:11.5px;color:var(--ink-2);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.kv{display:flex;gap:28px;flex-wrap:wrap}
+.kv .k{font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.kv .v{font-size:17px;font-weight:600;margin-top:2px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.st{display:inline-flex;align-items:center;gap:5px;font-size:11px;letter-spacing:.03em;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;padding:2px 8px;border-radius:2px}
+.st::before{content:"";width:5px;height:5px;flex:none}
+.st-o{color:var(--ink);background:var(--accent-soft)}.st-o::before{background:var(--accent)}
+.st-i{color:var(--warn);background:var(--warn-bg)}.st-i::before{background:var(--warn);border-radius:50%}
+.st-c{color:var(--crit);background:var(--crit-bg)}.st-c::before{background:var(--crit)}
+.st-u{color:var(--undef);border:1px solid var(--line-3)}.st-u::before{border:1px solid var(--undef)}
+
+.diag{display:flex;gap:10px;padding:9px 11px;border-radius:3px;background:var(--warn-bg);
+  border:1px solid color-mix(in srgb,var(--warn) 30%,transparent)}
+.diag.c{background:var(--crit-bg);border-color:color-mix(in srgb,var(--crit) 30%,transparent)}
+.diag.n{background:transparent;border-color:var(--line)}
+.diag .s{width:3px;align-self:stretch;background:var(--warn);border-radius:2px;flex:none}
+.diag.c .s{background:var(--crit)}.diag.n .s{background:var(--nom)}
+.diag .tx{font-size:12.5px;color:var(--ink-2);line-height:1.5}.diag .tx b{color:var(--ink)}
+.mc{display:flex;flex-direction:column;gap:8px;padding:11px;border:1px solid var(--line);border-radius:3px}
+.gauge{position:relative;height:26px;margin:2px 0 16px}
+.gauge .tr{position:absolute;left:0;right:0;top:12px;height:2px;background:var(--line-3)}
+.gauge .bd{position:absolute;top:8px;height:10px;background:var(--accent-soft);border:1px solid var(--accent)}
+.gauge .pt{position:absolute;top:6px;width:12px;height:12px;border-radius:50%;background:var(--crit);margin-left:-6px}
+.gauge .cp{position:absolute;top:21px;font-size:10.5px;color:var(--ink-2);
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;transform:translateX(-50%)}
+.gauge .cp.hi{color:var(--crit);font-weight:600}
+.hist{font-size:12px;color:var(--ink-2);padding-top:8px;border-top:1px dashed var(--line-3)}
+.hist b{color:var(--warn)}
+.next{display:flex;align-items:baseline;gap:10px}
+.next .v{font-size:22px;font-weight:600;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.gp{flex:1;display:flex;flex-direction:column;gap:16px;padding:22px 24px;min-height:0;overflow:auto}
+.gp h1{margin:0;font-size:26px;font-weight:600;letter-spacing:-.025em}
+.gp h1.c{color:var(--crit)} .gp h1.n{color:var(--nom)}
+.gp .imp{font-size:14px;color:var(--ink-2)}
+.gp .cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.gp .bx{border:1px solid var(--line);border-radius:3px;padding:12px 14px;display:flex;
+  flex-direction:column;gap:6px}
+.gp .bx.c{border-color:color-mix(in srgb,var(--crit) 30%,transparent);background:var(--crit-bg)}
+.gp .bx .t{font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);
+  font-family:ui-monospace,Menlo,monospace}
+.gp .bx .x{font-size:13px;color:var(--ink-2);line-height:1.55}
+.gp .bx .x b{color:var(--ink)}
+.gp .bx .code{font-size:11.5px;color:var(--ink-3);font-family:ui-monospace,Menlo,monospace}
+.gp .stat{display:flex;gap:34px;flex-wrap:wrap;padding:13px 14px;border:1px solid var(--line);border-radius:3px}
+.gp .stat .k{font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);
+  font-family:ui-monospace,Menlo,monospace}
+.gp .stat .v{font-size:20px;font-weight:600;margin-top:2px;font-family:ui-monospace,Menlo,monospace}
+.gp .cta{margin-top:auto;display:flex;gap:20px;align-items:center;flex-wrap:wrap}
+.fold{display:flex;align-items:center;gap:9px;padding:8px 11px;border:1px dashed var(--line-3);
+  border-radius:3px;font-size:12px;color:var(--ink-2)}
+.fold .n{font-family:ui-monospace,Menlo,monospace;color:var(--ink)}
+
+/* L4 */
+.l4{flex:none;background:var(--rail);border-top:1px solid var(--line);padding:9px 22px 11px}
+.l4 .hd{display:flex;align-items:baseline;gap:14px;margin-bottom:7px}
+.l4 .hd .t{font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.l4 .hd .verdict{font-size:12.5px;color:var(--ink-2)}
+.l4 .hd .verdict b{color:var(--warn)}
+.l4 .row2{display:flex;align-items:center;gap:0}
+.l4 .u{display:flex;flex-direction:column;gap:1px;padding-right:26px;margin-right:26px;
+  border-right:1px solid var(--line-2)}
+.l4 .k{font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.l4 .v{font-size:17px;font-weight:600;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.l4 .c{font-size:11.5px;color:var(--ink-2);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.l4 .r{margin-left:auto}
+
+@media(max-width:1200px){
+  html,body{height:auto}
+  body{display:block}
+  .main{display:block;padding:0 18px 16px}
+  .l2{margin-bottom:16px}
+  .l2 .list{flex:none;overflow:visible;max-height:none}
+  .l3{min-height:0;margin-bottom:16px}
+  .l3-b{display:block;overflow:visible}
+  .l3-l{border-right:0;border-bottom:1px solid var(--line-2)}
+  .gp{overflow:visible}
+  .l1{flex-wrap:wrap;gap:16px 28px;padding:14px 18px 12px}
+  .l4{padding-left:18px;padding-right:18px}
+  .l4 .row2{flex-wrap:wrap;gap:12px 0}
+  .l4 .u{padding-right:20px;margin-right:20px}
+  .top{flex-wrap:wrap;height:auto;padding:8px 18px;gap:10px 14px}
+}
+.lock{display:inline-block;width:12px;height:12px;vertical-align:-1px;margin-right:5px;flex:none}
+.band .v.off{display:flex;align-items:center}
+.l2 .narrow{display:none;align-items:center;gap:9px;padding:11px 0;
+  border-top:1px solid var(--line-2);font-size:12.5px;color:var(--ink-2)}
+.l2 .narrow b{color:var(--ink);font-family:ui-monospace,Menlo,monospace}
+@media(max-width:1200px){.l2 .grp.other,.l2 .row.agg{display:none}.l2 .narrow{display:flex}}
+</style></head><body>
+
+<div class="top">
+  <div class="brand">W2 <span>情报工作台</span></div>
+  <div class="sep"></div>
+  <div class="dnav">
+    <button aria-label="前一天">‹</button>
+    <span class="d">2026-08-09</span>
+    <button aria-label="后一天">›</button>
+    <button class="today">今天</button>
+    <button aria-label="刷新">⟳</button>
+  </div>
+  <div class="sep"></div>
+  <span class="pill ro">影子只读</span>
+  <span class="pill ok">服务运行正常</span>
+  <span class="note mono" style="font-size:12px">更新 21:07</span>
+  <div class="r">
+    <a class="lnk" href="#">证据审计台 ▸</a>
+    <a class="lnk" href="#">验证中心 ▸</a>
+    <a class="lnk" href="#">系统状态 ▸</a>
+  </div>
+</div>
+
+<div class="l1"><div class="grp"><div class="u"><span class="n">1</span><span class="t">场优先查看</span></div>
+    <div class="sub"><span class="s w"><i>├</i><b>0</b>场确认盘口或赔率变化</span><span class="s w"><i>└</i><b>1</b>场市场证据已过期</span></div></div><div class="grp"><span class="t" style="font-size:13px;color:var(--ink-3)">其他关注</span><div class="sub"><span class="s w"><i>└</i><b>3</b>场待首发确认</span></div></div><div class="day"><b class="mono" style="font-size:15px">共 7 场 · 4 联赛</b><div class="note mono" style="font-size:11.5px">比赛日 08-09 12:00 → 08-10 12:00（不含）</div></div></div>
+
+<div class="main">
+  <div class="l2">
+    <div class="hd">
+      <span class="lbl">今日优先查看 · 按信息价值 · 主因归类</span>
+      <span class="note mono" style="font-size:11.5px">1 场优先 · 3 场其他</span>
+    </div>
+    <div class="list"><div class="grp">优先查看 · 1 场</div><div class="row on"><div class="stripe sw"></div><div class="bd"><div class="lg">巴甲</div><div class="m">巴伊亚 vs 瓦斯科达伽马</div><div class="r"><span class="tag w">证据过期</span><span>最新快照 7 小时前 · 模型比较暂停</span></div></div><time>03:00</time></div><div class="grp">其他比赛 · 3 场（不计入关注）</div><div class="row agg"><div class="stripe sg"></div><div class="bd"><div class="m">尚未到首发窗口 · 3 场</div><div class="r"><span class="tag g">尚未到窗口</span><span>尚未进入常见发布窗口</span></div></div><time></time></div></div>
+    <div class="ft"><a class="lnk" href="#">查看全部 7 场 ▸</a></div>
+  </div>
+
+  <div class="l3">
+  <div class="l3-h">
+    <div><h1>巴伊亚 vs 瓦斯科达伽马</h1>
+      <div class="meta">巴甲 · 2026-08-10 03:00 · 比赛 1492320</div></div>
+    <div class="ko"><div class="lbl">距开球</div><div class="v">5:53</div></div>
+  </div>
+  <div class="sum q"><span class="k">本场摘要</span>　存在历史市场快照，但最新一次已在 7 小时前，<b>超出新鲜度阈值</b>。
+    历史盘口可查看，<b>不可用于当前模型比较</b>，模型—市场比较已暂停。</div>
+  <div class="l3-b">
+    <div class="l3-l">
+      <div>
+        <div class="lbl" style="margin-bottom:8px">市场雷达 · 让球主盘 · 历史快照</div>
+        <div class="rad-h"><div class="ln" style="color:var(--ink-2)">−0.50</div>
+          <span class="st st-i">已过期 · 距今 7 小时 12 分（阈值 6 小时）</span></div>
+        <div class="snaps">
+          <div><div class="t">10:52</div><div class="l">−0.50</div><div class="b">9 家 1.92/1.98</div></div>
+          <div><div class="t">13:55</div><div class="l">−0.50</div><div class="b">11 家 1.94/1.96</div></div>
+          <div style="background:transparent;display:flex;align-items:center">
+            <div class="note" style="font-size:12.5px"><b style="color:var(--warn)">此后无新观测。</b>
+              超过 3h 刷新上限 2 个周期。</div></div>
+        </div>
+        <div class="note mono" style="font-size:11.5px;margin-top:7px">2 个真实快照 · 主盘未移动 · 点间不插值</div>
+      </div>
+      <div class="kv">
+        <div><div class="k">最新快照</div><div class="v">13:55</div></div>
+        <div><div class="k">距最新快照</div><div class="v" style="color:var(--warn)">7 小时 12 分</div></div>
+        <div><div class="k">新鲜度阈值</div><div class="v">6 小时</div></div>
+      </div>
+    </div>
+    <div class="l3-r">
+      <div><div class="lbl" style="margin-bottom:8px">三层语义 · 互不等同</div>
+        <div class="band">
+          <div><div class="k">市场主事实</div><div class="mk">让球 · 历史</div>
+            <div class="v mono" style="color:var(--ink-2)">−0.50</div></div>
+          <div><div class="k">W2 诊断</div><div class="mk">大小球</div>
+            <div class="v" style="color:var(--warn)">比较暂停</div></div>
+          <div><div class="k">正式推荐</div><div class="mk">产品权限</div>
+            <div class="v off"><svg class="lock" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2.2" y="5.2" width="7.6" height="5.6" rx="1"/><path d="M4 5.2V3.6a2 2 0 0 1 4 0v1.6"/></svg>未启用</div></div>
+        </div>
+      </div>
+      <div class="diag"><div class="s"></div><div class="tx">
+        <b>当前主要诊断 · 数据新鲜度</b><br>
+        最新快照距今 7 小时 12 分，已超过 6 小时新鲜度阈值。
+        历史盘口保留可查，但<b>不作为当前模型比较的基准</b>。</div></div>
+      <div class="mc">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <span class="lbl">模型结论 · 大小球</span><span class="st st-i">比较暂停</span></div>
+        <div class="note" style="font-size:12.5px;padding:4px 0">
+          市场基准已过期，<b style="color:var(--ink)">不输出模型—市场关系</b>。
+          恢复条件：取得一次新的有效快照。</div>
+        <div class="hist">历史验证：<b>尚未证明模型具备稳定增量能力</b>　
+          <a class="lnk" href="#" style="font-size:11.5px">验证中心 ▸</a></div>
+      </div>
+      <div><div class="lbl">下一计划评估</div>
+        <div class="next"><span class="v">21:40</span>
+          <span class="note" style="font-size:12px">33 分钟后</span></div></div>
+      <div style="margin-top:auto"><a class="lnk" href="#">在证据审计台查看历史盘口 ▸</a></div>
+    </div>
+  </div></div>
+</div>
+
+<div class="l4">
+  <div class="hd">
+    <span class="t">全局模型质量 · 近 90 天 · 截至 2026-08-09</span>
+    <span class="verdict">整体表现：<b>当前有效样本下，W2 观测值略弱于市场基准</b></span>
+  </div>
+  <div class="row2">
+    <div class="u"><span class="k">W2 LogLoss</span><span class="v">0.512</span>
+      <span class="c">市场 0.508 · Δ +0.004 劣</span></div>
+    <div class="u"><span class="k">W2 Brier</span><span class="v">0.178</span>
+      <span class="c">市场 0.174 · Δ +0.004 劣</span></div>
+    <div class="u"><span class="k">校准误差 ECE</span><span class="v">2.6%</span>
+      <span class="c">市场 2.1%</span></div>
+    <div class="u"><span class="k">前向有效样本</span><span class="v">34</span>
+      <span class="c">已结算 36 场 · 13 联赛</span></div>
+    <div class="r"><span class="note" style="font-size:11px;margin-right:14px">来源 checkpoint · 缺失时显示「历史验证暂不可用」</span><a class="lnk" href="#">验证中心 ▸</a></div>
+  </div>
+</div>
+
+</body></html>

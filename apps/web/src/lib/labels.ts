@@ -54,6 +54,9 @@ export const TENDENCY_LABELS: Record<string, string> = {
 
 export const COMPETITION_TRANSLATIONS: Array<[RegExp, string]> = [
   [/Premier League/i, "英超"],
+  [/Primeira Liga/i, "葡超"],
+  [/La Liga/i, "西甲"],
+  [/Bundesliga/i, "德甲"],
   [/World Cup/i, "世界杯"],
   [/Allsvenskan/i, "瑞典超"],
   [/Eliteserien/i, "挪威超"],
@@ -69,6 +72,12 @@ export const COMPETITION_TRANSLATIONS: Array<[RegExp, string]> = [
 ];
 
 export const TEAM_TRANSLATIONS: Record<string, string> = {
+  Benfica: "本菲卡",
+  Porto: "波尔图",
+  "Real Madrid": "皇家马德里",
+  "Real Betis": "贝蒂斯",
+  "Bayern Munich": "拜仁慕尼黑",
+  "Borussia Dortmund": "多特蒙德",
   Argentina: "阿根廷",
   Australia: "澳大利亚",
   Belgium: "比利时",
