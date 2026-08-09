@@ -54,7 +54,7 @@ def build_intelligence_projection(card: Mapping[str, Any]) -> dict[str, Any]:
                 "模型诊断未见警告",
                 attention_codes=set(disagreement),
             ),
-            "COLLECTION_RISK": _risk_dimension("COLLECTION_RISK", collection, "采集运行未见异常"),
+            "COLLECTION_RISK": _collection_risk_dimension(card, collection),
         },
     }
 
@@ -90,6 +90,62 @@ def _risk_dimension(
     }
 
 
+def _collection_risk_dimension(
+    card: Mapping[str, Any],
+    incident_reasons: Sequence[str],
+) -> dict[str, Any]:
+    refresh = _mapping(card.get("data_refresh"))
+    status = str(refresh.get("odds_status") or "").upper()
+    source_as_of = str(refresh.get("last_refresh_hint") or "") or None
+    if incident_reasons:
+        return {
+            **_risk_dimension("COLLECTION_RISK", incident_reasons, ""),
+            "assessment_status": "ASSESSED_INCIDENT",
+            "evidence_basis": status or "PERSISTED_COLLECTION_INCIDENT",
+            "source_as_of": source_as_of,
+        }
+    freshness = {
+        str(
+            _mapping(_mapping(_mapping(market).get("current")).get("freshness")).get(
+                "status"
+            )
+            or ""
+        ).upper()
+        for market in _mapping(_mapping(card.get("market_radar")).get("markets")).values()
+    }
+    if status == "READY" and source_as_of and "FRESH" in freshness:
+        return {
+            **_risk_dimension("COLLECTION_RISK", [], "采集状态已有新鲜持久化证据"),
+            "assessment_status": "ASSESSED_CURRENT",
+            "evidence_basis": "PERSISTED_ODDS_CAPTURE_AND_MARKET_FRESHNESS",
+            "source_as_of": source_as_of,
+        }
+    if status == "READY" and source_as_of and "STALE" in freshness:
+        return {
+            **_risk_dimension(
+                "COLLECTION_RISK",
+                ["COLLECTION_ASSESSMENT_STALE"],
+                "",
+                attention_codes={"COLLECTION_ASSESSMENT_STALE"},
+            ),
+            "assessment_status": "STALE",
+            "evidence_basis": "PERSISTED_ODDS_CAPTURE_STALE",
+            "source_as_of": source_as_of,
+        }
+    reason = "COLLECTION_ASSESSMENT_NOT_AVAILABLE"
+    return {
+        **_risk_dimension(
+            "COLLECTION_RISK",
+            [reason],
+            "",
+            attention_codes={reason},
+        ),
+        "assessment_status": "UNASSESSED",
+        "evidence_basis": status or "NO_PERSISTED_TERMINAL_OR_CAPTURE_EVIDENCE",
+        "source_as_of": source_as_of,
+    }
+
+
 def _collection_reasons(card: Mapping[str, Any]) -> list[str]:
     reasons: list[str] = []
     if str(card.get("provider_budget_status") or "").upper() == "EXHAUSTED":
@@ -97,6 +153,9 @@ def _collection_reasons(card: Mapping[str, Any]) -> list[str]:
     projection_health = _mapping(card.get("projection_health"))
     if str(projection_health.get("status") or "").upper() == "SYSTEM_DEGRADED":
         reasons.append("COLLECTION_SYSTEM_DEGRADED")
+    odds_status = str(_mapping(card.get("data_refresh")).get("odds_status") or "").upper()
+    if odds_status in {"PROVIDER_EMPTY", "MARKET_UNAVAILABLE"}:
+        reasons.append(f"COLLECTION_{odds_status}")
     for code in _source_reason_codes(card):
         if any(
             marker in code for marker in ("PROVIDER", "SCHEDULER", "SCHEMA", "RUNTIME", "QUOTA")

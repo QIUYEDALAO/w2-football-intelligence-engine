@@ -19,6 +19,7 @@ declared availability/readiness state and never authorize fabrication.
 |---|---|---|---|---|---|
 | `schema_version` | P2 schema constant | `AVAILABLE` | `NONE` | exact v1 literal | `true` |
 | `generated_at`, `date`, `timezone`, `window` | existing DayView envelope | `AVAILABLE` | `PAGE_PROJECTION` | source values preserved | `true` |
+| `football_day_timezone`, `football_day_cutoff_hour`, `football_day_start_utc`, `football_day_end_utc` | existing football-day boundary projected through Dashboard -> DayView | `AVAILABLE` | `FIXTURES` | exact configured timezone/cutoff and half-open UTC window; frontend does not reconstruct | `true` |
 | `source` | P2 adapter constant | `AVAILABLE` | `NONE` | checkpoint + pure projections only | `true` |
 | `selected_fixture_id` | first frozen Attention/Match order row or null | `AVAILABLE` | `FIXTURES` | null when no matches | `true` |
 | `read_contract.provider_calls` | DayView read invariant | `AVAILABLE` | `NONE` | must equal 0 | `true` |
@@ -45,6 +46,7 @@ declared availability/readiness state and never authorize fabrication.
 | `attention[].readiness_context` | Decision/Data Readiness `reason_code`, `missing_fields`, `stale_fields`, `action` | `AVAILABLE` | relevant source domains | source blockers/context preserved; no frontend reconstruction | `true` |
 | `attention[].next_eval_at` | Decision Contract | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | relevant source domains | null when source has no next evaluation | `true` |
 | `attention[].risks` | DayView `risk_dimensions` | `AVAILABLE` | relevant source domains | exact `EVENT_RISK`/`DATA_RISK`/`MODEL_RISK`/`COLLECTION_RISK`; no extra/missing axis | `true` |
+| `attention[].risks.COLLECTION_RISK.assessment_status`, `evidence_basis`, `source_as_of` | persisted terminal/capture assessment evidence | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `ODDS_PREMATCH` | `OK` requires current persisted assessment; missing evidence is `UNASSESSED`, not green and not incident | `true` |
 | `matches[].fixture_id`, `competition_id`, `competition_name` | DayView card identity | `AVAILABLE` | `FIXTURES` | missing identity fails existing DayView contract | `true` |
 | `matches[].kickoff_utc`, `home_team_name`, `away_team_name`, `status` | DayView card identity | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `FIXTURES` | null only when existing source lacks optional display name/status | `true` |
 | `matches[].intelligence_state`, `intelligence_reason_codes`, `risks` | existing intelligence projection | `AVAILABLE` | relevant source domains | exact seven states and exact four production-shaped risk axes; fail closed | `true` |
@@ -67,6 +69,7 @@ declared availability/readiness state and never authorize fabrication.
 | `matches[].w2_analysis.proof_status` | approved P0 constant | `NOT_PROVEN` | `NONE` | never recommendation confidence | `true` |
 | `matches[].w2_analysis.decision_tier`, `analysis_state`, `reason_codes` | DayView diagnostic fields | `AVAILABLE` | relevant domains | compatibility tier is diagnostic input only | `true` |
 | `matches[].w2_analysis.model_view` | canonical DayView simulation | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | pass-through status/payload, no simulation | `true` |
+| `matches[].w2_analysis.model_view.source_status`, `matches[].model_lab.w2_model.source_status` | existing simulation status | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | source status retained; public status is `PRIOR_ONLY` when calibration is `BASELINE_PRIOR` | `true` |
 | `matches[].w2_analysis.model_market_relation` | Model Lab diagnostics | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `ODDS_PREMATCH` | outside range is warning, not opportunity | `true` |
 | `matches[].formal_recommendation.status`, `reason` | approved P0/runtime authority | `AVAILABLE` | `NONE` | fixed `OFF` + `PRODUCT_AUTHORITY_DISABLED` | `true` |
 
@@ -102,21 +105,25 @@ declared availability/readiness state and never authorize fabrication.
 | `validation.probability.checkpoint_metadata` | checkpoint key/hash/time | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | missing checkpoint => `INSUFFICIENT` | `true` |
 | `validation.directional.status`, `validation_n`, `decisive_n`, `correct`, `wrong`, `push`, `void`, `direction_accuracy`, `effective_n` | global cohort canonical counts | `AVAILABLE` | `PAGE_PROJECTION` | secondary hierarchy; accuracy null below source gate | `true` |
 | `validation.directional.source_status`, `probability_evidence_ready` | canonical directional rate status + same-cohort Brier/LogLoss/ECE readiness | `AVAILABLE` | `PAGE_PROJECTION` | public `AVAILABLE` fails closed unless primary probability evidence is ready; source status remains auditable | `true` |
-| `validation.directional.market_direction_benchmark` | approved P0 constant | `NOT_DEFINED` | `NONE` | never zero/estimated | `true` |
+| `validation.directional.only_record_reason`, `market_direction_benchmark` | probability readiness plus approved P0 constant | mixed explicit | `PAGE_PROJECTION` / `NONE` | exact reason for record-only direction; market direction benchmark remains `NOT_DEFINED`, never zero/estimated | `true` |
 | `validation.league_performance[]` fields | `performance:cohort:league:*` | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | `AVAILABLE/SAMPLE_BUILDING/INSUFFICIENT` | `true` |
-| `validation.league_performance[].source_league`, `competition_id`, `canonical_competition_id`, `competition_name`, `identity_status` | performance checkpoint identity resolved by existing `CompetitionRegistry` provider mapping | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | legacy `competition_id` remains the source checkpoint key; unresolved numeric identity is explicit and never displayed bare | `true` |
+| `validation.league_performance[].source_league`, `competition_id`, `canonical_competition_id`, `competition_name`, `identity_status` | performance checkpoint identity resolved by existing `CompetitionRegistry` provider mapping | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | `competition_id` is canonical when resolved; the original alias remains in `source_league`; unresolved identity is explicit and never displayed bare | `true` |
+| `validation.league_performance[].source_aliases`, `source_checkpoint_keys`, `scope_group`, `aggregation_status` | canonical aggregation adapter over cohort and deduplicated `performance:fixture:*` evidence | `AVAILABLE` | `PAGE_PROJECTION` | at most one public row per canonical league; ambiguous aggregate-only overlap is `CONFLICT`, never percentage-averaged | `true` |
 | `validation.league_performance[].log_loss`, `source_statistical_status`, `probability_evidence_ready` | same league performance checkpoint | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | public status requires source availability plus Brier/LogLoss/ECE; stored source status is unchanged | `true` |
+| `validation.league_performance[].only_record_reason`, `market_direction_benchmark` | canonical probability readiness and approved P0 constant | `AVAILABLE` | `PAGE_PROJECTION` / `NONE` | record-only reason is explicit; benchmark remains `NOT_DEFINED` | `true` |
+| `validation.tournament_performance[]` | same canonical performance aggregation, tournament scope only | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | World Cup/cup and other non-league evidence is retained outside national-league performance | `true` |
 | `validation.forward_validation_records` | bounded forward-ledger checkpoint adapter | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | counts/outcomes/exclusions only; no CLV/ROI | `true` |
 | `validation.forward_validation_records.excluded_share`, `excluded_by_reason` | persisted `validation_excluded_by_reason` / canonical exclusion distribution | `AVAILABLE` | `PAGE_PROJECTION` | source-bound counts; share is excluded/validation count; zero only for an empty denominator | `true` |
 | `validation.history_replay.known_at`, `reason_summary`, `outcome_tracking_summary`, `card_hash_checks`, `replay_gaps` | existing replay front door over same DayView | `AVAILABLE` | `PAGE_PROJECTION` | existing history evidence preserved; read only | `true` |
 | `validation.history_replay.decision_summary` | existing replay front-door `decision_summary` | `AVAILABLE` | `PAGE_PROJECTION` | exact total/tier/data-status/lock-eligible counts answer what W2 judged; no second replay engine | `true` |
 
-League rows preserve the original `source_league`/`competition_id`, resolve
+League rows preserve all `source_aliases` and `source_checkpoint_keys`, resolve
 `canonical_competition_id`/`competition_name` with explicit `identity_status`, and expose
 `validation_n`, `decisive_n`, `correct`, `wrong`, `push`, `void`, raw
 `direction_accuracy`, `brier`, `log_loss`, `calibration`, public
 `statistical_status`, `source_statistical_status`, and
-`probability_evidence_ready`.
+`probability_evidence_ready`. Public UI uses canonical Chinese names; raw aliases and
+checkpoint identities remain available only in technical details.
 
 ## External Intelligence, freshness and Data/Ops
 

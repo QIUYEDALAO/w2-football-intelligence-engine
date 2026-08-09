@@ -44,6 +44,12 @@ def build_dashboard_intelligence_workspace(
         "date": _text(day_view.get("date"), day_view.get("football_day")),
         "timezone": _text(day_view.get("timezone"), "Asia/Shanghai"),
         "window": _text(day_view.get("window"), "today"),
+        "football_day_timezone": _text(
+            day_view.get("football_day_timezone"), day_view.get("timezone"), "Asia/Shanghai"
+        ),
+        "football_day_cutoff_hour": max(0, _int(day_view.get("football_day_cutoff_hour"))),
+        "football_day_start_utc": day_view.get("football_day_start_utc"),
+        "football_day_end_utc": day_view.get("football_day_end_utc"),
         "source": "dashboard_day_view+performance_checkpoint+replay_front_door",
         "selected_fixture_id": matches[0]["fixture_id"] if matches else None,
         "read_contract": {
@@ -108,6 +114,11 @@ def _match(card: Mapping[str, Any]) -> dict[str, Any]:
     primary = next((market for market in markets.values() if market["main_line"]), None)
     simulation = _mapping(card.get("simulation"))
     inner_simulation = _mapping(simulation.get("simulation"))
+    source_model_status = _text(simulation.get("status"), "UNAVAILABLE")
+    calibration_status = _optional_text(inner_simulation.get("calibration_status"))
+    public_model_status = (
+        "PRIOR_ONLY" if calibration_status == "BASELINE_PRIOR" else source_model_status
+    )
     model_markets = _mapping(model_lab.get("markets"))
     relation = {
         name: _model_relation(_mapping(model_markets.get(name)), name)
@@ -153,7 +164,8 @@ def _match(card: Mapping[str, Any]) -> dict[str, Any]:
             "analysis_state": _text(card.get("analysis_state"), card.get("intelligence_state")),
             "reason_codes": _string_list(card.get("intelligence_reason_codes")),
             "model_view": {
-                "status": _text(simulation.get("status"), "UNAVAILABLE"),
+                "status": public_model_status,
+                "source_status": source_model_status,
                 "model_version": _optional_text(inner_simulation.get("model_version")),
                 "calibration_version": _optional_text(inner_simulation.get("calibration_version")),
                 "calibration_status": _optional_text(inner_simulation.get("calibration_status")),
@@ -175,7 +187,8 @@ def _match(card: Mapping[str, Any]) -> dict[str, Any]:
         "model_lab": {
             "schema_version": _text(model_lab.get("schema_version"), "w2.model-lab.v1"),
             "w2_model": {
-                "status": _text(simulation.get("status"), "UNAVAILABLE"),
+                "status": public_model_status,
+                "source_status": source_model_status,
                 "model_version": _optional_text(inner_simulation.get("model_version")),
                 "calibration_status": _optional_text(inner_simulation.get("calibration_status")),
             },
@@ -292,6 +305,7 @@ def _validation(forward: Mapping[str, Any], replay: Mapping[str, Any]) -> dict[s
     outcomes = _mapping(forward.get("outcomes_canonical"))
     cohort = _mapping(forward.get("performance_cohort"))
     leagues = _mapping_list(cohort.get("by_league"))
+    tournaments = _mapping_list(cohort.get("by_tournament"))
     probability_ready = _probability_evidence_ready(probability)
     source_directional_status = _directional_status(outcomes)
     validation_count = max(0, _int(cohort.get("validation_count")))
@@ -345,8 +359,16 @@ def _validation(forward: Mapping[str, Any], replay: Mapping[str, Any]) -> dict[s
             "direction_accuracy": _number(outcomes.get("hit_rate")),
             "effective_n": max(0, _int(outcomes.get("decisive_count"))),
             "market_direction_benchmark": "NOT_DEFINED",
+            "only_record_reason": (
+                None
+                if probability_ready and source_directional_status == "AVAILABLE"
+                else "PROBABILITY_QUALITY_NOT_READY"
+                if source_directional_status == "AVAILABLE"
+                else "SAMPLE_INSUFFICIENT"
+            ),
         },
         "league_performance": [_league(row) for row in leagues],
+        "tournament_performance": [_league(row) for row in tournaments],
         "forward_validation_records": {
             "status": "AVAILABLE" if forward else "INSUFFICIENT",
             "validation_count": validation_count,
@@ -396,9 +418,23 @@ def _league(row: Mapping[str, Any]) -> dict[str, Any]:
         _number(row.get(field)) is not None
         for field in ("model_brier", "model_log_loss", "model_ece")
     )
+    aggregation_status = _text(row.get("aggregation_status"), "SOURCE_CHECKPOINT")
+    only_record_reason = (
+        None
+        if probability_ready
+        else "AGGREGATION_CONFLICT"
+        if aggregation_status == "CONFLICT"
+        else "PROBABILITY_QUALITY_NOT_READY"
+        if source_status == "AVAILABLE"
+        else "SAMPLE_INSUFFICIENT"
+    )
     return {
         "league": _text(row.get("league"), row.get("competition_id")),
         "source_league": _text(row.get("source_league"), row.get("league")),
+        "source_aliases": _string_list(row.get("source_aliases")),
+        "source_checkpoint_keys": _string_list(row.get("source_checkpoint_keys")),
+        "scope_group": _text(row.get("scope_group"), "UNRESOLVED"),
+        "aggregation_status": aggregation_status,
         "competition_id": _text(row.get("competition_id"), row.get("league")),
         "canonical_competition_id": _optional_text(row.get("canonical_competition_id")),
         "competition_name": _optional_text(row.get("competition_name")),
@@ -427,6 +463,8 @@ def _league(row: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "source_statistical_status": source_status,
         "probability_evidence_ready": probability_ready,
+        "only_record_reason": only_record_reason,
+        "market_direction_benchmark": "NOT_DEFINED",
     }
 
 

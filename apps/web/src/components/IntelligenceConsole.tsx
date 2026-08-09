@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { translateCompetition, translateReason, translateTeam } from "../lib/formatters";
+import { CANONICAL_COMPETITION_LABELS } from "../lib/labels";
 import type {
   IntelligenceState,
   IntelligenceWorkspace,
@@ -79,6 +80,7 @@ const STATUS_LABELS: Record<string, string> = {
   PROTECTED: "额度受保护",
   PROTECTED_DEGRADED: "额度受保护（降级）",
   PRICE_MOVEMENT: "盘口变化",
+  PRIOR_ONLY: "仅先验",
   PROVIDER_EMPTY: "来源数据为空",
   READY: "就绪",
   SAMPLE_BUILDING: "样本积累中",
@@ -167,8 +169,24 @@ function providerBudgetLabel(value: string): string {
 }
 
 function leagueName(league: IntelligenceWorkspace["validation"]["league_performance"][number]): string {
-  if (league.identity_status === "RESOLVED" && league.competition_name) return translateCompetition(league.competition_name);
-  return `联赛名称待解析（ID: ${league.source_league}）`;
+  if (league.identity_status === "RESOLVED" && league.canonical_competition_id) return CANONICAL_COMPETITION_LABELS[league.canonical_competition_id] || "赛事名称待解析";
+  return "赛事名称待解析";
+}
+
+function competitionName(competitionId: string | null, sourceName: string | null): string {
+  if (competitionId && CANONICAL_COMPETITION_LABELS[competitionId]) return CANONICAL_COMPETITION_LABELS[competitionId];
+  return sourceName ? translateCompetition(sourceName) : "赛事名称待解析";
+}
+
+function onlyRecordLabel(reason: string | null): string {
+  if (reason === "PROBABILITY_QUALITY_NOT_READY") return "仅记录（概率质量未就绪）";
+  if (reason === "AGGREGATION_CONFLICT") return "仅记录（聚合冲突）";
+  return "仅记录（样本不足）";
+}
+
+function footballDayWindow(workspace: IntelligenceWorkspace): string {
+  const format = (value: string | null) => value ? new Intl.DateTimeFormat("zh-CN", { timeZone: workspace.football_day_timezone, month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(value)).replaceAll("/", "-") : "待确认";
+  return `比赛日 ${workspace.date} · 北京时间 ${format(workspace.football_day_start_utc)} 至 ${format(workspace.football_day_end_utc)}（不含）`;
 }
 
 function matchName(match: WorkspaceMatch): string {
@@ -202,8 +220,9 @@ function RiskGrid({ match }: { match: WorkspaceMatch }) {
     <div className="workspace-risk-grid" aria-label="四轴风险">
       {(Object.keys(RISK_LABELS) as RiskAxisName[]).map((axis) => {
         const risk = match.risks[axis];
-        const summary = risk.status === "OK" ? "当前未见风险证据" : "需要复核相关证据";
-        return <div className={`workspace-risk workspace-risk--${risk.status.toLowerCase()}`} data-risk-axis={axis} key={axis} title={`${axis}: ${risk.explanation}`}><span>{RISK_LABELS[axis]}</span><strong>{label(risk.status)}</strong><small>{summary}</small></div>;
+        const unassessed = axis === "COLLECTION_RISK" && risk.assessment_status === "UNASSESSED";
+        const summary = unassessed ? "采集状态无法评估" : risk.status === "OK" ? "当前未见风险证据" : "需要复核相关证据";
+        return <div className={`workspace-risk workspace-risk--${risk.status.toLowerCase()}`} data-assessment-status={risk.assessment_status || undefined} data-risk-axis={axis} key={axis} title={`${axis}: ${risk.explanation}`}><span>{RISK_LABELS[axis]}</span><strong>{unassessed ? "未评估" : label(risk.status)}</strong><small>{summary}</small></div>;
       })}
     </div>
   );
@@ -212,20 +231,24 @@ function RiskGrid({ match }: { match: WorkspaceMatch }) {
 function Attention({ generatedAt, items, matches, onSelect }: { generatedAt: string | null; items: WorkspaceAttentionItem[]; matches: WorkspaceMatch[]; onSelect: (id: string) => void }) {
   const [expanded, setExpanded] = useState(false);
   const nameById = new Map(matches.map((match) => [match.fixture_id, matchName(match)]));
-  const visible = expanded ? items : items.slice(0, 5);
+  const blocker = (item: WorkspaceAttentionItem) => item.reason_codes[0]?.split("_")[0] || item.intelligence_state;
+  const homogeneous = items.length > 1 && items.length === matches.length && items.every((item) => item.intelligence_state === items[0].intelligence_state && blocker(item) === blocker(items[0]));
+  const visible = expanded ? items : homogeneous ? [] : items.slice(0, 5);
   return (
     <section className="workspace-panel attention-panel" id="attention" data-ui="attention">
-      <SectionHeading eyebrow="优先级情报流" title="关注情报" detail={`${items.length} 条`} />
+      <SectionHeading eyebrow="优先级情报流" title="关注情报" detail={homogeneous ? `1 组 · ${items.length} 场` : `${items.length} 条`} />
       <div className="attention-table" data-ui="attention-feed" role="list">
-        {visible.length ? visible.map((item) => (
+        {homogeneous && !expanded ? <button className="attention-row attention-aggregate" data-intelligence-state={items[0].intelligence_state} data-ui="attention-aggregate" onClick={() => setExpanded(true)} role="listitem" type="button"><div><StateBadge state={items[0].intelligence_state} /><strong>当日阻塞 · {items.length} 场比赛全部{STATE_LABELS[items[0].intelligence_state]}</strong></div><p>{translateReason(items[0].reason_codes[0])}</p><small>展开 {items.length} 场比赛</small></button> : null}
+        {visible.map((item) => (
           <button className="attention-row" data-intelligence-state={item.intelligence_state} key={item.fixture_id} onClick={() => onSelect(item.fixture_id)} role="listitem" title={`${item.factual_summary} · 影响 ${item.affected_domains.join(" · ")} · ${item.reason_codes.join(" · ")} · ${item.readiness_context.reason_code || "NO_REASON_CODE"} · next_eval_at=${item.next_eval_at || "TIME_NOT_AVAILABLE"}`} type="button">
             <div><StateBadge state={item.intelligence_state} /><strong>{nameById.get(item.fixture_id) || item.fixture_id}</strong><time>{localTime(item.kickoff_utc)}</time></div>
             <p>{STATE_LABELS[item.intelligence_state]} · {item.reason_codes.slice(0, 1).map(translateReason).join("；") || label(item.readiness_status)}</p>
             <small>影响：{item.affected_domains.map((domain) => label(domain)).join(" · ") || "待确认"} · {nextEvaluation(item.next_eval_at, generatedAt)}</small>
           </button>
-        )) : <div className="workspace-empty"><strong>暂无关注项</strong><span>读取模型明确返回空比赛日。</span></div>}
+        ))}
+        {!items.length ? <div className="workspace-empty"><strong>暂无关注项</strong><span>读取模型明确返回空比赛日。</span></div> : null}
       </div>
-      {items.length > 5 ? <button className="text-action" onClick={() => setExpanded((value) => !value)} type="button">{expanded ? "收起" : `查看全部（${items.length}）`}</button> : null}
+      {(homogeneous && expanded) || (!homogeneous && items.length > 5) ? <button className="text-action" onClick={() => setExpanded((value) => !value)} type="button">{expanded ? "收起" : `查看全部（${items.length}）`}</button> : null}
     </section>
   );
 }
@@ -236,7 +259,7 @@ function MatchBoard({ matches, selectedId, onSelect }: { matches: WorkspaceMatch
       <SectionHeading eyebrow="13 联赛观察池" title="今日比赛" detail={`${matches.length} 场`} />
       {matches.length ? <div className="match-board-table"><div className="match-board-head"><span>时间 / 联赛</span><span>比赛</span><span>状态</span><span>主盘口</span></div><div className="match-board-body">{matches.map((match) => (
         <button aria-pressed={match.fixture_id === selectedId} className={match.fixture_id === selectedId ? "match-board-row is-selected" : "match-board-row"} data-fixture-id={match.fixture_id} key={match.fixture_id} onClick={() => onSelect(match.fixture_id)} type="button">
-          <span><time>{localTime(match.kickoff_utc)}</time><small>{translateCompetition(match.competition_name || match.competition_id)}</small></span>
+          <span><time>{localTime(match.kickoff_utc)}</time><small>{competitionName(match.competition_id, match.competition_name)}</small></span>
           <strong>{matchName(match)}</strong>
           <span><StateBadge state={match.intelligence_state} /><small>{label(match.readiness.status)}</small></span>
           <b className="match-board-market">{marketFactLabel(match)}</b>
@@ -250,7 +273,7 @@ function Inspector({ generatedAt, match }: { generatedAt: string | null; match: 
   if (!match) return <section className="workspace-panel workspace-empty inspector-panel" data-ui="match-inspector"><strong>尚未选择比赛</strong><span>只有真实比赛存在时才会显示分析。</span></section>;
   return (
     <section className="workspace-panel inspector-panel" data-ui="match-inspector">
-      <SectionHeading eyebrow={`比赛 ${match.fixture_id}`} title={matchName(match)} detail={`${translateCompetition(match.competition_name || match.competition_id)} · ${localTime(match.kickoff_utc)}`} />
+      <SectionHeading eyebrow={`比赛 ${match.fixture_id}`} title={matchName(match)} detail={`${competitionName(match.competition_id, match.competition_name)} · ${localTime(match.kickoff_utc)}`} />
       <div className="selected-summary"><div><StateBadge state={match.intelligence_state} /><span>{label(match.readiness.status)}</span></div><strong>{marketFactLabel(match)}</strong><small>当前主盘口事实</small></div>
       <div className="inspector-grid">
         <div><span>W2 分析</span><strong>{label(match.w2_analysis.status)}</strong><small>{label(match.w2_analysis.proof_status)}</small></div>
@@ -262,7 +285,7 @@ function Inspector({ generatedAt, match }: { generatedAt: string | null; match: 
       <RiskGrid match={match} />
       <div className="readiness-strip"><KeyValue label="就绪状态" value={label(match.readiness.status)} /><KeyValue label="阵容预期" value={label(match.readiness.lineup_expectation)} /><KeyValue label="阵容状态" value={label(match.readiness.lineup_status)} /><KeyValue label="评估时间" value={nextEvaluation(match.readiness.next_eval_at, generatedAt)} /></div>
       <div className="reason-summary">{match.intelligence_reason_codes.slice(0, 2).map((reason) => <span key={reason}>{translateReason(reason)}</span>)}</div>
-      <TechnicalDetails><code>{match.intelligence_state}</code><code>{match.w2_analysis.status}</code><code>{match.w2_analysis.proof_status}</code><code>{match.formal_recommendation.reason}</code><code>{match.readiness.reason_code || "NO_REASON_CODE"}</code><code>next_eval_at={match.readiness.next_eval_at || "NOT_AVAILABLE"}</code><code>{match.readiness.lineup_expectation || "NOT_AVAILABLE"}</code><code>{match.readiness.lineup_status || "NOT_AVAILABLE"}</code>{match.intelligence_reason_codes.map((reason) => <code key={reason}>{reason}</code>)}</TechnicalDetails>
+      <TechnicalDetails><code>{match.intelligence_state}</code><code>{match.w2_analysis.status}</code><code>model_source_status={match.w2_analysis.model_view.source_status}</code><code>{match.w2_analysis.proof_status}</code><code>{match.formal_recommendation.reason}</code><code>{match.readiness.reason_code || "NO_REASON_CODE"}</code><code>next_eval_at={match.readiness.next_eval_at || "NOT_AVAILABLE"}</code><code>{match.readiness.lineup_expectation || "NOT_AVAILABLE"}</code><code>{match.readiness.lineup_status || "NOT_AVAILABLE"}</code><code>collection_assessment={match.risks.COLLECTION_RISK.assessment_status || "UNASSESSED"}</code><code>collection_evidence={match.risks.COLLECTION_RISK.evidence_basis || "NOT_AVAILABLE"}</code><code>collection_source_as_of={match.risks.COLLECTION_RISK.source_as_of || "NOT_AVAILABLE"}</code>{match.intelligence_reason_codes.map((reason) => <code key={reason}>{reason}</code>)}</TechnicalDetails>
     </section>
   );
 }
@@ -326,7 +349,7 @@ function Validation({ workspace }: { workspace: IntelligenceWorkspace }) {
   return (
     <section className="workspace-panel validation-panel" id="validation" data-ui="validation">
       <SectionHeading eyebrow="概率质量优先" title="赛后验证 / 前向验证" detail={label(probability.status)} />
-      <div className="validation-summary"><KeyValue label="W2 Brier" value={decimal(probability.model_brier)} /><KeyValue label="市场 Brier" value={decimal(probability.market_brier)} /><KeyValue label="W2 LogLoss" value={decimal(probability.model_log_loss)} /><KeyValue label="校准误差" value={decimal(probability.model_calibration_error)} /><KeyValue label="方向记录" value={directionReady ? percent(directional.direction_accuracy) : "仅作样本记录"} /><KeyValue label="有效样本" value={directional.effective_n} /></div>
+      <div className="validation-summary"><KeyValue label="W2 Brier" value={decimal(probability.model_brier)} /><KeyValue label="市场 Brier" value={decimal(probability.market_brier)} /><KeyValue label="W2 LogLoss" value={decimal(probability.model_log_loss)} /><KeyValue label="校准误差" value={decimal(probability.model_calibration_error)} /><KeyValue label="方向记录" value={directionReady ? percent(directional.direction_accuracy) : onlyRecordLabel(directional.only_record_reason)} /><KeyValue label="市场方向基准" value={label(directional.market_direction_benchmark)} /><KeyValue label="有效样本" value={directional.effective_n} /></div>
       {!directionReady ? <p className="probability-warning">概率质量证据不足，方向指标仅作样本记录</p> : null}
       <div className="forward-strip"><span>前向记录</span><strong>{label(forward.status)}</strong><small>验证 {forward.validation_count} · 可纳入 {forward.eligible_count} · 排除 {forward.excluded_count}（{percent(forward.excluded_share)}）· 待定 {forward.pending_count}</small><span>命中 {text(forward.outcomes.hit_count)} / 未命中 {text(forward.outcomes.miss_count)} / 走盘 {text(forward.outcomes.push_count)} / 无效 {text(forward.outcomes.void_count)}</span></div>
       {forward.excluded_count ? <div className="exclusion-reasons" data-ui="exclusion-reasons"><strong>排除原因</strong>{excludedReasons.length ? excludedReasons.map(([reason, count]) => <span key={reason}>{EXCLUSION_REASON_LABELS[reason] || "其他已记录原因"} <b>{count}</b></span>) : <span>排除原因尚未投影</span>}</div> : null}
@@ -337,10 +360,13 @@ function Validation({ workspace }: { workspace: IntelligenceWorkspace }) {
 
 function LeaguePerformance({ workspace }: { workspace: IntelligenceWorkspace }) {
   const leagues = workspace.validation.league_performance;
+  const tournaments = workspace.validation.tournament_performance;
+  const table = (rows: typeof leagues) => <div className="league-table"><div className="league-table-head"><span>赛事</span><span>验证 N</span><span>有效 N</span><span>方向记录</span><span>Brier</span><span>状态</span></div>{rows.length ? rows.map((league) => <div className="league-table-row" key={league.canonical_competition_id || league.source_league}><strong>{leagueName(league)}</strong><span>{league.validation_n}</span><span>{league.decisive_n}</span><span>{league.probability_evidence_ready ? percent(league.direction_accuracy) : onlyRecordLabel(league.only_record_reason)}</span><span>{decimal(league.brier)}</span><span title={league.statistical_status}>{label(league.statistical_status)}</span><TechnicalDetails><code>source_aliases={league.source_aliases.join(",") || "NONE"}</code><code>source_checkpoints={league.source_checkpoint_keys.join(",") || "NONE"}</code><code>canonical_competition_id={league.canonical_competition_id || "UNRESOLVED"}</code><code>scope_group={league.scope_group}</code><code>aggregation_status={league.aggregation_status}</code><code>identity_status={league.identity_status}</code><code>only_record_reason={league.only_record_reason || "NOT_APPLICABLE"}</code><code>market_direction_benchmark={league.market_direction_benchmark}</code><code>source_status={league.source_statistical_status}</code><code>log_loss={league.log_loss ?? "NOT_AVAILABLE"}</code><code>calibration={league.calibration ?? "NOT_AVAILABLE"}</code></TechnicalDetails></div>) : <div className="workspace-empty"><span>样本仍在积累。</span></div>}</div>;
   return (
     <section className="workspace-panel league-panel" data-ui="league-performance">
-      <SectionHeading eyebrow="分联赛样本" title="联赛表现" detail={`有验证样本的联赛 ${leagues.length}（运行白名单 13）`} />
-      <div className="league-table"><div className="league-table-head"><span>联赛</span><span>验证 N</span><span>有效 N</span><span>方向记录</span><span>Brier</span><span>状态</span></div>{leagues.length ? leagues.map((league) => <div className="league-table-row" key={`${league.source_league}-${league.league}`}><strong>{leagueName(league)}</strong><span>{league.validation_n}</span><span>{league.decisive_n}</span><span>{league.probability_evidence_ready ? percent(league.direction_accuracy) : "仅记录"}</span><span>{decimal(league.brier)}</span><span title={league.statistical_status}>{label(league.statistical_status)}</span><TechnicalDetails><code>source_league={league.source_league}</code><code>canonical_competition_id={league.canonical_competition_id || "UNRESOLVED"}</code><code>identity_status={league.identity_status}</code><code>source_status={league.source_statistical_status}</code><code>log_loss={league.log_loss ?? "NOT_AVAILABLE"}</code><code>calibration={league.calibration ?? "NOT_AVAILABLE"}</code></TechnicalDetails></div>) : <div className="workspace-empty"><span>联赛样本仍在积累。</span></div>}</div>
+      <SectionHeading eyebrow="分赛事样本" title="联赛表现" detail={`国家联赛 ${leagues.length} · 杯赛 / 其他赛事 ${tournaments.length}（运行白名单 13）`} />
+      {table(leagues)}
+      {tournaments.length ? <div data-ui="tournament-performance"><h3>杯赛 / 其他赛事</h3>{table(tournaments)}</div> : null}
     </section>
   );
 }
@@ -398,7 +424,7 @@ export function IntelligenceConsole({ date, loading, onDateChange, onRefresh, wo
     <div className="unified-workspace" data-public-authority={workspace.runtime.public_dashboard_authority} data-schema-version={workspace.schema_version}>
       <aside className="workspace-sidebar"><a className="workspace-brand" href="#top"><span>W2</span><strong>INTELLIGENCE</strong><small>统一情报工作台</small></a><nav aria-label="工作台导航">{NAVIGATION.map(([target, item]) => <a href={`#${target}`} key={target}>{item}</a>)}</nav><div className="sidebar-health"><span>系统 / 数据健康</span><strong>{label(workspace.data_operations.system_health)}</strong><span>Provider 额度读取</span><small>{providerBudgetLabel(workspace.data_operations.provider_budget_status)}</small></div><div className="sidebar-contract"><strong>只读模式</strong><span>影子运行</span><span>{workspace.runtime.active_whitelist_count} 个联赛</span></div></aside>
       <main className="workspace-main" id="top">
-        <header className="workspace-topbar"><div className="topbar-title"><span>W2 INTELLIGENCE</span><strong>{workspace.date}</strong><small data-ui="header-context">{workspace.timezone} · {workspace.window === "today" ? "今日窗口" : workspace.window} · 更新 {localTime(workspace.generated_at)} · 系统 {label(workspace.data_operations.system_health)}</small></div><div className="topbar-status"><span>13 联赛</span><span>影子模式<small>SHADOW_ONLY</small></span><span>候选关闭<small>CANDIDATE OFF</small></span><span>正式关闭<small>FORMAL OFF</small></span><span>锁定关闭<small>LOCK OFF</small></span><span>生产关闭<small>PRODUCTION OFF</small></span></div><div className="topbar-actions"><label><span>日期（YYYY-MM-DD）</span><input aria-label="工作台日期" inputMode="numeric" onBlur={commitDate} onChange={(event) => setDateDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") commitDate(); }} pattern="\d{4}-\d{2}-\d{2}" type="text" value={dateDraft} /></label><button disabled={loading} onClick={onRefresh} type="button">{loading ? "读取中…" : "刷新"}</button></div></header>
+        <header className="workspace-topbar"><div className="topbar-title"><span>W2 INTELLIGENCE</span><strong>{workspace.date}</strong><small data-ui="football-day-boundary">{footballDayWindow(workspace)}</small><small data-ui="header-context">{workspace.timezone} · {workspace.window === "today" ? "今日窗口" : workspace.window} · 更新 {localTime(workspace.generated_at)} · 系统 {label(workspace.data_operations.system_health)}</small></div><div className="topbar-status"><span>13 联赛</span><span>影子模式<small>SHADOW_ONLY</small></span><span>候选关闭<small>CANDIDATE OFF</small></span><span>正式关闭<small>FORMAL OFF</small></span><span>锁定关闭<small>LOCK OFF</small></span><span>生产关闭<small>PRODUCTION OFF</small></span></div><div className="topbar-actions"><label><span>日期（YYYY-MM-DD）</span><input aria-label="工作台日期" inputMode="numeric" onBlur={commitDate} onChange={(event) => setDateDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") commitDate(); }} pattern="\d{4}-\d{2}-\d{2}" type="text" value={dateDraft} /></label><button disabled={loading} onClick={onRefresh} type="button">{loading ? "读取中…" : "刷新"}</button></div></header>
         <div className="workspace-authority"><span>唯一统一情报工作台</span><code>{workspace.schema_version}</code><strong>Provider 额度读取：{providerBudgetLabel(workspace.data_operations.provider_budget_status)}</strong></div>
         <div className="workspace-grid">
           <Attention generatedAt={workspace.generated_at} items={workspace.attention} matches={workspace.matches} onSelect={select} />

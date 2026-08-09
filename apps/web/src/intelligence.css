@@ -502,6 +502,20 @@ summary {
   background: rgba(120, 168, 221, 0.045);
 }
 
+.attention-aggregate {
+  border-color: rgba(93, 198, 191, 0.45);
+}
+
+[data-ui="tournament-performance"] {
+  margin-top: 14px;
+}
+
+[data-ui="tournament-performance"] > h3 {
+  margin: 0 0 8px;
+  color: var(--workspace-muted);
+  font-size: 12px;
+}
+
 .attention-row > div:first-child {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;

@@ -38,6 +38,10 @@ def _empty_day_view() -> dict[str, Any]:
         "environment": "staging",
         "timezone": "Asia/Shanghai",
         "window": "today",
+        "football_day_timezone": "Asia/Shanghai",
+        "football_day_cutoff_hour": 12,
+        "football_day_start_utc": "2026-08-09T04:00:00Z",
+        "football_day_end_utc": "2026-08-10T04:00:00Z",
         "source": "dashboard_read_model",
         "checkpoint_key": "dashboard:day_view:2026-08-09",
         "provider_calls": 0,
@@ -177,13 +181,22 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
     }
     assert {
         "source_league",
+        "source_aliases",
+        "source_checkpoint_keys",
+        "scope_group",
+        "aggregation_status",
         "competition_id",
         "canonical_competition_id",
         "competition_name",
         "identity_status",
         "source_statistical_status",
         "probability_evidence_ready",
+        "only_record_reason",
+        "market_direction_benchmark",
     } <= set(schemas["WorkspaceLeaguePerformance"]["properties"])
+    assert {"league_performance", "tournament_performance"} <= set(
+        schemas["WorkspaceValidation"]["properties"]
+    )
     assert {"excluded_share", "excluded_by_reason"} <= set(
         schemas["WorkspaceForwardValidationRecords"]["properties"]
     )

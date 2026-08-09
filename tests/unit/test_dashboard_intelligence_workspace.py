@@ -145,6 +145,10 @@ def _day_view() -> dict[str, Any]:
         "generated_at": "2026-08-09T02:00:00Z",
         "date": "2026-08-09",
         "football_day": "2026-08-09",
+        "football_day_timezone": "Asia/Shanghai",
+        "football_day_cutoff_hour": 12,
+        "football_day_start_utc": "2026-08-09T04:00:00Z",
+        "football_day_end_utc": "2026-08-10T04:00:00Z",
         "environment": "staging",
         "timezone": "Asia/Shanghai",
         "window": "today",
@@ -263,6 +267,10 @@ def test_workspace_is_deterministic_explicit_and_schema_valid() -> None:
         "no_call_on_read": True,
     }
     assert first["runtime"]["formal"] == "OFF"
+    assert first["football_day_timezone"] == "Asia/Shanghai"
+    assert first["football_day_cutoff_hour"] == 12
+    assert first["football_day_start_utc"] == "2026-08-09T04:00:00Z"
+    assert first["football_day_end_utc"] == "2026-08-10T04:00:00Z"
     assert first["attention"][0] == {
         "fixture_id": "fixture-zero",
         "kickoff_utc": "2026-08-10T10:00:00Z",
@@ -439,6 +447,86 @@ def test_public_statistical_readiness_requires_primary_probability_evidence() ->
     assert league["source_league"] == "103"
     assert league["canonical_competition_id"] == "eliteserien"
     assert league["competition_name"] == "Eliteserien"
+    assert league["only_record_reason"] == "PROBABILITY_QUALITY_NOT_READY"
+    assert league["market_direction_benchmark"] == "NOT_DEFINED"
+
+
+def test_baseline_prior_downgrades_public_model_readiness_consistently() -> None:
+    day_view = _day_view()
+    for card in day_view["cards"]:
+        card["simulation"]["status"] = "READY"
+        card["simulation"]["simulation"]["calibration_status"] = "BASELINE_PRIOR"
+
+    match = _workspace(day_view)["matches"][0]
+
+    assert match["w2_analysis"]["model_view"]["status"] == "PRIOR_ONLY"
+    assert match["w2_analysis"]["model_view"]["source_status"] == "READY"
+    assert match["model_lab"]["w2_model"]["status"] == "PRIOR_ONLY"
+    assert match["model_lab"]["w2_model"]["source_status"] == "READY"
+
+
+def test_tournament_performance_is_separate_from_league_performance() -> None:
+    day_view = _day_view()
+    forward = day_view["performance"]["forward_ledger"]
+    row = {
+        "league": "world_cup_2026",
+        "source_league": "1",
+        "source_aliases": ["1", "world_cup_2026"],
+        "source_checkpoint_keys": ["performance:cohort:league:1"],
+        "scope_group": "world_cup",
+        "aggregation_status": "FIXTURE_RECONSTRUCTED",
+        "competition_id": "world_cup_2026",
+        "canonical_competition_id": "world_cup_2026",
+        "competition_name": "World Cup",
+        "identity_status": "RESOLVED",
+        "processed_count": 1,
+        "rate_status": "INSUFFICIENT",
+        "model_brier": None,
+        "model_log_loss": None,
+        "model_ece": None,
+        "outcomes": {},
+    }
+    forward["performance_cohort"]["by_league"] = []
+    forward["performance_cohort"]["by_tournament"] = [row]
+
+    validation = _workspace(day_view)["validation"]
+
+    assert validation["league_performance"] == []
+    assert validation["tournament_performance"][0]["canonical_competition_id"] == (
+        "world_cup_2026"
+    )
+
+
+def test_workspace_schema_rejects_invalid_canonical_aggregation_state() -> None:
+    day_view = _day_view()
+    forward = day_view["performance"]["forward_ledger"]
+    forward["performance_cohort"]["by_league"] = [
+        {
+            "league": "allsvenskan",
+            "source_league": "113",
+            "source_aliases": ["113"],
+            "source_checkpoint_keys": ["performance:cohort:league:113"],
+            "scope_group": "national_leagues",
+            "aggregation_status": "FIXTURE_RECONSTRUCTED",
+            "competition_id": "allsvenskan",
+            "canonical_competition_id": "allsvenskan",
+            "competition_name": "Allsvenskan",
+            "identity_status": "RESOLVED",
+            "processed_count": 1,
+            "rate_status": "INSUFFICIENT",
+            "model_brier": None,
+            "model_log_loss": None,
+            "model_ece": None,
+            "outcomes": {},
+        }
+    ]
+    payload = _workspace(day_view)
+    payload["validation"]["league_performance"][0]["aggregation_status"] = "UNKNOWN"
+
+    with pytest.raises(ValueError):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "test-request", **payload}
+        )
 
 
 def test_exclusion_distribution_is_projected_without_side_effects() -> None:
@@ -484,6 +572,8 @@ def test_numeric_provider_league_ids_resolve_from_runtime_identity_authority(
 
     identities = repository_module._competition_identity_authority()
 
-    assert identities["1"] == ("competition_one", "Competition One")
-    assert identities["103"] == ("competition_103", "Competition 103")
+    assert identities["1"].competition_id == "competition_one"
+    assert identities["1"].name == "Competition One"
+    assert identities["103"].competition_id == "competition_103"
+    assert identities["103"].name == "Competition 103"
     assert "999" not in identities

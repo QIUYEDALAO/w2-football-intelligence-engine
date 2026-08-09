@@ -174,6 +174,10 @@ class DashboardDayViewResponse(BaseModel):
     date: str
     football_day: str
     selected_football_day: str
+    football_day_timezone: str
+    football_day_cutoff_hour: int
+    football_day_start_utc: str | None
+    football_day_end_utc: str | None
     environment: str
     environment_policy: dict[str, Any]
     timezone: str
@@ -221,6 +225,11 @@ class WorkspaceRiskDimension(BaseModel):
     status: Literal["OK", "ATTENTION", "INCIDENT"]
     reason_codes: list[str]
     explanation: str
+    assessment_status: Literal[
+        "ASSESSED_CURRENT", "ASSESSED_INCIDENT", "STALE", "UNASSESSED"
+    ] | None = None
+    evidence_basis: str | None = None
+    source_as_of: datetime | str | None = None
 
 
 class WorkspaceRisks(BaseModel):
@@ -333,6 +342,7 @@ class WorkspaceModelView(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     status: str
+    source_status: str
     model_version: str | None
     calibration_version: str | None
     calibration_status: str | None
@@ -381,6 +391,7 @@ class WorkspaceModelSummary(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     status: str
+    source_status: str
     model_version: str | None
     calibration_status: str | None
 
@@ -512,6 +523,9 @@ class WorkspaceDirectionalValidation(BaseModel):
     direction_accuracy: float | None
     effective_n: int = Field(ge=0)
     market_direction_benchmark: Literal["NOT_DEFINED"]
+    only_record_reason: Literal[
+        "PROBABILITY_QUALITY_NOT_READY", "SAMPLE_INSUFFICIENT"
+    ] | None
 
 
 class WorkspaceLeaguePerformance(BaseModel):
@@ -519,6 +533,12 @@ class WorkspaceLeaguePerformance(BaseModel):
 
     league: str
     source_league: str
+    source_aliases: list[str]
+    source_checkpoint_keys: list[str]
+    scope_group: str
+    aggregation_status: Literal[
+        "SOURCE_CHECKPOINT", "FIXTURE_RECONSTRUCTED", "CONFLICT"
+    ]
     competition_id: str
     canonical_competition_id: str | None
     competition_name: str | None
@@ -536,6 +556,10 @@ class WorkspaceLeaguePerformance(BaseModel):
     statistical_status: Literal["AVAILABLE", "SAMPLE_BUILDING", "INSUFFICIENT"]
     source_statistical_status: Literal["AVAILABLE", "SAMPLE_BUILDING", "INSUFFICIENT"]
     probability_evidence_ready: bool
+    only_record_reason: Literal[
+        "PROBABILITY_QUALITY_NOT_READY", "SAMPLE_INSUFFICIENT", "AGGREGATION_CONFLICT"
+    ] | None
+    market_direction_benchmark: Literal["NOT_DEFINED"]
 
 
 class WorkspaceForwardValidationRecords(BaseModel):
@@ -579,6 +603,7 @@ class WorkspaceValidation(BaseModel):
     probability: WorkspaceProbabilityValidation
     directional: WorkspaceDirectionalValidation
     league_performance: list[WorkspaceLeaguePerformance]
+    tournament_performance: list[WorkspaceLeaguePerformance]
     forward_validation_records: WorkspaceForwardValidationRecords
     history_replay: WorkspaceHistoryReplay
 
@@ -641,6 +666,10 @@ class DashboardIntelligenceWorkspaceResponse(BaseModel):
     date: str
     timezone: str
     window: str
+    football_day_timezone: str
+    football_day_cutoff_hour: int = Field(ge=0, le=23)
+    football_day_start_utc: datetime | str | None
+    football_day_end_utc: datetime | str | None
     source: Literal["dashboard_day_view+performance_checkpoint+replay_front_door"]
     selected_fixture_id: str | None
     read_contract: WorkspaceReadContract

@@ -47,13 +47,96 @@ def test_dashboard_ledger_projection_uses_bounded_performance_checkpoints() -> N
     assert cohort["eligible_count"] == 16
     assert cohort["excluded_count"] == 25
     assert [row["competition_id"] for row in cohort["by_league"]] == [
-        "103",
         "allsvenskan",
+        "eliteserien",
     ]
 
 
 def test_dashboard_ledger_projection_missing_checkpoint_is_not_fake_zero() -> None:
     assert _dashboard_forward_ledger_from_checkpoints([]) is None
+
+
+@pytest.mark.parametrize(
+    ("canonical_id", "provider_alias"),
+    [("allsvenskan", "113"), ("chinese_super_league", "169")],
+)
+def test_dashboard_ledger_canonicalizes_aliases_and_deduplicates_fixtures(
+    canonical_id: str,
+    provider_alias: str,
+) -> None:
+    fixture = _fixture(
+        "same-fixture",
+        clv_status="NOT_APPLICABLE_NO_PICK",
+        clv_decimal=None,
+        league=canonical_id,
+        canonical_outcome="HIT",
+    )
+    alias_fixture = Checkpoint(
+        key="performance:fixture:alias-view",
+        source_hash="hash:alias-view",
+        created_at=NOW,
+        payload={**fixture.payload, "league": provider_alias},
+    )
+    projected = _dashboard_forward_ledger_from_checkpoints(
+        [
+            _cohort("performance:cohort:all", finished=1, settled=1),
+            _cohort(
+                f"performance:cohort:league:{canonical_id}", finished=1, settled=1
+            ),
+            _cohort(
+                f"performance:cohort:league:{provider_alias}", finished=1, settled=1
+            ),
+        ],
+        fixture_rows=[fixture, alias_fixture],
+    )
+
+    assert projected is not None
+    rows = projected["performance_cohort"]["by_league"]
+    assert len(rows) == 1
+    assert rows[0]["canonical_competition_id"] == canonical_id
+    assert rows[0]["processed_count"] == 1
+    assert rows[0]["outcomes"]["hit_count"] == 1
+    assert rows[0]["source_aliases"] == sorted([canonical_id, provider_alias])
+    assert rows[0]["source_checkpoint_keys"] == sorted(
+        [
+            f"performance:cohort:league:{canonical_id}",
+            f"performance:cohort:league:{provider_alias}",
+            "performance:fixture:alias-view",
+            "performance:fixture:same-fixture",
+        ]
+    )
+    assert rows[0]["aggregation_status"] == "FIXTURE_RECONSTRUCTED"
+
+
+def test_dashboard_ledger_fails_closed_on_aggregate_only_alias_overlap() -> None:
+    projected = _dashboard_forward_ledger_from_checkpoints(
+        [
+            _cohort("performance:cohort:all", finished=2, settled=2),
+            _cohort("performance:cohort:league:allsvenskan", finished=1, settled=1),
+            _cohort("performance:cohort:league:113", finished=1, settled=1),
+        ]
+    )
+
+    assert projected is not None
+    rows = projected["performance_cohort"]["by_league"]
+    assert len(rows) == 1
+    assert rows[0]["canonical_competition_id"] == "allsvenskan"
+    assert rows[0]["aggregation_status"] == "CONFLICT"
+    assert rows[0]["processed_count"] == 0
+
+
+def test_dashboard_ledger_keeps_tournaments_outside_league_rows() -> None:
+    projected = _dashboard_forward_ledger_from_checkpoints(
+        [
+            _cohort("performance:cohort:all", finished=1, settled=0),
+            _cohort("performance:cohort:league:world_cup_2026", finished=1, settled=0),
+        ]
+    )
+
+    assert projected is not None
+    cohort = projected["performance_cohort"]
+    assert cohort["by_league"] == []
+    assert cohort["by_tournament"][0]["canonical_competition_id"] == "world_cup_2026"
 
 
 def test_dashboard_ledger_projects_existing_probability_metrics() -> None:
@@ -673,6 +756,8 @@ def _fixture(
     clv_status: str,
     clv_decimal: float | None,
     evaluation_tier: str = "STRICT",
+    league: str = "premier_league",
+    canonical_outcome: str | None = None,
 ) -> Checkpoint:
     key = f"performance:fixture:{fixture_id}"
     return Checkpoint(
@@ -685,13 +770,15 @@ def _fixture(
             "status": status,
             "fixture_id": fixture_id,
             "kickoff_utc": NOW.isoformat(),
-            "league": "premier_league",
+            "league": league,
             "evaluation_tier": evaluation_tier,
             "clv_status": clv_status,
             "clv_decimal": clv_decimal,
             "canonical_pick_status": "SETTLEMENT_MISSING",
-            "canonical_settlement_outcome": None,
-            "canonical_decisive": None,
-            "canonical_exclusion_reason": "SETTLEMENT_MISSING",
+            "canonical_settlement_outcome": canonical_outcome,
+            "canonical_decisive": canonical_outcome in {"HIT", "MISS"},
+            "canonical_exclusion_reason": (
+                None if canonical_outcome else "SETTLEMENT_MISSING"
+            ),
         },
     )

@@ -8,6 +8,8 @@ recomputed in a request.
 from __future__ import annotations
 
 import os
+from collections import Counter, defaultdict
+from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -66,6 +68,8 @@ from w2.prematch.read_model_projection import (
     validate_frozen_analysis_payload,
 )
 from w2.providers.quota import api_football_quota_policy, parse_int
+from w2.tracking.forward_ledger_performance import MIN_DECISIVE_SAMPLES_FOR_RATE
+from w2.tracking.performance_scoring import ece
 
 MAX_PUBLIC_FIXTURES = 512
 FINISHED_STATUSES = {"FT", "AET", "PEN", "FINISHED"}
@@ -83,6 +87,13 @@ class Checkpoint:
     source_hash: str
     created_at: datetime
     payload: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class CompetitionIdentity:
+    competition_id: str
+    name: str
+    scope_group: str
 
 
 def _parse_datetime(value: Any) -> datetime | None:
@@ -296,17 +307,25 @@ def _checkpoint_outcomes(window: PerformanceWindowProjection) -> dict[str, Any]:
 def _checkpoint_league_row(
     competition_id: str,
     cohort: PerformanceCohortProjection,
-    identities: dict[str, tuple[str, str]],
+    identities: dict[str, CompetitionIdentity],
+    *,
+    checkpoint_key: str,
 ) -> dict[str, Any]:
     window = cohort.windows["90d"]
-    canonical_id, canonical_name = identities.get(competition_id, ("", ""))
+    identity = identities.get(competition_id)
+    canonical_id = identity.competition_id if identity else ""
+    canonical_name = identity.name if identity else ""
     return {
-        "competition_id": competition_id,
+        "competition_id": canonical_id or competition_id,
         "canonical_competition_id": canonical_id or None,
         "competition_name": canonical_name or None,
         "source_league": competition_id,
+        "source_aliases": [competition_id],
+        "source_checkpoint_keys": [checkpoint_key],
+        "scope_group": identity.scope_group if identity else "UNRESOLVED",
+        "aggregation_status": "SOURCE_CHECKPOINT",
         "identity_status": "RESOLVED" if canonical_id and canonical_name else "UNRESOLVED",
-        "league": competition_id,
+        "league": canonical_id or competition_id,
         "processed_count": window.fixture_checkpoint_count,
         "eligible_count": window.canonical_settled_count,
         "excluded_count": max(
@@ -325,21 +344,216 @@ def _checkpoint_league_row(
     }
 
 
-def _competition_identity_authority() -> dict[str, tuple[str, str]]:
+def _competition_identity_authority() -> dict[str, CompetitionIdentity]:
     """Read existing runtime identity authority; unresolved rows remain fail-closed."""
     try:
         entries = CompetitionRegistry().entries()
     except CompetitionRegistryError:
         return {}
-    identities: dict[str, tuple[str, str]] = {}
+    identities: dict[str, CompetitionIdentity] = {}
     for competition_id, entry in entries.items():
         name = str(entry.profile_payload.get("name") or competition_id)
-        identity = (competition_id, name)
+        identity = CompetitionIdentity(
+            competition_id=competition_id,
+            name=name,
+            scope_group=str(getattr(entry, "scope_group", "") or ""),
+        )
         identities[competition_id] = identity
         provider_id = str(entry.provider_mapping.get("api_football_league_id") or "")
         if provider_id:
             identities[provider_id] = identity
     return identities
+
+
+def _mean_fixture_metric(rows: Sequence[Mapping[str, Any]], field: str) -> float | None:
+    values = [float(row[field]) for row in rows if isinstance(row.get(field), int | float)]
+    return sum(values) / len(values) if values else None
+
+
+def _fixture_observations(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[tuple[tuple[float, float, float], int]]:
+    outcomes = {"HOME": 0, "DRAW": 1, "AWAY": 2}
+    observations: list[tuple[tuple[float, float, float], int]] = []
+    for row in rows:
+        raw = row.get("model_probabilities")
+        actual = outcomes.get(str(row.get("actual_outcome") or "").upper())
+        if not isinstance(raw, Sequence) or isinstance(raw, str | bytes) or actual is None:
+            continue
+        values = tuple(float(value) for value in raw if isinstance(value, int | float))
+        if len(values) == 3:
+            observations.append((values, actual))
+    return observations
+
+
+def _fixture_league_row(
+    identity: CompetitionIdentity | None,
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    source_aliases: Sequence[str],
+    source_checkpoint_keys: Sequence[str],
+) -> dict[str, Any]:
+    unique = {str(row.get("fixture_id") or ""): row for row in rows if row.get("fixture_id")}
+    fixtures = list(unique.values())
+    outcomes = Counter(
+        str(row.get("canonical_settlement_outcome") or "").upper()
+        for row in fixtures
+        if str(row.get("canonical_settlement_outcome") or "").upper()
+        in {"HIT", "MISS", "PUSH", "VOID"}
+    )
+    decisive = outcomes["HIT"] + outcomes["MISS"]
+    canonical_id = identity.competition_id if identity else ""
+    fallback = sorted(set(source_aliases))[0] if source_aliases else "UNKNOWN"
+    return {
+        "competition_id": canonical_id or fallback,
+        "canonical_competition_id": canonical_id or None,
+        "competition_name": identity.name if identity else None,
+        "source_league": fallback,
+        "source_aliases": sorted(set(source_aliases)),
+        "source_checkpoint_keys": sorted(set(source_checkpoint_keys)),
+        "scope_group": identity.scope_group if identity else "UNRESOLVED",
+        "aggregation_status": "FIXTURE_RECONSTRUCTED",
+        "identity_status": "RESOLVED" if identity else "UNRESOLVED",
+        "league": canonical_id or fallback,
+        "processed_count": len(fixtures),
+        "eligible_count": sum(outcomes.values()),
+        "excluded_count": max(len(fixtures) - sum(outcomes.values()), 0),
+        "decisive_count": decisive,
+        "outcomes": {
+            "settled_sample_count": sum(outcomes.values()),
+            "hit_count": outcomes["HIT"],
+            "miss_count": outcomes["MISS"],
+            "push_count": outcomes["PUSH"],
+            "void_count": outcomes["VOID"],
+            "decisive_count": decisive,
+            "hit_rate": outcomes["HIT"] / decisive if decisive else None,
+        },
+        "clv": {},
+        "rate_status": (
+            "AVAILABLE" if decisive >= MIN_DECISIVE_SAMPLES_FOR_RATE else "INSUFFICIENT"
+        ),
+        "model_brier": _mean_fixture_metric(fixtures, "model_brier"),
+        "model_log_loss": _mean_fixture_metric(fixtures, "model_log_loss"),
+        "model_ece": ece(_fixture_observations(fixtures)),
+    }
+
+
+def _aggregation_conflict_row(
+    identity: CompetitionIdentity | None,
+    *,
+    source_aliases: Sequence[str],
+    source_checkpoint_keys: Sequence[str],
+) -> dict[str, Any]:
+    fallback = sorted(set(source_aliases))[0] if source_aliases else "UNKNOWN"
+    canonical_id = identity.competition_id if identity else ""
+    return {
+        "competition_id": canonical_id or fallback,
+        "canonical_competition_id": canonical_id or None,
+        "competition_name": identity.name if identity else None,
+        "source_league": fallback,
+        "source_aliases": sorted(set(source_aliases)),
+        "source_checkpoint_keys": sorted(set(source_checkpoint_keys)),
+        "scope_group": identity.scope_group if identity else "UNRESOLVED",
+        "aggregation_status": "CONFLICT",
+        "identity_status": "RESOLVED" if identity else "UNRESOLVED",
+        "league": canonical_id or fallback,
+        "processed_count": 0,
+        "eligible_count": 0,
+        "excluded_count": 0,
+        "decisive_count": 0,
+        "outcomes": {
+            "settled_sample_count": 0,
+            "hit_count": 0,
+            "miss_count": 0,
+            "push_count": 0,
+            "void_count": 0,
+            "decisive_count": 0,
+            "hit_rate": None,
+        },
+        "clv": {},
+        "rate_status": "INSUFFICIENT",
+        "model_brier": None,
+        "model_log_loss": None,
+        "model_ece": None,
+    }
+
+
+def _canonical_performance_rows(
+    cohorts: Mapping[str, tuple[Checkpoint, PerformanceCohortProjection]],
+    fixture_rows: Sequence[Checkpoint],
+    identities: Mapping[str, CompetitionIdentity],
+    *,
+    anchor: datetime,
+) -> list[dict[str, Any]]:
+    prefix = "performance:cohort:league:"
+    sources: dict[
+        str, list[tuple[str, Checkpoint, PerformanceCohortProjection]]
+    ] = defaultdict(list)
+    identity_by_group: dict[str, CompetitionIdentity | None] = {}
+    for key, (checkpoint, cohort) in cohorts.items():
+        if not key.startswith(prefix) or key.startswith("performance:cohort:league-tier:"):
+            continue
+        alias = key.removeprefix(prefix)
+        identity = identities.get(alias)
+        group = identity.competition_id if identity else f"UNRESOLVED:{alias}"
+        sources[group].append((alias, checkpoint, cohort))
+        identity_by_group[group] = identity
+
+    fixtures: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+    fixture_checkpoint_keys: dict[str, list[str]] = defaultdict(list)
+    for checkpoint in fixture_rows:
+        try:
+            fixture = PerformanceFixtureProjection.model_validate(checkpoint.payload)
+        except ValidationError:
+            continue
+        if not anchor - timedelta(days=90) <= fixture.kickoff_utc.astimezone(UTC) <= anchor:
+            continue
+        identity = identities.get(fixture.league)
+        group = identity.competition_id if identity else f"UNRESOLVED:{fixture.league}"
+        fixtures[group].append(fixture.model_dump())
+        fixture_checkpoint_keys[group].append(checkpoint.key)
+        identity_by_group[group] = identity
+
+    result: list[dict[str, Any]] = []
+    for group in sorted(set(sources) | set(fixtures)):
+        source_rows = sources.get(group, [])
+        aliases = [alias for alias, _, _ in source_rows]
+        checkpoint_keys = [checkpoint.key for _, checkpoint, _ in source_rows]
+        identity = identity_by_group.get(group)
+        if fixtures.get(group):
+            result.append(
+                _fixture_league_row(
+                    identity,
+                    fixtures[group],
+                    source_aliases=[
+                        *aliases,
+                        *(str(row.get("league") or "") for row in fixtures[group]),
+                    ],
+                    source_checkpoint_keys=[
+                        *checkpoint_keys,
+                        *fixture_checkpoint_keys[group],
+                    ],
+                )
+            )
+        elif len(source_rows) == 1:
+            alias, checkpoint, cohort = source_rows[0]
+            result.append(
+                _checkpoint_league_row(
+                    alias,
+                    cohort,
+                    dict(identities),
+                    checkpoint_key=checkpoint.key,
+                )
+            )
+        else:
+            result.append(
+                _aggregation_conflict_row(
+                    identity,
+                    source_aliases=aliases,
+                    source_checkpoint_keys=checkpoint_keys,
+                )
+            )
+    return result
 
 
 def _checkpoint_probability(window: PerformanceWindowProjection) -> dict[str, Any]:
@@ -368,6 +582,8 @@ def _checkpoint_probability(window: PerformanceWindowProjection) -> dict[str, An
 
 def _dashboard_forward_ledger_from_checkpoints(
     rows: list[Checkpoint],
+    *,
+    fixture_rows: Sequence[Checkpoint] = (),
 ) -> dict[str, Any] | None:
     """Adapt bounded performance checkpoints to the Dashboard ledger contract."""
     cohorts: dict[str, tuple[Checkpoint, PerformanceCohortProjection]] = {}
@@ -383,15 +599,23 @@ def _dashboard_forward_ledger_from_checkpoints(
     window = global_cohort.windows["90d"]
     if global_cohort.checkpoint_key != selected_row.key or not selected_row.source_hash:
         return None
-    league_prefix = "performance:cohort:league:"
     identities = _competition_identity_authority()
+    competitions = _canonical_performance_rows(
+        cohorts,
+        fixture_rows,
+        identities,
+        anchor=global_cohort.scoring_window_anchor.astimezone(UTC),
+    )
     leagues = [
-        _checkpoint_league_row(row.key.removeprefix(league_prefix), cohort, identities)
-        for row, cohort in cohorts.values()
-        if row.key.startswith(league_prefix)
-        and not row.key.startswith("performance:cohort:league-tier:")
+        row
+        for row in competitions
+        if row["scope_group"] in {"top_five", "national_leagues"}
     ]
-    leagues.sort(key=lambda row: str(row["competition_id"]))
+    tournaments = [
+        row
+        for row in competitions
+        if row["scope_group"] not in {"top_five", "national_leagues"}
+    ]
     processed = window.fixture_checkpoint_count
     eligible = window.canonical_settled_count
     excluded = max(processed - eligible, 0)
@@ -433,6 +657,7 @@ def _dashboard_forward_ledger_from_checkpoints(
             "outcomes": outcomes,
             "clv": clv,
             "by_league": leagues,
+            "by_tournament": tournaments,
             "exclusions": [],
             "recoveries": [],
             "integrity_status": "PASS",
@@ -1026,7 +1251,8 @@ class ReadModelService:
         checkpoint_reader = getattr(self.repository, "checkpoints", None)
         if callable(checkpoint_reader):
             forward_ledger = _dashboard_forward_ledger_from_checkpoints(
-                checkpoint_reader("performance:cohort:")
+                checkpoint_reader("performance:cohort:"),
+                fixture_rows=checkpoint_reader("performance:fixture:"),
             )
             if forward_ledger is not None:
                 performance["forward_ledger"] = forward_ledger
