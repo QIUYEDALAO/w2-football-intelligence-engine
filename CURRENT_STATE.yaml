@@ -1,5 +1,5 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-10T00:05:00+08:00"
+updated_at: "2026-08-10T01:04:04+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
@@ -7,14 +7,15 @@ program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
 owner_product_decision: W2_DASHBOARD_OWNER_MARKET_EVIDENCE_CONSISTENCY_REMEDIATION
 owner_authorization_id: W2_DASHBOARD_OWNER_MARKET_EVIDENCE_CONSISTENCY_REMEDIATION_V1
-active_next_action: EXECUTE_DASHBOARD_OWNER_MARKET_TRUTH_REMEDIATION
-next_code_action: MARKET_MOVEMENT_EVIDENCE_AND_SINGLE_READINESS_AUTHORITY_CLOSURE
-current_status: DASHBOARD_OWNER_MARKET_TRUTH_CHANGES_REQUIRED
-current_gate: DASHBOARD_OWNER_MARKET_TRUTH_REMEDIATION_ACTIVE
+active_next_action: NONE_TERMINAL_STOP
+next_code_action: NONE
+current_status: DASHBOARD_OWNER_MARKET_TRUTH_ACCEPTANCE_PASS
+current_gate: DASHBOARD_OWNER_MARKET_TRUTH_ACCEPTANCE_PASS
 
 runtime_baseline:
-  final_main_sha: 14a25727c77b5ede3a1731ec2487e08fa2be4eab
-  deployed_source_sha: 9edfae3a0fe7222aa109d7523ed1071e32b90d6c
+  final_main_sha: d2740a573c748cfaef38c66e951618e8782e09d0
+  deployed_source_sha: 4370393be9b2593ec008d150daa9bf39ddbf265f
+  source_tree_sha: e9c4a71154f14b361eb0057a022ba80fc0e48258
   free_bridge_mode: SHADOW_ONLY
   active_whitelist: EXACT_EXISTING_13
   provider_policy: UNCHANGED
@@ -37,55 +38,33 @@ prior_completed_scope:
   pre_round4_functional_scope: COMPLETE
 
 prior_dashboard_remediations:
-  pr_501:
-    result: PASS_MERGED_DEPLOYED_THEN_OWNER_REVOKED
-    reason: ENGLISH_HEAVY_LONG_LAYOUT
-  pr_502:
-    result: PASS_MERGED_DEPLOYED
-    scope: D13_01_THROUGH_D13_13
-  pr_503:
-    result: PASS_MERGED_DEPLOYED
-    scope: LIVE_AGGREGATE_PRICE_OVERFLOW
-  pr_504:
-    result: PASS_MERGED_DEPLOYED
-    scope: D14_01_THROUGH_D14_08
-    main_merge_sha: 14a25727c77b5ede3a1731ec2487e08fa2be4eab
-    deployed_source_sha: 9edfae3a0fe7222aa109d7523ed1071e32b90d6c
-    owner_acceptance: REVOKED_CHANGES_REQUIRED
-    revocation_reason: REAL_DATA_MARKET_MOVEMENT_AND_READINESS_CONSISTENCY_FINDINGS
+  pr_501: PASS_MERGED_DEPLOYED_THEN_OWNER_REVOKED
+  pr_502: PASS_MERGED_DEPLOYED_D13
+  pr_503: PASS_MERGED_DEPLOYED_LIVE_AGGREGATE_PRICE_OVERFLOW
+  pr_504: PASS_MERGED_DEPLOYED_D14_THEN_OWNER_REVOKED
+  pr_505: PASS_MERGED_DEPLOYED_D15_TERMINAL
 
-current_authority:
+completed_authority:
   file: DASHBOARD_OWNER_MARKET_EVIDENCE_CONSISTENCY_REMEDIATION.md
   base_main: 14a25727c77b5ede3a1731ec2487e08fa2be4eab
   terminal_target: DASHBOARD_OWNER_MARKET_TRUTH_ACCEPTANCE_PASS
-  continuous_execution_to_terminal: true
-  merge_after_exact_head_pass: AUTHORIZED
-  deploy_after_merge: REQUIRED
-  image_transport: LOCAL_OCI_RELAY_PRIMARY
-  round4_after_pass: FORBIDDEN
+  terminal_result: DASHBOARD_OWNER_MARKET_TRUTH_ACCEPTANCE_PASS
+  implementation_pr: 505
+  implementation_head: 4370393be9b2593ec008d150daa9bf39ddbf265f
+  main_merge_sha: d2740a573c748cfaef38c66e951618e8782e09d0
+  release_run_id: 31324620283
+  promotion_run_id: 31325104555
+  deployment_transport: LOCAL_OCI_RELAY_PRIMARY
+  deployment_result: PASS
+  rollback_executed: false
 
 owner_d15_findings:
-  D15_01_movement_classification_and_public_evidence: OPEN_P0
-  D15_02_single_public_market_readiness_authority: OPEN_P0
-  D15_03_stale_market_memory_must_not_be_ready: OPEN_P0
-  D15_04_observation_count_public_terminology: OPEN_P1
-  D15_05_scoreline_status_context_structure: OPEN_P1
-  D15_06_attention_repeated_group_aggregation: OPEN_P1
-
-confirmed_code_evidence:
-  movement_engine_uses_line_delta_and_side_price_median_delta: true
-  movement_engine_uses_bookmaker_count: false
-  runtime_reported_fixture_exact_price_delta: NOT_YET_PROVEN_REQUIRES_PERSISTED_READ_ONLY_INSPECTION
-  public_PRICE_MOVEMENT_label_currently: 盘口变化
-  public_timeline_currently_hides_price_delta_evidence: true
-  round3_market_source_status_ready_if_any_current_snapshot: true
-  round3_market_source_status_freshness_gated: false
-  model_lab_market_comparison_requires_current_freshness: true
-  workspace_exposes_conflicting_market_status_layers: true
-  stale_snapshot_can_render_public_ready: true
-  observation_count_is_single_side_quote_row_count: true
-  scoreline_context_is_adjacent_unlabelled_spans: true
-  attention_aggregation_requires_whole_day_homogeneity: true
+  D15_01_movement_classification_and_public_evidence: CLOSED_PASS
+  D15_02_single_public_market_readiness_authority: CLOSED_PASS
+  D15_03_stale_market_memory_must_not_be_ready: CLOSED_PASS
+  D15_04_observation_count_public_terminology: CLOSED_PASS
+  D15_05_scoreline_status_context_structure: CLOSED_PASS
+  D15_06_attention_repeated_group_aggregation: CLOSED_PASS
 
 accepted_d13_d14_fixes_must_not_regress:
   thirteen_inch_readability: true
@@ -107,6 +86,33 @@ accepted_d13_d14_fixes_must_not_regress:
   football_day_boundary_visible: true
   only_record_reasons_and_market_benchmark_explicit: true
 
+terminal_evidence:
+  exact_persisted_payload_inspected_read_only: true
+  movement_engine_change_required: false
+  real_movement_classification: PRICE_MOVEMENT
+  public_market_statuses: [READY, STALE, INSUFFICIENT]
+  stale_ready_conflicts: 0
+  public_count_semantics: SNAPSHOT_BOOKMAKER_PAIR_SINGLE_SIDE_QUOTE
+  scoreline_context_structurally_labelled: true
+  repeated_attention_groups_collapsible: true
+  focused_regression: PASS
+  web_e2e: PASS_56
+  exact_head_full_ci: PASS
+  release_required: PASS
+  repository_hygiene: PASS
+  health: PASS
+  ready: PASS
+  release_sync: PASS
+  postdeploy_real_api: PASS
+  postdeploy_real_page: PASS
+  viewport_1280x720: PASS_NO_HORIZONTAL_OVERFLOW
+  viewport_1366x768: PASS_NO_HORIZONTAL_OVERFLOW
+  viewport_1512x982: PASS_NO_HORIZONTAL_OVERFLOW
+  viewport_1536x1024: PASS_NO_HORIZONTAL_OVERFLOW
+  provider_calls_on_read: 0
+  db_business_writes_on_read: 0
+  no_call_on_read: true
+
 accepted_truths_must_not_regress:
   public_dashboard_authority: NEW_INTELLIGENCE_WORKSPACE_ONLY
   schema_version: w2.dashboard-intelligence-workspace.v1
@@ -123,57 +129,13 @@ accepted_truths_must_not_regress:
   candidate_formal_lock_production: OFF
   track_a: CLOSED_PASS
 
-remediation_scope:
-  exact_persisted_movement_payload_read_only_inspection: AUTHORIZED
-  movement_engine_bug_fix_if_proven: AUTHORIZED_BOUNDED
-  movement_public_labels_and_visible_deltas: AUTHORIZED
-  additive_workspace_market_status_fields: AUTHORIZED
-  canonical_public_market_evidence_readiness: AUTHORIZED
-  stale_market_memory_public_semantics: AUTHORIZED
-  quote_count_public_terminology: AUTHORIZED
-  scoreline_context_layout: AUTHORIZED
-  grouped_attention_summary_and_expand: AUTHORIZED
-  migrations: NOT_AUTHORIZED_EXPECTED_NOT_REQUIRED
-  provider_calls: FORBIDDEN
-  manual_provider_probe: FORBIDDEN
-  db_business_writes_from_read: FORBIDDEN
-  scheduler_cadence_changes: FORBIDDEN
-  whitelist_changes: FORBIDDEN
-  model_factor_threshold_retraining: FORBIDDEN
-  synthetic_market_points_or_movement: FORBIDDEN
-  deletion_of_market_memory: FORBIDDEN
-
-vps_deployment_after_acceptance:
-  required: true
-  image_transport: LOCAL_OCI_RELAY_PRIMARY
-  vps_direct_ghcr_bulk_pull: FORBIDDEN_AS_PRIMARY_TRANSPORT
-  postdeploy_real_data_market_acceptance: REQUIRED
-  postdeploy_no_call_no_write_acceptance: REQUIRED
-
 post_r3_track_a:
   closure_status: CLOSED_PASS
   closure_result: TRACK_A_CLOSED_PASS
   round_4: NOT_STARTED
 
-auto_approval_policy:
-  enabled: true
-  current_remediation_may_continue_without_owner_relay: true
-  terminal_target: DASHBOARD_OWNER_MARKET_TRUTH_ACCEPTANCE_PASS
-  must_stop_for:
-    - MIGRATION_PROVEN_UNAVOIDABLE
-    - PRODUCT_SEMANTICS_OUTSIDE_CURRENT_AUTHORITY
-    - PROVIDER_PLAN_OR_NEW_PROVIDER
-    - SCHEDULER_OR_CADENCE_CHANGE
-    - ACTIVE_WHITELIST_CHANGE
-    - MODEL_FACTOR_THRESHOLD_RETRAINING
-    - EXTERNAL_INTELLIGENCE_ACTIVATION
-    - PHASE_0_5_REEXECUTION
-    - ROUND_4_START
-    - CANDIDATE_FORMAL_LOCK_PRODUCTION_ENABLEMENT
-    - REAL_MONEY_AUTHORITY
-    - P6_EXECUTION
-
-permanent_stop_lines:
+terminal_stop:
+  no_automatic_next_phase: true
   round_4: NOT_STARTED
   p6_execution: NOT_AUTHORIZED
   provider_plan_change: NOT_AUTHORIZED
