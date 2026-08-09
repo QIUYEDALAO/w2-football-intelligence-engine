@@ -38,13 +38,22 @@ const REASON_LABELS: Record<string, string> = {
 };
 
 const PRIORITY_ORDER: Record<string, number> = {
-  COLLECTION_INCIDENT: 0,
+  STALE_MARKET_MEMORY: 0,
   MARKET_MOVEMENT: 1,
-  FRESH_MARKET_EVIDENCE: 2,
-  MODEL_DIAGNOSTIC: 3,
-  STALE_MARKET_MEMORY: 4,
-  DATA_INCOMPLETE: 5,
-  LINEUP_PENDING: 6,
+  MODEL_DIAGNOSTIC: 2,
+};
+
+const DAY_MODE_LABELS: Record<IntelligenceWorkspace["day_mode"], string> = {
+  NORMAL: "正常日",
+  BLOCKED: "阻塞日",
+  CALM: "平静日",
+  EMPTY: "空比赛日",
+};
+
+const PUBLIC_SYSTEM_LABELS: Record<IntelligenceWorkspace["data_operations"]["public_system_health"], string> = {
+  HEALTHY: "系统数据正常",
+  PARTIAL_DEGRADATION: "系统数据部分降级",
+  DAY_BLOCKED: "全日证据阻塞",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -153,8 +162,11 @@ function Header({ date, loading, onDateChange, onRefresh, workspace }: Props) {
       </nav>
       <span className="v41-separator" />
       <span className="v41-pill v41-pill--read">影子只读</span>
-      <span className={`v41-pill ${workspace.data_operations.system_health === "HEALTHY" ? "v41-pill--ok" : "v41-pill--warn"}`}>
-        {workspace.data_operations.system_health === "HEALTHY" ? "服务运行正常" : label(workspace.data_operations.system_health)}
+      <span className={`v41-pill v41-pill--mode-${workspace.day_mode.toLowerCase()}`} data-day-mode-label={workspace.day_mode}>
+        {DAY_MODE_LABELS[workspace.day_mode]}
+      </span>
+      <span className={`v41-pill ${workspace.data_operations.public_system_health === "HEALTHY" ? "v41-pill--ok" : "v41-pill--warn"}`} data-public-system-health={workspace.data_operations.public_system_health}>
+        {PUBLIC_SYSTEM_LABELS[workspace.data_operations.public_system_health]}
       </span>
       <time className="v41-updated">更新 {clock(workspace.generated_at)}</time>
       <nav className="v41-secondary-nav" aria-label="辅助视图">
@@ -195,6 +207,8 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
     return priority || String(left.kickoff_utc || "").localeCompare(String(right.kickoff_utc || "")) || left.fixture_id.localeCompare(right.fixture_id);
   });
   const visible = prioritized.slice(0, 6);
+  const otherAttention = matches.filter((match) => !match.priority_reason_primary && match.priority_reason_secondary.length);
+  const visibleOtherAttention = otherAttention.slice(0, 3);
   const blocked = workspace.day_mode === "BLOCKED" && workspace.global_focus;
   const calm = workspace.day_mode === "CALM" && workspace.global_focus;
   const empty = workspace.day_mode === "EMPTY" && workspace.global_focus;
@@ -231,12 +245,25 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
             <span className="v41-shortlist-copy">
               <small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认")}</small>
               <strong>{matchName(match)}</strong>
-              <span><b>{REASON_LABELS[match.priority_reason_primary || ""] || label(match.priority_reason_primary)}</b>{match.priority_reason_secondary.length ? ` · ${match.priority_reason_secondary.map((reason) => REASON_LABELS[reason] || label(reason)).join(" · ")}` : ""}</span>
+              <span className="v41-reason-line"><b>主因：{REASON_LABELS[match.priority_reason_primary || ""] || label(match.priority_reason_primary)}</b>{match.priority_reason_secondary.length ? <small>次因：{match.priority_reason_secondary.map((reason) => REASON_LABELS[reason] || label(reason)).join("、")}</small> : null}</span>
             </span>
             <time>{clock(match.kickoff_utc)}</time>
           </button>
         ))}
         {!aggregate && !empty && !prioritized.length ? <div className="v41-shortlist-empty">当前没有优先复核比赛</div> : null}
+        {!aggregate && !empty && otherAttention.length ? <div className="v41-shortlist-group">其他关注 · {otherAttention.length} 场（不计入优先）</div> : null}
+        {!aggregate && !empty ? visibleOtherAttention.map((match) => (
+          <button aria-pressed={selectedId === match.fixture_id} className={selectedId === match.fixture_id ? "is-selected" : undefined} key={`other-${match.fixture_id}`} onClick={() => onSelect(match.fixture_id)} type="button">
+            <span className="v41-stripe v41-stripe--data_incomplete" />
+            <span className="v41-shortlist-copy">
+              <small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认")}</small>
+              <strong>{matchName(match)}</strong>
+              <span className="v41-reason-line"><small>关注：{match.priority_reason_secondary.map((reason) => REASON_LABELS[reason] || label(reason)).join("、")}</small></span>
+            </span>
+            <time>{clock(match.kickoff_utc)}</time>
+          </button>
+        )) : null}
+        {!aggregate && !empty && otherAttention.length > visibleOtherAttention.length ? <p className="v41-shortlist-more">另有 {otherAttention.length - visibleOtherAttention.length} 场其他关注</p> : null}
       </div>
       {prioritized.length > visible.length ? <p className="v41-shortlist-more">另有 {prioritized.length - visible.length} 场优先项</p> : null}
       <a className="v41-text-link" href="#all-matches">查看全部 {matches.length} 场</a>
@@ -280,7 +307,7 @@ function RiskSummary({ match }: { match: WorkspaceMatch }) {
     <div className="v41-risk-list" aria-label="四轴风险">
       {(Object.keys(RISK_LABELS) as RiskAxisName[]).map((axis) => {
         const risk = match.risks[axis];
-        return <div className={`is-${risk.status.toLowerCase()}`} key={axis}><span>{RISK_LABELS[axis]}</span><strong>{risk.assessment_status === "UNASSESSED" ? "未评估" : label(risk.status)}</strong><small>{risk.explanation || risk.reason_codes.map(translateReason).join("；") || "没有可陈述的源证据"}</small></div>;
+        return <div className={`is-${risk.status.toLowerCase()}`} key={axis}><span>{RISK_LABELS[axis]}</span><strong>{risk.assessment_status === "UNASSESSED" ? "未评估" : label(risk.status)}</strong><small>{risk.explanation || "没有可陈述的源证据"}</small>{risk.reason_codes.length ? <details className="v41-risk-codes"><summary>技术原因 {risk.reason_codes.length} 项</summary>{risk.reason_codes.map((reason) => <code key={reason}>{reason}</code>)}</details> : null}</div>;
       })}
     </div>
   );
@@ -303,14 +330,13 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
   const primaryRelation = match.w2_analysis.model_market_relation[primary.market];
   const diagnosticRelation = Object.values(match.w2_analysis.model_market_relation).find((relation) => !["COMPARABLE_WITHIN_MARKET_RANGE", "MARKET_NOT_READY"].includes(relation.status)) || primaryRelation;
   const stale = markets.some((market) => market.status === "STALE");
-  const importantReasons = [match.priority_reason_primary, ...match.priority_reason_secondary].filter((reason): reason is string => Boolean(reason)).slice(0, 3).map((reason) => REASON_LABELS[reason] || label(reason));
   return (
     <article className="v41-focus" data-focus-type="MATCH" data-fixture-id={match.fixture_id}>
       <header className="v41-focus-header">
         <div><h1>{matchName(match)}</h1><p>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认")} · {localDateTime(match.kickoff_utc)} · 比赛 {match.fixture_id}</p></div>
         <div><span>开球时间</span><strong>{clock(match.kickoff_utc)}</strong></div>
       </header>
-      <div className={`v41-focus-summary ${stale ? "is-warning" : ""}`}><b>{stale ? "市场记忆" : "本场摘要"}</b><span>{stale ? "历史市场证据仍可见，但已超过来源新鲜度边界；当前模型比较暂停。" : importantReasons.join("；") || "当前事实已按统一读模型投影。"} 正式推荐未启用。</span></div>
+      <div className={`v41-focus-summary ${stale ? "is-warning" : ""}`}><b>{stale ? "市场记忆" : "本场摘要"}</b><span>{match.factual_summary}</span></div>
       <div className="v41-focus-body">
         <div className="v41-focus-markets">{markets.map((market) => <MarketEvidence generatedAt={generatedAt} key={market.market} market={market} />)}</div>
         <div className="v41-focus-meaning">
@@ -360,14 +386,21 @@ function GlobalFocus({ workspace }: { workspace: IntelligenceWorkspace }) {
 function QualityRail({ workspace }: { workspace: IntelligenceWorkspace }) {
   const quality = workspace.global_model_quality;
   const available = quality.status === "AVAILABLE";
+  const qualityCopy = available
+    ? "仅展示当前有效验证证据"
+    : quality.status === "STALE"
+      ? `已过期（截至 ${localDateTime(quality.checkpoint_generated_at)}）`
+      : quality.status === "INCOMPLETE"
+        ? `checkpoint 指标不完整（截至 ${localDateTime(quality.checkpoint_generated_at)}）`
+        : "尚无可用 checkpoint";
   return (
     <section className="v41-quality" id="validation">
-      <header><span>全局模型质量 · 来源 checkpoint</span><p>整体表现：<b>{available ? "仅展示当前有效验证证据" : quality.status === "STALE" ? "验证 checkpoint 已过期" : "历史验证暂不可用"}</b></p></header>
+      <header><span>全局模型质量 · 来源 checkpoint</span><p>整体表现：<b>{qualityCopy}</b></p></header>
       <div>
         <span><small>W2 LogLoss</small><strong>{available ? quality.model_log_loss?.toFixed(3) : "—"}</strong><b>市场 {available ? quality.market_log_loss?.toFixed(3) : "—"}</b></span>
         <span><small>W2 Brier</small><strong>{available ? quality.model_brier?.toFixed(3) : "—"}</strong><b>市场 {available ? quality.market_brier?.toFixed(3) : "—"}</b></span>
         <span><small>校准误差 ECE</small><strong>{available && quality.model_calibration_error !== null ? `${(quality.model_calibration_error * 100).toFixed(1)}%` : "—"}</strong><b>{label(quality.status)}</b></span>
-        <span><small>前向有效样本</small><strong>{available ? quality.sample_count : "—"}</strong><b>{quality.checkpoint_generated_at ? `截至 ${localDateTime(quality.checkpoint_generated_at)}` : "checkpoint 缺失"}</b></span>
+        <span><small>前向有效样本</small><strong>{available ? quality.sample_count : "—"}</strong><b>{available && quality.checkpoint_generated_at ? `截至 ${localDateTime(quality.checkpoint_generated_at)}` : quality.status === "NOT_AVAILABLE" ? "checkpoint 缺失" : label(quality.status)}</b></span>
         <a href="#secondary-validation">验证中心</a>
       </div>
     </section>
@@ -380,7 +413,7 @@ function SecondaryViews({ workspace }: { workspace: IntelligenceWorkspace }) {
       <details id="all-matches"><summary>全部比赛</summary><ol>{workspace.matches.map((match) => <li key={match.fixture_id}><span>{localDateTime(match.kickoff_utc)}</span><strong>{matchName(match)}</strong><b>{label(match.readiness.status)}</b></li>)}</ol></details>
       <details id="secondary-validation"><summary>验证与分联赛记录</summary><p>方向记录：{label(workspace.validation.directional.status)} · 有效 N {workspace.validation.directional.effective_n} · 市场方向基准 {label(workspace.validation.directional.market_direction_benchmark)}</p><ul>{workspace.validation.league_performance.slice(0, 13).map((league) => <li key={`${league.competition_id}-${league.source_league}`}><strong>{translateCompetition(league.competition_name || league.league)}</strong><span>{league.only_record_reason === "PROBABILITY_QUALITY_NOT_READY" ? "概率质量待就绪" : league.only_record_reason === "AGGREGATION_CONFLICT" ? "聚合冲突" : league.only_record_reason === "SAMPLE_INSUFFICIENT" ? "样本不足" : "可用"}</span></li>)}</ul></details>
       <details data-contract="HISTORICAL_INCREMENTAL_EDGE=NOT_PROVEN" id="history"><summary>前向记录 / 回放</summary><p>{label(workspace.validation.history_replay.status)} · 卡片 {workspace.validation.history_replay.decision_summary.total_cards} · 缺口 {workspace.validation.history_replay.replay_gaps.length}</p></details>
-      <details id="system-status"><summary>系统状态与读取合同</summary><p>13 联赛 · {workspace.runtime.free_bridge_mode} · Candidate/Formal/Lock/Production 全部关闭</p><p>provider_calls={workspace.read_contract.provider_calls} · db_writes={workspace.read_contract.db_writes} · would_write_checkpoint={String(workspace.read_contract.would_write_checkpoint)} · no_call_on_read={String(workspace.read_contract.no_call_on_read)}</p></details>
+      <details id="system-status"><summary>系统状态与读取合同</summary><p>13 联赛 · {workspace.runtime.free_bridge_mode} · Candidate/Formal/Lock/Production 全部关闭</p><p>公开系统状态：{PUBLIC_SYSTEM_LABELS[workspace.data_operations.public_system_health]} · 原始技术代码：{workspace.data_operations.system_health}</p><p>provider_calls={workspace.read_contract.provider_calls} · db_writes={workspace.read_contract.db_writes} · would_write_checkpoint={String(workspace.read_contract.would_write_checkpoint)} · no_call_on_read={String(workspace.read_contract.no_call_on_read)}</p></details>
     </section>
   );
 }

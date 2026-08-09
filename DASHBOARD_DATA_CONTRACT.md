@@ -41,7 +41,7 @@ declared availability/readiness state and never authorize fabrication.
 | `attention[].intelligence_state` | `build_intelligence_projection` | `AVAILABLE` | `PAGE_PROJECTION` | frozen seven-state precedence | `true` |
 | `attention[].reason_codes` | `intelligence_reason_codes` | `AVAILABLE` | relevant source domains | empty only for impossible invalid state; stable has explicit code | `true` |
 | `attention[].affected_domains` | existing intelligence state/reason evidence | `AVAILABLE` | relevant source domains | deterministic EVENT/DATA/MODEL/COLLECTION/MARKET domain projection; no new signal | `true` |
-| `attention[].factual_summary` | existing intelligence state + reason codes | `AVAILABLE` | `PAGE_PROJECTION` | factual source-code summary only; no recommendation language | `true` |
+| `attention[].factual_summary` | canonical match factual-summary authority | `AVAILABLE` | `ODDS_PREMATCH` | same causal evidence/conclusion/recovery statement as the match; no recommendation language | `true` |
 | `attention[].readiness_status` | DayView `data_status` | `AVAILABLE` | relevant source domains | existing readiness value preserved | `true` |
 | `attention[].readiness_context` | Decision/Data Readiness `reason_code`, `missing_fields`, `stale_fields`, `action` | `AVAILABLE` | relevant source domains | source blockers/context preserved; no frontend reconstruction | `true` |
 | `attention[].next_eval_at` | Decision Contract | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | relevant source domains | null when source has no next evaluation | `true` |
@@ -134,7 +134,8 @@ checkpoint identities remain available only in technical details.
 | `external_intelligence.{weather,news,sentiment,advanced_xg}.status` | approved P0 boundary | `NOT_CONNECTED` | `NONE` | optional and non-blocking | `true` |
 | each external `.affects_match_readiness` | approved P0 boundary | `AVAILABLE` | `NONE` | always false while not connected | `true` |
 | `freshness.domains.*` | `FRESHNESS_CONTRACT.md` sources | mixed, explicit | matching domain | never infer source time | `true` |
-| `data_operations.read_model_source`, `checkpoint_key`, `degradation`, `counts`, `system_health`, `provider_budget_status` | DayView envelope | `AVAILABLE` | `PAGE_PROJECTION` | source truth preserved | `true` |
+| `data_operations.read_model_source`, `checkpoint_key`, `degradation`, `counts`, `system_health`, `provider_budget_status` | DayView envelope | `AVAILABLE` | `PAGE_PROJECTION` | raw source truth preserved for technical detail | `true` |
+| `data_operations.public_system_health` | final `day_mode` plus raw DayView degradation | `AVAILABLE` | `PAGE_PROJECTION` | exact `HEALTHY/PARTIAL_DEGRADATION/DAY_BLOCKED`; only a `BLOCKED` day may expose `DAY_BLOCKED` | `true` |
 
 ## Prohibited fields
 
@@ -166,8 +167,10 @@ following source-bound fields:
 | `default_focus_fixture_id` | information-usefulness ranking over existing match fields | `AVAILABLE_WHEN_MATCH_FOCUS` | relevant match domains | non-null only for `NORMAL + MATCH`; kickoff and fixture id are deterministic tie-breaks | `true` |
 | `today_summary.*` | canonical matches plus one primary reason per prioritized match | `AVAILABLE` | `PAGE_PROJECTION` | primary counts sum exactly to priority match count; secondary reasons never double-count | `true` |
 | `global_focus.*` | DayView degradation, freshness, navigation and match counts | `AVAILABLE_FOR_NON_MATCH_FOCUS` | `FIXTURES` / `PAGE_PROJECTION` | source-bound incident/calm/empty fact; no fabricated match | `true` |
-| `global_model_quality.*` | global performance checkpoint and its timestamp | `AVAILABLE_WHEN_CURRENT` | `PAGE_PROJECTION` | complete metrics render only with a current timestamped checkpoint; missing/stale fails closed | `true` |
-| `matches[].priority_reason_primary`, `priority_reason_secondary[]` | existing intelligence, market, readiness and model relation fields | `AVAILABLE` | relevant source domains | information usefulness only; never betting value | `true` |
+| `global_model_quality.*` | global performance checkpoint and its timestamp | `AVAILABLE_WHEN_CURRENT` | `PAGE_PROJECTION` | exact `AVAILABLE/STALE/INCOMPLETE/NOT_AVAILABLE`; only complete current metrics render | `true` |
+| `matches[].priority_reason_primary`, `priority_reason_secondary[]` | existing intelligence, market, readiness and model relation fields | `AVAILABLE` | relevant source domains | primary is only eligible `STALE_MARKET_MEMORY/MARKET_MOVEMENT/MODEL_DIAGNOSTIC`; data/lineup/collection attention remains secondary and never increments priority counts | `true` |
+| `matches[].factual_summary` | canonical persisted AH/OU status, timeline depth and freshness | `AVAILABLE` | `ODDS_PREMATCH` | one causal authority states evidence, allowed conclusion and existing scheduled recovery; no read-side Provider call | `true` |
+| `matches[].risks.*.explanation` | canonical risk dimension and source reason codes | `AVAILABLE_WHEN_SOURCE_REASON_EXISTS` | relevant source domains | Chinese-first dimension-specific summary; raw codes remain technical detail only; absent evidence is not fabricated | `true` |
 | `matches[].market_radar.markets.*.trend_evidence_status` | persisted timeline depth plus exact movement evidence | `AVAILABLE` | `ODDS_PREMATCH` | one snapshot can never claim trend | `true` |
 | `matches[].market_radar.markets.*.cross_sectional_comparison_status` | current same-time bookmaker pairs and public freshness | `AVAILABLE` | `ODDS_PREMATCH` | may be available when trend is insufficient; stale pauses comparison | `true` |
 | `matches[].market_radar.markets.*.latest_snapshot_at` | latest persisted timeline point | `AVAILABLE_WHEN_OBSERVED` | `ODDS_PREMATCH` | raw timestamp; client derives age | `true` |

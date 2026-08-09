@@ -38,12 +38,10 @@
         "match_count": 26,
         "competition_count": 13,
         "priority_match_count": 3,
-        "priority_group_count": 5,
+        "priority_group_count": 2,
         "primary_reason_counts": {
           "MARKET_MOVEMENT": 2,
-          "MODEL_DIAGNOSTIC": 1,
-          "LINEUP_PENDING": 4,
-          "COLLECTION_INCIDENT": 1
+          "MODEL_DIAGNOSTIC": 1
         }
       },
       "global_focus": null,
@@ -58,6 +56,7 @@
           "intelligence_state": "MARKET_MOVEMENT",
           "priority_reason_primary": "MARKET_MOVEMENT",
           "priority_reason_secondary": ["MODEL_DIAGNOSTIC"],
+          "factual_summary": "已有当前 AH/OU 持久化时间线；可展示已证实走势并进行模型—市场诊断；状态随既有调度形成的新证据更新。",
           "readiness": {
             "status": "READY",
             "next_eval_at": "2026-08-09T13:22:00Z",
@@ -150,8 +149,8 @@
         "match_count": 11,
         "competition_count": 6,
         "priority_match_count": 0,
-        "priority_group_count": 1,
-        "primary_reason_counts": {"COLLECTION_INCIDENT": 11}
+        "priority_group_count": 0,
+        "primary_reason_counts": {}
       },
       "global_focus": {
         "status": "INCIDENT",
@@ -207,7 +206,8 @@
           "away_team_name": "Atalanta",
           "intelligence_state": "DATA_INCOMPLETE",
           "priority_reason_primary": "STALE_MARKET_MEMORY",
-          "priority_reason_secondary": [],
+          "priority_reason_secondary": ["MARKET_MOVEMENT", "DATA_INCOMPLETE"],
+          "factual_summary": "已落盘 AH/OU 历史市场证据已过期；当前走势与模型—市场比较暂停；等待既有调度形成新快照。",
           "readiness": {"status": "STALE", "next_eval_at": "2026-08-09T13:22:00Z", "identity_status": "READY"},
           "market_radar": {
             "ASIAN_HANDICAP": {
@@ -222,6 +222,63 @@
             }
           },
           "scoreline_reference": {"status": "UNAVAILABLE", "simulations_completed": null, "top3": []}
+        }
+      ]
+    },
+    "POSTDEPLOY_D16_REAL_SHAPE": {
+      "day_mode": "NORMAL",
+      "default_focus_type": "MATCH",
+      "default_focus_fixture_id": "1492329",
+      "today_summary": {
+        "match_count": 3,
+        "competition_count": 1,
+        "priority_match_count": 1,
+        "priority_group_count": 1,
+        "primary_reason_counts": {"STALE_MARKET_MEMORY": 1}
+      },
+      "data_operations": {
+        "system_health": "BLOCKED_DAY",
+        "public_system_health": "PARTIAL_DEGRADATION"
+      },
+      "global_model_quality": {
+        "status": "STALE",
+        "checkpoint_generated_at": "2026-08-08T10:31:34.788657Z",
+        "model_log_loss": null,
+        "market_log_loss": null,
+        "model_brier": null,
+        "market_brier": null,
+        "model_calibration_error": null,
+        "sample_count": 0
+      },
+      "matches": [
+        {
+          "fixture_id": "1492322",
+          "intelligence_state": "DATA_INCOMPLETE",
+          "priority_reason_primary": null,
+          "priority_reason_secondary": ["DATA_INCOMPLETE"],
+          "factual_summary": "尚无已落盘 AH/OU 市场证据；无法生成走势或当前模型—市场比较；等待既有调度形成证据。",
+          "market_snapshot_counts": {"ASIAN_HANDICAP": 0, "TOTALS": 0}
+        },
+        {
+          "fixture_id": "1492329",
+          "intelligence_state": "DATA_INCOMPLETE",
+          "priority_reason_primary": "STALE_MARKET_MEMORY",
+          "priority_reason_secondary": ["MARKET_MOVEMENT", "DATA_INCOMPLETE"],
+          "factual_summary": "已落盘 AH/OU 历史市场证据已过期；当前走势与模型—市场比较暂停；等待既有调度形成新快照。",
+          "market_snapshot_counts": {"ASIAN_HANDICAP": 1, "TOTALS": 2},
+          "risk_public_copy": {
+            "DATA_RISK": "数据字段已超过新鲜度边界；比赛或盘口身份尚未完成；另有 2 项技术原因",
+            "MODEL_RISK": "既有模型模拟尚未就绪",
+            "COLLECTION_RISK": "采集评估证据已过期"
+          }
+        },
+        {
+          "fixture_id": "1492325",
+          "intelligence_state": "DATA_INCOMPLETE",
+          "priority_reason_primary": null,
+          "priority_reason_secondary": ["DATA_INCOMPLETE"],
+          "factual_summary": "尚无已落盘 AH/OU 市场证据；无法生成走势或当前模型—市场比较；等待既有调度形成证据。",
+          "market_snapshot_counts": {"ASIAN_HANDICAP": 0, "TOTALS": 0}
         }
       ]
     },

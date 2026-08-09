@@ -162,6 +162,12 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
         set(schemas["WorkspaceAttentionItem"]["properties"]["intelligence_state"]["enum"]) == states
     )
     assert set(schemas["WorkspaceMatch"]["properties"]["intelligence_state"]["enum"]) == states
+    priority_options = schemas["WorkspaceMatch"]["properties"]["priority_reason_primary"]["anyOf"]
+    assert next(set(option["enum"]) for option in priority_options if "enum" in option) == {
+        "MARKET_MOVEMENT",
+        "MODEL_DIAGNOSTIC",
+        "STALE_MARKET_MEMORY",
+    }
     assert set(schemas["WorkspaceRisks"]["properties"]) == {
         "EVENT_RISK",
         "DATA_RISK",
@@ -207,6 +213,16 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
     }
     assert "source_status" in schemas["WorkspaceMarketFact"]["properties"]
     assert "source_status" in schemas["WorkspaceMarketSummary"]["properties"]
+    assert set(schemas["WorkspaceModelQuality"]["properties"]["status"]["enum"]) == {
+        "AVAILABLE",
+        "STALE",
+        "INCOMPLETE",
+        "NOT_AVAILABLE",
+    }
+    assert set(
+        schemas["WorkspaceDataOperations"]["properties"]["public_system_health"]["enum"]
+    ) == {"HEALTHY", "PARTIAL_DEGRADATION", "DAY_BLOCKED"}
+    assert "factual_summary" in schemas["WorkspaceMatch"]["properties"]
     assert (
         schemas["WorkspaceReadyScorelineReference"]["properties"]["simulations_completed"]["const"]
         == 10_000

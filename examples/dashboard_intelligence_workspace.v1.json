@@ -5,6 +5,7 @@
     "counts": {"total": 0},
     "degradation": {"state": "EMPTY_DAY"},
     "provider_budget_status": "OK",
+    "public_system_health": "HEALTHY",
     "read_model_source": "dashboard_read_model",
     "system_health": "EMPTY_DAY"
   },

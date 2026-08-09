@@ -67,7 +67,7 @@ def _risks() -> dict[str, Any]:
             "dimension": dimension,
             "status": "OK",
             "reason_codes": [],
-            "explanation": "No current evidence",
+            "explanation": "没有可陈述的源证据",
         }
         for dimension in (
             "EVENT_RISK",
@@ -289,9 +289,7 @@ def test_workspace_is_deterministic_explicit_and_schema_valid() -> None:
     assert first["default_focus_type"] == "MATCH"
     assert first["default_focus_fixture_id"] == "fixture-two"
     assert first["selected_fixture_id"] == "fixture-two"
-    assert first["today_summary"]["primary_reason_counts"] == {
-        "FRESH_MARKET_EVIDENCE": 1
-    }
+    assert first["today_summary"]["primary_reason_counts"] == {}
     assert first["football_day_timezone"] == "Asia/Shanghai"
     assert first["football_day_cutoff_hour"] == 12
     assert first["football_day_start_utc"] == "2026-08-09T04:00:00Z"
@@ -302,7 +300,9 @@ def test_workspace_is_deterministic_explicit_and_schema_valid() -> None:
         "intelligence_state": "MARKET_STABLE",
         "reason_codes": ["MARKET_STABLE_ALL_AVAILABLE_MARKETS"],
         "affected_domains": ["MARKET"],
-        "factual_summary": ("MARKET_STABLE: MARKET_STABLE_ALL_AVAILABLE_MARKETS"),
+        "factual_summary": (
+            "尚无已落盘 AH/OU 市场证据；无法生成走势或当前模型—市场比较；等待既有调度形成证据。"
+        ),
         "readiness_status": "READY",
         "readiness_context": {
             "reason_code": None,
@@ -361,11 +361,9 @@ def test_day_mode_focus_pairs_are_derived_for_all_four_modes() -> None:
 
     calm = _day_view()
     for card in calm["cards"]:
-        card["market_radar"]["markets"]["ASIAN_HANDICAP"] = _market(0)
+        card["market_radar"]["markets"]["ASIAN_HANDICAP"] = _market(2)
+        card["market_radar"]["markets"]["TOTALS"] = _market(2)
         card["intelligence_state"] = "MARKET_STABLE"
-        card["model_lab"]["markets"]["ASIAN_HANDICAP"] = {
-            "status": "MARKET_NOT_READY"
-        }
     calm_payload = _workspace(calm)
     assert (calm_payload["day_mode"], calm_payload["default_focus_type"]) == (
         "CALM",
@@ -381,6 +379,8 @@ def test_day_mode_focus_pairs_are_derived_for_all_four_modes() -> None:
     for card in blocked["cards"]:
         card["intelligence_state"] = "COLLECTION_INCIDENT"
         card["intelligence_reason_codes"] = ["COLLECTION_PROVIDER_EMPTY"]
+        card["market_radar"]["markets"]["ASIAN_HANDICAP"] = _market(0)
+        card["market_radar"]["markets"]["TOTALS"] = _market(0)
     blocked_payload = _workspace(blocked)
     assert (blocked_payload["day_mode"], blocked_payload["default_focus_type"]) == (
         "BLOCKED",
@@ -436,10 +436,7 @@ def test_primary_reason_grouping_counts_each_match_once() -> None:
     match = next(item for item in payload["matches"] if item["fixture_id"] == "fixture-two")
 
     assert match["priority_reason_primary"] == "MARKET_MOVEMENT"
-    assert match["priority_reason_secondary"] == [
-        "FRESH_MARKET_EVIDENCE",
-        "MODEL_DIAGNOSTIC",
-    ]
+    assert match["priority_reason_secondary"] == ["MODEL_DIAGNOSTIC"]
     assert payload["today_summary"]["priority_match_count"] == 1
     assert payload["today_summary"]["primary_reason_counts"] == {"MARKET_MOVEMENT": 1}
 
@@ -447,9 +444,7 @@ def test_primary_reason_grouping_counts_each_match_once() -> None:
 def test_trend_and_cross_sectional_statuses_are_independent() -> None:
     day_view = _day_view()
     day_view["cards"] = [_card("fixture-one", 1)]
-    market = _workspace(day_view)["matches"][0]["market_radar"]["markets"][
-        "ASIAN_HANDICAP"
-    ]
+    market = _workspace(day_view)["matches"][0]["market_radar"]["markets"]["ASIAN_HANDICAP"]
 
     assert market["trend_evidence_status"] == "INSUFFICIENT"
     assert market["cross_sectional_comparison_status"] == "AVAILABLE"
@@ -461,9 +456,7 @@ def test_bookmaker_count_change_without_line_or_price_change_remains_stable() ->
     source = day_view["cards"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]
     source["timeline"]["points"][1]["bookmaker_count"] = 9
 
-    market = _workspace(day_view)["matches"][2]["market_radar"]["markets"][
-        "ASIAN_HANDICAP"
-    ]
+    market = _workspace(day_view)["matches"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]
 
     assert market["movement"]["status"] == "STABLE"
     assert market["trend_evidence_status"] == "AVAILABLE"
@@ -477,12 +470,8 @@ def test_ready_scoreline_fails_closed_when_identity_or_model_readiness_is_missin
     )
 
     prior_only = _day_view()
-    prior_only["cards"][0]["simulation"]["simulation"]["calibration_status"] = (
-        "BASELINE_PRIOR"
-    )
-    assert _workspace(prior_only)["matches"][0]["scoreline_reference"]["status"] == (
-        "UNAVAILABLE"
-    )
+    prior_only["cards"][0]["simulation"]["simulation"]["calibration_status"] = "BASELINE_PRIOR"
+    assert _workspace(prior_only)["matches"][0]["scoreline_reference"]["status"] == ("UNAVAILABLE")
 
 
 def test_lineup_before_expected_window_is_not_a_priority_reason() -> None:
@@ -515,9 +504,108 @@ def test_global_model_quality_uses_exact_freshness_boundary_and_fails_closed() -
     assert stale["status"] == "STALE"
     assert stale["model_log_loss"] is None
 
+    day_view["generated_at"] = "2026-08-09T02:00:01Z"
+    day_view["performance"]["forward_ledger"]["probability_validation"]["market_log_loss"] = None
+    incomplete = _workspace(day_view)["global_model_quality"]
+    assert incomplete["status"] == "INCOMPLETE"
+    assert incomplete["checkpoint_generated_at"] == "2026-08-09T02:00:00Z"
+    assert incomplete["model_log_loss"] is None
+
     del day_view["performance"]["forward_ledger"]["checkpoint_metadata"]
     missing = _workspace(day_view)["global_model_quality"]
     assert missing["status"] == "NOT_AVAILABLE"
+    assert missing["checkpoint_generated_at"] is None
+
+
+def test_postdeploy_real_shape_uses_stale_evidence_and_scopes_raw_blocked_health() -> None:
+    day_view = _day_view()
+    day_view["degradation"] = {"state": "BLOCKED_DAY", "reason_code": "BLOCKED_DAY"}
+    zero_one = _card("zero-one", 0)
+    zero_two = _card("zero-two", 0)
+    stale = _card("stale-useful", 2)
+    for card in (zero_one, zero_two):
+        card["intelligence_state"] = "DATA_INCOMPLETE"
+        card["intelligence_reason_codes"] = [
+            "DATA_IDENTITY_NOT_READY",
+            "DATA_MARKET_TIMELINE_INSUFFICIENT",
+        ]
+        card["data_status"] = "BLOCKED"
+        card["market_radar"]["markets"]["TOTALS"] = _market(0)
+    stale["intelligence_state"] = "DATA_INCOMPLETE"
+    stale["intelligence_reason_codes"] = [
+        "DATA_FIELD_STALE",
+        "DATA_IDENTITY_NOT_READY",
+        "MODEL_SIMULATION_NOT_READY",
+    ]
+    stale["data_status"] = "BLOCKED"
+    stale["market_radar"]["markets"]["ASIAN_HANDICAP"]["current"]["freshness"] = {"status": "STALE"}
+    stale["market_radar"]["markets"]["ASIAN_HANDICAP"]["movement"]["status"] = "LINE_MOVEMENT"
+    stale["risk_dimensions"]["DATA_RISK"] = {
+        "dimension": "DATA_RISK",
+        "status": "INCIDENT",
+        "reason_codes": [
+            "DATA_FIELD_STALE",
+            "DATA_IDENTITY_NOT_READY",
+            "DATA_REQUIRED_INPUT_MISSING",
+        ],
+        "explanation": "DATA FIELD STALE",
+    }
+    day_view["cards"] = [zero_one, stale, zero_two]
+
+    payload = _workspace(day_view)
+    focused = next(
+        match
+        for match in payload["matches"]
+        if match["fixture_id"] == payload["default_focus_fixture_id"]
+    )
+
+    assert (payload["day_mode"], payload["default_focus_type"]) == ("NORMAL", "MATCH")
+    assert payload["default_focus_fixture_id"] == "stale-useful"
+    assert payload["data_operations"]["system_health"] == "BLOCKED_DAY"
+    assert payload["data_operations"]["public_system_health"] == "PARTIAL_DEGRADATION"
+    assert payload["today_summary"]["primary_reason_counts"] == {"STALE_MARKET_MEMORY": 1}
+    assert focused["priority_reason_primary"] == "STALE_MARKET_MEMORY"
+    assert focused["priority_reason_secondary"] == [
+        "MARKET_MOVEMENT",
+        "DATA_INCOMPLETE",
+    ]
+    assert payload["matches"][0]["priority_reason_primary"] is None
+    assert payload["matches"][0]["priority_reason_secondary"] == ["DATA_INCOMPLETE"]
+    assert focused["factual_summary"] == payload["attention"][1]["factual_summary"]
+    assert "当前走势与模型—市场比较暂停" in focused["factual_summary"]
+    assert focused["risks"]["DATA_RISK"]["explanation"] == (
+        "数据字段已超过新鲜度边界；比赛或盘口身份尚未完成；另有 1 项技术原因"
+    )
+    assert "DATA FIELD STALE" not in focused["risks"]["DATA_RISK"]["explanation"]
+
+
+def test_all_unusable_matches_fail_closed_to_global_incident() -> None:
+    day_view = _day_view()
+    day_view["degradation"] = {"state": "BLOCKED_DAY"}
+    for card in day_view["cards"]:
+        card["intelligence_state"] = "DATA_INCOMPLETE"
+        card["data_status"] = "BLOCKED"
+        card["market_radar"]["markets"]["ASIAN_HANDICAP"] = _market(0)
+        card["market_radar"]["markets"]["TOTALS"] = _market(0)
+
+    payload = _workspace(day_view)
+
+    assert (payload["day_mode"], payload["default_focus_type"]) == (
+        "BLOCKED",
+        "GLOBAL_INCIDENT",
+    )
+    assert payload["default_focus_fixture_id"] is None
+    assert payload["data_operations"]["public_system_health"] == "DAY_BLOCKED"
+
+
+def test_schema_rejects_public_day_mode_and_system_health_conflict() -> None:
+    payload = _workspace(_day_view())
+    payload["data_operations"]["public_system_health"] = "DAY_BLOCKED"
+
+    with pytest.raises(ValueError, match="only BLOCKED day"):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "test-request", **payload}
+        )
 
 
 def test_public_market_readiness_is_single_source_bound_authority() -> None:
@@ -541,13 +629,11 @@ def test_public_market_readiness_is_single_source_bound_authority() -> None:
 
 def test_unknown_market_freshness_fails_closed_as_insufficient() -> None:
     day_view = _day_view()
-    day_view["cards"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]["current"][
-        "freshness"
-    ] = {"status": "UNKNOWN"}
+    day_view["cards"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]["current"]["freshness"] = {
+        "status": "UNKNOWN"
+    }
 
-    market = _workspace(day_view)["matches"][2]["market_radar"]["markets"][
-        "ASIAN_HANDICAP"
-    ]
+    market = _workspace(day_view)["matches"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]
 
     assert market["status"] == "INSUFFICIENT"
     assert market["source_status"] == "READY"

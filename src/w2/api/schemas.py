@@ -16,6 +16,7 @@ IntelligenceState = Literal[
 ]
 DashboardDayMode = Literal["NORMAL", "BLOCKED", "CALM", "EMPTY"]
 DashboardFocusType = Literal["MATCH", "GLOBAL_INCIDENT", "DAY_SUMMARY", "EMPTY_STATE"]
+DashboardPriorityReason = Literal["MARKET_MOVEMENT", "MODEL_DIAGNOSTIC", "STALE_MARKET_MEMORY"]
 
 
 class ErrorPayload(BaseModel):
@@ -349,9 +350,7 @@ class WorkspaceMarket(BaseModel):
     movement: WorkspaceMovement
     reason_codes: list[str]
     trend_evidence_status: Literal["AVAILABLE", "INSUFFICIENT"]
-    cross_sectional_comparison_status: Literal[
-        "AVAILABLE", "INSUFFICIENT", "PAUSED_STALE"
-    ]
+    cross_sectional_comparison_status: Literal["AVAILABLE", "INSUFFICIENT", "PAUSED_STALE"]
     latest_snapshot_at: datetime | str | None
     freshness_max_age_seconds: int | None = Field(default=None, ge=0)
 
@@ -538,8 +537,9 @@ class WorkspaceMatch(BaseModel):
     status: str | None
     intelligence_state: IntelligenceState
     intelligence_reason_codes: list[str]
-    priority_reason_primary: str | None
+    priority_reason_primary: DashboardPriorityReason | None
     priority_reason_secondary: list[str]
+    factual_summary: str = Field(min_length=1)
     risks: WorkspaceRisks
     readiness: WorkspaceReadiness
     market_fact: WorkspaceMarketFact
@@ -603,7 +603,7 @@ class WorkspaceGlobalFocus(BaseModel):
 class WorkspaceModelQuality(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    status: Literal["AVAILABLE", "STALE", "NOT_AVAILABLE"]
+    status: Literal["AVAILABLE", "STALE", "INCOMPLETE", "NOT_AVAILABLE"]
     checkpoint_key: str | None
     checkpoint_generated_at: datetime | str | None
     freshness_max_age_seconds: int = Field(ge=0)
@@ -793,6 +793,7 @@ class WorkspaceDataOperations(BaseModel):
     degradation: dict[str, Any]
     counts: dict[str, Any]
     system_health: str
+    public_system_health: Literal["HEALTHY", "PARTIAL_DEGRADATION", "DAY_BLOCKED"]
     provider_budget_status: str
 
 
@@ -850,6 +851,11 @@ class DashboardIntelligenceWorkspaceResponse(BaseModel):
             raise ValueError("non-MATCH focus requires a global focus")
         if self.selected_fixture_id != self.default_focus_fixture_id:
             raise ValueError("selected fixture must mirror the default focus authority")
+        if self.day_mode == "BLOCKED":
+            if self.data_operations.public_system_health != "DAY_BLOCKED":
+                raise ValueError("BLOCKED day requires DAY_BLOCKED public system health")
+        elif self.data_operations.public_system_health == "DAY_BLOCKED":
+            raise ValueError("only BLOCKED day may expose DAY_BLOCKED public system health")
         return self
 
 
