@@ -3,21 +3,21 @@
 ```text
 AUTHORITY = W2_CODEX_EXECUTION_RECEIPT_LATEST
 STATUS = COMPLETE_TERMINAL
-EXECUTION_TASK = W2_LAST_48H_RECONCILIATION_AND_DASHBOARD_V41_EXECUTION_V1
-TERMINAL_GATE = OWNER_DASHBOARD_V41_POSTDEPLOY_ACCEPTANCE
-EXACT_CONTEXT_BASE_SHA = d77623fd14eb2fa273e22a9585f39889ff2577e8
-EXACT_IMPLEMENTATION_BASE_SHA = d2740a573c748cfaef38c66e951618e8782e09d0
-EXACT_IMPLEMENTATION_HEAD_SHA = 05cdc3c1c6dbadbfe20899e941ca404274ff786f
-EXACT_SOURCE_TREE_SHA = 071187ba78381640028efb27b6a1e46c585176d2
-EXACT_ORIGIN_MAIN_SHA = c6d8c6c7304d302f31bea5a88967e3bc9e945b37
-PR_NUMBER_OR_NONE = 506
+EXECUTION_TASK = W2_DASHBOARD_V41_POSTDEPLOY_BOUNDED_REMEDIATION_V1
+TERMINAL_GATE = OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
+EXACT_CONTEXT_BASE_SHA = f514efa109f72cb4f9d9f5808af0e8fc73c00657
+EXACT_IMPLEMENTATION_BASE_SHA = c6d8c6c7304d302f31bea5a88967e3bc9e945b37
+EXACT_IMPLEMENTATION_HEAD_SHA = 99e4acc275edc94ae012c12dd541609b2be3fffe
+EXACT_SOURCE_TREE_SHA = ec11f9a15d0cac1e7f49bf722f1fd1b760d856e6
+EXACT_ORIGIN_MAIN_SHA = 6787b7f12a74f69f76e0f4f88c9a875cece66673
+PR_NUMBER_OR_NONE = 507
 PR_STATE = MERGED
-PR_MERGE_SHA = c6d8c6c7304d302f31bea5a88967e3bc9e945b37
-FULL_CI_RUN_ID = 31332734693
-PROMOTION_RUN_ID = 31333287529
+PR_MERGE_SHA = 6787b7f12a74f69f76e0f4f88c9a875cece66673
+FULL_CI_RUN_ID = 31336303846
+PROMOTION_RUN_ID = 31336887357
 CI_TERMINAL_STATUS = PASS
 RELEASE_REQUIRED = PASS_EXACT_HEAD
-FINAL_DEPLOYED_SOURCE_SHA = 05cdc3c1c6dbadbfe20899e941ca404274ff786f
+FINAL_DEPLOYED_SOURCE_SHA = 99e4acc275edc94ae012c12dd541609b2be3fffe
 PROVIDER_CALLS = 0
 DB_BUSINESS_WRITES = 0
 SCHEDULER_OR_CADENCE_CHANGED = false
@@ -33,122 +33,45 @@ PRODUCTION_STATUS = OFF
 P6_STATUS = NOT_AUTHORIZED
 REPOSITORY_HYGIENE = PASS
 UNRESOLVED_ITEMS = NONE_WITHIN_AUTHORIZED_SCOPE
-NEXT_GATE = OWNER_DASHBOARD_V41_POSTDEPLOY_ACCEPTANCE
+NEXT_GATE = OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
 ```
 
 ## Result
 
-PR #506 completed V41-0 through V41-7. The Owner-approved V4.1 references were
-materialized, the existing unified endpoint gained source-bound day-mode and
-focus authority, the first screen was replaced by the four-mode V4.1 cockpit,
-and all contract, visual, accessibility, CI, deployment and real postdeploy
-checks passed. The Round4 packet was refreshed only; Round4 was not started.
+PR #507 closed D16-01 through D16-07 without reopening the P1/P2 architecture.
+It retained the single unified read model and endpoint, corrected the real-shape
+public mode/priority/copy/layout/checkpoint contracts, passed exact-head Full CI,
+was automatically merged and was deployed through the local OCI relay path.
 
 ## Changed files
 
-The implementation changed 39 tracked files:
+The implementation changed 17 tracked files: the two frozen data/freshness
+contracts; unified schema/adapter; unified TypeScript types/component/CSS;
+real-shape deterministic fixtures and sample; Python contract/unit tests; Web
+E2E; design review/checksums; and two D16 acceptance screenshots. No unrelated
+runtime, scheduler, provider, model or legacy dashboard surface was rebuilt.
+
+## Acceptance evidence
 
 ```text
-DASHBOARD_DATA_CONTRACT.md
-FRESHNESS_CONTRACT.md
-apps/web/e2e/decision-contract.spec.ts
-apps/web/playwright.config.ts
-apps/web/src/components/IntelligenceConsole.tsx
-apps/web/src/intelligence.css
-apps/web/src/lib/labels.ts
-apps/web/src/types/intelligenceWorkspace.ts
-design-qa.md
-docs/ui/dashboard-v4.1/**
-examples/dashboard_intelligence_workspace.v1.json
-src/w2/api/schemas.py
-src/w2/dashboard/workspace.py
-tests/contract/test_dashboard_intelligence_workspace_contract.py
-tests/unit/test_dashboard_intelligence_workspace.py
-```
-
-## Contract, test and visual evidence
-
-```text
-focused Python final regression = 70 passed
-full Python unit/contract pre-final = 2370 passed, 2 superseded-string failures fixed, 2 skipped
-V4.1 Web focus = 21 passed
-full Web E2E = 39 passed
-TypeScript typecheck = PASS
-Web build = PASS
-Ruff = PASS
-MyPy = PASS
-stored-target image comparison = PASS
-design QA = PASS_NO_P0_P1_P2
-1180 responsive = PASS
-1366x768 owner-device acceptance = PASS_NO_HORIZONTAL_OVERFLOW
-200 percent zoom, keyboard and contrast = PASS
-tracked generated outputs = PASS
-protected historical evidence = PASS
-repository hygiene = PASS
-secret scan = PASS
-git diff check = PASS
+D16_01_THROUGH_D16_07 = CLOSED
+FOCUSED_PYTHON = 41 passed
+FULL_LOCAL_PYTHON = 2538 passed, 8 skipped, 1 existing sudo-prompt test deselected
+FULL_WEB_E2E = 51 passed
+TYPECHECK_BUILD_RUFF_MYPY = PASS
+TRACKED_PROTECTED_SECRET_HYGIENE = PASS
 FULL_CI_RELEASE_REQUIRED = PASS_EXACT_HEAD
+LOCAL_OCI_RELAY = PASS_DIGEST_VERIFIED
+WARM_SWITCH = PASS_34_SECONDS
+HEALTH_READY_RELEASE_SYNC = PASS
+LIVE_D16_CONTRACT = PASS
+READ_SIDE_PERSISTED_VECTOR_UNCHANGED = PASS
 ```
-
-Exact-head CI supplied the authoritative complete unit, contract, integration,
-migration, staging-parity, Web E2E, immutable-image, image-smoke and release
-manifest result. Local Docker was unavailable, so no local staging substitute
-was claimed.
-
-## Deployment
-
-```text
-IMAGE_TRANSPORT = LOCAL_OCI_RELAY_PRIMARY
-PYTHON_IMAGE_DIGEST = sha256:e51b229d7f87169f144d8f56ca655bebf6ef789cc1ed4abf42b7f8d02aae3237
-WEB_IMAGE_DIGEST = sha256:d6f1b67460b91076630881701cab1086181fa1fdca229b7bf102b24b02bbaab5
-WEB_RELAY_SECONDS = 51
-WARM_SWITCH_SECONDS = 38
-WARM_SWITCH_TARGET_SECONDS = 300
-HEALTH = PASS
-READY = PASS_5_CRITICAL_CHECKS
-RELEASE_SYNC = PASS
-ROLLBACK_EXECUTED = false
-FINAL_RESULT = PASS
-```
-
-The first parallel pre-merge relay stopped safely when one SSH transfer timed
-out. The existing exact Python digest and sequentially relayed exact Web digest
-were independently verified on the VPS before merge and warm switch. No SSH or
-Fail2ban configuration was changed.
-
-## Postdeploy real-data acceptance
-
-```text
-schema = w2.dashboard-intelligence-workspace.v1
-public_authority = NEW_INTELLIGENCE_WORKSPACE_ONLY
-Web/API source identity = 05cdc3c1c6dbadbfe20899e941ca404274ff786f
-data_profile = real-db
-data_source = read_model_checkpoint
-day_mode = NORMAL
-default_focus_type = MATCH
-default_focus_fixture_id = 1492329
-match_count = 3
-attention_count = 3
-external_intelligence = NOT_CONNECTED
-scoreline_ready_count = 0_FAIL_CLOSED
-provider_calls = 0
-db_writes = 0
-would_write_checkpoint = false
-no_call_on_read = true
-active_whitelist_count = 13
-free_bridge_mode = SHADOW_ONLY
-candidate/formal/lock/production = OFF
-```
-
-One immediate live unified-endpoint read left the exact persisted Provider,
-capture and business-row metric vector unchanged. The public page rendered the
-new V4.1 cockpit at 1536 x 1024 and 1366 x 768; the latter had matching client
-and document widths of 1366 pixels and no legacy Boss surface.
 
 ## Frozen controls and stop
 
-No Provider call or manual probe, DB business write, migration,
-Scheduler/cadence change, whitelist change, model/factor/threshold change,
-Phase 0.5 re-execution, external-intelligence activation, Round4 start, P6
-execution, Candidate/Formal/Lock/Production enablement or real-money authority
-occurred. Execution stops at `OWNER_DASHBOARD_V41_POSTDEPLOY_ACCEPTANCE`.
+No Provider call or manual probe, DB business write, Scheduler/cadence change,
+whitelist change, model/factor/threshold change, Phase 0.5 rerun, external-
+intelligence activation, Candidate/Formal/Lock/Production enablement, P6
+execution, real-money authorization or Round4 start occurred. Execution stops
+at `OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW`.
