@@ -1,20 +1,20 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-09T22:18:00+08:00"
+updated_at: "2026-08-09T23:12:42+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: W2_DASHBOARD_OWNER_CANONICAL_IDENTITY_COLLECTION_SEMANTICS_REMEDIATION
+owner_product_decision: W2_DASHBOARD_OWNER_CANONICAL_TRUTH_ACCEPTED
 owner_authorization_id: W2_DASHBOARD_OWNER_CANONICAL_IDENTITY_COLLECTION_SEMANTICS_REMEDIATION_V1
-active_next_action: EXECUTE_DASHBOARD_OWNER_CANONICAL_TRUTH_REMEDIATION
-next_code_action: CANONICAL_PERFORMANCE_IDENTITY_COLLECTION_ASSESSMENT_AND_PUBLIC_SEMANTICS_CLOSURE
-current_status: DASHBOARD_OWNER_CANONICAL_TRUTH_CHANGES_REQUIRED
-current_gate: DASHBOARD_OWNER_CANONICAL_TRUTH_REMEDIATION_ACTIVE
+active_next_action: NONE_STOP_AT_DASHBOARD_OWNER_CANONICAL_TRUTH_ACCEPTANCE_PASS
+next_code_action: NONE
+current_status: DASHBOARD_OWNER_CANONICAL_TRUTH_ACCEPTANCE_PASS
+current_gate: DASHBOARD_OWNER_CANONICAL_TRUTH_ACCEPTANCE_PASS
 
 runtime_baseline:
-  final_main_sha: 5f8066187acc323d23ac4d73da7115100a58aa48
-  deployed_source_sha: 1661157040a2b84f99934f2858f842b8ccbd350e
+  final_main_sha: 14a25727c77b5ede3a1731ec2487e08fa2be4eab
+  deployed_source_sha: 9edfae3a0fe7222aa109d7523ed1071e32b90d6c
   free_bridge_mode: SHADOW_ONLY
   active_whitelist: EXACT_EXISTING_13
   provider_policy: UNCHANGED
@@ -59,29 +59,47 @@ current_authority:
   deploy_after_merge: required
   image_transport: LOCAL_OCI_RELAY_PRIMARY
   round4_after_pass: forbidden
+  terminal_target_reached: true
 
 owner_d14_findings:
-  D14_01_canonical_competition_aggregation_duplicate_rows: OPEN_P0
-  D14_02_collection_risk_ok_without_assessment_evidence: OPEN_P0
-  D14_03_mixed_language_and_raw_slug_competition_names: OPEN_P1
-  D14_04_tournament_row_inside_league_performance: OPEN_P1
-  D14_05_baseline_prior_rendered_model_ready: OPEN_P1
-  D14_06_homogeneous_attention_duplicates_match_board: OPEN_P1
-  D14_07_football_day_boundary_not_explained: OPEN_P1
-  D14_08_only_record_reason_ambiguous: OPEN_P1
+  D14_01_canonical_competition_aggregation_duplicate_rows: CLOSED_PASS
+  D14_02_collection_risk_ok_without_assessment_evidence: CLOSED_PASS
+  D14_03_mixed_language_and_raw_slug_competition_names: CLOSED_PASS
+  D14_04_tournament_row_inside_league_performance: CLOSED_PASS
+  D14_05_baseline_prior_rendered_model_ready: CLOSED_PASS
+  D14_06_homogeneous_attention_duplicates_match_board: CLOSED_PASS
+  D14_07_football_day_boundary_not_explained: CLOSED_PASS
+  D14_08_only_record_reason_ambiguous: CLOSED_PASS
 
 confirmed_code_evidence:
-  league_identity_resolution_added_without_canonical_aggregation: true
-  provider_and_canonical_aliases_can_map_to_same_competition: true
-  performance_public_rows_remain_one_per_source_checkpoint: true
-  registry_scope_group_available: true
-  world_cup_scope_group: world_cup
-  collection_risk_no_reason_default: OK
-  collection_ok_currently_does_not_require_assessment_evidence: true
-  model_public_status_passes_simulation_status_independent_of_calibration_status: true
-  football_day_boundary_exists_in_day_view_but_not_unified_workspace: true
-  attention_currently_projects_one_item_per_match: true
-  only_record_currently_lacks_distinct_public_reason: true
+  canonical_performance_rows_per_competition: true
+  fixture_level_alias_dedupe: true
+  aggregate_only_overlap_fails_closed: true
+  registry_scope_group_separates_tournaments: true
+  collection_ok_requires_current_persisted_evidence: true
+  collection_missing_evidence_is_unassessed_not_incident: true
+  baseline_prior_public_status: PRIOR_ONLY
+  football_day_boundary_projected: true
+  homogeneous_attention_aggregate_expandable: true
+  only_record_reasons_and_benchmark_explicit: true
+
+terminal_delivery:
+  pr: 504
+  pr_head_sha: 9edfae3a0fe7222aa109d7523ed1071e32b90d6c
+  main_merge_sha: 14a25727c77b5ede3a1731ec2487e08fa2be4eab
+  source_tree_sha: a03b6c0cef04e15561a61ac8638ca6a3add594e5
+  release_run_id: 31319648134
+  promotion_run_id: 31320139830
+  release_required: PASS
+  image_transport: LOCAL_OCI_RELAY_PRIMARY
+  python_image_digest: sha256:01de96ce43c9b1e85593a2ad9946a4083d1717e3a560c530f5cc35a26899ef37
+  web_image_digest: sha256:57f2a2c3d9b9fc05996292d7e76822c4649faed2d3cb54d9a5a9644f6ef1536a
+  health: PASS
+  ready: PASS
+  release_sync: PASS
+  rollback: false
+  repository_hygiene: PASS
+  postdeploy_real_data_acceptance: PASS
 
 accepted_d13_fixes_must_not_regress:
   thirteen_inch_readability: true
@@ -143,7 +161,7 @@ post_r3_track_a:
 
 auto_approval_policy:
   enabled: true
-  current_remediation_may_continue_without_owner_relay: true
+  current_remediation_may_continue_without_owner_relay: false
   terminal_target: DASHBOARD_OWNER_CANONICAL_TRUTH_ACCEPTANCE_PASS
   must_stop_for:
     - MIGRATION_PROVEN_UNAVOIDABLE
