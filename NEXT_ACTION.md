@@ -1,77 +1,66 @@
 # NEXT ACTION
 
 ```text
-ACTIVE_NEXT_ACTION = EXECUTE_DASHBOARD_V41_POSTDEPLOY_BOUNDED_REMEDIATION
-CURRENT_GATE = DASHBOARD_V41_POSTDEPLOY_REMEDIATION_ACTIVE
+ACTIVE_NEXT_ACTION = OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
+CURRENT_GATE = OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
 AUTHORITY = DASHBOARD_V41_POSTDEPLOY_BOUNDED_REMEDIATION.md
-BASE_MAIN = c6d8c6c7304d302f31bea5a88967e3bc9e945b37
-REVIEWED_SOURCE_HEAD = 05cdc3c1c6dbadbfe20899e941ca404274ff786f
-PR_506 = MERGED_DEPLOYED_TECHNICAL_PASS_OWNER_CHANGES_REQUIRED_BOUNDED
-D16_01_THROUGH_D16_07 = OPEN
+REMEDIATION_RESULT = PASS_READY_FOR_OWNER_REREVIEW
+PR_507 = MERGED_DEPLOYED
+IMPLEMENTATION_HEAD = 99e4acc275edc94ae012c12dd541609b2be3fffe
+FINAL_MAIN = 6787b7f12a74f69f76e0f4f88c9a875cece66673
+D16_01_THROUGH_D16_07 = CLOSED
 ROUND_4 = NOT_STARTED
 ROUND_4_EXECUTION_AUTHORITY = NOT_GRANTED
 P6 = NOT_AUTHORIZED
-TERMINAL_GATE = OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
+NEXT_AUTOMATIC_ACTION = NONE
 ```
 
-## Binding correction
+## Owner rereview packet
 
-Do not accept PR #506 as final product completion. Its release/deployment/read-isolation evidence remains valid, but Owner postdeploy inspection exposed seven bounded V4.1 contract/real-data defects.
+The bounded V4.1 remediation is implemented, exact-head tested, merged, promoted,
+relayed through the Owner-local OCI path and deployed. The live unified endpoint
+is synchronized to the exact approved source head.
 
-The first reported issue is now precisely classified: the live serialized pair was `NORMAL + MATCH`; the visible `BLOCKED DAY` label came from `data_operations.system_health`. Fix the public authority conflict rather than claiming an unproven literal `BLOCKED + MATCH` payload.
+Owner rereview should verify the following already-proven closure evidence:
 
-## Binding read order
+1. `NORMAL + MATCH` no longer exposes raw `BLOCKED_DAY` as the public day-mode badge;
+   the scoped public health state is `PARTIAL_DEGRADATION`.
+2. The default focus is fixture `1492329`, which has useful persisted 1/2+ market
+   evidence. Zero-evidence `DATA_INCOMPLETE` rows are other-attention only.
+3. `STALE_MARKET_MEMORY` is the public primary reason and historical movement is
+   secondary when current evidence is stale.
+4. Primary and secondary reasons are visually distinct and L1 counts include only
+   priority-eligible primary reasons.
+5. Four-axis risk explanations and the canonical factual summary are Chinese-first;
+   canonical codes remain technical detail.
+6. Desktop acceptance targets have one page-level vertical scroll path and no
+   independent `v41-focus-body` vertical scroll.
+7. Global validation uses exact `AVAILABLE / STALE / INCOMPLETE / NOT_AVAILABLE`
+   semantics; the live checkpoint is truthfully `STALE`.
+8. The live read contract is `provider_calls=0`, `db_writes=0`,
+   `would_write_checkpoint=false`, `no_call_on_read=true`; the adjacent persisted
+   vector remained unchanged.
+
+## Evidence identity
 
 ```text
-1. CODEX_EXECUTION_PROTOCOL.md
-2. CURRENT_STATE.yaml
-3. NEXT_ACTION.md
-4. DASHBOARD_V41_POSTDEPLOY_BOUNDED_REMEDIATION.md
-5. W2_LAST_48H_RECONCILIATION_AND_DASHBOARD_V41_EXECUTION_PLAN.md
-6. repo-bound V4.1 reference/state matrix/real-shape fixtures
-7. current main at c6d8c6c7304d302f31bea5a88967e3bc9e945b37
-8. D13/D14/D15 retained truth contracts/tests
-9. PR #506 postdeploy receipt as baseline evidence, not final acceptance
+FULL_CI_RUN = 31336303846
+RELEASE_REQUIRED = PASS_EXACT_HEAD
+PROMOTION_RUN = 31336887357
+PROMOTION_REQUIRED = PASS
+HEALTH = PASS
+READY = PASS
+RELEASE_SYNC = PASS
+LOCAL_OCI_RELAY = PASS_DIGEST_VERIFIED
+WARM_SWITCH = PASS_34_SECONDS
+ROLLBACK_EXECUTED = false
+REPOSITORY_HYGIENE = PASS
 ```
 
-## Execute continuously
+## Stop
 
-In one remediation PR from current `main`:
-
-1. Close D16-01 mode/system-health public authority conflict.
-2. Close D16-02 priority eligibility/default-focus logic; data-incomplete/lineup-only rows must not become priority merely from severity; stale dominates historical movement; evidence usefulness governs focus.
-3. Close D16-03 explicit primary-vs-secondary reason rendering and count auditability.
-4. Close D16-04 Chinese-first four-risk explanations; canonical codes become technical detail.
-5. Close D16-05 causal source-bound match summary.
-6. Close D16-06 first-screen nested vertical scrolling; preserve 1180 natural flow and all desktop no-overflow targets.
-7. Close D16-07 checkpoint AVAILABLE/STALE/INCOMPLETE/NOT_AVAILABLE truth.
-8. Add real-shape regressions reproducing the deployed failure class and all frozen V4.1 day/focus states.
-9. Run focused/full Python/Web, visual/accessibility, Ruff/MyPy/typecheck/build, repository/secret/tracked/protected gates.
-10. Require exact-head Full CI and `RELEASE_REQUIRED` PASS.
-11. Merge automatically after exact-head PASS.
-12. Redeploy only through the existing Owner-local OCI relay path.
-13. Revalidate exact Web/API identity, health/ready/release-sync, real day/focus/priority state, single-scroll layout, Chinese public copy, checkpoint semantics, provider-call delta 0 and business-write delta 0.
-14. Refresh Round4 packet to the remediated exact release identity only, then stop.
-
-Ordinary implementation, CSS, fixture, test, screenshot, CI and deployment-preparation failures are in scope:
-
-```text
-fix -> revalidate -> continue
-```
-
-No Owner relay is required between these steps.
-
-## Terminal classifications
-
-```text
-OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
-DASHBOARD_V41_REMEDIATION_DEPLOYMENT_ROLLED_BACK
-DASHBOARD_V41_REMEDIATION_SCOPE_BLOCKED_OWNER_DECISION_REQUIRED
-```
-
-If critical postdeploy acceptance fails after merge, automatically roll back to `c6d8c6c7304d302f31bea5a88967e3bc9e945b37` and stop with evidence.
-
-## Frozen stop lines
+No implementation, deployment, Provider, Scheduler, model or Round4 work is
+authorized after this point. Wait for the Owner's explicit rereview decision.
 
 ```text
 ROUND_4_START = NOT_AUTHORIZED
@@ -82,18 +71,12 @@ SCHEDULER_OR_CADENCE_CHANGE = NOT_AUTHORIZED
 ACTIVE_WHITELIST_CHANGE = NOT_AUTHORIZED
 MODEL_FACTOR_THRESHOLD_CHANGE = NOT_AUTHORIZED
 MODEL_RETRAINING = NOT_AUTHORIZED
-MARKET_DIRECTION_BENCHMARK_DEFINITION = NOT_AUTHORIZED
-EXTERNAL_INTELLIGENCE_ACTIVATION = NOT_AUTHORIZED
 PHASE_0_5_REEXECUTION = FORBIDDEN
-H_RESULT_ACCESS = PERMANENTLY_CLOSED
 CANDIDATE = OFF
 FORMAL = OFF
 LOCK = OFF
 PRODUCTION = OFF
-REAL_MONEY = NOT_AUTHORIZED
 READ_PROVIDER_CALLS = 0_REQUIRED
 READ_DB_BUSINESS_WRITES = 0_REQUIRED
-VPS_DIRECT_GHCR_BULK_IMAGE_PULL = FORBIDDEN_AS_PRIMARY_TRANSPORT
 IMAGE_TRANSPORT = LOCAL_OCI_RELAY_PRIMARY
-DELETE_PROTECTED_HISTORICAL_EVIDENCE = FORBIDDEN
 ```

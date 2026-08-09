@@ -1,168 +1,125 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-10T04:20:00+08:00"
+updated_at: "2026-08-10T05:40:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: W2_DASHBOARD_V41_POSTDEPLOY_BOUNDED_REMEDIATION
+owner_product_decision: OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
 owner_authorization_id: W2_DASHBOARD_V41_POSTDEPLOY_BOUNDED_REMEDIATION_V1
-active_next_action: EXECUTE_DASHBOARD_V41_POSTDEPLOY_BOUNDED_REMEDIATION
-next_code_action: D16_01_THROUGH_D16_07_CONTINUOUS_FIX_TEST_MERGE_REDEPLOY
-current_status: DASHBOARD_V41_POSTDEPLOY_CHANGES_REQUIRED_BOUNDED
-current_gate: DASHBOARD_V41_POSTDEPLOY_REMEDIATION_ACTIVE
+active_next_action: OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
+next_code_action: NONE_PENDING_OWNER_REREVIEW
+current_status: DASHBOARD_V41_REMEDIATION_DEPLOYED_PASS
+current_gate: OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
 terminal_gate: OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
 
-runtime_baseline:
-  reviewed_main_sha: c6d8c6c7304d302f31bea5a88967e3bc9e945b37
-  reviewed_source_head_sha: 05cdc3c1c6dbadbfe20899e941ca404274ff786f
-  reviewed_pr: 506
-  reviewed_release_required: PASS
-  reviewed_deployment: PASS
-  public_schema: w2.dashboard-intelligence-workspace.v1
-  public_endpoint: GET_/v1/dashboard/intelligence-workspace
-  free_bridge_mode: SHADOW_ONLY
-  active_whitelist: EXACT_EXISTING_13
-  provider_policy: UNCHANGED
-  scheduler_cadence: UNCHANGED
-  candidate: "OFF"
-  formal: "OFF"
-  lock: "OFF"
-  production: "OFF"
+release_identity:
+  context_base_sha: f514efa109f72cb4f9d9f5808af0e8fc73c00657
+  implementation_base_sha: c6d8c6c7304d302f31bea5a88967e3bc9e945b37
+  implementation_head_sha: 99e4acc275edc94ae012c12dd541609b2be3fffe
+  source_tree_sha: ec11f9a15d0cac1e7f49bf722f1fd1b760d856e6
+  final_main_sha: 6787b7f12a74f69f76e0f4f88c9a875cece66673
+  deployed_source_sha: 99e4acc275edc94ae012c12dd541609b2be3fffe
+  pr: 507
+  pr_state: MERGED
+  full_ci_run: 31336303846
+  promotion_run: 31336887357
+  release_required: PASS_EXACT_HEAD
+  promotion_required: PASS
 
-completed_and_retained:
-  pr_494_mi_round2_audit_foundation: CLOSED_RETAIN
-  pr_495_free_fixture_bridge_planner: CLOSED_RETAIN
-  pr_496_free_bridge_shadow_runtime: CLOSED_RETAIN
-  pr_497_round3_market_radar_model_lab: CLOSED_RETAIN
-  pr_498_unified_dashboard_read_model: CLOSED_RETAIN
-  pr_499_validation_performance_replay_capabilities: CLOSED_RETAIN_BACKEND_SECONDARY
-  pr_500_legacy_dashboard_cleanup: CLOSED_RETAIN
-  prs_501_503_chinese_responsive_live_price_truth: TRUTH_RETAIN_PRESENTATION_SUPERSEDED
-  pr_504_canonical_identity_collection_semantics: CLOSED_RETAIN
-  pr_505_market_evidence_consistency: CLOSED_RETAIN
-  vps_local_oci_relay: PASS_RETAIN
-  post_r3_track_a: TRACK_A_CLOSED_PASS
+v41_postdeploy_remediation:
+  authority: DASHBOARD_V41_POSTDEPLOY_BOUNDED_REMEDIATION.md
+  status: PASS_READY_FOR_OWNER_REREVIEW
+  findings:
+    D16_01_page_mode_system_health_authority_conflict: CLOSED
+    D16_02_priority_eligibility_and_default_focus: CLOSED
+    D16_03_primary_reason_visual_auditability: CLOSED
+    D16_04_chinese_first_dimension_specific_risk_copy: CLOSED
+    D16_05_causal_source_bound_match_summary: CLOSED
+    D16_06_remove_first_screen_nested_vertical_scroll: CLOSED
+    D16_07_global_validation_checkpoint_state_coherence: CLOSED
+  changed_files: 17
+  repository_hygiene: PASS
+  dead_assets_found: 0
+  dead_assets_deleted: 0
+  unresolved_hygiene_items: 0
 
-v41_owner_design_freeze:
-  status: PASS_OWNER_APPROVED
-  authority: W2_LAST_48H_RECONCILIATION_AND_DASHBOARD_V41_EXECUTION_PLAN.md
-  reference_set_repo_bound: PASS
-  first_screen_hierarchy:
-    - L1_TODAY_SUMMARY
-    - L2_PRIORITY_SHORTLIST
-    - L3_MODE_SPECIFIC_PRIMARY_FOCUS
-    - L4_GLOBAL_MODEL_QUALITY
-  business_day_modes:
-    NORMAL: MATCH
-    BLOCKED: GLOBAL_INCIDENT
-    CALM: DAY_SUMMARY
-    EMPTY: EMPTY_STATE
-  stale_evidence_state:
-    day_mode: NORMAL
-    default_focus_type: MATCH
-    market_evidence_status: STALE
-  responsive_1180_is_day_mode: false
-
-pr_506_initial_v41_delivery:
-  source_head_sha: 05cdc3c1c6dbadbfe20899e941ca404274ff786f
-  final_main_sha: c6d8c6c7304d302f31bea5a88967e3bc9e945b37
-  merged: true
-  deployed: true
-  full_ci_run: 31332734693
+verification:
+  local_python_full: 2538_PASSED_8_SKIPPED_1_DESELECTED_EXISTING_SUDO_PROMPT
+  focused_python: 41_PASSED
+  web_e2e: 51_PASSED
+  typecheck: PASS
+  web_build: PASS
+  ruff: PASS
+  mypy: PASS
+  secret_scan: PASS
+  tracked_outputs: PASS
+  protected_evidence: PASS
+  exact_head_full_ci: PASS
   release_required: PASS
-  deployment_transport: LOCAL_OCI_RELAY_PRIMARY
+  real_shape_0_1_2_plus: PASS
+  day_focus_modes: PASS
+  single_scroll_desktop_targets: PASS
+
+deployment:
+  transport: LOCAL_OCI_RELAY_PRIMARY
+  python_image_digest: sha256:b628d0a749b04ec87915c73406268242b1c3f2544af4aa072ca607fd756939ec
+  web_image_digest: sha256:1c259ba82fd9961a28c033b6a01dcf2ae35ee42f4889abc284683e9ea7f48b8a
+  python_relay: PASS_DIGEST_VERIFIED
+  web_relay: PASS_DIGEST_VERIFIED
+  warm_switch_seconds: 34
+  warm_switch_target_seconds: 300
   health: PASS
   ready: PASS
   release_sync: PASS
-  provider_call_delta_on_read: 0
-  business_write_delta_on_read: 0
-  technical_delivery_result: PASS_RETAIN
-  final_owner_product_acceptance: CHANGES_REQUIRED_BOUNDED
+  rollback_executed: false
 
-v41_postdeploy_owner_review:
-  status: CHANGES_REQUIRED_BOUNDED
-  remediation_authority: DASHBOARD_V41_POSTDEPLOY_BOUNDED_REMEDIATION.md
-  independent_root_cause_correction:
-    live_serialized_pair_from_receipt: NORMAL_MATCH
-    visible_blocked_day_source: data_operations.system_health
-    finding: PUBLIC_DAY_MODE_SYSTEM_HEALTH_AUTHORITY_CONFLICT
-    note: NOT_PROVEN_AS_LITERAL_BLOCKED_PLUS_MATCH_SERIALIZED_PAIR
-  findings:
-    D16_01_page_mode_system_health_authority_conflict: OPEN_P0
-    D16_02_priority_eligibility_and_default_focus: OPEN_P0
-    D16_03_primary_reason_visual_auditability: OPEN_P0
-    D16_04_chinese_first_dimension_specific_risk_copy: OPEN_P1
-    D16_05_causal_source_bound_match_summary: OPEN_P1
-    D16_06_remove_first_screen_nested_vertical_scroll: OPEN_P1
-    D16_07_global_validation_checkpoint_state_coherence: OPEN_P1
-  screenshot_observations:
-    visible_system_badge: BLOCKED_DAY
-    visible_priority_count: 3
-    visible_selected_focus: MATCH
-    selected_match_zero_snapshot_evidence: true
-    raw_english_risk_codes_visible: true
-    nested_focus_scroll_visible: true
-    quality_unavailable_with_timestamp_visible: true
-
-v41_remediation_contract:
-  authority: W2_DASHBOARD_V41_POSTDEPLOY_BOUNDED_REMEDIATION_V1
-  continuous_execution: true
-  owner_relay_between_steps: NOT_REQUIRED
-  ordinary_failures: FIX_REVALIDATE_CONTINUE
-  automatic_merge_after_exact_head_pass: true
-  redeployment_required: true
-  deployment_transport: LOCAL_OCI_RELAY_PRIMARY
-  rollback_baseline_main: c6d8c6c7304d302f31bea5a88967e3bc9e945b37
-  terminal_gate: OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
-  required_results:
-    - D16_01_THROUGH_D16_07_CLOSED
-    - REAL_SHAPE_PRIORITY_AND_MODE_TESTS_PASS
-    - NO_CONTRADICTORY_PUBLIC_DAY_MODE_LABEL
-    - NO_ZERO_EVIDENCE_DEFAULT_FOCUS_WHEN_USABLE_EVIDENCE_EXISTS
-    - PRIMARY_REASON_COUNTS_AUDITABLE
-    - CHINESE_FIRST_RISK_COPY
-    - CAUSAL_MATCH_SUMMARY
-    - NO_NESTED_FIRST_SCREEN_VERTICAL_SCROLL
-    - CHECKPOINT_AVAILABLE_STALE_INCOMPLETE_MISSING_COHERENT
-    - FULL_CI_PASS
-    - RELEASE_REQUIRED_PASS
-    - REPOSITORY_HYGIENE_PASS
-    - LOCAL_OCI_RELAY_REDEPLOY_PASS
-    - POSTDEPLOY_REAL_PAYLOAD_PASS
-    - READ_PROVIDER_CALL_DELTA_0
-    - READ_BUSINESS_WRITE_DELTA_0
+postdeploy_real_payload:
+  schema: w2.dashboard-intelligence-workspace.v1
+  data_profile: real-db
+  data_source: read_model_checkpoint
+  day_mode: NORMAL
+  default_focus_type: MATCH
+  default_focus_fixture_id: "1492329"
+  match_count: 3
+  attention_count: 3
+  raw_system_health: BLOCKED_DAY
+  public_system_health: PARTIAL_DEGRADATION
+  stale_primary_dominates_historical_movement: true
+  zero_evidence_default_focus: false
+  risk_axes: EXACT_EVENT_DATA_MODEL_COLLECTION
+  chinese_first_risk_copy: true
+  canonical_factual_summary_reused: true
+  global_model_quality: STALE
+  provider_calls: 0
+  db_writes: 0
+  would_write_checkpoint: false
+  no_call_on_read: true
+  persisted_vector_unchanged: true
+  provider_request_count: 685
+  endpoint_capture_count: 532
+  read_model_count: 674
 
 accepted_truths_must_not_regress:
   public_dashboard_authority: NEW_INTELLIGENCE_WORKSPACE_ONLY
-  schema_version: w2.dashboard-intelligence-workspace.v1
+  public_schema: w2.dashboard-intelligence-workspace.v1
   read_provider_calls: 0_REQUIRED
   read_db_business_writes: 0_REQUIRED
   no_call_on_read: true
   market_timeline: REAL_DISCRETE_0_1_2_PLUS_NO_INTERPOLATION
-  market_memory_historical_points_preserved: true
-  exact_movement_semantics: true
   one_public_market_readiness: READY_STALE_INSUFFICIENT
-  canonical_competition_identity: true
-  tournament_separation: true
-  collection_ok_requires_assessment_evidence: true
-  baseline_prior_public_status: PRIOR_ONLY
-  football_day_boundary_visible: true
-  only_record_reasons_explicit: true
-  market_direction_benchmark: NOT_DEFINED
   external_intelligence: NOT_CONNECTED_NON_BLOCKING
   phase_0_5: FROZEN_NO_EDGE_NOT_PROVEN_NO_RERUN
   active_whitelist: EXACT_EXISTING_13
   free_bridge_mode: SHADOW_ONLY
-  candidate_formal_lock_production: OFF
   track_a: CLOSED_PASS
 
 round4:
   status: NOT_STARTED
   execution_authority: NOT_GRANTED
   packet: ROUND4_READINESS_DECISION_PACKET.md
-  current_packet_exact_release_identity: PR_506_RELEASE
-  required_after_remediation: REFRESH_TO_REMEDIATED_EXACT_RELEASE_ONLY_THEN_STOP
+  current_packet_exact_release_identity: PR_507_REMEDIATED_RELEASE
+  next_automatic_action: NONE
 
 p6:
   status: BLUEPRINT_ONLY_NOT_AUTHORIZED
@@ -185,8 +142,5 @@ permanent_stop_lines:
   lock: "OFF"
   production: "OFF"
   real_money: NOT_AUTHORIZED
-  read_provider_calls: 0_REQUIRED
-  read_db_business_writes: 0_REQUIRED
-  vps_direct_ghcr_bulk_image_pull: FORBIDDEN_AS_PRIMARY_TRANSPORT
   image_transport: LOCAL_OCI_RELAY_PRIMARY
   delete_protected_historical_evidence: FORBIDDEN
