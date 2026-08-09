@@ -10,7 +10,7 @@ test("legacy performance route is no longer a second public dashboard", async ({
     return route.fulfill({ status: 503, json: { code: "UNIFIED_WORKSPACE_REQUIRED" } });
   });
   await page.goto("/performance");
-  await expect(page.locator(".workspace-load-state--error")).toContainText("Unified workspace unavailable");
+  await expect(page.locator(".workspace-load-state--error")).toContainText("统一情报工作台暂不可用");
   expect(new Set(requested)).toEqual(new Set(["/v1/dashboard/intelligence-workspace"]));
   await expect(page.locator("body")).not.toContainText("CLV 点分布");
 });

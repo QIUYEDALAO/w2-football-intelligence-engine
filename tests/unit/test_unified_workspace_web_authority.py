@@ -17,11 +17,11 @@ def test_dashboard_uses_only_the_unified_intelligence_workspace() -> None:
     assert "/dashboard/day-view" not in workspace_api
     assert "IntelligenceConsole" in page
     assert "W2 INTELLIGENCE" in console
-    assert "Attention" in console
-    assert "Match Board" in console
-    assert "Data & Operations" in console
+    assert "关注情报" in console
+    assert "今日比赛" in console
+    assert "数据与系统" in console
     assert "MODEL_MARKET_DISAGREEMENT" in console
-    assert "no legacy dashboard or synthetic data" in page
+    assert "不会回退旧 Dashboard，也不会填充合成数据" in page
 
 
 def test_legacy_product_presentations_are_absent() -> None:
@@ -40,7 +40,7 @@ def test_unified_empty_state_is_fail_closed() -> None:
     page = source("apps/web/src/components/DashboardPage.tsx")
     console = source("apps/web/src/components/IntelligenceConsole.tsx")
 
-    assert "Unified workspace unavailable" in page
-    assert "Empty football day" in console
-    assert "No selected fixture" in console
+    assert "统一情报工作台暂不可用" in page
+    assert "空比赛日" in console
+    assert "尚未选择比赛" in console
     assert "DataDiagnosticsPanel" not in page

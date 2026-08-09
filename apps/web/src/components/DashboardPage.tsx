@@ -28,10 +28,10 @@ export function DashboardPage() {
   }, [date, refreshKey]);
 
   if (state === "loading" && !workspace) {
-    return <main className="workspace-load-state"><strong>Loading unified intelligence workspace…</strong><span>No provider calls are made by this read.</span></main>;
+    return <main className="workspace-load-state"><strong>正在读取统一情报工作台…</strong><span>本次读取不会调用 Provider。</span></main>;
   }
   if (state === "error" || !workspace) {
-    return <main className="workspace-load-state workspace-load-state--error"><strong>Unified workspace unavailable</strong><span>Fail-closed: no legacy dashboard or synthetic data will be substituted.</span><button type="button" onClick={() => setRefreshKey((value) => value + 1)}>Retry read</button></main>;
+    return <main className="workspace-load-state workspace-load-state--error"><strong>统一情报工作台暂不可用</strong><span>系统已安全关闭：不会回退旧 Dashboard，也不会填充合成数据。</span><button type="button" onClick={() => setRefreshKey((value) => value + 1)}>重新读取</button></main>;
   }
   return (
     <IntelligenceConsole
