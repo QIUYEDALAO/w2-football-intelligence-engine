@@ -1,19 +1,20 @@
 # NEXT ACTION
 
 ```text
-ACTIVE_NEXT_ACTION = EXECUTE_POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE
-CURRENT_GATE = POST_R3_TRACK_A_CLOSURE_ACTIVE
+ACTIVE_NEXT_ACTION = WAIT_FOR_SOURCE_BOUND_NATURAL_EVIDENCE
+CURRENT_GATE = POST_R3_TRACK_A_WAIT_MORE_NATURAL_EVIDENCE
+TERMINAL_CLASSIFICATION = WAIT_MORE_NATURAL_EVIDENCE
 AUTHORITY = POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_AUTHORIZATION.md
-BASE_MAIN = d61768ecf8457a72df80a5cb0220072de76dfdd4
+EXACT_MAIN = d61768ecf8457a72df80a5cb0220072de76dfdd4
+AUDIT_AS_OF = 2026-08-09T06:10:16.671712Z
 DASHBOARD_WORKSTREAM = REPOSITORY_FULLY_CLOSED
 TRACK = PATH_A_NATURAL_EVIDENCE_ACCUMULATION
-MODE = READ_ONLY_EVIDENCE_CLOSURE
 ROUND_4 = NOT_STARTED
 P6 = BLUEPRINT_ONLY_NOT_AUTHORIZED
 GLOBAL_PROJECT_COMPLETION_REQUIRES_VPS_DEPLOYMENT = YES
 CURRENT_DEPLOYED_SOURCE_SHA = 51ebbeabc5497ce48708b3587705e2922c4805da
 APPROVED_MAIN_SHA = d61768ecf8457a72df80a5cb0220072de76dfdd4
-VPS_DEPLOYMENT_STATUS = PENDING
+VPS_DEPLOYMENT_STATUS = PENDING_NOT_AUTHORIZED_BY_TRACK_A
 ```
 
 ## Binding read order
@@ -23,29 +24,44 @@ VPS_DEPLOYMENT_STATUS = PENDING
 2. CURRENT_STATE.yaml
 3. NEXT_ACTION.md
 4. POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_AUTHORIZATION.md
-5. POST_R3_READINESS_ATTRIBUTION_REPORT.md
-6. POST_R3_READINESS_ATTRIBUTION_MATRIX.json
-7. CODEX_EXECUTION_RECEIPT.md
-8. W2_FINAL_EXECUTION_MASTER_PLAN.md
+5. POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_REPORT.md
+6. POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_MATRIX.json
+7. POST_R3_READINESS_ATTRIBUTION_REPORT.md
+8. POST_R3_READINESS_ATTRIBUTION_MATRIX.json
+9. CODEX_EXECUTION_RECEIPT.md
+10. W2_FINAL_EXECUTION_MASTER_PLAN.md
 ```
 
-## Current action
+## Current terminal state
 
-Run one continuous read-only closure audit of Post-R3 Track A using current persisted natural runtime evidence after the accepted SHADOW_ONLY restore.
+The authorized closure audit ended at `WAIT_MORE_NATURAL_EVIDENCE`.
 
-Do not reopen the Dashboard workstream and do not start Round 4.
+Natural evidence now covers all four normal checkpoint classes and all four
+represented active competitions, but 30 of 38 ended post-restore windows lack
+a complete source-bound terminal trace on the available read surface. A
+post-restore `DUE_WINDOW_BUT_NO_FRESH_CAPTURE` recurrence condition is visible,
+but the task/scheduler reason, request-ledger identity, quota state and capture
+lineage needed to distinguish policy/quota behavior from an internal defect are
+not exposed. The persisted Round-3 projection also remains frozen at
+`2026-08-08T10:19:12Z`, so a truthful current timeline/Model Lab reprojection is
+not available.
 
-Required terminal classification is exactly one of:
+Do not rerun continuously on elapsed time alone. Resume only when naturally
+persisted evidence can provide the missing terminal fields for the next crossed
+windows.
 
-```text
-TRACK_A_CLOSED_PASS
-WAIT_MORE_NATURAL_EVIDENCE
-RECURRING_INTERNAL_DEFECT_PROVEN
-```
+## Exact evidence required to resume
 
-The task must inspect naturally crossed T12/T6/T3/T60 lifecycle evidence, source/capture/request lineage, checkpoint terminal states, current timeline depth and Model Lab/readiness projection. It must determine whether the earlier `DUE_WINDOW_BUT_NO_FRESH_CAPTURE` condition recurs after the controlled Round-3 restore.
+- checkpoint terminal status and reason per legal window;
+- scheduler task identity or explicit terminal non-execution reason;
+- request-ledger identity and quota state;
+- raw-payload and endpoint-capture identity for new captures;
+- post-baseline persisted Round-3 reprojection with current 0/1/2+ timeline and
+  Model Lab/readiness status.
 
-If Track A closes, create the Round4 readiness decision packet but leave Round4 `NOT_STARTED`. If more evidence is needed, identify the exact missing natural evidence and next eligible windows. If a recurring internal defect is proven, trace it and propose bounded remediation without changing production code.
+The first natural windows following the audit are listed in
+`POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_REPORT.md` and the exact machine rows
+are in `POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_MATRIX.json`.
 
 ## Mandatory overall-project follow-on
 
@@ -88,12 +104,5 @@ P6_EXECUTION = NOT_AUTHORIZED
 VPS_DEPLOYMENT = REQUIRED_FOR_OVERALL_COMPLETION_BUT_NOT_AUTHORIZED_BY_THIS_TRACK_A_TASK
 ```
 
-## Required outputs
-
-Update `CODEX_EXECUTION_RECEIPT.md`, `CURRENT_STATE.yaml`, and `NEXT_ACTION.md` and produce:
-
-- `POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_REPORT.md`
-- `POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_MATRIX.json`
-- `ROUND4_READINESS_DECISION_PACKET.md` only when the evidence is sufficient to make that decision meaningful
-
-No intermediate Owner gate is required. Stop only at the terminal classification.
+`ROUND4_READINESS_DECISION_PACKET.md` was not created because the closure
+evidence is insufficient. No remediation or Round 4 work is authorized.

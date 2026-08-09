@@ -1,0 +1,1931 @@
+{
+  "schema_version": "w2.post-r3-track-a-natural-evidence-closure-matrix.v1",
+  "authority": {
+    "result": "WAIT_MORE_NATURAL_EVIDENCE",
+    "exact_origin_main_sha": "d61768ecf8457a72df80a5cb0220072de76dfdd4",
+    "exact_context_base_sha": "713b8aea3cc1cef81d729b5f21b3ee54a61a4962",
+    "audit_as_of": "2026-08-09T06:10:16.671712Z",
+    "read_source": "PUBLIC_DB_BACKED_DASHBOARD_READ_API",
+    "deployed_source_sha": "51ebbeabc5497ce48708b3587705e2922c4805da",
+    "frozen_baseline_as_of": "2026-08-08T10:19:12Z",
+    "frozen_baseline_sha256": "01999b11e5eea10cf4d68460bb5ba6d1f71c83820709adaaa104a1e5992c58fa",
+    "post_restore_boundary": "WINDOW_END_AFTER_2026-08-08T10:30:00Z",
+    "provider_calls_for_audit": 0,
+    "database_business_writes": 0,
+    "production_code_changes": 0,
+    "round_4": "NOT_STARTED"
+  },
+  "data_quality": {
+    "live_read_model_fixture_count": 69,
+    "frozen_future_fixture_count": 64,
+    "frozen_fixture_market_rows": 128,
+    "live_selected_fixture_count": 64,
+    "represented_active_competitions": [
+      "allsvenskan",
+      "brasileirao_serie_a",
+      "chinese_super_league",
+      "eliteserien"
+    ],
+    "composite_window_duplicate_count": 0,
+    "public_read_provider_calls": 0,
+    "source_bound_terminal_trace_complete": false,
+    "quality_gate": "PASS_FOR_WAIT_CLASSIFICATION_NOT_FOR_TRACK_A_CLOSURE"
+  },
+  "counts": {
+    "ended_post_restore_checkpoint_windows": 38,
+    "by_checkpoint": {
+      "T12_ODDS": 13,
+      "T3_ODDS": 7,
+      "T60_ODDS_LINEUPS": 12,
+      "T6_ODDS": 6
+    },
+    "by_capture_relation": {
+      "LATEST_CAPTURE_AFTER_WINDOW_HISTORY_NOT_EXPOSED": 4,
+      "LATEST_CAPTURE_BEFORE_WINDOW": 26,
+      "LATEST_CAPTURE_IN_WINDOW": 8
+    },
+    "in_window_capture_competitions": [
+      "allsvenskan",
+      "brasileirao_serie_a",
+      "chinese_super_league",
+      "eliteserien"
+    ],
+    "in_window_capture_fixture_count": 8,
+    "in_window_capture_window_count": 8,
+    "insufficient_terminal_trace_window_count": 30
+  },
+  "frozen_projection_reconciliation": {
+    "timeline_depth": {
+      "2+": 27,
+      "0": 92,
+      "1": 9
+    },
+    "model_lab_status": {
+      "MARKET_NOT_READY": 125,
+      "INSUFFICIENT_BOOKMAKER_DEPTH": 1,
+      "MODEL_NOT_READY": 2
+    },
+    "primary_blocker": {
+      "EXPECTED_STALE_BETWEEN_CHECKPOINTS": 29,
+      "NO_CURRENT_SNAPSHOT": 90,
+      "INSUFFICIENT_BOOKMAKER_DEPTH": 1,
+      "MODEL_SIMULATION_NOT_READY": 1,
+      "MODEL_CALIBRATION_NOT_READY": 1,
+      "DUE_WINDOW_BUT_NO_FRESH_CAPTURE": 6
+    },
+    "projection_source_event_at_distribution": {
+      "2026-08-08T10:19:12Z": 128
+    },
+    "current_reprojection_status": "NOT_POSSIBLE_FROM_PUBLIC_SOURCE_BOUND_FIELDS",
+    "reason_codes": [
+      "NEW_CAPTURE_IDS_NOT_EXPOSED",
+      "REQUEST_LEDGER_NOT_EXPOSED",
+      "CHECKPOINT_TERMINAL_REASON_NOT_EXPOSED",
+      "ROUND3_PROJECTION_REMAINS_FROZEN_AT_BASELINE_SOURCE_EVENT"
+    ],
+    "truthful_current_0_1_2_plus": "NOT_REPORTED_NO_SYNTHETIC_REPROJECTION",
+    "truthful_current_model_lab": "NOT_REPORTED_NO_SYNTHETIC_REPROJECTION"
+  },
+  "due_window_recurrence": {
+    "status": "RECURRENCE_CONDITION_OBSERVED_CAUSE_NOT_PROVEN",
+    "minimum_proven_example": {
+      "fixture_id": "1523233",
+      "competition_id": "chinese_super_league",
+      "kickoff_utc": "2026-08-09T11:35:00Z",
+      "checkpoint": "T6_ODDS",
+      "window_start": "2026-08-09T05:35:00Z",
+      "window_end": "2026-08-09T06:05:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-09T00:01:23Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": "2026-08-09T08:35:00Z",
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "NO_CURRENT_SNAPSHOT"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 1,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:54:47Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    "internal_defect": "NOT_PROVEN_WITHOUT_TASK_LEDGER_QUOTA_TERMINAL_TRACE"
+  },
+  "terminal_decision": {
+    "classification": "WAIT_MORE_NATURAL_EVIDENCE",
+    "track_a_closed": false,
+    "recurring_internal_defect_proven": false,
+    "round4_decision_packet": "NOT_CREATED_EVIDENCE_INSUFFICIENT",
+    "exact_missing_evidence": [
+      "CHECKPOINT_TERMINAL_STATUS_AND_REASON_PER_WINDOW",
+      "SCHEDULER_TASK_ID_OR_EXPLICIT_NON_EXECUTION_REASON",
+      "REQUEST_LEDGER_ID_AND_QUOTA_STATE",
+      "RAW_PAYLOAD_AND_ENDPOINT_CAPTURE_ID_FOR_NEW_CAPTURES",
+      "POST_BASELINE_ROUND3_REPROJECTION_WITH_CURRENT_TIMELINE_AND_MODEL_LAB"
+    ]
+  },
+  "crossed_windows": [
+    {
+      "fixture_id": "1492321",
+      "competition_id": "brasileirao_serie_a",
+      "kickoff_utc": "2026-08-09T00:00:00Z",
+      "checkpoint": "T12_ODDS",
+      "window_start": "2026-08-08T12:00:00Z",
+      "window_end": "2026-08-08T12:30:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-03T06:53:52Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": "2026-08-08T12:00:00Z",
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "NO_CURRENT_SNAPSHOT"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 2,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:53:52Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1492321",
+      "competition_id": "brasileirao_serie_a",
+      "kickoff_utc": "2026-08-09T00:00:00Z",
+      "checkpoint": "T6_ODDS",
+      "window_start": "2026-08-08T18:00:00Z",
+      "window_end": "2026-08-08T18:30:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-03T06:53:52Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": "2026-08-08T12:00:00Z",
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "NO_CURRENT_SNAPSHOT"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 2,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:53:52Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1492321",
+      "competition_id": "brasileirao_serie_a",
+      "kickoff_utc": "2026-08-09T00:00:00Z",
+      "checkpoint": "T3_ODDS",
+      "window_start": "2026-08-08T21:00:00Z",
+      "window_end": "2026-08-08T21:30:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-03T06:53:52Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": "2026-08-08T12:00:00Z",
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "NO_CURRENT_SNAPSHOT"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 2,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:53:52Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1492321",
+      "competition_id": "brasileirao_serie_a",
+      "kickoff_utc": "2026-08-09T00:00:00Z",
+      "checkpoint": "T60_ODDS_LINEUPS",
+      "window_start": "2026-08-08T23:00:00Z",
+      "window_end": "2026-08-08T23:20:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-03T06:53:52Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": "2026-08-08T12:00:00Z",
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "NO_CURRENT_SNAPSHOT"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 2,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:53:52Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1492323",
+      "competition_id": "brasileirao_serie_a",
+      "kickoff_utc": "2026-08-08T23:30:00Z",
+      "checkpoint": "T12_ODDS",
+      "window_start": "2026-08-08T11:30:00Z",
+      "window_end": "2026-08-08T12:00:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-08T11:31:21Z",
+      "latest_capture_relation": "LATEST_CAPTURE_IN_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": null,
+      "task_scheduler_terminal_evidence": "CAPTURE_OCCURRED_TASK_ID_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "TIMESTAMP_PRESENT_CAPTURE_ID_NOT_EXPOSED",
+      "raw_payload_identity": "PERSISTED_INDIRECTLY_ID_NOT_EXPOSED",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "PERSISTED_MARKET_OBSERVATION_LINK_CONFIRMED_BY_COLLECTION_STATUS",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 2,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:53:48Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 2,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:53:48Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "PARTIAL_SOURCE_BOUND_CAPTURE_WITHOUT_LEDGER_ID"
+    },
+    {
+      "fixture_id": "1492323",
+      "competition_id": "brasileirao_serie_a",
+      "kickoff_utc": "2026-08-08T23:30:00Z",
+      "checkpoint": "T6_ODDS",
+      "window_start": "2026-08-08T17:30:00Z",
+      "window_end": "2026-08-08T18:00:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-08T11:31:21Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": null,
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 2,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:53:48Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 2,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:53:48Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1492323",
+      "competition_id": "brasileirao_serie_a",
+      "kickoff_utc": "2026-08-08T23:30:00Z",
+      "checkpoint": "T3_ODDS",
+      "window_start": "2026-08-08T20:30:00Z",
+      "window_end": "2026-08-08T21:00:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-08T11:31:21Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": null,
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 2,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:53:48Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 2,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:53:48Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1492323",
+      "competition_id": "brasileirao_serie_a",
+      "kickoff_utc": "2026-08-08T23:30:00Z",
+      "checkpoint": "T60_ODDS_LINEUPS",
+      "window_start": "2026-08-08T22:30:00Z",
+      "window_end": "2026-08-08T22:50:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-08T11:31:21Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": null,
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 2,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:53:48Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 2,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:53:48Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1492324",
+      "competition_id": "brasileirao_serie_a",
+      "kickoff_utc": "2026-08-09T14:00:00Z",
+      "checkpoint": "T12_ODDS",
+      "window_start": "2026-08-09T02:00:00Z",
+      "window_end": "2026-08-09T02:30:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-03T06:53:56Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": "2026-08-09T08:00:00Z",
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 2,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:53:56Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 2,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:53:56Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1492326",
+      "competition_id": "brasileirao_serie_a",
+      "kickoff_utc": "2026-08-08T19:00:00Z",
+      "checkpoint": "T6_ODDS",
+      "window_start": "2026-08-08T13:00:00Z",
+      "window_end": "2026-08-08T13:30:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-08T13:01:17Z",
+      "latest_capture_relation": "LATEST_CAPTURE_IN_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": null,
+      "task_scheduler_terminal_evidence": "CAPTURE_OCCURRED_TASK_ID_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "TIMESTAMP_PRESENT_CAPTURE_ID_NOT_EXPOSED",
+      "raw_payload_identity": "PERSISTED_INDIRECTLY_ID_NOT_EXPOSED",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "PERSISTED_MARKET_OBSERVATION_LINK_CONFIRMED_BY_COLLECTION_STATUS",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 1,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:53:43Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 2,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:53:43Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "PARTIAL_SOURCE_BOUND_CAPTURE_WITHOUT_LEDGER_ID"
+    },
+    {
+      "fixture_id": "1492326",
+      "competition_id": "brasileirao_serie_a",
+      "kickoff_utc": "2026-08-08T19:00:00Z",
+      "checkpoint": "T3_ODDS",
+      "window_start": "2026-08-08T16:00:00Z",
+      "window_end": "2026-08-08T16:30:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-08T13:01:17Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": null,
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 1,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:53:43Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 2,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:53:43Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1492326",
+      "competition_id": "brasileirao_serie_a",
+      "kickoff_utc": "2026-08-08T19:00:00Z",
+      "checkpoint": "T60_ODDS_LINEUPS",
+      "window_start": "2026-08-08T18:00:00Z",
+      "window_end": "2026-08-08T18:20:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-08T13:01:17Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": null,
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 1,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:53:43Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 2,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:53:43Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1492328",
+      "competition_id": "brasileirao_serie_a",
+      "kickoff_utc": "2026-08-08T21:30:00Z",
+      "checkpoint": "T6_ODDS",
+      "window_start": "2026-08-08T15:30:00Z",
+      "window_end": "2026-08-08T16:00:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-08T09:33:08Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": null,
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 2,
+            "current_model_lab_status": "INSUFFICIENT_BOOKMAKER_DEPTH",
+            "current_snapshot_freshness_status": "COMPLETE",
+            "latest_valid_captured_at": "2026-08-08T09:33:08Z",
+            "primary_blocker": "INSUFFICIENT_BOOKMAKER_DEPTH"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 3,
+            "current_model_lab_status": "MODEL_NOT_READY",
+            "current_snapshot_freshness_status": "COMPLETE",
+            "latest_valid_captured_at": "2026-08-08T09:33:08Z",
+            "primary_blocker": "MODEL_SIMULATION_NOT_READY"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1492328",
+      "competition_id": "brasileirao_serie_a",
+      "kickoff_utc": "2026-08-08T21:30:00Z",
+      "checkpoint": "T3_ODDS",
+      "window_start": "2026-08-08T18:30:00Z",
+      "window_end": "2026-08-08T19:00:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-08T09:33:08Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": null,
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 2,
+            "current_model_lab_status": "INSUFFICIENT_BOOKMAKER_DEPTH",
+            "current_snapshot_freshness_status": "COMPLETE",
+            "latest_valid_captured_at": "2026-08-08T09:33:08Z",
+            "primary_blocker": "INSUFFICIENT_BOOKMAKER_DEPTH"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 3,
+            "current_model_lab_status": "MODEL_NOT_READY",
+            "current_snapshot_freshness_status": "COMPLETE",
+            "latest_valid_captured_at": "2026-08-08T09:33:08Z",
+            "primary_blocker": "MODEL_SIMULATION_NOT_READY"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1492328",
+      "competition_id": "brasileirao_serie_a",
+      "kickoff_utc": "2026-08-08T21:30:00Z",
+      "checkpoint": "T60_ODDS_LINEUPS",
+      "window_start": "2026-08-08T20:30:00Z",
+      "window_end": "2026-08-08T20:50:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-08T09:33:08Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": null,
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 2,
+            "current_model_lab_status": "INSUFFICIENT_BOOKMAKER_DEPTH",
+            "current_snapshot_freshness_status": "COMPLETE",
+            "latest_valid_captured_at": "2026-08-08T09:33:08Z",
+            "primary_blocker": "INSUFFICIENT_BOOKMAKER_DEPTH"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 3,
+            "current_model_lab_status": "MODEL_NOT_READY",
+            "current_snapshot_freshness_status": "COMPLETE",
+            "latest_valid_captured_at": "2026-08-08T09:33:08Z",
+            "primary_blocker": "MODEL_SIMULATION_NOT_READY"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1494233",
+      "competition_id": "allsvenskan",
+      "kickoff_utc": "2026-08-09T14:30:00Z",
+      "checkpoint": "T12_ODDS",
+      "window_start": "2026-08-09T02:30:00Z",
+      "window_end": "2026-08-09T03:00:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-03T06:52:42Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "PROVIDER_EMPTY",
+      "public_next_refresh_at": "2026-08-09T08:30:00Z",
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "NO_CURRENT_SNAPSHOT"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "NO_CURRENT_SNAPSHOT"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1494234",
+      "competition_id": "allsvenskan",
+      "kickoff_utc": "2026-08-09T14:30:00Z",
+      "checkpoint": "T12_ODDS",
+      "window_start": "2026-08-09T02:30:00Z",
+      "window_end": "2026-08-09T03:00:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-03T06:52:43Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "PROVIDER_EMPTY",
+      "public_next_refresh_at": "2026-08-09T08:30:00Z",
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "NO_CURRENT_SNAPSHOT"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "NO_CURRENT_SNAPSHOT"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1494235",
+      "competition_id": "allsvenskan",
+      "kickoff_utc": "2026-08-09T12:00:00Z",
+      "checkpoint": "T12_ODDS",
+      "window_start": "2026-08-09T00:00:00Z",
+      "window_end": "2026-08-09T00:30:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-03T06:52:40Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "PROVIDER_EMPTY",
+      "public_next_refresh_at": "2026-08-09T06:00:00Z",
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "NO_CURRENT_SNAPSHOT"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "NO_CURRENT_SNAPSHOT"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1494236",
+      "competition_id": "allsvenskan",
+      "kickoff_utc": "2026-08-09T12:00:00Z",
+      "checkpoint": "T12_ODDS",
+      "window_start": "2026-08-09T00:00:00Z",
+      "window_end": "2026-08-09T00:30:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-03T06:52:41Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "PROVIDER_EMPTY",
+      "public_next_refresh_at": "2026-08-09T06:00:00Z",
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "NO_CURRENT_SNAPSHOT"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "NO_CURRENT_SNAPSHOT"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1494237",
+      "competition_id": "allsvenskan",
+      "kickoff_utc": "2026-08-08T15:30:00Z",
+      "checkpoint": "T3_ODDS",
+      "window_start": "2026-08-08T12:30:00Z",
+      "window_end": "2026-08-08T13:00:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-08T12:31:13Z",
+      "latest_capture_relation": "LATEST_CAPTURE_IN_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": null,
+      "task_scheduler_terminal_evidence": "CAPTURE_OCCURRED_TASK_ID_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "TIMESTAMP_PRESENT_CAPTURE_ID_NOT_EXPOSED",
+      "raw_payload_identity": "PERSISTED_INDIRECTLY_ID_NOT_EXPOSED",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "PERSISTED_MARKET_OBSERVATION_LINK_CONFIRMED_BY_COLLECTION_STATUS",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 1,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:52:40Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 2,
+            "current_model_lab_status": "MODEL_NOT_READY",
+            "current_snapshot_freshness_status": "COMPLETE",
+            "latest_valid_captured_at": "2026-08-08T09:33:06Z",
+            "primary_blocker": "MODEL_CALIBRATION_NOT_READY"
+          }
+        ]
+      },
+      "evidence_disposition": "PARTIAL_SOURCE_BOUND_CAPTURE_WITHOUT_LEDGER_ID"
+    },
+    {
+      "fixture_id": "1494237",
+      "competition_id": "allsvenskan",
+      "kickoff_utc": "2026-08-08T15:30:00Z",
+      "checkpoint": "T60_ODDS_LINEUPS",
+      "window_start": "2026-08-08T14:30:00Z",
+      "window_end": "2026-08-08T14:50:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-08T12:31:13Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": null,
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 1,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:52:40Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 2,
+            "current_model_lab_status": "MODEL_NOT_READY",
+            "current_snapshot_freshness_status": "COMPLETE",
+            "latest_valid_captured_at": "2026-08-08T09:33:06Z",
+            "primary_blocker": "MODEL_CALIBRATION_NOT_READY"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1494238",
+      "competition_id": "allsvenskan",
+      "kickoff_utc": "2026-08-08T13:00:00Z",
+      "checkpoint": "T60_ODDS_LINEUPS",
+      "window_start": "2026-08-08T12:00:00Z",
+      "window_end": "2026-08-08T12:20:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-08T12:31:11Z",
+      "latest_capture_relation": "LATEST_CAPTURE_AFTER_WINDOW_HISTORY_NOT_EXPOSED",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": null,
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "DUE_WINDOW_BUT_NO_FRESH_CAPTURE"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 1,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:52:38Z",
+            "primary_blocker": "DUE_WINDOW_BUT_NO_FRESH_CAPTURE"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1494725",
+      "competition_id": "eliteserien",
+      "kickoff_utc": "2026-08-09T15:00:00Z",
+      "checkpoint": "T12_ODDS",
+      "window_start": "2026-08-09T03:00:00Z",
+      "window_end": "2026-08-09T03:30:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-03T06:55:30Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "PROVIDER_EMPTY",
+      "public_next_refresh_at": "2026-08-09T09:00:00Z",
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "NO_CURRENT_SNAPSHOT"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "NO_CURRENT_SNAPSHOT"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1494726",
+      "competition_id": "eliteserien",
+      "kickoff_utc": "2026-08-09T17:15:00Z",
+      "checkpoint": "T12_ODDS",
+      "window_start": "2026-08-09T05:15:00Z",
+      "window_end": "2026-08-09T05:45:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-03T06:55:31Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "PROVIDER_EMPTY",
+      "public_next_refresh_at": "2026-08-09T11:15:00Z",
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "NO_CURRENT_SNAPSHOT"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "NO_CURRENT_SNAPSHOT"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1494727",
+      "competition_id": "eliteserien",
+      "kickoff_utc": "2026-08-09T12:30:00Z",
+      "checkpoint": "T12_ODDS",
+      "window_start": "2026-08-09T00:30:00Z",
+      "window_end": "2026-08-09T01:00:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-03T06:55:29Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "PROVIDER_EMPTY",
+      "public_next_refresh_at": "2026-08-09T06:30:00Z",
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "NO_CURRENT_SNAPSHOT"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "NO_CURRENT_SNAPSHOT"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1494729",
+      "competition_id": "eliteserien",
+      "kickoff_utc": "2026-08-08T16:00:00Z",
+      "checkpoint": "T3_ODDS",
+      "window_start": "2026-08-08T13:00:00Z",
+      "window_end": "2026-08-08T13:30:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-08T13:01:14Z",
+      "latest_capture_relation": "LATEST_CAPTURE_IN_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": null,
+      "task_scheduler_terminal_evidence": "CAPTURE_OCCURRED_TASK_ID_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "TIMESTAMP_PRESENT_CAPTURE_ID_NOT_EXPOSED",
+      "raw_payload_identity": "PERSISTED_INDIRECTLY_ID_NOT_EXPOSED",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "PERSISTED_MARKET_OBSERVATION_LINK_CONFIRMED_BY_COLLECTION_STATUS",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "DUE_WINDOW_BUT_NO_FRESH_CAPTURE"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 3,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:55:28Z",
+            "primary_blocker": "DUE_WINDOW_BUT_NO_FRESH_CAPTURE"
+          }
+        ]
+      },
+      "evidence_disposition": "PARTIAL_SOURCE_BOUND_CAPTURE_WITHOUT_LEDGER_ID"
+    },
+    {
+      "fixture_id": "1494729",
+      "competition_id": "eliteserien",
+      "kickoff_utc": "2026-08-08T16:00:00Z",
+      "checkpoint": "T60_ODDS_LINEUPS",
+      "window_start": "2026-08-08T15:00:00Z",
+      "window_end": "2026-08-08T15:20:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-08T13:01:14Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": null,
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "DUE_WINDOW_BUT_NO_FRESH_CAPTURE"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 3,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:55:28Z",
+            "primary_blocker": "DUE_WINDOW_BUT_NO_FRESH_CAPTURE"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1494730",
+      "competition_id": "eliteserien",
+      "kickoff_utc": "2026-08-08T12:00:00Z",
+      "checkpoint": "T60_ODDS_LINEUPS",
+      "window_start": "2026-08-08T11:00:00Z",
+      "window_end": "2026-08-08T11:20:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-08T11:31:12Z",
+      "latest_capture_relation": "LATEST_CAPTURE_AFTER_WINDOW_HISTORY_NOT_EXPOSED",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": null,
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 4,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-08T09:03:08Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 4,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-08T09:03:08Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1494731",
+      "competition_id": "eliteserien",
+      "kickoff_utc": "2026-08-08T14:00:00Z",
+      "checkpoint": "T3_ODDS",
+      "window_start": "2026-08-08T11:00:00Z",
+      "window_end": "2026-08-08T11:30:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-08T13:01:11Z",
+      "latest_capture_relation": "LATEST_CAPTURE_AFTER_WINDOW_HISTORY_NOT_EXPOSED",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": null,
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 4,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-08T08:03:10Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 4,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-08T08:03:10Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1494731",
+      "competition_id": "eliteserien",
+      "kickoff_utc": "2026-08-08T14:00:00Z",
+      "checkpoint": "T60_ODDS_LINEUPS",
+      "window_start": "2026-08-08T13:00:00Z",
+      "window_end": "2026-08-08T13:20:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-08T13:01:11Z",
+      "latest_capture_relation": "LATEST_CAPTURE_IN_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": null,
+      "task_scheduler_terminal_evidence": "CAPTURE_OCCURRED_TASK_ID_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "TIMESTAMP_PRESENT_CAPTURE_ID_NOT_EXPOSED",
+      "raw_payload_identity": "PERSISTED_INDIRECTLY_ID_NOT_EXPOSED",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "PERSISTED_MARKET_OBSERVATION_LINK_CONFIRMED_BY_COLLECTION_STATUS",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 4,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-08T08:03:10Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 4,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-08T08:03:10Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "PARTIAL_SOURCE_BOUND_CAPTURE_WITHOUT_LEDGER_ID"
+    },
+    {
+      "fixture_id": "1523229",
+      "competition_id": "chinese_super_league",
+      "kickoff_utc": "2026-08-08T11:35:00Z",
+      "checkpoint": "T60_ODDS_LINEUPS",
+      "window_start": "2026-08-08T10:35:00Z",
+      "window_end": "2026-08-08T10:55:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-08T10:36:14Z",
+      "latest_capture_relation": "LATEST_CAPTURE_IN_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": null,
+      "task_scheduler_terminal_evidence": "CAPTURE_OCCURRED_TASK_ID_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "TIMESTAMP_PRESENT_CAPTURE_ID_NOT_EXPOSED",
+      "raw_payload_identity": "PERSISTED_INDIRECTLY_ID_NOT_EXPOSED",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "PERSISTED_MARKET_OBSERVATION_LINK_CONFIRMED_BY_COLLECTION_STATUS",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 4,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-08T08:38:06Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 4,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-08T08:38:06Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "PARTIAL_SOURCE_BOUND_CAPTURE_WITHOUT_LEDGER_ID"
+    },
+    {
+      "fixture_id": "1523230",
+      "competition_id": "chinese_super_league",
+      "kickoff_utc": "2026-08-08T11:35:00Z",
+      "checkpoint": "T60_ODDS_LINEUPS",
+      "window_start": "2026-08-08T10:35:00Z",
+      "window_end": "2026-08-08T10:55:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-08T10:36:16Z",
+      "latest_capture_relation": "LATEST_CAPTURE_IN_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": null,
+      "task_scheduler_terminal_evidence": "CAPTURE_OCCURRED_TASK_ID_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "TIMESTAMP_PRESENT_CAPTURE_ID_NOT_EXPOSED",
+      "raw_payload_identity": "PERSISTED_INDIRECTLY_ID_NOT_EXPOSED",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "PERSISTED_MARKET_OBSERVATION_LINK_CONFIRMED_BY_COLLECTION_STATUS",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 4,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-08T08:38:10Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 4,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-08T08:38:10Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "PARTIAL_SOURCE_BOUND_CAPTURE_WITHOUT_LEDGER_ID"
+    },
+    {
+      "fixture_id": "1523231",
+      "competition_id": "chinese_super_league",
+      "kickoff_utc": "2026-08-08T12:00:00Z",
+      "checkpoint": "T60_ODDS_LINEUPS",
+      "window_start": "2026-08-08T11:00:00Z",
+      "window_end": "2026-08-08T11:20:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-08T11:31:14Z",
+      "latest_capture_relation": "LATEST_CAPTURE_AFTER_WINDOW_HISTORY_NOT_EXPOSED",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": null,
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 4,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-08T09:03:13Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 4,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-08T09:03:13Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1523232",
+      "competition_id": "chinese_super_league",
+      "kickoff_utc": "2026-08-09T11:00:00Z",
+      "checkpoint": "T12_ODDS",
+      "window_start": "2026-08-08T23:00:00Z",
+      "window_end": "2026-08-08T23:30:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-03T06:54:45Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": "2026-08-09T08:00:00Z",
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 1,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:54:45Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 1,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:54:45Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1523232",
+      "competition_id": "chinese_super_league",
+      "kickoff_utc": "2026-08-09T11:00:00Z",
+      "checkpoint": "T6_ODDS",
+      "window_start": "2026-08-09T05:00:00Z",
+      "window_end": "2026-08-09T05:30:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-03T06:54:45Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": "2026-08-09T08:00:00Z",
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 1,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:54:45Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 1,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:54:45Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1523233",
+      "competition_id": "chinese_super_league",
+      "kickoff_utc": "2026-08-09T11:35:00Z",
+      "checkpoint": "T12_ODDS",
+      "window_start": "2026-08-08T23:35:00Z",
+      "window_end": "2026-08-09T00:05:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-09T00:01:23Z",
+      "latest_capture_relation": "LATEST_CAPTURE_IN_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": "2026-08-09T08:35:00Z",
+      "task_scheduler_terminal_evidence": "CAPTURE_OCCURRED_TASK_ID_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "TIMESTAMP_PRESENT_CAPTURE_ID_NOT_EXPOSED",
+      "raw_payload_identity": "PERSISTED_INDIRECTLY_ID_NOT_EXPOSED",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "PERSISTED_MARKET_OBSERVATION_LINK_CONFIRMED_BY_COLLECTION_STATUS",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "NO_CURRENT_SNAPSHOT"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 1,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:54:47Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "PARTIAL_SOURCE_BOUND_CAPTURE_WITHOUT_LEDGER_ID"
+    },
+    {
+      "fixture_id": "1523233",
+      "competition_id": "chinese_super_league",
+      "kickoff_utc": "2026-08-09T11:35:00Z",
+      "checkpoint": "T6_ODDS",
+      "window_start": "2026-08-09T05:35:00Z",
+      "window_end": "2026-08-09T06:05:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-09T00:01:23Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": "2026-08-09T08:35:00Z",
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 0,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "INCOMPLETE",
+            "latest_valid_captured_at": null,
+            "primary_blocker": "NO_CURRENT_SNAPSHOT"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 1,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:54:47Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    },
+    {
+      "fixture_id": "1523234",
+      "competition_id": "chinese_super_league",
+      "kickoff_utc": "2026-08-09T12:00:00Z",
+      "checkpoint": "T12_ODDS",
+      "window_start": "2026-08-09T00:00:00Z",
+      "window_end": "2026-08-09T00:30:00Z",
+      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "latest_endpoint_capture_at": "2026-08-03T06:54:49Z",
+      "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
+      "public_collection_status": "READY",
+      "public_next_refresh_at": "2026-08-09T06:00:00Z",
+      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
+      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
+      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
+      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
+      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
+      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
+      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "current_round3_projection": {
+        "status": "FROZEN_NOT_REPROJECTED",
+        "source_event_at": "2026-08-08T10:19:12Z",
+        "markets": [
+          {
+            "market": "ASIAN_HANDICAP",
+            "timeline_depth": 1,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:54:49Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          },
+          {
+            "market": "TOTALS",
+            "timeline_depth": 1,
+            "current_model_lab_status": "MARKET_NOT_READY",
+            "current_snapshot_freshness_status": "STALE",
+            "latest_valid_captured_at": "2026-08-03T06:54:49Z",
+            "primary_blocker": "EXPECTED_STALE_BETWEEN_CHECKPOINTS"
+          }
+        ]
+      },
+      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+    }
+  ],
+  "next_naturally_eligible_windows": [
+    {
+      "fixture_id": "1494727",
+      "competition_id": "eliteserien",
+      "kickoff_utc": "2026-08-09T12:30:00Z",
+      "checkpoint": "T6_ODDS",
+      "window_start": "2026-08-09T06:30:00Z",
+      "window_end": "2026-08-09T07:00:00Z",
+      "current_public_next_refresh_at": "2026-08-09T06:30:00Z"
+    },
+    {
+      "fixture_id": "1492320",
+      "competition_id": "brasileirao_serie_a",
+      "kickoff_utc": "2026-08-09T19:00:00Z",
+      "checkpoint": "T12_ODDS",
+      "window_start": "2026-08-09T07:00:00Z",
+      "window_end": "2026-08-09T07:30:00Z",
+      "current_public_next_refresh_at": "2026-08-09T07:00:00Z"
+    },
+    {
+      "fixture_id": "1492327",
+      "competition_id": "brasileirao_serie_a",
+      "kickoff_utc": "2026-08-09T19:00:00Z",
+      "checkpoint": "T12_ODDS",
+      "window_start": "2026-08-09T07:00:00Z",
+      "window_end": "2026-08-09T07:30:00Z",
+      "current_public_next_refresh_at": "2026-08-09T07:00:00Z"
+    },
+    {
+      "fixture_id": "1492324",
+      "competition_id": "brasileirao_serie_a",
+      "kickoff_utc": "2026-08-09T14:00:00Z",
+      "checkpoint": "T6_ODDS",
+      "window_start": "2026-08-09T08:00:00Z",
+      "window_end": "2026-08-09T08:30:00Z",
+      "current_public_next_refresh_at": "2026-08-09T08:00:00Z"
+    },
+    {
+      "fixture_id": "1523232",
+      "competition_id": "chinese_super_league",
+      "kickoff_utc": "2026-08-09T11:00:00Z",
+      "checkpoint": "T3_ODDS",
+      "window_start": "2026-08-09T08:00:00Z",
+      "window_end": "2026-08-09T08:30:00Z",
+      "current_public_next_refresh_at": "2026-08-09T08:00:00Z"
+    },
+    {
+      "fixture_id": "1494233",
+      "competition_id": "allsvenskan",
+      "kickoff_utc": "2026-08-09T14:30:00Z",
+      "checkpoint": "T6_ODDS",
+      "window_start": "2026-08-09T08:30:00Z",
+      "window_end": "2026-08-09T09:00:00Z",
+      "current_public_next_refresh_at": "2026-08-09T08:30:00Z"
+    },
+    {
+      "fixture_id": "1494234",
+      "competition_id": "allsvenskan",
+      "kickoff_utc": "2026-08-09T14:30:00Z",
+      "checkpoint": "T6_ODDS",
+      "window_start": "2026-08-09T08:30:00Z",
+      "window_end": "2026-08-09T09:00:00Z",
+      "current_public_next_refresh_at": "2026-08-09T08:30:00Z"
+    },
+    {
+      "fixture_id": "1523233",
+      "competition_id": "chinese_super_league",
+      "kickoff_utc": "2026-08-09T11:35:00Z",
+      "checkpoint": "T3_ODDS",
+      "window_start": "2026-08-09T08:35:00Z",
+      "window_end": "2026-08-09T09:05:00Z",
+      "current_public_next_refresh_at": "2026-08-09T08:35:00Z"
+    },
+    {
+      "fixture_id": "1494235",
+      "competition_id": "allsvenskan",
+      "kickoff_utc": "2026-08-09T12:00:00Z",
+      "checkpoint": "T3_ODDS",
+      "window_start": "2026-08-09T09:00:00Z",
+      "window_end": "2026-08-09T09:30:00Z",
+      "current_public_next_refresh_at": "2026-08-09T06:00:00Z"
+    },
+    {
+      "fixture_id": "1494236",
+      "competition_id": "allsvenskan",
+      "kickoff_utc": "2026-08-09T12:00:00Z",
+      "checkpoint": "T3_ODDS",
+      "window_start": "2026-08-09T09:00:00Z",
+      "window_end": "2026-08-09T09:30:00Z",
+      "current_public_next_refresh_at": "2026-08-09T06:00:00Z"
+    },
+    {
+      "fixture_id": "1494725",
+      "competition_id": "eliteserien",
+      "kickoff_utc": "2026-08-09T15:00:00Z",
+      "checkpoint": "T6_ODDS",
+      "window_start": "2026-08-09T09:00:00Z",
+      "window_end": "2026-08-09T09:30:00Z",
+      "current_public_next_refresh_at": "2026-08-09T09:00:00Z"
+    },
+    {
+      "fixture_id": "1523234",
+      "competition_id": "chinese_super_league",
+      "kickoff_utc": "2026-08-09T12:00:00Z",
+      "checkpoint": "T3_ODDS",
+      "window_start": "2026-08-09T09:00:00Z",
+      "window_end": "2026-08-09T09:30:00Z",
+      "current_public_next_refresh_at": "2026-08-09T06:00:00Z"
+    },
+    {
+      "fixture_id": "1492322",
+      "competition_id": "brasileirao_serie_a",
+      "kickoff_utc": "2026-08-09T21:30:00Z",
+      "checkpoint": "T12_ODDS",
+      "window_start": "2026-08-09T09:30:00Z",
+      "window_end": "2026-08-09T10:00:00Z",
+      "current_public_next_refresh_at": "2026-08-09T09:30:00Z"
+    },
+    {
+      "fixture_id": "1492329",
+      "competition_id": "brasileirao_serie_a",
+      "kickoff_utc": "2026-08-09T21:30:00Z",
+      "checkpoint": "T12_ODDS",
+      "window_start": "2026-08-09T09:30:00Z",
+      "window_end": "2026-08-09T10:00:00Z",
+      "current_public_next_refresh_at": "2026-08-09T09:30:00Z"
+    },
+    {
+      "fixture_id": "1494727",
+      "competition_id": "eliteserien",
+      "kickoff_utc": "2026-08-09T12:30:00Z",
+      "checkpoint": "T3_ODDS",
+      "window_start": "2026-08-09T09:30:00Z",
+      "window_end": "2026-08-09T10:00:00Z",
+      "current_public_next_refresh_at": "2026-08-09T06:30:00Z"
+    },
+    {
+      "fixture_id": "1523232",
+      "competition_id": "chinese_super_league",
+      "kickoff_utc": "2026-08-09T11:00:00Z",
+      "checkpoint": "T60_ODDS_LINEUPS",
+      "window_start": "2026-08-09T10:00:00Z",
+      "window_end": "2026-08-09T10:20:00Z",
+      "current_public_next_refresh_at": "2026-08-09T08:00:00Z"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-09T14:00:00+08:00"
+updated_at: "2026-08-09T14:10:16+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
@@ -7,10 +7,10 @@ program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
 owner_product_decision: W2_POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE
 owner_authorization_id: W2_POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_V1
-active_next_action: EXECUTE_POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE
-next_code_action: READ_ONLY_RUNTIME_EVIDENCE_AUDIT
-current_status: TRACK_A_CLOSURE_AUTHORIZED_ACTIVE
-current_gate: POST_R3_TRACK_A_CLOSURE_ACTIVE
+active_next_action: WAIT_FOR_SOURCE_BOUND_NATURAL_EVIDENCE
+next_code_action: NONE_WAIT_FOR_PERSISTED_TERMINAL_TRACE
+current_status: WAIT_MORE_NATURAL_EVIDENCE
+current_gate: POST_R3_TRACK_A_WAIT_MORE_NATURAL_EVIDENCE
 
 runtime_baseline:
   final_main_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
@@ -69,6 +69,8 @@ global_completion_gate:
   current_deployed_source_sha: 51ebbeabc5497ce48708b3587705e2922c4805da
   deployment_status: PENDING
   code_complete_does_not_equal_project_complete: true
+  track_a_terminal_does_not_equal_project_complete: true
+  deployment_authorized_by_track_a: false
   mandatory_post_deploy_acceptance:
     - VPS_SOURCE_SHA_MATCHES_APPROVED_MAIN
     - API_HEALTH_PASS
@@ -104,7 +106,20 @@ post_r3_readiness_attribution:
   original_matrix: POST_R3_READINESS_ATTRIBUTION_MATRIX.json
   original_completion_condition: REAL_FIXTURES_CROSS_EXISTING_T12_T6_T3_T60_LIFECYCLE_WITH_EXPLICIT_TERMINAL_EVIDENCE_THEN_REPROJECT_AND_REVIEW
   closure_authority: POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_AUTHORIZATION.md
-  closure_status: AUTHORIZED_ACTIVE
+  closure_status: WAIT_MORE_NATURAL_EVIDENCE
+  closure_result: WAIT_MORE_NATURAL_EVIDENCE
+  closure_report: POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_REPORT.md
+  closure_matrix: POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_MATRIX.json
+  closure_matrix_sha256: adf0dc4844851e2f96f6d15d11b9688212748f817fbc543be85a6f4ae72a227c
+  closure_audit_as_of: "2026-08-09T06:10:16.671712Z"
+  closure_origin_main_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
+  closure_context_base_sha: 713b8aea3cc1cef81d729b5f21b3ee54a61a4962
+  ended_post_restore_checkpoint_windows: 38
+  in_window_capture_windows: 8
+  incomplete_terminal_trace_windows: 30
+  due_window_recurrence: RECURRENCE_CONDITION_OBSERVED_CAUSE_NOT_PROVEN
+  recurring_internal_defect: NOT_PROVEN
+  round4_readiness_decision_packet: NOT_CREATED_EVIDENCE_INSUFFICIENT
   allowed_terminal_results:
     - TRACK_A_CLOSED_PASS
     - WAIT_MORE_NATURAL_EVIDENCE
