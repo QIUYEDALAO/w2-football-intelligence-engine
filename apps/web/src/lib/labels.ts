@@ -36,6 +36,7 @@ export const TENDENCY_LABELS: Record<string, string> = {
 };
 
 export const COMPETITION_TRANSLATIONS: Array<[RegExp, string]> = [
+  [/Premier League/i, "英超"],
   [/World Cup/i, "世界杯"],
   [/Allsvenskan/i, "瑞典超"],
   [/Eliteserien/i, "挪威超"],
@@ -165,6 +166,23 @@ export const TEAM_TRANSLATIONS: Record<string, string> = {
 };
 
 export const REASON_TRANSLATIONS: Array<[RegExp, string]> = [
+  [/^DATA_IDENTITY_NOT_READY$/, "身份映射未就绪"],
+  [/^DATA_MARKET_TIMELINE_INSUFFICIENT$/, "盘口时间线证据不足"],
+  [/^DATA_REQUIRED_INPUT_MISSING$/, "缺少必要输入"],
+  [/^DATA_STATUS_BLOCKED$/, "数据状态阻塞"],
+  [/^MODEL_SIMULATION_NOT_READY$/, "模型模拟未就绪"],
+  [/^LINEUPS_NOT_READY$/, "阵容信息未就绪"],
+  [/^LINEUP_WINDOW_NOT_OPEN$/, "阵容公布窗口尚未开启"],
+  [/^LINEUP_EXPECTED_BUT_ABSENT$/, "预计应有阵容信息，但来源仍为空"],
+  [/^INJURIES_STALE$/, "伤停信息已过期"],
+  [/^MARKET_STALE$/, "市场数据已过期"],
+  [/^COLLECTION_PROVIDER_INCIDENT$/, "数据采集来源异常"],
+  [/^EVIDENCE_READY$/, "证据已就绪"],
+  [/^PRODUCT_AUTHORITY_DISABLED$/, "产品授权保持关闭"],
+  [/^NO_TIMELINE_EVIDENCE$/, "暂无盘口时间线证据"],
+  [/^ONE_OBSERVATION_NOT_A_TREND$/, "单次观测不构成趋势"],
+  [/^DISCRETE_REAL_PATH$/, "真实离散盘口轨迹"],
+  [/^([A-Z_]+)_FACTUAL_EVIDENCE$/, "已有对应事实证据"],
   [/^F9_TRUE_XG:/, "滚动 xG 已纳入对比"],
   [/^F1_MARKET_MOVEMENT:/, "盘口从初盘到当前有可用变化"],
   [/^F2_BOOKMAKER_DISAGREEMENT:/, "多家庄家分歧已纳入"],

@@ -1,0 +1,26 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>W2 Dashboard visual comparison</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; background: #030908; color: #dce9e3; font: 13px system-ui, sans-serif; }
+  h1 { margin: 0 0 16px; font-size: 18px; }
+  main { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  figure { margin: 0; padding: 10px; border: 1px solid #1c3932; background: #071311; }
+  figcaption { margin-bottom: 8px; color: #70c69d; font-weight: 700; }
+  .frame { aspect-ratio: 16 / 10; overflow: hidden; border: 1px solid #173029; }
+  img { display: block; width: 100%; height: auto; }
+  footer { margin-top: 12px; color: #839a90; font-size: 11px; }
+</style>
+<h1>W2 Dashboard 视觉构图对比 · 1440 宽</h1>
+<main>
+  <figure>
+    <figcaption>仓库视觉参考（顶部 1440×900 区域）</figcaption>
+    <div class="frame"><img src="../boss-console/golden/v2.1/reference/boss-console-desktop-1440.png" alt="批准的旧构图参考"></div>
+  </figure>
+  <figure>
+    <figcaption>统一情报工作台实现（1440×900）</figcaption>
+    <div class="frame"><img src="golden/intelligence-workspace-1440x900.png" alt="新版统一情报工作台"></div>
+  </figure>
+</main>
+<footer>比较目标仅限网格密度、左侧栏、顶部状态、卡片边界、色板与信息层级；产品语义按当前统一 read model 保持不变。</footer>

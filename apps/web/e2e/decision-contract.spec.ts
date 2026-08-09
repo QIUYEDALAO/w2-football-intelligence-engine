@@ -143,6 +143,14 @@ function workspace(scenario = "default"): IntelligenceWorkspace {
   let matches = [match("zero", "DATA_INCOMPLETE", 0), match("one", "MODEL_MARKET_DISAGREEMENT", 1, "TOTALS"), match("two", "MARKET_STABLE", 2, "ASIAN_HANDICAP", 2)];
   if (scenario === "empty") matches = [];
   if (scenario === "seven-states") matches = STATES.map((state, index) => match(`state-${index}`, state, index % 3));
+  if (scenario === "layout") matches = [
+    match("zero", "DATA_INCOMPLETE", 0),
+    match("one", "MODEL_MARKET_DISAGREEMENT", 1, "TOTALS"),
+    match("two", "MARKET_STABLE", 2, "ASIAN_HANDICAP", 2),
+    match("three", "MARKET_MOVEMENT", 2, "TOTALS", 2),
+    match("four", "MODEL_DIAGNOSTIC_WARNING", 1),
+    match("five", "MARKET_STABLE", 2, "ASIAN_HANDICAP", 2),
+  ];
   if (scenario === "default") delete matches[1].market_radar.markets.TOTALS.prices.UNDER;
   const attention = matches.map((item) => ({
     fixture_id: item.fixture_id,
@@ -190,7 +198,7 @@ function workspace(scenario = "default"): IntelligenceWorkspace {
   if (first && scenario === "model-not-ready") { first.w2_analysis.model_view.status = "UNAVAILABLE"; first.model_lab.w2_model.status = "UNAVAILABLE"; first.intelligence_reason_codes = ["MODEL_SIMULATION_NOT_READY"]; }
   if (scenario === "validation-insufficient") { payload.validation.probability.status = "INSUFFICIENT"; payload.validation.probability.sample_count = 0; payload.validation.probability.model_reliability_bins = []; payload.validation.probability.market_reliability_bins = []; payload.validation.directional.status = "INSUFFICIENT"; payload.validation.directional.effective_n = 0; }
   if (scenario === "validation-metadata-missing") payload.validation.probability.checkpoint_metadata = {};
-  if (first && !["default", "empty", "seven-states", "validation-insufficient"].includes(scenario)) payload.selected_fixture_id = first.fixture_id;
+  if (first && !["default", "empty", "seven-states", "validation-insufficient", "layout"].includes(scenario)) payload.selected_fixture_id = first.fixture_id;
   return payload;
 }
 
@@ -210,7 +218,7 @@ async function installWorkspace(page: Page, scenario = "default"): Promise<strin
   return apiReads;
 }
 
-test.use({ viewport: { width: 1536, height: 1024 }, locale: "en-GB", timezoneId: "Asia/Shanghai", deviceScaleFactor: 1 });
+test.use({ viewport: { width: 1536, height: 1024 }, locale: "zh-CN", timezoneId: "Asia/Shanghai", deviceScaleFactor: 1 });
 
 test("public root consumes only the unified read model and exposes every P3/P4 surface", async ({ page }) => {
   const reads = await installWorkspace(page);
@@ -218,9 +226,11 @@ test("public root consumes only the unified read model and exposes every P3/P4 s
   await expect(page.locator(".unified-workspace")).toHaveAttribute("data-schema-version", "w2.dashboard-intelligence-workspace.v1");
   await expect(page.locator(".unified-workspace")).toHaveAttribute("data-public-authority", "NEW_INTELLIGENCE_WORKSPACE_ONLY");
   for (const surface of ["attention", "match-board", "match-inspector", "market-radar", "model-lab", "scoreline-top3", "validation", "league-performance", "history-replay", "external-intelligence", "data-operations"]) await expect(page.locator(`[data-ui='${surface}']`)).toBeVisible();
-  await expect(page.locator(".workspace-topbar")).toContainText("13 LEAGUES");
+  await expect(page.locator(".workspace-topbar")).toContainText("13 联赛");
   await expect(page.locator(".workspace-topbar")).toContainText("SHADOW_ONLY");
   await expect(page.locator(".workspace-topbar")).toContainText("FORMAL OFF");
+  await expect(page.locator(".workspace-sidebar nav")).toContainText("关注情报");
+  await expect(page.locator(".workspace-sidebar nav")).not.toContainText("Attention");
   expect(new Set(reads)).toEqual(new Set(["/v1/dashboard/intelligence-workspace"]));
 });
 
@@ -228,7 +238,7 @@ test("ORC-01 Match Board identifies AH and OU main-line facts without side seman
   await installWorkspace(page);
   await page.goto("/");
   const facts = await page.locator(".match-board-market").allTextContents();
-  expect(facts).toEqual(["MARKET NOT AVAILABLE", "OU 2.5", "AH -0.25"]);
+  expect(facts).toEqual(["盘口暂不可用", "大小球 2.5", "让球 -0.25"]);
   expect(facts.every((value) => !/(HOME|AWAY|OVER|UNDER)/.test(value))).toBe(true);
 });
 
@@ -238,19 +248,19 @@ test("ORC-02 Market Radar renders two-sided prices and explicitly marks missing 
   const radar = page.locator("[data-ui='market-radar']");
   const ah = radar.locator("[data-market='ASIAN_HANDICAP'] [data-ui='market-prices']");
   const totals = radar.locator("[data-market='TOTALS'] [data-ui='market-prices']");
-  await expect(ah).toContainText("HOME");
-  await expect(ah).toContainText("AWAY");
+  await expect(ah).toContainText("主队");
+  await expect(ah).toContainText("客队");
   await expect(ah).toContainText("1.94");
   await expect(ah).toContainText("1.96");
-  await expect(totals).toContainText("OVER");
-  await expect(totals).toContainText("UNDER");
+  await expect(totals).toContainText("大");
+  await expect(totals).toContainText("小");
   await page.locator("[data-fixture-id='zero']").click();
   await expect(radar.locator(".market-prices p")).toHaveCount(2);
-  await expect(radar.locator(".market-prices p").first()).toHaveText("PRICE_EVIDENCE_NOT_AVAILABLE");
+  await expect(radar.locator(".market-prices p").first()).toHaveText("暂无价格证据");
   await page.locator("[data-fixture-id='one']").click();
   await expect(totals.locator(":scope > span")).toHaveCount(2);
   await expect(totals.locator("[data-price-side='OVER']")).toContainText("1.94");
-  await expect(totals.locator("[data-price-side='UNDER']")).toHaveText("UNDERNOT_AVAILABLE");
+  await expect(totals.locator("[data-price-side='UNDER']")).toHaveText("小暂无");
 });
 
 test("ORC-03 Probability Validation exposes source checkpoint identity", async ({ page }) => {
@@ -263,7 +273,7 @@ test("ORC-04 League Performance includes Decisive N and its source value", async
   await installWorkspace(page);
   await page.goto("/");
   const table = page.locator("[data-ui='league-performance']");
-  await expect(table.locator(".league-table-head")).toContainText("Decisive N");
+  await expect(table.locator(".league-table-head")).toContainText("有效 N");
   await expect(table.locator(".league-table-row > span").nth(1)).toHaveText("6");
 });
 
@@ -271,25 +281,26 @@ test("ORC-05 compact header exposes source update time and system health", async
   await installWorkspace(page);
   await page.goto("/");
   const context = page.locator("[data-ui='header-context']");
-  await expect(context).toContainText("Updated 09 Aug, 10:00");
-  await expect(context).toContainText("Health HEALTHY");
+  await expect(context).toContainText("更新 08/09 10:00");
+  await expect(context).toContainText("系统 健康");
 });
 
 test("ORC-06 Scoreline shows model and readiness context for ready and unavailable states", async ({ page }) => {
   await installWorkspace(page);
   await page.goto("/");
   const scoreline = page.locator("[data-ui='scoreline-top3']");
-  await expect(scoreline.locator("[data-ui='scoreline-context']")).toContainText("Model statusREADY");
-  await expect(scoreline.locator("[data-ui='scoreline-context']")).toContainText("ReadinessREADY");
+  await expect(scoreline.locator("[data-ui='scoreline-context']")).toContainText("模型 就绪");
+  await expect(scoreline.locator("[data-ui='scoreline-context']")).toContainText("就绪 就绪");
   await page.locator("[data-fixture-id='zero']").click();
-  await expect(scoreline).toContainText("UNAVAILABLE");
-  await expect(scoreline.locator("[data-ui='scoreline-context']")).toContainText("ReadinessBLOCKED");
-  await expect(scoreline.locator("[data-ui='scoreline-context']")).toContainText("LINEUPS_NOT_READY");
+  await expect(scoreline).toContainText("不可用");
+  await expect(scoreline.locator("[data-ui='scoreline-context']")).toContainText("就绪 阻塞");
+  await expect(scoreline.locator(".technical-details")).toContainText("LINEUPS_NOT_READY");
 });
 
 test("all seven intelligence states and the exact four risk axes render without semantic promotion", async ({ page }) => {
   await installWorkspace(page, "seven-states");
   await page.goto("/");
+  await page.getByRole("button", { name: "查看全部（7）" }).click();
   for (const state of STATES) await expect(page.locator(`[data-intelligence-state='${state}']`).first()).toBeVisible();
   const inspector = page.locator("[data-ui='match-inspector']");
   for (const axis of ["EVENT_RISK", "DATA_RISK", "MODEL_RISK", "COLLECTION_RISK"]) await expect(inspector.locator(`[data-risk-axis='${axis}']`)).toHaveCount(1);
@@ -320,20 +331,21 @@ test("scoreline READY is exactly 10000 with unconditional probability and sample
   await expect(scoreline).not.toContainText("generic probability");
 });
 
-for (const [scenario, expected] of [
-  ["lineup-too-early", "NOT_EXPECTED_YET / TOO_EARLY"],
-  ["lineup-absent", "EXPECTED / PROVIDER_EMPTY"],
-  ["injuries-stale", "INJURIES_STALE"],
-  ["market-stale", "STALE"],
-  ["collection-incident", "PROTECTED_DEGRADED"],
-  ["model-not-ready", "MODEL_SIMULATION_NOT_READY"],
-  ["validation-insufficient", "INSUFFICIENT"],
-  ["validation-metadata-missing", "CHECKPOINT_METADATA_NOT_AVAILABLE"],
+for (const [scenario, expected, canonical] of [
+  ["lineup-too-early", "当前尚不应提供", "NOT_EXPECTED_YET"],
+  ["lineup-absent", "来源数据为空", "PROVIDER_EMPTY"],
+  ["injuries-stale", "伤停信息已过期", "INJURIES_STALE"],
+  ["market-stale", "已过期", "STALE"],
+  ["collection-incident", "额度受保护（降级）", "PROTECTED_DEGRADED"],
+  ["model-not-ready", "模型模拟未就绪", "MODEL_SIMULATION_NOT_READY"],
+  ["validation-insufficient", "证据不足", "INSUFFICIENT"],
+  ["validation-metadata-missing", "技术详情", "CHECKPOINT_METADATA_NOT_AVAILABLE"],
 ] as const) {
   test(`truth scenario ${scenario} stays explicit`, async ({ page }) => {
     await installWorkspace(page, scenario);
     await page.goto("/");
     await expect(page.locator(".workspace-main")).toContainText(expected);
+    await expect(page.locator(".workspace-main")).toContainText(canonical);
   });
 }
 
@@ -344,18 +356,18 @@ test("SAMPLE_BUILDING, external NOT_CONNECTED, replay evidence and replay gaps a
   await expect(page.locator("[data-ui='validation']")).toContainText("NOT_DEFINED");
   await expect(page.locator("[data-ui='external-intelligence'] strong")).toHaveCount(4);
   await expect(page.locator("[data-ui='external-intelligence']")).toContainText("NOT_CONNECTED");
-  await expect(page.locator("[data-ui='external-intelligence']")).toContainText("affects_match_readiness=false");
+  await expect(page.locator("[data-ui='external-intelligence'] article").first()).toHaveAttribute("data-affects-match-readiness", "false");
   await expect(page.locator("[data-ui='history-replay']")).toContainText("AVAILABLE_WITH_GAPS");
   await expect(page.locator("[data-ui='history-replay']")).toContainText("MISSING_OUTCOMES_FOR_2_FIXTURES");
-  await expect(page.locator("[data-ui='history-replay']")).toContainText("Hash checks1");
+  await expect(page.locator("[data-ui='history-replay']")).toContainText("哈希检查1");
 });
 
 test("empty day is explicit and never fabricates a match", async ({ page }) => {
   await installWorkspace(page, "empty");
   await page.goto("/");
-  await expect(page.locator("[data-ui='match-board']")).toContainText("Empty football day");
+  await expect(page.locator("[data-ui='match-board']")).toContainText("今日暂无比赛");
   await expect(page.locator(".match-board-row")).toHaveCount(0);
-  await expect(page.locator("[data-ui='match-inspector']")).toContainText("No selected fixture");
+  await expect(page.locator("[data-ui='match-inspector']")).toContainText("尚未选择比赛");
 });
 
 test("public copy excludes forbidden decision and commercial semantics", async ({ page }) => {
@@ -364,38 +376,56 @@ test("public copy excludes forbidden decision and commercial semantics", async (
   const body = page.locator("body");
   for (const forbidden of ["CLV", "ROI", "expected_value", "value_score", "opportunity_score", "market_pick", "anonymous_live_odds_benchmark", "Recommendation Board", "Boss Decision Console"]) await expect(body).not.toContainText(forbidden);
   await expect(body).toContainText("优先检查模型校准、特征时效、盘口身份和数据质量");
-  await expect(body).toContainText("Formal recommendation is OFF");
+  await expect(body).toContainText("正式建议保持关闭");
 });
 
-test("fixed visual authority is deterministic at 1536x1024 within the browser runtime", async ({ page }, testInfo) => {
-  await installWorkspace(page);
+test("1536x1024 owner viewport contains the complete primary console", async ({ page }) => {
+  await installWorkspace(page, "layout");
   await page.goto("/");
-  await expect(page.locator("[data-ui='match-board']")).toBeVisible();
+  await expect(page.locator(".match-board-row")).toHaveCount(6);
+  await expect(page.locator("[data-ui='attention'] .attention-row")).toHaveCount(5);
+  const fifthAttentionBox = await page.locator("[data-ui='attention'] .attention-row").nth(4).boundingBox();
+  const attentionActionBox = await page.getByRole("button", { name: "查看全部（6）" }).boundingBox();
+  expect(fifthAttentionBox!.y + fifthAttentionBox!.height).toBeLessThanOrEqual(attentionActionBox!.y - 3);
+  for (const surface of ["attention", "market-radar", "external-intelligence", "match-board", "match-inspector", "model-lab", "scoreline-top3", "validation", "league-performance"]) {
+    const box = await page.locator(`[data-ui='${surface}']`).boundingBox();
+    expect(box, surface).not.toBeNull();
+    expect(box!.y, surface).toBeGreaterThanOrEqual(0);
+    expect(box!.y + box!.height, surface).toBeLessThanOrEqual(1024);
+  }
+  const primaryText = await page.locator(".workspace-grid").evaluate((element) => {
+    const copy = element.cloneNode(true) as HTMLElement;
+    copy.querySelectorAll("details").forEach((details) => details.remove());
+    return copy.innerText;
+  });
+  expect(primaryText).not.toMatch(/(?:COLLECTION|DATA|MODEL|MARKET)_[A-Z_]+/);
   await expectDeterministicScreenshot(page);
-  if (process.env.UPDATE_WORKSPACE_SCREENSHOTS === "1") await page.screenshot({ animations: "disabled", fullPage: false, path: testInfo.snapshotPath("intelligence-workspace-1536x1024.png") });
 });
 
-for (const viewport of [{ width: 1920, height: 1080 }, { width: 1440, height: 900 }, { width: 1366, height: 768 }]) {
-  test(`responsive geometry ${viewport.width}x${viewport.height} has no page overflow`, async ({ page }, testInfo) => {
+for (const viewport of [{ width: 2048, height: 1084 }, { width: 1920, height: 1080 }, { width: 1440, height: 900 }, { width: 1366, height: 768 }, { width: 390, height: 844 }]) {
+  test(`responsive geometry ${viewport.width}x${viewport.height} has no page overflow`, async ({ page }) => {
     await page.setViewportSize(viewport);
-    await installWorkspace(page);
+    await installWorkspace(page, "layout");
     await page.goto("/");
     const geometry = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
     expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
-    const statusGeometry = await page.locator(".topbar-status").evaluate((element) => ({ scrollWidth: element.scrollWidth, clientWidth: element.clientWidth }));
-    expect(statusGeometry.scrollWidth).toBeLessThanOrEqual(statusGeometry.clientWidth);
+    if (viewport.width > 620) {
+      const statusGeometry = await page.locator(".topbar-status").evaluate((element) => ({ scrollWidth: element.scrollWidth, clientWidth: element.clientWidth }));
+      expect(statusGeometry.scrollWidth).toBeLessThanOrEqual(statusGeometry.clientWidth);
+    }
     await expect(page.locator("[data-ui='attention']")).toBeVisible();
     await expect(page.locator("[data-ui='match-board']")).toBeVisible();
-    await expect(page.locator(".topbar-status")).toContainText("13 LEAGUES");
-    await expect(page.locator(".topbar-status")).toContainText("PRODUCTION OFF");
+    if (viewport.width > 620) {
+      await expect(page.locator(".topbar-status")).toContainText("13 联赛");
+      await expect(page.locator(".topbar-status")).toContainText("PRODUCTION OFF");
+    }
     await expectDeterministicScreenshot(page);
-    if (process.env.UPDATE_WORKSPACE_SCREENSHOTS === "1") await page.screenshot({ animations: "disabled", fullPage: false, path: testInfo.snapshotPath(`intelligence-workspace-${viewport.width}x${viewport.height}.png`) });
   });
 }
 
 test("endpoint failure stays fail-closed without legacy fallback", async ({ page }) => {
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 503, json: { code: "SYSTEM_DEGRADED" } }));
   await page.goto("/");
-  await expect(page.locator(".workspace-load-state--error")).toContainText("Unified workspace unavailable");
-  await expect(page.locator(".workspace-load-state--error")).toContainText("no legacy dashboard or synthetic data");
+  await expect(page.locator(".workspace-load-state--error")).toContainText("统一情报工作台暂不可用");
+  await expect(page.locator(".workspace-load-state--error")).toContainText("不会回退旧 Dashboard，也不会填充合成数据");
 });
