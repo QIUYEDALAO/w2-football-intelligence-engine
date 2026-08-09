@@ -7,6 +7,8 @@
 - Implementation screenshot paths: `apps/web/test-results/**/actual-*.png`
 - Combined full-view evidence: `apps/web/test-results/v41-state-reference-actual-contact-sheet-pass4.png`
 - Combined focused evidence: `apps/web/test-results/v41-normal-header-focus-pass4.png` and `apps/web/test-results/v41-blocked-main-focus-pass2.png`
+- D16 deployed-shape implementation targets: `docs/ui/dashboard-v4.1/targets/d16-postdeploy-1366x768.png` and `docs/ui/dashboard-v4.1/targets/d16-postdeploy-1512x982.png`
+- D16 combined side-by-side review evidence: `/tmp/d16-design-qa-comparison-1366.png`
 - Route/state: public unified intelligence workspace, dark theme, unauthenticated local Playwright render with deterministic real-shape contract payloads
 
 ## Viewports and normalization
@@ -18,6 +20,8 @@
 | normal | 1512 x 982 | 1512 x 982 | 1512 x 982 | deviceScaleFactor 1; none |
 | normal | 1536 x 1024 | 1536 x 1024 | 1536 x 1024 | deviceScaleFactor 1; none |
 | responsive normal | 1180 x 1300 | 1180 x 1300 | 1180 x 1300 | deviceScaleFactor 1; none |
+| D16 deployed shape | 1366 x 768 | 1366 x 768 | 1366 x 768 | deviceScaleFactor 1; none |
+| D16 deployed shape | 1512 x 982 | 1512 x 982 | 1512 x 982 | deviceScaleFactor 1; none |
 | blocked/calm/stale/empty | 1440 x 900 | 1440 x 900 | 1440 x 900 | deviceScaleFactor 1; none |
 
 The contact sheet scales each equal-density source/implementation pair equally for review only. Playwright compares the original equal-pixel captures.
@@ -46,6 +50,7 @@ The contact sheet scales each equal-density source/implementation pair equally f
 
 - `v41-normal-header-focus-pass4.png` compares the top 220 px at 1280 x 720 and confirms navigation, status, L1 count hierarchy, football-day window, shortlist alignment, and focused match header.
 - `v41-blocked-main-focus-pass2.png` compares the 1440 x 520 blocked-state main region and confirms zero priority count, one global incident group, top-aligned incident focus, semantic critical color, recovery copy, and read-protection treatment.
+- `d16-design-qa-comparison-1366.png` places the approved normal target and D16 deployed-shape capture at equal 1366 x 768 density. It confirms one authoritative normal-day mode, a scoped partial-degradation badge, one useful stale-evidence focus, auditable primary/secondary reasons, Chinese-first risk copy, and natural page flow without a nested focus scrollbar.
 
 ## Comparison history
 
@@ -66,6 +71,16 @@ The contact sheet scales each equal-density source/implementation pair equally f
 - No P0/P1/P2 finding remained after comparing the same state, viewport, theme, crop, CSS size, and density.
 - All 21 V4.1-specific Playwright contract/visual/accessibility tests and all 39 repository Web E2E tests pass.
 
+### Pass 4 — D16 bounded remediation
+
+- Earlier finding [P1]: the public header could show a normal match day while also exposing the raw `BLOCKED_DAY` system code; priority counts included local data-incomplete items; the first match could win focus despite having no usable market evidence.
+- Fix: the public mode is now singular and authoritative, scoped system degradation is separate, priority eligibility is limited to current market movement, source-bound model diagnostics, or stale market memory, and focus ranks usable evidence deterministically.
+- Earlier finding [P1]: primary and subordinate reasons were not visually distinguished, and raw risk codes leaked into the public explanation.
+- Fix: the shortlist now labels `主因` and `次因`, excludes other-attention rows from the priority count, and renders Chinese causal risk explanations with raw codes confined to technical details.
+- Earlier finding [P2]: the right focus region retained an internal desktop scrollbar and the global quality rail could present an unavailable checkpoint with an apparently current timestamp.
+- Fix: the focus region follows natural page flow at 1180/1280/1366/1512/1536 widths, while checkpoint status is fail-closed to exactly AVAILABLE, STALE, INCOMPLETE, or NOT_AVAILABLE.
+- Post-fix evidence: 26 focused D16/V4.1 Playwright tests pass, including the deployed real shape, all four checkpoint states, 200% zoom, desktop scroll ownership, reason-count auditability, technical risk details, and zero read-side calls/writes.
+
 ## Implementation checklist
 
 - [x] Approved source and implementation opened and compared side by side.
@@ -73,5 +88,6 @@ The contact sheet scales each equal-density source/implementation pair equally f
 - [x] Fonts, spacing, colors, image assets, and copy explicitly reviewed.
 - [x] Date controls, refresh, selection, keyboard focus, details, zoom, and fail-closed endpoint behavior tested.
 - [x] Earlier P1/P2 findings fixed and re-captured.
+- [x] D16-01 through D16-07 semantics and deployed-shape rendering re-captured at 1366 x 768 and 1512 x 982.
 
 final result: passed

@@ -299,7 +299,7 @@ summary {
   flex: none;
   grid-template-columns: 360px minmax(0, 1fr);
   gap: 16px;
-  height: calc(100dvh - 226px);
+  height: auto;
   min-height: 0;
   padding: 0 22px 14px;
 }
@@ -340,7 +340,7 @@ summary {
 
 .v41-shortlist-list {
   min-height: 0;
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .v41-shortlist-list button {
@@ -424,6 +424,25 @@ summary {
   font-weight: 600;
 }
 
+.v41-reason-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.v41-reason-line > b {
+  padding: 1px 5px;
+  border: 1px solid var(--v41-accent-line);
+  border-radius: 2px;
+  background: var(--v41-accent-soft);
+}
+
+.v41-reason-line > small {
+  color: var(--v41-ink-3);
+  font-size: 11px;
+}
+
 .v41-shortlist time {
   padding-top: 15px;
   color: var(--v41-ink-3);
@@ -453,7 +472,7 @@ summary {
   min-width: 0;
   min-height: 0;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid var(--v41-accent-line);
   border-radius: 4px;
   background: var(--v41-panel);
@@ -532,7 +551,23 @@ summary {
   min-height: 0;
   flex: 1;
   grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-  overflow: auto;
+  overflow: visible;
+}
+
+.v41-risk-codes {
+  margin-top: 4px;
+  color: var(--v41-ink-3);
+  font-size: 10px;
+}
+
+.v41-risk-codes summary {
+  cursor: pointer;
+}
+
+.v41-risk-codes code {
+  display: block;
+  margin-top: 3px;
+  overflow-wrap: anywhere;
 }
 
 .v41-focus-markets,

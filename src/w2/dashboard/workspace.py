@@ -27,15 +27,28 @@ DOMAIN_CONTRACT = {
 }
 AFFECTED_DOMAIN_ORDER = ("EVENT", "DATA", "MODEL", "COLLECTION", "MARKET")
 PRIMARY_REASON_ORDER = {
-    "COLLECTION_INCIDENT": 0,
+    "STALE_MARKET_MEMORY": 0,
     "MARKET_MOVEMENT": 1,
-    "FRESH_MARKET_EVIDENCE": 2,
-    "MODEL_DIAGNOSTIC": 3,
-    "STALE_MARKET_MEMORY": 4,
-    "DATA_INCOMPLETE": 5,
-    "LINEUP_PENDING": 6,
+    "MODEL_DIAGNOSTIC": 2,
+}
+ATTENTION_REASON_ORDER = {
+    **PRIMARY_REASON_ORDER,
+    "COLLECTION_INCIDENT": 3,
+    "DATA_INCOMPLETE": 4,
+    "LINEUP_PENDING": 5,
 }
 MODEL_QUALITY_MAX_AGE_SECONDS = 86_400
+RISK_REASON_LABELS = {
+    "DATA_FIELD_STALE": "数据字段已超过新鲜度边界",
+    "DATA_IDENTITY_NOT_READY": "比赛或盘口身份尚未完成",
+    "DATA_MARKET_TIMELINE_INSUFFICIENT": "让球/大小球时间线证据不足",
+    "DATA_REQUIRED_INPUT_MISSING": "必需输入尚未齐全",
+    "DATA_STATUS_BLOCKED": "当前数据状态阻塞",
+    "MODEL_SIMULATION_NOT_READY": "既有模型模拟尚未就绪",
+    "MODEL_OUTSIDE_MARKET_RANGE": "模型结果超出当前市场观测区间",
+    "COLLECTION_ASSESSMENT_NOT_AVAILABLE": "尚无可用采集评估证据",
+    "COLLECTION_ASSESSMENT_STALE": "采集评估证据已过期",
+}
 
 
 def build_dashboard_intelligence_workspace(
@@ -53,10 +66,9 @@ def build_dashboard_intelligence_workspace(
         primary, secondary = _priority_reasons(match)
         match["priority_reason_primary"] = primary
         match["priority_reason_secondary"] = secondary
+        match["factual_summary"] = _match_factual_summary(match)
     day_mode, focus_type, focus_fixture_id = _focus_authority(day_view, matches)
-    primary_reason_counts = (
-        {} if day_mode == "BLOCKED" else _primary_reason_counts(matches)
-    )
+    primary_reason_counts = {} if day_mode == "BLOCKED" else _primary_reason_counts(matches)
     global_focus = _global_focus(day_view, matches, day_mode)
     return {
         "schema_version": SCHEMA_VERSION,
@@ -115,9 +127,7 @@ def build_dashboard_intelligence_workspace(
                 "affected_domains": _affected_domains(
                     item["intelligence_state"], item["intelligence_reason_codes"]
                 ),
-                "factual_summary": _factual_summary(
-                    item["intelligence_state"], item["intelligence_reason_codes"]
-                ),
+                "factual_summary": item["factual_summary"],
                 "readiness_status": item["readiness"]["status"],
                 "readiness_context": {
                     key: item["readiness"][key]
@@ -137,7 +147,7 @@ def build_dashboard_intelligence_workspace(
         "freshness": {
             "domains": _freshness_domains(cards, freshness),
         },
-        "data_operations": _data_operations(day_view, freshness),
+        "data_operations": _data_operations(day_view, freshness, day_mode),
     }
 
 
@@ -171,7 +181,7 @@ def _match(card: Mapping[str, Any]) -> dict[str, Any]:
         "status": _optional_text(card.get("status")),
         "intelligence_state": _text(card.get("intelligence_state"), "DATA_INCOMPLETE"),
         "intelligence_reason_codes": _string_list(card.get("intelligence_reason_codes")),
-        "risks": dict(_mapping(card.get("risk_dimensions"))),
+        "risks": _risks(_mapping(card.get("risk_dimensions"))),
         "readiness": {
             "status": _text(card.get("data_status"), "BLOCKED"),
             "reason_code": _optional_text(card.get("reason_code")),
@@ -350,9 +360,7 @@ def _market(raw: Mapping[str, Any], name: str) -> dict[str, Any]:
         "trend_evidence_status": trend_evidence_status,
         "cross_sectional_comparison_status": cross_sectional_status,
         "latest_snapshot_at": latest_snapshot_at,
-        "freshness_max_age_seconds": _optional_nonnegative_int(
-            freshness.get("max_age_seconds")
-        ),
+        "freshness_max_age_seconds": _optional_nonnegative_int(freshness.get("max_age_seconds")),
     }
 
 
@@ -602,7 +610,9 @@ def _card_domain(cards: Sequence[Mapping[str, Any]], name: str) -> tuple[str, An
     return (sorted(set(statuses))[0] if statuses else "NOT_AVAILABLE", max(captured, default=None))
 
 
-def _data_operations(day_view: Mapping[str, Any], freshness: Mapping[str, Any]) -> dict[str, Any]:
+def _data_operations(
+    day_view: Mapping[str, Any], freshness: Mapping[str, Any], day_mode: str
+) -> dict[str, Any]:
     counts = _mapping(day_view.get("counts"))
     safe_counts = {
         key: counts.get(key)
@@ -622,12 +632,21 @@ def _data_operations(day_view: Mapping[str, Any], freshness: Mapping[str, Any]) 
         if key in counts
     }
     degradation = dict(_mapping(day_view.get("degradation")))
+    system_health = _text(degradation.get("state"), "UNKNOWN")
+    public_system_health = (
+        "DAY_BLOCKED"
+        if day_mode == "BLOCKED"
+        else "HEALTHY"
+        if system_health in {"HEALTHY", "EMPTY_DAY"}
+        else "PARTIAL_DEGRADATION"
+    )
     return {
         "read_model_source": _text(day_view.get("source")),
         "checkpoint_key": _text(day_view.get("checkpoint_key")),
         "degradation": degradation,
         "counts": safe_counts,
-        "system_health": _text(degradation.get("state"), "UNKNOWN"),
+        "system_health": system_health,
+        "public_system_health": public_system_health,
         "provider_budget_status": _text(freshness.get("provider_budget_status"), "UNKNOWN"),
     }
 
@@ -640,36 +659,52 @@ def _priority_reasons(match: Mapping[str, Any]) -> tuple[str | None, list[str]]:
 
     if state == "COLLECTION_INCIDENT":
         reasons.add("COLLECTION_INCIDENT")
-    if state in {"MODEL_DIAGNOSTIC_WARNING", "MODEL_MARKET_DISAGREEMENT", "MARKET_ANOMALY"}:
-        reasons.add("MODEL_DIAGNOSTIC")
     if state == "DATA_INCOMPLETE":
         reasons.add("DATA_INCOMPLETE")
-    if any(_text(_mapping(market).get("status")) == "STALE" for market in markets.values()):
+    stale = any(_text(_mapping(market).get("status")) == "STALE" for market in markets.values())
+    if stale:
         reasons.add("STALE_MARKET_MEMORY")
     if any(
-        _text(_mapping(_mapping(market).get("movement")).get("status"))
+        _text(_mapping(market).get("status")) in {"READY", "STALE"}
+        and _int(_mapping(market).get("snapshot_count")) >= 2
+        and _text(_mapping(_mapping(market).get("movement")).get("status"))
         in {"PRICE_MOVEMENT", "LINE_MOVEMENT", "LINE_AND_PRICE_MOVEMENT"}
         for market in markets.values()
     ):
         reasons.add("MARKET_MOVEMENT")
     if any(
         _text(_mapping(market).get("status")) == "READY"
-        and _int(_mapping(market).get("snapshot_count")) >= 2
         and _text(_mapping(relation.get(name)).get("status"))
         not in {"", "MARKET_NOT_READY", "NOT_AVAILABLE"}
         for name, market in markets.items()
-    ):
-        reasons.add("FRESH_MARKET_EVIDENCE")
+    ) and state in {
+        "MODEL_DIAGNOSTIC_WARNING",
+        "MODEL_MARKET_DISAGREEMENT",
+        "MARKET_ANOMALY",
+    }:
+        reasons.add("MODEL_DIAGNOSTIC")
     readiness = _mapping(match.get("readiness"))
-    if (
-        _text(readiness.get("lineup_expectation")) == "EXPECTED_NEAR_KICKOFF"
-        and _text(readiness.get("lineup_status"))
-        in {"", "NOT_AVAILABLE", "PROVIDER_EMPTY", "PENDING"}
-    ):
+    if _text(readiness.get("lineup_expectation")) == "EXPECTED_NEAR_KICKOFF" and _text(
+        readiness.get("lineup_status")
+    ) in {"", "NOT_AVAILABLE", "PROVIDER_EMPTY", "PENDING"}:
         reasons.add("LINEUP_PENDING")
 
-    ordered = sorted(reasons, key=lambda reason: (PRIMARY_REASON_ORDER[reason], reason))
-    return (ordered[0], ordered[1:]) if ordered else (None, [])
+    primary = next(
+        (
+            reason
+            for reason in sorted(
+                reasons,
+                key=lambda reason: (PRIMARY_REASON_ORDER.get(reason, 99), reason),
+            )
+            if reason in PRIMARY_REASON_ORDER and not (reason == "MARKET_MOVEMENT" and stale)
+        ),
+        "STALE_MARKET_MEMORY" if stale else None,
+    )
+    secondary = sorted(
+        reasons - ({primary} if primary else set()),
+        key=lambda reason: (ATTENTION_REASON_ORDER[reason], reason),
+    )
+    return primary, secondary
 
 
 def _primary_reason_counts(matches: Sequence[Mapping[str, Any]]) -> dict[str, int]:
@@ -691,23 +726,20 @@ def _focus_authority(
         "COLLECTION_INCIDENT",
         "PROVIDER_EMPTY",
     }
-    collection_incidents = sum(
-        _text(match.get("intelligence_state")) == "COLLECTION_INCIDENT" for match in matches
-    )
     if not matches:
         if blocking_degradation and degradation_state != "EMPTY_DAY":
             return "BLOCKED", "GLOBAL_INCIDENT", None
         return "EMPTY", "EMPTY_STATE", None
-    if collection_incidents == len(matches) or (blocking_degradation and collection_incidents):
+    usable = [match for match in matches if _evidence_rank(match) < 4]
+    if not usable:
         return "BLOCKED", "GLOBAL_INCIDENT", None
-    prioritized = [match for match in matches if match.get("priority_reason_primary")]
-    if not prioritized:
+    if all(_calm_complete(match) for match in matches):
         return "CALM", "DAY_SUMMARY", None
-    focused = min(prioritized, key=_focus_rank)
+    focused = min(usable, key=_focus_rank)
     return "NORMAL", "MATCH", _text(focused.get("fixture_id"))
 
 
-def _focus_rank(match: Mapping[str, Any]) -> tuple[int, int, str, str]:
+def _focus_rank(match: Mapping[str, Any]) -> tuple[int, int, int, str, str]:
     reason = _text(match.get("priority_reason_primary"))
     markets = _mapping(_mapping(match.get("market_radar")).get("markets"))
     timeline_depth = max(
@@ -715,10 +747,34 @@ def _focus_rank(match: Mapping[str, Any]) -> tuple[int, int, str, str]:
         default=0,
     )
     return (
+        _evidence_rank(match),
         PRIMARY_REASON_ORDER.get(reason, len(PRIMARY_REASON_ORDER)),
         -timeline_depth,
         _text(match.get("kickoff_utc"), "9999-12-31T23:59:59Z"),
         _text(match.get("fixture_id")),
+    )
+
+
+def _evidence_rank(match: Mapping[str, Any]) -> int:
+    markets = _mapping(_mapping(match.get("market_radar")).get("markets"))
+    statuses = [_text(_mapping(market).get("status")) for market in markets.values()]
+    depth = max(
+        (_int(_mapping(market).get("snapshot_count")) for market in markets.values()),
+        default=0,
+    )
+    if "READY" in statuses:
+        return 0 if depth >= 2 else 1
+    if "STALE" in statuses:
+        return 2 if depth >= 2 else 3
+    return 4
+
+
+def _calm_complete(match: Mapping[str, Any]) -> bool:
+    markets = _mapping(_mapping(match.get("market_radar")).get("markets"))
+    return (
+        _text(match.get("intelligence_state")) == "MARKET_STABLE"
+        and bool(markets)
+        and all(_text(_mapping(market).get("status")) == "READY" for market in markets.values())
     )
 
 
@@ -791,16 +847,16 @@ def _global_model_quality(forward: Mapping[str, Any], generated_at: Any) -> dict
         "market_brier": _number(probability.get("market_brier")),
         "model_calibration_error": _number(probability.get("model_ece")),
     }
-    complete = checkpoint_generated_at is not None and all(
-        value is not None for value in metrics.values()
-    )
+    complete = all(value is not None for value in metrics.values())
     age_seconds = _age_seconds(generated_at, checkpoint_generated_at)
     status = (
-        "AVAILABLE"
-        if complete and age_seconds is not None and age_seconds <= MODEL_QUALITY_MAX_AGE_SECONDS
+        "NOT_AVAILABLE"
+        if checkpoint_generated_at is None
         else "STALE"
-        if complete and age_seconds is not None
-        else "NOT_AVAILABLE"
+        if age_seconds is None or age_seconds > MODEL_QUALITY_MAX_AGE_SECONDS
+        else "INCOMPLETE"
+        if not complete
+        else "AVAILABLE"
     )
     return {
         "status": status,
@@ -808,8 +864,60 @@ def _global_model_quality(forward: Mapping[str, Any], generated_at: Any) -> dict
         "checkpoint_generated_at": checkpoint_generated_at,
         "freshness_max_age_seconds": MODEL_QUALITY_MAX_AGE_SECONDS,
         **(metrics if status == "AVAILABLE" else dict.fromkeys(metrics)),
-        "sample_count": max(0, _int(probability.get("sample_count"))) if complete else 0,
+        "sample_count": (
+            max(0, _int(probability.get("sample_count"))) if status == "AVAILABLE" else 0
+        ),
     }
+
+
+def _match_factual_summary(match: Mapping[str, Any]) -> str:
+    markets = list(_mapping(_mapping(match.get("market_radar")).get("markets")).values())
+    statuses = {_text(_mapping(market).get("status")) for market in markets}
+    depth = max(
+        (_int(_mapping(market).get("snapshot_count")) for market in markets),
+        default=0,
+    )
+    if "STALE" in statuses:
+        return (
+            "已落盘 AH/OU 历史市场证据已过期；当前走势与模型—市场比较暂停；等待既有调度形成新快照。"
+        )
+    if statuses <= {"INSUFFICIENT"} or depth == 0:
+        return "尚无已落盘 AH/OU 市场证据；无法生成走势或当前模型—市场比较；等待既有调度形成证据。"
+    if depth < 2:
+        return (
+            "已有当前 AH/OU 市场证据，但时间线不足两点；仅展示当前横截面，"
+            "不判断走势；等待既有调度形成下一快照。"
+        )
+    return (
+        "已有当前 AH/OU 持久化时间线；可展示已证实走势并进行模型—市场诊断；"
+        "状态随既有调度形成的新证据更新。"
+    )
+
+
+def _risks(source: Mapping[str, Any]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for dimension in ("EVENT_RISK", "DATA_RISK", "MODEL_RISK", "COLLECTION_RISK"):
+        risk = dict(_mapping(source.get(dimension)))
+        reasons = _string_list(risk.get("reason_codes"))
+        translated = [
+            RISK_REASON_LABELS[reason] for reason in reasons if reason in RISK_REASON_LABELS
+        ]
+        if translated:
+            shown = translated[:2]
+            explanation = "；".join(shown)
+            if len(reasons) > len(shown):
+                explanation += f"；另有 {len(reasons) - len(shown)} 项技术原因"
+        else:
+            source_explanation = _text(risk.get("explanation"))
+            explanation = (
+                source_explanation
+                if source_explanation
+                and any("\u4e00" <= char <= "\u9fff" for char in source_explanation)
+                else "没有可陈述的源证据"
+            )
+        risk["explanation"] = explanation
+        result[dimension] = risk
+    return result
 
 
 def _age_seconds(later: Any, earlier: Any) -> int | None:

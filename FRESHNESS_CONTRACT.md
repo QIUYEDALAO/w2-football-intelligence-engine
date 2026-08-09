@@ -92,6 +92,9 @@ The client derives countdowns and ages from these values across timezone and
 football-day boundaries. `next_eval_at <= generated_at` is displayed as
 expired, never as a next evaluation. Market `READY` remains source-bound;
 `STALE` and `READY` cannot coexist for the same public market. A global model
-quality checkpoint is current at the exact configured boundary and fails
-closed immediately beyond it. None of these reads refreshes Provider data or
-changes Scheduler cadence.
+quality checkpoint is `AVAILABLE` only when its timestamp is current and all
+required probability metrics exist. A timestamp beyond the boundary is
+`STALE`; a current timestamp with missing required metrics is `INCOMPLETE`; no
+usable timestamp is `NOT_AVAILABLE`. All non-available states fail closed and
+`NOT_AVAILABLE` never displays a misleading source timestamp. None of these
+reads refreshes Provider data or changes Scheduler cadence.

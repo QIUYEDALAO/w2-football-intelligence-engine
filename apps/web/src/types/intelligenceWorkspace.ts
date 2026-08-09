@@ -111,6 +111,7 @@ export interface WorkspaceMatch {
   intelligence_reason_codes: string[];
   priority_reason_primary: string | null;
   priority_reason_secondary: string[];
+  factual_summary: string;
   risks: WorkspaceRisks;
   readiness: {
     status: string;
@@ -322,7 +323,7 @@ export interface IntelligenceWorkspace {
     recovery_condition: string | null;
   } | null;
   global_model_quality: {
-    status: "AVAILABLE" | "STALE" | "NOT_AVAILABLE";
+    status: "AVAILABLE" | "STALE" | "INCOMPLETE" | "NOT_AVAILABLE";
     checkpoint_key: string | null;
     checkpoint_generated_at: string | null;
     freshness_max_age_seconds: number;
@@ -375,6 +376,7 @@ export interface IntelligenceWorkspace {
     degradation: Record<string, unknown>;
     counts: Record<string, unknown>;
     system_health: string;
+    public_system_health: "HEALTHY" | "PARTIAL_DEGRADATION" | "DAY_BLOCKED";
     provider_budget_status: string;
   };
 }
