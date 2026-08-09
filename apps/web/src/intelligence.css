@@ -825,6 +825,14 @@ summary {
   margin-top: 5px;
 }
 
+.stale-market-memory {
+  margin: 4px 0 0;
+  padding: 4px;
+  border-left: 2px solid var(--workspace-amber);
+  color: var(--workspace-amber);
+  font-size: 7px;
+}
+
 .market-prices {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -898,6 +906,29 @@ summary {
 
 .discrete-timeline li strong {
   font-size: 8px;
+}
+
+.movement-evidence {
+  display: grid;
+  gap: 2px;
+  margin-top: 4px;
+  padding: 4px;
+  border: 1px solid var(--workspace-line);
+  background: rgba(120, 168, 221, 0.04);
+}
+
+.movement-evidence > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.movement-evidence p,
+.movement-evidence time,
+.movement-evidence span {
+  margin: 0;
+  color: var(--workspace-muted);
+  font-size: 7px;
 }
 
 .market-card > .technical-details {
@@ -1004,6 +1035,23 @@ summary {
   gap: 3px 8px;
   color: var(--workspace-muted);
   font-size: 7px;
+}
+
+.scoreline-context > span {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  padding: 3px 5px;
+  border: 1px solid var(--workspace-line);
+  border-radius: 3px;
+}
+
+.scoreline-context small {
+  color: var(--workspace-muted);
+}
+
+.scoreline-context strong {
+  color: var(--workspace-text);
 }
 
 .scoreline-grid {

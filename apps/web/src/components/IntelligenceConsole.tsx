@@ -16,7 +16,7 @@ const STATE_LABELS: Record<IntelligenceState, string> = {
   MODEL_DIAGNOSTIC_WARNING: "模型诊断警告",
   MARKET_ANOMALY: "市场异常",
   MODEL_MARKET_DISAGREEMENT: "模型与市场分歧",
-  MARKET_MOVEMENT: "盘口变化",
+  MARKET_MOVEMENT: "市场变化",
   MARKET_STABLE: "市场稳定",
 };
 
@@ -79,7 +79,9 @@ const STATUS_LABELS: Record<string, string> = {
   NO_TIMELINE_EVIDENCE: "暂无时间线证据",
   PROTECTED: "额度受保护",
   PROTECTED_DEGRADED: "额度受保护（降级）",
-  PRICE_MOVEMENT: "盘口变化",
+  PRICE_MOVEMENT: "赔率变化",
+  LINE_MOVEMENT: "盘口变化",
+  LINE_AND_PRICE_MOVEMENT: "盘口及赔率变化",
   PRIOR_ONLY: "仅先验",
   PROVIDER_EMPTY: "来源数据为空",
   READY: "就绪",
@@ -139,6 +141,14 @@ function marketPrice(value: unknown): string {
   const candidate = value && typeof value === "object" && "median" in value ? value.median : value;
   if (typeof candidate === "number" && Number.isFinite(candidate)) return candidate.toFixed(2);
   return typeof candidate === "string" && candidate ? candidate : "暂无";
+}
+
+function movementLabel(status: string | undefined): string {
+  if (status === "STABLE") return "盘口与赔率均未变化";
+  if (status === "PRICE_MOVEMENT") return "赔率变化";
+  if (status === "LINE_MOVEMENT") return "盘口变化";
+  if (status === "LINE_AND_PRICE_MOVEMENT") return "盘口及赔率变化";
+  return "证据不足，无法判断变化";
 }
 
 function localTime(value: string | null): string {
@@ -229,26 +239,29 @@ function RiskGrid({ match }: { match: WorkspaceMatch }) {
 }
 
 function Attention({ generatedAt, items, matches, onSelect }: { generatedAt: string | null; items: WorkspaceAttentionItem[]; matches: WorkspaceMatch[]; onSelect: (id: string) => void }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+  const [showAll, setShowAll] = useState(false);
   const nameById = new Map(matches.map((match) => [match.fixture_id, matchName(match)]));
-  const blocker = (item: WorkspaceAttentionItem) => item.reason_codes[0]?.split("_")[0] || item.intelligence_state;
-  const homogeneous = items.length > 1 && items.length === matches.length && items.every((item) => item.intelligence_state === items[0].intelligence_state && blocker(item) === blocker(items[0]));
-  const visible = expanded ? items : homogeneous ? [] : items.slice(0, 5);
+  const groups = Array.from(items.reduce((result, item) => {
+    const key = [item.intelligence_state, item.reason_codes[0] || "NO_REASON", [...item.affected_domains].sort().join(",")].join("|");
+    result.set(key, [...(result.get(key) || []), item]);
+    return result;
+  }, new Map<string, WorkspaceAttentionItem[]>()).entries());
+  const visibleGroups = showAll ? groups : groups.slice(0, 5);
+  const repeated = groups.some(([, group]) => group.length > 1);
+  const row = (item: WorkspaceAttentionItem) => <button className="attention-row" data-intelligence-state={item.intelligence_state} key={item.fixture_id} onClick={() => onSelect(item.fixture_id)} role="listitem" title={`${item.factual_summary} · 影响 ${item.affected_domains.join(" · ")} · ${item.reason_codes.join(" · ")} · ${item.readiness_context.reason_code || "NO_REASON_CODE"} · next_eval_at=${item.next_eval_at || "TIME_NOT_AVAILABLE"}`} type="button">
+    <div><StateBadge state={item.intelligence_state} /><strong>{nameById.get(item.fixture_id) || item.fixture_id}</strong><time>{localTime(item.kickoff_utc)}</time></div>
+    <p>{STATE_LABELS[item.intelligence_state]} · {item.reason_codes.slice(0, 1).map(translateReason).join("；") || label(item.readiness_status)}</p>
+    <small>影响：{item.affected_domains.map((domain) => label(domain)).join(" · ") || "待确认"} · {nextEvaluation(item.next_eval_at, generatedAt)}</small>
+  </button>;
   return (
     <section className="workspace-panel attention-panel" id="attention" data-ui="attention">
-      <SectionHeading eyebrow="优先级情报流" title="关注情报" detail={homogeneous ? `1 组 · ${items.length} 场` : `${items.length} 条`} />
+      <SectionHeading eyebrow="优先级情报流" title="关注情报" detail={repeated ? `${groups.length} 组 · ${items.length} 场` : `${items.length} 条`} />
       <div className="attention-table" data-ui="attention-feed" role="list">
-        {homogeneous && !expanded ? <button className="attention-row attention-aggregate" data-intelligence-state={items[0].intelligence_state} data-ui="attention-aggregate" onClick={() => setExpanded(true)} role="listitem" type="button"><div><StateBadge state={items[0].intelligence_state} /><strong>当日阻塞 · {items.length} 场比赛全部{STATE_LABELS[items[0].intelligence_state]}</strong></div><p>{translateReason(items[0].reason_codes[0])}</p><small>展开 {items.length} 场比赛</small></button> : null}
-        {visible.map((item) => (
-          <button className="attention-row" data-intelligence-state={item.intelligence_state} key={item.fixture_id} onClick={() => onSelect(item.fixture_id)} role="listitem" title={`${item.factual_summary} · 影响 ${item.affected_domains.join(" · ")} · ${item.reason_codes.join(" · ")} · ${item.readiness_context.reason_code || "NO_REASON_CODE"} · next_eval_at=${item.next_eval_at || "TIME_NOT_AVAILABLE"}`} type="button">
-            <div><StateBadge state={item.intelligence_state} /><strong>{nameById.get(item.fixture_id) || item.fixture_id}</strong><time>{localTime(item.kickoff_utc)}</time></div>
-            <p>{STATE_LABELS[item.intelligence_state]} · {item.reason_codes.slice(0, 1).map(translateReason).join("；") || label(item.readiness_status)}</p>
-            <small>影响：{item.affected_domains.map((domain) => label(domain)).join(" · ") || "待确认"} · {nextEvaluation(item.next_eval_at, generatedAt)}</small>
-          </button>
-        ))}
+        {visibleGroups.flatMap(([key, group]) => group.length === 1 ? [row(group[0])] : expandedGroups.includes(key) ? [...group.map(row), <button className="text-action" key={`${key}-collapse`} onClick={() => setExpandedGroups((value) => value.filter((item) => item !== key))} type="button">收起</button>] : [<button className="attention-row attention-aggregate" data-intelligence-state={group[0].intelligence_state} data-ui="attention-aggregate" key={key} onClick={() => setExpandedGroups((value) => [...value, key])} role="listitem" type="button"><div><StateBadge state={group[0].intelligence_state} /><strong>{group.length} 场比赛 · {STATE_LABELS[group[0].intelligence_state]}</strong></div><p>{translateReason(group[0].reason_codes[0])}</p><small>展开 {group.length} 场真实比赛</small></button>])}
         {!items.length ? <div className="workspace-empty"><strong>暂无关注项</strong><span>读取模型明确返回空比赛日。</span></div> : null}
       </div>
-      {(homogeneous && expanded) || (!homogeneous && items.length > 5) ? <button className="text-action" onClick={() => setExpanded((value) => !value)} type="button">{expanded ? "收起" : `查看全部（${items.length}）`}</button> : null}
+      {groups.length > 5 ? <button className="text-action" onClick={() => setShowAll((value) => !value)} type="button">{showAll ? "收起全部" : `查看全部（${items.length}）`}</button> : null}
     </section>
   );
 }
@@ -278,10 +291,10 @@ function Inspector({ generatedAt, match }: { generatedAt: string | null; match: 
       <div className="inspector-grid">
         <div><span>W2 分析</span><strong>{label(match.w2_analysis.status)}</strong><small>{label(match.w2_analysis.proof_status)}</small></div>
         <div><span>模型视图</span><strong>{label(match.w2_analysis.model_view.status)}</strong><small>{label(match.w2_analysis.model_view.calibration_status)}</small></div>
-        <div><span>市场视图</span><strong>{label(match.market_fact.status)}</strong><small>{marketFactLabel(match)}</small></div>
+        <div><span>市场证据状态</span><strong>{label(match.market_fact.status)}</strong><small>{marketFactLabel(match)}</small></div>
         <div><span>正式建议</span><strong className="is-off">保持关闭</strong><small>候选 / 锁定 / 生产均关闭</small></div>
       </div>
-      <div className="relation-grid">{Object.values(match.w2_analysis.model_market_relation).map((relation) => <div key={relation.market}><span>{MARKET_LABELS[relation.market] || relation.market}</span><strong>{label(relation.status)}</strong><small>盘口 {relation.canonical_line || "待确认"} · {relation.bookmaker_count} 家 · {label(relation.freshness_status)}</small></div>)}</div>
+      <div className="relation-grid">{Object.values(match.w2_analysis.model_market_relation).map((relation) => <div key={relation.market}><span>模型比较状态 · {MARKET_LABELS[relation.market] || relation.market}</span><strong>{label(relation.status)}</strong><small>盘口 {relation.canonical_line || "待确认"} · {relation.bookmaker_count} 家 · {label(relation.freshness_status)}</small></div>)}</div>
       <RiskGrid match={match} />
       <div className="readiness-strip"><KeyValue label="就绪状态" value={label(match.readiness.status)} /><KeyValue label="阵容预期" value={label(match.readiness.lineup_expectation)} /><KeyValue label="阵容状态" value={label(match.readiness.lineup_status)} /><KeyValue label="评估时间" value={nextEvaluation(match.readiness.next_eval_at, generatedAt)} /></div>
       <div className="reason-summary">{match.intelligence_reason_codes.slice(0, 2).map((reason) => <span key={reason}>{translateReason(reason)}</span>)}</div>
@@ -293,10 +306,20 @@ function Inspector({ generatedAt, match }: { generatedAt: string | null; match: 
 function MarketTimeline({ market }: { market: WorkspaceMarket }) {
   return (
     <div className="discrete-timeline" data-real-point-count={market.timeline_points.length} data-snapshot-state={market.snapshot_state}>
-      <div><span>{label(market.snapshot_state)}</span><small>{market.snapshot_count} 个快照 · {market.observation_count} 次观测</small></div>
+      <div><span>{label(market.snapshot_state)}</span><small>{market.snapshot_count} 个快照 · {market.bookmaker_pair_count} 组机构双边报价（{market.quote_row_count} 条单边报价）</small></div>
       {market.timeline_points.length < 2 ? <p>{market.timeline_points.length === 0 ? "暂无时间线证据，不推断走势。" : "仅一次观测，不构成趋势。"}</p> : <ol>{market.timeline_points.map((point, index) => <li key={point.capture_id || `${point.captured_at}-${index}`}><time>{localTime(point.captured_at)}</time><strong>{point.canonical_line || "无盘口"}</strong><span>{point.bookmaker_count} 家</span></li>)}</ol>}
     </div>
   );
+}
+
+function MovementEvidence({ market }: { market: WorkspaceMarket }) {
+  const movement = market.movement;
+  if (!movement.status || movement.status === "INSUFFICIENT") return null;
+  const from = market.timeline_points.find((point) => point.captured_at === movement.from_captured_at) || market.timeline_points[0];
+  const to = market.timeline_points.find((point) => point.captured_at === movement.to_captured_at) || market.timeline_points[market.timeline_points.length - 1];
+  const sides = market.market === "ASIAN_HANDICAP" ? ["HOME", "AWAY"] : ["OVER", "UNDER"];
+  const changedSides = sides.filter((side) => Number(movement.price_delta?.[side] || 0) !== 0);
+  return <div className="movement-evidence" data-ui="movement-evidence"><div><time>{localTime(from?.captured_at || null)}</time><span>→</span><time>{localTime(to?.captured_at || null)}</time></div><p>盘口 {from?.canonical_line || "—"} → {to?.canonical_line || "—"}（Δ {movement.line_delta ?? "—"}）</p>{changedSides.map((side) => <p key={side}>{SIDE_LABELS[side]}赔率中位数 {marketPrice(from?.prices[side])} → {marketPrice(to?.prices[side])}（Δ {text(movement.price_delta?.[side])}）</p>)}</div>;
 }
 
 function MarketPrices({ market }: { market: WorkspaceMarket }) {
@@ -312,7 +335,7 @@ function MarketRadar({ match }: { match: WorkspaceMatch | null }) {
   return (
     <section className="workspace-panel market-radar-panel" id="market-radar" data-ui="market-radar">
       <SectionHeading eyebrow="持久化真实证据" title="市场雷达" detail="0 / 1 / 2+ 快照" />
-      {match ? <div className="market-grid">{Object.values(match.market_radar.markets).map((market) => <article className="market-card" data-market={market.market} key={market.market}><header><div><span>{MARKET_LABELS[market.market] || market.market}</span><small>{label(market.status)}</small></div><b>{market.main_line || "—"}</b></header><div className="market-metrics"><KeyValue label="机构" value={`${market.bookmaker_count} 家`} /><KeyValue label="新鲜度" value={label(market.freshness.status)} /><KeyValue label="变化" value={label(market.movement.status)} /></div><MarketPrices market={market} /><MarketTimeline market={market} /><TechnicalDetails><code>{market.market}</code><code>{market.snapshot_state}</code><code>{market.status}</code><code>{text(market.freshness.status, "NOT_AVAILABLE")}</code></TechnicalDetails></article>)}</div> : <div className="workspace-empty"><span>尚未选择市场证据。</span></div>}
+      {match ? <div className="market-grid">{Object.values(match.market_radar.markets).map((market) => <article className="market-card" data-market={market.market} data-market-evidence-status={market.status} key={market.market}><header><div><span>{MARKET_LABELS[market.market] || market.market}</span><small>市场证据：{label(market.status)}</small></div><b>{market.main_line || "—"}</b></header>{market.status === "STALE" ? <p className="stale-market-memory">历史快照（已过期，不可用于当前模型比较）</p> : null}<div className="market-metrics"><KeyValue label="机构" value={`${market.bookmaker_count} 家`} /><KeyValue label="新鲜度" value={label(market.freshness.status)} /><KeyValue label="变化" value={movementLabel(market.movement.status)} /></div><MarketPrices market={market} /><MarketTimeline market={market} /><MovementEvidence market={market} /><TechnicalDetails><code>{market.market}</code><code>{market.snapshot_state}</code><code>public_status={market.status}</code><code>source_status={market.source_status}</code><code>{text(market.freshness.status, "NOT_AVAILABLE")}</code></TechnicalDetails></article>)}</div> : <div className="workspace-empty"><span>尚未选择市场证据。</span></div>}
     </section>
   );
 }
@@ -323,7 +346,7 @@ function ModelLab({ match }: { match: WorkspaceMatch | null }) {
   return (
     <section className="workspace-panel model-lab-panel" id="model-lab" data-ui="model-lab">
       <SectionHeading eyebrow="诊断对比" title="模型实验室" detail="模型 / 市场 / 外部基准" />
-      {match ? <><div className="model-lab-grid"><div><span>W2 模型</span><strong>{label(match.model_lab.w2_model.status)}</strong><small>{match.model_lab.w2_model.model_version || "版本待确认"}</small></div><div><span>市场</span><strong>{marketStatuses.join(" · ")}</strong><small>{Object.entries(match.model_lab.market).map(([name, market]) => `${MARKET_LABELS[name] || name}：${label(market.status)}`).join("；")}</small></div><div><span>外部模型</span><strong>{label(match.model_lab.api_football_prediction.status)}</strong><small>仅作独立基准</small></div></div><div className="model-relations">{Object.values(match.model_lab.relation).map((relation) => <article key={relation.market}><header><span>{MARKET_LABELS[relation.market] || relation.market}</span><strong>{label(relation.status)}</strong></header><small>模型与市场差异仅用于诊断；优先检查模型校准、特征时效、盘口身份和数据质量。</small><TechnicalDetails>{relation.diagnostics.map((row, index) => <code key={`${relation.market}-${index}`}>{JSON.stringify(row)}</code>)}<code>{relation.status}</code></TechnicalDetails></article>)}</div><div className="phase-context" data-ui="phase-0-5-context" title={`HISTORICAL_INCREMENTAL_EDGE=${text(history.historical_incremental_edge, "NOT_PROVEN")}`}><span>历史结论复用</span><strong>{label(history.final_verdict)} · V 门槛 {label(history.v_continuation_gate)} · 增量能力 {label(history.historical_incremental_edge)}</strong><small>Phase 0.5 未重新执行</small></div></> : <div className="workspace-empty"><span>尚无所选模型证据。</span></div>}
+      {match ? <><div className="model-lab-grid"><div><span>W2 模型</span><strong>{label(match.model_lab.w2_model.status)}</strong><small>{match.model_lab.w2_model.model_version || "版本待确认"}</small></div><div><span>市场证据状态</span><strong>{marketStatuses.join(" · ")}</strong><small>{Object.entries(match.model_lab.market).map(([name, market]) => `${MARKET_LABELS[name] || name}：${label(market.status)}`).join("；")}</small></div><div><span>外部模型</span><strong>{label(match.model_lab.api_football_prediction.status)}</strong><small>仅作独立基准</small></div></div><div className="model-relations">{Object.values(match.model_lab.relation).map((relation) => <article key={relation.market}><header><span>模型比较状态 · {MARKET_LABELS[relation.market] || relation.market}</span><strong>{label(relation.status)}</strong></header><small>模型与市场差异仅用于诊断；优先检查模型校准、特征时效、盘口身份和数据质量。</small><TechnicalDetails>{relation.diagnostics.map((row, index) => <code key={`${relation.market}-${index}`}>{JSON.stringify(row)}</code>)}<code>{relation.status}</code></TechnicalDetails></article>)}</div><div className="phase-context" data-ui="phase-0-5-context" title={`HISTORICAL_INCREMENTAL_EDGE=${text(history.historical_incremental_edge, "NOT_PROVEN")}`}><span>历史结论复用</span><strong>{label(history.final_verdict)} · V 门槛 {label(history.v_continuation_gate)} · 增量能力 {label(history.historical_incremental_edge)}</strong><small>Phase 0.5 未重新执行</small></div></> : <div className="workspace-empty"><span>尚无所选模型证据。</span></div>}
     </section>
   );
 }
@@ -334,7 +357,7 @@ function Scoreline({ match }: { match: WorkspaceMatch | null }) {
   return (
     <section className="workspace-panel scoreline-panel" data-ui="scoreline-top3">
       <SectionHeading eyebrow={ready ? "10,000 次既有模拟" : "比分参考"} title="比分 Top 3" detail="读取时不重新模拟" />
-      <div className="scoreline-context" data-ui="scoreline-context"><span>模型 {label(match?.w2_analysis.model_view.status)}</span><span>就绪 {label(match?.readiness.status)}</span><span>{label(match?.readiness.reason_code)}</span></div>
+      <div className="scoreline-context" data-ui="scoreline-context"><span><small>模型状态</small><strong>{label(match?.w2_analysis.model_view.status)}</strong></span><span><small>比赛就绪</small><strong>{label(match?.readiness.status)}</strong></span><span><small>阻塞原因</small><strong>{label(match?.readiness.reason_code)}</strong></span></div>
       {ready && scoreline ? <div className="scoreline-grid">{scoreline.top3.map((row, index) => <article key={`${row.scoreline}-${index}`}><span>#{index + 1}</span><strong>{row.scoreline}</strong><b>{percent(row.unconditional_probability)}</b><small>无条件概率 · 样本 {row.sample_count}</small></article>)}</div> : <div className="workspace-empty"><strong>{label(scoreline?.status || "UNAVAILABLE")}</strong><span>{scoreline?.status === "READY" ? "就绪状态必须精确对应 10,000 次模拟。" : "尚无比分参考。"}</span></div>}
       <TechnicalDetails><code>simulations_completed={scoreline?.simulations_completed ?? "NOT_AVAILABLE"}</code><code>unconditional_probability</code>{scoreline?.top3.map((row, index) => <code key={index}>sample_count={row.sample_count}</code>)}<code>{scoreline?.proof_status || "NOT_PROVEN"}</code><code>{match?.readiness.reason_code || "NO_REASON_CODE"}</code></TechnicalDetails>
     </section>

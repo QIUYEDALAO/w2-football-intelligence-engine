@@ -9,6 +9,7 @@ import pytest
 from w2.markets.round3_intelligence import (
     MODEL_LAB_STATUSES,
     MOVEMENT_STATUSES,
+    _movement,
     build_round3_intelligence,
     eligible_observations,
 )
@@ -160,6 +161,42 @@ def test_real_same_line_timeline_builds_market_radar_and_movement() -> None:
     assert markets["TOTALS"]["current"]["bookmaker_count"] == 3
     assert markets["TOTALS"]["current"]["lineage"]["capture_ids"] == ["capture-2"]
     assert markets["TOTALS"]["movement"]["status"] in MOVEMENT_STATUSES
+
+
+@pytest.mark.parametrize(
+    ("before_line", "after_line", "before_price", "after_price", "expected"),
+    [
+        ("-0.5", "-0.5", 1.9, 1.9, "STABLE"),
+        ("-0.5", "-0.5", 1.9, 1.91, "PRICE_MOVEMENT"),
+        ("-0.5", "-0.25", 1.9, 1.9, "LINE_MOVEMENT"),
+        ("-0.5", "-0.25", 1.9, 1.91, "LINE_AND_PRICE_MOVEMENT"),
+    ],
+)
+def test_movement_contract_uses_only_line_and_side_price_medians(
+    before_line: str,
+    after_line: str,
+    before_price: float,
+    after_price: float,
+    expected: str,
+) -> None:
+    previous = {
+        "captured_at": "2026-08-02T16:03:23Z",
+        "canonical_line": before_line,
+        "bookmaker_count": 4,
+        "prices": {"HOME": {"median": before_price}, "AWAY": {"median": 1.95}},
+        "probabilities": {"HOME": {"median": 0.5}, "AWAY": {"median": 0.5}},
+    }
+    current = deepcopy(previous)
+    current.update(
+        captured_at="2026-08-03T06:53:58Z",
+        canonical_line=after_line,
+        bookmaker_count=5,
+    )
+    current["prices"]["HOME"]["median"] = after_price
+
+    movement = _movement(previous, current)
+
+    assert movement["status"] == expected
 
 
 def test_one_snapshot_is_explicitly_insufficient_for_movement() -> None:

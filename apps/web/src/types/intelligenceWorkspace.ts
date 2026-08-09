@@ -54,20 +54,31 @@ export interface WorkspaceTimelinePoint {
 
 export interface WorkspaceMarket {
   market: "ASIAN_HANDICAP" | "TOTALS";
-  status: string;
+  status: "READY" | "STALE" | "INSUFFICIENT";
+  source_status: string;
   snapshot_state:
     | "NO_TIMELINE_EVIDENCE"
     | "ONE_OBSERVATION_NOT_A_TREND"
     | "DISCRETE_REAL_PATH";
   snapshot_count: number;
   observation_count: number;
+  bookmaker_pair_count: number;
+  quote_row_count: number;
   main_line: string | null;
   bookmaker_count: number;
   prices: Record<string, unknown>;
   probabilities: Record<string, unknown>;
   freshness: Record<string, unknown>;
   timeline_points: WorkspaceTimelinePoint[];
-  movement: Record<string, unknown>;
+  movement: {
+    status?: string;
+    reason_code?: string | null;
+    from_captured_at?: string | null;
+    to_captured_at?: string | null;
+    line_delta?: string | null;
+    price_delta?: Record<string, number> | null;
+    probability_delta?: Record<string, number> | null;
+  };
   reason_codes: string[];
 }
 
@@ -105,7 +116,8 @@ export interface WorkspaceMatch {
     lineup_expectation: string | null;
   };
   market_fact: {
-    status: string;
+    status: "READY" | "STALE" | "INSUFFICIENT";
+    source_status: string;
     main_line: string | null;
     current_odds: Record<string, unknown>;
     market_probabilities: Record<string, unknown>;
@@ -145,7 +157,8 @@ export interface WorkspaceMatch {
       calibration_status: string | null;
     };
     market: Record<string, {
-      status: string;
+      status: "READY" | "STALE" | "INSUFFICIENT";
+      source_status: string;
       main_line: string | null;
       bookmaker_count: number;
       freshness: Record<string, unknown>;

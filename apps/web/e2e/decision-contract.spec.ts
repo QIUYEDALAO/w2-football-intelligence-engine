@@ -44,9 +44,12 @@ function market(name: "ASIAN_HANDICAP" | "TOTALS", count: number): WorkspaceMark
   return {
     market: name,
     status: count ? "READY" : "INSUFFICIENT",
+    source_status: count ? "READY" : "INSUFFICIENT",
     snapshot_state: snapshotState,
     snapshot_count: count,
-    observation_count: count * 4,
+    observation_count: count * 8,
+    bookmaker_pair_count: count * 4,
+    quote_row_count: count * 8,
     main_line: count ? (name === "ASIAN_HANDICAP" ? "-0.25" : "2.5") : null,
     bookmaker_count: count ? 4 : 0,
     prices: count ? { [sides[0]]: 1.94, [sides[1]]: 1.96 } : {},
@@ -57,10 +60,17 @@ function market(name: "ASIAN_HANDICAP" | "TOTALS", count: number): WorkspaceMark
       captured_at: `2026-08-09T0${index + 1}:00:00Z`,
       canonical_line: name === "ASIAN_HANDICAP" ? "-0.25" : "2.5",
       bookmaker_count: 4,
-      prices: { [sides[0]]: 1.94 + index / 100 },
-      probabilities: { [sides[0]]: 0.505 - index / 100 },
+      prices: { [sides[0]]: 1.94 + index / 100, [sides[1]]: 1.96 - index / 100 },
+      probabilities: { [sides[0]]: 0.505 - index / 100, [sides[1]]: 0.495 + index / 100 },
     })),
-    movement: { status: count >= 2 ? "STABLE" : "INSUFFICIENT" },
+    movement: count >= 2 ? {
+      status: "STABLE",
+      from_captured_at: `2026-08-09T01:00:00Z`,
+      to_captured_at: `2026-08-09T0${count}:00:00Z`,
+      line_delta: "0",
+      price_delta: { [sides[0]]: 0, [sides[1]]: 0 },
+      probability_delta: { [sides[0]]: 0, [sides[1]]: 0 },
+    } : { status: "INSUFFICIENT" },
     reason_codes: count >= 2 ? ["DISCRETE_REAL_PATH"] : [snapshotState],
   };
 }
@@ -104,6 +114,7 @@ function match(fixtureId: string, state: IntelligenceState, snapshotCount: numbe
     },
     market_fact: {
       status: snapshotCount ? "READY" : "INSUFFICIENT",
+      source_status: snapshotCount ? "READY" : "INSUFFICIENT",
       main_line: primary.main_line,
       current_odds: primary.prices,
       market_probabilities: primary.probabilities,
@@ -125,8 +136,8 @@ function match(fixtureId: string, state: IntelligenceState, snapshotCount: numbe
       schema_version: "w2.model-lab.v1",
       w2_model: { status: "READY", source_status: "READY", model_version: "w2-existing-v1", calibration_status: "AVAILABLE" },
       market: {
-        ASIAN_HANDICAP: { status: ah.status, main_line: ah.main_line, bookmaker_count: ah.bookmaker_count, freshness: ah.freshness },
-        TOTALS: { status: totals.status, main_line: totals.main_line, bookmaker_count: totals.bookmaker_count, freshness: totals.freshness },
+        ASIAN_HANDICAP: { status: ah.status, source_status: ah.source_status, main_line: ah.main_line, bookmaker_count: ah.bookmaker_count, freshness: ah.freshness },
+        TOTALS: { status: totals.status, source_status: totals.source_status, main_line: totals.main_line, bookmaker_count: totals.bookmaker_count, freshness: totals.freshness },
       },
       api_football_prediction: { status: "NOT_AVAILABLE", role: "EXTERNAL_MODEL_BENCHMARK", reason_code: "API_FOOTBALL_PREDICTION_NOT_PROJECTED" },
       relation: { ASIAN_HANDICAP: relation("ASIAN_HANDICAP"), TOTALS: relation("TOTALS") },
@@ -161,6 +172,15 @@ function workspace(scenario = "default"): IntelligenceWorkspace {
     match("blocked-b", "DATA_INCOMPLETE", 0),
     match("blocked-c", "DATA_INCOMPLETE", 0),
   ];
+  if (scenario === "attention-repeated-groups") matches = [
+    match("collection-a", "COLLECTION_INCIDENT", 0),
+    match("collection-b", "COLLECTION_INCIDENT", 0),
+    match("data-a", "DATA_INCOMPLETE", 0),
+    match("data-b", "DATA_INCOMPLETE", 0),
+    match("data-c", "DATA_INCOMPLETE", 0),
+    match("data-d", "DATA_INCOMPLETE", 0),
+  ];
+  if (scenario === "market-stale") matches = [match("stale-memory", "MARKET_MOVEMENT", 2)];
   if (scenario === "default") delete matches[1].market_radar.markets.TOTALS.prices.UNDER;
   const attention = matches.map((item) => ({
     fixture_id: item.fixture_id,
@@ -208,7 +228,15 @@ function workspace(scenario = "default"): IntelligenceWorkspace {
   if (first && scenario === "lineup-too-early") { first.readiness.lineup_expectation = "NOT_EXPECTED_YET"; first.readiness.lineup_status = "TOO_EARLY"; first.readiness.reason_code = "LINEUP_WINDOW_NOT_OPEN"; }
   if (first && scenario === "lineup-absent") { first.readiness.lineup_expectation = "EXPECTED"; first.readiness.lineup_status = "PROVIDER_EMPTY"; first.readiness.reason_code = "LINEUP_EXPECTED_BUT_ABSENT"; }
   if (first && scenario === "injuries-stale") { first.readiness.stale_fields = ["injuries"]; first.intelligence_reason_codes = ["INJURIES_STALE"]; }
-  if (first && scenario === "market-stale") { first.market_radar.markets.ASIAN_HANDICAP.freshness = { status: "STALE" }; first.intelligence_reason_codes = ["MARKET_STALE"]; }
+  if (first && scenario === "market-stale") {
+    first.market_radar.markets.ASIAN_HANDICAP.status = "STALE";
+    first.market_radar.markets.ASIAN_HANDICAP.freshness = { status: "STALE" };
+    first.market_fact.status = "STALE";
+    first.model_lab.market.ASIAN_HANDICAP.status = "STALE";
+    first.model_lab.relation.ASIAN_HANDICAP.status = "MARKET_NOT_READY";
+    first.w2_analysis.model_market_relation.ASIAN_HANDICAP.status = "MARKET_NOT_READY";
+    first.intelligence_reason_codes = ["MARKET_STALE"];
+  }
   if (first && scenario === "collection-incident") { first.intelligence_state = "COLLECTION_INCIDENT"; first.intelligence_reason_codes = ["COLLECTION_PROVIDER_INCIDENT"]; }
   if (first && scenario === "model-not-ready") { first.w2_analysis.model_view.status = "UNAVAILABLE"; first.model_lab.w2_model.status = "UNAVAILABLE"; first.intelligence_reason_codes = ["MODEL_SIMULATION_NOT_READY"]; }
   if (first && scenario === "collection-unassessed") {
@@ -265,6 +293,10 @@ function workspace(scenario = "default"): IntelligenceWorkspace {
       AWAY: { median: 1.955, min: 1.87, max: 1.97 },
     };
     selected.market_radar.markets.ASIAN_HANDICAP.movement.status = "PRICE_MOVEMENT";
+    selected.market_radar.markets.ASIAN_HANDICAP.movement.from_captured_at = "2026-08-09T01:00:00Z";
+    selected.market_radar.markets.ASIAN_HANDICAP.movement.to_captured_at = "2026-08-09T02:00:00Z";
+    selected.market_radar.markets.ASIAN_HANDICAP.movement.line_delta = "0";
+    selected.market_radar.markets.ASIAN_HANDICAP.movement.price_delta = { HOME: 0.01, AWAY: -0.01 };
     payload.attention[0].reason_codes = ["DATA_FIELD_STALE"];
     payload.data_operations.system_health = "BLOCKED_DAY";
   }
@@ -359,11 +391,13 @@ test("ORC-06 Scoreline shows model and readiness context for ready and unavailab
   await installWorkspace(page);
   await page.goto("/");
   const scoreline = page.locator("[data-ui='scoreline-top3']");
-  await expect(scoreline.locator("[data-ui='scoreline-context']")).toContainText("模型 就绪");
-  await expect(scoreline.locator("[data-ui='scoreline-context']")).toContainText("就绪 就绪");
+  const context = scoreline.locator("[data-ui='scoreline-context']");
+  await expect(context.locator("span").nth(0)).toContainText("模型状态就绪");
+  await expect(context.locator("span").nth(1)).toContainText("比赛就绪就绪");
   await page.locator("[data-fixture-id='zero']").click();
   await expect(scoreline).toContainText("不可用");
-  await expect(scoreline.locator("[data-ui='scoreline-context']")).toContainText("就绪 阻塞");
+  await expect(context.locator("span").nth(1)).toContainText("比赛就绪阻塞");
+  await expect(context.locator("span").nth(2)).toContainText("阻塞原因阵容信息未就绪");
   await expect(scoreline.locator(".technical-details")).toContainText("LINEUPS_NOT_READY");
 });
 
@@ -414,7 +448,8 @@ test("D14 collection assessment, prior-only model and football-day truth stay ex
   await page.reload();
   await expect(page.locator("[data-ui='match-inspector']")).toContainText("仅先验");
   await expect(page.locator("[data-ui='model-lab']")).toContainText("仅先验");
-  await expect(page.locator("[data-ui='scoreline-context']")).toContainText("模型 仅先验");
+  await expect(page.locator("[data-ui='scoreline-context']")).toContainText("模型状态");
+  await expect(page.locator("[data-ui='scoreline-context']")).toContainText("仅先验");
 });
 
 test("D14 homogeneous Attention collapses to one expandable aggregate", async ({ page }) => {
@@ -427,6 +462,52 @@ test("D14 homogeneous Attention collapses to one expandable aggregate", async ({
   await attention.locator("[data-ui='attention-aggregate']").click();
   await expect(attention.locator(".attention-row")).toHaveCount(3);
   await expect(attention.getByRole("button", { name: "收起" })).toBeVisible();
+});
+
+test("D15 repeated Attention blockers default to two expandable summaries", async ({ page }) => {
+  await installWorkspace(page, "attention-repeated-groups");
+  await page.goto("/");
+  const attention = page.locator("[data-ui='attention']");
+  await expect(attention.locator("[data-ui='attention-aggregate']")).toHaveCount(2);
+  await expect(attention.locator(".attention-row")).toHaveCount(2);
+  await expect(attention).toContainText("2 组 · 6 场");
+  await attention.locator("[data-ui='attention-aggregate']").first().click();
+  await expect(attention.locator(".attention-row")).toHaveCount(3);
+  await attention.locator("[data-ui='attention-aggregate']").click();
+  await expect(attention.locator(".attention-row")).toHaveCount(6);
+});
+
+test("D15 price-only movement exposes exact label, deltas and quote terminology", async ({ page }) => {
+  await installWorkspace(page, "layout");
+  await page.goto("/");
+  const card = page.locator("[data-market='ASIAN_HANDICAP']");
+  await expect(card).toContainText("赔率变化");
+  await expect(card).not.toContainText("变化盘口变化");
+  await expect(card.locator("[data-ui='movement-evidence']")).toContainText("盘口 -0.25 → -0.25（Δ 0）");
+  await expect(card.locator("[data-ui='movement-evidence']")).toContainText("主队赔率中位数");
+  await expect(card).toContainText("2 个快照 · 8 组机构双边报价（16 条单边报价）");
+  await expect(card).not.toContainText("次观测");
+});
+
+test("D15 stale Market Memory has one fail-closed public readiness authority", async ({ page }) => {
+  await installWorkspace(page, "market-stale");
+  await page.goto("/");
+  const card = page.locator("[data-market='ASIAN_HANDICAP']");
+  await expect(card).toHaveAttribute("data-market-evidence-status", "STALE");
+  await expect(card).toContainText("市场证据：已过期");
+  await expect(card).toContainText("历史快照（已过期，不可用于当前模型比较）");
+  await expect(card).not.toContainText("市场证据：就绪");
+  await expect(page.locator("[data-ui='match-inspector']")).toContainText("市场证据状态已过期");
+  await expect(page.locator("[data-ui='model-lab']")).toContainText("模型比较状态");
+  await expect(page.locator("[data-ui='model-lab']")).toContainText("市场证据未就绪");
+});
+
+test("D15 scoreline context uses three structural labels", async ({ page }) => {
+  await installWorkspace(page);
+  await page.goto("/");
+  const context = page.locator("[data-ui='scoreline-context']");
+  for (const label of ["模型状态", "比赛就绪", "阻塞原因"]) await expect(context).toContainText(label);
+  await expect(context.locator("span")).toHaveCount(3);
 });
 
 test("D14 canonical Chinese competition names keep tournaments separate", async ({ page }) => {
@@ -531,8 +612,9 @@ test("1536x1024 owner viewport preserves complete primary document flow", async 
   await expect(page.locator(".match-board-row")).toHaveCount(6);
   await expect(page.locator("[data-ui='attention'] .attention-row")).toHaveCount(5);
   const fifthAttentionBox = await page.locator("[data-ui='attention'] .attention-row").nth(4).boundingBox();
-  const attentionActionBox = await page.getByRole("button", { name: "查看全部（6）" }).boundingBox();
-  expect(fifthAttentionBox!.y + fifthAttentionBox!.height).toBeLessThanOrEqual(attentionActionBox!.y - 3);
+  const attentionTableBox = await page.locator("[data-ui='attention-feed']").boundingBox();
+  expect(fifthAttentionBox!.y + fifthAttentionBox!.height).toBeLessThanOrEqual(attentionTableBox!.y + attentionTableBox!.height + 1);
+  await expect(page.locator("[data-ui='attention-aggregate']")).toHaveCount(1);
   for (const surface of ["attention", "market-radar", "external-intelligence", "match-board", "match-inspector", "model-lab", "scoreline-top3", "validation", "league-performance"]) {
     const box = await page.locator(`[data-ui='${surface}']`).boundingBox();
     expect(box, surface).not.toBeNull();
@@ -557,7 +639,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 1280, height: 800
     const geometry = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
     expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
     await expect(page.locator("[data-market='ASIAN_HANDICAP'] [data-price-side='HOME'] strong")).toHaveText("1.89");
-    await expect(page.locator("[data-ui='market-radar']")).toContainText("盘口变化");
+    await expect(page.locator("[data-ui='market-radar']")).toContainText("赔率变化");
     await expect(page.locator("[data-ui='attention']")).toContainText("数据字段已过期");
     await expect(page.locator("[data-ui='header-context']")).toContainText("系统 当日阻塞");
     const columns = await page.locator(".workspace-grid").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length);

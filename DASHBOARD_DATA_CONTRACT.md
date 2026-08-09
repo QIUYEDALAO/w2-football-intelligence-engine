@@ -61,7 +61,8 @@ declared availability/readiness state and never authorize fabrication.
 | `matches[].readiness.action`, `next_eval_at` | Decision Contract | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | relevant domains | next observation/evaluation only | `true` |
 | `matches[].readiness.provider_budget_status` | Decision/DayView freshness | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | `UNKNOWN` allowed; no quota call | `true` |
 | `matches[].readiness.lineup_status`, `lineup_expectation` | `data_refresh` + lineup requirement | `PARTIAL` | `LINEUPS` | 1/13 coverage limitation retained | `true` |
-| `matches[].market_fact.status`, `main_line` | Round-3 current AH/OU snapshot | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `ODDS_PREMATCH` | fact only; null when no current snapshot | `true` |
+| `matches[].market_fact.status`, `main_line` | canonical public market-evidence readiness over the Round-3 current AH/OU snapshot | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `ODDS_PREMATCH` | exact `READY/STALE/INSUFFICIENT`; stale memory is never ready; fact only | `true` |
+| `matches[].market_fact.source_status` | unmodified Round-3 source status | `AVAILABLE` | `ODDS_PREMATCH` | technical audit only; never a second public readiness authority | `true` |
 | `matches[].market_fact.current_odds`, `market_probabilities` | DayView market fields | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `ODDS_PREMATCH` | observed values only | `true` |
 | `matches[].market_fact.price_reference` | approved P0 constant | `AVAILABLE` | `ODDS_PREMATCH` | `LAST_AVAILABLE_PREMATCH_SNAPSHOT` | `true` |
 | `matches[].market_fact.canonical_close_status` | approved P0 constant | `AVAILABLE` | `ODDS_PREMATCH` | `NOT_OBTAINABLE_FROM_CURRENT_PROVIDER` | `true` |
@@ -78,15 +79,16 @@ declared availability/readiness state and never authorize fabrication.
 | FIELD | SOURCE | AVAILABILITY | FRESHNESS_DOMAIN | READINESS_SEMANTICS | NO_CALL_ON_READ |
 |---|---|---|---|---|---|
 | `matches[].market_radar.schema_version` | existing radar schema | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `ODDS_PREMATCH` | source version preserved | `true` |
-| `matches[].market_radar.markets.{ASIAN_HANDICAP,TOTALS}.status` | Round-3 market | `AVAILABLE` | `ODDS_PREMATCH` | `READY/INSUFFICIENT` | `true` |
-| `.snapshot_state`, `snapshot_count`, `observation_count` | Round-3 market/timeline | `AVAILABLE` | `ODDS_PREMATCH` | exact 0/1/2+ semantics | `true` |
+| `matches[].market_radar.markets.{ASIAN_HANDICAP,TOTALS}.status` | current snapshot plus source-bound freshness | `AVAILABLE` | `ODDS_PREMATCH` | sole public authority: `READY` iff current, `STALE` iff persisted but expired, otherwise `INSUFFICIENT` | `true` |
+| `.source_status` | unmodified Round-3 market status | `AVAILABLE` | `ODDS_PREMATCH` | technical audit only; cannot override public status | `true` |
+| `.snapshot_state`, `snapshot_count`, `observation_count`, `bookmaker_pair_count`, `quote_row_count` | Round-3 market/timeline | `AVAILABLE` | `ODDS_PREMATCH` | exact 0/1/2+ semantics; observation/quote rows are single-side rows, bookmaker pairs are summed across snapshots | `true` |
 | `.main_line`, `bookmaker_count`, `prices`, `probabilities`, `freshness` | Round-3 current snapshot | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `ODDS_PREMATCH` | null/empty when no current snapshot | `true` |
-| `.timeline_points`, `movement`, `reason_codes` | persisted Round-3 timeline/movement | `AVAILABLE` | `ODDS_PREMATCH` | no interpolation or synthetic points | `true` |
+| `.timeline_points`, `movement`, `reason_codes` | persisted Round-3 timeline/movement | `AVAILABLE` | `ODDS_PREMATCH` | exact four-class line/price-median contract; movement exposes from/to time, line and side-price deltas; no interpolation or synthetic points | `true` |
 | `matches[].model_lab.schema_version` | existing Model Lab schema | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | source version preserved | `true` |
 | `matches[].model_lab.w2_model` | existing simulation/model diagnostics | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | diagnostic only | `true` |
-| `matches[].model_lab.market` | existing market diagnostics | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `ODDS_PREMATCH` | fact/reference only | `true` |
+| `matches[].model_lab.market` | canonical public market-evidence readiness plus technical source status | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `ODDS_PREMATCH` | same public status as radar/fact; stale blocks current comparison | `true` |
 | `matches[].model_lab.api_football_prediction` | absent checkpoint projection | `NOT_AVAILABLE` | `PREDICTIONS` | explicit reason; never fetched on read | `true` |
-| `matches[].model_lab.relation` | existing Model Lab market statuses | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `ODDS_PREMATCH` | no opportunity semantics | `true` |
+| `matches[].model_lab.relation` | existing Model Lab comparison statuses | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `ODDS_PREMATCH` | explicitly `模型比较状态`, never a second market-readiness authority; no opportunity semantics | `true` |
 | `matches[].model_lab.historical_validation` | frozen Phase 0.5 context | `AVAILABLE` | `NONE` | `NO_EDGE`, `NOT_PROVEN`, no rerun | `true` |
 | `matches[].scoreline_reference.label`, `proof_status` | approved P0 semantics | `AVAILABLE` | `NONE` | `MODEL_SCORELINE_REFERENCE`, `NOT_PROVEN` | `true` |
 | `matches[].scoreline_reference.status`, `simulations_completed` | existing `scoreline_projection` | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | `READY` requires exactly 10,000 completed seeded simulations; no simulation on read | `true` |

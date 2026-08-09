@@ -146,9 +146,7 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
     operation = openapi["paths"]["/v1/dashboard/intelligence-workspace"]["get"]
     response = operation["responses"]["200"]["content"]["application/json"]["schema"]
 
-    assert response == {
-        "$ref": "#/components/schemas/DashboardIntelligenceWorkspaceResponse"
-    }
+    assert response == {"$ref": "#/components/schemas/DashboardIntelligenceWorkspaceResponse"}
 
     schemas = openapi["components"]["schemas"]
     states = {
@@ -160,9 +158,9 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
         "MARKET_MOVEMENT",
         "MARKET_STABLE",
     }
-    assert set(
-        schemas["WorkspaceAttentionItem"]["properties"]["intelligence_state"]["enum"]
-    ) == states
+    assert (
+        set(schemas["WorkspaceAttentionItem"]["properties"]["intelligence_state"]["enum"]) == states
+    )
     assert set(schemas["WorkspaceMatch"]["properties"]["intelligence_state"]["enum"]) == states
     assert set(schemas["WorkspaceRisks"]["properties"]) == {
         "EVENT_RISK",
@@ -171,9 +169,36 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
         "COLLECTION_RISK",
     }
     assert schemas["WorkspaceRisks"]["additionalProperties"] is False
-    assert schemas["WorkspaceReadyScorelineReference"]["properties"][
-        "simulations_completed"
-    ]["const"] == 10_000
+    assert set(schemas["WorkspaceMarket"]["properties"]["status"]["enum"]) == {
+        "READY",
+        "STALE",
+        "INSUFFICIENT",
+    }
+    assert {
+        "source_status",
+        "snapshot_count",
+        "bookmaker_pair_count",
+        "quote_row_count",
+        "movement",
+    } <= set(schemas["WorkspaceMarket"]["properties"])
+    assert set(schemas["WorkspaceMovement"]["properties"]["status"]["enum"]) == {
+        "INSUFFICIENT",
+        "STABLE",
+        "PRICE_MOVEMENT",
+        "LINE_MOVEMENT",
+        "LINE_AND_PRICE_MOVEMENT",
+    }
+    assert set(schemas["WorkspaceMarketFact"]["properties"]["status"]["enum"]) == {
+        "READY",
+        "STALE",
+        "INSUFFICIENT",
+    }
+    assert "source_status" in schemas["WorkspaceMarketFact"]["properties"]
+    assert "source_status" in schemas["WorkspaceMarketSummary"]["properties"]
+    assert (
+        schemas["WorkspaceReadyScorelineReference"]["properties"]["simulations_completed"]["const"]
+        == 10_000
+    )
     assert set(schemas["WorkspaceScoreline"]["properties"]) == {
         "scoreline",
         "unconditional_probability",
@@ -205,9 +230,7 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
 def test_p1_contract_set_is_complete_and_field_bound() -> None:
     for path in P1_CONTRACTS:
         assert path.is_file()
-        assert "BASE_MAIN_SHA = f0fe9d332d05a84f1ef04be86fd9fb44b69d69e3" in (
-            path.read_text()
-        )
+        assert "BASE_MAIN_SHA = f0fe9d332d05a84f1ef04be86fd9fb44b69d69e3" in (path.read_text())
 
     data_contract = P1_CONTRACTS[2].read_text()
     assert "| FIELD | SOURCE | AVAILABILITY | FRESHNESS_DOMAIN |" in data_contract
