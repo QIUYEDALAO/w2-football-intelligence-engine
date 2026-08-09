@@ -1,16 +1,16 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-09T15:00:00+08:00"
+updated_at: "2026-08-09T15:04:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: W2_VPS_DEPLOYMENT_WARM_RETRY
-owner_authorization_id: W2_VPS_DEPLOYMENT_WARM_RETRY_V1
-active_next_action: EXECUTE_VPS_WARM_SWITCH_RETRY_AND_POSTDEPLOY_ACCEPTANCE
-next_code_action: VPS_WARM_RETRY_EXISTING_DEPLOYMENT_PATH
-current_status: VPS_WARM_RETRY_AUTHORIZED_ACTIVE
-current_gate: VPS_WARM_RETRY_AND_POSTDEPLOY_ACCEPTANCE
+owner_product_decision: W2_VPS_LOCAL_OCI_RELAY_DEPLOYMENT_RETRY
+owner_authorization_id: W2_VPS_LOCAL_OCI_RELAY_DEPLOYMENT_RETRY_V1
+active_next_action: EXECUTE_VPS_LOCAL_OCI_RELAY_DEPLOYMENT_AND_POSTDEPLOY_ACCEPTANCE
+next_code_action: LOCAL_OCI_RELAY_THEN_EXISTING_WARM_DEPLOYMENT
+current_status: VPS_LOCAL_RELAY_DEPLOYMENT_AUTHORIZED_ACTIVE
+current_gate: VPS_LOCAL_RELAY_DEPLOYMENT_AND_POSTDEPLOY_ACCEPTANCE
 
 runtime_baseline:
   final_main_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
@@ -48,7 +48,7 @@ owner_reviews:
 final_execution_plan:
   authority: W2_FINAL_EXECUTION_MASTER_PLAN.md
   detailed_dashboard_authority: DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN.md
-  current_phase_authority: VPS_DEPLOYMENT_WARM_RETRY_AUTHORIZATION.md
+  current_phase_authority: VPS_LOCAL_OCI_RELAY_DEPLOYMENT_RETRY_AUTHORIZATION.md
   dashboard_workstream: REPOSITORY_FULLY_CLOSED
   historical_step4_post4: SUPERSEDED_AS_STANDALONE_WORKSTREAM
   rebuild_old_boss_l1_l2_dashboard: false
@@ -87,8 +87,8 @@ global_completion_gate:
   project_complete_requires_track_a_closed_pass: true
   approved_main_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
   current_deployed_source_sha: 51ebbeabc5497ce48708b3587705e2922c4805da
-  vps_deployment_status: RETRY_AUTHORIZED_AFTER_SAFE_ROLLBACK
-  vps_authority: VPS_DEPLOYMENT_WARM_RETRY_AUTHORIZATION.md
+  vps_deployment_status: LOCAL_RELAY_RETRY_AUTHORIZED_AFTER_SAFE_ROLLBACK
+  vps_authority: VPS_LOCAL_OCI_RELAY_DEPLOYMENT_RETRY_AUTHORIZATION.md
   code_complete_does_not_equal_project_complete: true
   deployment_pass_while_track_a_waits_status: DEPLOYED_WAITING_FOR_NATURAL_EVIDENCE
   overall_complete_formula: VPS_DEPLOYMENT_ACCEPTANCE_PASS_AND_TRACK_A_CLOSED_PASS_AND_STOP_LINES_PRESERVED
@@ -123,15 +123,26 @@ previous_vps_deployment_attempt:
   provider_calls_caused_by_execution: 0
   db_business_writes_caused_by_execution: 0
 
-vps_warm_retry:
-  status: AUTHORIZED_ACTIVE
+superseded_vps_warm_retry:
+  status: SUPERSEDED_BEFORE_EXECUTION
   authority: VPS_DEPLOYMENT_WARM_RETRY_AUTHORIZATION.md
+  superseded_by: VPS_LOCAL_OCI_RELAY_DEPLOYMENT_RETRY_AUTHORIZATION.md
+  reason: OWNER_RECONFIRMED_LOCAL_COMPUTER_TO_VPS_RELAY_IS_BINDING_PRIMARY_IMAGE_TRANSPORT
+
+vps_local_relay_retry:
+  status: AUTHORIZED_ACTIVE
+  authority: VPS_LOCAL_OCI_RELAY_DEPLOYMENT_RETRY_AUTHORIZATION.md
   target_source_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
   expected_predeploy_source_sha: 51ebbeabc5497ce48708b3587705e2922c4805da
+  image_transport: LOCAL_OCI_RELAY_PRIMARY
+  relay_script: scripts/relay_immutable_images_via_local.sh
+  relay_execution_host: OWNER_LOCAL_COMPUTER_CODEX_LOCAL_HOST
+  relay_sequence: GHCR_TO_LOCAL_OCI_ARCHIVE_TO_SCP_TO_VPS_CTR_IMPORT
+  use_exact_release_candidate_digests: true
+  local_relay_required_before_activation: true
+  vps_direct_ghcr_bulk_image_pull: FORBIDDEN_AS_PRIMARY_TRANSPORT
   use_existing_deployment_script_unchanged: true
   require_exact_immutable_target_images: true
-  verify_local_target_image_cache_before_activation: true
-  allow_nonactivating_exact_digest_precache_if_missing: true
   required_timing_scope: WARM_SWITCH
   deployment_target_seconds: 300_UNCHANGED
   rollback_target_seconds: 120_UNCHANGED
@@ -141,9 +152,10 @@ vps_warm_retry:
   manual_provider_probe: FORBIDDEN
   conditional_track_a_refresh_after_deploy: ALLOWED_ONLY_IF_SOURCE_BOUND_FIELDS_AVAILABLE_WITH_ZERO_PROVIDER_CALLS_AND_ZERO_DB_BUSINESS_WRITES
   terminal_classifications:
-    - VPS_WARM_RETRY_ACCEPTANCE_PASS
-    - VPS_WARM_RETRY_ROLLED_BACK
+    - VPS_LOCAL_RELAY_DEPLOYMENT_ACCEPTANCE_PASS
+    - VPS_LOCAL_RELAY_DEPLOYMENT_ROLLED_BACK
     - POSTDEPLOY_DEFECT_FOUND
+    - LOCAL_RELAY_IDENTITY_BLOCKED
 
 p5_5:
   status: PASS_AUTO_APPROVED_MERGED
@@ -191,3 +203,4 @@ permanent_stop_lines:
   p6_execution: NOT_AUTHORIZED
   deployment_task_tracked_code_hotfix: NOT_AUTHORIZED
   deployment_timing_threshold_change: NOT_AUTHORIZED
+  vps_direct_ghcr_bulk_image_pull: FORBIDDEN_AS_PRIMARY_TRANSPORT
