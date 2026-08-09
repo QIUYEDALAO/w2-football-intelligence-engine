@@ -1,15 +1,16 @@
 # NEXT ACTION
 
 ```text
-ACTIVE_NEXT_ACTION = EXECUTE_P5_5_CONTROLLED_LEGACY_CLEANUP
-CURRENT_GATE = P5_5_ACTIVE
+ACTIVE_NEXT_ACTION = NONE_WORKSTREAM_CLOSED
+CURRENT_GATE = REPOSITORY_FULLY_CLOSED
 OWNER_REVIEW_C = APPROVED
 OWNER_AUTHORITY = OWNER_REVIEW_C_APPROVAL_AND_P5_5_AUTHORIZATION.md
-STARTING_MAIN = f931702f617f432ba66c90f08828090f094d8ba5
-P3 = PASS_APPROVED_MERGED
-P4 = PASS_APPROVED_MERGED
-P5 = PASS_APPROVED_MERGED
-P5_5 = AUTHORIZED_ACTIVE
+P5_5 = PASS_AUTO_APPROVED_MERGED
+FINAL_MAIN = d61768ecf8457a72df80a5cb0220072de76dfdd4
+PR = 500_MERGED
+EXACT_IMPLEMENTATION_HEAD = d3d3336fd1cad142ec4bc6c3defe3b6457fb2dea
+EXACT_HEAD_FULL_CI = 31297195834_PASS
+RELEASE_REQUIRED = PASS
 ROUND_4 = NOT_STARTED
 P6 = BLUEPRINT_ONLY_NOT_AUTHORIZED
 ```
@@ -20,41 +21,25 @@ P6 = BLUEPRINT_ONLY_NOT_AUTHORIZED
 1. CODEX_EXECUTION_PROTOCOL.md
 2. CURRENT_STATE.yaml
 3. NEXT_ACTION.md
-4. OWNER_REVIEW_C_APPROVAL_AND_P5_5_AUTHORIZATION.md
-5. OWNER_REVIEW_C_REREVIEW_RESULT.md
+4. CODEX_EXECUTION_RECEIPT.md
+5. OWNER_REVIEW_C_APPROVAL_AND_P5_5_AUTHORIZATION.md
 6. REPOSITORY_HYGIENE_POLICY.md
 7. W2_FINAL_EXECUTION_MASTER_PLAN.md
 8. DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN.md
 ```
 
-## Current action
+## Terminal state
 
-Execute P5.5 as one continuous proof-driven legacy cleanup stage from latest compatible `origin/main`.
+The Dashboard Intelligence Workspace workstream is `REPOSITORY_FULLY_CLOSED`.
+P0 through P5.5 are complete under their recorded authorities. P5.5 removed
+only proven-unreachable legacy presentation assets and retained the protected
+Boss visual evidence chain and its transitive dependencies.
 
-Do not delete by filename/history alone. Before every deletion prove non-reachability through route/import/entrypoint/runtime/build/test/config/workflow/reference evidence. Preserve useful helpers and protected evidence dependencies. If safety cannot be proven, retain and classify rather than guess.
+No further implementation action is authorized. A later task requires a new
+Owner authority document and explicit update to `CURRENT_STATE.yaml` and this
+file. In particular, this terminal state does not authorize P6 or Round 4.
 
-Candidates include obsolete Boss/L1/L2/recommendation/performance presentation, adapters/styles/flags/tests and other assets that are no longer part of the public unified Intelligence Workspace.
-
-Run in-scope remediation automatically until all final gates pass. Do not stop for intermediate cleanup batches.
-
-## Final acceptance
-
-```text
-PUBLIC_AUTHORITY = NEW_INTELLIGENCE_WORKSPACE_ONLY
-TYPESCRIPT = PASS
-WEB_BUILD = PASS
-UNIT_CONTRACT_INTEGRATION = PASS
-WEB_E2E = PASS
-REFERENCE_SEARCH = PASS
-EXACT_HEAD_FULL_CI = PASS
-RELEASE_REQUIRED = PASS
-REPOSITORY_HYGIENE = PASS
-WORKTREE = CLEAN
-```
-
-If all final gates PASS and no new product/runtime authority is required, technical closure is automatically approved; record exact identities and mark the workstream `REPOSITORY_FULLY_CLOSED`.
-
-## Stop lines
+## Permanent stop lines
 
 ```text
 PROVIDER_CALL_OR_PLAN_CHANGE = NOT_AUTHORIZED
