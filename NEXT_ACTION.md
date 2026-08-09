@@ -1,16 +1,13 @@
 # NEXT ACTION
 
 ```text
-ACTIVE_NEXT_ACTION = NONE_WORKSTREAM_CLOSED
-CURRENT_GATE = REPOSITORY_FULLY_CLOSED
-OWNER_REVIEW_C = APPROVED
-OWNER_AUTHORITY = OWNER_REVIEW_C_APPROVAL_AND_P5_5_AUTHORIZATION.md
-P5_5 = PASS_AUTO_APPROVED_MERGED
-FINAL_MAIN = d61768ecf8457a72df80a5cb0220072de76dfdd4
-PR = 500_MERGED
-EXACT_IMPLEMENTATION_HEAD = d3d3336fd1cad142ec4bc6c3defe3b6457fb2dea
-EXACT_HEAD_FULL_CI = 31297195834_PASS
-RELEASE_REQUIRED = PASS
+ACTIVE_NEXT_ACTION = EXECUTE_POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE
+CURRENT_GATE = POST_R3_TRACK_A_CLOSURE_ACTIVE
+AUTHORITY = POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_AUTHORIZATION.md
+BASE_MAIN = d61768ecf8457a72df80a5cb0220072de76dfdd4
+DASHBOARD_WORKSTREAM = REPOSITORY_FULLY_CLOSED
+TRACK = PATH_A_NATURAL_EVIDENCE_ACCUMULATION
+MODE = READ_ONLY_EVIDENCE_CLOSURE
 ROUND_4 = NOT_STARTED
 P6 = BLUEPRINT_ONLY_NOT_AUTHORIZED
 ```
@@ -21,31 +18,40 @@ P6 = BLUEPRINT_ONLY_NOT_AUTHORIZED
 1. CODEX_EXECUTION_PROTOCOL.md
 2. CURRENT_STATE.yaml
 3. NEXT_ACTION.md
-4. CODEX_EXECUTION_RECEIPT.md
-5. OWNER_REVIEW_C_APPROVAL_AND_P5_5_AUTHORIZATION.md
-6. REPOSITORY_HYGIENE_POLICY.md
-7. W2_FINAL_EXECUTION_MASTER_PLAN.md
-8. DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN.md
+4. POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_AUTHORIZATION.md
+5. POST_R3_READINESS_ATTRIBUTION_REPORT.md
+6. POST_R3_READINESS_ATTRIBUTION_MATRIX.json
+7. CODEX_EXECUTION_RECEIPT.md
+8. W2_FINAL_EXECUTION_MASTER_PLAN.md
 ```
 
-## Terminal state
+## Current action
 
-The Dashboard Intelligence Workspace workstream is `REPOSITORY_FULLY_CLOSED`.
-P0 through P5.5 are complete under their recorded authorities. P5.5 removed
-only proven-unreachable legacy presentation assets and retained the protected
-Boss visual evidence chain and its transitive dependencies.
+Run one continuous read-only closure audit of Post-R3 Track A using current persisted natural runtime evidence after the accepted SHADOW_ONLY restore.
 
-No further implementation action is authorized. A later task requires a new
-Owner authority document and explicit update to `CURRENT_STATE.yaml` and this
-file. In particular, this terminal state does not authorize P6 or Round 4.
+Do not reopen the Dashboard workstream and do not start Round 4.
 
-## Permanent stop lines
+Required terminal classification is exactly one of:
 
 ```text
-PROVIDER_CALL_OR_PLAN_CHANGE = NOT_AUTHORIZED
+TRACK_A_CLOSED_PASS
+WAIT_MORE_NATURAL_EVIDENCE
+RECURRING_INTERNAL_DEFECT_PROVEN
+```
+
+The task must inspect naturally crossed T12/T6/T3/T60 lifecycle evidence, source/capture/request lineage, checkpoint terminal states, current timeline depth and Model Lab/readiness projection. It must determine whether the earlier `DUE_WINDOW_BUT_NO_FRESH_CAPTURE` condition recurs after the controlled Round-3 restore.
+
+If Track A closes, create the Round4 readiness decision packet but leave Round4 `NOT_STARTED`. If more evidence is needed, identify the exact missing natural evidence and next eligible windows. If a recurring internal defect is proven, trace it and propose bounded remediation without changing production code.
+
+## Stop lines
+
+```text
+PROVIDER_CALLS_FOR_AUDIT = 0
+DB_BUSINESS_WRITES = 0
+PRODUCTION_CODE_CHANGES = 0
 SCHEDULER_OR_CADENCE_CHANGE = NOT_AUTHORIZED
 ACTIVE_WHITELIST_CHANGE = NOT_AUTHORIZED
-MODEL_FACTOR_THRESHOLD_RETRAINING = NOT_AUTHORIZED
+MODEL_FACTOR_THRESHOLD_CHANGE = NOT_AUTHORIZED
 EXTERNAL_INTELLIGENCE_CONNECTION = NOT_AUTHORIZED
 PHASE_0_5_REEXECUTION = FORBIDDEN
 H_RESULT_ACCESS = PERMANENTLY_CLOSED
@@ -57,3 +63,13 @@ PRODUCTION = OFF
 REAL_MONEY = NOT_AUTHORIZED
 P6_EXECUTION = NOT_AUTHORIZED
 ```
+
+## Required outputs
+
+Update `CODEX_EXECUTION_RECEIPT.md`, `CURRENT_STATE.yaml`, and `NEXT_ACTION.md` and produce:
+
+- `POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_REPORT.md`
+- `POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_MATRIX.json`
+- `ROUND4_READINESS_DECISION_PACKET.md` only when the evidence is sufficient to make that decision meaningful
+
+No intermediate Owner gate is required. Stop only at the terminal classification.
