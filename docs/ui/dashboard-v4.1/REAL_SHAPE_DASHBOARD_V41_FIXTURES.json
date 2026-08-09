@@ -1,0 +1,256 @@
+{
+  "fixture_set_version": "w2.dashboard-v4.1-real-shape-fixtures.v1",
+  "schema_version": "w2.dashboard-intelligence-workspace.v1",
+  "base": {
+    "request_id": "v41-deterministic",
+    "generated_at": "2026-08-09T13:07:00Z",
+    "date": "2026-08-09",
+    "timezone": "Asia/Shanghai",
+    "window": "today",
+    "football_day_timezone": "Asia/Shanghai",
+    "football_day_cutoff_hour": 12,
+    "football_day_start_utc": "2026-08-09T04:00:00Z",
+    "football_day_end_utc": "2026-08-10T04:00:00Z",
+    "source": "dashboard_day_view+performance_checkpoint+replay_front_door",
+    "read_contract": {
+      "provider_calls": 0,
+      "db_writes": 0,
+      "would_write_checkpoint": false,
+      "no_call_on_read": true
+    },
+    "runtime": {
+      "product": "FOOTBALL_MARKET_INTELLIGENCE_PLUS_MODEL_DIAGNOSTICS",
+      "public_dashboard_authority": "NEW_INTELLIGENCE_WORKSPACE_ONLY",
+      "active_whitelist_count": 13,
+      "free_bridge_mode": "SHADOW_ONLY",
+      "candidate": "OFF",
+      "formal": "OFF",
+      "lock": "OFF",
+      "production": "OFF"
+    }
+  },
+  "scenarios": {
+    "NORMAL_MATCH_RICH_EVIDENCE": {
+      "day_mode": "NORMAL",
+      "default_focus_type": "MATCH",
+      "default_focus_fixture_id": "1571806",
+      "today_summary": {
+        "match_count": 26,
+        "competition_count": 13,
+        "priority_match_count": 3,
+        "priority_group_count": 5,
+        "primary_reason_counts": {
+          "MARKET_MOVEMENT": 2,
+          "MODEL_DIAGNOSTIC": 1,
+          "LINEUP_PENDING": 4,
+          "COLLECTION_INCIDENT": 1
+        }
+      },
+      "global_focus": null,
+      "matches": [
+        {
+          "fixture_id": "1571806",
+          "competition_id": "primeira-liga",
+          "competition_name": "Primeira Liga",
+          "kickoff_utc": "2026-08-09T14:30:00Z",
+          "home_team_name": "Benfica",
+          "away_team_name": "Porto",
+          "intelligence_state": "MARKET_MOVEMENT",
+          "priority_reason_primary": "MARKET_MOVEMENT",
+          "priority_reason_secondary": ["MODEL_DIAGNOSTIC"],
+          "readiness": {
+            "status": "READY",
+            "next_eval_at": "2026-08-09T13:22:00Z",
+            "identity_status": "READY"
+          },
+          "model_display": {
+            "status": "READY",
+            "explanation": "大小球 2.5 模型落在市场观测区间外。"
+          },
+          "market_radar": {
+            "ASIAN_HANDICAP": {
+              "status": "READY",
+              "trend_evidence_status": "AVAILABLE",
+              "cross_sectional_comparison_status": "AVAILABLE",
+              "snapshot_count": 3,
+              "latest_snapshot_at": "2026-08-09T12:11:00Z",
+              "freshness_max_age_seconds": 21600,
+              "main_line": "-0.75",
+              "bookmaker_count": 14,
+              "timeline_points": [
+                {"captured_at": "2026-08-09T06:02:00Z", "canonical_line": "-0.50", "bookmaker_count": 11},
+                {"captured_at": "2026-08-09T09:05:00Z", "canonical_line": "-0.50", "bookmaker_count": 13},
+                {"captured_at": "2026-08-09T12:11:00Z", "canonical_line": "-0.75", "bookmaker_count": 14}
+              ]
+            },
+            "TOTALS": {
+              "status": "READY",
+              "trend_evidence_status": "INSUFFICIENT",
+              "cross_sectional_comparison_status": "AVAILABLE",
+              "snapshot_count": 1,
+              "latest_snapshot_at": "2026-08-09T11:48:00Z",
+              "freshness_max_age_seconds": 21600,
+              "main_line": "2.50",
+              "bookmaker_count": 6,
+              "timeline_points": [
+                {"captured_at": "2026-08-09T11:48:00Z", "canonical_line": "2.50", "bookmaker_count": 6}
+              ]
+            }
+          },
+          "scoreline_reference": {
+            "status": "READY",
+            "simulations_completed": 10000,
+            "top3": [
+              {"scoreline": "1-1", "unconditional_probability": 0.126, "sample_count": 1260},
+              {"scoreline": "2-1", "unconditional_probability": 0.101, "sample_count": 1010},
+              {"scoreline": "1-0", "unconditional_probability": 0.094, "sample_count": 940}
+            ]
+          }
+        },
+        {
+          "fixture_id": "1571807",
+          "competition_id": "la-liga",
+          "kickoff_utc": "2026-08-09T15:00:00Z",
+          "home_team_name": "Real Madrid",
+          "away_team_name": "Real Betis",
+          "intelligence_state": "MARKET_MOVEMENT",
+          "priority_reason_primary": "MARKET_MOVEMENT",
+          "priority_reason_secondary": [],
+          "readiness": {"status": "READY", "next_eval_at": "2026-08-09T13:30:00Z", "identity_status": "READY"}
+        },
+        {
+          "fixture_id": "1571808",
+          "competition_id": "bundesliga",
+          "kickoff_utc": "2026-08-09T15:30:00Z",
+          "home_team_name": "Bayern Munich",
+          "away_team_name": "Borussia Dortmund",
+          "intelligence_state": "MODEL_DIAGNOSTIC_WARNING",
+          "priority_reason_primary": "MODEL_DIAGNOSTIC",
+          "priority_reason_secondary": [],
+          "readiness": {"status": "PARTIAL", "next_eval_at": "2026-08-09T13:45:00Z", "identity_status": "READY"}
+        }
+      ],
+      "validation_summary": {
+        "checkpoint_status": "AVAILABLE",
+        "checkpoint_generated_at": "2026-08-09T12:00:00Z",
+        "freshness_max_age_seconds": 86400,
+        "model_log_loss": 0.512,
+        "market_log_loss": 0.508,
+        "model_brier": 0.178,
+        "market_brier": 0.174,
+        "model_ece": 0.026,
+        "sample_count": 34
+      }
+    },
+    "BLOCKED_GLOBAL_INCIDENT": {
+      "day_mode": "BLOCKED",
+      "default_focus_type": "GLOBAL_INCIDENT",
+      "default_focus_fixture_id": null,
+      "today_summary": {
+        "match_count": 11,
+        "competition_count": 6,
+        "priority_match_count": 0,
+        "priority_group_count": 1,
+        "primary_reason_counts": {"COLLECTION_INCIDENT": 11}
+      },
+      "global_focus": {
+        "status": "INCIDENT",
+        "reason_code": "COLLECTION_PROVIDER_EMPTY",
+        "factual_summary": "当日市场采集未形成可解释证据。",
+        "affected_fixture_count": 11,
+        "affected_competition_count": 6,
+        "source_as_of": "2026-08-09T12:05:00Z",
+        "recovery_condition": "等待既有调度形成新的持久化市场快照；本页不调用 Provider。"
+      },
+      "matches": []
+    },
+    "CALM_DAY_SUMMARY": {
+      "day_mode": "CALM",
+      "default_focus_type": "DAY_SUMMARY",
+      "default_focus_fixture_id": null,
+      "today_summary": {
+        "match_count": 9,
+        "competition_count": 7,
+        "priority_match_count": 0,
+        "priority_group_count": 0,
+        "primary_reason_counts": {}
+      },
+      "global_focus": {
+        "status": "CALM",
+        "reason_code": "NO_PRIORITY_REVIEW_ITEMS",
+        "factual_summary": "当前没有达到优先复核条件的比赛。",
+        "affected_fixture_count": 0,
+        "affected_competition_count": 0,
+        "source_as_of": "2026-08-09T13:07:00Z",
+        "next_eval_at": "2026-08-09T13:22:00Z"
+      },
+      "matches": []
+    },
+    "NORMAL_MATCH_STALE_MARKET_MEMORY": {
+      "day_mode": "NORMAL",
+      "default_focus_type": "MATCH",
+      "default_focus_fixture_id": "1571810",
+      "today_summary": {
+        "match_count": 8,
+        "competition_count": 5,
+        "priority_match_count": 1,
+        "priority_group_count": 1,
+        "primary_reason_counts": {"STALE_MARKET_MEMORY": 1}
+      },
+      "global_focus": null,
+      "matches": [
+        {
+          "fixture_id": "1571810",
+          "competition_id": "serie-a",
+          "kickoff_utc": "2026-08-09T18:45:00Z",
+          "home_team_name": "Inter",
+          "away_team_name": "Atalanta",
+          "intelligence_state": "DATA_INCOMPLETE",
+          "priority_reason_primary": "STALE_MARKET_MEMORY",
+          "priority_reason_secondary": [],
+          "readiness": {"status": "STALE", "next_eval_at": "2026-08-09T13:22:00Z", "identity_status": "READY"},
+          "market_radar": {
+            "ASIAN_HANDICAP": {
+              "status": "STALE",
+              "trend_evidence_status": "AVAILABLE",
+              "cross_sectional_comparison_status": "PAUSED_STALE",
+              "snapshot_count": 3,
+              "latest_snapshot_at": "2026-08-09T05:55:00Z",
+              "freshness_max_age_seconds": 21600,
+              "main_line": "-0.50",
+              "bookmaker_count": 9
+            }
+          },
+          "scoreline_reference": {"status": "UNAVAILABLE", "simulations_completed": null, "top3": []}
+        }
+      ]
+    },
+    "EMPTY_DAY": {
+      "day_mode": "EMPTY",
+      "default_focus_type": "EMPTY_STATE",
+      "default_focus_fixture_id": null,
+      "today_summary": {
+        "match_count": 0,
+        "competition_count": 0,
+        "priority_match_count": 0,
+        "priority_group_count": 0,
+        "primary_reason_counts": {}
+      },
+      "global_focus": {
+        "status": "EMPTY",
+        "reason_code": "NO_FIXTURES_IN_FOOTBALL_DAY",
+        "factual_summary": "本比赛日观察池内没有比赛；不会从其他日期填充。",
+        "affected_fixture_count": 0,
+        "affected_competition_count": 0,
+        "source_as_of": "2026-08-09T13:07:00Z"
+      },
+      "navigation": {
+        "previous_available_date": "2026-08-08",
+        "previous_available_count": 26,
+        "next_available_date": "2026-08-10",
+        "next_available_count": 18
+      },
+      "matches": []
+    }
+  }
+}

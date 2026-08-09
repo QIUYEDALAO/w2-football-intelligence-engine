@@ -14,6 +14,8 @@ IntelligenceState = Literal[
     "MARKET_MOVEMENT",
     "MARKET_STABLE",
 ]
+DashboardDayMode = Literal["NORMAL", "BLOCKED", "CALM", "EMPTY"]
+DashboardFocusType = Literal["MATCH", "GLOBAL_INCIDENT", "DAY_SUMMARY", "EMPTY_STATE"]
 
 
 class ErrorPayload(BaseModel):
@@ -346,6 +348,12 @@ class WorkspaceMarket(BaseModel):
     timeline_points: list[WorkspaceTimelinePoint]
     movement: WorkspaceMovement
     reason_codes: list[str]
+    trend_evidence_status: Literal["AVAILABLE", "INSUFFICIENT"]
+    cross_sectional_comparison_status: Literal[
+        "AVAILABLE", "INSUFFICIENT", "PAUSED_STALE"
+    ]
+    latest_snapshot_at: datetime | str | None
+    freshness_max_age_seconds: int | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
     def readiness_matches_freshness(self) -> WorkspaceMarket:
@@ -530,6 +538,8 @@ class WorkspaceMatch(BaseModel):
     status: str | None
     intelligence_state: IntelligenceState
     intelligence_reason_codes: list[str]
+    priority_reason_primary: str | None
+    priority_reason_secondary: list[str]
     risks: WorkspaceRisks
     readiness: WorkspaceReadiness
     market_fact: WorkspaceMarketFact
@@ -556,6 +566,69 @@ class WorkspaceMatch(BaseModel):
             for market in self.market_radar.markets.values()
         ):
             raise ValueError("market fact must use canonical market readiness")
+        return self
+
+
+class WorkspaceTodaySummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    match_count: int = Field(ge=0)
+    competition_count: int = Field(ge=0)
+    priority_match_count: int = Field(ge=0)
+    priority_group_count: int = Field(ge=0)
+    primary_reason_counts: dict[str, int]
+
+    @model_validator(mode="after")
+    def primary_counts_do_not_double_count(self) -> WorkspaceTodaySummary:
+        if sum(self.primary_reason_counts.values()) != self.priority_match_count:
+            raise ValueError("primary reason counts must count each priority match once")
+        if self.priority_group_count != len(self.primary_reason_counts):
+            raise ValueError("priority group count must match primary reason groups")
+        return self
+
+
+class WorkspaceGlobalFocus(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["INCIDENT", "CALM", "EMPTY"]
+    reason_code: str
+    factual_summary: str = Field(min_length=1)
+    affected_fixture_count: int = Field(ge=0)
+    affected_competition_count: int = Field(ge=0)
+    source_as_of: datetime | str | None
+    next_eval_at: datetime | str | None = None
+    recovery_condition: str | None = None
+
+
+class WorkspaceModelQuality(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["AVAILABLE", "STALE", "NOT_AVAILABLE"]
+    checkpoint_key: str | None
+    checkpoint_generated_at: datetime | str | None
+    freshness_max_age_seconds: int = Field(ge=0)
+    model_log_loss: float | None
+    market_log_loss: float | None
+    model_brier: float | None
+    market_brier: float | None
+    model_calibration_error: float | None
+    sample_count: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def unavailable_quality_has_no_metrics(self) -> WorkspaceModelQuality:
+        metrics = (
+            self.model_log_loss,
+            self.market_log_loss,
+            self.model_brier,
+            self.market_brier,
+            self.model_calibration_error,
+        )
+        if self.status != "AVAILABLE" and any(value is not None for value in metrics):
+            raise ValueError("non-current model quality must fail closed")
+        if self.status == "AVAILABLE" and (
+            self.checkpoint_generated_at is None or any(value is None for value in metrics)
+        ):
+            raise ValueError("available model quality requires a timestamp and complete metrics")
         return self
 
 
@@ -737,7 +810,13 @@ class DashboardIntelligenceWorkspaceResponse(BaseModel):
     football_day_start_utc: datetime | str | None
     football_day_end_utc: datetime | str | None
     source: Literal["dashboard_day_view+performance_checkpoint+replay_front_door"]
+    day_mode: DashboardDayMode
+    default_focus_type: DashboardFocusType
+    default_focus_fixture_id: str | None
     selected_fixture_id: str | None
+    today_summary: WorkspaceTodaySummary
+    global_focus: WorkspaceGlobalFocus | None
+    global_model_quality: WorkspaceModelQuality
     read_contract: WorkspaceReadContract
     runtime: WorkspaceRuntime
     navigation: dict[str, Any]
@@ -747,6 +826,31 @@ class DashboardIntelligenceWorkspaceResponse(BaseModel):
     external_intelligence: WorkspaceExternalIntelligence
     freshness: WorkspaceFreshness
     data_operations: WorkspaceDataOperations
+
+    @model_validator(mode="after")
+    def day_mode_and_focus_are_exact(self) -> DashboardIntelligenceWorkspaceResponse:
+        pairs = {
+            "NORMAL": "MATCH",
+            "BLOCKED": "GLOBAL_INCIDENT",
+            "CALM": "DAY_SUMMARY",
+            "EMPTY": "EMPTY_STATE",
+        }
+        if pairs[self.day_mode] != self.default_focus_type:
+            raise ValueError("day mode and focus type must use an approved exact pair")
+        if self.default_focus_type == "MATCH":
+            if self.default_focus_fixture_id is None:
+                raise ValueError("MATCH focus requires a fixture id")
+            if self.default_focus_fixture_id not in {match.fixture_id for match in self.matches}:
+                raise ValueError("MATCH focus fixture must exist in matches")
+            if self.global_focus is not None:
+                raise ValueError("MATCH focus cannot include a global focus")
+        elif self.default_focus_fixture_id is not None:
+            raise ValueError("non-MATCH focus cannot include a fixture id")
+        elif self.global_focus is None:
+            raise ValueError("non-MATCH focus requires a global focus")
+        if self.selected_fixture_id != self.default_focus_fixture_id:
+            raise ValueError("selected fixture must mirror the default focus authority")
+        return self
 
 
 class DashboardSummaryResponse(BaseModel):

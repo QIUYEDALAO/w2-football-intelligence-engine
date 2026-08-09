@@ -7,6 +7,9 @@ export type IntelligenceState =
   | "MARKET_MOVEMENT"
   | "MARKET_STABLE";
 
+export type DashboardDayMode = "NORMAL" | "BLOCKED" | "CALM" | "EMPTY";
+export type DashboardFocusType = "MATCH" | "GLOBAL_INCIDENT" | "DAY_SUMMARY" | "EMPTY_STATE";
+
 export type RiskAxisName =
   | "EVENT_RISK"
   | "DATA_RISK"
@@ -80,6 +83,10 @@ export interface WorkspaceMarket {
     probability_delta?: Record<string, number> | null;
   };
   reason_codes: string[];
+  trend_evidence_status: "AVAILABLE" | "INSUFFICIENT";
+  cross_sectional_comparison_status: "AVAILABLE" | "INSUFFICIENT" | "PAUSED_STALE";
+  latest_snapshot_at: string | null;
+  freshness_max_age_seconds: number | null;
 }
 
 export interface WorkspaceModelRelation {
@@ -102,6 +109,8 @@ export interface WorkspaceMatch {
   status: string | null;
   intelligence_state: IntelligenceState;
   intelligence_reason_codes: string[];
+  priority_reason_primary: string | null;
+  priority_reason_secondary: string[];
   risks: WorkspaceRisks;
   readiness: {
     status: string;
@@ -291,7 +300,39 @@ export interface IntelligenceWorkspace {
   football_day_start_utc: string | null;
   football_day_end_utc: string | null;
   source: "dashboard_day_view+performance_checkpoint+replay_front_door";
+  day_mode: DashboardDayMode;
+  default_focus_type: DashboardFocusType;
+  default_focus_fixture_id: string | null;
   selected_fixture_id: string | null;
+  today_summary: {
+    match_count: number;
+    competition_count: number;
+    priority_match_count: number;
+    priority_group_count: number;
+    primary_reason_counts: Record<string, number>;
+  };
+  global_focus: {
+    status: "INCIDENT" | "CALM" | "EMPTY";
+    reason_code: string;
+    factual_summary: string;
+    affected_fixture_count: number;
+    affected_competition_count: number;
+    source_as_of: string | null;
+    next_eval_at: string | null;
+    recovery_condition: string | null;
+  } | null;
+  global_model_quality: {
+    status: "AVAILABLE" | "STALE" | "NOT_AVAILABLE";
+    checkpoint_key: string | null;
+    checkpoint_generated_at: string | null;
+    freshness_max_age_seconds: number;
+    model_log_loss: number | null;
+    market_log_loss: number | null;
+    model_brier: number | null;
+    market_brier: number | null;
+    model_calibration_error: number | null;
+    sample_count: number;
+  };
   read_contract: {
     provider_calls: number;
     db_writes: number;

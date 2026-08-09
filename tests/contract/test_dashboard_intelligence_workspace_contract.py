@@ -133,7 +133,7 @@ def test_workspace_is_a_pure_adapter_without_provider_or_scheduler_imports() -> 
         if isinstance(node, ast.ImportFrom) and node.module
     }
 
-    assert modules == {"__future__", "collections.abc", "typing"}
+    assert modules == {"__future__", "collections.abc", "datetime", "typing"}
     assert "create_engine" not in source
     assert "session.commit" not in source
     assert "provider_client" not in source
@@ -180,7 +180,19 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
         "bookmaker_pair_count",
         "quote_row_count",
         "movement",
+        "trend_evidence_status",
+        "cross_sectional_comparison_status",
+        "latest_snapshot_at",
+        "freshness_max_age_seconds",
     } <= set(schemas["WorkspaceMarket"]["properties"])
+    workspace = schemas["DashboardIntelligenceWorkspaceResponse"]["properties"]
+    assert set(workspace["day_mode"]["enum"]) == {"NORMAL", "BLOCKED", "CALM", "EMPTY"}
+    assert set(workspace["default_focus_type"]["enum"]) == {
+        "MATCH",
+        "GLOBAL_INCIDENT",
+        "DAY_SUMMARY",
+        "EMPTY_STATE",
+    }
     assert set(schemas["WorkspaceMovement"]["properties"]["status"]["enum"]) == {
         "INSUFFICIENT",
         "STABLE",

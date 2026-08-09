@@ -9,6 +9,9 @@
     "system_health": "EMPTY_DAY"
   },
   "date": "2026-08-09",
+  "day_mode": "EMPTY",
+  "default_focus_fixture_id": null,
+  "default_focus_type": "EMPTY_STATE",
   "external_intelligence": {
     "advanced_xg": {"affects_match_readiness": false, "status": "NOT_CONNECTED"},
     "news": {"affects_match_readiness": false, "status": "NOT_CONNECTED"},
@@ -144,6 +147,28 @@
     }
   },
   "generated_at": "2026-08-09T02:00:00Z",
+  "global_focus": {
+    "affected_competition_count": 0,
+    "affected_fixture_count": 0,
+    "factual_summary": "本比赛日观察池内没有比赛；不会从其他日期填充。",
+    "next_eval_at": null,
+    "reason_code": "NO_FIXTURES_IN_FOOTBALL_DAY",
+    "recovery_condition": null,
+    "source_as_of": "2026-08-09T02:00:00Z",
+    "status": "EMPTY"
+  },
+  "global_model_quality": {
+    "checkpoint_generated_at": null,
+    "checkpoint_key": null,
+    "freshness_max_age_seconds": 86400,
+    "market_brier": null,
+    "market_log_loss": null,
+    "model_brier": null,
+    "model_calibration_error": null,
+    "model_log_loss": null,
+    "sample_count": 0,
+    "status": "NOT_AVAILABLE"
+  },
   "matches": [],
   "navigation": {"current_date": "2026-08-09"},
   "read_contract": {
@@ -167,6 +192,13 @@
   "selected_fixture_id": null,
   "source": "dashboard_day_view+performance_checkpoint+replay_front_door",
   "timezone": "Asia/Shanghai",
+  "today_summary": {
+    "competition_count": 0,
+    "match_count": 0,
+    "primary_reason_counts": {},
+    "priority_group_count": 0,
+    "priority_match_count": 0
+  },
   "validation": {
     "directional": {
       "correct": 0,

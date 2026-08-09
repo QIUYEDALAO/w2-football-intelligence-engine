@@ -153,3 +153,22 @@ market_pick
 
 Existing legacy payloads may contain some of these keys; the P2 adapter uses
 an allowlist and never passes legacy payloads wholesale.
+
+## V4.1 additive focus contract
+
+The existing endpoint and schema version remain unchanged. V4.1 adds only the
+following source-bound fields:
+
+| FIELD | SOURCE | AVAILABILITY | FRESHNESS_DOMAIN | READINESS_SEMANTICS | NO_CALL_ON_READ |
+|---|---|---|---|---|---|
+| `day_mode` | cards plus existing DayView degradation state | `AVAILABLE` | `PAGE_PROJECTION` | exact `NORMAL/BLOCKED/CALM/EMPTY`; no fifth stale mode | `true` |
+| `default_focus_type` | deterministic V4.1 focus derivation | `AVAILABLE` | `PAGE_PROJECTION` | exact paired `MATCH/GLOBAL_INCIDENT/DAY_SUMMARY/EMPTY_STATE` | `true` |
+| `default_focus_fixture_id` | information-usefulness ranking over existing match fields | `AVAILABLE_WHEN_MATCH_FOCUS` | relevant match domains | non-null only for `NORMAL + MATCH`; kickoff and fixture id are deterministic tie-breaks | `true` |
+| `today_summary.*` | canonical matches plus one primary reason per prioritized match | `AVAILABLE` | `PAGE_PROJECTION` | primary counts sum exactly to priority match count; secondary reasons never double-count | `true` |
+| `global_focus.*` | DayView degradation, freshness, navigation and match counts | `AVAILABLE_FOR_NON_MATCH_FOCUS` | `FIXTURES` / `PAGE_PROJECTION` | source-bound incident/calm/empty fact; no fabricated match | `true` |
+| `global_model_quality.*` | global performance checkpoint and its timestamp | `AVAILABLE_WHEN_CURRENT` | `PAGE_PROJECTION` | complete metrics render only with a current timestamped checkpoint; missing/stale fails closed | `true` |
+| `matches[].priority_reason_primary`, `priority_reason_secondary[]` | existing intelligence, market, readiness and model relation fields | `AVAILABLE` | relevant source domains | information usefulness only; never betting value | `true` |
+| `matches[].market_radar.markets.*.trend_evidence_status` | persisted timeline depth plus exact movement evidence | `AVAILABLE` | `ODDS_PREMATCH` | one snapshot can never claim trend | `true` |
+| `matches[].market_radar.markets.*.cross_sectional_comparison_status` | current same-time bookmaker pairs and public freshness | `AVAILABLE` | `ODDS_PREMATCH` | may be available when trend is insufficient; stale pauses comparison | `true` |
+| `matches[].market_radar.markets.*.latest_snapshot_at` | latest persisted timeline point | `AVAILABLE_WHEN_OBSERVED` | `ODDS_PREMATCH` | raw timestamp; client derives age | `true` |
+| `matches[].market_radar.markets.*.freshness_max_age_seconds` | existing source freshness payload | `AVAILABLE_WHEN_SOURCE_DEFINES` | `ODDS_PREMATCH` | no new universal threshold and no threshold change | `true` |

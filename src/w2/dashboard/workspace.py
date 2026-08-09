@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 from typing import Any
 
 SCHEMA_VERSION = "w2.dashboard-intelligence-workspace.v1"
@@ -25,6 +26,16 @@ DOMAIN_CONTRACT = {
     "page_projection": ("AVAILABLE", "dashboard_day_view", "internal"),
 }
 AFFECTED_DOMAIN_ORDER = ("EVENT", "DATA", "MODEL", "COLLECTION", "MARKET")
+PRIMARY_REASON_ORDER = {
+    "COLLECTION_INCIDENT": 0,
+    "MARKET_MOVEMENT": 1,
+    "FRESH_MARKET_EVIDENCE": 2,
+    "MODEL_DIAGNOSTIC": 3,
+    "STALE_MARKET_MEMORY": 4,
+    "DATA_INCOMPLETE": 5,
+    "LINEUP_PENDING": 6,
+}
+MODEL_QUALITY_MAX_AGE_SECONDS = 86_400
 
 
 def build_dashboard_intelligence_workspace(
@@ -38,6 +49,15 @@ def build_dashboard_intelligence_workspace(
     freshness = _mapping(day_view.get("freshness"))
     performance = _mapping(day_view.get("performance"))
     forward = _mapping(performance.get("forward_ledger"))
+    for match in matches:
+        primary, secondary = _priority_reasons(match)
+        match["priority_reason_primary"] = primary
+        match["priority_reason_secondary"] = secondary
+    day_mode, focus_type, focus_fixture_id = _focus_authority(day_view, matches)
+    primary_reason_counts = (
+        {} if day_mode == "BLOCKED" else _primary_reason_counts(matches)
+    )
+    global_focus = _global_focus(day_view, matches, day_mode)
     return {
         "schema_version": SCHEMA_VERSION,
         "generated_at": day_view.get("generated_at"),
@@ -51,7 +71,24 @@ def build_dashboard_intelligence_workspace(
         "football_day_start_utc": day_view.get("football_day_start_utc"),
         "football_day_end_utc": day_view.get("football_day_end_utc"),
         "source": "dashboard_day_view+performance_checkpoint+replay_front_door",
-        "selected_fixture_id": matches[0]["fixture_id"] if matches else None,
+        "day_mode": day_mode,
+        "default_focus_type": focus_type,
+        "default_focus_fixture_id": focus_fixture_id,
+        "selected_fixture_id": focus_fixture_id,
+        "today_summary": {
+            "match_count": len(matches),
+            "competition_count": len(
+                {match["competition_id"] for match in matches if match["competition_id"]}
+            ),
+            "priority_match_count": sum(primary_reason_counts.values()),
+            "priority_group_count": len(primary_reason_counts),
+            "primary_reason_counts": primary_reason_counts,
+        },
+        "global_focus": global_focus,
+        "global_model_quality": _global_model_quality(
+            forward,
+            day_view.get("generated_at"),
+        ),
         "read_contract": {
             "provider_calls": int(day_view.get("provider_calls") or 0),
             "db_writes": int(day_view.get("db_writes") or 0),
@@ -213,7 +250,7 @@ def _match(card: Mapping[str, Any]) -> dict[str, Any]:
                 _mapping(model_lab.get("historical_validation"))
             ),
         },
-        "scoreline_reference": _scoreline(card),
+        "scoreline_reference": _scoreline(card, public_model_status),
         "evidence": {
             "card_hash": _optional_text(card.get("card_hash")),
             "artifact_hash": _optional_text(card.get("artifact_hash")),
@@ -275,6 +312,22 @@ def _market(raw: Mapping[str, Any], name: str) -> dict[str, Any]:
                 "INSUFFICIENT_NO_TIMELINE_EVIDENCE",
             ),
         }
+    captured_times = [
+        _text(point.get("captured_at")) for point in points if point.get("captured_at")
+    ]
+    latest_snapshot_at = max(captured_times) if captured_times else None
+    trend_evidence_status = (
+        "AVAILABLE"
+        if len(points) >= 2 and movement_payload["status"] != "INSUFFICIENT"
+        else "INSUFFICIENT"
+    )
+    cross_sectional_status = (
+        "PAUSED_STALE"
+        if public_status == "STALE"
+        else "AVAILABLE"
+        if public_status == "READY" and max(0, _int(current.get("bookmaker_count"))) > 0
+        else "INSUFFICIENT"
+    )
     return {
         "market": name,
         "status": public_status,
@@ -294,6 +347,12 @@ def _market(raw: Mapping[str, Any], name: str) -> dict[str, Any]:
         "reason_codes": [
             str(value) for value in (movement.get("reason_code"), timeline.get("status")) if value
         ],
+        "trend_evidence_status": trend_evidence_status,
+        "cross_sectional_comparison_status": cross_sectional_status,
+        "latest_snapshot_at": latest_snapshot_at,
+        "freshness_max_age_seconds": _optional_nonnegative_int(
+            freshness.get("max_age_seconds")
+        ),
     }
 
 
@@ -309,7 +368,7 @@ def _model_relation(raw: Mapping[str, Any], name: str) -> dict[str, Any]:
     }
 
 
-def _scoreline(card: Mapping[str, Any]) -> dict[str, Any]:
+def _scoreline(card: Mapping[str, Any], public_model_status: str) -> dict[str, Any]:
     reference = _mapping(card.get("scoreline_reference"))
     projection = _mapping(reference.get("scoreline_projection"))
     rows = _mapping_list(projection.get("top3"))
@@ -322,13 +381,20 @@ def _scoreline(card: Mapping[str, Any]) -> dict[str, Any]:
         for row in rows[:3]
         if _text(row.get("scoreline"))
     ]
-    status = "READY" if top3 else "UNAVAILABLE"
+    simulations_completed = _positive_int(projection.get("simulations_completed"))
+    identity_ready = bool(_optional_text(card.get("competition_id")))
+    ready = (
+        bool(top3)
+        and public_model_status == "READY"
+        and identity_ready
+        and simulations_completed == 10_000
+    )
     return {
         "label": "MODEL_SCORELINE_REFERENCE",
         "proof_status": "NOT_PROVEN",
-        "status": status,
-        "simulations_completed": _positive_int(projection.get("simulations_completed")),
-        "top3": top3,
+        "status": "READY" if ready else "UNAVAILABLE",
+        "simulations_completed": simulations_completed,
+        "top3": top3 if ready else [],
     }
 
 
@@ -566,6 +632,204 @@ def _data_operations(day_view: Mapping[str, Any], freshness: Mapping[str, Any]) 
     }
 
 
+def _priority_reasons(match: Mapping[str, Any]) -> tuple[str | None, list[str]]:
+    reasons: set[str] = set()
+    state = _text(match.get("intelligence_state"))
+    markets = _mapping(_mapping(match.get("market_radar")).get("markets"))
+    relation = _mapping(_mapping(match.get("w2_analysis")).get("model_market_relation"))
+
+    if state == "COLLECTION_INCIDENT":
+        reasons.add("COLLECTION_INCIDENT")
+    if state in {"MODEL_DIAGNOSTIC_WARNING", "MODEL_MARKET_DISAGREEMENT", "MARKET_ANOMALY"}:
+        reasons.add("MODEL_DIAGNOSTIC")
+    if state == "DATA_INCOMPLETE":
+        reasons.add("DATA_INCOMPLETE")
+    if any(_text(_mapping(market).get("status")) == "STALE" for market in markets.values()):
+        reasons.add("STALE_MARKET_MEMORY")
+    if any(
+        _text(_mapping(_mapping(market).get("movement")).get("status"))
+        in {"PRICE_MOVEMENT", "LINE_MOVEMENT", "LINE_AND_PRICE_MOVEMENT"}
+        for market in markets.values()
+    ):
+        reasons.add("MARKET_MOVEMENT")
+    if any(
+        _text(_mapping(market).get("status")) == "READY"
+        and _int(_mapping(market).get("snapshot_count")) >= 2
+        and _text(_mapping(relation.get(name)).get("status"))
+        not in {"", "MARKET_NOT_READY", "NOT_AVAILABLE"}
+        for name, market in markets.items()
+    ):
+        reasons.add("FRESH_MARKET_EVIDENCE")
+    readiness = _mapping(match.get("readiness"))
+    if (
+        _text(readiness.get("lineup_expectation")) == "EXPECTED_NEAR_KICKOFF"
+        and _text(readiness.get("lineup_status"))
+        in {"", "NOT_AVAILABLE", "PROVIDER_EMPTY", "PENDING"}
+    ):
+        reasons.add("LINEUP_PENDING")
+
+    ordered = sorted(reasons, key=lambda reason: (PRIMARY_REASON_ORDER[reason], reason))
+    return (ordered[0], ordered[1:]) if ordered else (None, [])
+
+
+def _primary_reason_counts(matches: Sequence[Mapping[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for match in matches:
+        reason = _optional_text(match.get("priority_reason_primary"))
+        if reason:
+            counts[reason] = counts.get(reason, 0) + 1
+    return dict(sorted(counts.items(), key=lambda item: (PRIMARY_REASON_ORDER[item[0]], item[0])))
+
+
+def _focus_authority(
+    day_view: Mapping[str, Any], matches: Sequence[Mapping[str, Any]]
+) -> tuple[str, str, str | None]:
+    degradation_state = _text(_mapping(day_view.get("degradation")).get("state"))
+    blocking_degradation = degradation_state in {
+        "BLOCKED",
+        "BLOCKED_DAY",
+        "COLLECTION_INCIDENT",
+        "PROVIDER_EMPTY",
+    }
+    collection_incidents = sum(
+        _text(match.get("intelligence_state")) == "COLLECTION_INCIDENT" for match in matches
+    )
+    if not matches:
+        if blocking_degradation and degradation_state != "EMPTY_DAY":
+            return "BLOCKED", "GLOBAL_INCIDENT", None
+        return "EMPTY", "EMPTY_STATE", None
+    if collection_incidents == len(matches) or (blocking_degradation and collection_incidents):
+        return "BLOCKED", "GLOBAL_INCIDENT", None
+    prioritized = [match for match in matches if match.get("priority_reason_primary")]
+    if not prioritized:
+        return "CALM", "DAY_SUMMARY", None
+    focused = min(prioritized, key=_focus_rank)
+    return "NORMAL", "MATCH", _text(focused.get("fixture_id"))
+
+
+def _focus_rank(match: Mapping[str, Any]) -> tuple[int, int, str, str]:
+    reason = _text(match.get("priority_reason_primary"))
+    markets = _mapping(_mapping(match.get("market_radar")).get("markets"))
+    timeline_depth = max(
+        (_int(_mapping(market).get("snapshot_count")) for market in markets.values()),
+        default=0,
+    )
+    return (
+        PRIMARY_REASON_ORDER.get(reason, len(PRIMARY_REASON_ORDER)),
+        -timeline_depth,
+        _text(match.get("kickoff_utc"), "9999-12-31T23:59:59Z"),
+        _text(match.get("fixture_id")),
+    )
+
+
+def _global_focus(
+    day_view: Mapping[str, Any],
+    matches: Sequence[Mapping[str, Any]],
+    day_mode: str,
+) -> dict[str, Any] | None:
+    if day_mode == "NORMAL":
+        return None
+    degradation = _mapping(day_view.get("degradation"))
+    freshness = _mapping(day_view.get("freshness"))
+    competition_count = len(
+        {match.get("competition_id") for match in matches if match.get("competition_id")}
+    )
+    next_evaluations = sorted(
+        value
+        for match in matches
+        if (value := _mapping(match.get("readiness")).get("next_eval_at"))
+    )
+    common = {
+        "affected_fixture_count": len(matches) if day_mode == "BLOCKED" else 0,
+        "affected_competition_count": competition_count if day_mode == "BLOCKED" else 0,
+        "source_as_of": freshness.get("page_updated_at") or day_view.get("generated_at"),
+        "next_eval_at": next_evaluations[0] if next_evaluations else None,
+        "recovery_condition": None,
+    }
+    if day_mode == "BLOCKED":
+        return {
+            "status": "INCIDENT",
+            "reason_code": _text(
+                degradation.get("reason_code"),
+                degradation.get("state"),
+                "COLLECTION_INCIDENT",
+            ),
+            "factual_summary": "当日持久化采集证据不足，无法形成比赛级默认焦点。",
+            "recovery_condition": "等待既有调度形成新的持久化证据；本页不会调用 Provider。",
+            **{key: value for key, value in common.items() if key != "recovery_condition"},
+        }
+    if day_mode == "CALM":
+        return {
+            "status": "CALM",
+            "reason_code": "NO_PRIORITY_REVIEW_ITEMS",
+            "factual_summary": "当前没有达到优先复核条件的比赛。",
+            **common,
+        }
+    return {
+        "status": "EMPTY",
+        "reason_code": "NO_FIXTURES_IN_FOOTBALL_DAY",
+        "factual_summary": "本比赛日观察池内没有比赛；不会从其他日期填充。",
+        **common,
+    }
+
+
+def _global_model_quality(forward: Mapping[str, Any], generated_at: Any) -> dict[str, Any]:
+    probability = _mapping(forward.get("probability_validation"))
+    metadata = _mapping(forward.get("checkpoint_metadata"))
+    checkpoint_generated_at = next(
+        (
+            metadata.get(key)
+            for key in ("checkpoint_generated_at", "generated_at", "as_of", "created_at")
+            if metadata.get(key)
+        ),
+        None,
+    )
+    metrics = {
+        "model_log_loss": _number(probability.get("model_log_loss")),
+        "market_log_loss": _number(probability.get("market_log_loss")),
+        "model_brier": _number(probability.get("model_brier")),
+        "market_brier": _number(probability.get("market_brier")),
+        "model_calibration_error": _number(probability.get("model_ece")),
+    }
+    complete = checkpoint_generated_at is not None and all(
+        value is not None for value in metrics.values()
+    )
+    age_seconds = _age_seconds(generated_at, checkpoint_generated_at)
+    status = (
+        "AVAILABLE"
+        if complete and age_seconds is not None and age_seconds <= MODEL_QUALITY_MAX_AGE_SECONDS
+        else "STALE"
+        if complete and age_seconds is not None
+        else "NOT_AVAILABLE"
+    )
+    return {
+        "status": status,
+        "checkpoint_key": _optional_text(metadata.get("checkpoint_key")),
+        "checkpoint_generated_at": checkpoint_generated_at,
+        "freshness_max_age_seconds": MODEL_QUALITY_MAX_AGE_SECONDS,
+        **(metrics if status == "AVAILABLE" else dict.fromkeys(metrics)),
+        "sample_count": max(0, _int(probability.get("sample_count"))) if complete else 0,
+    }
+
+
+def _age_seconds(later: Any, earlier: Any) -> int | None:
+    later_at = _datetime(later)
+    earlier_at = _datetime(earlier)
+    if later_at is None or earlier_at is None:
+        return None
+    return max(0, int((later_at - earlier_at).total_seconds()))
+
+
+def _datetime(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
 def _historical_validation(source: Mapping[str, Any]) -> dict[str, Any]:
     return {
         key: source.get(key)
@@ -654,6 +918,16 @@ def _int(value: Any) -> int:
 def _optional_int(value: Any) -> int | None:
     number = _int(value)
     return number if number >= 0 and value is not None else None
+
+
+def _optional_nonnegative_int(value: Any) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number >= 0 else None
 
 
 def _positive_int(*values: Any) -> int | None:
