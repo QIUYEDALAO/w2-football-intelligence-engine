@@ -68,6 +68,9 @@ def test_formal_card_copy_surfaces_locked_prematch_recommendations() -> None:
 
 def test_dashboard_defaults_to_intelligence_console_with_previous_views_retained() -> None:
     page = (ROOT / "apps/web/src/components/DashboardPage.tsx").read_text()
+    workspace_api = (
+        ROOT / "apps/web/src/lib/intelligenceWorkspaceApi.ts"
+    ).read_text()
     intelligence_console = (
         ROOT / "apps/web/src/components/IntelligenceConsole.tsx"
     ).read_text()
@@ -77,26 +80,25 @@ def test_dashboard_defaults_to_intelligence_console_with_previous_views_retained
     ).read_text()
     formatters = (ROOT / "apps/web/src/lib/formatters.ts").read_text()
 
-    assert 'const mode: DashboardMode = "future"' in page
-    assert "未来 36 小时暂无比赛" in page
-    assert "未来 14 天暂无可展示比赛" in page
+    assert "fetchIntelligenceWorkspace" in page
+    assert "/dashboard/intelligence-workspace" in workspace_api
+    assert "/dashboard/day-view" not in workspace_api
     assert "IntelligenceConsole" in page
     assert "BossDecisionConsole" not in page
     assert "BossDecisionView" not in page
-    assert "W2 Football Intelligence" in intelligence_console
-    assert "Market Overview" in intelligence_console
-    assert "Match Intelligence" in intelligence_console
-    assert "Data &amp; Operations Summary" in intelligence_console
-    assert "MarketOverviewCounts" in intelligence_console
+    assert "W2 INTELLIGENCE" in intelligence_console
+    assert "Attention" in intelligence_console
+    assert "Match Board" in intelligence_console
+    assert "Data & Operations" in intelligence_console
+    assert "MarketOverviewCounts" not in intelligence_console
     assert "DecisionCounts" not in intelligence_console
     assert "MODEL_MARKET_DISAGREEMENT" in intelligence_console
-    assert "差异仅用于模型校准与特征复核" in intelligence_console
+    assert "优先检查模型校准、特征时效、盘口身份和数据质量" in intelligence_console
     assert "BossDecisionConsoleReference" in boss_console
     assert "adaptBossDecisionConsole" in boss_console
     assert "footballDayShanghai()" in page
     assert "footballDayShanghai" in formatters
-    assert "next_available_date" in page
-    assert "selected_date_has_data" in page
+    assert "no legacy dashboard or synthetic data" in page
     assert "rawHour === 24 ? 0 : rawHour" in formatters
     assert "sortFormalFirst" not in page
     assert "DecisionCounts" in boss_view
@@ -169,10 +171,9 @@ def test_ah_display_helpers_use_home_team_view_contract() -> None:
 
 def test_completed_recap_empty_state_hides_diagnostics_by_default() -> None:
     page = (ROOT / "apps/web/src/components/DashboardPage.tsx").read_text()
+    console = (ROOT / "apps/web/src/components/IntelligenceConsole.tsx").read_text()
 
-    assert "本足球日暂无完场比赛" in page
-    assert "北京时间中午 12:00 到次日 11:59" in page
-    assert "shouldShowDiagnostics" in page
-    assert 'params.get("debug") === "1"' in page
-    assert 'params.get("diagnostics") === "1"' in page
-    assert 'state === "empty" && view ? <DataDiagnosticsPanel' not in page
+    assert "Unified workspace unavailable" in page
+    assert "Empty football day" in console
+    assert "No selected fixture" in console
+    assert "DataDiagnosticsPanel" not in page

@@ -1,15 +1,5 @@
 import { lazy, Suspense } from "react";
 import { DashboardPage } from "./components/DashboardPage";
-import { PerformancePage } from "./components/PerformancePage";
-
-function PrimaryNavigation() {
-  return (
-    <nav className="primary-navigation" aria-label="主导航">
-      <a className={window.location.pathname === "/" ? "is-active" : ""} href="/">市场情报</a>
-      <a className={window.location.pathname === "/performance" ? "is-active" : ""} href="/performance">历史诊断</a>
-    </nav>
-  );
-}
 
 const BossConsoleVisualFixturePage = import.meta.env.DEV
   ? lazy(async () => {
@@ -22,17 +12,11 @@ const BossConsoleVisualFixturePage = import.meta.env.DEV
   : null;
 
 export default function App() {
-  if (BossConsoleVisualFixturePage && window.location.pathname === "/__visual/boss-console") {
-    return (
+  return BossConsoleVisualFixturePage && window.location.pathname === "/__visual/boss-console"
+    ? (
       <Suspense fallback={null}>
         <BossConsoleVisualFixturePage />
       </Suspense>
-    );
-  }
-  return (
-    <>
-      <PrimaryNavigation />
-      {window.location.pathname === "/performance" ? <PerformancePage /> : <DashboardPage />}
-    </>
-  );
+    )
+    : <DashboardPage />;
 }

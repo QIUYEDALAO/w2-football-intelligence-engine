@@ -1,157 +1,45 @@
 import { useEffect, useState } from "react";
-import { clearCachedDashboardView, fetchDashboardView, getCachedDashboardView } from "../lib/dashboardApi";
 import { footballDayShanghai } from "../lib/formatters";
-import { textValue } from "../lib/normalize";
-import type { DashboardMode, DashboardView, LoadState } from "../types/dashboard";
-import { DataDiagnosticsPanel } from "./DataDiagnosticsPanel";
-import { EmptySection } from "./EmptySection";
+import { fetchIntelligenceWorkspace } from "../lib/intelligenceWorkspaceApi";
+import type { IntelligenceWorkspace } from "../types/intelligenceWorkspace";
 import { IntelligenceConsole } from "./IntelligenceConsole";
-import { ReleaseSyncBadge } from "./ReleaseSyncBadge";
-import { SkeletonCard } from "./SkeletonCard";
 
-function updatedAtShanghai(): string {
-  return new Intl.DateTimeFormat("zh-CN", {
-    timeZone: "Asia/Shanghai",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(new Date());
-}
-
-function emptyCopy(mode: DashboardMode): { title: string; detail: string } {
-  if (mode === "next36") {
-    return { title: "未来 36 小时暂无比赛", detail: "白名单赛程进入 read-model 后会自动显示。" };
-  }
-  if (mode === "future") {
-    return { title: "未来 14 天暂无可展示比赛", detail: "白名单联赛未进入赛程窗口、未启用或数据未齐时，这里会保持空态并在诊断里说明原因。" };
-  }
-  if (mode === "results") {
-    return { title: "本足球日暂无完场比赛", detail: "北京时间中午 12:00 到次日 11:59 的比赛完场并同步赛果后，会显示复盘。" };
-  }
-  if (mode === "today") return { title: "本足球日暂无可展示比赛", detail: "数据不足时保持空白，不强出推荐。" };
-  if (mode === "all") return { title: "本足球日暂无比赛", detail: "当前足球日没有可展示比赛；未来赛程进入窗口后会自动出现。" };
-  return { title: "暂无可展示比赛", detail: "数据不足时保持空白，不强出推荐。" };
-}
-
-function shouldShowDiagnostics(): boolean {
-  const params = new URLSearchParams(window.location.search);
-  return params.get("debug") === "1" || params.get("diagnostics") === "1";
-}
+type LoadState = "loading" | "ready" | "error";
 
 export function DashboardPage() {
-  const [view, setView] = useState<DashboardView | null>(null);
-  const [state, setState] = useState<LoadState>("loading");
-  const mode: DashboardMode = "future";
   const [date, setDate] = useState(footballDayShanghai());
-  const [updatedAt, setUpdatedAt] = useState("--");
+  const [workspace, setWorkspace] = useState<IntelligenceWorkspace | null>(null);
+  const [state, setState] = useState<LoadState>("loading");
   const [refreshKey, setRefreshKey] = useState(0);
 
-  function refreshDashboard(): void {
-    clearCachedDashboardView(date, mode);
-    setState("loading");
-    setRefreshKey((value) => value + 1);
-  }
-
   useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      const cached = getCachedDashboardView(date, mode);
-      if (cached) {
-        setView(cached);
-        setUpdatedAt(updatedAtShanghai());
-        setState((cached.day_view?.cards.length ?? cached.all.length) ? "ok" : "empty");
-      } else {
-        setState("loading");
-      }
-      try {
-        const nextView = await fetchDashboardView({ date, mode });
-        if (cancelled) return;
-        const fallbackDate = nextView.next_available_date ?? nextView.debug.next_available_date;
-        if (nextView.selected_date_has_data === false && fallbackDate && fallbackDate !== date) {
-          setView(nextView);
-          setDate(fallbackDate);
-          setUpdatedAt(updatedAtShanghai());
-          setState("loading");
-          return;
-        }
-        if (nextView.selected_football_day && nextView.selected_football_day !== date) {
-          setDate(nextView.selected_football_day);
-        }
-        setView(nextView);
-        setUpdatedAt(updatedAtShanghai());
-        setState((nextView.day_view?.cards.length ?? nextView.all.length) ? "ok" : "empty");
-      } catch {
-        if (!cancelled && !cached) setState("error");
-      }
-    }
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [date, mode, refreshKey]);
+    const controller = new AbortController();
+    setState("loading");
+    fetchIntelligenceWorkspace(date, controller.signal)
+      .then((payload) => {
+        setWorkspace(payload);
+        setState("ready");
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setState("error");
+      });
+    return () => controller.abort();
+  }, [date, refreshKey]);
 
-  const empty = emptyCopy(mode);
-  const showDiagnostics = shouldShowDiagnostics();
-  const hasDayViewCards = Boolean(view?.day_view?.cards.length);
-
+  if (state === "loading" && !workspace) {
+    return <main className="workspace-load-state"><strong>Loading unified intelligence workspace…</strong><span>No provider calls are made by this read.</span></main>;
+  }
+  if (state === "error" || !workspace) {
+    return <main className="workspace-load-state workspace-load-state--error"><strong>Unified workspace unavailable</strong><span>Fail-closed: no legacy dashboard or synthetic data will be substituted.</span><button type="button" onClick={() => setRefreshKey((value) => value + 1)}>Retry read</button></main>;
+  }
   return (
-    <div className={hasDayViewCards ? undefined : "app-shell dashboard-v2"}>
-      {!hasDayViewCards && view ? <ReleaseSyncBadge release={view.release} /> : null}
-      {!hasDayViewCards ? (
-        <div className="dashboard-controls">
-          <div className="date-refresh">
-            <label>
-              日期
-              <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
-            </label>
-            <button className="toolbar-button refresh-button" onClick={refreshDashboard} type="button">
-              刷新
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      {state === "loading" ? (
-        <section className="match-card-grid" aria-label="比赛加载中">
-          <SkeletonCard />
-          <SkeletonCard />
-        </section>
-      ) : null}
-
-      {state === "error" ? <EmptySection title="加载失败" detail="请确认公网 /v1 API 可访问；不会用假数据顶替真实数据。" /> : null}
-
-      {state === "empty" && view ? (
-        <>
-          {view.day_view ? (
-            <IntelligenceConsole dayView={view.day_view} release={view.release} emptyDetail={textValue(view.day_view.degradation?.message, empty.detail)} />
-          ) : <EmptySection title={empty.title} detail={empty.detail} />}
-          {showDiagnostics ? <DataDiagnosticsPanel debug={view.debug} release={view.release} /> : null}
-        </>
-      ) : null}
-
-      {state === "ok" && view ? (
-        <>
-          {view.day_view ? (
-            <IntelligenceConsole dayView={view.day_view} release={view.release} />
-          ) : (
-            <EmptySection title={empty.title} detail={empty.detail} />
-          )}
-          {view.day_view ? null : (
-            <details className="global-diagnostics-drawer" open={showDiagnostics}>
-              <summary>全局技术诊断</summary>
-              <DataDiagnosticsPanel debug={view.debug} release={view.release} />
-            </details>
-          )}
-          {view.errors.length ? (
-            <aside className="soft-errors">
-              <strong>部分数据源暂不可用</strong>
-              <p>{view.errors.slice(0, 3).join("；")}</p>
-            </aside>
-          ) : null}
-        </>
-      ) : null}
-
-      {!hasDayViewCards ? <footer className="dashboard-disclaimer">市场事实与模型诊断分开展示；数据不足时保持真实空态。</footer> : null}
-    </div>
+    <IntelligenceConsole
+      date={date}
+      loading={state === "loading"}
+      onDateChange={setDate}
+      onRefresh={() => setRefreshKey((value) => value + 1)}
+      workspace={workspace}
+    />
   );
 }
