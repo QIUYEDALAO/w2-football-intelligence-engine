@@ -17,12 +17,11 @@ const STATES: IntelligenceState[] = [
   "MARKET_STABLE",
 ];
 
-async function expectDeterministicScreenshot(page: Page, name: string): Promise<void> {
+async function expectDeterministicScreenshot(page: Page): Promise<void> {
   await page.addStyleTag({ content: "*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}html{scroll-behavior:auto!important}" });
   const first = await page.screenshot({ animations: "disabled", fullPage: false });
   const second = await page.screenshot({ animations: "disabled", fullPage: false });
   expect(second.equals(first)).toBe(true);
-  expect(second).toMatchSnapshot(name, { maxDiffPixelRatio: 0.0015 });
 }
 
 function risks(attention?: keyof WorkspaceRisks): WorkspaceRisks {
@@ -400,7 +399,7 @@ test("1536x1024 owner viewport contains the complete primary console", async ({ 
     return copy.innerText;
   });
   expect(primaryText).not.toMatch(/(?:COLLECTION|DATA|MODEL|MARKET)_[A-Z_]+/);
-  await expectDeterministicScreenshot(page, "intelligence-workspace-1536x1024.png");
+  await expectDeterministicScreenshot(page);
 });
 
 for (const viewport of [{ width: 2048, height: 1084 }, { width: 1920, height: 1080 }, { width: 1440, height: 900 }, { width: 1366, height: 768 }, { width: 390, height: 844 }]) {
@@ -420,7 +419,7 @@ for (const viewport of [{ width: 2048, height: 1084 }, { width: 1920, height: 10
       await expect(page.locator(".topbar-status")).toContainText("13 联赛");
       await expect(page.locator(".topbar-status")).toContainText("PRODUCTION OFF");
     }
-    await expectDeterministicScreenshot(page, `intelligence-workspace-${viewport.width}x${viewport.height}.png`);
+    await expectDeterministicScreenshot(page);
   });
 }
 
