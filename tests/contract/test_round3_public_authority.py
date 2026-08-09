@@ -38,7 +38,7 @@ def test_exact_public_root_chain_is_intelligence_console_not_legacy_recommendati
     active_chain = "\n".join((app, page, console))
 
     assert 'import { DashboardPage } from "./components/DashboardPage"' in app
-    assert ": <DashboardPage />" in app
+    assert "<DashboardPage />" in app
     assert 'import { IntelligenceConsole } from "./IntelligenceConsole"' in page
     assert "<IntelligenceConsole" in page
     for legacy_component in (

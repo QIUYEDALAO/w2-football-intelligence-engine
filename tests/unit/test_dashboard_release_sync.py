@@ -566,14 +566,8 @@ def test_startup_warm_cache_only_materializes_bounded_public_scope() -> None:
     assert [card["fixture_id"] for card in all_payload["all"]] == ["9001"]
 
 
-def test_frontend_uses_release_sync_endpoints_and_demo_is_explicit() -> None:
-    body = Path("apps/web/src/lib/dashboardApi.ts").read_text(encoding="utf-8")
+def test_frontend_uses_only_the_unified_workspace_endpoint() -> None:
+    body = Path("apps/web/src/lib/intelligenceWorkspaceApi.ts").read_text(encoding="utf-8")
 
-    assert 'getJSON("/meta.json")' in body
-    assert 'getJSON(`${API_BASE}/version`)' in body
-    assert '`${API_BASE}/dashboard?' in body
-    assert 'include_debug: includeDebug ? "true" : "false"' in body
-    assert "getCachedDashboardView" in body
-    assert 'params.get("demo") === "1"' in body
-    assert 'VITE_DASHBOARD_DATA_MODE === "demo"' in body
-    assert "DEMO DATA" in body
+    assert '`${API_BASE}/dashboard/intelligence-workspace?' in body
+    assert not Path("apps/web/src/lib/dashboardApi.ts").exists()

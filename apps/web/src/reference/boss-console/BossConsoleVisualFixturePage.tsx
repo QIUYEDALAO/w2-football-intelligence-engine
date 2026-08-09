@@ -1,6 +1,8 @@
 import { BossDecisionConsoleReference } from "./BossDecisionConsoleReference";
 import { bossConsoleFixture } from "./boss-console.fixture";
 import type { BossConsoleModel, BossDecisionItem } from "./boss-console-model";
+import "../../styles.css";
+import "./boss-decision-console.css";
 
 const FIXED_NOW = new Date("2026-07-21T12:33:00Z");
 
