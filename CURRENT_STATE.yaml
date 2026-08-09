@@ -1,21 +1,20 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-10T01:04:04+08:00"
+updated_at: "2026-08-10T01:22:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: W2_DASHBOARD_OWNER_MARKET_EVIDENCE_CONSISTENCY_REMEDIATION
-owner_authorization_id: W2_DASHBOARD_OWNER_MARKET_EVIDENCE_CONSISTENCY_REMEDIATION_V1
-active_next_action: NONE_TERMINAL_STOP
-next_code_action: NONE
-current_status: DASHBOARD_OWNER_MARKET_TRUTH_ACCEPTANCE_PASS
-current_gate: DASHBOARD_OWNER_MARKET_TRUTH_ACCEPTANCE_PASS
+owner_product_decision: W2_DASHBOARD_OWNER_INFORMATION_ARCHITECTURE_RESET
+owner_authorization_id: W2_DASHBOARD_OWNER_INFORMATION_ARCHITECTURE_RESET_V1
+active_next_action: EXECUTE_DASHBOARD_IA_DESIGN_FREEZE
+next_code_action: DESIGN_ONLY_NO_PRODUCTION_IMPLEMENTATION
+current_status: DASHBOARD_PRODUCT_UX_REOPENED_DESIGN_RESET_REQUIRED
+current_gate: DASHBOARD_IA_DESIGN_FREEZE_ACTIVE
 
 runtime_baseline:
   final_main_sha: d2740a573c748cfaef38c66e951618e8782e09d0
   deployed_source_sha: 4370393be9b2593ec008d150daa9bf39ddbf265f
-  source_tree_sha: e9c4a71154f14b361eb0057a022ba80fc0e48258
   free_bridge_mode: SHADOW_ONLY
   active_whitelist: EXACT_EXISTING_13
   provider_policy: UNCHANGED
@@ -38,36 +37,52 @@ prior_completed_scope:
   pre_round4_functional_scope: COMPLETE
 
 prior_dashboard_remediations:
-  pr_501: PASS_MERGED_DEPLOYED_THEN_OWNER_REVOKED
-  pr_502: PASS_MERGED_DEPLOYED_D13
-  pr_503: PASS_MERGED_DEPLOYED_LIVE_AGGREGATE_PRICE_OVERFLOW
-  pr_504: PASS_MERGED_DEPLOYED_D14_THEN_OWNER_REVOKED
-  pr_505: PASS_MERGED_DEPLOYED_D15_TERMINAL
+  pr_501:
+    result: PASS_MERGED_DEPLOYED_THEN_OWNER_REVOKED
+    reason: ENGLISH_HEAVY_LONG_LAYOUT
+  pr_502:
+    result: PASS_MERGED_DEPLOYED_D13
+  pr_503:
+    result: PASS_MERGED_DEPLOYED_LIVE_AGGREGATE_PRICE_OVERFLOW
+  pr_504:
+    result: PASS_MERGED_DEPLOYED_D14_THEN_OWNER_REVOKED
+  pr_505:
+    result: PASS_MERGED_DEPLOYED_D15
+    technical_truth_result: PASS_RETAINED
+    product_ux_acceptance: REVOKED_BY_INFORMATION_ARCHITECTURE_REVIEW
 
-completed_authority:
-  file: DASHBOARD_OWNER_MARKET_EVIDENCE_CONSISTENCY_REMEDIATION.md
-  base_main: 14a25727c77b5ede3a1731ec2487e08fa2be4eab
-  terminal_target: DASHBOARD_OWNER_MARKET_TRUTH_ACCEPTANCE_PASS
-  terminal_result: DASHBOARD_OWNER_MARKET_TRUTH_ACCEPTANCE_PASS
-  implementation_pr: 505
-  implementation_head: 4370393be9b2593ec008d150daa9bf39ddbf265f
-  main_merge_sha: d2740a573c748cfaef38c66e951618e8782e09d0
-  release_run_id: 31324620283
-  promotion_run_id: 31325104555
-  deployment_transport: LOCAL_OCI_RELAY_PRIMARY
-  deployment_result: PASS
-  rollback_executed: false
+current_authority:
+  file: DASHBOARD_OWNER_INFORMATION_ARCHITECTURE_RESET.md
+  base_main: d2740a573c748cfaef38c66e951618e8782e09d0
+  stage: IA_DESIGN_FREEZE_ONLY
+  terminal_gate: OWNER_DASHBOARD_IA_DESIGN_REVIEW
+  implementation_before_design_freeze: FORBIDDEN
+  deployment_stage_a: FORBIDDEN
+  round4_after_design: NOT_AUTHORIZED
 
-owner_d15_findings:
-  D15_01_movement_classification_and_public_evidence: CLOSED_PASS
-  D15_02_single_public_market_readiness_authority: CLOSED_PASS
-  D15_03_stale_market_memory_must_not_be_ready: CLOSED_PASS
-  D15_04_observation_count_public_terminology: CLOSED_PASS
-  D15_05_scoreline_status_context_structure: CLOSED_PASS
-  D15_06_attention_repeated_group_aggregation: CLOSED_PASS
+independent_review_findings:
+  default_selection_backend_matches_zero: true
+  default_selection_frontend_first_match_fallback: true
+  e2e_visual_fixture_selects_last_match: true
+  real_and_test_default_state_mismatch: true
+  deterministic_screenshot_only_proves_same_render_stability: true
+  approved_target_image_regression_missing: true
+  current_information_architecture: LONG_TECHNICAL_REPORT_NOT_DECISION_DASHBOARD
+  first_screen_primary_answer_missing: true
+  empty_unavailable_secondary_panels_overweighted: true
+  governance_status_repeated_across_surfaces: true
+  key_match_date_can_be_truncated_in_dense_table: true
+  technical_copy_still_uses_8px_in_visible_details: true
+  css_late_owner_overrides_present: true
+  css_append_only_remediation_forbidden_next: true
 
-accepted_d13_d14_fixes_must_not_regress:
-  thirteen_inch_readability: true
+remaining_semantic_cleanup_inside_redesign:
+  risk_dimension_specific_reason_copy: REQUIRED
+  league_public_status_must_follow_only_record_reason: REQUIRED
+  unified_model_unavailability_reason: REQUIRED
+
+accepted_d13_d14_d15_truth_must_not_regress:
+  thirteen_inch_readability_floor: true
   stale_next_eval_not_labeled_next: true
   probability_primary_directional_suppression: true
   exclusion_reason_visibility: true
@@ -76,42 +91,54 @@ accepted_d13_d14_fixes_must_not_regress:
   iso_date_input: true
   zh_cn_primary_copy: true
   live_aggregate_price_median_rendering: true
-  no_horizontal_overflow_1280x720: true
   canonical_performance_rows_per_competition: true
-  fixture_level_alias_dedupe: true
-  aggregate_only_overlap_fails_closed: true
   tournament_separation: true
   collection_ok_requires_assessment_evidence: true
   baseline_prior_public_status: PRIOR_ONLY
   football_day_boundary_visible: true
   only_record_reasons_and_market_benchmark_explicit: true
-
-terminal_evidence:
-  exact_persisted_payload_inspected_read_only: true
-  movement_engine_change_required: false
-  real_movement_classification: PRICE_MOVEMENT
-  public_market_statuses: [READY, STALE, INSUFFICIENT]
-  stale_ready_conflicts: 0
-  public_count_semantics: SNAPSHOT_BOOKMAKER_PAIR_SINGLE_SIDE_QUOTE
+  exact_movement_semantics: true
+  market_movement_evidence_visible: true
+  public_market_status_ready_stale_insufficient: true
+  stale_market_memory_preserved: true
+  quote_count_semantics_explicit: true
   scoreline_context_structurally_labelled: true
   repeated_attention_groups_collapsible: true
-  focused_regression: PASS
-  web_e2e: PASS_56
-  exact_head_full_ci: PASS
-  release_required: PASS
-  repository_hygiene: PASS
-  health: PASS
-  ready: PASS
-  release_sync: PASS
-  postdeploy_real_api: PASS
-  postdeploy_real_page: PASS
-  viewport_1280x720: PASS_NO_HORIZONTAL_OVERFLOW
-  viewport_1366x768: PASS_NO_HORIZONTAL_OVERFLOW
-  viewport_1512x982: PASS_NO_HORIZONTAL_OVERFLOW
-  viewport_1536x1024: PASS_NO_HORIZONTAL_OVERFLOW
-  provider_calls_on_read: 0
-  db_business_writes_on_read: 0
-  no_call_on_read: true
+
+stage_a_required_artifacts:
+  - DASHBOARD_IA_DESIGN_SPEC.md
+  - REAL_SHAPE_DASHBOARD_DESIGN_FIXTURE.json
+  - 1280x720_repo_bound_target_png
+  - 1512x982_repo_bound_target_png
+  - 1536x1024_repo_bound_target_png
+  - DESIGN_REVIEW_PACKET.md
+  - FIGMA_OR_STATIC_HTML_EDITABLE_SOURCE
+
+stage_a_design_contract:
+  first_screen_hierarchy:
+    - TODAY_SUMMARY
+    - PRIORITY_SHORTLIST
+    - SELECTED_MATCH_INTELLIGENCE
+    - CONTEXT_DIAGNOSTICS
+  secondary_views:
+    - EXTERNAL_INTELLIGENCE
+    - FULL_VALIDATION
+    - LEAGUE_AND_TOURNAMENT_PERFORMANCE
+    - HISTORY_REPLAY
+    - DATA_AND_SYSTEM
+  default_focus_policy: MOST_USEFUL_SOURCE_BOUND_EVIDENCE_NOT_BETTING_VALUE
+  required_viewports:
+    - 1280x720
+    - 1512x982
+    - 1536x1024
+  required_states:
+    - MIXED_REAL_DAY_WITH_EVIDENCE_RICH_FIXTURE
+    - DEGRADED_BLOCKED_DAY
+  public_body_text_min_px: 13
+  public_secondary_text_min_px: 12
+  visible_technical_text_min_px: 11
+  normal_text_contrast_min: 4.5
+  visual_target_regression_required_for_stage_b: true
 
 accepted_truths_must_not_regress:
   public_dashboard_authority: NEW_INTELLIGENCE_WORKSPACE_ONLY
@@ -134,8 +161,15 @@ post_r3_track_a:
   closure_result: TRACK_A_CLOSED_PASS
   round_4: NOT_STARTED
 
-terminal_stop:
-  no_automatic_next_phase: true
+auto_approval_policy:
+  enabled: true
+  routine_technical_gates: AUTO_APPROVE_AFTER_INDEPENDENT_PASS
+  product_visual_information_architecture_gate: OWNER_REVIEW_REQUIRED
+  reason: DESIGN_TARGET_MUST_BE_FROZEN_BEFORE_IMPLEMENTATION
+
+permanent_stop_lines:
+  production_ui_implementation_before_design_freeze: FORBIDDEN
+  vps_deployment_stage_a: FORBIDDEN
   round_4: NOT_STARTED
   p6_execution: NOT_AUTHORIZED
   provider_plan_change: NOT_AUTHORIZED
@@ -151,5 +185,4 @@ terminal_stop:
   lock: "OFF"
   production: "OFF"
   real_money: NOT_AUTHORIZED
-  vps_direct_ghcr_bulk_image_pull: FORBIDDEN_AS_PRIMARY_TRANSPORT
   image_transport: LOCAL_OCI_RELAY_PRIMARY
