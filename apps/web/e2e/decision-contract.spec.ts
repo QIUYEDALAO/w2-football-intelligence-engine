@@ -225,6 +225,16 @@ function workspace(scenario = "default"): IntelligenceWorkspace {
     payload.validation.forward_validation_records = { ...payload.validation.forward_validation_records, validation_count: 56, eligible_count: 16, excluded_count: 40, excluded_share: 40 / 56, pending_count: 0, excluded_by_reason: { MARKET_IDENTITY_NOT_READY: 25, SCORELINE_NOT_READY: 10, RESULT_MISSING: 5 } };
     payload.data_operations.provider_budget_status = "UNKNOWN";
   }
+  if (scenario === "layout") {
+    const selected = matches.at(-1)!;
+    selected.market_radar.markets.ASIAN_HANDICAP.prices = {
+      HOME: { median: 1.89, min: 1.8, max: 1.9 },
+      AWAY: { median: 1.955, min: 1.87, max: 1.97 },
+    };
+    selected.market_radar.markets.ASIAN_HANDICAP.movement.status = "PRICE_MOVEMENT";
+    payload.attention[0].reason_codes = ["DATA_FIELD_STALE"];
+    payload.data_operations.system_health = "BLOCKED_DAY";
+  }
   if (first && !["default", "empty", "seven-states", "validation-insufficient", "layout"].includes(scenario)) payload.selected_fixture_id = first.fixture_id;
   return payload;
 }
@@ -471,6 +481,10 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 1280, height: 800
     await page.addStyleTag({ content: "*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}html{scroll-behavior:auto!important}" });
     const geometry = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
     expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
+    await expect(page.locator("[data-market='ASIAN_HANDICAP'] [data-price-side='HOME'] strong")).toHaveText("1.89");
+    await expect(page.locator("[data-ui='market-radar']")).toContainText("盘口变化");
+    await expect(page.locator("[data-ui='attention']")).toContainText("数据字段已过期");
+    await expect(page.locator("[data-ui='header-context']")).toContainText("系统 当日阻塞");
     const columns = await page.locator(".workspace-grid").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length);
     expect(columns).toBe(viewport.width <= 1512 ? 2 : 3);
     const fontSizes = await page.evaluate(() => Object.fromEntries(Object.entries({

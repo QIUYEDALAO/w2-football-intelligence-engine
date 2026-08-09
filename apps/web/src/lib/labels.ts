@@ -166,6 +166,7 @@ export const TEAM_TRANSLATIONS: Record<string, string> = {
 };
 
 export const REASON_TRANSLATIONS: Array<[RegExp, string]> = [
+  [/^DATA_FIELD_STALE$/, "数据字段已过期"],
   [/^DATA_IDENTITY_NOT_READY$/, "身份映射未就绪"],
   [/^DATA_MARKET_TIMELINE_INSUFFICIENT$/, "盘口时间线证据不足"],
   [/^DATA_REQUIRED_INPUT_MISSING$/, "缺少必要输入"],

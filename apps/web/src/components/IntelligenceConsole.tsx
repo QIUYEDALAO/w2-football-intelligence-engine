@@ -43,6 +43,7 @@ const STATUS_LABELS: Record<string, string> = {
   ATTENTION: "需关注",
   AVAILABLE: "可用",
   AVAILABLE_WITH_GAPS: "可用（有缺口）",
+  BLOCKED_DAY: "当日阻塞",
   BLOCKED: "阻塞",
   COLLECTION: "采集",
   DATA: "数据",
@@ -77,6 +78,7 @@ const STATUS_LABELS: Record<string, string> = {
   NO_TIMELINE_EVIDENCE: "暂无时间线证据",
   PROTECTED: "额度受保护",
   PROTECTED_DEGRADED: "额度受保护（降级）",
+  PRICE_MOVEMENT: "盘口变化",
   PROVIDER_EMPTY: "来源数据为空",
   READY: "就绪",
   SAMPLE_BUILDING: "样本积累中",
@@ -129,6 +131,12 @@ function percent(value: number | null): string {
 
 function decimal(value: number | null): string {
   return value === null ? "—" : value.toFixed(4);
+}
+
+function marketPrice(value: unknown): string {
+  const candidate = value && typeof value === "object" && "median" in value ? value.median : value;
+  if (typeof candidate === "number" && Number.isFinite(candidate)) return candidate.toFixed(2);
+  return typeof candidate === "string" && candidate ? candidate : "暂无";
 }
 
 function localTime(value: string | null): string {
@@ -273,7 +281,7 @@ function MarketPrices({ market }: { market: WorkspaceMarket }) {
   const sides = market.market === "ASIAN_HANDICAP" ? ["HOME", "AWAY"] : ["OVER", "UNDER"];
   return <div className="market-prices" data-ui="market-prices">{sides.map((side) => {
     const available = Object.prototype.hasOwnProperty.call(market.prices, side);
-    return <span data-price-side={side} key={side}><small>{SIDE_LABELS[side]}</small><strong>{available ? text(market.prices[side]) : "暂无"}</strong></span>;
+    return <span data-price-side={side} key={side}><small>{SIDE_LABELS[side]}</small><strong>{available ? marketPrice(market.prices[side]) : "暂无"}</strong></span>;
   })}</div>;
 }
 
