@@ -1,83 +1,112 @@
 # NEXT ACTION
 
 ```text
-ACTIVE_NEXT_ACTION = NONE_STOP_AT_DASHBOARD_OWNER_CANONICAL_TRUTH_ACCEPTANCE_PASS
-CURRENT_GATE = DASHBOARD_OWNER_CANONICAL_TRUTH_ACCEPTANCE_PASS
-AUTHORITY = DASHBOARD_OWNER_CANONICAL_IDENTITY_COLLECTION_SEMANTICS_REMEDIATION.md
-CONTEXT_BASE = f9b5ee8d92aa716aaffbb3389094f4ec52082cc4
-IMPLEMENTATION_BASE = 5f8066187acc323d23ac4d73da7115100a58aa48
-IMPLEMENTATION_HEAD = 9edfae3a0fe7222aa109d7523ed1071e32b90d6c
-FINAL_MAIN = 14a25727c77b5ede3a1731ec2487e08fa2be4eab
-PR_504 = MERGED_DEPLOYED
-RELEASE_REQUIRED = PASS
+ACTIVE_NEXT_ACTION = EXECUTE_DASHBOARD_OWNER_MARKET_TRUTH_REMEDIATION
+CURRENT_GATE = DASHBOARD_OWNER_MARKET_TRUTH_REMEDIATION_ACTIVE
+AUTHORITY = DASHBOARD_OWNER_MARKET_EVIDENCE_CONSISTENCY_REMEDIATION.md
+BASE_MAIN = 14a25727c77b5ede3a1731ec2487e08fa2be4eab
+PR_504 = MERGED_DEPLOYED_BUT_OWNER_ACCEPTANCE_REVOKED
 TRACK_A = TRACK_A_CLOSED_PASS
 ROUND_4 = NOT_STARTED
 P6 = NOT_AUTHORIZED
-TERMINAL_TARGET = DASHBOARD_OWNER_CANONICAL_TRUTH_ACCEPTANCE_PASS
-TERMINAL_TARGET_REACHED = true
+TERMINAL_TARGET = DASHBOARD_OWNER_MARKET_TRUTH_ACCEPTANCE_PASS
 ```
 
-## Terminal result
+## Why this workstream is reopened
 
-D14-01 through D14-08 are closed. PR #504 implemented the bounded canonical
-identity, collection assessment and public semantics remediation without
-reopening the architecture or runtime controls.
+PR #504 passed technical CI and deployment, but real persisted market data exposed
+movement-evidence and readiness-authority conflicts that were not covered by the
+prior deterministic acceptance.
 
-Exact delivery evidence:
+The previous `DASHBOARD_OWNER_CANONICAL_TRUTH_ACCEPTANCE_PASS` is not the final
+Owner verdict. It is superseded by the current bounded remediation authority.
+
+## Binding read order
 
 ```text
-PR_HEAD = 9edfae3a0fe7222aa109d7523ed1071e32b90d6c
-MAIN_MERGE = 14a25727c77b5ede3a1731ec2487e08fa2be4eab
-RELEASE_RUN = 31319648134
-PROMOTION_RUN = 31320139830
-RELEASE_REQUIRED = PASS
-IMAGE_TRANSPORT = LOCAL_OCI_RELAY_PRIMARY
-HEALTH = PASS
-READY = PASS
-RELEASE_SYNC = PASS
-ROLLBACK = false
+1. CODEX_EXECUTION_PROTOCOL.md
+2. CURRENT_STATE.yaml
+3. NEXT_ACTION.md
+4. DASHBOARD_OWNER_MARKET_EVIDENCE_CONSISTENCY_REMEDIATION.md
+5. DASHBOARD_DATA_CONTRACT.md
+6. current origin/main market engine and unified workspace code
+7. current persisted real-data payload for the reported fixture, read only
+8. PR #504 evidence only as historical implementation evidence
 ```
 
-The deployed real-data workspace proves:
+## Execute continuously
+
+Close D15-01 through D15-06 in one continuous task. Do not stop after merely
+renaming the movement label.
+
+First inspect the exact persisted payload and determine whether the reported
+status is caused by a real side-price median delta or by an incorrect movement
+classification. Then enforce the exact four-class movement contract and display
+the evidence that supports it.
+
+Create one canonical public market-evidence readiness status and use it in
+Market Radar, selected-match Market View, Market Fact and Model Lab market
+summary. A stale snapshot may remain visible as Market Memory but cannot be
+publicly `就绪`. Label Model Lab relation separately as `模型比较状态`.
+
+Then close quote-count terminology, Scoreline status layout and repeated-group
+Attention aggregation. Preserve every accepted D13/D14 fix.
+
+## Required negative assertions
 
 ```text
-NO_DUPLICATE_CANONICAL_LEAGUE_ROWS = PASS
-CANONICAL_CHINESE_PRIMARY_NAMES = PASS
-TOURNAMENT_SEPARATE_FROM_LEAGUE_TABLE = PASS
-COLLECTION_OK_REQUIRES_ASSESSMENT_EVIDENCE = PASS
-BASELINE_PRIOR_READY_VIOLATIONS = 0
-FOOTBALL_DAY_BOUNDARY_VISIBLE = PASS
-ONLY_RECORD_REASONS_DISTINCT = PASS
-MARKET_DIRECTION_BENCHMARK = NOT_DEFINED
-PROVIDER_CALLS_FROM_READ = 0
-DB_BUSINESS_WRITES_FROM_READ = 0
-NO_CALL_ON_READ = true
-1280x720_HORIZONTAL_OVERFLOW = false
-WEB_API_EXACT_SOURCE_MATCH = PASS
+same line + same prices + bookmaker-count change != movement
+PRICE_MOVEMENT primary label != 盘口变化
+STALE + READY for same public market = forbidden
+市场就绪 + 市场证据未就绪 for same market = forbidden
+multiple snapshots alone != movement
+observation_count primary label 次观测 = forbidden
+unlabelled Scoreline status string = forbidden
+6 Attention matches in 2 repeated groups -> 2 default group summaries
 ```
 
-## Stop
+## Validation and delivery
 
-There is no authorized code action after this terminal gate. Do not start
-Round4, P6 or any activation phase. New work requires a later Owner authority
-update in `context/current`.
+Require focused Python/unit/contract tests, full Web E2E, exact-head Full CI,
+`RELEASE_REQUIRED`, Repository Hygiene and deterministic screenshots at
+1280x720, 1366x768, 1512x982 and 1536x1024.
+
+After PASS, merge and deploy through `LOCAL_OCI_RELAY_PRIMARY`. Run real
+postdeploy acceptance against the reported Market Memory case and verify Web/API
+identity, health, ready, release sync, Provider calls 0 and business writes 0.
+
+Do not ask the Owner to relay ordinary in-scope failures. Fix and revalidate
+until a terminal classification is reached.
+
+## Terminal classifications
 
 ```text
-ROUND_4_START = NOT_AUTHORIZED
-P6_EXECUTION = NOT_AUTHORIZED
-NEW_PROVIDER_OR_PLAN = NOT_AUTHORIZED
-MANUAL_PROVIDER_PROBE = FORBIDDEN
+DASHBOARD_OWNER_MARKET_TRUTH_ACCEPTANCE_PASS
+DASHBOARD_OWNER_MARKET_TRUTH_ROLLED_BACK
+MARKET_TRUTH_SCOPE_BLOCKED_OWNER_DECISION_REQUIRED
+```
+
+Round4 remains `NOT_STARTED` after every terminal classification.
+
+## Frozen stop lines
+
+```text
+PROVIDER_CALL_OR_MANUAL_PROBE = FORBIDDEN
+DB_BUSINESS_WRITE_FROM_READ = FORBIDDEN
 SCHEDULER_OR_CADENCE_CHANGE = NOT_AUTHORIZED
 ACTIVE_WHITELIST_CHANGE = NOT_AUTHORIZED
-MODEL_FACTOR_THRESHOLD_RETRAINING = NOT_AUTHORIZED
-EXTERNAL_INTELLIGENCE_ACTIVATION = NOT_AUTHORIZED
+MODEL_FACTOR_THRESHOLD_CHANGE = NOT_AUTHORIZED
+EXTERNAL_INTELLIGENCE_CONNECTION = NOT_AUTHORIZED
 PHASE_0_5_REEXECUTION = FORBIDDEN
-H_RESULT_ACCESS = PERMANENTLY_CLOSED
+ROUND_4_START = NOT_AUTHORIZED
+P6_EXECUTION = NOT_AUTHORIZED
 CANDIDATE = OFF
 FORMAL = OFF
 LOCK = OFF
 PRODUCTION = OFF
 REAL_MONEY = NOT_AUTHORIZED
+SYNTHETIC_MARKET_POINT_OR_MOVEMENT = FORBIDDEN
+DELETE_MARKET_MEMORY = FORBIDDEN
 VPS_DIRECT_GHCR_BULK_IMAGE_PULL = FORBIDDEN_AS_PRIMARY_TRANSPORT
 IMAGE_TRANSPORT = LOCAL_OCI_RELAY_PRIMARY
 ```
