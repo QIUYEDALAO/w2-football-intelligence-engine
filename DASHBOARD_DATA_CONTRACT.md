@@ -101,15 +101,22 @@ declared availability/readiness state and never authorize fabrication.
 | `validation.probability.model_reliability_bins`, `market_reliability_bins` | existing checkpoint bins | `AVAILABLE` | `PAGE_PROJECTION` | real bin counts only | `true` |
 | `validation.probability.checkpoint_metadata` | checkpoint key/hash/time | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | missing checkpoint => `INSUFFICIENT` | `true` |
 | `validation.directional.status`, `validation_n`, `decisive_n`, `correct`, `wrong`, `push`, `void`, `direction_accuracy`, `effective_n` | global cohort canonical counts | `AVAILABLE` | `PAGE_PROJECTION` | secondary hierarchy; accuracy null below source gate | `true` |
+| `validation.directional.source_status`, `probability_evidence_ready` | canonical directional rate status + same-cohort Brier/LogLoss/ECE readiness | `AVAILABLE` | `PAGE_PROJECTION` | public `AVAILABLE` fails closed unless primary probability evidence is ready; source status remains auditable | `true` |
 | `validation.directional.market_direction_benchmark` | approved P0 constant | `NOT_DEFINED` | `NONE` | never zero/estimated | `true` |
 | `validation.league_performance[]` fields | `performance:cohort:league:*` | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | `AVAILABLE/SAMPLE_BUILDING/INSUFFICIENT` | `true` |
+| `validation.league_performance[].source_league`, `competition_id`, `canonical_competition_id`, `competition_name`, `identity_status` | performance checkpoint identity resolved by existing `CompetitionRegistry` provider mapping | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | legacy `competition_id` remains the source checkpoint key; unresolved numeric identity is explicit and never displayed bare | `true` |
+| `validation.league_performance[].log_loss`, `source_statistical_status`, `probability_evidence_ready` | same league performance checkpoint | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | public status requires source availability plus Brier/LogLoss/ECE; stored source status is unchanged | `true` |
 | `validation.forward_validation_records` | bounded forward-ledger checkpoint adapter | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | counts/outcomes/exclusions only; no CLV/ROI | `true` |
+| `validation.forward_validation_records.excluded_share`, `excluded_by_reason` | persisted `validation_excluded_by_reason` / canonical exclusion distribution | `AVAILABLE` | `PAGE_PROJECTION` | source-bound counts; share is excluded/validation count; zero only for an empty denominator | `true` |
 | `validation.history_replay.known_at`, `reason_summary`, `outcome_tracking_summary`, `card_hash_checks`, `replay_gaps` | existing replay front door over same DayView | `AVAILABLE` | `PAGE_PROJECTION` | existing history evidence preserved; read only | `true` |
 | `validation.history_replay.decision_summary` | existing replay front-door `decision_summary` | `AVAILABLE` | `PAGE_PROJECTION` | exact total/tier/data-status/lock-eligible counts answer what W2 judged; no second replay engine | `true` |
 
-League row fields are exactly: `league`, `validation_n`, `decisive_n`,
-`correct`, `wrong`, `push`, `void`, `direction_accuracy`, `brier`,
-`calibration`, and `statistical_status`.
+League rows preserve the original `source_league`/`competition_id`, resolve
+`canonical_competition_id`/`competition_name` with explicit `identity_status`, and expose
+`validation_n`, `decisive_n`, `correct`, `wrong`, `push`, `void`, raw
+`direction_accuracy`, `brier`, `log_loss`, `calibration`, public
+`statistical_status`, `source_statistical_status`, and
+`probability_evidence_ready`.
 
 ## External Intelligence, freshness and Data/Ops
 

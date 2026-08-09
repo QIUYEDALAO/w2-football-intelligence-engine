@@ -501,6 +501,8 @@ class WorkspaceDirectionalValidation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     status: Literal["AVAILABLE", "SAMPLE_BUILDING", "INSUFFICIENT"]
+    source_status: Literal["AVAILABLE", "SAMPLE_BUILDING", "INSUFFICIENT"]
+    probability_evidence_ready: bool
     validation_n: int = Field(ge=0)
     decisive_n: int = Field(ge=0)
     correct: int = Field(ge=0)
@@ -516,6 +518,11 @@ class WorkspaceLeaguePerformance(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     league: str
+    source_league: str
+    competition_id: str
+    canonical_competition_id: str | None
+    competition_name: str | None
+    identity_status: Literal["RESOLVED", "UNRESOLVED"]
     validation_n: int = Field(ge=0)
     decisive_n: int = Field(ge=0)
     correct: int = Field(ge=0)
@@ -524,8 +531,11 @@ class WorkspaceLeaguePerformance(BaseModel):
     void: int = Field(ge=0)
     direction_accuracy: float | None
     brier: float | None
+    log_loss: float | None
     calibration: float | None
     statistical_status: Literal["AVAILABLE", "SAMPLE_BUILDING", "INSUFFICIENT"]
+    source_statistical_status: Literal["AVAILABLE", "SAMPLE_BUILDING", "INSUFFICIENT"]
+    probability_evidence_ready: bool
 
 
 class WorkspaceForwardValidationRecords(BaseModel):
@@ -535,6 +545,8 @@ class WorkspaceForwardValidationRecords(BaseModel):
     validation_count: int = Field(ge=0)
     eligible_count: int = Field(ge=0)
     excluded_count: int = Field(ge=0)
+    excluded_share: float = Field(ge=0, le=1)
+    excluded_by_reason: dict[str, int]
     pending_count: int = Field(ge=0)
     outcomes: dict[str, Any]
     checkpoint_metadata: dict[str, Any]

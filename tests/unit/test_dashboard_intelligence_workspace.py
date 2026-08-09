@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
+from w2.api import repository as repository_module
 from w2.api.schemas import DashboardIntelligenceWorkspaceResponse
 from w2.dashboard.workspace import build_dashboard_intelligence_workspace
 
@@ -386,3 +388,102 @@ def test_workspace_schema_rejects_ready_scoreline_without_10000_samples() -> Non
         DashboardIntelligenceWorkspaceResponse.model_validate(
             {"request_id": "test-request", **payload}
         )
+
+
+def test_public_statistical_readiness_requires_primary_probability_evidence() -> None:
+    day_view = _day_view()
+    forward = day_view["performance"]["forward_ledger"]
+    forward["probability_validation"] = {
+        "status": "INSUFFICIENT",
+        "sample_count": 0,
+        "model_brier": None,
+        "model_log_loss": None,
+        "model_ece": None,
+    }
+    forward["outcomes_canonical"] = {
+        "hit_count": 4,
+        "miss_count": 1,
+        "push_count": 0,
+        "void_count": 0,
+        "decisive_count": 5,
+        "hit_rate": 0.8,
+    }
+    forward["performance_cohort"]["by_league"] = [
+        {
+            "league": "eliteserien",
+            "source_league": "103",
+            "competition_id": "103",
+            "canonical_competition_id": "eliteserien",
+            "competition_name": "Eliteserien",
+            "identity_status": "RESOLVED",
+            "processed_count": 5,
+            "rate_status": "AVAILABLE",
+            "model_brier": None,
+            "model_log_loss": None,
+            "model_ece": None,
+            "outcomes": forward["outcomes_canonical"],
+        }
+    ]
+
+    payload = _workspace(day_view)
+
+    directional = payload["validation"]["directional"]
+    assert directional["source_status"] == "AVAILABLE"
+    assert directional["status"] == "SAMPLE_BUILDING"
+    assert directional["probability_evidence_ready"] is False
+    assert directional["direction_accuracy"] == 0.8
+    league = payload["validation"]["league_performance"][0]
+    assert league["source_statistical_status"] == "AVAILABLE"
+    assert league["statistical_status"] == "SAMPLE_BUILDING"
+    assert league["probability_evidence_ready"] is False
+    assert league["source_league"] == "103"
+    assert league["canonical_competition_id"] == "eliteserien"
+    assert league["competition_name"] == "Eliteserien"
+
+
+def test_exclusion_distribution_is_projected_without_side_effects() -> None:
+    day_view = _day_view()
+    forward = day_view["performance"]["forward_ledger"]
+    forward["performance_cohort"].update(
+        validation_count=56,
+        eligible_count=16,
+        excluded_count=40,
+        pending_count=0,
+    )
+    forward["validation_excluded_by_reason"] = {
+        "MARKET_IDENTITY_NOT_READY": 25,
+        "SCORELINE_NOT_READY": 10,
+        "RESULT_MISSING": 5,
+    }
+
+    records = _workspace(day_view)["validation"]["forward_validation_records"]
+
+    assert records["excluded_count"] == 40
+    assert records["excluded_share"] == pytest.approx(40 / 56)
+    assert records["excluded_by_reason"] == forward["validation_excluded_by_reason"]
+
+
+def test_numeric_provider_league_ids_resolve_from_runtime_identity_authority(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entries = {
+        "competition_one": SimpleNamespace(
+            profile_payload={"name": "Competition One"},
+            provider_mapping={"api_football_league_id": "1"},
+        ),
+        "competition_103": SimpleNamespace(
+            profile_payload={"name": "Competition 103"},
+            provider_mapping={"api_football_league_id": "103"},
+        ),
+    }
+    monkeypatch.setattr(
+        repository_module.CompetitionRegistry,
+        "entries",
+        lambda self: entries,
+    )
+
+    identities = repository_module._competition_identity_authority()
+
+    assert identities["1"] == ("competition_one", "Competition One")
+    assert identities["103"] == ("competition_103", "Competition 103")
+    assert "999" not in identities
