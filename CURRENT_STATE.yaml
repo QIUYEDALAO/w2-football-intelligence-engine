@@ -1,16 +1,16 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-09T15:33:14+08:00"
+updated_at: "2026-08-09T15:43:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: W2_VPS_LOCAL_OCI_RELAY_DEPLOYMENT_RETRY
-owner_authorization_id: W2_VPS_LOCAL_OCI_RELAY_DEPLOYMENT_RETRY_V1
-active_next_action: STOP_AT_TERMINAL_AWAIT_OWNER_ROUND4_DECISION
-next_code_action: NONE
-current_status: AUTHORIZED_PRE_ROUND4_SCOPE_COMPLETE
-current_gate: OWNER_ROUND4_DECISION_REQUIRED
+owner_product_decision: W2_DASHBOARD_OWNER_VISUAL_PARITY_ZH_CN_REMEDIATION
+owner_authorization_id: W2_DASHBOARD_OWNER_VISUAL_PARITY_ZH_CN_REMEDIATION_V1
+active_next_action: EXECUTE_DASHBOARD_OWNER_VISUAL_PARITY_ZH_CN_REMEDIATION
+next_code_action: FRONTEND_PRESENTATION_LAYOUT_LOCALIZATION_ONLY
+current_status: DASHBOARD_OWNER_VISUAL_UX_REMEDIATION_AUTHORIZED_ACTIVE
+current_gate: DASHBOARD_OWNER_VISUAL_UX_ACCEPTANCE
 
 runtime_baseline:
   final_main_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
@@ -24,34 +24,7 @@ runtime_baseline:
   lock: "OFF"
   production: "OFF"
 
-owner_reviews:
-  owner_review_a: APPROVED
-  owner_review_b: APPROVED
-  owner_review_c:
-    technical_rereview: PASS
-    owner_approval: APPROVED_AUTOMATIC
-    authority: OWNER_REVIEW_C_APPROVAL_AND_P5_5_AUTHORIZATION.md
-    pr: 499
-    reviewed_head_sha: a6a5bf899ae889a77e3b4387da5ce1955d460e5e
-    exact_head_full_ci_run: 31294467530
-    release_required: PASS
-    merge_main_sha: f931702f617f432ba66c90f08828090f094d8ba5
-  p5_5_closure:
-    technical_closure: PASS_AUTO_APPROVED
-    pr: 500
-    implementation_head_sha: d3d3336fd1cad142ec4bc6c3defe3b6457fb2dea
-    exact_head_full_ci_run: 31297195834
-    release_required: PASS
-    merge_main_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
-    repository_hygiene: PASS
-
-final_execution_plan:
-  authority: W2_FINAL_EXECUTION_MASTER_PLAN.md
-  detailed_dashboard_authority: DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN.md
-  current_phase_authority: VPS_LOCAL_OCI_RELAY_DEPLOYMENT_RETRY_AUTHORIZATION.md
-  dashboard_workstream: REPOSITORY_FULLY_CLOSED
-  historical_step4_post4: SUPERSEDED_AS_STANDALONE_WORKSTREAM
-  rebuild_old_boss_l1_l2_dashboard: false
+prior_completed_scope:
   p0: PASS_APPROVED
   p1: PASS_APPROVED
   p2: PASS_MERGED
@@ -59,143 +32,75 @@ final_execution_plan:
   p4: PASS_APPROVED_MERGED
   p5: PASS_APPROVED_MERGED
   p5_5: PASS_AUTO_APPROVED_MERGED
-  p6: BLUEPRINT_ONLY_NOT_AUTHORIZED
+  vps_local_relay_deployment: PASS
+  track_a: TRACK_A_CLOSED_PASS
+  pre_round4_functional_scope: COMPLETE
+
+owner_visual_review:
+  status: CHANGES_REQUIRED
+  authority: DASHBOARD_OWNER_VISUAL_PARITY_ZH_CN_REMEDIATION.md
+  finding: FUNCTIONAL_ACCEPTANCE_DID_NOT_EQUAL_OWNER_VISUAL_UX_ACCEPTANCE
+  current_deployed_ui:
+    public_authority: NEW_INTELLIGENCE_WORKSPACE_ONLY
+    primary_language: ENGLISH_HEAVY
+    desktop_layout: LONG_VERTICAL_STACK
+    raw_enum_reason_codes_primary: true
+    owner_visual_acceptance: FAIL
+  owner_target:
+    primary_viewport: 1536x1024
+    primary_language: zh-CN
+    composition: COMPACT_MULTI_COLUMN_EXECUTIVE_INTELLIGENCE_CONSOLE
+    reference_method:
+      - OWNER_PROVIDED_TARGET_SCREENSHOT
+      - REPO_BOUND_BOSS_CONSOLE_VISUAL_COMPOSITION_REFERENCE_ONLY
+    legacy_product_semantics_restoration: FORBIDDEN
+
+visual_remediation:
+  status: AUTHORIZED_ACTIVE
+  scope:
+    - CHINESE_FIRST_PUBLIC_UI
+    - COMPACT_1536X1024_MULTI_COLUMN_LAYOUT
+    - OWNER_TARGET_INFORMATION_HIERARCHY
+    - INTERNAL_SCROLL_FOR_ATTENTION_AND_MATCH_BOARD
+    - SELECTED_MATCH_CENTERED_VISUAL_PRIORITY
+    - REUSE_TRANSLATE_TEAM_COMPETITION_REASON
+    - HIDE_CANONICAL_CODES_BEHIND_TECHNICAL_DETAILS
+    - DETERMINISTIC_VISUAL_REGRESSION
+  keep_unified_endpoint_only: true
+  keep_backend_schema_unchanged: true
+  keep_seven_state_contract: true
+  keep_four_risk_contract: true
+  provider_calls_from_ui: 0_REQUIRED
+  db_business_writes_from_ui: 0_REQUIRED
+  vps_deployment_after_merge: LOCAL_OCI_RELAY_PRIMARY
+  terminal_target: DASHBOARD_OWNER_VISUAL_UX_ACCEPTANCE_PASS
 
 post_r3_track_a:
-  selected_path: PATH_A_NATURAL_EVIDENCE_ACCUMULATION
   closure_status: CLOSED_PASS
   closure_result: TRACK_A_CLOSED_PASS
-  closure_report: POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_REPORT.md
-  closure_matrix: POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_MATRIX.json
-  closure_matrix_sha256: 317b2b71cb211d8e4e8175eb8224f2acafc4e6bd3aba08672ab92e005f05876f
-  closure_audit_as_of: "2026-08-09T07:33:14Z"
-  source_bound_reprojection_as_of: "2026-08-09T07:27:28.076436Z"
-  ended_post_restore_checkpoint_windows: 38
-  in_window_capture_windows: 8
-  initial_public_audit_incomplete_terminal_trace_windows: 30
-  due_window_recurrence: EXPECTED_POLICY_TERMINAL_BEHAVIOR_NOT_INTERNAL_DEFECT
-  recurring_internal_defect: NOT_PROVEN
-  current_reprojection: PASS_PERSISTED_SOURCE_BOUND_READ_ONLY
   current_timeline_depth:
     zero: 89
     one: 8
     two_plus: 31
   current_model_lab_status:
     MARKET_NOT_READY: 128
-  post_baseline_market_rows: 23
+  recurring_internal_defect: NOT_PROVEN
   round4_readiness_decision_packet: ROUND4_READINESS_DECISION_PACKET.md
-  resume_only_on_source_bound_terminal_evidence: false
-  provider_calls_for_audit: 0
-  db_business_writes: 0
-  production_code_changes: 0
   round_4: NOT_STARTED
 
-global_completion_gate:
-  project_complete_requires_vps_deployment: true
-  project_complete_requires_track_a_closed_pass: true
-  approved_main_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
-  current_deployed_source_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
-  vps_deployment_status: VPS_LOCAL_RELAY_DEPLOYMENT_ACCEPTANCE_PASS
-  vps_authority: VPS_LOCAL_OCI_RELAY_DEPLOYMENT_RETRY_AUTHORIZATION.md
-  code_complete_does_not_equal_project_complete: true
-  deployment_pass_while_track_a_waits_status: DEPLOYED_WAITING_FOR_NATURAL_EVIDENCE
-  overall_complete_formula: VPS_DEPLOYMENT_ACCEPTANCE_PASS_AND_TRACK_A_CLOSED_PASS_AND_STOP_LINES_PRESERVED
-  current_authorized_scope_complete: true
-  next_gate: OWNER_ROUND4_DECISION_REQUIRED
-  mandatory_post_deploy_acceptance:
-    - VPS_SOURCE_SHA_MATCHES_APPROVED_MAIN
-    - API_HEALTH_PASS
-    - API_READY_PASS
-    - WEB_HEALTH_PASS
-    - WEB_AND_API_RELEASE_IDENTITY_MATCH
-    - UNIFIED_INTELLIGENCE_WORKSPACE_ENDPOINT_PASS
-    - DASHBOARD_REAL_DATA_SMOKE_PASS
-    - NO_STAGING_SEED_OR_SYNTHETIC_FALLBACK
-    - SCHEDULER_PROVIDER_RUNTIME_STATUS_VERIFIED_UNCHANGED
-    - POST_DEPLOY_VISUAL_SMOKE_PASS
-
-previous_vps_deployment_attempt:
-  status: VPS_DEPLOYMENT_ROLLED_BACK
-  authority: VPS_DEPLOYMENT_AND_POSTDEPLOY_ACCEPTANCE_AUTHORIZATION.md
-  receipt: VPS_DEPLOYMENT_POSTDEPLOY_ACCEPTANCE_RECEIPT.md
-  target_source_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
-  predeploy_measured_source_sha: 51ebbeabc5497ce48708b3587705e2922c4805da
-  final_deployed_source_sha: 51ebbeabc5497ce48708b3587705e2922c4805da
-  exact_main_release_candidate_run: 31299328162
-  release_required: PASS
-  immutable_manifest_sha256: e56bdef5c3bdcae04ae80f601a3fd845bb5ae407da9fdea56d8f474c6c5ae1e7
-  predeploy_backup: PASS
-  rollout_failure: COLD_PULL_END_TO_END_304_SECONDS_EXCEEDED_300_SECOND_TARGET
-  application_health_failure: false
-  rollback: PASS
-  rollback_duration_seconds: 33
-  postdeploy_acceptance: NOT_RUN_ROLLOUT_GATE_FAILED
-  provider_calls_caused_by_execution: 0
-  db_business_writes_caused_by_execution: 0
-
-superseded_vps_warm_retry:
-  status: SUPERSEDED_BEFORE_EXECUTION
-  authority: VPS_DEPLOYMENT_WARM_RETRY_AUTHORIZATION.md
-  superseded_by: VPS_LOCAL_OCI_RELAY_DEPLOYMENT_RETRY_AUTHORIZATION.md
-  reason: OWNER_RECONFIRMED_LOCAL_COMPUTER_TO_VPS_RELAY_IS_BINDING_PRIMARY_IMAGE_TRANSPORT
-
-vps_local_relay_retry:
+vps_deployment:
   status: VPS_LOCAL_RELAY_DEPLOYMENT_ACCEPTANCE_PASS
-  authority: VPS_LOCAL_OCI_RELAY_DEPLOYMENT_RETRY_AUTHORIZATION.md
-  target_source_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
-  expected_predeploy_source_sha: 51ebbeabc5497ce48708b3587705e2922c4805da
+  final_deployed_source_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
   image_transport: LOCAL_OCI_RELAY_PRIMARY
-  relay_script: scripts/relay_immutable_images_via_local.sh
-  relay_execution_host: OWNER_LOCAL_COMPUTER_CODEX_LOCAL_HOST
-  relay_sequence: GHCR_TO_LOCAL_OCI_ARCHIVE_TO_SCP_TO_VPS_CTR_IMPORT
-  use_exact_release_candidate_digests: true
-  local_relay_required_before_activation: true
-  vps_direct_ghcr_bulk_image_pull: FORBIDDEN_AS_PRIMARY_TRANSPORT
-  use_existing_deployment_script_unchanged: true
-  require_exact_immutable_target_images: true
-  required_timing_scope: WARM_SWITCH
-  deployment_target_seconds: 300_UNCHANGED
-  rollback_target_seconds: 120_UNCHANGED
-  timing_threshold_change: FORBIDDEN
-  tracked_code_hotfix: FORBIDDEN
-  runtime_policy_change: FORBIDDEN
-  manual_provider_probe: FORBIDDEN
-  conditional_track_a_refresh_after_deploy: ALLOWED_ONLY_IF_SOURCE_BOUND_FIELDS_AVAILABLE_WITH_ZERO_PROVIDER_CALLS_AND_ZERO_DB_BUSINESS_WRITES
-  receipt: VPS_LOCAL_OCI_RELAY_DEPLOYMENT_RETRY_RECEIPT.md
-  release_candidate_run: 31299328162
-  immutable_manifest_sha256: e56bdef5c3bdcae04ae80f601a3fd845bb5ae407da9fdea56d8f474c6c5ae1e7
-  python_image_digest: sha256:bafd1c0400e19cb3afd2f2baefc7993b180ff7a482d8ec34b8f89c07f9152143
-  web_image_digest: sha256:9aecbdbecccf686f6be13c8c255dbcc706d8320a0d915899a4a0b898748e3d96
-  python_relay_total_seconds: 213
-  web_relay_total_seconds: 78
   warm_switch_seconds: 39
   postdeploy_acceptance: PASS
-  final_deployed_source_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
-  provider_calls_caused_by_execution: 0
-  db_business_writes_caused_by_execution: 0
-  terminal_classifications:
-    - VPS_LOCAL_RELAY_DEPLOYMENT_ACCEPTANCE_PASS
-    - VPS_LOCAL_RELAY_DEPLOYMENT_ROLLED_BACK
-    - POSTDEPLOY_DEFECT_FOUND
-    - LOCAL_RELAY_IDENTITY_BLOCKED
-
-p5_5:
-  status: PASS_AUTO_APPROVED_MERGED
-  merge_main_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
-  pr: 500
-  exact_head_full_ci_run: 31297195834
-  release_required: PASS
-  dead_assets_deleted: 44
-  obsolete_tracked_lines_removed: 6229
-  repository_hygiene: PASS
-  unresolved_hygiene_items: 0
 
 auto_approval_policy:
   enabled: true
-  rule: AUTO_APPROVE_AFTER_INDEPENDENT_TECHNICAL_PASS_WHEN_NO_NEW_PRODUCT_OR_RUNTIME_POLICY_AUTHORITY_IS_REQUIRED
-  may_continue_without_owner_relay: true
+  rule: AUTO_APPROVE_AFTER_INDEPENDENT_TECHNICAL_PASS_WHEN_CURRENT_OWNER_AUTHORITY_FULLY_DEFINES_PRODUCT_AND_NO_NEW_RUNTIME_AUTHORITY_IS_REQUIRED
+  current_visual_remediation_may_continue_without_owner_relay: true
   must_stop_for:
-    - NEW_PRODUCT_SEMANTICS
+    - PRODUCT_SEMANTICS_OUTSIDE_CURRENT_VISUAL_AUTHORITY
     - PROVIDER_PLAN_OR_NEW_PROVIDER
     - SCHEDULER_OR_CADENCE_CHANGE
     - ACTIVE_WHITELIST_CHANGE
@@ -208,6 +113,8 @@ auto_approval_policy:
     - P6_EXECUTION
 
 permanent_stop_lines:
+  round_4: NOT_STARTED
+  p6_execution: NOT_AUTHORIZED
   provider_plan_change: NOT_AUTHORIZED
   manual_provider_probe: FORBIDDEN
   scheduler_or_cadence_change: NOT_AUTHORIZED
@@ -216,13 +123,10 @@ permanent_stop_lines:
   external_intelligence_connection: NOT_AUTHORIZED
   phase_0_5_reexecution: FORBIDDEN
   h_result_access: PERMANENTLY_CLOSED
-  round_4: NOT_STARTED
   candidate: "OFF"
   formal: "OFF"
   lock: "OFF"
   production: "OFF"
   real_money: NOT_AUTHORIZED
-  p6_execution: NOT_AUTHORIZED
-  deployment_task_tracked_code_hotfix: NOT_AUTHORIZED
-  deployment_timing_threshold_change: NOT_AUTHORIZED
   vps_direct_ghcr_bulk_image_pull: FORBIDDEN_AS_PRIMARY_TRANSPORT
+  image_transport: LOCAL_OCI_RELAY_PRIMARY
