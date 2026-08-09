@@ -1,16 +1,16 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-09T23:12:42+08:00"
+updated_at: "2026-08-10T00:05:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: W2_DASHBOARD_OWNER_CANONICAL_TRUTH_ACCEPTED
-owner_authorization_id: W2_DASHBOARD_OWNER_CANONICAL_IDENTITY_COLLECTION_SEMANTICS_REMEDIATION_V1
-active_next_action: NONE_STOP_AT_DASHBOARD_OWNER_CANONICAL_TRUTH_ACCEPTANCE_PASS
-next_code_action: NONE
-current_status: DASHBOARD_OWNER_CANONICAL_TRUTH_ACCEPTANCE_PASS
-current_gate: DASHBOARD_OWNER_CANONICAL_TRUTH_ACCEPTANCE_PASS
+owner_product_decision: W2_DASHBOARD_OWNER_MARKET_EVIDENCE_CONSISTENCY_REMEDIATION
+owner_authorization_id: W2_DASHBOARD_OWNER_MARKET_EVIDENCE_CONSISTENCY_REMEDIATION_V1
+active_next_action: EXECUTE_DASHBOARD_OWNER_MARKET_TRUTH_REMEDIATION
+next_code_action: MARKET_MOVEMENT_EVIDENCE_AND_SINGLE_READINESS_AUTHORITY_CLOSURE
+current_status: DASHBOARD_OWNER_MARKET_TRUTH_CHANGES_REQUIRED
+current_gate: DASHBOARD_OWNER_MARKET_TRUTH_REMEDIATION_ACTIVE
 
 runtime_baseline:
   final_main_sha: 14a25727c77b5ede3a1731ec2487e08fa2be4eab
@@ -46,62 +46,48 @@ prior_dashboard_remediations:
   pr_503:
     result: PASS_MERGED_DEPLOYED
     scope: LIVE_AGGREGATE_PRICE_OVERFLOW
-  prior_claimed_terminal: DASHBOARD_OWNER_13IN_TRUTH_READABILITY_ACCEPTANCE_PASS
-  current_owner_verdict: REVOKED_CHANGES_REQUIRED
-  revocation_reason: REAL_DATA_CANONICAL_IDENTITY_AND_COLLECTION_ASSESSMENT_FINDINGS
+  pr_504:
+    result: PASS_MERGED_DEPLOYED
+    scope: D14_01_THROUGH_D14_08
+    main_merge_sha: 14a25727c77b5ede3a1731ec2487e08fa2be4eab
+    deployed_source_sha: 9edfae3a0fe7222aa109d7523ed1071e32b90d6c
+    owner_acceptance: REVOKED_CHANGES_REQUIRED
+    revocation_reason: REAL_DATA_MARKET_MOVEMENT_AND_READINESS_CONSISTENCY_FINDINGS
 
 current_authority:
-  file: DASHBOARD_OWNER_CANONICAL_IDENTITY_COLLECTION_SEMANTICS_REMEDIATION.md
-  base_main: 5f8066187acc323d23ac4d73da7115100a58aa48
-  terminal_target: DASHBOARD_OWNER_CANONICAL_TRUTH_ACCEPTANCE_PASS
+  file: DASHBOARD_OWNER_MARKET_EVIDENCE_CONSISTENCY_REMEDIATION.md
+  base_main: 14a25727c77b5ede3a1731ec2487e08fa2be4eab
+  terminal_target: DASHBOARD_OWNER_MARKET_TRUTH_ACCEPTANCE_PASS
   continuous_execution_to_terminal: true
-  merge_after_exact_head_pass: authorized
-  deploy_after_merge: required
+  merge_after_exact_head_pass: AUTHORIZED
+  deploy_after_merge: REQUIRED
   image_transport: LOCAL_OCI_RELAY_PRIMARY
-  round4_after_pass: forbidden
-  terminal_target_reached: true
+  round4_after_pass: FORBIDDEN
 
-owner_d14_findings:
-  D14_01_canonical_competition_aggregation_duplicate_rows: CLOSED_PASS
-  D14_02_collection_risk_ok_without_assessment_evidence: CLOSED_PASS
-  D14_03_mixed_language_and_raw_slug_competition_names: CLOSED_PASS
-  D14_04_tournament_row_inside_league_performance: CLOSED_PASS
-  D14_05_baseline_prior_rendered_model_ready: CLOSED_PASS
-  D14_06_homogeneous_attention_duplicates_match_board: CLOSED_PASS
-  D14_07_football_day_boundary_not_explained: CLOSED_PASS
-  D14_08_only_record_reason_ambiguous: CLOSED_PASS
+owner_d15_findings:
+  D15_01_movement_classification_and_public_evidence: OPEN_P0
+  D15_02_single_public_market_readiness_authority: OPEN_P0
+  D15_03_stale_market_memory_must_not_be_ready: OPEN_P0
+  D15_04_observation_count_public_terminology: OPEN_P1
+  D15_05_scoreline_status_context_structure: OPEN_P1
+  D15_06_attention_repeated_group_aggregation: OPEN_P1
 
 confirmed_code_evidence:
-  canonical_performance_rows_per_competition: true
-  fixture_level_alias_dedupe: true
-  aggregate_only_overlap_fails_closed: true
-  registry_scope_group_separates_tournaments: true
-  collection_ok_requires_current_persisted_evidence: true
-  collection_missing_evidence_is_unassessed_not_incident: true
-  baseline_prior_public_status: PRIOR_ONLY
-  football_day_boundary_projected: true
-  homogeneous_attention_aggregate_expandable: true
-  only_record_reasons_and_benchmark_explicit: true
+  movement_engine_uses_line_delta_and_side_price_median_delta: true
+  movement_engine_uses_bookmaker_count: false
+  runtime_reported_fixture_exact_price_delta: NOT_YET_PROVEN_REQUIRES_PERSISTED_READ_ONLY_INSPECTION
+  public_PRICE_MOVEMENT_label_currently: 盘口变化
+  public_timeline_currently_hides_price_delta_evidence: true
+  round3_market_source_status_ready_if_any_current_snapshot: true
+  round3_market_source_status_freshness_gated: false
+  model_lab_market_comparison_requires_current_freshness: true
+  workspace_exposes_conflicting_market_status_layers: true
+  stale_snapshot_can_render_public_ready: true
+  observation_count_is_single_side_quote_row_count: true
+  scoreline_context_is_adjacent_unlabelled_spans: true
+  attention_aggregation_requires_whole_day_homogeneity: true
 
-terminal_delivery:
-  pr: 504
-  pr_head_sha: 9edfae3a0fe7222aa109d7523ed1071e32b90d6c
-  main_merge_sha: 14a25727c77b5ede3a1731ec2487e08fa2be4eab
-  source_tree_sha: a03b6c0cef04e15561a61ac8638ca6a3add594e5
-  release_run_id: 31319648134
-  promotion_run_id: 31320139830
-  release_required: PASS
-  image_transport: LOCAL_OCI_RELAY_PRIMARY
-  python_image_digest: sha256:01de96ce43c9b1e85593a2ad9946a4083d1717e3a560c530f5cc35a26899ef37
-  web_image_digest: sha256:57f2a2c3d9b9fc05996292d7e76822c4649faed2d3cb54d9a5a9644f6ef1536a
-  health: PASS
-  ready: PASS
-  release_sync: PASS
-  rollback: false
-  repository_hygiene: PASS
-  postdeploy_real_data_acceptance: PASS
-
-accepted_d13_fixes_must_not_regress:
+accepted_d13_d14_fixes_must_not_regress:
   thirteen_inch_readability: true
   stale_next_eval_not_labeled_next: true
   probability_primary_directional_suppression: true
@@ -112,6 +98,14 @@ accepted_d13_fixes_must_not_regress:
   zh_cn_primary_copy: true
   live_aggregate_price_median_rendering: true
   no_horizontal_overflow_1280x720: true
+  canonical_performance_rows_per_competition: true
+  fixture_level_alias_dedupe: true
+  aggregate_only_overlap_fails_closed: true
+  tournament_separation: true
+  collection_ok_requires_assessment_evidence: true
+  baseline_prior_public_status: PRIOR_ONLY
+  football_day_boundary_visible: true
+  only_record_reasons_and_market_benchmark_explicit: true
 
 accepted_truths_must_not_regress:
   public_dashboard_authority: NEW_INTELLIGENCE_WORKSPACE_ONLY
@@ -121,6 +115,7 @@ accepted_truths_must_not_regress:
   read_db_business_writes: 0_REQUIRED
   no_call_on_read: true
   market_timeline: REAL_DISCRETE_0_1_2_PLUS_NO_INTERPOLATION
+  market_memory_historical_points_preserved: true
   external_intelligence: NOT_CONNECTED_NON_BLOCKING
   phase_0_5: FROZEN_NO_EDGE_NOT_PROVEN_NO_RERUN
   active_whitelist: EXACT_EXISTING_13
@@ -129,29 +124,30 @@ accepted_truths_must_not_regress:
   track_a: CLOSED_PASS
 
 remediation_scope:
-  canonical_performance_identity_aggregation: AUTHORIZED
-  fixture_checkpoint_read_for_source_bound_dedupe: AUTHORIZED
-  competition_registry_display_and_scope_projection: AUTHORIZED
-  collection_risk_assessment_evidence_projection: AUTHORIZED
-  baseline_prior_public_readiness_projection: AUTHORIZED
-  homogeneous_attention_aggregation_ui: AUTHORIZED
-  football_day_boundary_projection: AUTHORIZED
-  explicit_only_record_reasons: AUTHORIZED
-  frontend_and_additive_workspace_schema_changes: AUTHORIZED
+  exact_persisted_movement_payload_read_only_inspection: AUTHORIZED
+  movement_engine_bug_fix_if_proven: AUTHORIZED_BOUNDED
+  movement_public_labels_and_visible_deltas: AUTHORIZED
+  additive_workspace_market_status_fields: AUTHORIZED
+  canonical_public_market_evidence_readiness: AUTHORIZED
+  stale_market_memory_public_semantics: AUTHORIZED
+  quote_count_public_terminology: AUTHORIZED
+  scoreline_context_layout: AUTHORIZED
+  grouped_attention_summary_and_expand: AUTHORIZED
   migrations: NOT_AUTHORIZED_EXPECTED_NOT_REQUIRED
   provider_calls: FORBIDDEN
+  manual_provider_probe: FORBIDDEN
   db_business_writes_from_read: FORBIDDEN
   scheduler_cadence_changes: FORBIDDEN
   whitelist_changes: FORBIDDEN
   model_factor_threshold_retraining: FORBIDDEN
-  synthetic_data: FORBIDDEN
-  deletion_of_historical_evidence: FORBIDDEN
+  synthetic_market_points_or_movement: FORBIDDEN
+  deletion_of_market_memory: FORBIDDEN
 
 vps_deployment_after_acceptance:
   required: true
   image_transport: LOCAL_OCI_RELAY_PRIMARY
   vps_direct_ghcr_bulk_pull: FORBIDDEN_AS_PRIMARY_TRANSPORT
-  postdeploy_real_data_acceptance: REQUIRED
+  postdeploy_real_data_market_acceptance: REQUIRED
   postdeploy_no_call_no_write_acceptance: REQUIRED
 
 post_r3_track_a:
@@ -161,8 +157,8 @@ post_r3_track_a:
 
 auto_approval_policy:
   enabled: true
-  current_remediation_may_continue_without_owner_relay: false
-  terminal_target: DASHBOARD_OWNER_CANONICAL_TRUTH_ACCEPTANCE_PASS
+  current_remediation_may_continue_without_owner_relay: true
+  terminal_target: DASHBOARD_OWNER_MARKET_TRUTH_ACCEPTANCE_PASS
   must_stop_for:
     - MIGRATION_PROVEN_UNAVOIDABLE
     - PRODUCT_SEMANTICS_OUTSIDE_CURRENT_AUTHORITY
