@@ -5,7 +5,10 @@ PACKET = W2_ROUND4_READINESS_DECISION_EVIDENCE_V1
 DECISION_STATE = READY_FOR_OWNER_DECISION
 ROUND_4 = NOT_STARTED
 EXECUTION_AUTHORITY = NOT_GRANTED
-EXACT_MAIN_SHA = d61768ecf8457a72df80a5cb0220072de76dfdd4
+EXACT_MAIN_SHA = c6d8c6c7304d302f31bea5a88967e3bc9e945b37
+DEPLOYED_SOURCE_SHA = 05cdc3c1c6dbadbfe20899e941ca404274ff786f
+V41_PR = 506
+V41_RELEASE_REQUIRED = PASS
 TRACK_A = TRACK_A_CLOSED_PASS
 VPS_DEPLOYMENT = VPS_LOCAL_RELAY_DEPLOYMENT_ACCEPTANCE_PASS
 ```
@@ -23,6 +26,7 @@ authorize or start Round4 and does not modify any product or runtime policy.
 | Immutable deployment | exact Python/Web digests via local OCI relay | PASS |
 | Live source identity | API and Web both exact approved main | PASS |
 | Unified Dashboard | real DB-backed unified read model, visual smoke | PASS |
+| Dashboard V4.1 | final four-mode cockpit and source-bound focus authority | PASS |
 | Read isolation | immediate metric vector unchanged, payload no-call contract | PASS |
 | Runtime stop lines | SHADOW_ONLY, exact 13, Candidate/Formal/Lock/Production off | PASS |
 | Track A lifecycle evidence | 38 ended windows, all four checkpoint classes represented | PASS |
@@ -40,6 +44,10 @@ POST_BASELINE_MARKET_ROWS = 23
 CURRENT_MODEL_LAB = MARKET_NOT_READY:128
 PROVIDER_CALLS_FOR_AUDIT = 0
 DB_BUSINESS_WRITES = 0
+V41_DAY_MODE = NORMAL
+V41_DEFAULT_FOCUS_TYPE = MATCH
+V41_DEFAULT_FOCUS_FIXTURE_ID = 1492329
+V41_OWNER_DEVICE_1366 = PASS_NO_HORIZONTAL_OVERFLOW
 ```
 
 `MARKET_NOT_READY:128` remains an honest readiness output. Track A closure says
@@ -58,4 +66,5 @@ real-money authority or P6.
 NEXT_AUTOMATIC_ACTION = NONE
 OWNER_REVIEW_REQUIRED_FOR_ROUND4 = true
 ROUND_4 = NOT_STARTED
+V41_NEXT_GATE = OWNER_DASHBOARD_V41_POSTDEPLOY_ACCEPTANCE
 ```
