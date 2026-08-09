@@ -1,16 +1,16 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-09T14:10:16+08:00"
+updated_at: "2026-08-09T14:26:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: W2_POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE
-owner_authorization_id: W2_POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_V1
-active_next_action: WAIT_FOR_SOURCE_BOUND_NATURAL_EVIDENCE
-next_code_action: NONE_WAIT_FOR_PERSISTED_TERMINAL_TRACE
-current_status: WAIT_MORE_NATURAL_EVIDENCE
-current_gate: POST_R3_TRACK_A_WAIT_MORE_NATURAL_EVIDENCE
+owner_product_decision: W2_VPS_DEPLOYMENT_AND_POSTDEPLOY_ACCEPTANCE
+owner_authorization_id: W2_VPS_DEPLOYMENT_POSTDEPLOY_ACCEPTANCE_V1
+active_next_action: EXECUTE_CONTROLLED_VPS_DEPLOYMENT_AND_POSTDEPLOY_ACCEPTANCE
+next_code_action: VPS_DEPLOYMENT_POSTDEPLOY_ACCEPTANCE_WITH_CONDITIONAL_TRACK_A_REFRESH
+current_status: VPS_DEPLOYMENT_AUTHORIZED_ACTIVE
+current_gate: VPS_DEPLOYMENT_AND_POSTDEPLOY_ACCEPTANCE
 
 runtime_baseline:
   final_main_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
@@ -38,9 +38,7 @@ owner_reviews:
     merge_main_sha: f931702f617f432ba66c90f08828090f094d8ba5
   p5_5_closure:
     technical_closure: PASS_AUTO_APPROVED
-    authority: OWNER_REVIEW_C_APPROVAL_AND_P5_5_AUTHORIZATION.md
     pr: 500
-    implementation_base_sha: f931702f617f432ba66c90f08828090f094d8ba5
     implementation_head_sha: d3d3336fd1cad142ec4bc6c3defe3b6457fb2dea
     exact_head_full_ci_run: 31297195834
     release_required: PASS
@@ -50,7 +48,7 @@ owner_reviews:
 final_execution_plan:
   authority: W2_FINAL_EXECUTION_MASTER_PLAN.md
   detailed_dashboard_authority: DASHBOARD_INTELLIGENCE_WORKSPACE_MASTER_PLAN.md
-  current_phase_authority: POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_AUTHORIZATION.md
+  current_phase_authority: VPS_DEPLOYMENT_AND_POSTDEPLOY_ACCEPTANCE_AUTHORIZATION.md
   dashboard_workstream: REPOSITORY_FULLY_CLOSED
   historical_step4_post4: SUPERSEDED_AS_STANDALONE_WORKSTREAM
   rebuild_old_boss_l1_l2_dashboard: false
@@ -63,28 +61,81 @@ final_execution_plan:
   p5_5: PASS_AUTO_APPROVED_MERGED
   p6: BLUEPRINT_ONLY_NOT_AUTHORIZED
 
+post_r3_track_a:
+  selected_path: PATH_A_NATURAL_EVIDENCE_ACCUMULATION
+  closure_status: WAIT_MORE_NATURAL_EVIDENCE
+  closure_result: WAIT_MORE_NATURAL_EVIDENCE
+  closure_report: POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_REPORT.md
+  closure_matrix: POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_MATRIX.json
+  closure_matrix_sha256: adf0dc4844851e2f96f6d15d11b9688212748f817fbc543be85a6f4ae72a227c
+  closure_audit_as_of: "2026-08-09T06:10:16.671712Z"
+  ended_post_restore_checkpoint_windows: 38
+  in_window_capture_windows: 8
+  incomplete_terminal_trace_windows: 30
+  due_window_recurrence: RECURRENCE_CONDITION_OBSERVED_CAUSE_NOT_PROVEN
+  recurring_internal_defect: NOT_PROVEN
+  current_reprojection: FROZEN_NOT_REPROJECTED
+  round4_readiness_decision_packet: NOT_CREATED_EVIDENCE_INSUFFICIENT
+  resume_only_on_source_bound_terminal_evidence: true
+  provider_calls_for_audit: 0
+  db_business_writes: 0
+  production_code_changes: 0
+  round_4: NOT_STARTED
+
 global_completion_gate:
   project_complete_requires_vps_deployment: true
-  current_main_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
+  project_complete_requires_track_a_closed_pass: true
+  approved_main_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
   current_deployed_source_sha: 51ebbeabc5497ce48708b3587705e2922c4805da
-  deployment_status: PENDING
+  vps_deployment_status: AUTHORIZED_ACTIVE
+  vps_authority: VPS_DEPLOYMENT_AND_POSTDEPLOY_ACCEPTANCE_AUTHORIZATION.md
   code_complete_does_not_equal_project_complete: true
-  track_a_terminal_does_not_equal_project_complete: true
-  deployment_authorized_by_track_a: false
+  deployment_pass_while_track_a_waits_status: DEPLOYED_WAITING_FOR_NATURAL_EVIDENCE
+  overall_complete_formula: VPS_DEPLOYMENT_ACCEPTANCE_PASS_AND_TRACK_A_CLOSED_PASS_AND_STOP_LINES_PRESERVED
   mandatory_post_deploy_acceptance:
     - VPS_SOURCE_SHA_MATCHES_APPROVED_MAIN
     - API_HEALTH_PASS
+    - API_READY_PASS
     - WEB_HEALTH_PASS
+    - WEB_AND_API_RELEASE_IDENTITY_MATCH
     - UNIFIED_INTELLIGENCE_WORKSPACE_ENDPOINT_PASS
     - DASHBOARD_REAL_DATA_SMOKE_PASS
-    - SCHEDULER_PROVIDER_RUNTIME_STATUS_VERIFIED
-    - NO_UNAUTHORIZED_RUNTIME_SWITCH_CHANGES
-    - POST_DEPLOY_SCREENSHOT_OR_VISUAL_SMOKE_PASS
-  declaration_rule: DO_NOT_DECLARE_W2_OVERALL_COMPLETE_UNTIL_VPS_DEPLOYMENT_AND_POST_DEPLOY_ACCEPTANCE_PASS
+    - NO_STAGING_SEED_OR_SYNTHETIC_FALLBACK
+    - SCHEDULER_PROVIDER_RUNTIME_STATUS_VERIFIED_UNCHANGED
+    - POST_DEPLOY_VISUAL_SMOKE_PASS
+
+vps_deployment:
+  status: AUTHORIZED_ACTIVE
+  authority: VPS_DEPLOYMENT_AND_POSTDEPLOY_ACCEPTANCE_AUTHORIZATION.md
+  target_source_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
+  predeploy_measured_source_sha: 51ebbeabc5497ce48708b3587705e2922c4805da
+  use_existing_deployment_path_only: true
+  predeploy_backup_required: true
+  rollback_required: true
+  immutable_artifact_identity_required: true
+  manual_provider_probe: FORBIDDEN
+  tracked_code_change: NOT_AUTHORIZED
+  runtime_policy_change: NOT_AUTHORIZED
+  conditional_track_a_refresh_after_deploy: ALLOWED_ONLY_IF_SOURCE_BOUND_FIELDS_AVAILABLE_WITH_ZERO_PROVIDER_CALLS_AND_ZERO_DB_BUSINESS_WRITES
+  terminal_classifications:
+    - VPS_DEPLOYMENT_ACCEPTANCE_PASS
+    - VPS_DEPLOYMENT_ROLLED_BACK
+    - POSTDEPLOY_DEFECT_FOUND
+
+p5_5:
+  status: PASS_AUTO_APPROVED_MERGED
+  merge_main_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
+  pr: 500
+  exact_head_full_ci_run: 31297195834
+  release_required: PASS
+  dead_assets_deleted: 44
+  obsolete_tracked_lines_removed: 6229
+  repository_hygiene: PASS
+  unresolved_hygiene_items: 0
 
 auto_approval_policy:
   enabled: true
-  rule: AUTO_APPROVE_AFTER_INDEPENDENT_TECHNICAL_PASS_WHEN_NO_NEW_PRODUCT_OR_RUNTIME_AUTHORITY_IS_REQUIRED
+  rule: AUTO_APPROVE_AFTER_INDEPENDENT_TECHNICAL_PASS_WHEN_NO_NEW_PRODUCT_OR_RUNTIME_POLICY_AUTHORITY_IS_REQUIRED
   may_continue_without_owner_relay: true
   must_stop_for:
     - NEW_PRODUCT_SEMANTICS
@@ -99,52 +150,9 @@ auto_approval_policy:
     - REAL_MONEY_AUTHORITY
     - P6_EXECUTION
 
-post_r3_readiness_attribution:
-  original_status: PASS_READ_ONLY_ATTRIBUTION
-  selected_path: PATH_A_NATURAL_EVIDENCE_ACCUMULATION
-  original_report: POST_R3_READINESS_ATTRIBUTION_REPORT.md
-  original_matrix: POST_R3_READINESS_ATTRIBUTION_MATRIX.json
-  original_completion_condition: REAL_FIXTURES_CROSS_EXISTING_T12_T6_T3_T60_LIFECYCLE_WITH_EXPLICIT_TERMINAL_EVIDENCE_THEN_REPROJECT_AND_REVIEW
-  closure_authority: POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_AUTHORIZATION.md
-  closure_status: WAIT_MORE_NATURAL_EVIDENCE
-  closure_result: WAIT_MORE_NATURAL_EVIDENCE
-  closure_report: POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_REPORT.md
-  closure_matrix: POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_MATRIX.json
-  closure_matrix_sha256: adf0dc4844851e2f96f6d15d11b9688212748f817fbc543be85a6f4ae72a227c
-  closure_audit_as_of: "2026-08-09T06:10:16.671712Z"
-  closure_origin_main_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
-  closure_context_base_sha: 713b8aea3cc1cef81d729b5f21b3ee54a61a4962
-  ended_post_restore_checkpoint_windows: 38
-  in_window_capture_windows: 8
-  incomplete_terminal_trace_windows: 30
-  due_window_recurrence: RECURRENCE_CONDITION_OBSERVED_CAUSE_NOT_PROVEN
-  recurring_internal_defect: NOT_PROVEN
-  round4_readiness_decision_packet: NOT_CREATED_EVIDENCE_INSUFFICIENT
-  allowed_terminal_results:
-    - TRACK_A_CLOSED_PASS
-    - WAIT_MORE_NATURAL_EVIDENCE
-    - RECURRING_INTERNAL_DEFECT_PROVEN
-  provider_calls_for_audit: 0_REQUIRED
-  db_business_writes: 0_REQUIRED
-  production_code_changes: 0_REQUIRED
-  round_4: NOT_STARTED
-
-p5_5:
-  status: PASS_AUTO_APPROVED_MERGED
-  implementation_base_sha: f931702f617f432ba66c90f08828090f094d8ba5
-  implementation_head_sha: d3d3336fd1cad142ec4bc6c3defe3b6457fb2dea
-  merge_main_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
-  pr: 500
-  exact_head_full_ci_run: 31297195834
-  release_required: PASS
-  dead_assets_deleted: 44
-  obsolete_tracked_lines_removed: 6229
-  repository_hygiene: PASS
-  unresolved_hygiene_items: 0
-
 permanent_stop_lines:
   provider_plan_change: NOT_AUTHORIZED
-  provider_calls_for_track_a_audit: FORBIDDEN
+  manual_provider_probe: FORBIDDEN
   scheduler_or_cadence_change: NOT_AUTHORIZED
   active_whitelist_change: NOT_AUTHORIZED
   model_factor_threshold_retraining: NOT_AUTHORIZED
@@ -158,3 +166,4 @@ permanent_stop_lines:
   production: "OFF"
   real_money: NOT_AUTHORIZED
   p6_execution: NOT_AUTHORIZED
+  deployment_task_tracked_code_hotfix: NOT_AUTHORIZED
