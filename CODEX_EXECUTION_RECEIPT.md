@@ -3,23 +3,22 @@
 ```text
 AUTHORITY = W2_CODEX_EXECUTION_RECEIPT_LATEST
 STATUS = COMPLETE_TERMINAL
-EXECUTION_TASK = W2_VPS_DEPLOYMENT_AND_POSTDEPLOY_ACCEPTANCE
-TERMINAL_GATE = VPS_DEPLOYMENT_ROLLBACK_TERMINAL
-TERMINAL_CLASSIFICATION = VPS_DEPLOYMENT_ROLLED_BACK
+EXECUTION_TASK = W2_VPS_LOCAL_OCI_RELAY_DEPLOYMENT_RETRY_AND_TRACK_A_SOURCE_BOUND_REFRESH
+TERMINAL_GATE = AUTHORIZED_PRE_ROUND4_SCOPE_COMPLETE
+DEPLOYMENT_CLASSIFICATION = VPS_LOCAL_RELAY_DEPLOYMENT_ACCEPTANCE_PASS
+TRACK_A_CLASSIFICATION = TRACK_A_CLOSED_PASS
 EXACT_ORIGIN_MAIN_SHA = d61768ecf8457a72df80a5cb0220072de76dfdd4
-EXACT_CONTEXT_BASE_SHA = efdc6f62eb6f0776f3c1a8d91cf95eea24011cc3
-TARGET_SOURCE_SHA = d61768ecf8457a72df80a5cb0220072de76dfdd4
+EXACT_CONTEXT_BASE_SHA = 1ae340d99f14e841d9f6a61b1a0d8b97a2b2c374
 PREDEPLOY_SOURCE_SHA = 51ebbeabc5497ce48708b3587705e2922c4805da
-FINAL_DEPLOYED_SOURCE_SHA = 51ebbeabc5497ce48708b3587705e2922c4805da
+FINAL_DEPLOYED_SOURCE_SHA = d61768ecf8457a72df80a5cb0220072de76dfdd4
 RELEASE_CANDIDATE_RUN = 31299328162
 RELEASE_REQUIRED = PASS
 PREDEPLOY_BACKUP = PASS
 ROLLBACK_AVAILABILITY = PASS
-ROLLOUT_GATE = FAIL_COLD_PULL_END_TO_END_304S_GT_300S
-ROLLBACK = PASS_33S_LT_120S
-POSTDEPLOY_ACCEPTANCE = NOT_RUN_ROLLOUT_GATE_FAILED
-CONDITIONAL_TRACK_A_REFRESH = NOT_RUN_DEPLOYMENT_DID_NOT_PASS
-TRACK_A = WAIT_MORE_NATURAL_EVIDENCE
+LOCAL_OCI_RELAY = PASS_EXACT_DIGESTS
+WARM_SWITCH = PASS_39S_LT_300S
+POSTDEPLOY_ACCEPTANCE = PASS
+CONDITIONAL_TRACK_A_REFRESH = PASS_SOURCE_BOUND_READ_ONLY
 PROVIDER_CALLS_FOR_EXECUTION = 0
 DB_BUSINESS_WRITES_FOR_EXECUTION = 0
 PRODUCTION_CODE_CHANGES = 0
@@ -33,53 +32,65 @@ FORMAL_STATUS = OFF
 LOCK_STATUS = OFF
 PRODUCTION_STATUS = OFF
 P6_STATUS = BLUEPRINT_ONLY_NOT_AUTHORIZED
-OVERALL_W2_PROJECT_STATUS = NOT_COMPLETE_VPS_DEPLOYMENT_ROLLED_BACK_TRACK_A_WAITING
+OVERALL_W2_CURRENT_AUTHORIZED_SCOPE = COMPLETE
 REPOSITORY_HYGIENE = PASS
-NEXT_GATE = OWNER_DIRECTION_REQUIRED
+NEXT_GATE = OWNER_ROUND4_DECISION_REQUIRED
 ```
 
 ## Result
 
-The exact approved main and context refs were fetched immediately before the
-switch and had not moved. Exact-main Full CI, image smoke, `RELEASE_REQUIRED`,
-immutable-manifest verification, database backup and rollback availability all
-passed.
+The latest `origin/main` and `origin/context/current` were fetched before
+execution. The accepted exact-main Release Candidate, immutable manifest,
+Python/Web image digests, backup and rollback safety all passed.
 
-The existing deployment script pulled the approved digest-bound images, ran its
-existing migration step and activated the application services. The immutable
-cold-pull end-to-end gate then measured 304 seconds against its frozen
-300-second target and failed closed. The script automatically restored the
-measured predeploy release in 33 seconds and verified health and digests.
+The exact immutable images were relayed from GHCR through the Owner local
+computer as OCI archives, verified after SCP and imported on the VPS. The
+unchanged deployment script then used `WARM_SWITCH` and completed in 39 seconds.
+Full API, Web, readiness, unified Dashboard, real-data, no-call/no-write,
+runtime-policy and supported-viewport visual acceptance passed. The live API
+and Web both report exact main
+`d61768ecf8457a72df80a5cb0220072de76dfdd4`; all six services are healthy.
 
-The final API and Web source identity is
-`51ebbeabc5497ce48708b3587705e2922c4805da`. All six services are healthy and
-the API readiness checks for database, Redis, schema, mounts and artifacts pass.
-The Provider/request/capture and business-data baselines were unchanged across
-the execution window.
+After successful deployment, exactly one bounded Track A source-bound refresh
+used persisted database, ledger, checkpoint, capture, quota and existing
+Round-3 lineage evidence. It made no Provider call and no business write. The
+previously ambiguous T6 recurrence is an explicit missed checkpoint under the
+unchanged local daily cap, not a recurring internal defect. The persisted-only
+reprojection reconciled 128 fixture-markets as `0:89 / 1:8 / 2+:31`, so Track A
+is `TRACK_A_CLOSED_PASS`.
 
-The rollout did not pass, so successful-deployment postdeploy Dashboard/API/
-visual acceptance and the conditional source-bound Track A refresh were not
-run. No retry or threshold relaxation is authorized.
+The resulting Round4 packet is evidence only. Round4 remains `NOT_STARTED` and
+no automatic next phase is authorized.
 
 ## Evidence artifacts
 
 ```text
-DEPLOYMENT_RECEIPT = VPS_DEPLOYMENT_POSTDEPLOY_ACCEPTANCE_RECEIPT.md
+DEPLOYMENT_RECEIPT = VPS_LOCAL_OCI_RELAY_DEPLOYMENT_RETRY_RECEIPT.md
 TRACK_A_REPORT = POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_REPORT.md
 TRACK_A_MATRIX = POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_MATRIX.json
-ROUND4_PACKET = ABSENT_BY_DESIGN
+TRACK_A_MATRIX_SHA256 = 317b2b71cb211d8e4e8175eb8224f2acafc4e6bd3aba08672ab92e005f05876f
+ROUND4_PACKET = ROUND4_READINESS_DECISION_PACKET.md
 ```
 
 ## Repository hygiene and frozen controls
 
-Only `CURRENT_STATE.yaml`, `NEXT_ACTION.md`, this receipt and the new sanitized
-deployment receipt changed. No production code, schema, migration, Scheduler,
-runtime configuration, test, dependency or product asset changed in Git.
+Only sanitized context authority/evidence files changed. No production code,
+schema, migration, Scheduler, runtime configuration, test, dependency or
+product asset changed in Git.
 
 ```text
 REPOSITORY_HYGIENE = PASS
 NEW_DEPENDENCIES = 0
 BACKEND_SCHEMA_CHANGE = 0
+DEAD_ASSETS_FOUND = 0
+DEAD_ASSETS_DELETED = 0
+OBSOLETE_CODE_LINES_REMOVED = 0
+RETAINED_FOR_EVIDENCE = 7_CONTEXT_AUTHORITY_AND_RECEIPT_FILES
+UNRESOLVED_HYGIENE_ITEMS = 0
+TRACKED_OUTPUT_CHECK = PASS
+CHANGED_FILE_SENSITIVE_LITERAL_SCAN = PASS
+FULL_TREE_SECRET_SCAN = KNOWN_PREEXISTING_CONTEXT_PROSE_NOISE_13_NO_CHANGED_FILES
+CURRENT_AUTHORITY_CONSISTENCY = PASS
 PROVIDER_CALLS = 0
 DB_BUSINESS_WRITES = 0
 SCHEDULER_OR_CADENCE_CHANGED = false

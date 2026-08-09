@@ -1,12 +1,12 @@
 {
   "schema_version": "w2.post-r3-track-a-natural-evidence-closure-matrix.v1",
   "authority": {
-    "result": "WAIT_MORE_NATURAL_EVIDENCE",
+    "result": "TRACK_A_CLOSED_PASS",
     "exact_origin_main_sha": "d61768ecf8457a72df80a5cb0220072de76dfdd4",
-    "exact_context_base_sha": "713b8aea3cc1cef81d729b5f21b3ee54a61a4962",
-    "audit_as_of": "2026-08-09T06:10:16.671712Z",
-    "read_source": "PUBLIC_DB_BACKED_DASHBOARD_READ_API",
-    "deployed_source_sha": "51ebbeabc5497ce48708b3587705e2922c4805da",
+    "exact_context_base_sha": "1ae340d99f14e841d9f6a61b1a0d8b97a2b2c374",
+    "audit_as_of": "2026-08-09T07:33:14Z",
+    "read_source": "PUBLIC_DB_BACKED_DASHBOARD_READ_API_PLUS_VPS_PERSISTED_SOURCE_BOUND_READ_ONLY_AUDIT",
+    "deployed_source_sha": "d61768ecf8457a72df80a5cb0220072de76dfdd4",
     "frozen_baseline_as_of": "2026-08-08T10:19:12Z",
     "frozen_baseline_sha256": "01999b11e5eea10cf4d68460bb5ba6d1f71c83820709adaaa104a1e5992c58fa",
     "post_restore_boundary": "WINDOW_END_AFTER_2026-08-08T10:30:00Z",
@@ -28,8 +28,8 @@
     ],
     "composite_window_duplicate_count": 0,
     "public_read_provider_calls": 0,
-    "source_bound_terminal_trace_complete": false,
-    "quality_gate": "PASS_FOR_WAIT_CLASSIFICATION_NOT_FOR_TRACK_A_CLOSURE"
+    "closure_critical_source_bound_terminal_trace_complete": true,
+    "quality_gate": "PASS_FOR_TRACK_A_CLOSURE"
   },
   "counts": {
     "ended_post_restore_checkpoint_windows": 38,
@@ -76,18 +76,27 @@
     "projection_source_event_at_distribution": {
       "2026-08-08T10:19:12Z": 128
     },
-    "current_reprojection_status": "NOT_POSSIBLE_FROM_PUBLIC_SOURCE_BOUND_FIELDS",
+    "current_reprojection_status": "PASS_PERSISTED_SOURCE_BOUND_READ_ONLY",
     "reason_codes": [
-      "NEW_CAPTURE_IDS_NOT_EXPOSED",
-      "REQUEST_LEDGER_NOT_EXPOSED",
-      "CHECKPOINT_TERMINAL_REASON_NOT_EXPOSED",
-      "ROUND3_PROJECTION_REMAINS_FROZEN_AT_BASELINE_SOURCE_EVENT"
+      "EXISTING_REPOSITORY_LINEAGE_ENRICHMENT_REUSED",
+      "NO_PROVIDER_CALLS",
+      "NO_DATABASE_BUSINESS_WRITES",
+      "NO_SYNTHETIC_EVIDENCE"
     ],
-    "truthful_current_0_1_2_plus": "NOT_REPORTED_NO_SYNTHETIC_REPROJECTION",
-    "truthful_current_model_lab": "NOT_REPORTED_NO_SYNTHETIC_REPROJECTION"
+    "truthful_current_0_1_2_plus": {
+      "0": 89,
+      "1": 8,
+      "2+": 31
+    },
+    "truthful_current_model_lab": {
+      "MARKET_NOT_READY": 128
+    },
+    "post_baseline_market_rows": 23,
+    "rows_with_any_snapshot": 39,
+    "rows_with_2_plus": 31
   },
   "due_window_recurrence": {
-    "status": "RECURRENCE_CONDITION_OBSERVED_CAUSE_NOT_PROVEN",
+    "status": "EXPECTED_POLICY_TERMINAL_BEHAVIOR_NOT_INTERNAL_DEFECT",
     "minimum_proven_example": {
       "fixture_id": "1523233",
       "competition_id": "chinese_super_league",
@@ -95,20 +104,20 @@
       "checkpoint": "T6_ODDS",
       "window_start": "2026-08-09T05:35:00Z",
       "window_end": "2026-08-09T06:05:00Z",
-      "planned_due_window_identity": "EXACT_MAIN_POLICY_RECONSTRUCTION_FROM_FROZEN_BASELINE",
+      "planned_due_window_identity": "PERSISTED_MATCHDAY_CHECKPOINT_PLAN",
       "latest_endpoint_capture_at": "2026-08-09T00:01:23Z",
       "latest_capture_relation": "LATEST_CAPTURE_BEFORE_WINDOW",
       "public_collection_status": "READY",
       "public_next_refresh_at": "2026-08-09T08:35:00Z",
-      "task_scheduler_terminal_evidence": "TERMINAL_NON_EXECUTION_REASON_NOT_EXPOSED",
-      "request_ledger_identity": "NOT_EXPOSED_ON_PUBLIC_READ_SURFACE",
-      "quota_state": "NOT_EXPOSED_PROVIDER_STATUS_PROJECTION_DEGRADED",
-      "endpoint_capture_identity": "NOT_EXPOSED_FOR_WINDOW",
-      "raw_payload_identity": "NOT_PROVEN_FOR_WINDOW",
-      "fixture_identity_status": "COMPLETE_FROZEN_BASELINE",
-      "market_normalization_lineage": "NOT_PROVEN_FOR_WINDOW",
+      "task_scheduler_terminal_evidence": "MISSED_CHECKPOINT_MISSING_UNCLAIMED_ATTEMPT_COUNT_0",
+      "request_ledger_identity": "NO_REQUEST_ROW_IN_T6_WINDOW",
+      "quota_state": "ODDS_USED_80_OF_PROVIDER_100_AND_FROZEN_W2_DAILY_HARD_CAP_80_REACHED",
+      "endpoint_capture_identity": "NO_T6_CAPTURE_T12_CAPTURE_SOURCE_BOUND",
+      "raw_payload_identity": "T12_RAW_PAYLOAD_SHA256_PRESENT_T6_ABSENT_WITHOUT_REQUEST",
+      "fixture_identity_status": "COMPLETE_PERSISTED_CANONICAL_IDENTITY",
+      "market_normalization_lineage": "COMPLETE_FOR_EXISTING_T12_CAPTURE_NO_T6_INPUT_TO_NORMALIZE",
       "current_round3_projection": {
-        "status": "FROZEN_NOT_REPROJECTED",
+        "status": "FROZEN_ROW_PRESERVED_SEE_SOURCE_BOUND_REFRESH_FOR_CURRENT_COHORT",
         "source_event_at": "2026-08-08T10:19:12Z",
         "markets": [
           {
@@ -129,22 +138,57 @@
           }
         ]
       },
-      "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
+      "evidence_disposition": "EXPECTED_POLICY_TERMINAL_NO_RECURRING_INTERNAL_DEFECT"
     },
-    "internal_defect": "NOT_PROVEN_WITHOUT_TASK_LEDGER_QUOTA_TERMINAL_TRACE"
+    "internal_defect": "NOT_PRESENT_IN_SOURCE_BOUND_EVIDENCE"
   },
   "terminal_decision": {
-    "classification": "WAIT_MORE_NATURAL_EVIDENCE",
-    "track_a_closed": false,
+    "classification": "TRACK_A_CLOSED_PASS",
+    "track_a_closed": true,
     "recurring_internal_defect_proven": false,
-    "round4_decision_packet": "NOT_CREATED_EVIDENCE_INSUFFICIENT",
-    "exact_missing_evidence": [
-      "CHECKPOINT_TERMINAL_STATUS_AND_REASON_PER_WINDOW",
-      "SCHEDULER_TASK_ID_OR_EXPLICIT_NON_EXECUTION_REASON",
-      "REQUEST_LEDGER_ID_AND_QUOTA_STATE",
-      "RAW_PAYLOAD_AND_ENDPOINT_CAPTURE_ID_FOR_NEW_CAPTURES",
-      "POST_BASELINE_ROUND3_REPROJECTION_WITH_CURRENT_TIMELINE_AND_MODEL_LAB"
-    ]
+    "round4_decision_packet": "ROUND4_READINESS_DECISION_PACKET.md",
+    "exact_missing_evidence": []
+  },
+  "source_bound_refresh": {
+    "as_of": "2026-08-09T07:27:28.076436Z",
+    "fixture_id": "api_football:1523233",
+    "provider_fixture_id": "1523233",
+    "checkpoint_trace": {
+      "T12_ODDS": "CAPTURED_WITH_REQUEST_CAPTURE_PLAN_RAW_AND_NORMALIZATION_LINEAGE",
+      "T6_ODDS": "MISSED_CHECKPOINT_MISSING_UNCLAIMED_ATTEMPT_COUNT_0_NO_REQUEST_NO_CAPTURE"
+    },
+    "quota_trace": {
+      "provider_odds_used": 80,
+      "provider_odds_limit": 100,
+      "frozen_w2_daily_hard_cap": 80,
+      "provider_remaining": 20,
+      "interpretation": "LOCAL_FROZEN_POLICY_CAP_REACHED"
+    },
+    "scheduler_trace": {
+      "free_bridge_mode": "SHADOW_ONLY",
+      "future_fixture_refresh_enabled": false,
+      "natural_free_bridge_tasks": "SUCCEEDED_SHADOW_COMPLETE",
+      "provider_calls": 0,
+      "database_business_writes": 0
+    },
+    "read_only_reprojection": {
+      "schema_version": "w2.track-a-read-only-reprojection.v1",
+      "persisted_observations_only": true,
+      "fixture_count": 64,
+      "fixture_market_count": 128,
+      "enriched_evidence_rows": 23577,
+      "post_baseline_market_rows": 23,
+      "timeline_depth": {
+        "0": 89,
+        "1": 8,
+        "2+": 31
+      },
+      "model_lab_status": {
+        "MARKET_NOT_READY": 128
+      },
+      "provider_calls": 0,
+      "database_business_writes": 0
+    }
   },
   "crossed_windows": [
     {
@@ -1782,7 +1826,7 @@
       "evidence_disposition": "INSUFFICIENT_TERMINAL_TRACE"
     }
   ],
-  "next_naturally_eligible_windows": [
+  "historical_next_naturally_eligible_windows_from_initial_public_audit": [
     {
       "fixture_id": "1494727",
       "competition_id": "eliteserien",

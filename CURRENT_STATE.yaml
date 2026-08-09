@@ -1,5 +1,5 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-09T15:04:00+08:00"
+updated_at: "2026-08-09T15:33:14+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
@@ -7,14 +7,14 @@ program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
 owner_product_decision: W2_VPS_LOCAL_OCI_RELAY_DEPLOYMENT_RETRY
 owner_authorization_id: W2_VPS_LOCAL_OCI_RELAY_DEPLOYMENT_RETRY_V1
-active_next_action: EXECUTE_VPS_LOCAL_OCI_RELAY_DEPLOYMENT_AND_POSTDEPLOY_ACCEPTANCE
-next_code_action: LOCAL_OCI_RELAY_THEN_EXISTING_WARM_DEPLOYMENT
-current_status: VPS_LOCAL_RELAY_DEPLOYMENT_AUTHORIZED_ACTIVE
-current_gate: VPS_LOCAL_RELAY_DEPLOYMENT_AND_POSTDEPLOY_ACCEPTANCE
+active_next_action: STOP_AT_TERMINAL_AWAIT_OWNER_ROUND4_DECISION
+next_code_action: NONE
+current_status: AUTHORIZED_PRE_ROUND4_SCOPE_COMPLETE
+current_gate: OWNER_ROUND4_DECISION_REQUIRED
 
 runtime_baseline:
   final_main_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
-  deployed_source_sha: 51ebbeabc5497ce48708b3587705e2922c4805da
+  deployed_source_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
   free_bridge_mode: SHADOW_ONLY
   active_whitelist: EXACT_EXISTING_13
   provider_policy: UNCHANGED
@@ -63,20 +63,28 @@ final_execution_plan:
 
 post_r3_track_a:
   selected_path: PATH_A_NATURAL_EVIDENCE_ACCUMULATION
-  closure_status: WAIT_MORE_NATURAL_EVIDENCE
-  closure_result: WAIT_MORE_NATURAL_EVIDENCE
+  closure_status: CLOSED_PASS
+  closure_result: TRACK_A_CLOSED_PASS
   closure_report: POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_REPORT.md
   closure_matrix: POST_R3_TRACK_A_NATURAL_EVIDENCE_CLOSURE_MATRIX.json
-  closure_matrix_sha256: adf0dc4844851e2f96f6d15d11b9688212748f817fbc543be85a6f4ae72a227c
-  closure_audit_as_of: "2026-08-09T06:10:16.671712Z"
+  closure_matrix_sha256: 317b2b71cb211d8e4e8175eb8224f2acafc4e6bd3aba08672ab92e005f05876f
+  closure_audit_as_of: "2026-08-09T07:33:14Z"
+  source_bound_reprojection_as_of: "2026-08-09T07:27:28.076436Z"
   ended_post_restore_checkpoint_windows: 38
   in_window_capture_windows: 8
-  incomplete_terminal_trace_windows: 30
-  due_window_recurrence: RECURRENCE_CONDITION_OBSERVED_CAUSE_NOT_PROVEN
+  initial_public_audit_incomplete_terminal_trace_windows: 30
+  due_window_recurrence: EXPECTED_POLICY_TERMINAL_BEHAVIOR_NOT_INTERNAL_DEFECT
   recurring_internal_defect: NOT_PROVEN
-  current_reprojection: FROZEN_NOT_REPROJECTED
-  round4_readiness_decision_packet: NOT_CREATED_EVIDENCE_INSUFFICIENT
-  resume_only_on_source_bound_terminal_evidence: true
+  current_reprojection: PASS_PERSISTED_SOURCE_BOUND_READ_ONLY
+  current_timeline_depth:
+    zero: 89
+    one: 8
+    two_plus: 31
+  current_model_lab_status:
+    MARKET_NOT_READY: 128
+  post_baseline_market_rows: 23
+  round4_readiness_decision_packet: ROUND4_READINESS_DECISION_PACKET.md
+  resume_only_on_source_bound_terminal_evidence: false
   provider_calls_for_audit: 0
   db_business_writes: 0
   production_code_changes: 0
@@ -86,12 +94,14 @@ global_completion_gate:
   project_complete_requires_vps_deployment: true
   project_complete_requires_track_a_closed_pass: true
   approved_main_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
-  current_deployed_source_sha: 51ebbeabc5497ce48708b3587705e2922c4805da
-  vps_deployment_status: LOCAL_RELAY_RETRY_AUTHORIZED_AFTER_SAFE_ROLLBACK
+  current_deployed_source_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
+  vps_deployment_status: VPS_LOCAL_RELAY_DEPLOYMENT_ACCEPTANCE_PASS
   vps_authority: VPS_LOCAL_OCI_RELAY_DEPLOYMENT_RETRY_AUTHORIZATION.md
   code_complete_does_not_equal_project_complete: true
   deployment_pass_while_track_a_waits_status: DEPLOYED_WAITING_FOR_NATURAL_EVIDENCE
   overall_complete_formula: VPS_DEPLOYMENT_ACCEPTANCE_PASS_AND_TRACK_A_CLOSED_PASS_AND_STOP_LINES_PRESERVED
+  current_authorized_scope_complete: true
+  next_gate: OWNER_ROUND4_DECISION_REQUIRED
   mandatory_post_deploy_acceptance:
     - VPS_SOURCE_SHA_MATCHES_APPROVED_MAIN
     - API_HEALTH_PASS
@@ -130,7 +140,7 @@ superseded_vps_warm_retry:
   reason: OWNER_RECONFIRMED_LOCAL_COMPUTER_TO_VPS_RELAY_IS_BINDING_PRIMARY_IMAGE_TRANSPORT
 
 vps_local_relay_retry:
-  status: AUTHORIZED_ACTIVE
+  status: VPS_LOCAL_RELAY_DEPLOYMENT_ACCEPTANCE_PASS
   authority: VPS_LOCAL_OCI_RELAY_DEPLOYMENT_RETRY_AUTHORIZATION.md
   target_source_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
   expected_predeploy_source_sha: 51ebbeabc5497ce48708b3587705e2922c4805da
@@ -151,6 +161,18 @@ vps_local_relay_retry:
   runtime_policy_change: FORBIDDEN
   manual_provider_probe: FORBIDDEN
   conditional_track_a_refresh_after_deploy: ALLOWED_ONLY_IF_SOURCE_BOUND_FIELDS_AVAILABLE_WITH_ZERO_PROVIDER_CALLS_AND_ZERO_DB_BUSINESS_WRITES
+  receipt: VPS_LOCAL_OCI_RELAY_DEPLOYMENT_RETRY_RECEIPT.md
+  release_candidate_run: 31299328162
+  immutable_manifest_sha256: e56bdef5c3bdcae04ae80f601a3fd845bb5ae407da9fdea56d8f474c6c5ae1e7
+  python_image_digest: sha256:bafd1c0400e19cb3afd2f2baefc7993b180ff7a482d8ec34b8f89c07f9152143
+  web_image_digest: sha256:9aecbdbecccf686f6be13c8c255dbcc706d8320a0d915899a4a0b898748e3d96
+  python_relay_total_seconds: 213
+  web_relay_total_seconds: 78
+  warm_switch_seconds: 39
+  postdeploy_acceptance: PASS
+  final_deployed_source_sha: d61768ecf8457a72df80a5cb0220072de76dfdd4
+  provider_calls_caused_by_execution: 0
+  db_business_writes_caused_by_execution: 0
   terminal_classifications:
     - VPS_LOCAL_RELAY_DEPLOYMENT_ACCEPTANCE_PASS
     - VPS_LOCAL_RELAY_DEPLOYMENT_ROLLED_BACK
