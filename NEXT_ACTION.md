@@ -10,6 +10,10 @@ TRACK = PATH_A_NATURAL_EVIDENCE_ACCUMULATION
 MODE = READ_ONLY_EVIDENCE_CLOSURE
 ROUND_4 = NOT_STARTED
 P6 = BLUEPRINT_ONLY_NOT_AUTHORIZED
+GLOBAL_PROJECT_COMPLETION_REQUIRES_VPS_DEPLOYMENT = YES
+CURRENT_DEPLOYED_SOURCE_SHA = 51ebbeabc5497ce48708b3587705e2922c4805da
+APPROVED_MAIN_SHA = d61768ecf8457a72df80a5cb0220072de76dfdd4
+VPS_DEPLOYMENT_STATUS = PENDING
 ```
 
 ## Binding read order
@@ -43,6 +47,25 @@ The task must inspect naturally crossed T12/T6/T3/T60 lifecycle evidence, source
 
 If Track A closes, create the Round4 readiness decision packet but leave Round4 `NOT_STARTED`. If more evidence is needed, identify the exact missing natural evidence and next eligible windows. If a recurring internal defect is proven, trace it and propose bounded remediation without changing production code.
 
+## Mandatory overall-project follow-on
+
+Track A terminal classification must **not** be treated as overall W2 project completion while VPS still runs an older source SHA.
+
+After the appropriate Track A terminal handling, the remaining mandatory delivery gate is a separately authorized controlled VPS deployment of the approved main, followed by post-deploy verification of:
+
+```text
+VPS_SOURCE_SHA_MATCHES_APPROVED_MAIN
+API_HEALTH_PASS
+WEB_HEALTH_PASS
+GET_/v1/dashboard/intelligence-workspace_PASS
+DASHBOARD_REAL_DATA_SMOKE_PASS
+SCHEDULER_PROVIDER_RUNTIME_STATUS_VERIFIED
+NO_UNAUTHORIZED_RUNTIME_SWITCH_CHANGES
+POST_DEPLOY_VISUAL_SMOKE_PASS
+```
+
+Do not declare overall project completion before this deployment gate passes.
+
 ## Stop lines
 
 ```text
@@ -62,6 +85,7 @@ LOCK = OFF
 PRODUCTION = OFF
 REAL_MONEY = NOT_AUTHORIZED
 P6_EXECUTION = NOT_AUTHORIZED
+VPS_DEPLOYMENT = REQUIRED_FOR_OVERALL_COMPLETION_BUT_NOT_AUTHORIZED_BY_THIS_TRACK_A_TASK
 ```
 
 ## Required outputs
