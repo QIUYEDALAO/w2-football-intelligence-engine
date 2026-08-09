@@ -75,9 +75,8 @@ def test_historical_replay_closure_is_preserved_while_v4_is_diagnostic_only() ->
         "production": "OFF",
     }
     day_view = _read("src/w2/dashboard/day_view.py")
-    web_adapter = _read("apps/web/src/lib/dashboardApi.ts")
     assert "DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY" in day_view
-    assert "DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY" in web_adapter
+    assert not (ROOT / "apps/web/src/lib/dashboardApi.ts").exists()
 
 
 def test_sanitized_manifest_is_schema_valid_and_bound_to_receipt() -> None:

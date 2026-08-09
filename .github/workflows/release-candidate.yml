@@ -417,8 +417,6 @@ jobs:
             W2_RELEASE_ID=${{ needs.identity.outputs.source_sha }}
             VITE_BUILD_TIME=${{ steps.meta.outputs.created }}
             VITE_DASHBOARD_DATA_MODE=api
-            VITE_W2_MARKET_ANCHOR_DISPLAY_ENABLED=true
-            VITE_W2_MARKET_ANCHOR_MIN_DIVERGENCE=0.05
           cache-from: type=registry,ref=${{ env.WEB_IMAGE }}:buildcache
           cache-to: type=registry,ref=${{ env.WEB_IMAGE }}:buildcache,mode=max
 

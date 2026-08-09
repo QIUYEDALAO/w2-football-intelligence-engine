@@ -268,11 +268,10 @@ def test_performance_web_has_no_metric_recomputation_or_production_fixture() -> 
         "forward_ledger_performance",
     }
 
+    assert performance_sources == ""
     assert sorted(identity for identity in forbidden if identity in performance_sources) == []
-    assert "fixture-01" not in performance_sources
-    assert "performance-e2e" not in performance_sources
-    assert "fetch(`${API_BASE}/performance?" in performance_sources
-    assert "payload.sample_progress.ratio * 100" in performance_sources
+    assert not Path("apps/web/src/components/PerformancePage.tsx").exists()
+    assert not Path("apps/web/src/lib/performanceApi.ts").exists()
 
 
 def test_import_graph_detects_package_child_relative_and_transitive_bypasses(
