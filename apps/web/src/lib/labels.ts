@@ -3,6 +3,23 @@ import type { MarketCode } from "../types/dashboard";
 export const API_BASE = "/v1";
 export const COMPETITION_ID = "1";
 
+export const CANONICAL_COMPETITION_LABELS: Record<string, string> = {
+  allsvenskan: "瑞典超",
+  argentina_primera: "阿甲",
+  brasileirao_serie_a: "巴甲",
+  bundesliga: "德甲",
+  chinese_super_league: "中超",
+  eliteserien: "挪威超",
+  eredivisie: "荷甲",
+  la_liga: "西甲",
+  ligue_1: "法甲",
+  mls: "美职联",
+  premier_league: "英超",
+  primeira_liga: "葡超",
+  serie_a: "意甲",
+  world_cup_2026: "世界杯",
+};
+
 export const MARKET_ORDER: MarketCode[] = ["ASIAN_HANDICAP", "TOTALS", "FIRST_HALF_GOALS", "SCORE"];
 
 export const MARKET_META: Record<MarketCode, { label: string; short: string; className: string }> = {

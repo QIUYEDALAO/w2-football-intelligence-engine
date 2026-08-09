@@ -30,9 +30,19 @@ def _base_card() -> dict[str, Any]:
                 "detected": False,
             },
             "markets": {
-                "ASIAN_HANDICAP": {"movement": {"status": "STABLE"}},
-                "TOTALS": {"movement": {"status": "STABLE"}},
+                "ASIAN_HANDICAP": {
+                    "current": {"freshness": {"status": "FRESH"}},
+                    "movement": {"status": "STABLE"},
+                },
+                "TOTALS": {
+                    "current": {"freshness": {"status": "FRESH"}},
+                    "movement": {"status": "STABLE"},
+                },
             },
+        },
+        "data_refresh": {
+            "odds_status": "READY",
+            "last_refresh_hint": "2026-08-09T10:00:00Z",
         },
         "model_lab": {
             "markets": {
@@ -177,6 +187,27 @@ def test_attention_order_uses_only_precedence_kickoff_and_fixture_id() -> None:
     ]
 
 
+def test_day_view_passes_through_shared_football_day_boundary() -> None:
+    view = build_dashboard_day_view(
+        {
+            "generated_at": "2026-08-09T04:00:00Z",
+            "date": "2026-08-09",
+            "selected_football_day": "2026-08-09",
+            "football_day_timezone": "Asia/Shanghai",
+            "football_day_cutoff_hour": 12,
+            "football_day_start_utc": "2026-08-09T04:00:00Z",
+            "football_day_end_utc": "2026-08-10T04:00:00Z",
+            "all": [],
+        },
+        environment="staging",
+    )
+
+    assert view["football_day_timezone"] == "Asia/Shanghai"
+    assert view["football_day_cutoff_hour"] == 12
+    assert view["football_day_start_utc"] == "2026-08-09T04:00:00Z"
+    assert view["football_day_end_utc"] == "2026-08-10T04:00:00Z"
+
+
 def test_sparse_timeline_never_defaults_to_market_stable() -> None:
     card = {
         **_base_card(),
@@ -222,6 +253,51 @@ def test_four_risk_dimensions_remain_independent() -> None:
     assert set(risks["EVENT_RISK"]["reason_codes"]).isdisjoint(
         risks["COLLECTION_RISK"]["reason_codes"]
     )
+
+
+def test_collection_risk_without_assessment_evidence_is_not_green_or_incident() -> None:
+    card = _base_card()
+    card.pop("data_refresh")
+
+    projection = build_intelligence_projection(card)
+    collection = projection["risk_dimensions"]["COLLECTION_RISK"]
+
+    assert projection["intelligence_state"] == "MARKET_STABLE"
+    assert collection["status"] == "ATTENTION"
+    assert collection["assessment_status"] == "UNASSESSED"
+    assert collection["reason_codes"] == ["COLLECTION_ASSESSMENT_NOT_AVAILABLE"]
+
+
+def test_collection_risk_requires_fresh_persisted_capture_for_ok() -> None:
+    collection = build_intelligence_projection(_base_card())["risk_dimensions"][
+        "COLLECTION_RISK"
+    ]
+
+    assert collection == {
+        "dimension": "COLLECTION_RISK",
+        "status": "OK",
+        "reason_codes": [],
+        "explanation": "采集状态已有新鲜持久化证据",
+        "assessment_status": "ASSESSED_CURRENT",
+        "evidence_basis": "PERSISTED_ODDS_CAPTURE_AND_MARKET_FRESHNESS",
+        "source_as_of": "2026-08-09T10:00:00Z",
+    }
+
+
+def test_collection_incident_requires_persisted_incident_reason() -> None:
+    card = _base_card()
+    card["data_refresh"] = {
+        "odds_status": "PROVIDER_EMPTY",
+        "last_refresh_hint": "2026-08-09T10:00:00Z",
+    }
+
+    projection = build_intelligence_projection(card)
+    collection = projection["risk_dimensions"]["COLLECTION_RISK"]
+
+    assert projection["intelligence_state"] == "COLLECTION_INCIDENT"
+    assert collection["status"] == "INCIDENT"
+    assert collection["assessment_status"] == "ASSESSED_INCIDENT"
+    assert collection["reason_codes"] == ["COLLECTION_PROVIDER_EMPTY"]
 
 
 def test_not_ready_does_not_become_event_risk_and_market_facts_remain_visible() -> None:

@@ -18,6 +18,9 @@ export interface RiskAxis {
   status: string;
   reason_codes: string[];
   explanation: string;
+  assessment_status?: "ASSESSED_CURRENT" | "ASSESSED_INCIDENT" | "STALE" | "UNASSESSED" | null;
+  evidence_basis?: string | null;
+  source_as_of?: string | null;
 }
 
 export type WorkspaceRisks = Record<RiskAxisName, RiskAxis>;
@@ -117,6 +120,7 @@ export interface WorkspaceMatch {
     reason_codes: string[];
     model_view: {
       status: string;
+      source_status: string;
       model_version: string | null;
       calibration_version: string | null;
       calibration_status: string | null;
@@ -136,6 +140,7 @@ export interface WorkspaceMatch {
     schema_version: string;
     w2_model: {
       status: string;
+      source_status: string;
       model_version: string | null;
       calibration_status: string | null;
     };
@@ -173,6 +178,34 @@ export interface WorkspaceMatch {
   };
 }
 
+export interface WorkspaceCompetitionPerformance {
+  league: string;
+  source_league: string;
+  source_aliases: string[];
+  source_checkpoint_keys: string[];
+  scope_group: string;
+  aggregation_status: "SOURCE_CHECKPOINT" | "FIXTURE_RECONSTRUCTED" | "CONFLICT";
+  competition_id: string;
+  canonical_competition_id: string | null;
+  competition_name: string | null;
+  identity_status: "RESOLVED" | "UNRESOLVED";
+  validation_n: number;
+  decisive_n: number;
+  correct: number;
+  wrong: number;
+  push: number;
+  void: number;
+  direction_accuracy: number | null;
+  brier: number | null;
+  log_loss: number | null;
+  calibration: number | null;
+  statistical_status: "AVAILABLE" | "SAMPLE_BUILDING" | "INSUFFICIENT";
+  source_statistical_status: "AVAILABLE" | "SAMPLE_BUILDING" | "INSUFFICIENT";
+  probability_evidence_ready: boolean;
+  only_record_reason: "PROBABILITY_QUALITY_NOT_READY" | "SAMPLE_INSUFFICIENT" | "AGGREGATION_CONFLICT" | null;
+  market_direction_benchmark: "NOT_DEFINED";
+}
+
 export interface WorkspaceValidation {
   probability: {
     status: "AVAILABLE" | "SAMPLE_BUILDING" | "INSUFFICIENT";
@@ -202,28 +235,10 @@ export interface WorkspaceValidation {
     direction_accuracy: number | null;
     effective_n: number;
     market_direction_benchmark: "NOT_DEFINED";
+    only_record_reason: "PROBABILITY_QUALITY_NOT_READY" | "SAMPLE_INSUFFICIENT" | null;
   };
-  league_performance: Array<{
-    league: string;
-    source_league: string;
-    competition_id: string;
-    canonical_competition_id: string | null;
-    competition_name: string | null;
-    identity_status: "RESOLVED" | "UNRESOLVED";
-    validation_n: number;
-    decisive_n: number;
-    correct: number;
-    wrong: number;
-    push: number;
-    void: number;
-    direction_accuracy: number | null;
-    brier: number | null;
-    log_loss: number | null;
-    calibration: number | null;
-    statistical_status: "AVAILABLE" | "SAMPLE_BUILDING" | "INSUFFICIENT";
-    source_statistical_status: "AVAILABLE" | "SAMPLE_BUILDING" | "INSUFFICIENT";
-    probability_evidence_ready: boolean;
-  }>;
+  league_performance: WorkspaceCompetitionPerformance[];
+  tournament_performance: WorkspaceCompetitionPerformance[];
   forward_validation_records: {
     status: "AVAILABLE" | "INSUFFICIENT";
     validation_count: number;
@@ -258,6 +273,10 @@ export interface IntelligenceWorkspace {
   date: string;
   timezone: string;
   window: string;
+  football_day_timezone: string;
+  football_day_cutoff_hour: number;
+  football_day_start_utc: string | null;
+  football_day_end_utc: string | null;
   source: "dashboard_day_view+performance_checkpoint+replay_front_door";
   selected_fixture_id: string | null;
   read_contract: {

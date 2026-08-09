@@ -30,6 +30,11 @@ function risks(attention?: keyof WorkspaceRisks): WorkspaceRisks {
     status: axis === attention ? "ATTENTION" : "OK",
     reason_codes: axis === attention ? [`${axis}_ATTENTION`] : [],
     explanation: axis === attention ? `${axis} requires review` : `No current ${axis} evidence`,
+    ...(axis === "COLLECTION_RISK" ? {
+      assessment_status: "ASSESSED_CURRENT",
+      evidence_basis: "PERSISTED_TERMINAL_ASSESSMENT",
+      source_as_of: "2026-08-09T02:00:00Z",
+    } : {}),
   }])) as WorkspaceRisks;
 }
 
@@ -111,14 +116,14 @@ function match(fixtureId: string, state: IntelligenceState, snapshotCount: numbe
       decision_tier: state === "DATA_INCOMPLETE" ? "NOT_READY" : "WATCH",
       analysis_state: state,
       reason_codes: [`${state}_FACTUAL_EVIDENCE`],
-      model_view: { status: "READY", model_version: "w2-existing-v1", calibration_version: "cal-v1", calibration_status: "AVAILABLE", simulations_completed: 10_000 },
+      model_view: { status: "READY", source_status: "READY", model_version: "w2-existing-v1", calibration_version: "cal-v1", calibration_status: "AVAILABLE", simulations_completed: 10_000 },
       model_market_relation: { ASIAN_HANDICAP: relation("ASIAN_HANDICAP"), TOTALS: relation("TOTALS") },
     },
     formal_recommendation: { status: "OFF", reason: "PRODUCT_AUTHORITY_DISABLED" },
     market_radar: { schema_version: "w2.market-radar.v1", markets: { ASIAN_HANDICAP: ah, TOTALS: totals } },
     model_lab: {
       schema_version: "w2.model-lab.v1",
-      w2_model: { status: "READY", model_version: "w2-existing-v1", calibration_status: "AVAILABLE" },
+      w2_model: { status: "READY", source_status: "READY", model_version: "w2-existing-v1", calibration_status: "AVAILABLE" },
       market: {
         ASIAN_HANDICAP: { status: ah.status, main_line: ah.main_line, bookmaker_count: ah.bookmaker_count, freshness: ah.freshness },
         TOTALS: { status: totals.status, main_line: totals.main_line, bookmaker_count: totals.bookmaker_count, freshness: totals.freshness },
@@ -151,6 +156,11 @@ function workspace(scenario = "default"): IntelligenceWorkspace {
     match("four", "MODEL_DIAGNOSTIC_WARNING", 1),
     match("five", "MARKET_STABLE", 2, "ASIAN_HANDICAP", 2),
   ];
+  if (scenario === "attention-homogeneous") matches = [
+    match("blocked-a", "DATA_INCOMPLETE", 0),
+    match("blocked-b", "DATA_INCOMPLETE", 0),
+    match("blocked-c", "DATA_INCOMPLETE", 0),
+  ];
   if (scenario === "default") delete matches[1].market_radar.markets.TOTALS.prices.UNDER;
   const attention = matches.map((item) => ({
     fixture_id: item.fixture_id,
@@ -171,6 +181,10 @@ function workspace(scenario = "default"): IntelligenceWorkspace {
     date: "2026-08-09",
     timezone: "Asia/Shanghai",
     window: "today",
+    football_day_timezone: "Asia/Shanghai",
+    football_day_cutoff_hour: 12,
+    football_day_start_utc: "2026-08-09T04:00:00Z",
+    football_day_end_utc: "2026-08-10T04:00:00Z",
     source: "dashboard_day_view+performance_checkpoint+replay_front_door",
     selected_fixture_id: matches.at(-1)?.fixture_id || null,
     read_contract: { provider_calls: 0, db_writes: 0, would_write_checkpoint: false, no_call_on_read: true },
@@ -180,8 +194,9 @@ function workspace(scenario = "default"): IntelligenceWorkspace {
     matches,
     validation: {
       probability: { status: "SAMPLE_BUILDING", sample_count: 12, model_brier: 0.21, market_brier: 0.22, model_minus_market_brier: -0.01, model_log_loss: 0.61, market_log_loss: 0.62, model_minus_market_log_loss: -0.01, model_calibration_error: 0.04, market_calibration_error: 0.05, model_reliability_bins: [{ lower: 0.4, upper: 0.5, count: 6, mean_confidence: 0.46, accuracy: 0.5 }], market_reliability_bins: [{ lower: 0.4, upper: 0.5, count: 6, mean_confidence: 0.48, accuracy: 0.5 }], checkpoint_metadata: { checkpoint_key: "performance:cohort:all" } },
-      directional: { status: "SAMPLE_BUILDING", source_status: "AVAILABLE", probability_evidence_ready: false, validation_n: 12, decisive_n: 6, correct: 4, wrong: 2, push: 1, void: 1, direction_accuracy: 4 / 6, effective_n: 6, market_direction_benchmark: "NOT_DEFINED" },
-      league_performance: [{ league: "39", source_league: "39", competition_id: "39", canonical_competition_id: "premier_league", competition_name: "Premier League", identity_status: "RESOLVED", validation_n: 12, decisive_n: 6, correct: 4, wrong: 2, push: 1, void: 1, direction_accuracy: 4 / 6, brier: 0.21, log_loss: 0.61, calibration: 0.04, statistical_status: "SAMPLE_BUILDING", source_statistical_status: "AVAILABLE", probability_evidence_ready: false }],
+      directional: { status: "SAMPLE_BUILDING", source_status: "AVAILABLE", probability_evidence_ready: false, validation_n: 12, decisive_n: 6, correct: 4, wrong: 2, push: 1, void: 1, direction_accuracy: 4 / 6, effective_n: 6, market_direction_benchmark: "NOT_DEFINED", only_record_reason: "PROBABILITY_QUALITY_NOT_READY" },
+      league_performance: [{ league: "premier_league", source_league: "39", source_aliases: ["39", "premier_league"], source_checkpoint_keys: ["performance:cohort:league:39"], scope_group: "top_five", aggregation_status: "SOURCE_CHECKPOINT", competition_id: "premier_league", canonical_competition_id: "premier_league", competition_name: "Premier League", identity_status: "RESOLVED", validation_n: 12, decisive_n: 6, correct: 4, wrong: 2, push: 1, void: 1, direction_accuracy: 4 / 6, brier: 0.21, log_loss: 0.61, calibration: 0.04, statistical_status: "SAMPLE_BUILDING", source_statistical_status: "AVAILABLE", probability_evidence_ready: false, only_record_reason: "PROBABILITY_QUALITY_NOT_READY", market_direction_benchmark: "NOT_DEFINED" }],
+      tournament_performance: [],
       forward_validation_records: { status: "AVAILABLE", validation_count: 12, eligible_count: 8, excluded_count: 2, excluded_share: 2 / 12, excluded_by_reason: { MARKET_IDENTITY_NOT_READY: 2 }, pending_count: 2, outcomes: { hit_count: 4, miss_count: 2, push_count: 1, void_count: 1 }, checkpoint_metadata: { checkpoint_key: "performance:cohort:all" } },
       history_replay: { status: "AVAILABLE_WITH_GAPS", known_at: { has_day_view: true, generated_at: "2026-08-09T02:00:00Z", source: "dashboard_read_model", checkpoint_key: "dashboard:day_view:2026-08-09" }, decision_summary: { total_cards: matches.length, lock_eligible_count: 0, by_decision_tier: { WATCH: matches.length }, by_data_status: { READY: Math.max(matches.length - 1, 0) } }, reason_summary: [{ reason_code: "MARKET_STABLE_ALL_AVAILABLE_MARKETS", count: 1 }], outcome_tracking_summary: { tracked_count: 8, matched_outcome_count: 6, missing_outcome_count: 2 }, card_hash_checks: [{ fixture_id: "two", status: "MATCH" }], replay_gaps: ["MISSING_OUTCOMES_FOR_2_FIXTURES"] },
     },
@@ -196,8 +211,26 @@ function workspace(scenario = "default"): IntelligenceWorkspace {
   if (first && scenario === "market-stale") { first.market_radar.markets.ASIAN_HANDICAP.freshness = { status: "STALE" }; first.intelligence_reason_codes = ["MARKET_STALE"]; }
   if (first && scenario === "collection-incident") { first.intelligence_state = "COLLECTION_INCIDENT"; first.intelligence_reason_codes = ["COLLECTION_PROVIDER_INCIDENT"]; }
   if (first && scenario === "model-not-ready") { first.w2_analysis.model_view.status = "UNAVAILABLE"; first.model_lab.w2_model.status = "UNAVAILABLE"; first.intelligence_reason_codes = ["MODEL_SIMULATION_NOT_READY"]; }
+  if (first && scenario === "collection-unassessed") {
+    first.risks.COLLECTION_RISK.status = "ATTENTION";
+    first.risks.COLLECTION_RISK.assessment_status = "UNASSESSED";
+    first.risks.COLLECTION_RISK.evidence_basis = "NO_PERSISTED_TERMINAL_ASSESSMENT";
+    first.risks.COLLECTION_RISK.source_as_of = null;
+    first.risks.COLLECTION_RISK.reason_codes = ["COLLECTION_ASSESSMENT_NOT_AVAILABLE"];
+  }
+  if (first && scenario === "baseline-prior") {
+    first.w2_analysis.model_view.status = "PRIOR_ONLY";
+    first.w2_analysis.model_view.source_status = "READY";
+    first.w2_analysis.model_view.calibration_status = "BASELINE_PRIOR";
+    first.model_lab.w2_model.status = "PRIOR_ONLY";
+    first.model_lab.w2_model.source_status = "READY";
+    first.model_lab.w2_model.calibration_status = "BASELINE_PRIOR";
+  }
   if (scenario === "validation-insufficient") { payload.validation.probability.status = "INSUFFICIENT"; payload.validation.probability.sample_count = 0; payload.validation.probability.model_reliability_bins = []; payload.validation.probability.market_reliability_bins = []; payload.validation.directional.status = "INSUFFICIENT"; payload.validation.directional.effective_n = 0; }
   if (scenario === "validation-metadata-missing") payload.validation.probability.checkpoint_metadata = {};
+  if (scenario === "tournament-truth") payload.validation.tournament_performance = [{
+    league: "world_cup_2026", source_league: "1", source_aliases: ["1", "world_cup_2026"], source_checkpoint_keys: ["performance:cohort:league:1"], scope_group: "tournament", aggregation_status: "SOURCE_CHECKPOINT", competition_id: "world_cup_2026", canonical_competition_id: "world_cup_2026", competition_name: "World Cup", identity_status: "RESOLVED", validation_n: 8, decisive_n: 4, correct: 3, wrong: 1, push: 0, void: 0, direction_accuracy: 0.75, brier: null, log_loss: null, calibration: null, statistical_status: "SAMPLE_BUILDING", source_statistical_status: "AVAILABLE", probability_evidence_ready: false, only_record_reason: "PROBABILITY_QUALITY_NOT_READY", market_direction_benchmark: "NOT_DEFINED",
+  }];
   if (scenario === "d13-truth") {
     payload.generated_at = "2026-08-09T06:00:00Z";
     payload.selected_fixture_id = matches[0].fixture_id;
@@ -219,8 +252,8 @@ function workspace(scenario = "default"): IntelligenceWorkspace {
     payload.validation.directional.direction_accuracy = 0.8;
     payload.validation.directional.effective_n = 5;
     payload.validation.league_performance = [
-      { league: "103", source_league: "103", competition_id: "103", canonical_competition_id: "eliteserien", competition_name: "Eliteserien", identity_status: "RESOLVED", validation_n: 5, decisive_n: 5, correct: 4, wrong: 1, push: 0, void: 0, direction_accuracy: 0.8, brier: null, log_loss: null, calibration: null, statistical_status: "SAMPLE_BUILDING", source_statistical_status: "AVAILABLE", probability_evidence_ready: false },
-      { league: "999", source_league: "999", competition_id: "999", canonical_competition_id: null, competition_name: null, identity_status: "UNRESOLVED", validation_n: 2, decisive_n: 1, correct: 1, wrong: 0, push: 0, void: 0, direction_accuracy: 1, brier: null, log_loss: null, calibration: null, statistical_status: "SAMPLE_BUILDING", source_statistical_status: "AVAILABLE", probability_evidence_ready: false },
+      { league: "eliteserien", source_league: "103", source_aliases: ["103", "eliteserien"], source_checkpoint_keys: ["performance:cohort:league:103"], scope_group: "national_leagues", aggregation_status: "SOURCE_CHECKPOINT", competition_id: "eliteserien", canonical_competition_id: "eliteserien", competition_name: "Eliteserien", identity_status: "RESOLVED", validation_n: 5, decisive_n: 5, correct: 4, wrong: 1, push: 0, void: 0, direction_accuracy: 0.8, brier: null, log_loss: null, calibration: null, statistical_status: "SAMPLE_BUILDING", source_statistical_status: "AVAILABLE", probability_evidence_ready: false, only_record_reason: "PROBABILITY_QUALITY_NOT_READY", market_direction_benchmark: "NOT_DEFINED" },
+      { league: "999", source_league: "999", source_aliases: ["999"], source_checkpoint_keys: ["performance:cohort:league:999"], scope_group: "unresolved", aggregation_status: "SOURCE_CHECKPOINT", competition_id: "999", canonical_competition_id: null, competition_name: null, identity_status: "UNRESOLVED", validation_n: 2, decisive_n: 1, correct: 1, wrong: 0, push: 0, void: 0, direction_accuracy: 1, brier: null, log_loss: null, calibration: null, statistical_status: "SAMPLE_BUILDING", source_statistical_status: "AVAILABLE", probability_evidence_ready: false, only_record_reason: "PROBABILITY_QUALITY_NOT_READY", market_direction_benchmark: "NOT_DEFINED" },
     ];
     payload.validation.forward_validation_records = { ...payload.validation.forward_validation_records, validation_count: 56, eligible_count: 16, excluded_count: 40, excluded_share: 40 / 56, pending_count: 0, excluded_by_reason: { MARKET_IDENTITY_NOT_READY: 25, SCORELINE_NOT_READY: 10, RESULT_MISSING: 5 } };
     payload.data_operations.provider_budget_status = "UNKNOWN";
@@ -346,8 +379,9 @@ test("D13 truth rendering fails closed without changing source evidence", async 
   await expect(page.locator("[data-ui='validation']")).toContainText("排除 40（71.4%）");
   const leagues = page.locator("[data-ui='league-performance']");
   await expect(leagues).toContainText("挪威超");
-  await expect(leagues).toContainText("联赛名称待解析（ID: 999）");
-  await expect(leagues).toContainText("有验证样本的联赛 2（运行白名单 13）");
+  await expect(leagues).toContainText("赛事名称待解析");
+  await expect(leagues).not.toContainText("ID: 999");
+  await expect(leagues).toContainText("国家联赛 2 · 杯赛 / 其他赛事 0（运行白名单 13）");
   await expect(leagues).not.toContainText("可用 80.0%");
   const modelSummary = page.locator(".model-lab-grid > div").nth(1);
   await expect(modelSummary.locator("strong")).toHaveText("证据不足");
@@ -366,6 +400,47 @@ test("D13 truth rendering fails closed without changing source evidence", async 
     return copy.innerText;
   });
   expect(publicCopy).not.toMatch(/\b(?:ADVISORY|MARKET_NOT_READY|IDENTITY_NOT_READY|UNKNOWN)\b/);
+});
+
+test("D14 collection assessment, prior-only model and football-day truth stay explicit", async ({ page }) => {
+  await installWorkspace(page, "collection-unassessed");
+  await page.goto("/");
+  const inspector = page.locator("[data-ui='match-inspector']");
+  await expect(inspector.locator("[data-risk-axis='COLLECTION_RISK']")).toContainText("未评估");
+  await expect(inspector.locator("[data-risk-axis='COLLECTION_RISK']")).not.toContainText("正常");
+  await expect(page.locator("[data-ui='football-day-boundary']")).toContainText("08-09 12:00 至 08-10 12:00（不含）");
+
+  await installWorkspace(page, "baseline-prior");
+  await page.reload();
+  await expect(page.locator("[data-ui='match-inspector']")).toContainText("仅先验");
+  await expect(page.locator("[data-ui='model-lab']")).toContainText("仅先验");
+  await expect(page.locator("[data-ui='scoreline-context']")).toContainText("模型 仅先验");
+});
+
+test("D14 homogeneous Attention collapses to one expandable aggregate", async ({ page }) => {
+  await installWorkspace(page, "attention-homogeneous");
+  await page.goto("/");
+  const attention = page.locator("[data-ui='attention']");
+  await expect(attention.locator("[data-ui='attention-aggregate']")).toHaveCount(1);
+  await expect(attention.locator(".attention-row")).toHaveCount(1);
+  await expect(attention).not.toContainText("暂无关注项");
+  await attention.locator("[data-ui='attention-aggregate']").click();
+  await expect(attention.locator(".attention-row")).toHaveCount(3);
+  await expect(attention.getByRole("button", { name: "收起" })).toBeVisible();
+});
+
+test("D14 canonical Chinese competition names keep tournaments separate", async ({ page }) => {
+  await installWorkspace(page, "tournament-truth");
+  await page.goto("/");
+  const publicCopy = await page.locator("[data-ui='league-performance']").evaluate((element) => {
+    const copy = element.cloneNode(true) as HTMLElement;
+    copy.querySelectorAll("details").forEach((details) => details.remove());
+    return copy.innerText;
+  });
+  expect(publicCopy).toContain("英超");
+  expect(publicCopy).toContain("杯赛 / 其他赛事");
+  expect(publicCopy).toContain("世界杯");
+  expect(publicCopy).not.toMatch(/Premier League|World Cup|world_cup_2026/);
 });
 
 test("all seven intelligence states and the exact four risk axes render without semantic promotion", async ({ page }) => {

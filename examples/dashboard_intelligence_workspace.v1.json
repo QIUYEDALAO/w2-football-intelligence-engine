@@ -15,6 +15,10 @@
     "sentiment": {"affects_match_readiness": false, "status": "NOT_CONNECTED"},
     "weather": {"affects_match_readiness": false, "status": "NOT_CONNECTED"}
   },
+  "football_day_cutoff_hour": 12,
+  "football_day_end_utc": "2026-08-10T04:00:00Z",
+  "football_day_start_utc": "2026-08-09T04:00:00Z",
+  "football_day_timezone": "Asia/Shanghai",
   "freshness": {
     "domains": {
       "events": {
@@ -170,6 +174,7 @@
       "direction_accuracy": null,
       "effective_n": 0,
       "market_direction_benchmark": "NOT_DEFINED",
+      "only_record_reason": "SAMPLE_INSUFFICIENT",
       "probability_evidence_ready": false,
       "push": 0,
       "source_status": "INSUFFICIENT",
@@ -234,7 +239,8 @@
       "model_reliability_bins": [],
       "sample_count": 0,
       "status": "INSUFFICIENT"
-    }
+    },
+    "tournament_performance": []
   },
   "window": "today"
 }

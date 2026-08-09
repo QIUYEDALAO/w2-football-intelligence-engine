@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from w2.dashboard.date_navigation import build_date_navigation
+from w2.dashboard.date_window import FOOTBALL_DAY_CUTOFF_HOUR, FOOTBALL_DAY_TZ
 from w2.dashboard.degradation import build_dashboard_degradation
 from w2.dashboard.intelligence import build_intelligence_projection, intelligence_state_rank
 from w2.domain.decision_contract import validate_decision_contract
@@ -48,6 +49,22 @@ def build_dashboard_day_view(
         "date": _text(dashboard_payload.get("date"), football_day),
         "football_day": football_day,
         "selected_football_day": football_day,
+        "football_day_timezone": _text(
+            dashboard_payload.get("football_day_timezone"),
+            dashboard_payload.get("timezone"),
+            str(FOOTBALL_DAY_TZ),
+        ),
+        "football_day_cutoff_hour": (
+            dashboard_payload.get("football_day_cutoff_hour")
+            if dashboard_payload.get("football_day_cutoff_hour") is not None
+            else FOOTBALL_DAY_CUTOFF_HOUR
+        ),
+        "football_day_start_utc": _optional_text(
+            dashboard_payload.get("football_day_start_utc")
+        ),
+        "football_day_end_utc": _optional_text(
+            dashboard_payload.get("football_day_end_utc")
+        ),
         "environment": environment,
         "environment_policy": build_environment_policy_stamp(environment),
         "timezone": _text(dashboard_payload.get("timezone"), "Asia/Shanghai"),
