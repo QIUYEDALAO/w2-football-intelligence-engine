@@ -1,88 +1,132 @@
 # NEXT ACTION
 
 ```text
-ACTIVE_NEXT_ACTION = NATURAL_SHADOW_CANDIDATE_EVIDENCE_ACCUMULATION
-CURRENT_GATE = EVIDENCE_ACCUMULATION_BEFORE_FORMAL_RECOMMENDATION_APPROVAL
-DIRECT_OWNER_APPROVAL = SHADOW_CANDIDATE_AND_POSTMATCH_VALIDATION_LOOP_APPROVED_2026_08_11
-PR_517 = MERGED_DEPLOYED
-IMPLEMENTATION_HEAD = 58555d2f6bd1e0a069550c91e7ce543164a4819c
-FINAL_MAIN = 001b1bae8e5276597dc506e0cd3cb40dbd180fb5
-SHADOW_CANDIDATE = ENABLED_SHADOW_ONLY
-FORMAL_RECOMMENDATION = OFF_PENDING_SEPARATE_OWNER_APPROVAL
+ACTIVE_NEXT_ACTION = EXECUTE_SHADOW_CANDIDATE_INPUT_AUTHORITY_CONVERGENCE
+CURRENT_GATE = SHADOW_CANDIDATE_INPUT_AUTHORITY_REMEDIATION_ACTIVE
+AUTHORITY = SHADOW_CANDIDATE_INPUT_AUTHORITY_CONVERGENCE.md
+BASE_MAIN = 001b1bae8e5276597dc506e0cd3cb40dbd180fb5
+BASE_RELEASE = PR_517_MERGED_DEPLOYED
+SC18_01_THROUGH_SC18_07 = OPEN
+SHADOW_CANDIDATE = KEEP_ACTIVE_SHADOW_ONLY
+FORMAL = OFF
+LOCK = OFF
+PRODUCTION = OFF
 ROUND_4 = NOT_STARTED
-ROUND_4_EXECUTION_AUTHORITY = NOT_GRANTED
 P6 = NOT_AUTHORIZED
-NEXT_AUTOMATIC_ACTION = EXISTING_SCHEDULED_CAPTURE_SETTLEMENT_AND_VALIDATION_ONLY
+TERMINAL_GATE = OWNER_SHADOW_CANDIDATE_INPUT_CHAIN_REREVIEW
 ```
 
-## Authorized operating state
+## Binding correction
 
-PR #517 is merged, promoted and deployed from the exact Release Candidate source.
-SHADOW/CANDIDATE recommendation and the postmatch validation loop are active. Candidate
-output remains validation-only and cannot become a formal, locked, production or real-money
-recommendation without a later Owner approval.
+Do not continue treating natural evidence accumulation as the only remaining task.
 
-The existing scheduler naturally runs capture, forward-ledger and result-settlement work. The
-dashboard read remains read-only with `provider_calls=0`, `db_writes=0` and
-`no_call_on_read=true`. No new Provider call or schedule/cadence change was introduced.
+PR #517 correctly activated the existing SHADOW/CANDIDATE ledger, settlement and validation loop, and the current zero-candidate result remains truthful. Owner postdeploy review has now exposed a bounded upstream input-authority problem that must be closed before any claim that the Formal approval threshold has been met:
 
-The selected 2026-08-10 day currently has two matches and zero active shadow candidates.
-Both matches are truthfully `NOT_READY`; this does not mean the loop is disabled. It means
-neither match passed the unchanged existing readiness and selection thresholds.
+- public labels still silently fall back to English;
+- per-market radar evidence, exact candidate quote identity, match readiness and RecommendationDecisionV4 blockers are not presented under one coherent market-scoped authority;
+- one failing market can dominate the public whole-match diagnosis while another market has usable evidence;
+- Stage14 coverage remains unaudited/partial for multiple domains in at least some runtime competitions.
 
-## Next gate
+The competition-profile field `enabled: false` is not a valid standalone runtime diagnosis. In staging the effective state is the OR of profile, future-refresh and matchday policy authorities.
 
-Continue only the existing natural SHADOW/CANDIDATE evidence accumulation, outcome
-settlement and cumulative validation loop. When the repository-defined formal approval
-threshold is met with reviewable evidence, prepare and submit a Formal recommendation
-approval packet. Do not turn Formal on while preparing or submitting that packet.
-
-## Evidence identity
+## Binding read order
 
 ```text
-FULL_CI_RUN = 31412790278
-RELEASE_REQUIRED = PASS_EXACT_HEAD
-PROMOTION_RUN = 31413410048
-PROMOTION_REQUIRED = PASS
-HEALTH = PASS
-READY = PASS
-RELEASE_SYNC = PASS
-LOCAL_OCI_RELAY = PASS_DIGEST_VERIFIED
-COLD_PULL_END_TO_END = PASS_132_SECONDS
-LIVE_VISUAL_QA_SHADOW_CANDIDATE_ENABLED = PASS
-LIVE_CURRENT_ACTIVE_SHADOW_CANDIDATES = 0_TRUTHFUL_NOT_READY
-NATURAL_FORWARD_LEDGER_TASK = PASS
-FORWARD_LEDGER_WRITTEN = 2
-FORWARD_LEDGER_SKIPPED_EXISTING = 33
-FORWARD_LEDGER_PROVIDER_CALLS = 0
-LEDGER_IMPORT_IDENTITY_CONFLICT = NONE
-LIVE_BROWSER_CONSOLE_ERRORS = 0
-NO_CALL_NO_WRITE = PASS
-REPOSITORY_HYGIENE = PASS
+1. CODEX_EXECUTION_PROTOCOL.md
+2. CURRENT_STATE.yaml
+3. NEXT_ACTION.md
+4. SHADOW_CANDIDATE_INPUT_AUTHORITY_CONVERGENCE.md
+5. current main at 001b1bae8e5276597dc506e0cd3cb40dbd180fb5
+6. RecommendationDecisionV4 and quote-identity contracts
+7. Round3 Market Radar / Model Lab contracts
+8. data-readiness and decision-adapter contracts
+9. canonical team identity authority
+10. existing Stage14 scripts and whitelist work order
+11. PR #517 release evidence as deployment baseline, not final input-chain acceptance
 ```
 
-## Stop
+## Execute continuously
 
-Do not start Formal, Lock, Production, real-money operation, Round4 or P6. Natural execution
-of the existing scheduler/cadence is authorized only for SHADOW/CANDIDATE evidence capture,
-outcome settlement and postmatch validation. A separate Owner decision is required before
-Formal can be enabled.
+In one continuous workstream from current `main`:
+
+1. **SC18-01:** produce the source-bound, read-only authority trace for fixture `1493049` and comparison fixtures; identify exactly where `market` / `odds` becomes missing.
+2. **SC18-02:** establish per-market observation, trend, cross-sectional, model-diagnostic and candidate-eligibility states; prove AH depth `1` cannot erase independent OU depth `7` evidence.
+3. **SC18-03:** align Round3 radar, exact quote identity, selected market candidate and match readiness without converting radar medians into an executable quote or weakening RecommendationDecisionV4.
+4. **SC18-04:** expose public `PARTIAL` market semantics and market-scoped blockers; do not use the first/worst relation as an unexplained whole-match diagnosis.
+5. **SC18-05:** move public team-label authority to reviewed canonical identity/config data, create measurable missing-label inventories, and make every public status/reason Chinese-first. No silent raw-English fallback and no invented translation.
+6. **SC18-06:** run the existing Stage14 audit for the exact active 13-competition scope and produce the full coverage matrix, including effective staging enable sources. Audit only; do not bypass or activate unsupported coverage.
+7. **SC18-07:** add real-shape regressions, run focused/full tests and all repository gates, require exact-head Full CI and `RELEASE_REQUIRED`, merge automatically, deploy by Owner-local OCI relay, and perform live rereview.
+8. Refresh `CURRENT_STATE.yaml`, `NEXT_ACTION.md` and the Round4 packet exact release identity only, then stop.
+
+Ordinary implementation, fixture, localization, contract, test, CSS, CI and deployment-preparation failures are in scope:
 
 ```text
-ROUND_4_START = NOT_AUTHORIZED
-P6_EXECUTION = NOT_AUTHORIZED
+fix -> revalidate -> continue
+```
+
+No Owner relay is required between these steps. If Stage14 completion requires a new Provider/plan, new dataset, external-intelligence activation, cadence change, whitelist change, model/threshold change or manual data authority, produce an Owner decision packet but continue all independent work.
+
+## Mandatory acceptance cases
+
+```text
+AH 1 bookmaker + OU 7 bookmakers
+=> AH insufficient; OU independently represented; whole match PARTIAL
+
+OU exact quote identity complete + AH incomplete
+=> OU may proceed independently if all unchanged V4 model/identity gates pass
+
+model simulation not ready
+=> market evidence stays visible; candidate stays NOT_READY for MODEL reason
+
+no exact executable quote identity
+=> no candidate; radar aggregate must not be promoted into one
+
+unmapped team public label
+=> explicit auditable label/identity gap, not silent English success
+
+unmapped public enum
+=> CI failure or explicit Chinese fallback state; raw code only in technical details
+```
+
+## Evidence accumulation during remediation
+
+The existing natural SHADOW/CANDIDATE schedule, forward ledger, settlement and validation loop stays active. Existing ledger evidence is retained.
+
+Formal remains off. No affected candidate/input identity may be used to claim that the Formal evidence threshold has been met until the remediated exact release passes postdeploy rereview.
+
+## Terminal classifications
+
+```text
+OWNER_SHADOW_CANDIDATE_INPUT_CHAIN_REREVIEW
+SHADOW_CANDIDATE_INPUT_CHAIN_DEPLOYMENT_ROLLED_BACK
+SHADOW_CANDIDATE_INPUT_CHAIN_SCOPE_BLOCKED_OWNER_DECISION_REQUIRED
+```
+
+If a critical postdeploy gate fails after merge, automatically roll back to `001b1bae8e5276597dc506e0cd3cb40dbd180fb5` and stop with evidence.
+
+## Frozen stop lines
+
+```text
 NEW_PROVIDER_OR_PLAN = NOT_AUTHORIZED
 MANUAL_PROVIDER_PROBE = FORBIDDEN
 SCHEDULER_OR_CADENCE_CHANGE = NOT_AUTHORIZED
 ACTIVE_WHITELIST_CHANGE = NOT_AUTHORIZED
 MODEL_FACTOR_THRESHOLD_CHANGE = NOT_AUTHORIZED
 MODEL_RETRAINING = NOT_AUTHORIZED
+BOOKMAKER_DEPTH_THRESHOLD_CHANGE = NOT_AUTHORIZED
+MARKET_DIRECTION_BENCHMARK_DEFINITION = NOT_AUTHORIZED
+EXTERNAL_INTELLIGENCE_ACTIVATION = NOT_AUTHORIZED
 PHASE_0_5_REEXECUTION = FORBIDDEN
-CANDIDATE = SHADOW_ONLY_ENABLED
+H_RESULT_ACCESS = PERMANENTLY_CLOSED
+ROUND_4_START = NOT_AUTHORIZED
+P6_EXECUTION = NOT_AUTHORIZED
 FORMAL = OFF
 LOCK = OFF
 PRODUCTION = OFF
+REAL_MONEY = OFF
 READ_PROVIDER_CALLS = 0_REQUIRED
 READ_DB_BUSINESS_WRITES = 0_REQUIRED
+VPS_DIRECT_GHCR_BULK_IMAGE_PULL = FORBIDDEN_AS_PRIMARY_TRANSPORT
 IMAGE_TRANSPORT = LOCAL_OCI_RELAY_PRIMARY
+DELETE_PROTECTED_HISTORICAL_EVIDENCE = FORBIDDEN
 ```
