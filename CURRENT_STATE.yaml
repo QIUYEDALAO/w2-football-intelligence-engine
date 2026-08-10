@@ -1,94 +1,98 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-10T14:15:41+08:00"
+updated_at: "2026-08-10T23:13:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
 owner_product_decision: OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
-owner_authorization_id: OWNER_DIRECT_APPROVAL_DEPLOYMENT_AND_BOUNDED_FIXES_2026_08_10
+owner_authorization_id: OWNER_DIRECT_APPROVAL_PR514_DEPLOYMENT_2026_08_10
 active_next_action: OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
 next_code_action: NONE_PENDING_OWNER_REREVIEW
-current_status: DASHBOARD_OWNER_REREVIEW_REMEDIATION_DEPLOYED_PASS
+current_status: DASHBOARD_OWNER_FIVE_FIXES_DEPLOYED_PASS
 current_gate: OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
 terminal_gate: OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
 
 release_identity:
-  context_base_sha: 4f3054805bd3edc2a434c97440ac9076f7f7eef7
-  implementation_base_sha: 8df3c0cb5ecb4364526c4b391ca54a5b86928c25
-  implementation_head_sha: 1ea89681480fcd8c44d84e314de74fbad38944b3
-  source_tree_sha: 9fcce49ec2c43553d0a00770ccc144b58cc1ed47
-  final_main_sha: 31c73d74572e67cc5b4c42bbc5dd53b093033b79
-  deployed_source_sha: 1ea89681480fcd8c44d84e314de74fbad38944b3
-  pr: 510
+  context_base_sha: 02c1fff9e17ebd6f45969ee9280a6912e1b86f7f
+  implementation_base_sha: 3c4e5852e4f863f2f2481a2d91ae37bafe76b27b
+  implementation_head_sha: ea7ea01e049ef3110196b370ca06711ef7f849c6
+  source_tree_sha: f86c1d71f2cff95d2ff84949483f1c4eb75a223f
+  final_main_sha: 283f10e704bca34229a5db82ca612002f9e33b9b
+  deployed_source_sha: ea7ea01e049ef3110196b370ca06711ef7f849c6
+  pr: 514
   pr_state: MERGED
-  full_ci_run: 31360059565
-  promotion_run: 31360750413
+  full_ci_run: 31399434423
+  promotion_run: 31400898443
   release_required: PASS_EXACT_HEAD
   promotion_required: PASS
-  release_manifest_sha256: 20884d6b3019672d6cefc942f013f4feef6739ceb66f80f6ecd0e4427bf8c63b
+  release_manifest_sha256: 707b3dcc02edd335038c91bb4e8a03dc5176d2a5db11b7e350934d849985cefc
 
 owner_rereview_remediation:
-  status: PASS_READY_FOR_OWNER_REREVIEW
+  status: DEPLOYED_PASS_READY_FOR_OWNER_REREVIEW
   scope:
-    affected_match_identity_and_kickoff: DEPLOYED
+    price_only_priority_threshold_exact_2_percent: DEPLOYED
+    unchanged_line_subthreshold_noise_excluded_from_priority: DEPLOYED
+    latest_snapshot_age_label: DEPLOYED
+    unassessed_model_risk_semantics: DEPLOYED
+    chinese_first_model_copy: DEPLOYED
+    iso_date_format: DEPLOYED
     recent_seven_day_navigation: DEPLOYED
-    blocked_day_factual_summary: DEPLOYED
-    full_next_evaluation_timestamp: DEPLOYED_TRUTHFUL_EXPIRED_LABEL
-    prominent_postmatch_validation_center: DEPLOYED
-    cumulative_validation_progress: DEPLOYED
-    raw_codes_collapsed_to_technical_details: DEPLOYED
-    stale_model_quality_compressed: DEPLOYED
+    cumulative_postmatch_validation: DEPLOYED
     one_selected_day_read_only: PASS
-  changed_files: 8
+  changed_files: 15
   repository_hygiene: PASS
   unresolved_hygiene_items: 0
 
 verification:
-  focused_d16_snapshots: 2_PASSED
-  focused_web_contract: 37_PASSED
-  web_e2e: 55_PASSED
-  typecheck: PASS
-  web_build: PASS
-  focused_python: 55_PASSED
+  focused_python: 60_PASSED
+  full_local_python: 2542_PASSED_13_SKIPPED
+  focused_web_contract: 39_PASSED
   exact_head_full_ci: PASS
   release_required: PASS
   main_tree_matches_source_tree: PASS
-  live_visual_qa: PASS
-  recent_day_navigation: PASS
+  live_visual_qa_desktop: PASS
+  live_visual_qa_responsive_1180: PASS_NO_HORIZONTAL_OVERFLOW
+  recent_day_navigation: PASS_2026_08_09_EMPTY_AND_RETURN_TODAY
   validation_anchor: PASS
+  priority_threshold_real_payload: PASS_ZERO_PRIORITY_FOR_SUBTHRESHOLD_NOISE
 
 deployment:
   transport: LOCAL_OCI_RELAY_PRIMARY
-  python_image_digest: sha256:abcc61f2cc5c7101227f9186fa56fea3195a72f5dbbad74ecf8f7f6d34568fe2
-  web_image_digest: sha256:4ba3a8654e1148f455f2ba50934da53ab190fe88fbc7416a510775a837c860b7
-  initial_relay_tls_timeout: RECOVERED_BEFORE_MERGE_NO_PARTIAL_DEPLOYMENT
-  python_relay: PASS_DIGEST_VERIFIED_203_SECONDS
-  web_relay: PASS_DIGEST_VERIFIED_74_SECONDS
-  warm_switch_seconds: 39
+  predeploy_source_sha: 58065da226fc7afbff625deb7e299cbab94bd7ba
+  predeploy_backup: PASS_CUSTOM_FORMAT_AND_RESTORE_LIST_VALIDATED
+  predeploy_backup_bytes: 36605283
+  predeploy_backup_sha256: 4d6daf93a058315af3b658e02adbd18c35b78da29a4a2bf089e56cd0d79ad1f9
+  python_image_digest: sha256:04fc99f9763a24343bb44292918132a46eba4f6a0e23dbb29e45c75adc941da8
+  web_image_digest: sha256:ad8dd345cb7abfccece9dea21db055036a074d118f2235721d1986177e88747b
+  python_relay: PASS_DIGEST_VERIFIED_262_SECONDS
+  web_relay: PASS_DIGEST_VERIFIED_59_SECONDS
+  warm_switch_seconds: 43
   warm_switch_target_seconds: 300
   health: PASS
   ready: PASS
   release_sync: PASS
   rollback_executed: false
+  owner_local_acceptance_tunnel: PASS_EXACT_DEPLOYED_WEB
 
 postdeploy_real_payload:
   schema: w2.dashboard-intelligence-workspace.v1
+  public_authority: NEW_INTELLIGENCE_WORKSPACE_ONLY
   data_profile: real-db
   data_source: dashboard_read_model
   date: "2026-08-10"
-  day_mode: BLOCKED
-  match_count: 2
-  attention_count: 2
+  day_mode: NORMAL
+  match_count: 3
+  attention_count: 3
+  priority_match_count: 0
   validation_count: 56
   validation_eligible_count: 16
   validation_settled_count: 16
-  validation_directional_status: SAMPLE_BUILDING
-  history_replay_status: MISSING_OUTCOMES
   provider_calls: 0
   db_writes: 0
   would_write_checkpoint: false
   no_call_on_read: true
+  provider_counter_unchanged: PASS_VALUE_0
 
 accepted_truths_must_not_regress:
   public_dashboard_authority: NEW_INTELLIGENCE_WORKSPACE_ONLY
@@ -96,6 +100,8 @@ accepted_truths_must_not_regress:
   read_provider_calls: 0_REQUIRED
   read_db_business_writes: 0_REQUIRED
   no_call_on_read: true
+  intelligence_states: EXACT_SEVEN
+  risk_axes: EXACT_EVENT_DATA_MODEL_COLLECTION
   market_timeline: REAL_DISCRETE_0_1_2_PLUS_NO_INTERPOLATION
   one_public_market_readiness: READY_STALE_INSUFFICIENT
   external_intelligence: NOT_CONNECTED_NON_BLOCKING
@@ -108,7 +114,7 @@ round4:
   status: NOT_STARTED
   execution_authority: NOT_GRANTED
   packet: ROUND4_READINESS_DECISION_PACKET.md
-  current_packet_exact_release_identity: PR_510_DEPLOYED_RELEASE
+  current_packet_exact_release_identity: PR_514_DEPLOYED_RELEASE
   next_automatic_action: NONE
 
 p6:

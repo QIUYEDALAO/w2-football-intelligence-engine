@@ -86,3 +86,11 @@ refresh are inapplicable because the rollout gate did not pass. Track A remains
 
 No VPS address, public URL, database identifier, sensitive value or unredacted
 runtime log is stored in this receipt.
+
+## Latest accepted deployment
+
+The historical rollback above remains preserved. The current accepted release
+is recorded separately in `DASHBOARD_OWNER_FIVE_FIXES_DEPLOYMENT_RECEIPT.md`:
+PR #514, exact source `ea7ea01e049ef3110196b370ca06711ef7f849c6`,
+warm-switch PASS in 43 seconds, postdeploy acceptance PASS, rollback not
+required.
