@@ -174,6 +174,11 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
         "MODEL_RISK",
         "COLLECTION_RISK",
     }
+    threshold_schema = schemas["WorkspaceRuntime"]["properties"][
+        "market_price_attention_threshold_ratio"
+    ]
+    assert threshold_schema["minimum"] == 0.02
+    assert threshold_schema["maximum"] == 0.02
     assert schemas["WorkspaceRisks"]["additionalProperties"] is False
     assert set(schemas["WorkspaceMarket"]["properties"]["status"]["enum"]) == {
         "READY",

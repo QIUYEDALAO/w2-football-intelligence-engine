@@ -285,6 +285,7 @@ def test_workspace_is_deterministic_explicit_and_schema_valid() -> None:
         "no_call_on_read": True,
     }
     assert first["runtime"]["formal"] == "OFF"
+    assert first["runtime"]["market_price_attention_threshold_ratio"] == 0.02
     assert first["day_mode"] == "NORMAL"
     assert first["default_focus_type"] == "MATCH"
     assert first["default_focus_fixture_id"] == "fixture-two"
@@ -439,6 +440,47 @@ def test_primary_reason_grouping_counts_each_match_once() -> None:
     assert match["priority_reason_secondary"] == ["MODEL_DIAGNOSTIC"]
     assert payload["today_summary"]["priority_match_count"] == 1
     assert payload["today_summary"]["primary_reason_counts"] == {"MARKET_MOVEMENT": 1}
+
+
+def test_price_noise_below_two_percent_does_not_enter_priority() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][2]
+    market = card["market_radar"]["markets"]["ASIAN_HANDICAP"]
+    market["current"]["prices"] = {"HOME": 1.80, "AWAY": 1.97}
+    market["movement"] = {
+        "status": "PRICE_MOVEMENT",
+        "from_captured_at": "2026-08-09T00:00:00Z",
+        "to_captured_at": "2026-08-09T01:00:00Z",
+        "line_delta": "0",
+        "price_delta": {"HOME": -0.01, "AWAY": 0.02},
+        "probability_delta": {"HOME": 0.0, "AWAY": 0.0},
+    }
+
+    payload = _workspace(day_view)
+    match = next(item for item in payload["matches"] if item["fixture_id"] == "fixture-two")
+
+    assert match["priority_reason_primary"] is None
+    assert payload["today_summary"]["primary_reason_counts"] == {}
+
+
+def test_price_movement_at_or_above_two_percent_enters_priority() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][2]
+    market = card["market_radar"]["markets"]["ASIAN_HANDICAP"]
+    market["current"]["prices"] = {"HOME": 2.00, "AWAY": 1.90}
+    market["movement"] = {
+        "status": "PRICE_MOVEMENT",
+        "from_captured_at": "2026-08-09T00:00:00Z",
+        "to_captured_at": "2026-08-09T01:00:00Z",
+        "line_delta": "0",
+        "price_delta": {"HOME": 0.04, "AWAY": 0.0},
+        "probability_delta": {"HOME": 0.0, "AWAY": 0.0},
+    }
+
+    payload = _workspace(day_view)
+    match = next(item for item in payload["matches"] if item["fixture_id"] == "fixture-two")
+
+    assert match["priority_reason_primary"] == "MARKET_MOVEMENT"
 
 
 def test_trend_and_cross_sectional_statuses_are_independent() -> None:

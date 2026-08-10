@@ -38,6 +38,7 @@ ATTENTION_REASON_ORDER = {
     "LINEUP_PENDING": 5,
 }
 MODEL_QUALITY_MAX_AGE_SECONDS = 86_400
+MARKET_PRICE_ATTENTION_THRESHOLD_RATIO = 0.02
 RISK_REASON_LABELS = {
     "DATA_FIELD_STALE": "数据字段已超过新鲜度边界",
     "DATA_IDENTITY_NOT_READY": "比赛或盘口身份尚未完成",
@@ -45,6 +46,7 @@ RISK_REASON_LABELS = {
     "DATA_REQUIRED_INPUT_MISSING": "必需输入尚未齐全",
     "DATA_STATUS_BLOCKED": "当前数据状态阻塞",
     "MODEL_SIMULATION_NOT_READY": "既有模型模拟尚未就绪",
+    "MODEL_LAB_NOT_READY": "模型评估尚未就绪",
     "MODEL_OUTSIDE_MARKET_RANGE": "模型结果超出当前市场观测区间",
     "COLLECTION_ASSESSMENT_NOT_AVAILABLE": "尚无可用采集评估证据",
     "COLLECTION_ASSESSMENT_STALE": "采集评估证据已过期",
@@ -112,6 +114,7 @@ def build_dashboard_intelligence_workspace(
             "public_dashboard_authority": PUBLIC_AUTHORITY,
             "active_whitelist_count": 13,
             "free_bridge_mode": "SHADOW_ONLY",
+            "market_price_attention_threshold_ratio": MARKET_PRICE_ATTENTION_THRESHOLD_RATIO,
             "candidate": "OFF",
             "formal": "OFF",
             "lock": "OFF",
@@ -664,13 +667,7 @@ def _priority_reasons(match: Mapping[str, Any]) -> tuple[str | None, list[str]]:
     stale = any(_text(_mapping(market).get("status")) == "STALE" for market in markets.values())
     if stale:
         reasons.add("STALE_MARKET_MEMORY")
-    if any(
-        _text(_mapping(market).get("status")) in {"READY", "STALE"}
-        and _int(_mapping(market).get("snapshot_count")) >= 2
-        and _text(_mapping(_mapping(market).get("movement")).get("status"))
-        in {"PRICE_MOVEMENT", "LINE_MOVEMENT", "LINE_AND_PRICE_MOVEMENT"}
-        for market in markets.values()
-    ):
+    if any(_is_attention_worthy_movement(_mapping(market)) for market in markets.values()):
         reasons.add("MARKET_MOVEMENT")
     if any(
         _text(_mapping(market).get("status")) == "READY"
@@ -705,6 +702,37 @@ def _priority_reasons(match: Mapping[str, Any]) -> tuple[str | None, list[str]]:
         key=lambda reason: (ATTENTION_REASON_ORDER[reason], reason),
     )
     return primary, secondary
+
+
+def _is_attention_worthy_movement(market: Mapping[str, Any]) -> bool:
+    if (
+        _text(market.get("status")) not in {"READY", "STALE"}
+        or _int(market.get("snapshot_count")) < 2
+    ):
+        return False
+    movement = _mapping(market.get("movement"))
+    status = _text(movement.get("status"))
+    if status in {"LINE_MOVEMENT", "LINE_AND_PRICE_MOVEMENT"}:
+        return True
+    if status != "PRICE_MOVEMENT":
+        return False
+    prices = _mapping(market.get("prices"))
+    deltas = _mapping(movement.get("price_delta"))
+    return any(
+        _relative_price_change(prices.get(side), delta)
+        >= MARKET_PRICE_ATTENTION_THRESHOLD_RATIO
+        for side, delta in deltas.items()
+    )
+
+
+def _relative_price_change(current: Any, delta: Any) -> float:
+    raw_current = _mapping(current).get("median") if isinstance(current, Mapping) else current
+    current_value = _number(raw_current)
+    delta_value = _number(delta)
+    if current_value is None or delta_value is None:
+        return 0.0
+    previous_value = current_value - delta_value
+    return abs(delta_value) / abs(previous_value) if previous_value else 0.0
 
 
 def _primary_reason_counts(matches: Sequence[Mapping[str, Any]]) -> dict[str, int]:
@@ -899,6 +927,10 @@ def _risks(source: Mapping[str, Any]) -> dict[str, Any]:
     for dimension in ("EVENT_RISK", "DATA_RISK", "MODEL_RISK", "COLLECTION_RISK"):
         risk = dict(_mapping(source.get(dimension)))
         reasons = _string_list(risk.get("reason_codes"))
+        if dimension == "MODEL_RISK" and risk.get("assessment_status") == "UNASSESSED":
+            risk["explanation"] = "尚无可用模型评估证据"
+            result[dimension] = risk
+            continue
         translated = [
             RISK_REASON_LABELS[reason] for reason in reasons if reason in RISK_REASON_LABELS
         ]

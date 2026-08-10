@@ -139,7 +139,7 @@ function workspace(scenario: Scenario = "normal"): IntelligenceWorkspace {
     global_focus: globalFocus,
     global_model_quality: { status: "AVAILABLE", checkpoint_key: "performance:cohort:all", checkpoint_generated_at: "2026-08-09T12:00:00Z", freshness_max_age_seconds: 86_400, model_log_loss: .512, market_log_loss: .508, model_brier: .178, market_brier: .174, model_calibration_error: .026, sample_count: 34 },
     read_contract: { provider_calls: 0, db_writes: 0, would_write_checkpoint: false, no_call_on_read: true },
-    runtime: { product: "FOOTBALL_MARKET_INTELLIGENCE_PLUS_MODEL_DIAGNOSTICS", public_dashboard_authority: "NEW_INTELLIGENCE_WORKSPACE_ONLY", active_whitelist_count: 13, free_bridge_mode: "SHADOW_ONLY", candidate: "OFF", formal: "OFF", lock: "OFF", production: "OFF" },
+    runtime: { product: "FOOTBALL_MARKET_INTELLIGENCE_PLUS_MODEL_DIAGNOSTICS", public_dashboard_authority: "NEW_INTELLIGENCE_WORKSPACE_ONLY", active_whitelist_count: 13, free_bridge_mode: "SHADOW_ONLY", market_price_attention_threshold_ratio: 0.02, candidate: "OFF", formal: "OFF", lock: "OFF", production: "OFF" },
     navigation: { current_date: "2026-08-09", previous_date: "2026-08-08", next_date: "2026-08-10", next_available_date: "2026-08-10" },
     attention: matches.map((item) => ({ fixture_id: item.fixture_id, kickoff_utc: item.kickoff_utc, intelligence_state: item.intelligence_state, reason_codes: item.intelligence_reason_codes, affected_domains: ["MARKET"], factual_summary: item.intelligence_reason_codes.join("；"), readiness_status: item.readiness.status, readiness_context: { reason_code: item.readiness.reason_code, missing_fields: item.readiness.missing_fields, stale_fields: item.readiness.stale_fields, action: item.readiness.action }, next_eval_at: item.readiness.next_eval_at, risks: item.risks })),
     matches,
@@ -161,6 +161,35 @@ test("V41 uses backend focus authority and never falls back to matches[0]", asyn
   await expect(page.locator(".v41-focus")).toHaveAttribute("data-fixture-id", "1571806");
   await expect(page.locator(".v41-shortlist-list button").first()).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".v41-focus h1")).toContainText("本菲卡");
+  await expect(page.locator(".v41-shortlist > header")).toContainText("赔率相对变化 ≥ 2%");
+  await expect(page.getByLabel("选择比赛日")).toHaveValue(/^\d{4}-\d{2}-\d{2}$/);
+  await expect(page.locator(".v41-today-day")).toContainText("比赛日 2026-08-09 12:00 → 2026-08-10 12:00（不含）");
+});
+
+test("V41 presents unassessed model evidence in Chinese and keeps codes technical", async ({ page }) => {
+  const payload = workspace();
+  const focused = payload.matches.find((item) => item.fixture_id === payload.default_focus_fixture_id)!;
+  focused.w2_analysis.model_view.status = "PRIOR_ONLY";
+  focused.model_lab.w2_model.status = "PRIOR_ONLY";
+  for (const relation of Object.values(focused.w2_analysis.model_market_relation)) {
+    relation.status = "MODEL_NOT_READY";
+    relation.blockers = ["MODEL_CALIBRATION_NOT_READY"];
+  }
+  focused.risks.MODEL_RISK = {
+    dimension: "MODEL_RISK",
+    status: "ATTENTION",
+    reason_codes: ["MODEL_SIMULATION_NOT_READY"],
+    explanation: "尚无可用模型评估证据",
+    assessment_status: "UNASSESSED",
+  };
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.goto("/");
+
+  await expect(page.locator(".v41-three-layer")).toContainText("模型尚未就绪");
+  await expect(page.locator(".v41-diagnostic")).toContainText("模型尚未就绪");
+  await expect(page.locator(".v41-diagnostic")).not.toContainText("MODEL_NOT_READY");
+  await expect(page.locator(".v41-risk-list")).toContainText("模型风险未评估尚无可用模型评估证据");
+  await expect(page.getByText("MODEL_CALIBRATION_NOT_READY", { exact: true })).not.toBeVisible();
 });
 
 test("D16 deployed real shape keeps NORMAL authority, useful stale focus and auditable reasons", async ({ page }) => {
@@ -305,7 +334,7 @@ test("V41 derives age across timezone and day boundaries and never labels a past
   focused.readiness.next_eval_at = "2026-08-09T16:30:00Z";
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
-  await expect(page.locator("[data-market='ASIAN_HANDICAP']")).toContainText("距生成 1 小时 12 分");
+  await expect(page.locator("[data-market='ASIAN_HANDICAP']")).toContainText("距最新快照 1 小时 12 分");
   await expect(page.locator(".v41-next")).toContainText("评估时间已过期");
   await expect(page.locator(".v41-next")).not.toContainText("下次评估");
 });
@@ -321,7 +350,7 @@ test("V41 date navigation, Today, Refresh and keyboard focus are functional", as
   await page.getByLabel("选择比赛日").fill("2026-08-03");
   await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-03");
   const requestsBeforeHistoryClick = requestedDates.length;
-  await page.getByRole("button", { name: "08/02 查看" }).click();
+  await page.getByRole("button", { name: "2026-08-02 查看" }).click();
   await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-02");
   expect(requestedDates).toHaveLength(requestsBeforeHistoryClick + 1);
   await page.keyboard.press("Tab");

@@ -30,6 +30,7 @@ declared availability/readiness state and never authorize fabrication.
 | `runtime.public_dashboard_authority` | approved P0 contract | `AVAILABLE` | `NONE` | new workspace only | `true` |
 | `runtime.active_whitelist_count` | exact runtime authority | `AVAILABLE` | `NONE` | exactly 13 | `true` |
 | `runtime.free_bridge_mode` | frozen context | `AVAILABLE` | `NONE` | `SHADOW_ONLY` | `true` |
+| `runtime.market_price_attention_threshold_ratio` | Dashboard priority contract | `AVAILABLE` | `NONE` | exactly `0.02`; price-only movement below 2% remains factual evidence but does not enter priority | `true` |
 | `runtime.candidate`, `formal`, `lock`, `production` | frozen environment/product authority | `AVAILABLE` | `NONE` | all `OFF` | `true` |
 
 ## Navigation, Attention and match identity
@@ -47,6 +48,7 @@ declared availability/readiness state and never authorize fabrication.
 | `attention[].next_eval_at` | Decision Contract | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | relevant source domains | null when source has no next evaluation | `true` |
 | `attention[].risks` | DayView `risk_dimensions` | `AVAILABLE` | relevant source domains | exact `EVENT_RISK`/`DATA_RISK`/`MODEL_RISK`/`COLLECTION_RISK`; no extra/missing axis | `true` |
 | `attention[].risks.COLLECTION_RISK.assessment_status`, `evidence_basis`, `source_as_of` | persisted terminal/capture assessment evidence | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `ODDS_PREMATCH` | `OK` requires current persisted assessment; missing evidence is `UNASSESSED`, not green and not incident | `true` |
+| `attention[].risks.MODEL_RISK.assessment_status`, `evidence_basis` | persisted model/simulation assessment evidence | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `MODEL` | missing readiness evidence is `UNASSESSED`, not green and not incident; evidence-backed disagreement remains assessed risk | `true` |
 | `matches[].fixture_id`, `competition_id`, `competition_name` | DayView card identity | `AVAILABLE` | `FIXTURES` | missing identity fails existing DayView contract | `true` |
 | `matches[].kickoff_utc`, `home_team_name`, `away_team_name`, `status` | DayView card identity | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `FIXTURES` | null only when existing source lacks optional display name/status | `true` |
 | `matches[].intelligence_state`, `intelligence_reason_codes`, `risks` | existing intelligence projection | `AVAILABLE` | relevant source domains | exact seven states and exact four production-shaped risk axes; fail closed | `true` |
