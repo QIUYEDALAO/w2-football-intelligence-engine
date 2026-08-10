@@ -897,6 +897,46 @@ def test_future_refresh_burst_only_is_daily_unknown(tmp_path: Path) -> None:
     assert result.blockers == ["DAILY_QUOTA_UNKNOWN"]
 
 
+def test_future_refresh_uses_persisted_quota_when_response_omits_daily_quota(
+    tmp_path: Path,
+) -> None:
+    client = FakeApiFootballClient(
+        remaining=299,
+        daily_header="x-ratelimit-remaining",
+        include_status_daily_payload=False,
+    )
+    service = FutureFixtureRefreshService(
+        client=client,
+        config=FutureRefreshConfig(runtime_root=tmp_path, quota_reserve=20, persistence="file"),
+        now=NOW,
+        sleep=lambda _: None,
+    )
+    service._latest_remaining = 95
+
+    result = service.run()
+
+    assert result.blockers == []
+    assert result.remaining_quota == 92
+
+
+def test_future_refresh_loads_strictest_persisted_quota(monkeypatch: Any, tmp_path: Path) -> None:
+    class Repository:
+        @staticmethod
+        def provider_quota_snapshot(_day_start: datetime) -> dict[str, int | None]:
+            return {"daily_limit": 100, "used": 5, "remaining": 95}
+
+    service = FutureFixtureRefreshService(
+        client=FakeApiFootballClient(),
+        config=FutureRefreshConfig(runtime_root=tmp_path, persistence="db"),
+        now=NOW,
+    )
+    monkeypatch.setattr(service, "_db_repository", Repository)
+
+    service._load_persisted_provider_remaining()
+
+    assert service._latest_remaining == 95
+
+
 def test_future_refresh_blocks_when_header_remaining_below_preflight_minimum(
     tmp_path: Path,
 ) -> None:
