@@ -3,12 +3,11 @@
 ```text
 ACTIVE_NEXT_ACTION = OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
 CURRENT_GATE = OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
-AUTHORITY = DASHBOARD_V41_POSTDEPLOY_BOUNDED_REMEDIATION.md
-REMEDIATION_RESULT = PASS_READY_FOR_OWNER_REREVIEW
-PR_507 = MERGED_DEPLOYED
-IMPLEMENTATION_HEAD = 99e4acc275edc94ae012c12dd541609b2be3fffe
-FINAL_MAIN = 6787b7f12a74f69f76e0f4f88c9a875cece66673
-D16_01_THROUGH_D16_07 = CLOSED
+DIRECT_OWNER_APPROVAL = PR_509_DEPLOYMENT_APPROVED_2026_08_10
+PR_509 = MERGED_DEPLOYED
+IMPLEMENTATION_HEAD = 4fdd622cadd3dd4cb150a076a83536efe81f3556
+FINAL_MAIN = 8df3c0cb5ecb4364526c4b391ca54a5b86928c25
+DATE_NAVIGATION_AND_POSTMATCH_VALIDATION = DEPLOYED_PASS
 ROUND_4 = NOT_STARTED
 ROUND_4_EXECUTION_AUTHORITY = NOT_GRANTED
 P6 = NOT_AUTHORIZED
@@ -17,42 +16,34 @@ NEXT_AUTOMATIC_ACTION = NONE
 
 ## Owner rereview packet
 
-The bounded V4.1 remediation is implemented, exact-head tested, merged, promoted,
-relayed through the Owner-local OCI path and deployed. The live unified endpoint
-is synchronized to the exact approved source head.
+PR #509 is merged, promoted and deployed from the exact Release Candidate
+source. The public Dashboard now exposes direct date selection, functional
+previous/next navigation on empty days, and a visible post-match validation
+panel backed by the existing unified read model.
 
-Owner rereview should verify the following already-proven closure evidence:
+Owner rereview should verify:
 
-1. `NORMAL + MATCH` no longer exposes raw `BLOCKED_DAY` as the public day-mode badge;
-   the scoped public health state is `PARTIAL_DEGRADATION`.
-2. The default focus is fixture `1492329`, which has useful persisted 1/2+ market
-   evidence. Zero-evidence `DATA_INCOMPLETE` rows are other-attention only.
-3. `STALE_MARKET_MEMORY` is the public primary reason and historical movement is
-   secondary when current evidence is stale.
-4. Primary and secondary reasons are visually distinct and L1 counts include only
-   priority-eligible primary reasons.
-5. Four-axis risk explanations and the canonical factual summary are Chinese-first;
-   canonical codes remain technical detail.
-6. Desktop acceptance targets have one page-level vertical scroll path and no
-   independent `v41-focus-body` vertical scroll.
-7. Global validation uses exact `AVAILABLE / STALE / INCOMPLETE / NOT_AVAILABLE`
-   semantics; the live checkpoint is truthfully `STALE`.
-8. The live read contract is `provider_calls=0`, `db_writes=0`,
-   `would_write_checkpoint=false`, `no_call_on_read=true`; the adjacent persisted
-   vector remained unchanged.
+1. a specific football day can be selected directly;
+2. empty-day previous/next controls change the requested date;
+3. post-match validation totals and replay gaps are visible without a second
+   read initiated by expanding the panel;
+4. the live read contract remains `provider_calls=0`, `db_writes=0`,
+   `would_write_checkpoint=false`, `no_call_on_read=true`;
+5. Candidate, Formal, Lock and Production remain `OFF`.
 
 ## Evidence identity
 
 ```text
-FULL_CI_RUN = 31336303846
+FULL_CI_RUN = 31356139813
 RELEASE_REQUIRED = PASS_EXACT_HEAD
-PROMOTION_RUN = 31336887357
+PROMOTION_RUN = 31357326221
 PROMOTION_REQUIRED = PASS
 HEALTH = PASS
 READY = PASS
 RELEASE_SYNC = PASS
 LOCAL_OCI_RELAY = PASS_DIGEST_VERIFIED
-WARM_SWITCH = PASS_34_SECONDS
+WARM_SWITCH = PASS_38_SECONDS
+READ_WINDOW_COUNTS = 689,0,0 -> 689,0,0
 ROLLBACK_EXECUTED = false
 REPOSITORY_HYGIENE = PASS
 ```
