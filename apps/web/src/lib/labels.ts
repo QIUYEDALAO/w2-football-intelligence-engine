@@ -52,16 +52,18 @@ export const TENDENCY_LABELS: Record<string, string> = {
   DRAW: "赛果方向待校准",
 };
 
-export const COMPETITION_TRANSLATIONS: Array<[RegExp, string]> = [
-  [/Premier League/i, "英超"],
-  [/Primeira Liga/i, "葡超"],
-  [/La Liga/i, "西甲"],
-  [/Bundesliga/i, "德甲"],
-  [/World Cup/i, "世界杯"],
-  [/Allsvenskan/i, "瑞典超"],
-  [/Eliteserien/i, "挪威超"],
-  [/Serie A/i, "巴甲"],
-  [/Super League/i, "中超"],
+export const COMPETITION_NAME_LABELS: Record<string, string> = {
+  Allsvenskan: "瑞典超",
+  Bundesliga: "德甲",
+  "Chinese Super League": "中超",
+  Eliteserien: "挪威超",
+  "La Liga": "西甲",
+  "Premier League": "英超",
+  "Primeira Liga": "葡超",
+  "World Cup": "世界杯",
+};
+
+export const COMPETITION_STAGE_TRANSLATIONS: Array<[RegExp, string]> = [
   [/Regular Season\s*-\s*(\d+)/i, "常规赛第$1轮"],
   [/Group Stage\s*-\s*(\d+)/i, "小组赛第$1轮"],
   [/Group Stage/i, "小组赛"],
@@ -74,6 +76,8 @@ export const COMPETITION_TRANSLATIONS: Array<[RegExp, string]> = [
 export const TEAM_TRANSLATIONS: Record<string, string> = {
   Benfica: "本菲卡",
   Porto: "波尔图",
+  Nacional: "国民队",
+  "Santa Clara": "圣克拉拉",
   "Real Madrid": "皇家马德里",
   "Real Betis": "贝蒂斯",
   "Bayern Munich": "拜仁慕尼黑",

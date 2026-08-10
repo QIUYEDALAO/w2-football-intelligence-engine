@@ -98,7 +98,10 @@ export function fixtureCompetition(fixture: unknown): string {
   const league = asRecord(record.league);
   const base = textValue(record.competition_name ?? record.competition_cn ?? league.name, "世界杯");
   const round = textValue(league.round);
-  return translateCompetition(round && !base.includes(round) ? `${base} · ${round}` : base);
+  return translateCompetition(
+    round && !base.includes(round) ? `${base} · ${round}` : base,
+    record.competition_id,
+  );
 }
 
 export function fixtureKickoff(fixture: unknown): string {
@@ -382,7 +385,7 @@ export function teamBadgeLabel(name: string): string {
 }
 
 export function competitionName(card: DashboardCard): string {
-  return translateCompetition(card.competition_cn ?? card.competition_name);
+  return translateCompetition(card.competition_cn ?? card.competition_name, card.competition_id);
 }
 
 export function computeStats(cards: DashboardCard[]): DashboardStats {

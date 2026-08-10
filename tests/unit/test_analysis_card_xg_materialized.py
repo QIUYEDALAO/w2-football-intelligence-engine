@@ -49,6 +49,30 @@ def _complete_future_observations(rows: list[dict[str, Any]]) -> list[dict[str, 
     return rows
 
 
+def test_provider_fixture_context_uses_canonical_competition_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = ReadModelService(repository=cast(Any, object()))
+    monkeypatch.setattr(
+        service,
+        "_competition_id_from_provider_fixture",
+        lambda _item: "primeira_liga",
+    )
+
+    context = service._analysis_context_from_provider_fixture(
+        {
+            "fixture": {"id": 1575453, "date": KICKOFF.isoformat()},
+            "league": {"id": 94, "name": "Primeira Liga", "round": "Regular Season - 1"},
+            "teams": {
+                "home": {"id": 1038, "name": "Santa Clara"},
+                "away": {"id": 242, "name": "Nacional"},
+            },
+        }
+    )
+
+    assert context["competition_id"] == "primeira_liga"
+
+
 class FakeReadRepository:
     def matchday_cards(self) -> list[dict[str, Any]]:
         return []

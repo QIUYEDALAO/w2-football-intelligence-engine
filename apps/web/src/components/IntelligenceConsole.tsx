@@ -280,7 +280,7 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
           <article className="v41-blocked-match" key={match.fixture_id}>
             <span className="v41-stripe v41-stripe--collection_incident" />
             <span className="v41-shortlist-copy">
-              <small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认")}</small>
+              <small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认", match.competition_id)}</small>
               <strong>{matchName(match)}</strong>
               <span><b>仅赛程</b> · 暂无持久化市场证据</span>
             </span>
@@ -308,7 +308,7 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
           <button aria-pressed={selectedId === match.fixture_id} className={selectedId === match.fixture_id ? "is-selected" : undefined} key={match.fixture_id} onClick={() => onSelect(match.fixture_id)} type="button">
             <span className={`v41-stripe v41-stripe--${match.priority_reason_primary?.toLowerCase()}`} />
             <span className="v41-shortlist-copy">
-              <small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认")}</small>
+              <small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认", match.competition_id)}</small>
               <strong>{matchName(match)}</strong>
               <span className="v41-reason-line"><b>主因：{REASON_LABELS[match.priority_reason_primary || ""] || label(match.priority_reason_primary)}</b>{match.priority_reason_secondary.length ? <small>次因：{match.priority_reason_secondary.map((reason) => REASON_LABELS[reason] || label(reason)).join("、")}</small> : null}</span>
             </span>
@@ -321,7 +321,7 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
           <button aria-pressed={selectedId === match.fixture_id} className={selectedId === match.fixture_id ? "is-selected" : undefined} key={`other-${match.fixture_id}`} onClick={() => onSelect(match.fixture_id)} type="button">
             <span className="v41-stripe v41-stripe--data_incomplete" />
             <span className="v41-shortlist-copy">
-              <small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认")}</small>
+              <small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认", match.competition_id)}</small>
               <strong>{matchName(match)}</strong>
               <span className="v41-reason-line"><small>关注：{match.priority_reason_secondary.map((reason) => REASON_LABELS[reason] || label(reason)).join("、")}</small></span>
             </span>
@@ -398,7 +398,7 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
   return (
     <article className="v41-focus" data-focus-type="MATCH" data-fixture-id={match.fixture_id}>
       <header className="v41-focus-header">
-        <div><h1>{matchName(match)}</h1><p>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认")} · {localDateTime(match.kickoff_utc)} · 比赛 {match.fixture_id}</p></div>
+        <div><h1>{matchName(match)}</h1><p>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认", match.competition_id)} · {localDateTime(match.kickoff_utc)} · 比赛 {match.fixture_id}</p></div>
         <div><span>开球时间</span><strong>{clock(match.kickoff_utc)}</strong></div>
       </header>
       <div className={`v41-focus-summary ${stale ? "is-warning" : ""}`}><b>{stale ? "市场记忆" : "本场摘要"}</b><span>{match.factual_summary}</span></div>
@@ -498,7 +498,7 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
           {workspace.matches.length ? <ol className="v41-validation-matches">{workspace.matches.map((match) => <li key={match.fixture_id}><time>{localDateTime(match.kickoff_utc)}</time><strong>{matchName(match)}</strong><span>{label(match.readiness.status)}</span></li>)}</ol> : <p className="v41-validation-empty">所选比赛日没有比赛记录；可使用上方日期浏览历史。</p>}
         </section>
       </div>
-      {workspace.validation.league_performance.length ? <details className="v41-validation-leagues"><summary>按联赛查看验证状态（{workspace.validation.league_performance.length}）</summary><ul>{workspace.validation.league_performance.slice(0, 13).map((league) => <li key={`${league.competition_id}-${league.source_league}`}><strong>{translateCompetition(league.competition_name || league.league)}</strong><span>{league.only_record_reason === "PROBABILITY_QUALITY_NOT_READY" ? "概率质量待就绪" : league.only_record_reason === "AGGREGATION_CONFLICT" ? "聚合冲突" : league.only_record_reason === "SAMPLE_INSUFFICIENT" ? "样本不足" : "可用"}</span></li>)}</ul></details> : null}
+      {workspace.validation.league_performance.length ? <details className="v41-validation-leagues"><summary>按联赛查看验证状态（{workspace.validation.league_performance.length}）</summary><ul>{workspace.validation.league_performance.slice(0, 13).map((league) => <li key={`${league.competition_id}-${league.source_league}`}><strong>{translateCompetition(league.competition_name || league.league, league.canonical_competition_id || league.competition_id)}</strong><span>{league.only_record_reason === "PROBABILITY_QUALITY_NOT_READY" ? "概率质量待就绪" : league.only_record_reason === "AGGREGATION_CONFLICT" ? "聚合冲突" : league.only_record_reason === "SAMPLE_INSUFFICIENT" ? "样本不足" : "可用"}</span></li>)}</ul></details> : null}
       <details className="v41-validation-technical"><summary>技术证据详情</summary><p>回放状态：<code>{replay.status}</code></p><p>原始缺口：{replay.replay_gaps.map((gap) => <code key={gap}>{gap}</code>)}</p><p>读取合同：<code>provider_calls={workspace.read_contract.provider_calls}</code> <code>db_writes={workspace.read_contract.db_writes}</code> <code>no_call_on_read={String(workspace.read_contract.no_call_on_read)}</code></p></details>
     </section>
   );

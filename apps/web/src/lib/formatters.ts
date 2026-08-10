@@ -1,4 +1,10 @@
-import { COMPETITION_TRANSLATIONS, REASON_TRANSLATIONS, TEAM_TRANSLATIONS } from "./labels";
+import {
+  CANONICAL_COMPETITION_LABELS,
+  COMPETITION_NAME_LABELS,
+  COMPETITION_STAGE_TRANSLATIONS,
+  REASON_TRANSLATIONS,
+  TEAM_TRANSLATIONS,
+} from "./labels";
 
 function numericValue(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -131,10 +137,19 @@ export function translateReason(reason: unknown): string {
   return unique.length ? unique.join(" · ") : raw.replace(/_/g, " ").replace(/:/g, "：");
 }
 
-export function translateCompetition(value: unknown): string {
+export function translateCompetition(value: unknown, competitionId?: unknown): string {
   let text = typeof value === "string" && value ? value : "世界杯";
-  for (const [pattern, translated] of COMPETITION_TRANSLATIONS) {
-    text = text.replace(pattern, translated);
+  const canonical = typeof competitionId === "string"
+    ? CANONICAL_COMPETITION_LABELS[competitionId]
+    : undefined;
+  const separator = text.indexOf(" · ");
+  const name = separator >= 0 ? text.slice(0, separator) : text;
+  const translated = canonical ?? COMPETITION_NAME_LABELS[name];
+  if (translated) {
+    text = `${translated}${separator >= 0 ? text.slice(separator) : ""}`;
+  }
+  for (const [pattern, stage] of COMPETITION_STAGE_TRANSLATIONS) {
+    text = text.replace(pattern, stage);
   }
   return text;
 }
