@@ -750,6 +750,17 @@ class FutureFixtureRefreshService:
     def _db_repository(self) -> FutureRefreshDbRepository:
         return FutureRefreshDbRepository()
 
+    def _load_persisted_provider_remaining(self) -> None:
+        if self.config.persistence != "db":
+            return
+        day_start = self.now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        try:
+            remaining = self._db_repository().provider_quota_snapshot(day_start).get("remaining")
+        except FutureRefreshPersistenceError:
+            return
+        if remaining is not None:
+            self._latest_remaining = max(int(remaining), 0)
+
     def _allowed_live_endpoints(self, config: FutureRefreshConfig) -> frozenset[str]:
         base = {"status", "fixtures", "odds"}
         enrichment = (
@@ -781,6 +792,7 @@ class FutureFixtureRefreshService:
             )
             self._write_audit(result)
             return result
+        self._load_persisted_provider_remaining()
         self._validate_checkpoint_claims()
         tick_cap = self._provider_tick_hard_cap_preflight()
         if not tick_cap["allowed"]:
@@ -1297,6 +1309,8 @@ class FutureFixtureRefreshService:
                 observed_at=response.captured_at,
             )
             remaining = quota.daily_remaining
+            if remaining is None and self._latest_remaining is not None:
+                remaining = max(self._latest_remaining - 1, 0)
             self._latest_remaining = remaining
             status = response.status_code
             raw_payload = self._raw_payload_record(
