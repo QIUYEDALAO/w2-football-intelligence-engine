@@ -421,11 +421,11 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
             <div><span>影子候选</span><strong>{candidate.status === "ACTIVE" ? "已形成" : candidate.status === "OFF" ? "未启用" : "未形成"}</strong><b>{candidate.status === "ACTIVE" ? "进入赛后验证" : label(candidate.reason_code)}</b></div>
             <div><span>正式推荐</span><strong>产品权限</strong><b>未启用</b></div>
           </div>
-          <section className={`v41-candidate v41-candidate--${candidate.status.toLowerCase()}`} data-candidate-status={candidate.status}>
-            <header><span>影子候选 · 非正式推荐</span><b>{candidate.status === "ACTIVE" ? "验证中" : candidate.status === "OFF" ? "未启用" : "等待证据"}</b></header>
-            {candidate.status === "ACTIVE" ? <div><strong>{candidate.market ? MARKET_LABELS[candidate.market] : "市场待确认"} · {SELECTION_LABELS[candidate.selection || ""] || candidate.selection}</strong><span>盘口 {candidate.exact_line} · 赔率 {price(candidate.decimal_odds)}</span><small>已按 V4 身份进入统一前向账本；赛后自动结算并累计验证。</small></div> : <p>{candidate.reason_message || "当前证据尚未形成可追踪的影子候选。"}</p>}
+          {candidate.status === "ACTIVE" ? <section className="v41-candidate" data-candidate-status={candidate.status}>
+            <header><span>影子候选 · 非正式推荐</span><b>验证中</b></header>
+            <div><strong>{candidate.market ? MARKET_LABELS[candidate.market] : "市场待确认"} · {SELECTION_LABELS[candidate.selection || ""] || candidate.selection}</strong><span>盘口 {candidate.exact_line} · 赔率 {price(candidate.decimal_odds)}</span><small>已按 V4 身份进入统一前向账本；赛后自动结算并累计验证。</small></div>
             <footer>Formal、Lock、Production 与实盘保持关闭；达到既有证据门槛后另行提交 Owner 审批。</footer>
-          </section>
+          </section> : null}
           <div className={`v41-diagnostic ${stale ? "is-stale" : ""}`}><span /><p><b>{stale ? "市场记忆不可作为当前比较权威" : `当前模型状态：${label(model.status)}`}</b>{stale ? "等待既有采集调度形成新快照后再比较。" : `${label(diagnosticRelation?.status)}。模型与市场差异仅用于诊断；优先检查模型校准、特征时效、盘口身份和数据质量。`}</p></div>
           <RiskSummary match={match} />
           <Scoreline match={match} />

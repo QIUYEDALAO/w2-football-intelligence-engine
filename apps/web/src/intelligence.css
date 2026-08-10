@@ -818,8 +818,7 @@ summary {
 }
 
 .v41-candidate div small,
-.v41-candidate footer,
-.v41-candidate p {
+.v41-candidate footer {
   color: var(--v41-ink-3);
 }
 
@@ -827,11 +826,6 @@ summary {
   border-top: 1px solid var(--v41-line-soft);
   padding-top: 8px;
   font-size: 12px;
-}
-
-.v41-candidate--not_ready,
-.v41-candidate--off {
-  background: var(--v41-panel);
 }
 
 .v41-three-layer > div {
