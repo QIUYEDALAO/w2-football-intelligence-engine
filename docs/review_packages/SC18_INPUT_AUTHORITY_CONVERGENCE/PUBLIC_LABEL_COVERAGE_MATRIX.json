@@ -1,0 +1,17 @@
+{
+  "schema_version": "w2.sc18-public-label-coverage.v1",
+  "captured_at": "2026-08-10T18:32:47Z",
+  "canonical_team_count": 68,
+  "canonical_chinese_label_count": 0,
+  "competitions": [
+    {"competition_id":"allsvenskan","provider_team_count":16,"canonical_identity_count":16,"CHINESE_LABEL_READY":0,"CANONICAL_IDENTITY_READY_LABEL_MISSING":16,"IDENTITY_UNRESOLVED":0,"AMBIGUOUS":0},
+    {"competition_id":"argentina_primera","provider_team_count":24,"canonical_identity_count":0,"CHINESE_LABEL_READY":0,"CANONICAL_IDENTITY_READY_LABEL_MISSING":0,"IDENTITY_UNRESOLVED":24,"AMBIGUOUS":0},
+    {"competition_id":"brasileirao_serie_a","provider_team_count":20,"canonical_identity_count":20,"CHINESE_LABEL_READY":0,"CANONICAL_IDENTITY_READY_LABEL_MISSING":20,"IDENTITY_UNRESOLVED":0,"AMBIGUOUS":0},
+    {"competition_id":"chinese_super_league","provider_team_count":16,"canonical_identity_count":16,"CHINESE_LABEL_READY":0,"CANONICAL_IDENTITY_READY_LABEL_MISSING":16,"IDENTITY_UNRESOLVED":0,"AMBIGUOUS":0},
+    {"competition_id":"eliteserien","provider_team_count":16,"canonical_identity_count":16,"CHINESE_LABEL_READY":0,"CANONICAL_IDENTITY_READY_LABEL_MISSING":16,"IDENTITY_UNRESOLVED":0,"AMBIGUOUS":0},
+    {"competition_id":"eredivisie","provider_team_count":16,"canonical_identity_count":0,"CHINESE_LABEL_READY":0,"CANONICAL_IDENTITY_READY_LABEL_MISSING":0,"IDENTITY_UNRESOLVED":16,"AMBIGUOUS":0},
+    {"competition_id":"mls","provider_team_count":2,"canonical_identity_count":0,"CHINESE_LABEL_READY":0,"CANONICAL_IDENTITY_READY_LABEL_MISSING":0,"IDENTITY_UNRESOLVED":2,"AMBIGUOUS":0},
+    {"competition_id":"primeira_liga","provider_team_count":16,"canonical_identity_count":0,"CHINESE_LABEL_READY":0,"CANONICAL_IDENTITY_READY_LABEL_MISSING":0,"IDENTITY_UNRESOLVED":16,"AMBIGUOUS":0}
+  ],
+  "public_fallback": "Chinese identity-gap text plus stable provider team id; raw provider name is technical-only"
+}

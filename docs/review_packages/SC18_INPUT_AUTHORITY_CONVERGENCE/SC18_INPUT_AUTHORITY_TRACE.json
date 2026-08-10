@@ -1,0 +1,85 @@
+{
+  "schema_version": "w2.sc18-input-authority-trace.v1",
+  "captured_at": "2026-08-10T18:32:47Z",
+  "source": "staging persisted read_model_checkpoint only",
+  "provider_calls": 0,
+  "db_writes": 0,
+  "fixtures": [
+    {
+      "fixture_id": "1493049",
+      "competition_id": "argentina_primera",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "radar_status": "READY",
+          "snapshot_count": 2,
+          "bookmaker_count": 1,
+          "trend_evidence_status": "AVAILABLE",
+          "cross_sectional_comparison_status": "AVAILABLE",
+          "model_diagnostic_status": "INSUFFICIENT_BOOKMAKER_DEPTH",
+          "candidate_quote_identity_status": "NOT_READY",
+          "candidate_model_status": "NOT_READY",
+          "candidate_eligibility_status": "NOT_READY"
+        },
+        "TOTALS": {
+          "radar_status": "READY",
+          "snapshot_count": 2,
+          "bookmaker_count": 7,
+          "trend_evidence_status": "AVAILABLE",
+          "cross_sectional_comparison_status": "AVAILABLE",
+          "model_diagnostic_status": "MODEL_NOT_READY",
+          "candidate_quote_identity_status": "NOT_READY",
+          "candidate_model_status": "NOT_READY",
+          "candidate_eligibility_status": "NOT_READY"
+        }
+      },
+      "match_market_aggregate_status": "PARTIAL",
+      "first_missing_point": "EXECUTABLE_CANDIDATE_QUOTE_IDENTITY",
+      "legacy_conflict": "frozen readiness reports market/odds missing after radar rematerialized persisted observations"
+    },
+    {
+      "fixture_id": "1575453",
+      "competition_id": "primeira_liga",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "radar_status": "READY",
+          "snapshot_count": 3,
+          "bookmaker_count": 2,
+          "candidate_quote_identity_status": "NOT_READY",
+          "candidate_model_status": "NOT_READY"
+        },
+        "TOTALS": {
+          "radar_status": "READY",
+          "snapshot_count": 3,
+          "bookmaker_count": 7,
+          "candidate_quote_identity_status": "NOT_READY",
+          "candidate_model_status": "NOT_READY"
+        }
+      },
+      "match_market_aggregate_status": "PARTIAL",
+      "first_missing_point": "EXECUTABLE_CANDIDATE_QUOTE_IDENTITY"
+    },
+    {
+      "fixture_id": "1494239",
+      "competition_id": "allsvenskan",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "radar_status": "READY",
+          "snapshot_count": 2,
+          "bookmaker_count": 10,
+          "candidate_quote_identity_status": "READY",
+          "candidate_model_status": "NOT_READY"
+        },
+        "TOTALS": {
+          "radar_status": "READY",
+          "snapshot_count": 2,
+          "bookmaker_count": 12,
+          "candidate_quote_identity_status": "READY",
+          "candidate_model_status": "NOT_READY"
+        }
+      },
+      "match_market_aggregate_status": "PARTIAL",
+      "first_missing_point": "CANDIDATE_MODEL_INPUT"
+    }
+  ],
+  "conclusion": "market evidence and executable candidate quote readiness are distinct; radar medians are never promoted to executable quotes"
+}

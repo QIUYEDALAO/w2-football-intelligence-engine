@@ -195,6 +195,53 @@ export const TEAM_TRANSLATIONS: Record<string, string> = {
   "Yunnan Yukun": "云南玉昆",
 };
 
+export const PUBLIC_ENUM_LABELS: Record<string, string> = {
+  AVAILABLE: "可用",
+  AVAILABLE_WITH_GAPS: "部分可用",
+  READY: "已就绪",
+  PARTIAL: "部分就绪",
+  BLOCKED: "仅赛程",
+  STALE: "已过期",
+  INSUFFICIENT: "证据不足",
+  SAMPLE_BUILDING: "样本积累中",
+  NOT_DEFINED: "尚未建立",
+  NOT_PROVEN: "尚未证实",
+  MISSING_OUTCOMES: "赛果尚未接入",
+  PAUSED_STALE: "证据过期，比较暂停",
+  PRIOR_ONLY: "仅先验",
+  UNAVAILABLE: "不可用",
+  NOT_AVAILABLE: "暂不可用",
+  NOT_READY: "尚未就绪",
+  MARKET_NOT_READY: "市场证据未就绪",
+  MODEL_NOT_READY: "模型尚未就绪",
+  MODEL_CALIBRATION_NOT_READY: "模型校准尚未就绪",
+  INSUFFICIENT_BOOKMAKER_DEPTH: "机构深度不足",
+  MODEL_OUTSIDE_MARKET_RANGE: "模型区间外",
+  MARKET_OUTSIDE_MODEL_RANGE: "市场区间外",
+  COMPARABLE_WITHIN_MARKET_RANGE: "处于可比区间",
+  OK: "正常",
+  ATTENTION: "需关注",
+  INCIDENT: "异常",
+  UNASSESSED: "未评估",
+};
+
+export const PUBLIC_REASON_LABELS: Record<string, string> = {
+  COLLECTION_INCIDENT: "采集异常",
+  MARKET_MOVEMENT: "盘口或赔率变化",
+  FRESH_MARKET_EVIDENCE: "市场证据完整",
+  MODEL_DIAGNOSTIC: "模型诊断",
+  STALE_MARKET_MEMORY: "证据已过期",
+  DATA_INCOMPLETE: "数据链尚未齐全",
+  CANDIDATE_INPUT_NOT_READY: "候选输入尚未完全就绪",
+  LINEUP_PENDING: "首发等待",
+  MISSING_AUDIT_MANIFEST: "审计清单缺失",
+  MISSING_AUDIT_TABLES: "审计记录缺失",
+  MISSING_OUTCOMES: "赛果缺失",
+  EXECUTABLE_CANDIDATE_QUOTE_NOT_READY: "精确候选报价尚未就绪",
+  CANDIDATE_MODEL_NOT_READY: "候选模型输入尚未就绪",
+  MARKET_EVIDENCE_NOT_CURRENT: "当前市场证据尚未就绪",
+};
+
 export const REASON_TRANSLATIONS: Array<[RegExp, string]> = [
   [/^DATA_FIELD_STALE$/, "数据字段已过期"],
   [/^DATA_IDENTITY_NOT_READY$/, "身份映射未就绪"],
