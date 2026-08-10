@@ -786,10 +786,14 @@ summary {
 
 .v41-three-layer {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   overflow: hidden;
   border: 1px solid var(--v41-line-soft);
   border-radius: 3px;
+}
+
+.v41-three-layer--candidate {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .v41-candidate {

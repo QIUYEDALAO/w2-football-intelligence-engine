@@ -414,11 +414,11 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
       <div className="v41-focus-body">
         <div className="v41-focus-markets">{markets.map((market) => <MarketEvidence generatedAt={generatedAt} key={market.market} market={market} />)}</div>
         <div className="v41-focus-meaning">
-          <span className="v41-eyebrow">四层语义 · 互不等同</span>
-          <div className="v41-three-layer">
+          <span className="v41-eyebrow">{candidate.status === "ACTIVE" ? "四层" : "三层"}语义 · 互不等同</span>
+          <div className={`v41-three-layer ${candidate.status === "ACTIVE" ? "v41-three-layer--candidate" : ""}`}>
             <div><span>市场主事实</span><strong>{MARKET_LABELS[primary.market]}</strong><b>{primary.main_line || "—"}</b></div>
             <div><span>W2 诊断</span><strong>{label(model.status)}</strong><b>{stale ? "比较暂停" : label(diagnosticRelation?.status)}</b></div>
-            <div><span>影子候选</span><strong>{candidate.status === "ACTIVE" ? "已形成" : candidate.status === "OFF" ? "未启用" : "未形成"}</strong><b>{candidate.status === "ACTIVE" ? "进入赛后验证" : label(candidate.reason_code)}</b></div>
+            {candidate.status === "ACTIVE" ? <div><span>影子候选</span><strong>已形成</strong><b>进入赛后验证</b></div> : null}
             <div><span>正式推荐</span><strong>产品权限</strong><b>未启用</b></div>
           </div>
           {candidate.status === "ACTIVE" ? <section className="v41-candidate" data-candidate-status={candidate.status}>
