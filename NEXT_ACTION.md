@@ -3,11 +3,11 @@
 ```text
 ACTIVE_NEXT_ACTION = OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
 CURRENT_GATE = OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
-DIRECT_OWNER_APPROVAL = PR_509_DEPLOYMENT_APPROVED_2026_08_10
-PR_509 = MERGED_DEPLOYED
-IMPLEMENTATION_HEAD = 4fdd622cadd3dd4cb150a076a83536efe81f3556
-FINAL_MAIN = 8df3c0cb5ecb4364526c4b391ca54a5b86928c25
-DATE_NAVIGATION_AND_POSTMATCH_VALIDATION = DEPLOYED_PASS
+DIRECT_OWNER_APPROVAL = PR_510_DEPLOYMENT_AND_BOUNDED_FIXES_APPROVED_2026_08_10
+PR_510 = MERGED_DEPLOYED
+IMPLEMENTATION_HEAD = 1ea89681480fcd8c44d84e314de74fbad38944b3
+FINAL_MAIN = 31c73d74572e67cc5b4c42bbc5dd53b093033b79
+OWNER_REREVIEW_REMEDIATION = DEPLOYED_PASS
 ROUND_4 = NOT_STARTED
 ROUND_4_EXECUTION_AUTHORITY = NOT_GRANTED
 P6 = NOT_AUTHORIZED
@@ -16,34 +16,41 @@ NEXT_AUTOMATIC_ACTION = NONE
 
 ## Owner rereview packet
 
-PR #509 is merged, promoted and deployed from the exact Release Candidate
-source. The public Dashboard now exposes direct date selection, functional
-previous/next navigation on empty days, and a visible post-match validation
-panel backed by the existing unified read model.
+PR #510 is merged, promoted and deployed from the exact Release Candidate
+source. The public Dashboard now names every affected match and kickoff on a
+blocked day, exposes a recent seven-day selector that reads only the selected
+date, shows truthful full evaluation timestamps, and makes the accumulated
+post-match validation ledger a primary section.
 
 Owner rereview should verify:
 
-1. a specific football day can be selected directly;
-2. empty-day previous/next controls change the requested date;
-3. post-match validation totals and replay gaps are visible without a second
-   read initiated by expanding the panel;
-4. the live read contract remains `provider_calls=0`, `db_writes=0`,
+1. the blocked-day shortlist names both affected matches and kickoff times;
+2. the recent seven-day selector changes the requested football day without
+   filling an empty day from another date;
+3. post-match validation visibly reports 56 total records, 16 settled and 16
+   eligible records, plus selected-day replay cards;
+4. raw reason codes and the read contract remain available only in collapsed
+   technical details;
+5. the live read contract remains `provider_calls=0`, `db_writes=0`,
    `would_write_checkpoint=false`, `no_call_on_read=true`;
-5. Candidate, Formal, Lock and Production remain `OFF`.
+6. Candidate, Formal, Lock and Production remain `OFF`.
 
 ## Evidence identity
 
 ```text
-FULL_CI_RUN = 31356139813
+FULL_CI_RUN = 31360059565
 RELEASE_REQUIRED = PASS_EXACT_HEAD
-PROMOTION_RUN = 31357326221
+PROMOTION_RUN = 31360750413
 PROMOTION_REQUIRED = PASS
 HEALTH = PASS
 READY = PASS
 RELEASE_SYNC = PASS
 LOCAL_OCI_RELAY = PASS_DIGEST_VERIFIED
-WARM_SWITCH = PASS_38_SECONDS
-READ_WINDOW_COUNTS = 689,0,0 -> 689,0,0
+WARM_SWITCH = PASS_39_SECONDS
+LIVE_VISUAL_QA = PASS
+RECENT_DAY_NAVIGATION = PASS
+VALIDATION_ANCHOR = PASS
+NO_CALL_NO_WRITE = PASS
 ROLLBACK_EXECUTED = false
 REPOSITORY_HYGIENE = PASS
 ```
