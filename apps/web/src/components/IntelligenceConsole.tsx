@@ -35,6 +35,9 @@ const REASON_LABELS: Record<string, string> = {
   STALE_MARKET_MEMORY: "证据已过期",
   DATA_INCOMPLETE: "数据不完整",
   LINEUP_PENDING: "首发等待",
+  MISSING_AUDIT_MANIFEST: "审计清单缺失",
+  MISSING_AUDIT_TABLES: "审计记录缺失",
+  MISSING_OUTCOMES: "赛果缺失",
 };
 
 const PRIORITY_ORDER: Record<string, number> = {
@@ -155,7 +158,7 @@ function Header({ date, loading, onDateChange, onRefresh, workspace }: Props) {
       <span className="v41-separator" />
       <nav className="v41-date-nav" aria-label="比赛日导航">
         <button aria-label="前一天" onClick={() => onDateChange(dateShift(date, -1))} type="button">‹</button>
-        <strong>{date}</strong>
+        <input aria-label="选择比赛日" onChange={(event) => event.target.value && onDateChange(event.target.value)} type="date" value={date} />
         <button aria-label="后一天" onClick={() => onDateChange(dateShift(date, 1))} type="button">›</button>
         <button className="is-text" onClick={() => onDateChange(footballDayShanghai())} type="button">今天</button>
         <button aria-label="刷新" disabled={loading} onClick={onRefresh} type="button">⟳</button>
@@ -171,7 +174,7 @@ function Header({ date, loading, onDateChange, onRefresh, workspace }: Props) {
       <time className="v41-updated">更新 {clock(workspace.generated_at)}</time>
       <nav className="v41-secondary-nav" aria-label="辅助视图">
         <a href="#history">证据审计台</a>
-        <a href="#validation">验证中心</a>
+        <a href="#secondary-validation">赛后验证</a>
         <a href="#system-status">系统状态</a>
       </nav>
     </header>
@@ -357,7 +360,7 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
   );
 }
 
-function GlobalFocus({ workspace }: { workspace: IntelligenceWorkspace }) {
+function GlobalFocus({ date, onDateChange, workspace }: Pick<Props, "date" | "onDateChange" | "workspace">) {
   const focus = workspace.global_focus;
   if (!focus) return <article className="v41-focus v41-global" data-focus-type={workspace.default_focus_type}><div className="v41-global-copy"><span className="v41-eyebrow">当前焦点</span><h1>尚未选择比赛</h1><p>请选择具有已持久化证据的比赛；页面不会自动填充其他焦点。</p></div></article>;
   const blocked = workspace.day_mode === "BLOCKED";
@@ -378,7 +381,7 @@ function GlobalFocus({ workspace }: { workspace: IntelligenceWorkspace }) {
       </div>
       {blocked ? <div className="v41-global-note"><span>恢复条件</span><strong>{focus.recovery_condition}</strong><small>系统状态页只显示已持久化证据，本页面不发起任何 Provider 请求。</small></div> : calm ? <div className="v41-global-note"><span>说明</span><strong>页面内容少不会改变既有关注阈值。</strong><small>继续等待既有调度形成下一次持久化评估。</small></div> : null}
       {blocked ? <div className="v41-global-guard"><b>读取保护</b><span>本页只读持久化证据；Provider 调用 0，业务写入 0。</span></div> : null}
-      {workspace.day_mode === "EMPTY" ? <nav className="v41-adjacent-days"><button onClick={() => window.scrollTo({ top: 0 })} type="button">‹ 前一天</button><button onClick={() => window.scrollTo({ top: 0 })} type="button">后一天 ›</button></nav> : null}
+      {workspace.day_mode === "EMPTY" ? <nav className="v41-adjacent-days"><button onClick={() => onDateChange(typeof workspace.navigation.previous_date === "string" ? workspace.navigation.previous_date : dateShift(date, -1))} type="button">‹ 前一天</button><button onClick={() => onDateChange(typeof workspace.navigation.next_date === "string" ? workspace.navigation.next_date : dateShift(date, 1))} type="button">后一天 ›</button></nav> : null}
     </article>
   );
 }
@@ -401,17 +404,21 @@ function QualityRail({ workspace }: { workspace: IntelligenceWorkspace }) {
         <span><small>W2 Brier</small><strong>{available ? quality.model_brier?.toFixed(3) : "—"}</strong><b>市场 {available ? quality.market_brier?.toFixed(3) : "—"}</b></span>
         <span><small>校准误差 ECE</small><strong>{available && quality.model_calibration_error !== null ? `${(quality.model_calibration_error * 100).toFixed(1)}%` : "—"}</strong><b>{label(quality.status)}</b></span>
         <span><small>前向有效样本</small><strong>{available ? quality.sample_count : "—"}</strong><b>{available && quality.checkpoint_generated_at ? `截至 ${localDateTime(quality.checkpoint_generated_at)}` : quality.status === "NOT_AVAILABLE" ? "checkpoint 缺失" : label(quality.status)}</b></span>
-        <a href="#secondary-validation">验证中心</a>
+        <a href="#secondary-validation">赛后验证</a>
       </div>
     </section>
   );
 }
 
 function SecondaryViews({ workspace }: { workspace: IntelligenceWorkspace }) {
+  const records = workspace.validation.forward_validation_records;
+  const outcomes = records.outcomes;
+  const tracking = workspace.validation.history_replay.outcome_tracking_summary;
+  const count = (source: Record<string, unknown>, key: string) => typeof source[key] === "number" ? source[key] : "—";
   return (
     <section className="v41-secondary" aria-label="数据与系统 / 辅助详情">
       <details id="all-matches"><summary>全部比赛</summary><ol>{workspace.matches.map((match) => <li key={match.fixture_id}><span>{localDateTime(match.kickoff_utc)}</span><strong>{matchName(match)}</strong><b>{label(match.readiness.status)}</b></li>)}</ol></details>
-      <details id="secondary-validation"><summary>验证与分联赛记录</summary><p>方向记录：{label(workspace.validation.directional.status)} · 有效 N {workspace.validation.directional.effective_n} · 市场方向基准 {label(workspace.validation.directional.market_direction_benchmark)}</p><ul>{workspace.validation.league_performance.slice(0, 13).map((league) => <li key={`${league.competition_id}-${league.source_league}`}><strong>{translateCompetition(league.competition_name || league.league)}</strong><span>{league.only_record_reason === "PROBABILITY_QUALITY_NOT_READY" ? "概率质量待就绪" : league.only_record_reason === "AGGREGATION_CONFLICT" ? "聚合冲突" : league.only_record_reason === "SAMPLE_INSUFFICIENT" ? "样本不足" : "可用"}</span></li>)}</ul></details>
+      <details id="secondary-validation" open><summary>赛后验证</summary><p>统一前向验证账本 · 方向状态 {label(workspace.validation.directional.status)} · 市场方向基准 {label(workspace.validation.directional.market_direction_benchmark)}</p><ul className="v41-validation-counts"><li><span>验证总记录</span><strong>{records.validation_count}</strong></li><li><span>已结算</span><strong>{count(outcomes, "settled_sample_count")}</strong></li><li><span>纳入统计</span><strong>{records.eligible_count}</strong></li><li><span>待结算</span><strong>{records.pending_count}</strong></li><li><span>证据排除</span><strong>{records.excluded_count}</strong></li><li><span>赛果匹配 / 缺失</span><strong>{count(tracking, "matched_outcome_count")} / {count(tracking, "missing_outcome_count")}</strong></li></ul>{workspace.validation.history_replay.replay_gaps.length ? <p className="v41-validation-gaps">当前缺口：{workspace.validation.history_replay.replay_gaps.map((gap) => `${label(gap)} [${gap}]`).join("；")}</p> : null}<ul>{workspace.validation.league_performance.slice(0, 13).map((league) => <li key={`${league.competition_id}-${league.source_league}`}><strong>{translateCompetition(league.competition_name || league.league)}</strong><span>{league.only_record_reason === "PROBABILITY_QUALITY_NOT_READY" ? "概率质量待就绪" : league.only_record_reason === "AGGREGATION_CONFLICT" ? "聚合冲突" : league.only_record_reason === "SAMPLE_INSUFFICIENT" ? "样本不足" : "可用"}</span></li>)}</ul></details>
       <details data-contract="HISTORICAL_INCREMENTAL_EDGE=NOT_PROVEN" id="history"><summary>前向记录 / 回放</summary><p>{label(workspace.validation.history_replay.status)} · 卡片 {workspace.validation.history_replay.decision_summary.total_cards} · 缺口 {workspace.validation.history_replay.replay_gaps.length}</p></details>
       <details id="system-status"><summary>系统状态与读取合同</summary><p>13 联赛 · {workspace.runtime.free_bridge_mode} · Candidate/Formal/Lock/Production 全部关闭</p><p>公开系统状态：{PUBLIC_SYSTEM_LABELS[workspace.data_operations.public_system_health]} · 原始技术代码：{workspace.data_operations.system_health}</p><p>provider_calls={workspace.read_contract.provider_calls} · db_writes={workspace.read_contract.db_writes} · would_write_checkpoint={String(workspace.read_contract.would_write_checkpoint)} · no_call_on_read={String(workspace.read_contract.no_call_on_read)}</p></details>
     </section>
@@ -437,7 +444,7 @@ export function IntelligenceConsole(props: Props) {
       <TodaySummary workspace={workspace} />
       <div className="v41-main">
         <PriorityShortlist workspace={workspace} onSelect={setSelectedId} selectedId={selectedId} />
-        {selected ? <MatchFocus generatedAt={workspace.generated_at} match={selected} /> : <GlobalFocus workspace={workspace} />}
+        {selected ? <MatchFocus generatedAt={workspace.generated_at} match={selected} /> : <GlobalFocus date={props.date} onDateChange={props.onDateChange} workspace={workspace} />}
       </div>
       <QualityRail workspace={workspace} />
       <SecondaryViews workspace={workspace} />
