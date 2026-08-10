@@ -278,6 +278,8 @@ test("V41 date navigation, Today, Refresh and keyboard focus are functional", as
   const requestedDates: string[] = [];
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => { requestedDates.push(new URL(route.request().url()).searchParams.get("date") || ""); return route.fulfill({ status: 200, json: workspace() }); });
   await page.goto("/");
+  await page.getByLabel("选择比赛日").fill("2026-08-09");
+  await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-09");
   await page.getByRole("button", { name: "前一天" }).click();
   await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-08");
   await page.getByLabel("选择比赛日").fill("2026-08-03");
