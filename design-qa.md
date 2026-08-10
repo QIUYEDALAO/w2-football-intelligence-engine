@@ -92,6 +92,39 @@ The contact sheet scales each equal-density source/implementation pair equally f
 
 final result: passed
 
+---
+
+## Blocked-day evidence wording — local review, 2026-08-10
+
+- Source visual truth: `/Users/liudehua/Desktop/网页截图.png`
+- Implementation screenshot: `/tmp/w2-evidence-wording-local-1440x900.png`
+- Side-by-side comparison: `/tmp/w2-evidence-wording-comparison.png`
+- Viewport/state: 1440 × 900 CSS px, device scale 1, `2026-08-10`, real read-only `BLOCKED` payload through the local Vite proxy
+- Source/implementation pixels: 1440 × 900 each; no density normalization required
+- Primary interactions: page load and real selected-day read passed
+- Console errors/warnings: none
+
+**Comparison history**
+
+- Earlier P1: the source repeated “阻塞” and “等待既有调度”, making an intentionally disabled market-evidence path look like a broken application with an active recovery schedule.
+- Fix: preserved the technical `BLOCKED` contract while changing public copy to “仅赛程 / 市场证据未就绪”, explicitly separating 2 visible fixtures from 0 market analyses and removing the false scheduler promise.
+- Post-fix evidence: the right side of the comparison keeps the exact frame, spacing, typography, colors, controls and section proportions while presenting the truthful read-only state.
+
+**Required fidelity surfaces**
+
+- Fonts and typography: unchanged from the source implementation; hierarchy and wrapping remain stable.
+- Spacing and layout rhythm: unchanged; header, shortlist, focus card and validation panel retain the same geometry.
+- Colors and tokens: existing semantic tokens are reused; no new visual system was introduced.
+- Image quality and assets: no image assets are present or changed.
+- Copy and content: the actionable P1 mismatch is resolved; technical reason codes remain available only inside collapsed details.
+- Focused-region comparison: top status pills, left match list and the main focus card were readable in the combined comparison; no additional crop was required.
+
+**Remaining findings**
+
+- No actionable P0/P1/P2 findings.
+
+final result: passed
+
 ## Owner rereview remediation — 2026-08-10
 
 - Reference screenshot: `/Users/liudehua/Desktop/网页截图.png`
