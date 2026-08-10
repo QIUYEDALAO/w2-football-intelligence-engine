@@ -6004,7 +6004,8 @@ class ReadModelService:
         home_name = str(home.get("name") or "主队")
         away_name = str(away.get("name") or "客队")
         return {
-            "competition_id": str(league.get("id") or ""),
+            "competition_id": self._competition_id_from_provider_fixture(item)
+            or str(league.get("id") or ""),
             "kickoff_utc": fixture.get("date"),
             "competition_name": competition,
             "competition_cn": competition_cn,

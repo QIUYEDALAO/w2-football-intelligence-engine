@@ -185,6 +185,7 @@ export interface LineMovementPayload {
 
 export interface DashboardCard {
   fixture_id?: string | number | null;
+  competition_id?: string | null;
   kickoff_utc?: string | null;
   kickoff_beijing?: string | null;
   competition_name?: string | null;

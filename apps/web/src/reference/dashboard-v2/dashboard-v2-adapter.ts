@@ -358,7 +358,7 @@ function fixtureModel(
     fixtureId: card.fixture_id,
     kickoffUtc: card.kickoff_utc ?? "",
     status: card.status ?? "UNKNOWN",
-    competition: translateCompetition(card.competition_name || card.competition_id || "比赛"),
+    competition: translateCompetition(card.competition_name || card.competition_id || "比赛", card.competition_id),
     homeTeam: translateTeam(card.home_team_name || "主队"),
     awayTeam: translateTeam(card.away_team_name || "客队"),
     decisionTier: decisionTier(card),
@@ -407,7 +407,7 @@ function fixtureModel(
 function leagueRows(performance?: DashboardPerformance): DashboardV2LeaguePerformanceRow[] {
   return (performance?.forward_ledger?.performance_cohort.by_league ?? []).map((row) => ({
     competitionKey: row.competition_id || undefined,
-    league: translateCompetition(row.league),
+    league: translateCompetition(row.league, row.competition_id),
     eligibleCount: row.eligible_count,
     hitCount: row.outcomes.hit_count,
     missCount: row.outcomes.miss_count,

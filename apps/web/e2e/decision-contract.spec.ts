@@ -154,6 +154,29 @@ async function installWorkspace(page: Page, scenario: Scenario = "normal"): Prom
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: workspace(scenario) }));
 }
 
+test("canonical identities drive competition and current team labels", async ({ page }) => {
+  await installWorkspace(page);
+  await page.goto("/");
+  const labels = await page.evaluate(async () => {
+    const { translateCompetition, translateTeam } = await import("/src/lib/formatters.ts");
+    return {
+      italian: translateCompetition("Serie A", "serie_a"),
+      brazilian: translateCompetition("Serie A", "brasileirao_serie_a"),
+      chinese: translateCompetition("Chinese Super League", "chinese_super_league"),
+      santaClara: translateTeam("Santa Clara"),
+      nacional: translateTeam("Nacional"),
+    };
+  });
+
+  expect(labels).toEqual({
+    italian: "意甲",
+    brazilian: "巴甲",
+    chinese: "中超",
+    santaClara: "圣克拉拉",
+    nacional: "国民队",
+  });
+});
+
 test("V41 uses backend focus authority and never falls back to matches[0]", async ({ page }) => {
   await installWorkspace(page);
   await page.goto("/");
