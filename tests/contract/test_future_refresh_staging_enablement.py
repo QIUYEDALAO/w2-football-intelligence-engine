@@ -105,12 +105,12 @@ def test_staging_compose_mounts_full_config_for_runtime_services() -> None:
             assert mounts == ([] if expected is None else [f"{expected}:/app/config:ro"])
 
 
-def test_staging_compose_keeps_production_and_recommendation_flags_off() -> None:
+def test_staging_compose_enables_only_shadow_candidate() -> None:
     for path in COMPOSE_PATHS:
         scheduler = env_for(path, "scheduler")
         assert scheduler["W2_DEEPSEEK_ENABLED"] == "false"
         assert scheduler["W2_RECOMMENDATION_ENABLED"] == "false"
-        assert scheduler["W2_CANDIDATE_ENABLED"] == "false"
+        assert scheduler["W2_CANDIDATE_ENABLED"] == "true"
         assert scheduler["W2_PRODUCTION_RELEASE"] == "false"
         assert scheduler["W2_EXTERNAL_ALERTING"] == "false"
 
@@ -127,7 +127,7 @@ def test_controlled_override_selects_single_free_shadow_collection_owner() -> No
     assert scheduler["W2_PROVIDER_HTTP_MAX_ATTEMPTS"] == "1"
     assert worker["W2_PROVIDER_DAILY_HARD_CAP"] == "80"
     assert scheduler["W2_PROVIDER_DAILY_HARD_CAP"] == "80"
-    assert worker["W2_CANDIDATE_ENABLED"] == "false"
+    assert worker["W2_CANDIDATE_ENABLED"] == "true"
     assert worker["W2_FORMAL_RECOMMENDATION_ENABLED"] == "false"
     assert worker["W2_PRODUCTION_RELEASE"] == "false"
 

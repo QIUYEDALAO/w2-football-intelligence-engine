@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from typing import Annotated, Any, Literal
 from uuid import uuid4
@@ -215,7 +216,12 @@ def dashboard_intelligence_workspace(
     )
     return {
         "request_id": request_id(request),
-        **build_dashboard_intelligence_workspace(day_view, replay=replay),
+        **build_dashboard_intelligence_workspace(
+            day_view,
+            replay=replay,
+            candidate_enabled=os.environ.get("W2_CANDIDATE_ENABLED", "false").lower()
+            == "true",
+        ),
     }
 
 
