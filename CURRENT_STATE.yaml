@@ -1,32 +1,53 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-10T23:13:00+08:00"
+updated_at: "2026-08-11T00:16:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
-owner_authorization_id: OWNER_DIRECT_APPROVAL_PR514_DEPLOYMENT_2026_08_10
-active_next_action: OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
+owner_product_decision: OWNER_DASHBOARD_DATA_IDENTITY_POSTDEPLOY_REREVIEW
+owner_authorization_id: OWNER_DIRECT_APPROVAL_PR515_DATA_FIX_DEPLOYMENT_2026_08_10
+active_next_action: OWNER_DASHBOARD_DATA_IDENTITY_POSTDEPLOY_REREVIEW
 next_code_action: NONE_PENDING_OWNER_REREVIEW
-current_status: DASHBOARD_OWNER_FIVE_FIXES_DEPLOYED_PASS
-current_gate: OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
-terminal_gate: OWNER_DASHBOARD_V41_POSTDEPLOY_REREVIEW
+current_status: DASHBOARD_DATA_IDENTITY_AND_LABEL_FIX_DEPLOYED_PASS
+current_gate: OWNER_DASHBOARD_DATA_IDENTITY_POSTDEPLOY_REREVIEW
+terminal_gate: OWNER_DASHBOARD_DATA_IDENTITY_POSTDEPLOY_REREVIEW
 
 release_identity:
-  context_base_sha: 02c1fff9e17ebd6f45969ee9280a6912e1b86f7f
-  implementation_base_sha: 3c4e5852e4f863f2f2481a2d91ae37bafe76b27b
-  implementation_head_sha: ea7ea01e049ef3110196b370ca06711ef7f849c6
-  source_tree_sha: f86c1d71f2cff95d2ff84949483f1c4eb75a223f
-  final_main_sha: 283f10e704bca34229a5db82ca612002f9e33b9b
-  deployed_source_sha: ea7ea01e049ef3110196b370ca06711ef7f849c6
-  pr: 514
+  context_base_sha: f229e3a0eee0ed188c989bd28c6da20605725873
+  implementation_base_sha: 283f10e704bca34229a5db82ca612002f9e33b9b
+  implementation_head_sha: 567f2701af3b7895ee20143ee6231a4e88442a1c
+  source_tree_sha: 616bf5d8fc21c5270aff06f18bdd35fda97187f1
+  final_main_sha: 0f0f306d568101d6b7ce34245eef5d197f794d62
+  deployed_source_sha: 567f2701af3b7895ee20143ee6231a4e88442a1c
+  pr: 515
   pr_state: MERGED
-  full_ci_run: 31399434423
-  promotion_run: 31400898443
+  full_ci_run: 31406543513
+  promotion_run: 31407540151
   release_required: PASS_EXACT_HEAD
   promotion_required: PASS
-  release_manifest_sha256: 707b3dcc02edd335038c91bb4e8a03dc5176d2a5db11b7e350934d849985cefc
+  release_manifest_sha256: 7f9b946c14f3897534d376f120cc8d4a6d49e800cb1bc042ce58e9ff64808a09
+
+data_identity_remediation:
+  status: DEPLOYED_PASS_READY_FOR_OWNER_REREVIEW
+  scope:
+    raw_provider_competition_id_canonicalized_before_market_join: DEPLOYED
+    ambiguous_serie_a_and_super_league_regexes_removed: DEPLOYED
+    canonical_competition_labels_preferred: DEPLOYED
+    santa_clara_and_nacional_labels: DEPLOYED
+    persisted_market_checkpoint_rematerialized_without_provider: PASS
+  fixture_1575453:
+    competition_id: primeira_liga
+    asian_handicap_snapshot_count: 2
+    asian_handicap_observation_count: 8
+    totals_snapshot_count: 2
+    totals_observation_count: 28
+  active_whitelist_change: NONE
+  provider_calls: 0
+  scheduler_or_cadence_change: NONE
+  changed_files: 9
+  repository_hygiene: PASS
+  unresolved_hygiene_items: 0
 
 owner_rereview_remediation:
   status: DEPLOYED_PASS_READY_FOR_OWNER_REREVIEW
@@ -45,29 +66,26 @@ owner_rereview_remediation:
   unresolved_hygiene_items: 0
 
 verification:
-  focused_python: 60_PASSED
-  full_local_python: 2542_PASSED_13_SKIPPED
-  focused_web_contract: 39_PASSED
+  focused_python: 122_PASSED
+  interrupted_broad_local_python: 219_PASSED_2_SKIPPED_NO_FAILURE_BEFORE_INTERRUPT
+  focused_web_contract: PASS
+  web_production_build: PASS
+  ruff_changed_python: PASS
+  mypy_changed_python_source: PASS
   exact_head_full_ci: PASS
   release_required: PASS
   main_tree_matches_source_tree: PASS
   live_visual_qa_desktop: PASS
-  live_visual_qa_responsive_1180: PASS_NO_HORIZONTAL_OVERFLOW
-  recent_day_navigation: PASS_2026_08_09_EMPTY_AND_RETURN_TODAY
-  validation_anchor: PASS
-  priority_threshold_real_payload: PASS_ZERO_PRIORITY_FOR_SUBTHRESHOLD_NOISE
+  live_visual_qa_fixture_1575453: PASS_CHINESE_LABELS_AND_TWO_SNAPSHOTS_PER_MARKET
+  live_browser_console_errors: ZERO
+  no_call_on_read: PASS
 
 deployment:
   transport: LOCAL_OCI_RELAY_PRIMARY
-  predeploy_source_sha: 58065da226fc7afbff625deb7e299cbab94bd7ba
-  predeploy_backup: PASS_CUSTOM_FORMAT_AND_RESTORE_LIST_VALIDATED
-  predeploy_backup_bytes: 36605283
-  predeploy_backup_sha256: 4d6daf93a058315af3b658e02adbd18c35b78da29a4a2bf089e56cd0d79ad1f9
-  python_image_digest: sha256:04fc99f9763a24343bb44292918132a46eba4f6a0e23dbb29e45c75adc941da8
-  web_image_digest: sha256:ad8dd345cb7abfccece9dea21db055036a074d118f2235721d1986177e88747b
-  python_relay: PASS_DIGEST_VERIFIED_262_SECONDS
-  web_relay: PASS_DIGEST_VERIFIED_59_SECONDS
-  warm_switch_seconds: 43
+  python_image_digest: sha256:3cbba0af4c18a21322f4e35e6f0eb3255adecfa7c2e61ed2a3605065664fabdf
+  web_image_digest: sha256:e27c6ed1fe4f29c7aee23b00c36827854364d1d4e5d81bf789852a3dab64f226
+  preheat_seconds: 223
+  warm_switch_seconds: 45
   warm_switch_target_seconds: 300
   health: PASS
   ready: PASS
@@ -84,7 +102,7 @@ postdeploy_real_payload:
   day_mode: NORMAL
   match_count: 3
   attention_count: 3
-  priority_match_count: 0
+  priority_match_count: 1
   validation_count: 56
   validation_eligible_count: 16
   validation_settled_count: 16
@@ -93,6 +111,8 @@ postdeploy_real_payload:
   would_write_checkpoint: false
   no_call_on_read: true
   provider_counter_unchanged: PASS_VALUE_0
+  fixture_1575453_market_timeline: PASS_2_SNAPSHOTS_PER_AH_AND_TOTALS
+  fixture_1575453_public_labels: PASS_PORTUGUESE_SANTA_CLARA_NACIONAL_CHINESE
 
 accepted_truths_must_not_regress:
   public_dashboard_authority: NEW_INTELLIGENCE_WORKSPACE_ONLY
@@ -114,7 +134,7 @@ round4:
   status: NOT_STARTED
   execution_authority: NOT_GRANTED
   packet: ROUND4_READINESS_DECISION_PACKET.md
-  current_packet_exact_release_identity: PR_514_DEPLOYED_RELEASE
+  current_packet_exact_release_identity: PR_515_DEPLOYED_RELEASE
   next_automatic_action: NONE
 
 p6:
