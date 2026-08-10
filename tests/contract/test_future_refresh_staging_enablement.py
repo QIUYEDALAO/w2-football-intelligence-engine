@@ -122,7 +122,7 @@ def test_controlled_override_selects_single_free_shadow_collection_owner() -> No
 
     assert worker["W2_FREE_BRIDGE_MODE"] == "${W2_FREE_BRIDGE_MODE:-OFF}"
     assert scheduler["W2_FREE_BRIDGE_MODE"] == "${W2_FREE_BRIDGE_MODE:-OFF}"
-    assert scheduler["W2_FUTURE_FIXTURE_REFRESH_ENABLED"] == "false"
+    assert scheduler["W2_FUTURE_FIXTURE_REFRESH_ENABLED"] == "true"
     assert worker["W2_PROVIDER_HTTP_MAX_ATTEMPTS"] == "1"
     assert scheduler["W2_PROVIDER_HTTP_MAX_ATTEMPTS"] == "1"
     assert worker["W2_PROVIDER_DAILY_HARD_CAP"] == "80"
