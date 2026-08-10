@@ -1,168 +1,205 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-11T01:28:02+08:00"
+updated_at: "2026-08-11T02:10:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: OWNER_APPROVED_SHADOW_CANDIDATE_RECOMMENDATION_AND_POSTMATCH_VALIDATION_LOOP
-owner_authorization_id: OWNER_DIRECT_APPROVAL_SHADOW_CANDIDATE_VALIDATION_2026_08_11
-active_next_action: NATURAL_SHADOW_CANDIDATE_EVIDENCE_ACCUMULATION
-next_code_action: NONE_UNTIL_EXISTING_FORMAL_APPROVAL_THRESHOLD_IS_MET
-current_status: SHADOW_CANDIDATE_VALIDATION_LOOP_DEPLOYED_PASS
-current_gate: EVIDENCE_ACCUMULATION_BEFORE_FORMAL_RECOMMENDATION_APPROVAL
-terminal_gate: OWNER_FORMAL_RECOMMENDATION_APPROVAL_REQUIRED
+owner_product_decision: W2_SHADOW_CANDIDATE_INPUT_AUTHORITY_CONVERGENCE
+owner_authorization_id: W2_SHADOW_CANDIDATE_INPUT_AUTHORITY_CONVERGENCE_V1
+active_next_action: EXECUTE_SHADOW_CANDIDATE_INPUT_AUTHORITY_CONVERGENCE
+next_code_action: SC18_01_THROUGH_SC18_07_CONTINUOUS_AUDIT_FIX_TEST_MERGE_REDEPLOY
+current_status: SHADOW_CANDIDATE_LOOP_ACTIVE_INPUT_CHAIN_CHANGES_REQUIRED
+current_gate: SHADOW_CANDIDATE_INPUT_AUTHORITY_REMEDIATION_ACTIVE
+terminal_gate: OWNER_SHADOW_CANDIDATE_INPUT_CHAIN_REREVIEW
 
 release_identity:
-  context_base_sha: 788be26434afd651ab0d36ed017fc5282b752e07
   implementation_base_sha: 0f0f306d568101d6b7ce34245eef5d197f794d62
   implementation_head_sha: 58555d2f6bd1e0a069550c91e7ce543164a4819c
   source_tree_sha: 00ef9cbfef1c22615c36c66779afde70cef4a8b4
-  final_main_sha: 001b1bae8e5276597dc506e0cd3cb40dbd180fb5
+  current_main_sha: 001b1bae8e5276597dc506e0cd3cb40dbd180fb5
   deployed_source_sha: 58555d2f6bd1e0a069550c91e7ce543164a4819c
   pr: 517
-  pr_state: MERGED
+  pr_state: MERGED_DEPLOYED
   full_ci_run: 31412790278
   promotion_run: 31413410048
   release_required: PASS_EXACT_HEAD
   promotion_required: PASS
-  release_manifest_sha256: 3c60002269a86781453b9f66d28c9629f1b7cb4cfa69461af5f7be72bc2d2152
+
+completed_and_retained:
+  dashboard_v41_and_truth_remediation:
+    prs: [506, 507, 509, 510, 514]
+    status: CLOSED_RETAIN
+  controlled_fixture_collection:
+    prs: [511, 512, 513]
+    status: CLOSED_RETAIN
+  market_identity_and_current_localized_labels:
+    pr: 515
+    status: CLOSED_RETAIN_BUT_PUBLIC_LABEL_AUTHORITY_INCOMPLETE
+  shadow_candidate_validation_loop:
+    pr: 517
+    status: DEPLOYED_ACTIVE_SHADOW_ONLY
+  vps_local_oci_relay: PASS_RETAIN
+  post_r3_track_a: TRACK_A_CLOSED_PASS
 
 shadow_candidate_validation:
-  status: DEPLOYED_ACTIVE_SHADOW_ONLY
-  owner_authorized_scope:
-    shadow_recommendation: ENABLED
-    candidate: ENABLED
-    forward_outcome_ledger: ENABLED
-    result_settlement: EXISTING_LOOP_REUSED
-    cumulative_postmatch_validation: ENABLED
-  runtime_guards:
-    candidate_mode: SHADOW_ONLY
-    formal: "OFF"
-    lock: "OFF"
-    production: "OFF"
-    real_money: "OFF"
+  runtime_status: DEPLOYED_ACTIVE_SHADOW_ONLY
+  shadow_recommendation: ENABLED
+  candidate: ENABLED_SHADOW_ONLY
+  forward_outcome_ledger: ENABLED
+  result_settlement: EXISTING_LOOP_REUSED
+  cumulative_postmatch_validation: ENABLED
+  formal: "OFF"
+  lock: "OFF"
+  production: "OFF"
+  real_money: "OFF"
   recommendation_source: EXISTING_RECOMMENDATION_DECISION_V4_ANALYSIS_PICK_ONLY
   read_model_recalculation: NONE
   api_read_resimulation: NONE
-  active_candidate_contract: CANDIDATE_FLAG_AND_ANALYSIS_PICK_AND_SELECTED_CANDIDATE_REQUIRED
-  incomplete_quote_identity: FAIL_CLOSED
   current_selected_day:
     date: "2026-08-10"
     match_count: 2
     active_shadow_candidates: 0
     not_ready: 2
-    interpretation: LOOP_ACTIVE_NO_MATCH_PASSED_EXISTING_THRESHOLDS
-  natural_scheduler_evidence:
-    task: w2.forward_outcome_ledger
-    task_id: forward-outcome-ledger:20260810T172320:e2f4d04f-af1c-45f9-9756-a78fcf4d0cf6
-    task_status: SUCCESS
-    result_status: BLOCKED_FUTURE_MATCHES_NOT_FINISHED
-    record_count: 35
-    written: 2
-    skipped_existing: 33
-    provider_calls: 0
-    ledger_import_identity_conflict: NONE
-  accumulated_ledger_evidence:
-    total_records: 63578
-    analysis_pick_captures: 1295
-    analysis_pick_outcomes: 158
-  threshold_policy_change: NONE
-  scheduler_or_cadence_change: NONE
-  active_whitelist_change: NONE
-  provider_change: NONE
-  changed_files: 25
-  repository_hygiene: PASS
+    interpretation: TRUTHFUL_FAIL_CLOSED_NO_MATCH_PASSED_EXISTING_V4_CONTRACT
+  natural_scheduler_execution: CONTINUES_UNCHANGED
+  historical_ledger_evidence: RETAIN_DO_NOT_DELETE
+  formal_threshold_claim_during_remediation: NOT_ALLOWED_FOR_AFFECTED_INPUT_IDENTITIES
 
-data_identity_remediation:
-  status: DEPLOYED_PASS_READY_FOR_OWNER_REREVIEW
-  scope:
-    raw_provider_competition_id_canonicalized_before_market_join: DEPLOYED
-    ambiguous_serie_a_and_super_league_regexes_removed: DEPLOYED
-    canonical_competition_labels_preferred: DEPLOYED
-    santa_clara_and_nacional_labels: DEPLOYED
-    persisted_market_checkpoint_rematerialized_without_provider: PASS
-  fixture_1575453:
-    competition_id: primeira_liga
-    asian_handicap_snapshot_count: 2
-    asian_handicap_observation_count: 8
-    totals_snapshot_count: 2
-    totals_observation_count: 28
-  active_whitelist_change: NONE
-  provider_calls: 0
-  scheduler_or_cadence_change: NONE
-  changed_files: 9
-  repository_hygiene: PASS
-  unresolved_hygiene_items: 0
+postdeploy_owner_input_chain_review:
+  status: CHANGES_REQUIRED_BOUNDED
+  authority: SHADOW_CANDIDATE_INPUT_AUTHORITY_CONVERGENCE.md
+  reviewed_fixture: "1493049"
+  findings:
+    SC18_01_live_authority_trace: OPEN_P0
+    SC18_02_per_market_eligibility_contract: OPEN_P0
+    SC18_03_radar_quote_readiness_convergence: OPEN_P0
+    SC18_04_public_partial_market_semantics: OPEN_P0
+    SC18_05_canonical_public_label_authority: OPEN_P1
+    SC18_06_stage14_exact_13_league_coverage_audit: OPEN_P1
+    SC18_07_regression_merge_redeploy_rereview: OPEN_P1
 
-owner_rereview_remediation:
-  status: DEPLOYED_PASS_READY_FOR_OWNER_REREVIEW
-  scope:
-    price_only_priority_threshold_exact_2_percent: DEPLOYED
-    unchanged_line_subthreshold_noise_excluded_from_priority: DEPLOYED
-    latest_snapshot_age_label: DEPLOYED
-    unassessed_model_risk_semantics: DEPLOYED
-    chinese_first_model_copy: DEPLOYED
-    iso_date_format: DEPLOYED
-    recent_seven_day_navigation: DEPLOYED
-    cumulative_postmatch_validation: DEPLOYED
-    one_selected_day_read_only: PASS
-  changed_files: 15
-  repository_hygiene: PASS
-  unresolved_hygiene_items: 0
+independent_root_cause_corrections:
+  competition_profile_enabled_false:
+    classification: NOT_A_STANDALONE_RUNTIME_CAUSE
+    staging_effective_rule: PROFILE_ENABLED_OR_FUTURE_REFRESH_ENABLED_OR_MATCHDAY_ENABLED
+    required_runtime_reporting: EFFECTIVE_ENABLE_SOURCES
+  round3_market_granularity:
+    classification: PER_MARKET_ALREADY
+    bookmaker_depth_gate: APPLIED_PER_MARKET_IN_MODEL_LAB
+    screenshot_proves_whole_match_backend_veto: false
+    confirmed_public_problem: FIRST_WORST_MARKET_CAN_DOMINATE_MATCH_LEVEL_DIAGNOSTIC
+  recommendation_v4:
+    classification: MARKET_CANDIDATE_SPECIFIC_EXACT_IDENTITY
+    radar_median_as_candidate: FORBIDDEN
+    exact_quote_identity_required: true
+    model_and_five_state_evidence_required: true
+  legacy_readiness:
+    classification: MATCH_LEVEL_SELECTED_MARKET_ADAPTER
+    risk: SELECTED_MARKET_AUTHORITY_CAN_DIVERGE_FROM_ROUND3_RADAR_AUTHORITY
+  localization:
+    current_team_behavior: FRONTEND_DICTIONARY_OR_RAW_NAME_FALLBACK
+    current_reason_behavior: MAPPED_PATTERN_OR_RAW_ENUM_WITH_SPACES
+    result: SILENT_ENGLISH_FALLBACK_CONFIRMED
 
-verification:
-  focused_python: PASS
-  full_local_python: 2546_PASSED_13_SKIPPED_CONDITIONAL_DOCKER_POSTGRES
-  focused_web_contract: PASS_3_OF_3
-  full_web_e2e: PASS_59_OF_59
-  web_production_build: PASS
-  ruff_changed_python: PASS
-  mypy_changed_python_source: PASS
-  exact_head_full_ci: PASS
-  release_required: PASS
-  main_tree_matches_source_tree: PASS
-  live_visual_qa_desktop: PASS
-  live_visual_qa_fixture_1575453: PASS_CHINESE_LABELS_AND_TWO_SNAPSHOTS_PER_MARKET
-  live_visual_qa_shadow_candidate_header: PASS_ENABLED
-  live_visual_qa_current_candidate_count: PASS_ZERO_TRUTHFUL_NOT_READY
-  live_visual_qa_postmatch_loop_copy: PASS
-  live_browser_console_errors: ZERO
-  no_call_on_read: PASS
+live_fixture_1493049_observed_shape:
+  competition: argentina_primera
+  asian_handicap:
+    snapshot_count: 2
+    latest_bookmaker_count: 1
+    radar_evidence_present: true
+    model_lab_expected_status_under_existing_rule: INSUFFICIENT_BOOKMAKER_DEPTH
+  totals:
+    snapshot_count: 2
+    latest_bookmaker_count: 7
+    radar_evidence_present: true
+    expected_independent_cross_sectional_status: AVAILABLE_IF_FRESH
+  simulation: NOT_READY
+  shadow_candidate: NOT_READY
+  current_public_problem:
+    - ENGLISH_TEAM_NAMES_VISIBLE
+    - ENGLISH_MODEL_BLOCKER_VISIBLE
+    - MARKET_LEVEL_STATES_NOT_CLEARLY_AGGREGATED_AS_PARTIAL
+    - MARKET_ODDS_READINESS_AUTHORITY_APPEARS_CONTRADICTORY
 
-deployment:
-  transport: LOCAL_OCI_RELAY_PRIMARY
-  python_image_digest: sha256:a3844ed136ce55a7a71f51eb973574f078e9b7bdbe4ffb237b20df1aca5970e8
-  web_image_digest: sha256:dcbc4e251db92f6f593ade3b8d8b3494dc6eae9e5a3e8d724fd8c9d738f1ebfa
-  cold_pull_end_to_end_seconds: 132
-  cold_pull_end_to_end_target_seconds: 300
-  health: PASS
-  ready: PASS
-  release_sync: PASS
-  rollback_executed: false
-  owner_local_acceptance_tunnel: PASS_EXACT_DEPLOYED_WEB
+public_label_remediation_contract:
+  final_authority: CANONICAL_TEAM_IDENTITY_PLUS_REVIEWED_PUBLIC_LABEL
+  existing_infrastructure:
+    canonical_teams: AVAILABLE
+    provider_team_identity_crosswalks: AVAILABLE
+    reviewed_identity_resolution: FAIL_CLOSED_AVAILABLE
+  forbidden_behavior:
+    - SILENT_RAW_ENGLISH_TEAM_NAME_AS_LOCALIZED_SUCCESS
+    - UNMAPPED_PUBLIC_ENUM_AS_MAIN_COPY
+    - AUTOMATIC_INVENTED_CHINESE_TRANSLATION
+  required_gap_states:
+    - CHINESE_LABEL_READY
+    - CANONICAL_IDENTITY_READY_LABEL_MISSING
+    - IDENTITY_UNRESOLVED
+    - AMBIGUOUS
+  required_artifacts:
+    - PUBLIC_LABEL_COVERAGE_MATRIX.json
+    - PUBLIC_LABEL_COVERAGE_REPORT.md
+    - PUBLIC_ENUM_LABEL_COVERAGE.json
 
-postdeploy_real_payload:
-  schema: w2.dashboard-intelligence-workspace.v1
-  public_authority: NEW_INTELLIGENCE_WORKSPACE_ONLY
-  data_profile: real-db
-  data_source: dashboard_read_model
-  date: "2026-08-10"
-  day_mode: NORMAL
-  match_count: 2
-  active_shadow_candidate_count: 0
-  shadow_candidate_runtime: SHADOW_ONLY
-  priority_match_count: 1
-  validation_count: 56
-  validation_eligible_count: 16
-  validation_settled_count: 16
-  provider_calls: 0
-  db_writes: 0
-  would_write_checkpoint: false
-  no_call_on_read: true
-  provider_counter_unchanged: PASS_VALUE_0
-  fixture_1575453_market_timeline: PASS_2_SNAPSHOTS_PER_AH_AND_TOTALS
-  fixture_1575453_public_labels: PASS_PORTUGUESE_SANTA_CLARA_NACIONAL_CHINESE
+stage14_coverage_audit:
+  status: AUTHORIZED_AUDIT_ONLY
+  exact_scope: EXISTING_ACTIVE_13
+  existing_tools:
+    - scripts/check_w2_stage14a.py
+    - scripts/run_stage14a_league_audit.py
+    - docs/consolidation/W2_WHITELIST_TECH_WORKORDER_V1.md
+  required_domains:
+    - EFFECTIVE_STAGING_ENABLE_SOURCES
+    - PROVIDER_COMPETITION_MAPPING
+    - FIXTURE_RESULT_TEAM_IDENTITY
+    - AH_BOOKMAKER_DEPTH
+    - OU_BOOKMAKER_DEPTH
+    - LINEUPS_INJURIES
+    - XG
+    - RATINGS
+    - SQUAD_VALUE
+    - H2H
+    - SETTLED_AH
+    - EXACT_CANDIDATE_QUOTE_PATH
+    - MODEL_INPUT_PATH
+  classifications:
+    - VERIFIED
+    - PARTIAL
+    - NOT_AUDITED
+    - NOT_AVAILABLE_FROM_CURRENT_PROVIDER
+    - DATASET_MAPPING_REQUIRED
+    - OWNER_DECISION_REQUIRED
+  activation_or_bypass_authority: NOT_GRANTED
+
+input_chain_remediation_execution:
+  authority: W2_SHADOW_CANDIDATE_INPUT_AUTHORITY_CONVERGENCE_V1
+  continuous_execution: true
+  owner_relay_between_steps: NOT_REQUIRED
+  ordinary_failures: FIX_REVALIDATE_CONTINUE
+  automatic_merge_after_exact_head_pass: true
+  redeployment_required: true
+  deployment_transport: LOCAL_OCI_RELAY_PRIMARY
+  rollback_baseline_main: 001b1bae8e5276597dc506e0cd3cb40dbd180fb5
+  terminal_gate: OWNER_SHADOW_CANDIDATE_INPUT_CHAIN_REREVIEW
+  required_results:
+    - SC18_01_THROUGH_SC18_07_CLOSED
+    - PER_MARKET_AH_OU_ELIGIBILITY_PROVEN
+    - NO_CROSS_MARKET_BLOCKER_CONTAMINATION
+    - SAME_MARKET_RADAR_QUOTE_READINESS_CONSISTENT
+    - NO_RADAR_MEDIAN_PROMOTED_TO_EXECUTABLE_CANDIDATE
+    - MATCH_PARTIAL_SEMANTICS_PUBLIC
+    - CHINESE_FIRST_PUBLIC_LABELS
+    - MISSING_LABELS_AUDITABLE
+    - STAGE14_EXACT_13_LEAGUE_MATRIX_COMPLETE
+    - ZERO_CANDIDATE_REMAINS_VALID_WHEN_V4_NOT_READY
+    - FULL_CI_PASS
+    - RELEASE_REQUIRED_PASS
+    - REPOSITORY_HYGIENE_PASS
+    - LOCAL_OCI_RELAY_REDEPLOY_PASS
+    - POSTDEPLOY_REAL_PAYLOAD_PASS
+    - READ_PROVIDER_CALL_DELTA_0
+    - READ_BUSINESS_WRITE_DELTA_0
 
 accepted_truths_must_not_regress:
   public_dashboard_authority: NEW_INTELLIGENCE_WORKSPACE_ONLY
@@ -174,20 +211,21 @@ accepted_truths_must_not_regress:
   risk_axes: EXACT_EVENT_DATA_MODEL_COLLECTION
   market_timeline: REAL_DISCRETE_0_1_2_PLUS_NO_INTERPOLATION
   one_public_market_readiness: READY_STALE_INSUFFICIENT
+  exact_recommendation_identity: RECOMMENDATION_DECISION_V4
+  radar_medians_are_not_executable_quotes: true
+  zero_candidate_fail_closed: true
   external_intelligence: NOT_CONNECTED_NON_BLOCKING
   phase_0_5: FROZEN_NO_EDGE_NOT_PROVEN_NO_RERUN
   active_whitelist: EXACT_EXISTING_13
-  free_bridge_mode: SHADOW_ONLY
   shadow_candidate_loop: ENABLED
-  formal_recommendation: OWNER_APPROVAL_REQUIRED_AFTER_EXISTING_THRESHOLD
+  formal_recommendation: OFF_PENDING_SEPARATE_OWNER_APPROVAL
   track_a: CLOSED_PASS
 
 round4:
   status: NOT_STARTED
   execution_authority: NOT_GRANTED
   packet: ROUND4_READINESS_DECISION_PACKET.md
-  current_packet_exact_release_identity: PR_517_DEPLOYED_RELEASE
-  next_automatic_action: NONE
+  required_after_remediation: REFRESH_EXACT_RELEASE_IDENTITY_ONLY_THEN_STOP
 
 p6:
   status: BLUEPRINT_ONLY_NOT_AUTHORIZED
@@ -199,6 +237,7 @@ permanent_stop_lines:
   active_whitelist_change: NOT_AUTHORIZED
   model_factor_threshold_change: NOT_AUTHORIZED
   model_retraining: NOT_AUTHORIZED
+  bookmaker_depth_threshold_change: NOT_AUTHORIZED
   market_direction_benchmark_definition: NOT_AUTHORIZED
   external_intelligence_connection: NOT_AUTHORIZED
   phase_0_5_reexecution: FORBIDDEN
@@ -210,5 +249,8 @@ permanent_stop_lines:
   lock: "OFF"
   production: "OFF"
   real_money: NOT_AUTHORIZED
+  read_provider_calls: 0_REQUIRED
+  read_db_business_writes: 0_REQUIRED
+  vps_direct_ghcr_bulk_image_pull: FORBIDDEN_AS_PRIMARY_TRANSPORT
   image_transport: LOCAL_OCI_RELAY_PRIMARY
   delete_protected_historical_evidence: FORBIDDEN
