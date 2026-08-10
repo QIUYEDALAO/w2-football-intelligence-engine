@@ -57,10 +57,11 @@ def build_dashboard_intelligence_workspace(
     day_view: Mapping[str, Any],
     *,
     replay: Mapping[str, Any],
+    candidate_enabled: bool = False,
 ) -> dict[str, Any]:
     """Adapt existing bounded projections into the one final Dashboard read model."""
     cards = _mapping_list(day_view.get("cards"))
-    matches = [_match(card) for card in cards]
+    matches = [_match(card, candidate_enabled=candidate_enabled) for card in cards]
     freshness = _mapping(day_view.get("freshness"))
     performance = _mapping(day_view.get("performance"))
     forward = _mapping(performance.get("forward_ledger"))
@@ -115,7 +116,7 @@ def build_dashboard_intelligence_workspace(
             "active_whitelist_count": 13,
             "free_bridge_mode": "SHADOW_ONLY",
             "market_price_attention_threshold_ratio": MARKET_PRICE_ATTENTION_THRESHOLD_RATIO,
-            "candidate": "OFF",
+            "candidate": "SHADOW_ONLY" if candidate_enabled else "OFF",
             "formal": "OFF",
             "lock": "OFF",
             "production": "OFF",
@@ -154,7 +155,7 @@ def build_dashboard_intelligence_workspace(
     }
 
 
-def _match(card: Mapping[str, Any]) -> dict[str, Any]:
+def _match(card: Mapping[str, Any], *, candidate_enabled: bool) -> dict[str, Any]:
     radar = _mapping(card.get("market_radar"))
     model_lab = _mapping(card.get("model_lab"))
     markets = {
@@ -227,6 +228,7 @@ def _match(card: Mapping[str, Any]) -> dict[str, Any]:
             },
             "model_market_relation": relation,
         },
+        "shadow_candidate": _shadow_candidate(card, enabled=candidate_enabled),
         "formal_recommendation": {
             "status": "OFF",
             "reason": "PRODUCT_AUTHORITY_DISABLED",
@@ -273,6 +275,37 @@ def _match(card: Mapping[str, Any]) -> dict[str, Any]:
             ),
             "decision_role": "DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY",
         },
+    }
+
+
+def _shadow_candidate(card: Mapping[str, Any], *, enabled: bool) -> dict[str, Any]:
+    decision = _mapping(card.get("recommendation_decision_v4"))
+    reason = _mapping(decision.get("reason"))
+    selected = _mapping(decision.get("selected_candidate"))
+    active = enabled and _text(decision.get("outcome")) == "ANALYSIS_PICK" and bool(selected)
+    return {
+        "status": "ACTIVE" if active else "NOT_READY" if enabled else "OFF",
+        "mode": "SHADOW_ONLY",
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "decision_tier": "ANALYSIS_PICK" if active else _text(decision.get("outcome"), "NOT_READY"),
+        "reason_code": _optional_text(reason.get("code")),
+        "reason_message": _optional_text(reason.get("message")),
+        "market": _optional_text(selected.get("market")) if active else None,
+        "selection": _optional_text(selected.get("selection")) if active else None,
+        "exact_line": _optional_text(selected.get("exact_line") or selected.get("line"))
+        if active
+        else None,
+        "decimal_odds": _number(selected.get("decimal_odds") or selected.get("odds"))
+        if active
+        else None,
+        "captured_at": selected.get("captured_at") if active else None,
+        "decision_hash": _optional_text(decision.get("decision_hash")) if active else None,
+        "recommendation_scope": "VALIDATION" if active else "NONE",
+        "outcome_tracked": active,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "production_action_allowed": False,
+        "real_money_allowed": False,
     }
 
 

@@ -675,7 +675,7 @@ def forward_outcome_ledger_tick() -> dict[str, object]:
         "status": "QUEUED",
         "task_id": task_id,
         "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
-        "candidate": False,
+        "candidate": os.environ.get("W2_CANDIDATE_ENABLED", "false").lower() == "true",
         "formal_recommendation": False,
         "provider_calls": 0,
         "db_writes": 0,

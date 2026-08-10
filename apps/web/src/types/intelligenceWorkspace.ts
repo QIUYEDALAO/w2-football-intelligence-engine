@@ -150,6 +150,26 @@ export interface WorkspaceMatch {
     };
     model_market_relation: Record<string, WorkspaceModelRelation>;
   };
+  shadow_candidate: {
+    status: "ACTIVE" | "NOT_READY" | "OFF";
+    mode: "SHADOW_ONLY";
+    authority: "RECOMMENDATION_DECISION_V4";
+    decision_tier: string;
+    reason_code: string | null;
+    reason_message: string | null;
+    market: "ASIAN_HANDICAP" | "TOTALS" | null;
+    selection: "HOME" | "AWAY" | "OVER" | "UNDER" | null;
+    exact_line: string | null;
+    decimal_odds: number | null;
+    captured_at: string | null;
+    decision_hash: string | null;
+    recommendation_scope: "VALIDATION" | "NONE";
+    outcome_tracked: boolean;
+    formal_status: "OFF";
+    lock_status: "OFF";
+    production_action_allowed: false;
+    real_money_allowed: false;
+  };
   formal_recommendation: {
     status: "OFF";
     reason: "PRODUCT_AUTHORITY_DISABLED";
@@ -346,7 +366,7 @@ export interface IntelligenceWorkspace {
     active_whitelist_count: 13;
     free_bridge_mode: "SHADOW_ONLY";
     market_price_attention_threshold_ratio: 0.02;
-    candidate: "OFF";
+    candidate: "OFF" | "SHADOW_ONLY";
     formal: "OFF";
     lock: "OFF";
     production: "OFF";

@@ -631,6 +631,7 @@ def test_scheduler_forward_outcome_ledger_dispatches_without_provider_calls(monk
         sent.append({"name": name, **kwargs})
 
     monkeypatch.setenv("W2_FORWARD_OUTCOME_LEDGER_ENABLED", "true")
+    monkeypatch.setenv("W2_CANDIDATE_ENABLED", "true")
     monkeypatch.setattr(celery_app, "send_task", fake_send_task)
 
     result = forward_outcome_ledger_tick()
@@ -638,6 +639,8 @@ def test_scheduler_forward_outcome_ledger_dispatches_without_provider_calls(monk
     assert result["status"] == "QUEUED"
     assert result["provider_calls"] == 0
     assert result["db_writes"] == 0
+    assert result["candidate"] is True
+    assert result["formal_recommendation"] is False
     assert str(result["task_id"]).startswith("forward-outcome-ledger:")
     assert sent[0]["name"] == "w2.forward_outcome_ledger"
     assert sent[0]["kwargs"]["window"] == "next36"
@@ -733,6 +736,7 @@ def test_worker_forward_outcome_ledger_task_reports_safety_flags(monkeypatch) ->
         "apps.worker.celery_app._run_forward_outcome_ledger",
         lambda **kwargs: {
             "status": "PASS",
+            "candidate": True,
             "provider_calls": 0,
             "db_writes": 0,
             "lock_capture_write": False,
@@ -749,7 +753,7 @@ def test_worker_forward_outcome_ledger_task_reports_safety_flags(monkeypatch) ->
     assert result["db_writes"] == 0
     assert result["lock_capture_write"] is False
     assert result["settlement_write"] is False
-    assert result["candidate"] is False
+    assert result["candidate"] is True
     assert result["formal_recommendation"] is False
 
 

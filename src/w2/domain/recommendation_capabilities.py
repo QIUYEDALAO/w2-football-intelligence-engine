@@ -13,6 +13,7 @@ REQUIRED_CAPABILITIES = frozenset(
     {
         "analysis_ah",
         "analysis_ou",
+        "shadow_candidate",
         "formal_ah",
         "formal_ou",
         "lineup_confirmation_gate",

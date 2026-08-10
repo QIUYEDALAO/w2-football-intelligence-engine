@@ -39,6 +39,24 @@ def test_outcome_ledger_append_is_idempotent_and_conflicts_fail_closed(
     assert len(repository.records()) == 1
 
 
+def test_runtime_capture_retry_ignores_selected_football_day_label(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    first = {**_capture(), "football_day": "2026-08-10"}
+    retry = {
+        **first,
+        "captured_at": "2026-08-11T00:05:00Z",
+        "football_day": "2026-08-11",
+    }
+
+    initial = repository.append([first], dry_run=False, write_db=True)
+    repeated = repository.append([retry], dry_run=False, write_db=True)
+
+    assert initial["written"] == 1
+    assert repeated["written"] == 0
+    assert repeated["already_imported"] == 1
+    assert len(repository.records()) == 1
+
+
 def test_outcome_ledger_orm_update_and_delete_are_blocked(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
     repository.append([_capture()], dry_run=False, write_db=True)

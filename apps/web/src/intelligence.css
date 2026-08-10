@@ -792,6 +792,46 @@ summary {
   border-radius: 3px;
 }
 
+.v41-three-layer--candidate {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.v41-candidate {
+  border: 1px solid var(--v41-accent-line);
+  background: var(--v41-accent-soft);
+  padding: 12px;
+  display: grid;
+  gap: 9px;
+}
+
+.v41-candidate header,
+.v41-candidate div,
+.v41-candidate footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.v41-candidate header span,
+.v41-candidate header b {
+  color: var(--v41-accent);
+}
+
+.v41-candidate div {
+  flex-wrap: wrap;
+}
+
+.v41-candidate div small,
+.v41-candidate footer {
+  color: var(--v41-ink-3);
+}
+
+.v41-candidate footer {
+  border-top: 1px solid var(--v41-line-soft);
+  padding-top: 8px;
+  font-size: 12px;
+}
+
 .v41-three-layer > div {
   display: grid;
   gap: 2px;

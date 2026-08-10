@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 from typing import cast
 
@@ -269,7 +270,7 @@ def forward_outcome_ledger(
         "queued_at_utc": queued_at_utc,
         "status": result["status"],
         "result": result,
-        "candidate": False,
+        "candidate": result.get("candidate") is True,
         "formal_recommendation": False,
         "provider_calls": 0,
         "db_writes": result.get("db_writes", 0),
@@ -339,6 +340,11 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
     return {
         **capture,
         "status": ("BLOCKED" if materialization["status"] == "BLOCKED" else capture["status"]),
+        "candidate": os.environ.get("W2_CANDIDATE_ENABLED", "false").lower() == "true",
+        "formal_recommendation": False,
+        "lock": False,
+        "production": False,
+        "real_money": False,
         "db_writes": sum(
             int(item.get("db_writes", 0)) for item in (capture, materialization, settlement)
         ),

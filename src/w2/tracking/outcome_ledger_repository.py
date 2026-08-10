@@ -106,6 +106,10 @@ def _runtime_capture_sha256(
         return None
     business_payload = dict(payload)
     business_payload.pop("captured_at", None)
+    # A future-window replay may project the same immutable capture under a
+    # different selected football-day label. The capture identity itself is
+    # unchanged, so this request-scoped label must not break idempotency.
+    business_payload.pop("football_day", None)
     return payload_sha256(business_payload)
 
 

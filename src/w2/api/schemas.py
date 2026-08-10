@@ -216,7 +216,7 @@ class WorkspaceRuntime(BaseModel):
     active_whitelist_count: Literal[13]
     free_bridge_mode: Literal["SHADOW_ONLY"]
     market_price_attention_threshold_ratio: float = Field(ge=0.02, le=0.02)
-    candidate: Literal["OFF"]
+    candidate: Literal["OFF", "SHADOW_ONLY"]
     formal: Literal["OFF"]
     lock: Literal["OFF"]
     production: Literal["OFF"]
@@ -431,6 +431,48 @@ class WorkspaceW2Analysis(BaseModel):
     model_market_relation: dict[str, WorkspaceModelRelation]
 
 
+class WorkspaceShadowCandidate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["ACTIVE", "NOT_READY", "OFF"]
+    mode: Literal["SHADOW_ONLY"]
+    authority: Literal["RECOMMENDATION_DECISION_V4"]
+    decision_tier: Literal["NOT_READY", "NO_EDGE", "ANALYSIS_PICK", "FORMAL_RECOMMEND"]
+    reason_code: str | None
+    reason_message: str | None
+    market: Literal["ASIAN_HANDICAP", "TOTALS"] | None
+    selection: Literal["HOME", "AWAY", "OVER", "UNDER"] | None
+    exact_line: str | None
+    decimal_odds: float | None = Field(default=None, gt=1)
+    captured_at: datetime | str | None
+    decision_hash: str | None
+    recommendation_scope: Literal["VALIDATION", "NONE"]
+    outcome_tracked: bool
+    formal_status: Literal["OFF"]
+    lock_status: Literal["OFF"]
+    production_action_allowed: Literal[False]
+    real_money_allowed: Literal[False]
+
+    @model_validator(mode="after")
+    def active_candidate_is_complete(self) -> WorkspaceShadowCandidate:
+        selected = (
+            self.market,
+            self.selection,
+            self.exact_line,
+            self.decimal_odds,
+            self.captured_at,
+            self.decision_hash,
+        )
+        if self.status == "ACTIVE":
+            if self.decision_tier != "ANALYSIS_PICK" or any(value is None for value in selected):
+                raise ValueError("active shadow candidate requires complete V4 identity")
+            if self.recommendation_scope != "VALIDATION" or not self.outcome_tracked:
+                raise ValueError("active shadow candidate must enter forward validation")
+        elif any(value is not None for value in selected):
+            raise ValueError("inactive shadow candidate cannot expose a selection")
+        return self
+
+
 class WorkspaceFormalRecommendation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -545,6 +587,7 @@ class WorkspaceMatch(BaseModel):
     readiness: WorkspaceReadiness
     market_fact: WorkspaceMarketFact
     w2_analysis: WorkspaceW2Analysis
+    shadow_candidate: WorkspaceShadowCandidate
     formal_recommendation: WorkspaceFormalRecommendation
     market_radar: WorkspaceMarketRadar
     model_lab: WorkspaceModelLab

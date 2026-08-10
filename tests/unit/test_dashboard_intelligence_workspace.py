@@ -228,9 +228,12 @@ def _day_view() -> dict[str, Any]:
     }
 
 
-def _workspace(day_view: dict[str, Any]) -> dict[str, Any]:
+def _workspace(
+    day_view: dict[str, Any], *, candidate_enabled: bool = False
+) -> dict[str, Any]:
     return build_dashboard_intelligence_workspace(
         day_view,
+        candidate_enabled=candidate_enabled,
         replay={
             "replay_status": "MISSING_OUTCOMES",
             "known_at_summary": {
@@ -258,6 +261,66 @@ def _workspace(day_view: dict[str, Any]) -> dict[str, Any]:
             "replay_gaps": ["MISSING_OUTCOMES"],
         },
     )
+
+
+def test_shadow_candidate_activation_reuses_v4_and_stays_non_production() -> None:
+    day_view = _day_view()
+    day_view["cards"][0]["recommendation_decision_v4"] = {
+        "outcome": "ANALYSIS_PICK",
+        "reason": {"code": "ANALYSIS_ONLY", "message": "当前仅提供影子候选"},
+        "selected_candidate": {
+            "market": "ASIAN_HANDICAP",
+            "selection": "HOME",
+            "exact_line": "-0.25",
+            "decimal_odds": "1.95",
+            "captured_at": "2026-08-09T01:00:00Z",
+        },
+        "decision_hash": "a" * 64,
+    }
+
+    payload = _workspace(day_view, candidate_enabled=True)
+    candidate = payload["matches"][0]["shadow_candidate"]
+
+    assert payload["runtime"]["candidate"] == "SHADOW_ONLY"
+    assert candidate == {
+        "status": "ACTIVE",
+        "mode": "SHADOW_ONLY",
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "decision_tier": "ANALYSIS_PICK",
+        "reason_code": "ANALYSIS_ONLY",
+        "reason_message": "当前仅提供影子候选",
+        "market": "ASIAN_HANDICAP",
+        "selection": "HOME",
+        "exact_line": "-0.25",
+        "decimal_odds": 1.95,
+        "captured_at": "2026-08-09T01:00:00Z",
+        "decision_hash": "a" * 64,
+        "recommendation_scope": "VALIDATION",
+        "outcome_tracked": True,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "production_action_allowed": False,
+        "real_money_allowed": False,
+    }
+    DashboardIntelligenceWorkspaceResponse.model_validate(
+        {"request_id": "candidate-contract", **payload}
+    )
+
+
+def test_active_shadow_candidate_contract_rejects_missing_quote_identity() -> None:
+    day_view = _day_view()
+    day_view["cards"][0]["recommendation_decision_v4"] = {
+        "outcome": "ANALYSIS_PICK",
+        "reason": {"code": "ANALYSIS_ONLY"},
+        "selected_candidate": {"market": "ASIAN_HANDICAP", "selection": "HOME"},
+        "decision_hash": "a" * 64,
+    }
+    payload = _workspace(day_view, candidate_enabled=True)
+
+    with pytest.raises(ValueError, match="active shadow candidate requires complete V4 identity"):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "candidate-contract", **payload}
+        )
 
 
 def _keys(value: Any) -> set[str]:

@@ -120,7 +120,7 @@ def test_safety_switches_keep_their_values_and_ownership(path: Path) -> None:
         "W2_PROVIDER_CALLS_DISABLED": "true",
         "W2_PROVIDER_SCHEDULER_ENABLED": "false",
         "W2_RECOMMENDATION_ENABLED": "false",
-        "W2_CANDIDATE_ENABLED": "false",
+        "W2_CANDIDATE_ENABLED": "true",
         "W2_PRODUCTION_RELEASE": "false",
         "W2_EXTERNAL_ALERTING": "false",
         "W2_XG_BACKFILL_ENABLED": "false",
@@ -230,6 +230,7 @@ def test_compose_expansion_matches_authorized_runtime_delta(
             {
                 "W2_FREE_BRIDGE_MODE": "OFF",
                 "W2_FREE_BRIDGE_INTERVAL_SECONDS": "300",
+                "W2_CANDIDATE_ENABLED": "true",
             }
         )
         assert current_services[service]["environment"] == expected

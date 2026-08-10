@@ -193,7 +193,7 @@ def main() -> None:
         ("W2_ENVIRONMENT", "staging"),
         ("W2_DEEPSEEK_ENABLED", "false"),
         ("W2_RECOMMENDATION_ENABLED", "false"),
-        ("W2_CANDIDATE_ENABLED", "false"),
+        ("W2_CANDIDATE_ENABLED", "true"),
         ("W2_PRODUCTION_RELEASE", "false"),
         ("W2_FORWARD_HOLDOUT_AUTORUN", "true"),
         ("W2_FORWARD_HOLDOUT_NETWORK", "true"),
