@@ -37,7 +37,6 @@ SCHEDULER = ROOT / "apps/scheduler/main.py"
 FORBIDDEN_TRUE_FLAGS = {
     "W2_DEEPSEEK_ENABLED",
     "W2_RECOMMENDATION_ENABLED",
-    "W2_CANDIDATE_ENABLED",
     "W2_PRODUCTION_RELEASE",
     "W2_EXTERNAL_ALERTING",
 }
@@ -269,6 +268,8 @@ def assert_compose(path: Path) -> None:
         fail(f"{path}: scheduler provider calls must default disabled")
     if scheduler_env.get("W2_PROVIDER_SCHEDULER_ENABLED") != "false":
         fail(f"{path}: scheduler provider scheduler must default disabled")
+    if scheduler_env.get("W2_CANDIDATE_ENABLED") != "true":
+        fail(f"{path}: scheduler shadow candidate loop must stay enabled")
     if scheduler_env.get("W2_MARKET_TIMELINE_REFRESH_ENABLED") != "true":
         fail(f"{path}: scheduler market timeline refresh enable flag missing")
     if scheduler_env.get("W2_MARKET_TIMELINE_MAX_FIXTURES") != "10":

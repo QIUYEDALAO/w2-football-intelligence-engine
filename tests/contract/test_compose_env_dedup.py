@@ -230,6 +230,7 @@ def test_compose_expansion_matches_authorized_runtime_delta(
             {
                 "W2_FREE_BRIDGE_MODE": "OFF",
                 "W2_FREE_BRIDGE_INTERVAL_SECONDS": "300",
+                "W2_CANDIDATE_ENABLED": "true",
             }
         )
         assert current_services[service]["environment"] == expected
