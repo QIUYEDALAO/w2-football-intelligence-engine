@@ -17,14 +17,15 @@ Read first:
 
 ```text
 PRODUCT = W2 Football Intelligence
-ACTIVE_NEXT_ACTION = W2_MI_R3_MARKET_RADAR_AND_MODEL_LAB
-ROUND_3 = AUTHORIZED_IN_PROGRESS
-CURRENT_GATE = R3_A0_ACTIVE_UI_AND_TIMELINE_REALITY_GATE
-FREE_BRIDGE_MODE = SHADOW_ONLY
+ACTIVE_NEXT_ACTION = NATURAL_SHADOW_CANDIDATE_EVIDENCE_ACCUMULATION
+CURRENT_GATE = EVIDENCE_ACCUMULATION_BEFORE_FORMAL_RECOMMENDATION_APPROVAL
+SHADOW_CANDIDATE = ENABLED_SHADOW_ONLY
+FORMAL = OFF_PENDING_SEPARATE_OWNER_APPROVAL
+ROUND_4 = NOT_STARTED
 ACTIVE_WHITELIST = EXACT_EXISTING_13
 ```
 
-Execute Round 3 continuously through exact-main active-UI proof, real timeline-depth audit, evidence eligibility, sparse-safe Market Radar, diagnostic-only Model Lab, cockpit/public integration, CI, merge, immutable staging deployment, real persisted-evidence acceptance, rollback, hygiene and final receipt. In-scope failures are repaired and rerun without owner reapproval.
+Allow the existing scheduler/cadence to capture SHADOW/CANDIDATE decisions, settle outcomes and accumulate postmatch validation evidence. When the existing formal-approval threshold is met, prepare and submit an Owner approval packet; do not enable Formal while preparing or submitting it.
 
 Before drawing charts, prove the active route/component chain and real persisted AH/OU snapshot depth. Schema capability alone is insufficient. Zero- and single-snapshot states must render truthfully and must not be mislabeled as STABLE; fake/interpolated/duplicated timeline points are forbidden. Do not increase collection cadence just to make charts denser.
 
@@ -43,6 +44,6 @@ Model-outside-range must use monitoring/warning semantics, not positive opportun
 
 Round 1 is historical PASS and must not be reopened. Cockpit refinement occurs inside Round 3. Attention Feed ordering is the frozen seven-state precedence followed by kickoff; no composite opportunity/value score is allowed.
 
-Preserve Free Provider 100/day, W2 max 80/day, minimum remaining 20, no automatic retry, exact active 13, four audit-only unreachable, Candidate/Formal/Lock/Production OFF, H permanently closed and no real-money execution.
+Preserve Free Provider 100/day, W2 max 80/day, minimum remaining 20, no automatic retry, exact active 13, four audit-only unreachable, Candidate `SHADOW_ONLY`, Formal/Lock/Production OFF, H permanently closed and no real-money execution.
 
 `REPOSITORY_HYGIENE_POLICY.md` is mandatory before PASS.

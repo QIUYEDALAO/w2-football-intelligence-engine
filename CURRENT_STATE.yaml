@@ -1,32 +1,78 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-11T00:16:00+08:00"
+updated_at: "2026-08-11T01:28:02+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: OWNER_DASHBOARD_DATA_IDENTITY_POSTDEPLOY_REREVIEW
-owner_authorization_id: OWNER_DIRECT_APPROVAL_PR515_DATA_FIX_DEPLOYMENT_2026_08_10
-active_next_action: OWNER_DASHBOARD_DATA_IDENTITY_POSTDEPLOY_REREVIEW
-next_code_action: NONE_PENDING_OWNER_REREVIEW
-current_status: DASHBOARD_DATA_IDENTITY_AND_LABEL_FIX_DEPLOYED_PASS
-current_gate: OWNER_DASHBOARD_DATA_IDENTITY_POSTDEPLOY_REREVIEW
-terminal_gate: OWNER_DASHBOARD_DATA_IDENTITY_POSTDEPLOY_REREVIEW
+owner_product_decision: OWNER_APPROVED_SHADOW_CANDIDATE_RECOMMENDATION_AND_POSTMATCH_VALIDATION_LOOP
+owner_authorization_id: OWNER_DIRECT_APPROVAL_SHADOW_CANDIDATE_VALIDATION_2026_08_11
+active_next_action: NATURAL_SHADOW_CANDIDATE_EVIDENCE_ACCUMULATION
+next_code_action: NONE_UNTIL_EXISTING_FORMAL_APPROVAL_THRESHOLD_IS_MET
+current_status: SHADOW_CANDIDATE_VALIDATION_LOOP_DEPLOYED_PASS
+current_gate: EVIDENCE_ACCUMULATION_BEFORE_FORMAL_RECOMMENDATION_APPROVAL
+terminal_gate: OWNER_FORMAL_RECOMMENDATION_APPROVAL_REQUIRED
 
 release_identity:
-  context_base_sha: f229e3a0eee0ed188c989bd28c6da20605725873
-  implementation_base_sha: 283f10e704bca34229a5db82ca612002f9e33b9b
-  implementation_head_sha: 567f2701af3b7895ee20143ee6231a4e88442a1c
-  source_tree_sha: 616bf5d8fc21c5270aff06f18bdd35fda97187f1
-  final_main_sha: 0f0f306d568101d6b7ce34245eef5d197f794d62
-  deployed_source_sha: 567f2701af3b7895ee20143ee6231a4e88442a1c
-  pr: 515
+  context_base_sha: 788be26434afd651ab0d36ed017fc5282b752e07
+  implementation_base_sha: 0f0f306d568101d6b7ce34245eef5d197f794d62
+  implementation_head_sha: 58555d2f6bd1e0a069550c91e7ce543164a4819c
+  source_tree_sha: 00ef9cbfef1c22615c36c66779afde70cef4a8b4
+  final_main_sha: 001b1bae8e5276597dc506e0cd3cb40dbd180fb5
+  deployed_source_sha: 58555d2f6bd1e0a069550c91e7ce543164a4819c
+  pr: 517
   pr_state: MERGED
-  full_ci_run: 31406543513
-  promotion_run: 31407540151
+  full_ci_run: 31412790278
+  promotion_run: 31413410048
   release_required: PASS_EXACT_HEAD
   promotion_required: PASS
-  release_manifest_sha256: 7f9b946c14f3897534d376f120cc8d4a6d49e800cb1bc042ce58e9ff64808a09
+  release_manifest_sha256: 3c60002269a86781453b9f66d28c9629f1b7cb4cfa69461af5f7be72bc2d2152
+
+shadow_candidate_validation:
+  status: DEPLOYED_ACTIVE_SHADOW_ONLY
+  owner_authorized_scope:
+    shadow_recommendation: ENABLED
+    candidate: ENABLED
+    forward_outcome_ledger: ENABLED
+    result_settlement: EXISTING_LOOP_REUSED
+    cumulative_postmatch_validation: ENABLED
+  runtime_guards:
+    candidate_mode: SHADOW_ONLY
+    formal: "OFF"
+    lock: "OFF"
+    production: "OFF"
+    real_money: "OFF"
+  recommendation_source: EXISTING_RECOMMENDATION_DECISION_V4_ANALYSIS_PICK_ONLY
+  read_model_recalculation: NONE
+  api_read_resimulation: NONE
+  active_candidate_contract: CANDIDATE_FLAG_AND_ANALYSIS_PICK_AND_SELECTED_CANDIDATE_REQUIRED
+  incomplete_quote_identity: FAIL_CLOSED
+  current_selected_day:
+    date: "2026-08-10"
+    match_count: 2
+    active_shadow_candidates: 0
+    not_ready: 2
+    interpretation: LOOP_ACTIVE_NO_MATCH_PASSED_EXISTING_THRESHOLDS
+  natural_scheduler_evidence:
+    task: w2.forward_outcome_ledger
+    task_id: forward-outcome-ledger:20260810T172320:e2f4d04f-af1c-45f9-9756-a78fcf4d0cf6
+    task_status: SUCCESS
+    result_status: BLOCKED_FUTURE_MATCHES_NOT_FINISHED
+    record_count: 35
+    written: 2
+    skipped_existing: 33
+    provider_calls: 0
+    ledger_import_identity_conflict: NONE
+  accumulated_ledger_evidence:
+    total_records: 63578
+    analysis_pick_captures: 1295
+    analysis_pick_outcomes: 158
+  threshold_policy_change: NONE
+  scheduler_or_cadence_change: NONE
+  active_whitelist_change: NONE
+  provider_change: NONE
+  changed_files: 25
+  repository_hygiene: PASS
 
 data_identity_remediation:
   status: DEPLOYED_PASS_READY_FOR_OWNER_REREVIEW
@@ -66,9 +112,10 @@ owner_rereview_remediation:
   unresolved_hygiene_items: 0
 
 verification:
-  focused_python: 122_PASSED
-  interrupted_broad_local_python: 219_PASSED_2_SKIPPED_NO_FAILURE_BEFORE_INTERRUPT
-  focused_web_contract: PASS
+  focused_python: PASS
+  full_local_python: 2546_PASSED_13_SKIPPED_CONDITIONAL_DOCKER_POSTGRES
+  focused_web_contract: PASS_3_OF_3
+  full_web_e2e: PASS_59_OF_59
   web_production_build: PASS
   ruff_changed_python: PASS
   mypy_changed_python_source: PASS
@@ -77,16 +124,18 @@ verification:
   main_tree_matches_source_tree: PASS
   live_visual_qa_desktop: PASS
   live_visual_qa_fixture_1575453: PASS_CHINESE_LABELS_AND_TWO_SNAPSHOTS_PER_MARKET
+  live_visual_qa_shadow_candidate_header: PASS_ENABLED
+  live_visual_qa_current_candidate_count: PASS_ZERO_TRUTHFUL_NOT_READY
+  live_visual_qa_postmatch_loop_copy: PASS
   live_browser_console_errors: ZERO
   no_call_on_read: PASS
 
 deployment:
   transport: LOCAL_OCI_RELAY_PRIMARY
-  python_image_digest: sha256:3cbba0af4c18a21322f4e35e6f0eb3255adecfa7c2e61ed2a3605065664fabdf
-  web_image_digest: sha256:e27c6ed1fe4f29c7aee23b00c36827854364d1d4e5d81bf789852a3dab64f226
-  preheat_seconds: 223
-  warm_switch_seconds: 45
-  warm_switch_target_seconds: 300
+  python_image_digest: sha256:a3844ed136ce55a7a71f51eb973574f078e9b7bdbe4ffb237b20df1aca5970e8
+  web_image_digest: sha256:dcbc4e251db92f6f593ade3b8d8b3494dc6eae9e5a3e8d724fd8c9d738f1ebfa
+  cold_pull_end_to_end_seconds: 132
+  cold_pull_end_to_end_target_seconds: 300
   health: PASS
   ready: PASS
   release_sync: PASS
@@ -100,8 +149,9 @@ postdeploy_real_payload:
   data_source: dashboard_read_model
   date: "2026-08-10"
   day_mode: NORMAL
-  match_count: 3
-  attention_count: 3
+  match_count: 2
+  active_shadow_candidate_count: 0
+  shadow_candidate_runtime: SHADOW_ONLY
   priority_match_count: 1
   validation_count: 56
   validation_eligible_count: 16
@@ -128,13 +178,15 @@ accepted_truths_must_not_regress:
   phase_0_5: FROZEN_NO_EDGE_NOT_PROVEN_NO_RERUN
   active_whitelist: EXACT_EXISTING_13
   free_bridge_mode: SHADOW_ONLY
+  shadow_candidate_loop: ENABLED
+  formal_recommendation: OWNER_APPROVAL_REQUIRED_AFTER_EXISTING_THRESHOLD
   track_a: CLOSED_PASS
 
 round4:
   status: NOT_STARTED
   execution_authority: NOT_GRANTED
   packet: ROUND4_READINESS_DECISION_PACKET.md
-  current_packet_exact_release_identity: PR_515_DEPLOYED_RELEASE
+  current_packet_exact_release_identity: PR_517_DEPLOYED_RELEASE
   next_automatic_action: NONE
 
 p6:
@@ -153,7 +205,7 @@ permanent_stop_lines:
   h_result_access: PERMANENTLY_CLOSED
   round_4: NOT_STARTED
   p6_execution: NOT_AUTHORIZED
-  candidate: "OFF"
+  candidate: SHADOW_ONLY_ENABLED
   formal: "OFF"
   lock: "OFF"
   production: "OFF"
