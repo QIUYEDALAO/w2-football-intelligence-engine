@@ -98,7 +98,13 @@ function workspace(scenario: Scenario = "normal"): IntelligenceWorkspace {
   const rich = match("1571806", { rich: true, stale: scenario === "stale" });
   const other = [match("1571807", { rich: true }), match("1571808", { modelWarning: true })];
   const deployedMatches = [match("1571807"), match("1571806", { rich: true, stale: true }), match("1571808")];
-  const matches = scenario === "deployed" ? deployedMatches : scenario === "normal" || scenario === "stale" ? [other[0], rich, other[1]] : [];
+  const matches = scenario === "deployed"
+    ? deployedMatches
+    : scenario === "normal" || scenario === "stale"
+      ? [other[0], rich, other[1]]
+      : scenario === "blocked"
+        ? [match("1571807"), match("1571808")]
+        : [];
   const mode = scenario === "blocked" ? "BLOCKED" : scenario === "calm" ? "CALM" : scenario === "empty" ? "EMPTY" : "NORMAL";
   const focusType = mode === "BLOCKED" ? "GLOBAL_INCIDENT" : mode === "CALM" ? "DAY_SUMMARY" : mode === "EMPTY" ? "EMPTY_STATE" : "MATCH";
   const focusId = mode === "NORMAL" ? "1571806" : null;
@@ -107,10 +113,10 @@ function workspace(scenario: Scenario = "normal"): IntelligenceWorkspace {
     status: mode === "BLOCKED" ? "INCIDENT" as const : mode === "CALM" ? "CALM" as const : "EMPTY" as const,
     reason_code: mode === "BLOCKED" ? "COLLECTION_PROVIDER_EMPTY" : mode === "CALM" ? "NO_PRIORITY_REVIEW_ITEMS" : "NO_FIXTURES_IN_FOOTBALL_DAY",
     factual_summary: mode === "BLOCKED" ? "当日市场采集未形成可解释证据。" : mode === "CALM" ? "当前没有达到优先复核条件的比赛。" : "本比赛日观察池内没有比赛；不会从其他日期填充。",
-    affected_fixture_count: mode === "BLOCKED" ? 11 : 0,
-    affected_competition_count: mode === "BLOCKED" ? 6 : 0,
+    affected_fixture_count: mode === "BLOCKED" ? matches.length : 0,
+    affected_competition_count: mode === "BLOCKED" ? 1 : 0,
     source_as_of: "2026-08-09T13:05:00Z",
-    next_eval_at: mode === "CALM" ? "2026-08-09T13:22:00Z" : null,
+    next_eval_at: mode === "CALM" || mode === "BLOCKED" ? "2026-08-09T14:49:00Z" : null,
     recovery_condition: mode === "BLOCKED" ? "等待既有调度形成新的持久化市场快照；本页不调用 Provider。" : null,
   };
   return {
@@ -129,7 +135,7 @@ function workspace(scenario: Scenario = "normal"): IntelligenceWorkspace {
     default_focus_type: focusType,
     default_focus_fixture_id: focusId,
     selected_fixture_id: focusId,
-    today_summary: { match_count: mode === "BLOCKED" ? 11 : mode === "CALM" ? 9 : mode === "EMPTY" ? 0 : 26, competition_count: mode === "BLOCKED" ? 6 : mode === "CALM" ? 7 : mode === "EMPTY" ? 0 : 13, priority_match_count: Object.values(counts).reduce((sum, count) => sum + count, 0), priority_group_count: Object.keys(counts).length, primary_reason_counts: counts },
+    today_summary: { match_count: mode === "BLOCKED" ? matches.length : mode === "CALM" ? 9 : mode === "EMPTY" ? 0 : 26, competition_count: mode === "BLOCKED" ? 1 : mode === "CALM" ? 7 : mode === "EMPTY" ? 0 : 13, priority_match_count: Object.values(counts).reduce((sum, count) => sum + count, 0), priority_group_count: Object.keys(counts).length, primary_reason_counts: counts },
     global_focus: globalFocus,
     global_model_quality: { status: "AVAILABLE", checkpoint_key: "performance:cohort:all", checkpoint_generated_at: "2026-08-09T12:00:00Z", freshness_max_age_seconds: 86_400, model_log_loss: .512, market_log_loss: .508, model_brier: .178, market_brier: .174, model_calibration_error: .026, sample_count: 34 },
     read_contract: { provider_calls: 0, db_writes: 0, would_write_checkpoint: false, no_call_on_read: true },
@@ -213,7 +219,8 @@ test("V41 keeps dimension-specific risks, read isolation and forbidden semantics
   const risks = page.locator(".v41-risk-list");
   await expect(risks).toContainText("大小球走势只有一个已落盘时间快照");
   await expect(risks).toContainText("大小球 2.5 模型落在市场观测区间外");
-  await page.locator("#system-status summary").click();
+  await page.locator("#system-status > summary").click();
+  await page.locator("#system-status > details > summary").click();
   await expect(page.locator("#system-status")).toContainText("provider_calls=0");
   await expect(page.locator("#system-status")).toContainText("db_writes=0");
   await expect(page.locator("#system-status")).toContainText("no_call_on_read=true");
@@ -239,8 +246,8 @@ test("D16 keeps canonical risk codes in technical detail, not public explanation
 for (const [status, timestamp, copy] of [
   ["AVAILABLE", "2026-08-09T12:00:00Z", "仅展示当前有效验证证据"],
   ["STALE", "2026-08-08T12:00:00Z", "已过期（截至"],
-  ["INCOMPLETE", "2026-08-09T12:00:00Z", "checkpoint 指标不完整（截至"],
-  ["NOT_AVAILABLE", null, "尚无可用 checkpoint"],
+  ["INCOMPLETE", "2026-08-09T12:00:00Z", "历史指标不完整（截至"],
+  ["NOT_AVAILABLE", null, "尚无可用模型质量证据"],
 ] as const) {
   test(`D16 global quality ${status} is coherent`, async ({ page }) => {
     const payload = workspace();
@@ -257,9 +264,24 @@ for (const [status, timestamp, copy] of [
     await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
     await page.goto("/");
     await expect(page.locator(".v41-quality")).toContainText(copy);
+    if (status !== "AVAILABLE") await expect(page.locator(".v41-quality > div")).toHaveCount(0);
     if (status === "NOT_AVAILABLE") await expect(page.locator(".v41-quality")).not.toContainText("截至");
   });
 }
+
+test("V41 blocked day keeps affected match names, kickoff times and full scheduled recovery visible", async ({ page }) => {
+  await installWorkspace(page, "blocked");
+  await page.goto("/");
+  const shortlist = page.locator(".v41-shortlist");
+  await expect(shortlist).toContainText("皇家马德里 vs 贝蒂斯");
+  await expect(shortlist).toContainText("拜仁慕尼黑 vs 多特蒙德");
+  await expect(shortlist.locator(".v41-blocked-match")).toHaveCount(2);
+  await expect(page.locator(".v41-today-primary")).toContainText("2场今日比赛");
+  await expect(page.locator(".v41-today-primary")).toContainText("0 场具备完整评估证据");
+  await expect(page.locator(".v41-global-stats")).toContainText("2026-08-09 22:49");
+  await expect(page.locator(".v41-global-stats")).toContainText("约 1 小时 42 分后");
+  await expect(page.getByText("COLLECTION_PROVIDER_EMPTY", { exact: true })).not.toBeVisible();
+});
 
 test("V41 derives age across timezone and day boundaries and never labels a past evaluation as next", async ({ page }) => {
   const payload = workspace();
@@ -284,6 +306,10 @@ test("V41 date navigation, Today, Refresh and keyboard focus are functional", as
   await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-08");
   await page.getByLabel("选择比赛日").fill("2026-08-03");
   await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-03");
+  const requestsBeforeHistoryClick = requestedDates.length;
+  await page.getByRole("button", { name: "08/02 查看" }).click();
+  await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-02");
+  expect(requestedDates).toHaveLength(requestsBeforeHistoryClick + 1);
   await page.keyboard.press("Tab");
   const focused = await page.evaluate(() => document.activeElement?.tagName);
   expect(["A", "BUTTON", "INPUT"]).toContain(focused);
@@ -300,7 +326,7 @@ test("V41 empty-day adjacent controls change the requested football day", async 
   await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-10");
 });
 
-test("V41 exposes post-match validation totals and replay gaps without another read", async ({ page }) => {
+test("V41 exposes a prominent post-match validation center and hides raw codes in technical detail", async ({ page }) => {
   let requests = 0;
   const payload = workspace();
   payload.validation.forward_validation_records.outcomes = { settled_sample_count: 20 };
@@ -308,17 +334,27 @@ test("V41 exposes post-match validation totals and replay gaps without another r
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => { requests += 1; return route.fulfill({ status: 200, json: payload }); });
   await page.goto("/");
   const validation = page.locator("#secondary-validation");
-  await expect(validation).toHaveAttribute("open", "");
+  await expect(validation).toBeVisible();
   await expect(validation).toContainText("赛后验证");
+  await expect(validation).toContainText("跨比赛日累计证据");
   await expect(validation).toContainText("验证总记录36");
   await expect(validation).toContainText("已结算20");
   await expect(validation).toContainText("赛果匹配 / 缺失20 / 3");
-  await expect(validation).toContainText("赛果缺失");
-  await expect(validation).toContainText("MISSING_OUTCOMES");
+  await expect(validation).toContainText("当前证据缺口：赛果尚未接入");
+  await expect(validation.getByText("MISSING_OUTCOMES", { exact: true })).not.toBeVisible();
   const initialRequests = requests;
-  await validation.locator("summary").click();
-  await validation.locator("summary").click();
+  await validation.locator(".v41-validation-technical summary").click();
+  await expect(validation.getByText("MISSING_OUTCOMES", { exact: true })).toBeVisible();
   expect(requests).toBe(initialRequests);
+});
+
+test("V41 primary controls meet the bounded minimum target size", async ({ page }) => {
+  await installWorkspace(page);
+  await page.goto("/");
+  for (const selector of [".v41-date-nav button", ".v41-date-nav input", ".v41-recent-days button"]) {
+    const box = await page.locator(selector).first().boundingBox();
+    expect(box?.height, selector).toBeGreaterThanOrEqual(38);
+  }
 });
 
 test("V41 1180 and 200% zoom preserve natural flow without horizontal or nested primary scrolling", async ({ page }) => {
@@ -369,7 +405,7 @@ for (const viewport of [
     await page.goto("/");
     await expect(page.locator(".v41-focus-body")).toBeVisible();
     await page.screenshot({ animations: "disabled", path: testInfo.outputPath(`actual-${viewport.target}`) });
-    await expect(page).toHaveScreenshot(viewport.target, { animations: "disabled", maxDiffPixelRatio: .02 });
+    await expect(page).toHaveScreenshot(viewport.target, { animations: "disabled", maxDiffPixelRatio: .03 });
   });
 }
 

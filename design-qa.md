@@ -91,3 +91,41 @@ The contact sheet scales each equal-density source/implementation pair equally f
 - [x] D16-01 through D16-07 semantics and deployed-shape rendering re-captured at 1366 x 768 and 1512 x 982.
 
 final result: passed
+
+## Owner rereview remediation — 2026-08-10
+
+- Reference screenshot: `/Users/liudehua/Desktop/网页截图.png`
+- Rendered screenshot: `docs/ui/dashboard-v4.1/owner-rereview-remediation-1440x900.png`
+- Side-by-side comparison: `docs/ui/dashboard-v4.1/owner-rereview-comparison.png`
+- Viewport: `1440 × 900`
+- Browser: Codex in-app browser
+- Data source during visual QA: existing public unified read model through the local Vite proxy
+- Read behavior: one selected football-day read; no Provider call or write was initiated by the page
+
+### Comparison iterations
+
+1. Made affected blocked matches and kickoff times visible in the primary left column.
+2. Replaced the ambiguous `0 场优先 / 共 2 场` combination with `2 场今日比赛 / 0 场具备完整评估证据 / 2 场证据阻塞`.
+3. Compressed duplicated blocked-day explanations and moved raw reason/read-contract codes into collapsed technical detail.
+4. Displayed the complete scheduled-evaluation timestamp and explicitly marked an expired schedule record as expired.
+5. Added a single-read seven-day navigator and a prominent post-match validation center.
+6. Collapsed stale model-quality evidence instead of rendering a full row of empty metrics.
+7. Raised primary date/history controls to 38–42 px and retained visible keyboard focus.
+8. Re-ran the 1440 × 900 side-by-side comparison, responsive checks, contrast checks and full Web E2E after the final copy change.
+
+### Acceptance checks
+
+- Blocked-day match identity and kickoff: passed
+- Multi-day navigation and one-read behavior: passed
+- Post-match validation discoverability: passed
+- Public technical-code containment: passed
+- Repeated blocked-state dominance: passed
+- Scheduled recovery clarity: passed
+- Stale empty-metric rail: passed
+- Primary control target sizes and keyboard focus: passed
+- 1180 px and 200% zoom natural-flow check: passed
+- Representative text contrast at least 4.5:1: passed
+- Focused decision-contract E2E: 37 passed
+- Full Web E2E: 55 passed
+
+final result: passed
