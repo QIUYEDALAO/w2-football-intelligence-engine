@@ -114,7 +114,7 @@ final result: passed
 
 - Fonts and typography: unchanged from the source implementation; hierarchy and wrapping remain stable.
 - Spacing and layout rhythm: unchanged; header, shortlist, focus card and validation panel retain the same geometry.
-- Colors and tokens: existing semantic tokens are reused; no new visual system was introduced.
+- Colors and styles: existing semantic styles are reused; no new visual system was introduced.
 - Image quality and assets: no image assets are present or changed.
 - Copy and content: the actionable P1 mismatch is resolved; technical reason codes remain available only inside collapsed details.
 - Focused-region comparison: top status pills, left match list and the main focus card were readable in the combined comparison; no additional crop was required.
