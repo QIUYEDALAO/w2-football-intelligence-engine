@@ -133,7 +133,7 @@ summary {
   opacity: .5;
 }
 
-.v41-date-nav strong,
+.v41-date-nav input,
 .v41-updated,
 .v41-today-day,
 .v41-shortlist time,
@@ -144,9 +144,16 @@ summary {
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
-.v41-date-nav strong {
-  padding: 0 10px;
+.v41-date-nav input {
+  width: 126px;
+  height: 26px;
+  padding: 0 7px;
+  border: 1px solid var(--v41-line);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--v41-ink);
   font-size: 14px;
+  color-scheme: dark;
 }
 
 .v41-date-nav button.is-text {
@@ -1106,6 +1113,23 @@ summary {
 .v41-secondary li b {
   color: var(--v41-ink-3);
   font-weight: 500;
+}
+
+.v41-validation-counts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.v41-validation-counts li {
+  padding: 5px 7px;
+  border: 1px solid var(--v41-line-faint);
+}
+
+.v41-validation-counts strong {
+  color: var(--v41-ink);
+}
+
+.v41-validation-gaps {
+  color: var(--v41-warning);
 }
 
 .workspace-load-state {

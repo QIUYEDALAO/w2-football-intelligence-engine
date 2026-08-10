@@ -134,7 +134,7 @@ function workspace(scenario: Scenario = "normal"): IntelligenceWorkspace {
     global_model_quality: { status: "AVAILABLE", checkpoint_key: "performance:cohort:all", checkpoint_generated_at: "2026-08-09T12:00:00Z", freshness_max_age_seconds: 86_400, model_log_loss: .512, market_log_loss: .508, model_brier: .178, market_brier: .174, model_calibration_error: .026, sample_count: 34 },
     read_contract: { provider_calls: 0, db_writes: 0, would_write_checkpoint: false, no_call_on_read: true },
     runtime: { product: "FOOTBALL_MARKET_INTELLIGENCE_PLUS_MODEL_DIAGNOSTICS", public_dashboard_authority: "NEW_INTELLIGENCE_WORKSPACE_ONLY", active_whitelist_count: 13, free_bridge_mode: "SHADOW_ONLY", candidate: "OFF", formal: "OFF", lock: "OFF", production: "OFF" },
-    navigation: { current_date: "2026-08-09", previous_available_date: "2026-08-08", next_available_date: "2026-08-10" },
+    navigation: { current_date: "2026-08-09", previous_date: "2026-08-08", next_date: "2026-08-10", next_available_date: "2026-08-10" },
     attention: matches.map((item) => ({ fixture_id: item.fixture_id, kickoff_utc: item.kickoff_utc, intelligence_state: item.intelligence_state, reason_codes: item.intelligence_reason_codes, affected_domains: ["MARKET"], factual_summary: item.intelligence_reason_codes.join("；"), readiness_status: item.readiness.status, readiness_context: { reason_code: item.readiness.reason_code, missing_fields: item.readiness.missing_fields, stale_fields: item.readiness.stale_fields, action: item.readiness.action }, next_eval_at: item.readiness.next_eval_at, risks: item.risks })),
     matches,
     validation: { probability: { status: "AVAILABLE", sample_count: 34, model_brier: .178, market_brier: .174, model_minus_market_brier: .004, model_log_loss: .512, market_log_loss: .508, model_minus_market_log_loss: .004, model_calibration_error: .026, market_calibration_error: .021, model_reliability_bins: [], market_reliability_bins: [], checkpoint_metadata: { checkpoint_key: "performance:cohort:all" } }, directional: { status: "SAMPLE_BUILDING", source_status: "AVAILABLE", probability_evidence_ready: false, validation_n: 36, decisive_n: 34, correct: 18, wrong: 16, push: 1, void: 1, direction_accuracy: 18 / 34, effective_n: 34, market_direction_benchmark: "NOT_DEFINED", only_record_reason: "PROBABILITY_QUALITY_NOT_READY" }, league_performance: [], tournament_performance: [], forward_validation_records: { status: "AVAILABLE", validation_count: 36, eligible_count: 34, excluded_count: 2, excluded_share: 2 / 36, excluded_by_reason: { MARKET_IDENTITY_NOT_READY: 2 }, pending_count: 0, outcomes: {}, checkpoint_metadata: { checkpoint_key: "performance:cohort:all" } }, history_replay: { status: "AVAILABLE_WITH_GAPS", known_at: { has_day_view: true }, decision_summary: { total_cards: matches.length, lock_eligible_count: 0, by_decision_tier: { WATCH: matches.length }, by_data_status: { READY: matches.length } }, reason_summary: [], outcome_tracking_summary: {}, card_hash_checks: [], replay_gaps: ["MISSING_OUTCOMES"] } },
@@ -275,15 +275,48 @@ test("V41 derives age across timezone and day boundaries and never labels a past
 });
 
 test("V41 date navigation, Today, Refresh and keyboard focus are functional", async ({ page }) => {
-  let requests = 0;
-  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => { requests += 1; return route.fulfill({ status: 200, json: workspace() }); });
+  const requestedDates: string[] = [];
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => { requestedDates.push(new URL(route.request().url()).searchParams.get("date") || ""); return route.fulfill({ status: 200, json: workspace() }); });
   await page.goto("/");
   await page.getByRole("button", { name: "前一天" }).click();
-  await expect.poll(() => requests).toBeGreaterThanOrEqual(2);
+  await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-08");
+  await page.getByLabel("选择比赛日").fill("2026-08-03");
+  await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-03");
   await page.keyboard.press("Tab");
   const focused = await page.evaluate(() => document.activeElement?.tagName);
-  expect(["A", "BUTTON"]).toContain(focused);
+  expect(["A", "BUTTON", "INPUT"]).toContain(focused);
   await expect(page.locator(":focus-visible")).toHaveCount(1);
+});
+
+test("V41 empty-day adjacent controls change the requested football day", async ({ page }) => {
+  const requestedDates: string[] = [];
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => { requestedDates.push(new URL(route.request().url()).searchParams.get("date") || ""); return route.fulfill({ status: 200, json: workspace("empty") }); });
+  await page.goto("/");
+  await page.locator(".v41-adjacent-days button").first().click();
+  await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-08");
+  await page.locator(".v41-adjacent-days button").last().click();
+  await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-10");
+});
+
+test("V41 exposes post-match validation totals and replay gaps without another read", async ({ page }) => {
+  let requests = 0;
+  const payload = workspace();
+  payload.validation.forward_validation_records.outcomes = { settled_sample_count: 20 };
+  payload.validation.history_replay.outcome_tracking_summary = { matched_outcome_count: 20, missing_outcome_count: 3 };
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => { requests += 1; return route.fulfill({ status: 200, json: payload }); });
+  await page.goto("/");
+  const validation = page.locator("#secondary-validation");
+  await expect(validation).toHaveAttribute("open", "");
+  await expect(validation).toContainText("赛后验证");
+  await expect(validation).toContainText("验证总记录36");
+  await expect(validation).toContainText("已结算20");
+  await expect(validation).toContainText("赛果匹配 / 缺失20 / 3");
+  await expect(validation).toContainText("赛果缺失");
+  await expect(validation).toContainText("MISSING_OUTCOMES");
+  const initialRequests = requests;
+  await validation.locator("summary").click();
+  await validation.locator("summary").click();
+  expect(requests).toBe(initialRequests);
 });
 
 test("V41 1180 and 200% zoom preserve natural flow without horizontal or nested primary scrolling", async ({ page }) => {
