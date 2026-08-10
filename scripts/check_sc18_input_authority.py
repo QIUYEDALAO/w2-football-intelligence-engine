@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-REPORTS = ROOT / "reports" / "sc18"
+REPORTS = ROOT / "docs" / "review_packages" / "SC18_INPUT_AUTHORITY_CONVERGENCE"
 EXACT_13 = {
     "premier_league",
     "la_liga",

@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-REPORTS = ROOT / "reports" / "sc18"
+REPORTS = ROOT / "docs" / "review_packages" / "SC18_INPUT_AUTHORITY_CONVERGENCE"
 
 
 def test_sc18_authority_artifacts_are_complete_and_self_checking() -> None:
