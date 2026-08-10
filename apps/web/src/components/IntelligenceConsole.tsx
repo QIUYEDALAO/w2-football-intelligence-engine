@@ -48,7 +48,7 @@ const PRIORITY_ORDER: Record<string, number> = {
 
 const DAY_MODE_LABELS: Record<IntelligenceWorkspace["day_mode"], string> = {
   NORMAL: "正常日",
-  BLOCKED: "阻塞日",
+  BLOCKED: "仅赛程",
   CALM: "平静日",
   EMPTY: "空比赛日",
 };
@@ -56,14 +56,14 @@ const DAY_MODE_LABELS: Record<IntelligenceWorkspace["day_mode"], string> = {
 const PUBLIC_SYSTEM_LABELS: Record<IntelligenceWorkspace["data_operations"]["public_system_health"], string> = {
   HEALTHY: "系统数据正常",
   PARTIAL_DEGRADATION: "系统数据部分降级",
-  DAY_BLOCKED: "全日证据阻塞",
+  DAY_BLOCKED: "市场证据未就绪",
 };
 
 const STATUS_LABELS: Record<string, string> = {
   AVAILABLE: "可用",
   AVAILABLE_WITH_GAPS: "部分可用",
   READY: "已就绪",
-  BLOCKED: "阻塞",
+  BLOCKED: "仅赛程",
   STALE: "已过期",
   INSUFFICIENT: "证据不足",
   SAMPLE_BUILDING: "样本积累中",
@@ -236,11 +236,10 @@ function TodaySummary({ workspace }: { workspace: IntelligenceWorkspace }) {
       <div className="v41-today-primary">
         <div><strong>{workspace.today_summary.match_count}</strong><span>场今日比赛</span></div>
         <p>
-          <span className={readyCount ? "is-accent" : "is-warning"}><b>{readyCount}</b> 场具备完整评估证据</span>
-          {evidenceBlockedCount ? <span className="is-critical"><b>{evidenceBlockedCount}</b> 场证据阻塞</span> : null}
+          {blockedCount ? <><span className="is-accent"><b>{workspace.today_summary.match_count}</b> 场可查看赛程</span><span className="is-warning"><b>0</b> 场可进行市场分析</span></> : <><span className={readyCount ? "is-accent" : "is-warning"}><b>{readyCount}</b> 场具备完整评估证据</span>{evidenceBlockedCount ? <span className="is-critical"><b>{evidenceBlockedCount}</b> 场证据未就绪</span> : null}</>}
         </p>
       </div>
-      {blockedCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{workspace.today_summary.priority_match_count} 场可优先评估；{blockedCount} 场受同一采集事件影响</b></p></div> : calmCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{calmCount} 场均未触发优先复核</b></p></div> : Object.keys(counts).length ? <div className="v41-today-other"><span>优先复核</span><p>{Object.entries(counts).slice(0, 3).map(([reason, count]) => <b key={reason}>{count} 场{REASON_LABELS[reason] || label(reason)}</b>)}</p></div> : null}
+      {blockedCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{blockedCount} 场可查看赛程；市场分析暂无证据</b></p></div> : calmCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{calmCount} 场均未触发优先复核</b></p></div> : Object.keys(counts).length ? <div className="v41-today-other"><span>优先复核</span><p>{Object.entries(counts).slice(0, 3).map(([reason, count]) => <b key={reason}>{count} 场{REASON_LABELS[reason] || label(reason)}</b>)}</p></div> : null}
       <div className="v41-today-day"><strong>共 {workspace.today_summary.match_count} 场 · {workspace.today_summary.competition_count || workspace.runtime.active_whitelist_count} 联赛</strong><small>{footballDayWindow(workspace)}</small></div>
     </section>
   );
@@ -265,15 +264,15 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
       <div className="v41-shortlist-group">优先查看 · {prioritized.length} 场</div>
       <div className="v41-shortlist-list">
         {empty ? <div className="v41-shortlist-empty">本比赛日观察池内没有比赛</div> : null}
-        {aggregate ? <div className="v41-shortlist-empty">{blocked ? `今日 ${workspace.today_summary.match_count} 场，0 场具备完整市场评估证据` : "今日无需优先排查；这是有效观测结果。"}</div> : null}
-        {aggregate ? <div className="v41-shortlist-group">{blocked ? `受影响比赛 · ${workspace.today_summary.match_count} 场` : `全部比赛 · ${workspace.today_summary.match_count} 场`}</div> : null}
+        {aggregate ? <div className="v41-shortlist-empty">{blocked ? `今日 ${workspace.today_summary.match_count} 场可查看赛程，市场分析暂无证据` : "今日无需优先排查；这是有效观测结果。"}</div> : null}
+        {aggregate ? <div className="v41-shortlist-group">{blocked ? `仅赛程比赛 · ${workspace.today_summary.match_count} 场` : `全部比赛 · ${workspace.today_summary.match_count} 场`}</div> : null}
         {blocked && matches.length ? matches.slice(0, 6).map((match) => (
           <article className="v41-blocked-match" key={match.fixture_id}>
             <span className="v41-stripe v41-stripe--collection_incident" />
             <span className="v41-shortlist-copy">
               <small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认")}</small>
               <strong>{matchName(match)}</strong>
-              <span><b>证据阻塞</b> · 等待既有调度形成持久化市场证据</span>
+              <span><b>仅赛程</b> · 暂无持久化市场证据</span>
             </span>
             <time>{clock(match.kickoff_utc)}</time>
           </article>
@@ -282,8 +281,8 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
             <span className="v41-stripe v41-stripe--collection_incident" />
             <span className="v41-shortlist-copy">
               <small>{blocked.affected_competition_count} 个联赛受影响</small>
-              <strong>采集异常 · {blocked.affected_fixture_count} 场</strong>
-              <span><b>{label(blocked.reason_code)}</b> · 等待既有调度恢复</span>
+              <strong>仅有赛程 · {blocked.affected_fixture_count} 场</strong>
+              <span><b>市场证据未就绪</b> · 暂不生成市场分析</span>
             </span>
           </div>
         ) : calm ? (
@@ -418,18 +417,18 @@ function GlobalFocus({ date, onDateChange, workspace }: Pick<Props, "date" | "on
   if (!focus) return <article className="v41-focus v41-global" data-focus-type={workspace.default_focus_type}><div className="v41-global-copy"><span className="v41-eyebrow">当前焦点</span><h1>尚未选择比赛</h1><p>请选择具有已持久化证据的比赛；页面不会自动填充其他焦点。</p></div></article>;
   const blocked = workspace.day_mode === "BLOCKED";
   const calm = workspace.day_mode === "CALM";
-  const title = blocked ? "当日市场采集阻塞" : calm ? "今日未发现需优先排查的比赛" : "本比赛日没有纳入观察池的比赛";
+  const title = blocked ? "今日比赛可查看，市场分析暂无证据" : calm ? "今日未发现需优先排查的比赛" : "本比赛日没有纳入观察池的比赛";
   const detail = blocked ? `影响 ${focus.affected_fixture_count} 场比赛 · ${focus.affected_competition_count} 个联赛 —— 本足球日全部比赛` : calm ? `${workspace.today_summary.match_count} 场比赛市场证据完整 —— 这是有效观测结果，不是系统未完成。` : `${workspace.runtime.active_whitelist_count} 个白名单联赛在本足球日均无赛程`;
   return (
     <article className={`v41-focus v41-global v41-global--${workspace.day_mode.toLowerCase()}`} data-focus-type={workspace.default_focus_type}>
-      <div className="v41-global-copy"><span className="v41-eyebrow">{workspace.day_mode === "BLOCKED" ? "全局事件" : "当日摘要"}</span><h1>{title}</h1><p>{detail}</p></div>
-      <section className="v41-global-explanation"><span>{blocked ? "发生了什么" : "今日判定"}</span><strong>{focus.factual_summary}</strong><p>{blocked ? "因此今日比赛仍会列出，但不会计算模型—市场关系或推断走势。" : workspace.day_mode === "EMPTY" ? "不会用其他日期的比赛填充本页；空比赛日不代表系统异常。" : "盘口未移动、双边赔率波动未达阈值，且当前持久化证据完整。"}</p><small>证据截至 {localDateTime(focus.source_as_of)}</small></section>
+      <div className="v41-global-copy"><span className="v41-eyebrow">当日摘要</span><h1>{title}</h1><p>{detail}</p></div>
+      <section className="v41-global-explanation"><span>{blocked ? "当前可用内容" : "今日判定"}</span><strong>{blocked ? `今日 ${workspace.today_summary.match_count} 场比赛可查看；尚无已持久化市场证据，暂不生成市场分析。` : focus.factual_summary}</strong><p>{blocked ? "赛程正常展示；模型—市场关系与走势保持关闭，避免用缺失数据推断。" : workspace.day_mode === "EMPTY" ? "不会用其他日期的比赛填充本页；空比赛日不代表系统异常。" : "盘口未移动、双边赔率波动未达阈值，且当前持久化证据完整。"}</p><small>证据截至 {localDateTime(focus.source_as_of)}</small></section>
       <div className="v41-global-stats">
-        <div><span>{blocked ? "完整评估证据" : calm ? "优先复核" : "白名单联赛"}</span><strong>{blocked ? "0 场" : calm ? "0 场" : workspace.runtime.active_whitelist_count}</strong></div>
-        <div><span>{blocked ? "受影响联赛" : calm ? "覆盖比赛" : "本日赛程"}</span><strong>{blocked ? `${focus.affected_competition_count} / ${workspace.today_summary.competition_count}` : calm ? `${workspace.today_summary.match_count} / ${workspace.today_summary.match_count}` : 0}</strong></div>
-        <div><span>{workspace.day_mode === "EMPTY" ? "下一有赛日" : hasFutureEvaluation(focus.next_eval_at, workspace.generated_at) ? "下一次既有调度评估" : "既有调度记录"}</span><strong>{workspace.day_mode === "EMPTY" ? typeof workspace.navigation.next_available_date === "string" ? workspace.navigation.next_available_date : "尚未确认" : scheduledEvaluation(focus.next_eval_at, workspace.generated_at)}</strong></div>
+        <div><span>{blocked ? "可查看赛程" : calm ? "优先复核" : "白名单联赛"}</span><strong>{blocked ? `${workspace.today_summary.match_count} 场` : calm ? "0 场" : workspace.runtime.active_whitelist_count}</strong></div>
+        <div><span>{blocked ? "市场分析" : calm ? "覆盖比赛" : "本日赛程"}</span><strong>{blocked ? "0 场" : calm ? `${workspace.today_summary.match_count} / ${workspace.today_summary.match_count}` : 0}</strong></div>
+        <div><span>{workspace.day_mode === "EMPTY" ? "下一有赛日" : hasFutureEvaluation(focus.next_eval_at, workspace.generated_at) ? "下一次既有调度评估" : "既有调度记录"}</span><strong>{workspace.day_mode === "EMPTY" ? typeof workspace.navigation.next_available_date === "string" ? workspace.navigation.next_available_date : "尚未确认" : blocked && !focus.next_eval_at ? "暂无调度记录" : scheduledEvaluation(focus.next_eval_at, workspace.generated_at)}</strong></div>
       </div>
-      {blocked ? <div className="v41-global-note"><span>恢复条件</span><strong>{focus.recovery_condition}</strong><small>系统状态页只显示已持久化证据，本页面不发起任何 Provider 请求。</small></div> : calm ? <div className="v41-global-note"><span>说明</span><strong>页面内容少不会改变既有关注阈值。</strong><small>继续等待既有调度形成下一次持久化评估。</small></div> : null}
+      {blocked ? <div className="v41-global-note"><span>说明</span><strong>当前仅展示已持久化内容；市场证据尚未形成。</strong><small>本页面不发起任何 Provider 请求，也不会用缺失数据补算。</small></div> : calm ? <div className="v41-global-note"><span>说明</span><strong>页面内容少不会改变既有关注阈值。</strong><small>继续等待既有调度形成下一次持久化评估。</small></div> : null}
       {blocked ? <details className="v41-details v41-global-technical"><summary>技术详情与读取保护</summary><code>{focus.reason_code}</code><code>provider_calls={workspace.read_contract.provider_calls}</code><code>db_writes={workspace.read_contract.db_writes}</code><code>no_call_on_read={String(workspace.read_contract.no_call_on_read)}</code></details> : null}
       {workspace.day_mode === "EMPTY" ? <nav className="v41-adjacent-days"><button onClick={() => onDateChange(typeof workspace.navigation.previous_date === "string" ? workspace.navigation.previous_date : dateShift(date, -1))} type="button">‹ 前一天</button><button onClick={() => onDateChange(typeof workspace.navigation.next_date === "string" ? workspace.navigation.next_date : dateShift(date, 1))} type="button">后一天 ›</button></nav> : null}
     </article>

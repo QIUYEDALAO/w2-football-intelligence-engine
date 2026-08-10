@@ -179,7 +179,7 @@ test("D16 deployed real shape keeps NORMAL authority, useful stale focus and aud
 });
 
 for (const [scenario, mode, focus, copy] of [
-  ["blocked", "BLOCKED", "GLOBAL_INCIDENT", "当日市场采集阻塞"],
+  ["blocked", "BLOCKED", "GLOBAL_INCIDENT", "今日比赛可查看，市场分析暂无证据"],
   ["calm", "CALM", "DAY_SUMMARY", "今日未发现需优先排查的比赛"],
   ["empty", "EMPTY", "EMPTY_STATE", "本比赛日没有纳入观察池的比赛"],
 ] as const) {
@@ -269,7 +269,7 @@ for (const [status, timestamp, copy] of [
   });
 }
 
-test("V41 blocked day keeps affected match names, kickoff times and full scheduled recovery visible", async ({ page }) => {
+test("V41 blocked day keeps affected match names, kickoff times and recorded evaluation visible", async ({ page }) => {
   await installWorkspace(page, "blocked");
   await page.goto("/");
   const shortlist = page.locator(".v41-shortlist");
@@ -277,10 +277,24 @@ test("V41 blocked day keeps affected match names, kickoff times and full schedul
   await expect(shortlist).toContainText("拜仁慕尼黑 vs 多特蒙德");
   await expect(shortlist.locator(".v41-blocked-match")).toHaveCount(2);
   await expect(page.locator(".v41-today-primary")).toContainText("2场今日比赛");
-  await expect(page.locator(".v41-today-primary")).toContainText("0 场具备完整评估证据");
+  await expect(page.locator(".v41-today-primary")).toContainText("2 场可查看赛程");
+  await expect(page.locator(".v41-today-primary")).toContainText("0 场可进行市场分析");
+  await expect(page.locator(".v41-shortlist")).toContainText("仅赛程比赛 · 2 场");
+  await expect(page.locator(".v41-focus")).toContainText("市场证据尚未形成");
+  await expect(page.locator(".v41-focus")).not.toContainText("当日市场采集阻塞");
+  await expect(page.locator(".v41-focus")).not.toContainText("等待既有调度");
   await expect(page.locator(".v41-global-stats")).toContainText("2026-08-09 22:49");
   await expect(page.locator(".v41-global-stats")).toContainText("约 1 小时 42 分后");
   await expect(page.getByText("COLLECTION_PROVIDER_EMPTY", { exact: true })).not.toBeVisible();
+});
+
+test("V41 blocked day does not promise a schedule when none exists", async ({ page }) => {
+  const payload = workspace("blocked");
+  payload.global_focus!.next_eval_at = null;
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.goto("/");
+  await expect(page.locator(".v41-global-stats")).toContainText("暂无调度记录");
+  await expect(page.locator(".v41-focus")).not.toContainText("等待既有调度");
 });
 
 test("V41 derives age across timezone and day boundaries and never labels a past evaluation as next", async ({ page }) => {
