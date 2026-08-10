@@ -1,5 +1,5 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-11T02:10:00+08:00"
+updated_at: "2026-08-11T03:24:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
@@ -7,22 +7,22 @@ program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
 owner_product_decision: W2_SHADOW_CANDIDATE_INPUT_AUTHORITY_CONVERGENCE
 owner_authorization_id: W2_SHADOW_CANDIDATE_INPUT_AUTHORITY_CONVERGENCE_V1
-active_next_action: EXECUTE_SHADOW_CANDIDATE_INPUT_AUTHORITY_CONVERGENCE
-next_code_action: SC18_01_THROUGH_SC18_07_CONTINUOUS_AUDIT_FIX_TEST_MERGE_REDEPLOY
-current_status: SHADOW_CANDIDATE_LOOP_ACTIVE_INPUT_CHAIN_CHANGES_REQUIRED
-current_gate: SHADOW_CANDIDATE_INPUT_AUTHORITY_REMEDIATION_ACTIVE
+active_next_action: OWNER_SHADOW_CANDIDATE_INPUT_CHAIN_REREVIEW
+next_code_action: NONE_OWNER_REVIEW_REQUIRED
+current_status: SHADOW_CANDIDATE_INPUT_CHAIN_DEPLOYED_REREVIEW_REQUIRED
+current_gate: OWNER_SHADOW_CANDIDATE_INPUT_CHAIN_REREVIEW
 terminal_gate: OWNER_SHADOW_CANDIDATE_INPUT_CHAIN_REREVIEW
 
 release_identity:
-  implementation_base_sha: 0f0f306d568101d6b7ce34245eef5d197f794d62
-  implementation_head_sha: 58555d2f6bd1e0a069550c91e7ce543164a4819c
-  source_tree_sha: 00ef9cbfef1c22615c36c66779afde70cef4a8b4
-  current_main_sha: 001b1bae8e5276597dc506e0cd3cb40dbd180fb5
-  deployed_source_sha: 58555d2f6bd1e0a069550c91e7ce543164a4819c
-  pr: 517
+  implementation_base_sha: 001b1bae8e5276597dc506e0cd3cb40dbd180fb5
+  implementation_head_sha: e3534d9fc50acdbac55615635eb9fb8bcd64406d
+  source_tree_sha: e4ac8973cfb307eceec2e58cc84b2af66b94cd65
+  current_main_sha: e9cbaf26701704645da00c2ff4733bda3aa34a79
+  deployed_source_sha: e3534d9fc50acdbac55615635eb9fb8bcd64406d
+  pr: 518
   pr_state: MERGED_DEPLOYED
-  full_ci_run: 31412790278
-  promotion_run: 31413410048
+  full_ci_run: 31422736140
+  promotion_run: 31423609340
   release_required: PASS_EXACT_HEAD
   promotion_required: PASS
 
@@ -58,26 +58,27 @@ shadow_candidate_validation:
   api_read_resimulation: NONE
   current_selected_day:
     date: "2026-08-10"
-    match_count: 2
+    match_count: 1
     active_shadow_candidates: 0
-    not_ready: 2
-    interpretation: TRUTHFUL_FAIL_CLOSED_NO_MATCH_PASSED_EXISTING_V4_CONTRACT
+    partial: 1
+    not_ready: 0
+    interpretation: MARKET_EVIDENCE_AVAILABLE_CANDIDATE_INPUT_NOT_READY_ZERO_CANDIDATE
   natural_scheduler_execution: CONTINUES_UNCHANGED
   historical_ledger_evidence: RETAIN_DO_NOT_DELETE
   formal_threshold_claim_during_remediation: NOT_ALLOWED_FOR_AFFECTED_INPUT_IDENTITIES
 
 postdeploy_owner_input_chain_review:
-  status: CHANGES_REQUIRED_BOUNDED
+  status: REMEDIATION_DEPLOYED_AWAITING_OWNER_REREVIEW
   authority: SHADOW_CANDIDATE_INPUT_AUTHORITY_CONVERGENCE.md
   reviewed_fixture: "1493049"
   findings:
-    SC18_01_live_authority_trace: OPEN_P0
-    SC18_02_per_market_eligibility_contract: OPEN_P0
-    SC18_03_radar_quote_readiness_convergence: OPEN_P0
-    SC18_04_public_partial_market_semantics: OPEN_P0
-    SC18_05_canonical_public_label_authority: OPEN_P1
-    SC18_06_stage14_exact_13_league_coverage_audit: OPEN_P1
-    SC18_07_regression_merge_redeploy_rereview: OPEN_P1
+    SC18_01_live_authority_trace: CLOSED_PASS
+    SC18_02_per_market_eligibility_contract: CLOSED_PASS
+    SC18_03_radar_quote_readiness_convergence: CLOSED_PASS
+    SC18_04_public_partial_market_semantics: CLOSED_PASS
+    SC18_05_canonical_public_label_authority: CLOSED_PASS
+    SC18_06_stage14_exact_13_league_coverage_audit: CLOSED_PASS
+    SC18_07_regression_merge_redeploy_rereview: CLOSED_PASS
 
 independent_root_cause_corrections:
   competition_profile_enabled_false:
@@ -98,29 +99,30 @@ independent_root_cause_corrections:
     classification: MATCH_LEVEL_SELECTED_MARKET_ADAPTER
     risk: SELECTED_MARKET_AUTHORITY_CAN_DIVERGE_FROM_ROUND3_RADAR_AUTHORITY
   localization:
-    current_team_behavior: FRONTEND_DICTIONARY_OR_RAW_NAME_FALLBACK
-    current_reason_behavior: MAPPED_PATTERN_OR_RAW_ENUM_WITH_SPACES
-    result: SILENT_ENGLISH_FALLBACK_CONFIRMED
+    current_team_behavior: BACKEND_CANONICAL_IDENTITY_PLUS_REVIEWED_PUBLIC_LABEL
+    current_reason_behavior: CENTRAL_CHINESE_PUBLIC_LABEL_REGISTRY
+    result: SILENT_ENGLISH_FALLBACK_CLOSED_RAW_PROVIDER_TECHNICAL_ONLY
 
 live_fixture_1493049_observed_shape:
   competition: argentina_primera
   asian_handicap:
-    snapshot_count: 2
+    snapshot_count: 3
     latest_bookmaker_count: 1
     radar_evidence_present: true
     model_lab_expected_status_under_existing_rule: INSUFFICIENT_BOOKMAKER_DEPTH
   totals:
-    snapshot_count: 2
+    snapshot_count: 3
     latest_bookmaker_count: 7
     radar_evidence_present: true
     expected_independent_cross_sectional_status: AVAILABLE_IF_FRESH
   simulation: NOT_READY
   shadow_candidate: NOT_READY
-  current_public_problem:
-    - ENGLISH_TEAM_NAMES_VISIBLE
-    - ENGLISH_MODEL_BLOCKER_VISIBLE
-    - MARKET_LEVEL_STATES_NOT_CLEARLY_AGGREGATED_AS_PARTIAL
-    - MARKET_ODDS_READINESS_AUTHORITY_APPEARS_CONTRADICTORY
+  public_result:
+    - CHINESE_IDENTITY_GAP_TEXT_VISIBLE
+    - MODEL_BLOCKERS_CHINESE_FIRST
+    - MARKET_LEVEL_STATES_AGGREGATED_AS_PARTIAL
+    - MARKET_EVIDENCE_AND_CANDIDATE_INPUT_DISTINCT
+    - SHADOW_CANDIDATE_ZERO_TRUTHFUL
 
 public_label_remediation_contract:
   final_authority: CANONICAL_TEAM_IDENTITY_PLUS_REVIEWED_PUBLIC_LABEL
@@ -143,7 +145,7 @@ public_label_remediation_contract:
     - PUBLIC_ENUM_LABEL_COVERAGE.json
 
 stage14_coverage_audit:
-  status: AUTHORIZED_AUDIT_ONLY
+  status: COMPLETE_AUDIT_ONLY_NO_ACTIVATION
   exact_scope: EXISTING_ACTIVE_13
   existing_tools:
     - scripts/check_w2_stage14a.py
@@ -182,6 +184,10 @@ input_chain_remediation_execution:
   deployment_transport: LOCAL_OCI_RELAY_PRIMARY
   rollback_baseline_main: 001b1bae8e5276597dc506e0cd3cb40dbd180fb5
   terminal_gate: OWNER_SHADOW_CANDIDATE_INPUT_CHAIN_REREVIEW
+  execution_status: COMPLETE_TERMINAL
+  release_required: PASS_EXACT_HEAD
+  local_oci_relay_redeploy: PASS
+  postdeploy_real_payload: PASS
   required_results:
     - SC18_01_THROUGH_SC18_07_CLOSED
     - PER_MARKET_AH_OU_ELIGIBILITY_PROVEN
