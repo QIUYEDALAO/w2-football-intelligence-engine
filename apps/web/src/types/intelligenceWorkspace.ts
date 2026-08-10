@@ -87,6 +87,28 @@ export interface WorkspaceMarket {
   cross_sectional_comparison_status: "AVAILABLE" | "INSUFFICIENT" | "PAUSED_STALE";
   latest_snapshot_at: string | null;
   freshness_max_age_seconds: number | null;
+  eligibility: {
+    observation_status: "AVAILABLE" | "STALE" | "INSUFFICIENT";
+    trend_evidence_status: "AVAILABLE" | "INSUFFICIENT";
+    cross_sectional_comparison_status: "AVAILABLE" | "INSUFFICIENT" | "PAUSED_STALE";
+    model_diagnostic_status: string;
+    candidate_quote_identity_status: "READY" | "NOT_READY";
+    candidate_model_status: "READY" | "NOT_READY";
+    candidate_eligibility_status: "READY" | "NOT_READY";
+    blockers: string[];
+  };
+}
+
+export interface WorkspacePublicTeamLabel {
+  display_name: string;
+  state:
+    | "CHINESE_LABEL_READY"
+    | "CANONICAL_IDENTITY_READY_LABEL_MISSING"
+    | "IDENTITY_UNRESOLVED"
+    | "AMBIGUOUS";
+  canonical_team_id: string | null;
+  provider_team_id: string | null;
+  technical: { raw_provider_name: string | null };
 }
 
 export interface WorkspaceModelRelation {
@@ -106,6 +128,8 @@ export interface WorkspaceMatch {
   kickoff_utc: string | null;
   home_team_name: string | null;
   away_team_name: string | null;
+  home_team_label: WorkspacePublicTeamLabel;
+  away_team_label: WorkspacePublicTeamLabel;
   status: string | null;
   intelligence_state: IntelligenceState;
   intelligence_reason_codes: string[];
@@ -124,6 +148,9 @@ export interface WorkspaceMatch {
     provider_budget_status: string | null;
     lineup_status: string | null;
     lineup_expectation: string | null;
+    market_aggregate_status: "READY" | "PARTIAL" | "NOT_READY";
+    market_evidence_status: "AVAILABLE" | "NOT_READY";
+    candidate_input_status: "READY" | "NOT_READY";
   };
   market_fact: {
     status: "READY" | "STALE" | "INSUFFICIENT";

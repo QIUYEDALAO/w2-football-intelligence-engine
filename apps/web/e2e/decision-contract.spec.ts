@@ -58,6 +58,16 @@ function market(name: "ASIAN_HANDICAP" | "TOTALS", count: number, stale = false)
     cross_sectional_comparison_status: stale ? "PAUSED_STALE" : count ? "AVAILABLE" : "INSUFFICIENT",
     latest_snapshot_at: points.at(-1)?.captured_at || null,
     freshness_max_age_seconds: 21_600,
+    eligibility: {
+      observation_status: stale ? "STALE" : count ? "AVAILABLE" : "INSUFFICIENT",
+      trend_evidence_status: count >= 2 ? "AVAILABLE" : "INSUFFICIENT",
+      cross_sectional_comparison_status: stale ? "PAUSED_STALE" : count ? "AVAILABLE" : "INSUFFICIENT",
+      model_diagnostic_status: stale ? "MARKET_NOT_READY" : count ? "COMPARABLE_WITHIN_MARKET_RANGE" : "MARKET_NOT_READY",
+      candidate_quote_identity_status: count && !stale ? "READY" : "NOT_READY",
+      candidate_model_status: count && !stale ? "READY" : "NOT_READY",
+      candidate_eligibility_status: count && !stale ? "READY" : "NOT_READY",
+      blockers: count && !stale ? [] : ["EXECUTABLE_CANDIDATE_QUOTE_NOT_READY"],
+    },
   };
 }
 
@@ -68,6 +78,7 @@ function match(id: string, options: { rich?: boolean; stale?: boolean; modelWarn
   const relationStatus = options.stale ? "MARKET_NOT_READY" : options.modelWarning ? "MODEL_OUTSIDE_MARKET_RANGE" : "COMPARABLE_WITHIN_MARKET_RANGE";
   const relation = (name: "ASIAN_HANDICAP" | "TOTALS") => ({ market: name, status: options.stale ? "MARKET_NOT_READY" : name === "TOTALS" && options.rich ? "MODEL_OUTSIDE_MARKET_RANGE" : relationStatus, canonical_line: name === "ASIAN_HANDICAP" ? "-0.75" : "2.50", bookmaker_count: name === "ASIAN_HANDICAP" ? 14 : 6, freshness_status: options.stale ? "STALE" : "FRESH", diagnostics: options.modelWarning || (name === "TOTALS" && options.rich) ? [{ status: "OUTSIDE_RANGE" }] : [], blockers: options.stale ? ["MARKET_STALE"] : [] });
   const teams: Record<string, [string, string]> = { "1571806": ["Benfica", "Porto"], "1571807": ["Real Madrid", "Real Betis"], "1571808": ["Bayern Munich", "Borussia Dortmund"] };
+  const publicTeams: Record<string, [string, string]> = { "1571806": ["本菲卡", "波尔图"], "1571807": ["皇家马德里", "贝蒂斯"], "1571808": ["拜仁慕尼黑", "多特蒙德"] };
   const kickoff: Record<string, string> = { "1571806": "2026-08-09T14:30:00Z", "1571807": "2026-08-09T15:00:00Z", "1571808": "2026-08-09T15:30:00Z" };
   return {
     fixture_id: id,
@@ -76,14 +87,16 @@ function match(id: string, options: { rich?: boolean; stale?: boolean; modelWarn
     kickoff_utc: kickoff[id] || "2026-08-09T14:30:00Z",
     home_team_name: teams[id]?.[0] || `Home ${id}`,
     away_team_name: teams[id]?.[1] || `Away ${id}`,
+    home_team_label: { display_name: publicTeams[id]?.[0] || `主队（身份待确认：${id}-home）`, state: publicTeams[id] ? "CHINESE_LABEL_READY" : "IDENTITY_UNRESOLVED", canonical_team_id: publicTeams[id] ? `w2:${id}:home` : null, provider_team_id: `${id}-home`, technical: { raw_provider_name: teams[id]?.[0] || `Home ${id}` } },
+    away_team_label: { display_name: publicTeams[id]?.[1] || `客队（身份待确认：${id}-away）`, state: publicTeams[id] ? "CHINESE_LABEL_READY" : "IDENTITY_UNRESOLVED", canonical_team_id: publicTeams[id] ? `w2:${id}:away` : null, provider_team_id: `${id}-away`, technical: { raw_provider_name: teams[id]?.[1] || `Away ${id}` } },
     status: "NS",
     intelligence_state: options.modelWarning ? "MODEL_DIAGNOSTIC_WARNING" : options.rich ? "MARKET_MOVEMENT" : "DATA_INCOMPLETE",
     intelligence_reason_codes: [options.stale ? "MARKET_STALE" : options.modelWarning ? "MODEL_OUTSIDE_MARKET_RANGE" : options.rich ? "MARKET_LINE_MOVEMENT" : "DATA_INCOMPLETE"],
     priority_reason_primary: reason,
-    priority_reason_secondary: options.stale ? ["MARKET_MOVEMENT", "DATA_INCOMPLETE"] : options.rich && !options.modelWarning ? ["MODEL_DIAGNOSTIC"] : options.rich ? [] : ["DATA_INCOMPLETE"],
+    priority_reason_secondary: options.stale ? ["MARKET_MOVEMENT", "CANDIDATE_INPUT_NOT_READY"] : options.rich && !options.modelWarning ? ["MODEL_DIAGNOSTIC"] : options.rich ? [] : ["DATA_INCOMPLETE"],
     factual_summary: options.stale ? "已落盘 AH/OU 历史市场证据已过期；当前走势与模型—市场比较暂停；等待既有调度形成新快照。" : options.rich ? "已有当前 AH/OU 持久化时间线；可展示已证实走势并进行模型—市场诊断；状态随既有调度形成的新证据更新。" : "尚无已落盘 AH/OU 市场证据；无法生成走势或当前模型—市场比较；等待既有调度形成证据。",
     risks: risks(),
-    readiness: { status: options.rich && !options.stale ? "READY" : options.stale ? "STALE" : "BLOCKED", reason_code: options.stale ? "MARKET_STALE" : options.rich ? "EVIDENCE_READY" : "DATA_INCOMPLETE", reason_codes: [], missing_fields: options.rich ? [] : ["market"], stale_fields: options.stale ? ["market"] : [], action: "WAIT_FOR_NEXT_SCHEDULED_EVALUATION", next_eval_at: "2026-08-09T13:22:00Z", provider_budget_status: "PROTECTED", lineup_status: "AVAILABLE", lineup_expectation: "ADVISORY" },
+    readiness: { status: options.rich && !options.stale ? "READY" : options.stale ? "STALE" : "BLOCKED", reason_code: options.stale ? "MARKET_STALE" : options.rich ? "EVIDENCE_READY" : "DATA_INCOMPLETE", reason_codes: [], missing_fields: options.rich ? [] : ["market"], stale_fields: options.stale ? ["market"] : [], action: "WAIT_FOR_NEXT_SCHEDULED_EVALUATION", next_eval_at: "2026-08-09T13:22:00Z", provider_budget_status: "PROTECTED", lineup_status: "AVAILABLE", lineup_expectation: "ADVISORY", market_aggregate_status: options.rich && !options.stale ? "READY" : "NOT_READY", market_evidence_status: options.rich && !options.stale ? "AVAILABLE" : "NOT_READY", candidate_input_status: options.rich && !options.stale ? "READY" : "NOT_READY" },
     market_fact: { status: ah.status, source_status: ah.source_status, main_line: ah.main_line, current_odds: ah.prices, market_probabilities: ah.probabilities, price_reference: "LAST_AVAILABLE_PREMATCH_SNAPSHOT", canonical_close_status: "NOT_OBTAINABLE_FROM_CURRENT_PROVIDER" },
     w2_analysis: { status: "ANALYSIS_REFERENCE", proof_status: "NOT_PROVEN", decision_tier: "WATCH", analysis_state: relationStatus, reason_codes: [], model_view: { status: "READY", source_status: "READY", model_version: "w2-existing-v1", calibration_version: "cal-v1", calibration_status: "AVAILABLE", simulations_completed: 10_000 }, model_market_relation: { ASIAN_HANDICAP: relation("ASIAN_HANDICAP"), TOTALS: relation("TOTALS") } },
     shadow_candidate: options.rich && !options.stale ? { status: "ACTIVE", mode: "SHADOW_ONLY", authority: "RECOMMENDATION_DECISION_V4", decision_tier: "ANALYSIS_PICK", reason_code: "ANALYSIS_ONLY", reason_message: "当前仅提供影子候选", market: "ASIAN_HANDICAP", selection: "HOME", exact_line: "-0.75", decimal_odds: 1.95, captured_at: "2026-08-09T12:11:00Z", decision_hash: "a".repeat(64), recommendation_scope: "VALIDATION", outcome_tracked: true, formal_status: "OFF", lock_status: "OFF", production_action_allowed: false, real_money_allowed: false } : { status: "NOT_READY", mode: "SHADOW_ONLY", authority: "RECOMMENDATION_DECISION_V4", decision_tier: "NOT_READY", reason_code: "EVIDENCE_NOT_READY", reason_message: "当前证据尚未就绪", market: null, selection: null, exact_line: null, decimal_odds: null, captured_at: null, decision_hash: null, recommendation_scope: "NONE", outcome_tracked: false, formal_status: "OFF", lock_status: "OFF", production_action_allowed: false, real_money_allowed: false },
@@ -155,27 +168,11 @@ async function installWorkspace(page: Page, scenario: Scenario = "normal"): Prom
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: workspace(scenario) }));
 }
 
-test("canonical identities drive competition and current team labels", async ({ page }) => {
+test("public team labels come from the workspace authority, not frontend guessing", async ({ page }) => {
   await installWorkspace(page);
   await page.goto("/");
-  const labels = await page.evaluate(async () => {
-    const { translateCompetition, translateTeam } = await import("/src/lib/formatters.ts");
-    return {
-      italian: translateCompetition("Serie A", "serie_a"),
-      brazilian: translateCompetition("Serie A", "brasileirao_serie_a"),
-      chinese: translateCompetition("Chinese Super League", "chinese_super_league"),
-      santaClara: translateTeam("Santa Clara"),
-      nacional: translateTeam("Nacional"),
-    };
-  });
-
-  expect(labels).toEqual({
-    italian: "意甲",
-    brazilian: "巴甲",
-    chinese: "中超",
-    santaClara: "圣克拉拉",
-    nacional: "国民队",
-  });
+  await expect(page.locator(".v41-focus-header h1")).toHaveText("本菲卡 vs 波尔图");
+  await expect(page.locator(".v41-focus-header h1")).not.toContainText("Benfica");
 });
 
 test("V41 uses backend focus authority and never falls back to matches[0]", async ({ page }) => {
@@ -211,6 +208,14 @@ test("V41 presents unassessed model evidence in Chinese and keeps codes technica
     relation.status = "MODEL_NOT_READY";
     relation.blockers = ["MODEL_CALIBRATION_NOT_READY"];
   }
+  for (const market of Object.values(focused.market_radar.markets)) {
+    market.eligibility.model_diagnostic_status = "MODEL_NOT_READY";
+    market.eligibility.candidate_model_status = "NOT_READY";
+    market.eligibility.candidate_eligibility_status = "NOT_READY";
+    market.eligibility.blockers = ["MODEL_CALIBRATION_NOT_READY"];
+  }
+  focused.readiness.market_aggregate_status = "PARTIAL";
+  focused.readiness.candidate_input_status = "NOT_READY";
   focused.risks.MODEL_RISK = {
     dimension: "MODEL_RISK",
     status: "ATTENTION",
@@ -221,7 +226,7 @@ test("V41 presents unassessed model evidence in Chinese and keeps codes technica
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
 
-  await expect(page.locator(".v41-three-layer")).toContainText("模型尚未就绪");
+  await expect(page.locator(".v41-three-layer")).toContainText("部分就绪");
   await expect(page.locator(".v41-diagnostic")).toContainText("模型尚未就绪");
   await expect(page.locator(".v41-diagnostic")).not.toContainText("MODEL_NOT_READY");
   await expect(page.locator(".v41-risk-list")).toContainText("模型风险未评估尚无可用模型评估证据");
@@ -238,7 +243,7 @@ test("D16 deployed real shape keeps NORMAL authority, useful stale focus and aud
   await expect(page.locator(".v41-focus")).toHaveAttribute("data-fixture-id", "1571806");
   await expect(page.locator(".v41-shortlist > header")).toContainText("1 场优先");
   await expect(page.locator(".v41-shortlist-list")).toContainText("主因：证据已过期");
-  await expect(page.locator(".v41-shortlist-list")).toContainText("次因：盘口或赔率变化、数据不完整");
+  await expect(page.locator(".v41-shortlist-list")).toContainText("次因：盘口或赔率变化、候选输入尚未完全就绪");
   await expect(page.locator(".v41-shortlist-list")).toContainText("其他关注 · 2 场（不计入优先）");
   await expect(page.locator(".v41-focus-summary")).toContainText("当前走势与模型—市场比较暂停");
 });

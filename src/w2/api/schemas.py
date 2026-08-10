@@ -327,6 +327,19 @@ class WorkspaceMovement(BaseModel):
         return self
 
 
+class WorkspaceMarketEligibility(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    observation_status: Literal["AVAILABLE", "STALE", "INSUFFICIENT"]
+    trend_evidence_status: Literal["AVAILABLE", "INSUFFICIENT"]
+    cross_sectional_comparison_status: Literal["AVAILABLE", "INSUFFICIENT", "PAUSED_STALE"]
+    model_diagnostic_status: str
+    candidate_quote_identity_status: Literal["READY", "NOT_READY"]
+    candidate_model_status: Literal["READY", "NOT_READY"]
+    candidate_eligibility_status: Literal["READY", "NOT_READY"]
+    blockers: list[str]
+
+
 class WorkspaceMarket(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -354,6 +367,7 @@ class WorkspaceMarket(BaseModel):
     cross_sectional_comparison_status: Literal["AVAILABLE", "INSUFFICIENT", "PAUSED_STALE"]
     latest_snapshot_at: datetime | str | None
     freshness_max_age_seconds: int | None = Field(default=None, ge=0)
+    eligibility: WorkspaceMarketEligibility
 
     @model_validator(mode="after")
     def readiness_matches_freshness(self) -> WorkspaceMarket:
@@ -382,6 +396,24 @@ class WorkspaceReadiness(BaseModel):
     provider_budget_status: str | None
     lineup_status: str | None
     lineup_expectation: str | None
+    market_aggregate_status: Literal["READY", "PARTIAL", "NOT_READY"]
+    market_evidence_status: Literal["AVAILABLE", "NOT_READY"]
+    candidate_input_status: Literal["READY", "NOT_READY"]
+
+
+class WorkspacePublicTeamLabel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    display_name: str = Field(min_length=1)
+    state: Literal[
+        "CHINESE_LABEL_READY",
+        "CANONICAL_IDENTITY_READY_LABEL_MISSING",
+        "IDENTITY_UNRESOLVED",
+        "AMBIGUOUS",
+    ]
+    canonical_team_id: str | None
+    provider_team_id: str | None
+    technical: dict[Literal["raw_provider_name"], str | None]
 
 
 class WorkspaceMarketFact(BaseModel):
@@ -577,6 +609,8 @@ class WorkspaceMatch(BaseModel):
     kickoff_utc: datetime | str | None
     home_team_name: str | None
     away_team_name: str | None
+    home_team_label: WorkspacePublicTeamLabel
+    away_team_label: WorkspacePublicTeamLabel
     status: str | None
     intelligence_state: IntelligenceState
     intelligence_reason_codes: list[str]
@@ -610,6 +644,28 @@ class WorkspaceMatch(BaseModel):
             for market in self.market_radar.markets.values()
         ):
             raise ValueError("market fact must use canonical market readiness")
+        eligibility = [market.eligibility for market in self.market_radar.markets.values()]
+        expected = (
+            "READY"
+            if eligibility
+            and all(item.candidate_eligibility_status == "READY" for item in eligibility)
+            else "PARTIAL"
+            if any(item.observation_status == "AVAILABLE" for item in eligibility)
+            else "NOT_READY"
+        )
+        if self.readiness.market_aggregate_status != expected:
+            raise ValueError("match market aggregate must derive from per-market eligibility")
+        expected_candidate_input = (
+            "READY"
+            if any(item.candidate_eligibility_status == "READY" for item in eligibility)
+            else "NOT_READY"
+        )
+        if self.readiness.candidate_input_status != expected_candidate_input:
+            raise ValueError("match candidate input must derive from per-market eligibility")
+        if self.shadow_candidate.status == "ACTIVE":
+            selected = self.market_radar.markets.get(str(self.shadow_candidate.market))
+            if selected is None or selected.eligibility.candidate_eligibility_status != "READY":
+                raise ValueError("active shadow candidate requires selected-market eligibility")
         return self
 
 

@@ -47,6 +47,10 @@ from w2.domain.recommendation_decision_v4 import (
 )
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
+from w2.infrastructure.persistence.factor_model_models import (
+    CanonicalTeamModel,
+    ProviderTeamIdentityCrosswalkModel,
+)
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
     MatchdayEndpointCaptureModel,
@@ -124,6 +128,70 @@ def _checkpoint_metadata(row: Checkpoint) -> dict[str, Any]:
         "checkpoint_key": row.key,
         "source_hash": row.source_hash,
         "created_at": row.created_at.isoformat().replace("+00:00", "Z"),
+    }
+
+
+def _public_team_label_from_identity(
+    *,
+    fixture: MatchdayFixtureIdentityModel,
+    side: Literal["home", "away"],
+    canonical: Mapping[str, CanonicalTeamModel],
+    reviewed: set[tuple[str, str, str, str, str]],
+) -> dict[str, Any]:
+    provider_team_id = str(getattr(fixture, f"{side}_provider_team_id"))
+    w2_team_id = getattr(fixture, f"{side}_w2_team_id")
+    payload = fixture.payload if isinstance(fixture.payload, dict) else {}
+    raw_provider_name = next(
+        (
+            str(value).strip()
+            for key in (f"{side}_team_name", f"{side}_name")
+            if (value := payload.get(key))
+        ),
+        None,
+    )
+    identity_status = str(fixture.team_identity_status or "").upper()
+    if "AMBIGUOUS" in identity_status:
+        state = "AMBIGUOUS"
+    elif not w2_team_id or w2_team_id not in canonical:
+        state = "IDENTITY_UNRESOLVED"
+    else:
+        row = canonical[w2_team_id]
+        key = (
+            fixture.provider,
+            provider_team_id,
+            fixture.competition_id,
+            fixture.season,
+            w2_team_id,
+        )
+        candidates = [
+            row.payload.get(name)
+            for name in ("public_zh_name", "display_name_zh", "zh_name", "chinese_name")
+            if isinstance(row.payload, dict)
+        ]
+        candidates.append(row.display_name)
+        chinese_name = next(
+            (
+                str(value).strip()
+                for value in candidates
+                if value and any("\u4e00" <= char <= "\u9fff" for char in str(value))
+            ),
+            None,
+        )
+        if key in reviewed and chinese_name:
+            return {
+                "display_name": chinese_name,
+                "state": "CHINESE_LABEL_READY",
+                "canonical_team_id": w2_team_id,
+                "provider_team_id": provider_team_id,
+                "raw_provider_name": raw_provider_name,
+            }
+        state = "CANONICAL_IDENTITY_READY_LABEL_MISSING"
+    return {
+        "display_name": None,
+        "state": state,
+        "canonical_team_id": str(w2_team_id) if w2_team_id else None,
+        "provider_team_id": provider_team_id,
+        "raw_provider_name": raw_provider_name,
     }
 
 
@@ -1008,6 +1076,64 @@ class ReadModelRepository:
             output[str(provider_fixture_id)] = str(competition_id)
         return output
 
+    def public_team_labels_for_fixtures(
+        self,
+        fixture_ids: list[str],
+    ) -> dict[str, dict[str, dict[str, Any]]]:
+        normalized = {str(fixture_id or "").strip() for fixture_id in fixture_ids}
+        normalized.discard("")
+        if not normalized:
+            return {}
+        provider_ids = {value.removeprefix("api_football:") for value in normalized}
+        canonical_ids = {f"api_football:{value}" for value in provider_ids}
+        with Session(create_engine()) as session:
+            fixtures = session.scalars(
+                select(MatchdayFixtureIdentityModel).where(
+                    MatchdayFixtureIdentityModel.fixture_id.in_(canonical_ids)
+                )
+            ).all()
+            w2_ids = {
+                value
+                for fixture in fixtures
+                for value in (fixture.home_w2_team_id, fixture.away_w2_team_id)
+                if value
+            }
+            canonical = {
+                row.w2_team_id: row
+                for row in session.scalars(
+                    select(CanonicalTeamModel).where(CanonicalTeamModel.w2_team_id.in_(w2_ids))
+                ).all()
+            }
+            crosswalks = session.scalars(
+                select(ProviderTeamIdentityCrosswalkModel).where(
+                    ProviderTeamIdentityCrosswalkModel.w2_team_id.in_(w2_ids)
+                )
+            ).all()
+        reviewed = {
+            (row.provider, row.provider_team_id, row.competition_id, row.season, row.w2_team_id)
+            for row in crosswalks
+            if str(row.review_status or "").upper() in {"APPROVED", "REVIEWED"}
+        }
+        output: dict[str, dict[str, dict[str, Any]]] = {}
+        for fixture in fixtures:
+            labels = {
+                "home": _public_team_label_from_identity(
+                    fixture=fixture,
+                    side="home",
+                    canonical=canonical,
+                    reviewed=reviewed,
+                ),
+                "away": _public_team_label_from_identity(
+                    fixture=fixture,
+                    side="away",
+                    canonical=canonical,
+                    reviewed=reviewed,
+                ),
+            }
+            output[str(fixture.fixture_id)] = labels
+            output[str(fixture.provider_fixture_id)] = labels
+        return output
+
 class ReadModelService:
     def __init__(self, repository: ReadModelRepository | None = None) -> None:
         self.repository = repository or ReadModelRepository()
@@ -1204,11 +1330,20 @@ class ReadModelService:
             if callable(identity_reader)
             else {}
         )
+        team_label_reader = getattr(self.repository, "public_team_labels_for_fixtures", None)
+        public_team_labels = (
+            team_label_reader([str(item.get("fixture_id") or "") for item in fixtures])
+            if callable(team_label_reader)
+            else {}
+        )
         cards = [
             self._project_dashboard_card(
                 item,
                 canonical_competition_id=canonical_competitions.get(
                     str(item.get("fixture_id") or "")
+                ),
+                public_team_labels=public_team_labels.get(
+                    str(item.get("fixture_id") or ""), {}
                 ),
             )
             for item in fixtures
@@ -1313,6 +1448,7 @@ class ReadModelService:
         fixture: dict[str, Any],
         *,
         canonical_competition_id: str | None = None,
+        public_team_labels: Mapping[str, Mapping[str, Any]] | None = None,
     ) -> dict[str, Any]:
         fixture_id = str(fixture.get("fixture_id") or fixture.get("provider_fixture_id") or "")
         if not fixture_id:
@@ -1340,6 +1476,8 @@ class ReadModelService:
             "home_team_name": fixture.get("home_team_name") or card.get("home_name"),
             "away_team_id": fixture.get("away_team_id"),
             "away_team_name": fixture.get("away_team_name") or card.get("away_name"),
+            "home_team_label": dict((public_team_labels or {}).get("home", {})),
+            "away_team_label": dict((public_team_labels or {}).get("away", {})),
             "status": normalize_match_status(fixture.get("status")),
             "raw_status": fixture.get("status"),
             "formal_recommendation": False,

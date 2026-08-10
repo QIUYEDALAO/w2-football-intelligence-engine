@@ -265,6 +265,16 @@ def _workspace(
 
 def test_shadow_candidate_activation_reuses_v4_and_stays_non_production() -> None:
     day_view = _day_view()
+    day_view["cards"][0]["market_radar"]["markets"]["ASIAN_HANDICAP"] = _market(2)
+    day_view["cards"][0]["market_candidates"] = {
+        "ah": {
+            "quote_status": "COMPLETE",
+            "quote_usage": "EXECUTABLE",
+            "quote_identity": {"identity_status": "COMPLETE"},
+            "model_status": "READY",
+            "blockers": [],
+        }
+    }
     day_view["cards"][0]["recommendation_decision_v4"] = {
         "outcome": "ANALYSIS_PICK",
         "reason": {"code": "ANALYSIS_ONLY", "message": "当前仅提供影子候选"},
@@ -1023,3 +1033,113 @@ def test_numeric_provider_league_ids_resolve_from_runtime_identity_authority(
     assert identities["103"].competition_id == "competition_103"
     assert identities["103"].name == "Competition 103"
     assert "999" not in identities
+
+
+def test_market_eligibility_preserves_ah_ou_partial_truth_without_cross_contamination() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]
+    card["intelligence_state"] = "DATA_INCOMPLETE"
+    card["market_radar"]["markets"]["ASIAN_HANDICAP"] = _market(2)
+    card["market_radar"]["markets"]["ASIAN_HANDICAP"]["current"][
+        "bookmaker_count"
+    ] = 1
+    card["market_radar"]["markets"]["TOTALS"] = _market(2)
+    card["market_radar"]["markets"]["TOTALS"]["current"]["bookmaker_count"] = 7
+    card["model_lab"]["markets"] = {
+        "ASIAN_HANDICAP": {
+            "status": "INSUFFICIENT_BOOKMAKER_DEPTH",
+            "blockers": ["INSUFFICIENT_BOOKMAKER_DEPTH"],
+        },
+        "TOTALS": {
+            "status": "MODEL_NOT_READY",
+            "blockers": ["MODEL_SIMULATION_NOT_READY"],
+        },
+    }
+    card["market_candidates"] = {
+        key: {
+            "quote_status": "INCOMPLETE",
+            "quote_usage": "REFERENCE_ONLY",
+            "quote_identity": {"identity_status": "INCOMPLETE"},
+            "model_status": "NOT_READY",
+            "blockers": ["QUOTE_NOT_EXECUTABLE"],
+        }
+        for key in ("ah", "ou")
+    }
+
+    match = _workspace(day_view)["matches"][0]
+    ah = match["market_radar"]["markets"]["ASIAN_HANDICAP"]["eligibility"]
+    totals = match["market_radar"]["markets"]["TOTALS"]["eligibility"]
+
+    assert ah["observation_status"] == totals["observation_status"] == "AVAILABLE"
+    assert ah["model_diagnostic_status"] == "INSUFFICIENT_BOOKMAKER_DEPTH"
+    assert totals["model_diagnostic_status"] == "MODEL_NOT_READY"
+    assert ah["candidate_quote_identity_status"] == "NOT_READY"
+    assert totals["candidate_quote_identity_status"] == "NOT_READY"
+    assert match["readiness"]["market_aggregate_status"] == "PARTIAL"
+    assert match["readiness"]["market_evidence_status"] == "AVAILABLE"
+    assert match["readiness"]["candidate_input_status"] == "NOT_READY"
+    assert match["priority_reason_secondary"] == ["CANDIDATE_INPUT_NOT_READY"]
+
+
+def test_public_team_label_never_silently_uses_raw_english() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]
+    card["home_team_name"] = "Banfield"
+    card["home_team_id"] = "476"
+    card["away_team_name"] = "Belgrano Cordoba"
+    card["away_team_id"] = "478"
+
+    match = _workspace(day_view)["matches"][0]
+
+    assert match["home_team_label"] == {
+        "display_name": "主队（身份待确认：476）",
+        "state": "IDENTITY_UNRESOLVED",
+        "canonical_team_id": None,
+        "provider_team_id": "476",
+        "technical": {"raw_provider_name": "Banfield"},
+    }
+    assert match["away_team_label"]["display_name"] == "客队（身份待确认：478）"
+    assert "Banfield" not in match["home_team_label"]["display_name"]
+
+
+def test_reviewed_canonical_chinese_label_is_the_only_ready_path() -> None:
+    fixture = SimpleNamespace(
+        provider="api_football",
+        competition_id="allsvenskan",
+        season="2026",
+        team_identity_status="PROVIDER_PRIMARY_READY",
+        home_provider_team_id="370",
+        home_w2_team_id="w2:team:api_football:370",
+        payload={"home_team_name": "Sirius"},
+    )
+    canonical = {
+        fixture.home_w2_team_id: SimpleNamespace(
+            display_name="Sirius",
+            payload={"public_zh_name": "天狼星"},
+        )
+    }
+    review_key = (
+        fixture.provider,
+        fixture.home_provider_team_id,
+        fixture.competition_id,
+        fixture.season,
+        fixture.home_w2_team_id,
+    )
+
+    ready = repository_module._public_team_label_from_identity(
+        fixture=fixture,
+        side="home",
+        canonical=canonical,
+        reviewed={review_key},
+    )
+    not_reviewed = repository_module._public_team_label_from_identity(
+        fixture=fixture,
+        side="home",
+        canonical=canonical,
+        reviewed=set(),
+    )
+
+    assert ready["state"] == "CHINESE_LABEL_READY"
+    assert ready["display_name"] == "天狼星"
+    assert not_reviewed["state"] == "CANONICAL_IDENTITY_READY_LABEL_MISSING"
+    assert not_reviewed["display_name"] is None
