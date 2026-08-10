@@ -234,7 +234,7 @@ summary {
 
 .v41-recent-days button {
   display: grid;
-  min-width: 60px;
+  min-width: 104px;
   min-height: 42px;
   place-content: center;
   gap: 1px;

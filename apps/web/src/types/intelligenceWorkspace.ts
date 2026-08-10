@@ -345,6 +345,7 @@ export interface IntelligenceWorkspace {
     public_dashboard_authority: "NEW_INTELLIGENCE_WORKSPACE_ONLY";
     active_whitelist_count: 13;
     free_bridge_mode: "SHADOW_ONLY";
+    market_price_attention_threshold_ratio: 0.02;
     candidate: "OFF";
     formal: "OFF";
     lock: "OFF";

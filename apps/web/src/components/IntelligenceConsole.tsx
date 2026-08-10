@@ -75,6 +75,8 @@ const STATUS_LABELS: Record<string, string> = {
   UNAVAILABLE: "不可用",
   NOT_AVAILABLE: "暂不可用",
   MARKET_NOT_READY: "市场证据未就绪",
+  MODEL_NOT_READY: "模型尚未就绪",
+  MODEL_CALIBRATION_NOT_READY: "模型校准尚未就绪",
   MODEL_OUTSIDE_MARKET_RANGE: "模型区间外",
   MARKET_OUTSIDE_MODEL_RANGE: "市场区间外",
   COMPARABLE_WITHIN_MARKET_RANGE: "处于可比区间",
@@ -97,7 +99,7 @@ function localDateTime(value: string | null): string {
   if (!value) return "时间待确认";
   const date = new Date(value);
   if (Number.isNaN(date.valueOf())) return value;
-  return new Intl.DateTimeFormat("zh-CN", {
+  const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Shanghai",
     year: "numeric",
     month: "2-digit",
@@ -105,7 +107,9 @@ function localDateTime(value: string | null): string {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-  }).format(date).replaceAll("/", "-");
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value || "";
+  return `${part("year")}-${part("month")}-${part("day")} ${part("hour")}:${part("minute")}`;
 }
 
 function clock(value: string | null): string {
@@ -156,9 +160,15 @@ function dateShift(value: string, days: number): string {
 }
 
 function footballDayWindow(workspace: IntelligenceWorkspace): string {
-  const start = localDateTime(workspace.football_day_start_utc).slice(5);
-  const end = localDateTime(workspace.football_day_end_utc).slice(5);
+  const start = localDateTime(workspace.football_day_start_utc);
+  const end = localDateTime(workspace.football_day_end_utc);
   return `比赛日 ${start} → ${end}（不含）`;
+}
+
+function isIsoDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T12:00:00+08:00`);
+  return !Number.isNaN(parsed.valueOf()) && dateShift(value, 0) === value;
 }
 
 function price(value: unknown): string {
@@ -182,7 +192,7 @@ function Header({ date, loading, onDateChange, onRefresh, workspace }: Props) {
       <span className="v41-separator" />
       <nav className="v41-date-nav" aria-label="比赛日导航">
         <button aria-label="前一天" onClick={() => onDateChange(dateShift(date, -1))} type="button">‹</button>
-        <input aria-label="选择比赛日" onChange={(event) => event.target.value && onDateChange(event.target.value)} type="date" value={date} />
+        <input aria-label="选择比赛日" defaultValue={date} inputMode="numeric" key={date} onChange={(event) => isIsoDate(event.target.value) && onDateChange(event.target.value)} pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}" placeholder="YYYY-MM-DD" type="text" />
         <button aria-label="后一天" onClick={() => onDateChange(dateShift(date, 1))} type="button">›</button>
         <button className="is-text" onClick={() => onDateChange(footballDayShanghai())} type="button">今天</button>
         <button aria-label="刷新" disabled={loading} onClick={onRefresh} type="button">⟳</button>
@@ -212,7 +222,7 @@ function RecentDateNav({ date, onDateChange }: Pick<Props, "date" | "onDateChang
       <span>近 7 日</span>
       {dates.map((item) => (
         <button aria-current={item === date ? "date" : undefined} key={item} onClick={() => onDateChange(item)} type="button">
-          <small>{item.slice(5).replace("-", "/")}</small>
+          <small>{item}</small>
           <b>{item === footballDayShanghai() ? "今天" : item === date ? "当前" : "查看"}</b>
         </button>
       ))}
@@ -260,7 +270,7 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
   const aggregate = blocked || calm;
   return (
     <aside className="v41-shortlist" aria-label="关注情报 / 今日优先查看" data-ui="attention-feed">
-      <header><span>今日优先查看 · 按信息价值 · 主因归类</span><b>{prioritized.length} 场优先</b></header>
+      <header><span>今日优先查看 · 按信息价值 · 主因归类 · 优先阈值：盘口移动或任一侧赔率相对变化 ≥ {(workspace.runtime.market_price_attention_threshold_ratio * 100).toFixed(0)}%</span><b>{prioritized.length} 场优先</b></header>
       <div className="v41-shortlist-group">优先查看 · {prioritized.length} 场</div>
       <div className="v41-shortlist-list">
         {empty ? <div className="v41-shortlist-empty">本比赛日观察池内没有比赛</div> : null}
@@ -350,7 +360,7 @@ function MarketEvidence({ market, generatedAt }: { market: WorkspaceMarket; gene
       <Timeline market={market} />
       <p className="v41-market-foot">
         <span>{market.snapshot_count} 个真实快照 · 点间不插值、不推断缺失路径</span>
-        <span>最新 {localDateTime(market.latest_snapshot_at)} · 距生成 {ageLabel(generatedAt, market.latest_snapshot_at)}</span>
+        <span>最新 {localDateTime(market.latest_snapshot_at)} · 距最新快照 {ageLabel(generatedAt, market.latest_snapshot_at)}</span>
       </p>
       <div className="v41-market-semantics"><b>走势证据：{label(market.trend_evidence_status)}</b><span>{comparisonSummary(market)}</span></div>
     </section>
@@ -401,11 +411,11 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
             <div><span>W2 诊断</span><strong>{label(model.status)}</strong><b>{stale ? "比较暂停" : label(diagnosticRelation?.status)}</b></div>
             <div><span>正式推荐</span><strong>产品权限</strong><b>未启用</b></div>
           </div>
-          <div className={`v41-diagnostic ${stale ? "is-stale" : ""}`}><span /><p><b>{stale ? "市场记忆不可作为当前比较权威" : `当前模型状态：${label(model.status)}`}</b>{stale ? "等待既有采集调度形成新快照后再比较。" : `${label(diagnosticRelation?.status)}。模型与市场差异仅用于诊断；优先检查模型校准、特征时效、盘口身份和数据质量。${diagnosticRelation?.blockers.map(translateReason).join("；") || ""}`}</p></div>
+          <div className={`v41-diagnostic ${stale ? "is-stale" : ""}`}><span /><p><b>{stale ? "市场记忆不可作为当前比较权威" : `当前模型状态：${label(model.status)}`}</b>{stale ? "等待既有采集调度形成新快照后再比较。" : `${label(diagnosticRelation?.status)}。模型与市场差异仅用于诊断；优先检查模型校准、特征时效、盘口身份和数据质量。`}</p></div>
           <RiskSummary match={match} />
           <Scoreline match={match} />
           <div className="v41-next"><span>当前就绪</span><strong>{label(match.readiness.status)}</strong><b>{nextEvaluation(match.readiness.next_eval_at, generatedAt)}</b></div>
-          <details className="v41-details"><summary>技术详情</summary><code>{match.intelligence_state}</code><code>{match.readiness.reason_code || "NO_REASON_CODE"}</code><code>model_source={model.source_status}</code></details>
+          <details className="v41-details"><summary>技术详情</summary><code>{match.intelligence_state}</code><code>{match.readiness.reason_code || "NO_REASON_CODE"}</code><code>model_source={model.source_status}</code>{diagnosticRelation?.status ? <code>{diagnosticRelation.status}</code> : null}{diagnosticRelation?.blockers.map((blocker) => <code key={blocker}>{blocker}</code>)}</details>
         </div>
       </div>
     </article>

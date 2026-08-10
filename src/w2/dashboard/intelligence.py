@@ -48,12 +48,7 @@ def build_intelligence_projection(card: Mapping[str, Any]) -> dict[str, Any]:
         "risk_dimensions": {
             "EVENT_RISK": _risk_dimension("EVENT_RISK", event, "未发现明确赛事风险证据"),
             "DATA_RISK": _risk_dimension("DATA_RISK", data, "数据证据完整"),
-            "MODEL_RISK": _risk_dimension(
-                "MODEL_RISK",
-                [*model, *disagreement],
-                "模型诊断未见警告",
-                attention_codes=set(disagreement),
-            ),
+            "MODEL_RISK": _model_risk_dimension(card, model, disagreement),
             "COLLECTION_RISK": _collection_risk_dimension(card, collection),
         },
     }
@@ -143,6 +138,40 @@ def _collection_risk_dimension(
         "assessment_status": "UNASSESSED",
         "evidence_basis": status or "NO_PERSISTED_TERMINAL_OR_CAPTURE_EVIDENCE",
         "source_as_of": source_as_of,
+    }
+
+
+def _model_risk_dimension(
+    card: Mapping[str, Any],
+    model_reasons: Sequence[str],
+    disagreement_reasons: Sequence[str],
+) -> dict[str, Any]:
+    reasons = sorted(set([*model_reasons, *disagreement_reasons]))
+    unassessed = reasons and not disagreement_reasons and all(
+        reason in {"MODEL_SIMULATION_NOT_READY", "MODEL_LAB_NOT_READY"}
+        or reason.endswith(("_NOT_READY", "_NOT_AVAILABLE"))
+        for reason in reasons
+    )
+    if unassessed:
+        simulation_status = str(_mapping(card.get("simulation")).get("status") or "")
+        return {
+            **_risk_dimension(
+                "MODEL_RISK",
+                reasons,
+                "",
+                attention_codes=set(reasons),
+            ),
+            "assessment_status": "UNASSESSED",
+            "evidence_basis": simulation_status or "NO_PERSISTED_MODEL_ASSESSMENT_EVIDENCE",
+        }
+    if reasons:
+        return {
+            **_risk_dimension("MODEL_RISK", reasons, ""),
+            "assessment_status": "ASSESSED_INCIDENT",
+        }
+    return {
+        **_risk_dimension("MODEL_RISK", [], "模型诊断未见警告"),
+        "assessment_status": "ASSESSED_CURRENT",
     }
 
 

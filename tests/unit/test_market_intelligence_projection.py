@@ -346,7 +346,8 @@ def test_not_ready_does_not_become_event_risk_and_market_facts_remain_visible() 
     assert card["current_odds"] == current_odds
     assert card["risk_dimensions"]["EVENT_RISK"]["status"] == "OK"
     assert card["risk_dimensions"]["DATA_RISK"]["status"] == "INCIDENT"
-    assert card["risk_dimensions"]["MODEL_RISK"]["status"] == "INCIDENT"
+    assert card["risk_dimensions"]["MODEL_RISK"]["status"] == "ATTENTION"
+    assert card["risk_dimensions"]["MODEL_RISK"]["assessment_status"] == "UNASSESSED"
     assert view["counts"]["monitored_fixtures"] == 1
     assert view["counts"]["market_complete_fixtures"] == 1
 

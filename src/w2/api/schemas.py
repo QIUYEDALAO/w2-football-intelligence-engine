@@ -215,6 +215,7 @@ class WorkspaceRuntime(BaseModel):
     public_dashboard_authority: Literal["NEW_INTELLIGENCE_WORKSPACE_ONLY"]
     active_whitelist_count: Literal[13]
     free_bridge_mode: Literal["SHADOW_ONLY"]
+    market_price_attention_threshold_ratio: float = Field(ge=0.02, le=0.02)
     candidate: Literal["OFF"]
     formal: Literal["OFF"]
     lock: Literal["OFF"]

@@ -184,6 +184,7 @@
     "candidate": "OFF",
     "formal": "OFF",
     "free_bridge_mode": "SHADOW_ONLY",
+    "market_price_attention_threshold_ratio": 0.02,
     "lock": "OFF",
     "product": "FOOTBALL_MARKET_INTELLIGENCE_PLUS_MODEL_DIAGNOSTICS",
     "production": "OFF",
