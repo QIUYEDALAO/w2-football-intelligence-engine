@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
@@ -34,6 +34,7 @@ from w2.matchday.intake_v2 import (
     stable_hash,
 )
 from w2.matchday.repository import MatchdayRuntimeRepository
+from w2.prematch.read_model_projection import ProjectionSourceEvent
 from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
 from w2.providers.quota import parse_api_football_quota, provider_daily_hard_cap_decision
 
@@ -157,6 +158,7 @@ def run_free_fixture_bridge_shadow(
     source_revision: str | None = None,
     expected_whitelist_size: int = FREE_BRIDGE_EXPECTED_WHITELIST_SIZE,
     require_persistent_ledger: bool = True,
+    materialize_public_artifacts: Callable[[list[ProjectionSourceEvent]], list[str]] | None = None,
 ) -> dict[str, Any]:
     selected_mode = (mode or free_fixture_bridge_mode()).strip().upper()
     if selected_mode == FREE_BRIDGE_OFF:
@@ -188,6 +190,7 @@ def run_free_fixture_bridge_shadow(
     provider_limit: int | None = None
     policies: dict[str, MatchdayCompetitionPolicy] = {}
     fixtures: list[BridgeFixture] = []
+    projection_events: list[ProjectionSourceEvent] = []
 
     try:
         policies = _runtime_policies(
@@ -367,9 +370,21 @@ def run_free_fixture_bridge_shadow(
             endpoint_capture_id=str(discovery_capture["capture_id"]),
             captured_at=parse_utc(discovery_capture["provider_captured_at"]) or current,
         )
-        identities_written, _changed = evidence.upsert_fixture_identities_with_business_changes(
+        identities_written, changed = evidence.upsert_fixture_identities_with_business_changes(
             identities
         )
+        for identity in identities:
+            if str(identity["fixture_id"]) not in changed:
+                continue
+            projection_events.append(
+                ProjectionSourceEvent.create(
+                    fixture_id=str(identity["provider_fixture_id"]),
+                    event_type="FIXTURE_CHANGED",
+                    event_id=f"fixture:{identity['identity_hash']}",
+                    event_at=parse_utc(discovery_capture["provider_captured_at"]) or current,
+                    payload=identity,
+                )
+            )
 
         calls: dict[str, tuple[PlannedFreeCall, BridgeFixture, list[dict[str, Any]]]] = {}
         for fixture in fixtures:
@@ -507,7 +522,23 @@ def run_free_fixture_bridge_shadow(
                     for item in rejections
                 ):
                     raise BridgeHardStop("OBSERVATION_NORMALIZATION_CONFLICT")
-                observations_written += evidence.insert_market_observations(rows)
+                inserted = evidence.insert_market_observations(rows)
+                observations_written += inserted
+                if inserted > 0:
+                    projection_events.append(
+                        ProjectionSourceEvent.create(
+                            fixture_id=fixture.provider_fixture_id,
+                            event_type="ODDS_CHANGED",
+                            event_id=f"odds:{capture['capture_id']}",
+                            event_at=response.captured_at,
+                            payload={
+                                "observation_ids": sorted(
+                                    str(row["observation_id"]) for row in rows
+                                ),
+                                "inserted": inserted,
+                            },
+                        )
+                    )
             elif planned.request.endpoint == "lineups":
                 _validate_fixture_scoped_payload(
                     response.payload,
@@ -540,6 +571,13 @@ def run_free_fixture_bridge_shadow(
     except (TypeError, ValueError) as exc:
         blockers.append(str(exc) or exc.__class__.__name__)
 
+    materialized_fixture_ids: list[str] = []
+    if projection_events and materialize_public_artifacts is not None:
+        try:
+            materialized_fixture_ids = materialize_public_artifacts(projection_events)
+        except Exception as exc:
+            blockers.append(f"PROJECTION_MATERIALIZATION_FAILED:{exc.__class__.__name__}")
+
     result = {
         "schema_version": "w2.free_fixture_bridge_runtime.v1",
         "status": "BLOCKED" if blockers else "SHADOW_COMPLETE",
@@ -554,6 +592,7 @@ def run_free_fixture_bridge_shadow(
         "market_observations_written": observations_written,
         "lineup_snapshots_written": lineups_written,
         "selected_fixture_ids": sorted(set(selected_fixture_ids)),
+        "materialized_fixture_ids": materialized_fixture_ids,
         "collection_states": collection_states,
         "requests": requests,
         "blockers": blockers,

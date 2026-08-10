@@ -53,6 +53,29 @@ def test_shadow_runtime_persists_canonical_fixture_and_ah_ou_evidence() -> None:
     assert result["recommendation_lock"] is result["production"] is False
 
 
+def test_shadow_runtime_materializes_fixture_and_odds_events() -> None:
+    usage = FakeUsage(actual=5, remaining=95)
+    evidence = FakeEvidence()
+    client = FakeClient(
+        usage,
+        [("fixtures", _fixture_payload("100")), ("odds", _odds_payload("100"))],
+    )
+    events: list[Any] = []
+
+    result = _run(
+        client,
+        usage,
+        evidence,
+        materializer=lambda pending: events.extend(pending) or ["100"],
+    )
+
+    assert result["materialized_fixture_ids"] == ["100"]
+    assert [(event.fixture_id, event.event_type) for event in events] == [
+        ("100", "FIXTURE_CHANGED"),
+        ("100", "ODDS_CHANGED"),
+    ]
+
+
 def test_restart_continuity_uses_persisted_discovery_and_fresh_odds_cache() -> None:
     usage = FakeUsage(actual=5, remaining=95)
     evidence = FakeEvidence()
@@ -251,6 +274,7 @@ def _run(
     evidence: FakeEvidence,
     *,
     now: datetime = NOW,
+    materializer: Any | None = None,
 ) -> dict[str, Any]:
     return run_free_fixture_bridge_shadow(
         now=now,
@@ -263,6 +287,7 @@ def _run(
         source_revision="unit",
         expected_whitelist_size=1,
         require_persistent_ledger=False,
+        materialize_public_artifacts=materializer,
     )
 
 

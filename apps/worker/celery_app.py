@@ -108,6 +108,7 @@ def free_fixture_bridge(queued_at_utc: str | None = None) -> dict[str, object]:
             allow_live=True,
             allowed_live_endpoints=provider_endpoint_allowlist(),
         ),
+        materialize_public_artifacts=_materialize_shadow_projection_events,
     )
 
 
