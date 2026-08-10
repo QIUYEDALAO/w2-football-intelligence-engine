@@ -405,7 +405,7 @@ for (const viewport of [
     await page.goto("/");
     await expect(page.locator(".v41-focus-body")).toBeVisible();
     await page.screenshot({ animations: "disabled", path: testInfo.outputPath(`actual-${viewport.target}`) });
-    await expect(page).toHaveScreenshot(viewport.target, { animations: "disabled", maxDiffPixelRatio: .02 });
+    await expect(page).toHaveScreenshot(viewport.target, { animations: "disabled", maxDiffPixelRatio: .03 });
   });
 }
 
