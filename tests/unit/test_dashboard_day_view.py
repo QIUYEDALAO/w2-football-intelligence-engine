@@ -307,24 +307,37 @@ def test_day_view_counts_are_aggregated_from_cards_only() -> None:
     assert view["degradation"]["severity"] == "info"
 
 
-def test_day_view_excludes_started_or_finished_matches_from_l1() -> None:
+def test_day_view_retains_started_and_finished_matches_in_football_day() -> None:
     contract = _non_pick_contract()
     payload = {
-        "generated_at": "2026-07-05T08:00:00Z",
-        "date": "2026-07-05",
-        "selected_football_day": "2026-07-05",
+        "generated_at": "2026-08-11T02:25:00Z",
+        "date": "2026-08-10",
+        "selected_football_day": "2026-08-10",
         "all": [
             {
-                "fixture_id": "finished",
-                "kickoff_utc": "2026-07-05T06:00:00Z",
+                "fixture_id": "1493049",
+                "kickoff_utc": "2026-08-10T22:00:00Z",
                 "status": "FT",
-                "decision_tier": "ANALYSIS_PICK",
-                "data_status": "READY",
-                "lifecycle_status": "DRAFT",
+                **deepcopy(contract),
+                "decision_contract": deepcopy(contract),
+            },
+            {
+                "fixture_id": "1575453",
+                "kickoff_utc": "2026-08-10T19:15:00Z",
+                "status": "FT",
+                **deepcopy(contract),
+                "decision_contract": deepcopy(contract),
+            },
+            {
+                "fixture_id": "1494239",
+                "kickoff_utc": "2026-08-10T17:00:00Z",
+                "status": "FT",
+                **deepcopy(contract),
+                "decision_contract": deepcopy(contract),
             },
             {
                 "fixture_id": "future",
-                "kickoff_utc": "2026-07-05T10:00:00Z",
+                "kickoff_utc": "2026-08-11T03:00:00Z",
                 "status": "NS",
                 **deepcopy(contract),
                 "decision_contract": deepcopy(contract),
@@ -334,10 +347,16 @@ def test_day_view_excludes_started_or_finished_matches_from_l1() -> None:
 
     view = build_dashboard_day_view(payload, environment="staging")
 
-    assert [card["fixture_id"] for card in view["cards"]] == ["future"]
-    assert view["counts"]["total"] == 1
+    assert [card["fixture_id"] for card in view["cards"]] == [
+        "1494239",
+        "1575453",
+        "1493049",
+        "future",
+    ]
+    assert [card["status"] for card in view["cards"]] == ["FT", "FT", "FT", "NS"]
+    assert view["counts"]["total"] == 4
     assert view["counts"]["analysis_pick"] == 0
-    assert view["counts"]["watch"] == 1
+    assert view["counts"]["watch"] == 4
 
 
 def test_day_view_production_includes_production_environment_policy() -> None:

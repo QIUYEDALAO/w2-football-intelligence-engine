@@ -36,12 +36,7 @@ def build_dashboard_day_view(
         dashboard_payload.get("date"),
     )
     generated_at = _format_time(dashboard_payload.get("generated_at"))
-    as_of = _parse_time(generated_at) or datetime.now(UTC)
-    cards = [
-        _day_view_card(card)
-        for card in _dashboard_cards(dashboard_payload)
-        if _is_prematch_card(card, as_of=as_of)
-    ]
+    cards = [_day_view_card(card) for card in _dashboard_cards(dashboard_payload)]
     cards.sort(key=_dashboard_card_order)
     counts = _counts(cards)
     view = {
@@ -103,30 +98,6 @@ def _dashboard_card_order(card: Mapping[str, Any]) -> tuple[int, str, str]:
         _optional_text(card.get("kickoff_utc")) or "9999-12-31T23:59:59Z",
         _optional_text(card.get("fixture_id")) or "",
     )
-
-
-def _is_prematch_card(card: Mapping[str, Any], *, as_of: datetime) -> bool:
-    status = str(card.get("status") or "").upper()
-    if status in {
-        "FT",
-        "AET",
-        "PEN",
-        "FINISHED",
-        "LIVE",
-        "1H",
-        "HT",
-        "2H",
-        "ET",
-        "BT",
-        "P",
-        "INT",
-        "SUSP",
-    }:
-        return False
-    kickoff = _parse_time(card.get("kickoff_utc"))
-    if kickoff is not None and kickoff <= as_of.astimezone(UTC):
-        return False
-    return True
 
 
 def _day_view_card(card: Mapping[str, Any]) -> dict[str, Any]:
