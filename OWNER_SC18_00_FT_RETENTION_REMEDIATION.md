@@ -70,7 +70,7 @@ Formal/Lock/Production/real-money activation is authorized.
   validation sample.
 - Repository Hygiene passed: both SC18-00 isolated worktrees were clean and
   removed; the primary worktree's pre-existing Owner edits were untouched.
-  Locally generated temporary OCI archives remain under `/tmp` because a
-  deletion command was safety-rejected; they are not tracked repository files.
+  Locally generated temporary OCI archives were moved to the recoverable system
+  Trash after direct deletion was safety-rejected; they are not tracked files.
 
 Terminal state: `OWNER_SC18_00_FT_RETENTION_REREVIEW`.
