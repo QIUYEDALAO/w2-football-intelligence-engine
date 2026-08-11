@@ -610,6 +610,45 @@ test("mobile date strip keeps every status inside its own card", async ({ page }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 });
 
+test("mobile selected date remains visible after the workspace replaces date-strip nodes", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-08-12T06:00:00Z"));
+  await page.setViewportSize({ width: 390, height: 844 });
+  const initial = workspace();
+  initial.date = "2026-08-12";
+  initial.date_strip = initial.date_strip.map((entry, index) => ({
+    ...entry,
+    football_day: new Date(Date.UTC(2026, 7, 5 + index)).toISOString().slice(0, 10),
+  }));
+  const selected = workspace();
+  selected.date = "2026-08-14";
+  selected.football_day_start_utc = "2026-08-14T04:00:00Z";
+  selected.football_day_end_utc = "2026-08-15T04:00:00Z";
+  selected.date_strip = selected.date_strip.map((entry, index) => ({
+    ...entry,
+    football_day: new Date(Date.UTC(2026, 7, 7 + index)).toISOString().slice(0, 10),
+  }));
+  await page.route("**/v1/dashboard/intelligence-workspace?**", async (route) => {
+    const requestedDate = new URL(route.request().url()).searchParams.get("date");
+    if (requestedDate === selected.date) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      await route.fulfill({ status: 200, json: selected });
+      return;
+    }
+    await route.fulfill({ status: 200, json: initial });
+  });
+
+  await page.goto("/");
+  await page.getByLabel("选择比赛日").fill(selected.date);
+  await expect(page.locator(".v41-today-day")).toContainText("比赛日 2026-08-14");
+  const strip = page.getByRole("navigation", { name: "近七日比赛浏览" });
+  const selectedVisible = await strip.locator("[aria-current=date]").evaluate((item) => {
+    const stripBounds = item.closest("nav")!.getBoundingClientRect();
+    const itemBounds = item.getBoundingClientRect();
+    return itemBounds.left >= stripBounds.left && itemBounds.right <= stripBounds.right;
+  });
+  expect(selectedVisible).toBe(true);
+});
+
 test("V41 empty-day adjacent controls change the requested football day", async ({ page }) => {
   const requestedDates: string[] = [];
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => { requestedDates.push(new URL(route.request().url()).searchParams.get("date") || ""); return route.fulfill({ status: 200, json: workspace("empty") }); });
