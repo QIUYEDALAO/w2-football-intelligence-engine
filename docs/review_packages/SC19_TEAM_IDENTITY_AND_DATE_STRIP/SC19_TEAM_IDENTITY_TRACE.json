@@ -1,0 +1,74 @@
+{
+  "schema_version": "w2.sc19-team-identity-trace.v1",
+  "captured_at": "2026-08-11T04:22:51Z",
+  "source": "staging persisted database only",
+  "provider_calls": 0,
+  "db_writes": 0,
+  "fixtures": [
+    {
+      "fixture_id": "api_football:1494240",
+      "provider_fixture_id": "1494240",
+      "competition_id": "allsvenskan",
+      "season": "2026",
+      "fixture_status": "FT",
+      "team_identity_status": "PROVIDER_PRIMARY_READY",
+      "sides": [
+        {"side":"home","provider_team_id":"2241","w2_team_id":"w2:team:api_football:2241","raw_persisted_provider_name":null,"canonical_row":true,"canonical_display_name":"Vasteras SK FK","canonical_payload_chinese_name":null,"crosswalk":true,"crosswalk_competition_id":"allsvenskan","crosswalk_season":"2026","valid_from":"2026-01-01T00:00:00Z","valid_to":null,"identity_status":"PROVIDER_PRIMARY_READY","review_status":"APPROVED","review_provenance":true,"public_label_state":"CHINESE_LABEL_READY","public_name":"韦斯特罗斯","classification":"RECOVERABLE_EXISTING_IDENTITY_NOT_PROJECTED"},
+        {"side":"away","provider_team_id":"364","w2_team_id":"w2:team:api_football:364","raw_persisted_provider_name":null,"canonical_row":true,"canonical_display_name":"Djurgardens IF","canonical_payload_chinese_name":null,"crosswalk":true,"crosswalk_competition_id":"allsvenskan","crosswalk_season":"2026","valid_from":"2026-01-01T00:00:00Z","valid_to":null,"identity_status":"PROVIDER_PRIMARY_READY","review_status":"APPROVED","review_provenance":true,"public_label_state":"CHINESE_LABEL_READY","public_name":"尤尔加登","classification":"RECOVERABLE_EXISTING_IDENTITY_NOT_PROJECTED"}
+      ]
+    },
+    {
+      "fixture_id": "api_football:1494239",
+      "provider_fixture_id": "1494239",
+      "competition_id": "allsvenskan",
+      "season": "2026",
+      "fixture_status": "FT",
+      "team_identity_status": "PROVIDER_PRIMARY_READY",
+      "sides": [
+        {"side":"home","provider_team_id":"370","w2_team_id":"w2:team:api_football:370","raw_persisted_provider_name":null,"canonical_row":true,"canonical_display_name":"Sirius","canonical_payload_chinese_name":null,"crosswalk":true,"crosswalk_competition_id":"allsvenskan","crosswalk_season":"2026","valid_from":"2026-01-01T00:00:00Z","valid_to":null,"identity_status":"PROVIDER_PRIMARY_READY","review_status":"APPROVED","review_provenance":true,"public_label_state":"CHINESE_LABEL_READY","public_name":"天狼星","classification":"RECOVERABLE_EXISTING_IDENTITY_NOT_PROJECTED"},
+        {"side":"away","provider_team_id":"371","w2_team_id":"w2:team:api_football:371","raw_persisted_provider_name":null,"canonical_row":true,"canonical_display_name":"IF Brommapojkarna","canonical_payload_chinese_name":null,"crosswalk":true,"crosswalk_competition_id":"allsvenskan","crosswalk_season":"2026","valid_from":"2026-01-01T00:00:00Z","valid_to":null,"identity_status":"PROVIDER_PRIMARY_READY","review_status":"APPROVED","review_provenance":true,"public_label_state":"CHINESE_LABEL_READY","public_name":"布洛马波卡纳","classification":"RECOVERABLE_EXISTING_IDENTITY_NOT_PROJECTED"}
+      ]
+    },
+    {
+      "fixture_id": "api_football:1575453",
+      "provider_fixture_id": "1575453",
+      "competition_id": "primeira_liga",
+      "season": "2026",
+      "fixture_status": "FT",
+      "team_identity_status": "REVIEW_REQUIRED",
+      "sides": [
+        {"side":"home","provider_team_id":"227","w2_team_id":null,"raw_persisted_provider_name":null,"canonical_row":false,"canonical_display_name":null,"canonical_payload_chinese_name":null,"crosswalk":false,"crosswalk_competition_id":null,"crosswalk_season":null,"valid_from":null,"valid_to":null,"identity_status":null,"review_status":null,"review_provenance":false,"public_label_state":"IDENTITY_UNRESOLVED","public_name":null,"classification":"GENUINELY_UNRESOLVED"},
+        {"side":"away","provider_team_id":"225","w2_team_id":null,"raw_persisted_provider_name":null,"canonical_row":false,"canonical_display_name":null,"canonical_payload_chinese_name":null,"crosswalk":false,"crosswalk_competition_id":null,"crosswalk_season":null,"valid_from":null,"valid_to":null,"identity_status":null,"review_status":null,"review_provenance":false,"public_label_state":"IDENTITY_UNRESOLVED","public_name":null,"classification":"GENUINELY_UNRESOLVED"}
+      ]
+    },
+    {
+      "fixture_id": "api_football:1493049",
+      "provider_fixture_id": "1493049",
+      "competition_id": "argentina_primera",
+      "season": "2026",
+      "fixture_status": "FT",
+      "team_identity_status": "REVIEW_REQUIRED",
+      "sides": [
+        {"side":"home","provider_team_id":"449","w2_team_id":null,"raw_persisted_provider_name":null,"canonical_row":false,"canonical_display_name":null,"canonical_payload_chinese_name":null,"crosswalk":false,"crosswalk_competition_id":null,"crosswalk_season":null,"valid_from":null,"valid_to":null,"identity_status":null,"review_status":null,"review_provenance":false,"public_label_state":"IDENTITY_UNRESOLVED","public_name":null,"classification":"GENUINELY_UNRESOLVED"},
+        {"side":"away","provider_team_id":"440","w2_team_id":null,"raw_persisted_provider_name":null,"canonical_row":false,"canonical_display_name":null,"canonical_payload_chinese_name":null,"crosswalk":false,"crosswalk_competition_id":null,"crosswalk_season":null,"valid_from":null,"valid_to":null,"identity_status":null,"review_status":null,"review_provenance":false,"public_label_state":"IDENTITY_UNRESOLVED","public_name":null,"classification":"GENUINELY_UNRESOLVED"}
+      ]
+    },
+    {
+      "fixture_id": "api_football:1493061",
+      "provider_fixture_id": "1493061",
+      "competition_id": "argentina_primera",
+      "season": "2026",
+      "fixture_status": "NS",
+      "team_identity_status": "REVIEW_REQUIRED",
+      "sides": [
+        {"side":"home","provider_team_id":"441","w2_team_id":null,"raw_persisted_provider_name":null,"canonical_row":false,"canonical_display_name":null,"canonical_payload_chinese_name":null,"crosswalk":false,"crosswalk_competition_id":null,"crosswalk_season":null,"valid_from":null,"valid_to":null,"identity_status":null,"review_status":null,"review_provenance":false,"public_label_state":"IDENTITY_UNRESOLVED","public_name":null,"classification":"GENUINELY_UNRESOLVED"},
+        {"side":"away","provider_team_id":"1065","w2_team_id":null,"raw_persisted_provider_name":null,"canonical_row":false,"canonical_display_name":null,"canonical_payload_chinese_name":null,"crosswalk":false,"crosswalk_competition_id":null,"crosswalk_season":null,"valid_from":null,"valid_to":null,"identity_status":null,"review_status":null,"review_provenance":false,"public_label_state":"IDENTITY_UNRESOLVED","public_name":null,"classification":"GENUINELY_UNRESOLVED"}
+      ]
+    }
+  ],
+  "first_missing_authority": {
+    "recoverable_allsvenskan_sides": "BACKEND_REVIEWED_PUBLIC_LABEL_PROJECTION",
+    "primeira_liga_and_argentina_sides": "PROVIDER_TEAM_IDENTITY_CROSSWALK"
+  },
+  "truth_note": "Fixture 1493061 is persisted as NS at capture time; SC19 does not change fixture status authority."
+}

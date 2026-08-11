@@ -3,7 +3,7 @@ from __future__ import annotations
 import inspect
 import json
 import re
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -293,6 +293,29 @@ def test_api_dashboard_projects_finished_status_over_stale_analysis_card() -> No
             return {"1493049": "FT"}
 
         @staticmethod
+        def public_team_labels_for_fixtures(
+            _fixture_ids: list[str],
+        ) -> dict[str, dict[str, dict[str, Any]]]:
+            return {
+                "1493049": {
+                    "home": {
+                        "display_name": "天狼星",
+                        "state": "CHINESE_LABEL_READY",
+                        "canonical_team_id": "w2:team:api_football:370",
+                        "provider_team_id": "370",
+                        "raw_provider_name": "Sirius",
+                    },
+                    "away": {
+                        "display_name": "布洛马波卡纳",
+                        "state": "CHINESE_LABEL_READY",
+                        "canonical_team_id": "w2:team:api_football:371",
+                        "provider_team_id": "371",
+                        "raw_provider_name": "IF Brommapojkarna",
+                    },
+                }
+            }
+
+        @staticmethod
         def analysis_card_projection(_fixture_id: str) -> dict[str, Any]:
             return {
                 "fixture_id": "1493049",
@@ -306,8 +329,86 @@ def test_api_dashboard_projects_finished_status_over_stale_analysis_card() -> No
     ).dashboard(target_date="2026-08-10", window="today")
 
     assert payload["all"][0]["status"] == "FINISHED"
+    assert payload["all"][0]["home_team_label"]["display_name"] == "天狼星"
+    assert payload["all"][0]["away_team_label"]["display_name"] == "布洛马波卡纳"
     assert payload["finished"][0]["fixture_id"] == "1493049"
     assert payload["upcoming"] == []
+
+
+def test_sc19_date_strip_reads_persisted_inventory_without_business_writes(
+    monkeypatch: Any,
+) -> None:
+    engine = _engine()
+    now = datetime(2026, 8, 11, 1, 0, tzinfo=UTC)
+    fixture_id = "api_football:1494239"
+    with Session(engine) as session:
+        session.add(
+            MatchdayFixtureIdentityModel(
+                fixture_id=fixture_id,
+                provider="api_football",
+                provider_fixture_id="1494239",
+                competition_id="allsvenskan",
+                provider_league_id="113",
+                season="2026",
+                kickoff_utc=datetime(2026, 8, 10, 17, 0, tzinfo=UTC),
+                fixture_status="FT",
+                home_provider_team_id="370",
+                away_provider_team_id="371",
+                home_w2_team_id="w2:team:api_football:370",
+                away_w2_team_id="w2:team:api_football:371",
+                team_identity_status="PROVIDER_PRIMARY_READY",
+                raw_payload_sha256="a" * 64,
+                captured_at=now,
+                identity_hash="b" * 64,
+                payload={},
+            )
+        )
+        session.add(
+            MatchdayCheckpointPlanModel(
+                plan_id="sc19-plan",
+                fixture_id=fixture_id,
+                competition_id="allsvenskan",
+                season="2026",
+                policy_version="existing-policy",
+                checkpoint="T12",
+                kickoff_utc=datetime(2026, 8, 10, 17, 0, tzinfo=UTC),
+                scheduled_at=datetime(2026, 8, 10, 5, 0, tzinfo=UTC),
+                window_start=datetime(2026, 8, 10, 5, 0, tzinfo=UTC),
+                window_end=datetime(2026, 8, 10, 5, 5, tzinfo=UTC),
+                endpoints=["odds"],
+                status="DUE",
+                test_only=False,
+                blockers=[],
+                plan_hash="c" * 64,
+            )
+        )
+        session.commit()
+    monkeypatch.setattr(api_repository, "create_engine", lambda: engine)
+    writes: list[str] = []
+
+    def record_statement(
+        _connection: Any,
+        _cursor: Any,
+        statement: str,
+        _parameters: Any,
+        _context: Any,
+        _executemany: bool,
+    ) -> None:
+        if statement.lstrip().upper().startswith(("INSERT", "UPDATE", "DELETE", "MERGE")):
+            writes.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record_statement)
+    strip = api_repository.ReadModelRepository().persisted_date_strip(
+        date(2026, 8, 10),
+        now=now,
+    )
+
+    assert strip[7]["fixture_count"] == 1
+    assert strip[7]["finished_fixture_count"] == 1
+    assert strip[7]["market_collection_window_status"] == (
+        "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY"
+    )
+    assert writes == []
 
 
 def test_api_dashboard_card_keeps_historical_v3_identity_immutable() -> None:

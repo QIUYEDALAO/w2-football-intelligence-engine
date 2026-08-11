@@ -264,6 +264,19 @@ summary {
   font-weight: 600;
 }
 
+.v41-recent-days button em {
+  color: var(--v41-ink-3);
+  font-size: 10px;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.v41-recent-days .v41-window-control {
+  min-width: 30px;
+  padding: 3px;
+  font-size: 18px;
+}
+
 .v41-recent-days-note {
   display: flex;
   align-items: center;

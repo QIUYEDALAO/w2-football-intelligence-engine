@@ -4,9 +4,37 @@ import type {
   WorkspaceMarket,
   WorkspaceMatch,
   WorkspaceRisks,
+  WorkspaceDateStripEntry,
 } from "../src/types/intelligenceWorkspace";
 
 type Scenario = "normal" | "blocked" | "calm" | "stale" | "empty" | "deployed";
+
+function dateStrip(): WorkspaceDateStripEntry[] {
+  return Array.from({ length: 15 }, (_, index) => {
+    const footballDay = new Date(Date.UTC(2026, 7, 2 + index)).toISOString().slice(0, 10);
+    const selected = footballDay === "2026-08-09";
+    const future = footballDay > "2026-08-09";
+    const fixtureCount = selected ? 3 : future && index % 2 === 0 ? 2 : 0;
+    const displayState = fixtureCount
+      ? future
+        ? "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW" as const
+        : "FINISHED" as const
+      : "EMPTY_PERSISTED_DAY" as const;
+    return {
+      football_day: footballDay,
+      fixture_count: fixtureCount,
+      competition_count: fixtureCount ? 1 : 0,
+      finished_fixture_count: displayState === "FINISHED" ? fixtureCount : 0,
+      upcoming_fixture_count: displayState === "FINISHED" ? 0 : fixtureCount,
+      persisted_inventory_status: fixtureCount ? "PERSISTED_FIXTURES_AVAILABLE" : "EMPTY_PERSISTED_DAY",
+      persisted_competition_coverage_count: fixtureCount ? 1 : 0,
+      active_whitelist_count: 13,
+      market_collection_window_status: displayState === "FINISHED" ? "MARKET_EVIDENCE_AVAILABLE" : displayState,
+      market_evidence_fixture_count: displayState === "FINISHED" ? fixtureCount : 0,
+      display_state: displayState,
+    };
+  });
+}
 
 function risks(): WorkspaceRisks {
   return {
@@ -155,6 +183,7 @@ function workspace(scenario: Scenario = "normal"): IntelligenceWorkspace {
     read_contract: { provider_calls: 0, db_writes: 0, would_write_checkpoint: false, no_call_on_read: true },
     runtime: { product: "FOOTBALL_MARKET_INTELLIGENCE_PLUS_MODEL_DIAGNOSTICS", public_dashboard_authority: "NEW_INTELLIGENCE_WORKSPACE_ONLY", active_whitelist_count: 13, free_bridge_mode: "SHADOW_ONLY", market_price_attention_threshold_ratio: 0.02, candidate: "SHADOW_ONLY", formal: "OFF", lock: "OFF", production: "OFF" },
     navigation: { current_date: "2026-08-09", previous_date: "2026-08-08", next_date: "2026-08-10", next_available_date: "2026-08-10" },
+    date_strip: dateStrip(),
     attention: matches.map((item) => ({ fixture_id: item.fixture_id, kickoff_utc: item.kickoff_utc, intelligence_state: item.intelligence_state, reason_codes: item.intelligence_reason_codes, affected_domains: ["MARKET"], factual_summary: item.intelligence_reason_codes.join("；"), readiness_status: item.readiness.status, readiness_context: { reason_code: item.readiness.reason_code, missing_fields: item.readiness.missing_fields, stale_fields: item.readiness.stale_fields, action: item.readiness.action }, next_eval_at: item.readiness.next_eval_at, risks: item.risks })),
     matches,
     validation: { probability: { status: "AVAILABLE", sample_count: 34, model_brier: .178, market_brier: .174, model_minus_market_brier: .004, model_log_loss: .512, market_log_loss: .508, model_minus_market_log_loss: .004, model_calibration_error: .026, market_calibration_error: .021, model_reliability_bins: [], market_reliability_bins: [], checkpoint_metadata: { checkpoint_key: "performance:cohort:all" } }, directional: { status: "SAMPLE_BUILDING", source_status: "AVAILABLE", probability_evidence_ready: false, validation_n: 36, decisive_n: 34, correct: 18, wrong: 16, push: 1, void: 1, direction_accuracy: 18 / 34, effective_n: 34, market_direction_benchmark: "NOT_DEFINED", only_record_reason: "PROBABILITY_QUALITY_NOT_READY" }, league_performance: [], tournament_performance: [], forward_validation_records: { status: "AVAILABLE", validation_count: 36, eligible_count: 34, excluded_count: 2, excluded_share: 2 / 36, excluded_by_reason: { MARKET_IDENTITY_NOT_READY: 2 }, pending_count: 0, outcomes: {}, checkpoint_metadata: { checkpoint_key: "performance:cohort:all" } }, history_replay: { status: "AVAILABLE_WITH_GAPS", known_at: { has_day_view: true }, decision_summary: { total_cards: matches.length, lock_eligible_count: 0, by_decision_tier: { WATCH: matches.length }, by_data_status: { READY: matches.length } }, reason_summary: [], outcome_tracking_summary: {}, card_hash_checks: [], replay_gaps: ["MISSING_OUTCOMES"] } },
@@ -391,13 +420,29 @@ test("V41 date navigation, Today, Refresh and keyboard focus are functional", as
   await page.getByLabel("选择比赛日").fill("2026-08-03");
   await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-03");
   const requestsBeforeHistoryClick = requestedDates.length;
-  await page.getByRole("button", { name: "2026-08-02 查看" }).click();
+  const strip = page.getByRole("navigation", { name: "近七日比赛浏览" });
+  await strip.getByRole("button", { name: "查看更早日期" }).click();
+  await strip.getByRole("button").filter({ hasText: "2026-08-02" }).click();
   await expect.poll(() => requestedDates.at(-1)).toBe("2026-08-02");
   expect(requestedDates).toHaveLength(requestsBeforeHistoryClick + 1);
+  await page.getByLabel("选择比赛日").focus();
   await page.keyboard.press("Tab");
   const focused = await page.evaluate(() => document.activeElement?.tagName);
   expect(["A", "BUTTON", "INPUT"]).toContain(focused);
   await expect(page.locator(":focus-visible")).toHaveCount(1);
+});
+
+test("SC19 date strip exposes persisted counts and collection-window truth", async ({ page }) => {
+  await installWorkspace(page);
+  await page.goto("/");
+
+  const strip = page.getByRole("navigation", { name: "近七日比赛浏览" });
+  await expect(strip.getByText("已持久化赛程", { exact: true })).toBeVisible();
+  await expect(strip.getByText("1/13 联赛", { exact: false }).first()).toBeVisible();
+  await expect(strip.getByText("未进入市场采集窗口", { exact: false }).first()).toBeVisible();
+  await expect(strip).toContainText("每次只读取所选日期，不额外查询 Provider");
+  await strip.getByRole("button", { name: "查看更晚日期" }).click();
+  await expect(strip.getByText("2026-08-16", { exact: true })).toBeVisible();
 });
 
 test("V41 empty-day adjacent controls change the requested football day", async ({ page }) => {

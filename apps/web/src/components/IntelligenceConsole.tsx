@@ -6,6 +6,7 @@ import type {
   RiskAxisName,
   WorkspaceMarket,
   WorkspaceMatch,
+  WorkspaceDateStripEntry,
 } from "../types/intelligenceWorkspace";
 
 type Props = {
@@ -187,17 +188,34 @@ function Header({ date, loading, onDateChange, onRefresh, workspace }: Props) {
   );
 }
 
-function RecentDateNav({ date, onDateChange }: Pick<Props, "date" | "onDateChange">) {
-  const dates = Array.from({ length: 7 }, (_, index) => dateShift(date, index - 6));
+function dateStripLabel(entry: WorkspaceDateStripEntry): string {
+  const labels: Record<WorkspaceDateStripEntry["display_state"], string> = {
+    EMPTY_PERSISTED_DAY: "0 场",
+    FINISHED: "已完场",
+    MARKET_EVIDENCE_AVAILABLE: "市场证据可用",
+    PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW: "未进入市场采集窗口",
+    MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY: "市场证据未就绪",
+    MARKET_COLLECTION_PLAN_NOT_PERSISTED: "采集计划未持久化",
+  };
+  return labels[entry.display_state];
+}
+
+function RecentDateNav({ date, onDateChange, workspace }: Pick<Props, "date" | "onDateChange" | "workspace">) {
+  const [sliceStart, setSliceStart] = useState(4);
+  useEffect(() => setSliceStart(4), [date]);
+  const dates = workspace.date_strip.slice(sliceStart, sliceStart + 7);
   return (
     <nav className="v41-recent-days" aria-label="近七日比赛浏览">
-      <span>近 7 日</span>
+      <span>已持久化赛程</span>
+      <button aria-label="查看更早日期" className="v41-window-control" disabled={sliceStart === 0} onClick={() => setSliceStart(Math.max(0, sliceStart - 4))} type="button">‹</button>
       {dates.map((item) => (
-        <button aria-current={item === date ? "date" : undefined} key={item} onClick={() => onDateChange(item)} type="button">
-          <small>{item}</small>
-          <b>{item === footballDayShanghai() ? "今天" : item === date ? "当前" : "查看"}</b>
+        <button aria-current={item.football_day === date ? "date" : undefined} key={item.football_day} onClick={() => onDateChange(item.football_day)} type="button">
+          <small>{item.football_day}</small>
+          <b>{item.football_day === footballDayShanghai() ? "今天" : item.football_day === date ? "当前" : `${item.fixture_count} 场`}</b>
+          <em>{dateStripLabel(item)}{item.competition_count ? ` · ${item.competition_count}/13 联赛` : ""}</em>
         </button>
       ))}
+      <button aria-label="查看更晚日期" className="v41-window-control" disabled={sliceStart + 7 >= workspace.date_strip.length} onClick={() => setSliceStart(Math.min(workspace.date_strip.length - 7, sliceStart + 4))} type="button">›</button>
       <span className="v41-recent-days-note">每次只读取所选日期，不额外查询 Provider</span>
     </nav>
   );
@@ -507,7 +525,7 @@ export function IntelligenceConsole(props: Props) {
   return (
     <main aria-label="W2 INTELLIGENCE" className="dashboard-v41" data-day-mode={workspace.day_mode} data-focus-type={workspace.default_focus_type} data-intelligence-vocabulary="MODEL_MARKET_DISAGREEMENT" data-schema-version={workspace.schema_version} id="top">
       <Header {...props} />
-      <RecentDateNav date={props.date} onDateChange={props.onDateChange} />
+      <RecentDateNav date={props.date} onDateChange={props.onDateChange} workspace={workspace} />
       <TodaySummary workspace={workspace} />
       <div className="v41-main">
         <PriorityShortlist workspace={workspace} onSelect={setSelectedId} selectedId={selectedId} />

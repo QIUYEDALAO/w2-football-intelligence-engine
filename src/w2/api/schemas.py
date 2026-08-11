@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -196,6 +196,7 @@ class DashboardDayViewResponse(BaseModel):
     navigation: dict[str, Any]
     degradation: dict[str, Any]
     performance: dict[str, Any] | None = None
+    date_strip: list[dict[str, Any]] = Field(min_length=15, max_length=15)
     cards: list[dict[str, Any]]
 
 
@@ -897,6 +898,48 @@ class WorkspaceDataOperations(BaseModel):
     provider_budget_status: str
 
 
+class WorkspaceDateStripEntry(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    football_day: str
+    fixture_count: int = Field(ge=0)
+    competition_count: int = Field(ge=0)
+    finished_fixture_count: int = Field(ge=0)
+    upcoming_fixture_count: int = Field(ge=0)
+    persisted_inventory_status: Literal[
+        "PERSISTED_FIXTURES_AVAILABLE",
+        "EMPTY_PERSISTED_DAY",
+    ]
+    persisted_competition_coverage_count: int = Field(ge=0, le=13)
+    active_whitelist_count: Literal[13]
+    market_collection_window_status: Literal[
+        "EMPTY_PERSISTED_DAY",
+        "MARKET_EVIDENCE_AVAILABLE",
+        "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW",
+        "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY",
+        "MARKET_COLLECTION_PLAN_NOT_PERSISTED",
+    ]
+    market_evidence_fixture_count: int = Field(ge=0)
+    display_state: Literal[
+        "EMPTY_PERSISTED_DAY",
+        "FINISHED",
+        "MARKET_EVIDENCE_AVAILABLE",
+        "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW",
+        "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY",
+        "MARKET_COLLECTION_PLAN_NOT_PERSISTED",
+    ]
+
+    @model_validator(mode="after")
+    def counts_are_consistent(self) -> WorkspaceDateStripEntry:
+        if self.finished_fixture_count + self.upcoming_fixture_count != self.fixture_count:
+            raise ValueError("date strip fixture counts must reconcile")
+        if self.market_evidence_fixture_count > self.fixture_count:
+            raise ValueError("date strip market evidence cannot exceed fixtures")
+        if self.persisted_competition_coverage_count != self.competition_count:
+            raise ValueError("date strip coverage must use persisted competition count")
+        return self
+
+
 class DashboardIntelligenceWorkspaceResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -921,6 +964,7 @@ class DashboardIntelligenceWorkspaceResponse(BaseModel):
     read_contract: WorkspaceReadContract
     runtime: WorkspaceRuntime
     navigation: dict[str, Any]
+    date_strip: list[WorkspaceDateStripEntry] = Field(min_length=15, max_length=15)
     attention: list[WorkspaceAttentionItem]
     matches: list[WorkspaceMatch]
     validation: WorkspaceValidation
@@ -956,6 +1000,11 @@ class DashboardIntelligenceWorkspaceResponse(BaseModel):
                 raise ValueError("BLOCKED day requires DAY_BLOCKED public system health")
         elif self.data_operations.public_system_health == "DAY_BLOCKED":
             raise ValueError("only BLOCKED day may expose DAY_BLOCKED public system health")
+        days = [date.fromisoformat(item.football_day) for item in self.date_strip]
+        if days != [days[0] + timedelta(days=index) for index in range(15)]:
+            raise ValueError("date strip must contain 15 consecutive football days")
+        if date.fromisoformat(self.date) != days[7]:
+            raise ValueError("selected football day must be centered in date strip")
         return self
 
 

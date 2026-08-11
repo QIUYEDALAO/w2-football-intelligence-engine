@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import date, timedelta
 from types import SimpleNamespace
 from typing import Any
 
@@ -9,6 +10,7 @@ import pytest
 from w2.api import repository as repository_module
 from w2.api.schemas import DashboardIntelligenceWorkspaceResponse
 from w2.dashboard.workspace import build_dashboard_intelligence_workspace
+from w2.identity.public_team_labels import reviewed_public_team_labels
 
 
 def _market(snapshot_count: int) -> dict[str, Any]:
@@ -176,6 +178,32 @@ def _day_view() -> dict[str, Any]:
         "db_writes": 0,
         "would_write_checkpoint": False,
         "navigation": {"current_date": "2026-08-09"},
+        "date_strip": [
+            {
+                "football_day": (date(2026, 8, 2) + timedelta(days=index)).isoformat(),
+                "fixture_count": 3 if index == 7 else 0,
+                "competition_count": 1 if index == 7 else 0,
+                "finished_fixture_count": 0,
+                "upcoming_fixture_count": 3 if index == 7 else 0,
+                "persisted_inventory_status": (
+                    "PERSISTED_FIXTURES_AVAILABLE" if index == 7 else "EMPTY_PERSISTED_DAY"
+                ),
+                "persisted_competition_coverage_count": 1 if index == 7 else 0,
+                "active_whitelist_count": 13,
+                "market_collection_window_status": (
+                    "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY"
+                    if index == 7
+                    else "EMPTY_PERSISTED_DAY"
+                ),
+                "market_evidence_fixture_count": 0,
+                "display_state": (
+                    "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY"
+                    if index == 7
+                    else "EMPTY_PERSISTED_DAY"
+                ),
+            }
+            for index in range(15)
+        ],
         "freshness": {
             "page_updated_at": "2026-08-09T02:00:00Z",
             "odds_last_confirmed_at": "2026-08-09T01:59:00Z",
@@ -1143,3 +1171,38 @@ def test_reviewed_canonical_chinese_label_is_the_only_ready_path() -> None:
     assert ready["display_name"] == "天狼星"
     assert not_reviewed["state"] == "CANONICAL_IDENTITY_READY_LABEL_MISSING"
     assert not_reviewed["display_name"] is None
+
+
+def test_sc19_reviewed_public_label_authority_reuses_existing_product_labels() -> None:
+    labels = reviewed_public_team_labels()
+    fixture = SimpleNamespace(
+        provider="api_football",
+        competition_id="allsvenskan",
+        season="2026",
+        team_identity_status="PROVIDER_PRIMARY_READY",
+        home_provider_team_id="370",
+        home_w2_team_id="w2:team:api_football:370",
+        payload={"home_team_name": "Sirius"},
+    )
+    canonical = {
+        fixture.home_w2_team_id: SimpleNamespace(display_name="Sirius", payload={})
+    }
+    review_key = (
+        fixture.provider,
+        fixture.home_provider_team_id,
+        fixture.competition_id,
+        fixture.season,
+        fixture.home_w2_team_id,
+    )
+
+    ready = repository_module._public_team_label_from_identity(
+        fixture=fixture,
+        side="home",
+        canonical=canonical,
+        reviewed={review_key},
+        reviewed_labels=labels,
+    )
+
+    assert ready["state"] == "CHINESE_LABEL_READY"
+    assert ready["display_name"] == "天狼星"
+    assert ready["raw_provider_name"] == "Sirius"

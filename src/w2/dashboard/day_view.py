@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from w2.dashboard.date_navigation import build_date_navigation
+from w2.dashboard.date_strip import build_persisted_date_strip
 from w2.dashboard.date_window import FOOTBALL_DAY_CUTOFF_HOUR, FOOTBALL_DAY_TZ
 from w2.dashboard.degradation import build_dashboard_degradation
 from w2.dashboard.intelligence import build_intelligence_projection, intelligence_state_rank
@@ -39,6 +40,27 @@ def build_dashboard_day_view(
     cards = [_day_view_card(card) for card in _dashboard_cards(dashboard_payload)]
     cards.sort(key=_dashboard_card_order)
     counts = _counts(cards)
+    date_strip = [
+        dict(item)
+        for item in dashboard_payload.get("date_strip", [])
+        if isinstance(item, Mapping)
+    ]
+    if len(date_strip) != 15:
+        date_strip = build_persisted_date_strip(
+            datetime.fromisoformat(football_day).date(),
+            fixtures=[
+                {
+                    "fixture_id": card.get("fixture_id"),
+                    "competition_id": card.get("competition_id"),
+                    "kickoff_utc": _parse_time(card.get("kickoff_utc")),
+                    "fixture_status": card.get("status"),
+                }
+                for card in cards
+            ],
+            odds_plans=(),
+            market_evidence_fixture_ids=set(),
+            as_of=_parse_time(generated_at) or datetime.now(UTC),
+        )
     view = {
         "generated_at": generated_at,
         "date": _text(dashboard_payload.get("date"), football_day),
@@ -73,14 +95,17 @@ def build_dashboard_day_view(
         "counts": counts,
         "freshness": _freshness(dashboard_payload, cards, counts),
         "performance": _mapping_copy(dashboard_payload.get("performance")),
+        "date_strip": date_strip,
         "cards": cards,
     }
-    view["navigation"] = build_date_navigation(
+    navigation = build_date_navigation(
         football_day,
         as_of=generated_at,
         has_checkpoint=False,
         checkpoint_key=str(view["checkpoint_key"]),
     )
+    navigation["next_available_date"] = dashboard_payload.get("next_available_date")
+    view["navigation"] = navigation
     view["degradation"] = build_dashboard_degradation(view)
     return view
 
