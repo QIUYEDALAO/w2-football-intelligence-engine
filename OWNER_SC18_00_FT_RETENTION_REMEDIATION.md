@@ -68,5 +68,9 @@ Formal/Lock/Production/real-money activation is authorized.
 - These fixtures had no tracked candidate, so no settlement is claimed. The
   P0 retention and result-materialization path is closed without fabricating a
   validation sample.
+- Repository Hygiene passed: both SC18-00 isolated worktrees were clean and
+  removed; the primary worktree's pre-existing Owner edits were untouched.
+  Locally generated temporary OCI archives remain under `/tmp` because a
+  deletion command was safety-rejected; they are not tracked repository files.
 
 Terminal state: `OWNER_SC18_00_FT_RETENTION_REREVIEW`.

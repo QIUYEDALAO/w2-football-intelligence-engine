@@ -143,6 +143,11 @@ sc18_00_ft_retention_remediation:
     web_digest_verified: true
     warm_switch_seconds: 41
     warm_switch_target_seconds: 300
+  repository_hygiene:
+    status: PASS
+    isolated_worktrees_removed: true
+    primary_preexisting_edits_untouched: true
+    temporary_oci_archives: LEFT_UNDER_TMP_AFTER_DELETE_COMMAND_WAS_SAFETY_REJECTED
 
 independent_root_cause_corrections:
   competition_profile_enabled_false:
