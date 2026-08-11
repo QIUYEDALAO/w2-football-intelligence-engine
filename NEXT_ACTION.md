@@ -1,12 +1,13 @@
 # NEXT ACTION
 
 ```text
-ACTIVE_NEXT_ACTION = CODEX_EXECUTE_SC18_00_FT_RETENTION
-CURRENT_GATE = SC18_00_FT_RETENTION_EXECUTION
+ACTIVE_NEXT_ACTION = OWNER_REVIEW_SC18_00_FT_RETENTION
+CURRENT_GATE = OWNER_SC18_00_FT_RETENTION_REREVIEW
 AUTHORITY = OWNER_SC18_00_FT_RETENTION_REMEDIATION.md
-EXACT_MAIN_BASE = e9cbaf26701704645da00c2ff4733bda3aa34a79
-EXACT_CONTEXT_BASE = ba7e3346a4319c76b604e14951e0a0d8061410bf
-PR = UPDATE_OR_CREATE_NORMAL_PR
+EXACT_MAIN = 99baac47aad81d6afa0af9f368434bf93f14bd58
+EXACT_IMPLEMENTATION_HEAD = 37d4b5c5ac1ecf73473019ec6a088cfa6d0f76b4
+EXACT_SOURCE_TREE = 46b88b10884bf84bb008cbb6773366f54d7ab52c
+PRS = 519,520
 SHADOW_CANDIDATE = KEEP_ACTIVE_SHADOW_ONLY
 FORMAL = OFF
 LOCK = OFF
@@ -16,25 +17,24 @@ P6 = NOT_AUTHORIZED
 TERMINAL_GATE = OWNER_SC18_00_FT_RETENTION_REREVIEW
 ```
 
-## Execute only SC18-00
+## SC18-00 terminal result
 
-1. Reproduce the FT disappearance using persisted/read-only evidence for
-   fixtures `1493049`, `1575453`, and `1494239`.
-2. Make the smallest root-cause fix so the discovery date follows the active
-   Asia/Shanghai 12:00-to-12:00 football day and an in-window card is not
-   removed merely because kickoff passed or status became terminal.
-3. Reuse the existing persisted result materialization, forward ledger,
-   replay front door, Provider endpoint, Scheduler cadence, quota gates, and
-   exact 13-competition whitelist.
-4. Add regression coverage for pre-kickoff to FT retention, active-football-day
-   discovery, replay-card retention, 12:00 boundary, and no-call-on-read.
-5. Run focused regression, full CI, `RELEASE_REQUIRED`, repository hygiene,
-   merge, local OCI relay redeploy, and live read-only acceptance.
-6. Stop at `OWNER_SC18_00_FT_RETENTION_REREVIEW`.
+1. PRs `#519` and `#520` are merged and deployed.
+2. Exact-head Full CI run `31455118727` and `RELEASE_REQUIRED` passed; main
+   promotion run `31455505907` passed using the exact-head manifest.
+3. Public workspace for football day `2026-08-10` retains five real cards.
+   Fixtures `1493049`, `1575453`, and `1494239` are `FINISHED`; persisted
+   scores are `0-2`, `2-2`, and `2-2`; all three remain represented in replay.
+4. Public read contract remains `provider_calls=0`, `db_writes=0`,
+   `no_call_on_read=true`.
+5. Existing natural SHADOW_ONLY Scheduler performed the only discovery call;
+   cadence, endpoint set, quota policy, and 13-competition whitelist did not
+   change. Existing result materialization wrote four terminal results.
+6. Local OCI relay digests passed and warm switch passed in 41 seconds.
+7. Stop here. No new development action without Owner authority.
 
-No manual Provider probe is authorized. Do not add a Provider, change cadence,
-change whitelist/model/thresholds, start Round 4/P6, or enable Formal, Lock,
-Production, or real money.
+No manual Provider probe occurred. Formal, Lock, Production, real money,
+Round 4, and P6 remain closed.
 
 ## Frozen stop lines
 
