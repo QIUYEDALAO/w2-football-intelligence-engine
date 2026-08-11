@@ -194,13 +194,12 @@ def dashboard_day_view(
 def dashboard_intelligence_workspace(
     request: Request,
     date: str | None = None,
-    window: str = "today",
+    window: Literal["today"] = "today",
     timezone: str = "Asia/Shanghai",
 ) -> dict[str, Any]:
-    normalized_window = window if window in DASHBOARD_WINDOWS else "today"
     payload = service.public_dashboard(
         target_date=date,
-        window=normalized_window,
+        window=window,
         timezone=timezone,
         include_debug=False,
     )
@@ -208,10 +207,14 @@ def dashboard_intelligence_workspace(
         payload,
         environment=get_settings().environment.value,
     )
+    outcomes = service.dashboard_outcomes_for_fixtures(
+        [str(card.get("fixture_id") or "") for card in day_view["cards"]]
+    )
     replay = build_replay_front_door(
         football_day=day_view["football_day"],
         environment=day_view["environment"],
         day_view=day_view,
+        outcomes=outcomes,
         as_of=day_view.get("generated_at"),
     )
     return {

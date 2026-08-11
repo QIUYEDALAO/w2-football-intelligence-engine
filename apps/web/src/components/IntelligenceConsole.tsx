@@ -117,6 +117,13 @@ function byKickoff(matches: WorkspaceMatch[]): WorkspaceMatch[] {
   return matches.slice().sort((left, right) => String(left.kickoff_utc || "").localeCompare(String(right.kickoff_utc || "")) || left.fixture_id.localeCompare(right.fixture_id));
 }
 
+function historyRecordLabel(recordKind: IntelligenceWorkspace["validation"]["history_replay"]["record_kind"]): string {
+  if (recordKind === "FORWARD_RECORD") return "前向记录";
+  if (recordKind === "REPLAY") return "回放记录";
+  if (recordKind === "MIXED_RECORD") return "前向 / 回放记录";
+  return "比赛记录";
+}
+
 function ageLabel(generatedAt: string | null, sourceAt: string | null): string {
   if (!generatedAt || !sourceAt) return "时间证据不足";
   const age = Math.max(0, new Date(generatedAt).valueOf() - new Date(sourceAt).valueOf());
@@ -217,7 +224,7 @@ function dateStripLabel(entry: WorkspaceDateStripEntry): string {
   return publicPresentation(entry.public_semantics, {
     fixtureCount: entry.fixture_count,
     competitionCount: entry.competition_count,
-    marketReadyCount: entry.market_evidence_fixture_count,
+    marketObservationCount: entry.market_evidence_fixture_count,
     finishedCount: entry.finished_fixture_count,
   }).label;
 }
@@ -517,13 +524,11 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
   const outcomes = records.outcomes;
   const count = (source: Record<string, unknown>, key: string) => typeof source[key] === "number" ? source[key] : "—";
   const replay = workspace.validation.history_replay;
+  const finishedCount = workspace.matches.filter((match) => match.outcome.is_finished).length;
   const recordsPresentation = publicPresentation(records.public_semantics, { subject: "累计验证" });
-  const replayPresentation = publicPresentation(replay.public_semantics, { subject: "赛果" });
-  const selectedRecordsLabel = replay.record_kind === "FORWARD_RECORD" ? "前向记录" : replay.record_kind === "REPLAY" ? "回放记录" : replay.record_kind === "MIXED_RECORD" ? "前向 / 回放记录" : "比赛记录";
-  const selectedOutcomeLabel = (match: WorkspaceMatch) => {
-    if (replay.public_semantics.cause) return replayPresentation.label;
-    return ["FT", "AET", "PEN", "FINISHED"].includes(String(match.status || "").toUpperCase()) ? "已完场" : "赛果状态待确认";
-  };
+  const replayPresentation = publicPresentation(replay.public_semantics, { subject: "赛果", fixtureCount: workspace.matches.length, finishedCount, outcomeRecorded: workspace.matches.length > 0 && workspace.matches.every((match) => match.outcome.is_recorded) });
+  const selectedRecordsLabel = historyRecordLabel(replay.record_kind);
+  const outcomePresentation = (match: WorkspaceMatch) => publicPresentation(match.outcome.public_semantics, { subject: "赛果", outcomeRecorded: match.outcome.is_recorded });
   return (
     <section className="v41-validation-center" id="secondary-validation" aria-labelledby="validation-title">
       <header>
@@ -539,8 +544,8 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
         <section>
           <h3>{workspace.date} {selectedRecordsLabel}</h3>
           <p className="v41-validation-context">所选比赛日 {workspace.today_summary.match_count} 场 · 已形成 {replay.decision_summary.total_cards} 张{selectedRecordsLabel}</p>
-          {workspace.matches.length ? <ol className="v41-validation-matches">{byKickoff(workspace.matches).map((match) => <li key={match.fixture_id}><time>{localDateTime(match.kickoff_utc)}</time><strong><MatchName match={match} /></strong><span>{selectedOutcomeLabel(match)}</span></li>)}</ol> : <p className="v41-validation-empty">所选比赛日没有比赛记录；可使用上方日期浏览历史。</p>}
-          {replay.replay_gaps.length ? <p className="v41-validation-gaps">所选比赛日证据缺口：{replay.replay_gaps.map((gap) => label(gap)).join("；")}</p> : <p className="v41-validation-ok">所选比赛日记录证据完整。</p>}
+          {workspace.matches.length ? <ol className="v41-validation-matches">{byKickoff(workspace.matches).map((match) => <li key={match.fixture_id}><time>{localDateTime(match.kickoff_utc)}</time><strong><MatchName match={match} /></strong><span>{outcomePresentation(match).label}</span></li>)}</ol> : <p className="v41-validation-empty">所选比赛日没有比赛记录；可使用上方日期浏览历史。</p>}
+          {workspace.matches.length ? <p className={replayPresentation.tone === "warning" ? "v41-validation-gaps" : "v41-validation-ok"}>{replayPresentation.summary}</p> : null}
         </section>
       </div>
       {workspace.validation.league_performance.length ? <details className="v41-validation-leagues"><summary>按联赛查看验证状态（{workspace.validation.league_performance.length}）</summary><ul>{workspace.validation.league_performance.slice(0, 13).map((league) => <li key={`${league.competition_id}-${league.source_league}`}><strong>{translateCompetition(league.competition_name || league.league, league.canonical_competition_id || league.competition_id)}</strong><span>{league.only_record_reason === "PROBABILITY_QUALITY_NOT_READY" ? "概率质量待就绪" : league.only_record_reason === "AGGREGATION_CONFLICT" ? "聚合冲突" : league.only_record_reason === "SAMPLE_INSUFFICIENT" ? "样本不足" : "可用"}</span></li>)}</ul></details> : null}
@@ -550,12 +555,15 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
 }
 
 function SecondaryViews({ workspace }: { workspace: IntelligenceWorkspace }) {
-  const recordLabel = workspace.validation.history_replay.record_kind === "FORWARD_RECORD" ? "前向记录" : "回放";
+  const replay = workspace.validation.history_replay;
+  const recordLabel = historyRecordLabel(replay.record_kind);
+  const finishedCount = workspace.matches.filter((match) => match.outcome.is_finished).length;
+  const replayPresentation = publicPresentation(replay.public_semantics, { subject: "赛果", fixtureCount: workspace.matches.length, finishedCount, outcomeRecorded: workspace.matches.length > 0 && workspace.matches.every((match) => match.outcome.is_recorded) });
   const publicStatus = selectedDayPublicStatus(workspace);
   return (
     <section className="v41-secondary" aria-label="数据与系统 / 辅助详情">
       <details id="all-matches"><summary>全部比赛</summary><ol>{byKickoff(workspace.matches).map((match) => <li key={match.fixture_id}><span>{localDateTime(match.kickoff_utc)}</span><strong><MatchName match={match} /></strong><b>{label(match.readiness.market_aggregate_status)}</b></li>)}</ol></details>
-      <details data-contract="HISTORICAL_INCREMENTAL_EDGE=NOT_PROVEN" id="history"><summary>证据审计台 / {recordLabel}</summary><p>{label(workspace.validation.history_replay.status)} · {recordLabel} {workspace.validation.history_replay.decision_summary.total_cards} · 缺口 {workspace.validation.history_replay.replay_gaps.length}</p><details><summary>技术合同</summary><code>HISTORICAL_INCREMENTAL_EDGE=NOT_PROVEN</code></details></details>
+      <details data-contract="HISTORICAL_INCREMENTAL_EDGE=NOT_PROVEN" id="history"><summary>证据审计台 / {recordLabel}</summary><p>{recordLabel} {replay.decision_summary.total_cards} · {replayPresentation.summary}</p><details><summary>技术合同</summary><p>原始状态：<code>{replay.status}</code></p><p>原始缺口：{replay.replay_gaps.map((gap) => <code key={gap}>{gap}</code>)}</p><code>HISTORICAL_INCREMENTAL_EDGE=NOT_PROVEN</code></details></details>
       <details id="system-status"><summary>系统状态与读取合同</summary><p>13 联赛 · 影子候选 {workspace.runtime.candidate === "SHADOW_ONLY" ? "已启用" : "未启用"} · 正式、锁定、生产与实盘均关闭</p><p>所选比赛日公开状态：{publicStatus.label}</p><details><summary>技术字段</summary><p><code>{workspace.data_operations.system_health}</code></p><p><code>provider_calls={workspace.read_contract.provider_calls}</code> · <code>db_writes={workspace.read_contract.db_writes}</code> · <code>would_write_checkpoint={String(workspace.read_contract.would_write_checkpoint)}</code> · <code>no_call_on_read={String(workspace.read_contract.no_call_on_read)}</code></p></details></details>
     </section>
   );

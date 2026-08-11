@@ -178,6 +178,34 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
         set(schemas["WorkspaceAttentionItem"]["properties"]["intelligence_state"]["enum"]) == states
     )
     assert set(schemas["WorkspaceMatch"]["properties"]["intelligence_state"]["enum"]) == states
+    assert schemas["WorkspaceMatch"]["properties"]["outcome"] == {
+        "$ref": "#/components/schemas/WorkspaceMatchOutcome"
+    }
+    assert set(schemas["WorkspaceMatchOutcome"]["properties"]) == {
+        "is_finished",
+        "is_tracked",
+        "is_recorded",
+        "public_semantics",
+    }
+    assert schemas["WorkspaceMatchOutcome"]["additionalProperties"] is False
+    assert set(schemas["WorkspaceMatchOutcome"]["required"]) == {
+        "is_finished",
+        "is_tracked",
+        "is_recorded",
+        "public_semantics",
+    }
+    assert set(schemas["WorkspaceOutcomeTrackingSummary"]["properties"]) == {
+        "tracked_count",
+        "matched_outcome_count",
+        "missing_outcome_count",
+        "tracked_fixture_ids",
+        "matched_fixture_ids",
+        "missing_outcome_fixture_ids",
+    }
+    assert schemas["WorkspaceOutcomeTrackingSummary"]["additionalProperties"] is False
+    assert schemas["WorkspaceHistoryReplay"]["properties"]["outcome_tracking_summary"] == {
+        "$ref": "#/components/schemas/WorkspaceOutcomeTrackingSummary"
+    }
     priority_options = schemas["WorkspaceMatch"]["properties"]["priority_reason_primary"]["anyOf"]
     assert next(set(option["enum"]) for option in priority_options if "enum" in option) == {
         "MARKET_MOVEMENT",

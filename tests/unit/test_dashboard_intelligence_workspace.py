@@ -197,7 +197,7 @@ def _day_view() -> dict[str, Any]:
                     if index == 7
                     else "EMPTY_PERSISTED_DAY"
                 ),
-                "market_evidence_fixture_count": 1 if index == 7 else 0,
+                "market_evidence_fixture_count": 3 if index == 7 else 0,
             }
             for index in range(15)
         ],
@@ -418,6 +418,12 @@ def test_workspace_is_deterministic_explicit_and_schema_valid() -> None:
         "by_decision_tier": {"WATCH": 3},
         "by_data_status": {"READY": 3},
     }
+    assert first["matches"][0]["outcome"] == {
+        "is_finished": False,
+        "is_tracked": False,
+        "is_recorded": False,
+        "public_semantics": {"scope": "MATCH", "cause": "NOT_YET_DUE"},
+    }
     scoreline = first["matches"][0]["scoreline_reference"]
     assert scoreline["simulations_completed"] == 10_000
     assert scoreline["top3"] == [
@@ -510,6 +516,39 @@ def test_schema_rejects_selected_fixture_outside_match_facts() -> None:
     with pytest.raises(ValueError):
         DashboardIntelligenceWorkspaceResponse.model_validate(
             {"request_id": "test-request", **payload}
+        )
+
+
+def test_schema_rejects_partial_market_evidence_claimed_as_available() -> None:
+    payload = _workspace(_day_view())
+    payload["date_strip"][7]["market_evidence_fixture_count"] = 2
+
+    with pytest.raises(ValueError):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "partial-market-evidence", **payload}
+        )
+
+
+def test_schema_rejects_full_market_evidence_claimed_as_unavailable() -> None:
+    payload = _workspace(_day_view())
+    payload["date_strip"][7].update(
+        market_collection_window_status="MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY",
+        public_semantics={"scope": "SELECTED_DAY", "cause": "AWAITING_COLLECTION"},
+    )
+
+    with pytest.raises(ValueError):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "full-market-evidence-hidden", **payload}
+        )
+
+
+def test_schema_rejects_selected_day_count_drift() -> None:
+    payload = _workspace(_day_view())
+    payload["today_summary"]["match_count"] += 1
+
+    with pytest.raises(ValueError):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "selected-day-count-drift", **payload}
         )
 
 
@@ -1159,6 +1198,10 @@ def test_scope_and_cause_separate_future_day_from_cumulative_validation() -> Non
         "scope": "SELECTED_DAY",
         "cause": "NOT_YET_DUE",
     }
+    assert payload["validation"]["history_replay"]["status"] == "FORWARD_RECORD"
+    assert "MISSING_OUTCOMES" not in payload["validation"]["history_replay"][
+        "replay_gaps"
+    ]
     assert payload["validation"]["forward_validation_records"]["public_semantics"] == {
         "scope": "CROSS_DAY_CUMULATIVE",
         "cause": None,
@@ -1169,12 +1212,28 @@ def test_finished_match_missing_outcome_is_awaiting_collection() -> None:
     day_view = _day_view()
     for card in day_view["cards"]:
         card["status"] = "FT"
+        card["outcome_tracked"] = True
 
     replay = {
         "replay_status": "MISSING_OUTCOMES",
+        "cards": [
+            {
+                "fixture_id": card["fixture_id"],
+                "outcome_tracked": True,
+                "outcome_status": "MISSING_OUTCOME",
+            }
+            for card in day_view["cards"]
+        ],
         "known_at_summary": {},
         "reason_summary": [],
-        "outcome_tracking_summary": {"missing_outcome_count": 1},
+        "outcome_tracking_summary": {
+            "tracked_fixture_ids": [card["fixture_id"] for card in day_view["cards"]],
+            "matched_fixture_ids": [],
+            "missing_outcome_fixture_ids": [
+                card["fixture_id"] for card in day_view["cards"]
+            ],
+            "missing_outcome_count": 3,
+        },
         "card_hash_checks": [],
         "decision_summary": {
             "total_cards": 3,
@@ -1191,6 +1250,285 @@ def test_finished_match_missing_outcome_is_awaiting_collection() -> None:
         "scope": "SELECTED_DAY",
         "cause": "AWAITING_COLLECTION",
     }
+    assert all(
+        match["outcome"]["public_semantics"]["cause"] == "AWAITING_COLLECTION"
+        for match in payload["matches"]
+    )
+
+
+@pytest.mark.parametrize(
+    (
+        "status",
+        "tracked",
+        "outcome_status",
+        "replay_status",
+        "replay_gaps",
+        "expected",
+    ),
+    [
+        (
+            "NS",
+            False,
+            "OUTCOME_NOT_PRODUCED",
+            "OUTCOMES_NOT_PRODUCED",
+            [],
+            (False, False, False, "NOT_YET_DUE"),
+        ),
+        (
+            "NS",
+            True,
+            "OUTCOME_NOT_PRODUCED",
+            "OUTCOMES_NOT_PRODUCED",
+            [],
+            (False, True, False, "NOT_YET_DUE"),
+        ),
+        (
+            "FT",
+            True,
+            "MATCHED",
+            "READY",
+            [],
+            (True, True, True, None),
+        ),
+        (
+            "FT",
+            True,
+            "MISSING_OUTCOME",
+            "MISSING_OUTCOMES",
+            ["MISSING_OUTCOMES"],
+            (True, True, False, "AWAITING_COLLECTION"),
+        ),
+        (
+            "FT",
+            False,
+            "NOT_TRACKED",
+            "OUTCOMES_NOT_PRODUCED",
+            [],
+            (True, False, False, "UNASSESSED"),
+        ),
+    ],
+)
+def test_match_outcome_truth_table_is_derived_from_persisted_facts(
+    status: str,
+    tracked: bool,
+    outcome_status: str,
+    replay_status: str,
+    replay_gaps: list[str],
+    expected: tuple[bool, bool, bool, str | None],
+) -> None:
+    day_view = _day_view()
+    card = day_view["cards"][2]
+    card["status"] = status
+    card["outcome_tracked"] = tracked
+    day_view["cards"] = [card]
+    day_view["date_strip"][7].update(
+        fixture_count=1,
+        competition_count=1,
+        finished_fixture_count=1 if status == "FT" else 0,
+        upcoming_fixture_count=0 if status == "FT" else 1,
+        persisted_competition_coverage_count=1,
+        market_evidence_fixture_count=1,
+    )
+    fixture_id = card["fixture_id"]
+    recorded = outcome_status == "MATCHED"
+    missing = outcome_status == "MISSING_OUTCOME"
+    replay = {
+        "replay_status": replay_status,
+        "cards": [
+            {
+                "fixture_id": fixture_id,
+                "outcome_tracked": tracked,
+                "outcome_status": outcome_status,
+            }
+        ],
+        "known_at_summary": {},
+        "reason_summary": [],
+            "outcome_tracking_summary": {
+                "tracked_count": 1 if tracked else 0,
+                "matched_outcome_count": 1 if recorded else 0,
+                "missing_outcome_count": 1 if missing else 0,
+                "tracked_fixture_ids": [fixture_id] if tracked else [],
+            "matched_fixture_ids": [fixture_id] if recorded else [],
+            "missing_outcome_fixture_ids": [fixture_id] if missing else [],
+        },
+        "card_hash_checks": [],
+        "decision_summary": {
+            "total_cards": 1,
+            "lock_eligible_count": 0,
+            "by_decision_tier": {},
+            "by_data_status": {},
+        },
+        "replay_gaps": replay_gaps,
+    }
+
+    payload = _workspace(day_view, replay=replay)
+    outcome = payload["matches"][0]["outcome"]
+
+    assert (
+        outcome["is_finished"],
+        outcome["is_tracked"],
+        outcome["is_recorded"],
+        outcome["public_semantics"]["cause"],
+    ) == expected
+    assert outcome["public_semantics"]["scope"] == "MATCH"
+    assert DashboardIntelligenceWorkspaceResponse.model_validate(
+        {"request_id": "outcome-truth-table", **payload}
+    )
+
+
+def test_empty_selected_day_cannot_inherit_raw_replay_gaps() -> None:
+    day_view = _day_view()
+    day_view["cards"] = []
+
+    payload = _workspace(day_view)
+
+    assert payload["validation"]["history_replay"]["status"] == "EMPTY"
+    assert payload["validation"]["history_replay"]["replay_gaps"] == []
+
+
+@pytest.mark.parametrize(
+    ("record_kind", "status", "cause", "replay_gaps"),
+    [
+        ("EMPTY", "MISSING_OUTCOMES", None, ["MISSING_OUTCOMES"]),
+        ("FORWARD_RECORD", "MISSING_OUTCOMES", "NOT_YET_DUE", []),
+        ("FORWARD_RECORD", "FORWARD_RECORD", "NOT_YET_DUE", ["MISSING_OUTCOMES"]),
+        ("FORWARD_RECORD", "READY", "NOT_YET_DUE", []),
+        ("REPLAY", "FORWARD_RECORD", None, []),
+        ("REPLAY", "READY", "NOT_YET_DUE", []),
+        ("REPLAY", "MISSING_OUTCOMES", None, ["MISSING_OUTCOMES"]),
+        ("REPLAY", "MISSING_OUTCOMES", "AWAITING_COLLECTION", []),
+        ("MIXED_RECORD", "OUTCOMES_NOT_PRODUCED", None, []),
+        ("MIXED_RECORD", "FORWARD_RECORD", None, []),
+        ("MIXED_RECORD", "READY", "AWAITING_COLLECTION", ["MISSING_OUTCOMES"]),
+    ],
+)
+def test_schema_rejects_replay_state_that_conflicts_with_public_semantics(
+    record_kind: str,
+    status: str,
+    cause: str | None,
+    replay_gaps: list[str],
+) -> None:
+    payload = _workspace(_day_view())
+    replay = payload["validation"]["history_replay"]
+    replay.update(
+        record_kind=record_kind,
+        status=status,
+        replay_gaps=replay_gaps,
+        public_semantics={"scope": "SELECTED_DAY", "cause": cause},
+    )
+
+    with pytest.raises(ValueError):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "test-request", **payload}
+        )
+
+
+def test_schema_rejects_outcome_fact_and_status_conflicts() -> None:
+    payload = _workspace(_day_view())
+    outcome = payload["matches"][0]["outcome"]
+    outcome.update(
+        is_finished=True,
+        public_semantics={"scope": "MATCH", "cause": "UNASSESSED"},
+    )
+
+    with pytest.raises(ValueError):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "status-conflict", **payload}
+        )
+
+
+def test_schema_rejects_recorded_outcome_for_unfinished_match() -> None:
+    payload = _workspace(_day_view())
+    payload["matches"][0]["outcome"]["is_recorded"] = True
+
+    with pytest.raises(ValueError):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "unfinished-recorded", **payload}
+        )
+
+
+def test_schema_rejects_day_record_kind_that_conflicts_with_match_outcomes() -> None:
+    payload = _workspace(_day_view())
+    payload["validation"]["history_replay"].update(
+        record_kind="REPLAY",
+        status="READY",
+        replay_gaps=[],
+        public_semantics={"scope": "SELECTED_DAY", "cause": None},
+    )
+
+    with pytest.raises(ValueError):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "record-kind-conflict", **payload}
+        )
+
+
+def test_schema_rejects_day_cause_that_conflicts_with_match_outcomes() -> None:
+    day_view = _day_view()
+    for card in day_view["cards"]:
+        card["status"] = "FT"
+        card["outcome_tracked"] = True
+    fixture_ids = [card["fixture_id"] for card in day_view["cards"]]
+    replay = {
+        "replay_status": "READY",
+        "cards": [
+            {
+                "fixture_id": fixture_id,
+                "outcome_tracked": True,
+                "outcome_status": "MATCHED",
+            }
+            for fixture_id in fixture_ids
+        ],
+        "known_at_summary": {},
+        "reason_summary": [],
+        "outcome_tracking_summary": {
+            "tracked_count": len(fixture_ids),
+            "matched_outcome_count": len(fixture_ids),
+            "missing_outcome_count": 0,
+            "tracked_fixture_ids": fixture_ids,
+            "matched_fixture_ids": fixture_ids,
+            "missing_outcome_fixture_ids": [],
+        },
+        "card_hash_checks": [],
+        "decision_summary": {
+            "total_cards": 3,
+            "lock_eligible_count": 0,
+            "by_decision_tier": {},
+            "by_data_status": {},
+        },
+        "replay_gaps": [],
+    }
+    payload = _workspace(day_view, replay=replay)
+    payload["validation"]["history_replay"].update(
+        status="MISSING_OUTCOMES",
+        replay_gaps=["MISSING_OUTCOMES"],
+        public_semantics={"scope": "SELECTED_DAY", "cause": "AWAITING_COLLECTION"},
+    )
+
+    with pytest.raises(ValueError):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "record-cause-conflict", **payload}
+        )
+
+
+def test_schema_rejects_untyped_or_misspelled_outcome_summary_fields() -> None:
+    payload = _workspace(_day_view())
+    summary = payload["validation"]["history_replay"]["outcome_tracking_summary"]
+    summary["tracked_fixture_count"] = summary.pop("tracked_count")
+
+    with pytest.raises(ValueError):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "outcome-summary-typo", **payload}
+        )
+
+
+def test_schema_rejects_multi_day_workspace_window() -> None:
+    payload = _workspace(_day_view())
+    payload["window"] = "future"
+
+    with pytest.raises(ValueError):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "multi-day-window", **payload}
+        )
 
 
 @pytest.mark.parametrize("field,value", [("scope", "WRONG_SCOPE"), ("cause", "WRONG_CAUSE")])
@@ -1263,6 +1601,29 @@ def test_approved_public_label_authority_reuses_existing_product_labels() -> Non
 
     assert ready["state"] == "CHINESE_LABEL_READY"
     assert ready["display_name"] == "天狼星"
+
+
+def test_unreviewed_future_team_labels_are_not_self_approved() -> None:
+    unreviewed_team_ids = {
+        "w2:team:api_football:124",
+        "w2:team:api_football:130",
+        "w2:team:api_football:2143",
+        "w2:team:api_football:2149",
+        "w2:team:api_football:2170",
+        "w2:team:api_football:319",
+        "w2:team:api_football:325",
+        "w2:team:api_football:326",
+        "w2:team:api_football:329",
+        "w2:team:api_football:331",
+        "w2:team:api_football:332",
+        "w2:team:api_football:333",
+        "w2:team:api_football:377",
+        "w2:team:api_football:757",
+        "w2:team:api_football:794",
+    }
+    labels = reviewed_public_team_labels()
+
+    assert unreviewed_team_ids.isdisjoint(labels)
 
 
 def test_sc19_public_label_authority_uses_runtime_config_root(

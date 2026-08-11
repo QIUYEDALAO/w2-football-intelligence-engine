@@ -122,6 +122,7 @@ function match(id: string, options: { rich?: boolean; stale?: boolean; modelWarn
     away_team_label: { display_name: publicTeams[id]?.[1] || `客队（身份待确认：${id}-away）`, state: publicTeams[id] ? "CHINESE_LABEL_READY" : "IDENTITY_UNRESOLVED", canonical_team_id: publicTeams[id] ? `w2:${id}:away` : null, provider_team_id: `${id}-away`, public_semantics: { scope: "MATCH", cause: publicTeams[id] ? null : "IDENTITY_UNRESOLVED" }, technical: { raw_provider_name: teams[id]?.[1] || `Away ${id}` } },
     public_semantics: { scope: "MATCH", cause: options.rich && !options.stale ? null : "INSUFFICIENT" },
     status: "NS",
+    outcome: { is_finished: false, is_tracked: Boolean(options.rich && !options.stale), is_recorded: false, public_semantics: { scope: "MATCH", cause: "NOT_YET_DUE" } },
     intelligence_state: options.modelWarning ? "MODEL_DIAGNOSTIC_WARNING" : options.rich ? "MARKET_MOVEMENT" : "DATA_INCOMPLETE",
     intelligence_reason_codes: [options.stale ? "MARKET_STALE" : options.modelWarning ? "MODEL_OUTSIDE_MARKET_RANGE" : options.rich ? "MARKET_LINE_MOVEMENT" : "DATA_INCOMPLETE"],
     priority_reason_primary: reason,
@@ -144,13 +145,25 @@ function workspace(scenario: Scenario = "normal"): IntelligenceWorkspace {
   const rich = match("1571806", { rich: true, stale: scenario === "stale" });
   const other = [match("1571807", { rich: true }), match("1571808", { modelWarning: true })];
   const deployedMatches = [match("1571807"), match("1571806", { rich: true, stale: true }), match("1571808")];
+  const calmMatches = Array.from({ length: 9 }, (_, index) => {
+    const item = match(`calm-${index}`, { rich: true });
+    item.competition_id = `calm-league-${index % 7}`;
+    item.competition_name = `Calm League ${index % 7}`;
+    item.priority_reason_primary = null;
+    item.priority_reason_secondary = [];
+    item.intelligence_state = "MARKET_STABLE";
+    item.intelligence_reason_codes = ["MARKET_STABLE"];
+    return item;
+  });
   const matches = scenario === "deployed"
     ? deployedMatches
     : scenario === "normal" || scenario === "stale"
       ? [other[0], rich, other[1]]
       : scenario === "limited"
         ? [match("1571807"), match("1571808")]
-        : [];
+        : scenario === "calm"
+          ? calmMatches
+          : [];
   const limited = scenario === "limited";
   const empty = scenario === "empty";
   const focusId = scenario === "normal" || scenario === "stale" || scenario === "deployed" ? "1571806" : null;
@@ -166,12 +179,24 @@ function workspace(scenario: Scenario = "normal"): IntelligenceWorkspace {
     public_semantics: { scope: "SELECTED_DAY" as const, cause: limited ? "AWAITING_COLLECTION" as const : null },
   };
   const strip = dateStrip();
+  const selectedStrip = strip[7];
+  const selectedCompetitionCount = new Set(matches.map((item) => item.competition_id)).size;
+  selectedStrip.fixture_count = matches.length;
+  selectedStrip.competition_count = selectedCompetitionCount;
+  selectedStrip.finished_fixture_count = matches.filter((item) => item.outcome.is_finished).length;
+  selectedStrip.upcoming_fixture_count = matches.length - selectedStrip.finished_fixture_count;
+  selectedStrip.persisted_inventory_status = matches.length ? "PERSISTED_FIXTURES_AVAILABLE" : "EMPTY_PERSISTED_DAY";
+  selectedStrip.persisted_competition_coverage_count = selectedCompetitionCount;
+  selectedStrip.market_collection_window_status = matches.length ? "MARKET_EVIDENCE_AVAILABLE" : "EMPTY_PERSISTED_DAY";
+  selectedStrip.market_evidence_fixture_count = matches.length;
+  selectedStrip.public_semantics = { scope: "SELECTED_DAY", cause: null };
   if (limited) {
     for (const item of matches) item.public_semantics = { scope: "MATCH", cause: "AWAITING_COLLECTION" };
     strip[7].market_collection_window_status = "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY";
     strip[7].market_evidence_fixture_count = 0;
     strip[7].public_semantics = { scope: "SELECTED_DAY", cause: "AWAITING_COLLECTION" };
   }
+  const trackedFixtureIds = matches.filter((item) => item.outcome.is_tracked).map((item) => item.fixture_id);
   return {
     request_id: `v41-${scenario}`,
     schema_version: "w2.dashboard-intelligence-workspace.v1",
@@ -185,7 +210,7 @@ function workspace(scenario: Scenario = "normal"): IntelligenceWorkspace {
     football_day_end_utc: "2026-08-10T04:00:00Z",
     source: "dashboard_day_view+performance_checkpoint+replay_front_door",
     selected_fixture_id: focusId,
-    today_summary: { match_count: limited ? matches.length : scenario === "calm" ? 9 : empty ? 0 : 26, competition_count: limited ? 1 : scenario === "calm" ? 7 : empty ? 0 : 13, priority_match_count: Object.values(counts).reduce((sum, count) => sum + count, 0), priority_group_count: Object.keys(counts).length, primary_reason_counts: counts },
+    today_summary: { match_count: matches.length, competition_count: selectedCompetitionCount, priority_match_count: Object.values(counts).reduce((sum, count) => sum + count, 0), priority_group_count: Object.keys(counts).length, primary_reason_counts: counts },
     global_focus: globalFocus,
     global_model_quality: { status: "AVAILABLE", checkpoint_key: "performance:cohort:all", checkpoint_generated_at: "2026-08-09T12:00:00Z", freshness_max_age_seconds: 86_400, model_log_loss: .512, market_log_loss: .508, model_brier: .178, market_brier: .174, model_calibration_error: .026, sample_count: 34 },
     read_contract: { provider_calls: 0, db_writes: 0, would_write_checkpoint: false, no_call_on_read: true },
@@ -194,7 +219,7 @@ function workspace(scenario: Scenario = "normal"): IntelligenceWorkspace {
     date_strip: strip,
     attention: matches.map((item) => ({ fixture_id: item.fixture_id, kickoff_utc: item.kickoff_utc, intelligence_state: item.intelligence_state, reason_codes: item.intelligence_reason_codes, affected_domains: ["MARKET"], factual_summary: item.intelligence_reason_codes.join("；"), readiness_status: item.readiness.status, readiness_context: { reason_code: item.readiness.reason_code, missing_fields: item.readiness.missing_fields, stale_fields: item.readiness.stale_fields, action: item.readiness.action }, next_eval_at: item.readiness.next_eval_at, risks: item.risks })),
     matches,
-    validation: { probability: { status: "AVAILABLE", sample_count: 34, model_brier: .178, market_brier: .174, model_minus_market_brier: .004, model_log_loss: .512, market_log_loss: .508, model_minus_market_log_loss: .004, model_calibration_error: .026, market_calibration_error: .021, model_reliability_bins: [], market_reliability_bins: [], checkpoint_metadata: { checkpoint_key: "performance:cohort:all" } }, directional: { status: "SAMPLE_BUILDING", source_status: "AVAILABLE", probability_evidence_ready: false, validation_n: 36, decisive_n: 34, correct: 18, wrong: 16, push: 1, void: 1, direction_accuracy: 18 / 34, effective_n: 34, market_direction_benchmark: "NOT_DEFINED", only_record_reason: "PROBABILITY_QUALITY_NOT_READY" }, league_performance: [], tournament_performance: [], forward_validation_records: { status: "AVAILABLE", validation_count: 36, eligible_count: 34, excluded_count: 2, excluded_share: 2 / 36, excluded_by_reason: { MARKET_IDENTITY_NOT_READY: 2 }, pending_count: 0, outcomes: {}, checkpoint_metadata: { checkpoint_key: "performance:cohort:all" }, public_semantics: { scope: "CROSS_DAY_CUMULATIVE", cause: null } }, history_replay: { status: "AVAILABLE_WITH_GAPS", known_at: { has_day_view: true }, decision_summary: { total_cards: matches.length, lock_eligible_count: 0, by_decision_tier: { WATCH: matches.length }, by_data_status: { READY: matches.length } }, reason_summary: [], outcome_tracking_summary: {}, card_hash_checks: [], replay_gaps: ["MISSING_OUTCOMES"], record_kind: matches.length ? "FORWARD_RECORD" : "EMPTY", public_semantics: { scope: "SELECTED_DAY", cause: matches.length ? "NOT_YET_DUE" : null } } },
+    validation: { probability: { status: "AVAILABLE", sample_count: 34, model_brier: .178, market_brier: .174, model_minus_market_brier: .004, model_log_loss: .512, market_log_loss: .508, model_minus_market_log_loss: .004, model_calibration_error: .026, market_calibration_error: .021, model_reliability_bins: [], market_reliability_bins: [], checkpoint_metadata: { checkpoint_key: "performance:cohort:all" } }, directional: { status: "SAMPLE_BUILDING", source_status: "AVAILABLE", probability_evidence_ready: false, validation_n: 36, decisive_n: 34, correct: 18, wrong: 16, push: 1, void: 1, direction_accuracy: 18 / 34, effective_n: 34, market_direction_benchmark: "NOT_DEFINED", only_record_reason: "PROBABILITY_QUALITY_NOT_READY" }, league_performance: [], tournament_performance: [], forward_validation_records: { status: "AVAILABLE", validation_count: 36, eligible_count: 34, excluded_count: 2, excluded_share: 2 / 36, excluded_by_reason: { MARKET_IDENTITY_NOT_READY: 2 }, pending_count: 0, outcomes: {}, checkpoint_metadata: { checkpoint_key: "performance:cohort:all" }, public_semantics: { scope: "CROSS_DAY_CUMULATIVE", cause: null } }, history_replay: { status: matches.length ? "FORWARD_RECORD" : "EMPTY", known_at: { has_day_view: true }, decision_summary: { total_cards: matches.length, lock_eligible_count: 0, by_decision_tier: { WATCH: matches.length }, by_data_status: { READY: matches.length } }, reason_summary: [], outcome_tracking_summary: { tracked_fixture_ids: trackedFixtureIds, matched_fixture_ids: [], missing_outcome_fixture_ids: [], tracked_count: trackedFixtureIds.length, matched_outcome_count: 0, missing_outcome_count: 0 }, card_hash_checks: [], replay_gaps: [], record_kind: matches.length ? "FORWARD_RECORD" : "EMPTY", public_semantics: { scope: "SELECTED_DAY", cause: matches.length ? "NOT_YET_DUE" : null } } },
     external_intelligence: { weather: { status: "NOT_CONNECTED", affects_match_readiness: false }, news: { status: "NOT_CONNECTED", affects_match_readiness: false }, sentiment: { status: "NOT_CONNECTED", affects_match_readiness: false }, advanced_xg: { status: "NOT_CONNECTED", affects_match_readiness: false } },
     freshness: { domains: {} },
     data_operations: { read_model_source: "dashboard_read_model", checkpoint_key: "dashboard:day_view:2026-08-09", degradation: { state: limited || scenario === "deployed" ? "BLOCKED_DAY" : empty ? "EMPTY_DAY" : "HEALTHY" }, counts: { total: matches.length }, system_health: limited || scenario === "deployed" ? "BLOCKED_DAY" : "HEALTHY", provider_budget_status: "PROTECTED" },
@@ -223,8 +248,8 @@ test("future selected day derives neutral scope/cause copy and keeps known raw t
   payload.validation.history_replay.record_kind = "FORWARD_RECORD";
   payload.validation.history_replay.public_semantics = { scope: "SELECTED_DAY", cause: "NOT_YET_DUE" };
   payload.matches[0].kickoff_utc = "2026-08-14T12:00:00Z";
-  payload.matches[0].home_team_label = { display_name: "Rosenborg", state: "CANONICAL_IDENTITY_READY_LABEL_MISSING", canonical_team_id: "w2:331", provider_team_id: "331", public_semantics: { scope: "MATCH", cause: "LABEL_MISSING" }, technical: { raw_provider_name: "Rosenborg" } };
-  payload.matches[0].away_team_label = { display_name: "Viking", state: "CANONICAL_IDENTITY_READY_LABEL_MISSING", canonical_team_id: "w2:332", provider_team_id: "332", public_semantics: { scope: "MATCH", cause: "LABEL_MISSING" }, technical: { raw_provider_name: "Viking" } };
+  payload.matches[0].home_team_label = { display_name: "Rosenborg", state: "CANONICAL_IDENTITY_READY_LABEL_MISSING", canonical_team_id: "w2:team:api_football:331", provider_team_id: "331", public_semantics: { scope: "MATCH", cause: "LABEL_MISSING" }, technical: { raw_provider_name: "Rosenborg" } };
+  payload.matches[0].away_team_label = { display_name: "维京", state: "CHINESE_LABEL_READY", canonical_team_id: "w2:team:api_football:759", provider_team_id: "759", public_semantics: { scope: "MATCH", cause: null }, technical: { raw_provider_name: "Viking" } };
   payload.matches[1].kickoff_utc = "2026-08-14T17:00:00Z";
   const selected = payload.date_strip.find((item) => item.football_day === payload.date)!;
   selected.fixture_count = 2;
@@ -247,6 +272,7 @@ test("future selected day derives neutral scope/cause copy and keeps known raw t
   await expect(page.locator(".v41-today")).toContainText("场所选比赛日比赛");
   await expect(page.locator(".v41-global h1")).toContainText("尚未进入市场采集窗口");
   await expect(page.locator(".v41-shortlist")).toContainText("Rosenborg");
+  await expect(page.locator(".v41-shortlist")).toContainText("维京");
   await expect(page.locator(".v41-shortlist")).toContainText("中文译名待映射");
   await expect(page.locator(".v41-shortlist")).not.toContainText("主队（中文译名待映射）");
   await expect(page.locator(".v41-shortlist time").first()).toHaveText("20:00");
@@ -341,7 +367,7 @@ test("raw system health cannot override public semantics or the useful stale foc
 
 for (const [scenario, cause, copy] of [
   ["limited", "AWAITING_COLLECTION", "所选比赛日比赛可查看，已到采集时点，证据待采集"],
-  ["calm", "NONE", "所选比赛日未发现需优先排查的比赛"],
+  ["calm", "NONE", "9 场比赛未触发优先复核"],
   ["empty", "NONE", "所选比赛日没有纳入观察池的比赛"],
 ] as const) {
   test(`V41 ${scenario} renders facts plus the single public cause`, async ({ page }) => {
@@ -494,12 +520,19 @@ test("V41 date navigation, Today, Refresh and keyboard focus are functional", as
 });
 
 test("SC19 date strip exposes persisted counts and collection-window truth", async ({ page }) => {
-  await installWorkspace(page);
+  const payload = workspace();
+  const selected = payload.date_strip.find((item) => item.football_day === payload.date)!;
+  selected.market_evidence_fixture_count = 1;
+  selected.market_collection_window_status = "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY";
+  selected.public_semantics = { scope: "SELECTED_DAY", cause: "AWAITING_COLLECTION" };
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
 
   const strip = page.getByRole("navigation", { name: "近七日比赛浏览" });
   await expect(strip.getByText("已持久化赛程", { exact: true })).toBeVisible();
   await expect(strip.getByText("1/13 联赛", { exact: false }).first()).toBeVisible();
+  await expect(strip).toContainText("已落盘市场观察 1/3 场");
+  await expect(strip).not.toContainText("市场证据可用");
   await expect(strip.getByText("未进入市场采集窗口", { exact: false }).first()).toBeVisible();
   await expect(strip).toContainText("每次只读取所选日期，不额外查询 Provider");
   await strip.getByRole("button", { name: "查看更晚日期" }).click();
@@ -520,7 +553,6 @@ test("V41 exposes a prominent post-match validation center and hides raw codes i
   let requests = 0;
   const payload = workspace();
   payload.validation.forward_validation_records.outcomes = { settled_sample_count: 20 };
-  payload.validation.history_replay.outcome_tracking_summary = { matched_outcome_count: 20, missing_outcome_count: 3 };
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => { requests += 1; return route.fulfill({ status: 200, json: payload }); });
   await page.goto("/");
   const validation = page.locator("#secondary-validation");
@@ -530,12 +562,100 @@ test("V41 exposes a prominent post-match validation center and hides raw codes i
   await expect(validation).toContainText("验证总记录36");
   await expect(validation).toContainText("已结算20");
   await expect(validation).toContainText("不混入所选比赛日的前向记录与赛果缺口");
-  await expect(validation).toContainText("所选比赛日证据缺口：赛果尚未接入");
+  await expect(validation).toContainText("赛果尚未产生");
+  await expect(validation).not.toContainText("所选比赛日证据缺口");
+  await expect(validation).not.toContainText("赛果尚未接入");
   await expect(validation.getByText("MISSING_OUTCOMES", { exact: true })).not.toBeVisible();
   const initialRequests = requests;
   await validation.locator(".v41-validation-technical summary").click();
-  await expect(validation.getByText("MISSING_OUTCOMES", { exact: true })).toBeVisible();
+  await expect(validation.getByText("FORWARD_RECORD", { exact: true })).toBeVisible();
   expect(requests).toBe(initialRequests);
+});
+
+test("empty selected day never leaks replay gaps into public copy", async ({ page }) => {
+  await installWorkspace(page, "empty");
+  await page.goto("/");
+
+  const validation = page.locator("#secondary-validation");
+  await expect(validation).toContainText("所选比赛日没有比赛记录");
+  await expect(validation).not.toContainText("所选比赛日证据缺口");
+  await expect(validation).not.toContainText("赛果尚未接入");
+  await expect(validation.getByText("MISSING_OUTCOMES", { exact: true })).not.toBeVisible();
+  await expect(page.locator("#history > summary")).toHaveText("证据审计台 / 比赛记录");
+  await expect(page.locator("#history > summary")).not.toContainText("回放");
+});
+
+test("finished selected-day records derive awaiting-outcome copy from public semantics", async ({ page }) => {
+  const payload = workspace();
+  for (const item of payload.matches) {
+    item.status = "FT";
+    item.outcome = { is_finished: true, is_tracked: true, is_recorded: false, public_semantics: { scope: "MATCH", cause: "AWAITING_COLLECTION" } };
+  }
+  payload.validation.history_replay.status = "MISSING_OUTCOMES";
+  payload.validation.history_replay.replay_gaps = ["MISSING_OUTCOMES"];
+  payload.validation.history_replay.outcome_tracking_summary = { tracked_fixture_ids: payload.matches.map((item) => item.fixture_id), matched_fixture_ids: [], missing_outcome_fixture_ids: payload.matches.map((item) => item.fixture_id), tracked_count: payload.matches.length, matched_outcome_count: 0, missing_outcome_count: payload.matches.length };
+  payload.validation.history_replay.record_kind = "REPLAY";
+  payload.validation.history_replay.public_semantics = { scope: "SELECTED_DAY", cause: "AWAITING_COLLECTION" };
+  payload.date_strip[7].finished_fixture_count = payload.matches.length;
+  payload.date_strip[7].upcoming_fixture_count = 0;
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.goto("/");
+
+  const validation = page.locator("#secondary-validation");
+  await expect(validation).toContainText("赛果待采集");
+  await expect(validation).toContainText("比赛已经结束，赛果仍待既有流程采集");
+  await expect(validation).not.toContainText("赛果尚未产生");
+  await expect(validation).not.toContainText("所选比赛日证据缺口");
+  await expect(validation.getByText("MISSING_OUTCOMES", { exact: true }).first()).not.toBeVisible();
+  await validation.locator(".v41-validation-technical summary").click();
+  await expect(validation.getByText("MISSING_OUTCOMES", { exact: true }).first()).toBeVisible();
+});
+
+test("mixed selected-day records derive each outcome label from match semantics", async ({ page }) => {
+  const payload = workspace();
+  const awaiting = payload.matches.find((item) => item.fixture_id === "1571806")!;
+  awaiting.status = "FT";
+  awaiting.outcome = { is_finished: true, is_tracked: true, is_recorded: false, public_semantics: { scope: "MATCH", cause: "AWAITING_COLLECTION" } };
+  const unassessed = payload.matches.find((item) => item.fixture_id === "1571808")!;
+  unassessed.status = "FT";
+  unassessed.outcome = { is_finished: true, is_tracked: false, is_recorded: false, public_semantics: { scope: "MATCH", cause: "UNASSESSED" } };
+  payload.validation.history_replay.status = "MISSING_OUTCOMES";
+  payload.validation.history_replay.replay_gaps = ["MISSING_OUTCOMES"];
+  payload.validation.history_replay.outcome_tracking_summary = { tracked_fixture_ids: [awaiting.fixture_id, "1571807"], matched_fixture_ids: [], missing_outcome_fixture_ids: [awaiting.fixture_id], tracked_count: 2, matched_outcome_count: 0, missing_outcome_count: 1 };
+  payload.validation.history_replay.record_kind = "MIXED_RECORD";
+  payload.validation.history_replay.public_semantics = { scope: "SELECTED_DAY", cause: "AWAITING_COLLECTION" };
+  payload.date_strip[7].finished_fixture_count = 2;
+  payload.date_strip[7].upcoming_fixture_count = 1;
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.goto("/");
+
+  const rows = page.locator("#secondary-validation .v41-validation-matches li");
+  await expect(rows.nth(0)).toContainText("赛果待采集");
+  await expect(rows.nth(1)).toContainText("赛果尚未产生");
+  await expect(rows.nth(2)).toContainText("赛果未纳入跟踪");
+  await expect(page.locator("#secondary-validation")).toContainText("已有 2 场完场比赛，赛果仍待既有流程采集");
+  await expect(page.locator("#history > summary")).toHaveText("证据审计台 / 前向 / 回放记录");
+});
+
+test("recorded match outcomes render only the persisted outcome semantics", async ({ page }) => {
+  const payload = workspace();
+  for (const item of payload.matches) {
+    item.status = "FT";
+    item.outcome = { is_finished: true, is_tracked: true, is_recorded: true, public_semantics: { scope: "MATCH", cause: null } };
+  }
+  payload.validation.history_replay.status = "READY";
+  payload.validation.history_replay.replay_gaps = [];
+  payload.validation.history_replay.outcome_tracking_summary = { tracked_fixture_ids: payload.matches.map((item) => item.fixture_id), matched_fixture_ids: payload.matches.map((item) => item.fixture_id), missing_outcome_fixture_ids: [], tracked_count: payload.matches.length, matched_outcome_count: payload.matches.length, missing_outcome_count: 0 };
+  payload.validation.history_replay.record_kind = "REPLAY";
+  payload.validation.history_replay.public_semantics = { scope: "SELECTED_DAY", cause: null };
+  payload.date_strip[7].finished_fixture_count = payload.matches.length;
+  payload.date_strip[7].upcoming_fixture_count = 0;
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.goto("/");
+
+  const validation = page.locator("#secondary-validation");
+  await expect(validation.locator(".v41-validation-matches").getByText("赛果已记录", { exact: true })).toHaveCount(3);
+  await expect(validation).toContainText("3 场比赛的赛果已由既有流程记录");
 });
 
 test("V41 primary controls meet the bounded minimum target size", async ({ page }) => {

@@ -27,28 +27,65 @@ def test_replay_frontdoor_no_inputs_is_side_effect_free() -> None:
     assert replay["settlement_write"] is False
 
 
+def test_replay_frontdoor_missing_day_view_only_reports_absent_inputs() -> None:
+    replay = build_replay_front_door(
+        football_day="2026-07-05",
+        environment="staging",
+        audit_manifest={"manifest": "present"},
+        audit_tables={"tables": []},
+        outcomes=[],
+    )
+
+    assert replay["replay_status"] == "MISSING_DAYVIEW"
+    assert replay["replay_gaps"] == ["MISSING_DAYVIEW"]
+
+
+def test_replay_frontdoor_partial_inputs_are_not_mislabeled_no_inputs() -> None:
+    replay = build_replay_front_door(
+        football_day="2026-07-05",
+        environment="staging",
+        audit_manifest={},
+        outcomes=[],
+    )
+
+    assert replay["replay_status"] == "MISSING_DAYVIEW"
+    assert replay["replay_gaps"] == [
+        "MISSING_DAYVIEW",
+        "MISSING_AUDIT_MANIFEST",
+        "MISSING_AUDIT_TABLES",
+    ]
+
+
 def test_replay_frontdoor_tracks_analysis_pick_without_outcomes() -> None:
     replay = build_replay_front_door(
         football_day="2026-07-05",
         environment="staging",
         day_view=_day_view(),
+        outcomes=[],
         as_of="2026-07-06T00:00:00Z",
     )
 
-    assert replay["replay_status"] == "MISSING_OUTCOMES"
+    assert replay["replay_status"] == "FORWARD_RECORD"
     assert replay["environment_policy"]["lock_policy"]["name"] == "staging_B"
     assert replay["decision_summary"]["by_decision_tier"]["ANALYSIS_PICK"] == 1
     assert replay["outcome_tracking_summary"]["tracked_count"] == 1
     assert replay["outcome_tracking_summary"]["tracked_fixture_ids"] == ["fixture-1"]
-    assert replay["cards"][0]["outcome_status"] == "OUTCOMES_NOT_PROVIDED"
+    assert replay["cards"][0]["outcome_status"] == "OUTCOME_NOT_PRODUCED"
     assert replay["cards"][0]["decision_tier"] == "ANALYSIS_PICK"
+    assert replay["replay_gaps"] == [
+        "MISSING_AUDIT_MANIFEST",
+        "MISSING_AUDIT_TABLES",
+    ]
 
 
 def test_replay_frontdoor_matches_outcomes_by_fixture_id_and_reports_missing() -> None:
+    cards = [_card("fixture-1"), _card("fixture-2", card_hash=None)]
+    for card in cards:
+        card["status"] = "FT"
     replay = build_replay_front_door(
         football_day="2026-07-05",
         environment="staging",
-        day_view=_day_view(cards=[_card("fixture-1"), _card("fixture-2", card_hash=None)]),
+        day_view=_day_view(cards=cards),
         outcomes=[
             {
                 "fixture_id": "fixture-1",
@@ -61,13 +98,85 @@ def test_replay_frontdoor_matches_outcomes_by_fixture_id_and_reports_missing() -
         as_of="2026-07-06T00:00:00Z",
     )
 
-    assert replay["replay_status"] == "READY"
+    assert replay["replay_status"] == "MISSING_OUTCOMES"
     assert replay["cards"][0]["outcome_status"] == "MATCHED"
     assert replay["cards"][0]["outcome"]["score"] == "2-1"
     assert replay["cards"][1]["outcome_status"] == "MISSING_OUTCOME"
     assert replay["outcome_tracking_summary"]["matched_fixture_ids"] == ["fixture-1"]
     assert replay["outcome_tracking_summary"]["missing_outcome_fixture_ids"] == ["fixture-2"]
     assert replay["card_hash_checks"][1]["hash_status"] == "MISSING"
+
+
+def test_replay_frontdoor_empty_day_has_no_false_evidence_gaps() -> None:
+    replay = build_replay_front_door(
+        football_day="2026-07-05",
+        environment="staging",
+        day_view=_day_view(cards=[]),
+    )
+
+    assert replay["replay_status"] == "EMPTY"
+    assert replay["replay_gaps"] == []
+    assert replay["decision_summary"]["total_cards"] == 0
+
+
+def test_replay_frontdoor_explicit_empty_mapping_is_a_known_empty_day() -> None:
+    replay = build_replay_front_door(
+        football_day="2026-07-05",
+        environment="staging",
+        day_view={},
+    )
+
+    assert replay["replay_status"] == "EMPTY"
+    assert replay["replay_gaps"] == []
+    assert replay["known_at_summary"]["has_day_view"] is True
+
+
+def test_replay_frontdoor_only_marks_finished_tracked_outcome_as_missing() -> None:
+    upcoming = _card("upcoming")
+    finished = _card("finished")
+    finished["status"] = "FT"
+
+    replay = build_replay_front_door(
+        football_day="2026-07-05",
+        environment="staging",
+        day_view=_day_view(cards=[upcoming, finished]),
+        outcomes=[],
+    )
+
+    assert replay["cards"][0]["outcome_status"] == "OUTCOME_NOT_PRODUCED"
+    assert replay["cards"][1]["outcome_status"] == "MISSING_OUTCOME"
+    assert replay["outcome_tracking_summary"]["missing_outcome_fixture_ids"] == ["finished"]
+    assert replay["replay_status"] == "MISSING_OUTCOMES"
+    assert replay["replay_gaps"] == [
+        "MISSING_AUDIT_MANIFEST",
+        "MISSING_AUDIT_TABLES",
+        "MISSING_OUTCOMES",
+    ]
+
+
+def test_replay_frontdoor_distinguishes_absent_outcomes_from_known_empty() -> None:
+    finished = _card("finished")
+    finished["status"] = "FT"
+    day_view = _day_view(cards=[finished])
+
+    absent = build_replay_front_door(
+        football_day="2026-07-05",
+        environment="staging",
+        day_view=day_view,
+    )
+    known_empty = build_replay_front_door(
+        football_day="2026-07-05",
+        environment="staging",
+        day_view=day_view,
+        outcomes=[],
+    )
+
+    assert absent["replay_status"] == "OUTCOMES_NOT_PROVIDED"
+    assert absent["cards"][0]["outcome_status"] == "OUTCOMES_NOT_PROVIDED"
+    assert "MISSING_OUTCOMES" not in absent["replay_gaps"]
+    assert known_empty["replay_status"] == "MISSING_OUTCOMES"
+    assert known_empty["cards"][0]["outcome_status"] == "MISSING_OUTCOME"
+    assert "MISSING_OUTCOMES" in known_empty["replay_gaps"]
 
 
 def test_replay_frontdoor_retains_three_finished_football_day_cards() -> None:
@@ -98,9 +207,9 @@ def test_replay_card_hash_verification_skeleton() -> None:
         == "PRESENT_UNVERIFIED"
     )
     assert (
-        verify_replay_card_hash(
-            {"fixture_id": "a", "card_hash": "h", "expected_card_hash": "h"}
-        )["hash_status"]
+        verify_replay_card_hash({"fixture_id": "a", "card_hash": "h", "expected_card_hash": "h"})[
+            "hash_status"
+        ]
         == "PASS"
     )
     assert (
@@ -152,9 +261,7 @@ def _day_view(
         "environment_policy": {
             "environment": environment,
             "policy_version": "w2.environment_policy.v1",
-            "lock_policy": {
-                "name": "production_B" if environment == "production" else "staging_B"
-            },
+            "lock_policy": {"name": "production_B" if environment == "production" else "staging_B"},
             "disclaimer": "ANALYSIS_PICK 非正式可动作；production 仅 RECOMMEND 可锁"
             if environment == "production"
             else "staging-only；分析参考·非稳赢；非 production 可动作推荐",

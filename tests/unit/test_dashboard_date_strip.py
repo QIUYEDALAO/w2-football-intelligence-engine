@@ -122,6 +122,57 @@ def test_date_strip_reports_partial_coverage_and_persisted_next_date_only() -> N
     assert next_available_date(date(2026, 8, 12), strip) is None
 
 
+def test_partial_persisted_observations_are_not_reported_as_market_evidence_ready() -> None:
+    as_of = datetime(2026, 8, 10, 12, 0, tzinfo=UTC)
+    strip = build_persisted_date_strip(
+        date(2026, 8, 10),
+        fixtures=[
+            _fixture("observed", datetime(2026, 8, 10, 17, 0, tzinfo=UTC)),
+            _fixture("missing", datetime(2026, 8, 10, 19, 0, tzinfo=UTC)),
+        ],
+        odds_plans=[
+            _plan("observed", as_of - timedelta(hours=1)),
+            _plan("missing", as_of - timedelta(hours=1)),
+        ],
+        market_evidence_fixture_ids={"observed"},
+        as_of=as_of,
+    )
+
+    selected = strip[7]
+    assert selected["market_evidence_fixture_count"] == 1
+    assert selected["fixture_count"] == 2
+    assert selected["market_collection_window_status"] == "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY"
+    assert selected["public_semantics"] == {
+        "scope": "SELECTED_DAY",
+        "cause": "AWAITING_COLLECTION",
+    }
+
+
+def test_partial_observations_do_not_make_undue_fixtures_awaiting_collection() -> None:
+    as_of = datetime(2026, 8, 10, 12, 0, tzinfo=UTC)
+    strip = build_persisted_date_strip(
+        date(2026, 8, 10),
+        fixtures=[
+            _fixture("observed", datetime(2026, 8, 12, 17, 0, tzinfo=UTC)),
+            _fixture("not-due", datetime(2026, 8, 12, 19, 0, tzinfo=UTC)),
+        ],
+        odds_plans=[_plan("not-due", as_of + timedelta(hours=6))],
+        market_evidence_fixture_ids={"observed"},
+        as_of=as_of,
+    )
+
+    future = next(entry for entry in strip if entry["football_day"] == "2026-08-12")
+    assert future["market_evidence_fixture_count"] == 1
+    assert (
+        future["market_collection_window_status"]
+        == "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW"
+    )
+    assert future["public_semantics"] == {
+        "scope": "SELECTED_DAY",
+        "cause": "NOT_YET_DUE",
+    }
+
+
 def test_finished_day_remains_finished_with_persisted_market_evidence() -> None:
     strip = build_persisted_date_strip(
         date(2026, 8, 10),
