@@ -1,61 +1,40 @@
 # NEXT ACTION
 
 ```text
-ACTIVE_NEXT_ACTION = OWNER_SHADOW_CANDIDATE_INPUT_CHAIN_REREVIEW
-CURRENT_GATE = OWNER_SHADOW_CANDIDATE_INPUT_CHAIN_REREVIEW
-AUTHORITY = SHADOW_CANDIDATE_INPUT_AUTHORITY_CONVERGENCE.md
-EXACT_MAIN = e9cbaf26701704645da00c2ff4733bda3aa34a79
-DEPLOYED_SOURCE = e3534d9fc50acdbac55615635eb9fb8bcd64406d
-PR = 518_MERGED_DEPLOYED
-SC18_01_THROUGH_SC18_07 = CLOSED_PASS
+ACTIVE_NEXT_ACTION = CODEX_EXECUTE_SC18_00_FT_RETENTION
+CURRENT_GATE = SC18_00_FT_RETENTION_EXECUTION
+AUTHORITY = OWNER_SC18_00_FT_RETENTION_REMEDIATION.md
+EXACT_MAIN_BASE = e9cbaf26701704645da00c2ff4733bda3aa34a79
+EXACT_CONTEXT_BASE = ba7e3346a4319c76b604e14951e0a0d8061410bf
+PR = UPDATE_OR_CREATE_NORMAL_PR
 SHADOW_CANDIDATE = KEEP_ACTIVE_SHADOW_ONLY
 FORMAL = OFF
 LOCK = OFF
 PRODUCTION = OFF
 ROUND_4 = NOT_STARTED
 P6 = NOT_AUTHORIZED
-NEXT_AUTOMATIC_ACTION = NONE
-TERMINAL_GATE = OWNER_SHADOW_CANDIDATE_INPUT_CHAIN_REREVIEW
+TERMINAL_GATE = OWNER_SC18_00_FT_RETENTION_REREVIEW
 ```
 
-## Terminal state
+## Execute only SC18-00
 
-SC18-01 through SC18-07 are closed on exact deployed source
-`e3534d9fc50acdbac55615635eb9fb8bcd64406d` and merge commit
-`e9cbaf26701704645da00c2ff4733bda3aa34a79`.
+1. Reproduce the FT disappearance using persisted/read-only evidence for
+   fixtures `1493049`, `1575453`, and `1494239`.
+2. Make the smallest root-cause fix so the discovery date follows the active
+   Asia/Shanghai 12:00-to-12:00 football day and an in-window card is not
+   removed merely because kickoff passed or status became terminal.
+3. Reuse the existing persisted result materialization, forward ledger,
+   replay front door, Provider endpoint, Scheduler cadence, quota gates, and
+   exact 13-competition whitelist.
+4. Add regression coverage for pre-kickoff to FT retention, active-football-day
+   discovery, replay-card retention, 12:00 boundary, and no-call-on-read.
+5. Run focused regression, full CI, `RELEASE_REQUIRED`, repository hygiene,
+   merge, local OCI relay redeploy, and live read-only acceptance.
+6. Stop at `OWNER_SC18_00_FT_RETENTION_REREVIEW`.
 
-- AH and OU now carry independent observation, trend, comparison, model,
-  exact-quote and candidate-eligibility states.
-- Fixture `1493049` is publicly `PARTIAL`: AH bookmaker depth `1`, OU depth
-  `7`, current market evidence visible, executable candidate input not ready,
-  and zero shadow candidate.
-- Radar medians remain non-executable; RecommendationDecisionV4 exact quote
-  identity was not weakened.
-- Public team labels now use backend canonical identity plus reviewed Chinese
-  labels. Missing authority renders an auditable Chinese gap state; raw
-  Provider names remain technical-only.
-- The exact 13-competition Stage14 matrix is complete as an audit. No league
-  was activated or bypassed.
-- Full CI, `RELEASE_REQUIRED`, main promotion, local OCI relay deployment,
-  health, readiness, release sync and live read-only acceptance all passed.
-
-## Owner review input
-
-Read in this order:
-
-```text
-1. CODEX_EXECUTION_RECEIPT.md
-2. CURRENT_STATE.yaml
-3. SHADOW_CANDIDATE_INPUT_AUTHORITY_CONVERGENCE.md
-4. main:docs/review_packages/SC18_INPUT_AUTHORITY_CONVERGENCE/
-5. PR #518 and exact-head Release Candidate run 31422736140
-6. ROUND4_READINESS_DECISION_PACKET.md (identity refresh only)
-```
-
-The Owner may approve, reject, or request bounded remediation. This terminal
-context does not authorize P3, P6, Round4, Formal, Lock, Production, real money,
-a Provider call, Scheduler/cadence change, whitelist change, model/threshold
-change, or a new data-source activation.
+No manual Provider probe is authorized. Do not add a Provider, change cadence,
+change whitelist/model/thresholds, start Round 4/P6, or enable Formal, Lock,
+Production, or real money.
 
 ## Frozen stop lines
 
