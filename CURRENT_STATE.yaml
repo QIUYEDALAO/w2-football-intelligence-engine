@@ -1,5 +1,5 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-12T01:46:16+08:00"
+updated_at: "2026-08-12T03:31:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
@@ -14,21 +14,21 @@ current_gate: OWNER_SC20_SINGLE_AUTHORITY_POSTDEPLOY_REREVIEW
 terminal_gate: OWNER_SC20_SINGLE_AUTHORITY_POSTDEPLOY_REREVIEW
 
 release_identity:
-  current_main_sha: 8d92070c66cc0a318b0943b06da17721874ac8ec
-  deployed_source_sha: 8839ef75fbeb2ba46e3783a280884c1234cf517b
-  source_tree_sha: 37d7e6f3a31e5bc472a5c1af5eb4ae42216b03c4
-  latest_pr: 527
-  latest_pr_head_sha: 8839ef75fbeb2ba46e3783a280884c1234cf517b
-  full_ci_run: 31516101706
-  promotion_run: 31517315678
-  release_candidate_run: 31516101706
+  current_main_sha: 95a177c78f9c5b7017ad373da20f8de71d372961
+  deployed_source_sha: a812f2e603ea2a6e9b200e2a4b6f67f8b0e9c5d2
+  source_tree_sha: ab2e087ee09cf6fe235744897968ba0f5bfa5ce3
+  latest_pr: 529
+  latest_pr_head_sha: a812f2e603ea2a6e9b200e2a4b6f67f8b0e9c5d2
+  full_ci_run: 31526734736
+  promotion_run: 31527399270
+  release_candidate_run: 31526734736
   main_release_run: NOT_RUN_PROMOTED_EXACT_HEAD_ARTIFACT
   release_required: PASS_EXACT_HEAD
   promotion_required: PASS
   local_oci_relay: PASS
   deployed_health_ready_release_sync: PASS
-  python_image_digest: sha256:664631268d204753a664b1afd77db68027b3ad66ff23abecc570529c9c5eb20b
-  web_image_digest: sha256:91b82b31746a2d803e5d7708d8d9d77148c9baa7cd305d2224c8f2347807b7c0
+  python_image_digest: sha256:4c542262f037d150130e3b5697ddf231ce0c609aef5bf5cd1e2b0f8dd3bf7762
+  web_image_digest: sha256:ae0a028b20e9414c2b933329b597cbe3eb9a22a2e137f96db940ec46431f33c2
 
 completed_and_retained:
   dashboard_v41_and_truth_remediation:
@@ -60,6 +60,9 @@ completed_and_retained:
     status: COMPLETE_MERGED_DEPLOYED_RETAIN
   sc20_visual_acceptance_remediation:
     pr: 527
+    status: COMPLETE_MERGED_DEPLOYED_OWNER_REREVIEW
+  sc20_full_feature_acceptance_remediation:
+    prs: [528, 529]
     status: COMPLETE_MERGED_DEPLOYED_OWNER_REREVIEW
   vps_local_oci_relay: PASS_RETAIN
   post_r3_track_a: TRACK_A_CLOSED_PASS
@@ -215,8 +218,10 @@ sc20_execution:
     gzip: PASS
     visual_acceptance_matrix: PASS
     mobile_date_strip_containment: PASS
+    mobile_selected_date_after_workspace_replacement: PASS
+    past_due_fixture_status_semantics: PASS
     technical_gap_code_spacing: PASS
-    warm_switch_seconds: 38
+    warm_switch_seconds: 39
 
 shadow_candidate_validation:
   runtime_status: DEPLOYED_ACTIVE_SHADOW_ONLY

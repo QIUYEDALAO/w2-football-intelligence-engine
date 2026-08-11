@@ -4,15 +4,16 @@
 ACTIVE_NEXT_ACTION = OWNER_SC20_SINGLE_AUTHORITY_POSTDEPLOY_REREVIEW
 CURRENT_GATE = OWNER_SC20_SINGLE_AUTHORITY_POSTDEPLOY_REREVIEW
 AUTHORITY = SC20_PUBLIC_SEMANTICS_SINGLE_AUTHORITY_CUTOVER.md
-EXACT_MAIN = 8d92070c66cc0a318b0943b06da17721874ac8ec
-DEPLOYED_SOURCE = 8839ef75fbeb2ba46e3783a280884c1234cf517b
-PR = 527_MERGED_DEPLOYED
-RELEASE_REQUIRED = PASS_RUN_31516101706
-PROMOTION_REQUIRED = PASS_RUN_31517315678
+EXACT_MAIN = 95a177c78f9c5b7017ad373da20f8de71d372961
+DEPLOYED_SOURCE = a812f2e603ea2a6e9b200e2a4b6f67f8b0e9c5d2
+PR = 529_MERGED_DEPLOYED
+RELEASE_REQUIRED = PASS_RUN_31526734736
+PROMOTION_REQUIRED = PASS_RUN_31527399270
 SC19_SCOPE_CAUSE_FOUNDATION = RETAIN
 SC20_01_THROUGH_SC20_07 = CLOSED_PASS
 SC20_POSTDEPLOY_CONTRACT_REMEDIATION = CLOSED_PASS_PR_526
 SC20_VISUAL_ACCEPTANCE_REMEDIATION = CLOSED_PASS_PR_527
+SC20_FULL_FEATURE_ACCEPTANCE_REMEDIATION = CLOSED_PASS_PRS_528_529
 SINGLE_PUBLIC_PRESENTATION_AUTHORITY = ACTIVE
 OLD_PUBLIC_STATUS_CHAIN = PHYSICALLY_DELETED
 FRONTEND_TEAM_TRANSLATION_AUTHORITY = PHYSICALLY_DELETED
@@ -29,14 +30,14 @@ TERMINAL_GATE = OWNER_SC20_SINGLE_AUTHORITY_POSTDEPLOY_REREVIEW
 
 ## Completed result
 
-PR #525 completed the one-PR physical cutover. PR #526 closed the bounded postdeploy read/replay contract gaps, and PR #527 closed the screenshot-found date-strip containment and technical-code spacing defects. The only current public business presentation authority remains `WorkspacePublicSemantics(scope, cause)` through one presentation converter.
+PR #525 completed the one-PR physical cutover. PR #526 closed the bounded postdeploy read/replay contract gaps, PR #527 closed the first screenshot-found layout defects, PR #528 closed the full-feature audit's outcome-timing and responsive gaps, and PR #529 closed the live delayed-response mobile date-selection regression. The only current public business presentation authority remains `WorkspacePublicSemantics(scope, cause)` through one presentation converter.
 
 - Retired day-mode/focus/public-system-health/date-strip-display-state chains were removed from current public paths.
 - Frontend `TEAM_TRANSLATIONS` / `translateTeam()` were removed; canonical identity plus approved public label config is the only Chinese-label success path.
 - The anti-resurrection architecture gate is active in CI.
 - Exact-head Release Candidate CI, main promotion, local OCI relay, warm switch and live release-sync checks passed.
 - Live workspace JSON contains zero retired public fields and preserves `provider_calls=0`, `db_writes=0`, `no_call_on_read=true`.
-- The seven-date persisted strip, empty/future/match-focus/postmatch/system-contract states, 390px mobile containment and replay technical details were captured and visually inspected; PR #527 refreshed the two strict D16 visual targets without relaxing their threshold.
+- The seven-date persisted strip, empty/future/match-focus/postmatch/system-contract states, 390px mobile containment and replay technical details were captured and visually inspected; past-due fixtures no longer claim that outcomes are not yet due, and the selected mobile date remains visible after persisted strip replacement.
 
 ## Owner rereview boundary
 
@@ -68,8 +69,8 @@ Do not globally delete `COLLECTION_INCIDENT`; it remains a legitimate technical 
 ## Live acceptance
 
 ```text
-EXACT_MAIN_SHA = 8d92070c66cc0a318b0943b06da17721874ac8ec
-DEPLOYED_API_WEB_SOURCE_SHA = 8839ef75fbeb2ba46e3783a280884c1234cf517b
+EXACT_MAIN_SHA = 95a177c78f9c5b7017ad373da20f8de71d372961
+DEPLOYED_API_WEB_SOURCE_SHA = a812f2e603ea2a6e9b200e2a4b6f67f8b0e9c5d2
 WORKSPACE_RETIRED_PUBLIC_FIELD_COUNT = 0
 SELECTED_FUTURE_DAY = SELECTED_DAY_PLUS_NOT_YET_DUE
 APPROVED_CHINESE_LABEL = CANONICAL_REVIEWED_AUTHORITY
@@ -83,8 +84,10 @@ DATE_STRIP_PARTIAL_TRUTH = PASS
 GZIP = PASS
 VISUAL_ACCEPTANCE_MATRIX = PASS
 MOBILE_DATE_STRIP_CONTAINMENT = PASS
+MOBILE_SELECTED_DATE_AFTER_WORKSPACE_REPLACEMENT = PASS
+PAST_DUE_FIXTURE_STATUS_SEMANTICS = PASS
 TECHNICAL_GAP_CODE_SPACING = PASS
-WARM_SWITCH_SECONDS = 38
+WARM_SWITCH_SECONDS = 39
 ```
 
 ## Frozen stop lines
