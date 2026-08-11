@@ -4,6 +4,13 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
+from w2.dashboard.results import (
+    normalize_match_status,
+    outcome_public_cause,
+    selected_day_outcome_cause,
+    selected_day_record_kind,
+)
+
 SCHEMA_VERSION = "w2.dashboard-intelligence-workspace.v1"
 PRODUCT = "FOOTBALL_MARKET_INTELLIGENCE_PLUS_MODEL_DIAGNOSTICS"
 PUBLIC_AUTHORITY = "NEW_INTELLIGENCE_WORKSPACE_ONLY"
@@ -40,7 +47,6 @@ ATTENTION_REASON_ORDER = {
 }
 MODEL_QUALITY_MAX_AGE_SECONDS = 86_400
 MARKET_PRICE_ATTENTION_THRESHOLD_RATIO = 0.02
-FINISHED_FIXTURE_STATUSES = {"FT", "AET", "PEN", "FINISHED"}
 RISK_REASON_LABELS = {
     "DATA_FIELD_STALE": "数据字段已超过新鲜度边界",
     "DATA_IDENTITY_NOT_READY": "比赛或盘口身份尚未完成",
@@ -76,6 +82,7 @@ def build_dashboard_intelligence_workspace(
             match,
             replay_cards.get(match["fixture_id"], {}),
             outcome_summary,
+            generated_at=day_view.get("generated_at"),
         )
     freshness = _mapping(day_view.get("freshness"))
     performance = _mapping(day_view.get("performance"))
@@ -341,11 +348,13 @@ def _match_outcome(
     match: Mapping[str, Any],
     replay_card: Mapping[str, Any],
     outcome_summary: Mapping[str, Any],
+    *,
+    generated_at: Any,
 ) -> dict[str, Any]:
     fixture_id = _text(match.get("fixture_id"))
     tracked_ids = set(_string_list(outcome_summary.get("tracked_fixture_ids")))
     recorded_ids = set(_string_list(outcome_summary.get("matched_fixture_ids")))
-    is_finished = _text(match.get("status")).upper() in FINISHED_FIXTURE_STATUSES
+    is_finished = normalize_match_status(match.get("status")) == "FINISHED"
     is_tracked = (
         card.get("outcome_tracked") is True
         or replay_card.get("outcome_tracked") is True
@@ -355,14 +364,12 @@ def _match_outcome(
         _text(replay_card.get("outcome_status")) == "MATCHED"
         or fixture_id in recorded_ids
     )
-    cause = (
-        "NOT_YET_DUE"
-        if not is_finished
-        else None
-        if is_recorded
-        else "AWAITING_COLLECTION"
-        if is_tracked
-        else "UNASSESSED"
+    cause = outcome_public_cause(
+        status=match.get("status"),
+        kickoff_utc=match.get("kickoff_utc"),
+        as_of=generated_at,
+        is_tracked=is_tracked,
+        is_recorded=is_recorded,
     )
     return {
         "is_finished": is_finished,
@@ -683,15 +690,15 @@ def _validation(
     selected_day_record = _selected_day_record_semantics(matches)
     replay_status = _text(replay.get("replay_status"), "NO_REPLAY_INPUTS")
     replay_gaps = _string_list(replay.get("replay_gaps"))
+    outcome_summary = _mapping(replay.get("outcome_tracking_summary"))
     record_kind = selected_day_record["record_kind"]
-    record_cause = selected_day_record["public_semantics"]["cause"]
     if record_kind == "EMPTY":
         replay_status = "EMPTY"
         replay_gaps = []
     elif record_kind == "FORWARD_RECORD":
         replay_status = "FORWARD_RECORD"
         replay_gaps = [gap for gap in replay_gaps if gap != "MISSING_OUTCOMES"]
-    elif record_cause == "AWAITING_COLLECTION":
+    elif _int(outcome_summary.get("missing_outcome_count")) > 0:
         replay_status = "MISSING_OUTCOMES"
         if "MISSING_OUTCOMES" not in replay_gaps:
             replay_gaps.append("MISSING_OUTCOMES")
@@ -799,17 +806,9 @@ def _selected_day_record_semantics(
         _mapping(_mapping(match.get("outcome")).get("public_semantics")).get("cause")
         for match in matches
     ]
-    cause = (
-        "AWAITING_COLLECTION"
-        if any(finished) and "AWAITING_COLLECTION" in outcome_causes
-        else "NOT_YET_DUE"
-        if not any(finished)
-        else None
-    )
+    cause = selected_day_outcome_cause(finished, outcome_causes)
     return {
-        "record_kind": (
-            "REPLAY" if all(finished) else "FORWARD_RECORD" if not any(finished) else "MIXED_RECORD"
-        ),
+        "record_kind": selected_day_record_kind(finished),
         "public_semantics": {"scope": "SELECTED_DAY", "cause": cause},
     }
 

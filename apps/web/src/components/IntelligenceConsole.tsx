@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { footballDayShanghai, translateCompetition, translateReason } from "../lib/formatters";
 import { PUBLIC_ENUM_LABELS, PUBLIC_REASON_LABELS } from "../lib/labels";
 import { publicPresentation } from "../lib/publicPresentation";
@@ -231,14 +231,16 @@ function dateStripLabel(entry: WorkspaceDateStripEntry): string {
 
 function RecentDateNav({ date, onDateChange, workspace }: Pick<Props, "date" | "onDateChange" | "workspace">) {
   const [sliceStart, setSliceStart] = useState(4);
+  const selectedDateRef = useRef<HTMLButtonElement>(null);
   useEffect(() => setSliceStart(4), [date]);
+  useEffect(() => selectedDateRef.current?.scrollIntoView({ block: "nearest", inline: "center" }), [date, sliceStart]);
   const dates = workspace.date_strip.slice(sliceStart, sliceStart + 7);
   return (
     <nav className="v41-recent-days" aria-label="近七日比赛浏览">
       <span>已持久化赛程</span>
       <button aria-label="查看更早日期" className="v41-window-control" disabled={sliceStart === 0} onClick={() => setSliceStart(Math.max(0, sliceStart - 4))} type="button">‹</button>
       {dates.map((item) => (
-        <button aria-current={item.football_day === date ? "date" : undefined} key={item.football_day} onClick={() => onDateChange(item.football_day)} type="button">
+        <button aria-current={item.football_day === date ? "date" : undefined} key={item.football_day} onClick={() => onDateChange(item.football_day)} ref={item.football_day === date ? selectedDateRef : undefined} type="button">
           <small>{item.football_day}</small>
           <b>{item.football_day === footballDayShanghai() ? "今天" : item.football_day === date ? "当前" : `${item.fixture_count} 场`}</b>
           <em>{dateStripLabel(item)}{item.competition_count ? ` · ${item.competition_count}/13 联赛` : ""}</em>
@@ -528,7 +530,7 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
   const recordsPresentation = publicPresentation(records.public_semantics, { subject: "累计验证" });
   const replayPresentation = publicPresentation(replay.public_semantics, { subject: "赛果", fixtureCount: workspace.matches.length, finishedCount, outcomeRecorded: workspace.matches.length > 0 && workspace.matches.every((match) => match.outcome.is_recorded) });
   const selectedRecordsLabel = historyRecordLabel(replay.record_kind);
-  const outcomePresentation = (match: WorkspaceMatch) => publicPresentation(match.outcome.public_semantics, { subject: "赛果", outcomeRecorded: match.outcome.is_recorded });
+  const outcomePresentation = (match: WorkspaceMatch) => publicPresentation(match.outcome.public_semantics, { subject: "赛果", fixtureCount: 1, finishedCount: match.outcome.is_finished ? 1 : 0, outcomeRecorded: match.outcome.is_recorded });
   return (
     <section className="v41-validation-center" id="secondary-validation" aria-labelledby="validation-title">
       <header>

@@ -5,6 +5,13 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from w2.dashboard.results import (
+    normalize_match_status,
+    outcome_public_cause,
+    selected_day_outcome_cause,
+    selected_day_record_kind,
+)
+
 IntelligenceState = Literal[
     "COLLECTION_INCIDENT",
     "DATA_INCOMPLETE",
@@ -15,7 +22,6 @@ IntelligenceState = Literal[
     "MARKET_STABLE",
 ]
 DashboardPriorityReason = Literal["MARKET_MOVEMENT", "MODEL_DIAGNOSTIC", "STALE_MARKET_MEMORY"]
-WORKSPACE_FINISHED_STATUSES = {"FT", "AET", "PEN", "FINISHED"}
 
 
 class ErrorPayload(BaseModel):
@@ -644,20 +650,24 @@ class WorkspaceMatchOutcome(BaseModel):
     def semantics_follow_outcome_facts(self) -> WorkspaceMatchOutcome:
         if self.is_recorded and not self.is_finished:
             raise ValueError("an unfinished match cannot have a recorded outcome")
-        expected_cause = (
-            "NOT_YET_DUE"
-            if not self.is_finished
-            else None
-            if self.is_recorded
-            else "AWAITING_COLLECTION"
-            if self.is_tracked
-            else "UNASSESSED"
-        )
-        if (
-            self.public_semantics.scope != "MATCH"
-            or self.public_semantics.cause != expected_cause
-        ):
+        if self.public_semantics.scope != "MATCH":
             raise ValueError("match outcome semantics must derive from outcome facts")
+        if self.is_finished:
+            expected_cause = outcome_public_cause(
+                status="FINISHED",
+                kickoff_utc=None,
+                as_of=None,
+                is_tracked=self.is_tracked,
+                is_recorded=self.is_recorded,
+            )
+            if self.public_semantics.cause != expected_cause:
+                raise ValueError("match outcome semantics must derive from outcome facts")
+        elif self.public_semantics.cause not in {
+            "NOT_YET_DUE",
+            "AWAITING_COLLECTION",
+            "UNASSESSED",
+        }:
+            raise ValueError("unfinished outcome semantics require a temporal cause")
         return self
 
 
@@ -693,7 +703,7 @@ class WorkspaceMatch(BaseModel):
 
     @model_validator(mode="after")
     def market_readiness_is_consistent(self) -> WorkspaceMatch:
-        expected_finished = str(self.status or "").upper() in WORKSPACE_FINISHED_STATUSES
+        expected_finished = normalize_match_status(self.status) == "FINISHED"
         if self.outcome.is_finished != expected_finished:
             raise ValueError("match outcome finished fact must derive from fixture status")
         for name, market in self.market_radar.markets.items():
@@ -963,12 +973,16 @@ class WorkspaceHistoryReplay(BaseModel):
                 raise ValueError("empty selected-day records cannot claim replay gaps")
             return self
         if self.record_kind == "FORWARD_RECORD":
-            if self.public_semantics.cause != "NOT_YET_DUE":
-                raise ValueError("future forward records must be NOT_YET_DUE")
+            if self.public_semantics.cause not in {
+                "NOT_YET_DUE",
+                "AWAITING_COLLECTION",
+                "UNASSESSED",
+            }:
+                raise ValueError("forward records require a temporal cause")
             if self.status != "FORWARD_RECORD":
-                raise ValueError("future forward records must use FORWARD_RECORD status")
+                raise ValueError("forward records must use FORWARD_RECORD status")
             if has_missing_status or has_missing_gap:
-                raise ValueError("future forward records cannot claim missing outcomes")
+                raise ValueError("forward records cannot claim missing outcomes")
             return self
         if self.public_semantics.cause == "NOT_YET_DUE":
             raise ValueError("replay records cannot be NOT_YET_DUE")
@@ -978,7 +992,7 @@ class WorkspaceHistoryReplay(BaseModel):
             if self.public_semantics.cause != "AWAITING_COLLECTION":
                 raise ValueError("missing replay outcomes must await collection")
         else:
-            if self.public_semantics.cause is not None:
+            if self.record_kind == "REPLAY" and self.public_semantics.cause is not None:
                 raise ValueError("complete replay records cannot claim a gap cause")
             if self.record_kind == "REPLAY" and self.status != "READY":
                 raise ValueError("complete replay records must use READY status")
@@ -1161,16 +1175,18 @@ class DashboardIntelligenceWorkspaceResponse(BaseModel):
             or selected_day.competition_count != self.today_summary.competition_count
         ):
             raise ValueError("selected date strip counts must match selected-day summary")
+        for match in self.matches:
+            expected_cause = outcome_public_cause(
+                status=match.status,
+                kickoff_utc=match.kickoff_utc,
+                as_of=self.generated_at,
+                is_tracked=match.outcome.is_tracked,
+                is_recorded=match.outcome.is_recorded,
+            )
+            if match.outcome.public_semantics.cause != expected_cause:
+                raise ValueError("match outcome cause must derive from status and time")
         finished = [match.outcome.is_finished for match in self.matches]
-        expected_record_kind = (
-            "EMPTY"
-            if not finished
-            else "REPLAY"
-            if all(finished)
-            else "FORWARD_RECORD"
-            if not any(finished)
-            else "MIXED_RECORD"
-        )
+        expected_record_kind = selected_day_record_kind(finished)
         if self.validation.history_replay.record_kind != expected_record_kind:
             raise ValueError("history/replay record kind must derive from match outcomes")
         outcome_summary = self.validation.history_replay.outcome_tracking_summary
@@ -1193,17 +1209,11 @@ class DashboardIntelligenceWorkspaceResponse(BaseModel):
             raise ValueError("matched replay fixtures must match per-match outcome facts")
         if set(outcome_summary.missing_outcome_fixture_ids) != missing_ids:
             raise ValueError("missing replay fixtures must match per-match outcome facts")
-        outcome_causes = {
+        outcome_causes = [
             match.outcome.public_semantics.cause for match in self.matches
-        }
-        expected_record_cause = (
-            None
-            if expected_record_kind == "EMPTY"
-            else "NOT_YET_DUE"
-            if expected_record_kind == "FORWARD_RECORD"
-            else "AWAITING_COLLECTION"
-            if "AWAITING_COLLECTION" in outcome_causes
-            else None
+        ]
+        expected_record_cause = selected_day_outcome_cause(
+            finished, outcome_causes
         )
         if (
             self.validation.history_replay.public_semantics.cause

@@ -80,7 +80,6 @@ from w2.tracking.forward_ledger_performance import MIN_DECISIVE_SAMPLES_FOR_RATE
 from w2.tracking.performance_scoring import ece
 
 MAX_PUBLIC_FIXTURES = 512
-FINISHED_STATUSES = {"FT", "AET", "PEN", "FINISHED"}
 
 
 class SystemDegradedError(RuntimeError):
@@ -1111,7 +1110,7 @@ class ReadModelRepository:
                 [
                     item
                     for item in fixtures
-                    if str(item.get("status") or "").upper() in FINISHED_STATUSES
+                    if normalize_match_status(item.get("status")) == "FINISHED"
                 ]
             ),
         }
@@ -1127,7 +1126,7 @@ class ReadModelRepository:
                 [
                     item
                     for item in fixtures
-                    if str(item.get("status") or "").upper() in FINISHED_STATUSES
+                    if normalize_match_status(item.get("status")) == "FINISHED"
                 ]
             ),
         }

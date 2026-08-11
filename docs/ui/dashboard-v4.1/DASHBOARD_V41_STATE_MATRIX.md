@@ -38,3 +38,9 @@ Each match has one `priority_reason_primary` and zero or more `priority_reason_s
 ## Time authority
 
 `generated_at`, `kickoff_utc`, `latest_snapshot_at`, `freshness_max_age_seconds`, and `next_eval_at` are raw source fields. Relative age, countdown and next-evaluation labels are derived by the client. A timestamp not later than `generated_at` is labelled expired, never "next".
+
+Outcome timing uses the existing result-settlement boundary of kickoff plus
+three hours. Before that boundary, an unfinished match is `NOT_YET_DUE`; after
+it, an unchanged unfinished status is `AWAITING_COLLECTION`, never the false
+claim that the result is still not due. Missing time or an unknown, postponed,
+or cancelled status is `UNASSESSED`.
