@@ -29,6 +29,7 @@ from w2.api.schemas import (
 )
 from w2.competitions.registry import CompetitionRegistry, CompetitionRegistryError
 from w2.config import get_settings
+from w2.dashboard.date_strip import build_persisted_date_strip, next_available_date
 from w2.dashboard.date_window import (
     FOOTBALL_DAY_CUTOFF_HOUR,
     FOOTBALL_DAY_TZ,
@@ -45,6 +46,7 @@ from w2.domain.recommendation_decision_v4 import (
     build_recommendation_decision_v4,
     validate_decision_v4_identity,
 )
+from w2.identity.public_team_labels import reviewed_public_team_labels
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.infrastructure.persistence.factor_model_models import (
@@ -137,6 +139,7 @@ def _public_team_label_from_identity(
     side: Literal["home", "away"],
     canonical: Mapping[str, CanonicalTeamModel],
     reviewed: set[tuple[str, str, str, str, str]],
+    reviewed_labels: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     provider_team_id = str(getattr(fixture, f"{side}_provider_team_id"))
     w2_team_id = getattr(fixture, f"{side}_w2_team_id")
@@ -168,6 +171,7 @@ def _public_team_label_from_identity(
             for name in ("public_zh_name", "display_name_zh", "zh_name", "chinese_name")
             if isinstance(row.payload, dict)
         ]
+        candidates.append((reviewed_labels or {}).get(w2_team_id))
         candidates.append(row.display_name)
         chinese_name = next(
             (
@@ -1136,6 +1140,7 @@ class ReadModelRepository:
             for row in crosswalks
             if str(row.review_status or "").upper() in {"APPROVED", "REVIEWED"}
         }
+        reviewed_labels = reviewed_public_team_labels()
         output: dict[str, dict[str, dict[str, Any]]] = {}
         for fixture in fixtures:
             labels = {
@@ -1144,17 +1149,86 @@ class ReadModelRepository:
                     side="home",
                     canonical=canonical,
                     reviewed=reviewed,
+                    reviewed_labels=reviewed_labels,
                 ),
                 "away": _public_team_label_from_identity(
                     fixture=fixture,
                     side="away",
                     canonical=canonical,
                     reviewed=reviewed,
+                    reviewed_labels=reviewed_labels,
                 ),
             }
             output[str(fixture.fixture_id)] = labels
             output[str(fixture.provider_fixture_id)] = labels
         return output
+
+    def persisted_date_strip(
+        self,
+        selected_date: date,
+        *,
+        now: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        start, _ = football_day_window(selected_date - timedelta(days=7))
+        _, end = football_day_window(selected_date + timedelta(days=7))
+        with Session(create_engine()) as session:
+            fixtures = list(
+                session.scalars(
+                    select(MatchdayFixtureIdentityModel).where(
+                        MatchdayFixtureIdentityModel.kickoff_utc >= start,
+                        MatchdayFixtureIdentityModel.kickoff_utc < end,
+                    )
+                )
+            )
+            fixture_ids = {row.fixture_id for row in fixtures}
+            plans = (
+                list(
+                    session.scalars(
+                        select(MatchdayCheckpointPlanModel).where(
+                            MatchdayCheckpointPlanModel.fixture_id.in_(fixture_ids),
+                            MatchdayCheckpointPlanModel.test_only.is_(False),
+                        )
+                    )
+                )
+                if fixture_ids
+                else []
+            )
+            evidence_ids = (
+                set(
+                    session.scalars(
+                        select(MatchdayMarketObservationModel.fixture_id)
+                        .where(
+                            MatchdayMarketObservationModel.fixture_id.in_(fixture_ids),
+                            MatchdayMarketObservationModel.live.is_(False),
+                        )
+                        .distinct()
+                    )
+                )
+                if fixture_ids
+                else set()
+            )
+        return build_persisted_date_strip(
+            selected_date,
+            fixtures=(
+                {
+                    "fixture_id": row.fixture_id,
+                    "competition_id": row.competition_id,
+                    "kickoff_utc": row.kickoff_utc,
+                    "fixture_status": row.fixture_status,
+                }
+                for row in fixtures
+            ),
+            odds_plans=(
+                {
+                    "fixture_id": row.fixture_id,
+                    "scheduled_at": row.scheduled_at,
+                    "endpoints": row.endpoints,
+                }
+                for row in plans
+            ),
+            market_evidence_fixture_ids=evidence_ids,
+            as_of=now or datetime.now(UTC),
+        )
 
 class ReadModelService:
     def __init__(self, repository: ReadModelRepository | None = None) -> None:
@@ -1407,6 +1481,26 @@ class ReadModelService:
         upcoming = [card for card in selected if card["status"] != "FINISHED"]
         finished = [card for card in selected if card["status"] == "FINISHED"]
         generated_at = datetime.now(UTC)
+        date_strip_reader = getattr(self.repository, "persisted_date_strip", None)
+        date_strip = (
+            date_strip_reader(requested_date, now=generated_at)
+            if callable(date_strip_reader)
+            else build_persisted_date_strip(
+                requested_date,
+                fixtures=(
+                    {
+                        "fixture_id": card.get("fixture_id"),
+                        "competition_id": card.get("competition_id"),
+                        "kickoff_utc": _parse_datetime(card.get("kickoff_utc")),
+                        "fixture_status": card.get("status"),
+                    }
+                    for card in cards
+                ),
+                odds_plans=(),
+                market_evidence_fixture_ids=set(),
+                as_of=generated_at,
+            )
+        )
         start, end = football_day_window(requested_date)
         performance = dashboard_performance(selected)
         performance["round3_read_path"] = {
@@ -1439,7 +1533,8 @@ class ReadModelService:
             "selected_date": requested_date.isoformat(),
             "selected_football_day": requested_date.isoformat(),
             "selected_date_has_data": bool(selected),
-            "next_available_date": self._next_available_date(requested_date, cards),
+            "next_available_date": next_available_date(requested_date, date_strip),
+            "date_strip": date_strip,
             "football_day_timezone": str(FOOTBALL_DAY_TZ),
             "football_day_cutoff_hour": FOOTBALL_DAY_CUTOFF_HOUR,
             "football_day_start_utc": start.isoformat().replace("+00:00", "Z"),

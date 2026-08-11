@@ -1,0 +1,27 @@
+{
+  "schema_version": "w2.sc19-public-label-coverage.v1",
+  "captured_at": "2026-08-11T04:22:51Z",
+  "canonical_team_count": 68,
+  "existing_product_labels_promoted_to_reviewed_backend_authority": 53,
+  "reviewed_crosswalk_canonical_team_count": 16,
+  "reviewed_crosswalk_with_public_label_count": 14,
+  "reviewed_crosswalk_label_gap_count": 2,
+  "competitions": [
+    {"competition_id":"allsvenskan","reviewed_canonical_identity_count":16,"CHINESE_LABEL_READY":14,"CANONICAL_IDENTITY_READY_LABEL_MISSING":2,"IDENTITY_UNRESOLVED":0,"AMBIGUOUS":0},
+    {"competition_id":"argentina_primera","reviewed_canonical_identity_count":0,"CHINESE_LABEL_READY":0,"CANONICAL_IDENTITY_READY_LABEL_MISSING":0,"IDENTITY_UNRESOLVED":24,"AMBIGUOUS":0},
+    {"competition_id":"primeira_liga","reviewed_canonical_identity_count":0,"CHINESE_LABEL_READY":0,"CANONICAL_IDENTITY_READY_LABEL_MISSING":0,"IDENTITY_UNRESOLVED":16,"AMBIGUOUS":0}
+  ],
+  "target_football_day": {
+    "football_day": "2026-08-10",
+    "fixture_count": 5,
+    "side_count": 10,
+    "CHINESE_LABEL_READY": 4,
+    "CANONICAL_IDENTITY_READY_LABEL_MISSING": 0,
+    "IDENTITY_UNRESOLVED": 6,
+    "AMBIGUOUS": 0,
+    "recoverable_placeholder_count": 0
+  },
+  "raw_provider_english_as_localized_success": false,
+  "provider_calls": 0,
+  "db_writes": 0
+}

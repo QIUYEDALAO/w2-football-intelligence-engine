@@ -111,6 +111,31 @@ export interface WorkspacePublicTeamLabel {
   technical: { raw_provider_name: string | null };
 }
 
+export interface WorkspaceDateStripEntry {
+  football_day: string;
+  fixture_count: number;
+  competition_count: number;
+  finished_fixture_count: number;
+  upcoming_fixture_count: number;
+  persisted_inventory_status: "PERSISTED_FIXTURES_AVAILABLE" | "EMPTY_PERSISTED_DAY";
+  persisted_competition_coverage_count: number;
+  active_whitelist_count: 13;
+  market_collection_window_status:
+    | "EMPTY_PERSISTED_DAY"
+    | "MARKET_EVIDENCE_AVAILABLE"
+    | "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW"
+    | "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY"
+    | "MARKET_COLLECTION_PLAN_NOT_PERSISTED";
+  market_evidence_fixture_count: number;
+  display_state:
+    | "EMPTY_PERSISTED_DAY"
+    | "FINISHED"
+    | "MARKET_EVIDENCE_AVAILABLE"
+    | "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW"
+    | "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY"
+    | "MARKET_COLLECTION_PLAN_NOT_PERSISTED";
+}
+
 export interface WorkspaceModelRelation {
   market: "ASIAN_HANDICAP" | "TOTALS";
   status: string;
@@ -399,6 +424,7 @@ export interface IntelligenceWorkspace {
     production: "OFF";
   };
   navigation: Record<string, unknown>;
+  date_strip: WorkspaceDateStripEntry[];
   attention: WorkspaceAttentionItem[];
   matches: WorkspaceMatch[];
   validation: WorkspaceValidation;

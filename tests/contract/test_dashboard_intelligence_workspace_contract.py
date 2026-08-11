@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import json
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -48,6 +49,22 @@ def _empty_day_view() -> dict[str, Any]:
         "db_writes": 0,
         "would_write_checkpoint": False,
         "navigation": {"current_date": "2026-08-09"},
+        "date_strip": [
+            {
+                "football_day": (date(2026, 8, 2) + timedelta(days=index)).isoformat(),
+                "fixture_count": 0,
+                "competition_count": 0,
+                "finished_fixture_count": 0,
+                "upcoming_fixture_count": 0,
+                "persisted_inventory_status": "EMPTY_PERSISTED_DAY",
+                "persisted_competition_coverage_count": 0,
+                "active_whitelist_count": 13,
+                "market_collection_window_status": "EMPTY_PERSISTED_DAY",
+                "market_evidence_fixture_count": 0,
+                "display_state": "EMPTY_PERSISTED_DAY",
+            }
+            for index in range(15)
+        ],
         "freshness": {
             "page_updated_at": "2026-08-09T02:00:00Z",
             "provider_budget_status": "OK",

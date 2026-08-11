@@ -123,6 +123,7 @@ def build_dashboard_intelligence_workspace(
             "production": "OFF",
         },
         "navigation": dict(_mapping(day_view.get("navigation"))),
+        "date_strip": _mapping_list(day_view.get("date_strip")),
         "attention": [
             {
                 "fixture_id": item["fixture_id"],
