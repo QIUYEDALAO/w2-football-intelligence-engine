@@ -1,24 +1,22 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-11T11:42:00+08:00"
+updated_at: "2026-08-11T12:02:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: W2_SC18_00_FT_RETENTION_REMEDIATION
-owner_authorization_id: W2_SC18_00_FT_RETENTION_REMEDIATION_V1
-active_next_action: OWNER_REVIEW_SC18_00_FT_RETENTION
-next_code_action: NONE_WITHOUT_OWNER_AUTHORITY
-current_status: SC18_00_COMPLETE_AWAITING_OWNER_REREVIEW
-current_gate: OWNER_SC18_00_FT_RETENTION_REREVIEW
-terminal_gate: OWNER_SC18_00_FT_RETENTION_REREVIEW
+owner_product_decision: W2_SC19_TEAM_IDENTITY_AND_DATE_STRIP
+owner_authorization_id: W2_SC19_TEAM_IDENTITY_AND_DATE_STRIP_V1
+active_next_action: EXECUTE_SC19_TEAM_IDENTITY_THEN_PERSISTED_DATE_STRIP
+next_code_action: SC19_01_THROUGH_SC19_07_CONTINUOUS_FIX_TEST_MERGE_REDEPLOY
+current_status: SC18_00_OWNER_ACCEPTED_SC19_ACTIVE
+current_gate: SC19_TEAM_IDENTITY_P0_ACTIVE
+terminal_gate: OWNER_SC19_POSTDEPLOY_REREVIEW
 
 release_identity:
-  implementation_base_sha: 87c04eeaed6282fabb6171ca1797ef3cf796005e
-  implementation_head_sha: 37d4b5c5ac1ecf73473019ec6a088cfa6d0f76b4
-  source_tree_sha: 46b88b10884bf84bb008cbb6773366f54d7ab52c
   current_main_sha: 99baac47aad81d6afa0af9f368434bf93f14bd58
   deployed_source_sha: 37d4b5c5ac1ecf73473019ec6a088cfa6d0f76b4
+  source_tree_sha: 46b88b10884bf84bb008cbb6773366f54d7ab52c
   prs: [519, 520]
   pr_state: MERGED_DEPLOYED
   pr_fast_run: 31455066161
@@ -26,8 +24,8 @@ release_identity:
   promotion_run: 31455505907
   release_required: PASS_EXACT_HEAD
   promotion_required: PASS
-  python_image: ghcr.io/qiuyedalao/w2-football-intelligence-engine/python@sha256:2f3964b1d6ff0aa5a05391a54f83a9f3ac833a054817f82a2616217edf8aed06
-  web_image: ghcr.io/qiuyedalao/w2-football-intelligence-engine/web@sha256:d6ef073d23ae82f5b76be0d46291c4ffce19850203ed73543281188495333aec
+  python_image: sha256:2f3964b1d6ff0aa5a05391a54f83a9f3ac833a054817f82a2616217edf8aed06
+  web_image: sha256:d6ef073d23ae82f5b76be0d46291c4ffce19850203ed73543281188495333aec
 
 completed_and_retained:
   dashboard_v41_and_truth_remediation:
@@ -36,18 +34,38 @@ completed_and_retained:
   controlled_fixture_collection:
     prs: [511, 512, 513]
     status: CLOSED_RETAIN
-  market_identity_and_current_localized_labels:
-    pr: 515
-    status: CLOSED_RETAIN_BUT_PUBLIC_LABEL_AUTHORITY_INCOMPLETE
+  shadow_candidate_input_authority:
+    pr: 518
+    status: CLOSED_RETAIN_WITH_CURRENT_IDENTITY_COVERAGE_GAP_EXPOSED
   shadow_candidate_validation_loop:
     pr: 517
     status: DEPLOYED_ACTIVE_SHADOW_ONLY
+  sc18_00_finished_fixture_retention:
+    prs: [519, 520]
+    status: OWNER_ACCEPTED_CLOSED_PASS
   vps_local_oci_relay: PASS_RETAIN
   post_r3_track_a: TRACK_A_CLOSED_PASS
 
+sc18_00_owner_acceptance:
+  status: PASS_OWNER_ACCEPTED
+  authority: OWNER_SC18_00_FT_RETENTION_REMEDIATION.md
+  acceptance_fixtures:
+    "1493049": {status: FINISHED, score: "0-2"}
+    "1575453": {status: FINISHED, score: "2-2"}
+    "1494239": {status: FINISHED, score: "2-2"}
+  selected_football_day: "2026-08-10"
+  real_card_count: 5
+  replay_card_count: 5
+  read_provider_calls: 0
+  read_db_writes: 0
+  no_call_on_read: true
+  natural_scheduler_only: true
+  scheduler_cadence_change: NONE
+  active_whitelist_change: NONE
+  settlement_claim: NONE_NO_TRACKED_CANDIDATES
+
 shadow_candidate_validation:
   runtime_status: DEPLOYED_ACTIVE_SHADOW_ONLY
-  shadow_recommendation: ENABLED
   candidate: ENABLED_SHADOW_ONLY
   forward_outcome_ledger: ENABLED
   result_settlement: EXISTING_LOOP_REUSED
@@ -56,225 +74,80 @@ shadow_candidate_validation:
   lock: "OFF"
   production: "OFF"
   real_money: "OFF"
-  recommendation_source: EXISTING_RECOMMENDATION_DECISION_V4_ANALYSIS_PICK_ONLY
-  read_model_recalculation: NONE
-  api_read_resimulation: NONE
-  current_selected_day:
-    date: "2026-08-10"
-    match_count: 1
-    active_shadow_candidates: 0
-    partial: 1
-    not_ready: 0
-    interpretation: MARKET_EVIDENCE_AVAILABLE_CANDIDATE_INPUT_NOT_READY_ZERO_CANDIDATE
   natural_scheduler_execution: CONTINUES_UNCHANGED
   historical_ledger_evidence: RETAIN_DO_NOT_DELETE
-  formal_threshold_claim_during_remediation: NOT_ALLOWED_FOR_AFFECTED_INPUT_IDENTITIES
+  formal_threshold_claim_during_sc19: NOT_ALLOWED_FOR_AFFECTED_IDENTITIES
 
-postdeploy_owner_input_chain_review:
-  status: REMEDIATION_DEPLOYED_AWAITING_OWNER_REREVIEW
-  authority: SHADOW_CANDIDATE_INPUT_AUTHORITY_CONVERGENCE.md
-  reviewed_fixture: "1493049"
+sc19_owner_review_findings:
+  authority: SC19_TEAM_IDENTITY_AND_DATE_STRIP_REMEDIATION.md
+  status: AUTHORIZED_ACTIVE
+  root_cause_correction:
+    pr_520_direct_team_name_regression: NOT_PROVEN
+    pr_520_scope: CURRENT_FIXTURE_STATUS_OVERLAY_ONLY
+    pr_518_public_label_change: REVIEWED_CANONICAL_AUTHORITY_AND_FAIL_CLOSED_PLACEHOLDER
+    observed_symptom: ALL_FIVE_RETAINED_FINISHED_FIXTURES_RENDER_GENERIC_TEAM_IDENTITY_GAPS
+    interpretation: CANONICAL_IDENTITY_OR_PUBLIC_LABEL_AUTHORITY_GAP_MUST_BE_TRACED_AND_RECOVERED_WHEN_EVIDENCE_EXISTS
   findings:
-    SC18_01_live_authority_trace: CLOSED_PASS
-    SC18_02_per_market_eligibility_contract: CLOSED_PASS
-    SC18_03_radar_quote_readiness_convergence: CLOSED_PASS
-    SC18_04_public_partial_market_semantics: CLOSED_PASS
-    SC18_05_canonical_public_label_authority: CLOSED_PASS
-    SC18_06_stage14_exact_13_league_coverage_audit: CLOSED_PASS
-    SC18_07_regression_merge_redeploy_rereview: CLOSED_PASS
+    SC19_01_finished_fixture_team_identity_trace: OPEN_P0
+    SC19_02_restore_canonical_public_team_identity: OPEN_P0
+    SC19_03_persisted_date_strip_contract: BLOCKED_UNTIL_SC19_01_02_LOCAL_PASS
+    SC19_04_future_market_window_semantics: BLOCKED_UNTIL_SC19_01_02_LOCAL_PASS
+    SC19_05_date_strip_ux: BLOCKED_UNTIL_SC19_01_02_LOCAL_PASS
+    SC19_06_regression_truth_tests: OPEN_AFTER_IMPLEMENTATION
+    SC19_07_full_ci_merge_redeploy_rereview: OPEN_AFTER_ACCEPTANCE
 
-sc18_00_ft_retention_remediation:
-  authority: OWNER_SC18_00_FT_RETENTION_REMEDIATION.md
-  priority: P0
-  status: COMPLETE_TERMINAL_AWAITING_OWNER_REREVIEW
-  acceptance_fixture_ids: ["1493049", "1575453", "1494239"]
-  acceptance_scores:
-    "1493049": "0-2"
-    "1575453": "2-2"
-    "1494239": "2-2"
-  required_results:
-    - ACTIVE_FOOTBALL_DAY_DISCOVERY_USES_ASIA_SHANGHAI_12_TO_12_DATE
-    - IN_WINDOW_STARTED_OR_FINISHED_FIXTURES_REMAIN_IN_DAY_VIEW
-    - FINISHED_FIXTURES_REMAIN_IN_REPLAY_CARDS
-    - EXISTING_RESULT_MATERIALIZATION_AND_SETTLEMENT_REUSED
-    - EMPTY_DAY_CANNOT_HIDE_IN_WINDOW_PERSISTED_FIXTURES
-    - READ_PROVIDER_CALL_DELTA_0
-    - READ_BUSINESS_WRITE_DELTA_0
-  unchanged_controls:
-    provider: EXISTING_API_FOOTBALL_ONLY
-    scheduler_cadence: UNCHANGED
-    active_whitelist: EXACT_EXISTING_13
-    model_or_thresholds: UNCHANGED
-    formal_lock_production: OFF
-    round_4: NOT_STARTED
-  implementation:
-    primary_pr: 519
-    status_projection_followup_pr: 520
-    root_cause_fixes:
-      - DAY_VIEW_NO_LONGER_DISCARDS_STARTED_OR_FINISHED_IN_WINDOW_CARDS
-      - FREE_FIXTURE_DISCOVERY_USES_ACTIVE_BEIJING_OPERATIONAL_DAY
-      - PUBLIC_WORKSPACE_STATUS_OVERLAYS_CURRENT_PERSISTED_FIXTURE_IDENTITY
-    focused_regression: PASS_107
-    release_required: PASS_EXACT_HEAD
-    promotion_required: PASS_REUSED_EXACT_HEAD_MANIFEST
-  live_acceptance:
-    public_root: PASS
-    readiness: PASS
-    deployed_release_id: 37d4b5c5ac1ecf73473019ec6a088cfa6d0f76b4
-    deployed_main_tree_equivalent: true
-    selected_football_day: "2026-08-10"
-    real_card_count: 5
-    replay_card_count: 5
-    acceptance_fixtures:
-      "1493049": {status: FINISHED, score: "0-2"}
-      "1575453": {status: FINISHED, score: "2-2"}
-      "1494239": {status: FINISHED, score: "2-2"}
-    natural_discovery_provider_calls: 1
-    natural_discovery_mode: SHADOW_ONLY_EXISTING_SCHEDULER
-    natural_result_materialization_count: 4
-    read_provider_calls: 0
-    read_db_writes: 0
-    no_call_on_read: true
-    settlement_note: NO_TRACKED_CANDIDATE_FOR_ACCEPTANCE_FIXTURES_SO_NO_SETTLEMENT_CLAIM
-    legacy_fixture_detail_note: LEGACY_FIXTURE_DETAIL_STILL_EXPOSES_FROZEN_PREMATCH_STATUS_NOT_PUBLIC_WORKSPACE_AUTHORITY
-  deployment:
-    transport: LOCAL_OCI_RELAY
-    python_digest_verified: true
-    web_digest_verified: true
-    warm_switch_seconds: 41
-    warm_switch_target_seconds: 300
-  repository_hygiene:
-    status: PASS
-    isolated_worktrees_removed: true
-    primary_preexisting_edits_untouched: true
-    temporary_oci_archives: MOVED_TO_RECOVERABLE_SYSTEM_TRASH
-
-independent_root_cause_corrections:
-  competition_profile_enabled_false:
-    classification: NOT_A_STANDALONE_RUNTIME_CAUSE
-    staging_effective_rule: PROFILE_ENABLED_OR_FUTURE_REFRESH_ENABLED_OR_MATCHDAY_ENABLED
-    required_runtime_reporting: EFFECTIVE_ENABLE_SOURCES
-  round3_market_granularity:
-    classification: PER_MARKET_ALREADY
-    bookmaker_depth_gate: APPLIED_PER_MARKET_IN_MODEL_LAB
-    screenshot_proves_whole_match_backend_veto: false
-    confirmed_public_problem: FIRST_WORST_MARKET_CAN_DOMINATE_MATCH_LEVEL_DIAGNOSTIC
-  recommendation_v4:
-    classification: MARKET_CANDIDATE_SPECIFIC_EXACT_IDENTITY
-    radar_median_as_candidate: FORBIDDEN
-    exact_quote_identity_required: true
-    model_and_five_state_evidence_required: true
-  legacy_readiness:
-    classification: MATCH_LEVEL_SELECTED_MARKET_ADAPTER
-    risk: SELECTED_MARKET_AUTHORITY_CAN_DIVERGE_FROM_ROUND3_RADAR_AUTHORITY
-  localization:
-    current_team_behavior: BACKEND_CANONICAL_IDENTITY_PLUS_REVIEWED_PUBLIC_LABEL
-    current_reason_behavior: CENTRAL_CHINESE_PUBLIC_LABEL_REGISTRY
-    result: SILENT_ENGLISH_FALLBACK_CLOSED_RAW_PROVIDER_TECHNICAL_ONLY
-
-live_fixture_1493049_observed_shape:
-  competition: argentina_primera
-  asian_handicap:
-    snapshot_count: 3
-    latest_bookmaker_count: 1
-    radar_evidence_present: true
-    model_lab_expected_status_under_existing_rule: INSUFFICIENT_BOOKMAKER_DEPTH
-  totals:
-    snapshot_count: 3
-    latest_bookmaker_count: 7
-    radar_evidence_present: true
-    expected_independent_cross_sectional_status: AVAILABLE_IF_FRESH
-  simulation: NOT_READY
-  shadow_candidate: NOT_READY
-  public_result:
-    - CHINESE_IDENTITY_GAP_TEXT_VISIBLE
-    - MODEL_BLOCKERS_CHINESE_FIRST
-    - MARKET_LEVEL_STATES_AGGREGATED_AS_PARTIAL
-    - MARKET_EVIDENCE_AND_CANDIDATE_INPUT_DISTINCT
-    - SHADOW_CANDIDATE_ZERO_TRUTHFUL
-
-public_label_remediation_contract:
+public_team_identity_contract:
   final_authority: CANONICAL_TEAM_IDENTITY_PLUS_REVIEWED_PUBLIC_LABEL
-  existing_infrastructure:
-    canonical_teams: AVAILABLE
-    provider_team_identity_crosswalks: AVAILABLE
-    reviewed_identity_resolution: FAIL_CLOSED_AVAILABLE
-  forbidden_behavior:
-    - SILENT_RAW_ENGLISH_TEAM_NAME_AS_LOCALIZED_SUCCESS
-    - UNMAPPED_PUBLIC_ENUM_AS_MAIN_COPY
-    - AUTOMATIC_INVENTED_CHINESE_TRANSLATION
-  required_gap_states:
+  raw_provider_english_as_localized_success: FORBIDDEN
+  automatic_invented_translation: FORBIDDEN
+  recoverable_existing_identity_may_render_placeholder: false
+  genuine_gap_states:
     - CHINESE_LABEL_READY
     - CANONICAL_IDENTITY_READY_LABEL_MISSING
     - IDENTITY_UNRESOLVED
     - AMBIGUOUS
-  required_artifacts:
-    - PUBLIC_LABEL_COVERAGE_MATRIX.json
-    - PUBLIC_LABEL_COVERAGE_REPORT.md
-    - PUBLIC_ENUM_LABEL_COVERAGE.json
+  required_live_trace_scope: ALL_FIVE_2026_08_10_RETAINED_FIXTURES
+  required_gap_matrix_update: true
 
-stage14_coverage_audit:
-  status: COMPLETE_AUDIT_ONLY_NO_ACTIVATION
-  exact_scope: EXISTING_ACTIVE_13
-  existing_tools:
-    - scripts/check_w2_stage14a.py
-    - scripts/run_stage14a_league_audit.py
-    - docs/consolidation/W2_WHITELIST_TECH_WORKORDER_V1.md
-  required_domains:
-    - EFFECTIVE_STAGING_ENABLE_SOURCES
-    - PROVIDER_COMPETITION_MAPPING
-    - FIXTURE_RESULT_TEAM_IDENTITY
-    - AH_BOOKMAKER_DEPTH
-    - OU_BOOKMAKER_DEPTH
-    - LINEUPS_INJURIES
-    - XG
-    - RATINGS
-    - SQUAD_VALUE
-    - H2H
-    - SETTLED_AH
-    - EXACT_CANDIDATE_QUOTE_PATH
-    - MODEL_INPUT_PATH
-  classifications:
-    - VERIFIED
-    - PARTIAL
-    - NOT_AUDITED
-    - NOT_AVAILABLE_FROM_CURRENT_PROVIDER
-    - DATASET_MAPPING_REQUIRED
-    - OWNER_DECISION_REQUIRED
-  activation_or_bypass_authority: NOT_GRANTED
+persisted_date_strip_contract:
+  status: AUTHORIZED_AFTER_IDENTITY_P0_PASS
+  default_data_window: T_MINUS_7_THROUGH_T_PLUS_7
+  football_day_timezone: Asia/Shanghai
+  football_day_boundary: "12:00_TO_NEXT_DAY_12:00_EXCLUSIVE"
+  source: PERSISTED_FIXTURE_AND_CHECKPOINT_READ_MODEL_ONLY
+  provider_calls_on_read: 0_REQUIRED
+  business_writes_on_read: 0_REQUIRED
+  active_whitelist_count: 13
+  future_inventory_complete_13_league_claim: FORBIDDEN_UNLESS_PROVEN
+  current_future_policy_horizon_days: 14
+  current_future_policy_scope: PARTIAL_COMPETITION_SET_MUST_BE_REPORTED_TRUTHFULLY
+  required_future_states:
+    - PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW
+    - MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY
+    - MARKET_EVIDENCE_AVAILABLE
+    - EMPTY_PERSISTED_DAY
+  next_available_date_rule: FIRST_LATER_PERSISTED_FOOTBALL_DAY_WITH_FIXTURE_COUNT_GT_0
+  unknown_future_rule: CURRENT_PERSISTED_RANGE_NOT_CONFIRMED
+  hardcoded_provider_odds_window_assumption: FORBIDDEN
 
-input_chain_remediation_execution:
-  authority: W2_SHADOW_CANDIDATE_INPUT_AUTHORITY_CONVERGENCE_V1
+sc19_execution:
+  authority: W2_SC19_TEAM_IDENTITY_AND_DATE_STRIP_V1
   continuous_execution: true
   owner_relay_between_steps: NOT_REQUIRED
+  sequence:
+    - SC19_01_TEAM_IDENTITY_TRACE
+    - SC19_02_IDENTITY_RECOVERY
+    - SC19_03_DATE_STRIP_READ_MODEL
+    - SC19_04_FUTURE_MARKET_SEMANTICS
+    - SC19_05_DATE_STRIP_UX
+    - SC19_06_REGRESSION_TRUTH_TESTS
+    - SC19_07_FULL_CI_MERGE_LOCAL_OCI_REDEPLOY
+  identity_p0_must_pass_before_date_strip: true
   ordinary_failures: FIX_REVALIDATE_CONTINUE
   automatic_merge_after_exact_head_pass: true
-  redeployment_required: true
   deployment_transport: LOCAL_OCI_RELAY_PRIMARY
-  rollback_baseline_main: 001b1bae8e5276597dc506e0cd3cb40dbd180fb5
-  terminal_gate: OWNER_SHADOW_CANDIDATE_INPUT_CHAIN_REREVIEW
-  execution_status: COMPLETE_TERMINAL
-  release_required: PASS_EXACT_HEAD
-  local_oci_relay_redeploy: PASS
-  postdeploy_real_payload: PASS
-  required_results:
-    - SC18_01_THROUGH_SC18_07_CLOSED
-    - PER_MARKET_AH_OU_ELIGIBILITY_PROVEN
-    - NO_CROSS_MARKET_BLOCKER_CONTAMINATION
-    - SAME_MARKET_RADAR_QUOTE_READINESS_CONSISTENT
-    - NO_RADAR_MEDIAN_PROMOTED_TO_EXECUTABLE_CANDIDATE
-    - MATCH_PARTIAL_SEMANTICS_PUBLIC
-    - CHINESE_FIRST_PUBLIC_LABELS
-    - MISSING_LABELS_AUDITABLE
-    - STAGE14_EXACT_13_LEAGUE_MATRIX_COMPLETE
-    - ZERO_CANDIDATE_REMAINS_VALID_WHEN_V4_NOT_READY
-    - FULL_CI_PASS
-    - RELEASE_REQUIRED_PASS
-    - REPOSITORY_HYGIENE_PASS
-    - LOCAL_OCI_RELAY_REDEPLOY_PASS
-    - POSTDEPLOY_REAL_PAYLOAD_PASS
-    - READ_PROVIDER_CALL_DELTA_0
-    - READ_BUSINESS_WRITE_DELTA_0
+  rollback_baseline_main: 99baac47aad81d6afa0af9f368434bf93f14bd58
+  terminal_gate: OWNER_SC19_POSTDEPLOY_REREVIEW
 
 accepted_truths_must_not_regress:
   public_dashboard_authority: NEW_INTELLIGENCE_WORKSPACE_ONLY
@@ -289,6 +162,9 @@ accepted_truths_must_not_regress:
   exact_recommendation_identity: RECOMMENDATION_DECISION_V4
   radar_medians_are_not_executable_quotes: true
   zero_candidate_fail_closed: true
+  finished_fixtures_retained_in_football_day: true
+  finished_fixtures_retained_in_replay: true
+  canonical_team_identity_fail_closed: true
   external_intelligence: NOT_CONNECTED_NON_BLOCKING
   phase_0_5: FROZEN_NO_EDGE_NOT_PROVEN_NO_RERUN
   active_whitelist: EXACT_EXISTING_13
@@ -300,7 +176,7 @@ round4:
   status: NOT_STARTED
   execution_authority: NOT_GRANTED
   packet: ROUND4_READINESS_DECISION_PACKET.md
-  required_after_remediation: REFRESH_EXACT_RELEASE_IDENTITY_ONLY_THEN_STOP
+  required_after_sc19: REFRESH_EXACT_RELEASE_IDENTITY_ONLY_THEN_STOP
 
 p6:
   status: BLUEPRINT_ONLY_NOT_AUTHORIZED
