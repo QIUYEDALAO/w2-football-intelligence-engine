@@ -1,32 +1,31 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-11T16:48:00+08:00"
+updated_at: "2026-08-11T20:14:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: W2_SC19_STATUS_SEMANTICS_BOUNDED_REMEDIATION
-owner_authorization_id: W2_SC19_STATUS_SEMANTICS_BOUNDED_REMEDIATION_V1
-active_next_action: OWNER_SC19_STATUS_SEMANTICS_POSTDEPLOY_REREVIEW
-next_code_action: NONE_OWNER_REVIEW_REQUIRED
-current_status: SC19_STATUS_SEMANTICS_REMEDIATION_COMPLETE_DEPLOYED
-current_gate: OWNER_SC19_STATUS_SEMANTICS_POSTDEPLOY_REREVIEW
-terminal_gate: OWNER_SC19_STATUS_SEMANTICS_POSTDEPLOY_REREVIEW
+owner_product_decision: W2_SC20_PUBLIC_SEMANTICS_SINGLE_AUTHORITY_CUTOVER
+owner_authorization_id: W2_SC20_PUBLIC_SEMANTICS_SINGLE_AUTHORITY_V1
+active_next_action: EXECUTE_SC20_SINGLE_PUBLIC_AUTHORITY_CUTOVER
+next_code_action: SC20_01_THROUGH_SC20_07_ONE_PR_MIGRATE_DELETE_TEST_MERGE_REDEPLOY
+current_status: SC20_SINGLE_AUTHORITY_CUTOVER_AUTHORIZED_ACTIVE
+current_gate: SC20_SINGLE_AUTHORITY_CUTOVER_ACTIVE
+terminal_gate: OWNER_SC20_SINGLE_AUTHORITY_POSTDEPLOY_REREVIEW
 
 release_identity:
   current_main_sha: f2b82c7d59341e8ecc98ccb34130b983c51664fc
   deployed_source_sha: f2b82c7d59341e8ecc98ccb34130b983c51664fc
   source_tree_sha: 4387afcc937a5d67bcc676a6d485c6b6efd1bcfa
-  prs: [521, 522, 523, 524]
-  pr_state: MERGED_DEPLOYED
-  remediation_head_sha: 12b78ce7dd80d4a6b1b0934c9a94a76ab47c85ef
+  latest_pr: 524
+  latest_pr_head_sha: 12b78ce7dd80d4a6b1b0934c9a94a76ab47c85ef
   full_ci_run: 31472108475
   promotion_run: 31472559507
   main_release_run: 31473344780
   release_required: PASS_EXACT_HEAD
   promotion_required: PASS
-  python_image: sha256:f45446814e1ae238a0e6a38371bb4927cb3070199c04d1c6090193f9640067bf
-  web_image: sha256:ce0cd66a1cfe1ac8b3d20870491c2f14f9ab2756856f5fda97bb6eed33e219d5
+  local_oci_relay: PASS
+  deployed_health_ready_release_sync: PASS
 
 completed_and_retained:
   dashboard_v41_and_truth_remediation:
@@ -35,41 +34,154 @@ completed_and_retained:
   controlled_fixture_collection:
     prs: [511, 512, 513]
     status: CLOSED_RETAIN
-  shadow_candidate_input_authority:
-    pr: 518
-    status: CLOSED_RETAIN_WITH_CURRENT_IDENTITY_COVERAGE_GAP_EXPOSED
   shadow_candidate_validation_loop:
     pr: 517
     status: DEPLOYED_ACTIVE_SHADOW_ONLY
-  sc18_00_finished_fixture_retention:
+  shadow_candidate_input_authority:
+    pr: 518
+    status: CLOSED_RETAIN
+  finished_fixture_retention:
     prs: [519, 520]
     status: OWNER_ACCEPTED_CLOSED_PASS
-  sc19_team_identity_and_persisted_date_strip:
+  sc19_team_identity_and_date_strip:
     prs: [521, 522, 523]
     status: COMPLETE_DEPLOYED_RETAIN
-  sc19_status_semantics_bounded_remediation:
+  sc19_scope_cause_foundation:
     pr: 524
-    status: COMPLETE_DEPLOYED_AWAITING_OWNER_REREVIEW
+    status: TECHNICAL_FOUNDATION_RETAIN_DUAL_PUBLIC_AUTHORITY_OWNER_REJECTED
   vps_local_oci_relay: PASS_RETAIN
   post_r3_track_a: TRACK_A_CLOSED_PASS
 
-sc18_00_owner_acceptance:
-  status: PASS_OWNER_ACCEPTED
-  authority: OWNER_SC18_00_FT_RETENTION_REMEDIATION.md
-  acceptance_fixtures:
-    "1493049": {status: FINISHED, score: "0-2"}
-    "1575453": {status: FINISHED, score: "2-2"}
-    "1494239": {status: FINISHED, score: "2-2"}
-  selected_football_day: "2026-08-10"
-  real_card_count: 5
-  replay_card_count: 5
-  read_provider_calls: 0
-  read_db_writes: 0
-  no_call_on_read: true
-  natural_scheduler_only: true
-  scheduler_cadence_change: NONE
-  active_whitelist_change: NONE
-  settlement_claim: NONE_NO_TRACKED_CANDIDATES
+sc19_retained_truths:
+  persisted_date_strip:
+    window: T_MINUS_7_THROUGH_T_PLUS_7
+    football_day_timezone: Asia/Shanghai
+    football_day_boundary: "12:00_TO_NEXT_DAY_12:00_EXCLUSIVE"
+    source: PERSISTED_FIXTURE_AND_CHECKPOINT_READ_MODEL_ONLY
+    provider_calls_on_read: 0_REQUIRED
+    business_writes_on_read: 0_REQUIRED
+    future_inventory_complete_13_league_claim: FORBIDDEN_UNLESS_PROVEN
+  reviewed_public_team_label_authority:
+    resolver: src/w2/identity/public_team_labels.py
+    config: config/identity/public_team_labels.zh-CN.v1.json
+    key: STABLE_W2_TEAM_ID
+    review_requirement: APPROVED
+    raw_provider_english_as_localized_success: FORBIDDEN
+    automatic_invented_translation: FORBIDDEN
+  finished_fixture_retention:
+    retained_in_football_day: true
+    retained_in_replay: true
+  read_contract:
+    provider_calls: 0_REQUIRED
+    db_writes: 0_REQUIRED
+    no_call_on_read: true
+
+sc20_owner_decision:
+  authority: SC20_PUBLIC_SEMANTICS_SINGLE_AUTHORITY_CUTOVER.md
+  implementation: ONE_PR_PHYSICAL_CUTOVER
+  compatibility_phase: FORBIDDEN
+  deprecated_alias: FORBIDDEN
+  legacy_fallback: FORBIDDEN
+  only_public_semantics_model:
+    scope:
+      - MATCH
+      - SELECTED_DAY
+      - CROSS_DAY_CUMULATIVE
+      - GLOBAL
+    cause:
+      - NOT_YET_DUE
+      - AWAITING_COLLECTION
+      - INSUFFICIENT
+      - UNAVAILABLE
+      - UNASSESSED
+      - LABEL_MISSING
+      - IDENTITY_UNRESOLVED
+      - AMBIGUOUS
+  system_health_decision:
+    option: B_OPS_ONLY
+    system_fault_cause_added: false
+    public_system_health_field: REMOVE
+    raw_system_health_role: OPS_TECHNICAL_FACT_ONLY
+    business_copy_from_raw_health: FORBIDDEN
+    business_color_from_raw_health: FORBIDDEN
+    business_focus_from_raw_health: FORBIDDEN
+  presentation_authority:
+    required: ONE_SCOPE_CAUSE_TO_PUBLIC_PRESENTATION_CONVERTER
+    alternate_public_status_authority: FORBIDDEN
+  team_label_decision:
+    final_authority: CANONICAL_IDENTITY_PLUS_REVIEWED_PUBLIC_TEAM_LABEL_CONFIG
+    frontend_team_translation_dictionary: REMOVE
+    translate_team_fallback: REMOVE
+    raw_provider_name_role: TECHNICAL_EVIDENCE_ONLY_OR_EXPLICIT_LABEL_MISSING_CONTEXT
+    invented_translation: FORBIDDEN
+  physical_deletion_required:
+    - DashboardDayMode
+    - day_mode
+    - DashboardFocusType
+    - default_focus_type
+    - public_system_health
+    - DATE_STRIP_DISPLAY_STATE_PUBLIC_FIELD
+    - DAY_MODE_LABELS
+    - WORKSPACE_DAY_MODE_BRANCHES
+    - V41_GLOBAL_MODE_CSS
+    - V41_PILL_MODE_CSS
+    - TEAM_TRANSLATIONS
+    - translateTeam
+    - OBSOLETE_DASHBOARD_V2_TRANSLATION_DEPENDENCY
+  old_current_contract_artifacts:
+    action: UPDATE_OR_DELETE_TO_SINGLE_AUTHORITY
+    includes:
+      - DASHBOARD_DATA_CONTRACT.md
+      - DASHBOARD_V41_STATE_MATRIX.md
+      - REAL_SHAPE_DASHBOARD_V41_FIXTURES.json
+      - DASHBOARD_EXAMPLE_JSON
+      - E2E_STATUS_FIXTURES
+      - CURRENT_VISUAL_TARGETS_WITH_OLD_MODE_FIELDS
+  archive_policy:
+    historical_archive_text_may_remain: true
+    archive_may_be_imported_as_current_authority: false
+
+sc20_execution:
+  continuous_execution: true
+  owner_relay_between_steps: NOT_REQUIRED
+  one_pr_required: true
+  sequence:
+    - SC20_01_EXACT_CONSUMER_INVENTORY
+    - SC20_02_SINGLE_PUBLIC_PRESENTATION_AUTHORITY
+    - SC20_03_DELETE_OLD_PUBLIC_STATUS_CHAIN
+    - SC20_04_DELETE_FRONTEND_TEAM_TRANSLATION_AUTHORITY
+    - SC20_05_DATE_STRIP_AND_FOCUS_SCOPE_CAUSE_ONLY
+    - SC20_06_ANTI_RESURRECTION_ARCHITECTURE_GATE
+    - SC20_07_FULL_CI_MERGE_LOCAL_OCI_REDEPLOY_LIVE_REREVIEW
+  ordinary_failures: FIX_REVALIDATE_CONTINUE
+  automatic_merge_after_exact_head_pass: true
+  deployment_transport: LOCAL_OCI_RELAY_PRIMARY
+  rollback_baseline_main: f2b82c7d59341e8ecc98ccb34130b983c51664fc
+  required_mechanical_zero_live_hits:
+    - DashboardDayMode
+    - day_mode
+    - default_focus_type
+    - DashboardFocusType
+    - public_system_health
+    - DAY_MODE_LABELS
+    - TEAM_TRANSLATIONS
+    - translateTeam
+    - v41-global--blocked
+    - v41-global--calm
+    - v41-global--empty
+    - v41-pill--mode-
+  date_strip_display_state: ZERO_CURRENT_PUBLIC_CONTRACT_HITS
+  collection_incident_global_ban: false
+  required_behavior_guard: NOT_YET_DUE_NEVER_MAPS_TO_COLLECTION_INCIDENT_PUBLIC_PRESENTATION
+  terminal_gate: OWNER_SC20_SINGLE_AUTHORITY_POSTDEPLOY_REREVIEW
+  findings:
+    SC20_01_exact_consumer_inventory: OPEN_P0
+    SC20_02_single_public_presentation_authority: OPEN_P0
+    SC20_03_old_public_status_chain_physical_delete: OPEN_P0
+    SC20_04_frontend_team_translation_physical_delete: OPEN_P0
+    SC20_05_date_strip_focus_single_semantics: OPEN_P1
+    SC20_06_anti_resurrection_architecture_gate: OPEN_P0
+    SC20_07_full_verify_merge_redeploy: OPEN_P1
 
 shadow_candidate_validation:
   runtime_status: DEPLOYED_ACTIVE_SHADOW_ONLY
@@ -83,161 +195,6 @@ shadow_candidate_validation:
   real_money: "OFF"
   natural_scheduler_execution: CONTINUES_UNCHANGED
   historical_ledger_evidence: RETAIN_DO_NOT_DELETE
-  formal_threshold_claim_during_sc19: NOT_ALLOWED_FOR_AFFECTED_IDENTITIES
-
-sc19_owner_review_findings:
-  authority: SC19_TEAM_IDENTITY_AND_DATE_STRIP_REMEDIATION.md
-  status: COMPLETE_DEPLOYED
-  root_cause_correction:
-    pr_520_direct_team_name_regression: NOT_PROVEN
-    pr_520_scope: CURRENT_FIXTURE_STATUS_OVERLAY_ONLY
-    pr_518_public_label_change: REVIEWED_CANONICAL_AUTHORITY_AND_FAIL_CLOSED_PLACEHOLDER
-    observed_symptom: ALL_FIVE_RETAINED_FINISHED_FIXTURES_RENDER_GENERIC_TEAM_IDENTITY_GAPS
-    interpretation: CANONICAL_IDENTITY_OR_PUBLIC_LABEL_AUTHORITY_GAP_MUST_BE_TRACED_AND_RECOVERED_WHEN_EVIDENCE_EXISTS
-  findings:
-    SC19_01_finished_fixture_team_identity_trace: PASS
-    SC19_02_restore_canonical_public_team_identity: PASS
-    SC19_03_persisted_date_strip_contract: PASS
-    SC19_04_future_market_window_semantics: PASS
-    SC19_05_date_strip_ux: PASS
-    SC19_06_regression_truth_tests: PASS
-    SC19_07_full_ci_merge_redeploy_rereview: PASS_STOPPED_AT_OWNER_GATE
-  live_identity_trace:
-    "1494239": {home: "天狼星", away: "布洛马波卡纳", state: CHINESE_LABEL_READY}
-    "1494240": {home: "韦斯特罗斯", away: "尤尔加登", state: CHINESE_LABEL_READY}
-    "1575453": {state: IDENTITY_UNRESOLVED, raw_provider_name: TECHNICAL_ONLY}
-    "1493049": {state: IDENTITY_UNRESOLVED, raw_provider_name: TECHNICAL_ONLY}
-    "1493061": {state: IDENTITY_UNRESOLVED, raw_provider_name: TECHNICAL_ONLY}
-
-public_team_identity_contract:
-  final_authority: CANONICAL_TEAM_IDENTITY_PLUS_REVIEWED_PUBLIC_LABEL
-  raw_provider_english_as_localized_success: FORBIDDEN
-  automatic_invented_translation: FORBIDDEN
-  recoverable_existing_identity_may_render_placeholder: false
-  genuine_gap_states:
-    - CHINESE_LABEL_READY
-    - CANONICAL_IDENTITY_READY_LABEL_MISSING
-    - IDENTITY_UNRESOLVED
-    - AMBIGUOUS
-  required_live_trace_scope: ALL_FIVE_2026_08_10_RETAINED_FIXTURES
-  required_gap_matrix_update: true
-
-persisted_date_strip_contract:
-  status: DEPLOYED_PASS
-  default_data_window: T_MINUS_7_THROUGH_T_PLUS_7
-  football_day_timezone: Asia/Shanghai
-  football_day_boundary: "12:00_TO_NEXT_DAY_12:00_EXCLUSIVE"
-  source: PERSISTED_FIXTURE_AND_CHECKPOINT_READ_MODEL_ONLY
-  provider_calls_on_read: 0_REQUIRED
-  business_writes_on_read: 0_REQUIRED
-  active_whitelist_count: 13
-  future_inventory_complete_13_league_claim: FORBIDDEN_UNLESS_PROVEN
-  current_future_policy_horizon_days: 14
-  current_future_policy_scope: PARTIAL_COMPETITION_SET_MUST_BE_REPORTED_TRUTHFULLY
-  required_future_states:
-    - PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW
-    - MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY
-    - MARKET_EVIDENCE_AVAILABLE
-    - EMPTY_PERSISTED_DAY
-  next_available_date_rule: FIRST_LATER_PERSISTED_FOOTBALL_DAY_WITH_FIXTURE_COUNT_GT_0
-  unknown_future_rule: CURRENT_PERSISTED_RANGE_NOT_CONFIRMED
-  hardcoded_provider_odds_window_assumption: FORBIDDEN
-
-sc19_execution:
-  authority: W2_SC19_TEAM_IDENTITY_AND_DATE_STRIP_V1
-  continuous_execution: true
-  owner_relay_between_steps: NOT_REQUIRED
-  sequence:
-    - SC19_01_TEAM_IDENTITY_TRACE
-    - SC19_02_IDENTITY_RECOVERY
-    - SC19_03_DATE_STRIP_READ_MODEL
-    - SC19_04_FUTURE_MARKET_SEMANTICS
-    - SC19_05_DATE_STRIP_UX
-    - SC19_06_REGRESSION_TRUTH_TESTS
-    - SC19_07_FULL_CI_MERGE_LOCAL_OCI_REDEPLOY
-  identity_p0_must_pass_before_date_strip: true
-  ordinary_failures: FIX_REVALIDATE_CONTINUE
-  automatic_merge_after_exact_head_pass: true
-  deployment_transport: LOCAL_OCI_RELAY_PRIMARY
-  rollback_baseline_main: 99baac47aad81d6afa0af9f368434bf93f14bd58
-  terminal_gate: OWNER_SC19_POSTDEPLOY_REREVIEW
-  execution_status: COMPLETE
-  local_oci_relay: PASS_BOTH_DIGESTS_VERIFIED
-  warm_switch: PASS_43_SECONDS
-  live_health_ready_release_sync: PASS
-  live_selected_day:
-    football_day: "2026-08-10"
-    fixture_count: 5
-    competition_count: 3
-    finished_fixture_count: 4
-    upcoming_fixture_count: 1
-    market_evidence_fixture_count: 4
-  live_date_strip_count: 15
-  live_read_contract: {provider_calls: 0, db_writes: 0, no_call_on_read: true}
-
-sc19_status_semantics_remediation:
-  authority: W2_SC19_STATUS_SEMANTICS_BOUNDED_REMEDIATION_V1
-  pr: 524
-  base_main_sha: e7e1ab9986304d4f165d4c68745613c7f0e841fa
-  exact_head_sha: 12b78ce7dd80d4a6b1b0934c9a94a76ab47c85ef
-  merged_main_sha: f2b82c7d59341e8ecc98ccb34130b983c51664fc
-  terminal_gate: OWNER_SC19_STATUS_SEMANTICS_POSTDEPLOY_REREVIEW
-  execution_status: COMPLETE_DEPLOYED_STOPPED
-  public_status_dimensions:
-    scope: [MATCH, SELECTED_DAY, CROSS_DAY_CUMULATIVE, GLOBAL]
-    cause:
-      - NOT_YET_DUE
-      - AWAITING_COLLECTION
-      - INSUFFICIENT
-      - UNAVAILABLE
-      - UNASSESSED
-      - LABEL_MISSING
-      - IDENTITY_UNRESOLVED
-      - AMBIGUOUS
-  verified_outcomes:
-    known_identity_without_reviewed_chinese: RAW_NAME_RETAINED_WITH_LABEL_MISSING_BADGE
-    unresolved_identity_only: PLACEHOLDER_ALLOWED
-    selected_day_wording: PASS_NO_FALSE_TODAY_CLAIM
-    outside_collection_window: NORMAL_NOT_YET_DUE
-    cross_midnight_label: NEXT_DAY_EXPLICIT
-    selected_day_schedule: NO_STALE_NEXT_EVAL
-    cumulative_validation_scope: CROSS_DAY_CUMULATIVE_SEPARATED
-    selected_day_history_kind: FORWARD_RECORD
-    future_outcome_copy: RESULT_NOT_YET_PRODUCED
-    empty_date_cell: ZERO_FIXTURES_PLUS_EMPTY_DAY
-  verification:
-    pytest: "2570 passed, 13 skipped"
-    web_e2e: "61 passed"
-    full_ci_run: 31472108475
-    release_required: PASS_EXACT_HEAD
-    promotion_run: 31472559507
-    promotion_required: PASS_ATTEMPT_2_AFTER_TRANSIENT_GHCR_RATE_LIMIT
-    main_release_run: 31473344780
-    repository_hygiene: PASS
-    local_oci_relay: PASS_BOTH_DIGESTS_VERIFIED
-    warm_switch: PASS_38_SECONDS
-    live_health_ready_release_sync: PASS
-  live_selected_day:
-    football_day: "2026-08-14"
-    fixture_count: 5
-    competition_count: 3
-    status_scope: SELECTED_DAY
-    status_cause: NOT_YET_DUE
-    next_eval_at: null
-    readable_identity_count: 5
-    reviewed_chinese_identity_count: 1
-    raw_name_with_label_missing_count: 4
-    unresolved_placeholder_count: 0
-  live_read_contract: {provider_calls: 0, db_writes: 0, would_write_checkpoint: false, no_call_on_read: true}
-  unchanged_runtime:
-    active_whitelist_count: 13
-    candidate: SHADOW_ONLY
-    formal: "OFF"
-    lock: "OFF"
-    production: "OFF"
-    scheduler_enabled: false
-    cadence_change: NONE
-    model_or_threshold_change: NONE
 
 accepted_truths_must_not_regress:
   public_dashboard_authority: NEW_INTELLIGENCE_WORKSPACE_ONLY
@@ -245,8 +202,8 @@ accepted_truths_must_not_regress:
   read_provider_calls: 0_REQUIRED
   read_db_business_writes: 0_REQUIRED
   no_call_on_read: true
-  intelligence_states: EXACT_SEVEN
-  risk_axes: EXACT_EVENT_DATA_MODEL_COLLECTION
+  intelligence_states: EXACT_SEVEN_TECHNICAL_FACTS
+  risk_axes: EXACT_EVENT_DATA_MODEL_COLLECTION_TECHNICAL_FACTS
   market_timeline: REAL_DISCRETE_0_1_2_PLUS_NO_INTERPOLATION
   one_public_market_readiness: READY_STALE_INSUFFICIENT
   exact_recommendation_identity: RECOMMENDATION_DECISION_V4
@@ -255,6 +212,7 @@ accepted_truths_must_not_regress:
   finished_fixtures_retained_in_football_day: true
   finished_fixtures_retained_in_replay: true
   canonical_team_identity_fail_closed: true
+  reviewed_public_team_label_authority: CONFIG_IDENTITY_PUBLIC_TEAM_LABELS_ZH_CN_V1
   external_intelligence: NOT_CONNECTED_NON_BLOCKING
   phase_0_5: FROZEN_NO_EDGE_NOT_PROVEN_NO_RERUN
   active_whitelist: EXACT_EXISTING_13
@@ -266,7 +224,7 @@ round4:
   status: NOT_STARTED
   execution_authority: NOT_GRANTED
   packet: ROUND4_READINESS_DECISION_PACKET.md
-  required_after_sc19: REFRESH_EXACT_RELEASE_IDENTITY_ONLY_THEN_STOP
+  required_after_sc20: REFRESH_EXACT_RELEASE_IDENTITY_ONLY_THEN_STOP
 
 p6:
   status: BLUEPRINT_ONLY_NOT_AUTHORIZED
@@ -295,3 +253,7 @@ permanent_stop_lines:
   vps_direct_ghcr_bulk_image_pull: FORBIDDEN_AS_PRIMARY_TRANSPORT
   image_transport: LOCAL_OCI_RELAY_PRIMARY
   delete_protected_historical_evidence: FORBIDDEN
+  deprecated_public_status_alias: FORBIDDEN
+  legacy_public_status_fallback: FORBIDDEN
+  frontend_team_translation_authority: FORBIDDEN
+  system_health_as_business_public_status: FORBIDDEN
