@@ -1,58 +1,129 @@
 # NEXT ACTION
 
 ```text
-ACTIVE_NEXT_ACTION = OWNER_SC19_STATUS_SEMANTICS_POSTDEPLOY_REREVIEW
-CURRENT_GATE = OWNER_SC19_STATUS_SEMANTICS_POSTDEPLOY_REREVIEW
-AUTHORITY = W2_SC19_STATUS_SEMANTICS_BOUNDED_REMEDIATION_V1
-EXACT_MAIN = f2b82c7d59341e8ecc98ccb34130b983c51664fc
-DEPLOYED_SOURCE = f2b82c7d59341e8ecc98ccb34130b983c51664fc
-PR = 524
-EXACT_PR_HEAD = 12b78ce7dd80d4a6b1b0934c9a94a76ab47c85ef
-STATUS_SEMANTICS_REMEDIATION = COMPLETE_DEPLOYED
+ACTIVE_NEXT_ACTION = EXECUTE_SC20_SINGLE_PUBLIC_AUTHORITY_CUTOVER
+CURRENT_GATE = SC20_SINGLE_AUTHORITY_CUTOVER_ACTIVE
+AUTHORITY = SC20_PUBLIC_SEMANTICS_SINGLE_AUTHORITY_CUTOVER.md
+BASE_MAIN = f2b82c7d59341e8ecc98ccb34130b983c51664fc
+BASE_RELEASE = PR_524_MERGED_DEPLOYED
+SC19_SCOPE_CAUSE_FOUNDATION = RETAIN
+SC19_DUAL_PUBLIC_AUTHORITY = OWNER_REJECTED
+IMPLEMENTATION = ONE_PR_PHYSICAL_CUTOVER
+SYSTEM_HEALTH_PUBLIC_SEMANTICS = OPS_ONLY_NOT_WORKSPACE_PUBLIC_SEMANTICS
+TEAM_PUBLIC_LABEL_AUTHORITY = CANONICAL_IDENTITY_PLUS_CONFIG_IDENTITY_PUBLIC_TEAM_LABELS_ZH_CN_V1
 SHADOW_CANDIDATE = KEEP_ACTIVE_SHADOW_ONLY
 FORMAL = OFF
 LOCK = OFF
 PRODUCTION = OFF
 ROUND_4 = NOT_STARTED
 P6 = NOT_AUTHORIZED
-NEXT_AUTOMATIC_ACTION = NONE
+TERMINAL_GATE = OWNER_SC20_SINGLE_AUTHORITY_POSTDEPLOY_REREVIEW
 ```
 
-## Terminal state
+## Owner decision
 
-The bounded `scope + cause` public-status remediation is complete. PR #524
-passed exact-head Full CI and `RELEASE_REQUIRED`, was merged to `main`, promoted,
-relayed through the Owner-local OCI path and deployed. Live 2026-08-14 evidence
-confirms readable raw team identities, selected-day wording, normal
-`NOT_YET_DUE` semantics, explicit next-day labels, scope-separated validation
-and no stale selected-day schedule. Execution stops here for Owner rereview.
+PR #524's `WorkspacePublicSemantics(scope, cause)` foundation is accepted, but the repository still carries the previous day-mode/focus/system-health/team-translation public chains. Those parallel authorities are not accepted.
 
-No code, deployment, Provider, Scheduler, cadence, whitelist, model, threshold,
-Round4, P6, Formal, Lock, Production or real-money action is authorized from
-this context without a new explicit Owner instruction.
+Execute SC20 continuously in one PR. Do not stage a compatibility migration and defer cleanup.
 
-## Rereview evidence
+## Binding decisions
+
+### Public semantics
+
+The only business/public semantics model is:
 
 ```text
-PR = 524
-PR_HEAD = 12b78ce7dd80d4a6b1b0934c9a94a76ab47c85ef
-FULL_CI = PASS_RUN_31472108475
-RELEASE_REQUIRED = PASS_EXACT_HEAD
-MAIN_PROMOTION = PASS_RUN_31472559507_ATTEMPT_2
-MAIN_RELEASE = PASS_RUN_31473344780
-PYTHON_IMAGE = sha256:f45446814e1ae238a0e6a38371bb4927cb3070199c04d1c6090193f9640067bf
-WEB_IMAGE = sha256:ce0cd66a1cfe1ac8b3d20870491c2f14f9ab2756856f5fda97bb6eed33e219d5
-LOCAL_OCI_RELAY = PASS_DIGEST_VERIFIED
-WARM_SWITCH = PASS_38_SECONDS
-HEALTH_READY_RELEASE_SYNC = PASS
-LIVE_SELECTED_DAY = 2026_08_14
-LIVE_FIXTURES = 5
-LIVE_STATUS = SELECTED_DAY_PLUS_NOT_YET_DUE
-LIVE_IDENTITIES = 5_READABLE_1_REVIEWED_CHINESE_4_RAW_WITH_LABEL_MISSING
-LIVE_STALE_NEXT_EVAL = NONE
-READ_PROVIDER_CALLS = 0
-READ_DB_BUSINESS_WRITES = 0
-NO_CALL_ON_READ = true
+WorkspacePublicSemantics
+  scope = MATCH | SELECTED_DAY | CROSS_DAY_CUMULATIVE | GLOBAL
+  cause = NOT_YET_DUE | AWAITING_COLLECTION | INSUFFICIENT
+          | UNAVAILABLE | UNASSESSED | LABEL_MISSING
+          | IDENTITY_UNRESOLVED | AMBIGUOUS
+```
+
+All primary Dashboard presentation must go through one `scope + cause -> PublicPresentation` authority.
+
+### System health
+
+Option B is selected. Do **not** add `SYSTEM_FAULT` to `cause`.
+
+Raw system/scheduler/collector/API/database health lives only in the Ops/system-status surface as technical telemetry. It does not determine business headline, card tone/color, focus layout, attention classification or any second public page state.
+
+### Team labels
+
+The replacement Chinese-label authority already exists on current main:
+
+```text
+config/identity/public_team_labels.zh-CN.v1.json
+src/w2/identity/public_team_labels.py
+```
+
+It is keyed by stable `w2_team_id` and requires APPROVED reviewed labels. Use canonical identity + this reviewed label authority only. The old frontend `TEAM_TRANSLATIONS` / `translateTeam()` chain must be physically deleted after same-PR parity migration proof; do not retain it as fallback or rename it.
+
+## Continuous execution order
+
+1. **SC20-01:** recompute exact current-main consumer inventory for all retired public identifiers and classify every hit.
+2. **SC20-02:** establish one `PublicPresentation` converter that consumes only `WorkspacePublicSemantics` plus factual context for primary business presentation.
+3. **SC20-03:** migrate all live consumers and physically delete `DashboardDayMode/day_mode`, `DashboardFocusType/default_focus_type`, `public_system_health`, date-strip `display_state`, `DAY_MODE_LABELS`, all `workspace.day_mode` branches and old mode CSS. No aliases, deprecated fields or fallback readers.
+4. **SC20-04:** prove label parity/gaps against the reviewed canonical label config, then physically delete `TEAM_TRANSLATIONS`, `translateTeam()` and obsolete Dashboard V2 translation/reference dependencies. No raw-English-as-localized-success behavior.
+5. **SC20-05:** convert date strip, match/day/global/cumulative focus and public copy to facts + `scope/cause` only. `NOT_YET_DUE` must never look like a collection incident.
+6. **SC20-06:** add a CI architecture gate that mechanically forbids resurrection of retired identifiers in current public-authority paths and behavior-tests `NOT_YET_DUE != COLLECTION_INCIDENT`.
+7. **SC20-07:** run full verification, exact-head Full CI and `RELEASE_REQUIRED`; merge automatically; deploy only by Owner-local OCI relay; verify live API contains no retired public fields and live UI uses the single semantics/label authorities; update context and Round4 exact identity only; stop at Owner rereview.
+
+Ordinary implementation/test/CI/deployment-preparation failures are in scope:
+
+```text
+fix -> revalidate -> continue
+```
+
+## Mechanical acceptance proof
+
+Current public-authority paths must produce zero hits for:
+
+```text
+DashboardDayMode
+day_mode
+default_focus_type
+DashboardFocusType
+public_system_health
+DAY_MODE_LABELS
+TEAM_TRANSLATIONS
+translateTeam
+v41-global--blocked
+v41-global--calm
+v41-global--empty
+v41-pill--mode-
+```
+
+Date-strip `display_state` must have zero current Dashboard/public-contract hits. Historical text may remain only under an explicit archive path that is not imported, parsed, or treated as current authority.
+
+Do not globally delete `COLLECTION_INCIDENT`; it remains a legitimate technical intelligence state. Instead prove that `NOT_YET_DUE` and normal waiting can never map to collection-incident public copy/tone/class.
+
+## Mandatory live/regression acceptance
+
+```text
+selected future day + persisted fixtures + collection not due
+=> SELECTED_DAY + NOT_YET_DUE, normal waiting presentation, no incident styling
+
+system-health telemetry changes while business evidence is unchanged
+=> primary business presentation unchanged
+
+canonical reviewed Chinese label exists
+=> Chinese public name from canonical reviewed authority
+
+canonical identity exists but approved Chinese label missing
+=> LABEL_MISSING semantics, no frontend dictionary fallback
+
+identity unresolved / ambiguous
+=> explicit identity semantics, no guessed translation
+
+date strip
+=> facts + public_semantics only, no display_state
+
+workspace live JSON
+=> no day_mode / default_focus_type / public_system_health
+
+read path
+=> provider_calls=0, db_writes=0, no_call_on_read=true
 ```
 
 ## Frozen stop lines
@@ -79,5 +150,8 @@ READ_PROVIDER_CALLS = 0_REQUIRED
 READ_DB_BUSINESS_WRITES = 0_REQUIRED
 IMAGE_TRANSPORT = LOCAL_OCI_RELAY_PRIMARY
 DELETE_PROTECTED_HISTORICAL_EVIDENCE = FORBIDDEN
-RAW_PROVIDER_ENGLISH_AS_LOCALIZED_SUCCESS = FORBIDDEN
+DEPRECATED_PUBLIC_STATUS_ALIAS = FORBIDDEN
+LEGACY_PUBLIC_STATUS_FALLBACK = FORBIDDEN
+FRONTEND_TEAM_TRANSLATION_AUTHORITY = FORBIDDEN
+SYSTEM_HEALTH_AS_BUSINESS_PUBLIC_STATUS = FORBIDDEN
 ```
