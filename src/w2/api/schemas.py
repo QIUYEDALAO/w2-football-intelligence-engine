@@ -402,6 +402,25 @@ class WorkspaceReadiness(BaseModel):
     candidate_input_status: Literal["READY", "NOT_READY"]
 
 
+class WorkspacePublicSemantics(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    scope: Literal["MATCH", "SELECTED_DAY", "CROSS_DAY_CUMULATIVE", "GLOBAL"]
+    cause: (
+        Literal[
+            "NOT_YET_DUE",
+            "AWAITING_COLLECTION",
+            "INSUFFICIENT",
+            "UNAVAILABLE",
+            "UNASSESSED",
+            "LABEL_MISSING",
+            "IDENTITY_UNRESOLVED",
+            "AMBIGUOUS",
+        ]
+        | None
+    )
+
+
 class WorkspacePublicTeamLabel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -414,7 +433,20 @@ class WorkspacePublicTeamLabel(BaseModel):
     ]
     canonical_team_id: str | None
     provider_team_id: str | None
+    public_semantics: WorkspacePublicSemantics
     technical: dict[Literal["raw_provider_name"], str | None]
+
+    @model_validator(mode="after")
+    def semantics_match_identity_state(self) -> WorkspacePublicTeamLabel:
+        expected = {
+            "CHINESE_LABEL_READY": None,
+            "CANONICAL_IDENTITY_READY_LABEL_MISSING": "LABEL_MISSING",
+            "IDENTITY_UNRESOLVED": "IDENTITY_UNRESOLVED",
+            "AMBIGUOUS": "AMBIGUOUS",
+        }[self.state]
+        if self.public_semantics.scope != "MATCH" or self.public_semantics.cause != expected:
+            raise ValueError("team label semantics must derive from identity state")
+        return self
 
 
 class WorkspaceMarketFact(BaseModel):
@@ -699,6 +731,13 @@ class WorkspaceGlobalFocus(BaseModel):
     source_as_of: datetime | str | None
     next_eval_at: datetime | str | None = None
     recovery_condition: str | None = None
+    public_semantics: WorkspacePublicSemantics
+
+    @model_validator(mode="after")
+    def semantics_are_selected_day(self) -> WorkspaceGlobalFocus:
+        if self.public_semantics.scope != "SELECTED_DAY":
+            raise ValueError("global focus public semantics must describe the selected day")
+        return self
 
 
 class WorkspaceModelQuality(BaseModel):
@@ -814,6 +853,13 @@ class WorkspaceForwardValidationRecords(BaseModel):
     pending_count: int = Field(ge=0)
     outcomes: dict[str, Any]
     checkpoint_metadata: dict[str, Any]
+    public_semantics: WorkspacePublicSemantics
+
+    @model_validator(mode="after")
+    def semantics_are_cumulative(self) -> WorkspaceForwardValidationRecords:
+        if self.public_semantics.scope != "CROSS_DAY_CUMULATIVE":
+            raise ValueError("forward validation records must remain cross-day cumulative")
+        return self
 
 
 class WorkspaceReplayDecisionSummary(BaseModel):
@@ -835,6 +881,18 @@ class WorkspaceHistoryReplay(BaseModel):
     outcome_tracking_summary: dict[str, Any]
     card_hash_checks: list[dict[str, Any]]
     replay_gaps: list[str]
+    record_kind: Literal["FORWARD_RECORD", "REPLAY", "MIXED_RECORD", "EMPTY"]
+    public_semantics: WorkspacePublicSemantics
+
+    @model_validator(mode="after")
+    def semantics_match_selected_day_record_kind(self) -> WorkspaceHistoryReplay:
+        if self.public_semantics.scope != "SELECTED_DAY":
+            raise ValueError("history/replay records must remain selected-day scoped")
+        if self.record_kind == "FORWARD_RECORD" and self.public_semantics.cause != "NOT_YET_DUE":
+            raise ValueError("future forward records must be NOT_YET_DUE")
+        if self.record_kind == "EMPTY" and self.public_semantics.cause is not None:
+            raise ValueError("empty selected-day records cannot claim a gap cause")
+        return self
 
 
 class WorkspaceValidation(BaseModel):
@@ -928,6 +986,7 @@ class WorkspaceDateStripEntry(BaseModel):
         "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY",
         "MARKET_COLLECTION_PLAN_NOT_PERSISTED",
     ]
+    public_semantics: WorkspacePublicSemantics
 
     @model_validator(mode="after")
     def counts_are_consistent(self) -> WorkspaceDateStripEntry:
@@ -937,6 +996,16 @@ class WorkspaceDateStripEntry(BaseModel):
             raise ValueError("date strip market evidence cannot exceed fixtures")
         if self.persisted_competition_coverage_count != self.competition_count:
             raise ValueError("date strip coverage must use persisted competition count")
+        expected_cause = {
+            "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW": "NOT_YET_DUE",
+            "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY": "AWAITING_COLLECTION",
+            "MARKET_COLLECTION_PLAN_NOT_PERSISTED": "UNASSESSED",
+        }.get(self.market_collection_window_status)
+        if (
+            self.public_semantics.scope != "SELECTED_DAY"
+            or self.public_semantics.cause != expected_cause
+        ):
+            raise ValueError("date strip semantics must derive from collection-window status")
         return self
 
 

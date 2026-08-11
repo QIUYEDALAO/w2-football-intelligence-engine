@@ -40,6 +40,7 @@ ATTENTION_REASON_ORDER = {
 }
 MODEL_QUALITY_MAX_AGE_SECONDS = 86_400
 MARKET_PRICE_ATTENTION_THRESHOLD_RATIO = 0.02
+FINISHED_FIXTURE_STATUSES = {"FT", "AET", "PEN", "FINISHED"}
 RISK_REASON_LABELS = {
     "DATA_FIELD_STALE": "数据字段已超过新鲜度边界",
     "DATA_IDENTITY_NOT_READY": "比赛或盘口身份尚未完成",
@@ -73,7 +74,18 @@ def build_dashboard_intelligence_workspace(
         match["factual_summary"] = _match_factual_summary(match)
     day_mode, focus_type, focus_fixture_id = _focus_authority(day_view, matches)
     primary_reason_counts = {} if day_mode == "BLOCKED" else _primary_reason_counts(matches)
-    global_focus = _global_focus(day_view, matches, day_mode)
+    date_strip = [_date_strip_entry(item) for item in _mapping_list(day_view.get("date_strip"))]
+    selected_day_semantics = (
+        _mapping(date_strip[len(date_strip) // 2].get("public_semantics"))
+        if date_strip
+        else {"scope": "SELECTED_DAY", "cause": None}
+    )
+    global_focus = _global_focus(
+        day_view,
+        matches,
+        day_mode,
+        selected_day_semantics=selected_day_semantics,
+    )
     return {
         "schema_version": SCHEMA_VERSION,
         "generated_at": day_view.get("generated_at"),
@@ -123,7 +135,7 @@ def build_dashboard_intelligence_workspace(
             "production": "OFF",
         },
         "navigation": dict(_mapping(day_view.get("navigation"))),
-        "date_strip": _mapping_list(day_view.get("date_strip")),
+        "date_strip": date_strip,
         "attention": [
             {
                 "fixture_id": item["fixture_id"],
@@ -145,7 +157,7 @@ def build_dashboard_intelligence_workspace(
             for item in matches
         ],
         "matches": matches,
-        "validation": _validation(forward, replay),
+        "validation": _validation(forward, replay, matches),
         "external_intelligence": {
             name: {"status": "NOT_CONNECTED", "affects_match_readiness": False}
             for name in ("weather", "news", "sentiment", "advanced_xg")
@@ -493,24 +505,44 @@ def _public_team_label(card: Mapping[str, Any], side: str) -> dict[str, Any]:
     )
     state = _text(source.get("state"), "IDENTITY_UNRESOLVED")
     display_name = _optional_text(source.get("display_name"))
+    raw_provider_name = _optional_text(source.get("raw_provider_name")) or _optional_text(
+        card.get(f"{side}_team_name")
+    )
     if not display_name:
         role = "主队" if side == "home" else "客队"
         suffix = f"：{provider_team_id}" if provider_team_id else ""
         display_name = (
-            f"{role}（中文译名待映射）"
+            raw_provider_name or f"{role}（中文译名待映射）"
             if state == "CANONICAL_IDENTITY_READY_LABEL_MISSING"
             else f"{role}（身份待确认{suffix}）"
         )
+    cause = {
+        "CANONICAL_IDENTITY_READY_LABEL_MISSING": "LABEL_MISSING",
+        "IDENTITY_UNRESOLVED": "IDENTITY_UNRESOLVED",
+        "AMBIGUOUS": "AMBIGUOUS",
+    }.get(state)
     return {
         "display_name": display_name,
         "state": state,
         "canonical_team_id": _optional_text(source.get("canonical_team_id")),
         "provider_team_id": provider_team_id,
+        "public_semantics": {"scope": "MATCH", "cause": cause},
         "technical": {
-            "raw_provider_name": _optional_text(source.get("raw_provider_name"))
-            or _optional_text(card.get(f"{side}_team_name")),
+            "raw_provider_name": raw_provider_name,
         },
     }
+
+
+def _date_strip_entry(raw: Mapping[str, Any]) -> dict[str, Any]:
+    entry = dict(raw)
+    if "public_semantics" not in entry:
+        cause = {
+            "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW": "NOT_YET_DUE",
+            "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY": "AWAITING_COLLECTION",
+            "MARKET_COLLECTION_PLAN_NOT_PERSISTED": "UNASSESSED",
+        }.get(_text(entry.get("market_collection_window_status")))
+        entry["public_semantics"] = {"scope": "SELECTED_DAY", "cause": cause}
+    return entry
 
 
 def _model_relation(raw: Mapping[str, Any], name: str) -> dict[str, Any]:
@@ -555,7 +587,11 @@ def _scoreline(card: Mapping[str, Any], public_model_status: str) -> dict[str, A
     }
 
 
-def _validation(forward: Mapping[str, Any], replay: Mapping[str, Any]) -> dict[str, Any]:
+def _validation(
+    forward: Mapping[str, Any],
+    replay: Mapping[str, Any],
+    matches: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
     probability = _mapping(forward.get("probability_validation"))
     outcomes = _mapping(forward.get("outcomes_canonical"))
     cohort = _mapping(forward.get("performance_cohort"))
@@ -638,6 +674,10 @@ def _validation(forward: Mapping[str, Any], replay: Mapping[str, Any]) -> dict[s
                 if key in outcomes
             },
             "checkpoint_metadata": dict(_mapping(forward.get("checkpoint_metadata"))),
+            "public_semantics": {
+                "scope": "CROSS_DAY_CUMULATIVE",
+                "cause": None if forward else "INSUFFICIENT",
+            },
         },
         "history_replay": {
             "status": _text(replay.get("replay_status"), "NO_REPLAY_INPUTS"),
@@ -650,7 +690,38 @@ def _validation(forward: Mapping[str, Any], replay: Mapping[str, Any]) -> dict[s
             "outcome_tracking_summary": dict(_mapping(replay.get("outcome_tracking_summary"))),
             "card_hash_checks": _mapping_list(replay.get("card_hash_checks")),
             "replay_gaps": _string_list(replay.get("replay_gaps")),
+            **_selected_day_record_semantics(matches, replay),
         },
+    }
+
+
+def _selected_day_record_semantics(
+    matches: Sequence[Mapping[str, Any]], replay: Mapping[str, Any]
+) -> dict[str, Any]:
+    if not matches:
+        return {
+            "record_kind": "EMPTY",
+            "public_semantics": {"scope": "SELECTED_DAY", "cause": None},
+        }
+    finished = [
+        _text(match.get("status")).upper() in FINISHED_FIXTURE_STATUSES for match in matches
+    ]
+    missing_outcome_count = max(
+        0,
+        _int(_mapping(replay.get("outcome_tracking_summary")).get("missing_outcome_count")),
+    )
+    cause = (
+        "AWAITING_COLLECTION"
+        if any(finished) and missing_outcome_count
+        else "NOT_YET_DUE"
+        if not any(finished)
+        else None
+    )
+    return {
+        "record_kind": (
+            "REPLAY" if all(finished) else "FORWARD_RECORD" if not any(finished) else "MIXED_RECORD"
+        ),
+        "public_semantics": {"scope": "SELECTED_DAY", "cause": cause},
     }
 
 
@@ -961,6 +1032,8 @@ def _global_focus(
     day_view: Mapping[str, Any],
     matches: Sequence[Mapping[str, Any]],
     day_mode: str,
+    *,
+    selected_day_semantics: Mapping[str, Any],
 ) -> dict[str, Any] | None:
     if day_mode == "NORMAL":
         return None
@@ -973,6 +1046,7 @@ def _global_focus(
         value
         for match in matches
         if (value := _mapping(match.get("readiness")).get("next_eval_at"))
+        and _is_future_timestamp(value, day_view.get("generated_at"))
     )
     common = {
         "affected_fixture_count": len(matches) if day_mode == "BLOCKED" else 0,
@@ -980,6 +1054,7 @@ def _global_focus(
         "source_as_of": freshness.get("page_updated_at") or day_view.get("generated_at"),
         "next_eval_at": next_evaluations[0] if next_evaluations else None,
         "recovery_condition": None,
+        "public_semantics": dict(selected_day_semantics),
     }
     if day_mode == "BLOCKED":
         return {
@@ -1006,6 +1081,19 @@ def _global_focus(
         "factual_summary": "本比赛日观察池内没有比赛；不会从其他日期填充。",
         **common,
     }
+
+
+def _is_future_timestamp(value: Any, generated_at: Any) -> bool:
+    try:
+        candidate = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        generated = datetime.fromisoformat(str(generated_at).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if candidate.tzinfo is None:
+        candidate = candidate.replace(tzinfo=UTC)
+    if generated.tzinfo is None:
+        generated = generated.replace(tzinfo=UTC)
+    return candidate > generated
 
 
 def _global_model_quality(forward: Mapping[str, Any], generated_at: Any) -> dict[str, Any]:

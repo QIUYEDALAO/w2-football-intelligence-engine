@@ -79,6 +79,18 @@ def test_future_market_state_uses_persisted_checkpoint_timing() -> None:
         "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY"
     )
     assert by_day["2026-08-14"]["display_state"] == "MARKET_EVIDENCE_AVAILABLE"
+    assert by_day["2026-08-12"]["public_semantics"] == {
+        "scope": "SELECTED_DAY",
+        "cause": "NOT_YET_DUE",
+    }
+    assert by_day["2026-08-13"]["public_semantics"] == {
+        "scope": "SELECTED_DAY",
+        "cause": "AWAITING_COLLECTION",
+    }
+    assert by_day["2026-08-14"]["public_semantics"] == {
+        "scope": "SELECTED_DAY",
+        "cause": None,
+    }
 
 
 def test_date_strip_reports_partial_coverage_and_persisted_next_date_only() -> None:

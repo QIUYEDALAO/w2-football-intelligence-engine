@@ -13,6 +13,17 @@ NO_CALL_ON_READ = true
 All fields below are required in the schema; nullable values represent the
 declared availability/readiness state and never authorize fabrication.
 
+## Public status semantics
+
+Every public condition added by this remediation carries a required
+`public_semantics` object. `scope` is exactly `MATCH`, `SELECTED_DAY`,
+`CROSS_DAY_CUMULATIVE`, or `GLOBAL`. `cause` is nullable only when no gap or
+waiting condition exists; otherwise it is exactly `NOT_YET_DUE`,
+`AWAITING_COLLECTION`, `INSUFFICIENT`, `UNAVAILABLE`, `UNASSESSED`,
+`LABEL_MISSING`, `IDENTITY_UNRESOLVED`, or `AMBIGUOUS`. Unknown values fail
+schema validation. Public copy and severity derive from this pair; raw domain
+states remain separately auditable and cannot override it.
+
 ## Envelope, runtime and read proof
 
 | FIELD | SOURCE | AVAILABILITY | FRESHNESS_DOMAIN | READINESS_SEMANTICS | NO_CALL_ON_READ |
@@ -51,6 +62,7 @@ declared availability/readiness state and never authorize fabrication.
 | `attention[].risks.MODEL_RISK.assessment_status`, `evidence_basis` | persisted model/simulation assessment evidence | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `MODEL` | missing readiness evidence is `UNASSESSED`, not green and not incident; evidence-backed disagreement remains assessed risk | `true` |
 | `matches[].fixture_id`, `competition_id`, `competition_name` | DayView card identity | `AVAILABLE` | `FIXTURES` | missing identity fails existing DayView contract | `true` |
 | `matches[].kickoff_utc`, `home_team_name`, `away_team_name`, `status` | DayView card identity | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `FIXTURES` | null only when existing source lacks optional display name/status | `true` |
+| `matches[].{home,away}_team_label.public_semantics` | canonical/reviewed team identity adapter | `AVAILABLE` | `FIXTURES` | `MATCH + LABEL_MISSING` keeps the known raw name readable and adds a non-fault translation badge; only `IDENTITY_UNRESOLVED`/`AMBIGUOUS` may use an identity placeholder | `true` |
 | `matches[].intelligence_state`, `intelligence_reason_codes`, `risks` | existing intelligence projection | `AVAILABLE` | relevant source domains | exact seven states and exact four production-shaped risk axes; fail closed | `true` |
 
 ## Readiness and product layers per match
@@ -117,9 +129,11 @@ declared availability/readiness state and never authorize fabrication.
 | `validation.league_performance[].only_record_reason`, `market_direction_benchmark` | canonical probability readiness and approved P0 constant | `AVAILABLE` | `PAGE_PROJECTION` / `NONE` | record-only reason is explicit; benchmark remains `NOT_DEFINED` | `true` |
 | `validation.tournament_performance[]` | same canonical performance aggregation, tournament scope only | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | World Cup/cup and other non-league evidence is retained outside national-league performance | `true` |
 | `validation.forward_validation_records` | bounded forward-ledger checkpoint adapter | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | counts/outcomes/exclusions only; no CLV/ROI | `true` |
+| `validation.forward_validation_records.public_semantics` | bounded forward-ledger adapter | `AVAILABLE` | `PAGE_PROJECTION` | always `CROSS_DAY_CUMULATIVE`; these counts never share a statistic with selected-day replay/outcome gaps | `true` |
 | `validation.forward_validation_records.excluded_share`, `excluded_by_reason` | persisted `validation_excluded_by_reason` / canonical exclusion distribution | `AVAILABLE` | `PAGE_PROJECTION` | source-bound counts; share is excluded/validation count; zero only for an empty denominator | `true` |
 | `validation.history_replay.known_at`, `reason_summary`, `outcome_tracking_summary`, `card_hash_checks`, `replay_gaps` | existing replay front door over same DayView | `AVAILABLE` | `PAGE_PROJECTION` | existing history evidence preserved; read only | `true` |
 | `validation.history_replay.decision_summary` | existing replay front-door `decision_summary` | `AVAILABLE` | `PAGE_PROJECTION` | exact total/tier/data-status/lock-eligible counts answer what W2 judged; no second replay engine | `true` |
+| `validation.history_replay.record_kind`, `public_semantics` | selected-day fixture status plus existing replay front door | `AVAILABLE` | `FIXTURES` / `PAGE_PROJECTION` | future unplayed fixtures are `FORWARD_RECORD + SELECTED_DAY + NOT_YET_DUE` and say the result is not yet produced; missing outcome is `AWAITING_COLLECTION` only after a fixture is finished | `true` |
 
 League rows preserve all `source_aliases` and `source_checkpoint_keys`, resolve
 `canonical_competition_id`/`competition_name` with explicit `identity_status`, and expose

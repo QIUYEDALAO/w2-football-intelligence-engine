@@ -7,6 +7,8 @@ import type {
   WorkspaceMarket,
   WorkspaceMatch,
   WorkspaceDateStripEntry,
+  WorkspacePublicTeamLabel,
+  PublicStatusCause,
 } from "../types/intelligenceWorkspace";
 
 type Props = {
@@ -64,8 +66,48 @@ function label(value: string | null | undefined, fallback = "暂无"): string {
   return STATUS_LABELS[value] || REASON_LABELS[value] || translateReason(value);
 }
 
-function matchName(match: WorkspaceMatch): string {
-  return `${match.home_team_label.display_name} vs ${match.away_team_label.display_name}`;
+const PUBLIC_CAUSE_PRESENTATION: Record<Exclude<PublicStatusCause, null>, { label: string; tone: "neutral" | "warning" | "critical" }> = {
+  NOT_YET_DUE: { label: "未进入市场采集窗口", tone: "neutral" },
+  AWAITING_COLLECTION: { label: "已到采集时点，证据待采集", tone: "warning" },
+  INSUFFICIENT: { label: "已采集，证据量不足", tone: "warning" },
+  UNAVAILABLE: { label: "来源不可用", tone: "critical" },
+  UNASSESSED: { label: "尚未评估", tone: "neutral" },
+  LABEL_MISSING: { label: "中文译名待映射", tone: "neutral" },
+  IDENTITY_UNRESOLVED: { label: "身份待确认", tone: "warning" },
+  AMBIGUOUS: { label: "身份存在歧义", tone: "warning" },
+};
+
+function publicCause(cause: PublicStatusCause) {
+  return cause ? PUBLIC_CAUSE_PRESENTATION[cause] : null;
+}
+
+function selectedDayCause(workspace: IntelligenceWorkspace): PublicStatusCause {
+  return workspace.date_strip.find((entry) => entry.football_day === workspace.date)?.public_semantics.cause ?? null;
+}
+
+function selectedDayPublicStatus(workspace: IntelligenceWorkspace) {
+  const cause = selectedDayCause(workspace);
+  const semantic = publicCause(cause);
+  const tone = semantic?.tone || (workspace.data_operations.public_system_health === "HEALTHY" ? "neutral" : "warning");
+  return {
+    cause,
+    label: semantic?.label || PUBLIC_SYSTEM_LABELS[workspace.data_operations.public_system_health],
+    tone,
+    className: tone === "warning" ? "warn" : tone,
+  };
+}
+
+function selectedDayNoun(workspace: IntelligenceWorkspace): "今日" | "所选比赛日" {
+  return workspace.date === footballDayShanghai() ? "今日" : "所选比赛日";
+}
+
+function TeamLabel({ team }: { team: WorkspacePublicTeamLabel }) {
+  const presentation = team.public_semantics.cause === "LABEL_MISSING" ? publicCause("LABEL_MISSING") : null;
+  return <span className="v41-team-label"><span>{team.display_name}</span>{presentation ? <em className={`is-${presentation.tone}`}>{presentation.label}</em> : null}</span>;
+}
+
+function MatchName({ match }: { match: WorkspaceMatch }) {
+  return <span className="v41-match-name"><TeamLabel team={match.home_team_label} /><span className="v41-versus"> vs </span><TeamLabel team={match.away_team_label} /></span>;
 }
 
 function localDateTime(value: string | null): string {
@@ -88,6 +130,19 @@ function localDateTime(value: string | null): string {
 function clock(value: string | null): string {
   const formatted = localDateTime(value);
   return formatted === "时间待确认" ? formatted : formatted.slice(-5);
+}
+
+function kickoffLabel(value: string | null, selectedDate: string): string {
+  const formatted = localDateTime(value);
+  if (formatted === "时间待确认") return formatted;
+  const kickoffDate = formatted.slice(0, 10);
+  if (kickoffDate === selectedDate) return formatted.slice(-5);
+  if (kickoffDate === dateShift(selectedDate, 1)) return `次日 ${formatted.slice(-5)}`;
+  return formatted;
+}
+
+function byKickoff(matches: WorkspaceMatch[]): WorkspaceMatch[] {
+  return matches.slice().sort((left, right) => String(left.kickoff_utc || "").localeCompare(String(right.kickoff_utc || "")) || left.fixture_id.localeCompare(right.fixture_id));
 }
 
 function ageLabel(generatedAt: string | null, sourceAt: string | null): string {
@@ -159,6 +214,7 @@ function comparisonSummary(market: WorkspaceMarket): string {
 }
 
 function Header({ date, loading, onDateChange, onRefresh, workspace }: Props) {
+  const publicStatus = selectedDayPublicStatus(workspace);
   return (
     <header className="v41-header">
       <a className="v41-brand" href="#top"><strong>W2</strong><span>情报工作台</span></a>
@@ -175,8 +231,8 @@ function Header({ date, loading, onDateChange, onRefresh, workspace }: Props) {
       <span className={`v41-pill v41-pill--mode-${workspace.day_mode.toLowerCase()}`} data-day-mode-label={workspace.day_mode}>
         {DAY_MODE_LABELS[workspace.day_mode]}
       </span>
-      <span className={`v41-pill ${workspace.data_operations.public_system_health === "HEALTHY" ? "v41-pill--ok" : "v41-pill--warn"}`} data-public-system-health={workspace.data_operations.public_system_health}>
-        {PUBLIC_SYSTEM_LABELS[workspace.data_operations.public_system_health]}
+      <span className={`v41-pill v41-pill--${publicStatus.className}`} data-public-cause={publicStatus.cause || "NONE"} data-public-system-health={workspace.data_operations.public_system_health}>
+        {publicStatus.label}
       </span>
       <time className="v41-updated">更新 {clock(workspace.generated_at)}</time>
       <nav className="v41-secondary-nav" aria-label="辅助视图">
@@ -189,8 +245,10 @@ function Header({ date, loading, onDateChange, onRefresh, workspace }: Props) {
 }
 
 function dateStripLabel(entry: WorkspaceDateStripEntry): string {
+  const semantic = publicCause(entry.public_semantics.cause);
+  if (semantic) return semantic.label;
   const labels: Record<WorkspaceDateStripEntry["display_state"], string> = {
-    EMPTY_PERSISTED_DAY: "0 场",
+    EMPTY_PERSISTED_DAY: "空比赛日",
     FINISHED: "已完场",
     MARKET_EVIDENCE_AVAILABLE: "市场证据可用",
     PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW: "未进入市场采集窗口",
@@ -222,6 +280,9 @@ function RecentDateNav({ date, onDateChange, workspace }: Pick<Props, "date" | "
 }
 
 function TodaySummary({ workspace }: { workspace: IntelligenceWorkspace }) {
+  const dayNoun = selectedDayNoun(workspace);
+  const selectedCause = selectedDayCause(workspace);
+  const notYetDue = selectedCause === "NOT_YET_DUE";
   const counts = workspace.today_summary.primary_reason_counts;
   const blockedCount = workspace.day_mode === "BLOCKED" ? workspace.global_focus?.affected_fixture_count || 0 : 0;
   const calmCount = workspace.day_mode === "CALM" ? workspace.today_summary.match_count : 0;
@@ -230,21 +291,24 @@ function TodaySummary({ workspace }: { workspace: IntelligenceWorkspace }) {
   const evidenceBlockedCount = workspace.matches.filter((match) => match.readiness.market_aggregate_status === "NOT_READY").length;
   const candidateCount = workspace.matches.filter((match) => match.shadow_candidate.status === "ACTIVE").length;
   return (
-    <section className="v41-today" aria-label="今日比赛摘要">
+    <section className="v41-today" aria-label={`${dayNoun}比赛摘要`}>
       <div className="v41-today-primary">
-        <div><strong>{workspace.today_summary.match_count}</strong><span>场今日比赛</span></div>
+        <div><strong>{workspace.today_summary.match_count}</strong><span>场{dayNoun}比赛</span></div>
         <p>
-          {blockedCount ? <><span className="is-accent"><b>{workspace.today_summary.match_count}</b> 场可查看赛程</span><span className="is-warning"><b>0</b> 场可进行市场分析</span></> : <><span className={readyCount ? "is-accent" : "is-warning"}><b>{readyCount}</b> 场候选输入就绪</span>{partialCount ? <span className="is-warning"><b>{partialCount}</b> 场市场证据部分就绪</span> : null}{evidenceBlockedCount ? <span className="is-critical"><b>{evidenceBlockedCount}</b> 场尚无当前市场证据</span> : null}</>}
+          {blockedCount ? <><span className="is-accent"><b>{workspace.today_summary.match_count}</b> 场可查看赛程</span><span className={notYetDue ? "is-accent" : "is-warning"}><b>0</b> 场可进行市场分析</span></> : <><span className={readyCount ? "is-accent" : "is-warning"}><b>{readyCount}</b> 场候选输入就绪</span>{partialCount ? <span className="is-warning"><b>{partialCount}</b> 场市场证据部分就绪</span> : null}{evidenceBlockedCount ? <span className="is-critical"><b>{evidenceBlockedCount}</b> 场尚无当前市场证据</span> : null}</>}
         </p>
       </div>
-      {blockedCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{blockedCount} 场可查看赛程；市场分析暂无证据</b></p></div> : calmCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{calmCount} 场均未触发优先复核</b></p></div> : Object.keys(counts).length ? <div className="v41-today-other"><span>优先复核</span><p>{Object.entries(counts).slice(0, 3).map(([reason, count]) => <b key={reason}>{count} 场{REASON_LABELS[reason] || label(reason)}</b>)}</p></div> : null}
+      {blockedCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{blockedCount} 场可查看赛程；{notYetDue ? "尚未进入市场采集窗口" : "市场证据待采集"}</b></p></div> : calmCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{calmCount} 场均未触发优先复核</b></p></div> : Object.keys(counts).length ? <div className="v41-today-other"><span>优先复核</span><p>{Object.entries(counts).slice(0, 3).map(([reason, count]) => <b key={reason}>{count} 场{REASON_LABELS[reason] || label(reason)}</b>)}</p></div> : null}
       <div className="v41-today-day"><strong>共 {workspace.today_summary.match_count} 场 · {candidateCount} 场影子候选 · {workspace.today_summary.competition_count || workspace.runtime.active_whitelist_count} 联赛</strong><small>{footballDayWindow(workspace)}</small></div>
     </section>
   );
 }
 
 function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: IntelligenceWorkspace; selectedId: string | null; onSelect: (id: string) => void }) {
-  const matches = workspace.matches;
+  const dayNoun = selectedDayNoun(workspace);
+  const selectedCause = selectedDayCause(workspace);
+  const notYetDue = selectedCause === "NOT_YET_DUE";
+  const matches = byKickoff(workspace.matches);
   const prioritized = matches.filter((match) => match.priority_reason_primary).slice().sort((left, right) => {
     const priority = (PRIORITY_ORDER[left.priority_reason_primary || ""] ?? 99) - (PRIORITY_ORDER[right.priority_reason_primary || ""] ?? 99);
     return priority || String(left.kickoff_utc || "").localeCompare(String(right.kickoff_utc || "")) || left.fixture_id.localeCompare(right.fixture_id);
@@ -257,22 +321,22 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
   const empty = workspace.day_mode === "EMPTY" && workspace.global_focus;
   const aggregate = blocked || calm;
   return (
-    <aside className="v41-shortlist" aria-label="关注情报 / 今日优先查看" data-ui="attention-feed">
-      <header><span>今日优先查看 · 按信息价值 · 主因归类 · 优先阈值：盘口移动或任一侧赔率相对变化 ≥ {(workspace.runtime.market_price_attention_threshold_ratio * 100).toFixed(0)}%</span><b>{prioritized.length} 场优先</b></header>
+    <aside className="v41-shortlist" aria-label={`关注情报 / ${dayNoun}优先查看`} data-ui="attention-feed">
+      <header><span>{dayNoun}优先查看 · 按信息价值 · 主因归类 · 优先阈值：盘口移动或任一侧赔率相对变化 ≥ {(workspace.runtime.market_price_attention_threshold_ratio * 100).toFixed(0)}%</span><b>{prioritized.length} 场优先</b></header>
       <div className="v41-shortlist-group">优先查看 · {prioritized.length} 场</div>
       <div className="v41-shortlist-list">
         {empty ? <div className="v41-shortlist-empty">本比赛日观察池内没有比赛</div> : null}
-        {aggregate ? <div className="v41-shortlist-empty">{blocked ? `今日 ${workspace.today_summary.match_count} 场可查看赛程，市场分析暂无证据` : "今日无需优先排查；这是有效观测结果。"}</div> : null}
+        {aggregate ? <div className="v41-shortlist-empty">{blocked ? `${dayNoun} ${workspace.today_summary.match_count} 场可查看赛程，${notYetDue ? "尚未进入市场采集窗口" : "市场证据待采集"}` : `${dayNoun}无需优先排查；这是有效观测结果。`}</div> : null}
         {aggregate ? <div className="v41-shortlist-group">{blocked ? `仅赛程比赛 · ${workspace.today_summary.match_count} 场` : `全部比赛 · ${workspace.today_summary.match_count} 场`}</div> : null}
         {blocked && matches.length ? matches.slice(0, 6).map((match) => (
           <article className="v41-blocked-match" key={match.fixture_id}>
             <span className="v41-stripe v41-stripe--collection_incident" />
             <span className="v41-shortlist-copy">
               <small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认", match.competition_id)}</small>
-              <strong>{matchName(match)}</strong>
-              <span><b>仅赛程</b> · 暂无持久化市场证据</span>
+              <strong><MatchName match={match} /></strong>
+              <span><b>仅赛程</b> · {notYetDue ? "未到市场采集时点" : "市场证据待采集"}</span>
             </span>
-            <time>{clock(match.kickoff_utc)}</time>
+            <time>{kickoffLabel(match.kickoff_utc, workspace.date)}</time>
           </article>
         )) : blocked ? (
           <div className="v41-shortlist-incident">
@@ -280,7 +344,7 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
             <span className="v41-shortlist-copy">
               <small>{blocked.affected_competition_count} 个联赛受影响</small>
               <strong>仅有赛程 · {blocked.affected_fixture_count} 场</strong>
-              <span><b>市场证据未就绪</b> · 暂不生成市场分析</span>
+              <span><b>{notYetDue ? "未进入市场采集窗口" : "市场证据待采集"}</b> · 暂不生成市场分析</span>
             </span>
           </div>
         ) : calm ? (
@@ -297,10 +361,10 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
             <span className={`v41-stripe v41-stripe--${match.priority_reason_primary?.toLowerCase()}`} />
             <span className="v41-shortlist-copy">
               <small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认", match.competition_id)}</small>
-              <strong>{matchName(match)}</strong>
+              <strong><MatchName match={match} /></strong>
               <span className="v41-reason-line"><b>主因：{REASON_LABELS[match.priority_reason_primary || ""] || label(match.priority_reason_primary)}</b>{match.priority_reason_secondary.length ? <small>次因：{match.priority_reason_secondary.map((reason) => REASON_LABELS[reason] || label(reason)).join("、")}</small> : null}</span>
             </span>
-            <time>{clock(match.kickoff_utc)}</time>
+            <time>{kickoffLabel(match.kickoff_utc, workspace.date)}</time>
           </button>
         ))}
         {!aggregate && !empty && !prioritized.length ? <div className="v41-shortlist-empty">当前没有优先复核比赛</div> : null}
@@ -310,10 +374,10 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
             <span className="v41-stripe v41-stripe--data_incomplete" />
             <span className="v41-shortlist-copy">
               <small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认", match.competition_id)}</small>
-              <strong>{matchName(match)}</strong>
+              <strong><MatchName match={match} /></strong>
               <span className="v41-reason-line"><small>关注：{match.priority_reason_secondary.map((reason) => REASON_LABELS[reason] || label(reason)).join("、")}</small></span>
             </span>
-            <time>{clock(match.kickoff_utc)}</time>
+            <time>{kickoffLabel(match.kickoff_utc, workspace.date)}</time>
           </button>
         )) : null}
         {!aggregate && !empty && otherAttention.length > visibleOtherAttention.length ? <p className="v41-shortlist-more">另有 {otherAttention.length - visibleOtherAttention.length} 场其他关注</p> : null}
@@ -387,7 +451,7 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
   return (
     <article className="v41-focus" data-focus-type="MATCH" data-fixture-id={match.fixture_id}>
       <header className="v41-focus-header">
-        <div><h1>{matchName(match)}</h1><p>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认", match.competition_id)} · {localDateTime(match.kickoff_utc)} · 比赛 {match.fixture_id}</p></div>
+        <div><h1><MatchName match={match} /></h1><p>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认", match.competition_id)} · {localDateTime(match.kickoff_utc)} · 比赛 {match.fixture_id}</p></div>
         <div><span>开球时间</span><strong>{clock(match.kickoff_utc)}</strong></div>
       </header>
       <div className={`v41-focus-summary ${stale ? "is-warning" : ""}`}><b>{stale ? "市场记忆" : "本场摘要"}</b><span>{match.factual_summary}</span></div>
@@ -422,18 +486,27 @@ function GlobalFocus({ date, onDateChange, workspace }: Pick<Props, "date" | "on
   if (!focus) return <article className="v41-focus v41-global" data-focus-type={workspace.default_focus_type}><div className="v41-global-copy"><span className="v41-eyebrow">当前焦点</span><h1>尚未选择比赛</h1><p>请选择具有已持久化证据的比赛；页面不会自动填充其他焦点。</p></div></article>;
   const blocked = workspace.day_mode === "BLOCKED";
   const calm = workspace.day_mode === "CALM";
-  const title = blocked ? "今日比赛可查看，市场分析暂无证据" : calm ? "今日未发现需优先排查的比赛" : "本比赛日没有纳入观察池的比赛";
+  const dayNoun = selectedDayNoun(workspace);
+  const semantic = publicCause(focus.public_semantics.cause);
+  const notYetDue = focus.public_semantics.cause === "NOT_YET_DUE";
+  const title = blocked
+    ? notYetDue
+      ? `${dayNoun}比赛可查看，尚未进入市场采集窗口`
+      : `${dayNoun}比赛可查看，市场证据待采集`
+    : calm
+      ? `${dayNoun}未发现需优先排查的比赛`
+      : "所选比赛日没有纳入观察池的比赛";
   const detail = blocked ? `影响 ${focus.affected_fixture_count} 场比赛 · ${focus.affected_competition_count} 个联赛 —— 本足球日全部比赛` : calm ? `${workspace.today_summary.match_count} 场比赛市场证据完整 —— 这是有效观测结果，不是系统未完成。` : `${workspace.runtime.active_whitelist_count} 个白名单联赛在本足球日均无赛程`;
   return (
-    <article className={`v41-focus v41-global v41-global--${workspace.day_mode.toLowerCase()}`} data-focus-type={workspace.default_focus_type}>
+    <article className={`v41-focus v41-global v41-global--${workspace.day_mode.toLowerCase()} ${semantic ? `is-${semantic.tone}` : ""}`} data-focus-type={workspace.default_focus_type}>
       <div className="v41-global-copy"><span className="v41-eyebrow">当日摘要</span><h1>{title}</h1><p>{detail}</p></div>
-      <section className="v41-global-explanation"><span>{blocked ? "当前可用内容" : "今日判定"}</span><strong>{blocked ? `今日 ${workspace.today_summary.match_count} 场比赛可查看；尚无已持久化市场证据，暂不生成市场分析。` : focus.factual_summary}</strong><p>{blocked ? "赛程正常展示；模型—市场关系与走势保持关闭，避免用缺失数据推断。" : workspace.day_mode === "EMPTY" ? "不会用其他日期的比赛填充本页；空比赛日不代表系统异常。" : "盘口未移动、双边赔率波动未达阈值，且当前持久化证据完整。"}</p><small>证据截至 {localDateTime(focus.source_as_of)}</small></section>
+      <section className="v41-global-explanation"><span>{blocked ? "当前可用内容" : `${dayNoun}判定`}</span><strong>{blocked ? `${dayNoun} ${workspace.today_summary.match_count} 场比赛可查看；${notYetDue ? "尚未到市场采集时点" : "市场证据待采集"}，暂不生成市场分析。` : focus.factual_summary}</strong><p>{blocked ? "赛程正常展示；模型—市场关系与走势保持关闭，避免用缺失数据推断。" : workspace.day_mode === "EMPTY" ? "不会用其他日期的比赛填充本页；空比赛日不代表系统异常。" : "盘口未移动、双边赔率波动未达阈值，且当前持久化证据完整。"}</p><small>证据截至 {localDateTime(focus.source_as_of)}</small></section>
       <div className="v41-global-stats">
         <div><span>{blocked ? "可查看赛程" : calm ? "优先复核" : "白名单联赛"}</span><strong>{blocked ? `${workspace.today_summary.match_count} 场` : calm ? "0 场" : workspace.runtime.active_whitelist_count}</strong></div>
         <div><span>{blocked ? "市场分析" : calm ? "覆盖比赛" : "本日赛程"}</span><strong>{blocked ? "0 场" : calm ? `${workspace.today_summary.match_count} / ${workspace.today_summary.match_count}` : 0}</strong></div>
-        <div><span>{workspace.day_mode === "EMPTY" ? "下一有赛日" : hasFutureEvaluation(focus.next_eval_at, workspace.generated_at) ? "下一次既有调度评估" : "既有调度记录"}</span><strong>{workspace.day_mode === "EMPTY" ? typeof workspace.navigation.next_available_date === "string" ? workspace.navigation.next_available_date : "尚未确认" : blocked && !focus.next_eval_at ? "暂无调度记录" : scheduledEvaluation(focus.next_eval_at, workspace.generated_at)}</strong></div>
+        <div><span>{workspace.day_mode === "EMPTY" ? "下一有赛日" : hasFutureEvaluation(focus.next_eval_at, workspace.generated_at) ? "下一次适用调度评估" : "适用调度记录"}</span><strong>{workspace.day_mode === "EMPTY" ? typeof workspace.navigation.next_available_date === "string" ? workspace.navigation.next_available_date : "尚未确认" : blocked && !focus.next_eval_at ? "暂无适用于所选比赛日的调度记录" : scheduledEvaluation(focus.next_eval_at, workspace.generated_at)}</strong></div>
       </div>
-      {blocked ? <div className="v41-global-note"><span>说明</span><strong>当前仅展示已持久化内容；市场证据尚未形成。</strong><small>本页面不发起任何 Provider 请求，也不会用缺失数据补算。</small></div> : calm ? <div className="v41-global-note"><span>说明</span><strong>页面内容少不会改变既有关注阈值。</strong><small>继续等待既有调度形成下一次持久化评估。</small></div> : null}
+      {blocked ? <div className="v41-global-note"><span>说明</span><strong>当前仅展示已持久化内容；{notYetDue ? "市场采集窗口尚未开始" : "市场证据仍待既有调度采集"}。</strong><small>本页面不发起任何 Provider 请求，也不会用缺失数据补算。</small></div> : calm ? <div className="v41-global-note"><span>说明</span><strong>页面内容少不会改变既有关注阈值。</strong><small>继续等待既有调度形成下一次持久化评估。</small></div> : null}
       {blocked ? <details className="v41-details v41-global-technical"><summary>技术详情与读取保护</summary><code>{focus.reason_code}</code><code>provider_calls={workspace.read_contract.provider_calls}</code><code>db_writes={workspace.read_contract.db_writes}</code><code>no_call_on_read={String(workspace.read_contract.no_call_on_read)}</code></details> : null}
       {workspace.day_mode === "EMPTY" ? <nav className="v41-adjacent-days"><button onClick={() => onDateChange(typeof workspace.navigation.previous_date === "string" ? workspace.navigation.previous_date : dateShift(date, -1))} type="button">‹ 前一天</button><button onClick={() => onDateChange(typeof workspace.navigation.next_date === "string" ? workspace.navigation.next_date : dateShift(date, 1))} type="button">后一天 ›</button></nav> : null}
     </article>
@@ -472,9 +545,14 @@ function QualityRail({ workspace }: { workspace: IntelligenceWorkspace }) {
 function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
   const records = workspace.validation.forward_validation_records;
   const outcomes = records.outcomes;
-  const tracking = workspace.validation.history_replay.outcome_tracking_summary;
   const count = (source: Record<string, unknown>, key: string) => typeof source[key] === "number" ? source[key] : "—";
   const replay = workspace.validation.history_replay;
+  const selectedRecordsLabel = replay.record_kind === "FORWARD_RECORD" ? "前向记录" : replay.record_kind === "REPLAY" ? "回放记录" : replay.record_kind === "MIXED_RECORD" ? "前向 / 回放记录" : "比赛记录";
+  const selectedOutcomeLabel = (match: WorkspaceMatch) => {
+    if (replay.public_semantics.cause === "NOT_YET_DUE") return "赛果尚未产生";
+    if (replay.public_semantics.cause === "AWAITING_COLLECTION") return "赛果待采集";
+    return ["FT", "AET", "PEN", "FINISHED"].includes(String(match.status || "").toUpperCase()) ? "已完场" : "赛果状态待确认";
+  };
   return (
     <section className="v41-validation-center" id="secondary-validation" aria-labelledby="validation-title">
       <header>
@@ -484,13 +562,14 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
       <div className="v41-validation-layout">
         <section>
           <h3>累计验证进度</h3>
-          <ul className="v41-validation-counts"><li><span>验证总记录</span><strong>{records.validation_count}</strong></li><li><span>已结算</span><strong>{count(outcomes, "settled_sample_count")}</strong></li><li><span>纳入统计</span><strong>{records.eligible_count}</strong></li><li><span>待结算</span><strong>{records.pending_count}</strong></li><li><span>证据排除</span><strong>{records.excluded_count}</strong></li><li><span>赛果匹配 / 缺失</span><strong>{count(tracking, "matched_outcome_count")} / {count(tracking, "missing_outcome_count")}</strong></li></ul>
-          {replay.replay_gaps.length ? <p className="v41-validation-gaps">当前证据缺口：{replay.replay_gaps.map((gap) => label(gap)).join("；")}</p> : <p className="v41-validation-ok">当前回放证据完整。</p>}
+          <ul className="v41-validation-counts"><li><span>验证总记录</span><strong>{records.validation_count}</strong></li><li><span>已结算</span><strong>{count(outcomes, "settled_sample_count")}</strong></li><li><span>纳入统计</span><strong>{records.eligible_count}</strong></li><li><span>待结算</span><strong>{records.pending_count}</strong></li><li><span>证据排除</span><strong>{records.excluded_count}</strong></li></ul>
+          <p className="v41-validation-context">作用域：跨比赛日累计证据；不混入所选比赛日的前向记录与赛果缺口。</p>
         </section>
         <section>
-          <h3>{workspace.date} 比赛记录</h3>
-          <p className="v41-validation-context">本日 {workspace.today_summary.match_count} 场 · 已形成 {replay.decision_summary.total_cards} 张回放卡片</p>
-          {workspace.matches.length ? <ol className="v41-validation-matches">{workspace.matches.map((match) => <li key={match.fixture_id}><time>{localDateTime(match.kickoff_utc)}</time><strong>{matchName(match)}</strong><span>{label(match.readiness.market_aggregate_status)}</span></li>)}</ol> : <p className="v41-validation-empty">所选比赛日没有比赛记录；可使用上方日期浏览历史。</p>}
+          <h3>{workspace.date} {selectedRecordsLabel}</h3>
+          <p className="v41-validation-context">所选比赛日 {workspace.today_summary.match_count} 场 · 已形成 {replay.decision_summary.total_cards} 张{selectedRecordsLabel}</p>
+          {workspace.matches.length ? <ol className="v41-validation-matches">{byKickoff(workspace.matches).map((match) => <li key={match.fixture_id}><time>{localDateTime(match.kickoff_utc)}</time><strong><MatchName match={match} /></strong><span>{selectedOutcomeLabel(match)}</span></li>)}</ol> : <p className="v41-validation-empty">所选比赛日没有比赛记录；可使用上方日期浏览历史。</p>}
+          {replay.replay_gaps.length ? <p className="v41-validation-gaps">所选比赛日证据缺口：{replay.replay_gaps.map((gap) => label(gap)).join("；")}</p> : <p className="v41-validation-ok">所选比赛日记录证据完整。</p>}
         </section>
       </div>
       {workspace.validation.league_performance.length ? <details className="v41-validation-leagues"><summary>按联赛查看验证状态（{workspace.validation.league_performance.length}）</summary><ul>{workspace.validation.league_performance.slice(0, 13).map((league) => <li key={`${league.competition_id}-${league.source_league}`}><strong>{translateCompetition(league.competition_name || league.league, league.canonical_competition_id || league.competition_id)}</strong><span>{league.only_record_reason === "PROBABILITY_QUALITY_NOT_READY" ? "概率质量待就绪" : league.only_record_reason === "AGGREGATION_CONFLICT" ? "聚合冲突" : league.only_record_reason === "SAMPLE_INSUFFICIENT" ? "样本不足" : "可用"}</span></li>)}</ul></details> : null}
@@ -500,11 +579,13 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
 }
 
 function SecondaryViews({ workspace }: { workspace: IntelligenceWorkspace }) {
+  const recordLabel = workspace.validation.history_replay.record_kind === "FORWARD_RECORD" ? "前向记录" : "回放";
+  const publicStatus = selectedDayPublicStatus(workspace);
   return (
     <section className="v41-secondary" aria-label="数据与系统 / 辅助详情">
-      <details id="all-matches"><summary>全部比赛</summary><ol>{workspace.matches.map((match) => <li key={match.fixture_id}><span>{localDateTime(match.kickoff_utc)}</span><strong>{matchName(match)}</strong><b>{label(match.readiness.market_aggregate_status)}</b></li>)}</ol></details>
-      <details data-contract="HISTORICAL_INCREMENTAL_EDGE=NOT_PROVEN" id="history"><summary>证据审计台 / 回放</summary><p>{label(workspace.validation.history_replay.status)} · 卡片 {workspace.validation.history_replay.decision_summary.total_cards} · 缺口 {workspace.validation.history_replay.replay_gaps.length}</p><details><summary>技术合同</summary><code>HISTORICAL_INCREMENTAL_EDGE=NOT_PROVEN</code></details></details>
-      <details id="system-status"><summary>系统状态与读取合同</summary><p>13 联赛 · 影子候选 {workspace.runtime.candidate === "SHADOW_ONLY" ? "已启用" : "未启用"} · 正式、锁定、生产与实盘均关闭</p><p>公开系统状态：{PUBLIC_SYSTEM_LABELS[workspace.data_operations.public_system_health]}</p><details><summary>技术字段</summary><p><code>{workspace.data_operations.system_health}</code></p><p><code>provider_calls={workspace.read_contract.provider_calls}</code> · <code>db_writes={workspace.read_contract.db_writes}</code> · <code>would_write_checkpoint={String(workspace.read_contract.would_write_checkpoint)}</code> · <code>no_call_on_read={String(workspace.read_contract.no_call_on_read)}</code></p></details></details>
+      <details id="all-matches"><summary>全部比赛</summary><ol>{byKickoff(workspace.matches).map((match) => <li key={match.fixture_id}><span>{localDateTime(match.kickoff_utc)}</span><strong><MatchName match={match} /></strong><b>{label(match.readiness.market_aggregate_status)}</b></li>)}</ol></details>
+      <details data-contract="HISTORICAL_INCREMENTAL_EDGE=NOT_PROVEN" id="history"><summary>证据审计台 / {recordLabel}</summary><p>{label(workspace.validation.history_replay.status)} · {recordLabel} {workspace.validation.history_replay.decision_summary.total_cards} · 缺口 {workspace.validation.history_replay.replay_gaps.length}</p><details><summary>技术合同</summary><code>HISTORICAL_INCREMENTAL_EDGE=NOT_PROVEN</code></details></details>
+      <details id="system-status"><summary>系统状态与读取合同</summary><p>13 联赛 · 影子候选 {workspace.runtime.candidate === "SHADOW_ONLY" ? "已启用" : "未启用"} · 正式、锁定、生产与实盘均关闭</p><p>所选比赛日公开状态：{publicStatus.label}</p><details><summary>技术字段</summary><p><code>{workspace.data_operations.system_health}</code></p><p><code>provider_calls={workspace.read_contract.provider_calls}</code> · <code>db_writes={workspace.read_contract.db_writes}</code> · <code>would_write_checkpoint={String(workspace.read_contract.would_write_checkpoint)}</code> · <code>no_call_on_read={String(workspace.read_contract.no_call_on_read)}</code></p></details></details>
     </section>
   );
 }
