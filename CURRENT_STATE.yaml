@@ -1,5 +1,5 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-11T21:44:59+08:00"
+updated_at: "2026-08-12T01:46:16+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
@@ -9,25 +9,26 @@ owner_product_decision: W2_SC20_PUBLIC_SEMANTICS_SINGLE_AUTHORITY_CUTOVER
 owner_authorization_id: W2_SC20_PUBLIC_SEMANTICS_SINGLE_AUTHORITY_V1
 active_next_action: OWNER_SC20_SINGLE_AUTHORITY_POSTDEPLOY_REREVIEW
 next_code_action: NONE_PENDING_OWNER_REREVIEW
-current_status: SC20_SINGLE_AUTHORITY_CUTOVER_COMPLETE_DEPLOYED
+current_status: SC20_POSTDEPLOY_REMEDIATION_AND_VISUAL_ACCEPTANCE_COMPLETE_DEPLOYED
 current_gate: OWNER_SC20_SINGLE_AUTHORITY_POSTDEPLOY_REREVIEW
 terminal_gate: OWNER_SC20_SINGLE_AUTHORITY_POSTDEPLOY_REREVIEW
 
 release_identity:
-  current_main_sha: eedc63816564b0f5bba5ece61d992d50026d33a9
-  deployed_source_sha: eedc63816564b0f5bba5ece61d992d50026d33a9
-  source_tree_sha: 457c542395507b0c91fc693ef15290d1880f7fc8
-  latest_pr: 525
-  latest_pr_head_sha: 388a3e0aabcb51d0be7f241240c02e1dbacb383f
-  full_ci_run: 31496315929
-  promotion_run: 31496297499
-  main_release_run: 31496315929
-  release_required: PASS_EXACT_MAIN
+  current_main_sha: 8d92070c66cc0a318b0943b06da17721874ac8ec
+  deployed_source_sha: 8839ef75fbeb2ba46e3783a280884c1234cf517b
+  source_tree_sha: 37d7e6f3a31e5bc472a5c1af5eb4ae42216b03c4
+  latest_pr: 527
+  latest_pr_head_sha: 8839ef75fbeb2ba46e3783a280884c1234cf517b
+  full_ci_run: 31516101706
+  promotion_run: 31517315678
+  release_candidate_run: 31516101706
+  main_release_run: NOT_RUN_PROMOTED_EXACT_HEAD_ARTIFACT
+  release_required: PASS_EXACT_HEAD
   promotion_required: PASS
   local_oci_relay: PASS
   deployed_health_ready_release_sync: PASS
-  python_image_digest: sha256:5441474394812f12373609288867d40ba7c2878e6034abb9d8cd8381e88e5144
-  web_image_digest: sha256:10cfea30971bfd8be8fbad20c251d5f7a4fd8e641f619e515822621f84c05283
+  python_image_digest: sha256:664631268d204753a664b1afd77db68027b3ad66ff23abecc570529c9c5eb20b
+  web_image_digest: sha256:91b82b31746a2d803e5d7708d8d9d77148c9baa7cd305d2224c8f2347807b7c0
 
 completed_and_retained:
   dashboard_v41_and_truth_remediation:
@@ -53,6 +54,12 @@ completed_and_retained:
     status: TECHNICAL_FOUNDATION_RETAIN_DUAL_PUBLIC_AUTHORITY_REMOVED_BY_SC20
   sc20_single_public_authority:
     pr: 525
+    status: COMPLETE_MERGED_DEPLOYED_OWNER_REREVIEW
+  sc20_postdeploy_contract_remediation:
+    pr: 526
+    status: COMPLETE_MERGED_DEPLOYED_RETAIN
+  sc20_visual_acceptance_remediation:
+    pr: 527
     status: COMPLETE_MERGED_DEPLOYED_OWNER_REREVIEW
   vps_local_oci_relay: PASS_RETAIN
   post_r3_track_a: TRACK_A_CLOSED_PASS
@@ -188,7 +195,8 @@ sc20_execution:
     SC20_06_anti_resurrection_architecture_gate: CLOSED_PASS
     SC20_07_full_verify_merge_redeploy: CLOSED_PASS
   postdeploy_acceptance:
-    exact_main_api_web_sha_match: PASS
+    main_merge_tree_deployed_source_tree_match: PASS
+    api_web_deployed_source_sha_match: PASS
     retired_public_fields_live_count: 0
     reviewed_chinese_label_source: CANONICAL_IDENTITY_PLUS_APPROVED_CONFIG
     label_missing_behavior: RAW_NAME_VISIBLE_WITH_LABEL_MISSING_SEMANTICS
@@ -200,7 +208,15 @@ sc20_execution:
     formal: "OFF"
     lock: "OFF"
     production: "OFF"
-    warm_switch_seconds: 44
+    replay_outcome_truth_table: PASS
+    selected_day_only_window_contract: PASS
+    scoped_batched_cold_read: PASS
+    date_strip_partial_truth: PASS
+    gzip: PASS
+    visual_acceptance_matrix: PASS
+    mobile_date_strip_containment: PASS
+    technical_gap_code_spacing: PASS
+    warm_switch_seconds: 38
 
 shadow_candidate_validation:
   runtime_status: DEPLOYED_ACTIVE_SHADOW_ONLY

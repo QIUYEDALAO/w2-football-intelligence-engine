@@ -5,11 +5,13 @@ PACKET = W2_ROUND4_READINESS_DECISION_EVIDENCE_V1
 DECISION_STATE = READY_FOR_OWNER_DECISION
 ROUND_4 = NOT_STARTED
 EXECUTION_AUTHORITY = NOT_GRANTED
-EXACT_MAIN_SHA = eedc63816564b0f5bba5ece61d992d50026d33a9
-DEPLOYED_SOURCE_SHA = eedc63816564b0f5bba5ece61d992d50026d33a9
-SC20_PR = 525
-SC20_RELEASE_REQUIRED = PASS_RUN_31496315929
-SC20_PROMOTION_REQUIRED = PASS_RUN_31496297499
+EXACT_MAIN_SHA = 8d92070c66cc0a318b0943b06da17721874ac8ec
+DEPLOYED_SOURCE_SHA = 8839ef75fbeb2ba46e3783a280884c1234cf517b
+SC20_CUTOVER_PR = 525
+LATEST_RELEASE_PR = 527
+SC20_RELEASE_CHAIN_PRS = 525_526_527
+SC20_RELEASE_REQUIRED = PASS_RUN_31516101706
+SC20_PROMOTION_REQUIRED = PASS_RUN_31517315678
 V41_POSTDEPLOY_REMEDIATION = D16_01_THROUGH_D16_07_CLOSED
 TRACK_A = TRACK_A_CLOSED_PASS
 VPS_DEPLOYMENT = VPS_LOCAL_RELAY_DEPLOYMENT_ACCEPTANCE_PASS
@@ -24,9 +26,9 @@ not authorize or start Round4 and does not modify product or runtime policy.
 
 | Precondition | Evidence | Result |
 |---|---|---|
-| Approved repository release | exact-main Full CI and `RELEASE_REQUIRED`, run `31496315929` | PASS |
+| Approved repository release | exact-head Full CI and `RELEASE_REQUIRED`, run `31516101706`; main promotion run `31517315678` | PASS |
 | Immutable deployment | exact Python/Web digests via local OCI relay | PASS |
-| Live source identity | main, API and Web all `eedc63816564b0f5bba5ece61d992d50026d33a9` | PASS |
+| Live source identity | main `8d92070c66cc0a318b0943b06da17721874ac8ec`; deployed API/Web source `8839ef75fbeb2ba46e3783a280884c1234cf517b` | PASS |
 | Dashboard V4.1 remediation | D16-01 through D16-07 closed | PASS |
 | Real-shape priority/focus truth | stale dominates movement; useful evidence focus; zero-evidence excluded | PASS |
 | Public presentation truth | one `scope + cause` converter; old public status chains physically deleted | PASS |
@@ -38,6 +40,8 @@ not authorize or start Round4 and does not modify product or runtime policy.
 | SC19 persisted date strip | 15 persisted football days with truthful inventory and market-window states | PASS |
 | Repository hygiene | no dead SC18 assets; six review artifacts retained outside runtime output paths | PASS |
 | SC20 anti-resurrection | retired current identifiers and frontend team translation authority mechanically forbidden | PASS |
+| SC20 postdeploy contract remediation | outcome/replay truth table, selected-day-only response, scoped batched read, partial date-strip truth and gzip | PASS |
+| Screenshot acceptance | seven dates plus empty/future/focus/postmatch/system-contract/mobile/technical-detail states inspected; strict D16 targets refreshed without threshold relaxation | PASS |
 
 ## Current exact-release snapshot
 

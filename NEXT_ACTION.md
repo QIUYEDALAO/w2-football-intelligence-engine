@@ -4,13 +4,15 @@
 ACTIVE_NEXT_ACTION = OWNER_SC20_SINGLE_AUTHORITY_POSTDEPLOY_REREVIEW
 CURRENT_GATE = OWNER_SC20_SINGLE_AUTHORITY_POSTDEPLOY_REREVIEW
 AUTHORITY = SC20_PUBLIC_SEMANTICS_SINGLE_AUTHORITY_CUTOVER.md
-EXACT_MAIN = eedc63816564b0f5bba5ece61d992d50026d33a9
-DEPLOYED_SOURCE = eedc63816564b0f5bba5ece61d992d50026d33a9
-PR = 525_MERGED_DEPLOYED
-RELEASE_REQUIRED = PASS_RUN_31496315929
-PROMOTION_REQUIRED = PASS_RUN_31496297499
+EXACT_MAIN = 8d92070c66cc0a318b0943b06da17721874ac8ec
+DEPLOYED_SOURCE = 8839ef75fbeb2ba46e3783a280884c1234cf517b
+PR = 527_MERGED_DEPLOYED
+RELEASE_REQUIRED = PASS_RUN_31516101706
+PROMOTION_REQUIRED = PASS_RUN_31517315678
 SC19_SCOPE_CAUSE_FOUNDATION = RETAIN
 SC20_01_THROUGH_SC20_07 = CLOSED_PASS
+SC20_POSTDEPLOY_CONTRACT_REMEDIATION = CLOSED_PASS_PR_526
+SC20_VISUAL_ACCEPTANCE_REMEDIATION = CLOSED_PASS_PR_527
 SINGLE_PUBLIC_PRESENTATION_AUTHORITY = ACTIVE
 OLD_PUBLIC_STATUS_CHAIN = PHYSICALLY_DELETED
 FRONTEND_TEAM_TRANSLATION_AUTHORITY = PHYSICALLY_DELETED
@@ -27,13 +29,14 @@ TERMINAL_GATE = OWNER_SC20_SINGLE_AUTHORITY_POSTDEPLOY_REREVIEW
 
 ## Completed result
 
-PR #525 completed the one-PR physical cutover. The only current public business presentation authority is `WorkspacePublicSemantics(scope, cause)` through one presentation converter.
+PR #525 completed the one-PR physical cutover. PR #526 closed the bounded postdeploy read/replay contract gaps, and PR #527 closed the screenshot-found date-strip containment and technical-code spacing defects. The only current public business presentation authority remains `WorkspacePublicSemantics(scope, cause)` through one presentation converter.
 
 - Retired day-mode/focus/public-system-health/date-strip-display-state chains were removed from current public paths.
 - Frontend `TEAM_TRANSLATIONS` / `translateTeam()` were removed; canonical identity plus approved public label config is the only Chinese-label success path.
 - The anti-resurrection architecture gate is active in CI.
-- Exact-main Full CI, promotion, local OCI relay, warm switch and live release-sync checks passed.
+- Exact-head Release Candidate CI, main promotion, local OCI relay, warm switch and live release-sync checks passed.
 - Live workspace JSON contains zero retired public fields and preserves `provider_calls=0`, `db_writes=0`, `no_call_on_read=true`.
+- The seven-date persisted strip, empty/future/match-focus/postmatch/system-contract states, 390px mobile containment and replay technical details were captured and visually inspected; PR #527 refreshed the two strict D16 visual targets without relaxing their threshold.
 
 ## Owner rereview boundary
 
@@ -65,14 +68,23 @@ Do not globally delete `COLLECTION_INCIDENT`; it remains a legitimate technical 
 ## Live acceptance
 
 ```text
-EXACT_MAIN_API_WEB_SHA = eedc63816564b0f5bba5ece61d992d50026d33a9
+EXACT_MAIN_SHA = 8d92070c66cc0a318b0943b06da17721874ac8ec
+DEPLOYED_API_WEB_SOURCE_SHA = 8839ef75fbeb2ba46e3783a280884c1234cf517b
 WORKSPACE_RETIRED_PUBLIC_FIELD_COUNT = 0
 SELECTED_FUTURE_DAY = SELECTED_DAY_PLUS_NOT_YET_DUE
 APPROVED_CHINESE_LABEL = CANONICAL_REVIEWED_AUTHORITY
 APPROVED_LABEL_MISSING = RAW_NAME_VISIBLE_PLUS_LABEL_MISSING
 PLACEHOLDER_OR_GUESSED_TEAM_NAME_COUNT = 0
 READ_PATH = provider_calls=0, db_writes=0, no_call_on_read=true
-WARM_SWITCH_SECONDS = 44
+REPLAY_OUTCOME_TRUTH_TABLE = PASS
+SELECTED_DAY_ONLY_WINDOW_CONTRACT = PASS
+SCOPED_BATCHED_COLD_READ = PASS
+DATE_STRIP_PARTIAL_TRUTH = PASS
+GZIP = PASS
+VISUAL_ACCEPTANCE_MATRIX = PASS
+MOBILE_DATE_STRIP_CONTAINMENT = PASS
+TECHNICAL_GAP_CODE_SPACING = PASS
+WARM_SWITCH_SECONDS = 38
 ```
 
 ## Frozen stop lines
