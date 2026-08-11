@@ -235,6 +235,8 @@ def _fixture_fields(card: Mapping[str, Any]) -> dict[str, Any]:
         "competition_name": _optional_text(card.get("competition_name")),
         "home_team_name": _optional_text(card.get("home_team_name")),
         "away_team_name": _optional_text(card.get("away_team_name")),
+        "home_team_label": _mapping_copy(card.get("home_team_label")),
+        "away_team_label": _mapping_copy(card.get("away_team_label")),
         "status": _optional_text(card.get("status")),
     }
 

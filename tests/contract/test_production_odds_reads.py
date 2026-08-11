@@ -13,6 +13,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from w2.api import repository as api_repository
+from w2.dashboard.day_view import build_dashboard_day_view
+from w2.dashboard.workspace import build_dashboard_intelligence_workspace
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.market_projection_view import (
     PROJECTION_VIEW_NAME,
@@ -322,6 +324,26 @@ def test_api_dashboard_projects_finished_status_over_stale_analysis_card() -> No
                 "competition_id": "liga_profesional_argentina",
                 "decision_tier": "NOT_READY",
                 "data_status": "BLOCKED",
+                "lifecycle_status": "DRAFT",
+                "lineup_requirement": "ADVISORY",
+                "risk_reason_codes": ["LINEUP_UNOBSERVABLE"],
+                "decision_contract": {
+                    "decision_tier": "NOT_READY",
+                    "data_status": "BLOCKED",
+                    "lifecycle_status": "DRAFT",
+                    "outcome_tracked": False,
+                    "lock_eligible": False,
+                    "recommendation_id": None,
+                    "pick": None,
+                    "non_pick": {
+                        "reason_code": "NOT_READY",
+                        "reason_human": "身份待确认",
+                        "action": "WAIT",
+                        "next_eval_at": None,
+                    },
+                    "lineup_requirement": "ADVISORY",
+                    "risk_reason_codes": ["LINEUP_UNOBSERVABLE"],
+                },
             }
 
     payload = api_repository.ReadModelService(
@@ -333,6 +355,10 @@ def test_api_dashboard_projects_finished_status_over_stale_analysis_card() -> No
     assert payload["all"][0]["away_team_label"]["display_name"] == "布洛马波卡纳"
     assert payload["finished"][0]["fixture_id"] == "1493049"
     assert payload["upcoming"] == []
+    day_view = build_dashboard_day_view(payload, environment="staging")
+    workspace = build_dashboard_intelligence_workspace(day_view, replay={})
+    assert workspace["matches"][0]["home_team_label"]["display_name"] == "天狼星"
+    assert workspace["matches"][0]["away_team_label"]["display_name"] == "布洛马波卡纳"
 
 
 def test_sc19_date_strip_reads_persisted_inventory_without_business_writes(
