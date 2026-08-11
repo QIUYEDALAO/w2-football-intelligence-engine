@@ -82,12 +82,18 @@ export function publicPresentation(
     return result("赛果尚未产生", "neutral", "比赛尚未结束", "赛果尚未产生。", "这不是赛果采集缺口。");
   }
   if (facts.subject === "赛果" && cause === "AWAITING_COLLECTION") {
-    const summary = facts.finishedCount && fixtures && facts.finishedCount < fixtures
-      ? `所选比赛日已有 ${facts.finishedCount} 场完场比赛，赛果仍待既有流程采集。`
-      : "比赛已经结束，赛果仍待既有流程采集。";
-    return result("赛果待采集", "warning", "已完场，赛果待采集", summary, "只陈述已持久化的赛果事实。");
+    if (facts.finishedCount !== undefined && facts.finishedCount < fixtures) {
+      const summary = facts.finishedCount
+        ? `所选比赛日已有 ${facts.finishedCount} 场完场；其余比赛状态或赛果仍待既有流程更新。`
+        : "计划开球时间已过，持久化比赛状态或赛果仍待既有流程更新。";
+      return result("比赛状态待更新", "warning", "比赛状态或赛果待更新", summary, "不把过期的未开赛状态表述为正常等待，也不推断赛果。");
+    }
+    return result("赛果待采集", "warning", "已完场，赛果待采集", "比赛已经结束，赛果仍待既有流程采集。", "只陈述已持久化的赛果事实。");
   }
   if (facts.subject === "赛果" && cause === "UNASSESSED") {
+    if (facts.finishedCount !== undefined && facts.finishedCount < fixtures) {
+      return result("比赛状态未评估", "neutral", "比赛状态尚未完成评估", "当前持久化状态尚不能证明比赛已经结束。", "不把未知、取消或延期状态表述为赛果采集故障。");
+    }
     return result("赛果未纳入跟踪", "neutral", "已完场，未纳入赛果跟踪", "本场比赛已结束，但未纳入既有赛果跟踪范围。", "不把未纳入跟踪表述为赛果采集故障。");
   }
   if (facts.subject === "赛果" && facts.outcomeRecorded) {

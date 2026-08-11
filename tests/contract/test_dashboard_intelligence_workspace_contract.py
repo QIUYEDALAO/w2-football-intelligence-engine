@@ -149,7 +149,13 @@ def test_workspace_is_a_pure_adapter_without_provider_or_scheduler_imports() -> 
         if isinstance(node, ast.ImportFrom) and node.module
     }
 
-    assert modules == {"__future__", "collections.abc", "datetime", "typing"}
+    assert modules == {
+        "__future__",
+        "collections.abc",
+        "datetime",
+        "typing",
+        "w2.dashboard.results",
+    }
     assert "create_engine" not in source
     assert "session.commit" not in source
     assert "provider_client" not in source

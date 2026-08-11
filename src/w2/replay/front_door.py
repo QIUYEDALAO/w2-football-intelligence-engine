@@ -5,10 +5,10 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
+from w2.dashboard.results import normalize_match_status
 from w2.domain.environment_policy import build_environment_policy_stamp
 
 SOURCE = "w2.replay.front_door.v1"
-FINISHED_STATUSES = {"FT", "AET", "PEN", "FINISHED"}
 
 
 def build_replay_front_door(
@@ -195,7 +195,7 @@ def _outcome_status(
 
 
 def _is_finished(card: Mapping[str, Any]) -> bool:
-    return _text(card.get("status")).upper() in FINISHED_STATUSES
+    return normalize_match_status(card.get("status")) == "FINISHED"
 
 
 def _outcome_tracking_summary(cards: Sequence[Mapping[str, Any]]) -> dict[str, Any]:

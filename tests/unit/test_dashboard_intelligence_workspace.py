@@ -11,6 +11,7 @@ import pytest
 from w2.api import repository as repository_module
 from w2.api.schemas import DashboardIntelligenceWorkspaceResponse
 from w2.config import get_settings
+from w2.dashboard.results import outcome_public_cause
 from w2.dashboard.workspace import build_dashboard_intelligence_workspace
 from w2.identity.public_team_labels import reviewed_public_team_labels
 
@@ -1206,6 +1207,100 @@ def test_scope_and_cause_separate_future_day_from_cumulative_validation() -> Non
         "scope": "CROSS_DAY_CUMULATIVE",
         "cause": None,
     }
+
+
+def test_past_due_upcoming_status_awaits_update_instead_of_claiming_not_yet_due() -> None:
+    day_view = _day_view()
+    day_view["generated_at"] = "2026-08-11T18:00:00Z"
+
+    payload = _workspace(day_view)
+
+    assert all(
+        match["outcome"]["public_semantics"]
+        == {"scope": "MATCH", "cause": "AWAITING_COLLECTION"}
+        for match in payload["matches"]
+    )
+    replay = payload["validation"]["history_replay"]
+    assert replay["status"] == "FORWARD_RECORD"
+    assert replay["record_kind"] == "FORWARD_RECORD"
+    assert replay["public_semantics"] == {
+        "scope": "SELECTED_DAY",
+        "cause": "AWAITING_COLLECTION",
+    }
+    assert "MISSING_OUTCOMES" not in replay["replay_gaps"]
+    assert DashboardIntelligenceWorkspaceResponse.model_validate(
+        {"request_id": "past-due-status", **payload}
+    )
+
+
+@pytest.mark.parametrize(
+    ("status", "kickoff", "as_of", "tracked", "recorded", "cause"),
+    [
+        (
+            "UPCOMING",
+            "2026-08-09T14:30:00Z",
+            "2026-08-09T17:29:59Z",
+            False,
+            False,
+            "NOT_YET_DUE",
+        ),
+        (
+            "UPCOMING",
+            "2026-08-09T14:30:00Z",
+            "2026-08-09T17:30:00Z",
+            False,
+            False,
+            "AWAITING_COLLECTION",
+        ),
+        (
+            "POSTPONED",
+            "2026-08-09T14:30:00Z",
+            "2026-08-09T17:30:00Z",
+            False,
+            False,
+            "UNASSESSED",
+        ),
+        (None, "2026-08-09T14:30:00Z", "2026-08-09T17:30:00Z", False, False, "UNASSESSED"),
+        ("UPCOMING", None, "2026-08-09T17:30:00Z", False, False, "UNASSESSED"),
+        ("FT", "2026-08-09T14:30:00Z", "2026-08-09T17:30:00Z", False, False, "UNASSESSED"),
+        (
+            "FT",
+            "2026-08-09T14:30:00Z",
+            "2026-08-09T17:30:00Z",
+            True,
+            False,
+            "AWAITING_COLLECTION",
+        ),
+        ("FT", "2026-08-09T14:30:00Z", "2026-08-09T17:30:00Z", True, True, None),
+    ],
+)
+def test_match_outcome_cause_uses_one_temporal_authority(
+    status: str | None,
+    kickoff: str | None,
+    as_of: str,
+    tracked: bool,
+    recorded: bool,
+    cause: str | None,
+) -> None:
+    assert outcome_public_cause(
+        status=status,
+        kickoff_utc=kickoff,
+        as_of=as_of,
+        is_tracked=tracked,
+        is_recorded=recorded,
+    ) == cause
+
+
+def test_schema_rejects_not_yet_due_after_result_collection_delay() -> None:
+    day_view = _day_view()
+    day_view["generated_at"] = "2026-08-11T18:00:00Z"
+    payload = _workspace(day_view)
+    payload["matches"][0]["outcome"]["public_semantics"]["cause"] = "NOT_YET_DUE"
+
+    with pytest.raises(ValueError, match="status and time"):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "past-due-conflict", **payload}
+        )
 
 
 def test_finished_match_missing_outcome_is_awaiting_collection() -> None:

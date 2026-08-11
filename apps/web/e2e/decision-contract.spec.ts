@@ -230,6 +230,10 @@ async function installWorkspace(page: Page, scenario: Scenario = "normal"): Prom
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: workspace(scenario) }));
 }
 
+test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-08-09T13:07:00Z"));
+});
+
 test("public team labels come from the workspace authority, not frontend guessing", async ({ page }) => {
   await installWorkspace(page);
   await page.goto("/");
@@ -238,11 +242,18 @@ test("public team labels come from the workspace authority, not frontend guessin
 });
 
 test("future selected day derives neutral scope/cause copy and keeps known raw team names", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-08-11T06:44:00Z"));
   const payload = workspace("limited");
   payload.date = "2026-08-14";
   payload.generated_at = "2026-08-11T06:44:00Z";
   payload.football_day_start_utc = "2026-08-14T04:00:00Z";
   payload.football_day_end_utc = "2026-08-15T04:00:00Z";
+  payload.navigation = {
+    current_date: payload.date,
+    previous_date: "2026-08-13",
+    next_date: "2026-08-15",
+    next_available_date: "2026-08-15",
+  };
   payload.global_focus!.public_semantics = { scope: "SELECTED_DAY", cause: "NOT_YET_DUE" };
   payload.global_focus!.next_eval_at = null;
   payload.validation.history_replay.record_kind = "FORWARD_RECORD";
@@ -262,6 +273,8 @@ test("future selected day derives neutral scope/cause copy and keeps known raw t
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
 
   await page.goto("/");
+  await page.getByLabel("选择比赛日").fill(payload.date);
+  await expect(page.getByLabel("选择比赛日")).toHaveValue(payload.date);
 
   const selectedDayCause = page.locator("header.v41-header [data-public-cause=NOT_YET_DUE]");
   await expect(selectedDayCause).toHaveText("未进入市场采集窗口");
@@ -366,7 +379,7 @@ test("raw system health cannot override public semantics or the useful stale foc
 });
 
 for (const [scenario, cause, copy] of [
-  ["limited", "AWAITING_COLLECTION", "所选比赛日比赛可查看，已到采集时点，证据待采集"],
+  ["limited", "AWAITING_COLLECTION", "今日比赛可查看，已到采集时点，证据待采集"],
   ["calm", "NONE", "9 场比赛未触发优先复核"],
   ["empty", "NONE", "所选比赛日没有纳入观察池的比赛"],
 ] as const) {
@@ -387,6 +400,19 @@ test("V41 separates trend evidence from same-time comparison and preserves stale
   await expect(totals).toContainText("历史证据可见，当前比较暂停");
   await expect(page.locator(".v41-focus-summary")).toContainText("当前走势与模型—市场比较暂停");
   await expect(page.locator(".v41-scoreline")).toHaveCount(0);
+});
+
+test("V41 keeps the zero-observation market state explicit", async ({ page }, testInfo) => {
+  const payload = workspace();
+  payload.selected_fixture_id = "1571808";
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.goto("/");
+
+  const focus = page.locator(".v41-focus");
+  await expect(focus).toHaveAttribute("data-fixture-id", "1571808");
+  await expect(focus.getByText("0 个真实快照", { exact: false })).toHaveCount(2);
+  await expect(focus.getByText("暂无已落盘时间线证据，不推断走势。", { exact: true })).toHaveCount(2);
+  await focus.screenshot({ animations: "disabled", path: testInfo.outputPath("actual-market-evidence-zero.png") });
 });
 
 test("V41 scoreline is exact 10,000 existing simulations with unconditional probability and sample count", async ({ page }) => {
@@ -462,7 +488,7 @@ test("V41 limited day keeps affected match names, kickoff times and recorded eva
   await expect(shortlist).toContainText("皇家马德里 vs 贝蒂斯");
   await expect(shortlist).toContainText("拜仁慕尼黑 vs 多特蒙德");
   await expect(shortlist.locator(".v41-limited-match")).toHaveCount(2);
-  await expect(page.locator(".v41-today-primary")).toContainText("2场所选比赛日比赛");
+  await expect(page.locator(".v41-today-primary")).toContainText("2场今日比赛");
   await expect(page.locator(".v41-today-primary")).toContainText("2 场可查看赛程");
   await expect(page.locator(".v41-today-primary")).toContainText("0 场可进行市场分析");
   await expect(page.locator(".v41-shortlist")).toContainText("仅赛程比赛 · 2 场");
@@ -519,6 +545,27 @@ test("V41 date navigation, Today, Refresh and keyboard focus are functional", as
   await expect(page.locator(":focus-visible")).toHaveCount(1);
 });
 
+test("refresh keeps the current workspace visible while the read is pending", async ({ page }, testInfo) => {
+  let holdRefresh = false;
+  let finishRefresh!: () => void;
+  const refreshPending = new Promise<void>((resolve) => { finishRefresh = resolve; });
+  await page.route("**/v1/dashboard/intelligence-workspace?**", async (route) => {
+    if (holdRefresh) await refreshPending;
+    await route.fulfill({ status: 200, json: workspace() });
+  });
+  await page.goto("/");
+  await expect(page.locator(".dashboard-v41")).toBeVisible();
+  holdRefresh = true;
+
+  const refresh = page.getByRole("button", { name: "刷新" });
+  await refresh.click();
+  await expect(refresh).toBeDisabled();
+  await expect(page.locator(".dashboard-v41")).toBeVisible();
+  await page.screenshot({ animations: "disabled", path: testInfo.outputPath("actual-refresh-loading.png") });
+  finishRefresh();
+  await expect(refresh).toBeEnabled();
+});
+
 test("SC19 date strip exposes persisted counts and collection-window truth", async ({ page }) => {
   const payload = workspace();
   const selected = payload.date_strip.find((item) => item.football_day === payload.date)!;
@@ -554,6 +601,12 @@ test("mobile date strip keeps every status inside its own card", async ({ page }
       && item.scrollWidth <= item.clientWidth && item.scrollHeight <= item.clientHeight;
   }));
   expect(contained).toBe(true);
+  const selectedVisible = await strip.locator("[aria-current=date]").evaluate((item) => {
+    const stripBounds = item.closest("nav")!.getBoundingClientRect();
+    const itemBounds = item.getBoundingClientRect();
+    return itemBounds.left >= stripBounds.left && itemBounds.right <= stripBounds.right;
+  });
+  expect(selectedVisible).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 });
 
@@ -629,6 +682,26 @@ test("finished selected-day records derive awaiting-outcome copy from public sem
   await expect(validation.getByText("MISSING_OUTCOMES", { exact: true }).first()).toBeVisible();
 });
 
+test("past-due upcoming records show status awaiting update, not outcome not yet due", async ({ page }) => {
+  const payload = workspace();
+  payload.generated_at = "2026-08-11T18:00:00Z";
+  for (const item of payload.matches) {
+    item.status = "UPCOMING";
+    item.outcome = { is_finished: false, is_tracked: false, is_recorded: false, public_semantics: { scope: "MATCH", cause: "AWAITING_COLLECTION" } };
+  }
+  payload.validation.history_replay.status = "FORWARD_RECORD";
+  payload.validation.history_replay.replay_gaps = [];
+  payload.validation.history_replay.record_kind = "FORWARD_RECORD";
+  payload.validation.history_replay.public_semantics = { scope: "SELECTED_DAY", cause: "AWAITING_COLLECTION" };
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.goto("/");
+
+  const validation = page.locator("#secondary-validation");
+  await expect(validation.getByText("比赛状态待更新", { exact: true })).toHaveCount(3);
+  await expect(validation).toContainText("计划开球时间已过，持久化比赛状态或赛果仍待既有流程更新");
+  await expect(validation).not.toContainText("赛果尚未产生");
+});
+
 test("mixed selected-day records derive each outcome label from match semantics", async ({ page }) => {
   const payload = workspace();
   const awaiting = payload.matches.find((item) => item.fixture_id === "1571806")!;
@@ -651,7 +724,9 @@ test("mixed selected-day records derive each outcome label from match semantics"
   await expect(rows.nth(0)).toContainText("赛果待采集");
   await expect(rows.nth(1)).toContainText("赛果尚未产生");
   await expect(rows.nth(2)).toContainText("赛果未纳入跟踪");
-  await expect(page.locator("#secondary-validation")).toContainText("已有 2 场完场比赛，赛果仍待既有流程采集");
+  await expect(page.locator("#secondary-validation")).toContainText(
+    "已有 2 场完场；其余比赛状态或赛果仍待既有流程更新",
+  );
   await expect(page.locator("#history > summary")).toHaveText("证据审计台 / 前向 / 回放记录");
 });
 
@@ -694,7 +769,7 @@ test("V41 1180 and 200% zoom preserve natural flow without horizontal or nested 
   expect(normal.scrollWidth).toBeLessThanOrEqual(normal.width);
   expect(normal.shortlist).toBe("visible");
   expect(normal.focus).toBe("visible");
-  await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
+  await page.setViewportSize({ width: 590, height: 650 });
   const zoomed = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }));
   expect(zoomed.scrollWidth).toBeLessThanOrEqual(zoomed.width);
   await expect(page.getByRole("button", { name: "刷新" })).toBeVisible();

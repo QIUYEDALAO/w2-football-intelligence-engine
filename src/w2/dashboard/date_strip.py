@@ -6,8 +6,8 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from w2.dashboard.date_window import football_day_for_kickoff
+from w2.dashboard.results import normalize_match_status
 
-FINISHED_STATUSES = {"FT", "AET", "PEN", "FINISHED"}
 ACTIVE_WHITELIST_COUNT = 13
 WINDOW_RADIUS_DAYS = 7
 
@@ -56,7 +56,7 @@ def build_persisted_date_strip(
         evidence_fixture_ids = fixture_ids & market_evidence_fixture_ids
         evidence_count = len(evidence_fixture_ids)
         finished_count = sum(
-            str(row.get("fixture_status") or "").upper() in FINISHED_STATUSES
+            normalize_match_status(row.get("fixture_status")) == "FINISHED"
             for row in day_fixtures
         )
         competition_count = len(

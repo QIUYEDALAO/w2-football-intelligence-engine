@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from collections.abc import Sequence
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 FINISHED_STATUSES = {"FT", "AET", "PEN", "FINISHED"}
+OUTCOME_COLLECTION_DELAY = timedelta(hours=3)
 
 
 def normalize_match_status(status: Any) -> str:
@@ -19,6 +21,57 @@ def normalize_match_status(status: Any) -> str:
     if raw in {"NS", "TBD", "UPCOMING", ""}:
         return "UPCOMING"
     return "UNKNOWN"
+
+
+def outcome_public_cause(
+    *,
+    status: Any,
+    kickoff_utc: Any,
+    as_of: Any,
+    is_tracked: bool,
+    is_recorded: bool,
+) -> str | None:
+    if status is None or not str(status).strip():
+        return "UNASSESSED"
+    normalized = normalize_match_status(status)
+    if normalized == "FINISHED":
+        return None if is_recorded else "AWAITING_COLLECTION" if is_tracked else "UNASSESSED"
+    if normalized in {"POSTPONED", "CANCELLED", "UNKNOWN"}:
+        return "UNASSESSED"
+    kickoff = _parse_datetime(kickoff_utc)
+    observed = _parse_datetime(as_of)
+    if kickoff is None or observed is None:
+        return "UNASSESSED"
+    return (
+        "NOT_YET_DUE"
+        if observed < kickoff + OUTCOME_COLLECTION_DELAY
+        else "AWAITING_COLLECTION"
+    )
+
+
+def selected_day_outcome_cause(
+    finished: Sequence[bool], causes: Sequence[str | None]
+) -> str | None:
+    if not finished:
+        return None
+    if "AWAITING_COLLECTION" in causes:
+        return "AWAITING_COLLECTION"
+    if any(
+        not done and cause == "UNASSESSED"
+        for done, cause in zip(finished, causes, strict=True)
+    ):
+        return "UNASSESSED"
+    return "NOT_YET_DUE" if not any(finished) else None
+
+
+def selected_day_record_kind(finished: Sequence[bool]) -> str:
+    if not finished:
+        return "EMPTY"
+    if all(finished):
+        return "REPLAY"
+    if not any(finished):
+        return "FORWARD_RECORD"
+    return "MIXED_RECORD"
 
 
 def result_from_provider_fixture(item: dict[str, Any]) -> dict[str, Any] | None:
@@ -94,4 +147,3 @@ def _parse_datetime(value: Any) -> datetime | None:
         return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(UTC)
     except ValueError:
         return None
-
