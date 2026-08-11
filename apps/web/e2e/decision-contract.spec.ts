@@ -539,6 +539,24 @@ test("SC19 date strip exposes persisted counts and collection-window truth", asy
   await expect(strip.getByText("2026-08-16", { exact: true })).toBeVisible();
 });
 
+test("mobile date strip keeps every status inside its own card", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installWorkspace(page);
+  await page.goto("/");
+  const strip = page.getByRole("navigation", { name: "近七日比赛浏览" });
+  const statuses = strip.locator("button em");
+  await expect(statuses).toHaveCount(7);
+  const contained = await statuses.evaluateAll((items) => items.every((item) => {
+    const card = item.closest("button")!.getBoundingClientRect();
+    const status = item.getBoundingClientRect();
+    return status.left >= card.left && status.right <= card.right
+      && status.top >= card.top && status.bottom <= card.bottom
+      && item.scrollWidth <= item.clientWidth && item.scrollHeight <= item.clientHeight;
+  }));
+  expect(contained).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+});
+
 test("V41 empty-day adjacent controls change the requested football day", async ({ page }) => {
   const requestedDates: string[] = [];
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => { requestedDates.push(new URL(route.request().url()).searchParams.get("date") || ""); return route.fulfill({ status: 200, json: workspace("empty") }); });

@@ -238,17 +238,19 @@ summary {
 
 .v41-recent-days > span:first-child {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   margin-right: 5px;
   color: var(--v41-ink-2);
   font-size: 13px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .v41-recent-days button {
   display: grid;
-  min-width: 104px;
-  min-height: 42px;
+  min-width: 132px;
+  min-height: 56px;
   place-content: center;
   gap: 1px;
   padding: 3px 10px;
@@ -257,6 +259,7 @@ summary {
   background: transparent;
   color: var(--v41-ink-2);
   cursor: pointer;
+  overflow: hidden;
 }
 
 .v41-recent-days button:hover,
@@ -278,10 +281,15 @@ summary {
 }
 
 .v41-recent-days button em {
+  width: 100%;
+  min-width: 0;
   color: var(--v41-ink-3);
   font-size: 11px;
   font-style: normal;
-  white-space: nowrap;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  text-align: center;
+  white-space: normal;
 }
 
 .v41-recent-days .v41-window-control {
@@ -1422,6 +1430,10 @@ summary {
 .v41-validation-technical code {
   margin-right: 8px;
   color: var(--v41-ink-3);
+}
+
+#history p code {
+  margin-right: 8px;
 }
 
 .v41-secondary {
