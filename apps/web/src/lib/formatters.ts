@@ -3,7 +3,6 @@ import {
   COMPETITION_NAME_LABELS,
   COMPETITION_STAGE_TRANSLATIONS,
   REASON_TRANSLATIONS,
-  TEAM_TRANSLATIONS,
 } from "./labels";
 
 function numericValue(value: unknown): number | null {
@@ -98,11 +97,6 @@ export function teamCode(name: string): string {
     return cleaned.slice(0, 3);
   }
   return name.slice(0, 2).toUpperCase();
-}
-
-export function translateTeam(value: unknown): string {
-  const raw = typeof value === "string" && value ? value : "球队";
-  return TEAM_TRANSLATIONS[raw] ?? raw;
 }
 
 export function confidenceLabel(value: unknown): string {

@@ -1,0 +1,48 @@
+{
+  "schema_version": "w2.sc20.legacy-team-label-parity.v1",
+  "base_main_sha": "f2b82c7d59341e8ecc98ccb34130b983c51664fc",
+  "method": "Exact legacy Chinese label value matched to APPROVED entries in config/identity/public_team_labels.zh-CN.v1.json. National-team labels are outside the active 13-league runtime scope. Remaining club labels have no stable W2 team-id binding in the approved public-label config and must fail closed.",
+  "counts": {
+    "LEGACY_LABEL_HAS_CANONICAL_APPROVED_EQUIVALENT": 53,
+    "LEGACY_LABEL_UNREACHABLE_CURRENT_PUBLIC_SCOPE": 57,
+    "LEGACY_LABEL_CANONICAL_IDENTITY_MISSING": 8,
+    "LEGACY_LABEL_REVIEWED_PUBLIC_LABEL_MISSING": 0,
+    "TOTAL": 118
+  },
+  "LEGACY_LABEL_HAS_CANONICAL_APPROVED_EQUIVALENT": [
+    "Atletico Paranaense", "Atletico-MG", "BK Hacken", "Bahia", "Beijing Guoan",
+    "Bodo/Glimt", "Botafogo", "Chapecoense-sc", "Chengdu Better City",
+    "Chongqing Tongliang Long", "Corinthians", "Coritiba", "Cruzeiro",
+    "Dalian Zhixing", "Degerfors IF", "Djurgardens IF", "Flamengo", "Halmstad",
+    "Ham-Kam", "Hammarby FF", "Hangzhou Greentown", "Henan Jianye",
+    "IF Brommapojkarna", "IF Elfsborg", "IFK Goteborg", "Internacional", "Kalmar FF",
+    "Kristiansund BK", "Lillestrom", "Malmo FF", "Mirassol", "Mjallby AIF",
+    "Orgryte IS", "Palmeiras", "Qingdao Jonoon", "Qingdao Youth Island", "Remo",
+    "SHANGHAI SIPG", "Santos", "Sao Paulo", "Shandong Luneng", "Shanghai Shenhua",
+    "Shenyang Urban", "Sichuan Jiuniu", "Sirius", "Start", "Tianjin Teda",
+    "Vasco DA Gama", "Vasteras SK FK", "Viking", "Vitoria", "Wuhan Three Towns",
+    "Yunnan Yukun"
+  ],
+  "LEGACY_LABEL_UNREACHABLE_CURRENT_PUBLIC_SCOPE": [
+    "Argentina", "Australia", "Belgium", "Brazil", "Burkina Faso", "Cameroon",
+    "Canada", "Cape Verde", "Cape Verde Islands", "Chile", "China", "Colombia",
+    "Costa Rica", "Croatia", "Denmark", "Ecuador", "Egypt", "England", "France",
+    "Germany", "Ghana", "Greece", "Honduras", "Iran", "Iraq", "Italy", "Japan",
+    "Jordan", "Korea", "Korea Republic", "Mexico", "Morocco", "Netherlands",
+    "New Zealand", "Nigeria", "Norway", "Panama", "Paraguay", "Peru", "Poland",
+    "Portugal", "Qatar", "Romania", "Saudi Arabia", "Scotland", "Senegal", "Serbia",
+    "Spain", "Sweden", "Switzerland", "Tunisia", "Turkey", "USA", "Ukraine",
+    "United States", "Uruguay", "Wales"
+  ],
+  "LEGACY_LABEL_CANONICAL_IDENTITY_MISSING": [
+    "Bayern Munich", "Benfica", "Borussia Dortmund", "Nacional", "Porto",
+    "Real Betis", "Real Madrid", "Santa Clara"
+  ],
+  "runtime_result": {
+    "approved_identity_and_label": "CHINESE_LABEL_READY",
+    "canonical_identity_without_approved_label": "LABEL_MISSING",
+    "identity_unresolved": "IDENTITY_UNRESOLVED",
+    "identity_ambiguous": "AMBIGUOUS",
+    "frontend_dictionary_fallback": false
+  }
+}

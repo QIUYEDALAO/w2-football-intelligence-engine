@@ -36,7 +36,7 @@ Validation detail, league/tournament performance, replay, external intelligence 
 
 ## Match focus truth rules
 
-- The focus comes from `default_focus_fixture_id`; neither backend nor frontend may use the first array element as policy.
+- The focus comes from `selected_fixture_id`; neither backend nor frontend may use the first array element as policy.
 - AH and OU show only persisted observations. A single snapshot may support same-time cross-sectional comparison but never a trend claim.
 - STALE market memory remains visible, labels its age and threshold, and pauses model comparison authority.
 - Model status and explanation are a single source reused in every visible model surface.

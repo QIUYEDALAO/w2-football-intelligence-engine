@@ -151,7 +151,6 @@ checkpoint identities remain available only in technical details.
 | each external `.affects_match_readiness` | approved P0 boundary | `AVAILABLE` | `NONE` | always false while not connected | `true` |
 | `freshness.domains.*` | `FRESHNESS_CONTRACT.md` sources | mixed, explicit | matching domain | never infer source time | `true` |
 | `data_operations.read_model_source`, `checkpoint_key`, `degradation`, `counts`, `system_health`, `provider_budget_status` | DayView envelope | `AVAILABLE` | `PAGE_PROJECTION` | raw source truth preserved for technical detail | `true` |
-| `data_operations.public_system_health` | final `day_mode` plus raw DayView degradation | `AVAILABLE` | `PAGE_PROJECTION` | exact `HEALTHY/PARTIAL_DEGRADATION/DAY_BLOCKED`; only a `BLOCKED` day may expose `DAY_BLOCKED` | `true` |
 
 ## Prohibited fields
 
@@ -171,18 +170,20 @@ market_pick
 Existing legacy payloads may contain some of these keys; the P2 adapter uses
 an allowlist and never passes legacy payloads wholesale.
 
-## V4.1 additive focus contract
+## SC20 single public authority contract
 
-The existing endpoint and schema version remain unchanged. V4.1 adds only the
-following source-bound fields:
+The endpoint and schema version remain unchanged. Public presentation is derived
+only from `public_semantics.scope`, `public_semantics.cause`, and the factual fields
+below. Raw operations health is technical evidence and cannot choose public copy,
+color, or layout.
 
 | FIELD | SOURCE | AVAILABILITY | FRESHNESS_DOMAIN | READINESS_SEMANTICS | NO_CALL_ON_READ |
 |---|---|---|---|---|---|
-| `day_mode` | cards plus existing DayView degradation state | `AVAILABLE` | `PAGE_PROJECTION` | exact `NORMAL/BLOCKED/CALM/EMPTY`; no fifth stale mode | `true` |
-| `default_focus_type` | deterministic V4.1 focus derivation | `AVAILABLE` | `PAGE_PROJECTION` | exact paired `MATCH/GLOBAL_INCIDENT/DAY_SUMMARY/EMPTY_STATE` | `true` |
-| `default_focus_fixture_id` | information-usefulness ranking over existing match fields | `AVAILABLE_WHEN_MATCH_FOCUS` | relevant match domains | non-null only for `NORMAL + MATCH`; kickoff and fixture id are deterministic tie-breaks | `true` |
+| `selected_fixture_id` | information-usefulness ranking over existing match facts | `AVAILABLE_WHEN_MATCH_FOCUS` | relevant match domains | non-null only when a response match has usable evidence; kickoff and fixture id are deterministic tie-breaks | `true` |
+| `date_strip[].public_semantics` | persisted fixture inventory, collection plan and market evidence | `AVAILABLE` | `FIXTURES` / `ODDS_PREMATCH` | exact selected-day scope and cause; no second display state | `true` |
+| `matches[].public_semantics` | selected-day cause plus match evidence facts | `AVAILABLE` | relevant source domains | exact match scope and cause; no public status fallback | `true` |
 | `today_summary.*` | canonical matches plus one primary reason per prioritized match | `AVAILABLE` | `PAGE_PROJECTION` | primary counts sum exactly to priority match count; secondary reasons never double-count | `true` |
-| `global_focus.*` | DayView degradation, freshness, navigation and match counts | `AVAILABLE_FOR_NON_MATCH_FOCUS` | `FIXTURES` / `PAGE_PROJECTION` | source-bound incident/calm/empty fact; no fabricated match | `true` |
+| `global_focus.*` | selected-day semantics, freshness, navigation and match counts | `AVAILABLE_WITHOUT_SELECTED_FIXTURE` | `FIXTURES` / `PAGE_PROJECTION` | factual summary without a second status enum; no fabricated match | `true` |
 | `global_model_quality.*` | global performance checkpoint and its timestamp | `AVAILABLE_WHEN_CURRENT` | `PAGE_PROJECTION` | exact `AVAILABLE/STALE/INCOMPLETE/NOT_AVAILABLE`; only complete current metrics render | `true` |
 | `matches[].priority_reason_primary`, `priority_reason_secondary[]` | existing intelligence, market, readiness and model relation fields | `AVAILABLE` | relevant source domains | primary is only eligible `STALE_MARKET_MEMORY/MARKET_MOVEMENT/MODEL_DIAGNOSTIC`; data/lineup/collection attention remains secondary and never increments priority counts | `true` |
 | `matches[].factual_summary` | canonical persisted AH/OU status, timeline depth and freshness | `AVAILABLE` | `ODDS_PREMATCH` | one causal authority states evidence, allowed conclusion and existing scheduled recovery; no read-side Provider call | `true` |

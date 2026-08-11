@@ -4,7 +4,7 @@ import type {
   DashboardPerformance,
   ReleaseSyncState,
 } from "../../types/dashboard";
-import { translateCompetition, translateTeam } from "../../lib/formatters";
+import { translateCompetition } from "../../lib/formatters";
 import type {
   DashboardV2DecisionTier,
   DashboardV2FixtureModel,
@@ -359,8 +359,8 @@ function fixtureModel(
     kickoffUtc: card.kickoff_utc ?? "",
     status: card.status ?? "UNKNOWN",
     competition: translateCompetition(card.competition_name || card.competition_id || "比赛", card.competition_id),
-    homeTeam: translateTeam(card.home_team_name || "主队"),
-    awayTeam: translateTeam(card.away_team_name || "客队"),
+    homeTeam: card.home_team_name || "主队",
+    awayTeam: card.away_team_name || "客队",
     decisionTier: decisionTier(card),
     decisionOutcome: outcome,
     dataStatus: card.data_status,

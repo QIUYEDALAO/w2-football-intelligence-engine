@@ -51,7 +51,6 @@ from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.infrastructure.persistence.factor_model_models import (
     CanonicalTeamModel,
-    ProviderTeamIdentityCrosswalkModel,
 )
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
@@ -138,7 +137,6 @@ def _public_team_label_from_identity(
     fixture: MatchdayFixtureIdentityModel,
     side: Literal["home", "away"],
     canonical: Mapping[str, CanonicalTeamModel],
-    reviewed: set[tuple[str, str, str, str, str]],
     reviewed_labels: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     provider_team_id = str(getattr(fixture, f"{side}_provider_team_id"))
@@ -158,30 +156,14 @@ def _public_team_label_from_identity(
     elif not w2_team_id or w2_team_id not in canonical:
         state = "IDENTITY_UNRESOLVED"
     else:
-        row = canonical[w2_team_id]
-        key = (
-            fixture.provider,
-            provider_team_id,
-            fixture.competition_id,
-            fixture.season,
-            w2_team_id,
+        configured_label = (reviewed_labels or {}).get(w2_team_id)
+        chinese_name = (
+            str(configured_label).strip()
+            if configured_label
+            and any("\u4e00" <= char <= "\u9fff" for char in str(configured_label))
+            else None
         )
-        candidates = [
-            row.payload.get(name)
-            for name in ("public_zh_name", "display_name_zh", "zh_name", "chinese_name")
-            if isinstance(row.payload, dict)
-        ]
-        candidates.append((reviewed_labels or {}).get(w2_team_id))
-        candidates.append(row.display_name)
-        chinese_name = next(
-            (
-                str(value).strip()
-                for value in candidates
-                if value and any("\u4e00" <= char <= "\u9fff" for char in str(value))
-            ),
-            None,
-        )
-        if key in reviewed and chinese_name:
+        if chinese_name:
             return {
                 "display_name": chinese_name,
                 "state": "CHINESE_LABEL_READY",
@@ -1130,16 +1112,6 @@ class ReadModelRepository:
                     select(CanonicalTeamModel).where(CanonicalTeamModel.w2_team_id.in_(w2_ids))
                 ).all()
             }
-            crosswalks = session.scalars(
-                select(ProviderTeamIdentityCrosswalkModel).where(
-                    ProviderTeamIdentityCrosswalkModel.w2_team_id.in_(w2_ids)
-                )
-            ).all()
-        reviewed = {
-            (row.provider, row.provider_team_id, row.competition_id, row.season, row.w2_team_id)
-            for row in crosswalks
-            if str(row.review_status or "").upper() in {"APPROVED", "REVIEWED"}
-        }
         reviewed_labels = reviewed_public_team_labels()
         output: dict[str, dict[str, dict[str, Any]]] = {}
         for fixture in fixtures:
@@ -1148,14 +1120,12 @@ class ReadModelRepository:
                     fixture=fixture,
                     side="home",
                     canonical=canonical,
-                    reviewed=reviewed,
                     reviewed_labels=reviewed_labels,
                 ),
                 "away": _public_team_label_from_identity(
                     fixture=fixture,
                     side="away",
                     canonical=canonical,
-                    reviewed=reviewed,
                     reviewed_labels=reviewed_labels,
                 ),
             }

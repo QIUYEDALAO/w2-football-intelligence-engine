@@ -72,6 +72,7 @@ def main() -> int:
         return 0
 
     run(["git", "diff", "--check", f"{args.base}...{args.head}"])
+    run(["uv", "run", "python", "scripts/check_dashboard_single_public_authority.py"])
     for path in paths:
         if path.endswith((".yaml", ".yml")) and (ROOT / path).is_file():
             yaml.safe_load((ROOT / path).read_text(encoding="utf-8"))

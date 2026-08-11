@@ -40,8 +40,9 @@ def test_legacy_product_presentations_are_absent() -> None:
 def test_unified_empty_state_is_fail_closed() -> None:
     page = source("apps/web/src/components/DashboardPage.tsx")
     console = source("apps/web/src/components/IntelligenceConsole.tsx")
+    presentation = source("apps/web/src/lib/publicPresentation.ts")
 
     assert "统一情报工作台暂不可用" in page
-    assert "空比赛日" in console
+    assert "空比赛日" in presentation
     assert "尚未选择比赛" in console
     assert "DataDiagnosticsPanel" not in page

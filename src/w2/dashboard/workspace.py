@@ -72,18 +72,27 @@ def build_dashboard_intelligence_workspace(
         match["priority_reason_primary"] = primary
         match["priority_reason_secondary"] = secondary
         match["factual_summary"] = _match_factual_summary(match)
-    day_mode, focus_type, focus_fixture_id = _focus_authority(day_view, matches)
-    primary_reason_counts = {} if day_mode == "BLOCKED" else _primary_reason_counts(matches)
     date_strip = [_date_strip_entry(item) for item in _mapping_list(day_view.get("date_strip"))]
     selected_day_semantics = (
         _mapping(date_strip[len(date_strip) // 2].get("public_semantics"))
         if date_strip
         else {"scope": "SELECTED_DAY", "cause": None}
     )
+    selected_day_semantics = _selected_day_semantics(selected_day_semantics, matches)
+    if date_strip:
+        date_strip[len(date_strip) // 2]["public_semantics"] = selected_day_semantics
+    for match in matches:
+        match["public_semantics"] = _match_public_semantics(match, selected_day_semantics)
+    focus_fixture_id = _selected_focus_fixture_id(matches, selected_day_semantics)
+    primary_reason_counts = (
+        _primary_reason_counts(matches)
+        if selected_day_semantics.get("cause") is None
+        else {}
+    )
     global_focus = _global_focus(
         day_view,
         matches,
-        day_mode,
+        focus_fixture_id,
         selected_day_semantics=selected_day_semantics,
     )
     return {
@@ -99,9 +108,6 @@ def build_dashboard_intelligence_workspace(
         "football_day_start_utc": day_view.get("football_day_start_utc"),
         "football_day_end_utc": day_view.get("football_day_end_utc"),
         "source": "dashboard_day_view+performance_checkpoint+replay_front_door",
-        "day_mode": day_mode,
-        "default_focus_type": focus_type,
-        "default_focus_fixture_id": focus_fixture_id,
         "selected_fixture_id": focus_fixture_id,
         "today_summary": {
             "match_count": len(matches),
@@ -165,7 +171,7 @@ def build_dashboard_intelligence_workspace(
         "freshness": {
             "domains": _freshness_domains(cards, freshness),
         },
-        "data_operations": _data_operations(day_view, freshness, day_mode),
+        "data_operations": _data_operations(day_view, freshness),
     }
 
 
@@ -534,15 +540,33 @@ def _public_team_label(card: Mapping[str, Any], side: str) -> dict[str, Any]:
 
 
 def _date_strip_entry(raw: Mapping[str, Any]) -> dict[str, Any]:
-    entry = dict(raw)
-    if "public_semantics" not in entry:
+    semantics = _mapping(raw.get("public_semantics"))
+    if not semantics:
         cause = {
             "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW": "NOT_YET_DUE",
             "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY": "AWAITING_COLLECTION",
             "MARKET_COLLECTION_PLAN_NOT_PERSISTED": "UNASSESSED",
-        }.get(_text(entry.get("market_collection_window_status")))
-        entry["public_semantics"] = {"scope": "SELECTED_DAY", "cause": cause}
-    return entry
+        }.get(_text(raw.get("market_collection_window_status")))
+        semantics = {"scope": "SELECTED_DAY", "cause": cause}
+    return {
+        "football_day": _text(raw.get("football_day")),
+        "fixture_count": max(0, _int(raw.get("fixture_count"))),
+        "competition_count": max(0, _int(raw.get("competition_count"))),
+        "finished_fixture_count": max(0, _int(raw.get("finished_fixture_count"))),
+        "upcoming_fixture_count": max(0, _int(raw.get("upcoming_fixture_count"))),
+        "persisted_inventory_status": _text(raw.get("persisted_inventory_status")),
+        "persisted_competition_coverage_count": max(
+            0, _int(raw.get("persisted_competition_coverage_count"))
+        ),
+        "active_whitelist_count": 13,
+        "market_collection_window_status": _text(
+            raw.get("market_collection_window_status")
+        ),
+        "market_evidence_fixture_count": max(
+            0, _int(raw.get("market_evidence_fixture_count"))
+        ),
+        "public_semantics": dict(semantics),
+    }
 
 
 def _model_relation(raw: Mapping[str, Any], name: str) -> dict[str, Any]:
@@ -831,7 +855,7 @@ def _card_domain(cards: Sequence[Mapping[str, Any]], name: str) -> tuple[str, An
 
 
 def _data_operations(
-    day_view: Mapping[str, Any], freshness: Mapping[str, Any], day_mode: str
+    day_view: Mapping[str, Any], freshness: Mapping[str, Any]
 ) -> dict[str, Any]:
     counts = _mapping(day_view.get("counts"))
     safe_counts = {
@@ -853,20 +877,12 @@ def _data_operations(
     }
     degradation = dict(_mapping(day_view.get("degradation")))
     system_health = _text(degradation.get("state"), "UNKNOWN")
-    public_system_health = (
-        "DAY_BLOCKED"
-        if day_mode == "BLOCKED"
-        else "HEALTHY"
-        if system_health in {"HEALTHY", "EMPTY_DAY"}
-        else "PARTIAL_DEGRADATION"
-    )
     return {
         "read_model_source": _text(day_view.get("source")),
         "checkpoint_key": _text(day_view.get("checkpoint_key")),
         "degradation": degradation,
         "counts": safe_counts,
         "system_health": system_health,
-        "public_system_health": public_system_health,
         "provider_budget_status": _text(freshness.get("provider_budget_status"), "UNKNOWN"),
     }
 
@@ -966,27 +982,43 @@ def _primary_reason_counts(matches: Sequence[Mapping[str, Any]]) -> dict[str, in
     return dict(sorted(counts.items(), key=lambda item: (PRIMARY_REASON_ORDER[item[0]], item[0])))
 
 
-def _focus_authority(
-    day_view: Mapping[str, Any], matches: Sequence[Mapping[str, Any]]
-) -> tuple[str, str, str | None]:
-    degradation_state = _text(_mapping(day_view.get("degradation")).get("state"))
-    blocking_degradation = degradation_state in {
-        "BLOCKED",
-        "BLOCKED_DAY",
-        "COLLECTION_INCIDENT",
-        "PROVIDER_EMPTY",
-    }
-    if not matches:
-        if blocking_degradation and degradation_state != "EMPTY_DAY":
-            return "BLOCKED", "GLOBAL_INCIDENT", None
-        return "EMPTY", "EMPTY_STATE", None
+def _selected_day_semantics(
+    semantics: Mapping[str, Any], matches: Sequence[Mapping[str, Any]]
+) -> dict[str, Any]:
+    has_usable_evidence = any(_evidence_rank(match) < 4 for match in matches)
+    selected = {"scope": "SELECTED_DAY", "cause": semantics.get("cause")}
+    if selected["cause"] is None and matches and not has_usable_evidence:
+        selected["cause"] = "INSUFFICIENT"
+    return selected
+
+
+def _match_public_semantics(
+    match: Mapping[str, Any], selected_day_semantics: Mapping[str, Any]
+) -> dict[str, Any]:
+    selected_cause = selected_day_semantics.get("cause")
+    if selected_cause is not None:
+        return {"scope": "MATCH", "cause": selected_cause}
+    readiness = _mapping(match.get("readiness"))
+    cause = (
+        None
+        if _text(readiness.get("market_aggregate_status")) == "READY"
+        else "INSUFFICIENT"
+    )
+    return {"scope": "MATCH", "cause": cause}
+
+
+def _selected_focus_fixture_id(
+    matches: Sequence[Mapping[str, Any]], selected_day_semantics: Mapping[str, Any]
+) -> str | None:
+    if selected_day_semantics.get("cause") is not None:
+        return None
     usable = [match for match in matches if _evidence_rank(match) < 4]
     if not usable:
-        return "BLOCKED", "GLOBAL_INCIDENT", None
+        return None
     if all(_calm_complete(match) for match in matches):
-        return "CALM", "DAY_SUMMARY", None
+        return None
     focused = min(usable, key=_focus_rank)
-    return "NORMAL", "MATCH", _text(focused.get("fixture_id"))
+    return _text(focused.get("fixture_id"))
 
 
 def _focus_rank(match: Mapping[str, Any]) -> tuple[int, int, int, str, str]:
@@ -1031,14 +1063,14 @@ def _calm_complete(match: Mapping[str, Any]) -> bool:
 def _global_focus(
     day_view: Mapping[str, Any],
     matches: Sequence[Mapping[str, Any]],
-    day_mode: str,
+    selected_fixture_id: str | None,
     *,
     selected_day_semantics: Mapping[str, Any],
 ) -> dict[str, Any] | None:
-    if day_mode == "NORMAL":
+    if selected_fixture_id is not None:
         return None
-    degradation = _mapping(day_view.get("degradation"))
     freshness = _mapping(day_view.get("freshness"))
+    cause = _optional_text(selected_day_semantics.get("cause"))
     competition_count = len(
         {match.get("competition_id") for match in matches if match.get("competition_id")}
     )
@@ -1049,34 +1081,27 @@ def _global_focus(
         and _is_future_timestamp(value, day_view.get("generated_at"))
     )
     common = {
-        "affected_fixture_count": len(matches) if day_mode == "BLOCKED" else 0,
-        "affected_competition_count": competition_count if day_mode == "BLOCKED" else 0,
+        "affected_fixture_count": len(matches) if cause else 0,
+        "affected_competition_count": competition_count if cause else 0,
         "source_as_of": freshness.get("page_updated_at") or day_view.get("generated_at"),
         "next_eval_at": next_evaluations[0] if next_evaluations else None,
         "recovery_condition": None,
         "public_semantics": dict(selected_day_semantics),
     }
-    if day_mode == "BLOCKED":
+    if cause:
         return {
-            "status": "INCIDENT",
-            "reason_code": _text(
-                degradation.get("reason_code"),
-                degradation.get("state"),
-                "COLLECTION_INCIDENT",
-            ),
-            "factual_summary": "当日持久化采集证据不足，无法形成比赛级默认焦点。",
+            "reason_code": cause,
+            "factual_summary": "所选比赛日暂无可用于比赛级分析的持久化市场证据。",
             "recovery_condition": "等待既有调度形成新的持久化证据；本页不会调用 Provider。",
             **{key: value for key, value in common.items() if key != "recovery_condition"},
         }
-    if day_mode == "CALM":
+    if matches:
         return {
-            "status": "CALM",
             "reason_code": "NO_PRIORITY_REVIEW_ITEMS",
             "factual_summary": "当前没有达到优先复核条件的比赛。",
             **common,
         }
     return {
-        "status": "EMPTY",
         "reason_code": "NO_FIXTURES_IN_FOOTBALL_DAY",
         "factual_summary": "本比赛日观察池内没有比赛；不会从其他日期填充。",
         **common,

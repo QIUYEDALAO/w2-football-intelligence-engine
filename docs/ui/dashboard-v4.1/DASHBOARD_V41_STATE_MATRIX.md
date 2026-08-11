@@ -16,28 +16,20 @@ copy. `scope` is `MATCH`, `SELECTED_DAY`, `CROSS_DAY_CUMULATIVE`, or `GLOBAL`;
 | `MATCH` | `AMBIGUOUS` | 身份存在歧义，可使用占位符 | warning |
 
 `CROSS_DAY_CUMULATIVE` metrics and `SELECTED_DAY` records are rendered in
-separate statistic groups. Raw `day_mode` and source states remain technical
-truth, but they do not choose public copy or color independently.
+separate statistic groups. Raw operations health remains technical truth, but
+it cannot choose public copy, color, focus, or layout.
 
-| Scenario | `day_mode` | `default_focus_type` | Fixture id | L2 | L3 authority | Key fail-closed behavior |
-|---|---|---|---|---|---|---|
-| Normal, rich evidence | `NORMAL` | `MATCH` | required | prioritized matches/groups | persisted AH/OU facts, W2 diagnostic relation, blockers, optional scoreline | no match focus without a valid id |
-| Normal, stale market memory | `NORMAL` | `MATCH` | required | stale reason may be primary | persisted history remains visible; comparison paused | never expose READY and STALE together |
-| Whole-day collection incident | `BLOCKED` | `GLOBAL_INCIDENT` | null | incident group | affected scope, factual cause, last source time, recovery condition | never force an arbitrary match |
-| Calm day | `CALM` | `DAY_SUMMARY` | null | zero priority plus factual summary | why no item requires review and next evaluation | never force a match detail |
-| Empty football day | `EMPTY` | `EMPTY_STATE` | null | zero rows | no matches, no borrowing; adjacent-day evidence only | never fill from another date |
-| Responsive presentation | unchanged | unchanged | unchanged | rows stack above L3 | same semantic payload | presentation is not a fifth business mode |
+| Facts and semantics | Selected fixture | L2 | L3 authority | Key fail-closed behavior |
+|---|---|---|---|---|
+| usable evidence, attention item | required | prioritized matches/groups | persisted AH/OU facts, W2 diagnostic relation, blockers, optional scoreline | no match focus without a valid id |
+| usable stale market memory | required | stale reason may be primary | persisted history remains visible; comparison paused | never expose READY and STALE together |
+| selected-day cause present | null | affected factual rows | scope, cause, counts, last source time, recovery condition | no incident styling for `NOT_YET_DUE`; never force an arbitrary match |
+| matches exist, no priority | null | zero priority plus factual summary | why no item requires review and next evaluation | never force a match detail |
+| zero persisted fixtures | null | zero rows | no matches, no borrowing; adjacent-day evidence only | never fill from another date |
 
-The valid pairs are bidirectional and exact:
-
-```text
-NORMAL  <-> MATCH
-BLOCKED <-> GLOBAL_INCIDENT
-CALM    <-> DAY_SUMMARY
-EMPTY   <-> EMPTY_STATE
-```
-
-Examples that must fail validation include `BLOCKED + MATCH`, `EMPTY + non-null fixture`, `NORMAL + null fixture`, `CALM + non-null fixture`, and any unknown day or focus state.
+The only focus invariant is exact: a non-null `selected_fixture_id` must identify
+a response match and excludes `global_focus`; a null selection requires a factual
+`global_focus`. Unknown scope/cause values fail validation.
 
 ## Priority authority
 

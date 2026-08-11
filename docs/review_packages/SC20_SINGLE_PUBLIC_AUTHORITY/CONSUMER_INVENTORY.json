@@ -1,0 +1,51 @@
+{
+  "schema_version": "w2.sc20.public-authority-consumer-inventory.v1",
+  "base_main_sha": "f2b82c7d59341e8ecc98ccb34130b983c51664fc",
+  "inventory_method": "rg exact identifier inventory on fresh origin/main before edits",
+  "base_counts": {
+    "DashboardDayMode": 2,
+    "day_mode": 11,
+    "default_focus_type": 11,
+    "DashboardFocusType": 2,
+    "public_system_health": 10,
+    "DAY_MODE_LABELS": 1,
+    "TEAM_TRANSLATIONS": 2,
+    "translateTeam": 3,
+    "v41-global--blocked": 1,
+    "v41-global--calm": 0,
+    "v41-global--empty": 0,
+    "v41-pill--mode-": 1,
+    "date_strip_display_state": 9
+  },
+  "classifications": {
+    "LIVE_PRODUCTION_CONSUMER": [
+      "src/w2/dashboard/workspace.py", "src/w2/dashboard/date_strip.py",
+      "apps/web/src/components/IntelligenceConsole.tsx", "apps/web/src/intelligence.css",
+      "apps/web/src/lib/labels.ts", "apps/web/src/lib/formatters.ts",
+      "apps/web/src/types/intelligenceWorkspace.ts"
+    ],
+    "PUBLIC_SCHEMA_CONTRACT": ["src/w2/api/schemas.py", "DASHBOARD_DATA_CONTRACT.md"],
+    "PUBLIC_TEST_OR_FIXTURE": [
+      "apps/web/e2e/decision-contract.spec.ts",
+      "tests/unit/test_dashboard_date_strip.py",
+      "tests/unit/test_dashboard_intelligence_workspace.py",
+      "tests/contract/test_dashboard_intelligence_workspace_contract.py",
+      "examples/dashboard_intelligence_workspace.v1.json"
+    ],
+    "PUBLIC_REFERENCE_OR_VISUAL_TARGET": [
+      "docs/ui/dashboard-v4.1/DASHBOARD_V41_STATE_MATRIX.md",
+      "docs/ui/dashboard-v4.1/DASHBOARD_V41_DESIGN_SPEC.md",
+      "docs/ui/dashboard-v4.1/REAL_SHAPE_DASHBOARD_V41_FIXTURES.json",
+      "apps/web/src/reference/dashboard-v2/dashboard-v2-adapter.ts"
+    ],
+    "OBSOLETE_V2_REFERENCE": [],
+    "ARCHIVED_HISTORICAL_EVIDENCE": ["docs/review_packages/SC18_INPUT_AUTHORITY_CONVERGENCE/PUBLIC_LABEL_COVERAGE_REPORT.md"]
+  },
+  "cutover": {
+    "public_converter": "apps/web/src/lib/publicPresentation.ts",
+    "team_label_authority": "config/identity/public_team_labels.zh-CN.v1.json",
+    "v2_reference_retention_proof": "apps/web/src/reference/boss-console/boss-console-adapter.ts imports the adapter for the protected Boss Console visual authority; its team-translation dependency was removed",
+    "legacy_visual_fixture_archive": "docs/archive/sc19/REAL_SHAPE_DASHBOARD_V41_FIXTURES.json",
+    "deprecated_alias_or_fallback": false
+  }
+}

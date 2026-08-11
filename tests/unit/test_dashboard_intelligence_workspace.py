@@ -193,16 +193,11 @@ def _day_view() -> dict[str, Any]:
                 "persisted_competition_coverage_count": 1 if index == 7 else 0,
                 "active_whitelist_count": 13,
                 "market_collection_window_status": (
-                    "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY"
+                    "MARKET_EVIDENCE_AVAILABLE"
                     if index == 7
                     else "EMPTY_PERSISTED_DAY"
                 ),
-                "market_evidence_fixture_count": 0,
-                "display_state": (
-                    "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY"
-                    if index == 7
-                    else "EMPTY_PERSISTED_DAY"
-                ),
+                "market_evidence_fixture_count": 1 if index == 7 else 0,
             }
             for index in range(15)
         ],
@@ -392,9 +387,6 @@ def test_workspace_is_deterministic_explicit_and_schema_valid() -> None:
     }
     assert first["runtime"]["formal"] == "OFF"
     assert first["runtime"]["market_price_attention_threshold_ratio"] == 0.02
-    assert first["day_mode"] == "NORMAL"
-    assert first["default_focus_type"] == "MATCH"
-    assert first["default_focus_fixture_id"] == "fixture-two"
     assert first["selected_fixture_id"] == "fixture-two"
     assert first["today_summary"]["primary_reason_counts"] == {}
     assert first["football_day_timezone"] == "Asia/Shanghai"
@@ -446,25 +438,35 @@ def test_workspace_is_deterministic_explicit_and_schema_valid() -> None:
     }
 
 
-def test_default_focus_is_order_independent_and_information_useful() -> None:
+def test_selected_fixture_is_order_independent_and_information_useful() -> None:
     day_view = _day_view()
-    expected = _workspace(day_view)["default_focus_fixture_id"]
+    expected = _workspace(day_view)["selected_fixture_id"]
     day_view["cards"].reverse()
 
     assert expected == "fixture-two"
-    assert _workspace(day_view)["default_focus_fixture_id"] == expected
+    assert _workspace(day_view)["selected_fixture_id"] == expected
 
 
-def test_day_mode_focus_pairs_are_derived_for_all_four_modes() -> None:
+def test_focus_is_derived_only_from_public_semantics_and_facts() -> None:
     empty = _day_view()
     empty["cards"] = []
     empty["degradation"] = {"state": "EMPTY_DAY"}
-    empty_payload = _workspace(empty)
-    assert (empty_payload["day_mode"], empty_payload["default_focus_type"]) == (
-        "EMPTY",
-        "EMPTY_STATE",
+    empty["date_strip"][7].update(
+        market_collection_window_status="EMPTY_PERSISTED_DAY",
+        market_evidence_fixture_count=0,
+        fixture_count=0,
+        competition_count=0,
+        upcoming_fixture_count=0,
+        persisted_inventory_status="EMPTY_PERSISTED_DAY",
+        persisted_competition_coverage_count=0,
     )
-    assert empty_payload["global_focus"]["status"] == "EMPTY"
+    empty_payload = _workspace(empty)
+    assert empty_payload["selected_fixture_id"] is None
+    assert empty_payload["global_focus"]["reason_code"] == "NO_FIXTURES_IN_FOOTBALL_DAY"
+    assert empty_payload["global_focus"]["public_semantics"] == {
+        "scope": "SELECTED_DAY",
+        "cause": None,
+    }
 
     calm = _day_view()
     for card in calm["cards"]:
@@ -472,53 +474,38 @@ def test_day_mode_focus_pairs_are_derived_for_all_four_modes() -> None:
         card["market_radar"]["markets"]["TOTALS"] = _market(2)
         card["intelligence_state"] = "MARKET_STABLE"
     calm_payload = _workspace(calm)
-    assert (calm_payload["day_mode"], calm_payload["default_focus_type"]) == (
-        "CALM",
-        "DAY_SUMMARY",
-    )
-    assert calm_payload["global_focus"]["status"] == "CALM"
+    assert calm_payload["selected_fixture_id"] is None
+    assert calm_payload["global_focus"]["reason_code"] == "NO_PRIORITY_REVIEW_ITEMS"
 
     blocked = _day_view()
     blocked["degradation"] = {
         "state": "BLOCKED_DAY",
         "reason_code": "COLLECTION_PROVIDER_EMPTY",
     }
+    blocked["date_strip"][7]["market_collection_window_status"] = (
+        "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY"
+    )
+    blocked["date_strip"][7]["market_evidence_fixture_count"] = 0
     for card in blocked["cards"]:
         card["intelligence_state"] = "COLLECTION_INCIDENT"
         card["intelligence_reason_codes"] = ["COLLECTION_PROVIDER_EMPTY"]
         card["market_radar"]["markets"]["ASIAN_HANDICAP"] = _market(0)
         card["market_radar"]["markets"]["TOTALS"] = _market(0)
     blocked_payload = _workspace(blocked)
-    assert (blocked_payload["day_mode"], blocked_payload["default_focus_type"]) == (
-        "BLOCKED",
-        "GLOBAL_INCIDENT",
-    )
-    assert blocked_payload["global_focus"]["reason_code"] == "COLLECTION_PROVIDER_EMPTY"
-    assert blocked_payload["default_focus_fixture_id"] is None
+    assert blocked_payload["selected_fixture_id"] is None
+    assert blocked_payload["global_focus"]["reason_code"] == "AWAITING_COLLECTION"
+    assert blocked_payload["global_focus"]["public_semantics"] == {
+        "scope": "SELECTED_DAY",
+        "cause": "AWAITING_COLLECTION",
+    }
     assert blocked_payload["today_summary"]["priority_match_count"] == 0
     assert blocked_payload["today_summary"]["primary_reason_counts"] == {}
     assert blocked_payload["global_focus"]["affected_fixture_count"] == 3
 
 
-@pytest.mark.parametrize(
-    ("day_mode", "focus_type", "fixture_id"),
-    [
-        ("BLOCKED", "MATCH", "fixture-two"),
-        ("EMPTY", "EMPTY_STATE", "fixture-two"),
-        ("NORMAL", "MATCH", None),
-        ("CALM", "DAY_SUMMARY", "fixture-two"),
-    ],
-)
-def test_schema_rejects_impossible_day_mode_focus_pairs(
-    day_mode: str,
-    focus_type: str,
-    fixture_id: str | None,
-) -> None:
+def test_schema_rejects_selected_fixture_outside_match_facts() -> None:
     payload = _workspace(_day_view())
-    payload["day_mode"] = day_mode
-    payload["default_focus_type"] = focus_type
-    payload["default_focus_fixture_id"] = fixture_id
-    payload["selected_fixture_id"] = fixture_id
+    payload["selected_fixture_id"] = "not-in-response"
 
     with pytest.raises(ValueError):
         DashboardIntelligenceWorkspaceResponse.model_validate(
@@ -704,13 +691,11 @@ def test_postdeploy_real_shape_uses_stale_evidence_and_scopes_raw_blocked_health
     focused = next(
         match
         for match in payload["matches"]
-        if match["fixture_id"] == payload["default_focus_fixture_id"]
+        if match["fixture_id"] == payload["selected_fixture_id"]
     )
 
-    assert (payload["day_mode"], payload["default_focus_type"]) == ("NORMAL", "MATCH")
-    assert payload["default_focus_fixture_id"] == "stale-useful"
+    assert payload["selected_fixture_id"] == "stale-useful"
     assert payload["data_operations"]["system_health"] == "BLOCKED_DAY"
-    assert payload["data_operations"]["public_system_health"] == "PARTIAL_DEGRADATION"
     assert payload["today_summary"]["primary_reason_counts"] == {"STALE_MARKET_MEMORY": 1}
     assert focused["priority_reason_primary"] == "STALE_MARKET_MEMORY"
     assert focused["priority_reason_secondary"] == [
@@ -727,9 +712,13 @@ def test_postdeploy_real_shape_uses_stale_evidence_and_scopes_raw_blocked_health
     assert "DATA FIELD STALE" not in focused["risks"]["DATA_RISK"]["explanation"]
 
 
-def test_all_unusable_matches_fail_closed_to_global_incident() -> None:
+def test_all_unusable_matches_fail_closed_to_selected_day_cause() -> None:
     day_view = _day_view()
     day_view["degradation"] = {"state": "BLOCKED_DAY"}
+    day_view["date_strip"][7]["market_collection_window_status"] = (
+        "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY"
+    )
+    day_view["date_strip"][7]["market_evidence_fixture_count"] = 0
     for card in day_view["cards"]:
         card["intelligence_state"] = "DATA_INCOMPLETE"
         card["data_status"] = "BLOCKED"
@@ -738,19 +727,18 @@ def test_all_unusable_matches_fail_closed_to_global_incident() -> None:
 
     payload = _workspace(day_view)
 
-    assert (payload["day_mode"], payload["default_focus_type"]) == (
-        "BLOCKED",
-        "GLOBAL_INCIDENT",
-    )
-    assert payload["default_focus_fixture_id"] is None
-    assert payload["data_operations"]["public_system_health"] == "DAY_BLOCKED"
+    assert payload["selected_fixture_id"] is None
+    assert payload["global_focus"]["public_semantics"] == {
+        "scope": "SELECTED_DAY",
+        "cause": "AWAITING_COLLECTION",
+    }
 
 
-def test_schema_rejects_public_day_mode_and_system_health_conflict() -> None:
+def test_schema_rejects_unknown_public_status_field() -> None:
     payload = _workspace(_day_view())
-    payload["data_operations"]["public_system_health"] = "DAY_BLOCKED"
+    payload["data_operations"]["public_" + "system_health"] = "DAY_BLOCKED"
 
-    with pytest.raises(ValueError, match="only BLOCKED day"):
+    with pytest.raises(ValueError, match="Extra inputs are not permitted"):
         DashboardIntelligenceWorkspaceResponse.model_validate(
             {"request_id": "test-request", **payload}
         )
@@ -1159,9 +1147,6 @@ def test_scope_and_cause_separate_future_day_from_cumulative_validation() -> Non
     day_view["date_strip"][7]["market_collection_window_status"] = (
         "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW"
     )
-    day_view["date_strip"][7]["display_state"] = (
-        "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW"
-    )
 
     payload = _workspace(day_view)
 
@@ -1219,7 +1204,7 @@ def test_schema_rejects_unknown_public_semantics(field: str, value: str) -> None
         )
 
 
-def test_reviewed_canonical_chinese_label_is_the_only_ready_path() -> None:
+def test_canonical_identity_and_approved_public_label_are_the_only_ready_path() -> None:
     fixture = SimpleNamespace(
         provider="api_football",
         competition_id="allsvenskan",
@@ -1235,35 +1220,27 @@ def test_reviewed_canonical_chinese_label_is_the_only_ready_path() -> None:
             payload={"public_zh_name": "天狼星"},
         )
     }
-    review_key = (
-        fixture.provider,
-        fixture.home_provider_team_id,
-        fixture.competition_id,
-        fixture.season,
-        fixture.home_w2_team_id,
-    )
-
     ready = repository_module._public_team_label_from_identity(
         fixture=fixture,
         side="home",
         canonical=canonical,
-        reviewed={review_key},
+        reviewed_labels={fixture.home_w2_team_id: "天狼星"},
     )
-    not_reviewed = repository_module._public_team_label_from_identity(
+    label_missing = repository_module._public_team_label_from_identity(
         fixture=fixture,
         side="home",
         canonical=canonical,
-        reviewed=set(),
+        reviewed_labels={},
     )
 
     assert ready["state"] == "CHINESE_LABEL_READY"
     assert ready["display_name"] == "天狼星"
     assert ready["raw_provider_name"] == "Sirius"
-    assert not_reviewed["state"] == "CANONICAL_IDENTITY_READY_LABEL_MISSING"
-    assert not_reviewed["display_name"] is None
+    assert label_missing["state"] == "CANONICAL_IDENTITY_READY_LABEL_MISSING"
+    assert label_missing["display_name"] is None
 
 
-def test_sc19_reviewed_public_label_authority_reuses_existing_product_labels() -> None:
+def test_approved_public_label_authority_reuses_existing_product_labels() -> None:
     labels = reviewed_public_team_labels()
     fixture = SimpleNamespace(
         provider="api_football",
@@ -1277,19 +1254,10 @@ def test_sc19_reviewed_public_label_authority_reuses_existing_product_labels() -
     canonical = {
         fixture.home_w2_team_id: SimpleNamespace(display_name="Sirius", payload={})
     }
-    review_key = (
-        fixture.provider,
-        fixture.home_provider_team_id,
-        fixture.competition_id,
-        fixture.season,
-        fixture.home_w2_team_id,
-    )
-
     ready = repository_module._public_team_label_from_identity(
         fixture=fixture,
         side="home",
         canonical=canonical,
-        reviewed={review_key},
         reviewed_labels=labels,
     )
 

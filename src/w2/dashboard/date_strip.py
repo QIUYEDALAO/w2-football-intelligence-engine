@@ -84,11 +84,6 @@ def build_persisted_date_strip(
                 "active_whitelist_count": ACTIVE_WHITELIST_COUNT,
                 "market_collection_window_status": collection_status,
                 "market_evidence_fixture_count": evidence_count,
-                "display_state": (
-                    "FINISHED"
-                    if day_fixtures and finished_count == len(day_fixtures)
-                    else collection_status
-                ),
                 "public_semantics": _public_semantics(collection_status),
             }
         )

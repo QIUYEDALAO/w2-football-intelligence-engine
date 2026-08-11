@@ -489,7 +489,7 @@ summary {
   text-align: left;
 }
 
-.v41-blocked-match {
+.v41-limited-match {
   display: flex;
   width: 100%;
   gap: 10px;
@@ -530,12 +530,15 @@ summary {
 }
 
 .v41-stripe--market_movement,
-.v41-stripe--fresh_market_evidence { background: var(--v41-accent); }
+.v41-stripe--fresh_market_evidence,
+.v41-stripe--neutral { background: var(--v41-accent); }
 .v41-stripe--model_diagnostic,
 .v41-stripe--stale_market_memory,
-.v41-stripe--lineup_pending { background: var(--v41-warning); }
+.v41-stripe--lineup_pending,
+.v41-stripe--warning { background: var(--v41-warning); }
 .v41-stripe--collection_incident,
-.v41-stripe--data_incomplete { background: var(--v41-critical); }
+.v41-stripe--data_incomplete,
+.v41-stripe--critical { background: var(--v41-critical); }
 
 .v41-shortlist-copy {
   display: flex;
@@ -1069,12 +1072,12 @@ summary {
   font-weight: 600;
 }
 
-.v41-global--blocked .v41-global-copy h1 {
+.v41-global.is-critical .v41-global-copy h1 {
   color: var(--v41-critical);
 }
 
-.v41-global--blocked.is-neutral .v41-global-copy h1,
-.v41-global--blocked.is-neutral .v41-global-stats > div:first-child strong {
+.v41-global.is-neutral .v41-global-copy h1,
+.v41-global.is-neutral .v41-global-stats > div:first-child strong {
   color: var(--v41-accent);
 }
 
@@ -1137,7 +1140,7 @@ summary {
   overflow-wrap: anywhere;
 }
 
-.v41-global--blocked .v41-global-stats > div:first-child strong {
+.v41-global.is-critical .v41-global-stats > div:first-child strong {
   color: var(--v41-critical);
 }
 
