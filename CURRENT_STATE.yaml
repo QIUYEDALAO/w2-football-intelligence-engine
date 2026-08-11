@@ -1,31 +1,32 @@
 schema_version: w2.current_context.v1
-updated_at: "2026-08-11T14:16:00+08:00"
+updated_at: "2026-08-11T16:48:00+08:00"
 repository: QIUYEDALAO/w2-football-intelligence-engine
 context_branch: context/current
 
 program: W2_FOOTBALL_MARKET_INTELLIGENCE_AND_MODEL_DIAGNOSTICS
 product_name: W2 Football Intelligence
-owner_product_decision: W2_SC19_TEAM_IDENTITY_AND_DATE_STRIP
-owner_authorization_id: W2_SC19_TEAM_IDENTITY_AND_DATE_STRIP_V1
-active_next_action: OWNER_SC19_POSTDEPLOY_REREVIEW
+owner_product_decision: W2_SC19_STATUS_SEMANTICS_BOUNDED_REMEDIATION
+owner_authorization_id: W2_SC19_STATUS_SEMANTICS_BOUNDED_REMEDIATION_V1
+active_next_action: OWNER_SC19_STATUS_SEMANTICS_POSTDEPLOY_REREVIEW
 next_code_action: NONE_OWNER_REVIEW_REQUIRED
-current_status: SC19_01_THROUGH_SC19_07_COMPLETE_DEPLOYED
-current_gate: OWNER_SC19_POSTDEPLOY_REREVIEW
-terminal_gate: OWNER_SC19_POSTDEPLOY_REREVIEW
+current_status: SC19_STATUS_SEMANTICS_REMEDIATION_COMPLETE_DEPLOYED
+current_gate: OWNER_SC19_STATUS_SEMANTICS_POSTDEPLOY_REREVIEW
+terminal_gate: OWNER_SC19_STATUS_SEMANTICS_POSTDEPLOY_REREVIEW
 
 release_identity:
-  current_main_sha: e7e1ab9986304d4f165d4c68745613c7f0e841fa
-  deployed_source_sha: 49478076d2c6b1229b510e6ed083cc67c6db2f12
-  source_tree_sha: 02db1cd5fbbe5e3869bb6f09d032f26f6af3764b
-  prs: [521, 522, 523]
+  current_main_sha: f2b82c7d59341e8ecc98ccb34130b983c51664fc
+  deployed_source_sha: f2b82c7d59341e8ecc98ccb34130b983c51664fc
+  source_tree_sha: 4387afcc937a5d67bcc676a6d485c6b6efd1bcfa
+  prs: [521, 522, 523, 524]
   pr_state: MERGED_DEPLOYED
-  pr_fast_run: 31463073627
-  full_ci_run: 31463152560
-  promotion_run: 31463609050
+  remediation_head_sha: 12b78ce7dd80d4a6b1b0934c9a94a76ab47c85ef
+  full_ci_run: 31472108475
+  promotion_run: 31472559507
+  main_release_run: 31473344780
   release_required: PASS_EXACT_HEAD
   promotion_required: PASS
-  python_image: sha256:e222513e38e944b47181841320264cc97c71e1ee6da7ff4f73e10fffc54e94dd
-  web_image: sha256:fe9ce1a65d8a6e07580f1ec792dff118b3ab24a14f24d443b2c34f9d9012e5cc
+  python_image: sha256:f45446814e1ae238a0e6a38371bb4927cb3070199c04d1c6090193f9640067bf
+  web_image: sha256:ce0cd66a1cfe1ac8b3d20870491c2f14f9ab2756856f5fda97bb6eed33e219d5
 
 completed_and_retained:
   dashboard_v41_and_truth_remediation:
@@ -45,6 +46,9 @@ completed_and_retained:
     status: OWNER_ACCEPTED_CLOSED_PASS
   sc19_team_identity_and_persisted_date_strip:
     prs: [521, 522, 523]
+    status: COMPLETE_DEPLOYED_RETAIN
+  sc19_status_semantics_bounded_remediation:
+    pr: 524
     status: COMPLETE_DEPLOYED_AWAITING_OWNER_REREVIEW
   vps_local_oci_relay: PASS_RETAIN
   post_r3_track_a: TRACK_A_CLOSED_PASS
@@ -170,6 +174,70 @@ sc19_execution:
     market_evidence_fixture_count: 4
   live_date_strip_count: 15
   live_read_contract: {provider_calls: 0, db_writes: 0, no_call_on_read: true}
+
+sc19_status_semantics_remediation:
+  authority: W2_SC19_STATUS_SEMANTICS_BOUNDED_REMEDIATION_V1
+  pr: 524
+  base_main_sha: e7e1ab9986304d4f165d4c68745613c7f0e841fa
+  exact_head_sha: 12b78ce7dd80d4a6b1b0934c9a94a76ab47c85ef
+  merged_main_sha: f2b82c7d59341e8ecc98ccb34130b983c51664fc
+  terminal_gate: OWNER_SC19_STATUS_SEMANTICS_POSTDEPLOY_REREVIEW
+  execution_status: COMPLETE_DEPLOYED_STOPPED
+  public_status_dimensions:
+    scope: [MATCH, SELECTED_DAY, CROSS_DAY_CUMULATIVE, GLOBAL]
+    cause:
+      - NOT_YET_DUE
+      - AWAITING_COLLECTION
+      - INSUFFICIENT
+      - UNAVAILABLE
+      - UNASSESSED
+      - LABEL_MISSING
+      - IDENTITY_UNRESOLVED
+      - AMBIGUOUS
+  verified_outcomes:
+    known_identity_without_reviewed_chinese: RAW_NAME_RETAINED_WITH_LABEL_MISSING_BADGE
+    unresolved_identity_only: PLACEHOLDER_ALLOWED
+    selected_day_wording: PASS_NO_FALSE_TODAY_CLAIM
+    outside_collection_window: NORMAL_NOT_YET_DUE
+    cross_midnight_label: NEXT_DAY_EXPLICIT
+    selected_day_schedule: NO_STALE_NEXT_EVAL
+    cumulative_validation_scope: CROSS_DAY_CUMULATIVE_SEPARATED
+    selected_day_history_kind: FORWARD_RECORD
+    future_outcome_copy: RESULT_NOT_YET_PRODUCED
+    empty_date_cell: ZERO_FIXTURES_PLUS_EMPTY_DAY
+  verification:
+    pytest: "2570 passed, 13 skipped"
+    web_e2e: "61 passed"
+    full_ci_run: 31472108475
+    release_required: PASS_EXACT_HEAD
+    promotion_run: 31472559507
+    promotion_required: PASS_ATTEMPT_2_AFTER_TRANSIENT_GHCR_RATE_LIMIT
+    main_release_run: 31473344780
+    repository_hygiene: PASS
+    local_oci_relay: PASS_BOTH_DIGESTS_VERIFIED
+    warm_switch: PASS_38_SECONDS
+    live_health_ready_release_sync: PASS
+  live_selected_day:
+    football_day: "2026-08-14"
+    fixture_count: 5
+    competition_count: 3
+    status_scope: SELECTED_DAY
+    status_cause: NOT_YET_DUE
+    next_eval_at: null
+    readable_identity_count: 5
+    reviewed_chinese_identity_count: 1
+    raw_name_with_label_missing_count: 4
+    unresolved_placeholder_count: 0
+  live_read_contract: {provider_calls: 0, db_writes: 0, would_write_checkpoint: false, no_call_on_read: true}
+  unchanged_runtime:
+    active_whitelist_count: 13
+    candidate: SHADOW_ONLY
+    formal: "OFF"
+    lock: "OFF"
+    production: "OFF"
+    scheduler_enabled: false
+    cadence_change: NONE
+    model_or_threshold_change: NONE
 
 accepted_truths_must_not_regress:
   public_dashboard_authority: NEW_INTELLIGENCE_WORKSPACE_ONLY
