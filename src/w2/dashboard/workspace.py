@@ -63,7 +63,20 @@ def build_dashboard_intelligence_workspace(
 ) -> dict[str, Any]:
     """Adapt existing bounded projections into the one final Dashboard read model."""
     cards = _mapping_list(day_view.get("cards"))
+    replay_cards = {
+        _text(item.get("fixture_id")): item
+        for item in _mapping_list(replay.get("cards"))
+        if _text(item.get("fixture_id"))
+    }
+    outcome_summary = _mapping(replay.get("outcome_tracking_summary"))
     matches = [_match(card, candidate_enabled=candidate_enabled) for card in cards]
+    for card, match in zip(cards, matches, strict=True):
+        match["outcome"] = _match_outcome(
+            card,
+            match,
+            replay_cards.get(match["fixture_id"], {}),
+            outcome_summary,
+        )
     freshness = _mapping(day_view.get("freshness"))
     performance = _mapping(day_view.get("performance"))
     forward = _mapping(performance.get("forward_ledger"))
@@ -320,6 +333,42 @@ def _match(card: Mapping[str, Any], *, candidate_enabled: bool) -> dict[str, Any
             ),
             "decision_role": "DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY",
         },
+    }
+
+
+def _match_outcome(
+    card: Mapping[str, Any],
+    match: Mapping[str, Any],
+    replay_card: Mapping[str, Any],
+    outcome_summary: Mapping[str, Any],
+) -> dict[str, Any]:
+    fixture_id = _text(match.get("fixture_id"))
+    tracked_ids = set(_string_list(outcome_summary.get("tracked_fixture_ids")))
+    recorded_ids = set(_string_list(outcome_summary.get("matched_fixture_ids")))
+    is_finished = _text(match.get("status")).upper() in FINISHED_FIXTURE_STATUSES
+    is_tracked = (
+        card.get("outcome_tracked") is True
+        or replay_card.get("outcome_tracked") is True
+        or fixture_id in tracked_ids
+    )
+    is_recorded = (
+        _text(replay_card.get("outcome_status")) == "MATCHED"
+        or fixture_id in recorded_ids
+    )
+    cause = (
+        "NOT_YET_DUE"
+        if not is_finished
+        else None
+        if is_recorded
+        else "AWAITING_COLLECTION"
+        if is_tracked
+        else "UNASSESSED"
+    )
+    return {
+        "is_finished": is_finished,
+        "is_tracked": is_tracked,
+        "is_recorded": is_recorded,
+        "public_semantics": {"scope": "MATCH", "cause": cause},
     }
 
 
@@ -631,6 +680,24 @@ def _validation(
             or forward.get("canonical_excluded_by_reason")
         )
     )
+    selected_day_record = _selected_day_record_semantics(matches)
+    replay_status = _text(replay.get("replay_status"), "NO_REPLAY_INPUTS")
+    replay_gaps = _string_list(replay.get("replay_gaps"))
+    record_kind = selected_day_record["record_kind"]
+    record_cause = selected_day_record["public_semantics"]["cause"]
+    if record_kind == "EMPTY":
+        replay_status = "EMPTY"
+        replay_gaps = []
+    elif record_kind == "FORWARD_RECORD":
+        replay_status = "FORWARD_RECORD"
+        replay_gaps = [gap for gap in replay_gaps if gap != "MISSING_OUTCOMES"]
+    elif record_cause == "AWAITING_COLLECTION":
+        replay_status = "MISSING_OUTCOMES"
+        if "MISSING_OUTCOMES" not in replay_gaps:
+            replay_gaps.append("MISSING_OUTCOMES")
+    else:
+        replay_status = "READY"
+        replay_gaps = [gap for gap in replay_gaps if gap != "MISSING_OUTCOMES"]
     return {
         "probability": {
             "status": _text(probability.get("status"), "INSUFFICIENT"),
@@ -704,7 +771,7 @@ def _validation(
             },
         },
         "history_replay": {
-            "status": _text(replay.get("replay_status"), "NO_REPLAY_INPUTS"),
+            "status": replay_status,
             "known_at": {
                 key: _mapping(replay.get("known_at_summary")).get(key)
                 for key in ("has_day_view", "generated_at", "source", "checkpoint_key")
@@ -713,30 +780,28 @@ def _validation(
             "reason_summary": _mapping_list(replay.get("reason_summary")),
             "outcome_tracking_summary": dict(_mapping(replay.get("outcome_tracking_summary"))),
             "card_hash_checks": _mapping_list(replay.get("card_hash_checks")),
-            "replay_gaps": _string_list(replay.get("replay_gaps")),
-            **_selected_day_record_semantics(matches, replay),
+            "replay_gaps": replay_gaps,
+            **selected_day_record,
         },
     }
 
 
 def _selected_day_record_semantics(
-    matches: Sequence[Mapping[str, Any]], replay: Mapping[str, Any]
+    matches: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
     if not matches:
         return {
             "record_kind": "EMPTY",
             "public_semantics": {"scope": "SELECTED_DAY", "cause": None},
         }
-    finished = [
-        _text(match.get("status")).upper() in FINISHED_FIXTURE_STATUSES for match in matches
+    finished = [bool(_mapping(match.get("outcome")).get("is_finished")) for match in matches]
+    outcome_causes = [
+        _mapping(_mapping(match.get("outcome")).get("public_semantics")).get("cause")
+        for match in matches
     ]
-    missing_outcome_count = max(
-        0,
-        _int(_mapping(replay.get("outcome_tracking_summary")).get("missing_outcome_count")),
-    )
     cause = (
         "AWAITING_COLLECTION"
-        if any(finished) and missing_outcome_count
+        if any(finished) and "AWAITING_COLLECTION" in outcome_causes
         else "NOT_YET_DUE"
         if not any(finished)
         else None

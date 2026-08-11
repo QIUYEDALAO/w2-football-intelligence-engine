@@ -17,7 +17,8 @@ from time import monotonic
 from typing import Any, Literal, cast
 
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import func, literal, select
+from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -27,6 +28,7 @@ from w2.api.schemas import (
     PerformanceResponse,
     PerformanceWindowProjection,
 )
+from w2.competitions.league_whitelist_scope import load_league_whitelist_scope
 from w2.competitions.registry import CompetitionRegistry, CompetitionRegistryError
 from w2.config import get_settings
 from w2.dashboard.date_strip import build_persisted_date_strip, next_available_date
@@ -58,6 +60,7 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayFixtureIdentityModel,
     MatchdayMarketObservationModel,
 )
+from w2.infrastructure.persistence.models import ResultModel
 from w2.lineups.intelligence import lineup_requirement
 from w2.matchday.timezone import (
     BEIJING_TZ,
@@ -755,9 +758,28 @@ def _dashboard_forward_ledger_from_checkpoints(
 class ReadModelRepository:
     """Single production read authority backed by ``read_model_checkpoint``."""
 
+    def __init__(self, engine: Engine | None = None) -> None:
+        self._engine = engine
+
+    def _database_engine(self) -> Engine:
+        if self._engine is None:
+            self._engine = create_engine()
+        return self._engine
+
+    def _dashboard_competition_ids(self) -> tuple[str, ...]:
+        try:
+            scope = load_league_whitelist_scope(
+                CompetitionRegistry(engine=self._database_engine())
+            )
+        except CompetitionRegistryError as exc:
+            raise SystemDegradedError("COMPETITION_WHITELIST_UNAVAILABLE") from exc
+        if len(scope.all_whitelist) != 13:
+            raise SystemDegradedError("COMPETITION_WHITELIST_INVALID")
+        return scope.all_whitelist
+
     def checkpoints(self, prefix: str) -> list[Checkpoint]:
         try:
-            with Session(create_engine()) as session:
+            with Session(self._database_engine()) as session:
                 rows = session.scalars(
                     select(ReadModelCheckpointModel)
                     .where(ReadModelCheckpointModel.checkpoint_key.like(f"{prefix}%"))
@@ -777,7 +799,7 @@ class ReadModelRepository:
 
     def checkpoint(self, key: str) -> Checkpoint | None:
         try:
-            with Session(create_engine()) as session:
+            with Session(self._database_engine()) as session:
                 row = session.scalar(
                     select(ReadModelCheckpointModel).where(
                         ReadModelCheckpointModel.checkpoint_key == key
@@ -802,6 +824,180 @@ class ReadModelRepository:
             fixtures.append(self._dashboard_fixture_from_projection(card, row))
         return fixtures
 
+    def analysis_checkpoint_count(self) -> int:
+        try:
+            with Session(self._database_engine()) as session:
+                return int(
+                    session.scalar(
+                        select(func.count(ReadModelCheckpointModel.id)).where(
+                            ReadModelCheckpointModel.checkpoint_key.like(
+                                f"{ANALYSIS_CARD_SHADOW_PREFIX}%"
+                            )
+                        )
+                    )
+                    or 0
+                )
+        except SQLAlchemyError as exc:
+            raise SystemDegradedError("READ_MODEL_CHECKPOINT_QUERY_FAILED") from exc
+
+    def dashboard_fixtures_for_window(
+        self,
+        *,
+        start: datetime | None,
+        end: datetime | None,
+        limit: int = MAX_PUBLIC_FIXTURES,
+    ) -> list[dict[str, Any]]:
+        """Read only checkpoint projections belonging to the requested window."""
+
+        bounded = max(0, min(int(limit), MAX_PUBLIC_FIXTURES))
+        if bounded == 0:
+            return []
+        competition_ids = self._dashboard_competition_ids()
+        try:
+            with Session(self._database_engine()) as session:
+                checkpoint_identity = (
+                    literal(ANALYSIS_CARD_SHADOW_PREFIX)
+                    + MatchdayFixtureIdentityModel.provider_fixture_id
+                )
+                projection_query = select(
+                    MatchdayFixtureIdentityModel,
+                    ReadModelCheckpointModel,
+                ).outerjoin(
+                    ReadModelCheckpointModel,
+                    ReadModelCheckpointModel.checkpoint_key == checkpoint_identity,
+                ).where(
+                    MatchdayFixtureIdentityModel.provider == "api_football",
+                    MatchdayFixtureIdentityModel.competition_id.in_(competition_ids),
+                )
+                if start is not None:
+                    projection_query = projection_query.where(
+                        MatchdayFixtureIdentityModel.kickoff_utc >= start
+                    )
+                if end is not None:
+                    projection_query = projection_query.where(
+                        MatchdayFixtureIdentityModel.kickoff_utc < end
+                    )
+                projection_rows = list(
+                    session.execute(
+                        projection_query.order_by(
+                            MatchdayFixtureIdentityModel.kickoff_utc,
+                            MatchdayFixtureIdentityModel.provider_fixture_id,
+                        ).limit(bounded)
+                    )
+                )
+                identities = [row[0] for row in projection_rows]
+                rows = [row[1] for row in projection_rows]
+                w2_ids = {
+                    value
+                    for fixture in identities
+                    for value in (fixture.home_w2_team_id, fixture.away_w2_team_id)
+                    if value
+                }
+                canonical = (
+                    {
+                        row.w2_team_id: row
+                        for row in session.scalars(
+                            select(CanonicalTeamModel).where(
+                                CanonicalTeamModel.w2_team_id.in_(w2_ids)
+                            )
+                        ).all()
+                    }
+                    if w2_ids
+                    else {}
+                )
+        except SQLAlchemyError as exc:
+            raise SystemDegradedError("READ_MODEL_CHECKPOINT_QUERY_FAILED") from exc
+
+        reviewed_labels = reviewed_public_team_labels()
+        fixtures: list[dict[str, Any]] = []
+        for identity, model in zip(identities, rows, strict=True):
+            fixture_id = str(identity.provider_fixture_id)
+            if model is None:
+                payload = identity.payload if isinstance(identity.payload, dict) else {}
+                fixture = {
+                    "fixture_id": fixture_id,
+                    "competition_id": identity.competition_id,
+                    "kickoff_utc": _iso_or_none(identity.kickoff_utc),
+                    "status": identity.fixture_status,
+                    "home_team_id": identity.home_provider_team_id,
+                    "home_team_name": payload.get("home_team_name")
+                    or payload.get("home_name"),
+                    "away_team_id": identity.away_provider_team_id,
+                    "away_team_name": payload.get("away_team_name")
+                    or payload.get("away_name"),
+                    "_analysis_card_projection": None,
+                }
+            else:
+                row = Checkpoint(
+                    key=model.checkpoint_key,
+                    source_hash=model.source_hash,
+                    created_at=model.created_at,
+                    payload=model.payload,
+                )
+                card = self._analysis_card_from_checkpoint(row, fixture_id)
+                fixture = self._dashboard_fixture_from_projection(card, row)
+                fixture["_analysis_card_projection"] = card
+            fixture["status"] = identity.fixture_status
+            fixture["competition_id"] = identity.competition_id
+            fixture["_public_team_labels"] = {
+                "home": _public_team_label_from_identity(
+                    fixture=identity,
+                    side="home",
+                    canonical=canonical,
+                    reviewed_labels=reviewed_labels,
+                ),
+                "away": _public_team_label_from_identity(
+                    fixture=identity,
+                    side="away",
+                    canonical=canonical,
+                    reviewed_labels=reviewed_labels,
+                ),
+            }
+            fixtures.append(fixture)
+        return fixtures
+
+    def dashboard_outcomes_for_fixtures(
+        self,
+        fixture_ids: Sequence[str],
+    ) -> list[dict[str, Any]]:
+        """Read persisted final scores for the requested dashboard fixtures."""
+
+        requested = [str(value or "").strip() for value in fixture_ids]
+        requested = [value for value in requested if value]
+        if not requested:
+            return []
+        canonical_by_requested = {
+            value: value if value.startswith("api_football:") else f"api_football:{value}"
+            for value in requested
+        }
+        requested_by_canonical = {
+            canonical: value for value, canonical in canonical_by_requested.items()
+        }
+        try:
+            with Session(self._database_engine()) as session:
+                rows = list(
+                    session.scalars(
+                        select(ResultModel).where(
+                            ResultModel.fixture_id.in_(tuple(requested_by_canonical)),
+                            func.upper(ResultModel.result_status).in_(
+                                ("FT", "AET", "PEN", "FINAL")
+                            ),
+                        )
+                    )
+                )
+        except SQLAlchemyError as exc:
+            raise SystemDegradedError("DASHBOARD_OUTCOME_QUERY_FAILED") from exc
+        by_requested = {
+            requested_by_canonical[row.fixture_id]: {
+                "fixture_id": requested_by_canonical[row.fixture_id],
+                "result_status": row.result_status,
+                "score": f"{row.home_goals}-{row.away_goals}",
+            }
+            for row in rows
+            if row.fixture_id in requested_by_canonical
+        }
+        return [by_requested[value] for value in requested if value in by_requested]
+
     def fixture_statuses_for_fixtures(self, fixture_ids: list[str]) -> dict[str, str]:
         provider_ids = {
             str(fixture_id or "").removeprefix("api_football:")
@@ -810,7 +1006,7 @@ class ReadModelRepository:
         }
         if not provider_ids:
             return {}
-        with Session(create_engine()) as session:
+        with Session(self._database_engine()) as session:
             rows = list(
                 session.scalars(
                     select(MatchdayFixtureIdentityModel).where(
@@ -950,7 +1146,7 @@ class ReadModelRepository:
         if not ids:
             return {"odds_last_confirmed_at": None, "next_refresh_tick": None}
         reference = now or datetime.now(UTC)
-        with Session(create_engine()) as session:
+        with Session(self._database_engine()) as session:
             odds_at = session.scalar(
                 select(func.max(MatchdayMarketObservationModel.captured_at)).where(
                     MatchdayMarketObservationModel.fixture_id.in_(ids),
@@ -984,7 +1180,7 @@ class ReadModelRepository:
         if not canonical_ids:
             return {}
         reference = now or datetime.now(UTC)
-        with Session(create_engine()) as session:
+        with Session(self._database_engine()) as session:
             captures = list(
                 session.scalars(
                     select(MatchdayEndpointCaptureModel)
@@ -1070,7 +1266,7 @@ class ReadModelRepository:
             return {}
         provider_ids = {value.removeprefix("api_football:") for value in normalized}
         canonical_ids = {f"api_football:{value}" for value in provider_ids}
-        with Session(create_engine()) as session:
+        with Session(self._database_engine()) as session:
             rows = session.execute(
                 select(
                     MatchdayFixtureIdentityModel.fixture_id,
@@ -1094,7 +1290,7 @@ class ReadModelRepository:
             return {}
         provider_ids = {value.removeprefix("api_football:") for value in normalized}
         canonical_ids = {f"api_football:{value}" for value in provider_ids}
-        with Session(create_engine()) as session:
+        with Session(self._database_engine()) as session:
             fixtures = session.scalars(
                 select(MatchdayFixtureIdentityModel).where(
                     MatchdayFixtureIdentityModel.fixture_id.in_(canonical_ids)
@@ -1141,10 +1337,13 @@ class ReadModelRepository:
     ) -> list[dict[str, Any]]:
         start, _ = football_day_window(selected_date - timedelta(days=7))
         _, end = football_day_window(selected_date + timedelta(days=7))
-        with Session(create_engine()) as session:
+        competition_ids = self._dashboard_competition_ids()
+        with Session(self._database_engine()) as session:
             fixtures = list(
                 session.scalars(
                     select(MatchdayFixtureIdentityModel).where(
+                        MatchdayFixtureIdentityModel.provider == "api_football",
+                        MatchdayFixtureIdentityModel.competition_id.in_(competition_ids),
                         MatchdayFixtureIdentityModel.kickoff_utc >= start,
                         MatchdayFixtureIdentityModel.kickoff_utc < end,
                     )
@@ -1214,6 +1413,12 @@ class ReadModelService:
 
     def public_dashboard_summary(self, **kwargs: Any) -> dict[str, Any]:
         return self.dashboard_summary(**kwargs)
+
+    def dashboard_outcomes_for_fixtures(
+        self,
+        fixture_ids: Sequence[str],
+    ) -> list[dict[str, Any]]:
+        return self.repository.dashboard_outcomes_for_fixtures(fixture_ids)
 
     def public_validation_summary(self, **kwargs: Any) -> dict[str, Any]:
         return self.validation_summary(**kwargs)
@@ -1388,30 +1593,70 @@ class ReadModelService:
         if cached is not None and now_tick - cached[0] <= 60:
             return deepcopy(cached[1])
 
-        version = self.version()
-        fixtures = self.repository.dashboard_latest_fixtures()[:MAX_PUBLIC_FIXTURES]
-        status_reader = getattr(self.repository, "fixture_statuses_for_fixtures", None)
-        fixture_statuses = (
-            status_reader([str(item.get("fixture_id") or "") for item in fixtures])
-            if callable(status_reader)
-            else {}
+        query_start: datetime | None
+        query_end: datetime | None
+        if window == "next36":
+            query_start, query_end = next_36_hours_window()
+        elif window == "future":
+            query_start, _ = football_day_window(requested_date)
+            query_end = None
+        elif window == "all":
+            query_start = query_end = None
+        else:
+            query_start, query_end = football_day_window(requested_date)
+        window_reader = getattr(self.repository, "dashboard_fixtures_for_window", None)
+        if callable(window_reader):
+            batched_window_read = True
+            fixtures = window_reader(
+                start=query_start,
+                end=query_end,
+                limit=MAX_PUBLIC_FIXTURES,
+            )
+        else:
+            batched_window_read = False
+            fixtures = self.repository.dashboard_latest_fixtures()[:MAX_PUBLIC_FIXTURES]
+        checkpoint_count_reader = getattr(self.repository, "analysis_checkpoint_count", None)
+        fixture_checkpoint_count = (
+            checkpoint_count_reader()
+            if callable(checkpoint_count_reader)
+            else len(fixtures)
         )
-        for item in fixtures:
-            current_status = fixture_statuses.get(str(item.get("fixture_id") or ""))
-            if current_status:
-                item["status"] = current_status
-        identity_reader = getattr(self.repository, "canonical_competitions_for_fixtures", None)
-        canonical_competitions = (
-            identity_reader([str(item.get("fixture_id") or "") for item in fixtures])
-            if callable(identity_reader)
-            else {}
-        )
-        team_label_reader = getattr(self.repository, "public_team_labels_for_fixtures", None)
-        public_team_labels = (
-            team_label_reader([str(item.get("fixture_id") or "") for item in fixtures])
-            if callable(team_label_reader)
-            else {}
-        )
+        analysis_projection_count = sum(
+            isinstance(item.get("_analysis_card_projection"), dict) for item in fixtures
+        ) if batched_window_read else len(fixtures)
+        canonical_competitions: dict[str, str] = {}
+        public_team_labels: dict[str, dict[str, dict[str, Any]]] = {}
+        if not batched_window_read:
+            status_reader = getattr(self.repository, "fixture_statuses_for_fixtures", None)
+            fixture_statuses = (
+                status_reader([str(item.get("fixture_id") or "") for item in fixtures])
+                if callable(status_reader)
+                else {}
+            )
+            for item in fixtures:
+                current_status = fixture_statuses.get(str(item.get("fixture_id") or ""))
+                if current_status:
+                    item["status"] = current_status
+            identity_reader = getattr(
+                self.repository,
+                "canonical_competitions_for_fixtures",
+                None,
+            )
+            canonical_competitions = (
+                identity_reader([str(item.get("fixture_id") or "") for item in fixtures])
+                if callable(identity_reader)
+                else {}
+            )
+            team_label_reader = getattr(
+                self.repository,
+                "public_team_labels_for_fixtures",
+                None,
+            )
+            public_team_labels = (
+                team_label_reader([str(item.get("fixture_id") or "") for item in fixtures])
+                if callable(team_label_reader)
+                else {}
+            )
         cards = [
             self._project_dashboard_card(
                 item,
@@ -1493,6 +1738,7 @@ class ReadModelService:
             if callable(refresh_reader)
             else {"odds_last_confirmed_at": None, "next_refresh_tick": None}
         )
+        git_sha = os.getenv("W2_GIT_SHA") or "UNKNOWN"
         payload = {
             "generated_at": generated_at,
             "page_updated_at": generated_at,
@@ -1511,19 +1757,17 @@ class ReadModelService:
             "football_day_end_utc": end.isoformat().replace("+00:00", "Z"),
             "timezone": timezone,
             "window": window,
-            "data_profile": "real-db" if cards else "empty",
+            "data_profile": "real-db" if fixture_checkpoint_count else "empty",
             "data_source": "read_model_checkpoint",
             "version": {
-                "api_git_sha": version["api_git_sha"],
-                "release_id": version["release_id"],
+                "api_git_sha": git_sha,
+                "release_id": os.getenv("W2_RELEASE_ID") or git_sha,
                 "read_authority": "read_model_checkpoint",
             },
             "debug": {
                 "read_authority": "read_model_checkpoint",
-                "fixture_checkpoint_count": len(fixtures),
-                "analysis_projection_count": len(
-                    [card for card in cards if card.get("read_model_projection")]
-                ),
+                "fixture_checkpoint_count": fixture_checkpoint_count,
+                "analysis_projection_count": analysis_projection_count,
                 "system_degraded_count": len(
                     [card for card in cards if _projection_is_system_degraded(card)]
                 ),
@@ -1547,10 +1791,25 @@ class ReadModelService:
         canonical_competition_id: str | None = None,
         public_team_labels: Mapping[str, Mapping[str, Any]] | None = None,
     ) -> dict[str, Any]:
+        fixture = deepcopy(fixture)
+        has_embedded_analysis = "_analysis_card_projection" in fixture
+        embedded_analysis = fixture.pop("_analysis_card_projection", None)
+        embedded_team_labels = fixture.pop("_public_team_labels", None)
         fixture_id = str(fixture.get("fixture_id") or fixture.get("provider_fixture_id") or "")
         if not fixture_id:
             raise SystemDegradedError("DASHBOARD_FIXTURE_IDENTITY_MISSING")
-        analysis = self.repository.analysis_card_projection(fixture_id)
+        analysis = (
+            embedded_analysis
+            if isinstance(embedded_analysis, dict)
+            else None
+            if has_embedded_analysis
+            else self.repository.analysis_card_projection(fixture_id)
+        )
+        resolved_team_labels = (
+            embedded_team_labels
+            if isinstance(embedded_team_labels, Mapping)
+            else public_team_labels
+        )
         card = (
             self._system_degraded_card(
                 fixture_id,
@@ -1573,8 +1832,8 @@ class ReadModelService:
             "home_team_name": fixture.get("home_team_name") or card.get("home_name"),
             "away_team_id": fixture.get("away_team_id"),
             "away_team_name": fixture.get("away_team_name") or card.get("away_name"),
-            "home_team_label": dict((public_team_labels or {}).get("home", {})),
-            "away_team_label": dict((public_team_labels or {}).get("away", {})),
+            "home_team_label": dict((resolved_team_labels or {}).get("home", {})),
+            "away_team_label": dict((resolved_team_labels or {}).get("away", {})),
             "status": normalize_match_status(fixture.get("status")),
             "raw_status": fixture.get("status"),
             "formal_recommendation": False,

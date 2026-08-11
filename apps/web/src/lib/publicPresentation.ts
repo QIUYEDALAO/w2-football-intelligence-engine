@@ -7,8 +7,10 @@ export interface PublicFacts {
   fixtureCount?: number;
   competitionCount?: number;
   marketReadyCount?: number;
+  marketObservationCount?: number;
   priorityCount?: number;
   finishedCount?: number;
+  outcomeRecorded?: boolean;
   selectedFixture?: boolean;
   subject?: string;
 }
@@ -58,6 +60,7 @@ export function publicPresentation(
   const fixtures = facts.fixtureCount || 0;
   const competitions = facts.competitionCount || 0;
   const ready = facts.marketReadyCount || 0;
+  const observations = facts.marketObservationCount;
   const subject = facts.subject || "当前对象";
   const cause = semantics.cause;
   const scopeSubject = semantics.scope === "MATCH"
@@ -79,7 +82,25 @@ export function publicPresentation(
     return result("赛果尚未产生", "neutral", "比赛尚未结束", "赛果尚未产生。", "这不是赛果采集缺口。");
   }
   if (facts.subject === "赛果" && cause === "AWAITING_COLLECTION") {
-    return result("赛果待采集", "warning", "已完场，赛果待采集", "比赛已经结束，赛果仍待既有流程采集。", "只陈述已持久化的赛果事实。");
+    const summary = facts.finishedCount && fixtures && facts.finishedCount < fixtures
+      ? `所选比赛日已有 ${facts.finishedCount} 场完场比赛，赛果仍待既有流程采集。`
+      : "比赛已经结束，赛果仍待既有流程采集。";
+    return result("赛果待采集", "warning", "已完场，赛果待采集", summary, "只陈述已持久化的赛果事实。");
+  }
+  if (facts.subject === "赛果" && cause === "UNASSESSED") {
+    return result("赛果未纳入跟踪", "neutral", "已完场，未纳入赛果跟踪", "本场比赛已结束，但未纳入既有赛果跟踪范围。", "不把未纳入跟踪表述为赛果采集故障。");
+  }
+  if (facts.subject === "赛果" && facts.outcomeRecorded) {
+    const summary = semantics.scope === "MATCH"
+      ? "本场比赛的赛果已由既有流程记录。"
+      : `${fixtures} 场比赛的赛果已由既有流程记录。`;
+    return result("赛果已记录", "neutral", "赛果已记录", summary, "只陈述已持久化的赛果事实。");
+  }
+  if (observations !== undefined && observations > 0 && fixtures > 0) {
+    const coverage = `已落盘市场观察 ${observations}/${fixtures} 场`;
+    const complete = observations === fixtures;
+    const tone = !complete && cause === "AWAITING_COLLECTION" ? "warning" : "neutral";
+    return result(coverage, tone, coverage, `${coverage}。`, complete ? "这里只陈述落盘覆盖，不等同于比赛级市场或候选就绪。" : "仍有比赛尚无落盘市场观察；不把部分覆盖表述为市场就绪。");
   }
   if (cause) {
     const copy = causeCopy[cause];

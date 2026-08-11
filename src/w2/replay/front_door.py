@@ -8,6 +8,7 @@ from typing import Any
 from w2.domain.environment_policy import build_environment_policy_stamp
 
 SOURCE = "w2.replay.front_door.v1"
+FINISHED_STATUSES = {"FT", "AET", "PEN", "FINISHED"}
 
 
 def build_replay_front_door(
@@ -23,6 +24,7 @@ def build_replay_front_door(
     """Build a read-only replay envelope from explicit local inputs."""
     cards = [_replay_card(card, outcomes=outcomes) for card in _day_view_cards(day_view)]
     replay_gaps = _replay_gaps(
+        cards=cards,
         day_view=day_view,
         audit_manifest=audit_manifest,
         audit_tables=audit_tables,
@@ -33,7 +35,9 @@ def build_replay_front_door(
         "environment": environment,
         "environment_policy": _environment_policy(day_view, environment),
         "replay_status": _replay_status(
+            cards=cards,
             day_view=day_view,
+            audit_manifest=audit_manifest,
             audit_tables=audit_tables,
             outcomes=outcomes,
         ),
@@ -78,34 +82,50 @@ def verify_replay_card_hash(card: Mapping[str, Any]) -> dict[str, Any]:
 
 def _replay_status(
     *,
+    cards: Sequence[Mapping[str, Any]],
     day_view: Mapping[str, Any] | None,
+    audit_manifest: Mapping[str, Any] | None,
     audit_tables: Mapping[str, Any] | None,
     outcomes: Sequence[Mapping[str, Any]] | None,
 ) -> str:
-    if not day_view and not audit_tables:
+    if all(
+        item is None
+        for item in (day_view, audit_manifest, audit_tables, outcomes)
+    ):
         return "NO_REPLAY_INPUTS"
-    if not day_view:
+    if day_view is None:
         return "MISSING_DAYVIEW"
+    if not cards:
+        return "EMPTY"
     if outcomes is None:
+        return "OUTCOMES_NOT_PROVIDED"
+    if any(card.get("outcome_status") == "MISSING_OUTCOME" for card in cards):
         return "MISSING_OUTCOMES"
+    if any(card.get("outcome_status") == "OUTCOME_NOT_PRODUCED" for card in cards):
+        return "FORWARD_RECORD"
     return "READY"
 
 
 def _replay_gaps(
     *,
+    cards: Sequence[Mapping[str, Any]],
     day_view: Mapping[str, Any] | None,
     audit_manifest: Mapping[str, Any] | None,
     audit_tables: Mapping[str, Any] | None,
     outcomes: Sequence[Mapping[str, Any]] | None,
 ) -> list[str]:
+    if day_view is not None and not cards:
+        return []
     gaps: list[str] = []
-    if not day_view:
+    if day_view is None:
         gaps.append("MISSING_DAYVIEW")
     if not audit_manifest:
         gaps.append("MISSING_AUDIT_MANIFEST")
     if not audit_tables:
         gaps.append("MISSING_AUDIT_TABLES")
-    if outcomes is None:
+    if (day_view is None and outcomes is None) or any(
+        card.get("outcome_status") == "MISSING_OUTCOME" for card in cards
+    ):
         gaps.append("MISSING_OUTCOMES")
     return gaps
 
@@ -119,6 +139,7 @@ def _replay_card(
     output = {
         "fixture_id": _text(card.get("fixture_id")),
         "kickoff_utc": _optional_text(card.get("kickoff_utc")),
+        "status": _optional_text(card.get("status")),
         "decision_tier": _optional_text(card.get("decision_tier")),
         "data_status": _optional_text(card.get("data_status")),
         "lock_eligible": card.get("lock_eligible") is True,
@@ -166,9 +187,15 @@ def _outcome_status(
         return "OUTCOMES_NOT_PROVIDED"
     if outcome is not None:
         return "MATCHED"
-    if card.get("outcome_tracked") is True:
+    if card.get("outcome_tracked") is not True:
+        return "NOT_TRACKED"
+    if _is_finished(card):
         return "MISSING_OUTCOME"
-    return "NOT_TRACKED"
+    return "OUTCOME_NOT_PRODUCED"
+
+
+def _is_finished(card: Mapping[str, Any]) -> bool:
+    return _text(card.get("status")).upper() in FINISHED_STATUSES
 
 
 def _outcome_tracking_summary(cards: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
@@ -221,7 +248,7 @@ def _reason_summary(cards: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
 def _known_at_summary(day_view: Mapping[str, Any] | None) -> dict[str, Any]:
     payload = _mapping(day_view)
     return {
-        "has_day_view": bool(payload),
+        "has_day_view": day_view is not None,
         "generated_at": _optional_text(payload.get("generated_at")),
         "source": _optional_text(payload.get("source")),
         "checkpoint_key": _optional_text(payload.get("checkpoint_key")),

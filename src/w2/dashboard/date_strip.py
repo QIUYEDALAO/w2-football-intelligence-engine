@@ -53,19 +53,19 @@ def build_persisted_date_strip(
         football_day = selected_date + timedelta(days=offset)
         day_fixtures = fixtures_by_day.get(football_day, [])
         fixture_ids = {str(row.get("fixture_id") or "") for row in day_fixtures}
-        evidence_count = len(fixture_ids & market_evidence_fixture_ids)
+        evidence_fixture_ids = fixture_ids & market_evidence_fixture_ids
+        evidence_count = len(evidence_fixture_ids)
         finished_count = sum(
             str(row.get("fixture_status") or "").upper() in FINISHED_STATUSES
             for row in day_fixtures
         )
         competition_count = len(
-            {str(row.get("competition_id") or "") for row in day_fixtures}
-            - {""}
+            {str(row.get("competition_id") or "") for row in day_fixtures} - {""}
         )
         collection_status = _collection_status(
             fixture_ids=fixture_ids,
+            evidence_fixture_ids=evidence_fixture_ids,
             first_odds_plan=first_odds_plan,
-            evidence_count=evidence_count,
             reference=reference,
         )
         entries.append(
@@ -76,9 +76,7 @@ def build_persisted_date_strip(
                 "finished_fixture_count": finished_count,
                 "upcoming_fixture_count": len(day_fixtures) - finished_count,
                 "persisted_inventory_status": (
-                    "PERSISTED_FIXTURES_AVAILABLE"
-                    if day_fixtures
-                    else "EMPTY_PERSISTED_DAY"
+                    "PERSISTED_FIXTURES_AVAILABLE" if day_fixtures else "EMPTY_PERSISTED_DAY"
                 ),
                 "persisted_competition_coverage_count": competition_count,
                 "active_whitelist_count": ACTIVE_WHITELIST_COUNT,
@@ -108,18 +106,19 @@ def next_available_date(
 def _collection_status(
     *,
     fixture_ids: set[str],
+    evidence_fixture_ids: set[str],
     first_odds_plan: Mapping[str, datetime],
-    evidence_count: int,
     reference: datetime,
 ) -> str:
     if not fixture_ids:
         return "EMPTY_PERSISTED_DAY"
-    if evidence_count:
+    if evidence_fixture_ids == fixture_ids:
         return "MARKET_EVIDENCE_AVAILABLE"
-    scheduled = [first_odds_plan[item] for item in fixture_ids if item in first_odds_plan]
+    pending_fixture_ids = fixture_ids - evidence_fixture_ids
+    scheduled = [first_odds_plan[item] for item in pending_fixture_ids if item in first_odds_plan]
     if any(item <= reference for item in scheduled):
         return "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY"
-    if scheduled:
+    if len(scheduled) == len(pending_fixture_ids):
         return "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW"
     return "MARKET_COLLECTION_PLAN_NOT_PERSISTED"
 

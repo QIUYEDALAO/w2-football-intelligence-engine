@@ -14,6 +14,8 @@ from w2.api import routers
 class RecordingDashboardService:
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
+        self.outcome_calls: list[list[str]] = []
+        self.outcomes: list[dict[str, Any]] = []
 
     def dashboard(
         self,
@@ -86,6 +88,13 @@ class RecordingDashboardService:
     def public_dashboard(self, **kwargs: Any) -> dict[str, Any]:
         return self.dashboard(**kwargs)
 
+    def dashboard_outcomes_for_fixtures(
+        self,
+        fixture_ids: list[str],
+    ) -> list[dict[str, Any]]:
+        self.outcome_calls.append(fixture_ids)
+        return deepcopy(self.outcomes)
+
 
 def test_dashboard_day_view_endpoint_reads_requested_window(
     monkeypatch: MonkeyPatch,
@@ -131,7 +140,7 @@ def test_intelligence_workspace_twenty_reads_are_stable_and_side_effect_free(
     responses = [
         client.get(
             "/v1/dashboard/intelligence-workspace"
-            "?date=2026-07-05&window=future&timezone=UTC"
+            "?date=2026-07-05&window=today&timezone=UTC"
         )
         for _ in range(20)
     ]
@@ -152,6 +161,66 @@ def test_intelligence_workspace_twenty_reads_are_stable_and_side_effect_free(
     }
     assert payloads[0]["runtime"]["formal"] == "OFF"
     assert payloads[0]["matches"][0]["formal_recommendation"]["status"] == "OFF"
+
+
+def test_intelligence_workspace_rejects_multi_day_windows(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    service = RecordingDashboardService()
+    monkeypatch.setattr(routers, "service", service)
+    client = TestClient(app)
+
+    for window in ("next36", "future", "results", "all"):
+        response = client.get(
+            "/v1/dashboard/intelligence-workspace"
+            f"?date=2026-07-05&window={window}&timezone=UTC"
+        )
+        assert response.status_code == 422
+
+    assert service.calls == []
+
+
+def test_intelligence_workspace_reads_persisted_finished_outcome_once(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    service = RecordingDashboardService()
+    original_dashboard = service.dashboard
+
+    def finished_dashboard(**kwargs: Any) -> dict[str, Any]:
+        payload = original_dashboard(**kwargs)
+        card = payload["all"][0]
+        card["status"] = "FT"
+        return payload
+
+    service.outcomes = [
+        {"fixture_id": "fixture-1", "result_status": "FT", "score": "2-1"}
+    ]
+    monkeypatch.setattr(service, "public_dashboard", finished_dashboard)
+    monkeypatch.setattr(routers, "service", service)
+    client = TestClient(app)
+
+    response = client.get(
+        "/v1/dashboard/intelligence-workspace"
+        "?date=2026-07-05&window=today&timezone=UTC"
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert service.outcome_calls == [["fixture-1"]]
+    assert payload["matches"][0]["outcome"] == {
+        "is_finished": True,
+        "is_tracked": False,
+        "is_recorded": True,
+        "public_semantics": {"scope": "MATCH", "cause": None},
+    }
+    replay = payload["validation"]["history_replay"]
+    assert replay["status"] == "READY"
+    assert replay["record_kind"] == "REPLAY"
+    assert replay["replay_gaps"] == [
+        "MISSING_AUDIT_MANIFEST",
+        "MISSING_AUDIT_TABLES",
+    ]
+    assert replay["public_semantics"] == {"scope": "SELECTED_DAY", "cause": None}
 
 
 def test_dashboard_day_view_endpoint_missing_contract_is_system_degraded(

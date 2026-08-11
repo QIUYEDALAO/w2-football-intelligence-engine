@@ -34,6 +34,17 @@ RETIRED = (
     "v41-global--empty",
     "v41-pill--mode-",
 )
+RETIRED_PUBLIC_REPLAY_TRANSLATIONS = (
+    "MISSING_AUDIT_MANIFEST:",
+    "MISSING_AUDIT_TABLES:",
+    "MISSING_OUTCOMES:",
+)
+COMPONENT_OUTCOME_COPY = (
+    "赛果尚未产生",
+    "赛果待采集",
+    "赛果未纳入跟踪",
+    "赛果已记录",
+)
 
 
 def files() -> list[Path]:
@@ -63,6 +74,12 @@ def main() -> int:
                 failures.append(
                     f"{relative}: retired public authority {retired_identifier!r}"
                 )
+        if relative == "apps/web/src/lib/labels.ts":
+            for retired_translation in RETIRED_PUBLIC_REPLAY_TRANSLATIONS:
+                if retired_translation in text:
+                    failures.append(
+                        f"{relative}: retired replay translation {retired_translation!r}"
+                    )
         if relative.startswith("apps/web/") or relative.startswith("src/w2/"):
             if re.search(r'collection[_-]incident', text, re.IGNORECASE) and (
                 "NOT_YET_DUE" in text and relative.endswith("publicPresentation.ts")
@@ -82,6 +99,24 @@ def main() -> int:
         "apps/web/src/lib/publicPresentation.ts"
     ]:
         failures.append("exactly one PublicPresentation converter is required")
+
+    console = (ROOT / "apps/web/src/components/IntelligenceConsole.tsx").read_text(
+        encoding="utf-8"
+    )
+    for public_copy in COMPONENT_OUTCOME_COPY:
+        if public_copy in console:
+            failures.append(
+                "IntelligenceConsole.tsx: outcome copy must come from "
+                f"publicPresentation: {public_copy!r}"
+            )
+    if re.search(r"\bmatch\.status\b", console):
+        failures.append(
+            "IntelligenceConsole.tsx: match.status cannot decide public outcome semantics"
+        )
+    if "match.outcome.public_semantics" not in console:
+        failures.append(
+            "IntelligenceConsole.tsx: match outcome must consume the schema authority"
+        )
 
     if failures:
         print("SC20_SINGLE_PUBLIC_AUTHORITY=FAIL")

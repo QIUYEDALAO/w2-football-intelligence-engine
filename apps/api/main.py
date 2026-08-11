@@ -6,6 +6,7 @@ from time import monotonic
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 
 from w2.api.metrics import metrics as api_metrics
 from w2.api.routers import error_handler, ops_router, public_router, service
@@ -26,6 +27,7 @@ app = FastAPI(
     version="0.2.0",
     lifespan=lifespan,
 )
+app.add_middleware(GZipMiddleware, minimum_size=1_000)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

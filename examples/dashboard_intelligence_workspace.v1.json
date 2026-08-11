@@ -265,12 +265,8 @@
         "tracked_fixture_ids": []
       },
       "reason_summary": [],
-      "replay_gaps": [
-        "MISSING_AUDIT_MANIFEST",
-        "MISSING_AUDIT_TABLES",
-        "MISSING_OUTCOMES"
-      ],
-      "status": "MISSING_OUTCOMES",
+      "replay_gaps": [],
+      "status": "EMPTY",
       "record_kind": "EMPTY",
       "public_semantics": {"scope": "SELECTED_DAY", "cause": null}
     },

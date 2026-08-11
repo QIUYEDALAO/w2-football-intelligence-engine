@@ -13,9 +13,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from w2.api import repository as api_repository
+from w2.dashboard.date_window import football_day_window
 from w2.dashboard.day_view import build_dashboard_day_view
 from w2.dashboard.workspace import build_dashboard_intelligence_workspace
 from w2.infrastructure.database import Base
+from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.infrastructure.persistence.market_projection_view import (
     PROJECTION_VIEW_NAME,
     current_market_projection,
@@ -25,6 +27,7 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayFixtureIdentityModel,
     MatchdayMarketObservationModel,
 )
+from w2.infrastructure.persistence.models import ResultModel
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 from w2.prematch import analysis_calculator as calculation_repository
 
@@ -389,6 +392,31 @@ def test_sc19_date_strip_reads_persisted_inventory_without_business_writes(
                 payload={},
             )
         )
+        for provider, competition_id, suffix in (
+            ("other_provider", "allsvenskan", "other-provider"),
+            ("api_football", "rogue_league", "rogue-league"),
+        ):
+            session.add(
+                MatchdayFixtureIdentityModel(
+                    fixture_id=f"{provider}:{suffix}",
+                    provider=provider,
+                    provider_fixture_id=suffix,
+                    competition_id=competition_id,
+                    provider_league_id="outside-scope",
+                    season="2026",
+                    kickoff_utc=datetime(2026, 8, 10, 18, 0, tzinfo=UTC),
+                    fixture_status="NS",
+                    home_provider_team_id="outside-home",
+                    away_provider_team_id="outside-away",
+                    home_w2_team_id=None,
+                    away_w2_team_id=None,
+                    team_identity_status="REVIEW_REQUIRED",
+                    raw_payload_sha256=suffix.ljust(64, "a")[:64],
+                    captured_at=now,
+                    identity_hash=suffix.ljust(64, "b")[:64],
+                    payload={},
+                )
+            )
         session.add(
             MatchdayCheckpointPlanModel(
                 plan_id="sc19-plan",
@@ -410,6 +438,11 @@ def test_sc19_date_strip_reads_persisted_inventory_without_business_writes(
         )
         session.commit()
     monkeypatch.setattr(api_repository, "create_engine", lambda: engine)
+    monkeypatch.setattr(
+        api_repository.ReadModelRepository,
+        "_dashboard_competition_ids",
+        lambda _self: ("allsvenskan",),
+    )
     writes: list[str] = []
 
     def record_statement(
@@ -435,6 +468,314 @@ def test_sc19_date_strip_reads_persisted_inventory_without_business_writes(
         "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY"
     )
     assert writes == []
+
+
+def test_dashboard_window_read_batches_before_projection(monkeypatch: Any) -> None:
+    engine = _engine()
+    target_start = datetime(2026, 8, 14, 4, tzinfo=UTC)
+    target_end = datetime(2026, 8, 15, 4, tzinfo=UTC)
+    with Session(engine) as session:
+        for index in range(72):
+            provider_fixture_id = (
+                ("9999", "1000", "1001")[index]
+                if index < 3
+                else str(2000 + index)
+            )
+            kickoff = (
+                target_start + timedelta(hours=index + 1)
+                if index < 3
+                else target_end + timedelta(days=1, minutes=index)
+            )
+            session.add(
+                MatchdayFixtureIdentityModel(
+                    fixture_id=f"api_football:{provider_fixture_id}",
+                    provider="api_football",
+                    provider_fixture_id=provider_fixture_id,
+                    competition_id="allsvenskan",
+                    provider_league_id="113",
+                    season="2026",
+                    kickoff_utc=kickoff,
+                    fixture_status="NS",
+                    home_provider_team_id=f"home-{index}",
+                    away_provider_team_id=f"away-{index}",
+                    home_w2_team_id=None,
+                    away_w2_team_id=None,
+                    team_identity_status="REVIEW_REQUIRED",
+                    raw_payload_sha256=f"{index:064x}",
+                    captured_at=target_start,
+                    identity_hash=f"{index + 100:064x}",
+                    payload={
+                        "home_team_name": f"Home {index}",
+                        "away_team_name": f"Away {index}",
+                    },
+                )
+            )
+            if index != 0:
+                session.add(
+                    ReadModelCheckpointModel(
+                        checkpoint_key=(
+                            f"{api_repository.ANALYSIS_CARD_SHADOW_PREFIX}"
+                            f"{provider_fixture_id}"
+                        ),
+                        source_hash=f"{index + 200:064x}",
+                        created_at=target_start,
+                        payload={"kickoff_utc": kickoff.isoformat()},
+                    )
+                )
+        for provider, competition_id, suffix in (
+            ("other_provider", "allsvenskan", "other-provider"),
+            ("api_football", "rogue_league", "rogue-league"),
+        ):
+            session.add(
+                MatchdayFixtureIdentityModel(
+                    fixture_id=f"{provider}:{suffix}",
+                    provider=provider,
+                    provider_fixture_id=suffix,
+                    competition_id=competition_id,
+                    provider_league_id="outside-scope",
+                    season="2026",
+                    kickoff_utc=target_start + timedelta(minutes=30),
+                    fixture_status="NS",
+                    home_provider_team_id="outside-home",
+                    away_provider_team_id="outside-away",
+                    home_w2_team_id=None,
+                    away_w2_team_id=None,
+                    team_identity_status="REVIEW_REQUIRED",
+                    raw_payload_sha256=suffix.ljust(64, "c")[:64],
+                    captured_at=target_start,
+                    identity_hash=suffix.ljust(64, "d")[:64],
+                    payload={},
+                )
+            )
+        session.commit()
+
+    repository = api_repository.ReadModelRepository(engine=engine)
+    monkeypatch.setattr(repository, "_dashboard_competition_ids", lambda: ("allsvenskan",))
+    projected: list[str] = []
+
+    def project(
+        row: api_repository.Checkpoint,
+        fixture_id: str,
+    ) -> dict[str, Any]:
+        projected.append(fixture_id)
+        return {
+            "fixture_id": fixture_id,
+            "competition_id": "allsvenskan",
+            "kickoff_utc": row.payload["kickoff_utc"],
+            "status": "NS",
+            "home_team_name": f"Home {fixture_id}",
+            "away_team_name": f"Away {fixture_id}",
+        }
+
+    monkeypatch.setattr(repository, "_analysis_card_from_checkpoint", project)
+    statements: list[str] = []
+
+    def record_select(
+        _connection: Any,
+        _cursor: Any,
+        statement: str,
+        _parameters: Any,
+        _context: Any,
+        _executemany: bool,
+    ) -> None:
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record_select)
+    fixtures = repository.dashboard_fixtures_for_window(
+        start=target_start,
+        end=target_end,
+        limit=2,
+    )
+
+    assert [row["fixture_id"] for row in fixtures] == ["9999", "1000"]
+    assert fixtures[0]["_analysis_card_projection"] is None
+    assert projected == ["1000"]
+    assert len(statements) == 1
+    assert all(statement.lstrip().upper().startswith("SELECT") for statement in statements)
+
+
+def test_dashboard_repository_reuses_one_lazy_engine(monkeypatch: Any) -> None:
+    engine = _engine()
+    engine_calls = 0
+
+    def engine_factory() -> Any:
+        nonlocal engine_calls
+        engine_calls += 1
+        return engine
+
+    monkeypatch.setattr(api_repository, "create_engine", engine_factory)
+    repository = api_repository.ReadModelRepository()
+
+    assert repository.analysis_checkpoint_count() == 0
+    assert repository.analysis_checkpoint_count() == 0
+    assert engine_calls == 1
+
+
+def test_dashboard_identity_without_analysis_checkpoint_fails_closed(
+    monkeypatch: Any,
+) -> None:
+    engine = _engine()
+    kickoff = datetime(2026, 8, 14, 12, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add(
+            MatchdayFixtureIdentityModel(
+                fixture_id="api_football:missing-analysis",
+                provider="api_football",
+                provider_fixture_id="missing-analysis",
+                competition_id="allsvenskan",
+                provider_league_id="113",
+                season="2026",
+                kickoff_utc=kickoff,
+                fixture_status="NS",
+                home_provider_team_id="home-missing",
+                away_provider_team_id="away-missing",
+                home_w2_team_id=None,
+                away_w2_team_id=None,
+                team_identity_status="REVIEW_REQUIRED",
+                raw_payload_sha256="c" * 64,
+                captured_at=kickoff,
+                identity_hash="d" * 64,
+                payload={
+                    "home_team_name": "Known Home",
+                    "away_team_name": "Known Away",
+                },
+            )
+        )
+        session.commit()
+
+    repository = api_repository.ReadModelRepository(engine=engine)
+    monkeypatch.setattr(repository, "_dashboard_competition_ids", lambda: ("allsvenskan",))
+    payload = api_repository.ReadModelService(
+        repository=repository
+    ).dashboard(target_date="2026-08-14", window="today", include_debug=True)
+
+    assert [row["fixture_id"] for row in payload["all"]] == ["missing-analysis"]
+    assert payload["all"][0]["projection_health"] == {
+        "status": "SYSTEM_DEGRADED",
+        "reason_code": "ANALYSIS_PROJECTION_NOT_READY",
+    }
+    assert payload["all"][0]["kickoff_utc"] == "2026-08-14T12:00:00Z"
+    assert payload["debug"]["analysis_projection_count"] == 0
+
+
+def test_dashboard_outcome_read_is_one_fixture_scoped_select() -> None:
+    engine = _engine()
+    with Session(engine) as session:
+        session.add(
+            ResultModel(
+                id="result-1493049",
+                fixture_id="api_football:1493049",
+                home_goals=0,
+                away_goals=2,
+                result_status="FT",
+                confirmed_at=datetime(2026, 8, 10, 23, tzinfo=UTC),
+                source_payload_sha256="a" * 64,
+                source_capture_id="capture-result-1493049",
+                result_hash="b" * 64,
+            )
+        )
+        session.commit()
+    statements: list[str] = []
+
+    def record_statement(
+        _connection: Any,
+        _cursor: Any,
+        statement: str,
+        _parameters: Any,
+        _context: Any,
+        _executemany: Any,
+    ) -> None:
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record_statement)
+    repository = api_repository.ReadModelRepository(engine=engine)
+
+    outcomes = repository.dashboard_outcomes_for_fixtures(["1493049", "missing"])
+
+    assert outcomes == [
+        {"fixture_id": "1493049", "result_status": "FT", "score": "0-2"}
+    ]
+    assert len(statements) == 1
+    assert statements[0].lstrip().upper().startswith("SELECT")
+
+
+def test_dashboard_service_consumes_batched_projection_without_per_fixture_reads() -> None:
+    class Repository:
+        window: tuple[datetime | None, datetime | None] | None = None
+
+        def dashboard_fixtures_for_window(
+            self,
+            *,
+            start: datetime | None,
+            end: datetime | None,
+            limit: int,
+        ) -> list[dict[str, Any]]:
+            self.window = (start, end)
+            assert limit == api_repository.MAX_PUBLIC_FIXTURES
+            return [
+                {
+                    "fixture_id": "1493049",
+                    "competition_id": "liga_profesional_argentina",
+                    "kickoff_utc": "2026-08-10T22:00:00Z",
+                    "status": "FT",
+                    "_analysis_card_projection": {
+                        "fixture_id": "1493049",
+                        "competition_id": "liga_profesional_argentina",
+                        "kickoff_utc": "2026-08-10T22:00:00Z",
+                        "decision_tier": "NOT_READY",
+                        "data_status": "BLOCKED",
+                        "lifecycle_status": "DRAFT",
+                        "lineup_requirement": "ADVISORY",
+                        "risk_reason_codes": ["LINEUP_UNOBSERVABLE"],
+                        "decision_contract": {
+                            "decision_tier": "NOT_READY",
+                            "data_status": "BLOCKED",
+                            "lifecycle_status": "DRAFT",
+                            "outcome_tracked": False,
+                            "lock_eligible": False,
+                            "recommendation_id": None,
+                            "pick": None,
+                            "non_pick": {
+                                "reason_code": "NOT_READY",
+                                "reason_human": "等待证据",
+                                "action": "WAIT",
+                                "next_eval_at": None,
+                            },
+                            "lineup_requirement": "ADVISORY",
+                            "risk_reason_codes": ["LINEUP_UNOBSERVABLE"],
+                        },
+                    },
+                    "_public_team_labels": {
+                        "home": {"display_name": "班菲尔德"},
+                        "away": {"display_name": "贝尔格拉诺"},
+                    },
+                }
+            ]
+
+        @staticmethod
+        def analysis_checkpoint_count() -> int:
+            return 72
+
+        @staticmethod
+        def dashboard_latest_fixtures() -> list[dict[str, Any]]:
+            raise AssertionError("full checkpoint scan must not run")
+
+        @staticmethod
+        def analysis_card_projection(_fixture_id: str) -> dict[str, Any]:
+            raise AssertionError("per-fixture checkpoint read must not run")
+
+    repository = Repository()
+    payload = api_repository.ReadModelService(
+        repository=repository,  # type: ignore[arg-type]
+    ).dashboard(target_date="2026-08-10", window="today", include_debug=True)
+
+    assert repository.window == football_day_window(date(2026, 8, 10))
+    assert [row["fixture_id"] for row in payload["all"]] == ["1493049"]
+    assert payload["all"][0]["status"] == "FINISHED"
+    assert payload["all"][0]["home_team_label"]["display_name"] == "班菲尔德"
+    assert payload["debug"]["fixture_checkpoint_count"] == 72
+    assert "_analysis_card_projection" not in payload["all"][0]
+    assert "_public_team_labels" not in payload["all"][0]
 
 
 def test_api_dashboard_card_keeps_historical_v3_identity_immutable() -> None:

@@ -166,6 +166,12 @@ export interface WorkspaceMatch {
   away_team_label: WorkspacePublicTeamLabel;
   public_semantics: PublicStatusSemantics;
   status: string | null;
+  outcome: {
+    is_finished: boolean;
+    is_tracked: boolean;
+    is_recorded: boolean;
+    public_semantics: PublicStatusSemantics;
+  };
   intelligence_state: IntelligenceState;
   intelligence_reason_codes: string[];
   priority_reason_primary: string | null;
@@ -366,7 +372,14 @@ export interface WorkspaceValidation {
       by_data_status: Record<string, number>;
     };
     reason_summary: Record<string, unknown>[];
-    outcome_tracking_summary: Record<string, unknown>;
+    outcome_tracking_summary: {
+      tracked_count: number;
+      matched_outcome_count: number;
+      missing_outcome_count: number;
+      tracked_fixture_ids: string[];
+      matched_fixture_ids: string[];
+      missing_outcome_fixture_ids: string[];
+    };
     card_hash_checks: Record<string, unknown>[];
     replay_gaps: string[];
     record_kind: "FORWARD_RECORD" | "REPLAY" | "MIXED_RECORD" | "EMPTY";
@@ -380,7 +393,7 @@ export interface IntelligenceWorkspace {
   generated_at: string | null;
   date: string;
   timezone: string;
-  window: string;
+  window: "today";
   football_day_timezone: string;
   football_day_cutoff_hour: number;
   football_day_start_utc: string | null;

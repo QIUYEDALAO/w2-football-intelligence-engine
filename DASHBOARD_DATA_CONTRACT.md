@@ -29,7 +29,7 @@ states remain separately auditable and cannot override it.
 | FIELD | SOURCE | AVAILABILITY | FRESHNESS_DOMAIN | READINESS_SEMANTICS | NO_CALL_ON_READ |
 |---|---|---|---|---|---|
 | `schema_version` | P2 schema constant | `AVAILABLE` | `NONE` | exact v1 literal | `true` |
-| `generated_at`, `date`, `timezone`, `window` | existing DayView envelope | `AVAILABLE` | `PAGE_PROJECTION` | source values preserved | `true` |
+| `generated_at`, `date`, `timezone`, `window` | existing DayView envelope | `AVAILABLE` | `PAGE_PROJECTION` | selected-day workspace is exactly `window=today`; multi-day windows fail closed at request and response schema boundaries | `true` |
 | `football_day_timezone`, `football_day_cutoff_hour`, `football_day_start_utc`, `football_day_end_utc` | existing football-day boundary projected through Dashboard -> DayView | `AVAILABLE` | `FIXTURES` | exact configured timezone/cutoff and half-open UTC window; frontend does not reconstruct | `true` |
 | `source` | P2 adapter constant | `AVAILABLE` | `NONE` | checkpoint + pure projections only | `true` |
 | `selected_fixture_id` | first frozen Attention/Match order row or null | `AVAILABLE` | `FIXTURES` | null when no matches | `true` |
@@ -62,6 +62,9 @@ states remain separately auditable and cannot override it.
 | `attention[].risks.MODEL_RISK.assessment_status`, `evidence_basis` | persisted model/simulation assessment evidence | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `MODEL` | missing readiness evidence is `UNASSESSED`, not green and not incident; evidence-backed disagreement remains assessed risk | `true` |
 | `matches[].fixture_id`, `competition_id`, `competition_name` | DayView card identity | `AVAILABLE` | `FIXTURES` | missing identity fails existing DayView contract | `true` |
 | `matches[].kickoff_utc`, `home_team_name`, `away_team_name`, `status` | DayView card identity | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `FIXTURES` | null only when existing source lacks optional display name/status | `true` |
+| `matches[].outcome.is_finished` | DayView fixture status | `AVAILABLE` | `FIXTURES` | exact fact derived from existing finished statuses (`FT/AET/PEN/FINISHED`); no new status enum | `true` |
+| `matches[].outcome.is_tracked`, `is_recorded` | Decision Contract `outcome_tracked` plus replay front-door card/summary | `AVAILABLE` | `PAGE_PROJECTION` | persisted facts only; recorded outcomes cannot be attached to unfinished matches | `true` |
+| `matches[].outcome.public_semantics` | the three persisted match outcome facts above | `AVAILABLE` | `FIXTURES` / `PAGE_PROJECTION` | exact `MATCH` truth table: unfinished = `NOT_YET_DUE`; finished+recorded = null; finished+tracked+unrecorded = `AWAITING_COLLECTION`; finished+untracked = `UNASSESSED` | `true` |
 | `matches[].{home,away}_team_label.public_semantics` | canonical/reviewed team identity adapter | `AVAILABLE` | `FIXTURES` | `MATCH + LABEL_MISSING` keeps the known raw name readable and adds a non-fault translation badge; only `IDENTITY_UNRESOLVED`/`AMBIGUOUS` may use an identity placeholder | `true` |
 | `matches[].intelligence_state`, `intelligence_reason_codes`, `risks` | existing intelligence projection | `AVAILABLE` | relevant source domains | exact seven states and exact four production-shaped risk axes; fail closed | `true` |
 
@@ -131,9 +134,9 @@ states remain separately auditable and cannot override it.
 | `validation.forward_validation_records` | bounded forward-ledger checkpoint adapter | `AVAILABLE_WHEN_EVIDENCE_EXISTS` | `PAGE_PROJECTION` | counts/outcomes/exclusions only; no CLV/ROI | `true` |
 | `validation.forward_validation_records.public_semantics` | bounded forward-ledger adapter | `AVAILABLE` | `PAGE_PROJECTION` | always `CROSS_DAY_CUMULATIVE`; these counts never share a statistic with selected-day replay/outcome gaps | `true` |
 | `validation.forward_validation_records.excluded_share`, `excluded_by_reason` | persisted `validation_excluded_by_reason` / canonical exclusion distribution | `AVAILABLE` | `PAGE_PROJECTION` | source-bound counts; share is excluded/validation count; zero only for an empty denominator | `true` |
-| `validation.history_replay.known_at`, `reason_summary`, `outcome_tracking_summary`, `card_hash_checks`, `replay_gaps` | existing replay front door over same DayView | `AVAILABLE` | `PAGE_PROJECTION` | existing history evidence preserved; read only | `true` |
+| `validation.history_replay.known_at`, `reason_summary`, `outcome_tracking_summary`, `card_hash_checks`, `replay_gaps` | existing replay front door over same DayView | `AVAILABLE` | `PAGE_PROJECTION` | existing history evidence preserved; outcome counts and exact fixture-id sets must agree with `matches[].outcome`; read only | `true` |
 | `validation.history_replay.decision_summary` | existing replay front-door `decision_summary` | `AVAILABLE` | `PAGE_PROJECTION` | exact total/tier/data-status/lock-eligible counts answer what W2 judged; no second replay engine | `true` |
-| `validation.history_replay.record_kind`, `public_semantics` | selected-day fixture status plus existing replay front door | `AVAILABLE` | `FIXTURES` / `PAGE_PROJECTION` | future unplayed fixtures are `FORWARD_RECORD + SELECTED_DAY + NOT_YET_DUE` and say the result is not yet produced; missing outcome is `AWAITING_COLLECTION` only after a fixture is finished | `true` |
+| `validation.history_replay.record_kind`, `status`, `replay_gaps`, `public_semantics` | `matches[].outcome` facts plus existing replay front door | `AVAILABLE` | `FIXTURES` / `PAGE_PROJECTION` | exact selected-day truth table: empty = `EMPTY/EMPTY/null/no gaps`; all unfinished = `FORWARD_RECORD/FORWARD_RECORD/NOT_YET_DUE/no MISSING_OUTCOMES`; replay/mixed never use `NOT_YET_DUE`, and use `MISSING_OUTCOMES + AWAITING_COLLECTION` iff any finished tracked outcome is unrecorded | `true` |
 
 League rows preserve all `source_aliases` and `source_checkpoint_keys`, resolve
 `canonical_competition_id`/`competition_name` with explicit `identity_status`, and expose
