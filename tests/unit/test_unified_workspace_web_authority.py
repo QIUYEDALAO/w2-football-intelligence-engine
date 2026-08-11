@@ -18,7 +18,8 @@ def test_dashboard_uses_only_the_unified_intelligence_workspace() -> None:
     assert "IntelligenceConsole" in page
     assert "W2 INTELLIGENCE" in console
     assert "关注情报" in console
-    assert "今日比赛" in console
+    assert "selectedDayNoun" in console
+    assert '"今日" | "所选比赛日"' in console
     assert "数据与系统" in console
     assert "MODEL_MARKET_DISAGREEMENT" in console
     assert "不会回退旧 Dashboard，也不会填充合成数据" in page

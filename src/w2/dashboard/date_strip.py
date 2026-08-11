@@ -89,6 +89,7 @@ def build_persisted_date_strip(
                     if day_fixtures and finished_count == len(day_fixtures)
                     else collection_status
                 ),
+                "public_semantics": _public_semantics(collection_status),
             }
         )
     return entries
@@ -126,3 +127,12 @@ def _collection_status(
     if scheduled:
         return "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW"
     return "MARKET_COLLECTION_PLAN_NOT_PERSISTED"
+
+
+def _public_semantics(collection_status: str) -> dict[str, str | None]:
+    cause = {
+        "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW": "NOT_YET_DUE",
+        "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY": "AWAITING_COLLECTION",
+        "MARKET_COLLECTION_PLAN_NOT_PERSISTED": "UNASSESSED",
+    }.get(collection_status)
+    return {"scope": "SELECTED_DAY", "cause": cause}

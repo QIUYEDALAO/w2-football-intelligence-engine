@@ -259,12 +259,15 @@ def _day_view() -> dict[str, Any]:
 
 
 def _workspace(
-    day_view: dict[str, Any], *, candidate_enabled: bool = False
+    day_view: dict[str, Any],
+    *,
+    candidate_enabled: bool = False,
+    replay: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return build_dashboard_intelligence_workspace(
         day_view,
         candidate_enabled=candidate_enabled,
-        replay={
+        replay=replay or {
             "replay_status": "MISSING_OUTCOMES",
             "known_at_summary": {
                 "has_day_view": True,
@@ -1126,10 +1129,94 @@ def test_public_team_label_never_silently_uses_raw_english() -> None:
         "state": "IDENTITY_UNRESOLVED",
         "canonical_team_id": None,
         "provider_team_id": "476",
+        "public_semantics": {"scope": "MATCH", "cause": "IDENTITY_UNRESOLVED"},
         "technical": {"raw_provider_name": "Banfield"},
     }
     assert match["away_team_label"]["display_name"] == "客队（身份待确认：478）"
     assert "Banfield" not in match["home_team_label"]["display_name"]
+
+
+def test_known_team_without_chinese_label_keeps_readable_raw_name() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]
+    card["home_team_name"] = "Rosenborg"
+    card["home_team_label"] = {
+        "display_name": None,
+        "state": "CANONICAL_IDENTITY_READY_LABEL_MISSING",
+        "canonical_team_id": "w2:team:api_football:331",
+        "provider_team_id": "331",
+        "raw_provider_name": "Rosenborg",
+    }
+
+    label = _workspace(day_view)["matches"][0]["home_team_label"]
+
+    assert label["display_name"] == "Rosenborg"
+    assert label["public_semantics"] == {"scope": "MATCH", "cause": "LABEL_MISSING"}
+
+
+def test_scope_and_cause_separate_future_day_from_cumulative_validation() -> None:
+    day_view = _day_view()
+    day_view["date_strip"][7]["market_collection_window_status"] = (
+        "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW"
+    )
+    day_view["date_strip"][7]["display_state"] = (
+        "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW"
+    )
+
+    payload = _workspace(day_view)
+
+    assert payload["date_strip"][7]["public_semantics"] == {
+        "scope": "SELECTED_DAY",
+        "cause": "NOT_YET_DUE",
+    }
+    assert payload["validation"]["history_replay"]["record_kind"] == "FORWARD_RECORD"
+    assert payload["validation"]["history_replay"]["public_semantics"] == {
+        "scope": "SELECTED_DAY",
+        "cause": "NOT_YET_DUE",
+    }
+    assert payload["validation"]["forward_validation_records"]["public_semantics"] == {
+        "scope": "CROSS_DAY_CUMULATIVE",
+        "cause": None,
+    }
+
+
+def test_finished_match_missing_outcome_is_awaiting_collection() -> None:
+    day_view = _day_view()
+    for card in day_view["cards"]:
+        card["status"] = "FT"
+
+    replay = {
+        "replay_status": "MISSING_OUTCOMES",
+        "known_at_summary": {},
+        "reason_summary": [],
+        "outcome_tracking_summary": {"missing_outcome_count": 1},
+        "card_hash_checks": [],
+        "decision_summary": {
+            "total_cards": 3,
+            "lock_eligible_count": 0,
+            "by_decision_tier": {},
+            "by_data_status": {},
+        },
+        "replay_gaps": ["MISSING_OUTCOMES"],
+    }
+    payload = _workspace(day_view, replay=replay)
+
+    assert payload["validation"]["history_replay"]["record_kind"] == "REPLAY"
+    assert payload["validation"]["history_replay"]["public_semantics"] == {
+        "scope": "SELECTED_DAY",
+        "cause": "AWAITING_COLLECTION",
+    }
+
+
+@pytest.mark.parametrize("field,value", [("scope", "WRONG_SCOPE"), ("cause", "WRONG_CAUSE")])
+def test_schema_rejects_unknown_public_semantics(field: str, value: str) -> None:
+    payload = _workspace(_day_view())
+    payload["matches"][0]["home_team_label"]["public_semantics"][field] = value
+
+    with pytest.raises(ValueError):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "test-request", **payload}
+        )
 
 
 def test_reviewed_canonical_chinese_label_is_the_only_ready_path() -> None:

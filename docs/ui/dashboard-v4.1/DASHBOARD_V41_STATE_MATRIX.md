@@ -1,5 +1,24 @@
 # Dashboard V4.1 State Matrix
 
+Public presentation is derived from two dimensions rather than from panel-local
+copy. `scope` is `MATCH`, `SELECTED_DAY`, `CROSS_DAY_CUMULATIVE`, or `GLOBAL`;
+`cause` is nullable when ready/empty, otherwise one of the exact causes below.
+
+| Scope | Cause | Public meaning | Severity |
+|---|---|---|---|
+| `SELECTED_DAY` | `NOT_YET_DUE` | 未进入市场采集窗口 / 赛果尚未产生 | neutral |
+| `SELECTED_DAY` | `AWAITING_COLLECTION` | 已到采集时点，持久化证据或赛果待采集 | warning |
+| any | `INSUFFICIENT` | 已采集但证据量不足 | warning |
+| any | `UNAVAILABLE` | 来源不提供或不可用 | critical |
+| any | `UNASSESSED` | 尚未完成评估 | neutral |
+| `MATCH` | `LABEL_MISSING` | 保留已知原名并标记中文译名待映射 | neutral |
+| `MATCH` | `IDENTITY_UNRESOLVED` | 身份未知，可使用占位符 | warning |
+| `MATCH` | `AMBIGUOUS` | 身份存在歧义，可使用占位符 | warning |
+
+`CROSS_DAY_CUMULATIVE` metrics and `SELECTED_DAY` records are rendered in
+separate statistic groups. Raw `day_mode` and source states remain technical
+truth, but they do not choose public copy or color independently.
+
 | Scenario | `day_mode` | `default_focus_type` | Fixture id | L2 | L3 authority | Key fail-closed behavior |
 |---|---|---|---|---|---|---|
 | Normal, rich evidence | `NORMAL` | `MATCH` | required | prioritized matches/groups | persisted AH/OU facts, W2 diagnostic relation, blockers, optional scoreline | no match focus without a valid id |

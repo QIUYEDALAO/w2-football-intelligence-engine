@@ -28,6 +28,23 @@ export interface RiskAxis {
 
 export type WorkspaceRisks = Record<RiskAxisName, RiskAxis>;
 
+export type PublicStatusScope = "MATCH" | "SELECTED_DAY" | "CROSS_DAY_CUMULATIVE" | "GLOBAL";
+export type PublicStatusCause =
+  | "NOT_YET_DUE"
+  | "AWAITING_COLLECTION"
+  | "INSUFFICIENT"
+  | "UNAVAILABLE"
+  | "UNASSESSED"
+  | "LABEL_MISSING"
+  | "IDENTITY_UNRESOLVED"
+  | "AMBIGUOUS"
+  | null;
+
+export interface PublicStatusSemantics {
+  scope: PublicStatusScope;
+  cause: PublicStatusCause;
+}
+
 export interface WorkspaceAttentionItem {
   fixture_id: string;
   kickoff_utc: string | null;
@@ -108,6 +125,7 @@ export interface WorkspacePublicTeamLabel {
     | "AMBIGUOUS";
   canonical_team_id: string | null;
   provider_team_id: string | null;
+  public_semantics: PublicStatusSemantics;
   technical: { raw_provider_name: string | null };
 }
 
@@ -134,6 +152,7 @@ export interface WorkspaceDateStripEntry {
     | "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW"
     | "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY"
     | "MARKET_COLLECTION_PLAN_NOT_PERSISTED";
+  public_semantics: PublicStatusSemantics;
 }
 
 export interface WorkspaceModelRelation {
@@ -344,6 +363,7 @@ export interface WorkspaceValidation {
     pending_count: number;
     outcomes: Record<string, unknown>;
     checkpoint_metadata: Record<string, unknown>;
+    public_semantics: PublicStatusSemantics;
   };
   history_replay: {
     status: string;
@@ -358,6 +378,8 @@ export interface WorkspaceValidation {
     outcome_tracking_summary: Record<string, unknown>;
     card_hash_checks: Record<string, unknown>[];
     replay_gaps: string[];
+    record_kind: "FORWARD_RECORD" | "REPLAY" | "MIXED_RECORD" | "EMPTY";
+    public_semantics: PublicStatusSemantics;
   };
 }
 
@@ -393,6 +415,7 @@ export interface IntelligenceWorkspace {
     source_as_of: string | null;
     next_eval_at: string | null;
     recovery_condition: string | null;
+    public_semantics: PublicStatusSemantics;
   } | null;
   global_model_quality: {
     status: "AVAILABLE" | "STALE" | "INCOMPLETE" | "NOT_AVAILABLE";

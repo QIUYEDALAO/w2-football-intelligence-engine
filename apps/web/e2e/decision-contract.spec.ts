@@ -32,6 +32,10 @@ function dateStrip(): WorkspaceDateStripEntry[] {
       market_collection_window_status: displayState === "FINISHED" ? "MARKET_EVIDENCE_AVAILABLE" : displayState,
       market_evidence_fixture_count: displayState === "FINISHED" ? fixtureCount : 0,
       display_state: displayState,
+      public_semantics: {
+        scope: "SELECTED_DAY",
+        cause: displayState === "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW" ? "NOT_YET_DUE" : null,
+      },
     };
   });
 }
@@ -115,8 +119,8 @@ function match(id: string, options: { rich?: boolean; stale?: boolean; modelWarn
     kickoff_utc: kickoff[id] || "2026-08-09T14:30:00Z",
     home_team_name: teams[id]?.[0] || `Home ${id}`,
     away_team_name: teams[id]?.[1] || `Away ${id}`,
-    home_team_label: { display_name: publicTeams[id]?.[0] || `主队（身份待确认：${id}-home）`, state: publicTeams[id] ? "CHINESE_LABEL_READY" : "IDENTITY_UNRESOLVED", canonical_team_id: publicTeams[id] ? `w2:${id}:home` : null, provider_team_id: `${id}-home`, technical: { raw_provider_name: teams[id]?.[0] || `Home ${id}` } },
-    away_team_label: { display_name: publicTeams[id]?.[1] || `客队（身份待确认：${id}-away）`, state: publicTeams[id] ? "CHINESE_LABEL_READY" : "IDENTITY_UNRESOLVED", canonical_team_id: publicTeams[id] ? `w2:${id}:away` : null, provider_team_id: `${id}-away`, technical: { raw_provider_name: teams[id]?.[1] || `Away ${id}` } },
+    home_team_label: { display_name: publicTeams[id]?.[0] || `主队（身份待确认：${id}-home）`, state: publicTeams[id] ? "CHINESE_LABEL_READY" : "IDENTITY_UNRESOLVED", canonical_team_id: publicTeams[id] ? `w2:${id}:home` : null, provider_team_id: `${id}-home`, public_semantics: { scope: "MATCH", cause: publicTeams[id] ? null : "IDENTITY_UNRESOLVED" }, technical: { raw_provider_name: teams[id]?.[0] || `Home ${id}` } },
+    away_team_label: { display_name: publicTeams[id]?.[1] || `客队（身份待确认：${id}-away）`, state: publicTeams[id] ? "CHINESE_LABEL_READY" : "IDENTITY_UNRESOLVED", canonical_team_id: publicTeams[id] ? `w2:${id}:away` : null, provider_team_id: `${id}-away`, public_semantics: { scope: "MATCH", cause: publicTeams[id] ? null : "IDENTITY_UNRESOLVED" }, technical: { raw_provider_name: teams[id]?.[1] || `Away ${id}` } },
     status: "NS",
     intelligence_state: options.modelWarning ? "MODEL_DIAGNOSTIC_WARNING" : options.rich ? "MARKET_MOVEMENT" : "DATA_INCOMPLETE",
     intelligence_reason_codes: [options.stale ? "MARKET_STALE" : options.modelWarning ? "MODEL_OUTSIDE_MARKET_RANGE" : options.rich ? "MARKET_LINE_MOVEMENT" : "DATA_INCOMPLETE"],
@@ -160,6 +164,7 @@ function workspace(scenario: Scenario = "normal"): IntelligenceWorkspace {
     source_as_of: "2026-08-09T13:05:00Z",
     next_eval_at: mode === "CALM" || mode === "BLOCKED" ? "2026-08-09T14:49:00Z" : null,
     recovery_condition: mode === "BLOCKED" ? "等待既有调度形成新的持久化市场快照；本页不调用 Provider。" : null,
+    public_semantics: { scope: "SELECTED_DAY" as const, cause: mode === "BLOCKED" ? "AWAITING_COLLECTION" as const : null },
   };
   return {
     request_id: `v41-${scenario}`,
@@ -186,7 +191,7 @@ function workspace(scenario: Scenario = "normal"): IntelligenceWorkspace {
     date_strip: dateStrip(),
     attention: matches.map((item) => ({ fixture_id: item.fixture_id, kickoff_utc: item.kickoff_utc, intelligence_state: item.intelligence_state, reason_codes: item.intelligence_reason_codes, affected_domains: ["MARKET"], factual_summary: item.intelligence_reason_codes.join("；"), readiness_status: item.readiness.status, readiness_context: { reason_code: item.readiness.reason_code, missing_fields: item.readiness.missing_fields, stale_fields: item.readiness.stale_fields, action: item.readiness.action }, next_eval_at: item.readiness.next_eval_at, risks: item.risks })),
     matches,
-    validation: { probability: { status: "AVAILABLE", sample_count: 34, model_brier: .178, market_brier: .174, model_minus_market_brier: .004, model_log_loss: .512, market_log_loss: .508, model_minus_market_log_loss: .004, model_calibration_error: .026, market_calibration_error: .021, model_reliability_bins: [], market_reliability_bins: [], checkpoint_metadata: { checkpoint_key: "performance:cohort:all" } }, directional: { status: "SAMPLE_BUILDING", source_status: "AVAILABLE", probability_evidence_ready: false, validation_n: 36, decisive_n: 34, correct: 18, wrong: 16, push: 1, void: 1, direction_accuracy: 18 / 34, effective_n: 34, market_direction_benchmark: "NOT_DEFINED", only_record_reason: "PROBABILITY_QUALITY_NOT_READY" }, league_performance: [], tournament_performance: [], forward_validation_records: { status: "AVAILABLE", validation_count: 36, eligible_count: 34, excluded_count: 2, excluded_share: 2 / 36, excluded_by_reason: { MARKET_IDENTITY_NOT_READY: 2 }, pending_count: 0, outcomes: {}, checkpoint_metadata: { checkpoint_key: "performance:cohort:all" } }, history_replay: { status: "AVAILABLE_WITH_GAPS", known_at: { has_day_view: true }, decision_summary: { total_cards: matches.length, lock_eligible_count: 0, by_decision_tier: { WATCH: matches.length }, by_data_status: { READY: matches.length } }, reason_summary: [], outcome_tracking_summary: {}, card_hash_checks: [], replay_gaps: ["MISSING_OUTCOMES"] } },
+    validation: { probability: { status: "AVAILABLE", sample_count: 34, model_brier: .178, market_brier: .174, model_minus_market_brier: .004, model_log_loss: .512, market_log_loss: .508, model_minus_market_log_loss: .004, model_calibration_error: .026, market_calibration_error: .021, model_reliability_bins: [], market_reliability_bins: [], checkpoint_metadata: { checkpoint_key: "performance:cohort:all" } }, directional: { status: "SAMPLE_BUILDING", source_status: "AVAILABLE", probability_evidence_ready: false, validation_n: 36, decisive_n: 34, correct: 18, wrong: 16, push: 1, void: 1, direction_accuracy: 18 / 34, effective_n: 34, market_direction_benchmark: "NOT_DEFINED", only_record_reason: "PROBABILITY_QUALITY_NOT_READY" }, league_performance: [], tournament_performance: [], forward_validation_records: { status: "AVAILABLE", validation_count: 36, eligible_count: 34, excluded_count: 2, excluded_share: 2 / 36, excluded_by_reason: { MARKET_IDENTITY_NOT_READY: 2 }, pending_count: 0, outcomes: {}, checkpoint_metadata: { checkpoint_key: "performance:cohort:all" }, public_semantics: { scope: "CROSS_DAY_CUMULATIVE", cause: null } }, history_replay: { status: "AVAILABLE_WITH_GAPS", known_at: { has_day_view: true }, decision_summary: { total_cards: matches.length, lock_eligible_count: 0, by_decision_tier: { WATCH: matches.length }, by_data_status: { READY: matches.length } }, reason_summary: [], outcome_tracking_summary: {}, card_hash_checks: [], replay_gaps: ["MISSING_OUTCOMES"], record_kind: matches.length ? "FORWARD_RECORD" : "EMPTY", public_semantics: { scope: "SELECTED_DAY", cause: matches.length ? "NOT_YET_DUE" : null } } },
     external_intelligence: { weather: { status: "NOT_CONNECTED", affects_match_readiness: false }, news: { status: "NOT_CONNECTED", affects_match_readiness: false }, sentiment: { status: "NOT_CONNECTED", affects_match_readiness: false }, advanced_xg: { status: "NOT_CONNECTED", affects_match_readiness: false } },
     freshness: { domains: {} },
     data_operations: { read_model_source: "dashboard_read_model", checkpoint_key: "dashboard:day_view:2026-08-09", degradation: { state: mode === "BLOCKED" || scenario === "deployed" ? "BLOCKED_DAY" : mode === "EMPTY" ? "EMPTY_DAY" : "HEALTHY" }, counts: { total: matches.length }, system_health: mode === "BLOCKED" || scenario === "deployed" ? "BLOCKED_DAY" : "HEALTHY", public_system_health: mode === "BLOCKED" ? "DAY_BLOCKED" : scenario === "deployed" ? "PARTIAL_DEGRADATION" : "HEALTHY", provider_budget_status: "PROTECTED" },
@@ -202,6 +207,46 @@ test("public team labels come from the workspace authority, not frontend guessin
   await page.goto("/");
   await expect(page.locator(".v41-focus-header h1")).toHaveText("本菲卡 vs 波尔图");
   await expect(page.locator(".v41-focus-header h1")).not.toContainText("Benfica");
+});
+
+test("future selected day derives neutral scope/cause copy and keeps known raw team names", async ({ page }) => {
+  const payload = workspace("blocked");
+  payload.date = "2026-08-14";
+  payload.generated_at = "2026-08-11T06:44:00Z";
+  payload.football_day_start_utc = "2026-08-14T04:00:00Z";
+  payload.football_day_end_utc = "2026-08-15T04:00:00Z";
+  payload.global_focus!.public_semantics = { scope: "SELECTED_DAY", cause: "NOT_YET_DUE" };
+  payload.global_focus!.next_eval_at = null;
+  payload.validation.history_replay.record_kind = "FORWARD_RECORD";
+  payload.validation.history_replay.public_semantics = { scope: "SELECTED_DAY", cause: "NOT_YET_DUE" };
+  payload.matches[0].kickoff_utc = "2026-08-14T12:00:00Z";
+  payload.matches[0].home_team_label = { display_name: "Rosenborg", state: "CANONICAL_IDENTITY_READY_LABEL_MISSING", canonical_team_id: "w2:331", provider_team_id: "331", public_semantics: { scope: "MATCH", cause: "LABEL_MISSING" }, technical: { raw_provider_name: "Rosenborg" } };
+  payload.matches[0].away_team_label = { display_name: "Viking", state: "CANONICAL_IDENTITY_READY_LABEL_MISSING", canonical_team_id: "w2:332", provider_team_id: "332", public_semantics: { scope: "MATCH", cause: "LABEL_MISSING" }, technical: { raw_provider_name: "Viking" } };
+  payload.matches[1].kickoff_utc = "2026-08-14T17:00:00Z";
+  const selected = payload.date_strip.find((item) => item.football_day === payload.date)!;
+  selected.fixture_count = 2;
+  selected.upcoming_fixture_count = 2;
+  selected.competition_count = 1;
+  selected.persisted_competition_coverage_count = 1;
+  selected.persisted_inventory_status = "PERSISTED_FIXTURES_AVAILABLE";
+  selected.market_collection_window_status = "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW";
+  selected.display_state = "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW";
+  selected.public_semantics = { scope: "SELECTED_DAY", cause: "NOT_YET_DUE" };
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+
+  await page.goto("/");
+
+  await expect(page.locator("[data-public-cause=NOT_YET_DUE]")).toHaveText("未进入市场采集窗口");
+  await expect(page.locator(".v41-today")).toContainText("场所选比赛日比赛");
+  await expect(page.locator(".v41-global h1")).toContainText("尚未进入市场采集窗口");
+  await expect(page.locator(".v41-shortlist")).toContainText("Rosenborg");
+  await expect(page.locator(".v41-shortlist")).toContainText("中文译名待映射");
+  await expect(page.locator(".v41-shortlist")).not.toContainText("主队（中文译名待映射）");
+  await expect(page.locator(".v41-shortlist time").first()).toHaveText("20:00");
+  await expect(page.locator(".v41-shortlist time").nth(1)).toHaveText("次日 01:00");
+  await expect(page.locator("#secondary-validation")).toContainText("前向记录");
+  await expect(page.locator("#secondary-validation")).toContainText("赛果尚未产生");
+  await expect(page.locator("#secondary-validation")).not.toContainText("赛果匹配 / 缺失");
 });
 
 test("V41 uses backend focus authority and never falls back to matches[0]", async ({ page }) => {
@@ -278,9 +323,9 @@ test("D16 deployed real shape keeps NORMAL authority, useful stale focus and aud
 });
 
 for (const [scenario, mode, focus, copy] of [
-  ["blocked", "BLOCKED", "GLOBAL_INCIDENT", "今日比赛可查看，市场分析暂无证据"],
-  ["calm", "CALM", "DAY_SUMMARY", "今日未发现需优先排查的比赛"],
-  ["empty", "EMPTY", "EMPTY_STATE", "本比赛日没有纳入观察池的比赛"],
+  ["blocked", "BLOCKED", "GLOBAL_INCIDENT", "所选比赛日比赛可查看，市场证据待采集"],
+  ["calm", "CALM", "DAY_SUMMARY", "所选比赛日未发现需优先排查的比赛"],
+  ["empty", "EMPTY", "EMPTY_STATE", "所选比赛日没有纳入观察池的比赛"],
 ] as const) {
   test(`V41 ${scenario} renders its exact non-match focus`, async ({ page }) => {
     await installWorkspace(page, scenario);
@@ -375,11 +420,11 @@ test("V41 blocked day keeps affected match names, kickoff times and recorded eva
   await expect(shortlist).toContainText("皇家马德里 vs 贝蒂斯");
   await expect(shortlist).toContainText("拜仁慕尼黑 vs 多特蒙德");
   await expect(shortlist.locator(".v41-blocked-match")).toHaveCount(2);
-  await expect(page.locator(".v41-today-primary")).toContainText("2场今日比赛");
+  await expect(page.locator(".v41-today-primary")).toContainText("2场所选比赛日比赛");
   await expect(page.locator(".v41-today-primary")).toContainText("2 场可查看赛程");
   await expect(page.locator(".v41-today-primary")).toContainText("0 场可进行市场分析");
   await expect(page.locator(".v41-shortlist")).toContainText("仅赛程比赛 · 2 场");
-  await expect(page.locator(".v41-focus")).toContainText("市场证据尚未形成");
+  await expect(page.locator(".v41-focus")).toContainText("市场证据仍待既有调度采集");
   await expect(page.locator(".v41-focus")).not.toContainText("当日市场采集阻塞");
   await expect(page.locator(".v41-focus")).not.toContainText("等待既有调度");
   await expect(page.locator(".v41-global-stats")).toContainText("2026-08-09 22:49");
@@ -392,7 +437,7 @@ test("V41 blocked day does not promise a schedule when none exists", async ({ pa
   payload.global_focus!.next_eval_at = null;
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
-  await expect(page.locator(".v41-global-stats")).toContainText("暂无调度记录");
+  await expect(page.locator(".v41-global-stats")).toContainText("暂无适用于所选比赛日的调度记录");
   await expect(page.locator(".v41-focus")).not.toContainText("等待既有调度");
 });
 
@@ -468,8 +513,8 @@ test("V41 exposes a prominent post-match validation center and hides raw codes i
   await expect(validation).toContainText("跨比赛日累计证据");
   await expect(validation).toContainText("验证总记录36");
   await expect(validation).toContainText("已结算20");
-  await expect(validation).toContainText("赛果匹配 / 缺失20 / 3");
-  await expect(validation).toContainText("当前证据缺口：赛果尚未接入");
+  await expect(validation).toContainText("不混入所选比赛日的前向记录与赛果缺口");
+  await expect(validation).toContainText("所选比赛日证据缺口：赛果尚未接入");
   await expect(validation.getByText("MISSING_OUTCOMES", { exact: true })).not.toBeVisible();
   const initialRequests = requests;
   await validation.locator(".v41-validation-technical summary").click();
