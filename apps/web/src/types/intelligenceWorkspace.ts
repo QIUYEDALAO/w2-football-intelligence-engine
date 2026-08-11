@@ -7,9 +7,6 @@ export type IntelligenceState =
   | "MARKET_MOVEMENT"
   | "MARKET_STABLE";
 
-export type DashboardDayMode = "NORMAL" | "BLOCKED" | "CALM" | "EMPTY";
-export type DashboardFocusType = "MATCH" | "GLOBAL_INCIDENT" | "DAY_SUMMARY" | "EMPTY_STATE";
-
 export type RiskAxisName =
   | "EVENT_RISK"
   | "DATA_RISK"
@@ -145,13 +142,6 @@ export interface WorkspaceDateStripEntry {
     | "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY"
     | "MARKET_COLLECTION_PLAN_NOT_PERSISTED";
   market_evidence_fixture_count: number;
-  display_state:
-    | "EMPTY_PERSISTED_DAY"
-    | "FINISHED"
-    | "MARKET_EVIDENCE_AVAILABLE"
-    | "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW"
-    | "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY"
-    | "MARKET_COLLECTION_PLAN_NOT_PERSISTED";
   public_semantics: PublicStatusSemantics;
 }
 
@@ -174,6 +164,7 @@ export interface WorkspaceMatch {
   away_team_name: string | null;
   home_team_label: WorkspacePublicTeamLabel;
   away_team_label: WorkspacePublicTeamLabel;
+  public_semantics: PublicStatusSemantics;
   status: string | null;
   intelligence_state: IntelligenceState;
   intelligence_reason_codes: string[];
@@ -395,9 +386,6 @@ export interface IntelligenceWorkspace {
   football_day_start_utc: string | null;
   football_day_end_utc: string | null;
   source: "dashboard_day_view+performance_checkpoint+replay_front_door";
-  day_mode: DashboardDayMode;
-  default_focus_type: DashboardFocusType;
-  default_focus_fixture_id: string | null;
   selected_fixture_id: string | null;
   today_summary: {
     match_count: number;
@@ -407,7 +395,6 @@ export interface IntelligenceWorkspace {
     primary_reason_counts: Record<string, number>;
   };
   global_focus: {
-    status: "INCIDENT" | "CALM" | "EMPTY";
     reason_code: string;
     factual_summary: string;
     affected_fixture_count: number;
@@ -473,7 +460,6 @@ export interface IntelligenceWorkspace {
     degradation: Record<string, unknown>;
     counts: Record<string, unknown>;
     system_health: string;
-    public_system_health: "HEALTHY" | "PARTIAL_DEGRADATION" | "DAY_BLOCKED";
     provider_budget_status: string;
   };
 }

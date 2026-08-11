@@ -61,7 +61,6 @@ def _empty_day_view() -> dict[str, Any]:
                 "active_whitelist_count": 13,
                 "market_collection_window_status": "EMPTY_PERSISTED_DAY",
                 "market_evidence_fixture_count": 0,
-                "display_state": "EMPTY_PERSISTED_DAY",
             }
             for index in range(15)
         ],
@@ -214,13 +213,7 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
         "freshness_max_age_seconds",
     } <= set(schemas["WorkspaceMarket"]["properties"])
     workspace = schemas["DashboardIntelligenceWorkspaceResponse"]["properties"]
-    assert set(workspace["day_mode"]["enum"]) == {"NORMAL", "BLOCKED", "CALM", "EMPTY"}
-    assert set(workspace["default_focus_type"]["enum"]) == {
-        "MATCH",
-        "GLOBAL_INCIDENT",
-        "DAY_SUMMARY",
-        "EMPTY_STATE",
-    }
+    assert "selected_fixture_id" in workspace
     assert set(schemas["WorkspaceMovement"]["properties"]["status"]["enum"]) == {
         "INSUFFICIENT",
         "STABLE",
@@ -241,9 +234,7 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
         "INCOMPLETE",
         "NOT_AVAILABLE",
     }
-    assert set(
-        schemas["WorkspaceDataOperations"]["properties"]["public_system_health"]["enum"]
-    ) == {"HEALTHY", "PARTIAL_DEGRADATION", "DAY_BLOCKED"}
+    assert "system_health" in schemas["WorkspaceDataOperations"]["properties"]
     assert "factual_summary" in schemas["WorkspaceMatch"]["properties"]
     assert (
         schemas["WorkspaceReadyScorelineReference"]["properties"]["simulations_completed"]["const"]

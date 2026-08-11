@@ -7,7 +7,7 @@ import type {
   WorkspaceDateStripEntry,
 } from "../src/types/intelligenceWorkspace";
 
-type Scenario = "normal" | "blocked" | "calm" | "stale" | "empty" | "deployed";
+type Scenario = "normal" | "limited" | "calm" | "stale" | "empty" | "deployed";
 
 function dateStrip(): WorkspaceDateStripEntry[] {
   return Array.from({ length: 15 }, (_, index) => {
@@ -15,26 +15,25 @@ function dateStrip(): WorkspaceDateStripEntry[] {
     const selected = footballDay === "2026-08-09";
     const future = footballDay > "2026-08-09";
     const fixtureCount = selected ? 3 : future && index % 2 === 0 ? 2 : 0;
-    const displayState = fixtureCount
+    const collectionStatus = fixtureCount
       ? future
         ? "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW" as const
-        : "FINISHED" as const
+        : "MARKET_EVIDENCE_AVAILABLE" as const
       : "EMPTY_PERSISTED_DAY" as const;
     return {
       football_day: footballDay,
       fixture_count: fixtureCount,
       competition_count: fixtureCount ? 1 : 0,
-      finished_fixture_count: displayState === "FINISHED" ? fixtureCount : 0,
-      upcoming_fixture_count: displayState === "FINISHED" ? 0 : fixtureCount,
+      finished_fixture_count: collectionStatus === "MARKET_EVIDENCE_AVAILABLE" ? fixtureCount : 0,
+      upcoming_fixture_count: collectionStatus === "MARKET_EVIDENCE_AVAILABLE" ? 0 : fixtureCount,
       persisted_inventory_status: fixtureCount ? "PERSISTED_FIXTURES_AVAILABLE" : "EMPTY_PERSISTED_DAY",
       persisted_competition_coverage_count: fixtureCount ? 1 : 0,
       active_whitelist_count: 13,
-      market_collection_window_status: displayState === "FINISHED" ? "MARKET_EVIDENCE_AVAILABLE" : displayState,
-      market_evidence_fixture_count: displayState === "FINISHED" ? fixtureCount : 0,
-      display_state: displayState,
+      market_collection_window_status: collectionStatus,
+      market_evidence_fixture_count: collectionStatus === "MARKET_EVIDENCE_AVAILABLE" ? fixtureCount : 0,
       public_semantics: {
         scope: "SELECTED_DAY",
-        cause: displayState === "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW" ? "NOT_YET_DUE" : null,
+        cause: collectionStatus === "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW" ? "NOT_YET_DUE" : null,
       },
     };
   });
@@ -121,6 +120,7 @@ function match(id: string, options: { rich?: boolean; stale?: boolean; modelWarn
     away_team_name: teams[id]?.[1] || `Away ${id}`,
     home_team_label: { display_name: publicTeams[id]?.[0] || `主队（身份待确认：${id}-home）`, state: publicTeams[id] ? "CHINESE_LABEL_READY" : "IDENTITY_UNRESOLVED", canonical_team_id: publicTeams[id] ? `w2:${id}:home` : null, provider_team_id: `${id}-home`, public_semantics: { scope: "MATCH", cause: publicTeams[id] ? null : "IDENTITY_UNRESOLVED" }, technical: { raw_provider_name: teams[id]?.[0] || `Home ${id}` } },
     away_team_label: { display_name: publicTeams[id]?.[1] || `客队（身份待确认：${id}-away）`, state: publicTeams[id] ? "CHINESE_LABEL_READY" : "IDENTITY_UNRESOLVED", canonical_team_id: publicTeams[id] ? `w2:${id}:away` : null, provider_team_id: `${id}-away`, public_semantics: { scope: "MATCH", cause: publicTeams[id] ? null : "IDENTITY_UNRESOLVED" }, technical: { raw_provider_name: teams[id]?.[1] || `Away ${id}` } },
+    public_semantics: { scope: "MATCH", cause: options.rich && !options.stale ? null : "INSUFFICIENT" },
     status: "NS",
     intelligence_state: options.modelWarning ? "MODEL_DIAGNOSTIC_WARNING" : options.rich ? "MARKET_MOVEMENT" : "DATA_INCOMPLETE",
     intelligence_reason_codes: [options.stale ? "MARKET_STALE" : options.modelWarning ? "MODEL_OUTSIDE_MARKET_RANGE" : options.rich ? "MARKET_LINE_MOVEMENT" : "DATA_INCOMPLETE"],
@@ -148,24 +148,30 @@ function workspace(scenario: Scenario = "normal"): IntelligenceWorkspace {
     ? deployedMatches
     : scenario === "normal" || scenario === "stale"
       ? [other[0], rich, other[1]]
-      : scenario === "blocked"
+      : scenario === "limited"
         ? [match("1571807"), match("1571808")]
         : [];
-  const mode = scenario === "blocked" ? "BLOCKED" : scenario === "calm" ? "CALM" : scenario === "empty" ? "EMPTY" : "NORMAL";
-  const focusType = mode === "BLOCKED" ? "GLOBAL_INCIDENT" : mode === "CALM" ? "DAY_SUMMARY" : mode === "EMPTY" ? "EMPTY_STATE" : "MATCH";
-  const focusId = mode === "NORMAL" ? "1571806" : null;
-  const counts = mode === "NORMAL" ? scenario === "deployed" ? { STALE_MARKET_MEMORY: 1 } : scenario === "stale" ? { STALE_MARKET_MEMORY: 1, MARKET_MOVEMENT: 1, MODEL_DIAGNOSTIC: 1 } : { MARKET_MOVEMENT: 2, MODEL_DIAGNOSTIC: 1 } : {};
-  const globalFocus = mode === "NORMAL" ? null : {
-    status: mode === "BLOCKED" ? "INCIDENT" as const : mode === "CALM" ? "CALM" as const : "EMPTY" as const,
-    reason_code: mode === "BLOCKED" ? "COLLECTION_PROVIDER_EMPTY" : mode === "CALM" ? "NO_PRIORITY_REVIEW_ITEMS" : "NO_FIXTURES_IN_FOOTBALL_DAY",
-    factual_summary: mode === "BLOCKED" ? "当日市场采集未形成可解释证据。" : mode === "CALM" ? "当前没有达到优先复核条件的比赛。" : "本比赛日观察池内没有比赛；不会从其他日期填充。",
-    affected_fixture_count: mode === "BLOCKED" ? matches.length : 0,
-    affected_competition_count: mode === "BLOCKED" ? 1 : 0,
+  const limited = scenario === "limited";
+  const empty = scenario === "empty";
+  const focusId = scenario === "normal" || scenario === "stale" || scenario === "deployed" ? "1571806" : null;
+  const counts = focusId ? scenario === "deployed" ? { STALE_MARKET_MEMORY: 1 } : scenario === "stale" ? { STALE_MARKET_MEMORY: 1, MARKET_MOVEMENT: 1, MODEL_DIAGNOSTIC: 1 } : { MARKET_MOVEMENT: 2, MODEL_DIAGNOSTIC: 1 } : {};
+  const globalFocus = focusId ? null : {
+    reason_code: limited ? "AWAITING_COLLECTION" : scenario === "calm" ? "NO_PRIORITY_REVIEW_ITEMS" : "NO_FIXTURES_IN_FOOTBALL_DAY",
+    factual_summary: limited ? "所选比赛日暂无可用于比赛级分析的持久化市场证据。" : scenario === "calm" ? "当前没有达到优先复核条件的比赛。" : "本比赛日观察池内没有比赛；不会从其他日期填充。",
+    affected_fixture_count: limited ? matches.length : 0,
+    affected_competition_count: limited ? 1 : 0,
     source_as_of: "2026-08-09T13:05:00Z",
-    next_eval_at: mode === "CALM" || mode === "BLOCKED" ? "2026-08-09T14:49:00Z" : null,
-    recovery_condition: mode === "BLOCKED" ? "等待既有调度形成新的持久化市场快照；本页不调用 Provider。" : null,
-    public_semantics: { scope: "SELECTED_DAY" as const, cause: mode === "BLOCKED" ? "AWAITING_COLLECTION" as const : null },
+    next_eval_at: scenario === "calm" || limited ? "2026-08-09T14:49:00Z" : null,
+    recovery_condition: limited ? "等待既有调度形成新的持久化市场快照；本页不调用 Provider。" : null,
+    public_semantics: { scope: "SELECTED_DAY" as const, cause: limited ? "AWAITING_COLLECTION" as const : null },
   };
+  const strip = dateStrip();
+  if (limited) {
+    for (const item of matches) item.public_semantics = { scope: "MATCH", cause: "AWAITING_COLLECTION" };
+    strip[7].market_collection_window_status = "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY";
+    strip[7].market_evidence_fixture_count = 0;
+    strip[7].public_semantics = { scope: "SELECTED_DAY", cause: "AWAITING_COLLECTION" };
+  }
   return {
     request_id: `v41-${scenario}`,
     schema_version: "w2.dashboard-intelligence-workspace.v1",
@@ -178,23 +184,20 @@ function workspace(scenario: Scenario = "normal"): IntelligenceWorkspace {
     football_day_start_utc: "2026-08-09T04:00:00Z",
     football_day_end_utc: "2026-08-10T04:00:00Z",
     source: "dashboard_day_view+performance_checkpoint+replay_front_door",
-    day_mode: mode,
-    default_focus_type: focusType,
-    default_focus_fixture_id: focusId,
     selected_fixture_id: focusId,
-    today_summary: { match_count: mode === "BLOCKED" ? matches.length : mode === "CALM" ? 9 : mode === "EMPTY" ? 0 : 26, competition_count: mode === "BLOCKED" ? 1 : mode === "CALM" ? 7 : mode === "EMPTY" ? 0 : 13, priority_match_count: Object.values(counts).reduce((sum, count) => sum + count, 0), priority_group_count: Object.keys(counts).length, primary_reason_counts: counts },
+    today_summary: { match_count: limited ? matches.length : scenario === "calm" ? 9 : empty ? 0 : 26, competition_count: limited ? 1 : scenario === "calm" ? 7 : empty ? 0 : 13, priority_match_count: Object.values(counts).reduce((sum, count) => sum + count, 0), priority_group_count: Object.keys(counts).length, primary_reason_counts: counts },
     global_focus: globalFocus,
     global_model_quality: { status: "AVAILABLE", checkpoint_key: "performance:cohort:all", checkpoint_generated_at: "2026-08-09T12:00:00Z", freshness_max_age_seconds: 86_400, model_log_loss: .512, market_log_loss: .508, model_brier: .178, market_brier: .174, model_calibration_error: .026, sample_count: 34 },
     read_contract: { provider_calls: 0, db_writes: 0, would_write_checkpoint: false, no_call_on_read: true },
     runtime: { product: "FOOTBALL_MARKET_INTELLIGENCE_PLUS_MODEL_DIAGNOSTICS", public_dashboard_authority: "NEW_INTELLIGENCE_WORKSPACE_ONLY", active_whitelist_count: 13, free_bridge_mode: "SHADOW_ONLY", market_price_attention_threshold_ratio: 0.02, candidate: "SHADOW_ONLY", formal: "OFF", lock: "OFF", production: "OFF" },
     navigation: { current_date: "2026-08-09", previous_date: "2026-08-08", next_date: "2026-08-10", next_available_date: "2026-08-10" },
-    date_strip: dateStrip(),
+    date_strip: strip,
     attention: matches.map((item) => ({ fixture_id: item.fixture_id, kickoff_utc: item.kickoff_utc, intelligence_state: item.intelligence_state, reason_codes: item.intelligence_reason_codes, affected_domains: ["MARKET"], factual_summary: item.intelligence_reason_codes.join("；"), readiness_status: item.readiness.status, readiness_context: { reason_code: item.readiness.reason_code, missing_fields: item.readiness.missing_fields, stale_fields: item.readiness.stale_fields, action: item.readiness.action }, next_eval_at: item.readiness.next_eval_at, risks: item.risks })),
     matches,
     validation: { probability: { status: "AVAILABLE", sample_count: 34, model_brier: .178, market_brier: .174, model_minus_market_brier: .004, model_log_loss: .512, market_log_loss: .508, model_minus_market_log_loss: .004, model_calibration_error: .026, market_calibration_error: .021, model_reliability_bins: [], market_reliability_bins: [], checkpoint_metadata: { checkpoint_key: "performance:cohort:all" } }, directional: { status: "SAMPLE_BUILDING", source_status: "AVAILABLE", probability_evidence_ready: false, validation_n: 36, decisive_n: 34, correct: 18, wrong: 16, push: 1, void: 1, direction_accuracy: 18 / 34, effective_n: 34, market_direction_benchmark: "NOT_DEFINED", only_record_reason: "PROBABILITY_QUALITY_NOT_READY" }, league_performance: [], tournament_performance: [], forward_validation_records: { status: "AVAILABLE", validation_count: 36, eligible_count: 34, excluded_count: 2, excluded_share: 2 / 36, excluded_by_reason: { MARKET_IDENTITY_NOT_READY: 2 }, pending_count: 0, outcomes: {}, checkpoint_metadata: { checkpoint_key: "performance:cohort:all" }, public_semantics: { scope: "CROSS_DAY_CUMULATIVE", cause: null } }, history_replay: { status: "AVAILABLE_WITH_GAPS", known_at: { has_day_view: true }, decision_summary: { total_cards: matches.length, lock_eligible_count: 0, by_decision_tier: { WATCH: matches.length }, by_data_status: { READY: matches.length } }, reason_summary: [], outcome_tracking_summary: {}, card_hash_checks: [], replay_gaps: ["MISSING_OUTCOMES"], record_kind: matches.length ? "FORWARD_RECORD" : "EMPTY", public_semantics: { scope: "SELECTED_DAY", cause: matches.length ? "NOT_YET_DUE" : null } } },
     external_intelligence: { weather: { status: "NOT_CONNECTED", affects_match_readiness: false }, news: { status: "NOT_CONNECTED", affects_match_readiness: false }, sentiment: { status: "NOT_CONNECTED", affects_match_readiness: false }, advanced_xg: { status: "NOT_CONNECTED", affects_match_readiness: false } },
     freshness: { domains: {} },
-    data_operations: { read_model_source: "dashboard_read_model", checkpoint_key: "dashboard:day_view:2026-08-09", degradation: { state: mode === "BLOCKED" || scenario === "deployed" ? "BLOCKED_DAY" : mode === "EMPTY" ? "EMPTY_DAY" : "HEALTHY" }, counts: { total: matches.length }, system_health: mode === "BLOCKED" || scenario === "deployed" ? "BLOCKED_DAY" : "HEALTHY", public_system_health: mode === "BLOCKED" ? "DAY_BLOCKED" : scenario === "deployed" ? "PARTIAL_DEGRADATION" : "HEALTHY", provider_budget_status: "PROTECTED" },
+    data_operations: { read_model_source: "dashboard_read_model", checkpoint_key: "dashboard:day_view:2026-08-09", degradation: { state: limited || scenario === "deployed" ? "BLOCKED_DAY" : empty ? "EMPTY_DAY" : "HEALTHY" }, counts: { total: matches.length }, system_health: limited || scenario === "deployed" ? "BLOCKED_DAY" : "HEALTHY", provider_budget_status: "PROTECTED" },
   };
 }
 
@@ -210,7 +213,7 @@ test("public team labels come from the workspace authority, not frontend guessin
 });
 
 test("future selected day derives neutral scope/cause copy and keeps known raw team names", async ({ page }) => {
-  const payload = workspace("blocked");
+  const payload = workspace("limited");
   payload.date = "2026-08-14";
   payload.generated_at = "2026-08-11T06:44:00Z";
   payload.football_day_start_utc = "2026-08-14T04:00:00Z";
@@ -230,13 +233,17 @@ test("future selected day derives neutral scope/cause copy and keeps known raw t
   selected.persisted_competition_coverage_count = 1;
   selected.persisted_inventory_status = "PERSISTED_FIXTURES_AVAILABLE";
   selected.market_collection_window_status = "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW";
-  selected.display_state = "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW";
   selected.public_semantics = { scope: "SELECTED_DAY", cause: "NOT_YET_DUE" };
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
 
   await page.goto("/");
 
-  await expect(page.locator("[data-public-cause=NOT_YET_DUE]")).toHaveText("未进入市场采集窗口");
+  const selectedDayCause = page.locator("header.v41-header [data-public-cause=NOT_YET_DUE]");
+  await expect(selectedDayCause).toHaveText("未进入市场采集窗口");
+  await expect(selectedDayCause).toHaveClass(/v41-pill--neutral/);
+  await expect(page.locator(".v41-shortlist .v41-stripe--neutral")).toHaveCount(2);
+  await expect(page.locator(".v41-shortlist [class*='collection_incident']")).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText("采集异常");
   await expect(page.locator(".v41-today")).toContainText("场所选比赛日比赛");
   await expect(page.locator(".v41-global h1")).toContainText("尚未进入市场采集窗口");
   await expect(page.locator(".v41-shortlist")).toContainText("Rosenborg");
@@ -249,10 +256,21 @@ test("future selected day derives neutral scope/cause copy and keeps known raw t
   await expect(page.locator("#secondary-validation")).not.toContainText("赛果匹配 / 缺失");
 });
 
-test("V41 uses backend focus authority and never falls back to matches[0]", async ({ page }) => {
+test("cross-day cumulative insufficiency never becomes a selected-day failure", async ({ page }) => {
+  const payload = workspace("normal");
+  payload.validation.forward_validation_records.public_semantics = { scope: "CROSS_DAY_CUMULATIVE", cause: "INSUFFICIENT" };
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+
+  await page.goto("/");
+
+  await expect(page.locator(".v41-validation-status")).toContainText("跨比赛日累计证据：已采集，证据量不足");
+  await expect(page.locator(".v41-validation-status")).not.toContainText("所选比赛日");
+});
+
+test("V41 uses the selected fixture fact and never falls back to matches[0]", async ({ page }) => {
   await installWorkspace(page);
   await page.goto("/");
-  await expect(page.locator(".dashboard-v41")).toHaveAttribute("data-day-mode", "NORMAL");
+  await expect(page.locator(".dashboard-v41")).toHaveAttribute("data-public-cause", "NONE");
   await expect(page.locator(".v41-focus")).toHaveAttribute("data-fixture-id", "1571806");
   await expect(page.locator(".v41-shortlist-list button").first()).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".v41-focus h1")).toContainText("本菲卡");
@@ -275,7 +293,7 @@ test("shadow candidate is explicit, tracked and non-production", async ({ page }
 
 test("V41 presents unassessed model evidence in Chinese and keeps codes technical", async ({ page }) => {
   const payload = workspace();
-  const focused = payload.matches.find((item) => item.fixture_id === payload.default_focus_fixture_id)!;
+  const focused = payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!;
   focused.w2_analysis.model_view.status = "PRIOR_ONLY";
   focused.model_lab.w2_model.status = "PRIOR_ONLY";
   for (const relation of Object.values(focused.w2_analysis.model_market_relation)) {
@@ -307,12 +325,11 @@ test("V41 presents unassessed model evidence in Chinese and keeps codes technica
   await expect(page.getByText("MODEL_CALIBRATION_NOT_READY", { exact: true })).not.toBeVisible();
 });
 
-test("D16 deployed real shape keeps NORMAL authority, useful stale focus and auditable reasons", async ({ page }) => {
+test("raw system health cannot override public semantics or the useful stale focus", async ({ page }) => {
   await installWorkspace(page, "deployed");
   await page.goto("/");
-  await expect(page.locator(".dashboard-v41")).toHaveAttribute("data-day-mode", "NORMAL");
-  await expect(page.locator("[data-day-mode-label]")).toHaveText("正常日");
-  await expect(page.locator("[data-public-system-health]")).toHaveText("系统数据部分降级");
+  await expect(page.locator(".dashboard-v41")).toHaveAttribute("data-public-cause", "NONE");
+  await expect(page.locator("header.v41-header")).toContainText("市场证据可用");
   await expect(page.locator("header.v41-header")).not.toContainText("BLOCKED DAY");
   await expect(page.locator(".v41-focus")).toHaveAttribute("data-fixture-id", "1571806");
   await expect(page.locator(".v41-shortlist > header")).toContainText("1 场优先");
@@ -322,16 +339,15 @@ test("D16 deployed real shape keeps NORMAL authority, useful stale focus and aud
   await expect(page.locator(".v41-focus-summary")).toContainText("当前走势与模型—市场比较暂停");
 });
 
-for (const [scenario, mode, focus, copy] of [
-  ["blocked", "BLOCKED", "GLOBAL_INCIDENT", "所选比赛日比赛可查看，市场证据待采集"],
-  ["calm", "CALM", "DAY_SUMMARY", "所选比赛日未发现需优先排查的比赛"],
-  ["empty", "EMPTY", "EMPTY_STATE", "所选比赛日没有纳入观察池的比赛"],
+for (const [scenario, cause, copy] of [
+  ["limited", "AWAITING_COLLECTION", "所选比赛日比赛可查看，已到采集时点，证据待采集"],
+  ["calm", "NONE", "所选比赛日未发现需优先排查的比赛"],
+  ["empty", "NONE", "所选比赛日没有纳入观察池的比赛"],
 ] as const) {
-  test(`V41 ${scenario} renders its exact non-match focus`, async ({ page }) => {
+  test(`V41 ${scenario} renders facts plus the single public cause`, async ({ page }) => {
     await installWorkspace(page, scenario);
     await page.goto("/");
-    await expect(page.locator(".dashboard-v41")).toHaveAttribute("data-day-mode", mode);
-    await expect(page.locator(".v41-focus")).toHaveAttribute("data-focus-type", focus);
+    await expect(page.locator(".dashboard-v41")).toHaveAttribute("data-public-cause", cause);
     await expect(page.locator(".v41-focus")).toContainText(copy);
     await expect(page.locator(".v41-focus")).not.toHaveAttribute("data-fixture-id", /.+/);
   });
@@ -413,18 +429,18 @@ for (const [status, timestamp, copy] of [
   });
 }
 
-test("V41 blocked day keeps affected match names, kickoff times and recorded evaluation visible", async ({ page }) => {
-  await installWorkspace(page, "blocked");
+test("V41 limited day keeps affected match names, kickoff times and recorded evaluation visible", async ({ page }) => {
+  await installWorkspace(page, "limited");
   await page.goto("/");
   const shortlist = page.locator(".v41-shortlist");
   await expect(shortlist).toContainText("皇家马德里 vs 贝蒂斯");
   await expect(shortlist).toContainText("拜仁慕尼黑 vs 多特蒙德");
-  await expect(shortlist.locator(".v41-blocked-match")).toHaveCount(2);
+  await expect(shortlist.locator(".v41-limited-match")).toHaveCount(2);
   await expect(page.locator(".v41-today-primary")).toContainText("2场所选比赛日比赛");
   await expect(page.locator(".v41-today-primary")).toContainText("2 场可查看赛程");
   await expect(page.locator(".v41-today-primary")).toContainText("0 场可进行市场分析");
   await expect(page.locator(".v41-shortlist")).toContainText("仅赛程比赛 · 2 场");
-  await expect(page.locator(".v41-focus")).toContainText("市场证据仍待既有调度采集");
+  await expect(page.locator(".v41-focus")).toContainText("只展示已持久化事实，不用缺失数据补算");
   await expect(page.locator(".v41-focus")).not.toContainText("当日市场采集阻塞");
   await expect(page.locator(".v41-focus")).not.toContainText("等待既有调度");
   await expect(page.locator(".v41-global-stats")).toContainText("2026-08-09 22:49");
@@ -432,8 +448,8 @@ test("V41 blocked day keeps affected match names, kickoff times and recorded eva
   await expect(page.getByText("COLLECTION_PROVIDER_EMPTY", { exact: true })).not.toBeVisible();
 });
 
-test("V41 blocked day does not promise a schedule when none exists", async ({ page }) => {
-  const payload = workspace("blocked");
+test("V41 limited day does not promise a schedule when none exists", async ({ page }) => {
+  const payload = workspace("limited");
   payload.global_focus!.next_eval_at = null;
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
@@ -444,7 +460,7 @@ test("V41 blocked day does not promise a schedule when none exists", async ({ pa
 test("V41 derives age across timezone and day boundaries and never labels a past evaluation as next", async ({ page }) => {
   const payload = workspace();
   payload.generated_at = "2026-08-10T00:30:00+08:00";
-  const focused = payload.matches.find((item) => item.fixture_id === payload.default_focus_fixture_id)!;
+  const focused = payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!;
   focused.market_radar.markets.ASIAN_HANDICAP.latest_snapshot_at = "2026-08-09T15:18:00Z";
   focused.readiness.next_eval_at = "2026-08-09T16:30:00Z";
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
@@ -622,7 +638,7 @@ for (const viewport of [
   });
 }
 
-for (const scenario of ["blocked", "calm", "stale", "empty"] as const) {
+for (const scenario of ["limited", "calm", "stale", "empty"] as const) {
   test(`V41 approved state target image diff ${scenario}-1440x900.png`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await installWorkspace(page, scenario);

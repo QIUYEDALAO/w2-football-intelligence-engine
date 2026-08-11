@@ -72,13 +72,13 @@ def test_future_market_state_uses_persisted_checkpoint_timing() -> None:
     )
     by_day = {entry["football_day"]: entry for entry in strip}
 
-    assert by_day["2026-08-12"]["display_state"] == (
+    assert by_day["2026-08-12"]["market_collection_window_status"] == (
         "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW"
     )
-    assert by_day["2026-08-13"]["display_state"] == (
+    assert by_day["2026-08-13"]["market_collection_window_status"] == (
         "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY"
     )
-    assert by_day["2026-08-14"]["display_state"] == "MARKET_EVIDENCE_AVAILABLE"
+    assert by_day["2026-08-14"]["market_collection_window_status"] == "MARKET_EVIDENCE_AVAILABLE"
     assert by_day["2026-08-12"]["public_semantics"] == {
         "scope": "SELECTED_DAY",
         "cause": "NOT_YET_DUE",
@@ -141,4 +141,4 @@ def test_finished_day_remains_finished_with_persisted_market_evidence() -> None:
     assert selected["finished_fixture_count"] == 1
     assert selected["upcoming_fixture_count"] == 0
     assert selected["market_collection_window_status"] == "MARKET_EVIDENCE_AVAILABLE"
-    assert selected["display_state"] == "FINISHED"
+    assert selected["public_semantics"] == {"scope": "SELECTED_DAY", "cause": None}

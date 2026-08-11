@@ -46,7 +46,7 @@ def test_final_dashboard_uses_backend_public_labels_and_no_read_side_effects() -
     repository = (ROOT / "src/w2/api/repository.py").read_text()
     workspace = (ROOT / "src/w2/dashboard/workspace.py").read_text()
 
-    assert "translateTeam" not in console
+    assert "publicPresentation" in console
     assert "team.display_name" in console
     assert "<MatchName match={match}" in console
     assert "public_team_labels_for_fixtures" in repository

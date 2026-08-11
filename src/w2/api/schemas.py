@@ -14,8 +14,6 @@ IntelligenceState = Literal[
     "MARKET_MOVEMENT",
     "MARKET_STABLE",
 ]
-DashboardDayMode = Literal["NORMAL", "BLOCKED", "CALM", "EMPTY"]
-DashboardFocusType = Literal["MATCH", "GLOBAL_INCIDENT", "DAY_SUMMARY", "EMPTY_STATE"]
 DashboardPriorityReason = Literal["MARKET_MOVEMENT", "MODEL_DIAGNOSTIC", "STALE_MARKET_MEMORY"]
 
 
@@ -644,6 +642,7 @@ class WorkspaceMatch(BaseModel):
     away_team_name: str | None
     home_team_label: WorkspacePublicTeamLabel
     away_team_label: WorkspacePublicTeamLabel
+    public_semantics: WorkspacePublicSemantics
     status: str | None
     intelligence_state: IntelligenceState
     intelligence_reason_codes: list[str]
@@ -723,7 +722,6 @@ class WorkspaceTodaySummary(BaseModel):
 class WorkspaceGlobalFocus(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    status: Literal["INCIDENT", "CALM", "EMPTY"]
     reason_code: str
     factual_summary: str = Field(min_length=1)
     affected_fixture_count: int = Field(ge=0)
@@ -952,7 +950,6 @@ class WorkspaceDataOperations(BaseModel):
     degradation: dict[str, Any]
     counts: dict[str, Any]
     system_health: str
-    public_system_health: Literal["HEALTHY", "PARTIAL_DEGRADATION", "DAY_BLOCKED"]
     provider_budget_status: str
 
 
@@ -978,14 +975,6 @@ class WorkspaceDateStripEntry(BaseModel):
         "MARKET_COLLECTION_PLAN_NOT_PERSISTED",
     ]
     market_evidence_fixture_count: int = Field(ge=0)
-    display_state: Literal[
-        "EMPTY_PERSISTED_DAY",
-        "FINISHED",
-        "MARKET_EVIDENCE_AVAILABLE",
-        "PERSISTED_FIXTURE_OUTSIDE_MARKET_COLLECTION_WINDOW",
-        "MARKET_COLLECTION_DUE_EVIDENCE_NOT_READY",
-        "MARKET_COLLECTION_PLAN_NOT_PERSISTED",
-    ]
     public_semantics: WorkspacePublicSemantics
 
     @model_validator(mode="after")
@@ -1023,9 +1012,6 @@ class DashboardIntelligenceWorkspaceResponse(BaseModel):
     football_day_start_utc: datetime | str | None
     football_day_end_utc: datetime | str | None
     source: Literal["dashboard_day_view+performance_checkpoint+replay_front_door"]
-    day_mode: DashboardDayMode
-    default_focus_type: DashboardFocusType
-    default_focus_fixture_id: str | None
     selected_fixture_id: str | None
     today_summary: WorkspaceTodaySummary
     global_focus: WorkspaceGlobalFocus | None
@@ -1042,33 +1028,15 @@ class DashboardIntelligenceWorkspaceResponse(BaseModel):
     data_operations: WorkspaceDataOperations
 
     @model_validator(mode="after")
-    def day_mode_and_focus_are_exact(self) -> DashboardIntelligenceWorkspaceResponse:
-        pairs = {
-            "NORMAL": "MATCH",
-            "BLOCKED": "GLOBAL_INCIDENT",
-            "CALM": "DAY_SUMMARY",
-            "EMPTY": "EMPTY_STATE",
-        }
-        if pairs[self.day_mode] != self.default_focus_type:
-            raise ValueError("day mode and focus type must use an approved exact pair")
-        if self.default_focus_type == "MATCH":
-            if self.default_focus_fixture_id is None:
-                raise ValueError("MATCH focus requires a fixture id")
-            if self.default_focus_fixture_id not in {match.fixture_id for match in self.matches}:
-                raise ValueError("MATCH focus fixture must exist in matches")
+    def focus_and_date_strip_are_exact(self) -> DashboardIntelligenceWorkspaceResponse:
+        fixture_ids = {match.fixture_id for match in self.matches}
+        if self.selected_fixture_id is not None:
+            if self.selected_fixture_id not in fixture_ids:
+                raise ValueError("selected fixture must exist in matches")
             if self.global_focus is not None:
-                raise ValueError("MATCH focus cannot include a global focus")
-        elif self.default_focus_fixture_id is not None:
-            raise ValueError("non-MATCH focus cannot include a fixture id")
+                raise ValueError("selected fixture cannot coexist with global focus")
         elif self.global_focus is None:
-            raise ValueError("non-MATCH focus requires a global focus")
-        if self.selected_fixture_id != self.default_focus_fixture_id:
-            raise ValueError("selected fixture must mirror the default focus authority")
-        if self.day_mode == "BLOCKED":
-            if self.data_operations.public_system_health != "DAY_BLOCKED":
-                raise ValueError("BLOCKED day requires DAY_BLOCKED public system health")
-        elif self.data_operations.public_system_health == "DAY_BLOCKED":
-            raise ValueError("only BLOCKED day may expose DAY_BLOCKED public system health")
+            raise ValueError("missing selected fixture requires a factual global focus")
         days = [date.fromisoformat(item.football_day) for item in self.date_strip]
         if days != [days[0] + timedelta(days=index) for index in range(15)]:
             raise ValueError("date strip must contain 15 consecutive football days")
