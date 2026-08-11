@@ -70,6 +70,27 @@ def test_replay_frontdoor_matches_outcomes_by_fixture_id_and_reports_missing() -
     assert replay["card_hash_checks"][1]["hash_status"] == "MISSING"
 
 
+def test_replay_frontdoor_retains_three_finished_football_day_cards() -> None:
+    cards = [_card(fixture_id) for fixture_id in ("1493049", "1575453", "1494239")]
+    for card in cards:
+        card["status"] = "FT"
+
+    replay = build_replay_front_door(
+        football_day="2026-08-10",
+        environment="staging",
+        day_view=_day_view(cards=cards),
+        outcomes=[],
+        as_of="2026-08-11T02:25:00Z",
+    )
+
+    assert replay["decision_summary"]["total_cards"] == 3
+    assert [card["fixture_id"] for card in replay["cards"]] == [
+        "1493049",
+        "1575453",
+        "1494239",
+    ]
+
+
 def test_replay_card_hash_verification_skeleton() -> None:
     assert verify_replay_card_hash({"fixture_id": "a"})["hash_status"] == "MISSING"
     assert (

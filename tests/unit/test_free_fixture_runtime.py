@@ -128,6 +128,31 @@ def test_postmatch_state_is_explicit_but_statistics_are_not_polled_automatically
 
 
 @pytest.mark.parametrize(
+    ("now", "expected_date"),
+    [
+        (datetime(2026, 8, 11, 3, 59, tzinfo=UTC), "2026-08-10"),
+        (datetime(2026, 8, 11, 4, 0, tzinfo=UTC), "2026-08-11"),
+    ],
+)
+def test_discovery_uses_active_shanghai_football_day(
+    now: datetime,
+    expected_date: str,
+) -> None:
+    usage = FakeUsage(actual=5, remaining=95)
+    evidence = FakeEvidence()
+    client = FakeClient(
+        usage,
+        [("fixtures", _fixture_payload("100", status="FT", kickoff=now - timedelta(hours=2)))],
+    )
+
+    result = _run(client, usage, evidence, now=now)
+
+    capture = next(iter(evidence.captures.values()))
+    assert capture["sanitized_params"] == {"date": expected_date}
+    assert result["provider_calls"] == 1
+
+
+@pytest.mark.parametrize(
     ("remaining", "blocker"),
     [(20, "PROVIDER_RESERVE_PROTECTED"), (19, "PROVIDER_RESERVE_PROTECTED")],
 )

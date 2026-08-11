@@ -34,6 +34,7 @@ from w2.matchday.intake_v2 import (
     stable_hash,
 )
 from w2.matchday.repository import MatchdayRuntimeRepository
+from w2.matchday.timezone import BeijingOperationalDayPolicy
 from w2.prematch.read_model_projection import ProjectionSourceEvent
 from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
 from w2.providers.quota import parse_api_football_quota, provider_daily_hard_cap_decision
@@ -331,7 +332,12 @@ def run_free_fixture_bridge_shadow(
         if provider_limit != FREE_PROVIDER_DAILY_LIMIT:
             raise BridgeHardStop("FREE_PROVIDER_DAILY_LIMIT_MISMATCH")
 
-        discovery_params = {"date": current.date().isoformat()}
+        discovery_date = (
+            BeijingOperationalDayPolicy()
+            .current_window(now_utc=current)
+            .local_date.isoformat()
+        )
+        discovery_params = {"date": discovery_date}
         discovery_key = request_task_key("fixtures", discovery_params)
         cached_discovery = evidence.latest_endpoint_capture(
             request_task_key=discovery_key,
@@ -339,7 +345,7 @@ def run_free_fixture_bridge_shadow(
         )
         if cached_discovery is None:
             discovery_plan = plan_fixture_discovery(
-                date_utc=current.date().isoformat(),
+                date_utc=discovery_date,
                 actual_calls_today=actual_calls_today,
                 provider_remaining=provider_remaining,
                 config=FreeFixtureBridgeConfig(enabled=True),
