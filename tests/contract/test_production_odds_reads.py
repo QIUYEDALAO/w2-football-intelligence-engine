@@ -228,6 +228,88 @@ def test_api_dashboard_metadata_supports_more_than_64_fixtures(monkeypatch: Any)
     )
 
 
+def test_api_dashboard_uses_current_fixture_status_from_identity(monkeypatch: Any) -> None:
+    engine = _engine()
+    now = datetime(2026, 8, 11, 3, 14, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add(
+            MatchdayFixtureIdentityModel(
+                fixture_id="api_football:1493049",
+                provider="api_football",
+                provider_fixture_id="1493049",
+                competition_id="liga_profesional_argentina",
+                provider_league_id="128",
+                season="2026",
+                kickoff_utc=datetime(2026, 8, 10, 22, tzinfo=UTC),
+                fixture_status="FT",
+                home_provider_team_id="1",
+                away_provider_team_id="2",
+                home_w2_team_id=None,
+                away_w2_team_id=None,
+                team_identity_status="REVIEW_REQUIRED",
+                raw_payload_sha256="a" * 64,
+                captured_at=now,
+                identity_hash="b" * 64,
+                payload={},
+            )
+        )
+        session.commit()
+    monkeypatch.setattr(api_repository, "create_engine", lambda: engine)
+
+    statuses = api_repository.ReadModelRepository().fixture_statuses_for_fixtures(
+        ["1493049"]
+    )
+
+    assert statuses == {
+        "1493049": "FT",
+        "api_football:1493049": "FT",
+    }
+
+
+def test_api_dashboard_projects_finished_status_over_stale_analysis_card() -> None:
+    class Repository:
+        @staticmethod
+        def release_counts() -> dict[str, int]:
+            return {
+                "read_model_fixture_count": 1,
+                "matchday_card_count": 1,
+                "future_fixture_count": 1,
+                "result_event_count": 0,
+            }
+
+        @staticmethod
+        def dashboard_latest_fixtures() -> list[dict[str, Any]]:
+            return [
+                {
+                    "fixture_id": "1493049",
+                    "competition_id": "liga_profesional_argentina",
+                    "kickoff_utc": "2026-08-10T22:00:00Z",
+                    "status": "UPCOMING",
+                }
+            ]
+
+        @staticmethod
+        def fixture_statuses_for_fixtures(_fixture_ids: list[str]) -> dict[str, str]:
+            return {"1493049": "FT"}
+
+        @staticmethod
+        def analysis_card_projection(_fixture_id: str) -> dict[str, Any]:
+            return {
+                "fixture_id": "1493049",
+                "competition_id": "liga_profesional_argentina",
+                "decision_tier": "NOT_READY",
+                "data_status": "BLOCKED",
+            }
+
+    payload = api_repository.ReadModelService(
+        repository=Repository(),  # type: ignore[arg-type]
+    ).dashboard(target_date="2026-08-10", window="today")
+
+    assert payload["all"][0]["status"] == "FINISHED"
+    assert payload["finished"][0]["fixture_id"] == "1493049"
+    assert payload["upcoming"] == []
+
+
 def test_api_dashboard_card_keeps_historical_v3_identity_immutable() -> None:
     class Repository:
         @staticmethod

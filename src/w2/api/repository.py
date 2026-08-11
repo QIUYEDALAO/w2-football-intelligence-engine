@@ -816,6 +816,28 @@ class ReadModelRepository:
             fixtures.append(self._dashboard_fixture_from_projection(card, row))
         return fixtures
 
+    def fixture_statuses_for_fixtures(self, fixture_ids: list[str]) -> dict[str, str]:
+        provider_ids = {
+            str(fixture_id or "").removeprefix("api_football:")
+            for fixture_id in fixture_ids
+            if str(fixture_id or "").strip()
+        }
+        if not provider_ids:
+            return {}
+        with Session(create_engine()) as session:
+            rows = list(
+                session.scalars(
+                    select(MatchdayFixtureIdentityModel).where(
+                        MatchdayFixtureIdentityModel.provider_fixture_id.in_(provider_ids)
+                    )
+                )
+            )
+        statuses: dict[str, str] = {}
+        for row in rows:
+            statuses[str(row.fixture_id)] = row.fixture_status
+            statuses[str(row.provider_fixture_id)] = row.fixture_status
+        return statuses
+
     def dashboard_fixture(self, fixture_id: str) -> dict[str, Any] | None:
         row = self.checkpoint(f"{ANALYSIS_CARD_SHADOW_PREFIX}{fixture_id}")
         if row is None:
@@ -1324,6 +1346,16 @@ class ReadModelService:
 
         version = self.version()
         fixtures = self.repository.dashboard_latest_fixtures()[:MAX_PUBLIC_FIXTURES]
+        status_reader = getattr(self.repository, "fixture_statuses_for_fixtures", None)
+        fixture_statuses = (
+            status_reader([str(item.get("fixture_id") or "") for item in fixtures])
+            if callable(status_reader)
+            else {}
+        )
+        for item in fixtures:
+            current_status = fixture_statuses.get(str(item.get("fixture_id") or ""))
+            if current_status:
+                item["status"] = current_status
         identity_reader = getattr(self.repository, "canonical_competitions_for_fixtures", None)
         canonical_competitions = (
             identity_reader([str(item.get("fixture_id") or "") for item in fixtures])
