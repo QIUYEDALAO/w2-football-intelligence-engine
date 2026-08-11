@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import date, timedelta
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -9,6 +10,7 @@ import pytest
 
 from w2.api import repository as repository_module
 from w2.api.schemas import DashboardIntelligenceWorkspaceResponse
+from w2.config import get_settings
 from w2.dashboard.workspace import build_dashboard_intelligence_workspace
 from w2.identity.public_team_labels import reviewed_public_team_labels
 
@@ -1169,6 +1171,7 @@ def test_reviewed_canonical_chinese_label_is_the_only_ready_path() -> None:
 
     assert ready["state"] == "CHINESE_LABEL_READY"
     assert ready["display_name"] == "天狼星"
+    assert ready["raw_provider_name"] == "Sirius"
     assert not_reviewed["state"] == "CANONICAL_IDENTITY_READY_LABEL_MISSING"
     assert not_reviewed["display_name"] is None
 
@@ -1205,4 +1208,22 @@ def test_sc19_reviewed_public_label_authority_reuses_existing_product_labels() -
 
     assert ready["state"] == "CHINESE_LABEL_READY"
     assert ready["display_name"] == "天狼星"
-    assert ready["raw_provider_name"] == "Sirius"
+
+
+def test_sc19_public_label_authority_uses_runtime_config_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "identity" / "public_team_labels.zh-CN.v1.json"
+    target.parent.mkdir()
+    target.write_bytes(
+        Path("config/identity/public_team_labels.zh-CN.v1.json").read_bytes()
+    )
+    monkeypatch.setenv("W2_READINESS_CONFIG_PATH", str(tmp_path))
+    get_settings.cache_clear()
+    reviewed_public_team_labels.cache_clear()
+    try:
+        assert reviewed_public_team_labels()["w2:team:api_football:370"] == "天狼星"
+    finally:
+        reviewed_public_team_labels.cache_clear()
+        get_settings.cache_clear()

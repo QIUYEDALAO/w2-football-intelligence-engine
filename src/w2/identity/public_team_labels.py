@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 from functools import lru_cache
-from pathlib import Path
 from typing import Any
+
+from w2.config import get_settings
 
 
 class PublicTeamLabelAuthorityError(RuntimeError):
@@ -13,8 +14,7 @@ class PublicTeamLabelAuthorityError(RuntimeError):
 @lru_cache(maxsize=1)
 def reviewed_public_team_labels() -> dict[str, str]:
     path = (
-        Path(__file__).resolve().parents[3]
-        / "config"
+        get_settings().readiness_config_path
         / "identity"
         / "public_team_labels.zh-CN.v1.json"
     )
