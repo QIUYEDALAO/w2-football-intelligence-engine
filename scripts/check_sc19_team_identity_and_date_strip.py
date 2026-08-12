@@ -26,7 +26,7 @@ def main() -> None:
     assert coverage["target_football_day"]["recoverable_placeholder_count"] == 0
     assert trace["provider_calls"] == trace["db_writes"] == 0
     assert coverage["provider_calls"] == coverage["db_writes"] == 0
-    assert len(labels["entries"]) == 53
+    assert len(labels["entries"]) == 64
     assert all(entry["review_status"] == "APPROVED" for entry in labels["entries"])
 
     date_strip = (ROOT / "src/w2/dashboard/date_strip.py").read_text(encoding="utf-8")

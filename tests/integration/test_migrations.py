@@ -3,10 +3,22 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, inspect, text
+from sqlalchemy.orm import Session
+
+from w2.factor_model.remediation import canonical_team_payload, provider_crosswalk_payload
+from w2.infrastructure.persistence.factor_model_models import (
+    CanonicalTeamModel,
+    ProviderTeamIdentityCrosswalkModel,
+)
+from w2.infrastructure.persistence.matchday_intake_models import (
+    MatchdayFixtureIdentityModel,
+)
+from w2.matchday.intake_v2 import stable_hash
 
 
 def test_alembic_upgrade_and_downgrade_smoke(tmp_path: Path) -> None:
@@ -77,6 +89,165 @@ def test_0052_refuses_nonempty_retired_checkpoint_plan(tmp_path: Path) -> None:
     assert result.returncode != 0
     assert "RETIRED_CHECKPOINT_PLAN_TABLE_NONEMPTY:1" in result.stderr
     assert "future_refresh_checkpoint_plan" in inspect(engine).get_table_names()
+
+
+def test_0053_backfills_reviewed_team_identity_and_retains_it(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'team-identity.db'}"
+    env = {
+        **os.environ,
+        "PYTHONPATH": f"{root / 'src'}:{root}",
+        "W2_DATABASE_URL": database_url,
+        "W2_ENVIRONMENT": "test",
+    }
+    assert (
+        _alembic(
+            root, env, "upgrade", "0052_drop_retired_future_refresh_checkpoint_plan"
+        ).returncode
+        == 0
+    )
+    engine = create_engine(database_url)
+    _seed_0053_authority_and_fixtures(engine)
+
+    assert _alembic(root, env, "upgrade", "head").returncode == 0
+    with Session(engine) as session:
+        fixtures = list(
+            session.query(MatchdayFixtureIdentityModel).order_by(
+                MatchdayFixtureIdentityModel.provider_fixture_id
+            )
+        )
+        assert len(fixtures) == 3
+        assert all(row.team_identity_status == "PROVIDER_PRIMARY_READY" for row in fixtures)
+        assert all(row.home_w2_team_id and row.away_w2_team_id for row in fixtures)
+        assert session.query(CanonicalTeamModel).count() == 11
+        approved = session.query(ProviderTeamIdentityCrosswalkModel).filter_by(
+            review_status="APPROVED"
+        )
+        assert approved.count() == 6
+
+    assert (
+        _alembic(root, env, "downgrade", "0052_drop_retired_future_refresh_checkpoint_plan")
+        .returncode
+        == 0
+    )
+    with Session(engine) as session:
+        fixtures = list(session.query(MatchdayFixtureIdentityModel))
+        assert all(row.team_identity_status == "PROVIDER_PRIMARY_READY" for row in fixtures)
+        assert all(row.home_w2_team_id and row.away_w2_team_id for row in fixtures)
+        assert session.query(CanonicalTeamModel).count() == 11
+        assert (
+            session.query(ProviderTeamIdentityCrosswalkModel)
+            .filter_by(review_status="APPROVED")
+            .count()
+            == 6
+        )
+
+
+def test_0053_rejects_partial_fixture_scope(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'partial-team-identity.db'}"
+    env = {
+        **os.environ,
+        "PYTHONPATH": f"{root / 'src'}:{root}",
+        "W2_DATABASE_URL": database_url,
+        "W2_ENVIRONMENT": "test",
+    }
+    assert (
+        _alembic(
+            root, env, "upgrade", "0052_drop_retired_future_refresh_checkpoint_plan"
+        ).returncode
+        == 0
+    )
+    engine = create_engine(database_url)
+    _seed_0053_authority_and_fixtures(engine)
+    with engine.begin() as connection:
+        connection.execute(
+            text("delete from matchday_fixture_identities where provider_fixture_id='1493061'")
+        )
+
+    result = _alembic(root, env, "upgrade", "head")
+    assert result.returncode != 0
+    assert "TEAM_IDENTITY_FIXTURE_SCOPE_PARTIAL:2" in result.stderr
+
+
+def _seed_0053_authority_and_fixtures(engine: Engine) -> None:
+    captured_at = datetime.fromisoformat("2026-08-11T03:14:22+00:00")
+    existing = {
+        "124": "brasileirao_serie_a",
+        "130": "brasileirao_serie_a",
+        "2143": "eliteserien",
+        "331": "eliteserien",
+        "794": "brasileirao_serie_a",
+    }
+    fixtures = {
+        "1493049": (
+            "argentina_primera",
+            "128",
+            "449",
+            "Banfield",
+            "440",
+            "Belgrano Cordoba",
+        ),
+        "1493061": (
+            "argentina_primera",
+            "128",
+            "441",
+            "Union Santa Fe",
+            "1065",
+            "Central Cordoba de Santiago",
+        ),
+        "1575453": ("primeira_liga", "94", "227", "Santa Clara", "225", "Nacional"),
+    }
+    with Session(engine) as session:
+        for team_id, competition in existing.items():
+            canonical = canonical_team_payload(
+                provider_team_id=team_id,
+                display_name=f"team-{team_id}",
+                country=None,
+                created_at=captured_at,
+            )
+            session.add(CanonicalTeamModel(**canonical))
+            crosswalk = provider_crosswalk_payload(
+                provider_team_id=team_id,
+                w2_team_id=canonical["w2_team_id"],
+                competition_id=competition,
+                season="2026",
+                evidence_hashes=[stable_hash({"team_id": team_id})],
+                valid_from=captured_at,
+            )
+            session.add(ProviderTeamIdentityCrosswalkModel(**crosswalk))
+        for index, (provider_fixture_id, fixture) in enumerate(fixtures.items()):
+            competition, league, home_id, home_name, away_id, away_name = fixture
+            payload = {
+                "fixture": {"id": int(provider_fixture_id)},
+                "teams": {
+                    "home": {"id": int(home_id), "name": home_name},
+                    "away": {"id": int(away_id), "name": away_name},
+                },
+            }
+            session.add(
+                MatchdayFixtureIdentityModel(
+                    fixture_id=f"api_football:{provider_fixture_id}",
+                    provider="api_football",
+                    provider_fixture_id=provider_fixture_id,
+                    competition_id=competition,
+                    provider_league_id=league,
+                    season="2026",
+                    kickoff_utc=captured_at,
+                    fixture_status="FT",
+                    home_provider_team_id=home_id,
+                    away_provider_team_id=away_id,
+                    home_w2_team_id=None,
+                    away_w2_team_id=None,
+                    team_identity_status="REVIEW_REQUIRED",
+                    raw_payload_sha256=f"{'1' + str(index)}".ljust(64, "0"),
+                    endpoint_capture_id=None,
+                    captured_at=captured_at,
+                    identity_hash=f"{'2' + str(index)}".ljust(64, "0"),
+                    payload=payload,
+                )
+            )
+        session.commit()
 
 
 def test_arch_p1_01_drops_and_restores_system_metadata(tmp_path: Path) -> None:

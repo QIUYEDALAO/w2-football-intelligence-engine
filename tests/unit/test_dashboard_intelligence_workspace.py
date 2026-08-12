@@ -1700,25 +1700,53 @@ def test_approved_public_label_authority_reuses_existing_product_labels() -> Non
 
 def test_unreviewed_future_team_labels_are_not_self_approved() -> None:
     unreviewed_team_ids = {
-        "w2:team:api_football:124",
-        "w2:team:api_football:130",
-        "w2:team:api_football:2143",
         "w2:team:api_football:2149",
         "w2:team:api_football:2170",
         "w2:team:api_football:319",
         "w2:team:api_football:325",
         "w2:team:api_football:326",
         "w2:team:api_football:329",
-        "w2:team:api_football:331",
         "w2:team:api_football:332",
         "w2:team:api_football:333",
         "w2:team:api_football:377",
         "w2:team:api_football:757",
-        "w2:team:api_football:794",
     }
     labels = reviewed_public_team_labels()
 
     assert unreviewed_team_ids.isdisjoint(labels)
+
+
+def test_owner_authorized_public_label_review_closes_observed_gaps() -> None:
+    labels = reviewed_public_team_labels()
+
+    assert {
+        team_id: labels[f"w2:team:api_football:{team_id}"]
+        for team_id in (
+            "124",
+            "130",
+            "2143",
+            "225",
+            "227",
+            "331",
+            "440",
+            "441",
+            "449",
+            "794",
+            "1065",
+        )
+    } == {
+        "124": "弗鲁米嫩塞",
+        "130": "格雷米奥",
+        "2143": "KFUM奥斯陆",
+        "225": "国民队",
+        "227": "圣克拉拉",
+        "331": "罗森博格",
+        "440": "贝尔格拉诺",
+        "441": "圣菲联合",
+        "449": "班菲尔德",
+        "794": "布拉干蒂诺红牛",
+        "1065": "科尔多瓦中央",
+    }
 
 
 def test_sc19_public_label_authority_uses_runtime_config_root(
