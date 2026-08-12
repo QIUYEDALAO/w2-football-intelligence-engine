@@ -5,13 +5,13 @@ PACKET = W2_ROUND4_READINESS_DECISION_EVIDENCE_V1
 DECISION_STATE = READY_FOR_OWNER_DECISION
 ROUND_4 = NOT_STARTED
 EXECUTION_AUTHORITY = NOT_GRANTED
-EXACT_MAIN_SHA = 95a177c78f9c5b7017ad373da20f8de71d372961
-DEPLOYED_SOURCE_SHA = a812f2e603ea2a6e9b200e2a4b6f67f8b0e9c5d2
+EXACT_MAIN_SHA = 112f75d24638770a85f1a97678ee652988351e22
+DEPLOYED_SOURCE_SHA = 5a85904c40183c4ee1e16b1f9934e8ff9dfcb56a
 SC20_CUTOVER_PR = 525
-LATEST_RELEASE_PR = 529
-SC20_RELEASE_CHAIN_PRS = 525_526_527_528_529
-SC20_RELEASE_REQUIRED = PASS_RUN_31526734736
-SC20_PROMOTION_REQUIRED = PASS_RUN_31527399270
+LATEST_RELEASE_PR = 530
+SC20_RELEASE_CHAIN_PRS = 525_526_527_528_529_530
+SC20_RELEASE_REQUIRED = PASS_RUN_31549408271
+SC20_PROMOTION_REQUIRED = PASS_RUN_31550028290
 V41_POSTDEPLOY_REMEDIATION = D16_01_THROUGH_D16_07_CLOSED
 TRACK_A = TRACK_A_CLOSED_PASS
 VPS_DEPLOYMENT = VPS_LOCAL_RELAY_DEPLOYMENT_ACCEPTANCE_PASS
@@ -26,14 +26,14 @@ not authorize or start Round4 and does not modify product or runtime policy.
 
 | Precondition | Evidence | Result |
 |---|---|---|
-| Approved repository release | exact-head Full CI and `RELEASE_REQUIRED`, run `31526734736`; main promotion run `31527399270` | PASS |
+| Approved repository release | exact-head Full CI and `RELEASE_REQUIRED`, run `31549408271`; main promotion run `31550028290` | PASS |
 | Immutable deployment | exact Python/Web digests via local OCI relay | PASS |
-| Live source identity | main `95a177c78f9c5b7017ad373da20f8de71d372961`; deployed API/Web source `a812f2e603ea2a6e9b200e2a4b6f67f8b0e9c5d2` | PASS |
+| Live source identity | main `112f75d24638770a85f1a97678ee652988351e22`; deployed API/Web source `5a85904c40183c4ee1e16b1f9934e8ff9dfcb56a` | PASS |
 | Dashboard V4.1 remediation | D16-01 through D16-07 closed | PASS |
 | Real-shape priority/focus truth | stale dominates movement; useful evidence focus; zero-evidence excluded | PASS |
 | Public presentation truth | one `scope + cause` converter; old public status chains physically deleted | PASS |
 | Read isolation | payload 0/0/no-call and adjacent persisted vector unchanged | PASS |
-| Runtime stop lines | SHADOW_ONLY, exact 13, Candidate/Formal/Lock/Production off | PASS |
+| Runtime stop lines | SHADOW_ONLY Candidate, exact 13, Formal/Lock/Production off | PASS |
 | Track A lifecycle evidence | previously closed; unchanged | PASS |
 | Shadow input authority | SC18-01 through SC18-07 closed; AH/OU per-market `PARTIAL` semantics and canonical public labels deployed | PASS |
 | SC19 team identity | Reviewed identities remain Chinese after FT projection; genuine gaps fail closed | PASS |
@@ -41,7 +41,7 @@ not authorize or start Round4 and does not modify product or runtime policy.
 | Repository hygiene | no dead SC18 assets; six review artifacts retained outside runtime output paths | PASS |
 | SC20 anti-resurrection | retired current identifiers and frontend team translation authority mechanically forbidden | PASS |
 | SC20 postdeploy contract remediation | outcome/replay truth table, selected-day-only response, scoped batched read, partial date-strip truth and gzip | PASS |
-| Screenshot acceptance | seven dates plus empty/future/focus/postmatch/system-contract/mobile/technical-detail states inspected; past-due status and delayed mobile selected-date replacement verified live | PASS |
+| Screenshot acceptance | seven dates plus empty/future/focus/postmatch/system-contract/mobile/technical-detail states inspected; collection timing copy verified live at desktop and 390px without inferring external market availability | PASS |
 
 ## Current exact-release snapshot
 
@@ -54,6 +54,8 @@ SC20_FRONTEND_TRANSLATION_AUTHORITY = DELETED
 PROVIDER_CALLS_ON_READ = 0
 DB_BUSINESS_WRITES_ON_READ = 0
 NO_CALL_ON_READ = true
+BACKGROUND_COLLECTION_RUNTIME = WORKER_PROVIDER_ON_SCHEDULER_ON_FUTURE_REFRESH_ON
+API_READ_PROVIDER_CALLS_DISABLED = true
 ```
 
 ## Owner decision boundary
