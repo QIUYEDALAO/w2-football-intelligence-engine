@@ -142,6 +142,29 @@ def test_missing_required_identity_field_is_not_ready(field: str) -> None:
     assert f"MISSING_{field.upper()}" in decision.blockers
 
 
+def test_not_ready_reason_distinguishes_fixture_model_and_quote_truth() -> None:
+    fixture_missing = _authoritative_input()
+    fixture_missing["season"] = None
+    assert build_recommendation_decision_v4(fixture_missing).reason_code == "IDENTITY_NOT_READY"
+
+    model_missing = _authoritative_input()
+    readiness = model_missing["readiness"]
+    assert isinstance(readiness, dict)
+    readiness["model_status"] = "NOT_READY"
+    readiness["status"] = "NOT_READY"
+    assert build_recommendation_decision_v4(model_missing).reason_code == "EVIDENCE_NOT_READY"
+
+    quote_missing = _authoritative_input()
+    quote_readiness = quote_missing["readiness"]
+    assert isinstance(quote_readiness, dict)
+    quote_readiness["quote_identity_status"] = "INCOMPLETE"
+    quote_readiness["status"] = "NOT_READY"
+    assert (
+        build_recommendation_decision_v4(quote_missing).reason_code
+        == "QUOTE_IDENTITY_NOT_READY"
+    )
+
+
 def test_declared_fair_odds_and_ev_must_reconcile_with_five_state_distribution() -> None:
     payload = _authoritative_input()
     payload["fair_odds"] = "1.50"

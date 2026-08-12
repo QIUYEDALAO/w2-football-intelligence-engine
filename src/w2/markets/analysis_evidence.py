@@ -263,6 +263,7 @@ def _model_evidence(
     market: str, selection: str, line: Decimal, price: Decimal, simulation: Mapping[str, Any] | None
 ) -> dict[str, Any]:
     sim = _mapping(simulation)
+    model_input_hash = _model_input_hash(sim)
     home, away = _decimal(sim.get("lambda_home")), _decimal(sim.get("lambda_away"))
     if sim.get("status") != "READY" or home is None or away is None or home <= 0 or away <= 0:
         return {
@@ -270,7 +271,7 @@ def _model_evidence(
             "calibration_status": sim.get("calibration_status") or "UNKNOWN",
             "model_version": sim.get("model_version"),
             "calibration_version": sim.get("calibration_version"),
-            "model_input_hash": _hash_mapping(sim.get("input_manifest") or sim.get("inputs") or {}),
+            "model_input_hash": model_input_hash,
         }
     sigma_home = _decimal(sim.get("lambda_sigma_home"))
     sigma_away = _decimal(sim.get("lambda_sigma_away"))
@@ -288,7 +289,7 @@ def _model_evidence(
             "calibration_status": sim.get("calibration_status") or "UNKNOWN",
             "model_version": sim.get("model_version"),
             "calibration_version": sim.get("calibration_version"),
-            "model_input_hash": _hash_mapping(sim.get("input_manifest") or sim.get("inputs") or {}),
+            "model_input_hash": model_input_hash,
             "lambda_uncertainty_method": method or "none",
             "lambda_sigma_home": float(sigma_home) if sigma_home is not None else None,
             "lambda_sigma_away": float(sigma_away) if sigma_away is not None else None,
@@ -341,7 +342,7 @@ def _model_evidence(
             "calibration_status": sim.get("calibration_status") or "UNKNOWN",
             "model_version": sim.get("model_version"),
             "calibration_version": sim.get("calibration_version"),
-            "model_input_hash": _hash_mapping(sim.get("input_manifest") or sim.get("inputs") or {}),
+            "model_input_hash": model_input_hash,
             "lambda_uncertainty_method": method or "none",
             "lambda_sigma_home": float(sigma_home),
             "lambda_sigma_away": float(sigma_away),
@@ -351,7 +352,7 @@ def _model_evidence(
         "calibration_status": sim.get("calibration_status") or "UNKNOWN",
         "model_version": sim.get("model_version"),
         "calibration_version": sim.get("calibration_version"),
-        "model_input_hash": _hash_mapping(sim.get("input_manifest") or sim.get("inputs") or {}),
+        "model_input_hash": model_input_hash,
         "settlement_distribution": settlement_distribution,
         "fair_decimal_odds": float(fair_price),
         "effective_probability": effective,
@@ -439,6 +440,23 @@ def _hash_mapping(value: object) -> str | None:
         default=str,
     )
     return hashlib.sha256(encoded.encode()).hexdigest()
+
+
+def _model_input_hash(simulation: Mapping[str, Any]) -> str | None:
+    manifest_hash = _hash_mapping(
+        simulation.get("input_manifest") or simulation.get("inputs") or {}
+    )
+    if manifest_hash is not None:
+        return manifest_hash
+    calibration = _mapping(simulation.get("calibration"))
+    value = calibration.get("simulation_input_hash")
+    text = str(value or "")
+    return (
+        text
+        if len(text) == 64
+        and all(character in "0123456789abcdef" for character in text)
+        else None
+    )
 
 
 def _selection(market: str, value: object) -> str | None:

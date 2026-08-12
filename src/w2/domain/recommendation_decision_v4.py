@@ -419,7 +419,26 @@ def _outcome(
     payload: Mapping[str, Any], blockers: Sequence[str]
 ) -> tuple[RecommendationOutcomeV4, str, str]:
     if blockers:
-        return RecommendationOutcomeV4.NOT_READY, "IDENTITY_NOT_READY", "推荐身份尚未完整"
+        fixture_identity_blockers = {
+            "MISSING_FIXTURE_ID",
+            "MISSING_COMPETITION_ID",
+            "MISSING_SEASON",
+            "MISSING_KICKOFF_UTC",
+            "MISSING_KICKOFF_REVISION_OR_FIXTURE_IDENTITY_HASH",
+            "INVALID_KICKOFF_UTC",
+            "INVALID_KICKOFF_REVISION_OR_FIXTURE_IDENTITY_HASH",
+        }
+        if fixture_identity_blockers.intersection(blockers):
+            return RecommendationOutcomeV4.NOT_READY, "IDENTITY_NOT_READY", "比赛身份尚未完整"
+        blocker_readiness = _mapping(payload.get("readiness"))
+        if (
+            blocker_readiness.get("model_status") != "READY"
+            or "MODEL_EVIDENCE_NOT_READY" in blockers
+        ):
+            return RecommendationOutcomeV4.NOT_READY, "EVIDENCE_NOT_READY", "模型证据尚未就绪"
+        if "QUOTE_IDENTITY_NOT_READY" in blockers:
+            return RecommendationOutcomeV4.NOT_READY, "QUOTE_IDENTITY_NOT_READY", "盘口身份尚未完整"
+        return RecommendationOutcomeV4.NOT_READY, "EVIDENCE_NOT_READY", "决策证据尚未就绪"
     readiness = payload.get("readiness")
     status = str(readiness.get("status") or "") if isinstance(readiness, Mapping) else ""
     if status not in {"READY", "COMPLETE"}:

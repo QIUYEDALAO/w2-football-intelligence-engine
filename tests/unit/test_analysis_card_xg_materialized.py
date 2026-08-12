@@ -1073,6 +1073,7 @@ def test_public_bounded_analysis_consumes_canonical_identity_history_and_ratings
 
     assert card is not None
     assert card["source"] == "db_feature_materialized_analysis"
+    assert card["season"] == "2026"
     assert card["data_readiness"]["xg"] is True
     assert card["data_readiness"]["xg_home_match_count"] == 5
     assert card["data_readiness"]["xg_away_match_count"] == 5

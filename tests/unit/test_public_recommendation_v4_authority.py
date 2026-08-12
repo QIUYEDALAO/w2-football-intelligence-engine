@@ -415,3 +415,32 @@ def test_day_view_passes_valid_v4_current_pick_without_rebuilding_it() -> None:
     assert card["pick"]["selection"] == "AWAY"
     assert card["recommendation_decision_v4"] == decision
     assert card["recommendation_decision_v3_role"] == "HISTORY_ONLY"
+
+
+def test_public_v4_does_not_invent_identity_failure_when_model_is_unready() -> None:
+    decision = _build_public_recommendation_decision_v4(
+        card={
+            "fixture_id": "fixture-1",
+            "competition_id": "allsvenskan",
+            "season": "2026",
+            "kickoff_utc": "2026-08-08T15:30:00Z",
+            "simulation": {"status": "INSUFFICIENT_INPUTS"},
+            "quote_identity_audit": {
+                "ah": {
+                    "identity_status": "COMPLETE",
+                    "freshness_status": "COMPLETE",
+                }
+            },
+        },
+        row={
+            "fixture_id": "fixture-1",
+            "competition_id": "allsvenskan",
+            "kickoff_utc": "2026-08-08T15:30:00Z",
+        },
+        candidate=None,
+        formal_recommendation=None,
+    )
+
+    assert decision.outcome is RecommendationOutcomeV4.NOT_READY
+    assert decision.reason_code == "EVIDENCE_NOT_READY"
+    assert "MODEL_EVIDENCE_NOT_READY" in decision.blockers

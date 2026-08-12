@@ -233,10 +233,9 @@ function RecentDateNav({ date, onDateChange, workspace }: Pick<Props, "date" | "
   const [sliceStart, setSliceStart] = useState(4);
   const selectedDateRef = useRef<HTMLButtonElement>(null);
   useEffect(() => setSliceStart(4), [date]);
-  useEffect(
-    () => selectedDateRef.current?.scrollIntoView({ block: "nearest", inline: "center" }),
-    [date, sliceStart, workspace.date_strip],
-  );
+  useEffect(() => {
+    selectedDateRef.current?.scrollIntoView({ block: "nearest", inline: "center" });
+  }, [date, sliceStart, workspace.date_strip]);
   const dates = workspace.date_strip.slice(sliceStart, sliceStart + 7);
   return (
     <nav className="v41-recent-days" aria-label="近七日比赛浏览">

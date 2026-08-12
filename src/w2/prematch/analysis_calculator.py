@@ -567,6 +567,28 @@ def _build_public_recommendation_decision_v4(
         kickoff_utc=kickoff_utc,
         capability_status=capability_status,
     )
+    if not selected:
+        quote_audit = _mapping(card.get("quote_identity_audit"))
+        audits = [
+            _mapping(value)
+            for value in quote_audit.values()
+            if isinstance(value, Mapping)
+        ]
+        simulation = _mapping(card.get("simulation"))
+        authoritative_input["readiness"] = {
+            "status": "NOT_READY",
+            "quote_identity_status": (
+                "COMPLETE"
+                if any(value.get("identity_status") == "COMPLETE" for value in audits)
+                else "INCOMPLETE"
+            ),
+            "quote_freshness_status": (
+                "COMPLETE"
+                if any(value.get("freshness_status") == "COMPLETE" for value in audits)
+                else "INCOMPLETE"
+            ),
+            "model_status": simulation.get("status"),
+        }
     authoritative_input["formal_admission"] = _public_formal_admission(
         authoritative_input=authoritative_input,
         formal_recommendation=formal_recommendation,
@@ -3252,6 +3274,7 @@ class ReadModelService:
         # The public card, frozen artifact, V2 and V3 must carry the same
         # provider-mapped competition identity as the feature context.
         payload["competition_id"] = competition_id
+        payload["season"] = season
         payload["feature_contributions"] = [
             self._feature_contribution_payload(item) for item in feature_set.contributions
         ]
