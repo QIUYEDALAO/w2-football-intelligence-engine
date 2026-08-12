@@ -61,6 +61,12 @@ def test_celery_ping_task_has_no_business_side_effect() -> None:
     assert ping.run() == "pong"
 
 
+def test_non_sqlite_database_engine_is_reused_per_process() -> None:
+    settings = Settings(database_url="postgresql+psycopg://user:pass@localhost/test")
+
+    assert create_engine(settings) is create_engine(settings)
+
+
 def test_scheduler_heartbeat_does_not_call_external_api() -> None:
     assert heartbeat() == "w2 scheduler heartbeat"
 
