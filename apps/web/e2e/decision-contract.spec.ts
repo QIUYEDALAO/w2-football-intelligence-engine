@@ -7,7 +7,7 @@ import type {
   WorkspaceDateStripEntry,
 } from "../src/types/intelligenceWorkspace";
 
-type Scenario = "normal" | "limited" | "calm" | "stale" | "empty" | "deployed";
+type Scenario = "normal" | "limited" | "calm" | "stale" | "empty" | "deployed" | "browser";
 
 function dateStrip(): WorkspaceDateStripEntry[] {
   return Array.from({ length: 15 }, (_, index) => {
@@ -155,6 +155,18 @@ function workspace(scenario: Scenario = "normal"): IntelligenceWorkspace {
     item.intelligence_reason_codes = ["MARKET_STABLE"];
     return item;
   });
+  const browserMatches = Array.from({ length: 11 }, (_, index) => {
+    const item = match(`browser-${index}`, { rich: true, stale: index === 0 });
+    item.competition_id = `browser-league-${index % 7}`;
+    item.competition_name = `Browser League ${index % 7}`;
+    if (index > 1) {
+      item.priority_reason_primary = null;
+      item.priority_reason_secondary = [];
+      item.intelligence_state = "MARKET_STABLE";
+      item.intelligence_reason_codes = ["MARKET_STABLE"];
+    }
+    return item;
+  });
   const matches = scenario === "deployed"
     ? deployedMatches
     : scenario === "normal" || scenario === "stale"
@@ -163,11 +175,13 @@ function workspace(scenario: Scenario = "normal"): IntelligenceWorkspace {
         ? [match("1571807"), match("1571808")]
         : scenario === "calm"
           ? calmMatches
+          : scenario === "browser"
+            ? browserMatches
           : [];
   const limited = scenario === "limited";
   const empty = scenario === "empty";
-  const focusId = scenario === "normal" || scenario === "stale" || scenario === "deployed" ? "1571806" : null;
-  const counts = focusId ? scenario === "deployed" ? { STALE_MARKET_MEMORY: 1 } : scenario === "stale" ? { STALE_MARKET_MEMORY: 1, MARKET_MOVEMENT: 1, MODEL_DIAGNOSTIC: 1 } : { MARKET_MOVEMENT: 2, MODEL_DIAGNOSTIC: 1 } : {};
+  const focusId = scenario === "browser" ? "browser-0" : scenario === "normal" || scenario === "stale" || scenario === "deployed" ? "1571806" : null;
+  const counts = scenario === "browser" ? { STALE_MARKET_MEMORY: 1, MARKET_MOVEMENT: 1 } : focusId ? scenario === "deployed" ? { STALE_MARKET_MEMORY: 1 } : scenario === "stale" ? { STALE_MARKET_MEMORY: 1, MARKET_MOVEMENT: 1, MODEL_DIAGNOSTIC: 1 } : { MARKET_MOVEMENT: 2, MODEL_DIAGNOSTIC: 1 } : {};
   const globalFocus = focusId ? null : {
     reason_code: limited ? "AWAITING_COLLECTION" : scenario === "calm" ? "NO_PRIORITY_REVIEW_ITEMS" : "NO_FIXTURES_IN_FOOTBALL_DAY",
     factual_summary: limited ? "所选比赛日暂无可用于比赛级分析的持久化市场证据。" : scenario === "calm" ? "当前没有达到优先复核条件的比赛。" : "本比赛日观察池内没有比赛；不会从其他日期填充。",
@@ -512,6 +526,36 @@ test("V41 limited day does not promise a schedule when none exists", async ({ pa
   await expect(page.locator(".v41-focus")).not.toContainText("等待既有调度");
 });
 
+test("V41 match browser exposes all fixtures in priority order and one filter per present league", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await installWorkspace(page, "browser");
+  await page.goto("/");
+  const shortlist = page.locator(".v41-shortlist");
+  const list = shortlist.locator(".v41-shortlist-list");
+  const filters = shortlist.getByRole("toolbar", { name: "按联赛筛选比赛" });
+  await expect(list.locator("button[data-fixture-id]")).toHaveCount(11);
+  await expect(filters.getByRole("button")).toHaveCount(8);
+  await expect(list.locator("button[data-fixture-id]").first()).toHaveAttribute("data-fixture-id", "browser-0");
+  await expect(list.locator("button[data-fixture-id]").nth(1)).toHaveAttribute("data-fixture-id", "browser-1");
+  await expect(list.locator("button[data-fixture-id]").first()).toContainText("优先 1");
+  const scroll = await list.evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight, overflowY: getComputedStyle(element).overflowY }));
+  expect(scroll.overflowY).toBe("auto");
+  expect(scroll.scrollHeight).toBeGreaterThan(scroll.clientHeight);
+  await shortlist.screenshot({ animations: "disabled", path: testInfo.outputPath("match-browser-all-top.png") });
+  await list.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  await shortlist.screenshot({ animations: "disabled", path: testInfo.outputPath("match-browser-all-bottom.png") });
+  await filters.getByRole("button", { name: "Browser League 4 1" }).click();
+  await expect(list.locator("button[data-fixture-id]")).toHaveCount(1);
+  await expect(shortlist.locator(":scope > header")).toContainText("0 场优先 · 1 场可滚动查看");
+  await expect(page.locator(".v41-focus")).toHaveAttribute("data-fixture-id", "browser-4");
+});
+
+test("V41 match browser hides the redundant filter for one present league", async ({ page }) => {
+  await installWorkspace(page);
+  await page.goto("/");
+  await expect(page.getByRole("toolbar", { name: "按联赛筛选比赛" })).toHaveCount(0);
+});
+
 test("V41 derives age across timezone and day boundaries and never labels a past evaluation as next", async ({ page }) => {
   const payload = workspace();
   payload.generated_at = "2026-08-10T00:30:00+08:00";
@@ -802,14 +846,14 @@ test("V41 primary controls meet the bounded minimum target size", async ({ page 
   }
 });
 
-test("V41 1180 and 200% zoom preserve natural flow without horizontal or nested primary scrolling", async ({ page }) => {
+test("V41 1180 and 200% zoom preserve horizontal containment with a scrollable match browser", async ({ page }) => {
   await page.setViewportSize({ width: 1180, height: 1300 });
   await installWorkspace(page);
   await page.goto("/");
   await expect(page.locator(".v41-focus-body")).toBeVisible();
   const normal = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth, shortlist: getComputedStyle(document.querySelector(".v41-shortlist-list")!).overflowY, focus: getComputedStyle(document.querySelector(".v41-focus-body")!).overflowY }));
   expect(normal.scrollWidth).toBeLessThanOrEqual(normal.width);
-  expect(normal.shortlist).toBe("visible");
+  expect(normal.shortlist).toBe("auto");
   expect(normal.focus).toBe("visible");
   await page.setViewportSize({ width: 590, height: 650 });
   const zoomed = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }));
@@ -823,7 +867,7 @@ for (const viewport of [
   { width: 1512, height: 982 },
   { width: 1536, height: 1024 },
 ]) {
-  test(`D16 ${viewport.width} has one vertical scroll path`, async ({ page }) => {
+  test(`D16 ${viewport.width} keeps the focus in document flow and the match browser scrollable`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await installWorkspace(page, "deployed");
     await page.goto("/");
@@ -836,7 +880,7 @@ for (const viewport of [
     }));
     expect(layout.scrollWidth).toBeLessThanOrEqual(layout.width);
     expect(layout.focus).toBe("visible");
-    expect(layout.shortlist).toBe("visible");
+    expect(layout.shortlist).toBe("auto");
   });
 }
 

@@ -281,6 +281,7 @@ function TodaySummary({ workspace }: { workspace: IntelligenceWorkspace }) {
 }
 
 function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: IntelligenceWorkspace; selectedId: string | null; onSelect: (id: string) => void }) {
+  const [competitionFilter, setCompetitionFilter] = useState("ALL");
   const dayNoun = selectedDayNoun(workspace);
   const selectedSemantics = selectedDaySemantics(workspace);
   const selectedCause = selectedSemantics.cause;
@@ -290,37 +291,56 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
     competitionCount: workspace.today_summary.competition_count,
     priorityCount: workspace.today_summary.priority_match_count,
   });
-  const matches = byKickoff(workspace.matches);
-  const prioritized = matches.filter((match) => match.priority_reason_primary).slice().sort((left, right) => {
+  const matches = workspace.matches.slice().sort((left, right) => {
     const priority = (PRIORITY_ORDER[left.priority_reason_primary || ""] ?? 99) - (PRIORITY_ORDER[right.priority_reason_primary || ""] ?? 99);
     return priority || String(left.kickoff_utc || "").localeCompare(String(right.kickoff_utc || "")) || left.fixture_id.localeCompare(right.fixture_id);
   });
-  const visible = prioritized.slice(0, 6);
-  const otherAttention = matches.filter((match) => !match.priority_reason_primary && match.priority_reason_secondary.length);
-  const visibleOtherAttention = otherAttention.slice(0, 3);
+  const competitions = Array.from(matches.reduce((items, match) => {
+    const key = match.competition_id || match.competition_name || "UNKNOWN";
+    if (!items.has(key)) items.set(key, { key, label: translateCompetition(match.competition_name || match.competition_id || "赛事待确认", match.competition_id), count: 0 });
+    items.get(key)!.count += 1;
+    return items;
+  }, new Map<string, { key: string; label: string; count: number }>()).values());
+  const activeCompetition = competitionFilter === "ALL" || competitions.some((item) => item.key === competitionFilter) ? competitionFilter : "ALL";
+  const filteredMatches = activeCompetition === "ALL" ? matches : matches.filter((match) => (match.competition_id || match.competition_name || "UNKNOWN") === activeCompetition);
   const limited = selectedCause !== null ? workspace.global_focus : null;
+  const allPrioritized = matches.filter((match) => match.priority_reason_primary);
+  const prioritized = limited ? [] : filteredMatches.filter((match) => match.priority_reason_primary);
+  const otherAttention = limited ? [] : filteredMatches.filter((match) => !match.priority_reason_primary && match.priority_reason_secondary.length);
+  const remaining = limited ? filteredMatches : filteredMatches.filter((match) => !match.priority_reason_primary && !match.priority_reason_secondary.length);
   const empty = workspace.today_summary.match_count === 0 && workspace.global_focus;
   const calm = selectedCause === null && workspace.today_summary.match_count > 0 && !workspace.selected_fixture_id ? workspace.global_focus : null;
   const aggregate = limited || calm;
+  const selectCompetition = (key: string) => {
+    setCompetitionFilter(key);
+    if (key !== "ALL") {
+      const first = matches.find((match) => (match.competition_id || match.competition_name || "UNKNOWN") === key);
+      if (first) onSelect(first.fixture_id);
+    }
+  };
+  const row = (match: WorkspaceMatch, kind: "priority" | "attention" | "remaining") => {
+    const priorityPosition = kind === "priority" ? allPrioritized.findIndex((item) => item.fixture_id === match.fixture_id) + 1 : 0;
+    const stripe = kind === "priority" ? match.priority_reason_primary?.toLowerCase() : kind === "attention" ? "data_incomplete" : limited ? presentation.tone : "fresh_market_evidence";
+    return (
+      <button aria-pressed={selectedId === match.fixture_id} className={`${limited ? "v41-limited-match " : ""}${selectedId === match.fixture_id ? "is-selected" : ""}`.trim() || undefined} data-fixture-id={match.fixture_id} key={match.fixture_id} onClick={() => onSelect(match.fixture_id)} type="button">
+        <span className={`v41-stripe v41-stripe--${stripe}`} />
+        <span className="v41-shortlist-copy">
+          <small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认", match.competition_id)}</small>
+          <strong><MatchName match={match} /></strong>
+          {kind === "priority" ? <span className="v41-reason-line"><b>优先 {priorityPosition} · 主因：{REASON_LABELS[match.priority_reason_primary || ""] || label(match.priority_reason_primary)}</b>{match.priority_reason_secondary.length ? <small>次因：{match.priority_reason_secondary.map((reason) => REASON_LABELS[reason] || label(reason)).join("、")}</small> : null}</span> : kind === "attention" ? <span className="v41-reason-line"><small>关注：{match.priority_reason_secondary.map((reason) => REASON_LABELS[reason] || label(reason)).join("、")}</small></span> : limited ? <span><b>{presentation.label}</b> · W2 盘口证据尚未落盘</span> : <span><b>{match.shadow_candidate.status === "ACTIVE" ? "影子候选" : "普通查看"}</b> · 未触发优先复核</span>}
+        </span>
+        <time>{kickoffLabel(match.kickoff_utc, workspace.date)}</time>
+      </button>
+    );
+  };
   return (
     <aside className="v41-shortlist" aria-label={`关注情报 / ${dayNoun}优先查看`} data-ui="attention-feed">
-      <header><span>{dayNoun}优先查看 · 按信息价值 · 主因归类 · 优先阈值：盘口移动或任一侧赔率相对变化 ≥ {(workspace.runtime.market_price_attention_threshold_ratio * 100).toFixed(0)}%</span><b>{prioritized.length} 场优先</b></header>
-      <div className="v41-shortlist-group">优先查看 · {prioritized.length} 场</div>
-      <div className="v41-shortlist-list">
+      <header><span>{dayNoun}优先查看 · 按信息价值排序 · 优先阈值：盘口移动或任一侧赔率相对变化 ≥ {(workspace.runtime.market_price_attention_threshold_ratio * 100).toFixed(0)}%</span><b>{prioritized.length} 场优先 · {filteredMatches.length} 场可滚动查看</b></header>
+      {competitions.length > 1 ? <div aria-label="按联赛筛选比赛" className="v41-shortlist-filters" role="toolbar"><button aria-pressed={activeCompetition === "ALL"} onClick={() => selectCompetition("ALL")} type="button">全部 <b>{matches.length}</b></button>{competitions.map((competition) => <button aria-pressed={activeCompetition === competition.key} key={competition.key} onClick={() => selectCompetition(competition.key)} type="button">{competition.label} <b>{competition.count}</b></button>)}</div> : null}
+      <div aria-label={`${activeCompetition === "ALL" ? "全部联赛" : competitions.find((item) => item.key === activeCompetition)?.label || "已选联赛"}比赛列表`} className="v41-shortlist-list" tabIndex={0}>
         {empty ? <div className="v41-shortlist-empty">本比赛日观察池内没有比赛</div> : null}
         {aggregate ? <div className="v41-shortlist-empty">{limited ? presentation.summary : `${dayNoun}无需优先排查；这是有效观测结果。`}</div> : null}
-        {aggregate ? <div className="v41-shortlist-group">{limited ? `盘口证据待采集 · ${workspace.today_summary.match_count} 场` : `全部比赛 · ${workspace.today_summary.match_count} 场`}</div> : null}
-        {limited && matches.length ? matches.slice(0, 6).map((match) => (
-          <article className="v41-limited-match" key={match.fixture_id}>
-            <span className={`v41-stripe v41-stripe--${presentation.tone}`} />
-            <span className="v41-shortlist-copy">
-              <small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认", match.competition_id)}</small>
-              <strong><MatchName match={match} /></strong>
-              <span><b>{presentation.label}</b> · W2 盘口证据尚未落盘</span>
-            </span>
-            <time>{kickoffLabel(match.kickoff_utc, workspace.date)}</time>
-          </article>
-        )) : limited ? (
+        {limited && !matches.length ? (
           <div className="v41-shortlist-incident">
             <span className={`v41-stripe v41-stripe--${presentation.tone}`} />
             <span className="v41-shortlist-copy">
@@ -329,43 +349,12 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
               <span><b>{presentation.label}</b> · 暂不生成市场分析</span>
             </span>
           </div>
-        ) : calm ? (
-          <div className="v41-shortlist-incident is-calm">
-            <span className="v41-stripe v41-stripe--fresh_market_evidence" />
-            <span className="v41-shortlist-copy">
-              <small>{workspace.today_summary.competition_count} 个联赛</small>
-              <strong>未发现需关注的市场变化 · {workspace.today_summary.match_count} 场</strong>
-              <span><b>证据完整</b> · 盘口未移动 · 波动未达阈值</span>
-            </span>
-          </div>
-        ) : visible.map((match) => (
-          <button aria-pressed={selectedId === match.fixture_id} className={selectedId === match.fixture_id ? "is-selected" : undefined} key={match.fixture_id} onClick={() => onSelect(match.fixture_id)} type="button">
-            <span className={`v41-stripe v41-stripe--${match.priority_reason_primary?.toLowerCase()}`} />
-            <span className="v41-shortlist-copy">
-              <small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认", match.competition_id)}</small>
-              <strong><MatchName match={match} /></strong>
-              <span className="v41-reason-line"><b>主因：{REASON_LABELS[match.priority_reason_primary || ""] || label(match.priority_reason_primary)}</b>{match.priority_reason_secondary.length ? <small>次因：{match.priority_reason_secondary.map((reason) => REASON_LABELS[reason] || label(reason)).join("、")}</small> : null}</span>
-            </span>
-            <time>{kickoffLabel(match.kickoff_utc, workspace.date)}</time>
-          </button>
-        ))}
-        {!aggregate && !empty && !prioritized.length ? <div className="v41-shortlist-empty">当前没有优先复核比赛</div> : null}
-        {!aggregate && !empty && otherAttention.length ? <div className="v41-shortlist-group">其他关注 · {otherAttention.length} 场（不计入优先）</div> : null}
-        {!aggregate && !empty ? visibleOtherAttention.map((match) => (
-          <button aria-pressed={selectedId === match.fixture_id} className={selectedId === match.fixture_id ? "is-selected" : undefined} key={`other-${match.fixture_id}`} onClick={() => onSelect(match.fixture_id)} type="button">
-            <span className="v41-stripe v41-stripe--data_incomplete" />
-            <span className="v41-shortlist-copy">
-              <small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认", match.competition_id)}</small>
-              <strong><MatchName match={match} /></strong>
-              <span className="v41-reason-line"><small>关注：{match.priority_reason_secondary.map((reason) => REASON_LABELS[reason] || label(reason)).join("、")}</small></span>
-            </span>
-            <time>{kickoffLabel(match.kickoff_utc, workspace.date)}</time>
-          </button>
-        )) : null}
-        {!aggregate && !empty && otherAttention.length > visibleOtherAttention.length ? <p className="v41-shortlist-more">另有 {otherAttention.length - visibleOtherAttention.length} 场其他关注</p> : null}
+        ) : null}
+        {prioritized.length ? <><div className="v41-shortlist-group">优先查看 · {prioritized.length} 场</div>{prioritized.map((match) => row(match, "priority"))}</> : null}
+        {otherAttention.length ? <><div className="v41-shortlist-group">其他关注 · {otherAttention.length} 场（不计入优先）</div>{otherAttention.map((match) => row(match, "attention"))}</> : null}
+        {remaining.length ? <><div className="v41-shortlist-group">{limited ? "盘口证据待采集" : "其他比赛"} · {remaining.length} 场</div>{remaining.map((match) => row(match, "remaining"))}</> : null}
+        {!empty && !filteredMatches.length ? <div className="v41-shortlist-empty">所选联赛暂无比赛</div> : null}
       </div>
-      {prioritized.length > visible.length ? <p className="v41-shortlist-more">另有 {prioritized.length - visible.length} 场优先项</p> : null}
-      <a className="v41-text-link" href="#all-matches">查看全部 {matches.length} 场</a>
     </aside>
   );
 }
@@ -591,7 +580,7 @@ export function IntelligenceConsole(props: Props) {
       <RecentDateNav date={props.date} onDateChange={props.onDateChange} workspace={workspace} />
       <TodaySummary workspace={workspace} />
       <div className="v41-main">
-        <PriorityShortlist workspace={workspace} onSelect={setSelectedId} selectedId={selectedId} />
+        <PriorityShortlist key={workspace.request_id} workspace={workspace} onSelect={setSelectedId} selectedId={selectedId} />
         {selected ? <MatchFocus generatedAt={workspace.generated_at} match={selected} /> : <GlobalFocus date={props.date} onDateChange={props.onDateChange} workspace={workspace} />}
       </div>
       <ValidationCenter workspace={workspace} />
