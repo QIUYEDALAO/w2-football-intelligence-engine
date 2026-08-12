@@ -71,9 +71,8 @@ def test_local_release_overlays_are_offline_and_source_scoped() -> None:
     for overlay in (python_overlay, web_overlay):
         assert "FROM ${W2_LOCAL_BASE_IMAGE}" in overlay
         after_from = overlay.split("FROM ${W2_LOCAL_BASE_IMAGE}", 1)[1]
-        assert "ARG W2_GIT_SHA" in after_from
-        assert "ARG W2_BUILD_TIME" in after_from
-        assert "ARG W2_RELEASE_ID=${W2_GIT_SHA}" in after_from
+        assert "ARG LOCAL_RELEASE_SHA" in after_from
+        assert "ARG LOCAL_RELEASE_TIME" in after_from
         assert "https://" not in overlay
         assert "ghcr.io" not in overlay
         assert "apt-get" not in overlay
