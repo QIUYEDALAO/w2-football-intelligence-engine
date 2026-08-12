@@ -198,6 +198,7 @@ def test_actual_cli_fake_provider_staged_canary_from_fresh_postgres(
             authorization_id=f"offline-staged-{uuid4().hex}",
             task_key=task_key,
             fixture_id=None,
+            competition_id="allsvenskan",
             fixture_scope_mode="SIGNED_KICKOFF_WINDOW",
             provider_league_id="113",
             competition_policy_config_hash=policy_hash,
