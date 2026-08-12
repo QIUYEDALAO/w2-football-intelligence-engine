@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${ROOT}/infra/compose/compose.staging.yml"
 PROJECT_NAME="${W2_PREDEPLOY_E2E_PROJECT:-w2-predeploy-e2e}"
-FIXTURE_ID="${W2_PREDEPLOY_E2E_FIXTURE_ID:-predeploy-world-cup-fixture}"
+FIXTURE_ID="${W2_PREDEPLOY_E2E_FIXTURE_ID:-predeploy-allsvenskan-fixture}"
 PREDEPLOY_API_PORT="${W2_PREDEPLOY_E2E_API_PORT:-28000}"
 
 if ! command -v docker >/dev/null 2>&1; then
@@ -230,7 +230,7 @@ class FakeLiveApiFootballPort:
                             "status": {"short": "NS"},
                             "venue": {"name": "Predeploy Venue"},
                         },
-                        "league": {"id": 1, "name": "World Cup", "round": "Group Stage - 3"},
+                        "league": {"id": 113, "name": "Allsvenskan", "round": "Regular Season - 18"},
                         "teams": {
                             "home": {"id": 10, "name": "Predeploy Home"},
                             "away": {"id": 20, "name": "Predeploy Away"},

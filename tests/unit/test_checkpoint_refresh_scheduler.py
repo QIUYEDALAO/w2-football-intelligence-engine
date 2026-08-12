@@ -30,6 +30,9 @@ def test_checkpoint_plan_generation_is_kickoff_based_and_idempotent_shape() -> N
     )
 
     assert [plan.checkpoint for plan in plans] == [
+        "T168_OPEN_ODDS",
+        "T72_ODDS",
+        "T48_ODDS",
         "T24_ODDS",
         "T12_ODDS",
         "T6_ODDS",
@@ -40,12 +43,29 @@ def test_checkpoint_plan_generation_is_kickoff_based_and_idempotent_shape() -> N
         "T-30m_VALIDATION_LOCK",
     ]
     by_checkpoint = {plan.checkpoint: plan for plan in plans}
+    assert by_checkpoint["T168_OPEN_ODDS"].due_at_utc == kickoff - timedelta(days=7)
+    assert by_checkpoint["T168_OPEN_ODDS"].status == "DUE"
+    assert by_checkpoint["T72_ODDS"].due_at_utc == kickoff - timedelta(hours=72)
+    assert by_checkpoint["T48_ODDS"].due_at_utc == kickoff - timedelta(hours=48)
     assert by_checkpoint["T24_ODDS"].due_at_utc == kickoff - timedelta(hours=24)
     assert by_checkpoint["T24_ODDS"].status == "DUE"
     assert by_checkpoint["T6_ODDS"].due_at_utc == kickoff - timedelta(hours=6)
     assert by_checkpoint["T60_ODDS_LINEUPS"].due_at_utc == kickoff - timedelta(hours=1)
     assert by_checkpoint["T60_ODDS_LINEUPS"].endpoints == ("odds", "lineups")
     assert [plan.plan_id for plan in plans].count("fixture-1:T60_ODDS_LINEUPS") == 1
+
+
+def test_open_odds_waits_until_fixture_enters_seven_day_inventory() -> None:
+    kickoff = NOW + timedelta(days=8)
+
+    plans = checkpoint_plan_for_fixture(
+        fixture_id="fixture-future",
+        kickoff_utc=kickoff,
+        generated_at_utc=NOW,
+        competition_id="allsvenskan",
+    )
+
+    assert {plan.checkpoint: plan.status for plan in plans}["T168_OPEN_ODDS"] == "PLANNED"
 
 
 def test_checkpoint_plan_marks_missed_intermediate_market_capture_without_backfill() -> None:

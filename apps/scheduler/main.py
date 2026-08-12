@@ -144,13 +144,18 @@ def free_fixture_bridge_tick() -> dict[str, object]:
 
 
 def future_fixture_refresh_competition_ids() -> tuple[str, ...]:
+    from w2.competitions.league_whitelist_scope import load_league_whitelist_scope
     from w2.competitions.registry import CompetitionRegistry
 
+    registry = CompetitionRegistry()
+    whitelist = set(load_league_whitelist_scope(registry).all_whitelist)
     registered = tuple(
         sorted(
             entry.competition_id
-            for entry in CompetitionRegistry().entries().values()
-            if entry.enabled and entry.refresh_switches.get("fixtures") is True
+            for entry in registry.entries().values()
+            if entry.competition_id in whitelist
+            and entry.enabled
+            and entry.refresh_switches.get("fixtures") is True
         )
     )
     allowed = {
@@ -180,9 +185,14 @@ def matchday_checkpoint_competition_ids() -> tuple[str, ...]:
 def future_fixture_refresh_contract_ready() -> bool:
     if not future_fixture_refresh_enabled():
         return False
+    from w2.competitions.registry import CompetitionRegistryError
     from w2.ingestion.future_refresh import FutureRefreshError, config_from_policy
 
-    for competition_id in future_fixture_refresh_competition_ids():
+    try:
+        competition_ids = future_fixture_refresh_competition_ids()
+    except (CompetitionRegistryError, OSError, ValueError):
+        return False
+    for competition_id in competition_ids:
         try:
             config = config_from_policy(competition_id=competition_id)
         except (FutureRefreshError, OSError, ValueError):
