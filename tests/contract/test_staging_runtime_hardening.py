@@ -16,6 +16,8 @@ LEGACY_RECOVERY = ROOT / "config/policies/forward_ledger_legacy_recovery.staging
 READINESS_FAULT = ROOT / "scripts/run_readiness_fault_injection.sh"
 WATCHDOG_SERVICE = ROOT / "infra/systemd/w2-staging-watchdog.service"
 WATCHDOG_TIMER = ROOT / "infra/systemd/w2-staging-watchdog.timer"
+LOCAL_PYTHON_OVERLAY = ROOT / "infra/local-release/Dockerfile.python-overlay"
+LOCAL_WEB_OVERLAY = ROOT / "infra/local-release/Dockerfile.web-overlay"
 
 
 def read(path: Path) -> str:
@@ -61,6 +63,19 @@ def test_staging_services_use_published_images_without_builds() -> None:
         assert "build" not in services[service]
     assert services["web"]["image"].startswith("${W2_WEB_IMAGE:")
     assert "build" not in services["web"]
+
+
+def test_local_release_overlays_are_offline_and_source_scoped() -> None:
+    python_overlay = read(LOCAL_PYTHON_OVERLAY)
+    web_overlay = read(LOCAL_WEB_OVERLAY)
+    for overlay in (python_overlay, web_overlay):
+        assert "FROM ${W2_LOCAL_BASE_IMAGE}" in overlay
+        assert "https://" not in overlay
+        assert "ghcr.io" not in overlay
+        assert "apt-get" not in overlay
+        assert "pip install" not in overlay
+    assert "src/w2 /app/.venv/lib/python3.12/site-packages/w2" in python_overlay
+    assert '"web_git_sha"' in web_overlay
 
 
 def test_staging_hardening_scripts_do_not_print_env_or_delete_volumes() -> None:

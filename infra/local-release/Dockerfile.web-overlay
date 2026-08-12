@@ -1,0 +1,15 @@
+ARG W2_LOCAL_BASE_IMAGE
+FROM ${W2_LOCAL_BASE_IMAGE}
+
+ARG W2_GIT_SHA
+ARG W2_BUILD_TIME
+ARG W2_RELEASE_ID=${W2_GIT_SHA}
+USER root
+RUN printf '{\n  "web_git_sha": "%s",\n  "web_build_time": "%s",\n  "release_id": "%s",\n  "data_mode": "api"\n}\n' \
+      "${W2_GIT_SHA}" "${W2_BUILD_TIME}" "${W2_RELEASE_ID}" \
+      > /usr/share/nginx/html/meta.json \
+    && chown 101:101 /usr/share/nginx/html/meta.json
+LABEL org.opencontainers.image.revision="${W2_GIT_SHA}" \
+      org.opencontainers.image.created="${W2_BUILD_TIME}" \
+      w2.release.id="${W2_RELEASE_ID}"
+USER 101
