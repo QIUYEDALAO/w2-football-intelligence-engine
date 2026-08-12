@@ -48,7 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the isolated staged Gate-A canary.")
     parser.add_argument("--authorization-file", type=Path, required=True)
     parser.add_argument("--fixture-id")
-    parser.add_argument("--competition-id", default="world_cup_2026")
+    parser.add_argument("--competition-id", required=True)
     parser.add_argument("--season", required=True)
     parser.add_argument("--interval-seconds", type=int, default=900)
     parser.add_argument("--now-utc")

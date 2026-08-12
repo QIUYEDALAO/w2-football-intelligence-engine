@@ -66,8 +66,14 @@ class _FakeProviderHandler(BaseHTTPRequestHandler):
             return {"response": {"requests": {"remaining": 7000}}}
         if self.path.startswith("/fixtures?") and not self.path.startswith("/fixtures/lineups"):
             fixtures = [
-                _fixture(int(FIXTURE_ID), self.kickoff_at, 10, 20),
-                _fixture(int(OTHER_FIXTURE_ID), self.kickoff_at + timedelta(minutes=10), 30, 40),
+                _fixture(int(FIXTURE_ID), self.kickoff_at, 10, 20, provider_league_id=113),
+                _fixture(
+                    int(OTHER_FIXTURE_ID),
+                    self.kickoff_at + timedelta(minutes=10),
+                    30,
+                    40,
+                    provider_league_id=113,
+                ),
             ]
             return {"response": list(reversed(fixtures)) if self.reverse_fixtures else fixtures}
         if self.path.startswith("/odds?fixture="):
@@ -115,6 +121,8 @@ def _fixture(
     kickoff_at: datetime,
     home_team_id: int,
     away_team_id: int,
+    *,
+    provider_league_id: int = 1,
 ) -> dict[str, Any]:
     return {
         "fixture": {
@@ -122,7 +130,7 @@ def _fixture(
             "date": kickoff_at.isoformat(),
             "status": {"short": "NS"},
         },
-        "league": {"id": 1, "season": 2026},
+        "league": {"id": provider_league_id, "season": 2026},
         "teams": {"home": {"id": home_team_id}, "away": {"id": away_team_id}},
     }
 
@@ -173,7 +181,7 @@ def test_actual_cli_fake_provider_staged_canary_from_fresh_postgres(
             policy_hash = connection.execute(
                 text(
                     "SELECT payload ->> 'config_hash' FROM league_season "
-                    "WHERE competition_id = 'world_cup_2026' AND season = '2026'"
+                    "WHERE competition_id = 'allsvenskan' AND season = '2026'"
                 )
             ).scalar_one()
         head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
@@ -181,7 +189,7 @@ def test_actual_cli_fake_provider_staged_canary_from_fresh_postgres(
             ["git", "rev-parse", "HEAD^{tree}"], cwd=ROOT, text=True
         ).strip()
         task_key = planned_task_key(
-            competition_id="world_cup_2026",
+            competition_id="allsvenskan",
             season="2026",
             now=now,
             interval_seconds=900,
@@ -191,7 +199,7 @@ def test_actual_cli_fake_provider_staged_canary_from_fresh_postgres(
             task_key=task_key,
             fixture_id=None,
             fixture_scope_mode="SIGNED_KICKOFF_WINDOW",
-            provider_league_id="1",
+            provider_league_id="113",
             competition_policy_config_hash=policy_hash,
             kickoff_window_start_utc=(now + timedelta(hours=6, minutes=30)).isoformat(),
             kickoff_window_end_utc=(now + timedelta(hours=7, minutes=30)).isoformat(),
@@ -229,6 +237,8 @@ def test_actual_cli_fake_provider_staged_canary_from_fresh_postgres(
                 "scripts/run_gate_a_staged_canary.py",
                 "--authorization-file",
                 str(authorization_path),
+                "--competition-id",
+                "allsvenskan",
                 "--season",
                 "2026",
                 "--persistence",
