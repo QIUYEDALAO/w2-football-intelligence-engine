@@ -6,6 +6,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
+from w2.domain.enums import DecisionTier
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.formal.readiness import validate_formal_ah_readiness
 from w2.markets.value_engine import SettlementDistribution, fair_decimal_odds
@@ -38,7 +39,7 @@ def formal_recommendation_id(
     parts = [
         "w2.formal_recommendation.v1",
         str(fixture_id),
-        str(recommendation.get("tier") or ""),
+        str(recommendation.get("decision_tier") or ""),
         str(recommendation.get("market") or ""),
         str(recommendation.get("selection") or ""),
         str(recommendation.get("line") or ""),
@@ -77,7 +78,7 @@ class CanonicalAhMarket:
 
 @dataclass(frozen=True, kw_only=True)
 class FormalRecommendationResult:
-    tier: str
+    decision_tier: DecisionTier
     recommendation: dict[str, Any] | None
     formal_eligible: bool
     formal_suppressed: bool
@@ -139,7 +140,7 @@ def build_formal_recommendation(
     blockers.extend(readiness_gate)
     if blockers:
         return FormalRecommendationResult(
-            tier="WATCH",
+            decision_tier=DecisionTier.WATCH,
             recommendation=None,
             formal_eligible=False,
             formal_suppressed=False,
@@ -192,7 +193,7 @@ def build_formal_recommendation(
         devig_probability=devig[side],
     )
     recommendation = {
-        "tier": "FORMAL",
+        "decision_tier": DecisionTier.RECOMMEND.value,
         "market": "ASIAN_HANDICAP",
         "market_label_cn": "让球",
         "selection": f"{side}_AH",
@@ -224,7 +225,7 @@ def build_formal_recommendation(
     }
     if not enabled:
         return FormalRecommendationResult(
-            tier="WATCH",
+            decision_tier=DecisionTier.WATCH,
             recommendation=None,
             formal_eligible=False,
             formal_suppressed=True,
@@ -233,7 +234,7 @@ def build_formal_recommendation(
             canonical_ah_market=ah.as_dict(),
         )
     return FormalRecommendationResult(
-        tier="FORMAL",
+        decision_tier=DecisionTier.RECOMMEND,
         recommendation=recommendation,
         formal_eligible=True,
         formal_suppressed=False,
@@ -626,7 +627,7 @@ def _watch(
     canonical_ah_market: CanonicalAhMarket | None = None,
 ) -> FormalRecommendationResult:
     return FormalRecommendationResult(
-        tier="WATCH",
+        decision_tier=DecisionTier.WATCH,
         recommendation=None,
         formal_eligible=False,
         formal_suppressed=False,

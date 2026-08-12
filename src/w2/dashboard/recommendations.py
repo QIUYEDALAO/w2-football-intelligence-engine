@@ -1,21 +1,9 @@
 from __future__ import annotations
 
-from enum import StrEnum
 from typing import Any
 
 from w2.domain.decision_policy import compute_outcome_tracked
 from w2.domain.enums import DecisionTier
-
-
-class RecommendationTier(StrEnum):
-    """Deprecated dashboard compatibility view; DecisionTier is the source of truth."""
-
-    FORMAL = "FORMAL"
-    CANDIDATE = "CANDIDATE"
-    ANALYSIS_PICK = "ANALYSIS_PICK"
-    WATCH = "WATCH"
-    NO_RECOMMENDATION = "NO_RECOMMENDATION"
-
 
 MARKET_LABELS_CN = {
     "ASIAN_HANDICAP": "让球",
@@ -25,26 +13,14 @@ MARKET_LABELS_CN = {
 }
 
 
-def derive_recommendation_tier(
-    card: dict[str, Any],
-    market: dict[str, Any] | None,
-) -> RecommendationTier:
-    decision_tier = _decision_tier_from_payload(card, market)
-    if decision_tier is not None:
-        return _recommendation_tier_from_decision_tier(decision_tier)
-
-    return RecommendationTier.NO_RECOMMENDATION
-
-
 def build_recommendation(
     card: dict[str, Any],
     market: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
-    tier = derive_recommendation_tier(card, market)
-    decision_tier = _decision_tier_for_output(card, market, tier)
-    if market is None or tier in {
-        RecommendationTier.WATCH,
-        RecommendationTier.NO_RECOMMENDATION,
+    decision_tier = _decision_tier_from_payload(card, market)
+    if market is None or decision_tier not in {
+        DecisionTier.ANALYSIS_PICK,
+        DecisionTier.RECOMMEND,
     }:
         return None
 
@@ -58,7 +34,6 @@ def build_recommendation(
         risks = _string_list(card.get("risks_cn") or card.get("risks"))
 
     recommendation = {
-        "tier": tier.value,
         "decision_tier": decision_tier.value,
         "outcome_tracked": card.get("outcome_tracked", compute_outcome_tracked(decision_tier)),
         "lock_eligible": card.get("lock_eligible"),
@@ -81,7 +56,7 @@ def build_recommendation(
         "locked_before_kickoff": market.get("locked_before_kickoff"),
         "is_live_line": market.get("is_live_line"),
     }
-    if tier is not RecommendationTier.FORMAL:
+    if decision_tier is not DecisionTier.RECOMMEND:
         return _display_only_recommendation_view(recommendation)
     return recommendation
 
@@ -149,30 +124,3 @@ def _decision_tier_from_payload(
         except ValueError:
             return None
     return None
-
-
-def _recommendation_tier_from_decision_tier(decision_tier: DecisionTier) -> RecommendationTier:
-    if decision_tier is DecisionTier.RECOMMEND:
-        return RecommendationTier.FORMAL
-    if decision_tier is DecisionTier.ANALYSIS_PICK:
-        return RecommendationTier.ANALYSIS_PICK
-    if decision_tier is DecisionTier.WATCH:
-        return RecommendationTier.WATCH
-    return RecommendationTier.NO_RECOMMENDATION
-
-
-def _decision_tier_for_output(
-    card: dict[str, Any],
-    market: dict[str, Any] | None,
-    tier: RecommendationTier,
-) -> DecisionTier:
-    decision_tier = _decision_tier_from_payload(card, market)
-    if decision_tier is not None:
-        return decision_tier
-    if tier is RecommendationTier.FORMAL:
-        return DecisionTier.RECOMMEND
-    if tier is RecommendationTier.ANALYSIS_PICK:
-        return DecisionTier.ANALYSIS_PICK
-    if tier is RecommendationTier.WATCH:
-        return DecisionTier.WATCH
-    return DecisionTier.SKIP

@@ -48,17 +48,18 @@ def test_staging_compose_defaults_future_refresh_and_provider_calls_disabled() -
         assert scheduler["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == "status,fixtures,odds,lineups"
         assert scheduler["W2_PROVIDER_REFRESH_TICK_HARD_CAP"] == "30"
         assert scheduler["W2_PROVIDER_DAILY_HARD_CAP"] == "120"
-        assert scheduler["W2_FREE_BRIDGE_MODE"] == "${W2_FREE_BRIDGE_MODE:-OFF}"
+        assert scheduler["W2_FIXTURE_DISCOVERY_ENABLED"] == (
+            "${W2_FIXTURE_DISCOVERY_ENABLED:-false}"
+        )
         assert "W2_STAGING_ENABLED_COMPETITIONS" not in scheduler
         assert scheduler["W2_XG_BACKFILL_ENABLED"] == "false"
-        assert scheduler["W2_MARKET_TIMELINE_REFRESH_ENABLED"] == "true"
-        assert scheduler["W2_MARKET_TIMELINE_WINDOW"] == "future"
+        assert "W2_MARKET_TIMELINE_REFRESH_ENABLED" not in scheduler
+        assert "W2_MARKET_TIMELINE_WINDOW" not in scheduler
+        assert "W2_MARKET_TIMELINE_MAX_FIXTURES" not in scheduler
         assert scheduler["W2_FORWARD_OUTCOME_LEDGER_ENABLED"] == (
             "${W2_FORWARD_OUTCOME_LEDGER_ENABLED:-true}"
         )
-        assert scheduler["W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE"] == (
-            "${W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE:-true}"
-        )
+        assert "W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE" not in scheduler
         assert scheduler["W2_FORWARD_OUTCOME_LEDGER_WINDOW"] == (
             "${W2_FORWARD_OUTCOME_LEDGER_WINDOW:-future}"
         )
@@ -115,18 +116,20 @@ def test_staging_compose_enables_only_shadow_candidate() -> None:
         assert scheduler["W2_EXTERNAL_ALERTING"] == "false"
 
 
-def test_controlled_override_selects_single_free_shadow_collection_owner() -> None:
+def test_controlled_override_selects_one_collection_task_and_discovery_mode() -> None:
     payload = load_compose(CONTROLLED_OVERRIDE)
     worker = payload["services"]["worker"]["environment"]
     scheduler = payload["services"]["scheduler"]["environment"]
 
-    assert worker["W2_FREE_BRIDGE_MODE"] == "${W2_FREE_BRIDGE_MODE:-OFF}"
-    assert scheduler["W2_FREE_BRIDGE_MODE"] == "${W2_FREE_BRIDGE_MODE:-OFF}"
+    assert "W2_FIXTURE_DISCOVERY_ENABLED" not in worker
+    assert scheduler["W2_FIXTURE_DISCOVERY_ENABLED"] == "true"
     assert scheduler["W2_FUTURE_FIXTURE_REFRESH_ENABLED"] == "true"
     assert worker["W2_PROVIDER_HTTP_MAX_ATTEMPTS"] == "1"
     assert scheduler["W2_PROVIDER_HTTP_MAX_ATTEMPTS"] == "1"
     assert worker["W2_PROVIDER_DAILY_HARD_CAP"] == "80"
     assert scheduler["W2_PROVIDER_DAILY_HARD_CAP"] == "80"
+    assert worker["W2_PROVIDER_PREFLIGHT_MIN_REMAINING"] == "20"
+    assert scheduler["W2_PROVIDER_PREFLIGHT_MIN_REMAINING"] == "20"
     assert worker["W2_CANDIDATE_ENABLED"] == "true"
     assert worker["W2_FORMAL_RECOMMENDATION_ENABLED"] == "false"
     assert worker["W2_PRODUCTION_RELEASE"] == "false"

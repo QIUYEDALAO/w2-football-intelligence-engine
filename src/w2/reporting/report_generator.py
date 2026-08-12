@@ -1015,7 +1015,7 @@ def _non_formal_table_row(match: dict[str, Any], decision: MatchDecision) -> tup
         _text(match.get("action")),
         _text(match.get("next_eval_at")),
         _text(match.get("provider_budget_status")),
-        _text(recommendation.get("tier")),
+        _text(recommendation.get("decision_tier")),
         str(match.get("formal_recommendation") is True).lower(),
         _recommendation_id(match),
         _text(recommendation.get("market")),
@@ -1155,15 +1155,15 @@ def _current_state(match: dict[str, Any], decision: MatchDecision) -> str:
     if decision.state != MatchDecisionState.WATCH:
         return decision.state.value
     recommendation = _dict(match.get("recommendation"))
-    tier = str(recommendation.get("tier") or "").upper()
-    return tier if tier else MatchDecisionState.WATCH.value
+    decision_tier = str(recommendation.get("decision_tier") or "").upper()
+    return decision_tier if decision_tier else MatchDecisionState.WATCH.value
 
 
 def _has_formal_recommendation_intent(match: dict[str, Any]) -> bool:
     recommendation = _dict(match.get("recommendation"))
     return (
         match.get("formal_recommendation") is True
-        or str(recommendation.get("tier") or "").upper() == "FORMAL"
+        or str(recommendation.get("decision_tier") or "").upper() == "RECOMMEND"
         or recommendation.get("formal_recommendation") is True
     )
 

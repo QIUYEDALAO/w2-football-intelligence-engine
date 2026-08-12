@@ -300,7 +300,7 @@ def test_recommended_scores_satisfy_primary_and_strict_secondary() -> None:
     reference = scoreline_reference_from_card(
         card,
         recommendation={
-            "tier": "ANALYSIS_PICK",
+            "decision_tier": "ANALYSIS_PICK",
             "market": "ASIAN_HANDICAP",
             "selection": "HOME_AH",
             "line": -0.5,

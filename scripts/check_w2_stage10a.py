@@ -20,7 +20,7 @@ REQUIRED = [
     "docs/api/W2_OPERATIONS_READ_API_V1.md",
     "docs/runbooks/STAGE10A_LOCAL_OPERATIONS.md",
     "apps/web/src/main.tsx",
-    "apps/web/src/styles.css",
+    "apps/web/src/intelligence.css",
 ]
 REPORT_ARTIFACTS = [
     "reports/W2_STAGE10A_API_CONTRACT.json",

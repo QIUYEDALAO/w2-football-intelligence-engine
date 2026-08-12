@@ -4,7 +4,7 @@ from typing import Any
 
 from w2.dashboard.readiness import readiness_summary
 
-OFFICIAL_TIERS = {"FORMAL", "CANDIDATE"}
+OFFICIAL_TIERS = {"RECOMMEND"}
 ANALYSIS_TIER = "ANALYSIS_PICK"
 
 
@@ -30,12 +30,12 @@ def dashboard_performance(cards: list[dict[str, Any]]) -> dict[str, Any]:
         else None,
         "today_count": len(cards),
         "next36_count": len([card for card in cards if str(card.get("status")) != "FINISHED"]),
-        "formal_count": len([card for card in cards if _tier(card) == "FORMAL"]),
-        "candidate_count": len([card for card in cards if _tier(card) == "CANDIDATE"]),
+        "formal_count": len([card for card in cards if _tier(card) == "RECOMMEND"]),
+        "candidate_count": 0,
         "analysis_pick_count": len([card for card in cards if _tier(card) == ANALYSIS_TIER]),
         "watch_count": len([card for card in cards if _tier(card) == "WATCH"]),
         "no_recommendation_count": len(
-            [card for card in cards if _tier(card) == "NO_RECOMMENDATION"]
+            [card for card in cards if _tier(card) in {"NOT_READY", "SKIP"}]
         ),
         "finished_count": len([card for card in cards if str(card.get("status")) == "FINISHED"]),
         "data_health_status": "READ_ONLY",
@@ -67,10 +67,7 @@ def dashboard_performance(cards: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _tier(card: dict[str, Any]) -> str:
-    reco = card.get("recommendation")
-    if isinstance(reco, dict):
-        return str(reco.get("tier") or "NO_RECOMMENDATION")
-    return "NO_RECOMMENDATION"
+    return str(card.get("decision_tier") or "NOT_READY")
 
 
 def _validation(card: dict[str, Any]) -> dict[str, Any] | None:

@@ -7,7 +7,10 @@ from datetime import UTC, datetime, timedelta
 from statistics import median
 from typing import Any
 
-from w2.tracking.outcome_ledger_repository import OutcomeLedgerRepository
+from w2.tracking.outcome_ledger_repository import (
+    CURRENT_FORWARD_RECORD_TYPES,
+    OutcomeLedgerRepository,
+)
 from w2.tracking.performance_scoring import (
     brier as _brier,
 )
@@ -160,12 +163,10 @@ def forward_ledger_performance(
 ) -> dict[str, Any]:
     resolved_now = (now or datetime.now(UTC)).astimezone(UTC)
     repo = repository or OutcomeLedgerRepository()
-    raw_records = [
-        record
-        for record in repo.records()
-        if _record_type(record) != "legacy_recovery"
-    ]
-    authoritative_results = repo.result_payloads()
+    raw_records = repo.records(CURRENT_FORWARD_RECORD_TYPES)
+    authoritative_results = repo.result_payloads_for_fixtures(
+        _text(record.get("fixture_id")) for record in raw_records
+    )
     legacy_recoveries = repo.legacy_recoveries()
     facts = canonical_settlement_facts(
         raw_records,

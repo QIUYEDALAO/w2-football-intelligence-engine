@@ -223,7 +223,7 @@ def _card() -> dict[str, object]:
         "recommendation_decision_v3": {"outcome": "NOT_READY"},
         "recommendation_decision_v4": _decision_v4(),
         "recommendation": {
-            "tier": "FORMAL",
+            "decision_tier": "RECOMMEND",
             "market": "ASIAN_HANDICAP",
             "selection": "AWAY_AH",
             "selection_label_cn": "Away 受让",

@@ -581,6 +581,12 @@ class MatchdayRuntimeRepository:
             if existing:
                 return existing[0].manifest_id
             decision = dict(manifest.get("decision") or {})
+            reason = decision.get("reason")
+            reason_code = (
+                str(reason.get("code") or "UNKNOWN")
+                if isinstance(reason, Mapping)
+                else str(reason or decision.get("reason_code") or "UNKNOWN")
+            )
             session.add(
                 MatchdayEvidenceManifestModel(
                     manifest_id=manifest_hash,
@@ -588,9 +594,7 @@ class MatchdayRuntimeRepository:
                     competition_id=str(manifest["fixture_identity"]["competition_id"]),
                     as_of=as_of,
                     outcome=str(decision.get("outcome") or "SYSTEM_DEGRADED"),
-                    reason_code=str(
-                        decision.get("reason") or decision.get("reason_code") or "UNKNOWN"
-                    ),
+                    reason_code=reason_code,
                     manifest_hash=manifest_hash,
                     input_manifest_hash=str(manifest["input_manifest_hash"]),
                     decision_hash=str(decision.get("decision_hash") or "") or None,

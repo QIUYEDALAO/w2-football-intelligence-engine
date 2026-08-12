@@ -87,7 +87,6 @@ def main() -> int:
         if tests:
             run(["uv", "run", "pytest", "-q", *tests])
     elif plan.change_class == "web":
-        run(["python3", "scripts/check_boss_console_baseline.py"])
         run(["npm", "--prefix", "apps/web", "run", "typecheck"])
         run(["npm", "--prefix", "apps/web", "run", "build"])
         specs = [

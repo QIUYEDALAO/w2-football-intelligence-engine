@@ -99,14 +99,14 @@ def _scoreline_projection(
         "schema_version": "w2.scoreline_projection.v1",
         "simulation_method": "seeded_joint_score_sampling",
         "simulations_requested": 10_000,
-        "simulations_completed": 0,
+        "simulations_completed": None,
         "decision_hash": decision_hash,
         "top3": [],
     }
     if not isinstance(recommendation, dict):
         return {**base, "status": "NOT_READY", "reason": "SELECTED_CANDIDATE_MISSING"}
-    tier = str(recommendation.get("tier") or "").upper()
-    is_pick_tier = tier in {"ANALYSIS_PICK", "RECOMMEND", "FORMAL"}
+    tier = str(recommendation.get("decision_tier") or "").upper()
+    is_pick_tier = tier in {"ANALYSIS_PICK", "RECOMMEND"}
     if not decision_hash and not is_pick_tier and not recommendation.get("formal_recommendation"):
         return {**base, "status": "NOT_READY", "reason": "SELECTED_CANDIDATE_MISSING"}
     constraint, blocker = _canonical_constraint(
@@ -287,10 +287,9 @@ def _direction_top3_scorelines(
 ) -> list[dict[str, Any]]:
     if not isinstance(recommendation, dict):
         return []
-    if recommendation.get("tier") not in {
+    if recommendation.get("decision_tier") not in {
         "ANALYSIS_PICK",
         "RECOMMEND",
-        "FORMAL",
     } and not recommendation.get("formal_recommendation"):
         return []
     market = str(recommendation.get("market") or "")

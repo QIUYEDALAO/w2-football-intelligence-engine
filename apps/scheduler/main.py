@@ -21,9 +21,8 @@ logger = logging.getLogger("w2.scheduler")
 DEFAULT_REFRESH_INTERVAL_SECONDS = 900
 DEFAULT_CHECKPOINT_POLL_SECONDS = 60
 DEFAULT_XG_BACKFILL_INTERVAL_SECONDS = 6 * 60 * 60
-DEFAULT_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS = 10 * 60
 DEFAULT_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS = 10 * 60
-DEFAULT_FREE_FIXTURE_BRIDGE_INTERVAL_SECONDS = 5 * 60
+DEFAULT_FIXTURE_DISCOVERY_INTERVAL_SECONDS = 5 * 60
 
 
 @dataclass(frozen=True)
@@ -64,39 +63,31 @@ def xg_history_backfill_enabled() -> bool:
     return os.environ.get("W2_XG_BACKFILL_ENABLED", "false").lower() == "true"
 
 
-def market_timeline_refresh_enabled() -> bool:
-    if not future_fixture_refresh_enabled():
-        return False
-    return os.environ.get("W2_MARKET_TIMELINE_REFRESH_ENABLED", "false").lower() == "true"
-
-
 def forward_outcome_ledger_enabled() -> bool:
     return os.environ.get("W2_FORWARD_OUTCOME_LEDGER_ENABLED", "false").lower() == "true"
 
 
-def free_fixture_bridge_enabled() -> bool:
-    from w2.ingestion.free_fixture_runtime import free_fixture_bridge_enabled as enabled
-
-    return enabled()
+def fixture_discovery_enabled() -> bool:
+    return os.environ.get("W2_FIXTURE_DISCOVERY_ENABLED", "false").lower() == "true"
 
 
-def free_fixture_bridge_interval_seconds() -> int:
+def fixture_discovery_interval_seconds() -> int:
     try:
         return max(
             int(
                 os.environ.get(
-                    "W2_FREE_BRIDGE_INTERVAL_SECONDS",
-                    str(DEFAULT_FREE_FIXTURE_BRIDGE_INTERVAL_SECONDS),
+                    "W2_FIXTURE_DISCOVERY_INTERVAL_SECONDS",
+                    str(DEFAULT_FIXTURE_DISCOVERY_INTERVAL_SECONDS),
                 )
             ),
             60,
         )
     except ValueError:
-        return DEFAULT_FREE_FIXTURE_BRIDGE_INTERVAL_SECONDS
+        return DEFAULT_FIXTURE_DISCOVERY_INTERVAL_SECONDS
 
 
-def free_fixture_bridge_tick() -> dict[str, object]:
-    if not free_fixture_bridge_enabled():
+def fixture_discovery_tick() -> dict[str, object]:
+    if not fixture_discovery_enabled():
         return {
             "status": "DISABLED",
             "provider_calls": 0,
@@ -114,10 +105,22 @@ def free_fixture_bridge_tick() -> dict[str, object]:
     from apps.worker.celery_app import celery_app
 
     now = datetime.now(UTC)
-    interval = free_fixture_bridge_interval_seconds()
-    bucket = int(now.timestamp()) // interval
-    task_key = f"free-fixture-bridge:{bucket}"
-    gate = provider_task_key_gate(task_key=task_key, ttl_seconds=interval)
+    interval = fixture_discovery_interval_seconds()
+    from w2.matchday.timezone import BeijingOperationalDayPolicy
+
+    operational_date = BeijingOperationalDayPolicy().current_window(now_utc=now).local_date
+    offset = (int(now.timestamp()) // interval) % 8
+    discovery_date = (operational_date + timedelta(days=offset)).isoformat()
+    task_key = f"fixture-discovery:{operational_date.isoformat()}:{discovery_date}"
+    competition_ids = matchday_checkpoint_competition_ids()
+    if len(competition_ids) != 13:
+        return {
+            "status": "FIXTURE_DISCOVERY_SCOPE_INVALID",
+            "provider_calls": 0,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+    gate = provider_task_key_gate(task_key=task_key, ttl_seconds=24 * 60 * 60)
     if not gate.allowed:
         return {
             "status": gate.status,
@@ -129,8 +132,13 @@ def free_fixture_bridge_tick() -> dict[str, object]:
         }
     task_id = f"{task_key}:{uuid4()}"
     celery_app.send_task(
-        "w2.free_fixture_bridge",
-        kwargs={"queued_at_utc": now.isoformat().replace("+00:00", "Z")},
+        "w2.future_fixture_refresh",
+        kwargs={
+            "competition_id": competition_ids[0],
+            "task_key": task_key,
+            "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+            "discovery_date": discovery_date,
+        },
         task_id=task_id,
     )
     return {
@@ -138,6 +146,7 @@ def free_fixture_bridge_tick() -> dict[str, object]:
         "task_id": task_id,
         "task_key": task_key,
         "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+        "discovery_date": discovery_date,
         "provider_calls": 0,
         "candidate": False,
         "formal_recommendation": False,
@@ -626,45 +635,6 @@ def xg_history_backfill_tick() -> dict[str, object]:
     }
 
 
-def market_timeline_refresh_tick() -> dict[str, object]:
-    if not market_timeline_refresh_enabled():
-        return {
-            "status": "DISABLED",
-            "candidate": False,
-            "formal_recommendation": False,
-            "beats_market": False,
-        }
-    from apps.worker.celery_app import celery_app
-
-    now = datetime.now(UTC)
-    max_fixtures = int(os.environ.get("W2_MARKET_TIMELINE_MAX_FIXTURES", "10"))
-    capture_forward_ledger = (
-        os.environ.get("W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE", "false").lower() == "true"
-    )
-    task_id = f"market-timeline-refresh:{now.strftime('%Y%m%dT%H%M%S')}:{uuid4()}"
-    celery_app.send_task(
-        "w2.market_timeline_refresh",
-        kwargs={
-            "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
-            "window": os.environ.get("W2_MARKET_TIMELINE_WINDOW", "next36"),
-            "checkpoint": "auto",
-            "max_fixtures": max_fixtures,
-            "capture_forward_ledger": capture_forward_ledger,
-        },
-        task_id=task_id,
-    )
-    return {
-        "status": "QUEUED",
-        "task_id": task_id,
-        "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
-        "max_fixtures": max_fixtures,
-        "capture_forward_ledger": capture_forward_ledger,
-        "candidate": False,
-        "formal_recommendation": False,
-        "beats_market": False,
-    }
-
-
 def forward_outcome_ledger_tick() -> dict[str, object]:
     if not forward_outcome_ledger_enabled():
         return {
@@ -705,19 +675,18 @@ def run_forever() -> None:
     interval_seconds = int(os.environ.get("W2_SCHEDULER_HEARTBEAT_INTERVAL_SECONDS", "30"))
     next_refresh_at = datetime.now(UTC)
     next_xg_backfill_at = datetime.now(UTC)
-    next_market_timeline_refresh_at = datetime.now(UTC)
     next_forward_outcome_ledger_at = datetime.now(UTC)
-    next_free_fixture_bridge_at = datetime.now(UTC)
+    next_fixture_discovery_at = datetime.now(UTC)
     while True:
         heartbeat()
-        if free_fixture_bridge_enabled() and datetime.now(UTC) >= next_free_fixture_bridge_at:
+        if fixture_discovery_enabled() and datetime.now(UTC) >= next_fixture_discovery_at:
             try:
-                result = free_fixture_bridge_tick()
-                logger.info("w2 free fixture bridge %s", result)
+                result = fixture_discovery_tick()
+                logger.info("w2 fixture discovery %s", result)
             except Exception:
-                logger.exception("w2 free fixture bridge failed")
-            next_free_fixture_bridge_at = datetime.fromtimestamp(
-                datetime.now(UTC).timestamp() + free_fixture_bridge_interval_seconds(),
+                logger.exception("w2 fixture discovery failed")
+            next_fixture_discovery_at = datetime.fromtimestamp(
+                datetime.now(UTC).timestamp() + fixture_discovery_interval_seconds(),
                 tz=UTC,
             )
         if future_fixture_refresh_enabled() and datetime.now(UTC) >= next_refresh_at:
@@ -754,32 +723,6 @@ def run_forever() -> None:
             next_xg_backfill_at = datetime.now(UTC).replace(tzinfo=UTC)
             next_xg_backfill_at = next_xg_backfill_at.fromtimestamp(
                 next_xg_backfill_at.timestamp() + xg_interval_seconds,
-                tz=UTC,
-            )
-        if (
-            market_timeline_refresh_enabled()
-            and datetime.now(UTC) >= next_market_timeline_refresh_at
-        ):
-            try:
-                result = market_timeline_refresh_tick()
-                logger.info("w2 market timeline refresh %s", result)
-                market_timeline_interval_seconds = int(
-                    os.environ.get(
-                        "W2_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS",
-                        str(DEFAULT_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS),
-                    )
-                )
-            except Exception:
-                logger.exception("w2 market timeline refresh failed")
-                market_timeline_interval_seconds = int(
-                    os.environ.get(
-                        "W2_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS",
-                        str(DEFAULT_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS),
-                    )
-                )
-            next_market_timeline_refresh_at = datetime.now(UTC).replace(tzinfo=UTC)
-            next_market_timeline_refresh_at = next_market_timeline_refresh_at.fromtimestamp(
-                next_market_timeline_refresh_at.timestamp() + market_timeline_interval_seconds,
                 tz=UTC,
             )
         if forward_outcome_ledger_enabled() and datetime.now(UTC) >= next_forward_outcome_ledger_at:

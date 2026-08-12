@@ -35,10 +35,7 @@ from w2.dashboard.date_window import (
     football_day_window,
 )
 from w2.dashboard.performance import dashboard_performance
-from w2.dashboard.readiness import (
-    build_analysis_readiness,
-    build_watch_recommendation,
-)
+from w2.dashboard.readiness import build_analysis_readiness
 from w2.dashboard.recommendations import build_recommendation
 from w2.dashboard.results import (
     normalize_match_status,
@@ -61,7 +58,6 @@ from w2.domain.decision_adapter import build_decision_contract_fields
 from w2.domain.decision_card import compute_card_hash
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.domain.recommendation_decision_v3 import (
-    project_decision_v3,
     validate_decision_v3_card_parity,
     validate_decision_v3_identity,
 )
@@ -493,8 +489,8 @@ def _float_or_none(value: Any) -> float | None:
 
 def _valid_formal_recommendation_payload(value: Any) -> bool:
     recommendation = value if isinstance(value, dict) else {}
-    tier = str(recommendation.get("tier") or "").upper()
-    if tier != "FORMAL" and recommendation.get("formal_recommendation") is not True:
+    tier = str(recommendation.get("decision_tier") or "").upper()
+    if tier != "RECOMMEND" and recommendation.get("formal_recommendation") is not True:
         return False
     if str(recommendation.get("market") or "").upper() != "ASIAN_HANDICAP":
         return False
@@ -696,7 +692,6 @@ def _recommendation_from_v4(
     if decision.outcome is not RecommendationOutcomeV4.ANALYSIS_PICK:
         return None
     return {
-        "tier": "ANALYSIS_PICK",
         "decision_tier": "ANALYSIS_PICK",
         "market": selected.get("market"),
         "selection": selected.get("selection"),
@@ -1623,8 +1618,8 @@ class ReadModelService:
             card
             for card in response_cards
             if isinstance(card.get("recommendation"), dict)
-            and str(cast(dict[str, Any], card["recommendation"]).get("tier"))
-            in {"FORMAL", "CANDIDATE", "ANALYSIS_PICK"}
+            and str(cast(dict[str, Any], card["recommendation"]).get("decision_tier"))
+            in {"RECOMMEND", "ANALYSIS_PICK"}
         ]
         upcoming = [
             card for card in response_cards if str(card.get("status", "")).upper() != "FINISHED"
@@ -1836,7 +1831,7 @@ class ReadModelService:
                 )
                 or cast(dict[str, Any], recommendation).get("id"),
                 "id": cast(dict[str, Any], recommendation).get("id"),
-                "tier": cast(dict[str, Any], recommendation).get("tier"),
+                "decision_tier": cast(dict[str, Any], recommendation).get("decision_tier"),
                 "market": cast(dict[str, Any], recommendation).get("market"),
                 "selection": cast(dict[str, Any], recommendation).get("selection"),
                 "line": cast(dict[str, Any], recommendation).get("line"),
@@ -1890,9 +1885,6 @@ class ReadModelService:
                 "operational_date_beijing": card.get("operational_date_beijing"),
                 "competition_id": card.get("competition_id"),
                 "competition_name": card.get("competition_name"),
-                "raw_status": card.get("raw_status"),
-                "formal_suppressed": card.get("formal_suppressed"),
-                "formal_suppressed_reason": card.get("formal_suppressed_reason"),
             }
         )
         provenance = card.get("frozen_artifact_provenance")
@@ -1927,7 +1919,7 @@ class ReadModelService:
                 )
                 or cast(dict[str, Any], recommendation).get("id"),
                 "id": cast(dict[str, Any], recommendation).get("id"),
-                "tier": cast(dict[str, Any], recommendation).get("tier"),
+                "decision_tier": cast(dict[str, Any], recommendation).get("decision_tier"),
                 "market": cast(dict[str, Any], recommendation).get("market"),
                 "selection": cast(dict[str, Any], recommendation).get("selection"),
                 "line": cast(dict[str, Any], recommendation).get("line"),
@@ -2473,7 +2465,7 @@ class ReadModelService:
                 "blockers": [effective_blocker],
             },
         }
-        self._attach_fail_closed_public_v3(
+        self._attach_fail_closed_public_decision(
             card,
             blocker=effective_blocker,
         )
@@ -2617,12 +2609,14 @@ class ReadModelService:
             "candidate": False,
             "formal_recommendation": False,
         }
-        self._attach_fail_closed_public_v3(projected, blocker=blocker)
+        self._attach_fail_closed_public_decision(projected, blocker=blocker)
         self._clear_public_market_picks(projected, watch=False)
         self._enforce_non_pick_scoreline_invariant(projected)
         return projected
 
-    def _attach_fail_closed_public_v3(self, card: dict[str, Any], *, blocker: str) -> None:
+    def _attach_fail_closed_public_decision(
+        self, card: dict[str, Any], *, blocker: str
+    ) -> None:
         contract = self._fail_closed_decision_contract(card, blocker=blocker)
         card["card_hash"] = contract["card_hash"]
         card["decision_contract"] = contract
@@ -2632,17 +2626,8 @@ class ReadModelService:
             candidate=None,
             formal_recommendation=None,
         ).as_dict()
+        card.pop("recommendation_decision_v3", None)
         card["recommendation_decision_v3_role"] = "HISTORY_ONLY"
-        try:
-            decision = project_decision_v3(
-                contract,
-                manifest=load_recommendation_capability_manifest(),
-            ).as_dict()
-        except (KeyError, TypeError, ValueError):
-            card.pop("recommendation_decision_v3", None)
-        else:
-            decision["authority_role"] = "HISTORY_ONLY"
-            card["recommendation_decision_v3"] = decision
         for key in (
             "lineup_requirement",
             "risk_reason_codes",
@@ -2813,7 +2798,7 @@ class ReadModelService:
         blocked["decision_tier"] = "NOT_READY"
         blocked["data_status"] = "BLOCKED"
         blocked["reason_code"] = blocker
-        self._attach_fail_closed_public_v3(blocked, blocker=blocker)
+        self._attach_fail_closed_public_decision(blocked, blocker=blocker)
         return blocked
 
     def _analysis_card_from_cached_fixture_payload(self, fixture_id: str) -> dict[str, Any] | None:
@@ -3868,20 +3853,6 @@ class ReadModelService:
                 )
             )
         return rows
-
-    def _poisson_score_matrix(self, home_mu: float, away_mu: float) -> dict[tuple[int, int], float]:
-        matrix: dict[tuple[int, int], float] = {}
-        for home_goals in range(5):
-            for away_goals in range(5):
-                matrix[(home_goals, away_goals)] = (
-                    math.exp(-home_mu)
-                    * home_mu**home_goals
-                    / math.factorial(home_goals)
-                    * math.exp(-away_mu)
-                    * away_mu**away_goals
-                    / math.factorial(away_goals)
-                )
-        return matrix
 
     def _scoreline_readiness(
         self,
@@ -6693,11 +6664,6 @@ class ReadModelService:
             decision_v4,
             formal_recommendation=formal_recommendation,
         )
-        if recommendation is None:
-            recommendation = build_watch_recommendation(
-                readiness=analysis_readiness,
-                fixture_status=normalize_match_status(row.get("status")),
-            )
         validation = validate_recommendation(
             fixture_id=fixture_id,
             recommendation=recommendation,
@@ -6766,25 +6732,15 @@ class ReadModelService:
         scoreline_decision = (
             {
                 **cast(dict[str, Any], decision_pick),
-                "tier": decision_contract.get("decision_tier"),
+                "decision_tier": decision_contract.get("decision_tier"),
             }
             if isinstance(decision_pick, dict)
             and decision_contract.get("decision_tier") in {"ANALYSIS_PICK", "RECOMMEND"}
             else None
         )
-        try:
-            decision_v3 = (
-                project_decision_v3(
-                    decision_contract,
-                    manifest=load_recommendation_capability_manifest(),
-                ).as_dict()
-                if decision_contract
-                else None
-            )
-        except (KeyError, TypeError, ValueError):
+        decision_v3 = card.get("recommendation_decision_v3")
+        if not isinstance(decision_v3, dict):
             decision_v3 = None
-        if isinstance(decision_v3, dict):
-            decision_v3["authority_role"] = "HISTORY_ONLY"
         scoreline_reference = (
             scoreline_reference_from_card(
                 card,

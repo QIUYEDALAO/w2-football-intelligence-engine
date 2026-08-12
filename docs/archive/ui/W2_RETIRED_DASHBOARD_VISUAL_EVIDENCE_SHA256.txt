@@ -1,0 +1,8 @@
+Retired Boss L1/L2 and Dashboard V2 visual evidence retained before runtime deletion.
+Current public authority: apps/web/src/components/DashboardPage.tsx and IntelligenceConsole.tsx.
+
+020bf585aa7e9b5af439a32c654008742cefb260ebc2b6a0737d8b15b7cd2dd9  docs/ui/boss-console/BOSS_CONSOLE_VISUAL_AUTHORITY_V2.json
+a62d132ff11261bcbfebf8dabf1cbb976f1fcd56608e3d2a751b3ee5125a6421  docs/ui/boss-console/w2_boss_decision_console_prototype.html
+f3f9614285ed13f64a445bd7c7faca7c44c4f6449788ba25946697ef4e74b2eb  docs/ui/dashboard-v2/golden/dashboard-v2-desktop-1440.png
+b44b7c6b154b58b881b47f4a7e64f0e4d0cec3b6561124f05415a0ca858ee87d  docs/ui/dashboard-v2/golden/dashboard-v2-mobile-390.png
+7e37015aeee80bafd39e51959fbb1f6061b09217ab901cd05d0068ea3fb5752f  docs/ui/dashboard-v2/golden/dashboard-v2-wide-2048.png

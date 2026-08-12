@@ -7,11 +7,7 @@ from typing import Any, cast
 import pytest
 
 from w2.competitions.seed import set_competition_enabled
-from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
-from w2.domain.recommendation_decision_v3 import (
-    build_recommendation_decision_v3,
-    validate_decision_v3_identity,
-)
+from w2.domain.recommendation_decision_v4 import validate_decision_v4_identity
 from w2.infrastructure.database import create_engine
 from w2.ingestion.checkpoint_refresh import checkpoint_plan_for_fixture
 from w2.matchday.intake_v2 import (
@@ -361,7 +357,7 @@ def test_selected_ah_independent_of_stale_ou_and_freshness_from_captured_at_only
     assert stale["freshness_status"] == "STALE"
 
 
-def test_manifest_deterministic_v3_outcomes_and_public_read_no_write() -> None:
+def test_manifest_deterministic_v4_outcome_and_public_read_no_write() -> None:
     policy = _policy()
     fixture = _fixture_identity(team_ready=True)
     rows, _rejected = normalize_matchday_odds_payload(
@@ -409,14 +405,14 @@ def test_manifest_deterministic_v3_outcomes_and_public_read_no_write() -> None:
     assert first["manifest_hash"] == second["manifest_hash"]
     assert first["audit"]["manifest_hash"] == first["manifest_hash"]
     assert validate_manifest_identity(first) == first["manifest_hash"]
-    assert first["decision"]["outcome"] == "ANALYSIS_PICK"
-    assert first["decision"]["formal_readiness"] is False
+    assert first["decision"]["schema_version"] == "w2.recommendation_decision.v4"
+    assert validate_decision_v4_identity(first["decision"]) == first["decision"]["decision_hash"]
     assert first["recommendation_lock"] is False
     assert public["provider_calls"] == 0
     assert public["db_writes"] == 0
 
 
-def test_v3_not_ready_no_edge_and_system_degraded() -> None:
+def test_manifest_v4_fails_closed_when_required_identity_or_model_inputs_are_missing() -> None:
     policy = _policy()
     fixture = _fixture_identity(team_ready=True)
     rows, _rejected = normalize_matchday_odds_payload(
@@ -454,59 +450,11 @@ def test_v3_not_ready_no_edge_and_system_degraded() -> None:
         model_evidence=_analysis_model(edge=True),
     )
 
-    assert not_ready["decision"]["outcome"] == "NOT_READY"
-    assert no_edge["decision"]["outcome"] == "NO_EDGE"
-    assert degraded["decision"]["outcome"] == "SYSTEM_DEGRADED"
-
-
-def test_v3_builder_rejects_model_quote_mismatch_and_hash_mutation() -> None:
-    quote = {
-        "fixture_id": "api_football:100",
-        "market": "ASIAN_HANDICAP",
-        "selection": "HOME",
-        "line": "-0.25",
-        "provider": "api_football",
-        "bookmaker_id": "8",
-        "capture_id": "capture-a",
-        "quote_observation_ids": ["left", "right"],
-        "captured_at": NOW.isoformat(),
-    }
-    model = {
-        "status": "COMPLETE",
-        "market": "ASIAN_HANDICAP",
-        "selection": "HOME",
-        "line": "-0.25",
-        "model_probability": {"status": "READY", "value": 0.57},
-        "market_probability": {"value": 0.52},
-        "probability_delta": 0.05,
-        "expected_value": 0.04,
-        "uncertainty": 0.1,
-        "model_version": "unit-model",
-        "calibration_version": "unit-calibration",
-        "decision_score": 0.72,
-        "comparison": {"analysis_direction_allowed": True},
-        "exact_quote_identity": {**quote, "capture_id": "capture-b"},
-    }
-
-    decision = build_recommendation_decision_v3(
-        fixture_identity=_fixture_identity(team_ready=True),
-        exact_quote_candidate=quote,
-        model_evidence=model,
-        data_readiness={
-            "status": "READY",
-            "quote_status": "VALID",
-            "quote_freshness_status": "COMPLETE",
-        },
-        integrity={"status": "PASS"},
-        capability_manifest=load_recommendation_capability_manifest(),
-        as_of=NOW,
-    ).as_dict()
-    broken = {**decision, "outcome": "ANALYSIS_PICK"}
-
-    assert decision["outcome"] == "NOT_READY"
-    assert decision["reason"]["code"] == "MODEL_QUOTE_IDENTITY_MISMATCH"
-    with pytest.raises(ValueError, match="DECISION_V3_IDENTITY_CONFLICT"):
-        validate_decision_v3_identity(broken)
+    for manifest in (not_ready, no_edge, degraded):
+        assert manifest["decision"]["schema_version"] == "w2.recommendation_decision.v4"
+        assert manifest["decision"]["outcome"] == "NOT_READY"
+        assert manifest["decision"]["selected_candidate"] is None
+        assert validate_decision_v4_identity(manifest["decision"])
 
 
 def test_safety_authority_files_unchanged_and_no_web_diff() -> None:

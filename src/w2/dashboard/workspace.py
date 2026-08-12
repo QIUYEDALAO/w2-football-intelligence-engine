@@ -662,7 +662,7 @@ def _scoreline(card: Mapping[str, Any], public_model_status: str) -> dict[str, A
         "label": "MODEL_SCORELINE_REFERENCE",
         "proof_status": "NOT_PROVEN",
         "status": "READY" if ready else "UNAVAILABLE",
-        "simulations_completed": simulations_completed,
+        "simulations_completed": simulations_completed if ready else None,
         "top3": top3 if ready else [],
     }
 

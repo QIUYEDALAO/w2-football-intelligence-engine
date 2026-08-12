@@ -13,7 +13,10 @@ from w2.domain.recommendation_decision_v4 import (
     RecommendationOutcomeV4,
     validate_decision_v4_identity,
 )
-from w2.tracking.outcome_ledger_repository import OutcomeLedgerRepository
+from w2.tracking.outcome_ledger_repository import (
+    CURRENT_FORWARD_RECORD_TYPES,
+    OutcomeLedgerRepository,
+)
 
 SCHEMA_VERSION = "w2.forward_outcome_ledger.v3"
 VOID_STATUSES = {"CANC", "ABD", "AWD", "WO"}
@@ -223,8 +226,10 @@ def backfill_outcomes(
 ) -> dict[str, Any]:
     repo = repository or OutcomeLedgerRepository()
     resolved_settled_at = (settled_at or datetime.now(UTC)).astimezone(UTC)
-    results = repo.result_payloads()
-    pending_before = _pending_entries(repo.records())
+    pending_before = _pending_entries(repo.records(CURRENT_FORWARD_RECORD_TYPES))
+    results = repo.result_payloads_for_fixtures(
+        _text(entry.get("fixture_id")) for entry, _, _ in pending_before.values()
+    )
     outcome_records: list[dict[str, Any]] = []
     for entry, side, item in pending_before.values():
         result = results.get(_text(entry.get("fixture_id")))
@@ -536,7 +541,9 @@ def pending_outcome_entries(
     now: datetime | None = None,
 ) -> list[dict[str, Any]]:
     """Return canonical fixture-market captures that still need an outcome."""
-    pending = _pending_entries((repository or OutcomeLedgerRepository()).records())
+    pending = _pending_entries(
+        (repository or OutcomeLedgerRepository()).records(CURRENT_FORWARD_RECORD_TYPES)
+    )
     resolved_now = (now or datetime.now(UTC)).astimezone(UTC)
     output: list[dict[str, Any]] = []
     for identity, (entry, side, item) in pending.items():

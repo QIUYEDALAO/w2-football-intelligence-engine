@@ -103,39 +103,6 @@ def build_analysis_readiness(
     }
 
 
-def build_watch_recommendation(
-    *,
-    readiness: dict[str, Any],
-    fixture_status: str | None,
-) -> dict[str, Any] | None:
-    if readiness.get("status") != AnalysisReadinessStatus.PARTIAL.value:
-        return None
-    if str(fixture_status or "").upper() == "FINISHED":
-        return None
-    blockers = [str(item) for item in readiness.get("blockers", [])]
-    return {
-        "tier": "WATCH",
-        "market": "ANALYSIS_READINESS",
-        "market_label_cn": "观察",
-        "selection": None,
-        "selection_label_cn": "等待信号收敛",
-        "line": None,
-        "odds": None,
-        "hong_kong_odds": None,
-        "model_probability": None,
-        "fair_odds": None,
-        "risk_adjusted_ev": None,
-        "confidence": 0.0,
-        "reasons": _watch_reasons(blockers),
-        "risks": ["数据部分就绪但未形成分析倾向。"],
-        "generated_at": None,
-        "locked_before_kickoff": None,
-        "is_live_line": None,
-        "candidate": False,
-        "formal_recommendation": False,
-    }
-
-
 def readiness_summary(cards: list[dict[str, Any]]) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     for card in cards:
@@ -301,12 +268,6 @@ def _next_action(
         if blocker in blocker_set:
             return action
     return AnalysisNextAction.INVESTIGATE_DATA_PIPELINE
-
-
-def _watch_reasons(blockers: list[str]) -> list[str]:
-    if not blockers:
-        return ["输入部分就绪，等待信号强度达到 ANALYSIS_PICK。"]
-    return [f"仍有阻塞: {item}" for item in blockers[:3]]
 
 
 def _truthy(value: Any) -> bool:

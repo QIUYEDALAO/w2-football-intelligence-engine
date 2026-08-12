@@ -327,7 +327,6 @@ jobs:
       - run: npm --prefix apps/web ci
       - working-directory: apps/web
         run: npx playwright install --with-deps chromium
-      - run: python3 scripts/check_boss_console_baseline.py
       - run: npm --prefix apps/web run typecheck
       - run: npm --prefix apps/web run build
       - run: npm --prefix apps/web run test:e2e

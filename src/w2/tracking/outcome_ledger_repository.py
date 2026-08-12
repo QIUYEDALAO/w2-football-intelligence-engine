@@ -28,6 +28,7 @@ from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerMod
 IMPORT_CONFIRMATION_PHRASE = "EVAL_01A_IMPORT_RUNTIME_LEDGER"  # noqa: S105
 TERMINAL_STATUSES = {"FT", "AET", "PEN"}
 RUNTIME_LEDGER_SOURCE = "db:forward_outcome_ledger"
+CURRENT_FORWARD_RECORD_TYPES = frozenset({"capture", "outcome", "supersession"})
 
 
 class OutcomeLedgerError(ValueError):
@@ -320,8 +321,13 @@ class OutcomeLedgerRepository:
         with Session(self.engine) as session:
             statement = select(OutcomeLedgerModel)
             if record_types is not None:
+                selected_types = tuple(
+                    sorted({str(item) for item in record_types if str(item)})
+                )
+                if not selected_types:
+                    return []
                 statement = statement.where(
-                    OutcomeLedgerModel.record_type.in_(tuple(record_types))
+                    OutcomeLedgerModel.record_type.in_(selected_types)
                 )
             rows = list(
                 session.scalars(
@@ -343,8 +349,20 @@ class OutcomeLedgerRepository:
         return recoveries
 
     def result_payloads(self) -> dict[str, dict[str, Any]]:
+        return self.result_payloads_for_fixtures()
+
+    def result_payloads_for_fixtures(
+        self,
+        fixture_ids: Iterable[str] | None = None,
+    ) -> dict[str, dict[str, Any]]:
         with Session(self.engine) as session:
-            rows = list(session.scalars(select(ResultModel).order_by(ResultModel.fixture_id)))
+            statement = select(ResultModel)
+            if fixture_ids is not None:
+                selected = tuple(sorted({str(item) for item in fixture_ids if str(item)}))
+                if not selected:
+                    return {}
+                statement = statement.where(ResultModel.fixture_id.in_(selected))
+            rows = list(session.scalars(statement.order_by(ResultModel.fixture_id)))
         return {
             row.fixture_id: {
                 "fixture_id": row.fixture_id,

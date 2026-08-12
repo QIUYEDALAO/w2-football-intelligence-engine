@@ -87,7 +87,7 @@ def build_recommendation_lock_snapshot(
         },
         "competition": card.get("competition") or card.get("competition_name"),
         "recommendation": {
-            "tier": recommendation.get("tier"),
+            "decision_tier": recommendation.get("decision_tier"),
             "market": recommendation.get("market"),
             "selection": recommendation.get("selection"),
             "selection_label_cn": recommendation.get("selection_label_cn"),
@@ -137,7 +137,7 @@ def build_recommendation_lock_snapshot(
         as_of=as_of,
         kickoff_utc=kickoff_utc,
         reason=reason,
-        tier="FORMAL",
+        tier="RECOMMEND",
         pick_side=str(recommendation.get("selection")),
         pick_line=pick_line,
         our_fair_ah=_decimal(pricing.get("fair_ah")),
@@ -211,8 +211,8 @@ def _require_formal_ah_recommendation(
         raise ValueError("LOCK_SNAPSHOT_V4_FIXTURE_CONFLICT")
     if card.get("formal_recommendation") is not True:
         raise ValueError("LOCK_SNAPSHOT_REQUIRES_FORMAL")
-    if str(recommendation.get("tier") or "").upper() != "FORMAL":
-        raise ValueError("LOCK_SNAPSHOT_REQUIRES_FORMAL_TIER")
+    if str(recommendation.get("decision_tier") or "").upper() != "RECOMMEND":
+        raise ValueError("LOCK_SNAPSHOT_REQUIRES_RECOMMEND_DECISION_TIER")
     if str(recommendation.get("market") or "").upper() != "ASIAN_HANDICAP":
         raise ValueError("LOCK_SNAPSHOT_REQUIRES_AH_MARKET")
     if recommendation.get("selection") not in {"HOME_AH", "AWAY_AH"}:

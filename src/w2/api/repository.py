@@ -1848,7 +1848,7 @@ class ReadModelService:
         merged["recommendation"] = (
             {
                 **cast(dict[str, Any], selected),
-                "tier": merged.get("decision_tier"),
+                "decision_tier": merged.get("decision_tier"),
                 "formal_recommendation": merged.get("decision_tier") == "RECOMMEND",
             }
             if isinstance(selected, dict)

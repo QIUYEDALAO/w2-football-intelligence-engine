@@ -107,7 +107,7 @@ def _lock_row(
     return {
         "lock_id": lock_id,
         "release_sha": "release-sha",
-        "tier": "FORMAL",
+        "decision_tier": "RECOMMEND",
         "pick_line": "-0.5",
         "reproducible": reproducible,
         "legacy_marker_only": legacy_marker_only,

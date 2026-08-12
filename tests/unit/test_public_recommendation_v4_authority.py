@@ -210,7 +210,7 @@ def _formal_payload(authoritative: dict[str, object]) -> dict[str, object]:
     mainline = authoritative["canonical_mainline_identity"]
     assert isinstance(mainline, dict)
     return {
-        "tier": "FORMAL",
+        "decision_tier": "RECOMMEND",
         "market": "ASIAN_HANDICAP",
         "selection": "AWAY_AH",
         "line": authoritative["exact_line"],

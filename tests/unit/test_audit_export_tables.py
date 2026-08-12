@@ -76,7 +76,7 @@ def test_audit_export_leaves_recommendation_fields_empty_for_non_formal() -> Non
     assert isinstance(match, dict)
     match.pop("locked_pre_match_recommendation")
     match["formal_recommendation"] = False
-    match["recommendation"] = {"tier": "WATCH", "market": "ASIAN_HANDICAP"}
+    match["recommendation"] = {"decision_tier": "WATCH", "market": "ASIAN_HANDICAP"}
     match["pricing_shadow"] = {
         "market_ah": "-0.5",
         "fair_ah": "-0.6",
@@ -178,7 +178,7 @@ def test_audit_export_appends_existing_model_rows_read_only() -> None:
                 reason="test",
                 fixture_id="fixture-db",
                 as_of=datetime(2026, 7, 1, 1, 0, tzinfo=UTC),
-                tier="FORMAL",
+                tier="RECOMMEND",
                 pick_side="HOME_AH",
                 pick_line=Decimal("-0.5"),
                 snapshot_payload_hash="h" * 64,
@@ -284,7 +284,7 @@ def _dashboard_payload() -> dict[str, object]:
                 "next_eval_at": "2026-07-01T03:30:00Z",
                 "provider_budget_status": "AVAILABLE",
                 "recommendation": {
-                    "tier": "FORMAL",
+                    "decision_tier": "RECOMMEND",
                     "market": "ASIAN_HANDICAP",
                     "selection": "HOME_AH",
                     "line": "-0.5",

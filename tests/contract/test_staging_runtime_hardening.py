@@ -175,11 +175,12 @@ def test_controlled_future_refresh_is_source_controlled_and_deployed_with_schedu
         assert environment["W2_PROVIDER_REQUEST_LEDGER_ENABLED"] == "true"
         assert environment["W2_PROVIDER_REFRESH_TICK_HARD_CAP"] == "30"
         assert environment["W2_PROVIDER_DAILY_HARD_CAP"] == "80"
-        assert environment["W2_FREE_BRIDGE_MODE"] == "${W2_FREE_BRIDGE_MODE:-OFF}"
+        assert environment["W2_PROVIDER_PREFLIGHT_MIN_REMAINING"] == "20"
         assert environment["W2_CANDIDATE_ENABLED"] == "true"
         assert environment["W2_FORMAL_RECOMMENDATION_ENABLED"] == "false"
         assert environment["W2_PRODUCTION_RELEASE"] == "false"
     assert scheduler["W2_FUTURE_FIXTURE_REFRESH_ENABLED"] == "true"
+    assert scheduler["W2_FIXTURE_DISCOVERY_ENABLED"] == "true"
     assert "W2_FUTURE_REFRESH_COMPETITION_ALLOWLIST" not in scheduler
     deploy = read(DEPLOY)
     unit = read(ROOT / "infra/systemd/w2-staging.service")

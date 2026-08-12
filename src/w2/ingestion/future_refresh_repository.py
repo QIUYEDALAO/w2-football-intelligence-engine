@@ -22,7 +22,6 @@ from w2.infrastructure.persistence.factor_model_models import (
 )
 from w2.infrastructure.persistence.future_refresh_models import (
     FutureRefreshCheckpointAuditModel,
-    FutureRefreshCheckpointPlanModel,
     FutureRefreshRunAuditModel,
     FutureRefreshTaskAuditModel,
     RawPayloadModel,
@@ -2731,37 +2730,6 @@ class FutureRefreshDbRepository:
             )
         return row is not None
 
-    def upsert_checkpoint_plans(self, plans: list[dict[str, Any]]) -> int:
-        # Compatibility API only. Runtime checkpoint authority moved to
-        # MatchdayRuntimeRepository / matchday_checkpoint_plans in 0029.
-        return 0
-
-    def due_checkpoint_plans(
-        self,
-        *,
-        now: datetime,
-        limit: int = 100,
-    ) -> list[dict[str, Any]]:
-        current = parse_db_datetime(now)
-        with Session(self.engine) as session:
-            rows = list(
-                session.scalars(
-                    select(FutureRefreshCheckpointPlanModel)
-                    .where(
-                        FutureRefreshCheckpointPlanModel.status == "PENDING",
-                        FutureRefreshCheckpointPlanModel.due_at <= current,
-                    )
-                    .order_by(
-                        FutureRefreshCheckpointPlanModel.due_at,
-                        FutureRefreshCheckpointPlanModel.kickoff_utc,
-                        FutureRefreshCheckpointPlanModel.fixture_id,
-                        FutureRefreshCheckpointPlanModel.checkpoint,
-                    )
-                    .limit(limit)
-                )
-            )
-        return [self._checkpoint_plan_dict(row) for row in rows]
-
     def market_refresh_status_for_fixtures(
         self,
         fixture_ids: list[str],
@@ -2786,7 +2754,7 @@ class FutureRefreshDbRepository:
             next_refresh_tick = session.scalar(
                 select(func.min(MatchdayCheckpointPlanModel.scheduled_at)).where(
                     MatchdayCheckpointPlanModel.fixture_id.in_(canonical_ids),
-                    MatchdayCheckpointPlanModel.status == "PLANNED",
+                    MatchdayCheckpointPlanModel.status.in_(("PLANNED", "DUE")),
                     MatchdayCheckpointPlanModel.scheduled_at >= reference,
                 )
             )
@@ -2809,20 +2777,35 @@ class FutureRefreshDbRepository:
         if not ids or len(ids) > 64:
             return {}
         reference = parse_db_datetime(now or datetime.now(UTC))
+        canonical_by_requested = {
+            fixture_id: (
+                fixture_id
+                if fixture_id.startswith("api_football:")
+                else f"api_football:{fixture_id}"
+            )
+            for fixture_id in ids
+        }
         with Session(self.engine) as session:
             rows = session.execute(
                 select(
-                    FutureRefreshCheckpointPlanModel.fixture_id,
-                    func.min(FutureRefreshCheckpointPlanModel.due_at),
+                    MatchdayCheckpointPlanModel.fixture_id,
+                    func.min(MatchdayCheckpointPlanModel.scheduled_at),
                 )
                 .where(
-                    FutureRefreshCheckpointPlanModel.fixture_id.in_(ids),
-                    FutureRefreshCheckpointPlanModel.status == "PENDING",
-                    FutureRefreshCheckpointPlanModel.due_at >= reference,
+                    MatchdayCheckpointPlanModel.fixture_id.in_(canonical_by_requested.values()),
+                    MatchdayCheckpointPlanModel.status.in_(("PLANNED", "DUE")),
+                    MatchdayCheckpointPlanModel.scheduled_at >= reference,
+                    MatchdayCheckpointPlanModel.test_only.is_(False),
+                    MatchdayCheckpointPlanModel.namespace.is_(None),
                 )
-                .group_by(FutureRefreshCheckpointPlanModel.fixture_id)
+                .group_by(MatchdayCheckpointPlanModel.fixture_id)
             ).all()
-        return {str(fixture_id): iso_z(due_at) for fixture_id, due_at in rows}
+        by_canonical = {str(fixture_id): iso_z(due_at) for fixture_id, due_at in rows}
+        return {
+            requested: by_canonical[canonical]
+            for requested, canonical in canonical_by_requested.items()
+            if canonical in by_canonical
+        }
 
     def write_checkpoint_audit(
         self,
@@ -2845,34 +2828,11 @@ class FutureRefreshDbRepository:
                     details=dict(details),
                 )
                 session.add(audit)
-                plan = session.get(
-                    FutureRefreshCheckpointPlanModel,
-                    f"{fixture_id}:{checkpoint}",
-                )
-                if plan is not None and status in {"COMPLETED", "BLOCKED", "PARTIAL_FAILED"}:
-                    plan.status = status
-                    plan.executed_at = parse_db_datetime(as_of)
-                    session.flush()
-                    plan.last_audit_id = audit.id
                 session.commit()
                 return int(audit.id)
             except Exception as exc:
                 session.rollback()
                 raise FutureRefreshPersistenceError("CHECKPOINT_AUDIT_WRITE_FAILED") from exc
-
-    def _checkpoint_plan_dict(self, row: FutureRefreshCheckpointPlanModel) -> dict[str, Any]:
-        return {
-            "id": row.id,
-            "fixture_id": row.fixture_id,
-            "checkpoint": row.checkpoint,
-            "kickoff_utc": iso_z(row.kickoff_utc),
-            "due_at": iso_z(row.due_at),
-            "endpoints": list(row.endpoints),
-            "source": row.source,
-            "status": row.status,
-            "executed_at": iso_z(row.executed_at) if row.executed_at is not None else None,
-            "last_audit_id": row.last_audit_id,
-        }
 
     def write_run_audit(self, payload: dict[str, Any]) -> None:
         with Session(self.engine) as session:

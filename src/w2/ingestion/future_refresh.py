@@ -126,7 +126,7 @@ class FutureRefreshConfig:
     daily_hard_cap: int = 7500
     daily_reserve: int = 1500
     daily_usage_scope: str = "w2_ledger"
-    checkpoint_mode: str = "matchday_intake_v2_compatibility"
+    checkpoint_mode: str = "matchday_checkpoint_plan"
     trickle_backfill_daily_budget: int = 0
     actual_provider_calls_today: int | None = None
     provider_refresh_batch_size: int = 3
@@ -134,6 +134,7 @@ class FutureRefreshConfig:
     checkpoint_fixture_ids: tuple[str, ...] = ()
     refresh_checkpoints: tuple[dict[str, Any], ...] = ()
     result_refresh_fixture_ids: tuple[str, ...] = ()
+    discovery_date: str | None = None
 
 
 @dataclass(frozen=True)
@@ -172,7 +173,11 @@ class RefreshTaskAudit:
 def refresh_progress_status(result: FutureRefreshResult) -> str:
     if result.blockers or result.status in {"BLOCKED", "PARTIAL_FAILED", "FAILED"}:
         return "FAILED"
-    if result.market_snapshot_count > 0 or result.materialized_fixture_ids:
+    if (
+        result.status == "DISCOVERY_COMPLETE"
+        or result.market_snapshot_count > 0
+        or result.materialized_fixture_ids
+    ):
         return "DATA_PROGRESS"
     return "PROVIDER_EMPTY"
 
@@ -313,7 +318,7 @@ def load_refresh_policy(
             daily_hard_cap=int(item.get("daily_hard_cap", 7500)),
             daily_reserve=int(item.get("daily_reserve", quota_reserve)),
             daily_usage_scope=str(item.get("daily_usage_scope", "provider_quota")),
-            checkpoint_mode=str(item.get("checkpoint_mode", "matchday_intake_v2_compatibility")),
+            checkpoint_mode=str(item.get("checkpoint_mode", "matchday_checkpoint_plan")),
             trickle_backfill_daily_budget=int(item.get("trickle_backfill_daily_budget", 0)),
             config_hash=entry.config_hash,
         )
@@ -871,7 +876,19 @@ class FutureFixtureRefreshService:
         try:
             checkpoint_mode = self._checkpoint_mode()
             direct_checkpoint = checkpoint_mode == "DIRECT"
-            if direct_checkpoint:
+            discovery_only = self.config.discovery_date is not None
+            if discovery_only:
+                fixtures_response = self._request(
+                    "fixtures",
+                    self._fixtures_request_params(),
+                    allow_empty_response=True,
+                )
+                future_fixtures = self._discovery_fixtures(fixtures_response.payload)
+                odds_responses: list[tuple[str, LiveApiFootballResponse]] = []
+                enrichment_responses: list[
+                    tuple[str, str, LiveApiFootballResponse]
+                ] = []
+            elif direct_checkpoint:
                 (
                     fixtures_response,
                     future_fixtures,
@@ -1504,7 +1521,11 @@ class FutureFixtureRefreshService:
                 elapsed_ms=response.elapsed_ms,
                 payload=payload,
                 fixture_id=f"api_football:{fixture_id}" if fixture_id else None,
-                competition_id=self.config.competition_id,
+                competition_id=(
+                    None
+                    if self.config.discovery_date is not None and endpoint == "fixtures"
+                    else self.config.competition_id
+                ),
                 checkpoint=",".join(checkpoint_names) or None,
                 checkpoint_plan_ids=checkpoint_plan_ids,
                 attempt=attempt,
@@ -1779,6 +1800,8 @@ class FutureFixtureRefreshService:
         }
 
     def _projected_provider_calls(self) -> int:
+        if self.config.discovery_date is not None:
+            return 1
         if self._checkpoint_mode() == "DIRECT":
             return len(
                 {
@@ -2250,6 +2273,8 @@ class FutureFixtureRefreshService:
             materialized_fixture_ids = list(result_refresh["confirmed_fixture_ids"])
             if result_refresh["status"] == "BLOCKED":
                 blockers.extend(str(item) for item in result_refresh.get("blockers", []))
+        elif self.config.discovery_date is not None:
+            materialized_fixture_ids = []
         else:
             materialized_fixture_ids = self._materialize_refreshed_public_artifacts()
         mappings = [self._mapping_from_fixture(item) for item in fixtures]
@@ -2270,6 +2295,11 @@ class FutureFixtureRefreshService:
             blockers=blockers,
             raw_payload_written_count=self._raw_payload_written_count,
             materialized_fixture_ids=materialized_fixture_ids,
+            status=(
+                "DISCOVERY_COMPLETE"
+                if self.config.discovery_date is not None
+                else "COMPLETED"
+            ),
         )
         self._write_audit(result)
         return result
@@ -2367,6 +2397,8 @@ class FutureFixtureRefreshService:
                 )
 
     def _fixtures_request_params(self) -> dict[str, str]:
+        if self.config.discovery_date is not None:
+            return {"date": self.config.discovery_date}
         if self.config.result_refresh_fixture_ids:
             kickoff_dates = [
                 parsed.date()
@@ -2409,16 +2441,24 @@ class FutureFixtureRefreshService:
                 captured_at=fixtures_response.captured_at,
             )
         )
-        team_mapping: dict[str, str] = {}
+        policy_by_league: dict[str, Any] = {}
+        team_mappings: dict[tuple[str, str], dict[str, str]] = {}
+        reader: Any = None
         if self.config.persistence == "db":
+            from w2.matchday.intake_v2 import (
+                REQUIRED_MATCHDAY_COMPETITIONS,
+                competition_policies,
+                load_matchday_policy,
+            )
+
+            policy_by_league = {
+                policy.provider_league_id: policy
+                for competition_id, policy in competition_policies(
+                    load_matchday_policy()
+                ).items()
+                if competition_id in REQUIRED_MATCHDAY_COMPETITIONS and policy.enabled
+            }
             reader = getattr(self._db_repository(), "provider_team_mapping", None)
-            if callable(reader):
-                team_mapping = reader(
-                    provider="api_football",
-                    competition_id=self.config.competition_id,
-                    season=self.config.season,
-                    as_of=fixtures_response.captured_at,
-                )
         rows: list[dict[str, Any]] = []
         for item in fixtures:
             if not isinstance(item, dict):
@@ -2439,6 +2479,23 @@ class FutureFixtureRefreshService:
             away: Mapping[str, Any] = away_value if isinstance(away_value, dict) else {}
             if not provider_fixture_id or kickoff is None:
                 continue
+            provider_league_id = str(league.get("id") or self.config.league_id)
+            policy = policy_by_league.get(provider_league_id)
+            if self.config.discovery_date is not None and policy is None:
+                continue
+            competition_id = (
+                str(policy.competition_id) if policy is not None else self.config.competition_id
+            )
+            season = str(league.get("season") or (policy.season if policy else self.config.season))
+            mapping_key = (competition_id, season)
+            if callable(reader) and mapping_key not in team_mappings:
+                team_mappings[mapping_key] = reader(
+                    provider="api_football",
+                    competition_id=competition_id,
+                    season=season,
+                    as_of=fixtures_response.captured_at,
+                )
+            team_mapping = team_mappings.get(mapping_key, {})
             fixture_id = f"api_football:{provider_fixture_id}"
             home_provider_team_id = str(home.get("id") or "")
             away_provider_team_id = str(away.get("id") or "")
@@ -2448,9 +2505,9 @@ class FutureFixtureRefreshService:
                 "fixture_id": fixture_id,
                 "provider": "api_football",
                 "provider_fixture_id": provider_fixture_id,
-                "competition_id": self.config.competition_id,
-                "provider_league_id": str(league.get("id") or self.config.league_id),
-                "season": str(league.get("season") or self.config.season),
+                "competition_id": competition_id,
+                "provider_league_id": provider_league_id,
+                "season": season,
                 "kickoff_utc": iso(kickoff),
                 "fixture_status": str(status.get("short") or ""),
                 "home_provider_team_id": home_provider_team_id,
@@ -2476,6 +2533,31 @@ class FutureFixtureRefreshService:
                     ),
                 }
             )
+        return rows
+
+    def _discovery_fixtures(self, payload: dict[str, Any]) -> list[dict[str, Any]]:
+        response = payload.get("response")
+        if not isinstance(response, list) or any(not isinstance(item, dict) for item in response):
+            raise FutureRefreshError("PROVIDER_FIXTURES_SCHEMA_DRIFT")
+        from w2.matchday.intake_v2 import (
+            REQUIRED_MATCHDAY_COMPETITIONS,
+            competition_policies,
+            load_matchday_policy,
+        )
+
+        allowed = {
+            policy.provider_league_id: policy.fixture_status_allowlist
+            for competition_id, policy in competition_policies(load_matchday_policy()).items()
+            if competition_id in REQUIRED_MATCHDAY_COMPETITIONS and policy.enabled
+        }
+        rows = [
+            item
+            for item in response
+            if str((item.get("league") or {}).get("id") or "") in allowed
+            and str(((item.get("fixture") or {}).get("status") or {}).get("short") or "")
+            in allowed[str((item.get("league") or {}).get("id") or "")]
+        ]
+        rows.sort(key=lambda item: kickoff_from_payload(item) or datetime.max.replace(tzinfo=UTC))
         return rows
 
     def _audit_for_payload(self, payload_hash: str) -> dict[str, Any] | None:
@@ -2546,7 +2628,11 @@ class FutureFixtureRefreshService:
     def _write_audit(self, result: FutureRefreshResult) -> None:
         payload = {
             "generated_at_utc": iso(result.generated_at_utc),
-            "competition_id": self.config.competition_id,
+            "competition_id": (
+                "fixture_discovery"
+                if self.config.discovery_date is not None
+                else self.config.competition_id
+            ),
             "request_count": result.request_count,
             "remaining_quota": result.remaining_quota,
             "fixture_count": result.fixture_count,
@@ -2777,6 +2863,7 @@ def run_future_fixture_refresh(
     materialize_results: ResultMaterializer | None = None,
     runtime_authorization: GateARuntimeAuthorization | None = None,
     provider_call_reservation: GateARunReservation | None = None,
+    discovery_date: str | None = None,
 ) -> FutureRefreshResult:
     config = config_from_policy(
         competition_id=competition_id,
@@ -2786,6 +2873,20 @@ def run_future_fixture_refresh(
         raise FutureRefreshError("GATE_A_POLICY_SEASON_MISMATCH")
     if persistence is not None:
         config = replace(config, persistence=persistence)
+    if discovery_date is not None:
+        try:
+            datetime.fromisoformat(discovery_date)
+        except ValueError as exc:
+            raise FutureRefreshError("FIXTURE_DISCOVERY_DATE_INVALID") from exc
+        config = replace(
+            config,
+            discovery_date=discovery_date,
+            max_fixture_candidates=500,
+            max_odds_requests=0,
+            feature_enrichment_enabled=False,
+            feature_enrichment_request_budget=0,
+            request_budget=max(config.request_budget, provider_http_max_attempts()),
+        )
     if checkpoint_fixture_ids or refresh_checkpoints:
         endpoint_sets = [set(item.get("endpoints") or []) for item in refresh_checkpoints]
         logical_calls = (
@@ -2866,6 +2967,7 @@ def run_future_refresh_task(
     materialize_results: ResultMaterializer | None = None,
     runtime_authorization: GateARuntimeAuthorization | None = None,
     provider_call_reservation: GateARunReservation | None = None,
+    discovery_date: str | None = None,
 ) -> RefreshTaskAudit:
     execution_started_at = utc_now()
     evaluation_time = now or execution_started_at
@@ -2972,6 +3074,7 @@ def run_future_refresh_task(
             materialize_results=materialize_results,
             runtime_authorization=runtime_authorization,
             provider_call_reservation=provider_call_reservation,
+            discovery_date=discovery_date,
         )
         progress_status = refresh_progress_status(result)
         status = (
@@ -2996,6 +3099,7 @@ def run_future_refresh_task(
             "refresh_checkpoints": list(refresh_checkpoints),
             "materialized_fixture_ids": result.materialized_fixture_ids,
             "progress_status": progress_status,
+            "discovery_date": discovery_date,
         }
     except Exception as exc:
         summary = {

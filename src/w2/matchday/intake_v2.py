@@ -10,10 +10,10 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
 
 from w2.competitions.registry import CompetitionRegistry
-from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
-from w2.domain.recommendation_decision_v3 import (
-    build_recommendation_decision_v3,
-    validate_decision_v3_identity,
+from w2.domain.canonical_serialization import CURRENT_SERIALIZER_VERSION
+from w2.domain.recommendation_decision_v4 import (
+    RECOMMENDATION_SCHEMA_VERSION,
+    build_recommendation_decision_v4,
 )
 from w2.strategy.market_selector import select_analysis_markets
 
@@ -34,13 +34,6 @@ CHECKPOINT_STATUSES = {
     "SKIPPED_POLICY",
     "SKIPPED_BUDGET",
     "CONFLICT",
-}
-CANONICAL_OUTCOMES = {
-    "NOT_READY",
-    "NO_EDGE",
-    "ANALYSIS_PICK",
-    "FORMAL_RECOMMEND",
-    "SYSTEM_DEGRADED",
 }
 REQUIRED_MATCHDAY_COMPETITIONS = frozenset(
     {
@@ -772,7 +765,7 @@ def materialize_evidence_manifest(
     model_evidence: Mapping[str, Any],
 ) -> dict[str, Any]:
     movement = checkpoint_coverage(checkpoint_plans)
-    decision = v3_decision_from_matchday(
+    decision = v4_decision_from_matchday(
         fixture_identity=fixture_identity,
         market_audit=market_audit,
         model_evidence=model_evidence,
@@ -833,7 +826,7 @@ def materialize_evidence_manifest(
     }
     payload["manifest_hash"] = canonical_manifest_hash(payload)
     payload["audit"]["manifest_hash"] = payload["manifest_hash"]
-    if payload["decision"]["outcome"] == "SYSTEM_DEGRADED":
+    if payload["market_evidence"].get("integrity_status") == "CONFLICT":
         payload["audit"]["manifest_integrity_status"] = "SYSTEM_DEGRADED"
     else:
         payload["audit"]["manifest_integrity_status"] = "PASS"
@@ -854,7 +847,7 @@ def validate_manifest_identity(manifest: Mapping[str, Any]) -> str:
     return expected
 
 
-def v3_decision_from_matchday(
+def v4_decision_from_matchday(
     *,
     fixture_identity: Mapping[str, Any],
     market_audit: Mapping[str, Any],
@@ -865,33 +858,63 @@ def v3_decision_from_matchday(
     selected_candidate = _selected_analysis_candidate(model_evidence)
     exact_quote = _exact_quote_candidate(market_audit, selected_candidate)
     bound_evidence = _bound_model_evidence(model_evidence, selected_candidate, exact_quote)
-    warnings = []
-    if movement.get("checkpoint_coverage") == "PARTIAL":
-        warnings.append("CHECKPOINT_HISTORY_PARTIAL")
     freshness = _mapping(exact_quote.get("freshness")) if exact_quote else {}
-    decision = build_recommendation_decision_v3(
-        fixture_identity=fixture_identity,
-        exact_quote_candidate=exact_quote,
-        model_evidence=bound_evidence,
-        data_readiness={
-            "status": "READY" if market_audit.get("independent_candidates") else "PARTIAL",
-            "quote_status": "VALID" if exact_quote else "MISSING",
-            "quote_freshness_status": str(freshness.get("freshness_status") or "COMPLETE"),
-            "warnings": warnings,
+    comparison = _mapping(bound_evidence.get("comparison"))
+    model_probability = _mapping(bound_evidence.get("model_probability"))
+    market_probability = _mapping(bound_evidence.get("market_probability"))
+    quote = exact_quote or {}
+    authoritative_input = {
+        "fixture_id": fixture_identity.get("fixture_id"),
+        "competition_id": fixture_identity.get("competition_id"),
+        "season": fixture_identity.get("season"),
+        "kickoff_utc": fixture_identity.get("kickoff_utc"),
+        "kickoff_revision_or_fixture_identity_hash": fixture_identity.get("identity_hash"),
+        "provider": quote.get("provider"),
+        "bookmaker_id": quote.get("bookmaker_id"),
+        "market": bound_evidence.get("market"),
+        "selection": bound_evidence.get("selection"),
+        "exact_line": bound_evidence.get("line"),
+        "capture_id": quote.get("capture_id"),
+        "captured_at": quote.get("captured_at"),
+        "quote_observation_ids": quote.get("quote_observation_ids"),
+        "raw_payload_sha256": quote.get("raw_payload_sha256"),
+        "source_revision": quote.get("source_revision"),
+        "model_version": bound_evidence.get("model_version"),
+        "calibration_version": bound_evidence.get("calibration_version"),
+        "serializer_version": CURRENT_SERIALIZER_VERSION.value,
+        "recommendation_schema_version": RECOMMENDATION_SCHEMA_VERSION,
+        "quote_schema_version": "MatchdayMarketObservationV2",
+        "model_input_manifest_hash": bound_evidence.get("model_input_manifest_hash"),
+        "decimal_odds": quote.get("decimal_odds"),
+        "canonical_mainline_identity": {
+            "market": bound_evidence.get("market"),
+            "line": bound_evidence.get("line"),
+            "selected_side_line": bound_evidence.get("line"),
+            "candidate_role": "MARKET_MAINLINE",
+            "quote_identity_hash": quote.get("quote_identity_hash"),
         },
-        integrity={
-            "status": "CONFLICT" if market_audit.get("integrity_status") == "CONFLICT" else "PASS"
+        "settlement_distribution": model_probability.get("settlement_distribution"),
+        "fair_odds": model_probability.get("fair_decimal_odds"),
+        "expected_value": bound_evidence.get("expected_value"),
+        "uncertainty": bound_evidence.get("uncertainty"),
+        "readiness": {
+            "status": "READY" if bound_evidence.get("status") == "COMPLETE" else "NOT_READY",
+            "quote_identity_status": "COMPLETE" if exact_quote else "MISSING",
+            "quote_freshness_status": freshness.get("freshness_status"),
+            "model_status": model_probability.get("status"),
         },
-        capability_manifest=load_recommendation_capability_manifest(),
-        as_of=as_of,
-    ).as_dict()
-    validate_decision_v3_identity(decision)
-    reason = str(_mapping(decision.get("reason")).get("code") or "")
-    decision["reason_code"] = reason
-    decision["reason"] = reason
-    decision["formal_readiness"] = False
-    decision["capability_status"] = "ANALYSIS_ONLY"
-    return decision
+        "capability_status": "ANALYSIS_ONLY",
+        "formal_admission": {
+            "status": "DISABLED",
+            "readiness_hash": None,
+            "approval_hash": None,
+            "candidate_identity_hash": None,
+        },
+        "model_probability": model_probability.get("value"),
+        "market_probability": market_probability.get("value"),
+        "probability_delta_diagnostic": comparison.get("probability_delta"),
+    }
+    return build_recommendation_decision_v4(authoritative_input).as_dict()
 
 
 def execute_matchday_intake(

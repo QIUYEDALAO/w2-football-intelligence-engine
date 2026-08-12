@@ -1325,7 +1325,7 @@ def _materializer(projected_at: datetime) -> Any:
                 "market": version.market,
                 "selection": version.selection,
                 "line": version.exact_line,
-                "tier": "ANALYSIS_PICK",
+                "decision_tier": "ANALYSIS_PICK",
                 "quote_identity": quote_identity,
             },
             decision_hash=version.identity_hash,

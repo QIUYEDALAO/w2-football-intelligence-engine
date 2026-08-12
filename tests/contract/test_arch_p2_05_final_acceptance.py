@@ -160,7 +160,7 @@ def test_deletions_keep_direct_evidence_and_known_retained_items() -> None:
         deleted.append(cells[0])
         assert cells[-1] == "D1/D2"
         assert not (ROOT / cells[0]).exists()
-    assert len(deleted) == 8
+    assert len(deleted) == 10
 
     migration = _text(ROOT / "migrations/versions/0044_drop_retired_shadow_strategy.py")
     assert migration.index("SHADOW_STRATEGY_DROP_REQUIRED_TABLES_MISSING") < migration.index(

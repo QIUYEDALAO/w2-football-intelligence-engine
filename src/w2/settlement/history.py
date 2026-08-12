@@ -32,7 +32,7 @@ class SettlementCandidate:
     outcome: str
     selection: str
     line: str
-    tier: str | None
+    decision_tier: str | None
     movement_pattern: str | None
 
     def as_result(self, *, status: str) -> dict[str, Any]:
@@ -45,7 +45,7 @@ class SettlementCandidate:
             "outcome": self.outcome,
             "selection": self.selection,
             "line": self.line,
-            "tier": self.tier,
+            "decision_tier": self.decision_tier,
             "movement_pattern": self.movement_pattern,
         }
 
@@ -95,7 +95,7 @@ def run_settlement_history(
                     outcome=candidate.outcome,
                     settled_at=settled_at,
                     matched_recommendation=True,
-                    tier=candidate.tier,
+                    tier=candidate.decision_tier,
                     movement_pattern=candidate.movement_pattern,
                 )
             )
@@ -173,7 +173,7 @@ def _candidate_from_lock(
         outcome=outcome,
         selection=selection,
         line=line,
-        tier=lock.tier,
+        decision_tier=lock.tier,
         movement_pattern=_movement_pattern(lock.market_timeline_json),
     )
 

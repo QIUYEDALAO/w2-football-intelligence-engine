@@ -250,7 +250,7 @@ def test_settlement_requires_existing_result_recommendation_and_can_bind_lock(
         as_of=NOW,
         kickoff_utc=fixture.kickoff_at,
         reason="synthetic",
-        tier="FORMAL",
+        tier="RECOMMEND",
         pick_side="HOME_AH",
         pick_line=Decimal("0.00"),
         market_ah=Decimal("0.00"),
@@ -269,7 +269,7 @@ def test_settlement_requires_existing_result_recommendation_and_can_bind_lock(
         outcome="PUSH",
         settled_at=NOW,
         matched_recommendation=True,
-        tier="FORMAL",
+        tier="RECOMMEND",
         movement_pattern="JUMP_LINE",
     )
     session.add(settlement)
@@ -278,7 +278,7 @@ def test_settlement_requires_existing_result_recommendation_and_can_bind_lock(
     assert stored.result.home_goals == 1
     assert stored.lock.id == lock.id
     assert stored.matched_recommendation is True
-    assert stored.tier == "FORMAL"
+    assert stored.tier == "RECOMMEND"
 
     settlement.outcome = "WIN"
     with pytest.raises(ValueError):
@@ -328,7 +328,7 @@ def _formal_card(fixture_id: str, kickoff_utc: datetime) -> dict[str, object]:
         "recommendation_decision_v3": {"outcome": "NOT_READY"},
         "recommendation_decision_v4": decision_v4,
         "recommendation": {
-            "tier": "FORMAL",
+            "decision_tier": "RECOMMEND",
             "market": "ASIAN_HANDICAP",
             "selection": "HOME_AH",
             "selection_label_cn": "Synthetic Home 让球",

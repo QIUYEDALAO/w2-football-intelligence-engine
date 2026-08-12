@@ -7,9 +7,7 @@ from typing import cast
 from celery import Celery
 
 from w2.config import get_settings
-from w2.ingestion.free_fixture_runtime import run_free_fixture_bridge_shadow
 from w2.ingestion.future_refresh import deterministic_task_key, run_future_refresh_task
-from w2.ingestion.market_timeline_refresh import run_market_timeline_refresh
 from w2.ingestion.xg_backfill import run_xg_history_backfill
 from w2.prematch.read_model_projection import ProjectionSourceEvent
 from w2.providers.api_football import ApiFootballClient
@@ -69,7 +67,7 @@ def _materialize_shadow_projection_events(
                 "market": version.market,
                 "selection": version.selection,
                 "line": version.exact_line,
-                "tier": "ANALYSIS_PICK",
+                "decision_tier": "ANALYSIS_PICK",
                 "quote_identity": quote_identity,
             },
             decision_hash=version.identity_hash,
@@ -88,31 +86,6 @@ def ping() -> str:
     return "pong"
 
 
-@celery_app.task(name="w2.free_fixture_bridge")
-def free_fixture_bridge(queued_at_utc: str | None = None) -> dict[str, object]:
-    if not provider_scheduler_enabled():
-        return {
-            "status": PROVIDER_SCHEDULER_DISABLED,
-            "blockers": [PROVIDER_SCHEDULER_DISABLED],
-            "provider_calls": 0,
-            "candidate": False,
-            "formal_recommendation": False,
-        }
-    now = (
-        datetime.fromisoformat(queued_at_utc.replace("Z", "+00:00")).astimezone(UTC)
-        if queued_at_utc
-        else datetime.now(UTC)
-    )
-    return run_free_fixture_bridge_shadow(
-        now=now,
-        client=ApiFootballClient(
-            allow_live=True,
-            allowed_live_endpoints=provider_endpoint_allowlist(),
-        ),
-        materialize_public_artifacts=_materialize_shadow_projection_events,
-    )
-
-
 @celery_app.task(name="w2.future_fixture_refresh", bind=True)
 def future_fixture_refresh(
     self: object,
@@ -124,6 +97,7 @@ def future_fixture_refresh(
     provider_refresh_min_interval_seconds: int | None = None,
     checkpoint_fixture_ids: list[str] | None = None,
     refresh_checkpoints: list[dict[str, object]] | None = None,
+    discovery_date: str | None = None,
 ) -> dict[str, object]:
     if not provider_scheduler_enabled():
         return {
@@ -169,6 +143,7 @@ def future_fixture_refresh(
         provider_refresh_min_interval_seconds=provider_refresh_min_interval_seconds,
         checkpoint_fixture_ids=tuple(checkpoint_fixture_ids or ()),
         refresh_checkpoints=tuple(refresh_checkpoints or ()),
+        discovery_date=discovery_date,
         materialize_public_artifacts=_materialize_shadow_projection_events,
         materialize_results=_materialize_outcome_results,
         client=ApiFootballClient(
@@ -185,6 +160,7 @@ def future_fixture_refresh(
         "provider_refresh_min_interval_seconds": provider_refresh_min_interval_seconds,
         "checkpoint_fixture_ids": checkpoint_fixture_ids or [],
         "refresh_checkpoints": refresh_checkpoints or [],
+        "discovery_date": discovery_date,
         "result": audit.result,
         "candidate": False,
         "formal_recommendation": False,
@@ -220,39 +196,6 @@ def xg_history_backfill(
         "result": result.as_dict(),
         "candidate": False,
         "formal_recommendation": False,
-    }
-
-
-@celery_app.task(name="w2.market_timeline_refresh", bind=True)
-def market_timeline_refresh(
-    self: object,
-    queued_at_utc: str | None = None,
-    window: str = "next36",
-    checkpoint: str = "auto",
-    max_fixtures: int | None = 10,
-    capture_forward_ledger: bool = False,
-) -> dict[str, object]:
-    request = getattr(self, "request", None)
-    task_id = str(getattr(request, "id", None) or "market-timeline-refresh")
-    result = run_market_timeline_refresh(
-        window=window,
-        checkpoint=checkpoint,
-        dry_run=False,
-        write_artifacts=True,
-        max_fixtures=max_fixtures,
-    )
-    forward_ledger_result: dict[str, object] | None = None
-    if capture_forward_ledger:
-        forward_ledger_result = _run_forward_outcome_ledger(window=window)
-    return {
-        "task_id": task_id,
-        "queued_at_utc": queued_at_utc,
-        "status": result["status"],
-        "result": result,
-        "forward_outcome_ledger": forward_ledger_result,
-        "candidate": False,
-        "formal_recommendation": False,
-        "beats_market": False,
     }
 
 

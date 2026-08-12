@@ -29,6 +29,56 @@ def test_alembic_upgrade_and_downgrade_smoke(tmp_path: Path) -> None:
         assert result.returncode == 0, result.stderr
 
 
+def test_0052_drops_and_restores_empty_retired_checkpoint_plan(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'retired-checkpoint-plan.db'}"
+    env = {
+        **os.environ,
+        "PYTHONPATH": f"{root / 'src'}:{root}",
+        "W2_DATABASE_URL": database_url,
+        "W2_ENVIRONMENT": "test",
+    }
+    assert _alembic(root, env, "upgrade", "0051_apply_seven_day_collection_policy").returncode == 0
+    engine = create_engine(database_url)
+    assert "future_refresh_checkpoint_plan" in inspect(engine).get_table_names()
+
+    assert _alembic(root, env, "upgrade", "head").returncode == 0
+    assert "future_refresh_checkpoint_plan" not in inspect(engine).get_table_names()
+
+    assert (
+        _alembic(root, env, "downgrade", "0051_apply_seven_day_collection_policy").returncode
+        == 0
+    )
+    assert "future_refresh_checkpoint_plan" in inspect(engine).get_table_names()
+
+
+def test_0052_refuses_nonempty_retired_checkpoint_plan(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'nonempty-retired-checkpoint-plan.db'}"
+    env = {
+        **os.environ,
+        "PYTHONPATH": f"{root / 'src'}:{root}",
+        "W2_DATABASE_URL": database_url,
+        "W2_ENVIRONMENT": "test",
+    }
+    assert _alembic(root, env, "upgrade", "0051_apply_seven_day_collection_policy").returncode == 0
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "insert into future_refresh_checkpoint_plan "
+                "(id, fixture_id, checkpoint, kickoff_utc, due_at, endpoints, source, status) "
+                "values ('fixture:T24', 'fixture', 'T24', '2026-08-13 00:00:00', "
+                "'2026-08-12 00:00:00', '[\"odds\"]', 'retired', 'PENDING')"
+            )
+        )
+
+    result = _alembic(root, env, "upgrade", "head")
+    assert result.returncode != 0
+    assert "RETIRED_CHECKPOINT_PLAN_TABLE_NONEMPTY:1" in result.stderr
+    assert "future_refresh_checkpoint_plan" in inspect(engine).get_table_names()
+
+
 def test_arch_p1_01_drops_and_restores_system_metadata(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[2]
     database_url = f"sqlite+pysqlite:///{tmp_path / 'arch-p1-01.db'}"

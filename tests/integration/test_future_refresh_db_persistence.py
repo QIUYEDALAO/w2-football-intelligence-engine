@@ -20,7 +20,6 @@ from w2.config import get_settings
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.future_refresh_models import (
     FutureRefreshCheckpointAuditModel,
-    FutureRefreshCheckpointPlanModel,
     FutureRefreshRunAuditModel,
     FutureRefreshTaskAuditModel,
     RawPayloadModel,
@@ -33,6 +32,7 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
     MatchdayEndpointCaptureModel,
     MatchdayEndpointCapturePlanModel,
+    MatchdayFixtureIdentityModel,
     MatchdayMarketObservationModel,
 )
 from w2.infrastructure.persistence.models import ResultModel, StructuredLineupSnapshotModel
@@ -375,6 +375,52 @@ def run_direct_checkpoint(
         refresh_checkpoints=checkpoints,
         materialize_public_artifacts=materialize_projection_events_for_test,
     )
+
+
+def test_discovery_mode_uses_the_canonical_refresh_writer_only(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path, collection_policy=True)
+
+    class DiscoveryClient(FakeApiFootballClient):
+        def payload(self, endpoint: str, params: dict[str, str]) -> dict[str, Any]:
+            payload = super().payload(endpoint, params)
+            if endpoint == "fixtures":
+                payload["response"][0]["league"] = {
+                    "id": 113,
+                    "name": "Allsvenskan",
+                    "season": 2026,
+                }
+            return payload
+
+    client = DiscoveryClient()
+    audit = run_future_refresh_task(
+        task_id="fixture-discovery",
+        key="fixture-discovery:2026-06-23:2026-06-23",
+        queued_at=NOW,
+        competition_id="allsvenskan",
+        runtime_root=tmp_path / "runtime",
+        client=client,
+        now=NOW,
+        persistence="db",
+        discovery_date="2026-06-23",
+    )
+
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        identity = session.get(MatchdayFixtureIdentityModel, "api_football:1489404")
+        observation_count = session.scalar(
+            select(func.count()).select_from(MatchdayMarketObservationModel)
+        )
+
+    assert client.calls == [("fixtures", {"date": "2026-06-23"})]
+    assert audit.status == "COMPLETED"
+    assert audit.result["discovery_date"] == "2026-06-23"
+    assert audit.result["market_snapshot_count"] == 0
+    assert identity is not None
+    assert identity.competition_id == "allsvenskan"
+    assert observation_count == 0
 
 
 def test_checkpoint_missing_persisted_fixture_fails_without_provider_call(
@@ -1104,20 +1150,31 @@ def test_fixture_scoped_market_refresh_status_never_reports_past_tick(
     monkeypatch: Any,
 ) -> None:
     configure_sqlite_db(monkeypatch, tmp_path)
-    repository = FutureRefreshDbRepository()
-    plan = {
-        "id": "fixture:T60",
-        "fixture_id": "fixture",
-        "checkpoint": "T60",
-        "kickoff_utc": NOW + timedelta(hours=1),
-        "due_at": NOW - timedelta(minutes=1),
-        "endpoints": ["odds"],
-        "source": "scheduled",
-        "status": "PENDING",
-    }
-    assert repository.upsert_checkpoint_plans([plan]) == 0
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        session.add(
+            MatchdayCheckpointPlanModel(
+                plan_id="past-plan",
+                fixture_id="api_football:fixture",
+                competition_id="allsvenskan",
+                season="2026",
+                policy_version="test-policy",
+                checkpoint="T60",
+                kickoff_utc=NOW + timedelta(hours=1),
+                scheduled_at=NOW - timedelta(minutes=1),
+                window_start=NOW - timedelta(minutes=2),
+                window_end=NOW + timedelta(minutes=3),
+                endpoints=["odds"],
+                status="DUE",
+                blockers=[],
+                plan_hash="a" * 64,
+            )
+        )
+        session.commit()
 
-    assert repository.market_refresh_status_for_fixtures(["fixture"], now=NOW) == {
+    assert FutureRefreshDbRepository().market_refresh_status_for_fixtures(
+        ["fixture"], now=NOW
+    ) == {
         "odds_last_confirmed_at": None,
         "next_refresh_tick": None,
     }
@@ -1160,6 +1217,12 @@ def test_fixture_scoped_market_refresh_status_reads_canonical_matchday_plan(
         "odds_status": "WAITING_WINDOW",
         "last_refresh_hint": None,
         "next_refresh_at": scheduled_at.isoformat().replace("+00:00", "Z"),
+    }
+    assert FutureRefreshDbRepository().next_market_refresh_by_fixture(
+        ["fixture", "api_football:fixture"], now=NOW
+    ) == {
+        "fixture": scheduled_at.isoformat().replace("+00:00", "Z"),
+        "api_football:fixture": scheduled_at.isoformat().replace("+00:00", "Z"),
     }
 
 
@@ -1302,27 +1365,12 @@ def test_api_repository_reads_future_refresh_projection_from_db(
     assert provider["blockers"] == []
 
 
-def test_checkpoint_plan_is_idempotent_and_audited(
+def test_checkpoint_audit_retains_evidence_without_retired_plan_authority(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
     configure_sqlite_db(monkeypatch, tmp_path)
     repository = FutureRefreshDbRepository()
-    due_at = NOW - timedelta(minutes=1)
-    row = {
-        "id": "1489404:T24",
-        "fixture_id": "1489404",
-        "checkpoint": "T24",
-        "kickoff_utc": NOW + timedelta(hours=24),
-        "due_at": due_at,
-        "endpoints": ["odds"],
-        "source": "scheduled",
-        "status": "PENDING",
-    }
-
-    assert repository.upsert_checkpoint_plans([row]) == 0
-    assert repository.upsert_checkpoint_plans([row]) == 0
-    assert repository.due_checkpoint_plans(now=NOW) == []
     audit_id = repository.write_checkpoint_audit(
         fixture_id="1489404",
         checkpoint="T24",
@@ -1333,12 +1381,8 @@ def test_checkpoint_plan_is_idempotent_and_audited(
     )
 
     assert audit_id >= 1
-    assert repository.due_checkpoint_plans(now=NOW) == []
     engine = create_engine(get_settings().database_url.get_secret_value())
     with Session(engine) as session:
-        assert (
-            session.scalar(select(func.count()).select_from(FutureRefreshCheckpointPlanModel)) == 0
-        )
         assert (
             session.scalar(select(func.count()).select_from(FutureRefreshCheckpointAuditModel)) == 1
         )

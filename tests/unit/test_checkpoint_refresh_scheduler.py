@@ -248,7 +248,7 @@ def test_world_cup_policy_disables_trickle_backfill_until_final_hibernation() ->
     assert policy["daily_hard_cap"] == 120
     assert policy["daily_reserve"] == 0
     assert policy["request_budget"] == 30
-    assert policy["checkpoint_mode"] == "matchday_intake_v2_compatibility"
+    assert policy["checkpoint_mode"] == "matchday_checkpoint_plan"
     assert policy["trickle_backfill_daily_budget"] == 0
 
 

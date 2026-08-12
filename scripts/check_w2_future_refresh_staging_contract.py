@@ -270,12 +270,14 @@ def assert_compose(path: Path) -> None:
         fail(f"{path}: scheduler provider scheduler must default disabled")
     if scheduler_env.get("W2_CANDIDATE_ENABLED") != "true":
         fail(f"{path}: scheduler shadow candidate loop must stay enabled")
-    if scheduler_env.get("W2_MARKET_TIMELINE_REFRESH_ENABLED") != "true":
-        fail(f"{path}: scheduler market timeline refresh enable flag missing")
-    if scheduler_env.get("W2_MARKET_TIMELINE_MAX_FIXTURES") != "10":
-        fail(f"{path}: scheduler market timeline max fixtures must be 10")
-    if scheduler_env.get("W2_MARKET_TIMELINE_RUNTIME_ROOT") != MARKET_TIMELINE_MOUNT_TARGET:
-        fail(f"{path}: scheduler market timeline runtime root mismatch")
+    for retired in (
+        "W2_MARKET_TIMELINE_REFRESH_ENABLED",
+        "W2_MARKET_TIMELINE_MAX_FIXTURES",
+        "W2_MARKET_TIMELINE_WINDOW",
+        "W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE",
+    ):
+        if retired in scheduler_env:
+            fail(f"{path}: retired scheduler timeline authority remains: {retired}")
     safe_defaults = {
         "W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS": "900",
         "W2_PROVIDER_ENDPOINT_ALLOWLIST": "status,fixtures,odds,lineups",

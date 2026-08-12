@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from w2.api import routers
 from w2.dashboard.day_view import build_dashboard_day_view
-from w2.domain.recommendation_decision_v3 import validate_decision_v3_identity
+from w2.domain.recommendation_decision_v4 import validate_decision_v4_identity
 from w2.prematch.analysis_calculator import ReadModelService
 from w2.prematch.read_model_projection import (
     ANALYSIS_CARD_CANARY_SCHEMA,
@@ -266,10 +266,8 @@ def test_frozen_ah_pick_with_opposite_side_line_fails_closed() -> None:
     assert result["current_odds"] == {}
     assert result["outcome_tracked"] is False
     assert result["lock_eligible"] is False
-    assert result["recommendation_decision_v3"]["outcome"] == "NOT_READY"
-    assert result["recommendation_decision_v3"]["reason"]["code"] == (
-        "AH_SIDE_LINE_IDENTITY_CONFLICT"
-    )
+    assert result["recommendation_decision_v4"]["outcome"] == "NOT_READY"
+    assert "recommendation_decision_v3" not in result
 
 
 def test_canary_response_is_stable_for_sequential_and_concurrent_reads() -> None:
@@ -310,12 +308,12 @@ def test_missing_canary_fails_closed_without_legacy_builder(
         "status": "BLOCKED",
         "blockers": ["FROZEN_ARTIFACT_MISSING"],
     }
-    v3 = card["recommendation_decision_v3"]
-    assert v3["outcome"] == "NOT_READY"
-    assert v3["reason"]["code"] == "FROZEN_ARTIFACT_MISSING"
-    assert v3["selected_candidate"] is None
-    assert validate_decision_v3_identity(v3) == v3["decision_hash"]
-    assert v3["audit_refs"]["v2_card_hash"] == card["card_hash"]
+    v4 = card["recommendation_decision_v4"]
+    assert v4["outcome"] == "NOT_READY"
+    assert v4["selected_candidate"] is None
+    assert validate_decision_v4_identity(v4) == v4["decision_hash"]
+    assert "recommendation_decision_v3" not in card
+    assert card["reason_code"] == "FROZEN_ARTIFACT_MISSING"
     assert repository.forbidden_calls == 0
 
 

@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
+from w2.domain.enums import DecisionTier
+
 
 class MatchDecisionState(StrEnum):
     LOCKED = "LOCKED"
@@ -201,15 +203,18 @@ def _has_formal_recommendation_intent(match: dict[str, Any]) -> bool:
     recommendation = _dict(match.get("recommendation"))
     return (
         match.get("formal_recommendation") is True
-        or str(recommendation.get("tier") or "").upper() == "FORMAL"
+        or recommendation.get("decision_tier") == DecisionTier.RECOMMEND.value
         or recommendation.get("formal_recommendation") is True
     )
 
 
 def _has_valid_formal_recommendation(match: dict[str, Any]) -> bool:
     recommendation = _dict(match.get("recommendation"))
-    tier = str(recommendation.get("tier") or "").upper()
-    formal_payload = tier == "FORMAL" or match.get("formal_recommendation") is True
+    decision_tier = str(recommendation.get("decision_tier") or "").upper()
+    formal_payload = (
+        decision_tier == DecisionTier.RECOMMEND.value
+        or match.get("formal_recommendation") is True
+    )
     if not formal_payload:
         return False
     market = str(recommendation.get("market") or "").upper()

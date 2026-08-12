@@ -8,25 +8,23 @@ import pytest
 from apps.scheduler import main as scheduler_main
 from apps.scheduler.main import (
     due_checkpoint_refresh_batch,
+    fixture_discovery_tick,
     forward_outcome_ledger_tick,
-    free_fixture_bridge_tick,
     future_fixture_refresh_competition_ids,
     future_fixture_refresh_tick,
     heartbeat,
-    market_timeline_refresh_tick,
     xg_history_backfill_tick,
 )
 from apps.worker.celery_app import (
     celery_app,
     forward_outcome_ledger,
-    free_fixture_bridge,
     future_fixture_refresh,
-    market_timeline_refresh,
     ping,
     result_materialize,
     xg_history_backfill,
 )
 
+import w2.competitions.league_whitelist_scope  # noqa: F401
 from w2.competitions.seed import set_competition_enabled
 from w2.config import Settings
 from w2.infrastructure.cache import redis_status
@@ -91,17 +89,16 @@ def test_scheduler_future_refresh_disabled_by_default(monkeypatch) -> None:
     monkeypatch.delenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", raising=False)
     assert future_fixture_refresh_tick()["status"] == "DISABLED"
     assert xg_history_backfill_tick()["status"] == "DISABLED"
-    assert market_timeline_refresh_tick()["status"] == "DISABLED"
     assert forward_outcome_ledger_tick()["status"] == "DISABLED"
-    assert free_fixture_bridge_tick()["status"] == "DISABLED"
+    assert fixture_discovery_tick()["status"] == "DISABLED"
 
 
-def test_free_fixture_bridge_scheduler_enqueues_one_deduplicated_shadow_task(
+def test_fixture_discovery_enqueues_the_canonical_refresh_task(
     monkeypatch,
 ) -> None:
     sent: list[dict[str, object]] = []
     now = datetime(2026, 8, 8, 5, tzinfo=UTC)
-    monkeypatch.setenv("W2_FREE_BRIDGE_MODE", "SHADOW_ONLY")
+    monkeypatch.setenv("W2_FIXTURE_DISCOVERY_ENABLED", "true")
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setattr(
         scheduler_main,
@@ -126,22 +123,20 @@ def test_free_fixture_bridge_scheduler_enqueues_one_deduplicated_shadow_task(
         "send_task",
         lambda name, **kwargs: sent.append({"name": name, **kwargs}),
     )
+    monkeypatch.setattr(
+        scheduler_main,
+        "matchday_checkpoint_competition_ids",
+        lambda: tuple(f"league-{index}" for index in range(13)),
+    )
 
-    result = free_fixture_bridge_tick()
+    result = fixture_discovery_tick()
 
     assert result["status"] == "QUEUED"
-    assert str(result["task_key"]).startswith("free-fixture-bridge:")
+    assert str(result["task_key"]).startswith("fixture-discovery:")
     assert result["provider_calls"] == 0
-    assert sent[0]["name"] == "w2.free_fixture_bridge"
-
-
-def test_free_fixture_bridge_worker_master_switch_prevents_provider_calls(monkeypatch) -> None:
-    monkeypatch.delenv("W2_PROVIDER_SCHEDULER_ENABLED", raising=False)
-
-    result = free_fixture_bridge.run(queued_at_utc="2026-08-08T05:00:00Z")
-
-    assert result["status"] == "SKIPPED_PROVIDER_SCHEDULER_DISABLED"
-    assert result["provider_calls"] == 0
+    assert sent[0]["name"] == "w2.future_fixture_refresh"
+    assert sent[0]["kwargs"]["task_key"] == result["task_key"]
+    assert sent[0]["kwargs"]["discovery_date"] == result["discovery_date"]
 
 
 def test_scheduler_future_refresh_intersects_runtime_allowlist(monkeypatch) -> None:
@@ -647,72 +642,6 @@ def test_scheduler_xg_backfill_dispatches_worker_task_without_running_provider(
     assert sent[0]["kwargs"]["queued_at_utc"] == result["queued_at_utc"]
 
 
-def test_scheduler_market_timeline_dispatches_worker_task_without_running_provider(
-    monkeypatch,
-) -> None:
-    sent: list[dict[str, object]] = []
-
-    def fake_send_task(name: str, **kwargs: object) -> None:
-        sent.append({"name": name, **kwargs})
-
-    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
-    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
-    monkeypatch.setenv("W2_MARKET_TIMELINE_REFRESH_ENABLED", "true")
-    monkeypatch.setenv("W2_MARKET_TIMELINE_MAX_FIXTURES", "7")
-    monkeypatch.setattr(celery_app, "send_task", fake_send_task)
-
-    result = market_timeline_refresh_tick()
-
-    assert result["status"] == "QUEUED"
-    assert str(result["task_id"]).startswith("market-timeline-refresh:")
-    assert result["max_fixtures"] == 7
-    assert sent[0]["name"] == "w2.market_timeline_refresh"
-    assert sent[0]["kwargs"]["checkpoint"] == "auto"
-    assert sent[0]["kwargs"]["max_fixtures"] == 7
-    assert sent[0]["kwargs"]["capture_forward_ledger"] is False
-
-
-def test_scheduler_market_timeline_is_not_blocked_by_provider_master_switch(
-    monkeypatch,
-) -> None:
-    sent: list[dict[str, object]] = []
-
-    def fake_send_task(name: str, **kwargs: object) -> None:
-        sent.append({"name": name, **kwargs})
-
-    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
-    monkeypatch.setenv("W2_MARKET_TIMELINE_REFRESH_ENABLED", "true")
-    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "false")
-    monkeypatch.setattr(celery_app, "send_task", fake_send_task)
-
-    result = market_timeline_refresh_tick()
-
-    assert result["status"] == "QUEUED"
-    assert sent[0]["name"] == "w2.market_timeline_refresh"
-
-
-def test_scheduler_market_timeline_can_chain_forward_ledger_without_running_provider(
-    monkeypatch,
-) -> None:
-    sent: list[dict[str, object]] = []
-
-    def fake_send_task(name: str, **kwargs: object) -> None:
-        sent.append({"name": name, **kwargs})
-
-    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
-    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
-    monkeypatch.setenv("W2_MARKET_TIMELINE_REFRESH_ENABLED", "true")
-    monkeypatch.setenv("W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE", "true")
-    monkeypatch.setattr(celery_app, "send_task", fake_send_task)
-
-    result = market_timeline_refresh_tick()
-
-    assert result["status"] == "QUEUED"
-    assert result["capture_forward_ledger"] is True
-    assert sent[0]["name"] == "w2.market_timeline_refresh"
-    assert sent[0]["kwargs"]["capture_forward_ledger"] is True
-
-
 def test_scheduler_forward_outcome_ledger_dispatches_without_provider_calls(monkeypatch) -> None:
     sent: list[dict[str, object]] = []
 
@@ -757,67 +686,6 @@ def test_worker_xg_backfill_task_reports_false_flags(monkeypatch) -> None:
     assert result["result"]["formal_recommendation"] is False
     assert result["candidate"] is False
     assert result["formal_recommendation"] is False
-
-
-def test_worker_market_timeline_task_reports_false_flags(monkeypatch) -> None:
-    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "false")
-    monkeypatch.setattr(
-        "apps.worker.celery_app.run_market_timeline_refresh",
-        lambda **kwargs: {
-            "status": "PASS",
-            "written": 1,
-            "candidate": False,
-            "formal_recommendation": False,
-            "beats_market": False,
-        },
-    )
-
-    result = market_timeline_refresh.run(
-        queued_at_utc="2026-06-29T12:00:00Z",
-        max_fixtures=2,
-    )
-
-    assert result["status"] == "PASS"
-    assert result["result"]["written"] == 1
-    assert result["candidate"] is False
-    assert result["formal_recommendation"] is False
-    assert result["beats_market"] is False
-
-
-def test_worker_market_timeline_can_capture_forward_ledger(monkeypatch) -> None:
-    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
-    monkeypatch.setattr(
-        "apps.worker.celery_app.run_market_timeline_refresh",
-        lambda **kwargs: {
-            "status": "PASS",
-            "written": 1,
-            "candidate": False,
-            "formal_recommendation": False,
-            "beats_market": False,
-        },
-    )
-    monkeypatch.setattr(
-        "apps.worker.celery_app._run_forward_outcome_ledger",
-        lambda **kwargs: {
-            "status": "PASS",
-            "provider_calls": 0,
-            "db_writes": 0,
-            "record_count": 2,
-            "written": 2,
-        },
-    )
-
-    result = market_timeline_refresh.run(
-        queued_at_utc="2026-06-29T12:00:00Z",
-        max_fixtures=2,
-        capture_forward_ledger=True,
-    )
-
-    assert result["status"] == "PASS"
-    assert result["forward_outcome_ledger"]["record_count"] == 2
-    assert result["candidate"] is False
-    assert result["formal_recommendation"] is False
-    assert result["beats_market"] is False
 
 
 def test_worker_forward_outcome_ledger_task_reports_safety_flags(monkeypatch) -> None:
@@ -873,32 +741,6 @@ def test_worker_result_materialize_task_reports_safety_flags(monkeypatch) -> Non
     assert result["settlement_write"] is False
     assert result["candidate"] is False
     assert result["formal_recommendation"] is False
-
-
-def test_worker_market_timeline_task_reports_blocked_without_promotion(monkeypatch) -> None:
-    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
-    monkeypatch.setattr(
-        "apps.worker.celery_app.run_market_timeline_refresh",
-        lambda **kwargs: {
-            "status": "BLOCKED",
-            "blockers": ["BACKFILL_QUOTA_GUARD"],
-            "written": 0,
-            "provider_calls": 0,
-            "results": [],
-        },
-    )
-
-    result = market_timeline_refresh.run(
-        queued_at_utc="2026-06-29T12:00:00Z",
-        max_fixtures=2,
-    )
-
-    assert result["status"] == "BLOCKED"
-    assert result["result"]["written"] == 0
-    assert result["result"]["provider_calls"] == 0
-    assert result["candidate"] is False
-    assert result["formal_recommendation"] is False
-    assert result["beats_market"] is False
 
 
 def test_worker_provider_master_switch_blocks_direct_tasks(monkeypatch) -> None:
@@ -1109,7 +951,7 @@ def test_scheduler_hard_cap_restores_unselected_claim_attempt(monkeypatch) -> No
 
 def test_worker_future_refresh_task_is_registered() -> None:
     assert future_fixture_refresh.name == "w2.future_fixture_refresh"
-    assert market_timeline_refresh.name == "w2.market_timeline_refresh"
+    assert "w2.market_timeline_refresh" not in celery_app.tasks
     assert forward_outcome_ledger.name == "w2.forward_outcome_ledger"
     assert result_materialize.name == "w2.result_materialize"
 

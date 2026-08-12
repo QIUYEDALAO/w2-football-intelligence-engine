@@ -54,30 +54,20 @@ EXPECTED_UNIQUE = {
             "W2_FORMAL_RECOMMENDATION_ENABLED",
         },
         "scheduler": {
-            "W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE",
             "W2_FORWARD_OUTCOME_LEDGER_ENABLED",
             "W2_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS",
             "W2_FORWARD_OUTCOME_LEDGER_WINDOW",
             "W2_FUTURE_FIXTURE_REFRESH_ENABLED",
-            "W2_MARKET_TIMELINE_MAX_FIXTURES",
-            "W2_MARKET_TIMELINE_REFRESH_ENABLED",
-            "W2_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS",
-            "W2_MARKET_TIMELINE_WINDOW",
         },
     },
     LITE: {
         "api": {"W2_READINESS_RELEASE_ROOT"},
         "worker": set(),
         "scheduler": {
-            "W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE",
             "W2_FORWARD_OUTCOME_LEDGER_ENABLED",
             "W2_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS",
             "W2_FORWARD_OUTCOME_LEDGER_WINDOW",
             "W2_FUTURE_FIXTURE_REFRESH_ENABLED",
-            "W2_MARKET_TIMELINE_MAX_FIXTURES",
-            "W2_MARKET_TIMELINE_REFRESH_ENABLED",
-            "W2_MARKET_TIMELINE_REFRESH_INTERVAL_SECONDS",
-            "W2_MARKET_TIMELINE_WINDOW",
         },
     },
 }
@@ -131,11 +121,13 @@ def test_safety_switches_keep_their_values_and_ownership(path: Path) -> None:
         assert {key: environment[key] for key in fixed_common} == fixed_common
 
     assert environments["scheduler"]["W2_FUTURE_FIXTURE_REFRESH_ENABLED"] == "false"
-    assert environments["scheduler"]["W2_MARKET_TIMELINE_REFRESH_ENABLED"] == "true"
+    assert "W2_MARKET_TIMELINE_REFRESH_ENABLED" not in environments["scheduler"]
     assert "W2_FUTURE_FIXTURE_REFRESH_ENABLED" not in environments["api"]
     assert "W2_FUTURE_FIXTURE_REFRESH_ENABLED" not in environments["worker"]
-    assert "W2_MARKET_TIMELINE_REFRESH_ENABLED" not in environments["api"]
-    assert "W2_MARKET_TIMELINE_REFRESH_ENABLED" not in environments["worker"]
+    assert all(
+        "W2_MARKET_TIMELINE_REFRESH_ENABLED" not in environment
+        for environment in environments.values()
+    )
     if path == FORMAL:
         expected_formal = "${W2_FORMAL_RECOMMENDATION_ENABLED:-false}"
         assert environments["api"]["W2_FORMAL_RECOMMENDATION_ENABLED"] == expected_formal
@@ -228,8 +220,8 @@ def test_compose_expansion_matches_authorized_runtime_delta(
             expected.pop(name)
         expected.update(
             {
-                "W2_FREE_BRIDGE_MODE": "OFF",
-                "W2_FREE_BRIDGE_INTERVAL_SECONDS": "300",
+                "W2_FIXTURE_DISCOVERY_ENABLED": "false",
+                "W2_FIXTURE_DISCOVERY_INTERVAL_SECONDS": "300",
                 "W2_CANDIDATE_ENABLED": "true",
             }
         )

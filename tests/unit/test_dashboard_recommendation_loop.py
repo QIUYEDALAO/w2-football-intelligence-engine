@@ -341,7 +341,7 @@ def _write_formal_snapshot(
         "home_team_name": "Home",
         "away_team_name": "Away",
         "recommendation": {
-            "tier": "FORMAL",
+            "decision_tier": "RECOMMEND",
             "market": "ASIAN_HANDICAP",
             "selection": "AWAY_AH",
             "selection_side": "AWAY",
@@ -449,7 +449,7 @@ def test_dashboard_exposes_locked_prematch_recommendation_after_kickoff(
     assert card["formal_suppressed"] is True
     assert card["formal_suppressed_reason"] == "FIXTURE_STARTED_LOCKED_PREMATCH"
     assert locked["status"] == "LOCKED"
-    assert locked["recommendation"]["tier"] == "FORMAL"
+    assert locked["recommendation"]["decision_tier"] == "RECOMMEND"
     assert locked["recommendation"]["selection_label_cn"] == "Away 受让"
     assert locked["settlement"]["status"] == "PENDING"
     assert locked["simulation_evidence"]["simulations"] == 10000
@@ -637,12 +637,12 @@ def test_dashboard_emits_watch_for_partially_ready_non_pick_without_candidate_fl
     card = payload["all"][0]
 
     assert card["analysis_readiness"]["status"] == "PARTIAL"
-    assert card["recommendation"]["tier"] == "WATCH"
-    assert card["recommendation"]["candidate"] is False
-    assert card["recommendation"]["formal_recommendation"] is False
+    assert card["decision_tier"] == "NOT_READY"
+    assert card["recommendation"] is None
     assert card["candidate"] is False
     assert card["formal_recommendation"] is False
-    assert payload["performance"]["watch_count"] == 1
+    assert payload["performance"]["watch_count"] == 0
+    assert payload["performance"]["no_recommendation_count"] == 1
     assert payload["performance"]["analysis_partial_count"] == 1
 
 
@@ -908,8 +908,8 @@ def test_dashboard_does_not_fill_missing_ah_from_runtime_timeline(
     assert card["market_timeline"]["status"] == "INSUFFICIENT"
     assert "AH_MARKET_CANDIDATE_REQUIRED" in card["pricing_shadow"]["formal_blockers"]
     assert card["formal_recommendation"] is False
-    assert card["recommendation"]["tier"] == "WATCH"
-    assert card["recommendation"]["formal_recommendation"] is False
+    assert card["decision_tier"] == "NOT_READY"
+    assert card["recommendation"] is None
     assert card["pricing_shadow"]["formal_eligible"] is False
     assert card["pricing_shadow"]["formal_blockers"]
 

@@ -294,7 +294,7 @@ def test_formal_home_when_simulation_and_price_are_self_consistent() -> None:
         enabled=True,
     )
 
-    assert result.tier == "FORMAL"
+    assert result.decision_tier == "RECOMMEND"
     assert result.recommendation is not None
     assert result.recommendation["formal_recommendation"] is True
     assert result.recommendation["selection"] == "HOME_AH"
@@ -331,7 +331,7 @@ def test_formal_consumes_exact_selected_candidate_and_five_state_fair_odds() -> 
         enabled=True,
     )
 
-    assert result.tier == "FORMAL"
+    assert result.decision_tier == "RECOMMEND"
     assert result.recommendation is not None
     assert result.recommendation["selection"] == "HOME_AH"
     assert result.recommendation["line"] == "-0.25"
@@ -366,7 +366,7 @@ def test_formal_requires_authoritative_ah_candidate() -> None:
         enabled=True,
     )
 
-    assert result.tier == "WATCH"
+    assert result.decision_tier == "WATCH"
     assert result.blockers == ["AH_MARKET_CANDIDATE_REQUIRED"]
     assert result.recommendation is None
 
@@ -386,14 +386,14 @@ def test_formal_rejects_non_executable_authoritative_ah_candidate() -> None:
         enabled=True,
     )
 
-    assert result.tier == "WATCH"
+    assert result.decision_tier == "WATCH"
     assert result.blockers == ["AH_MARKET_CANDIDATE_NOT_EXECUTABLE"]
     assert result.recommendation is None
 
 
 def test_formal_recommendation_id_is_stable_for_same_payload() -> None:
     recommendation = {
-        "tier": "FORMAL",
+        "decision_tier": "RECOMMEND",
         "market": "ASIAN_HANDICAP",
         "selection": "HOME_AH",
         "line": "-0.5",
@@ -431,7 +431,7 @@ def test_formal_ev_se_uses_lambda_uncertainty() -> None:
         enabled=True,
     )
 
-    assert result.tier == "FORMAL"
+    assert result.decision_tier == "RECOMMEND"
     assert result.recommendation is not None
     assert result.recommendation["ev_se"] is not None
     assert result.recommendation["ev_se"] > 0.0
@@ -454,7 +454,7 @@ def test_zero_sigma_blocks_formal_uncertainty_validation() -> None:
         enabled=True,
     )
 
-    assert result.tier == "WATCH"
+    assert result.decision_tier == "WATCH"
     assert result.recommendation is None
     assert "FORMAL_UNCERTAINTY_NOT_VALIDATED" in result.blockers
 
@@ -477,7 +477,7 @@ def test_ev_within_uncertainty_band_returns_watch() -> None:
         enabled=True,
     )
 
-    assert result.tier == "WATCH"
+    assert result.decision_tier == "WATCH"
     assert "EV_WITHIN_UNCERTAINTY_BAND" in result.blockers
 
 
@@ -499,7 +499,7 @@ def test_formal_blocks_implausibly_high_ev() -> None:
         enabled=True,
     )
 
-    assert result.tier == "WATCH"
+    assert result.decision_tier == "WATCH"
     assert "EV_IMPLAUSIBLY_HIGH" in result.blockers
 
 
@@ -527,7 +527,7 @@ def test_formal_blocks_wide_fair_market_ah_gap() -> None:
         enabled=True,
     )
 
-    assert result.tier == "WATCH"
+    assert result.decision_tier == "WATCH"
     assert "AH_FAIR_MARKET_GAP_TOO_WIDE" in result.blockers
 
 
@@ -583,7 +583,7 @@ def test_missing_ev_uncertainty_returns_watch() -> None:
         enabled=True,
     )
 
-    assert result.tier == "WATCH"
+    assert result.decision_tier == "WATCH"
     assert result.blockers == ["AH_MARKET_CANDIDATE_NOT_EXECUTABLE"]
     assert result.recommendation is None
 
@@ -632,7 +632,7 @@ def test_formal_away_when_simulation_and_price_are_self_consistent() -> None:
         enabled=True,
     )
 
-    assert result.tier == "FORMAL"
+    assert result.decision_tier == "RECOMMEND"
     assert result.recommendation is not None
     assert result.recommendation["selection"] == "AWAY_AH"
 
@@ -663,7 +663,7 @@ def test_scoreline_reverse_value_sets_reverse_flag_without_changing_ev_gate() ->
         enabled=True,
     )
 
-    assert result.tier == "FORMAL"
+    assert result.decision_tier == "RECOMMEND"
     assert result.recommendation is not None
     assert result.recommendation["selection"] == "AWAY_AH"
     assert result.recommendation["reverse_factor_value"] is True
@@ -703,7 +703,7 @@ def test_reverse_value_threshold_includes_ev_uncertainty_penalty() -> None:
         enabled=True,
     )
 
-    assert result.tier == "WATCH"
+    assert result.decision_tier == "WATCH"
     assert "REVERSE_FACTOR_VALUE_NOT_STRONG_ENOUGH" in result.blockers
     assert result.recommendation is None
 
@@ -751,7 +751,7 @@ def test_simulation_insufficient_returns_watch() -> None:
         enabled=True,
     )
 
-    assert result.tier == "WATCH"
+    assert result.decision_tier == "WATCH"
     assert "SIMULATION_NOT_READY" in result.blockers
 
 
@@ -767,7 +767,7 @@ def test_market_missing_returns_watch() -> None:
         enabled=True,
     )
 
-    assert result.tier == "WATCH"
+    assert result.decision_tier == "WATCH"
     assert result.blockers == ["AH_MARKET_CANDIDATE_REQUIRED"]
 
 
@@ -988,7 +988,7 @@ def test_config_off_suppresses_formal_and_keeps_formal_ineligible() -> None:
         enabled=False,
     )
 
-    assert result.tier == "WATCH"
+    assert result.decision_tier == "WATCH"
     assert result.formal_eligible is False
     assert result.formal_suppressed is True
     assert result.formal_suppressed_reason == "W2_FORMAL_RECOMMENDATION_ENABLED=false"
@@ -1019,7 +1019,7 @@ def test_formal_builder_rejects_forged_readiness_dict() -> None:
         enabled=True,
     )
 
-    assert result.tier == "WATCH"
+    assert result.decision_tier == "WATCH"
     assert result.formal_eligible is False
     assert result.blockers == ["FORMAL_AH_READINESS_SCHEMA_INVALID"]
 
@@ -1050,7 +1050,7 @@ def test_reverse_value_requires_explicit_price_value_copy() -> None:
         enabled=True,
     )
 
-    assert result.tier == "FORMAL"
+    assert result.decision_tier == "RECOMMEND"
     assert result.recommendation is not None
     assert result.recommendation["reverse_factor_value"] is True
     assert "盘口价值" in result.recommendation["reasons"][0]
@@ -1095,7 +1095,7 @@ def test_neutral_fair_line_allows_price_value_on_receiving_side() -> None:
     )
 
     assert abs(balanced.fair_ah or 0.0) < 0.25
-    assert result.tier == "FORMAL"
+    assert result.decision_tier == "RECOMMEND"
     assert result.recommendation is not None
     assert result.recommendation["selection"] == "AWAY_AH"
     assert result.recommendation["selection_label_cn"] == "Away 受让"
@@ -1129,7 +1129,7 @@ def test_formal_blocks_implausible_ah_prices_from_alternate_or_wrong_market() ->
         enabled=True,
     )
 
-    assert result.tier == "WATCH"
+    assert result.decision_tier == "WATCH"
     assert "AH_MARKET_PRICE_OUT_OF_RANGE" in result.blockers
     assert result.recommendation is None
 
@@ -1158,7 +1158,7 @@ def test_formal_blocks_underround_prices_even_when_cover_probability_looks_large
         enabled=True,
     )
 
-    assert result.tier == "WATCH"
+    assert result.decision_tier == "WATCH"
     assert "AH_MARKET_UNDERROUND_OR_OVERROUND" in result.blockers
     assert result.canonical_ah_market is not None
     assert result.canonical_ah_market["blocker"] == "AH_MARKET_UNDERROUND_OR_OVERROUND"
@@ -1215,5 +1215,5 @@ def test_finished_fixture_never_emits_new_formal() -> None:
         enabled=True,
     )
 
-    assert result.tier == "WATCH"
+    assert result.decision_tier == "WATCH"
     assert "FIXTURE_NOT_PREMATCH" in result.blockers

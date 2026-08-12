@@ -39,7 +39,7 @@ def formal_card(
         "formal_recommendation": True,
         "candidate": False,
         "recommendation": {
-            "tier": "FORMAL",
+            "decision_tier": "RECOMMEND",
             "market": "ASIAN_HANDICAP",
             "selection": "AWAY_AH",
             "selection_label_cn": "Morocco 受让",
