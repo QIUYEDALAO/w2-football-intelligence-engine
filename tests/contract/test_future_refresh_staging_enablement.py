@@ -144,6 +144,38 @@ def test_world_cup_legacy_policy_does_not_restore_league_whitelist() -> None:
     assert "world_cup_2026" not in load_league_whitelist_scope().all_whitelist
 
 
+def test_exact_13_share_seven_day_open_and_t72_t48_collection_policy() -> None:
+    import json
+
+    from w2.competitions.league_whitelist_scope import load_league_whitelist_scope
+
+    scope = set(load_league_whitelist_scope().all_whitelist)
+    future = json.loads(
+        (ROOT / "config/policies/future_fixture_refresh.v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    matchday = json.loads(
+        (ROOT / "config/policies/matchday_intake.v2.json").read_text(encoding="utf-8")
+    )
+    future_by_id = {item["competition_id"]: item for item in future["competitions"]}
+    matchday_by_id = {item["competition_id"]: item for item in matchday["competitions"]}
+
+    assert len(scope) == 13
+    assert scope <= set(future_by_id) & set(matchday_by_id)
+    for competition_id in scope:
+        checkpoints = {item["name"]: item for item in matchday_by_id[competition_id]["checkpoints"]}
+        assert checkpoints["T168_OPEN_ODDS"] == {
+            "name": "T168_OPEN_ODDS",
+            "offset_seconds_before_kickoff": 604800,
+            "endpoints": ["odds"],
+            "grace_seconds": 604800,
+            "enabled": True,
+        }
+        assert checkpoints["T72_ODDS"]["offset_seconds_before_kickoff"] == 259200
+        assert checkpoints["T48_ODDS"]["offset_seconds_before_kickoff"] == 172800
+
+
 def test_scheduler_tick_stays_disabled_without_env_flag(monkeypatch) -> None:
     monkeypatch.delenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", raising=False)
     assert future_fixture_refresh_tick()["status"] == "DISABLED"
@@ -257,7 +289,7 @@ def test_health_contract_fails_closed_when_database_authority_is_missing(monkeyp
 
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
     monkeypatch.setattr(
-        "w2.ingestion.future_refresh.CompetitionRegistry",
+        "w2.competitions.registry.CompetitionRegistry",
         lambda: (_ for _ in ()).throw(CompetitionRegistryError("DB_UNAVAILABLE")),
     )
 

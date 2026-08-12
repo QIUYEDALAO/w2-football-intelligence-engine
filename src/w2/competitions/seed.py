@@ -225,6 +225,93 @@ def seed_competition_runtime_authority(
     return CompetitionSeedReport(conflicts=(), **counters)
 
 
+def apply_collection_policy_update(
+    bind: Engine | Connection,
+    *,
+    config_root: Path = Path("config"),
+    updated_by: str,
+    now: datetime | None = None,
+) -> tuple[str, ...]:
+    """Apply the Owner-authorized collection policy to the exact 13-league scope."""
+    current = now or datetime.now(UTC)
+    future_payload = _read_json(config_root / "policies/future_fixture_refresh.v1.json")
+    matchday_payload = _read_json(config_root / "policies/matchday_intake.v2.json")
+    future_by_id = _policy_by_competition(future_payload)
+    matchday_by_id = _policy_by_competition(matchday_payload)
+    updated: list[str] = []
+    with Session(bind=bind) as session:
+        profiles = list(session.scalars(select(LeagueProfileModel)))
+        active_ids = {
+            row.competition_id
+            for row in profiles
+            if str(dict(row.payload or {}).get("scope_group") or "") != "world_cup"
+        }
+        if len(active_ids) != 13:
+            raise ValueError(f"COLLECTION_POLICY_SCOPE_NOT_EXACT_13:{len(active_ids)}")
+        missing = active_ids - (set(future_by_id) & set(matchday_by_id))
+        if missing:
+            raise ValueError("COLLECTION_POLICY_MISSING:" + ",".join(sorted(missing)))
+
+        for profile in profiles:
+            competition_id = profile.competition_id
+            season = str(dict(profile.payload or {}).get("current_season") or "")
+            row = session.scalar(
+                select(LeagueSeasonModel).where(
+                    LeagueSeasonModel.competition_id == competition_id,
+                    LeagueSeasonModel.season == season,
+                )
+            )
+            if row is None:
+                raise ValueError(
+                    f"COMPETITION_SEASON_NOT_REGISTERED:{competition_id}:{season}"
+                )
+            payload = dict(row.payload or {})
+            in_scope = competition_id in active_ids
+            payload["enabled"] = in_scope
+            payload["refresh_switches"] = {
+                "fixtures": in_scope,
+                "odds": in_scope,
+                "lineups": in_scope,
+            }
+            payload["future_refresh_policy"] = (
+                future_by_id.get(competition_id) if in_scope else None
+            )
+            payload["matchday_policy"] = matchday_by_id.get(competition_id) if in_scope else None
+            payload["updated_by"] = updated_by
+            payload["updated_at"] = current.isoformat()
+            payload["config_hash"] = _hash(
+                {
+                    key: value
+                    for key, value in payload.items()
+                    if key not in {"config_hash", "updated_at", "updated_by"}
+                }
+            )
+            row.payload = payload
+            row.lifecycle = "ACTIVE" if in_scope else "CONFIGURED"
+            audit_payload = {
+                "schema_version": "w2.competition_config_audit.v1",
+                "action": "APPLY_COLLECTION_POLICY",
+                "competition_id": competition_id,
+                "season": season,
+                "collection_enabled": in_scope,
+                "future_policy_version": future_payload.get("version"),
+                "matchday_policy_version": matchday_payload.get("version"),
+                "updated_by": updated_by,
+                "updated_at": current.isoformat(),
+            }
+            session.add(
+                LeagueReadinessAuditModel(
+                    competition_id=competition_id,
+                    audit_sha256=_hash(audit_payload),
+                    created_at=current,
+                    payload=audit_payload,
+                )
+            )
+            updated.append(competition_id)
+        session.commit()
+    return tuple(sorted(updated))
+
+
 def set_competition_enabled(
     bind: Engine | Connection,
     *,

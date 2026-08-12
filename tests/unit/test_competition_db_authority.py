@@ -11,7 +11,11 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
 from w2.competitions.registry import CompetitionRegistry
-from w2.competitions.seed import seed_competition_runtime_authority, set_competition_enabled
+from w2.competitions.seed import (
+    apply_collection_policy_update,
+    seed_competition_runtime_authority,
+    set_competition_enabled,
+)
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.league_models import (
     LeagueReadinessAuditModel,
@@ -19,6 +23,22 @@ from w2.infrastructure.persistence.league_models import (
 )
 from w2.ingestion.future_refresh import load_refresh_policy
 from w2.matchday.intake_v2 import competition_policies, load_matchday_policy
+
+ACTIVE_13 = {
+    "premier_league",
+    "la_liga",
+    "bundesliga",
+    "serie_a",
+    "ligue_1",
+    "brasileirao_serie_a",
+    "argentina_primera",
+    "mls",
+    "chinese_super_league",
+    "allsvenskan",
+    "eliteserien",
+    "eredivisie",
+    "primeira_liga",
+}
 
 
 def _seeded_engine(environment: str = "test"):  # type: ignore[no-untyped-def]
@@ -57,11 +77,53 @@ def test_staging_policy_is_seeded_into_database_without_env_override(monkeypatch
 
     assert CompetitionRegistry(engine).enabled_ids() == {
         "world_cup_2026",
+        "premier_league",
+        "la_liga",
+        "bundesliga",
+        "serie_a",
+        "ligue_1",
         "brasileirao_serie_a",
+        "argentina_primera",
+        "mls",
         "chinese_super_league",
         "allsvenskan",
         "eliteserien",
+        "eredivisie",
+        "primeira_liga",
     }
+
+
+def test_collection_policy_update_activates_exact_13_and_retires_world_cup(
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("W2_ENVIRONMENT", "production")
+    engine, _report = _seeded_engine("production")
+
+    updated = apply_collection_policy_update(
+        engine,
+        updated_by="unit-test-owner-authorization",
+        now=datetime(2026, 8, 12, tzinfo=UTC),
+    )
+    registry = CompetitionRegistry(engine)
+    enabled = registry.enabled_ids()
+
+    assert len(updated) == 14
+    assert enabled == ACTIVE_13
+    monkeypatch.setattr(
+        "w2.competitions.registry.CompetitionRegistry",
+        lambda: CompetitionRegistry(engine),
+    )
+    monkeypatch.setattr(
+        "w2.matchday.intake_v2.CompetitionRegistry",
+        lambda: CompetitionRegistry(engine),
+    )
+    assert set(future_fixture_refresh_competition_ids()) == ACTIVE_13
+    assert set(matchday_checkpoint_competition_ids()) == ACTIVE_13
+    for competition_id in enabled:
+        entry = registry.require_enabled(competition_id)
+        assert entry.refresh_switches == {"fixtures": True, "odds": True, "lineups": True}
+        assert entry.future_refresh_policy is not None
+        assert entry.matchday_policy is not None
 
 
 def test_enabled_change_is_visible_to_same_registry_without_deploy() -> None:
