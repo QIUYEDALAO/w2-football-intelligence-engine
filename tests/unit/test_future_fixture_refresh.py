@@ -958,6 +958,34 @@ def test_future_refresh_loads_strictest_persisted_quota(monkeypatch: Any, tmp_pa
     assert service._latest_remaining == 95
 
 
+def test_future_refresh_uses_provider_quota_as_daily_usage_authority(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    class Repository:
+        @staticmethod
+        def request_count_since(
+            _day_start: datetime,
+            *,
+            include_quota_usage: bool = True,
+        ) -> int:
+            assert include_quota_usage is True
+            return 10
+
+    service = FutureFixtureRefreshService(
+        client=FakeApiFootballClient(),
+        config=FutureRefreshConfig(
+            runtime_root=tmp_path,
+            persistence="db",
+            daily_usage_scope="w2_ledger",
+        ),
+        now=NOW,
+    )
+    monkeypatch.setattr(service, "_db_repository", Repository)
+
+    assert service._actual_provider_calls_today() == 10
+
+
 def test_future_refresh_blocks_when_header_remaining_below_preflight_minimum(
     tmp_path: Path,
 ) -> None:

@@ -1522,6 +1522,44 @@ def test_request_count_since_includes_quota_usage(
     assert FutureRefreshDbRepository().request_count_since(since) >= 7000
 
 
+def test_request_count_since_prefers_provider_quota_over_local_request_logs(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    since = NOW.replace(hour=0, minute=0, second=0, microsecond=0)
+    with Session(engine) as session:
+        for index in range(80):
+            requested_at = since + timedelta(seconds=index)
+            session.add(
+                ProviderRequestLogModel(
+                    provider="api_football",
+                    endpoint="status" if index < 40 else "fixtures",
+                    request_hash=f"{index:064x}",
+                    live=True,
+                    status_code=200,
+                    requested_at=requested_at,
+                    completed_at=requested_at,
+                )
+            )
+        session.add(
+            QuotaUsageModel(
+                provider="api_football",
+                endpoint="odds",
+                used=10,
+                limit=100,
+                window_start=since,
+                window_end=since + timedelta(days=1),
+            )
+        )
+        session.commit()
+
+    repository = FutureRefreshDbRepository()
+    assert repository.request_count_since(since) == 10
+    assert repository.request_count_since(since, include_quota_usage=False) == 80
+
+
 def test_provider_quota_snapshot_uses_strictest_persisted_remaining(
     tmp_path: Path,
     monkeypatch: Any,

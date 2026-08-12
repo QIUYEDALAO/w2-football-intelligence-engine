@@ -1868,7 +1868,7 @@ class FutureFixtureRefreshService:
         try:
             return self._db_repository().request_count_since(
                 day_start,
-                include_quota_usage=self.config.daily_usage_scope != "w2_ledger",
+                include_quota_usage=True,
             )
         except FutureRefreshPersistenceError as exc:
             raise FutureRefreshError("PROVIDER_USAGE_AUDIT_UNAVAILABLE") from exc

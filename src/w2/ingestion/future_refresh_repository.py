@@ -2920,22 +2920,20 @@ class FutureRefreshDbRepository:
                 )
                 quota_usage = (
                     session.scalar(
-                        select(func.coalesce(func.max(QuotaUsageModel.used), 0)).where(
+                        select(func.max(QuotaUsageModel.used)).where(
                             QuotaUsageModel.provider == "api_football",
                             QuotaUsageModel.window_start >= day_start,
                             QuotaUsageModel.window_start < day_end,
                         )
                     )
                     if include_quota_usage
-                    else 0
+                    else None
                 )
         except Exception as exc:
             raise FutureRefreshPersistenceError("REQUEST_COUNT_READ_FAILED") from exc
-        return max(
-            int(future_refresh_requests or 0),
-            int(provider_request_logs or 0),
-            int(quota_usage or 0),
-        )
+        if quota_usage is not None:
+            return int(quota_usage)
+        return max(int(future_refresh_requests or 0), int(provider_request_logs or 0))
 
     def provider_quota_snapshot(self, day_start: datetime) -> dict[str, int | None]:
         start = parse_db_datetime(day_start).replace(hour=0, minute=0, second=0, microsecond=0)
