@@ -1,14 +1,14 @@
 ARG W2_LOCAL_BASE_IMAGE
 FROM ${W2_LOCAL_BASE_IMAGE}
 
+ARG W2_GIT_SHA
+ARG W2_BUILD_TIME
+ARG W2_RELEASE_ID=${W2_GIT_SHA}
 USER root
 COPY --chown=10001:10001 apps/scheduler /app/apps/scheduler
 COPY --chown=10001:10001 src/w2 /app/src/w2
 COPY --chown=10001:10001 src/w2 /app/.venv/lib/python3.12/site-packages/w2
 
-ARG W2_GIT_SHA
-ARG W2_BUILD_TIME
-ARG W2_RELEASE_ID=${W2_GIT_SHA}
 ENV W2_GIT_SHA=${W2_GIT_SHA} \
     W2_BUILD_TIME=${W2_BUILD_TIME} \
     W2_RELEASE_ID=${W2_RELEASE_ID}
