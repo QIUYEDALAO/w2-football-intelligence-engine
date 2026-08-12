@@ -6,7 +6,7 @@ copy. `scope` is `MATCH`, `SELECTED_DAY`, `CROSS_DAY_CUMULATIVE`, or `GLOBAL`;
 
 | Scope | Cause | Public meaning | Severity |
 |---|---|---|---|
-| `SELECTED_DAY` | `NOT_YET_DUE` | 未进入市场采集窗口 / 赛果尚未产生 | neutral |
+| `SELECTED_DAY` | `NOT_YET_DUE` | W2 计划采集尚未开始 / 赛果尚未产生 | neutral |
 | `SELECTED_DAY` | `AWAITING_COLLECTION` | 已到采集时点，持久化证据或赛果待采集 | warning |
 | any | `INSUFFICIENT` | 已采集但证据量不足 | warning |
 | any | `UNAVAILABLE` | 来源不提供或不可用 | critical |

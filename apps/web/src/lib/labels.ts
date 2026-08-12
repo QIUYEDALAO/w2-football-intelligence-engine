@@ -78,7 +78,7 @@ export const PUBLIC_ENUM_LABELS: Record<string, string> = {
   AVAILABLE_WITH_GAPS: "部分可用",
   READY: "已就绪",
   PARTIAL: "部分就绪",
-  BLOCKED: "仅赛程",
+  BLOCKED: "数据未就绪",
   STALE: "已过期",
   INSUFFICIENT: "证据不足",
   SAMPLE_BUILDING: "样本积累中",

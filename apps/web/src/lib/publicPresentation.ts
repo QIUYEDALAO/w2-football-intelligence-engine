@@ -25,7 +25,7 @@ export interface PublicPresentation {
 }
 
 const causeCopy: Record<Exclude<PublicStatusSemantics["cause"], null>, Pick<PublicPresentation, "label" | "tone">> = {
-  NOT_YET_DUE: { label: "未进入市场采集窗口", tone: "neutral" },
+  NOT_YET_DUE: { label: "W2 计划采集尚未开始", tone: "neutral" },
   AWAITING_COLLECTION: { label: "已到采集时点，证据待采集", tone: "warning" },
   INSUFFICIENT: { label: "已采集，证据量不足", tone: "warning" },
   UNAVAILABLE: { label: "来源不可用", tone: "critical" },
@@ -111,13 +111,13 @@ export function publicPresentation(
   if (cause) {
     const copy = causeCopy[cause];
     const headline = semantics.scope === "SELECTED_DAY"
-      ? `${scopeSubject}可查看，${cause === "NOT_YET_DUE" ? "尚未进入市场采集窗口" : copy.label}`
+      ? `${scopeSubject}可查看，${copy.label}`
       : `${scopeSubject}：${copy.label}`;
     const summary = fixtures && semantics.scope === "SELECTED_DAY"
       ? `${day} ${fixtures} 场比赛可查看；${copy.label}，暂不生成市场分析。`
       : `${scopeSubject}：${copy.label}。`;
     const detail = cause === "NOT_YET_DUE"
-      ? "赛程正常展示；等待既有采集窗口，不把正常等待渲染为故障。"
+      ? "仅表示 W2 尚未到计划采集时点；不判断外部市场是否已有盘口。"
       : "只展示已持久化事实，不用缺失数据补算。";
     return result(copy.label, copy.tone, headline, summary, detail);
   }
