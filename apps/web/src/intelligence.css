@@ -478,9 +478,42 @@ summary {
   text-transform: uppercase;
 }
 
+.v41-shortlist-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 0 8px;
+}
+
+.v41-shortlist-filters button {
+  min-height: 34px;
+  flex: none;
+  padding: 5px 9px;
+  border: 1px solid var(--v41-line);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--v41-ink-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.v41-shortlist-filters button[aria-pressed="true"] {
+  border-color: var(--v41-accent-line);
+  background: var(--v41-accent-soft);
+  color: var(--v41-accent);
+}
+
+.v41-shortlist-filters b {
+  margin-left: 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 .v41-shortlist-list {
+  max-height: min(68vh, 720px);
   min-height: 0;
-  overflow: visible;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .v41-shortlist-list button {
@@ -514,10 +547,6 @@ summary {
   padding: 13px 10px 13px 0;
   border-bottom: 1px solid var(--v41-line-faint);
   background: var(--v41-critical-bg);
-}
-
-.v41-shortlist-incident.is-calm {
-  background: rgba(80, 190, 179, .045);
 }
 
 .v41-shortlist-list button:hover,
@@ -1551,11 +1580,7 @@ summary {
   }
 
   .v41-shortlist-list {
-    overflow: visible;
-  }
-
-  .v41-shortlist-list button:nth-child(n + 4) {
-    display: none;
+    max-height: min(60vh, 640px);
   }
 
   .v41-focus {
@@ -1595,6 +1620,12 @@ summary {
 }
 
 @media (max-width: 760px) {
+  .v41-shortlist-filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
   .v41-separator,
   .v41-updated {
     display: none;
