@@ -258,7 +258,7 @@ function RecentDateNav({ date, onDateChange, workspace }: Pick<Props, "date" | "
 function TodaySummary({ workspace }: { workspace: IntelligenceWorkspace }) {
   const dayNoun = selectedDayNoun(workspace);
   const selectedCause = selectedDaySemantics(workspace).cause;
-  const notYetDue = selectedCause === "NOT_YET_DUE";
+  const presentation = selectedDayPublicStatus(workspace);
   const counts = workspace.today_summary.primary_reason_counts;
   const limitedCount = selectedCause ? workspace.global_focus?.affected_fixture_count || 0 : 0;
   const calmCount = !selectedCause && !workspace.selected_fixture_id ? workspace.today_summary.match_count : 0;
@@ -271,10 +271,10 @@ function TodaySummary({ workspace }: { workspace: IntelligenceWorkspace }) {
       <div className="v41-today-primary">
         <div><strong>{workspace.today_summary.match_count}</strong><span>场{dayNoun}比赛</span></div>
         <p>
-          {limitedCount ? <><span className="is-accent"><b>{workspace.today_summary.match_count}</b> 场可查看赛程</span><span className={notYetDue ? "is-accent" : "is-warning"}><b>0</b> 场可进行市场分析</span></> : <><span className={readyCount ? "is-accent" : "is-warning"}><b>{readyCount}</b> 场候选输入就绪</span>{partialCount ? <span className="is-warning"><b>{partialCount}</b> 场市场证据部分就绪</span> : null}{evidenceBlockedCount ? <span className="is-critical"><b>{evidenceBlockedCount}</b> 场尚无当前市场证据</span> : null}</>}
+          {limitedCount ? <><span className="is-accent"><b>{workspace.today_summary.match_count}</b> 场可查看赛程</span><span className={presentation.tone === "neutral" ? "is-accent" : "is-warning"}><b>0</b> 场可进行市场分析</span></> : <><span className={readyCount ? "is-accent" : "is-warning"}><b>{readyCount}</b> 场候选输入就绪</span>{partialCount ? <span className="is-warning"><b>{partialCount}</b> 场市场证据部分就绪</span> : null}{evidenceBlockedCount ? <span className="is-critical"><b>{evidenceBlockedCount}</b> 场尚无当前市场证据</span> : null}</>}
         </p>
       </div>
-      {limitedCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{limitedCount} 场可查看赛程；{notYetDue ? "尚未进入市场采集窗口" : "市场证据待采集"}</b></p></div> : calmCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{calmCount} 场均未触发优先复核</b></p></div> : Object.keys(counts).length ? <div className="v41-today-other"><span>优先复核</span><p>{Object.entries(counts).slice(0, 3).map(([reason, count]) => <b key={reason}>{count} 场{REASON_LABELS[reason] || label(reason)}</b>)}</p></div> : null}
+      {limitedCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{limitedCount} 场可查看赛程；{presentation.label}</b></p></div> : calmCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{calmCount} 场均未触发优先复核</b></p></div> : Object.keys(counts).length ? <div className="v41-today-other"><span>优先复核</span><p>{Object.entries(counts).slice(0, 3).map(([reason, count]) => <b key={reason}>{count} 场{REASON_LABELS[reason] || label(reason)}</b>)}</p></div> : null}
       <div className="v41-today-day"><strong>共 {workspace.today_summary.match_count} 场 · {candidateCount} 场影子候选 · {workspace.today_summary.competition_count || workspace.runtime.active_whitelist_count} 联赛</strong><small>{footballDayWindow(workspace)}</small></div>
     </section>
   );
@@ -284,7 +284,6 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
   const dayNoun = selectedDayNoun(workspace);
   const selectedSemantics = selectedDaySemantics(workspace);
   const selectedCause = selectedSemantics.cause;
-  const notYetDue = selectedCause === "NOT_YET_DUE";
   const presentation = publicPresentation(selectedSemantics, {
     dayNoun,
     fixtureCount: workspace.today_summary.match_count,
@@ -310,14 +309,14 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
       <div className="v41-shortlist-list">
         {empty ? <div className="v41-shortlist-empty">本比赛日观察池内没有比赛</div> : null}
         {aggregate ? <div className="v41-shortlist-empty">{limited ? presentation.summary : `${dayNoun}无需优先排查；这是有效观测结果。`}</div> : null}
-        {aggregate ? <div className="v41-shortlist-group">{limited ? `仅赛程比赛 · ${workspace.today_summary.match_count} 场` : `全部比赛 · ${workspace.today_summary.match_count} 场`}</div> : null}
+        {aggregate ? <div className="v41-shortlist-group">{limited ? `盘口证据待采集 · ${workspace.today_summary.match_count} 场` : `全部比赛 · ${workspace.today_summary.match_count} 场`}</div> : null}
         {limited && matches.length ? matches.slice(0, 6).map((match) => (
           <article className="v41-limited-match" key={match.fixture_id}>
             <span className={`v41-stripe v41-stripe--${presentation.tone}`} />
             <span className="v41-shortlist-copy">
               <small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认", match.competition_id)}</small>
               <strong><MatchName match={match} /></strong>
-              <span><b>仅赛程</b> · {notYetDue ? "未到市场采集时点" : "市场证据待采集"}</span>
+              <span><b>{presentation.label}</b> · W2 盘口证据尚未落盘</span>
             </span>
             <time>{kickoffLabel(match.kickoff_utc, workspace.date)}</time>
           </article>
@@ -326,8 +325,8 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
             <span className={`v41-stripe v41-stripe--${presentation.tone}`} />
             <span className="v41-shortlist-copy">
               <small>{limited.affected_competition_count} 个联赛受影响</small>
-              <strong>仅有赛程 · {limited.affected_fixture_count} 场</strong>
-              <span><b>{notYetDue ? "未进入市场采集窗口" : "市场证据待采集"}</b> · 暂不生成市场分析</span>
+              <strong>盘口证据待采集 · {limited.affected_fixture_count} 场</strong>
+              <span><b>{presentation.label}</b> · 暂不生成市场分析</span>
             </span>
           </div>
         ) : calm ? (

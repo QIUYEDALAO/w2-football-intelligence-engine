@@ -277,17 +277,19 @@ test("future selected day derives neutral scope/cause copy and keeps known raw t
   await expect(page.getByLabel("选择比赛日")).toHaveValue(payload.date);
 
   const selectedDayCause = page.locator("header.v41-header [data-public-cause=NOT_YET_DUE]");
-  await expect(selectedDayCause).toHaveText("未进入市场采集窗口");
+  await expect(selectedDayCause).toHaveText("W2 计划采集尚未开始");
   await expect(selectedDayCause).toHaveClass(/v41-pill--neutral/);
   await expect(page.locator(".v41-shortlist .v41-stripe--neutral")).toHaveCount(2);
   await expect(page.locator(".v41-shortlist [class*='collection_incident']")).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText("采集异常");
   await expect(page.locator(".v41-today")).toContainText("场所选比赛日比赛");
-  await expect(page.locator(".v41-global h1")).toContainText("尚未进入市场采集窗口");
+  await expect(page.locator(".v41-global h1")).toContainText("W2 计划采集尚未开始");
+  await expect(page.locator(".v41-global-note")).toContainText("不判断外部市场是否已有盘口");
   await expect(page.locator(".v41-shortlist")).toContainText("Rosenborg");
   await expect(page.locator(".v41-shortlist")).toContainText("维京");
   await expect(page.locator(".v41-shortlist")).toContainText("中文译名待映射");
   await expect(page.locator(".v41-shortlist")).not.toContainText("主队（中文译名待映射）");
+  await expect(page.locator("body")).not.toContainText("仅赛程");
   await expect(page.locator(".v41-shortlist time").first()).toHaveText("20:00");
   await expect(page.locator(".v41-shortlist time").nth(1)).toHaveText("次日 01:00");
   await expect(page.locator("#secondary-validation")).toContainText("前向记录");
@@ -491,7 +493,8 @@ test("V41 limited day keeps affected match names, kickoff times and recorded eva
   await expect(page.locator(".v41-today-primary")).toContainText("2场今日比赛");
   await expect(page.locator(".v41-today-primary")).toContainText("2 场可查看赛程");
   await expect(page.locator(".v41-today-primary")).toContainText("0 场可进行市场分析");
-  await expect(page.locator(".v41-shortlist")).toContainText("仅赛程比赛 · 2 场");
+  await expect(page.locator(".v41-shortlist")).toContainText("盘口证据待采集 · 2 场");
+  await expect(page.locator(".v41-shortlist")).not.toContainText("仅赛程");
   await expect(page.locator(".v41-focus")).toContainText("只展示已持久化事实，不用缺失数据补算");
   await expect(page.locator(".v41-focus")).not.toContainText("当日市场采集阻塞");
   await expect(page.locator(".v41-focus")).not.toContainText("等待既有调度");
@@ -580,7 +583,7 @@ test("SC19 date strip exposes persisted counts and collection-window truth", asy
   await expect(strip.getByText("1/13 联赛", { exact: false }).first()).toBeVisible();
   await expect(strip).toContainText("已落盘市场观察 1/3 场");
   await expect(strip).not.toContainText("市场证据可用");
-  await expect(strip.getByText("未进入市场采集窗口", { exact: false }).first()).toBeVisible();
+  await expect(strip.getByText("W2 计划采集尚未开始", { exact: false }).first()).toBeVisible();
   await expect(strip).toContainText("每次只读取所选日期，不额外查询 Provider");
   await strip.getByRole("button", { name: "查看更晚日期" }).click();
   await expect(strip.getByText("2026-08-16", { exact: true })).toBeVisible();
