@@ -44,11 +44,19 @@ CANONICAL_OUTCOMES = {
 }
 REQUIRED_MATCHDAY_COMPETITIONS = frozenset(
     {
-        "world_cup_2026",
+        "premier_league",
+        "la_liga",
+        "bundesliga",
+        "serie_a",
+        "ligue_1",
         "brasileirao_serie_a",
+        "argentina_primera",
+        "mls",
         "chinese_super_league",
         "allsvenskan",
         "eliteserien",
+        "eredivisie",
+        "primeira_liga",
     }
 )
 MANIFEST_HASH_EXCLUDED_FIELDS = frozenset({"manifest_hash", "audit"})

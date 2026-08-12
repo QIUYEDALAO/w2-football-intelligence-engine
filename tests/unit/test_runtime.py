@@ -155,6 +155,12 @@ def test_scheduler_future_refresh_intersects_runtime_allowlist(monkeypatch) -> N
         "allsvenskan,eliteserien",
     )
     monkeypatch.setattr("w2.competitions.registry.CompetitionRegistry", Registry)
+    monkeypatch.setattr(
+        "w2.competitions.league_whitelist_scope.load_league_whitelist_scope",
+        lambda registry: type(
+            "Scope", (), {"all_whitelist": ("allsvenskan", "eliteserien")}
+        )(),
+    )
 
     assert future_fixture_refresh_competition_ids() == ("allsvenskan", "eliteserien")
 
@@ -170,6 +176,11 @@ def test_scheduler_future_refresh_dispatches_checkpoint_worker_task_without_runn
 
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setattr(
+        scheduler_main,
+        "future_fixture_refresh_competition_ids",
+        lambda: ("world_cup_2026",),
+    )
     monkeypatch.setattr(
         scheduler_main,
         "due_checkpoint_refresh_batch",
@@ -243,6 +254,11 @@ def test_scheduler_suppresses_duplicate_future_refresh_task_key(monkeypatch) -> 
 
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setattr(
+        scheduler_main,
+        "future_fixture_refresh_competition_ids",
+        lambda: ("world_cup_2026",),
+    )
     monkeypatch.setattr(
         scheduler_main,
         "due_checkpoint_refresh_batch",
@@ -319,6 +335,11 @@ def test_scheduler_future_refresh_uses_checkpoint_task_key_and_dedup(
 
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setattr(
+        scheduler_main,
+        "future_fixture_refresh_competition_ids",
+        lambda: ("world_cup_2026",),
+    )
     monkeypatch.setattr(
         scheduler_main,
         "due_checkpoint_refresh_batch",
@@ -419,10 +440,9 @@ def test_scheduler_future_refresh_accepts_staging_competition_list(monkeypatch) 
         result = future_fixture_refresh_tick()
 
     assert result["status"] == "QUEUED"
-    assert result["queued_count"] == 5
-    assert len(sent) == 5
+    assert result["queued_count"] == 4
+    assert len(sent) == 4
     assert {item["kwargs"]["competition_id"] for item in sent} == {
-        "world_cup_2026",
         "brasileirao_serie_a",
         "chinese_super_league",
         "allsvenskan",
