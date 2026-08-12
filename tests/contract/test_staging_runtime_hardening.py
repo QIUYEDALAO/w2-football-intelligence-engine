@@ -85,6 +85,8 @@ def test_recovery_script_is_staging_only_and_uses_safe_prunes() -> None:
 
 def test_deploy_is_pull_only_and_health_checked() -> None:
     text = read(DEPLOY)
+    assert r"127\.0\.0\.1:5000/w2/" in text
+    assert "VPS-loopback registry digest reference" in text
     assert '"${COMPOSE[@]}" pull migration api worker scheduler web' in text
     assert '"${COMPOSE[@]}" run --rm migration' in text
     assert '"${COMPOSE[@]}" up -d --remove-orphans api worker scheduler web' in text

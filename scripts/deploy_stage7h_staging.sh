@@ -21,9 +21,10 @@ if [ "${DEPLOY_MODE}" != "all" ] && [ "${DEPLOY_MODE}" != "web" ]; then
   echo "deploy mode must be all or web" >&2
   exit 2
 fi
+IMAGE_REF_RE='^(ghcr\.io/[a-z0-9._/-]+|127\.0\.0\.1:5000/w2/[a-z0-9._/-]+)@sha256:[0-9a-f]{64}$'
 for image in "${PYTHON_IMAGE}" "${WEB_IMAGE}"; do
-  if [[ ! "${image}" =~ ^ghcr\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$ ]]; then
-    echo "image must be an immutable GHCR digest reference" >&2
+  if [[ ! "${image}" =~ ${IMAGE_REF_RE} ]]; then
+    echo "image must be an immutable GHCR or VPS-loopback registry digest reference" >&2
     exit 2
   fi
 done

@@ -1,6 +1,6 @@
 # W2 Staging Compose — standalone (no inheritance from docker-compose.yml)
 # All business ports bound to 127.0.0.1 only.
-# W2_PYTHON_IMAGE and W2_WEB_IMAGE must be immutable GHCR references ending in @sha256:<digest>.
+# W2_PYTHON_IMAGE and W2_WEB_IMAGE must be immutable registry references ending in @sha256:<digest>.
 # Usage: sudo docker compose -f infra/compose/compose.staging.yml --env-file /opt/w2/shared/.env --env-file /opt/w2/shared/release.env -p w2 up -d
 
 name: w2-staging
