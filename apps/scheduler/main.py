@@ -34,6 +34,7 @@ class ClaimedCheckpointPlan:
     due_at_utc: datetime | None
     endpoints: tuple[str, ...]
     source: str
+    policy_version: str
     id: str
     claim_token: str | None
     claim_expires_at: str | None
@@ -325,6 +326,7 @@ def due_checkpoint_refresh_batch(
             due_at_utc=parse_fixture_kickoff(row["due_at"]),
             endpoints=tuple(str(item) for item in row["endpoints"]),
             source=str(row["source"]),
+            policy_version=str(row["policy_version"]),
             id=str(row["id"]),
             claim_token=str(row.get("claim_token") or "") or None,
             claim_expires_at=str(row.get("claim_expires_at") or "") or None,
@@ -354,6 +356,7 @@ def due_checkpoint_refresh_batch(
             else None,
             "endpoints": list(plan.endpoints),
             "source": plan.source,
+            "policy_version": plan.policy_version,
             "id": plan.id,
             "claim_token": plan.claim_token,
             "claim_expires_at": plan.claim_expires_at,

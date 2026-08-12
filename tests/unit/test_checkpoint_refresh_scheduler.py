@@ -164,7 +164,8 @@ def test_lineups_provider_empty_schedules_t45_and_t30_retries_at_due_windows() -
     assert all(plan.source == "lineups_retry" for plan in plans)
 
 
-def test_checkpoint_batch_respects_hard_cap() -> None:
+def test_checkpoint_batch_respects_hard_cap(monkeypatch) -> None:
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "1")
     plans = [
         *checkpoint_plan_for_fixture(
             fixture_id="a",
@@ -182,9 +183,26 @@ def test_checkpoint_batch_respects_hard_cap() -> None:
 
     selected, projected = select_checkpoint_batch(plans, hard_cap=4)
 
-    assert len(selected) == 3
+    assert len(selected) == 4
     assert projected == projected_calls_for_checkpoint_batch(selected)
     assert projected <= 4
+
+
+def test_checkpoint_batch_reserves_retry_budget(monkeypatch) -> None:
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "2")
+    plans = [
+        checkpoint_plan_for_fixture(
+            fixture_id=f"fixture-{index}",
+            kickoff_utc=NOW + timedelta(days=7),
+            generated_at_utc=NOW,
+            competition_id="allsvenskan",
+        )[0]
+        for index in range(30)
+    ]
+
+    selected, projected = select_checkpoint_batch(plans, hard_cap=30)
+
+    assert (len(selected), projected) == (15, 30)
 
 
 def test_world_cup_five_fixture_budget_stays_under_100_including_retries() -> None:

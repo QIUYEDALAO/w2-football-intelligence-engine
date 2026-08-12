@@ -6,11 +6,16 @@ from typing import Any
 
 import pytest
 from apps.worker.celery_app import _materialize_outcome_results
-from sqlalchemy import create_engine, func, select
+from scripts.requeue_unlinked_t168_provider_empty import requeue_unlinked_t168_provider_empty
+from sqlalchemy import create_engine, func, select, update
 from sqlalchemy.orm import Session
 
 import w2.prematch.analysis_calculator as api_repository
 from w2.api.repository import ReadModelRepository as DashboardReadModelRepository
+from w2.competitions.seed import (
+    apply_collection_policy_update,
+    seed_competition_runtime_authority,
+)
 from w2.config import get_settings
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.future_refresh_models import (
@@ -27,6 +32,7 @@ from w2.infrastructure.persistence.ingestion_models import (
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
     MatchdayEndpointCaptureModel,
+    MatchdayEndpointCapturePlanModel,
     MatchdayMarketObservationModel,
 )
 from w2.infrastructure.persistence.models import ResultModel, StructuredLineupSnapshotModel
@@ -36,6 +42,7 @@ from w2.ingestion.future_refresh_repository import (
     FutureRefreshDbRepository,
     FutureRefreshPersistenceError,
 )
+from w2.matchday.intake_v2 import CheckpointPlan
 from w2.matchday.repository import MatchdayRuntimeRepository
 from w2.prematch.analysis_calculator import ReadModelRepository, ReadModelService
 from w2.prematch.read_model_projection import (
@@ -204,7 +211,77 @@ class FinishedFixtureClient(FakeApiFootballClient):
         return super().payload(endpoint, params)
 
 
-def configure_sqlite_db(monkeypatch: Any, tmp_path: Path) -> None:
+class SchemaDriftLineupsClient(FakeApiFootballClient):
+    def payload(self, endpoint: str, params: dict[str, str]) -> dict[str, Any]:
+        return {"response": {}} if endpoint == "lineups" else super().payload(endpoint, params)
+
+
+class EmptyOddsClient(FakeApiFootballClient):
+    def payload(self, endpoint: str, params: dict[str, str]) -> dict[str, Any]:
+        return {"response": []} if endpoint == "odds" else super().payload(endpoint, params)
+
+
+class FirstFixtureErrorsOddsClient(FakeApiFootballClient):
+    def payload(self, endpoint: str, params: dict[str, str]) -> dict[str, Any]:
+        if endpoint == "odds" and params.get("fixture") == "1489404":
+            return {"errors": {"plan": "restricted"}, "response": []}
+        return super().payload(endpoint, params)
+
+
+class RetryOddsClient(FakeApiFootballClient):
+    def request_live(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
+        if endpoint == "odds" and not self.calls:
+            self.calls.append((endpoint, params))
+            return LiveApiFootballResponse(
+                endpoint=endpoint,
+                params=params,
+                status_code=429,
+                elapsed_ms=7,
+                payload={},
+                headers={},
+                captured_at=NOW - timedelta(seconds=1),
+            )
+        return super().request_live(endpoint, params)
+
+
+class RetryEveryOddsClient(FakeApiFootballClient):
+    def request_live(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
+        fixture = params.get("fixture", "")
+        if endpoint == "odds" and sum(call == (endpoint, params) for call in self.calls) == 0:
+            self.calls.append((endpoint, params))
+            return LiveApiFootballResponse(
+                endpoint=endpoint,
+                params=params,
+                status_code=429,
+                elapsed_ms=7,
+                payload={},
+                headers={},
+                captured_at=NOW - timedelta(seconds=1),
+            )
+        assert fixture
+        return super().request_live(endpoint, params)
+
+
+class Http500OddsClient(FakeApiFootballClient):
+    def request_live(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
+        self.calls.append((endpoint, params))
+        return LiveApiFootballResponse(
+            endpoint=endpoint,
+            params=params,
+            status_code=500,
+            elapsed_ms=7,
+            payload={"errors": {"server": "failure"}},
+            headers={"x-ratelimit-requests-remaining": "7000"},
+            captured_at=NOW,
+        )
+
+
+def configure_sqlite_db(
+    monkeypatch: Any,
+    tmp_path: Path,
+    *,
+    collection_policy: bool = False,
+) -> None:
     database_url = f"sqlite+pysqlite:///{tmp_path / 'future-refresh.db'}"
     monkeypatch.setenv("W2_ENVIRONMENT", "test")
     monkeypatch.setenv("W2_DATABASE_URL", database_url)
@@ -212,6 +289,326 @@ def configure_sqlite_db(monkeypatch: Any, tmp_path: Path) -> None:
     get_settings.cache_clear()
     engine = create_engine(database_url)
     Base.metadata.create_all(engine)
+    if collection_policy:
+        seed_competition_runtime_authority(engine, environment="test", now=NOW)
+        apply_collection_policy_update(engine, updated_by="checkpoint-test", now=NOW)
+
+
+def seed_odds_checkpoint(
+    fixture_id: str,
+    *,
+    with_identity: bool,
+    endpoints: tuple[str, ...] = ("odds",),
+    checkpoint: str = "T168_OPEN_ODDS",
+) -> None:
+    repository = MatchdayRuntimeRepository()
+    payload = FakeApiFootballClient().payload("fixtures", {})["response"][0]
+    payload["fixture"]["id"] = int(fixture_id)
+    payload["league"] = {"id": 113, "name": "Allsvenskan", "round": "Regular Season"}
+    kickoff = NOW + timedelta(hours=7)
+    payload["fixture"]["date"] = kickoff.isoformat()
+    if with_identity:
+        repository.upsert_fixture_identities_with_business_changes(
+            [
+                {
+                    "fixture_id": f"api_football:{fixture_id}",
+                    "provider": "api_football",
+                    "provider_fixture_id": fixture_id,
+                    "competition_id": "allsvenskan",
+                    "provider_league_id": "113",
+                    "season": "2026",
+                    "kickoff_utc": kickoff,
+                    "fixture_status": "NS",
+                    "home_provider_team_id": "10",
+                    "away_provider_team_id": "20",
+                    "home_w2_team_id": None,
+                    "away_w2_team_id": None,
+                    "team_identity_status": "REVIEW_REQUIRED",
+                    "raw_payload_sha256": "a" * 64,
+                    "endpoint_capture_id": None,
+                    "captured_at": NOW,
+                    "identity_hash": "b" * 64,
+                    "payload": payload,
+                }
+            ]
+        )
+    repository.upsert_checkpoint_plan(
+        CheckpointPlan(
+            fixture_id=f"api_football:{fixture_id}",
+            competition_id="allsvenskan",
+            season="2026",
+            checkpoint=checkpoint,
+            kickoff_utc=kickoff,
+            scheduled_at=NOW,
+            window_start=NOW - timedelta(minutes=1),
+            window_end=NOW + timedelta(hours=1),
+            endpoints=endpoints,
+            status="DUE",
+            blockers=(),
+        )
+    )
+
+
+def claimed_odds_checkpoint(*, with_identity: bool) -> dict[str, Any]:
+    seed_odds_checkpoint("1489404", with_identity=with_identity)
+    repository = MatchdayRuntimeRepository()
+    claimed = repository.claim_due_checkpoint_plans(now=NOW, worker_id="direct-test")
+    assert len(claimed) == 1
+    return claimed[0]
+
+
+def run_direct_checkpoint(
+    tmp_path: Path,
+    client: FakeApiFootballClient,
+    *checkpoints: dict[str, Any],
+) -> Any:
+    return run_future_refresh_task(
+        task_id="direct-checkpoint",
+        key="direct:checkpoint",
+        queued_at=NOW,
+        competition_id="allsvenskan",
+        runtime_root=tmp_path / "runtime",
+        client=client,
+        now=NOW,
+        persistence="db",
+        checkpoint_fixture_ids=tuple(str(item["fixture_id"]) for item in checkpoints),
+        refresh_checkpoints=checkpoints,
+        materialize_public_artifacts=materialize_projection_events_for_test,
+    )
+
+
+def test_checkpoint_missing_persisted_fixture_fails_without_provider_call(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path, collection_policy=True)
+    checkpoint = claimed_odds_checkpoint(with_identity=False)
+    client = FakeApiFootballClient()
+
+    audit = run_direct_checkpoint(tmp_path, client, checkpoint)
+
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        plan = session.scalar(select(MatchdayCheckpointPlanModel))
+        checkpoint_audit = session.scalar(select(FutureRefreshCheckpointAuditModel))
+
+    assert client.calls == []
+    assert plan is not None and plan.status == "FAILED"
+    assert checkpoint_audit is not None and checkpoint_audit.calls_used == 0
+    assert audit.status == "BLOCKED"
+
+
+@pytest.mark.parametrize(
+    ("client", "checkpoint_name", "endpoints", "expected_status", "expected_lineups"),
+    [
+        (FakeApiFootballClient(), "T45_LINEUPS_RETRY", ("lineups",), "CAPTURED", 2),
+        (
+            FakeApiFootballClient(),
+            "T60_ODDS_LINEUPS",
+            ("odds", "lineups"),
+            "CAPTURED",
+            2,
+        ),
+        (SchemaDriftLineupsClient(), "T45_LINEUPS_RETRY", ("lineups",), "FAILED", 0),
+    ],
+)
+def test_checkpoint_direct_endpoints_are_exact_and_fail_closed(
+    tmp_path: Path,
+    monkeypatch: Any,
+    client: FakeApiFootballClient,
+    checkpoint_name: str,
+    endpoints: tuple[str, ...],
+    expected_status: str,
+    expected_lineups: int,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path, collection_policy=True)
+    seed_odds_checkpoint(
+        "1489404",
+        with_identity=True,
+        endpoints=endpoints,
+        checkpoint=checkpoint_name,
+    )
+    checkpoint = MatchdayRuntimeRepository().claim_due_checkpoint_plans(
+        now=NOW, worker_id="endpoint-matrix"
+    )[0]
+
+    run_direct_checkpoint(tmp_path, client, checkpoint)
+
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        plan = session.scalar(select(MatchdayCheckpointPlanModel))
+        captures = list(session.scalars(select(MatchdayEndpointCaptureModel)))
+        links = session.scalar(select(func.count()).select_from(MatchdayEndpointCapturePlanModel))
+        lineup_count = session.scalar(
+            select(func.count()).select_from(StructuredLineupSnapshotModel)
+        )
+    assert [endpoint for endpoint, _params in client.calls] == list(endpoints)
+    assert plan is not None and plan.status == expected_status
+    assert len(captures) == len(endpoints)
+    assert links == len(endpoints)
+    assert {row.checkpoint for row in captures} == {checkpoint_name}
+    assert lineup_count == expected_lineups
+
+
+@pytest.mark.parametrize(
+    ("client_type", "second_status", "second_audit", "expected_calls"),
+    [
+        (FirstFixtureErrorsOddsClient, "CAPTURED", "COMPLETED", 2),
+        (Http500OddsClient, "DUE", "RETRY_PENDING", 1),
+    ],
+)
+def test_checkpoint_batch_isolates_failure_and_releases_unattempted(
+    tmp_path: Path,
+    monkeypatch: Any,
+    client_type: type[FakeApiFootballClient],
+    second_status: str,
+    second_audit: str,
+    expected_calls: int,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path, collection_policy=True)
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "1")
+    seed_odds_checkpoint("1489404", with_identity=True)
+    seed_odds_checkpoint("1489405", with_identity=True)
+    checkpoints = MatchdayRuntimeRepository().claim_due_checkpoint_plans(
+        now=NOW, worker_id="batch-direct-test"
+    )
+    client = client_type()
+    run_direct_checkpoint(tmp_path, client, *checkpoints)
+
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        plans = {
+            row.fixture_id: row
+            for row in session.scalars(select(MatchdayCheckpointPlanModel))
+        }
+        audits = {
+            row.fixture_id: row.status
+            for row in session.scalars(select(FutureRefreshCheckpointAuditModel))
+        }
+
+    assert [params["fixture"] for _, params in client.calls] == [
+        "1489404",
+        "1489405",
+    ][:expected_calls]
+    assert plans["api_football:1489404"].status == "FAILED"
+    assert plans["api_football:1489405"].status == second_status
+    assert audits == {
+        "api_football:1489404": "FAILED",
+        "api_football:1489405": second_audit,
+    }
+    if second_status == "DUE":
+        assert plans["api_football:1489405"].claim_token is None
+        assert "CHECKPOINT_BATCH_NOT_ATTEMPTED" in plans["api_football:1489405"].blockers
+
+
+def test_checkpoint_retry_uses_final_capture(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path, collection_policy=True)
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "2")
+    checkpoint = claimed_odds_checkpoint(with_identity=True)
+    client = RetryOddsClient()
+
+    audit = run_direct_checkpoint(tmp_path, client, checkpoint)
+
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        plan = session.scalar(select(MatchdayCheckpointPlanModel))
+        captures = list(
+            session.scalars(
+                select(MatchdayEndpointCaptureModel).order_by(
+                    MatchdayEndpointCaptureModel.attempt
+                )
+            )
+        )
+        checkpoint_audit = session.scalar(select(FutureRefreshCheckpointAuditModel))
+
+    assert plan is not None and plan.status == "CAPTURED"
+    assert [(row.attempt, row.capture_status, row.error_code) for row in captures] == [
+        (1, "FAILED", "PROVIDER_HTTP_ERROR"),
+        (2, "CAPTURED", None),
+    ]
+    assert checkpoint_audit is not None and checkpoint_audit.calls_used == 2
+    assert audit.status == "COMPLETED"
+
+
+def test_requeued_checkpoint_attempt_two_links_provider_empty_capture(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path, collection_policy=True)
+    seed_odds_checkpoint("1489404", with_identity=True)
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with engine.begin() as connection:
+        connection.execute(
+            update(MatchdayCheckpointPlanModel).values(status="PROVIDER_EMPTY", attempt_count=1)
+        )
+    dry_run = requeue_unlinked_t168_provider_empty(engine, now=NOW)
+    requeue_unlinked_t168_provider_empty(
+        engine,
+        now=NOW,
+        apply=True,
+        expected_count=1,
+        expected_plan_ids_sha256=dry_run.plan_ids_sha256,
+    )
+    checkpoint = MatchdayRuntimeRepository().claim_due_checkpoint_plans(
+        now=NOW, worker_id="attempt-two"
+    )[0]
+
+    run_direct_checkpoint(tmp_path, EmptyOddsClient(), checkpoint)
+
+    with Session(engine) as session:
+        plan = session.scalar(select(MatchdayCheckpointPlanModel))
+        capture = session.scalar(select(MatchdayEndpointCaptureModel))
+        links = session.scalar(select(func.count()).select_from(MatchdayEndpointCapturePlanModel))
+    assert plan is not None and (plan.status, plan.attempt_count) == ("PROVIDER_EMPTY", 2)
+    assert capture is not None and capture.capture_status == "PROVIDER_EMPTY"
+    assert links == 1
+
+
+def test_checkpoint_batch_budget_covers_each_planned_retry(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path, collection_policy=True)
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "2")
+    for fixture_id in map(str, range(1489404, 1489419)):
+        seed_odds_checkpoint(fixture_id, with_identity=True)
+    checkpoints = MatchdayRuntimeRepository().claim_due_checkpoint_plans(
+        now=NOW, worker_id="retry-budget"
+    )
+    client = RetryEveryOddsClient()
+
+    audit = run_direct_checkpoint(tmp_path, client, *checkpoints)
+
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        statuses = set(session.scalars(select(MatchdayCheckpointPlanModel.status)))
+    assert audit.status == "COMPLETED"
+    assert len(client.calls) == 30
+    assert statuses == {"CAPTURED"}
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        {"checkpoint": "POSTMATCH_RESULT", "endpoints": ["status", "fixtures"]},
+        {"endpoints": ["lineups"]},
+    ],
+)
+def test_checkpoint_claim_payload_is_canonical_before_provider_call(
+    tmp_path: Path,
+    monkeypatch: Any,
+    mutation: dict[str, Any],
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path, collection_policy=True)
+    checkpoint = {**claimed_odds_checkpoint(with_identity=True), **mutation}
+    client = FakeApiFootballClient()
+
+    audit = run_direct_checkpoint(tmp_path, client, checkpoint)
+
+    assert audit.result["blockers"] == ["CHECKPOINT_CLAIM_PAYLOAD_MISMATCH"]
+    assert client.calls == []
 
 
 def test_db_persistence_completes_with_read_only_runtime_and_is_idempotent(

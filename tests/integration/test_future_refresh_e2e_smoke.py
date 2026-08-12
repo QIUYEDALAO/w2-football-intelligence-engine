@@ -151,7 +151,7 @@ def test_matchday_refresh_blocked_tick_has_zero_provider_calls_contract() -> Non
     assert tick.as_dict()["provider_calls"] == 0
 
 
-def test_scheduler_to_celery_eager_future_refresh_smoke_is_fake_and_idempotent(
+def test_scheduler_rejects_file_checkpoint_before_provider_call(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
@@ -271,24 +271,8 @@ def test_scheduler_to_celery_eager_future_refresh_smoke_is_fake_and_idempotent(
     assert first_audit["result"]["candidate"] is False
     assert first_audit["result"]["formal_recommendation"] is False
 
-    ledger = runtime_root / "ledger/market_observations.jsonl"
-    ledger_lines = ledger.read_text(encoding="utf-8").splitlines()
-    assert len(ledger_lines) == 1
-
-    assert (runtime_root / "read_model/fixtures.json").is_file()
-    assert (runtime_root / "read_model/provider_mappings.json").is_file()
-    assert (runtime_root / "read_model/market_snapshots.json").is_file()
-    assert (runtime_root / "read_model/latest_market_observations.json").is_file()
-    assert (runtime_root / "read_model/market_coverage.json").is_file()
-    assert (runtime_root / "read_model/provider_status.json").is_file()
-    assert read_json(runtime_root / "future_refresh_audit.json")["candidate"] is False
-    assert len(fake_client.calls) == 3
-    assert [endpoint for endpoint, _params in fake_client.calls] == [
-        "status",
-        "fixtures",
-        "odds",
-    ]
-    assert fake_client.calls[-1] == ("odds", {"fixture": "1489404"})
+    assert first_audit["result"]["blockers"] == ["CHECKPOINT_ENDPOINT_SET_INVALID"]
+    assert fake_client.calls == []
     assert dispatched[0]["kwargs"]["checkpoint_fixture_ids"] == [
         "api_football:1489404"
     ]
