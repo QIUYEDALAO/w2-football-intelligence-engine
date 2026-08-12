@@ -7,9 +7,16 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
 
+from w2.competitions.seed import apply_collection_policy_update, seed_competition_runtime_authority
+from w2.config import get_settings
+from w2.infrastructure.database import Base
+from w2.infrastructure.persistence.future_refresh_models import FutureRefreshRunAuditModel
 from w2.ingestion.future_refresh import (
     FutureFixtureRefreshService,
     FutureRefreshConfig,
@@ -290,6 +297,20 @@ class _SchemaDriftProvider(FakeApiFootballClient):
         if endpoint == "fixtures":
             return {"response": {"unexpected": True}}
         return super().payload(endpoint, params)
+
+
+class _ProviderErrorsWithoutQuota(FakeApiFootballClient):
+    def request_live(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
+        self.calls.append((endpoint, params))
+        return LiveApiFootballResponse(
+            endpoint=endpoint,
+            params=params,
+            status_code=200,
+            elapsed_ms=7,
+            payload={"errors": {"plan": "restricted"}, "response": {}},
+            headers={},
+            captured_at=NOW,
+        )
 
 
 class _EmptyFixturesProvider(FakeApiFootballClient):
@@ -1057,6 +1078,16 @@ def test_gate_a_schema_drift_fails_closed_after_evidence_capture(tmp_path: Path)
     assert reservation.endpoints == ["status", "fixtures"]
 
 
+def test_provider_errors_precede_missing_quota(tmp_path: Path) -> None:
+    result = FutureFixtureRefreshService(
+        client=_ProviderErrorsWithoutQuota(),
+        config=FutureRefreshConfig(runtime_root=tmp_path, persistence="file"),
+        now=NOW,
+    ).run()
+
+    assert result.blockers == ["PROVIDER_STATUS_ERRORS"]
+
+
 def test_gate_a_abnormal_empty_fails_closed(tmp_path: Path) -> None:
     reservation = _CallReservation()
     result = FutureFixtureRefreshService(
@@ -1174,7 +1205,11 @@ def test_future_refresh_skips_optional_enrichment_at_request_budget(tmp_path: Pa
     )
 
 
-def test_future_refresh_tick_hard_cap_blocks_before_provider_call(tmp_path: Path) -> None:
+def test_future_refresh_tick_hard_cap_blocks_before_provider_call(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "3")
     client = FakeApiFootballClient()
     config = FutureRefreshConfig(
         runtime_root=tmp_path,
@@ -1197,7 +1232,7 @@ def test_future_refresh_tick_hard_cap_blocks_before_provider_call(tmp_path: Path
     assert result.request_count == 0
     assert client.calls == []
     assert audit["request_count"] == 0
-    assert audit["requests"][0]["projected_calls"] == 33
+    assert audit["requests"][0]["projected_calls"] == 99
 
 
 def test_future_refresh_projected_calls_ignore_disallowed_enrichment(tmp_path: Path) -> None:
@@ -1265,6 +1300,7 @@ def test_future_refresh_caps_configured_provider_retries(
     monkeypatch,
 ) -> None:
     monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "999")
+    monkeypatch.setenv("W2_PROVIDER_REFRESH_TICK_HARD_CAP", "100")
     client = FakeApiFootballClient(status_code=429)
     result = FutureFixtureRefreshService(
         client=client,
@@ -1437,16 +1473,17 @@ def test_future_refresh_task_writes_audit_and_blocks_duplicate_bucket(tmp_path: 
     assert existing.release()
 
 
-def test_checkpoint_refresh_materializes_only_fixtures_with_new_observations(
-    tmp_path: Path,
+@pytest.mark.parametrize("endpoints", [["odds"], [], ["statistics"]])
+def test_file_checkpoint_execution_is_rejected_before_provider_calls(
+    tmp_path: Path, endpoints: list[str]
 ) -> None:
-    materialized: list[list[tuple[str, str]]] = []
+    client = FakeApiFootballClient()
     checkpoint = {
         "fixture_id": "1489404",
         "checkpoint": "T1_LINEUPS",
         "kickoff_utc": "2026-06-23T17:00:00Z",
         "due_at": "2026-06-23T16:00:00Z",
-        "endpoints": ["odds"],
+        "endpoints": endpoints,
         "source": "scheduled",
     }
 
@@ -1455,20 +1492,16 @@ def test_checkpoint_refresh_materializes_only_fixtures_with_new_observations(
         key="checkpoint-refresh:test:materialize",
         queued_at=NOW,
         runtime_root=tmp_path,
-        client=FakeApiFootballClient(),
+        client=client,
         now=NOW,
         persistence="file",
         checkpoint_fixture_ids=("1489404",),
         refresh_checkpoints=(checkpoint,),
-        materialize_public_artifacts=lambda events: (
-            materialized.append([(event.fixture_id, event.event_type) for event in events])
-            or list(dict.fromkeys(event.fixture_id for event in events))
-        ),
     )
 
-    assert audit.status == "COMPLETED"
-    assert materialized == [[("1489404", "ODDS_CHANGED")]]
-    assert audit.result["materialized_fixture_ids"] == ["1489404"]
+    assert audit.status == "BLOCKED"
+    assert audit.result["blockers"] == ["CHECKPOINT_ENDPOINT_SET_INVALID"]
+    assert client.calls == []
 
 
 def test_raw_lineup_persistence_defers_materialization_until_fixture_identity_exists(
@@ -1571,38 +1604,62 @@ def test_fixture_change_triggers_projection_before_task_success(
 
 
 def test_checkpoint_refresh_fails_before_completion_when_materialization_fails(
+    monkeypatch,
     tmp_path: Path,
 ) -> None:
-    checkpoint = {
-        "fixture_id": "1489404",
-        "checkpoint": "T1_LINEUPS",
-        "kickoff_utc": "2026-06-23T17:00:00Z",
-        "due_at": "2026-06-23T16:00:00Z",
-        "endpoints": ["odds"],
-        "source": "scheduled",
-    }
+    class MaterializableApiFootballClient(FakeApiFootballClient):
+        def payload(self, endpoint: str, params: dict[str, str]) -> dict[str, Any]:
+            if endpoint != "lineups":
+                return super().payload(endpoint, params)
+
+            def lineup(team_id: int, offset: int) -> dict[str, Any]:
+                return {
+                    "team": {"id": team_id},
+                    "formation": "4-3-3",
+                    "startXI": [
+                        {
+                            "player": {
+                                "id": offset + index,
+                                "name": f"Player {offset + index}",
+                                "number": index + 1,
+                                "pos": "G" if index == 0 else "M",
+                            }
+                        }
+                        for index in range(11)
+                    ],
+                    "substitutes": [],
+                }
+
+            return {"response": [lineup(10, 100), lineup(20, 200)]}
 
     def fail_materialization(_events: list[object]) -> list[str]:
         raise RuntimeError("artifact write failed")
 
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'materialization.db'}"
+    monkeypatch.setenv("W2_DATABASE_URL", database_url)
+    get_settings.cache_clear()
+    engine = create_engine(database_url)
+    Base.metadata.create_all(engine)
+    seed_competition_runtime_authority(engine, environment="test", now=NOW)
+    apply_collection_policy_update(engine, updated_by="materialization-test", now=NOW)
+
     audit = run_future_refresh_task(
-        task_id="task-materialize-failure",
-        key="checkpoint-refresh:test:materialize-failure",
+        task_id="checkpoint-materialization-failure",
+        key="checkpoint-materialization-failure",
         queued_at=NOW,
+        competition_id="allsvenskan",
         runtime_root=tmp_path,
-        client=FakeApiFootballClient(),
+        client=MaterializableApiFootballClient(),
         now=NOW,
-        persistence="file",
-        checkpoint_fixture_ids=("1489404",),
-        refresh_checkpoints=(checkpoint,),
+        persistence="db",
         materialize_public_artifacts=fail_materialization,
     )
-    refresh_audit = json.loads((tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8"))
+    with Session(engine) as session:
+        refresh_audit = session.scalar(select(FutureRefreshRunAuditModel))
 
     assert audit.status == "BLOCKED"
     assert audit.result["blockers"] == ["RuntimeError"]
-    assert refresh_audit["status"] == "PARTIAL_FAILED"
-    assert refresh_audit["error_code"] == "RuntimeError"
+    assert refresh_audit is not None and refresh_audit.blockers == ["RuntimeError"]
 
 
 def test_future_refresh_error_type_is_runtime_error() -> None:

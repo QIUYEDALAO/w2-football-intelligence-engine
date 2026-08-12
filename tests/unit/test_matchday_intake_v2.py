@@ -215,6 +215,42 @@ def test_endpoint_params_capture_empty_and_provider_canary_requires_approval(
     assert result.status == "PROVIDER_CANARY_NOT_EXECUTED_NO_AUTHORIZATION"
 
 
+@pytest.mark.parametrize(
+    ("endpoint", "status_code", "payload", "expected"),
+    [
+        (
+            "odds",
+            200,
+            {"errors": {"plan": "restricted"}, "response": []},
+            (0, "FAILED", "PROVIDER_PAYLOAD_ERRORS"),
+        ),
+        ("odds", 200, {"response": {}}, (1, "FAILED", "PROVIDER_SCHEMA_DRIFT")),
+        ("status", 200, {"response": []}, (0, "FAILED", "PROVIDER_SCHEMA_DRIFT")),
+        ("status", 200, {"response": {"requests": {}, "subscription": {}}}, (1, "CAPTURED", None)),
+        ("odds", 500, {"errors": {"server": "failure"}}, (0, "FAILED", "PROVIDER_HTTP_ERROR")),
+    ],
+)
+def test_endpoint_capture_fails_closed(
+    endpoint: str,
+    status_code: int,
+    payload: dict[str, object],
+    expected: tuple[int, str, str | None],
+) -> None:
+    capture = endpoint_capture_contract(
+        endpoint=endpoint,
+        params={} if endpoint == "status" else {"fixture": "100"},
+        requested_at=NOW,
+        provider_captured_at=NOW,
+        status_code=status_code,
+        elapsed_ms=5,
+        payload=payload,
+    )
+
+    assert (capture["response_count"], capture["capture_status"], capture["error_code"]) == (
+        expected
+    )
+
+
 def test_dry_run_and_replay_have_zero_provider_calls() -> None:
     dry = execute_matchday_intake(mode="DRY_RUN")
     replay = execute_matchday_intake(

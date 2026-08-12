@@ -227,7 +227,7 @@ def write_raw_once(path: Path, payload: Any) -> None:
 
 def response_count(payload: dict[str, Any]) -> int:
     response = payload.get("response")
-    return len(response) if isinstance(response, list) else 0
+    return len(response) if isinstance(response, list) else int(isinstance(response, dict))
 
 
 def bookmaker_count(payload: dict[str, Any]) -> int:
@@ -746,6 +746,9 @@ class FutureFixtureRefreshService:
         self._feature_enrichment_batch_count = 0
         self._matchday_capture_by_payload: dict[tuple[str, str, str, str], dict[str, Any]] = {}
         self._projection_events: dict[tuple[str, str, str], ProjectionSourceEvent] = {}
+        self._checkpoint_errors: list[str] = []
+        self._checkpoint_attempted_plan_ids: set[str] = set()
+        self._checkpoint_preflight_failures: set[str] = set()
 
     def _db_repository(self) -> FutureRefreshDbRepository:
         return FutureRefreshDbRepository()
@@ -866,20 +869,31 @@ class FutureFixtureRefreshService:
             self._write_audit(result)
             return result
         try:
-            self._request("status", {})
-            fixtures_response = self._request(
-                "fixtures",
-                self._fixtures_request_params(),
-            )
-            future_fixtures = self._future_fixtures(fixtures_response.payload)
-            odds_responses = self._fetch_market_snapshots(future_fixtures)
-            enrichment_responses = self._fetch_feature_enrichment(future_fixtures)
+            checkpoint_mode = self._checkpoint_mode()
+            direct_checkpoint = checkpoint_mode == "DIRECT"
+            if direct_checkpoint:
+                (
+                    fixtures_response,
+                    future_fixtures,
+                    odds_responses,
+                    enrichment_responses,
+                ) = self._run_checkpoint_requests()
+                blockers.extend(self._checkpoint_errors)
+            elif checkpoint_mode in {"NONE", "POSTMATCH"}:
+                self._request("status", {})
+                fixtures_response = self._request("fixtures", self._fixtures_request_params())
+                future_fixtures = self._future_fixtures(fixtures_response.payload)
+                odds_responses = self._fetch_market_snapshots(future_fixtures)
+                enrichment_responses = self._fetch_feature_enrichment(future_fixtures)
+            else:
+                raise FutureRefreshError("CHECKPOINT_ENDPOINT_SET_INVALID")
             result = self._persist(
                 fixtures_response,
                 future_fixtures,
                 odds_responses,
                 enrichment_responses,
                 blockers,
+                persist_fixture_identities=not direct_checkpoint,
             )
         except FutureRefreshError as exc:
             blockers.append(str(exc))
@@ -1235,7 +1249,7 @@ class FutureFixtureRefreshService:
             fixture_id = str(checkpoint.get("fixture_id") or "")
             if not plan_id or not claim_token:
                 raise FutureRefreshError("CHECKPOINT_CLAIM_REQUIRED")
-            repository.validate_checkpoint_claim(
+            canonical = repository.validate_checkpoint_claim(
                 plan_id=plan_id,
                 claim_token=claim_token,
                 now=self.now,
@@ -1243,6 +1257,15 @@ class FutureFixtureRefreshService:
                 competition_id=self.config.competition_id,
                 season=self.config.season,
             )
+            if any(
+                (
+                    checkpoint.get("checkpoint") != canonical.get("checkpoint"),
+                    tuple(checkpoint.get("endpoints") or ())
+                    != tuple(canonical.get("endpoints") or ()),
+                    checkpoint.get("policy_version") != canonical.get("policy_version"),
+                )
+            ):
+                raise FutureRefreshError("CHECKPOINT_CLAIM_PAYLOAD_MISMATCH")
 
     def _request(
         self,
@@ -1320,6 +1343,14 @@ class FutureFixtureRefreshService:
             )
             payload_sha = sha256_payload(raw_payload, domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD)
             response_size = response_count(response.payload)
+            provider_errors = response.payload.get("errors")
+            payload_error = provider_errors not in (None, {}, [], "")
+            response_value = response.payload.get("response")
+            response_schema_error = (
+                not isinstance(response_value, dict)
+                if endpoint == "status"
+                else not isinstance(response_value, list)
+            )
             raw_payload_persisted, raw_payload_error = self._save_raw_payload_first(
                 endpoint=endpoint,
                 params=params,
@@ -1366,11 +1397,28 @@ class FutureFixtureRefreshService:
                         endpoint=endpoint,
                         response_count=response_size,
                     ),
-                    "error_code": None if status < 400 else f"PROVIDER_HTTP_{status}",
+                    "error_code": (
+                        f"PROVIDER_HTTP_{status}"
+                        if status >= 400
+                        else f"PROVIDER_{endpoint.upper()}_ERRORS"
+                        if payload_error
+                        else f"PROVIDER_{endpoint.upper()}_SCHEMA_DRIFT"
+                        if response_schema_error
+                        else None
+                    ),
                 }
             )
-            if status in {401, 403}:
+            if status == 429 and self.runtime_authorization is not None:
+                raise FutureRefreshError("PROVIDER_HTTP_429")
+            if status == 429 and attempt < max_attempts:
+                self.sleep(0.2 * (2 ** (attempt - 1)))
+                continue
+            if status >= 400:
                 raise FutureRefreshError(f"PROVIDER_HTTP_{status}")
+            if payload_error:
+                raise FutureRefreshError(f"PROVIDER_{endpoint.upper()}_ERRORS")
+            if response_schema_error:
+                raise FutureRefreshError(f"PROVIDER_{endpoint.upper()}_SCHEMA_DRIFT")
             if remaining is None:
                 raise FutureRefreshError("DAILY_QUOTA_UNKNOWN")
             min_remaining = env_int("W2_PROVIDER_PREFLIGHT_MIN_REMAINING", default=50)
@@ -1383,13 +1431,6 @@ class FutureFixtureRefreshService:
             )
             if not guard["allowed"]:
                 raise FutureRefreshError(str(guard["blocker"]))
-            if status == 429 and self.runtime_authorization is not None:
-                raise FutureRefreshError("PROVIDER_HTTP_429")
-            if status == 429 and attempt < max_attempts:
-                self.sleep(0.2 * (2 ** (attempt - 1)))
-                continue
-            if status >= 400:
-                raise FutureRefreshError(f"PROVIDER_HTTP_{status}")
             if self.runtime_authorization is not None:
                 self._validate_gate_a_response(
                     endpoint,
@@ -1528,6 +1569,86 @@ class FutureFixtureRefreshService:
             matches.append(dict(item))
         return matches
 
+    def _checkpoint_mode(self) -> str:
+        if not self.config.refresh_checkpoints:
+            return "NONE"
+        endpoint_sets = [
+            set(item.get("endpoints") or []) for item in self.config.refresh_checkpoints
+        ]
+        if all(
+            endpoints == {"status", "fixtures"}
+            and str(item.get("checkpoint") or "") == "POSTMATCH_RESULT"
+            for item, endpoints in zip(self.config.refresh_checkpoints, endpoint_sets, strict=True)
+        ):
+            return "POSTMATCH"
+        if self.config.persistence == "db" and all(
+            endpoints and endpoints <= {"odds", "lineups"} for endpoints in endpoint_sets
+        ):
+            return "DIRECT"
+        return "INVALID"
+
+    def _run_checkpoint_requests(
+        self,
+    ) -> tuple[
+        LiveApiFootballResponse,
+        list[dict[str, Any]],
+        list[tuple[str, LiveApiFootballResponse]],
+        list[tuple[str, str, LiveApiFootballResponse]],
+    ]:
+        fixtures: dict[str, dict[str, Any]] = {}
+        odds: list[tuple[str, LiveApiFootballResponse]] = []
+        lineups: list[tuple[str, str, LiveApiFootballResponse]] = []
+        seen: set[tuple[str, str]] = set()
+        repository = self._db_repository()
+        for plan in self.config.refresh_checkpoints:
+            plan_id = str(plan.get("id") or plan.get("plan_id") or "")
+            fixture_id = _api_football_fixture_id(str(plan.get("fixture_id") or ""))
+            payload = fixtures.get(fixture_id) or repository.fixture_payload(fixture_id)
+            if payload is None or fixture_id_from_payload(payload) != fixture_id:
+                self._checkpoint_preflight_failures.add(plan_id)
+                self._checkpoint_errors.append(
+                    f"CHECKPOINT_FIXTURE_PAYLOAD_MISSING:{fixture_id}"
+                )
+                continue
+            fixtures[fixture_id] = payload
+            for endpoint in plan.get("endpoints") or []:
+                if (fixture_id, endpoint) in seen:
+                    continue
+                seen.add((fixture_id, endpoint))
+                if endpoint == "odds":
+                    self._odds_request_fixture_ids.append(fixture_id)
+                self._checkpoint_attempted_plan_ids.add(plan_id)
+                try:
+                    response = self._request(str(endpoint), {"fixture": fixture_id})
+                except FutureRefreshError as exc:
+                    reason = str(exc)
+                    if reason in {
+                        f"PROVIDER_{str(endpoint).upper()}_ERRORS",
+                        f"PROVIDER_{str(endpoint).upper()}_SCHEMA_DRIFT",
+                    }:
+                        self._checkpoint_errors.append(reason)
+                        continue
+                    raise
+                if endpoint == "odds" and bookmaker_count(response.payload) > 0:
+                    odds.append((fixture_id, response))
+                elif endpoint == "lineups" and response_count(response.payload) > 0:
+                    lineups.append((fixture_id, "lineups", response))
+        fixture_rows = list(fixtures.values())
+        return (
+            LiveApiFootballResponse(
+                endpoint="fixtures",
+                params={},
+                status_code=200,
+                elapsed_ms=0,
+                payload={"response": fixture_rows},
+                headers={},
+                captured_at=self.now,
+            ),
+            fixture_rows,
+            odds,
+            lineups,
+        )
+
     def _capture_lookup_key(
         self,
         *,
@@ -1640,7 +1761,7 @@ class FutureFixtureRefreshService:
         )
 
     def _provider_tick_hard_cap_preflight(self) -> dict[str, Any]:
-        projected_calls = self._projected_provider_calls()
+        projected_calls = self._planned_provider_calls()
         tick_hard_cap = provider_refresh_tick_hard_cap()
         return {
             "allowed": projected_calls <= tick_hard_cap,
@@ -1652,6 +1773,14 @@ class FutureFixtureRefreshService:
         }
 
     def _projected_provider_calls(self) -> int:
+        if self._checkpoint_mode() == "DIRECT":
+            return len(
+                {
+                    (str(item.get("fixture_id") or ""), str(endpoint))
+                    for item in self.config.refresh_checkpoints
+                    for endpoint in item.get("endpoints") or []
+                }
+            )
         core_calls = sum(
             1 for endpoint in ("status", "fixtures") if self._endpoint_authorized(endpoint)
         )
@@ -1704,7 +1833,7 @@ class FutureFixtureRefreshService:
         )
 
     def _planned_provider_calls(self) -> int:
-        return self._projected_provider_calls()
+        return self._projected_provider_calls() * provider_http_max_attempts()
 
     def _endpoint_authorized(self, endpoint: str) -> bool:
         return endpoint in provider_endpoint_allowlist()
@@ -1874,6 +2003,8 @@ class FutureFixtureRefreshService:
         odds_responses: list[tuple[str, LiveApiFootballResponse]],
         enrichment_responses: list[tuple[str, str, LiveApiFootballResponse]],
         blockers: list[str],
+        *,
+        persist_fixture_identities: bool = True,
     ) -> FutureRefreshResult:
         if self.config.persistence == "db":
             return self._persist_db(
@@ -1882,6 +2013,7 @@ class FutureFixtureRefreshService:
                 odds_responses,
                 enrichment_responses,
                 blockers,
+                persist_fixture_identities=persist_fixture_identities,
             )
         if self.config.persistence != "file":
             raise FutureRefreshError(
@@ -1980,14 +2112,20 @@ class FutureFixtureRefreshService:
         odds_responses: list[tuple[str, LiveApiFootballResponse]],
         enrichment_responses: list[tuple[str, str, LiveApiFootballResponse]],
         blockers: list[str],
+        *,
+        persist_fixture_identities: bool = True,
     ) -> FutureRefreshResult:
         try:
             from w2.matchday.repository import MatchdayRuntimeRepository
 
             repository = MatchdayRuntimeRepository()
-            fixture_identities = self._fixture_identities_from_response(
-                fixtures_response=fixtures_response,
-                fixtures=fixtures,
+            fixture_identities = (
+                self._fixture_identities_from_response(
+                    fixtures_response=fixtures_response,
+                    fixtures=fixtures,
+                )
+                if persist_fixture_identities
+                else []
             )
             for fixture_identity in fixture_identities:
                 try:
@@ -2456,16 +2594,46 @@ class FutureFixtureRefreshService:
                 else ""
             )
             if fixture_id:
-                calls_by_fixture[fixture_id] = calls_by_fixture.get(fixture_id, 0) + int(
-                    item.get("attempt") or 0
-                )
+                calls_by_fixture[fixture_id] = calls_by_fixture.get(fixture_id, 0) + 1
         for checkpoint in self.config.refresh_checkpoints:
             fixture_id = str(checkpoint.get("fixture_id") or "")
             name = str(checkpoint.get("checkpoint") or "")
             if not fixture_id or not name:
                 continue
-            progress_status = refresh_progress_status(result)
-            status = "COMPLETED" if progress_status == "DATA_PROGRESS" else progress_status
+            capture_id = None
+            capture_ids: list[str] = []
+            if self._checkpoint_mode() == "DIRECT":
+                progress_status, capture_id, capture_ids = self._checkpoint_capture_outcome(
+                    checkpoint, result
+                )
+                if progress_status == "NOT_ATTEMPTED":
+                    repository.write_checkpoint_audit(
+                        fixture_id=fixture_id,
+                        checkpoint=name,
+                        as_of=result.generated_at_utc,
+                        calls_used=0,
+                        status="RETRY_PENDING",
+                        details={
+                            "contract": "w2.checkpoint_refresh.v1",
+                            "blockers": result.blockers,
+                            "progress_status": "RETRY_PENDING",
+                            "endpoints": list(checkpoint.get("endpoints") or []),
+                            "endpoint_capture_ids": [],
+                            "source": checkpoint.get("source"),
+                        },
+                    )
+                    from w2.matchday.repository import MatchdayRuntimeRepository
+
+                    MatchdayRuntimeRepository().release_checkpoint_claim(
+                        plan_id=str(checkpoint.get("id") or checkpoint.get("plan_id") or ""),
+                        claim_token=str(checkpoint.get("claim_token") or ""),
+                        reason="CHECKPOINT_BATCH_NOT_ATTEMPTED",
+                    )
+                    continue
+                status = "COMPLETED" if progress_status == "CAPTURED" else progress_status
+            else:
+                progress_status = refresh_progress_status(result)
+                status = "COMPLETED" if progress_status == "DATA_PROGRESS" else progress_status
             repository.write_checkpoint_audit(
                 fixture_id=fixture_id,
                 checkpoint=name,
@@ -2482,15 +2650,66 @@ class FutureFixtureRefreshService:
                     "blockers": result.blockers,
                     "progress_status": progress_status,
                     "endpoints": list(checkpoint.get("endpoints") or []),
+                    "endpoint_capture_ids": capture_ids,
                     "source": checkpoint.get("source"),
                 },
             )
-            self._transition_checkpoint_plan(checkpoint, result)
+            self._transition_checkpoint_plan(
+                checkpoint,
+                result,
+                status_override=progress_status if self._checkpoint_mode() == "DIRECT" else None,
+                capture_id=capture_id,
+            )
+
+    def _checkpoint_capture_outcome(
+        self,
+        checkpoint: dict[str, Any],
+        result: FutureRefreshResult,
+    ) -> tuple[str, str | None, list[str]]:
+        plan_id = str(checkpoint.get("id") or checkpoint.get("plan_id") or "")
+        expected = {str(item) for item in checkpoint.get("endpoints") or []}
+        latest: dict[str, dict[str, Any]] = {}
+        for capture in self._matchday_capture_by_payload.values():
+            endpoint = str(capture.get("endpoint") or "")
+            if (
+                plan_id not in set(capture.get("checkpoint_plan_ids") or [])
+                or endpoint not in expected
+            ):
+                continue
+            current = latest.get(endpoint)
+            order = (
+                int(capture.get("attempt") or 0),
+                str(capture.get("provider_captured_at") or ""),
+            )
+            if current is None or order >= (
+                int(current.get("attempt") or 0),
+                str(current.get("provider_captured_at") or ""),
+            ):
+                latest[endpoint] = capture
+        capture_ids = sorted(str(item["capture_id"]) for item in latest.values())
+        if plan_id in self._checkpoint_preflight_failures:
+            return "FAILED", None, []
+        if not latest:
+            return (
+                ("FAILED", None, [])
+                if plan_id in self._checkpoint_attempted_plan_ids
+                else ("NOT_ATTEMPTED", None, [])
+            )
+        if not expected or set(latest) != expected:
+            return "FAILED", None, capture_ids
+        statuses = {str(item.get("capture_status") or "") for item in latest.values()}
+        if "FAILED" in statuses:
+            return "FAILED", None, capture_ids
+        status = "PROVIDER_EMPTY" if "PROVIDER_EMPTY" in statuses else "CAPTURED"
+        return status, capture_ids[0] if len(capture_ids) == 1 else None, capture_ids
 
     def _transition_checkpoint_plan(
         self,
         checkpoint: dict[str, Any],
         result: FutureRefreshResult,
+        *,
+        status_override: str | None = None,
+        capture_id: str | None = None,
     ) -> None:
         plan_id = str(checkpoint.get("id") or checkpoint.get("plan_id") or "")
         claim_token = str(checkpoint.get("claim_token") or "")
@@ -2499,7 +2718,7 @@ class FutureFixtureRefreshService:
         from w2.matchday.repository import MatchdayRuntimeRepository
 
         progress_status = refresh_progress_status(result)
-        status = (
+        status = status_override or (
             "FAILED"
             if progress_status == "FAILED"
             else "CAPTURED"
@@ -2514,7 +2733,7 @@ class FutureFixtureRefreshService:
             checkpoint=str(checkpoint.get("checkpoint") or ""),
             policy_version=str(checkpoint.get("policy_version") or "w2.matchday_intake_policy.v2"),
             status=status,
-            capture_id=None,
+            capture_id=capture_id,
             now=result.generated_at_utc,
             claim_token=claim_token,
         )
@@ -2561,6 +2780,23 @@ def run_future_fixture_refresh(
     if persistence is not None:
         config = replace(config, persistence=persistence)
     if checkpoint_fixture_ids or refresh_checkpoints:
+        endpoint_sets = [set(item.get("endpoints") or []) for item in refresh_checkpoints]
+        logical_calls = (
+            2
+            if endpoint_sets
+            and all(
+                endpoints == {"status", "fixtures"}
+                and str(item.get("checkpoint") or "") == "POSTMATCH_RESULT"
+                for item, endpoints in zip(refresh_checkpoints, endpoint_sets, strict=True)
+            )
+            else len(
+                {
+                    (str(item.get("fixture_id") or ""), str(endpoint))
+                    for item in refresh_checkpoints
+                    for endpoint in item.get("endpoints") or []
+                }
+            )
+        )
         result_refresh_fixture_ids = (
             tuple(dict.fromkeys(checkpoint_fixture_ids))
             if any(
@@ -2586,7 +2822,7 @@ def run_future_fixture_refresh(
             feature_enrichment_request_budget=lineups_count,
             request_budget=max(
                 config.request_budget,
-                2 + len(set(checkpoint_fixture_ids)) + lineups_count,
+                logical_calls * provider_http_max_attempts(),
             ),
         )
     return FutureFixtureRefreshService(

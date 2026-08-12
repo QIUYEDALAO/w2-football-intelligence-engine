@@ -574,10 +574,18 @@ def endpoint_capture_contract(
     if captured < requested - timedelta(minutes=10):
         raise ValueError("CAPTURED_AT_BEFORE_REQUEST_WINDOW")
     response = payload.get("response")
-    response_count = len(response) if isinstance(response, list) else 0
+    response_count = (
+        len(response) if isinstance(response, list) else int(isinstance(response, dict))
+    )
     raw_sha = stable_hash(payload)
     status = "PROVIDER_EMPTY" if response_count == 0 and 200 <= status_code < 300 else "CAPTURED"
-    if status_code >= 400:
+    provider_errors = payload.get("errors")
+    schema_error = (
+        not isinstance(response, dict)
+        if endpoint == "status"
+        else not isinstance(response, list)
+    )
+    if status_code >= 400 or provider_errors not in (None, {}, [], "") or schema_error:
         status = "FAILED"
     sanitized = sanitize_params(params)
     capture = {
@@ -600,7 +608,17 @@ def endpoint_capture_contract(
         "raw_payload_sha256": raw_sha,
         "provider_event_time": provider_event_time,
         "capture_status": status,
-        "error_code": None if status != "FAILED" else "PROVIDER_HTTP_ERROR",
+        "error_code": (
+            None
+            if status != "FAILED"
+            else "PROVIDER_HTTP_ERROR"
+            if status_code >= 400
+            else "PROVIDER_PAYLOAD_ERRORS"
+            if provider_errors not in (None, {}, [], "")
+            else "PROVIDER_SCHEMA_DRIFT"
+            if schema_error
+            else None
+        ),
     }
     capture["capture_id"] = stable_hash(capture)
     return capture

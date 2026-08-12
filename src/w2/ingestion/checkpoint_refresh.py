@@ -18,6 +18,7 @@ from w2.matchday.intake_v2 import (
 from w2.prematch.lifecycle import (
     lineup_confirmed_refresh_plan as canonical_lineup_confirmed_refresh_plan,
 )
+from w2.providers.control import provider_http_max_attempts
 
 CHECKPOINT_REFRESH_CONTRACT = "w2.checkpoint_refresh.v1"
 CHECKPOINT_REFRESH_AUTHORITY = MATCHDAY_INTAKE_POLICY_VERSION
@@ -271,16 +272,17 @@ def lineup_confirmed_refresh_plan(
 def projected_calls_for_checkpoint_batch(plans: list[FixtureCheckpointPlan]) -> int:
     if not plans:
         return 0
-    calls = 0
-    if any("status" in plan.endpoints for plan in plans):
-        calls += 1
-    if any("fixtures" in plan.endpoints for plan in plans) or any(
-        endpoint in {"odds", "lineups"} for plan in plans for endpoint in plan.endpoints
-    ):
-        calls += 1
-    calls += sum(1 for plan in plans if plan.needs_odds)
-    calls += sum(1 for plan in plans if plan.needs_lineups)
-    return calls
+    fixture_calls = {
+        (plan.fixture_id, endpoint)
+        for plan in plans
+        for endpoint in plan.endpoints
+        if endpoint not in {"status", "fixtures"}
+    }
+    legacy_calls = sum(
+        int(any(endpoint in plan.endpoints for plan in plans))
+        for endpoint in ("status", "fixtures")
+    )
+    return (len(fixture_calls) + legacy_calls) * provider_http_max_attempts()
 
 
 def select_checkpoint_batch(
