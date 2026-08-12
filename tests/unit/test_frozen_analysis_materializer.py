@@ -444,6 +444,10 @@ def test_input_manifest_declares_optional_model_enhancements_unused() -> None:
     ).build("1576804", evaluated_at=evaluated_at)
 
     manifest = artifact.payload["input_manifest"]
+    assert (
+        manifest["analysis_evidence_contract_version"]
+        == "w2.analysis-market-evidence-projection.v3"
+    )
     assert manifest["ratings_used_in_lambda"] is False
     assert manifest["squad_value_used_in_lambda"] is False
 

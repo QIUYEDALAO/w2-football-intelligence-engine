@@ -40,7 +40,7 @@ from w2.tracking.advisory_blind_spot_policy import (
 )
 
 ANALYSIS_CARD_CANARY_SCHEMA = "w2.analysis-card.frozen.v1"
-ANALYSIS_EVIDENCE_CONTRACT_VERSION = "w2.analysis-market-evidence.v2"
+ANALYSIS_EVIDENCE_CONTRACT_VERSION = "w2.analysis-market-evidence-projection.v3"
 ANALYSIS_CARD_CANARY_PREFIX = "analysis-card:frozen:v1:"
 ANALYSIS_CARD_SHADOW_PREFIX = "analysis-card:shadow:v1:"
 PROJECTION_VERSION = "w2.prematch-read-model-projection.v1"
