@@ -550,6 +550,12 @@ test("V41 match browser exposes all fixtures in priority order and one filter pe
   await expect(page.locator(".v41-focus")).toHaveAttribute("data-fixture-id", "browser-4");
 });
 
+test("V41 match browser hides the redundant filter for one present league", async ({ page }) => {
+  await installWorkspace(page);
+  await page.goto("/");
+  await expect(page.getByRole("toolbar", { name: "按联赛筛选比赛" })).toHaveCount(0);
+});
+
 test("V41 derives age across timezone and day boundaries and never labels a past evaluation as next", async ({ page }) => {
   const payload = workspace();
   payload.generated_at = "2026-08-10T00:30:00+08:00";
