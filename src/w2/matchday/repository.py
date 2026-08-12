@@ -279,6 +279,7 @@ class MatchdayRuntimeRepository:
         plan_id: str,
         claim_token: str,
         reason: str,
+        restore_attempt: bool = False,
     ) -> bool:
         with Session(self.engine) as session:
             row = session.get(MatchdayCheckpointPlanModel, plan_id)
@@ -286,8 +287,10 @@ class MatchdayRuntimeRepository:
                 raise MatchdayRepositoryError("CHECKPOINT_PLAN_NOT_FOUND")
             if row.claim_token != claim_token:
                 return False
-            if row.status in _TERMINAL_CHECKPOINT_STATUSES:
+            if row.status != "DUE":
                 return False
+            if restore_attempt:
+                row.attempt_count = max(int(row.attempt_count or 0) - 1, 0)
             row.claimed_at = None
             row.claimed_by = None
             row.claim_token = None

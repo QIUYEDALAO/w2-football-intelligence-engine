@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import pytest
 from apps.scheduler import main as scheduler_main
 from apps.scheduler.main import (
     due_checkpoint_refresh_batch,
@@ -31,6 +32,7 @@ from w2.config import Settings
 from w2.infrastructure.cache import redis_status
 from w2.infrastructure.database import create_engine
 from w2.ingestion.checkpoint_refresh import postmatch_result_checkpoint_plan
+from w2.matchday.intake_v2 import stable_hash
 
 
 @contextmanager
@@ -179,7 +181,7 @@ def test_scheduler_future_refresh_dispatches_checkpoint_worker_task_without_runn
     monkeypatch.setattr(
         scheduler_main,
         "future_fixture_refresh_competition_ids",
-        lambda: ("world_cup_2026",),
+        lambda: ("allsvenskan",),
     )
     monkeypatch.setattr(
         scheduler_main,
@@ -224,10 +226,11 @@ def test_scheduler_future_refresh_dispatches_checkpoint_worker_task_without_runn
     )
     monkeypatch.setattr(celery_app, "send_task", fake_send_task)
 
-    result = future_fixture_refresh_tick()
+    with db_enabled_competitions("allsvenskan"):
+        result = future_fixture_refresh_tick()
 
     assert result["status"] == "QUEUED"
-    assert str(result["task_key"]).startswith("checkpoint-refresh:world_cup_2026:2026:")
+    assert str(result["task_key"]).startswith("checkpoint-refresh:allsvenskan:2026:")
     assert result["provider_refresh_min_interval_policy"] == ("REPLACED_BY_PER_FIXTURE_CHECKPOINTS")
     assert sent[0]["name"] == "w2.future_fixture_refresh"
     assert sent[0]["kwargs"]["task_key"] == result["task_key"]
@@ -242,7 +245,8 @@ def test_scheduler_provider_master_switch_blocks_refresh_enqueue(monkeypatch) ->
     monkeypatch.delenv("W2_PROVIDER_SCHEDULER_ENABLED", raising=False)
     monkeypatch.setattr(celery_app, "send_task", lambda *args, **kwargs: sent.append({}))
 
-    result = future_fixture_refresh_tick()
+    with db_enabled_competitions("allsvenskan"):
+        result = future_fixture_refresh_tick()
 
     assert result["status"] == "SKIPPED_PROVIDER_SCHEDULER_DISABLED"
     assert result["provider_calls"] == 0
@@ -251,13 +255,14 @@ def test_scheduler_provider_master_switch_blocks_refresh_enqueue(monkeypatch) ->
 
 def test_scheduler_suppresses_duplicate_future_refresh_task_key(monkeypatch) -> None:
     sent: list[dict[str, object]] = []
+    released: list[dict[str, object]] = []
 
     monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setattr(
         scheduler_main,
         "future_fixture_refresh_competition_ids",
-        lambda: ("world_cup_2026",),
+        lambda: ("allsvenskan",),
     )
     monkeypatch.setattr(
         scheduler_main,
@@ -296,12 +301,70 @@ def test_scheduler_suppresses_duplicate_future_refresh_task_key(monkeypatch) -> 
         )(),
     )
     monkeypatch.setattr(celery_app, "send_task", lambda *args, **kwargs: sent.append({}))
+    monkeypatch.setattr(
+        scheduler_main,
+        "release_checkpoint_batch_claims",
+        lambda checkpoints, **kwargs: released.append(
+            {"checkpoints": checkpoints, **kwargs}
+        ),
+    )
 
-    result = future_fixture_refresh_tick()
+    with db_enabled_competitions("allsvenskan"):
+        result = future_fixture_refresh_tick()
 
     assert result["status"] == "DUPLICATE_TASK_KEY_SUPPRESSED"
     assert result["provider_calls"] == 0
     assert sent == []
+    assert released[0]["restore_attempt"] is True
+
+
+def test_scheduler_enqueue_failure_keeps_attempt_for_ambiguous_delivery(monkeypatch) -> None:
+    released: list[dict[str, object]] = []
+    checkpoint = {
+        "fixture_id": "1489404",
+        "checkpoint": "T24",
+        "endpoints": ["odds"],
+        "source": "scheduled",
+    }
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setattr(
+        scheduler_main,
+        "future_fixture_refresh_competition_ids",
+        lambda: ("allsvenskan",),
+    )
+    monkeypatch.setattr(
+        scheduler_main,
+        "due_checkpoint_refresh_batch",
+        lambda now, **kwargs: {"status": "READY", "checkpoints": [checkpoint]},
+    )
+    monkeypatch.setattr(
+        scheduler_main,
+        "provider_task_key_gate",
+        lambda **kwargs: type(
+            "Gate", (), {"allowed": True, "status": "ACQUIRED", "backend": "test"}
+        )(),
+    )
+    monkeypatch.setattr(
+        scheduler_main,
+        "release_checkpoint_batch_claims",
+        lambda checkpoints, **kwargs: released.append(
+            {"checkpoints": checkpoints, **kwargs}
+        ),
+    )
+    monkeypatch.setattr(
+        celery_app,
+        "send_task",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("broker uncertain")),
+    )
+
+    with db_enabled_competitions("allsvenskan"):
+        with pytest.raises(RuntimeError, match="broker uncertain"):
+            future_fixture_refresh_tick()
+
+    assert released == [
+        {"checkpoints": [checkpoint], "reason": "CHECKPOINT_ENQUEUE_FAILED"}
+    ]
 
 
 def test_scheduler_future_refresh_uses_checkpoint_task_key_and_dedup(
@@ -967,6 +1030,75 @@ def test_scheduler_checkpoint_batch_ignores_due_rows_outside_current_fixture_set
     assert result["selected_checkpoint_count"] == 0
     assert claimed_plan_ids
     assert "checkpoint:9999:open" not in claimed_plan_ids
+
+
+def test_scheduler_hard_cap_restores_unselected_claim_attempt(monkeypatch) -> None:
+    now = datetime(2026, 6, 25, 12, tzinfo=UTC)
+    plans: dict[str, Any] = {}
+    released: list[dict[str, object]] = []
+
+    class FakeRepository:
+        def upsert_checkpoint_plan(self, plan: Any) -> str:
+            plan_id = stable_hash(plan.natural_identity)
+            plans[plan_id] = plan
+            return plan_id
+
+        def claim_due_checkpoint_plans(self, **kwargs: object) -> list[dict[str, Any]]:
+            rows = []
+            for plan_id in sorted(kwargs["plan_ids"]):  # type: ignore[arg-type]
+                plan = plans[plan_id]
+                if plan.status != "DUE":
+                    continue
+                rows.append(
+                    {
+                        "id": plan_id,
+                        "fixture_id": plan.fixture_id,
+                        "checkpoint": plan.checkpoint,
+                        "kickoff_utc": plan.kickoff_utc,
+                        "due_at": plan.scheduled_at,
+                        "endpoints": list(plan.endpoints),
+                        "source": "matchday_intake.v2",
+                        "policy_version": plan.policy_version,
+                        "claim_token": f"token:{plan_id}",
+                        "claim_expires_at": now + timedelta(minutes=15),
+                    }
+                )
+            return rows
+
+        def release_checkpoint_claim(self, **kwargs: object) -> bool:
+            released.append(kwargs)
+            return True
+
+    fixtures = [
+        {
+            "fixture": {"id": fixture_id, "date": "2026-06-25T19:00:00Z"},
+            "league": {"id": 71, "season": 2026},
+        }
+        for fixture_id in (2001, 2002)
+    ]
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "1")
+    monkeypatch.setattr(
+        scheduler_main,
+        "future_refresh_fixture_payloads",
+        lambda **kwargs: fixtures,
+    )
+    monkeypatch.setattr(
+        scheduler_main,
+        "provider_refresh_tick_hard_cap",
+        lambda: 1,
+    )
+    monkeypatch.setattr(
+        "w2.matchday.repository.MatchdayRuntimeRepository",
+        FakeRepository,
+    )
+
+    with db_enabled_competitions("brasileirao_serie_a"):
+        result = due_checkpoint_refresh_batch(now, provider_league_id="71")
+
+    assert result["due_checkpoint_count"] == 2
+    assert result["selected_checkpoint_count"] == 1
+    assert len(released) == 1
+    assert released[0]["restore_attempt"] is True
 
 
 def test_worker_future_refresh_task_is_registered() -> None:

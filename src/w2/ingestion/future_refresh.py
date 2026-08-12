@@ -1617,7 +1617,13 @@ class FutureFixtureRefreshService:
                 seen.add((fixture_id, endpoint))
                 if endpoint == "odds":
                     self._odds_request_fixture_ids.append(fixture_id)
-                self._checkpoint_attempted_plan_ids.add(plan_id)
+                self._checkpoint_attempted_plan_ids.update(
+                    str(item.get("id") or item.get("plan_id") or "")
+                    for item in self.config.refresh_checkpoints
+                    if _api_football_fixture_id(str(item.get("fixture_id") or ""))
+                    == fixture_id
+                    and endpoint in set(item.get("endpoints") or [])
+                )
                 try:
                     response = self._request(str(endpoint), {"fixture": fixture_id})
                 except FutureRefreshError as exc:
@@ -2628,6 +2634,7 @@ class FutureFixtureRefreshService:
                         plan_id=str(checkpoint.get("id") or checkpoint.get("plan_id") or ""),
                         claim_token=str(checkpoint.get("claim_token") or ""),
                         reason="CHECKPOINT_BATCH_NOT_ATTEMPTED",
+                        restore_attempt=True,
                     )
                     continue
                 status = "COMPLETED" if progress_status == "CAPTURED" else progress_status

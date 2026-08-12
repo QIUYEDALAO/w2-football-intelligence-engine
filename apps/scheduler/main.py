@@ -370,6 +370,7 @@ def due_checkpoint_refresh_batch(
                 plan_id=str(row["id"]),
                 claim_token=str(row["claim_token"]),
                 reason="CHECKPOINT_NOT_SELECTED_FOR_BATCH",
+                restore_attempt=True,
             )
     return {
         "status": "READY" if selected_rows else "NO_CHECKPOINT_DUE",
@@ -391,6 +392,7 @@ def release_checkpoint_batch_claims(
     checkpoints: list[dict[str, Any]],
     *,
     reason: str,
+    restore_attempt: bool = False,
 ) -> None:
     from w2.matchday.repository import MatchdayRuntimeRepository
 
@@ -404,6 +406,7 @@ def release_checkpoint_batch_claims(
             plan_id=plan_id,
             claim_token=claim_token,
             reason=reason,
+            restore_attempt=restore_attempt,
         )
 
 
@@ -538,6 +541,7 @@ def _future_fixture_refresh_tick_for_competition(competition_id: str) -> dict[st
         release_checkpoint_batch_claims(
             list(batch["checkpoints"]),
             reason=f"CHECKPOINT_ENQUEUE_BLOCKED:{gate.status}",
+            restore_attempt=True,
         )
         return {
             "status": gate.status,

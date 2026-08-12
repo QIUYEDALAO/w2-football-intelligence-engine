@@ -268,6 +268,59 @@ def test_checkpoint_state_machine_due_claim_capture_and_single_winner() -> None:
         assert row.claim_token is None
 
 
+def test_checkpoint_claim_release_restores_only_an_exact_unattempted_claim() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    policy = competition_policies(load_matchday_policy())["allsvenskan"]
+    plan = next(
+        item
+        for item in build_checkpoint_plans(
+            fixture_id="api_football:release",
+            competition_id="allsvenskan",
+            season="2026",
+            kickoff_utc=KICKOFF,
+            now=KICKOFF - timedelta(hours=25),
+            policy=policy,
+        )
+        if item.checkpoint == "T24_ODDS"
+    )
+    repository.upsert_checkpoint_plan(plan)
+    now = plan.window_start + timedelta(minutes=1)
+
+    first = repository.claim_due_checkpoint_plans(now=now, worker_id="worker-a")[0]
+    assert not repository.release_checkpoint_claim(
+        plan_id=first["id"],
+        claim_token=f"wrong:{first['claim_token']}",
+        reason="NOT_ATTEMPTED",
+        restore_attempt=True,
+    )
+    assert repository.release_checkpoint_claim(
+        plan_id=first["id"],
+        claim_token=first["claim_token"],
+        reason="NOT_ATTEMPTED",
+        restore_attempt=True,
+    )
+    assert not repository.release_checkpoint_claim(
+        plan_id=first["id"],
+        claim_token=first["claim_token"],
+        reason="DUPLICATE_RELEASE",
+        restore_attempt=True,
+    )
+    second = repository.claim_due_checkpoint_plans(now=now, worker_id="worker-b")[0]
+    assert second["attempt_count"] == 1
+    assert repository.release_checkpoint_claim(
+        plan_id=second["id"],
+        claim_token=second["claim_token"],
+        reason="ENQUEUE_AMBIGUOUS",
+    )
+    with Session(engine) as session:
+        row = session.get(MatchdayCheckpointPlanModel, second["id"])
+        assert row is not None
+        assert row.attempt_count == 1
+        assert row.claim_token is None
+
+
 def test_checkpoint_claim_expiry_releases_due_plan_inside_window() -> None:
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)

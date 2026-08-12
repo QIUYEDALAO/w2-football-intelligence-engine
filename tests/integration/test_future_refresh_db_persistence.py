@@ -398,6 +398,42 @@ def test_checkpoint_missing_persisted_fixture_fails_without_provider_call(
     assert audit.status == "BLOCKED"
 
 
+def test_checkpoint_daily_cap_preflight_restores_unattempted_claim(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path, collection_policy=True)
+    monkeypatch.setenv("W2_PROVIDER_DAILY_HARD_CAP", "1")
+    monkeypatch.setenv("W2_PROVIDER_DAILY_RESERVE", "0")
+    checkpoint = claimed_odds_checkpoint(with_identity=True)
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        session.add(
+            ProviderRequestLogModel(
+                provider="api_football",
+                endpoint="odds",
+                request_hash="f" * 64,
+                live=True,
+                status_code=200,
+                requested_at=NOW,
+                completed_at=NOW,
+            )
+        )
+        session.commit()
+    client = FakeApiFootballClient()
+
+    run_direct_checkpoint(tmp_path, client, checkpoint)
+
+    with Session(engine) as session:
+        plan = session.scalar(select(MatchdayCheckpointPlanModel))
+        audit = session.scalar(select(FutureRefreshCheckpointAuditModel))
+    assert client.calls == []
+    assert plan is not None and plan.status == "DUE"
+    assert plan.attempt_count == 0
+    assert plan.claim_token is None
+    assert audit is not None and (audit.status, audit.calls_used) == ("RETRY_PENDING", 0)
+
+
 @pytest.mark.parametrize(
     ("client", "checkpoint_name", "endpoints", "expected_status", "expected_lineups"),
     [
@@ -498,7 +534,30 @@ def test_checkpoint_batch_isolates_failure_and_releases_unattempted(
     }
     if second_status == "DUE":
         assert plans["api_football:1489405"].claim_token is None
+        assert plans["api_football:1489405"].attempt_count == 0
         assert "CHECKPOINT_BATCH_NOT_ATTEMPTED" in plans["api_football:1489405"].blockers
+
+
+def test_shared_checkpoint_request_marks_every_claim_as_attempted(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path, collection_policy=True)
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "1")
+    seed_odds_checkpoint("1489404", with_identity=True, checkpoint="T72_OPEN_ODDS")
+    seed_odds_checkpoint("1489404", with_identity=True, checkpoint="T48_OPEN_ODDS")
+    checkpoints = MatchdayRuntimeRepository().claim_due_checkpoint_plans(
+        now=NOW, worker_id="shared-request"
+    )
+
+    run_direct_checkpoint(tmp_path, Http500OddsClient(), *checkpoints)
+
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        plans = list(session.scalars(select(MatchdayCheckpointPlanModel)))
+    assert len(plans) == 2
+    assert {plan.attempt_count for plan in plans} == {1}
+    assert {plan.status for plan in plans} == {"FAILED"}
 
 
 def test_checkpoint_retry_uses_final_capture(
