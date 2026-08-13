@@ -328,24 +328,28 @@ def _snapshot(
     as_of: datetime,
     freshness_seconds: int,
 ) -> dict[str, Any] | None:
-    canonical = (
-        select_canonical_ah_mainline(
+    if market == "ASIAN_HANDICAP":
+        selected_ah = select_canonical_ah_mainline(
             rows,
             fixture_id=fixture_id,
             target=captured_at,
             kickoff=kickoff_utc,
         )
-        if market == "ASIAN_HANDICAP"
-        else select_canonical_totals_mainline(
+        if selected_ah.status != "READY" or selected_ah.line is None:
+            return None
+        canonical_line = selected_ah.line
+        pairs = _selected_ah_pairs(selected_ah.selected_quote_rows_by_bookmaker or {})
+    else:
+        selected_totals = select_canonical_totals_mainline(
             rows,
             fixture_id=fixture_id,
             target=captured_at,
             kickoff=kickoff_utc,
         )
-    )
-    if canonical.status != "READY" or canonical.line is None:
-        return None
-    pairs = _bookmaker_pairs(rows, market=market, line=canonical.line)
+        if selected_totals.status != "READY" or selected_totals.line is None:
+            return None
+        canonical_line = selected_totals.line
+        pairs = _totals_bookmaker_pairs(rows, line=canonical_line)
     if not pairs:
         return None
     sides = _SIDES[market]
@@ -357,7 +361,7 @@ def _snapshot(
     return {
         "capture_id": capture_id,
         "captured_at": _iso(captured_at),
-        "canonical_line": _format_decimal(canonical.line),
+        "canonical_line": _format_decimal(canonical_line),
         "freshness": {
             "status": freshness_status,
             "age_seconds": age_seconds,
@@ -403,9 +407,23 @@ def _snapshot(
     }
 
 
-def _bookmaker_pairs(
-    rows: Sequence[dict[str, Any]], *, market: str, line: Decimal
+def _selected_ah_pairs(
+    selected_rows: Mapping[str, Mapping[str, Mapping[str, Any]]],
 ) -> list[dict[str, Any]]:
+    return [
+        _bookmaker_pair(
+            bookmaker=bookmaker,
+            selected={side: dict(rows[side.lower()]) for side in _SIDES["ASIAN_HANDICAP"]},
+            market="ASIAN_HANDICAP",
+        )
+        for bookmaker, rows in sorted(selected_rows.items())
+    ]
+
+
+def _totals_bookmaker_pairs(
+    rows: Sequence[dict[str, Any]], *, line: Decimal
+) -> list[dict[str, Any]]:
+    market = "TOTALS"
     sides = _SIDES[market]
     grouped: dict[str, dict[str, list[dict[str, Any]]]] = {}
     for row in rows:
@@ -414,34 +432,41 @@ def _bookmaker_pairs(
         bookmaker = _text(row.get("bookmaker_id"))
         if side not in sides or row_line is None or not bookmaker:
             continue
-        line_matches = (
-            row_line == line if market == "TOTALS" or side == "HOME" else row_line in {line, -line}
-        )
-        if line_matches:
+        if row_line == line:
             grouped.setdefault(bookmaker, {}).setdefault(side, []).append(row)
     pairs: list[dict[str, Any]] = []
     for bookmaker, by_side in sorted(grouped.items()):
         if any(len(by_side.get(side, [])) != 1 for side in sides):
             continue
-        selected = {side: by_side[side][0] for side in sides}
-        odds = {side: Decimal(_text(selected[side]["decimal_odds"])) for side in sides}
-        result = devig(odds, DevigMethod.PROPORTIONAL)
         pairs.append(
-            {
-                "bookmaker_id": bookmaker,
-                "bookmaker_name": _text(selected[sides[0]].get("bookmaker_name"), bookmaker),
-                "prices": {side: float(odds[side]) for side in sides},
-                "probabilities": {side: _rounded(result.probabilities[side]) for side in sides},
-                "overround": _rounded(result.overround),
-                "observation_ids": sorted(
-                    _text(selected[side].get("observation_id")) for side in sides
-                ),
-                "raw_payload_sha256": sorted(
-                    {_text(selected[side].get("raw_payload_sha256")) for side in sides}
-                ),
-            }
+            _bookmaker_pair(
+                bookmaker=bookmaker,
+                selected={side: by_side[side][0] for side in sides},
+                market=market,
+            )
         )
     return pairs
+
+
+def _bookmaker_pair(
+    *, bookmaker: str, selected: Mapping[str, Mapping[str, Any]], market: str
+) -> dict[str, Any]:
+    sides = _SIDES[market]
+    odds = {side: Decimal(_text(selected[side]["decimal_odds"])) for side in sides}
+    result = devig(odds, DevigMethod.PROPORTIONAL)
+    return {
+        "bookmaker_id": bookmaker,
+        "bookmaker_name": _text(selected[sides[0]].get("bookmaker_name"), bookmaker),
+        "prices": {side: float(odds[side]) for side in sides},
+        "probabilities": {side: _rounded(result.probabilities[side]) for side in sides},
+        "overround": _rounded(result.overround),
+        "observation_ids": sorted(
+            _text(selected[side].get("observation_id")) for side in sides
+        ),
+        "raw_payload_sha256": sorted(
+            {_text(selected[side].get("raw_payload_sha256")) for side in sides}
+        ),
+    }
 
 
 def _movement(previous: Mapping[str, Any], current: Mapping[str, Any]) -> dict[str, Any]:

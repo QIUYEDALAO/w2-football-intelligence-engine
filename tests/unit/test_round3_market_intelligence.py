@@ -163,6 +163,54 @@ def test_real_same_line_timeline_builds_market_radar_and_movement() -> None:
     assert markets["TOTALS"]["movement"]["status"] in MOVEMENT_STATUSES
 
 
+def test_ah_depth_reuses_canonical_pairs_when_provider_exposes_mirrored_lines() -> None:
+    captured_at = AS_OF - timedelta(minutes=10)
+    rows: list[dict[str, Any]] = []
+    for index in range(1, 12):
+        bookmaker = str(index)
+        if index <= 7:
+            rows.extend(
+                [
+                    _quote(
+                        capture="capture-1",
+                        captured_at=captured_at,
+                        bookmaker=bookmaker,
+                        market="ASIAN_HANDICAP",
+                        selection=side,
+                        line=line,
+                        price=price,
+                    )
+                    for side, line, price in (
+                        ("HOME", "-0.25", "1.80"),
+                        ("AWAY", "-0.25", "2.00"),
+                        ("HOME", "0.25", "1.35"),
+                        ("AWAY", "0.25", "2.90"),
+                    )
+                ]
+            )
+        rows.extend(
+            [
+                _quote(
+                    capture="capture-1",
+                    captured_at=captured_at,
+                    bookmaker=bookmaker,
+                    market="TOTALS",
+                    selection=side,
+                    line="2.5",
+                    price=price,
+                )
+                for side, price in (("OVER", "1.94"), ("UNDER", "1.80"))
+            ]
+        )
+
+    markets = _payload(rows)["market_radar"]["markets"]
+
+    assert markets["ASIAN_HANDICAP"]["current"]["canonical_line"] == "-0.25"
+    assert markets["ASIAN_HANDICAP"]["current"]["bookmaker_count"] == 7
+    assert markets["TOTALS"]["current"]["canonical_line"] == "2.5"
+    assert markets["TOTALS"]["current"]["bookmaker_count"] == 11
+
+
 @pytest.mark.parametrize(
     ("before_line", "after_line", "before_price", "after_price", "expected"),
     [
