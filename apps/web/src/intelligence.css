@@ -881,6 +881,19 @@ summary {
   font-size: 11px;
 }
 
+.v41-market-freshness {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 4px 12px;
+  color: var(--v41-ink-2);
+  font-size: 12px;
+}
+
+.v41-market-freshness strong {
+  color: var(--v41-ink);
+  font-weight: 600;
+}
+
 .v41-market-semantics {
   display: flex;
   gap: 12px;
@@ -1065,9 +1078,9 @@ summary {
 .v41-scoreline small { color: var(--v41-ink-2); font-size: 11px; }
 
 .v41-next {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 5px 12px;
   margin-top: auto;
   color: var(--v41-ink-2);
   font-size: 12px;
@@ -1075,13 +1088,7 @@ summary {
 
 .v41-next strong {
   color: var(--v41-ink);
-  font-size: 16px;
-}
-
-.v41-next b {
-  margin-left: auto;
-  color: var(--v41-ink-2);
-  font-weight: 500;
+  font-size: 13px;
 }
 
 .v41-details {
@@ -1667,14 +1674,12 @@ summary {
   .v41-focus-summary,
   .v41-market-line,
   .v41-market-foot,
-  .v41-market-semantics,
-  .v41-next {
+  .v41-market-semantics {
     align-items: flex-start;
     flex-direction: column;
   }
 
-  .v41-focus-header > div:last-child,
-  .v41-next b {
+  .v41-focus-header > div:last-child {
     margin-left: 0;
     text-align: left;
   }

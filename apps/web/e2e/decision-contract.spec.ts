@@ -583,15 +583,22 @@ test("V41 derives age across timezone and day boundaries and never labels a past
   payload.generated_at = "2026-08-10T00:30:00+08:00";
   const focused = payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!;
   focused.market_radar.markets.ASIAN_HANDICAP.latest_snapshot_at = "2026-08-09T15:18:00Z";
+  focused.next_market_collection_at = "2026-08-09T18:30:00Z";
   focused.readiness.next_eval_at = "2026-08-09T16:30:00Z";
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
-  await expect(page.locator("[data-market='ASIAN_HANDICAP']")).toContainText("距最新快照 1 小时 12 分");
-  await expect(page.locator("[data-market='ASIAN_HANDICAP']")).toContainText("新鲜度阈值 6 小时 0 分");
-  await expect(page.locator(".v41-next")).toContainText("下一次赔率采集（独立于决策评估）");
-  await expect(page.locator(".v41-next")).toContainText("2026-08-09 22:30");
-  await expect(page.locator(".v41-next")).toContainText("评估时间已过期");
-  await expect(page.locator(".v41-next")).not.toContainText("下次评估");
+  const freshness = page.locator("[data-market='ASIAN_HANDICAP'] .v41-market-freshness");
+  await expect(freshness.locator("span").nth(1)).toHaveText("距最新快照");
+  await expect(freshness.locator("strong").nth(1)).toHaveText("1 小时 12 分");
+  await expect(freshness.locator("span").nth(2)).toHaveText("新鲜度阈值");
+  await expect(freshness.locator("strong").nth(2)).toHaveText("6 小时 0 分");
+  await expect(freshness).toHaveCSS("display", "grid");
+  const schedule = page.locator(".v41-next");
+  await expect(schedule.locator("span").nth(3)).toHaveText("下次采集");
+  await expect(schedule.locator("strong").nth(3)).toHaveText("2026-08-10 02:30（约 2 小时 0 分后）");
+  await expect(schedule.locator("span").nth(4)).toHaveText("下次评估");
+  await expect(schedule.locator("strong").nth(4)).toHaveText("评估时间已过期");
+  await expect(schedule).toHaveCSS("display", "grid");
 });
 
 test("V41 date navigation, Today, Refresh and keyboard focus are functional", async ({ page }) => {
