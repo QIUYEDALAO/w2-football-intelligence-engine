@@ -409,12 +409,17 @@ for (const [scenario, cause, copy] of [
 }
 
 test("V41 separates trend evidence from same-time comparison and preserves stale Market Memory", async ({ page }) => {
-  await installWorkspace(page, "stale");
+  const payload = workspace("stale");
+  payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!.kickoff_utc = "2026-08-10T14:30:00Z";
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
   const totals = page.locator("[data-market='TOTALS']");
   await expect(totals).toContainText("走势证据：证据不足");
   await expect(totals).toContainText("历史证据可见，当前比较暂停");
   await expect(page.locator(".v41-focus-summary")).toContainText("当前走势与模型—市场比较暂停");
+  await expect(page.locator(".v41-three-layer")).toContainText("W2 诊断模型—市场比较比较暂停");
+  await expect(page.locator(".v41-three-layer")).not.toContainText("不可用比较暂停");
+  await expect(page.locator(".v41-snapshots time").first()).toHaveText("08-09 14:02");
   await expect(page.locator(".v41-scoreline")).toHaveCount(0);
 });
 
@@ -625,7 +630,10 @@ test("SC19 date strip exposes persisted counts and collection-window truth", asy
   const strip = page.getByRole("navigation", { name: "近七日比赛浏览" });
   await expect(strip.getByText("已持久化赛程", { exact: true })).toBeVisible();
   await expect(strip.getByText("1/13 联赛", { exact: false }).first()).toBeVisible();
-  await expect(strip).toContainText("已落盘市场观察 1/3 场");
+  await expect(strip).toContainText("已落盘市场观察（含历史）1/3 场");
+  await expect(strip.locator('[aria-current="date"]')).toContainText("3 场 · 今天");
+  await expect(page.locator(".v41-today-primary")).toContainText("场无新鲜市场证据");
+  await expect(page.locator(".v41-no-break")).toHaveCSS("white-space", "nowrap");
   await expect(strip).not.toContainText("市场证据可用");
   await expect(strip.getByText("W2 计划采集尚未开始", { exact: false }).first()).toBeVisible();
   await expect(strip).toContainText("每次只读取所选日期，不额外查询 Provider");

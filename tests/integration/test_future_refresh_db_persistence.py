@@ -18,6 +18,10 @@ from w2.competitions.seed import (
 )
 from w2.config import get_settings
 from w2.infrastructure.database import Base
+from w2.infrastructure.persistence.factor_model_models import (
+    CanonicalTeamModel,
+    ProviderTeamIdentityCrosswalkModel,
+)
 from w2.infrastructure.persistence.future_refresh_models import (
     FutureRefreshCheckpointAuditModel,
     FutureRefreshRunAuditModel,
@@ -410,6 +414,12 @@ def test_discovery_mode_uses_the_canonical_refresh_writer_only(
     engine = create_engine(get_settings().database_url.get_secret_value())
     with Session(engine) as session:
         identity = session.get(MatchdayFixtureIdentityModel, "api_football:1489404")
+        canonical_team_count = session.scalar(
+            select(func.count()).select_from(CanonicalTeamModel)
+        )
+        crosswalk_count = session.scalar(
+            select(func.count()).select_from(ProviderTeamIdentityCrosswalkModel)
+        )
         observation_count = session.scalar(
             select(func.count()).select_from(MatchdayMarketObservationModel)
         )
@@ -420,6 +430,22 @@ def test_discovery_mode_uses_the_canonical_refresh_writer_only(
     assert audit.result["market_snapshot_count"] == 0
     assert identity is not None
     assert identity.competition_id == "allsvenskan"
+    assert identity.team_identity_status == "PROVIDER_PRIMARY_READY"
+    assert identity.home_w2_team_id == "w2:team:api_football:10"
+    assert identity.away_w2_team_id == "w2:team:api_football:20"
+    assert canonical_team_count == 2
+    assert crosswalk_count == 2
+    assert audit.result["identity_pool_expansions"] == [
+        {
+            "event": "TEAM_IDENTITY_POOL_EXPANDED",
+            "competition_id": "allsvenskan",
+            "provider_league_id": "113",
+            "season": "2026",
+            "canonical_team_count": 2,
+            "provider_crosswalk_count": 2,
+            "fixture_identity_ready_count": 1,
+        }
+    ]
     assert observation_count == 0
 
 

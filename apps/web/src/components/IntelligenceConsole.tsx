@@ -72,6 +72,13 @@ function selectedDayNoun(workspace: IntelligenceWorkspace): "今日" | "所选�
   return workspace.date === footballDayShanghai() ? "今日" : "所选比赛日";
 }
 
+function snapshotClock(value: string | null, kickoff: string | null): string {
+  const captured = localDateTime(value);
+  const fixture = localDateTime(kickoff);
+  if (captured === "—") return captured;
+  return captured.slice(0, 10) === fixture.slice(0, 10) ? captured.slice(11) : captured.slice(5);
+}
+
 function TeamLabel({ team }: { team: WorkspacePublicTeamLabel }) {
   const presentation = publicPresentation(team.public_semantics, { subject: team.display_name });
   return <span className="v41-team-label"><span>{team.display_name}</span>{team.public_semantics.cause ? <em className={`is-${presentation.tone}`}>{presentation.label}</em> : null}</span>;
@@ -243,7 +250,7 @@ function RecentDateNav({ date, onDateChange, workspace }: Pick<Props, "date" | "
       {dates.map((item) => (
         <button aria-current={item.football_day === date ? "date" : undefined} key={item.football_day} onClick={() => onDateChange(item.football_day)} ref={item.football_day === date ? selectedDateRef : undefined} type="button">
           <small>{item.football_day}</small>
-          <b>{item.football_day === footballDayShanghai() ? "今天" : item.football_day === date ? "当前" : `${item.fixture_count} 场`}</b>
+          <b>{item.fixture_count} 场{item.football_day === footballDayShanghai() ? " · 今天" : item.football_day === date ? " · 当前" : ""}</b>
           <em>{dateStripLabel(item)}{item.competition_count ? ` · ${item.competition_count}/13 联赛` : ""}</em>
         </button>
       ))}
@@ -269,7 +276,7 @@ function TodaySummary({ workspace }: { workspace: IntelligenceWorkspace }) {
       <div className="v41-today-primary">
         <div><strong>{workspace.today_summary.match_count}</strong><span>场{dayNoun}比赛</span></div>
         <p>
-          {limitedCount ? <><span className="is-accent"><b>{workspace.today_summary.match_count}</b> 场可查看赛程</span><span className={presentation.tone === "neutral" ? "is-accent" : "is-warning"}><b>0</b> 场可进行市场分析</span></> : <><span className={readyCount ? "is-accent" : "is-warning"}><b>{readyCount}</b> 场候选输入就绪</span>{partialCount ? <span className="is-warning"><b>{partialCount}</b> 场市场证据部分就绪</span> : null}{evidenceBlockedCount ? <span className="is-critical"><b>{evidenceBlockedCount}</b> 场尚无当前市场证据</span> : null}</>}
+          {limitedCount ? <><span className="is-accent"><b>{workspace.today_summary.match_count}</b> 场可查看赛程</span><span className={presentation.tone === "neutral" ? "is-accent" : "is-warning"}><b>0</b> 场可进行市场分析</span></> : <><span className={readyCount ? "is-accent" : "is-warning"}><b>{readyCount}</b> 场候选输入就绪</span>{partialCount ? <span className="is-warning"><b>{partialCount}</b> 场市场证据部分就绪</span> : null}{evidenceBlockedCount ? <span className="is-critical"><b>{evidenceBlockedCount}</b> 场无新鲜市场证据</span> : null}</>}
         </p>
       </div>
       {limitedCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{limitedCount} 场可查看赛程；{presentation.label}</b></p></div> : calmCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{calmCount} 场均未触发优先复核</b></p></div> : Object.keys(counts).length ? <div className="v41-today-other"><span>优先复核</span><p>{Object.entries(counts).slice(0, 3).map(([reason, count]) => <b key={reason}>{count} 场{REASON_LABELS[reason] || label(reason)}</b>)}</p></div> : null}
@@ -333,7 +340,7 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
   };
   return (
     <aside className="v41-shortlist" aria-label={`关注情报 / ${dayNoun}优先查看`} data-ui="attention-feed">
-      <header><span>{dayNoun}优先查看 · 按信息价值排序 · 优先阈值：盘口移动或任一侧赔率相对变化 ≥ {(workspace.runtime.market_price_attention_threshold_ratio * 100).toFixed(0)}%</span><b>{prioritized.length} 场优先 · {filteredMatches.length} 场可滚动查看</b></header>
+      <header><span>{dayNoun}优先查看 · 按信息价值排序 · <span className="v41-no-break">优先阈值：</span>盘口移动或任一侧赔率相对变化 ≥ {(workspace.runtime.market_price_attention_threshold_ratio * 100).toFixed(0)}%</span><b>{prioritized.length} 场优先 · {filteredMatches.length} 场可滚动查看</b></header>
       {competitions.length > 1 ? <div aria-label="按联赛筛选比赛" className="v41-shortlist-filters" role="toolbar"><button aria-pressed={activeCompetition === "ALL"} onClick={() => selectCompetition("ALL")} type="button">全部 <b>{matches.length}</b></button>{competitions.map((competition) => <button aria-pressed={activeCompetition === competition.key} key={competition.key} onClick={() => selectCompetition(competition.key)} type="button">{competition.label} <b>{competition.count}</b></button>)}</div> : null}
       <div aria-label={`${activeCompetition === "ALL" ? "全部联赛" : competitions.find((item) => item.key === activeCompetition)?.label || "已选联赛"}比赛列表`} className="v41-shortlist-list" tabIndex={0}>
         {empty ? <div className="v41-shortlist-empty">本比赛日观察池内没有比赛</div> : null}
@@ -357,13 +364,13 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
   );
 }
 
-function Timeline({ market }: { market: WorkspaceMarket }) {
+function Timeline({ kickoff, market }: { kickoff: string | null; market: WorkspaceMarket }) {
   if (!market.timeline_points.length) return <div className="v41-no-evidence">暂无已落盘时间线证据，不推断走势。</div>;
   return (
     <ol className="v41-snapshots" data-point-count={market.timeline_points.length}>
       {market.timeline_points.map((point, index) => (
         <li className={index === market.timeline_points.length - 1 ? "is-latest" : undefined} key={point.capture_id || `${point.captured_at}-${index}`}>
-          <time>{clock(point.captured_at)}</time>
+          <time>{snapshotClock(point.captured_at, kickoff)}</time>
           <strong>{point.canonical_line || "—"}</strong>
           <span>{point.bookmaker_count} 家 {price(point.prices.HOME ?? point.prices.OVER)}/{price(point.prices.AWAY ?? point.prices.UNDER)}</span>
         </li>
@@ -372,13 +379,13 @@ function Timeline({ market }: { market: WorkspaceMarket }) {
   );
 }
 
-function MarketEvidence({ market, generatedAt }: { market: WorkspaceMarket; generatedAt: string | null }) {
+function MarketEvidence({ market, generatedAt, kickoff }: { market: WorkspaceMarket; generatedAt: string | null; kickoff: string | null }) {
   const stale = market.status === "STALE";
   return (
     <section className={`v41-market ${stale ? "is-stale" : ""}`} data-market={market.market} data-status={market.status}>
       <header><span>市场雷达 · {MARKET_LABELS[market.market]} · 仅绘制已落盘快照</span>{stale ? <b>市场记忆</b> : null}</header>
       <div className="v41-market-line"><strong>{market.main_line || "—"}</strong><span className={`v41-status v41-status--${market.status.toLowerCase()}`}>{stale ? "证据已过期" : market.status === "READY" ? `已观测 · ${market.bookmaker_count} 家机构双边报价` : "证据不足"}</span></div>
-      <Timeline market={market} />
+      <Timeline kickoff={kickoff} market={market} />
       <p className="v41-market-foot">
         <span>{market.snapshot_count} 个真实快照 · 点间不插值、不推断缺失路径</span>
         <span>最新 {localDateTime(market.latest_snapshot_at)} · 距最新快照 {ageLabel(generatedAt, market.latest_snapshot_at)}</span>
@@ -425,12 +432,12 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
       </header>
       <div className={`v41-focus-summary ${stale ? "is-warning" : ""}`}><b>{stale ? "市场记忆" : "本场摘要"}</b><span>{match.factual_summary}</span></div>
       <div className="v41-focus-body">
-        <div className="v41-focus-markets">{markets.map((market) => <MarketEvidence generatedAt={generatedAt} key={market.market} market={market} />)}</div>
+        <div className="v41-focus-markets">{markets.map((market) => <MarketEvidence generatedAt={generatedAt} key={market.market} kickoff={match.kickoff_utc} market={market} />)}</div>
         <div className="v41-focus-meaning">
           <span className="v41-eyebrow">{candidate.status === "ACTIVE" ? "四层" : "三层"}语义 · 互不等同</span>
           <div className={`v41-three-layer ${candidate.status === "ACTIVE" ? "v41-three-layer--candidate" : ""}`}>
             <div><span>市场主事实</span><strong>{MARKET_LABELS[primary.market]}</strong><b>{primary.main_line || "—"}</b></div>
-            <div><span>W2 诊断</span><strong>{label(model.status)}</strong><b>{stale ? "比较暂停" : `逐市场 · ${label(match.readiness.market_aggregate_status)}`}</b></div>
+            <div><span>W2 诊断</span><strong>模型—市场比较</strong><b>{stale ? "比较暂停" : `逐市场 · ${label(match.readiness.market_aggregate_status)}`}</b></div>
             {candidate.status === "ACTIVE" ? <div><span>影子候选</span><strong>已形成</strong><b>进入赛后验证</b></div> : null}
             <div><span>正式推荐</span><strong>产品权限</strong><b>未启用</b></div>
           </div>

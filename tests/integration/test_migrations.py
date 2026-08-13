@@ -10,7 +10,10 @@ import pytest
 from sqlalchemy import Engine, create_engine, inspect, text
 from sqlalchemy.orm import Session
 
-from w2.factor_model.remediation import canonical_team_payload, provider_crosswalk_payload
+from w2.identity.canonical_identity_repository import (
+    canonical_team_payload,
+    provider_crosswalk_payload,
+)
 from w2.infrastructure.persistence.factor_model_models import (
     CanonicalTeamModel,
     ProviderTeamIdentityCrosswalkModel,

@@ -10,7 +10,8 @@ from w2.factor_model.remediation import (
     FactorModelRemediationConfig,
     FactorModelRemediationService,
     history_rows_from_fixture,
-    provider_teams_from_fixtures,
+)
+from w2.identity.canonical_identity_repository import (
     stable_w2_team_id,
 )
 from w2.infrastructure.database import Base
@@ -38,10 +39,20 @@ def test_provider_primary_identity_seeds_canonical_teams_and_updates_fixtures() 
         config=FactorModelRemediationConfig(),
         now=now,
     ).seed_provider_primary_identity()
+    repeated = FactorModelRemediationService(
+        engine=engine,
+        config=FactorModelRemediationConfig(),
+        now=now + timedelta(hours=1),
+    ).seed_provider_primary_identity()
 
     assert result == {
         "canonical_team_count": 4,
         "provider_crosswalk_count": 4,
+        "fixture_identity_ready_count": 2,
+    }
+    assert repeated == {
+        "canonical_team_count": 0,
+        "provider_crosswalk_count": 0,
         "fixture_identity_ready_count": 2,
     }
     with Session(engine) as session:
@@ -62,18 +73,6 @@ def test_provider_primary_identity_seeds_canonical_teams_and_updates_fixtures() 
         )
         assert crosswalk is not None
         assert crosswalk.identity_status == PROVIDER_PRIMARY_READY
-
-
-def test_provider_team_extraction_uses_fixture_identity_hashes_as_evidence() -> None:
-    now = datetime(2026, 7, 21, tzinfo=UTC)
-    fixture = _fixture("1494224", "367", "377", "BK Hacken", "AIK Stockholm", now)
-
-    teams = provider_teams_from_fixtures([fixture])
-
-    assert teams[0]["provider_team_id"] == "367"
-    assert teams[0]["display_name"] == "BK Hacken"
-    assert teams[0]["country"] == "Sweden"
-    assert teams[0]["evidence_hashes"] == [fixture.identity_hash]
 
 
 def test_history_rows_are_provider_primary_and_rating_materializes() -> None:

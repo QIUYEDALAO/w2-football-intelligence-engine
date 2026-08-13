@@ -55,7 +55,7 @@ _MINT_CALLER = "canonical_team_payload"  # may make the single mint call
 _CANONICAL_TEAM_ID_PREFIX = "w2:team:"
 # The allowlist binds file AND function AND construction kind, so the same
 # function name in another module is a violation, not an escape hatch.
-_MINT_FILE = "src/w2/factor_model/remediation.py"
+_MINT_FILE = "src/w2/identity/canonical_identity_repository.py"
 _APPROVED_MINT_SITES = {
     (_MINT_FILE, _MINT_CALLER, "mint_call"),
     (_MINT_FILE, _MINT_HELPER, "literal"),

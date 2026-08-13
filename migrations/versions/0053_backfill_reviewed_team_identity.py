@@ -14,7 +14,10 @@ from typing import Any
 import sqlalchemy as sa
 from alembic import op
 
-from w2.factor_model.remediation import canonical_team_payload, provider_crosswalk_payload
+from w2.identity.canonical_identity_repository import (
+    canonical_team_payload,
+    provider_crosswalk_payload,
+)
 from w2.infrastructure.persistence.factor_model_models import (
     CanonicalTeamModel,
     ProviderTeamIdentityCrosswalkModel,

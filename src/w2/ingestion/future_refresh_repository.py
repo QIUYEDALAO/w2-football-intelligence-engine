@@ -13,10 +13,21 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, aliased
 
 from w2.config import Settings
+from w2.domain.canonical_serialization import (
+    HashDomain,
+    SerializerVersion,
+    canonical_sha256,
+)
 from w2.identity import CanonicalIdentityRepository
+from w2.identity.canonical_identity_repository import (
+    PROVIDER_PRIMARY_READY,
+    canonical_team_payload,
+    provider_crosswalk_payload,
+)
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.factor_model_models import (
     CanonicalTeamMatchHistoryModel,
+    CanonicalTeamModel,
     ProviderTeamIdentityCrosswalkModel,
     TeamRatingSnapshotModel,
 )
@@ -144,6 +155,82 @@ def _canonical_lineup_identity_hash(
     ).hexdigest()
 
 
+def _provider_teams_from_fixtures(
+    fixtures: list[MatchdayFixtureIdentityModel],
+) -> list[dict[str, Any]]:
+    by_id: dict[str, dict[str, Any]] = {}
+    for fixture in fixtures:
+        payload = fixture.payload if isinstance(fixture.payload, dict) else {}
+        league = payload.get("league")
+        country = (
+            str(league.get("country") or "").strip() or None
+            if isinstance(league, dict)
+            else None
+        )
+        teams = payload.get("teams") if isinstance(payload.get("teams"), dict) else {}
+        for side, provider_team_id in (
+            ("home", fixture.home_provider_team_id),
+            ("away", fixture.away_provider_team_id),
+        ):
+            team = teams.get(side) if isinstance(teams, dict) else None
+            display_name = (
+                str(team.get("name"))
+                if isinstance(team, dict) and team.get("name")
+                else provider_team_id
+            )
+            current = by_id.setdefault(
+                provider_team_id,
+                {
+                    "provider_team_id": provider_team_id,
+                    "display_name": display_name,
+                    "country": country,
+                    "evidence_hashes": [],
+                },
+            )
+            if fixture.identity_hash not in current["evidence_hashes"]:
+                current["evidence_hashes"].append(fixture.identity_hash)
+    return [
+        {**item, "evidence_hashes": sorted(item["evidence_hashes"])}
+        for item in sorted(by_id.values(), key=lambda row: str(row["provider_team_id"]))
+    ]
+
+
+def _fixture_identity_semantic_hash(row: MatchdayFixtureIdentityModel) -> str:
+    payload = {
+        "schema_version": "MatchdayFixtureIdentitySemanticHashV1",
+        "fixture_id": row.fixture_id,
+        "provider": row.provider,
+        "provider_fixture_id": row.provider_fixture_id,
+        "competition_id": row.competition_id,
+        "provider_league_id": row.provider_league_id,
+        "season": row.season,
+        "kickoff_utc": iso_z(parse_db_datetime(row.kickoff_utc)),
+        "fixture_status": row.fixture_status,
+        "home_provider_team_id": row.home_provider_team_id,
+        "away_provider_team_id": row.away_provider_team_id,
+        "home_w2_team_id": row.home_w2_team_id,
+        "away_w2_team_id": row.away_w2_team_id,
+        "team_identity_status": row.team_identity_status,
+    }
+    return canonical_sha256(
+        payload,
+        domain=HashDomain.FUTURE_REFRESH_FIXTURE_IDENTITY,
+        version=SerializerVersion.LEGACY_V1,
+    )
+
+
+def _provider_identity_seed_result(
+    canonical: int = 0,
+    crosswalk: int = 0,
+    ready: int = 0,
+) -> dict[str, int]:
+    return {
+        "canonical_team_count": canonical,
+        "provider_crosswalk_count": crosswalk,
+        "fixture_identity_ready_count": ready,
+    }
+
+
 def iso_z(value: datetime) -> str:
     if value.tzinfo is None:
         value = value.replace(tzinfo=UTC)
@@ -183,6 +270,118 @@ class DatabaseRawPayloadObjectStore:
 class FutureRefreshDbRepository:
     def __init__(self, *, engine: Engine | None = None, settings: Settings | None = None) -> None:
         self.engine = engine or create_engine(settings)
+
+    def seed_provider_primary_identity(
+        self,
+        *,
+        competition_id: str,
+        season: str,
+        now: datetime,
+    ) -> dict[str, int]:
+        """Expand the canonical identity pool from already-persisted fixtures.
+
+        This is a database-only operation. It never calls the Provider and does
+        not grant reviewed Chinese-label authority.
+        """
+        normalized_now = parse_db_datetime(now)
+        with Session(self.engine) as session:
+            fixtures = list(
+                session.scalars(
+                    select(MatchdayFixtureIdentityModel)
+                    .where(
+                        MatchdayFixtureIdentityModel.provider == "api_football",
+                        MatchdayFixtureIdentityModel.competition_id == competition_id,
+                        MatchdayFixtureIdentityModel.season == season,
+                    )
+                    .order_by(MatchdayFixtureIdentityModel.kickoff_utc)
+                )
+            )
+            if not fixtures:
+                return _provider_identity_seed_result()
+            canonical_count = 0
+            crosswalk_count = 0
+            for team in _provider_teams_from_fixtures(fixtures):
+                provider_team_id = str(team["provider_team_id"])
+                canonical = canonical_team_payload(
+                    provider_team_id=provider_team_id,
+                    display_name=str(team["display_name"]),
+                    country=str(team["country"]) if team["country"] else None,
+                    created_at=normalized_now,
+                )
+                existing_team = session.get(
+                    CanonicalTeamModel, str(canonical["w2_team_id"])
+                )
+                if existing_team is None:
+                    try:
+                        with session.begin_nested():
+                            session.add(CanonicalTeamModel(**canonical))
+                            session.flush()
+                        canonical_count += 1
+                    except IntegrityError:
+                        pass
+                    existing_team = session.get(
+                        CanonicalTeamModel, str(canonical["w2_team_id"])
+                    )
+                if existing_team is None or (
+                    existing_team.identity_hash != canonical["identity_hash"]
+                ):
+                    raise FutureRefreshPersistenceError(
+                        "CANONICAL_TEAM_IDENTITY_CONFLICT"
+                    )
+                crosswalk = provider_crosswalk_payload(
+                    provider_team_id=provider_team_id,
+                    w2_team_id=str(canonical["w2_team_id"]),
+                    competition_id=competition_id,
+                    season=season,
+                    evidence_hashes=list(team["evidence_hashes"]),
+                    valid_from=normalized_now,
+                )
+                existing_crosswalk = session.get(
+                    ProviderTeamIdentityCrosswalkModel, str(crosswalk["id"])
+                )
+                if existing_crosswalk is None:
+                    try:
+                        with session.begin_nested():
+                            session.add(ProviderTeamIdentityCrosswalkModel(**crosswalk))
+                            session.flush()
+                        crosswalk_count += 1
+                    except IntegrityError:
+                        pass
+                    existing_crosswalk = session.get(
+                        ProviderTeamIdentityCrosswalkModel, str(crosswalk["id"])
+                    )
+                if existing_crosswalk is None or (
+                    existing_crosswalk.provider != "api_football"
+                    or existing_crosswalk.provider_team_id != provider_team_id
+                    or existing_crosswalk.w2_team_id != canonical["w2_team_id"]
+                    or existing_crosswalk.competition_id != competition_id
+                    or existing_crosswalk.season != season
+                    or existing_crosswalk.identity_status != PROVIDER_PRIMARY_READY
+                ):
+                    raise FutureRefreshPersistenceError(
+                        "PROVIDER_TEAM_CROSSWALK_CONFLICT"
+                    )
+            mapping = CanonicalIdentityRepository.provider_team_mapping_in_session(
+                session,
+                provider="api_football",
+                competition=competition_id,
+                season=season,
+                as_of=normalized_now,
+            )
+            ready = 0
+            for fixture in fixtures:
+                home = mapping.get(fixture.home_provider_team_id)
+                away = mapping.get(fixture.away_provider_team_id)
+                if home is None or away is None:
+                    fixture.team_identity_status = "DATA_DEPENDENCY_MISSING"
+                    continue
+                fixture.home_w2_team_id = home
+                fixture.away_w2_team_id = away
+                fixture.team_identity_status = PROVIDER_PRIMARY_READY
+                fixture.identity_hash = _fixture_identity_semantic_hash(fixture)
+                ready += 1
+            session.commit()
+        return _provider_identity_seed_result(canonical_count, crosswalk_count, ready)
 
     def save_raw_payload(
         self,

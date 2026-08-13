@@ -468,6 +468,10 @@ summary {
   letter-spacing: 0;
 }
 
+.v41-no-break {
+  white-space: nowrap;
+}
+
 .v41-shortlist-group {
   padding: 2px 0 6px;
   border-bottom: 1px solid var(--v41-line-faint);

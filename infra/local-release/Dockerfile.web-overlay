@@ -4,6 +4,7 @@ FROM ${W2_LOCAL_BASE_IMAGE}
 ARG LOCAL_RELEASE_SHA
 ARG LOCAL_RELEASE_TIME
 USER root
+COPY --chown=101:101 apps/web/dist /usr/share/nginx/html
 RUN printf '{\n  "web_git_sha": "%s",\n  "web_build_time": "%s",\n  "release_id": "%s",\n  "data_mode": "api"\n}\n' \
       "${LOCAL_RELEASE_SHA}" "${LOCAL_RELEASE_TIME}" "${LOCAL_RELEASE_SHA}" \
       > /usr/share/nginx/html/meta.json \

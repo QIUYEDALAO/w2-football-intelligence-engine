@@ -3,6 +3,7 @@ from __future__ import annotations
 import fcntl
 import hashlib
 import json
+import logging
 import os
 import re
 import time
@@ -58,6 +59,8 @@ from w2.providers.quota import (
     provider_daily_hard_cap_decision,
     quota_guard_decision,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class FutureRefreshError(RuntimeError):
@@ -154,6 +157,7 @@ class FutureRefreshResult:
     error_code: str | None = None
     materialized_fixture_ids: list[str] = field(default_factory=list)
     exact_pair_count: int = 0
+    identity_pool_expansions: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -754,6 +758,7 @@ class FutureFixtureRefreshService:
         self._checkpoint_errors: list[str] = []
         self._checkpoint_attempted_plan_ids: set[str] = set()
         self._checkpoint_preflight_failures: set[str] = set()
+        self._identity_pool_expansions: list[dict[str, Any]] = []
 
     def _db_repository(self) -> FutureRefreshDbRepository:
         return FutureRefreshDbRepository()
@@ -2185,6 +2190,10 @@ class FutureFixtureRefreshService:
                                 payload=fixture_identity,
                             )
                         )
+            self._seed_provider_primary_identities(
+                fixture_identities=fixture_identities,
+                captured_at=fixtures_response.captured_at,
+            )
             self._materialize_lineup_enrichment(
                 fixtures=fixtures,
                 enrichment_responses=enrichment_responses,
@@ -2295,6 +2304,7 @@ class FutureFixtureRefreshService:
             blockers=blockers,
             raw_payload_written_count=self._raw_payload_written_count,
             materialized_fixture_ids=materialized_fixture_ids,
+            identity_pool_expansions=self._identity_pool_expansions,
             status=(
                 "DISCOVERY_COMPLETE"
                 if self.config.discovery_date is not None
@@ -2535,6 +2545,41 @@ class FutureFixtureRefreshService:
             )
         return rows
 
+    def _seed_provider_primary_identities(
+        self,
+        *,
+        fixture_identities: list[dict[str, Any]],
+        captured_at: datetime,
+    ) -> None:
+        unresolved_scopes = {
+            (
+                str(item["competition_id"]),
+                str(item["provider_league_id"]),
+                str(item["season"]),
+            )
+            for item in fixture_identities
+            if item.get("team_identity_status") != "PROVIDER_PRIMARY_READY"
+        }
+        if not unresolved_scopes:
+            return
+        repository = self._db_repository()
+
+        for competition_id, provider_league_id, season in sorted(unresolved_scopes):
+            result = repository.seed_provider_primary_identity(
+                competition_id=competition_id,
+                season=season,
+                now=captured_at,
+            )
+            event = {
+                "event": "TEAM_IDENTITY_POOL_EXPANDED",
+                "competition_id": competition_id,
+                "provider_league_id": provider_league_id,
+                "season": season,
+                **result,
+            }
+            self._identity_pool_expansions.append(event)
+            logger.warning("TEAM_IDENTITY_POOL_EXPANDED %s", event)
+
     def _discovery_fixtures(self, payload: dict[str, Any]) -> list[dict[str, Any]]:
         response = payload.get("response")
         if not isinstance(response, list) or any(not isinstance(item, dict) for item in response):
@@ -2657,6 +2702,7 @@ class FutureFixtureRefreshService:
             "progress_status": refresh_progress_status(result),
             "error_code": result.error_code,
             "requests": self._audit,
+            "identity_pool_expansions": result.identity_pool_expansions,
             "candidate": False,
             "formal_recommendation": False,
         }
@@ -3098,6 +3144,7 @@ def run_future_refresh_task(
             "checkpoint_fixture_ids": list(checkpoint_fixture_ids),
             "refresh_checkpoints": list(refresh_checkpoints),
             "materialized_fixture_ids": result.materialized_fixture_ids,
+            "identity_pool_expansions": result.identity_pool_expansions,
             "progress_status": progress_status,
             "discovery_date": discovery_date,
         }

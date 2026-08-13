@@ -14,6 +14,9 @@ from w2.domain.canonical_serialization import HashDomain
 from w2.features.team_factors import TeamMatchHistory
 from w2.features.xg_materialization import FINISHED_STATUS, TeamXgMatch, parse_team_xg_matches
 from w2.identity import CanonicalIdentityRepository
+from w2.identity.canonical_identity_repository import (
+    PROVIDER_PRIMARY_READY,
+)
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.factor_model_models import (
     CanonicalTeamMatchHistoryModel,
@@ -36,7 +39,6 @@ from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
 from w2.ratings.elo import rating_from_history
 
 PROVIDER = "api_football"
-PROVIDER_PRIMARY_READY = "PROVIDER_PRIMARY_READY"
 MODEL_VERSION = "internal_elo_v1"
 
 
@@ -153,100 +155,13 @@ class FactorModelRemediationService:
         self._provider_attempt_count = 0
 
     def seed_provider_primary_identity(self) -> dict[str, int]:
-        with Session(self.engine) as session:
-            fixtures = self._target_fixtures(session)
-            if not fixtures:
-                return {
-                    "canonical_team_count": 0,
-                    "provider_crosswalk_count": 0,
-                    "fixture_identity_ready_count": 0,
-                }
-            team_rows = provider_teams_from_fixtures(fixtures)
-            canonical_count = 0
-            crosswalk_count = 0
-            for team in team_rows:
-                canonical = canonical_team_payload(
-                    provider_team_id=team["provider_team_id"],
-                    display_name=team["display_name"],
-                    country=team["country"],
-                    created_at=self.now,
-                )
-                try:
-                    with session.begin_nested():
-                        session.add(CanonicalTeamModel(**canonical))
-                        session.flush()
-                    canonical_count += 1
-                except IntegrityError:
-                    existing_team = session.get(CanonicalTeamModel, canonical["w2_team_id"])
-                    if (
-                        existing_team is None
-                        or existing_team.identity_hash != canonical["identity_hash"]
-                    ):
-                        raise FactorModelRemediationError(
-                            "CANONICAL_TEAM_IDENTITY_CONFLICT"
-                        ) from None
-                crosswalk = provider_crosswalk_payload(
-                    provider_team_id=team["provider_team_id"],
-                    w2_team_id=canonical["w2_team_id"],
-                    competition_id=self.config.competition_id,
-                    season=self.config.season,
-                    evidence_hashes=team["evidence_hashes"],
-                    valid_from=self.now,
-                )
-                try:
-                    with session.begin_nested():
-                        session.add(ProviderTeamIdentityCrosswalkModel(**crosswalk))
-                        session.flush()
-                    crosswalk_count += 1
-                except IntegrityError:
-                    existing_crosswalk = session.get(
-                        ProviderTeamIdentityCrosswalkModel,
-                        crosswalk["id"],
-                    )
-                    if (
-                        existing_crosswalk is None
-                        or existing_crosswalk.identity_hash != crosswalk["identity_hash"]
-                    ):
-                        raise FactorModelRemediationError(
-                            "PROVIDER_TEAM_CROSSWALK_CONFLICT"
-                        ) from None
-            # Fixture identity resolves from the canonical authority, never by
-            # constructing an id from the provider id. Unknown provider identity
-            # is absent from the mapping and fails closed below.
-            mapping = CanonicalIdentityRepository.provider_team_mapping_in_session(
-                session,
-                provider=PROVIDER,
-                competition=self.config.competition_id,
-                season=self.config.season,
-                as_of=self.now,
-            )
-            ready = 0
-            for fixture in fixtures:
-                home = mapping.get(fixture.home_provider_team_id)
-                away = mapping.get(fixture.away_provider_team_id)
-                if home is None or away is None:
-                    fixture.team_identity_status = "DATA_DEPENDENCY_MISSING"
-                    continue
-                fixture.home_w2_team_id = home
-                fixture.away_w2_team_id = away
-                fixture.team_identity_status = PROVIDER_PRIMARY_READY
-                fixture.identity_hash = stable_hash(
-                    {
-                        "fixture_id": fixture.fixture_id,
-                        "provider": fixture.provider,
-                        "provider_fixture_id": fixture.provider_fixture_id,
-                        "home_w2_team_id": home,
-                        "away_w2_team_id": away,
-                        "status": PROVIDER_PRIMARY_READY,
-                    }
-                )
-                ready += 1
-            session.commit()
-        return {
-            "canonical_team_count": canonical_count,
-            "provider_crosswalk_count": crosswalk_count,
-            "fixture_identity_ready_count": ready,
-        }
+        from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
+
+        return FutureRefreshDbRepository(engine=self.engine).seed_provider_primary_identity(
+            competition_id=self.config.competition_id,
+            season=self.config.season,
+            now=self.now,
+        )
 
     def run_controlled_provider_capture(self, *, live: bool) -> RemediationResult:
         seed = self.seed_provider_primary_identity()
@@ -891,119 +806,6 @@ class FactorModelRemediationService:
                 }
             )
         return output
-
-
-def provider_teams_from_fixtures(
-    fixtures: list[MatchdayFixtureIdentityModel],
-) -> list[dict[str, Any]]:
-    by_id: dict[str, dict[str, Any]] = {}
-    for fixture in fixtures:
-        payload = fixture.payload if isinstance(fixture.payload, dict) else {}
-        league = payload.get("league")
-        country = (
-            str(league.get("country") or "").strip() or None
-            if isinstance(league, dict)
-            else None
-        )
-        teams = payload.get("teams") if isinstance(payload.get("teams"), dict) else {}
-        for side, provider_id in (
-            ("home", fixture.home_provider_team_id),
-            ("away", fixture.away_provider_team_id),
-        ):
-            team_payload = teams.get(side) if isinstance(teams, dict) else None
-            display_name = (
-                str(team_payload.get("name"))
-                if isinstance(team_payload, dict) and team_payload.get("name")
-                else provider_id
-            )
-            current = by_id.setdefault(
-                provider_id,
-                {
-                    "provider_team_id": provider_id,
-                    "display_name": display_name,
-                    "country": country,
-                    "evidence_hashes": set(),
-                },
-            )
-            current["evidence_hashes"].add(fixture.identity_hash)
-    return [
-        {
-            **item,
-            "evidence_hashes": sorted(item["evidence_hashes"]),
-        }
-        for item in sorted(by_id.values(), key=lambda row: row["provider_team_id"])
-    ]
-
-
-def stable_w2_team_id(provider_team_id: str) -> str:
-    return f"w2:team:api_football:{provider_team_id}"
-
-
-def canonical_team_payload(
-    *,
-    provider_team_id: str,
-    display_name: str,
-    country: str | None,
-    created_at: datetime,
-) -> dict[str, Any]:
-    w2_team_id = stable_w2_team_id(provider_team_id)
-    payload = {
-        "schema_version": "CanonicalTeamV1",
-        "w2_team_id": w2_team_id,
-        "display_name": display_name,
-        "country": country,
-        "active_status": "ACTIVE",
-        "provider_primary_identity": {
-            "provider": PROVIDER,
-            "provider_team_id": provider_team_id,
-        },
-    }
-    return {
-        "w2_team_id": w2_team_id,
-        "display_name": display_name,
-        "country": country,
-        "active_status": "ACTIVE",
-        "created_at": normalize_utc(created_at),
-        "identity_hash": stable_hash(payload),
-        "payload": payload,
-    }
-
-
-def provider_crosswalk_payload(
-    *,
-    provider_team_id: str,
-    w2_team_id: str,
-    competition_id: str,
-    season: str,
-    evidence_hashes: list[str],
-    valid_from: datetime,
-) -> dict[str, Any]:
-    payload = {
-        "schema_version": "ProviderTeamIdentityCrosswalkV1",
-        "provider": PROVIDER,
-        "provider_team_id": provider_team_id,
-        "w2_team_id": w2_team_id,
-        "competition_id": competition_id,
-        "season": season,
-        "valid_from": iso_z(valid_from),
-        "identity_status": PROVIDER_PRIMARY_READY,
-        "evidence_hashes": evidence_hashes,
-        "scope_note": "Provider-primary W2 identity; not a Football-Data or Transfermarkt match.",
-    }
-    identity_hash = stable_hash(payload)
-    return {
-        "id": f"{PROVIDER}:{provider_team_id}:{competition_id}:{season}",
-        "provider": PROVIDER,
-        "provider_team_id": provider_team_id,
-        "w2_team_id": w2_team_id,
-        "competition_id": competition_id,
-        "season": season,
-        "valid_from": normalize_utc(valid_from),
-        "valid_to": None,
-        "identity_status": PROVIDER_PRIMARY_READY,
-        "evidence_hashes": evidence_hashes,
-        "identity_hash": identity_hash,
-    }
 
 
 def finished_fixture_items(payload: dict[str, Any], *, now: datetime) -> list[dict[str, Any]]:

@@ -1609,6 +1609,7 @@ def test_fixture_change_triggers_projection_before_task_success(
         RuntimeRepository,
     )
     monkeypatch.setattr(service, "_write_audit", lambda _result: None)
+    monkeypatch.setattr(service, "_seed_provider_primary_identities", lambda **_kwargs: None)
     response = LiveApiFootballResponse(
         endpoint="fixtures",
         params={},
