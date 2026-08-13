@@ -1232,6 +1232,39 @@ def test_market_eligibility_preserves_ah_ou_partial_truth_without_cross_contamin
     assert match["priority_reason_secondary"] == ["CANDIDATE_INPUT_NOT_READY"]
 
 
+@pytest.mark.parametrize(
+    ("ah_depth", "ou_depth", "same_snapshot", "expected"),
+    (
+        (1, 7, True, True),
+        (5, 7, True, False),
+        (1, 7, False, False),
+    ),
+)
+def test_market_depth_asymmetry_is_a_non_blocking_same_snapshot_technical_signal(
+    ah_depth: int,
+    ou_depth: int,
+    same_snapshot: bool,
+    expected: bool,
+) -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]
+    for name, depth in (("ASIAN_HANDICAP", ah_depth), ("TOTALS", ou_depth)):
+        market = _market(1)
+        market["current"]["bookmaker_count"] = depth
+        market["timeline"]["points"][0]["bookmaker_count"] = depth
+        card["market_radar"]["markets"][name] = market
+    if not same_snapshot:
+        card["market_radar"]["markets"]["TOTALS"]["timeline"]["points"][0][
+            "captured_at"
+        ] = "2026-08-09T02:00:00Z"
+
+    match = _workspace(day_view)["matches"][0]
+    handicap = match["market_radar"]["markets"]["ASIAN_HANDICAP"]
+
+    assert ("MARKET_DEPTH_ASYMMETRY" in handicap["reason_codes"]) is expected
+    assert match["readiness"]["market_aggregate_status"] == "PARTIAL"
+
+
 def test_public_team_label_never_silently_uses_raw_english() -> None:
     day_view = _day_view()
     card = day_view["cards"][0]

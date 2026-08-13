@@ -380,6 +380,21 @@ test("V41 presents unassessed model evidence in Chinese and keeps codes technica
   await expect(page.getByText("MODEL_CALIBRATION_NOT_READY", { exact: true })).not.toBeVisible();
 });
 
+test("market depth asymmetry stays inside the existing technical details", async ({ page }) => {
+  const payload = workspace();
+  const focused = payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!;
+  focused.market_radar.markets.ASIAN_HANDICAP.reason_codes.push("MARKET_DEPTH_ASYMMETRY");
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.goto("/");
+
+  const focus = page.locator(".v41-focus");
+  const reason = focus.getByText("ASIAN_HANDICAP:MARKET_DEPTH_ASYMMETRY", { exact: true });
+  await expect(reason).not.toBeVisible();
+  await focus.locator(".v41-details > summary").click();
+  await expect(reason).toBeVisible();
+  await expect(focus.locator(".v41-focus-summary")).not.toContainText("MARKET_DEPTH_ASYMMETRY");
+});
+
 test("raw system health cannot override public semantics or the useful stale focus", async ({ page }) => {
   await installWorkspace(page, "deployed");
   await page.goto("/");

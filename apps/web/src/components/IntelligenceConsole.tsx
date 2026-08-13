@@ -451,7 +451,7 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
           <RiskSummary match={match} />
           <Scoreline match={match} />
           <div className="v41-next"><span>市场 / 候选就绪</span><strong>{label(match.readiness.market_aggregate_status)}</strong><b>市场证据 {label(match.readiness.market_evidence_status)} · 候选输入 {label(match.readiness.candidate_input_status)} · {nextEvaluation(match.readiness.next_eval_at, generatedAt)}</b></div>
-          <details className="v41-details"><summary>技术详情</summary><code>{match.intelligence_state}</code><code>{match.readiness.reason_code || "NO_REASON_CODE"}</code><code>market_aggregate={match.readiness.market_aggregate_status}</code><code>model_source={model.source_status}</code>{markets.map((market) => <span key={market.market}><code>{market.market}:{market.eligibility.model_diagnostic_status}</code>{market.eligibility.blockers.map((blocker) => <code key={`${market.market}-${blocker}`}>{market.market}:{blocker}</code>)}</span>)}</details>
+          <details className="v41-details"><summary>技术详情</summary><code>{match.intelligence_state}</code><code>{match.readiness.reason_code || "NO_REASON_CODE"}</code><code>market_aggregate={match.readiness.market_aggregate_status}</code><code>model_source={model.source_status}</code>{markets.map((market) => <span key={market.market}><code>{market.market}:{market.eligibility.model_diagnostic_status}</code>{market.reason_codes.map((reason) => <code key={`${market.market}-${reason}`}>{market.market}:{reason}</code>)}{market.eligibility.blockers.map((blocker) => <code key={`${market.market}-${blocker}`}>{market.market}:{blocker}</code>)}</span>)}</details>
         </div>
       </div>
     </article>

@@ -48,6 +48,7 @@ ATTENTION_REASON_ORDER = {
 }
 MODEL_QUALITY_MAX_AGE_SECONDS = 86_400
 MARKET_PRICE_ATTENTION_THRESHOLD_RATIO = 0.02
+MARKET_DEPTH_ASYMMETRY_REASON = "MARKET_DEPTH_ASYMMETRY"
 RISK_REASON_LABELS = {
     "DATA_FIELD_STALE": "数据字段已超过新鲜度边界",
     "DATA_IDENTITY_NOT_READY": "比赛或盘口身份尚未完成",
@@ -220,6 +221,7 @@ def _match(
         )
         for name in ("ASIAN_HANDICAP", "TOTALS")
     }
+    _mark_market_depth_asymmetry(markets)
     primary = next((market for market in markets.values() if market["main_line"]), None)
     simulation = _mapping(card.get("simulation"))
     inner_simulation = _mapping(simulation.get("simulation"))
@@ -546,6 +548,26 @@ def _market(
         "latest_snapshot_at": latest_snapshot_at,
         "freshness_max_age_seconds": _optional_nonnegative_int(freshness.get("max_age_seconds")),
     }
+
+
+def _mark_market_depth_asymmetry(markets: Mapping[str, dict[str, Any]]) -> None:
+    handicap = markets["ASIAN_HANDICAP"]
+    totals = markets["TOTALS"]
+    handicap_depth = {
+        point["captured_at"]: point["bookmaker_count"]
+        for point in handicap["timeline_points"]
+        if point["captured_at"] and point["bookmaker_count"] > 0
+    }
+    totals_depth = {
+        point["captured_at"]: point["bookmaker_count"]
+        for point in totals["timeline_points"]
+        if point["captured_at"] and point["bookmaker_count"] > 0
+    }
+    if any(
+        handicap_depth[captured_at] * 2 < totals_depth[captured_at]
+        for captured_at in handicap_depth.keys() & totals_depth.keys()
+    ) and MARKET_DEPTH_ASYMMETRY_REASON not in handicap["reason_codes"]:
+        handicap["reason_codes"].append(MARKET_DEPTH_ASYMMETRY_REASON)
 
 
 def _market_freshness(
