@@ -14,6 +14,7 @@ from w2.domain.recommendation_decision_v4 import validate_decision_v4_identity
 from w2.prematch.analysis_calculator import ReadModelService
 from w2.prematch.read_model_projection import (
     ANALYSIS_CARD_CANARY_SCHEMA,
+    ANALYSIS_EVIDENCE_CONTRACT_VERSION,
     FrozenAnalysisArtifact,
     FrozenAnalysisError,
     analysis_card_canary_key,
@@ -103,6 +104,7 @@ def _artifact(
         "quote_identity_sha256": "4" * 64,
         "simulation_sha256": "5" * 64,
         "analysis_evidence_sha256": "6" * 64,
+        "analysis_evidence_contract_version": ANALYSIS_EVIDENCE_CONTRACT_VERSION,
         "capability_manifest_sha256": "7" * 64,
         "lineup_policy_version": "w2.lineup_market_policy.v1",
         "advisory_policy_identity": {"applicability": "NOT_APPLICABLE_STRICT"},

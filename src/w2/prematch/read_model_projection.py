@@ -40,7 +40,7 @@ from w2.tracking.advisory_blind_spot_policy import (
 )
 
 ANALYSIS_CARD_CANARY_SCHEMA = "w2.analysis-card.frozen.v1"
-ANALYSIS_EVIDENCE_CONTRACT_VERSION = "w2.analysis-market-evidence-projection.v3"
+ANALYSIS_EVIDENCE_CONTRACT_VERSION = "w2.analysis-market-evidence-projection.v4"
 ANALYSIS_CARD_CANARY_PREFIX = "analysis-card:frozen:v1:"
 ANALYSIS_CARD_SHADOW_PREFIX = "analysis-card:shadow:v1:"
 PROJECTION_VERSION = "w2.prematch-read-model-projection.v1"
@@ -692,12 +692,15 @@ def validate_frozen_analysis_payload(
         "quote_identity_sha256",
         "simulation_sha256",
         "analysis_evidence_sha256",
+        "analysis_evidence_contract_version",
         "capability_manifest_sha256",
         "lineup_policy_version",
         "advisory_policy_identity",
     }
     if not required_evidence.issubset(manifest):
         raise FrozenAnalysisError("frozen analysis evidence missing")
+    if manifest["analysis_evidence_contract_version"] != ANALYSIS_EVIDENCE_CONTRACT_VERSION:
+        raise FrozenAnalysisError("analysis evidence contract incompatible")
     _validate_advisory_policy_identity(manifest["advisory_policy_identity"])
     evaluated_at = _parse_utc(manifest.get("evaluated_at"))
     if evaluated_at is None or manifest["advisory_policy_identity"] != _advisory_policy_identity(
@@ -984,6 +987,8 @@ def _analysis_evidence(card: dict[str, Any]) -> dict[str, Any]:
 def write_frozen_analysis_artifacts(
     engine: Engine,
     artifacts: list[FrozenAnalysisArtifact],
+    *,
+    expected_existing_source_hashes: Mapping[str, str] | None = None,
 ) -> None:
     if len({artifact.checkpoint_key for artifact in artifacts}) != len(artifacts):
         raise FrozenAnalysisError("duplicate checkpoint identity in write batch")
@@ -1053,6 +1058,18 @@ def write_frozen_analysis_artifacts(
                         ReadModelCheckpointModel.checkpoint_key == artifact.checkpoint_key
                     )
                 )
+                if expected_existing_source_hashes is not None:
+                    expected_source_hash = expected_existing_source_hashes.get(
+                        artifact.checkpoint_key
+                    )
+                    if (
+                        expected_source_hash is None
+                        or existing is None
+                        or existing.source_hash != expected_source_hash
+                    ):
+                        raise FrozenAnalysisError(
+                            "checkpoint changed after bounded repair audit"
+                        )
                 if existing is None:
                     existing = ReadModelCheckpointModel(
                         checkpoint_key=artifact.checkpoint_key,
@@ -1068,7 +1085,10 @@ def write_frozen_analysis_artifacts(
                     except FrozenAnalysisError as exc:
                         # A pre-evidence checkpoint is intentionally fail-closed for reads,
                         # but its verified replacement must be allowed to re-materialize.
-                        if str(exc) != "frozen analysis evidence missing":
+                        if str(exc) not in {
+                            "frozen analysis evidence missing",
+                            "analysis evidence contract incompatible",
+                        }:
                             raise
                         existing.source_hash = artifact.source_hash
                         existing.created_at = now
@@ -1361,6 +1381,7 @@ def materialize_projection_events(
     calculate_analysis_card: AnalysisCardCalculator,
     build_scoreline_reference: ScorelineReferenceBuilder | None = None,
     engine: Engine | None = None,
+    expected_existing_source_hashes: Mapping[str, str] | None = None,
 ) -> list[str]:
     ordered = sorted(
         {(event.fixture_id, event.event_type, event.event_id): event for event in events}.values(),
@@ -1388,7 +1409,11 @@ def materialize_projection_events(
             evaluated_at=event.event_at,
             source_event=event,
         )
-        write_frozen_analysis_artifacts(engine, [artifact])
+        write_frozen_analysis_artifacts(
+            engine,
+            [artifact],
+            expected_existing_source_hashes=expected_existing_source_hashes,
+        )
     return list(dict.fromkeys(event.fixture_id for event in ordered))
 
 

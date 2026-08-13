@@ -8,6 +8,7 @@ import re
 import stat
 import subprocess
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -157,6 +158,8 @@ def dry_run_payload(args: argparse.Namespace, *, now: datetime, key: str) -> dic
 
 def materialize_shadow_projection_events(
     events: list[ProjectionSourceEvent],
+    *,
+    expected_existing_source_hashes: Mapping[str, str] | None = None,
 ) -> list[str]:
     """Manual DB composition adapter with the worker's current-reader semantics."""
     from w2.dashboard.scorelines import scoreline_reference_from_card
@@ -199,6 +202,7 @@ def materialize_shadow_projection_events(
         repository=cast(ScopedAnalysisRepository, repository),
         calculate_analysis_card=calculate,
         build_scoreline_reference=build_scoreline_reference,
+        expected_existing_source_hashes=expected_existing_source_hashes,
     )
 
 

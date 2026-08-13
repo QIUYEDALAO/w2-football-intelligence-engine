@@ -76,7 +76,15 @@ def build_dashboard_intelligence_workspace(
         if _text(item.get("fixture_id"))
     }
     outcome_summary = _mapping(replay.get("outcome_tracking_summary"))
-    matches = [_match(card, candidate_enabled=candidate_enabled) for card in cards]
+    generated_at = day_view.get("generated_at")
+    matches = [
+        _match(
+            card,
+            candidate_enabled=candidate_enabled,
+            generated_at=generated_at,
+        )
+        for card in cards
+    ]
     for card, match in zip(cards, matches, strict=True):
         match["outcome"] = _match_outcome(
             card,
@@ -196,11 +204,20 @@ def build_dashboard_intelligence_workspace(
     }
 
 
-def _match(card: Mapping[str, Any], *, candidate_enabled: bool) -> dict[str, Any]:
+def _match(
+    card: Mapping[str, Any],
+    *,
+    candidate_enabled: bool,
+    generated_at: Any,
+) -> dict[str, Any]:
     radar = _mapping(card.get("market_radar"))
     model_lab = _mapping(card.get("model_lab"))
     markets = {
-        name: _market(_mapping(_mapping(radar.get("markets")).get(name)), name)
+        name: _market(
+            _mapping(_mapping(radar.get("markets")).get(name)),
+            name,
+            generated_at=generated_at,
+        )
         for name in ("ASIAN_HANDICAP", "TOTALS")
     }
     primary = next((market for market in markets.values() if market["main_line"]), None)
@@ -411,23 +428,17 @@ def _shadow_candidate(card: Mapping[str, Any], *, enabled: bool) -> dict[str, An
     }
 
 
-def _market(raw: Mapping[str, Any], name: str) -> dict[str, Any]:
+def _market(
+    raw: Mapping[str, Any],
+    name: str,
+    *,
+    generated_at: Any,
+) -> dict[str, Any]:
     current = _mapping(raw.get("current"))
     timeline = _mapping(raw.get("timeline"))
     movement = _mapping(raw.get("movement"))
     count = max(0, _int(raw.get("snapshot_count")))
     source_status = _text(raw.get("status"), "INSUFFICIENT")
-    freshness = dict(_mapping(current.get("freshness")))
-    freshness_status = _text(freshness.get("status"), "NOT_AVAILABLE")
-    public_status = (
-        "INSUFFICIENT"
-        if not current
-        else "READY"
-        if freshness_status in {"COMPLETE", "CURRENT", "FRESH"}
-        else "STALE"
-        if freshness_status == "STALE"
-        else "INSUFFICIENT"
-    )
     points = [
         {
             "capture_id": _optional_text(point.get("capture_id")),
@@ -463,7 +474,26 @@ def _market(raw: Mapping[str, Any], name: str) -> dict[str, Any]:
     captured_times = [
         _text(point.get("captured_at")) for point in points if point.get("captured_at")
     ]
-    latest_snapshot_at = max(captured_times) if captured_times else None
+    latest_snapshot_at = (
+        max(captured_times)
+        if captured_times
+        else _optional_text(current.get("captured_at"))
+    )
+    freshness = _market_freshness(
+        _mapping(current.get("freshness")),
+        latest_snapshot_at=latest_snapshot_at,
+        generated_at=generated_at,
+    )
+    freshness_status = _text(freshness.get("status"), "NOT_AVAILABLE")
+    public_status = (
+        "INSUFFICIENT"
+        if not current
+        else "READY"
+        if freshness_status in {"COMPLETE", "CURRENT", "FRESH"}
+        else "STALE"
+        if freshness_status == "STALE"
+        else "INSUFFICIENT"
+    )
     trend_evidence_status = (
         "AVAILABLE"
         if len(points) >= 2 and movement_payload["status"] != "INSUFFICIENT"
@@ -500,6 +530,38 @@ def _market(raw: Mapping[str, Any], name: str) -> dict[str, Any]:
         "latest_snapshot_at": latest_snapshot_at,
         "freshness_max_age_seconds": _optional_nonnegative_int(freshness.get("max_age_seconds")),
     }
+
+
+def _market_freshness(
+    source: Mapping[str, Any],
+    *,
+    latest_snapshot_at: Any,
+    generated_at: Any,
+) -> dict[str, Any]:
+    freshness = dict(source)
+    max_age_seconds = _optional_nonnegative_int(freshness.get("max_age_seconds"))
+    if max_age_seconds is None:
+        return freshness
+    snapshot_at = _datetime(latest_snapshot_at)
+    page_at = _datetime(generated_at)
+    if snapshot_at is None or page_at is None or page_at < snapshot_at:
+        freshness.update(
+            {
+                "status": "NOT_AVAILABLE",
+                "age_seconds": None,
+                "reason_code": "FRESHNESS_CLOCK_CONFLICT",
+            }
+        )
+        return freshness
+    age_seconds = int((page_at - snapshot_at).total_seconds())
+    freshness.update(
+        {
+            "status": "STALE" if age_seconds > max_age_seconds else "COMPLETE",
+            "age_seconds": age_seconds,
+        }
+    )
+    freshness.pop("reason_code", None)
+    return freshness
 
 
 def _market_eligibility(

@@ -446,7 +446,7 @@ def test_input_manifest_declares_optional_model_enhancements_unused() -> None:
     manifest = artifact.payload["input_manifest"]
     assert (
         manifest["analysis_evidence_contract_version"]
-        == "w2.analysis-market-evidence-projection.v3"
+        == "w2.analysis-market-evidence-projection.v4"
     )
     assert manifest["ratings_used_in_lambda"] is False
     assert manifest["squad_value_used_in_lambda"] is False
@@ -776,6 +776,70 @@ def test_evidence_missing_checkpoint_is_replaced_by_verified_materialization(
 
     write_frozen_analysis_artifacts(engine, [artifact])
     assert read_frozen_analysis_artifact(engine, "1576804") is not None
+
+
+def test_incompatible_analysis_evidence_checkpoint_is_replaced(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_projection(monkeypatch)
+    artifact = _materializer(ScopedRepository()).build(
+        "1576804",
+        evaluated_at=datetime(2026, 7, 18, 5, 0, tzinfo=UTC),
+    )
+    old_payload = deepcopy(artifact.payload)
+    old_payload["input_manifest"]["analysis_evidence_contract_version"] = (
+        "w2.analysis-market-evidence-projection.v3"
+    )
+    engine = _engine()
+    with Session(engine) as session:
+        session.add(
+            ReadModelCheckpointModel(
+                checkpoint_key=artifact.checkpoint_key,
+                source_hash="0" * 64,
+                created_at=datetime.now(UTC),
+                payload=old_payload,
+            )
+        )
+        session.commit()
+
+    write_frozen_analysis_artifacts(engine, [artifact])
+
+    persisted = read_frozen_analysis_artifact(engine, "1576804")
+    assert persisted is not None
+    assert (
+        persisted.payload["input_manifest"]["analysis_evidence_contract_version"]
+        == "w2.analysis-market-evidence-projection.v4"
+    )
+
+
+def test_bounded_repair_rejects_checkpoint_changed_after_audit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_projection(monkeypatch)
+    artifact = _materializer(ScopedRepository()).build(
+        "1576804",
+        evaluated_at=datetime(2026, 7, 18, 5, 0, tzinfo=UTC),
+    )
+    engine = _engine()
+    write_frozen_analysis_artifacts(engine, [artifact])
+
+    with pytest.raises(
+        FrozenAnalysisError,
+        match="checkpoint changed after bounded repair audit",
+    ):
+        write_frozen_analysis_artifacts(
+            engine,
+            [artifact],
+            expected_existing_source_hashes={artifact.checkpoint_key: "0" * 64},
+        )
+
+    write_frozen_analysis_artifacts(
+        engine,
+        [artifact],
+        expected_existing_source_hashes={
+            artifact.checkpoint_key: artifact.source_hash,
+        },
+    )
 
 
 def test_payload_validation_rejects_fixture_identity_conflict(

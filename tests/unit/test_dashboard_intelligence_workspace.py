@@ -804,6 +804,55 @@ def test_public_market_readiness_is_single_source_bound_authority() -> None:
     assert match["model_lab"]["market"]["ASIAN_HANDICAP"]["source_status"] == "READY"
 
 
+def test_market_freshness_is_recomputed_at_workspace_generation_time() -> None:
+    day_view = _day_view()
+    day_view["generated_at"] = "2026-08-09T09:00:00Z"
+    source = day_view["cards"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]
+    source["current"]["freshness"] = {
+        "status": "COMPLETE",
+        "age_seconds": 0,
+        "max_age_seconds": 3600,
+    }
+
+    match = _workspace(day_view)["matches"][2]
+    market = match["market_radar"]["markets"]["ASIAN_HANDICAP"]
+
+    assert market["latest_snapshot_at"] == "2026-08-09T01:00:00Z"
+    assert market["freshness"] == {
+        "status": "STALE",
+        "age_seconds": 8 * 3600,
+        "max_age_seconds": 3600,
+    }
+    assert market["status"] == "STALE"
+    assert market["eligibility"]["observation_status"] == "STALE"
+    assert market["eligibility"]["cross_sectional_comparison_status"] == "PAUSED_STALE"
+    assert match["readiness"]["market_aggregate_status"] == "NOT_READY"
+    assert "当前走势与模型—市场比较暂停" in match["factual_summary"]
+
+
+def test_market_freshness_clock_conflict_fails_closed() -> None:
+    day_view = _day_view()
+    day_view["generated_at"] = "2026-08-09T00:30:00Z"
+    source = day_view["cards"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]
+    source["current"]["freshness"] = {
+        "status": "COMPLETE",
+        "age_seconds": 0,
+        "max_age_seconds": 3600,
+    }
+
+    market = _workspace(day_view)["matches"][2]["market_radar"]["markets"][
+        "ASIAN_HANDICAP"
+    ]
+
+    assert market["status"] == "INSUFFICIENT"
+    assert market["freshness"] == {
+        "status": "NOT_AVAILABLE",
+        "age_seconds": None,
+        "max_age_seconds": 3600,
+        "reason_code": "FRESHNESS_CLOCK_CONFLICT",
+    }
+
+
 def test_unknown_market_freshness_fails_closed_as_insufficient() -> None:
     day_view = _day_view()
     day_view["cards"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]["current"]["freshness"] = {
