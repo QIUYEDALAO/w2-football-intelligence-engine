@@ -147,8 +147,11 @@ wait_for_runtime() {
 rollback() {
   original_status=$?
   trap - ERR
-  if [ "${ACTIVATED}" != true ] ||
-    [ ! -f /opt/w2/shared/release.previous.env ]; then
+  if [ "${ACTIVATED}" != true ]; then
+    echo "activation=SKIPPED preactivation_verification_failed" >&2
+    exit "${original_status}"
+  fi
+  if [ ! -f /opt/w2/shared/release.previous.env ]; then
     echo "rollback=FAIL no_previous_digest_set" >&2
     exit "${original_status}"
   fi
@@ -202,14 +205,6 @@ else
   TIMING_SCOPE=COLD_PULL_END_TO_END
 fi
 
-if [ -f /opt/w2/shared/release.env ]; then
-  sudo install -o root -g root -m 0644 \
-    /opt/w2/shared/release.env /opt/w2/shared/release.previous.env
-fi
-sudo install -o root -g root -m 0644 "${REMOTE_TMP_DIR}/release.env" \
-  /opt/w2/shared/release.env
-ACTIVATED=true
-
 sudo docker pull "${PYTHON_IMAGE}" </dev/null
 sudo docker pull "${WEB_IMAGE}" </dev/null
 
@@ -236,6 +231,14 @@ WEB_REGISTRY_DIGEST="${WEB_ACTUAL_REF##*@}"
 [[ "${WEB_IMAGE_ID}" =~ ^sha256:[0-9a-f]{64}$ ]]
 [[ "${PYTHON_REGISTRY_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]
 [[ "${WEB_REGISTRY_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]
+
+if [ -f /opt/w2/shared/release.env ]; then
+  sudo install -o root -g root -m 0644 \
+    /opt/w2/shared/release.env /opt/w2/shared/release.previous.env
+fi
+sudo install -o root -g root -m 0644 "${REMOTE_TMP_DIR}/release.env" \
+  /opt/w2/shared/release.env
+ACTIVATED=true
 
 {
   printf 'W2_PYTHON_IMAGE=%s\n' "${PYTHON_ACTUAL_REF}"

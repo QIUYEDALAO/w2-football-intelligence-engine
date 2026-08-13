@@ -752,11 +752,18 @@ class WorkspaceMatch(BaseModel):
             if eligibility
             and all(item.candidate_eligibility_status == "READY" for item in eligibility)
             else "PARTIAL"
-            if any(item.observation_status == "AVAILABLE" for item in eligibility)
+            if any(item.candidate_eligibility_status == "READY" for item in eligibility)
             else "NOT_READY"
         )
         if self.readiness.market_aggregate_status != expected:
             raise ValueError("match market aggregate must derive from per-market eligibility")
+        expected_market_evidence = (
+            "AVAILABLE"
+            if any(item.observation_status == "AVAILABLE" for item in eligibility)
+            else "NOT_READY"
+        )
+        if self.readiness.market_evidence_status != expected_market_evidence:
+            raise ValueError("match market evidence must derive from per-market observations")
         expected_candidate_input = (
             "READY"
             if any(item.candidate_eligibility_status == "READY" for item in eligibility)

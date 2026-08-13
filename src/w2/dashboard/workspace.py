@@ -53,11 +53,20 @@ RISK_REASON_LABELS = {
     "DATA_IDENTITY_NOT_READY": "比赛或盘口身份尚未完成",
     "DATA_MARKET_TIMELINE_INSUFFICIENT": "让球/大小球时间线证据不足",
     "DATA_REQUIRED_INPUT_MISSING": "必需输入尚未齐全",
-    "DATA_STATUS_BLOCKED": "当前数据状态阻塞",
+    "DATA_STATUS_BLOCKED": "必需输入尚未全部就绪",
     "MODEL_SIMULATION_NOT_READY": "既有模型模拟尚未就绪",
     "MODEL_LAB_NOT_READY": "模型评估尚未就绪",
     "MODEL_OUTSIDE_MARKET_RANGE": "模型结果超出当前市场观测区间",
     "COLLECTION_ASSESSMENT_NOT_AVAILABLE": "尚无可用采集评估证据",
+}
+MISSING_FIELD_LABELS = {
+    "lineups": "首发",
+    "xg": "xG",
+    "ratings": "球队评级",
+    "team_value": "球队身价",
+    "market": "市场证据",
+    "candidate_quote": "精确候选报价",
+    "data_readiness": "数据就绪证据",
 }
 
 
@@ -243,6 +252,11 @@ def _match(
             _mapping(candidates.get(candidate_key)),
         )
     market_aggregate_status = _market_aggregate_status(markets)
+    market_evidence_ready = any(
+        _text(_mapping(market.get("eligibility")).get("observation_status"))
+        == "AVAILABLE"
+        for market in markets.values()
+    )
     candidate_input_ready = any(
         _text(_mapping(market.get("eligibility")).get("candidate_eligibility_status"))
         == "READY"
@@ -264,6 +278,7 @@ def _match(
         "risks": _match_risks(
             _mapping(card.get("risk_dimensions")),
             market_collection,
+            missing_fields=_string_list(card.get("missing_fields")),
         ),
         "readiness": {
             "status": _text(card.get("data_status"), "BLOCKED"),
@@ -279,11 +294,7 @@ def _match(
             ),
             "lineup_expectation": _optional_text(card.get("lineup_requirement")),
             "market_aggregate_status": market_aggregate_status,
-            "market_evidence_status": (
-                "AVAILABLE"
-                if market_aggregate_status in {"READY", "PARTIAL"}
-                else "NOT_READY"
-            ),
+            "market_evidence_status": "AVAILABLE" if market_evidence_ready else "NOT_READY",
             "candidate_input_status": (
                 "READY" if candidate_input_ready else "NOT_READY"
             ),
@@ -626,7 +637,10 @@ def _market_aggregate_status(markets: Mapping[str, Mapping[str, Any]]) -> str:
         _text(item.get("candidate_eligibility_status")) == "READY" for item in eligibility
     ):
         return "READY"
-    if any(_text(item.get("observation_status")) == "AVAILABLE" for item in eligibility):
+    if any(
+        _text(item.get("candidate_eligibility_status")) == "READY"
+        for item in eligibility
+    ):
         return "PARTIAL"
     return "NOT_READY"
 
@@ -1036,7 +1050,8 @@ def _priority_reasons(match: Mapping[str, Any]) -> tuple[str | None, list[str]]:
         readiness = _mapping(match.get("readiness"))
         reasons.add(
             "CANDIDATE_INPUT_NOT_READY"
-            if _text(readiness.get("market_aggregate_status")) == "PARTIAL"
+            if _text(readiness.get("market_evidence_status")) == "AVAILABLE"
+            and _text(readiness.get("candidate_input_status")) == "NOT_READY"
             else "DATA_INCOMPLETE"
         )
     if any(_is_attention_worthy_movement(_mapping(market)) for market in markets.values()):
@@ -1135,7 +1150,7 @@ def _match_public_semantics(
     readiness = _mapping(match.get("readiness"))
     cause = (
         None
-        if _text(readiness.get("market_aggregate_status")) == "READY"
+        if _text(readiness.get("market_evidence_status")) == "AVAILABLE"
         else "INSUFFICIENT"
     )
     return {"scope": "MATCH", "cause": cause}
@@ -1302,28 +1317,34 @@ def _match_factual_summary(match: Mapping[str, Any]) -> str:
         default=0,
     )
     if statuses <= {"INSUFFICIENT"} or depth == 0:
-        return "尚无已落盘 AH/OU 市场证据；无法生成走势或当前模型—市场比较；等待既有调度形成证据。"
+        return (
+            "尚无已落盘让球主盘/大小球主盘市场证据；"
+            "无法生成走势或当前模型—市场比较；等待既有调度形成证据。"
+        )
     aggregate = _text(_mapping(match.get("readiness")).get("market_aggregate_status"))
-    if aggregate == "PARTIAL":
-        ready_markets = [
-            _text(_mapping(market).get("market"))
-            for market in markets
-            if _text(_mapping(market).get("status")) == "READY"
-        ]
-        return (
-            f"已有当前 {'/'.join(ready_markets) or 'AH/OU'} 持久化市场证据；"
-            "市场事实可以查看并仍可进行模型—市场诊断，但精确候选报价或模型输入"
-            "尚未全部就绪，暂不形成影子候选。"
-        )
-    if depth < 2:
-        return (
-            "已有当前 AH/OU 市场证据，但时间线不足两点；仅展示当前横截面，"
-            "不判断走势；等待既有调度形成下一快照。"
-        )
-    return (
-        "已有当前 AH/OU 持久化时间线；可展示已证实走势并进行模型—市场诊断；"
-        "状态随既有调度形成的新证据更新。"
+    relation = _mapping(_mapping(match.get("w2_analysis")).get("model_market_relation"))
+    diagnostic_ready = any(
+        _text(_mapping(item).get("status"))
+        in {"COMPARABLE_WITHIN_MARKET_RANGE", "MODEL_OUTSIDE_MARKET_RANGE"}
+        for item in relation.values()
     )
+    market_copy = (
+        "已有当前让球主盘/大小球主盘市场证据，但时间线不足两点；"
+        "仅展示当前横截面，不判断走势。"
+        if depth < 2
+        else "已有当前让球主盘/大小球主盘持久化时间线；可展示已证实走势。"
+    )
+    diagnostic_copy = (
+        "已就绪市场可进行模型—市场诊断。"
+        if diagnostic_ready
+        else "模型尚未就绪，暂不进行模型—市场比较。"
+    )
+    candidate_copy = {
+        "READY": "两个市场的候选输入均已就绪。",
+        "PARTIAL": "仅部分市场候选输入就绪；未就绪市场不形成影子候选。",
+        "NOT_READY": "两个市场的候选输入均未就绪，暂不形成影子候选。",
+    }.get(aggregate, "候选输入状态尚未确认。")
+    return market_copy + diagnostic_copy + candidate_copy
 
 
 def _risks(source: Mapping[str, Any]) -> dict[str, Any]:
@@ -1359,8 +1380,24 @@ def _risks(source: Mapping[str, Any]) -> dict[str, Any]:
 def _match_risks(
     source: Mapping[str, Any],
     market_collection: Mapping[str, Any],
+    *,
+    missing_fields: Sequence[str],
 ) -> dict[str, Any]:
     result = _risks(source)
+    data_risk = result["DATA_RISK"]
+    if missing_fields and _text(data_risk.get("status")) != "OK":
+        known = [
+            MISSING_FIELD_LABELS[field]
+            for field in missing_fields
+            if field in MISSING_FIELD_LABELS
+        ]
+        unknown_count = len(missing_fields) - len(known)
+        missing_copy = "、".join(known)
+        if unknown_count:
+            missing_copy += ("、" if missing_copy else "") + f"另有 {unknown_count} 项输入"
+        data_risk["explanation"] = (
+            f"待补齐：{missing_copy}；既有采集或模型投影形成后解除"
+        )
     semantics = _mapping(market_collection.get("public_semantics"))
     cause = _optional_text(semantics.get("cause"))
     source_as_of = market_collection.get("latest_snapshot_at")

@@ -233,6 +233,11 @@ def test_deploy_writes_release_metadata_with_root_owned_install() -> None:
     assert (
         'sudo install -o root -g root -m 0644 "${REMOTE_TMP_DIR}/release.env"'
     ) in text
+    pull_end = text.index('sudo docker pull "${WEB_IMAGE}"')
+    identity_verified = text.index('[[ "${WEB_REGISTRY_DIGEST}" =~')
+    activation = text.index("ACTIVATED=true")
+    assert pull_end < identity_verified < activation
+    assert "activation=SKIPPED preactivation_verification_failed" in text
 
 
 def test_deploy_installs_documented_health_checker_without_source_upload() -> None:

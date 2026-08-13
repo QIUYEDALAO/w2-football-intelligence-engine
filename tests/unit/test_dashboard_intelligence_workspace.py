@@ -331,6 +331,7 @@ def test_shadow_candidate_activation_reuses_v4_and_stays_non_production() -> Non
     candidate = payload["matches"][0]["shadow_candidate"]
 
     assert payload["runtime"]["candidate"] == "SHADOW_ONLY"
+    assert payload["matches"][0]["readiness"]["market_aggregate_status"] == "PARTIAL"
     assert candidate == {
         "status": "ACTIVE",
         "mode": "SHADOW_ONLY",
@@ -449,7 +450,8 @@ def test_workspace_is_deterministic_explicit_and_schema_valid() -> None:
         "reason_codes": ["MARKET_STABLE_ALL_AVAILABLE_MARKETS"],
         "affected_domains": ["MARKET"],
         "factual_summary": (
-            "尚无已落盘 AH/OU 市场证据；无法生成走势或当前模型—市场比较；等待既有调度形成证据。"
+            "尚无已落盘让球主盘/大小球主盘市场证据；"
+            "无法生成走势或当前模型—市场比较；等待既有调度形成证据。"
         ),
         "readiness_status": "READY",
         "readiness_context": {
@@ -813,7 +815,7 @@ def test_postdeploy_real_shape_uses_stale_evidence_and_scopes_raw_blocked_health
     assert payload["matches"][0]["priority_reason_primary"] is None
     assert payload["matches"][0]["priority_reason_secondary"] == ["DATA_INCOMPLETE"]
     assert focused["factual_summary"] == payload["attention"][1]["factual_summary"]
-    assert "模型—市场诊断" in focused["factual_summary"]
+    assert "已就绪市场可进行模型—市场诊断" in focused["factual_summary"]
     assert focused["risks"]["DATA_RISK"]["explanation"] == (
         "数据字段已超过新鲜度边界；比赛或盘口身份尚未完成；另有 1 项技术原因"
     )
@@ -1243,10 +1245,47 @@ def test_market_eligibility_preserves_ah_ou_partial_truth_without_cross_contamin
     assert totals["model_diagnostic_status"] == "MODEL_NOT_READY"
     assert ah["candidate_quote_identity_status"] == "NOT_READY"
     assert totals["candidate_quote_identity_status"] == "NOT_READY"
-    assert match["readiness"]["market_aggregate_status"] == "PARTIAL"
+    assert match["readiness"]["market_aggregate_status"] == "NOT_READY"
     assert match["readiness"]["market_evidence_status"] == "AVAILABLE"
     assert match["readiness"]["candidate_input_status"] == "NOT_READY"
     assert match["priority_reason_secondary"] == ["CANDIDATE_INPUT_NOT_READY"]
+    assert "模型尚未就绪，暂不进行模型—市场比较" in match["factual_summary"]
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    (
+        ("market_aggregate_status", "PARTIAL", "market aggregate"),
+        ("market_evidence_status", "NOT_READY", "market evidence"),
+    ),
+)
+def test_schema_rejects_cross_panel_market_readiness_contradictions(
+    field: str,
+    value: str,
+    message: str,
+) -> None:
+    payload = _workspace(_day_view())
+    payload["matches"][2]["readiness"][field] = value
+
+    with pytest.raises(ValueError, match=message):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": f"contradictory-{field}", **payload}
+        )
+
+
+def test_data_risk_names_missing_inputs_and_clearance_condition() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]
+    card["missing_fields"] = ["lineups", "xg", "ratings", "team_value"]
+    card["risk_dimensions"]["DATA_RISK"] = {
+        "dimension": "DATA_RISK",
+        "status": "INCIDENT",
+        "reason_codes": ["DATA_REQUIRED_INPUT_MISSING", "DATA_STATUS_BLOCKED"],
+    }
+
+    explanation = _workspace(day_view)["matches"][0]["risks"]["DATA_RISK"]["explanation"]
+
+    assert explanation == "待补齐：首发、xG、球队评级、球队身价；既有采集或模型投影形成后解除"
 
 
 @pytest.mark.parametrize(
@@ -1279,7 +1318,7 @@ def test_market_depth_asymmetry_is_a_non_blocking_same_snapshot_technical_signal
     handicap = match["market_radar"]["markets"]["ASIAN_HANDICAP"]
 
     assert ("MARKET_DEPTH_ASYMMETRY" in handicap["reason_codes"]) is expected
-    assert match["readiness"]["market_aggregate_status"] == "PARTIAL"
+    assert match["readiness"]["market_aggregate_status"] == "NOT_READY"
 
 
 def test_public_team_label_never_silently_uses_raw_english() -> None:
