@@ -384,7 +384,8 @@ test("raw system health cannot override public semantics or the useful stale foc
   await installWorkspace(page, "deployed");
   await page.goto("/");
   await expect(page.locator(".dashboard-v41")).toHaveAttribute("data-public-cause", "NONE");
-  await expect(page.locator("header.v41-header")).toContainText("市场证据可用");
+  await expect(page.locator("header.v41-header")).toContainText("已落盘市场观察（含历史）3/3 场");
+  await expect(page.locator("header.v41-header")).not.toContainText("市场证据可用");
   await expect(page.locator("header.v41-header")).not.toContainText("BLOCKED DAY");
   await expect(page.locator(".v41-focus")).toHaveAttribute("data-fixture-id", "1571806");
   await expect(page.locator(".v41-shortlist > header")).toContainText("0 场优先");

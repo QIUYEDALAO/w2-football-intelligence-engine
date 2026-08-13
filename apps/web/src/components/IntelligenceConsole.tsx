@@ -58,13 +58,14 @@ function selectedDaySemantics(workspace: IntelligenceWorkspace) {
 }
 
 function selectedDayPublicStatus(workspace: IntelligenceWorkspace) {
+  const selectedDay = workspace.date_strip.find((entry) => entry.football_day === workspace.date);
   return publicPresentation(selectedDaySemantics(workspace), {
     dayNoun: selectedDayNoun(workspace),
     fixtureCount: workspace.today_summary.match_count,
     competitionCount: workspace.today_summary.competition_count,
     marketReadyCount: workspace.matches.filter((match) => match.readiness.market_aggregate_status === "READY").length,
+    marketObservationCount: selectedDay?.market_evidence_fixture_count,
     priorityCount: workspace.today_summary.priority_match_count,
-    selectedFixture: workspace.selected_fixture_id !== null,
   });
 }
 
