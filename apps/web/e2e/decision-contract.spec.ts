@@ -619,7 +619,7 @@ test("V41 keeps not-yet-due lineups out of anomalous missing inputs", async ({ p
     dimension: "DATA_RISK",
     status: "INCIDENT",
     reason_codes: ["DATA_REQUIRED_INPUT_MISSING", "DATA_STATUS_BLOCKED"],
-    explanation: "待补齐：xG、球队评级、球队身价；既有采集或模型投影形成后解除",
+    explanation: "待补齐：模型核心输入 xG、评级增强输入、球队身价增强输入；既有采集或模型投影形成后解除",
   };
   focused.lineup_collection = {
     target_checkpoint: "T60_ODDS_LINEUPS",
@@ -631,7 +631,7 @@ test("V41 keeps not-yet-due lineups out of anomalous missing inputs", async ({ p
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
   const risk = page.locator("[data-risk-axis='DATA_RISK']");
-  await expect(risk).toContainText("待补齐：xG、球队评级、球队身价");
+  await expect(risk).toContainText("待补齐：模型核心输入 xG、评级增强输入、球队身价增强输入");
   await expect(risk).not.toContainText("待补齐：首发");
   await expect(risk).toContainText("等待中：首发（T60_ODDS_LINEUPS 窗口）· 计划 2026-08-09 21:30（约 13 小时 0 分后）");
 });

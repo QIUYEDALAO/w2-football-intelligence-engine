@@ -1,0 +1,167 @@
+{
+  "database_writes": 0,
+  "exact13": [
+    "allsvenskan",
+    "argentina_primera",
+    "brasileirao_serie_a",
+    "bundesliga",
+    "chinese_super_league",
+    "eliteserien",
+    "eredivisie",
+    "la_liga",
+    "ligue_1",
+    "mls",
+    "premier_league",
+    "primeira_liga",
+    "serie_a"
+  ],
+  "fixture_count": 36,
+  "provider_calls": 0,
+  "rating": {
+    "existing_snapshot_count": 16,
+    "future_fixture_bilateral_coverage": 8,
+    "future_fixture_count": 36,
+    "materializable_set_sha256": "f1256db3748520653086445ca772b7b660c751611e61a9c40c033315ab387c27",
+    "materializable_team_count": 16,
+    "natural_result_to_elo_refresh": false,
+    "new_snapshot_candidate_count": 0,
+    "new_snapshot_candidate_set_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "plan": [
+      {
+        "history_count": 10,
+        "rating_hash": "5e72353dfac4edca15b445e05dfdd5af5373ac12daeed9453aaa543bc1acfe0a",
+        "source": "internal_elo_v1",
+        "team_id": "w2:team:api_football:2166",
+        "team_name": "Orgryte IS"
+      },
+      {
+        "history_count": 5,
+        "rating_hash": "b1215c5a158b1461f8e116c625a5e83d2109b05b3f9334121358afb931665e8b",
+        "source": "internal_elo_v1",
+        "team_id": "w2:team:api_football:2170",
+        "team_name": "Gais"
+      },
+      {
+        "history_count": 10,
+        "rating_hash": "61b13636954709f30a0ca9efd00d904e7ebd15743ec0a6cbad67ce0feb0b376b",
+        "source": "internal_elo_v1",
+        "team_id": "w2:team:api_football:2172",
+        "team_name": "Degerfors IF"
+      },
+      {
+        "history_count": 5,
+        "rating_hash": "acfac865a779af08dec7212ad0232b52282536966229dc8a8bc03fcaf7012cfd",
+        "source": "internal_elo_v1",
+        "team_id": "w2:team:api_football:2240",
+        "team_name": "Mjallby AIF"
+      },
+      {
+        "history_count": 10,
+        "rating_hash": "d66f733ad9498202d8ff26336acbf657715b5345afe6cf6a55be4fa17d0e35db",
+        "source": "internal_elo_v1",
+        "team_id": "w2:team:api_football:2241",
+        "team_name": "Vasteras SK FK"
+      },
+      {
+        "history_count": 5,
+        "rating_hash": "944c9809442eb686102ab8933af2d8f78a5d4b3634a31952a8e82312e4fd7a07",
+        "source": "internal_elo_v1",
+        "team_id": "w2:team:api_football:363",
+        "team_name": "Hammarby FF"
+      },
+      {
+        "history_count": 10,
+        "rating_hash": "0486d083cf424cad1d59c861bcdac53660f3c800f733033f4ebc7f78d3599d57",
+        "source": "internal_elo_v1",
+        "team_id": "w2:team:api_football:364",
+        "team_name": "Djurgardens IF"
+      },
+      {
+        "history_count": 5,
+        "rating_hash": "4d9d2dac050719d625cf7aed6826ba455c01773345b2b93332d4255f2a3a5ccd",
+        "source": "internal_elo_v1",
+        "team_id": "w2:team:api_football:366",
+        "team_name": "IFK Goteborg"
+      },
+      {
+        "history_count": 5,
+        "rating_hash": "78e2355b0d204f7d1887e31b943fb2ee24f09658184f7897d3cc7c6cc3f29573",
+        "source": "internal_elo_v1",
+        "team_id": "w2:team:api_football:367",
+        "team_name": "BK Hacken"
+      },
+      {
+        "history_count": 6,
+        "rating_hash": "d310bd1248e1b30ee6c053f11cea8b3b139c3779148244da0cd904e5da3b1eae",
+        "source": "internal_elo_v1",
+        "team_id": "w2:team:api_football:370",
+        "team_name": "Sirius"
+      },
+      {
+        "history_count": 5,
+        "rating_hash": "7f519c9d2de7e1b2a5228ecbdd6a6924b10966bf5badceb1d4c99ac8314ef852",
+        "source": "internal_elo_v1",
+        "team_id": "w2:team:api_football:371",
+        "team_name": "IF Brommapojkarna"
+      },
+      {
+        "history_count": 6,
+        "rating_hash": "593f2e02202d5463c4045a99f7a9feaafbca83147092fbc150c05e3cec5385ac",
+        "source": "internal_elo_v1",
+        "team_id": "w2:team:api_football:372",
+        "team_name": "IF Elfsborg"
+      },
+      {
+        "history_count": 5,
+        "rating_hash": "060c9b1258a36c2d08a7839f7f22bc3ae31d430922af97cf0c953a35faa5e94a",
+        "source": "internal_elo_v1",
+        "team_id": "w2:team:api_football:374",
+        "team_name": "Kalmar FF"
+      },
+      {
+        "history_count": 5,
+        "rating_hash": "44ad6c337e9e6c56a2adb6d9a458880eed1d9bccb9851338b19c231c56bbd717",
+        "source": "internal_elo_v1",
+        "team_id": "w2:team:api_football:375",
+        "team_name": "Malmo FF"
+      },
+      {
+        "history_count": 5,
+        "rating_hash": "c40246072920c204728576ba56b816f11849e2fe4e2fa5170cec888c359aeefa",
+        "source": "internal_elo_v1",
+        "team_id": "w2:team:api_football:377",
+        "team_name": "AIK Stockholm"
+      },
+      {
+        "history_count": 5,
+        "rating_hash": "14437361200ec8555a8b338445e6b24cf3b7e2c9e437200b0066b11ab462d3e1",
+        "source": "internal_elo_v1",
+        "team_id": "w2:team:api_football:766",
+        "team_name": "Halmstad"
+      }
+    ],
+    "proxy_only_excluded": true,
+    "refresh_authority": "controlled FactorModelRemediationService.materialize_ratings",
+    "rolling_xg_proxy_excluded": true,
+    "source_authority": "canonical_team_match_history -> internal_elo_v1"
+  },
+  "schema_version": "w2.sc21-materialization-prerequisites.v1",
+  "team_value": {
+    "club_membership_rows": 0,
+    "expected_artifact_count": 0,
+    "expected_artifact_set_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "materialization_status": "IDENTITY_OR_ROSTER_PREREQUISITES_MISSING",
+    "materializer": "w2.lineups.value_identity.materialize_team_value_asof",
+    "player_identity_mapping_rows": 110,
+    "player_valuation_rows": 31507,
+    "reason": "31,507 valuation rows cannot be aggregated without reviewed team identity and as-of roster membership.",
+    "registered_roster_rows": 0,
+    "reviewed_transfermarkt_team_crosswalk_rows": 16,
+    "team_value_artifact_rows": 0,
+    "write_authorized": false
+  },
+  "window": {
+    "end": "2026-08-22T00:00:00+00:00",
+    "start": "2026-08-14T00:00:00+00:00"
+  }
+}

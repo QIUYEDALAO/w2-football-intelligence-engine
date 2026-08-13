@@ -27,6 +27,7 @@ from w2.ingestion.future_refresh_repository import (
     FutureRefreshDbRepository,
     FutureRefreshPersistenceError,
 )
+from w2.matchday.intake_v2 import REQUIRED_MATCHDAY_COMPETITIONS
 from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
 from w2.providers.control import env_int
 from w2.providers.quota import (
@@ -69,10 +70,20 @@ class XgBackfillRepository(Protocol):
     def request_count_since(self, since: datetime) -> int:
         pass
 
+    def provider_team_mapping(
+        self,
+        *,
+        provider: str,
+        competition_id: str,
+        season: str,
+        as_of: datetime,
+    ) -> dict[str, str]:
+        pass
+
 
 @dataclass(frozen=True, kw_only=True)
 class XgBackfillConfig:
-    competition_id: str = "world_cup_2026"
+    competition_ids: tuple[str, ...] = tuple(sorted(REQUIRED_MATCHDAY_COMPETITIONS))
     recent_match_count: int = 5
     request_budget: int = 120
     quota_reserve: int = 1500
@@ -97,6 +108,7 @@ class XgBackfillResult:
     requests: list[dict[str, Any]] = field(default_factory=list)
     candidate: bool = False
     formal_recommendation: bool = False
+    dry_run: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -116,6 +128,7 @@ class XgBackfillResult:
             "requests": self.requests,
             "candidate": False,
             "formal_recommendation": False,
+            "dry_run": self.dry_run,
         }
 
 
@@ -137,9 +150,26 @@ class XgHistoryBackfillService:
         self.now = now or datetime.now(UTC)
         self._audit: list[dict[str, Any]] = []
         self._remaining_quota: int | None = None
-        entry = CompetitionRegistry().require_enabled(self.config.competition_id)
-        self._api_football_league_id = entry.provider_mapping.get("api_football_league_id")
-        self._api_football_season = entry.provider_mapping.get("api_football_season")
+        requested = set(self.config.competition_ids)
+        if not requested or not requested <= REQUIRED_MATCHDAY_COMPETITIONS:
+            raise XgBackfillError("XG_COMPETITION_SCOPE_NOT_EXACT13")
+        entries = CompetitionRegistry().entries()
+        missing = requested - set(entries)
+        if missing:
+            raise XgBackfillError(f"XG_COMPETITION_NOT_REGISTERED:{','.join(sorted(missing))}")
+        self._competition_by_provider_scope: dict[tuple[str, str], str] = {}
+        for competition_id in sorted(requested):
+            entry = entries[competition_id]
+            provider_league = str(entry.provider_mapping.get("api_football_league_id") or "")
+            provider_season = str(entry.provider_mapping.get("api_football_season") or entry.season)
+            if not provider_league or not provider_season:
+                raise XgBackfillError(f"XG_PROVIDER_SCOPE_MISSING:{competition_id}")
+            scope = (provider_league, provider_season)
+            if scope in self._competition_by_provider_scope:
+                raise XgBackfillError(
+                    f"XG_PROVIDER_SCOPE_CONFLICT:{provider_league}:{provider_season}"
+                )
+            self._competition_by_provider_scope[scope] = competition_id
 
     def run(self) -> XgBackfillResult:
         future_fixtures = [
@@ -147,7 +177,7 @@ class XgHistoryBackfillService:
             for item in self.repository.fixture_payloads()
             if self._is_target_future_fixture(item)
         ]
-        team_ids = sorted(self._world_cup_team_ids(future_fixtures))
+        team_ids = sorted(self._target_team_ids(future_fixtures))
         try:
             preflight = self._provider_hard_cap_preflight()
         except XgBackfillError as exc:
@@ -258,15 +288,20 @@ class XgHistoryBackfillService:
             requests=self._audit,
         )
 
-    def run_saved_raw(self) -> XgBackfillResult:
+    def run_saved_raw(self, *, persist: bool = True) -> XgBackfillResult:
         """Materialize xG from persisted fixture/statistics evidence only."""
         fixtures = self.repository.fixture_payloads()
         future_fixtures = [item for item in fixtures if self._is_target_future_fixture(item)]
-        fixture_by_id = {
-            fixture_id_from_payload(item): item
-            for item in fixtures
-            if fixture_id_from_payload(item)
-        }
+        fixture_by_id = {}
+        identity_blockers: list[str] = []
+        for item in fixtures:
+            fixture_id = fixture_id_from_payload(item)
+            if not fixture_id or not self._is_target_competition_fixture(item):
+                continue
+            if not self._canonical_identity_ready(item):
+                identity_blockers.append(f"XG_CANONICAL_TEAM_IDENTITY_NOT_READY:{fixture_id}")
+                continue
+            fixture_by_id[fixture_id] = item
         parsed: dict[str, TeamXgMatch] = {}
         for raw in self.repository.raw_payloads("statistics"):
             payload = raw.get("payload")
@@ -297,22 +332,28 @@ class XgHistoryBackfillService:
             future_fixtures=future_fixtures,
             materialized_matches=list(rolling_inputs.values()),
         )
-        try:
-            upserted_matches = self.repository.upsert_team_xg_matches(
-                [self._xg_match_dict(row) for row in new_rows]
-            )
-            upserted_snapshots = self.repository.upsert_team_xg_rolling_snapshots(snapshots)
-        except FutureRefreshPersistenceError as exc:
-            raise XgBackfillError(f"PERSISTENCE_WRITE_FAILED:{exc}") from exc
+        if persist:
+            try:
+                upserted_matches = self.repository.upsert_team_xg_matches(
+                    [self._xg_match_dict(row) for row in new_rows]
+                )
+                upserted_snapshots = self.repository.upsert_team_xg_rolling_snapshots(snapshots)
+            except FutureRefreshPersistenceError as exc:
+                raise XgBackfillError(f"PERSISTENCE_WRITE_FAILED:{exc}") from exc
+        else:
+            upserted_matches = len(new_rows)
+            upserted_snapshots = len(snapshots)
         return XgBackfillResult(
             generated_at_utc=self.now,
-            team_count=len(self._world_cup_team_ids(future_fixtures)),
+            team_count=len(self._target_team_ids(future_fixtures)),
             historical_fixture_count=len({row.fixture_id for row in parsed.values()}),
             statistics_request_count=0,
             team_xg_match_rows=upserted_matches,
             rolling_snapshot_rows=upserted_snapshots,
             remaining_quota=None,
+            blockers=sorted(identity_blockers),
             requests=[],
+            dry_run=not persist,
         )
 
     def _request(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
@@ -410,7 +451,7 @@ class XgHistoryBackfillService:
             row.goals_against,
         )
 
-    def _world_cup_team_ids(self, fixtures: list[dict[str, Any]]) -> set[str]:
+    def _target_team_ids(self, fixtures: list[dict[str, Any]]) -> set[str]:
         ids: set[str] = set()
         for item in fixtures:
             teams = item.get("teams", {}) if isinstance(item, dict) else {}
@@ -422,22 +463,44 @@ class XgHistoryBackfillService:
 
     def _is_target_future_fixture(self, item: dict[str, Any]) -> bool:
         fixture = item.get("fixture", {}) if isinstance(item, dict) else {}
-        league = item.get("league", {}) if isinstance(item, dict) else {}
-        if not isinstance(fixture, dict) or not isinstance(league, dict):
+        if not isinstance(fixture, dict) or not self._is_target_competition_fixture(item):
             return False
-        if self._api_football_league_id is not None:
-            league_id = str(league.get("id") or "")
-            if league_id != self._api_football_league_id:
-                return False
-        if self._api_football_season is not None and league.get("season") is not None:
-            season = str(league.get("season") or "")
-            if season != self._api_football_season:
-                return False
         status = fixture.get("status", {}) if isinstance(fixture.get("status"), dict) else {}
         if status.get("short") in FINISHED_STATUS:
             return False
         kickoff = parse_utc(fixture.get("date"))
-        return kickoff is not None and kickoff > self.now
+        return kickoff is not None and kickoff > self.now and self._canonical_identity_ready(item)
+
+    def _is_target_competition_fixture(self, item: dict[str, Any]) -> bool:
+        league = item.get("league", {}) if isinstance(item, dict) else {}
+        if not isinstance(league, dict):
+            return False
+        scope = (str(league.get("id") or ""), str(league.get("season") or ""))
+        return scope in self._competition_by_provider_scope
+
+    def _canonical_identity_ready(self, item: dict[str, Any]) -> bool:
+        fixture = item.get("fixture", {}) if isinstance(item, dict) else {}
+        league = item.get("league", {}) if isinstance(item, dict) else {}
+        teams = item.get("teams", {}) if isinstance(item, dict) else {}
+        kickoff = parse_utc(fixture.get("date") if isinstance(fixture, dict) else None)
+        if kickoff is None or not isinstance(league, dict) or not isinstance(teams, dict):
+            return False
+        scope = (str(league.get("id") or ""), str(league.get("season") or ""))
+        competition_id = self._competition_by_provider_scope.get(scope)
+        if not competition_id:
+            return False
+        mapping = self.repository.provider_team_mapping(
+            provider="api_football",
+            competition_id=competition_id,
+            season=scope[1],
+            as_of=kickoff,
+        )
+        provider_ids = {
+            str(team.get("id") or "")
+            for side in ("home", "away")
+            if isinstance((team := teams.get(side)), dict)
+        }
+        return len(provider_ids) == 2 and provider_ids <= set(mapping)
 
     def _finished_fixture_items(self, payload: dict[str, Any]) -> list[dict[str, Any]]:
         response = payload.get("response")
@@ -554,15 +617,15 @@ def run_xg_history_backfill(
     repository: XgBackfillRepository | None = None,
     now: datetime | None = None,
 ) -> XgBackfillResult:
+    competition_id = os.environ.get("W2_XG_BACKFILL_COMPETITION_ID", "").strip()
+    if competition_id not in REQUIRED_MATCHDAY_COMPETITIONS:
+        raise XgBackfillError("XG_LIVE_COMPETITION_EXACT13_REQUIRED")
     return XgHistoryBackfillService(
         client=client,
         repository=repository,
         now=now,
         config=XgBackfillConfig(
-            competition_id=os.environ.get(
-                "W2_XG_BACKFILL_COMPETITION_ID",
-                "world_cup_2026",
-            ),
+            competition_ids=(competition_id,),
             recent_match_count=int(os.environ.get("W2_XG_BACKFILL_RECENT_MATCHES", "5")),
             request_budget=int(os.environ.get("W2_XG_BACKFILL_REQUEST_BUDGET", "120")),
             quota_reserve=int(os.environ.get("W2_API_MINIMUM_RESERVE", "1500")),
@@ -577,20 +640,18 @@ def materialize_saved_xg(
     *,
     repository: XgBackfillRepository | None = None,
     now: datetime | None = None,
+    persist: bool = True,
 ) -> XgBackfillResult:
     return XgHistoryBackfillService(
         repository=repository,
         now=now,
         config=XgBackfillConfig(
-            competition_id=os.environ.get(
-                "W2_XG_BACKFILL_COMPETITION_ID",
-                "world_cup_2026",
-            ),
+            competition_ids=tuple(sorted(REQUIRED_MATCHDAY_COMPETITIONS)),
             min_rolling_matches=int(os.environ.get("W2_XG_MIN_ROLLING_MATCHES", "3")),
             max_rolling_matches=int(os.environ.get("W2_XG_MAX_ROLLING_MATCHES", "5")),
             source_revision=os.environ.get("W2_SERVICE_VERSION", "LOCAL_UNDEPLOYED"),
         ),
-    ).run_saved_raw()
+    ).run_saved_raw(persist=persist)
 
 
 def write_backfill_report(path: Path, result: XgBackfillResult) -> None:

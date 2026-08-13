@@ -1,0 +1,5193 @@
+{
+  "fixtures": [
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1492330",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 77955,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-12T21:30:10Z",
+            "observation_count": 28,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 77955,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-12T21:30:10Z",
+            "observation_count": 28,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1492331",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 5,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 85150,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-12T19:30:15Z",
+            "observation_count": 20,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 10,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 85150,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-12T19:30:15Z",
+            "observation_count": 40,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1492332",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 18539,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T14:00:27Z",
+            "observation_count": 28,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 10,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 18539,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T14:00:27Z",
+            "observation_count": 40,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1492333",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 118733,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-12T10:10:33Z",
+            "observation_count": 14,
+            "reason": "READY",
+            "snapshot_count": 1
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 118733,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-12T10:10:33Z",
+            "observation_count": 14,
+            "reason": "READY",
+            "snapshot_count": 1
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1492334",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 6,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 85149,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-12T19:30:16Z",
+            "observation_count": 24,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 85149,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-12T19:30:16Z",
+            "observation_count": 28,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1492335",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 8,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 118733,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-12T10:10:34Z",
+            "observation_count": 16,
+            "reason": "READY",
+            "snapshot_count": 1
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 10,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 118733,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-12T10:10:34Z",
+            "observation_count": 20,
+            "reason": "READY",
+            "snapshot_count": 1
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1492336",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 6,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 118737,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-12T10:10:29Z",
+            "observation_count": 12,
+            "reason": "READY",
+            "snapshot_count": 1
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 10,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 118737,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-12T10:10:29Z",
+            "observation_count": 20,
+            "reason": "READY",
+            "snapshot_count": 1
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1492337",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 68948,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T00:00:17Z",
+            "observation_count": 28,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 10,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 68948,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T00:00:17Z",
+            "observation_count": 40,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "QUOTE_FRESHNESS_BOUNDARY_INVALID",
+          "QUOTE_FRESHNESS_POLICY_NOT_REGISTERED",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1492338",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 527,
+            "reason": "READY"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T19:00:39Z",
+            "observation_count": 28,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 10,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 527,
+            "reason": "READY"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T19:00:39Z",
+            "observation_count": 40,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1492339",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 118736,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-12T10:10:30Z",
+            "observation_count": 14,
+            "reason": "READY",
+            "snapshot_count": 1
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 10,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 118736,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-12T10:10:30Z",
+            "observation_count": 20,
+            "reason": "READY",
+            "snapshot_count": 1
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1493072",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 54121,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T04:07:23Z",
+            "observation_count": 14,
+            "reason": "READY",
+            "snapshot_count": 1
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 54121,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T04:07:23Z",
+            "observation_count": 14,
+            "reason": "READY",
+            "snapshot_count": 1
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [],
+        "outcome": "NO_EDGE"
+      },
+      "fixture_id": "1494241",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "MODEL_CALIBRATION_NOT_READY"
+            ],
+            "source_status": "READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "READY",
+            "reason": "STALE"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 25756,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T12:00:10Z",
+            "observation_count": 28,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "MODEL_CALIBRATION_NOT_READY"
+            ],
+            "source_status": "READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "READY",
+            "reason": "STALE"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 25756,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T12:00:10Z",
+            "observation_count": 28,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NO_EDGE",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "CASHFLOW_EDGE_INSUFFICIENT",
+        "reason_message": "五态现金流优势不足",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [],
+        "outcome": "ANALYSIS_PICK"
+      },
+      "fixture_id": "1494242",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "MODEL_CALIBRATION_NOT_READY"
+            ],
+            "source_status": "READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "READY",
+            "reason": "STALE"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 25753,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T12:00:13Z",
+            "observation_count": 28,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 9,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "MODEL_CALIBRATION_NOT_READY"
+            ],
+            "source_status": "READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "READY",
+            "reason": "STALE"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 25753,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": "2026-08-13T12:00:13.000000Z",
+            "decision_hash": "fcadb2c8048735d4426a755bbdc58e164d60e6b02cbc8918ea8a6ceb3faeffde",
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": true,
+            "status": "ACTIVE"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T12:00:13Z",
+            "observation_count": 36,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": "2026-08-13T12:00:13.000000Z",
+        "decimal_odds": 1.88,
+        "decision_hash": "fcadb2c8048735d4426a755bbdc58e164d60e6b02cbc8918ea8a6ceb3faeffde",
+        "decision_tier": "ANALYSIS_PICK",
+        "exact_line": "2.5",
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": "TOTALS",
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": true,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "ANALYSIS_ONLY",
+        "reason_message": "当前仅提供分析参考",
+        "recommendation_scope": "VALIDATION",
+        "selection": "OVER",
+        "status": "ACTIVE"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [],
+        "outcome": "NO_EDGE"
+      },
+      "fixture_id": "1494243",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 8,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "MODEL_CALIBRATION_NOT_READY"
+            ],
+            "source_status": "READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "READY",
+            "reason": "STALE"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 25750,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T12:00:16Z",
+            "observation_count": 32,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "MODEL_CALIBRATION_NOT_READY"
+            ],
+            "source_status": "READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "READY",
+            "reason": "STALE"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 25750,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T12:00:16Z",
+            "observation_count": 28,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NO_EDGE",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "CASHFLOW_EDGE_INSUFFICIENT",
+        "reason_message": "五态现金流优势不足",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [],
+        "outcome": "ANALYSIS_PICK"
+      },
+      "fixture_id": "1494244",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 8,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "MODEL_CALIBRATION_NOT_READY"
+            ],
+            "source_status": "READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "READY",
+            "reason": "STALE"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 7697,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": "2026-08-13T17:01:07.000000Z",
+            "decision_hash": "c243cc9aaad798eae7ba1d386bed041c00aa348e4f1661a5c18634a8dac93362",
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": true,
+            "status": "ACTIVE"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T17:01:07Z",
+            "observation_count": 48,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "MODEL_CALIBRATION_NOT_READY"
+            ],
+            "source_status": "READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "READY",
+            "reason": "STALE"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 7697,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T17:01:07Z",
+            "observation_count": 42,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": "2026-08-13T17:01:07.000000Z",
+        "decimal_odds": 1.92,
+        "decision_hash": "c243cc9aaad798eae7ba1d386bed041c00aa348e4f1661a5c18634a8dac93362",
+        "decision_tier": "ANALYSIS_PICK",
+        "exact_line": "0.5",
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": "ASIAN_HANDICAP",
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": true,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "ANALYSIS_ONLY",
+        "reason_message": "当前仅提供分析参考",
+        "recommendation_scope": "VALIDATION",
+        "selection": "AWAY",
+        "status": "ACTIVE"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [],
+        "outcome": "ANALYSIS_PICK"
+      },
+      "fixture_id": "1494245",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "MODEL_CALIBRATION_NOT_READY"
+            ],
+            "source_status": "READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "READY",
+            "reason": "STALE"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 16743,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T14:30:23Z",
+            "observation_count": 28,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "MODEL_CALIBRATION_NOT_READY"
+            ],
+            "source_status": "READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "READY",
+            "reason": "STALE"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 16743,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": "2026-08-13T14:30:23.000000Z",
+            "decision_hash": "b8d8a6378a289257d77daa7c9b6bc466bc09557d0c037492bdf0121abc8da058",
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": true,
+            "status": "ACTIVE"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T14:30:23Z",
+            "observation_count": 28,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": "2026-08-13T14:30:23.000000Z",
+        "decimal_odds": 1.82,
+        "decision_hash": "b8d8a6378a289257d77daa7c9b6bc466bc09557d0c037492bdf0121abc8da058",
+        "decision_tier": "ANALYSIS_PICK",
+        "exact_line": "2.75",
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": "TOTALS",
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": true,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "ANALYSIS_ONLY",
+        "reason_message": "当前仅提供分析参考",
+        "recommendation_scope": "VALIDATION",
+        "selection": "OVER",
+        "status": "ACTIVE"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [],
+        "outcome": "ANALYSIS_PICK"
+      },
+      "fixture_id": "1494246",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 9,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "MODEL_CALIBRATION_NOT_READY"
+            ],
+            "source_status": "READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "READY",
+            "reason": "STALE"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 126153,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": "2026-08-12T08:06:54.000000Z",
+            "decision_hash": "36f9436484b2e10aef1cd651c7927dd4be222e5a5308d48cbf988d6caecbe70d",
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": true,
+            "status": "ACTIVE"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-12T08:06:54Z",
+            "observation_count": 18,
+            "reason": "READY",
+            "snapshot_count": 1
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 6,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "MODEL_CALIBRATION_NOT_READY"
+            ],
+            "source_status": "READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "READY",
+            "reason": "STALE"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 126153,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-12T08:06:54Z",
+            "observation_count": 12,
+            "reason": "READY",
+            "snapshot_count": 1
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": "2026-08-12T08:06:54.000000Z",
+        "decimal_odds": 1.94,
+        "decision_hash": "36f9436484b2e10aef1cd651c7927dd4be222e5a5308d48cbf988d6caecbe70d",
+        "decision_tier": "ANALYSIS_PICK",
+        "exact_line": "1.5",
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": "ASIAN_HANDICAP",
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": true,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "ANALYSIS_ONLY",
+        "reason_message": "当前仅提供分析参考",
+        "recommendation_scope": "VALIDATION",
+        "selection": "AWAY",
+        "status": "ACTIVE"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [],
+        "outcome": "NO_EDGE"
+      },
+      "fixture_id": "1494247",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 6,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "MODEL_CALIBRATION_NOT_READY"
+            ],
+            "source_status": "READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "READY",
+            "reason": "STALE"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 16741,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T14:30:25Z",
+            "observation_count": 24,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "MODEL_CALIBRATION_NOT_READY"
+            ],
+            "source_status": "READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "READY",
+            "reason": "STALE"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 16741,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T14:30:25Z",
+            "observation_count": 28,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NO_EDGE",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "CASHFLOW_EDGE_INSUFFICIENT",
+        "reason_message": "五态现金流优势不足",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [],
+        "outcome": "ANALYSIS_PICK"
+      },
+      "fixture_id": "1494248",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "MODEL_CALIBRATION_NOT_READY"
+            ],
+            "source_status": "READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "READY",
+            "reason": "STALE"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 22159,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": "2026-08-13T13:00:06.000000Z",
+            "decision_hash": "920075d121b79a087d47e16ff58831d93d6dfcc6a77d2ee6e832620c4e30370a",
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": true,
+            "status": "ACTIVE"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T13:00:06Z",
+            "observation_count": 42,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "MODEL_CALIBRATION_NOT_READY"
+            ],
+            "source_status": "READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "READY",
+            "reason": "STALE"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 22159,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T13:00:06Z",
+            "observation_count": 42,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": "2026-08-13T13:00:06.000000Z",
+        "decimal_odds": 1.86,
+        "decision_hash": "920075d121b79a087d47e16ff58831d93d6dfcc6a77d2ee6e832620c4e30370a",
+        "decision_tier": "ANALYSIS_PICK",
+        "exact_line": "-0.25",
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": "ASIAN_HANDICAP",
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": true,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "ANALYSIS_ONLY",
+        "reason_message": "当前仅提供分析参考",
+        "recommendation_scope": "VALIDATION",
+        "selection": "AWAY",
+        "status": "ACTIVE"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1494733",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 6,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 23920,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T12:30:46Z",
+            "observation_count": 26,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 9,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 23920,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T12:30:46Z",
+            "observation_count": 36,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1494734",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 8,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 14915,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T15:00:51Z",
+            "observation_count": 32,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 6,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 14915,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T15:00:51Z",
+            "observation_count": 24,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "QUOTE_FRESHNESS_BOUNDARY_INVALID",
+          "QUOTE_FRESHNESS_POLICY_NOT_REGISTERED",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1494735",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 6844,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T17:15:22Z",
+            "observation_count": 28,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 6,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 6844,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T17:15:22Z",
+            "observation_count": 24,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1494736",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 18521,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T14:00:44Z",
+            "observation_count": 42,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 18521,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T14:00:44Z",
+            "observation_count": 42,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1494737",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 14912,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T15:00:54Z",
+            "observation_count": 28,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 14912,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T15:00:54Z",
+            "observation_count": 28,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1494738",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 5,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 7759,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T17:00:05Z",
+            "observation_count": 30,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 7759,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T17:00:05Z",
+            "observation_count": 42,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1494739",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 14909,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T15:00:57Z",
+            "observation_count": 28,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 14909,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T15:00:57Z",
+            "observation_count": 28,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1523235",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 6,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 27249,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T11:35:15Z",
+            "observation_count": 40,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 10,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 27249,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T11:35:15Z",
+            "observation_count": 56,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1523236",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 5,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 27247,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T11:35:17Z",
+            "observation_count": 30,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 27247,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T11:35:17Z",
+            "observation_count": 42,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1523237",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 25715,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T12:00:49Z",
+            "observation_count": 42,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 11,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 25715,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T12:00:49Z",
+            "observation_count": 66,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1523238",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 29339,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T11:00:26Z",
+            "observation_count": 42,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 6,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 29339,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T11:00:26Z",
+            "observation_count": 36,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1523239",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 27247,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T11:35:18Z",
+            "observation_count": 42,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 9,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 27247,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T11:35:18Z",
+            "observation_count": 50,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [],
+        "outcome": "ANALYSIS_PICK"
+      },
+      "fixture_id": "1523240",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "MODEL_CALIBRATION_NOT_READY"
+            ],
+            "source_status": "READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "READY",
+            "reason": "STALE"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 27245,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T11:35:20Z",
+            "observation_count": 42,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 9,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "MODEL_CALIBRATION_NOT_READY"
+            ],
+            "source_status": "READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "READY",
+            "reason": "STALE"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 27245,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": "2026-08-13T11:35:20.000000Z",
+            "decision_hash": "fc6edd8ef1e36009430c6ccdb74331c6d919bb3e5f299d521557f1ed5f4f5c7e",
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": true,
+            "status": "ACTIVE"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T11:35:20Z",
+            "observation_count": 54,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": "2026-08-13T11:35:20.000000Z",
+        "decimal_odds": 1.8,
+        "decision_hash": "fc6edd8ef1e36009430c6ccdb74331c6d919bb3e5f299d521557f1ed5f4f5c7e",
+        "decision_tier": "ANALYSIS_PICK",
+        "exact_line": "3.5",
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": "TOTALS",
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": true,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "ANALYSIS_ONLY",
+        "reason_message": "当前仅提供分析参考",
+        "recommendation_scope": "VALIDATION",
+        "selection": "UNDER",
+        "status": "ACTIVE"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1523241",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 25715,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T12:00:50Z",
+            "observation_count": 42,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 6,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 25715,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T12:00:50Z",
+            "observation_count": 36,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1523242",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 25710,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T12:00:55Z",
+            "observation_count": 42,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 9,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 25710,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T12:00:55Z",
+            "observation_count": 54,
+            "reason": "READY",
+            "snapshot_count": 3
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "QUOTE_FRESHNESS_BOUNDARY_INVALID",
+          "QUOTE_FRESHNESS_POLICY_NOT_REGISTERED",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1552126",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 4107,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T18:00:57Z",
+            "observation_count": 28,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 4107,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T18:00:57Z",
+            "observation_count": 28,
+            "reason": "READY",
+            "snapshot_count": 2
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    },
+    {
+      "decision_v4": {
+        "blockers": [
+          "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE",
+          "INVALID_CAPTURED_AT",
+          "INVALID_DECIMAL_ODDS",
+          "INVALID_DECISION_EVALUATED_AT",
+          "INVALID_EXACT_LINE",
+          "INVALID_EXPECTED_VALUE",
+          "INVALID_FAIR_ODDS",
+          "INVALID_MODEL_INPUT_MANIFEST_HASH",
+          "INVALID_QUOTE_IDENTITY_HASH",
+          "INVALID_QUOTE_OBSERVATION_IDS",
+          "INVALID_RAW_PAYLOAD_SHA256",
+          "INVALID_SELECTION",
+          "INVALID_SETTLEMENT_DISTRIBUTION",
+          "INVALID_SOURCE_REVISION",
+          "INVALID_UNCERTAINTY",
+          "MISSING_BOOKMAKER_ID",
+          "MISSING_CALIBRATION_VERSION",
+          "MISSING_CAPTURED_AT",
+          "MISSING_CAPTURE_ID",
+          "MISSING_DECIMAL_ODDS",
+          "MISSING_DECISION_EVALUATED_AT",
+          "MISSING_EXACT_LINE",
+          "MISSING_EXPECTED_VALUE",
+          "MISSING_FAIR_ODDS",
+          "MISSING_MARKET",
+          "MISSING_MODEL_INPUT_MANIFEST_HASH",
+          "MISSING_MODEL_VERSION",
+          "MISSING_PROVIDER",
+          "MISSING_QUOTE_OBSERVATION_IDS",
+          "MISSING_QUOTE_SCHEMA_VERSION",
+          "MISSING_RAW_PAYLOAD_SHA256",
+          "MISSING_SELECTION",
+          "MISSING_SETTLEMENT_DISTRIBUTION",
+          "MISSING_SOURCE_REVISION",
+          "MISSING_UNCERTAINTY",
+          "MODEL_EVIDENCE_NOT_READY",
+          "UNSUPPORTED_MARKET"
+        ],
+        "outcome": "NOT_READY"
+      },
+      "fixture_id": "1575463",
+      "markets": {
+        "ASIAN_HANDICAP": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 54102,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "ASIAN_HANDICAP",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T04:07:42Z",
+            "observation_count": 14,
+            "reason": "READY",
+            "snapshot_count": 1
+          }
+        },
+        "TOTALS": {
+          "bookmaker_depth": {
+            "bookmaker_count": 7,
+            "minimum_existing_contract": 3,
+            "reason": "READY"
+          },
+          "candidate_eligibility": {
+            "current_ready": false,
+            "reason": "STALE",
+            "source_blockers": [
+              "NO_DIRECTION_SELECTED",
+              "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
+              "CANDIDATE_MODEL_NOT_READY",
+              "MODEL_SIMULATION_NOT_READY"
+            ],
+            "source_status": "NOT_READY"
+          },
+          "exact_executable_quote": {
+            "current_ready": false,
+            "identity_status": "NOT_READY",
+            "reason": "RAW_PRESENT_NOT_MATERIALIZED"
+          },
+          "freshness": {
+            "authority": "w2.quote_freshness.v1",
+            "max_age_seconds": 1800,
+            "quote_age_seconds": 54102,
+            "reason": "STALE"
+          },
+          "immutable_forward_record": {
+            "captured_at": null,
+            "decision_hash": null,
+            "note": "Historical forward facts are not reinterpreted by current quote age.",
+            "selected": false,
+            "status": "NOT_SELECTED"
+          },
+          "market": "TOTALS",
+          "observation": {
+            "latest_snapshot_at": "2026-08-13T04:07:42Z",
+            "observation_count": 14,
+            "reason": "READY",
+            "snapshot_count": 1
+          }
+        }
+      },
+      "shadow_candidate": {
+        "authority": "RECOMMENDATION_DECISION_V4",
+        "captured_at": null,
+        "decimal_odds": null,
+        "decision_hash": null,
+        "decision_tier": "NOT_READY",
+        "exact_line": null,
+        "formal_status": "OFF",
+        "lock_status": "OFF",
+        "market": null,
+        "mode": "SHADOW_ONLY",
+        "outcome_tracked": false,
+        "production_action_allowed": false,
+        "real_money_allowed": false,
+        "reason_code": "EVIDENCE_NOT_READY",
+        "reason_message": "模型证据尚未就绪",
+        "recommendation_scope": "NONE",
+        "selection": null,
+        "status": "NOT_READY"
+      }
+    }
+  ],
+  "schema_version": "w2.sc21-factor-coverage.v2",
+  "summary": {
+    "baseline_prior_fixtures": 9,
+    "bookmaker_depth_insufficient_count": 0,
+    "competition_count": 7,
+    "competitions": [
+      "allsvenskan",
+      "argentina_primera",
+      "brasileirao_serie_a",
+      "chinese_super_league",
+      "eliteserien",
+      "eredivisie",
+      "primeira_liga"
+    ],
+    "decision_v4_blockers": {
+      "CANONICAL_MAINLINE_IDENTITY_INCOMPLETE": 27,
+      "INVALID_CAPTURED_AT": 27,
+      "INVALID_DECIMAL_ODDS": 27,
+      "INVALID_DECISION_EVALUATED_AT": 27,
+      "INVALID_EXACT_LINE": 27,
+      "INVALID_EXPECTED_VALUE": 27,
+      "INVALID_FAIR_ODDS": 27,
+      "INVALID_MODEL_INPUT_MANIFEST_HASH": 27,
+      "INVALID_QUOTE_IDENTITY_HASH": 27,
+      "INVALID_QUOTE_OBSERVATION_IDS": 27,
+      "INVALID_RAW_PAYLOAD_SHA256": 27,
+      "INVALID_SELECTION": 27,
+      "INVALID_SETTLEMENT_DISTRIBUTION": 27,
+      "INVALID_SOURCE_REVISION": 27,
+      "INVALID_UNCERTAINTY": 27,
+      "MISSING_BOOKMAKER_ID": 27,
+      "MISSING_CALIBRATION_VERSION": 27,
+      "MISSING_CAPTURED_AT": 27,
+      "MISSING_CAPTURE_ID": 27,
+      "MISSING_DECIMAL_ODDS": 27,
+      "MISSING_DECISION_EVALUATED_AT": 27,
+      "MISSING_EXACT_LINE": 27,
+      "MISSING_EXPECTED_VALUE": 27,
+      "MISSING_FAIR_ODDS": 27,
+      "MISSING_MARKET": 27,
+      "MISSING_MODEL_INPUT_MANIFEST_HASH": 27,
+      "MISSING_MODEL_VERSION": 27,
+      "MISSING_PROVIDER": 27,
+      "MISSING_QUOTE_OBSERVATION_IDS": 27,
+      "MISSING_QUOTE_SCHEMA_VERSION": 27,
+      "MISSING_RAW_PAYLOAD_SHA256": 27,
+      "MISSING_SELECTION": 27,
+      "MISSING_SETTLEMENT_DISTRIBUTION": 27,
+      "MISSING_SOURCE_REVISION": 27,
+      "MISSING_UNCERTAINTY": 27,
+      "MODEL_EVIDENCE_NOT_READY": 27,
+      "QUOTE_FRESHNESS_BOUNDARY_INVALID": 3,
+      "QUOTE_FRESHNESS_POLICY_NOT_REGISTERED": 3,
+      "UNSUPPORTED_MARKET": 27
+    },
+    "decision_v4_outcomes": {
+      "ANALYSIS_PICK": 6,
+      "NOT_READY": 27,
+      "NO_EDGE": 3
+    },
+    "exact_quote_not_ready_count": 72,
+    "fixture_count": 36,
+    "lineup_ready_fixtures": 0,
+    "market_count": 72,
+    "market_stale_count": 70,
+    "rating_bilateral_ready_fixtures": 8,
+    "shadow_candidate_active": 6,
+    "simulation_not_ready_fixtures": 27,
+    "team_value_bilateral_ready_fixtures": 0,
+    "xg_four_field_missing_fixtures": 27
+  }
+}

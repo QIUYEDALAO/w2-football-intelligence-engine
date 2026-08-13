@@ -1,0 +1,19 @@
+{
+  "schema_version": "w2.sc21-xg-saved-raw-dry-run.v1",
+  "authority_source": "local execution worktree injected into isolated VPS container tmp path",
+  "business_writes": 0,
+  "dry_run": true,
+  "historical_fixture_count": 52,
+  "provider_calls": 0,
+  "remaining_quota": null,
+  "rolling_snapshot_rows_would_upsert": 22,
+  "team_count": 72,
+  "team_xg_match_rows_would_insert": 0,
+  "write_guard": {
+    "after_team_xg_match_rows": 140,
+    "after_team_xg_rolling_rows": 72,
+    "before_team_xg_match_rows": 140,
+    "before_team_xg_rolling_rows": 72,
+    "unchanged": true
+  }
+}

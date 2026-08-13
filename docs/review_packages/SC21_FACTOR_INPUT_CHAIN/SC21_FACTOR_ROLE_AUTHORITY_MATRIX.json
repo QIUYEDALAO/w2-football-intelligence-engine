@@ -1,0 +1,74 @@
+{
+  "authority": {
+    "decision_v4": "src/w2/domain/recommendation_decision_v4.py",
+    "factor_registry": "config/factors/factor_registry.v1.json",
+    "formal": "src/w2/strategy/readiness.py",
+    "simulation": "src/w2/models/simulate.py"
+  },
+  "factors": {
+    "calibration_capability": {
+      "analysis_factor_role": "DIAGNOSTIC_ONLY_WHEN_NOT_PROVEN",
+      "candidate_role": "SHADOW_ANALYSIS_ALLOWED_BASELINE_PRIOR",
+      "formal_role": "PROVEN_CAPABILITY_AND_OWNER_AUTHORITY_REQUIRED",
+      "public_presentation_role": "PRIOR_ONLY_NOT_INCREMENTAL_ABILITY",
+      "simulation_role": "SIMULATION_CAN_RUN_WITH_BASELINE_PRIOR"
+    },
+    "h2h": {
+      "analysis_factor_role": "ACTIVE_SCORING_F6",
+      "candidate_role": "DIAGNOSTIC_NOT_HARD_GATE",
+      "formal_role": "INDEPENDENT_SIGNAL_INPUT",
+      "public_presentation_role": "HISTORICAL_DIAGNOSTIC_SAMPLE",
+      "simulation_role": "NOT_A_HARD_GATE"
+    },
+    "historical_settled_ah": {
+      "analysis_factor_role": "F5_RECENT_AH_COVER",
+      "candidate_role": "NOT_A_SHADOW_HARD_GATE",
+      "formal_role": "F5_HARD_GATE",
+      "public_presentation_role": "HISTORICAL_VALIDATION_EVIDENCE",
+      "simulation_role": "NOT_A_HARD_GATE"
+    },
+    "injuries_statistics": {
+      "analysis_factor_role": "POLICY_DISABLED",
+      "candidate_role": "NOT_A_CURRENT_GATE",
+      "formal_role": "OWNER_AUTHORITY_REQUIRED_TO_ENABLE",
+      "public_presentation_role": "POLICY_DISABLED",
+      "simulation_role": "POLICY_DISABLED"
+    },
+    "lineup": {
+      "analysis_factor_role": "F10_GATE_AND_EXPLANATION_NUMERIC_DISABLED",
+      "candidate_role": "ADVISORY_CURRENT_EXACT13",
+      "formal_role": "FIXTURE_AND_OFFLINE_EVIDENCE_REQUIRED",
+      "public_presentation_role": "COLLECTION_WINDOW_AWARE",
+      "simulation_role": "OPTIONAL_CURRENT_EXACT13"
+    },
+    "market_observation_freshness_depth_exact_quote": {
+      "analysis_factor_role": "MARKET_DIAGNOSTIC_INPUT",
+      "candidate_role": "PER_MARKET_HARD_GATES",
+      "formal_role": "AH_FORMAL_MARKET_EVIDENCE_GATE_OU_FORMAL_DISABLED",
+      "public_presentation_role": "RADAR_AND_EXACT_QUOTE_MUST_REMAIN_DISTINCT",
+      "simulation_role": "NOT_A_SIMULATION_INPUT"
+    },
+    "rating_elo": {
+      "analysis_factor_role": "ACTIVE_SCORING_F7",
+      "candidate_role": "ENHANCEMENT_NOT_HARD_GATE",
+      "formal_role": "INDEPENDENT_SIGNAL_INPUT_NOT_SOLE_GATE",
+      "public_presentation_role": "RATING_ENHANCEMENT_READINESS",
+      "simulation_role": "OPTIONAL_CANONICAL_NON_PROXY_LAMBDA_ENHANCEMENT"
+    },
+    "team_value_asof": {
+      "analysis_factor_role": "ACTIVE_SCORING_F8",
+      "candidate_role": "ENHANCEMENT_NOT_HARD_GATE",
+      "formal_role": "F8_IDENTITY_VALUE_HARD_GATE",
+      "public_presentation_role": "TEAM_VALUE_ENHANCEMENT_READINESS",
+      "simulation_role": "OPTIONAL_LAMBDA_ENHANCEMENT"
+    },
+    "xg_four_fields": {
+      "analysis_factor_role": "ACTIVE_SCORING_F9",
+      "candidate_role": "HARD_GATE_THROUGH_SIMULATION",
+      "formal_role": "HARD_GATE_THROUGH_SIMULATION",
+      "public_presentation_role": "MODEL_CORE_INPUT_READINESS",
+      "simulation_role": "HARD_GATE"
+    }
+  },
+  "schema_version": "w2.sc21-factor-coverage.v2"
+}

@@ -61,9 +61,9 @@ RISK_REASON_LABELS = {
 }
 MISSING_FIELD_LABELS = {
     "lineups": "首发",
-    "xg": "xG",
-    "ratings": "球队评级",
-    "team_value": "球队身价",
+    "xg": "模型核心输入 xG",
+    "ratings": "评级增强输入",
+    "team_value": "球队身价增强输入",
     "market": "市场证据",
     "candidate_quote": "精确候选报价",
     "data_readiness": "数据就绪证据",

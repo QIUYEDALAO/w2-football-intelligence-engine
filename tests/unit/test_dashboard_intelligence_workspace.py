@@ -1292,7 +1292,9 @@ def test_data_risk_names_missing_inputs_and_clearance_condition() -> None:
 
     explanation = _workspace(day_view)["matches"][0]["risks"]["DATA_RISK"]["explanation"]
 
-    assert explanation == "待补齐：xG、球队评级、球队身价；既有采集或模型投影形成后解除"
+    assert explanation == (
+        "待补齐：模型核心输入 xG、评级增强输入、球队身价增强输入；既有采集或模型投影形成后解除"
+    )
 
 
 def test_data_risk_keeps_lineup_missing_after_collection_is_due() -> None:
@@ -1312,7 +1314,9 @@ def test_data_risk_keeps_lineup_missing_after_collection_is_due() -> None:
         "explanation"
     ]
 
-    assert explanation == "待补齐：首发、xG；既有采集或模型投影形成后解除"
+    assert explanation == (
+        "待补齐：首发、模型核心输入 xG；既有采集或模型投影形成后解除"
+    )
 
 
 def test_not_yet_due_lineup_alone_is_not_an_abnormal_data_risk() -> None:

@@ -196,7 +196,7 @@ class FakeRepository:
                     "date": (NOW + timedelta(days=1)).isoformat(),
                     "status": {"short": "NS"},
                 },
-                "league": {"id": 1, "season": "2026"},
+                "league": {"id": 113, "season": "2026"},
                 "teams": {"home": {"id": 10}, "away": {"id": 20}},
             },
             {
@@ -246,6 +246,19 @@ class FakeRepository:
 
     def request_count_since(self, since: datetime) -> int:
         return self.request_count_today
+
+    def provider_team_mapping(
+        self,
+        *,
+        provider: str,
+        competition_id: str,
+        season: str,
+        as_of: datetime,
+    ) -> dict[str, str]:
+        assert provider == "api_football"
+        assert competition_id == "allsvenskan"
+        assert season == "2026"
+        return {team_id: f"w2:team:api_football:{team_id}" for team_id in ("10", "20")}
 
 
 class ExistingXgRepository(FakeRepository):
@@ -305,13 +318,13 @@ class BrokenUsageRepository(FakeRepository):
 class SavedRawRepository(FakeRepository):
     def fixture_payloads(self) -> list[dict[str, Any]]:
         rows = super().fixture_payloads()
-        rows.extend(
-            finished_fixture(
+        for index in range(4):
+            item = finished_fixture(
                 f"saved-{index}",
                 NOW - timedelta(days=5 - index),
             )
-            for index in range(4)
-        )
+            item["league"] = {"id": 113, "season": "2026"}
+            rows.append(item)
         return rows
 
     def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
@@ -372,6 +385,23 @@ def test_saved_statistics_raw_materializes_xg_and_is_idempotent() -> None:
     assert first.rolling_snapshot_rows == 2
     assert second.team_xg_match_rows == 0
     assert second.rolling_snapshot_rows == 2
+
+
+def test_saved_statistics_raw_dry_run_is_exact13_canonical_and_write_free() -> None:
+    repository = SavedRawRepository()
+    result = XgHistoryBackfillService(
+        client=NoCallClient(),
+        repository=repository,
+        config=XgBackfillConfig(min_rolling_matches=3),
+        now=NOW,
+    ).run_saved_raw(persist=False)
+
+    assert result.dry_run is True
+    assert result.as_dict()["provider_calls"] == 0
+    assert result.team_xg_match_rows == 8
+    assert result.rolling_snapshot_rows == 2
+    assert repository.matches == []
+    assert repository.snapshots == []
 
 
 def test_saved_statistics_raw_with_less_than_three_matches_has_no_snapshot() -> None:

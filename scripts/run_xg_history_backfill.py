@@ -17,8 +17,19 @@ def main() -> None:
         action="store_true",
         help="Materialize persisted fixture/statistics evidence with zero Provider calls.",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Compute saved-raw materialization without database writes.",
+    )
     args = parser.parse_args()
-    result = materialize_saved_xg() if args.saved_raw_only else run_xg_history_backfill()
+    if args.dry_run and not args.saved_raw_only:
+        parser.error("--dry-run requires --saved-raw-only")
+    result = (
+        materialize_saved_xg(persist=not args.dry_run)
+        if args.saved_raw_only
+        else run_xg_history_backfill()
+    )
     report_path = Path("reports/W2_XG_HISTORY_BACKFILL.json")
     write_backfill_report(report_path, result)
     print(f"xg_history_backfill report={report_path}")
