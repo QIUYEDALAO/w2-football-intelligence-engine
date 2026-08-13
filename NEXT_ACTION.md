@@ -1,103 +1,121 @@
 # NEXT ACTION
 
 ```text
-ACTIVE_NEXT_ACTION = OWNER_SC20_SINGLE_AUTHORITY_POSTDEPLOY_REREVIEW
-CURRENT_GATE = OWNER_SC20_SINGLE_AUTHORITY_POSTDEPLOY_REREVIEW
-AUTHORITY = SC20_PUBLIC_SEMANTICS_SINGLE_AUTHORITY_CUTOVER.md
-EXACT_MAIN = 112f75d24638770a85f1a97678ee652988351e22
-DEPLOYED_SOURCE = 5a85904c40183c4ee1e16b1f9934e8ff9dfcb56a
-PR = 530_MERGED_DEPLOYED
-RELEASE_REQUIRED = PASS_RUN_31549408271
-PROMOTION_REQUIRED = PASS_RUN_31550028290
-SC19_SCOPE_CAUSE_FOUNDATION = RETAIN
-SC20_01_THROUGH_SC20_07 = CLOSED_PASS
-SC20_POSTDEPLOY_CONTRACT_REMEDIATION = CLOSED_PASS_PR_526
-SC20_VISUAL_ACCEPTANCE_REMEDIATION = CLOSED_PASS_PR_527
-SC20_FULL_FEATURE_ACCEPTANCE_REMEDIATION = CLOSED_PASS_PRS_528_529
-SC20_COLLECTION_TRUTH_REMEDIATION = CLOSED_PASS_PR_530
-BACKGROUND_COLLECTION_RUNTIME = WORKER_PROVIDER_ON_SCHEDULER_ON_FUTURE_REFRESH_ON
-API_READ_PROVIDER_CALLS = OFF_REQUIRED
-SINGLE_PUBLIC_PRESENTATION_AUTHORITY = ACTIVE
-OLD_PUBLIC_STATUS_CHAIN = PHYSICALLY_DELETED
-FRONTEND_TEAM_TRANSLATION_AUTHORITY = PHYSICALLY_DELETED
-SYSTEM_HEALTH_PUBLIC_SEMANTICS = OPS_ONLY_NOT_WORKSPACE_PUBLIC_SEMANTICS
-TEAM_PUBLIC_LABEL_AUTHORITY = CANONICAL_IDENTITY_PLUS_CONFIG_IDENTITY_PUBLIC_TEAM_LABELS_ZH_CN_V1
+ACTIVE_NEXT_ACTION = EXECUTE_SC21_STAGE14_FACTOR_COVERAGE_AND_MODEL_INPUT_CONVERGENCE
+CURRENT_GATE = SC21_FACTOR_INPUT_CONVERGENCE_ACTIVE
+AUTHORITY = SC21_STAGE14_FACTOR_COVERAGE_AND_MODEL_INPUT_CONVERGENCE.md
+BASE_MAIN = 3b7f87db2f0cb49d75582313ca593d30262c0d3d
+DEPLOYED_SOURCE = VERIFY_AND_RECONCILE_FIRST
+PR_531 = MERGED_RETAIN_DAILY_MATCH_BROWSER
+PR_532 = MERGED_RETAIN_EXACT_13_T168_T72_T48_COLLECTION
+PR_533 = MERGED_RETAIN_CHECKPOINT_DIRECT_FIXTURE_TRUTH
+SC20_SINGLE_PUBLIC_AUTHORITY = CLOSED_PASS_RETAIN
 SHADOW_CANDIDATE = KEEP_ACTIVE_SHADOW_ONLY
 FORMAL = OFF
 LOCK = OFF
 PRODUCTION = OFF
 ROUND_4 = NOT_STARTED
 P6 = NOT_AUTHORIZED
-TERMINAL_GATE = OWNER_SC20_SINGLE_AUTHORITY_POSTDEPLOY_REREVIEW
+TERMINAL_GATE = OWNER_SC21_FACTOR_INPUT_CHAIN_POSTDEPLOY_REREVIEW
 ```
 
-## Completed result
+## Binding conclusion
 
-PR #525 completed the one-PR physical cutover. PR #526 closed the bounded postdeploy read/replay contract gaps, PR #527 closed the first screenshot-found layout defects, PR #528 closed the full-feature audit's outcome-timing and responsive gaps, PR #529 closed the live delayed-response mobile date-selection regression, and PR #530 removed the misleading implication that missing W2 evidence proves the external market has no odds. The only current public business presentation authority remains `WorkspacePublicSemantics(scope, cause)` through one presentation converter.
+The next bottleneck is model/factor input coverage, not merely AH/OU presence. The provisional live snapshot reports persisted market evidence for 19/19 reviewed future fixtures, but only 3/19 have usable four-field xG and no fixture currently forms an影子候选.
 
-- Retired day-mode/focus/public-system-health/date-strip-display-state chains were removed from current public paths.
-- Frontend `TEAM_TRANSLATIONS` / `translateTeam()` were removed; canonical identity plus approved public label config is the only Chinese-label success path.
-- The anti-resurrection architecture gate is active in CI.
-- Exact-head Release Candidate CI, main promotion, local OCI relay, warm switch and live release-sync checks passed.
-- Live workspace JSON contains zero retired public fields and preserves `provider_calls=0`, `db_writes=0`, `no_call_on_read=true`.
-- The seven-date persisted strip, empty/future/match-focus/postmatch/system-contract states, 390px mobile containment and replay technical details were captured and visually inspected; past-due fixtures no longer claim that outcomes are not yet due, and the selected mobile date remains visible after persisted strip replacement.
-- Live worker/scheduler Provider calls and future refresh remain enabled on the existing cadence; the API read process remains Provider-disabled. The dashboard now says W2 evidence is not yet persisted and explicitly does not infer external market availability.
+Do not start by enabling every Provider endpoint. First establish the exact current factor truth, then repair persisted-evidence and no-Provider materialization paths in hard-gate order.
 
-## Owner rereview boundary
+## Continuous execution order
 
-No automatic code or runtime action remains. Owner rereview is required before any new authorization.
+1. **SC21-00 — exact identity/context reconciliation**
+   - sync exact main/context;
+   - measure API/Web/worker/scheduler deployed identities;
+   - prove PR #532 and PR #533 are the running collection authorities;
+   - if accepted merged main is not deployed, deploy it through Owner-local OCI relay before the live audit.
 
-## Retained mechanical proof
+2. **SC21-01 — Stage14 Factor Coverage Truth Matrix V2, read-only**
+   - exact active 13 competitions;
+   - exact persisted T+7 fixture inventory, including the reported 19 fixtures;
+   - per fixture/team/factor source, row count, as-of, freshness, identity, materialization, model role, candidate role and request cost;
+   - distinguish `NOT_YET_DUE`, `DUE_NOT_COLLECTED`, `RAW_ABSENT`, `RAW_PRESENT_NOT_MATERIALIZED`, `IDENTITY_NOT_MAPPED`, `UNDER_SAMPLED`, `STALE`, `POLICY_DISABLED`, `PROVIDER_NOT_AVAILABLE`, `READY`;
+   - Provider calls 0, business writes 0.
 
-Current public-authority paths must produce zero hits for:
+3. **SC21-02 — persisted-evidence xG convergence**
+   - xG is the current simulation hard gate;
+   - inventory persisted statistics/raw xG evidence, team xG match rows and rolling snapshots;
+   - run saved-raw materialization first;
+   - fix parser/identity/as-of/sample/projection defects without Provider calls;
+   - no proxy xG, no post-kickoff leakage;
+   - if live statistics collection is truly required, create an Owner decision packet and continue all independent work. Do not enable statistics automatically.
+
+4. **SC21-03 — rating/Elo materialization from existing evidence**
+   - canonical as-of authority only;
+   - exclude `rolling_xg_proxy` / `PROXY_ONLY` from eligible model rating;
+   - no Provider calls, no weight changes;
+   - missing rating remains an enhancement gap, not the xG blocker.
+
+5. **SC21-04 — team-value as-of materialization**
+   - reuse `scripts/materialize_team_value_asof.py` and the existing canonical writer;
+   - dry-run, exact eligible count/artifact hash, then controlled write;
+   - require valid player/team identity and as-of evidence;
+   - no invented mappings and no Provider calls.
+
+6. **SC21-05 — lineup timing and deferred-domain truth**
+   - preserve T-60/T-45/T-30; do not collect early;
+   - separate not-yet-due, due-no-attempt, Provider-empty and captured;
+   - injuries remain policy-disabled/not audited;
+   - H2H remains diagnostic;
+   - matchday statistics remains disabled unless separately approved.
+
+7. **SC21-06 — public factor semantics**
+   - keep the single accepted `scope + cause -> PublicPresentation` authority;
+   - xG: 模型核心输入未就绪;
+   - lineup before window: 尚未到首发采集时间;
+   - rating/value: 增强输入未就绪;
+   - policy-disabled domains: 当前策略未启用/仅作审计;
+   - market evidence without exact quote: 市场证据可见，精确候选报价未就绪;
+   - never collapse every condition into `必需输入缺失`.
+
+8. **SC21-07 — shadow candidate chain acceptance**
+   - preserve RecommendationDecisionV4 unchanged;
+   - independently verify market freshness/depth, exact executable quote, four-field xG/model output, candidate model identity and settlement evidence;
+   - one eligible market must not be erased by another weak market;
+   - zero candidates remains a valid result if no fixture passes.
+
+9. **SC21-08 — full verification and deployment**
+   - separate reviewable PRs by authority boundary;
+   - exact-head CI and `RELEASE_REQUIRED` on each implementation PR;
+   - automatic merge after pass;
+   - final deploy through Owner-local OCI relay;
+   - VPS materialization writes only as `dry-run -> exact count/hash guard -> controlled apply`;
+   - reproduce the postdeploy matrix and verify `provider_calls=0`, `db_writes=0`, `no_call_on_read=true` on reads;
+   - refresh Round4 exact identity only and stop.
+
+Ordinary audit/parser/identity/materialization/projection/UI/test/CI/deployment-preparation failures are in scope:
 
 ```text
-DashboardDayMode
-day_mode
-default_focus_type
-DashboardFocusType
-public_system_health
-DAY_MODE_LABELS
-TEAM_TRANSLATIONS
-translateTeam
-v41-global--blocked
-v41-global--calm
-v41-global--empty
-v41-pill--mode-
+fix -> revalidate -> continue
 ```
 
-Date-strip `display_state` has zero current Dashboard/public-contract hits. Historical text remains allowed only under explicit archive paths that are not imported, parsed, or treated as current authority.
+No Owner relay is required between in-scope steps. If one branch requires a new Provider/plan, new live endpoint, cadence/whitelist change, external dataset, model/threshold change or manual identity invention, create a decision packet for that branch and continue all independent branches.
 
-Do not globally delete `COLLECTION_INCIDENT`; it remains a legitimate technical intelligence state. Instead prove that `NOT_YET_DUE` and normal waiting can never map to collection-incident public copy/tone/class.
-
-## Live acceptance
+## Mandatory role distinction
 
 ```text
-EXACT_MAIN_SHA = 112f75d24638770a85f1a97678ee652988351e22
-DEPLOYED_API_WEB_SOURCE_SHA = 5a85904c40183c4ee1e16b1f9934e8ff9dfcb56a
-WORKSPACE_RETIRED_PUBLIC_FIELD_COUNT = 0
-SELECTED_FUTURE_DAY = SELECTED_DAY_PLUS_NOT_YET_DUE
-APPROVED_CHINESE_LABEL = CANONICAL_REVIEWED_AUTHORITY
-APPROVED_LABEL_MISSING = RAW_NAME_VISIBLE_PLUS_LABEL_MISSING
-PLACEHOLDER_OR_GUESSED_TEAM_NAME_COUNT = 0
-READ_PATH = provider_calls=0, db_writes=0, no_call_on_read=true
-REPLAY_OUTCOME_TRUTH_TABLE = PASS
-SELECTED_DAY_ONLY_WINDOW_CONTRACT = PASS
-SCOPED_BATCHED_COLD_READ = PASS
-DATE_STRIP_PARTIAL_TRUTH = PASS
-GZIP = PASS
-VISUAL_ACCEPTANCE_MATRIX = PASS
-MOBILE_DATE_STRIP_CONTAINMENT = PASS
-MOBILE_SELECTED_DATE_AFTER_WORKSPACE_REPLACEMENT = PASS
-PAST_DUE_FIXTURE_STATUS_SEMANTICS = PASS
-TECHNICAL_GAP_CODE_SPACING = PASS
-BACKGROUND_COLLECTION_RUNTIME = worker_provider_calls=true, scheduler=true, future_refresh=true
-API_READ_PROVIDER_CALLS_DISABLED = true
-MARKET_OBSERVATIONS_7D = 24708 rows, 33 fixtures
-NOT_YET_DUE_PUBLIC_COPY = W2 schedule state only; external market availability not inferred
-LEGACY_ONLY_SCHEDULE_COPY_LIVE_COUNT = 0
-COLLECTION_TRUTH_DESKTOP_MOBILE_VISUAL_ACCEPTANCE = PASS
-WARM_SWITCH_SECONDS = 40
+four-field xG missing
+=> simulation hard gate, model unavailable
+
+rating / team value missing
+=> model enhancement not ready under current simulation policy
+
+lineup before T-60/T-45/T-30
+=> NOT_YET_DUE, not a collection incident
+
+persisted market snapshot exists but stale
+=> historical evidence visible, current comparison/candidate paused
+
+market aggregate exists but exact executable quote missing
+=> no candidate; never promote Radar median
 ```
 
 ## Frozen stop lines
@@ -105,9 +123,10 @@ WARM_SWITCH_SECONDS = 40
 ```text
 NEW_PROVIDER_OR_PLAN = NOT_AUTHORIZED
 MANUAL_PROVIDER_PROBE = FORBIDDEN
+NEW_LIVE_STATISTICS_COLLECTION = NOT_AUTHORIZED_WITHOUT_DECISION_PACKET
 SCHEDULER_OR_CADENCE_CHANGE = NOT_AUTHORIZED
 ACTIVE_WHITELIST_CHANGE = NOT_AUTHORIZED
-MODEL_FACTOR_THRESHOLD_CHANGE = NOT_AUTHORIZED
+MODEL_FACTOR_WEIGHT_THRESHOLD_CHANGE = NOT_AUTHORIZED
 MODEL_RETRAINING = NOT_AUTHORIZED
 BOOKMAKER_DEPTH_THRESHOLD_CHANGE = NOT_AUTHORIZED
 MARKET_DIRECTION_BENCHMARK_DEFINITION = NOT_AUTHORIZED
@@ -124,8 +143,7 @@ READ_PROVIDER_CALLS = 0_REQUIRED
 READ_DB_BUSINESS_WRITES = 0_REQUIRED
 IMAGE_TRANSPORT = LOCAL_OCI_RELAY_PRIMARY
 DELETE_PROTECTED_HISTORICAL_EVIDENCE = FORBIDDEN
-DEPRECATED_PUBLIC_STATUS_ALIAS = FORBIDDEN
-LEGACY_PUBLIC_STATUS_FALLBACK = FORBIDDEN
-FRONTEND_TEAM_TRANSLATION_AUTHORITY = FORBIDDEN
-SYSTEM_HEALTH_AS_BUSINESS_PUBLIC_STATUS = FORBIDDEN
+RADAR_MEDIAN_AS_EXECUTABLE_QUOTE = FORBIDDEN
+PROXY_XG_AS_TRUE_XG = FORBIDDEN
+POST_KICKOFF_FACTOR_LEAKAGE = FORBIDDEN
 ```
