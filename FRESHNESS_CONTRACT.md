@@ -17,7 +17,7 @@ not authorize W2 collection or Scheduler changes.
 | `STATISTICS` | ~1m | per-card `data_refresh.statistics_status/captured_at` when present | `PARTIAL` | source status preserved; absent is `NOT_AVAILABLE` | `true` |
 | `PLAYERS` | ~1m | no final DayView domain timestamp | `NOT_AVAILABLE` | `SOURCE_AS_OF_NOT_PROJECTED` | `true` |
 | `LINEUPS` | ~15m | per-card `data_refresh.lineups_status/captured_at` | `PARTIAL_1_OF_13_VERIFIED` | `READY`, `PROVIDER_EMPTY`, `NOT_REQUESTED`, or source value; absence is `NOT_AVAILABLE` | `true` |
-| `ODDS_PREMATCH` | ~3h | `freshness.odds_last_confirmed_at` and Round-3 current snapshot freshness | `AVAILABLE_WHEN_OBSERVED` | snapshot `COMPLETE/STALE`; zero/one/multi truth remains separate | `true` |
+| `ODDS_PREMATCH` | ~3h | linked persisted odds checkpoint captures, observations and Round-3 latest snapshot | `AVAILABLE_WHEN_OBSERVED` | display/diagnostic state follows the persisted collection plan window; candidate quote age is an independent exact 1800-second hard gate | `true` |
 | `ODDS_LIVE` | ~5s | intentionally excluded | `FORBIDDEN_AS_BENCHMARK` | no timestamp/value in final model | `true` |
 | `INJURIES` | ~4h | per-card `data_refresh.injuries_status/captured_at` when present | `PARTIAL` | source status preserved; absent is `NOT_AVAILABLE` | `true` |
 | `PREDICTIONS` | ~1h | no checkpoint/DayView API-Football Prediction projection | `PARTIAL_NOT_PROJECTED` | `NOT_AVAILABLE` + explicit reason | `true` |
@@ -83,18 +83,28 @@ V4.1 publishes raw time authority rather than authored relative labels:
 generated_at
 kickoff_utc
 latest_snapshot_at
-freshness_max_age_seconds
+latest_snapshot_checkpoint
+quote_age_seconds
 next_eval_at
-next_market_collection_at
+market_collection.target_checkpoint
+market_collection.scheduled_at
+market_collection.window_end_at
+market_collection.overdue
 checkpoint_generated_at
 ```
 
 The client derives countdowns and ages from these values across timezone and
 football-day boundaries. `next_eval_at <= generated_at` is displayed as
-expired, never as a next evaluation. `next_market_collection_at` is separately
-derived from the earliest future persisted odds checkpoint; it is never copied
-from or substituted by `next_eval_at`. Market `READY` remains source-bound;
-`STALE` and `READY` cannot coexist for the same public market. A global model
+expired, never as a next evaluation. Market collection scheduling is separately
+derived from persisted odds checkpoint plans; it is never copied from or
+substituted by `next_eval_at`. Before `scheduled_at` the public cause is
+`NOT_YET_DUE`; from `scheduled_at` through `window_end_at` a missing capture is
+`AWAITING_COLLECTION` with `overdue=false`; only after `window_end_at` does it
+become overdue. A persisted market snapshot remains usable for diagnostics with
+its checkpoint, capture time and age displayed. Candidate formation is governed
+separately by `w2.quote_freshness.v1`: `quote_max_age_seconds=1800`, and an older
+quote is `NOT_READY/QUOTE_TOO_OLD_FOR_CANDIDATE`. Existing forward-ledger records
+are never reread, rewritten or rehashed under this read-side change. A global model
 quality checkpoint is `AVAILABLE` only when its timestamp is current and all
 required probability metrics exist. A timestamp beyond the boundary is
 `STALE`; a current timestamp with missing required metrics is `INCOMPLETE`; no

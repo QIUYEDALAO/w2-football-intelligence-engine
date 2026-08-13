@@ -20,6 +20,7 @@ def _market(snapshot_count: int) -> dict[str, Any]:
     points = [
         {
             "capture_id": f"capture-{index}",
+            "checkpoint": f"T{index}",
             "captured_at": f"2026-08-09T0{index}:00:00Z",
             "canonical_line": "-0.25",
             "bookmaker_count": 2,
@@ -154,7 +155,15 @@ def _card(fixture_id: str, snapshot_count: int) -> dict[str, Any]:
             "statistics_captured_at": "2026-08-09T01:00:00Z",
             "lineups_status": "PROVIDER_EMPTY",
             "injuries_status": "AVAILABLE",
-            "next_market_collection_at": "2026-08-09T14:30:00Z",
+            "market_collection": {
+                "latest_snapshot_at": "2026-08-09T01:00:00Z",
+                "latest_snapshot_checkpoint": "T24_OPEN_ODDS",
+                "target_checkpoint": "T12_ODDS",
+                "scheduled_at": "2026-08-09T14:30:00Z",
+                "window_end_at": "2026-08-09T15:00:00Z",
+                "overdue": False,
+                "public_semantics": {"scope": "MATCH", "cause": "NOT_YET_DUE"},
+            },
         },
         "card_hash": f"hash-{fixture_id}",
         "source": "decision_contract",
@@ -366,17 +375,14 @@ def test_shadow_candidate_fails_closed_when_selected_market_is_not_eligible() ->
     )
 
 
-def test_shadow_candidate_fails_closed_when_selected_market_turns_stale() -> None:
+def test_shadow_candidate_uses_exact_quote_age_not_diagnostic_market_age() -> None:
     day_view = _day_view()
     day_view["cards"][0]["market_radar"]["markets"]["ASIAN_HANDICAP"] = _market(2)
-    day_view["cards"][0]["market_radar"]["markets"]["ASIAN_HANDICAP"]["current"][
-        "freshness"
-    ]["max_age_seconds"] = 3600
     day_view["generated_at"] = "2026-08-09T03:00:00Z"
     day_view["cards"][0]["market_candidates"] = {
         "ah": {
-            "quote_status": "COMPLETE",
-            "quote_usage": "EXECUTABLE",
+            "quote_status": "STALE",
+            "quote_usage": "REFERENCE_ONLY",
             "quote_identity": {"identity_status": "COMPLETE"},
             "model_status": "READY",
             "blockers": [],
@@ -395,7 +401,8 @@ def test_shadow_candidate_fails_closed_when_selected_market_turns_stale() -> Non
 
     payload = _workspace(day_view, candidate_enabled=True)
     match = payload["matches"][0]
-    assert match["market_radar"]["markets"]["ASIAN_HANDICAP"]["status"] == "STALE"
+    assert match["market_radar"]["markets"]["ASIAN_HANDICAP"]["status"] == "READY"
+    assert match["market_radar"]["markets"]["ASIAN_HANDICAP"]["quote_age_seconds"] == 7200
     assert match["shadow_candidate"]["status"] == "NOT_READY"
     assert match["shadow_candidate"]["outcome_tracked"] is False
     DashboardIntelligenceWorkspaceResponse.model_validate(
@@ -452,7 +459,18 @@ def test_workspace_is_deterministic_explicit_and_schema_valid() -> None:
             "action": None,
         },
         "next_eval_at": None,
-        "risks": _risks(),
+        "risks": {
+            **_risks(),
+            "COLLECTION_RISK": {
+                "dimension": "COLLECTION_RISK",
+                "status": "OK",
+                "reason_codes": [],
+                "explanation": "尚未到下一采集窗口，按既有计划正常等待",
+                "assessment_status": "ASSESSED_CURRENT",
+                "evidence_basis": "COLLECTION_WINDOW_NOT_YET_DUE",
+                "source_as_of": "2026-08-09T01:00:00Z",
+            },
+        },
     }
     assert first["validation"]["history_replay"]["decision_summary"] == {
         "total_cards": 3,
@@ -466,9 +484,15 @@ def test_workspace_is_deterministic_explicit_and_schema_valid() -> None:
         "is_recorded": False,
         "public_semantics": {"scope": "MATCH", "cause": "NOT_YET_DUE"},
     }
-    assert first["matches"][0]["next_market_collection_at"] == (
-        "2026-08-09T14:30:00Z"
-    )
+    assert first["matches"][0]["market_collection"] == {
+        "latest_snapshot_at": "2026-08-09T01:00:00Z",
+        "latest_snapshot_checkpoint": "T24_OPEN_ODDS",
+        "target_checkpoint": "T12_ODDS",
+        "scheduled_at": "2026-08-09T14:30:00Z",
+        "window_end_at": "2026-08-09T15:00:00Z",
+        "overdue": False,
+        "public_semantics": {"scope": "MATCH", "cause": "NOT_YET_DUE"},
+    }
     assert first["matches"][0]["readiness"]["next_eval_at"] is None
     scoreline = first["matches"][0]["scoreline_reference"]
     assert scoreline["simulations_completed"] == 10_000
@@ -781,17 +805,15 @@ def test_postdeploy_real_shape_uses_stale_evidence_and_scopes_raw_blocked_health
 
     assert payload["selected_fixture_id"] == "stale-useful"
     assert payload["data_operations"]["system_health"] == "BLOCKED_DAY"
-    assert payload["today_summary"]["primary_reason_counts"] == {}
-    assert focused["priority_reason_primary"] is None
+    assert payload["today_summary"]["primary_reason_counts"] == {"MARKET_MOVEMENT": 1}
+    assert focused["priority_reason_primary"] == "MARKET_MOVEMENT"
     assert focused["priority_reason_secondary"] == [
-        "STALE_MARKET_MEMORY",
-        "MARKET_MOVEMENT",
-        "DATA_INCOMPLETE",
+        "CANDIDATE_INPUT_NOT_READY",
     ]
     assert payload["matches"][0]["priority_reason_primary"] is None
     assert payload["matches"][0]["priority_reason_secondary"] == ["DATA_INCOMPLETE"]
     assert focused["factual_summary"] == payload["attention"][1]["factual_summary"]
-    assert "当前走势与模型—市场比较暂停" in focused["factual_summary"]
+    assert "模型—市场诊断" in focused["factual_summary"]
     assert focused["risks"]["DATA_RISK"]["explanation"] == (
         "数据字段已超过新鲜度边界；比赛或盘口身份尚未完成；另有 1 项技术原因"
     )
@@ -830,7 +852,7 @@ def test_schema_rejects_unknown_public_status_field() -> None:
         )
 
 
-def test_public_market_readiness_is_single_source_bound_authority() -> None:
+def test_public_market_readiness_ignores_retired_fixed_age_source_status() -> None:
     day_view = _day_view()
     market = day_view["cards"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]
     market["current"]["freshness"] = {"status": "STALE"}
@@ -839,17 +861,17 @@ def test_public_market_readiness_is_single_source_bound_authority() -> None:
     match = payload["matches"][2]
     radar = match["market_radar"]["markets"]["ASIAN_HANDICAP"]
 
-    assert radar["status"] == "STALE"
+    assert radar["status"] == "READY"
     assert radar["source_status"] == "READY"
     assert radar["bookmaker_pair_count"] == 4
     assert radar["quote_row_count"] == radar["observation_count"] == 8
-    assert match["market_fact"]["status"] == "STALE"
+    assert match["market_fact"]["status"] == "READY"
     assert match["market_fact"]["source_status"] == "READY"
-    assert match["model_lab"]["market"]["ASIAN_HANDICAP"]["status"] == "STALE"
+    assert match["model_lab"]["market"]["ASIAN_HANDICAP"]["status"] == "READY"
     assert match["model_lab"]["market"]["ASIAN_HANDICAP"]["source_status"] == "READY"
 
 
-def test_market_freshness_is_recomputed_at_workspace_generation_time() -> None:
+def test_market_quote_age_is_recomputed_at_workspace_generation_time() -> None:
     day_view = _day_view()
     day_view["generated_at"] = "2026-08-09T09:00:00Z"
     source = day_view["cards"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]
@@ -863,19 +885,13 @@ def test_market_freshness_is_recomputed_at_workspace_generation_time() -> None:
     market = match["market_radar"]["markets"]["ASIAN_HANDICAP"]
 
     assert market["latest_snapshot_at"] == "2026-08-09T01:00:00Z"
-    assert market["freshness"] == {
-        "status": "STALE",
-        "age_seconds": 8 * 3600,
-        "max_age_seconds": 3600,
-    }
-    assert market["status"] == "STALE"
-    assert market["eligibility"]["observation_status"] == "STALE"
-    assert market["eligibility"]["cross_sectional_comparison_status"] == "PAUSED_STALE"
-    assert match["readiness"]["market_aggregate_status"] == "NOT_READY"
-    assert "当前走势与模型—市场比较暂停" in match["factual_summary"]
+    assert market["quote_age_seconds"] == 8 * 3600
+    assert market["status"] == "READY"
+    assert market["eligibility"]["observation_status"] == "AVAILABLE"
+    assert market["eligibility"]["cross_sectional_comparison_status"] == "AVAILABLE"
 
 
-def test_market_freshness_clock_conflict_fails_closed() -> None:
+def test_market_quote_age_clock_conflict_is_not_invented() -> None:
     day_view = _day_view()
     day_view["generated_at"] = "2026-08-09T00:30:00Z"
     source = day_view["cards"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]
@@ -889,16 +905,11 @@ def test_market_freshness_clock_conflict_fails_closed() -> None:
         "ASIAN_HANDICAP"
     ]
 
-    assert market["status"] == "INSUFFICIENT"
-    assert market["freshness"] == {
-        "status": "NOT_AVAILABLE",
-        "age_seconds": None,
-        "max_age_seconds": 3600,
-        "reason_code": "FRESHNESS_CLOCK_CONFLICT",
-    }
+    assert market["status"] == "READY"
+    assert market["quote_age_seconds"] is None
 
 
-def test_unknown_market_freshness_fails_closed_as_insufficient() -> None:
+def test_retired_market_freshness_payload_is_not_public() -> None:
     day_view = _day_view()
     day_view["cards"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]["current"]["freshness"] = {
         "status": "UNKNOWN"
@@ -906,16 +917,17 @@ def test_unknown_market_freshness_fails_closed_as_insufficient() -> None:
 
     market = _workspace(day_view)["matches"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]
 
-    assert market["status"] == "INSUFFICIENT"
+    assert market["status"] == "READY"
     assert market["source_status"] == "READY"
+    assert "freshness" not in market
 
 
-def test_workspace_schema_rejects_ready_market_with_stale_freshness() -> None:
+def test_workspace_schema_rejects_retired_market_freshness_field() -> None:
     payload = _workspace(_day_view())
     market = payload["matches"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]
     market["freshness"] = {"status": "STALE"}
 
-    with pytest.raises(ValueError, match="READY market evidence must be current"):
+    with pytest.raises(ValueError, match="Extra inputs are not permitted"):
         DashboardIntelligenceWorkspaceResponse.model_validate(
             {"request_id": "test-request", **payload}
         )
@@ -923,7 +935,7 @@ def test_workspace_schema_rejects_ready_market_with_stale_freshness() -> None:
 
 def test_workspace_schema_rejects_competing_public_market_readiness() -> None:
     payload = _workspace(_day_view())
-    payload["matches"][2]["model_lab"]["market"]["ASIAN_HANDICAP"]["status"] = "STALE"
+    payload["matches"][2]["model_lab"]["market"]["ASIAN_HANDICAP"]["status"] = "INSUFFICIENT"
 
     with pytest.raises(ValueError, match="market readiness must match"):
         DashboardIntelligenceWorkspaceResponse.model_validate(

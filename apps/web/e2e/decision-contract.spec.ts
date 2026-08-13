@@ -48,19 +48,20 @@ function risks(): WorkspaceRisks {
   };
 }
 
-function market(name: "ASIAN_HANDICAP" | "TOTALS", count: number, stale = false): WorkspaceMarket {
+function market(name: "ASIAN_HANDICAP" | "TOTALS", count: number, candidateQuoteOld = false): WorkspaceMarket {
   const handicap = name === "ASIAN_HANDICAP";
   const lines = handicap ? ["-0.50", "-0.50", "-0.75"] : ["2.50"];
   const sides = handicap ? ["HOME", "AWAY"] : ["OVER", "UNDER"];
   const points = Array.from({ length: count }, (_, index) => ({
     capture_id: `${name.toLowerCase()}-${index + 1}`,
+    checkpoint: index === count - 1 ? "T24_OPEN_ODDS" : `T${72 - index * 24}_OPEN_ODDS`,
     captured_at: `2026-08-09T${handicap ? ["06:02", "09:05", "12:11"][index] : "11:48"}:00Z`,
     canonical_line: lines[index] || lines.at(-1) || null,
     bookmaker_count: handicap ? 11 + index + (index > 0 ? 1 : 0) : 6,
     prices: { [sides[0]]: 1.93 + index / 100, [sides[1]]: 1.97 - index / 100 },
     probabilities: { [sides[0]]: 0.5, [sides[1]]: 0.5 },
   }));
-  const status = !count ? "INSUFFICIENT" : stale ? "STALE" : "READY";
+  const status = !count ? "INSUFFICIENT" : "READY";
   return {
     market: name,
     status,
@@ -74,7 +75,7 @@ function market(name: "ASIAN_HANDICAP" | "TOTALS", count: number, stale = false)
     bookmaker_count: points.at(-1)?.bookmaker_count || 0,
     prices: count ? { [sides[0]]: 1.95, [sides[1]]: 1.95 } : {},
     probabilities: count ? { [sides[0]]: 0.5, [sides[1]]: 0.5 } : {},
-    freshness: { status: stale ? "STALE" : count ? "FRESH" : "NOT_AVAILABLE" },
+    quote_age_seconds: count ? 3360 : null,
     timeline_points: points,
     movement: count >= 2 ? {
       status: handicap ? "LINE_MOVEMENT" : "STABLE",
@@ -86,18 +87,17 @@ function market(name: "ASIAN_HANDICAP" | "TOTALS", count: number, stale = false)
     } : { status: "INSUFFICIENT", reason_code: count ? "INSUFFICIENT_SINGLE_SNAPSHOT" : "INSUFFICIENT_NO_TIMELINE_EVIDENCE" },
     reason_codes: count >= 2 ? ["DISCRETE_REAL_PATH"] : [count ? "INSUFFICIENT_SINGLE_SNAPSHOT" : "INSUFFICIENT_NO_TIMELINE_EVIDENCE"],
     trend_evidence_status: count >= 2 ? "AVAILABLE" : "INSUFFICIENT",
-    cross_sectional_comparison_status: stale ? "PAUSED_STALE" : count ? "AVAILABLE" : "INSUFFICIENT",
+    cross_sectional_comparison_status: count ? "AVAILABLE" : "INSUFFICIENT",
     latest_snapshot_at: points.at(-1)?.captured_at || null,
-    freshness_max_age_seconds: 21_600,
     eligibility: {
-      observation_status: stale ? "STALE" : count ? "AVAILABLE" : "INSUFFICIENT",
+      observation_status: count ? "AVAILABLE" : "INSUFFICIENT",
       trend_evidence_status: count >= 2 ? "AVAILABLE" : "INSUFFICIENT",
-      cross_sectional_comparison_status: stale ? "PAUSED_STALE" : count ? "AVAILABLE" : "INSUFFICIENT",
-      model_diagnostic_status: stale ? "MARKET_NOT_READY" : count ? "COMPARABLE_WITHIN_MARKET_RANGE" : "MARKET_NOT_READY",
-      candidate_quote_identity_status: count && !stale ? "READY" : "NOT_READY",
-      candidate_model_status: count && !stale ? "READY" : "NOT_READY",
-      candidate_eligibility_status: count && !stale ? "READY" : "NOT_READY",
-      blockers: count && !stale ? [] : ["EXECUTABLE_CANDIDATE_QUOTE_NOT_READY"],
+      cross_sectional_comparison_status: count ? "AVAILABLE" : "INSUFFICIENT",
+      model_diagnostic_status: count ? "COMPARABLE_WITHIN_MARKET_RANGE" : "MARKET_NOT_READY",
+      candidate_quote_identity_status: count && !candidateQuoteOld ? "READY" : "NOT_READY",
+      candidate_model_status: count ? "READY" : "NOT_READY",
+      candidate_eligibility_status: count && !candidateQuoteOld ? "READY" : "NOT_READY",
+      blockers: count && !candidateQuoteOld ? [] : ["EXECUTABLE_CANDIDATE_QUOTE_NOT_READY"],
     },
   };
 }
@@ -106,8 +106,8 @@ function match(id: string, options: { rich?: boolean; stale?: boolean; modelWarn
   const ah = market("ASIAN_HANDICAP", options.rich ? 3 : 0, options.stale);
   const totals = market("TOTALS", options.rich ? 1 : 0, options.stale);
   const reason = options.stale ? null : options.modelWarning ? "MODEL_DIAGNOSTIC" : options.rich ? "MARKET_MOVEMENT" : null;
-  const relationStatus = options.stale ? "MARKET_NOT_READY" : options.modelWarning ? "MODEL_OUTSIDE_MARKET_RANGE" : "COMPARABLE_WITHIN_MARKET_RANGE";
-  const relation = (name: "ASIAN_HANDICAP" | "TOTALS") => ({ market: name, status: options.stale ? "MARKET_NOT_READY" : name === "TOTALS" && options.rich ? "MODEL_OUTSIDE_MARKET_RANGE" : relationStatus, canonical_line: name === "ASIAN_HANDICAP" ? "-0.75" : "2.50", bookmaker_count: name === "ASIAN_HANDICAP" ? 14 : 6, freshness_status: options.stale ? "STALE" : "FRESH", diagnostics: options.modelWarning || (name === "TOTALS" && options.rich) ? [{ status: "OUTSIDE_RANGE" }] : [], blockers: options.stale ? ["MARKET_STALE"] : [] });
+  const relationStatus = options.modelWarning ? "MODEL_OUTSIDE_MARKET_RANGE" : "COMPARABLE_WITHIN_MARKET_RANGE";
+  const relation = (name: "ASIAN_HANDICAP" | "TOTALS") => ({ market: name, status: name === "TOTALS" && options.rich ? "MODEL_OUTSIDE_MARKET_RANGE" : relationStatus, canonical_line: name === "ASIAN_HANDICAP" ? "-0.75" : "2.50", bookmaker_count: name === "ASIAN_HANDICAP" ? 14 : 6, market_quote_age_seconds: 3360, diagnostics: options.modelWarning || (name === "TOTALS" && options.rich) ? [{ status: "OUTSIDE_RANGE" }] : [], blockers: [] });
   const teams: Record<string, [string, string]> = { "1571806": ["Benfica", "Porto"], "1571807": ["Real Madrid", "Real Betis"], "1571808": ["Bayern Munich", "Borussia Dortmund"] };
   const publicTeams: Record<string, [string, string]> = { "1571806": ["本菲卡", "波尔图"], "1571807": ["皇家马德里", "贝蒂斯"], "1571808": ["拜仁慕尼黑", "多特蒙德"] };
   const kickoff: Record<string, string> = { "1571806": "2026-08-09T14:30:00Z", "1571807": "2026-08-09T15:00:00Z", "1571808": "2026-08-09T15:30:00Z" };
@@ -120,23 +120,23 @@ function match(id: string, options: { rich?: boolean; stale?: boolean; modelWarn
     away_team_name: teams[id]?.[1] || `Away ${id}`,
     home_team_label: { display_name: publicTeams[id]?.[0] || `主队（身份待确认：${id}-home）`, state: publicTeams[id] ? "CHINESE_LABEL_READY" : "IDENTITY_UNRESOLVED", canonical_team_id: publicTeams[id] ? `w2:${id}:home` : null, provider_team_id: `${id}-home`, public_semantics: { scope: "MATCH", cause: publicTeams[id] ? null : "IDENTITY_UNRESOLVED" }, technical: { raw_provider_name: teams[id]?.[0] || `Home ${id}` } },
     away_team_label: { display_name: publicTeams[id]?.[1] || `客队（身份待确认：${id}-away）`, state: publicTeams[id] ? "CHINESE_LABEL_READY" : "IDENTITY_UNRESOLVED", canonical_team_id: publicTeams[id] ? `w2:${id}:away` : null, provider_team_id: `${id}-away`, public_semantics: { scope: "MATCH", cause: publicTeams[id] ? null : "IDENTITY_UNRESOLVED" }, technical: { raw_provider_name: teams[id]?.[1] || `Away ${id}` } },
-    public_semantics: { scope: "MATCH", cause: options.rich && !options.stale ? null : "INSUFFICIENT" },
+    public_semantics: { scope: "MATCH", cause: options.rich ? null : "INSUFFICIENT" },
     status: "NS",
     outcome: { is_finished: false, is_tracked: Boolean(options.rich && !options.stale), is_recorded: false, public_semantics: { scope: "MATCH", cause: "NOT_YET_DUE" } },
-    next_market_collection_at: "2026-08-09T14:30:00Z",
+    market_collection: { latest_snapshot_at: options.rich ? "2026-08-09T12:11:00Z" : null, latest_snapshot_checkpoint: options.rich ? "T24_OPEN_ODDS" : null, target_checkpoint: "T12_OPEN_ODDS", scheduled_at: "2026-08-09T14:30:00Z", window_end_at: "2026-08-09T14:40:00Z", overdue: false, public_semantics: { scope: "MATCH", cause: "NOT_YET_DUE" } },
     intelligence_state: options.modelWarning ? "MODEL_DIAGNOSTIC_WARNING" : options.rich ? "MARKET_MOVEMENT" : "DATA_INCOMPLETE",
-    intelligence_reason_codes: [options.stale ? "MARKET_STALE" : options.modelWarning ? "MODEL_OUTSIDE_MARKET_RANGE" : options.rich ? "MARKET_LINE_MOVEMENT" : "DATA_INCOMPLETE"],
+    intelligence_reason_codes: [options.stale ? "QUOTE_OLDER_THAN_30_MINUTES" : options.modelWarning ? "MODEL_OUTSIDE_MARKET_RANGE" : options.rich ? "MARKET_LINE_MOVEMENT" : "DATA_INCOMPLETE"],
     priority_reason_primary: reason,
-    priority_reason_secondary: options.stale ? ["STALE_MARKET_MEMORY", "MARKET_MOVEMENT", "CANDIDATE_INPUT_NOT_READY"] : options.rich && !options.modelWarning ? ["MODEL_DIAGNOSTIC"] : options.rich ? [] : ["DATA_INCOMPLETE"],
-    factual_summary: options.stale ? "已落盘 AH/OU 历史市场证据已过期；当前走势与模型—市场比较暂停；等待既有调度形成新快照。" : options.rich ? "已有当前 AH/OU 持久化时间线；可展示已证实走势并进行模型—市场诊断；状态随既有调度形成的新证据更新。" : "尚无已落盘 AH/OU 市场证据；无法生成走势或当前模型—市场比较；等待既有调度形成证据。",
+    priority_reason_secondary: options.stale ? ["MARKET_MOVEMENT", "CANDIDATE_INPUT_NOT_READY"] : options.rich && !options.modelWarning ? ["MODEL_DIAGNOSTIC"] : options.rich ? [] : ["DATA_INCOMPLETE"],
+    factual_summary: options.rich ? "已有当前 AH/OU 持久化时间线；可展示已证实走势并进行模型—市场诊断；状态随既有调度形成的新证据更新。" : "尚无已落盘 AH/OU 市场证据；无法生成走势或当前模型—市场比较；等待既有调度形成证据。",
     risks: risks(),
-    readiness: { status: options.rich && !options.stale ? "READY" : options.stale ? "STALE" : "BLOCKED", reason_code: options.stale ? "MARKET_STALE" : options.rich ? "EVIDENCE_READY" : "DATA_INCOMPLETE", reason_codes: [], missing_fields: options.rich ? [] : ["market"], stale_fields: options.stale ? ["market"] : [], action: "WAIT_FOR_NEXT_SCHEDULED_EVALUATION", next_eval_at: "2026-08-09T13:22:00Z", provider_budget_status: "PROTECTED", lineup_status: "AVAILABLE", lineup_expectation: "ADVISORY", market_aggregate_status: options.rich && !options.stale ? "READY" : "NOT_READY", market_evidence_status: options.rich && !options.stale ? "AVAILABLE" : "NOT_READY", candidate_input_status: options.rich && !options.stale ? "READY" : "NOT_READY" },
+    readiness: { status: options.rich && !options.stale ? "READY" : "BLOCKED", reason_code: options.stale ? "QUOTE_OLDER_THAN_30_MINUTES" : options.rich ? "EVIDENCE_READY" : "DATA_INCOMPLETE", reason_codes: [], missing_fields: options.rich ? [] : ["market"], stale_fields: options.stale ? ["candidate_quote"] : [], action: "WAIT_FOR_NEXT_SCHEDULED_EVALUATION", next_eval_at: "2026-08-09T13:22:00Z", provider_budget_status: "PROTECTED", lineup_status: "AVAILABLE", lineup_expectation: "ADVISORY", market_aggregate_status: options.rich ? options.stale ? "PARTIAL" : "READY" : "NOT_READY", market_evidence_status: options.rich ? "AVAILABLE" : "NOT_READY", candidate_input_status: options.rich && !options.stale ? "READY" : "NOT_READY" },
     market_fact: { status: ah.status, source_status: ah.source_status, main_line: ah.main_line, current_odds: ah.prices, market_probabilities: ah.probabilities, price_reference: "LAST_AVAILABLE_PREMATCH_SNAPSHOT", canonical_close_status: "NOT_OBTAINABLE_FROM_CURRENT_PROVIDER" },
     w2_analysis: { status: "ANALYSIS_REFERENCE", proof_status: "NOT_PROVEN", decision_tier: "WATCH", analysis_state: relationStatus, reason_codes: [], model_view: { status: "READY", source_status: "READY", model_version: "w2-existing-v1", calibration_version: "cal-v1", calibration_status: "AVAILABLE", simulations_completed: 10_000 }, model_market_relation: { ASIAN_HANDICAP: relation("ASIAN_HANDICAP"), TOTALS: relation("TOTALS") } },
     shadow_candidate: options.rich && !options.stale ? { status: "ACTIVE", mode: "SHADOW_ONLY", authority: "RECOMMENDATION_DECISION_V4", decision_tier: "ANALYSIS_PICK", reason_code: "ANALYSIS_ONLY", reason_message: "当前仅提供影子候选", market: "ASIAN_HANDICAP", selection: "HOME", exact_line: "-0.75", decimal_odds: 1.95, captured_at: "2026-08-09T12:11:00Z", decision_hash: "a".repeat(64), recommendation_scope: "VALIDATION", outcome_tracked: true, formal_status: "OFF", lock_status: "OFF", production_action_allowed: false, real_money_allowed: false } : { status: "NOT_READY", mode: "SHADOW_ONLY", authority: "RECOMMENDATION_DECISION_V4", decision_tier: "NOT_READY", reason_code: "EVIDENCE_NOT_READY", reason_message: "当前证据尚未就绪", market: null, selection: null, exact_line: null, decimal_odds: null, captured_at: null, decision_hash: null, recommendation_scope: "NONE", outcome_tracked: false, formal_status: "OFF", lock_status: "OFF", production_action_allowed: false, real_money_allowed: false },
     formal_recommendation: { status: "OFF", reason: "PRODUCT_AUTHORITY_DISABLED" },
     market_radar: { schema_version: "w2.market-radar.v1", markets: { ASIAN_HANDICAP: ah, TOTALS: totals } },
-    model_lab: { schema_version: "w2.model-lab.v1", w2_model: { status: "READY", source_status: "READY", model_version: "w2-existing-v1", calibration_status: "AVAILABLE" }, market: { ASIAN_HANDICAP: { status: ah.status, source_status: ah.source_status, main_line: ah.main_line, bookmaker_count: ah.bookmaker_count, freshness: ah.freshness }, TOTALS: { status: totals.status, source_status: totals.source_status, main_line: totals.main_line, bookmaker_count: totals.bookmaker_count, freshness: totals.freshness } }, api_football_prediction: { status: "NOT_AVAILABLE", role: "EXTERNAL_MODEL_BENCHMARK", reason_code: "API_FOOTBALL_PREDICTION_NOT_PROJECTED" }, relation: { ASIAN_HANDICAP: relation("ASIAN_HANDICAP"), TOTALS: relation("TOTALS") }, historical_validation: { final_verdict: "NO_EDGE", reexecuted: false } },
+    model_lab: { schema_version: "w2.model-lab.v1", w2_model: { status: "READY", source_status: "READY", model_version: "w2-existing-v1", calibration_status: "AVAILABLE" }, market: { ASIAN_HANDICAP: { status: ah.status, source_status: ah.source_status, main_line: ah.main_line, bookmaker_count: ah.bookmaker_count, quote_age_seconds: ah.quote_age_seconds }, TOTALS: { status: totals.status, source_status: totals.source_status, main_line: totals.main_line, bookmaker_count: totals.bookmaker_count, quote_age_seconds: totals.quote_age_seconds } }, api_football_prediction: { status: "NOT_AVAILABLE", role: "EXTERNAL_MODEL_BENCHMARK", reason_code: "API_FOOTBALL_PREDICTION_NOT_PROJECTED" }, relation: { ASIAN_HANDICAP: relation("ASIAN_HANDICAP"), TOTALS: relation("TOTALS") }, historical_validation: { final_verdict: "NO_EDGE", reexecuted: false } },
     scoreline_reference: options.rich && !options.stale ? { label: "MODEL_SCORELINE_REFERENCE", proof_status: "NOT_PROVEN", status: "READY", simulations_completed: 10_000, top3: [{ scoreline: "1-1", unconditional_probability: .126, sample_count: 1260 }, { scoreline: "2-1", unconditional_probability: .101, sample_count: 1010 }, { scoreline: "1-0", unconditional_probability: .094, sample_count: 940 }] } : { label: "MODEL_SCORELINE_REFERENCE", proof_status: "NOT_PROVEN", status: "UNAVAILABLE", simulations_completed: null, top3: [] },
     evidence: { card_hash: `card-${id}`, artifact_hash: `artifact-${id}`, source: "decision_contract", source_event_at: "2026-08-09T13:00:00Z", decision_role: "DIAGNOSTIC_INPUT_NOT_PRODUCT_AUTHORITY" },
   };
@@ -396,7 +396,7 @@ test("market depth asymmetry stays inside the existing technical details", async
   await expect(focus.locator(".v41-focus-summary")).not.toContainText("MARKET_DEPTH_ASYMMETRY");
 });
 
-test("raw system health cannot override public semantics or the useful stale focus", async ({ page }) => {
+test("raw system health cannot override collection windows or candidate quote age", async ({ page }) => {
   await installWorkspace(page, "deployed");
   await page.goto("/");
   await expect(page.locator(".dashboard-v41")).toHaveAttribute("data-public-cause", "NONE");
@@ -405,10 +405,10 @@ test("raw system health cannot override public semantics or the useful stale foc
   await expect(page.locator("header.v41-header")).not.toContainText("BLOCKED DAY");
   await expect(page.locator(".v41-focus")).toHaveAttribute("data-fixture-id", "1571806");
   await expect(page.locator(".v41-shortlist > header")).toContainText("0 场优先");
-  await expect(page.locator(".v41-shortlist-list")).not.toContainText("主因：证据已过期");
-  await expect(page.locator(".v41-shortlist-list")).toContainText("关注：证据已过期、盘口或赔率变化、候选输入尚未完全就绪");
+  await expect(page.locator(".v41-shortlist-list")).not.toContainText("证据已过期");
+  await expect(page.locator(".v41-shortlist-list")).toContainText("关注：盘口或赔率变化、候选输入尚未完全就绪");
   await expect(page.locator(".v41-shortlist-list")).toContainText("其他关注 · 3 场（不计入优先）");
-  await expect(page.locator(".v41-focus-summary")).toContainText("当前走势与模型—市场比较暂停");
+  await expect(page.locator(".v41-focus-summary")).toContainText("模型—市场诊断");
 });
 
 for (const [scenario, cause, copy] of [
@@ -425,17 +425,17 @@ for (const [scenario, cause, copy] of [
   });
 }
 
-test("V41 separates trend evidence from same-time comparison and preserves stale Market Memory", async ({ page }) => {
+test("V41 separates diagnostic market age from the candidate quote-age hard gate", async ({ page }) => {
   const payload = workspace("stale");
   payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!.kickoff_utc = "2026-08-10T14:30:00Z";
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
   const totals = page.locator("[data-market='TOTALS']");
   await expect(totals).toContainText("走势证据：证据不足");
-  await expect(totals).toContainText("历史证据可见，当前比较暂停");
-  await expect(page.locator(".v41-focus-summary")).toContainText("当前走势与模型—市场比较暂停");
-  await expect(page.locator(".v41-three-layer")).toContainText("W2 诊断模型—市场比较比较暂停");
-  await expect(page.locator(".v41-three-layer")).not.toContainText("不可用比较暂停");
+  await expect(totals).toContainText("同一时刻机构双边报价可比较");
+  await expect(page.locator(".v41-focus-summary")).toContainText("模型—市场诊断");
+  await expect(page.locator(".v41-three-layer")).toContainText("W2 诊断模型—市场比较逐市场 · 部分就绪");
+  await expect(page.locator(".v41-candidate")).toHaveCount(0);
   await expect(page.locator(".v41-snapshots time").first()).toHaveText("08-09 14:02");
   await expect(page.locator(".v41-scoreline")).toHaveCount(0);
 });
@@ -583,23 +583,46 @@ test("V41 derives age across timezone and day boundaries and never labels a past
   payload.generated_at = "2026-08-10T00:30:00+08:00";
   const focused = payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!;
   focused.market_radar.markets.ASIAN_HANDICAP.latest_snapshot_at = "2026-08-09T15:18:00Z";
-  focused.next_market_collection_at = "2026-08-09T18:30:00Z";
+  focused.market_collection = { latest_snapshot_at: "2026-08-09T15:18:00Z", latest_snapshot_checkpoint: "T24_OPEN_ODDS", target_checkpoint: "T12_OPEN_ODDS", scheduled_at: "2026-08-09T18:30:00Z", window_end_at: "2026-08-09T18:40:00Z", overdue: false, public_semantics: { scope: "MATCH", cause: "NOT_YET_DUE" } };
   focused.readiness.next_eval_at = "2026-08-09T16:30:00Z";
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
   const freshness = page.locator("[data-market='ASIAN_HANDICAP'] .v41-market-freshness");
-  await expect(freshness.locator("span").nth(1)).toHaveText("距最新快照");
-  await expect(freshness.locator("strong").nth(1)).toHaveText("1 小时 12 分");
-  await expect(freshness.locator("span").nth(2)).toHaveText("新鲜度阈值");
-  await expect(freshness.locator("strong").nth(2)).toHaveText("6 小时 0 分");
+  await expect(freshness.locator("span").nth(1)).toHaveText("捕获档位");
+  await expect(freshness.locator("strong").nth(1)).toHaveText("T24_OPEN_ODDS");
+  await expect(freshness.locator("span").nth(2)).toHaveText("距最新快照");
+  await expect(freshness.locator("strong").nth(2)).toHaveText("1 小时 12 分");
   await expect(freshness).toHaveCSS("display", "grid");
   const schedule = page.locator(".v41-next");
-  await expect(schedule.locator("span").nth(3)).toHaveText("下次采集");
-  await expect(schedule.locator("strong").nth(3)).toHaveText("2026-08-10 02:30（约 2 小时 0 分后）");
+  await expect(schedule.locator("span").nth(1)).toHaveText("采集状态");
+  await expect(schedule.locator("strong").nth(1)).toHaveText("未到 T12_OPEN_ODDS 采集时点");
+  await expect(schedule.locator("span").nth(2)).toHaveText("计划时刻");
+  await expect(schedule.locator("strong").nth(2)).toHaveText("2026-08-10 02:30（约 2 小时 0 分后）");
+  await expect(schedule.locator("span").nth(3)).toHaveText("宽限结束");
+  await expect(schedule.locator("strong").nth(3)).toHaveText("2026-08-10 02:40");
   await expect(schedule.locator("span").nth(4)).toHaveText("下次评估");
   await expect(schedule.locator("strong").nth(4)).toHaveText("评估时间已过期");
   await expect(schedule).toHaveCSS("display", "grid");
 });
+
+for (const state of [
+  { overdue: false, expected: "T12_OPEN_ODDS 采集窗口进行中" },
+  { overdue: true, expected: "T12_OPEN_ODDS 采集已逾期" },
+] as const) {
+  test(`V41 distinguishes collection grace from overdue failure: ${state.expected}`, async ({ page }) => {
+    const payload = workspace();
+    const focused = payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!;
+    focused.market_collection = {
+      ...focused.market_collection,
+      overdue: state.overdue,
+      public_semantics: { scope: "MATCH", cause: "AWAITING_COLLECTION" },
+    };
+    await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+    await page.goto("/");
+    await expect(page.locator(".v41-focus-summary b")).toHaveText("采集状态");
+    await expect(page.locator(".v41-next strong").nth(1)).toHaveText(state.expected);
+  });
+}
 
 test("V41 date navigation, Today, Refresh and keyboard focus are functional", async ({ page }) => {
   const requestedDates: string[] = [];
@@ -659,7 +682,7 @@ test("SC19 date strip exposes persisted counts and collection-window truth", asy
   await expect(strip.getByText("1/13 联赛", { exact: false }).first()).toBeVisible();
   await expect(strip).toContainText("已落盘市场观察（含历史）1/3 场");
   await expect(strip.locator('[aria-current="date"]')).toContainText("3 场 · 今天");
-  await expect(page.locator(".v41-today-primary")).toContainText("场无新鲜市场证据");
+  await expect(page.locator(".v41-today-primary")).toContainText("场尚无市场证据");
   await expect(page.locator(".v41-no-break")).toHaveCSS("white-space", "nowrap");
   await expect(strip).not.toContainText("市场证据可用");
   await expect(strip.getByText("W2 计划采集尚未开始", { exact: false }).first()).toBeVisible();

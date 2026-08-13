@@ -57,6 +57,7 @@ from w2.infrastructure.persistence.factor_model_models import (
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
     MatchdayEndpointCaptureModel,
+    MatchdayEndpointCapturePlanModel,
     MatchdayFixtureIdentityModel,
     MatchdayMarketObservationModel,
 )
@@ -124,6 +125,10 @@ def _iso_or_none(value: datetime | None) -> str | None:
     if value.tzinfo is None:
         value = value.replace(tzinfo=UTC)
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
 def _checkpoint_metadata(row: Checkpoint) -> dict[str, Any]:
@@ -1178,7 +1183,7 @@ class ReadModelRepository:
         canonical_ids = {f"api_football:{fixture_id}" for fixture_id in provider_ids}
         if not canonical_ids:
             return {}
-        reference = now or datetime.now(UTC)
+        reference = _utc(now or datetime.now(UTC))
         with Session(self._database_engine()) as session:
             captures = list(
                 session.scalars(
@@ -1197,64 +1202,99 @@ class ReadModelRepository:
                     )
                 )
             )
-            plans = session.execute(
-                select(
-                    MatchdayCheckpointPlanModel.fixture_id,
-                    MatchdayCheckpointPlanModel.scheduled_at,
-                    MatchdayCheckpointPlanModel.endpoints,
-                    MatchdayCheckpointPlanModel.status,
-                ).where(
-                    MatchdayCheckpointPlanModel.fixture_id.in_(canonical_ids),
-                    MatchdayCheckpointPlanModel.status.in_(("PLANNED", "DUE")),
-                    MatchdayCheckpointPlanModel.scheduled_at >= reference,
-                    MatchdayCheckpointPlanModel.test_only.is_(False),
-                    MatchdayCheckpointPlanModel.namespace.is_(None),
+            plans = list(
+                session.scalars(
+                    select(MatchdayCheckpointPlanModel).where(
+                        MatchdayCheckpointPlanModel.fixture_id.in_(canonical_ids),
+                        MatchdayCheckpointPlanModel.test_only.is_(False),
+                        MatchdayCheckpointPlanModel.namespace.is_(None),
+                    )
                 )
-            ).all()
-        latest: dict[str, MatchdayEndpointCaptureModel] = {}
-        for capture in captures:
-            if capture.fixture_id and capture.fixture_id not in latest:
-                latest[capture.fixture_id] = capture
-        next_by_fixture: dict[str, tuple[datetime, str]] = {}
-        for fixture_id, scheduled_at, endpoints, plan_status in plans:
-            if "odds" not in set(endpoints or []):
-                continue
-            if not isinstance(scheduled_at, datetime):
-                continue
-            scheduled = (
-                scheduled_at.replace(tzinfo=UTC)
-                if scheduled_at.tzinfo is None
-                else scheduled_at.astimezone(UTC)
             )
-            current = next_by_fixture.get(fixture_id)
-            if current is None or scheduled < current[0]:
-                next_by_fixture[fixture_id] = (scheduled, plan_status)
+            satisfied_plan_ids = set(
+                session.scalars(
+                    select(MatchdayEndpointCapturePlanModel.plan_id).where(
+                        MatchdayEndpointCapturePlanModel.endpoint == "odds",
+                        MatchdayEndpointCapturePlanModel.link_status == "LINKED",
+                        MatchdayEndpointCapturePlanModel.capture_id.in_(observed_capture_ids),
+                    )
+                )
+            )
+        latest_capture: dict[str, MatchdayEndpointCaptureModel] = {}
+        latest_snapshot: dict[str, MatchdayEndpointCaptureModel] = {}
+        for capture in captures:
+            if capture.fixture_id and capture.fixture_id not in latest_capture:
+                latest_capture[capture.fixture_id] = capture
+            if (
+                capture.fixture_id
+                and capture.capture_id in observed_capture_ids
+                and capture.fixture_id not in latest_snapshot
+            ):
+                latest_snapshot[capture.fixture_id] = capture
+        plans_by_fixture: dict[str, list[MatchdayCheckpointPlanModel]] = defaultdict(list)
+        for plan in plans:
+            if "odds" not in set(plan.endpoints or []):
+                continue
+            plans_by_fixture[plan.fixture_id].append(plan)
         result: dict[str, dict[str, Any]] = {}
         for canonical_id in canonical_ids:
-            current_capture = latest.get(canonical_id)
-            next_plan = next_by_fixture.get(canonical_id)
-            if current_capture is None:
-                status = (
-                    "WINDOW_DUE"
-                    if next_plan and (next_plan[1] == "DUE" or next_plan[0] <= reference)
-                    else "WAITING_WINDOW"
-                    if next_plan
-                    else "NOT_SCHEDULED"
-                )
-            elif current_capture.response_count == 0:
-                status = "PROVIDER_EMPTY"
-            elif current_capture.capture_id not in observed_capture_ids:
-                status = "MARKET_UNAVAILABLE"
+            current_capture = latest_capture.get(canonical_id)
+            current_snapshot = latest_snapshot.get(canonical_id)
+            fixture_plans = sorted(
+                plans_by_fixture.get(canonical_id, []),
+                key=lambda plan: (_utc(plan.scheduled_at), plan.plan_id),
+            )
+            due = [plan for plan in fixture_plans if _utc(plan.scheduled_at) <= reference]
+            future = [plan for plan in fixture_plans if _utc(plan.scheduled_at) > reference]
+            target = due[-1] if due and due[-1].plan_id not in satisfied_plan_ids else None
+            if target is not None:
+                cause = "AWAITING_COLLECTION"
+            elif future:
+                target = future[0]
+                cause = "NOT_YET_DUE"
             else:
-                status = "READY"
+                cause = None
+            target_scheduled_at = _utc(target.scheduled_at) if target is not None else None
+            target_window_end = _utc(target.window_end) if target is not None else None
+            overdue = bool(
+                cause == "AWAITING_COLLECTION"
+                and target_window_end is not None
+                and reference > target_window_end
+            )
+            status = (
+                "PROVIDER_EMPTY"
+                if current_capture is not None and current_capture.response_count == 0
+                else "MARKET_UNAVAILABLE"
+                if current_capture is not None
+                and current_capture.capture_id not in observed_capture_ids
+                else "READY"
+                if current_snapshot is not None
+                else "WINDOW_DUE"
+                if cause == "AWAITING_COLLECTION"
+                else "WAITING_WINDOW"
+                if cause == "NOT_YET_DUE"
+                else "NOT_SCHEDULED"
+            )
             payload = {
                 "odds_status": status,
                 "last_refresh_hint": _iso_or_none(
                     current_capture.provider_captured_at if current_capture is not None else None
                 ),
-                "next_market_collection_at": _iso_or_none(
-                    next_plan[0] if next_plan else None
-                ),
+                "market_collection": {
+                    "latest_snapshot_at": _iso_or_none(
+                        current_snapshot.provider_captured_at
+                        if current_snapshot is not None
+                        else None
+                    ),
+                    "latest_snapshot_checkpoint": (
+                        current_snapshot.checkpoint if current_snapshot is not None else None
+                    ),
+                    "target_checkpoint": target.checkpoint if target is not None else None,
+                    "scheduled_at": _iso_or_none(target_scheduled_at),
+                    "window_end_at": _iso_or_none(target_window_end),
+                    "overdue": overdue,
+                    "public_semantics": {"scope": "MATCH", "cause": cause},
+                },
             }
             result[canonical_id] = payload
             result[canonical_id.removeprefix("api_football:")] = payload
@@ -1674,13 +1714,17 @@ class ReadModelService:
             for item in fixtures
         ]
         selected = self._filter_dashboard_cards(cards, requested_date=requested_date, window=window)
+        generated_at = datetime.now(UTC)
         collection_reader = getattr(
             self.repository,
             "market_collection_status_for_fixtures",
             None,
         )
         collection_status = (
-            collection_reader([str(card.get("fixture_id") or "") for card in selected])
+            collection_reader(
+                [str(card.get("fixture_id") or "") for card in selected],
+                now=generated_at,
+            )
             if callable(collection_reader)
             else {}
         )
@@ -1699,7 +1743,6 @@ class ReadModelService:
         ]
         upcoming = [card for card in selected if card["status"] != "FINISHED"]
         finished = [card for card in selected if card["status"] == "FINISHED"]
-        generated_at = datetime.now(UTC)
         date_strip_reader = getattr(self.repository, "persisted_date_strip", None)
         date_strip = (
             date_strip_reader(requested_date, now=generated_at)

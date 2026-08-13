@@ -23,6 +23,8 @@ from w2.domain.five_state_pricing import (
 )
 
 RECOMMENDATION_SCHEMA_VERSION = "w2.recommendation_decision.v4"
+CANDIDATE_QUOTE_FRESHNESS_POLICY_VERSION = "w2.quote_freshness.v1"
+CANDIDATE_QUOTE_MAX_AGE_SECONDS = 1800
 FIXTURE_IDENTITY_VERSION_PREFIX = "w2.fixture_identity.v1:"
 FIVE_STATE_OUTCOMES = ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")
 FORMAL_ADMISSION_STATUSES = {"DISABLED", "NOT_APPLICABLE", "NOT_READY", "PASSED"}
@@ -76,6 +78,23 @@ class RecommendationOutcomeV4(StrEnum):
     NO_EDGE = "NO_EDGE"
     ANALYSIS_PICK = "ANALYSIS_PICK"
     FORMAL_RECOMMEND = "FORMAL_RECOMMEND"
+
+
+def candidate_quote_freshness_readiness(age_seconds: object) -> dict[str, Any]:
+    age = _decimal(age_seconds)
+    return {
+        "quote_freshness_status": (
+            "COMPLETE"
+            if age is not None
+            and Decimal("0") <= age <= Decimal(CANDIDATE_QUOTE_MAX_AGE_SECONDS)
+            else "STALE"
+            if age is not None and age > Decimal(CANDIDATE_QUOTE_MAX_AGE_SECONDS)
+            else "INCOMPLETE"
+        ),
+        "quote_freshness_policy_version": CANDIDATE_QUOTE_FRESHNESS_POLICY_VERSION,
+        "quote_age_seconds": age_seconds,
+        "quote_max_age_seconds": CANDIDATE_QUOTE_MAX_AGE_SECONDS,
+    }
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -174,6 +193,11 @@ def authoritative_input_from_market_candidate(
             else "NOT_READY",
             "quote_identity_status": quote_identity.get("identity_status"),
             "quote_freshness_status": quote_identity.get("freshness_status"),
+            "quote_freshness_policy_version": quote_identity.get(
+                "freshness_schema_version"
+            ),
+            "quote_age_seconds": quote_identity.get("age_seconds"),
+            "quote_max_age_seconds": quote_identity.get("max_age_seconds"),
             "model_status": model.get("status"),
         },
         "capability_status": capability_status,
@@ -383,6 +407,20 @@ def _normalize_input(value: Mapping[str, Any]) -> tuple[dict[str, Any], list[str
         blockers.append("QUOTE_IDENTITY_NOT_READY")
     if readiness.get("quote_freshness_status") != "COMPLETE":
         blockers.append("QUOTE_FRESHNESS_NOT_READY")
+    if (
+        readiness.get("quote_freshness_policy_version")
+        != CANDIDATE_QUOTE_FRESHNESS_POLICY_VERSION
+    ):
+        blockers.append("QUOTE_FRESHNESS_POLICY_NOT_REGISTERED")
+    quote_age = _decimal(readiness.get("quote_age_seconds"))
+    quote_max_age = _decimal(readiness.get("quote_max_age_seconds"))
+    if (
+        quote_age is None
+        or quote_max_age != Decimal(CANDIDATE_QUOTE_MAX_AGE_SECONDS)
+        or quote_age < 0
+        or quote_age > quote_max_age
+    ):
+        blockers.append("QUOTE_FRESHNESS_BOUNDARY_INVALID")
     if readiness.get("model_status") != "READY":
         blockers.append("MODEL_EVIDENCE_NOT_READY")
     if payload["serializer_version"] != CURRENT_SERIALIZER_VERSION.value:

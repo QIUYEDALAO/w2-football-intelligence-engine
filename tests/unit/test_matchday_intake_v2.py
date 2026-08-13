@@ -407,6 +407,10 @@ def test_manifest_deterministic_v4_outcome_and_public_read_no_write() -> None:
     assert validate_manifest_identity(first) == first["manifest_hash"]
     assert first["decision"]["schema_version"] == "w2.recommendation_decision.v4"
     assert validate_decision_v4_identity(first["decision"]) == first["decision"]["decision_hash"]
+    readiness = first["decision"]["authoritative_input"]["readiness"]
+    assert readiness["quote_freshness_policy_version"] == "w2.quote_freshness.v1"
+    assert readiness["quote_age_seconds"] == 300
+    assert readiness["quote_max_age_seconds"] == 1800
     assert first["recommendation_lock"] is False
     assert public["provider_calls"] == 0
     assert public["db_writes"] == 0

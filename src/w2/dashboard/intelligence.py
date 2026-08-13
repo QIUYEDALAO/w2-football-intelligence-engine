@@ -99,32 +99,11 @@ def _collection_risk_dimension(
             "evidence_basis": status or "PERSISTED_COLLECTION_INCIDENT",
             "source_as_of": source_as_of,
         }
-    freshness = {
-        str(
-            _mapping(_mapping(_mapping(market).get("current")).get("freshness")).get(
-                "status"
-            )
-            or ""
-        ).upper()
-        for market in _mapping(_mapping(card.get("market_radar")).get("markets")).values()
-    }
-    if status == "READY" and source_as_of and "FRESH" in freshness:
+    if status == "READY" and source_as_of:
         return {
-            **_risk_dimension("COLLECTION_RISK", [], "采集状态已有新鲜持久化证据"),
+            **_risk_dimension("COLLECTION_RISK", [], "采集状态已有持久化证据"),
             "assessment_status": "ASSESSED_CURRENT",
-            "evidence_basis": "PERSISTED_ODDS_CAPTURE_AND_MARKET_FRESHNESS",
-            "source_as_of": source_as_of,
-        }
-    if status == "READY" and source_as_of and "STALE" in freshness:
-        return {
-            **_risk_dimension(
-                "COLLECTION_RISK",
-                ["COLLECTION_ASSESSMENT_STALE"],
-                "",
-                attention_codes={"COLLECTION_ASSESSMENT_STALE"},
-            ),
-            "assessment_status": "STALE",
-            "evidence_basis": "PERSISTED_ODDS_CAPTURE_STALE",
+            "evidence_basis": "PERSISTED_ODDS_CAPTURE",
             "source_as_of": source_as_of,
         }
     reason = "COLLECTION_ASSESSMENT_NOT_AVAILABLE"

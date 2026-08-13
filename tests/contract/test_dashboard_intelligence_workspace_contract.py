@@ -187,8 +187,19 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
     assert schemas["WorkspaceMatch"]["properties"]["outcome"] == {
         "$ref": "#/components/schemas/WorkspaceMatchOutcome"
     }
-    assert "next_market_collection_at" in schemas["WorkspaceMatch"]["properties"]
-    assert "next_market_collection_at" in schemas["WorkspaceMatch"]["required"]
+    assert schemas["WorkspaceMatch"]["properties"]["market_collection"] == {
+        "$ref": "#/components/schemas/WorkspaceMarketCollection"
+    }
+    assert "market_collection" in schemas["WorkspaceMatch"]["required"]
+    assert set(schemas["WorkspaceMarketCollection"]["properties"]) == {
+        "latest_snapshot_at",
+        "latest_snapshot_checkpoint",
+        "target_checkpoint",
+        "scheduled_at",
+        "window_end_at",
+        "overdue",
+        "public_semantics",
+    }
     assert set(schemas["WorkspaceMatchOutcome"]["properties"]) == {
         "is_finished",
         "is_tracked",
@@ -233,7 +244,6 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
     assert schemas["WorkspaceRisks"]["additionalProperties"] is False
     assert set(schemas["WorkspaceMarket"]["properties"]["status"]["enum"]) == {
         "READY",
-        "STALE",
         "INSUFFICIENT",
     }
     assert {
@@ -245,7 +255,7 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
         "trend_evidence_status",
         "cross_sectional_comparison_status",
         "latest_snapshot_at",
-        "freshness_max_age_seconds",
+        "quote_age_seconds",
     } <= set(schemas["WorkspaceMarket"]["properties"])
     workspace = schemas["DashboardIntelligenceWorkspaceResponse"]["properties"]
     assert "selected_fixture_id" in workspace
@@ -258,7 +268,6 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
     }
     assert set(schemas["WorkspaceMarketFact"]["properties"]["status"]["enum"]) == {
         "READY",
-        "STALE",
         "INSUFFICIENT",
     }
     assert "source_status" in schemas["WorkspaceMarketFact"]["properties"]

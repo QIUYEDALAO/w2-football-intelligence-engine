@@ -1258,15 +1258,208 @@ def test_fixture_scoped_market_refresh_status_reads_canonical_matchday_plan(
     assert DashboardReadModelRepository().market_collection_status_for_fixtures(
         ["fixture"], now=NOW
     )["fixture"] == {
-        "odds_status": "WAITING_WINDOW",
+        "odds_status": "WINDOW_DUE",
         "last_refresh_hint": None,
-        "next_market_collection_at": scheduled_at.isoformat().replace("+00:00", "Z"),
+        "market_collection": {
+            "latest_snapshot_at": None,
+            "latest_snapshot_checkpoint": None,
+            "target_checkpoint": "T48",
+            "scheduled_at": (NOW - timedelta(minutes=30)).isoformat().replace(
+                "+00:00", "Z"
+            ),
+            "window_end_at": (NOW - timedelta(minutes=25)).isoformat().replace(
+                "+00:00", "Z"
+            ),
+            "overdue": True,
+            "public_semantics": {"scope": "MATCH", "cause": "AWAITING_COLLECTION"},
+        },
     }
     assert FutureRefreshDbRepository().next_market_refresh_by_fixture(
         ["fixture", "api_football:fixture"], now=NOW
     ) == {
         "fixture": scheduled_at.isoformat().replace("+00:00", "Z"),
         "api_football:fixture": scheduled_at.isoformat().replace("+00:00", "Z"),
+    }
+
+
+@pytest.mark.parametrize(
+    ("scheduled_delta", "window_end_delta", "cause", "status", "overdue"),
+    [
+        (timedelta(minutes=10), timedelta(minutes=15), "NOT_YET_DUE", "WAITING_WINDOW", False),
+        (timedelta(minutes=-2), timedelta(minutes=3), "AWAITING_COLLECTION", "WINDOW_DUE", False),
+        (timedelta(minutes=-10), timedelta(minutes=-5), "AWAITING_COLLECTION", "WINDOW_DUE", True),
+    ],
+)
+def test_market_collection_uses_plan_window_not_fixed_snapshot_age(
+    tmp_path: Path,
+    monkeypatch: Any,
+    scheduled_delta: timedelta,
+    window_end_delta: timedelta,
+    cause: str,
+    status: str,
+    overdue: bool,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    scheduled_at = NOW + scheduled_delta
+    window_end = NOW + window_end_delta
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        session.add(
+            MatchdayCheckpointPlanModel(
+                plan_id="window-plan",
+                fixture_id="api_football:fixture",
+                competition_id="allsvenskan",
+                season="2026",
+                policy_version="test-policy",
+                checkpoint="T24_OPEN_ODDS",
+                kickoff_utc=NOW + timedelta(days=1),
+                scheduled_at=scheduled_at,
+                window_start=scheduled_at,
+                window_end=window_end,
+                endpoints=["odds"],
+                status="DUE" if scheduled_at <= NOW else "PLANNED",
+                blockers=[],
+                plan_hash="d" * 64,
+            )
+        )
+        session.commit()
+
+    payload = DashboardReadModelRepository().market_collection_status_for_fixtures(
+        ["fixture"], now=NOW
+    )["fixture"]
+
+    assert payload["odds_status"] == status
+    assert payload["market_collection"] == {
+        "latest_snapshot_at": None,
+        "latest_snapshot_checkpoint": None,
+        "target_checkpoint": "T24_OPEN_ODDS",
+        "scheduled_at": scheduled_at.isoformat().replace("+00:00", "Z"),
+        "window_end_at": window_end.isoformat().replace("+00:00", "Z"),
+        "overdue": overdue,
+        "public_semantics": {"scope": "MATCH", "cause": cause},
+    }
+
+
+def test_satisfied_collection_window_exposes_snapshot_checkpoint_and_next_plan(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    captured_at = NOW - timedelta(minutes=4)
+    next_scheduled_at = NOW + timedelta(hours=12)
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        session.add_all(
+            [
+                MatchdayCheckpointPlanModel(
+                    plan_id="satisfied-plan",
+                    fixture_id="api_football:fixture",
+                    competition_id="allsvenskan",
+                    season="2026",
+                    policy_version="test-policy",
+                    checkpoint="T24_OPEN_ODDS",
+                    kickoff_utc=NOW + timedelta(days=1),
+                    scheduled_at=NOW - timedelta(minutes=5),
+                    window_start=NOW - timedelta(minutes=5),
+                    window_end=NOW + timedelta(minutes=5),
+                    endpoints=["odds"],
+                    status="CAPTURED",
+                    blockers=[],
+                    plan_hash="e" * 64,
+                ),
+                MatchdayCheckpointPlanModel(
+                    plan_id="next-plan",
+                    fixture_id="api_football:fixture",
+                    competition_id="allsvenskan",
+                    season="2026",
+                    policy_version="test-policy",
+                    checkpoint="T12_OPEN_ODDS",
+                    kickoff_utc=NOW + timedelta(days=1),
+                    scheduled_at=next_scheduled_at,
+                    window_start=next_scheduled_at,
+                    window_end=next_scheduled_at + timedelta(minutes=10),
+                    endpoints=["odds"],
+                    status="PLANNED",
+                    blockers=[],
+                    plan_hash="f" * 64,
+                ),
+                MatchdayEndpointCaptureModel(
+                    capture_id="satisfied-capture",
+                    fixture_id="api_football:fixture",
+                    competition_id="allsvenskan",
+                    checkpoint="T24_OPEN_ODDS",
+                    endpoint="odds",
+                    sanitized_params={"fixture": "fixture"},
+                    params_hash="1" * 64,
+                    request_task_key="test",
+                    attempt=1,
+                    requested_at=captured_at,
+                    provider_captured_at=captured_at,
+                    status_code=200,
+                    elapsed_ms=1,
+                    response_count=1,
+                    quota_values={},
+                    raw_payload_sha256="2" * 64,
+                    provider_event_time=None,
+                    capture_status="CAPTURED",
+                    error_code=None,
+                ),
+            ]
+        )
+        session.flush()
+        session.add_all(
+            [
+                MatchdayEndpointCapturePlanModel(
+                    link_hash="3" * 64,
+                    capture_id="satisfied-capture",
+                    plan_id="satisfied-plan",
+                    endpoint="odds",
+                    link_status="LINKED",
+                    linked_at=captured_at,
+                ),
+                MatchdayMarketObservationModel(
+                    observation_id="4" * 64,
+                    fixture_id="api_football:fixture",
+                    provider_fixture_id="fixture",
+                    competition_id="allsvenskan",
+                    provider="api_football",
+                    bookmaker_id="1",
+                    bookmaker_name="Bookmaker",
+                    capture_id="satisfied-capture",
+                    provider_bet_id="4",
+                    raw_market_label="Asian Handicap",
+                    canonical_market="ASIAN_HANDICAP",
+                    canonical_selection="HOME",
+                    provider_selection="Home",
+                    line="-0.25",
+                    decimal_odds="1.95",
+                    suspended=False,
+                    live=False,
+                    provider_updated_at=captured_at.isoformat(),
+                    captured_at=captured_at,
+                    ingested_at=captured_at,
+                    raw_payload_sha256="2" * 64,
+                    source_revision="test",
+                ),
+            ]
+        )
+        session.commit()
+
+    payload = DashboardReadModelRepository().market_collection_status_for_fixtures(
+        ["fixture"], now=NOW
+    )["fixture"]
+
+    assert payload["odds_status"] == "READY"
+    assert payload["market_collection"] == {
+        "latest_snapshot_at": captured_at.isoformat().replace("+00:00", "Z"),
+        "latest_snapshot_checkpoint": "T24_OPEN_ODDS",
+        "target_checkpoint": "T12_OPEN_ODDS",
+        "scheduled_at": next_scheduled_at.isoformat().replace("+00:00", "Z"),
+        "window_end_at": (next_scheduled_at + timedelta(minutes=10))
+        .isoformat()
+        .replace("+00:00", "Z"),
+        "overdue": False,
+        "public_semantics": {"scope": "MATCH", "cause": "NOT_YET_DUE"},
     }
 
 
@@ -1303,7 +1496,15 @@ def test_next_market_collection_ignores_lineups_only_checkpoint(
     )["fixture"] == {
         "odds_status": "NOT_SCHEDULED",
         "last_refresh_hint": None,
-        "next_market_collection_at": None,
+        "market_collection": {
+            "latest_snapshot_at": None,
+            "latest_snapshot_checkpoint": None,
+            "target_checkpoint": None,
+            "scheduled_at": None,
+            "window_end_at": None,
+            "overdue": False,
+            "public_semantics": {"scope": "MATCH", "cause": None},
+        },
     }
 
 
@@ -1350,7 +1551,15 @@ def test_market_collection_status_distinguishes_empty_provider_from_unmapped_mar
     )["fixture"] == {
         "odds_status": expected_status,
         "last_refresh_hint": NOW.isoformat().replace("+00:00", "Z"),
-        "next_market_collection_at": None,
+        "market_collection": {
+            "latest_snapshot_at": None,
+            "latest_snapshot_checkpoint": None,
+            "target_checkpoint": None,
+            "scheduled_at": None,
+            "window_end_at": None,
+            "overdue": False,
+            "public_semantics": {"scope": "MATCH", "cause": None},
+        },
     }
 
 

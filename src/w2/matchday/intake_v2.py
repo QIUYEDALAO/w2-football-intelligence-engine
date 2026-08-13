@@ -14,6 +14,7 @@ from w2.domain.canonical_serialization import CURRENT_SERIALIZER_VERSION
 from w2.domain.recommendation_decision_v4 import (
     RECOMMENDATION_SCHEMA_VERSION,
     build_recommendation_decision_v4,
+    candidate_quote_freshness_readiness,
 )
 from w2.strategy.market_selector import select_analysis_markets
 
@@ -901,7 +902,7 @@ def v4_decision_from_matchday(
         "readiness": {
             "status": "READY" if bound_evidence.get("status") == "COMPLETE" else "NOT_READY",
             "quote_identity_status": "COMPLETE" if exact_quote else "MISSING",
-            "quote_freshness_status": freshness.get("freshness_status"),
+            **candidate_quote_freshness_readiness(freshness.get("age_seconds")),
             "model_status": model_probability.get("status"),
         },
         "capability_status": "ANALYSIS_ONLY",

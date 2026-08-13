@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
+from w2.api.repository import ReadModelRepository as DashboardReadModelRepository
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.matchday_intake_models import MatchdayFixtureIdentityModel
 from w2.infrastructure.persistence.models import ResultModel
@@ -107,6 +108,25 @@ def test_outcome_ledger_canonical_hash_has_deterministic_order(tmp_path: Path) -
     second.append([supersession, capture], dry_run=False, write_db=True)
 
     assert first.canonical_aggregate_sha256() == second.canonical_aggregate_sha256()
+
+
+def test_market_collection_read_does_not_rewrite_existing_forward_ledger(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    repository.append([_capture()], dry_run=False, write_db=True)
+    before = (len(repository.records()), repository.canonical_aggregate_sha256())
+
+    payload = DashboardReadModelRepository(repository.engine).market_collection_status_for_fixtures(
+        ["101"],
+        now=datetime(2026, 7, 7, 1, tzinfo=UTC),
+    )
+
+    assert payload["101"]["market_collection"]["public_semantics"] == {
+        "scope": "MATCH",
+        "cause": None,
+    }
+    assert (len(repository.records()), repository.canonical_aggregate_sha256()) == before
 
 
 def test_runtime_import_reconciles_count_hash_and_second_run_is_noop(

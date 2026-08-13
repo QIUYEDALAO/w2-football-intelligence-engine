@@ -71,7 +71,6 @@ def build_round3_intelligence(
     kickoff_utc: datetime,
     simulation: Mapping[str, Any] | None,
     as_of: datetime,
-    freshness_seconds: int = 3600,
 ) -> dict[str, Any]:
     """Build the read-only Round-3 market and model diagnostics."""
     canonical_fixture_id = _canonical_fixture_id(fixture_id)
@@ -90,7 +89,6 @@ def build_round3_intelligence(
             fixture_id=canonical_fixture_id,
             kickoff_utc=kickoff,
             as_of=reference,
-            freshness_seconds=freshness_seconds,
         )
         for market in SUPPORTED_MARKETS
     }
@@ -243,7 +241,6 @@ def _market_radar(
     fixture_id: str,
     kickoff_utc: datetime,
     as_of: datetime,
-    freshness_seconds: int,
 ) -> dict[str, Any]:
     scoped = [row for row in observations if _text(row.get("canonical_market")).upper() == market]
     captures: dict[tuple[str, datetime], list[dict[str, Any]]] = {}
@@ -263,7 +260,6 @@ def _market_radar(
                 captured_at=capture_key[1],
                 capture_id=capture_key[0],
                 as_of=as_of,
-                freshness_seconds=freshness_seconds,
             )
         )
         is not None
@@ -303,6 +299,7 @@ def _market_radar(
             "points": [
                 {
                     "capture_id": item["capture_id"],
+                    "checkpoint": item["checkpoint"],
                     "captured_at": item["captured_at"],
                     "canonical_line": item["canonical_line"],
                     "bookmaker_count": item["bookmaker_count"],
@@ -326,7 +323,6 @@ def _snapshot(
     captured_at: datetime,
     capture_id: str,
     as_of: datetime,
-    freshness_seconds: int,
 ) -> dict[str, Any] | None:
     if market == "ASIAN_HANDICAP":
         selected_ah = select_canonical_ah_mainline(
@@ -357,16 +353,14 @@ def _snapshot(
     prices = {side: [float(pair["prices"][side]) for pair in pairs] for side in sides}
     overrounds = [float(pair["overround"]) for pair in pairs]
     age_seconds = max(0, int((as_of - captured_at).total_seconds()))
-    freshness_status = "COMPLETE" if age_seconds <= freshness_seconds else "STALE"
+    checkpoints = {_text(row.get("capture_checkpoint")) for row in rows}
+    checkpoints.discard("")
     return {
         "capture_id": capture_id,
+        "checkpoint": next(iter(checkpoints)) if len(checkpoints) == 1 else None,
         "captured_at": _iso(captured_at),
         "canonical_line": _format_decimal(canonical_line),
-        "freshness": {
-            "status": freshness_status,
-            "age_seconds": age_seconds,
-            "max_age_seconds": freshness_seconds,
-        },
+        "quote_age_seconds": age_seconds,
         "bookmaker_count": len(pairs),
         "bookmakers": pairs,
         "prices": {
@@ -506,9 +500,8 @@ def _model_lab_market(
     radar: Mapping[str, Any], *, market: str, simulation: Mapping[str, Any] | None
 ) -> dict[str, Any]:
     current = _mapping(radar.get("current"))
-    freshness = _mapping(current.get("freshness"))
     bookmaker_count = int(current.get("bookmaker_count") or 0)
-    if not current or freshness.get("status") != "COMPLETE":
+    if not current:
         return _model_not_ready("MARKET_NOT_READY", market, bookmaker_count, simulation)
     if bookmaker_count < 3:
         return _model_not_ready("INSUFFICIENT_BOOKMAKER_DEPTH", market, bookmaker_count, simulation)
@@ -572,7 +565,7 @@ def _model_lab_market(
         "market": market,
         "canonical_line": current.get("canonical_line"),
         "quote_identity_status": "COMPLETE",
-        "freshness_status": "COMPLETE",
+        "market_quote_age_seconds": current.get("quote_age_seconds"),
         "bookmaker_count": bookmaker_count,
         "model_version": simulation.get("model_version"),
         "calibration_version": simulation.get("calibration_version"),
@@ -596,7 +589,7 @@ def _model_not_ready(
         "market": market,
         "canonical_line": None,
         "quote_identity_status": "INCOMPLETE" if status == "MARKET_NOT_READY" else "COMPLETE",
-        "freshness_status": "INCOMPLETE" if status == "MARKET_NOT_READY" else "COMPLETE",
+        "market_quote_age_seconds": None,
         "bookmaker_count": bookmaker_count,
         "model_version": source.get("model_version"),
         "calibration_version": source.get("calibration_version"),

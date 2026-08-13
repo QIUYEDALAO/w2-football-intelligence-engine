@@ -293,6 +293,7 @@ class WorkspaceTimelinePoint(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     capture_id: str | None
+    checkpoint: str | None
     captured_at: datetime | str | None
     canonical_line: str | None
     bookmaker_count: int = Field(ge=0)
@@ -336,9 +337,9 @@ class WorkspaceMovement(BaseModel):
 class WorkspaceMarketEligibility(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    observation_status: Literal["AVAILABLE", "STALE", "INSUFFICIENT"]
+    observation_status: Literal["AVAILABLE", "INSUFFICIENT"]
     trend_evidence_status: Literal["AVAILABLE", "INSUFFICIENT"]
-    cross_sectional_comparison_status: Literal["AVAILABLE", "INSUFFICIENT", "PAUSED_STALE"]
+    cross_sectional_comparison_status: Literal["AVAILABLE", "INSUFFICIENT"]
     model_diagnostic_status: str
     candidate_quote_identity_status: Literal["READY", "NOT_READY"]
     candidate_model_status: Literal["READY", "NOT_READY"]
@@ -350,7 +351,7 @@ class WorkspaceMarket(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     market: Literal["ASIAN_HANDICAP", "TOTALS"]
-    status: Literal["READY", "STALE", "INSUFFICIENT"]
+    status: Literal["READY", "INSUFFICIENT"]
     source_status: str
     snapshot_state: Literal[
         "NO_TIMELINE_EVIDENCE",
@@ -365,23 +366,19 @@ class WorkspaceMarket(BaseModel):
     bookmaker_count: int = Field(ge=0)
     prices: dict[str, Any]
     probabilities: dict[str, Any]
-    freshness: dict[str, Any]
+    quote_age_seconds: int | None = Field(default=None, ge=0)
     timeline_points: list[WorkspaceTimelinePoint]
     movement: WorkspaceMovement
     reason_codes: list[str]
     trend_evidence_status: Literal["AVAILABLE", "INSUFFICIENT"]
-    cross_sectional_comparison_status: Literal["AVAILABLE", "INSUFFICIENT", "PAUSED_STALE"]
+    cross_sectional_comparison_status: Literal["AVAILABLE", "INSUFFICIENT"]
     latest_snapshot_at: datetime | str | None
-    freshness_max_age_seconds: int | None = Field(default=None, ge=0)
     eligibility: WorkspaceMarketEligibility
 
     @model_validator(mode="after")
-    def readiness_matches_freshness(self) -> WorkspaceMarket:
-        freshness = str(self.freshness.get("status") or "NOT_AVAILABLE")
-        if self.status == "READY" and freshness not in {"COMPLETE", "CURRENT", "FRESH"}:
-            raise ValueError("READY market evidence must be current")
-        if self.status == "STALE" and freshness != "STALE":
-            raise ValueError("STALE market evidence must have stale freshness")
+    def preserves_quote_rows(self) -> WorkspaceMarket:
+        if self.status == "READY" and self.latest_snapshot_at is None:
+            raise ValueError("READY market evidence requires a persisted snapshot")
         if self.quote_row_count != self.observation_count:
             raise ValueError("quote_row_count must preserve observation_count")
         if self.quote_row_count != self.bookmaker_pair_count * 2:
@@ -457,7 +454,7 @@ class WorkspacePublicTeamLabel(BaseModel):
 class WorkspaceMarketFact(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    status: Literal["READY", "STALE", "INSUFFICIENT"]
+    status: Literal["READY", "INSUFFICIENT"]
     source_status: str
     main_line: str | None
     current_odds: dict[str, Any]
@@ -484,7 +481,7 @@ class WorkspaceModelRelation(BaseModel):
     status: str
     canonical_line: str | None
     bookmaker_count: int = Field(ge=0)
-    freshness_status: str | None
+    market_quote_age_seconds: int | None = Field(default=None, ge=0)
     diagnostics: list[dict[str, Any]]
     blockers: list[str]
 
@@ -569,11 +566,11 @@ class WorkspaceModelSummary(BaseModel):
 class WorkspaceMarketSummary(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    status: Literal["READY", "STALE", "INSUFFICIENT"]
+    status: Literal["READY", "INSUFFICIENT"]
     source_status: str
     main_line: str | None
     bookmaker_count: int = Field(ge=0)
-    freshness: dict[str, Any]
+    quote_age_seconds: int | None = Field(default=None, ge=0)
 
 
 class WorkspaceApiFootballPrediction(BaseModel):
@@ -671,6 +668,34 @@ class WorkspaceMatchOutcome(BaseModel):
         return self
 
 
+class WorkspaceMarketCollection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    latest_snapshot_at: datetime | str | None
+    latest_snapshot_checkpoint: str | None
+    target_checkpoint: str | None
+    scheduled_at: datetime | str | None
+    window_end_at: datetime | str | None
+    overdue: bool
+    public_semantics: WorkspacePublicSemantics
+
+    @model_validator(mode="after")
+    def collection_window_is_exact(self) -> WorkspaceMarketCollection:
+        if self.public_semantics.scope != "MATCH":
+            raise ValueError("market collection semantics must describe one match")
+        cause = self.public_semantics.cause
+        if cause not in {None, "NOT_YET_DUE", "AWAITING_COLLECTION", "UNASSESSED"}:
+            raise ValueError("market collection cause is not temporal")
+        if cause in {"NOT_YET_DUE", "AWAITING_COLLECTION"} and any(
+            value is None
+            for value in (self.target_checkpoint, self.scheduled_at, self.window_end_at)
+        ):
+            raise ValueError("scheduled market collection requires checkpoint and window")
+        if self.overdue and cause != "AWAITING_COLLECTION":
+            raise ValueError("only an awaiting collection window can be overdue")
+        return self
+
+
 class WorkspaceMatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -685,7 +710,7 @@ class WorkspaceMatch(BaseModel):
     public_semantics: WorkspacePublicSemantics
     status: str | None
     outcome: WorkspaceMatchOutcome
-    next_market_collection_at: datetime | str | None
+    market_collection: WorkspaceMarketCollection
     intelligence_state: IntelligenceState
     intelligence_reason_codes: list[str]
     priority_reason_primary: DashboardPriorityReason | None

@@ -62,6 +62,9 @@ def _authoritative_input() -> dict[str, object]:
             "status": "READY",
             "quote_identity_status": "COMPLETE",
             "quote_freshness_status": "COMPLETE",
+            "quote_freshness_policy_version": "w2.quote_freshness.v1",
+            "quote_age_seconds": 600,
+            "quote_max_age_seconds": 1800,
             "model_status": "READY",
         },
         "capability_status": "FORMAL_ENABLED",
@@ -176,6 +179,25 @@ def test_new_decision_must_be_formed_before_kickoff() -> None:
     assert decision.outcome is RecommendationOutcomeV4.NOT_READY
     assert decision.reason_code == "FIXTURE_NOT_PREMATCH"
     assert "DECISION_NOT_BEFORE_KICKOFF" in decision.blockers
+
+
+def test_candidate_quote_age_boundary_is_independent_and_hashed() -> None:
+    accepted = _authoritative_input()
+    accepted_readiness = accepted["readiness"]
+    assert isinstance(accepted_readiness, dict)
+    accepted_readiness["quote_age_seconds"] = 1800
+    accepted_decision = build_recommendation_decision_v4(accepted)
+
+    rejected = _authoritative_input()
+    rejected_readiness = rejected["readiness"]
+    assert isinstance(rejected_readiness, dict)
+    rejected_readiness["quote_age_seconds"] = 1801
+    rejected_decision = build_recommendation_decision_v4(rejected)
+
+    assert accepted_decision.outcome is RecommendationOutcomeV4.FORMAL_RECOMMEND
+    assert rejected_decision.outcome is RecommendationOutcomeV4.NOT_READY
+    assert "QUOTE_FRESHNESS_BOUNDARY_INVALID" in rejected_decision.blockers
+    assert accepted_decision.decision_hash != rejected_decision.decision_hash
 
 
 def test_decision_evaluation_time_is_part_of_v4_identity() -> None:

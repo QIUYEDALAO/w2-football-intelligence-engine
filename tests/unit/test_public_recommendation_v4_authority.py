@@ -43,6 +43,9 @@ def _candidate() -> dict[str, object]:
             "schema_version": "w2.quote_identity.v1",
             "identity_status": "COMPLETE",
             "freshness_status": "COMPLETE",
+            "freshness_schema_version": "w2.quote_freshness.v1",
+            "age_seconds": 600,
+            "max_age_seconds": 1800,
             "provider": "api-football",
             "bookmaker_id": "unibet",
             "capture_id": "capture-1",
@@ -144,6 +147,9 @@ def test_public_v4_input_reuses_exact_candidate_identity_and_manifest_gate() -> 
         "status": "READY",
         "quote_identity_status": "COMPLETE",
         "quote_freshness_status": "COMPLETE",
+        "quote_freshness_policy_version": "w2.quote_freshness.v1",
+        "quote_age_seconds": 600,
+        "quote_max_age_seconds": 1800,
         "model_status": "READY",
     }
     assert authoritative["canonical_mainline_identity"] == {

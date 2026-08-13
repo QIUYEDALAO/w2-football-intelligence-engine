@@ -39,6 +39,7 @@ def _quote(
         "bookmaker_id": bookmaker,
         "bookmaker_name": f"Book {bookmaker}",
         "capture_id": capture,
+        "capture_checkpoint": "T24_OPEN_ODDS" if capture == "capture-1" else "T12_OPEN_ODDS",
         "raw_market_label": "Asian Handicap" if market == "ASIAN_HANDICAP" else "Goals Over/Under",
         "canonical_market": market,
         "canonical_selection": selection,
@@ -160,7 +161,29 @@ def test_real_same_line_timeline_builds_market_radar_and_movement() -> None:
     assert markets["TOTALS"]["movement"]["status"] == "PRICE_MOVEMENT"
     assert markets["TOTALS"]["current"]["bookmaker_count"] == 3
     assert markets["TOTALS"]["current"]["lineage"]["capture_ids"] == ["capture-2"]
+    assert markets["TOTALS"]["current"]["checkpoint"] == "T12_OPEN_ODDS"
+    assert markets["TOTALS"]["current"]["quote_age_seconds"] == 600
+    assert markets["TOTALS"]["timeline"]["points"][-1]["checkpoint"] == "T12_OPEN_ODDS"
     assert markets["TOTALS"]["movement"]["status"] in MOVEMENT_STATUSES
+
+
+def test_old_persisted_market_remains_diagnostic_but_exposes_quote_age() -> None:
+    payload = _payload(
+        _market_rows(
+            capture="capture-1",
+            captured_at=AS_OF - timedelta(hours=4),
+            ah_prices=("1.90", "1.96"),
+            ou_prices=("1.92", "1.94"),
+        )
+    )
+
+    assert payload["market_radar"]["markets"]["ASIAN_HANDICAP"]["current"][
+        "quote_age_seconds"
+    ] == 4 * 3600
+    assert payload["model_lab"]["markets"]["ASIAN_HANDICAP"]["status"] in {
+        "COMPARABLE_WITHIN_MARKET_RANGE",
+        "MODEL_OUTSIDE_MARKET_RANGE",
+    }
 
 
 def test_ah_depth_reuses_canonical_pairs_when_provider_exposes_mirrored_lines() -> None:

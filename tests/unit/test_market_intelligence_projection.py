@@ -277,9 +277,9 @@ def test_collection_risk_requires_fresh_persisted_capture_for_ok() -> None:
         "dimension": "COLLECTION_RISK",
         "status": "OK",
         "reason_codes": [],
-        "explanation": "采集状态已有新鲜持久化证据",
+        "explanation": "采集状态已有持久化证据",
         "assessment_status": "ASSESSED_CURRENT",
-        "evidence_basis": "PERSISTED_ODDS_CAPTURE_AND_MARKET_FRESHNESS",
+        "evidence_basis": "PERSISTED_ODDS_CAPTURE",
         "source_as_of": "2026-08-09T10:00:00Z",
     }
 

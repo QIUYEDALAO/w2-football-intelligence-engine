@@ -2025,6 +2025,7 @@ class FutureRefreshDbRepository:
                     "bookmaker_id": observation.bookmaker_id,
                     "bookmaker_name": observation.bookmaker_name,
                     "capture_id": observation.capture_id,
+                    "capture_checkpoint": capture.checkpoint if capture else None,
                     "raw_market_label": observation.raw_market_label,
                     "canonical_market": observation.canonical_market,
                     "canonical_selection": observation.canonical_selection,

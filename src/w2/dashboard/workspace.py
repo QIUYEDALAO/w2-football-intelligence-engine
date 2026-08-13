@@ -38,7 +38,6 @@ PRIMARY_REASON_ORDER = {
     "MODEL_DIAGNOSTIC": 1,
 }
 ATTENTION_REASON_ORDER = {
-    "STALE_MARKET_MEMORY": 0,
     "MARKET_MOVEMENT": 1,
     "MODEL_DIAGNOSTIC": 2,
     "COLLECTION_INCIDENT": 3,
@@ -59,7 +58,6 @@ RISK_REASON_LABELS = {
     "MODEL_LAB_NOT_READY": "模型评估尚未就绪",
     "MODEL_OUTSIDE_MARKET_RANGE": "模型结果超出当前市场观测区间",
     "COLLECTION_ASSESSMENT_NOT_AVAILABLE": "尚无可用采集评估证据",
-    "COLLECTION_ASSESSMENT_STALE": "采集评估证据已过期",
 }
 
 
@@ -213,6 +211,7 @@ def _match(
 ) -> dict[str, Any]:
     radar = _mapping(card.get("market_radar"))
     model_lab = _mapping(card.get("model_lab"))
+    market_collection = _market_collection(_mapping(card.get("data_refresh")))
     markets = {
         name: _market(
             _mapping(_mapping(radar.get("markets")).get(name)),
@@ -249,9 +248,6 @@ def _match(
         == "READY"
         for market in markets.values()
     )
-    next_market_collection_at = _mapping(card.get("data_refresh")).get(
-        "next_market_collection_at"
-    )
     return {
         "fixture_id": _text(card.get("fixture_id")),
         "competition_id": _optional_text(card.get("competition_id")),
@@ -262,14 +258,13 @@ def _match(
         "home_team_label": _public_team_label(card, "home"),
         "away_team_label": _public_team_label(card, "away"),
         "status": _optional_text(card.get("status")),
-        "next_market_collection_at": (
-            next_market_collection_at
-            if _is_future_timestamp(next_market_collection_at, generated_at)
-            else None
-        ),
+        "market_collection": market_collection,
         "intelligence_state": _text(card.get("intelligence_state"), "DATA_INCOMPLETE"),
         "intelligence_reason_codes": _string_list(card.get("intelligence_reason_codes")),
-        "risks": _risks(_mapping(card.get("risk_dimensions"))),
+        "risks": _match_risks(
+            _mapping(card.get("risk_dimensions")),
+            market_collection,
+        ),
         "readiness": {
             "status": _text(card.get("data_status"), "BLOCKED"),
             "reason_code": _optional_text(card.get("reason_code")),
@@ -348,7 +343,7 @@ def _match(
                     "source_status": item["source_status"],
                     "main_line": item["main_line"],
                     "bookmaker_count": item["bookmaker_count"],
-                    "freshness": item["freshness"],
+                    "quote_age_seconds": item["quote_age_seconds"],
                 }
                 for name, item in markets.items()
             },
@@ -454,6 +449,25 @@ def _shadow_candidate(
     }
 
 
+def _market_collection(data_refresh: Mapping[str, Any]) -> dict[str, Any]:
+    source = _mapping(data_refresh.get("market_collection"))
+    semantics = _mapping(source.get("public_semantics"))
+    return {
+        "latest_snapshot_at": source.get("latest_snapshot_at"),
+        "latest_snapshot_checkpoint": _optional_text(
+            source.get("latest_snapshot_checkpoint")
+        ),
+        "target_checkpoint": _optional_text(source.get("target_checkpoint")),
+        "scheduled_at": source.get("scheduled_at"),
+        "window_end_at": source.get("window_end_at"),
+        "overdue": bool(source.get("overdue") is True),
+        "public_semantics": {
+            "scope": "MATCH",
+            "cause": semantics.get("cause") if semantics else "UNASSESSED",
+        },
+    }
+
+
 def _market(
     raw: Mapping[str, Any],
     name: str,
@@ -468,6 +482,7 @@ def _market(
     points = [
         {
             "capture_id": _optional_text(point.get("capture_id")),
+            "checkpoint": _optional_text(point.get("checkpoint")),
             "captured_at": point.get("captured_at"),
             "canonical_line": _optional_text(point.get("canonical_line")),
             "bookmaker_count": max(0, _int(point.get("bookmaker_count"))),
@@ -505,30 +520,14 @@ def _market(
         if captured_times
         else _optional_text(current.get("captured_at"))
     )
-    freshness = _market_freshness(
-        _mapping(current.get("freshness")),
-        latest_snapshot_at=latest_snapshot_at,
-        generated_at=generated_at,
-    )
-    freshness_status = _text(freshness.get("status"), "NOT_AVAILABLE")
-    public_status = (
-        "INSUFFICIENT"
-        if not current
-        else "READY"
-        if freshness_status in {"COMPLETE", "CURRENT", "FRESH"}
-        else "STALE"
-        if freshness_status == "STALE"
-        else "INSUFFICIENT"
-    )
+    public_status = "READY" if current else "INSUFFICIENT"
     trend_evidence_status = (
         "AVAILABLE"
         if len(points) >= 2 and movement_payload["status"] != "INSUFFICIENT"
         else "INSUFFICIENT"
     )
     cross_sectional_status = (
-        "PAUSED_STALE"
-        if public_status == "STALE"
-        else "AVAILABLE"
+        "AVAILABLE"
         if public_status == "READY" and max(0, _int(current.get("bookmaker_count"))) > 0
         else "INSUFFICIENT"
     )
@@ -545,7 +544,7 @@ def _market(
         "bookmaker_count": max(0, _int(current.get("bookmaker_count"))),
         "prices": dict(_mapping(current.get("prices"))),
         "probabilities": dict(_mapping(current.get("probabilities"))),
-        "freshness": freshness,
+        "quote_age_seconds": _age_seconds(generated_at, latest_snapshot_at),
         "timeline_points": points,
         "movement": movement_payload,
         "reason_codes": [
@@ -554,7 +553,6 @@ def _market(
         "trend_evidence_status": trend_evidence_status,
         "cross_sectional_comparison_status": cross_sectional_status,
         "latest_snapshot_at": latest_snapshot_at,
-        "freshness_max_age_seconds": _optional_nonnegative_int(freshness.get("max_age_seconds")),
     }
 
 
@@ -578,38 +576,6 @@ def _mark_market_depth_asymmetry(markets: Mapping[str, dict[str, Any]]) -> None:
         handicap["reason_codes"].append(MARKET_DEPTH_ASYMMETRY_REASON)
 
 
-def _market_freshness(
-    source: Mapping[str, Any],
-    *,
-    latest_snapshot_at: Any,
-    generated_at: Any,
-) -> dict[str, Any]:
-    freshness = dict(source)
-    max_age_seconds = _optional_nonnegative_int(freshness.get("max_age_seconds"))
-    if max_age_seconds is None:
-        return freshness
-    snapshot_at = _datetime(latest_snapshot_at)
-    page_at = _datetime(generated_at)
-    if snapshot_at is None or page_at is None or page_at < snapshot_at:
-        freshness.update(
-            {
-                "status": "NOT_AVAILABLE",
-                "age_seconds": None,
-                "reason_code": "FRESHNESS_CLOCK_CONFLICT",
-            }
-        )
-        return freshness
-    age_seconds = int((page_at - snapshot_at).total_seconds())
-    freshness.update(
-        {
-            "status": "STALE" if age_seconds > max_age_seconds else "COMPLETE",
-            "age_seconds": age_seconds,
-        }
-    )
-    freshness.pop("reason_code", None)
-    return freshness
-
-
 def _market_eligibility(
     market: Mapping[str, Any],
     relation: Mapping[str, Any],
@@ -623,15 +589,11 @@ def _market_eligibility(
     )
     model_ready = _text(candidate.get("model_status")) == "READY"
     observation_status = (
-        "AVAILABLE"
-        if _text(market.get("status")) == "READY"
-        else "STALE"
-        if _text(market.get("status")) == "STALE"
-        else "INSUFFICIENT"
+        "AVAILABLE" if _text(market.get("status")) == "READY" else "INSUFFICIENT"
     )
     blockers = _string_list(candidate.get("blockers"))
     if observation_status != "AVAILABLE":
-        blockers.append("MARKET_EVIDENCE_NOT_CURRENT")
+        blockers.append("MARKET_EVIDENCE_NOT_AVAILABLE")
     if not quote_ready:
         blockers.append("EXECUTABLE_CANDIDATE_QUOTE_NOT_READY")
     if not model_ready:
@@ -740,7 +702,9 @@ def _model_relation(raw: Mapping[str, Any], name: str) -> dict[str, Any]:
         "status": _text(raw.get("status"), "MARKET_NOT_READY"),
         "canonical_line": _optional_text(raw.get("canonical_line")),
         "bookmaker_count": max(0, _int(raw.get("bookmaker_count"))),
-        "freshness_status": _optional_text(raw.get("freshness_status")),
+        "market_quote_age_seconds": _optional_nonnegative_int(
+            raw.get("market_quote_age_seconds")
+        ),
         "diagnostics": _mapping_list(raw.get("diagnostics")),
         "blockers": _string_list(raw.get("blockers")),
     }
@@ -1075,9 +1039,6 @@ def _priority_reasons(match: Mapping[str, Any]) -> tuple[str | None, list[str]]:
             if _text(readiness.get("market_aggregate_status")) == "PARTIAL"
             else "DATA_INCOMPLETE"
         )
-    stale = any(_text(_mapping(market).get("status")) == "STALE" for market in markets.values())
-    if stale:
-        reasons.add("STALE_MARKET_MEMORY")
     if any(_is_attention_worthy_movement(_mapping(market)) for market in markets.values()):
         reasons.add("MARKET_MOVEMENT")
     if any(
@@ -1104,7 +1065,7 @@ def _priority_reasons(match: Mapping[str, Any]) -> tuple[str | None, list[str]]:
                 reasons,
                 key=lambda reason: (PRIMARY_REASON_ORDER.get(reason, 99), reason),
             )
-            if reason in PRIMARY_REASON_ORDER and not (reason == "MARKET_MOVEMENT" and stale)
+            if reason in PRIMARY_REASON_ORDER
         ),
         None,
     )
@@ -1117,7 +1078,7 @@ def _priority_reasons(match: Mapping[str, Any]) -> tuple[str | None, list[str]]:
 
 def _is_attention_worthy_movement(market: Mapping[str, Any]) -> bool:
     if (
-        _text(market.get("status")) not in {"READY", "STALE"}
+        _text(market.get("status")) != "READY"
         or _int(market.get("snapshot_count")) < 2
     ):
         return False
@@ -1219,9 +1180,7 @@ def _evidence_rank(match: Mapping[str, Any]) -> int:
     )
     if "READY" in statuses:
         return 0 if depth >= 2 else 1
-    if "STALE" in statuses:
-        return 2 if depth >= 2 else 3
-    return 4
+    return 2
 
 
 def _calm_complete(match: Mapping[str, Any]) -> bool:
@@ -1342,10 +1301,6 @@ def _match_factual_summary(match: Mapping[str, Any]) -> str:
         (_int(_mapping(market).get("snapshot_count")) for market in markets),
         default=0,
     )
-    if "STALE" in statuses:
-        return (
-            "已落盘 AH/OU 历史市场证据已过期；当前走势与模型—市场比较暂停；等待既有调度形成新快照。"
-        )
     if statuses <= {"INSUFFICIENT"} or depth == 0:
         return "尚无已落盘 AH/OU 市场证据；无法生成走势或当前模型—市场比较；等待既有调度形成证据。"
     aggregate = _text(_mapping(match.get("readiness")).get("market_aggregate_status"))
@@ -1357,7 +1312,8 @@ def _match_factual_summary(match: Mapping[str, Any]) -> str:
         ]
         return (
             f"已有当前 {'/'.join(ready_markets) or 'AH/OU'} 持久化市场证据；"
-            "市场事实可以查看，但精确候选报价或模型输入尚未全部就绪，暂不形成影子候选。"
+            "市场事实可以查看并仍可进行模型—市场诊断，但精确候选报价或模型输入"
+            "尚未全部就绪，暂不形成影子候选。"
         )
     if depth < 2:
         return (
@@ -1400,12 +1356,73 @@ def _risks(source: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _match_risks(
+    source: Mapping[str, Any],
+    market_collection: Mapping[str, Any],
+) -> dict[str, Any]:
+    result = _risks(source)
+    semantics = _mapping(market_collection.get("public_semantics"))
+    cause = _optional_text(semantics.get("cause"))
+    source_as_of = market_collection.get("latest_snapshot_at")
+    if cause == "NOT_YET_DUE":
+        result["COLLECTION_RISK"] = {
+            "dimension": "COLLECTION_RISK",
+            "status": "OK",
+            "reason_codes": [],
+            "explanation": "尚未到下一采集窗口，按既有计划正常等待",
+            "assessment_status": "ASSESSED_CURRENT",
+            "evidence_basis": "COLLECTION_WINDOW_NOT_YET_DUE",
+            "source_as_of": source_as_of,
+        }
+    elif cause == "AWAITING_COLLECTION":
+        overdue = bool(market_collection.get("overdue"))
+        reason = (
+            "COLLECTION_WINDOW_OVERDUE"
+            if overdue
+            else "COLLECTION_WINDOW_OPEN_AWAITING_CAPTURE"
+        )
+        result["COLLECTION_RISK"] = {
+            "dimension": "COLLECTION_RISK",
+            "status": "INCIDENT" if overdue else "ATTENTION",
+            "reason_codes": [reason],
+            "explanation": (
+                "采集宽限已结束，计划快照仍未形成"
+                if overdue
+                else "已到采集时点，仍在计划宽限内等待快照"
+            ),
+            "assessment_status": "ASSESSED_INCIDENT" if overdue else "ASSESSED_CURRENT",
+            "evidence_basis": reason,
+            "source_as_of": source_as_of,
+        }
+    elif cause == "UNASSESSED":
+        result["COLLECTION_RISK"] = {
+            "dimension": "COLLECTION_RISK",
+            "status": "ATTENTION",
+            "reason_codes": ["COLLECTION_PLAN_UNASSESSED"],
+            "explanation": "尚无可用于判定下一采集窗口的计划证据",
+            "assessment_status": "UNASSESSED",
+            "evidence_basis": "COLLECTION_PLAN_UNASSESSED",
+            "source_as_of": source_as_of,
+        }
+    elif source_as_of is not None:
+        result["COLLECTION_RISK"] = {
+            "dimension": "COLLECTION_RISK",
+            "status": "OK",
+            "reason_codes": [],
+            "explanation": "当前采集窗口已有持久化市场快照",
+            "assessment_status": "ASSESSED_CURRENT",
+            "evidence_basis": "PERSISTED_MARKET_SNAPSHOT",
+            "source_as_of": source_as_of,
+        }
+    return result
+
+
 def _age_seconds(later: Any, earlier: Any) -> int | None:
     later_at = _datetime(later)
     earlier_at = _datetime(earlier)
-    if later_at is None or earlier_at is None:
+    if later_at is None or earlier_at is None or later_at < earlier_at:
         return None
-    return max(0, int((later_at - earlier_at).total_seconds()))
+    return int((later_at - earlier_at).total_seconds())
 
 
 def _datetime(value: Any) -> datetime | None:

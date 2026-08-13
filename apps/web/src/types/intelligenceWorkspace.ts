@@ -62,6 +62,7 @@ export interface WorkspaceAttentionItem {
 
 export interface WorkspaceTimelinePoint {
   capture_id: string | null;
+  checkpoint: string | null;
   captured_at: string | null;
   canonical_line: string | null;
   bookmaker_count: number;
@@ -71,7 +72,7 @@ export interface WorkspaceTimelinePoint {
 
 export interface WorkspaceMarket {
   market: "ASIAN_HANDICAP" | "TOTALS";
-  status: "READY" | "STALE" | "INSUFFICIENT";
+  status: "READY" | "INSUFFICIENT";
   source_status: string;
   snapshot_state:
     | "NO_TIMELINE_EVIDENCE"
@@ -85,7 +86,7 @@ export interface WorkspaceMarket {
   bookmaker_count: number;
   prices: Record<string, unknown>;
   probabilities: Record<string, unknown>;
-  freshness: Record<string, unknown>;
+  quote_age_seconds: number | null;
   timeline_points: WorkspaceTimelinePoint[];
   movement: {
     status?: string;
@@ -98,13 +99,12 @@ export interface WorkspaceMarket {
   };
   reason_codes: string[];
   trend_evidence_status: "AVAILABLE" | "INSUFFICIENT";
-  cross_sectional_comparison_status: "AVAILABLE" | "INSUFFICIENT" | "PAUSED_STALE";
+  cross_sectional_comparison_status: "AVAILABLE" | "INSUFFICIENT";
   latest_snapshot_at: string | null;
-  freshness_max_age_seconds: number | null;
   eligibility: {
-    observation_status: "AVAILABLE" | "STALE" | "INSUFFICIENT";
+    observation_status: "AVAILABLE" | "INSUFFICIENT";
     trend_evidence_status: "AVAILABLE" | "INSUFFICIENT";
-    cross_sectional_comparison_status: "AVAILABLE" | "INSUFFICIENT" | "PAUSED_STALE";
+    cross_sectional_comparison_status: "AVAILABLE" | "INSUFFICIENT";
     model_diagnostic_status: string;
     candidate_quote_identity_status: "READY" | "NOT_READY";
     candidate_model_status: "READY" | "NOT_READY";
@@ -150,7 +150,7 @@ export interface WorkspaceModelRelation {
   status: string;
   canonical_line: string | null;
   bookmaker_count: number;
-  freshness_status: string | null;
+  market_quote_age_seconds: number | null;
   diagnostics: Record<string, unknown>[];
   blockers: string[];
 }
@@ -172,7 +172,15 @@ export interface WorkspaceMatch {
     is_recorded: boolean;
     public_semantics: PublicStatusSemantics;
   };
-  next_market_collection_at: string | null;
+  market_collection: {
+    latest_snapshot_at: string | null;
+    latest_snapshot_checkpoint: string | null;
+    target_checkpoint: string | null;
+    scheduled_at: string | null;
+    window_end_at: string | null;
+    overdue: boolean;
+    public_semantics: PublicStatusSemantics;
+  };
   intelligence_state: IntelligenceState;
   intelligence_reason_codes: string[];
   priority_reason_primary: string | null;
@@ -195,7 +203,7 @@ export interface WorkspaceMatch {
     candidate_input_status: "READY" | "NOT_READY";
   };
   market_fact: {
-    status: "READY" | "STALE" | "INSUFFICIENT";
+    status: "READY" | "INSUFFICIENT";
     source_status: string;
     main_line: string | null;
     current_odds: Record<string, unknown>;
@@ -256,11 +264,11 @@ export interface WorkspaceMatch {
       calibration_status: string | null;
     };
     market: Record<string, {
-      status: "READY" | "STALE" | "INSUFFICIENT";
+      status: "READY" | "INSUFFICIENT";
       source_status: string;
       main_line: string | null;
       bookmaker_count: number;
-      freshness: Record<string, unknown>;
+      quote_age_seconds: number | null;
     }>;
     api_football_prediction: {
       status: "NOT_AVAILABLE";
