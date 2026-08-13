@@ -220,7 +220,9 @@ def _match(
 ) -> dict[str, Any]:
     radar = _mapping(card.get("market_radar"))
     model_lab = _mapping(card.get("model_lab"))
-    market_collection = _market_collection(_mapping(card.get("data_refresh")))
+    data_refresh = _mapping(card.get("data_refresh"))
+    market_collection = _market_collection(data_refresh)
+    lineup_collection = _lineup_collection(data_refresh)
     markets = {
         name: _market(
             _mapping(_mapping(radar.get("markets")).get(name)),
@@ -273,11 +275,13 @@ def _match(
         "away_team_label": _public_team_label(card, "away"),
         "status": _optional_text(card.get("status")),
         "market_collection": market_collection,
+        "lineup_collection": lineup_collection,
         "intelligence_state": _text(card.get("intelligence_state"), "DATA_INCOMPLETE"),
         "intelligence_reason_codes": _string_list(card.get("intelligence_reason_codes")),
         "risks": _match_risks(
             _mapping(card.get("risk_dimensions")),
             market_collection,
+            lineup_collection,
             missing_fields=_string_list(card.get("missing_fields")),
         ),
         "readiness": {
@@ -290,7 +294,7 @@ def _match(
             "next_eval_at": card.get("next_eval_at"),
             "provider_budget_status": _optional_text(card.get("provider_budget_status")),
             "lineup_status": _optional_text(
-                _mapping(card.get("data_refresh")).get("lineups_status")
+                data_refresh.get("lineups_status")
             ),
             "lineup_expectation": _optional_text(card.get("lineup_requirement")),
             "market_aggregate_status": market_aggregate_status,
@@ -468,6 +472,21 @@ def _market_collection(data_refresh: Mapping[str, Any]) -> dict[str, Any]:
         "latest_snapshot_checkpoint": _optional_text(
             source.get("latest_snapshot_checkpoint")
         ),
+        "target_checkpoint": _optional_text(source.get("target_checkpoint")),
+        "scheduled_at": source.get("scheduled_at"),
+        "window_end_at": source.get("window_end_at"),
+        "overdue": bool(source.get("overdue") is True),
+        "public_semantics": {
+            "scope": "MATCH",
+            "cause": semantics.get("cause") if semantics else "UNASSESSED",
+        },
+    }
+
+
+def _lineup_collection(data_refresh: Mapping[str, Any]) -> dict[str, Any]:
+    source = _mapping(data_refresh.get("lineup_collection"))
+    semantics = _mapping(source.get("public_semantics"))
+    return {
         "target_checkpoint": _optional_text(source.get("target_checkpoint")),
         "scheduled_at": source.get("scheduled_at"),
         "window_end_at": source.get("window_end_at"),
@@ -1380,23 +1399,45 @@ def _risks(source: Mapping[str, Any]) -> dict[str, Any]:
 def _match_risks(
     source: Mapping[str, Any],
     market_collection: Mapping[str, Any],
+    lineup_collection: Mapping[str, Any],
     *,
     missing_fields: Sequence[str],
 ) -> dict[str, Any]:
     result = _risks(source)
     data_risk = result["DATA_RISK"]
-    if missing_fields and _text(data_risk.get("status")) != "OK":
+    lineup_cause = _optional_text(
+        _mapping(lineup_collection.get("public_semantics")).get("cause")
+    )
+    blocking_fields = [
+        field
+        for field in missing_fields
+        if not (field == "lineups" and lineup_cause == "NOT_YET_DUE")
+    ]
+    if blocking_fields and _text(data_risk.get("status")) != "OK":
         known = [
             MISSING_FIELD_LABELS[field]
-            for field in missing_fields
+            for field in blocking_fields
             if field in MISSING_FIELD_LABELS
         ]
-        unknown_count = len(missing_fields) - len(known)
+        unknown_count = len(blocking_fields) - len(known)
         missing_copy = "、".join(known)
         if unknown_count:
             missing_copy += ("、" if missing_copy else "") + f"另有 {unknown_count} 项输入"
         data_risk["explanation"] = (
             f"待补齐：{missing_copy}；既有采集或模型投影形成后解除"
+        )
+    elif missing_fields and lineup_cause == "NOT_YET_DUE" and set(
+        _string_list(data_risk.get("reason_codes"))
+    ) <= {"DATA_REQUIRED_INPUT_MISSING", "DATA_STATUS_BLOCKED"}:
+        data_risk.update(
+            {
+                "status": "OK",
+                "reason_codes": [],
+                "explanation": "尚无到期的数据输入缺口",
+                "assessment_status": "ASSESSED_CURRENT",
+                "evidence_basis": "LINEUP_COLLECTION_WINDOW_NOT_YET_DUE",
+                "source_as_of": lineup_collection.get("scheduled_at"),
+            }
         )
     semantics = _mapping(market_collection.get("public_semantics"))
     cause = _optional_text(semantics.get("cause"))

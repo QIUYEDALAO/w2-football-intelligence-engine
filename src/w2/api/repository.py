@@ -131,6 +131,27 @@ def _utc(value: datetime) -> datetime:
     return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
+def _collection_window(
+    plans: list[MatchdayCheckpointPlanModel],
+    satisfied_plan_ids: set[str],
+    reference: datetime,
+) -> tuple[MatchdayCheckpointPlanModel | None, str | None, bool]:
+    ordered = sorted(plans, key=lambda plan: (_utc(plan.scheduled_at), plan.plan_id))
+    due = [plan for plan in ordered if _utc(plan.scheduled_at) <= reference]
+    future = [plan for plan in ordered if _utc(plan.scheduled_at) > reference]
+    target = due[-1] if due and due[-1].plan_id not in satisfied_plan_ids else None
+    cause = "AWAITING_COLLECTION" if target is not None else None
+    if target is None and future:
+        target = future[0]
+        cause = "NOT_YET_DUE"
+    overdue = bool(
+        cause == "AWAITING_COLLECTION"
+        and target is not None
+        and reference > _utc(target.window_end)
+    )
+    return target, cause, overdue
+
+
 def _checkpoint_metadata(row: Checkpoint) -> dict[str, Any]:
     return {
         "checkpoint_key": row.key,
@@ -1220,6 +1241,27 @@ class ReadModelRepository:
                     )
                 )
             )
+            captured_lineup_ids = set(
+                session.scalars(
+                    select(MatchdayEndpointCaptureModel.capture_id).where(
+                        MatchdayEndpointCaptureModel.endpoint == "lineups",
+                        MatchdayEndpointCaptureModel.fixture_id.in_(canonical_ids),
+                        MatchdayEndpointCaptureModel.capture_status == "CAPTURED",
+                        MatchdayEndpointCaptureModel.response_count > 0,
+                    )
+                )
+            )
+            satisfied_lineup_plan_ids = set(
+                session.scalars(
+                    select(MatchdayEndpointCapturePlanModel.plan_id).where(
+                        MatchdayEndpointCapturePlanModel.endpoint == "lineups",
+                        MatchdayEndpointCapturePlanModel.link_status == "LINKED",
+                        MatchdayEndpointCapturePlanModel.capture_id.in_(
+                            captured_lineup_ids
+                        ),
+                    )
+                )
+            )
         latest_capture: dict[str, MatchdayEndpointCaptureModel] = {}
         latest_snapshot: dict[str, MatchdayEndpointCaptureModel] = {}
         for capture in captures:
@@ -1232,34 +1274,28 @@ class ReadModelRepository:
             ):
                 latest_snapshot[capture.fixture_id] = capture
         plans_by_fixture: dict[str, list[MatchdayCheckpointPlanModel]] = defaultdict(list)
+        lineup_plans_by_fixture: dict[str, list[MatchdayCheckpointPlanModel]] = defaultdict(
+            list
+        )
         for plan in plans:
-            if "odds" not in set(plan.endpoints or []):
-                continue
-            plans_by_fixture[plan.fixture_id].append(plan)
+            endpoints = set(plan.endpoints or [])
+            if "odds" in endpoints:
+                plans_by_fixture[plan.fixture_id].append(plan)
+            if "lineups" in endpoints:
+                lineup_plans_by_fixture[plan.fixture_id].append(plan)
         result: dict[str, dict[str, Any]] = {}
         for canonical_id in canonical_ids:
             current_capture = latest_capture.get(canonical_id)
             current_snapshot = latest_snapshot.get(canonical_id)
-            fixture_plans = sorted(
-                plans_by_fixture.get(canonical_id, []),
-                key=lambda plan: (_utc(plan.scheduled_at), plan.plan_id),
+            fixture_plans = plans_by_fixture.get(canonical_id, [])
+            target, cause, overdue = _collection_window(
+                fixture_plans, satisfied_plan_ids, reference
             )
-            due = [plan for plan in fixture_plans if _utc(plan.scheduled_at) <= reference]
-            future = [plan for plan in fixture_plans if _utc(plan.scheduled_at) > reference]
-            target = due[-1] if due and due[-1].plan_id not in satisfied_plan_ids else None
-            if target is not None:
-                cause = "AWAITING_COLLECTION"
-            elif future:
-                target = future[0]
-                cause = "NOT_YET_DUE"
-            else:
-                cause = None
             target_scheduled_at = _utc(target.scheduled_at) if target is not None else None
             target_window_end = _utc(target.window_end) if target is not None else None
-            overdue = bool(
-                cause == "AWAITING_COLLECTION"
-                and target_window_end is not None
-                and reference > target_window_end
+            lineup_plans = lineup_plans_by_fixture.get(canonical_id, [])
+            lineup_target, lineup_cause, lineup_overdue = _collection_window(
+                lineup_plans, satisfied_lineup_plan_ids, reference
             )
             status = (
                 "PROVIDER_EMPTY"
@@ -1296,6 +1332,27 @@ class ReadModelRepository:
                     "public_semantics": {"scope": "MATCH", "cause": cause},
                 },
             }
+            if lineup_plans:
+                payload["lineup_collection"] = {
+                    "target_checkpoint": (
+                        lineup_target.checkpoint if lineup_target is not None else None
+                    ),
+                    "scheduled_at": _iso_or_none(
+                        _utc(lineup_target.scheduled_at)
+                        if lineup_target is not None
+                        else None
+                    ),
+                    "window_end_at": _iso_or_none(
+                        _utc(lineup_target.window_end)
+                        if lineup_target is not None
+                        else None
+                    ),
+                    "overdue": lineup_overdue,
+                    "public_semantics": {
+                        "scope": "MATCH",
+                        "cause": lineup_cause,
+                    },
+                }
             result[canonical_id] = payload
             result[canonical_id.removeprefix("api_football:")] = payload
         return result

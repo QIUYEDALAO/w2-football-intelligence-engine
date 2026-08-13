@@ -190,10 +190,21 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
     assert schemas["WorkspaceMatch"]["properties"]["market_collection"] == {
         "$ref": "#/components/schemas/WorkspaceMarketCollection"
     }
+    assert schemas["WorkspaceMatch"]["properties"]["lineup_collection"] == {
+        "$ref": "#/components/schemas/WorkspaceLineupCollection"
+    }
     assert "market_collection" in schemas["WorkspaceMatch"]["required"]
+    assert "lineup_collection" in schemas["WorkspaceMatch"]["required"]
     assert set(schemas["WorkspaceMarketCollection"]["properties"]) == {
         "latest_snapshot_at",
         "latest_snapshot_checkpoint",
+        "target_checkpoint",
+        "scheduled_at",
+        "window_end_at",
+        "overdue",
+        "public_semantics",
+    }
+    assert set(schemas["WorkspaceLineupCollection"]["properties"]) == {
         "target_checkpoint",
         "scheduled_at",
         "window_end_at",

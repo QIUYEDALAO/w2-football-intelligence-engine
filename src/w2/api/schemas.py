@@ -696,6 +696,32 @@ class WorkspaceMarketCollection(BaseModel):
         return self
 
 
+class WorkspaceLineupCollection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target_checkpoint: str | None
+    scheduled_at: datetime | str | None
+    window_end_at: datetime | str | None
+    overdue: bool
+    public_semantics: WorkspacePublicSemantics
+
+    @model_validator(mode="after")
+    def collection_window_is_exact(self) -> WorkspaceLineupCollection:
+        if self.public_semantics.scope != "MATCH":
+            raise ValueError("lineup collection semantics must describe one match")
+        cause = self.public_semantics.cause
+        if cause not in {None, "NOT_YET_DUE", "AWAITING_COLLECTION", "UNASSESSED"}:
+            raise ValueError("lineup collection cause is not temporal")
+        if cause in {"NOT_YET_DUE", "AWAITING_COLLECTION"} and any(
+            value is None
+            for value in (self.target_checkpoint, self.scheduled_at, self.window_end_at)
+        ):
+            raise ValueError("scheduled lineup collection requires checkpoint and window")
+        if self.overdue and cause != "AWAITING_COLLECTION":
+            raise ValueError("only an awaiting lineup window can be overdue")
+        return self
+
+
 class WorkspaceMatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -711,6 +737,7 @@ class WorkspaceMatch(BaseModel):
     status: str | None
     outcome: WorkspaceMatchOutcome
     market_collection: WorkspaceMarketCollection
+    lineup_collection: WorkspaceLineupCollection
     intelligence_state: IntelligenceState
     intelligence_reason_codes: list[str]
     priority_reason_primary: DashboardPriorityReason | None
@@ -771,6 +798,15 @@ class WorkspaceMatch(BaseModel):
         )
         if self.readiness.candidate_input_status != expected_candidate_input:
             raise ValueError("match candidate input must derive from per-market eligibility")
+        if (
+            "lineups" in self.readiness.missing_fields
+            and self.lineup_collection.public_semantics.cause == "NOT_YET_DUE"
+        ):
+            data_risk = self.risks.data_risk
+            if "待补齐：首发" in data_risk.explanation:
+                raise ValueError("not-yet-due lineups cannot be an anomalous missing input")
+            if set(self.readiness.missing_fields) == {"lineups"} and data_risk.status != "OK":
+                raise ValueError("not-yet-due lineups alone cannot make data risk abnormal")
         if self.shadow_candidate.status == "ACTIVE":
             selected = self.market_radar.markets.get(str(self.shadow_candidate.market))
             if selected is None or selected.eligibility.candidate_eligibility_status != "READY":

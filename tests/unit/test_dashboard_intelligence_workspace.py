@@ -164,6 +164,13 @@ def _card(fixture_id: str, snapshot_count: int) -> dict[str, Any]:
                 "overdue": False,
                 "public_semantics": {"scope": "MATCH", "cause": "NOT_YET_DUE"},
             },
+            "lineup_collection": {
+                "target_checkpoint": "T60_ODDS_LINEUPS",
+                "scheduled_at": "2026-08-10T09:00:00Z",
+                "window_end_at": "2026-08-10T09:20:00Z",
+                "overdue": False,
+                "public_semantics": {"scope": "MATCH", "cause": "NOT_YET_DUE"},
+            },
         },
         "card_hash": f"hash-{fixture_id}",
         "source": "decision_contract",
@@ -1285,7 +1292,57 @@ def test_data_risk_names_missing_inputs_and_clearance_condition() -> None:
 
     explanation = _workspace(day_view)["matches"][0]["risks"]["DATA_RISK"]["explanation"]
 
-    assert explanation == "待补齐：首发、xG、球队评级、球队身价；既有采集或模型投影形成后解除"
+    assert explanation == "待补齐：xG、球队评级、球队身价；既有采集或模型投影形成后解除"
+
+
+def test_data_risk_keeps_lineup_missing_after_collection_is_due() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]
+    card["missing_fields"] = ["lineups", "xg"]
+    card["risk_dimensions"]["DATA_RISK"] = {
+        "dimension": "DATA_RISK",
+        "status": "INCIDENT",
+        "reason_codes": ["DATA_REQUIRED_INPUT_MISSING", "DATA_STATUS_BLOCKED"],
+    }
+    card["data_refresh"]["lineup_collection"]["public_semantics"][
+        "cause"
+    ] = "AWAITING_COLLECTION"
+
+    explanation = _workspace(day_view)["matches"][0]["risks"]["DATA_RISK"][
+        "explanation"
+    ]
+
+    assert explanation == "待补齐：首发、xG；既有采集或模型投影形成后解除"
+
+
+def test_not_yet_due_lineup_alone_is_not_an_abnormal_data_risk() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]
+    card["missing_fields"] = ["lineups"]
+    card["risk_dimensions"]["DATA_RISK"] = {
+        "dimension": "DATA_RISK",
+        "status": "INCIDENT",
+        "reason_codes": ["DATA_REQUIRED_INPUT_MISSING", "DATA_STATUS_BLOCKED"],
+    }
+
+    risk = _workspace(day_view)["matches"][0]["risks"]["DATA_RISK"]
+
+    assert risk["status"] == "OK"
+    assert risk["explanation"] == "尚无到期的数据输入缺口"
+
+
+def test_schema_rejects_not_yet_due_lineup_as_anomalous_missing_input() -> None:
+    payload = _workspace(_day_view())
+    match = payload["matches"][0]
+    match["readiness"]["missing_fields"] = ["lineups", "xg"]
+    match["risks"]["DATA_RISK"]["explanation"] = "待补齐：首发、xG"
+
+    with pytest.raises(
+        ValueError, match="not-yet-due lineups cannot be an anomalous missing input"
+    ):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "lineup-cross-panel-contradiction", **payload}
+        )
 
 
 @pytest.mark.parametrize(

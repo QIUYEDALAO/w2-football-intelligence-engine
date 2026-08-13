@@ -181,6 +181,13 @@ export interface WorkspaceMatch {
     overdue: boolean;
     public_semantics: PublicStatusSemantics;
   };
+  lineup_collection: {
+    target_checkpoint: string | null;
+    scheduled_at: string | null;
+    window_end_at: string | null;
+    overdue: boolean;
+    public_semantics: PublicStatusSemantics;
+  };
   intelligence_state: IntelligenceState;
   intelligence_reason_codes: string[];
   priority_reason_primary: string | null;

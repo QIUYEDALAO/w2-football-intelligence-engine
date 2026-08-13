@@ -1463,7 +1463,7 @@ def test_satisfied_collection_window_exposes_snapshot_checkpoint_and_next_plan(
     }
 
 
-def test_next_market_collection_ignores_lineups_only_checkpoint(
+def test_lineups_only_checkpoint_is_separate_from_market_collection(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
@@ -1504,6 +1504,15 @@ def test_next_market_collection_ignores_lineups_only_checkpoint(
             "window_end_at": None,
             "overdue": False,
             "public_semantics": {"scope": "MATCH", "cause": None},
+        },
+        "lineup_collection": {
+            "target_checkpoint": "T45_LINEUPS_RETRY",
+            "scheduled_at": scheduled_at.isoformat().replace("+00:00", "Z"),
+            "window_end_at": (scheduled_at + timedelta(minutes=5))
+            .isoformat()
+            .replace("+00:00", "Z"),
+            "overdue": False,
+            "public_semantics": {"scope": "MATCH", "cause": "NOT_YET_DUE"},
         },
     }
 

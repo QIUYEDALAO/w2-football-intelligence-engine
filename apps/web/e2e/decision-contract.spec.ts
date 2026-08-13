@@ -124,6 +124,7 @@ function match(id: string, options: { rich?: boolean; stale?: boolean; modelWarn
     status: "NS",
     outcome: { is_finished: false, is_tracked: Boolean(options.rich && !options.stale), is_recorded: false, public_semantics: { scope: "MATCH", cause: "NOT_YET_DUE" } },
     market_collection: { latest_snapshot_at: options.rich ? "2026-08-09T12:11:00Z" : null, latest_snapshot_checkpoint: options.rich ? "T24_OPEN_ODDS" : null, target_checkpoint: "T12_OPEN_ODDS", scheduled_at: "2026-08-09T14:30:00Z", window_end_at: "2026-08-09T14:40:00Z", overdue: false, public_semantics: { scope: "MATCH", cause: "NOT_YET_DUE" } },
+    lineup_collection: { target_checkpoint: "T60_ODDS_LINEUPS", scheduled_at: "2026-08-09T13:30:00Z", window_end_at: "2026-08-09T13:50:00Z", overdue: false, public_semantics: { scope: "MATCH", cause: "NOT_YET_DUE" } },
     intelligence_state: options.modelWarning ? "MODEL_DIAGNOSTIC_WARNING" : options.rich ? "MARKET_MOVEMENT" : "DATA_INCOMPLETE",
     intelligence_reason_codes: [options.stale ? "QUOTE_OLDER_THAN_30_MINUTES" : options.modelWarning ? "MODEL_OUTSIDE_MARKET_RANGE" : options.rich ? "MARKET_LINE_MOVEMENT" : "DATA_INCOMPLETE"],
     priority_reason_primary: reason,
@@ -607,6 +608,32 @@ test("V41 derives age across timezone and day boundaries and never labels a past
   await expect(schedule.locator("span").nth(4)).toHaveText("下次评估");
   await expect(schedule.locator("strong").nth(4)).toHaveText("评估时间已过期");
   await expect(schedule).toHaveCSS("display", "grid");
+});
+
+test("V41 keeps not-yet-due lineups out of anomalous missing inputs", async ({ page }) => {
+  const payload = workspace();
+  payload.generated_at = "2026-08-09T00:30:00Z";
+  const focused = payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!;
+  focused.readiness.missing_fields = ["lineups", "xg", "ratings", "team_value"];
+  focused.risks.DATA_RISK = {
+    dimension: "DATA_RISK",
+    status: "INCIDENT",
+    reason_codes: ["DATA_REQUIRED_INPUT_MISSING", "DATA_STATUS_BLOCKED"],
+    explanation: "待补齐：xG、球队评级、球队身价；既有采集或模型投影形成后解除",
+  };
+  focused.lineup_collection = {
+    target_checkpoint: "T60_ODDS_LINEUPS",
+    scheduled_at: "2026-08-09T13:30:00Z",
+    window_end_at: "2026-08-09T13:50:00Z",
+    overdue: false,
+    public_semantics: { scope: "MATCH", cause: "NOT_YET_DUE" },
+  };
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.goto("/");
+  const risk = page.locator("[data-risk-axis='DATA_RISK']");
+  await expect(risk).toContainText("待补齐：xG、球队评级、球队身价");
+  await expect(risk).not.toContainText("待补齐：首发");
+  await expect(risk).toContainText("等待中：首发（T60_ODDS_LINEUPS 窗口）· 计划 2026-08-09 21:30（约 13 小时 0 分后）");
 });
 
 for (const state of [

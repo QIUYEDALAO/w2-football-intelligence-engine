@@ -417,12 +417,14 @@ function MarketEvidence({ market, generatedAt, kickoff, latestSnapshotAt, latest
   );
 }
 
-function RiskSummary({ match }: { match: WorkspaceMatch }) {
+function RiskSummary({ generatedAt, match }: { generatedAt: string | null; match: WorkspaceMatch }) {
+  const lineupWaiting = match.readiness.missing_fields.includes("lineups")
+    && match.lineup_collection.public_semantics.cause === "NOT_YET_DUE";
   return (
     <div className="v41-risk-list" aria-label="四轴风险">
       {(Object.keys(RISK_LABELS) as RiskAxisName[]).map((axis) => {
         const risk = match.risks[axis];
-        return <div className={`is-${risk.status.toLowerCase()}`} key={axis}><span>{RISK_LABELS[axis]}</span><strong>{risk.assessment_status === "UNASSESSED" ? "未评估" : label(risk.status)}</strong><small>{risk.explanation || "没有可陈述的源证据"}</small>{risk.reason_codes.length ? <details className="v41-risk-codes"><summary>技术原因 {risk.reason_codes.length} 项</summary>{risk.reason_codes.map((reason) => <code key={reason}>{reason}</code>)}</details> : null}</div>;
+        return <div className={`is-${risk.status.toLowerCase()}`} data-risk-axis={axis} key={axis}><span>{RISK_LABELS[axis]}</span><strong>{risk.assessment_status === "UNASSESSED" ? "未评估" : label(risk.status)}</strong><small>{risk.explanation || "没有可陈述的源证据"}</small>{axis === "DATA_RISK" && lineupWaiting ? <small>等待中：首发（{match.lineup_collection.target_checkpoint} 窗口）· 计划 {scheduledEvaluation(match.lineup_collection.scheduled_at, generatedAt)}</small> : null}{risk.reason_codes.length ? <details className="v41-risk-codes"><summary>技术原因 {risk.reason_codes.length} 项</summary>{risk.reason_codes.map((reason) => <code key={`${axis}-${reason}`}>{reason}</code>)}</details> : null}</div>;
       })}
     </div>
   );
@@ -468,7 +470,7 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
             <footer>Formal、Lock、Production 与实盘保持关闭；达到既有证据门槛后另行提交 Owner 审批。</footer>
           </section> : null}
           <div className="v41-diagnostic"><span /><p><b>当前模型状态：{label(model.status)}</b>{`让球：${label(marketRelations[0]?.status)}；大小球：${label(marketRelations[1]?.status)}。市场值年龄已在左侧逐市场标注；${marketRelations.some((relation) => ["COMPARABLE_WITHIN_MARKET_RANGE", "MODEL_OUTSIDE_MARKET_RANGE"].includes(relation?.status || "")) ? "已就绪市场的模型—市场差异仅用于诊断。" : "当前不进行模型—市场比较。"}优先检查模型校准、特征时效、盘口身份和数据质量。`}</p></div>
-          <RiskSummary match={match} />
+          <RiskSummary generatedAt={generatedAt} match={match} />
           <Scoreline match={match} />
           <div className="v41-next"><span>市场 / 候选就绪</span><strong>{candidateAggregateLabel(match.readiness.market_aggregate_status)}</strong><span>采集状态</span><strong>{collectionLabel(match)}</strong><span>计划时刻</span><strong>{match.market_collection.scheduled_at ? scheduledEvaluation(match.market_collection.scheduled_at, generatedAt) : "暂无后续计划"}</strong><span>宽限结束</span><strong>{match.market_collection.window_end_at ? localDateTime(match.market_collection.window_end_at) : "不适用"}</strong><span>下次评估</span><strong>{nextEvaluation(match.readiness.next_eval_at, generatedAt)}</strong></div>
           <details className="v41-details"><summary>技术详情</summary><code>{match.intelligence_state}</code><code>{match.readiness.reason_code || "NO_REASON_CODE"}</code><code>market_aggregate={match.readiness.market_aggregate_status}</code><code>model_source={model.source_status}</code>{markets.map((market) => <span key={market.market}><code>{market.market}:{market.eligibility.model_diagnostic_status}</code>{market.reason_codes.map((reason) => <code key={`${market.market}-${reason}`}>{market.market}:{reason}</code>)}{market.eligibility.blockers.map((blocker) => <code key={`${market.market}-${blocker}`}>{market.market}:{blocker}</code>)}</span>)}</details>
