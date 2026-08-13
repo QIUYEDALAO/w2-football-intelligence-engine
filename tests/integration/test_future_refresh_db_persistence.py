@@ -1214,23 +1214,41 @@ def test_fixture_scoped_market_refresh_status_reads_canonical_matchday_plan(
     engine = create_engine(get_settings().database_url.get_secret_value())
     scheduled_at = NOW + timedelta(minutes=30)
     with Session(engine) as session:
-        session.add(
-            MatchdayCheckpointPlanModel(
-                plan_id="canonical-plan",
-                fixture_id="api_football:fixture",
-                competition_id="world_cup_2026",
-                season="2026",
-                policy_version="test-policy",
-                checkpoint="T30",
-                kickoff_utc=NOW + timedelta(hours=1),
-                scheduled_at=scheduled_at,
-                window_start=scheduled_at,
-                window_end=scheduled_at + timedelta(minutes=5),
-                endpoints=["odds"],
-                status="PLANNED",
-                blockers=[],
-                plan_hash="a" * 64,
-            )
+        session.add_all(
+            [
+                MatchdayCheckpointPlanModel(
+                    plan_id="canonical-plan",
+                    fixture_id="api_football:fixture",
+                    competition_id="world_cup_2026",
+                    season="2026",
+                    policy_version="test-policy",
+                    checkpoint="T30",
+                    kickoff_utc=NOW + timedelta(hours=1),
+                    scheduled_at=scheduled_at,
+                    window_start=scheduled_at,
+                    window_end=scheduled_at + timedelta(minutes=5),
+                    endpoints=["odds"],
+                    status="PLANNED",
+                    blockers=[],
+                    plan_hash="a" * 64,
+                ),
+                MatchdayCheckpointPlanModel(
+                    plan_id="past-odds-plan",
+                    fixture_id="api_football:fixture",
+                    competition_id="world_cup_2026",
+                    season="2026",
+                    policy_version="test-policy",
+                    checkpoint="T48",
+                    kickoff_utc=NOW + timedelta(hours=1),
+                    scheduled_at=NOW - timedelta(minutes=30),
+                    window_start=NOW - timedelta(minutes=30),
+                    window_end=NOW - timedelta(minutes=25),
+                    endpoints=["odds"],
+                    status="DUE",
+                    blockers=[],
+                    plan_hash="b" * 64,
+                ),
+            ]
         )
         session.commit()
 
@@ -1242,13 +1260,50 @@ def test_fixture_scoped_market_refresh_status_reads_canonical_matchday_plan(
     )["fixture"] == {
         "odds_status": "WAITING_WINDOW",
         "last_refresh_hint": None,
-        "next_refresh_at": scheduled_at.isoformat().replace("+00:00", "Z"),
+        "next_market_collection_at": scheduled_at.isoformat().replace("+00:00", "Z"),
     }
     assert FutureRefreshDbRepository().next_market_refresh_by_fixture(
         ["fixture", "api_football:fixture"], now=NOW
     ) == {
         "fixture": scheduled_at.isoformat().replace("+00:00", "Z"),
         "api_football:fixture": scheduled_at.isoformat().replace("+00:00", "Z"),
+    }
+
+
+def test_next_market_collection_ignores_lineups_only_checkpoint(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    scheduled_at = NOW + timedelta(minutes=10)
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        session.add(
+            MatchdayCheckpointPlanModel(
+                plan_id="lineups-only-plan",
+                fixture_id="api_football:fixture",
+                competition_id="world_cup_2026",
+                season="2026",
+                policy_version="test-policy",
+                checkpoint="T45_LINEUPS_RETRY",
+                kickoff_utc=NOW + timedelta(hours=1),
+                scheduled_at=scheduled_at,
+                window_start=scheduled_at,
+                window_end=scheduled_at + timedelta(minutes=5),
+                endpoints=["lineups"],
+                status="PLANNED",
+                blockers=[],
+                plan_hash="c" * 64,
+            )
+        )
+        session.commit()
+
+    assert DashboardReadModelRepository().market_collection_status_for_fixtures(
+        ["fixture"], now=NOW
+    )["fixture"] == {
+        "odds_status": "NOT_SCHEDULED",
+        "last_refresh_hint": None,
+        "next_market_collection_at": None,
     }
 
 
@@ -1295,7 +1350,7 @@ def test_market_collection_status_distinguishes_empty_provider_from_unmapped_mar
     )["fixture"] == {
         "odds_status": expected_status,
         "last_refresh_hint": NOW.isoformat().replace("+00:00", "Z"),
-        "next_refresh_at": None,
+        "next_market_collection_at": None,
     }
 
 

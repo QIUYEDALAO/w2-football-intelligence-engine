@@ -154,6 +154,7 @@ def _card(fixture_id: str, snapshot_count: int) -> dict[str, Any]:
             "statistics_captured_at": "2026-08-09T01:00:00Z",
             "lineups_status": "PROVIDER_EMPTY",
             "injuries_status": "AVAILABLE",
+            "next_market_collection_at": "2026-08-09T14:30:00Z",
         },
         "card_hash": f"hash-{fixture_id}",
         "source": "decision_contract",
@@ -465,6 +466,10 @@ def test_workspace_is_deterministic_explicit_and_schema_valid() -> None:
         "is_recorded": False,
         "public_semantics": {"scope": "MATCH", "cause": "NOT_YET_DUE"},
     }
+    assert first["matches"][0]["next_market_collection_at"] == (
+        "2026-08-09T14:30:00Z"
+    )
+    assert first["matches"][0]["readiness"]["next_eval_at"] is None
     scoreline = first["matches"][0]["scoreline_reference"]
     assert scoreline["simulations_completed"] == 10_000
     assert scoreline["top3"] == [

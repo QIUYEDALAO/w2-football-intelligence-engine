@@ -37,7 +37,7 @@ Each match has one `priority_reason_primary` and zero or more `priority_reason_s
 
 ## Time authority
 
-`generated_at`, `kickoff_utc`, `latest_snapshot_at`, `freshness_max_age_seconds`, and `next_eval_at` are raw source fields. Relative age, countdown and next-evaluation labels are derived by the client. A timestamp not later than `generated_at` is labelled expired, never "next".
+`generated_at`, `kickoff_utc`, `latest_snapshot_at`, `freshness_max_age_seconds`, `next_eval_at`, and `next_market_collection_at` are raw source fields. Relative age, countdown and next-evaluation labels are derived by the client. A timestamp not later than `generated_at` is labelled expired, never "next". `next_market_collection_at` comes only from a future persisted odds checkpoint and is displayed separately from the decision/readiness `next_eval_at`.
 
 Outcome timing uses the existing result-settlement boundary of kickoff plus
 three hours. Before that boundary, an unfinished match is `NOT_YET_DUE`; after

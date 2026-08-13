@@ -123,6 +123,7 @@ function match(id: string, options: { rich?: boolean; stale?: boolean; modelWarn
     public_semantics: { scope: "MATCH", cause: options.rich && !options.stale ? null : "INSUFFICIENT" },
     status: "NS",
     outcome: { is_finished: false, is_tracked: Boolean(options.rich && !options.stale), is_recorded: false, public_semantics: { scope: "MATCH", cause: "NOT_YET_DUE" } },
+    next_market_collection_at: "2026-08-09T14:30:00Z",
     intelligence_state: options.modelWarning ? "MODEL_DIAGNOSTIC_WARNING" : options.rich ? "MARKET_MOVEMENT" : "DATA_INCOMPLETE",
     intelligence_reason_codes: [options.stale ? "MARKET_STALE" : options.modelWarning ? "MODEL_OUTSIDE_MARKET_RANGE" : options.rich ? "MARKET_LINE_MOVEMENT" : "DATA_INCOMPLETE"],
     priority_reason_primary: reason,
@@ -586,6 +587,9 @@ test("V41 derives age across timezone and day boundaries and never labels a past
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
   await expect(page.locator("[data-market='ASIAN_HANDICAP']")).toContainText("距最新快照 1 小时 12 分");
+  await expect(page.locator("[data-market='ASIAN_HANDICAP']")).toContainText("新鲜度阈值 6 小时 0 分");
+  await expect(page.locator(".v41-next")).toContainText("下一次赔率采集（独立于决策评估）");
+  await expect(page.locator(".v41-next")).toContainText("2026-08-09 22:30");
   await expect(page.locator(".v41-next")).toContainText("评估时间已过期");
   await expect(page.locator(".v41-next")).not.toContainText("下次评估");
 });

@@ -1206,6 +1206,9 @@ class ReadModelRepository:
                 ).where(
                     MatchdayCheckpointPlanModel.fixture_id.in_(canonical_ids),
                     MatchdayCheckpointPlanModel.status.in_(("PLANNED", "DUE")),
+                    MatchdayCheckpointPlanModel.scheduled_at >= reference,
+                    MatchdayCheckpointPlanModel.test_only.is_(False),
+                    MatchdayCheckpointPlanModel.namespace.is_(None),
                 )
             ).all()
         latest: dict[str, MatchdayEndpointCaptureModel] = {}
@@ -1249,7 +1252,9 @@ class ReadModelRepository:
                 "last_refresh_hint": _iso_or_none(
                     current_capture.provider_captured_at if current_capture is not None else None
                 ),
-                "next_refresh_at": _iso_or_none(next_plan[0] if next_plan else None),
+                "next_market_collection_at": _iso_or_none(
+                    next_plan[0] if next_plan else None
+                ),
             }
             result[canonical_id] = payload
             result[canonical_id.removeprefix("api_football:")] = payload

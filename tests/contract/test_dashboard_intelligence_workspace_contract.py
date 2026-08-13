@@ -187,6 +187,8 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
     assert schemas["WorkspaceMatch"]["properties"]["outcome"] == {
         "$ref": "#/components/schemas/WorkspaceMatchOutcome"
     }
+    assert "next_market_collection_at" in schemas["WorkspaceMatch"]["properties"]
+    assert "next_market_collection_at" in schemas["WorkspaceMatch"]["required"]
     assert set(schemas["WorkspaceMatchOutcome"]["properties"]) == {
         "is_finished",
         "is_tracked",

@@ -172,6 +172,7 @@ export interface WorkspaceMatch {
     is_recorded: boolean;
     public_semantics: PublicStatusSemantics;
   };
+  next_market_collection_at: string | null;
   intelligence_state: IntelligenceState;
   intelligence_reason_codes: string[];
   priority_reason_primary: string | null;

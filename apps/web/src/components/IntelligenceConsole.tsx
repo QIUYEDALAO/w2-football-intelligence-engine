@@ -139,6 +139,14 @@ function ageLabel(generatedAt: string | null, sourceAt: string | null): string {
   return minutes < 60 ? `${minutes} 分钟` : `${Math.floor(minutes / 60)} 小时 ${minutes % 60} 分`;
 }
 
+function durationLabel(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) {
+    return "未定义";
+  }
+  const minutes = Math.floor(Math.max(0, seconds) / 60);
+  return minutes < 60 ? `${minutes} 分钟` : `${Math.floor(minutes / 60)} 小时 ${minutes % 60} 分`;
+}
+
 function nextEvaluation(next: string | null, generatedAt: string | null): string {
   if (!next) return "暂无未来评估时间";
   const nextAt = new Date(next).valueOf();
@@ -389,7 +397,7 @@ function MarketEvidence({ market, generatedAt, kickoff }: { market: WorkspaceMar
       <Timeline kickoff={kickoff} market={market} />
       <p className="v41-market-foot">
         <span>{market.snapshot_count} 个真实快照 · 点间不插值、不推断缺失路径</span>
-        <span>最新 {localDateTime(market.latest_snapshot_at)} · 距最新快照 {ageLabel(generatedAt, market.latest_snapshot_at)}</span>
+        <span>最新 {localDateTime(market.latest_snapshot_at)} · 距最新快照 {ageLabel(generatedAt, market.latest_snapshot_at)} · 新鲜度阈值 {durationLabel(market.freshness_max_age_seconds)}</span>
       </p>
       <div className="v41-market-semantics"><b>走势证据：{label(market.trend_evidence_status)}</b><span>{comparisonSummary(market)}</span></div>
       <div className="v41-market-semantics"><b>市场证据：{label(market.eligibility.observation_status)}</b><span>精确候选报价：{label(market.eligibility.candidate_quote_identity_status)} · 模型：{label(market.eligibility.candidate_model_status)}</span></div>
@@ -450,7 +458,7 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
           <div className={`v41-diagnostic ${stale ? "is-stale" : ""}`}><span /><p><b>{stale ? "市场记忆不可作为当前比较权威" : `当前模型状态：${label(model.status)}`}</b>{stale ? "等待既有采集调度形成新快照后再比较。" : `让球：${label(marketRelations[0]?.status)}；大小球：${label(marketRelations[1]?.status)}。模型与市场差异仅用于诊断；优先检查模型校准、特征时效、盘口身份和数据质量。`}</p></div>
           <RiskSummary match={match} />
           <Scoreline match={match} />
-          <div className="v41-next"><span>市场 / 候选就绪</span><strong>{label(match.readiness.market_aggregate_status)}</strong><b>市场证据 {label(match.readiness.market_evidence_status)} · 候选输入 {label(match.readiness.candidate_input_status)} · {nextEvaluation(match.readiness.next_eval_at, generatedAt)}</b></div>
+          <div className="v41-next"><span>市场 / 候选就绪</span><strong>{label(match.readiness.market_aggregate_status)}</strong><b>市场证据 {label(match.readiness.market_evidence_status)} · 候选输入 {label(match.readiness.candidate_input_status)} · {nextEvaluation(match.readiness.next_eval_at, generatedAt)} · 下一次赔率采集（独立于决策评估）{match.next_market_collection_at ? localDateTime(match.next_market_collection_at) : "暂无后续计划"}</b></div>
           <details className="v41-details"><summary>技术详情</summary><code>{match.intelligence_state}</code><code>{match.readiness.reason_code || "NO_REASON_CODE"}</code><code>market_aggregate={match.readiness.market_aggregate_status}</code><code>model_source={model.source_status}</code>{markets.map((market) => <span key={market.market}><code>{market.market}:{market.eligibility.model_diagnostic_status}</code>{market.reason_codes.map((reason) => <code key={`${market.market}-${reason}`}>{market.market}:{reason}</code>)}{market.eligibility.blockers.map((blocker) => <code key={`${market.market}-${blocker}`}>{market.market}:{blocker}</code>)}</span>)}</details>
         </div>
       </div>

@@ -85,12 +85,15 @@ kickoff_utc
 latest_snapshot_at
 freshness_max_age_seconds
 next_eval_at
+next_market_collection_at
 checkpoint_generated_at
 ```
 
 The client derives countdowns and ages from these values across timezone and
 football-day boundaries. `next_eval_at <= generated_at` is displayed as
-expired, never as a next evaluation. Market `READY` remains source-bound;
+expired, never as a next evaluation. `next_market_collection_at` is separately
+derived from the earliest future persisted odds checkpoint; it is never copied
+from or substituted by `next_eval_at`. Market `READY` remains source-bound;
 `STALE` and `READY` cannot coexist for the same public market. A global model
 quality checkpoint is `AVAILABLE` only when its timestamp is current and all
 required probability metrics exist. A timestamp beyond the boundary is

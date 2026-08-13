@@ -685,6 +685,7 @@ class WorkspaceMatch(BaseModel):
     public_semantics: WorkspacePublicSemantics
     status: str | None
     outcome: WorkspaceMatchOutcome
+    next_market_collection_at: datetime | str | None
     intelligence_state: IntelligenceState
     intelligence_reason_codes: list[str]
     priority_reason_primary: DashboardPriorityReason | None

@@ -249,6 +249,9 @@ def _match(
         == "READY"
         for market in markets.values()
     )
+    next_market_collection_at = _mapping(card.get("data_refresh")).get(
+        "next_market_collection_at"
+    )
     return {
         "fixture_id": _text(card.get("fixture_id")),
         "competition_id": _optional_text(card.get("competition_id")),
@@ -259,6 +262,11 @@ def _match(
         "home_team_label": _public_team_label(card, "home"),
         "away_team_label": _public_team_label(card, "away"),
         "status": _optional_text(card.get("status")),
+        "next_market_collection_at": (
+            next_market_collection_at
+            if _is_future_timestamp(next_market_collection_at, generated_at)
+            else None
+        ),
         "intelligence_state": _text(card.get("intelligence_state"), "DATA_INCOMPLETE"),
         "intelligence_reason_codes": _string_list(card.get("intelligence_reason_codes")),
         "risks": _risks(_mapping(card.get("risk_dimensions"))),
