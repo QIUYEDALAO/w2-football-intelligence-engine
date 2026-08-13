@@ -1620,6 +1620,19 @@ summary {
 }
 
 @media (max-width: 760px) {
+  .v41-today-primary {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .v41-today-primary p {
+    flex-wrap: wrap;
+  }
+
+  .v41-today-primary p span {
+    white-space: normal;
+  }
+
   .v41-shortlist-filters {
     flex-wrap: nowrap;
     overflow-x: auto;
