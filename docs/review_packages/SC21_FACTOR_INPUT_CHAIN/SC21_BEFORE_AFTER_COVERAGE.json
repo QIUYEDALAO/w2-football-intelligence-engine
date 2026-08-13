@@ -1,12 +1,12 @@
 {
   "after_saved_raw_dry_run": {
-    "ah_current_market_ready": 1,
+    "ah_current_market_ready": 0,
     "ah_exact_quote_ready": 0,
     "due_lineup_ready": 0,
     "fixture_count": 36,
     "immutable_shadow_candidate_active": 6,
     "market_depth_ready": 72,
-    "ou_current_market_ready": 1,
+    "ou_current_market_ready": 0,
     "ou_exact_quote_ready": 0,
     "rating_bilateral_ready": 8,
     "rating_new_snapshot_candidates": 0,
@@ -18,13 +18,13 @@
     "xg_saved_raw_would_upsert_rolling_snapshots": 22
   },
   "before": {
-    "ah_current_market_ready": 1,
+    "ah_current_market_ready": 0,
     "ah_exact_quote_ready": 0,
     "due_lineup_ready": 0,
     "fixture_count": 36,
     "immutable_shadow_candidate_active": 6,
     "market_depth_ready": 72,
-    "ou_current_market_ready": 1,
+    "ou_current_market_ready": 0,
     "ou_exact_quote_ready": 0,
     "rating_bilateral_ready": 8,
     "simulation_ready": 9,
@@ -32,7 +32,7 @@
     "xg_four_field_ready": 9
   },
   "database_writes": 0,
-  "evidence_as_of": "2026-08-13T19:09:28.493050Z",
+  "evidence_as_of": "2026-08-13T20:16:58.717297Z",
   "interpretation": "Saved-raw xG, Rating and TeamValue dry-runs do not increase current T+7 readiness. Existing forward records remain immutable.",
   "provider_calls": 0,
   "schema_version": "w2.sc21-before-after-coverage.v1"

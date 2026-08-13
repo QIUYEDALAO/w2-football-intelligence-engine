@@ -1,7 +1,7 @@
 {
-  "audit_generated_at": "2026-08-13T19:09:28.493050Z",
+  "audit_generated_at": "2026-08-13T20:16:58.717297Z",
   "business_writes_by_audit": 0,
-  "evidence_as_of": "2026-08-13T19:09:28.493050Z",
+  "evidence_as_of": "2026-08-13T20:16:58.717297Z",
   "fixtures": [
     {
       "competition_id": "brasileirao_serie_a",
@@ -190,7 +190,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 77955,
+            "quote_age_seconds": 82005,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -233,7 +233,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 77955,
+            "quote_age_seconds": 82005,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -318,6 +318,8 @@
           "MISSING_SOURCE_REVISION",
           "MISSING_UNCERTAINTY",
           "MODEL_EVIDENCE_NOT_READY",
+          "QUOTE_FRESHNESS_BOUNDARY_INVALID",
+          "QUOTE_FRESHNESS_POLICY_NOT_REGISTERED",
           "UNSUPPORTED_MARKET"
         ],
         "outcome": "NOT_READY"
@@ -465,7 +467,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 85150,
+            "quote_age_seconds": 2810,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -477,15 +479,15 @@
           },
           "market": "ASIAN_HANDICAP",
           "observation": {
-            "latest_snapshot_at": "2026-08-12T19:30:15Z",
-            "observation_count": 20,
+            "latest_snapshot_at": "2026-08-13T19:30:05Z",
+            "observation_count": 30,
             "reason": "READY",
-            "snapshot_count": 2
+            "snapshot_count": 3
           }
         },
         "TOTALS": {
           "bookmaker_depth": {
-            "bookmaker_count": 10,
+            "bookmaker_count": 11,
             "minimum_existing_contract": 3,
             "reason": "READY"
           },
@@ -508,7 +510,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 85150,
+            "quote_age_seconds": 2810,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -520,10 +522,10 @@
           },
           "market": "TOTALS",
           "observation": {
-            "latest_snapshot_at": "2026-08-12T19:30:15Z",
-            "observation_count": 40,
+            "latest_snapshot_at": "2026-08-13T19:30:05Z",
+            "observation_count": 62,
             "reason": "READY",
-            "snapshot_count": 2
+            "snapshot_count": 3
           }
         }
       },
@@ -740,7 +742,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 18539,
+            "quote_age_seconds": 22589,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -783,7 +785,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 18539,
+            "quote_age_seconds": 22589,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -1015,7 +1017,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 118733,
+            "quote_age_seconds": 122783,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -1058,7 +1060,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 118733,
+            "quote_age_seconds": 122783,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -1143,6 +1145,8 @@
           "MISSING_SOURCE_REVISION",
           "MISSING_UNCERTAINTY",
           "MODEL_EVIDENCE_NOT_READY",
+          "QUOTE_FRESHNESS_BOUNDARY_INVALID",
+          "QUOTE_FRESHNESS_POLICY_NOT_REGISTERED",
           "UNSUPPORTED_MARKET"
         ],
         "outcome": "NOT_READY"
@@ -1267,7 +1271,7 @@
       "markets": {
         "ASIAN_HANDICAP": {
           "bookmaker_depth": {
-            "bookmaker_count": 6,
+            "bookmaker_count": 7,
             "minimum_existing_contract": 3,
             "reason": "READY"
           },
@@ -1290,7 +1294,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 85149,
+            "quote_age_seconds": 2809,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -1302,10 +1306,10 @@
           },
           "market": "ASIAN_HANDICAP",
           "observation": {
-            "latest_snapshot_at": "2026-08-12T19:30:16Z",
-            "observation_count": 24,
+            "latest_snapshot_at": "2026-08-13T19:30:06Z",
+            "observation_count": 38,
             "reason": "READY",
-            "snapshot_count": 2
+            "snapshot_count": 3
           }
         },
         "TOTALS": {
@@ -1333,7 +1337,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 85149,
+            "quote_age_seconds": 2809,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -1345,10 +1349,10 @@
           },
           "market": "TOTALS",
           "observation": {
-            "latest_snapshot_at": "2026-08-12T19:30:16Z",
-            "observation_count": 28,
+            "latest_snapshot_at": "2026-08-13T19:30:06Z",
+            "observation_count": 42,
             "reason": "READY",
-            "snapshot_count": 2
+            "snapshot_count": 3
           }
         }
       },
@@ -1565,7 +1569,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 118733,
+            "quote_age_seconds": 122783,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -1608,7 +1612,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 118733,
+            "quote_age_seconds": 122783,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -1840,7 +1844,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 118737,
+            "quote_age_seconds": 122787,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -1883,7 +1887,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 118737,
+            "quote_age_seconds": 122787,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -2115,7 +2119,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 68948,
+            "quote_age_seconds": 72998,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -2158,7 +2162,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 68948,
+            "quote_age_seconds": 72998,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -2375,7 +2379,7 @@
           },
           "candidate_eligibility": {
             "current_ready": false,
-            "reason": "RAW_PRESENT_NOT_MATERIALIZED",
+            "reason": "STALE",
             "source_blockers": [
               "NO_DIRECTION_SELECTED",
               "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
@@ -2392,8 +2396,8 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 527,
-            "reason": "READY"
+            "quote_age_seconds": 4577,
+            "reason": "STALE"
           },
           "immutable_forward_record": {
             "captured_at": null,
@@ -2418,7 +2422,7 @@
           },
           "candidate_eligibility": {
             "current_ready": false,
-            "reason": "RAW_PRESENT_NOT_MATERIALIZED",
+            "reason": "STALE",
             "source_blockers": [
               "NO_DIRECTION_SELECTED",
               "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY",
@@ -2435,8 +2439,8 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 527,
-            "reason": "READY"
+            "quote_age_seconds": 4577,
+            "reason": "STALE"
           },
           "immutable_forward_record": {
             "captured_at": null,
@@ -2667,7 +2671,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 118736,
+            "quote_age_seconds": 122786,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -2710,7 +2714,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 118736,
+            "quote_age_seconds": 122786,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -2942,7 +2946,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 54121,
+            "quote_age_seconds": 58144,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -2985,7 +2989,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 54121,
+            "quote_age_seconds": 58144,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -3176,7 +3180,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 25756,
+            "quote_age_seconds": 29806,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -3216,7 +3220,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 25756,
+            "quote_age_seconds": 29806,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -3407,7 +3411,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 25753,
+            "quote_age_seconds": 29803,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -3447,7 +3451,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 25753,
+            "quote_age_seconds": 29803,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -3638,7 +3642,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 25750,
+            "quote_age_seconds": 29800,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -3678,7 +3682,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 25750,
+            "quote_age_seconds": 29800,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -3869,7 +3873,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 7697,
+            "quote_age_seconds": 11720,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -3909,7 +3913,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 7697,
+            "quote_age_seconds": 11720,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -4100,7 +4104,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 16743,
+            "quote_age_seconds": 20793,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -4140,7 +4144,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 16743,
+            "quote_age_seconds": 20793,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -4331,7 +4335,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 126153,
+            "quote_age_seconds": 130203,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -4371,7 +4375,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 126153,
+            "quote_age_seconds": 130203,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -4562,7 +4566,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 16741,
+            "quote_age_seconds": 20791,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -4602,7 +4606,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 16741,
+            "quote_age_seconds": 20791,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -4793,7 +4797,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 22159,
+            "quote_age_seconds": 26209,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -4833,7 +4837,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 22159,
+            "quote_age_seconds": 26209,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -5065,7 +5069,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 23920,
+            "quote_age_seconds": 27970,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -5108,7 +5112,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 23920,
+            "quote_age_seconds": 27970,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -5340,7 +5344,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 14915,
+            "quote_age_seconds": 18965,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -5383,7 +5387,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 14915,
+            "quote_age_seconds": 18965,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -5617,7 +5621,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 6844,
+            "quote_age_seconds": 10894,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -5660,7 +5664,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 6844,
+            "quote_age_seconds": 10894,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -5892,7 +5896,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 18521,
+            "quote_age_seconds": 22571,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -5935,7 +5939,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 18521,
+            "quote_age_seconds": 22571,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -6167,7 +6171,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 14912,
+            "quote_age_seconds": 18962,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -6210,7 +6214,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 14912,
+            "quote_age_seconds": 18962,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -6442,7 +6446,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 7759,
+            "quote_age_seconds": 11782,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -6485,7 +6489,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 7759,
+            "quote_age_seconds": 11782,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -6717,7 +6721,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 14909,
+            "quote_age_seconds": 18959,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -6760,7 +6764,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 14909,
+            "quote_age_seconds": 18959,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -6992,7 +6996,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 27249,
+            "quote_age_seconds": 31272,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -7035,7 +7039,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 27249,
+            "quote_age_seconds": 31272,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -7267,7 +7271,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 27247,
+            "quote_age_seconds": 31270,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -7310,7 +7314,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 27247,
+            "quote_age_seconds": 31270,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -7542,7 +7546,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 25715,
+            "quote_age_seconds": 29738,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -7585,7 +7589,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 25715,
+            "quote_age_seconds": 29738,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -7817,7 +7821,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 29339,
+            "quote_age_seconds": 33389,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -7860,7 +7864,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 29339,
+            "quote_age_seconds": 33389,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -8092,7 +8096,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 27247,
+            "quote_age_seconds": 31297,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -8135,7 +8139,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 27247,
+            "quote_age_seconds": 31297,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -8326,7 +8330,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 27245,
+            "quote_age_seconds": 31295,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -8366,7 +8370,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 27245,
+            "quote_age_seconds": 31295,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -8598,7 +8602,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 25715,
+            "quote_age_seconds": 29765,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -8641,7 +8645,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 25715,
+            "quote_age_seconds": 29765,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -8873,7 +8877,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 25710,
+            "quote_age_seconds": 29760,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -8916,7 +8920,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 25710,
+            "quote_age_seconds": 29760,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -9150,7 +9154,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 4107,
+            "quote_age_seconds": 8130,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -9193,7 +9197,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 4107,
+            "quote_age_seconds": 8130,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -9278,6 +9282,8 @@
           "MISSING_SOURCE_REVISION",
           "MISSING_UNCERTAINTY",
           "MODEL_EVIDENCE_NOT_READY",
+          "QUOTE_FRESHNESS_BOUNDARY_INVALID",
+          "QUOTE_FRESHNESS_POLICY_NOT_REGISTERED",
           "UNSUPPORTED_MARKET"
         ],
         "outcome": "NOT_READY"
@@ -9425,7 +9431,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 54102,
+            "quote_age_seconds": 3624,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -9437,10 +9443,10 @@
           },
           "market": "ASIAN_HANDICAP",
           "observation": {
-            "latest_snapshot_at": "2026-08-13T04:07:42Z",
-            "observation_count": 14,
+            "latest_snapshot_at": "2026-08-13T19:16:03Z",
+            "observation_count": 28,
             "reason": "READY",
-            "snapshot_count": 1
+            "snapshot_count": 2
           }
         },
         "TOTALS": {
@@ -9468,7 +9474,7 @@
           "freshness": {
             "authority": "w2.quote_freshness.v1",
             "max_age_seconds": 1800,
-            "quote_age_seconds": 54102,
+            "quote_age_seconds": 3624,
             "reason": "STALE"
           },
           "immutable_forward_record": {
@@ -9480,10 +9486,10 @@
           },
           "market": "TOTALS",
           "observation": {
-            "latest_snapshot_at": "2026-08-13T04:07:42Z",
-            "observation_count": 14,
+            "latest_snapshot_at": "2026-08-13T19:16:03Z",
+            "observation_count": 28,
             "reason": "READY",
-            "snapshot_count": 1
+            "snapshot_count": 2
           }
         }
       },
@@ -9573,8 +9579,8 @@
       "MISSING_SOURCE_REVISION": 27,
       "MISSING_UNCERTAINTY": 27,
       "MODEL_EVIDENCE_NOT_READY": 27,
-      "QUOTE_FRESHNESS_BOUNDARY_INVALID": 3,
-      "QUOTE_FRESHNESS_POLICY_NOT_REGISTERED": 3,
+      "QUOTE_FRESHNESS_BOUNDARY_INVALID": 6,
+      "QUOTE_FRESHNESS_POLICY_NOT_REGISTERED": 6,
       "UNSUPPORTED_MARKET": 27
     },
     "decision_v4_outcomes": {
@@ -9586,7 +9592,7 @@
     "fixture_count": 36,
     "lineup_ready_fixtures": 0,
     "market_count": 72,
-    "market_stale_count": 70,
+    "market_stale_count": 72,
     "rating_bilateral_ready_fixtures": 8,
     "shadow_candidate_active": 6,
     "simulation_not_ready_fixtures": 27,

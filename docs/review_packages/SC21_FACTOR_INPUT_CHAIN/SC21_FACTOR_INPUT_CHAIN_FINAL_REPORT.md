@@ -1,6 +1,6 @@
 # SC21 Factor Input Chain Final Report
 
-- Evidence as-of: `2026-08-13T19:09:28.493050Z`
+- Evidence as-of: `2026-08-13T20:16:58.717297Z`
 - Exact-13 T+7 fixtures: `36`
 - Provider calls by SC21 audit/materialization: `0`
 - Business writes before guarded materialization: `0`
@@ -15,7 +15,7 @@
 - TeamValueAsOf bilateral READY: `0/36`
 - Lineup READY: `0/36`
 - Lineup causes: `{'NOT_YET_DUE': 36}`
-- Market stale: `70/72`
+- Market stale: `72/72`
 - Bookmaker depth insufficient: `0/72`
 - Current exact quote not ready: `72/72`
 - BASELINE_PRIOR: `9` fixtures
