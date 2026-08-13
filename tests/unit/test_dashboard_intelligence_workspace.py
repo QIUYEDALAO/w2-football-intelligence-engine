@@ -736,9 +736,10 @@ def test_postdeploy_real_shape_uses_stale_evidence_and_scopes_raw_blocked_health
 
     assert payload["selected_fixture_id"] == "stale-useful"
     assert payload["data_operations"]["system_health"] == "BLOCKED_DAY"
-    assert payload["today_summary"]["primary_reason_counts"] == {"STALE_MARKET_MEMORY": 1}
-    assert focused["priority_reason_primary"] == "STALE_MARKET_MEMORY"
+    assert payload["today_summary"]["primary_reason_counts"] == {}
+    assert focused["priority_reason_primary"] is None
     assert focused["priority_reason_secondary"] == [
+        "STALE_MARKET_MEMORY",
         "MARKET_MOVEMENT",
         "DATA_INCOMPLETE",
     ]

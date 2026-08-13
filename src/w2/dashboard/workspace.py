@@ -34,12 +34,13 @@ DOMAIN_CONTRACT = {
 }
 AFFECTED_DOMAIN_ORDER = ("EVENT", "DATA", "MODEL", "COLLECTION", "MARKET")
 PRIMARY_REASON_ORDER = {
+    "MARKET_MOVEMENT": 0,
+    "MODEL_DIAGNOSTIC": 1,
+}
+ATTENTION_REASON_ORDER = {
     "STALE_MARKET_MEMORY": 0,
     "MARKET_MOVEMENT": 1,
     "MODEL_DIAGNOSTIC": 2,
-}
-ATTENTION_REASON_ORDER = {
-    **PRIMARY_REASON_ORDER,
     "COLLECTION_INCIDENT": 3,
     "DATA_INCOMPLETE": 4,
     "CANDIDATE_INPUT_NOT_READY": 4,
@@ -997,7 +998,7 @@ def _priority_reasons(match: Mapping[str, Any]) -> tuple[str | None, list[str]]:
             )
             if reason in PRIMARY_REASON_ORDER and not (reason == "MARKET_MOVEMENT" and stale)
         ),
-        "STALE_MARKET_MEMORY" if stale else None,
+        None,
     )
     secondary = sorted(
         reasons - ({primary} if primary else set()),

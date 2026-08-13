@@ -105,7 +105,7 @@ function market(name: "ASIAN_HANDICAP" | "TOTALS", count: number, stale = false)
 function match(id: string, options: { rich?: boolean; stale?: boolean; modelWarning?: boolean } = {}): WorkspaceMatch {
   const ah = market("ASIAN_HANDICAP", options.rich ? 3 : 0, options.stale);
   const totals = market("TOTALS", options.rich ? 1 : 0, options.stale);
-  const reason = options.stale ? "STALE_MARKET_MEMORY" : options.modelWarning ? "MODEL_DIAGNOSTIC" : options.rich ? "MARKET_MOVEMENT" : null;
+  const reason = options.stale ? null : options.modelWarning ? "MODEL_DIAGNOSTIC" : options.rich ? "MARKET_MOVEMENT" : null;
   const relationStatus = options.stale ? "MARKET_NOT_READY" : options.modelWarning ? "MODEL_OUTSIDE_MARKET_RANGE" : "COMPARABLE_WITHIN_MARKET_RANGE";
   const relation = (name: "ASIAN_HANDICAP" | "TOTALS") => ({ market: name, status: options.stale ? "MARKET_NOT_READY" : name === "TOTALS" && options.rich ? "MODEL_OUTSIDE_MARKET_RANGE" : relationStatus, canonical_line: name === "ASIAN_HANDICAP" ? "-0.75" : "2.50", bookmaker_count: name === "ASIAN_HANDICAP" ? 14 : 6, freshness_status: options.stale ? "STALE" : "FRESH", diagnostics: options.modelWarning || (name === "TOTALS" && options.rich) ? [{ status: "OUTSIDE_RANGE" }] : [], blockers: options.stale ? ["MARKET_STALE"] : [] });
   const teams: Record<string, [string, string]> = { "1571806": ["Benfica", "Porto"], "1571807": ["Real Madrid", "Real Betis"], "1571808": ["Bayern Munich", "Borussia Dortmund"] };
@@ -126,7 +126,7 @@ function match(id: string, options: { rich?: boolean; stale?: boolean; modelWarn
     intelligence_state: options.modelWarning ? "MODEL_DIAGNOSTIC_WARNING" : options.rich ? "MARKET_MOVEMENT" : "DATA_INCOMPLETE",
     intelligence_reason_codes: [options.stale ? "MARKET_STALE" : options.modelWarning ? "MODEL_OUTSIDE_MARKET_RANGE" : options.rich ? "MARKET_LINE_MOVEMENT" : "DATA_INCOMPLETE"],
     priority_reason_primary: reason,
-    priority_reason_secondary: options.stale ? ["MARKET_MOVEMENT", "CANDIDATE_INPUT_NOT_READY"] : options.rich && !options.modelWarning ? ["MODEL_DIAGNOSTIC"] : options.rich ? [] : ["DATA_INCOMPLETE"],
+    priority_reason_secondary: options.stale ? ["STALE_MARKET_MEMORY", "MARKET_MOVEMENT", "CANDIDATE_INPUT_NOT_READY"] : options.rich && !options.modelWarning ? ["MODEL_DIAGNOSTIC"] : options.rich ? [] : ["DATA_INCOMPLETE"],
     factual_summary: options.stale ? "已落盘 AH/OU 历史市场证据已过期；当前走势与模型—市场比较暂停；等待既有调度形成新快照。" : options.rich ? "已有当前 AH/OU 持久化时间线；可展示已证实走势并进行模型—市场诊断；状态随既有调度形成的新证据更新。" : "尚无已落盘 AH/OU 市场证据；无法生成走势或当前模型—市场比较；等待既有调度形成证据。",
     risks: risks(),
     readiness: { status: options.rich && !options.stale ? "READY" : options.stale ? "STALE" : "BLOCKED", reason_code: options.stale ? "MARKET_STALE" : options.rich ? "EVIDENCE_READY" : "DATA_INCOMPLETE", reason_codes: [], missing_fields: options.rich ? [] : ["market"], stale_fields: options.stale ? ["market"] : [], action: "WAIT_FOR_NEXT_SCHEDULED_EVALUATION", next_eval_at: "2026-08-09T13:22:00Z", provider_budget_status: "PROTECTED", lineup_status: "AVAILABLE", lineup_expectation: "ADVISORY", market_aggregate_status: options.rich && !options.stale ? "READY" : "NOT_READY", market_evidence_status: options.rich && !options.stale ? "AVAILABLE" : "NOT_READY", candidate_input_status: options.rich && !options.stale ? "READY" : "NOT_READY" },
@@ -181,7 +181,7 @@ function workspace(scenario: Scenario = "normal"): IntelligenceWorkspace {
   const limited = scenario === "limited";
   const empty = scenario === "empty";
   const focusId = scenario === "browser" ? "browser-0" : scenario === "normal" || scenario === "stale" || scenario === "deployed" ? "1571806" : null;
-  const counts = scenario === "browser" ? { STALE_MARKET_MEMORY: 1, MARKET_MOVEMENT: 1 } : focusId ? scenario === "deployed" ? { STALE_MARKET_MEMORY: 1 } : scenario === "stale" ? { STALE_MARKET_MEMORY: 1, MARKET_MOVEMENT: 1, MODEL_DIAGNOSTIC: 1 } : { MARKET_MOVEMENT: 2, MODEL_DIAGNOSTIC: 1 } : {};
+  const counts = scenario === "browser" ? { MARKET_MOVEMENT: 1 } : focusId ? scenario === "deployed" ? {} : scenario === "stale" ? { MARKET_MOVEMENT: 1, MODEL_DIAGNOSTIC: 1 } : { MARKET_MOVEMENT: 2, MODEL_DIAGNOSTIC: 1 } : {};
   const globalFocus = focusId ? null : {
     reason_code: limited ? "AWAITING_COLLECTION" : scenario === "calm" ? "NO_PRIORITY_REVIEW_ITEMS" : "NO_FIXTURES_IN_FOOTBALL_DAY",
     factual_summary: limited ? "所选比赛日暂无可用于比赛级分析的持久化市场证据。" : scenario === "calm" ? "当前没有达到优先复核条件的比赛。" : "本比赛日观察池内没有比赛；不会从其他日期填充。",
@@ -387,10 +387,10 @@ test("raw system health cannot override public semantics or the useful stale foc
   await expect(page.locator("header.v41-header")).toContainText("市场证据可用");
   await expect(page.locator("header.v41-header")).not.toContainText("BLOCKED DAY");
   await expect(page.locator(".v41-focus")).toHaveAttribute("data-fixture-id", "1571806");
-  await expect(page.locator(".v41-shortlist > header")).toContainText("1 场优先");
-  await expect(page.locator(".v41-shortlist-list")).toContainText("主因：证据已过期");
-  await expect(page.locator(".v41-shortlist-list")).toContainText("次因：盘口或赔率变化、候选输入尚未完全就绪");
-  await expect(page.locator(".v41-shortlist-list")).toContainText("其他关注 · 2 场（不计入优先）");
+  await expect(page.locator(".v41-shortlist > header")).toContainText("0 场优先");
+  await expect(page.locator(".v41-shortlist-list")).not.toContainText("主因：证据已过期");
+  await expect(page.locator(".v41-shortlist-list")).toContainText("关注：证据已过期、盘口或赔率变化、候选输入尚未完全就绪");
+  await expect(page.locator(".v41-shortlist-list")).toContainText("其他关注 · 3 场（不计入优先）");
   await expect(page.locator(".v41-focus-summary")).toContainText("当前走势与模型—市场比较暂停");
 });
 
@@ -535,8 +535,8 @@ test("V41 match browser exposes all fixtures in priority order and one filter pe
   const filters = shortlist.getByRole("toolbar", { name: "按联赛筛选比赛" });
   await expect(list.locator("button[data-fixture-id]")).toHaveCount(11);
   await expect(filters.getByRole("button")).toHaveCount(8);
-  await expect(list.locator("button[data-fixture-id]").first()).toHaveAttribute("data-fixture-id", "browser-0");
-  await expect(list.locator("button[data-fixture-id]").nth(1)).toHaveAttribute("data-fixture-id", "browser-1");
+  await expect(list.locator("button[data-fixture-id]").first()).toHaveAttribute("data-fixture-id", "browser-1");
+  await expect(list.locator("button[data-fixture-id]").nth(1)).toHaveAttribute("data-fixture-id", "browser-0");
   await expect(list.locator("button[data-fixture-id]").first()).toContainText("优先 1");
   const scroll = await list.evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight, overflowY: getComputedStyle(element).overflowY }));
   expect(scroll.overflowY).toBe("auto");

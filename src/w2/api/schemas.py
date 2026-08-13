@@ -21,7 +21,7 @@ IntelligenceState = Literal[
     "MARKET_MOVEMENT",
     "MARKET_STABLE",
 ]
-DashboardPriorityReason = Literal["MARKET_MOVEMENT", "MODEL_DIAGNOSTIC", "STALE_MARKET_MEMORY"]
+DashboardPriorityReason = Literal["MARKET_MOVEMENT", "MODEL_DIAGNOSTIC"]
 
 
 class ErrorPayload(BaseModel):

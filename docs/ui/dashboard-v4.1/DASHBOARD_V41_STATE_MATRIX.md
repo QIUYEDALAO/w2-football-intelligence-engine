@@ -22,7 +22,7 @@ it cannot choose public copy, color, focus, or layout.
 | Facts and semantics | Selected fixture | L2 | L3 authority | Key fail-closed behavior |
 |---|---|---|---|---|
 | usable evidence, attention item | required | prioritized matches/groups | persisted AH/OU facts, W2 diagnostic relation, blockers, optional scoreline | no match focus without a valid id |
-| usable stale market memory | required | stale reason may be primary | persisted history remains visible; comparison paused | never expose READY and STALE together |
+| usable stale market memory | required | stale reason is secondary attention only | persisted history remains visible; comparison paused | never expose READY and STALE together |
 | selected-day cause present | null | affected factual rows | scope, cause, counts, last source time, recovery condition | no incident styling for `NOT_YET_DUE`; never force an arbitrary match |
 | matches exist, no priority | null | zero priority plus factual summary | why no item requires review and next evaluation | never force a match detail |
 | zero persisted fixtures | null | zero rows | no matches, no borrowing; adjacent-day evidence only | never fill from another date |
@@ -33,7 +33,7 @@ a response match and excludes `global_focus`; a null selection requires a factua
 
 ## Priority authority
 
-Each match has one `priority_reason_primary` and zero or more `priority_reason_secondary` values. L1 grouping counts primary reasons only. Sorting is deterministic: day-level incident, visible fresh movement, fresh two-plus snapshots with model comparison, stale market memory, remaining review severity, kickoff, fixture id. This is information usefulness, never betting value.
+Each match has one `priority_reason_primary` and zero or more `priority_reason_secondary` values. L1 grouping counts primary reasons only. Sorting is deterministic: day-level incident, visible fresh movement, fresh two-plus snapshots with model comparison, remaining review severity, kickoff, fixture id. Stale market memory remains visible as secondary attention but cannot occupy a primary priority slot. This is information usefulness, never betting value.
 
 ## Time authority
 

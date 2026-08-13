@@ -216,7 +216,6 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
     assert next(set(option["enum"]) for option in priority_options if "enum" in option) == {
         "MARKET_MOVEMENT",
         "MODEL_DIAGNOSTIC",
-        "STALE_MARKET_MEMORY",
     }
     assert set(schemas["WorkspaceRisks"]["properties"]) == {
         "EVENT_RISK",
