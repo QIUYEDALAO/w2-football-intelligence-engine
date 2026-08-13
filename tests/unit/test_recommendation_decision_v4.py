@@ -30,6 +30,7 @@ def _authoritative_input() -> dict[str, object]:
         "exact_line": "0.5",
         "capture_id": "capture-1",
         "captured_at": "2026-08-08T15:00:00Z",
+        "decision_evaluated_at": "2026-08-08T15:10:00Z",
         "quote_observation_ids": {"home": "observation-home", "away": "observation-away"},
         "raw_payload_sha256": "a" * 64,
         "source_revision": "e" * 40,
@@ -93,6 +94,7 @@ _IDENTITY_MUTATIONS: dict[str, object] = {
     "exact_line": "0.75",
     "capture_id": "capture-2",
     "captured_at": "2026-08-08T15:01:00Z",
+    "decision_evaluated_at": "2026-08-08T15:11:00Z",
     "quote_observation_ids": {"home": "observation-home-2", "away": "observation-away"},
     "raw_payload_sha256": "c" * 64,
     "source_revision": "3" * 40,
@@ -162,6 +164,28 @@ def test_not_ready_reason_distinguishes_fixture_model_and_quote_truth() -> None:
     assert (
         build_recommendation_decision_v4(quote_missing).reason_code
         == "QUOTE_IDENTITY_NOT_READY"
+    )
+
+
+def test_new_decision_must_be_formed_before_kickoff() -> None:
+    payload = _authoritative_input()
+    payload["decision_evaluated_at"] = payload["kickoff_utc"]
+
+    decision = build_recommendation_decision_v4(payload)
+
+    assert decision.outcome is RecommendationOutcomeV4.NOT_READY
+    assert decision.reason_code == "FIXTURE_NOT_PREMATCH"
+    assert "DECISION_NOT_BEFORE_KICKOFF" in decision.blockers
+
+
+def test_decision_evaluation_time_is_part_of_v4_identity() -> None:
+    original = _authoritative_input()
+    changed = deepcopy(original)
+    changed["decision_evaluated_at"] = "2026-08-08T15:11:00Z"
+
+    assert (
+        build_recommendation_decision_v4(changed).decision_hash
+        != build_recommendation_decision_v4(original).decision_hash
     )
 
 

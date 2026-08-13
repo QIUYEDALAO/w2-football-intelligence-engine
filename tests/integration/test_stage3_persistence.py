@@ -396,6 +396,7 @@ def _formal_decision_v4(fixture_id: str, kickoff_utc: datetime) -> dict[str, obj
             "exact_line": "-0.25",
             "capture_id": "capture-1",
             "captured_at": NOW.isoformat().replace("+00:00", "Z"),
+            "decision_evaluated_at": NOW.isoformat().replace("+00:00", "Z"),
             "quote_observation_ids": {
                 "home": "observation-home",
                 "away": "observation-away",

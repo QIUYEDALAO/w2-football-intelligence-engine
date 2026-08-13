@@ -280,6 +280,7 @@ def _candidate(
             "bookmaker_id": audit.get("bookmaker_id"),
             "capture_id": audit.get("capture_id"),
             "captured_at": audit.get("captured_at"),
+            "evaluated_at": audit.get("evaluated_at"),
             "source_revision": audit.get("source_revision"),
             "raw_payload_sha256": audit.get("raw_payload_sha256"),
             "quote_identity_hash": audit.get("quote_identity_hash"),

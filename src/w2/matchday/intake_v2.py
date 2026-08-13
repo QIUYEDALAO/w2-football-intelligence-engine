@@ -876,6 +876,7 @@ def v4_decision_from_matchday(
         "exact_line": bound_evidence.get("line"),
         "capture_id": quote.get("capture_id"),
         "captured_at": quote.get("captured_at"),
+        "decision_evaluated_at": as_of,
         "quote_observation_ids": quote.get("quote_observation_ids"),
         "raw_payload_sha256": quote.get("raw_payload_sha256"),
         "source_revision": quote.get("source_revision"),

@@ -285,6 +285,7 @@ def _decision_v4(*, capability_status: str = "FORMAL_ENABLED") -> dict[str, obje
             "exact_line": "0.5",
             "capture_id": "capture-1",
             "captured_at": "2026-06-22T00:50:00Z",
+            "decision_evaluated_at": "2026-06-22T00:55:00Z",
             "quote_observation_ids": {
                 "home": "observation-home",
                 "away": "observation-away",

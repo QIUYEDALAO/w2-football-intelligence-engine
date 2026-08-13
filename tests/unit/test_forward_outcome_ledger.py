@@ -88,6 +88,7 @@ def _analysis_v4_decision() -> dict[str, object]:
             "exact_line": "+1.25",
             "capture_id": "capture-1",
             "captured_at": "2026-07-07T12:00:00Z",
+            "decision_evaluated_at": "2026-07-07T12:10:00Z",
             "quote_observation_ids": {
                 "home": "observation-home",
                 "away": "observation-away",
@@ -370,6 +371,17 @@ def test_forward_outcome_ledger_validation_pick_binds_entry_quote(
     assert rows[0]["pick"]["entry_price"] == "1.93"
     assert rows[0]["pick"]["odds"] == "1.93"
     assert rows[0]["decision_hash"] == _analysis_v4_decision()["decision_hash"]
+
+
+def test_forward_outcome_ledger_never_first_captures_after_kickoff() -> None:
+    payload = run_forward_outcome_ledger(
+        _day_view(),
+        dry_run=True,
+        captured_at=datetime(2026, 7, 7, 16, 0, tzinfo=UTC),
+    )
+
+    assert payload["record_count"] == 0
+    assert payload["records"] == []
 
 
 def test_forward_outcome_ledger_rejects_tampered_v4_without_v3_fallback() -> None:

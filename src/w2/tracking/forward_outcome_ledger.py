@@ -119,7 +119,8 @@ def build_forward_outcome_records(
     rows: list[dict[str, Any]] = []
     for card in _cards(day_view):
         fixture_id = _text(card.get("fixture_id"))
-        if not fixture_id:
+        kickoff = _parse_time(card.get("kickoff_utc"))
+        if not fixture_id or kickoff is None or captured_at >= kickoff:
             continue
         canonical = _validated_v4_projection(card)
         if isinstance(canonical.get("pick"), Mapping):

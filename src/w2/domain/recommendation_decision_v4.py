@@ -40,6 +40,7 @@ IDENTITY_REQUIRED_FIELDS = (
     "exact_line",
     "capture_id",
     "captured_at",
+    "decision_evaluated_at",
     "quote_observation_ids",
     "raw_payload_sha256",
     "source_revision",
@@ -148,6 +149,7 @@ def authoritative_input_from_market_candidate(
         "exact_line": executable.get("line") or candidate.get("line"),
         "capture_id": executable.get("capture_id") or quote_identity.get("capture_id"),
         "captured_at": executable.get("captured_at") or quote_identity.get("captured_at"),
+        "decision_evaluated_at": quote_identity.get("evaluated_at") or "",
         "quote_observation_ids": quote_identity.get("observation_ids"),
         "raw_payload_sha256": quote_identity.get("raw_payload_sha256"),
         "source_revision": quote_identity.get("source_revision"),
@@ -298,7 +300,7 @@ def _normalize_input(value: Mapping[str, Any]) -> tuple[dict[str, Any], list[str
     ):
         if payload[field] is not None:
             payload[field] = str(payload[field]).strip()
-    for field in ("kickoff_utc", "captured_at"):
+    for field in ("kickoff_utc", "captured_at", "decision_evaluated_at"):
         normalized_time = _utc_text(payload[field])
         if normalized_time is None:
             blockers.append(f"INVALID_{field.upper()}")
@@ -306,8 +308,13 @@ def _normalize_input(value: Mapping[str, Any]) -> tuple[dict[str, Any], list[str
             payload[field] = normalized_time
     kickoff = _utc_datetime(payload["kickoff_utc"])
     captured = _utc_datetime(payload["captured_at"])
+    evaluated = _utc_datetime(payload["decision_evaluated_at"])
     if kickoff is not None and captured is not None and captured >= kickoff:
         blockers.append("QUOTE_CAPTURE_NOT_BEFORE_KICKOFF")
+    if kickoff is not None and evaluated is not None and evaluated >= kickoff:
+        blockers.append("DECISION_NOT_BEFORE_KICKOFF")
+    if captured is not None and evaluated is not None and captured > evaluated:
+        blockers.append("QUOTE_CAPTURE_AFTER_DECISION_EVALUATION")
     for field in ("exact_line", "decimal_odds", "fair_odds", "expected_value", "uncertainty"):
         number = _decimal(payload[field])
         if number is None:
@@ -438,6 +445,8 @@ def _outcome(
             return RecommendationOutcomeV4.NOT_READY, "EVIDENCE_NOT_READY", "模型证据尚未就绪"
         if "QUOTE_IDENTITY_NOT_READY" in blockers:
             return RecommendationOutcomeV4.NOT_READY, "QUOTE_IDENTITY_NOT_READY", "盘口身份尚未完整"
+        if "DECISION_NOT_BEFORE_KICKOFF" in blockers:
+            return RecommendationOutcomeV4.NOT_READY, "FIXTURE_NOT_PREMATCH", "比赛已开始或结束"
         return RecommendationOutcomeV4.NOT_READY, "EVIDENCE_NOT_READY", "决策证据尚未就绪"
     readiness = payload.get("readiness")
     status = str(readiness.get("status") or "") if isinstance(readiness, Mapping) else ""

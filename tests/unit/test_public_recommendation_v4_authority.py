@@ -47,6 +47,7 @@ def _candidate() -> dict[str, object]:
             "bookmaker_id": "unibet",
             "capture_id": "capture-1",
             "captured_at": "2026-08-08T15:00:00Z",
+            "evaluated_at": "2026-08-08T15:10:00Z",
             "observation_ids": {
                 "home": "observation-home",
                 "away": "observation-away",
@@ -388,12 +389,12 @@ def test_invalid_history_v3_cannot_block_or_mutate_current_v4() -> None:
     assert card["recommendation_decision_v3_role"] == "HISTORY_ONLY"
 
 
-def test_day_view_passes_valid_v4_current_pick_without_rebuilding_it() -> None:
+def test_day_view_preserves_prematch_v4_pick_after_kickoff_without_rebuilding() -> None:
     decision = _decision()
     contract = _contract(decision)
     view = build_dashboard_day_view(
         {
-            "generated_at": "2026-08-08T10:00:00Z",
+            "generated_at": "2026-08-08T18:00:00Z",
             "date": "2026-08-08",
             "selected_football_day": "2026-08-08",
             "all": [
@@ -415,6 +416,32 @@ def test_day_view_passes_valid_v4_current_pick_without_rebuilding_it() -> None:
     assert card["pick"]["selection"] == "AWAY"
     assert card["recommendation_decision_v4"] == decision
     assert card["recommendation_decision_v3_role"] == "HISTORY_ONLY"
+
+
+def test_public_v4_rejects_candidate_first_evaluated_at_kickoff() -> None:
+    candidate = _candidate()
+    quote_identity = candidate["quote_identity"]
+    assert isinstance(quote_identity, dict)
+    quote_identity["evaluated_at"] = "2026-08-08T15:30:00Z"
+
+    decision = _build_public_recommendation_decision_v4(
+        card={
+            "fixture_id": "fixture-1",
+            "competition_id": "allsvenskan",
+            "season": "2026",
+            "kickoff_utc": "2026-08-08T15:30:00Z",
+        },
+        row={
+            "fixture_id": "fixture-1",
+            "competition_id": "allsvenskan",
+            "kickoff_utc": "2026-08-08T15:30:00Z",
+        },
+        candidate=candidate,
+        formal_recommendation=None,
+    )
+
+    assert decision.outcome is RecommendationOutcomeV4.NOT_READY
+    assert decision.reason_code == "FIXTURE_NOT_PREMATCH"
 
 
 def test_public_v4_does_not_invent_identity_failure_when_model_is_unready() -> None:
