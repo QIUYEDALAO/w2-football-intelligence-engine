@@ -346,7 +346,7 @@ def test_shadow_candidate_activation_reuses_v4_and_stays_non_production() -> Non
     )
 
 
-def test_active_shadow_candidate_contract_rejects_missing_quote_identity() -> None:
+def test_shadow_candidate_fails_closed_when_selected_market_is_not_eligible() -> None:
     day_view = _day_view()
     day_view["cards"][0]["recommendation_decision_v4"] = {
         "outcome": "ANALYSIS_PICK",
@@ -356,10 +356,50 @@ def test_active_shadow_candidate_contract_rejects_missing_quote_identity() -> No
     }
     payload = _workspace(day_view, candidate_enabled=True)
 
-    with pytest.raises(ValueError, match="active shadow candidate requires complete V4 identity"):
-        DashboardIntelligenceWorkspaceResponse.model_validate(
-            {"request_id": "candidate-contract", **payload}
-        )
+    candidate = payload["matches"][0]["shadow_candidate"]
+    assert candidate["status"] == "NOT_READY"
+    assert candidate["market"] is None
+    assert candidate["outcome_tracked"] is False
+    DashboardIntelligenceWorkspaceResponse.model_validate(
+        {"request_id": "candidate-contract", **payload}
+    )
+
+
+def test_shadow_candidate_fails_closed_when_selected_market_turns_stale() -> None:
+    day_view = _day_view()
+    day_view["cards"][0]["market_radar"]["markets"]["ASIAN_HANDICAP"] = _market(2)
+    day_view["cards"][0]["market_radar"]["markets"]["ASIAN_HANDICAP"]["current"][
+        "freshness"
+    ]["max_age_seconds"] = 3600
+    day_view["generated_at"] = "2026-08-09T03:00:00Z"
+    day_view["cards"][0]["market_candidates"] = {
+        "ah": {
+            "quote_status": "COMPLETE",
+            "quote_usage": "EXECUTABLE",
+            "quote_identity": {"identity_status": "COMPLETE"},
+            "model_status": "READY",
+            "blockers": [],
+        }
+    }
+    day_view["cards"][0]["recommendation_decision_v4"] = {
+        "outcome": "ANALYSIS_PICK",
+        "reason": {"code": "ANALYSIS_ONLY"},
+        "selected_candidate": {
+            "market": "ASIAN_HANDICAP",
+            "selection": "HOME",
+            "exact_line": "-0.25",
+        },
+        "decision_hash": "a" * 64,
+    }
+
+    payload = _workspace(day_view, candidate_enabled=True)
+    match = payload["matches"][0]
+    assert match["market_radar"]["markets"]["ASIAN_HANDICAP"]["status"] == "STALE"
+    assert match["shadow_candidate"]["status"] == "NOT_READY"
+    assert match["shadow_candidate"]["outcome_tracked"] is False
+    DashboardIntelligenceWorkspaceResponse.model_validate(
+        {"request_id": "candidate-stale", **payload}
+    )
 
 
 def _keys(value: Any) -> set[str]:

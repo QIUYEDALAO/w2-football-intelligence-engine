@@ -311,7 +311,11 @@ def _match(
             },
             "model_market_relation": relation,
         },
-        "shadow_candidate": _shadow_candidate(card, enabled=candidate_enabled),
+        "shadow_candidate": _shadow_candidate(
+            card,
+            markets=markets,
+            enabled=candidate_enabled,
+        ),
         "formal_recommendation": {
             "status": "OFF",
             "reason": "PRODUCT_AUTHORITY_DISABLED",
@@ -397,11 +401,23 @@ def _match_outcome(
     }
 
 
-def _shadow_candidate(card: Mapping[str, Any], *, enabled: bool) -> dict[str, Any]:
+def _shadow_candidate(
+    card: Mapping[str, Any],
+    *,
+    markets: Mapping[str, Mapping[str, Any]],
+    enabled: bool,
+) -> dict[str, Any]:
     decision = _mapping(card.get("recommendation_decision_v4"))
     reason = _mapping(decision.get("reason"))
     selected = _mapping(decision.get("selected_candidate"))
-    active = enabled and _text(decision.get("outcome")) == "ANALYSIS_PICK" and bool(selected)
+    selected_market = _text(selected.get("market"))
+    eligibility = _mapping(_mapping(markets.get(selected_market)).get("eligibility"))
+    active = (
+        enabled
+        and _text(decision.get("outcome")) == "ANALYSIS_PICK"
+        and bool(selected)
+        and _text(eligibility.get("candidate_eligibility_status")) == "READY"
+    )
     return {
         "status": "ACTIVE" if active else "NOT_READY" if enabled else "OFF",
         "mode": "SHADOW_ONLY",
