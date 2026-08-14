@@ -78,6 +78,11 @@ def test_local_release_overlays_are_offline_and_source_scoped() -> None:
         assert "apt-get" not in overlay
         assert "pip install" not in overlay
     assert "src/w2 /app/.venv/lib/python3.12/site-packages/w2" in python_overlay
+    assert (
+        "SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json "
+        "/app/docs/review_packages/SC21_FACTOR_INPUT_CHAIN/"
+        "SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json"
+    ) in python_overlay
     for runtime_root in ("alembic.ini", "apps", "config", "migrations"):
         assert f"{runtime_root} /app/{runtime_root}" in python_overlay
     assert '"web_git_sha"' in web_overlay
