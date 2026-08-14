@@ -36,6 +36,7 @@ from w2.infrastructure.persistence.future_refresh_models import (
     FutureRefreshRunAuditModel,
     FutureRefreshTaskAuditModel,
     RawPayloadModel,
+    RawStatisticsRetentionModel,
     TeamXgMatchModel,
     TeamXgRollingSnapshotModel,
 )
@@ -260,6 +261,13 @@ class DatabaseRawPayloadObjectStore:
                 payload=payload,
             )
         )
+        if endpoint == "statistics":
+            self.session.add(
+                RawStatisticsRetentionModel(
+                    raw_payload_sha256=sha256,
+                    retained_at=datetime.now(UTC),
+                )
+            )
         return storage_uri
 
     def get(self, sha256: str) -> dict[str, Any] | None:

@@ -254,6 +254,10 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
         backfill_outcomes,
         run_forward_outcome_ledger,
     )
+    from w2.tracking.model_forecast_ledger import (
+        ModelForecastLedgerRepository,
+        run_model_forecast_capture,
+    )
     from w2.tracking.outcome_ledger_repository import OutcomeLedgerRepository
     from w2.tracking.outcome_result_refresh import run_outcome_result_refresh
 
@@ -263,6 +267,13 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
     day_view = build_dashboard_day_view(
         dashboard,
         environment=get_settings().environment.value,
+    )
+    model_forecast_repository = ModelForecastLedgerRepository(repository.engine)
+    model_forecast_capture = run_model_forecast_capture(
+        day_view,
+        repository=model_forecast_repository,
+        dry_run=False,
+        write_db=True,
     )
     capture = run_forward_outcome_ledger(
         day_view,
@@ -289,8 +300,10 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
         "production": False,
         "real_money": False,
         "db_writes": sum(
-            int(item.get("db_writes", 0)) for item in (capture, materialization, settlement)
+            int(item.get("db_writes", 0))
+            for item in (model_forecast_capture, capture, materialization, settlement)
         ),
+        "model_forecast_capture": model_forecast_capture,
         "result_materialization": materialization,
         "outcome_settlement": settlement,
     }

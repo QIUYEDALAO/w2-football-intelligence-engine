@@ -19,6 +19,7 @@ from w2.infrastructure.persistence.future_refresh_models import (
     FutureRefreshRunAuditModel,
     FutureRefreshTaskAuditModel,
     RawPayloadModel,
+    RawStatisticsRetentionModel,
     TeamXgMatchModel,
     TeamXgRollingSnapshotModel,
 )
@@ -42,6 +43,10 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayEvidenceManifestModel,
     MatchdayFixtureIdentityModel,
     MatchdayMarketObservationModel,
+)
+from w2.infrastructure.persistence.model_forecast_models import (
+    ModelForecastCaptureModel,
+    ModelForecastOutcomeModel,
 )
 from w2.infrastructure.persistence.models import (
     CanonicalHistoricalAhFactModel,
@@ -100,6 +105,8 @@ __all__ = [
     "MatchdayFixtureIdentityModel",
     "MatchdayMarketObservationModel",
     "ModelRunModel",
+    "ModelForecastCaptureModel",
+    "ModelForecastOutcomeModel",
     "OutcomeLedgerModel",
     "PlayerClubMembershipObservationModel",
     "PredictionModel",
@@ -108,6 +115,7 @@ __all__ = [
     "QuotaUsageModel",
     "RegisteredRosterSnapshotModel",
     "RawPayloadModel",
+    "RawStatisticsRetentionModel",
     "ReadModelCheckpointModel",
     "RecommendationLockModel",
     "RecommendationModel",

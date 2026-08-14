@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import Engine, create_engine, inspect, text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from w2.identity.canonical_identity_repository import (
@@ -144,6 +145,78 @@ def test_0053_backfills_reviewed_team_identity_and_retains_it(tmp_path: Path) ->
             .count()
             == 6
         )
+
+
+def test_0054_backfills_and_database_guards_statistics_raw(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'model-forecast-ledger.db'}"
+    env = {
+        **os.environ,
+        "PYTHONPATH": f"{root / 'src'}:{root}",
+        "W2_DATABASE_URL": database_url,
+        "W2_ENVIRONMENT": "test",
+    }
+    assert (
+        _alembic(root, env, "upgrade", "0053_backfill_reviewed_team_identity").returncode
+        == 0
+    )
+    engine = create_engine(database_url)
+    digest = "7" * 64
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "insert into raw_payload "
+                "(sha256, endpoint, captured_at, inserted_at, storage_uri, payload) "
+                "values (:sha256, 'statistics', :captured_at, :inserted_at, "
+                ":storage_uri, :payload)"
+            ),
+            {
+                "sha256": digest,
+                "captured_at": "2026-08-13 00:00:00",
+                "inserted_at": "2026-08-13 00:00:01",
+                "storage_uri": f"db://raw_payload/{digest}",
+                "payload": "{\"response\": []}",
+            },
+        )
+
+    assert _alembic(root, env, "upgrade", "head").returncode == 0
+    tables = set(inspect(engine).get_table_names())
+    assert {
+        "raw_statistics_retention",
+        "model_forecast_capture",
+        "model_forecast_outcome",
+    } <= tables
+    with engine.connect() as connection:
+        retained = connection.execute(
+            text(
+                "select raw_payload_sha256 from raw_statistics_retention "
+                "where raw_payload_sha256=:sha256"
+            ),
+            {"sha256": digest},
+        ).scalar_one()
+        assert retained == digest
+
+    with pytest.raises(DBAPIError, match="raw Statistics payloads are immutable"):
+        with engine.begin() as connection:
+            connection.execute(
+                text("update raw_payload set payload='{}' where sha256=:sha256"),
+                {"sha256": digest},
+            )
+    with pytest.raises(DBAPIError, match="raw Statistics payloads are immutable"):
+        with engine.begin() as connection:
+            connection.execute(
+                text("delete from raw_payload where sha256=:sha256"),
+                {"sha256": digest},
+            )
+    with pytest.raises(DBAPIError, match="raw Statistics retention is append-only"):
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "delete from raw_statistics_retention "
+                    "where raw_payload_sha256=:sha256"
+                ),
+                {"sha256": digest},
+            )
 
 
 def test_0053_rejects_partial_fixture_scope(tmp_path: Path) -> None:

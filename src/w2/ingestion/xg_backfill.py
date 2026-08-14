@@ -132,6 +132,15 @@ class XgBackfillResult:
         }
 
 
+@dataclass(frozen=True, kw_only=True)
+class SavedRawXgPlan:
+    team_xg_matches: tuple[dict[str, Any], ...]
+    rolling_snapshots: tuple[dict[str, Any], ...]
+    raw_statistics_sha256: tuple[str, ...]
+    future_fixture_count: int
+    blockers: tuple[str, ...]
+
+
 class XgHistoryBackfillService:
     def __init__(
         self,
@@ -290,6 +299,51 @@ class XgHistoryBackfillService:
 
     def run_saved_raw(self, *, persist: bool = True) -> XgBackfillResult:
         """Materialize xG from persisted fixture/statistics evidence only."""
+        plan = self.build_saved_raw_plan()
+        parsed = {
+            str(row["id"]): self._team_xg_match_from_dict(row)
+            for row in plan.team_xg_matches
+        }
+        persisted = {row.id: row for row in self._persisted_xg_matches()}
+        for row_id, row in parsed.items():
+            previous = persisted.get(row_id)
+            if previous is not None and self._xg_values(previous) != self._xg_values(row):
+                raise XgBackfillError(f"SAVED_XG_CONFLICT:{row_id}")
+        new_rows = [row for row_id, row in parsed.items() if row_id not in persisted]
+        if persist:
+            try:
+                upserted_matches = self.repository.upsert_team_xg_matches(
+                    [self._xg_match_dict(row) for row in new_rows]
+                )
+                upserted_snapshots = self.repository.upsert_team_xg_rolling_snapshots(
+                    list(plan.rolling_snapshots)
+                )
+            except FutureRefreshPersistenceError as exc:
+                raise XgBackfillError(f"PERSISTENCE_WRITE_FAILED:{exc}") from exc
+        else:
+            upserted_matches = len(new_rows)
+            upserted_snapshots = len(plan.rolling_snapshots)
+        return XgBackfillResult(
+            generated_at_utc=self.now,
+            team_count=len(
+                {
+                    str(row["team_id"])
+                    for row in plan.rolling_snapshots
+                    if row.get("team_id")
+                }
+            ),
+            historical_fixture_count=len({row.fixture_id for row in parsed.values()}),
+            statistics_request_count=0,
+            team_xg_match_rows=upserted_matches,
+            rolling_snapshot_rows=upserted_snapshots,
+            remaining_quota=None,
+            blockers=list(plan.blockers),
+            requests=[],
+            dry_run=not persist,
+        )
+
+    def build_saved_raw_plan(self) -> SavedRawXgPlan:
+        """Derive the complete xG materialization from raw evidence only."""
         fixtures = self.repository.fixture_payloads()
         future_fixtures = [item for item in fixtures if self._is_target_future_fixture(item)]
         fixture_by_id = {}
@@ -303,9 +357,13 @@ class XgHistoryBackfillService:
                 continue
             fixture_by_id[fixture_id] = item
         parsed: dict[str, TeamXgMatch] = {}
+        raw_statistics_sha256: list[str] = []
         for raw in self.repository.raw_payloads("statistics"):
             payload = raw.get("payload")
             captured_at = parse_utc(raw.get("captured_at"))
+            raw_sha256 = str(raw.get("sha256") or "")
+            if raw_sha256:
+                raw_statistics_sha256.append(raw_sha256)
             fixture_id = self._statistics_fixture_id(payload)
             fixture = fixture_by_id.get(fixture_id)
             if not isinstance(payload, dict) or captured_at is None or fixture is None:
@@ -314,46 +372,28 @@ class XgHistoryBackfillService:
                 fixture_payload=fixture,
                 statistics_payload=payload,
                 captured_at=captured_at,
-                raw_payload_sha256=str(raw.get("sha256") or ""),
+                raw_payload_sha256=raw_sha256,
             ):
                 previous = parsed.get(row.id)
                 if previous is not None and self._xg_values(previous) != self._xg_values(row):
                     raise XgBackfillError(f"SAVED_XG_CONFLICT:{row.id}")
                 parsed.setdefault(row.id, row)
 
-        persisted = {row.id: row for row in self._persisted_xg_matches()}
-        for row_id, row in parsed.items():
-            previous = persisted.get(row_id)
-            if previous is not None and self._xg_values(previous) != self._xg_values(row):
-                raise XgBackfillError(f"SAVED_XG_CONFLICT:{row_id}")
-        new_rows = [row for row_id, row in parsed.items() if row_id not in persisted]
-        rolling_inputs = {**persisted, **parsed}
         snapshots = self._rolling_snapshot_rows(
             future_fixtures=future_fixtures,
-            materialized_matches=list(rolling_inputs.values()),
+            materialized_matches=list(parsed.values()),
         )
-        if persist:
-            try:
-                upserted_matches = self.repository.upsert_team_xg_matches(
-                    [self._xg_match_dict(row) for row in new_rows]
-                )
-                upserted_snapshots = self.repository.upsert_team_xg_rolling_snapshots(snapshots)
-            except FutureRefreshPersistenceError as exc:
-                raise XgBackfillError(f"PERSISTENCE_WRITE_FAILED:{exc}") from exc
-        else:
-            upserted_matches = len(new_rows)
-            upserted_snapshots = len(snapshots)
-        return XgBackfillResult(
-            generated_at_utc=self.now,
-            team_count=len(self._target_team_ids(future_fixtures)),
-            historical_fixture_count=len({row.fixture_id for row in parsed.values()}),
-            statistics_request_count=0,
-            team_xg_match_rows=upserted_matches,
-            rolling_snapshot_rows=upserted_snapshots,
-            remaining_quota=None,
-            blockers=sorted(identity_blockers),
-            requests=[],
-            dry_run=not persist,
+        return SavedRawXgPlan(
+            team_xg_matches=tuple(
+                self._xg_match_dict(row)
+                for row in sorted(parsed.values(), key=lambda item: item.id)
+            ),
+            rolling_snapshots=tuple(
+                sorted(snapshots, key=lambda item: str(item["snapshot_id"]))
+            ),
+            raw_statistics_sha256=tuple(sorted(set(raw_statistics_sha256))),
+            future_fixture_count=len(future_fixtures),
+            blockers=tuple(sorted(identity_blockers)),
         )
 
     def _request(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
@@ -609,6 +649,26 @@ class XgHistoryBackfillService:
             "candidate": False,
             "formal_recommendation": False,
         }
+
+    @staticmethod
+    def _team_xg_match_from_dict(item: dict[str, Any]) -> TeamXgMatch:
+        kickoff = parse_utc(item.get("kickoff_at"))
+        captured = parse_utc(item.get("captured_at"))
+        if kickoff is None or captured is None:
+            raise XgBackfillError("SAVED_XG_TIME_INVALID")
+        return TeamXgMatch(
+            fixture_id=str(item["fixture_id"]),
+            team_id=str(item["team_id"]),
+            opponent_team_id=str(item["opponent_team_id"]),
+            kickoff_at=kickoff,
+            captured_at=captured,
+            xg_for=float(item["xg_for"]),
+            xg_against=float(item["xg_against"]),
+            goals_for=int(item["goals_for"]),
+            goals_against=int(item["goals_against"]),
+            raw_payload_sha256=str(item["raw_payload_sha256"]),
+            source_system=str(item.get("source_system") or "api_football_statistics"),
+        )
 
 
 def run_xg_history_backfill(

@@ -14,6 +14,7 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    event,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -154,6 +155,36 @@ class RawPayloadModel(Base):
     inserted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     storage_uri: Mapped[str] = mapped_column(String(255), nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+
+class RawStatisticsRetentionModel(Base):
+    __tablename__ = "raw_statistics_retention"
+
+    raw_payload_sha256: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("raw_payload.sha256", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    retained_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+def _prevent_statistics_raw_mutation(
+    _mapper: Any,
+    _connection: Any,
+    target: RawPayloadModel,
+) -> None:
+    if target.endpoint == "statistics":
+        raise ValueError("raw Statistics payloads are permanently retained")
+
+
+def _prevent_retention_manifest_mutation(_mapper: Any, _connection: Any, _target: Any) -> None:
+    raise ValueError("raw Statistics retention manifest is append-only")
+
+
+event.listen(RawPayloadModel, "before_update", _prevent_statistics_raw_mutation)
+event.listen(RawPayloadModel, "before_delete", _prevent_statistics_raw_mutation)
+event.listen(RawStatisticsRetentionModel, "before_update", _prevent_retention_manifest_mutation)
+event.listen(RawStatisticsRetentionModel, "before_delete", _prevent_retention_manifest_mutation)
 
 
 class TeamXgMatchModel(Base):

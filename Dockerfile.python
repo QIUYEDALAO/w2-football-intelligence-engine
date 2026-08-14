@@ -19,8 +19,8 @@ COPY apps ./apps
 COPY src ./src
 COPY config ./config
 COPY migrations ./migrations
-# Runtime script allowlist is intentionally empty: every service uses installed
-# Python modules or entrypoints. Deployment-only scripts stay outside the image.
+# Runtime script allowlist: zero-Provider, read-only model-validation canary only.
+COPY scripts/run_w2_free_mode_model_validation_canary.py ./scripts/
 COPY config/policies/lineup_market_policy.v1.json /app/image_config/policies/lineup_market_policy.v1.json
 RUN uv sync --no-dev --frozen --no-editable \
  && test -x /app/.venv/bin/alembic \
