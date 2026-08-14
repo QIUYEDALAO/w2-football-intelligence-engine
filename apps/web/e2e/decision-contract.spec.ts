@@ -95,7 +95,7 @@ function market(name: "ASIAN_HANDICAP" | "TOTALS", count: number, candidateQuote
       trend_evidence_status: count >= 2 ? "AVAILABLE" : "INSUFFICIENT",
       cross_sectional_comparison_status: count ? "AVAILABLE" : "INSUFFICIENT",
       model_diagnostic_status: count ? "COMPARABLE_WITHIN_MARKET_RANGE" : "MARKET_NOT_READY",
-      candidate_quote_identity_status: count && !candidateQuoteOld ? "READY" : "NOT_READY",
+      candidate_quote_lock_status: count && !candidateQuoteOld ? "READY" : "NOT_READY",
       candidate_model_status: count ? "READY" : "NOT_READY",
       candidate_eligibility_status: count && !candidateQuoteOld ? "READY" : "NOT_READY",
       blockers: count && !candidateQuoteOld ? [] : ["EXECUTABLE_CANDIDATE_QUOTE_NOT_READY"],
@@ -112,11 +112,13 @@ function checklistMarketFactor(factorId: string, marketName: "ASIAN_HANDICAP" | 
       : { source: "canonical_mainline_identity" };
   return {
     factor_id: factorId,
-    display_name_zh: factorId === "MK_EXACT_QUOTE" ? "精确报价身份" : factorId === "MK_BOOKMAKER_DEPTH" ? "机构深度" : "报价时效",
+    display_name_zh: factorId === "MK_EXACT_QUOTE" ? "主盘身份可解析" : factorId === "MK_BOOKMAKER_DEPTH" ? "机构深度" : "报价时效",
     market: marketName,
     role_model_forecast: "NOT_APPLICABLE",
     role_shadow_candidate: "HARD_GATE",
-    state: missing ? "MISSING" : "READY",
+    factor_lifecycle: null,
+    numeric_effect_enabled: true,
+    state: missing ? "WAITING" : "READY",
     cause: missing ? "NOT_YET_DUE" : null,
     permanence: missing ? "TRANSIENT" : "NOT_APPLICABLE",
     next_window_at: missing ? "2026-08-09T14:30:00Z" : null,
@@ -135,6 +137,9 @@ function factorChecklist(id: string, rich = false, stale = false): WorkspaceMatc
     kickoff_utc: "2026-08-09T14:30:00Z",
     as_of: "2026-08-09T13:00:00Z",
     conclusion_zh: modelReady ? shadowReady ? "本场可进入模型预测账本，也具备形成影子候选的输入条件。" : "本场可进入模型预测账本；不能形成影子候选 —— 卡在 报价时效" : "本场不可进入模型预测账本 —— 卡在 四字段 xG（滚动样本不足）",
+    market_identity_note_zh: "主盘身份可解析 ≠ 候选报价可锁定；候选轨道还要求报价可执行、模型就绪及 Decision V4。",
+    ledger_fact: { state: "NOT_CAPTURED" },
+    enhancement_quality: { state: "READY", missing_factor_ids: [] },
     track_model_forecast: { state: modelReady ? "READY" : "BLOCKED", blocking_factor_ids: modelReady ? [] : ["F9_TRUE_XG"] },
     track_shadow_candidate: {
       state: shadowReady ? "READY" : "BLOCKED",
@@ -145,7 +150,7 @@ function factorChecklist(id: string, rich = false, stale = false): WorkspaceMatc
       },
     },
     factors: [
-      { factor_id: "F9_TRUE_XG", display_name_zh: "四字段 xG", market: null, role_model_forecast: "HARD_GATE", role_shadow_candidate: "HARD_GATE", state: modelReady ? "READY" : "MISSING", cause: modelReady ? null : "UNDER_SAMPLED", permanence: modelReady ? "NOT_APPLICABLE" : "SELF_RESOLVING", next_window_at: null, evidence: { source: "rolling_xg_snapshot+team_xg_match", home_sample_count: modelReady ? 3 : 0, away_sample_count: modelReady ? 3 : 0, shortfall: modelReady ? 0 : 3 } },
+      { factor_id: "F9_TRUE_XG", display_name_zh: "四字段 xG", market: null, role_model_forecast: "HARD_GATE", role_shadow_candidate: "HARD_GATE", factor_lifecycle: "ACTIVE", numeric_effect_enabled: true, state: modelReady ? "READY" : "MISSING", cause: modelReady ? null : "UNDER_SAMPLED", permanence: modelReady ? "NOT_APPLICABLE" : "SELF_RESOLVING", next_window_at: null, evidence: { source: "rolling_xg_snapshot+team_xg_match", home_sample_count: modelReady ? 3 : 0, away_sample_count: modelReady ? 3 : 0, shortfall: modelReady ? 0 : 3 } },
       ...(["ASIAN_HANDICAP", "TOTALS"] as const).flatMap((marketName) => ["MK_EXACT_QUOTE", "MK_BOOKMAKER_DEPTH", "MK_QUOTE_AGE"].map((factorId) => checklistMarketFactor(factorId, marketName, rich, stale))),
     ],
   };
@@ -505,6 +510,20 @@ test("R5 factor checklist keeps model and shadow tracks separate per market", as
   await expect(checklist).toContainText("让球主盘");
   await expect(checklist).toContainText("大小球主盘");
   await checklist.screenshot({ animations: "disabled", path: testInfo.outputPath("r5-factor-checklist.png") });
+});
+
+test("R6 distinguishes mainline identity from candidate quote lock", async ({ page }) => {
+  await installWorkspace(page, "stale");
+  await page.goto("/");
+  const checklist = page.locator(".v41-factor-checklist");
+
+  await expect(checklist).toContainText("模型账本 READY");
+  await expect(checklist).toContainText("影子候选 BLOCKED");
+  await expect(checklist).toContainText("主盘身份可解析 ≠ 候选报价可锁定");
+  await expect(checklist.getByText("主盘身份可解析", { exact: true })).toHaveCount(2);
+  await expect(page.getByText(/候选报价可锁定：/)).toHaveCount(2);
+  await expect(checklist).toContainText("模型预测账本事实");
+  await expect(checklist).toContainText("尚未冻结");
 });
 
 test("V41 keeps the zero-observation market state explicit", async ({ page }, testInfo) => {

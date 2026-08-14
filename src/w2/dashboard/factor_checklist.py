@@ -24,7 +24,7 @@ DISPLAY_NAMES = {
     "F8_SQUAD_VALUE": "球队身价",
     "F9_TRUE_XG": "四字段 xG",
     "F10_LMM_V1": "首发阵容",
-    "MK_EXACT_QUOTE": "精确报价身份",
+    "MK_EXACT_QUOTE": "主盘身份可解析",
     "MK_BOOKMAKER_DEPTH": "机构深度",
     "MK_QUOTE_AGE": "报价时效",
 }
@@ -39,6 +39,8 @@ def build_fixture_factor_checklist(
     home_identity_ready: bool,
     away_identity_ready: bool,
     shadow_candidate: Mapping[str, Any],
+    market_aggregate_status: str,
+    ledger_fact: Mapping[str, Any] | None,
     generated_at: Any,
 ) -> dict[str, Any]:
     inputs = _mapping(card.get("factor_checklist_inputs"))
@@ -70,7 +72,12 @@ def build_fixture_factor_checklist(
         "F8_SQUAD_VALUE",
     ):
         factors.append(
-            _contribution_factor(factor_id, contributions.get(factor_id, []), generated_at)
+            _contribution_factor(
+                factor_id,
+                contributions.get(factor_id, []),
+                generated_at,
+                identity_ready=home_identity_ready and away_identity_ready,
+            )
         )
     factors.append(_lineup_factor(readiness, lineup_collection, generated_at))
     for market in MARKETS:
@@ -86,22 +93,21 @@ def build_fixture_factor_checklist(
 
     per_market: dict[str, Any] = {}
     for market in MARKETS:
+        eligibility = _mapping(_mapping(markets.get(market)).get("eligibility"))
         blockers = list(model_blockers)
-        for factor in factors:
-            if (
-                factor.get("market") == market
-                and factor["role_shadow_candidate"] == "HARD_GATE"
-                and factor["state"] != "READY"
-            ):
-                blockers.append(str(factor["factor_id"]))
-        if not blockers and _text(shadow_candidate.get("status")) != "ACTIVE":
+        if _text(eligibility.get("candidate_eligibility_status")) != "READY":
+            blockers.extend(_candidate_blockers(eligibility, factors, market))
+        elif _text(shadow_candidate.get("status")) != "ACTIVE":
             blockers.append("DECISION_V4")
         per_market[market] = {
             "state": "READY" if not blockers else "BLOCKED",
             "blocking_factor_ids": list(dict.fromkeys(blockers)),
         }
 
-    shadow_ready = any(item["state"] == "READY" for item in per_market.values())
+    candidate_input_ready = market_aggregate_status in {"READY", "PARTIAL"}
+    shadow_ready = candidate_input_ready and any(
+        item["state"] == "READY" for item in per_market.values()
+    )
     shadow_blockers = (
         []
         if shadow_ready
@@ -128,6 +134,12 @@ def build_fixture_factor_checklist(
         "kickoff_utc": card.get("kickoff_utc"),
         "as_of": generated_at,
         "conclusion_zh": _conclusion(model_track, shadow_track, factors),
+        "market_identity_note_zh": (
+            "主盘身份可解析 ≠ 候选报价可锁定；"
+            "候选轨道还要求报价可执行、模型就绪及 Decision V4。"
+        ),
+        "ledger_fact": dict(ledger_fact or {"state": "NOT_CAPTURED"}),
+        "enhancement_quality": _enhancement_quality(factors),
         "track_model_forecast": model_track,
         "track_shadow_candidate": shadow_track,
         "factors": factors,
@@ -147,6 +159,8 @@ def _xg_factor(
         state, cause, permanence = "READY", None, "NOT_APPLICABLE"
     elif unsupported:
         state, cause, permanence = "MISSING", "PROVIDER_NOT_AVAILABLE", "STRUCTURAL_PERMANENT"
+    elif home_count == 0 and away_count == 0:
+        state, cause, permanence = "MISSING", "NO_MATERIALIZED_HISTORY", "UNKNOWN"
     else:
         state, cause, permanence = (
             "PARTIAL" if home_count or away_count else "MISSING",
@@ -192,20 +206,25 @@ def _market_gate_factors(
         _factor(
             "MK_EXACT_QUOTE",
             market=market,
-            state="READY" if exact_ready else "MISSING",
+            state="READY" if exact_ready else _pending_state(temporal_cause),
             cause=None if exact_ready else temporal_cause,
             permanence="NOT_APPLICABLE" if exact_ready else "TRANSIENT",
             next_window_at=None if exact_ready else next_window_at,
             as_of=as_of,
             evidence={
                 "source": "canonical_mainline_identity",
+                "semantic_key": "identity_resolvable",
                 "identity_status": _optional_text(identity.get("identity_status")),
             },
         ),
         _factor(
             "MK_BOOKMAKER_DEPTH",
             market=market,
-            state="READY" if depth >= MIN_BOOKMAKER_DEPTH else "PARTIAL" if depth else "MISSING",
+            state="READY"
+            if depth >= MIN_BOOKMAKER_DEPTH
+            else "PARTIAL"
+            if depth
+            else _pending_state(temporal_cause),
             cause=None
             if depth >= MIN_BOOKMAKER_DEPTH
             else "UNDER_SAMPLED"
@@ -228,7 +247,7 @@ def _market_gate_factors(
         _factor(
             "MK_QUOTE_AGE",
             market=market,
-            state="READY" if age_ready else "MISSING",
+            state="READY" if age_ready else _pending_state(temporal_cause),
             cause=None if age_ready else temporal_cause,
             permanence="NOT_APPLICABLE" if age_ready else "TRANSIENT",
             next_window_at=None if age_ready else next_window_at,
@@ -243,16 +262,21 @@ def _market_gate_factors(
 
 
 def _contribution_factor(
-    factor_id: str, rows: list[Mapping[str, Any]], as_of: Any
+    factor_id: str,
+    rows: list[Mapping[str, Any]],
+    as_of: Any,
+    *,
+    identity_ready: bool,
 ) -> dict[str, Any]:
     statuses = {_text(row.get("status")) for row in rows}
     ready_count = sum(status == "READY" for status in statuses)
     if rows and statuses == {"READY"}:
         state, cause, permanence = "READY", None, "NOT_APPLICABLE"
     elif rows and ready_count:
-        state, cause, permanence = "PARTIAL", "UNDER_SAMPLED", "SELF_RESOLVING"
+        state, cause, permanence = "PARTIAL", "NOT_MATERIALIZED", "UNKNOWN"
     else:
-        state, cause, permanence = "MISSING", "UNDER_SAMPLED", "SELF_RESOLVING"
+        cause = "IDENTITY_UNRESOLVED" if not identity_ready else _contribution_cause(rows)
+        state, permanence = "MISSING", "UNKNOWN"
     return _factor(
         factor_id,
         state=state,
@@ -266,8 +290,24 @@ def _contribution_factor(
             or load_factor_registry()[factor_id]["source_group"],
             "sample_count": len(rows),
             "statuses": sorted(status for status in statuses if status),
+            "collection_statuses": sorted(
+                {
+                    _text(row.get("collection_status"))
+                    for row in rows
+                    if row.get("collection_status")
+                }
+            ),
         },
     )
+
+
+def _contribution_cause(rows: Sequence[Mapping[str, Any]]) -> str:
+    collection_statuses = {
+        _text(row.get("collection_status")) for row in rows if row.get("collection_status")
+    }
+    if "MAPPING_MISSING" in collection_statuses:
+        return "SOURCE_NOT_CONFIGURED"
+    return "NOT_MATERIALIZED"
 
 
 def _lineup_factor(
@@ -277,7 +317,7 @@ def _lineup_factor(
     cause = None if ready else _collection_cause(collection)
     return _factor(
         "F10_LMM_V1",
-        state="READY" if ready else "MISSING",
+        state="READY" if ready else "WAITING" if cause == "NOT_YET_DUE" else "MISSING",
         cause=cause,
         permanence="NOT_APPLICABLE" if ready else "TRANSIENT",
         next_window_at=None if ready else collection.get("scheduled_at"),
@@ -316,7 +356,11 @@ def _market_explanation_factors(
             cause=None if bookmaker_count else "UNDER_SAMPLED",
             permanence="NOT_APPLICABLE" if bookmaker_count else "SELF_RESOLVING",
             as_of=as_of,
-            evidence={"source": "market_radar.current", "sample_count": bookmaker_count},
+            evidence={
+                "source": "market_radar.current",
+                "sample_count": bookmaker_count,
+                "shortfall": 0 if bookmaker_count else 1,
+            },
         ),
     ]
 
@@ -334,11 +378,16 @@ def _factor(
 ) -> dict[str, Any]:
     role = _role_authority()["fixture_factor_roles"][factor_id]
     authority_factor = str(role["authority_factor"])
+    registry = load_factor_registry().get(factor_id)
     result = {
         "factor_id": factor_id,
         "display_name_zh": DISPLAY_NAMES[factor_id],
         "role_model_forecast": role["role_model_forecast"],
         "role_shadow_candidate": role["role_shadow_candidate"],
+        "factor_lifecycle": registry.get("lifecycle") if registry else None,
+        "numeric_effect_enabled": (
+            bool(registry.get("numeric_effect_enabled")) if registry else True
+        ),
         "state": state,
         "cause": cause,
         "permanence": permanence,
@@ -379,11 +428,20 @@ def _blocker_detail(blocker: str, factors: Sequence[Mapping[str, Any]]) -> str:
         None,
     )
     if row is None:
-        return "Decision V4 尚未通过" if blocker == "DECISION_V4" else "比赛或球队身份尚未解析"
+        return {
+            "DECISION_V4": "Decision V4 尚未通过",
+            "CANDIDATE_QUOTE_LOCK": (
+                "候选报价可锁定（主盘身份可解析不等于报价完整且可执行）"
+            ),
+            "CANDIDATE_MODEL_NOT_READY": "候选模型输入尚未就绪",
+            "MARKET_EVIDENCE_NOT_AVAILABLE": "市场证据尚未形成",
+        }.get(blocker, "比赛或球队身份尚未解析")
     evidence = _mapping(row.get("evidence"))
     if blocker == "F9_TRUE_XG" and row.get("cause") == "PROVIDER_NOT_AVAILABLE":
         return "四字段 xG（Provider 无该字段，Free 模式下永久不可得）"
     if blocker == "F9_TRUE_XG":
+        if row.get("cause") == "NO_MATERIALIZED_HISTORY":
+            return "四字段 xG（尚无已物化历史；主客队均为 0 场，当前无法判断是否会自愈）"
         return (
             f"四字段 xG（滚动样本不足，至少一队还差 {max(0, _int(evidence.get('shortfall')))} 场）"
         )
@@ -396,8 +454,54 @@ def _blocker_detail(blocker: str, factors: Sequence[Mapping[str, Any]]) -> str:
     if blocker == "MK_BOOKMAKER_DEPTH":
         return f"机构深度（当前 {max(0, _int(evidence.get('bookmaker_count')))} 家，需 >=3 家）"
     if blocker == "MK_EXACT_QUOTE":
-        return "精确报价身份"
+        return "主盘身份可解析"
     return str(row.get("display_name_zh") or blocker)
+
+
+def _candidate_blockers(
+    eligibility: Mapping[str, Any],
+    factors: Sequence[Mapping[str, Any]],
+    market: str,
+) -> list[str]:
+    blockers: list[str] = []
+    raw = {_text(value) for value in eligibility.get("blockers", [])}
+    if "EXECUTABLE_CANDIDATE_QUOTE_NOT_READY" in raw:
+        blockers.extend(
+            str(factor["factor_id"])
+            for factor in factors
+            if factor.get("market") == market
+            and factor.get("factor_id") in {
+                "MK_EXACT_QUOTE",
+                "MK_BOOKMAKER_DEPTH",
+                "MK_QUOTE_AGE",
+            }
+            and factor.get("state") != "READY"
+        )
+        if not blockers:
+            blockers.append("CANDIDATE_QUOTE_LOCK")
+    if "CANDIDATE_MODEL_NOT_READY" in raw:
+        blockers.append("CANDIDATE_MODEL_NOT_READY")
+    if "MARKET_EVIDENCE_NOT_AVAILABLE" in raw:
+        blockers.append("MARKET_EVIDENCE_NOT_AVAILABLE")
+    return blockers or ["CANDIDATE_QUOTE_LOCK"]
+
+
+def _pending_state(cause: str) -> str:
+    return "WAITING" if cause == "NOT_YET_DUE" else "MISSING"
+
+
+def _enhancement_quality(factors: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    missing = [
+        str(factor["factor_id"])
+        for factor in factors
+        if factor.get("role_model_forecast") == "ENHANCEMENT"
+        and factor.get("state") not in {"READY", "DISABLED", "WAITING"}
+        and factor.get("numeric_effect_enabled") is True
+    ]
+    return {
+        "state": "DEGRADED" if missing else "READY",
+        "missing_factor_ids": list(dict.fromkeys(missing)),
+    }
 
 
 def _collection_cause(collection: Mapping[str, Any]) -> str:

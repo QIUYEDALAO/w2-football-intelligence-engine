@@ -207,9 +207,9 @@ def dashboard_intelligence_workspace(
         payload,
         environment=get_settings().environment.value,
     )
-    outcomes = service.dashboard_outcomes_for_fixtures(
-        [str(card.get("fixture_id") or "") for card in day_view["cards"]]
-    )
+    fixture_ids = [str(card.get("fixture_id") or "") for card in day_view["cards"]]
+    outcomes = service.dashboard_outcomes_for_fixtures(fixture_ids)
+    model_forecasts = service.dashboard_model_forecasts_for_fixtures(fixture_ids)
     replay = build_replay_front_door(
         football_day=day_view["football_day"],
         environment=day_view["environment"],
@@ -222,6 +222,7 @@ def dashboard_intelligence_workspace(
         **build_dashboard_intelligence_workspace(
             day_view,
             replay=replay,
+            model_forecasts=model_forecasts,
             candidate_enabled=os.environ.get("W2_CANDIDATE_ENABLED", "false").lower()
             == "true",
         ),

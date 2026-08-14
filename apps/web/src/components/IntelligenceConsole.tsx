@@ -4,6 +4,7 @@ import { PUBLIC_ENUM_LABELS, PUBLIC_REASON_LABELS } from "../lib/labels";
 import { publicPresentation } from "../lib/publicPresentation";
 import type {
   FixtureFactor,
+  FixtureFactorChecklist,
   IntelligenceWorkspace,
   RiskAxisName,
   WorkspaceMarket,
@@ -418,7 +419,7 @@ function MarketEvidence({ market, generatedAt, kickoff, latestSnapshotAt, latest
       </p>
       <div className="v41-market-freshness"><span>市场证据</span><strong>{label(market.eligibility.observation_status)}</strong><span>捕获档位</span><strong>{timelineCheckpoint || collectionCheckpoint || "档位待确认"}</strong><span>距最新快照</span><strong>{ageLabel(generatedAt, market.latest_snapshot_at)}</strong></div>
       <div className="v41-market-semantics"><b>走势证据：{label(market.trend_evidence_status)}</b><span>{comparisonSummary(market)}</span></div>
-      <div className="v41-market-semantics"><b>候选输入</b><span>精确候选报价：{label(market.eligibility.candidate_quote_identity_status)} · 模型：{label(market.eligibility.candidate_model_status)}</span></div>
+      <div className="v41-market-semantics"><b>候选输入</b><span>候选报价可锁定：{label(market.eligibility.candidate_quote_lock_status)} · 模型：{label(market.eligibility.candidate_model_status)}</span></div>
     </section>
   );
 }
@@ -430,7 +431,7 @@ function RiskSummary({ generatedAt, match }: { generatedAt: string | null; match
     <div className="v41-risk-list" aria-label="四轴风险">
       {(Object.keys(RISK_LABELS) as RiskAxisName[]).map((axis) => {
         const risk = match.risks[axis];
-        return <div className={`is-${risk.status.toLowerCase()}`} data-risk-axis={axis} key={axis}><span>{RISK_LABELS[axis]}</span><strong>{risk.assessment_status === "UNASSESSED" ? "未评估" : label(risk.status)}</strong><small>{risk.explanation || "没有可陈述的源证据"}</small>{axis === "DATA_RISK" && lineupWaiting ? <small>等待中：首发（{match.lineup_collection.target_checkpoint} 窗口）· 计划 {scheduledEvaluation(match.lineup_collection.scheduled_at, generatedAt)}</small> : null}{risk.reason_codes.length ? <details className="v41-risk-codes"><summary>技术原因 {risk.reason_codes.length} 项</summary>{risk.reason_codes.map((reason) => <code key={`${axis}-${reason}`}>{reason}</code>)}</details> : null}</div>;
+        return <div className={`is-${risk.status.toLowerCase()}`} data-risk-axis={axis} key={axis}><span>{RISK_LABELS[axis]}</span><strong>{risk.assessment_status === "UNASSESSED" ? "未评估" : label(risk.status)}</strong><small>{risk.explanation || "没有可陈述的源证据"}</small>{axis === "DATA_RISK" && match.factor_checklist.enhancement_quality.state === "DEGRADED" ? <small>解释质量降级：{match.factor_checklist.enhancement_quality.missing_factor_ids.join("、")}；不作为模型预测硬门。</small> : null}{axis === "DATA_RISK" && lineupWaiting ? <small>等待中：首发（{match.lineup_collection.target_checkpoint} 窗口）· 计划 {scheduledEvaluation(match.lineup_collection.scheduled_at, generatedAt)}</small> : null}{risk.reason_codes.length ? <details className="v41-risk-codes"><summary>技术原因 {risk.reason_codes.length} 项</summary>{risk.reason_codes.map((reason) => <code key={`${axis}-${reason}`}>{reason}</code>)}</details> : null}</div>;
       })}
     </div>
   );
@@ -453,6 +454,18 @@ const FACTOR_CAUSE_LABELS: Record<Exclude<FixtureFactor["cause"], null>, string>
   UNDER_SAMPLED: "样本不足",
   PROVIDER_NOT_AVAILABLE: "Provider 不提供",
   POLICY_DISABLED: "政策关闭，非缺失",
+  NOT_MATERIALIZED: "尚未物化",
+  SOURCE_NOT_CONFIGURED: "来源未配置",
+  IDENTITY_UNRESOLVED: "身份未解析",
+  NO_MATERIALIZED_HISTORY: "尚无已物化历史",
+};
+
+const FACTOR_PERMANENCE_LABELS: Record<FixtureFactor["permanence"], string> = {
+  TRANSIENT: "临时状态",
+  SELF_RESOLVING: "满足所示条件后可自愈",
+  STRUCTURAL_PERMANENT: "结构性永久",
+  UNKNOWN: "持久性尚未确认",
+  NOT_APPLICABLE: "不适用",
 };
 
 function evidenceNumber(factor: FixtureFactor, key: string): number | null {
@@ -472,20 +485,29 @@ function factorEvidence(factor: FixtureFactor): string {
     const home = evidenceNumber(factor, "home_sample_count") || 0;
     const away = evidenceNumber(factor, "away_sample_count") || 0;
     const shortfall = evidenceNumber(factor, "shortfall") || 0;
-    return factor.cause === "PROVIDER_NOT_AVAILABLE" ? "Free 模式下永久不可得" : `主队 ${home} 场 · 客队 ${away} 场${shortfall ? ` · 至少一队还差 ${shortfall} 场` : ""}`;
+    if (factor.cause === "PROVIDER_NOT_AVAILABLE") return "Free 模式下永久不可得";
+    if (factor.cause === "NO_MATERIALIZED_HISTORY") return `主队 0 场（差 ${evidenceNumber(factor, "home_shortfall") || 0}）· 客队 0 场（差 ${evidenceNumber(factor, "away_shortfall") || 0}）`;
+    return `主队 ${home} 场 · 客队 ${away} 场${shortfall ? ` · 至少一队还差 ${shortfall} 场` : ""}`;
   }
   const count = evidenceNumber(factor, "sample_count");
-  return count === null ? String(factor.evidence.source || "已有只读证据") : `样本 ${count}`;
+  return count === null ? "查看技术证据" : `已物化 ${count} 条`;
 }
 
 function FactorRows({ factors }: { factors: FixtureFactor[] }) {
   return <div className="v41-factor-rows">{factors.map((factor) => <div className={`v41-factor-row is-${factor.state.toLowerCase()}`} key={`${factor.factor_id}-${factor.market || "fixture"}`}>
-    <div><strong>{factor.display_name_zh}</strong>{factor.market ? <small>{MARKET_LABELS[factor.market]}</small> : null}</div>
-    <b>{factor.state === "READY" ? "已就绪" : factor.state === "PARTIAL" ? "部分就绪" : factor.state === "DISABLED" ? "已关闭" : "缺失"}</b>
+    <div><strong>{factor.display_name_zh}</strong>{factor.market ? <small>{MARKET_LABELS[factor.market]}</small> : null}{factor.factor_lifecycle === "EXPLANATION_ONLY" && !factor.numeric_effect_enabled ? <small>仅解释 · 不参与评分</small> : null}</div>
+    <b>{factor.state === "READY" ? "已就绪" : factor.state === "PARTIAL" ? "部分就绪" : factor.state === "WAITING" ? "等待窗口" : factor.state === "DISABLED" ? "已关闭" : "缺失"}</b>
     <span>{factor.cause ? FACTOR_CAUSE_LABELS[factor.cause] : "证据已就绪"}</span>
     <span>{factorEvidence(factor)}</span>
-    <small>{factor.next_window_at ? `下次窗口 ${localDateTime(factor.next_window_at)}` : factor.permanence === "STRUCTURAL_PERMANENT" ? "结构性永久" : "—"}</small>
+    <small>{factor.next_window_at ? `下次窗口 ${localDateTime(factor.next_window_at)} · ${FACTOR_PERMANENCE_LABELS[factor.permanence]}` : FACTOR_PERMANENCE_LABELS[factor.permanence]}</small>
+    <details><summary>技术证据</summary><code>{String(factor.evidence.source || "NO_SOURCE")}</code><code>{factor.factor_id}</code></details>
   </div>)}</div>;
+}
+
+function LedgerFact({ checklist }: { checklist: FixtureFactorChecklist }) {
+  const ledger = checklist.ledger_fact;
+  if (ledger.state === "NOT_CAPTURED") return <div className="v41-factor-ledger"><b>模型预测账本事实</b><strong>尚未冻结</strong><span>本场没有已持久化 ModelForecastCapture。</span></div>;
+  return <div className="v41-factor-ledger"><b>模型预测账本事实</b><strong>{ledger.state === "SETTLED" ? "已结算" : "已冻结"}</strong><span>{localDateTime(ledger.captured_at || null)} · {ledger.model_version || "模型版本待确认"} · {ledger.calibration_status || "校准状态待确认"}</span>{ledger.state === "SETTLED" ? <small>Brier {ledger.brier?.toFixed(4)} · LogLoss {ledger.log_loss?.toFixed(4)} · RPS {ledger.rps?.toFixed(4)}</small> : null}</div>;
 }
 
 function FactorChecklist({ match }: { match: WorkspaceMatch }) {
@@ -497,6 +519,8 @@ function FactorChecklist({ match }: { match: WorkspaceMatch }) {
     .sort((left, right) => Number(left.cause === "POLICY_DISABLED") - Number(right.cause === "POLICY_DISABLED"));
   return <section className="v41-factor-checklist" aria-labelledby="factor-checklist-title">
     <header><div><span className="v41-eyebrow">本场因子体检</span><h2 id="factor-checklist-title">{checklist.conclusion_zh}</h2></div><div className="v41-factor-tracks"><b className={checklist.track_model_forecast.state === "READY" ? "is-ready" : "is-blocked"}>模型账本 {checklist.track_model_forecast.state}</b><b className={checklist.track_shadow_candidate.state === "READY" ? "is-ready" : "is-blocked"}>影子候选 {checklist.track_shadow_candidate.state}</b></div></header>
+    <p>{checklist.market_identity_note_zh}</p>
+    <LedgerFact checklist={checklist} />
     <div className="v41-factor-group"><h3>模型预测硬门 <small>决定能否进入验证账本</small></h3><FactorRows factors={modelGates} /></div>
     <div className="v41-factor-group"><h3>候选市场硬门 <small>让球 / 大小球独立显示</small></h3><FactorRows factors={candidateGates} /></div>
     <div className="v41-factor-group"><h3>增强与解释因子 <small>不影响能否推荐，只影响解释质量</small></h3><FactorRows factors={enhancements} /></div>

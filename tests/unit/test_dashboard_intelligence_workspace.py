@@ -277,10 +277,12 @@ def _workspace(
     *,
     candidate_enabled: bool = False,
     replay: dict[str, Any] | None = None,
+    model_forecasts: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     return build_dashboard_intelligence_workspace(
         day_view,
         candidate_enabled=candidate_enabled,
+        model_forecasts=model_forecasts,
         replay=replay or {
             "replay_status": "MISSING_OUTCOMES",
             "known_at_summary": {
@@ -476,6 +478,17 @@ def test_factor_checklist_separates_model_track_from_stale_quote_gate() -> None:
     quote_rows = [row for row in checklist["factors"] if row["factor_id"] == "MK_QUOTE_AGE"]
     assert {row["market"] for row in quote_rows} == {"ASIAN_HANDICAP", "TOTALS"}
     assert all(row["next_window_at"] == "2026-08-09T14:30:00Z" for row in quote_rows)
+    identity_rows = [
+        row for row in checklist["factors"] if row["factor_id"] == "MK_EXACT_QUOTE"
+    ]
+    assert all(row["state"] == "READY" for row in identity_rows)
+    match = _workspace(day_view, candidate_enabled=True)["matches"][0]
+    assert match["readiness"]["market_aggregate_status"] == "NOT_READY"
+    assert all(
+        market["eligibility"]["candidate_quote_lock_status"] == "NOT_READY"
+        for market in match["market_radar"]["markets"].values()
+    )
+    assert "主盘身份可解析 ≠ 候选报价可锁定" in checklist["market_identity_note_zh"]
 
 
 def test_factor_checklist_provider_unavailable_requires_explicit_confirmation() -> None:
@@ -519,8 +532,8 @@ def test_factor_checklist_does_not_promote_generic_provider_empty_to_unsupported
         if row["factor_id"] == "F9_TRUE_XG"
     )
 
-    assert xg["cause"] == "UNDER_SAMPLED"
-    assert xg["permanence"] == "SELF_RESOLVING"
+    assert xg["cause"] == "NO_MATERIALIZED_HISTORY"
+    assert xg["permanence"] == "UNKNOWN"
 
 
 def test_factor_checklist_reports_xg_shortfall_and_market_depth_per_market() -> None:
@@ -566,6 +579,104 @@ def test_factor_checklist_roles_are_loaded_from_sc21_authority_matrix() -> None:
         expected = matrix[row["factor_id"]]
         assert row["role_model_forecast"] == expected["role_model_forecast"]
         assert row["role_shadow_candidate"] == expected["role_shadow_candidate"]
+
+
+def test_factor_checklist_preserves_source_truth_and_waiting_state() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["factor_checklist_inputs"]["feature_contributions"] = [
+        {
+            "id": "F7_STRENGTH_FORM",
+            "status": "INSUFFICIENT_DATA",
+            "source": "internal_elo_v1",
+            "source_group": "ratings",
+            "collection_status": "INSUFFICIENT_RATING_HISTORY",
+        },
+        {
+            "id": "F8_SQUAD_VALUE",
+            "status": "UNAVAILABLE",
+            "source": "team_value_mapping",
+            "source_group": "squad_value",
+            "collection_status": "MAPPING_MISSING",
+        },
+    ]
+    day_view["cards"] = [card]
+
+    checklist = _workspace(day_view)["matches"][0]["factor_checklist"]
+    by_id = {row["factor_id"]: row for row in checklist["factors"] if row.get("market") is None}
+
+    assert by_id["F7_STRENGTH_FORM"]["cause"] == "NOT_MATERIALIZED"
+    assert by_id["F7_STRENGTH_FORM"]["permanence"] == "UNKNOWN"
+    assert by_id["F8_SQUAD_VALUE"]["cause"] == "SOURCE_NOT_CONFIGURED"
+    assert by_id["F8_SQUAD_VALUE"]["permanence"] == "UNKNOWN"
+    assert by_id["F10_LMM_V1"]["state"] == "WAITING"
+    assert by_id["F10_LMM_V1"]["cause"] == "NOT_YET_DUE"
+    assert by_id["F10_LMM_V1"]["next_window_at"] == "2026-08-10T09:00:00Z"
+    assert all(
+        row["permanence"] != "SELF_RESOLVING"
+        for row in checklist["factors"]
+        if row["factor_id"] in {"F7_STRENGTH_FORM", "F8_SQUAD_VALUE"}
+    )
+
+
+def test_factor_checklist_exposes_registry_policy_and_ledger_fact() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    day_view["cards"] = [card]
+    fixture_id = card["fixture_id"]
+    ledger = {
+        "state": "SETTLED",
+        "capture_identity_hash": "a" * 64,
+        "captured_at": "2026-08-09T01:00:00Z",
+        "model_family": "W2_FOUR_FIELD_XG",
+        "model_version": "w2-model-v1",
+        "calibration_version": "cal-v1",
+        "calibration_status": "AVAILABLE",
+        "settled_at": "2026-08-10T01:00:00Z",
+        "brier": 0.2,
+        "log_loss": 0.4,
+        "rps": 0.1,
+    }
+
+    checklist = _workspace(
+        day_view,
+        model_forecasts={fixture_id: ledger},
+    )["matches"][0]["factor_checklist"]
+
+    explanations = [
+        row
+        for row in checklist["factors"]
+        if row["factor_id"] in {"F1_MARKET_MOVEMENT", "F2_BOOKMAKER_INTENT"}
+    ]
+    assert all(row["factor_lifecycle"] == "EXPLANATION_ONLY" for row in explanations)
+    assert all(row["numeric_effect_enabled"] is False for row in explanations)
+    assert checklist["ledger_fact"] == ledger
+
+
+def test_data_risk_excludes_enhancement_only_gaps() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["missing_fields"] = ["ratings", "team_value"]
+    card["risk_dimensions"]["DATA_RISK"] = {
+        "dimension": "DATA_RISK",
+        "status": "INCIDENT",
+        "reason_codes": ["DATA_REQUIRED_INPUT_MISSING", "DATA_STATUS_BLOCKED"],
+    }
+    day_view["cards"] = [card]
+
+    match = _workspace(day_view)["matches"][0]
+
+    assert match["risks"]["DATA_RISK"]["status"] == "OK"
+    assert match["factor_checklist"]["enhancement_quality"] == {
+        "state": "DEGRADED",
+        "missing_factor_ids": [
+            "F3_REST_FITNESS",
+            "F5_RECENT_AH_COVER",
+            "F6_H2H",
+            "F7_STRENGTH_FORM",
+            "F8_SQUAD_VALUE",
+        ],
+    }
 
 
 def _keys(value: Any) -> set[str]:
@@ -1400,8 +1511,8 @@ def test_market_eligibility_preserves_ah_ou_partial_truth_without_cross_contamin
     assert ah["observation_status"] == totals["observation_status"] == "AVAILABLE"
     assert ah["model_diagnostic_status"] == "INSUFFICIENT_BOOKMAKER_DEPTH"
     assert totals["model_diagnostic_status"] == "MODEL_NOT_READY"
-    assert ah["candidate_quote_identity_status"] == "NOT_READY"
-    assert totals["candidate_quote_identity_status"] == "NOT_READY"
+    assert ah["candidate_quote_lock_status"] == "NOT_READY"
+    assert totals["candidate_quote_lock_status"] == "NOT_READY"
     assert match["readiness"]["market_aggregate_status"] == "NOT_READY"
     assert match["readiness"]["market_evidence_status"] == "AVAILABLE"
     assert match["readiness"]["candidate_input_status"] == "NOT_READY"
@@ -1442,9 +1553,7 @@ def test_data_risk_names_missing_inputs_and_clearance_condition() -> None:
 
     explanation = _workspace(day_view)["matches"][0]["risks"]["DATA_RISK"]["explanation"]
 
-    assert explanation == (
-        "待补齐：模型核心输入 xG、评级增强输入、球队身价增强输入；既有采集或模型投影形成后解除"
-    )
+    assert explanation == "待补齐：模型核心输入 xG；既有采集或模型投影形成后解除"
 
 
 def test_data_risk_keeps_lineup_missing_after_collection_is_due() -> None:
@@ -1464,9 +1573,7 @@ def test_data_risk_keeps_lineup_missing_after_collection_is_due() -> None:
         "explanation"
     ]
 
-    assert explanation == (
-        "待补齐：首发、模型核心输入 xG；既有采集或模型投影形成后解除"
-    )
+    assert explanation == "待补齐：模型核心输入 xG；既有采集或模型投影形成后解除"
 
 
 def test_not_yet_due_lineup_alone_is_not_an_abnormal_data_risk() -> None:

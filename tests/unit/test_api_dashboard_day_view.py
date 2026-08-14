@@ -16,6 +16,7 @@ class RecordingDashboardService:
         self.calls: list[dict[str, Any]] = []
         self.outcome_calls: list[list[str]] = []
         self.outcomes: list[dict[str, Any]] = []
+        self.model_forecast_calls: list[list[str]] = []
 
     def dashboard(
         self,
@@ -94,6 +95,13 @@ class RecordingDashboardService:
     ) -> list[dict[str, Any]]:
         self.outcome_calls.append(fixture_ids)
         return deepcopy(self.outcomes)
+
+    def dashboard_model_forecasts_for_fixtures(
+        self,
+        fixture_ids: list[str],
+    ) -> dict[str, dict[str, Any]]:
+        self.model_forecast_calls.append(fixture_ids)
+        return {}
 
 
 def test_dashboard_day_view_endpoint_reads_requested_window(

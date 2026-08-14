@@ -61,6 +61,10 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayFixtureIdentityModel,
     MatchdayMarketObservationModel,
 )
+from w2.infrastructure.persistence.model_forecast_models import (
+    ModelForecastCaptureModel,
+    ModelForecastOutcomeModel,
+)
 from w2.infrastructure.persistence.models import ResultModel
 from w2.lineups.intelligence import lineup_requirement
 from w2.matchday.timezone import (
@@ -1023,6 +1027,72 @@ class ReadModelRepository:
         }
         return [by_requested[value] for value in requested if value in by_requested]
 
+    def dashboard_model_forecasts_for_fixtures(
+        self,
+        fixture_ids: Sequence[str],
+    ) -> dict[str, dict[str, Any]]:
+        """Read persisted model-forecast ledger facts without materializing anything."""
+
+        requested = list(dict.fromkeys(str(value or "").strip() for value in fixture_ids))
+        requested = [value for value in requested if value]
+        aliases = {
+            value: {
+                value,
+                value.removeprefix("api_football:"),
+                f"api_football:{value.removeprefix('api_football:')}",
+            }
+            for value in requested
+        }
+        if not aliases:
+            return {}
+        all_aliases = tuple({alias for values in aliases.values() for alias in values})
+        try:
+            with Session(self._database_engine()) as session:
+                captures = list(
+                    session.scalars(
+                        select(ModelForecastCaptureModel)
+                        .where(ModelForecastCaptureModel.fixture_id.in_(all_aliases))
+                        .order_by(ModelForecastCaptureModel.captured_at.desc())
+                    )
+                )
+                capture_hashes = tuple(row.capture_identity_hash for row in captures)
+                outcomes = (
+                    list(
+                        session.scalars(
+                            select(ModelForecastOutcomeModel).where(
+                                ModelForecastOutcomeModel.capture_identity_hash.in_(capture_hashes)
+                            )
+                        )
+                    )
+                    if capture_hashes
+                    else []
+                )
+        except SQLAlchemyError as exc:
+            raise SystemDegradedError("DASHBOARD_MODEL_FORECAST_QUERY_FAILED") from exc
+        outcome_by_capture = {row.capture_identity_hash: row for row in outcomes}
+        result: dict[str, dict[str, Any]] = {}
+        for requested_id, requested_aliases in aliases.items():
+            capture = next((row for row in captures if row.fixture_id in requested_aliases), None)
+            if capture is None:
+                result[requested_id] = {"state": "NOT_CAPTURED"}
+                continue
+            payload = capture.payload if isinstance(capture.payload, dict) else {}
+            outcome = outcome_by_capture.get(capture.capture_identity_hash)
+            result[requested_id] = {
+                "state": "SETTLED" if outcome is not None else "CAPTURED",
+                "capture_identity_hash": capture.capture_identity_hash,
+                "captured_at": _iso_or_none(capture.captured_at),
+                "model_family": capture.model_family,
+                "model_version": capture.model_version,
+                "calibration_version": payload.get("calibration_version"),
+                "calibration_status": payload.get("calibration_status"),
+                "settled_at": _iso_or_none(outcome.settled_at) if outcome else None,
+                "brier": outcome.brier if outcome else None,
+                "log_loss": outcome.log_loss if outcome else None,
+                "rps": outcome.rps if outcome else None,
+            }
+        return result
+
     def fixture_statuses_for_fixtures(self, fixture_ids: list[str]) -> dict[str, str]:
         provider_ids = {
             str(fixture_id or "").removeprefix("api_football:")
@@ -1520,6 +1590,12 @@ class ReadModelService:
         fixture_ids: Sequence[str],
     ) -> list[dict[str, Any]]:
         return self.repository.dashboard_outcomes_for_fixtures(fixture_ids)
+
+    def dashboard_model_forecasts_for_fixtures(
+        self,
+        fixture_ids: Sequence[str],
+    ) -> dict[str, dict[str, Any]]:
+        return self.repository.dashboard_model_forecasts_for_fixtures(fixture_ids)
 
     def public_validation_summary(self, **kwargs: Any) -> dict[str, Any]:
         return self.validation_summary(**kwargs)

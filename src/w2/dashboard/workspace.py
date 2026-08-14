@@ -75,6 +75,7 @@ def build_dashboard_intelligence_workspace(
     day_view: Mapping[str, Any],
     *,
     replay: Mapping[str, Any],
+    model_forecasts: Mapping[str, Mapping[str, Any]] | None = None,
     candidate_enabled: bool = False,
 ) -> dict[str, Any]:
     """Adapt existing bounded projections into the one final Dashboard read model."""
@@ -91,6 +92,7 @@ def build_dashboard_intelligence_workspace(
             card,
             candidate_enabled=candidate_enabled,
             generated_at=generated_at,
+            ledger_fact=_mapping((model_forecasts or {}).get(_text(card.get("fixture_id")))),
         )
         for card in cards
     ]
@@ -218,6 +220,7 @@ def _match(
     *,
     candidate_enabled: bool,
     generated_at: Any,
+    ledger_fact: Mapping[str, Any],
 ) -> dict[str, Any]:
     radar = _mapping(card.get("market_radar"))
     model_lab = _mapping(card.get("model_lab"))
@@ -280,6 +283,8 @@ def _match(
         home_identity_ready=home_team_label["state"] != "IDENTITY_UNRESOLVED",
         away_identity_ready=away_team_label["state"] != "IDENTITY_UNRESOLVED",
         shadow_candidate=shadow_candidate,
+        market_aggregate_status=market_aggregate_status,
+        ledger_fact=ledger_fact,
         generated_at=generated_at,
     )
     return {
@@ -301,6 +306,7 @@ def _match(
             market_collection,
             lineup_collection,
             missing_fields=_string_list(card.get("missing_fields")),
+            factor_checklist=factor_checklist,
         ),
         "readiness": {
             "status": _text(card.get("data_status"), "BLOCKED"),
@@ -656,7 +662,7 @@ def _market_eligibility(
             market.get("cross_sectional_comparison_status"), "INSUFFICIENT"
         ),
         "model_diagnostic_status": _text(relation.get("status"), "MARKET_NOT_READY"),
-        "candidate_quote_identity_status": "READY" if quote_ready else "NOT_READY",
+        "candidate_quote_lock_status": "READY" if quote_ready else "NOT_READY",
         "candidate_model_status": "READY" if model_ready else "NOT_READY",
         "candidate_eligibility_status": eligibility,
         "blockers": list(dict.fromkeys(blockers)),
@@ -1417,16 +1423,25 @@ def _match_risks(
     lineup_collection: Mapping[str, Any],
     *,
     missing_fields: Sequence[str],
+    factor_checklist: Mapping[str, Any],
 ) -> dict[str, Any]:
     result = _risks(source)
     data_risk = result["DATA_RISK"]
     lineup_cause = _optional_text(
         _mapping(lineup_collection.get("public_semantics")).get("cause")
     )
+    hard_gate_factor_ids = {
+        _text(factor.get("factor_id"))
+        for factor in _mapping_list(factor_checklist.get("factors"))
+        if factor.get("role_model_forecast") == "HARD_GATE"
+        and factor.get("state") not in {"READY", "WAITING", "DISABLED"}
+    }
+    factor_by_field = {"xg": "F9_TRUE_XG", "lineups": "F10_LMM_V1"}
     blocking_fields = [
         field
         for field in missing_fields
-        if not (field == "lineups" and lineup_cause == "NOT_YET_DUE")
+        if factor_by_field.get(field) in hard_gate_factor_ids
+        and not (field == "lineups" and lineup_cause == "NOT_YET_DUE")
     ]
     if blocking_fields and _text(data_risk.get("status")) != "OK":
         known = [
@@ -1441,7 +1456,7 @@ def _match_risks(
         data_risk["explanation"] = (
             f"待补齐：{missing_copy}；既有采集或模型投影形成后解除"
         )
-    elif missing_fields and lineup_cause == "NOT_YET_DUE" and set(
+    elif missing_fields and not blocking_fields and set(
         _string_list(data_risk.get("reason_codes"))
     ) <= {"DATA_REQUIRED_INPUT_MISSING", "DATA_STATUS_BLOCKED"}:
         data_risk.update(

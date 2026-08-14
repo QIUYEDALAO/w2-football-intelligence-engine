@@ -202,9 +202,10 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
     assert "factor_checklist" in schemas["WorkspaceMatch"]["required"]
     assert set(schemas["WorkspaceFixtureFactor"]["properties"]["state"]["enum"]) == {
         "READY",
-        "PARTIAL",
-        "MISSING",
-        "DISABLED",
+            "PARTIAL",
+            "MISSING",
+            "WAITING",
+            "DISABLED",
     }
     assert set(schemas["WorkspaceMarketCollection"]["properties"]) == {
         "latest_snapshot_at",

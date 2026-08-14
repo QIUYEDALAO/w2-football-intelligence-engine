@@ -70,7 +70,11 @@ def _market_audit(match: dict[str, Any], market_name: str) -> dict[str, Any]:
     )
     depth = int(market.get("bookmaker_count") or 0)
     depth_ready = depth >= MIN_BOOKMAKER_DEPTH
-    quote_identity_ready = eligibility.get("candidate_quote_identity_status") == "READY"
+    quote_lock_status = eligibility.get(
+        "candidate_quote_lock_status",
+        eligibility.get("candidate_quote_identity_status"),
+    )
+    quote_identity_ready = quote_lock_status == "READY"
     current_exact_quote_ready = quote_identity_ready and fresh and depth_ready
     model_ready = eligibility.get("candidate_model_status") == "READY"
     current_candidate_ready = current_exact_quote_ready and model_ready
@@ -105,7 +109,7 @@ def _market_audit(match: dict[str, Any], market_name: str) -> dict[str, Any]:
                 if not depth_ready
                 else "RAW_PRESENT_NOT_MATERIALIZED"
             ),
-            "identity_status": eligibility.get("candidate_quote_identity_status"),
+            "lock_status": quote_lock_status,
             "current_ready": current_exact_quote_ready,
         },
         "candidate_eligibility": {

@@ -341,7 +341,7 @@ class WorkspaceMarketEligibility(BaseModel):
     trend_evidence_status: Literal["AVAILABLE", "INSUFFICIENT"]
     cross_sectional_comparison_status: Literal["AVAILABLE", "INSUFFICIENT"]
     model_diagnostic_status: str
-    candidate_quote_identity_status: Literal["READY", "NOT_READY"]
+    candidate_quote_lock_status: Literal["READY", "NOT_READY"]
     candidate_model_status: Literal["READY", "NOT_READY"]
     candidate_eligibility_status: Literal["READY", "NOT_READY"]
     blockers: list[str]
@@ -747,7 +747,9 @@ class WorkspaceFixtureFactor(BaseModel):
     market: Literal["ASIAN_HANDICAP", "TOTALS"] | None = None
     role_model_forecast: Literal["HARD_GATE", "ENHANCEMENT", "NOT_APPLICABLE", "POLICY_DISABLED"]
     role_shadow_candidate: Literal["HARD_GATE", "ENHANCEMENT", "NOT_APPLICABLE", "POLICY_DISABLED"]
-    state: Literal["READY", "PARTIAL", "MISSING", "DISABLED"]
+    factor_lifecycle: str | None
+    numeric_effect_enabled: bool
+    state: Literal["READY", "PARTIAL", "MISSING", "WAITING", "DISABLED"]
     cause: (
         Literal[
             "NOT_YET_DUE",
@@ -756,10 +758,20 @@ class WorkspaceFixtureFactor(BaseModel):
             "UNDER_SAMPLED",
             "PROVIDER_NOT_AVAILABLE",
             "POLICY_DISABLED",
+            "NOT_MATERIALIZED",
+            "SOURCE_NOT_CONFIGURED",
+            "IDENTITY_UNRESOLVED",
+            "NO_MATERIALIZED_HISTORY",
         ]
         | None
     )
-    permanence: Literal["TRANSIENT", "SELF_RESOLVING", "STRUCTURAL_PERMANENT", "NOT_APPLICABLE"]
+    permanence: Literal[
+        "TRANSIENT",
+        "SELF_RESOLVING",
+        "STRUCTURAL_PERMANENT",
+        "UNKNOWN",
+        "NOT_APPLICABLE",
+    ]
     next_window_at: datetime | str | None
     evidence: dict[str, Any]
 
@@ -771,7 +783,60 @@ class WorkspaceFixtureFactor(BaseModel):
             raise ValueError("provider unavailable must be structural permanent")
         if self.cause == "POLICY_DISABLED" and self.state != "DISABLED":
             raise ValueError("policy disabled must use disabled state")
+        if (self.state == "WAITING") != (self.cause == "NOT_YET_DUE"):
+            raise ValueError("not-yet-due factors must use waiting state")
+        if self.permanence == "SELF_RESOLVING" and not (
+            self.next_window_at is not None
+            or int(self.evidence.get("shortfall") or 0) > 0
+        ):
+            raise ValueError("self-resolving factors require a concrete recovery condition")
         return self
+
+
+class WorkspaceModelForecastLedgerFact(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    state: Literal["NOT_CAPTURED", "CAPTURED", "SETTLED"]
+    capture_identity_hash: str | None = None
+    captured_at: datetime | str | None = None
+    model_family: str | None = None
+    model_version: str | None = None
+    calibration_version: str | None = None
+    calibration_status: str | None = None
+    settled_at: datetime | str | None = None
+    brier: float | None = None
+    log_loss: float | None = None
+    rps: float | None = None
+
+    @model_validator(mode="after")
+    def fields_follow_state(self) -> WorkspaceModelForecastLedgerFact:
+        captured = (
+            self.capture_identity_hash,
+            self.captured_at,
+            self.model_family,
+            self.model_version,
+        )
+        settled = (self.settled_at, self.brier, self.log_loss, self.rps)
+        if self.state == "NOT_CAPTURED" and any(
+            value is not None for value in (*captured, *settled)
+        ):
+            raise ValueError("not-captured ledger facts cannot contain capture or outcome fields")
+        if self.state in {"CAPTURED", "SETTLED"} and any(value is None for value in captured):
+            raise ValueError(
+                "captured ledger facts require persisted capture identity and model fields"
+            )
+        if self.state == "SETTLED" and any(value is None for value in settled):
+            raise ValueError("settled ledger facts require persisted probability metrics")
+        if self.state == "CAPTURED" and any(value is not None for value in settled):
+            raise ValueError("unsettled capture cannot contain outcome metrics")
+        return self
+
+
+class WorkspaceEnhancementQuality(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    state: Literal["READY", "DEGRADED"]
+    missing_factor_ids: list[str]
 
 
 class WorkspaceFixtureFactorChecklist(BaseModel):
@@ -782,6 +847,9 @@ class WorkspaceFixtureFactorChecklist(BaseModel):
     kickoff_utc: datetime | str | None
     as_of: datetime | str | None
     conclusion_zh: str = Field(min_length=1)
+    market_identity_note_zh: str = Field(min_length=1)
+    ledger_fact: WorkspaceModelForecastLedgerFact
+    enhancement_quality: WorkspaceEnhancementQuality
     track_model_forecast: WorkspaceFactorTrackState
     track_shadow_candidate: WorkspaceShadowFactorTrack
     factors: list[WorkspaceFixtureFactor]

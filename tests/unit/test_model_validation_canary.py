@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from w2.api.repository import ReadModelRepository
 from w2.domain.canonical_serialization import canonical_sha256
 from w2.infrastructure.persistence.future_refresh_models import (
     RawPayloadModel,
@@ -70,6 +71,34 @@ def test_canary_passes_valid_independent_ledger_and_unlocks_packet(
     assert "OWNER_DECISION_REQUIRED" in packet.read_text(encoding="utf-8")
 
 
+def test_dashboard_reads_capture_and_outcome_as_ledger_facts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    engine = _engine(tmp_path)
+    _seed_valid_capture_and_outcome(engine)
+    repository = ReadModelRepository()
+    monkeypatch.setattr(repository, "_database_engine", lambda: engine)
+
+    facts = repository.dashboard_model_forecasts_for_fixtures(
+        ["fixture-1", "fixture-not-captured"]
+    )
+
+    assert facts["fixture-1"] == {
+        "state": "SETTLED",
+        "capture_identity_hash": facts["fixture-1"]["capture_identity_hash"],
+        "captured_at": "2026-08-14T00:00:00Z",
+        "model_family": "EXACT_DC_POISSON",
+        "model_version": "model-v1",
+        "calibration_version": "cal-v1",
+        "calibration_status": "AVAILABLE",
+        "settled_at": "2026-08-14T03:00:00Z",
+        "brier": 0.38,
+        "log_loss": 0.69314718056,
+        "rps": 0.17,
+    }
+    assert facts["fixture-not-captured"] == {"state": "NOT_CAPTURED"}
+
+
 def _engine(tmp_path: Path):  # type: ignore[no-untyped-def]
     engine = create_engine(f"sqlite+pysqlite:///{tmp_path / 'canary.db'}")
     RawPayloadModel.__table__.create(engine)
@@ -105,6 +134,8 @@ def _seed_valid_capture_and_outcome(engine) -> None:  # type: ignore[no-untyped-
         "competition_identity": {"competition_id": "allsvenskan"},
         "kickoff_utc": kickoff.isoformat().replace("+00:00", "Z"),
         "captured_at": NOW.isoformat().replace("+00:00", "Z"),
+        "calibration_version": "cal-v1",
+        "calibration_status": "AVAILABLE",
         "candidate_required": False,
         "exact_quote_required": False,
     }
