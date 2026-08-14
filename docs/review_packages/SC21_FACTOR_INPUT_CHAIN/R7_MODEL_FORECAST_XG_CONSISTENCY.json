@@ -1,0 +1,176 @@
+{
+  "schema_version": "w2.r7-model-forecast-xg-consistency.v1",
+  "status": "PASS",
+  "evaluated_at": "2026-08-14T11:17:45.579932Z",
+  "release": {
+    "source_sha": "52095ef1c0aa69736c39b26e09e64e278a05c7da",
+    "source_tree": "cdb965ee3b6218cdee2fe18c830143710a9b6d22",
+    "python_digest": "sha256:83ea2e6b31a881f235d803e6555223498d73eff614ff79ef3712f681a199fa69",
+    "web_digest": "sha256:e99a5874293454088450ae1e813c23ca4c45be5d40fc1b759fa341e1835e8058"
+  },
+  "scope": {
+    "dates": [
+      "2026-08-14",
+      "2026-08-15",
+      "2026-08-16",
+      "2026-08-17",
+      "2026-08-18",
+      "2026-08-19",
+      "2026-08-20",
+      "2026-08-21"
+    ],
+    "unique_fixture_count": 55,
+    "factor_row_count": 990,
+    "role_mismatch_count": 0,
+    "xg_distribution": {
+      "READY": 9,
+      "NO_MATERIALIZED_HISTORY_UNKNOWN": 46,
+      "PROVIDER_NOT_AVAILABLE_STRUCTURAL_PERMANENT": 0
+    }
+  },
+  "before_release_63469955": {
+    "captured_fixture_count": 9,
+    "page_f9_state": "MISSING",
+    "page_f9_cause": "NO_MATERIALIZED_HISTORY",
+    "page_f9_permanence": "UNKNOWN",
+    "page_home_sample_count": 0,
+    "page_away_sample_count": 0,
+    "ledger_state": "CAPTURED",
+    "interpretation": "PAGE_LEDGER_CONTRADICTION_CONFIRMED"
+  },
+  "after_release_52095ef1": [
+    {
+      "fixture_id": "1494241",
+      "competition_id": "allsvenskan",
+      "kickoff_utc": "2026-08-16T12:00:00Z",
+      "page_f9_state": "READY",
+      "page_f9_cause": null,
+      "page_f9_permanence": "NOT_APPLICABLE",
+      "home_sample_count": 5,
+      "away_sample_count": 5,
+      "xg_identity_hash": "20ad1f0405e119cb85a2a7dff41c9c7772e15cfa64e512228f556778020e163f",
+      "ledger_state": "CAPTURED",
+      "model_track": "READY"
+    },
+    {
+      "fixture_id": "1494242",
+      "competition_id": "allsvenskan",
+      "kickoff_utc": "2026-08-16T12:00:00Z",
+      "page_f9_state": "READY",
+      "page_f9_cause": null,
+      "page_f9_permanence": "NOT_APPLICABLE",
+      "home_sample_count": 5,
+      "away_sample_count": 5,
+      "xg_identity_hash": "51e6f3dcda32d273cdb091db6a507d77d9b6aeaa4665263326350a4344f72c26",
+      "ledger_state": "CAPTURED",
+      "model_track": "READY"
+    },
+    {
+      "fixture_id": "1494243",
+      "competition_id": "allsvenskan",
+      "kickoff_utc": "2026-08-16T12:00:00Z",
+      "page_f9_state": "READY",
+      "page_f9_cause": null,
+      "page_f9_permanence": "NOT_APPLICABLE",
+      "home_sample_count": 4,
+      "away_sample_count": 5,
+      "xg_identity_hash": "9986651022bb92923c99ca18e38a663150af0453f042027662ff7ed4b1ba1506",
+      "ledger_state": "CAPTURED",
+      "model_track": "READY"
+    },
+    {
+      "fixture_id": "1494244",
+      "competition_id": "allsvenskan",
+      "kickoff_utc": "2026-08-14T17:00:00Z",
+      "page_f9_state": "READY",
+      "page_f9_cause": null,
+      "page_f9_permanence": "NOT_APPLICABLE",
+      "home_sample_count": 5,
+      "away_sample_count": 5,
+      "xg_identity_hash": "802e1d33e3fa6d2d6f4ed345ce5ed78a66df9474d21c3eb947e8b2e042f36590",
+      "ledger_state": "CAPTURED",
+      "model_track": "READY"
+    },
+    {
+      "fixture_id": "1494245",
+      "competition_id": "allsvenskan",
+      "kickoff_utc": "2026-08-16T14:30:00Z",
+      "page_f9_state": "READY",
+      "page_f9_cause": null,
+      "page_f9_permanence": "NOT_APPLICABLE",
+      "home_sample_count": 5,
+      "away_sample_count": 5,
+      "xg_identity_hash": "124f0178a835df2db4b1fccce0708751e00d10c60c1dce30dc018f95a2b79be4",
+      "ledger_state": "CAPTURED",
+      "model_track": "READY"
+    },
+    {
+      "fixture_id": "1494246",
+      "competition_id": "allsvenskan",
+      "kickoff_utc": "2026-08-17T17:00:00Z",
+      "page_f9_state": "READY",
+      "page_f9_cause": null,
+      "page_f9_permanence": "NOT_APPLICABLE",
+      "home_sample_count": 5,
+      "away_sample_count": 5,
+      "xg_identity_hash": "ecf0ba90aa2ce2e64ca9bb7c50e0092cb3d11fde473fd393e0d1379aca43e436",
+      "ledger_state": "CAPTURED",
+      "model_track": "READY"
+    },
+    {
+      "fixture_id": "1494247",
+      "competition_id": "allsvenskan",
+      "kickoff_utc": "2026-08-16T14:30:00Z",
+      "page_f9_state": "READY",
+      "page_f9_cause": null,
+      "page_f9_permanence": "NOT_APPLICABLE",
+      "home_sample_count": 5,
+      "away_sample_count": 5,
+      "xg_identity_hash": "32fa050aae78593b7313632d280f910827f6bc7a5a09873d2e6c575c39636155",
+      "ledger_state": "CAPTURED",
+      "model_track": "READY"
+    },
+    {
+      "fixture_id": "1494248",
+      "competition_id": "allsvenskan",
+      "kickoff_utc": "2026-08-15T13:00:00Z",
+      "page_f9_state": "READY",
+      "page_f9_cause": null,
+      "page_f9_permanence": "NOT_APPLICABLE",
+      "home_sample_count": 5,
+      "away_sample_count": 5,
+      "xg_identity_hash": "5d75b99e9a9754fce21aee3de03c1592513d40bf11626437b2fffe1590075131",
+      "ledger_state": "CAPTURED",
+      "model_track": "READY"
+    },
+    {
+      "fixture_id": "1523240",
+      "competition_id": "chinese_super_league",
+      "kickoff_utc": "2026-08-15T11:35:00Z",
+      "page_f9_state": "READY",
+      "page_f9_cause": null,
+      "page_f9_permanence": "NOT_APPLICABLE",
+      "home_sample_count": 3,
+      "away_sample_count": 3,
+      "xg_identity_hash": "ad6c8dc6ee1a143651d6a8f4a085e2d03fc403968eb70a25cf70ae8874b35a3f",
+      "ledger_state": "CAPTURED",
+      "model_track": "READY"
+    }
+  ],
+  "read_guard": {
+    "provider_request_logs_before": 2973,
+    "provider_request_logs_after": 2973,
+    "window_start": "2026-08-14T11:17:41.607712Z",
+    "window_end": "2026-08-14T11:17:45.579932Z",
+    "requests_in_half_open_window": 0,
+    "payload_read_contracts_all_zero": true
+  },
+  "screenshot": {
+    "fixture_id": "1494244",
+    "path": "/Users/liudehua/.codex/visualizations/2026/08/14/019ffdcc-f72d-7113-b983-18ab659a09d1/r7-xg-ready-1494244.png",
+    "sha256": "a3cf83dc468b04bfc6b73ec13615cf90810bdf2c19a8f3ae5e4c110a4bffc263",
+    "browser_errors": 0,
+    "viewport_width": 1512,
+    "document_width": 1512
+  }
+}
