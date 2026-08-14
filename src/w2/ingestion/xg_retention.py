@@ -43,6 +43,19 @@ class XgRetentionHardeningService:
     def audit(self) -> dict[str, Any]:
         raw = self.repository.raw_payloads("statistics")
         raw_rows = sorted(raw, key=lambda item: str(item.get("sha256") or ""))
+        fixture_rows = self.repository.fixture_payloads()
+        current_snapshot_rows = sorted(
+            self.repository.team_xg_rolling_snapshots(),
+            key=lambda row: str(row.get("snapshot_id") or ""),
+        )
+        snapshot_identities = [
+            {
+                "snapshot_id": str(row.get("snapshot_id") or ""),
+                "team_id": str(row.get("team_id") or ""),
+                "as_of_fixture_id": str(row.get("as_of_fixture_id") or ""),
+            }
+            for row in current_snapshot_rows
+        ]
         invalid_raw_hashes = [
             str(row.get("sha256") or "")
             for row in raw_rows
@@ -54,25 +67,39 @@ class XgRetentionHardeningService:
         ]
         if invalid_raw_hashes:
             raise XgRetentionError("RAW_STATISTICS_HASH_MISMATCH")
-        plan = self._plan(self.repository)
+        plan = self._plan(self.repository, snapshot_identities=snapshot_identities)
         backup = canonical_bytes(
-            {"schema_version": RETENTION_SCHEMA, "raw_statistics": raw_rows},
+            {
+                "schema_version": RETENTION_SCHEMA,
+                "raw_statistics": raw_rows,
+                "fixture_payloads": fixture_rows,
+                "rolling_snapshot_identities": snapshot_identities,
+            },
             domain=HashDomain.XG_RETENTION_STATE,
         )
         restored_payload = json.loads(backup.decode("utf-8"))
         restored_rows = restored_payload.get("raw_statistics")
-        if not isinstance(restored_rows, list):
+        restored_fixtures = restored_payload.get("fixture_payloads")
+        restored_identities = restored_payload.get("rolling_snapshot_identities")
+        if not all(
+            isinstance(value, list)
+            for value in (restored_rows, restored_fixtures, restored_identities)
+        ):
             raise XgRetentionError("RAW_STATISTICS_BACKUP_INVALID")
-        restored_plan = self._plan(_RestoredRawRepository(self.repository, restored_rows))
+        restored_repository = _RestoredRawRepository(
+            self.repository,
+            statistics=restored_rows,
+            fixtures=restored_fixtures,
+        )
+        restored_plan = self._plan(
+            restored_repository,
+            snapshot_identities=restored_identities,
+        )
         expected_match_rows = list(plan.team_xg_matches)
         expected_snapshot_rows = list(plan.rolling_snapshots)
         current_match_rows = sorted(
             self.repository.team_xg_matches(),
             key=lambda row: str(row.get("id") or ""),
-        )
-        current_snapshot_rows = sorted(
-            self.repository.team_xg_rolling_snapshots(),
-            key=lambda row: str(row.get("snapshot_id") or ""),
         )
         expected_match_hash = _state_hash(expected_match_rows)
         expected_snapshot_hash = _state_hash(expected_snapshot_rows)
@@ -141,7 +168,12 @@ class XgRetentionHardeningService:
             "hash_guard_match": hash_guard,
             "backup_bytes": len(backup),
             "backup_hash": canonical_sha256(
-                {"schema_version": RETENTION_SCHEMA, "raw_statistics": raw_rows},
+                {
+                    "schema_version": RETENTION_SCHEMA,
+                    "raw_statistics": raw_rows,
+                    "fixture_payloads": fixture_rows,
+                    "rolling_snapshot_identities": snapshot_identities,
+                },
                 domain=HashDomain.XG_RETENTION_STATE,
             ),
             "raw_statistics_restore_hash_match": restore_hash_match,
@@ -162,27 +194,42 @@ class XgRetentionHardeningService:
             + list(plan.blockers),
         }
 
-    def _plan(self, repository: Any) -> SavedRawXgPlan:
+    def _plan(
+        self,
+        repository: Any,
+        *,
+        snapshot_identities: list[dict[str, Any]],
+    ) -> SavedRawXgPlan:
         return XgHistoryBackfillService(
             repository=repository,
             now=self.now,
             config=XgBackfillConfig(
                 competition_ids=tuple(sorted(REQUIRED_MATCHDAY_COMPETITIONS)),
             ),
-        ).build_saved_raw_plan()
+        ).build_saved_raw_plan(snapshot_identities=snapshot_identities)
 
 
 class _RestoredRawRepository:
-    def __init__(self, delegate: FutureRefreshDbRepository, restored: list[Any]) -> None:
+    def __init__(
+        self,
+        delegate: FutureRefreshDbRepository,
+        *,
+        statistics: list[Any],
+        fixtures: list[Any],
+    ) -> None:
         self.delegate = delegate
-        self.restored = [dict(row) for row in restored if isinstance(row, Mapping)]
+        self.statistics = [dict(row) for row in statistics if isinstance(row, Mapping)]
+        self.fixtures = [dict(row) for row in fixtures if isinstance(row, Mapping)]
 
     def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
         return (
-            list(self.restored)
+            list(self.statistics)
             if endpoint == "statistics"
             else self.delegate.raw_payloads(endpoint)
         )
+
+    def fixture_payloads(self) -> list[dict[str, Any]]:
+        return list(self.fixtures)
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self.delegate, name)

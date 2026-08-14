@@ -368,6 +368,18 @@ class ConflictingSavedRawRepository(SavedRawRepository):
         return rows
 
 
+class NoCanonicalSavedRawRepository(SavedRawRepository):
+    def provider_team_mapping(
+        self,
+        *,
+        provider: str,
+        competition_id: str,
+        season: str,
+        as_of: datetime,
+    ) -> dict[str, str]:
+        return {}
+
+
 def test_saved_statistics_raw_materializes_xg_and_is_idempotent() -> None:
     repository = SavedRawRepository()
     service = XgHistoryBackfillService(
@@ -385,6 +397,28 @@ def test_saved_statistics_raw_materializes_xg_and_is_idempotent() -> None:
     assert first.rolling_snapshot_rows == 2
     assert second.team_xg_match_rows == 0
     assert second.rolling_snapshot_rows == 2
+
+
+def test_saved_raw_rebuild_uses_snapshot_identities_not_current_mapping() -> None:
+    plan = XgHistoryBackfillService(
+        client=NoCallClient(),
+        repository=NoCanonicalSavedRawRepository(),
+        config=XgBackfillConfig(min_rolling_matches=3),
+        now=NOW,
+    ).build_saved_raw_plan(
+        snapshot_identities=[
+            {
+                "snapshot_id": f"{team_id}:target",
+                "team_id": team_id,
+                "as_of_fixture_id": "target",
+            }
+            for team_id in ("10", "20")
+        ]
+    )
+
+    assert len(plan.team_xg_matches) == 8
+    assert len(plan.rolling_snapshots) == 2
+    assert plan.blockers == ()
 
 
 def test_saved_statistics_raw_dry_run_is_exact13_canonical_and_write_free() -> None:

@@ -301,8 +301,7 @@ class XgHistoryBackfillService:
         """Materialize xG from persisted fixture/statistics evidence only."""
         plan = self.build_saved_raw_plan()
         parsed = {
-            str(row["id"]): self._team_xg_match_from_dict(row)
-            for row in plan.team_xg_matches
+            str(row["id"]): self._team_xg_match_from_dict(row) for row in plan.team_xg_matches
         }
         persisted = {row.id: row for row in self._persisted_xg_matches()}
         for row_id, row in parsed.items():
@@ -326,11 +325,7 @@ class XgHistoryBackfillService:
         return XgBackfillResult(
             generated_at_utc=self.now,
             team_count=len(
-                {
-                    str(row["team_id"])
-                    for row in plan.rolling_snapshots
-                    if row.get("team_id")
-                }
+                {str(row["team_id"]) for row in plan.rolling_snapshots if row.get("team_id")}
             ),
             historical_fixture_count=len({row.fixture_id for row in parsed.values()}),
             statistics_request_count=0,
@@ -342,18 +337,18 @@ class XgHistoryBackfillService:
             dry_run=not persist,
         )
 
-    def build_saved_raw_plan(self) -> SavedRawXgPlan:
+    def build_saved_raw_plan(
+        self,
+        *,
+        snapshot_identities: list[dict[str, Any]] | None = None,
+    ) -> SavedRawXgPlan:
         """Derive the complete xG materialization from raw evidence only."""
         fixtures = self.repository.fixture_payloads()
         future_fixtures = [item for item in fixtures if self._is_target_future_fixture(item)]
-        fixture_by_id = {}
-        identity_blockers: list[str] = []
+        fixture_by_id: dict[str, dict[str, Any]] = {}
         for item in fixtures:
             fixture_id = fixture_id_from_payload(item)
             if not fixture_id or not self._is_target_competition_fixture(item):
-                continue
-            if not self._canonical_identity_ready(item):
-                identity_blockers.append(f"XG_CANONICAL_TEAM_IDENTITY_NOT_READY:{fixture_id}")
                 continue
             fixture_by_id[fixture_id] = item
         parsed: dict[str, TeamXgMatch] = {}
@@ -379,21 +374,47 @@ class XgHistoryBackfillService:
                     raise XgBackfillError(f"SAVED_XG_CONFLICT:{row.id}")
                 parsed.setdefault(row.id, row)
 
+        snapshot_fixtures = future_fixtures
+        expected_snapshot_ids: set[str] | None = None
+        snapshot_blockers: list[str] = []
+        if snapshot_identities is not None:
+            expected_snapshot_ids = {
+                str(item.get("snapshot_id") or "") for item in snapshot_identities
+            }
+            snapshot_fixture_ids = {
+                str(item.get("as_of_fixture_id") or "") for item in snapshot_identities
+            }
+            missing_fixture_ids = sorted(snapshot_fixture_ids - set(fixture_by_id))
+            snapshot_blockers.extend(
+                f"XG_SNAPSHOT_FIXTURE_RAW_MISSING:{fixture_id}"
+                for fixture_id in missing_fixture_ids
+            )
+            snapshot_fixtures = [
+                fixture_by_id[fixture_id]
+                for fixture_id in sorted(snapshot_fixture_ids & set(fixture_by_id))
+            ]
         snapshots = self._rolling_snapshot_rows(
-            future_fixtures=future_fixtures,
+            future_fixtures=snapshot_fixtures,
             materialized_matches=list(parsed.values()),
         )
+        if expected_snapshot_ids is not None:
+            snapshots = [
+                row for row in snapshots if str(row["snapshot_id"]) in expected_snapshot_ids
+            ]
+            rebuilt_ids = {str(row["snapshot_id"]) for row in snapshots}
+            snapshot_blockers.extend(
+                f"XG_SNAPSHOT_RAW_REBUILD_MISSING:{snapshot_id}"
+                for snapshot_id in sorted(expected_snapshot_ids - rebuilt_ids)
+            )
         return SavedRawXgPlan(
             team_xg_matches=tuple(
                 self._xg_match_dict(row)
                 for row in sorted(parsed.values(), key=lambda item: item.id)
             ),
-            rolling_snapshots=tuple(
-                sorted(snapshots, key=lambda item: str(item["snapshot_id"]))
-            ),
+            rolling_snapshots=tuple(sorted(snapshots, key=lambda item: str(item["snapshot_id"]))),
             raw_statistics_sha256=tuple(sorted(set(raw_statistics_sha256))),
             future_fixture_count=len(future_fixtures),
-            blockers=tuple(sorted(identity_blockers)),
+            blockers=tuple(sorted(snapshot_blockers)),
         )
 
     def _request(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
