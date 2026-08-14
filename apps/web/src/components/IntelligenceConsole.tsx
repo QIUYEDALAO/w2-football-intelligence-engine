@@ -3,6 +3,7 @@ import { footballDayShanghai, translateCompetition, translateReason } from "../l
 import { PUBLIC_ENUM_LABELS, PUBLIC_REASON_LABELS } from "../lib/labels";
 import { publicPresentation } from "../lib/publicPresentation";
 import type {
+  FixtureFactor,
   IntelligenceWorkspace,
   RiskAxisName,
   WorkspaceMarket,
@@ -140,6 +141,11 @@ function ageLabel(generatedAt: string | null, sourceAt: string | null): string {
   const age = Math.max(0, new Date(generatedAt).valueOf() - new Date(sourceAt).valueOf());
   if (!Number.isFinite(age)) return "时间证据不足";
   const minutes = Math.floor(age / 60_000);
+  return minutes < 60 ? `${minutes} 分钟` : `${Math.floor(minutes / 60)} 小时 ${minutes % 60} 分`;
+}
+
+function duration(seconds: number): string {
+  const minutes = Math.floor(Math.max(0, seconds) / 60);
   return minutes < 60 ? `${minutes} 分钟` : `${Math.floor(minutes / 60)} 小时 ${minutes % 60} 分`;
 }
 
@@ -440,6 +446,63 @@ function Scoreline({ match }: { match: WorkspaceMatch }) {
   );
 }
 
+const FACTOR_CAUSE_LABELS: Record<Exclude<FixtureFactor["cause"], null>, string> = {
+  NOT_YET_DUE: "未到采集窗口",
+  AWAITING_COLLECTION: "窗口内等待采集",
+  COLLECTION_WINDOW_MISSED: "采集窗口已错过",
+  UNDER_SAMPLED: "样本不足",
+  PROVIDER_NOT_AVAILABLE: "Provider 不提供",
+  POLICY_DISABLED: "政策关闭，非缺失",
+};
+
+function evidenceNumber(factor: FixtureFactor, key: string): number | null {
+  const value = factor.evidence[key];
+  return typeof value === "number" ? value : null;
+}
+
+function factorEvidence(factor: FixtureFactor): string {
+  if (factor.factor_id === "MK_QUOTE_AGE") {
+    const age = evidenceNumber(factor, "quote_age_seconds");
+    return age === null ? "暂无快照" : `快照年龄 ${duration(age)}`;
+  }
+  if (factor.factor_id === "MK_BOOKMAKER_DEPTH") {
+    return `${evidenceNumber(factor, "bookmaker_count") || 0} 家 / 至少 ${evidenceNumber(factor, "minimum_required") || 3} 家`;
+  }
+  if (factor.factor_id === "F9_TRUE_XG") {
+    const home = evidenceNumber(factor, "home_sample_count") || 0;
+    const away = evidenceNumber(factor, "away_sample_count") || 0;
+    const shortfall = evidenceNumber(factor, "shortfall") || 0;
+    return factor.cause === "PROVIDER_NOT_AVAILABLE" ? "Free 模式下永久不可得" : `主队 ${home} 场 · 客队 ${away} 场${shortfall ? ` · 至少一队还差 ${shortfall} 场` : ""}`;
+  }
+  const count = evidenceNumber(factor, "sample_count");
+  return count === null ? String(factor.evidence.source || "已有只读证据") : `样本 ${count}`;
+}
+
+function FactorRows({ factors }: { factors: FixtureFactor[] }) {
+  return <div className="v41-factor-rows">{factors.map((factor) => <div className={`v41-factor-row is-${factor.state.toLowerCase()}`} key={`${factor.factor_id}-${factor.market || "fixture"}`}>
+    <div><strong>{factor.display_name_zh}</strong>{factor.market ? <small>{MARKET_LABELS[factor.market]}</small> : null}</div>
+    <b>{factor.state === "READY" ? "已就绪" : factor.state === "PARTIAL" ? "部分就绪" : factor.state === "DISABLED" ? "已关闭" : "缺失"}</b>
+    <span>{factor.cause ? FACTOR_CAUSE_LABELS[factor.cause] : "证据已就绪"}</span>
+    <span>{factorEvidence(factor)}</span>
+    <small>{factor.next_window_at ? `下次窗口 ${localDateTime(factor.next_window_at)}` : factor.permanence === "STRUCTURAL_PERMANENT" ? "结构性永久" : "—"}</small>
+  </div>)}</div>;
+}
+
+function FactorChecklist({ match }: { match: WorkspaceMatch }) {
+  const checklist = match.factor_checklist;
+  const modelGates = checklist.factors.filter((factor) => factor.role_model_forecast === "HARD_GATE");
+  const candidateGates = checklist.factors.filter((factor) => factor.role_shadow_candidate === "HARD_GATE" && factor.role_model_forecast !== "HARD_GATE");
+  const enhancements = checklist.factors
+    .filter((factor) => !modelGates.includes(factor) && !candidateGates.includes(factor))
+    .sort((left, right) => Number(left.cause === "POLICY_DISABLED") - Number(right.cause === "POLICY_DISABLED"));
+  return <section className="v41-factor-checklist" aria-labelledby="factor-checklist-title">
+    <header><div><span className="v41-eyebrow">本场因子体检</span><h2 id="factor-checklist-title">{checklist.conclusion_zh}</h2></div><div className="v41-factor-tracks"><b className={checklist.track_model_forecast.state === "READY" ? "is-ready" : "is-blocked"}>模型账本 {checklist.track_model_forecast.state}</b><b className={checklist.track_shadow_candidate.state === "READY" ? "is-ready" : "is-blocked"}>影子候选 {checklist.track_shadow_candidate.state}</b></div></header>
+    <div className="v41-factor-group"><h3>模型预测硬门 <small>决定能否进入验证账本</small></h3><FactorRows factors={modelGates} /></div>
+    <div className="v41-factor-group"><h3>候选市场硬门 <small>让球 / 大小球独立显示</small></h3><FactorRows factors={candidateGates} /></div>
+    <div className="v41-factor-group"><h3>增强与解释因子 <small>不影响能否推荐，只影响解释质量</small></h3><FactorRows factors={enhancements} /></div>
+  </section>;
+}
+
 function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match: WorkspaceMatch }) {
   const markets = [match.market_radar.markets.ASIAN_HANDICAP, match.market_radar.markets.TOTALS];
   const primary = markets.find((market) => market.main_line) || markets[0];
@@ -476,6 +539,7 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
           <details className="v41-details"><summary>技术详情</summary><code>{match.intelligence_state}</code><code>{match.readiness.reason_code || "NO_REASON_CODE"}</code><code>market_aggregate={match.readiness.market_aggregate_status}</code><code>model_source={model.source_status}</code>{markets.map((market) => <span key={market.market}><code>{market.market}:{market.eligibility.model_diagnostic_status}</code>{market.reason_codes.map((reason) => <code key={`${market.market}-${reason}`}>{market.market}:{reason}</code>)}{market.eligibility.blockers.map((blocker) => <code key={`${market.market}-${blocker}`}>{market.market}:{blocker}</code>)}</span>)}</details>
         </div>
       </div>
+      <FactorChecklist match={match} />
     </article>
   );
 }

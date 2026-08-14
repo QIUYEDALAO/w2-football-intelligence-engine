@@ -253,6 +253,20 @@ def _role_matrix() -> dict[str, Any]:
                 "formal_role": "F8_IDENTITY_VALUE_HARD_GATE",
                 "public_presentation_role": "TEAM_VALUE_ENHANCEMENT_READINESS",
             },
+            "team_fixture_history": {
+                "simulation_role": "NOT_A_HARD_GATE",
+                "analysis_factor_role": "ACTIVE_SCORING_F3",
+                "candidate_role": "ENHANCEMENT_NOT_HARD_GATE",
+                "formal_role": "INDEPENDENT_SIGNAL_INPUT",
+                "public_presentation_role": "HISTORICAL_FITNESS_READINESS",
+            },
+            "match_importance": {
+                "simulation_role": "NOT_A_HARD_GATE",
+                "analysis_factor_role": "EXPLANATION_ONLY_F4",
+                "candidate_role": "ENHANCEMENT_NOT_HARD_GATE",
+                "formal_role": "NOT_A_FORMAL_HARD_GATE",
+                "public_presentation_role": "EXPLANATION_ONLY",
+            },
             "lineup": {
                 "simulation_role": "OPTIONAL_CURRENT_EXACT13",
                 "analysis_factor_role": "F10_GATE_AND_EXPLANATION_NUMERIC_DISABLED",
@@ -294,6 +308,73 @@ def _role_matrix() -> dict[str, Any]:
                 "candidate_role": "SHADOW_ANALYSIS_ALLOWED_BASELINE_PRIOR",
                 "formal_role": "PROVEN_CAPABILITY_AND_OWNER_AUTHORITY_REQUIRED",
                 "public_presentation_role": "PRIOR_ONLY_NOT_INCREMENTAL_ABILITY",
+            },
+        },
+        "fixture_factor_roles": {
+            "F1_MARKET_MOVEMENT": {
+                "authority_factor": "market_observation_freshness_depth_exact_quote",
+                "role_model_forecast": "NOT_APPLICABLE",
+                "role_shadow_candidate": "ENHANCEMENT",
+            },
+            "F2_BOOKMAKER_INTENT": {
+                "authority_factor": "market_observation_freshness_depth_exact_quote",
+                "role_model_forecast": "NOT_APPLICABLE",
+                "role_shadow_candidate": "ENHANCEMENT",
+            },
+            "F3_REST_FITNESS": {
+                "authority_factor": "team_fixture_history",
+                "role_model_forecast": "ENHANCEMENT",
+                "role_shadow_candidate": "ENHANCEMENT",
+            },
+            "F4_MATCH_IMPORTANCE": {
+                "authority_factor": "match_importance",
+                "role_model_forecast": "ENHANCEMENT",
+                "role_shadow_candidate": "ENHANCEMENT",
+            },
+            "F5_RECENT_AH_COVER": {
+                "authority_factor": "historical_settled_ah",
+                "role_model_forecast": "ENHANCEMENT",
+                "role_shadow_candidate": "ENHANCEMENT",
+            },
+            "F6_H2H": {
+                "authority_factor": "h2h",
+                "role_model_forecast": "ENHANCEMENT",
+                "role_shadow_candidate": "ENHANCEMENT",
+            },
+            "F7_STRENGTH_FORM": {
+                "authority_factor": "rating_elo",
+                "role_model_forecast": "ENHANCEMENT",
+                "role_shadow_candidate": "ENHANCEMENT",
+            },
+            "F8_SQUAD_VALUE": {
+                "authority_factor": "team_value_asof",
+                "role_model_forecast": "ENHANCEMENT",
+                "role_shadow_candidate": "ENHANCEMENT",
+            },
+            "F9_TRUE_XG": {
+                "authority_factor": "xg_four_fields",
+                "role_model_forecast": "HARD_GATE",
+                "role_shadow_candidate": "HARD_GATE",
+            },
+            "F10_LMM_V1": {
+                "authority_factor": "lineup",
+                "role_model_forecast": "ENHANCEMENT",
+                "role_shadow_candidate": "ENHANCEMENT",
+            },
+            "MK_EXACT_QUOTE": {
+                "authority_factor": "market_observation_freshness_depth_exact_quote",
+                "role_model_forecast": "NOT_APPLICABLE",
+                "role_shadow_candidate": "HARD_GATE",
+            },
+            "MK_BOOKMAKER_DEPTH": {
+                "authority_factor": "market_observation_freshness_depth_exact_quote",
+                "role_model_forecast": "NOT_APPLICABLE",
+                "role_shadow_candidate": "HARD_GATE",
+            },
+            "MK_QUOTE_AGE": {
+                "authority_factor": "market_observation_freshness_depth_exact_quote",
+                "role_model_forecast": "NOT_APPLICABLE",
+                "role_shadow_candidate": "HARD_GATE",
             },
         },
     }

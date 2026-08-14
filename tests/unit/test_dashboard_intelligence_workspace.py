@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from copy import deepcopy
 from datetime import date, timedelta
 from pathlib import Path
@@ -416,6 +417,155 @@ def test_shadow_candidate_uses_exact_quote_age_not_diagnostic_market_age() -> No
     DashboardIntelligenceWorkspaceResponse.model_validate(
         {"request_id": "candidate-stale", **payload}
     )
+
+
+def _factor_checklist_card() -> dict[str, Any]:
+    card = _card("fixture-factor-checklist", 2)
+    for side in ("home", "away"):
+        card[f"{side}_team_label"] = {
+            "display_name": "主队" if side == "home" else "客队",
+            "state": "CHINESE_LABEL_READY",
+            "canonical_team_id": f"w2:{side}",
+            "provider_team_id": side,
+        }
+    for market in ("ASIAN_HANDICAP", "TOTALS"):
+        raw = _market(2)
+        raw["current"]["bookmaker_count"] = 4
+        for point in raw["timeline"]["points"]:
+            point["bookmaker_count"] = 4
+        card["market_radar"]["markets"][market] = raw
+    card["market_candidates"] = {
+        key: {
+            "quote_status": "STALE",
+            "quote_usage": "REFERENCE_ONLY",
+            "quote_identity": {"identity_status": "COMPLETE"},
+            "model_status": "READY",
+            "blockers": ["QUOTE_OLDER_THAN_30_MINUTES"],
+        }
+        for key in ("ah", "ou")
+    }
+    card["factor_checklist_inputs"] = {
+        "data_readiness": {
+            "xg": True,
+            "xg_status": "READY",
+            "xg_home_match_count": 3,
+            "xg_away_match_count": 3,
+            "xg_snapshot_count": 2,
+            "lineups": False,
+            "lineups_status": "NOT_REQUESTED",
+        },
+        "feature_contributions": [],
+        "provider_xg_unavailable_confirmed": False,
+    }
+    return card
+
+
+def test_factor_checklist_separates_model_track_from_stale_quote_gate() -> None:
+    day_view = _day_view()
+    day_view["generated_at"] = "2026-08-09T03:00:00Z"
+    day_view["cards"] = [_factor_checklist_card()]
+
+    checklist = _workspace(day_view, candidate_enabled=True)["matches"][0]["factor_checklist"]
+
+    assert checklist["track_model_forecast"] == {
+        "state": "READY",
+        "blocking_factor_ids": [],
+    }
+    assert checklist["track_shadow_candidate"]["state"] == "BLOCKED"
+    assert checklist["track_shadow_candidate"]["blocking_factor_ids"] == ["MK_QUOTE_AGE"]
+    quote_rows = [row for row in checklist["factors"] if row["factor_id"] == "MK_QUOTE_AGE"]
+    assert {row["market"] for row in quote_rows} == {"ASIAN_HANDICAP", "TOTALS"}
+    assert all(row["next_window_at"] == "2026-08-09T14:30:00Z" for row in quote_rows)
+
+
+def test_factor_checklist_provider_unavailable_requires_explicit_confirmation() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["factor_checklist_inputs"]["data_readiness"].update(
+        {
+            "xg": False,
+            "xg_status": "PROVIDER_EMPTY_OR_UNAVAILABLE",
+            "xg_home_match_count": 0,
+            "xg_away_match_count": 0,
+        }
+    )
+    card["factor_checklist_inputs"]["provider_xg_unavailable_confirmed"] = True
+    day_view["cards"] = [card]
+
+    checklist = _workspace(day_view)["matches"][0]["factor_checklist"]
+    xg = next(row for row in checklist["factors"] if row["factor_id"] == "F9_TRUE_XG")
+
+    assert xg["cause"] == "PROVIDER_NOT_AVAILABLE"
+    assert xg["permanence"] == "STRUCTURAL_PERMANENT"
+    assert "待采集" not in checklist["conclusion_zh"]
+
+
+def test_factor_checklist_does_not_promote_generic_provider_empty_to_unsupported() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["factor_checklist_inputs"]["data_readiness"].update(
+        {
+            "xg": False,
+            "xg_status": "PROVIDER_EMPTY_OR_UNAVAILABLE",
+            "xg_home_match_count": 0,
+            "xg_away_match_count": 0,
+        }
+    )
+    day_view["cards"] = [card]
+
+    xg = next(
+        row
+        for row in _workspace(day_view)["matches"][0]["factor_checklist"]["factors"]
+        if row["factor_id"] == "F9_TRUE_XG"
+    )
+
+    assert xg["cause"] == "UNDER_SAMPLED"
+    assert xg["permanence"] == "SELF_RESOLVING"
+
+
+def test_factor_checklist_reports_xg_shortfall_and_market_depth_per_market() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["factor_checklist_inputs"]["data_readiness"].update(
+        {
+            "xg": False,
+            "xg_status": "PARTIAL_HISTORY",
+            "xg_home_match_count": 3,
+            "xg_away_match_count": 1,
+        }
+    )
+    card["market_radar"]["markets"]["ASIAN_HANDICAP"]["current"]["bookmaker_count"] = 1
+    card["market_radar"]["markets"]["TOTALS"]["current"]["bookmaker_count"] = 7
+    day_view["cards"] = [card]
+
+    checklist = _workspace(day_view)["matches"][0]["factor_checklist"]
+    xg = next(row for row in checklist["factors"] if row["factor_id"] == "F9_TRUE_XG")
+    depth = {
+        row["market"]: row["evidence"]["bookmaker_count"]
+        for row in checklist["factors"]
+        if row["factor_id"] == "MK_BOOKMAKER_DEPTH"
+    }
+
+    assert xg["cause"] == "UNDER_SAMPLED"
+    assert xg["evidence"]["shortfall"] == 2
+    assert "还差 2 场" in checklist["conclusion_zh"]
+    assert depth == {"ASIAN_HANDICAP": 1, "TOTALS": 7}
+
+
+def test_factor_checklist_roles_are_loaded_from_sc21_authority_matrix() -> None:
+    day_view = _day_view()
+    day_view["cards"] = [_factor_checklist_card()]
+    checklist = _workspace(day_view)["matches"][0]["factor_checklist"]
+    matrix = json.loads(
+        Path(
+            "docs/review_packages/SC21_FACTOR_INPUT_CHAIN/SC21_FACTOR_ROLE_AUTHORITY_MATRIX.json"
+        ).read_text()
+    )["fixture_factor_roles"]
+
+    for row in checklist["factors"]:
+        expected = matrix[row["factor_id"]]
+        assert row["role_model_forecast"] == expected["role_model_forecast"]
+        assert row["role_shadow_candidate"] == expected["role_shadow_candidate"]
 
 
 def _keys(value: Any) -> set[str]:

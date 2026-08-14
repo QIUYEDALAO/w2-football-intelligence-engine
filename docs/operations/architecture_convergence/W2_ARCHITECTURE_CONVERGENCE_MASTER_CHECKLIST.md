@@ -412,7 +412,7 @@ Dockerfile、Compose、workflow、Runbook 和历史/恢复入口，避免把离�
 TOP_LEVEL_PACKAGE_COUNT = 40
 MAPPED_PACKAGE_COUNT = 40
 UNMAPPED_PACKAGE_COUNT = 0
-DEPENDENCY_EDGE_COUNT = 144
+DEPENDENCY_EDGE_COUNT = 145
 CYCLE_COUNT = 1
 RUNTIME_REACHABLE_PACKAGE_COUNT = 28
 OFFLINE_ONLY_PACKAGE_COUNT = 12
@@ -426,8 +426,8 @@ DELETED_PACKAGE_COUNT = 0
 | `api` | 6 | apps:2;scripts:2;migrations:0;tests:17 | - | competitions,dashboard,domain,identity,infrastructure,lineups,matchday,models,monitoring,operations,prematch,providers,replay,tracking | - | - | YES | YES | PYTHON_IMAGE | PUBLIC_READ | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `audit_export` | 2 | apps:0;scripts:2;migrations:0;tests:1 | - | domain,infrastructure,reporting,tracking | - | - | NO | NO | PYTHON_IMAGE | AUDIT_EXPORT | KEEP_AUDIT | SCRIPT_ENTRY;AUDIT_EXPORT_DEPENDENCIES |
 | `backtest` | 10 | apps:0;scripts:7;migrations:0;tests:10 | - | competitions,domain,ingestion,markets,models,providers | - | - | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | 7_SCRIPT_ENTRIES;HISTORICAL_RAW_CONSUMER |
-| `competitions` | 9 | apps:1;scripts:14;migrations:2;tests:27 | api,backtest,features,ingestion,matchday,monitoring,operations,prematch,strategy | infrastructure,providers | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
-| `dashboard` | 17 | apps:1;scripts:2;migrations:0;tests:20 | api,matchday,prematch,replay | domain,prematch,settlement,strategy | SCC-1 | - | YES | YES | PYTHON_IMAGE | PUBLIC_READ | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `competitions` | 9 | apps:1;scripts:14;migrations:2;tests:27 | api,backtest,dashboard,features,ingestion,matchday,monitoring,operations,prematch,strategy | infrastructure,providers | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
+| `dashboard` | 18 | apps:1;scripts:2;migrations:0;tests:20 | api,matchday,prematch,replay | competitions,domain,prematch,settlement,strategy | SCC-1 | - | YES | YES | PYTHON_IMAGE | PUBLIC_READ | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `data_assets` | 2 | apps:0;scripts:1;migrations:0;tests:1 | - | - | - | - | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | SCRIPT_ENTRY;ASSET_REGISTRY |
 | `domain` | 17 | apps:0;scripts:7;migrations:0;tests:32 | analysis,api,audit_export,backtest,dashboard,factor_model,features,historical,identity,infrastructure,ingestion,markets,matchday,migration,models,monitoring,normalization,operations,prematch,pricing,readiness,recovery,replay,reporting,schemas,settlement,strategy,tracking | lineups,readiness,tracking | SCC-1 | - | YES | YES | PYTHON_IMAGE | RUNTIME_LIBRARY | KEEP | RUNTIME_REACHABLE;AST_DEPENDENCY_GRAPH |
 | `factor_model` | 2 | apps:0;scripts:2;migrations:0;tests:1 | - | domain,features,identity,infrastructure,ingestion,matchday,providers,ratings | - | - | NO | NO | PYTHON_IMAGE | OFFLINE_TOOL | KEEP_OFFLINE | SCRIPT_ENTRY;OFFLINE_REMEDIATION |

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import type {
+  FixtureFactor,
   IntelligenceWorkspace,
   WorkspaceMarket,
   WorkspaceMatch,
@@ -102,6 +103,54 @@ function market(name: "ASIAN_HANDICAP" | "TOTALS", count: number, candidateQuote
   };
 }
 
+function checklistMarketFactor(factorId: string, marketName: "ASIAN_HANDICAP" | "TOTALS", rich: boolean, stale: boolean): FixtureFactor {
+  const missing = !rich || (factorId === "MK_QUOTE_AGE" && stale);
+  const evidence = factorId === "MK_BOOKMAKER_DEPTH"
+    ? { source: "market_radar.current", bookmaker_count: rich ? (marketName === "ASIAN_HANDICAP" ? 14 : 6) : 0, minimum_required: 3 }
+    : factorId === "MK_QUOTE_AGE"
+      ? { source: "market_radar.latest_snapshot_at", quote_age_seconds: rich ? (stale ? 7200 : 600) : null, maximum_seconds: 1800 }
+      : { source: "canonical_mainline_identity" };
+  return {
+    factor_id: factorId,
+    display_name_zh: factorId === "MK_EXACT_QUOTE" ? "精确报价身份" : factorId === "MK_BOOKMAKER_DEPTH" ? "机构深度" : "报价时效",
+    market: marketName,
+    role_model_forecast: "NOT_APPLICABLE",
+    role_shadow_candidate: "HARD_GATE",
+    state: missing ? "MISSING" : "READY",
+    cause: missing ? "NOT_YET_DUE" : null,
+    permanence: missing ? "TRANSIENT" : "NOT_APPLICABLE",
+    next_window_at: missing ? "2026-08-09T14:30:00Z" : null,
+    evidence,
+  };
+}
+
+function factorChecklist(id: string, rich = false, stale = false): WorkspaceMatch["factor_checklist"] {
+  const modelReady = rich;
+  const shadowReady = rich && !stale;
+  const marketBlockers = shadowReady ? [] : rich ? ["MK_QUOTE_AGE"] : ["MK_EXACT_QUOTE", "MK_BOOKMAKER_DEPTH", "MK_QUOTE_AGE"];
+  const blockers = modelReady ? marketBlockers : ["F9_TRUE_XG", ...marketBlockers];
+  return {
+    fixture_id: id,
+    competition_id: "primeira_liga",
+    kickoff_utc: "2026-08-09T14:30:00Z",
+    as_of: "2026-08-09T13:00:00Z",
+    conclusion_zh: modelReady ? shadowReady ? "本场可进入模型预测账本，也具备形成影子候选的输入条件。" : "本场可进入模型预测账本；不能形成影子候选 —— 卡在 报价时效" : "本场不可进入模型预测账本 —— 卡在 四字段 xG（滚动样本不足）",
+    track_model_forecast: { state: modelReady ? "READY" : "BLOCKED", blocking_factor_ids: modelReady ? [] : ["F9_TRUE_XG"] },
+    track_shadow_candidate: {
+      state: shadowReady ? "READY" : "BLOCKED",
+      blocking_factor_ids: blockers,
+      per_market: {
+        ASIAN_HANDICAP: { state: shadowReady ? "READY" : "BLOCKED", blocking_factor_ids: blockers },
+        TOTALS: { state: shadowReady ? "READY" : "BLOCKED", blocking_factor_ids: blockers },
+      },
+    },
+    factors: [
+      { factor_id: "F9_TRUE_XG", display_name_zh: "四字段 xG", market: null, role_model_forecast: "HARD_GATE", role_shadow_candidate: "HARD_GATE", state: modelReady ? "READY" : "MISSING", cause: modelReady ? null : "UNDER_SAMPLED", permanence: modelReady ? "NOT_APPLICABLE" : "SELF_RESOLVING", next_window_at: null, evidence: { source: "rolling_xg_snapshot+team_xg_match", home_sample_count: modelReady ? 3 : 0, away_sample_count: modelReady ? 3 : 0, shortfall: modelReady ? 0 : 3 } },
+      ...(["ASIAN_HANDICAP", "TOTALS"] as const).flatMap((marketName) => ["MK_EXACT_QUOTE", "MK_BOOKMAKER_DEPTH", "MK_QUOTE_AGE"].map((factorId) => checklistMarketFactor(factorId, marketName, rich, stale))),
+    ],
+  };
+}
+
 function match(id: string, options: { rich?: boolean; stale?: boolean; modelWarning?: boolean } = {}): WorkspaceMatch {
   const ah = market("ASIAN_HANDICAP", options.rich ? 3 : 0, options.stale);
   const totals = market("TOTALS", options.rich ? 1 : 0, options.stale);
@@ -135,6 +184,7 @@ function match(id: string, options: { rich?: boolean; stale?: boolean; modelWarn
     market_fact: { status: ah.status, source_status: ah.source_status, main_line: ah.main_line, current_odds: ah.prices, market_probabilities: ah.probabilities, price_reference: "LAST_AVAILABLE_PREMATCH_SNAPSHOT", canonical_close_status: "NOT_OBTAINABLE_FROM_CURRENT_PROVIDER" },
     w2_analysis: { status: "ANALYSIS_REFERENCE", proof_status: "NOT_PROVEN", decision_tier: "WATCH", analysis_state: relationStatus, reason_codes: [], model_view: { status: "READY", source_status: "READY", model_version: "w2-existing-v1", calibration_version: "cal-v1", calibration_status: "AVAILABLE", simulations_completed: 10_000 }, model_market_relation: { ASIAN_HANDICAP: relation("ASIAN_HANDICAP"), TOTALS: relation("TOTALS") } },
     shadow_candidate: options.rich && !options.stale ? { status: "ACTIVE", mode: "SHADOW_ONLY", authority: "RECOMMENDATION_DECISION_V4", decision_tier: "ANALYSIS_PICK", reason_code: "ANALYSIS_ONLY", reason_message: "当前仅提供影子候选", market: "ASIAN_HANDICAP", selection: "HOME", exact_line: "-0.75", decimal_odds: 1.95, captured_at: "2026-08-09T12:11:00Z", decision_hash: "a".repeat(64), recommendation_scope: "VALIDATION", outcome_tracked: true, formal_status: "OFF", lock_status: "OFF", production_action_allowed: false, real_money_allowed: false } : { status: "NOT_READY", mode: "SHADOW_ONLY", authority: "RECOMMENDATION_DECISION_V4", decision_tier: "NOT_READY", reason_code: "EVIDENCE_NOT_READY", reason_message: "当前证据尚未就绪", market: null, selection: null, exact_line: null, decimal_odds: null, captured_at: null, decision_hash: null, recommendation_scope: "NONE", outcome_tracked: false, formal_status: "OFF", lock_status: "OFF", production_action_allowed: false, real_money_allowed: false },
+    factor_checklist: factorChecklist(id, options.rich, options.stale),
     formal_recommendation: { status: "OFF", reason: "PRODUCT_AUTHORITY_DISABLED" },
     market_radar: { schema_version: "w2.market-radar.v1", markets: { ASIAN_HANDICAP: ah, TOTALS: totals } },
     model_lab: { schema_version: "w2.model-lab.v1", w2_model: { status: "READY", source_status: "READY", model_version: "w2-existing-v1", calibration_status: "AVAILABLE" }, market: { ASIAN_HANDICAP: { status: ah.status, source_status: ah.source_status, main_line: ah.main_line, bookmaker_count: ah.bookmaker_count, quote_age_seconds: ah.quote_age_seconds }, TOTALS: { status: totals.status, source_status: totals.source_status, main_line: totals.main_line, bookmaker_count: totals.bookmaker_count, quote_age_seconds: totals.quote_age_seconds } }, api_football_prediction: { status: "NOT_AVAILABLE", role: "EXTERNAL_MODEL_BENCHMARK", reason_code: "API_FOOTBALL_PREDICTION_NOT_PROJECTED" }, relation: { ASIAN_HANDICAP: relation("ASIAN_HANDICAP"), TOTALS: relation("TOTALS") }, historical_validation: { final_verdict: "NO_EDGE", reexecuted: false } },
@@ -442,6 +492,19 @@ test("V41 separates diagnostic market age from the candidate quote-age hard gate
   await expect(page.locator(".v41-candidate")).toHaveCount(0);
   await expect(page.locator(".v41-snapshots time").first()).toHaveText("08-09 14:02");
   await expect(page.locator(".v41-scoreline")).toHaveCount(0);
+});
+
+test("R5 factor checklist keeps model and shadow tracks separate per market", async ({ page }, testInfo) => {
+  await installWorkspace(page, "stale");
+  await page.goto("/");
+  const checklist = page.locator(".v41-factor-checklist");
+  await expect(checklist).toContainText("本场可进入模型预测账本；不能形成影子候选");
+  await expect(checklist.locator(".v41-factor-tracks")).toContainText("模型账本 READY");
+  await expect(checklist.locator(".v41-factor-tracks")).toContainText("影子候选 BLOCKED");
+  await expect(checklist.locator(".v41-factor-row").filter({ hasText: "报价时效" })).toHaveCount(2);
+  await expect(checklist).toContainText("让球主盘");
+  await expect(checklist).toContainText("大小球主盘");
+  await checklist.screenshot({ animations: "disabled", path: testInfo.outputPath("r5-factor-checklist.png") });
 });
 
 test("V41 keeps the zero-observation market state explicit", async ({ page }, testInfo) => {

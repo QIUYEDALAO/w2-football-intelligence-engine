@@ -4,6 +4,7 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
+from w2.dashboard.factor_checklist import build_fixture_factor_checklist
 from w2.dashboard.results import (
     normalize_match_status,
     outcome_public_cause,
@@ -264,6 +265,23 @@ def _match(
         == "READY"
         for market in markets.values()
     )
+    home_team_label = _public_team_label(card, "home")
+    away_team_label = _public_team_label(card, "away")
+    shadow_candidate = _shadow_candidate(
+        card,
+        markets=markets,
+        enabled=candidate_enabled,
+    )
+    factor_checklist = build_fixture_factor_checklist(
+        card,
+        markets=markets,
+        market_collection=market_collection,
+        lineup_collection=lineup_collection,
+        home_identity_ready=home_team_label["state"] != "IDENTITY_UNRESOLVED",
+        away_identity_ready=away_team_label["state"] != "IDENTITY_UNRESOLVED",
+        shadow_candidate=shadow_candidate,
+        generated_at=generated_at,
+    )
     return {
         "fixture_id": _text(card.get("fixture_id")),
         "competition_id": _optional_text(card.get("competition_id")),
@@ -271,8 +289,8 @@ def _match(
         "kickoff_utc": card.get("kickoff_utc"),
         "home_team_name": _optional_text(card.get("home_team_name")),
         "away_team_name": _optional_text(card.get("away_team_name")),
-        "home_team_label": _public_team_label(card, "home"),
-        "away_team_label": _public_team_label(card, "away"),
+        "home_team_label": home_team_label,
+        "away_team_label": away_team_label,
         "status": _optional_text(card.get("status")),
         "market_collection": market_collection,
         "lineup_collection": lineup_collection,
@@ -331,11 +349,8 @@ def _match(
             },
             "model_market_relation": relation,
         },
-        "shadow_candidate": _shadow_candidate(
-            card,
-            markets=markets,
-            enabled=candidate_enabled,
-        ),
+        "shadow_candidate": shadow_candidate,
+        "factor_checklist": factor_checklist,
         "formal_recommendation": {
             "status": "OFF",
             "reason": "PRODUCT_AUTHORITY_DISABLED",

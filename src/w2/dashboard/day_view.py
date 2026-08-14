@@ -195,6 +195,7 @@ def _contract_card(card: Mapping[str, Any], contract: Mapping[str, Any]) -> dict
         "missing_fields": _string_list(contract.get("missing_fields")),
         "stale_fields": _string_list(contract.get("stale_fields")),
         "data_readiness": _mapping_copy(contract.get("data_readiness")),
+        "factor_checklist_inputs": _mapping_copy(card.get("factor_checklist_inputs")),
         **market_context,
         "pick": _mapping_copy(decision_pick) if isinstance(decision_pick, Mapping) else None,
         "secondary_picks": [

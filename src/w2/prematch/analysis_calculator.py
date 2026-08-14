@@ -6798,6 +6798,13 @@ class ReadModelService:
             "lifecycle_state": row.get("action") or row.get("lifecycle_state"),
             "watch_level": card.get("watch_level", 0),
             "data_readiness": card.get("data_readiness", {}),
+            "factor_checklist_inputs": {
+                "data_readiness": card.get("data_readiness", {}),
+                "feature_contributions": card.get("feature_contributions", []),
+                "provider_xg_unavailable_confirmed": bool(
+                    card.get("provider_xg_unavailable_confirmed") is True
+                ),
+            },
             "analysis_readiness": analysis_readiness,
             "data_refresh": data_refresh,
             "recommendation": recommendation,

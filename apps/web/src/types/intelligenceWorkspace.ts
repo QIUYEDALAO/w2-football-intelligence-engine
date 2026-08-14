@@ -155,6 +155,40 @@ export interface WorkspaceModelRelation {
   blockers: string[];
 }
 
+export type FactorRole = "HARD_GATE" | "ENHANCEMENT" | "NOT_APPLICABLE" | "POLICY_DISABLED";
+export type FactorCause = "NOT_YET_DUE" | "AWAITING_COLLECTION" | "COLLECTION_WINDOW_MISSED" | "UNDER_SAMPLED" | "PROVIDER_NOT_AVAILABLE" | "POLICY_DISABLED" | null;
+
+export interface FixtureFactorTrackState {
+  state: "READY" | "BLOCKED";
+  blocking_factor_ids: string[];
+}
+
+export interface FixtureFactor {
+  factor_id: string;
+  display_name_zh: string;
+  market: "ASIAN_HANDICAP" | "TOTALS" | null;
+  role_model_forecast: FactorRole;
+  role_shadow_candidate: FactorRole;
+  state: "READY" | "PARTIAL" | "MISSING" | "DISABLED";
+  cause: FactorCause;
+  permanence: "TRANSIENT" | "SELF_RESOLVING" | "STRUCTURAL_PERMANENT" | "NOT_APPLICABLE";
+  next_window_at: string | null;
+  evidence: Record<string, unknown>;
+}
+
+export interface FixtureFactorChecklist {
+  fixture_id: string;
+  competition_id: string | null;
+  kickoff_utc: string | null;
+  as_of: string | null;
+  conclusion_zh: string;
+  track_model_forecast: FixtureFactorTrackState;
+  track_shadow_candidate: FixtureFactorTrackState & {
+    per_market: Record<"ASIAN_HANDICAP" | "TOTALS", FixtureFactorTrackState>;
+  };
+  factors: FixtureFactor[];
+}
+
 export interface WorkspaceMatch {
   fixture_id: string;
   competition_id: string | null;
@@ -254,6 +288,7 @@ export interface WorkspaceMatch {
     production_action_allowed: false;
     real_money_allowed: false;
   };
+  factor_checklist: FixtureFactorChecklist;
   formal_recommendation: {
     status: "OFF";
     reason: "PRODUCT_AUTHORITY_DISABLED";

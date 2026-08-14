@@ -154,6 +154,7 @@ def test_workspace_is_a_pure_adapter_without_provider_or_scheduler_imports() -> 
         "collections.abc",
         "datetime",
         "typing",
+        "w2.dashboard.factor_checklist",
         "w2.dashboard.results",
     }
     assert "create_engine" not in source
@@ -193,8 +194,18 @@ def test_openapi_publishes_only_the_unified_workspace_response_contract() -> Non
     assert schemas["WorkspaceMatch"]["properties"]["lineup_collection"] == {
         "$ref": "#/components/schemas/WorkspaceLineupCollection"
     }
+    assert schemas["WorkspaceMatch"]["properties"]["factor_checklist"] == {
+        "$ref": "#/components/schemas/WorkspaceFixtureFactorChecklist"
+    }
     assert "market_collection" in schemas["WorkspaceMatch"]["required"]
     assert "lineup_collection" in schemas["WorkspaceMatch"]["required"]
+    assert "factor_checklist" in schemas["WorkspaceMatch"]["required"]
+    assert set(schemas["WorkspaceFixtureFactor"]["properties"]["state"]["enum"]) == {
+        "READY",
+        "PARTIAL",
+        "MISSING",
+        "DISABLED",
+    }
     assert set(schemas["WorkspaceMarketCollection"]["properties"]) == {
         "latest_snapshot_at",
         "latest_snapshot_checkpoint",

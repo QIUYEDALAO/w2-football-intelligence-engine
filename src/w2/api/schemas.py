@@ -722,6 +722,71 @@ class WorkspaceLineupCollection(BaseModel):
         return self
 
 
+class WorkspaceFactorTrackState(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    state: Literal["READY", "BLOCKED"]
+    blocking_factor_ids: list[str]
+
+    @model_validator(mode="after")
+    def blockers_follow_state(self) -> WorkspaceFactorTrackState:
+        if (self.state == "READY") != (not self.blocking_factor_ids):
+            raise ValueError("factor track state must follow blockers")
+        return self
+
+
+class WorkspaceShadowFactorTrack(WorkspaceFactorTrackState):
+    per_market: dict[Literal["ASIAN_HANDICAP", "TOTALS"], WorkspaceFactorTrackState]
+
+
+class WorkspaceFixtureFactor(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    factor_id: str
+    display_name_zh: str = Field(min_length=1)
+    market: Literal["ASIAN_HANDICAP", "TOTALS"] | None = None
+    role_model_forecast: Literal["HARD_GATE", "ENHANCEMENT", "NOT_APPLICABLE", "POLICY_DISABLED"]
+    role_shadow_candidate: Literal["HARD_GATE", "ENHANCEMENT", "NOT_APPLICABLE", "POLICY_DISABLED"]
+    state: Literal["READY", "PARTIAL", "MISSING", "DISABLED"]
+    cause: (
+        Literal[
+            "NOT_YET_DUE",
+            "AWAITING_COLLECTION",
+            "COLLECTION_WINDOW_MISSED",
+            "UNDER_SAMPLED",
+            "PROVIDER_NOT_AVAILABLE",
+            "POLICY_DISABLED",
+        ]
+        | None
+    )
+    permanence: Literal["TRANSIENT", "SELF_RESOLVING", "STRUCTURAL_PERMANENT", "NOT_APPLICABLE"]
+    next_window_at: datetime | str | None
+    evidence: dict[str, Any]
+
+    @model_validator(mode="after")
+    def missing_semantics_are_explicit(self) -> WorkspaceFixtureFactor:
+        if (self.state == "READY") != (self.cause is None):
+            raise ValueError("only READY factor rows may omit cause")
+        if self.cause == "PROVIDER_NOT_AVAILABLE" and self.permanence != "STRUCTURAL_PERMANENT":
+            raise ValueError("provider unavailable must be structural permanent")
+        if self.cause == "POLICY_DISABLED" and self.state != "DISABLED":
+            raise ValueError("policy disabled must use disabled state")
+        return self
+
+
+class WorkspaceFixtureFactorChecklist(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    fixture_id: str
+    competition_id: str | None
+    kickoff_utc: datetime | str | None
+    as_of: datetime | str | None
+    conclusion_zh: str = Field(min_length=1)
+    track_model_forecast: WorkspaceFactorTrackState
+    track_shadow_candidate: WorkspaceShadowFactorTrack
+    factors: list[WorkspaceFixtureFactor]
+
+
 class WorkspaceMatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -748,6 +813,7 @@ class WorkspaceMatch(BaseModel):
     market_fact: WorkspaceMarketFact
     w2_analysis: WorkspaceW2Analysis
     shadow_candidate: WorkspaceShadowCandidate
+    factor_checklist: WorkspaceFixtureFactorChecklist
     formal_recommendation: WorkspaceFormalRecommendation
     market_radar: WorkspaceMarketRadar
     model_lab: WorkspaceModelLab
