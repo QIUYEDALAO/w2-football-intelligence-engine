@@ -2740,38 +2740,47 @@ class FutureFixtureRefreshService:
                 continue
             capture_id = None
             capture_ids: list[str] = []
-            if self._checkpoint_mode() == "DIRECT":
+            checkpoint_mode = self._checkpoint_mode()
+            if checkpoint_mode == "DIRECT":
                 progress_status, capture_id, capture_ids = self._checkpoint_capture_outcome(
                     checkpoint, result
                 )
-                if progress_status == "NOT_ATTEMPTED":
-                    repository.write_checkpoint_audit(
-                        fixture_id=fixture_id,
-                        checkpoint=name,
-                        as_of=result.generated_at_utc,
-                        calls_used=0,
-                        status="RETRY_PENDING",
-                        details={
-                            "contract": "w2.checkpoint_refresh.v1",
-                            "blockers": result.blockers,
-                            "progress_status": "RETRY_PENDING",
-                            "endpoints": list(checkpoint.get("endpoints") or []),
-                            "endpoint_capture_ids": [],
-                            "source": checkpoint.get("source"),
-                        },
-                    )
-                    from w2.matchday.repository import MatchdayRuntimeRepository
-
-                    MatchdayRuntimeRepository().release_checkpoint_claim(
-                        plan_id=str(checkpoint.get("id") or checkpoint.get("plan_id") or ""),
-                        claim_token=str(checkpoint.get("claim_token") or ""),
-                        reason="CHECKPOINT_BATCH_NOT_ATTEMPTED",
-                        restore_attempt=True,
-                    )
-                    continue
-                status = "COMPLETED" if progress_status == "CAPTURED" else progress_status
+            elif (
+                checkpoint_mode == "POSTMATCH"
+                and result.request_count == 0
+                and "DAILY_PROVIDER_HARD_CAP_EXCEEDED" in result.blockers
+            ):
+                progress_status = "NOT_ATTEMPTED"
             else:
                 progress_status = refresh_progress_status(result)
+            if progress_status == "NOT_ATTEMPTED":
+                repository.write_checkpoint_audit(
+                    fixture_id=fixture_id,
+                    checkpoint=name,
+                    as_of=result.generated_at_utc,
+                    calls_used=0,
+                    status="RETRY_PENDING",
+                    details={
+                        "contract": "w2.checkpoint_refresh.v1",
+                        "blockers": result.blockers,
+                        "progress_status": "RETRY_PENDING",
+                        "endpoints": list(checkpoint.get("endpoints") or []),
+                        "endpoint_capture_ids": [],
+                        "source": checkpoint.get("source"),
+                    },
+                )
+                from w2.matchday.repository import MatchdayRuntimeRepository
+
+                MatchdayRuntimeRepository().release_checkpoint_claim(
+                    plan_id=str(checkpoint.get("id") or checkpoint.get("plan_id") or ""),
+                    claim_token=str(checkpoint.get("claim_token") or ""),
+                    reason="CHECKPOINT_BATCH_NOT_ATTEMPTED",
+                    restore_attempt=True,
+                )
+                continue
+            if checkpoint_mode == "DIRECT":
+                status = "COMPLETED" if progress_status == "CAPTURED" else progress_status
+            else:
                 status = "COMPLETED" if progress_status == "DATA_PROGRESS" else progress_status
             repository.write_checkpoint_audit(
                 fixture_id=fixture_id,
@@ -2796,7 +2805,7 @@ class FutureFixtureRefreshService:
             self._transition_checkpoint_plan(
                 checkpoint,
                 result,
-                status_override=progress_status if self._checkpoint_mode() == "DIRECT" else None,
+                status_override=progress_status if checkpoint_mode == "DIRECT" else None,
                 capture_id=capture_id,
             )
 

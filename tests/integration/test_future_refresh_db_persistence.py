@@ -506,6 +506,65 @@ def test_checkpoint_daily_cap_preflight_restores_unattempted_claim(
     assert audit is not None and (audit.status, audit.calls_used) == ("RETRY_PENDING", 0)
 
 
+def test_postmatch_daily_cap_preflight_restores_unattempted_claim(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    monkeypatch.setenv("W2_PROVIDER_DAILY_HARD_CAP", "1")
+    monkeypatch.setenv("W2_PROVIDER_DAILY_RESERVE", "0")
+    repository = MatchdayRuntimeRepository()
+    repository.upsert_checkpoint_plan(
+        postmatch_result_checkpoint_plan(
+            fixture_id="api_football:1489404",
+            competition_id="world_cup_2026",
+            season="2026",
+            kickoff_utc=NOW - timedelta(hours=4),
+            now=NOW,
+        )
+    )
+    checkpoint = repository.claim_due_checkpoint_plans(
+        now=NOW,
+        worker_id="postmatch-cap-test",
+    )[0]
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        session.add(
+            ProviderRequestLogModel(
+                provider="api_football",
+                endpoint="fixtures",
+                request_hash="e" * 64,
+                live=True,
+                status_code=200,
+                requested_at=NOW,
+                completed_at=NOW,
+            )
+        )
+        session.commit()
+    client = FakeApiFootballClient()
+
+    run_future_refresh_task(
+        task_id="postmatch-cap-task",
+        key="postmatch-cap:world_cup_2026:1489404",
+        queued_at=NOW,
+        runtime_root=tmp_path / "runtime",
+        client=client,
+        now=NOW,
+        persistence="db",
+        checkpoint_fixture_ids=("api_football:1489404",),
+        refresh_checkpoints=(checkpoint,),
+    )
+
+    with Session(engine) as session:
+        plan = session.scalar(select(MatchdayCheckpointPlanModel))
+        audit = session.scalar(select(FutureRefreshCheckpointAuditModel))
+    assert client.calls == []
+    assert plan is not None and plan.status == "DUE"
+    assert plan.attempt_count == 0
+    assert plan.claim_token is None
+    assert audit is not None and (audit.status, audit.calls_used) == ("RETRY_PENDING", 0)
+
+
 @pytest.mark.parametrize(
     ("client", "checkpoint_name", "endpoints", "expected_status", "expected_lineups"),
     [
@@ -851,10 +910,12 @@ def test_postmatch_checkpoint_fetches_once_and_materializes_real_result(
     with Session(engine) as session:
         result = session.scalar(select(ResultModel))
         checkpoint = session.scalar(select(MatchdayCheckpointPlanModel))
+        checkpoint_audit = session.scalar(select(FutureRefreshCheckpointAuditModel))
         assert result is not None
         assert (result.home_goals, result.away_goals, result.result_status) == (2, 1, "FT")
         assert checkpoint is not None
         assert checkpoint.status == "CAPTURED"
+        assert checkpoint_audit is not None and checkpoint_audit.status == "COMPLETED"
 
 
 def test_c9_fake_provider_emits_exact_required_event_set(
