@@ -6,7 +6,10 @@ from pathlib import Path
 
 import yaml
 
-REQUIRED_PRODUCTION_SCRIPT_ALLOWLIST: tuple[str, ...] = ()
+REQUIRED_PRODUCTION_SCRIPT_ALLOWLIST = (
+    "run_w2_free_mode_model_validation_canary.py",
+    "repair_w2_xg_retention_lineage.py",
+)
 
 
 def test_unified_python_image_packages_every_runtime_role() -> None:
@@ -20,7 +23,7 @@ def test_unified_python_image_packages_every_runtime_role() -> None:
     assert "COPY config ./config" in text
     assert "COPY migrations ./migrations" in text
     assert "COPY scripts ./scripts" not in text
-    assert "Runtime script allowlist is intentionally empty" in text
+    assert "Runtime script allowlist: model-validation canary and guarded xG lineage repair" in text
     for script in REQUIRED_PRODUCTION_SCRIPT_ALLOWLIST:
         assert f"scripts/{script}" in text
     for forbidden in (

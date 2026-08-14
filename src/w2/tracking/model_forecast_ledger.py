@@ -29,6 +29,10 @@ OUTCOME_SCHEMA = "w2.model_forecast_outcome.v1"
 MODEL_FAMILY = "EXACT_DC_POISSON"
 TERMINAL_RESULT_STATUSES = frozenset({"FT", "AET", "PEN"})
 OUTCOME_CLASSES = ("HOME", "DRAW", "AWAY")
+MODEL_FORECAST_CAPTURE_HASH_DOMAIN = HashDomain.FUTURE_REFRESH_EVIDENCE
+MODEL_FORECAST_OUTCOME_HASH_DOMAIN = HashDomain.OUTCOME_LEDGER_PAYLOAD
+MODEL_FORECAST_XG_IDENTITY_HASH_DOMAIN = HashDomain.FUTURE_REFRESH_FIXTURE_IDENTITY
+MODEL_FORECAST_INPUT_MANIFEST_HASH_DOMAIN = HashDomain.FUTURE_REFRESH_EVIDENCE
 
 
 class ModelForecastLedgerError(ValueError):
@@ -207,11 +211,11 @@ class ModelForecastLedgerRepository:
             valid = (
                 capture_row.captured_at < capture_row.kickoff_utc
                 and capture_row.payload_sha256
-                == canonical_sha256(payload, domain=HashDomain.MODEL_FORECAST_CAPTURE)
+                == canonical_sha256(payload, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN)
                 and capture_row.capture_identity_hash
                 == canonical_sha256(
                     identity_payload,
-                    domain=HashDomain.MODEL_FORECAST_CAPTURE,
+                    domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN,
                 )
                 and payload.get("candidate_required") is False
                 and payload.get("exact_quote_required") is False
@@ -227,12 +231,12 @@ class ModelForecastLedgerRepository:
             }
             expected_identity = canonical_sha256(
                 identity_payload,
-                domain=HashDomain.MODEL_FORECAST_OUTCOME,
+                domain=MODEL_FORECAST_OUTCOME_HASH_DOMAIN,
             )
             valid = (
                 outcome_row.capture_identity_hash in capture_hashes
                 and outcome_row.payload_sha256
-                == canonical_sha256(payload, domain=HashDomain.MODEL_FORECAST_OUTCOME)
+                == canonical_sha256(payload, domain=MODEL_FORECAST_OUTCOME_HASH_DOMAIN)
                 and outcome_row.outcome_identity_hash == expected_identity
                 and payload.get("capture_to_outcome_identity_hash") == expected_identity
             )
@@ -322,7 +326,7 @@ class ModelForecastLedgerRepository:
             }
             side_identity["identity_hash"] = canonical_sha256(
                 side_identity,
-                domain=HashDomain.MODEL_FORECAST_XG_IDENTITY,
+                domain=MODEL_FORECAST_XG_IDENTITY_HASH_DOMAIN,
             )
             sides[side] = side_identity
         identity: dict[str, Any] = {
@@ -337,7 +341,7 @@ class ModelForecastLedgerRepository:
         }
         identity["identity_hash"] = canonical_sha256(
             identity,
-            domain=HashDomain.MODEL_FORECAST_XG_IDENTITY,
+            domain=MODEL_FORECAST_XG_IDENTITY_HASH_DOMAIN,
         )
         return identity
 
@@ -400,7 +404,7 @@ def _build_capture(
     }
     model_input_manifest_hash = canonical_sha256(
         input_manifest,
-        domain=HashDomain.MODEL_FORECAST_INPUT_MANIFEST,
+        domain=MODEL_FORECAST_INPUT_MANIFEST_HASH_DOMAIN,
     )
     source_hashes = _source_artifact_hashes(
         card=card,
@@ -444,7 +448,7 @@ def _build_capture(
     }
     if not core["model_version"]:
         raise ModelForecastLedgerError("MODEL_FORECAST_MODEL_VERSION_MISSING")
-    identity = canonical_sha256(core, domain=HashDomain.MODEL_FORECAST_CAPTURE)
+    identity = canonical_sha256(core, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN)
     return {**core, "capture_identity_hash": identity}
 
 
@@ -500,7 +504,7 @@ def _build_outcome(
         },
         "settled_at": _iso(settled_at),
     }
-    link = canonical_sha256(core, domain=HashDomain.MODEL_FORECAST_OUTCOME)
+    link = canonical_sha256(core, domain=MODEL_FORECAST_OUTCOME_HASH_DOMAIN)
     return {
         **core,
         "capture_to_outcome_identity_hash": link,
@@ -525,7 +529,7 @@ def _capture_model(
         ),
         score_matrix_hash=str(payload["score_matrix_hash"]),
         payload=dict(payload),
-        payload_sha256=canonical_sha256(payload, domain=HashDomain.MODEL_FORECAST_CAPTURE),
+        payload_sha256=canonical_sha256(payload, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN),
         inserted_at=inserted_at,
     )
 
@@ -543,7 +547,7 @@ def _outcome_model(
         rps=float(payload["rps"]),
         settled_at=_utc(_parse_time(payload["settled_at"]), "settled_at"),
         payload=dict(payload),
-        payload_sha256=canonical_sha256(payload, domain=HashDomain.MODEL_FORECAST_OUTCOME),
+        payload_sha256=canonical_sha256(payload, domain=MODEL_FORECAST_OUTCOME_HASH_DOMAIN),
         inserted_at=inserted_at,
     )
 

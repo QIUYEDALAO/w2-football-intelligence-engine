@@ -19,8 +19,9 @@ COPY apps ./apps
 COPY src ./src
 COPY config ./config
 COPY migrations ./migrations
-# Runtime script allowlist: zero-Provider, read-only model-validation canary only.
+# Runtime script allowlist: model-validation canary and guarded xG lineage repair.
 COPY scripts/run_w2_free_mode_model_validation_canary.py ./scripts/
+COPY scripts/repair_w2_xg_retention_lineage.py ./scripts/
 COPY config/policies/lineup_market_policy.v1.json /app/image_config/policies/lineup_market_policy.v1.json
 RUN uv sync --no-dev --frozen --no-editable \
  && test -x /app/.venv/bin/alembic \

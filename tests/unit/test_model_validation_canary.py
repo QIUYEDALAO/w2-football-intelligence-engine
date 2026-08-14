@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from w2.domain.canonical_serialization import HashDomain, canonical_sha256
+from w2.domain.canonical_serialization import canonical_sha256
 from w2.infrastructure.persistence.future_refresh_models import (
     RawPayloadModel,
     RawStatisticsRetentionModel,
@@ -17,6 +17,10 @@ from w2.infrastructure.persistence.model_forecast_models import (
     ModelForecastOutcomeModel,
 )
 from w2.ingestion.xg_retention import XgRetentionHardeningService
+from w2.tracking.model_forecast_ledger import (
+    MODEL_FORECAST_CAPTURE_HASH_DOMAIN,
+    MODEL_FORECAST_OUTCOME_HASH_DOMAIN,
+)
 from w2.tracking.model_validation_canary import (
     CANARY_TERMINAL,
     free_mode_model_validation_canary,
@@ -38,9 +42,7 @@ def test_canary_requires_nonempty_capture_outcome_and_metrics(
     assert report["provider_calls"] == 0
     assert report["db_writes"] == 0
     assert "MODEL_FORECAST_CAPTURE_COUNT" in report["blockers"]
-    with pytest.raises(
-        ValueError, match="PRO_REOPEN_OWNER_DECISION_PACKET_REQUIRES_CANARY_PASS"
-    ):
+    with pytest.raises(ValueError, match="PRO_REOPEN_OWNER_DECISION_PACKET_REQUIRES_CANARY_PASS"):
         write_pro_reopen_owner_decision_packet(tmp_path / "packet.md", report)
 
 
@@ -106,9 +108,7 @@ def _seed_valid_capture_and_outcome(engine) -> None:  # type: ignore[no-untyped-
         "candidate_required": False,
         "exact_quote_required": False,
     }
-    capture_identity = canonical_sha256(
-        capture_core, domain=HashDomain.MODEL_FORECAST_CAPTURE
-    )
+    capture_identity = canonical_sha256(capture_core, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN)
     capture_payload = {**capture_core, "capture_identity_hash": capture_identity}
     outcome_core = {
         "schema_version": "w2.model_forecast_outcome.v1",
@@ -128,9 +128,7 @@ def _seed_valid_capture_and_outcome(engine) -> None:  # type: ignore[no-untyped-
         },
         "settled_at": (kickoff + timedelta(hours=2)).isoformat().replace("+00:00", "Z"),
     }
-    outcome_identity = canonical_sha256(
-        outcome_core, domain=HashDomain.MODEL_FORECAST_OUTCOME
-    )
+    outcome_identity = canonical_sha256(outcome_core, domain=MODEL_FORECAST_OUTCOME_HASH_DOMAIN)
     outcome_payload = {
         **outcome_core,
         "capture_to_outcome_identity_hash": outcome_identity,
@@ -151,7 +149,7 @@ def _seed_valid_capture_and_outcome(engine) -> None:  # type: ignore[no-untyped-
                 score_matrix_hash="7" * 64,
                 payload=capture_payload,
                 payload_sha256=canonical_sha256(
-                    capture_payload, domain=HashDomain.MODEL_FORECAST_CAPTURE
+                    capture_payload, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN
                 ),
                 inserted_at=NOW,
             )
@@ -168,7 +166,7 @@ def _seed_valid_capture_and_outcome(engine) -> None:  # type: ignore[no-untyped-
                 settled_at=kickoff + timedelta(hours=2),
                 payload=outcome_payload,
                 payload_sha256=canonical_sha256(
-                    outcome_payload, domain=HashDomain.MODEL_FORECAST_OUTCOME
+                    outcome_payload, domain=MODEL_FORECAST_OUTCOME_HASH_DOMAIN
                 ),
                 inserted_at=NOW,
             )
