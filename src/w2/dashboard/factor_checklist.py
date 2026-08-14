@@ -128,17 +128,21 @@ def build_fixture_factor_checklist(
         "blocking_factor_ids": shadow_blockers,
         "per_market": per_market,
     }
+    persisted_ledger_fact = dict(ledger_fact or {"state": "NOT_CAPTURED"})
+    projection_conclusion = _conclusion(model_track, shadow_track, factors)
     return {
         "fixture_id": _text(card.get("fixture_id")),
         "competition_id": _optional_text(card.get("competition_id")),
         "kickoff_utc": card.get("kickoff_utc"),
         "as_of": generated_at,
-        "conclusion_zh": _conclusion(model_track, shadow_track, factors),
+        "conclusion_zh": _ledger_aware_conclusion(
+            projection_conclusion, persisted_ledger_fact
+        ),
         "market_identity_note_zh": (
             "主盘身份可解析 ≠ 候选报价可锁定；"
             "候选轨道还要求报价可执行、模型就绪及 Decision V4。"
         ),
-        "ledger_fact": dict(ledger_fact or {"state": "NOT_CAPTURED"}),
+        "ledger_fact": persisted_ledger_fact,
         "enhancement_quality": _enhancement_quality(factors),
         "track_model_forecast": model_track,
         "track_shadow_candidate": shadow_track,
@@ -416,6 +420,20 @@ def _conclusion(
         return "本场可进入模型预测账本，也具备形成影子候选的输入条件。"
     blocker = str(shadow_track["blocking_factor_ids"][0])
     return f"本场可进入模型预测账本；不能形成影子候选 —— 卡在 {_blocker_detail(blocker, factors)}"
+
+
+def _ledger_aware_conclusion(
+    projection_conclusion: str, ledger_fact: Mapping[str, Any]
+) -> str:
+    state = _text(ledger_fact.get("state"))
+    if state == "CAPTURED":
+        return (
+            "本场模型预测已冻结，等待真实完场结算；当前因子投影仅供对照："
+            f"{projection_conclusion}"
+        )
+    if state == "SETTLED":
+        return f"本场模型预测已结算；当前因子投影仅供对照：{projection_conclusion}"
+    return projection_conclusion
 
 
 def _blocker_detail(blocker: str, factors: Sequence[Mapping[str, Any]]) -> str:

@@ -526,6 +526,30 @@ test("R6 distinguishes mainline identity from candidate quote lock", async ({ pa
   await expect(checklist).toContainText("尚未冻结");
 });
 
+test("R6 renders the complete persisted capture fact independently of current projection", async ({ page }) => {
+  const payload = workspace();
+  const selected = payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!;
+  selected.factor_checklist.conclusion_zh = "本场模型预测已冻结，等待真实完场结算；当前因子投影仅供对照：本场不可进入模型预测账本 —— 卡在 四字段 xG";
+  selected.factor_checklist.ledger_fact = {
+    state: "CAPTURED",
+    capture_identity_hash: "a59386fc85e4a3e6f251948e1dc58e89719c0e00ea3a83f3b622c1ca9d4aa5cc",
+    captured_at: "2026-08-09T13:00:00Z",
+    model_family: "EXACT_DC_POISSON",
+    model_version: "w2.formal.exact_dc_poisson.v1",
+    calibration_version: "w2.formal.lambda_baseline_prior.v1",
+    calibration_status: "BASELINE_PRIOR",
+  };
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.goto("/");
+
+  const checklist = page.locator(".v41-factor-checklist");
+  await expect(checklist).toContainText("本场模型预测已冻结，等待真实完场结算");
+  await expect(checklist.locator(".v41-factor-ledger")).toContainText("capture a59386fc");
+  await expect(checklist.locator(".v41-factor-ledger")).toContainText("开球前 1 小时 30 分");
+  await expect(checklist.locator(".v41-factor-ledger")).toContainText("w2.formal.lambda_baseline_prior.v1 · BASELINE_PRIOR");
+  await expect(checklist.locator(".v41-factor-ledger")).toContainText("结算状态：等待真实完场");
+});
+
 test("V41 keeps the zero-observation market state explicit", async ({ page }, testInfo) => {
   const payload = workspace();
   payload.selected_fixture_id = "1571808";

@@ -651,6 +651,8 @@ def test_factor_checklist_exposes_registry_policy_and_ledger_fact() -> None:
     assert all(row["factor_lifecycle"] == "EXPLANATION_ONLY" for row in explanations)
     assert all(row["numeric_effect_enabled"] is False for row in explanations)
     assert checklist["ledger_fact"] == ledger
+    assert checklist["conclusion_zh"].startswith("本场模型预测已结算；")
+    assert "当前因子投影仅供对照" in checklist["conclusion_zh"]
 
 
 def test_data_risk_excludes_enhancement_only_gaps() -> None:

@@ -507,7 +507,16 @@ function FactorRows({ factors }: { factors: FixtureFactor[] }) {
 function LedgerFact({ checklist }: { checklist: FixtureFactorChecklist }) {
   const ledger = checklist.ledger_fact;
   if (ledger.state === "NOT_CAPTURED") return <div className="v41-factor-ledger"><b>模型预测账本事实</b><strong>尚未冻结</strong><span>本场没有已持久化 ModelForecastCapture。</span></div>;
-  return <div className="v41-factor-ledger"><b>模型预测账本事实</b><strong>{ledger.state === "SETTLED" ? "已结算" : "已冻结"}</strong><span>{localDateTime(ledger.captured_at || null)} · {ledger.model_version || "模型版本待确认"} · {ledger.calibration_status || "校准状态待确认"}</span>{ledger.state === "SETTLED" ? <small>Brier {ledger.brier?.toFixed(4)} · LogLoss {ledger.log_loss?.toFixed(4)} · RPS {ledger.rps?.toFixed(4)}</small> : null}</div>;
+  const captureLeadSeconds = checklist.kickoff_utc && ledger.captured_at
+    ? Math.floor((Date.parse(checklist.kickoff_utc) - Date.parse(ledger.captured_at)) / 1000)
+    : null;
+  const captureLead = captureLeadSeconds !== null && Number.isFinite(captureLeadSeconds)
+    ? `${captureLeadSeconds >= 0 ? "开球前" : "开球后"} ${duration(Math.abs(captureLeadSeconds))}`
+    : "距开球时长待确认";
+  const captureHash = ledger.capture_identity_hash?.slice(0, 8) || "hash 待确认";
+  const calibration = [ledger.calibration_version, ledger.calibration_status].filter(Boolean).join(" · ") || "校准信息待确认";
+  const settlement = ledger.state === "SETTLED" ? `已结算 · ${localDateTime(ledger.settled_at || null)}` : "等待真实完场";
+  return <div className="v41-factor-ledger"><b>模型预测账本事实</b><strong>{ledger.state === "SETTLED" ? "已结算" : "已冻结"}</strong><span>{localDateTime(ledger.captured_at || null)} · {captureLead} · capture {captureHash}<br />{ledger.model_version || "模型版本待确认"} · {calibration}<br />结算状态：{settlement}{ledger.state === "SETTLED" ? <><br />Brier {ledger.brier?.toFixed(4)} · LogLoss {ledger.log_loss?.toFixed(4)} · RPS {ledger.rps?.toFixed(4)}</> : null}</span></div>;
 }
 
 function FactorChecklist({ match }: { match: WorkspaceMatch }) {
