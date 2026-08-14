@@ -1077,6 +1077,24 @@ class ReadModelRepository:
                 result[requested_id] = {"state": "NOT_CAPTURED"}
                 continue
             payload = capture.payload if isinstance(capture.payload, dict) else {}
+            raw_xg_identity = payload.get("four_field_xg_identity")
+            xg_identity = (
+                cast(dict[str, Any], raw_xg_identity)
+                if isinstance(raw_xg_identity, dict)
+                else {}
+            )
+            raw_home_xg = xg_identity.get("home")
+            home_xg = (
+                cast(dict[str, Any], raw_home_xg)
+                if isinstance(raw_home_xg, dict)
+                else {}
+            )
+            raw_away_xg = xg_identity.get("away")
+            away_xg = (
+                cast(dict[str, Any], raw_away_xg)
+                if isinstance(raw_away_xg, dict)
+                else {}
+            )
             outcome = outcome_by_capture.get(capture.capture_identity_hash)
             result[requested_id] = {
                 "state": "SETTLED" if outcome is not None else "CAPTURED",
@@ -1086,6 +1104,15 @@ class ReadModelRepository:
                 "model_version": capture.model_version,
                 "calibration_version": payload.get("calibration_version"),
                 "calibration_status": payload.get("calibration_status"),
+                "four_field_xg": {
+                    "status": "READY",
+                    "identity_hash": xg_identity.get("identity_hash")
+                    or capture.four_field_xg_identity_hash,
+                    "home_snapshot_identity": home_xg.get("snapshot_identity"),
+                    "away_snapshot_identity": away_xg.get("snapshot_identity"),
+                    "home_match_count": home_xg.get("match_count"),
+                    "away_match_count": away_xg.get("match_count"),
+                },
                 "settled_at": _iso_or_none(outcome.settled_at) if outcome else None,
                 "brier": outcome.brier if outcome else None,
                 "log_loss": outcome.log_loss if outcome else None,

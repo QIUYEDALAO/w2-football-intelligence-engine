@@ -793,6 +793,17 @@ class WorkspaceFixtureFactor(BaseModel):
         return self
 
 
+class WorkspaceModelForecastFourFieldXgFact(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["READY"]
+    identity_hash: str = Field(min_length=64, max_length=64)
+    home_snapshot_identity: str = Field(min_length=1)
+    away_snapshot_identity: str = Field(min_length=1)
+    home_match_count: int = Field(ge=3)
+    away_match_count: int = Field(ge=3)
+
+
 class WorkspaceModelForecastLedgerFact(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -803,6 +814,7 @@ class WorkspaceModelForecastLedgerFact(BaseModel):
     model_version: str | None = None
     calibration_version: str | None = None
     calibration_status: str | None = None
+    four_field_xg: WorkspaceModelForecastFourFieldXgFact | None = None
     settled_at: datetime | str | None = None
     brier: float | None = None
     log_loss: float | None = None
@@ -825,6 +837,10 @@ class WorkspaceModelForecastLedgerFact(BaseModel):
             raise ValueError(
                 "captured ledger facts require persisted capture identity and model fields"
             )
+        if self.state in {"CAPTURED", "SETTLED"} and self.four_field_xg is None:
+            raise ValueError("captured ledger facts require persisted four-field xG identity")
+        if self.state == "NOT_CAPTURED" and self.four_field_xg is not None:
+            raise ValueError("not-captured ledger facts cannot contain four-field xG identity")
         if self.state == "SETTLED" and any(value is None for value in settled):
             raise ValueError("settled ledger facts require persisted probability metrics")
         if self.state == "CAPTURED" and any(value is not None for value in settled):

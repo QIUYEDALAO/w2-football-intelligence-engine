@@ -49,7 +49,7 @@ def build_fixture_factor_checklist(
     candidates = _mapping(card.get("market_candidates"))
     factors: list[dict[str, Any]] = []
 
-    factors.append(_xg_factor(readiness, inputs, generated_at))
+    factors.append(_xg_factor(readiness, inputs, ledger_fact, generated_at))
     for market in MARKETS:
         current = _mapping(markets.get(market))
         candidate = _mapping(candidates.get("ah" if market == "ASIAN_HANDICAP" else "ou"))
@@ -151,14 +151,47 @@ def build_fixture_factor_checklist(
 
 
 def _xg_factor(
-    readiness: Mapping[str, Any], inputs: Mapping[str, Any], as_of: Any
+    readiness: Mapping[str, Any],
+    inputs: Mapping[str, Any],
+    ledger_fact: Mapping[str, Any] | None,
+    as_of: Any,
 ) -> dict[str, Any]:
-    home_count = max(0, _int(readiness.get("xg_home_match_count")))
-    away_count = max(0, _int(readiness.get("xg_away_match_count")))
+    persisted_xg = _mapping(_mapping(ledger_fact).get("four_field_xg"))
+    ledger_ready = (
+        _text(_mapping(ledger_fact).get("state")) in {"CAPTURED", "SETTLED"}
+        and _text(persisted_xg.get("status")) == "READY"
+        and bool(_text(persisted_xg.get("identity_hash")))
+        and bool(_text(persisted_xg.get("home_snapshot_identity")))
+        and bool(_text(persisted_xg.get("away_snapshot_identity")))
+        and _int(persisted_xg.get("home_match_count")) >= MIN_XG_MATCHES
+        and _int(persisted_xg.get("away_match_count")) >= MIN_XG_MATCHES
+    )
+    home_count = max(
+        0,
+        _int(
+            persisted_xg.get("home_match_count")
+            if ledger_ready
+            else readiness.get("xg_home_match_count")
+        ),
+    )
+    away_count = max(
+        0,
+        _int(
+            persisted_xg.get("away_match_count")
+            if ledger_ready
+            else readiness.get("xg_away_match_count")
+        ),
+    )
     home_shortfall = max(0, MIN_XG_MATCHES - home_count)
     away_shortfall = max(0, MIN_XG_MATCHES - away_count)
-    ready = readiness.get("xg") is True or _text(readiness.get("xg_status")) == "READY"
-    unsupported = inputs.get("provider_xg_unavailable_confirmed") is True
+    ready = (
+        ledger_ready
+        or readiness.get("xg") is True
+        or _text(readiness.get("xg_status")) == "READY"
+    )
+    unsupported = (
+        not ledger_ready and inputs.get("provider_xg_unavailable_confirmed") is True
+    )
     if ready:
         state, cause, permanence = "READY", None, "NOT_APPLICABLE"
     elif unsupported:
@@ -178,7 +211,14 @@ def _xg_factor(
         permanence=permanence,
         as_of=as_of,
         evidence={
-            "source": "rolling_xg_snapshot+team_xg_match",
+            "as_of": (
+                _mapping(ledger_fact).get("captured_at") if ledger_ready else as_of
+            ),
+            "source": (
+                "model_forecast_capture.four_field_xg_identity"
+                if ledger_ready
+                else "rolling_xg_snapshot+team_xg_match"
+            ),
             "sample_count": min(home_count, away_count),
             "minimum_required": MIN_XG_MATCHES,
             "shortfall": max(home_shortfall, away_shortfall),
@@ -186,8 +226,17 @@ def _xg_factor(
             "away_sample_count": away_count,
             "home_shortfall": home_shortfall,
             "away_shortfall": away_shortfall,
-            "rolling_snapshot_count": max(0, _int(readiness.get("xg_snapshot_count"))),
+            "rolling_snapshot_count": (
+                2 if ledger_ready else max(0, _int(readiness.get("xg_snapshot_count")))
+            ),
             "provider_unavailable_confirmed": unsupported,
+            "identity_hash": persisted_xg.get("identity_hash") if ledger_ready else None,
+            "home_snapshot_identity": (
+                persisted_xg.get("home_snapshot_identity") if ledger_ready else None
+            ),
+            "away_snapshot_identity": (
+                persisted_xg.get("away_snapshot_identity") if ledger_ready else None
+            ),
         },
     )
 

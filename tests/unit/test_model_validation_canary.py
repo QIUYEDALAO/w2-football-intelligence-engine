@@ -91,6 +91,14 @@ def test_dashboard_reads_capture_and_outcome_as_ledger_facts(
         "model_version": "model-v1",
         "calibration_version": "cal-v1",
         "calibration_status": "AVAILABLE",
+        "four_field_xg": {
+            "status": "READY",
+            "identity_hash": "6" * 64,
+            "home_snapshot_identity": "home-snapshot",
+            "away_snapshot_identity": "away-snapshot",
+            "home_match_count": 3,
+            "away_match_count": 3,
+        },
         "settled_at": "2026-08-14T03:00:00Z",
         "brier": 0.38,
         "log_loss": 0.69314718056,
@@ -136,6 +144,11 @@ def _seed_valid_capture_and_outcome(engine) -> None:  # type: ignore[no-untyped-
         "captured_at": NOW.isoformat().replace("+00:00", "Z"),
         "calibration_version": "cal-v1",
         "calibration_status": "AVAILABLE",
+        "four_field_xg_identity": {
+            "identity_hash": "6" * 64,
+            "home": {"snapshot_identity": "home-snapshot", "match_count": 3},
+            "away": {"snapshot_identity": "away-snapshot", "match_count": 3},
+        },
         "candidate_required": False,
         "exact_quote_required": False,
     }

@@ -150,14 +150,17 @@ class LegacyEmbeddedScorelineRepository(FutureFixtureRepository):
 
 
 class XgStore:
-    def __init__(self, *, partial: bool = False) -> None:
+    def __init__(self, *, partial: bool = False, empty: bool = False) -> None:
         self.partial = partial
+        self.empty = empty
 
     def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
         return []
 
     def team_xg_rolling_snapshots(self, *, fixture_id: str | None = None) -> list[dict[str, Any]]:
         assert fixture_id == "fixture-xg"
+        if self.empty:
+            return []
         rows = [
             {
                 "team_id": "10",
@@ -181,6 +184,8 @@ class XgStore:
         return rows[:1] if self.partial else rows
 
     def team_xg_matches(self) -> list[dict[str, Any]]:
+        if self.empty:
+            return []
         return [
             {
                 "team_id": team_id,
@@ -266,6 +271,25 @@ def test_xg_partial_history_hides_scorelines_and_fair_ou(
     assert card["pricing_shadow"]["fair_ou"] is None
     score_market = next(market for market in card["markets"] if market["market"] == "SCORE")
     assert score_market["decision"] == "SKIP"
+
+
+def test_missing_xg_history_is_not_reported_as_provider_unsupported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        api_repository,
+        "future_refresh_db_repository",
+        lambda: XgStore(empty=True),
+    )
+    service = ReadModelService(repository=cast(Any, FutureFixtureRepository()))
+
+    card = service.analysis_card("fixture-xg")
+
+    assert card is not None
+    assert card["data_readiness"]["xg_status"] == "NO_MATERIALIZED_HISTORY"
+    assert card["data_readiness"]["xg_blocker"] == "XG_HISTORY_NOT_MATERIALIZED"
+    assert card["scoreline_readiness"]["reason"] == "NO_MATERIALIZED_HISTORY"
+    assert card["scoreline_readiness"]["blocker"] == "XG_HISTORY_NOT_MATERIALIZED"
 
 
 def test_legacy_embedded_scoreline_card_is_refreshed_for_readiness(

@@ -99,3 +99,30 @@ def test_build_audit_rejects_non_exact13_and_fixture_set_drift() -> None:
         MODULE.build_audit([{"matches": [match]}], [_db_row()], _meta())
     with pytest.raises(ValueError, match="fixture sets differ"):
         MODULE.build_audit([{"matches": [_workspace_match()]}], [], _meta())
+
+
+def test_build_audit_does_not_promote_missing_xg_history_to_provider_unsupported() -> None:
+    row = _db_row()
+    row.update(
+        {
+            "xg_ready": False,
+            "home_xg_for": None,
+            "home_xg_against": None,
+            "away_xg_for": None,
+            "away_xg_against": None,
+            "home_xg_match_count": 0,
+            "away_xg_match_count": 0,
+            "xg_status": "PROVIDER_EMPTY_OR_UNAVAILABLE",
+            "simulation_status": "INSUFFICIENT_INPUTS",
+        }
+    )
+
+    audit = MODULE.build_audit(
+        [{"generated_at": "2026-08-13T00:01:00Z", "matches": [_workspace_match()]}],
+        [row],
+        _meta(),
+    )
+    xg = audit["fixtures"][0]["factors"]["xg_four_fields"]
+
+    assert xg["reason"] == "SOURCE_AVAILABILITY_UNVERIFIED"
+    assert xg["first_break"] == "SOURCE_AVAILABILITY_NOT_DISAMBIGUATED"

@@ -193,6 +193,14 @@ export interface FixtureFactorChecklist {
     model_version?: string | null;
     calibration_version?: string | null;
     calibration_status?: string | null;
+    four_field_xg?: {
+      status: "READY";
+      identity_hash: string;
+      home_snapshot_identity: string;
+      away_snapshot_identity: string;
+      home_match_count: number;
+      away_match_count: number;
+    } | null;
     settled_at?: string | null;
     brier?: number | null;
     log_loss?: number | null;

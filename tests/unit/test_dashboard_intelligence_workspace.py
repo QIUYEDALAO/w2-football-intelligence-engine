@@ -655,6 +655,70 @@ def test_factor_checklist_exposes_registry_policy_and_ledger_fact() -> None:
     assert "当前因子投影仅供对照" in checklist["conclusion_zh"]
 
 
+def test_factor_checklist_uses_persisted_capture_xg_identity_as_authority() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["factor_checklist_inputs"]["data_readiness"].update(
+        {
+            "xg": False,
+            "xg_status": "PROVIDER_EMPTY_OR_UNAVAILABLE",
+            "xg_home_match_count": 0,
+            "xg_away_match_count": 0,
+            "xg_snapshot_count": 0,
+        }
+    )
+    day_view["cards"] = [card]
+    ledger = {
+        "state": "CAPTURED",
+        "capture_identity_hash": "a" * 64,
+        "captured_at": "2026-08-09T01:00:00Z",
+        "model_family": "EXACT_DC_POISSON",
+        "model_version": "model-v1",
+        "calibration_version": "cal-v1",
+        "calibration_status": "AVAILABLE",
+        "four_field_xg": {
+            "status": "READY",
+            "identity_hash": "b" * 64,
+            "home_snapshot_identity": "home-snapshot",
+            "away_snapshot_identity": "away-snapshot",
+            "home_match_count": 5,
+            "away_match_count": 4,
+        },
+    }
+
+    checklist = _workspace(
+        day_view,
+        model_forecasts={card["fixture_id"]: ledger},
+    )["matches"][0]["factor_checklist"]
+    xg = next(row for row in checklist["factors"] if row["factor_id"] == "F9_TRUE_XG")
+
+    assert checklist["track_model_forecast"] == {
+        "state": "READY",
+        "blocking_factor_ids": [],
+    }
+    assert xg["state"] == "READY"
+    assert xg["cause"] is None
+    expected_evidence = {
+        "as_of": "2026-08-09T01:00:00Z",
+        "source": "model_forecast_capture.four_field_xg_identity",
+        "sample_count": 4,
+        "minimum_required": 3,
+        "shortfall": 0,
+        "home_sample_count": 5,
+        "away_sample_count": 4,
+        "home_shortfall": 0,
+        "away_shortfall": 0,
+        "rolling_snapshot_count": 2,
+        "provider_unavailable_confirmed": False,
+        "identity_hash": "b" * 64,
+        "home_snapshot_identity": "home-snapshot",
+        "away_snapshot_identity": "away-snapshot",
+    }
+    assert {
+        key: xg["evidence"].get(key) for key in expected_evidence
+    } == expected_evidence
+
+
 def test_data_risk_excludes_enhancement_only_gaps() -> None:
     day_view = _day_view()
     card = _factor_checklist_card()

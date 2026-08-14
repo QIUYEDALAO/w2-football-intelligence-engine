@@ -3889,8 +3889,8 @@ class ReadModelService:
             blocker = (
                 "XG_SAMPLE_INSUFFICIENT_FOR_FIXTURE"
                 if xg_sample_status in {"PARTIAL_HISTORY", "INSUFFICIENT_HISTORY"}
-                else "PROVIDER_XG_FIELD_UNAVAILABLE_OR_EMPTY"
-                if xg_sample_status == "PROVIDER_EMPTY_OR_UNAVAILABLE"
+                else "XG_HISTORY_NOT_MATERIALIZED"
+                if xg_sample_status == "NO_MATERIALIZED_HISTORY"
                 else None
             )
             return {
@@ -4852,8 +4852,8 @@ class ReadModelService:
             status = "INSUFFICIENT_HISTORY"
             blocker = "XG_SAMPLE_INSUFFICIENT_FOR_FIXTURE"
         else:
-            status = "PROVIDER_EMPTY_OR_UNAVAILABLE"
-            blocker = "PROVIDER_XG_FIELD_UNAVAILABLE_OR_EMPTY"
+            status = "NO_MATERIALIZED_HISTORY"
+            blocker = "XG_HISTORY_NOT_MATERIALIZED"
         return {
             "status": status,
             "blocker": blocker,
