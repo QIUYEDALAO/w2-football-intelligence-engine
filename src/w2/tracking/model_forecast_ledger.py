@@ -23,6 +23,7 @@ from w2.infrastructure.persistence.model_forecast_models import (
     ModelForecastOutcomeModel,
 )
 from w2.infrastructure.persistence.models import ResultModel
+from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 
 CAPTURE_SCHEMA = "w2.model_forecast_capture.v1"
 OUTCOME_SCHEMA = "w2.model_forecast_outcome.v1"
@@ -42,6 +43,7 @@ class ModelForecastLedgerError(ValueError):
 class ModelForecastLedgerRepository:
     def __init__(self, engine: Engine | None = None) -> None:
         self.engine = engine or create_engine()
+        self.xg_repository = FutureRefreshDbRepository(engine=self.engine)
 
     def capture(
         self,
@@ -257,11 +259,29 @@ class ModelForecastLedgerRepository:
         fixture_id: str,
         kickoff: datetime,
     ) -> dict[str, Any] | None:
-        fixture_identity = _mapping(
-            _mapping(card.get("frozen_artifact_provenance")).get("fixture_identity")
+        fixture_identity = dict(
+            _mapping(_mapping(card.get("frozen_artifact_provenance")).get("fixture_identity"))
         )
-        home_team_id = str(fixture_identity.get("home_team_id") or "")
-        away_team_id = str(fixture_identity.get("away_team_id") or "")
+        home_team_id = str(
+            fixture_identity.get("home_provider_team_id")
+            or fixture_identity.get("home_team_id")
+            or ""
+        )
+        away_team_id = str(
+            fixture_identity.get("away_provider_team_id")
+            or fixture_identity.get("away_team_id")
+            or ""
+        )
+        if not home_team_id or not away_team_id:
+            canonical_identity = self.xg_repository.matchday_fixture_identity(fixture_id)
+            if (
+                not isinstance(canonical_identity, Mapping)
+                or canonical_identity.get("status") == "FIXTURE_ID_ALIAS_CONFLICT"
+            ):
+                return None
+            fixture_identity = dict(canonical_identity)
+            home_team_id = str(fixture_identity.get("home_provider_team_id") or "")
+            away_team_id = str(fixture_identity.get("away_provider_team_id") or "")
         if not home_team_id or not away_team_id:
             return None
         fixture_aliases = _fixture_aliases(fixture_id)
@@ -330,6 +350,7 @@ class ModelForecastLedgerRepository:
             )
             sides[side] = side_identity
         identity: dict[str, Any] = {
+            "fixture_identity": fixture_identity,
             "home": sides["home"],
             "away": sides["away"],
             "four_fields": {
@@ -394,9 +415,14 @@ def _build_capture(
     _validate_probability_vector(probability_vector)
     score_matrix_hash = _sha(summary.get("score_matrix_hash"), "score_matrix_hash")
     provenance = _mapping(card.get("frozen_artifact_provenance"))
+    fixture_identity = _mapping(xg_identity.get("fixture_identity")) or _mapping(
+        provenance.get("fixture_identity")
+    )
+    fixture_raw_hash = fixture_identity.get("raw_payload_sha256") or provenance.get("source_hash")
     input_manifest = {
         "frozen_input_manifest": dict(_mapping(provenance.get("input_manifest"))),
-        "frozen_source_hash": provenance.get("source_hash"),
+        "fixture_identity_hash": fixture_identity.get("identity_hash"),
+        "fixture_raw_payload_sha256": fixture_raw_hash,
         "simulation_input_hash": _mapping(simulation.get("calibration")).get(
             "simulation_input_hash"
         ),
@@ -421,8 +447,8 @@ def _build_capture(
     core = {
         "schema_version": CAPTURE_SCHEMA,
         "fixture_identity": {
+            **dict(fixture_identity),
             "fixture_id": fixture_id,
-            **dict(_mapping(provenance.get("fixture_identity"))),
         },
         "competition_identity": {"competition_id": competition_id},
         "kickoff_utc": _iso(kickoff),
@@ -619,6 +645,14 @@ def _source_artifact_hashes(
     model_input_manifest_hash: str,
 ) -> dict[str, Any]:
     provenance = _mapping(card.get("frozen_artifact_provenance"))
+    fixture_identity = _mapping(xg_identity.get("fixture_identity")) or _mapping(
+        provenance.get("fixture_identity")
+    )
+    fixture_identity_hash = fixture_identity.get("identity_hash") or canonical_sha256(
+        fixture_identity,
+        domain=MODEL_FORECAST_INPUT_MANIFEST_HASH_DOMAIN,
+    )
+    fixture_raw_hash = fixture_identity.get("raw_payload_sha256") or provenance.get("source_hash")
     raw_hashes = sorted(
         {
             str(component["raw_statistics_sha256"])
@@ -631,6 +665,8 @@ def _source_artifact_hashes(
     return {
         "frozen_artifact_hash": provenance.get("artifact_hash") or card.get("artifact_hash"),
         "frozen_source_hash": provenance.get("source_hash"),
+        "fixture_identity_hash": fixture_identity_hash,
+        "fixture_raw_payload_sha256": fixture_raw_hash,
         "simulation_input_hash": _mapping(simulation.get("calibration")).get(
             "simulation_input_hash"
         ),
@@ -645,14 +681,17 @@ def _source_artifact_hashes(
 
 def _validate_source_artifact_hashes(hashes: Mapping[str, Any]) -> None:
     for name in (
-        "frozen_artifact_hash",
-        "frozen_source_hash",
+        "fixture_identity_hash",
+        "fixture_raw_payload_sha256",
         "simulation_input_hash",
         "score_matrix_hash",
         "model_input_manifest_hash",
         "four_field_xg_identity_hash",
     ):
         _sha(hashes.get(name), name)
+    for name in ("frozen_artifact_hash", "frozen_source_hash"):
+        if hashes.get(name) is not None:
+            _sha(hashes.get(name), name)
     raw_hashes = hashes.get("raw_statistics_sha256")
     if not isinstance(raw_hashes, list) or not raw_hashes:
         raise ModelForecastLedgerError("MODEL_FORECAST_RAW_STATISTICS_HASHES_MISSING")

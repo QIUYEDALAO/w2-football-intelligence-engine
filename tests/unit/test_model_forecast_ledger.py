@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -112,6 +113,54 @@ def test_without_four_field_xg_only_coverage_is_counted(tmp_path: Path) -> None:
     assert result["model_eligible_count"] == 0
     assert result["no_four_field_xg_count"] == 1
     assert result["model_forecast_capture_count"] == 0
+
+
+def test_capture_uses_canonical_fixture_identity_when_public_provenance_is_absent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = _repository(tmp_path)
+    _seed_xg(repository)
+    day_view = _day_view()
+    cards = day_view["cards"]
+    assert isinstance(cards, list)
+    card = cards[0]
+    assert isinstance(card, dict)
+    card["frozen_artifact_provenance"] = {}
+    monkeypatch.setattr(
+        repository.xg_repository,
+        "matchday_fixture_identity",
+        lambda _fixture_id: {
+            "status": "PROVIDER_PRIMARY_READY",
+            "fixture_id": "fixture-1",
+            "provider": "api_football",
+            "provider_fixture_id": "fixture-1",
+            "competition_id": "allsvenskan",
+            "season": "2026",
+            "kickoff_utc": KICKOFF.isoformat(),
+            "home_provider_team_id": "10",
+            "away_provider_team_id": "20",
+            "home_w2_team_id": "w2:team:api_football:10",
+            "away_w2_team_id": "w2:team:api_football:20",
+            "identity_hash": "a" * 64,
+            "raw_payload_sha256": "b" * 64,
+        },
+    )
+
+    result = run_model_forecast_capture(
+        day_view,
+        repository=repository,
+        captured_at=NOW,
+        dry_run=False,
+        write_db=True,
+    )
+
+    assert result["model_eligible_count"] == 1
+    assert result["model_forecast_capture_count"] == 1
+    with Session(repository.engine) as session:
+        capture = session.query(ModelForecastCaptureModel).one()
+        assert capture.payload["fixture_identity"]["identity_hash"] == "a" * 64
+        assert capture.payload["source_artifact_hashes"]["fixture_raw_payload_sha256"] == "b" * 64
 
 
 def _repository(tmp_path: Path) -> ModelForecastLedgerRepository:
