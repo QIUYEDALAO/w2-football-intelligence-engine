@@ -18,6 +18,7 @@ from w2.infrastructure.persistence.model_forecast_models import (
     ModelForecastCaptureModel,
     ModelForecastOutcomeModel,
 )
+from w2.infrastructure.persistence.models import ResultModel
 from w2.ingestion.xg_retention import XgRetentionHardeningService
 from w2.tracking.model_forecast_ledger import (
     MODEL_FORECAST_CAPTURE_HASH_DOMAIN,
@@ -121,6 +122,7 @@ def _engine(tmp_path: Path):  # type: ignore[no-untyped-def]
     RawStatisticsRetentionModel.__table__.create(engine)
     ModelForecastCaptureModel.__table__.create(engine)
     ModelForecastOutcomeModel.__table__.create(engine)
+    ResultModel.__table__.create(engine)
     return engine
 
 
@@ -225,6 +227,17 @@ def _seed_valid_capture_and_outcome(engine) -> None:  # type: ignore[no-untyped-
                     outcome_payload, domain=MODEL_FORECAST_OUTCOME_HASH_DOMAIN
                 ),
                 inserted_at=NOW,
+            )
+        )
+        session.add(
+            ResultModel(
+                fixture_id="fixture-1",
+                home_goals=1,
+                away_goals=0,
+                result_status="FT",
+                confirmed_at=kickoff + timedelta(hours=2),
+                source_payload_sha256="3" * 64,
+                result_hash="4" * 64,
             )
         )
         session.commit()

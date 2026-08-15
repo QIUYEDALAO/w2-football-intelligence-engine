@@ -245,7 +245,9 @@ class ModelForecastLedgerRepository:
         with Session(self.engine) as session:
             captures = list(session.scalars(select(ModelForecastCaptureModel)))
             outcomes = list(session.scalars(select(ModelForecastOutcomeModel)))
+            results = list(session.scalars(select(ResultModel)))
         captures_by_hash = {row.capture_identity_hash: row for row in captures}
+        results_by_hash = {row.result_hash: row for row in results}
         for capture_row in captures:
             payload = dict(capture_row.payload)
             identity_payload = {
@@ -253,6 +255,10 @@ class ModelForecastLedgerRepository:
             }
             valid = (
                 capture_row.captured_at < capture_row.kickoff_utc
+                and _utc(capture_row.kickoff_utc, "kickoff_utc")
+                == _parse_time(payload.get("kickoff_utc"))
+                and _utc(capture_row.captured_at, "captured_at")
+                == _parse_time(payload.get("captured_at"))
                 and capture_row.lead_time_seconds
                 == int((capture_row.kickoff_utc - capture_row.captured_at).total_seconds())
                 and capture_row.lead_time_bucket
@@ -280,8 +286,18 @@ class ModelForecastLedgerRepository:
                 identity_payload,
                 domain=MODEL_FORECAST_OUTCOME_HASH_DOMAIN,
             )
+            result_row = results_by_hash.get(outcome_row.authoritative_result_identity)
             valid = (
                 outcome_row.capture_identity_hash in captures_by_hash
+                and _utc(outcome_row.settled_at, "settled_at")
+                == _parse_time(payload.get("settled_at"))
+                and result_row is not None
+                and payload.get("final_score")
+                == {
+                    "home": result_row.home_goals,
+                    "away": result_row.away_goals,
+                    "status": result_row.result_status,
+                }
                 and outcome_row.lead_time_seconds
                 == captures_by_hash[outcome_row.capture_identity_hash].lead_time_seconds
                 and outcome_row.lead_time_bucket

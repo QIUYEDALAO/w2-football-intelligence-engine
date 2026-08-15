@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, update
 from sqlalchemy.orm import Session
 
 from w2.infrastructure.persistence.future_refresh_models import (
@@ -129,6 +129,32 @@ def test_model_forecast_capture_and_outcome_do_not_require_candidate(tmp_path: P
             "mean_rps": None,
         },
     }
+    assert repository.integrity() == {
+        "invalid_capture_count": 0,
+        "invalid_outcome_count": 0,
+        "invalid_capture_hashes": [],
+        "invalid_outcome_hashes": [],
+    }
+
+    with Session(repository.engine) as session:
+        session.execute(
+            update(ModelForecastOutcomeModel).values(
+                settled_at=KICKOFF + timedelta(hours=4)
+            )
+        )
+        session.execute(update(ResultModel).values(home_goals=2))
+        session.commit()
+    assert repository.integrity()["invalid_outcome_count"] == 1
+
+    with Session(repository.engine) as session:
+        session.execute(
+            update(ModelForecastCaptureModel).values(
+                kickoff_utc=KICKOFF + timedelta(hours=1),
+                lead_time_seconds=13 * 60 * 60,
+            )
+        )
+        session.commit()
+    assert repository.integrity()["invalid_capture_count"] == 1
 
 
 @pytest.mark.parametrize(
