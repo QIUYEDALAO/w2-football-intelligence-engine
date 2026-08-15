@@ -164,6 +164,7 @@ class FutureRefreshResult:
     materialized_fixture_ids: list[str] = field(default_factory=list)
     exact_pair_count: int = 0
     identity_pool_expansions: list[dict[str, Any]] = field(default_factory=list)
+    requests: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -892,6 +893,8 @@ class FutureFixtureRefreshService:
                     "successful_calls_today": preflight["successful_calls_today"],
                     "budget_basis": "BILLABLE_CALLS",
                     "planned_calls": preflight["planned_calls"],
+                    "reserved_capture_count": preflight.get("reserved_capture_count", 0),
+                    "reserved_capture_calls": preflight.get("reserved_capture_calls", 0),
                     "daily_cap": preflight["daily_cap"],
                     "reserve_bucket": preflight["reserve_bucket"],
                     "remaining_after_plan": preflight["remaining_after_plan"],
@@ -1819,13 +1822,23 @@ class FutureFixtureRefreshService:
             daily_cap = env_int("W2_POSTMATCH_RESULT_DAILY_HARD_CAP", default=20)
             day_start = self.now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
             try:
+                repository = self._db_repository()
                 actual_calls_today = (
-                    self._db_repository().postmatch_result_request_count_since(day_start)
+                    repository.postmatch_result_request_count_since(day_start)
                     if self.config.persistence == "db"
                     else 0
                 )
                 successful_calls_today = (
                     self._postmatch_result_successful_calls_today(day_start)
+                    if self.config.persistence == "db"
+                    else 0
+                )
+                reserved_capture_count = (
+                    repository.unsettled_model_forecast_postmatch_count(
+                        window_start=day_start,
+                        window_end=day_start + timedelta(days=1),
+                        exclude_fixture_ids=self.config.checkpoint_fixture_ids,
+                    )
                     if self.config.persistence == "db"
                     else 0
                 )
@@ -1835,8 +1848,10 @@ class FutureFixtureRefreshService:
                 **postmatch_result_quota_decision(
                     actual_calls_today=actual_calls_today,
                     planned_calls=planned_calls,
+                    reserved_capture_calls=reserved_capture_count * planned_calls,
                     daily_cap=daily_cap,
                 ),
+                "reserved_capture_count": reserved_capture_count,
                 "successful_calls_today": successful_calls_today,
             }
         daily_cap = env_int("W2_PROVIDER_DAILY_HARD_CAP", default=self.config.daily_hard_cap)
@@ -3077,7 +3092,7 @@ def run_future_fixture_refresh(
                 logical_calls * provider_http_max_attempts(),
             ),
         )
-    return FutureFixtureRefreshService(
+    service = FutureFixtureRefreshService(
         client=client,
         config=config,
         now=now,
@@ -3085,7 +3100,8 @@ def run_future_fixture_refresh(
         materialize_results=materialize_results,
         runtime_authorization=runtime_authorization,
         provider_call_reservation=provider_call_reservation,
-    ).run()
+    )
+    return replace(service.run(), requests=list(service._audit))
 
 
 def run_future_refresh_task(
@@ -3243,6 +3259,7 @@ def run_future_refresh_task(
             "refresh_checkpoints": list(refresh_checkpoints),
             "materialized_fixture_ids": result.materialized_fixture_ids,
             "identity_pool_expansions": result.identity_pool_expansions,
+            "requests": result.requests,
             "progress_status": progress_status,
             "discovery_date": discovery_date,
         }

@@ -246,6 +246,23 @@ def test_postmatch_result_quota_spends_reserved_bucket_with_independent_cap() ->
     assert blocked["blocker"] == "RESULT_QUOTA_EXHAUSTED"
 
 
+def test_postmatch_result_quota_reserves_unsettled_capture_calls() -> None:
+    blocked = postmatch_result_quota_decision(
+        actual_calls_today=17,
+        planned_calls=2,
+        reserved_capture_calls=2,
+    )
+    allowed = postmatch_result_quota_decision(
+        actual_calls_today=16,
+        planned_calls=2,
+        reserved_capture_calls=2,
+    )
+
+    assert blocked["blocker"] == "RESULT_QUOTA_EXHAUSTED"
+    assert blocked["reserved_capture_calls"] == 2
+    assert allowed["allowed"] is True
+
+
 def test_registered_daily_quota_pools_leave_unallocated_free_plan_buffer() -> None:
     baseline = provider_daily_budget_contract()
     invalid = provider_daily_budget_contract(pool_limits={"GENERAL": 100, "POSTMATCH_RESULT": 20})

@@ -4,7 +4,7 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import Engine, case, select
+from sqlalchemy import Engine, case, exists, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -17,6 +17,10 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayEvidenceManifestModel,
     MatchdayFixtureIdentityModel,
     MatchdayMarketObservationModel,
+)
+from w2.infrastructure.persistence.model_forecast_models import (
+    ModelForecastCaptureModel,
+    ModelForecastOutcomeModel,
 )
 from w2.matchday.intake_v2 import CheckpointPlan, parse_utc, stable_hash, validate_manifest_identity
 
@@ -35,6 +39,35 @@ def _dt(value: Any) -> datetime:
 def _iso(value: datetime) -> str:
     normalized = value.astimezone(UTC) if value.tzinfo is not None else value.replace(tzinfo=UTC)
     return normalized.isoformat().replace("+00:00", "Z")
+
+
+def _checkpoint_priority() -> Any:
+    unsettled_capture = exists(
+        select(ModelForecastCaptureModel.capture_identity_hash)
+        .outerjoin(
+            ModelForecastOutcomeModel,
+            ModelForecastOutcomeModel.capture_identity_hash
+            == ModelForecastCaptureModel.capture_identity_hash,
+        )
+        .where(
+            ModelForecastOutcomeModel.capture_identity_hash.is_(None),
+            or_(
+                ModelForecastCaptureModel.fixture_id == MatchdayCheckpointPlanModel.fixture_id,
+                "api_football:" + ModelForecastCaptureModel.fixture_id
+                == MatchdayCheckpointPlanModel.fixture_id,
+            ),
+        )
+        .correlate(MatchdayCheckpointPlanModel)
+    )
+    return case(
+        (
+            (MatchdayCheckpointPlanModel.checkpoint == "POSTMATCH_RESULT")
+            & unsettled_capture,
+            0,
+        ),
+        (MatchdayCheckpointPlanModel.checkpoint == "POSTMATCH_RESULT", 1),
+        else_=2,
+    )
 
 
 class MatchdayRuntimeRepository:
@@ -207,10 +240,7 @@ class MatchdayRuntimeRepository:
                         MatchdayCheckpointPlanModel.claimed_at.is_(None),
                     )
                     .order_by(
-                        case(
-                            (MatchdayCheckpointPlanModel.checkpoint == "POSTMATCH_RESULT", 0),
-                            else_=1,
-                        ),
+                        _checkpoint_priority(),
                         MatchdayCheckpointPlanModel.scheduled_at,
                         MatchdayCheckpointPlanModel.kickoff_utc,
                         MatchdayCheckpointPlanModel.fixture_id,
@@ -248,10 +278,7 @@ class MatchdayRuntimeRepository:
                     MatchdayCheckpointPlanModel.claim_token.is_(None),
                 )
                 .order_by(
-                    case(
-                        (MatchdayCheckpointPlanModel.checkpoint == "POSTMATCH_RESULT", 0),
-                        else_=1,
-                    ),
+                    _checkpoint_priority(),
                     MatchdayCheckpointPlanModel.scheduled_at,
                     MatchdayCheckpointPlanModel.kickoff_utc,
                     MatchdayCheckpointPlanModel.fixture_id,

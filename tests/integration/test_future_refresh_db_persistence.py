@@ -906,6 +906,10 @@ def test_postmatch_checkpoint_fetches_once_and_materializes_real_result(
 
     assert audit.status == "COMPLETED"
     assert [endpoint for endpoint, _params in client.calls] == ["status", "fixtures"]
+    assert [item["status_code"] for item in audit.result["requests"]] == [200, 200]
+    assert FutureRefreshDbRepository().postmatch_result_successful_request_count_since(
+        NOW.replace(hour=0, minute=0, second=0, microsecond=0)
+    ) == 2
     assert client.calls[1][1] == {"id": "1489404"}
     assert audit.result["materialized_fixture_ids"] == ["api_football:1489404"]
     engine = create_engine(get_settings().database_url.get_secret_value())

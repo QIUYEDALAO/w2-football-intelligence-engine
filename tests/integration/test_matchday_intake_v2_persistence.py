@@ -14,6 +14,8 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayEvidenceManifestModel,
     MatchdayFixtureIdentityModel,
 )
+from w2.infrastructure.persistence.model_forecast_models import ModelForecastCaptureModel
+from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 from w2.matchday.intake_v2 import (
     CheckpointPlan,
     build_checkpoint_plans,
@@ -307,6 +309,79 @@ def test_postmatch_result_is_claimed_before_prematch_collection() -> None:
         "POSTMATCH_RESULT",
         "T60_ODDS_LINEUPS",
     ]
+
+
+def test_unsettled_model_forecast_postmatch_is_claimed_before_other_results() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    shared = {
+        "competition_id": "allsvenskan",
+        "season": "2026",
+        "kickoff_utc": NOW - timedelta(hours=4),
+        "window_start": NOW - timedelta(hours=1),
+        "window_end": NOW + timedelta(hours=1),
+        "status": "DUE",
+        "blockers": (),
+        "checkpoint": "POSTMATCH_RESULT",
+        "endpoints": ("status", "fixtures"),
+    }
+    repository.upsert_checkpoint_plan(
+        CheckpointPlan(
+            **shared,
+            fixture_id="api_football:ordinary",
+            scheduled_at=NOW - timedelta(minutes=30),
+        )
+    )
+    repository.upsert_checkpoint_plan(
+        CheckpointPlan(
+            **shared,
+            fixture_id="api_football:capture",
+            scheduled_at=NOW,
+        )
+    )
+    with Session(engine) as session:
+        session.add(
+            ModelForecastCaptureModel(
+                capture_identity_hash="1" * 64,
+                fixture_id="capture",
+                competition_id="allsvenskan",
+                kickoff_utc=NOW - timedelta(hours=4),
+                captured_at=NOW - timedelta(days=1),
+                lead_time_seconds=72000,
+                lead_time_bucket="H6_TO_LT_24H",
+                model_family="EXACT_DC_POISSON",
+                model_version="model-v1",
+                model_input_manifest_hash="2" * 64,
+                four_field_xg_identity_hash="3" * 64,
+                score_matrix_hash="4" * 64,
+                payload={"fixture_id": "capture"},
+                payload_sha256="5" * 64,
+                inserted_at=NOW - timedelta(days=1),
+            )
+        )
+        session.commit()
+
+    quota_repository = FutureRefreshDbRepository(engine=engine)
+    assert quota_repository.unsettled_model_forecast_postmatch_count(
+        window_start=NOW.replace(hour=0, minute=0, second=0, microsecond=0),
+        window_end=NOW.replace(hour=0, minute=0, second=0, microsecond=0)
+        + timedelta(days=1),
+    ) == 1
+    assert quota_repository.unsettled_model_forecast_postmatch_count(
+        window_start=NOW.replace(hour=0, minute=0, second=0, microsecond=0),
+        window_end=NOW.replace(hour=0, minute=0, second=0, microsecond=0)
+        + timedelta(days=1),
+        exclude_fixture_ids=("api_football:capture",),
+    ) == 0
+    assert repository.due_checkpoint_plans(now=NOW, limit=1)[0]["fixture_id"] == (
+        "api_football:capture"
+    )
+    assert repository.claim_due_checkpoint_plans(
+        now=NOW,
+        worker_id="capture-priority-test",
+        limit=1,
+    )[0]["fixture_id"] == "api_football:capture"
 
 
 def test_checkpoint_claim_release_restores_only_an_exact_unattempted_claim() -> None:

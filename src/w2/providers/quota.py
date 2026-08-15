@@ -291,11 +291,13 @@ def postmatch_result_quota_decision(
     *,
     actual_calls_today: int,
     planned_calls: int,
+    reserved_capture_calls: int = 0,
     daily_cap: int = POSTMATCH_RESULT_DAILY_HARD_CAP,
 ) -> dict[str, Any]:
     actual = max(actual_calls_today, 0)
     planned = max(planned_calls, 0)
-    projected_total = actual + planned
+    reserved = max(reserved_capture_calls, 0)
+    projected_total = actual + planned + reserved
     allowed = projected_total <= daily_cap
     return {
         "allowed": allowed,
@@ -304,6 +306,7 @@ def postmatch_result_quota_decision(
         "actual_calls_today": actual,
         "billable_calls_today": actual,
         "planned_calls": planned,
+        "reserved_capture_calls": reserved,
         "projected_total": projected_total,
         "daily_cap": daily_cap,
         "reserve_bucket": daily_cap,

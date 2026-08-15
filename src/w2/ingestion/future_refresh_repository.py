@@ -52,6 +52,10 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayFixtureIdentityModel,
     MatchdayMarketObservationModel,
 )
+from w2.infrastructure.persistence.model_forecast_models import (
+    ModelForecastCaptureModel,
+    ModelForecastOutcomeModel,
+)
 from w2.infrastructure.persistence.models import (
     LineupSourceSnapshotModel,
     PlayerIdentityMappingModel,
@@ -3172,6 +3176,55 @@ class FutureRefreshDbRepository:
                     for item in requests
                 )
         return total
+
+    def unsettled_model_forecast_postmatch_count(
+        self,
+        *,
+        window_start: datetime,
+        window_end: datetime,
+        exclude_fixture_ids: tuple[str, ...] = (),
+    ) -> int:
+        start = parse_db_datetime(window_start)
+        end = parse_db_datetime(window_end)
+        excluded = {
+            fixture_id.removeprefix("api_football:")
+            for fixture_id in exclude_fixture_ids
+            if fixture_id
+        }
+        query = (
+            select(func.count(func.distinct(ModelForecastCaptureModel.fixture_id)))
+            .select_from(ModelForecastCaptureModel)
+            .join(
+                MatchdayCheckpointPlanModel,
+                or_(
+                    MatchdayCheckpointPlanModel.fixture_id
+                    == ModelForecastCaptureModel.fixture_id,
+                    MatchdayCheckpointPlanModel.fixture_id
+                    == "api_football:" + ModelForecastCaptureModel.fixture_id,
+                ),
+            )
+            .outerjoin(
+                ModelForecastOutcomeModel,
+                ModelForecastOutcomeModel.capture_identity_hash
+                == ModelForecastCaptureModel.capture_identity_hash,
+            )
+            .where(
+                ModelForecastOutcomeModel.capture_identity_hash.is_(None),
+                MatchdayCheckpointPlanModel.checkpoint == "POSTMATCH_RESULT",
+                MatchdayCheckpointPlanModel.status.in_(("PLANNED", "DUE")),
+                MatchdayCheckpointPlanModel.window_start < end,
+                MatchdayCheckpointPlanModel.window_end >= start,
+            )
+        )
+        if excluded:
+            query = query.where(ModelForecastCaptureModel.fixture_id.not_in(excluded))
+        try:
+            with Session(self.engine) as session:
+                return int(session.scalar(query) or 0)
+        except Exception as exc:
+            raise FutureRefreshPersistenceError(
+                "RESULT_CAPTURE_RESERVATION_READ_FAILED"
+            ) from exc
 
     def provider_quota_snapshot(self, day_start: datetime) -> dict[str, int | None]:
         start = parse_db_datetime(day_start).replace(hour=0, minute=0, second=0, microsecond=0)
