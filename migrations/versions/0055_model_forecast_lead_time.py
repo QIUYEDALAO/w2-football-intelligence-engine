@@ -27,12 +27,12 @@ def upgrade() -> None:
     if bind.dialect.name == "sqlite":
         lead_time_update = sa.text(
             "update model_forecast_capture set lead_time_seconds = "
-            "cast(round((julianday(kickoff_utc) - julianday(captured_at)) * 86400) as integer)"
+            "cast((julianday(kickoff_utc) - julianday(captured_at)) * 86400 as integer)"
         )
     else:
         lead_time_update = sa.text(
             "update model_forecast_capture set lead_time_seconds = "
-            "cast(extract(epoch from (kickoff_utc - captured_at)) as bigint)"
+            "cast(floor(extract(epoch from (kickoff_utc - captured_at))) as bigint)"
         )
     op.execute(lead_time_update)
     op.execute(

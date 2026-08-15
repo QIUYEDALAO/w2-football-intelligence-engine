@@ -240,8 +240,8 @@ def test_0055_backfills_lead_time_without_mutating_ledger_payload_hashes(
             ),
             {
                 "capture": "1" * 64,
-                "kickoff": "2026-08-17 00:00:00",
-                "captured": "2026-08-14 00:00:00",
+                "kickoff": "2026-08-14 06:00:00",
+                "captured": "2026-08-14 00:00:00.469180",
                 "manifest": "2" * 64,
                 "xg": "3" * 64,
                 "score": "4" * 64,
@@ -280,8 +280,8 @@ def test_0055_backfills_lead_time_without_mutating_ledger_payload_hashes(
                 "from model_forecast_outcome"
             )
         ).one()
-    assert tuple(capture) == (259200, "D1_TO_D3", "5" * 64)
-    assert tuple(outcome) == (259200, "D1_TO_D3", "8" * 64)
+    assert tuple(capture) == (21599, "LT_6H", "5" * 64)
+    assert tuple(outcome) == (21599, "LT_6H", "8" * 64)
 
 
 def test_0053_rejects_partial_fixture_scope(tmp_path: Path) -> None:
