@@ -67,3 +67,18 @@ raw fixtures 前值为 `161`，9 次调用后为 `166`；raw Statistics 保持 `
 - HOME/DRAW/AWAY = `0.331510 / 0.254890 / 0.413600`，真实结果主队 3-0。
 - LogLoss `1.104112386514` > `ln(3)=1.098612288668`。
 - 结论：`INSUFFICIENT_SAMPLE`。CANARY_PASS 不得改写成模型有效。
+
+## 配额一致性修复与部署
+
+- future-refresh 与 matchday policy baseline：80；staging compose：80；POSTMATCH 独立 cap：20；已知 Free plan limit：100。
+- `config_from_policy()` 在生效通用 cap 高于 100 时、任何 Provider 请求前 fail closed 为
+  `PROVIDER_DAILY_CAP_EXCEEDS_KNOWN_FREE_PLAN_LIMIT`。
+- exact source/tree：`674bd806480bdec83ec8fc0a6ff69363be3e24c2` /
+  `b828ed4727924564bb033449de6e23e36226f7f4`。
+- Python/Web digest：`sha256:5701ea414d148e3bde5f13326e592bd1b8c6686ac4aeb53d64297325f5e597e4` /
+  `sha256:3aa803ee7260f1d678702aad694af3509b2a65ceda08db0637377a5fc18de724`。
+- 部署窗口 Provider `3118 -> 3118`、raw fixtures `167 -> 167`、raw Statistics
+  `141 -> 141`；部署后 canary 前后 Provider/raw Statistics `3118/141 -> 3118/141`。
+- focused/relevant 验证 `144 passed`，Ruff/Mypy PASS。完整套件运行到 95% 时触发仓库既有
+  Stage7I 本机 sudo 探测并等待密码；未输入凭据，停止前为 `2567 passed, 13 skipped`，
+  不记为完整套件 PASS。
