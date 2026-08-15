@@ -38,6 +38,17 @@ This packet does not authorize a Pro purchase or renewal. The current decision r
   LogLoss `1.104112386514` 高于均匀先验 `ln(3)=1.098612288668`。
 - 在达到预注册门槛前，任何模型表现判断统一标记 `INSUFFICIENT_SAMPLE`。
 
+## 预测冻结提前量口径
+
+- Capture 策略为 `FIRST_ELIGIBLE_FREEZE_IMMUTABLE`：首次满足条件即冻结，之后不更新。
+- 每条 Capture 与 Outcome 均保留 `lead_time_seconds` 和 `lead_time_bucket`。
+- 概率指标只按 `LT_6H / H6_TO_LT_24H / D1_TO_D3 / GT_3D` 分层输出，禁止跨档位
+  合并为单一 Brier、LogLoss 或 RPS。
+- 当前唯一已结算样本属于 `H6_TO_LT_24H`；其他档位无已结算样本，继续为
+  `INSUFFICIENT_SAMPLE`。
+- 当前已验证线上 release：`f39f2f2529be0be57371e8b0af6be7776d8961a1`，schema
+  `0056_floor_model_forecast_lead_time`。
+
 ## Owner choices
 
 1. Keep Free mode and continue natural ModelForecast accumulation.
