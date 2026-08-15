@@ -189,6 +189,9 @@ export interface FixtureFactorChecklist {
     state: "NOT_CAPTURED" | "CAPTURED" | "SETTLED";
     capture_identity_hash?: string | null;
     captured_at?: string | null;
+    lead_time_seconds?: number | null;
+    lead_time_bucket?: "LT_6H" | "H6_TO_LT_24H" | "D1_TO_D3" | "GT_3D" | null;
+    capture_policy?: "FIRST_ELIGIBLE_FREEZE_IMMUTABLE" | null;
     model_family?: string | null;
     model_version?: string | null;
     calibration_version?: string | null;

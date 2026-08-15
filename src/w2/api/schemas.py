@@ -810,6 +810,9 @@ class WorkspaceModelForecastLedgerFact(BaseModel):
     state: Literal["NOT_CAPTURED", "CAPTURED", "SETTLED"]
     capture_identity_hash: str | None = None
     captured_at: datetime | str | None = None
+    lead_time_seconds: int | None = Field(default=None, ge=0)
+    lead_time_bucket: Literal["LT_6H", "H6_TO_LT_24H", "D1_TO_D3", "GT_3D"] | None = None
+    capture_policy: Literal["FIRST_ELIGIBLE_FREEZE_IMMUTABLE"] | None = None
     model_family: str | None = None
     model_version: str | None = None
     calibration_version: str | None = None
@@ -825,6 +828,9 @@ class WorkspaceModelForecastLedgerFact(BaseModel):
         captured = (
             self.capture_identity_hash,
             self.captured_at,
+            self.lead_time_seconds,
+            self.lead_time_bucket,
+            self.capture_policy,
             self.model_family,
             self.model_version,
         )

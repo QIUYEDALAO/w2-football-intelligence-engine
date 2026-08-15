@@ -8,6 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from w2.api.repository import ReadModelRepository
+from w2.api.schemas import WorkspaceModelForecastLedgerFact
 from w2.domain.canonical_serialization import canonical_sha256
 from w2.infrastructure.persistence.future_refresh_models import (
     RawPayloadModel,
@@ -107,6 +108,11 @@ def test_dashboard_reads_capture_and_outcome_as_ledger_facts(
         "rps": 0.17,
     }
     assert facts["fixture-not-captured"] == {"state": "NOT_CAPTURED"}
+    captured_fact = WorkspaceModelForecastLedgerFact.model_validate(facts["fixture-1"])
+    assert captured_fact.lead_time_seconds == 3600
+    assert WorkspaceModelForecastLedgerFact.model_validate(
+        facts["fixture-not-captured"]
+    ).state == "NOT_CAPTURED"
 
 
 def _engine(tmp_path: Path):  # type: ignore[no-untyped-def]
