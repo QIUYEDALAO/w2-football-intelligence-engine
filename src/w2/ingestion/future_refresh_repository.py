@@ -3103,6 +3103,31 @@ class FutureRefreshDbRepository:
             return int(quota_usage)
         return max(int(future_refresh_requests or 0), int(provider_request_logs or 0))
 
+    def postmatch_result_request_count_since(self, since: datetime) -> int:
+        since_utc = parse_db_datetime(since)
+        try:
+            with Session(self.engine) as session:
+                results = list(
+                    session.scalars(
+                        select(FutureRefreshTaskAuditModel.result).where(
+                            FutureRefreshTaskAuditModel.started_at >= since_utc
+                        )
+                    )
+                )
+        except Exception as exc:
+            raise FutureRefreshPersistenceError("RESULT_REQUEST_COUNT_READ_FAILED") from exc
+        total = 0
+        for result in results:
+            checkpoints = result.get("refresh_checkpoints") if isinstance(result, dict) else None
+            if not isinstance(checkpoints, list) or not checkpoints:
+                continue
+            if all(
+                isinstance(item, dict) and item.get("checkpoint") == "POSTMATCH_RESULT"
+                for item in checkpoints
+            ):
+                total += max(int(result.get("request_count") or 0), 0)
+        return total
+
     def provider_quota_snapshot(self, day_start: datetime) -> dict[str, int | None]:
         start = parse_db_datetime(day_start).replace(hour=0, minute=0, second=0, microsecond=0)
         end = start + timedelta(days=1)

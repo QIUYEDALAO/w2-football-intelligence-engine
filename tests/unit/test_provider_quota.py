@@ -10,6 +10,7 @@ from w2.prematch.analysis_calculator import ReadModelService
 from w2.providers.quota import (
     api_football_quota_policy,
     parse_api_football_quota,
+    postmatch_result_quota_decision,
     provider_daily_hard_cap_decision,
     quota_guard_decision,
 )
@@ -231,6 +232,17 @@ def test_provider_daily_hard_cap_blocks_before_exceeding_reserve() -> None:
     assert decision["blocker"] == "PROVIDER_RESERVE_PROTECTED"
     assert decision["projected_total"] == 6100
     assert decision["remaining_after_plan"] == 1400
+
+
+def test_postmatch_result_quota_spends_reserved_bucket_with_independent_cap() -> None:
+    allowed = postmatch_result_quota_decision(actual_calls_today=18, planned_calls=2)
+    blocked = postmatch_result_quota_decision(actual_calls_today=19, planned_calls=2)
+
+    assert allowed["allowed"] is True
+    assert allowed["mode"] == "RESULT_RESERVE"
+    assert allowed["daily_cap"] == 20
+    assert blocked["allowed"] is False
+    assert blocked["blocker"] == "RESULT_QUOTA_EXHAUSTED"
 
 
 def test_provider_daily_hard_cap_blocks_exhaustion() -> None:

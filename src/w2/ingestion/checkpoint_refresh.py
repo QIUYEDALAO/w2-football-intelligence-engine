@@ -79,7 +79,7 @@ def postmatch_result_checkpoint_plan(
     missed_at = None
     if current > window_end:
         status = "MISSED"
-        blockers = ("CHECKPOINT_MISSING",)
+        blockers = ("RESULT_WINDOW_MISSED",)
         missed_at = current
     elif scheduled <= current <= window_end:
         status = "DUE"

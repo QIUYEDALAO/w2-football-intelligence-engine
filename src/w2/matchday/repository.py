@@ -4,7 +4,7 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import Engine, select
+from sqlalchemy import Engine, case, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -207,6 +207,10 @@ class MatchdayRuntimeRepository:
                         MatchdayCheckpointPlanModel.claimed_at.is_(None),
                     )
                     .order_by(
+                        case(
+                            (MatchdayCheckpointPlanModel.checkpoint == "POSTMATCH_RESULT", 0),
+                            else_=1,
+                        ),
                         MatchdayCheckpointPlanModel.scheduled_at,
                         MatchdayCheckpointPlanModel.kickoff_utc,
                         MatchdayCheckpointPlanModel.fixture_id,
@@ -244,6 +248,10 @@ class MatchdayRuntimeRepository:
                     MatchdayCheckpointPlanModel.claim_token.is_(None),
                 )
                 .order_by(
+                    case(
+                        (MatchdayCheckpointPlanModel.checkpoint == "POSTMATCH_RESULT", 0),
+                        else_=1,
+                    ),
                     MatchdayCheckpointPlanModel.scheduled_at,
                     MatchdayCheckpointPlanModel.kickoff_utc,
                     MatchdayCheckpointPlanModel.fixture_id,
@@ -718,7 +726,12 @@ class MatchdayRuntimeRepository:
             if now > window_end:
                 row.status = "MISSED"
                 row.missed_at = row.missed_at or now
-                row.blockers = sorted({*list(row.blockers or []), "CHECKPOINT_MISSING"})
+                missed_blocker = (
+                    "RESULT_WINDOW_MISSED"
+                    if row.checkpoint == "POSTMATCH_RESULT"
+                    else "CHECKPOINT_MISSING"
+                )
+                row.blockers = sorted({*list(row.blockers or []), missed_blocker})
                 row.claimed_at = None
                 row.claimed_by = None
                 row.claim_token = None

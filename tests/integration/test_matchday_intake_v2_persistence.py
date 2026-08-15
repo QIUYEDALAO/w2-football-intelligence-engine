@@ -15,6 +15,7 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayFixtureIdentityModel,
 )
 from w2.matchday.intake_v2 import (
+    CheckpointPlan,
     build_checkpoint_plans,
     competition_policies,
     endpoint_capture_contract,
@@ -266,6 +267,46 @@ def test_checkpoint_state_machine_due_claim_capture_and_single_winner() -> None:
         assert row.status == "CAPTURED"
         assert row.capture_id == "capture-1"
         assert row.claim_token is None
+
+
+def test_postmatch_result_is_claimed_before_prematch_collection() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    shared = {
+        "competition_id": "allsvenskan",
+        "season": "2026",
+        "kickoff_utc": NOW,
+        "window_start": NOW - timedelta(hours=1),
+        "window_end": NOW + timedelta(hours=1),
+        "status": "DUE",
+        "blockers": (),
+    }
+    repository.upsert_checkpoint_plan(
+        CheckpointPlan(
+            **shared,
+            fixture_id="api_football:prematch",
+            checkpoint="T60_ODDS_LINEUPS",
+            scheduled_at=NOW - timedelta(minutes=30),
+            endpoints=("odds", "lineups"),
+        )
+    )
+    repository.upsert_checkpoint_plan(
+        CheckpointPlan(
+            **shared,
+            fixture_id="api_football:result",
+            checkpoint="POSTMATCH_RESULT",
+            scheduled_at=NOW,
+            endpoints=("status", "fixtures"),
+        )
+    )
+
+    claimed = repository.claim_due_checkpoint_plans(now=NOW, worker_id="priority-test")
+
+    assert [row["checkpoint"] for row in claimed] == [
+        "POSTMATCH_RESULT",
+        "T60_ODDS_LINEUPS",
+    ]
 
 
 def test_checkpoint_claim_release_restores_only_an_exact_unattempted_claim() -> None:

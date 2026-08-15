@@ -84,6 +84,16 @@ def test_postmatch_result_checkpoint_is_single_bounded_status_fixture_refresh() 
     assert plan.scheduled_at == kickoff.replace(hour=20)
     assert plan.endpoints == ("status", "fixtures")
 
+    missed = postmatch_result_checkpoint_plan(
+        fixture_id="api_football:1494238",
+        competition_id="allsvenskan",
+        season="2026",
+        kickoff_utc=kickoff,
+        now=kickoff + timedelta(hours=37),
+    )
+    assert missed.status == "MISSED"
+    assert missed.blockers == ("RESULT_WINDOW_MISSED",)
+
 
 def test_scheduler_future_refresh_disabled_by_default(monkeypatch) -> None:
     monkeypatch.delenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", raising=False)

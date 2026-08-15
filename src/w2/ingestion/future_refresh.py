@@ -56,6 +56,7 @@ from w2.providers.control import (
 )
 from w2.providers.quota import (
     parse_api_football_quota,
+    postmatch_result_quota_decision,
     provider_daily_hard_cap_decision,
     quota_guard_decision,
 )
@@ -860,6 +861,8 @@ class FutureFixtureRefreshService:
                     "planned_calls": preflight["planned_calls"],
                     "daily_cap": preflight["daily_cap"],
                     "reserve_bucket": preflight["reserve_bucket"],
+                    "remaining_after_plan": preflight["remaining_after_plan"],
+                    "quota_scope": preflight.get("quota_scope", "GENERAL"),
                 }
             )
             result = FutureRefreshResult(
@@ -1441,18 +1444,20 @@ class FutureFixtureRefreshService:
                 raise FutureRefreshError(f"PROVIDER_{endpoint.upper()}_ERRORS")
             if response_schema_error:
                 raise FutureRefreshError(f"PROVIDER_{endpoint.upper()}_SCHEMA_DRIFT")
-            if remaining is None:
-                raise FutureRefreshError("DAILY_QUOTA_UNKNOWN")
-            min_remaining = env_int("W2_PROVIDER_PREFLIGHT_MIN_REMAINING", default=50)
-            if remaining < min_remaining:
-                raise FutureRefreshError("PROVIDER_HEADER_REMAINING_BELOW_MINIMUM")
-            guard = quota_guard_decision(
-                remaining_quota=remaining,
-                reserve_bucket=self.config.quota_reserve,
-                task_type=endpoint,
-            )
-            if not guard["allowed"]:
-                raise FutureRefreshError(str(guard["blocker"]))
+            postmatch_result = self._checkpoint_mode() == "POSTMATCH"
+            if not postmatch_result:
+                if remaining is None:
+                    raise FutureRefreshError("DAILY_QUOTA_UNKNOWN")
+                min_remaining = env_int("W2_PROVIDER_PREFLIGHT_MIN_REMAINING", default=50)
+                if remaining < min_remaining:
+                    raise FutureRefreshError("PROVIDER_HEADER_REMAINING_BELOW_MINIMUM")
+                guard = quota_guard_decision(
+                    remaining_quota=remaining,
+                    reserve_bucket=self.config.quota_reserve,
+                    task_type=endpoint,
+                )
+                if not guard["allowed"]:
+                    raise FutureRefreshError(str(guard["blocker"]))
             if self.runtime_authorization is not None:
                 self._validate_gate_a_response(
                     endpoint,
@@ -1781,9 +1786,25 @@ class FutureFixtureRefreshService:
         return None if self.config.persistence == "db" else "LINEUPS_MATERIALIZATION_MISSING"
 
     def _provider_hard_cap_preflight(self) -> dict[str, Any]:
+        planned_calls = self._planned_provider_calls()
+        if self._checkpoint_mode() == "POSTMATCH":
+            daily_cap = env_int("W2_POSTMATCH_RESULT_DAILY_HARD_CAP", default=20)
+            day_start = self.now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+            try:
+                actual_calls_today = (
+                    self._db_repository().postmatch_result_request_count_since(day_start)
+                    if self.config.persistence == "db"
+                    else 0
+                )
+            except FutureRefreshPersistenceError as exc:
+                raise FutureRefreshError("RESULT_USAGE_AUDIT_UNAVAILABLE") from exc
+            return postmatch_result_quota_decision(
+                actual_calls_today=actual_calls_today,
+                planned_calls=planned_calls,
+                daily_cap=daily_cap,
+            )
         daily_cap = env_int("W2_PROVIDER_DAILY_HARD_CAP", default=self.config.daily_hard_cap)
         reserve = env_int("W2_PROVIDER_DAILY_RESERVE", default=self.config.daily_reserve)
-        planned_calls = self._planned_provider_calls()
         actual_calls_today = self._actual_provider_calls_today()
         return provider_daily_hard_cap_decision(
             actual_calls_today=actual_calls_today,
@@ -2748,7 +2769,13 @@ class FutureFixtureRefreshService:
             elif (
                 checkpoint_mode == "POSTMATCH"
                 and result.request_count == 0
-                and "DAILY_PROVIDER_HARD_CAP_EXCEEDED" in result.blockers
+                and any(
+                    blocker in result.blockers
+                    for blocker in (
+                        "DAILY_PROVIDER_HARD_CAP_EXCEEDED",
+                        "RESULT_QUOTA_EXHAUSTED",
+                    )
+                )
             ):
                 progress_status = "NOT_ATTEMPTED"
             else:
@@ -2764,6 +2791,11 @@ class FutureFixtureRefreshService:
                         "contract": "w2.checkpoint_refresh.v1",
                         "blockers": result.blockers,
                         "progress_status": "RETRY_PENDING",
+                        "result_collection_state": (
+                            "RESULT_QUOTA_EXHAUSTED"
+                            if "RESULT_QUOTA_EXHAUSTED" in result.blockers
+                            else None
+                        ),
                         "endpoints": list(checkpoint.get("endpoints") or []),
                         "endpoint_capture_ids": [],
                         "source": checkpoint.get("source"),
@@ -2774,7 +2806,11 @@ class FutureFixtureRefreshService:
                 MatchdayRuntimeRepository().release_checkpoint_claim(
                     plan_id=str(checkpoint.get("id") or checkpoint.get("plan_id") or ""),
                     claim_token=str(checkpoint.get("claim_token") or ""),
-                    reason="CHECKPOINT_BATCH_NOT_ATTEMPTED",
+                    reason=(
+                        "RESULT_QUOTA_EXHAUSTED"
+                        if "RESULT_QUOTA_EXHAUSTED" in result.blockers
+                        else "CHECKPOINT_BATCH_NOT_ATTEMPTED"
+                    ),
                     restore_attempt=True,
                 )
                 continue

@@ -506,13 +506,12 @@ def test_checkpoint_daily_cap_preflight_restores_unattempted_claim(
     assert audit is not None and (audit.status, audit.calls_used) == ("RETRY_PENDING", 0)
 
 
-def test_postmatch_daily_cap_preflight_restores_unattempted_claim(
+def test_postmatch_result_cap_restores_unattempted_claim(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
     configure_sqlite_db(monkeypatch, tmp_path)
-    monkeypatch.setenv("W2_PROVIDER_DAILY_HARD_CAP", "1")
-    monkeypatch.setenv("W2_PROVIDER_DAILY_RESERVE", "0")
+    monkeypatch.setenv("W2_POSTMATCH_RESULT_DAILY_HARD_CAP", "2")
     repository = MatchdayRuntimeRepository()
     repository.upsert_checkpoint_plan(
         postmatch_result_checkpoint_plan(
@@ -530,14 +529,18 @@ def test_postmatch_daily_cap_preflight_restores_unattempted_claim(
     engine = create_engine(get_settings().database_url.get_secret_value())
     with Session(engine) as session:
         session.add(
-            ProviderRequestLogModel(
-                provider="api_football",
-                endpoint="fixtures",
-                request_hash="e" * 64,
-                live=True,
-                status_code=200,
-                requested_at=NOW,
-                completed_at=NOW,
+            FutureRefreshTaskAuditModel(
+                task_id="earlier-postmatch-task",
+                key="earlier-postmatch-key",
+                owner="test",
+                queued_at=NOW,
+                started_at=NOW,
+                finished_at=NOW,
+                status="COMPLETED",
+                result={
+                    "request_count": 2,
+                    "refresh_checkpoints": [{"checkpoint": "POSTMATCH_RESULT"}],
+                },
             )
         )
         session.commit()
@@ -562,7 +565,9 @@ def test_postmatch_daily_cap_preflight_restores_unattempted_claim(
     assert plan is not None and plan.status == "DUE"
     assert plan.attempt_count == 0
     assert plan.claim_token is None
+    assert "RESULT_QUOTA_EXHAUSTED" in plan.blockers
     assert audit is not None and (audit.status, audit.calls_used) == ("RETRY_PENDING", 0)
+    assert audit.details["result_collection_state"] == "RESULT_QUOTA_EXHAUSTED"
 
 
 @pytest.mark.parametrize(
@@ -874,6 +879,7 @@ def test_postmatch_checkpoint_fetches_once_and_materializes_real_result(
     monkeypatch: Any,
 ) -> None:
     configure_sqlite_db(monkeypatch, tmp_path)
+    monkeypatch.setenv("W2_PROVIDER_DAILY_HARD_CAP", "0")
     monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "status,fixtures,odds,lineups")
     kickoff = NOW - timedelta(hours=4)
     repository = MatchdayRuntimeRepository()

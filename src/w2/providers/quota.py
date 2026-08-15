@@ -29,6 +29,7 @@ BURST_HEADER_SOURCES = {
 }
 API_FOOTBALL_DAILY_BUDGET = 7500
 API_FOOTBALL_RESERVE_BUCKET = 1500
+POSTMATCH_RESULT_DAILY_HARD_CAP = 20
 API_FOOTBALL_UPGRADE_EVALUATION_DAILY_BUDGET = 75000
 API_FOOTBALL_BACKFILL_STOP_RATIO = 0.15
 API_FOOTBALL_CORE_ONLY_RATIO = 0.10
@@ -235,4 +236,28 @@ def provider_daily_hard_cap_decision(
         "provider_remaining": provider_remaining,
         "min_provider_remaining": min_provider_remaining,
         "provider_remaining_after_plan": provider_remaining_after_plan,
+    }
+
+
+def postmatch_result_quota_decision(
+    *,
+    actual_calls_today: int,
+    planned_calls: int,
+    daily_cap: int = POSTMATCH_RESULT_DAILY_HARD_CAP,
+) -> dict[str, Any]:
+    actual = max(actual_calls_today, 0)
+    planned = max(planned_calls, 0)
+    projected_total = actual + planned
+    allowed = projected_total <= daily_cap
+    return {
+        "allowed": allowed,
+        "mode": "RESULT_RESERVE" if allowed else "RESULT_HARD_CAP",
+        "blocker": None if allowed else "RESULT_QUOTA_EXHAUSTED",
+        "actual_calls_today": actual,
+        "planned_calls": planned,
+        "projected_total": projected_total,
+        "daily_cap": daily_cap,
+        "reserve_bucket": daily_cap,
+        "remaining_after_plan": daily_cap - projected_total,
+        "quota_scope": "POSTMATCH_RESULT",
     }
