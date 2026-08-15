@@ -2431,6 +2431,10 @@ class FutureFixtureRefreshService:
         if self.config.discovery_date is not None:
             return {"date": self.config.discovery_date}
         if self.config.result_refresh_fixture_ids:
+            if len(self.config.result_refresh_fixture_ids) == 1:
+                return {
+                    "id": _api_football_fixture_id(self.config.result_refresh_fixture_ids[0])
+                }
             kickoff_dates = [
                 parsed.date()
                 for item in self.config.refresh_checkpoints

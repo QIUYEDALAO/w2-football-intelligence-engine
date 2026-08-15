@@ -348,6 +348,8 @@ def due_checkpoint_refresh_batch(
         for plan in due_plans
         if (plan.checkpoint == POSTMATCH_RESULT_CHECKPOINT) is postmatch_mode
     ]
+    if postmatch_mode:
+        same_mode_plans = same_mode_plans[:1]
     selected_raw, projected_calls = select_checkpoint_batch(
         cast(Any, same_mode_plans),
         hard_cap=provider_refresh_tick_hard_cap(),
