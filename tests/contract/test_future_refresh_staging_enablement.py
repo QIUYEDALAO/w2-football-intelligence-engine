@@ -128,6 +128,8 @@ def test_controlled_override_selects_one_collection_task_and_discovery_mode() ->
     assert scheduler["W2_PROVIDER_HTTP_MAX_ATTEMPTS"] == "1"
     assert worker["W2_PROVIDER_DAILY_HARD_CAP"] == "80"
     assert scheduler["W2_PROVIDER_DAILY_HARD_CAP"] == "80"
+    assert worker["W2_POSTMATCH_RESULT_DAILY_HARD_CAP"] == "20"
+    assert scheduler["W2_POSTMATCH_RESULT_DAILY_HARD_CAP"] == "20"
     assert worker["W2_PROVIDER_PREFLIGHT_MIN_REMAINING"] == "20"
     assert scheduler["W2_PROVIDER_PREFLIGHT_MIN_REMAINING"] == "20"
     assert worker["W2_CANDIDATE_ENABLED"] == "true"
