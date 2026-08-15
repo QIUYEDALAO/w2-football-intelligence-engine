@@ -55,6 +55,7 @@ from w2.providers.control import (
     provider_refresh_tick_hard_cap,
 )
 from w2.providers.quota import (
+    API_FOOTBALL_FREE_DAILY_LIMIT,
     parse_api_football_quota,
     postmatch_result_quota_decision,
     provider_daily_hard_cap_decision,
@@ -337,6 +338,12 @@ def config_from_policy(
     registry: CompetitionRegistry | None = None,
 ) -> FutureRefreshConfig:
     policy = load_refresh_policy(competition_id=competition_id, registry=registry)
+    effective_daily_cap = env_int(
+        "W2_PROVIDER_DAILY_HARD_CAP",
+        default=policy.daily_hard_cap,
+    )
+    if effective_daily_cap > API_FOOTBALL_FREE_DAILY_LIMIT:
+        raise FutureRefreshError("PROVIDER_DAILY_CAP_EXCEEDS_KNOWN_FREE_PLAN_LIMIT")
     return FutureRefreshConfig(
         runtime_root=runtime_root or FutureRefreshConfig().runtime_root,
         competition_id=policy.competition_id,

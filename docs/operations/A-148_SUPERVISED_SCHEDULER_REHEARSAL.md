@@ -1,5 +1,17 @@
 # A-148 Supervised Scheduler Rehearsal
 
+## 2026-08-15 Free-plan 配额权威
+
+- Provider 账户当日限额的实时事实只取 Provider 响应头
+  `x-ratelimit-requests-limit` / `x-ratelimit-requests-remaining`；当前 Free 套餐已知上限为 100。
+- `API_FOOTBALL_FREE_DAILY_LIMIT=100` 是启动期安全上限。生效的
+  `W2_PROVIDER_DAILY_HARD_CAP` 高于它时，future refresh 必须在任何请求前 fail closed。
+- `future_fixture_refresh.v1.json`、`matchday_intake.v2.json` 与 staging compose 的通用调用基线统一为 80。
+- POSTMATCH_RESULT 使用独立 `W2_POSTMATCH_RESULT_DAILY_HARD_CAP=20`；通用 80 是 W2
+  自设保护性批次前置上限，不等同于 Provider 配额耗尽，也不是单次调用级原子硬保证。
+- 报告配额时必须同时给出 W2 生效 cap、Provider header limit/remaining、UTC 时间窗和
+  `provider_request_logs` 单调计数，禁止把不同口径合成一个“81/100”。
+
 ## Scope
 
 A-148 restores automatic matchday refresh under supervision. The rehearsal is

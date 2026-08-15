@@ -1444,11 +1444,22 @@ def test_future_refresh_staging_requires_exact_source_revision(monkeypatch) -> N
 def test_world_cup_future_refresh_policy_uses_zero_trickle_backfill_budget() -> None:
     config = config_from_policy(competition_id="world_cup_2026")
 
-    assert config.daily_hard_cap == 120
+    assert config.daily_hard_cap == 80
     assert config.daily_reserve == 0
     assert config.request_budget == 30
     assert config.checkpoint_mode == "matchday_checkpoint_plan"
     assert config.trickle_backfill_daily_budget == 0
+
+
+def test_future_refresh_rejects_daily_cap_above_known_free_plan_limit(monkeypatch) -> None:
+    monkeypatch.setenv("W2_PROVIDER_DAILY_HARD_CAP", "101")
+
+    try:
+        config_from_policy(competition_id="world_cup_2026")
+    except FutureRefreshError as exc:
+        assert str(exc) == "PROVIDER_DAILY_CAP_EXCEEDS_KNOWN_FREE_PLAN_LIMIT"
+    else:  # pragma: no cover
+        raise AssertionError("cap above the known Free-plan limit must fail closed")
 
 
 def test_future_refresh_file_lock_prevents_duplicate_owner(tmp_path: Path) -> None:

@@ -47,7 +47,7 @@ def test_staging_compose_defaults_future_refresh_and_provider_calls_disabled() -
         assert scheduler["W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS"] == "900"
         assert scheduler["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == "status,fixtures,odds,lineups"
         assert scheduler["W2_PROVIDER_REFRESH_TICK_HARD_CAP"] == "30"
-        assert scheduler["W2_PROVIDER_DAILY_HARD_CAP"] == "120"
+        assert scheduler["W2_PROVIDER_DAILY_HARD_CAP"] == "80"
         assert scheduler["W2_FIXTURE_DISCOVERY_ENABLED"] == (
             "${W2_FIXTURE_DISCOVERY_ENABLED:-false}"
         )
@@ -66,7 +66,7 @@ def test_staging_compose_defaults_future_refresh_and_provider_calls_disabled() -
         api = env_for(path, "api")
         assert api["W2_PROVIDER_CALLS_DISABLED"] == "true"
         assert api["W2_PROVIDER_SCHEDULER_ENABLED"] == "false"
-        assert api["W2_PROVIDER_DAILY_HARD_CAP"] == "120"
+        assert api["W2_PROVIDER_DAILY_HARD_CAP"] == "80"
         assert "W2_STAGING_ENABLED_COMPETITIONS" not in api
         for service in ("worker",):
             env = env_for(path, service)
@@ -76,7 +76,7 @@ def test_staging_compose_defaults_future_refresh_and_provider_calls_disabled() -
             assert env["W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS"] == "900"
             assert env["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == "status,fixtures,odds,lineups"
             assert env["W2_PROVIDER_REFRESH_TICK_HARD_CAP"] == "30"
-            assert env["W2_PROVIDER_DAILY_HARD_CAP"] == "120"
+            assert env["W2_PROVIDER_DAILY_HARD_CAP"] == "80"
             assert "W2_STAGING_ENABLED_COMPETITIONS" not in env
             assert env["W2_XG_BACKFILL_ENABLED"] == "false"
         for service in ("api", "web", "worker"):

@@ -23,8 +23,11 @@
 - `remaining_quota=19`
 
 因此 `81/100` 表示 Provider 已用 81、剩余 19；不是剩余 81。实际生效的
-`W2_PROVIDER_DAILY_HARD_CAP=80` 覆盖了代码默认值。本次属于真正 HARD_CAP，
-不是 `DAILY_QUOTA_UNKNOWN`，也不是 reserve 算术死锁；“继续等待 headroom”已撤回。
+`W2_PROVIDER_DAILY_HARD_CAP=80` 是 W2 自设保护性上限；阻断发生时 Provider 侧仍有
+19 次可用额度，所以不是 Provider 配额耗尽。代码命中的是 W2 的
+`DAILY_PROVIDER_HARD_CAP_EXCEEDED / HARD_CAP` 分支，不是 `DAILY_QUOTA_UNKNOWN`，
+也不是 reserve 算术死锁；“继续等待 headroom”已撤回。该上限是批次前置检查，
+`actual_calls_today=81` 也证明单批次可把实际计数推过 80，不能表述为单次调用级硬保证。
 
 ## R8-4 有界抢救
 
@@ -72,3 +75,13 @@ Result 写入后，原组合结算进程因内存被系统终止；已停止重�
 - API/worker/scheduler/web：healthy
 
 本报告不授权任何新的 Provider 调用或阶段推进。
+
+## R9 口径补充
+
+- 本次 PASS 只证明真实预测冻结、权威赛果、结算和概率指标的管道闭环，不证明模型有效。
+- 当前概率指标样本量为 `n=1`，低于 `MIN_BUCKET_SAMPLES_FOR_RATE=30` 与
+  `SAMPLE_TARGET=200`；所有模型表现结论均为 `INSUFFICIENT_SAMPLE`。
+- 唯一样本 LogLoss `1.104112386514` 高于均匀先验 `ln(3)=1.098612288668`；差值约
+  `0.005500`。这一条样本既不能证明模型有效，也不能证明模型无效。
+- 9 条 capture 的逐场终态与 9 次 Provider 调用明细见
+  `R9_CANARY_PASS_INDEPENDENT_REVIEW.md`。
