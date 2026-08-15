@@ -414,9 +414,7 @@ def test_discovery_mode_uses_the_canonical_refresh_writer_only(
     engine = create_engine(get_settings().database_url.get_secret_value())
     with Session(engine) as session:
         identity = session.get(MatchdayFixtureIdentityModel, "api_football:1489404")
-        canonical_team_count = session.scalar(
-            select(func.count()).select_from(CanonicalTeamModel)
-        )
+        canonical_team_count = session.scalar(select(func.count()).select_from(CanonicalTeamModel))
         crosswalk_count = session.scalar(
             select(func.count()).select_from(ProviderTeamIdentityCrosswalkModel)
         )
@@ -650,8 +648,7 @@ def test_checkpoint_batch_isolates_failure_and_releases_unattempted(
     engine = create_engine(get_settings().database_url.get_secret_value())
     with Session(engine) as session:
         plans = {
-            row.fixture_id: row
-            for row in session.scalars(select(MatchdayCheckpointPlanModel))
+            row.fixture_id: row for row in session.scalars(select(MatchdayCheckpointPlanModel))
         }
         audits = {
             row.fixture_id: row.status
@@ -712,9 +709,7 @@ def test_checkpoint_retry_uses_final_capture(
         plan = session.scalar(select(MatchdayCheckpointPlanModel))
         captures = list(
             session.scalars(
-                select(MatchdayEndpointCaptureModel).order_by(
-                    MatchdayEndpointCaptureModel.attempt
-                )
+                select(MatchdayEndpointCaptureModel).order_by(MatchdayEndpointCaptureModel.attempt)
             )
         )
         checkpoint_audit = session.scalar(select(FutureRefreshCheckpointAuditModel))
@@ -1266,9 +1261,7 @@ def test_fixture_scoped_market_refresh_status_never_reports_past_tick(
         )
         session.commit()
 
-    assert FutureRefreshDbRepository().market_refresh_status_for_fixtures(
-        ["fixture"], now=NOW
-    ) == {
+    assert FutureRefreshDbRepository().market_refresh_status_for_fixtures(["fixture"], now=NOW) == {
         "odds_last_confirmed_at": None,
         "next_refresh_tick": None,
     }
@@ -1332,12 +1325,8 @@ def test_fixture_scoped_market_refresh_status_reads_canonical_matchday_plan(
             "latest_snapshot_at": None,
             "latest_snapshot_checkpoint": None,
             "target_checkpoint": "T48",
-            "scheduled_at": (NOW - timedelta(minutes=30)).isoformat().replace(
-                "+00:00", "Z"
-            ),
-            "window_end_at": (NOW - timedelta(minutes=25)).isoformat().replace(
-                "+00:00", "Z"
-            ),
+            "scheduled_at": (NOW - timedelta(minutes=30)).isoformat().replace("+00:00", "Z"),
+            "window_end_at": (NOW - timedelta(minutes=25)).isoformat().replace("+00:00", "Z"),
             "overdue": True,
             "public_semantics": {"scope": "MATCH", "cause": "AWAITING_COLLECTION"},
         },
@@ -1905,9 +1894,11 @@ def test_request_count_since_includes_provider_request_logs(
 
     before_restart = FutureRefreshDbRepository().request_count_since(since)
     after_restart = FutureRefreshDbRepository().request_count_since(since)
+    successful = FutureRefreshDbRepository().successful_request_count_since(since)
 
     assert before_restart >= 120
     assert after_restart == before_restart
+    assert successful == 120
 
 
 def test_request_count_since_includes_quota_usage(

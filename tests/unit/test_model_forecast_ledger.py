@@ -18,6 +18,7 @@ from w2.infrastructure.persistence.model_forecast_models import (
 from w2.infrastructure.persistence.models import ResultModel
 from w2.tracking.model_forecast_ledger import (
     ModelForecastLedgerRepository,
+    model_forecast_lead_time_bucket,
     run_model_forecast_capture,
     settle_model_forecasts,
 )
@@ -54,6 +55,9 @@ def test_model_forecast_capture_and_outcome_do_not_require_candidate(tmp_path: P
     with Session(repository.engine) as session:
         capture = session.query(ModelForecastCaptureModel).one()
         assert capture.captured_at.replace(tzinfo=UTC) < KICKOFF
+        assert capture.lead_time_seconds == 12 * 60 * 60
+        assert capture.lead_time_bucket == "H6_TO_LT_24H"
+        assert capture.payload["capture_policy"] == "FIRST_ELIGIBLE_FREEZE_IMMUTABLE"
         assert capture.payload["exact_quote_required"] is False
         assert capture.payload["candidate_required"] is False
         assert capture.payload["four_field_xg_identity"]["four_fields"] == {
@@ -90,12 +94,55 @@ def test_model_forecast_capture_and_outcome_do_not_require_candidate(tmp_path: P
         assert outcome.payload["actual_outcome"] == "HOME"
         assert outcome.payload["final_score"] == {"home": 1, "away": 0, "status": "FT"}
         assert outcome.payload["brier"] == 0.38
+        assert outcome.lead_time_seconds == 12 * 60 * 60
+        assert outcome.lead_time_bucket == "H6_TO_LT_24H"
+        assert outcome.payload["lead_time_seconds"] == 12 * 60 * 60
         assert outcome.payload["ece_input"] == {
             "predicted_class": "HOME",
             "confidence": 0.5,
             "actual_class": "HOME",
             "correct": True,
         }
+    assert repository.metric_summary_by_lead_time() == {
+        "LT_6H": {
+            "sample_count": 0,
+            "mean_brier": None,
+            "mean_log_loss": None,
+            "mean_rps": None,
+        },
+        "H6_TO_LT_24H": {
+            "sample_count": 1,
+            "mean_brier": 0.38,
+            "mean_log_loss": pytest.approx(0.6931471805599453),
+            "mean_rps": 0.17,
+        },
+        "D1_TO_D3": {
+            "sample_count": 0,
+            "mean_brier": None,
+            "mean_log_loss": None,
+            "mean_rps": None,
+        },
+        "GT_3D": {
+            "sample_count": 0,
+            "mean_brier": None,
+            "mean_log_loss": None,
+            "mean_rps": None,
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    ("seconds", "bucket"),
+    [
+        (0, "LT_6H"),
+        (6 * 60 * 60, "H6_TO_LT_24H"),
+        (24 * 60 * 60, "D1_TO_D3"),
+        (3 * 24 * 60 * 60, "D1_TO_D3"),
+        (3 * 24 * 60 * 60 + 1, "GT_3D"),
+    ],
+)
+def test_model_forecast_lead_time_buckets(seconds: int, bucket: str) -> None:
+    assert model_forecast_lead_time_bucket(seconds) == bucket
 
 
 def test_without_four_field_xg_only_coverage_is_counted(tmp_path: Path) -> None:

@@ -276,9 +276,7 @@ def _apply_repository_v4_authority(card: dict[str, Any]) -> dict[str, Any]:
         fallback_reason_code if authority_missing else str(reason.get("code") or "")
     )
     projected_reason_human = (
-        fallback_reason_human
-        if authority_missing
-        else str(reason.get("message") or "证据尚未就绪")
+        fallback_reason_human if authority_missing else str(reason.get("message") or "证据尚未就绪")
     )
     projected_non_pick = (
         None
@@ -572,9 +570,9 @@ def _canonical_performance_rows(
     anchor: datetime,
 ) -> list[dict[str, Any]]:
     prefix = "performance:cohort:league:"
-    sources: dict[
-        str, list[tuple[str, Checkpoint, PerformanceCohortProjection]]
-    ] = defaultdict(list)
+    sources: dict[str, list[tuple[str, Checkpoint, PerformanceCohortProjection]]] = defaultdict(
+        list
+    )
     identity_by_group: dict[str, CompetitionIdentity | None] = {}
     for key, (checkpoint, cohort) in cohorts.items():
         if not key.startswith(prefix) or key.startswith("performance:cohort:league-tier:"):
@@ -693,14 +691,10 @@ def _dashboard_forward_ledger_from_checkpoints(
         anchor=global_cohort.scoring_window_anchor.astimezone(UTC),
     )
     leagues = [
-        row
-        for row in competitions
-        if row["scope_group"] in {"top_five", "national_leagues"}
+        row for row in competitions if row["scope_group"] in {"top_five", "national_leagues"}
     ]
     tournaments = [
-        row
-        for row in competitions
-        if row["scope_group"] not in {"top_five", "national_leagues"}
+        row for row in competitions if row["scope_group"] not in {"top_five", "national_leagues"}
     ]
     processed = window.fixture_checkpoint_count
     eligible = window.canonical_settled_count
@@ -797,9 +791,7 @@ class ReadModelRepository:
 
     def _dashboard_competition_ids(self) -> tuple[str, ...]:
         try:
-            scope = load_league_whitelist_scope(
-                CompetitionRegistry(engine=self._database_engine())
-            )
+            scope = load_league_whitelist_scope(CompetitionRegistry(engine=self._database_engine()))
         except CompetitionRegistryError as exc:
             raise SystemDegradedError("COMPETITION_WHITELIST_UNAVAILABLE") from exc
         if len(scope.all_whitelist) != 13:
@@ -888,15 +880,19 @@ class ReadModelRepository:
                     literal(ANALYSIS_CARD_SHADOW_PREFIX)
                     + MatchdayFixtureIdentityModel.provider_fixture_id
                 )
-                projection_query = select(
-                    MatchdayFixtureIdentityModel,
-                    ReadModelCheckpointModel,
-                ).outerjoin(
-                    ReadModelCheckpointModel,
-                    ReadModelCheckpointModel.checkpoint_key == checkpoint_identity,
-                ).where(
-                    MatchdayFixtureIdentityModel.provider == "api_football",
-                    MatchdayFixtureIdentityModel.competition_id.in_(competition_ids),
+                projection_query = (
+                    select(
+                        MatchdayFixtureIdentityModel,
+                        ReadModelCheckpointModel,
+                    )
+                    .outerjoin(
+                        ReadModelCheckpointModel,
+                        ReadModelCheckpointModel.checkpoint_key == checkpoint_identity,
+                    )
+                    .where(
+                        MatchdayFixtureIdentityModel.provider == "api_football",
+                        MatchdayFixtureIdentityModel.competition_id.in_(competition_ids),
+                    )
                 )
                 if start is not None:
                     projection_query = projection_query.where(
@@ -949,11 +945,9 @@ class ReadModelRepository:
                     "kickoff_utc": _iso_or_none(identity.kickoff_utc),
                     "status": identity.fixture_status,
                     "home_team_id": identity.home_provider_team_id,
-                    "home_team_name": payload.get("home_team_name")
-                    or payload.get("home_name"),
+                    "home_team_name": payload.get("home_team_name") or payload.get("home_name"),
                     "away_team_id": identity.away_provider_team_id,
-                    "away_team_name": payload.get("away_team_name")
-                    or payload.get("away_name"),
+                    "away_team_name": payload.get("away_team_name") or payload.get("away_name"),
                     "_analysis_card_projection": None,
                 }
             else:
@@ -1079,27 +1073,20 @@ class ReadModelRepository:
             payload = capture.payload if isinstance(capture.payload, dict) else {}
             raw_xg_identity = payload.get("four_field_xg_identity")
             xg_identity = (
-                cast(dict[str, Any], raw_xg_identity)
-                if isinstance(raw_xg_identity, dict)
-                else {}
+                cast(dict[str, Any], raw_xg_identity) if isinstance(raw_xg_identity, dict) else {}
             )
             raw_home_xg = xg_identity.get("home")
-            home_xg = (
-                cast(dict[str, Any], raw_home_xg)
-                if isinstance(raw_home_xg, dict)
-                else {}
-            )
+            home_xg = cast(dict[str, Any], raw_home_xg) if isinstance(raw_home_xg, dict) else {}
             raw_away_xg = xg_identity.get("away")
-            away_xg = (
-                cast(dict[str, Any], raw_away_xg)
-                if isinstance(raw_away_xg, dict)
-                else {}
-            )
+            away_xg = cast(dict[str, Any], raw_away_xg) if isinstance(raw_away_xg, dict) else {}
             outcome = outcome_by_capture.get(capture.capture_identity_hash)
             result[requested_id] = {
                 "state": "SETTLED" if outcome is not None else "CAPTURED",
                 "capture_identity_hash": capture.capture_identity_hash,
                 "captured_at": _iso_or_none(capture.captured_at),
+                "lead_time_seconds": capture.lead_time_seconds,
+                "lead_time_bucket": capture.lead_time_bucket,
+                "capture_policy": payload.get("capture_policy", "FIRST_ELIGIBLE_FREEZE_IMMUTABLE"),
                 "model_family": capture.model_family,
                 "model_version": capture.model_version,
                 "calibration_version": payload.get("calibration_version"),
@@ -1353,9 +1340,7 @@ class ReadModelRepository:
                     select(MatchdayEndpointCapturePlanModel.plan_id).where(
                         MatchdayEndpointCapturePlanModel.endpoint == "lineups",
                         MatchdayEndpointCapturePlanModel.link_status == "LINKED",
-                        MatchdayEndpointCapturePlanModel.capture_id.in_(
-                            captured_lineup_ids
-                        ),
+                        MatchdayEndpointCapturePlanModel.capture_id.in_(captured_lineup_ids),
                     )
                 )
             )
@@ -1371,9 +1356,7 @@ class ReadModelRepository:
             ):
                 latest_snapshot[capture.fixture_id] = capture
         plans_by_fixture: dict[str, list[MatchdayCheckpointPlanModel]] = defaultdict(list)
-        lineup_plans_by_fixture: dict[str, list[MatchdayCheckpointPlanModel]] = defaultdict(
-            list
-        )
+        lineup_plans_by_fixture: dict[str, list[MatchdayCheckpointPlanModel]] = defaultdict(list)
         for plan in plans:
             endpoints = set(plan.endpoints or [])
             if "odds" in endpoints:
@@ -1435,14 +1418,10 @@ class ReadModelRepository:
                         lineup_target.checkpoint if lineup_target is not None else None
                     ),
                     "scheduled_at": _iso_or_none(
-                        _utc(lineup_target.scheduled_at)
-                        if lineup_target is not None
-                        else None
+                        _utc(lineup_target.scheduled_at) if lineup_target is not None else None
                     ),
                     "window_end_at": _iso_or_none(
-                        _utc(lineup_target.window_end)
-                        if lineup_target is not None
-                        else None
+                        _utc(lineup_target.window_end) if lineup_target is not None else None
                     ),
                     "overdue": lineup_overdue,
                     "public_semantics": {
@@ -1596,6 +1575,7 @@ class ReadModelRepository:
             market_evidence_fixture_ids=evidence_ids,
             as_of=now or datetime.now(UTC),
         )
+
 
 class ReadModelService:
     def __init__(self, repository: ReadModelRepository | None = None) -> None:
@@ -1821,13 +1801,13 @@ class ReadModelService:
             fixtures = self.repository.dashboard_latest_fixtures()[:MAX_PUBLIC_FIXTURES]
         checkpoint_count_reader = getattr(self.repository, "analysis_checkpoint_count", None)
         fixture_checkpoint_count = (
-            checkpoint_count_reader()
-            if callable(checkpoint_count_reader)
+            checkpoint_count_reader() if callable(checkpoint_count_reader) else len(fixtures)
+        )
+        analysis_projection_count = (
+            sum(isinstance(item.get("_analysis_card_projection"), dict) for item in fixtures)
+            if batched_window_read
             else len(fixtures)
         )
-        analysis_projection_count = sum(
-            isinstance(item.get("_analysis_card_projection"), dict) for item in fixtures
-        ) if batched_window_read else len(fixtures)
         canonical_competitions: dict[str, str] = {}
         public_team_labels: dict[str, dict[str, dict[str, Any]]] = {}
         if not batched_window_read:
@@ -1867,9 +1847,7 @@ class ReadModelService:
                 canonical_competition_id=canonical_competitions.get(
                     str(item.get("fixture_id") or "")
                 ),
-                public_team_labels=public_team_labels.get(
-                    str(item.get("fixture_id") or ""), {}
-                ),
+                public_team_labels=public_team_labels.get(str(item.get("fixture_id") or ""), {}),
             )
             for item in fixtures
         ]

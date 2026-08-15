@@ -3,7 +3,17 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Index, String, UniqueConstraint, event
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    String,
+    UniqueConstraint,
+    event,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from w2.infrastructure.database import Base
@@ -26,6 +36,8 @@ class ModelForecastCaptureModel(Base):
     competition_id: Mapped[str] = mapped_column(String(128), nullable=False)
     kickoff_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    lead_time_seconds: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    lead_time_bucket: Mapped[str] = mapped_column(String(32), nullable=False)
     model_family: Mapped[str] = mapped_column(String(64), nullable=False)
     model_version: Mapped[str] = mapped_column(String(128), nullable=False)
     model_input_manifest_hash: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -54,6 +66,8 @@ class ModelForecastOutcomeModel(Base):
     brier: Mapped[float] = mapped_column(Float, nullable=False)
     log_loss: Mapped[float] = mapped_column(Float, nullable=False)
     rps: Mapped[float] = mapped_column(Float, nullable=False)
+    lead_time_seconds: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    lead_time_bucket: Mapped[str] = mapped_column(String(32), nullable=False)
     settled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)

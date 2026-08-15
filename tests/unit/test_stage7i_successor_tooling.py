@@ -3,9 +3,12 @@ from __future__ import annotations
 import fcntl
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 PYTHON = sys.executable
@@ -35,8 +38,7 @@ def test_observer_migration_head_parser_accepts_typed_alembic_fields(tmp_path: P
     versions = tmp_path / "migrations" / "versions"
     versions.mkdir(parents=True)
     (versions / "0001_base.py").write_text(
-        'revision: str = "0001_base"\n'
-        "down_revision: str | None = None\n",
+        'revision: str = "0001_base"\ndown_revision: str | None = None\n',
         encoding="utf-8",
     )
     (versions / "0002_head.py").write_text(
@@ -317,7 +319,9 @@ def test_selector_rejects_invalid_candidates_and_non_localhost(tmp_path: Path) -
     assert result.returncode == 2
     assert "NO_ELIGIBLE_SUCCESSOR_FIXTURE" in result.stdout
 
-    result = run_cli([PYTHON, "scripts/select_stage7i_successor.py", "--api-base", "https://example.com"])
+    result = run_cli(
+        [PYTHON, "scripts/select_stage7i_successor.py", "--api-base", "https://example.com"]
+    )
     assert result.returncode == 1
 
 
@@ -390,6 +394,11 @@ def test_selector_detects_active_global_lock(tmp_path: Path) -> None:
     assert "ACTIVE_GLOBAL_OBSERVER_LOCK" in result.stdout
 
 
+@pytest.mark.requires_privilege
+@pytest.mark.skipif(
+    os.getenv("W2_RUN_PRIVILEGED_TESTS") != "1",
+    reason="SKIPPED_REQUIRES_PRIVILEGE",
+)
 def test_observer_once_writes_fixture_specific_state_and_global_lock(tmp_path: Path) -> None:
     current = tmp_path / "current"
     versions = current / "migrations/versions"

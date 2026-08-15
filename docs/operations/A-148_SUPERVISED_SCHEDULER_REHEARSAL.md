@@ -4,11 +4,14 @@
 
 - Provider 账户当日限额的实时事实只取 Provider 响应头
   `x-ratelimit-requests-limit` / `x-ratelimit-requests-remaining`；当前 Free 套餐已知上限为 100。
-- `API_FOOTBALL_FREE_DAILY_LIMIT=100` 是启动期安全上限。生效的
-  `W2_PROVIDER_DAILY_HARD_CAP` 高于它时，future refresh 必须在任何请求前 fail closed。
-- `future_fixture_refresh.v1.json`、`matchday_intake.v2.json` 与 staging compose 的通用调用基线统一为 80。
-- POSTMATCH_RESULT 使用独立 `W2_POSTMATCH_RESULT_DAILY_HARD_CAP=20`；通用 80 是 W2
-  自设保护性批次前置上限，不等同于 Provider 配额耗尽，也不是单次调用级原子硬保证。
+- `API_FOOTBALL_FREE_DAILY_LIMIT=100` 是启动期安全上限。所有已注册配额池与未分配缓冲
+  的总和高于它时，future refresh 必须在任何请求前 fail closed。
+- `future_fixture_refresh.v1.json`、`matchday_intake.v2.json` 与 staging compose 的预算为
+  通用 70 + POSTMATCH_RESULT 20 + 未分配缓冲 10 = Free 100。
+- `W2_PROVIDER_DAILY_HARD_CAP=70` 与
+  `W2_POSTMATCH_RESULT_DAILY_HARD_CAP=20` 都是 W2 自设批次前置上限；
+  `W2_PROVIDER_DAILY_UNALLOCATED_BUFFER=10` 不属于任何可消费池。
+- 预算判定以 Provider 计费调用数为准；成功调用数只作诊断，失败响应仍可能计费。
 - 报告配额时必须同时给出 W2 生效 cap、Provider header limit/remaining、UTC 时间窗和
   `provider_request_logs` 单调计数，禁止把不同口径合成一个“81/100”。
 

@@ -164,9 +164,7 @@ def _provider_teams_from_fixtures(
         payload = fixture.payload if isinstance(fixture.payload, dict) else {}
         league = payload.get("league")
         country = (
-            str(league.get("country") or "").strip() or None
-            if isinstance(league, dict)
-            else None
+            str(league.get("country") or "").strip() or None if isinstance(league, dict) else None
         )
         teams = payload.get("teams") if isinstance(payload.get("teams"), dict) else {}
         for side, provider_team_id in (
@@ -316,9 +314,7 @@ class FutureRefreshDbRepository:
                     country=str(team["country"]) if team["country"] else None,
                     created_at=normalized_now,
                 )
-                existing_team = session.get(
-                    CanonicalTeamModel, str(canonical["w2_team_id"])
-                )
+                existing_team = session.get(CanonicalTeamModel, str(canonical["w2_team_id"]))
                 if existing_team is None:
                     try:
                         with session.begin_nested():
@@ -327,15 +323,11 @@ class FutureRefreshDbRepository:
                         canonical_count += 1
                     except IntegrityError:
                         pass
-                    existing_team = session.get(
-                        CanonicalTeamModel, str(canonical["w2_team_id"])
-                    )
+                    existing_team = session.get(CanonicalTeamModel, str(canonical["w2_team_id"]))
                 if existing_team is None or (
                     existing_team.identity_hash != canonical["identity_hash"]
                 ):
-                    raise FutureRefreshPersistenceError(
-                        "CANONICAL_TEAM_IDENTITY_CONFLICT"
-                    )
+                    raise FutureRefreshPersistenceError("CANONICAL_TEAM_IDENTITY_CONFLICT")
                 crosswalk = provider_crosswalk_payload(
                     provider_team_id=provider_team_id,
                     w2_team_id=str(canonical["w2_team_id"]),
@@ -366,9 +358,7 @@ class FutureRefreshDbRepository:
                     or existing_crosswalk.season != season
                     or existing_crosswalk.identity_status != PROVIDER_PRIMARY_READY
                 ):
-                    raise FutureRefreshPersistenceError(
-                        "PROVIDER_TEAM_CROSSWALK_CONFLICT"
-                    )
+                    raise FutureRefreshPersistenceError("PROVIDER_TEAM_CROSSWALK_CONFLICT")
             mapping = CanonicalIdentityRepository.provider_team_mapping_in_session(
                 session,
                 provider="api_football",
@@ -3103,6 +3093,26 @@ class FutureRefreshDbRepository:
             return int(quota_usage)
         return max(int(future_refresh_requests or 0), int(provider_request_logs or 0))
 
+    def successful_request_count_since(self, since: datetime) -> int:
+        since_utc = parse_db_datetime(since)
+        try:
+            with Session(self.engine) as session:
+                return int(
+                    session.scalar(
+                        select(func.count())
+                        .select_from(ProviderRequestLogModel)
+                        .where(
+                            ProviderRequestLogModel.provider == "api_football",
+                            ProviderRequestLogModel.requested_at >= since_utc,
+                            ProviderRequestLogModel.status_code >= 200,
+                            ProviderRequestLogModel.status_code < 300,
+                        )
+                    )
+                    or 0
+                )
+        except Exception as exc:
+            raise FutureRefreshPersistenceError("SUCCESSFUL_REQUEST_COUNT_READ_FAILED") from exc
+
     def postmatch_result_request_count_since(self, since: datetime) -> int:
         since_utc = parse_db_datetime(since)
         try:
@@ -3126,6 +3136,41 @@ class FutureRefreshDbRepository:
                 for item in checkpoints
             ):
                 total += max(int(result.get("request_count") or 0), 0)
+        return total
+
+    def postmatch_result_successful_request_count_since(self, since: datetime) -> int:
+        since_utc = parse_db_datetime(since)
+        try:
+            with Session(self.engine) as session:
+                results = list(
+                    session.scalars(
+                        select(FutureRefreshTaskAuditModel.result).where(
+                            FutureRefreshTaskAuditModel.started_at >= since_utc
+                        )
+                    )
+                )
+        except Exception as exc:
+            raise FutureRefreshPersistenceError("RESULT_SUCCESS_COUNT_READ_FAILED") from exc
+        total = 0
+        for result in results:
+            checkpoints = result.get("refresh_checkpoints") if isinstance(result, dict) else None
+            requests = result.get("requests") if isinstance(result, dict) else None
+            if (
+                not isinstance(checkpoints, list)
+                or not checkpoints
+                or not isinstance(requests, list)
+            ):
+                continue
+            if all(
+                isinstance(item, dict) and item.get("checkpoint") == "POSTMATCH_RESULT"
+                for item in checkpoints
+            ):
+                total += sum(
+                    isinstance(item, dict)
+                    and isinstance(item.get("status_code"), int)
+                    and 200 <= int(item["status_code"]) < 300
+                    for item in requests
+                )
         return total
 
     def provider_quota_snapshot(self, day_start: datetime) -> dict[str, int | None]:

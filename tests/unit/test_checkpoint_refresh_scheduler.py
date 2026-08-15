@@ -245,7 +245,7 @@ def test_world_cup_policy_disables_trickle_backfill_until_final_hibernation() ->
         item for item in payload["competitions"] if item["competition_id"] == "world_cup_2026"
     )
 
-    assert policy["daily_hard_cap"] == 80
+    assert policy["daily_hard_cap"] == 70
     assert policy["daily_reserve"] == 0
     assert policy["request_budget"] == 30
     assert policy["checkpoint_mode"] == "matchday_checkpoint_plan"

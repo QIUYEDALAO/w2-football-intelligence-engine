@@ -62,8 +62,7 @@ def test_0052_drops_and_restores_empty_retired_checkpoint_plan(tmp_path: Path) -
     assert "future_refresh_checkpoint_plan" not in inspect(engine).get_table_names()
 
     assert (
-        _alembic(root, env, "downgrade", "0051_apply_seven_day_collection_policy").returncode
-        == 0
+        _alembic(root, env, "downgrade", "0051_apply_seven_day_collection_policy").returncode == 0
     )
     assert "future_refresh_checkpoint_plan" in inspect(engine).get_table_names()
 
@@ -130,8 +129,9 @@ def test_0053_backfills_reviewed_team_identity_and_retains_it(tmp_path: Path) ->
         assert approved.count() == 6
 
     assert (
-        _alembic(root, env, "downgrade", "0052_drop_retired_future_refresh_checkpoint_plan")
-        .returncode
+        _alembic(
+            root, env, "downgrade", "0052_drop_retired_future_refresh_checkpoint_plan"
+        ).returncode
         == 0
     )
     with Session(engine) as session:
@@ -156,10 +156,7 @@ def test_0054_backfills_and_database_guards_statistics_raw(tmp_path: Path) -> No
         "W2_DATABASE_URL": database_url,
         "W2_ENVIRONMENT": "test",
     }
-    assert (
-        _alembic(root, env, "upgrade", "0053_backfill_reviewed_team_identity").returncode
-        == 0
-    )
+    assert _alembic(root, env, "upgrade", "0053_backfill_reviewed_team_identity").returncode == 0
     engine = create_engine(database_url)
     digest = "7" * 64
     with engine.begin() as connection:
@@ -175,7 +172,7 @@ def test_0054_backfills_and_database_guards_statistics_raw(tmp_path: Path) -> No
                 "captured_at": "2026-08-13 00:00:00",
                 "inserted_at": "2026-08-13 00:00:01",
                 "storage_uri": f"db://raw_payload/{digest}",
-                "payload": "{\"response\": []}",
+                "payload": '{"response": []}',
             },
         )
 
@@ -211,12 +208,80 @@ def test_0054_backfills_and_database_guards_statistics_raw(tmp_path: Path) -> No
     with pytest.raises(DBAPIError, match="raw Statistics retention is append-only"):
         with engine.begin() as connection:
             connection.execute(
-                text(
-                    "delete from raw_statistics_retention "
-                    "where raw_payload_sha256=:sha256"
-                ),
+                text("delete from raw_statistics_retention where raw_payload_sha256=:sha256"),
                 {"sha256": digest},
             )
+
+
+def test_0055_backfills_lead_time_without_mutating_ledger_payload_hashes(
+    tmp_path: Path,
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'model-forecast-lead-time.db'}"
+    env = {
+        **os.environ,
+        "PYTHONPATH": f"{root / 'src'}:{root}",
+        "W2_DATABASE_URL": database_url,
+        "W2_ENVIRONMENT": "test",
+    }
+    assert _alembic(root, env, "upgrade", "0054_model_forecast_validation_ledger").returncode == 0
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "insert into model_forecast_capture "
+                "(capture_identity_hash, fixture_id, competition_id, kickoff_utc, "
+                "captured_at, model_family, model_version, model_input_manifest_hash, "
+                "four_field_xg_identity_hash, score_matrix_hash, payload, payload_sha256, "
+                "inserted_at) values "
+                "(:capture, 'fixture-1', 'allsvenskan', :kickoff, :captured, "
+                "'EXACT_DC_POISSON', 'model-v1', :manifest, :xg, :score, '{}', :capture_sha, "
+                ":captured)"
+            ),
+            {
+                "capture": "1" * 64,
+                "kickoff": "2026-08-17 00:00:00",
+                "captured": "2026-08-14 00:00:00",
+                "manifest": "2" * 64,
+                "xg": "3" * 64,
+                "score": "4" * 64,
+                "capture_sha": "5" * 64,
+            },
+        )
+        connection.execute(
+            text(
+                "insert into model_forecast_outcome "
+                "(outcome_identity_hash, capture_identity_hash, fixture_id, "
+                "authoritative_result_identity, brier, log_loss, rps, settled_at, payload, "
+                "payload_sha256, inserted_at) values "
+                "(:outcome, :capture, 'fixture-1', :result, 0.1, 0.2, 0.3, :settled, '{}', "
+                ":outcome_sha, :settled)"
+            ),
+            {
+                "outcome": "6" * 64,
+                "capture": "1" * 64,
+                "result": "7" * 64,
+                "settled": "2026-08-17 03:00:00",
+                "outcome_sha": "8" * 64,
+            },
+        )
+
+    assert _alembic(root, env, "upgrade", "head").returncode == 0
+    with engine.connect() as connection:
+        capture = connection.execute(
+            text(
+                "select lead_time_seconds, lead_time_bucket, payload_sha256 "
+                "from model_forecast_capture"
+            )
+        ).one()
+        outcome = connection.execute(
+            text(
+                "select lead_time_seconds, lead_time_bucket, payload_sha256 "
+                "from model_forecast_outcome"
+            )
+        ).one()
+    assert tuple(capture) == (259200, "D1_TO_D3", "5" * 64)
+    assert tuple(outcome) == (259200, "D1_TO_D3", "8" * 64)
 
 
 def test_0053_rejects_partial_fixture_scope(tmp_path: Path) -> None:
@@ -612,18 +677,14 @@ def test_arch_p1_08_drops_and_restores_empty_shadow_strategy_tables(
         "shadow_strategy_evaluation",
     }
 
-    assert _alembic(
-        root, env, "upgrade", "0043_drop_legacy_identity_crosswalks"
-    ).returncode == 0
+    assert _alembic(root, env, "upgrade", "0043_drop_legacy_identity_crosswalks").returncode == 0
     engine = create_engine(database_url)
     assert shadow_tables.issubset(inspect(engine).get_table_names())
 
     assert _alembic(root, env, "upgrade", "head").returncode == 0
     assert shadow_tables.isdisjoint(inspect(engine).get_table_names())
 
-    assert _alembic(
-        root, env, "downgrade", "0043_drop_legacy_identity_crosswalks"
-    ).returncode == 0
+    assert _alembic(root, env, "downgrade", "0043_drop_legacy_identity_crosswalks").returncode == 0
     assert shadow_tables.issubset(inspect(engine).get_table_names())
 
 
@@ -636,9 +697,7 @@ def test_arch_p1_08_refuses_nonempty_shadow_strategy_tables(tmp_path: Path) -> N
         "W2_DATABASE_URL": database_url,
         "W2_ENVIRONMENT": "test",
     }
-    assert _alembic(
-        root, env, "upgrade", "0043_drop_legacy_identity_crosswalks"
-    ).returncode == 0
+    assert _alembic(root, env, "upgrade", "0043_drop_legacy_identity_crosswalks").returncode == 0
     engine = create_engine(database_url)
     with engine.begin() as connection:
         connection.execute(

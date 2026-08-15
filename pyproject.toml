@@ -77,3 +77,6 @@ addopts = "-ra"
 testpaths = ["tests"]
 asyncio_mode = "auto"
 pythonpath = [".", "src"]
+markers = [
+  "requires_privilege: host-privileged integration checks; opt in with W2_RUN_PRIVILEGED_TESTS=1",
+]

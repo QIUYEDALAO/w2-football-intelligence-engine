@@ -47,7 +47,8 @@ def test_staging_compose_defaults_future_refresh_and_provider_calls_disabled() -
         assert scheduler["W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS"] == "900"
         assert scheduler["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == "status,fixtures,odds,lineups"
         assert scheduler["W2_PROVIDER_REFRESH_TICK_HARD_CAP"] == "30"
-        assert scheduler["W2_PROVIDER_DAILY_HARD_CAP"] == "80"
+        assert scheduler["W2_PROVIDER_DAILY_HARD_CAP"] == "70"
+        assert scheduler["W2_PROVIDER_DAILY_UNALLOCATED_BUFFER"] == "10"
         assert scheduler["W2_FIXTURE_DISCOVERY_ENABLED"] == (
             "${W2_FIXTURE_DISCOVERY_ENABLED:-false}"
         )
@@ -66,7 +67,8 @@ def test_staging_compose_defaults_future_refresh_and_provider_calls_disabled() -
         api = env_for(path, "api")
         assert api["W2_PROVIDER_CALLS_DISABLED"] == "true"
         assert api["W2_PROVIDER_SCHEDULER_ENABLED"] == "false"
-        assert api["W2_PROVIDER_DAILY_HARD_CAP"] == "80"
+        assert api["W2_PROVIDER_DAILY_HARD_CAP"] == "70"
+        assert api["W2_PROVIDER_DAILY_UNALLOCATED_BUFFER"] == "10"
         assert "W2_STAGING_ENABLED_COMPETITIONS" not in api
         for service in ("worker",):
             env = env_for(path, service)
@@ -76,7 +78,8 @@ def test_staging_compose_defaults_future_refresh_and_provider_calls_disabled() -
             assert env["W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS"] == "900"
             assert env["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == "status,fixtures,odds,lineups"
             assert env["W2_PROVIDER_REFRESH_TICK_HARD_CAP"] == "30"
-            assert env["W2_PROVIDER_DAILY_HARD_CAP"] == "80"
+            assert env["W2_PROVIDER_DAILY_HARD_CAP"] == "70"
+            assert env["W2_PROVIDER_DAILY_UNALLOCATED_BUFFER"] == "10"
             assert "W2_STAGING_ENABLED_COMPETITIONS" not in env
             assert env["W2_XG_BACKFILL_ENABLED"] == "false"
         for service in ("api", "web", "worker"):
@@ -126,10 +129,12 @@ def test_controlled_override_selects_one_collection_task_and_discovery_mode() ->
     assert scheduler["W2_FUTURE_FIXTURE_REFRESH_ENABLED"] == "true"
     assert worker["W2_PROVIDER_HTTP_MAX_ATTEMPTS"] == "1"
     assert scheduler["W2_PROVIDER_HTTP_MAX_ATTEMPTS"] == "1"
-    assert worker["W2_PROVIDER_DAILY_HARD_CAP"] == "80"
-    assert scheduler["W2_PROVIDER_DAILY_HARD_CAP"] == "80"
+    assert worker["W2_PROVIDER_DAILY_HARD_CAP"] == "70"
+    assert scheduler["W2_PROVIDER_DAILY_HARD_CAP"] == "70"
     assert worker["W2_POSTMATCH_RESULT_DAILY_HARD_CAP"] == "20"
     assert scheduler["W2_POSTMATCH_RESULT_DAILY_HARD_CAP"] == "20"
+    assert worker["W2_PROVIDER_DAILY_UNALLOCATED_BUFFER"] == "10"
+    assert scheduler["W2_PROVIDER_DAILY_UNALLOCATED_BUFFER"] == "10"
     assert worker["W2_PROVIDER_PREFLIGHT_MIN_REMAINING"] == "20"
     assert scheduler["W2_PROVIDER_PREFLIGHT_MIN_REMAINING"] == "20"
     assert worker["W2_CANDIDATE_ENABLED"] == "true"

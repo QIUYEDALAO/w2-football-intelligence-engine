@@ -47,7 +47,7 @@
       },
       "odds_max_age_seconds": 3600,
       "lineup_requirement": "ADVISORY",
-      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 80, "quota_reserve": 20},
+      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 70, "quota_reserve": 20},
       "provider_allowlist": ["status", "fixtures", "odds", "lineups"],
       "feature_enrichment_policy": {"injuries": "DISABLED_BY_POLICY", "statistics": "DISABLED_BY_POLICY"}
     },
@@ -80,7 +80,7 @@
       },
       "odds_max_age_seconds": 3600,
       "lineup_requirement": "ADVISORY",
-      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 80, "quota_reserve": 20},
+      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 70, "quota_reserve": 20},
       "provider_allowlist": ["status", "fixtures", "odds", "lineups"],
       "feature_enrichment_policy": {"injuries": "DISABLED_BY_POLICY", "statistics": "DISABLED_BY_POLICY"}
     },
@@ -113,7 +113,7 @@
       },
       "odds_max_age_seconds": 3600,
       "lineup_requirement": "ADVISORY",
-      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 80, "quota_reserve": 20},
+      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 70, "quota_reserve": 20},
       "provider_allowlist": ["status", "fixtures", "odds", "lineups"],
       "feature_enrichment_policy": {"injuries": "DISABLED_BY_POLICY", "statistics": "DISABLED_BY_POLICY"}
     },
@@ -146,7 +146,7 @@
       },
       "odds_max_age_seconds": 3600,
       "lineup_requirement": "ADVISORY",
-      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 80, "quota_reserve": 20},
+      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 70, "quota_reserve": 20},
       "provider_allowlist": ["status", "fixtures", "odds", "lineups"],
       "feature_enrichment_policy": {"injuries": "DISABLED_BY_POLICY", "statistics": "DISABLED_BY_POLICY"}
     },
@@ -174,7 +174,7 @@
       "endpoint_matrix": {"competition_tick": ["status", "fixtures"], "fixture_tick": ["odds"], "lineup_window": ["lineups"], "audit_extensions_disabled": ["injuries", "statistics"]},
       "odds_max_age_seconds": 3600,
       "lineup_requirement": "ADVISORY",
-      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 80, "quota_reserve": 20},
+      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 70, "quota_reserve": 20},
       "provider_allowlist": ["status", "fixtures", "odds", "lineups"],
       "feature_enrichment_policy": {"injuries": "DISABLED_BY_POLICY", "statistics": "DISABLED_BY_POLICY"}
     },
@@ -202,7 +202,7 @@
       "endpoint_matrix": {"competition_tick": ["status", "fixtures"], "fixture_tick": ["odds"], "lineup_window": ["lineups"], "audit_extensions_disabled": ["injuries", "statistics"]},
       "odds_max_age_seconds": 3600,
       "lineup_requirement": "ADVISORY",
-      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 80, "quota_reserve": 20},
+      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 70, "quota_reserve": 20},
       "provider_allowlist": ["status", "fixtures", "odds", "lineups"],
       "feature_enrichment_policy": {"injuries": "DISABLED_BY_POLICY", "statistics": "DISABLED_BY_POLICY"}
     },
@@ -230,7 +230,7 @@
       "endpoint_matrix": {"competition_tick": ["status", "fixtures"], "fixture_tick": ["odds"], "lineup_window": ["lineups"], "audit_extensions_disabled": ["injuries", "statistics"]},
       "odds_max_age_seconds": 3600,
       "lineup_requirement": "ADVISORY",
-      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 80, "quota_reserve": 20},
+      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 70, "quota_reserve": 20},
       "provider_allowlist": ["status", "fixtures", "odds", "lineups"],
       "feature_enrichment_policy": {"injuries": "DISABLED_BY_POLICY", "statistics": "DISABLED_BY_POLICY"}
     },
@@ -258,7 +258,7 @@
       "endpoint_matrix": {"competition_tick": ["status", "fixtures"], "fixture_tick": ["odds"], "lineup_window": ["lineups"], "audit_extensions_disabled": ["injuries", "statistics"]},
       "odds_max_age_seconds": 3600,
       "lineup_requirement": "ADVISORY",
-      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 80, "quota_reserve": 20},
+      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 70, "quota_reserve": 20},
       "provider_allowlist": ["status", "fixtures", "odds", "lineups"],
       "feature_enrichment_policy": {"injuries": "DISABLED_BY_POLICY", "statistics": "DISABLED_BY_POLICY"}
     },
@@ -286,7 +286,7 @@
       "endpoint_matrix": {"competition_tick": ["status", "fixtures"], "fixture_tick": ["odds"], "lineup_window": ["lineups"], "audit_extensions_disabled": ["injuries", "statistics"]},
       "odds_max_age_seconds": 3600,
       "lineup_requirement": "ADVISORY",
-      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 80, "quota_reserve": 20},
+      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 70, "quota_reserve": 20},
       "provider_allowlist": ["status", "fixtures", "odds", "lineups"],
       "feature_enrichment_policy": {"injuries": "DISABLED_BY_POLICY", "statistics": "DISABLED_BY_POLICY"}
     },
@@ -314,7 +314,7 @@
       "endpoint_matrix": {"competition_tick": ["status", "fixtures"], "fixture_tick": ["odds"], "lineup_window": ["lineups"], "audit_extensions_disabled": ["injuries", "statistics"]},
       "odds_max_age_seconds": 3600,
       "lineup_requirement": "ADVISORY",
-      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 80, "quota_reserve": 20},
+      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 70, "quota_reserve": 20},
       "provider_allowlist": ["status", "fixtures", "odds", "lineups"],
       "feature_enrichment_policy": {"injuries": "DISABLED_BY_POLICY", "statistics": "DISABLED_BY_POLICY"}
     },
@@ -342,7 +342,7 @@
       "endpoint_matrix": {"competition_tick": ["status", "fixtures"], "fixture_tick": ["odds"], "lineup_window": ["lineups"], "audit_extensions_disabled": ["injuries", "statistics"]},
       "odds_max_age_seconds": 3600,
       "lineup_requirement": "ADVISORY",
-      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 80, "quota_reserve": 20},
+      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 70, "quota_reserve": 20},
       "provider_allowlist": ["status", "fixtures", "odds", "lineups"],
       "feature_enrichment_policy": {"injuries": "DISABLED_BY_POLICY", "statistics": "DISABLED_BY_POLICY"}
     },
@@ -370,7 +370,7 @@
       "endpoint_matrix": {"competition_tick": ["status", "fixtures"], "fixture_tick": ["odds"], "lineup_window": ["lineups"], "audit_extensions_disabled": ["injuries", "statistics"]},
       "odds_max_age_seconds": 3600,
       "lineup_requirement": "ADVISORY",
-      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 80, "quota_reserve": 20},
+      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 70, "quota_reserve": 20},
       "provider_allowlist": ["status", "fixtures", "odds", "lineups"],
       "feature_enrichment_policy": {"injuries": "DISABLED_BY_POLICY", "statistics": "DISABLED_BY_POLICY"}
     },
@@ -398,7 +398,7 @@
       "endpoint_matrix": {"competition_tick": ["status", "fixtures"], "fixture_tick": ["odds"], "lineup_window": ["lineups"], "audit_extensions_disabled": ["injuries", "statistics"]},
       "odds_max_age_seconds": 3600,
       "lineup_requirement": "ADVISORY",
-      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 80, "quota_reserve": 20},
+      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 70, "quota_reserve": 20},
       "provider_allowlist": ["status", "fixtures", "odds", "lineups"],
       "feature_enrichment_policy": {"injuries": "DISABLED_BY_POLICY", "statistics": "DISABLED_BY_POLICY"}
     },
@@ -426,7 +426,7 @@
       },
       "odds_max_age_seconds": 3600,
       "lineup_requirement": "STRICT",
-      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 80, "quota_reserve": 20},
+      "request_caps": {"tick_hard_cap": 10, "daily_hard_cap": 70, "quota_reserve": 20},
       "provider_allowlist": ["status", "fixtures", "odds", "lineups"],
       "feature_enrichment_policy": {"injuries": "DISABLED_BY_POLICY", "statistics": "DISABLED_BY_POLICY"}
     }

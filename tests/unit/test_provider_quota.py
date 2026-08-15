@@ -11,6 +11,7 @@ from w2.providers.quota import (
     api_football_quota_policy,
     parse_api_football_quota,
     postmatch_result_quota_decision,
+    provider_daily_budget_contract,
     provider_daily_hard_cap_decision,
     quota_guard_decision,
 )
@@ -245,6 +246,22 @@ def test_postmatch_result_quota_spends_reserved_bucket_with_independent_cap() ->
     assert blocked["blocker"] == "RESULT_QUOTA_EXHAUSTED"
 
 
+def test_registered_daily_quota_pools_leave_unallocated_free_plan_buffer() -> None:
+    baseline = provider_daily_budget_contract()
+    invalid = provider_daily_budget_contract(pool_limits={"GENERAL": 100, "POSTMATCH_RESULT": 20})
+
+    assert baseline == {
+        "pool_limits": {"GENERAL": 70, "POSTMATCH_RESULT": 20},
+        "allocated_budget": 90,
+        "unallocated_buffer": 10,
+        "configured_total": 100,
+        "provider_limit": 100,
+        "valid": True,
+    }
+    assert invalid["configured_total"] == 130
+    assert invalid["valid"] is False
+
+
 def test_provider_daily_hard_cap_blocks_exhaustion() -> None:
     decision = provider_daily_hard_cap_decision(
         actual_calls_today=7495,
@@ -331,10 +348,13 @@ def test_matchday_refresh_projected_calls_feed_hard_stop_contract() -> None:
 
 
 def test_independent_signal_budget_allows_only_prematch_when_quota_unknown() -> None:
-    assert independent_signal_quota_decision(
-        remaining_quota=None,
-        task_type="prematch_odds",
-    )["allowed"] is True
+    assert (
+        independent_signal_quota_decision(
+            remaining_quota=None,
+            task_type="prematch_odds",
+        )["allowed"]
+        is True
+    )
     blocked = independent_signal_quota_decision(
         remaining_quota="UNKNOWN",
         task_type="team_fixture_history_backfill",
@@ -351,10 +371,13 @@ def test_independent_signal_budget_protects_reserve_and_core_only_thresholds() -
         "squad_value_mapping",
         "ratings_backfill",
     ):
-        assert independent_signal_quota_decision(
-            remaining_quota=1499,
-            task_type=task_type,
-        )["allowed"] is False
+        assert (
+            independent_signal_quota_decision(
+                remaining_quota=1499,
+                task_type=task_type,
+            )["allowed"]
+            is False
+        )
         critical = independent_signal_quota_decision(
             remaining_quota=749,
             task_type=task_type,
@@ -362,11 +385,17 @@ def test_independent_signal_budget_protects_reserve_and_core_only_thresholds() -
         assert critical["allowed"] is False
         assert critical["mode"] == "CORE_ONLY"
 
-    assert independent_signal_quota_decision(
-        remaining_quota=749,
-        task_type="prematch_lineups",
-    )["allowed"] is True
-    assert independent_signal_quota_decision(
-        remaining_quota=6774,
-        task_type="h2h_backfill",
-    )["allowed"] is True
+    assert (
+        independent_signal_quota_decision(
+            remaining_quota=749,
+            task_type="prematch_lineups",
+        )["allowed"]
+        is True
+    )
+    assert (
+        independent_signal_quota_decision(
+            remaining_quota=6774,
+            task_type="h2h_backfill",
+        )["allowed"]
+        is True
+    )

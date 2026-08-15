@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -25,11 +25,13 @@ from w2.infrastructure.persistence.model_forecast_models import (
 from w2.infrastructure.persistence.models import ResultModel
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 
-CAPTURE_SCHEMA = "w2.model_forecast_capture.v1"
-OUTCOME_SCHEMA = "w2.model_forecast_outcome.v1"
+CAPTURE_SCHEMA = "w2.model_forecast_capture.v2"
+OUTCOME_SCHEMA = "w2.model_forecast_outcome.v2"
 MODEL_FAMILY = "EXACT_DC_POISSON"
+CAPTURE_POLICY = "FIRST_ELIGIBLE_FREEZE_IMMUTABLE"
 TERMINAL_RESULT_STATUSES = frozenset({"FT", "AET", "PEN"})
 OUTCOME_CLASSES = ("HOME", "DRAW", "AWAY")
+LEAD_TIME_BUCKETS = ("LT_6H", "H6_TO_LT_24H", "D1_TO_D3", "GT_3D")
 MODEL_FORECAST_CAPTURE_HASH_DOMAIN = HashDomain.FUTURE_REFRESH_EVIDENCE
 MODEL_FORECAST_OUTCOME_HASH_DOMAIN = HashDomain.OUTCOME_LEDGER_PAYLOAD
 MODEL_FORECAST_XG_IDENTITY_HASH_DOMAIN = HashDomain.FUTURE_REFRESH_FIXTURE_IDENTITY
@@ -38,6 +40,23 @@ MODEL_FORECAST_INPUT_MANIFEST_HASH_DOMAIN = HashDomain.FUTURE_REFRESH_EVIDENCE
 
 class ModelForecastLedgerError(ValueError):
     pass
+
+
+def model_forecast_lead_time_bucket(lead_time_seconds: int) -> str:
+    if lead_time_seconds < 0:
+        raise ModelForecastLedgerError("MODEL_FORECAST_LEAD_TIME_NEGATIVE")
+    if lead_time_seconds < 6 * 60 * 60:
+        return "LT_6H"
+    if lead_time_seconds < 24 * 60 * 60:
+        return "H6_TO_LT_24H"
+    if lead_time_seconds <= 3 * 24 * 60 * 60:
+        return "D1_TO_D3"
+    return "GT_3D"
+
+
+def _mean(values: Iterable[float]) -> float | None:
+    rows = list(values)
+    return sum(rows) / len(rows) if rows else None
 
 
 class ModelForecastLedgerRepository:
@@ -170,7 +189,10 @@ class ModelForecastLedgerRepository:
                 )
                 if result is None or result.result_status not in TERMINAL_RESULT_STATUSES:
                     continue
-                outcome = _build_outcome(capture.payload, result=result, settled_at=now)
+                capture_payload = dict(capture.payload)
+                capture_payload.setdefault("lead_time_seconds", capture.lead_time_seconds)
+                capture_payload.setdefault("lead_time_bucket", capture.lead_time_bucket)
+                outcome = _build_outcome(capture_payload, result=result, settled_at=now)
                 outcomes.append(outcome)
                 if write_db:
                     session.add(_outcome_model(outcome, inserted_at=now))
@@ -198,13 +220,32 @@ class ModelForecastLedgerRepository:
             "probability_metrics_sample_count": outcomes,
         }
 
+    def metric_summary_by_lead_time(self) -> dict[str, dict[str, float | int | None]]:
+        with Session(self.engine) as session:
+            outcomes = list(session.scalars(select(ModelForecastOutcomeModel)))
+        rows: dict[str, list[ModelForecastOutcomeModel]] = {
+            bucket: [] for bucket in LEAD_TIME_BUCKETS
+        }
+        for outcome in outcomes:
+            if outcome.lead_time_bucket in rows:
+                rows[outcome.lead_time_bucket].append(outcome)
+        return {
+            bucket: {
+                "sample_count": len(bucket_rows),
+                "mean_brier": _mean(row.brier for row in bucket_rows),
+                "mean_log_loss": _mean(row.log_loss for row in bucket_rows),
+                "mean_rps": _mean(row.rps for row in bucket_rows),
+            }
+            for bucket, bucket_rows in rows.items()
+        }
+
     def integrity(self) -> dict[str, Any]:
         invalid_captures: list[str] = []
         invalid_outcomes: list[str] = []
         with Session(self.engine) as session:
             captures = list(session.scalars(select(ModelForecastCaptureModel)))
             outcomes = list(session.scalars(select(ModelForecastOutcomeModel)))
-        capture_hashes = {row.capture_identity_hash for row in captures}
+        captures_by_hash = {row.capture_identity_hash: row for row in captures}
         for capture_row in captures:
             payload = dict(capture_row.payload)
             identity_payload = {
@@ -212,6 +253,10 @@ class ModelForecastLedgerRepository:
             }
             valid = (
                 capture_row.captured_at < capture_row.kickoff_utc
+                and capture_row.lead_time_seconds
+                == int((capture_row.kickoff_utc - capture_row.captured_at).total_seconds())
+                and capture_row.lead_time_bucket
+                == model_forecast_lead_time_bucket(capture_row.lead_time_seconds)
                 and capture_row.payload_sha256
                 == canonical_sha256(payload, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN)
                 and capture_row.capture_identity_hash
@@ -236,7 +281,11 @@ class ModelForecastLedgerRepository:
                 domain=MODEL_FORECAST_OUTCOME_HASH_DOMAIN,
             )
             valid = (
-                outcome_row.capture_identity_hash in capture_hashes
+                outcome_row.capture_identity_hash in captures_by_hash
+                and outcome_row.lead_time_seconds
+                == captures_by_hash[outcome_row.capture_identity_hash].lead_time_seconds
+                and outcome_row.lead_time_bucket
+                == captures_by_hash[outcome_row.capture_identity_hash].lead_time_bucket
                 and outcome_row.payload_sha256
                 == canonical_sha256(payload, domain=MODEL_FORECAST_OUTCOME_HASH_DOMAIN)
                 and outcome_row.outcome_identity_hash == expected_identity
@@ -444,6 +493,8 @@ def _build_capture(
     kickoff = _parse_time(card.get("kickoff_utc"))
     if not fixture_id or not competition_id or kickoff is None or captured_at >= kickoff:
         raise ModelForecastLedgerError("MODEL_FORECAST_CAPTURE_NOT_PREMATCH")
+    lead_time_seconds = int((kickoff - captured_at).total_seconds())
+    lead_time_bucket = model_forecast_lead_time_bucket(lead_time_seconds)
     core = {
         "schema_version": CAPTURE_SCHEMA,
         "fixture_identity": {
@@ -453,6 +504,9 @@ def _build_capture(
         "competition_identity": {"competition_id": competition_id},
         "kickoff_utc": _iso(kickoff),
         "captured_at": _iso(captured_at),
+        "lead_time_seconds": lead_time_seconds,
+        "lead_time_bucket": lead_time_bucket,
+        "capture_policy": CAPTURE_POLICY,
         "model_family": MODEL_FAMILY,
         "model_version": str(simulation.get("model_version") or ""),
         "calibration_version": _required_text(
@@ -508,6 +562,8 @@ def _build_outcome(
     rps = sum(rps_terms) / len(rps_terms)
     confidence_class = max(OUTCOME_CLASSES, key=lambda key: (vector[key], key))
     result_identity = _sha(result.result_hash, "authoritative_result_identity")
+    lead_time_seconds = int(capture["lead_time_seconds"])
+    lead_time_bucket = model_forecast_lead_time_bucket(lead_time_seconds)
     core = {
         "schema_version": OUTCOME_SCHEMA,
         "capture_identity_hash": capture.get("capture_identity_hash"),
@@ -522,6 +578,8 @@ def _build_outcome(
         "brier": round(brier, 12),
         "log_loss": round(log_loss, 12),
         "rps": round(rps, 12),
+        "lead_time_seconds": lead_time_seconds,
+        "lead_time_bucket": lead_time_bucket,
         "ece_input": {
             "predicted_class": confidence_class,
             "confidence": vector[confidence_class],
@@ -547,6 +605,8 @@ def _capture_model(
         competition_id=str(_mapping(payload["competition_identity"])["competition_id"]),
         kickoff_utc=_utc(_parse_time(payload["kickoff_utc"]), "kickoff_utc"),
         captured_at=_utc(_parse_time(payload["captured_at"]), "captured_at"),
+        lead_time_seconds=int(payload["lead_time_seconds"]),
+        lead_time_bucket=str(payload["lead_time_bucket"]),
         model_family=str(payload["model_family"]),
         model_version=str(payload["model_version"]),
         model_input_manifest_hash=str(payload["model_input_manifest_hash"]),
@@ -571,6 +631,8 @@ def _outcome_model(
         brier=float(payload["brier"]),
         log_loss=float(payload["log_loss"]),
         rps=float(payload["rps"]),
+        lead_time_seconds=int(payload["lead_time_seconds"]),
+        lead_time_bucket=str(payload["lead_time_bucket"]),
         settled_at=_utc(_parse_time(payload["settled_at"]), "settled_at"),
         payload=dict(payload),
         payload_sha256=canonical_sha256(payload, domain=MODEL_FORECAST_OUTCOME_HASH_DOMAIN),
