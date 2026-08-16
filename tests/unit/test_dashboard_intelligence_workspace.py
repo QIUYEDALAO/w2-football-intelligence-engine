@@ -2344,14 +2344,12 @@ def test_approved_public_label_authority_reuses_existing_product_labels() -> Non
 def test_unreviewed_future_team_labels_are_not_self_approved() -> None:
     unreviewed_team_ids = {
         "w2:team:api_football:2149",
-        "w2:team:api_football:2170",
         "w2:team:api_football:319",
         "w2:team:api_football:325",
         "w2:team:api_football:326",
         "w2:team:api_football:329",
         "w2:team:api_football:332",
         "w2:team:api_football:333",
-        "w2:team:api_football:377",
         "w2:team:api_football:757",
     }
     labels = reviewed_public_team_labels()
@@ -2359,10 +2357,18 @@ def test_unreviewed_future_team_labels_are_not_self_approved() -> None:
     assert unreviewed_team_ids.isdisjoint(labels)
 
 
-def test_r15_allsvenskan_candidates_remain_pending_owner_review() -> None:
+def test_r16_allsvenskan_candidates_are_owner_approved() -> None:
+    labels = reviewed_public_team_labels()
     pending = pending_public_team_labels()
 
-    assert pending == {
+    assert pending == {}
+    assert {
+        team_id: labels[team_id]
+        for team_id in (
+            "w2:team:api_football:2170",
+            "w2:team:api_football:377",
+        )
+    } == {
         "w2:team:api_football:2170": "哥德堡盖斯",
         "w2:team:api_football:377": "AIK索尔纳",
     }

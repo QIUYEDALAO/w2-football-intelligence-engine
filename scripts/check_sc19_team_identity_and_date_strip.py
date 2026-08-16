@@ -26,12 +26,12 @@ def main() -> None:
     assert coverage["target_football_day"]["recoverable_placeholder_count"] == 0
     assert trace["provider_calls"] == trace["db_writes"] == 0
     assert coverage["provider_calls"] == coverage["db_writes"] == 0
-    assert sum(entry["review_status"] == "APPROVED" for entry in labels["entries"]) == 64
+    assert sum(entry["review_status"] == "APPROVED" for entry in labels["entries"]) == 66
     assert {
         int(str(entry["w2_team_id"]).rsplit(":", 1)[-1])
         for entry in labels["entries"]
         if entry["review_status"] == "PENDING_OWNER_REVIEW"
-    } == {2170, 377}
+    } == set()
 
     date_strip = (ROOT / "src/w2/dashboard/date_strip.py").read_text(encoding="utf-8")
     repository = (ROOT / "src/w2/api/repository.py").read_text(encoding="utf-8")

@@ -126,6 +126,7 @@ def test_deploy_is_pull_only_and_health_checked() -> None:
     assert "http://127.0.0.1:18000/ready" in text
     assert "http://127.0.0.1:18000/v1/version" in text
     assert "http://127.0.0.1:18080/meta.json" in text
+    assert "http://127.0.0.1:18080/v1/dashboard/intelligence-workspace" in text
     assert "org.opencontainers.image.revision" in text
     assert "org.opencontainers.image.created" in text
     assert "w2.release.id" in text
@@ -137,6 +138,9 @@ def test_deploy_is_pull_only_and_health_checked() -> None:
     assert "W2_API_OCI_DIGEST" in text
     assert "W2_API_REGISTRY_DIGEST" in text
     assert "w2.release_record.v1" in text
+    assert "W2_PUBLIC_RESPONSE_SCHEMA_TOUCHED must be YES or NO" in text
+    assert '"public_response_schema_touched"' in text
+    assert '"workspace_http_status": "PASS"' in text
     assert "<<'PY' | sudo tee \\" in text
     assert "release.previous.env" in text
     assert "target_seconds=120" in text

@@ -11,6 +11,7 @@ PYTHON_IMAGE="$2"
 WEB_IMAGE="$3"
 DEPLOY_MODE="${4:-all}"
 REVISION="${W2_GIT_SHA:-$(git rev-parse HEAD)}"
+PUBLIC_RESPONSE_SCHEMA_TOUCHED="${W2_PUBLIC_RESPONSE_SCHEMA_TOUCHED:-}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if [[ ! "${REVISION}" =~ ^[0-9a-f]{40}$ ]]; then
@@ -19,6 +20,11 @@ if [[ ! "${REVISION}" =~ ^[0-9a-f]{40}$ ]]; then
 fi
 if [ "${DEPLOY_MODE}" != "all" ] && [ "${DEPLOY_MODE}" != "web" ]; then
   echo "deploy mode must be all or web" >&2
+  exit 2
+fi
+if [ "${PUBLIC_RESPONSE_SCHEMA_TOUCHED}" != "YES" ] && \
+  [ "${PUBLIC_RESPONSE_SCHEMA_TOUCHED}" != "NO" ]; then
+  echo "W2_PUBLIC_RESPONSE_SCHEMA_TOUCHED must be YES or NO" >&2
   exit 2
 fi
 IMAGE_REF_RE='^(ghcr\.io/[a-z0-9._/-]+|127\.0\.0\.1:5000/w2/[a-z0-9._/-]+)@sha256:[0-9a-f]{64}$'
@@ -59,13 +65,14 @@ scp "${TMP_DIR}/compose.staging.yml" "${TMP_DIR}/controlled-future-refresh.overr
 
 ssh "${SSH_HOST}" bash -s -- \
   "${REVISION}" "${DEPLOY_MODE}" "${PYTHON_IMAGE}" "${WEB_IMAGE}" \
-  "${REMOTE_TMP_DIR}" <<'REMOTE'
+  "${REMOTE_TMP_DIR}" "${PUBLIC_RESPONSE_SCHEMA_TOUCHED}" <<'REMOTE'
 set -Eeuo pipefail
 REVISION="$1"
 DEPLOY_MODE="$2"
 PYTHON_IMAGE="$3"
 WEB_IMAGE="$4"
 REMOTE_TMP_DIR="$5"
+PUBLIC_RESPONSE_SCHEMA_TOUCHED="$6"
 if [ "${REMOTE_TMP_DIR}" != "/tmp/w2-deploy-${REVISION}" ] || \
   [ ! -d "${REMOTE_TMP_DIR}" ] || [ -L "${REMOTE_TMP_DIR}" ]; then
   echo "invalid remote deployment staging directory" >&2
@@ -102,7 +109,11 @@ verify_runtime() {
       curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/v1/version
     )" &&
     curl -fsS --connect-timeout 3 --max-time 8 \
-      http://127.0.0.1:18080/meta.json >/dev/null || return 1
+      http://127.0.0.1:18080/meta.json >/dev/null &&
+    workspace_date="$(TZ=Asia/Shanghai date +%F)" &&
+    curl -fsS --connect-timeout 3 --max-time 15 \
+      "http://127.0.0.1:18080/v1/dashboard/intelligence-workspace?date=${workspace_date}&timezone=Asia%2FShanghai" \
+      >/dev/null || return 1
 
   printf '%s' "${version_json}" |
     python3 -c '
@@ -277,7 +288,8 @@ python3 - \
   "${PYTHON_ACTUAL_REF}" "${PYTHON_IMAGE_ID}" "${PYTHON_REGISTRY_DIGEST}" \
   "${PYTHON_CREATED}" "${PYTHON_RELEASE_ID}" \
   "${WEB_ACTUAL_REF}" "${WEB_IMAGE_ID}" "${WEB_REGISTRY_DIGEST}" \
-  "${WEB_CREATED}" "${WEB_REVISION}" "${WEB_RELEASE_ID}" <<'PY' | sudo tee \
+  "${WEB_CREATED}" "${WEB_REVISION}" "${WEB_RELEASE_ID}" \
+  "${PUBLIC_RESPONSE_SCHEMA_TOUCHED}" <<'PY' | sudo tee \
   "/opt/w2/shared/releases/${REVISION}.json" >/dev/null
 import json
 import sys
@@ -299,6 +311,7 @@ from datetime import UTC, datetime
     web_created,
     web_revision,
     web_release_id,
+    public_response_schema_touched,
 ) = sys.argv[1:]
 print(json.dumps({
     "schema_version": "w2.release_record.v1",
@@ -324,6 +337,8 @@ print(json.dumps({
         "created": web_created,
         "release_id": web_release_id,
     },
+    "public_response_schema_touched": public_response_schema_touched == "YES",
+    "workspace_http_status": "PASS",
     "status": "PASS",
     "recorded_at": datetime.now(UTC).isoformat(),
 }, sort_keys=True))
