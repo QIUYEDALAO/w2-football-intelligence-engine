@@ -795,7 +795,7 @@ class FutureFixtureRefreshService:
         self._checkpoint_attempted_plan_ids: set[str] = set()
         self._checkpoint_preflight_failures: set[str] = set()
         self._identity_pool_expansions: list[dict[str, Any]] = []
-        self._provider_usage_evidence: dict[str, int | bool] = {}
+        self._provider_usage_evidence: dict[str, Any] = {}
 
     def _db_repository(self) -> FutureRefreshDbRepository:
         return FutureRefreshDbRepository()
@@ -930,6 +930,16 @@ class FutureFixtureRefreshService:
                     "run_audit_calls_today": preflight.get("run_audit_count"),
                     "billable_from_provider": preflight.get("billable_from_provider"),
                     "local_ledger_count": preflight.get("local_ledger_count"),
+                    "last_authority_at": preflight.get("last_authority_at"),
+                    "authority_age_seconds": preflight.get("authority_age_seconds"),
+                    "dispatched_count": preflight.get("dispatched_count"),
+                    "dispatched_since_authority_count": preflight.get(
+                        "dispatched_since_authority_count"
+                    ),
+                    "attempt_count": preflight.get("attempt_count"),
+                    "quota_degradation_classification": preflight.get(
+                        "quota_degradation_classification"
+                    ),
                     "quota_authority_status": preflight.get("quota_authority_status"),
                     "quota_authority_observed_at": preflight.get(
                         "quota_authority_observed_at"
@@ -975,6 +985,16 @@ class FutureFixtureRefreshService:
                     "run_audit_calls_today": preflight.get("run_audit_count"),
                     "billable_from_provider": preflight.get("billable_from_provider"),
                     "local_ledger_count": preflight.get("local_ledger_count"),
+                    "last_authority_at": preflight.get("last_authority_at"),
+                    "authority_age_seconds": preflight.get("authority_age_seconds"),
+                    "dispatched_count": preflight.get("dispatched_count"),
+                    "dispatched_since_authority_count": preflight.get(
+                        "dispatched_since_authority_count"
+                    ),
+                    "attempt_count": preflight.get("attempt_count"),
+                    "quota_degradation_classification": preflight.get(
+                        "quota_degradation_classification"
+                    ),
                     "quota_authority_status": preflight.get("quota_authority_status"),
                     "quota_authority_observed_at": preflight.get(
                         "quota_authority_observed_at"
@@ -1968,6 +1988,7 @@ class FutureFixtureRefreshService:
             ]
             if self._provider_usage_evidence.get("quota_authority_degraded") is True:
                 statuses.append("QUOTA_AUTHORITY_DEGRADED")
+                statuses.append("EXPECTED_DEGRADED")
             if self._provider_usage_evidence.get("quota_usage_ledger_divergence") is True:
                 statuses.append("QUOTA_USAGE_LEDGER_DIVERGENCE")
             decision["operational_statuses"] = statuses
@@ -1990,6 +2011,7 @@ class FutureFixtureRefreshService:
         statuses = []
         if self._provider_usage_evidence.get("quota_authority_degraded") is True:
             statuses.append("QUOTA_AUTHORITY_DEGRADED")
+            statuses.append("EXPECTED_DEGRADED")
         if self._provider_usage_evidence.get("quota_usage_ledger_divergence") is True:
             statuses.append("QUOTA_USAGE_LEDGER_DIVERGENCE")
         decision["operational_statuses"] = statuses

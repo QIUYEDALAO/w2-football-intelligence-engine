@@ -3089,6 +3089,15 @@ class FutureRefreshDbRepository:
                         ProviderRequestLogModel.requested_at >= since_utc,
                     )
                 )
+                dispatched_requests = session.scalar(
+                    select(func.count())
+                    .select_from(ProviderRequestLogModel)
+                    .where(
+                        ProviderRequestLogModel.provider == "api_football",
+                        ProviderRequestLogModel.live.is_(True),
+                        ProviderRequestLogModel.requested_at >= since_utc,
+                    )
+                )
                 quota_usage = (
                     session.execute(
                         select(
@@ -3109,7 +3118,8 @@ class FutureRefreshDbRepository:
         quota_observed_at = quota_usage[1] if quota_usage is not None else None
         run_audit_count = int(future_refresh_requests or 0)
         provider_ledger_count = int(provider_request_logs or 0)
-        local_count = max(run_audit_count, provider_ledger_count)
+        dispatched_count = int(dispatched_requests or 0)
+        attempt_count = max(run_audit_count, provider_ledger_count)
         reference = parse_db_datetime(as_of or datetime.now(UTC))
         observed = parse_db_datetime(quota_observed_at) if quota_observed_at else None
         age_seconds = max(int((reference - observed).total_seconds()), 0) if observed else None
@@ -3120,8 +3130,32 @@ class FutureRefreshDbRepository:
             and age_seconds is not None
             and age_seconds <= max_age_seconds
         )
-        known_count = quota_usage_count if authority_ready else local_count
-        delta = local_count - quota_usage_count
+        try:
+            if observed is not None:
+                with Session(self.engine) as session:
+                    dispatched_since_authority = int(
+                        session.scalar(
+                            select(func.count())
+                            .select_from(ProviderRequestLogModel)
+                            .where(
+                                ProviderRequestLogModel.provider == "api_football",
+                                ProviderRequestLogModel.live.is_(True),
+                                ProviderRequestLogModel.requested_at > observed,
+                                ProviderRequestLogModel.requested_at >= since_utc,
+                            )
+                        )
+                        or 0
+                    )
+            else:
+                dispatched_since_authority = dispatched_count
+        except Exception as exc:
+            raise FutureRefreshPersistenceError("REQUEST_COUNT_READ_FAILED") from exc
+        known_count = (
+            quota_usage_count
+            if authority_ready
+            else quota_usage_count + dispatched_since_authority
+        )
+        delta = attempt_count - quota_usage_count
         return {
             "known_count": known_count,
             "quota_usage_count": quota_usage_count,
@@ -3129,8 +3163,16 @@ class FutureRefreshDbRepository:
             "provider_ledger_count": provider_ledger_count,
             "billable_from_provider": quota_usage_count if observed is not None else None,
             "local_ledger_count": provider_ledger_count,
+            "last_authority_at": iso_z(observed) if observed else None,
+            "authority_age_seconds": age_seconds,
+            "dispatched_count": dispatched_count,
+            "dispatched_since_authority_count": dispatched_since_authority,
+            "attempt_count": attempt_count,
             "quota_authority_status": "AUTHORITATIVE" if authority_ready else "DEGRADED",
             "quota_authority_degraded": not authority_ready,
+            "quota_degradation_classification": (
+                None if authority_ready else "EXPECTED_DEGRADED"
+            ),
             "quota_authority_observed_at": iso_z(observed) if observed else None,
             "quota_authority_age_seconds": age_seconds,
             "quota_authority_max_age_seconds": max_age_seconds,
@@ -3166,6 +3208,7 @@ class FutureRefreshDbRepository:
                         .select_from(ProviderRequestLogModel)
                         .where(
                             ProviderRequestLogModel.provider == "api_football",
+                            ProviderRequestLogModel.live.is_(True),
                             ProviderRequestLogModel.requested_at >= since_utc,
                             ProviderRequestLogModel.status_code >= 200,
                             ProviderRequestLogModel.status_code < 300,

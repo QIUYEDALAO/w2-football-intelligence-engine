@@ -1012,8 +1012,14 @@ def test_future_refresh_surfaces_quota_usage_ledger_divergence(
                 "provider_ledger_count": 135,
                 "billable_from_provider": 10,
                 "local_ledger_count": 135,
+                "last_authority_at": NOW.isoformat(),
+                "authority_age_seconds": 0,
+                "dispatched_count": 135,
+                "dispatched_since_authority_count": 0,
+                "attempt_count": 135,
                 "quota_authority_status": "AUTHORITATIVE",
                 "quota_authority_degraded": False,
+                "quota_degradation_classification": None,
                 "quota_usage_ledger_delta": 125,
                 "quota_usage_ledger_divergence": True,
             }
@@ -1077,6 +1083,64 @@ def test_future_refresh_surfaces_quota_usage_ledger_divergence(
     assert postmatch_decision["allowed"] is True, postmatch_decision
     assert postmatch_decision["actual_calls_today"] == 10
     assert postmatch_decision["operational_status"] == "QUOTA_USAGE_LEDGER_DIVERGENCE"
+
+
+def test_future_refresh_classifies_stale_quota_authority_as_expected_degraded(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "1")
+
+    class Repository:
+        @staticmethod
+        def fixture_payloads() -> list[dict[str, Any]]:
+            return []
+
+        @staticmethod
+        def request_count_evidence_since(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+            return {
+                "known_count": 12,
+                "quota_usage_count": 10,
+                "run_audit_count": 135,
+                "provider_ledger_count": 135,
+                "billable_from_provider": 10,
+                "local_ledger_count": 135,
+                "last_authority_at": "2026-06-23T07:00:00Z",
+                "authority_age_seconds": 10800,
+                "dispatched_count": 135,
+                "dispatched_since_authority_count": 2,
+                "attempt_count": 135,
+                "quota_authority_status": "DEGRADED",
+                "quota_authority_degraded": True,
+                "quota_degradation_classification": "EXPECTED_DEGRADED",
+                "quota_usage_ledger_delta": 125,
+                "quota_usage_ledger_divergence": True,
+            }
+
+        @staticmethod
+        def successful_request_count_since(_day_start: datetime) -> int:
+            return 135
+
+    service = FutureFixtureRefreshService(
+        client=FakeApiFootballClient(),
+        config=FutureRefreshConfig(
+            runtime_root=tmp_path,
+            persistence="db",
+            daily_hard_cap=70,
+            daily_reserve=0,
+        ),
+        now=NOW,
+    )
+    monkeypatch.setattr(service, "_db_repository", Repository)
+
+    decision = service._provider_hard_cap_preflight()
+
+    assert decision["actual_calls_today"] == 12
+    assert decision["operational_statuses"] == [
+        "QUOTA_AUTHORITY_DEGRADED",
+        "EXPECTED_DEGRADED",
+        "QUOTA_USAGE_LEDGER_DIVERGENCE",
+    ]
 
 
 def test_future_refresh_blocks_when_header_remaining_below_preflight_minimum(

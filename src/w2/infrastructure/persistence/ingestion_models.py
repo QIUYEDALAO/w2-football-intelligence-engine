@@ -38,6 +38,7 @@ class ProviderRequestLogModel(Base):
     provider: Mapped[str] = mapped_column(String(64), nullable=False)
     endpoint: Mapped[str] = mapped_column(String(64), nullable=False)
     request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    # True means the request was dispatched over the network, not that Provider billed it.
     live: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     status_code: Mapped[int | None] = mapped_column(Integer)
     requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

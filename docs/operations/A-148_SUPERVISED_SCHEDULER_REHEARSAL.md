@@ -13,8 +13,13 @@
   `W2_POSTMATCH_RESULT_DAILY_HARD_CAP=20` 都是 W2 自设批次前置上限；
   `W2_PROVIDER_DAILY_UNALLOCATED_BUFFER=10` 不属于任何可消费池。
 - 预算判定以新鲜 Provider 响应头/quota_usage 为计费权威；成功调用数与本地请求日志只作诊断。
-- Provider 权威缺失或超过 7200 秒未更新时，才回退到 run audit/provider ledger 最大值，
-  标记 `QUOTA_AUTHORITY_DEGRADED` 并继续保守 fail closed。偏差超过 5 的
+- `provider_request_logs.live=true` 的契约是请求已真实发往 Provider；它不是计费标记。
+  Provider 权威缺失时以当日 `live=true` 发出数保守估计；权威超过 7200 秒未更新时，
+  以最后权威已用量加该时刻后的 `live=true` 发出数保守估计，避免重复计算权威时刻前的请求。
+  审计标记 `QUOTA_AUTHORITY_DEGRADED / EXPECTED_DEGRADED`，并同时输出
+  `last_authority_at / authority_age_seconds / dispatched_count / attempt_count`。该状态引发的
+  赛前采集暂停是预期的保守行为，不是 Provider 额度耗尽或 P0；等待下一次自然真实请求刷新
+  权威口径即可恢复。偏差超过 5 的
   `QUOTA_USAGE_LEDGER_DIVERGENCE` 只作口径告警，不得提高 Provider 已确认用量。
 - 不可逆 POSTMATCH 继续服从独立 20 次 W2 attempt 上限和 capture 预留；不得称为 Provider
   billable 子池。

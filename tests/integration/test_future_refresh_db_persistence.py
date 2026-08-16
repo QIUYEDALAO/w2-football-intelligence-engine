@@ -1977,8 +1977,14 @@ def test_request_count_since_uses_fresh_provider_billing_authority(
         "provider_ledger_count": 80,
         "billable_from_provider": 10,
         "local_ledger_count": 80,
+        "last_authority_at": "2026-06-23T10:00:00Z",
+        "authority_age_seconds": 0,
+        "dispatched_count": 80,
+        "dispatched_since_authority_count": 0,
+        "attempt_count": 80,
         "quota_authority_status": "AUTHORITATIVE",
         "quota_authority_degraded": False,
+        "quota_degradation_classification": None,
         "quota_authority_observed_at": "2026-06-23T10:00:00Z",
         "quota_authority_age_seconds": 0,
         "quota_authority_max_age_seconds": 7200,
@@ -1995,8 +2001,13 @@ def test_request_count_since_degrades_to_local_evidence_when_provider_usage_is_s
     engine = create_engine(get_settings().database_url.get_secret_value())
     since = NOW.replace(hour=0, minute=0, second=0, microsecond=0)
     with Session(engine) as session:
+        stale_observed_at = NOW - timedelta(hours=3)
         for index in range(12):
-            requested_at = since + timedelta(seconds=index)
+            requested_at = (
+                since + timedelta(seconds=index)
+                if index < 9
+                else stale_observed_at + timedelta(seconds=index - 8)
+            )
             session.add(
                 ProviderRequestLogModel(
                     provider="api_football",
@@ -2016,18 +2027,82 @@ def test_request_count_since_degrades_to_local_evidence_when_provider_usage_is_s
                 limit=100,
                 window_start=since,
                 window_end=since + timedelta(days=1),
-                observed_at=NOW - timedelta(hours=3),
+                observed_at=stale_observed_at,
             )
         )
         session.commit()
 
     evidence = FutureRefreshDbRepository().request_count_evidence_since(since, as_of=NOW)
 
-    assert evidence["known_count"] == 12
+    assert evidence["known_count"] == 7
     assert evidence["quota_authority_status"] == "DEGRADED"
     assert evidence["quota_authority_degraded"] is True
     assert evidence["billable_from_provider"] == 4
     assert evidence["local_ledger_count"] == 12
+    assert evidence["dispatched_count"] == 12
+    assert evidence["dispatched_since_authority_count"] == 3
+    assert evidence["attempt_count"] == 12
+    assert evidence["quota_degradation_classification"] == "EXPECTED_DEGRADED"
+
+
+def test_stale_quota_authority_counts_only_dispatches_after_authority(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    since = NOW.replace(hour=0, minute=0, second=0, microsecond=0)
+    observed_at = NOW - timedelta(hours=3)
+    with Session(engine) as session:
+        session.add(
+            FutureRefreshRunAuditModel(
+                generated_at=NOW - timedelta(hours=1),
+                competition_id="attempt-heavy",
+                request_count=100,
+                remaining_quota=None,
+                fixture_count=0,
+                mapping_count=0,
+                market_snapshot_count=0,
+                ledger_appended_count=0,
+                selected_market_fixture_ids=[],
+                blockers=[],
+                requests=[],
+                candidate=False,
+                formal_recommendation=False,
+            )
+        )
+        for index in range(2):
+            requested_at = observed_at + timedelta(minutes=index + 1)
+            session.add(
+                ProviderRequestLogModel(
+                    provider="api_football",
+                    endpoint="fixtures",
+                    request_hash=f"{index + 100:064x}",
+                    live=True,
+                    status_code=200,
+                    requested_at=requested_at,
+                    completed_at=requested_at,
+                )
+            )
+        session.add(
+            QuotaUsageModel(
+                provider="api_football",
+                endpoint="status",
+                used=4,
+                limit=100,
+                window_start=since,
+                window_end=since + timedelta(days=1),
+                observed_at=observed_at,
+            )
+        )
+        session.commit()
+
+    evidence = FutureRefreshDbRepository().request_count_evidence_since(since, as_of=NOW)
+
+    assert evidence["known_count"] == 6
+    assert evidence["attempt_count"] == 100
+    assert evidence["dispatched_count"] == 2
+    assert evidence["dispatched_since_authority_count"] == 2
 
 
 def test_provider_quota_snapshot_uses_strictest_persisted_remaining(
