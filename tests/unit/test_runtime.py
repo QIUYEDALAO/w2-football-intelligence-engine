@@ -110,6 +110,7 @@ def test_fixture_discovery_enqueues_the_canonical_refresh_task(
     now = datetime(2026, 8, 8, 5, tzinfo=UTC)
     monkeypatch.setenv("W2_FIXTURE_DISCOVERY_ENABLED", "true")
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setenv("W2_FIXTURE_DISCOVERY_MAX_OFFSET_DAYS", "1")
     monkeypatch.setattr(
         scheduler_main,
         "datetime",
@@ -147,6 +148,7 @@ def test_fixture_discovery_enqueues_the_canonical_refresh_task(
     assert sent[0]["name"] == "w2.future_fixture_refresh"
     assert sent[0]["kwargs"]["task_key"] == result["task_key"]
     assert sent[0]["kwargs"]["discovery_date"] == result["discovery_date"]
+    assert result["discovery_date"] in {"2026-08-08", "2026-08-09"}
 
 
 def test_scheduler_future_refresh_intersects_runtime_allowlist(monkeypatch) -> None:

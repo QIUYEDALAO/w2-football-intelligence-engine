@@ -23,6 +23,7 @@ DEFAULT_CHECKPOINT_POLL_SECONDS = 60
 DEFAULT_XG_BACKFILL_INTERVAL_SECONDS = 6 * 60 * 60
 DEFAULT_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS = 10 * 60
 DEFAULT_FIXTURE_DISCOVERY_INTERVAL_SECONDS = 5 * 60
+DEFAULT_FIXTURE_DISCOVERY_MAX_OFFSET_DAYS = 7
 
 
 @dataclass(frozen=True)
@@ -90,6 +91,19 @@ def fixture_discovery_interval_seconds() -> int:
         return DEFAULT_FIXTURE_DISCOVERY_INTERVAL_SECONDS
 
 
+def fixture_discovery_max_offset_days() -> int:
+    try:
+        value = int(
+            os.environ.get(
+                "W2_FIXTURE_DISCOVERY_MAX_OFFSET_DAYS",
+                str(DEFAULT_FIXTURE_DISCOVERY_MAX_OFFSET_DAYS),
+            )
+        )
+    except ValueError:
+        return DEFAULT_FIXTURE_DISCOVERY_MAX_OFFSET_DAYS
+    return min(max(value, 0), DEFAULT_FIXTURE_DISCOVERY_MAX_OFFSET_DAYS)
+
+
 def fixture_discovery_tick() -> dict[str, object]:
     if not fixture_discovery_enabled():
         return {
@@ -113,7 +127,7 @@ def fixture_discovery_tick() -> dict[str, object]:
     from w2.matchday.timezone import BeijingOperationalDayPolicy
 
     operational_date = BeijingOperationalDayPolicy().current_window(now_utc=now).local_date
-    offset = (int(now.timestamp()) // interval) % 8
+    offset = (int(now.timestamp()) // interval) % (fixture_discovery_max_offset_days() + 1)
     discovery_date = (operational_date + timedelta(days=offset)).isoformat()
     task_key = f"fixture-discovery:{operational_date.isoformat()}:{discovery_date}"
     competition_ids = matchday_checkpoint_competition_ids()
