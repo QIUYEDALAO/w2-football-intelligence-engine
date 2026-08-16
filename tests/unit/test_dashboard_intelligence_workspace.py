@@ -2341,27 +2341,24 @@ def test_approved_public_label_authority_reuses_existing_product_labels() -> Non
     assert ready["display_name"] == "天狼星"
 
 
-def test_unreviewed_future_team_labels_are_not_self_approved() -> None:
-    unreviewed_team_ids = {
-        "w2:team:api_football:2149",
-        "w2:team:api_football:319",
-        "w2:team:api_football:325",
-        "w2:team:api_football:326",
-        "w2:team:api_football:329",
-        "w2:team:api_football:332",
-        "w2:team:api_football:333",
-        "w2:team:api_football:757",
-    }
-    labels = reviewed_public_team_labels()
-
-    assert unreviewed_team_ids.isdisjoint(labels)
-
-
-def test_r16_allsvenskan_candidates_are_owner_approved() -> None:
+def test_r18_eliteserien_candidates_are_owner_approved() -> None:
     labels = reviewed_public_team_labels()
     pending = pending_public_team_labels()
 
-    assert pending == {
+    assert pending == {}
+    assert {
+        team_id: labels[team_id]
+        for team_id in (
+            "w2:team:api_football:2149",
+            "w2:team:api_football:319",
+            "w2:team:api_football:325",
+            "w2:team:api_football:326",
+            "w2:team:api_football:329",
+            "w2:team:api_football:332",
+            "w2:team:api_football:333",
+            "w2:team:api_football:757",
+        )
+    } == {
         "w2:team:api_football:2149": "费德列斯达",
         "w2:team:api_football:319": "布兰",
         "w2:team:api_football:325": "特罗姆瑟",
@@ -2371,6 +2368,13 @@ def test_r16_allsvenskan_candidates_are_owner_approved() -> None:
         "w2:team:api_football:333": "萨尔普斯堡08",
         "w2:team:api_football:757": "阿勒桑",
     }
+
+
+def test_r16_allsvenskan_candidates_remain_owner_approved() -> None:
+    labels = reviewed_public_team_labels()
+    pending = pending_public_team_labels()
+
+    assert pending == {}
     assert {
         team_id: labels[team_id]
         for team_id in (
