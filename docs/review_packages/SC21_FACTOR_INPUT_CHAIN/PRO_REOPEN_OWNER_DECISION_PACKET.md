@@ -1,14 +1,13 @@
 # PRO_REOPEN_OWNER_DECISION_PACKET
 
-Status: OWNER_DECISION_PACKET_INCOMPLETE_GATE4
+Status: PRO_ACTIVE_BACKFILL_DRY_RUN_AWAITING_OWNER_CONFIRMATION
 
-This packet does not authorize a Pro purchase or renewal. The current decision remains
-`NOT_PURCHASED_NOT_RENEWED` until the Owner explicitly changes it.
+Owner 已于 2026-08-16 开通 Pro。本包不授权续费，也不自动授权 Statistics 补仓；
+补仓仍等待 Owner 对 R23 dry-run 的明确确认。
 
-> R20 容量复核：本包不以“Free 日限不足”作为购买 Pro 的论据。当前账号响应仍为 `Free`，
-> `x-ratelimit-requests-limit=100`。Owner 已批准未来采用“Provider 总计费 cap 90 + 不可分配
-> buffer 10”，POSTMATCH 20 保持为正交的 request-attempt cap；该调整必须等 R20-2 上线后
-> 完整观察一个 UTC 日再实施。当前决定仍是不购买、不续开 Pro。
+> R24 套餐实测：`subscription.plan=Pro`、`active=true`、到期
+> `2026-09-16T16:10:05Z`，日/分钟额度头为 `7500/300`。R20 的 Free
+> `90/10/20` 方案已经作废；POSTMATCH `20` 继续作为正交 request-attempt cap。
 
 ## 成立基础（首页口径）
 
@@ -17,10 +16,10 @@ This packet does not authorize a Pro purchase or renewal. The current decision r
 | 门一：永久留存 | PASS | raw Statistics 可全量恢复派生层，restore hash match 为 true。 |
 | 门二：Free 闭环 | PASS_PIPELINE_ONLY | 首次以 1 条真实已结算样本满足闭环；当前 6 条。两者都不是样本充分性或模型质量证明。 |
 | 门三：候选链独立 | PASS | ModelForecast 不依赖 exact quote 或 Candidate；Candidate/Settlement 账本保持隔离。 |
-| 门四：Pro 补仓 dry-run | NOT_COMPLETED | 仓库与 W2 Vault 均无 `PRO_BACKFILL_NET_REQUEST_BUDGET.json` 或等价已验收 dry-run 产物。 |
+| 门四：Pro 补仓 dry-run | DRY_RUN_COMPLETE_EXECUTION_NOT_AUTHORIZED | `PRO_BACKFILL_NET_REQUEST_BUDGET.json` 已给出 13 联赛 2024-2026 精确净预算；Statistics 仍冻结，等待 Owner 确认执行。 |
 
-本包只有三门有证据，**不得呈现为四门全通**。当前 Owner 决定仍是不购买、不续开 Pro；
-门四缺失不构成购买授权，也不得用估算或历史 Pro 证据冒充已完成 dry-run。
+四门当前均有对应证据，但门四只代表 dry-run 交付，不代表补仓已执行、lineage 已验收或
+模型质量已验证。不得把 `DRY_RUN_COMPLETE` 呈现为 `BACKFILL_COMPLETE`。
 
 ## Free-mode model validation proof
 
@@ -54,9 +53,9 @@ This packet does not authorize a Pro purchase or renewal. The current decision r
 - 当前已验证线上 release：`268b18c7816c049e756d66ceb20d60e4f5914d73`，schema
   `0058_quota_observation_history`。
 
-## Free 容量事实与增长感知测算
+## Free 历史容量事实与 Pro 当前预算
 
-以下只描述容量，不构成购买、续费或提额建议。
+以下只描述容量，不构成续费或提额建议。Free 数字是切换前历史，不再是当前运行额度。
 
 - 最近三个完整 UTC 日的 Provider 计费峰值为 `53 / 80 / 81`，实测 Free 日限为 `100`；
   已观测峰值使用率为 `81%`。
@@ -77,14 +76,17 @@ This packet does not authorize a Pro purchase or renewal. The current decision r
 - 以同样保守叠加法，历史峰值之上新增第 `10` 次 billable 会得到 `91`，首次超过 W2
   cap `90`；新增第 `20` 次会超过 Provider 硬顶 `100`。当前观察到的单日赛程峰值为 8，
   尚未达到这两个触发点。赛程密度或 xG-ready 率变化后必须滚动重算。
-- 样本节奏仍采用 R11 的不确定性口径：当前 xG-ready 自然速率约 `7.75 条/周`；
-  `LT_6H` 没有有限周数保证，其他 bucket 的 30 条估算不是承诺。配额不参与该周数公式，
-  但任何采集暂停都会使实际速度低于估算。
+- R11 的样本节奏估算已标记 `INVALID_UNDER_CURRENT_CONFIG`；Statistics 冻结期间新增
+  Capture 到达率为 0。Pro 已生效，但只有 Owner 确认 R23 补仓且 Statistics 实际解冻后，
+  才能重新估算四个 lead-time 档位的 30/200 样本时间。
+- R23 dry-run 精确预算：2025 单季净 `4,525`，2024+2025 净 `8,914`，再含 2026
+  已完赛为 `10,084`；建议的有界执行为 `5,500 Statistics/day`，预计两个配额日，另留
+  一个只读 lineage 验收日。
 
-## Owner choices
+## Owner 当前待决策
 
-1. Keep Free mode and continue natural ModelForecast accumulation.
-2. Reopen a separately bounded Pro backfill decision using a fresh net-request budget.
+1. 确认按 R23 dry-run 启用 Statistics：`5,500/day`、`60/min`、三批 fail-closed 补仓。
+2. 暂不确认：Statistics 保持冻结，Pro 只维持当前 fixtures/odds/lineups/result 链。
 
-Formal, Lock, Production, real money, Round 4, new Statistics calls, cadence changes,
-model-threshold changes, and league deletion remain outside this packet.
+Formal、Lock、Production、real money、Round 4、cadence、模型阈值和冻结策略变更仍在本包
+范围之外。Statistics 只有在 Owner 对上述第 1 项明确确认后才可执行。
