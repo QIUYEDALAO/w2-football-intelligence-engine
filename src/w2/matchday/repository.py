@@ -253,6 +253,37 @@ class MatchdayRuntimeRepository:
             session.commit()
         return result
 
+    def due_checkpoint_competition_ids(
+        self,
+        *,
+        now: datetime,
+        competition_ids: Sequence[str],
+    ) -> list[str]:
+        if not competition_ids:
+            return []
+        current = normalize_repo_time(now)
+        with Session(self.engine) as session:
+            self._advance_checkpoint_windows(session, now=current)
+            rows = session.execute(
+                select(MatchdayCheckpointPlanModel.competition_id)
+                .where(
+                    MatchdayCheckpointPlanModel.competition_id.in_(competition_ids),
+                    MatchdayCheckpointPlanModel.status == "DUE",
+                    MatchdayCheckpointPlanModel.window_start <= current,
+                    MatchdayCheckpointPlanModel.window_end >= current,
+                    MatchdayCheckpointPlanModel.claimed_at.is_(None),
+                )
+                .order_by(
+                    _checkpoint_priority(),
+                    MatchdayCheckpointPlanModel.scheduled_at,
+                    MatchdayCheckpointPlanModel.kickoff_utc,
+                    MatchdayCheckpointPlanModel.fixture_id,
+                )
+            ).scalars()
+            result = list(dict.fromkeys(str(item) for item in rows))
+            session.commit()
+        return result
+
     def claim_due_checkpoint_plans(
         self,
         *,

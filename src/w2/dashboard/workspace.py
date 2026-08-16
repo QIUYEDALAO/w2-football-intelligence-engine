@@ -157,6 +157,15 @@ def build_dashboard_intelligence_workspace(
             "priority_match_count": sum(primary_reason_counts.values()),
             "priority_group_count": len(primary_reason_counts),
             "primary_reason_counts": primary_reason_counts,
+            "pending_owner_review_team_count": len(
+                {
+                    label["canonical_team_id"]
+                    for match in matches
+                    for label in (match["home_team_label"], match["away_team_label"])
+                    if label["state"] == "CHINESE_LABEL_PENDING_OWNER_REVIEW"
+                    and label["canonical_team_id"]
+                }
+            ),
         },
         "global_focus": global_focus,
         "global_model_quality": _global_model_quality(
@@ -704,6 +713,7 @@ def _public_team_label(card: Mapping[str, Any], side: str) -> dict[str, Any]:
             else f"{role}（身份待确认{suffix}）"
         )
     cause = {
+        "CHINESE_LABEL_PENDING_OWNER_REVIEW": "LABEL_PENDING_OWNER_REVIEW",
         "CANONICAL_IDENTITY_READY_LABEL_MISSING": "LABEL_MISSING",
         "IDENTITY_UNRESOLVED": "IDENTITY_UNRESOLVED",
         "AMBIGUOUS": "AMBIGUOUS",

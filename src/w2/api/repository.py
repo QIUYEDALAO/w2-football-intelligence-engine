@@ -48,7 +48,10 @@ from w2.domain.recommendation_decision_v4 import (
     build_recommendation_decision_v4,
     validate_decision_v4_identity,
 )
-from w2.identity.public_team_labels import reviewed_public_team_labels
+from w2.identity.public_team_labels import (
+    pending_public_team_labels,
+    reviewed_public_team_labels,
+)
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.infrastructure.persistence.factor_model_models import (
@@ -170,6 +173,7 @@ def _public_team_label_from_identity(
     side: Literal["home", "away"],
     canonical: Mapping[str, CanonicalTeamModel],
     reviewed_labels: Mapping[str, str] | None = None,
+    pending_labels: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     provider_team_id = str(getattr(fixture, f"{side}_provider_team_id"))
     w2_team_id = getattr(fixture, f"{side}_w2_team_id")
@@ -199,6 +203,15 @@ def _public_team_label_from_identity(
             return {
                 "display_name": chinese_name,
                 "state": "CHINESE_LABEL_READY",
+                "canonical_team_id": w2_team_id,
+                "provider_team_id": provider_team_id,
+                "raw_provider_name": raw_provider_name,
+            }
+        pending_label = (pending_labels or {}).get(w2_team_id)
+        if pending_label:
+            return {
+                "display_name": str(pending_label).strip(),
+                "state": "CHINESE_LABEL_PENDING_OWNER_REVIEW",
                 "canonical_team_id": w2_team_id,
                 "provider_team_id": provider_team_id,
                 "raw_provider_name": raw_provider_name,
@@ -934,6 +947,7 @@ class ReadModelRepository:
             raise SystemDegradedError("READ_MODEL_CHECKPOINT_QUERY_FAILED") from exc
 
         reviewed_labels = reviewed_public_team_labels()
+        pending_labels = pending_public_team_labels()
         fixtures: list[dict[str, Any]] = []
         for identity, model in zip(identities, rows, strict=True):
             fixture_id = str(identity.provider_fixture_id)
@@ -968,12 +982,14 @@ class ReadModelRepository:
                     side="home",
                     canonical=canonical,
                     reviewed_labels=reviewed_labels,
+                    pending_labels=pending_labels,
                 ),
                 "away": _public_team_label_from_identity(
                     fixture=identity,
                     side="away",
                     canonical=canonical,
                     reviewed_labels=reviewed_labels,
+                    pending_labels=pending_labels,
                 ),
             }
             fixtures.append(fixture)
@@ -1486,6 +1502,7 @@ class ReadModelRepository:
                 ).all()
             }
         reviewed_labels = reviewed_public_team_labels()
+        pending_labels = pending_public_team_labels()
         output: dict[str, dict[str, dict[str, Any]]] = {}
         for fixture in fixtures:
             labels = {
@@ -1494,12 +1511,14 @@ class ReadModelRepository:
                     side="home",
                     canonical=canonical,
                     reviewed_labels=reviewed_labels,
+                    pending_labels=pending_labels,
                 ),
                 "away": _public_team_label_from_identity(
                     fixture=fixture,
                     side="away",
                     canonical=canonical,
                     reviewed_labels=reviewed_labels,
+                    pending_labels=pending_labels,
                 ),
             }
             output[str(fixture.fixture_id)] = labels

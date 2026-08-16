@@ -14,7 +14,10 @@ from w2.api.schemas import DashboardIntelligenceWorkspaceResponse
 from w2.config import get_settings
 from w2.dashboard.results import outcome_public_cause
 from w2.dashboard.workspace import build_dashboard_intelligence_workspace
-from w2.identity.public_team_labels import reviewed_public_team_labels
+from w2.identity.public_team_labels import (
+    pending_public_team_labels,
+    reviewed_public_team_labels,
+)
 
 
 def _market(snapshot_count: int) -> dict[str, Any]:
@@ -1745,6 +1748,31 @@ def test_known_team_without_chinese_label_keeps_readable_raw_name() -> None:
     assert label["public_semantics"] == {"scope": "MATCH", "cause": "LABEL_MISSING"}
 
 
+def test_pending_owner_review_team_label_is_visible_and_counted() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]
+    card["home_team_label"] = {
+        "display_name": "AIK索尔纳",
+        "state": "CHINESE_LABEL_PENDING_OWNER_REVIEW",
+        "canonical_team_id": "w2:team:api_football:377",
+        "provider_team_id": "377",
+        "raw_provider_name": "AIK Stockholm",
+    }
+
+    payload = _workspace(day_view)
+    label = payload["matches"][0]["home_team_label"]
+
+    assert label["display_name"] == "AIK索尔纳"
+    assert label["public_semantics"] == {
+        "scope": "MATCH",
+        "cause": "LABEL_PENDING_OWNER_REVIEW",
+    }
+    assert payload["today_summary"]["pending_owner_review_team_count"] == 1
+    DashboardIntelligenceWorkspaceResponse.model_validate(
+        {"request_id": "pending-label-contract", **payload}
+    )
+
+
 def test_scope_and_cause_separate_future_day_from_cumulative_validation() -> None:
     day_view = _day_view()
     day_view["date_strip"][7]["market_collection_window_status"] = (
@@ -2236,6 +2264,33 @@ def test_canonical_identity_and_approved_public_label_are_the_only_ready_path() 
     assert label_missing["display_name"] is None
 
 
+def test_pending_owner_review_label_is_visible_but_not_approved() -> None:
+    fixture = SimpleNamespace(
+        provider="api_football",
+        competition_id="allsvenskan",
+        season="2026",
+        team_identity_status="PROVIDER_PRIMARY_READY",
+        home_provider_team_id="377",
+        home_w2_team_id="w2:team:api_football:377",
+        payload={"home_team_name": "AIK Stockholm"},
+    )
+    pending = repository_module._public_team_label_from_identity(
+        fixture=fixture,
+        side="home",
+        canonical={fixture.home_w2_team_id: SimpleNamespace()},
+        reviewed_labels={},
+        pending_labels={fixture.home_w2_team_id: "AIK索尔纳"},
+    )
+
+    assert pending == {
+        "display_name": "AIK索尔纳",
+        "state": "CHINESE_LABEL_PENDING_OWNER_REVIEW",
+        "canonical_team_id": fixture.home_w2_team_id,
+        "provider_team_id": "377",
+        "raw_provider_name": "AIK Stockholm",
+    }
+
+
 def test_approved_public_label_authority_reuses_existing_product_labels() -> None:
     labels = reviewed_public_team_labels()
     fixture = SimpleNamespace(
@@ -2277,6 +2332,15 @@ def test_unreviewed_future_team_labels_are_not_self_approved() -> None:
     labels = reviewed_public_team_labels()
 
     assert unreviewed_team_ids.isdisjoint(labels)
+
+
+def test_r15_allsvenskan_candidates_remain_pending_owner_review() -> None:
+    pending = pending_public_team_labels()
+
+    assert pending == {
+        "w2:team:api_football:2170": "哥德堡盖斯",
+        "w2:team:api_football:377": "AIK索尔纳",
+    }
 
 
 def test_owner_authorized_public_label_review_closes_observed_gaps() -> None:
@@ -2324,8 +2388,10 @@ def test_sc19_public_label_authority_uses_runtime_config_root(
     monkeypatch.setenv("W2_READINESS_CONFIG_PATH", str(tmp_path))
     get_settings.cache_clear()
     reviewed_public_team_labels.cache_clear()
+    pending_public_team_labels.cache_clear()
     try:
         assert reviewed_public_team_labels()["w2:team:api_football:370"] == "天狼星"
     finally:
         reviewed_public_team_labels.cache_clear()
+        pending_public_team_labels.cache_clear()
         get_settings.cache_clear()

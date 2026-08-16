@@ -210,6 +210,7 @@
   "today_summary": {
     "competition_count": 0,
     "match_count": 0,
+    "pending_owner_review_team_count": 0,
     "primary_reason_counts": {},
     "priority_group_count": 0,
     "priority_match_count": 0

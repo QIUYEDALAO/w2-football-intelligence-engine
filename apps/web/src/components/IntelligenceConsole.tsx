@@ -305,7 +305,7 @@ function TodaySummary({ workspace }: { workspace: IntelligenceWorkspace }) {
         </p>
       </div>
       {limitedCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{limitedCount} 场可查看赛程；{presentation.label}</b></p></div> : calmCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{calmCount} 场均未触发优先复核</b></p></div> : Object.keys(counts).length ? <div className="v41-today-other"><span>优先复核</span><p>{Object.entries(counts).slice(0, 3).map(([reason, count]) => <b key={reason}>{count} 场{REASON_LABELS[reason] || label(reason)}</b>)}</p></div> : null}
-      <div className="v41-today-day"><strong>共 {workspace.today_summary.match_count} 场 · {candidateCount} 场影子候选 · {workspace.today_summary.competition_count || workspace.runtime.active_whitelist_count} 联赛</strong><small>{footballDayWindow(workspace)}</small></div>
+      <div className="v41-today-day"><strong>共 {workspace.today_summary.match_count} 场 · {candidateCount} 场影子候选 · {workspace.today_summary.competition_count || workspace.runtime.active_whitelist_count} 联赛{workspace.today_summary.pending_owner_review_team_count ? ` · ${workspace.today_summary.pending_owner_review_team_count} 支候选译名待审` : ""}</strong><small>{footballDayWindow(workspace)}</small></div>
     </section>
   );
 }

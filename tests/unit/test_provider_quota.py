@@ -263,6 +263,22 @@ def test_postmatch_result_quota_reserves_unsettled_capture_calls() -> None:
     assert allowed["allowed"] is True
 
 
+def test_postmatch_result_quota_exposes_reserved_saturation_above_75_percent() -> None:
+    below = postmatch_result_quota_decision(
+        actual_calls_today=0,
+        planned_calls=2,
+        reserved_capture_calls=15,
+    )
+    saturated = postmatch_result_quota_decision(
+        actual_calls_today=0,
+        planned_calls=2,
+        reserved_capture_calls=16,
+    )
+
+    assert below["operational_status"] is None
+    assert saturated["operational_status"] == "POSTMATCH_POOL_RESERVED_SATURATED"
+
+
 def test_registered_daily_quota_pools_leave_unallocated_free_plan_buffer() -> None:
     baseline = provider_daily_budget_contract()
     invalid = provider_daily_budget_contract(pool_limits={"GENERAL": 100, "POSTMATCH_RESULT": 20})

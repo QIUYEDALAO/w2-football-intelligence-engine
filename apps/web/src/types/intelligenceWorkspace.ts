@@ -32,6 +32,7 @@ export type PublicStatusCause =
   | "INSUFFICIENT"
   | "UNAVAILABLE"
   | "UNASSESSED"
+  | "LABEL_PENDING_OWNER_REVIEW"
   | "LABEL_MISSING"
   | "IDENTITY_UNRESOLVED"
   | "AMBIGUOUS"
@@ -117,6 +118,7 @@ export interface WorkspacePublicTeamLabel {
   display_name: string;
   state:
     | "CHINESE_LABEL_READY"
+    | "CHINESE_LABEL_PENDING_OWNER_REVIEW"
     | "CANONICAL_IDENTITY_READY_LABEL_MISSING"
     | "IDENTITY_UNRESOLVED"
     | "AMBIGUOUS";
@@ -485,6 +487,7 @@ export interface IntelligenceWorkspace {
     priority_match_count: number;
     priority_group_count: number;
     primary_reason_counts: Record<string, number>;
+    pending_owner_review_team_count: number;
   };
   global_focus: {
     reason_code: string;

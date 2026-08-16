@@ -243,9 +243,24 @@ def checkpoint_task_key(
     season: str,
     checkpoints: list[dict[str, Any]],
 ) -> str:
-    identity = "|".join(f"{item['fixture_id']}:{item['checkpoint']}" for item in checkpoints)
+    identity = "|".join(
+        f"{item['fixture_id']}:{item['checkpoint']}:{item.get('claim_token') or ''}"
+        for item in checkpoints
+    )
     digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
     return f"checkpoint-refresh:{competition_id}:{season}:{digest}"
+
+
+def prioritized_future_fixture_refresh_competition_ids(
+    *, now: datetime, competition_ids: tuple[str, ...]
+) -> tuple[str, ...]:
+    from w2.matchday.repository import MatchdayRuntimeRepository
+
+    due_ids = MatchdayRuntimeRepository().due_checkpoint_competition_ids(
+        now=now,
+        competition_ids=competition_ids,
+    )
+    return tuple([*due_ids, *(item for item in competition_ids if item not in due_ids)])
 
 
 def due_checkpoint_refresh_batch(
@@ -447,16 +462,20 @@ def future_fixture_refresh_tick() -> dict[str, object]:
             "formal_recommendation": False,
             "provider_calls": 0,
         }
+    competition_ids = prioritized_future_fixture_refresh_competition_ids(
+        now=datetime.now(UTC),
+        competition_ids=future_fixture_refresh_competition_ids(),
+    )
     results = [
         _future_fixture_refresh_tick_for_competition(competition_id)
-        for competition_id in future_fixture_refresh_competition_ids()
+        for competition_id in competition_ids
     ]
     if len(results) == 1:
         return results[0]
     queued = [item for item in results if item.get("status") == "QUEUED"]
     return {
         "status": "QUEUED" if queued else "MULTI_COMPETITION_TICK",
-        "competition_ids": list(future_fixture_refresh_competition_ids()),
+        "competition_ids": list(competition_ids),
         "results": results,
         "queued_count": len(queued),
         "candidate": False,

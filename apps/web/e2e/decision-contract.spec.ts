@@ -281,7 +281,7 @@ function workspace(scenario: Scenario = "normal"): IntelligenceWorkspace {
     football_day_end_utc: "2026-08-10T04:00:00Z",
     source: "dashboard_day_view+performance_checkpoint+replay_front_door",
     selected_fixture_id: focusId,
-    today_summary: { match_count: matches.length, competition_count: selectedCompetitionCount, priority_match_count: Object.values(counts).reduce((sum, count) => sum + count, 0), priority_group_count: Object.keys(counts).length, primary_reason_counts: counts },
+    today_summary: { match_count: matches.length, competition_count: selectedCompetitionCount, priority_match_count: Object.values(counts).reduce((sum, count) => sum + count, 0), priority_group_count: Object.keys(counts).length, primary_reason_counts: counts, pending_owner_review_team_count: 0 },
     global_focus: globalFocus,
     global_model_quality: { status: "AVAILABLE", checkpoint_key: "performance:cohort:all", checkpoint_generated_at: "2026-08-09T12:00:00Z", freshness_max_age_seconds: 86_400, model_log_loss: .512, market_log_loss: .508, model_brier: .178, market_brier: .174, model_calibration_error: .026, sample_count: 34 },
     read_contract: { provider_calls: 0, db_writes: 0, would_write_checkpoint: false, no_call_on_read: true },

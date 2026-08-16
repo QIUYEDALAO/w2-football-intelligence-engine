@@ -460,6 +460,52 @@ def test_scheduler_future_refresh_uses_checkpoint_task_key_and_dedup(
     assert len(sent) == 1
 
 
+def test_checkpoint_task_key_changes_for_a_new_claim_attempt() -> None:
+    checkpoint = {
+        "fixture_id": "api_football:1494248",
+        "checkpoint": "POSTMATCH_RESULT",
+        "claim_token": "claim-1",
+    }
+    first = scheduler_main.checkpoint_task_key(
+        competition_id="allsvenskan",
+        season="2026",
+        checkpoints=[checkpoint],
+    )
+    repeated = scheduler_main.checkpoint_task_key(
+        competition_id="allsvenskan",
+        season="2026",
+        checkpoints=[checkpoint],
+    )
+    second = scheduler_main.checkpoint_task_key(
+        competition_id="allsvenskan",
+        season="2026",
+        checkpoints=[{**checkpoint, "claim_token": "claim-2"}],
+    )
+
+    assert first == repeated
+    assert first != second
+
+
+def test_scheduler_prioritizes_due_capture_competitions_globally(monkeypatch) -> None:
+    class Repository:
+        def due_checkpoint_competition_ids(self, **kwargs: object) -> list[str]:
+            assert kwargs["competition_ids"] == (
+                "brasileirao_serie_a",
+                "allsvenskan",
+            )
+            return ["allsvenskan", "brasileirao_serie_a"]
+
+    monkeypatch.setattr(
+        "w2.matchday.repository.MatchdayRuntimeRepository",
+        Repository,
+    )
+
+    assert scheduler_main.prioritized_future_fixture_refresh_competition_ids(
+        now=datetime(2026, 8, 16, tzinfo=UTC),
+        competition_ids=("brasileirao_serie_a", "allsvenskan"),
+    ) == ("allsvenskan", "brasileirao_serie_a")
+
+
 def test_scheduler_future_refresh_accepts_staging_competition_list(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     sent: list[dict[str, object]] = []
 

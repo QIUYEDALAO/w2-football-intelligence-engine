@@ -874,6 +874,33 @@ class FutureFixtureRefreshService:
             self._write_audit(result)
             return result
         preflight = self._provider_hard_cap_preflight()
+        if preflight.get("operational_status"):
+            self._audit.append(
+                {
+                    "endpoint": "provider_daily_hard_cap_preflight",
+                    "params": {},
+                    "attempt": 0,
+                    "status_code": None,
+                    "elapsed_ms": 0,
+                    "captured_at_utc": iso(utc_now()),
+                    "remaining_quota": self._latest_remaining,
+                    "payload_sha256": None,
+                    "error_code": None,
+                    "operational_status": preflight["operational_status"],
+                    "quota_guard_mode": preflight["mode"],
+                    "actual_calls_today": preflight["actual_calls_today"],
+                    "billable_calls_today": preflight["billable_calls_today"],
+                    "successful_calls_today": preflight["successful_calls_today"],
+                    "budget_basis": "BILLABLE_CALLS",
+                    "planned_calls": preflight["planned_calls"],
+                    "reserved_capture_count": preflight.get("reserved_capture_count", 0),
+                    "reserved_capture_calls": preflight.get("reserved_capture_calls", 0),
+                    "daily_cap": preflight["daily_cap"],
+                    "reserve_bucket": preflight["reserve_bucket"],
+                    "remaining_after_plan": preflight["remaining_after_plan"],
+                    "quota_scope": preflight.get("quota_scope", "GENERAL"),
+                }
+            )
         if not preflight["allowed"]:
             blocker = str(preflight["blocker"])
             self._audit.append(
@@ -887,6 +914,7 @@ class FutureFixtureRefreshService:
                     "remaining_quota": self._latest_remaining,
                     "payload_sha256": None,
                     "error_code": blocker,
+                    "operational_status": preflight.get("operational_status"),
                     "quota_guard_mode": preflight["mode"],
                     "actual_calls_today": preflight["actual_calls_today"],
                     "billable_calls_today": preflight["billable_calls_today"],

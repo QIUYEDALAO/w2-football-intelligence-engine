@@ -415,6 +415,7 @@ class WorkspacePublicSemantics(BaseModel):
             "INSUFFICIENT",
             "UNAVAILABLE",
             "UNASSESSED",
+            "LABEL_PENDING_OWNER_REVIEW",
             "LABEL_MISSING",
             "IDENTITY_UNRESOLVED",
             "AMBIGUOUS",
@@ -429,6 +430,7 @@ class WorkspacePublicTeamLabel(BaseModel):
     display_name: str = Field(min_length=1)
     state: Literal[
         "CHINESE_LABEL_READY",
+        "CHINESE_LABEL_PENDING_OWNER_REVIEW",
         "CANONICAL_IDENTITY_READY_LABEL_MISSING",
         "IDENTITY_UNRESOLVED",
         "AMBIGUOUS",
@@ -442,6 +444,7 @@ class WorkspacePublicTeamLabel(BaseModel):
     def semantics_match_identity_state(self) -> WorkspacePublicTeamLabel:
         expected = {
             "CHINESE_LABEL_READY": None,
+            "CHINESE_LABEL_PENDING_OWNER_REVIEW": "LABEL_PENDING_OWNER_REVIEW",
             "CANONICAL_IDENTITY_READY_LABEL_MISSING": "LABEL_MISSING",
             "IDENTITY_UNRESOLVED": "IDENTITY_UNRESOLVED",
             "AMBIGUOUS": "AMBIGUOUS",
@@ -978,6 +981,7 @@ class WorkspaceTodaySummary(BaseModel):
     priority_match_count: int = Field(ge=0)
     priority_group_count: int = Field(ge=0)
     primary_reason_counts: dict[str, int]
+    pending_owner_review_team_count: int = Field(ge=0)
 
     @model_validator(mode="after")
     def primary_counts_do_not_double_count(self) -> WorkspaceTodaySummary:
@@ -1382,6 +1386,15 @@ class DashboardIntelligenceWorkspaceResponse(BaseModel):
             raise ValueError("selected-day match count must equal projected matches")
         if self.today_summary.competition_count != len(competition_ids):
             raise ValueError("selected-day competition count must equal projected matches")
+        pending_team_ids = {
+            label.canonical_team_id
+            for match in self.matches
+            for label in (match.home_team_label, match.away_team_label)
+            if label.state == "CHINESE_LABEL_PENDING_OWNER_REVIEW"
+            and label.canonical_team_id is not None
+        }
+        if self.today_summary.pending_owner_review_team_count != len(pending_team_ids):
+            raise ValueError("pending owner review team count must equal projected matches")
         if self.selected_fixture_id is not None:
             if self.selected_fixture_id not in fixture_ids:
                 raise ValueError("selected fixture must exist in matches")

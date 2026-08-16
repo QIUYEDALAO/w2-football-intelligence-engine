@@ -29,6 +29,7 @@ const causeCopy: Record<Exclude<PublicStatusSemantics["cause"], null>, Pick<Publ
   INSUFFICIENT: { label: "已采集，证据量不足", tone: "warning" },
   UNAVAILABLE: { label: "来源不可用", tone: "critical" },
   UNASSESSED: { label: "尚未评估", tone: "neutral" },
+  LABEL_PENDING_OWNER_REVIEW: { label: "候选译名待 Owner 审定", tone: "warning" },
   LABEL_MISSING: { label: "中文译名待映射", tone: "neutral" },
   IDENTITY_UNRESOLVED: { label: "身份待确认", tone: "warning" },
   AMBIGUOUS: { label: "身份存在歧义", tone: "warning" },
@@ -70,6 +71,9 @@ export function publicPresentation(
         ? "全局证据"
         : `${day}比赛`;
 
+  if (cause === "LABEL_PENDING_OWNER_REVIEW") {
+    return result(causeCopy[cause].label, causeCopy[cause].tone, subject, `${subject} 已识别，候选中文译名尚待 Owner 审定。`, "候选名可见但未进入 APPROVED 权威集。");
+  }
   if (cause === "LABEL_MISSING") {
     return result(causeCopy[cause].label, causeCopy[cause].tone, subject, `${subject} 已识别，中文译名尚未映射。`, "保留可读原名；不会用占位符替换已知身份。");
   }

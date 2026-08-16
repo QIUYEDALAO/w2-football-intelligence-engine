@@ -299,6 +299,11 @@ def postmatch_result_quota_decision(
     reserved = max(reserved_capture_calls, 0)
     projected_total = actual + planned + reserved
     allowed = projected_total <= daily_cap
+    operational_status = (
+        "POSTMATCH_POOL_RESERVED_SATURATED"
+        if daily_cap > 0 and reserved * 4 > daily_cap * 3
+        else None
+    )
     return {
         "allowed": allowed,
         "mode": "RESULT_RESERVE" if allowed else "RESULT_HARD_CAP",
@@ -312,4 +317,5 @@ def postmatch_result_quota_decision(
         "reserve_bucket": daily_cap,
         "remaining_after_plan": daily_cap - projected_total,
         "quota_scope": "POSTMATCH_RESULT",
+        "operational_status": operational_status,
     }
