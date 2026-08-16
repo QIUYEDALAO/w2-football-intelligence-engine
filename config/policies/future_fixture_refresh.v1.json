@@ -4,7 +4,7 @@
   "notes": [
     "Only explicitly registered competitions can run future fixture refresh.",
     "Scheduler dispatch remains disabled unless W2_FUTURE_FIXTURE_REFRESH_ENABLED=true.",
-    "API-Football Free plan live daily limit is 100; the W2 daily budget is general 70 + POSTMATCH_RESULT 20 + an unallocated 10-call safety buffer."
+    "API-Football Free plan live daily limit is 100; authority: x-ratelimit-requests-limit observed as 100 at 2026-08-16T03:30:27.493845Z. The W2 daily budget is general 70 + POSTMATCH_RESULT 20 + an unallocated 10-call safety buffer."
   ],
   "competitions": [
     {

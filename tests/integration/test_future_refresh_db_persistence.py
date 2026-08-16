@@ -1928,7 +1928,7 @@ def test_request_count_since_includes_quota_usage(
     assert FutureRefreshDbRepository().request_count_since(since) >= 7000
 
 
-def test_request_count_since_prefers_provider_quota_over_local_request_logs(
+def test_request_count_since_never_drops_below_local_request_logs(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
@@ -1962,8 +1962,16 @@ def test_request_count_since_prefers_provider_quota_over_local_request_logs(
         session.commit()
 
     repository = FutureRefreshDbRepository()
-    assert repository.request_count_since(since) == 10
+    assert repository.request_count_since(since) == 80
     assert repository.request_count_since(since, include_quota_usage=False) == 80
+    assert repository.request_count_evidence_since(since) == {
+        "known_count": 80,
+        "quota_usage_count": 10,
+        "run_audit_count": 0,
+        "provider_ledger_count": 80,
+        "quota_usage_ledger_delta": 70,
+        "quota_usage_ledger_divergence": True,
+    }
 
 
 def test_provider_quota_snapshot_uses_strictest_persisted_remaining(

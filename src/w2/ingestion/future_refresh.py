@@ -791,6 +791,7 @@ class FutureFixtureRefreshService:
         self._checkpoint_attempted_plan_ids: set[str] = set()
         self._checkpoint_preflight_failures: set[str] = set()
         self._identity_pool_expansions: list[dict[str, Any]] = []
+        self._provider_usage_evidence: dict[str, int | bool] = {}
 
     def _db_repository(self) -> FutureRefreshDbRepository:
         return FutureRefreshDbRepository()
@@ -899,6 +900,10 @@ class FutureFixtureRefreshService:
                     "reserve_bucket": preflight["reserve_bucket"],
                     "remaining_after_plan": preflight["remaining_after_plan"],
                     "quota_scope": preflight.get("quota_scope", "GENERAL"),
+                    "quota_usage_calls_today": preflight.get("quota_usage_count"),
+                    "provider_ledger_calls_today": preflight.get("provider_ledger_count"),
+                    "run_audit_calls_today": preflight.get("run_audit_count"),
+                    "quota_usage_ledger_delta": preflight.get("quota_usage_ledger_delta"),
                 }
             )
         if not preflight["allowed"]:
@@ -927,6 +932,10 @@ class FutureFixtureRefreshService:
                     "reserve_bucket": preflight["reserve_bucket"],
                     "remaining_after_plan": preflight["remaining_after_plan"],
                     "quota_scope": preflight.get("quota_scope", "GENERAL"),
+                    "quota_usage_calls_today": preflight.get("quota_usage_count"),
+                    "provider_ledger_calls_today": preflight.get("provider_ledger_count"),
+                    "run_audit_calls_today": preflight.get("run_audit_count"),
+                    "quota_usage_ledger_delta": preflight.get("quota_usage_ledger_delta"),
                 }
             )
             result = FutureRefreshResult(
@@ -1870,9 +1879,14 @@ class FutureFixtureRefreshService:
                     if self.config.persistence == "db"
                     else 0
                 )
+                evidence_reader = getattr(repository, "request_count_evidence_since", None)
+                if self.config.persistence == "db" and callable(evidence_reader):
+                    self._provider_usage_evidence = dict(
+                        evidence_reader(day_start, include_quota_usage=True)
+                    )
             except FutureRefreshPersistenceError as exc:
                 raise FutureRefreshError("RESULT_USAGE_AUDIT_UNAVAILABLE") from exc
-            return {
+            decision = {
                 **postmatch_result_quota_decision(
                     actual_calls_today=actual_calls_today,
                     planned_calls=planned_calls,
@@ -1881,11 +1895,15 @@ class FutureFixtureRefreshService:
                 ),
                 "reserved_capture_count": reserved_capture_count,
                 "successful_calls_today": successful_calls_today,
+                **self._provider_usage_evidence,
             }
+            if self._provider_usage_evidence.get("quota_usage_ledger_divergence") is True:
+                decision["operational_status"] = "QUOTA_USAGE_LEDGER_DIVERGENCE"
+            return decision
         daily_cap = env_int("W2_PROVIDER_DAILY_HARD_CAP", default=self.config.daily_hard_cap)
         reserve = env_int("W2_PROVIDER_DAILY_RESERVE", default=self.config.daily_reserve)
         actual_calls_today = self._actual_provider_calls_today()
-        return {
+        decision = {
             **provider_daily_hard_cap_decision(
                 actual_calls_today=actual_calls_today,
                 planned_calls=planned_calls,
@@ -1893,7 +1911,11 @@ class FutureFixtureRefreshService:
                 reserve_bucket=reserve,
             ),
             "successful_calls_today": self._successful_provider_calls_today(),
+            **self._provider_usage_evidence,
         }
+        if self._provider_usage_evidence.get("quota_usage_ledger_divergence") is True:
+            decision["operational_status"] = "QUOTA_USAGE_LEDGER_DIVERGENCE"
+        return decision
 
     def _provider_tick_hard_cap_preflight(self) -> dict[str, Any]:
         projected_calls = self._planned_provider_calls()
@@ -1997,10 +2019,14 @@ class FutureFixtureRefreshService:
             return 0
         day_start = self.now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
         try:
-            return self._db_repository().request_count_since(
-                day_start,
-                include_quota_usage=True,
-            )
+            repository = self._db_repository()
+            evidence_reader = getattr(repository, "request_count_evidence_since", None)
+            if callable(evidence_reader):
+                self._provider_usage_evidence = dict(
+                    evidence_reader(day_start, include_quota_usage=True)
+                )
+                return int(self._provider_usage_evidence["known_count"])
+            return repository.request_count_since(day_start, include_quota_usage=True)
         except FutureRefreshPersistenceError as exc:
             raise FutureRefreshError("PROVIDER_USAGE_AUDIT_UNAVAILABLE") from exc
 

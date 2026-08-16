@@ -57,6 +57,10 @@ def future_fixture_refresh_enabled() -> bool:
     return os.environ.get("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "false").lower() == "true"
 
 
+def postmatch_only_enabled() -> bool:
+    return os.environ.get("W2_POSTMATCH_ONLY_ENABLED", "false").lower() == "true"
+
+
 def xg_history_backfill_enabled() -> bool:
     if not future_fixture_refresh_enabled():
         return False
@@ -326,6 +330,8 @@ def due_checkpoint_refresh_batch(
                     now=now,
                 )
             )
+    if postmatch_only_enabled():
+        plans = [plan for plan in plans if plan.checkpoint == POSTMATCH_RESULT_CHECKPOINT]
     generated_plan_ids = {stable_hash(plan.natural_identity) for plan in plans}
     for plan in plans:
         repository.upsert_checkpoint_plan(plan)
@@ -503,6 +509,19 @@ def _future_fixture_refresh_tick_for_competition(competition_id: str) -> dict[st
         worker_id=checkpoint_task_id,
     )
     if batch["status"] == "NO_CHECKPOINT_DUE":
+        if postmatch_only_enabled():
+            return {
+                **batch,
+                "status": "NO_POSTMATCH_RESULT_DUE",
+                "competition_id": config.competition_id,
+                "season": config.season,
+                "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+                "candidate": False,
+                "formal_recommendation": False,
+                "provider_calls": 0,
+                "checkpoint_refresh_contract": "w2.checkpoint_refresh.v1",
+                "provider_refresh_min_interval_policy": "POSTMATCH_ONLY",
+            }
         if int(batch.get("fixture_payload_count") or 0) == 0:
             task_key = deterministic_task_key(
                 competition_id=config.competition_id,

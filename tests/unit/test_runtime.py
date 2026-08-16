@@ -633,6 +633,43 @@ def test_scheduler_future_refresh_seeds_staging_league_without_local_fixtures(
     ]
 
 
+def test_scheduler_postmatch_only_never_seeds_prematch_refresh(monkeypatch) -> None:
+    sent: list[dict[str, object]] = []
+    monkeypatch.setenv("W2_ENVIRONMENT", "staging")
+    monkeypatch.setenv("W2_GIT_SHA", "a" * 40)
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.setenv("W2_POSTMATCH_ONLY_ENABLED", "true")
+    monkeypatch.setattr(
+        scheduler_main,
+        "due_checkpoint_refresh_batch",
+        lambda now, **kwargs: {
+            "status": "NO_CHECKPOINT_DUE",
+            "fixture_payload_count": 0,
+            "generated_plan_count": 0,
+            "due_checkpoint_count": 0,
+            "selected_checkpoint_count": 0,
+            "projected_calls": 0,
+            "all_due_projected_calls": 0,
+            "tick_hard_cap": 30,
+            "checkpoints": [],
+        },
+    )
+    monkeypatch.setattr(celery_app, "send_task", lambda name, **kwargs: sent.append({}))
+    monkeypatch.setattr(
+        scheduler_main,
+        "future_fixture_refresh_competition_ids",
+        lambda: ("brasileirao_serie_a",),
+    )
+
+    with db_enabled_competitions("brasileirao_serie_a"):
+        result = future_fixture_refresh_tick()
+
+    assert result["status"] == "NO_POSTMATCH_RESULT_DUE"
+    assert result["provider_calls"] == 0
+    assert sent == []
+
+
 def test_scheduler_future_refresh_does_not_seed_when_local_fixtures_exist(
     monkeypatch,
 ) -> None:
@@ -867,6 +904,40 @@ def test_scheduler_checkpoint_batch_has_no_due_without_pending_plan(monkeypatch)
 
     assert result["status"] == "NO_CHECKPOINT_DUE"
     assert result["projected_calls"] == 0
+
+
+def test_scheduler_postmatch_only_filters_prematch_plans(monkeypatch) -> None:
+    now = datetime(2026, 8, 16, 11, tzinfo=UTC)
+    kickoff = datetime(2026, 8, 16, 12, tzinfo=UTC)
+    checkpoints: list[str] = []
+
+    class FakeRepository:
+        def upsert_checkpoint_plan(self, plan: Any) -> str:
+            checkpoints.append(plan.checkpoint)
+            return stable_hash(plan.natural_identity)
+
+        def claim_due_checkpoint_plans(self, **kwargs: object) -> list[dict[str, Any]]:
+            return []
+
+    monkeypatch.setenv("W2_POSTMATCH_ONLY_ENABLED", "true")
+    monkeypatch.setattr(
+        scheduler_main,
+        "future_refresh_fixture_payloads",
+        lambda **kwargs: [
+            {
+                "fixture": {"id": 1494241, "date": kickoff.isoformat()},
+                "league": {"id": 113, "season": 2026},
+            }
+        ],
+    )
+    monkeypatch.setattr("w2.matchday.repository.MatchdayRuntimeRepository", FakeRepository)
+
+    with db_enabled_competitions("allsvenskan"):
+        result = due_checkpoint_refresh_batch(now, provider_league_id="113")
+
+    assert result["status"] == "NO_CHECKPOINT_DUE"
+    assert result["generated_plan_count"] == 1
+    assert checkpoints == ["POSTMATCH_RESULT"]
 
 
 def test_scheduler_checkpoint_batch_ignores_due_rows_outside_current_fixture_set(

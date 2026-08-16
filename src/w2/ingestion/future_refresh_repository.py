@@ -77,6 +77,8 @@ from w2.lineups.intelligence import (
 )
 from w2.prematch.lifecycle import LineupConfirmedEvent
 
+QUOTA_USAGE_LEDGER_DIVERGENCE_THRESHOLD = 5
+
 
 class FutureRefreshPersistenceError(RuntimeError):
     pass
@@ -3061,7 +3063,12 @@ class FutureRefreshDbRepository:
                 session.rollback()
                 raise FutureRefreshPersistenceError("RUN_AUDIT_WRITE_FAILED") from exc
 
-    def request_count_since(self, since: datetime, *, include_quota_usage: bool = True) -> int:
+    def request_count_evidence_since(
+        self,
+        since: datetime,
+        *,
+        include_quota_usage: bool = True,
+    ) -> dict[str, int | bool]:
         since_utc = parse_db_datetime(since)
         day_start = since_utc.replace(hour=0, minute=0, second=0, microsecond=0)
         day_end = day_start + timedelta(days=1)
@@ -3093,9 +3100,29 @@ class FutureRefreshDbRepository:
                 )
         except Exception as exc:
             raise FutureRefreshPersistenceError("REQUEST_COUNT_READ_FAILED") from exc
-        if quota_usage is not None:
-            return int(quota_usage)
-        return max(int(future_refresh_requests or 0), int(provider_request_logs or 0))
+        quota_usage_count = int(quota_usage or 0)
+        run_audit_count = int(future_refresh_requests or 0)
+        provider_ledger_count = int(provider_request_logs or 0)
+        known_count = max(quota_usage_count, run_audit_count, provider_ledger_count)
+        return {
+            "known_count": known_count,
+            "quota_usage_count": quota_usage_count,
+            "run_audit_count": run_audit_count,
+            "provider_ledger_count": provider_ledger_count,
+            "quota_usage_ledger_delta": known_count - quota_usage_count,
+            "quota_usage_ledger_divergence": (
+                quota_usage is not None
+                and known_count - quota_usage_count > QUOTA_USAGE_LEDGER_DIVERGENCE_THRESHOLD
+            ),
+        }
+
+    def request_count_since(self, since: datetime, *, include_quota_usage: bool = True) -> int:
+        return int(
+            self.request_count_evidence_since(
+                since,
+                include_quota_usage=include_quota_usage,
+            )["known_count"]
+        )
 
     def successful_request_count_since(self, since: datetime) -> int:
         since_utc = parse_db_datetime(since)

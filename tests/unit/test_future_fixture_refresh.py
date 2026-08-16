@@ -985,6 +985,93 @@ def test_future_refresh_uses_provider_quota_as_daily_usage_authority(
     assert service._actual_provider_calls_today() == 10
 
 
+def test_future_refresh_surfaces_quota_usage_ledger_divergence(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "1")
+
+    class Repository:
+        @staticmethod
+        def fixture_payloads() -> list[dict[str, Any]]:
+            return []
+
+        @staticmethod
+        def request_count_evidence_since(
+            _day_start: datetime,
+            *,
+            include_quota_usage: bool = True,
+        ) -> dict[str, int | bool]:
+            assert include_quota_usage is True
+            return {
+                "known_count": 135,
+                "quota_usage_count": 10,
+                "run_audit_count": 135,
+                "provider_ledger_count": 135,
+                "quota_usage_ledger_delta": 125,
+                "quota_usage_ledger_divergence": True,
+            }
+
+        @staticmethod
+        def successful_request_count_since(_day_start: datetime) -> int:
+            return 135
+
+        @staticmethod
+        def postmatch_result_request_count_since(_day_start: datetime) -> int:
+            return 10
+
+        @staticmethod
+        def postmatch_result_successful_request_count_since(_day_start: datetime) -> int:
+            return 10
+
+        @staticmethod
+        def unsettled_model_forecast_postmatch_count(**_kwargs: Any) -> int:
+            return 2
+
+    service = FutureFixtureRefreshService(
+        client=FakeApiFootballClient(),
+        config=FutureRefreshConfig(
+            runtime_root=tmp_path,
+            persistence="db",
+            daily_hard_cap=70,
+        ),
+        now=NOW,
+    )
+    monkeypatch.setattr(service, "_db_repository", Repository)
+
+    decision = service._provider_hard_cap_preflight()
+
+    assert decision["allowed"] is False
+    assert decision["operational_status"] == "QUOTA_USAGE_LEDGER_DIVERGENCE"
+    assert decision["actual_calls_today"] == 135
+    assert decision["quota_usage_ledger_delta"] == 125
+
+    postmatch_service = FutureFixtureRefreshService(
+        client=FakeApiFootballClient(),
+        config=FutureRefreshConfig(
+            runtime_root=tmp_path,
+            persistence="db",
+            checkpoint_fixture_ids=("1494241",),
+            refresh_checkpoints=(
+                {
+                    "checkpoint": "POSTMATCH_RESULT",
+                    "endpoints": ["status", "fixtures"],
+                },
+            ),
+        ),
+        now=NOW,
+    )
+    monkeypatch.setattr(postmatch_service, "_db_repository", Repository)
+
+    postmatch_decision = postmatch_service._provider_hard_cap_preflight()
+
+    assert postmatch_decision["planned_calls"] == 3, postmatch_decision
+    assert postmatch_decision["reserved_capture_calls"] == 6, postmatch_decision
+    assert postmatch_decision["allowed"] is True, postmatch_decision
+    assert postmatch_decision["actual_calls_today"] == 10
+    assert postmatch_decision["operational_status"] == "QUOTA_USAGE_LEDGER_DIVERGENCE"
+
+
 def test_future_refresh_blocks_when_header_remaining_below_preflight_minimum(
     tmp_path: Path,
 ) -> None:

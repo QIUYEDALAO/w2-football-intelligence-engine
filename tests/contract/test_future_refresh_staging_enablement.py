@@ -125,8 +125,9 @@ def test_controlled_override_selects_one_collection_task_and_discovery_mode() ->
     scheduler = payload["services"]["scheduler"]["environment"]
 
     assert "W2_FIXTURE_DISCOVERY_ENABLED" not in worker
-    assert scheduler["W2_FIXTURE_DISCOVERY_ENABLED"] == "true"
+    assert scheduler["W2_FIXTURE_DISCOVERY_ENABLED"] == "false"
     assert scheduler["W2_FUTURE_FIXTURE_REFRESH_ENABLED"] == "true"
+    assert scheduler["W2_POSTMATCH_ONLY_ENABLED"] == "true"
     assert worker["W2_PROVIDER_HTTP_MAX_ATTEMPTS"] == "1"
     assert scheduler["W2_PROVIDER_HTTP_MAX_ATTEMPTS"] == "1"
     assert worker["W2_PROVIDER_DAILY_HARD_CAP"] == "70"

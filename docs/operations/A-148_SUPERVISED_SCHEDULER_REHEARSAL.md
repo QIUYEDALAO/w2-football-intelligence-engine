@@ -2,8 +2,9 @@
 
 ## 2026-08-15 Free-plan 配额权威
 
-- Provider 账户当日限额的实时事实只取 Provider 响应头
-  `x-ratelimit-requests-limit` / `x-ratelimit-requests-remaining`；当前 Free 套餐已知上限为 100。
+- Provider 账户当日限额的实时事实取 Provider 响应头
+  `x-ratelimit-requests-limit` / `x-ratelimit-requests-remaining`；最近一次已持久化观测为
+  `2026-08-16T03:30:27.493845Z / 100 / 90`，账号状态响应为 `Free`。
 - `API_FOOTBALL_FREE_DAILY_LIMIT=100` 是启动期安全上限。所有已注册配额池与未分配缓冲
   的总和高于它时，future refresh 必须在任何请求前 fail closed。
 - `future_fixture_refresh.v1.json`、`matchday_intake.v2.json` 与 staging compose 的预算为
@@ -12,6 +13,9 @@
   `W2_POSTMATCH_RESULT_DAILY_HARD_CAP=20` 都是 W2 自设批次前置上限；
   `W2_PROVIDER_DAILY_UNALLOCATED_BUFFER=10` 不属于任何可消费池。
 - 预算判定以 Provider 计费调用数为准；成功调用数只作诊断，失败响应仍可能计费。
+- 本地多证据计数必须取 `quota_usage / run audit / provider_request_logs` 最大值；任一来源
+  不得让已知消耗下降。偏差超过 5 输出 `QUOTA_USAGE_LEDGER_DIVERGENCE`，GENERAL 预检按
+  保守最大值 fail closed；不可逆 POSTMATCH 继续服从独立 20 次硬上限和 capture 预留。
 - 报告配额时必须同时给出 W2 生效 cap、Provider header limit/remaining、UTC 时间窗和
   `provider_request_logs` 单调计数，禁止把不同口径合成一个“81/100”。
 

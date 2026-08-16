@@ -5,6 +5,10 @@ Status: OWNER_DECISION_PACKET_INCOMPLETE_GATE4
 This packet does not authorize a Pro purchase or renewal. The current decision remains
 `NOT_PURCHASED_NOT_RENEWED` until the Owner explicitly changes it.
 
+> R17 配额复核：本包不以“Free 日限不足”作为购买 Pro 的论据。当前账号响应仍为 `Free`，
+> `x-ratelimit-requests-limit=100`；本地日志与 header 用量发生分歧后，赛前采集已分级停机，
+> POSTMATCH capture 赛果链单独保留。该事件不构成提额或购买授权。
+
 ## 成立基础（首页口径）
 
 | 门 | 状态 | 证据边界 |
