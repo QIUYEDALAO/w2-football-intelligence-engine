@@ -12,12 +12,16 @@
 - `W2_PROVIDER_DAILY_HARD_CAP=70` 与
   `W2_POSTMATCH_RESULT_DAILY_HARD_CAP=20` 都是 W2 自设批次前置上限；
   `W2_PROVIDER_DAILY_UNALLOCATED_BUFFER=10` 不属于任何可消费池。
-- 预算判定以 Provider 计费调用数为准；成功调用数只作诊断，失败响应仍可能计费。
-- 本地多证据计数必须取 `quota_usage / run audit / provider_request_logs` 最大值；任一来源
-  不得让已知消耗下降。偏差超过 5 输出 `QUOTA_USAGE_LEDGER_DIVERGENCE`，GENERAL 预检按
-  保守最大值 fail closed；不可逆 POSTMATCH 继续服从独立 20 次硬上限和 capture 预留。
+- 预算判定以新鲜 Provider 响应头/quota_usage 为计费权威；成功调用数与本地请求日志只作诊断。
+- Provider 权威缺失或超过 7200 秒未更新时，才回退到 run audit/provider ledger 最大值，
+  标记 `QUOTA_AUTHORITY_DEGRADED` 并继续保守 fail closed。偏差超过 5 的
+  `QUOTA_USAGE_LEDGER_DIVERGENCE` 只作口径告警，不得提高 Provider 已确认用量。
+- 不可逆 POSTMATCH 继续服从独立 20 次 W2 attempt 上限和 capture 预留；不得称为 Provider
+  billable 子池。
+- 同时持久化分钟 `x-ratelimit-limit / x-ratelimit-remaining`；分钟不足与 HTTP 429 必须使用
+  独立告警，不得归入日额度耗尽。
 - 报告配额时必须同时给出 W2 生效 cap、Provider header limit/remaining、UTC 时间窗和
-  `provider_request_logs` 单调计数，禁止把不同口径合成一个“81/100”。
+  `billable_from_provider / local_ledger_count / run_audit_count`，禁止把不同口径合成一个“81/100”。
 
 ## Scope
 

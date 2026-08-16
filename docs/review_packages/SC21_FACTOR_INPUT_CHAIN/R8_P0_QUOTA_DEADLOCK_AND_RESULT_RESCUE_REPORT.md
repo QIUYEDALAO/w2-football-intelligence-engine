@@ -80,10 +80,10 @@ Result 写入后，原组合结算进程因内存被系统终止；已停止重�
 
 - R8 当时的阻断仍应表述为 W2 自设 cap 命中，而非 Provider 侧真实耗尽；原文已按此口径记录。
 - `provider_request_logs` 是单调网络请求账本，Provider header `limit-used` 是账号计费视图；两者
-  不可互相覆盖。W2 预算守卫为 fail closed 取三源最大值，但不得把日志行数反写成 Provider
-  header 已确认用量。
-- POSTMATCH 的 `actual_calls_today` 是任务审计子计数；R13/R14 的 19 次池内归属结论不依赖
-  通用 `quota_usage` 覆盖逻辑，继续成立。
+  不可互相覆盖。R18 最终合同以新鲜 Provider header/quota_usage 为计费权威；仅在权威缺失或
+  过期时回退本地两源最大值并标记 DEGRADED。
+- POSTMATCH 的 `actual_calls_today` 是任务审计请求尝试数；R13/R14 的 19 次说明 W2 内部
+  attempt pool 被占用，不是 Provider 计费 19 或 Provider 日额度耗尽。
 
 ## R9 口径补充
 
