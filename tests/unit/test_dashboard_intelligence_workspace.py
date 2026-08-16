@@ -1987,6 +1987,14 @@ def test_finished_match_missing_outcome_is_awaiting_collection() -> None:
             (True, True, True, None),
         ),
         (
+            "NS",
+            True,
+            "MATCHED",
+            "READY",
+            [],
+            (True, True, True, None),
+        ),
+        (
             "FT",
             True,
             "MISSING_OUTCOME",

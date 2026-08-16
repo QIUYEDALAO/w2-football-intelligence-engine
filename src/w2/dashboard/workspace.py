@@ -97,13 +97,16 @@ def build_dashboard_intelligence_workspace(
         for card in cards
     ]
     for card, match in zip(cards, matches, strict=True):
-        match["outcome"] = _match_outcome(
+        outcome = _match_outcome(
             card,
             match,
             replay_cards.get(match["fixture_id"], {}),
             outcome_summary,
             generated_at=day_view.get("generated_at"),
         )
+        match["outcome"] = outcome
+        if outcome["is_recorded"] and normalize_match_status(match.get("status")) != "FINISHED":
+            match["status"] = "FT"
     freshness = _mapping(day_view.get("freshness"))
     performance = _mapping(day_view.get("performance"))
     forward = _mapping(performance.get("forward_ledger"))
@@ -426,7 +429,6 @@ def _match_outcome(
     fixture_id = _text(match.get("fixture_id"))
     tracked_ids = set(_string_list(outcome_summary.get("tracked_fixture_ids")))
     recorded_ids = set(_string_list(outcome_summary.get("matched_fixture_ids")))
-    is_finished = normalize_match_status(match.get("status")) == "FINISHED"
     is_tracked = (
         card.get("outcome_tracked") is True
         or replay_card.get("outcome_tracked") is True
@@ -436,8 +438,9 @@ def _match_outcome(
         _text(replay_card.get("outcome_status")) == "MATCHED"
         or fixture_id in recorded_ids
     )
+    is_finished = normalize_match_status(match.get("status")) == "FINISHED" or is_recorded
     cause = outcome_public_cause(
-        status=match.get("status"),
+        status="FINISHED" if is_recorded else match.get("status"),
         kickoff_utc=match.get("kickoff_utc"),
         as_of=generated_at,
         is_tracked=is_tracked,
