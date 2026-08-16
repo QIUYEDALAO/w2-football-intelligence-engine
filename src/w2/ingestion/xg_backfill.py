@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -31,6 +32,7 @@ from w2.matchday.intake_v2 import REQUIRED_MATCHDAY_COMPETITIONS
 from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
 from w2.providers.control import env_int
 from w2.providers.quota import (
+    ProviderQuota,
     parse_api_football_quota,
     provider_daily_hard_cap_decision,
     quota_guard_decision,
@@ -46,6 +48,18 @@ class XgBackfillRepository(Protocol):
         pass
 
     def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
+        pass
+
+    def raw_payload_count(self, endpoint: str) -> int:
+        pass
+
+    def raw_payload_exists(self, *, sha256: str, endpoint: str) -> bool:
+        pass
+
+    def raw_statistics_fixture_ids(self) -> set[str]:
+        pass
+
+    def provider_live_request_count_since(self, *, endpoint: str, since: datetime) -> int:
         pass
 
     def save_raw_payload(
@@ -92,6 +106,7 @@ class XgBackfillConfig:
     source_revision: str = "LOCAL_UNDEPLOYED"
     daily_hard_cap: int = 7500
     daily_reserve: int = 1500
+    statistics_daily_hard_cap: int = 5500
     actual_provider_calls_today: int | None = None
 
 
@@ -139,6 +154,62 @@ class SavedRawXgPlan:
     raw_statistics_sha256: tuple[str, ...]
     future_fixture_count: int
     blockers: tuple[str, ...]
+
+
+PRO_BACKFILL_BATCHES: dict[int, tuple[str, ...]] = {
+    1: (
+        "argentina_primera",
+        "brasileirao_serie_a",
+        "chinese_super_league",
+        "eliteserien",
+        "allsvenskan",
+        "mls",
+    ),
+    2: ("bundesliga", "la_liga", "ligue_1", "premier_league", "serie_a"),
+    3: ("eredivisie", "primeira_liga"),
+}
+PRO_BACKFILL_SEASONS = frozenset({"2024", "2025", "2026"})
+
+
+@dataclass(frozen=True, kw_only=True)
+class ProStatisticsBackfillConfig:
+    batch: int
+    request_budget: int = 5500
+    daily_request_limit: int = 5500
+    requests_per_minute: int = 60
+    quota_reserve: int = 1500
+    pilot_per_competition: int = 3
+    ensure_fixture_manifests: bool = True
+
+
+@dataclass(frozen=True, kw_only=True)
+class ProStatisticsBackfillResult:
+    generated_at_utc: datetime
+    batch: int
+    fixture_manifest_request_count: int
+    raw_fixtures_added: int
+    manifest_fixture_count: int
+    cached_fixture_count: int
+    requested_fixture_count: int
+    raw_statistics_before: int
+    raw_statistics_after: int
+    raw_statistics_added: int
+    raw_payload_sha256: tuple[str, ...]
+    pilot_xg_verified_competitions: tuple[str, ...]
+    skipped_competitions: tuple[str, ...]
+    remaining_fixture_count: int
+    remaining_quota: int | None
+    blockers: tuple[str, ...]
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            **self.__dict__,
+            "generated_at_utc": iso(self.generated_at_utc),
+            "raw_payload_sha256": list(self.raw_payload_sha256),
+            "pilot_xg_verified_competitions": list(self.pilot_xg_verified_competitions),
+            "skipped_competitions": list(self.skipped_competitions),
+            "blockers": list(self.blockers),
+        }
 
 
 class XgHistoryBackfillService:
@@ -232,6 +303,14 @@ class XgHistoryBackfillService:
             )
         historical_fixtures: dict[str, dict[str, Any]] = {}
         blockers: list[str] = []
+        day_start = self.now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        try:
+            statistics_requests_today = self.repository.provider_live_request_count_since(
+                endpoint="statistics",
+                since=day_start,
+            )
+        except Exception as exc:
+            raise XgBackfillError("STATISTICS_USAGE_AUDIT_UNAVAILABLE") from exc
         try:
             for team_id in team_ids:
                 if self._attempt_count() >= self.config.request_budget:
@@ -248,11 +327,18 @@ class XgHistoryBackfillService:
                 for item in self._finished_fixture_items(response.payload):
                     historical_fixtures[fixture_id_from_payload(item)] = item
             xg_rows: list[TeamXgMatch] = []
+            cached_statistics = self.repository.raw_statistics_fixture_ids()
             for fixture_id, fixture in sorted(historical_fixtures.items()):
+                if fixture_id in cached_statistics:
+                    continue
+                if statistics_requests_today >= self.config.statistics_daily_hard_cap:
+                    blockers.append("STATISTICS_DAILY_HARD_CAP_REACHED")
+                    break
                 if self._attempt_count() >= self.config.request_budget:
                     blockers.append("XG_BACKFILL_BUDGET_EXHAUSTED")
                     break
                 response = self._request("statistics", {"fixture": fixture_id})
+                statistics_requests_today += 1
                 if response.status_code >= 400:
                     blockers.append(f"STATISTICS_HTTP_{response.status_code}:{fixture_id}")
                     continue
@@ -692,26 +778,343 @@ class XgHistoryBackfillService:
         )
 
 
+class ProStatisticsBackfillService:
+    """Bounded Pro backfill that persists every response before materialization."""
+
+    def __init__(
+        self,
+        *,
+        config: ProStatisticsBackfillConfig,
+        client: LiveApiFootballPort | None = None,
+        repository: XgBackfillRepository | None = None,
+        now: datetime | None = None,
+    ) -> None:
+        if config.batch not in PRO_BACKFILL_BATCHES:
+            raise XgBackfillError(f"PRO_BACKFILL_BATCH_INVALID:{config.batch}")
+        if config.request_budget <= 0 or config.requests_per_minute <= 0:
+            raise XgBackfillError("PRO_BACKFILL_BUDGET_INVALID")
+        self.config = config
+        self.client = client or ApiFootballClient(
+            allow_live=True,
+            allowed_live_endpoints=frozenset({"fixtures", "statistics"}),
+        )
+        self.repository = repository or FutureRefreshDbRepository()
+        self.now = now or datetime.now(UTC)
+        entries = CompetitionRegistry().entries()
+        self._provider_league_by_competition = {
+            competition_id: str(
+                entries[competition_id].provider_mapping["api_football_league_id"]
+            )
+            for competition_id in PRO_BACKFILL_BATCHES[config.batch]
+        }
+        self._competition_by_scope = {
+            (
+                str(entries[competition_id].provider_mapping["api_football_league_id"]),
+                str(
+                    entries[competition_id].provider_mapping.get("api_football_season")
+                    or entries[competition_id].season
+                ),
+            ): competition_id
+            for competition_id in PRO_BACKFILL_BATCHES[config.batch]
+        }
+
+    def run(self) -> ProStatisticsBackfillResult:
+        fixture_manifest_request_count, raw_fixtures_added = self._ensure_fixture_manifests()
+        targets = self._target_fixtures()
+        cached = self.repository.raw_statistics_fixture_ids()
+        raw_before = self.repository.raw_payload_count("statistics")
+        requested: list[str] = []
+        raw_hashes: list[str] = []
+        verified: set[str] = set()
+        skipped: set[str] = set()
+        blockers: list[str] = []
+        remaining_quota: int | None = None
+        day_start = self.now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        statistics_requests_today = self.repository.provider_live_request_count_since(
+            endpoint="statistics",
+            since=day_start,
+        )
+        request_budget = min(
+            self.config.request_budget,
+            max(self.config.daily_request_limit - statistics_requests_today, 0),
+        )
+        if request_budget == 0:
+            blockers.append("PRO_STATISTICS_DAILY_CAP_REACHED")
+
+        uncached_by_competition: dict[str, list[dict[str, Any]]] = {}
+        for fixture in targets:
+            fixture_id = fixture_id_from_payload(fixture)
+            if fixture_id in cached:
+                continue
+            competition_id = self._competition_id(fixture)
+            if competition_id:
+                uncached_by_competition.setdefault(competition_id, []).append(fixture)
+
+        for competition_id in PRO_BACKFILL_BATCHES[self.config.batch]:
+            if request_budget == 0:
+                break
+            fixtures = uncached_by_competition.get(competition_id, [])
+            if not fixtures:
+                verified.add(competition_id)
+                continue
+            pilot_size = (
+                min(self.config.pilot_per_competition, len(fixtures))
+                if self.config.batch in {2, 3}
+                else 0
+            )
+            pilot = fixtures[:pilot_size]
+            if pilot:
+                pilot_xg_count = 0
+                for fixture in pilot:
+                    if len(requested) >= request_budget:
+                        blockers.append("PRO_STATISTICS_DAILY_CAP_REACHED")
+                        break
+                    digest, has_xg, remaining_quota = self._fetch_and_persist(fixture)
+                    requested.append(fixture_id_from_payload(fixture))
+                    raw_hashes.append(digest)
+                    pilot_xg_count += int(has_xg)
+                    self._throttle()
+                if blockers and blockers[-1] == "PRO_STATISTICS_DAILY_CAP_REACHED":
+                    break
+                if pilot_xg_count != len(pilot):
+                    skipped.add(competition_id)
+                    blockers.append(f"PRO_STATISTICS_XG_PILOT_EMPTY:{competition_id}")
+                    continue
+                verified.add(competition_id)
+            else:
+                verified.add(competition_id)
+
+            for fixture in fixtures[pilot_size:]:
+                if len(requested) >= request_budget:
+                    blockers.append("PRO_STATISTICS_DAILY_CAP_REACHED")
+                    break
+                digest, _has_xg, remaining_quota = self._fetch_and_persist(fixture)
+                requested.append(fixture_id_from_payload(fixture))
+                raw_hashes.append(digest)
+                self._throttle()
+            if blockers and blockers[-1] == "PRO_STATISTICS_DAILY_CAP_REACHED":
+                break
+
+        raw_after = self.repository.raw_payload_count("statistics")
+        raw_added = raw_after - raw_before
+        if raw_added != len(raw_hashes):
+            raise XgBackfillError(
+                f"PRO_STATISTICS_RAW_COUNT_MISMATCH:{raw_before}:{raw_after}:{len(raw_hashes)}"
+            )
+        if any(
+            not self.repository.raw_payload_exists(sha256=digest, endpoint="statistics")
+            for digest in raw_hashes
+        ):
+            raise XgBackfillError("PRO_STATISTICS_RAW_HASH_MISSING")
+        requested_ids = set(requested)
+        remaining = sum(
+            1
+            for rows in uncached_by_competition.values()
+            for fixture in rows
+            if fixture_id_from_payload(fixture) not in requested_ids
+        )
+        return ProStatisticsBackfillResult(
+            generated_at_utc=self.now,
+            batch=self.config.batch,
+            fixture_manifest_request_count=fixture_manifest_request_count,
+            raw_fixtures_added=raw_fixtures_added,
+            manifest_fixture_count=len(targets),
+            cached_fixture_count=sum(
+                fixture_id_from_payload(fixture) in cached for fixture in targets
+            ),
+            requested_fixture_count=len(requested),
+            raw_statistics_before=raw_before,
+            raw_statistics_after=raw_after,
+            raw_statistics_added=raw_added,
+            raw_payload_sha256=tuple(raw_hashes),
+            pilot_xg_verified_competitions=tuple(sorted(verified)),
+            skipped_competitions=tuple(sorted(skipped)),
+            remaining_fixture_count=remaining,
+            remaining_quota=remaining_quota,
+            blockers=tuple(blockers),
+        )
+
+    def _ensure_fixture_manifests(self) -> tuple[int, int]:
+        if not self.config.ensure_fixture_manifests:
+            return 0, 0
+        cached_scopes: set[tuple[str, str]] = set()
+        for raw in self.repository.raw_payloads("fixtures"):
+            payload = raw.get("payload") if isinstance(raw, dict) else None
+            parameters = payload.get("parameters") if isinstance(payload, dict) else None
+            if not isinstance(parameters, dict):
+                continue
+            league_id = str(parameters.get("league") or "")
+            season = str(parameters.get("season") or "")
+            if league_id and season:
+                cached_scopes.add((league_id, season))
+        raw_before = self.repository.raw_payload_count("fixtures")
+        hashes: list[str] = []
+        for competition_id in PRO_BACKFILL_BATCHES[self.config.batch]:
+            league_id = self._provider_league_by_competition[competition_id]
+            for season in sorted(PRO_BACKFILL_SEASONS):
+                if (league_id, season) in cached_scopes:
+                    continue
+                response = self.client.request_live(
+                    "fixtures",
+                    {"league": league_id, "season": season},
+                )
+                if response.status_code >= 400:
+                    raise XgBackfillError(
+                        f"PRO_FIXTURE_MANIFEST_HTTP_{response.status_code}:"
+                        f"{competition_id}:{season}"
+                    )
+                provider_errors = response.payload.get("errors")
+                if provider_errors not in (None, {}, [], ""):
+                    raise XgBackfillError(
+                        f"PRO_FIXTURE_MANIFEST_PROVIDER_ERROR:{competition_id}:{season}"
+                    )
+                parameters = response.payload.get("parameters")
+                if not isinstance(parameters, dict) or (
+                    str(parameters.get("league") or "") != league_id
+                    or str(parameters.get("season") or "") != season
+                ):
+                    raise XgBackfillError(
+                        f"PRO_FIXTURE_MANIFEST_IDENTITY_MISMATCH:{competition_id}:{season}"
+                    )
+                digest = self._persist_response("fixtures", response)
+                hashes.append(digest)
+                self._quota_guard(response)
+                self._throttle()
+        raw_after = self.repository.raw_payload_count("fixtures")
+        if raw_after - raw_before != len(hashes):
+            raise XgBackfillError(
+                f"PRO_FIXTURE_MANIFEST_RAW_COUNT_MISMATCH:"
+                f"{raw_before}:{raw_after}:{len(hashes)}"
+            )
+        if any(
+            not self.repository.raw_payload_exists(sha256=digest, endpoint="fixtures")
+            for digest in hashes
+        ):
+            raise XgBackfillError("PRO_FIXTURE_MANIFEST_RAW_HASH_MISSING")
+        return len(hashes), len(hashes)
+
+    def _target_fixtures(self) -> list[dict[str, Any]]:
+        fixtures: dict[str, dict[str, Any]] = {}
+        for fixture in self.repository.fixture_payloads():
+            fixture_id = fixture_id_from_payload(fixture)
+            fixture_data = fixture.get("fixture") if isinstance(fixture, dict) else None
+            league = fixture.get("league") if isinstance(fixture, dict) else None
+            status = fixture_data.get("status") if isinstance(fixture_data, dict) else None
+            season = str(league.get("season") or "") if isinstance(league, dict) else ""
+            if (
+                fixture_id
+                and isinstance(status, dict)
+                and str(status.get("short") or "") in FINISHED_STATUS
+                and season in PRO_BACKFILL_SEASONS
+                and self._competition_id(fixture)
+            ):
+                fixtures[fixture_id] = fixture
+        return sorted(
+            fixtures.values(),
+            key=lambda item: (
+                str(item.get("league", {}).get("id") or ""),
+                str(item.get("league", {}).get("season") or ""),
+                str(item.get("fixture", {}).get("date") or ""),
+                fixture_id_from_payload(item),
+            ),
+        )
+
+    def _competition_id(self, fixture: dict[str, Any]) -> str:
+        league = fixture.get("league") if isinstance(fixture, dict) else None
+        if not isinstance(league, dict):
+            return ""
+        league_id = str(league.get("id") or "")
+        season = str(league.get("season") or "")
+        direct = self._competition_by_scope.get((league_id, season))
+        if direct:
+            return direct
+        for (scope_league, _scope_season), competition_id in self._competition_by_scope.items():
+            if scope_league == league_id and season in PRO_BACKFILL_SEASONS:
+                return competition_id
+        return ""
+
+    def _fetch_and_persist(
+        self,
+        fixture: dict[str, Any],
+    ) -> tuple[str, bool, int | None]:
+        fixture_id = fixture_id_from_payload(fixture)
+        response = self.client.request_live("statistics", {"fixture": fixture_id})
+        if response.status_code >= 400:
+            raise XgBackfillError(f"PRO_STATISTICS_HTTP_{response.status_code}:{fixture_id}")
+        payload_fixture = XgHistoryBackfillService._statistics_fixture_id(response.payload)
+        if payload_fixture != fixture_id:
+            raise XgBackfillError(
+                f"PRO_STATISTICS_FIXTURE_IDENTITY_MISMATCH:{fixture_id}:{payload_fixture}"
+            )
+        digest = self._persist_response("statistics", response)
+        provider_errors = response.payload.get("errors")
+        if provider_errors not in (None, {}, [], ""):
+            raise XgBackfillError(f"PRO_STATISTICS_PROVIDER_ERROR:{fixture_id}")
+        quota = self._quota_guard(response)
+        rows = parse_team_xg_matches(
+            fixture_payload=fixture,
+            statistics_payload=response.payload,
+            captured_at=response.captured_at,
+            raw_payload_sha256=digest,
+        )
+        return digest, len(rows) == 2, quota.daily_remaining
+
+    def _persist_response(self, endpoint: str, response: LiveApiFootballResponse) -> str:
+        digest = sha256_payload(
+            response.payload,
+            domain=HashDomain.FUTURE_REFRESH_RAW_PAYLOAD,
+        )
+        self.repository.save_raw_payload(
+            sha256=digest,
+            endpoint=endpoint,
+            captured_at=response.captured_at,
+            payload=response.payload,
+        )
+        if not self.repository.raw_payload_exists(sha256=digest, endpoint=endpoint):
+            raise XgBackfillError(f"PRO_RAW_WRITE_GUARD_FAILED:{endpoint}:{digest}")
+        return digest
+
+    def _quota_guard(self, response: LiveApiFootballResponse) -> ProviderQuota:
+        quota = parse_api_football_quota(
+            headers=response.headers,
+            payload=response.payload,
+            observed_at=response.captured_at,
+        )
+        if quota.daily_remaining is not None and quota.daily_remaining <= self.config.quota_reserve:
+            raise XgBackfillError("BACKFILL_QUOTA_GUARD")
+        return quota
+
+    def _throttle(self) -> None:
+        time.sleep(60 / self.config.requests_per_minute)
+
+
 def run_xg_history_backfill(
     *,
+    competition_id: str | None = None,
     client: LiveApiFootballPort | None = None,
     repository: XgBackfillRepository | None = None,
     now: datetime | None = None,
 ) -> XgBackfillResult:
-    competition_id = os.environ.get("W2_XG_BACKFILL_COMPETITION_ID", "").strip()
-    if competition_id not in REQUIRED_MATCHDAY_COMPETITIONS:
+    requested_competition_id = (
+        competition_id or os.environ.get("W2_XG_BACKFILL_COMPETITION_ID", "")
+    ).strip()
+    if requested_competition_id not in REQUIRED_MATCHDAY_COMPETITIONS:
         raise XgBackfillError("XG_LIVE_COMPETITION_EXACT13_REQUIRED")
     return XgHistoryBackfillService(
         client=client,
         repository=repository,
         now=now,
         config=XgBackfillConfig(
-            competition_ids=(competition_id,),
+            competition_ids=(requested_competition_id,),
             recent_match_count=int(os.environ.get("W2_XG_BACKFILL_RECENT_MATCHES", "5")),
             request_budget=int(os.environ.get("W2_XG_BACKFILL_REQUEST_BUDGET", "120")),
             quota_reserve=int(os.environ.get("W2_API_MINIMUM_RESERVE", "1500")),
             daily_hard_cap=env_int("W2_PROVIDER_DAILY_HARD_CAP", default=7500),
             daily_reserve=env_int("W2_PROVIDER_DAILY_RESERVE", default=1500),
+            statistics_daily_hard_cap=env_int(
+                "W2_STATISTICS_DAILY_HARD_CAP",
+                default=5500,
+            ),
             source_revision=os.environ.get("W2_SERVICE_VERSION", "LOCAL_UNDEPLOYED"),
         ),
     ).run()

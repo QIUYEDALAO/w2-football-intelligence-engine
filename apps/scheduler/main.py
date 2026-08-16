@@ -674,15 +674,34 @@ def xg_history_backfill_tick() -> dict[str, object]:
     from apps.worker.celery_app import celery_app
 
     now = datetime.now(UTC)
-    task_id = f"xg-history-backfill:{now.strftime('%Y%m%dT%H%M%S')}:{uuid4()}"
-    celery_app.send_task(
-        "w2.xg_history_backfill",
-        kwargs={"queued_at_utc": now.isoformat().replace("+00:00", "Z")},
-        task_id=task_id,
-    )
+    competition_ids = matchday_checkpoint_competition_ids()
+    if len(competition_ids) != 13:
+        return {
+            "status": "XG_BACKFILL_SCOPE_INVALID",
+            "provider_calls": 0,
+            "candidate": False,
+            "formal_recommendation": False,
+        }
+    task_ids = []
+    for competition_id in competition_ids:
+        task_id = (
+            f"xg-history-backfill:{competition_id}:"
+            f"{now.strftime('%Y%m%dT%H%M%S')}:{uuid4()}"
+        )
+        celery_app.send_task(
+            "w2.xg_history_backfill",
+            kwargs={
+                "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+                "competition_id": competition_id,
+            },
+            task_id=task_id,
+        )
+        task_ids.append(task_id)
     return {
         "status": "QUEUED",
-        "task_id": task_id,
+        "task_id": task_ids[0],
+        "task_ids": task_ids,
+        "competition_ids": list(competition_ids),
         "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
         "candidate": False,
         "formal_recommendation": False,

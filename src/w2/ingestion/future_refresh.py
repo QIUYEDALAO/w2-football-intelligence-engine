@@ -2415,6 +2415,28 @@ class FutureFixtureRefreshService:
                 if not self._endpoint_authorized(endpoint):
                     self._append_unauthorized_endpoint_skip(endpoint, fixture_id)
                     continue
+                fixture_status = str(
+                    ((item.get("fixture") or {}).get("status") or {}).get("short") or ""
+                ).upper()
+                if endpoint == "statistics" and fixture_status not in {
+                    "FT",
+                    "AET",
+                    "PEN",
+                }:
+                    self._audit.append(
+                        {
+                            "endpoint": endpoint,
+                            "params": {"fixture": fixture_id},
+                            "attempt": 0,
+                            "status_code": None,
+                            "elapsed_ms": 0,
+                            "captured_at_utc": iso(utc_now()),
+                            "remaining_quota": self._latest_remaining,
+                            "payload_sha256": None,
+                            "error_code": "STATISTICS_NOT_POSTMATCH",
+                        }
+                    )
+                    continue
                 if self._attempt_count >= self.config.request_budget:
                     self._audit.append(
                         {

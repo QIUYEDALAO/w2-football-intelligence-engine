@@ -2641,6 +2641,65 @@ class FutureRefreshDbRepository:
             for row in rows
         ]
 
+    def raw_payload_count(self, endpoint: str) -> int:
+        with Session(self.engine) as session:
+            return int(
+                session.scalar(
+                    select(func.count())
+                    .select_from(RawPayloadModel)
+                    .where(RawPayloadModel.endpoint == endpoint)
+                )
+                or 0
+            )
+
+    def raw_payload_exists(self, *, sha256: str, endpoint: str) -> bool:
+        with Session(self.engine) as session:
+            return bool(
+                session.scalar(
+                    select(func.count())
+                    .select_from(RawPayloadModel)
+                    .where(
+                        RawPayloadModel.sha256 == sha256,
+                        RawPayloadModel.endpoint == endpoint,
+                    )
+                )
+            )
+
+    def raw_statistics_fixture_ids(self) -> set[str]:
+        fixture_ids: set[str] = set()
+        with Session(self.engine) as session:
+            rows = session.execute(
+                select(RawPayloadModel.payload)
+                .where(RawPayloadModel.endpoint == "statistics")
+                .execution_options(yield_per=256)
+            )
+            for (payload,) in rows:
+                parameters = payload.get("parameters") if isinstance(payload, dict) else None
+                fixture_id = (
+                    str(parameters.get("fixture") or "")
+                    if isinstance(parameters, dict)
+                    else ""
+                )
+                if fixture_id:
+                    fixture_ids.add(fixture_id)
+        return fixture_ids
+
+    def provider_live_request_count_since(self, *, endpoint: str, since: datetime) -> int:
+        with Session(self.engine) as session:
+            return int(
+                session.scalar(
+                    select(func.count())
+                    .select_from(ProviderRequestLogModel)
+                    .where(
+                        ProviderRequestLogModel.provider == "api_football",
+                        ProviderRequestLogModel.endpoint == endpoint,
+                        ProviderRequestLogModel.live.is_(True),
+                        ProviderRequestLogModel.requested_at >= parse_db_datetime(since),
+                    )
+                )
+                or 0
+            )
+
     def raw_payloads_for_scope(
         self,
         endpoint: str,

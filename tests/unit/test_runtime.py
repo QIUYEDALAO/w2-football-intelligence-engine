@@ -728,13 +728,19 @@ def test_scheduler_xg_backfill_dispatches_worker_task_without_running_provider(
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setenv("W2_XG_BACKFILL_ENABLED", "true")
     monkeypatch.setattr(celery_app, "send_task", fake_send_task)
+    monkeypatch.setattr(
+        scheduler_main,
+        "matchday_checkpoint_competition_ids",
+        lambda: tuple(f"league-{index}" for index in range(13)),
+    )
 
     result = xg_history_backfill_tick()
 
     assert result["status"] == "QUEUED"
-    assert str(result["task_id"]).startswith("xg-history-backfill:")
+    assert len(result["task_ids"]) == 13
     assert sent[0]["name"] == "w2.xg_history_backfill"
     assert sent[0]["kwargs"]["queued_at_utc"] == result["queued_at_utc"]
+    assert sent[0]["kwargs"]["competition_id"] == "league-0"
 
 
 def test_scheduler_forward_outcome_ledger_dispatches_without_provider_calls(monkeypatch) -> None:
@@ -771,10 +777,13 @@ def test_worker_xg_backfill_task_reports_false_flags(monkeypatch) -> None:
     monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
     monkeypatch.setattr(
         "apps.worker.celery_app.run_xg_history_backfill",
-        lambda: FakeResult(),
+        lambda **_kwargs: FakeResult(),
     )
 
-    result = xg_history_backfill.run(queued_at_utc="2026-06-26T12:00:00Z")
+    result = xg_history_backfill.run(
+        queued_at_utc="2026-06-26T12:00:00Z",
+        competition_id="allsvenskan",
+    )
 
     assert result["status"] == "COMPLETED"
     assert result["result"]["candidate"] is False
@@ -842,7 +851,7 @@ def test_worker_provider_master_switch_blocks_direct_tasks(monkeypatch) -> None:
     monkeypatch.delenv("W2_PROVIDER_SCHEDULER_ENABLED", raising=False)
     monkeypatch.setattr(
         "apps.worker.celery_app.run_xg_history_backfill",
-        lambda: (_ for _ in ()).throw(AssertionError("must not run provider task")),
+        lambda **_kwargs: (_ for _ in ()).throw(AssertionError("must not run provider task")),
     )
 
     result = xg_history_backfill.run(queued_at_utc="2026-06-26T12:00:00Z")

@@ -183,7 +183,7 @@ def test_controlled_future_refresh_is_source_controlled_and_deployed_with_schedu
     for environment in (worker, scheduler):
         assert environment["W2_PROVIDER_HTTP_MAX_ATTEMPTS"] == "1"
         assert environment["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == (
-            "${W2_PROVIDER_ENDPOINT_ALLOWLIST:-status,fixtures}"
+            "${W2_PROVIDER_ENDPOINT_ALLOWLIST:-status,fixtures,odds,lineups,statistics}"
         )
         assert environment["W2_PROVIDER_REQUEST_LEDGER_ENABLED"] == "true"
         assert environment["W2_PROVIDER_REFRESH_TICK_HARD_CAP"] == "30"

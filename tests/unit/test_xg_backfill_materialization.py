@@ -10,6 +10,8 @@ from w2.features.xg_materialization import (
     parse_team_xg_matches,
 )
 from w2.ingestion.xg_backfill import (
+    ProStatisticsBackfillConfig,
+    ProStatisticsBackfillService,
     XgBackfillConfig,
     XgBackfillError,
     XgHistoryBackfillService,
@@ -218,6 +220,18 @@ class FakeRepository:
                 "teams": {"home": {"id": 50}, "away": {"id": 60}},
             },
         ]
+
+    def raw_payload_count(self, endpoint: str) -> int:
+        return sum(saved_endpoint == endpoint for saved_endpoint, _digest in self.raw)
+
+    def raw_payload_exists(self, *, sha256: str, endpoint: str) -> bool:
+        return (endpoint, sha256) in self.raw
+
+    def raw_statistics_fixture_ids(self) -> set[str]:
+        return set()
+
+    def provider_live_request_count_since(self, *, endpoint: str, since: datetime) -> int:
+        return int(getattr(self, "statistics_request_count_today", 0))
 
     def save_raw_payload(
         self,
@@ -579,6 +593,26 @@ def test_xg_backfill_daily_hard_cap_blocks_before_provider_call() -> None:
     assert result.requests[0]["error_code"] == "PROVIDER_RESERVE_PROTECTED"
 
 
+def test_xg_backfill_statistics_daily_cap_stops_statistics_calls() -> None:
+    client = FakeClient()
+    repository = FakeRepository()
+    repository.statistics_request_count_today = 5500
+
+    result = XgHistoryBackfillService(
+        client=client,
+        repository=repository,
+        config=XgBackfillConfig(
+            request_budget=120,
+            statistics_daily_hard_cap=5500,
+        ),
+        now=NOW,
+    ).run()
+
+    assert result.blockers == ["STATISTICS_DAILY_HARD_CAP_REACHED"]
+    assert result.statistics_request_count == 0
+    assert all(endpoint != "statistics" for endpoint, _params in client.calls)
+
+
 def test_xg_backfill_fails_closed_when_provider_usage_audit_unavailable() -> None:
     client = FakeClient()
     repository = BrokenUsageRepository()
@@ -602,3 +636,181 @@ def test_xg_backfill_fails_closed_when_provider_usage_audit_unavailable() -> Non
     assert repository.matches == []
     assert repository.snapshots == []
     assert result.requests[0]["error_code"] == "PROVIDER_USAGE_AUDIT_UNAVAILABLE"
+
+
+class ProBackfillRepository(FakeRepository):
+    def __init__(self, fixtures: list[dict[str, Any]]) -> None:
+        super().__init__()
+        self.fixtures = fixtures
+
+    def fixture_payloads(self) -> list[dict[str, Any]]:
+        return self.fixtures
+
+    def save_raw_payload(
+        self,
+        *,
+        sha256: str,
+        endpoint: str,
+        captured_at: datetime,
+        payload: dict[str, Any],
+    ) -> str:
+        self.raw.append((endpoint, sha256))
+        return f"db://raw_payload/{sha256}"
+
+
+class ProBackfillClient:
+    def __init__(self, *, with_xg: bool = True) -> None:
+        self.calls: list[str] = []
+        self.with_xg = with_xg
+
+    def request_live(self, endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
+        fixture_id = params["fixture"]
+        self.calls.append(fixture_id)
+        payload = statistics() if self.with_xg else {"response": []}
+        payload["parameters"] = {"fixture": fixture_id}
+        return LiveApiFootballResponse(
+            endpoint=endpoint,
+            params=params,
+            status_code=200,
+            elapsed_ms=1,
+            payload=payload,
+            headers={"x-ratelimit-requests-remaining": "7000"},
+            captured_at=NOW,
+        )
+
+
+def pro_fixture(fixture_id: str, *, league_id: int) -> dict[str, Any]:
+    fixture = finished_fixture(fixture_id, NOW - timedelta(days=1))
+    fixture["league"] = {"id": league_id, "season": "2024"}
+    return fixture
+
+
+def test_pro_statistics_backfill_persists_missing_fixture_manifests(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+    repository = ProBackfillRepository([])
+
+    class ManifestClient:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, str]]] = []
+
+        def request_live(
+            self,
+            endpoint: str,
+            params: dict[str, str],
+        ) -> LiveApiFootballResponse:
+            self.calls.append((endpoint, params))
+            return LiveApiFootballResponse(
+                endpoint=endpoint,
+                params=params,
+                status_code=200,
+                elapsed_ms=1,
+                payload={"parameters": params, "response": []},
+                headers={"x-ratelimit-requests-remaining": "7000"},
+                captured_at=NOW,
+            )
+
+    client = ManifestClient()
+    result = ProStatisticsBackfillService(
+        client=client,
+        repository=repository,
+        config=ProStatisticsBackfillConfig(batch=3, request_budget=10),
+        now=NOW,
+    ).run()
+
+    assert result.fixture_manifest_request_count == 6
+    assert result.raw_fixtures_added == 6
+    assert {endpoint for endpoint, _params in client.calls} == {"fixtures"}
+    assert {params["season"] for _endpoint, params in client.calls} == {
+        "2024",
+        "2025",
+        "2026",
+    }
+
+
+def test_pro_statistics_backfill_persists_each_response_with_count_and_hash_guard(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+    repository = ProBackfillRepository(
+        [pro_fixture("br-1", league_id=71), pro_fixture("br-2", league_id=71)]
+    )
+    client = ProBackfillClient()
+
+    result = ProStatisticsBackfillService(
+        client=client,
+        repository=repository,
+        config=ProStatisticsBackfillConfig(
+            batch=1,
+            request_budget=10,
+            ensure_fixture_manifests=False,
+        ),
+        now=NOW,
+    ).run()
+
+    assert client.calls == ["br-1", "br-2"]
+    assert result.raw_statistics_added == 2
+    assert result.raw_statistics_before == 0
+    assert result.raw_statistics_after == 2
+    assert len(result.raw_payload_sha256) == 2
+    assert result.remaining_fixture_count == 0
+
+
+def test_pro_statistics_backfill_stops_scope_after_empty_xg_pilot(monkeypatch: Any) -> None:
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+    repository = ProBackfillRepository(
+        [pro_fixture(f"pl-{index}", league_id=39) for index in range(5)]
+    )
+    client = ProBackfillClient(with_xg=False)
+
+    result = ProStatisticsBackfillService(
+        client=client,
+        repository=repository,
+        config=ProStatisticsBackfillConfig(
+            batch=2,
+            request_budget=10,
+            ensure_fixture_manifests=False,
+        ),
+        now=NOW,
+    ).run()
+
+    assert client.calls == ["pl-0", "pl-1", "pl-2"]
+    assert result.raw_statistics_added == 3
+    assert result.skipped_competitions == ("premier_league",)
+    assert result.blockers == ("PRO_STATISTICS_XG_PILOT_EMPTY:premier_league",)
+
+
+def test_pro_statistics_backfill_continues_after_one_scope_fails_pilot(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+    repository = ProBackfillRepository(
+        [pro_fixture(f"de-{index}", league_id=78) for index in range(3)]
+        + [pro_fixture(f"pl-{index}", league_id=39) for index in range(3)]
+    )
+    client = ProBackfillClient()
+    original_request = client.request_live
+
+    def request_live(endpoint: str, params: dict[str, str]) -> LiveApiFootballResponse:
+        response = original_request(endpoint, params)
+        if params["fixture"].startswith("de-"):
+            response.payload["response"] = []
+        return response
+
+    monkeypatch.setattr(client, "request_live", request_live)
+
+    result = ProStatisticsBackfillService(
+        client=client,
+        repository=repository,
+        config=ProStatisticsBackfillConfig(
+            batch=2,
+            request_budget=10,
+            ensure_fixture_manifests=False,
+        ),
+        now=NOW,
+    ).run()
+
+    assert client.calls == ["de-0", "de-1", "de-2", "pl-0", "pl-1", "pl-2"]
+    assert result.skipped_competitions == ("bundesliga",)
+    assert "premier_league" in result.pilot_xg_verified_competitions

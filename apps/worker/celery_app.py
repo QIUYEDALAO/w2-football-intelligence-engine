@@ -171,6 +171,7 @@ def future_fixture_refresh(
 def xg_history_backfill(
     self: object,
     queued_at_utc: str | None = None,
+    competition_id: str | None = None,
 ) -> dict[str, object]:
     request = getattr(self, "request", None)
     task_id = str(getattr(request, "id", None) or "xg-history-backfill")
@@ -188,7 +189,7 @@ def xg_history_backfill(
             "candidate": False,
             "formal_recommendation": False,
         }
-    result = run_xg_history_backfill()
+    result = run_xg_history_backfill(competition_id=competition_id)
     return {
         "task_id": task_id,
         "queued_at_utc": queued_at_utc,

@@ -45,10 +45,12 @@ def test_staging_compose_defaults_future_refresh_and_provider_calls_disabled() -
         assert scheduler["W2_PROVIDER_SCHEDULER_ENABLED"] == "false"
         assert scheduler["W2_PROVIDER_REQUEST_LEDGER_ENABLED"] == "true"
         assert scheduler["W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS"] == "900"
-        assert scheduler["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == "status,fixtures,odds,lineups"
+        assert scheduler["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == (
+            "status,fixtures,odds,lineups,statistics"
+        )
         assert scheduler["W2_PROVIDER_REFRESH_TICK_HARD_CAP"] == "30"
-        assert scheduler["W2_PROVIDER_DAILY_HARD_CAP"] == "70"
-        assert scheduler["W2_PROVIDER_DAILY_UNALLOCATED_BUFFER"] == "10"
+        assert scheduler["W2_PROVIDER_DAILY_HARD_CAP"] == "7500"
+        assert scheduler["W2_PROVIDER_DAILY_UNALLOCATED_BUFFER"] == "0"
         assert scheduler["W2_FIXTURE_DISCOVERY_ENABLED"] == (
             "${W2_FIXTURE_DISCOVERY_ENABLED:-false}"
         )
@@ -67,8 +69,8 @@ def test_staging_compose_defaults_future_refresh_and_provider_calls_disabled() -
         api = env_for(path, "api")
         assert api["W2_PROVIDER_CALLS_DISABLED"] == "true"
         assert api["W2_PROVIDER_SCHEDULER_ENABLED"] == "false"
-        assert api["W2_PROVIDER_DAILY_HARD_CAP"] == "70"
-        assert api["W2_PROVIDER_DAILY_UNALLOCATED_BUFFER"] == "10"
+        assert api["W2_PROVIDER_DAILY_HARD_CAP"] == "7500"
+        assert api["W2_PROVIDER_DAILY_UNALLOCATED_BUFFER"] == "0"
         assert "W2_STAGING_ENABLED_COMPETITIONS" not in api
         for service in ("worker",):
             env = env_for(path, service)
@@ -76,10 +78,12 @@ def test_staging_compose_defaults_future_refresh_and_provider_calls_disabled() -
             assert env["W2_PROVIDER_SCHEDULER_ENABLED"] == "false"
             assert env["W2_PROVIDER_REQUEST_LEDGER_ENABLED"] == "true"
             assert env["W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS"] == "900"
-            assert env["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == "status,fixtures,odds,lineups"
+            assert env["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == (
+                "status,fixtures,odds,lineups,statistics"
+            )
             assert env["W2_PROVIDER_REFRESH_TICK_HARD_CAP"] == "30"
-            assert env["W2_PROVIDER_DAILY_HARD_CAP"] == "70"
-            assert env["W2_PROVIDER_DAILY_UNALLOCATED_BUFFER"] == "10"
+            assert env["W2_PROVIDER_DAILY_HARD_CAP"] == "7500"
+            assert env["W2_PROVIDER_DAILY_UNALLOCATED_BUFFER"] == "0"
             assert "W2_STAGING_ENABLED_COMPETITIONS" not in env
             assert env["W2_XG_BACKFILL_ENABLED"] == "false"
         for service in ("api", "web", "worker"):
@@ -134,10 +138,10 @@ def test_controlled_override_selects_one_collection_task_and_discovery_mode() ->
         "${W2_POSTMATCH_ONLY_ENABLED:-true}"
     )
     assert worker["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == (
-        "${W2_PROVIDER_ENDPOINT_ALLOWLIST:-status,fixtures}"
+        "${W2_PROVIDER_ENDPOINT_ALLOWLIST:-status,fixtures,odds,lineups,statistics}"
     )
     assert scheduler["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == (
-        "${W2_PROVIDER_ENDPOINT_ALLOWLIST:-status,fixtures}"
+        "${W2_PROVIDER_ENDPOINT_ALLOWLIST:-status,fixtures,odds,lineups,statistics}"
     )
     assert worker["W2_PROVIDER_HTTP_MAX_ATTEMPTS"] == "1"
     assert scheduler["W2_PROVIDER_HTTP_MAX_ATTEMPTS"] == "1"
@@ -190,6 +194,8 @@ def test_exact_13_share_seven_day_open_and_t72_t48_collection_policy() -> None:
     assert len(scope) == 13
     assert scope <= set(future_by_id) & set(matchday_by_id)
     for competition_id in scope:
+        assert future_by_id[competition_id]["feature_enrichment_enabled"] is True
+        assert "statistics" in future_by_id[competition_id]["feature_enrichment_endpoints"]
         checkpoints = {item["name"]: item for item in matchday_by_id[competition_id]["checkpoints"]}
         assert checkpoints["T168_OPEN_ODDS"] == {
             "name": "T168_OPEN_ODDS",

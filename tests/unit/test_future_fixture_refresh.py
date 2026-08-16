@@ -1477,7 +1477,7 @@ def test_future_refresh_controlled_feature_enrichment_uses_budget_and_audit(
     assert ("lineups", {"fixture": "1489404"}) in client.calls
     assert ("injuries", {"fixture": "1489404"}) not in client.calls
     assert list((tmp_path / "raw").glob("lineups_*.json"))
-    assert "ENDPOINT_NOT_AUTHORIZED:statistics" in audit
+    assert "STATISTICS_NOT_POSTMATCH" in audit
     assert "ENDPOINT_NOT_AUTHORIZED:injuries" in audit
     assert '"candidate": false' in audit
     assert '"formal_recommendation": false' in audit
@@ -1799,18 +1799,18 @@ def test_future_refresh_staging_requires_exact_source_revision(monkeypatch) -> N
 def test_world_cup_future_refresh_policy_uses_zero_trickle_backfill_budget() -> None:
     config = config_from_policy(competition_id="world_cup_2026")
 
-    assert config.daily_hard_cap == 70
-    assert config.daily_unallocated_buffer == 10
-    assert config.daily_reserve == 0
+    assert config.daily_hard_cap == 7500
+    assert config.daily_unallocated_buffer == 0
+    assert config.daily_reserve == 1500
     assert config.request_budget == 30
     assert config.checkpoint_mode == "matchday_checkpoint_plan"
-    assert config.trickle_backfill_daily_budget == 0
+    assert config.trickle_backfill_daily_budget == 120
 
 
 def test_future_refresh_rejects_registered_budget_above_observed_plan_limit(
     monkeypatch,
 ) -> None:
-    monkeypatch.setenv("W2_PROVIDER_DAILY_HARD_CAP", "100")
+    monkeypatch.setenv("W2_PROVIDER_DAILY_HARD_CAP", "7501")
 
     try:
         config_from_policy(competition_id="world_cup_2026")
@@ -1836,6 +1836,7 @@ def test_future_refresh_accepts_header_bound_pro_budget(monkeypatch) -> None:
 
 def test_future_refresh_rejects_unattributed_non_free_limit(monkeypatch) -> None:
     monkeypatch.setenv("W2_PROVIDER_OBSERVED_DAILY_LIMIT", "7500")
+    monkeypatch.delenv("W2_PROVIDER_OBSERVED_DAILY_LIMIT_AT", raising=False)
 
     with pytest.raises(FutureRefreshError, match="PROVIDER_PLAN_LIMIT_AUTHORITY_MISSING"):
         config_from_policy(competition_id="world_cup_2026")

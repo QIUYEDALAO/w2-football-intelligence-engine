@@ -245,11 +245,11 @@ def test_world_cup_policy_disables_trickle_backfill_until_final_hibernation() ->
         item for item in payload["competitions"] if item["competition_id"] == "world_cup_2026"
     )
 
-    assert policy["daily_hard_cap"] == 70
-    assert policy["daily_reserve"] == 0
+    assert policy["daily_hard_cap"] == 7500
+    assert policy["daily_reserve"] == 1500
     assert policy["request_budget"] == 30
     assert policy["checkpoint_mode"] == "matchday_checkpoint_plan"
-    assert policy["trickle_backfill_daily_budget"] == 0
+    assert policy["trickle_backfill_daily_budget"] == 120
 
 
 def test_hibernate_workorder_records_post_final_trickle_switch_to_60_40() -> None:

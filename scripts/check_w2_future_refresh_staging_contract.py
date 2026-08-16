@@ -280,7 +280,7 @@ def assert_compose(path: Path) -> None:
             fail(f"{path}: retired scheduler timeline authority remains: {retired}")
     safe_defaults = {
         "W2_PROVIDER_REFRESH_MIN_INTERVAL_SECONDS": "900",
-        "W2_PROVIDER_ENDPOINT_ALLOWLIST": "status,fixtures,odds,lineups",
+        "W2_PROVIDER_ENDPOINT_ALLOWLIST": "status,fixtures,odds,lineups,statistics",
         "W2_PROVIDER_REFRESH_TICK_HARD_CAP": "30",
     }
     for flag, expected in safe_defaults.items():
@@ -355,24 +355,24 @@ def assert_policy() -> None:
             fail(f"{competition_id} policy must be enabled behind staging registry override")
         if item.get("request_budget") != 10:
             fail(f"{competition_id} request_budget must stay at 10 for lite staging seed")
-        if item.get("daily_hard_cap") != 120:
-            fail(f"{competition_id} daily_hard_cap must stay at 120 for R2.3")
-        if item.get("daily_reserve") != 0:
-            fail(f"{competition_id} daily_reserve must stay at 0 for R2.3 lite seed")
+        if item.get("daily_hard_cap") != 7500:
+            fail(f"{competition_id} daily_hard_cap must match observed Pro authority")
+        if item.get("daily_reserve") != 1500:
+            fail(f"{competition_id} daily_reserve must protect Pro foreground work")
         if competition_id == "allsvenskan":
             if item.get("feature_enrichment_enabled") is not True:
-                fail("allsvenskan lineup enrichment must stay enabled")
-            if item.get("feature_enrichment_endpoints") != ["lineups"]:
-                fail("allsvenskan enrichment must be lineups-only")
+                fail("allsvenskan Pro enrichment must stay enabled")
+            if item.get("feature_enrichment_endpoints") != ["lineups", "statistics"]:
+                fail("allsvenskan enrichment must include lineups and statistics")
             if item.get("feature_enrichment_request_budget") != 3:
-                fail("allsvenskan lineup enrichment budget must stay at 3")
+                fail("allsvenskan enrichment budget must stay at 3")
         else:
-            if item.get("feature_enrichment_enabled") is not False:
-                fail(f"{competition_id} feature enrichment must stay disabled for lite seed")
-            if item.get("feature_enrichment_endpoints") != []:
-                fail(f"{competition_id} feature enrichment endpoints must stay empty")
-            if item.get("feature_enrichment_request_budget") != 0:
-                fail(f"{competition_id} feature enrichment budget must stay at 0")
+            if item.get("feature_enrichment_enabled") is not True:
+                fail(f"{competition_id} Pro statistics enrichment must stay enabled")
+            if item.get("feature_enrichment_endpoints") != ["statistics"]:
+                fail(f"{competition_id} enrichment must be statistics-only")
+            if item.get("feature_enrichment_request_budget") != 3:
+                fail(f"{competition_id} statistics enrichment budget must stay at 3")
         if item.get("max_odds_requests") != 8:
             fail(f"{competition_id} max_odds_requests must stay at 8 for R2.3")
 
