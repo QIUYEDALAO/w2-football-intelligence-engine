@@ -28,7 +28,7 @@ def main() -> None:
     assert coverage["provider_calls"] == coverage["db_writes"] == 0
     assert sum(entry["review_status"] == "APPROVED" for entry in labels["entries"]) == 64
     assert {
-        entry["provider_team_id"]
+        int(str(entry["w2_team_id"]).rsplit(":", 1)[-1])
         for entry in labels["entries"]
         if entry["review_status"] == "PENDING_OWNER_REVIEW"
     } == {2170, 377}
