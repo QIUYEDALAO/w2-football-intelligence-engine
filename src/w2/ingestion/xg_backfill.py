@@ -850,6 +850,7 @@ class ProStatisticsBackfillService:
             if competition_id:
                 uncached_by_competition.setdefault(competition_id, []).append(fixture)
 
+        pilot_size_by_competition: dict[str, int] = {}
         for competition_id in PRO_BACKFILL_BATCHES[self.config.batch]:
             if request_budget == 0:
                 break
@@ -862,6 +863,7 @@ class ProStatisticsBackfillService:
                 if self.config.batch in {2, 3}
                 else 0
             )
+            pilot_size_by_competition[competition_id] = pilot_size
             pilot = fixtures[:pilot_size]
             if pilot:
                 pilot_xg_count = 0
@@ -884,6 +886,15 @@ class ProStatisticsBackfillService:
             else:
                 verified.add(competition_id)
 
+        for competition_id in PRO_BACKFILL_BATCHES[self.config.batch]:
+            if (
+                competition_id not in verified
+                or blockers
+                and blockers[-1] == "PRO_STATISTICS_DAILY_CAP_REACHED"
+            ):
+                continue
+            fixtures = uncached_by_competition.get(competition_id, [])
+            pilot_size = pilot_size_by_competition.get(competition_id, 0)
             for fixture in fixtures[pilot_size:]:
                 if len(requested) >= request_budget:
                     blockers.append("PRO_STATISTICS_DAILY_CAP_REACHED")

@@ -814,3 +814,34 @@ def test_pro_statistics_backfill_continues_after_one_scope_fails_pilot(
     assert client.calls == ["de-0", "de-1", "de-2", "pl-0", "pl-1", "pl-2"]
     assert result.skipped_competitions == ("bundesliga",)
     assert "premier_league" in result.pilot_xg_verified_competitions
+
+
+def test_pro_statistics_backfill_verifies_all_pilots_before_bulk(monkeypatch: Any) -> None:
+    monkeypatch.setattr("w2.ingestion.xg_backfill.time.sleep", lambda _seconds: None)
+    repository = ProBackfillRepository(
+        [pro_fixture(f"de-{index}", league_id=78) for index in range(4)]
+        + [pro_fixture(f"pl-{index}", league_id=39) for index in range(4)]
+    )
+    client = ProBackfillClient()
+
+    ProStatisticsBackfillService(
+        client=client,
+        repository=repository,
+        config=ProStatisticsBackfillConfig(
+            batch=2,
+            request_budget=8,
+            ensure_fixture_manifests=False,
+        ),
+        now=NOW,
+    ).run()
+
+    assert client.calls == [
+        "de-0",
+        "de-1",
+        "de-2",
+        "pl-0",
+        "pl-1",
+        "pl-2",
+        "de-3",
+        "pl-3",
+    ]
