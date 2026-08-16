@@ -215,9 +215,7 @@ def _day_view() -> dict[str, Any]:
                 "persisted_competition_coverage_count": 1 if index == 7 else 0,
                 "active_whitelist_count": 13,
                 "market_collection_window_status": (
-                    "MARKET_EVIDENCE_AVAILABLE"
-                    if index == 7
-                    else "EMPTY_PERSISTED_DAY"
+                    "MARKET_EVIDENCE_AVAILABLE" if index == 7 else "EMPTY_PERSISTED_DAY"
                 ),
                 "market_evidence_fixture_count": 3 if index == 7 else 0,
             }
@@ -286,7 +284,8 @@ def _workspace(
         day_view,
         candidate_enabled=candidate_enabled,
         model_forecasts=model_forecasts,
-        replay=replay or {
+        replay=replay
+        or {
             "replay_status": "MISSING_OUTCOMES",
             "known_at_summary": {
                 "has_day_view": True,
@@ -481,9 +480,7 @@ def test_factor_checklist_separates_model_track_from_stale_quote_gate() -> None:
     quote_rows = [row for row in checklist["factors"] if row["factor_id"] == "MK_QUOTE_AGE"]
     assert {row["market"] for row in quote_rows} == {"ASIAN_HANDICAP", "TOTALS"}
     assert all(row["next_window_at"] == "2026-08-09T14:30:00Z" for row in quote_rows)
-    identity_rows = [
-        row for row in checklist["factors"] if row["factor_id"] == "MK_EXACT_QUOTE"
-    ]
+    identity_rows = [row for row in checklist["factors"] if row["factor_id"] == "MK_EXACT_QUOTE"]
     assert all(row["state"] == "READY" for row in identity_rows)
     match = _workspace(day_view, candidate_enabled=True)["matches"][0]
     assert match["readiness"]["market_aggregate_status"] == "NOT_READY"
@@ -717,9 +714,7 @@ def test_factor_checklist_uses_persisted_capture_xg_identity_as_authority() -> N
         "home_snapshot_identity": "home-snapshot",
         "away_snapshot_identity": "away-snapshot",
     }
-    assert {
-        key: xg["evidence"].get(key) for key in expected_evidence
-    } == expected_evidence
+    assert {key: xg["evidence"].get(key) for key in expected_evidence} == expected_evidence
 
 
 def test_data_risk_excludes_enhancement_only_gaps() -> None:
@@ -1265,9 +1260,7 @@ def test_market_quote_age_clock_conflict_is_not_invented() -> None:
         "max_age_seconds": 3600,
     }
 
-    market = _workspace(day_view)["matches"][2]["market_radar"]["markets"][
-        "ASIAN_HANDICAP"
-    ]
+    market = _workspace(day_view)["matches"][2]["market_radar"]["markets"]["ASIAN_HANDICAP"]
 
     assert market["status"] == "READY"
     assert market["quote_age_seconds"] is None
@@ -1572,9 +1565,7 @@ def test_market_eligibility_preserves_ah_ou_partial_truth_without_cross_contamin
     card = day_view["cards"][0]
     card["intelligence_state"] = "DATA_INCOMPLETE"
     card["market_radar"]["markets"]["ASIAN_HANDICAP"] = _market(2)
-    card["market_radar"]["markets"]["ASIAN_HANDICAP"]["current"][
-        "bookmaker_count"
-    ] = 1
+    card["market_radar"]["markets"]["ASIAN_HANDICAP"]["current"]["bookmaker_count"] = 1
     card["market_radar"]["markets"]["TOTALS"] = _market(2)
     card["market_radar"]["markets"]["TOTALS"]["current"]["bookmaker_count"] = 7
     card["model_lab"]["markets"] = {
@@ -1659,13 +1650,9 @@ def test_data_risk_keeps_lineup_missing_after_collection_is_due() -> None:
         "status": "INCIDENT",
         "reason_codes": ["DATA_REQUIRED_INPUT_MISSING", "DATA_STATUS_BLOCKED"],
     }
-    card["data_refresh"]["lineup_collection"]["public_semantics"][
-        "cause"
-    ] = "AWAITING_COLLECTION"
+    card["data_refresh"]["lineup_collection"]["public_semantics"]["cause"] = "AWAITING_COLLECTION"
 
-    explanation = _workspace(day_view)["matches"][0]["risks"]["DATA_RISK"][
-        "explanation"
-    ]
+    explanation = _workspace(day_view)["matches"][0]["risks"]["DATA_RISK"]["explanation"]
 
     assert explanation == "待补齐：模型核心输入 xG；既有采集或模型投影形成后解除"
 
@@ -1722,9 +1709,9 @@ def test_market_depth_asymmetry_is_a_non_blocking_same_snapshot_technical_signal
         market["timeline"]["points"][0]["bookmaker_count"] = depth
         card["market_radar"]["markets"][name] = market
     if not same_snapshot:
-        card["market_radar"]["markets"]["TOTALS"]["timeline"]["points"][0][
-            "captured_at"
-        ] = "2026-08-09T02:00:00Z"
+        card["market_radar"]["markets"]["TOTALS"]["timeline"]["points"][0]["captured_at"] = (
+            "2026-08-09T02:00:00Z"
+        )
 
     match = _workspace(day_view)["matches"][0]
     handicap = match["market_radar"]["markets"]["ASIAN_HANDICAP"]
@@ -1816,9 +1803,7 @@ def test_scope_and_cause_separate_future_day_from_cumulative_validation() -> Non
         "cause": "NOT_YET_DUE",
     }
     assert payload["validation"]["history_replay"]["status"] == "FORWARD_RECORD"
-    assert "MISSING_OUTCOMES" not in payload["validation"]["history_replay"][
-        "replay_gaps"
-    ]
+    assert "MISSING_OUTCOMES" not in payload["validation"]["history_replay"]["replay_gaps"]
     assert payload["validation"]["forward_validation_records"]["public_semantics"] == {
         "scope": "CROSS_DAY_CUMULATIVE",
         "cause": None,
@@ -1832,8 +1817,7 @@ def test_past_due_upcoming_status_awaits_update_instead_of_claiming_not_yet_due(
     payload = _workspace(day_view)
 
     assert all(
-        match["outcome"]["public_semantics"]
-        == {"scope": "MATCH", "cause": "AWAITING_COLLECTION"}
+        match["outcome"]["public_semantics"] == {"scope": "MATCH", "cause": "AWAITING_COLLECTION"}
         for match in payload["matches"]
     )
     replay = payload["validation"]["history_replay"]
@@ -1898,13 +1882,16 @@ def test_match_outcome_cause_uses_one_temporal_authority(
     recorded: bool,
     cause: str | None,
 ) -> None:
-    assert outcome_public_cause(
-        status=status,
-        kickoff_utc=kickoff,
-        as_of=as_of,
-        is_tracked=tracked,
-        is_recorded=recorded,
-    ) == cause
+    assert (
+        outcome_public_cause(
+            status=status,
+            kickoff_utc=kickoff,
+            as_of=as_of,
+            is_tracked=tracked,
+            is_recorded=recorded,
+        )
+        == cause
+    )
 
 
 def test_schema_rejects_not_yet_due_after_result_collection_delay() -> None:
@@ -1940,9 +1927,7 @@ def test_finished_match_missing_outcome_is_awaiting_collection() -> None:
         "outcome_tracking_summary": {
             "tracked_fixture_ids": [card["fixture_id"] for card in day_view["cards"]],
             "matched_fixture_ids": [],
-            "missing_outcome_fixture_ids": [
-                card["fixture_id"] for card in day_view["cards"]
-            ],
+            "missing_outcome_fixture_ids": [card["fixture_id"] for card in day_view["cards"]],
             "missing_outcome_count": 3,
         },
         "card_hash_checks": [],
@@ -2054,11 +2039,11 @@ def test_match_outcome_truth_table_is_derived_from_persisted_facts(
         ],
         "known_at_summary": {},
         "reason_summary": [],
-            "outcome_tracking_summary": {
-                "tracked_count": 1 if tracked else 0,
-                "matched_outcome_count": 1 if recorded else 0,
-                "missing_outcome_count": 1 if missing else 0,
-                "tracked_fixture_ids": [fixture_id] if tracked else [],
+        "outcome_tracking_summary": {
+            "tracked_count": 1 if tracked else 0,
+            "matched_outcome_count": 1 if recorded else 0,
+            "missing_outcome_count": 1 if missing else 0,
+            "tracked_fixture_ids": [fixture_id] if tracked else [],
             "matched_fixture_ids": [fixture_id] if recorded else [],
             "missing_outcome_fixture_ids": [fixture_id] if missing else [],
         },
@@ -2327,9 +2312,7 @@ def test_approved_public_label_authority_reuses_existing_product_labels() -> Non
         home_w2_team_id="w2:team:api_football:370",
         payload={"home_team_name": "Sirius"},
     )
-    canonical = {
-        fixture.home_w2_team_id: SimpleNamespace(display_name="Sirius", payload={})
-    }
+    canonical = {fixture.home_w2_team_id: SimpleNamespace(display_name="Sirius", payload={})}
     ready = repository_module._public_team_label_from_identity(
         fixture=fixture,
         side="home",
@@ -2387,6 +2370,60 @@ def test_r16_allsvenskan_candidates_remain_owner_approved() -> None:
     }
 
 
+def test_owner_authorized_current_schedule_labels_are_all_approved() -> None:
+    labels = reviewed_public_team_labels()
+
+    expected = {
+        "435": "河床",
+        "437": "罗萨里奥中央",
+        "445": "飓风队",
+        "458": "阿根廷青年人",
+        "474": "萨米恩托",
+        "478": "科尔多瓦学院",
+        "2432": "巴拉卡斯中央",
+        "438": "萨斯菲尔德",
+        "442": "国防与司法",
+        "446": "拉努斯",
+        "453": "阿根廷独立",
+        "455": "图库曼竞技",
+        "2424": "里奥夸尔托学生队",
+        "193": "兹沃勒",
+        "194": "阿贾克斯",
+        "198": "海牙",
+        "202": "格罗宁根",
+        "209": "费耶诺德",
+        "210": "海伦芬",
+        "410": "前进之鹰",
+        "415": "特温特",
+        "533": "比利亚雷亚尔",
+        "539": "莱万特",
+        "540": "西班牙人",
+        "4665": "桑坦德竞技",
+        "544": "拉科鲁尼亚",
+        "797": "埃尔切",
+        "1595": "西雅图海湾人",
+        "1597": "达拉斯FC",
+        "1599": "费城联合",
+        "1603": "温哥华白帽",
+        "1604": "纽约城",
+        "1607": "芝加哥火焰",
+        "1617": "波特兰伐木者",
+        "16489": "奥斯汀FC",
+        "214": "马里迪莫",
+        "215": "莫雷伦斯",
+        "217": "布拉加",
+        "230": "埃斯托里尔",
+        "240": "阿罗卡",
+        "242": "法马利康",
+        "762": "吉尔维森特",
+        "211": "本菲卡",
+        "4716": "卡萨皮亚",
+    }
+
+    assert pending_public_team_labels() == {}
+    assert {team_id: labels[f"w2:team:api_football:{team_id}"] for team_id in expected} == expected
+
+
 def test_owner_authorized_public_label_review_closes_observed_gaps() -> None:
     labels = reviewed_public_team_labels()
 
@@ -2426,9 +2463,7 @@ def test_sc19_public_label_authority_uses_runtime_config_root(
 ) -> None:
     target = tmp_path / "identity" / "public_team_labels.zh-CN.v1.json"
     target.parent.mkdir()
-    target.write_bytes(
-        Path("config/identity/public_team_labels.zh-CN.v1.json").read_bytes()
-    )
+    target.write_bytes(Path("config/identity/public_team_labels.zh-CN.v1.json").read_bytes())
     monkeypatch.setenv("W2_READINESS_CONFIG_PATH", str(tmp_path))
     get_settings.cache_clear()
     reviewed_public_team_labels.cache_clear()
