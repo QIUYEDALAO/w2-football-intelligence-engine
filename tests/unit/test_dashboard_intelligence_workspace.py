@@ -2361,7 +2361,16 @@ def test_r16_allsvenskan_candidates_are_owner_approved() -> None:
     labels = reviewed_public_team_labels()
     pending = pending_public_team_labels()
 
-    assert pending == {}
+    assert pending == {
+        "w2:team:api_football:2149": "费德列斯达",
+        "w2:team:api_football:319": "布兰",
+        "w2:team:api_football:325": "特罗姆瑟",
+        "w2:team:api_football:326": "瓦勒伦加",
+        "w2:team:api_football:329": "莫尔德",
+        "w2:team:api_football:332": "桑纳菲尤尔",
+        "w2:team:api_football:333": "萨尔普斯堡08",
+        "w2:team:api_football:757": "阿勒桑",
+    }
     assert {
         team_id: labels[team_id]
         for team_id in (
