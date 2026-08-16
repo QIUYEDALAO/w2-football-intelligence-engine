@@ -38,6 +38,7 @@ def test_daily_and_burst_are_separated() -> None:
     quota = parse_api_football_quota(
         headers={
             "x-ratelimit-remaining": "299",
+            "x-ratelimit-limit": "300",
             "x-ratelimit-requests-remaining": "6774",
         },
         payload={},
@@ -46,8 +47,10 @@ def test_daily_and_burst_are_separated() -> None:
 
     assert quota.daily_remaining == 6774
     assert quota.burst_remaining == 299
+    assert quota.burst_limit == 300
     assert quota.daily_source == "x-ratelimit-requests-remaining"
     assert quota.burst_source == "x-ratelimit-remaining"
+    assert quota.burst_limit_source == "x-ratelimit-limit"
 
 
 def test_daily_below_reserve_can_be_detected_with_burst_present() -> None:

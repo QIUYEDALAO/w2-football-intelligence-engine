@@ -73,6 +73,10 @@ def provider_refresh_tick_hard_cap() -> int:
     return max(env_int("W2_PROVIDER_REFRESH_TICK_HARD_CAP", default=30), 0)
 
 
+def provider_quota_authority_max_age_seconds() -> int:
+    return max(env_int("W2_PROVIDER_QUOTA_AUTHORITY_MAX_AGE_SECONDS", default=7200), 60)
+
+
 def provider_http_max_attempts() -> int:
     return min(
         max(env_int("W2_PROVIDER_HTTP_MAX_ATTEMPTS", default=1), 1),

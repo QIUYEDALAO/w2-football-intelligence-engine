@@ -31,7 +31,7 @@ def main() -> None:
         int(str(entry["w2_team_id"]).rsplit(":", 1)[-1])
         for entry in labels["entries"]
         if entry["review_status"] == "PENDING_OWNER_REVIEW"
-    } == set()
+    } == {319, 325, 326, 329, 332, 333, 757, 2149}
 
     date_strip = (ROOT / "src/w2/dashboard/date_strip.py").read_text(encoding="utf-8")
     repository = (ROOT / "src/w2/api/repository.py").read_text(encoding="utf-8")

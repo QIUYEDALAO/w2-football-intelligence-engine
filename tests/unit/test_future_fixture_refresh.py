@@ -1001,13 +1001,19 @@ def test_future_refresh_surfaces_quota_usage_ledger_divergence(
             _day_start: datetime,
             *,
             include_quota_usage: bool = True,
+            as_of: datetime | None = None,
         ) -> dict[str, int | bool]:
             assert include_quota_usage is True
+            assert as_of == NOW
             return {
-                "known_count": 135,
+                "known_count": 10,
                 "quota_usage_count": 10,
                 "run_audit_count": 135,
                 "provider_ledger_count": 135,
+                "billable_from_provider": 10,
+                "local_ledger_count": 135,
+                "quota_authority_status": "AUTHORITATIVE",
+                "quota_authority_degraded": False,
                 "quota_usage_ledger_delta": 125,
                 "quota_usage_ledger_divergence": True,
             }
@@ -1034,6 +1040,7 @@ def test_future_refresh_surfaces_quota_usage_ledger_divergence(
             runtime_root=tmp_path,
             persistence="db",
             daily_hard_cap=70,
+            daily_reserve=0,
         ),
         now=NOW,
     )
@@ -1041,9 +1048,9 @@ def test_future_refresh_surfaces_quota_usage_ledger_divergence(
 
     decision = service._provider_hard_cap_preflight()
 
-    assert decision["allowed"] is False
+    assert decision["allowed"] is True
     assert decision["operational_status"] == "QUOTA_USAGE_LEDGER_DIVERGENCE"
-    assert decision["actual_calls_today"] == 135
+    assert decision["actual_calls_today"] == 10
     assert decision["quota_usage_ledger_delta"] == 125
 
     postmatch_service = FutureFixtureRefreshService(
@@ -1147,7 +1154,7 @@ def test_gate_a_http_failure_is_not_automatically_retried(tmp_path: Path) -> Non
     ).run()
 
     assert result.status == "BLOCKED"
-    assert result.blockers == ["PROVIDER_HTTP_429"]
+    assert result.blockers == ["PROVIDER_MINUTE_RATE_LIMIT_EXCEEDED"]
     assert client.calls == [("status", {})]
     assert reservation.endpoints == ["status"]
     assert reservation.outcomes == [(1, "RESPONSE_RECEIVED", None)]
@@ -1347,6 +1354,44 @@ def test_future_refresh_tick_hard_cap_blocks_before_provider_call(
     assert audit["requests"][0]["projected_calls"] == 99
 
 
+def test_postmatch_minute_preflight_uses_recent_local_attempts(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "1")
+    monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "status,fixtures")
+
+    class Repository:
+        @staticmethod
+        def provider_request_count_since(_since: datetime) -> int:
+            return 9
+
+    service = FutureFixtureRefreshService(
+        client=FakeApiFootballClient(),
+        config=FutureRefreshConfig(
+            runtime_root=tmp_path,
+            persistence="db",
+            checkpoint_fixture_ids=("1494241",),
+            refresh_checkpoints=(
+                {
+                    "checkpoint": "POSTMATCH_RESULT",
+                    "endpoints": ["status", "fixtures"],
+                },
+            ),
+        ),
+        now=NOW,
+    )
+    monkeypatch.setattr(service, "_db_repository", Repository)
+
+    decision = service._provider_tick_hard_cap_preflight()
+
+    assert decision["allowed"] is False
+    assert decision["blocker"] == "PROVIDER_MINUTE_RATE_LIMIT_PROTECTED"
+    assert decision["minute_limit"] == 10
+    assert decision["minute_calls_observed"] == 9
+    assert decision["projected_calls"] == 2
+
+
 def test_future_refresh_projected_calls_ignore_disallowed_enrichment(tmp_path: Path) -> None:
     client = ManyFutureFixturesClient()
     config = FutureRefreshConfig(
@@ -1402,9 +1447,9 @@ def test_future_refresh_records_429_without_tight_retry(tmp_path: Path) -> None:
     ).run()
     audit = (tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8")
 
-    assert result.blockers == ["PROVIDER_HTTP_429"]
+    assert result.blockers == ["PROVIDER_MINUTE_RATE_LIMIT_EXCEEDED"]
     assert len(client.calls) == 1
-    assert "PROVIDER_HTTP_429" in audit
+    assert "PROVIDER_MINUTE_RATE_LIMIT_EXCEEDED" in audit
 
 
 def test_future_refresh_caps_configured_provider_retries(
@@ -1421,7 +1466,7 @@ def test_future_refresh_caps_configured_provider_retries(
         sleep=lambda _: None,
     ).run()
 
-    assert result.blockers == ["PROVIDER_HTTP_429"]
+    assert result.blockers == ["PROVIDER_MINUTE_RATE_LIMIT_EXCEEDED"]
     assert result.request_count == 3
     assert len(client.calls) == 3
 

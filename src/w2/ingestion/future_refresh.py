@@ -55,6 +55,7 @@ from w2.providers.control import (
     provider_refresh_tick_hard_cap,
 )
 from w2.providers.quota import (
+    API_FOOTBALL_FREE_MINUTE_LIMIT,
     API_FOOTBALL_FREE_UNALLOCATED_BUFFER,
     REGISTERED_PROVIDER_DAILY_QUOTA_POOLS,
     parse_api_football_quota,
@@ -780,6 +781,9 @@ class FutureFixtureRefreshService:
         self.materialize_results = materialize_results
         self._attempt_count = 0
         self._latest_remaining: int | None = None
+        self._latest_burst_limit: int | None = None
+        self._latest_burst_remaining: int | None = None
+        self._burst_observed_at: datetime | None = None
         self._audit: list[dict[str, Any]] = []
         self._odds_request_fixture_ids: list[str] = []
         self._raw_payload_written: set[str] = set()
@@ -801,11 +805,22 @@ class FutureFixtureRefreshService:
             return
         day_start = self.now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
         try:
-            remaining = self._db_repository().provider_quota_snapshot(day_start).get("remaining")
+            snapshot = self._db_repository().provider_quota_snapshot(day_start)
         except FutureRefreshPersistenceError:
             return
+        remaining = snapshot.get("remaining")
         if remaining is not None:
             self._latest_remaining = max(int(remaining), 0)
+        burst_limit = snapshot.get("burst_limit")
+        burst_remaining = snapshot.get("burst_remaining")
+        burst_observed_at = snapshot.get("burst_observed_at")
+        self._latest_burst_limit = int(burst_limit) if burst_limit is not None else None
+        self._latest_burst_remaining = (
+            int(burst_remaining) if burst_remaining is not None else None
+        )
+        self._burst_observed_at = (
+            parse_utc(burst_observed_at) if burst_observed_at else None
+        )
 
     def _allowed_live_endpoints(self, config: FutureRefreshConfig) -> frozenset[str]:
         base = {"status", "fixtures", "odds"}
@@ -856,6 +871,12 @@ class FutureFixtureRefreshService:
                     "error_code": blocker,
                     "projected_calls": tick_cap["projected_calls"],
                     "tick_hard_cap": tick_cap["tick_hard_cap"],
+                    "minute_limit": tick_cap["minute_limit"],
+                    "minute_calls_observed": tick_cap["minute_calls_observed"],
+                    "minute_remaining_before_plan": tick_cap[
+                        "minute_remaining_before_plan"
+                    ],
+                    "effective_tick_cap": tick_cap["effective_tick_cap"],
                 }
             )
             result = FutureRefreshResult(
@@ -875,7 +896,7 @@ class FutureFixtureRefreshService:
             self._write_audit(result)
             return result
         preflight = self._provider_hard_cap_preflight()
-        if preflight.get("operational_status"):
+        if preflight.get("operational_status") or preflight.get("operational_statuses"):
             self._audit.append(
                 {
                     "endpoint": "provider_daily_hard_cap_preflight",
@@ -888,11 +909,15 @@ class FutureFixtureRefreshService:
                     "payload_sha256": None,
                     "error_code": None,
                     "operational_status": preflight["operational_status"],
+                    "operational_statuses": preflight.get("operational_statuses", []),
                     "quota_guard_mode": preflight["mode"],
                     "actual_calls_today": preflight["actual_calls_today"],
-                    "billable_calls_today": preflight["billable_calls_today"],
+                    "billable_calls_today": preflight.get("billable_calls_today"),
+                    "postmatch_request_attempts_today": preflight.get(
+                        "postmatch_request_attempts_today"
+                    ),
                     "successful_calls_today": preflight["successful_calls_today"],
-                    "budget_basis": "BILLABLE_CALLS",
+                    "budget_basis": preflight["budget_basis"],
                     "planned_calls": preflight["planned_calls"],
                     "reserved_capture_count": preflight.get("reserved_capture_count", 0),
                     "reserved_capture_calls": preflight.get("reserved_capture_calls", 0),
@@ -903,6 +928,15 @@ class FutureFixtureRefreshService:
                     "quota_usage_calls_today": preflight.get("quota_usage_count"),
                     "provider_ledger_calls_today": preflight.get("provider_ledger_count"),
                     "run_audit_calls_today": preflight.get("run_audit_count"),
+                    "billable_from_provider": preflight.get("billable_from_provider"),
+                    "local_ledger_count": preflight.get("local_ledger_count"),
+                    "quota_authority_status": preflight.get("quota_authority_status"),
+                    "quota_authority_observed_at": preflight.get(
+                        "quota_authority_observed_at"
+                    ),
+                    "quota_authority_age_seconds": preflight.get(
+                        "quota_authority_age_seconds"
+                    ),
                     "quota_usage_ledger_delta": preflight.get("quota_usage_ledger_delta"),
                 }
             )
@@ -920,11 +954,15 @@ class FutureFixtureRefreshService:
                     "payload_sha256": None,
                     "error_code": blocker,
                     "operational_status": preflight.get("operational_status"),
+                    "operational_statuses": preflight.get("operational_statuses", []),
                     "quota_guard_mode": preflight["mode"],
                     "actual_calls_today": preflight["actual_calls_today"],
-                    "billable_calls_today": preflight["billable_calls_today"],
+                    "billable_calls_today": preflight.get("billable_calls_today"),
+                    "postmatch_request_attempts_today": preflight.get(
+                        "postmatch_request_attempts_today"
+                    ),
                     "successful_calls_today": preflight["successful_calls_today"],
-                    "budget_basis": "BILLABLE_CALLS",
+                    "budget_basis": preflight["budget_basis"],
                     "planned_calls": preflight["planned_calls"],
                     "reserved_capture_count": preflight.get("reserved_capture_count", 0),
                     "reserved_capture_calls": preflight.get("reserved_capture_calls", 0),
@@ -935,6 +973,15 @@ class FutureFixtureRefreshService:
                     "quota_usage_calls_today": preflight.get("quota_usage_count"),
                     "provider_ledger_calls_today": preflight.get("provider_ledger_count"),
                     "run_audit_calls_today": preflight.get("run_audit_count"),
+                    "billable_from_provider": preflight.get("billable_from_provider"),
+                    "local_ledger_count": preflight.get("local_ledger_count"),
+                    "quota_authority_status": preflight.get("quota_authority_status"),
+                    "quota_authority_observed_at": preflight.get(
+                        "quota_authority_observed_at"
+                    ),
+                    "quota_authority_age_seconds": preflight.get(
+                        "quota_authority_age_seconds"
+                    ),
                     "quota_usage_ledger_delta": preflight.get("quota_usage_ledger_delta"),
                 }
             )
@@ -1431,6 +1478,11 @@ class FutureFixtureRefreshService:
             if remaining is None and self._latest_remaining is not None:
                 remaining = max(self._latest_remaining - 1, 0)
             self._latest_remaining = remaining
+            if quota.burst_limit is not None:
+                self._latest_burst_limit = quota.burst_limit
+            if quota.burst_remaining is not None:
+                self._latest_burst_remaining = quota.burst_remaining
+                self._burst_observed_at = quota.observed_at
             status = response.status_code
             raw_payload = self._raw_payload_record(
                 endpoint=endpoint,
@@ -1479,10 +1531,12 @@ class FutureFixtureRefreshService:
                     "daily_remaining": quota.daily_remaining,
                     "daily_limit": quota.daily_limit,
                     "burst_remaining": quota.burst_remaining,
+                    "burst_limit": quota.burst_limit,
                     "quota_observed_at": iso(quota.observed_at),
                     "daily_source": quota.daily_source,
                     "daily_limit_source": quota.daily_limit_source,
                     "burst_source": quota.burst_source,
+                    "burst_limit_source": quota.burst_limit_source,
                     "response_count": response_size,
                     "payload_sha256": payload_sha,
                     "raw_payload_persisted": raw_payload_persisted,
@@ -1505,12 +1559,16 @@ class FutureFixtureRefreshService:
                 }
             )
             if status == 429 and self.runtime_authorization is not None:
-                raise FutureRefreshError("PROVIDER_HTTP_429")
+                raise FutureRefreshError("PROVIDER_MINUTE_RATE_LIMIT_EXCEEDED")
             if status == 429 and attempt < max_attempts:
                 self.sleep(0.2 * (2 ** (attempt - 1)))
                 continue
             if status >= 400:
-                raise FutureRefreshError(f"PROVIDER_HTTP_{status}")
+                raise FutureRefreshError(
+                    "PROVIDER_MINUTE_RATE_LIMIT_EXCEEDED"
+                    if status == 429
+                    else f"PROVIDER_HTTP_{status}"
+                )
             if payload_error:
                 raise FutureRefreshError(f"PROVIDER_{endpoint.upper()}_ERRORS")
             if response_schema_error:
@@ -1614,10 +1672,12 @@ class FutureFixtureRefreshService:
                     "daily_remaining": quota.daily_remaining,
                     "daily_limit": quota.daily_limit,
                     "burst_remaining": quota.burst_remaining,
+                    "burst_limit": quota.burst_limit,
                     "observed_at": iso(quota.observed_at),
                     "daily_source": quota.daily_source,
                     "daily_limit_source": quota.daily_limit_source,
                     "burst_source": quota.burst_source,
+                    "burst_limit_source": quota.burst_limit_source,
                 },
                 request_task_key_override=(
                     self.runtime_authorization.task_key
@@ -1882,7 +1942,11 @@ class FutureFixtureRefreshService:
                 evidence_reader = getattr(repository, "request_count_evidence_since", None)
                 if self.config.persistence == "db" and callable(evidence_reader):
                     self._provider_usage_evidence = dict(
-                        evidence_reader(day_start, include_quota_usage=True)
+                        evidence_reader(
+                            day_start,
+                            include_quota_usage=True,
+                            as_of=self.now,
+                        )
                     )
             except FutureRefreshPersistenceError as exc:
                 raise FutureRefreshError("RESULT_USAGE_AUDIT_UNAVAILABLE") from exc
@@ -1897,8 +1961,18 @@ class FutureFixtureRefreshService:
                 "successful_calls_today": successful_calls_today,
                 **self._provider_usage_evidence,
             }
+            statuses = [
+                status
+                for status in (decision.get("operational_status"),)
+                if status is not None
+            ]
+            if self._provider_usage_evidence.get("quota_authority_degraded") is True:
+                statuses.append("QUOTA_AUTHORITY_DEGRADED")
             if self._provider_usage_evidence.get("quota_usage_ledger_divergence") is True:
-                decision["operational_status"] = "QUOTA_USAGE_LEDGER_DIVERGENCE"
+                statuses.append("QUOTA_USAGE_LEDGER_DIVERGENCE")
+            decision["operational_statuses"] = statuses
+            if statuses:
+                decision["operational_status"] = statuses[0]
             return decision
         daily_cap = env_int("W2_PROVIDER_DAILY_HARD_CAP", default=self.config.daily_hard_cap)
         reserve = env_int("W2_PROVIDER_DAILY_RESERVE", default=self.config.daily_reserve)
@@ -1913,20 +1987,62 @@ class FutureFixtureRefreshService:
             "successful_calls_today": self._successful_provider_calls_today(),
             **self._provider_usage_evidence,
         }
+        statuses = []
+        if self._provider_usage_evidence.get("quota_authority_degraded") is True:
+            statuses.append("QUOTA_AUTHORITY_DEGRADED")
         if self._provider_usage_evidence.get("quota_usage_ledger_divergence") is True:
-            decision["operational_status"] = "QUOTA_USAGE_LEDGER_DIVERGENCE"
+            statuses.append("QUOTA_USAGE_LEDGER_DIVERGENCE")
+        decision["operational_statuses"] = statuses
+        if statuses:
+            decision["operational_status"] = statuses[0]
         return decision
 
     def _provider_tick_hard_cap_preflight(self) -> dict[str, Any]:
         projected_calls = self._planned_provider_calls()
         tick_hard_cap = provider_refresh_tick_hard_cap()
+        if self.config.persistence != "db":
+            return {
+                "allowed": projected_calls <= tick_hard_cap,
+                "blocker": None
+                if projected_calls <= tick_hard_cap
+                else "PROVIDER_REFRESH_BUDGET_TOO_HIGH",
+                "projected_calls": projected_calls,
+                "tick_hard_cap": tick_hard_cap,
+                "minute_limit": None,
+                "minute_calls_observed": None,
+                "minute_remaining_before_plan": None,
+                "effective_tick_cap": tick_hard_cap,
+            }
+        recent_calls = 0
+        try:
+            recent_calls = self._db_repository().provider_request_count_since(
+                self.now - timedelta(seconds=60)
+            )
+        except FutureRefreshPersistenceError as exc:
+            raise FutureRefreshError("PROVIDER_MINUTE_USAGE_AUDIT_UNAVAILABLE") from exc
+        burst_limit = self._latest_burst_limit or API_FOOTBALL_FREE_MINUTE_LIMIT
+        available = max(burst_limit - recent_calls, 0)
+        if (
+            self._burst_observed_at is not None
+            and self._latest_burst_remaining is not None
+            and self.now - self._burst_observed_at <= timedelta(seconds=60)
+        ):
+            available = min(available, self._latest_burst_remaining)
+        effective_cap = min(tick_hard_cap, available)
+        allowed = projected_calls <= effective_cap
         return {
-            "allowed": projected_calls <= tick_hard_cap,
+            "allowed": allowed,
             "blocker": None
+            if allowed
+            else "PROVIDER_MINUTE_RATE_LIMIT_PROTECTED"
             if projected_calls <= tick_hard_cap
             else "PROVIDER_REFRESH_BUDGET_TOO_HIGH",
             "projected_calls": projected_calls,
             "tick_hard_cap": tick_hard_cap,
+            "minute_limit": burst_limit,
+            "minute_calls_observed": recent_calls,
+            "minute_remaining_before_plan": available,
+            "effective_tick_cap": effective_cap,
         }
 
     def _projected_provider_calls(self) -> int:
@@ -2023,7 +2139,11 @@ class FutureFixtureRefreshService:
             evidence_reader = getattr(repository, "request_count_evidence_since", None)
             if callable(evidence_reader):
                 self._provider_usage_evidence = dict(
-                    evidence_reader(day_start, include_quota_usage=True)
+                    evidence_reader(
+                        day_start,
+                        include_quota_usage=True,
+                        as_of=self.now,
+                    )
                 )
                 return int(self._provider_usage_evidence["known_count"])
             return repository.request_count_since(day_start, include_quota_usage=True)

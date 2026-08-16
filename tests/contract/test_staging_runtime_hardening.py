@@ -182,19 +182,26 @@ def test_controlled_future_refresh_is_source_controlled_and_deployed_with_schedu
     scheduler = override["services"]["scheduler"]["environment"]
     for environment in (worker, scheduler):
         assert environment["W2_PROVIDER_HTTP_MAX_ATTEMPTS"] == "1"
-        assert environment["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == "status,fixtures,odds,lineups"
+        assert environment["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == (
+            "${W2_PROVIDER_ENDPOINT_ALLOWLIST:-status,fixtures}"
+        )
         assert environment["W2_PROVIDER_REQUEST_LEDGER_ENABLED"] == "true"
         assert environment["W2_PROVIDER_REFRESH_TICK_HARD_CAP"] == "30"
         assert environment["W2_PROVIDER_DAILY_HARD_CAP"] == "70"
         assert environment["W2_POSTMATCH_RESULT_DAILY_HARD_CAP"] == "20"
         assert environment["W2_PROVIDER_DAILY_UNALLOCATED_BUFFER"] == "10"
+        assert environment["W2_PROVIDER_QUOTA_AUTHORITY_MAX_AGE_SECONDS"] == "7200"
         assert environment["W2_PROVIDER_PREFLIGHT_MIN_REMAINING"] == "20"
         assert environment["W2_CANDIDATE_ENABLED"] == "true"
         assert environment["W2_FORMAL_RECOMMENDATION_ENABLED"] == "false"
         assert environment["W2_PRODUCTION_RELEASE"] == "false"
     assert scheduler["W2_FUTURE_FIXTURE_REFRESH_ENABLED"] == "true"
-    assert scheduler["W2_POSTMATCH_ONLY_ENABLED"] == "true"
-    assert scheduler["W2_FIXTURE_DISCOVERY_ENABLED"] == "false"
+    assert scheduler["W2_POSTMATCH_ONLY_ENABLED"] == (
+        "${W2_POSTMATCH_ONLY_ENABLED:-true}"
+    )
+    assert scheduler["W2_FIXTURE_DISCOVERY_ENABLED"] == (
+        "${W2_FIXTURE_DISCOVERY_ENABLED:-false}"
+    )
     assert "W2_FUTURE_REFRESH_COMPETITION_ALLOWLIST" not in scheduler
     deploy = read(DEPLOY)
     unit = read(ROOT / "infra/systemd/w2-staging.service")

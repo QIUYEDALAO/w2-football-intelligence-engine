@@ -38,6 +38,8 @@ def test_db_provider_ledger_records_repeated_identical_requests(monkeypatch, tmp
             headers={
                 "x-ratelimit-requests-remaining": str(remaining),
                 "x-ratelimit-requests-limit": "7500",
+                "x-ratelimit-limit": "10",
+                "x-ratelimit-remaining": "6",
             },
             payload={"response": []},
         )
@@ -51,6 +53,9 @@ def test_db_provider_ledger_records_repeated_identical_requests(monkeypatch, tmp
     assert usage is not None
     assert usage.used == 700
     assert usage.limit == 7500
+    assert usage.observed_at.replace(tzinfo=UTC) == NOW + timedelta(seconds=1)
+    assert usage.burst_limit == 10
+    assert usage.burst_remaining == 6
 
 
 def test_db_provider_ledger_does_not_infer_usage_without_limit_header(

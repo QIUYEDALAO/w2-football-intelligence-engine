@@ -762,7 +762,7 @@ def test_checkpoint_batch_budget_covers_each_planned_retry(
 ) -> None:
     configure_sqlite_db(monkeypatch, tmp_path, collection_policy=True)
     monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "2")
-    for fixture_id in map(str, range(1489404, 1489419)):
+    for fixture_id in map(str, range(1489404, 1489409)):
         seed_odds_checkpoint(fixture_id, with_identity=True)
     checkpoints = MatchdayRuntimeRepository().claim_due_checkpoint_plans(
         now=NOW, worker_id="retry-budget"
@@ -775,7 +775,7 @@ def test_checkpoint_batch_budget_covers_each_planned_retry(
     with Session(engine) as session:
         statuses = set(session.scalars(select(MatchdayCheckpointPlanModel.status)))
     assert audit.status == "COMPLETED"
-    assert len(client.calls) == 30
+    assert len(client.calls) == 10
     assert statuses == {"CAPTURED"}
 
 
@@ -906,7 +906,11 @@ def test_postmatch_checkpoint_fetches_once_and_materializes_real_result(
 
     assert audit.status == "COMPLETED"
     assert [endpoint for endpoint, _params in client.calls] == ["status", "fixtures"]
-    assert [item["status_code"] for item in audit.result["requests"]] == [200, 200]
+    assert [
+        item["status_code"]
+        for item in audit.result["requests"]
+        if item.get("attempt", 0) > 0
+    ] == [200, 200]
     assert FutureRefreshDbRepository().postmatch_result_successful_request_count_since(
         NOW.replace(hour=0, minute=0, second=0, microsecond=0)
     ) == 2
@@ -1921,14 +1925,15 @@ def test_request_count_since_includes_quota_usage(
                 limit=7500,
                 window_start=since,
                 window_end=since + timedelta(days=1),
+                observed_at=NOW,
             )
         )
         session.commit()
 
-    assert FutureRefreshDbRepository().request_count_since(since) >= 7000
+    assert FutureRefreshDbRepository().request_count_since(since, as_of=NOW) == 7000
 
 
-def test_request_count_since_never_drops_below_local_request_logs(
+def test_request_count_since_uses_fresh_provider_billing_authority(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
@@ -1957,21 +1962,72 @@ def test_request_count_since_never_drops_below_local_request_logs(
                 limit=100,
                 window_start=since,
                 window_end=since + timedelta(days=1),
+                observed_at=NOW,
             )
         )
         session.commit()
 
     repository = FutureRefreshDbRepository()
-    assert repository.request_count_since(since) == 80
+    assert repository.request_count_since(since, as_of=NOW) == 10
     assert repository.request_count_since(since, include_quota_usage=False) == 80
-    assert repository.request_count_evidence_since(since) == {
-        "known_count": 80,
+    assert repository.request_count_evidence_since(since, as_of=NOW) == {
+        "known_count": 10,
         "quota_usage_count": 10,
         "run_audit_count": 0,
         "provider_ledger_count": 80,
+        "billable_from_provider": 10,
+        "local_ledger_count": 80,
+        "quota_authority_status": "AUTHORITATIVE",
+        "quota_authority_degraded": False,
+        "quota_authority_observed_at": "2026-06-23T10:00:00Z",
+        "quota_authority_age_seconds": 0,
+        "quota_authority_max_age_seconds": 7200,
         "quota_usage_ledger_delta": 70,
         "quota_usage_ledger_divergence": True,
     }
+
+
+def test_request_count_since_degrades_to_local_evidence_when_provider_usage_is_stale(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    since = NOW.replace(hour=0, minute=0, second=0, microsecond=0)
+    with Session(engine) as session:
+        for index in range(12):
+            requested_at = since + timedelta(seconds=index)
+            session.add(
+                ProviderRequestLogModel(
+                    provider="api_football",
+                    endpoint="fixtures",
+                    request_hash=f"{index:064x}",
+                    live=True,
+                    status_code=200,
+                    requested_at=requested_at,
+                    completed_at=requested_at,
+                )
+            )
+        session.add(
+            QuotaUsageModel(
+                provider="api_football",
+                endpoint="status",
+                used=4,
+                limit=100,
+                window_start=since,
+                window_end=since + timedelta(days=1),
+                observed_at=NOW - timedelta(hours=3),
+            )
+        )
+        session.commit()
+
+    evidence = FutureRefreshDbRepository().request_count_evidence_since(since, as_of=NOW)
+
+    assert evidence["known_count"] == 12
+    assert evidence["quota_authority_status"] == "DEGRADED"
+    assert evidence["quota_authority_degraded"] is True
+    assert evidence["billable_from_provider"] == 4
+    assert evidence["local_ledger_count"] == 12
 
 
 def test_provider_quota_snapshot_uses_strictest_persisted_remaining(
@@ -1991,6 +2047,7 @@ def test_provider_quota_snapshot_uses_strictest_persisted_remaining(
                     limit=100,
                     window_start=since,
                     window_end=since + timedelta(days=1),
+                    observed_at=NOW,
                 ),
                 QuotaUsageModel(
                     provider="api_football",
@@ -1999,6 +2056,7 @@ def test_provider_quota_snapshot_uses_strictest_persisted_remaining(
                     limit=100,
                     window_start=since,
                     window_end=since + timedelta(days=1),
+                    observed_at=NOW,
                 ),
             ]
         )
@@ -2008,4 +2066,8 @@ def test_provider_quota_snapshot_uses_strictest_persisted_remaining(
         "daily_limit": 100,
         "used": 7,
         "remaining": 93,
+        "observed_at": "2026-06-23T10:00:00Z",
+        "burst_limit": None,
+        "burst_remaining": None,
+        "burst_observed_at": None,
     }

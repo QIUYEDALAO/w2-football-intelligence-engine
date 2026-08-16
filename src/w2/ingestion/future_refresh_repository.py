@@ -76,6 +76,7 @@ from w2.lineups.intelligence import (
     lineup_requirement,
 )
 from w2.prematch.lifecycle import LineupConfirmedEvent
+from w2.providers.control import provider_quota_authority_max_age_seconds
 
 QUOTA_USAGE_LEDGER_DIVERGENCE_THRESHOLD = 5
 
@@ -3068,7 +3069,8 @@ class FutureRefreshDbRepository:
         since: datetime,
         *,
         include_quota_usage: bool = True,
-    ) -> dict[str, int | bool]:
+        as_of: datetime | None = None,
+    ) -> dict[str, Any]:
         since_utc = parse_db_datetime(since)
         day_start = since_utc.replace(hour=0, minute=0, second=0, microsecond=0)
         day_end = day_start + timedelta(days=1)
@@ -3088,39 +3090,69 @@ class FutureRefreshDbRepository:
                     )
                 )
                 quota_usage = (
-                    session.scalar(
-                        select(func.max(QuotaUsageModel.used)).where(
+                    session.execute(
+                        select(
+                            func.max(QuotaUsageModel.used),
+                            func.max(QuotaUsageModel.observed_at),
+                        ).where(
                             QuotaUsageModel.provider == "api_football",
                             QuotaUsageModel.window_start >= day_start,
                             QuotaUsageModel.window_start < day_end,
                         )
-                    )
+                    ).one()
                     if include_quota_usage
                     else None
                 )
         except Exception as exc:
             raise FutureRefreshPersistenceError("REQUEST_COUNT_READ_FAILED") from exc
-        quota_usage_count = int(quota_usage or 0)
+        quota_usage_count = int(quota_usage[0] or 0) if quota_usage is not None else 0
+        quota_observed_at = quota_usage[1] if quota_usage is not None else None
         run_audit_count = int(future_refresh_requests or 0)
         provider_ledger_count = int(provider_request_logs or 0)
-        known_count = max(quota_usage_count, run_audit_count, provider_ledger_count)
+        local_count = max(run_audit_count, provider_ledger_count)
+        reference = parse_db_datetime(as_of or datetime.now(UTC))
+        observed = parse_db_datetime(quota_observed_at) if quota_observed_at else None
+        age_seconds = max(int((reference - observed).total_seconds()), 0) if observed else None
+        max_age_seconds = provider_quota_authority_max_age_seconds()
+        authority_ready = bool(
+            include_quota_usage
+            and observed is not None
+            and age_seconds is not None
+            and age_seconds <= max_age_seconds
+        )
+        known_count = quota_usage_count if authority_ready else local_count
+        delta = local_count - quota_usage_count
         return {
             "known_count": known_count,
             "quota_usage_count": quota_usage_count,
             "run_audit_count": run_audit_count,
             "provider_ledger_count": provider_ledger_count,
-            "quota_usage_ledger_delta": known_count - quota_usage_count,
+            "billable_from_provider": quota_usage_count if observed is not None else None,
+            "local_ledger_count": provider_ledger_count,
+            "quota_authority_status": "AUTHORITATIVE" if authority_ready else "DEGRADED",
+            "quota_authority_degraded": not authority_ready,
+            "quota_authority_observed_at": iso_z(observed) if observed else None,
+            "quota_authority_age_seconds": age_seconds,
+            "quota_authority_max_age_seconds": max_age_seconds,
+            "quota_usage_ledger_delta": delta,
             "quota_usage_ledger_divergence": (
-                quota_usage is not None
-                and known_count - quota_usage_count > QUOTA_USAGE_LEDGER_DIVERGENCE_THRESHOLD
+                observed is not None
+                and abs(delta) > QUOTA_USAGE_LEDGER_DIVERGENCE_THRESHOLD
             ),
         }
 
-    def request_count_since(self, since: datetime, *, include_quota_usage: bool = True) -> int:
+    def request_count_since(
+        self,
+        since: datetime,
+        *,
+        include_quota_usage: bool = True,
+        as_of: datetime | None = None,
+    ) -> int:
         return int(
             self.request_count_evidence_since(
                 since,
                 include_quota_usage=include_quota_usage,
+                as_of=as_of,
             )["known_count"]
         )
 
@@ -3143,6 +3175,24 @@ class FutureRefreshDbRepository:
                 )
         except Exception as exc:
             raise FutureRefreshPersistenceError("SUCCESSFUL_REQUEST_COUNT_READ_FAILED") from exc
+
+    def provider_request_count_since(self, since: datetime) -> int:
+        since_utc = parse_db_datetime(since)
+        try:
+            with Session(self.engine) as session:
+                return int(
+                    session.scalar(
+                        select(func.count())
+                        .select_from(ProviderRequestLogModel)
+                        .where(
+                            ProviderRequestLogModel.provider == "api_football",
+                            ProviderRequestLogModel.requested_at >= since_utc,
+                        )
+                    )
+                    or 0
+                )
+        except Exception as exc:
+            raise FutureRefreshPersistenceError("PROVIDER_REQUEST_COUNT_READ_FAILED") from exc
 
     def postmatch_result_request_count_since(self, since: datetime) -> int:
         since_utc = parse_db_datetime(since)
@@ -3253,7 +3303,7 @@ class FutureRefreshDbRepository:
                 "RESULT_CAPTURE_RESERVATION_READ_FAILED"
             ) from exc
 
-    def provider_quota_snapshot(self, day_start: datetime) -> dict[str, int | None]:
+    def provider_quota_snapshot(self, day_start: datetime) -> dict[str, Any]:
         start = parse_db_datetime(day_start).replace(hour=0, minute=0, second=0, microsecond=0)
         end = start + timedelta(days=1)
         try:
@@ -3270,9 +3320,35 @@ class FutureRefreshDbRepository:
         except Exception as exc:
             raise FutureRefreshPersistenceError("QUOTA_SNAPSHOT_READ_FAILED") from exc
         if not rows:
-            return {"daily_limit": None, "used": None, "remaining": None}
+            return {
+                "daily_limit": None,
+                "used": None,
+                "remaining": None,
+                "observed_at": None,
+                "burst_limit": None,
+                "burst_remaining": None,
+                "burst_observed_at": None,
+            }
+        burst_rows = [
+            row
+            for row in rows
+            if row.burst_limit is not None and row.burst_remaining is not None
+        ]
+        burst_row = max(
+            burst_rows,
+            key=lambda row: parse_db_datetime(row.observed_at),
+            default=None,
+        )
         return {
             "daily_limit": min(int(row.limit) for row in rows),
             "used": max(int(row.used) for row in rows),
             "remaining": min(max(int(row.limit) - int(row.used), 0) for row in rows),
+            "observed_at": iso_z(max(parse_db_datetime(row.observed_at) for row in rows)),
+            "burst_limit": int(burst_row.burst_limit) if burst_row is not None else None,
+            "burst_remaining": int(burst_row.burst_remaining) if burst_row is not None else None,
+            "burst_observed_at": (
+                iso_z(parse_db_datetime(burst_row.observed_at))
+                if burst_row is not None
+                else None
+            ),
         }

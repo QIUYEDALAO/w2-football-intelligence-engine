@@ -11,10 +11,12 @@ class ProviderQuota:
     daily_remaining: int | None
     daily_limit: int | None
     burst_remaining: int | None
+    burst_limit: int | None
     observed_at: datetime
     daily_source: str | None
     daily_limit_source: str | None
     burst_source: str | None
+    burst_limit_source: str | None
 
 
 DAILY_HEADER_SOURCES = {
@@ -28,11 +30,15 @@ DAILY_LIMIT_HEADER_SOURCES = {
 BURST_HEADER_SOURCES = {
     "x-ratelimit-remaining",
 }
+BURST_LIMIT_HEADER_SOURCES = {
+    "x-ratelimit-limit",
+}
 API_FOOTBALL_DAILY_BUDGET = 7500
 API_FOOTBALL_RESERVE_BUCKET = 1500
 API_FOOTBALL_FREE_DAILY_LIMIT = 100
 API_FOOTBALL_FREE_DAILY_LIMIT_SOURCE = "x-ratelimit-requests-limit"
 API_FOOTBALL_FREE_DAILY_LIMIT_OBSERVED_AT = "2026-08-16T03:30:27.493845Z"
+API_FOOTBALL_FREE_MINUTE_LIMIT = 10
 API_FOOTBALL_FREE_UNALLOCATED_BUFFER = 10
 GENERAL_PROVIDER_DAILY_HARD_CAP = 70
 POSTMATCH_RESULT_DAILY_HARD_CAP = 20
@@ -112,9 +118,11 @@ def parse_api_football_quota(
     daily_remaining: int | None = None
     daily_limit: int | None = None
     burst_remaining: int | None = None
+    burst_limit: int | None = None
     daily_source: str | None = None
     daily_limit_source: str | None = None
     burst_source: str | None = None
+    burst_limit_source: str | None = None
     for raw_key, raw_value in headers.items():
         key = raw_key.lower()
         if daily_remaining is None and key in DAILY_HEADER_SOURCES:
@@ -126,6 +134,9 @@ def parse_api_football_quota(
         if burst_remaining is None and key in BURST_HEADER_SOURCES:
             burst_remaining = parse_int(raw_value)
             burst_source = raw_key if burst_remaining is not None else None
+        if burst_limit is None and key in BURST_LIMIT_HEADER_SOURCES:
+            burst_limit = parse_int(raw_value)
+            burst_limit_source = raw_key if burst_limit is not None else None
     if daily_remaining is None:
         response = payload.get("response")
         if isinstance(response, dict):
@@ -146,10 +157,12 @@ def parse_api_football_quota(
         daily_remaining=daily_remaining,
         daily_limit=daily_limit,
         burst_remaining=burst_remaining,
+        burst_limit=burst_limit,
         observed_at=observed_at.astimezone(UTC),
         daily_source=daily_source,
         daily_limit_source=daily_limit_source,
         burst_source=burst_source,
+        burst_limit_source=burst_limit_source,
     )
 
 
@@ -278,6 +291,7 @@ def provider_daily_hard_cap_decision(
         "blocker": blocker,
         "actual_calls_today": actual,
         "billable_calls_today": actual,
+        "budget_basis": "PROVIDER_BILLABLE_HEADER",
         "planned_calls": planned,
         "projected_total": projected_total,
         "daily_cap": daily_cap,
@@ -311,7 +325,8 @@ def postmatch_result_quota_decision(
         "mode": "RESULT_RESERVE" if allowed else "RESULT_HARD_CAP",
         "blocker": None if allowed else "RESULT_QUOTA_EXHAUSTED",
         "actual_calls_today": actual,
-        "billable_calls_today": actual,
+        "postmatch_request_attempts_today": actual,
+        "budget_basis": "POSTMATCH_REQUEST_ATTEMPTS",
         "planned_calls": planned,
         "reserved_capture_calls": reserved,
         "projected_total": projected_total,

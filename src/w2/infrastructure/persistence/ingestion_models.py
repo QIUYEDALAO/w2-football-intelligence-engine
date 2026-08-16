@@ -59,3 +59,6 @@ class QuotaUsageModel(Base):
     limit: Mapped[int] = mapped_column(Integer, nullable=False)
     window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    burst_limit: Mapped[int | None] = mapped_column(Integer)
+    burst_remaining: Mapped[int | None] = mapped_column(Integer)

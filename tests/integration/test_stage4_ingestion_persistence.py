@@ -77,6 +77,7 @@ def test_quota_usage_table(session: Session) -> None:
             limit=10,
             window_start=NOW,
             window_end=NOW + timedelta(days=1),
+            observed_at=NOW,
         )
     )
     session.commit()

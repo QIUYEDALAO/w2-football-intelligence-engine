@@ -158,12 +158,20 @@ class DbProviderRequestLedger:
                             limit=quota.daily_limit,
                             window_start=window_start,
                             window_end=window_end,
+                            observed_at=completed_at.astimezone(UTC),
+                            burst_limit=quota.burst_limit,
+                            burst_remaining=quota.burst_remaining,
                         )
                     )
                 else:
                     quota_usage.used = max(quota_usage.used, used)
                     quota_usage.limit = quota.daily_limit
                     quota_usage.window_end = window_end
+                    quota_usage.observed_at = completed_at.astimezone(UTC)
+                    if quota.burst_limit is not None:
+                        quota_usage.burst_limit = quota.burst_limit
+                    if quota.burst_remaining is not None:
+                        quota_usage.burst_remaining = quota.burst_remaining
                 try:
                     session.commit()
                 except Exception:
