@@ -25,6 +25,7 @@ from w2.infrastructure.persistence.future_refresh_models import (
 )
 from w2.infrastructure.persistence.ingestion_models import (
     IngestionRunModel,
+    ProviderQuotaObservationModel,
     ProviderRequestLogModel,
     QuotaUsageModel,
 )
@@ -111,6 +112,7 @@ __all__ = [
     "PlayerClubMembershipObservationModel",
     "PredictionModel",
     "ProviderTeamIdentityCrosswalkModel",
+    "ProviderQuotaObservationModel",
     "ProviderRequestLogModel",
     "QuotaUsageModel",
     "RegisteredRosterSnapshotModel",

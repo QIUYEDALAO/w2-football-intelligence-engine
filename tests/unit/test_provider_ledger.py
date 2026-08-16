@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from w2.config import get_settings
 from w2.infrastructure.database import Base
 from w2.infrastructure.persistence.ingestion_models import (
+    ProviderQuotaObservationModel,
     ProviderRequestLogModel,
     QuotaUsageModel,
 )
@@ -47,6 +48,7 @@ def test_db_provider_ledger_records_repeated_identical_requests(monkeypatch, tmp
     with Session(engine) as session:
         logs = list(session.scalars(select(ProviderRequestLogModel)))
         usage = session.scalar(select(QuotaUsageModel))
+        observations = list(session.scalars(select(ProviderQuotaObservationModel)))
 
     assert len(logs) == 2
     assert len({log.request_hash for log in logs}) == 2
@@ -56,6 +58,8 @@ def test_db_provider_ledger_records_repeated_identical_requests(monkeypatch, tmp
     assert usage.observed_at.replace(tzinfo=UTC) == NOW + timedelta(seconds=1)
     assert usage.burst_limit == 10
     assert usage.burst_remaining == 6
+    assert len(observations) == 2
+    assert [row.burst_remaining for row in observations] == [6, 6]
 
 
 def test_db_provider_ledger_does_not_infer_usage_without_limit_header(
@@ -86,6 +90,40 @@ def test_db_provider_ledger_does_not_infer_usage_without_limit_header(
         usage_rows = list(session.scalars(select(QuotaUsageModel)))
 
     assert len(logs) == 1
+    assert usage_rows == []
+
+
+def test_db_provider_ledger_persists_burst_only_observation(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'ledger.db'}"
+    monkeypatch.setenv("W2_DATABASE_URL", database_url)
+    get_settings.cache_clear()
+    engine = create_engine(database_url)
+    Base.metadata.create_all(engine)
+
+    DbProviderRequestLedger().record_request(
+        provider="api_football",
+        endpoint="status",
+        params={},
+        live=True,
+        status_code=200,
+        requested_at=NOW,
+        completed_at=NOW,
+        headers={"x-ratelimit-limit": "10", "x-ratelimit-remaining": "4"},
+        payload={"response": {"requests": {}}},
+    )
+
+    with Session(engine) as session:
+        observation = session.scalar(select(ProviderQuotaObservationModel))
+        usage_rows = list(session.scalars(select(QuotaUsageModel)))
+
+    assert observation is not None
+    assert observation.daily_limit is None
+    assert observation.daily_remaining is None
+    assert observation.burst_limit == 10
+    assert observation.burst_remaining == 4
     assert usage_rows == []
 
 

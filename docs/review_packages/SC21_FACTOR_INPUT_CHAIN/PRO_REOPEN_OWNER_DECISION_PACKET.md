@@ -5,9 +5,10 @@ Status: OWNER_DECISION_PACKET_INCOMPLETE_GATE4
 This packet does not authorize a Pro purchase or renewal. The current decision remains
 `NOT_PURCHASED_NOT_RENEWED` until the Owner explicitly changes it.
 
-> R17 配额复核：本包不以“Free 日限不足”作为购买 Pro 的论据。当前账号响应仍为 `Free`，
-> `x-ratelimit-requests-limit=100`；本地日志与 header 用量发生分歧后，赛前采集已分级停机，
-> POSTMATCH capture 赛果链单独保留。该事件不构成提额或购买授权。
+> R20 容量复核：本包不以“Free 日限不足”作为购买 Pro 的论据。当前账号响应仍为 `Free`，
+> `x-ratelimit-requests-limit=100`。Owner 已批准未来采用“Provider 总计费 cap 90 + 不可分配
+> buffer 10”，POSTMATCH 20 保持为正交的 request-attempt cap；该调整必须等 R20-2 上线后
+> 完整观察一个 UTC 日再实施。当前决定仍是不购买、不续开 Pro。
 
 ## 成立基础（首页口径）
 
@@ -52,6 +53,33 @@ This packet does not authorize a Pro purchase or renewal. The current decision r
   `INSUFFICIENT_SAMPLE`。
 - 当前已验证线上 release：`f39f2f2529be0be57371e8b0af6be7776d8961a1`，schema
   `0056_floor_model_forecast_lead_time`。
+
+## Free 容量事实与增长感知测算
+
+以下只描述容量，不构成购买、续费或提额建议。
+
+- 最近三个完整 UTC 日的 Provider 计费峰值为 `53 / 80 / 81`，实测 Free 日限为 `100`；
+  已观测峰值使用率为 `81%`。
+- 这些峰值发生在仅瑞超与部分中超具备 xG、仅 9 条 ModelForecastCapture、Statistics
+  关闭且未扩大联赛范围的条件下。
+- xG 从 `UNDER_SAMPLED` 自然转为 READY 不会新增赛前 Provider 调用；Capture 是本地冻结。
+  边际 Provider 成本发生在赛后：现有链路每场 `status + fixtures = 2` 次网络 attempt，
+  R19 实测只有 fixtures 推动日计费，因此当前可审计边际为约 `1 billable/场 + 2 attempts/场`。
+- 过去四个完整 ISO 周，瑞超与中超总赛程为 `29 + 27 = 56` 场，即 `14.00 场/周`；
+  当前 xG-ready 为 `29 + 2 = 31` 场，即 `7.75 场/周`。若中超现有赛程在不新增
+  Statistics 的前提下全部自然转为 READY，平均结果需求由约 `1.11 billable/日`、
+  `2.21 attempts/日` 增至约 `2.00 billable/日`、`4.00 attempts/日`，增量约
+  `0.89 billable/日、1.79 attempts/日`。
+- 同一观察窗单日两联赛总赛程峰值为 `8` 场；若当日全部 xG-ready，结果链需
+  `16 attempts + 8 billable`，仍低于 POSTMATCH attempt cap `20`。把历史计费峰值 `81`
+  与这 8 次全部保守叠加得到 `89`，未触及已批准但尚未生效的 W2 cap `90`；该叠加会
+  重复计算峰值日中已有的赛果请求，因此是保守上界，不是预测值。
+- 以同样保守叠加法，历史峰值之上新增第 `10` 次 billable 会得到 `91`，首次超过 W2
+  cap `90`；新增第 `20` 次会超过 Provider 硬顶 `100`。当前观察到的单日赛程峰值为 8，
+  尚未达到这两个触发点。赛程密度或 xG-ready 率变化后必须滚动重算。
+- 样本节奏仍采用 R11 的不确定性口径：当前 xG-ready 自然速率约 `7.75 条/周`；
+  `LT_6H` 没有有限周数保证，其他 bucket 的 30 条估算不是承诺。配额不参与该周数公式，
+  但任何采集暂停都会使实际速度低于估算。
 
 ## Owner choices
 

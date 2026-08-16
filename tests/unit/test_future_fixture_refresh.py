@@ -41,6 +41,7 @@ from w2.operations.gate_a import (
     authorization_signing_message,
 )
 from w2.providers.api_football import LiveApiFootballResponse
+from w2.providers.control import free_plan_fixture_scope_restriction
 
 NOW = datetime(2026, 6, 23, 10, 0, tzinfo=UTC)
 
@@ -67,6 +68,65 @@ def test_refresh_progress_distinguishes_data_empty_and_failure() -> None:
     assert (
         refresh_progress_status(_refresh_result(blockers=["PROVIDER_REQUEST_FAILED"])) == "FAILED"
     )
+
+
+def test_free_plan_fixture_scope_restriction_is_exact() -> None:
+    assert free_plan_fixture_scope_restriction({"league": "39", "season": "2026"}) is not None
+    assert free_plan_fixture_scope_restriction({"league": "39", "season": "2025"}) is None
+    assert free_plan_fixture_scope_restriction({"league": "140", "season": "2026"}) is None
+    assert (
+        free_plan_fixture_scope_restriction(
+            {"id": "1494248", "league": "39", "season": "2026"}
+        )
+        is None
+    )
+
+
+def test_future_refresh_skips_confirmed_free_plan_restricted_scope_without_dispatch(
+    tmp_path: Path,
+) -> None:
+    client = FakeApiFootballClient()
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=FutureRefreshConfig(
+            runtime_root=tmp_path,
+            competition_id="premier_league",
+            league_id="39",
+            season="2026",
+            persistence="file",
+        ),
+        now=NOW,
+    ).run()
+
+    assert result.status == "SKIPPED_FREE_PLAN_RESTRICTED"
+    assert result.request_count == 0
+    assert result.skipped_free_plan_restricted_count == 1
+    assert client.calls == []
+    audit = json.loads((tmp_path / "future_refresh_audit.json").read_text(encoding="utf-8"))
+    assert audit["skipped_free_plan_restricted_count"] == 1
+    assert audit["requests"] == [
+        {
+            "attempt": 0,
+            "captured_at_utc": "2026-06-23T10:00:00Z",
+            "diagnostic_code": "SKIPPED_FREE_PLAN_RESTRICTED",
+            "elapsed_ms": 0,
+            "endpoint": "fixtures",
+            "error_code": None,
+            "params": {
+                "from": "2026-06-23",
+                "league": "39",
+                "season": "2026",
+                "to": "2026-06-27",
+            },
+            "payload_sha256": None,
+            "provider_dispatched": False,
+            "response_count": 0,
+            "restriction_evidence": free_plan_fixture_scope_restriction(
+                {"league": "39", "season": "2026"}
+            ),
+            "status_code": None,
+        }
+    ]
 
 
 def _gate_a_authorization() -> GateARuntimeAuthorization:

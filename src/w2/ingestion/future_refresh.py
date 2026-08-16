@@ -50,6 +50,7 @@ from w2.prematch.read_model_projection import (
 from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
 from w2.providers.control import (
     env_int,
+    free_plan_fixture_scope_restriction,
     provider_endpoint_allowlist,
     provider_http_max_attempts,
     provider_refresh_tick_hard_cap,
@@ -164,6 +165,7 @@ class FutureRefreshResult:
     error_code: str | None = None
     materialized_fixture_ids: list[str] = field(default_factory=list)
     exact_pair_count: int = 0
+    skipped_free_plan_restricted_count: int = 0
     identity_pool_expansions: list[dict[str, Any]] = field(default_factory=list)
     requests: list[dict[str, Any]] = field(default_factory=list)
 
@@ -850,6 +852,46 @@ class FutureFixtureRefreshService:
                 selected_market_fixture_ids=[],
                 blockers=["FUTURE_REFRESH_POLICY_DISABLED"],
                 status="BLOCKED",
+            )
+            self._write_audit(result)
+            return result
+        fixture_params = self._fixtures_request_params()
+        restriction = (
+            free_plan_fixture_scope_restriction(fixture_params)
+            if not self.config.refresh_checkpoints
+            and not self.config.result_refresh_fixture_ids
+            and self.config.discovery_date is None
+            else None
+        )
+        if restriction is not None:
+            self._audit.append(
+                {
+                    "endpoint": "fixtures",
+                    "params": sanitize_params(fixture_params),
+                    "attempt": 0,
+                    "provider_dispatched": False,
+                    "status_code": None,
+                    "elapsed_ms": 0,
+                    "captured_at_utc": iso(self.now),
+                    "response_count": 0,
+                    "payload_sha256": None,
+                    "error_code": None,
+                    "diagnostic_code": "SKIPPED_FREE_PLAN_RESTRICTED",
+                    "restriction_evidence": restriction,
+                }
+            )
+            result = FutureRefreshResult(
+                generated_at_utc=self.now,
+                fixture_count=0,
+                mapping_count=0,
+                market_snapshot_count=0,
+                feature_enrichment_payload_count=0,
+                ledger_appended_count=0,
+                request_count=0,
+                remaining_quota=None,
+                selected_market_fixture_ids=[],
+                status="SKIPPED_FREE_PLAN_RESTRICTED",
+                skipped_free_plan_restricted_count=1,
             )
             self._write_audit(result)
             return result
@@ -2987,6 +3029,9 @@ class FutureFixtureRefreshService:
             "progress_status": refresh_progress_status(result),
             "error_code": result.error_code,
             "requests": self._audit,
+            "skipped_free_plan_restricted_count": (
+                result.skipped_free_plan_restricted_count
+            ),
             "identity_pool_expansions": result.identity_pool_expansions,
             "candidate": False,
             "formal_recommendation": False,
@@ -3456,6 +3501,9 @@ def run_future_refresh_task(
             "materialized_fixture_ids": result.materialized_fixture_ids,
             "identity_pool_expansions": result.identity_pool_expansions,
             "requests": result.requests,
+            "skipped_free_plan_restricted_count": (
+                result.skipped_free_plan_restricted_count
+            ),
             "progress_status": progress_status,
             "discovery_date": discovery_date,
         }

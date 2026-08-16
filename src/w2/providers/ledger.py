@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.ingestion_models import (
+    ProviderQuotaObservationModel,
     ProviderRequestLogModel,
     QuotaUsageModel,
 )
@@ -132,6 +133,33 @@ class DbProviderRequestLedger:
             payload=payload,
             observed_at=completed_at,
         )
+        quota_values = (
+            quota.daily_limit,
+            quota.daily_remaining,
+            quota.burst_limit,
+            quota.burst_remaining,
+        )
+        if any(value is not None for value in quota_values):
+            with Session(engine) as session:
+                session.add(
+                    ProviderQuotaObservationModel(
+                        provider=provider,
+                        endpoint=endpoint,
+                        request_hash=request_hash,
+                        observed_at=completed_at.astimezone(UTC),
+                        daily_limit=quota.daily_limit,
+                        daily_remaining=quota.daily_remaining,
+                        burst_limit=quota.burst_limit,
+                        burst_remaining=quota.burst_remaining,
+                    )
+                )
+                try:
+                    session.commit()
+                except IntegrityError:
+                    session.rollback()
+                except Exception:
+                    session.rollback()
+                    raise
         if quota.daily_remaining is not None and quota.daily_limit is not None:
             window_start = completed_at.astimezone(UTC).replace(
                 hour=0,

@@ -63,3 +63,26 @@ class QuotaUsageModel(Base):
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     burst_limit: Mapped[int | None] = mapped_column(Integer)
     burst_remaining: Mapped[int | None] = mapped_column(Integer)
+
+
+class ProviderQuotaObservationModel(Base):
+    __tablename__ = "provider_quota_observations"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider",
+            "endpoint",
+            "request_hash",
+            name="uq_provider_quota_observation_request",
+        ),
+        Index("ix_provider_quota_observations_observed_at", "observed_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    endpoint: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    daily_limit: Mapped[int | None] = mapped_column(Integer)
+    daily_remaining: Mapped[int | None] = mapped_column(Integer)
+    burst_limit: Mapped[int | None] = mapped_column(Integer)
+    burst_remaining: Mapped[int | None] = mapped_column(Integer)
