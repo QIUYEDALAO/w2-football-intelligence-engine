@@ -1409,10 +1409,10 @@ class DashboardIntelligenceWorkspaceResponse(BaseModel):
             raise ValueError("selected football day must be centered in date strip")
         selected_day = self.date_strip[7]
         if (
-            selected_day.fixture_count != self.today_summary.match_count
-            or selected_day.competition_count != self.today_summary.competition_count
+            selected_day.fixture_count < self.today_summary.match_count
+            or selected_day.competition_count < self.today_summary.competition_count
         ):
-            raise ValueError("selected date strip counts must match selected-day summary")
+            raise ValueError("selected date strip inventory cannot omit projected matches")
         for match in self.matches:
             expected_cause = outcome_public_cause(
                 status=match.status,

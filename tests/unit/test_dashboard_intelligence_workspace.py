@@ -928,6 +928,31 @@ def test_schema_rejects_selected_fixture_outside_match_facts() -> None:
         )
 
 
+def test_schema_allows_persisted_inventory_before_read_model_projection() -> None:
+    payload = _workspace(_day_view())
+    payload["date_strip"][7]["fixture_count"] += 1
+    payload["date_strip"][7]["upcoming_fixture_count"] += 1
+    payload["date_strip"][7]["market_evidence_fixture_count"] += 1
+
+    validated = DashboardIntelligenceWorkspaceResponse.model_validate(
+        {"request_id": "persisted-inventory-ahead", **payload}
+    )
+
+    assert validated.date_strip[7].fixture_count == validated.today_summary.match_count + 1
+
+
+def test_schema_rejects_projected_match_missing_from_persisted_inventory() -> None:
+    payload = _workspace(_day_view())
+    payload["date_strip"][7]["fixture_count"] -= 1
+    payload["date_strip"][7]["upcoming_fixture_count"] -= 1
+    payload["date_strip"][7]["market_evidence_fixture_count"] -= 1
+
+    with pytest.raises(ValueError, match="inventory cannot omit projected matches"):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "persisted-inventory-behind", **payload}
+        )
+
+
 def test_schema_rejects_partial_market_evidence_claimed_as_available() -> None:
     payload = _workspace(_day_view())
     payload["date_strip"][7]["market_evidence_fixture_count"] = 2
