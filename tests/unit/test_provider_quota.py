@@ -287,15 +287,28 @@ def test_registered_daily_quota_pools_leave_unallocated_free_plan_buffer() -> No
     invalid = provider_daily_budget_contract(pool_limits={"GENERAL": 100, "POSTMATCH_RESULT": 20})
 
     assert baseline == {
-        "pool_limits": {"GENERAL": 70, "POSTMATCH_RESULT": 20},
-        "allocated_budget": 90,
+        "pool_limits": {"GENERAL": 70},
+        "orthogonal_attempt_pool_limits": {"POSTMATCH_RESULT": 20},
+        "allocated_budget": 70,
         "unallocated_buffer": 10,
-        "configured_total": 100,
+        "configured_total": 80,
         "provider_limit": 100,
         "valid": True,
     }
-    assert invalid["configured_total"] == 130
+    assert invalid["configured_total"] == 110
     assert invalid["valid"] is False
+
+
+def test_pro_daily_budget_keeps_postmatch_attempt_pool_orthogonal() -> None:
+    contract = provider_daily_budget_contract(
+        pool_limits={"GENERAL": 7500, "POSTMATCH_RESULT": 20},
+        unallocated_buffer=0,
+        provider_limit=7500,
+    )
+
+    assert contract["configured_total"] == 7500
+    assert contract["orthogonal_attempt_pool_limits"] == {"POSTMATCH_RESULT": 20}
+    assert contract["valid"] is True
 
 
 def test_provider_daily_hard_cap_blocks_exhaustion() -> None:
@@ -308,6 +321,19 @@ def test_provider_daily_hard_cap_blocks_exhaustion() -> None:
 
     assert decision["allowed"] is False
     assert decision["blocker"] == "DAILY_PROVIDER_HARD_CAP_EXCEEDED"
+
+
+def test_provider_daily_hard_cap_fails_closed_above_observed_plan_limit() -> None:
+    decision = provider_daily_hard_cap_decision(
+        actual_calls_today=1,
+        planned_calls=1,
+        daily_cap=7500,
+        reserve_bucket=1500,
+        provider_limit=100,
+    )
+
+    assert decision["allowed"] is False
+    assert decision["blocker"] == "PROVIDER_DAILY_CAP_EXCEEDS_OBSERVED_LIMIT"
 
 
 def test_provider_daily_hard_cap_reconciles_local_ceiling_and_provider_reserve() -> None:

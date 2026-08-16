@@ -62,6 +62,7 @@ class ProviderDailyQuotaPool:
     name: str
     env_var: str
     default_limit: int
+    budget_basis: str
 
 
 REGISTERED_PROVIDER_DAILY_QUOTA_POOLS = (
@@ -69,11 +70,13 @@ REGISTERED_PROVIDER_DAILY_QUOTA_POOLS = (
         name="GENERAL",
         env_var="W2_PROVIDER_DAILY_HARD_CAP",
         default_limit=GENERAL_PROVIDER_DAILY_HARD_CAP,
+        budget_basis="PROVIDER_BILLABLE_HEADER",
     ),
     ProviderDailyQuotaPool(
         name="POSTMATCH_RESULT",
         env_var="W2_POSTMATCH_RESULT_DAILY_HARD_CAP",
         default_limit=POSTMATCH_RESULT_DAILY_HARD_CAP,
+        budget_basis="POSTMATCH_REQUEST_ATTEMPTS",
     ),
 )
 
@@ -89,11 +92,22 @@ def provider_daily_budget_contract(
         pool.name: max(int(overrides.get(pool.name, pool.default_limit)), 0)
         for pool in REGISTERED_PROVIDER_DAILY_QUOTA_POOLS
     }
-    allocated = sum(registered.values())
+    billable = {
+        pool.name: registered[pool.name]
+        for pool in REGISTERED_PROVIDER_DAILY_QUOTA_POOLS
+        if pool.budget_basis == "PROVIDER_BILLABLE_HEADER"
+    }
+    attempt = {
+        pool.name: registered[pool.name]
+        for pool in REGISTERED_PROVIDER_DAILY_QUOTA_POOLS
+        if pool.budget_basis == "POSTMATCH_REQUEST_ATTEMPTS"
+    }
+    allocated = sum(billable.values())
     buffer = max(int(unallocated_buffer), 0)
     total = allocated + buffer
     return {
-        "pool_limits": registered,
+        "pool_limits": billable,
+        "orthogonal_attempt_pool_limits": attempt,
         "allocated_budget": allocated,
         "unallocated_buffer": buffer,
         "configured_total": total,
@@ -254,6 +268,7 @@ def provider_daily_hard_cap_decision(
     provider_remaining: int | None = None,
     min_provider_remaining: int = 0,
     require_provider_remaining: bool = False,
+    provider_limit: int | None = None,
 ) -> dict[str, Any]:
     actual = max(actual_calls_today, 0)
     planned = max(planned_calls, 0)
@@ -262,7 +277,11 @@ def provider_daily_hard_cap_decision(
     provider_remaining_after_plan = (
         provider_remaining - planned if provider_remaining is not None else None
     )
-    if projected_total > daily_cap:
+    if provider_limit is not None and daily_cap > provider_limit:
+        allowed = False
+        blocker = "PROVIDER_DAILY_CAP_EXCEEDS_OBSERVED_LIMIT"
+        mode = "BLOCKED"
+    elif projected_total > daily_cap:
         allowed = False
         blocker = "DAILY_PROVIDER_HARD_CAP_EXCEEDED"
         mode = "HARD_CAP"
@@ -298,6 +317,7 @@ def provider_daily_hard_cap_decision(
         "reserve_bucket": reserve_bucket,
         "remaining_after_plan": remaining_after_plan,
         "provider_remaining": provider_remaining,
+        "provider_limit": provider_limit,
         "min_provider_remaining": min_provider_remaining,
         "provider_remaining_after_plan": provider_remaining_after_plan,
     }

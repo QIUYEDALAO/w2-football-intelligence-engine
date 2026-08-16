@@ -57,6 +57,7 @@ from w2.providers.control import (
     provider_refresh_tick_hard_cap,
 )
 from w2.providers.quota import (
+    API_FOOTBALL_FREE_DAILY_LIMIT,
     API_FOOTBALL_FREE_MINUTE_LIMIT,
     API_FOOTBALL_FREE_UNALLOCATED_BUFFER,
     REGISTERED_PROVIDER_DAILY_QUOTA_POOLS,
@@ -366,12 +367,26 @@ def config_from_policy(
         "W2_PROVIDER_DAILY_UNALLOCATED_BUFFER",
         default=policy.daily_unallocated_buffer,
     )
+    observed_provider_limit = env_int(
+        "W2_PROVIDER_OBSERVED_DAILY_LIMIT",
+        default=API_FOOTBALL_FREE_DAILY_LIMIT,
+    )
+    observed_provider_limit_at = os.environ.get(
+        "W2_PROVIDER_OBSERVED_DAILY_LIMIT_AT", ""
+    ).strip()
+    if observed_provider_limit != API_FOOTBALL_FREE_DAILY_LIMIT and not observed_provider_limit_at:
+        raise FutureRefreshError("PROVIDER_PLAN_LIMIT_AUTHORITY_MISSING")
     budget = provider_daily_budget_contract(
         pool_limits=pool_limits,
         unallocated_buffer=daily_unallocated_buffer,
+        provider_limit=observed_provider_limit,
     )
     if not budget["valid"]:
-        raise FutureRefreshError("PROVIDER_DAILY_BUDGET_EXCEEDS_KNOWN_FREE_PLAN_LIMIT")
+        raise FutureRefreshError("PROVIDER_DAILY_BUDGET_EXCEEDS_OBSERVED_PLAN_LIMIT")
+    effective_daily_reserve = env_int(
+        "W2_PROVIDER_DAILY_RESERVE",
+        default=policy.daily_reserve,
+    )
     return FutureRefreshConfig(
         runtime_root=runtime_root or FutureRefreshConfig().runtime_root,
         competition_id=policy.competition_id,
@@ -380,7 +395,7 @@ def config_from_policy(
         horizon_days=policy.horizon_days,
         max_fixture_candidates=policy.max_fixture_candidates,
         max_odds_requests=policy.max_odds_requests,
-        quota_reserve=policy.quota_reserve,
+        quota_reserve=effective_daily_reserve,
         market_freshness_seconds=policy.market_freshness_seconds,
         request_budget=policy.request_budget,
         feature_enrichment_enabled=policy.feature_enrichment_enabled,
@@ -390,9 +405,9 @@ def config_from_policy(
         source_revision=_bound_source_revision(),
         enabled=policy.enabled,
         persistence=os.environ.get("W2_FUTURE_REFRESH_PERSISTENCE", "db").lower(),
-        daily_hard_cap=policy.daily_hard_cap,
-        daily_unallocated_buffer=policy.daily_unallocated_buffer,
-        daily_reserve=policy.daily_reserve,
+        daily_hard_cap=effective_daily_cap,
+        daily_unallocated_buffer=daily_unallocated_buffer,
+        daily_reserve=effective_daily_reserve,
         daily_usage_scope=policy.daily_usage_scope,
         checkpoint_mode=policy.checkpoint_mode,
         trickle_backfill_daily_budget=policy.trickle_backfill_daily_budget,
@@ -974,6 +989,8 @@ class FutureFixtureRefreshService:
                     "provider_ledger_calls_today": preflight.get("provider_ledger_count"),
                     "run_audit_calls_today": preflight.get("run_audit_count"),
                     "billable_from_provider": preflight.get("billable_from_provider"),
+                    "provider_daily_limit": preflight.get("provider_daily_limit"),
+                    "provider_daily_remaining": preflight.get("provider_daily_remaining"),
                     "local_ledger_count": preflight.get("local_ledger_count"),
                     "last_authority_at": preflight.get("last_authority_at"),
                     "authority_age_seconds": preflight.get("authority_age_seconds"),
@@ -1029,6 +1046,8 @@ class FutureFixtureRefreshService:
                     "provider_ledger_calls_today": preflight.get("provider_ledger_count"),
                     "run_audit_calls_today": preflight.get("run_audit_count"),
                     "billable_from_provider": preflight.get("billable_from_provider"),
+                    "provider_daily_limit": preflight.get("provider_daily_limit"),
+                    "provider_daily_remaining": preflight.get("provider_daily_remaining"),
                     "local_ledger_count": preflight.get("local_ledger_count"),
                     "last_authority_at": preflight.get("last_authority_at"),
                     "authority_age_seconds": preflight.get("authority_age_seconds"),
@@ -1164,7 +1183,12 @@ class FutureFixtureRefreshService:
         if not league_id or not season:
             return static
         try:
-            state = self._db_repository().free_plan_fixture_scope_state(
+            repository = self._db_repository()
+            authority_reader = getattr(repository, "latest_provider_quota_authority", None)
+            authority = authority_reader() if callable(authority_reader) else {}
+            if int(authority.get("daily_limit") or 0) > API_FOOTBALL_FREE_DAILY_LIMIT:
+                return None
+            state = repository.free_plan_fixture_scope_state(
                 league_id=league_id,
                 season=season,
             )
@@ -2128,6 +2152,10 @@ class FutureFixtureRefreshService:
                 planned_calls=planned_calls,
                 daily_cap=daily_cap,
                 reserve_bucket=reserve,
+                provider_remaining=self._provider_usage_evidence.get(
+                    "provider_daily_remaining"
+                ),
+                provider_limit=self._provider_usage_evidence.get("provider_daily_limit"),
             ),
             "successful_calls_today": self._successful_provider_calls_today(),
             **self._provider_usage_evidence,

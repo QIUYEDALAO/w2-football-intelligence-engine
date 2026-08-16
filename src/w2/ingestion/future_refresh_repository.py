@@ -42,6 +42,7 @@ from w2.infrastructure.persistence.future_refresh_models import (
     TeamXgRollingSnapshotModel,
 )
 from w2.infrastructure.persistence.ingestion_models import (
+    ProviderQuotaObservationModel,
     ProviderRequestLogModel,
     QuotaUsageModel,
 )
@@ -338,6 +339,27 @@ class FutureRefreshDbRepository:
                 "FREE_PLAN_FIXTURE_SCOPE_OBSERVATION_READ_FAILED"
             ) from exc
         return self._free_plan_fixture_scope_state_from_rows(rows)
+
+    def latest_provider_quota_authority(self) -> dict[str, Any]:
+        try:
+            with Session(self.engine) as session:
+                row = session.scalar(
+                    select(ProviderQuotaObservationModel)
+                    .where(ProviderQuotaObservationModel.provider == "api_football")
+                    .order_by(ProviderQuotaObservationModel.observed_at.desc())
+                    .limit(1)
+                )
+        except Exception as exc:
+            raise FutureRefreshPersistenceError("PROVIDER_QUOTA_AUTHORITY_READ_FAILED") from exc
+        if row is None:
+            return {}
+        return {
+            "observed_at": iso_z(row.observed_at),
+            "daily_limit": row.daily_limit,
+            "daily_remaining": row.daily_remaining,
+            "burst_limit": row.burst_limit,
+            "burst_remaining": row.burst_remaining,
+        }
 
     def record_free_plan_fixture_scope_observation(
         self,
@@ -3205,6 +3227,20 @@ class FutureRefreshDbRepository:
                     if include_quota_usage
                     else None
                 )
+                latest_quota = (
+                    session.scalar(
+                        select(QuotaUsageModel)
+                        .where(
+                            QuotaUsageModel.provider == "api_football",
+                            QuotaUsageModel.window_start >= day_start,
+                            QuotaUsageModel.window_start < day_end,
+                        )
+                        .order_by(QuotaUsageModel.observed_at.desc())
+                        .limit(1)
+                    )
+                    if include_quota_usage
+                    else None
+                )
         except Exception as exc:
             raise FutureRefreshPersistenceError("REQUEST_COUNT_READ_FAILED") from exc
         quota_usage_count = int(quota_usage[0] or 0) if quota_usage is not None else 0
@@ -3255,6 +3291,12 @@ class FutureRefreshDbRepository:
             "run_audit_count": run_audit_count,
             "provider_ledger_count": provider_ledger_count,
             "billable_from_provider": quota_usage_count if observed is not None else None,
+            "provider_daily_limit": int(latest_quota.limit) if latest_quota else None,
+            "provider_daily_remaining": (
+                max(int(latest_quota.limit) - int(latest_quota.used), 0)
+                if latest_quota
+                else None
+            ),
             "local_ledger_count": provider_ledger_count,
             "last_authority_at": iso_z(observed) if observed else None,
             "authority_age_seconds": age_seconds,
@@ -3480,8 +3522,16 @@ class FutureRefreshDbRepository:
             "used": max(int(row.used) for row in rows),
             "remaining": min(max(int(row.limit) - int(row.used), 0) for row in rows),
             "observed_at": iso_z(max(parse_db_datetime(row.observed_at) for row in rows)),
-            "burst_limit": int(burst_row.burst_limit) if burst_row is not None else None,
-            "burst_remaining": int(burst_row.burst_remaining) if burst_row is not None else None,
+            "burst_limit": (
+                int(burst_row.burst_limit)
+                if burst_row is not None and burst_row.burst_limit is not None
+                else None
+            ),
+            "burst_remaining": (
+                int(burst_row.burst_remaining)
+                if burst_row is not None and burst_row.burst_remaining is not None
+                else None
+            ),
             "burst_observed_at": (
                 iso_z(parse_db_datetime(burst_row.observed_at))
                 if burst_row is not None

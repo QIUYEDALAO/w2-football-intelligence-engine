@@ -122,6 +122,10 @@ def test_runtime_scope_observation_overrides_static_seed(tmp_path: Path) -> None
 
     class Repository:
         @staticmethod
+        def latest_provider_quota_authority() -> dict[str, Any]:
+            return {"daily_limit": 100}
+
+        @staticmethod
         def free_plan_fixture_scope_state(**_kwargs: Any) -> dict[str, Any]:
             return {"observed": True, "restriction": None, "consecutive_count": 0}
 
@@ -153,6 +157,31 @@ def test_runtime_scope_observation_overrides_static_seed(tmp_path: Path) -> None
     )
     assert observation is not None and observation["newly_confirmed"] is True
     assert service._free_plan_restriction_auto_detected_count == 1
+
+
+def test_pro_quota_authority_disables_free_scope_seed(tmp_path: Path) -> None:
+    service = FutureFixtureRefreshService(
+        client=FakeApiFootballClient(),
+        config=FutureRefreshConfig(
+            runtime_root=tmp_path,
+            competition_id="premier_league",
+            league_id="39",
+            season="2026",
+            persistence="db",
+        ),
+        now=NOW,
+    )
+
+    class Repository:
+        @staticmethod
+        def latest_provider_quota_authority() -> dict[str, Any]:
+            return {"daily_limit": 7500}
+
+    service._db_repository = lambda: Repository()  # type: ignore[method-assign]
+
+    assert service._free_plan_fixture_scope_restriction(
+        {"league": "39", "season": "2026"}
+    ) is None
 
 
 def test_future_refresh_skips_confirmed_free_plan_restricted_scope_without_dispatch(
@@ -1778,7 +1807,7 @@ def test_world_cup_future_refresh_policy_uses_zero_trickle_backfill_budget() -> 
     assert config.trickle_backfill_daily_budget == 0
 
 
-def test_future_refresh_rejects_registered_budget_above_known_free_plan_limit(
+def test_future_refresh_rejects_registered_budget_above_observed_plan_limit(
     monkeypatch,
 ) -> None:
     monkeypatch.setenv("W2_PROVIDER_DAILY_HARD_CAP", "100")
@@ -1786,9 +1815,30 @@ def test_future_refresh_rejects_registered_budget_above_known_free_plan_limit(
     try:
         config_from_policy(competition_id="world_cup_2026")
     except FutureRefreshError as exc:
-        assert str(exc) == "PROVIDER_DAILY_BUDGET_EXCEEDS_KNOWN_FREE_PLAN_LIMIT"
+        assert str(exc) == "PROVIDER_DAILY_BUDGET_EXCEEDS_OBSERVED_PLAN_LIMIT"
     else:  # pragma: no cover
-        raise AssertionError("registered budget above the Free-plan limit must fail closed")
+        raise AssertionError("registered budget above the observed plan limit must fail closed")
+
+
+def test_future_refresh_accepts_header_bound_pro_budget(monkeypatch) -> None:
+    monkeypatch.setenv("W2_PROVIDER_DAILY_HARD_CAP", "7500")
+    monkeypatch.setenv("W2_PROVIDER_DAILY_UNALLOCATED_BUFFER", "0")
+    monkeypatch.setenv("W2_PROVIDER_DAILY_RESERVE", "1500")
+    monkeypatch.setenv("W2_PROVIDER_OBSERVED_DAILY_LIMIT", "7500")
+    monkeypatch.setenv("W2_PROVIDER_OBSERVED_DAILY_LIMIT_AT", "2026-08-16T16:47:41Z")
+
+    config = config_from_policy(competition_id="world_cup_2026")
+
+    assert config.daily_hard_cap == 7500
+    assert config.daily_reserve == 1500
+    assert config.quota_reserve == 1500
+
+
+def test_future_refresh_rejects_unattributed_non_free_limit(monkeypatch) -> None:
+    monkeypatch.setenv("W2_PROVIDER_OBSERVED_DAILY_LIMIT", "7500")
+
+    with pytest.raises(FutureRefreshError, match="PROVIDER_PLAN_LIMIT_AUTHORITY_MISSING"):
+        config_from_policy(competition_id="world_cup_2026")
 
 
 def test_future_refresh_file_lock_prevents_duplicate_owner(tmp_path: Path) -> None:
