@@ -42,6 +42,12 @@ _FREE_PLAN_FIXTURE_SCOPE_EVIDENCE: dict[tuple[str, str], dict[str, Any]] = {
         "observed_at_utc": "2026-08-16T00:01:08Z/2026-08-16T03:30:28Z",
         "payload_sha256": "d9d1e2ce489de52e78ac1999c980a2c758e3b6ad67958f7f2d828478313f5b64",
     },
+    ("140", "2026"): {
+        "competition_id": "la_liga",
+        "sample_count": 3,
+        "observed_at_utc": "2026-08-12T05:54:21Z/2026-08-14T00:01:01Z",
+        "payload_sha256": "1ab19d614ffaa2fd97cd2abddaeaa6e199ddc5de2e6a6b29606833704cf98ab8",
+    },
 }
 _FREE_PLAN_FIXTURE_SCOPE_ERROR = (
     "Free plans do not have access to this season, try from 2022 to 2024."
@@ -122,6 +128,11 @@ def free_plan_fixture_scope_restriction(params: dict[str, str]) -> dict[str, Any
     scope = (str(params.get("league") or ""), str(params.get("season") or ""))
     evidence = _FREE_PLAN_FIXTURE_SCOPE_EVIDENCE.get(scope)
     return {**evidence, "provider_error": _FREE_PLAN_FIXTURE_SCOPE_ERROR} if evidence else None
+
+
+def is_free_plan_fixture_scope_restricted(payload: dict[str, Any]) -> bool:
+    errors = payload.get("errors")
+    return isinstance(errors, dict) and errors.get("plan") == _FREE_PLAN_FIXTURE_SCOPE_ERROR
 
 
 @dataclass(frozen=True)

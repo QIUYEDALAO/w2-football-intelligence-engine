@@ -41,7 +41,10 @@ from w2.operations.gate_a import (
     authorization_signing_message,
 )
 from w2.providers.api_football import LiveApiFootballResponse
-from w2.providers.control import free_plan_fixture_scope_restriction
+from w2.providers.control import (
+    free_plan_fixture_scope_restriction,
+    is_free_plan_fixture_scope_restricted,
+)
 
 NOW = datetime(2026, 6, 23, 10, 0, tzinfo=UTC)
 
@@ -73,13 +76,83 @@ def test_refresh_progress_distinguishes_data_empty_and_failure() -> None:
 def test_free_plan_fixture_scope_restriction_is_exact() -> None:
     assert free_plan_fixture_scope_restriction({"league": "39", "season": "2026"}) is not None
     assert free_plan_fixture_scope_restriction({"league": "39", "season": "2025"}) is None
-    assert free_plan_fixture_scope_restriction({"league": "140", "season": "2026"}) is None
+    assert free_plan_fixture_scope_restriction({"league": "140", "season": "2026"}) == {
+        "competition_id": "la_liga",
+        "sample_count": 3,
+        "observed_at_utc": "2026-08-12T05:54:21Z/2026-08-14T00:01:01Z",
+        "payload_sha256": "1ab19d614ffaa2fd97cd2abddaeaa6e199ddc5de2e6a6b29606833704cf98ab8",
+        "provider_error": (
+            "Free plans do not have access to this season, try from 2022 to 2024."
+        ),
+    }
     assert (
         free_plan_fixture_scope_restriction(
             {"id": "1494248", "league": "39", "season": "2026"}
         )
         is None
     )
+
+
+def test_free_plan_fixture_scope_restriction_matches_only_exact_provider_error() -> None:
+    assert is_free_plan_fixture_scope_restricted(
+        {
+            "errors": {
+                "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+            },
+            "response": [],
+        }
+    )
+    assert not is_free_plan_fixture_scope_restricted(
+        {"errors": {"plan": "another restriction"}, "response": []}
+    )
+
+
+def test_runtime_scope_observation_overrides_static_seed(tmp_path: Path) -> None:
+    service = FutureFixtureRefreshService(
+        client=FakeApiFootballClient(),
+        config=FutureRefreshConfig(
+            runtime_root=tmp_path,
+            competition_id="premier_league",
+            league_id="39",
+            season="2026",
+            persistence="db",
+        ),
+        now=NOW,
+    )
+
+    class Repository:
+        @staticmethod
+        def free_plan_fixture_scope_state(**_kwargs: Any) -> dict[str, Any]:
+            return {"observed": True, "restriction": None, "consecutive_count": 0}
+
+        @staticmethod
+        def record_free_plan_fixture_scope_observation(**_kwargs: Any) -> dict[str, Any]:
+            return {
+                "observed": True,
+                "restriction": {"sample_count": 3},
+                "consecutive_count": 3,
+                "newly_confirmed": True,
+            }
+
+    service._db_repository = lambda: Repository()  # type: ignore[method-assign]
+
+    assert service._free_plan_fixture_scope_restriction(
+        {"league": "39", "season": "2026"}
+    ) is None
+    observation = service._record_free_plan_fixture_scope_observation(
+        endpoint="fixtures",
+        params={"league": "253", "season": "2027"},
+        payload={
+            "errors": {
+                "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+            },
+            "response": [],
+        },
+        payload_sha256="a" * 64,
+        captured_at=NOW,
+    )
+    assert observation is not None and observation["newly_confirmed"] is True
+    assert service._free_plan_restriction_auto_detected_count == 1
 
 
 def test_future_refresh_skips_confirmed_free_plan_restricted_scope_without_dispatch(

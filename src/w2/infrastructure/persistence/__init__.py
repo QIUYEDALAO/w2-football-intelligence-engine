@@ -15,6 +15,7 @@ from w2.infrastructure.persistence.factor_model_models import (
 )
 from w2.infrastructure.persistence.forward_ops_models import ForwardMarketSnapshotModel
 from w2.infrastructure.persistence.future_refresh_models import (
+    FreePlanFixtureScopeObservationModel,
     FutureRefreshCheckpointAuditModel,
     FutureRefreshRunAuditModel,
     FutureRefreshTaskAuditModel,
@@ -89,6 +90,7 @@ __all__ = [
     "FutureRefreshCheckpointAuditModel",
     "FutureRefreshRunAuditModel",
     "FutureRefreshTaskAuditModel",
+    "FreePlanFixtureScopeObservationModel",
     "Gate5RecommendationLockEventModel",
     "ForwardMarketSnapshotModel",
     "PROJECTION_VIEW_NAME",

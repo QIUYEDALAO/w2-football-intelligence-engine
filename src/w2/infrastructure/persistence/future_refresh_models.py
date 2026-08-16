@@ -157,6 +157,28 @@ class RawPayloadModel(Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
 
+class FreePlanFixtureScopeObservationModel(Base):
+    __tablename__ = "free_plan_fixture_scope_observations"
+    __table_args__ = (
+        Index(
+            "ix_free_plan_fixture_scope_observations_scope_time",
+            "provider",
+            "league_id",
+            "season",
+            "observed_at",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    league_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    season: Mapped[str] = mapped_column(String(32), nullable=False)
+    restricted: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    provider_error: Mapped[str | None] = mapped_column(String(512))
+
+
 class RawStatisticsRetentionModel(Base):
     __tablename__ = "raw_statistics_retention"
 

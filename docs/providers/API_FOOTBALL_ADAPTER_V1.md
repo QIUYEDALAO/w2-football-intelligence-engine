@@ -29,3 +29,17 @@ Rules:
 - `first_seen_odds` is distinct from `opening_odds`; Stage 4A does not infer
   opening prices.
 
+## Free-plan fixture scope restriction
+
+- Seed evidence is exact on `(league, season)` and never applies to `id` or
+  `fixture` requests.
+- Every dispatched league-and-season `fixtures` response is appended to
+  `free_plan_fixture_scope_observations` with its timestamp and payload hash.
+- Three consecutive responses containing the exact Provider season-access error
+  confirm the runtime restriction. The third response reports
+  `FREE_PLAN_RESTRICTION_AUTO_DETECTED`; later identical scope requests report
+  `SKIPPED_FREE_PLAN_RESTRICTED` without dispatch.
+- A non-restricted response resets the consecutive sequence. Runtime observations
+  take precedence over seeds.
+- Restrictions never cross a season boundary. A previously unseen season is
+  probed and can make at most three restricted observations before short-circuiting.

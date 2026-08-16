@@ -32,6 +32,7 @@ from w2.infrastructure.persistence.factor_model_models import (
     TeamRatingSnapshotModel,
 )
 from w2.infrastructure.persistence.future_refresh_models import (
+    FreePlanFixtureScopeObservationModel,
     FutureRefreshCheckpointAuditModel,
     FutureRefreshRunAuditModel,
     FutureRefreshTaskAuditModel,
@@ -64,6 +65,7 @@ from w2.infrastructure.persistence.models import (
     StructuredLineupSnapshotModel,
     TeamLineupBaselineModel,
     TransfermarktPlayerReferenceModel,
+    uuid_str,
 )
 from w2.ingestion.authoritative_lineup import (
     AuthoritativeLineupError,
@@ -283,6 +285,97 @@ class DatabaseRawPayloadObjectStore:
 class FutureRefreshDbRepository:
     def __init__(self, *, engine: Engine | None = None, settings: Settings | None = None) -> None:
         self.engine = engine or create_engine(settings)
+
+    @staticmethod
+    def _free_plan_fixture_scope_state_from_rows(
+        rows: list[FreePlanFixtureScopeObservationModel],
+    ) -> dict[str, Any]:
+        if not rows:
+            return {"observed": False, "restriction": None, "consecutive_count": 0}
+        consecutive = []
+        for row in rows:
+            if not row.restricted:
+                break
+            consecutive.append(row)
+        restriction = None
+        if len(consecutive) >= 3:
+            newest = consecutive[0]
+            oldest = consecutive[-1]
+            restriction = {
+                "sample_count": len(consecutive),
+                "observed_at_utc": f"{iso_z(oldest.observed_at)}/{iso_z(newest.observed_at)}",
+                "payload_sha256": newest.payload_sha256,
+                "provider_error": newest.provider_error,
+                "evidence_source": "runtime_observations",
+            }
+        return {
+            "observed": True,
+            "restriction": restriction,
+            "consecutive_count": len(consecutive),
+        }
+
+    def free_plan_fixture_scope_state(
+        self,
+        *,
+        league_id: str,
+        season: str,
+    ) -> dict[str, Any]:
+        try:
+            with Session(self.engine) as session:
+                rows = list(
+                    session.scalars(
+                        select(FreePlanFixtureScopeObservationModel)
+                        .where(
+                            FreePlanFixtureScopeObservationModel.provider == "api_football",
+                            FreePlanFixtureScopeObservationModel.league_id == str(league_id),
+                            FreePlanFixtureScopeObservationModel.season == str(season),
+                        )
+                        .order_by(FreePlanFixtureScopeObservationModel.observed_at.desc())
+                    )
+                )
+        except Exception as exc:
+            raise FutureRefreshPersistenceError(
+                "FREE_PLAN_FIXTURE_SCOPE_OBSERVATION_READ_FAILED"
+            ) from exc
+        return self._free_plan_fixture_scope_state_from_rows(rows)
+
+    def record_free_plan_fixture_scope_observation(
+        self,
+        *,
+        league_id: str,
+        season: str,
+        restricted: bool,
+        observed_at: datetime,
+        payload_sha256: str,
+        provider_error: str | None,
+    ) -> dict[str, Any]:
+        with Session(self.engine) as session:
+            try:
+                row = FreePlanFixtureScopeObservationModel(
+                    id=uuid_str(),
+                    provider="api_football",
+                    league_id=str(league_id),
+                    season=str(season),
+                    restricted=bool(restricted),
+                    observed_at=parse_db_datetime(observed_at),
+                    payload_sha256=str(payload_sha256),
+                    provider_error=str(provider_error) if provider_error else None,
+                )
+                session.add(row)
+                session.commit()
+            except Exception as exc:
+                session.rollback()
+                raise FutureRefreshPersistenceError(
+                    "FREE_PLAN_FIXTURE_SCOPE_OBSERVATION_WRITE_FAILED"
+                ) from exc
+        current = self.free_plan_fixture_scope_state(
+            league_id=str(league_id),
+            season=str(season),
+        )
+        return {
+            **current,
+            "newly_confirmed": int(current["consecutive_count"]) == 3,
+        }
 
     def seed_provider_primary_identity(
         self,

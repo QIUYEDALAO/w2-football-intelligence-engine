@@ -1909,6 +1909,50 @@ def test_request_count_since_includes_provider_request_logs(
     assert successful == 120
 
 
+def test_free_plan_fixture_scope_auto_confirms_after_three_consecutive_observations(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    repository = FutureRefreshDbRepository()
+    provider_error = "Free plans do not have access to this season, try from 2022 to 2024."
+
+    for index in range(3):
+        state = repository.record_free_plan_fixture_scope_observation(
+            league_id="253",
+            season="2027",
+            restricted=True,
+            observed_at=NOW + timedelta(minutes=index),
+            payload_sha256=f"{index + 1:064x}",
+            provider_error=provider_error,
+        )
+
+    assert state["newly_confirmed"] is True
+    assert state["restriction"] == {
+        "sample_count": 3,
+        "observed_at_utc": "2026-06-23T10:00:00Z/2026-06-23T10:02:00Z",
+        "payload_sha256": f"{3:064x}",
+        "provider_error": provider_error,
+        "evidence_source": "runtime_observations",
+    }
+    assert repository.free_plan_fixture_scope_state(league_id="253", season="2028") == {
+        "observed": False,
+        "restriction": None,
+        "consecutive_count": 0,
+    }
+
+    reset = repository.record_free_plan_fixture_scope_observation(
+        league_id="253",
+        season="2027",
+        restricted=False,
+        observed_at=NOW + timedelta(minutes=3),
+        payload_sha256=f"{4:064x}",
+        provider_error=None,
+    )
+    assert reset["restriction"] is None
+    assert reset["consecutive_count"] == 0
+
+
 def test_request_count_since_includes_quota_usage(
     tmp_path: Path,
     monkeypatch: Any,

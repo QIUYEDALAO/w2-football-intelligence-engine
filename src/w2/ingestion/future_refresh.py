@@ -51,6 +51,7 @@ from w2.providers.api_football import ApiFootballClient, LiveApiFootballResponse
 from w2.providers.control import (
     env_int,
     free_plan_fixture_scope_restriction,
+    is_free_plan_fixture_scope_restricted,
     provider_endpoint_allowlist,
     provider_http_max_attempts,
     provider_refresh_tick_hard_cap,
@@ -166,6 +167,7 @@ class FutureRefreshResult:
     materialized_fixture_ids: list[str] = field(default_factory=list)
     exact_pair_count: int = 0
     skipped_free_plan_restricted_count: int = 0
+    free_plan_restriction_auto_detected_count: int = 0
     identity_pool_expansions: list[dict[str, Any]] = field(default_factory=list)
     requests: list[dict[str, Any]] = field(default_factory=list)
 
@@ -798,6 +800,7 @@ class FutureFixtureRefreshService:
         self._checkpoint_preflight_failures: set[str] = set()
         self._identity_pool_expansions: list[dict[str, Any]] = []
         self._provider_usage_evidence: dict[str, Any] = {}
+        self._free_plan_restriction_auto_detected_count = 0
 
     def _db_repository(self) -> FutureRefreshDbRepository:
         return FutureRefreshDbRepository()
@@ -857,7 +860,7 @@ class FutureFixtureRefreshService:
             return result
         fixture_params = self._fixtures_request_params()
         restriction = (
-            free_plan_fixture_scope_restriction(fixture_params)
+            self._free_plan_fixture_scope_restriction(fixture_params)
             if not self.config.refresh_checkpoints
             and not self.config.result_refresh_fixture_ids
             and self.config.discovery_date is None
@@ -1116,6 +1119,9 @@ class FutureFixtureRefreshService:
                 status="BLOCKED",
                 raw_payload_written_count=self._raw_payload_written_count,
                 error_code=str(exc),
+                free_plan_restriction_auto_detected_count=(
+                    self._free_plan_restriction_auto_detected_count
+                ),
             )
             self._write_audit(result)
         except Exception as exc:
@@ -1139,9 +1145,63 @@ class FutureFixtureRefreshService:
                 status="BLOCKED" if self.runtime_authorization is not None else "PARTIAL_FAILED",
                 raw_payload_written_count=self._raw_payload_written_count,
                 error_code=error_code,
+                free_plan_restriction_auto_detected_count=(
+                    self._free_plan_restriction_auto_detected_count
+                ),
             )
             self._write_audit(result)
         return result
+
+    def _free_plan_fixture_scope_restriction(
+        self,
+        params: dict[str, str],
+    ) -> dict[str, Any] | None:
+        static = free_plan_fixture_scope_restriction(params)
+        if self.config.persistence != "db" or "id" in params or "fixture" in params:
+            return static
+        league_id = str(params.get("league") or "")
+        season = str(params.get("season") or "")
+        if not league_id or not season:
+            return static
+        try:
+            state = self._db_repository().free_plan_fixture_scope_state(
+                league_id=league_id,
+                season=season,
+            )
+        except FutureRefreshPersistenceError as exc:
+            if static is not None:
+                return static
+            raise FutureRefreshError(str(exc)) from exc
+        return state["restriction"] if state["observed"] else static
+
+    def _record_free_plan_fixture_scope_observation(
+        self,
+        *,
+        endpoint: str,
+        params: dict[str, str],
+        payload: dict[str, Any],
+        payload_sha256: str,
+        captured_at: datetime,
+    ) -> dict[str, Any] | None:
+        if self.config.persistence != "db" or endpoint != "fixtures":
+            return None
+        league_id = str(params.get("league") or "")
+        season = str(params.get("season") or "")
+        if not league_id or not season or "id" in params or "fixture" in params:
+            return None
+        errors = payload.get("errors")
+        provider_error = errors.get("plan") if isinstance(errors, dict) else None
+        observation = self._db_repository().record_free_plan_fixture_scope_observation(
+            league_id=league_id,
+            season=season,
+            restricted=is_free_plan_fixture_scope_restricted(payload),
+            observed_at=captured_at,
+            payload_sha256=payload_sha256,
+            provider_error=str(provider_error) if provider_error else None,
+        )
+        if observation["newly_confirmed"]:
+            self._free_plan_restriction_auto_detected_count += 1
+        return observation
 
     def run_staged_gate_a_canary(self, fixture_id: str | None = None) -> FutureRefreshResult:
         """Run the isolated five-call Pre/Lineup/Post feasibility path."""
@@ -1581,6 +1641,18 @@ class FutureFixtureRefreshService:
                 endpoint_capture_error is not None or endpoint_capture_id is None
             ):
                 raise FutureRefreshError(f"ENDPOINT_CAPTURE_WRITE_FAILED:{endpoint_capture_error}")
+            scope_observation = None
+            scope_observation_error = None
+            try:
+                scope_observation = self._record_free_plan_fixture_scope_observation(
+                    endpoint=endpoint,
+                    params=params,
+                    payload=response.payload,
+                    payload_sha256=payload_sha,
+                    captured_at=response.captured_at,
+                )
+            except FutureRefreshPersistenceError as exc:
+                scope_observation_error = str(exc)
             self._audit.append(
                 {
                     "endpoint": endpoint,
@@ -1605,9 +1677,13 @@ class FutureFixtureRefreshService:
                     "raw_payload_error": raw_payload_error,
                     "matchday_endpoint_capture_id": endpoint_capture_id,
                     "matchday_endpoint_capture_error": endpoint_capture_error,
-                    "diagnostic_code": self._diagnostic_code_for_response(
-                        endpoint=endpoint,
-                        response_count=response_size,
+                    "diagnostic_code": (
+                        "FREE_PLAN_RESTRICTION_AUTO_DETECTED"
+                        if scope_observation and scope_observation.get("newly_confirmed") is True
+                        else self._diagnostic_code_for_response(
+                            endpoint=endpoint,
+                            response_count=response_size,
+                        )
                     ),
                     "error_code": (
                         f"PROVIDER_HTTP_{status}"
@@ -1620,6 +1696,12 @@ class FutureFixtureRefreshService:
                     ),
                 }
             )
+            if scope_observation is not None:
+                self._audit[-1]["free_plan_scope_observation"] = scope_observation
+            if scope_observation_error is not None:
+                self._audit[-1]["free_plan_scope_observation_error"] = scope_observation_error
+            if scope_observation_error is not None:
+                raise FutureRefreshError(scope_observation_error)
             if status == 429 and self.runtime_authorization is not None:
                 raise FutureRefreshError("PROVIDER_MINUTE_RATE_LIMIT_EXCEEDED")
             if status == 429 and attempt < max_attempts:
@@ -3032,6 +3114,9 @@ class FutureFixtureRefreshService:
             "skipped_free_plan_restricted_count": (
                 result.skipped_free_plan_restricted_count
             ),
+            "free_plan_restriction_auto_detected_count": (
+                result.free_plan_restriction_auto_detected_count
+            ),
             "identity_pool_expansions": result.identity_pool_expansions,
             "candidate": False,
             "formal_recommendation": False,
@@ -3503,6 +3588,9 @@ def run_future_refresh_task(
             "requests": result.requests,
             "skipped_free_plan_restricted_count": (
                 result.skipped_free_plan_restricted_count
+            ),
+            "free_plan_restriction_auto_detected_count": (
+                result.free_plan_restriction_auto_detected_count
             ),
             "progress_status": progress_status,
             "discovery_date": discovery_date,
