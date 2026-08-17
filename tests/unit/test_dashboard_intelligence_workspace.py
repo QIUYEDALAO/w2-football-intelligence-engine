@@ -491,6 +491,59 @@ def test_factor_checklist_separates_model_track_from_stale_quote_gate() -> None:
     assert "主盘身份可解析 ≠ 候选报价可锁定" in checklist["market_identity_note_zh"]
 
 
+def test_factor_checklist_reports_waiting_quote_before_unassessed_decision() -> None:
+    day_view = _day_view()
+    day_view["generated_at"] = "2026-08-09T03:00:00Z"
+    card = _factor_checklist_card()
+    for candidate in card["market_candidates"].values():
+        candidate.update(
+            quote_status="COMPLETE",
+            quote_usage="EXECUTABLE",
+            blockers=[],
+        )
+    day_view["cards"] = [card]
+
+    checklist = _workspace(day_view, candidate_enabled=True)["matches"][0][
+        "factor_checklist"
+    ]
+
+    assert checklist["track_shadow_candidate"]["blocking_factor_ids"] == [
+        "MK_QUOTE_AGE"
+    ]
+    assert "等待中，尚未评估" in checklist["conclusion_zh"]
+    assert "最上游待满足：报价时效" in checklist["conclusion_zh"]
+    assert "Decision V4" not in checklist["conclusion_zh"]
+
+
+def test_factor_checklist_reports_no_edge_as_assessed_not_gate_failed() -> None:
+    day_view = _day_view()
+    day_view["generated_at"] = "2026-08-09T01:20:00Z"
+    card = _factor_checklist_card()
+    for candidate in card["market_candidates"].values():
+        candidate.update(
+            quote_status="COMPLETE",
+            quote_usage="EXECUTABLE",
+            blockers=[],
+        )
+    card["recommendation_decision_v4"] = {
+        "outcome": "NO_EDGE",
+        "reason": {
+            "code": "CASHFLOW_EDGE_INSUFFICIENT",
+            "message": "五态现金流优势不足",
+        },
+    }
+    day_view["cards"] = [card]
+
+    checklist = _workspace(day_view, candidate_enabled=True)["matches"][0][
+        "factor_checklist"
+    ]
+
+    assert checklist["track_shadow_candidate"]["blocking_factor_ids"] == ["NO_EDGE"]
+    assert "Decision V4 已评估" in checklist["conclusion_zh"]
+    assert "NO_EDGE（模型与市场一致，无价值差）" in checklist["conclusion_zh"]
+    assert "未通过" not in checklist["conclusion_zh"]
+
+
 def test_factor_checklist_provider_unavailable_requires_explicit_confirmation() -> None:
     day_view = _day_view()
     card = _factor_checklist_card()
@@ -1611,7 +1664,10 @@ def test_market_eligibility_preserves_ah_ou_partial_truth_without_cross_contamin
     assert match["readiness"]["market_evidence_status"] == "AVAILABLE"
     assert match["readiness"]["candidate_input_status"] == "NOT_READY"
     assert match["priority_reason_secondary"] == ["CANDIDATE_INPUT_NOT_READY"]
-    assert "模型尚未就绪，暂不进行模型—市场比较" in match["factual_summary"]
+    assert (
+        "可比较模型尚未就绪（需已验证校准），暂不进行模型—市场比较"
+        in match["factual_summary"]
+    )
 
 
 @pytest.mark.parametrize(

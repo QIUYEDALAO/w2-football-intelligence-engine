@@ -424,7 +424,7 @@ function MarketEvidence({ market, generatedAt, kickoff, latestSnapshotAt, latest
       </p>
       <div className="v41-market-freshness"><span>市场证据</span><strong>{label(market.eligibility.observation_status)}</strong><span>捕获档位</span><strong>{timelineCheckpoint || collectionCheckpoint || "档位待确认"}</strong><span>距最新快照</span><strong>{ageLabel(generatedAt, market.latest_snapshot_at)}</strong></div>
       <div className="v41-market-semantics"><b>走势证据：{label(market.trend_evidence_status)}</b><span>{comparisonSummary(market)}</span></div>
-      <div className="v41-market-semantics"><b>候选输入</b><span>候选报价可锁定：{label(market.eligibility.candidate_quote_lock_status)} · 模型：{label(market.eligibility.candidate_model_status)}</span></div>
+      <div className="v41-market-semantics"><b>候选输入</b><span>候选报价可锁定：{label(market.eligibility.candidate_quote_lock_status)} · 候选可用模型：{label(market.eligibility.candidate_model_status)}</span></div>
     </section>
   );
 }
@@ -570,7 +570,7 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
             <div><strong>{candidate.market ? MARKET_LABELS[candidate.market] : "市场待确认"} · {SELECTION_LABELS[candidate.selection || ""] || candidate.selection}</strong><span>盘口 {candidate.exact_line} · 赔率 {price(candidate.decimal_odds)}</span><small>已按 V4 身份进入统一前向账本；赛后自动结算并累计验证。</small></div>
             <footer>Formal、Lock、Production 与实盘保持关闭；达到既有证据门槛后另行提交 Owner 审批。</footer>
           </section> : null}
-          <div className="v41-diagnostic"><span /><p><b>当前模型状态：{label(model.status)}</b>{`让球：${label(marketRelations[0]?.status)}；大小球：${label(marketRelations[1]?.status)}。市场值年龄已在左侧逐市场标注；${marketRelations.some((relation) => ["COMPARABLE_WITHIN_MARKET_RANGE", "MODEL_OUTSIDE_MARKET_RANGE"].includes(relation?.status || "")) ? "已就绪市场的模型—市场差异仅用于诊断。" : "当前不进行模型—市场比较。"}优先检查模型校准、特征时效、盘口身份和数据质量。`}</p></div>
+          <div className="v41-diagnostic"><span /><p><b>可比较模型（需已验证校准）：{label(model.status)}</b>{`让球：${label(marketRelations[0]?.status)}；大小球：${label(marketRelations[1]?.status)}。市场值年龄已在左侧逐市场标注；${marketRelations.some((relation) => ["COMPARABLE_WITHIN_MARKET_RANGE", "MODEL_OUTSIDE_MARKET_RANGE"].includes(relation?.status || "")) ? "已就绪市场的模型—市场差异仅用于诊断。" : "当前不进行模型—市场比较。"}优先检查模型校准、特征时效、盘口身份和数据质量。`}</p></div>
           <RiskSummary generatedAt={generatedAt} match={match} />
           <Scoreline match={match} />
           <div className="v41-next"><span>市场 / 候选就绪</span><strong>{candidateAggregateLabel(match.readiness.market_aggregate_status)}</strong><span>采集状态</span><strong>{collectionLabel(match)}</strong><span>计划时刻</span><strong>{match.market_collection.scheduled_at ? scheduledEvaluation(match.market_collection.scheduled_at, generatedAt) : "暂无后续计划"}</strong><span>宽限结束</span><strong>{match.market_collection.window_end_at ? localDateTime(match.market_collection.window_end_at) : "不适用"}</strong><span>下次评估</span><strong>{nextEvaluation(match.readiness.next_eval_at, generatedAt)}</strong></div>

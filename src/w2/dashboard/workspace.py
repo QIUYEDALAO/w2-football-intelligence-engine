@@ -1466,7 +1466,7 @@ def _match_factual_summary(match: Mapping[str, Any]) -> str:
     diagnostic_copy = (
         "已就绪市场可进行模型—市场诊断。"
         if diagnostic_ready
-        else "模型尚未就绪，暂不进行模型—市场比较。"
+        else "可比较模型尚未就绪（需已验证校准），暂不进行模型—市场比较。"
     )
     candidate_copy = {
         "READY": "两个市场的候选输入均已就绪。",
@@ -1482,7 +1482,7 @@ def _risks(source: Mapping[str, Any]) -> dict[str, Any]:
         risk = dict(_mapping(source.get(dimension)))
         reasons = _string_list(risk.get("reason_codes"))
         if dimension == "MODEL_RISK" and risk.get("assessment_status") == "UNASSESSED":
-            risk["explanation"] = "尚无可用模型评估证据"
+            risk["explanation"] = "可比较模型尚无已验证校准证据"
             result[dimension] = risk
             continue
         translated = [

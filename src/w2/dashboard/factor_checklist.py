@@ -95,10 +95,19 @@ def build_fixture_factor_checklist(
     for market in MARKETS:
         eligibility = _mapping(_mapping(markets.get(market)).get("eligibility"))
         blockers = list(model_blockers)
-        if _text(eligibility.get("candidate_eligibility_status")) != "READY":
+        market_gate_blockers = [
+            str(factor["factor_id"])
+            for factor in factors
+            if factor.get("market") == market
+            and factor.get("role_shadow_candidate") == "HARD_GATE"
+            and factor.get("state") != "READY"
+        ]
+        if market_gate_blockers:
+            blockers.extend(market_gate_blockers)
+        elif _text(eligibility.get("candidate_eligibility_status")) != "READY":
             blockers.extend(_candidate_blockers(eligibility, factors, market))
         elif _text(shadow_candidate.get("status")) != "ACTIVE":
-            blockers.append("DECISION_V4")
+            blockers.append(_decision_blocker(shadow_candidate))
         per_market[market] = {
             "state": "READY" if not blockers else "BLOCKED",
             "blocking_factor_ids": list(dict.fromkeys(blockers)),
@@ -140,7 +149,7 @@ def build_fixture_factor_checklist(
         ),
         "market_identity_note_zh": (
             "主盘身份可解析 ≠ 候选报价可锁定；"
-            "候选轨道还要求报价可执行、模型就绪及 Decision V4。"
+            "候选轨道还要求报价可执行、候选可用模型及 Decision V4。"
         ),
         "ledger_fact": persisted_ledger_fact,
         "enhancement_quality": _enhancement_quality(factors),
@@ -468,7 +477,12 @@ def _conclusion(
     if shadow_track["state"] == "READY":
         return "本场可进入模型预测账本，也具备形成影子候选的输入条件。"
     blocker = str(shadow_track["blocking_factor_ids"][0])
-    return f"本场可进入模型预测账本；不能形成影子候选 —— 卡在 {_blocker_detail(blocker, factors)}"
+    detail = _blocker_detail(blocker, factors)
+    if blocker == "NO_EDGE":
+        return f"本场可进入模型预测账本；Decision V4 已评估，结果为 {detail}，未形成影子候选。"
+    if _blocker_is_waiting(blocker, factors):
+        return f"本场可进入模型预测账本；影子候选等待中，尚未评估 —— 最上游待满足：{detail}"
+    return f"本场可进入模型预测账本；影子候选已评估，未通过 —— 最上游阻断：{detail}"
 
 
 def _ledger_aware_conclusion(
@@ -496,7 +510,9 @@ def _blocker_detail(blocker: str, factors: Sequence[Mapping[str, Any]]) -> str:
     )
     if row is None:
         return {
-            "DECISION_V4": "Decision V4 尚未通过",
+            "DECISION_V4_UNASSESSED": "Decision V4 尚未评估",
+            "DECISION_V4_NOT_SELECTED": "Decision V4 未选出候选",
+            "NO_EDGE": "NO_EDGE（模型与市场一致，无价值差）",
             "CANDIDATE_QUOTE_LOCK": (
                 "候选报价可锁定（主盘身份可解析不等于报价完整且可执行）"
             ),
@@ -523,6 +539,26 @@ def _blocker_detail(blocker: str, factors: Sequence[Mapping[str, Any]]) -> str:
     if blocker == "MK_EXACT_QUOTE":
         return "主盘身份可解析"
     return str(row.get("display_name_zh") or blocker)
+
+
+def _blocker_is_waiting(
+    blocker: str, factors: Sequence[Mapping[str, Any]]
+) -> bool:
+    if blocker == "DECISION_V4_UNASSESSED":
+        return True
+    return any(
+        item.get("factor_id") == blocker and item.get("state") == "WAITING"
+        for item in factors
+    )
+
+
+def _decision_blocker(shadow_candidate: Mapping[str, Any]) -> str:
+    tier = _text(shadow_candidate.get("decision_tier")) or "NOT_READY"
+    if tier == "NO_EDGE":
+        return "NO_EDGE"
+    if tier == "NOT_READY":
+        return "DECISION_V4_UNASSESSED"
+    return "DECISION_V4_NOT_SELECTED"
 
 
 def _candidate_blockers(
