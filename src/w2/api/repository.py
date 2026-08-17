@@ -38,6 +38,7 @@ from w2.dashboard.date_window import (
     default_football_day,
     football_day_window,
 )
+from w2.dashboard.factor_checklist import MIN_XG_MATCHES
 from w2.dashboard.performance import dashboard_performance
 from w2.dashboard.results import normalize_match_status
 from w2.dashboard.validation_summary import validation_summary
@@ -57,6 +58,7 @@ from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.infrastructure.persistence.factor_model_models import (
     CanonicalTeamModel,
 )
+from w2.infrastructure.persistence.future_refresh_models import TeamXgMatchModel
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
     MatchdayEndpointCaptureModel,
@@ -1136,6 +1138,27 @@ class ReadModelRepository:
             with Session(self._database_engine()) as session:
                 captures = list(session.scalars(select(ModelForecastCaptureModel)))
                 outcomes = list(session.scalars(select(ModelForecastOutcomeModel)))
+                ready_team_ids = set(
+                    session.scalars(
+                        select(TeamXgMatchModel.team_id)
+                        .group_by(TeamXgMatchModel.team_id)
+                        .having(
+                            func.count(func.distinct(TeamXgMatchModel.fixture_id)) >= MIN_XG_MATCHES
+                        )
+                    )
+                )
+                now = datetime.now(UTC)
+                next_7d_ready_fixtures = session.scalar(
+                    select(
+                        func.count(func.distinct(MatchdayFixtureIdentityModel.fixture_id))
+                    ).where(
+                        MatchdayFixtureIdentityModel.provider == "api_football",
+                        MatchdayFixtureIdentityModel.kickoff_utc >= now,
+                        MatchdayFixtureIdentityModel.kickoff_utc < now + timedelta(days=7),
+                        MatchdayFixtureIdentityModel.home_provider_team_id.in_(ready_team_ids),
+                        MatchdayFixtureIdentityModel.away_provider_team_id.in_(ready_team_ids),
+                    )
+                )
         except SQLAlchemyError as exc:
             raise SystemDegradedError("DASHBOARD_MODEL_FORECAST_QUERY_FAILED") from exc
         settled_hashes = {row.capture_identity_hash for row in outcomes}
@@ -1143,6 +1166,9 @@ class ReadModelRepository:
             "capture_count": len(captures),
             "settled_count": len(outcomes),
             "pending_count": len(captures) - len(outcomes),
+            "min_xg_matches": MIN_XG_MATCHES,
+            "xg_ready_team_count": len(ready_team_ids),
+            "next_7d_xg_ready_fixture_count": int(next_7d_ready_fixtures or 0),
             "capture_policy": "FIRST_ELIGIBLE_FREEZE_IMMUTABLE",
             "lead_time_buckets": {
                 bucket: {

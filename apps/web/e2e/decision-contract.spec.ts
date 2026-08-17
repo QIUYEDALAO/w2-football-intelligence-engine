@@ -911,7 +911,7 @@ test("V41 exposes a prominent post-match validation center and hides raw codes i
   await expect(validation).toBeVisible();
   await expect(validation).toContainText("赛后验证");
   await expect(validation).toContainText("跨比赛日累计证据");
-  await expect(validation).toContainText("验证总记录36");
+  await expect(validation).toContainText("赛果基表记录36");
   await expect(validation).toContainText("已结算20");
   await expect(validation).toContainText("不混入所选比赛日的前向记录与赛果缺口");
   await expect(validation).toContainText("赛果尚未产生");

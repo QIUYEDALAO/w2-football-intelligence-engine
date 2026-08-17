@@ -435,6 +435,9 @@ export interface WorkspaceValidation {
     capture_count: number;
     settled_count: number;
     pending_count: number;
+    min_xg_matches: number;
+    xg_ready_team_count: number;
+    next_7d_xg_ready_fixture_count: number;
     capture_policy: "FIRST_ELIGIBLE_FREEZE_IMMUTABLE";
     lead_time_buckets: Record<"LT_6H" | "H6_TO_LT_24H" | "D1_TO_D3" | "GT_3D", {
       capture_count: number;

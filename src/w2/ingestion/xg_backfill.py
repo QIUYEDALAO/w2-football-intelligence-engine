@@ -623,7 +623,12 @@ class XgHistoryBackfillService:
         if not isinstance(league, dict):
             return False
         scope = (str(league.get("id") or ""), str(league.get("season") or ""))
-        return scope in self._competition_by_provider_scope
+        return scope in self._competition_by_provider_scope or (
+            scope[1] in PRO_BACKFILL_SEASONS
+            and any(
+                league_id == scope[0] for league_id, _season in self._competition_by_provider_scope
+            )
+        )
 
     def _canonical_identity_ready(self, item: dict[str, Any]) -> bool:
         fixture = item.get("fixture", {}) if isinstance(item, dict) else {}
@@ -661,7 +666,12 @@ class XgHistoryBackfillService:
             status = fixture.get("status", {}) if isinstance(fixture.get("status"), dict) else {}
             kickoff = parse_utc(fixture.get("date"))
             is_finished = status.get("short") in FINISHED_STATUS
-            if is_finished and kickoff is not None and kickoff < self.now:
+            if (
+                is_finished
+                and kickoff is not None
+                and kickoff < self.now
+                and self._is_target_competition_fixture(item)
+            ):
                 rows.append(item)
         return rows
 

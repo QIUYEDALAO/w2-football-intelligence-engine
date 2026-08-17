@@ -27,6 +27,8 @@ def finished_fixture(
     kickoff: datetime,
     home: str = "10",
     away: str = "20",
+    league_id: int = 113,
+    season: str = "2026",
 ) -> dict[str, Any]:
     return {
         "fixture": {
@@ -34,6 +36,7 @@ def finished_fixture(
             "date": kickoff.isoformat().replace("+00:00", "Z"),
             "status": {"short": "FT"},
         },
+        "league": {"id": league_id, "season": season},
         "teams": {"home": {"id": int(home)}, "away": {"id": int(away)}},
         "goals": {"home": 2, "away": 1},
     }
@@ -411,6 +414,39 @@ def test_saved_statistics_raw_materializes_xg_and_is_idempotent() -> None:
     assert first.rolling_snapshot_rows == 2
     assert second.team_xg_match_rows == 0
     assert second.rolling_snapshot_rows == 2
+
+
+def test_saved_statistics_raw_materializes_registered_historical_season() -> None:
+    repository = SavedRawRepository()
+    for fixture in repository.fixture_payloads():
+        if str(fixture.get("fixture", {}).get("id", "")).startswith("saved-"):
+            fixture["league"] = {"id": 113, "season": "2024"}
+
+    result = XgHistoryBackfillService(
+        client=NoCallClient(),
+        repository=repository,
+        config=XgBackfillConfig(min_rolling_matches=3),
+        now=NOW,
+    ).run_saved_raw()
+
+    assert result.team_xg_match_rows == 8
+
+
+def test_history_fetch_rejects_finished_fixture_outside_registered_leagues() -> None:
+    service = XgHistoryBackfillService(
+        client=NoCallClient(),
+        repository=SavedRawRepository(),
+        config=XgBackfillConfig(min_rolling_matches=3),
+        now=NOW,
+    )
+    payload = {
+        "response": [
+            finished_fixture("target", NOW - timedelta(days=1)),
+            finished_fixture("cup", NOW - timedelta(days=1), league_id=171),
+        ]
+    }
+
+    assert [row["fixture"]["id"] for row in service._finished_fixture_items(payload)] == ["target"]
 
 
 def test_saved_raw_rebuild_uses_snapshot_identities_not_current_mapping() -> None:

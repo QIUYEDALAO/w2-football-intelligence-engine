@@ -13,7 +13,9 @@ from w2.domain.canonical_serialization import canonical_sha256
 from w2.infrastructure.persistence.future_refresh_models import (
     RawPayloadModel,
     RawStatisticsRetentionModel,
+    TeamXgMatchModel,
 )
+from w2.infrastructure.persistence.matchday_intake_models import MatchdayFixtureIdentityModel
 from w2.infrastructure.persistence.model_forecast_models import (
     ModelForecastCaptureModel,
     ModelForecastOutcomeModel,
@@ -79,6 +81,7 @@ def test_dashboard_reads_capture_and_outcome_as_ledger_facts(
 ) -> None:
     engine = _engine(tmp_path)
     _seed_valid_capture_and_outcome(engine)
+    _seed_xg_ready_future_fixture(engine)
     repository = ReadModelRepository()
     monkeypatch.setattr(repository, "_database_engine", lambda: engine)
 
@@ -114,6 +117,9 @@ def test_dashboard_reads_capture_and_outcome_as_ledger_facts(
         "capture_count": 1,
         "settled_count": 1,
         "pending_count": 0,
+        "min_xg_matches": 3,
+        "xg_ready_team_count": 2,
+        "next_7d_xg_ready_fixture_count": 1,
         "capture_policy": "FIRST_ELIGIBLE_FREEZE_IMMUTABLE",
         "lead_time_buckets": {
             "LT_6H": {"capture_count": 1, "settled_count": 1, "pending_count": 0},
@@ -124,15 +130,18 @@ def test_dashboard_reads_capture_and_outcome_as_ledger_facts(
     }
     captured_fact = WorkspaceModelForecastLedgerFact.model_validate(facts["fixture-1"])
     assert captured_fact.lead_time_seconds == 3600
-    assert WorkspaceModelForecastLedgerFact.model_validate(
-        facts["fixture-not-captured"]
-    ).state == "NOT_CAPTURED"
+    assert (
+        WorkspaceModelForecastLedgerFact.model_validate(facts["fixture-not-captured"]).state
+        == "NOT_CAPTURED"
+    )
 
 
 def _engine(tmp_path: Path):  # type: ignore[no-untyped-def]
     engine = create_engine(f"sqlite+pysqlite:///{tmp_path / 'canary.db'}")
     RawPayloadModel.__table__.create(engine)
     RawStatisticsRetentionModel.__table__.create(engine)
+    TeamXgMatchModel.__table__.create(engine)
+    MatchdayFixtureIdentityModel.__table__.create(engine)
     ModelForecastCaptureModel.__table__.create(engine)
     ModelForecastOutcomeModel.__table__.create(engine)
     ResultModel.__table__.create(engine)
@@ -251,6 +260,52 @@ def _seed_valid_capture_and_outcome(engine) -> None:  # type: ignore[no-untyped-
                 confirmed_at=kickoff + timedelta(hours=2),
                 source_payload_sha256="3" * 64,
                 result_hash="4" * 64,
+            )
+        )
+        session.commit()
+
+
+def _seed_xg_ready_future_fixture(engine) -> None:  # type: ignore[no-untyped-def]
+    with Session(engine) as session:
+        for team_id, opponent_id in (("10", "20"), ("20", "10")):
+            for index in range(3):
+                session.add(
+                    TeamXgMatchModel(
+                        id=f"history-{index}:{team_id}",
+                        fixture_id=f"history-{index}",
+                        team_id=team_id,
+                        opponent_team_id=opponent_id,
+                        kickoff_at=NOW - timedelta(days=4 - index),
+                        captured_at=NOW,
+                        xg_for=1.0,
+                        xg_against=0.8,
+                        goals_for=1,
+                        goals_against=0,
+                        raw_payload_sha256=f"{index + 1}" * 64,
+                        source_system="api_football.statistics",
+                        candidate=False,
+                        formal_recommendation=False,
+                    )
+                )
+        session.add(
+            MatchdayFixtureIdentityModel(
+                fixture_id="w2:fixture:future-ready",
+                provider="api_football",
+                provider_fixture_id="future-ready",
+                competition_id="allsvenskan",
+                provider_league_id="113",
+                season="2026",
+                kickoff_utc=datetime.now(UTC) + timedelta(days=1),
+                fixture_status="NS",
+                home_provider_team_id="10",
+                away_provider_team_id="20",
+                home_w2_team_id="w2:team:10",
+                away_w2_team_id="w2:team:20",
+                team_identity_status="READY",
+                raw_payload_sha256="f" * 64,
+                captured_at=NOW,
+                identity_hash="e" * 64,
+                payload={},
             )
         )
         session.commit()

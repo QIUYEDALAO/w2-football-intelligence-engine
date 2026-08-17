@@ -237,6 +237,11 @@ def _model_forecast_progress(raw: Mapping[str, Any]) -> dict[str, Any]:
         "capture_count": max(0, _int(raw.get("capture_count"))),
         "settled_count": max(0, _int(raw.get("settled_count"))),
         "pending_count": max(0, _int(raw.get("pending_count"))),
+        "min_xg_matches": max(1, _int(raw.get("min_xg_matches")) or 3),
+        "xg_ready_team_count": max(0, _int(raw.get("xg_ready_team_count"))),
+        "next_7d_xg_ready_fixture_count": max(
+            0, _int(raw.get("next_7d_xg_ready_fixture_count"))
+        ),
         "capture_policy": _text(
             raw.get("capture_policy"), "FIRST_ELIGIBLE_FREEZE_IMMUTABLE"
         ),

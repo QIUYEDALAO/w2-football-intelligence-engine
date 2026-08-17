@@ -108,6 +108,9 @@ class RecordingDashboardService:
             "capture_count": 13,
             "settled_count": 8,
             "pending_count": 5,
+            "min_xg_matches": 3,
+            "xg_ready_team_count": 128,
+            "next_7d_xg_ready_fixture_count": 24,
             "capture_policy": "FIRST_ELIGIBLE_FREEZE_IMMUTABLE",
             "lead_time_buckets": {},
         }

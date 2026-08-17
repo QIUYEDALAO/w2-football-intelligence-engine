@@ -1244,6 +1244,9 @@ class WorkspaceModelForecastProgress(BaseModel):
     capture_count: int = Field(ge=0)
     settled_count: int = Field(ge=0)
     pending_count: int = Field(ge=0)
+    min_xg_matches: int = Field(ge=1)
+    xg_ready_team_count: int = Field(ge=0)
+    next_7d_xg_ready_fixture_count: int = Field(ge=0)
     capture_policy: Literal["FIRST_ELIGIBLE_FREEZE_IMMUTABLE"]
     lead_time_buckets: dict[
         Literal["LT_6H", "H6_TO_LT_24H", "D1_TO_D3", "GT_3D"],
