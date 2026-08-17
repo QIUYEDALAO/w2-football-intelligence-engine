@@ -36,9 +36,11 @@ def test_generates_kickoff_aware_controlled_ticks() -> None:
         "T6_ODDS",
         "T3_ODDS",
         "T60_ODDS_LINEUPS",
+        "T45_ODDS",
         "T45_LINEUPS_RETRY",
         "T30_LINEUPS_RETRY",
         "T-30m_VALIDATION_LOCK",
+        "T15_ODDS",
     ]
     assert [tick.offset_seconds_before_kickoff for tick in ticks] == [
         24 * 60 * 60,
@@ -47,8 +49,10 @@ def test_generates_kickoff_aware_controlled_ticks() -> None:
         3 * 60 * 60,
         60 * 60,
         45 * 60,
+        45 * 60,
         30 * 60,
         30 * 60,
+        15 * 60,
     ]
     assert all(tick.scheduled_at >= AS_OF for tick in ticks)
 

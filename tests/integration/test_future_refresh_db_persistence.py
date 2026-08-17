@@ -571,6 +571,7 @@ def test_postmatch_result_cap_restores_unattempted_claim(
 @pytest.mark.parametrize(
     ("client", "checkpoint_name", "endpoints", "expected_status", "expected_lineups"),
     [
+        (FakeApiFootballClient(), "T45_ODDS", ("odds",), "CAPTURED", 0),
         (FakeApiFootballClient(), "T45_LINEUPS_RETRY", ("lineups",), "CAPTURED", 2),
         (
             FakeApiFootballClient(),
@@ -579,6 +580,7 @@ def test_postmatch_result_cap_restores_unattempted_claim(
             "CAPTURED",
             2,
         ),
+        (FakeApiFootballClient(), "T15_ODDS", ("odds",), "CAPTURED", 0),
         (SchemaDriftLineupsClient(), "T45_LINEUPS_RETRY", ("lineups",), "FAILED", 0),
     ],
 )

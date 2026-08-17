@@ -38,9 +38,11 @@ def test_checkpoint_plan_generation_is_kickoff_based_and_idempotent_shape() -> N
         "T6_ODDS",
         "T3_ODDS",
         "T60_ODDS_LINEUPS",
+        "T45_ODDS",
         "T45_LINEUPS_RETRY",
         "T30_LINEUPS_RETRY",
         "T-30m_VALIDATION_LOCK",
+        "T15_ODDS",
     ]
     by_checkpoint = {plan.checkpoint: plan for plan in plans}
     assert by_checkpoint["T168_OPEN_ODDS"].due_at_utc == kickoff - timedelta(days=7)
@@ -52,6 +54,10 @@ def test_checkpoint_plan_generation_is_kickoff_based_and_idempotent_shape() -> N
     assert by_checkpoint["T6_ODDS"].due_at_utc == kickoff - timedelta(hours=6)
     assert by_checkpoint["T60_ODDS_LINEUPS"].due_at_utc == kickoff - timedelta(hours=1)
     assert by_checkpoint["T60_ODDS_LINEUPS"].endpoints == ("odds", "lineups")
+    assert by_checkpoint["T45_ODDS"].due_at_utc == kickoff - timedelta(minutes=45)
+    assert by_checkpoint["T45_ODDS"].endpoints == ("odds",)
+    assert by_checkpoint["T15_ODDS"].due_at_utc == kickoff - timedelta(minutes=15)
+    assert by_checkpoint["T15_ODDS"].endpoints == ("odds",)
     assert [plan.plan_id for plan in plans].count("fixture-1:T60_ODDS_LINEUPS") == 1
 
 

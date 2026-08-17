@@ -12,10 +12,12 @@
     "T6_ODDS",
     "T3_ODDS",
     "T60_ODDS_LINEUPS",
+    "T45_ODDS",
     "T45_LINEUPS_RETRY",
     "T30_LINEUPS_RETRY",
     "LINEUP_CONFIRMED",
-    "T-30m_VALIDATION_LOCK"
+    "T-30m_VALIDATION_LOCK",
+    "T15_ODDS"
   ],
   "competitions": [
     {
@@ -35,9 +37,11 @@
         {"name": "T6_ODDS", "offset_seconds_before_kickoff": 21600, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T3_ODDS", "offset_seconds_before_kickoff": 10800, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
+        {"name": "T45_ODDS", "offset_seconds_before_kickoff": 2700, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true},
         {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
         {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
-        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true},
+        {"name": "T15_ODDS", "offset_seconds_before_kickoff": 900, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true}
       ],
       "endpoint_matrix": {
         "competition_tick": ["status", "fixtures"],
@@ -68,9 +72,11 @@
         {"name": "T6_ODDS", "offset_seconds_before_kickoff": 21600, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T3_ODDS", "offset_seconds_before_kickoff": 10800, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
+        {"name": "T45_ODDS", "offset_seconds_before_kickoff": 2700, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true},
         {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
         {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
-        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true},
+        {"name": "T15_ODDS", "offset_seconds_before_kickoff": 900, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true}
       ],
       "endpoint_matrix": {
         "competition_tick": ["status", "fixtures"],
@@ -101,9 +107,11 @@
         {"name": "T6_ODDS", "offset_seconds_before_kickoff": 21600, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T3_ODDS", "offset_seconds_before_kickoff": 10800, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
+        {"name": "T45_ODDS", "offset_seconds_before_kickoff": 2700, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true},
         {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
         {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
-        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true},
+        {"name": "T15_ODDS", "offset_seconds_before_kickoff": 900, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true}
       ],
       "endpoint_matrix": {
         "competition_tick": ["status", "fixtures"],
@@ -134,9 +142,11 @@
         {"name": "T6_ODDS", "offset_seconds_before_kickoff": 21600, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T3_ODDS", "offset_seconds_before_kickoff": 10800, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
+        {"name": "T45_ODDS", "offset_seconds_before_kickoff": 2700, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true},
         {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
         {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
-        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true},
+        {"name": "T15_ODDS", "offset_seconds_before_kickoff": 900, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true}
       ],
       "endpoint_matrix": {
         "competition_tick": ["status", "fixtures"],
@@ -167,9 +177,11 @@
         {"name": "T6_ODDS", "offset_seconds_before_kickoff": 21600, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T3_ODDS", "offset_seconds_before_kickoff": 10800, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
+        {"name": "T45_ODDS", "offset_seconds_before_kickoff": 2700, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true},
         {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
         {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
-        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true},
+        {"name": "T15_ODDS", "offset_seconds_before_kickoff": 900, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true}
       ],
       "endpoint_matrix": {"competition_tick": ["status", "fixtures"], "fixture_tick": ["odds"], "lineup_window": ["lineups"], "audit_extensions_disabled": ["injuries", "statistics"]},
       "odds_max_age_seconds": 3600,
@@ -195,9 +207,11 @@
         {"name": "T6_ODDS", "offset_seconds_before_kickoff": 21600, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T3_ODDS", "offset_seconds_before_kickoff": 10800, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
+        {"name": "T45_ODDS", "offset_seconds_before_kickoff": 2700, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true},
         {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
         {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
-        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true},
+        {"name": "T15_ODDS", "offset_seconds_before_kickoff": 900, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true}
       ],
       "endpoint_matrix": {"competition_tick": ["status", "fixtures"], "fixture_tick": ["odds"], "lineup_window": ["lineups"], "audit_extensions_disabled": ["injuries", "statistics"]},
       "odds_max_age_seconds": 3600,
@@ -223,9 +237,11 @@
         {"name": "T6_ODDS", "offset_seconds_before_kickoff": 21600, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T3_ODDS", "offset_seconds_before_kickoff": 10800, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
+        {"name": "T45_ODDS", "offset_seconds_before_kickoff": 2700, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true},
         {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
         {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
-        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true},
+        {"name": "T15_ODDS", "offset_seconds_before_kickoff": 900, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true}
       ],
       "endpoint_matrix": {"competition_tick": ["status", "fixtures"], "fixture_tick": ["odds"], "lineup_window": ["lineups"], "audit_extensions_disabled": ["injuries", "statistics"]},
       "odds_max_age_seconds": 3600,
@@ -251,9 +267,11 @@
         {"name": "T6_ODDS", "offset_seconds_before_kickoff": 21600, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T3_ODDS", "offset_seconds_before_kickoff": 10800, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
+        {"name": "T45_ODDS", "offset_seconds_before_kickoff": 2700, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true},
         {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
         {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
-        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true},
+        {"name": "T15_ODDS", "offset_seconds_before_kickoff": 900, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true}
       ],
       "endpoint_matrix": {"competition_tick": ["status", "fixtures"], "fixture_tick": ["odds"], "lineup_window": ["lineups"], "audit_extensions_disabled": ["injuries", "statistics"]},
       "odds_max_age_seconds": 3600,
@@ -279,9 +297,11 @@
         {"name": "T6_ODDS", "offset_seconds_before_kickoff": 21600, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T3_ODDS", "offset_seconds_before_kickoff": 10800, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
+        {"name": "T45_ODDS", "offset_seconds_before_kickoff": 2700, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true},
         {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
         {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
-        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true},
+        {"name": "T15_ODDS", "offset_seconds_before_kickoff": 900, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true}
       ],
       "endpoint_matrix": {"competition_tick": ["status", "fixtures"], "fixture_tick": ["odds"], "lineup_window": ["lineups"], "audit_extensions_disabled": ["injuries", "statistics"]},
       "odds_max_age_seconds": 3600,
@@ -307,9 +327,11 @@
         {"name": "T6_ODDS", "offset_seconds_before_kickoff": 21600, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T3_ODDS", "offset_seconds_before_kickoff": 10800, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
+        {"name": "T45_ODDS", "offset_seconds_before_kickoff": 2700, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true},
         {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
         {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
-        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true},
+        {"name": "T15_ODDS", "offset_seconds_before_kickoff": 900, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true}
       ],
       "endpoint_matrix": {"competition_tick": ["status", "fixtures"], "fixture_tick": ["odds"], "lineup_window": ["lineups"], "audit_extensions_disabled": ["injuries", "statistics"]},
       "odds_max_age_seconds": 3600,
@@ -335,9 +357,11 @@
         {"name": "T6_ODDS", "offset_seconds_before_kickoff": 21600, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T3_ODDS", "offset_seconds_before_kickoff": 10800, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
+        {"name": "T45_ODDS", "offset_seconds_before_kickoff": 2700, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true},
         {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
         {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
-        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true},
+        {"name": "T15_ODDS", "offset_seconds_before_kickoff": 900, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true}
       ],
       "endpoint_matrix": {"competition_tick": ["status", "fixtures"], "fixture_tick": ["odds"], "lineup_window": ["lineups"], "audit_extensions_disabled": ["injuries", "statistics"]},
       "odds_max_age_seconds": 3600,
@@ -363,9 +387,11 @@
         {"name": "T6_ODDS", "offset_seconds_before_kickoff": 21600, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T3_ODDS", "offset_seconds_before_kickoff": 10800, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
+        {"name": "T45_ODDS", "offset_seconds_before_kickoff": 2700, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true},
         {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
         {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
-        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true},
+        {"name": "T15_ODDS", "offset_seconds_before_kickoff": 900, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true}
       ],
       "endpoint_matrix": {"competition_tick": ["status", "fixtures"], "fixture_tick": ["odds"], "lineup_window": ["lineups"], "audit_extensions_disabled": ["injuries", "statistics"]},
       "odds_max_age_seconds": 3600,
@@ -391,9 +417,11 @@
         {"name": "T6_ODDS", "offset_seconds_before_kickoff": 21600, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T3_ODDS", "offset_seconds_before_kickoff": 10800, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
+        {"name": "T45_ODDS", "offset_seconds_before_kickoff": 2700, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true},
         {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
         {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
-        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true},
+        {"name": "T15_ODDS", "offset_seconds_before_kickoff": 900, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true}
       ],
       "endpoint_matrix": {"competition_tick": ["status", "fixtures"], "fixture_tick": ["odds"], "lineup_window": ["lineups"], "audit_extensions_disabled": ["injuries", "statistics"]},
       "odds_max_age_seconds": 3600,
@@ -414,9 +442,11 @@
         {"name": "T24_ODDS", "offset_seconds_before_kickoff": 86400, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T6_ODDS", "offset_seconds_before_kickoff": 21600, "endpoints": ["odds"], "grace_seconds": 1800, "enabled": true},
         {"name": "T60_ODDS_LINEUPS", "offset_seconds_before_kickoff": 3600, "endpoints": ["odds", "lineups"], "grace_seconds": 1200, "enabled": true},
+        {"name": "T45_ODDS", "offset_seconds_before_kickoff": 2700, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true},
         {"name": "T45_LINEUPS_RETRY", "offset_seconds_before_kickoff": 2700, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
         {"name": "T30_LINEUPS_RETRY", "offset_seconds_before_kickoff": 1800, "endpoints": ["lineups"], "grace_seconds": 900, "enabled": true},
-        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true}
+        {"name": "T-30m_VALIDATION_LOCK", "offset_seconds_before_kickoff": 1800, "endpoints": ["odds", "lineups"], "grace_seconds": 300, "enabled": true},
+        {"name": "T15_ODDS", "offset_seconds_before_kickoff": 900, "endpoints": ["odds"], "grace_seconds": 900, "enabled": true}
       ],
       "endpoint_matrix": {
         "competition_tick": ["status", "fixtures"],
