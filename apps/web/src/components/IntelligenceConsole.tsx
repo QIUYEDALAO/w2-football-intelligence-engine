@@ -653,8 +653,8 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
     ? `模型验证：已结算 ${modelForecast.settled_count} 场，样本量远不足以判断模型好坏（需 ${modelForecast.sample_target} 场）。`
     : `模型验证：已结算 ${modelForecast.settled_count} 场，已达到 ${modelForecast.sample_target} 场目标。`;
   const candidateVerdict = modelForecast.current_flow_candidate_count === 0
-    ? "候选：当前四门流程尚未产生任何候选。"
-    : `候选：当前四门流程已产生 ${modelForecast.current_flow_candidate_count} 条候选。`;
+    ? "候选：当前 T-30 四门流程尚未冻结任何候选。"
+    : `候选：当前 T-30 四门流程已冻结 ${modelForecast.current_flow_candidate_count} 条候选。`;
   const replay = workspace.validation.history_replay;
   const finishedCount = workspace.matches.filter((match) => match.outcome.is_finished).length;
   const replayPresentation = publicPresentation(replay.public_semantics, { subject: "赛果", fixtureCount: workspace.matches.length, finishedCount, outcomeRecorded: workspace.matches.length > 0 && workspace.matches.every((match) => match.outcome.is_recorded) });
@@ -680,7 +680,7 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
         </section>
         <section>
           <h3>候选流程</h3>
-          <ul className="v41-validation-counts"><li><span>当前四门流程候选</span><strong>{modelForecast.current_flow_candidate_count}</strong></li><li><span>历史已结算 ANALYSIS_PICK</span><strong>{legacyAnalysisPickCount}</strong></li></ul>
+          <ul className="v41-validation-counts"><li><span>当前 T-30 流程已冻结候选</span><strong>{modelForecast.current_flow_candidate_count}</strong></li><li><span>历史已结算 ANALYSIS_PICK</span><strong>{legacyAnalysisPickCount}</strong></li></ul>
           <p className="v41-validation-warning"><strong>历史遗留，非当前流程产出。</strong>不显示命中率：n={legacyAnalysisPickCount}、选择过程尚未审计，且与 Phase 0.5 全量回测的 NO_EDGE 结论相反。</p>
           <details className="v41-validation-audit"><summary>展开当前流程逐门覆盖（固定分母 {evaluationFunnel.market_unit_count}）</summary>
             <ul className="v41-validation-counts">{([
@@ -690,9 +690,9 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
               ['quote_fresh', '时效通过'],
               ['evaluated', '实际评估'],
               ['no_edge', 'NO_EDGE'],
-              ['candidate', '候选'],
+              ['candidate', '动态评估候选判定'],
             ] as const).map(([gate, gateLabel]) => <li key={gate}><span>{gateLabel}</span><strong>{evaluationFunnel.gate_counts[gate] ?? 0}/{evaluationFunnel.market_unit_count}</strong></li>)}</ul>
-            <p className="v41-validation-context">分母为所有已冻结模型预测的 fixture × AH/TOTALS；已持久化 {evaluationFunnel.persisted_market_unit_count}/{evaluationFunnel.market_unit_count}，带真实写入时刻 {evaluationFunnel.recorded_at_count}。</p>
+            <p className="v41-validation-context">分母为所有已冻结模型预测的 fixture × AH/TOTALS；已持久化 {evaluationFunnel.persisted_market_unit_count}/{evaluationFunnel.market_unit_count}，带真实写入时刻 {evaluationFunnel.recorded_at_count}。动态评估候选判定不等于已在 T-30 锁定为候选。</p>
           </details>
           <details className="v41-validation-audit"><summary>展开历史账本记账明细</summary>
             <ul className="v41-validation-counts"><li><span>赛果基表记录</span><strong>{records.validation_count}</strong></li><li><span>旧账本纳入统计</span><strong>{records.eligible_count}</strong></li><li><span>候选待结算</span><strong>{records.pending_count}</strong></li><li><span>无 Pick / 入场报价</span><strong>{records.excluded_count}</strong></li></ul>
