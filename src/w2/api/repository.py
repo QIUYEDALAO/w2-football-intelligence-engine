@@ -76,6 +76,7 @@ from w2.matchday.timezone import (
     BEIJING_TZ,
     BeijingOperationalDayPolicy,
     FixtureOperationalDateResolver,
+    next_7_days_window,
     next_36_hours_window,
 )
 from w2.operations.leagues import run_top_five_audit
@@ -1864,6 +1865,8 @@ class ReadModelService:
         query_end: datetime | None
         if window == "next36":
             query_start, query_end = next_36_hours_window()
+        elif window == "next7":
+            query_start, query_end = next_7_days_window()
         elif window == "future":
             query_start, _ = football_day_window(requested_date)
             query_end = None
@@ -2204,6 +2207,14 @@ class ReadModelService:
             return sorted(cards, key=lambda row: str(row.get("kickoff_utc") or ""))
         if window == "next36":
             start, end = next_36_hours_window()
+            return [
+                card
+                for card in cards
+                if (kickoff := _parse_datetime(card.get("kickoff_utc"))) is not None
+                and start <= kickoff < end
+            ]
+        if window == "next7":
+            start, end = next_7_days_window()
             return [
                 card
                 for card in cards

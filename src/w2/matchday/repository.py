@@ -4,7 +4,7 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import Engine, case, exists, or_, select
+from sqlalchemy import Engine, case, exists, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -21,6 +21,7 @@ from w2.infrastructure.persistence.matchday_intake_models import (
 from w2.infrastructure.persistence.model_forecast_models import (
     ModelForecastCaptureModel,
     ModelForecastOutcomeModel,
+    canonical_model_forecast_fixture_id_sql,
 )
 from w2.matchday.intake_v2 import CheckpointPlan, parse_utc, stable_hash, validate_manifest_identity
 
@@ -51,11 +52,8 @@ def _checkpoint_priority() -> Any:
         )
         .where(
             ModelForecastOutcomeModel.capture_identity_hash.is_(None),
-            or_(
-                ModelForecastCaptureModel.fixture_id == MatchdayCheckpointPlanModel.fixture_id,
-                "api_football:" + ModelForecastCaptureModel.fixture_id
-                == MatchdayCheckpointPlanModel.fixture_id,
-            ),
+            canonical_model_forecast_fixture_id_sql(ModelForecastCaptureModel.fixture_id)
+            == canonical_model_forecast_fixture_id_sql(MatchdayCheckpointPlanModel.fixture_id),
         )
         .correlate(MatchdayCheckpointPlanModel)
     )

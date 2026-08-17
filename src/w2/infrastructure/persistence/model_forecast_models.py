@@ -12,11 +12,37 @@ from sqlalchemy import (
     Index,
     String,
     UniqueConstraint,
+    case,
     event,
+    literal,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
 from w2.infrastructure.database import Base
+
+API_FOOTBALL_FIXTURE_PREFIX = "api_football:"
+
+
+def model_forecast_fixture_aliases(value: str) -> tuple[str, ...]:
+    fixture_id = str(value or "").strip()
+    if not fixture_id:
+        return ()
+    bare = fixture_id.removeprefix(API_FOOTBALL_FIXTURE_PREFIX)
+    return (bare, f"{API_FOOTBALL_FIXTURE_PREFIX}{bare}")
+
+
+def canonical_model_forecast_fixture_id(value: str) -> str:
+    aliases = model_forecast_fixture_aliases(value)
+    return aliases[-1] if aliases else ""
+
+
+def canonical_model_forecast_fixture_id_sql(column: Any) -> Any:
+    """Normalize stored fixture IDs before any cross-table comparison."""
+
+    return case(
+        (column.like(f"{API_FOOTBALL_FIXTURE_PREFIX}%"), column),
+        else_=literal(API_FOOTBALL_FIXTURE_PREFIX) + column,
+    )
 
 
 class ModelForecastCaptureModel(Base):

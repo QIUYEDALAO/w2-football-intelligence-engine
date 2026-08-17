@@ -762,7 +762,7 @@ def test_scheduler_forward_outcome_ledger_dispatches_without_provider_calls(monk
     assert result["formal_recommendation"] is False
     assert str(result["task_id"]).startswith("forward-outcome-ledger:")
     assert sent[0]["name"] == "w2.forward_outcome_ledger"
-    assert sent[0]["kwargs"]["window"] == "next36"
+    assert sent[0]["kwargs"]["window"] == "next7"
 
 
 def test_worker_xg_backfill_task_reports_false_flags(monkeypatch) -> None:

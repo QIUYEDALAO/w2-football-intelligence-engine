@@ -124,3 +124,11 @@ def next_36_hours_window(now_utc: datetime | None = None) -> tuple[datetime, dat
         raise ValueError("now_utc must be timezone-aware")
     start = now.astimezone(UTC)
     return start, start + timedelta(hours=36)
+
+
+def next_7_days_window(now_utc: datetime | None = None) -> tuple[datetime, datetime]:
+    now = now_utc or datetime.now(UTC)
+    if now.tzinfo is None:
+        raise ValueError("now_utc must be timezone-aware")
+    start = now.astimezone(UTC)
+    return start, start + timedelta(days=7)

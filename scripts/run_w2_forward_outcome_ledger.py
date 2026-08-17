@@ -23,7 +23,11 @@ def main() -> int:
         description="Capture read-only W2 forward outcome ledger rows from DayView."
     )
     parser.add_argument("--date")
-    parser.add_argument("--window", default="next36", choices=["today", "next36", "future", "all"])
+    parser.add_argument(
+        "--window",
+        default="next7",
+        choices=["today", "next36", "next7", "future", "all"],
+    )
     parser.add_argument("--import-runtime-ledger", action="store_true")
     parser.add_argument("--source-root", type=Path)
     parser.add_argument("--legacy-recovery-manifest", type=Path)

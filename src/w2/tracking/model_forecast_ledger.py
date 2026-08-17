@@ -21,6 +21,7 @@ from w2.infrastructure.persistence.future_refresh_models import (
 from w2.infrastructure.persistence.model_forecast_models import (
     ModelForecastCaptureModel,
     ModelForecastOutcomeModel,
+    model_forecast_fixture_aliases,
 )
 from w2.infrastructure.persistence.models import ResultModel
 from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
@@ -874,5 +875,4 @@ def _iso(value: datetime) -> str:
 
 
 def _fixture_aliases(value: str) -> tuple[str, ...]:
-    bare = str(value).removeprefix("api_football:")
-    return (bare, f"api_football:{bare}")
+    return model_forecast_fixture_aliases(value)

@@ -45,6 +45,49 @@ def test_alembic_upgrade_and_downgrade_smoke(tmp_path: Path) -> None:
         assert result.returncode == 0, result.stderr
 
 
+def test_0060_projects_canonical_fixture_id_without_rewriting_capture(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'canonical-capture-view.db'}"
+    env = {
+        **os.environ,
+        "PYTHONPATH": f"{root / 'src'}:{root}",
+        "W2_DATABASE_URL": database_url,
+        "W2_ENVIRONMENT": "test",
+    }
+    assert (
+        _alembic(root, env, "upgrade", "0059_free_plan_fixture_scope_observation").returncode
+        == 0
+    )
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "insert into model_forecast_capture "
+                "(capture_identity_hash,fixture_id,competition_id,kickoff_utc,captured_at,"
+                "lead_time_seconds,lead_time_bucket,model_family,model_version,"
+                "model_input_manifest_hash,four_field_xg_identity_hash,score_matrix_hash,"
+                "payload,payload_sha256,inserted_at) values "
+                "(:hash,'1494244','allsvenskan',:at,:at,3600,'LT_6H','family','v1',"
+                ":hash,:hash,:hash,'{}',:hash,:at)"
+            ),
+            {"hash": "a" * 64, "at": datetime(2026, 8, 17)},
+        )
+
+    assert _alembic(root, env, "upgrade", "head").returncode == 0
+    with engine.connect() as connection:
+        row = connection.execute(
+            text(
+                "select stored_fixture_id, canonical_fixture_id "
+                "from model_forecast_capture_canonical"
+            )
+        ).mappings().one()
+
+    assert row == {
+        "stored_fixture_id": "1494244",
+        "canonical_fixture_id": "api_football:1494244",
+    }
+
+
 def test_0052_drops_and_restores_empty_retired_checkpoint_plan(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[2]
     database_url = f"sqlite+pysqlite:///{tmp_path / 'retired-checkpoint-plan.db'}"

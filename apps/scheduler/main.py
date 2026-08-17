@@ -727,7 +727,7 @@ def forward_outcome_ledger_tick() -> dict[str, object]:
         "w2.forward_outcome_ledger",
         kwargs={
             "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
-            "window": os.environ.get("W2_FORWARD_OUTCOME_LEDGER_WINDOW", "next36"),
+            "window": os.environ.get("W2_FORWARD_OUTCOME_LEDGER_WINDOW", "next7"),
         },
         task_id=task_id,
     )

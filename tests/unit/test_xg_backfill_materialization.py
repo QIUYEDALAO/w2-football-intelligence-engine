@@ -106,7 +106,39 @@ def test_rolling_xg_materialization_is_strictly_as_of() -> None:
     assert snapshot is not None
     assert snapshot.match_count == 4
     assert snapshot.rolling_xg_for < 9.9
-    assert snapshot.as_feature_snapshot().observed_at == NOW
+    assert snapshot.as_feature_snapshot().observed_at == NOW - timedelta(hours=1)
+
+
+def test_rolling_xg_visibility_uses_latest_component_availability() -> None:
+    rows = []
+    captured_times = (
+        NOW - timedelta(hours=4),
+        NOW - timedelta(hours=3),
+        NOW - timedelta(hours=2),
+    )
+    for index, captured_at in enumerate(captured_times):
+        rows.extend(
+            parse_team_xg_matches(
+                fixture_payload=finished_fixture(
+                    f"available-{index}", NOW - timedelta(days=3 - index)
+                ),
+                statistics_payload=statistics(),
+                captured_at=captured_at,
+                raw_payload_sha256=f"{index + 1}" * 64,
+            )
+        )
+
+    snapshot = materialize_rolling_xg(
+        team_id="10",
+        as_of_fixture_id="future-target",
+        as_of_time=NOW + timedelta(days=7),
+        matches=rows,
+        min_matches=3,
+    )
+
+    assert snapshot is not None
+    assert snapshot.as_of_time == captured_times[-1]
+    assert snapshot.as_of_time < NOW
 
 
 class FakeClient:

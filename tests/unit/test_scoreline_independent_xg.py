@@ -335,3 +335,42 @@ def test_recommended_scores_satisfy_primary_and_strict_secondary() -> None:
     assert scores
     assert all(item["home_goals"] > item["away_goals"] for item in scores)
     assert all(item["home_goals"] + item["away_goals"] < 2.5 for item in scores)
+
+
+def test_model_forecast_scan_includes_full_next_seven_days_without_limit() -> None:
+    now = datetime(2026, 8, 17, 5, 0, tzinfo=UTC)
+    service = object.__new__(ReadModelService)
+    rows = [
+        {
+            "fixture_id": str(index),
+            "kickoff_utc": (now + timedelta(hours=index + 1)).isoformat(),
+            "status": "NS",
+        }
+        for index in range(100)
+    ]
+    rows.extend(
+        (
+            {
+                "fixture_id": "past",
+                "kickoff_utc": (now - timedelta(seconds=1)).isoformat(),
+                "status": "NS",
+            },
+            {
+                "fixture_id": "boundary",
+                "kickoff_utc": (now + timedelta(days=7)).isoformat(),
+                "status": "NS",
+            },
+            {
+                "fixture_id": "finished",
+                "kickoff_utc": (now + timedelta(hours=1)).isoformat(),
+                "status": "FT",
+            },
+        )
+    )
+
+    selected = service._filter_rows_for_next7(rows, now_utc=now)
+
+    assert len(selected) == 100
+    assert {row["fixture_id"] for row in selected}.isdisjoint(
+        {"past", "boundary", "finished"}
+    )

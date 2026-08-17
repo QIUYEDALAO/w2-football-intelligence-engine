@@ -64,7 +64,7 @@ def test_staging_compose_defaults_future_refresh_and_provider_calls_disabled() -
         )
         assert "W2_FORWARD_OUTCOME_LEDGER_AFTER_MARKET_TIMELINE" not in scheduler
         assert scheduler["W2_FORWARD_OUTCOME_LEDGER_WINDOW"] == (
-            "${W2_FORWARD_OUTCOME_LEDGER_WINDOW:-future}"
+            "${W2_FORWARD_OUTCOME_LEDGER_WINDOW:-next7}"
         )
         api = env_for(path, "api")
         assert api["W2_PROVIDER_CALLS_DISABLED"] == "true"

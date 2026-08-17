@@ -122,6 +122,7 @@ from w2.matchday.timezone import (
     BEIJING_TZ,
     BeijingOperationalDayPolicy,
     FixtureOperationalDateResolver,
+    next_7_days_window,
     next_36_hours_window,
 )
 from w2.operations.leagues import run_top_five_audit
@@ -1600,6 +1601,7 @@ class ReadModelService:
             requested_date=requested_date,
         )
         future_next36_rows = self._filter_rows_for_next36(future_rows)
+        future_next7_rows = self._filter_rows_for_next7(future_rows)
         future_horizon_rows = self._filter_rows_for_future_horizon(
             future_rows,
             requested_date=requested_date,
@@ -1613,6 +1615,8 @@ class ReadModelService:
         selected_rows: list[dict[str, Any]]
         if window == "next36":
             selected_rows = next36_rows
+        elif window == "next7":
+            selected_rows = future_next7_rows
         elif window == "future":
             selected_rows = future_horizon_rows
         elif window == "results":
@@ -1755,8 +1759,8 @@ class ReadModelService:
 
     def _dashboard_cache_ttl(self, window: str, include_debug: bool) -> float:
         if include_debug:
-            return 300.0 if window in {"today", "next36", "future"} else 600.0
-        return 900.0 if window in {"today", "next36", "future"} else 1800.0
+            return 300.0 if window in {"today", "next36", "next7", "future"} else 600.0
+        return 900.0 if window in {"today", "next36", "next7", "future"} else 1800.0
 
     def _dashboard_cache_matches_market_refresh(
         self,
@@ -6439,6 +6443,26 @@ class ReadModelService:
             if kickoff is not None and start <= kickoff < end:
                 filtered.append(row)
         return filtered
+
+    def _filter_rows_for_next7(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        now_utc: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        start, end = next_7_days_window(now_utc)
+        filtered = [
+            row
+            for row in rows
+            if (kickoff := self._row_kickoff_utc(row)) is not None
+            and start <= kickoff < end
+            and not self._is_finished_row(row)
+        ]
+        return sorted(
+            filtered,
+            key=lambda row: self._row_kickoff_utc(row)
+            or datetime.max.replace(tzinfo=UTC),
+        )
 
     def _filter_rows_for_future_horizon(
         self,

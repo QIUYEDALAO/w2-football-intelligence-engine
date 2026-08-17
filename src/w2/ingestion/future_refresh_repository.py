@@ -57,6 +57,8 @@ from w2.infrastructure.persistence.matchday_intake_models import (
 from w2.infrastructure.persistence.model_forecast_models import (
     ModelForecastCaptureModel,
     ModelForecastOutcomeModel,
+    canonical_model_forecast_fixture_id_sql,
+    model_forecast_fixture_aliases,
 )
 from w2.infrastructure.persistence.models import (
     LineupSourceSnapshotModel,
@@ -102,14 +104,7 @@ def parse_db_datetime(value: Any) -> datetime:
 
 
 def _fixture_aliases(fixture_id: str) -> tuple[str, ...]:
-    value = str(fixture_id or "").strip()
-    if not value:
-        return ()
-    if value.startswith("api_football:"):
-        return (value, value.removeprefix("api_football:"))
-    if value.isdigit():
-        return (value, f"api_football:{value}")
-    return (value,)
+    return model_forecast_fixture_aliases(fixture_id)
 
 
 def _round3_active_whitelist(rows: list[tuple[str, Any]]) -> set[str]:
@@ -3510,11 +3505,11 @@ class FutureRefreshDbRepository:
             .select_from(ModelForecastCaptureModel)
             .join(
                 MatchdayCheckpointPlanModel,
-                or_(
+                canonical_model_forecast_fixture_id_sql(
                     MatchdayCheckpointPlanModel.fixture_id
-                    == ModelForecastCaptureModel.fixture_id,
-                    MatchdayCheckpointPlanModel.fixture_id
-                    == "api_football:" + ModelForecastCaptureModel.fixture_id,
+                )
+                == canonical_model_forecast_fixture_id_sql(
+                    ModelForecastCaptureModel.fixture_id
                 ),
             )
             .outerjoin(
