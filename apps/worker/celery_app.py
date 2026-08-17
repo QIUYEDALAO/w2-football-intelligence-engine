@@ -89,6 +89,7 @@ def _refresh_model_forecast_analysis_cards(
 ) -> dict[str, object]:
     """Refresh only not-ready shadow projections before ModelForecast capture."""
     from w2.prematch.read_model_projection import MAX_PUBLIC_FIXTURES
+    from w2.tracking.model_forecast_ledger import ModelForecastLedgerRepository
 
     rows = dashboard.get("all")
     fixture_ids = tuple(
@@ -101,12 +102,14 @@ def _refresh_model_forecast_analysis_cards(
     ) if isinstance(rows, list) else ()
     if len(fixture_ids) > MAX_PUBLIC_FIXTURES:
         raise RuntimeError(f"MODEL_FORECAST_PROJECTION_SCOPE_EXCEEDED:{len(fixture_ids)}")
+    cards = [row for row in rows if isinstance(row, Mapping)] if isinstance(rows, list) else []
+    xg_ready = set(ModelForecastLedgerRepository().xg_ready_fixture_ids(cards))
 
     targets = [
         str(row["fixture_id"])
-        for row in rows
-        if isinstance(row, Mapping)
-        and row.get("fixture_id")
+        for row in cards
+        if row.get("fixture_id")
+        and str(row["fixture_id"]) in xg_ready
         and (
             not isinstance((simulation := row.get("simulation")), Mapping)
             or simulation.get("status") != "READY"
@@ -128,6 +131,7 @@ def _refresh_model_forecast_analysis_cards(
         "provider_calls": 0,
         "db_writes": len(materialized),
         "scanned_fixture_count": len(fixture_ids),
+        "xg_ready_fixture_count": len(xg_ready),
         "targeted_fixture_count": len(targets),
         "materialized_fixture_count": len(materialized),
     }

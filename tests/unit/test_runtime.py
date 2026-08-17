@@ -828,9 +828,17 @@ def test_model_forecast_projection_refresh_targets_only_not_ready(
         events.extend(value)
         return [event.fixture_id for event in value]
 
+    class XgReadyRepository:
+        def xg_ready_fixture_ids(self, _cards: list[Any]) -> tuple[str, ...]:
+            return ("blocked", "missing")
+
     monkeypatch.setattr(
         "apps.worker.celery_app._materialize_shadow_projection_events",
         materialize,
+    )
+    monkeypatch.setattr(
+        "w2.tracking.model_forecast_ledger.ModelForecastLedgerRepository",
+        XgReadyRepository,
     )
     evaluated_at = datetime(2026, 8, 17, 6, 0, tzinfo=UTC)
 
@@ -850,6 +858,7 @@ def test_model_forecast_projection_refresh_targets_only_not_ready(
         "provider_calls": 0,
         "db_writes": 2,
         "scanned_fixture_count": 3,
+        "xg_ready_fixture_count": 2,
         "targeted_fixture_count": 2,
         "materialized_fixture_count": 2,
     }

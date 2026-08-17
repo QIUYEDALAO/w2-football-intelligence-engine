@@ -141,6 +141,29 @@ class ModelForecastLedgerRepository:
             "captures": captures if dry_run else [],
         }
 
+    def xg_ready_fixture_ids(
+        self,
+        cards: Sequence[Mapping[str, Any]],
+    ) -> tuple[str, ...]:
+        ready: list[str] = []
+        with Session(self.engine) as session:
+            for card in cards:
+                fixture_id = str(card.get("fixture_id") or "")
+                kickoff = _parse_time(card.get("kickoff_utc"))
+                if (
+                    fixture_id
+                    and kickoff is not None
+                    and self._four_field_xg_identity(
+                        session,
+                        card=card,
+                        fixture_id=fixture_id,
+                        kickoff=kickoff,
+                    )
+                    is not None
+                ):
+                    ready.append(fixture_id)
+        return tuple(ready)
+
     def schema_ready(self) -> bool:
         tables = set(inspect(self.engine).get_table_names())
         return {"model_forecast_capture", "model_forecast_outcome"} <= tables
