@@ -16,6 +16,7 @@ from apps.scheduler.main import (
     xg_history_backfill_tick,
 )
 from apps.worker.celery_app import (
+    _refresh_model_forecast_analysis_cards,
     celery_app,
     forward_outcome_ledger,
     future_fixture_refresh,
@@ -816,6 +817,46 @@ def test_worker_forward_outcome_ledger_task_reports_safety_flags(monkeypatch) ->
     assert result["settlement_write"] is False
     assert result["candidate"] is True
     assert result["formal_recommendation"] is False
+
+
+def test_model_forecast_projection_refresh_targets_only_not_ready(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[Any] = []
+
+    def materialize(value: list[Any]) -> list[str]:
+        events.extend(value)
+        return [event.fixture_id for event in value]
+
+    monkeypatch.setattr(
+        "apps.worker.celery_app._materialize_shadow_projection_events",
+        materialize,
+    )
+    evaluated_at = datetime(2026, 8, 17, 6, 0, tzinfo=UTC)
+
+    result = _refresh_model_forecast_analysis_cards(
+        {
+            "all": [
+                {"fixture_id": "ready", "simulation": {"status": "READY"}},
+                {"fixture_id": "blocked", "simulation": {"status": "UNAVAILABLE"}},
+                {"fixture_id": "missing"},
+            ]
+        },
+        evaluated_at=evaluated_at,
+    )
+
+    assert result == {
+        "status": "PASS",
+        "provider_calls": 0,
+        "db_writes": 2,
+        "scanned_fixture_count": 3,
+        "targeted_fixture_count": 2,
+        "materialized_fixture_count": 2,
+    }
+    assert [(event.fixture_id, event.event_type) for event in events] == [
+        ("blocked", "XG_CHANGED"),
+        ("missing", "XG_CHANGED"),
+    ]
 
 
 def test_worker_result_materialize_task_reports_safety_flags(monkeypatch) -> None:

@@ -87,16 +87,8 @@ def _refresh_model_forecast_analysis_cards(
     *,
     evaluated_at: datetime,
 ) -> dict[str, object]:
-    """Refresh the bounded frozen inputs consumed by ModelForecast capture."""
-    from w2.infrastructure.database import create_engine
-    from w2.prematch.analysis_calculator import ReadModelRepository, ReadModelService
-    from w2.prematch.read_model_projection import (
-        MAX_PUBLIC_FIXTURES,
-        AnalysisCardCanaryMaterializer,
-        FrozenAnalysisError,
-        ScopedAnalysisRepository,
-        write_frozen_analysis_artifacts,
-    )
+    """Refresh only not-ready shadow projections before ModelForecast capture."""
+    from w2.prematch.read_model_projection import MAX_PUBLIC_FIXTURES
 
     rows = dashboard.get("all")
     fixture_ids = tuple(
@@ -110,41 +102,34 @@ def _refresh_model_forecast_analysis_cards(
     if len(fixture_ids) > MAX_PUBLIC_FIXTURES:
         raise RuntimeError(f"MODEL_FORECAST_PROJECTION_SCOPE_EXCEEDED:{len(fixture_ids)}")
 
-    repository = ReadModelRepository()
-
-    def calculate(
-        scoped_repository: ScopedAnalysisRepository,
-        fixture_id: str,
-        as_of: datetime,
-    ) -> dict[str, object] | None:
-        return ReadModelService(
-            repository=cast(ReadModelRepository, scoped_repository)
-        ).public_analysis_card_bounded(
-            fixture_id,
-            evaluation_time=as_of,
-            use_frozen_canary=False,
+    targets = [
+        str(row["fixture_id"])
+        for row in rows
+        if isinstance(row, Mapping)
+        and row.get("fixture_id")
+        and (
+            not isinstance((simulation := row.get("simulation")), Mapping)
+            or simulation.get("status") != "READY"
         )
-
-    materializer = AnalysisCardCanaryMaterializer(
-        repository,
-        calculate_analysis_card=calculate,
-    )
-    artifacts = []
-    unavailable = []
-    for fixture_id in fixture_ids:
-        try:
-            artifacts.append(materializer.build(fixture_id, evaluated_at=evaluated_at))
-        except FrozenAnalysisError as exc:
-            unavailable.append({"fixture_id": fixture_id, "blocker": str(exc)})
-    write_frozen_analysis_artifacts(create_engine(), artifacts)
+    ] if isinstance(rows, list) else []
+    events = [
+        ProjectionSourceEvent.create(
+            fixture_id=fixture_id,
+            event_type="XG_CHANGED",
+            event_id=f"xg-refresh:{evaluated_at.isoformat()}",
+            event_at=evaluated_at,
+            payload={"fixture_id": fixture_id, "reason": "MODEL_FORECAST_CAPTURE"},
+        )
+        for fixture_id in targets
+    ]
+    materialized = _materialize_shadow_projection_events(events)
     return {
         "status": "PASS",
         "provider_calls": 0,
-        "db_writes": len(artifacts),
+        "db_writes": len(materialized),
         "scanned_fixture_count": len(fixture_ids),
-        "materialized_fixture_count": len(artifacts),
-        "unavailable_fixture_count": len(unavailable),
-        "unavailable": unavailable,
+        "targeted_fixture_count": len(targets),
+        "materialized_fixture_count": len(materialized),
     }
 
 
