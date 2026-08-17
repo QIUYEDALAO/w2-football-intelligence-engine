@@ -1712,7 +1712,18 @@ def test_completed_no_edge_evaluations_take_precedence_over_calibration_gap() ->
                 "state": "SUPERSEDED" if checkpoint != "T15_ODDS" else "NO_EDGE_CURRENT",
                 "original_state": "NO_EDGE_CURRENT",
             }
-            for checkpoint, evaluated_at in checkpoints
+            for _, evaluated_at in checkpoints
+            for market in ("ASIAN_HANDICAP", "TOTALS")
+            for checkpoint in ("capture",)
+        ]
+        + [
+            {
+                "checkpoint": "capture",
+                "evaluated_at": "2026-08-10T04:01:00Z",
+                "market": market,
+                "state": "SUPERSEDED",
+                "original_state": "ANALYSIS_PICK_ACTIVE",
+            }
             for market in ("ASIAN_HANDICAP", "TOTALS")
         ]
     }

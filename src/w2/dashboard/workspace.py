@@ -331,25 +331,49 @@ _EVALUATION_CHECKPOINT_LABELS = {
     "T-30m_VALIDATION_LOCK": "T-30m",
     "T15_ODDS": "T-15m",
 }
+_EVALUATION_SLOT_TARGETS = (
+    (10800, "T-3h"),
+    (3600, "T-60m"),
+    (2700, "T-45m"),
+    (1800, "T-30m"),
+    (900, "T-15m"),
+)
 
 
 def _evaluation_execution(card: Mapping[str, Any]) -> dict[str, Any]:
+    kickoff = _datetime(card.get("kickoff_utc"))
     evaluated = []
     for version in _mapping_list(_mapping(card.get("dynamic_prematch")).get("versions")):
         state = _text(version.get("original_state"), _text(version.get("state")))
-        if state in {"NO_EDGE_CURRENT", "ANALYSIS_PICK_ACTIVE"}:
-            evaluated.append((version, state))
+        evaluated_at = _datetime(version.get("evaluated_at"))
+        if state not in {"NO_EDGE_CURRENT", "ANALYSIS_PICK_ACTIVE"}:
+            continue
+        if kickoff is not None and (
+            evaluated_at is None
+            or not 0 <= (kickoff - evaluated_at).total_seconds() <= 10800
+        ):
+            continue
+        evaluated.append((version, state, evaluated_at))
     checkpoints: dict[str, set[str]] = {}
     ordered = sorted(evaluated, key=lambda item: _text(item[0].get("evaluated_at")))
-    for version, _ in ordered:
+    for version, _, evaluated_at in ordered:
         checkpoint = _text(version.get("checkpoint"), "UNKNOWN_CHECKPOINT")
-        label = _EVALUATION_CHECKPOINT_LABELS.get(checkpoint, checkpoint)
+        label = (
+            min(
+                _EVALUATION_SLOT_TARGETS,
+                key=lambda target: abs(
+                    (kickoff - evaluated_at).total_seconds() - target[0]
+                ),
+            )[1]
+            if kickoff is not None and evaluated_at is not None
+            else _EVALUATION_CHECKPOINT_LABELS.get(checkpoint, checkpoint)
+        )
         checkpoints.setdefault(label, set()).add(_text(version.get("market")))
     labels = list(checkpoints)
     market_names = sorted({market for markets in checkpoints.values() for market in markets})
     status = (
         "CANDIDATE"
-        if any(state == "ANALYSIS_PICK_ACTIVE" for _, state in evaluated)
+        if any(state == "ANALYSIS_PICK_ACTIVE" for _, state, _ in evaluated)
         else "NO_EDGE"
         if evaluated
         else "UNASSESSED"
