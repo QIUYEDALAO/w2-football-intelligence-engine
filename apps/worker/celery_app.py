@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import cast
 
@@ -79,6 +80,72 @@ def _materialize_shadow_projection_events(
         calculate_analysis_card=calculate,
         build_scoreline_reference=build_scoreline_reference,
     )
+
+
+def _refresh_model_forecast_analysis_cards(
+    dashboard: Mapping[str, object],
+    *,
+    evaluated_at: datetime,
+) -> dict[str, object]:
+    """Refresh the bounded frozen inputs consumed by ModelForecast capture."""
+    from w2.infrastructure.database import create_engine
+    from w2.prematch.analysis_calculator import ReadModelRepository, ReadModelService
+    from w2.prematch.read_model_projection import (
+        MAX_PUBLIC_FIXTURES,
+        AnalysisCardCanaryMaterializer,
+        FrozenAnalysisError,
+        ScopedAnalysisRepository,
+        write_frozen_analysis_artifacts,
+    )
+
+    rows = dashboard.get("all")
+    fixture_ids = tuple(
+        dict.fromkeys(
+            str(row.get("fixture_id") or "")
+            for row in rows
+            if isinstance(rows, list) and isinstance(row, Mapping)
+            and row.get("fixture_id")
+        )
+    ) if isinstance(rows, list) else ()
+    if len(fixture_ids) > MAX_PUBLIC_FIXTURES:
+        raise RuntimeError(f"MODEL_FORECAST_PROJECTION_SCOPE_EXCEEDED:{len(fixture_ids)}")
+
+    repository = ReadModelRepository()
+
+    def calculate(
+        scoped_repository: ScopedAnalysisRepository,
+        fixture_id: str,
+        as_of: datetime,
+    ) -> dict[str, object] | None:
+        return ReadModelService(
+            repository=cast(ReadModelRepository, scoped_repository)
+        ).public_analysis_card_bounded(
+            fixture_id,
+            evaluation_time=as_of,
+            use_frozen_canary=False,
+        )
+
+    materializer = AnalysisCardCanaryMaterializer(
+        repository,
+        calculate_analysis_card=calculate,
+    )
+    artifacts = []
+    unavailable = []
+    for fixture_id in fixture_ids:
+        try:
+            artifacts.append(materializer.build(fixture_id, evaluated_at=evaluated_at))
+        except FrozenAnalysisError as exc:
+            unavailable.append({"fixture_id": fixture_id, "blocker": str(exc)})
+    write_frozen_analysis_artifacts(create_engine(), artifacts)
+    return {
+        "status": "PASS",
+        "provider_calls": 0,
+        "db_writes": len(artifacts),
+        "scanned_fixture_count": len(fixture_ids),
+        "materialized_fixture_count": len(artifacts),
+        "unavailable_fixture_count": len(unavailable),
+        "unavailable": unavailable,
+    }
 
 
 @celery_app.task(name="w2.ping")
@@ -264,7 +331,16 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
 
     service = ReadModelService()
     repository = OutcomeLedgerRepository()
-    dashboard = service.dashboard(window=window, include_debug=False)
+    evaluated_at = datetime.now(UTC)
+    initial_dashboard = service.dashboard(window=window, include_debug=False)
+    analysis_refresh = _refresh_model_forecast_analysis_cards(
+        initial_dashboard,
+        evaluated_at=evaluated_at,
+    )
+    analysis_refresh_writes = analysis_refresh["db_writes"]
+    if not isinstance(analysis_refresh_writes, int):
+        raise RuntimeError("MODEL_FORECAST_PROJECTION_WRITE_COUNT_INVALID")
+    dashboard = ReadModelService().dashboard(window=window, include_debug=False)
     day_view = build_dashboard_day_view(
         dashboard,
         environment=get_settings().environment.value,
@@ -300,11 +376,12 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
         "lock": False,
         "production": False,
         "real_money": False,
-        "db_writes": sum(
+        "db_writes": analysis_refresh_writes + sum(
             int(item.get("db_writes", 0))
             for item in (model_forecast_capture, capture, materialization, settlement)
         ),
         "model_forecast_capture": model_forecast_capture,
+        "model_forecast_analysis_refresh": analysis_refresh,
         "result_materialization": materialization,
         "outcome_settlement": settlement,
     }
