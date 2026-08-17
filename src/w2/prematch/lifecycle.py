@@ -16,6 +16,9 @@ LINEUP_CONFIRMED_CHECKPOINT = "LINEUP_CONFIRMED"
 T30_VALIDATION_CHECKPOINT = "T-30m_VALIDATION_LOCK"
 DYNAMIC_EVALUATION_V1_SCHEMA = "w2.dynamic_quote_evaluation.v1"
 DYNAMIC_EVALUATION_V2_SCHEMA = "w2.dynamic_quote_evaluation.v2"
+DYNAMIC_EVALUATION_V3_SCHEMA = "w2.dynamic_quote_evaluation.v3"
+MODEL_FORECAST_DENOMINATOR_SCOPE = "MODEL_FORECAST_CAPTURE_MARKET_V1"
+MIN_DYNAMIC_BOOKMAKER_DEPTH = 3
 SETTLEMENT_STATE_ORDER = ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")
 EVAL_02B_DISTRIBUTION_TOLERANCE = 1e-9
 SOURCE_ABSENT_USER_MESSAGE = "当前采集窗口尚未取得完整盘口"
@@ -65,6 +68,9 @@ class DynamicEvaluationInput:
     season: str | None = None
     provider: str | None = None
     model_settlement_distribution: Mapping[str, Any] | None = None
+    bookmaker_count: int = 0
+    mainline_parsed: bool = False
+    denominator_scope: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -102,6 +108,12 @@ class DynamicEvaluationVersion:
     provider: str | None = None
     model_settlement_distribution: dict[str, float] | None = None
     scoreline_reference: dict[str, Any] | None = None
+    bookmaker_count: int = 0
+    denominator_scope: str | None = None
+    first_failed_gate: str | None = None
+    all_failed_gates: tuple[str, ...] = ()
+    gate_results: dict[str, bool] | None = None
+    recorded_at: datetime | None = None
 
     def as_dict(
         self,
@@ -114,6 +126,8 @@ class DynamicEvaluationVersion:
         payload["evaluated_at"] = _iso(self.evaluated_at)
         payload["capture_at"] = _iso(self.capture_at) if self.capture_at else None
         payload["blockers"] = list(self.blockers)
+        payload["all_failed_gates"] = list(self.all_failed_gates)
+        payload["recorded_at"] = _iso(self.recorded_at) if self.recorded_at else None
         payload["superseded_by_evaluation_id"] = superseded_by_evaluation_id
         payload["immutable"] = True
         payload["schema_version"] = self.schema_version
@@ -245,6 +259,7 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
     ev_se = float(value.ev_se) if value.ev_se is not None else None
     ev_minus_se = ev - ev_se if ev is not None and ev_se is not None else None
 
+    denominator_scoped = value.denominator_scope == MODEL_FORECAST_DENOMINATOR_SCOPE
     if not value.source_observations_present:
         state = DynamicEvaluationState.NOT_READY_SOURCE_ABSENT
         blockers.append("SOURCE_OBSERVATIONS_ABSENT")
@@ -253,9 +268,15 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
     elif value.identity_conflict:
         state = DynamicEvaluationState.NOT_READY_QUOTE_INCOMPLETE
         blockers.append("QUOTE_IDENTITY_CONFLICT")
+    elif not value.mainline_parsed and denominator_scoped:
+        state = DynamicEvaluationState.NOT_READY_QUOTE_INCOMPLETE
+        blockers.append("MAINLINE_NOT_PARSED")
     elif not value.exact_quote_complete or not value.quote_identity_hash:
         state = DynamicEvaluationState.NOT_READY_QUOTE_INCOMPLETE
         blockers.append("PAIR_INCOMPLETE")
+    elif denominator_scoped and value.bookmaker_count < MIN_DYNAMIC_BOOKMAKER_DEPTH:
+        state = DynamicEvaluationState.NOT_READY_QUOTE_INCOMPLETE
+        blockers.append("INSUFFICIENT_BOOKMAKER_DEPTH")
     elif lineup_confirmed_at is not None and (
         capture_at is None
         or capture_at < lineup_confirmed_at
@@ -308,7 +329,20 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
         "checkpoint": value.checkpoint,
         "capture_at": _iso(capture_at) if capture_at else None,
     }
-    if value.schema_version == DYNAMIC_EVALUATION_V2_SCHEMA:
+    if denominator_scoped:
+        identity_payload.update(
+            {
+                "denominator_scope": value.denominator_scope,
+                "bookmaker_count": value.bookmaker_count,
+                "mainline_parsed": value.mainline_parsed,
+                "source_observations_present": value.source_observations_present,
+                "exact_quote_complete": value.exact_quote_complete,
+                "quote_fresh": value.quote_fresh,
+                "model_ready": value.model_ready,
+                "market_probability_ready": value.market_probability_ready,
+            }
+        )
+    if value.schema_version in {DYNAMIC_EVALUATION_V2_SCHEMA, DYNAMIC_EVALUATION_V3_SCHEMA}:
         identity_payload.update(
             {
                 "schema_version": value.schema_version,
@@ -319,6 +353,57 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
             }
         )
     identity_hash = _hash(identity_payload)
+    evaluation_complete = bool(
+        value.model_ready
+        and value.mainline_parsed
+        and value.exact_quote_complete
+        and value.bookmaker_count >= MIN_DYNAMIC_BOOKMAKER_DEPTH
+        and value.quote_fresh
+        and value.market_probability_ready
+        and value.model_input_hash
+        and ev is not None
+        and delta is not None
+        and ev_minus_se is not None
+    )
+    gate_results = (
+        {
+            "model_ready": bool(value.model_ready),
+            "mainline_parsed": bool(value.mainline_parsed),
+            "bookmaker_depth": value.bookmaker_count >= MIN_DYNAMIC_BOOKMAKER_DEPTH,
+            "quote_fresh": bool(value.quote_fresh),
+            "evaluated": evaluation_complete,
+            "no_edge": evaluation_complete and state == DynamicEvaluationState.NO_EDGE_CURRENT,
+            "candidate": evaluation_complete
+            and state == DynamicEvaluationState.ANALYSIS_PICK_ACTIVE,
+        }
+        if denominator_scoped
+        else None
+    )
+    failed_gates = (
+        tuple(
+            gate
+            for gate in (
+                "MODEL_READY",
+                "MAINLINE_PARSED",
+                "BOOKMAKER_DEPTH",
+                "QUOTE_FRESH",
+                "EVALUATION_COMPLETE",
+            )
+            if not bool(
+                gate_results[
+                    {
+                        "MODEL_READY": "model_ready",
+                        "MAINLINE_PARSED": "mainline_parsed",
+                        "BOOKMAKER_DEPTH": "bookmaker_depth",
+                        "QUOTE_FRESH": "quote_fresh",
+                        "EVALUATION_COMPLETE": "evaluated",
+                    }[gate]
+                ]
+            )
+        )
+        if gate_results is not None
+        else ()
+    )
     return DynamicEvaluationVersion(
         evaluation_id=f"dqe-{identity_hash}",
         identity_hash=identity_hash,
@@ -350,12 +435,22 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
         season=str(value.season) if value.season else None,
         provider=str(value.provider) if value.provider else None,
         model_settlement_distribution=distribution,
+        bookmaker_count=max(0, int(value.bookmaker_count)),
+        denominator_scope=value.denominator_scope,
+        first_failed_gate=failed_gates[0] if failed_gates else None,
+        all_failed_gates=failed_gates,
+        gate_results=gate_results,
     )
 
 
 def _v2_distribution(value: DynamicEvaluationInput) -> dict[str, float] | None:
     if value.schema_version == DYNAMIC_EVALUATION_V1_SCHEMA:
         return None
+    if value.schema_version == DYNAMIC_EVALUATION_V3_SCHEMA:
+        raw = value.model_settlement_distribution
+        if raw is None:
+            return None
+        return _validated_distribution(raw)
     if value.schema_version != DYNAMIC_EVALUATION_V2_SCHEMA:
         raise ValueError("DYNAMIC_EVALUATION_SCHEMA_UNSUPPORTED")
     required_identity = (
@@ -376,6 +471,10 @@ def _v2_distribution(value: DynamicEvaluationInput) -> dict[str, float] | None:
     if value.exact_line is None or value.capture_at is None:
         raise ValueError("DYNAMIC_EVALUATION_V2_IDENTITY_INCOMPLETE")
     raw = value.model_settlement_distribution
+    return _validated_distribution(raw)
+
+
+def _validated_distribution(raw: Mapping[str, Any] | None) -> dict[str, float]:
     if not isinstance(raw, Mapping) or set(raw) != set(SETTLEMENT_STATE_ORDER):
         raise ValueError("DYNAMIC_EVALUATION_V2_DISTRIBUTION_INVALID")
     try:

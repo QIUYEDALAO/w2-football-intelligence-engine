@@ -17,6 +17,7 @@ from apps.scheduler.main import (
 )
 from apps.worker.celery_app import (
     _refresh_model_forecast_analysis_cards,
+    _refresh_model_forecast_denominator_cards,
     celery_app,
     forward_outcome_ledger,
     future_fixture_refresh,
@@ -866,6 +867,60 @@ def test_model_forecast_projection_refresh_targets_only_not_ready(
         ("blocked", "XG_CHANGED"),
         ("missing", "XG_CHANGED"),
     ]
+
+
+def test_model_forecast_denominator_refresh_covers_hidden_captures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evaluated_at = datetime(2026, 8, 17, 6, 0, tzinfo=UTC)
+    appended: list[Any] = []
+
+    class Ledger:
+        engine = object()
+
+        def denominator_capture_seeds(self) -> tuple[tuple[str, str, str, datetime], ...]:
+            return (
+                ("visible", "a" * 64, "b" * 64, evaluated_at),
+                ("hidden", "c" * 64, "d" * 64, evaluated_at),
+            )
+
+    class Repository:
+        calls = 0
+
+        def __init__(self, _engine: object) -> None:
+            pass
+
+        def denominator_covered_fixture_ids(self) -> set[str]:
+            self.calls += 1
+            return set() if self.calls == 1 else {"visible"}
+
+        def append_evaluation(self, version: Any, **_kwargs: object) -> tuple[Any, bool]:
+            appended.append(version)
+            return version, True
+
+    monkeypatch.setattr(
+        "w2.tracking.model_forecast_ledger.ModelForecastLedgerRepository",
+        Ledger,
+    )
+    monkeypatch.setattr("w2.prematch.repository.DynamicPrematchRepository", Repository)
+    monkeypatch.setattr(
+        "apps.worker.celery_app._materialize_shadow_projection_events",
+        lambda events: [event.fixture_id for event in events],
+    )
+
+    result = _refresh_model_forecast_denominator_cards(
+        {"all": [{"fixture_id": "visible"}]},
+        evaluated_at=evaluated_at,
+    )
+
+    assert result["capture_fixture_count"] == 2
+    assert result["targeted_fixture_count"] == 1
+    assert result["fallback_market_unit_count"] == 2
+    assert result["db_writes"] == 3
+    assert {(row.fixture_id, row.market) for row in appended} == {
+        ("hidden", "ASIAN_HANDICAP"),
+        ("hidden", "TOTALS"),
+    }
 
 
 def test_worker_result_materialize_task_reports_safety_flags(monkeypatch) -> None:

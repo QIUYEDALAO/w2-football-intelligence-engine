@@ -20,7 +20,7 @@ from w2.infrastructure.persistence.matchday_intake_models import (
 )
 from w2.operations.observability import default_metric_registry
 from w2.prematch.analysis_calculator import ReadModelService
-from w2.prematch.lifecycle import LineupConfirmedEvent
+from w2.prematch.lifecycle import MODEL_FORECAST_DENOMINATOR_SCOPE, LineupConfirmedEvent
 from w2.prematch.read_model_projection import (
     ANALYSIS_CARD_CANARY_PREFIX,
     ANALYSIS_CARD_CANARY_SCHEMA,
@@ -29,6 +29,7 @@ from w2.prematch.read_model_projection import (
     FrozenAnalysisError,
     HashDomain,
     ProjectionSourceEvent,
+    _dynamic_evaluations,
     _post_lineup_odds_plan,
     canonical_sha256,
     read_frozen_analysis_artifact,
@@ -119,6 +120,35 @@ class ScopedRepository:
             "competition_id": "league",
             "season": "2026",
         }
+
+
+def test_model_forecast_denominator_emits_both_markets_without_candidates() -> None:
+    versions = _dynamic_evaluations(
+        {
+            "fixture_id": "1494246",
+            "simulation": {"status": "READY"},
+        },
+        {
+            "evaluated_at": "2026-08-17T16:30:00Z",
+            "simulation_sha256": "simulation",
+            "analysis_evidence_sha256": "evidence",
+            "dynamic_evaluation_denominator_scope": MODEL_FORECAST_DENOMINATOR_SCOPE,
+        },
+        fixture_identity={
+            "competition_id": "113",
+            "season": "2026",
+            "provider": "api_football",
+        },
+        lineup_identity=None,
+    )
+
+    assert {version.market for version in versions} == {"ASIAN_HANDICAP", "TOTALS"}
+    assert all(version.first_failed_gate == "MAINLINE_PARSED" for version in versions)
+    assert all(version.gate_results and version.gate_results["model_ready"] for version in versions)
+    assert all(
+        version.gate_results and version.gate_results["evaluated"] is False
+        for version in versions
+    )
 
 
 def _patch_projection(monkeypatch: pytest.MonkeyPatch) -> None:

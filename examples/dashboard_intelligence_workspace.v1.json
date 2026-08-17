@@ -275,6 +275,8 @@
     "model_forecast": {
       "capture_count": 0,
       "capture_policy": "FIRST_ELIGIBLE_FREEZE_IMMUTABLE",
+      "current_flow_candidate_count": 0,
+      "current_flow_settled_count": 0,
       "data_versions": {},
       "lead_time_buckets": {
         "D1_TO_D3": {"capture_count": 0, "pending_count": 0, "settled_count": 0},
@@ -282,10 +284,22 @@
         "H6_TO_LT_24H": {"capture_count": 0, "pending_count": 0, "settled_count": 0},
         "LT_6H": {"capture_count": 0, "pending_count": 0, "settled_count": 0}
       },
+      "market_evaluation_funnel": {
+        "denominator_unit": "MODEL_FORECAST_CAPTURE_FIXTURE_X_MARKET",
+        "first_failed_gate_counts": {},
+        "fixture_count": 0,
+        "gate_counts": {},
+        "gate_rates": {},
+        "market_unit_count": 0,
+        "persisted_market_unit_count": 0,
+        "recorded_at_count": 0,
+        "scope": "MODEL_FORECAST_CAPTURE_MARKET_V1"
+      },
       "min_xg_matches": 3,
       "next_7d_xg_ready_fixture_count": 0,
       "pending_count": 0,
       "public_semantics": {"scope": "CROSS_DAY_CUMULATIVE", "cause": null},
+      "sample_target": 200,
       "settled_count": 0,
       "xg_ready_team_count": 0
     },

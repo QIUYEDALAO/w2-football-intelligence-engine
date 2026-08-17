@@ -78,6 +78,10 @@ from w2.features.team_factors import TeamMatchHistory, TeamRatingSnapshot, TeamV
 from w2.formal.readiness import validate_formal_ah_readiness
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
+from w2.infrastructure.persistence.model_forecast_models import (
+    ModelForecastCaptureModel,
+    model_forecast_fixture_aliases,
+)
 from w2.ingestion.authoritative_lineup import (
     AuthoritativeLineupError,
     validate_authoritative_lineup,
@@ -817,6 +821,21 @@ class ReadModelRepository:
             return DynamicPrematchRepository(create_engine()).lifecycle(fixture_id)
         except SQLAlchemyError:
             return {}
+
+    def model_forecast_capture_exists(self, fixture_id: str) -> bool:
+        aliases = model_forecast_fixture_aliases(fixture_id)
+        try:
+            with Session(create_engine()) as session:
+                return (
+                    session.scalar(
+                        select(ModelForecastCaptureModel.capture_identity_hash)
+                        .where(ModelForecastCaptureModel.fixture_id.in_(aliases))
+                        .limit(1)
+                    )
+                    is not None
+                )
+        except SQLAlchemyError:
+            return False
 
     def dashboard_checkpoints(self, prefix: str = "dashboard:") -> list[dict[str, Any]]:
         try:

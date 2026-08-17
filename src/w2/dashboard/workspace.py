@@ -234,6 +234,7 @@ def build_dashboard_intelligence_workspace(
 def _model_forecast_progress(raw: Mapping[str, Any]) -> dict[str, Any]:
     buckets = _mapping(raw.get("lead_time_buckets"))
     data_versions = _mapping(raw.get("data_versions"))
+    funnel = _mapping(raw.get("market_evaluation_funnel"))
     return {
         "capture_count": max(0, _int(raw.get("capture_count"))),
         "settled_count": max(0, _int(raw.get("settled_count"))),
@@ -253,6 +254,35 @@ def _model_forecast_progress(raw: Mapping[str, Any]) -> dict[str, Any]:
         "capture_policy": _text(
             raw.get("capture_policy"), "FIRST_ELIGIBLE_FREEZE_IMMUTABLE"
         ),
+        "market_evaluation_funnel": {
+            "scope": _text(
+                funnel.get("scope"), "MODEL_FORECAST_CAPTURE_MARKET_V1"
+            ),
+            "denominator_unit": _text(
+                funnel.get("denominator_unit"),
+                "MODEL_FORECAST_CAPTURE_FIXTURE_X_MARKET",
+            ),
+            "fixture_count": max(0, _int(funnel.get("fixture_count"))),
+            "market_unit_count": max(0, _int(funnel.get("market_unit_count"))),
+            "persisted_market_unit_count": max(
+                0, _int(funnel.get("persisted_market_unit_count"))
+            ),
+            "recorded_at_count": max(0, _int(funnel.get("recorded_at_count"))),
+            "gate_counts": {
+                str(key): max(0, _int(value))
+                for key, value in _mapping(funnel.get("gate_counts")).items()
+            },
+            "gate_rates": {
+                str(key): max(0.0, min(1.0, _number(value) or 0.0))
+                for key, value in _mapping(funnel.get("gate_rates")).items()
+            },
+            "first_failed_gate_counts": {
+                str(key): max(0, _int(value))
+                for key, value in _mapping(
+                    funnel.get("first_failed_gate_counts")
+                ).items()
+            },
+        },
         "lead_time_buckets": {
             bucket: {
                 "capture_count": max(0, _int(_mapping(buckets.get(bucket)).get("capture_count"))),

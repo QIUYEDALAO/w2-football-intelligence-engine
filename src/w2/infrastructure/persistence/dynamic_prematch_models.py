@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from w2.infrastructure.database import Base
@@ -34,6 +34,12 @@ class DynamicPrematchEvaluationModel(Base):
     evaluated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     capture_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     original_state: Mapped[str] = mapped_column(String(64), nullable=False)
+    recorded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    denominator_scope: Mapped[str | None] = mapped_column(String(64))
+    bookmaker_count: Mapped[int | None] = mapped_column(Integer)
+    first_failed_gate: Mapped[str | None] = mapped_column(String(64))
+    all_failed_gates: Mapped[list[str] | None] = mapped_column(JSON)
+    gate_results: Mapped[dict[str, bool] | None] = mapped_column(JSON)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
 

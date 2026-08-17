@@ -1249,6 +1249,20 @@ class WorkspaceModelForecastDataVersionProgress(WorkspaceModelForecastBucketProg
     ]
 
 
+class WorkspaceModelForecastMarketEvaluationFunnel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    scope: Literal["MODEL_FORECAST_CAPTURE_MARKET_V1"]
+    denominator_unit: Literal["MODEL_FORECAST_CAPTURE_FIXTURE_X_MARKET"]
+    fixture_count: int = Field(ge=0)
+    market_unit_count: int = Field(ge=0)
+    persisted_market_unit_count: int = Field(ge=0)
+    recorded_at_count: int = Field(ge=0)
+    gate_counts: dict[str, int]
+    gate_rates: dict[str, float]
+    first_failed_gate_counts: dict[str, int]
+
+
 class WorkspaceModelForecastProgress(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1262,6 +1276,7 @@ class WorkspaceModelForecastProgress(BaseModel):
     xg_ready_team_count: int = Field(ge=0)
     next_7d_xg_ready_fixture_count: int = Field(ge=0)
     capture_policy: Literal["FIRST_ELIGIBLE_FREEZE_IMMUTABLE"]
+    market_evaluation_funnel: WorkspaceModelForecastMarketEvaluationFunnel
     lead_time_buckets: dict[
         Literal["LT_6H", "H6_TO_LT_24H", "D1_TO_D3", "GT_3D"],
         WorkspaceModelForecastBucketProgress,

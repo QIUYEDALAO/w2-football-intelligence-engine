@@ -444,6 +444,17 @@ export interface WorkspaceValidation {
     xg_ready_team_count: number;
     next_7d_xg_ready_fixture_count: number;
     capture_policy: "FIRST_ELIGIBLE_FREEZE_IMMUTABLE";
+    market_evaluation_funnel: {
+      scope: "MODEL_FORECAST_CAPTURE_MARKET_V1";
+      denominator_unit: "MODEL_FORECAST_CAPTURE_FIXTURE_X_MARKET";
+      fixture_count: number;
+      market_unit_count: number;
+      persisted_market_unit_count: number;
+      recorded_at_count: number;
+      gate_counts: Record<string, number>;
+      gate_rates: Record<string, number>;
+      first_failed_gate_counts: Record<string, number>;
+    };
     lead_time_buckets: Record<"LT_6H" | "H6_TO_LT_24H" | "D1_TO_D3" | "GT_3D", {
       capture_count: number;
       settled_count: number;

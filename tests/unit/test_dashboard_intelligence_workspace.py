@@ -20,6 +20,29 @@ from w2.identity.public_team_labels import (
 )
 
 
+def test_model_forecast_funnel_uses_every_capture_times_two_as_denominator() -> None:
+    captures = [
+        SimpleNamespace(fixture_id="1"),
+        SimpleNamespace(fixture_id="api_football:2"),
+    ]
+
+    funnel = repository_module._model_forecast_market_evaluation_funnel(captures, [], set())
+
+    assert funnel["fixture_count"] == 2
+    assert funnel["market_unit_count"] == 4
+    assert funnel["persisted_market_unit_count"] == 0
+    assert funnel["gate_counts"] == {
+        "model_ready": 4,
+        "mainline_parsed": 0,
+        "bookmaker_depth": 0,
+        "quote_fresh": 0,
+        "evaluated": 0,
+        "no_edge": 0,
+        "candidate": 0,
+    }
+    assert funnel["first_failed_gate_counts"] == {"EVALUATION_ENTRY_NOT_TRAVERSED": 4}
+
+
 def _market(snapshot_count: int) -> dict[str, Any]:
     points = [
         {

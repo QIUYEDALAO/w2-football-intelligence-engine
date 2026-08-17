@@ -27,6 +27,8 @@ from w2.operations.observability import default_metric_registry
 from w2.prematch.lifecycle import (
     DYNAMIC_EVALUATION_V1_SCHEMA,
     DYNAMIC_EVALUATION_V2_SCHEMA,
+    DYNAMIC_EVALUATION_V3_SCHEMA,
+    MODEL_FORECAST_DENOMINATOR_SCOPE,
     DynamicEvaluationInput,
     DynamicEvaluationVersion,
     LineupConfirmedEvent,
@@ -507,6 +509,18 @@ class AnalysisCardCanaryMaterializer:
                 evaluated_at=evaluated_at,
             ),
         }
+        capture_reader = getattr(self.repository, "model_forecast_capture_exists", None)
+        model_forecast_scoped = bool(
+            source_event is not None
+            and (
+                source_event.event_type == "MODEL_FORECAST_CAPTURE_SCOPE"
+                or (callable(capture_reader) and capture_reader(fixture_id))
+            )
+        )
+        if model_forecast_scoped:
+            input_manifest["dynamic_evaluation_denominator_scope"] = (
+                MODEL_FORECAST_DENOMINATOR_SCOPE
+            )
         if round3_projection_enabled:
             input_manifest.update(
                 {
@@ -1161,8 +1175,14 @@ def _dynamic_evaluations(
     fixture_id = str(card.get("fixture_id") or "")
     evaluated_at = _parse_utc(manifest.get("evaluated_at"))
     candidates = card.get("market_candidates")
-    if not fixture_id or evaluated_at is None or not isinstance(candidates, dict):
+    denominator_scope = str(manifest.get("dynamic_evaluation_denominator_scope") or "")
+    denominator_scoped = denominator_scope == MODEL_FORECAST_DENOMINATOR_SCOPE
+    if not fixture_id or evaluated_at is None:
         return []
+    if not isinstance(candidates, dict):
+        if not denominator_scoped:
+            return []
+        candidates = {}
     lineup_confirmed_at = _parse_utc(
         lineup_identity.get("captured_at") if lineup_identity is not None else None
     )
@@ -1170,26 +1190,43 @@ def _dynamic_evaluations(
     for key, default_market in (("ah", "ASIAN_HANDICAP"), ("ou", "TOTALS")):
         candidate = candidates.get(key)
         if not isinstance(candidate, dict):
-            continue
+            if not denominator_scoped:
+                continue
+            candidate = {}
         evidence = candidate.get("analysis_evidence")
         if not isinstance(evidence, dict):
-            continue
+            if not denominator_scoped:
+                continue
+            evidence = {}
         selection, side = _dynamic_evaluation_side(candidate, evidence)
         if not selection or not isinstance(side, dict):
-            continue
+            if not denominator_scoped:
+                continue
+            selection = str(candidate.get("selection") or "UNRESOLVED")
+            side = {}
         model = side.get("model_probability")
         comparison = side.get("comparison")
-        quote_identity = evidence.get("quote_identity")
+        quote_identity = evidence.get("quote_identity") or candidate.get("quote_identity")
+        if not isinstance(quote_identity, dict):
+            quote_audit = card.get("quote_identity_audit")
+            quote_identity = quote_audit.get(key) if isinstance(quote_audit, dict) else None
         market_probability = evidence.get("market_probability")
         if not all(
             isinstance(item, dict)
             for item in (model, comparison, quote_identity, market_probability)
         ):
-            continue
-        model = cast(dict[str, Any], model)
-        comparison = cast(dict[str, Any], comparison)
-        quote_identity = cast(dict[str, Any], quote_identity)
-        market_probability = cast(dict[str, Any], market_probability)
+            if not denominator_scoped:
+                continue
+        model = cast(dict[str, Any], model) if isinstance(model, dict) else {}
+        comparison = cast(dict[str, Any], comparison) if isinstance(comparison, dict) else {}
+        quote_identity = (
+            cast(dict[str, Any], quote_identity) if isinstance(quote_identity, dict) else {}
+        )
+        market_probability = (
+            cast(dict[str, Any], market_probability)
+            if isinstance(market_probability, dict)
+            else {}
+        )
         normalized = selection.lower().replace("_ah", "")
         quote = (quote_identity.get("quotes") or {}).get(normalized)
         quote = quote if isinstance(quote, dict) else {}
@@ -1206,13 +1243,28 @@ def _dynamic_evaluations(
             if post_lineup_quote and lineup_identity is not None
             else None
         )
-        provider = str(quote.get("provider") or quote_identity.get("provider") or "")
-        if provider != fixture_identity["provider"]:
+        provider = str(
+            quote.get("provider")
+            or quote_identity.get("provider")
+            or fixture_identity["provider"]
+        )
+        if provider and provider != fixture_identity["provider"]:
             raise FrozenAnalysisError("dynamic evaluation provider identity conflict")
         distribution = model.get("settlement_distribution")
-        model_ready = str(model.get("status") or "").upper() == "READY"
+        simulation = card.get("simulation")
+        model_ready = (
+            str(model.get("status") or candidate.get("model_status") or "").upper()
+            == "READY"
+            or (
+                denominator_scoped
+                and isinstance(simulation, Mapping)
+                and str(simulation.get("status") or "").upper() == "READY"
+            )
+        )
         schema_version = (
-            DYNAMIC_EVALUATION_V1_SCHEMA
+            DYNAMIC_EVALUATION_V3_SCHEMA
+            if denominator_scoped
+            else DYNAMIC_EVALUATION_V1_SCHEMA
             if not model_ready and not isinstance(distribution, Mapping)
             else DYNAMIC_EVALUATION_V2_SCHEMA
         )
@@ -1225,11 +1277,31 @@ def _dynamic_evaluations(
             model_input_identity["scoreline_projection_contract_version"] = manifest[
                 "scoreline_projection_contract_version"
             ]
+        current_odds = card.get("current_odds")
+        odds_market = current_odds.get(key) if isinstance(current_odds, dict) else {}
+        odds_market = odds_market if isinstance(odds_market, dict) else {}
+        market_mainline = candidate.get("market_mainline")
+        market_mainline = market_mainline if isinstance(market_mainline, dict) else {}
+        bookmaker_count = max(
+            int(odds_market.get("bookmaker_count") or 0),
+            int(market_mainline.get("complete_pair_bookmaker_count") or 0),
+        )
+        exact_line = _float_or_none(
+            quote.get("line")
+            or quote_identity.get("selected_line")
+            or candidate.get("line")
+        )
+        source_observations_present = bool(
+            quote_identity.get("observation_ids")
+            or quote_identity.get("captured_at")
+            or quote_identity.get("raw_payload_sha256")
+            or quote
+        )
         value = DynamicEvaluationInput(
             fixture_id=fixture_id,
             market=str(candidate.get("market") or default_market),
             selection=selection,
-            exact_line=_float_or_none(quote.get("line") or candidate.get("line")),
+            exact_line=exact_line,
             bookmaker_id=str(quote.get("bookmaker_id") or quote_identity.get("bookmaker_id") or "")
             or None,
             capture_id=str(
@@ -1239,9 +1311,16 @@ def _dynamic_evaluations(
                 or ""
             )
             or None,
-            quote_identity_hash=str(quote_identity.get("quote_identity_hash") or "")
-            or canonical_sha256(
-                quote_identity, domain=HashDomain.PREMATCH_READ_MODEL_QUOTE_IDENTITY
+            quote_identity_hash=(
+                str(quote_identity.get("quote_identity_hash") or "")
+                or (
+                    canonical_sha256(
+                        quote_identity,
+                        domain=HashDomain.PREMATCH_READ_MODEL_QUOTE_IDENTITY,
+                    )
+                    if quote_identity
+                    else None
+                )
             ),
             model_input_hash=canonical_sha256(
                 model_input_identity,
@@ -1250,10 +1329,15 @@ def _dynamic_evaluations(
             evaluated_at=evaluated_at,
             checkpoint=_latest_checkpoint(card),
             capture_at=capture_at,
-            source_observations_present=True,
+            source_observations_present=(
+                source_observations_present if denominator_scoped else True
+            ),
             exact_quote_complete=str(quote_identity.get("identity_status") or "").upper()
             == "COMPLETE",
-            quote_fresh=str(quote_identity.get("freshness_status") or "COMPLETE").upper()
+            quote_fresh=str(
+                quote_identity.get("freshness_status")
+                or ("INCOMPLETE" if denominator_scoped else "COMPLETE")
+            ).upper()
             == "COMPLETE",
             model_ready=model_ready,
             market_probability_ready=bool(devig),
@@ -1269,18 +1353,25 @@ def _dynamic_evaluations(
             schema_version=schema_version,
             competition_id=(
                 fixture_identity["competition_id"]
-                if schema_version == DYNAMIC_EVALUATION_V2_SCHEMA
+                if schema_version in {DYNAMIC_EVALUATION_V2_SCHEMA, DYNAMIC_EVALUATION_V3_SCHEMA}
                 else None
             ),
             season=(
                 fixture_identity["season"]
-                if schema_version == DYNAMIC_EVALUATION_V2_SCHEMA
+                if schema_version in {DYNAMIC_EVALUATION_V2_SCHEMA, DYNAMIC_EVALUATION_V3_SCHEMA}
                 else None
             ),
-            provider=provider if schema_version == DYNAMIC_EVALUATION_V2_SCHEMA else None,
+            provider=(
+                provider
+                if schema_version in {DYNAMIC_EVALUATION_V2_SCHEMA, DYNAMIC_EVALUATION_V3_SCHEMA}
+                else None
+            ),
             model_settlement_distribution=(
                 distribution if isinstance(distribution, Mapping) else None
             ),
+            bookmaker_count=bookmaker_count,
+            mainline_parsed=exact_line is not None,
+            denominator_scope=denominator_scope if denominator_scoped else None,
         )
         version = classify_evaluation(value)
         if version.state.value == "ANALYSIS_PICK_ACTIVE" and build_scoreline_reference:

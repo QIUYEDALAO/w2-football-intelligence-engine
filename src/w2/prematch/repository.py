@@ -4,7 +4,7 @@ import hashlib
 import json
 import math
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any
 
@@ -32,6 +32,7 @@ from w2.infrastructure.persistence.matchday_intake_models import (
 from w2.prematch.lifecycle import (
     DYNAMIC_EVALUATION_V2_SCHEMA,
     EVAL_02B_DISTRIBUTION_TOLERANCE,
+    MODEL_FORECAST_DENOMINATOR_SCOPE,
     SETTLEMENT_STATE_ORDER,
     DynamicEvaluationState,
     DynamicEvaluationVersion,
@@ -77,6 +78,31 @@ class DynamicPrematchRepository:
                     raise
                 return _version_from_payload(existing.payload), False
 
+    def denominator_covered_fixture_ids(self) -> set[str]:
+        """Return canonical bare fixture ids with both current market rows."""
+        with Session(self.engine) as session:
+            rows = session.execute(
+                select(
+                    DynamicPrematchEvaluationModel.fixture_id,
+                    DynamicPrematchEvaluationModel.market,
+                ).where(
+                    DynamicPrematchEvaluationModel.denominator_scope
+                    == MODEL_FORECAST_DENOMINATOR_SCOPE,
+                    ~DynamicPrematchEvaluationModel.evaluation_id.in_(
+                        select(DynamicPrematchSupersessionModel.superseded_evaluation_id)
+                    ),
+                )
+            )
+        markets: dict[str, set[str]] = {}
+        for fixture_id, market in rows:
+            canonical = str(fixture_id).removeprefix("api_football:")
+            markets.setdefault(canonical, set()).add(str(market))
+        return {
+            fixture_id
+            for fixture_id, values in markets.items()
+            if {MarketType.ASIAN_HANDICAP.value, MarketType.TOTALS.value} <= values
+        }
+
     def append_evaluation_in_session(
         self,
         session: Session,
@@ -85,7 +111,6 @@ class DynamicPrematchRepository:
         supersession_reason: str = "NEW_CAPTURE_OR_MODEL_INPUT",
     ) -> tuple[DynamicEvaluationVersion, bool]:
         """Append evaluation and supersession without owning the transaction."""
-        payload = version.as_dict()
         existing = session.scalar(
             select(DynamicPrematchEvaluationModel).where(
                 DynamicPrematchEvaluationModel.identity_hash == version.identity_hash
@@ -93,6 +118,8 @@ class DynamicPrematchRepository:
         )
         if existing is not None:
             return _version_from_payload(existing.payload), False
+        persisted = replace(version, recorded_at=datetime.now(UTC))
+        payload = persisted.as_dict()
         previous = session.scalar(
             select(DynamicPrematchEvaluationModel)
             .where(
@@ -107,19 +134,25 @@ class DynamicPrematchRepository:
         )
         session.add(
             DynamicPrematchEvaluationModel(
-                evaluation_id=version.evaluation_id,
-                identity_hash=version.identity_hash,
-                fixture_id=version.fixture_id,
-                market=version.market,
-                selection=version.selection,
-                checkpoint=version.checkpoint,
-                capture_id=version.capture_id,
-                quote_identity_hash=version.quote_identity_hash,
-                model_input_hash=version.model_input_hash,
-                lineup_input_hash=version.lineup_input_hash,
-                evaluated_at=version.evaluated_at,
-                capture_at=version.capture_at,
-                original_state=version.state.value,
+                evaluation_id=persisted.evaluation_id,
+                identity_hash=persisted.identity_hash,
+                fixture_id=persisted.fixture_id,
+                market=persisted.market,
+                selection=persisted.selection,
+                checkpoint=persisted.checkpoint,
+                capture_id=persisted.capture_id,
+                quote_identity_hash=persisted.quote_identity_hash,
+                model_input_hash=persisted.model_input_hash,
+                lineup_input_hash=persisted.lineup_input_hash,
+                evaluated_at=persisted.evaluated_at,
+                capture_at=persisted.capture_at,
+                original_state=persisted.state.value,
+                recorded_at=persisted.recorded_at,
+                denominator_scope=persisted.denominator_scope,
+                bookmaker_count=persisted.bookmaker_count,
+                first_failed_gate=persisted.first_failed_gate,
+                all_failed_gates=list(persisted.all_failed_gates),
+                gate_results=persisted.gate_results,
                 payload=payload,
             )
         )
@@ -136,7 +169,7 @@ class DynamicPrematchRepository:
                 )
             )
             session.flush()
-        return version, True
+        return persisted, True
 
     def append_lineup_event(
         self,
@@ -367,6 +400,18 @@ def _version_from_payload(payload: dict[str, Any]) -> DynamicEvaluationVersion:
         scoreline_reference=dict(payload["scoreline_reference"])
         if isinstance(payload.get("scoreline_reference"), dict)
         else None,
+        bookmaker_count=max(0, int(payload.get("bookmaker_count") or 0)),
+        denominator_scope=str(payload["denominator_scope"])
+        if payload.get("denominator_scope")
+        else None,
+        first_failed_gate=str(payload["first_failed_gate"])
+        if payload.get("first_failed_gate")
+        else None,
+        all_failed_gates=tuple(str(item) for item in payload.get("all_failed_gates", [])),
+        gate_results={str(key): bool(value) for key, value in payload["gate_results"].items()}
+        if isinstance(payload.get("gate_results"), dict)
+        else None,
+        recorded_at=_parse_utc(payload.get("recorded_at")),
     )
 
 

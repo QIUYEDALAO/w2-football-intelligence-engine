@@ -137,6 +137,94 @@ def _refresh_model_forecast_analysis_cards(
     }
 
 
+def _refresh_model_forecast_denominator_cards(
+    dashboard: Mapping[str, object],
+    *,
+    evaluated_at: datetime,
+) -> dict[str, object]:
+    """Persist both market gate outcomes for every frozen forecast."""
+    from w2.prematch.lifecycle import (
+        DYNAMIC_EVALUATION_V3_SCHEMA,
+        MODEL_FORECAST_DENOMINATOR_SCOPE,
+        DynamicEvaluationInput,
+        classify_evaluation,
+    )
+    from w2.prematch.read_model_projection import MAX_PUBLIC_FIXTURES
+    from w2.prematch.repository import DynamicPrematchRepository
+    from w2.tracking.model_forecast_ledger import ModelForecastLedgerRepository
+
+    rows = dashboard.get("all")
+    cards = [row for row in rows if isinstance(row, Mapping)] if isinstance(rows, list) else []
+    if len(cards) > MAX_PUBLIC_FIXTURES:
+        raise RuntimeError(f"MODEL_FORECAST_DENOMINATOR_SCOPE_EXCEEDED:{len(cards)}")
+    ledger = ModelForecastLedgerRepository()
+    seeds = ledger.denominator_capture_seeds()
+    captured = {fixture_id for fixture_id, *_ in seeds}
+    repository = DynamicPrematchRepository(ledger.engine)
+    covered = repository.denominator_covered_fixture_ids()
+    targets = list(
+        dict.fromkeys(
+            str(row.get("fixture_id") or "").removeprefix("api_football:")
+            for row in cards
+            if str(row.get("fixture_id") or "").removeprefix("api_football:") in captured
+            and str(row.get("fixture_id") or "").removeprefix("api_football:") not in covered
+        )
+    )
+    events = [
+        ProjectionSourceEvent.create(
+            fixture_id=fixture_id,
+            event_type="MODEL_FORECAST_CAPTURE_SCOPE",
+            event_id=f"model-forecast-denominator:{evaluated_at.isoformat()}",
+            event_at=evaluated_at,
+            payload={"fixture_id": fixture_id, "scope": "fixture_x_market"},
+        )
+        for fixture_id in targets
+    ]
+    materialized = _materialize_shadow_projection_events(events)
+    covered = repository.denominator_covered_fixture_ids()
+    fallback_writes = 0
+    for fixture_id, capture_hash, model_input_hash, captured_at in seeds:
+        if fixture_id in covered:
+            continue
+        for market in ("ASIAN_HANDICAP", "TOTALS"):
+            _, written = repository.append_evaluation(
+                classify_evaluation(
+                    DynamicEvaluationInput(
+                        fixture_id=fixture_id,
+                        market=market,
+                        selection="UNRESOLVED",
+                        exact_line=None,
+                        bookmaker_id=None,
+                        capture_id=capture_hash,
+                        quote_identity_hash=None,
+                        model_input_hash=model_input_hash,
+                        evaluated_at=evaluated_at,
+                        checkpoint="MODEL_FORECAST_CAPTURE_SCOPE",
+                        capture_at=captured_at,
+                        source_observations_present=False,
+                        exact_quote_complete=False,
+                        quote_fresh=False,
+                        model_ready=True,
+                        market_probability_ready=False,
+                        schema_version=DYNAMIC_EVALUATION_V3_SCHEMA,
+                        denominator_scope=MODEL_FORECAST_DENOMINATOR_SCOPE,
+                    )
+                ),
+                supersession_reason="MODEL_FORECAST_DENOMINATOR_ENTRY",
+            )
+            fallback_writes += int(written)
+    return {
+        "status": "PASS",
+        "provider_calls": 0,
+        "db_writes": len(materialized) + fallback_writes,
+        "capture_fixture_count": len(captured),
+        "already_covered_fixture_count": len(covered & captured),
+        "targeted_fixture_count": len(targets),
+        "materialized_fixture_count": len(materialized),
+        "fallback_market_unit_count": fallback_writes,
+    }
+
+
 @celery_app.task(name="w2.ping")
 def ping() -> str:
     return "pong"
@@ -341,6 +429,13 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
         dry_run=False,
         write_db=True,
     )
+    denominator_refresh = _refresh_model_forecast_denominator_cards(
+        dashboard,
+        evaluated_at=evaluated_at,
+    )
+    denominator_refresh_writes = denominator_refresh["db_writes"]
+    if not isinstance(denominator_refresh_writes, int):
+        raise RuntimeError("MODEL_FORECAST_DENOMINATOR_WRITE_COUNT_INVALID")
     capture = run_forward_outcome_ledger(
         day_view,
         repository=repository,
@@ -365,12 +460,13 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
         "lock": False,
         "production": False,
         "real_money": False,
-        "db_writes": analysis_refresh_writes + sum(
+        "db_writes": analysis_refresh_writes + denominator_refresh_writes + sum(
             int(item.get("db_writes", 0))
             for item in (model_forecast_capture, capture, materialization, settlement)
         ),
         "model_forecast_capture": model_forecast_capture,
         "model_forecast_analysis_refresh": analysis_refresh,
+        "model_forecast_denominator_refresh": denominator_refresh,
         "result_materialization": materialization,
         "outcome_settlement": settlement,
     }

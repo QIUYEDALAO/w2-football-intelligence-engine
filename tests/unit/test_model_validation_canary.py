@@ -10,6 +10,10 @@ from sqlalchemy.orm import Session
 from w2.api.repository import ReadModelRepository
 from w2.api.schemas import WorkspaceModelForecastLedgerFact
 from w2.domain.canonical_serialization import canonical_sha256
+from w2.infrastructure.persistence.dynamic_prematch_models import (
+    DynamicPrematchEvaluationModel,
+    DynamicPrematchSupersessionModel,
+)
 from w2.infrastructure.persistence.future_refresh_models import (
     RawPayloadModel,
     RawStatisticsRetentionModel,
@@ -133,6 +137,33 @@ def test_dashboard_reads_capture_and_outcome_as_ledger_facts(
         "xg_ready_team_count": 2,
         "next_7d_xg_ready_fixture_count": 1,
         "capture_policy": "FIRST_ELIGIBLE_FREEZE_IMMUTABLE",
+        "market_evaluation_funnel": {
+            "scope": "MODEL_FORECAST_CAPTURE_MARKET_V1",
+            "denominator_unit": "MODEL_FORECAST_CAPTURE_FIXTURE_X_MARKET",
+            "fixture_count": 1,
+            "market_unit_count": 2,
+            "persisted_market_unit_count": 0,
+            "recorded_at_count": 0,
+            "gate_counts": {
+                "model_ready": 2,
+                "mainline_parsed": 0,
+                "bookmaker_depth": 0,
+                "quote_fresh": 0,
+                "evaluated": 0,
+                "no_edge": 0,
+                "candidate": 0,
+            },
+            "gate_rates": {
+                "model_ready": 1.0,
+                "mainline_parsed": 0.0,
+                "bookmaker_depth": 0.0,
+                "quote_fresh": 0.0,
+                "evaluated": 0.0,
+                "no_edge": 0.0,
+                "candidate": 0.0,
+            },
+            "first_failed_gate_counts": {"EVALUATION_ENTRY_NOT_TRAVERSED": 2},
+        },
         "lead_time_buckets": {
             "LT_6H": {"capture_count": 1, "settled_count": 1, "pending_count": 0},
             "H6_TO_LT_24H": {"capture_count": 0, "settled_count": 0, "pending_count": 0},
@@ -179,6 +210,8 @@ def _engine(tmp_path: Path):  # type: ignore[no-untyped-def]
     RawPayloadModel.__table__.create(engine)
     RawStatisticsRetentionModel.__table__.create(engine)
     TeamXgMatchModel.__table__.create(engine)
+    DynamicPrematchEvaluationModel.__table__.create(engine)
+    DynamicPrematchSupersessionModel.__table__.create(engine)
     MatchdayFixtureIdentityModel.__table__.create(engine)
     ModelForecastCaptureModel.__table__.create(engine)
     ModelForecastCaptureDataVersionModel.__table__.create(engine)

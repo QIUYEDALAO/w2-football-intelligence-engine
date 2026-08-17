@@ -644,6 +644,7 @@ function QualityRail({ workspace }: { workspace: IntelligenceWorkspace }) {
 
 function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
   const modelForecast = workspace.validation.model_forecast;
+  const evaluationFunnel = modelForecast.market_evaluation_funnel;
   const records = workspace.validation.forward_validation_records;
   const outcomes = records.outcomes;
   const settledCandidateCount = typeof outcomes.settled_sample_count === "number" ? outcomes.settled_sample_count : 0;
@@ -681,6 +682,18 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
           <h3>候选流程</h3>
           <ul className="v41-validation-counts"><li><span>当前四门流程候选</span><strong>{modelForecast.current_flow_candidate_count}</strong></li><li><span>历史已结算 ANALYSIS_PICK</span><strong>{legacyAnalysisPickCount}</strong></li></ul>
           <p className="v41-validation-warning"><strong>历史遗留，非当前流程产出。</strong>不显示命中率：n={legacyAnalysisPickCount}、选择过程尚未审计，且与 Phase 0.5 全量回测的 NO_EDGE 结论相反。</p>
+          <details className="v41-validation-audit"><summary>展开当前流程逐门覆盖（固定分母 {evaluationFunnel.market_unit_count}）</summary>
+            <ul className="v41-validation-counts">{([
+              ['model_ready', '模型就绪'],
+              ['mainline_parsed', '主盘解析'],
+              ['bookmaker_depth', '深度通过'],
+              ['quote_fresh', '时效通过'],
+              ['evaluated', '实际评估'],
+              ['no_edge', 'NO_EDGE'],
+              ['candidate', '候选'],
+            ] as const).map(([gate, gateLabel]) => <li key={gate}><span>{gateLabel}</span><strong>{evaluationFunnel.gate_counts[gate] ?? 0}/{evaluationFunnel.market_unit_count}</strong></li>)}</ul>
+            <p className="v41-validation-context">分母为所有已冻结模型预测的 fixture × AH/TOTALS；已持久化 {evaluationFunnel.persisted_market_unit_count}/{evaluationFunnel.market_unit_count}，带真实写入时刻 {evaluationFunnel.recorded_at_count}。</p>
+          </details>
           <details className="v41-validation-audit"><summary>展开历史账本记账明细</summary>
             <ul className="v41-validation-counts"><li><span>赛果基表记录</span><strong>{records.validation_count}</strong></li><li><span>旧账本纳入统计</span><strong>{records.eligible_count}</strong></li><li><span>候选待结算</span><strong>{records.pending_count}</strong></li><li><span>无 Pick / 入场报价</span><strong>{records.excluded_count}</strong></li></ul>
             <p className="v41-validation-context">作用域：跨比赛日历史记账；不混入所选比赛日的前向记录与赛果缺口。</p>

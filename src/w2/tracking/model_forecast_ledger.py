@@ -180,6 +180,42 @@ class ModelForecastLedgerRepository:
                     ready.append(fixture_id)
         return tuple(ready)
 
+    def captured_fixture_ids(self) -> tuple[str, ...]:
+        with Session(self.engine) as session:
+            rows = session.scalars(
+                select(ModelForecastCaptureModel.fixture_id).order_by(
+                    ModelForecastCaptureModel.kickoff_utc,
+                    ModelForecastCaptureModel.fixture_id,
+                )
+            )
+            return tuple(
+                dict.fromkeys(str(value).removeprefix("api_football:") for value in rows)
+            )
+
+    def denominator_capture_seeds(self) -> tuple[tuple[str, str, str, datetime], ...]:
+        """Return immutable inputs needed to record every capture in the market denominator."""
+        with Session(self.engine) as session:
+            rows = session.execute(
+                select(
+                    ModelForecastCaptureModel.fixture_id,
+                    ModelForecastCaptureModel.capture_identity_hash,
+                    ModelForecastCaptureModel.model_input_manifest_hash,
+                    ModelForecastCaptureModel.captured_at,
+                ).order_by(
+                    ModelForecastCaptureModel.kickoff_utc,
+                    ModelForecastCaptureModel.fixture_id,
+                )
+            )
+            return tuple(
+                (
+                    str(fixture_id).removeprefix("api_football:"),
+                    str(capture_hash),
+                    str(model_input_hash),
+                    captured_at,
+                )
+                for fixture_id, capture_hash, model_input_hash, captured_at in rows
+            )
+
     def schema_ready(self) -> bool:
         tables = set(inspect(self.engine).get_table_names())
         return {

@@ -55,6 +55,10 @@ from w2.identity.public_team_labels import (
 )
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
+from w2.infrastructure.persistence.dynamic_prematch_models import (
+    DynamicPrematchEvaluationModel,
+    DynamicPrematchSupersessionModel,
+)
 from w2.infrastructure.persistence.factor_model_models import (
     CanonicalTeamModel,
 )
@@ -83,6 +87,7 @@ from w2.matchday.timezone import (
 )
 from w2.operations.leagues import run_top_five_audit
 from w2.operations.release_evidence import build_release_identity
+from w2.prematch.lifecycle import MODEL_FORECAST_DENOMINATOR_SCOPE
 from w2.prematch.read_model_projection import (
     ANALYSIS_CARD_SHADOW_PREFIX,
     FrozenAnalysisError,
@@ -102,6 +107,109 @@ MODEL_FORECAST_LEAD_TIME_BUCKETS = (
     "D1_TO_D3",
     "GT_3D",
 )
+MODEL_FORECAST_MARKETS = ("ASIAN_HANDICAP", "TOTALS")
+
+
+def _model_forecast_market_evaluation_funnel(
+    captures: Sequence[ModelForecastCaptureModel],
+    evaluations: Sequence[DynamicPrematchEvaluationModel],
+    superseded_evaluation_ids: set[str],
+) -> dict[str, Any]:
+    current: dict[tuple[str, str], DynamicPrematchEvaluationModel] = {}
+    for row in evaluations:
+        if row.evaluation_id in superseded_evaluation_ids:
+            continue
+        key = (row.fixture_id.removeprefix("api_football:"), row.market)
+        previous = current.get(key)
+        if previous is None or (
+            row.denominator_scope == MODEL_FORECAST_DENOMINATOR_SCOPE,
+            row.evaluated_at,
+            row.evaluation_id,
+        ) > (
+            previous.denominator_scope == MODEL_FORECAST_DENOMINATOR_SCOPE,
+            previous.evaluated_at,
+            previous.evaluation_id,
+        ):
+            current[key] = row
+
+    gate_names = (
+        "model_ready",
+        "mainline_parsed",
+        "bookmaker_depth",
+        "quote_fresh",
+        "evaluated",
+        "no_edge",
+        "candidate",
+    )
+    counts = Counter({name: 0 for name in gate_names})
+    first_failed: Counter[str] = Counter()
+    persisted = 0
+    recorded_at = 0
+    fixture_ids = {
+        row.fixture_id.removeprefix("api_football:") for row in captures
+    }
+    for fixture_id in sorted(fixture_ids):
+        for market in MODEL_FORECAST_MARKETS:
+            current_row = current.get((fixture_id, market))
+            gates, blocker = _dynamic_gate_results(current_row)
+            persisted += int(current_row is not None)
+            recorded_at += int(
+                current_row is not None and current_row.recorded_at is not None
+            )
+            counts.update(name for name in gate_names if gates[name])
+            if blocker:
+                first_failed[blocker] += 1
+
+    denominator = len(fixture_ids) * len(MODEL_FORECAST_MARKETS)
+    return {
+        "scope": MODEL_FORECAST_DENOMINATOR_SCOPE,
+        "denominator_unit": "MODEL_FORECAST_CAPTURE_FIXTURE_X_MARKET",
+        "fixture_count": len(fixture_ids),
+        "market_unit_count": denominator,
+        "persisted_market_unit_count": persisted,
+        "recorded_at_count": recorded_at,
+        "gate_counts": dict(counts),
+        "gate_rates": {
+            name: round(counts[name] / denominator, 6) if denominator else 0.0
+            for name in gate_names
+        },
+        "first_failed_gate_counts": dict(sorted(first_failed.items())),
+    }
+
+
+def _dynamic_gate_results(
+    row: DynamicPrematchEvaluationModel | None,
+) -> tuple[dict[str, bool], str | None]:
+    empty = {
+        "model_ready": True,
+        "mainline_parsed": False,
+        "bookmaker_depth": False,
+        "quote_fresh": False,
+        "evaluated": False,
+        "no_edge": False,
+        "candidate": False,
+    }
+    if row is None:
+        return empty, "EVALUATION_ENTRY_NOT_TRAVERSED"
+    if isinstance(row.gate_results, dict):
+        gates = {name: bool(row.gate_results.get(name)) for name in empty}
+        return gates, row.first_failed_gate
+    payload = row.payload if isinstance(row.payload, dict) else {}
+    state = str(payload.get("state") or row.original_state)
+    evaluated = state in {"ANALYSIS_PICK_ACTIVE", "NO_EDGE_CURRENT"}
+    return {
+        "model_ready": state != "NOT_READY_MODEL_INPUT",
+        "mainline_parsed": payload.get("exact_line") is not None,
+        "bookmaker_depth": False,
+        "quote_fresh": state not in {
+            "NOT_READY_SOURCE_ABSENT",
+            "NOT_READY_QUOTE_INCOMPLETE",
+            "STALE_PENDING_REFRESH",
+        },
+        "evaluated": evaluated,
+        "no_edge": state == "NO_EDGE_CURRENT",
+        "candidate": state == "ANALYSIS_PICK_ACTIVE",
+    }, "LEGACY_GATE_ATTRIBUTION_UNAVAILABLE"
 
 
 class SystemDegradedError(RuntimeError):
@@ -1162,6 +1270,14 @@ class ReadModelRepository:
                 captures = list(session.scalars(select(ModelForecastCaptureModel)))
                 versions = list(session.scalars(select(ModelForecastCaptureDataVersionModel)))
                 outcomes = list(session.scalars(select(ModelForecastOutcomeModel)))
+                dynamic_evaluations = list(
+                    session.scalars(select(DynamicPrematchEvaluationModel))
+                )
+                superseded_evaluation_ids = set(
+                    session.scalars(
+                        select(DynamicPrematchSupersessionModel.superseded_evaluation_id)
+                    )
+                )
                 ready_team_ids = set(
                     session.scalars(
                         select(TeamXgMatchModel.team_id)
@@ -1214,6 +1330,11 @@ class ReadModelRepository:
         except SQLAlchemyError as exc:
             raise SystemDegradedError("DASHBOARD_MODEL_FORECAST_QUERY_FAILED") from exc
         settled_hashes = {row.capture_identity_hash for row in outcomes}
+        market_evaluation_funnel = _model_forecast_market_evaluation_funnel(
+            captures,
+            dynamic_evaluations,
+            superseded_evaluation_ids,
+        )
         version_by_capture = {row.capture_identity_hash: row for row in versions}
         version_names = sorted(
             {
@@ -1236,6 +1357,7 @@ class ReadModelRepository:
             "xg_ready_team_count": len(ready_team_ids),
             "next_7d_xg_ready_fixture_count": int(next_7d_ready_fixtures or 0),
             "capture_policy": "FIRST_ELIGIBLE_FREEZE_IMMUTABLE",
+            "market_evaluation_funnel": market_evaluation_funnel,
             "lead_time_buckets": {
                 bucket: {
                     "capture_count": sum(row.lead_time_bucket == bucket for row in captures),

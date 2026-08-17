@@ -20,6 +20,8 @@ from w2.infrastructure.persistence.dynamic_prematch_models import (
 from w2.infrastructure.persistence.matchday_intake_models import MatchdayFixtureIdentityModel
 from w2.prematch.lifecycle import (
     DYNAMIC_EVALUATION_V2_SCHEMA,
+    DYNAMIC_EVALUATION_V3_SCHEMA,
+    MODEL_FORECAST_DENOMINATOR_SCOPE,
     DynamicEvaluationInput,
     DynamicEvaluationLedger,
     DynamicEvaluationState,
@@ -43,6 +45,52 @@ PAIR_STATES = {
     "HALF_LOSS": 0.10,
     "LOSS": 0.30,
 }
+
+
+def test_denominator_evaluation_persists_real_write_time_and_gate_attribution() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    version = classify_evaluation(
+        DynamicEvaluationInput(
+            fixture_id="1494246",
+            market="TOTALS",
+            selection="UNRESOLVED",
+            exact_line=None,
+            bookmaker_id=None,
+            capture_id=None,
+            quote_identity_hash=None,
+            model_input_hash="model",
+            evaluated_at=NOW,
+            checkpoint="T-30m_VALIDATION_LOCK",
+            source_observations_present=False,
+            quote_fresh=False,
+            model_ready=True,
+            market_probability_ready=False,
+            schema_version=DYNAMIC_EVALUATION_V3_SCHEMA,
+            competition_id="113",
+            season="2026",
+            provider="api_football",
+            denominator_scope=MODEL_FORECAST_DENOMINATOR_SCOPE,
+        )
+    )
+
+    persisted, created = DynamicPrematchRepository(engine).append_evaluation(version)
+
+    assert created is True
+    assert persisted.recorded_at is not None
+    assert persisted.recorded_at > persisted.evaluated_at
+    assert persisted.first_failed_gate == "MAINLINE_PARSED"
+    assert persisted.all_failed_gates == (
+        "MAINLINE_PARSED",
+        "BOOKMAKER_DEPTH",
+        "QUOTE_FRESH",
+        "EVALUATION_COMPLETE",
+    )
+    with Session(engine) as session:
+        row = session.get(DynamicPrematchEvaluationModel, persisted.evaluation_id)
+        assert row is not None
+        assert row.recorded_at is not None
+        assert row.gate_results == persisted.gate_results
 
 
 def _evaluation(
