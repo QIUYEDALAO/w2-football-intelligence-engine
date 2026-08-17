@@ -905,7 +905,7 @@ def test_model_forecast_denominator_refresh_covers_hidden_captures(
     monkeypatch.setattr("w2.prematch.repository.DynamicPrematchRepository", Repository)
     monkeypatch.setattr(
         "apps.worker.celery_app._materialize_shadow_projection_events",
-        lambda events: [event.fixture_id for event in events],
+        lambda events, **_kwargs: [event.fixture_id for event in events],
     )
 
     result = _refresh_model_forecast_denominator_cards(

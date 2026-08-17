@@ -32,6 +32,7 @@ from w2.prematch.read_model_projection import (
     _dynamic_evaluations,
     _post_lineup_odds_plan,
     canonical_sha256,
+    materialize_projection_events,
     read_frozen_analysis_artifact,
     read_shadow_analysis_artifact,
     validate_frozen_analysis_payload,
@@ -149,6 +150,34 @@ def test_model_forecast_denominator_emits_both_markets_without_candidates() -> N
         version.gate_results and version.gate_results["evaluated"] is False
         for version in versions
     )
+
+
+def test_model_forecast_denominator_write_does_not_rewrite_frozen_card(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_projection(monkeypatch)
+    engine = _engine(dynamic=True)
+    event = ProjectionSourceEvent.create(
+        fixture_id="1576804",
+        event_type="MODEL_FORECAST_CAPTURE_SCOPE",
+        event_id="denominator:1576804",
+        event_at=datetime(2026, 7, 18, 5, 0, tzinfo=UTC),
+        payload={"scope": "fixture_x_market"},
+    )
+
+    materialize_projection_events(
+        [event],
+        repository=ScopedRepository(),
+        calculate_analysis_card=_calculate_projection,
+        engine=engine,
+        evaluations_only=True,
+    )
+
+    with Session(engine) as session:
+        assert session.query(ReadModelCheckpointModel).count() == 0
+        rows = session.query(DynamicPrematchEvaluationModel).all()
+        assert {row.market for row in rows} == {"ASIAN_HANDICAP", "TOTALS"}
+        assert all(row.denominator_scope == MODEL_FORECAST_DENOMINATOR_SCOPE for row in rows)
 
 
 def _patch_projection(monkeypatch: pytest.MonkeyPatch) -> None:

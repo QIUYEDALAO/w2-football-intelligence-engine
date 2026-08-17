@@ -37,6 +37,8 @@ celery_app.conf.update(task_always_eager=False, task_ignore_result=False)
 
 def _materialize_shadow_projection_events(
     events: list[ProjectionSourceEvent],
+    *,
+    evaluations_only: bool = False,
 ) -> list[str]:
     """Composition-root adapter for write-side projection calculation."""
     from w2.dashboard.scorelines import scoreline_reference_from_card
@@ -79,6 +81,7 @@ def _materialize_shadow_projection_events(
         repository=cast(ScopedAnalysisRepository, repository),
         calculate_analysis_card=calculate,
         build_scoreline_reference=build_scoreline_reference,
+        evaluations_only=evaluations_only,
     )
 
 
@@ -180,7 +183,7 @@ def _refresh_model_forecast_denominator_cards(
         )
         for fixture_id in targets
     ]
-    materialized = _materialize_shadow_projection_events(events)
+    materialized = _materialize_shadow_projection_events(events, evaluations_only=True)
     covered = repository.denominator_covered_fixture_ids()
     fallback_writes = 0
     for fixture_id, capture_hash, model_input_hash, captured_at in seeds:

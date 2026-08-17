@@ -1473,6 +1473,7 @@ def materialize_projection_events(
     build_scoreline_reference: ScorelineReferenceBuilder | None = None,
     engine: Engine | None = None,
     expected_existing_source_hashes: Mapping[str, str] | None = None,
+    evaluations_only: bool = False,
 ) -> list[str]:
     ordered = sorted(
         {(event.fixture_id, event.event_type, event.event_id): event for event in events}.values(),
@@ -1500,6 +1501,16 @@ def materialize_projection_events(
             evaluated_at=event.event_at,
             source_event=event,
         )
+        if evaluations_only:
+            if event.event_type != "MODEL_FORECAST_CAPTURE_SCOPE":
+                raise FrozenAnalysisError("evaluation-only projection scope invalid")
+            dynamic_repository = DynamicPrematchRepository(engine)
+            for evaluation in artifact.evaluations:
+                dynamic_repository.append_evaluation(
+                    evaluation,
+                    supersession_reason="MODEL_FORECAST_DENOMINATOR_ENTRY",
+                )
+            continue
         write_frozen_analysis_artifacts(
             engine,
             [artifact],
