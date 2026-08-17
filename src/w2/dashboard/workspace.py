@@ -1271,27 +1271,44 @@ def _global_focus(
         return None
     freshness = _mapping(day_view.get("freshness"))
     cause = _optional_text(selected_day_semantics.get("cause"))
-    competition_count = len(
-        {match.get("competition_id") for match in matches if match.get("competition_id")}
-    )
     next_evaluations = sorted(
         value
         for match in matches
         if (value := _mapping(match.get("readiness")).get("next_eval_at"))
         and _is_future_timestamp(value, day_view.get("generated_at"))
     )
+    affected_matches = [
+        match
+        for match in matches
+        if _text(_mapping(match.get("readiness")).get("market_evidence_status"))
+        == "NOT_READY"
+    ]
     common = {
-        "affected_fixture_count": len(matches) if cause else 0,
-        "affected_competition_count": competition_count if cause else 0,
+        "affected_fixture_count": len(affected_matches) if cause else 0,
+        "affected_competition_count": len(
+            {
+                match.get("competition_id")
+                for match in affected_matches
+                if match.get("competition_id")
+            }
+        )
+        if cause
+        else 0,
         "source_as_of": freshness.get("page_updated_at") or day_view.get("generated_at"),
         "next_eval_at": next_evaluations[0] if next_evaluations else None,
         "recovery_condition": None,
         "public_semantics": dict(selected_day_semantics),
     }
     if cause:
+        ready_count = len(matches) - len(affected_matches)
         return {
             "reason_code": cause,
-            "factual_summary": "所选比赛日暂无可用于比赛级分析的持久化市场证据。",
+            "factual_summary": (
+                "所选比赛日暂无可用于比赛级分析的持久化市场证据。"
+                if ready_count == 0
+                else f"所选比赛日已有 {ready_count} 场市场证据；"
+                f"另有 {len(affected_matches)} 场尚未就绪。"
+            ),
             "recovery_condition": "等待既有调度形成新的持久化证据；本页不会调用 Provider。",
             **{key: value for key, value in common.items() if key != "recovery_condition"},
         }

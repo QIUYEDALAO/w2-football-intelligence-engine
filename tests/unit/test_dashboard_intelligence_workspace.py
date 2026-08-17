@@ -912,6 +912,15 @@ def test_focus_is_derived_only_from_public_semantics_and_facts() -> None:
     assert blocked_payload["today_summary"]["primary_reason_counts"] == {}
     assert blocked_payload["global_focus"]["affected_fixture_count"] == 3
 
+    mixed = deepcopy(blocked)
+    mixed["cards"][0]["market_radar"]["markets"]["ASIAN_HANDICAP"] = _market(1)
+    mixed["cards"][0]["market_radar"]["markets"]["TOTALS"] = _market(1)
+    mixed_payload = _workspace(mixed)
+    assert mixed_payload["global_focus"]["affected_fixture_count"] == 2
+    assert mixed_payload["global_focus"]["factual_summary"] == (
+        "所选比赛日已有 1 场市场证据；另有 2 场尚未就绪。"
+    )
+
 
 def test_schema_rejects_selected_fixture_outside_match_facts() -> None:
     payload = _workspace(_day_view())

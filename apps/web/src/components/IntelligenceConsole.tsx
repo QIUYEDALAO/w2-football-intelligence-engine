@@ -289,12 +289,14 @@ function TodaySummary({ workspace }: { workspace: IntelligenceWorkspace }) {
   const selectedCause = selectedDaySemantics(workspace).cause;
   const presentation = selectedDayPublicStatus(workspace);
   const counts = workspace.today_summary.primary_reason_counts;
-  const limitedCount = selectedCause ? workspace.global_focus?.affected_fixture_count || 0 : 0;
-  const calmCount = !selectedCause && !workspace.selected_fixture_id ? workspace.today_summary.match_count : 0;
   const readyCount = workspace.matches.filter((match) => match.readiness.market_aggregate_status === "READY").length;
   const partialCount = workspace.matches.filter((match) => match.readiness.market_aggregate_status === "PARTIAL").length;
   const candidateBlockedCount = workspace.matches.filter((match) => match.readiness.market_aggregate_status === "NOT_READY").length;
   const marketBlockedCount = workspace.matches.filter((match) => match.readiness.market_evidence_status === "NOT_READY").length;
+  const limitedCount = selectedCause && marketBlockedCount === workspace.today_summary.match_count
+    ? marketBlockedCount
+    : 0;
+  const calmCount = !selectedCause && !workspace.selected_fixture_id ? workspace.today_summary.match_count : 0;
   const candidateCount = workspace.matches.filter((match) => match.shadow_candidate.status === "ACTIVE").length;
   return (
     <section className="v41-today" aria-label={`${dayNoun}比赛摘要`}>
@@ -333,7 +335,10 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
   }, new Map<string, { key: string; label: string; count: number }>()).values());
   const activeCompetition = competitionFilter === "ALL" || competitions.some((item) => item.key === competitionFilter) ? competitionFilter : "ALL";
   const filteredMatches = activeCompetition === "ALL" ? matches : matches.filter((match) => (match.competition_id || match.competition_name || "UNKNOWN") === activeCompetition);
-  const limited = selectedCause !== null ? workspace.global_focus : null;
+  const marketBlockedCount = matches.filter((match) => match.readiness.market_evidence_status === "NOT_READY").length;
+  const limited = selectedCause !== null && marketBlockedCount === matches.length
+    ? workspace.global_focus
+    : null;
   const allPrioritized = matches.filter((match) => match.priority_reason_primary);
   const prioritized = limited ? [] : filteredMatches.filter((match) => match.priority_reason_primary);
   const otherAttention = limited ? [] : filteredMatches.filter((match) => !match.priority_reason_primary && match.priority_reason_secondary.length);
