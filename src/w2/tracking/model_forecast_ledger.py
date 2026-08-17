@@ -128,6 +128,9 @@ class ModelForecastLedgerRepository:
                 captures.append(capture)
                 if write_db:
                     session.add(_capture_model(capture, inserted_at=now))
+                    # The version row has a restrictive FK but no ORM relationship;
+                    # flush the immutable parent before inserting its sidecar.
+                    session.flush()
                     session.add(
                         ModelForecastCaptureDataVersionModel(
                             capture_identity_hash=str(capture["capture_identity_hash"]),
