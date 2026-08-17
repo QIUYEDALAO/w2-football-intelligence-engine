@@ -135,7 +135,7 @@ def test_controlled_override_selects_one_collection_task_and_discovery_mode() ->
     assert scheduler["W2_FIXTURE_DISCOVERY_MAX_OFFSET_DAYS"] == "1"
     assert scheduler["W2_FUTURE_FIXTURE_REFRESH_ENABLED"] == "true"
     assert scheduler["W2_POSTMATCH_ONLY_ENABLED"] == (
-        "${W2_POSTMATCH_ONLY_ENABLED:-true}"
+        "${W2_POSTMATCH_ONLY_ENABLED:-false}"
     )
     assert worker["W2_PROVIDER_ENDPOINT_ALLOWLIST"] == (
         "${W2_PROVIDER_ENDPOINT_ALLOWLIST:-status,fixtures,odds,lineups,statistics}"

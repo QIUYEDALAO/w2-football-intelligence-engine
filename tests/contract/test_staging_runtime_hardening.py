@@ -197,7 +197,7 @@ def test_controlled_future_refresh_is_source_controlled_and_deployed_with_schedu
         assert environment["W2_PRODUCTION_RELEASE"] == "false"
     assert scheduler["W2_FUTURE_FIXTURE_REFRESH_ENABLED"] == "true"
     assert scheduler["W2_POSTMATCH_ONLY_ENABLED"] == (
-        "${W2_POSTMATCH_ONLY_ENABLED:-true}"
+        "${W2_POSTMATCH_ONLY_ENABLED:-false}"
     )
     assert scheduler["W2_FIXTURE_DISCOVERY_ENABLED"] == (
         "${W2_FIXTURE_DISCOVERY_ENABLED:-false}"

@@ -65,7 +65,7 @@ def _checkpoint_priority() -> Any:
             & unsettled_capture,
             0,
         ),
-        (MatchdayCheckpointPlanModel.checkpoint == "POSTMATCH_RESULT", 1),
+        (MatchdayCheckpointPlanModel.checkpoint != "POSTMATCH_RESULT", 1),
         else_=2,
     )
 

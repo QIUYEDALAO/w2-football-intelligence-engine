@@ -271,7 +271,7 @@ def test_checkpoint_state_machine_due_claim_capture_and_single_winner() -> None:
         assert row.claim_token is None
 
 
-def test_postmatch_result_is_claimed_before_prematch_collection() -> None:
+def test_prematch_collection_is_claimed_before_ordinary_postmatch_result() -> None:
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     repository = MatchdayRuntimeRepository(engine=engine)
@@ -306,8 +306,8 @@ def test_postmatch_result_is_claimed_before_prematch_collection() -> None:
     claimed = repository.claim_due_checkpoint_plans(now=NOW, worker_id="priority-test")
 
     assert [row["checkpoint"] for row in claimed] == [
-        "POSTMATCH_RESULT",
         "T60_ODDS_LINEUPS",
+        "POSTMATCH_RESULT",
     ]
 
 
