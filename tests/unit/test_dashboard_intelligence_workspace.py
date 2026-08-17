@@ -1693,6 +1693,47 @@ def test_market_eligibility_preserves_ah_ou_partial_truth_without_cross_contamin
     )
 
 
+def test_completed_no_edge_evaluations_take_precedence_over_calibration_gap() -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]
+    checkpoints = [
+        ("T3_ODDS", "2026-08-10T07:04:31Z"),
+        ("T60_ODDS_LINEUPS", "2026-08-10T09:02:28Z"),
+        ("T45_ODDS", "2026-08-10T09:17:02Z"),
+        ("T-30m_VALIDATION_LOCK", "2026-08-10T09:31:31Z"),
+        ("T15_ODDS", "2026-08-10T09:46:10Z"),
+    ]
+    card["dynamic_prematch"] = {
+        "versions": [
+            {
+                "checkpoint": checkpoint,
+                "evaluated_at": evaluated_at,
+                "market": market,
+                "state": "SUPERSEDED" if checkpoint != "T15_ODDS" else "NO_EDGE_CURRENT",
+                "original_state": "NO_EDGE_CURRENT",
+            }
+            for checkpoint, evaluated_at in checkpoints
+            for market in ("ASIAN_HANDICAP", "TOTALS")
+        ]
+    }
+
+    match = _workspace(day_view)["matches"][0]
+
+    assert match["evaluation_execution"] == {
+        "status": "NO_EDGE",
+        "checkpoint_count": 5,
+        "market_evaluation_count": 10,
+        "checkpoints": ["T-3h", "T-60m", "T-45m", "T-30m", "T-15m"],
+        "markets": ["ASIAN_HANDICAP", "TOTALS"],
+        "summary_zh": (
+            "已评估 5 次（T-3h / T-60m / T-45m / T-30m / T-15m），"
+            "两个市场均为 NO_EDGE —— 模型与市场看法一致，无可利用价差。"
+            "模型—市场对比图需已验证校准，暂不绘制。"
+        ),
+    }
+    assert match["factual_summary"] == match["evaluation_execution"]["summary_zh"]
+
+
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     (

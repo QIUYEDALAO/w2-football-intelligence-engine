@@ -330,6 +330,7 @@ class DynamicPrematchRepository:
         versions: list[dict[str, Any]] = []
         for row in rows:
             payload = dict(row.payload)
+            payload["original_state"] = row.original_state
             supersession = supersessions.get(row.evaluation_id)
             if supersession is not None:
                 payload["state"] = DynamicEvaluationState.SUPERSEDED.value

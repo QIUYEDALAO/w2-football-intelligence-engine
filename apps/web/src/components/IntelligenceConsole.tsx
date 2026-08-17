@@ -36,7 +36,7 @@ const SELECTION_LABELS: Record<string, string> = {
 const RISK_LABELS: Record<RiskAxisName, string> = {
   EVENT_RISK: "事件风险",
   DATA_RISK: "数据风险",
-  MODEL_RISK: "模型风险",
+  MODEL_RISK: "可比较模型校准",
   COLLECTION_RISK: "采集风险",
 };
 
@@ -436,7 +436,9 @@ function RiskSummary({ generatedAt, match }: { generatedAt: string | null; match
     <div className="v41-risk-list" aria-label="四轴风险">
       {(Object.keys(RISK_LABELS) as RiskAxisName[]).map((axis) => {
         const risk = match.risks[axis];
-        return <div className={`is-${risk.status.toLowerCase()}`} data-risk-axis={axis} key={axis}><span>{RISK_LABELS[axis]}</span><strong>{risk.assessment_status === "UNASSESSED" ? "未评估" : label(risk.status)}</strong><small>{risk.explanation || "没有可陈述的源证据"}</small>{axis === "DATA_RISK" && match.factor_checklist.enhancement_quality.state === "DEGRADED" ? <small>解释质量降级：{match.factor_checklist.enhancement_quality.missing_factor_ids.join("、")}；不作为模型预测硬门。</small> : null}{axis === "DATA_RISK" && lineupWaiting ? <small>等待中：首发（{match.lineup_collection.target_checkpoint} 窗口）· 计划 {scheduledEvaluation(match.lineup_collection.scheduled_at, generatedAt)}</small> : null}{risk.reason_codes.length ? <details className="v41-risk-codes"><summary>技术原因 {risk.reason_codes.length} 项</summary>{risk.reason_codes.map((reason) => <code key={`${axis}-${reason}`}>{reason}</code>)}</details> : null}</div>;
+        const unassessed = risk.assessment_status === "UNASSESSED";
+        const status = axis === "MODEL_RISK" && unassessed ? "尚无已验证校准" : unassessed ? "未评估" : label(risk.status);
+        return <div className={`is-${risk.status.toLowerCase()}`} data-risk-axis={axis} key={axis}><span>{RISK_LABELS[axis]}</span><strong>{status}</strong><small>{risk.explanation || "没有可陈述的源证据"}</small>{axis === "DATA_RISK" && match.factor_checklist.enhancement_quality.state === "DEGRADED" ? <small>解释质量降级：{match.factor_checklist.enhancement_quality.missing_factor_ids.join("、")}；不作为模型预测硬门。</small> : null}{axis === "DATA_RISK" && lineupWaiting ? <small>等待中：首发（{match.lineup_collection.target_checkpoint} 窗口）· 计划 {scheduledEvaluation(match.lineup_collection.scheduled_at, generatedAt)}</small> : null}{risk.reason_codes.length ? <details className="v41-risk-codes"><summary>技术原因 {risk.reason_codes.length} 项</summary>{risk.reason_codes.map((reason) => <code key={`${axis}-${reason}`}>{reason}</code>)}</details> : null}</div>;
       })}
     </div>
   );
@@ -570,7 +572,8 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
             <div><strong>{candidate.market ? MARKET_LABELS[candidate.market] : "市场待确认"} · {SELECTION_LABELS[candidate.selection || ""] || candidate.selection}</strong><span>盘口 {candidate.exact_line} · 赔率 {price(candidate.decimal_odds)}</span><small>已按 V4 身份进入统一前向账本；赛后自动结算并累计验证。</small></div>
             <footer>Formal、Lock、Production 与实盘保持关闭；达到既有证据门槛后另行提交 Owner 审批。</footer>
           </section> : null}
-          <div className="v41-diagnostic"><span /><p><b>可比较模型（需已验证校准）：{label(model.status)}</b>{`让球：${label(marketRelations[0]?.status)}；大小球：${label(marketRelations[1]?.status)}。市场值年龄已在左侧逐市场标注；${marketRelations.some((relation) => ["COMPARABLE_WITHIN_MARKET_RANGE", "MODEL_OUTSIDE_MARKET_RANGE"].includes(relation?.status || "")) ? "已就绪市场的模型—市场差异仅用于诊断。" : "当前不进行模型—市场比较。"}优先检查模型校准、特征时效、盘口身份和数据质量。`}</p></div>
+          <div className="v41-diagnostic" data-evaluation-status={match.evaluation_execution.status}><span /><p><b>评估执行结果：{match.evaluation_execution.status === "UNASSESSED" ? "尚未评估" : match.evaluation_execution.status}</b>{match.evaluation_execution.summary_zh}</p></div>
+          <div className="v41-diagnostic"><span /><p><b>可比较模型（需已验证校准）：{label(model.status)}</b>{`让球：${label(marketRelations[0]?.status)}；大小球：${label(marketRelations[1]?.status)}。该状态只决定能否绘制模型—市场对比图；${marketRelations.some((relation) => ["COMPARABLE_WITHIN_MARKET_RANGE", "MODEL_OUTSIDE_MARKET_RANGE"].includes(relation?.status || "")) ? "已就绪市场可绘制诊断图。" : "当前暂不绘制。"}优先检查模型校准、特征时效、盘口身份和数据质量。`}</p></div>
           <RiskSummary generatedAt={generatedAt} match={match} />
           <Scoreline match={match} />
           <div className="v41-next"><span>市场 / 候选就绪</span><strong>{candidateAggregateLabel(match.readiness.market_aggregate_status)}</strong><span>采集状态</span><strong>{collectionLabel(match)}</strong><span>计划时刻</span><strong>{match.market_collection.scheduled_at ? scheduledEvaluation(match.market_collection.scheduled_at, generatedAt) : "暂无后续计划"}</strong><span>宽限结束</span><strong>{match.market_collection.window_end_at ? localDateTime(match.market_collection.window_end_at) : "不适用"}</strong><span>下次评估</span><strong>{nextEvaluation(match.readiness.next_eval_at, generatedAt)}</strong></div>

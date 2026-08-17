@@ -883,6 +883,17 @@ class WorkspaceFixtureFactorChecklist(BaseModel):
     factors: list[WorkspaceFixtureFactor]
 
 
+class WorkspaceEvaluationExecution(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["UNASSESSED", "NO_EDGE", "CANDIDATE"]
+    checkpoint_count: int = Field(ge=0)
+    market_evaluation_count: int = Field(ge=0)
+    checkpoints: list[str]
+    markets: list[str]
+    summary_zh: str = Field(min_length=1)
+
+
 class WorkspaceMatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -908,6 +919,7 @@ class WorkspaceMatch(BaseModel):
     readiness: WorkspaceReadiness
     market_fact: WorkspaceMarketFact
     w2_analysis: WorkspaceW2Analysis
+    evaluation_execution: WorkspaceEvaluationExecution
     shadow_candidate: WorkspaceShadowCandidate
     factor_checklist: WorkspaceFixtureFactorChecklist
     formal_recommendation: WorkspaceFormalRecommendation

@@ -323,6 +323,66 @@ def _model_forecast_data_version_progress(raw: Mapping[str, Any]) -> dict[str, A
     }
 
 
+_EVALUATION_CHECKPOINT_LABELS = {
+    "T3_ODDS": "T-3h",
+    "T-3h": "T-3h",
+    "T60_ODDS_LINEUPS": "T-60m",
+    "T45_ODDS": "T-45m",
+    "T-30m_VALIDATION_LOCK": "T-30m",
+    "T15_ODDS": "T-15m",
+}
+
+
+def _evaluation_execution(card: Mapping[str, Any]) -> dict[str, Any]:
+    evaluated = []
+    for version in _mapping_list(_mapping(card.get("dynamic_prematch")).get("versions")):
+        state = _text(version.get("original_state"), _text(version.get("state")))
+        if state in {"NO_EDGE_CURRENT", "ANALYSIS_PICK_ACTIVE"}:
+            evaluated.append((version, state))
+    checkpoints: dict[str, set[str]] = {}
+    ordered = sorted(evaluated, key=lambda item: _text(item[0].get("evaluated_at")))
+    for version, _ in ordered:
+        checkpoint = _text(version.get("checkpoint"), "UNKNOWN_CHECKPOINT")
+        label = _EVALUATION_CHECKPOINT_LABELS.get(checkpoint, checkpoint)
+        checkpoints.setdefault(label, set()).add(_text(version.get("market")))
+    labels = list(checkpoints)
+    market_names = sorted({market for markets in checkpoints.values() for market in markets})
+    status = (
+        "CANDIDATE"
+        if any(state == "ANALYSIS_PICK_ACTIVE" for _, state in evaluated)
+        else "NO_EDGE"
+        if evaluated
+        else "UNASSESSED"
+    )
+    if status == "UNASSESSED":
+        summary = "尚无候选评估记录；当前仍处于等待采集或硬门判定阶段。"
+    else:
+        checkpoint_copy = " / ".join(labels)
+        market_copy = (
+            "两个市场均为 NO_EDGE —— 模型与市场看法一致，无可利用价差。"
+            if status == "NO_EDGE"
+            and all(
+                {"ASIAN_HANDICAP", "TOTALS"} <= markets
+                for markets in checkpoints.values()
+            )
+            else "已形成影子候选。"
+            if status == "CANDIDATE"
+            else "已完成市场评估。"
+        )
+        summary = (
+            f"已评估 {len(labels)} 次（{checkpoint_copy}），{market_copy}"
+            "模型—市场对比图需已验证校准，暂不绘制。"
+        )
+    return {
+        "status": status,
+        "checkpoint_count": len(labels),
+        "market_evaluation_count": len(evaluated),
+        "checkpoints": labels,
+        "markets": market_names,
+        "summary_zh": summary,
+    }
+
+
 def _match(
     card: Mapping[str, Any],
     *,
@@ -463,6 +523,7 @@ def _match(
             },
             "model_market_relation": relation,
         },
+        "evaluation_execution": _evaluation_execution(card),
         "shadow_candidate": shadow_candidate,
         "factor_checklist": factor_checklist,
         "formal_recommendation": {
@@ -1476,6 +1537,9 @@ def _global_model_quality(forward: Mapping[str, Any], generated_at: Any) -> dict
 
 
 def _match_factual_summary(match: Mapping[str, Any]) -> str:
+    execution = _mapping(match.get("evaluation_execution"))
+    if _text(execution.get("status")) != "UNASSESSED":
+        return _text(execution.get("summary_zh"))
     markets = list(_mapping(_mapping(match.get("market_radar")).get("markets")).values())
     statuses = {_text(_mapping(market).get("status")) for market in markets}
     depth = max(

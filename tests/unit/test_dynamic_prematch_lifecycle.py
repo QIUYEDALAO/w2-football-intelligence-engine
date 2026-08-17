@@ -487,6 +487,10 @@ def test_db_lifecycle_is_append_only_and_t30_freezes_once() -> None:
     assert repository.append_evaluation(second)[1]
     lifecycle = repository.lifecycle("fixture-1")
     assert [row["state"] for row in lifecycle["versions"]] == ["SUPERSEDED", "NO_EDGE_CURRENT"]
+    assert [row["original_state"] for row in lifecycle["versions"]] == [
+        "ANALYSIS_PICK_ACTIVE",
+        "NO_EDGE_CURRENT",
+    ]
 
     kickoff = NOW + timedelta(hours=2)
     lock = select_t30_validation_snapshot(

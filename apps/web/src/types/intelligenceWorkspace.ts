@@ -300,6 +300,14 @@ export interface WorkspaceMatch {
     };
     model_market_relation: Record<string, WorkspaceModelRelation>;
   };
+  evaluation_execution: {
+    status: "UNASSESSED" | "NO_EDGE" | "CANDIDATE";
+    checkpoint_count: number;
+    market_evaluation_count: number;
+    checkpoints: string[];
+    markets: string[];
+    summary_zh: string;
+  };
   shadow_candidate: {
     status: "ACTIVE" | "NOT_READY" | "OFF";
     mode: "SHADOW_ONLY";
