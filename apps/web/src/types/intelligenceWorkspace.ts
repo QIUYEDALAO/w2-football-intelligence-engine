@@ -194,6 +194,8 @@ export interface FixtureFactorChecklist {
     lead_time_seconds?: number | null;
     lead_time_bucket?: "LT_6H" | "H6_TO_LT_24H" | "D1_TO_D3" | "GT_3D" | null;
     capture_policy?: "FIRST_ELIGIBLE_FREEZE_IMMUTABLE" | null;
+    data_version?: string | null;
+    team_xg_match_count?: number | null;
     model_family?: string | null;
     model_version?: string | null;
     calibration_version?: string | null;
@@ -443,6 +445,17 @@ export interface WorkspaceValidation {
       capture_count: number;
       settled_count: number;
       pending_count: number;
+    }>;
+    data_versions: Record<string, {
+      team_xg_match_count: number | null;
+      capture_count: number;
+      settled_count: number;
+      pending_count: number;
+      lead_time_buckets: Record<"LT_6H" | "H6_TO_LT_24H" | "D1_TO_D3" | "GT_3D", {
+        capture_count: number;
+        settled_count: number;
+        pending_count: number;
+      }>;
     }>;
     public_semantics: PublicStatusSemantics;
   };

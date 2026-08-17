@@ -47,6 +47,7 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayMarketObservationModel,
 )
 from w2.infrastructure.persistence.model_forecast_models import (
+    ModelForecastCaptureDataVersionModel,
     ModelForecastCaptureModel,
     ModelForecastOutcomeModel,
 )
@@ -109,6 +110,7 @@ __all__ = [
     "MatchdayMarketObservationModel",
     "ModelRunModel",
     "ModelForecastCaptureModel",
+    "ModelForecastCaptureDataVersionModel",
     "ModelForecastOutcomeModel",
     "OutcomeLedgerModel",
     "PlayerClubMembershipObservationModel",

@@ -816,6 +816,8 @@ class WorkspaceModelForecastLedgerFact(BaseModel):
     lead_time_seconds: int | None = Field(default=None, ge=0)
     lead_time_bucket: Literal["LT_6H", "H6_TO_LT_24H", "D1_TO_D3", "GT_3D"] | None = None
     capture_policy: Literal["FIRST_ELIGIBLE_FREEZE_IMMUTABLE"] | None = None
+    data_version: str | None = None
+    team_xg_match_count: int | None = Field(default=None, ge=0)
     model_family: str | None = None
     model_version: str | None = None
     calibration_version: str | None = None
@@ -834,6 +836,7 @@ class WorkspaceModelForecastLedgerFact(BaseModel):
             self.lead_time_seconds,
             self.lead_time_bucket,
             self.capture_policy,
+            self.data_version,
             self.model_family,
             self.model_version,
         )
@@ -1238,6 +1241,14 @@ class WorkspaceModelForecastBucketProgress(BaseModel):
     pending_count: int = Field(ge=0)
 
 
+class WorkspaceModelForecastDataVersionProgress(WorkspaceModelForecastBucketProgress):
+    team_xg_match_count: int | None = Field(default=None, ge=0)
+    lead_time_buckets: dict[
+        Literal["LT_6H", "H6_TO_LT_24H", "D1_TO_D3", "GT_3D"],
+        WorkspaceModelForecastBucketProgress,
+    ]
+
+
 class WorkspaceModelForecastProgress(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1252,6 +1263,9 @@ class WorkspaceModelForecastProgress(BaseModel):
         Literal["LT_6H", "H6_TO_LT_24H", "D1_TO_D3", "GT_3D"],
         WorkspaceModelForecastBucketProgress,
     ]
+    data_versions: dict[str, WorkspaceModelForecastDataVersionProgress] = Field(
+        default_factory=dict
+    )
     public_semantics: WorkspacePublicSemantics
 
 

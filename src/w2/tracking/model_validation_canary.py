@@ -29,6 +29,7 @@ def free_mode_model_validation_canary(
     tables = set(inspect(resolved_engine).get_table_names())
     required = {
         "model_forecast_capture",
+        "model_forecast_capture_data_version",
         "model_forecast_outcome",
         "raw_statistics_retention",
     }
@@ -65,7 +66,7 @@ def free_mode_model_validation_canary(
     retention = XgRetentionHardeningService(resolved_engine, now=now).audit()
     ledger_repository = ModelForecastLedgerRepository(resolved_engine)
     ledger_integrity = ledger_repository.integrity()
-    probability_metrics_by_lead_time = ledger_repository.metric_summary_by_lead_time()
+    probability_metrics = ledger_repository.metric_summary_by_data_version_and_lead_time()
     metrics = {
         "MODEL_ELIGIBLE_COUNT": capture_count,
         "MODEL_FORECAST_CAPTURE_COUNT": capture_count,
@@ -101,7 +102,7 @@ def free_mode_model_validation_canary(
         "metrics": metrics,
         "xg_retention_hardening": retention,
         "model_forecast_ledger_integrity": ledger_integrity,
-        "probability_metrics_by_lead_time": probability_metrics_by_lead_time,
+        "probability_metrics_by_data_version_and_lead_time": probability_metrics,
         "blockers": sorted(set(blockers)),
         "formal": "OFF",
         "lock": "OFF",

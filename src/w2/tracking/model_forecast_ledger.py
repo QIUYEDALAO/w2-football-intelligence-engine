@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import inspect, select
+from sqlalchemy import func, inspect, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
@@ -19,6 +19,7 @@ from w2.infrastructure.persistence.future_refresh_models import (
     TeamXgRollingSnapshotModel,
 )
 from w2.infrastructure.persistence.model_forecast_models import (
+    ModelForecastCaptureDataVersionModel,
     ModelForecastCaptureModel,
     ModelForecastOutcomeModel,
     model_forecast_fixture_aliases,
@@ -84,6 +85,10 @@ class ModelForecastLedgerRepository:
         already_captured = 0
         captures: list[dict[str, Any]] = []
         with Session(self.engine) as session:
+            team_xg_match_count = int(
+                session.scalar(select(func.count()).select_from(TeamXgMatchModel)) or 0
+            )
+            data_version = f"TEAM_XG_MATCH_ROWS_{team_xg_match_count}"
             for card in cards:
                 kickoff = _parse_time(card.get("kickoff_utc"))
                 fixture_id = str(card.get("fixture_id") or "")
@@ -123,6 +128,15 @@ class ModelForecastLedgerRepository:
                 captures.append(capture)
                 if write_db:
                     session.add(_capture_model(capture, inserted_at=now))
+                    session.add(
+                        ModelForecastCaptureDataVersionModel(
+                            capture_identity_hash=str(capture["capture_identity_hash"]),
+                            data_version=data_version,
+                            team_xg_match_count=team_xg_match_count,
+                            evidence_source="RECORDED_AT_CAPTURE",
+                            recorded_at=now,
+                        )
+                    )
                     written += 1
             session.commit() if write_db else session.rollback()
         return {
@@ -137,6 +151,8 @@ class ModelForecastLedgerRepository:
             "model_forecast_capture_count": len(captures),
             "already_captured_count": already_captured,
             "no_four_field_xg_count": no_four_field_xg_count,
+            "data_version": data_version,
+            "team_xg_match_count": team_xg_match_count,
             "shadow_candidate_count": _shadow_candidate_count(cards),
             "captures": captures if dry_run else [],
         }
@@ -166,7 +182,11 @@ class ModelForecastLedgerRepository:
 
     def schema_ready(self) -> bool:
         tables = set(inspect(self.engine).get_table_names())
-        return {"model_forecast_capture", "model_forecast_outcome"} <= tables
+        return {
+            "model_forecast_capture",
+            "model_forecast_capture_data_version",
+            "model_forecast_outcome",
+        } <= tables
 
     def settle(
         self,
@@ -244,33 +264,80 @@ class ModelForecastLedgerRepository:
             "probability_metrics_sample_count": outcomes,
         }
 
-    def metric_summary_by_lead_time(self) -> dict[str, dict[str, float | int | None]]:
+    def metric_summary_by_data_version_and_lead_time(self) -> dict[str, Any]:
         with Session(self.engine) as session:
+            captures = list(session.scalars(select(ModelForecastCaptureModel)))
+            versions = list(session.scalars(select(ModelForecastCaptureDataVersionModel)))
             outcomes = list(session.scalars(select(ModelForecastOutcomeModel)))
-        rows: dict[str, list[ModelForecastOutcomeModel]] = {
-            bucket: [] for bucket in LEAD_TIME_BUCKETS
-        }
+        version_by_capture = {row.capture_identity_hash: row for row in versions}
+        rows: dict[str, dict[str, list[ModelForecastOutcomeModel]]] = {}
+        counts: dict[str, int | None] = {}
+        for capture in captures:
+            version = version_by_capture.get(capture.capture_identity_hash)
+            name = version.data_version if version is not None else "LEGACY_UNVERSIONED"
+            rows.setdefault(name, {bucket: [] for bucket in LEAD_TIME_BUCKETS})
+            counts[name] = version.team_xg_match_count if version is not None else None
         for outcome in outcomes:
-            if outcome.lead_time_bucket in rows:
-                rows[outcome.lead_time_bucket].append(outcome)
+            version = version_by_capture.get(outcome.capture_identity_hash)
+            name = version.data_version if version is not None else "LEGACY_UNVERSIONED"
+            rows.setdefault(name, {bucket: [] for bucket in LEAD_TIME_BUCKETS})
+            counts[name] = version.team_xg_match_count if version is not None else None
+            if outcome.lead_time_bucket in rows[name]:
+                rows[name][outcome.lead_time_bucket].append(outcome)
         return {
-            bucket: {
-                "sample_count": len(bucket_rows),
-                "mean_brier": _mean(row.brier for row in bucket_rows),
-                "mean_log_loss": _mean(row.log_loss for row in bucket_rows),
-                "mean_rps": _mean(row.rps for row in bucket_rows),
+            name: {
+                "team_xg_match_count": counts[name],
+                "lead_time_buckets": {
+                    bucket: {
+                        "sample_count": len(bucket_rows),
+                        "mean_brier": _mean(row.brier for row in bucket_rows),
+                        "mean_log_loss": _mean(row.log_loss for row in bucket_rows),
+                        "mean_rps": _mean(row.rps for row in bucket_rows),
+                    }
+                    for bucket, bucket_rows in version_rows.items()
+                },
             }
-            for bucket, bucket_rows in rows.items()
+            for name, version_rows in sorted(rows.items())
         }
 
     def integrity(self) -> dict[str, Any]:
         invalid_captures: list[str] = []
         invalid_outcomes: list[str] = []
+        rederivability: list[dict[str, Any]] = []
         with Session(self.engine) as session:
             captures = list(session.scalars(select(ModelForecastCaptureModel)))
+            versions = list(session.scalars(select(ModelForecastCaptureDataVersionModel)))
             outcomes = list(session.scalars(select(ModelForecastOutcomeModel)))
             results = list(session.scalars(select(ResultModel)))
+            for capture_row in captures:
+                frozen_xg = _mapping(_mapping(capture_row.payload).get("four_field_xg_identity"))
+                current_xg = self._four_field_xg_identity(
+                    session,
+                    card={
+                        "frozen_artifact_provenance": {
+                            "fixture_identity": dict(_mapping(frozen_xg.get("fixture_identity")))
+                        }
+                    },
+                    fixture_id=capture_row.fixture_id,
+                    kickoff=capture_row.kickoff_utc,
+                    home_team_id_override=str(
+                        _mapping(frozen_xg.get("home")).get("team_id") or ""
+                    ),
+                    away_team_id_override=str(
+                        _mapping(frozen_xg.get("away")).get("team_id") or ""
+                    ),
+                )
+                rederivability.append(
+                    {
+                        "capture_identity_hash": capture_row.capture_identity_hash,
+                        "fixture_id": capture_row.fixture_id,
+                        "REDERIVABLE_FROM_CURRENT_DB": current_xg is not None
+                        and current_xg.get("identity_hash")
+                        == capture_row.four_field_xg_identity_hash,
+                    }
+                )
         captures_by_hash = {row.capture_identity_hash: row for row in captures}
+        version_by_capture = {row.capture_identity_hash: row for row in versions}
         results_by_hash = {row.result_hash: row for row in results}
         for capture_row in captures:
             payload = dict(capture_row.payload)
@@ -338,6 +405,22 @@ class ModelForecastLedgerRepository:
             "invalid_outcome_count": len(invalid_outcomes),
             "invalid_capture_hashes": sorted(invalid_captures),
             "invalid_outcome_hashes": sorted(invalid_outcomes),
+            "missing_data_version_count": sum(
+                row.capture_identity_hash not in version_by_capture for row in captures
+            ),
+            "data_version_counts": {
+                version: sum(row.data_version == version for row in versions)
+                for version in sorted({row.data_version for row in versions})
+            },
+            "rederivable_from_current_db_count": sum(
+                bool(row["REDERIVABLE_FROM_CURRENT_DB"]) for row in rederivability
+            ),
+            "non_rederivable_from_current_db_count": sum(
+                not bool(row["REDERIVABLE_FROM_CURRENT_DB"]) for row in rederivability
+            ),
+            "capture_rederivability": sorted(
+                rederivability, key=lambda row: (row["fixture_id"], row["capture_identity_hash"])
+            ),
         }
 
     def _four_field_xg_identity(
@@ -347,17 +430,21 @@ class ModelForecastLedgerRepository:
         card: Mapping[str, Any],
         fixture_id: str,
         kickoff: datetime,
+        home_team_id_override: str | None = None,
+        away_team_id_override: str | None = None,
     ) -> dict[str, Any] | None:
         fixture_identity = dict(
             _mapping(_mapping(card.get("frozen_artifact_provenance")).get("fixture_identity"))
         )
         home_team_id = str(
-            fixture_identity.get("home_provider_team_id")
+            home_team_id_override
+            or fixture_identity.get("home_provider_team_id")
             or fixture_identity.get("home_team_id")
             or ""
         )
         away_team_id = str(
-            fixture_identity.get("away_provider_team_id")
+            away_team_id_override
+            or fixture_identity.get("away_provider_team_id")
             or fixture_identity.get("away_team_id")
             or ""
         )

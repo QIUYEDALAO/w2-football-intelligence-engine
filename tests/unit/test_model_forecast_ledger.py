@@ -12,6 +12,7 @@ from w2.infrastructure.persistence.future_refresh_models import (
     TeamXgRollingSnapshotModel,
 )
 from w2.infrastructure.persistence.model_forecast_models import (
+    ModelForecastCaptureDataVersionModel,
     ModelForecastCaptureModel,
     ModelForecastOutcomeModel,
 )
@@ -54,6 +55,9 @@ def test_model_forecast_capture_and_outcome_do_not_require_candidate(tmp_path: P
     assert second["already_captured_count"] == 1
     with Session(repository.engine) as session:
         capture = session.query(ModelForecastCaptureModel).one()
+        version = session.query(ModelForecastCaptureDataVersionModel).one()
+        assert version.data_version == "TEAM_XG_MATCH_ROWS_6"
+        assert version.team_xg_match_count == 6
         assert capture.captured_at.replace(tzinfo=UTC) < KICKOFF
         assert capture.lead_time_seconds == 12 * 60 * 60
         assert capture.lead_time_bucket == "H6_TO_LT_24H"
@@ -103,38 +107,44 @@ def test_model_forecast_capture_and_outcome_do_not_require_candidate(tmp_path: P
             "actual_class": "HOME",
             "correct": True,
         }
-    assert repository.metric_summary_by_lead_time() == {
-        "LT_6H": {
-            "sample_count": 0,
-            "mean_brier": None,
-            "mean_log_loss": None,
-            "mean_rps": None,
-        },
-        "H6_TO_LT_24H": {
-            "sample_count": 1,
-            "mean_brier": 0.38,
-            "mean_log_loss": pytest.approx(0.6931471805599453),
-            "mean_rps": 0.17,
-        },
-        "D1_TO_D3": {
-            "sample_count": 0,
-            "mean_brier": None,
-            "mean_log_loss": None,
-            "mean_rps": None,
-        },
-        "GT_3D": {
-            "sample_count": 0,
-            "mean_brier": None,
-            "mean_log_loss": None,
-            "mean_rps": None,
+    assert repository.metric_summary_by_data_version_and_lead_time() == {
+        "TEAM_XG_MATCH_ROWS_6": {
+            "team_xg_match_count": 6,
+            "lead_time_buckets": {
+                "LT_6H": {
+                    "sample_count": 0,
+                    "mean_brier": None,
+                    "mean_log_loss": None,
+                    "mean_rps": None,
+                },
+                "H6_TO_LT_24H": {
+                    "sample_count": 1,
+                    "mean_brier": 0.38,
+                    "mean_log_loss": pytest.approx(0.6931471805599453),
+                    "mean_rps": 0.17,
+                },
+                "D1_TO_D3": {
+                    "sample_count": 0,
+                    "mean_brier": None,
+                    "mean_log_loss": None,
+                    "mean_rps": None,
+                },
+                "GT_3D": {
+                    "sample_count": 0,
+                    "mean_brier": None,
+                    "mean_log_loss": None,
+                    "mean_rps": None,
+                },
+            },
         },
     }
-    assert repository.integrity() == {
-        "invalid_capture_count": 0,
-        "invalid_outcome_count": 0,
-        "invalid_capture_hashes": [],
-        "invalid_outcome_hashes": [],
-    }
+    integrity = repository.integrity()
+    assert integrity["invalid_capture_count"] == 0
+    assert integrity["invalid_outcome_count"] == 0
+    assert integrity["missing_data_version_count"] == 0
+    assert integrity["data_version_counts"] == {"TEAM_XG_MATCH_ROWS_6": 1}
+    assert integrity["rederivable_from_current_db_count"] == 1
+    assert integrity["capture_rederivability"][0]["REDERIVABLE_FROM_CURRENT_DB"] is True
 
     with Session(repository.engine) as session:
         session.execute(
@@ -186,6 +196,48 @@ def test_without_four_field_xg_only_coverage_is_counted(tmp_path: Path) -> None:
     assert result["model_eligible_count"] == 0
     assert result["no_four_field_xg_count"] == 1
     assert result["model_forecast_capture_count"] == 0
+
+
+def test_current_db_drift_is_nonblocking_integrity_annotation(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    _seed_xg(repository)
+    run_model_forecast_capture(
+        _day_view(),
+        repository=repository,
+        captured_at=NOW,
+        dry_run=False,
+        write_db=True,
+    )
+    with Session(repository.engine) as session:
+        session.add(
+            TeamXgMatchModel(
+                id="new-history:10",
+                fixture_id="new-history",
+                team_id="10",
+                opponent_team_id="20",
+                kickoff_at=NOW - timedelta(days=1),
+                captured_at=NOW - timedelta(hours=12),
+                xg_for=2.0,
+                xg_against=0.5,
+                goals_for=2,
+                goals_against=0,
+                raw_payload_sha256="8" * 64,
+                source_system="api_football_statistics",
+                candidate=False,
+                formal_recommendation=False,
+            )
+        )
+        snapshot = session.get(TeamXgRollingSnapshotModel, "10:fixture-1")
+        assert snapshot is not None
+        snapshot.rolling_xg_for = 1.4667
+        snapshot.rolling_xg_against = 0.7
+        session.commit()
+
+    integrity = repository.integrity()
+
+    assert integrity["invalid_capture_count"] == 0
+    assert integrity["non_rederivable_from_current_db_count"] == 1
+    assert integrity["capture_rederivability"][0]["REDERIVABLE_FROM_CURRENT_DB"] is False
 
 
 def test_capture_uses_canonical_fixture_identity_when_public_provenance_is_absent(
@@ -241,6 +293,7 @@ def _repository(tmp_path: Path) -> ModelForecastLedgerRepository:
     TeamXgMatchModel.__table__.create(engine)
     TeamXgRollingSnapshotModel.__table__.create(engine)
     ModelForecastCaptureModel.__table__.create(engine)
+    ModelForecastCaptureDataVersionModel.__table__.create(engine)
     ModelForecastOutcomeModel.__table__.create(engine)
     ResultModel.__table__.create(engine)
     return ModelForecastLedgerRepository(engine)

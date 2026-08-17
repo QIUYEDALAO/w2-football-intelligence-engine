@@ -665,6 +665,7 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
           <ul className="v41-validation-counts"><li><span>Capture</span><strong>{modelForecast.capture_count}</strong></li><li><span>Settled</span><strong>{modelForecast.settled_count}</strong></li><li><span>Pending</span><strong>{modelForecast.pending_count}</strong></li></ul>
           <ul className="v41-validation-counts"><li><span>已有 ≥{modelForecast.min_xg_matches} 场历史的球队</span><strong>{modelForecast.xg_ready_team_count}</strong></li><li><span>未来 7 天双方均就绪</span><strong>{modelForecast.next_7d_xg_ready_fixture_count}</strong></li></ul>
           <ul className="v41-validation-counts v41-model-forecast-buckets">{([['LT_6H', '<6h'], ['H6_TO_LT_24H', '6–24h'], ['D1_TO_D3', '1–3d'], ['GT_3D', '>3d']] as const).map(([bucket, bucketLabel]) => <li key={bucket}><span>{bucketLabel}</span><strong>{modelForecast.lead_time_buckets[bucket].settled_count}/{modelForecast.lead_time_buckets[bucket].capture_count}</strong></li>)}</ul>
+          <ul className="v41-validation-counts">{Object.entries(modelForecast.data_versions).map(([version, rows]) => <li key={version}><span>{rows.team_xg_match_count === null ? version : `xG 数据版本 ${rows.team_xg_match_count.toLocaleString()} 行`}</span><strong>{rows.settled_count}/{rows.capture_count}</strong></li>)}</ul>
           <p className="v41-validation-context">作用域：不依赖报价的模型预测账本；分档数字为 Settled / Capture。</p>
         </section>
         <section>

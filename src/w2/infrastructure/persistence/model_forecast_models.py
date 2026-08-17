@@ -74,6 +74,20 @@ class ModelForecastCaptureModel(Base):
     inserted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class ModelForecastCaptureDataVersionModel(Base):
+    __tablename__ = "model_forecast_capture_data_version"
+
+    capture_identity_hash: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("model_forecast_capture.capture_identity_hash", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    data_version: Mapped[str] = mapped_column(String(128), nullable=False)
+    team_xg_match_count: Mapped[int | None] = mapped_column(BigInteger)
+    evidence_source: Mapped[str] = mapped_column(String(64), nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class ModelForecastOutcomeModel(Base):
     __tablename__ = "model_forecast_outcome"
     __table_args__ = (
@@ -104,6 +118,10 @@ def _prevent_mutation(_mapper: Any, _connection: Any, _target: Any) -> None:
     raise ValueError("model forecast ledgers are append-only")
 
 
-for _model in (ModelForecastCaptureModel, ModelForecastOutcomeModel):
+for _model in (
+    ModelForecastCaptureModel,
+    ModelForecastCaptureDataVersionModel,
+    ModelForecastOutcomeModel,
+):
     event.listen(_model, "before_update", _prevent_mutation)
     event.listen(_model, "before_delete", _prevent_mutation)

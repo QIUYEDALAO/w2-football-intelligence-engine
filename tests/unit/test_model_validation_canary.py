@@ -17,6 +17,7 @@ from w2.infrastructure.persistence.future_refresh_models import (
 )
 from w2.infrastructure.persistence.matchday_intake_models import MatchdayFixtureIdentityModel
 from w2.infrastructure.persistence.model_forecast_models import (
+    ModelForecastCaptureDataVersionModel,
     ModelForecastCaptureModel,
     ModelForecastOutcomeModel,
 )
@@ -70,7 +71,11 @@ def test_canary_passes_valid_independent_ledger_and_unlocks_packet(
         "RAW_STATISTICS_RESTORE_HASH_MATCH": True,
     }
     assert report["model_forecast_ledger_integrity"]["invalid_capture_count"] == 0
-    assert report["probability_metrics_by_lead_time"]["LT_6H"]["sample_count"] == 1
+    assert (
+        report["probability_metrics_by_data_version_and_lead_time"]
+        ["TEAM_XG_MATCH_ROWS_2"]["lead_time_buckets"]["LT_6H"]["sample_count"]
+        == 1
+    )
     packet = tmp_path / "PRO_REOPEN_OWNER_DECISION_PACKET.md"
     write_pro_reopen_owner_decision_packet(packet, report)
     assert "OWNER_DECISION_REQUIRED" in packet.read_text(encoding="utf-8")
@@ -95,6 +100,8 @@ def test_dashboard_reads_capture_and_outcome_as_ledger_facts(
         "lead_time_seconds": 3600,
         "lead_time_bucket": "LT_6H",
         "capture_policy": "FIRST_ELIGIBLE_FREEZE_IMMUTABLE",
+        "data_version": "TEAM_XG_MATCH_ROWS_2",
+        "team_xg_match_count": 2,
         "model_family": "EXACT_DC_POISSON",
         "model_version": "model-v1",
         "calibration_version": "cal-v1",
@@ -127,6 +134,32 @@ def test_dashboard_reads_capture_and_outcome_as_ledger_facts(
             "D1_TO_D3": {"capture_count": 0, "settled_count": 0, "pending_count": 0},
             "GT_3D": {"capture_count": 0, "settled_count": 0, "pending_count": 0},
         },
+        "data_versions": {
+            "TEAM_XG_MATCH_ROWS_2": {
+                "team_xg_match_count": 2,
+                "capture_count": 1,
+                "settled_count": 1,
+                "pending_count": 0,
+                "lead_time_buckets": {
+                    "LT_6H": {"capture_count": 1, "settled_count": 1, "pending_count": 0},
+                    "H6_TO_LT_24H": {
+                        "capture_count": 0,
+                        "settled_count": 0,
+                        "pending_count": 0,
+                    },
+                    "D1_TO_D3": {
+                        "capture_count": 0,
+                        "settled_count": 0,
+                        "pending_count": 0,
+                    },
+                    "GT_3D": {
+                        "capture_count": 0,
+                        "settled_count": 0,
+                        "pending_count": 0,
+                    },
+                },
+            }
+        },
     }
     captured_fact = WorkspaceModelForecastLedgerFact.model_validate(facts["fixture-1"])
     assert captured_fact.lead_time_seconds == 3600
@@ -143,6 +176,7 @@ def _engine(tmp_path: Path):  # type: ignore[no-untyped-def]
     TeamXgMatchModel.__table__.create(engine)
     MatchdayFixtureIdentityModel.__table__.create(engine)
     ModelForecastCaptureModel.__table__.create(engine)
+    ModelForecastCaptureDataVersionModel.__table__.create(engine)
     ModelForecastOutcomeModel.__table__.create(engine)
     ResultModel.__table__.create(engine)
     return engine
@@ -230,6 +264,15 @@ def _seed_valid_capture_and_outcome(engine) -> None:  # type: ignore[no-untyped-
                     capture_payload, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN
                 ),
                 inserted_at=NOW,
+            )
+        )
+        session.add(
+            ModelForecastCaptureDataVersionModel(
+                capture_identity_hash=capture_identity,
+                data_version="TEAM_XG_MATCH_ROWS_2",
+                team_xg_match_count=2,
+                evidence_source="RECORDED_AT_CAPTURE",
+                recorded_at=NOW,
             )
         )
         session.add(

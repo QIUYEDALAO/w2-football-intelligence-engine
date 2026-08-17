@@ -88,6 +88,66 @@ def test_0060_projects_canonical_fixture_id_without_rewriting_capture(tmp_path: 
     }
 
 
+def test_0061_versions_known_capture_batches_without_rewriting_payload(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'capture-data-version.db'}"
+    env = {
+        **os.environ,
+        "PYTHONPATH": f"{root / 'src'}:{root}",
+        "W2_DATABASE_URL": database_url,
+        "W2_ENVIRONMENT": "test",
+    }
+    assert (
+        _alembic(root, env, "upgrade", "0060_model_forecast_canonical_fixture_view").returncode
+        == 0
+    )
+    engine = create_engine(database_url)
+    insert_capture = text(
+        "insert into model_forecast_capture "
+        "(capture_identity_hash,fixture_id,competition_id,kickoff_utc,captured_at,"
+        "lead_time_seconds,lead_time_bucket,model_family,model_version,"
+        "model_input_manifest_hash,four_field_xg_identity_hash,score_matrix_hash,"
+        "payload,payload_sha256,inserted_at) values "
+        "(:hash,:fixture,'allsvenskan',:captured,:captured,3600,'LT_6H','family','v1',"
+        ":hash,:hash,:hash,:payload,:hash,:captured)"
+    )
+    with engine.begin() as connection:
+        for index in range(45):
+            captured = (
+                "2026-08-17 01:12:46.676312+00:00"
+                if index < 13
+                else "2026-08-17 05:56:53.022663+00:00"
+            )
+            connection.execute(
+                insert_capture,
+                {
+                    "hash": f"{index:064x}",
+                    "fixture": str(1_000_000 + index),
+                    "captured": captured,
+                    "payload": f'{{"batch":{index}}}',
+                },
+            )
+
+    assert _alembic(root, env, "upgrade", "head").returncode == 0
+    with engine.connect() as connection:
+        versions = connection.execute(
+            text(
+                "select data_version,team_xg_match_count,count(*) "
+                "from model_forecast_capture_data_version "
+                "group by data_version,team_xg_match_count order by team_xg_match_count"
+            )
+        ).all()
+        payload = connection.execute(
+            text("select payload from model_forecast_capture order by fixture_id limit 1")
+        ).scalar_one()
+
+    assert versions == [
+        ("TEAM_XG_MATCH_ROWS_1868", 1868, 13),
+        ("TEAM_XG_MATCH_ROWS_18686", 18686, 32),
+    ]
+    assert payload == '{"batch":0}'
+
+
 def test_0052_drops_and_restores_empty_retired_checkpoint_plan(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[2]
     database_url = f"sqlite+pysqlite:///{tmp_path / 'retired-checkpoint-plan.db'}"

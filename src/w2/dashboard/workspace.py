@@ -233,6 +233,7 @@ def build_dashboard_intelligence_workspace(
 
 def _model_forecast_progress(raw: Mapping[str, Any]) -> dict[str, Any]:
     buckets = _mapping(raw.get("lead_time_buckets"))
+    data_versions = _mapping(raw.get("data_versions"))
     return {
         "capture_count": max(0, _int(raw.get("capture_count"))),
         "settled_count": max(0, _int(raw.get("settled_count"))),
@@ -253,7 +254,35 @@ def _model_forecast_progress(raw: Mapping[str, Any]) -> dict[str, Any]:
             }
             for bucket in ("LT_6H", "H6_TO_LT_24H", "D1_TO_D3", "GT_3D")
         },
+        "data_versions": {
+            version: _model_forecast_data_version_progress(_mapping(progress))
+            for version, progress in data_versions.items()
+        },
         "public_semantics": {"scope": "CROSS_DAY_CUMULATIVE", "cause": None},
+    }
+
+
+def _model_forecast_data_version_progress(raw: Mapping[str, Any]) -> dict[str, Any]:
+    buckets = _mapping(raw.get("lead_time_buckets"))
+    return {
+        "team_xg_match_count": _int(raw.get("team_xg_match_count")) or None,
+        "capture_count": max(0, _int(raw.get("capture_count"))),
+        "settled_count": max(0, _int(raw.get("settled_count"))),
+        "pending_count": max(0, _int(raw.get("pending_count"))),
+        "lead_time_buckets": {
+            bucket: {
+                "capture_count": max(
+                    0, _int(_mapping(buckets.get(bucket)).get("capture_count"))
+                ),
+                "settled_count": max(
+                    0, _int(_mapping(buckets.get(bucket)).get("settled_count"))
+                ),
+                "pending_count": max(
+                    0, _int(_mapping(buckets.get(bucket)).get("pending_count"))
+                ),
+            }
+            for bucket in ("LT_6H", "H6_TO_LT_24H", "D1_TO_D3", "GT_3D")
+        },
     }
 
 

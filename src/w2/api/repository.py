@@ -67,6 +67,7 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayMarketObservationModel,
 )
 from w2.infrastructure.persistence.model_forecast_models import (
+    ModelForecastCaptureDataVersionModel,
     ModelForecastCaptureModel,
     ModelForecastOutcomeModel,
 )
@@ -1075,6 +1076,19 @@ class ReadModelRepository:
                     )
                 )
                 capture_hashes = tuple(row.capture_identity_hash for row in captures)
+                versions = (
+                    list(
+                        session.scalars(
+                            select(ModelForecastCaptureDataVersionModel).where(
+                                ModelForecastCaptureDataVersionModel.capture_identity_hash.in_(
+                                    capture_hashes
+                                )
+                            )
+                        )
+                    )
+                    if capture_hashes
+                    else []
+                )
                 outcomes = (
                     list(
                         session.scalars(
@@ -1088,6 +1102,7 @@ class ReadModelRepository:
                 )
         except SQLAlchemyError as exc:
             raise SystemDegradedError("DASHBOARD_MODEL_FORECAST_QUERY_FAILED") from exc
+        version_by_capture = {row.capture_identity_hash: row for row in versions}
         outcome_by_capture = {row.capture_identity_hash: row for row in outcomes}
         result: dict[str, dict[str, Any]] = {}
         for requested_id, requested_aliases in aliases.items():
@@ -1105,6 +1120,7 @@ class ReadModelRepository:
             raw_away_xg = xg_identity.get("away")
             away_xg = cast(dict[str, Any], raw_away_xg) if isinstance(raw_away_xg, dict) else {}
             outcome = outcome_by_capture.get(capture.capture_identity_hash)
+            version = version_by_capture.get(capture.capture_identity_hash)
             result[requested_id] = {
                 "state": "SETTLED" if outcome is not None else "CAPTURED",
                 "capture_identity_hash": capture.capture_identity_hash,
@@ -1112,6 +1128,8 @@ class ReadModelRepository:
                 "lead_time_seconds": capture.lead_time_seconds,
                 "lead_time_bucket": capture.lead_time_bucket,
                 "capture_policy": payload.get("capture_policy", "FIRST_ELIGIBLE_FREEZE_IMMUTABLE"),
+                "data_version": version.data_version if version else "LEGACY_UNVERSIONED",
+                "team_xg_match_count": version.team_xg_match_count if version else None,
                 "model_family": capture.model_family,
                 "model_version": capture.model_version,
                 "calibration_version": payload.get("calibration_version"),
@@ -1138,6 +1156,7 @@ class ReadModelRepository:
         try:
             with Session(self._database_engine()) as session:
                 captures = list(session.scalars(select(ModelForecastCaptureModel)))
+                versions = list(session.scalars(select(ModelForecastCaptureDataVersionModel)))
                 outcomes = list(session.scalars(select(ModelForecastOutcomeModel)))
                 ready_team_ids = set(
                     session.scalars(
@@ -1163,6 +1182,17 @@ class ReadModelRepository:
         except SQLAlchemyError as exc:
             raise SystemDegradedError("DASHBOARD_MODEL_FORECAST_QUERY_FAILED") from exc
         settled_hashes = {row.capture_identity_hash for row in outcomes}
+        version_by_capture = {row.capture_identity_hash: row for row in versions}
+        version_names = sorted(
+            {
+                (
+                    version_by_capture[row.capture_identity_hash].data_version
+                    if row.capture_identity_hash in version_by_capture
+                    else "LEGACY_UNVERSIONED"
+                )
+                for row in captures
+            }
+        )
         return {
             "capture_count": len(captures),
             "settled_count": len(outcomes),
@@ -1182,6 +1212,87 @@ class ReadModelRepository:
                     ),
                 }
                 for bucket in MODEL_FORECAST_LEAD_TIME_BUCKETS
+            },
+            "data_versions": {
+                version_name: {
+                    "team_xg_match_count": next(
+                        (
+                            version_by_capture[row.capture_identity_hash].team_xg_match_count
+                            for row in captures
+                            if row.capture_identity_hash in version_by_capture
+                            and version_by_capture[row.capture_identity_hash].data_version
+                            == version_name
+                        ),
+                        None,
+                    ),
+                    "capture_count": sum(
+                        (
+                            version_by_capture[row.capture_identity_hash].data_version
+                            if row.capture_identity_hash in version_by_capture
+                            else "LEGACY_UNVERSIONED"
+                        )
+                        == version_name
+                        for row in captures
+                    ),
+                    "settled_count": sum(
+                        (
+                            version_by_capture[row.capture_identity_hash].data_version
+                            if row.capture_identity_hash in version_by_capture
+                            else "LEGACY_UNVERSIONED"
+                        )
+                        == version_name
+                        and row.capture_identity_hash in settled_hashes
+                        for row in captures
+                    ),
+                    "pending_count": sum(
+                        (
+                            version_by_capture[row.capture_identity_hash].data_version
+                            if row.capture_identity_hash in version_by_capture
+                            else "LEGACY_UNVERSIONED"
+                        )
+                        == version_name
+                        and row.capture_identity_hash not in settled_hashes
+                        for row in captures
+                    ),
+                    "lead_time_buckets": {
+                        bucket: {
+                            "capture_count": sum(
+                                row.lead_time_bucket == bucket
+                                and (
+                                    version_by_capture[row.capture_identity_hash].data_version
+                                    if row.capture_identity_hash in version_by_capture
+                                    else "LEGACY_UNVERSIONED"
+                                )
+                                == version_name
+                                for row in captures
+                            ),
+                            "settled_count": sum(
+                                row.lead_time_bucket == bucket
+                                and row.capture_identity_hash in settled_hashes
+                                and (
+                                    version_by_capture[row.capture_identity_hash].data_version
+                                    if row.capture_identity_hash in version_by_capture
+                                    else "LEGACY_UNVERSIONED"
+                                )
+                                == version_name
+                                for row in captures
+                            ),
+                            "pending_count": sum(
+                                row.lead_time_bucket == bucket
+                                and row.capture_identity_hash not in settled_hashes
+                                and (
+                                    version_by_capture[row.capture_identity_hash].data_version
+                                    if row.capture_identity_hash in version_by_capture
+                                    else "LEGACY_UNVERSIONED"
+                                )
+                                == version_name
+                                for row in captures
+                            ),
+                        }
+                        for bucket in MODEL_FORECAST_LEAD_TIME_BUCKETS
+                    },
+                }
+                for version_name in version_names
             },
         }
 
