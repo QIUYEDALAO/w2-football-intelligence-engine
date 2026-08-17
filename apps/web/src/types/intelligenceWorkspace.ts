@@ -431,6 +431,18 @@ export interface WorkspaceValidation {
   };
   league_performance: WorkspaceCompetitionPerformance[];
   tournament_performance: WorkspaceCompetitionPerformance[];
+  model_forecast: {
+    capture_count: number;
+    settled_count: number;
+    pending_count: number;
+    capture_policy: "FIRST_ELIGIBLE_FREEZE_IMMUTABLE";
+    lead_time_buckets: Record<"LT_6H" | "H6_TO_LT_24H" | "D1_TO_D3" | "GT_3D", {
+      capture_count: number;
+      settled_count: number;
+      pending_count: number;
+    }>;
+    public_semantics: PublicStatusSemantics;
+  };
   forward_validation_records: {
     status: "AVAILABLE" | "INSUFFICIENT";
     validation_count: number;

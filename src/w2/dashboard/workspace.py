@@ -76,6 +76,7 @@ def build_dashboard_intelligence_workspace(
     *,
     replay: Mapping[str, Any],
     model_forecasts: Mapping[str, Mapping[str, Any]] | None = None,
+    model_forecast_progress: Mapping[str, Any] | None = None,
     candidate_enabled: bool = False,
 ) -> dict[str, Any]:
     """Adapt existing bounded projections into the one final Dashboard read model."""
@@ -215,7 +216,10 @@ def build_dashboard_intelligence_workspace(
             for item in matches
         ],
         "matches": matches,
-        "validation": _validation(forward, replay, matches),
+        "validation": {
+            **_validation(forward, replay, matches),
+            "model_forecast": _model_forecast_progress(model_forecast_progress or {}),
+        },
         "external_intelligence": {
             name: {"status": "NOT_CONNECTED", "affects_match_readiness": False}
             for name in ("weather", "news", "sentiment", "advanced_xg")
@@ -224,6 +228,27 @@ def build_dashboard_intelligence_workspace(
             "domains": _freshness_domains(cards, freshness),
         },
         "data_operations": _data_operations(day_view, freshness),
+    }
+
+
+def _model_forecast_progress(raw: Mapping[str, Any]) -> dict[str, Any]:
+    buckets = _mapping(raw.get("lead_time_buckets"))
+    return {
+        "capture_count": max(0, _int(raw.get("capture_count"))),
+        "settled_count": max(0, _int(raw.get("settled_count"))),
+        "pending_count": max(0, _int(raw.get("pending_count"))),
+        "capture_policy": _text(
+            raw.get("capture_policy"), "FIRST_ELIGIBLE_FREEZE_IMMUTABLE"
+        ),
+        "lead_time_buckets": {
+            bucket: {
+                "capture_count": max(0, _int(_mapping(buckets.get(bucket)).get("capture_count"))),
+                "settled_count": max(0, _int(_mapping(buckets.get(bucket)).get("settled_count"))),
+                "pending_count": max(0, _int(_mapping(buckets.get(bucket)).get("pending_count"))),
+            }
+            for bucket in ("LT_6H", "H6_TO_LT_24H", "D1_TO_D3", "GT_3D")
+        },
+        "public_semantics": {"scope": "CROSS_DAY_CUMULATIVE", "cause": None},
     }
 
 

@@ -272,6 +272,19 @@
       "public_semantics": {"scope": "SELECTED_DAY", "cause": null}
     },
     "league_performance": [],
+    "model_forecast": {
+      "capture_count": 0,
+      "capture_policy": "FIRST_ELIGIBLE_FREEZE_IMMUTABLE",
+      "lead_time_buckets": {
+        "D1_TO_D3": {"capture_count": 0, "pending_count": 0, "settled_count": 0},
+        "GT_3D": {"capture_count": 0, "pending_count": 0, "settled_count": 0},
+        "H6_TO_LT_24H": {"capture_count": 0, "pending_count": 0, "settled_count": 0},
+        "LT_6H": {"capture_count": 0, "pending_count": 0, "settled_count": 0}
+      },
+      "pending_count": 0,
+      "public_semantics": {"scope": "CROSS_DAY_CUMULATIVE", "cause": null},
+      "settled_count": 0
+    },
     "probability": {
       "checkpoint_metadata": {},
       "market_brier": null,

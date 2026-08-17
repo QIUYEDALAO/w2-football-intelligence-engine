@@ -103,6 +103,15 @@ class RecordingDashboardService:
         self.model_forecast_calls.append(fixture_ids)
         return {}
 
+    def dashboard_model_forecast_validation_progress(self) -> dict[str, Any]:
+        return {
+            "capture_count": 13,
+            "settled_count": 8,
+            "pending_count": 5,
+            "capture_policy": "FIRST_ELIGIBLE_FREEZE_IMMUTABLE",
+            "lead_time_buckets": {},
+        }
+
 
 def test_dashboard_day_view_endpoint_reads_requested_window(
     monkeypatch: MonkeyPatch,

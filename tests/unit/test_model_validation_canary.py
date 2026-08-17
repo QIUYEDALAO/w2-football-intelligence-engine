@@ -83,6 +83,7 @@ def test_dashboard_reads_capture_and_outcome_as_ledger_facts(
     monkeypatch.setattr(repository, "_database_engine", lambda: engine)
 
     facts = repository.dashboard_model_forecasts_for_fixtures(["fixture-1", "fixture-not-captured"])
+    progress = repository.dashboard_model_forecast_validation_progress()
 
     assert facts["fixture-1"] == {
         "state": "SETTLED",
@@ -109,6 +110,18 @@ def test_dashboard_reads_capture_and_outcome_as_ledger_facts(
         "rps": 0.17,
     }
     assert facts["fixture-not-captured"] == {"state": "NOT_CAPTURED"}
+    assert progress == {
+        "capture_count": 1,
+        "settled_count": 1,
+        "pending_count": 0,
+        "capture_policy": "FIRST_ELIGIBLE_FREEZE_IMMUTABLE",
+        "lead_time_buckets": {
+            "LT_6H": {"capture_count": 1, "settled_count": 1, "pending_count": 0},
+            "H6_TO_LT_24H": {"capture_count": 0, "settled_count": 0, "pending_count": 0},
+            "D1_TO_D3": {"capture_count": 0, "settled_count": 0, "pending_count": 0},
+            "GT_3D": {"capture_count": 0, "settled_count": 0, "pending_count": 0},
+        },
+    }
     captured_fact = WorkspaceModelForecastLedgerFact.model_validate(facts["fixture-1"])
     assert captured_fact.lead_time_seconds == 3600
     assert WorkspaceModelForecastLedgerFact.model_validate(

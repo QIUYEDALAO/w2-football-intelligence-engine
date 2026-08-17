@@ -1230,6 +1230,28 @@ class WorkspaceHistoryReplay(BaseModel):
         return self
 
 
+class WorkspaceModelForecastBucketProgress(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    capture_count: int = Field(ge=0)
+    settled_count: int = Field(ge=0)
+    pending_count: int = Field(ge=0)
+
+
+class WorkspaceModelForecastProgress(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    capture_count: int = Field(ge=0)
+    settled_count: int = Field(ge=0)
+    pending_count: int = Field(ge=0)
+    capture_policy: Literal["FIRST_ELIGIBLE_FREEZE_IMMUTABLE"]
+    lead_time_buckets: dict[
+        Literal["LT_6H", "H6_TO_LT_24H", "D1_TO_D3", "GT_3D"],
+        WorkspaceModelForecastBucketProgress,
+    ]
+    public_semantics: WorkspacePublicSemantics
+
+
 class WorkspaceValidation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1237,6 +1259,7 @@ class WorkspaceValidation(BaseModel):
     directional: WorkspaceDirectionalValidation
     league_performance: list[WorkspaceLeaguePerformance]
     tournament_performance: list[WorkspaceLeaguePerformance]
+    model_forecast: WorkspaceModelForecastProgress
     forward_validation_records: WorkspaceForwardValidationRecords
     history_replay: WorkspaceHistoryReplay
 

@@ -643,6 +643,7 @@ function QualityRail({ workspace }: { workspace: IntelligenceWorkspace }) {
 }
 
 function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
+  const modelForecast = workspace.validation.model_forecast;
   const records = workspace.validation.forward_validation_records;
   const outcomes = records.outcomes;
   const count = (source: Record<string, unknown>, key: string) => typeof source[key] === "number" ? source[key] : "—";
@@ -660,7 +661,13 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
       </header>
       <div className="v41-validation-layout">
         <section>
-          <h3>累计验证进度</h3>
+          <h3>模型预测验证账本</h3>
+          <ul className="v41-validation-counts"><li><span>Capture</span><strong>{modelForecast.capture_count}</strong></li><li><span>Settled</span><strong>{modelForecast.settled_count}</strong></li><li><span>Pending</span><strong>{modelForecast.pending_count}</strong></li></ul>
+          <ul className="v41-validation-counts v41-model-forecast-buckets">{([['LT_6H', '<6h'], ['H6_TO_LT_24H', '6–24h'], ['D1_TO_D3', '1–3d'], ['GT_3D', '>3d']] as const).map(([bucket, bucketLabel]) => <li key={bucket}><span>{bucketLabel}</span><strong>{modelForecast.lead_time_buckets[bucket].settled_count}/{modelForecast.lead_time_buckets[bucket].capture_count}</strong></li>)}</ul>
+          <p className="v41-validation-context">作用域：不依赖报价的模型预测账本；分档数字为 Settled / Capture。</p>
+        </section>
+        <section>
+          <h3>影子候选历史绩效账本</h3>
           <ul className="v41-validation-counts"><li><span>验证总记录</span><strong>{records.validation_count}</strong></li><li><span>已结算</span><strong>{count(outcomes, "settled_sample_count")}</strong></li><li><span>纳入统计</span><strong>{records.eligible_count}</strong></li><li><span>待结算</span><strong>{records.pending_count}</strong></li><li><span>证据排除</span><strong>{records.excluded_count}</strong></li></ul>
           <p className="v41-validation-context">作用域：跨比赛日累计证据；不混入所选比赛日的前向记录与赛果缺口。</p>
         </section>

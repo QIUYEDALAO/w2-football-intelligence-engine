@@ -88,6 +88,12 @@ from w2.tracking.forward_ledger_performance import MIN_DECISIVE_SAMPLES_FOR_RATE
 from w2.tracking.performance_scoring import ece
 
 MAX_PUBLIC_FIXTURES = 512
+MODEL_FORECAST_LEAD_TIME_BUCKETS = (
+    "LT_6H",
+    "H6_TO_LT_24H",
+    "D1_TO_D3",
+    "GT_3D",
+)
 
 
 class SystemDegradedError(RuntimeError):
@@ -1123,6 +1129,35 @@ class ReadModelRepository:
             }
         return result
 
+    def dashboard_model_forecast_validation_progress(self) -> dict[str, Any]:
+        """Read the complete append-only model-forecast ledger as one projection."""
+
+        try:
+            with Session(self._database_engine()) as session:
+                captures = list(session.scalars(select(ModelForecastCaptureModel)))
+                outcomes = list(session.scalars(select(ModelForecastOutcomeModel)))
+        except SQLAlchemyError as exc:
+            raise SystemDegradedError("DASHBOARD_MODEL_FORECAST_QUERY_FAILED") from exc
+        settled_hashes = {row.capture_identity_hash for row in outcomes}
+        return {
+            "capture_count": len(captures),
+            "settled_count": len(outcomes),
+            "pending_count": len(captures) - len(outcomes),
+            "capture_policy": "FIRST_ELIGIBLE_FREEZE_IMMUTABLE",
+            "lead_time_buckets": {
+                bucket: {
+                    "capture_count": sum(row.lead_time_bucket == bucket for row in captures),
+                    "settled_count": sum(row.lead_time_bucket == bucket for row in outcomes),
+                    "pending_count": sum(
+                        row.lead_time_bucket == bucket
+                        and row.capture_identity_hash not in settled_hashes
+                        for row in captures
+                    ),
+                }
+                for bucket in MODEL_FORECAST_LEAD_TIME_BUCKETS
+            },
+        }
+
     def fixture_statuses_for_fixtures(self, fixture_ids: list[str]) -> dict[str, str]:
         provider_ids = {
             str(fixture_id or "").removeprefix("api_football:")
@@ -1622,6 +1657,9 @@ class ReadModelService:
         fixture_ids: Sequence[str],
     ) -> dict[str, dict[str, Any]]:
         return self.repository.dashboard_model_forecasts_for_fixtures(fixture_ids)
+
+    def dashboard_model_forecast_validation_progress(self) -> dict[str, Any]:
+        return self.repository.dashboard_model_forecast_validation_progress()
 
     def public_validation_summary(self, **kwargs: Any) -> dict[str, Any]:
         return self.validation_summary(**kwargs)
