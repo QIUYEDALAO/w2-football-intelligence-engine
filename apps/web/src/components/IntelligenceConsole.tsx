@@ -646,32 +646,45 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
   const modelForecast = workspace.validation.model_forecast;
   const records = workspace.validation.forward_validation_records;
   const outcomes = records.outcomes;
-  const count = (source: Record<string, unknown>, key: string) => typeof source[key] === "number" ? source[key] : "—";
+  const settledCandidateCount = typeof outcomes.settled_sample_count === "number" ? outcomes.settled_sample_count : 0;
+  const legacyAnalysisPickCount = Math.max(0, settledCandidateCount - modelForecast.current_flow_settled_count);
+  const modelVerdict = modelForecast.settled_count < modelForecast.sample_target
+    ? `模型验证：已结算 ${modelForecast.settled_count} 场，样本量远不足以判断模型好坏（需 ${modelForecast.sample_target} 场）。`
+    : `模型验证：已结算 ${modelForecast.settled_count} 场，已达到 ${modelForecast.sample_target} 场目标。`;
+  const candidateVerdict = modelForecast.current_flow_candidate_count === 0
+    ? "候选：当前四门流程尚未产生任何候选。"
+    : `候选：当前四门流程已产生 ${modelForecast.current_flow_candidate_count} 条候选。`;
   const replay = workspace.validation.history_replay;
   const finishedCount = workspace.matches.filter((match) => match.outcome.is_finished).length;
-  const recordsPresentation = publicPresentation(records.public_semantics, { subject: "累计验证" });
   const replayPresentation = publicPresentation(replay.public_semantics, { subject: "赛果", fixtureCount: workspace.matches.length, finishedCount, outcomeRecorded: workspace.matches.length > 0 && workspace.matches.every((match) => match.outcome.is_recorded) });
   const selectedRecordsLabel = historyRecordLabel(replay.record_kind);
   const outcomePresentation = (match: WorkspaceMatch) => publicPresentation(match.outcome.public_semantics, { subject: "赛果", fixtureCount: 1, finishedCount: match.outcome.is_finished ? 1 : 0, outcomeRecorded: match.outcome.is_recorded });
   return (
     <section className="v41-validation-center" id="secondary-validation" aria-labelledby="validation-title">
       <header>
-        <div><span className="v41-eyebrow">跨比赛日累计证据</span><h2 id="validation-title">赛后验证</h2><p>{workspace.runtime.candidate === "SHADOW_ONLY" ? "影子候选闭环已启动：生成候选 → 写入前向账本 → 赛果结算 → 累计验证。" : "统一前向验证账本；这里展示历史累计证据，不把所选日期的比赛误算为已结算样本。"}</p></div>
-        <div className="v41-validation-status"><span>方向验证</span><strong>{records.public_semantics.cause ? recordsPresentation.label : label(workspace.validation.directional.status)}</strong><small>{records.public_semantics.cause ? recordsPresentation.summary : `市场方向基准：${label(workspace.validation.directional.market_direction_benchmark)}`}</small></div>
+        <div><span className="v41-eyebrow">跨比赛日累计证据</span><h2 id="validation-title">赛后验证</h2><p>先看系统是否可用；审计口径与历史记账默认折叠。</p></div>
       </header>
+      <p className="v41-validation-verdict"><strong>{modelVerdict}</strong><span>{candidateVerdict}</span></p>
       <div className="v41-validation-layout">
         <section>
           <h3>模型预测验证账本</h3>
           <ul className="v41-validation-counts"><li><span>Capture</span><strong>{modelForecast.capture_count}</strong></li><li><span>Settled</span><strong>{modelForecast.settled_count}</strong></li><li><span>Pending</span><strong>{modelForecast.pending_count}</strong></li></ul>
-          <ul className="v41-validation-counts"><li><span>已有 ≥{modelForecast.min_xg_matches} 场历史的球队</span><strong>{modelForecast.xg_ready_team_count}</strong></li><li><span>未来 7 天双方均就绪</span><strong>{modelForecast.next_7d_xg_ready_fixture_count}</strong></li></ul>
-          <ul className="v41-validation-counts v41-model-forecast-buckets">{([['LT_6H', '<6h'], ['H6_TO_LT_24H', '6–24h'], ['D1_TO_D3', '1–3d'], ['GT_3D', '>3d']] as const).map(([bucket, bucketLabel]) => <li key={bucket}><span>{bucketLabel}</span><strong>{modelForecast.lead_time_buckets[bucket].settled_count}/{modelForecast.lead_time_buckets[bucket].capture_count}</strong></li>)}</ul>
-          <ul className="v41-validation-counts">{Object.entries(modelForecast.data_versions).map(([version, rows]) => <li key={version}><span>{rows.team_xg_match_count === null ? version : `xG 数据版本 ${rows.team_xg_match_count.toLocaleString()} 行`}</span><strong>{rows.settled_count}/{rows.capture_count}</strong></li>)}</ul>
-          <p className="v41-validation-context">作用域：不依赖报价的模型预测账本；分档数字为 Settled / Capture。</p>
+          <p className="v41-validation-context">作用域：不依赖报价的模型预测账本。</p>
+          <details className="v41-validation-audit"><summary>展开模型账本审计细节</summary>
+            <ul className="v41-validation-counts"><li><span>已有 ≥{modelForecast.min_xg_matches} 场历史的球队</span><strong>{modelForecast.xg_ready_team_count}</strong></li><li><span>未来 7 天双方均就绪</span><strong>{modelForecast.next_7d_xg_ready_fixture_count}</strong></li></ul>
+            <ul className="v41-validation-counts v41-model-forecast-buckets">{([['LT_6H', '<6h'], ['H6_TO_LT_24H', '6–24h'], ['D1_TO_D3', '1–3d'], ['GT_3D', '>3d']] as const).map(([bucket, bucketLabel]) => <li key={bucket}><span>{bucketLabel}</span><strong>{modelForecast.lead_time_buckets[bucket].settled_count}/{modelForecast.lead_time_buckets[bucket].capture_count}</strong></li>)}</ul>
+            <ul className="v41-validation-counts">{Object.entries(modelForecast.data_versions).map(([version, rows]) => <li key={version}><span>{rows.team_xg_match_count === null ? version : `xG 数据版本 ${rows.team_xg_match_count.toLocaleString()} 行`}</span><strong>{rows.settled_count}/{rows.capture_count}</strong></li>)}</ul>
+            <p className="v41-validation-context">lead-time 与数据版本数字均为 Settled / Capture；可复现性标记属于同级审计证据，不参与顶部可用性结论。</p>
+          </details>
         </section>
         <section>
-          <h3>影子候选历史绩效账本</h3>
-          <ul className="v41-validation-counts"><li><span>赛果基表记录</span><strong>{records.validation_count}</strong></li><li><span>已结算候选</span><strong>{count(outcomes, "settled_sample_count")}</strong></li><li><span>纳入候选统计</span><strong>{records.eligible_count}</strong></li><li><span>候选待结算</span><strong>{records.pending_count}</strong></li><li><span>无 Pick / 入场报价</span><strong>{records.excluded_count}</strong></li></ul>
-          <p className="v41-validation-context">作用域：跨比赛日累计证据；不混入所选比赛日的前向记录与赛果缺口。</p>
+          <h3>候选流程</h3>
+          <ul className="v41-validation-counts"><li><span>当前四门流程候选</span><strong>{modelForecast.current_flow_candidate_count}</strong></li><li><span>历史已结算 ANALYSIS_PICK</span><strong>{legacyAnalysisPickCount}</strong></li></ul>
+          <p className="v41-validation-warning"><strong>历史遗留，非当前流程产出。</strong>不显示命中率：n={legacyAnalysisPickCount}、选择过程尚未审计，且与 Phase 0.5 全量回测的 NO_EDGE 结论相反。</p>
+          <details className="v41-validation-audit"><summary>展开历史账本记账明细</summary>
+            <ul className="v41-validation-counts"><li><span>赛果基表记录</span><strong>{records.validation_count}</strong></li><li><span>旧账本纳入统计</span><strong>{records.eligible_count}</strong></li><li><span>候选待结算</span><strong>{records.pending_count}</strong></li><li><span>无 Pick / 入场报价</span><strong>{records.excluded_count}</strong></li></ul>
+            <p className="v41-validation-context">作用域：跨比赛日历史记账；不混入所选比赛日的前向记录与赛果缺口。</p>
+          </details>
         </section>
         <section>
           <h3>{workspace.date} {selectedRecordsLabel}</h3>

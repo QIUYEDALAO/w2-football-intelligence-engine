@@ -1498,23 +1498,20 @@ summary {
   font-size: 13px;
 }
 
-.v41-validation-status {
+.v41-validation-verdict {
   display: grid;
-  min-width: 185px;
-  gap: 2px;
-  padding: 9px 11px;
-  border: 1px solid var(--v41-line-soft);
+  gap: 5px;
+  margin: 0;
+  padding: 14px 16px;
+  border-left: 3px solid var(--v41-accent);
+  background: var(--v41-panel);
+  color: var(--v41-ink);
+  font-size: 15px;
+  line-height: 1.55;
 }
 
-.v41-validation-status span,
-.v41-validation-status small {
-  color: var(--v41-ink-3);
-  font-size: 12px;
-}
-
-.v41-validation-status strong {
-  color: var(--v41-warning);
-  font-size: 16px;
+.v41-validation-verdict span {
+  color: var(--v41-ink-2);
 }
 
 .v41-validation-layout {
@@ -1573,6 +1570,28 @@ summary {
 
 .v41-validation-gaps { color: var(--v41-warning); }
 .v41-validation-ok { color: var(--v41-ok); }
+
+.v41-validation-warning {
+  margin: 10px 0 0;
+  color: var(--v41-warning);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.v41-validation-audit {
+  margin-top: 10px;
+  color: var(--v41-ink-2);
+  font-size: 13px;
+}
+
+.v41-validation-audit summary {
+  min-height: 34px;
+  cursor: pointer;
+}
+
+.v41-validation-audit .v41-validation-counts + .v41-validation-counts {
+  margin-top: 6px;
+}
 
 .v41-validation-matches {
   display: grid;
@@ -1879,10 +1898,6 @@ summary {
 
   .v41-validation-center > header {
     flex-direction: column;
-  }
-
-  .v41-validation-status {
-    width: 100%;
   }
 
   .v41-validation-counts,

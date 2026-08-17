@@ -209,6 +209,9 @@ function modelForecastValidation(): IntelligenceWorkspace["validation"]["model_f
     capture_count: 13,
     settled_count: 8,
     pending_count: 5,
+    sample_target: 200,
+    current_flow_candidate_count: 0,
+    current_flow_settled_count: 0,
     min_xg_matches: 3,
     xg_ready_team_count: 128,
     next_7d_xg_ready_fixture_count: 36,
@@ -404,8 +407,8 @@ test("cross-day cumulative insufficiency never becomes a selected-day failure", 
 
   await page.goto("/");
 
-  await expect(page.locator(".v41-validation-status")).toContainText("跨比赛日累计证据：已采集，证据量不足");
-  await expect(page.locator(".v41-validation-status")).not.toContainText("所选比赛日");
+  await expect(page.locator(".v41-validation-verdict")).toContainText("样本量远不足以判断模型好坏");
+  await expect(page.locator(".v41-validation-verdict")).not.toContainText("所选比赛日");
 });
 
 test("V41 uses the selected fixture fact and never falls back to matches[0]", async ({ page }) => {
@@ -429,7 +432,7 @@ test("shadow candidate is explicit, tracked and non-production", async ({ page }
   await expect(page.locator(".v41-candidate")).toContainText("让球主盘 · 主队");
   await expect(page.locator(".v41-candidate")).toContainText("盘口 -0.75 · 赔率 1.95");
   await expect(page.locator(".v41-candidate")).toContainText("Formal、Lock、Production 与实盘保持关闭");
-  await expect(page.locator("#secondary-validation")).toContainText("生成候选 → 写入前向账本 → 赛果结算 → 累计验证");
+  await expect(page.locator("#secondary-validation")).toContainText("候选：当前四门流程尚未产生任何候选");
 });
 
 test("V41 presents unassessed model evidence in Chinese and keeps codes technical", async ({ page }) => {
@@ -935,15 +938,25 @@ test("V41 empty-day adjacent controls change the requested football day", async 
 test("V41 exposes a prominent post-match validation center and hides raw codes in technical detail", async ({ page }) => {
   let requests = 0;
   const payload = workspace();
-  payload.validation.forward_validation_records.outcomes = { settled_sample_count: 20 };
+  payload.validation.forward_validation_records.outcomes = { settled_sample_count: 16 };
+  payload.validation.forward_validation_records.eligible_count = 16;
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => { requests += 1; return route.fulfill({ status: 200, json: payload }); });
   await page.goto("/");
   const validation = page.locator("#secondary-validation");
   await expect(validation).toBeVisible();
   await expect(validation).toContainText("赛后验证");
   await expect(validation).toContainText("跨比赛日累计证据");
+  await expect(validation).toContainText("模型验证：已结算 8 场，样本量远不足以判断模型好坏（需 200 场）");
+  await expect(validation).toContainText("候选：当前四门流程尚未产生任何候选");
+  await expect(validation).toContainText("历史已结算 ANALYSIS_PICK16");
+  await expect(validation).toContainText("历史遗留，非当前流程产出");
+  await expect(validation).toContainText("n=16、选择过程尚未审计");
+  await expect(validation).not.toContainText("有效输赢命中率");
+  await expect(validation.getByText("已有 ≥3 场历史的球队")).not.toBeVisible();
+  await validation.locator(".v41-validation-audit summary").first().click();
+  await expect(validation.getByText("已有 ≥3 场历史的球队")).toBeVisible();
+  await validation.locator(".v41-validation-audit summary").nth(1).click();
   await expect(validation).toContainText("赛果基表记录36");
-  await expect(validation).toContainText("已结算候选20");
   await expect(validation).toContainText("不混入所选比赛日的前向记录与赛果缺口");
   await expect(validation).toContainText("赛果尚未产生");
   await expect(validation).not.toContainText("所选比赛日证据缺口");

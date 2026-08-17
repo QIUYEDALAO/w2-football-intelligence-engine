@@ -72,6 +72,7 @@ from w2.infrastructure.persistence.model_forecast_models import (
     ModelForecastOutcomeModel,
 )
 from w2.infrastructure.persistence.models import ResultModel
+from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerModel
 from w2.lineups.intelligence import lineup_requirement
 from w2.matchday.timezone import (
     BEIJING_TZ,
@@ -88,7 +89,10 @@ from w2.prematch.read_model_projection import (
     validate_frozen_analysis_payload,
 )
 from w2.providers.quota import api_football_quota_policy, parse_int
-from w2.tracking.forward_ledger_performance import MIN_DECISIVE_SAMPLES_FOR_RATE
+from w2.tracking.forward_ledger_performance import (
+    MIN_DECISIVE_SAMPLES_FOR_RATE,
+    SAMPLE_TARGET,
+)
 from w2.tracking.performance_scoring import ece
 
 MAX_PUBLIC_FIXTURES = 512
@@ -1179,6 +1183,34 @@ class ReadModelRepository:
                         MatchdayFixtureIdentityModel.away_provider_team_id.in_(ready_team_ids),
                     )
                 )
+                current_flow_capture_hashes = select(
+                    OutcomeLedgerModel.capture_identity_hash
+                ).where(
+                    OutcomeLedgerModel.record_type == "capture",
+                    OutcomeLedgerModel.source_artifact == "db:forward_outcome_ledger",
+                    OutcomeLedgerModel.recommendation_scope.in_(("VALIDATION", "SHADOW")),
+                    OutcomeLedgerModel.payload["checkpoint"].as_string()
+                    == "T-30m_VALIDATION_LOCK",
+                )
+                current_flow_candidate_count = session.scalar(
+                    select(func.count(func.distinct(OutcomeLedgerModel.fixture_id))).where(
+                        OutcomeLedgerModel.record_type == "capture",
+                        OutcomeLedgerModel.source_artifact == "db:forward_outcome_ledger",
+                        OutcomeLedgerModel.recommendation_scope.in_(
+                            ("VALIDATION", "SHADOW")
+                        ),
+                        OutcomeLedgerModel.payload["checkpoint"].as_string()
+                        == "T-30m_VALIDATION_LOCK",
+                    )
+                )
+                current_flow_settled_count = session.scalar(
+                    select(func.count(func.distinct(OutcomeLedgerModel.fixture_id))).where(
+                        OutcomeLedgerModel.record_type == "outcome",
+                        OutcomeLedgerModel.capture_identity_hash.in_(
+                            current_flow_capture_hashes
+                        ),
+                    )
+                )
         except SQLAlchemyError as exc:
             raise SystemDegradedError("DASHBOARD_MODEL_FORECAST_QUERY_FAILED") from exc
         settled_hashes = {row.capture_identity_hash for row in outcomes}
@@ -1197,6 +1229,9 @@ class ReadModelRepository:
             "capture_count": len(captures),
             "settled_count": len(outcomes),
             "pending_count": len(captures) - len(outcomes),
+            "sample_target": SAMPLE_TARGET,
+            "current_flow_candidate_count": int(current_flow_candidate_count or 0),
+            "current_flow_settled_count": int(current_flow_settled_count or 0),
             "min_xg_matches": MIN_XG_MATCHES,
             "xg_ready_team_count": len(ready_team_ids),
             "next_7d_xg_ready_fixture_count": int(next_7d_ready_fixtures or 0),

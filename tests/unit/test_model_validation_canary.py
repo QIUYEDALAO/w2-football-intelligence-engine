@@ -22,6 +22,7 @@ from w2.infrastructure.persistence.model_forecast_models import (
     ModelForecastOutcomeModel,
 )
 from w2.infrastructure.persistence.models import ResultModel
+from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerModel
 from w2.ingestion.xg_retention import XgRetentionHardeningService
 from w2.tracking.model_forecast_ledger import (
     MODEL_FORECAST_CAPTURE_HASH_DOMAIN,
@@ -86,6 +87,7 @@ def test_dashboard_reads_capture_and_outcome_as_ledger_facts(
 ) -> None:
     engine = _engine(tmp_path)
     _seed_valid_capture_and_outcome(engine)
+    _seed_current_flow_candidate_and_outcome(engine)
     _seed_xg_ready_future_fixture(engine)
     repository = ReadModelRepository()
     monkeypatch.setattr(repository, "_database_engine", lambda: engine)
@@ -124,6 +126,9 @@ def test_dashboard_reads_capture_and_outcome_as_ledger_facts(
         "capture_count": 1,
         "settled_count": 1,
         "pending_count": 0,
+        "sample_target": 200,
+        "current_flow_candidate_count": 1,
+        "current_flow_settled_count": 1,
         "min_xg_matches": 3,
         "xg_ready_team_count": 2,
         "next_7d_xg_ready_fixture_count": 1,
@@ -178,6 +183,7 @@ def _engine(tmp_path: Path):  # type: ignore[no-untyped-def]
     ModelForecastCaptureModel.__table__.create(engine)
     ModelForecastCaptureDataVersionModel.__table__.create(engine)
     ModelForecastOutcomeModel.__table__.create(engine)
+    OutcomeLedgerModel.__table__.create(engine)
     ResultModel.__table__.create(engine)
     return engine
 
@@ -198,6 +204,50 @@ def _retention_pass(monkeypatch: pytest.MonkeyPatch) -> None:
             "blockers": [],
         },
     )
+
+
+def _seed_current_flow_candidate_and_outcome(engine) -> None:  # type: ignore[no-untyped-def]
+    capture_hash = "7" * 64
+    with Session(engine) as session:
+        session.add_all(
+            [
+                OutcomeLedgerModel(
+                    business_key="current-flow-capture",
+                    record_type="capture",
+                    fixture_id="fixture-current-flow",
+                    occurred_at=NOW,
+                    captured_at=NOW,
+                    settled_at=None,
+                    schema_version="w2.outcome_ledger.capture.v1",
+                    recommendation_scope="SHADOW",
+                    capture_identity_hash=capture_hash,
+                    decision_hash="8" * 64,
+                    payload={"checkpoint": "T-30m_VALIDATION_LOCK"},
+                    payload_sha256="9" * 64,
+                    source_artifact="db:forward_outcome_ledger",
+                    source_line_number=None,
+                    imported_at=NOW,
+                ),
+                OutcomeLedgerModel(
+                    business_key="current-flow-outcome",
+                    record_type="outcome",
+                    fixture_id="fixture-current-flow",
+                    occurred_at=NOW,
+                    captured_at=NOW,
+                    settled_at=NOW,
+                    schema_version="w2.outcome_ledger.outcome.v1",
+                    recommendation_scope="SHADOW",
+                    capture_identity_hash=capture_hash,
+                    decision_hash="8" * 64,
+                    payload={"result": "WIN"},
+                    payload_sha256="a" * 64,
+                    source_artifact="db:forward_outcome_ledger",
+                    source_line_number=None,
+                    imported_at=NOW,
+                ),
+            ]
+        )
+        session.commit()
 
 
 def _seed_valid_capture_and_outcome(engine) -> None:  # type: ignore[no-untyped-def]

@@ -238,6 +238,13 @@ def _model_forecast_progress(raw: Mapping[str, Any]) -> dict[str, Any]:
         "capture_count": max(0, _int(raw.get("capture_count"))),
         "settled_count": max(0, _int(raw.get("settled_count"))),
         "pending_count": max(0, _int(raw.get("pending_count"))),
+        "sample_target": max(1, _int(raw.get("sample_target")) or 200),
+        "current_flow_candidate_count": max(
+            0, _int(raw.get("current_flow_candidate_count"))
+        ),
+        "current_flow_settled_count": max(
+            0, _int(raw.get("current_flow_settled_count"))
+        ),
         "min_xg_matches": max(1, _int(raw.get("min_xg_matches")) or 3),
         "xg_ready_team_count": max(0, _int(raw.get("xg_ready_team_count"))),
         "next_7d_xg_ready_fixture_count": max(

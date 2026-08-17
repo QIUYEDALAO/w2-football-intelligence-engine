@@ -437,6 +437,9 @@ export interface WorkspaceValidation {
     capture_count: number;
     settled_count: number;
     pending_count: number;
+    sample_target: number;
+    current_flow_candidate_count: number;
+    current_flow_settled_count: number;
     min_xg_matches: number;
     xg_ready_team_count: number;
     next_7d_xg_ready_fixture_count: number;
