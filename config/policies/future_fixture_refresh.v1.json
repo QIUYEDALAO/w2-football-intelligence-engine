@@ -4,7 +4,7 @@
   "notes": [
     "Only explicitly registered competitions can run future fixture refresh.",
     "Scheduler dispatch remains disabled unless W2_FUTURE_FIXTURE_REFRESH_ENABLED=true.",
-    "API-Football Pro live limits are 7500/day and 300/min; authority: /status plus response headers observed at 2026-08-16T16:47:41.418098Z. GENERAL cap is 7500 with reserve 1500; POSTMATCH_RESULT 20 is an orthogonal attempt cap."
+    "API-Football Pro live limits are 7500/day and 300/min; authority: /status plus response headers observed at 2026-08-16T16:47:41.418098Z. GENERAL cap is 7500 with reserve 1500; POSTMATCH_RESULT 200 is an orthogonal attempt cap sized above the observed T+7 peak of 102 attempts/day."
   ],
   "competitions": [
     {

@@ -188,7 +188,7 @@ def test_controlled_future_refresh_is_source_controlled_and_deployed_with_schedu
         assert environment["W2_PROVIDER_REQUEST_LEDGER_ENABLED"] == "true"
         assert environment["W2_PROVIDER_REFRESH_TICK_HARD_CAP"] == "30"
         assert environment["W2_PROVIDER_DAILY_HARD_CAP"] == "7500"
-        assert environment["W2_POSTMATCH_RESULT_DAILY_HARD_CAP"] == "20"
+        assert environment["W2_POSTMATCH_RESULT_DAILY_HARD_CAP"] == "200"
         assert environment["W2_PROVIDER_DAILY_UNALLOCATED_BUFFER"] == "0"
         assert environment["W2_PROVIDER_QUOTA_AUTHORITY_MAX_AGE_SECONDS"] == "7200"
         assert environment["W2_PROVIDER_PREFLIGHT_MIN_REMAINING"] == "1500"
