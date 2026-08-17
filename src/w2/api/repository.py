@@ -74,6 +74,7 @@ from w2.infrastructure.persistence.model_forecast_models import (
     ModelForecastCaptureDataVersionModel,
     ModelForecastCaptureModel,
     ModelForecastOutcomeModel,
+    model_forecast_fixture_aliases,
 )
 from w2.infrastructure.persistence.models import ResultModel
 from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerModel
@@ -1262,6 +1263,65 @@ class ReadModelRepository:
             }
         return result
 
+    def dashboard_dynamic_evaluations_for_fixtures(
+        self,
+        fixture_ids: Sequence[str],
+    ) -> dict[str, dict[str, Any]]:
+        """Read complete evaluation lifecycles through canonical fixture aliases."""
+
+        requested = list(dict.fromkeys(str(value or "").strip() for value in fixture_ids))
+        requested = [value for value in requested if value]
+        aliases = {value: model_forecast_fixture_aliases(value) for value in requested}
+        all_aliases = tuple({alias for values in aliases.values() for alias in values})
+        if not all_aliases:
+            return {}
+        try:
+            with Session(self._database_engine()) as session:
+                rows = list(
+                    session.scalars(
+                        select(DynamicPrematchEvaluationModel)
+                        .where(DynamicPrematchEvaluationModel.fixture_id.in_(all_aliases))
+                        .order_by(DynamicPrematchEvaluationModel.evaluated_at)
+                    )
+                )
+                supersessions = {
+                    row.superseded_evaluation_id: row
+                    for row in session.scalars(
+                        select(DynamicPrematchSupersessionModel).where(
+                            DynamicPrematchSupersessionModel.fixture_id.in_(all_aliases)
+                        )
+                    )
+                }
+        except SQLAlchemyError as exc:
+            raise SystemDegradedError("DASHBOARD_DYNAMIC_EVALUATION_QUERY_FAILED") from exc
+        by_fixture: dict[str, list[DynamicPrematchEvaluationModel]] = defaultdict(list)
+        for row in rows:
+            by_fixture[row.fixture_id].append(row)
+        result: dict[str, dict[str, Any]] = {}
+        for fixture_id, fixture_aliases in aliases.items():
+            versions = []
+            for alias in fixture_aliases:
+                for row in by_fixture[alias]:
+                    payload = dict(row.payload)
+                    payload["original_state"] = row.original_state
+                    supersession = supersessions.get(row.evaluation_id)
+                    if supersession is not None:
+                        payload["state"] = "SUPERSEDED"
+                        payload["superseded_by_evaluation_id"] = (
+                            supersession.superseded_by_evaluation_id
+                        )
+                        payload["supersession_reason"] = supersession.reason
+                    versions.append(payload)
+            if versions:
+                versions.sort(key=lambda item: str(item.get("evaluated_at") or ""))
+                result[fixture_id] = {
+                    "schema_version": "w2.dynamic_quote_ev_lifecycle.v1",
+                    "fixture_id": fixture_id,
+                    "versions": versions,
+                    "current": [row for row in versions if row.get("state") != "SUPERSEDED"],
+                }
+        return result
+
     def dashboard_model_forecast_validation_progress(self) -> dict[str, Any]:
         """Read the complete append-only model-forecast ledger as one projection."""
 
@@ -1952,6 +2012,12 @@ class ReadModelService:
         fixture_ids: Sequence[str],
     ) -> dict[str, dict[str, Any]]:
         return self.repository.dashboard_model_forecasts_for_fixtures(fixture_ids)
+
+    def dashboard_dynamic_evaluations_for_fixtures(
+        self,
+        fixture_ids: Sequence[str],
+    ) -> dict[str, dict[str, Any]]:
+        return self.repository.dashboard_dynamic_evaluations_for_fixtures(fixture_ids)
 
     def dashboard_model_forecast_validation_progress(self) -> dict[str, Any]:
         return self.repository.dashboard_model_forecast_validation_progress()

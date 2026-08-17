@@ -103,6 +103,12 @@ class RecordingDashboardService:
         self.model_forecast_calls.append(fixture_ids)
         return {}
 
+    def dashboard_dynamic_evaluations_for_fixtures(
+        self,
+        fixture_ids: list[str],
+    ) -> dict[str, dict[str, Any]]:
+        return {}
+
     def dashboard_model_forecast_validation_progress(self) -> dict[str, Any]:
         return {
             "capture_count": 13,

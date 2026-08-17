@@ -210,6 +210,11 @@ def dashboard_intelligence_workspace(
     fixture_ids = [str(card.get("fixture_id") or "") for card in day_view["cards"]]
     outcomes = service.dashboard_outcomes_for_fixtures(fixture_ids)
     model_forecasts = service.dashboard_model_forecasts_for_fixtures(fixture_ids)
+    evaluations = service.dashboard_dynamic_evaluations_for_fixtures(fixture_ids)
+    for card in day_view["cards"]:
+        fixture_id = str(card.get("fixture_id") or "")
+        if fixture_id in evaluations:
+            card["dynamic_prematch"] = evaluations[fixture_id]
     model_forecast_progress = service.dashboard_model_forecast_validation_progress()
     replay = build_replay_front_door(
         football_day=day_view["football_day"],
