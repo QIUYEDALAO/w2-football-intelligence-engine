@@ -145,6 +145,7 @@ def test_model_forecast_capture_and_outcome_do_not_require_candidate(tmp_path: P
     assert integrity["data_version_counts"] == {"TEAM_XG_MATCH_ROWS_6": 1}
     assert integrity["rederivable_from_current_db_count"] == 1
     assert integrity["capture_rederivability"][0]["REDERIVABLE_FROM_CURRENT_DB"] is True
+    assert integrity["capture_rederivability"][0]["REDERIVABILITY_CLASS"] == "CURRENT_DB_MATCH"
 
     with Session(repository.engine) as session:
         session.execute(
@@ -238,6 +239,34 @@ def test_current_db_drift_is_nonblocking_integrity_annotation(tmp_path: Path) ->
     assert integrity["invalid_capture_count"] == 0
     assert integrity["non_rederivable_from_current_db_count"] == 1
     assert integrity["capture_rederivability"][0]["REDERIVABLE_FROM_CURRENT_DB"] is False
+    assert integrity["capture_rederivability"][0]["REDERIVABILITY_CLASS"] == (
+        "FOUR_FIELD_VALUE_DRIFT"
+    )
+
+
+def test_as_of_only_drift_is_reported_separately(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    _seed_xg(repository)
+    run_model_forecast_capture(
+        _day_view(),
+        repository=repository,
+        captured_at=NOW,
+        dry_run=False,
+        write_db=True,
+    )
+    with Session(repository.engine) as session:
+        for snapshot in session.query(TeamXgRollingSnapshotModel):
+            snapshot.as_of_time -= timedelta(minutes=1)
+        session.commit()
+
+    integrity = repository.integrity()
+
+    assert integrity["invalid_capture_count"] == 0
+    assert integrity["non_rederivable_from_current_db_count"] == 1
+    assert integrity["rederivability_class_counts"] == {"AS_OF_TIME_RELABEL_ONLY": 1}
+    assert integrity["capture_rederivability"][0]["REDERIVABILITY_CLASS"] == (
+        "AS_OF_TIME_RELABEL_ONLY"
+    )
 
 
 def test_capture_uses_canonical_fixture_identity_when_public_provenance_is_absent(

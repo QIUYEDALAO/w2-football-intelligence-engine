@@ -334,6 +334,11 @@ class ModelForecastLedgerRepository:
                         "REDERIVABLE_FROM_CURRENT_DB": current_xg is not None
                         and current_xg.get("identity_hash")
                         == capture_row.four_field_xg_identity_hash,
+                        "REDERIVABILITY_CLASS": _rederivability_class(
+                            frozen_xg,
+                            current_xg,
+                            frozen_hash=capture_row.four_field_xg_identity_hash,
+                        ),
                     }
                 )
         captures_by_hash = {row.capture_identity_hash: row for row in captures}
@@ -418,6 +423,10 @@ class ModelForecastLedgerRepository:
             "non_rederivable_from_current_db_count": sum(
                 not bool(row["REDERIVABLE_FROM_CURRENT_DB"]) for row in rederivability
             ),
+            "rederivability_class_counts": {
+                name: sum(row["REDERIVABILITY_CLASS"] == name for row in rederivability)
+                for name in sorted({row["REDERIVABILITY_CLASS"] for row in rederivability})
+            },
             "capture_rederivability": sorted(
                 rederivability, key=lambda row: (row["fixture_id"], row["capture_identity_hash"])
             ),
@@ -899,6 +908,35 @@ def _rolling_values_match(
         abs(round(xg_for, 4) - snapshot.rolling_xg_for) < 1e-9
         and abs(round(xg_against, 4) - snapshot.rolling_xg_against) < 1e-9
     )
+
+
+def _rederivability_class(
+    frozen: Mapping[str, Any],
+    current: Mapping[str, Any] | None,
+    *,
+    frozen_hash: str,
+) -> str:
+    if current is None:
+        return "CURRENT_DB_UNAVAILABLE"
+    if current.get("identity_hash") == frozen_hash:
+        return "CURRENT_DB_MATCH"
+    if _mapping(frozen.get("four_fields")) != _mapping(current.get("four_fields")):
+        return "FOUR_FIELD_VALUE_DRIFT"
+    if _without_rederivability_metadata(frozen) == _without_rederivability_metadata(current):
+        return "AS_OF_TIME_RELABEL_ONLY"
+    return "IDENTITY_METADATA_DRIFT"
+
+
+def _without_rederivability_metadata(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {
+            key: _without_rederivability_metadata(item)
+            for key, item in value.items()
+            if key not in {"as_of", "identity_hash"}
+        }
+    if isinstance(value, list):
+        return [_without_rederivability_metadata(item) for item in value]
+    return value
 
 
 def _ready_simulation(card: Mapping[str, Any]) -> Mapping[str, Any] | None:
