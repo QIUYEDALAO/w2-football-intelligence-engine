@@ -895,10 +895,13 @@ class MatchdayRuntimeRepository:
                 )
 
 
-# Statuses a moved kickoff may rewrite.  None of them recorded a provider
-# interaction, so the row holds only a verdict about a window the fixture no
-# longer has.  CAPTURED, PROVIDER_EMPTY, FAILED and CONFLICT are excluded: each
-# describes something that actually happened against the old window.
+# Statuses a moved kickoff may rewrite on the strength of the status alone.
+# None of them can have recorded a provider interaction, so the row holds only
+# a verdict about a window the fixture no longer has.  CAPTURED, PROVIDER_EMPTY
+# and CONFLICT are excluded because each already describes something that
+# happened against the old window.  FAILED is excluded here but decided per row
+# in _is_redatable: it covers both a plan that never reached the provider and
+# one whose request was sent and errored.
 _REDATABLE_CHECKPOINT_STATUSES = frozenset(
     {"PLANNED", "DUE", "MISSED", "SKIPPED_POLICY", "SKIPPED_BUDGET"}
 )

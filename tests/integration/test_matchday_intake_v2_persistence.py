@@ -1506,3 +1506,129 @@ def test_reschedule_records_the_window_it_overwrites() -> None:
     # would also silently change which rows repair tooling selects on
     # attempt_count == 1.
     assert int(row.attempt_count or 0) == previous_attempt_count
+
+
+@pytest.mark.parametrize(
+    ("status", "redatable"),
+    [
+        ("PROVIDER_EMPTY", False),
+        ("CONFLICT", False),
+        ("SKIPPED_POLICY", True),
+        ("SKIPPED_BUDGET", True),
+    ],
+)
+def test_remaining_terminal_statuses_on_reschedule(status: str, redatable: bool) -> None:
+    """The remaining terminal statuses, one row each.
+
+    PROVIDER_EMPTY and CONFLICT already describe something that happened
+    against the old window. The two SKIPPED verdicts record a decision not to
+    collect and never reached the provider, so a window the fixture no longer
+    has is not worth keeping them on.
+    """
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    policy = competition_policies(load_matchday_policy())["allsvenskan"]
+    original = KICKOFF
+    moved = KICKOFF + timedelta(days=38)
+
+    def projection(kickoff: datetime) -> CheckpointPlan:
+        return next(
+            item
+            for item in build_checkpoint_plans(
+                fixture_id=f"api_football:{status.lower()}",
+                competition_id="allsvenskan",
+                season="2026",
+                kickoff_utc=kickoff,
+                now=kickoff - timedelta(hours=25),
+                policy=policy,
+            )
+            if item.checkpoint == "T24_ODDS"
+        )
+
+    plan = projection(original)
+    plan_id = repository.upsert_checkpoint_plan(plan)
+    repository.transition_checkpoint(
+        fixture_id=plan.fixture_id,
+        competition_id=plan.competition_id,
+        season=plan.season,
+        checkpoint=plan.checkpoint,
+        policy_version=plan.policy_version,
+        status="DUE",
+    )
+    repository.transition_checkpoint(
+        fixture_id=plan.fixture_id,
+        competition_id=plan.competition_id,
+        season=plan.season,
+        checkpoint=plan.checkpoint,
+        policy_version=plan.policy_version,
+        status=status,
+        capture_id="capture-provider-empty" if status == "PROVIDER_EMPTY" else None,
+    )
+
+    repository.upsert_checkpoint_plan(projection(moved))
+
+    with Session(engine) as session:
+        row = session.get(MatchdayCheckpointPlanModel, plan_id)
+        assert row is not None
+        audits = list(session.scalars(select(MatchdayCheckpointPlanRescheduleModel)))
+
+    expected = moved if redatable else original
+    assert normalize_repo_time(row.kickoff_utc) == expected
+    assert len(audits) == (1 if redatable else 0)
+    if not redatable:
+        assert row.status == status
+
+
+def test_failed_with_only_a_link_row_stays_pinned() -> None:
+    """A link row is provider evidence even when the plan carries no capture_id.
+
+    The link table is what joins a plan to the endpoint capture it produced, so
+    a FAILED row reachable from it did reach the provider.
+    """
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    original = KICKOFF
+    moved = KICKOFF + timedelta(days=38)
+    plan, plan_id = _failed_plan_fixture(
+        repository, fixture_id="api_football:failed-linked", kickoff=original
+    )
+
+    capture = endpoint_capture_contract(
+        endpoint="odds",
+        params={"fixture": plan.fixture_id},
+        requested_at=original - timedelta(hours=24),
+        provider_captured_at=original - timedelta(hours=24),
+        status_code=500,
+        elapsed_ms=10,
+        payload=_odds_payload(),
+        fixture_id=plan.fixture_id,
+        competition_id=plan.competition_id,
+        checkpoint=plan.checkpoint,
+        attempt=1,
+    )
+    repository.insert_endpoint_capture(capture)
+    with Session(engine) as session:
+        session.add(
+            MatchdayEndpointCapturePlanModel(
+                link_hash=stable_hash(f"{capture['capture_id']}:{plan_id}:odds"),
+                capture_id=str(capture["capture_id"]),
+                plan_id=plan_id,
+                endpoint="odds",
+                link_status="LINKED",
+                linked_at=original,
+            )
+        )
+        session.commit()
+
+    repository.upsert_checkpoint_plan(_reproject(plan, moved, moved - timedelta(hours=25)))
+
+    with Session(engine) as session:
+        row = session.get(MatchdayCheckpointPlanModel, plan_id)
+        assert row is not None
+        assert normalize_repo_time(row.kickoff_utc) == original
+        assert row.status == "FAILED"
+        assert session.scalars(select(MatchdayCheckpointPlanRescheduleModel)).all() == []
