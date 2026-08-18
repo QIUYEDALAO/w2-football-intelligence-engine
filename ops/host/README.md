@@ -5,9 +5,13 @@ here so a new host can be brought up without reconstructing it from memory.
 
 | File | Installs to | Purpose |
 |---|---|---|
-| `w2-disk-guard` | `/usr/local/bin/` | Hourly disk and inode check |
+| `w2-backup` | `/usr/local/bin/` | Database dump with retention, every six hours |
+| `w2-backup.service` / `.timer` | `/etc/systemd/system/` | Runs the backup |
+| `w2-disk-guard` | `/usr/local/bin/` | Hourly disk, inode and backup-age check |
 | `w2-disk-guard.service` / `.timer` | `/etc/systemd/system/` | Runs the guard |
-| `w2-release-preflight` | `/usr/local/bin/` | Space and base-image check before a release |
+| `w2-registry-gc` | `/usr/local/bin/` | Registry retention and collection, weekly |
+| `w2-registry-gc.service` / `.timer` | `/etc/systemd/system/` | Runs the collection |
+| `w2-release-preflight` | `/usr/local/bin/` | Space, base image and layer count before a release |
 | `registry-config.yml` | `/opt/w2/deploy/registry/` | Registry with manifest deletion enabled |
 | `journald-w2-retention.conf` | `/etc/systemd/journald.conf.d/` | Journal size cap |
 
@@ -37,3 +41,28 @@ only the docker v2 Accept header returns 404, which reads as "already gone"
 and silently deletes nothing.
 
 **Journal retention.** Journals had grown to 507MB with no cap.
+
+**Backups.** Three directories held 71 dumps between them, written by
+different hands, none ever removed and none off this machine. `w2-backup`
+writes to one place, keeps a bounded number, refuses to rotate a good dump
+out for an implausibly small new one, and records when it last succeeded.
+The age of that marker is what the guard watches: a backup that quietly
+stopped running looks exactly like one that never had a problem.
+
+Off-site remains a separate step. What lives here is generation and
+retention, not a second failure domain -- these dumps are on the same disk
+as the database they came from.
+
+## What the numbers were
+
+Recorded so a later reader can tell whether something has regressed rather
+than guessing at what normal looks like.
+
+| | Before | After |
+|---|---|---|
+| Disk | 83% | 56% |
+| Registry store | 1.2GB, 186 tags | 619MB, 7 tags |
+| Release cost | 530MB flattened | 20MB on the base |
+| Image lineage | 914 layers | 10 |
+| Journal | 507MB uncapped | 291MB, capped at 300MB |
+| Backups | 71 files, 3 directories, none off-host | 8 kept, one directory, verified off-site copy |

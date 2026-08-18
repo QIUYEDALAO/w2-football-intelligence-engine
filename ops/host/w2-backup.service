@@ -1,0 +1,6 @@
+[Unit]
+Description=W2 database backup
+After=docker.service
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/w2-backup

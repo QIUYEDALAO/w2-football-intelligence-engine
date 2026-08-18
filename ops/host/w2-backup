@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# One database backup, hashed, with retention, into one directory.
+#
+# Backups used to be written to /opt/w2/shared/backups, /opt/w2/backups and
+# /tmp by three different hands, 71 files across the three, none of them ever
+# removed and none of them off this machine.  This writes to one place, keeps
+# a bounded number, and records when it last succeeded so the age can be
+# monitored -- a backup nobody notices has stopped running is not a backup.
+#
+# Off-site is a separate step: the puller on the workstation copies from here.
+set -uo pipefail
+
+DEST=/opt/w2/backups/db
+KEEP=${W2_BACKUP_KEEP:-8}
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+MARKER=/opt/w2/backups/LAST_SUCCESS
+
+mkdir -p "$DEST"
+work="$DEST/$STAMP"
+mkdir -p "$work"
+
+if ! docker exec w2-staging-postgres-1 pg_dump -U w2_user -d w2 -Fc > "$work/w2-$STAMP.dump"; then
+  echo "BACKUP_FAILED_PG_DUMP"; rm -rf "$work"; exit 2
+fi
+if ! docker exec w2-staging-postgres-1 pg_dumpall -U w2_user --globals-only > "$work/globals-$STAMP.sql"; then
+  echo "BACKUP_FAILED_GLOBALS"; rm -rf "$work"; exit 2
+fi
+
+# An empty or truncated dump would otherwise rotate a good one out.
+size=$(stat -c %s "$work/w2-$STAMP.dump")
+if [ "$size" -lt 10000000 ]; then
+  echo "BACKUP_FAILED_IMPLAUSIBLE_SIZE:$size"; rm -rf "$work"; exit 2
+fi
+
+docker exec w2-staging-postgres-1 psql -U w2_user -d w2 -A -F= -t -c \
+  "SELECT 'alembic', version_num FROM alembic_version
+   UNION ALL SELECT 'capture', count(*)::text FROM model_forecast_capture
+   UNION ALL SELECT 'outcome', count(*)::text FROM model_forecast_outcome
+   UNION ALL SELECT 'opportunities', count(*)::text FROM dynamic_prematch_opportunities
+   UNION ALL SELECT 'checkpoint_plans', count(*)::text FROM matchday_checkpoint_plans" \
+  > "$work/FACTS.txt" 2>/dev/null
+
+( cd "$work" && sha256sum ./* > MANIFEST.sha256 )
+
+ls -1dt "$DEST"/*/ 2>/dev/null | tail -n +$((KEEP+1)) | xargs -r rm -rf
+date -u +%Y-%m-%dT%H:%M:%SZ > "$MARKER"
+echo "BACKUP_OK $STAMP size=$size kept=$(ls -1d "$DEST"/*/ 2>/dev/null | wc -l)"

@@ -1,31 +1,42 @@
 #!/usr/bin/env bash
-# Space precheck to run before a release, not after.  A release holds the old
-# image, the running containers, the build context, the new image and a
-# predeploy dump on disk at the same time, so the question is not whether
-# steady-state free space looks healthy.
+# Checks that must hold before a release, run before rather than after.
 #
-# Budget, measured on this host after the runtime-base split:
-#   build context        ~50MB
-#   release image layer  ~20MB   (was 530MB while releases were flattened)
-#   registry blob        ~20MB
-#   predeploy dump       ~90MB
-#   safety margin       2048MB
+# Usage: w2-release-preflight [image-to-check]
 set -uo pipefail
 
 NEED_MB=2228
+MAX_LAYERS=${W2_MAX_ROOTFS_LAYERS:-12}
+BASE_TAG=${W2_BASE_TAG:-4d5f257daa500878}
+IMAGE=${1:-}
+rc=0
+
+# A release holds the old image, the running containers, the build context,
+# the new image and a predeploy dump at once, so steady-state free space is
+# not what a release costs.
 AVAIL_MB=$(( $(df --output=avail / | tail -1) / 1024 ))
 USE=$(df --output=pcent / | tail -1 | tr -dc "0-9")
+printf "disk avail=%sMB need=%sMB use=%s%%\n" "$AVAIL_MB" "$NEED_MB" "$USE"
+if [ "$AVAIL_MB" -lt "$NEED_MB" ]; then echo "  RELEASE_BLOCKED_INSUFFICIENT_DISK"; rc=2; fi
 
-printf "avail=%sMB need=%sMB use=%s%%\n" "$AVAIL_MB" "$NEED_MB" "$USE"
-if [ "$AVAIL_MB" -lt "$NEED_MB" ]; then
-  echo "RELEASE_BLOCKED_INSUFFICIENT_DISK"
-  exit 2
+# Releases built on a pre-flatten image cannot mount at all: that lineage
+# passed the overlayfs mount-option limit at 914 layers.
+if docker image inspect "127.0.0.1:5000/w2/runtime-base:$BASE_TAG" >/dev/null 2>&1; then
+  echo "runtime-base $BASE_TAG present"
+else
+  echo "  RELEASE_BLOCKED_RUNTIME_BASE_MISSING:$BASE_TAG"; rc=2
 fi
 
-# A release built on a pre-flatten image cannot mount: that lineage passed the
-# overlayfs mount-option limit.  Releases must come from the runtime base.
-if ! docker image inspect 127.0.0.1:5000/w2/runtime-base:"${W2_BASE_TAG:-4d5f257daa500878}" >/dev/null 2>&1; then
-  echo "RELEASE_BLOCKED_RUNTIME_BASE_MISSING"
-  exit 2
+# The count is read off RootFS rather than docker history, which counts
+# history entries and not actual layers.  A rising count means something has
+# started building on the previous release again.
+if [ -n "$IMAGE" ]; then
+  if L=$(docker image inspect "$IMAGE" --format "{{len .RootFS.Layers}}" 2>/dev/null); then
+    printf "rootfs layers=%s max=%s\n" "$L" "$MAX_LAYERS"
+    if [ "$L" -gt "$MAX_LAYERS" ]; then echo "  RELEASE_BLOCKED_LAYER_COUNT:$L"; rc=2; fi
+  else
+    echo "  RELEASE_BLOCKED_IMAGE_NOT_FOUND:$IMAGE"; rc=2
+  fi
 fi
-echo "PREFLIGHT_OK"
+
+[ "$rc" = "0" ] && echo "PREFLIGHT_OK"
+exit $rc
