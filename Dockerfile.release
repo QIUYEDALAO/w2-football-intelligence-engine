@@ -1,0 +1,62 @@
+# Release image: a runtime base plus this commit's code, nothing else.
+#
+# Releases used to be built FROM the previous release, so every one inherited
+# the whole history.  The chain reached 914 layers and crossed the overlayfs
+# mount-option limit, at which point no build on it could mount at all -- not
+# even one adding a single USER instruction.  Flattening got releases moving
+# again but cost 530MB per release, because a flattened image shares nothing
+# with the one before it.
+#
+# The base is rebuilt only when pyproject.toml or uv.lock changes, and is
+# tagged with a hash over both.  A release adds one layer of source, so its
+# unique size is the source itself rather than a whole root filesystem, and
+# the layer count stays constant no matter how many releases have gone before.
+#
+# Build with:
+#   docker build -f Dockerfile.release \
+#     --build-arg BASE_IMAGE=127.0.0.1:5000/w2/runtime-base@sha256:<digest> \
+#     --build-arg W2_GIT_SHA=<sha> --build-arg W2_BUILD_TIME=<iso8601> \
+#     -t 127.0.0.1:5000/w2/python:<sha> .
+# No network is needed: the base already carries the resolved dependencies.
+
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+USER root
+
+# Replaced wholesale rather than copied over, so a file deleted in this commit
+# does not survive in the image because an older release put it there.
+RUN rm -rf /app/src /app/apps /app/config /app/migrations /app/alembic.ini
+
+COPY --chown=10001:10001 alembic.ini /app/alembic.ini
+COPY --chown=10001:10001 src /app/src
+COPY --chown=10001:10001 apps /app/apps
+COPY --chown=10001:10001 config /app/config
+COPY --chown=10001:10001 migrations /app/migrations
+
+# AppleDouble files ride along when the archive is built on macOS.  Asserting
+# here keeps the guard inside the image rather than beside it.
+RUN find /app -type f -name '._*' -delete \
+ && test -z "$(find /app -type f -name '._*' -print -quit)"
+
+USER w2
+
+ARG W2_GIT_SHA=UNKNOWN
+ARG W2_BUILD_TIME=UNKNOWN
+ARG W2_RELEASE_ID=${W2_GIT_SHA}
+ENV W2_GIT_SHA=${W2_GIT_SHA} \
+    W2_BUILD_TIME=${W2_BUILD_TIME} \
+    W2_RELEASE_ID=${W2_RELEASE_ID}
+
+LABEL org.opencontainers.image.source="w2-football-intelligence-engine" \
+      org.opencontainers.image.revision="${W2_GIT_SHA}" \
+      org.opencontainers.image.created="${W2_BUILD_TIME}" \
+      org.opencontainers.image.version="${W2_GIT_SHA}" \
+      w2.release.id="${W2_RELEASE_ID}" \
+      w2.runtime.contract.version="release-train-2-patch2" \
+      w2.image.role="release"
+
+HEALTHCHECK --interval=30s --timeout=5s \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=2)"
+
+CMD ["uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
