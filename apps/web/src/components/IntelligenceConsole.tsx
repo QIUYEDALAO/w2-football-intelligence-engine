@@ -685,17 +685,21 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
           <h3>候选流程</h3>
           <ul className="v41-validation-counts"><li><span>当前 T-30 流程已冻结候选</span><strong>{modelForecast.current_flow_candidate_count}</strong></li><li><span>历史已结算 ANALYSIS_PICK</span><strong>{legacyAnalysisPickCount}</strong></li></ul>
           <p className="v41-validation-warning"><strong>历史遗留，非当前流程产出。</strong>不显示命中率：n={legacyAnalysisPickCount}、选择过程尚未审计，且与 Phase 0.5 全量回测的 NO_EDGE 结论相反。</p>
-          <details className="v41-validation-audit"><summary>展开当前流程逐门覆盖（固定分母 {evaluationFunnel.market_unit_count}）</summary>
-            <ul className="v41-validation-counts">{([
-              ['model_ready', '模型就绪'],
-              ['mainline_parsed', '主盘解析'],
-              ['bookmaker_depth', '深度通过'],
-              ['quote_fresh', '时效通过'],
-              ['evaluated', '实际评估'],
-              ['no_edge', 'NO_EDGE'],
-              ['candidate', '动态评估候选判定'],
-            ] as const).map(([gate, gateLabel]) => <li key={gate}><span>{gateLabel}</span><strong>{evaluationFunnel.gate_counts[gate] ?? 0}/{evaluationFunnel.market_unit_count}</strong></li>)}</ul>
-            <p className="v41-validation-context">分母为所有已冻结模型预测的 fixture × AH/TOTALS；已持久化 {evaluationFunnel.persisted_market_unit_count}/{evaluationFunnel.market_unit_count}，带真实写入时刻 {evaluationFunnel.recorded_at_count}。动态评估候选判定不等于已在 T-30 锁定为候选。</p>
+          <details className="v41-validation-audit"><summary>展开当前流程逐门覆盖（评估机会 {evaluationFunnel.opportunity_count}）</summary>
+            {evaluationFunnel.measurement_status === "NOT_MEASURABLE" ? (
+              <p className="v41-validation-warning"><strong>当前不可测量。</strong>尚无任何检查点评估机会记录，因此没有逐门通过率。这不表示各门失败——系统还不知道这些比赛会卡在哪一门。已冻结模型预测 {evaluationFunnel.capture_count} 场。</p>
+            ) : (<>
+              <ul className="v41-validation-counts">{([
+                ['model_ready', '模型就绪'],
+                ['mainline_parsed', '主盘解析'],
+                ['bookmaker_depth', '深度通过'],
+                ['quote_fresh', '时效通过'],
+                ['evaluated', '实际评估'],
+                ['no_edge', 'NO_EDGE'],
+                ['candidate', '动态评估候选判定'],
+              ] as const).map(([gate, gateLabel]) => <li key={gate}><span>{gateLabel}</span><strong>{evaluationFunnel.gate_counts[gate] ?? 0}/{evaluationFunnel.opportunity_count}</strong></li>)}</ul>
+              <p className="v41-validation-context">分母为预注册评估时点 × AH/TOTALS 的实际机会数，不由已冻结场次推算；带真实写入时刻 {evaluationFunnel.recorded_at_count}。动态评估候选判定不等于已在 T-30 锁定为候选。</p>
+            </>)}
           </details>
           <details className="v41-validation-audit"><summary>展开历史账本记账明细</summary>
             <ul className="v41-validation-counts"><li><span>赛果基表记录</span><strong>{records.validation_count}</strong></li><li><span>旧账本纳入统计</span><strong>{records.eligible_count}</strong></li><li><span>候选待结算</span><strong>{records.pending_count}</strong></li><li><span>无 Pick / 入场报价</span><strong>{records.excluded_count}</strong></li></ul>

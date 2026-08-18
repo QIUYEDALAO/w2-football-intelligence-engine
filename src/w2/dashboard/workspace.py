@@ -129,9 +129,7 @@ def build_dashboard_intelligence_workspace(
         match["public_semantics"] = _match_public_semantics(match, selected_day_semantics)
     focus_fixture_id = _selected_focus_fixture_id(matches, selected_day_semantics)
     primary_reason_counts = (
-        _primary_reason_counts(matches)
-        if selected_day_semantics.get("cause") is None
-        else {}
+        _primary_reason_counts(matches) if selected_day_semantics.get("cause") is None else {}
     )
     global_focus = _global_focus(
         day_view,
@@ -240,47 +238,46 @@ def _model_forecast_progress(raw: Mapping[str, Any]) -> dict[str, Any]:
         "settled_count": max(0, _int(raw.get("settled_count"))),
         "pending_count": max(0, _int(raw.get("pending_count"))),
         "sample_target": max(1, _int(raw.get("sample_target")) or 200),
-        "current_flow_candidate_count": max(
-            0, _int(raw.get("current_flow_candidate_count"))
-        ),
-        "current_flow_settled_count": max(
-            0, _int(raw.get("current_flow_settled_count"))
-        ),
+        "current_flow_candidate_count": max(0, _int(raw.get("current_flow_candidate_count"))),
+        "current_flow_settled_count": max(0, _int(raw.get("current_flow_settled_count"))),
         "min_xg_matches": max(1, _int(raw.get("min_xg_matches")) or 3),
         "xg_ready_team_count": max(0, _int(raw.get("xg_ready_team_count"))),
-        "next_7d_xg_ready_fixture_count": max(
-            0, _int(raw.get("next_7d_xg_ready_fixture_count"))
-        ),
-        "capture_policy": _text(
-            raw.get("capture_policy"), "FIRST_ELIGIBLE_FREEZE_IMMUTABLE"
-        ),
+        "next_7d_xg_ready_fixture_count": max(0, _int(raw.get("next_7d_xg_ready_fixture_count"))),
+        "capture_policy": _text(raw.get("capture_policy"), "FIRST_ELIGIBLE_FREEZE_IMMUTABLE"),
         "market_evaluation_funnel": {
-            "scope": _text(
-                funnel.get("scope"), "MODEL_FORECAST_CAPTURE_MARKET_V1"
-            ),
+            "scope": _text(funnel.get("scope"), "CHECKPOINT_EVALUATION_OPPORTUNITY_V2"),
             "denominator_unit": _text(
                 funnel.get("denominator_unit"),
-                "MODEL_FORECAST_CAPTURE_FIXTURE_X_MARKET",
+                "CHECKPOINT_EVALUATION_OPPORTUNITY_SLOT_X_MARKET",
             ),
+            "measurement_status": (
+                "MEASURABLE"
+                if _text(funnel.get("measurement_status")) == "MEASURABLE"
+                else "NOT_MEASURABLE"
+            ),
+            "opportunity_count": max(0, _int(funnel.get("opportunity_count"))),
+            "capture_count": max(0, _int(funnel.get("capture_count"))),
             "fixture_count": max(0, _int(funnel.get("fixture_count"))),
             "market_unit_count": max(0, _int(funnel.get("market_unit_count"))),
-            "persisted_market_unit_count": max(
-                0, _int(funnel.get("persisted_market_unit_count"))
-            ),
+            "persisted_market_unit_count": max(0, _int(funnel.get("persisted_market_unit_count"))),
             "recorded_at_count": max(0, _int(funnel.get("recorded_at_count"))),
             "gate_counts": {
                 str(key): max(0, _int(value))
                 for key, value in _mapping(funnel.get("gate_counts")).items()
             },
-            "gate_rates": {
-                str(key): max(0.0, min(1.0, _number(value) or 0.0))
-                for key, value in _mapping(funnel.get("gate_rates")).items()
-            },
+            # Preserve None rather than collapsing to {}: the dashboard must be
+            # able to say "not measurable" instead of drawing empty bars.
+            "gate_rates": (
+                {
+                    str(key): max(0.0, min(1.0, _number(value) or 0.0))
+                    for key, value in _mapping(funnel.get("gate_rates")).items()
+                }
+                if funnel.get("gate_rates") is not None
+                else None
+            ),
             "first_failed_gate_counts": {
                 str(key): max(0, _int(value))
-                for key, value in _mapping(
-                    funnel.get("first_failed_gate_counts")
-                ).items()
+                for key, value in _mapping(funnel.get("first_failed_gate_counts")).items()
             },
         },
         "lead_time_buckets": {
@@ -308,15 +305,9 @@ def _model_forecast_data_version_progress(raw: Mapping[str, Any]) -> dict[str, A
         "pending_count": max(0, _int(raw.get("pending_count"))),
         "lead_time_buckets": {
             bucket: {
-                "capture_count": max(
-                    0, _int(_mapping(buckets.get(bucket)).get("capture_count"))
-                ),
-                "settled_count": max(
-                    0, _int(_mapping(buckets.get(bucket)).get("settled_count"))
-                ),
-                "pending_count": max(
-                    0, _int(_mapping(buckets.get(bucket)).get("pending_count"))
-                ),
+                "capture_count": max(0, _int(_mapping(buckets.get(bucket)).get("capture_count"))),
+                "settled_count": max(0, _int(_mapping(buckets.get(bucket)).get("settled_count"))),
+                "pending_count": max(0, _int(_mapping(buckets.get(bucket)).get("pending_count"))),
             }
             for bucket in ("LT_6H", "H6_TO_LT_24H", "D1_TO_D3", "GT_3D")
         },
@@ -349,8 +340,7 @@ def _evaluation_execution(card: Mapping[str, Any]) -> dict[str, Any]:
         if state not in {"NO_EDGE_CURRENT", "ANALYSIS_PICK_ACTIVE"}:
             continue
         if kickoff is not None and (
-            evaluated_at is None
-            or not 0 <= (kickoff - evaluated_at).total_seconds() <= 10800
+            evaluated_at is None or not 0 <= (kickoff - evaluated_at).total_seconds() <= 10800
         ):
             continue
         evaluated.append((version, state, evaluated_at))
@@ -361,9 +351,7 @@ def _evaluation_execution(card: Mapping[str, Any]) -> dict[str, Any]:
         label = (
             min(
                 _EVALUATION_SLOT_TARGETS,
-                key=lambda target: abs(
-                    (kickoff - evaluated_at).total_seconds() - target[0]
-                ),
+                key=lambda target: abs((kickoff - evaluated_at).total_seconds() - target[0]),
             )[1]
             if kickoff is not None and evaluated_at is not None
             else _EVALUATION_CHECKPOINT_LABELS.get(checkpoint, checkpoint)
@@ -385,10 +373,7 @@ def _evaluation_execution(card: Mapping[str, Any]) -> dict[str, Any]:
         market_copy = (
             "两个市场均为 NO_EDGE —— 模型与市场看法一致，无可利用价差。"
             if status == "NO_EDGE"
-            and all(
-                {"ASIAN_HANDICAP", "TOTALS"} <= markets
-                for markets in checkpoints.values()
-            )
+            and all({"ASIAN_HANDICAP", "TOTALS"} <= markets for markets in checkpoints.values())
             else "已形成影子候选。"
             if status == "CANDIDATE"
             else "已完成市场评估。"
@@ -451,13 +436,11 @@ def _match(
         )
     market_aggregate_status = _market_aggregate_status(markets)
     market_evidence_ready = any(
-        _text(_mapping(market.get("eligibility")).get("observation_status"))
-        == "AVAILABLE"
+        _text(_mapping(market.get("eligibility")).get("observation_status")) == "AVAILABLE"
         for market in markets.values()
     )
     candidate_input_ready = any(
-        _text(_mapping(market.get("eligibility")).get("candidate_eligibility_status"))
-        == "READY"
+        _text(_mapping(market.get("eligibility")).get("candidate_eligibility_status")) == "READY"
         for market in markets.values()
     )
     home_team_label = _public_team_label(card, "home")
@@ -509,15 +492,11 @@ def _match(
             "action": _optional_text(card.get("action")),
             "next_eval_at": card.get("next_eval_at"),
             "provider_budget_status": _optional_text(card.get("provider_budget_status")),
-            "lineup_status": _optional_text(
-                data_refresh.get("lineups_status")
-            ),
+            "lineup_status": _optional_text(data_refresh.get("lineups_status")),
             "lineup_expectation": _optional_text(card.get("lineup_requirement")),
             "market_aggregate_status": market_aggregate_status,
             "market_evidence_status": "AVAILABLE" if market_evidence_ready else "NOT_READY",
-            "candidate_input_status": (
-                "READY" if candidate_input_ready else "NOT_READY"
-            ),
+            "candidate_input_status": ("READY" if candidate_input_ready else "NOT_READY"),
         },
         "market_fact": {
             "status": primary["status"] if primary else "INSUFFICIENT",
@@ -616,8 +595,7 @@ def _match_outcome(
         or fixture_id in tracked_ids
     )
     is_recorded = (
-        _text(replay_card.get("outcome_status")) == "MATCHED"
-        or fixture_id in recorded_ids
+        _text(replay_card.get("outcome_status")) == "MATCHED" or fixture_id in recorded_ids
     )
     is_finished = normalize_match_status(match.get("status")) == "FINISHED" or is_recorded
     cause = outcome_public_cause(
@@ -683,9 +661,7 @@ def _market_collection(data_refresh: Mapping[str, Any]) -> dict[str, Any]:
     semantics = _mapping(source.get("public_semantics"))
     return {
         "latest_snapshot_at": source.get("latest_snapshot_at"),
-        "latest_snapshot_checkpoint": _optional_text(
-            source.get("latest_snapshot_checkpoint")
-        ),
+        "latest_snapshot_checkpoint": _optional_text(source.get("latest_snapshot_checkpoint")),
         "target_checkpoint": _optional_text(source.get("target_checkpoint")),
         "scheduled_at": source.get("scheduled_at"),
         "window_end_at": source.get("window_end_at"),
@@ -760,9 +736,7 @@ def _market(
         _text(point.get("captured_at")) for point in points if point.get("captured_at")
     ]
     latest_snapshot_at = (
-        max(captured_times)
-        if captured_times
-        else _optional_text(current.get("captured_at"))
+        max(captured_times) if captured_times else _optional_text(current.get("captured_at"))
     )
     public_status = "READY" if current else "INSUFFICIENT"
     trend_evidence_status = (
@@ -813,10 +787,13 @@ def _mark_market_depth_asymmetry(markets: Mapping[str, dict[str, Any]]) -> None:
         for point in totals["timeline_points"]
         if point["captured_at"] and point["bookmaker_count"] > 0
     }
-    if any(
-        handicap_depth[captured_at] * 2 < totals_depth[captured_at]
-        for captured_at in handicap_depth.keys() & totals_depth.keys()
-    ) and MARKET_DEPTH_ASYMMETRY_REASON not in handicap["reason_codes"]:
+    if (
+        any(
+            handicap_depth[captured_at] * 2 < totals_depth[captured_at]
+            for captured_at in handicap_depth.keys() & totals_depth.keys()
+        )
+        and MARKET_DEPTH_ASYMMETRY_REASON not in handicap["reason_codes"]
+    ):
         handicap["reason_codes"].append(MARKET_DEPTH_ASYMMETRY_REASON)
 
 
@@ -832,9 +809,7 @@ def _market_eligibility(
         and _text(quote_identity.get("identity_status")) == "COMPLETE"
     )
     model_ready = _text(candidate.get("model_status")) == "READY"
-    observation_status = (
-        "AVAILABLE" if _text(market.get("status")) == "READY" else "INSUFFICIENT"
-    )
+    observation_status = "AVAILABLE" if _text(market.get("status")) == "READY" else "INSUFFICIENT"
     blockers = _string_list(candidate.get("blockers"))
     if observation_status != "AVAILABLE":
         blockers.append("MARKET_EVIDENCE_NOT_AVAILABLE")
@@ -863,17 +838,12 @@ def _market_eligibility(
 
 
 def _market_aggregate_status(markets: Mapping[str, Mapping[str, Any]]) -> str:
-    eligibility = [
-        _mapping(market.get("eligibility")) for market in markets.values()
-    ]
+    eligibility = [_mapping(market.get("eligibility")) for market in markets.values()]
     if eligibility and all(
         _text(item.get("candidate_eligibility_status")) == "READY" for item in eligibility
     ):
         return "READY"
-    if any(
-        _text(item.get("candidate_eligibility_status")) == "READY"
-        for item in eligibility
-    ):
+    if any(_text(item.get("candidate_eligibility_status")) == "READY" for item in eligibility):
         return "PARTIAL"
     return "NOT_READY"
 
@@ -934,12 +904,8 @@ def _date_strip_entry(raw: Mapping[str, Any]) -> dict[str, Any]:
             0, _int(raw.get("persisted_competition_coverage_count"))
         ),
         "active_whitelist_count": 13,
-        "market_collection_window_status": _text(
-            raw.get("market_collection_window_status")
-        ),
-        "market_evidence_fixture_count": max(
-            0, _int(raw.get("market_evidence_fixture_count"))
-        ),
+        "market_collection_window_status": _text(raw.get("market_collection_window_status")),
+        "market_evidence_fixture_count": max(0, _int(raw.get("market_evidence_fixture_count"))),
         "public_semantics": dict(semantics),
     }
 
@@ -950,9 +916,7 @@ def _model_relation(raw: Mapping[str, Any], name: str) -> dict[str, Any]:
         "status": _text(raw.get("status"), "MARKET_NOT_READY"),
         "canonical_line": _optional_text(raw.get("canonical_line")),
         "bookmaker_count": max(0, _int(raw.get("bookmaker_count"))),
-        "market_quote_age_seconds": _optional_nonnegative_int(
-            raw.get("market_quote_age_seconds")
-        ),
+        "market_quote_age_seconds": _optional_nonnegative_int(raw.get("market_quote_age_seconds")),
         "diagnostics": _mapping_list(raw.get("diagnostics")),
         "blockers": _string_list(raw.get("blockers")),
     }
@@ -1239,9 +1203,7 @@ def _card_domain(cards: Sequence[Mapping[str, Any]], name: str) -> tuple[str, An
     return (sorted(set(statuses))[0] if statuses else "NOT_AVAILABLE", max(captured, default=None))
 
 
-def _data_operations(
-    day_view: Mapping[str, Any], freshness: Mapping[str, Any]
-) -> dict[str, Any]:
+def _data_operations(day_view: Mapping[str, Any], freshness: Mapping[str, Any]) -> dict[str, Any]:
     counts = _mapping(day_view.get("counts"))
     safe_counts = {
         key: counts.get(key)
@@ -1326,10 +1288,7 @@ def _priority_reasons(match: Mapping[str, Any]) -> tuple[str | None, list[str]]:
 
 
 def _is_attention_worthy_movement(market: Mapping[str, Any]) -> bool:
-    if (
-        _text(market.get("status")) != "READY"
-        or _int(market.get("snapshot_count")) < 2
-    ):
+    if _text(market.get("status")) != "READY" or _int(market.get("snapshot_count")) < 2:
         return False
     movement = _mapping(market.get("movement"))
     status = _text(movement.get("status"))
@@ -1340,8 +1299,7 @@ def _is_attention_worthy_movement(market: Mapping[str, Any]) -> bool:
     prices = _mapping(market.get("prices"))
     deltas = _mapping(movement.get("price_delta"))
     return any(
-        _relative_price_change(prices.get(side), delta)
-        >= MARKET_PRICE_ATTENTION_THRESHOLD_RATIO
+        _relative_price_change(prices.get(side), delta) >= MARKET_PRICE_ATTENTION_THRESHOLD_RATIO
         for side, delta in deltas.items()
     )
 
@@ -1383,9 +1341,7 @@ def _match_public_semantics(
         return {"scope": "MATCH", "cause": selected_cause}
     readiness = _mapping(match.get("readiness"))
     cause = (
-        None
-        if _text(readiness.get("market_evidence_status")) == "AVAILABLE"
-        else "INSUFFICIENT"
+        None if _text(readiness.get("market_evidence_status")) == "AVAILABLE" else "INSUFFICIENT"
     )
     return {"scope": "MATCH", "cause": cause}
 
@@ -1461,8 +1417,7 @@ def _global_focus(
     affected_matches = [
         match
         for match in matches
-        if _text(_mapping(match.get("readiness")).get("market_evidence_status"))
-        == "NOT_READY"
+        if _text(_mapping(match.get("readiness")).get("market_evidence_status")) == "NOT_READY"
     ]
     common = {
         "affected_fixture_count": len(affected_matches) if cause else 0,
@@ -1583,8 +1538,7 @@ def _match_factual_summary(match: Mapping[str, Any]) -> str:
         for item in relation.values()
     )
     market_copy = (
-        "已有当前让球主盘/大小球主盘市场证据，但时间线不足两点；"
-        "仅展示当前横截面，不判断走势。"
+        "已有当前让球主盘/大小球主盘市场证据，但时间线不足两点；仅展示当前横截面，不判断走势。"
         if depth < 2
         else "已有当前让球主盘/大小球主盘持久化时间线；可展示已证实走势。"
     )
@@ -1641,9 +1595,7 @@ def _match_risks(
 ) -> dict[str, Any]:
     result = _risks(source)
     data_risk = result["DATA_RISK"]
-    lineup_cause = _optional_text(
-        _mapping(lineup_collection.get("public_semantics")).get("cause")
-    )
+    lineup_cause = _optional_text(_mapping(lineup_collection.get("public_semantics")).get("cause"))
     hard_gate_factor_ids = {
         _text(factor.get("factor_id"))
         for factor in _mapping_list(factor_checklist.get("factors"))
@@ -1667,12 +1619,13 @@ def _match_risks(
         missing_copy = "、".join(known)
         if unknown_count:
             missing_copy += ("、" if missing_copy else "") + f"另有 {unknown_count} 项输入"
-        data_risk["explanation"] = (
-            f"待补齐：{missing_copy}；既有采集或模型投影形成后解除"
-        )
-    elif missing_fields and not blocking_fields and set(
-        _string_list(data_risk.get("reason_codes"))
-    ) <= {"DATA_REQUIRED_INPUT_MISSING", "DATA_STATUS_BLOCKED"}:
+        data_risk["explanation"] = f"待补齐：{missing_copy}；既有采集或模型投影形成后解除"
+    elif (
+        missing_fields
+        and not blocking_fields
+        and set(_string_list(data_risk.get("reason_codes")))
+        <= {"DATA_REQUIRED_INPUT_MISSING", "DATA_STATUS_BLOCKED"}
+    ):
         data_risk.update(
             {
                 "status": "OK",
@@ -1699,9 +1652,7 @@ def _match_risks(
     elif cause == "AWAITING_COLLECTION":
         overdue = bool(market_collection.get("overdue"))
         reason = (
-            "COLLECTION_WINDOW_OVERDUE"
-            if overdue
-            else "COLLECTION_WINDOW_OPEN_AWAITING_CAPTURE"
+            "COLLECTION_WINDOW_OVERDUE" if overdue else "COLLECTION_WINDOW_OPEN_AWAITING_CAPTURE"
         )
         result["COLLECTION_RISK"] = {
             "dimension": "COLLECTION_RISK",

@@ -88,7 +88,6 @@ from w2.matchday.timezone import (
 )
 from w2.operations.leagues import run_top_five_audit
 from w2.operations.release_evidence import build_release_identity
-from w2.prematch.lifecycle import MODEL_FORECAST_DENOMINATOR_SCOPE
 from w2.prematch.read_model_projection import (
     ANALYSIS_CARD_SHADOW_PREFIX,
     FrozenAnalysisError,
@@ -111,28 +110,57 @@ MODEL_FORECAST_LEAD_TIME_BUCKETS = (
 MODEL_FORECAST_MARKETS = ("ASIAN_HANDICAP", "TOTALS")
 
 
+CHECKPOINT_OPPORTUNITY_SCOPE = "CHECKPOINT_EVALUATION_OPPORTUNITY_V2"
+CHECKPOINT_OPPORTUNITY_SEMANTICS = "CHECKPOINT_EVALUATION_OPPORTUNITY"
+
+
+def _is_official_opportunity(row: DynamicPrematchEvaluationModel) -> bool:
+    """Positive whitelist -- absence of a disqualifier is not qualification.
+
+    Rows predating the opportunity contract carry NULL in every one of these
+    fields, so an ``is False`` style filter would wave them straight through.
+    """
+
+    return (
+        row.official_funnel_eligible is True
+        and row.denominator_scope == CHECKPOINT_OPPORTUNITY_SCOPE
+        and row.measurement_semantics == CHECKPOINT_OPPORTUNITY_SEMANTICS
+        and bool(row.evaluation_policy_version)
+        and bool(row.evaluation_slot_id)
+    )
+
+
 def _model_forecast_market_evaluation_funnel(
     captures: Sequence[ModelForecastCaptureModel],
     evaluations: Sequence[DynamicPrematchEvaluationModel],
     superseded_evaluation_ids: set[str],
 ) -> dict[str, Any]:
-    current: dict[tuple[str, str], DynamicPrematchEvaluationModel] = {}
+    """Rates come from opportunities that exist, never from ones inferred.
+
+    The previous shape multiplied captures by markets and then read every
+    fixture x market with no row as "all gates failed, entry not traversed".
+    That turns silence into evidence: a fixture whose checkpoints have not come
+    due yet is indistinguishable from one that genuinely failed mainline
+    parsing.  With no opportunity writer in production the whole grid resolved
+    that way, which would have published a 100%-model / 0%-everything funnel
+    describing nothing.
+    """
+
+    current: dict[tuple[str, str, str], DynamicPrematchEvaluationModel] = {}
     for row in evaluations:
         if row.evaluation_id in superseded_evaluation_ids:
             continue
-        # Rows the one-off sweep produced describe scan-time state, not the
-        # checkpoint they name, so every gate they report is unfounded.  They
-        # stay queryable but are barred from any pass-rate.
-        if row.official_funnel_eligible is False:
+        if not _is_official_opportunity(row):
             continue
-        key = (row.fixture_id.removeprefix("api_football:"), row.market)
+        # One opportunity per slot x market; retries within a slot supersede
+        # rather than accumulate, so the denominator counts chances, not tries.
+        key = (
+            row.fixture_id.removeprefix("api_football:"),
+            str(row.evaluation_slot_id),
+            row.market,
+        )
         previous = current.get(key)
-        if previous is None or (
-            row.denominator_scope == MODEL_FORECAST_DENOMINATOR_SCOPE,
-            row.evaluated_at,
-            row.evaluation_id,
-        ) > (
-            previous.denominator_scope == MODEL_FORECAST_DENOMINATOR_SCOPE,
+        if previous is None or (row.evaluated_at, row.evaluation_id) > (
             previous.evaluated_at,
             previous.evaluation_id,
         ):
@@ -149,36 +177,34 @@ def _model_forecast_market_evaluation_funnel(
     )
     counts = Counter({name: 0 for name in gate_names})
     first_failed: Counter[str] = Counter()
-    persisted = 0
     recorded_at = 0
-    fixture_ids = {
-        row.fixture_id.removeprefix("api_football:") for row in captures
-    }
-    for fixture_id in sorted(fixture_ids):
-        for market in MODEL_FORECAST_MARKETS:
-            current_row = current.get((fixture_id, market))
-            gates, blocker = _dynamic_gate_results(current_row)
-            persisted += int(current_row is not None)
-            recorded_at += int(
-                current_row is not None and current_row.recorded_at is not None
-            )
-            counts.update(name for name in gate_names if gates[name])
-            if blocker:
-                first_failed[blocker] += 1
+    for row in current.values():
+        gates, blocker = _dynamic_gate_results(row)
+        recorded_at += int(row.recorded_at is not None)
+        counts.update(name for name in gate_names if gates[name])
+        if blocker:
+            first_failed[blocker] += 1
 
-    denominator = len(fixture_ids) * len(MODEL_FORECAST_MARKETS)
+    denominator = len(current)
+    fixture_ids = {fixture_id for fixture_id, _, _ in current}
+    measurable = denominator > 0
     return {
-        "scope": MODEL_FORECAST_DENOMINATOR_SCOPE,
-        "denominator_unit": "MODEL_FORECAST_CAPTURE_FIXTURE_X_MARKET",
+        "scope": CHECKPOINT_OPPORTUNITY_SCOPE,
+        "denominator_unit": "CHECKPOINT_EVALUATION_OPPORTUNITY_SLOT_X_MARKET",
+        "measurement_status": "MEASURABLE" if measurable else "NOT_MEASURABLE",
+        "opportunity_count": denominator,
         "fixture_count": len(fixture_ids),
         "market_unit_count": denominator,
-        "persisted_market_unit_count": persisted,
+        "persisted_market_unit_count": denominator,
         "recorded_at_count": recorded_at,
-        "gate_counts": dict(counts),
-        "gate_rates": {
-            name: round(counts[name] / denominator, 6) if denominator else 0.0
-            for name in gate_names
-        },
+        "capture_count": len({row.fixture_id for row in captures}),
+        "gate_counts": dict(counts) if measurable else {},
+        # Null, not zeroes: a rate of 0.0 asserts the gate was tested and failed.
+        "gate_rates": (
+            {name: round(counts[name] / denominator, 6) for name in gate_names}
+            if measurable
+            else None
+        ),
         "first_failed_gate_counts": dict(sorted(first_failed.items())),
     }
 
@@ -207,7 +233,8 @@ def _dynamic_gate_results(
         "model_ready": state != "NOT_READY_MODEL_INPUT",
         "mainline_parsed": payload.get("exact_line") is not None,
         "bookmaker_depth": False,
-        "quote_fresh": state not in {
+        "quote_fresh": state
+        not in {
             "NOT_READY_SOURCE_ABSENT",
             "NOT_READY_QUOTE_INCOMPLETE",
             "STALE_PENDING_REFRESH",
@@ -1335,9 +1362,7 @@ class ReadModelRepository:
                 captures = list(session.scalars(select(ModelForecastCaptureModel)))
                 versions = list(session.scalars(select(ModelForecastCaptureDataVersionModel)))
                 outcomes = list(session.scalars(select(ModelForecastOutcomeModel)))
-                dynamic_evaluations = list(
-                    session.scalars(select(DynamicPrematchEvaluationModel))
-                )
+                dynamic_evaluations = list(session.scalars(select(DynamicPrematchEvaluationModel)))
                 superseded_evaluation_ids = set(
                     session.scalars(
                         select(DynamicPrematchSupersessionModel.superseded_evaluation_id)
@@ -1370,16 +1395,13 @@ class ReadModelRepository:
                     OutcomeLedgerModel.record_type == "capture",
                     OutcomeLedgerModel.source_artifact == "db:forward_outcome_ledger",
                     OutcomeLedgerModel.recommendation_scope.in_(("VALIDATION", "SHADOW")),
-                    OutcomeLedgerModel.payload["checkpoint"].as_string()
-                    == "T-30m_VALIDATION_LOCK",
+                    OutcomeLedgerModel.payload["checkpoint"].as_string() == "T-30m_VALIDATION_LOCK",
                 )
                 current_flow_candidate_count = session.scalar(
                     select(func.count(func.distinct(OutcomeLedgerModel.fixture_id))).where(
                         OutcomeLedgerModel.record_type == "capture",
                         OutcomeLedgerModel.source_artifact == "db:forward_outcome_ledger",
-                        OutcomeLedgerModel.recommendation_scope.in_(
-                            ("VALIDATION", "SHADOW")
-                        ),
+                        OutcomeLedgerModel.recommendation_scope.in_(("VALIDATION", "SHADOW")),
                         OutcomeLedgerModel.payload["checkpoint"].as_string()
                         == "T-30m_VALIDATION_LOCK",
                     )
@@ -1387,9 +1409,7 @@ class ReadModelRepository:
                 current_flow_settled_count = session.scalar(
                     select(func.count(func.distinct(OutcomeLedgerModel.fixture_id))).where(
                         OutcomeLedgerModel.record_type == "outcome",
-                        OutcomeLedgerModel.capture_identity_hash.in_(
-                            current_flow_capture_hashes
-                        ),
+                        OutcomeLedgerModel.capture_identity_hash.in_(current_flow_capture_hashes),
                     )
                 )
         except SQLAlchemyError as exc:

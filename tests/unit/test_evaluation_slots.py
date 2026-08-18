@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -74,12 +75,12 @@ def test_current_policy_is_registered() -> None:
 
 
 def test_posthoc_snapshot_rows_are_barred_from_the_funnel() -> None:
-    """The sweep rows stay queryable but must not reach any pass-rate.
+    """The sweep rows stay queryable but must never reach a pass-rate.
 
-    Their gate verdicts describe the moment the scan ran, not the checkpoint they
-    name, so letting even one through makes every rate unfounded.  With the row
-    excluded the unit still counts toward the denominator -- it simply has no
-    verdict, which is the honest state.
+    Their gate verdicts describe the moment the scan ran, not the checkpoint
+    they name.  An official opportunity carrying the full contract is counted;
+    the quarantined row is not, and its absence leaves the funnel honestly
+    unmeasurable rather than reporting a fabricated failure.
     """
 
     from w2.api.repository import _model_forecast_market_evaluation_funnel
@@ -87,28 +88,40 @@ def test_posthoc_snapshot_rows_are_barred_from_the_funnel() -> None:
     class _Capture:
         fixture_id = "api_football:1494246"
 
-    class _Row:
-        def __init__(self, *, eligible: bool | None) -> None:
-            self.evaluation_id = f"eval-{eligible}"
-            self.fixture_id = "api_football:1494246"
-            self.market = "ASIAN_HANDICAP"
-            self.denominator_scope = "MODEL_FORECAST_CAPTURE_MARKET_V1"
-            self.official_funnel_eligible = eligible
-            self.evaluated_at = None
-            self.original_state = "NOT_READY_MODEL_INPUT"
-            self.recorded_at = None
-            self.bookmaker_count = 0
-            self.first_failed_gate = "MAINLINE_PARSED"
-            self.gate_results = None
-            self.payload = {"state": "NOT_READY_MODEL_INPUT"}
+    def _row(*, official: bool) -> object:
+        return SimpleNamespace(
+            evaluation_id=f"eval-{official}",
+            fixture_id="api_football:1494246",
+            market="ASIAN_HANDICAP",
+            denominator_scope=(
+                "CHECKPOINT_EVALUATION_OPPORTUNITY_V2"
+                if official
+                else "LEGACY_POSTHOC_DENOMINATOR_SNAPSHOT_V1"
+            ),
+            measurement_semantics=(
+                "CHECKPOINT_EVALUATION_OPPORTUNITY"
+                if official
+                else "POSTHOC_CURRENT_STATE_SNAPSHOT"
+            ),
+            official_funnel_eligible=official,
+            evaluation_policy_version="candidate-eval.v1" if official else None,
+            evaluation_slot_id="T15_ODDS" if official else None,
+            evaluated_at=None,
+            recorded_at=None,
+            original_state="NO_EDGE_CURRENT",
+            bookmaker_count=0,
+            first_failed_gate=None,
+            gate_results=None,
+            payload={"state": "NO_EDGE_CURRENT"},
+        )
 
-    captures = [_Capture()]
+    quarantined = _model_forecast_market_evaluation_funnel(
+        [_Capture()], [_row(official=False)], set()
+    )
+    assert quarantined["measurement_status"] == "NOT_MEASURABLE"
+    assert quarantined["opportunity_count"] == 0
+    assert quarantined["gate_rates"] is None
 
-    excluded = _model_forecast_market_evaluation_funnel(captures, [_Row(eligible=False)], set())
-    included = _model_forecast_market_evaluation_funnel(captures, [_Row(eligible=True)], set())
-
-    # The denominator is unchanged: the opportunity existed either way.
-    assert excluded["market_unit_count"] == included["market_unit_count"] == 2
-    # But the sweep row contributes no verdict and no persisted unit.
-    assert excluded["persisted_market_unit_count"] == 0
-    assert included["persisted_market_unit_count"] == 1
+    official = _model_forecast_market_evaluation_funnel([_Capture()], [_row(official=True)], set())
+    assert official["measurement_status"] == "MEASURABLE"
+    assert official["opportunity_count"] == 1

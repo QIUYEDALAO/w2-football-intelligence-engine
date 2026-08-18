@@ -789,8 +789,7 @@ class WorkspaceFixtureFactor(BaseModel):
         if (self.state == "WAITING") != (self.cause == "NOT_YET_DUE"):
             raise ValueError("not-yet-due factors must use waiting state")
         if self.permanence == "SELF_RESOLVING" and not (
-            self.next_window_at is not None
-            or int(self.evidence.get("shortfall") or 0) > 0
+            self.next_window_at is not None or int(self.evidence.get("shortfall") or 0) > 0
         ):
             raise ValueError("self-resolving factors require a concrete recovery condition")
         return self
@@ -1264,14 +1263,18 @@ class WorkspaceModelForecastDataVersionProgress(WorkspaceModelForecastBucketProg
 class WorkspaceModelForecastMarketEvaluationFunnel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    scope: Literal["MODEL_FORECAST_CAPTURE_MARKET_V1"]
-    denominator_unit: Literal["MODEL_FORECAST_CAPTURE_FIXTURE_X_MARKET"]
+    scope: Literal["CHECKPOINT_EVALUATION_OPPORTUNITY_V2"]
+    denominator_unit: Literal["CHECKPOINT_EVALUATION_OPPORTUNITY_SLOT_X_MARKET"]
+    measurement_status: Literal["MEASURABLE", "NOT_MEASURABLE"]
+    opportunity_count: int = Field(ge=0)
     fixture_count: int = Field(ge=0)
     market_unit_count: int = Field(ge=0)
     persisted_market_unit_count: int = Field(ge=0)
     recorded_at_count: int = Field(ge=0)
+    capture_count: int = Field(ge=0)
     gate_counts: dict[str, int]
-    gate_rates: dict[str, float]
+    # None while NOT_MEASURABLE: a 0.0 rate would claim the gate was tested.
+    gate_rates: dict[str, float] | None
     first_failed_gate_counts: dict[str, int]
 
 
@@ -1391,8 +1394,7 @@ class WorkspaceDateStripEntry(BaseModel):
         if self.market_evidence_fixture_count > self.fixture_count:
             raise ValueError("date strip market evidence cannot exceed fixtures")
         has_full_evidence = (
-            self.fixture_count > 0
-            and self.market_evidence_fixture_count == self.fixture_count
+            self.fixture_count > 0 and self.market_evidence_fixture_count == self.fixture_count
         )
         if (
             self.market_collection_window_status == "MARKET_EVIDENCE_AVAILABLE"
@@ -1449,9 +1451,7 @@ class DashboardIntelligenceWorkspaceResponse(BaseModel):
     @model_validator(mode="after")
     def focus_and_date_strip_are_exact(self) -> DashboardIntelligenceWorkspaceResponse:
         fixture_ids = {match.fixture_id for match in self.matches}
-        competition_ids = {
-            match.competition_id for match in self.matches if match.competition_id
-        }
+        competition_ids = {match.competition_id for match in self.matches if match.competition_id}
         if self.today_summary.match_count != len(self.matches):
             raise ValueError("selected-day match count must equal projected matches")
         if self.today_summary.competition_count != len(competition_ids):
@@ -1517,16 +1517,9 @@ class DashboardIntelligenceWorkspaceResponse(BaseModel):
             raise ValueError("matched replay fixtures must match per-match outcome facts")
         if set(outcome_summary.missing_outcome_fixture_ids) != missing_ids:
             raise ValueError("missing replay fixtures must match per-match outcome facts")
-        outcome_causes = [
-            match.outcome.public_semantics.cause for match in self.matches
-        ]
-        expected_record_cause = selected_day_outcome_cause(
-            finished, outcome_causes
-        )
-        if (
-            self.validation.history_replay.public_semantics.cause
-            != expected_record_cause
-        ):
+        outcome_causes = [match.outcome.public_semantics.cause for match in self.matches]
+        expected_record_cause = selected_day_outcome_cause(finished, outcome_causes)
+        if self.validation.history_replay.public_semantics.cause != expected_record_cause:
             raise ValueError("history/replay cause must derive from match outcomes")
         return self
 

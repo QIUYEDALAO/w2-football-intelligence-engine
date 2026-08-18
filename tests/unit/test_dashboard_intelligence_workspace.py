@@ -20,7 +20,16 @@ from w2.identity.public_team_labels import (
 )
 
 
-def test_model_forecast_funnel_uses_every_capture_times_two_as_denominator() -> None:
+def test_model_forecast_funnel_reports_not_measurable_without_opportunities() -> None:
+    """Captures are not opportunities, so they cannot stand in as a denominator.
+
+    The previous contract multiplied captures by markets and read every missing
+    row as "all gates failed, entry not traversed".  With no opportunity writer
+    in production that published a 100%-model / 0%-everything funnel describing
+    fixtures whose checkpoints had not even come due.  Silence must read as
+    silence.
+    """
+
     captures = [
         SimpleNamespace(fixture_id="1"),
         SimpleNamespace(fixture_id="api_football:2"),
@@ -28,19 +37,45 @@ def test_model_forecast_funnel_uses_every_capture_times_two_as_denominator() -> 
 
     funnel = repository_module._model_forecast_market_evaluation_funnel(captures, [], set())
 
-    assert funnel["fixture_count"] == 2
-    assert funnel["market_unit_count"] == 4
-    assert funnel["persisted_market_unit_count"] == 0
-    assert funnel["gate_counts"] == {
-        "model_ready": 4,
-        "mainline_parsed": 0,
-        "bookmaker_depth": 0,
-        "quote_fresh": 0,
-        "evaluated": 0,
-        "no_edge": 0,
-        "candidate": 0,
-    }
-    assert funnel["first_failed_gate_counts"] == {"EVALUATION_ENTRY_NOT_TRAVERSED": 4}
+    assert funnel["measurement_status"] == "NOT_MEASURABLE"
+    assert funnel["opportunity_count"] == 0
+    assert funnel["market_unit_count"] == 0
+    assert funnel["gate_rates"] is None
+    assert funnel["gate_counts"] == {}
+    assert funnel["first_failed_gate_counts"] == {}
+    # The captures are still reported -- they are just not the denominator.
+    assert funnel["capture_count"] == 2
+
+
+def test_model_forecast_funnel_ignores_rows_missing_the_opportunity_contract() -> None:
+    """A NULL contract field is not consent: rows predating it must be excluded.
+
+    Filtering on ``official_funnel_eligible is False`` alone would wave through
+    every legacy row, since those carry NULL rather than False.
+    """
+
+    partial = SimpleNamespace(
+        evaluation_id="eval-1",
+        fixture_id="api_football:1",
+        market="ASIAN_HANDICAP",
+        denominator_scope="CHECKPOINT_EVALUATION_OPPORTUNITY_V2",
+        measurement_semantics="CHECKPOINT_EVALUATION_OPPORTUNITY",
+        official_funnel_eligible=True,
+        evaluation_policy_version="candidate-eval.v1",
+        evaluation_slot_id=None,
+        evaluated_at=None,
+        recorded_at=None,
+        original_state="NO_EDGE_CURRENT",
+        gate_results=None,
+        payload={"state": "NO_EDGE_CURRENT"},
+    )
+
+    funnel = repository_module._model_forecast_market_evaluation_funnel(
+        [SimpleNamespace(fixture_id="1")], [partial], set()
+    )
+
+    assert funnel["measurement_status"] == "NOT_MEASURABLE"
+    assert funnel["opportunity_count"] == 0
 
 
 def _market(snapshot_count: int) -> dict[str, Any]:

@@ -453,14 +453,18 @@ export interface WorkspaceValidation {
     next_7d_xg_ready_fixture_count: number;
     capture_policy: "FIRST_ELIGIBLE_FREEZE_IMMUTABLE";
     market_evaluation_funnel: {
-      scope: "MODEL_FORECAST_CAPTURE_MARKET_V1";
-      denominator_unit: "MODEL_FORECAST_CAPTURE_FIXTURE_X_MARKET";
+      scope: "CHECKPOINT_EVALUATION_OPPORTUNITY_V2";
+      denominator_unit: "CHECKPOINT_EVALUATION_OPPORTUNITY_SLOT_X_MARKET";
+      measurement_status: "MEASURABLE" | "NOT_MEASURABLE";
+      opportunity_count: number;
+      capture_count: number;
       fixture_count: number;
       market_unit_count: number;
       persisted_market_unit_count: number;
       recorded_at_count: number;
       gate_counts: Record<string, number>;
-      gate_rates: Record<string, number>;
+      // null while NOT_MEASURABLE -- a 0 rate would claim the gate was tested.
+      gate_rates: Record<string, number> | null;
       first_failed_gate_counts: Record<string, number>;
     };
     lead_time_buckets: Record<"LT_6H" | "H6_TO_LT_24H" | "D1_TO_D3" | "GT_3D", {
