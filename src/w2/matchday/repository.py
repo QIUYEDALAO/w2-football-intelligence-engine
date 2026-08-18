@@ -12,6 +12,7 @@ from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.future_refresh_models import RawPayloadModel
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
+    MatchdayCheckpointPlanRescheduleModel,
     MatchdayEndpointCaptureModel,
     MatchdayEndpointCapturePlanModel,
     MatchdayEvidenceManifestModel,
@@ -140,8 +141,17 @@ class MatchdayRuntimeRepository:
             # keyed on fixture x checkpoint x policy and deliberately excludes the
             # kickoff, so a postponed fixture reuses these rows.  Only verdicts that
             # recorded no provider interaction are re-dated; anything that touched
-            # the provider stays pinned to the window it describes.
-            if rescheduled and existing.status in _REDATABLE_CHECKPOINT_STATUSES:
+            # the provider stays pinned to the window it describes, which for FAILED
+            # has to be decided per row rather than by status alone.
+            if rescheduled and _is_redatable(session, existing):
+                session.add(
+                    _reschedule_audit_row(
+                        existing,
+                        payload=payload,
+                        new_status=incoming_status,
+                        recorded_at=normalize_repo_time(datetime.now(UTC)),
+                    )
+                )
                 existing.kickoff_utc = _dt(payload["kickoff_utc"])
                 existing.scheduled_at = _dt(payload["scheduled_at"])
                 existing.window_start = _dt(payload["window_start"])
@@ -892,6 +902,74 @@ class MatchdayRuntimeRepository:
 _REDATABLE_CHECKPOINT_STATUSES = frozenset(
     {"PLANNED", "DUE", "MISSED", "SKIPPED_POLICY", "SKIPPED_BUDGET"}
 )
+
+
+def _is_redatable(session: Session, row: MatchdayCheckpointPlanModel) -> bool:
+    """Whether a moved kickoff may rewrite this plan row.
+
+    Status alone is not sufficient for FAILED.  A FAILED row may record either
+    a plan that never reached the provider or one whose request was actually
+    sent and errored; the second kind describes a real interaction with the old
+    window and must stay pinned to it, exactly as CAPTURED and PROVIDER_EMPTY
+    do.  The distinguishing evidence is a capture on the row or a link row
+    joining it to an endpoint capture.
+    """
+
+    if row.status in _REDATABLE_CHECKPOINT_STATUSES:
+        return True
+    if row.status != "FAILED":
+        return False
+    if row.capture_id or row.current_unscheduled_capture_id:
+        return False
+    linked = session.scalar(
+        select(MatchdayEndpointCapturePlanModel.link_hash)
+        .where(MatchdayEndpointCapturePlanModel.plan_id == row.plan_id)
+        .limit(1)
+    )
+    return linked is None
+
+
+def _reschedule_audit_row(
+    row: MatchdayCheckpointPlanModel,
+    *,
+    payload: Mapping[str, Any],
+    new_status: str,
+    recorded_at: datetime,
+) -> MatchdayCheckpointPlanRescheduleModel:
+    """Capture the window a re-date is about to overwrite.
+
+    The re-date writes the new kickoff, window, status, blockers and missed_at
+    over the same row, and no other table records what the plan looked like
+    before: endpoint captures and the checkpoint audit describe attempts, not
+    the plan they were scheduled against.  attempt_count is carried forward
+    rather than reset -- plan_id spans windows by design, so the count is the
+    plan identity's history, not this window's -- and is recorded here so the
+    accumulated value stays interpretable.
+    """
+
+    previous_kickoff = normalize_repo_time(row.kickoff_utc)
+    return MatchdayCheckpointPlanRescheduleModel(
+        reschedule_id=stable_hash(
+            ":".join([row.plan_id, _iso(previous_kickoff), _iso(recorded_at)])
+        ),
+        plan_id=row.plan_id,
+        fixture_id=row.fixture_id,
+        checkpoint=row.checkpoint,
+        recorded_at=recorded_at,
+        previous_status=row.status,
+        previous_kickoff_utc=previous_kickoff,
+        previous_scheduled_at=normalize_repo_time(row.scheduled_at),
+        previous_window_start=normalize_repo_time(row.window_start),
+        previous_window_end=normalize_repo_time(row.window_end),
+        previous_attempt_count=int(row.attempt_count or 0),
+        previous_blockers=list(row.blockers or []),
+        previous_missed_at=normalize_repo_time(row.missed_at) if row.missed_at else None,
+        new_status=new_status,
+        new_kickoff_utc=_dt(payload["kickoff_utc"]),
+        new_scheduled_at=_dt(payload["scheduled_at"]),
+        new_window_start=_dt(payload["window_start"]),
+        new_window_end=_dt(payload["window_end"]),
+    )
 
 
 def _transition_status(current: str, incoming: str) -> str:

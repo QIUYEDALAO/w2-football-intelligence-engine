@@ -180,6 +180,49 @@ class MatchdayCheckpointPlanModel(Base):
     plan_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 
 
+class MatchdayCheckpointPlanRescheduleModel(Base):
+    """Append-only record of a plan row being re-dated onto a new kickoff.
+
+    plan_id excludes the kickoff, so a postponed fixture reuses its plan rows
+    and the re-date overwrites the window, status, blockers and missed_at in
+    place. Without this table the previous window leaves no trace anywhere:
+    the endpoint captures and checkpoint audit record attempts, not the plan
+    the attempt was scheduled against.
+    """
+
+    __tablename__ = "matchday_checkpoint_plan_reschedules"
+    __table_args__ = (
+        UniqueConstraint(
+            "plan_id",
+            "previous_kickoff_utc",
+            "recorded_at",
+            name="uq_matchday_checkpoint_plan_reschedule_identity",
+        ),
+        Index("ix_matchday_checkpoint_plan_reschedule_plan", "plan_id"),
+    )
+
+    reschedule_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    plan_id: Mapped[str] = mapped_column(
+        ForeignKey("matchday_checkpoint_plans.plan_id"), nullable=False
+    )
+    fixture_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    checkpoint: Mapped[str] = mapped_column(String(64), nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    previous_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    previous_kickoff_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    previous_scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    previous_window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    previous_window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    previous_attempt_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    previous_blockers: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    previous_missed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    new_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    new_kickoff_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    new_scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    new_window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    new_window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class MatchdayEvidenceManifestModel(Base):
     __tablename__ = "matchday_evidence_manifests"
     __table_args__ = (

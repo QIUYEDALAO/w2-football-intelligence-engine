@@ -14,6 +14,7 @@ from w2.infrastructure.persistence.dynamic_prematch_models import (
 )
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
+    MatchdayCheckpointPlanRescheduleModel,
     MatchdayEndpointCaptureModel,
     MatchdayEndpointCapturePlanModel,
     MatchdayEvidenceManifestModel,
@@ -633,10 +634,10 @@ def test_terminal_checkpoint_is_not_rewritten_by_rescheduled_missed_plan() -> No
     policy = competition_policies(load_matchday_policy())["allsvenskan"]
     # MISSED is deliberately absent: it records no provider interaction, so a
     # moved kickoff re-dates it (see
-    # test_postponed_fixture_reschedules_its_checkpoint_plans).  FAILED and
-    # CAPTURED each describe something that actually happened against the old
-    # window and stay pinned to it.
-    for terminal_status in ("FAILED", "CAPTURED"):
+    # test_postponed_fixture_reschedules_its_checkpoint_plans).  FAILED is
+    # absent too, but for a different reason -- it is decided per row on
+    # whether provider evidence exists, covered by the two tests below.
+    for terminal_status in ("CAPTURED",):
         plan = next(
             item
             for item in build_checkpoint_plans(
@@ -1361,3 +1362,147 @@ def test_reschedule_releases_a_claim_held_against_the_old_window() -> None:
         limit=1,
     )
     assert [row["id"] for row in reclaimed] == [plan_id]
+
+
+def _failed_plan_fixture(
+    repository: MatchdayRuntimeRepository,
+    *,
+    fixture_id: str,
+    kickoff: datetime,
+) -> tuple[CheckpointPlan, str]:
+    policy = competition_policies(load_matchday_policy())["allsvenskan"]
+    plan = next(
+        item
+        for item in build_checkpoint_plans(
+            fixture_id=fixture_id,
+            competition_id="allsvenskan",
+            season="2026",
+            kickoff_utc=kickoff,
+            now=kickoff - timedelta(hours=25),
+            policy=policy,
+        )
+        if item.checkpoint == "T24_ODDS"
+    )
+    plan_id = repository.upsert_checkpoint_plan(plan)
+    for status in ("DUE", "FAILED"):
+        repository.transition_checkpoint(
+            fixture_id=plan.fixture_id,
+            competition_id=plan.competition_id,
+            season=plan.season,
+            checkpoint=plan.checkpoint,
+            policy_version=plan.policy_version,
+            status=status,
+        )
+    return plan, plan_id
+
+
+def _reproject(plan: CheckpointPlan, kickoff: datetime, now: datetime) -> CheckpointPlan:
+    policy = competition_policies(load_matchday_policy())["allsvenskan"]
+    return next(
+        item
+        for item in build_checkpoint_plans(
+            fixture_id=plan.fixture_id,
+            competition_id=plan.competition_id,
+            season=plan.season,
+            kickoff_utc=kickoff,
+            now=now,
+            policy=policy,
+        )
+        if item.checkpoint == plan.checkpoint
+    )
+
+
+def test_failed_plan_without_provider_evidence_is_redated() -> None:
+    """A failure that never reached the provider describes no window worth keeping.
+
+    Nothing in production drives FAILED back to DUE, so a FAILED row left on the
+    old kickoff is lost for good once its fixture moves -- the same permanent
+    loss the re-dating exists to prevent.
+    """
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    original = KICKOFF
+    moved = KICKOFF + timedelta(days=38)
+    plan, plan_id = _failed_plan_fixture(
+        repository, fixture_id="api_football:failed-clean", kickoff=original
+    )
+
+    repository.upsert_checkpoint_plan(_reproject(plan, moved, moved - timedelta(hours=25)))
+
+    with Session(engine) as session:
+        row = session.get(MatchdayCheckpointPlanModel, plan_id)
+        assert row is not None
+        assert normalize_repo_time(row.kickoff_utc) == moved
+
+
+def test_failed_plan_with_provider_evidence_stays_pinned_to_its_window() -> None:
+    """A request that was actually sent belongs to the window it was sent for."""
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    original = KICKOFF
+    moved = KICKOFF + timedelta(days=38)
+    plan, plan_id = _failed_plan_fixture(
+        repository, fixture_id="api_football:failed-with-evidence", kickoff=original
+    )
+    with Session(engine) as session:
+        row = session.get(MatchdayCheckpointPlanModel, plan_id)
+        assert row is not None
+        row.capture_id = "capture-actually-sent"
+        session.commit()
+
+    repository.upsert_checkpoint_plan(_reproject(plan, moved, moved - timedelta(hours=25)))
+
+    with Session(engine) as session:
+        row = session.get(MatchdayCheckpointPlanModel, plan_id)
+        assert row is not None
+        assert normalize_repo_time(row.kickoff_utc) == original
+        assert row.status == "FAILED"
+        assert session.scalars(select(MatchdayCheckpointPlanRescheduleModel)).all() == []
+
+
+def test_reschedule_records_the_window_it_overwrites() -> None:
+    """The re-date overwrites the plan in place, so the old window is kept here.
+
+    Endpoint captures and the checkpoint audit describe attempts, not the plan
+    they were scheduled against, so without this row a re-dated plan loses every
+    trace of the window it used to hold.
+    """
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    original = KICKOFF
+    moved = KICKOFF + timedelta(days=38)
+    plan, plan_id = _failed_plan_fixture(
+        repository, fixture_id="api_football:failed-audited", kickoff=original
+    )
+    with Session(engine) as session:
+        before = session.get(MatchdayCheckpointPlanModel, plan_id)
+        assert before is not None
+        previous_scheduled_at = normalize_repo_time(before.scheduled_at)
+        previous_attempt_count = int(before.attempt_count or 0)
+
+    repository.upsert_checkpoint_plan(_reproject(plan, moved, moved - timedelta(hours=25)))
+
+    with Session(engine) as session:
+        audits = list(session.scalars(select(MatchdayCheckpointPlanRescheduleModel)))
+        row = session.get(MatchdayCheckpointPlanModel, plan_id)
+        assert row is not None
+
+    assert len(audits) == 1
+    audit = audits[0]
+    assert audit.plan_id == plan_id
+    assert audit.previous_status == "FAILED"
+    assert normalize_repo_time(audit.previous_kickoff_utc) == original
+    assert normalize_repo_time(audit.previous_scheduled_at) == previous_scheduled_at
+    assert audit.previous_attempt_count == previous_attempt_count
+    assert normalize_repo_time(audit.new_kickoff_utc) == moved
+    # attempt_count spans windows by design: plan_id excludes the kickoff, so the
+    # count belongs to the plan identity rather than to one window.  Resetting it
+    # would also silently change which rows repair tooling selects on
+    # attempt_count == 1.
+    assert int(row.attempt_count or 0) == previous_attempt_count
