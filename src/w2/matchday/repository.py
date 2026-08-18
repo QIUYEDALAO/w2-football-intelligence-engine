@@ -22,8 +22,12 @@ from w2.infrastructure.persistence.model_forecast_models import (
     ModelForecastCaptureModel,
     ModelForecastOutcomeModel,
     canonical_model_forecast_fixture_id_sql,
+    model_forecast_fixture_aliases,
 )
 from w2.matchday.intake_v2 import CheckpointPlan, parse_utc, stable_hash, validate_manifest_identity
+from w2.prematch.evaluation_slots import CURRENT_EVALUATION_POLICY, is_evaluation_slot
+from w2.prematch.lifecycle import EvaluationOpportunityContext, OpportunityState
+from w2.prematch.repository import DynamicPrematchRepository
 
 
 class MatchdayRepositoryError(RuntimeError):
@@ -822,6 +826,7 @@ class MatchdayRuntimeRepository:
                 row.claimed_by = None
                 row.claim_token = None
                 row.claim_expires_at = None
+                self._record_missed_opportunities_in_session(session, row=row, recorded_at=now)
             elif row.status == "DUE" and claim_expires is not None and claim_expires < now:
                 row.claimed_at = None
                 row.claimed_by = None
@@ -829,6 +834,49 @@ class MatchdayRuntimeRepository:
                 row.claim_expires_at = None
             elif row.status == "PLANNED" and window_start <= now <= window_end:
                 row.status = "DUE"
+
+    def _record_missed_opportunities_in_session(
+        self,
+        session: Session,
+        *,
+        row: MatchdayCheckpointPlanModel,
+        recorded_at: datetime,
+    ) -> None:
+        if "odds" not in set(row.endpoints or ()) or not is_evaluation_slot(row.checkpoint):
+            return
+        tracks = session.execute(
+            select(
+                ModelForecastCaptureModel.capture_identity_hash,
+                ModelForecastCaptureModel.model_input_manifest_hash,
+            )
+            .where(
+                ModelForecastCaptureModel.fixture_id.in_(
+                    model_forecast_fixture_aliases(row.fixture_id)
+                )
+            )
+            .order_by(ModelForecastCaptureModel.capture_identity_hash)
+        )
+        repository = DynamicPrematchRepository(self.engine)
+        for capture_hash, model_input_hash in tracks:
+            context = EvaluationOpportunityContext(
+                model_forecast_capture_identity_hash=str(capture_hash),
+                model_input_hash=str(model_input_hash),
+                evaluation_policy_version=CURRENT_EVALUATION_POLICY,
+                evaluation_slot_id=row.checkpoint,
+                scheduled_checkpoint_at=normalize_repo_time(row.scheduled_at),
+                checkpoint_plan_identity=row.plan_id,
+                source_event_identity=f"checkpoint-missed:{row.plan_id}:{_iso(recorded_at)}",
+            )
+            for market in ("ASIAN_HANDICAP", "TOTALS"):
+                repository.record_opportunity_without_attempt_in_session(
+                    session,
+                    fixture_id=row.fixture_id.removeprefix("api_football:"),
+                    market=market,
+                    context=context,
+                    state=OpportunityState.MISSED_CHECKPOINT,
+                    recorded_at=recorded_at,
+                    blocker="CHECKPOINT_WINDOW_MISSED",
+                )
 
 
 # Statuses a moved kickoff may rewrite.  None of them recorded a provider

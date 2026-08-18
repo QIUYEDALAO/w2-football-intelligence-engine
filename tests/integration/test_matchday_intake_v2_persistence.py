@@ -8,6 +8,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from w2.infrastructure.database import Base
+from w2.infrastructure.persistence.dynamic_prematch_models import (
+    DynamicPrematchEvaluationModel,
+    DynamicPrematchOpportunityModel,
+)
 from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
     MatchdayEndpointCaptureModel,
@@ -566,6 +570,60 @@ def test_checkpoint_missed_is_immutable_and_planned_due_becomes_missed() -> None
         }
     else:
         raise AssertionError("MISSED -> CAPTURED must fail closed")
+
+
+def test_registered_missed_checkpoint_writes_two_opportunities_without_attempts() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    fixture_id = "api_football:missed-opportunity"
+    policy = competition_policies(load_matchday_policy())["allsvenskan"]
+    plan = next(
+        item
+        for item in build_checkpoint_plans(
+            fixture_id=fixture_id,
+            competition_id="allsvenskan",
+            season="2026",
+            kickoff_utc=KICKOFF,
+            now=KICKOFF - timedelta(hours=2),
+            policy=policy,
+        )
+        if item.checkpoint == "T60_ODDS_LINEUPS"
+    )
+    with Session(engine) as session:
+        session.add(
+            ModelForecastCaptureModel(
+                capture_identity_hash="1" * 64,
+                fixture_id="missed-opportunity",
+                competition_id="allsvenskan",
+                kickoff_utc=KICKOFF,
+                captured_at=KICKOFF - timedelta(days=1),
+                lead_time_seconds=86400,
+                lead_time_bucket="D1_TO_D3",
+                model_family="EXACT_DC_POISSON",
+                model_version="model-v1",
+                model_input_manifest_hash="2" * 64,
+                four_field_xg_identity_hash="3" * 64,
+                score_matrix_hash="4" * 64,
+                payload={"fixture_id": "missed-opportunity"},
+                payload_sha256="5" * 64,
+                inserted_at=KICKOFF - timedelta(days=1),
+            )
+        )
+        session.commit()
+
+    repository.upsert_checkpoint_plan(plan)
+    assert repository.due_checkpoint_plans(now=plan.window_end + timedelta(seconds=1)) == []
+
+    with Session(engine) as session:
+        opportunities = list(session.scalars(select(DynamicPrematchOpportunityModel)))
+        attempts = list(session.scalars(select(DynamicPrematchEvaluationModel)))
+    assert {row.market for row in opportunities} == {"ASIAN_HANDICAP", "TOTALS"}
+    assert {row.state for row in opportunities} == {"MISSED_CHECKPOINT"}
+    assert all(row.evaluated_at is None for row in opportunities)
+    assert all(row.latest_attempt_identity_hash is None for row in opportunities)
+    assert all(row.payload["blocker"] == "CHECKPOINT_WINDOW_MISSED" for row in opportunities)
+    assert attempts == []
 
 
 def test_terminal_checkpoint_is_not_rewritten_by_rescheduled_missed_plan() -> None:

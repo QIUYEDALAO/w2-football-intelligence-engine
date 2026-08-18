@@ -301,47 +301,68 @@ class DynamicPrematchRepository:
         recorded_at: datetime,
         blocker: str,
     ) -> bool:
+        with Session(self.engine) as session:
+            inserted = self.record_opportunity_without_attempt_in_session(
+                session,
+                fixture_id=fixture_id,
+                market=market,
+                context=context,
+                state=state,
+                recorded_at=recorded_at,
+                blocker=blocker,
+            )
+            session.commit()
+        return inserted
+
+    def record_opportunity_without_attempt_in_session(
+        self,
+        session: Session,
+        *,
+        fixture_id: str,
+        market: str,
+        context: EvaluationOpportunityContext,
+        state: OpportunityState,
+        recorded_at: datetime,
+        blocker: str,
+    ) -> bool:
         if state not in {
             OpportunityState.MISSED_CHECKPOINT,
             OpportunityState.EVALUATION_ERROR,
         }:
             raise ValueError("OPPORTUNITY_STATE_REQUIRES_ATTEMPT")
         identity = opportunity_identity_hash(context, market=market)
-        with Session(self.engine) as session:
-            existing = session.get(DynamicPrematchOpportunityModel, identity)
-            if existing is not None:
-                return False
-            session.add(
-                DynamicPrematchOpportunityModel(
-                    opportunity_identity_hash=identity,
-                    fixture_id=fixture_id,
-                    market=market,
-                    model_forecast_capture_identity_hash=(
-                        context.model_forecast_capture_identity_hash
-                    ),
-                    evaluation_policy_version=context.evaluation_policy_version,
-                    evaluation_slot_id=context.evaluation_slot_id,
-                    scheduled_checkpoint_at=context.scheduled_checkpoint_at,
-                    checkpoint_plan_identity=context.checkpoint_plan_identity,
-                    state=state.value,
-                    recorded_at=recorded_at,
-                    evaluated_at=None,
-                    latest_attempt_identity_hash=None,
-                    payload={
-                        "opportunity_identity_hash": identity,
-                        "state": state.value,
-                        "scheduled_checkpoint_at": (
-                            context.scheduled_checkpoint_at.isoformat()
-                        ),
-                        "recorded_at": recorded_at.isoformat(),
-                        "evaluated_at": None,
-                        "blocker": blocker,
-                        "source_event_identity": context.source_event_identity,
-                        "immutable_identity": True,
-                    },
-                )
+        existing = session.get(DynamicPrematchOpportunityModel, identity)
+        if existing is not None:
+            return False
+        session.add(
+            DynamicPrematchOpportunityModel(
+                opportunity_identity_hash=identity,
+                fixture_id=fixture_id,
+                market=market,
+                model_forecast_capture_identity_hash=(
+                    context.model_forecast_capture_identity_hash
+                ),
+                evaluation_policy_version=context.evaluation_policy_version,
+                evaluation_slot_id=context.evaluation_slot_id,
+                scheduled_checkpoint_at=context.scheduled_checkpoint_at,
+                checkpoint_plan_identity=context.checkpoint_plan_identity,
+                state=state.value,
+                recorded_at=recorded_at,
+                evaluated_at=None,
+                latest_attempt_identity_hash=None,
+                payload={
+                    "opportunity_identity_hash": identity,
+                    "state": state.value,
+                    "scheduled_checkpoint_at": context.scheduled_checkpoint_at.isoformat(),
+                    "recorded_at": recorded_at.isoformat(),
+                    "evaluated_at": None,
+                    "blocker": blocker,
+                    "source_event_identity": context.source_event_identity,
+                    "immutable_identity": True,
+                },
             )
-            session.commit()
+        )
+        session.flush()
         return True
 
     def append_lineup_event(
