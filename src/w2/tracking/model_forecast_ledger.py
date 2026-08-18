@@ -31,6 +31,27 @@ CAPTURE_SCHEMA = "w2.model_forecast_capture.v2"
 OUTCOME_SCHEMA = "w2.model_forecast_outcome.v2"
 MODEL_FAMILY = "EXACT_DC_POISSON"
 CAPTURE_POLICY = "FIRST_ELIGIBLE_FREEZE_IMMUTABLE"
+NO_HORIZON = "NONE"
+
+# A capture's relational identity is (fixture, model family, model version,
+# capture policy, horizon).  ``capture_policy`` already lives inside the hashed
+# core, so two freeze tracks separate cleanly without changing the core shape --
+# provided every policy maps to exactly one horizon.  Registering the pairs here
+# keeps that invariant checkable instead of implicit.
+CAPTURE_POLICY_HORIZONS: dict[str, str] = {
+    CAPTURE_POLICY: NO_HORIZON,
+}
+
+
+def capture_horizon_for_policy(policy: str) -> str:
+    try:
+        return CAPTURE_POLICY_HORIZONS[policy]
+    except KeyError:
+        raise ModelForecastLedgerError(
+            f"MODEL_FORECAST_CAPTURE_POLICY_NOT_REGISTERED:{policy}"
+        ) from None
+
+
 TERMINAL_RESULT_STATUSES = frozenset({"FT", "AET", "PEN"})
 OUTCOME_CLASSES = ("HOME", "DRAW", "AWAY")
 LEAD_TIME_BUCKETS = ("LT_6H", "H6_TO_LT_24H", "D1_TO_D3", "GT_3D")
@@ -115,11 +136,15 @@ class ModelForecastLedgerRepository:
                     captured_at=now,
                 )
                 model_eligible_count += 1
+                capture_policy = str(capture["capture_policy"])
                 existing = session.scalar(
                     select(ModelForecastCaptureModel).where(
                         ModelForecastCaptureModel.fixture_id == fixture_id,
                         ModelForecastCaptureModel.model_family == capture["model_family"],
                         ModelForecastCaptureModel.model_version == capture["model_version"],
+                        ModelForecastCaptureModel.capture_policy == capture_policy,
+                        ModelForecastCaptureModel.horizon_id
+                        == capture_horizon_for_policy(capture_policy),
                     )
                 )
                 if existing is not None:
@@ -191,9 +216,7 @@ class ModelForecastLedgerRepository:
                     ModelForecastCaptureModel.fixture_id,
                 )
             )
-            return tuple(
-                dict.fromkeys(str(value).removeprefix("api_football:") for value in rows)
-            )
+            return tuple(dict.fromkeys(str(value).removeprefix("api_football:") for value in rows))
 
     def denominator_capture_seeds(self) -> tuple[tuple[str, str, str, datetime], ...]:
         """Return immutable inputs needed to record every capture in the market denominator."""
@@ -359,12 +382,8 @@ class ModelForecastLedgerRepository:
                     },
                     fixture_id=capture_row.fixture_id,
                     kickoff=capture_row.kickoff_utc,
-                    home_team_id_override=str(
-                        _mapping(frozen_xg.get("home")).get("team_id") or ""
-                    ),
-                    away_team_id_override=str(
-                        _mapping(frozen_xg.get("away")).get("team_id") or ""
-                    ),
+                    home_team_id_override=str(_mapping(frozen_xg.get("home")).get("team_id") or ""),
+                    away_team_id_override=str(_mapping(frozen_xg.get("away")).get("team_id") or ""),
                 )
                 rederivability.append(
                     {
@@ -784,6 +803,8 @@ def _capture_model(
         lead_time_bucket=str(payload["lead_time_bucket"]),
         model_family=str(payload["model_family"]),
         model_version=str(payload["model_version"]),
+        capture_policy=str(payload["capture_policy"]),
+        horizon_id=capture_horizon_for_policy(str(payload["capture_policy"])),
         model_input_manifest_hash=str(payload["model_input_manifest_hash"]),
         four_field_xg_identity_hash=str(
             _mapping(payload["four_field_xg_identity"])["identity_hash"]

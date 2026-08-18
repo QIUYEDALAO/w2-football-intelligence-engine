@@ -4,9 +4,10 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, update
+from sqlalchemy import create_engine, select, update
 from sqlalchemy.orm import Session
 
+from w2.domain.canonical_serialization import canonical_sha256
 from w2.infrastructure.persistence.future_refresh_models import (
     TeamXgMatchModel,
     TeamXgRollingSnapshotModel,
@@ -18,7 +19,13 @@ from w2.infrastructure.persistence.model_forecast_models import (
 )
 from w2.infrastructure.persistence.models import ResultModel
 from w2.tracking.model_forecast_ledger import (
+    CAPTURE_POLICY,
+    CAPTURE_POLICY_HORIZONS,
+    MODEL_FORECAST_CAPTURE_HASH_DOMAIN,
+    NO_HORIZON,
+    ModelForecastLedgerError,
     ModelForecastLedgerRepository,
+    capture_horizon_for_policy,
     model_forecast_lead_time_bucket,
     run_model_forecast_capture,
     settle_model_forecasts,
@@ -149,9 +156,7 @@ def test_model_forecast_capture_and_outcome_do_not_require_candidate(tmp_path: P
 
     with Session(repository.engine) as session:
         session.execute(
-            update(ModelForecastOutcomeModel).values(
-                settled_at=KICKOFF + timedelta(hours=4)
-            )
+            update(ModelForecastOutcomeModel).values(settled_at=KICKOFF + timedelta(hours=4))
         )
         session.execute(update(ResultModel).values(home_goals=2))
         session.commit()
@@ -440,3 +445,51 @@ def _day_view() -> dict[str, object]:
             }
         ]
     }
+
+
+def test_capture_identity_columns_do_not_change_frozen_hash(tmp_path: Path) -> None:
+    """Widening the relational key must leave the hashed core byte-identical.
+
+    ``capture_policy`` already lived inside the hashed core, so promoting it to a
+    column -- alongside the derived ``horizon_id`` -- is purely relational.  If a
+    future edit leaks either field into ``_build_capture``'s core dict this test
+    fails, because the recorded hash would stop matching the frozen payload.
+    """
+
+    repository = _repository(tmp_path)
+    _seed_xg(repository)
+    run_model_forecast_capture(
+        _day_view(), repository=repository, captured_at=NOW, dry_run=False, write_db=True
+    )
+
+    with Session(repository.engine) as session:
+        capture = session.scalars(select(ModelForecastCaptureModel)).one()
+
+    identity_payload = {
+        key: value for key, value in dict(capture.payload).items() if key != "capture_identity_hash"
+    }
+    assert capture.capture_identity_hash == canonical_sha256(
+        identity_payload, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN
+    )
+    assert "horizon_id" not in capture.payload
+    assert capture.capture_policy == CAPTURE_POLICY
+    assert capture.horizon_id == NO_HORIZON
+    assert repository.integrity()["invalid_capture_count"] == 0
+
+
+def test_capture_policy_horizon_registry_is_one_to_one() -> None:
+    """Two tracks separate by policy alone, which only holds if the map is 1:1.
+
+    ``horizon_id`` is deliberately absent from the hashed core, so a policy that
+    mapped to two horizons would produce colliding identity hashes for genuinely
+    different captures.
+    """
+
+    horizons = list(CAPTURE_POLICY_HORIZONS.values())
+    assert len(horizons) == len(set(horizons))
+    assert CAPTURE_POLICY_HORIZONS[CAPTURE_POLICY] == NO_HORIZON
+
+
+def test_unregistered_capture_policy_fails_closed() -> None:
+    with pytest.raises(ModelForecastLedgerError, match="POLICY_NOT_REGISTERED"):
+        capture_horizon_for_policy("FIXED_HORIZON_FREEZE_IMMUTABLE")

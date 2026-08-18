@@ -52,7 +52,9 @@ class ModelForecastCaptureModel(Base):
             "fixture_id",
             "model_family",
             "model_version",
-            name="uq_model_forecast_capture_fixture_model",
+            "capture_policy",
+            "horizon_id",
+            name="uq_model_forecast_capture_identity_scope",
         ),
         Index("ix_model_forecast_capture_fixture_kickoff", "fixture_id", "kickoff_utc"),
     )
@@ -66,6 +68,13 @@ class ModelForecastCaptureModel(Base):
     lead_time_bucket: Mapped[str] = mapped_column(String(32), nullable=False)
     model_family: Mapped[str] = mapped_column(String(64), nullable=False)
     model_version: Mapped[str] = mapped_column(String(128), nullable=False)
+    # Defaults keep direct construction (fixtures, backfills) on the only track
+    # that exists today.  The production writer always passes both explicitly
+    # from the frozen payload, so a second track cannot inherit these by accident.
+    capture_policy: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="FIRST_ELIGIBLE_FREEZE_IMMUTABLE"
+    )
+    horizon_id: Mapped[str] = mapped_column(String(32), nullable=False, default="NONE")
     model_input_manifest_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     four_field_xg_identity_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     score_matrix_hash: Mapped[str] = mapped_column(String(64), nullable=False)
