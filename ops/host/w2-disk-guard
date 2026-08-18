@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Disk and inode guard.  Fails closed before a release rather than after: a
+# release needs the old image, the running container, the build context, the
+# new image and a predeploy dump on disk at once, so steady-state free space
+# is not what a release costs.
+set -uo pipefail
+
+USE=$(df --output=pcent / | tail -1 | tr -dc "0-9")
+AVAIL_G=$(( $(df --output=avail / | tail -1) / 1024 / 1024 ))
+INODE=$(df --output=ipcent / | tail -1 | tr -dc "0-9")
+REG=$(du -sm /var/lib/docker/volumes/*/_data 2>/dev/null | sort -rn | head -1 | cut -f1)
+WAL=$(docker exec w2-staging-postgres-1 du -sm /var/lib/postgresql/data/pg_wal 2>/dev/null | cut -f1)
+
+level=OK
+if [ "$USE" -gt 70 ] || [ "$AVAIL_G" -lt 8 ]; then level=WARNING; fi
+if [ "$USE" -gt 80 ] || [ "$AVAIL_G" -lt 5 ]; then level=CRITICAL; fi
+if [ "$USE" -gt 90 ] || [ "$AVAIL_G" -lt 3 ]; then level=EMERGENCY; fi
+if [ "${INODE:-0}" -gt 80 ]; then level=CRITICAL; fi
+
+printf "%s disk=%s%% avail=%sG inode=%s%% registry=%sMB wal=%sMB\n" \
+  "$level" "$USE" "$AVAIL_G" "${INODE:-?}" "${REG:-?}" "${WAL:-?}"
+if [ "$level" = "OK" ]; then exit 0; fi
+logger -t w2-disk-guard "$level disk=${USE}% avail=${AVAIL_G}G inode=${INODE}%"
+if [ "$level" = "WARNING" ]; then exit 1; fi
+exit 2
