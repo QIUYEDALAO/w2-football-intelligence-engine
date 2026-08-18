@@ -26,13 +26,22 @@ USER root
 
 # Replaced wholesale rather than copied over, so a file deleted in this commit
 # does not survive in the image because an older release put it there.
-RUN rm -rf /app/src /app/apps /app/config /app/migrations /app/alembic.ini
+RUN rm -rf /app/src /app/apps /app/config /app/migrations /app/alembic.ini \
+           /app/scripts /app/oracle /app/docs
 
 COPY --chown=10001:10001 alembic.ini /app/alembic.ini
 COPY --chown=10001:10001 src /app/src
 COPY --chown=10001:10001 apps /app/apps
 COPY --chown=10001:10001 config /app/config
 COPY --chown=10001:10001 migrations /app/migrations
+# Reached through ROOT rather than the package, and so easy to mistake for
+# build-time material: factor_checklist loads a role authority matrix out of
+# docs at request time, analysis_calculator resolves the canonical
+# serialization oracle, and the runtime script allowlist lives in scripts.
+COPY --chown=10001:10001 contracts /app/contracts
+COPY --chown=10001:10001 oracle /app/oracle
+COPY --chown=10001:10001 scripts /app/scripts
+COPY --chown=10001:10001 docs /app/docs
 
 # AppleDouble files ride along when the archive is built on macOS.  Asserting
 # here keeps the guard inside the image rather than beside it.

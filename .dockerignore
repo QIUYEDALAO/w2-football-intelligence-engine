@@ -1,15 +1,30 @@
+# The release image runs the Python services; the web bundle is a separate
+# image built from apps/web by Dockerfile.web.  Without this, packing the
+# build context by hand pulls node_modules and the vite output into the
+# release image -- measured once at 164MB for a layer that should be 100kB.
+apps/web
+
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+
 .git
 .venv
-.local
-node_modules
-apps/web/node_modules
+tests
+fixtures
+examples
+infra
+ci
 runtime
-data/raw
-data/processed
-reports
-logs
-cache
-.env
-.env.*
-__pycache__
-*.pyc
+
+# docs is not documentation alone: factor_checklist reads a role authority
+# matrix out of it at request time, so the tree is excluded except for the
+# review package the dashboard needs.  Directories outside src/apps/config
+# are load-bearing more often than their names suggest -- oracle/ and
+# scripts/ are reached through ROOT too.
+docs/*
+!docs/review_packages
+docs/review_packages/*
+!docs/review_packages/SC21_FACTOR_INPUT_CHAIN
