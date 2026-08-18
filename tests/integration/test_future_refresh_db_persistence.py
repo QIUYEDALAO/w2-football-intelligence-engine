@@ -2194,3 +2194,45 @@ def test_provider_quota_snapshot_uses_strictest_persisted_remaining(
         "burst_remaining": None,
         "burst_observed_at": None,
     }
+
+
+def test_provider_quota_reads_latest_authority_after_reset(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path)
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    since = NOW.replace(hour=0, minute=0, second=0, microsecond=0)
+    reset_at = since + timedelta(minutes=16)
+    with Session(engine) as session:
+        session.add_all(
+            [
+                QuotaUsageModel(
+                    provider="api_football",
+                    endpoint="lineups",
+                    used=4757,
+                    limit=7500,
+                    window_start=since,
+                    window_end=since + timedelta(days=1),
+                    observed_at=since + timedelta(minutes=1),
+                ),
+                QuotaUsageModel(
+                    provider="api_football",
+                    endpoint="odds",
+                    used=3,
+                    limit=7500,
+                    window_start=since,
+                    window_end=since + timedelta(days=1),
+                    observed_at=reset_at,
+                ),
+            ]
+        )
+        session.commit()
+
+    repository = FutureRefreshDbRepository()
+    evidence = repository.request_count_evidence_since(since, as_of=reset_at)
+
+    assert evidence["known_count"] == 3
+    assert evidence["billable_from_provider"] == 3
+    assert evidence["provider_daily_remaining"] == 7497
+    assert repository.provider_quota_snapshot(since)["used"] == 3

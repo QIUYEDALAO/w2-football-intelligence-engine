@@ -163,6 +163,42 @@ def test_db_provider_ledger_uses_header_limit_basis_for_quota_usage(
     assert usage.limit == 100
 
 
+def test_db_provider_ledger_accepts_provider_reset_inside_utc_window(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'ledger.db'}"
+    monkeypatch.setenv("W2_DATABASE_URL", database_url)
+    get_settings.cache_clear()
+    engine = create_engine(database_url)
+    Base.metadata.create_all(engine)
+    ledger = DbProviderRequestLedger()
+
+    for index, remaining in enumerate((2743, 7497)):
+        observed_at = NOW.replace(hour=0, minute=1) + timedelta(minutes=15 * index)
+        ledger.record_request(
+            provider="api_football",
+            endpoint="odds",
+            params={"fixture": str(1494246 + index)},
+            live=True,
+            status_code=200,
+            requested_at=observed_at,
+            completed_at=observed_at,
+            headers={
+                "x-ratelimit-requests-remaining": str(remaining),
+                "x-ratelimit-requests-limit": "7500",
+            },
+            payload={"response": []},
+        )
+
+    with Session(engine) as session:
+        usage = session.scalar(select(QuotaUsageModel))
+
+    assert usage is not None
+    assert usage.used == 3
+    assert usage.observed_at.replace(tzinfo=UTC) == NOW.replace(hour=0, minute=16)
+
+
 def test_db_provider_ledger_accepts_only_exact_duplicate(monkeypatch, tmp_path) -> None:
     database_url = f"sqlite+pysqlite:///{tmp_path / 'ledger.db'}"
     monkeypatch.setenv("W2_DATABASE_URL", database_url)

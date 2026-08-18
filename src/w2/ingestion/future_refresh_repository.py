@@ -3267,20 +3267,6 @@ class FutureRefreshDbRepository:
                         ProviderRequestLogModel.requested_at >= since_utc,
                     )
                 )
-                quota_usage = (
-                    session.execute(
-                        select(
-                            func.max(QuotaUsageModel.used),
-                            func.max(QuotaUsageModel.observed_at),
-                        ).where(
-                            QuotaUsageModel.provider == "api_football",
-                            QuotaUsageModel.window_start >= day_start,
-                            QuotaUsageModel.window_start < day_end,
-                        )
-                    ).one()
-                    if include_quota_usage
-                    else None
-                )
                 latest_quota = (
                     session.scalar(
                         select(QuotaUsageModel)
@@ -3289,7 +3275,10 @@ class FutureRefreshDbRepository:
                             QuotaUsageModel.window_start >= day_start,
                             QuotaUsageModel.window_start < day_end,
                         )
-                        .order_by(QuotaUsageModel.observed_at.desc())
+                        .order_by(
+                            QuotaUsageModel.observed_at.desc(),
+                            QuotaUsageModel.used.desc(),
+                        )
                         .limit(1)
                     )
                     if include_quota_usage
@@ -3297,8 +3286,8 @@ class FutureRefreshDbRepository:
                 )
         except Exception as exc:
             raise FutureRefreshPersistenceError("REQUEST_COUNT_READ_FAILED") from exc
-        quota_usage_count = int(quota_usage[0] or 0) if quota_usage is not None else 0
-        quota_observed_at = quota_usage[1] if quota_usage is not None else None
+        quota_usage_count = int(latest_quota.used) if latest_quota is not None else 0
+        quota_observed_at = latest_quota.observed_at if latest_quota is not None else None
         run_audit_count = int(future_refresh_requests or 0)
         provider_ledger_count = int(provider_request_logs or 0)
         dispatched_count = int(dispatched_requests or 0)
@@ -3568,14 +3557,18 @@ class FutureRefreshDbRepository:
         ]
         burst_row = max(
             burst_rows,
-            key=lambda row: parse_db_datetime(row.observed_at),
+            key=lambda row: (parse_db_datetime(row.observed_at), int(row.used)),
             default=None,
         )
+        daily_row = max(
+            rows,
+            key=lambda row: (parse_db_datetime(row.observed_at), int(row.used)),
+        )
         return {
-            "daily_limit": min(int(row.limit) for row in rows),
-            "used": max(int(row.used) for row in rows),
-            "remaining": min(max(int(row.limit) - int(row.used), 0) for row in rows),
-            "observed_at": iso_z(max(parse_db_datetime(row.observed_at) for row in rows)),
+            "daily_limit": int(daily_row.limit),
+            "used": int(daily_row.used),
+            "remaining": max(int(daily_row.limit) - int(daily_row.used), 0),
+            "observed_at": iso_z(parse_db_datetime(daily_row.observed_at)),
             "burst_limit": (
                 int(burst_row.burst_limit)
                 if burst_row is not None and burst_row.burst_limit is not None

@@ -192,7 +192,7 @@ class DbProviderRequestLedger:
                         )
                     )
                 else:
-                    quota_usage.used = max(quota_usage.used, used)
+                    quota_usage.used = used
                     quota_usage.limit = quota.daily_limit
                     quota_usage.window_end = window_end
                     quota_usage.observed_at = completed_at.astimezone(UTC)
