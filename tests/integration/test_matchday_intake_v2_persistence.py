@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import create_engine
+import pytest
+from sqlalchemy import create_engine, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -572,7 +573,12 @@ def test_terminal_checkpoint_is_not_rewritten_by_rescheduled_missed_plan() -> No
     Base.metadata.create_all(engine)
     repository = MatchdayRuntimeRepository(engine=engine)
     policy = competition_policies(load_matchday_policy())["allsvenskan"]
-    for terminal_status in ("FAILED", "CAPTURED", "MISSED"):
+    # MISSED is deliberately absent: it records no provider interaction, so a
+    # moved kickoff re-dates it (see
+    # test_postponed_fixture_reschedules_its_checkpoint_plans).  FAILED and
+    # CAPTURED each describe something that actually happened against the old
+    # window and stay pinned to it.
+    for terminal_status in ("FAILED", "CAPTURED"):
         plan = next(
             item
             for item in build_checkpoint_plans(
@@ -1150,3 +1156,129 @@ def _fixtures_payload() -> dict[str, object]:
             }
         ],
     }
+
+
+def test_postponed_fixture_reschedules_its_checkpoint_plans() -> None:
+    """A moved kickoff must re-date the plan, not be rejected as a conflict.
+
+    plan_id is keyed on fixture x checkpoint x policy and excludes the kickoff,
+    so a postponed match reuses the same rows. Treating the new time as a
+    conflict left every checkpoint stranded on the original date: fixture
+    1523198 moved from 2026-07-11 to 2026-08-18, kept eleven July plans marked
+    MISSED, collected no odds at all, and offered a "next window" five weeks in
+    the past.
+    """
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    original = NOW
+    moved = NOW + timedelta(days=38)
+
+    def plan(kickoff: datetime, status: str) -> CheckpointPlan:
+        return CheckpointPlan(
+            competition_id="chinese_super_league",
+            season="2026",
+            fixture_id="api_football:1523198",
+            checkpoint="T3_ODDS",
+            kickoff_utc=kickoff,
+            scheduled_at=kickoff - timedelta(hours=3),
+            window_start=kickoff - timedelta(hours=3),
+            window_end=kickoff - timedelta(hours=2, minutes=30),
+            endpoints=("odds",),
+            status=status,
+            blockers=(),
+        )
+
+    repository.upsert_checkpoint_plan(plan(original, "PLANNED"))
+    repository.upsert_checkpoint_plan(plan(original, "MISSED"))
+    repository.upsert_checkpoint_plan(plan(moved, "PLANNED"))
+
+    with Session(engine) as session:
+        rows = list(session.scalars(select(MatchdayCheckpointPlanModel)))
+
+    assert len(rows) == 1, "a reschedule reuses the row rather than forking it"
+    row = rows[0]
+    assert row.kickoff_utc.replace(tzinfo=UTC) == moved
+    assert row.scheduled_at.replace(tzinfo=UTC) == moved - timedelta(hours=3)
+    # The old MISSED verdict described a window that no longer exists, so the row
+    # takes the new projection's verdict instead of lingering as a collection
+    # failure on a date the fixture never had.
+    assert row.status == "PLANNED"
+    assert row.missed_at is None
+
+
+def test_same_kickoff_with_a_different_schedule_is_still_a_conflict() -> None:
+    """Only a moved kickoff earns the re-dating; anything else stays a conflict."""
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+
+    def plan(scheduled_at: datetime) -> CheckpointPlan:
+        return CheckpointPlan(
+            competition_id="chinese_super_league",
+            season="2026",
+            fixture_id="api_football:1523199",
+            checkpoint="T3_ODDS",
+            kickoff_utc=NOW,
+            scheduled_at=scheduled_at,
+            window_start=scheduled_at,
+            window_end=scheduled_at + timedelta(minutes=30),
+            endpoints=("odds",),
+            status="PLANNED",
+            blockers=(),
+        )
+
+    repository.upsert_checkpoint_plan(plan(NOW - timedelta(hours=3)))
+    with pytest.raises(MatchdayRepositoryError, match="CHECKPOINT_PLAN_CONFLICT"):
+        repository.upsert_checkpoint_plan(plan(NOW - timedelta(hours=2)))
+
+
+def test_reschedule_releases_a_claim_held_against_the_old_window() -> None:
+    """An in-flight worker must not report a capture into the re-dated window."""
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    policy = competition_policies(load_matchday_policy())["allsvenskan"]
+    original = KICKOFF
+    moved = KICKOFF + timedelta(days=38)
+
+    def projection(kickoff: datetime) -> CheckpointPlan:
+        return next(
+            item
+            for item in build_checkpoint_plans(
+                fixture_id="api_football:1523198",
+                competition_id="allsvenskan",
+                season="2026",
+                kickoff_utc=kickoff,
+                now=kickoff - timedelta(hours=25),
+                policy=policy,
+            )
+            if item.checkpoint == "T24_ODDS"
+        )
+
+    plan = projection(original)
+    repository.upsert_checkpoint_plan(plan)
+    claimed = repository.claim_due_checkpoint_plans(
+        now=original - timedelta(hours=24),
+        worker_id="odds-worker",
+        limit=1,
+    )
+    assert claimed and claimed[0]["fixture_id"] == plan.fixture_id
+    claim_token = str(claimed[0]["claim_token"])
+
+    repository.upsert_checkpoint_plan(projection(moved))
+
+    with pytest.raises(MatchdayRepositoryError, match="CHECKPOINT_CLAIM_TOKEN_MISMATCH"):
+        repository.transition_checkpoint(
+            fixture_id=plan.fixture_id,
+            competition_id=plan.competition_id,
+            season=plan.season,
+            checkpoint=plan.checkpoint,
+            policy_version=plan.policy_version,
+            status="CAPTURED",
+            capture_id="capture-from-the-old-window",
+            claim_token=claim_token,
+        )

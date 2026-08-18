@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -262,7 +263,10 @@ def _market_gate_factors(
     depth = max(0, _int(current.get("bookmaker_count")))
     age = _optional_int(current.get("quote_age_seconds"))
     age_ready = age is not None and age <= CANDIDATE_QUOTE_MAX_AGE_SECONDS
-    next_window_at = collection.get("scheduled_at")
+    # A "next window" in the past is self-contradictory, and it was the visible
+    # symptom of a postponed fixture whose plans stayed on the old date -- the
+    # page offered 2026-07-11 as the next window for a match moved to 08-18.
+    next_window_at = _future_only(collection.get("scheduled_at"), as_of)
     temporal_cause = _collection_cause(collection)
     return [
         _factor(
@@ -605,6 +609,29 @@ def _enhancement_quality(factors: Sequence[Mapping[str, Any]]) -> dict[str, Any]
         "state": "DEGRADED" if missing else "READY",
         "missing_factor_ids": list(dict.fromkeys(missing)),
     }
+
+
+def _as_utc(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value.astimezone(UTC) if value.tzinfo else value.replace(tzinfo=UTC)
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed.astimezone(UTC) if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+def _future_only(scheduled_at: Any, as_of: Any) -> Any:
+    """Drop a scheduled time that has already passed rather than display it."""
+
+    planned = _as_utc(scheduled_at)
+    now = _as_utc(as_of)
+    if planned is None or now is None:
+        return scheduled_at
+    return scheduled_at if planned > now else None
 
 
 def _collection_cause(collection: Mapping[str, Any]) -> str:

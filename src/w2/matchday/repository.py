@@ -127,6 +127,36 @@ class MatchdayRuntimeRepository:
         incoming_status = str(payload["status"])
         existing = session.get(MatchdayCheckpointPlanModel, plan_id)
         if existing is not None:
+            rescheduled = normalize_repo_time(existing.kickoff_utc) != normalize_repo_time(
+                _dt(payload["kickoff_utc"])
+            )
+            # Re-dating is checked ahead of the terminal short-circuit because the
+            # stranded plans were all MISSED, which is terminal: deferring the check
+            # would leave the exact rows the bug produced untouchable.  plan_id is
+            # keyed on fixture x checkpoint x policy and deliberately excludes the
+            # kickoff, so a postponed fixture reuses these rows.  Only verdicts that
+            # recorded no provider interaction are re-dated; anything that touched
+            # the provider stays pinned to the window it describes.
+            if rescheduled and existing.status in _REDATABLE_CHECKPOINT_STATUSES:
+                existing.kickoff_utc = _dt(payload["kickoff_utc"])
+                existing.scheduled_at = _dt(payload["scheduled_at"])
+                existing.window_start = _dt(payload["window_start"])
+                existing.window_end = _dt(payload["window_end"])
+                existing.status = incoming_status
+                existing.missed_at = (
+                    _dt(payload["missed_at"]) if payload.get("missed_at") else None
+                )
+                existing.endpoints = list(payload.get("endpoints") or existing.endpoints or [])
+                existing.blockers = list(payload.get("blockers") or [])
+                existing.plan_hash = str(payload.get("plan_hash") or existing.plan_hash)
+                # A DUE plan may be claimed by a worker mid-flight.  Its result
+                # belongs to the old window, so the claim is released here and
+                # that worker's transition fails closed rather than recording a
+                # capture against the window it never saw.
+                existing.claimed_by = None
+                existing.claim_token = None
+                existing.claim_expires_at = None
+                return plan_id
             if existing.status in {*_TERMINAL_CHECKPOINT_STATUSES, "FAILED"}:
                 return plan_id
             if normalize_repo_time(existing.scheduled_at) != normalize_repo_time(
@@ -799,6 +829,15 @@ class MatchdayRuntimeRepository:
                 row.claim_expires_at = None
             elif row.status == "PLANNED" and window_start <= now <= window_end:
                 row.status = "DUE"
+
+
+# Statuses a moved kickoff may rewrite.  None of them recorded a provider
+# interaction, so the row holds only a verdict about a window the fixture no
+# longer has.  CAPTURED, PROVIDER_EMPTY, FAILED and CONFLICT are excluded: each
+# describes something that actually happened against the old window.
+_REDATABLE_CHECKPOINT_STATUSES = frozenset(
+    {"PLANNED", "DUE", "MISSED", "SKIPPED_POLICY", "SKIPPED_BUDGET"}
+)
 
 
 def _transition_status(current: str, incoming: str) -> str:
