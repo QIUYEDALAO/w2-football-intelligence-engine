@@ -57,6 +57,7 @@ from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.infrastructure.persistence.dynamic_prematch_models import (
     DynamicPrematchEvaluationModel,
+    DynamicPrematchOpportunityModel,
     DynamicPrematchSupersessionModel,
 )
 from w2.infrastructure.persistence.factor_model_models import (
@@ -152,6 +153,7 @@ def _model_forecast_market_evaluation_funnel(
     captures: Sequence[ModelForecastCaptureModel],
     evaluations: Sequence[DynamicPrematchEvaluationModel],
     superseded_evaluation_ids: set[str],
+    opportunities: Sequence[DynamicPrematchOpportunityModel] | None = None,
 ) -> dict[str, Any]:
     """Rates come from opportunities that exist, never from ones inferred.
 
@@ -165,6 +167,11 @@ def _model_forecast_market_evaluation_funnel(
     """
 
     current: dict[tuple[str, str, str, str], DynamicPrematchEvaluationModel] = {}
+    opportunity_hashes = (
+        {row.opportunity_identity_hash for row in opportunities}
+        if opportunities is not None
+        else None
+    )
     defects: Counter[str] = Counter()
     for row in evaluations:
         if row.evaluation_id in superseded_evaluation_ids:
@@ -172,6 +179,12 @@ def _model_forecast_market_evaluation_funnel(
         if row.official_funnel_eligible is not True:
             # Legacy rows and ordinary dynamic evaluations were never
             # opportunities; excluding them silently is correct.
+            continue
+        if (
+            opportunity_hashes is not None
+            and row.opportunity_identity_hash not in opportunity_hashes
+        ):
+            defects["OPPORTUNITY_ROW_MISSING"] += 1
             continue
         defect = _opportunity_contract_defect(row)
         if defect is not None:
@@ -214,8 +227,21 @@ def _model_forecast_market_evaluation_funnel(
         if blocker:
             first_failed[blocker] += 1
 
-    denominator = len(current)
-    fixture_ids = {row.fixture_id.removeprefix("api_football:") for row in current.values()}
+    if opportunities is not None:
+        evaluated_opportunities = {
+            str(row.opportunity_identity_hash)
+            for row in current.values()
+            if row.opportunity_identity_hash
+        }
+        for opportunity in opportunities:
+            if opportunity.opportunity_identity_hash not in evaluated_opportunities:
+                first_failed[str(opportunity.state)] += 1
+
+    denominator = len(opportunities) if opportunities is not None else len(current)
+    fixture_ids = {
+        row.fixture_id.removeprefix("api_football:")
+        for row in (opportunities if opportunities is not None else current.values())
+    }
     # A broken official row is neither a measurement nor an absence.  Surfacing
     # it as INVALID keeps "the writer is wrong" distinguishable from "nothing has
     # happened yet".
@@ -236,7 +262,11 @@ def _model_forecast_market_evaluation_funnel(
         "fixture_count": len(fixture_ids),
         "market_unit_count": denominator,
         "persisted_market_unit_count": denominator,
-        "recorded_at_count": recorded_at,
+        "recorded_at_count": (
+            sum(int(row.recorded_at is not None) for row in opportunities)
+            if opportunities is not None
+            else recorded_at
+        ),
         "capture_count": len({row.fixture_id for row in captures}),
         "gate_counts": dict(counts) if measurable else {},
         # Null, not zeroes: a rate of 0.0 asserts the gate was tested and failed.
@@ -1409,6 +1439,9 @@ class ReadModelRepository:
                 versions = list(session.scalars(select(ModelForecastCaptureDataVersionModel)))
                 outcomes = list(session.scalars(select(ModelForecastOutcomeModel)))
                 dynamic_evaluations = list(session.scalars(select(DynamicPrematchEvaluationModel)))
+                dynamic_opportunities = list(
+                    session.scalars(select(DynamicPrematchOpportunityModel))
+                )
                 superseded_evaluation_ids = set(
                     session.scalars(
                         select(DynamicPrematchSupersessionModel.superseded_evaluation_id)
@@ -1465,6 +1498,7 @@ class ReadModelRepository:
             captures,
             dynamic_evaluations,
             superseded_evaluation_ids,
+            dynamic_opportunities,
         )
         version_by_capture = {row.capture_identity_hash: row for row in versions}
         version_names = sorted(

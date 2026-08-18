@@ -4,7 +4,7 @@ import hashlib
 import json
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any
@@ -18,6 +18,8 @@ DYNAMIC_EVALUATION_V1_SCHEMA = "w2.dynamic_quote_evaluation.v1"
 DYNAMIC_EVALUATION_V2_SCHEMA = "w2.dynamic_quote_evaluation.v2"
 DYNAMIC_EVALUATION_V3_SCHEMA = "w2.dynamic_quote_evaluation.v3"
 MODEL_FORECAST_DENOMINATOR_SCOPE = "MODEL_FORECAST_CAPTURE_MARKET_V1"
+CHECKPOINT_OPPORTUNITY_SCOPE = "CHECKPOINT_EVALUATION_OPPORTUNITY_V2"
+CHECKPOINT_OPPORTUNITY_SEMANTICS = "CHECKPOINT_EVALUATION_OPPORTUNITY"
 MIN_DYNAMIC_BOOKMAKER_DEPTH = 3
 SETTLEMENT_STATE_ORDER = ("WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS")
 EVAL_02B_DISTRIBUTION_TOLERANCE = 1e-9
@@ -34,6 +36,38 @@ class DynamicEvaluationState(StrEnum):
     NOT_READY_QUOTE_INCOMPLETE = "NOT_READY_QUOTE_INCOMPLETE"
     NOT_READY_MODEL_INPUT = "NOT_READY_MODEL_INPUT"
     SUPERSEDED = "SUPERSEDED"
+
+
+class OpportunityState(StrEnum):
+    EVALUATED_NO_EDGE = "EVALUATED_NO_EDGE"
+    EVALUATED_CANDIDATE = "EVALUATED_CANDIDATE"
+    BLOCKED_BY_GATE = "BLOCKED_BY_GATE"
+    MISSED_CHECKPOINT = "MISSED_CHECKPOINT"
+    EVALUATION_ERROR = "EVALUATION_ERROR"
+
+
+@dataclass(frozen=True, kw_only=True)
+class EvaluationOpportunityContext:
+    model_forecast_capture_identity_hash: str
+    model_input_hash: str
+    evaluation_policy_version: str
+    evaluation_slot_id: str
+    scheduled_checkpoint_at: datetime
+    checkpoint_plan_identity: str
+    source_event_identity: str
+
+    def __post_init__(self) -> None:
+        from w2.prematch.evaluation_slots import require_evaluation_slot
+
+        if not self.model_forecast_capture_identity_hash or not self.model_input_hash:
+            raise ValueError("MODEL_FORECAST_CAPTURE_IDENTITY_MISSING")
+        if not self.checkpoint_plan_identity or not self.source_event_identity:
+            raise ValueError("OPPORTUNITY_SOURCE_IDENTITY_MISSING")
+        require_evaluation_slot(
+            self.evaluation_slot_id,
+            policy_version=self.evaluation_policy_version,
+        )
+        _aware_utc(self.scheduled_checkpoint_at, field="scheduled_checkpoint_at")
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -114,6 +148,18 @@ class DynamicEvaluationVersion:
     all_failed_gates: tuple[str, ...] = ()
     gate_results: dict[str, bool] | None = None
     recorded_at: datetime | None = None
+    measurement_semantics: str | None = None
+    official_funnel_eligible: bool | None = None
+    exclusion_reason: str | None = None
+    evaluation_policy_version: str | None = None
+    evaluation_slot_id: str | None = None
+    model_forecast_capture_identity_hash: str | None = None
+    opportunity_identity_hash: str | None = None
+    attempt_identity_hash: str | None = None
+    scheduled_checkpoint_at: datetime | None = None
+    checkpoint_plan_identity: str | None = None
+    source_event_identity: str | None = None
+    opportunity_state: OpportunityState | None = None
 
     def as_dict(
         self,
@@ -128,10 +174,78 @@ class DynamicEvaluationVersion:
         payload["blockers"] = list(self.blockers)
         payload["all_failed_gates"] = list(self.all_failed_gates)
         payload["recorded_at"] = _iso(self.recorded_at) if self.recorded_at else None
+        payload["scheduled_checkpoint_at"] = (
+            _iso(self.scheduled_checkpoint_at) if self.scheduled_checkpoint_at else None
+        )
+        payload["opportunity_state"] = (
+            self.opportunity_state.value if self.opportunity_state else None
+        )
         payload["superseded_by_evaluation_id"] = superseded_by_evaluation_id
         payload["immutable"] = True
         payload["schema_version"] = self.schema_version
         return payload
+
+
+def bind_evaluation_opportunity(
+    version: DynamicEvaluationVersion,
+    context: EvaluationOpportunityContext,
+) -> DynamicEvaluationVersion:
+    """Bind a classified attempt to its pre-registered orchestration event."""
+
+    opportunity_hash = opportunity_identity_hash(context, market=version.market)
+    attempt_hash = _hash(
+        {
+            "opportunity_identity_hash": opportunity_hash,
+            "quote_identity_hash": version.quote_identity_hash,
+            "model_input_hash": context.model_input_hash,
+            "lineup_input_hash": version.lineup_input_hash,
+            "source_event_identity": context.source_event_identity,
+        }
+    )
+    if version.state == DynamicEvaluationState.ANALYSIS_PICK_ACTIVE:
+        state = OpportunityState.EVALUATED_CANDIDATE
+    elif version.state == DynamicEvaluationState.NO_EDGE_CURRENT:
+        state = OpportunityState.EVALUATED_NO_EDGE
+    else:
+        state = OpportunityState.BLOCKED_BY_GATE
+    return replace(
+        version,
+        evaluation_id=f"dqe-{attempt_hash}",
+        identity_hash=attempt_hash,
+        model_input_hash=context.model_input_hash,
+        checkpoint=context.evaluation_slot_id,
+        denominator_scope=CHECKPOINT_OPPORTUNITY_SCOPE,
+        measurement_semantics=CHECKPOINT_OPPORTUNITY_SEMANTICS,
+        official_funnel_eligible=True,
+        evaluation_policy_version=context.evaluation_policy_version,
+        evaluation_slot_id=context.evaluation_slot_id,
+        model_forecast_capture_identity_hash=(
+            context.model_forecast_capture_identity_hash
+        ),
+        opportunity_identity_hash=opportunity_hash,
+        attempt_identity_hash=attempt_hash,
+        scheduled_checkpoint_at=context.scheduled_checkpoint_at,
+        checkpoint_plan_identity=context.checkpoint_plan_identity,
+        source_event_identity=context.source_event_identity,
+        opportunity_state=state,
+    )
+
+
+def opportunity_identity_hash(
+    context: EvaluationOpportunityContext,
+    *,
+    market: str,
+) -> str:
+    return _hash(
+        {
+            "model_forecast_capture_identity_hash": (
+                context.model_forecast_capture_identity_hash
+            ),
+            "evaluation_policy_version": context.evaluation_policy_version,
+            "evaluation_slot_id": context.evaluation_slot_id,
+            "market": market,
+        }
+    )
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -259,7 +373,10 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
     ev_se = float(value.ev_se) if value.ev_se is not None else None
     ev_minus_se = ev - ev_se if ev is not None and ev_se is not None else None
 
-    denominator_scoped = value.denominator_scope == MODEL_FORECAST_DENOMINATOR_SCOPE
+    denominator_scoped = value.denominator_scope in {
+        MODEL_FORECAST_DENOMINATOR_SCOPE,
+        CHECKPOINT_OPPORTUNITY_SCOPE,
+    }
     if not value.source_observations_present:
         state = DynamicEvaluationState.NOT_READY_SOURCE_ABSENT
         blockers.append("SOURCE_OBSERVATIONS_ABSENT")

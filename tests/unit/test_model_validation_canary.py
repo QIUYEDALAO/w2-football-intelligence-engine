@@ -12,6 +12,7 @@ from w2.api.schemas import WorkspaceModelForecastLedgerFact
 from w2.domain.canonical_serialization import canonical_sha256
 from w2.infrastructure.persistence.dynamic_prematch_models import (
     DynamicPrematchEvaluationModel,
+    DynamicPrematchOpportunityModel,
     DynamicPrematchSupersessionModel,
 )
 from w2.infrastructure.persistence.future_refresh_models import (
@@ -203,6 +204,7 @@ def _engine(tmp_path: Path):  # type: ignore[no-untyped-def]
     RawStatisticsRetentionModel.__table__.create(engine)
     TeamXgMatchModel.__table__.create(engine)
     DynamicPrematchEvaluationModel.__table__.create(engine)
+    DynamicPrematchOpportunityModel.__table__.create(engine)
     DynamicPrematchSupersessionModel.__table__.create(engine)
     MatchdayFixtureIdentityModel.__table__.create(engine)
     ModelForecastCaptureModel.__table__.create(engine)

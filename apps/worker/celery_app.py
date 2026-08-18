@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import cast
 
@@ -47,7 +48,6 @@ def _materialize_shadow_projection_events(
         ScopedAnalysisRepository,
         materialize_projection_events,
     )
-
     repository = ReadModelRepository()
 
     def calculate(
@@ -82,6 +82,177 @@ def _materialize_shadow_projection_events(
         calculate_analysis_card=calculate,
         build_scoreline_reference=build_scoreline_reference,
         evaluations_only=evaluations_only,
+    )
+
+
+def _write_checkpoint_opportunities(
+    checkpoints: list[dict[str, object]],
+    *,
+    task_id: str,
+    task_key: str,
+    evaluated_at: datetime,
+    request_audit: list[dict[str, object]],
+) -> dict[str, object]:
+    """Write only opportunities explicitly bound to claimed checkpoint plans."""
+
+    from w2.prematch.evaluation_slots import (
+        CURRENT_EVALUATION_POLICY,
+        is_evaluation_slot,
+        require_evaluation_slot,
+    )
+    from w2.prematch.lifecycle import EvaluationOpportunityContext, OpportunityState
+    from w2.prematch.repository import DynamicPrematchRepository
+    from w2.tracking.model_forecast_ledger import ModelForecastLedgerRepository
+
+    ledger = ModelForecastLedgerRepository()
+    events: list[ProjectionSourceEvent] = []
+    opportunity_count = 0
+    terminal_without_attempt_count = 0
+    for plan in checkpoints:
+        slot = str(plan.get("checkpoint") or "")
+        raw_endpoints = plan.get("endpoints")
+        endpoints = raw_endpoints if isinstance(raw_endpoints, (list, tuple, set)) else ()
+        if "odds" not in endpoints or not is_evaluation_slot(slot):
+            continue
+        slot = require_evaluation_slot(slot, policy_version=CURRENT_EVALUATION_POLICY)
+        fixture_id = str(plan.get("fixture_id") or "").removeprefix("api_football:")
+        plan_id = str(plan.get("id") or plan.get("plan_id") or "")
+        scheduled_at = _worker_utc(plan.get("scheduled_at") or plan.get("due_at"))
+        if not fixture_id or not plan_id or scheduled_at is None:
+            raise RuntimeError("EVALUATION_SLOT_UNRESOLVED")
+        attempted_request = next(
+            (
+                item
+                for item in reversed(request_audit)
+                if _worker_odds_request_matches(item, fixture_id=fixture_id)
+            ),
+            None,
+        )
+        tracks = ledger.opportunity_capture_seeds(fixture_id)
+        if not tracks:
+            continue
+        request = (
+            attempted_request
+            if attempted_request is not None
+            and str(attempted_request.get("status_code") or "") == "200"
+            else None
+        )
+        if request is None:
+            window_end = _worker_utc(plan.get("window_end"))
+            state = (
+                OpportunityState.MISSED_CHECKPOINT
+                if window_end is not None and evaluated_at > window_end
+                else OpportunityState.EVALUATION_ERROR
+                if attempted_request is not None
+                else None
+            )
+            if state is None:
+                continue
+            repository = DynamicPrematchRepository(ledger.engine)
+            for capture_hash, model_input_hash in tracks:
+                context = EvaluationOpportunityContext(
+                    model_forecast_capture_identity_hash=capture_hash,
+                    model_input_hash=model_input_hash,
+                    evaluation_policy_version=CURRENT_EVALUATION_POLICY,
+                    evaluation_slot_id=slot,
+                    scheduled_checkpoint_at=scheduled_at,
+                    checkpoint_plan_identity=plan_id,
+                    source_event_identity=f"checkpoint-task:{task_key}:{task_id}",
+                )
+                for market in ("ASIAN_HANDICAP", "TOTALS"):
+                    terminal_without_attempt_count += int(
+                        repository.record_opportunity_without_attempt(
+                            fixture_id=fixture_id,
+                            market=market,
+                            context=context,
+                            state=state,
+                            recorded_at=evaluated_at,
+                            blocker=(
+                                "CHECKPOINT_WINDOW_MISSED"
+                                if state == OpportunityState.MISSED_CHECKPOINT
+                                else "EVALUATION_REQUEST_FAILED"
+                            ),
+                        )
+                    )
+            continue
+        event = ProjectionSourceEvent.create(
+            fixture_id=fixture_id,
+            event_type="CHECKPOINT_EVALUATION",
+            event_id=(
+                f"checkpoint:{plan_id}:{task_id}:"
+                f"{request.get('payload_sha256') or 'provider-empty'}"
+            ),
+            event_at=_worker_utc(request.get("captured_at_utc")) or evaluated_at,
+            payload={
+                "checkpoint_plan_identity": plan_id,
+                "evaluation_slot_id": slot,
+                "task_key": task_key,
+                "provider_request_payload_sha256": request.get("payload_sha256"),
+            },
+        )
+        contexts = tuple(
+            EvaluationOpportunityContext(
+                model_forecast_capture_identity_hash=capture_hash,
+                model_input_hash=model_input_hash,
+                evaluation_policy_version=CURRENT_EVALUATION_POLICY,
+                evaluation_slot_id=slot,
+                scheduled_checkpoint_at=scheduled_at,
+                checkpoint_plan_identity=plan_id,
+                source_event_identity=event.event_hash,
+            )
+            for capture_hash, model_input_hash in tracks
+        )
+        events.append(replace(event, opportunity_contexts=contexts))
+        opportunity_count += len(contexts) * 2
+    materialized: list[str] = []
+    for event in events:
+        try:
+            materialized.extend(
+                _materialize_shadow_projection_events([event], evaluations_only=True)
+            )
+        except Exception as exc:
+            repository = DynamicPrematchRepository(ledger.engine)
+            for context in event.opportunity_contexts:
+                for market in ("ASIAN_HANDICAP", "TOTALS"):
+                    repository.record_opportunity_without_attempt(
+                        fixture_id=event.fixture_id,
+                        market=market,
+                        context=context,
+                        state=OpportunityState.EVALUATION_ERROR,
+                        recorded_at=evaluated_at,
+                        blocker=f"EVALUATION_ERROR:{exc.__class__.__name__}",
+                    )
+            raise
+    return {
+        "status": "PASS",
+        "event_count": len(events),
+        "fixture_count": len(set(materialized)),
+        "opportunity_count": opportunity_count,
+        "terminal_without_attempt_count": terminal_without_attempt_count,
+    }
+
+
+def _worker_utc(value: object) -> datetime | None:
+    if isinstance(value, datetime):
+        return value.astimezone(UTC) if value.tzinfo else value.replace(tzinfo=UTC)
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(UTC)
+    except ValueError:
+        return None
+
+
+def _worker_odds_request_matches(
+    request: Mapping[str, object],
+    *,
+    fixture_id: str,
+) -> bool:
+    params = request.get("params")
+    return (
+        request.get("endpoint") == "odds"
+        and isinstance(params, Mapping)
+        and str(params.get("fixture") or "") == fixture_id
     )
 
 
@@ -137,94 +308,6 @@ def _refresh_model_forecast_analysis_cards(
         "xg_ready_fixture_count": len(xg_ready),
         "targeted_fixture_count": len(targets),
         "materialized_fixture_count": len(materialized),
-    }
-
-
-def _refresh_model_forecast_denominator_cards(
-    dashboard: Mapping[str, object],
-    *,
-    evaluated_at: datetime,
-) -> dict[str, object]:
-    """Persist both market gate outcomes for every frozen forecast."""
-    from w2.prematch.lifecycle import (
-        DYNAMIC_EVALUATION_V3_SCHEMA,
-        MODEL_FORECAST_DENOMINATOR_SCOPE,
-        DynamicEvaluationInput,
-        classify_evaluation,
-    )
-    from w2.prematch.read_model_projection import MAX_PUBLIC_FIXTURES
-    from w2.prematch.repository import DynamicPrematchRepository
-    from w2.tracking.model_forecast_ledger import ModelForecastLedgerRepository
-
-    rows = dashboard.get("all")
-    cards = [row for row in rows if isinstance(row, Mapping)] if isinstance(rows, list) else []
-    if len(cards) > MAX_PUBLIC_FIXTURES:
-        raise RuntimeError(f"MODEL_FORECAST_DENOMINATOR_SCOPE_EXCEEDED:{len(cards)}")
-    ledger = ModelForecastLedgerRepository()
-    seeds = ledger.denominator_capture_seeds()
-    captured = {fixture_id for fixture_id, *_ in seeds}
-    repository = DynamicPrematchRepository(ledger.engine)
-    covered = repository.denominator_covered_fixture_ids()
-    targets = list(
-        dict.fromkeys(
-            str(row.get("fixture_id") or "").removeprefix("api_football:")
-            for row in cards
-            if str(row.get("fixture_id") or "").removeprefix("api_football:") in captured
-            and str(row.get("fixture_id") or "").removeprefix("api_football:") not in covered
-        )
-    )
-    events = [
-        ProjectionSourceEvent.create(
-            fixture_id=fixture_id,
-            event_type="MODEL_FORECAST_CAPTURE_SCOPE",
-            event_id=f"model-forecast-denominator:{evaluated_at.isoformat()}",
-            event_at=evaluated_at,
-            payload={"fixture_id": fixture_id, "scope": "fixture_x_market"},
-        )
-        for fixture_id in targets
-    ]
-    materialized = _materialize_shadow_projection_events(events, evaluations_only=True)
-    covered = repository.denominator_covered_fixture_ids()
-    fallback_writes = 0
-    for fixture_id, capture_hash, model_input_hash, captured_at in seeds:
-        if fixture_id in covered:
-            continue
-        for market in ("ASIAN_HANDICAP", "TOTALS"):
-            _, written = repository.append_evaluation(
-                classify_evaluation(
-                    DynamicEvaluationInput(
-                        fixture_id=fixture_id,
-                        market=market,
-                        selection="UNRESOLVED",
-                        exact_line=None,
-                        bookmaker_id=None,
-                        capture_id=capture_hash,
-                        quote_identity_hash=None,
-                        model_input_hash=model_input_hash,
-                        evaluated_at=evaluated_at,
-                        checkpoint="MODEL_FORECAST_CAPTURE_SCOPE",
-                        capture_at=captured_at,
-                        source_observations_present=False,
-                        exact_quote_complete=False,
-                        quote_fresh=False,
-                        model_ready=True,
-                        market_probability_ready=False,
-                        schema_version=DYNAMIC_EVALUATION_V3_SCHEMA,
-                        denominator_scope=MODEL_FORECAST_DENOMINATOR_SCOPE,
-                    )
-                ),
-                supersession_reason="MODEL_FORECAST_DENOMINATOR_ENTRY",
-            )
-            fallback_writes += int(written)
-    return {
-        "status": "PASS",
-        "provider_calls": 0,
-        "db_writes": len(materialized) + fallback_writes,
-        "capture_fixture_count": len(captured),
-        "already_covered_fixture_count": len(covered & captured),
-        "targeted_fixture_count": len(targets),
-        "materialized_fixture_count": len(materialized),
-        "fallback_market_unit_count": fallback_writes,
     }
 
 
@@ -298,6 +381,17 @@ def future_fixture_refresh(
             allowed_live_endpoints=provider_endpoint_allowlist(),
         ),
     )
+    opportunity_write = _write_checkpoint_opportunities(
+        list(refresh_checkpoints or ()),
+        task_id=audit.task_id,
+        task_key=audit.key,
+        evaluated_at=_worker_utc(getattr(audit, "finished_at", None)) or now,
+        request_audit=[
+            dict(item)
+            for item in audit.result.get("requests", [])
+            if isinstance(item, Mapping)
+        ],
+    )
     return {
         "task_id": audit.task_id,
         "task_key": audit.key,
@@ -309,6 +403,7 @@ def future_fixture_refresh(
         "refresh_checkpoints": refresh_checkpoints or [],
         "discovery_date": discovery_date,
         "result": audit.result,
+        "opportunity_write": opportunity_write,
         "candidate": False,
         "formal_recommendation": False,
     }
@@ -432,13 +527,6 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
         dry_run=False,
         write_db=True,
     )
-    denominator_refresh = _refresh_model_forecast_denominator_cards(
-        dashboard,
-        evaluated_at=evaluated_at,
-    )
-    denominator_refresh_writes = denominator_refresh["db_writes"]
-    if not isinstance(denominator_refresh_writes, int):
-        raise RuntimeError("MODEL_FORECAST_DENOMINATOR_WRITE_COUNT_INVALID")
     capture = run_forward_outcome_ledger(
         day_view,
         repository=repository,
@@ -463,13 +551,12 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
         "lock": False,
         "production": False,
         "real_money": False,
-        "db_writes": analysis_refresh_writes + denominator_refresh_writes + sum(
+        "db_writes": analysis_refresh_writes + sum(
             int(item.get("db_writes", 0))
             for item in (model_forecast_capture, capture, materialization, settlement)
         ),
         "model_forecast_capture": model_forecast_capture,
         "model_forecast_analysis_refresh": analysis_refresh,
-        "model_forecast_denominator_refresh": denominator_refresh,
         "result_materialization": materialization,
         "outcome_settlement": settlement,
     }

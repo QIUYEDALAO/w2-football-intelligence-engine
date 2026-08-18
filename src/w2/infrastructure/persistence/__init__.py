@@ -3,6 +3,7 @@
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.infrastructure.persistence.dynamic_prematch_models import (
     DynamicPrematchEvaluationModel,
+    DynamicPrematchOpportunityModel,
     DynamicPrematchSupersessionModel,
     LineupConfirmedEventModel,
     T30ValidationSnapshotModel,
@@ -87,6 +88,7 @@ __all__ = [
     "CanonicalTeamModel",
     "CompetitionModel",
     "DynamicPrematchEvaluationModel",
+    "DynamicPrematchOpportunityModel",
     "DynamicPrematchSupersessionModel",
     "FutureRefreshCheckpointAuditModel",
     "FutureRefreshRunAuditModel",

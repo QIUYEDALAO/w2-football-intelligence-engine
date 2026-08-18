@@ -233,3 +233,275 @@ def test_two_model_tracks_sharing_a_quote_stay_separate_opportunities() -> None:
     )
     assert funnel["measurement_status"] == "MEASURABLE"
     assert funnel["opportunity_count"] == 2
+
+
+def _repository_evaluation(
+    *,
+    fixture_id: str,
+    slot: str,
+    market: str,
+    capture_hash: str,
+    source_event: str,
+    quote_hash: str,
+):
+    from datetime import UTC, datetime
+
+    from w2.prematch.lifecycle import (
+        DynamicEvaluationInput,
+        EvaluationOpportunityContext,
+        bind_evaluation_opportunity,
+        classify_evaluation,
+    )
+
+    evaluated_at = datetime(2026, 8, 18, 6, 0, tzinfo=UTC)
+    version = classify_evaluation(
+        DynamicEvaluationInput(
+            fixture_id=fixture_id,
+            market=market,
+            selection="HOME" if market == "ASIAN_HANDICAP" else "OVER",
+            exact_line=0.0 if market == "ASIAN_HANDICAP" else 2.5,
+            bookmaker_id="book-1",
+            capture_id="odds-capture",
+            quote_identity_hash=quote_hash,
+            model_input_hash="pre-bind-model-input",
+            evaluated_at=evaluated_at,
+            checkpoint=slot,
+            capture_at=evaluated_at,
+            model_probability=0.5,
+            market_probability=0.5,
+            expected_value=0.0,
+            ev_se=0.01,
+            decimal_odds=2.0,
+            bookmaker_count=3,
+            mainline_parsed=True,
+            denominator_scope="CHECKPOINT_EVALUATION_OPPORTUNITY_V2",
+        )
+    )
+    return bind_evaluation_opportunity(
+        version,
+        EvaluationOpportunityContext(
+            model_forecast_capture_identity_hash=capture_hash,
+            model_input_hash=f"model-{capture_hash}",
+            evaluation_policy_version="candidate-eval.v1",
+            evaluation_slot_id=slot,
+            scheduled_checkpoint_at=evaluated_at,
+            checkpoint_plan_identity=f"plan-{slot}",
+            source_event_identity=source_event,
+        ),
+    )
+
+
+def _opportunity_test_engine():
+    from sqlalchemy import create_engine
+
+    from w2.infrastructure.database import Base
+
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    return engine
+
+
+def _persist_tracks(engine, tracks: tuple[str, ...], *, retry: bool = False) -> None:
+    from w2.prematch.repository import DynamicPrematchRepository
+
+    repository = DynamicPrematchRepository(engine)
+    for track in tracks:
+        for slot in evaluation_slots():
+            for market in ("ASIAN_HANDICAP", "TOTALS"):
+                repository.append_evaluation(
+                    _repository_evaluation(
+                        fixture_id="1494246",
+                        slot=slot,
+                        market=market,
+                        capture_hash=track,
+                        source_event=f"event-{track}-{slot}",
+                        quote_hash=f"quote-{track}-{slot}-{market}",
+                    )
+                )
+    if retry:
+        repository.append_evaluation(
+            _repository_evaluation(
+                fixture_id="1494246",
+                slot="T15_ODDS",
+                market="ASIAN_HANDICAP",
+                capture_hash=tracks[0],
+                source_event="event-retry",
+                quote_hash="quote-retry",
+            )
+        )
+
+
+def _repository_counts(engine) -> tuple[int, int, int]:
+    from sqlalchemy import func, select
+    from sqlalchemy.orm import Session
+
+    from w2.infrastructure.persistence.dynamic_prematch_models import (
+        DynamicPrematchEvaluationModel,
+        DynamicPrematchOpportunityModel,
+        DynamicPrematchSupersessionModel,
+    )
+
+    with Session(engine) as session:
+        return (
+            int(session.scalar(select(func.count()).select_from(DynamicPrematchOpportunityModel))),
+            int(session.scalar(select(func.count()).select_from(DynamicPrematchEvaluationModel))),
+            int(session.scalar(select(func.count()).select_from(DynamicPrematchSupersessionModel))),
+        )
+
+
+def test_repository_writes_five_slots_by_two_markets_as_ten_opportunities() -> None:
+    engine = _opportunity_test_engine()
+    _persist_tracks(engine, ("track-a",))
+    assert _repository_counts(engine) == (10, 10, 0)
+
+
+def test_repository_keeps_two_capture_tracks_as_twenty_opportunities() -> None:
+    from sqlalchemy import select
+    from sqlalchemy.orm import Session
+
+    from w2.api.repository import _model_forecast_market_evaluation_funnel
+    from w2.infrastructure.persistence.dynamic_prematch_models import (
+        DynamicPrematchEvaluationModel,
+        DynamicPrematchSupersessionModel,
+    )
+
+    engine = _opportunity_test_engine()
+    _persist_tracks(engine, ("track-a", "track-b"))
+    assert _repository_counts(engine) == (20, 20, 0)
+    with Session(engine) as session:
+        rows = list(session.scalars(select(DynamicPrematchEvaluationModel)))
+        superseded = set(
+            session.scalars(select(DynamicPrematchSupersessionModel.superseded_evaluation_id))
+        )
+    funnel = _model_forecast_market_evaluation_funnel(
+        [SimpleNamespace(fixture_id="1494246")], rows, superseded
+    )
+    assert funnel["measurement_status"] == "MEASURABLE"
+    assert funnel["opportunity_count"] == 20
+
+
+def test_repository_does_not_merge_a_second_model_family_on_shared_quote() -> None:
+    engine = _opportunity_test_engine()
+    from w2.prematch.repository import DynamicPrematchRepository
+
+    repository = DynamicPrematchRepository(engine)
+    for track in ("exact-dc", "baseline-dc"):
+        repository.append_evaluation(
+            _repository_evaluation(
+                fixture_id="1494246",
+                slot="T15_ODDS",
+                market="TOTALS",
+                capture_hash=track,
+                source_event=f"event-{track}",
+                quote_hash="shared-quote",
+            )
+        )
+    assert _repository_counts(engine) == (2, 2, 0)
+
+
+def test_retry_keeps_twenty_opportunities_and_supersedes_one_of_twenty_one_attempts() -> None:
+    engine = _opportunity_test_engine()
+    _persist_tracks(engine, ("track-a", "track-b"), retry=True)
+    assert _repository_counts(engine) == (20, 21, 1)
+
+
+def test_ordinary_dynamic_row_cannot_supersede_official_attempt() -> None:
+    from dataclasses import replace
+
+    from sqlalchemy import select
+    from sqlalchemy.orm import Session
+
+    from w2.infrastructure.persistence.dynamic_prematch_models import (
+        DynamicPrematchSupersessionModel,
+    )
+    from w2.prematch.repository import DynamicPrematchRepository
+
+    engine = _opportunity_test_engine()
+    official = _repository_evaluation(
+        fixture_id="1494246",
+        slot="T15_ODDS",
+        market="TOTALS",
+        capture_hash="track-a",
+        source_event="official",
+        quote_hash="quote-official",
+    )
+    repository = DynamicPrematchRepository(engine)
+    repository.append_evaluation(official)
+    repository.append_evaluation(
+        replace(
+            official,
+            evaluation_id="ordinary-eval",
+            identity_hash="ordinary-identity",
+            denominator_scope=None,
+            measurement_semantics=None,
+            official_funnel_eligible=None,
+            evaluation_policy_version=None,
+            evaluation_slot_id=None,
+            model_forecast_capture_identity_hash=None,
+            opportunity_identity_hash=None,
+            attempt_identity_hash=None,
+            scheduled_checkpoint_at=None,
+            checkpoint_plan_identity=None,
+            source_event_identity=None,
+            opportunity_state=None,
+        )
+    )
+    with Session(engine) as session:
+        superseded = set(
+            session.scalars(select(DynamicPrematchSupersessionModel.superseded_evaluation_id))
+        )
+    assert official.evaluation_id not in superseded
+
+
+def test_writer_rejects_bad_slot_without_writing_and_reader_marks_direct_bad_row_invalid() -> None:
+    from datetime import UTC, datetime
+
+    from sqlalchemy.orm import Session
+
+    from w2.api.repository import _model_forecast_market_evaluation_funnel
+    from w2.infrastructure.persistence.dynamic_prematch_models import (
+        DynamicPrematchEvaluationModel,
+    )
+    from w2.prematch.evaluation_slots import EvaluationSlotError
+
+    engine = _opportunity_test_engine()
+    with pytest.raises(EvaluationSlotError, match="NOT_REGISTERED"):
+        _repository_evaluation(
+            fixture_id="1494246",
+            slot="T44_ODDS",
+            market="TOTALS",
+            capture_hash="track-a",
+            source_event="bad-slot",
+            quote_hash="bad-quote",
+        )
+    assert _repository_counts(engine) == (0, 0, 0)
+
+    now = datetime(2026, 8, 18, 6, 0, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add(
+            DynamicPrematchEvaluationModel(
+                evaluation_id="bad-direct-row",
+                identity_hash="bad-direct-identity",
+                fixture_id="1494246",
+                market="TOTALS",
+                selection="OVER",
+                checkpoint="T44_ODDS",
+                evaluated_at=now,
+                original_state="NO_EDGE_CURRENT",
+                denominator_scope="CHECKPOINT_EVALUATION_OPPORTUNITY_V2",
+                measurement_semantics="CHECKPOINT_EVALUATION_OPPORTUNITY",
+                official_funnel_eligible=True,
+                evaluation_policy_version="candidate-eval.v1",
+                evaluation_slot_id="T44_ODDS",
+                model_forecast_capture_identity_hash="track-a",
+                payload={"state": "NO_EDGE_CURRENT"},
+            )
+        )
+        session.commit()
+        row = session.get(DynamicPrematchEvaluationModel, "bad-direct-row")
+        assert row is not None
+        funnel = _model_forecast_market_evaluation_funnel(
+            [SimpleNamespace(fixture_id="1494246")], [row], set()
+        )
+    assert funnel["measurement_status"] == "INVALID"
+    assert funnel["invalid_opportunity_reasons"] == {"SLOT_NOT_REGISTERED": 1}

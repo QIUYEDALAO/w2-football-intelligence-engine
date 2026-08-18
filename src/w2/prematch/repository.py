@@ -21,6 +21,7 @@ from w2.domain.enums import MarketType
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.dynamic_prematch_models import (
     DynamicPrematchEvaluationModel,
+    DynamicPrematchOpportunityModel,
     DynamicPrematchSupersessionModel,
     LineupConfirmedEventModel,
     T30ValidationSnapshotModel,
@@ -30,14 +31,18 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayFixtureIdentityModel,
 )
 from w2.prematch.lifecycle import (
+    CHECKPOINT_OPPORTUNITY_SCOPE,
     DYNAMIC_EVALUATION_V2_SCHEMA,
     EVAL_02B_DISTRIBUTION_TOLERANCE,
     MODEL_FORECAST_DENOMINATOR_SCOPE,
     SETTLEMENT_STATE_ORDER,
     DynamicEvaluationState,
     DynamicEvaluationVersion,
+    EvaluationOpportunityContext,
     LineupConfirmedEvent,
     LockSnapshotResult,
+    OpportunityState,
+    opportunity_identity_hash,
 )
 
 PAIR_PROJECTOR_SCHEMA = "w2.eval_02b_exact_pair_projection.v2"
@@ -131,6 +136,13 @@ class DynamicPrematchRepository:
                 DynamicPrematchEvaluationModel.fixture_id == version.fixture_id,
                 DynamicPrematchEvaluationModel.market == version.market,
                 DynamicPrematchEvaluationModel.checkpoint == version.checkpoint,
+                DynamicPrematchEvaluationModel.model_forecast_capture_identity_hash
+                == version.model_forecast_capture_identity_hash,
+                DynamicPrematchEvaluationModel.evaluation_policy_version
+                == version.evaluation_policy_version,
+                DynamicPrematchEvaluationModel.official_funnel_eligible.is_(
+                    version.official_funnel_eligible
+                ),
                 ~DynamicPrematchEvaluationModel.evaluation_id.in_(
                     select(DynamicPrematchSupersessionModel.superseded_evaluation_id)
                 ),
@@ -155,6 +167,19 @@ class DynamicPrematchRepository:
                 original_state=persisted.state.value,
                 recorded_at=persisted.recorded_at,
                 denominator_scope=persisted.denominator_scope,
+                measurement_semantics=persisted.measurement_semantics,
+                official_funnel_eligible=persisted.official_funnel_eligible,
+                exclusion_reason=persisted.exclusion_reason,
+                evaluation_policy_version=persisted.evaluation_policy_version,
+                evaluation_slot_id=persisted.evaluation_slot_id,
+                model_forecast_capture_identity_hash=(
+                    persisted.model_forecast_capture_identity_hash
+                ),
+                opportunity_identity_hash=persisted.opportunity_identity_hash,
+                attempt_identity_hash=persisted.attempt_identity_hash,
+                scheduled_checkpoint_at=persisted.scheduled_checkpoint_at,
+                checkpoint_plan_identity=persisted.checkpoint_plan_identity,
+                source_event_identity=persisted.source_event_identity,
                 bookmaker_count=persisted.bookmaker_count,
                 first_failed_gate=persisted.first_failed_gate,
                 all_failed_gates=list(persisted.all_failed_gates),
@@ -163,6 +188,8 @@ class DynamicPrematchRepository:
             )
         )
         session.flush()
+        if persisted.denominator_scope == CHECKPOINT_OPPORTUNITY_SCOPE:
+            self._upsert_opportunity_in_session(session, persisted)
         if previous is not None:
             session.add(
                 DynamicPrematchSupersessionModel(
@@ -176,6 +203,146 @@ class DynamicPrematchRepository:
             )
             session.flush()
         return persisted, True
+
+    def _upsert_opportunity_in_session(
+        self,
+        session: Session,
+        version: DynamicEvaluationVersion,
+    ) -> None:
+        if not all(
+            (
+                version.opportunity_identity_hash,
+                version.attempt_identity_hash,
+                version.model_forecast_capture_identity_hash,
+                version.evaluation_policy_version,
+                version.evaluation_slot_id,
+                version.scheduled_checkpoint_at,
+                version.checkpoint_plan_identity,
+                version.source_event_identity,
+                version.opportunity_state,
+                version.recorded_at,
+            )
+        ):
+            raise ValueError("OFFICIAL_OPPORTUNITY_IDENTITY_INCOMPLETE")
+        assert version.scheduled_checkpoint_at is not None
+        assert version.opportunity_state is not None
+        row = session.get(
+            DynamicPrematchOpportunityModel,
+            version.opportunity_identity_hash,
+        )
+        payload = {
+            "opportunity_identity_hash": version.opportunity_identity_hash,
+            "model_forecast_capture_identity_hash": (
+                version.model_forecast_capture_identity_hash
+            ),
+            "evaluation_policy_version": version.evaluation_policy_version,
+            "evaluation_slot_id": version.evaluation_slot_id,
+            "market": version.market,
+            "checkpoint_plan_identity": version.checkpoint_plan_identity,
+            "scheduled_checkpoint_at": version.scheduled_checkpoint_at.isoformat(),
+            "state": version.opportunity_state.value,
+            "immutable_identity": True,
+        }
+        if row is None:
+            session.add(
+                DynamicPrematchOpportunityModel(
+                    opportunity_identity_hash=version.opportunity_identity_hash,
+                    fixture_id=version.fixture_id,
+                    market=version.market,
+                    model_forecast_capture_identity_hash=(
+                        version.model_forecast_capture_identity_hash
+                    ),
+                    evaluation_policy_version=version.evaluation_policy_version,
+                    evaluation_slot_id=version.evaluation_slot_id,
+                    scheduled_checkpoint_at=version.scheduled_checkpoint_at,
+                    checkpoint_plan_identity=version.checkpoint_plan_identity,
+                    state=version.opportunity_state.value,
+                    recorded_at=version.recorded_at,
+                    evaluated_at=version.evaluated_at,
+                    latest_attempt_identity_hash=version.attempt_identity_hash,
+                    payload=payload,
+                )
+            )
+            session.flush()
+            return
+        identity = (
+            row.fixture_id,
+            row.market,
+            row.model_forecast_capture_identity_hash,
+            row.evaluation_policy_version,
+            row.evaluation_slot_id,
+            _plan_time(row.scheduled_checkpoint_at),
+            row.checkpoint_plan_identity,
+        )
+        expected = (
+            version.fixture_id,
+            version.market,
+            version.model_forecast_capture_identity_hash,
+            version.evaluation_policy_version,
+            version.evaluation_slot_id,
+            _plan_time(version.scheduled_checkpoint_at),
+            version.checkpoint_plan_identity,
+        )
+        if identity != expected:
+            raise ValueError("OPPORTUNITY_IDENTITY_CONFLICT")
+        row.state = version.opportunity_state.value
+        row.evaluated_at = version.evaluated_at
+        row.latest_attempt_identity_hash = version.attempt_identity_hash
+        row.payload = payload
+        session.flush()
+
+    def record_opportunity_without_attempt(
+        self,
+        *,
+        fixture_id: str,
+        market: str,
+        context: EvaluationOpportunityContext,
+        state: OpportunityState,
+        recorded_at: datetime,
+        blocker: str,
+    ) -> bool:
+        if state not in {
+            OpportunityState.MISSED_CHECKPOINT,
+            OpportunityState.EVALUATION_ERROR,
+        }:
+            raise ValueError("OPPORTUNITY_STATE_REQUIRES_ATTEMPT")
+        identity = opportunity_identity_hash(context, market=market)
+        with Session(self.engine) as session:
+            existing = session.get(DynamicPrematchOpportunityModel, identity)
+            if existing is not None:
+                return False
+            session.add(
+                DynamicPrematchOpportunityModel(
+                    opportunity_identity_hash=identity,
+                    fixture_id=fixture_id,
+                    market=market,
+                    model_forecast_capture_identity_hash=(
+                        context.model_forecast_capture_identity_hash
+                    ),
+                    evaluation_policy_version=context.evaluation_policy_version,
+                    evaluation_slot_id=context.evaluation_slot_id,
+                    scheduled_checkpoint_at=context.scheduled_checkpoint_at,
+                    checkpoint_plan_identity=context.checkpoint_plan_identity,
+                    state=state.value,
+                    recorded_at=recorded_at,
+                    evaluated_at=None,
+                    latest_attempt_identity_hash=None,
+                    payload={
+                        "opportunity_identity_hash": identity,
+                        "state": state.value,
+                        "scheduled_checkpoint_at": (
+                            context.scheduled_checkpoint_at.isoformat()
+                        ),
+                        "recorded_at": recorded_at.isoformat(),
+                        "evaluated_at": None,
+                        "blocker": blocker,
+                        "source_event_identity": context.source_event_identity,
+                        "immutable_identity": True,
+                    },
+                )
+            )
+            session.commit()
+        return True
 
     def append_lineup_event(
         self,
@@ -419,6 +586,46 @@ def _version_from_payload(payload: dict[str, Any]) -> DynamicEvaluationVersion:
         if isinstance(payload.get("gate_results"), dict)
         else None,
         recorded_at=_parse_utc(payload.get("recorded_at")),
+        measurement_semantics=str(payload["measurement_semantics"])
+        if payload.get("measurement_semantics")
+        else None,
+        official_funnel_eligible=(
+            bool(payload["official_funnel_eligible"])
+            if payload.get("official_funnel_eligible") is not None
+            else None
+        ),
+        exclusion_reason=str(payload["exclusion_reason"])
+        if payload.get("exclusion_reason")
+        else None,
+        evaluation_policy_version=str(payload["evaluation_policy_version"])
+        if payload.get("evaluation_policy_version")
+        else None,
+        evaluation_slot_id=str(payload["evaluation_slot_id"])
+        if payload.get("evaluation_slot_id")
+        else None,
+        model_forecast_capture_identity_hash=str(
+            payload["model_forecast_capture_identity_hash"]
+        )
+        if payload.get("model_forecast_capture_identity_hash")
+        else None,
+        opportunity_identity_hash=str(payload["opportunity_identity_hash"])
+        if payload.get("opportunity_identity_hash")
+        else None,
+        attempt_identity_hash=str(payload["attempt_identity_hash"])
+        if payload.get("attempt_identity_hash")
+        else None,
+        scheduled_checkpoint_at=_parse_utc(payload.get("scheduled_checkpoint_at")),
+        checkpoint_plan_identity=str(payload["checkpoint_plan_identity"])
+        if payload.get("checkpoint_plan_identity")
+        else None,
+        source_event_identity=str(payload["source_event_identity"])
+        if payload.get("source_event_identity")
+        else None,
+        opportunity_state=(
+            OpportunityState(str(payload["opportunity_state"]))
+            if payload.get("opportunity_state")
+            else None
+        ),
     )
 
 

@@ -276,6 +276,21 @@ class ModelForecastLedgerRepository:
                 for fixture_id, capture_hash, model_input_hash, captured_at in rows
             )
 
+    def opportunity_capture_seeds(self, fixture_id: str) -> tuple[tuple[str, str], ...]:
+        """Frozen model tracks eligible for one explicit checkpoint event."""
+
+        aliases = _fixture_aliases(fixture_id)
+        with Session(self.engine) as session:
+            rows = session.execute(
+                select(
+                    ModelForecastCaptureModel.capture_identity_hash,
+                    ModelForecastCaptureModel.model_input_manifest_hash,
+                )
+                .where(ModelForecastCaptureModel.fixture_id.in_(aliases))
+                .order_by(ModelForecastCaptureModel.capture_identity_hash)
+            )
+            return tuple((str(capture), str(model_input)) for capture, model_input in rows)
+
     def schema_ready(self) -> bool:
         tables = set(inspect(self.engine).get_table_names())
         return {

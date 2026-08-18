@@ -25,13 +25,16 @@ from w2.domain.recommendation_capabilities import load_recommendation_capability
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.operations.observability import default_metric_registry
 from w2.prematch.lifecycle import (
+    CHECKPOINT_OPPORTUNITY_SCOPE,
     DYNAMIC_EVALUATION_V1_SCHEMA,
     DYNAMIC_EVALUATION_V2_SCHEMA,
     DYNAMIC_EVALUATION_V3_SCHEMA,
     MODEL_FORECAST_DENOMINATOR_SCOPE,
     DynamicEvaluationInput,
     DynamicEvaluationVersion,
+    EvaluationOpportunityContext,
     LineupConfirmedEvent,
+    bind_evaluation_opportunity,
     classify_evaluation,
     lineup_confirmed_refresh_plan,
 )
@@ -160,6 +163,7 @@ class ProjectionSourceEvent:
     event_id: str
     event_at: datetime
     event_hash: str
+    opportunity_contexts: tuple[EvaluationOpportunityContext, ...] = ()
 
     @classmethod
     def create(
@@ -608,6 +612,23 @@ class AnalysisCardCanaryMaterializer:
         )
         input_manifest["dynamic_fixture_identity"] = dynamic_fixture_identity
         input_manifest["dynamic_lineup_identity"] = dynamic_lineup_identity
+        if event.opportunity_contexts:
+            input_manifest["opportunity_contexts"] = [
+                {
+                    "model_forecast_capture_identity_hash": (
+                        item.model_forecast_capture_identity_hash
+                    ),
+                    "model_input_hash": item.model_input_hash,
+                    "evaluation_policy_version": item.evaluation_policy_version,
+                    "evaluation_slot_id": item.evaluation_slot_id,
+                    "scheduled_checkpoint_at": _normalize_evaluation_time(
+                        item.scheduled_checkpoint_at
+                    ),
+                    "checkpoint_plan_identity": item.checkpoint_plan_identity,
+                    "source_event_identity": item.source_event_identity,
+                }
+                for item in event.opportunity_contexts
+            ]
         evaluations = tuple(
             _dynamic_evaluations(
                 card,
@@ -615,6 +636,7 @@ class AnalysisCardCanaryMaterializer:
                 fixture_identity=dynamic_fixture_identity,
                 lineup_identity=dynamic_lineup_identity,
                 build_scoreline_reference=self.build_scoreline_reference,
+                opportunity_contexts=event.opportunity_contexts,
             )
         )
         if not evaluations and card.get("pick") is not None:
@@ -1168,7 +1190,31 @@ def _dynamic_evaluations(
     fixture_identity: dict[str, str],
     lineup_identity: dict[str, str] | None,
     build_scoreline_reference: ScorelineReferenceBuilder | None = None,
+    opportunity_contexts: tuple[EvaluationOpportunityContext, ...] = (),
 ) -> list[DynamicEvaluationVersion]:
+    if not opportunity_contexts:
+        raw_contexts = manifest.get("opportunity_contexts")
+        if isinstance(raw_contexts, list):
+            try:
+                opportunity_contexts = tuple(
+                    EvaluationOpportunityContext(
+                        model_forecast_capture_identity_hash=str(
+                            item["model_forecast_capture_identity_hash"]
+                        ),
+                        model_input_hash=str(item["model_input_hash"]),
+                        evaluation_policy_version=str(item["evaluation_policy_version"]),
+                        evaluation_slot_id=str(item["evaluation_slot_id"]),
+                        scheduled_checkpoint_at=_required_utc(
+                            item["scheduled_checkpoint_at"]
+                        ),
+                        checkpoint_plan_identity=str(item["checkpoint_plan_identity"]),
+                        source_event_identity=str(item["source_event_identity"]),
+                    )
+                    for item in raw_contexts
+                    if isinstance(item, dict)
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                raise FrozenAnalysisError("opportunity context invalid") from exc
     if any(not fixture_identity.get(field) for field in ("competition_id", "season", "provider")):
         raise FrozenAnalysisError("dynamic evaluation fixture identity incomplete")
     if lineup_identity is not None and (
@@ -1178,8 +1224,19 @@ def _dynamic_evaluations(
     fixture_id = str(card.get("fixture_id") or "")
     evaluated_at = _parse_utc(manifest.get("evaluated_at"))
     candidates = card.get("market_candidates")
-    denominator_scope = str(manifest.get("dynamic_evaluation_denominator_scope") or "")
-    denominator_scoped = denominator_scope == MODEL_FORECAST_DENOMINATOR_SCOPE
+    denominator_scope = (
+        CHECKPOINT_OPPORTUNITY_SCOPE
+        if opportunity_contexts
+        else str(manifest.get("dynamic_evaluation_denominator_scope") or "")
+    )
+    denominator_scoped = denominator_scope in {
+        MODEL_FORECAST_DENOMINATOR_SCOPE,
+        CHECKPOINT_OPPORTUNITY_SCOPE,
+    }
+    if opportunity_contexts and len(
+        {item.evaluation_slot_id for item in opportunity_contexts}
+    ) != 1:
+        raise FrozenAnalysisError("opportunity event spans multiple slots")
     if not fixture_id or evaluated_at is None:
         return []
     if not isinstance(candidates, dict):
@@ -1330,7 +1387,11 @@ def _dynamic_evaluations(
                 domain=HashDomain.PREMATCH_READ_MODEL_DYNAMIC_EVALUATION,
             ),
             evaluated_at=evaluated_at,
-            checkpoint=_latest_checkpoint(card),
+            checkpoint=(
+                opportunity_contexts[0].evaluation_slot_id
+                if opportunity_contexts
+                else _latest_checkpoint(card)
+            ),
             capture_at=capture_at,
             source_observations_present=(
                 source_observations_present if denominator_scoped else True
@@ -1382,7 +1443,13 @@ def _dynamic_evaluations(
                 version,
                 scoreline_reference=build_scoreline_reference(card, version, quote_identity),
             )
-        versions.append(version)
+        if opportunity_contexts:
+            versions.extend(
+                bind_evaluation_opportunity(version, context)
+                for context in opportunity_contexts
+            )
+        else:
+            versions.append(version)
     return versions
 
 
@@ -1461,6 +1528,13 @@ def _parse_utc(value: Any) -> datetime | None:
         return None
 
 
+def _required_utc(value: Any) -> datetime:
+    parsed = _parse_utc(value)
+    if parsed is None:
+        raise ValueError("INVALID_DATETIME")
+    return parsed
+
+
 def _float_or_none(value: Any) -> float | None:
     try:
         return float(value) if value is not None else None
@@ -1505,14 +1579,24 @@ def materialize_projection_events(
             source_event=event,
         )
         if evaluations_only:
-            if event.event_type != "MODEL_FORECAST_CAPTURE_SCOPE":
+            if event.event_type not in {
+                "MODEL_FORECAST_CAPTURE_SCOPE",
+                "CHECKPOINT_EVALUATION",
+            }:
                 raise FrozenAnalysisError("evaluation-only projection scope invalid")
             dynamic_repository = DynamicPrematchRepository(engine)
-            for evaluation in artifact.evaluations:
-                dynamic_repository.append_evaluation(
-                    evaluation,
-                    supersession_reason="MODEL_FORECAST_DENOMINATOR_ENTRY",
-                )
+            with Session(engine) as session:
+                for evaluation in artifact.evaluations:
+                    dynamic_repository.append_evaluation_in_session(
+                        session,
+                        evaluation,
+                        supersession_reason=(
+                            "CHECKPOINT_EVALUATION_RETRY"
+                            if event.event_type == "CHECKPOINT_EVALUATION"
+                            else "MODEL_FORECAST_DENOMINATOR_ENTRY"
+                        ),
+                    )
+                session.commit()
             continue
         write_frozen_analysis_artifacts(
             engine,
