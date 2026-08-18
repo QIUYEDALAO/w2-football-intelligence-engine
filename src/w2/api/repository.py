@@ -120,6 +120,11 @@ def _model_forecast_market_evaluation_funnel(
     for row in evaluations:
         if row.evaluation_id in superseded_evaluation_ids:
             continue
+        # Rows the one-off sweep produced describe scan-time state, not the
+        # checkpoint they name, so every gate they report is unfounded.  They
+        # stay queryable but are barred from any pass-rate.
+        if row.official_funnel_eligible is False:
+            continue
         key = (row.fixture_id.removeprefix("api_football:"), row.market)
         previous = current.get(key)
         if previous is None or (

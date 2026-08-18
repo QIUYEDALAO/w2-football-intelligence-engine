@@ -3,7 +3,16 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from w2.infrastructure.database import Base
@@ -36,6 +45,13 @@ class DynamicPrematchEvaluationModel(Base):
     original_state: Mapped[str] = mapped_column(String(64), nullable=False)
     recorded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     denominator_scope: Mapped[str | None] = mapped_column(String(64))
+    # Rows written by the one-off sweep describe scan-time state, not checkpoint
+    # state.  They stay in the table but must never reach a pass-rate.
+    measurement_semantics: Mapped[str | None] = mapped_column(String(64))
+    official_funnel_eligible: Mapped[bool | None] = mapped_column(Boolean)
+    exclusion_reason: Mapped[str | None] = mapped_column(String(128))
+    evaluation_policy_version: Mapped[str | None] = mapped_column(String(64))
+    evaluation_slot_id: Mapped[str | None] = mapped_column(String(64))
     bookmaker_count: Mapped[int | None] = mapped_column(Integer)
     first_failed_gate: Mapped[str | None] = mapped_column(String(64))
     all_failed_gates: Mapped[list[str] | None] = mapped_column(JSON)
