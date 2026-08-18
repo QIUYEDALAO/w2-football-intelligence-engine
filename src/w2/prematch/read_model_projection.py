@@ -1342,8 +1342,15 @@ def _dynamic_evaluations(
         odds_market = odds_market if isinstance(odds_market, dict) else {}
         market_mainline = candidate.get("market_mainline")
         market_mainline = market_mainline if isinstance(market_mainline, dict) else {}
+        # Both mainline selectors already report a complete-pair count: TOTALS
+        # mirrors complete_pair_bookmaker_count into bookmaker_count, and the AH
+        # selector only counts a bookmaker once it quotes both sides of the same
+        # line.  Reading the TOTALS-specific name alone left every AH evaluation
+        # at depth 0, so ASIAN_HANDICAP could never clear the depth gate and was
+        # recorded as BLOCKED_BY_GATE no matter how deep the book actually was.
         bookmaker_count = max(
             int(odds_market.get("bookmaker_count") or 0),
+            int(market_mainline.get("bookmaker_count") or 0),
             int(market_mainline.get("complete_pair_bookmaker_count") or 0),
         )
         exact_line = _float_or_none(

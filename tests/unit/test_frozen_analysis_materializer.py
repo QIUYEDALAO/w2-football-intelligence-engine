@@ -1875,3 +1875,83 @@ def test_checkpoint_update_failure_restores_evaluation_and_supersession(
         assert latest.payload["lineup_input_hash"] == "lineup-1"
         checkpoint = session.query(ReadModelCheckpointModel).one()
         assert checkpoint.source_hash == second.source_hash
+
+
+def _depth_card(*, ah_mainline: dict[str, Any], ou_mainline: dict[str, Any]) -> dict[str, Any]:
+    def branch(selection: str, mainline: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "selection": selection,
+            "market_mainline": mainline,
+            "line": mainline.get("line"),
+            "analysis_evidence": {
+                "quote_identity": {
+                    "identity_status": "COMPLETE",
+                    "selected_line": mainline.get("line"),
+                    "captured_at": "2026-08-18T11:00:00Z",
+                },
+                "market_probability": {selection.lower(): 0.5},
+            },
+        }
+
+    return {
+        "fixture_id": "1523198",
+        "simulation": {"status": "READY"},
+        "market_candidates": {
+            "ah": branch("HOME", ah_mainline),
+            "ou": branch("OVER", ou_mainline),
+        },
+    }
+
+
+def _depth_by_market(card: dict[str, Any]) -> dict[str, int]:
+    versions = _dynamic_evaluations(
+        card,
+        {
+            "evaluated_at": "2026-08-18T11:06:00Z",
+            "simulation_sha256": "simulation",
+            "analysis_evidence_sha256": "evidence",
+            "dynamic_evaluation_denominator_scope": MODEL_FORECAST_DENOMINATOR_SCOPE,
+        },
+        fixture_identity={
+            "competition_id": "113",
+            "season": "2026",
+            "provider": "api_football",
+        },
+        lineup_identity=None,
+    )
+    return {version.market: int(version.bookmaker_count or 0) for version in versions}
+
+
+def test_asian_handicap_depth_is_read_from_its_own_mainline_field() -> None:
+    """AH reports depth as bookmaker_count; TOTALS mirrors it into a second name.
+
+    Reading only the TOTALS-specific complete_pair_bookmaker_count left every
+    ASIAN_HANDICAP evaluation at depth 0, so that market could never clear the
+    depth gate and was persisted as BLOCKED_BY_GATE regardless of how many
+    bookmakers actually quoted both sides. Both selectors already count a
+    bookmaker only once it quotes a complete pair, so the two names carry the
+    same meaning and must yield the same depth.
+    """
+
+    depth = _depth_by_market(
+        _depth_card(
+            ah_mainline={"line": "+0.25", "bookmaker_count": 6},
+            ou_mainline={
+                "line": "2.5",
+                "bookmaker_count": 5,
+                "complete_pair_bookmaker_count": 5,
+            },
+        )
+    )
+
+    assert depth["ASIAN_HANDICAP"] == 6
+    assert depth["TOTALS"] == 5
+
+
+def test_absent_mainline_depth_is_still_zero() -> None:
+    depth = _depth_by_market(
+        _depth_card(ah_mainline={"line": "+0.25"}, ou_mainline={"line": "2.5"})
+    )
+
+    assert depth["ASIAN_HANDICAP"] == 0
+    assert depth["TOTALS"] == 0
