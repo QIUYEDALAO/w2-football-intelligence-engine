@@ -1,0 +1,8 @@
+[Unit]
+Description=Recompute rolling xG snapshots every six hours
+[Timer]
+OnCalendar=01/6:40
+Persistent=true
+RandomizedDelaySec=300
+[Install]
+WantedBy=timers.target

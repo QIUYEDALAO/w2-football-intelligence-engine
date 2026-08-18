@@ -10,6 +10,8 @@ here so a new host can be brought up without reconstructing it from memory.
 | `w2-disk-guard` | `/usr/local/bin/` | Hourly disk, inode and backup-age check |
 | `w2-disk-guard.service` / `.timer` | `/etc/systemd/system/` | Runs the guard |
 | `w2-registry-gc` | `/usr/local/bin/` | Registry retention and collection, weekly |
+| `w2-xg-materialize` | `/usr/local/bin/` | Rolling xG snapshot recompute, every six hours |
+| `w2-xg-materialize.service` / `.timer` | `/etc/systemd/system/` | Runs the recompute |
 | `w2-registry-gc.service` / `.timer` | `/etc/systemd/system/` | Runs the collection |
 | `w2-release-preflight` | `/usr/local/bin/` | Space, base image and layer count before a release |
 | `registry-config.yml` | `/opt/w2/deploy/registry/` | Registry with manifest deletion enabled |
@@ -41,6 +43,19 @@ only the docker v2 Accept header returns 404, which reads as "already gone"
 and silently deletes nothing.
 
 **Journal retention.** Journals had grown to 507MB with no cap.
+
+**xG snapshot recompute.** The four-field xG gate reads the most recent rolling
+snapshot per team, so a newly discovered fixture reuses whatever that team
+already has and never goes missing on that account. What it does not do is
+notice the team has since played: the window only moves when something
+recomputes it, and the only caller of the materialiser sits inside xg_backfill,
+which is disabled. Snapshots therefore go stale silently -- the gate keeps
+passing while the model reads an older five matches, which is worse than
+absence because absence at least blocks and says so. This makes no Provider
+calls and asserts two things before reporting success: team_xg_match must not
+have moved (this path materialises snapshots from evidence already stored), and
+every snapshot must be visible, since as_of_time written into the future once
+hid 98.4% of them.
 
 **Backups.** Three directories held 71 dumps between them, written by
 different hands, none ever removed and none off this machine. `w2-backup`

@@ -5,7 +5,7 @@
 set -uo pipefail
 
 NEED_MB=2228
-MAX_LAYERS=${W2_MAX_ROOTFS_LAYERS:-12}
+MAX_LAYERS=${W2_MAX_ROOTFS_LAYERS:-20}
 BASE_TAG=${W2_BASE_TAG:-4d5f257daa500878}
 IMAGE=${1:-}
 rc=0
@@ -27,8 +27,11 @@ else
 fi
 
 # The count is read off RootFS rather than docker history, which counts
-# history entries and not actual layers.  A rising count means something has
-# started building on the previous release again.
+# history entries and not actual layers.  The failure it guards against is a
+# release built on the previous release, which shows hundreds of layers, not
+# one or two more than today -- the limit is set with room for a few more COPY
+# lines so that adding one does not trip a gate meant for something else.  A
+# release currently measures twelve.
 if [ -n "$IMAGE" ]; then
   if L=$(docker image inspect "$IMAGE" --format "{{len .RootFS.Layers}}" 2>/dev/null); then
     printf "rootfs layers=%s max=%s\n" "$L" "$MAX_LAYERS"
