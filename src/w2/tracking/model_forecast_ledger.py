@@ -38,9 +38,32 @@ NO_HORIZON = "NONE"
 # core, so two freeze tracks separate cleanly without changing the core shape --
 # provided every policy maps to exactly one horizon.  Registering the pairs here
 # keeps that invariant checkable instead of implicit.
+# Frozen semantics: an existing policy's horizon may never be remapped, because
+# historical captures carry the policy inside their hash but resolve the horizon
+# through this table.  A new horizon therefore requires a new policy name --
+# FIXED_HORIZON_T24_FREEZE_IMMUTABLE_V1, not a rebinding of a generic
+# FIXED_HORIZON_FREEZE_IMMUTABLE.
 CAPTURE_POLICY_HORIZONS: dict[str, str] = {
     CAPTURE_POLICY: NO_HORIZON,
 }
+
+
+def _effective_capture_policy(payload: Mapping[str, Any]) -> str:
+    """Mirror the 0063 backfill rule.
+
+    Captures frozen under schema v1 predate ``capture_policy`` entirely, so their
+    payload cannot carry it.  Those rows were taken under the only track that
+    existed, which is what the migration backfilled -- integrity has to apply the
+    same rule or it would flag every immutable v1 record as drifted.
+    """
+
+    return str(payload.get("capture_policy") or "") or CAPTURE_POLICY
+
+
+def _registered_horizon_or_none(policy: str) -> str | None:
+    """Integrity reports drift; it must not raise on an unregistered policy."""
+
+    return CAPTURE_POLICY_HORIZONS.get(policy)
 
 
 def capture_horizon_for_policy(policy: str) -> str:
@@ -417,6 +440,12 @@ class ModelForecastLedgerRepository:
                 == int((capture_row.kickoff_utc - capture_row.captured_at).total_seconds())
                 and capture_row.lead_time_bucket
                 == model_forecast_lead_time_bucket(capture_row.lead_time_seconds)
+                # horizon_id is deliberately outside the hashed core, so nothing
+                # in the payload can detect it drifting.  Pin it to the registry
+                # here, at the same level as the other column/payload crosschecks.
+                and capture_row.capture_policy == _effective_capture_policy(payload)
+                and capture_row.horizon_id
+                == _registered_horizon_or_none(_effective_capture_policy(payload))
                 and capture_row.payload_sha256
                 == canonical_sha256(payload, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN)
                 and capture_row.capture_identity_hash

@@ -493,3 +493,78 @@ def test_capture_policy_horizon_registry_is_one_to_one() -> None:
 def test_unregistered_capture_policy_fails_closed() -> None:
     with pytest.raises(ModelForecastLedgerError, match="POLICY_NOT_REGISTERED"):
         capture_horizon_for_policy("FIXED_HORIZON_FREEZE_IMMUTABLE")
+
+
+def test_horizon_column_drift_is_caught_by_integrity(tmp_path: Path) -> None:
+    """horizon_id sits outside the hash, so only integrity can police it.
+
+    Nothing in the frozen payload changes when this column drifts, which is
+    exactly why the crosscheck has to exist alongside the kickoff/captured_at
+    assertions rather than relying on the identity hash.
+    """
+
+    repository = _repository(tmp_path)
+    _seed_xg(repository)
+    run_model_forecast_capture(
+        _day_view(), repository=repository, captured_at=NOW, dry_run=False, write_db=True
+    )
+    assert repository.integrity()["invalid_capture_count"] == 0
+
+    with Session(repository.engine) as session:
+        session.execute(update(ModelForecastCaptureModel).values(horizon_id="H0"))
+        session.commit()
+
+    assert repository.integrity()["invalid_capture_count"] == 1
+
+
+def test_registered_policy_horizons_are_frozen() -> None:
+    """Remapping an existing policy would silently rewrite history.
+
+    Historical captures freeze ``capture_policy`` in their hash but resolve
+    ``horizon_id`` through the registry at read time, so changing a published
+    mapping would make already-frozen rows resolve to a horizon they were never
+    captured under.  New horizons must arrive as new policy names.
+    """
+
+    assert CAPTURE_POLICY_HORIZONS == {
+        "FIRST_ELIGIBLE_FREEZE_IMMUTABLE": "NONE",
+    }
+
+
+def test_schema_v1_captures_without_capture_policy_stay_valid(tmp_path: Path) -> None:
+    """Production holds 9 v1 captures frozen before capture_policy existed.
+
+    Their payload cannot carry the field, so integrity must fall back to the same
+    legacy default the 0063 backfill used. A naive payload comparison would mark
+    every one of those immutable records as drifted.
+    """
+
+    repository = _repository(tmp_path)
+    _seed_xg(repository)
+    run_model_forecast_capture(
+        _day_view(), repository=repository, captured_at=NOW, dry_run=False, write_db=True
+    )
+
+    with Session(repository.engine) as session:
+        capture = session.scalars(select(ModelForecastCaptureModel)).one()
+        legacy_payload = {
+            key: value for key, value in dict(capture.payload).items() if key != "capture_policy"
+        }
+        legacy_payload["schema_version"] = "w2.model_forecast_capture.v1"
+        identity = {k: v for k, v in legacy_payload.items() if k != "capture_identity_hash"}
+        legacy_payload["capture_identity_hash"] = canonical_sha256(
+            identity, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN
+        )
+        session.execute(
+            update(ModelForecastCaptureModel).values(
+                payload=legacy_payload,
+                capture_identity_hash=legacy_payload["capture_identity_hash"],
+                payload_sha256=canonical_sha256(
+                    legacy_payload, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN
+                ),
+            )
+        )
+        session.commit()
+
+    integrity = repository.integrity()
+    assert integrity["invalid_capture_count"] == 0
