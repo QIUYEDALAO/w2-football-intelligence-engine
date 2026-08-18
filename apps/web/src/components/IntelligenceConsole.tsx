@@ -686,7 +686,9 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
           <ul className="v41-validation-counts"><li><span>当前 T-30 流程已冻结候选</span><strong>{modelForecast.current_flow_candidate_count}</strong></li><li><span>历史已结算 ANALYSIS_PICK</span><strong>{legacyAnalysisPickCount}</strong></li></ul>
           <p className="v41-validation-warning"><strong>历史遗留，非当前流程产出。</strong>不显示命中率：n={legacyAnalysisPickCount}、选择过程尚未审计，且与 Phase 0.5 全量回测的 NO_EDGE 结论相反。</p>
           <details className="v41-validation-audit"><summary>展开当前流程逐门覆盖（评估机会 {evaluationFunnel.opportunity_count}）</summary>
-            {evaluationFunnel.measurement_status === "NOT_MEASURABLE" ? (
+            {evaluationFunnel.measurement_status === "INVALID" ? (
+              <p className="v41-validation-warning"><strong>机会记录损坏，无法测量。</strong>有 {evaluationFunnel.invalid_opportunity_row_count} 条记录声明为正式评估机会，但未通过契约校验：{Object.entries(evaluationFunnel.invalid_opportunity_reasons).map(([reason, count]) => `${reason} ${count}`).join('、')}。这不是"尚未发生"，是写入端有缺陷。</p>
+            ) : evaluationFunnel.measurement_status === "NOT_MEASURABLE" ? (
               <p className="v41-validation-warning"><strong>当前不可测量。</strong>尚无任何检查点评估机会记录，因此没有逐门通过率。这不表示各门失败——系统还不知道这些比赛会卡在哪一门。已冻结模型预测 {evaluationFunnel.capture_count} 场。</p>
             ) : (<>
               <ul className="v41-validation-counts">{([

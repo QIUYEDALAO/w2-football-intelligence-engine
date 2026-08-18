@@ -115,33 +115,37 @@ CHECKPOINT_OPPORTUNITY_SCOPE = "CHECKPOINT_EVALUATION_OPPORTUNITY_V2"
 CHECKPOINT_OPPORTUNITY_SEMANTICS = "CHECKPOINT_EVALUATION_OPPORTUNITY"
 
 
-def _is_official_opportunity(row: DynamicPrematchEvaluationModel) -> bool:
-    """Positive whitelist -- absence of a disqualifier is not qualification.
+def _opportunity_contract_defect(row: DynamicPrematchEvaluationModel) -> str | None:
+    """Why a row claiming to be official is not usable, or None if it is.
 
-    Rows predating the opportunity contract carry NULL in every one of these
-    fields, so an ``is False`` style filter would wave them straight through.
-    Non-empty is also not enough: a typo'd slot or an unregistered policy would
-    otherwise enter the denominator and quietly break the slots x markets
-    contract the registry exists to hold.
+    Only rows that assert ``official_funnel_eligible`` are judged here.  A row
+    that makes the claim and then fails it is a writer defect, and reporting it
+    as "no opportunity" would repeat the mistake this whole rework exists to
+    undo: a failure rendered as absence.
     """
 
-    if row.official_funnel_eligible is not True:
-        return False
     if row.denominator_scope != CHECKPOINT_OPPORTUNITY_SCOPE:
-        return False
+        return "SCOPE_MISMATCH"
     if row.measurement_semantics != CHECKPOINT_OPPORTUNITY_SEMANTICS:
-        return False
+        return "SEMANTICS_MISMATCH"
     if row.market not in MODEL_FORECAST_MARKETS:
-        return False
+        return "MARKET_NOT_REGISTERED"
+    # The odds-snapshot capture_id cannot stand in here: two model tracks
+    # reading the same quote would collapse into one opportunity.
+    if not row.model_forecast_capture_identity_hash:
+        return "FORECAST_CAPTURE_IDENTITY_MISSING"
     policy = str(row.evaluation_policy_version or "")
     slot = str(row.evaluation_slot_id or "")
-    if not policy or not slot:
-        return False
+    if not policy:
+        return "POLICY_VERSION_MISSING"
+    if not slot:
+        return "SLOT_MISSING"
     try:
-        return is_evaluation_slot(slot, policy_version=policy)
+        if not is_evaluation_slot(slot, policy_version=policy):
+            return "SLOT_NOT_REGISTERED"
     except EvaluationSlotError:
-        # An unregistered policy is a writer defect, not an opportunity.
-        return False
+        return "POLICY_NOT_REGISTERED"
+    return None
 
 
 def _model_forecast_market_evaluation_funnel(
@@ -161,17 +165,25 @@ def _model_forecast_market_evaluation_funnel(
     """
 
     current: dict[tuple[str, str, str, str], DynamicPrematchEvaluationModel] = {}
+    defects: Counter[str] = Counter()
     for row in evaluations:
         if row.evaluation_id in superseded_evaluation_ids:
             continue
-        if not _is_official_opportunity(row):
+        if row.official_funnel_eligible is not True:
+            # Legacy rows and ordinary dynamic evaluations were never
+            # opportunities; excluding them silently is correct.
+            continue
+        defect = _opportunity_contract_defect(row)
+        if defect is not None:
+            defects[defect] += 1
             continue
         # One opportunity per slot x market; retries within a slot supersede
         # rather than accumulate, so the denominator counts chances, not tries.
-        # Identity is the opportunity, not the fixture: two policy versions or a
-        # second capture track can legitimately reuse a slot name.
+        # Identity is the opportunity: the frozen model track, the policy that
+        # scheduled it, the slot, and the market.  Anything coarser merges
+        # tracks; anything keyed on the quote splits a slot across retries.
         key = (
-            str(row.capture_id or row.fixture_id.removeprefix("api_football:")),
+            str(row.model_forecast_capture_identity_hash),
             str(row.evaluation_policy_version),
             str(row.evaluation_slot_id),
             row.market,
@@ -204,11 +216,22 @@ def _model_forecast_market_evaluation_funnel(
 
     denominator = len(current)
     fixture_ids = {row.fixture_id.removeprefix("api_football:") for row in current.values()}
-    measurable = denominator > 0
+    # A broken official row is neither a measurement nor an absence.  Surfacing
+    # it as INVALID keeps "the writer is wrong" distinguishable from "nothing has
+    # happened yet".
+    if defects:
+        status = "INVALID"
+    elif denominator > 0:
+        status = "MEASURABLE"
+    else:
+        status = "NOT_MEASURABLE"
+    measurable = status == "MEASURABLE"
     return {
         "scope": CHECKPOINT_OPPORTUNITY_SCOPE,
         "denominator_unit": "CHECKPOINT_EVALUATION_OPPORTUNITY_SLOT_X_MARKET",
-        "measurement_status": "MEASURABLE" if measurable else "NOT_MEASURABLE",
+        "measurement_status": status,
+        "invalid_opportunity_row_count": sum(defects.values()),
+        "invalid_opportunity_reasons": dict(sorted(defects.items())),
         "opportunity_count": denominator,
         "fixture_count": len(fixture_ids),
         "market_unit_count": denominator,

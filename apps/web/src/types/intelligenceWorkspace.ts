@@ -455,7 +455,9 @@ export interface WorkspaceValidation {
     market_evaluation_funnel: {
       scope: "CHECKPOINT_EVALUATION_OPPORTUNITY_V2";
       denominator_unit: "CHECKPOINT_EVALUATION_OPPORTUNITY_SLOT_X_MARKET";
-      measurement_status: "MEASURABLE" | "NOT_MEASURABLE";
+      measurement_status: "MEASURABLE" | "NOT_MEASURABLE" | "INVALID";
+      invalid_opportunity_row_count: number;
+      invalid_opportunity_reasons: Record<string, number>;
       opportunity_count: number;
       capture_count: number;
       fixture_count: number;

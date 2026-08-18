@@ -106,7 +106,8 @@ def test_posthoc_snapshot_rows_are_barred_from_the_funnel() -> None:
             official_funnel_eligible=official,
             evaluation_policy_version="candidate-eval.v1" if official else None,
             evaluation_slot_id="T15_ODDS" if official else None,
-            capture_id="capture-1494246" if official else None,
+            capture_id="quote-capture-1" if official else None,
+            model_forecast_capture_identity_hash="capture-hash-A" if official else None,
             evaluated_at=None,
             recorded_at=None,
             original_state="NO_EDGE_CURRENT",
@@ -139,6 +140,7 @@ def _opportunity(slot: str, *, market: str = "ASIAN_HANDICAP", policy: str = "ca
         official_funnel_eligible=True,
         evaluation_policy_version=policy,
         evaluation_slot_id=slot,
+        model_forecast_capture_identity_hash="capture-hash-A",
         evaluated_at=None,
         recorded_at=None,
         original_state="NO_EDGE_CURRENT",
@@ -173,27 +175,61 @@ def test_five_slots_across_two_markets_are_ten_distinct_opportunities() -> None:
     assert funnel["fixture_count"] == 1
 
 
-def test_unregistered_slot_never_reaches_the_denominator() -> None:
-    """A typo'd slot is a writer defect, not an opportunity."""
+def test_defective_official_row_reports_invalid_not_absent() -> None:
+    """A row claiming to be official and failing the contract is a defect.
+
+    Reporting it as NOT_MEASURABLE would say "nothing has happened yet" about a
+    writer that is actively producing broken records -- the same failure-as-
+    absence mistake this rework exists to remove.
+    """
 
     from w2.api.repository import _model_forecast_market_evaluation_funnel
 
-    funnel = _model_forecast_market_evaluation_funnel(
-        [SimpleNamespace(fixture_id="api_football:1494246")],
-        [_opportunity("T44_ODDS")],
-        set(),
+    captures = [SimpleNamespace(fixture_id="api_football:1494246")]
+
+    typo = _model_forecast_market_evaluation_funnel(captures, [_opportunity("T44_ODDS")], set())
+    assert typo["measurement_status"] == "INVALID"
+    assert typo["invalid_opportunity_reasons"] == {"SLOT_NOT_REGISTERED": 1}
+
+    wrong_market = _model_forecast_market_evaluation_funnel(
+        captures, [_opportunity("T15_ODDS", market="1X2")], set()
     )
-    assert funnel["measurement_status"] == "NOT_MEASURABLE"
+    assert wrong_market["measurement_status"] == "INVALID"
+    assert wrong_market["invalid_opportunity_reasons"] == {"MARKET_NOT_REGISTERED": 1}
 
 
-def test_unregistered_market_never_reaches_the_denominator() -> None:
-    """The contract is five slots x two markets; 1X2 is not part of it."""
+def test_official_row_without_forecast_capture_identity_is_invalid() -> None:
+    """The odds-snapshot capture cannot stand in for the model track.
+
+    Two tracks reading the same quote would otherwise share an opportunity, and
+    a retry reading a different snapshot would split one in two.
+    """
 
     from w2.api.repository import _model_forecast_market_evaluation_funnel
 
+    row = _opportunity("T15_ODDS")
+    row.model_forecast_capture_identity_hash = None
+    row.capture_id = "quote-capture-1"
+
     funnel = _model_forecast_market_evaluation_funnel(
-        [SimpleNamespace(fixture_id="api_football:1494246")],
-        [_opportunity("T15_ODDS", market="1X2")],
-        set(),
+        [SimpleNamespace(fixture_id="api_football:1494246")], [row], set()
     )
-    assert funnel["measurement_status"] == "NOT_MEASURABLE"
+    assert funnel["measurement_status"] == "INVALID"
+    assert funnel["invalid_opportunity_reasons"] == {"FORECAST_CAPTURE_IDENTITY_MISSING": 1}
+
+
+def test_two_model_tracks_sharing_a_quote_stay_separate_opportunities() -> None:
+    """Same fixture, slot, market and quote -- but two frozen tracks."""
+
+    from w2.api.repository import _model_forecast_market_evaluation_funnel
+
+    first = _opportunity("T15_ODDS")
+    second = _opportunity("T15_ODDS")
+    second.evaluation_id = "eval-track-b"
+    second.model_forecast_capture_identity_hash = "capture-hash-B"
+
+    funnel = _model_forecast_market_evaluation_funnel(
+        [SimpleNamespace(fixture_id="api_football:1494246")], [first, second], set()
+    )
+    assert funnel["measurement_status"] == "MEASURABLE"
+    assert funnel["opportunity_count"] == 2

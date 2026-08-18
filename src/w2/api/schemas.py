@@ -1265,7 +1265,9 @@ class WorkspaceModelForecastMarketEvaluationFunnel(BaseModel):
 
     scope: Literal["CHECKPOINT_EVALUATION_OPPORTUNITY_V2"]
     denominator_unit: Literal["CHECKPOINT_EVALUATION_OPPORTUNITY_SLOT_X_MARKET"]
-    measurement_status: Literal["MEASURABLE", "NOT_MEASURABLE"]
+    measurement_status: Literal["MEASURABLE", "NOT_MEASURABLE", "INVALID"]
+    invalid_opportunity_row_count: int = Field(ge=0)
+    invalid_opportunity_reasons: dict[str, int]
     opportunity_count: int = Field(ge=0)
     fixture_count: int = Field(ge=0)
     market_unit_count: int = Field(ge=0)
@@ -1287,20 +1289,36 @@ class WorkspaceModelForecastMarketEvaluationFunnel(BaseModel):
         none, is exactly the fabricated funnel this contract exists to prevent.
         """
 
-        measurable = self.measurement_status == "MEASURABLE"
-        if measurable:
+        if self.measurement_status == "INVALID":
+            if self.invalid_opportunity_row_count <= 0:
+                raise ValueError("INVALID requires at least one defective row")
+            return self
+        if self.invalid_opportunity_row_count or self.invalid_opportunity_reasons:
+            raise ValueError("defective rows require measurement_status INVALID")
+        if self.measurement_status == "MEASURABLE":
             if self.opportunity_count <= 0 or self.gate_rates is None:
                 raise ValueError("MEASURABLE requires opportunities and rates")
             if self.market_unit_count != self.opportunity_count:
                 raise ValueError("market_unit_count must equal opportunity_count")
+            if self.persisted_market_unit_count != self.opportunity_count:
+                raise ValueError("every opportunity must be a persisted row")
+            if not 1 <= self.fixture_count <= self.opportunity_count:
+                raise ValueError("fixture_count must fit inside opportunity_count")
+            if not 0 <= self.recorded_at_count <= self.opportunity_count:
+                raise ValueError("recorded_at_count must fit inside opportunity_count")
+            if set(self.gate_rates) != set(self.gate_counts):
+                raise ValueError("gate_rates and gate_counts must cover the same gates")
             if any(count > self.opportunity_count for count in self.gate_counts.values()):
                 raise ValueError("gate_count cannot exceed opportunity_count")
+            if sum(self.first_failed_gate_counts.values()) > self.opportunity_count:
+                raise ValueError("more first failures than opportunities")
             return self
         if (
             self.opportunity_count
             or self.market_unit_count
             or self.persisted_market_unit_count
             or self.fixture_count
+            or self.recorded_at_count
             or self.gate_counts
             or self.first_failed_gate_counts
             or self.gate_rates is not None

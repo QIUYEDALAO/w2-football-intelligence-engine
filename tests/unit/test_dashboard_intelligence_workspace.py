@@ -39,6 +39,7 @@ def test_model_forecast_funnel_reports_not_measurable_without_opportunities() ->
 
     assert funnel["measurement_status"] == "NOT_MEASURABLE"
     assert funnel["opportunity_count"] == 0
+    assert funnel["invalid_opportunity_row_count"] == 0
     assert funnel["market_unit_count"] == 0
     assert funnel["gate_rates"] is None
     assert funnel["gate_counts"] == {}
@@ -47,11 +48,12 @@ def test_model_forecast_funnel_reports_not_measurable_without_opportunities() ->
     assert funnel["capture_count"] == 2
 
 
-def test_model_forecast_funnel_ignores_rows_missing_the_opportunity_contract() -> None:
-    """A NULL contract field is not consent: rows predating it must be excluded.
+def test_model_forecast_funnel_flags_official_rows_missing_the_contract() -> None:
+    """A row asserting official status must satisfy the contract or be flagged.
 
-    Filtering on ``official_funnel_eligible is False`` alone would wave through
-    every legacy row, since those carry NULL rather than False.
+    Silently dropping it would report "nothing has happened" about a writer that
+    is producing broken records.  Rows that never claimed official status are a
+    different case and stay quietly excluded.
     """
 
     partial = SimpleNamespace(
@@ -63,6 +65,8 @@ def test_model_forecast_funnel_ignores_rows_missing_the_opportunity_contract() -
         official_funnel_eligible=True,
         evaluation_policy_version="candidate-eval.v1",
         evaluation_slot_id=None,
+        model_forecast_capture_identity_hash="capture-hash-A",
+        capture_id="quote-capture-1",
         evaluated_at=None,
         recorded_at=None,
         original_state="NO_EDGE_CURRENT",
@@ -74,8 +78,9 @@ def test_model_forecast_funnel_ignores_rows_missing_the_opportunity_contract() -
         [SimpleNamespace(fixture_id="1")], [partial], set()
     )
 
-    assert funnel["measurement_status"] == "NOT_MEASURABLE"
+    assert funnel["measurement_status"] == "INVALID"
     assert funnel["opportunity_count"] == 0
+    assert funnel["invalid_opportunity_reasons"] == {"SLOT_MISSING": 1}
 
 
 def _market(snapshot_count: int) -> dict[str, Any]:

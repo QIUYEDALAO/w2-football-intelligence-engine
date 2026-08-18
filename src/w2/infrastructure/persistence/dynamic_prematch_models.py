@@ -52,6 +52,10 @@ class DynamicPrematchEvaluationModel(Base):
     exclusion_reason: Mapped[str | None] = mapped_column(String(128))
     evaluation_policy_version: Mapped[str | None] = mapped_column(String(64))
     evaluation_slot_id: Mapped[str | None] = mapped_column(String(64))
+    # The frozen model track this opportunity belongs to.  Distinct from
+    # capture_id above, which is the odds snapshot's capture and cannot tell two
+    # model tracks apart when they read the same quote.
+    model_forecast_capture_identity_hash: Mapped[str | None] = mapped_column(String(64))
     bookmaker_count: Mapped[int | None] = mapped_column(Integer)
     first_failed_gate: Mapped[str | None] = mapped_column(String(64))
     all_failed_gates: Mapped[list[str] | None] = mapped_column(JSON)

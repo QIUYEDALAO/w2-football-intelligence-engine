@@ -144,6 +144,8 @@ def test_dashboard_reads_capture_and_outcome_as_ledger_facts(
             "scope": "CHECKPOINT_EVALUATION_OPPORTUNITY_V2",
             "denominator_unit": "CHECKPOINT_EVALUATION_OPPORTUNITY_SLOT_X_MARKET",
             "measurement_status": "NOT_MEASURABLE",
+            "invalid_opportunity_row_count": 0,
+            "invalid_opportunity_reasons": {},
             "opportunity_count": 0,
             "capture_count": 1,
             "fixture_count": 0,

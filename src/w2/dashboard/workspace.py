@@ -251,10 +251,18 @@ def _model_forecast_progress(raw: Mapping[str, Any]) -> dict[str, Any]:
                 "CHECKPOINT_EVALUATION_OPPORTUNITY_SLOT_X_MARKET",
             ),
             "measurement_status": (
-                "MEASURABLE"
-                if _text(funnel.get("measurement_status")) == "MEASURABLE"
+                _text(funnel.get("measurement_status"))
+                if _text(funnel.get("measurement_status"))
+                in {"MEASURABLE", "NOT_MEASURABLE", "INVALID"}
                 else "NOT_MEASURABLE"
             ),
+            "invalid_opportunity_row_count": max(
+                0, _int(funnel.get("invalid_opportunity_row_count"))
+            ),
+            "invalid_opportunity_reasons": {
+                str(key): max(0, _int(value))
+                for key, value in _mapping(funnel.get("invalid_opportunity_reasons")).items()
+            },
             "opportunity_count": max(0, _int(funnel.get("opportunity_count"))),
             "capture_count": max(0, _int(funnel.get("capture_count"))),
             "fixture_count": max(0, _int(funnel.get("fixture_count"))),
