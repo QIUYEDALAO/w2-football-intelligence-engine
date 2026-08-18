@@ -156,7 +156,13 @@ class MatchdayRuntimeRepository:
                 # A DUE plan may be claimed by a worker mid-flight.  Its result
                 # belongs to the old window, so the claim is released here and
                 # that worker's transition fails closed rather than recording a
-                # capture against the window it never saw.
+                # capture against the window it never saw.  All four fields go
+                # together: claim_due_checkpoint_plans requires claimed_at and
+                # claim_token to both be null, and the lease reaper only runs
+                # where claim_expires_at is set, so leaving claimed_at behind
+                # would make the re-dated plan permanently unclaimable until its
+                # new window elapsed and it was marked MISSED.
+                existing.claimed_at = None
                 existing.claimed_by = None
                 existing.claim_token = None
                 existing.claim_expires_at = None

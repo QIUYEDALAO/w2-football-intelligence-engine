@@ -1318,7 +1318,7 @@ def test_reschedule_releases_a_claim_held_against_the_old_window() -> None:
         )
 
     plan = projection(original)
-    repository.upsert_checkpoint_plan(plan)
+    plan_id = repository.upsert_checkpoint_plan(plan)
     claimed = repository.claim_due_checkpoint_plans(
         now=original - timedelta(hours=24),
         worker_id="odds-worker",
@@ -1340,3 +1340,24 @@ def test_reschedule_releases_a_claim_held_against_the_old_window() -> None:
             capture_id="capture-from-the-old-window",
             claim_token=claim_token,
         )
+
+    # All four claim fields must clear together.  claim_due_checkpoint_plans
+    # requires claimed_at and claim_token to both be null, and the lease reaper
+    # only runs where claim_expires_at is set, so a leftover claimed_at would
+    # leave the re-dated plan unclaimable for the whole of its new window.
+    with Session(engine) as session:
+        row = session.get(MatchdayCheckpointPlanModel, plan_id)
+        assert row is not None
+        assert (row.claimed_at, row.claimed_by, row.claim_token, row.claim_expires_at) == (
+            None,
+            None,
+            None,
+            None,
+        )
+
+    reclaimed = repository.claim_due_checkpoint_plans(
+        now=moved - timedelta(hours=24),
+        worker_id="odds-worker-after-reschedule",
+        limit=1,
+    )
+    assert [row["id"] for row in reclaimed] == [plan_id]
