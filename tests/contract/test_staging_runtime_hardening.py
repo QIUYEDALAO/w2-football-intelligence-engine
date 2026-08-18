@@ -202,7 +202,7 @@ def test_controlled_future_refresh_is_source_controlled_and_deployed_with_schedu
     assert scheduler["W2_FIXTURE_DISCOVERY_ENABLED"] == (
         "${W2_FIXTURE_DISCOVERY_ENABLED:-false}"
     )
-    assert scheduler["W2_FIXTURE_DISCOVERY_MAX_OFFSET_DAYS"] == "1"
+    assert scheduler["W2_FIXTURE_DISCOVERY_MAX_OFFSET_DAYS"] == "7"
     assert "W2_FUTURE_REFRESH_COMPETITION_ALLOWLIST" not in scheduler
     deploy = read(DEPLOY)
     unit = read(ROOT / "infra/systemd/w2-staging.service")
