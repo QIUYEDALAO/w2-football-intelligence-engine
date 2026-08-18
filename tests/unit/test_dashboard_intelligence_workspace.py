@@ -2662,3 +2662,58 @@ def test_sc19_public_label_authority_uses_runtime_config_root(
         reviewed_public_team_labels.cache_clear()
         pending_public_team_labels.cache_clear()
         get_settings.cache_clear()
+
+
+def test_factor_checklist_never_offers_a_next_window_in_the_past() -> None:
+    """A collection window that has already elapsed is not a recovery condition.
+
+    A postponed fixture kept its plans on the original date, so the page
+    advertised 2026-07-11 as the next window for a match moved to 08-18. The
+    stale plans are fixed upstream, but the page must not present a past
+    instant as a future one regardless of what the plan table holds.
+    """
+
+    from w2.dashboard.factor_checklist import build_fixture_factor_checklist
+
+    generated_at = "2026-08-18T11:01:00Z"
+    elapsed = "2026-08-18T10:50:00Z"
+    checklist = build_fixture_factor_checklist(
+        {"fixture_id": "api_football:1523198", "competition_id": "chinese_super_league"},
+        markets={},
+        market_collection={"scheduled_at": elapsed},
+        lineup_collection={"scheduled_at": elapsed},
+        home_identity_ready=True,
+        away_identity_ready=True,
+        shadow_candidate={},
+        market_aggregate_status="PENDING",
+        ledger_fact=None,
+        generated_at=generated_at,
+    )
+
+    windows = [
+        (row["factor_id"], row["next_window_at"])
+        for row in checklist["factors"]
+        if row.get("next_window_at") is not None
+    ]
+    assert not [item for item in windows if str(item[1]) < generated_at], windows
+
+
+def test_factor_checklist_keeps_a_next_window_that_is_still_ahead() -> None:
+    from w2.dashboard.factor_checklist import build_fixture_factor_checklist
+
+    generated_at = "2026-08-18T11:01:00Z"
+    ahead = "2026-08-18T11:20:00Z"
+    checklist = build_fixture_factor_checklist(
+        {"fixture_id": "api_football:1523198", "competition_id": "chinese_super_league"},
+        markets={},
+        market_collection={"scheduled_at": ahead},
+        lineup_collection={"scheduled_at": ahead},
+        home_identity_ready=True,
+        away_identity_ready=True,
+        shadow_candidate={},
+        market_aggregate_status="PENDING",
+        ledger_fact=None,
+        generated_at=generated_at,
+    )
+
+    assert any(row.get("next_window_at") == ahead for row in checklist["factors"])

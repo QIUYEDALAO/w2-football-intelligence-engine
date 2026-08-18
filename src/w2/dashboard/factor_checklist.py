@@ -386,7 +386,7 @@ def _lineup_factor(
         state="READY" if ready else "WAITING" if cause == "NOT_YET_DUE" else "MISSING",
         cause=cause,
         permanence="NOT_APPLICABLE" if ready else "TRANSIENT",
-        next_window_at=None if ready else collection.get("scheduled_at"),
+        next_window_at=None if ready else _future_only(collection.get("scheduled_at"), as_of),
         as_of=as_of,
         evidence={
             "source": "lineup_provenance",
