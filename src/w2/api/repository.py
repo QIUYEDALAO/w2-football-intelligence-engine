@@ -88,6 +88,7 @@ from w2.matchday.timezone import (
 )
 from w2.operations.leagues import run_top_five_audit
 from w2.operations.release_evidence import build_release_identity
+from w2.prematch.evaluation_slots import EvaluationSlotError, is_evaluation_slot
 from w2.prematch.read_model_projection import (
     ANALYSIS_CARD_SHADOW_PREFIX,
     FrozenAnalysisError,
@@ -119,15 +120,28 @@ def _is_official_opportunity(row: DynamicPrematchEvaluationModel) -> bool:
 
     Rows predating the opportunity contract carry NULL in every one of these
     fields, so an ``is False`` style filter would wave them straight through.
+    Non-empty is also not enough: a typo'd slot or an unregistered policy would
+    otherwise enter the denominator and quietly break the slots x markets
+    contract the registry exists to hold.
     """
 
-    return (
-        row.official_funnel_eligible is True
-        and row.denominator_scope == CHECKPOINT_OPPORTUNITY_SCOPE
-        and row.measurement_semantics == CHECKPOINT_OPPORTUNITY_SEMANTICS
-        and bool(row.evaluation_policy_version)
-        and bool(row.evaluation_slot_id)
-    )
+    if row.official_funnel_eligible is not True:
+        return False
+    if row.denominator_scope != CHECKPOINT_OPPORTUNITY_SCOPE:
+        return False
+    if row.measurement_semantics != CHECKPOINT_OPPORTUNITY_SEMANTICS:
+        return False
+    if row.market not in MODEL_FORECAST_MARKETS:
+        return False
+    policy = str(row.evaluation_policy_version or "")
+    slot = str(row.evaluation_slot_id or "")
+    if not policy or not slot:
+        return False
+    try:
+        return is_evaluation_slot(slot, policy_version=policy)
+    except EvaluationSlotError:
+        # An unregistered policy is a writer defect, not an opportunity.
+        return False
 
 
 def _model_forecast_market_evaluation_funnel(
@@ -146,7 +160,7 @@ def _model_forecast_market_evaluation_funnel(
     describing nothing.
     """
 
-    current: dict[tuple[str, str, str], DynamicPrematchEvaluationModel] = {}
+    current: dict[tuple[str, str, str, str], DynamicPrematchEvaluationModel] = {}
     for row in evaluations:
         if row.evaluation_id in superseded_evaluation_ids:
             continue
@@ -154,8 +168,11 @@ def _model_forecast_market_evaluation_funnel(
             continue
         # One opportunity per slot x market; retries within a slot supersede
         # rather than accumulate, so the denominator counts chances, not tries.
+        # Identity is the opportunity, not the fixture: two policy versions or a
+        # second capture track can legitimately reuse a slot name.
         key = (
-            row.fixture_id.removeprefix("api_football:"),
+            str(row.capture_id or row.fixture_id.removeprefix("api_football:")),
+            str(row.evaluation_policy_version),
             str(row.evaluation_slot_id),
             row.market,
         )
@@ -186,7 +203,7 @@ def _model_forecast_market_evaluation_funnel(
             first_failed[blocker] += 1
 
     denominator = len(current)
-    fixture_ids = {fixture_id for fixture_id, _, _ in current}
+    fixture_ids = {row.fixture_id.removeprefix("api_football:") for row in current.values()}
     measurable = denominator > 0
     return {
         "scope": CHECKPOINT_OPPORTUNITY_SCOPE,
@@ -210,8 +227,16 @@ def _model_forecast_market_evaluation_funnel(
 
 
 def _dynamic_gate_results(
-    row: DynamicPrematchEvaluationModel | None,
+    row: DynamicPrematchEvaluationModel,
 ) -> tuple[dict[str, bool], str | None]:
+    """Only a real row has gate results.
+
+    This used to accept None and answer "model ready, everything else failed,
+    entry not traversed" -- turning a fixture whose checkpoints had not come due
+    into a reported failure.  The type now forbids the call, so the shape cannot
+    be resurrected by a future refactor.
+    """
+
     empty = {
         "model_ready": True,
         "mainline_parsed": False,
@@ -221,8 +246,6 @@ def _dynamic_gate_results(
         "no_edge": False,
         "candidate": False,
     }
-    if row is None:
-        return empty, "EVALUATION_ENTRY_NOT_TRAVERSED"
     if isinstance(row.gate_results, dict):
         gates = {name: bool(row.gate_results.get(name)) for name in empty}
         return gates, row.first_failed_gate

@@ -106,6 +106,7 @@ def test_posthoc_snapshot_rows_are_barred_from_the_funnel() -> None:
             official_funnel_eligible=official,
             evaluation_policy_version="candidate-eval.v1" if official else None,
             evaluation_slot_id="T15_ODDS" if official else None,
+            capture_id="capture-1494246" if official else None,
             evaluated_at=None,
             recorded_at=None,
             original_state="NO_EDGE_CURRENT",
@@ -125,3 +126,74 @@ def test_posthoc_snapshot_rows_are_barred_from_the_funnel() -> None:
     official = _model_forecast_market_evaluation_funnel([_Capture()], [_row(official=True)], set())
     assert official["measurement_status"] == "MEASURABLE"
     assert official["opportunity_count"] == 1
+
+
+def _opportunity(slot: str, *, market: str = "ASIAN_HANDICAP", policy: str = "candidate-eval.v1"):
+    return SimpleNamespace(
+        evaluation_id=f"eval-{slot}-{market}",
+        fixture_id="api_football:1494246",
+        capture_id="capture-1494246",
+        market=market,
+        denominator_scope="CHECKPOINT_EVALUATION_OPPORTUNITY_V2",
+        measurement_semantics="CHECKPOINT_EVALUATION_OPPORTUNITY",
+        official_funnel_eligible=True,
+        evaluation_policy_version=policy,
+        evaluation_slot_id=slot,
+        evaluated_at=None,
+        recorded_at=None,
+        original_state="NO_EDGE_CURRENT",
+        bookmaker_count=9,
+        first_failed_gate=None,
+        gate_results=None,
+        payload={"state": "NO_EDGE_CURRENT"},
+    )
+
+
+def test_five_slots_across_two_markets_are_ten_distinct_opportunities() -> None:
+    """The red light for the opportunity writer.
+
+    Keyed on fixture x market the five checkpoints collapse to two rows, which
+    is exactly what 1494246 would have reported despite evaluating five times in
+    each market.
+    """
+
+    from w2.api.repository import _model_forecast_market_evaluation_funnel
+
+    rows = [
+        _opportunity(slot, market=market)
+        for slot in evaluation_slots()
+        for market in ("ASIAN_HANDICAP", "TOTALS")
+    ]
+    funnel = _model_forecast_market_evaluation_funnel(
+        [SimpleNamespace(fixture_id="api_football:1494246")], rows, set()
+    )
+
+    assert funnel["measurement_status"] == "MEASURABLE"
+    assert funnel["opportunity_count"] == 10
+    assert funnel["fixture_count"] == 1
+
+
+def test_unregistered_slot_never_reaches_the_denominator() -> None:
+    """A typo'd slot is a writer defect, not an opportunity."""
+
+    from w2.api.repository import _model_forecast_market_evaluation_funnel
+
+    funnel = _model_forecast_market_evaluation_funnel(
+        [SimpleNamespace(fixture_id="api_football:1494246")],
+        [_opportunity("T44_ODDS")],
+        set(),
+    )
+    assert funnel["measurement_status"] == "NOT_MEASURABLE"
+
+
+def test_unregistered_market_never_reaches_the_denominator() -> None:
+    """The contract is five slots x two markets; 1X2 is not part of it."""
+
+    from w2.api.repository import _model_forecast_market_evaluation_funnel
+
+    funnel = _model_forecast_market_evaluation_funnel(
+        [SimpleNamespace(fixture_id="api_football:1494246")],
+        [_opportunity("T15_ODDS", market="1X2")],
+        set(),
+    )
+    assert funnel["measurement_status"] == "NOT_MEASURABLE"

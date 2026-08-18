@@ -48,16 +48,27 @@ CAPTURE_POLICY_HORIZONS: dict[str, str] = {
 }
 
 
-def _effective_capture_policy(payload: Mapping[str, Any]) -> str:
-    """Mirror the 0063 backfill rule.
+LEGACY_CAPTURE_SCHEMA = "w2.model_forecast_capture.v1"
 
-    Captures frozen under schema v1 predate ``capture_policy`` entirely, so their
-    payload cannot carry it.  Those rows were taken under the only track that
-    existed, which is what the migration backfilled -- integrity has to apply the
-    same rule or it would flag every immutable v1 record as drifted.
+
+def _effective_capture_policy(payload: Mapping[str, Any]) -> str | None:
+    """Mirror the 0063 backfill rule, but only for the schema that earns it.
+
+    Captures frozen under v1 predate ``capture_policy`` entirely, so their
+    payload cannot carry it and integrity has to fall back to the only track
+    that existed -- otherwise every immutable v1 record reads as drifted.
+
+    A v2+ payload missing the field is a different thing: a corrupt row or a
+    writer defect.  Returning None marks it invalid rather than quietly healing
+    it into the legacy default.
     """
 
-    return str(payload.get("capture_policy") or "") or CAPTURE_POLICY
+    policy = str(payload.get("capture_policy") or "")
+    if policy:
+        return policy
+    if str(payload.get("schema_version") or "") == LEGACY_CAPTURE_SCHEMA:
+        return CAPTURE_POLICY
+    return None
 
 
 def _registered_horizon_or_none(policy: str) -> str | None:
@@ -443,9 +454,13 @@ class ModelForecastLedgerRepository:
                 # horizon_id is deliberately outside the hashed core, so nothing
                 # in the payload can detect it drifting.  Pin it to the registry
                 # here, at the same level as the other column/payload crosschecks.
+                and _effective_capture_policy(payload) is not None
                 and capture_row.capture_policy == _effective_capture_policy(payload)
+                # An unregistered policy resolves to None; require a real match
+                # so a NULL horizon column cannot pass by comparing equal to it.
+                and _registered_horizon_or_none(str(_effective_capture_policy(payload))) is not None
                 and capture_row.horizon_id
-                == _registered_horizon_or_none(_effective_capture_policy(payload))
+                == _registered_horizon_or_none(str(_effective_capture_policy(payload)))
                 and capture_row.payload_sha256
                 == canonical_sha256(payload, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN)
                 and capture_row.capture_identity_hash

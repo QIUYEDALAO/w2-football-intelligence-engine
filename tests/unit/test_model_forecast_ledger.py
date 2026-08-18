@@ -568,3 +568,83 @@ def test_schema_v1_captures_without_capture_policy_stay_valid(tmp_path: Path) ->
 
     integrity = repository.integrity()
     assert integrity["invalid_capture_count"] == 0
+
+
+@pytest.mark.parametrize(
+    ("schema_version", "expect_invalid"),
+    [
+        ("w2.model_forecast_capture.v1", 0),
+        ("w2.model_forecast_capture.v2", 1),
+    ],
+)
+def test_missing_capture_policy_is_legal_only_under_schema_v1(
+    tmp_path: Path, schema_version: str, expect_invalid: int
+) -> None:
+    """v1 could not carry the field; v2 omitting it is a defect, not history.
+
+    Healing both cases into the legacy default would let a corrupt writer hide
+    behind a compatibility rule written for records that predate the field.
+    """
+
+    repository = _repository(tmp_path)
+    _seed_xg(repository)
+    run_model_forecast_capture(
+        _day_view(), repository=repository, captured_at=NOW, dry_run=False, write_db=True
+    )
+
+    with Session(repository.engine) as session:
+        capture = session.scalars(select(ModelForecastCaptureModel)).one()
+        payload = {
+            key: value for key, value in dict(capture.payload).items() if key != "capture_policy"
+        }
+        payload["schema_version"] = schema_version
+        identity = {k: v for k, v in payload.items() if k != "capture_identity_hash"}
+        payload["capture_identity_hash"] = canonical_sha256(
+            identity, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN
+        )
+        session.execute(
+            update(ModelForecastCaptureModel).values(
+                payload=payload,
+                capture_identity_hash=payload["capture_identity_hash"],
+                payload_sha256=canonical_sha256(payload, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN),
+            )
+        )
+        session.commit()
+
+    assert repository.integrity()["invalid_capture_count"] == expect_invalid
+
+
+def test_unregistered_policy_is_invalid_whatever_the_horizon_says(tmp_path: Path) -> None:
+    """A registry miss must fail, not be compared against.
+
+    Matching the column straight against ``registry.get(policy)`` would let an
+    unknown policy through wherever both sides resolve to nothing, so the check
+    requires a registered horizon before comparing at all.
+    """
+
+    repository = _repository(tmp_path)
+    _seed_xg(repository)
+    run_model_forecast_capture(
+        _day_view(), repository=repository, captured_at=NOW, dry_run=False, write_db=True
+    )
+
+    with Session(repository.engine) as session:
+        capture = session.scalars(select(ModelForecastCaptureModel)).one()
+        payload = dict(capture.payload)
+        payload["capture_policy"] = "FIXED_HORIZON_T24_FREEZE_IMMUTABLE_V1"
+        identity = {k: v for k, v in payload.items() if k != "capture_identity_hash"}
+        payload["capture_identity_hash"] = canonical_sha256(
+            identity, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN
+        )
+        session.execute(
+            update(ModelForecastCaptureModel).values(
+                payload=payload,
+                capture_identity_hash=payload["capture_identity_hash"],
+                payload_sha256=canonical_sha256(payload, domain=MODEL_FORECAST_CAPTURE_HASH_DOMAIN),
+                capture_policy="FIXED_HORIZON_T24_FREEZE_IMMUTABLE_V1",
+                horizon_id="NONE",
+            )
+        )
+        session.commit()
+
+    assert repository.integrity()["invalid_capture_count"] == 1

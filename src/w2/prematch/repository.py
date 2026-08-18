@@ -120,11 +120,17 @@ class DynamicPrematchRepository:
             return _version_from_payload(existing.payload), False
         persisted = replace(version, recorded_at=datetime.now(UTC))
         payload = persisted.as_dict()
+        # Supersession is scoped to one evaluation slot.  Keyed on fixture x market
+        # alone, the T-15m record would retire T-30m, which retired T-45m, and so
+        # on -- five distinct opportunities collapsing into the last one, so a
+        # fixture evaluated at five checkpoints would report two.  A retry within
+        # the same slot still supersedes, which is the behaviour we do want.
         previous = session.scalar(
             select(DynamicPrematchEvaluationModel)
             .where(
                 DynamicPrematchEvaluationModel.fixture_id == version.fixture_id,
                 DynamicPrematchEvaluationModel.market == version.market,
+                DynamicPrematchEvaluationModel.checkpoint == version.checkpoint,
                 ~DynamicPrematchEvaluationModel.evaluation_id.in_(
                     select(DynamicPrematchSupersessionModel.superseded_evaluation_id)
                 ),

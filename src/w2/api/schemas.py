@@ -1277,6 +1277,37 @@ class WorkspaceModelForecastMarketEvaluationFunnel(BaseModel):
     gate_rates: dict[str, float] | None
     first_failed_gate_counts: dict[str, int]
 
+    @model_validator(mode="after")
+    def _measurement_status_matches_the_payload(
+        self,
+    ) -> WorkspaceModelForecastMarketEvaluationFunnel:
+        """Field types alone would let the two halves contradict each other.
+
+        A NOT_MEASURABLE response carrying rates, or a MEASURABLE one carrying
+        none, is exactly the fabricated funnel this contract exists to prevent.
+        """
+
+        measurable = self.measurement_status == "MEASURABLE"
+        if measurable:
+            if self.opportunity_count <= 0 or self.gate_rates is None:
+                raise ValueError("MEASURABLE requires opportunities and rates")
+            if self.market_unit_count != self.opportunity_count:
+                raise ValueError("market_unit_count must equal opportunity_count")
+            if any(count > self.opportunity_count for count in self.gate_counts.values()):
+                raise ValueError("gate_count cannot exceed opportunity_count")
+            return self
+        if (
+            self.opportunity_count
+            or self.market_unit_count
+            or self.persisted_market_unit_count
+            or self.fixture_count
+            or self.gate_counts
+            or self.first_failed_gate_counts
+            or self.gate_rates is not None
+        ):
+            raise ValueError("NOT_MEASURABLE must carry no counts and no rates")
+        return self
+
 
 class WorkspaceModelForecastProgress(BaseModel):
     model_config = ConfigDict(extra="forbid")

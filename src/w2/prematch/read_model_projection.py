@@ -517,10 +517,13 @@ class AnalysisCardCanaryMaterializer:
                 or (callable(capture_reader) and capture_reader(fixture_id))
             )
         )
-        if model_forecast_scoped:
-            input_manifest["dynamic_evaluation_denominator_scope"] = (
-                MODEL_FORECAST_DENOMINATOR_SCOPE
-            )
+        # The sweep that populated this scope recorded scan-time state under
+        # checkpoint names it never observed, so the scope is now read-only.
+        # Leaving the producer reachable would let a projection refresh mint a
+        # fresh batch of the same unusable rows.  Real opportunities will be
+        # written by the checkpoint orchestrator against
+        # CHECKPOINT_EVALUATION_OPPORTUNITY_V2, not from here.
+        _ = model_forecast_scoped
         if round3_projection_enabled:
             input_manifest.update(
                 {

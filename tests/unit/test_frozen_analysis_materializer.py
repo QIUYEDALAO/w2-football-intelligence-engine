@@ -176,8 +176,14 @@ def test_model_forecast_denominator_write_does_not_rewrite_frozen_card(
     with Session(engine) as session:
         assert session.query(ReadModelCheckpointModel).count() == 0
         rows = session.query(DynamicPrematchEvaluationModel).all()
-        assert {row.market for row in rows} == {"ASIAN_HANDICAP", "TOTALS"}
-        assert all(row.denominator_scope == MODEL_FORECAST_DENOMINATOR_SCOPE for row in rows)
+        # The legacy scope is read-only now.  The sweep that filled it recorded
+        # scan-time state under checkpoint names it never observed, so letting a
+        # projection refresh mint more of those rows would just regrow the same
+        # unusable data.  Real opportunities come from the checkpoint
+        # orchestrator under CHECKPOINT_EVALUATION_OPPORTUNITY_V2 instead.
+        assert all(
+            row.denominator_scope != MODEL_FORECAST_DENOMINATOR_SCOPE for row in rows
+        )
 
 
 def _patch_projection(monkeypatch: pytest.MonkeyPatch) -> None:
