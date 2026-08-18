@@ -1,0 +1,55 @@
+{
+  "config": {
+    "Cmd": [
+      "uvicorn",
+      "apps.api.main:app",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      "8000"
+    ],
+    "Entrypoint": null,
+    "Env": [
+      "GPG_KEY=7169605F62C751356D054A26A821E680E5FA6305",
+      "LANG=C.UTF-8",
+      "PATH=/app/.venv/bin:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "PIP_INDEX_URL=",
+      "PYTHONPATH=/app/src",
+      "PYTHON_SHA256=c08bc65a81971c1dd5783182826503369466c7e67374d1646519adf05207b684",
+      "PYTHON_VERSION=3.12.13",
+      "UV_HTTP_RETRIES=2",
+      "UV_HTTP_TIMEOUT=30",
+      "UV_INDEX_URL=",
+      "VIRTUAL_ENV=/app/.venv",
+      "W2_BUILD_TIME=2026-08-18T01:18:18Z",
+      "W2_GIT_SHA=1e08c1b4783199db5c80540be14bd823c4e30969",
+      "W2_RELEASE_ID=1e08c1b4783199db5c80540be14bd823c4e30969"
+    ],
+    "ExposedPorts": null,
+    "Healthcheck": {
+      "Test": [
+        "CMD-SHELL",
+        "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=2)\""
+      ]
+    },
+    "Labels": {
+      "org.opencontainers.image.created": "2026-08-18T07:49:00Z",
+      "org.opencontainers.image.revision": "0553f07eefad2062b2950f9f2978f52e4f52085f",
+      "org.opencontainers.image.source": "w2-football-intelligence-engine",
+      "org.opencontainers.image.version": "e922f508195d2e72ea3187a154d1184511a55a95",
+      "w2.release.id": "0553f07eefad2062b2950f9f2978f52e4f52085f",
+      "w2.runtime.contract.version": "release-train-2-patch2"
+    },
+    "StopSignal": null,
+    "User": "w2",
+    "Volumes": null,
+    "WorkingDir": "/app"
+  },
+  "image_id": "sha256:3d7e04fe5f7c0426a963a255757b4fe477d7cd1daa554848286d5789fb27a1b4",
+  "manifest_digest": "127.0.0.1:5000/w2/python@sha256:3d7e04fe5f7c0426a963a255757b4fe477d7cd1daa554848286d5789fb27a1b4",
+  "rootfs_layer_count": 431,
+  "schema_version": "w2.image-config-baseline.v1",
+  "self_sha256": "52ca21ec6ebd9efdaa8517f647fa8435fc105a16b28c793613f4d43ea8e755b7",
+  "source_image": "0553f07eefad2062b2950f9f2978f52e4f52085f",
+  "source_note": "last image before the flattening lineage; kept as the pre-activation whitelist baseline"
+}
