@@ -2,6 +2,7 @@
 
 from w2.infrastructure.persistence.api_models import ReadModelCheckpointModel
 from w2.infrastructure.persistence.dynamic_prematch_models import (
+    CandidateNotificationOutboxModel,
     DynamicPrematchEvaluationModel,
     DynamicPrematchOpportunityModel,
     DynamicPrematchSupersessionModel,
@@ -83,6 +84,7 @@ from w2.infrastructure.persistence.stage7i_lifecycle_models import (
 )
 
 __all__ = [
+    "CandidateNotificationOutboxModel",
     "CanonicalHistoricalAhFactModel",
     "CanonicalTeamMatchHistoryModel",
     "CanonicalTeamModel",

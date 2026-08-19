@@ -30,6 +30,10 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayCheckpointPlanModel,
     MatchdayFixtureIdentityModel,
 )
+from w2.prematch.candidate_notifications import (
+    enqueue_attempt_notification_in_session,
+    enqueue_closeout_withdrawal_in_session,
+)
 from w2.prematch.lifecycle import (
     CHECKPOINT_OPPORTUNITY_SCOPE,
     DYNAMIC_EVALUATION_V2_SCHEMA,
@@ -190,6 +194,7 @@ class DynamicPrematchRepository:
         session.flush()
         if persisted.denominator_scope == CHECKPOINT_OPPORTUNITY_SCOPE:
             self._upsert_opportunity_in_session(session, persisted)
+            enqueue_attempt_notification_in_session(session, persisted)
         if previous is not None:
             session.add(
                 DynamicPrematchSupersessionModel(
@@ -363,6 +368,21 @@ class DynamicPrematchRepository:
             )
         )
         session.flush()
+        enqueue_closeout_withdrawal_in_session(
+            session,
+            fixture_id=fixture_id,
+            market=market,
+            opportunity_identity_hash=identity,
+            model_forecast_capture_identity_hash=(
+                context.model_forecast_capture_identity_hash
+            ),
+            evaluation_policy_version=context.evaluation_policy_version,
+            evaluation_slot_id=context.evaluation_slot_id,
+            scheduled_checkpoint_at=context.scheduled_checkpoint_at,
+            current_state=state,
+            recorded_at=recorded_at,
+            blocker=blocker,
+        )
         return True
 
     def append_lineup_event(
@@ -568,6 +588,9 @@ def _version_from_payload(payload: dict[str, Any]) -> DynamicEvaluationVersion:
         else None,
         current_ev_minus_se=float(payload["current_ev_minus_se"])
         if payload.get("current_ev_minus_se") is not None
+        else None,
+        decimal_odds=float(payload["decimal_odds"])
+        if payload.get("decimal_odds") is not None
         else None,
         required_ev=float(payload["required_ev"]),
         required_delta=float(payload["required_delta"]),

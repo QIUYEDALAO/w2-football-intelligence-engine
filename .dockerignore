@@ -12,12 +12,17 @@ apps/web
 
 .git
 .venv
+.env
+.env.*
 tests
 fixtures
 examples
 infra
 ci
 runtime
+reports
+data/raw
+data/processed
 
 # docs is not documentation alone: factor_checklist reads a role authority
 # matrix out of it at request time, so the tree is excluded except for the

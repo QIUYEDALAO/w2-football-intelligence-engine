@@ -127,6 +127,7 @@ class DynamicEvaluationVersion:
     current_ev: float | None
     current_delta: float | None
     current_ev_minus_se: float | None
+    decimal_odds: float | None
     required_ev: float
     required_delta: float
     required_ev_minus_se: float
@@ -540,6 +541,9 @@ def classify_evaluation(value: DynamicEvaluationInput) -> DynamicEvaluationVersi
         current_ev=round(ev, 6) if ev is not None else None,
         current_delta=round(delta, 6) if delta is not None else None,
         current_ev_minus_se=round(ev_minus_se, 6) if ev_minus_se is not None else None,
+        decimal_odds=(
+            round(float(value.decimal_odds), 6) if value.decimal_odds is not None else None
+        ),
         required_ev=ACTIVE_EV_THRESHOLD,
         required_delta=ACTIVE_DELTA_THRESHOLD,
         required_ev_minus_se=ACTIVE_EV_MINUS_SE_THRESHOLD,
@@ -682,6 +686,7 @@ class DynamicEvaluationLedger:
                 current_ev=None,
                 current_delta=None,
                 current_ev_minus_se=None,
+                decimal_odds=None,
                 required_ev=ACTIVE_EV_THRESHOLD,
                 required_delta=ACTIVE_DELTA_THRESHOLD,
                 required_ev_minus_se=ACTIVE_EV_MINUS_SE_THRESHOLD,

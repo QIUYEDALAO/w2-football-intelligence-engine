@@ -19,6 +19,7 @@ type Props = {
   onDateChange: (date: string) => void;
   onRefresh: () => void;
   workspace: IntelligenceWorkspace;
+  initialFixtureId?: string | null;
 };
 
 const MARKET_LABELS = {
@@ -738,11 +739,20 @@ function SecondaryViews({ workspace }: { workspace: IntelligenceWorkspace }) {
 
 export function IntelligenceConsole(props: Props) {
   const { workspace } = props;
-  const [selectedId, setSelectedId] = useState<string | null>(workspace.selected_fixture_id);
+  const requestedFixtureId = props.initialFixtureId;
+  const [selectedId, setSelectedId] = useState<string | null>(
+    requestedFixtureId && workspace.matches.some((match) => match.fixture_id === requestedFixtureId)
+      ? requestedFixtureId
+      : workspace.selected_fixture_id,
+  );
 
   useEffect(() => {
-    setSelectedId(workspace.selected_fixture_id);
-  }, [workspace.selected_fixture_id, workspace.request_id]);
+    setSelectedId(
+      requestedFixtureId && workspace.matches.some((match) => match.fixture_id === requestedFixtureId)
+        ? requestedFixtureId
+        : workspace.selected_fixture_id,
+    );
+  }, [requestedFixtureId, workspace.matches, workspace.selected_fixture_id, workspace.request_id]);
 
   const selected = useMemo(() => {
     return workspace.matches.find((match) => match.fixture_id === selectedId) || null;

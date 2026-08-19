@@ -53,6 +53,7 @@ from w2.dashboard.workspace import build_dashboard_intelligence_workspace
 from w2.domain.decision_contract import DecisionContractViolation
 from w2.monitoring.health import HealthPayload, build_health_payload
 from w2.monitoring.readiness import ReadinessPayload, build_readiness_payload
+from w2.prematch.candidate_notifications import notification_health
 from w2.replay.front_door import build_replay_front_door
 
 public_router = APIRouter(prefix="/v1", tags=["public-read"])
@@ -537,6 +538,12 @@ def league_readiness(competition_id: str, request: Request) -> dict[str, Any]:
 def ops_health(request: Request) -> dict[str, str]:
     ensure_ops_enabled()
     return {"request_id": request_id(request), "status": "READY", "mode": "read-only"}
+
+
+@ops_router.get("/notification-outbox-health")
+def notification_outbox_health(request: Request) -> dict[str, Any]:
+    ensure_ops_enabled()
+    return {"request_id": request_id(request), **notification_health()}
 
 
 def ops_list(name: str, request: Request) -> dict[str, Any]:

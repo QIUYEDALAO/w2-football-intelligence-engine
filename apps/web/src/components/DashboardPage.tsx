@@ -6,8 +6,18 @@ import { IntelligenceConsole } from "./IntelligenceConsole";
 
 type LoadState = "loading" | "ready" | "error";
 
+function initialQuery() {
+  const query = new URLSearchParams(window.location.search);
+  const date = query.get("date");
+  return {
+    date: date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : footballDayShanghai(),
+    fixtureId: query.get("fixture_id"),
+  };
+}
+
 export function DashboardPage() {
-  const [date, setDate] = useState(footballDayShanghai());
+  const [query] = useState(initialQuery);
+  const [date, setDate] = useState(query.date);
   const [workspace, setWorkspace] = useState<IntelligenceWorkspace | null>(null);
   const [state, setState] = useState<LoadState>("loading");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -39,6 +49,7 @@ export function DashboardPage() {
       loading={state === "loading"}
       onDateChange={setDate}
       onRefresh={() => setRefreshKey((value) => value + 1)}
+      initialFixtureId={query.fixtureId}
       workspace={workspace}
     />
   );

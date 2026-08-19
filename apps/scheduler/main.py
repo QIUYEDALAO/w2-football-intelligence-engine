@@ -72,6 +72,18 @@ def forward_outcome_ledger_enabled() -> bool:
     return os.environ.get("W2_FORWARD_OUTCOME_LEDGER_ENABLED", "false").lower() == "true"
 
 
+def candidate_notification_summary_tick() -> dict[str, object]:
+    from w2.prematch.candidate_notifications import enqueue_operational_summaries
+
+    inserted = enqueue_operational_summaries()
+    return {
+        "status": "ENQUEUED" if inserted else "NO_SUMMARY_DUE",
+        "outbox_event_ids": inserted,
+        "db_writes": len(inserted),
+        "provider_calls": 0,
+    }
+
+
 def fixture_discovery_enabled() -> bool:
     return os.environ.get("W2_FIXTURE_DISCOVERY_ENABLED", "false").lower() == "true"
 
@@ -752,6 +764,12 @@ def run_forever() -> None:
     next_fixture_discovery_at = datetime.now(UTC)
     while True:
         heartbeat()
+        try:
+            result = candidate_notification_summary_tick()
+            if result["status"] != "NO_SUMMARY_DUE":
+                logger.info("w2 candidate notification summary %s", result)
+        except Exception:
+            logger.exception("w2 candidate notification summary failed")
         if fixture_discovery_enabled() and datetime.now(UTC) >= next_fixture_discovery_at:
             try:
                 result = fixture_discovery_tick()

@@ -335,6 +335,9 @@ def test_future_refresh_hides_past_ns_fixture_from_default_list(
 def test_operations_read_only_and_production_disabled(monkeypatch) -> None:
     client = TestClient(app)
     assert client.get("/ops/health").status_code == 200
+    notification_health = client.get("/ops/notification-outbox-health")
+    assert notification_health.status_code == 200
+    assert notification_health.json()["pending_backlog"] == 0
     assert client.get("/ops/quota").json()["items"][0]["key"] == "quota"
     for route in app.routes:
         path = getattr(route, "path", "")
