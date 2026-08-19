@@ -6,6 +6,7 @@ import os
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from threading import Thread
 from typing import Any, cast
 from uuid import uuid4
 
@@ -24,6 +25,7 @@ DEFAULT_XG_BACKFILL_INTERVAL_SECONDS = 6 * 60 * 60
 DEFAULT_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS = 10 * 60
 DEFAULT_FIXTURE_DISCOVERY_INTERVAL_SECONDS = 5 * 60
 DEFAULT_FIXTURE_DISCOVERY_MAX_OFFSET_DAYS = 7
+DEFAULT_CANDIDATE_NOTIFICATION_POLL_SECONDS = 5
 
 
 @dataclass(frozen=True)
@@ -88,6 +90,19 @@ def candidate_notification_delivery_tick() -> dict[str, object]:
     from w2.prematch.candidate_notifications import deliver_pending_notifications
 
     return deliver_pending_notifications()
+
+
+def candidate_notification_delivery_loop() -> None:
+    """Keep notification SLO independent from slower scheduler work."""
+
+    while True:
+        try:
+            result = candidate_notification_delivery_tick()
+            if result["status"] not in {"IDLE", "CHANNEL_NOT_CONFIGURED"}:
+                logger.info("w2 candidate notification delivery %s", result)
+        except Exception:
+            logger.exception("w2 candidate notification delivery failed")
+        time.sleep(DEFAULT_CANDIDATE_NOTIFICATION_POLL_SECONDS)
 
 
 def fixture_discovery_enabled() -> bool:
@@ -768,6 +783,11 @@ def run_forever() -> None:
     next_xg_backfill_at = datetime.now(UTC)
     next_forward_outcome_ledger_at = datetime.now(UTC)
     next_fixture_discovery_at = datetime.now(UTC)
+    Thread(
+        target=candidate_notification_delivery_loop,
+        name="candidate-notification-delivery",
+        daemon=True,
+    ).start()
     while True:
         heartbeat()
         try:
@@ -776,12 +796,6 @@ def run_forever() -> None:
                 logger.info("w2 candidate notification summary %s", result)
         except Exception:
             logger.exception("w2 candidate notification summary failed")
-        try:
-            result = candidate_notification_delivery_tick()
-            if result["status"] not in {"IDLE", "CHANNEL_NOT_CONFIGURED"}:
-                logger.info("w2 candidate notification delivery %s", result)
-        except Exception:
-            logger.exception("w2 candidate notification delivery failed")
         if fixture_discovery_enabled() and datetime.now(UTC) >= next_fixture_discovery_at:
             try:
                 result = fixture_discovery_tick()

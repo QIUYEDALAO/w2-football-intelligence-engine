@@ -34,10 +34,11 @@ delivery to Bark is explicitly `AT_LEAST_ONCE`. If the process stops after Bark 
 request but before the database commit, the client can receive a duplicate.
 
 Each row gets one initial attempt plus at most three retries. Retry due times use 5, 10,
-and 20 second exponential backoff. The scheduler checks delivery every 30 seconds. The
-target from outbox creation to successful delivery is P95 at or below 30 seconds; pending
-age above 60 seconds is an SLO breach. Five consecutive failed attempts place channel
-health in `DEGRADED`.
+and 20 second exponential backoff. A dedicated scheduler thread checks delivery every
+five seconds so slower fixture/outcome work cannot block notification delivery. The target
+from outbox creation to successful delivery is P95 at or below 30 seconds; pending age
+above 60 seconds is an SLO breach. Five consecutive failed attempts place channel health
+in `DEGRADED`.
 
 `GET /ops/notification-outbox-health` exposes at least:
 

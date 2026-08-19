@@ -70,6 +70,29 @@ def test_scheduler_heartbeat_does_not_call_external_api() -> None:
     assert heartbeat() == "w2 scheduler heartbeat"
 
 
+def test_candidate_delivery_loop_does_not_wait_for_main_scheduler_work(monkeypatch) -> None:
+    calls = []
+
+    class StopLoop(Exception):
+        pass
+
+    monkeypatch.setattr(
+        scheduler_main,
+        "candidate_notification_delivery_tick",
+        lambda: calls.append("tick") or {"status": "IDLE"},
+    )
+    monkeypatch.setattr(
+        scheduler_main.time,
+        "sleep",
+        lambda _seconds: (_ for _ in ()).throw(StopLoop),
+    )
+
+    with pytest.raises(StopLoop):
+        scheduler_main.candidate_notification_delivery_loop()
+
+    assert calls == ["tick"]
+
+
 def test_postmatch_result_checkpoint_is_single_bounded_status_fixture_refresh() -> None:
     kickoff = datetime(2026, 8, 3, 17, tzinfo=UTC)
     plan = postmatch_result_checkpoint_plan(
