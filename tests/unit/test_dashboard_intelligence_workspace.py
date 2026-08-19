@@ -1747,21 +1747,23 @@ def test_completed_no_edge_evaluations_take_precedence_over_calibration_gap() ->
         "versions": [
             {
                 "checkpoint": checkpoint,
+                "evaluation_slot_id": checkpoint,
                 "evaluated_at": evaluated_at,
                 "market": market,
-                "state": "SUPERSEDED" if checkpoint != "T15_ODDS" else "NO_EDGE_CURRENT",
+                "state": "NO_EDGE_CURRENT",
                 "original_state": "NO_EDGE_CURRENT",
+                "official_funnel_eligible": True,
+                "measurement_semantics": "CHECKPOINT_EVALUATION_OPPORTUNITY",
             }
-            for _, evaluated_at in checkpoints
+            for checkpoint, evaluated_at in checkpoints
             for market in ("ASIAN_HANDICAP", "TOTALS")
-            for checkpoint in ("capture",)
         ]
         + [
             {
                 "checkpoint": "capture",
-                "evaluated_at": "2026-08-10T04:01:00Z",
+                "evaluated_at": "2026-08-10T07:04:31Z",
                 "market": market,
-                "state": "SUPERSEDED",
+                "state": "ANALYSIS_PICK_ACTIVE",
                 "original_state": "ANALYSIS_PICK_ACTIVE",
             }
             for market in ("ASIAN_HANDICAP", "TOTALS")
@@ -1783,6 +1785,18 @@ def test_completed_no_edge_evaluations_take_precedence_over_calibration_gap() ->
         ),
     }
     assert match["factual_summary"] == match["evaluation_execution"]["summary_zh"]
+
+
+def test_candidate_execution_contract_rejects_inactive_shadow_candidate() -> None:
+    payload = _workspace(_day_view(), candidate_enabled=True)
+    payload["matches"][0]["evaluation_execution"]["status"] = "CANDIDATE"
+
+    with pytest.raises(
+        ValueError, match="candidate execution requires an active shadow candidate"
+    ):
+        DashboardIntelligenceWorkspaceResponse.model_validate(
+            {"request_id": "contradictory-candidate", **payload}
+        )
 
 
 @pytest.mark.parametrize(

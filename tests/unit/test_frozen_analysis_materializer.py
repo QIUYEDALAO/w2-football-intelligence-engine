@@ -1923,14 +1923,12 @@ def _depth_by_market(card: dict[str, Any]) -> dict[str, int]:
 
 
 def test_asian_handicap_depth_is_read_from_its_own_mainline_field() -> None:
-    """AH reports depth as bookmaker_count; TOTALS mirrors it into a second name.
+    """Accept AH depth when a non-degraded producer populated its own field.
 
-    Reading only the TOTALS-specific complete_pair_bookmaker_count left every
-    ASIAN_HANDICAP evaluation at depth 0, so that market could never clear the
-    depth gate and was persisted as BLOCKED_BY_GATE regardless of how many
-    bookmakers actually quoted both sides. Both selectors already count a
-    bookmaker only once it quotes a complete pair, so the two names carry the
-    same meaning and must yield the same depth.
+    This is synthetic consumer-contract data, not a production-card replay: it
+    assumes upstream card construction has already populated
+    ``ah.market_mainline.bookmaker_count``. It proves field-name compatibility,
+    not that a degraded card contains six bookmakers.
     """
 
     depth = _depth_by_market(
@@ -1949,12 +1947,34 @@ def test_asian_handicap_depth_is_read_from_its_own_mainline_field() -> None:
 
 
 def test_absent_mainline_depth_is_still_zero() -> None:
+    """Normalize omitted synthetic consumer-boundary depth to zero.
+
+    This minimal candidate is not the production fallback shape; the dedicated
+    fallback-card test below covers that path.
+    """
+
     depth = _depth_by_market(
         _depth_card(ah_mainline={"line": "+0.25"}, ou_mainline={"line": "2.5"})
     )
 
     assert depth["ASIAN_HANDICAP"] == 0
     assert depth["TOTALS"] == 0
+
+
+def test_fallback_card_has_empty_mainlines_and_expected_zero_depth() -> None:
+    card = ReadModelService(repository=ScopedRepository())._fallback_analysis_card(
+        fixture_id="1523202",
+        market_coverage={"ASIAN_HANDICAP": True, "TOTALS": True},
+        source="future_refresh_without_analysis_payload",
+    )
+
+    assert "current_odds" not in card
+    assert card["markets"]
+    mainlines = [
+        card["market_candidates"][key]["market_mainline"] for key in ("ah", "ou")
+    ]
+    assert all(value is None for mainline in mainlines for value in mainline.values())
+    assert _depth_by_market(card) == {"ASIAN_HANDICAP": 0, "TOTALS": 0}
 
 
 def test_depth_falls_back_to_balanced_current_odds() -> None:
