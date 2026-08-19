@@ -1787,16 +1787,16 @@ def test_completed_no_edge_evaluations_take_precedence_over_calibration_gap() ->
     assert match["factual_summary"] == match["evaluation_execution"]["summary_zh"]
 
 
-def test_candidate_execution_contract_rejects_inactive_shadow_candidate() -> None:
+def test_candidate_execution_can_precede_current_shadow_candidate_readiness() -> None:
     payload = _workspace(_day_view(), candidate_enabled=True)
     payload["matches"][0]["evaluation_execution"]["status"] = "CANDIDATE"
 
-    with pytest.raises(
-        ValueError, match="candidate execution requires an active shadow candidate"
-    ):
-        DashboardIntelligenceWorkspaceResponse.model_validate(
-            {"request_id": "contradictory-candidate", **payload}
-        )
+    validated = DashboardIntelligenceWorkspaceResponse.model_validate(
+        {"request_id": "historical-candidate", **payload}
+    )
+
+    assert validated.matches[0].evaluation_execution.status == "CANDIDATE"
+    assert validated.matches[0].shadow_candidate.status == "NOT_READY"
 
 
 @pytest.mark.parametrize(

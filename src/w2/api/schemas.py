@@ -984,11 +984,6 @@ class WorkspaceMatch(BaseModel):
             selected = self.market_radar.markets.get(str(self.shadow_candidate.market))
             if selected is None or selected.eligibility.candidate_eligibility_status != "READY":
                 raise ValueError("active shadow candidate requires selected-market eligibility")
-        if (
-            self.evaluation_execution.status == "CANDIDATE"
-            and self.shadow_candidate.status != "ACTIVE"
-        ):
-            raise ValueError("candidate execution requires an active shadow candidate")
         return self
 
 
