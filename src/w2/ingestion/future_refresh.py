@@ -171,6 +171,7 @@ class FutureRefreshResult:
     free_plan_restriction_auto_detected_count: int = 0
     identity_pool_expansions: list[dict[str, Any]] = field(default_factory=list)
     requests: list[dict[str, Any]] = field(default_factory=list)
+    refresh_checkpoints: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -1529,23 +1530,38 @@ class FutureFixtureRefreshService:
     def _validate_checkpoint_claims(self) -> None:
         if self.config.persistence != "db" or not self.config.refresh_checkpoints:
             return
-        from w2.matchday.repository import MatchdayRuntimeRepository
+        from w2.matchday.repository import MatchdayRepositoryError, MatchdayRuntimeRepository
 
         repository = MatchdayRuntimeRepository()
+        valid: list[dict[str, Any]] = []
         for checkpoint in self.config.refresh_checkpoints:
             plan_id = str(checkpoint.get("id") or checkpoint.get("plan_id") or "")
             claim_token = str(checkpoint.get("claim_token") or "")
             fixture_id = str(checkpoint.get("fixture_id") or "")
             if not plan_id or not claim_token:
                 raise FutureRefreshError("CHECKPOINT_CLAIM_REQUIRED")
-            canonical = repository.validate_checkpoint_claim(
-                plan_id=plan_id,
-                claim_token=claim_token,
-                now=self.now,
-                fixture_id=fixture_id or None,
-                competition_id=self.config.competition_id,
-                season=self.config.season,
-            )
+            try:
+                canonical = repository.validate_checkpoint_claim(
+                    plan_id=plan_id,
+                    claim_token=claim_token,
+                    now=self.now,
+                    fixture_id=fixture_id or None,
+                    competition_id=self.config.competition_id,
+                    season=self.config.season,
+                )
+            except MatchdayRepositoryError as exc:
+                reason = str(exc)
+                if not reason.startswith("CHECKPOINT_PLAN_NOT_DUE:"):
+                    raise
+                self._audit.append(
+                    {
+                        "endpoint": "checkpoint_claim",
+                        "params": {"plan_id": plan_id, "fixture_id": fixture_id},
+                        "provider_dispatched": False,
+                        "diagnostic_code": reason,
+                    }
+                )
+                continue
             if any(
                 (
                     checkpoint.get("checkpoint") != canonical.get("checkpoint"),
@@ -1555,6 +1571,16 @@ class FutureFixtureRefreshService:
                 )
             ):
                 raise FutureRefreshError("CHECKPOINT_CLAIM_PAYLOAD_MISMATCH")
+            valid.append(checkpoint)
+        if not valid:
+            raise FutureRefreshError("CHECKPOINT_BATCH_NO_VALID_CLAIMS")
+        self.config = replace(
+            self.config,
+            refresh_checkpoints=tuple(valid),
+            checkpoint_fixture_ids=tuple(
+                dict.fromkeys(str(item.get("fixture_id") or "") for item in valid)
+            ),
+        )
 
     def _request(
         self,
@@ -3477,7 +3503,11 @@ def run_future_fixture_refresh(
         runtime_authorization=runtime_authorization,
         provider_call_reservation=provider_call_reservation,
     )
-    return replace(service.run(), requests=list(service._audit))
+    return replace(
+        service.run(),
+        requests=list(service._audit),
+        refresh_checkpoints=[dict(item) for item in service.config.refresh_checkpoints],
+    )
 
 
 def run_future_refresh_task(
@@ -3632,7 +3662,7 @@ def run_future_refresh_task(
             "candidate": False,
             "formal_recommendation": False,
             "checkpoint_fixture_ids": list(checkpoint_fixture_ids),
-            "refresh_checkpoints": list(refresh_checkpoints),
+            "refresh_checkpoints": result.refresh_checkpoints,
             "materialized_fixture_ids": result.materialized_fixture_ids,
             "identity_pool_expansions": result.identity_pool_expansions,
             "requests": result.requests,

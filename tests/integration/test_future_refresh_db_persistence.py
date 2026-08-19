@@ -468,6 +468,70 @@ def test_checkpoint_missing_persisted_fixture_fails_without_provider_call(
     assert audit.status == "BLOCKED"
 
 
+def test_stale_checkpoint_claim_does_not_block_valid_plan_in_same_batch(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    configure_sqlite_db(monkeypatch, tmp_path, collection_policy=True)
+    seed_odds_checkpoint(
+        "1489404",
+        with_identity=True,
+        checkpoint="T-30m_VALIDATION_LOCK",
+    )
+    repository = MatchdayRuntimeRepository()
+    repository.upsert_checkpoint_plan(
+        CheckpointPlan(
+            fixture_id="api_football:1489404",
+            competition_id="allsvenskan",
+            season="2026",
+            checkpoint="T15_ODDS",
+            kickoff_utc=NOW + timedelta(hours=7),
+            scheduled_at=NOW,
+            window_start=NOW - timedelta(minutes=1),
+            window_end=NOW + timedelta(hours=1),
+            endpoints=("odds",),
+            status="DUE",
+            blockers=(),
+        )
+    )
+    engine = create_engine(get_settings().database_url.get_secret_value())
+    with Session(engine) as session:
+        session.execute(
+            update(MatchdayCheckpointPlanModel)
+            .where(MatchdayCheckpointPlanModel.checkpoint == "T-30m_VALIDATION_LOCK")
+            .values(window_end=NOW + timedelta(minutes=1))
+        )
+        session.commit()
+    claimed = repository.claim_due_checkpoint_plans(now=NOW, worker_id="batch-test")
+    assert len(claimed) == 2
+    client = FakeApiFootballClient()
+
+    audit = run_future_refresh_task(
+        task_id="partial-stale-checkpoint",
+        key="partial-stale-checkpoint",
+        queued_at=NOW,
+        competition_id="allsvenskan",
+        runtime_root=tmp_path / "runtime",
+        client=client,
+        now=NOW + timedelta(minutes=2),
+        persistence="db",
+        checkpoint_fixture_ids=tuple(str(item["fixture_id"]) for item in claimed),
+        refresh_checkpoints=tuple(claimed),
+        materialize_public_artifacts=materialize_projection_events_for_test,
+    )
+
+    with Session(engine) as session:
+        plans = {
+            row.checkpoint: row.status
+            for row in session.scalars(select(MatchdayCheckpointPlanModel))
+        }
+    assert client.calls == [("odds", {"fixture": "1489404"})]
+    assert plans == {"T-30m_VALIDATION_LOCK": "MISSED", "T15_ODDS": "CAPTURED"}
+    assert [row["checkpoint"] for row in audit.result["refresh_checkpoints"]] == [
+        "T15_ODDS"
+    ]
+
+
 def test_checkpoint_daily_cap_preflight_restores_unattempted_claim(
     tmp_path: Path,
     monkeypatch: Any,

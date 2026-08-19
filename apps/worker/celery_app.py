@@ -382,7 +382,11 @@ def future_fixture_refresh(
         ),
     )
     opportunity_write = _write_checkpoint_opportunities(
-        list(refresh_checkpoints or ()),
+        [
+            dict(item)
+            for item in audit.result.get("refresh_checkpoints", [])
+            if isinstance(item, Mapping)
+        ],
         task_id=audit.task_id,
         task_key=audit.key,
         evaluated_at=_worker_utc(getattr(audit, "finished_at", None)) or now,
