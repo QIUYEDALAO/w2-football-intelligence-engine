@@ -1955,3 +1955,13 @@ def test_absent_mainline_depth_is_still_zero() -> None:
 
     assert depth["ASIAN_HANDICAP"] == 0
     assert depth["TOTALS"] == 0
+
+
+def test_depth_falls_back_to_balanced_current_odds() -> None:
+    card = _depth_card(ah_mainline={"line": "+0.25"}, ou_mainline={"line": "2.5"})
+    card["current_odds"] = {
+        "ah": {"bookmaker_count": 6},
+        "ou": {"bookmaker_count": 5},
+    }
+
+    assert _depth_by_market(card) == {"ASIAN_HANDICAP": 6, "TOTALS": 5}

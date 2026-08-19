@@ -1103,6 +1103,7 @@ def test_read_model_mainline_rejects_low_consensus_balanced_override() -> None:
     assert selected["candidate_lines"][0]["balanced_override_eligible"] is False
     assert selected["candidate_lines"][0]["consensus_eligible"] is True
     assert odds_entry is not None
+    assert odds_entry["bookmaker_count"] == selected["bookmaker_count"]
     assert odds_entry["candidate_lines"][0]["home_line"] == "0"
     assert "selection_warning" not in odds_entry
 

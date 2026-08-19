@@ -5360,6 +5360,7 @@ class ReadModelService:
         ]
         if prices:
             entry["price"] = round(sum(prices) / len(prices), 4)
+        entry["bookmaker_count"] = int(selection.get("bookmaker_count") or 0)
         for key in (
             "selection_policy",
             "selection_warning",
