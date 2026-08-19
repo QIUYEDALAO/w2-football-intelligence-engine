@@ -338,6 +338,8 @@ def test_operations_read_only_and_production_disabled(monkeypatch) -> None:
     notification_health = client.get("/ops/notification-outbox-health")
     assert notification_health.status_code == 200
     assert notification_health.json()["pending_backlog"] == 0
+    assert notification_health.json()["channel"] == "bark"
+    assert notification_health.json()["delivery_mode"] == "AT_LEAST_ONCE"
     assert client.get("/ops/quota").json()["items"][0]["key"] == "quota"
     for route in app.routes:
         path = getattr(route, "path", "")

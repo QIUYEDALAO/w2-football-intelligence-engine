@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any
-from urllib.parse import urlencode
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode, urlsplit
+from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -13,6 +17,8 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from w2.dashboard.date_window import football_day_for_kickoff
+from w2.dashboard.results import normalize_match_status
+from w2.domain.odds import settle_asian_handicap, settle_total_goals
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.dynamic_prematch_models import (
     CandidateNotificationOutboxModel,
@@ -25,6 +31,7 @@ from w2.infrastructure.persistence.matchday_intake_models import (
     MatchdayMarketObservationModel,
 )
 from w2.infrastructure.persistence.model_forecast_models import ModelForecastCaptureModel
+from w2.infrastructure.persistence.models import ResultModel
 from w2.matchday.timezone import BeijingOperationalDayPolicy
 from w2.prematch.evaluation_slots import evaluation_slots
 from w2.prematch.lifecycle import (
@@ -47,6 +54,12 @@ PENDING = "PENDING"
 RETRY_PENDING = "RETRY_PENDING"
 DELIVERED = "DELIVERED"
 FAILED = "FAILED"
+
+BARK_CHANNEL = "bark"
+AT_LEAST_ONCE = "AT_LEAST_ONCE"
+MAX_DELIVERY_ATTEMPTS = 4
+RETRY_BACKOFF_SECONDS = (5, 10, 20)
+DELIVERY_TIMEOUT_SECONDS = 8
 
 QUOTE_MAX_AGE_SECONDS = 1800
 PRICE_CHANGE_THRESHOLD_RATIO = 0.02
@@ -216,33 +229,63 @@ def notification_health_in_session(session: Session, *, now: datetime) -> dict[s
     failed = [row for row in rows if row.delivery_status == FAILED]
     last_success = max((row.delivered_at for row in delivered if row.delivered_at), default=None)
     oldest_pending = min((row.created_at for row in pending), default=None)
-    return {
-        "status": "CHANNEL_NOT_CONFIGURED"
-        if not os.environ.get("W2_CANDIDATE_NOTIFICATION_CHANNEL")
+    configured, configuration_error = _bark_configuration()
+    consecutive_failures = _consecutive_failure_count(rows)
+    delivery_latencies = sorted(
+        max(_seconds(_utc(row.delivered_at) - _utc(row.created_at)), 0.0)
+        for row in delivered
+        if row.delivered_at is not None
+    )
+    delivery_p95 = (
+        delivery_latencies[max((len(delivery_latencies) * 95 + 99) // 100 - 1, 0)]
+        if delivery_latencies
+        else None
+    )
+    pending_over_target = [
+        row for row in pending if _seconds(now - _utc(row.created_at)) > 30
+    ]
+    status = (
+        "CHANNEL_NOT_CONFIGURED"
+        if not configured and configuration_error is None
         else "DEGRADED"
-        if failed or any(_seconds(now - row.created_at) > 30 for row in pending)
-        else "READY",
-        "channel": os.environ.get("W2_CANDIDATE_NOTIFICATION_CHANNEL") or None,
+        if configuration_error
+        or failed
+        or consecutive_failures >= 5
+        or pending_over_target
+        or (delivery_p95 is not None and delivery_p95 > 30)
+        else "READY"
+    )
+    return {
+        "status": status,
+        "channel": BARK_CHANNEL,
+        "delivery_mode": AT_LEAST_ONCE,
+        "configuration_error": configuration_error,
         "last_successful_delivery_at": _iso(last_success) if last_success else None,
         "failure_count": sum(
             max(row.delivery_attempt_count - int(row.delivery_status == DELIVERED), 0)
             for row in rows
         ),
         "retry_count": sum(max(row.delivery_attempt_count - 1, 0) for row in rows),
+        "consecutive_failure_count": consecutive_failures,
+        "consecutive_failure_degraded_threshold": 5,
         "pending_backlog": len(pending),
         "oldest_pending_age_seconds": (
-            round(_seconds(now - oldest_pending), 3) if oldest_pending else None
+            round(_seconds(now - _utc(oldest_pending)), 3) if oldest_pending else None
         ),
         "outbox_enqueue_slo_breach_count": sum(
             float((row.payload or {}).get("outbox_enqueue_latency_seconds") or 0) > 5
             for row in rows
         ),
         "delivery_target_breach_count": sum(
-            _seconds(now - row.created_at) > 30 for row in pending
+            _seconds(now - _utc(row.created_at)) > 30 for row in pending
         ),
         "delivery_slo_breach_count": sum(
-            _seconds(now - row.created_at) > 60 for row in pending
+            _seconds(now - _utc(row.created_at)) > 60 for row in pending
         ),
+        "delivery_latency_p95_seconds": (
+            round(delivery_p95, 3) if delivery_p95 is not None else None
+        ),
+        "delivery_latency_target_p95_seconds": 30,
         "outbox_event_count": len(rows),
     }
 
@@ -272,14 +315,104 @@ def record_delivery_result_in_session(
     if row.delivery_status == DELIVERED:
         return
     row.delivery_attempt_count += 1
+    payload = dict(row.payload or {})
+    delivery = dict(payload.get("_delivery") or {})
+    previous_failures = _consecutive_failure_count(
+        list(session.scalars(select(CandidateNotificationOutboxModel)))
+    )
+    delivery["last_attempted_at"] = _iso(attempted_at)
     if delivered:
         row.delivery_status = DELIVERED
         row.delivered_at = attempted_at
         row.last_error = None
+        delivery["consecutive_failure_count"] = 0
+        delivery.pop("next_attempt_at", None)
     else:
-        row.delivery_status = RETRY_PENDING if retryable else FAILED
-        row.last_error = (error or "DELIVERY_FAILED")[:512]
+        retry = retryable and row.delivery_attempt_count < MAX_DELIVERY_ATTEMPTS
+        row.delivery_status = RETRY_PENDING if retry else FAILED
+        row.last_error = _safe_error(error)
+        delivery["consecutive_failure_count"] = previous_failures + 1
+        if retry:
+            delivery["next_attempt_at"] = _iso(
+                attempted_at
+                + timedelta(
+                    seconds=RETRY_BACKOFF_SECONDS[row.delivery_attempt_count - 1]
+                )
+            )
+        else:
+            delivery.pop("next_attempt_at", None)
+    payload["_delivery"] = delivery
+    row.payload = payload
     session.flush()
+
+
+def deliver_pending_notifications(
+    *,
+    now: datetime | None = None,
+    engine: Engine | None = None,
+    sender: Callable[[Mapping[str, Any]], None] | None = None,
+    limit: int = 20,
+) -> dict[str, Any]:
+    """Deliver due outbox rows; an absent Bark setting performs no writes."""
+
+    resolved_now = now or datetime.now(UTC)
+    configured, configuration_error = _bark_configuration()
+    if not configured:
+        return {
+            "status": "CHANNEL_NOT_CONFIGURED"
+            if configuration_error is None
+            else "DEGRADED",
+            "channel": BARK_CHANNEL,
+            "delivered": 0,
+            "failed_attempts": 0,
+        }
+    send = sender or _send_bark
+    delivered_count = 0
+    failed_count = 0
+    with Session(engine or create_engine()) as session:
+        rows = list(
+            session.scalars(
+                select(CandidateNotificationOutboxModel)
+                .where(
+                    CandidateNotificationOutboxModel.delivery_status.in_(
+                        (PENDING, RETRY_PENDING)
+                    )
+                )
+                .order_by(CandidateNotificationOutboxModel.created_at)
+            )
+        )
+        due_rows = [row for row in rows if _delivery_due(row, resolved_now)][: max(limit, 1)]
+        for row in due_rows:
+            try:
+                send(row.payload)
+            except Exception as exc:  # sender boundary; persist only a safe class name
+                failed_count += 1
+                record_delivery_result_in_session(
+                    session,
+                    notification_event_id=row.notification_event_id,
+                    delivered=False,
+                    attempted_at=resolved_now,
+                    error=_delivery_exception_name(exc),
+                )
+            else:
+                delivered_count += 1
+                record_delivery_result_in_session(
+                    session,
+                    notification_event_id=row.notification_event_id,
+                    delivered=True,
+                    attempted_at=resolved_now,
+                )
+            session.commit()
+    return {
+        "status": "DELIVERED"
+        if delivered_count
+        else "RETRY_SCHEDULED"
+        if failed_count
+        else "IDLE",
+        "channel": BARK_CHANNEL,
+        "delivered": delivered_count,
+        "failed_attempts": failed_count,
+    }
 
 
 def enqueue_test_message_in_session(
@@ -377,12 +510,20 @@ def enqueue_operational_summaries_in_session(
     for row in tracks:
         fixture_id = row.fixture_id.removeprefix("api_football:")
         track_count_by_fixture[fixture_id] = track_count_by_fixture.get(fixture_id, 0) + 1
+    plan_fixture_ids = {
+        row.fixture_id.removeprefix("api_football:") for row in evaluation_plans
+    }
+    candidate_track_fixture_ids = track_fixture_ids & plan_fixture_ids
+    candidate_track_matches = [
+        _summary_fixture(identity)
+        for identity in identities
+        if identity.provider_fixture_id in candidate_track_fixture_ids
+    ]
 
     inserted: list[str] = []
-    t3_plans = [row for row in evaluation_plans if row.checkpoint == "T3_ODDS"]
-    if t3_plans:
-        first_t3 = min(_utc(row.scheduled_at) for row in t3_plans)
-        plan_summary_due_at = first_t3 - timedelta(minutes=15)
+    if evaluation_plans:
+        first_kickoff = min(_utc(row.kickoff_utc) for row in identities)
+        plan_summary_due_at = first_kickoff - timedelta(hours=2)
         event_id = _event_id(window.operational_day_key, PLAN_SUMMARY)
         planned_opportunities = sum(
             2
@@ -392,7 +533,7 @@ def enqueue_operational_summaries_in_session(
             )
             for row in evaluation_plans
         )
-        if plan_summary_due_at <= now < first_t3 and _insert(
+        if plan_summary_due_at <= now < plan_summary_due_at + timedelta(minutes=5) and _insert(
             session,
             event_id=event_id,
             opportunity_identity_hash=None,
@@ -405,10 +546,12 @@ def enqueue_operational_summaries_in_session(
                 "event_type": PLAN_SUMMARY,
                 "operational_football_day": window.operational_day_key,
                 "heartbeat": True,
-                "summary_timing": "BEFORE_FIRST_T3",
+                "summary_timing": "TWO_HOURS_BEFORE_FIRST_KICKOFF",
                 "summary_due_at": _iso(plan_summary_due_at),
                 "monitoring_fixture_count": len(identities),
                 "model_track_ready_fixture_count": len(track_fixture_ids),
+                "candidate_track_fixture_count": len(candidate_track_fixture_ids),
+                "candidate_track_matches": candidate_track_matches,
                 "planned_evaluation_opportunity_count": planned_opportunities,
                 "first_evaluation_at": _iso(
                     min(_utc(row.scheduled_at) for row in evaluation_plans)
@@ -420,22 +563,32 @@ def enqueue_operational_summaries_in_session(
                 )
                 if evaluation_plans
                 else None,
+                "dashboard_url": _dashboard_day_url(window.operational_day_key),
                 "created_at": _iso(now),
             },
             created_at=now,
         ):
             inserted.append(event_id)
 
-    t15_plans = [row for row in evaluation_plans if row.checkpoint == "T15_ODDS"]
-    closeout_due_at = (
-        max(_utc(row.window_end) for row in t15_plans)
-        if t15_plans
-        else max(_utc(row.kickoff_utc) for row in identities)
+    results = list(
+        session.scalars(select(ResultModel).where(ResultModel.fixture_id.in_(fixture_aliases)))
     )
+    results_by_fixture = {
+        row.fixture_id.removeprefix("api_football:"): row for row in results
+    }
+    closed_evidence = [
+        _fixture_closeout_time(identity, results_by_fixture.get(identity.provider_fixture_id))
+        for identity in identities
+    ]
+    closeout_due_at = max((value for value in closed_evidence if value), default=None)
     # Do not turn deployment into a historical summary backfill. The scheduler
     # checks every 30 seconds, so a five-minute forward-only window tolerates a
     # restart without rewriting an already closed football day.
-    if closeout_due_at <= now <= closeout_due_at + timedelta(minutes=5):
+    if (
+        closeout_due_at is not None
+        and all(value is not None for value in closed_evidence)
+        and closeout_due_at <= now <= closeout_due_at + timedelta(minutes=5)
+    ):
         opportunities = list(
             session.scalars(
                 select(DynamicPrematchOpportunityModel).where(
@@ -466,6 +619,11 @@ def enqueue_operational_summaries_in_session(
                 continue
             states[opportunity.state] += 1
         reason_by_market = _zero_candidate_reasons(opportunities, attempts)
+        recommendations = _closeout_recommendations(
+            session,
+            fixture_aliases=fixture_aliases,
+            results_by_fixture=results_by_fixture,
+        )
         event_id = _event_id(window.operational_day_key, DAY_CLOSEOUT_SUMMARY)
         if _insert(
             session,
@@ -489,8 +647,10 @@ def enqueue_operational_summaries_in_session(
                 "no_edge_count": states["EVALUATED_NO_EDGE"],
                 "candidate_count": states["EVALUATED_CANDIDATE"],
                 "invalid_count": invalid,
+                "recommendations": recommendations,
                 "zero_candidate_reason_by_market": reason_by_market,
                 "zero_candidate_is_not_delivery_health": True,
+                "dashboard_url": _dashboard_day_url(window.operational_day_key),
                 "created_at": _iso(now),
             },
             created_at=now,
@@ -545,6 +705,139 @@ def _zero_candidate_reasons(
             ),
         }
     return result
+
+
+def _summary_fixture(identity: MatchdayFixtureIdentityModel) -> dict[str, Any]:
+    payload = identity.payload if isinstance(identity.payload, dict) else {}
+    kickoff = _utc(identity.kickoff_utc)
+    fixture_id = identity.provider_fixture_id
+    return {
+        "fixture_id": fixture_id,
+        "home": payload.get("home_team_name")
+        or payload.get("home_name")
+        or identity.home_provider_team_id,
+        "away": payload.get("away_team_name")
+        or payload.get("away_name")
+        or identity.away_provider_team_id,
+        "kickoff_local": kickoff.astimezone(BEIJING).isoformat(),
+        "kickoff_local_hm": kickoff.astimezone(BEIJING).strftime("%H:%M"),
+        "dashboard_url": _dashboard_fixture_url(fixture_id, kickoff),
+    }
+
+
+def _fixture_closeout_time(
+    identity: MatchdayFixtureIdentityModel,
+    result: ResultModel | None,
+) -> datetime | None:
+    if result is not None:
+        return _utc(result.confirmed_at)
+    if normalize_match_status(identity.fixture_status) in {
+        "FINISHED",
+        "CANCELLED",
+        "POSTPONED",
+    }:
+        return _utc(identity.captured_at)
+    return None
+
+
+def _closeout_recommendations(
+    session: Session,
+    *,
+    fixture_aliases: set[str],
+    results_by_fixture: Mapping[str, ResultModel],
+) -> list[dict[str, Any]]:
+    rows = list(
+        session.scalars(
+            select(CandidateNotificationOutboxModel)
+            .where(
+                CandidateNotificationOutboxModel.event_type.in_(
+                    (
+                        CANDIDATE_FORMED,
+                        CANDIDATE_MATERIAL_CHANGE,
+                        CANDIDATE_WITHDRAWN,
+                        CANDIDATE_T30_CONFIRMED,
+                    )
+                )
+            )
+            .order_by(CandidateNotificationOutboxModel.created_at)
+        )
+    )
+    aliases = {item.removeprefix("api_football:") for item in fixture_aliases}
+    groups: dict[tuple[str, str], list[CandidateNotificationOutboxModel]] = {}
+    for row in rows:
+        payload = row.payload if isinstance(row.payload, dict) else {}
+        fixture_id = str(payload.get("fixture_id") or "").removeprefix("api_football:")
+        market = str(payload.get("market") or "")
+        if fixture_id in aliases and market:
+            groups.setdefault((fixture_id, market), []).append(row)
+
+    recommendations: list[dict[str, Any]] = []
+    for (fixture_id, market), events in sorted(groups.items()):
+        if not any(row.event_type == CANDIDATE_FORMED for row in events):
+            continue
+        signal_events = [row for row in events if row.event_type != CANDIDATE_WITHDRAWN]
+        signal = signal_events[-1].payload
+        last = events[-1]
+        match = _as_mapping(signal.get("match"))
+        result = results_by_fixture.get(fixture_id)
+        settlement = "待结算"
+        score = None
+        if result is not None:
+            score = f"{result.home_goals}-{result.away_goals}"
+            try:
+                settlement = _settle_candidate(
+                    market=market,
+                    selection=signal.get("direction"),
+                    line=signal.get("line"),
+                    home_goals=result.home_goals,
+                    away_goals=result.away_goals,
+                )
+            except ValueError:
+                settlement = "无法结算"
+        recommendations.append(
+            {
+                "fixture_id": fixture_id,
+                "home": match.get("home"),
+                "away": match.get("away"),
+                "market": market,
+                "direction": signal.get("direction"),
+                "line": signal.get("line"),
+                "decimal_odds": signal.get("decimal_odds"),
+                "slot": signal.get("slot"),
+                "final_candidate_status": (
+                    "WITHDRAWN"
+                    if last.event_type == CANDIDATE_WITHDRAWN
+                    else "T30_CONFIRMED"
+                    if last.event_type == CANDIDATE_T30_CONFIRMED
+                    else "CANDIDATE"
+                ),
+                "withdrawal_reason": (
+                    _withdrawal_reason(last.payload)
+                    if last.event_type == CANDIDATE_WITHDRAWN
+                    else None
+                ),
+                "score": score,
+                "settlement": settlement,
+                "dashboard_url": signal.get("dashboard_url"),
+            }
+        )
+    return recommendations
+
+
+def _dashboard_fixture_url(fixture_id: str, kickoff: datetime) -> str:
+    params = {
+        "date": football_day_for_kickoff(kickoff).isoformat(),
+        "fixture_id": fixture_id,
+    }
+    base = os.environ.get("W2_DASHBOARD_PUBLIC_BASE_URL", "").rstrip("/")
+    path = f"/?{urlencode(params)}"
+    return f"{base}{path}" if base else path
+
+
+def _dashboard_day_url(day: str) -> str:
+    base = os.environ.get("W2_DASHBOARD_PUBLIC_BASE_URL", "").rstrip("/")
+    path = f"/?{urlencode({'date': day})}"
+    return f"{base}{path}" if base else path
 
 
 def _official(version: DynamicEvaluationVersion) -> bool:
@@ -659,6 +952,312 @@ def _payload_from_mapping(
             "decision_gate_unchanged": True,
         },
     }
+
+
+def render_bark_message(payload: Mapping[str, Any]) -> dict[str, str]:
+    event_type = str(payload.get("event_type") or "")
+    match = _as_mapping(payload.get("match"))
+    home = str(match.get("home") or "主队")
+    away = str(match.get("away") or "客队")
+    teams = f"{home} vs {away}"
+    market = _market_label(payload.get("market"))
+    line = _format_line(payload.get("line"))
+    direction = _direction_label(payload.get("direction"))
+    odds = _format_odds(payload.get("decimal_odds"))
+    kickoff = _parse_time(payload.get("kickoff_local"))
+    kickoff_hm = kickoff.astimezone(BEIJING).strftime("%H:%M") if kickoff else "--:--"
+    ev = _format_ev(payload.get("current_ev"))
+
+    if event_type == CANDIDATE_FORMED:
+        title = f"[阵容] {teams} {kickoff_hm} {market}{line} {direction} @{odds}"
+    elif event_type == CANDIDATE_MATERIAL_CHANGE:
+        change = _as_mapping(payload.get("change"))
+        previous = _as_mapping(change.get("previous"))
+        current = _as_mapping(change.get("current"))
+        material_fields = set(change.get("material_fields") or [])
+        old_line = _format_line(previous.get("exact_line"))
+        new_line = _format_line(current.get("exact_line"))
+        if "exact_line" in material_fields or old_line != new_line:
+            detail = f"{market} {old_line} → {new_line}"
+        elif "selection" in material_fields:
+            detail = (
+                f"{market} {_direction_label(previous.get('selection'))} → "
+                f"{_direction_label(current.get('selection'))}"
+            )
+        elif "bookmaker_id" in material_fields:
+            detail = (
+                f"{market} 机构 {previous.get('bookmaker_id') or '?'} → "
+                f"{current.get('bookmaker_id') or '?'}"
+            )
+        elif "current_ev" in material_fields:
+            detail = (
+                f"{market} EV{_format_ev(previous.get('current_ev'))} → "
+                f"EV{_format_ev(current.get('current_ev'))}"
+            )
+        else:
+            old_odds = _format_odds(previous.get("decimal_odds"))
+            new_odds = _format_odds(current.get("decimal_odds"))
+            detail = f"{market} @{old_odds} → @{new_odds}"
+        title = f"[变盘] {teams} {detail}"
+    elif event_type == CANDIDATE_WITHDRAWN:
+        title = f"[撤回] {teams} {market} 原因：{_withdrawal_reason(payload)}"
+    elif event_type == CANDIDATE_T30_CONFIRMED:
+        title = f"[确认] {teams} T-30m 锁定 {market}{line} {direction} @{odds} EV{ev}"
+    elif event_type == PLAN_SUMMARY:
+        title = (
+            f"[赛前计划] {payload.get('operational_football_day') or ''} "
+            f"候选轨道 {len(list(payload.get('candidate_track_matches') or []))} 场"
+        )
+    elif event_type == DAY_CLOSEOUT_SUMMARY:
+        title = (
+            f"[当日收官] {payload.get('operational_football_day') or ''} "
+            f"推荐 {len(list(payload.get('recommendations') or []))} 条"
+        )
+    elif event_type == TEST_MESSAGE:
+        title = "[测试] W2 Bark 通道"
+    else:
+        title = "[W2] 候选通知"
+
+    dashboard_url = str(payload.get("dashboard_url") or "")
+    body = _message_body(payload)
+    if dashboard_url:
+        body = f"{body}\n{dashboard_url}" if body else dashboard_url
+    result = {"title": title, "body": body}
+    if dashboard_url.startswith(("https://", "http://")):
+        result["url"] = dashboard_url
+    return result
+
+
+def _send_bark(payload: Mapping[str, Any]) -> None:
+    configured, configuration_error = _bark_configuration()
+    if not configured:
+        raise RuntimeError(configuration_error or "CHANNEL_NOT_CONFIGURED")
+    endpoint = os.environ["W2_BARK_ENDPOINT"].rstrip("/")
+    message = render_bark_message(payload)
+    request_payload = {
+        "device_key": os.environ["W2_BARK_DEVICE_KEY"],
+        "title": message["title"],
+        "body": message["body"],
+        "group": "W2候选",
+        "level": "timeSensitive",
+    }
+    if message.get("url"):
+        request_payload["url"] = message["url"]
+    request = Request(  # noqa: S310 - endpoint is restricted to validated HTTPS
+        f"{endpoint}/push",
+        data=json.dumps(request_payload, ensure_ascii=False).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(  # noqa: S310 - request URL was restricted to validated HTTPS
+            request, timeout=DELIVERY_TIMEOUT_SECONDS
+        ) as response:
+            status = int(getattr(response, "status", 0))
+            response_payload = json.loads(response.read(4096))
+    except HTTPError as exc:
+        raise RuntimeError(f"BARK_HTTP_{exc.code}") from None
+    except URLError:
+        raise RuntimeError("BARK_NETWORK_ERROR") from None
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        raise RuntimeError("BARK_INVALID_RESPONSE") from None
+    if not 200 <= status < 300 or response_payload.get("code") != 200:
+        raise RuntimeError("BARK_REJECTED")
+
+
+def _bark_configuration() -> tuple[bool, str | None]:
+    endpoint = os.environ.get("W2_BARK_ENDPOINT", "").strip()
+    device_key = os.environ.get("W2_BARK_DEVICE_KEY", "").strip()
+    if not endpoint or not device_key:
+        return False, None
+    parsed = urlsplit(endpoint)
+    if (
+        parsed.scheme != "https"
+        or not parsed.netloc
+        or parsed.username
+        or "@" in parsed.netloc
+        or parsed.query
+        or parsed.fragment
+    ):
+        return False, "BARK_ENDPOINT_INVALID"
+    return True, None
+
+
+def _delivery_due(row: CandidateNotificationOutboxModel, now: datetime) -> bool:
+    payload = row.payload if isinstance(row.payload, dict) else {}
+    delivery = _as_mapping(payload.get("_delivery"))
+    next_attempt_at = _parse_time(delivery.get("next_attempt_at"))
+    return next_attempt_at is None or next_attempt_at <= now
+
+
+def _consecutive_failure_count(rows: list[CandidateNotificationOutboxModel]) -> int:
+    attempted: list[tuple[datetime, int]] = []
+    for row in rows:
+        payload = row.payload if isinstance(row.payload, dict) else {}
+        delivery = _as_mapping(payload.get("_delivery"))
+        attempted_at = _parse_time(delivery.get("last_attempted_at"))
+        if attempted_at is not None:
+            attempted.append((attempted_at, int(delivery.get("consecutive_failure_count") or 0)))
+    return max(attempted, default=(datetime.min.replace(tzinfo=UTC), 0))[1]
+
+
+def _delivery_exception_name(exc: Exception) -> str:
+    message = str(exc)
+    if message.startswith("BARK_"):
+        return message[:512]
+    return f"{type(exc).__name__}:DELIVERY_FAILED"
+
+
+def _safe_error(error: str | None) -> str:
+    value = str(error or "DELIVERY_FAILED")
+    return value[:512] if value.startswith("BARK_") else "DELIVERY_FAILED"
+
+
+def _message_body(payload: Mapping[str, Any]) -> str:
+    event_type = str(payload.get("event_type") or "")
+    if event_type == PLAN_SUMMARY:
+        matches = list(payload.get("candidate_track_matches") or [])
+        lines = [
+            "{time} {home} vs {away}".format(
+                time=item.get("kickoff_local_hm", "--:--"),
+                home=item.get("home", "主队"),
+                away=item.get("away", "客队"),
+            )
+            for item in matches
+            if isinstance(item, Mapping)
+        ]
+        return "\n".join(lines) or "当日无已就绪候选轨道比赛"
+    if event_type == DAY_CLOSEOUT_SUMMARY:
+        recommendations = list(payload.get("recommendations") or [])
+        counts = (
+            f"正式机会 {payload.get('formal_opportunity_count', 0)}；"
+            f"完整评估 {payload.get('complete_evaluation_count', 0)}；"
+            f"门禁阻断 {payload.get('blocked_by_gate_count', 0)}；"
+            f"评估错误 {payload.get('evaluation_error_count', 0)}；"
+            f"检查点错过 {payload.get('missed_checkpoint_count', 0)}；"
+            f"NO_EDGE {payload.get('no_edge_count', 0)}；"
+            f"候选 {payload.get('candidate_count', 0)}；"
+            f"INVALID {payload.get('invalid_count', 0)}"
+        )
+        lines = [counts] + [
+            f"{item.get('home', '主队')} vs {item.get('away', '客队')} "
+            f"{_market_label(item.get('market'))}{_format_line(item.get('line'))} "
+            f"{_direction_label(item.get('direction'))}："
+            f"{item.get('score') or '待赛果'} {item.get('settlement', '待结算')}"
+            for item in recommendations
+            if isinstance(item, Mapping)
+        ]
+        if not recommendations:
+            lines.append("当日无候选推荐")
+        return "\n".join(lines)
+    if event_type == TEST_MESSAGE:
+        return "W2 Bark 外发通道测试消息"
+    bookmaker = _as_mapping(payload.get("bookmaker"))
+    quote_age = (
+        payload.get("quote_age_seconds")
+        if payload.get("quote_age_seconds") is not None
+        else "未知"
+    )
+    fields = [
+        f"机构：{bookmaker.get('name') or bookmaker.get('id') or '未知'}",
+        f"报价时间：{payload.get('quote_captured_at') or '未知'}",
+        f"报价年龄：{quote_age} 秒",
+        f"档位：{payload.get('slot') or '未知'}",
+        f"状态：{payload.get('candidate_status') or '未知'}",
+        f"有效期：{payload.get('valid_until') or '未知'}",
+        f"下次复核：{payload.get('next_review_at') or '无'}",
+    ]
+    return "\n".join(fields)
+
+
+def _market_label(value: Any) -> str:
+    return {"ASIAN_HANDICAP": "让球", "TOTALS": "大小球"}.get(str(value), str(value or "盘口"))
+
+
+def _direction_label(value: Any) -> str:
+    raw = str(value or "")
+    if raw.startswith("HOME"):
+        return "主"
+    if raw.startswith("AWAY"):
+        return "客"
+    if raw.startswith("OVER"):
+        return "大"
+    if raw.startswith("UNDER"):
+        return "小"
+    return raw or "方向未知"
+
+
+def _settlement_selection(market: str, value: Any) -> str:
+    selection = str(value or "").upper()
+    aliases = {
+        "ASIAN_HANDICAP": {"HOME_AH": "HOME", "AWAY_AH": "AWAY"},
+        "TOTALS": {"OVER_TOTALS": "OVER", "UNDER_TOTALS": "UNDER"},
+    }
+    return aliases.get(market, {}).get(selection, selection)
+
+
+def _settle_candidate(
+    *,
+    market: str,
+    selection: Any,
+    line: Any,
+    home_goals: int,
+    away_goals: int,
+) -> str:
+    normalized = _settlement_selection(market, selection)
+    if line is None:
+        raise ValueError("candidate settlement requires line")
+    if market == "ASIAN_HANDICAP":
+        return settle_asian_handicap(
+            home_goals,
+            away_goals,
+            normalized,
+            Decimal(str(line)),
+        ).value
+    if market == "TOTALS":
+        return settle_total_goals(
+            home_goals + away_goals,
+            normalized,
+            Decimal(str(line)),
+        ).value
+    raise ValueError(f"unsupported candidate market {market}")
+
+
+def _format_line(value: Any) -> str:
+    number = _float(value)
+    if number is None:
+        return "?"
+    return f"{number:g}"
+
+
+def _format_odds(value: Any) -> str:
+    number = _float(value)
+    return f"{number:.2f}" if number is not None else "?"
+
+
+def _format_ev(value: Any) -> str:
+    number = _float(value)
+    return f"{number * 100:+.1f}%" if number is not None else "?"
+
+
+def _withdrawal_reason(payload: Mapping[str, Any]) -> str:
+    reason = str(
+        payload.get("withdrawal_reason")
+        or payload.get("first_failed_gate")
+        or next(iter(payload.get("all_failed_gates") or []), "")
+        or payload.get("candidate_status")
+        or "未知"
+    )
+    return {
+        "QUOTE_FRESHNESS": "报价过期",
+        "QUOTE_TOO_OLD": "报价过期",
+        "BOOKMAKER_DEPTH": "机构深度不足",
+        "CHECKPOINT_WINDOW_MISSED": "检查点错过",
+        "MISSED_CHECKPOINT": "检查点错过",
+        "EVALUATED_NO_EDGE": "价值优势消失",
+        "NO_EDGE": "价值优势消失",
+        "EVALUATION_ERROR": "评估错误",
+    }.get(reason, reason)
 
 
 def _materially_changed(previous: Mapping[str, Any], current: Mapping[str, Any]) -> bool:
@@ -838,6 +1437,10 @@ def _float(value: Any) -> float | None:
         return float(value) if value is not None else None
     except (TypeError, ValueError):
         return None
+
+
+def _as_mapping(value: Any) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
 
 
 def _seconds(value: timedelta) -> float:

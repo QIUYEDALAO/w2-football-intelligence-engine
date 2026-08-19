@@ -44,6 +44,9 @@ REMOVED_EVAL_01A_ENV = {
 EXPECTED_UNIQUE = {
     FORMAL: {
         "api": {
+            "W2_BARK_DEVICE_KEY",
+            "W2_BARK_ENDPOINT",
+            "W2_DASHBOARD_PUBLIC_BASE_URL",
             "W2_FORMAL_RECOMMENDATION_ENABLED",
             "W2_IMAGE_ID",
             "W2_OCI_DIGEST",
@@ -54,6 +57,9 @@ EXPECTED_UNIQUE = {
             "W2_FORMAL_RECOMMENDATION_ENABLED",
         },
         "scheduler": {
+            "W2_BARK_DEVICE_KEY",
+            "W2_BARK_ENDPOINT",
+            "W2_DASHBOARD_PUBLIC_BASE_URL",
             "W2_FORWARD_OUTCOME_LEDGER_ENABLED",
             "W2_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS",
             "W2_FORWARD_OUTCOME_LEDGER_WINDOW",
@@ -61,9 +67,17 @@ EXPECTED_UNIQUE = {
         },
     },
     LITE: {
-        "api": {"W2_READINESS_RELEASE_ROOT"},
+        "api": {
+            "W2_BARK_DEVICE_KEY",
+            "W2_BARK_ENDPOINT",
+            "W2_DASHBOARD_PUBLIC_BASE_URL",
+            "W2_READINESS_RELEASE_ROOT",
+        },
         "worker": set(),
         "scheduler": {
+            "W2_BARK_DEVICE_KEY",
+            "W2_BARK_ENDPOINT",
+            "W2_DASHBOARD_PUBLIC_BASE_URL",
             "W2_FORWARD_OUTCOME_LEDGER_ENABLED",
             "W2_FORWARD_OUTCOME_LEDGER_INTERVAL_SECONDS",
             "W2_FORWARD_OUTCOME_LEDGER_WINDOW",
@@ -225,4 +239,12 @@ def test_compose_expansion_matches_authorized_runtime_delta(
                 "W2_CANDIDATE_ENABLED": "true",
             }
         )
+        if service in {"api", "scheduler"}:
+            expected.update(
+                {
+                    "W2_BARK_DEVICE_KEY": "",
+                    "W2_BARK_ENDPOINT": "",
+                    "W2_DASHBOARD_PUBLIC_BASE_URL": "",
+                }
+            )
         assert current_services[service]["environment"] == expected

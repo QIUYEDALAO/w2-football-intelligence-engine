@@ -84,6 +84,12 @@ def candidate_notification_summary_tick() -> dict[str, object]:
     }
 
 
+def candidate_notification_delivery_tick() -> dict[str, object]:
+    from w2.prematch.candidate_notifications import deliver_pending_notifications
+
+    return deliver_pending_notifications()
+
+
 def fixture_discovery_enabled() -> bool:
     return os.environ.get("W2_FIXTURE_DISCOVERY_ENABLED", "false").lower() == "true"
 
@@ -770,6 +776,12 @@ def run_forever() -> None:
                 logger.info("w2 candidate notification summary %s", result)
         except Exception:
             logger.exception("w2 candidate notification summary failed")
+        try:
+            result = candidate_notification_delivery_tick()
+            if result["status"] not in {"IDLE", "CHANNEL_NOT_CONFIGURED"}:
+                logger.info("w2 candidate notification delivery %s", result)
+        except Exception:
+            logger.exception("w2 candidate notification delivery failed")
         if fixture_discovery_enabled() and datetime.now(UTC) >= next_fixture_discovery_at:
             try:
                 result = fixture_discovery_tick()
