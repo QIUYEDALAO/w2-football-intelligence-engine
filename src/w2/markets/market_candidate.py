@@ -340,6 +340,7 @@ def _market_mainline_contract(odds: Mapping[str, Any]) -> dict[str, Any]:
     selected_row = dict(selected) if isinstance(selected, Mapping) else {}
     return {
         "line": odds.get("line"),
+        "bookmaker_count": odds.get("bookmaker_count"),
         "selection_policy": odds.get("selection_policy"),
         "candidate_ladder_hash": odds.get("candidate_ladder_hash"),
         "complete_pair_bookmaker_count": selected_row.get(

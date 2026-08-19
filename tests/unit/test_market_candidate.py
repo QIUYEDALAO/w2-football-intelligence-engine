@@ -4,6 +4,7 @@ from w2.markets import analysis_evidence
 from w2.markets.analysis_evidence import build_analysis_market_evidence
 from w2.markets.market_candidate import (
     _best_evaluated_side,
+    _market_mainline_contract,
     build_market_candidates,
     candidate_is_executable,
     select_authoritative_market_candidate,
@@ -509,6 +510,12 @@ def test_full_ladder_is_evaluated_but_alternates_remain_comparison_only() -> Non
     assert candidate["candidate_role"] == "MARKET_MAINLINE"
     assert candidate["market_mainline"]["line"] == "2.75"
     assert candidate["market_mainline"]["bookmaker_vote_count"] == 6
+
+
+def test_market_mainline_keeps_top_level_bookmaker_depth() -> None:
+    mainline = _market_mainline_contract({"line": "1.25", "bookmaker_count": 6})
+
+    assert mainline["bookmaker_count"] == 6
 
 
 def test_away_minus_point_seven_five_keeps_negative_selected_line() -> None:
