@@ -149,6 +149,15 @@ def test_deploy_is_pull_only_and_health_checked() -> None:
     assert "COLD_PULL_END_TO_END" in text
 
 
+def test_deploy_rollback_does_not_run_an_older_migration_image() -> None:
+    text = read(DEPLOY)
+    rollback = text.split("rollback() {", 1)[1].split("trap rollback ERR", 1)[0]
+
+    assert '"${COMPOSE[@]}" pull api worker scheduler web' in rollback
+    assert '"${COMPOSE[@]}" run --rm migration' not in rollback
+    assert "--max-time 30 http://127.0.0.1:18000/v1/version" in text
+
+
 def test_deploy_uploads_to_revision_scoped_remote_directory() -> None:
     text = read(DEPLOY)
     assert 'REMOTE_TMP_DIR="/tmp/w2-deploy-${REVISION}"' in text

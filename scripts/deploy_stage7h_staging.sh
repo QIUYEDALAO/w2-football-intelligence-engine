@@ -104,14 +104,14 @@ verify_runtime() {
   expected_python_id="$(release_value W2_API_IMAGE_ID "${env_file}")"
   expected_registry_digest="$(release_value W2_API_REGISTRY_DIGEST "${env_file}")"
 
-  curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/ready >/dev/null &&
+  curl -fsS --connect-timeout 3 --max-time 15 http://127.0.0.1:18000/ready >/dev/null &&
     version_json="$(
-      curl -fsS --connect-timeout 3 --max-time 8 http://127.0.0.1:18000/v1/version
+      curl -fsS --connect-timeout 3 --max-time 30 http://127.0.0.1:18000/v1/version
     )" &&
     curl -fsS --connect-timeout 3 --max-time 8 \
       http://127.0.0.1:18080/meta.json >/dev/null &&
     workspace_date="$(TZ=Asia/Shanghai date +%F)" &&
-    curl -fsS --connect-timeout 3 --max-time 15 \
+    curl -fsS --connect-timeout 3 --max-time 30 \
       "http://127.0.0.1:18080/v1/dashboard/intelligence-workspace?date=${workspace_date}&timezone=Asia%2FShanghai" \
       >/dev/null || return 1
 
@@ -146,11 +146,11 @@ assert image["registry_digest"] == {"status": "AVAILABLE", "value": expected_dig
 }
 
 wait_for_runtime() {
-  for attempt in $(seq 1 24); do
+  for attempt in $(seq 1 8); do
     if verify_runtime /opt/w2/shared/release.env; then
       return 0
     fi
-    [ "${attempt}" -lt 24 ] && sleep 5
+    [ "${attempt}" -lt 8 ] && sleep 5
   done
   return 1
 }
@@ -170,8 +170,10 @@ rollback() {
   rollback_started="$(date +%s)"
   sudo install -o root -g root -m 0644 \
     /opt/w2/shared/release.previous.env /opt/w2/shared/release.env
-  if "${COMPOSE[@]}" pull migration api worker scheduler web </dev/null &&
-    "${COMPOSE[@]}" run --rm migration </dev/null &&
+  # The database may already be at a newer, backward-compatible revision that
+  # the previous image cannot name. Roll back services by digest without asking
+  # the old migration image to interpret the newer Alembic head.
+  if "${COMPOSE[@]}" pull api worker scheduler web </dev/null &&
     "${COMPOSE[@]}" up -d --remove-orphans api worker scheduler web </dev/null &&
     wait_for_runtime; then
     rollback_seconds="$(( $(date +%s) - rollback_started ))"
