@@ -309,8 +309,10 @@ function RecentDateNav({ date, onDateChange, workspace }: Pick<Props, "date" | "
       <button aria-label="查看更早日期" className="v41-window-control" disabled={sliceStart === 0} onClick={() => setSliceStart(Math.max(0, sliceStart - 4))} type="button">‹</button>
       {dates.map((item) => (
         <button aria-current={item.football_day === date ? "date" : undefined} key={item.football_day} onClick={() => onDateChange(item.football_day)} ref={item.football_day === date ? selectedDateRef : undefined} type="button">
-          <small>{item.football_day}</small>
-          <b>{item.fixture_count} 场{item.football_day === footballDayShanghai() ? " · 今天" : item.football_day === date ? " · 当前" : ""}</b>
+          <span className="v41-recent-days-title">
+            <small>{item.football_day}</small>
+            <b>{` · ${item.fixture_count} 场${item.football_day === footballDayShanghai() ? " · 今天" : item.football_day === date ? " · 当前" : ""}`}</b>
+          </span>
           <em>{dateStripLabel(item)}{item.competition_count ? ` · ${item.competition_count}/13 联赛` : ""}</em>
         </button>
       ))}
@@ -401,8 +403,10 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
       <button aria-pressed={selectedId === match.fixture_id} className={`${limited ? "v41-limited-match " : ""}${selectedId === match.fixture_id ? "is-selected" : ""}`.trim() || undefined} data-fixture-id={match.fixture_id} key={match.fixture_id} onClick={() => onSelect(match.fixture_id)} type="button">
         <span className={`v41-stripe v41-stripe--${stripe}`} />
         <span className="v41-shortlist-copy">
-          <small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认", match.competition_id)}</small>
-          <strong><MatchName match={match} /></strong>
+          <div className="v41-shortlist-title">
+            <small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认", match.competition_id)}</small>
+            <strong><MatchName match={match} /></strong>
+          </div>
           {match.outcome.is_finished ? <span><b>{finishedSummary}</b></span> : kind === "priority" ? <span className="v41-reason-line"><b>优先 {priorityPosition} · 主因：{REASON_LABELS[match.priority_reason_primary || ""] || label(match.priority_reason_primary)}</b>{match.priority_reason_secondary.length ? <small>次因：{match.priority_reason_secondary.map((reason) => REASON_LABELS[reason] || label(reason)).join("、")}</small> : null}</span> : kind === "attention" ? <span className="v41-reason-line"><small>关注：{match.priority_reason_secondary.map((reason) => REASON_LABELS[reason] || label(reason)).join("、")}</small></span> : limited ? <span><b>{presentation.label}</b> · W2 盘口证据尚未落盘</span> : <span><b>{match.shadow_candidate.status === "ACTIVE" ? "影子候选" : "普通查看"}</b> · 未触发优先复核</span>}
         </span>
         <time>{kickoffLabel(match.kickoff_utc, workspace.date)}</time>
@@ -463,9 +467,15 @@ function MarketEvidence({ market, generatedAt, kickoff, finished, latestSnapshot
         <span>{market.snapshot_count} 个真实快照 · 点间不插值、不推断缺失路径</span>
         <span>最新 {localDateTime(market.latest_snapshot_at)}</span>
       </p>
-      <div className="v41-market-freshness"><span>市场证据</span><strong>{label(market.eligibility.observation_status)}</strong><span>快照来源档位</span><strong>{timelineCheckpoint || collectionCheckpoint || "档位待确认"}</strong><span>{finished ? "开球时报价年龄" : "距最新快照"}</span><strong>{ageLabel(finished ? kickoff : generatedAt, market.latest_snapshot_at)}</strong></div>
-      <div className="v41-market-semantics"><b>走势证据：{label(market.trend_evidence_status)}</b><span>{comparisonSummary(market)}</span></div>
-      <div className="v41-market-semantics"><b>候选输入</b><span>候选报价可锁定：{label(market.eligibility.candidate_quote_lock_status)} · 候选可用模型：{label(market.eligibility.candidate_model_status)}</span></div>
+      <div className="v41-market-freshness">
+        <div><span>市场证据</span><strong>{label(market.eligibility.observation_status)}</strong></div>
+        <div><span>快照档位</span><strong>{timelineCheckpoint || collectionCheckpoint || "档位待确认"}</strong></div>
+        <div><span>{finished ? "报价年龄" : "快照年龄"}</span><strong>{ageLabel(finished ? kickoff : generatedAt, market.latest_snapshot_at)}</strong></div>
+        <div><span>走势证据</span><strong>{label(market.trend_evidence_status)}</strong></div>
+        <div><span>报价锁定</span><strong>{label(market.eligibility.candidate_quote_lock_status)}</strong></div>
+        <div><span>可用模型</span><strong>{label(market.eligibility.candidate_model_status)}</strong></div>
+      </div>
+      <details className="v41-market-technical"><summary>技术说明</summary><span>{comparisonSummary(market)}</span></details>
     </section>
   );
 }
@@ -618,27 +628,32 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
       <div className="v41-focus-body">
         <div className="v41-focus-markets">{markets.map((market) => <MarketEvidence finished={finished} generatedAt={generatedAt} key={market.market} kickoff={match.kickoff_utc} latestSnapshotAt={match.market_collection.latest_snapshot_at} latestSnapshotCheckpoint={match.market_collection.latest_snapshot_checkpoint} market={market} />)}</div>
         <div className="v41-focus-meaning">
-          <span className="v41-eyebrow">{candidate.status === "ACTIVE" ? "四层" : "三层"}语义 · 互不等同</span>
-          <div className={`v41-three-layer ${candidate.status === "ACTIVE" ? "v41-three-layer--candidate" : ""}`}>
-            <div><span>市场主事实</span><strong>{MARKET_LABELS[primary.market]}</strong><b>{marketLineLabel(primary.market, primary.main_line)}</b></div>
-            <div><span>市场输入</span><strong>报价证据</strong><b>逐市场 · {candidateAggregateLabel(match.readiness.market_aggregate_status)}</b></div>
-            {candidate.status === "ACTIVE" ? <div><span>影子候选</span><strong>已形成</strong><b>进入赛后验证</b></div> : null}
-            <div><span>实盘执行</span><strong>产品权限</strong><b>未启用</b></div>
-          </div>
           {candidate.status === "ACTIVE" ? <section className="v41-candidate" data-candidate-status={candidate.status}>
             <header><span>影子候选 · 非正式推荐</span><b>验证中</b></header>
             <div><strong>{candidate.market ? MARKET_LABELS[candidate.market] : "市场待确认"} · {SELECTION_LABELS[candidate.selection || ""] || candidate.selection}</strong><span>盘口 {candidate.exact_line} · 赔率 {price(candidate.decimal_odds)}</span><small>已按 V4 身份进入统一前向账本；赛后自动结算并累计验证。</small></div>
             <footer>Formal、Lock、Production 与实盘保持关闭；达到既有证据门槛后另行提交 Owner 审批。</footer>
           </section> : null}
           {match.evaluation_execution.latest_candidates.length ? <section className="v41-candidate v41-candidate--official" data-final-active={String(match.evaluation_execution.status === "CANDIDATE")}>
-            <header><span>正式漏斗候选生命周期</span><b>{match.evaluation_execution.ever_formed_candidate ? "曾形成候选" : "未形成候选"}</b></header>
+            <header><span>正式漏斗候选</span><b>{match.evaluation_execution.status === "CANDIDATE" ? "最终仍有效" : evaluationStatusLabel(match.evaluation_execution.status)} · 产品权限未启用</b></header>
             {match.evaluation_execution.latest_candidates.map((item) => <div key={item.market}>
               <strong>{MARKET_LABELS[item.market]} · {item.selection ? SELECTION_LABELS[item.selection] || item.selection : "方向待确认"} {item.exact_line ?? "盘口待确认"} {item.decimal_odds === null ? "" : `@${item.decimal_odds.toFixed(2)}`}</strong>
               <span>{item.checkpoint} 形成 · {opportunityStateLabel(item.final_state)}</span>
             </div>)}
-            <footer>“曾形成”只代表历史事件；只有“最终仍有效”才计入推荐与赛果。</footer>
+            <footer>{match.evaluation_execution.summary_zh}</footer>
           </section> : null}
-          <div className="v41-diagnostic" data-evaluation-status={match.evaluation_execution.status}><span /><p><b>最终候选状态：{evaluationStatusLabel(match.evaluation_execution.status)}</b>{match.evaluation_execution.summary_zh}</p></div>
+          {!match.evaluation_execution.latest_candidates.length ? <div className="v41-diagnostic" data-evaluation-status={match.evaluation_execution.status}><span /><p><b>最终候选状态：{evaluationStatusLabel(match.evaluation_execution.status)}</b>{match.evaluation_execution.summary_zh}</p></div> : null}
+          <details className="v41-semantic-audit">
+            <summary>语义与生命周期说明</summary>
+            <div className="v41-semantic-audit__body">
+              <div className={`v41-three-layer ${candidate.status === "ACTIVE" ? "v41-three-layer--candidate" : ""}`}>
+                <div><span>市场主事实</span><strong>{MARKET_LABELS[primary.market]}</strong><b>{marketLineLabel(primary.market, primary.main_line)}</b></div>
+                <div><span>市场输入</span><strong>报价证据</strong><b>逐市场 · {candidateAggregateLabel(match.readiness.market_aggregate_status)}</b></div>
+                {candidate.status === "ACTIVE" ? <div><span>影子候选</span><strong>已形成</strong><b>进入赛后验证</b></div> : null}
+                <div><span>实盘执行</span><strong>产品权限</strong><b>未启用</b></div>
+              </div>
+              <p>“曾形成”只代表历史事件；只有“最终仍有效”才计入推荐与赛果。</p>
+            </div>
+          </details>
           <details className="v41-compact-audit">
             <summary>模型、风险与调度审计</summary>
             <div className="v41-compact-audit__body">
