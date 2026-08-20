@@ -2250,7 +2250,17 @@ def test_fixture_1490391_reports_candidate_then_missed_checkpoints() -> None:
         "versions": [
             _official_evaluation(
                 "1490391", "TOTALS", "ANALYSIS_PICK_ACTIVE", "T45_ODDS", "2026-08-19T22:52:50Z"
-            )
+            ),
+            _official_evaluation(
+                "1490391",
+                "ASIAN_HANDICAP",
+                "NOT_READY_QUOTE_INCOMPLETE",
+                "T45_ODDS",
+                "2026-08-19T22:52:49Z",
+                bookmaker_count=2,
+                first_failed_gate="BOOKMAKER_DEPTH",
+                blockers=["INSUFFICIENT_BOOKMAKER_DEPTH"],
+            ),
         ],
         "opportunities": [
             _official_opportunity(
@@ -2274,6 +2284,36 @@ def test_fixture_1490391_reports_candidate_then_missed_checkpoints() -> None:
 
     assert diagnosis["status"] == "CHECKPOINT_MISSED"
     assert diagnosis["missing_detail_zh"] == "未完成档位：T-30m / T-15m。"
+
+
+def test_mixed_market_candidate_takes_precedence_over_no_edge() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["fixture_id"] = "1570351"
+    card["dynamic_prematch"] = {
+        "versions": [
+            _official_evaluation(
+                "1570351", "TOTALS", "ANALYSIS_PICK_ACTIVE", "T3_ODDS", "2026-08-20T16:04:00Z"
+            ),
+            _official_evaluation(
+                "1570351", "ASIAN_HANDICAP", "NO_EDGE_CURRENT", "T3_ODDS", "2026-08-20T16:04:00Z"
+            ),
+        ],
+        "opportunities": [
+            _official_opportunity(
+                "1570351", "TOTALS", "EVALUATED_CANDIDATE", "T3_ODDS", "2026-08-20T16:00:00Z"
+            ),
+            _official_opportunity(
+                "1570351", "ASIAN_HANDICAP", "EVALUATED_NO_EDGE", "T3_ODDS", "2026-08-20T16:00:00Z"
+            ),
+        ],
+    }
+    day_view["cards"] = [card]
+
+    match = _workspace(day_view)["matches"][0]
+
+    assert match["evaluation_execution"]["status"] == "CANDIDATE"
+    assert match["evaluation_execution"]["diagnosis"]["status"] == "CANDIDATE_ACTIVE"
 
 
 def test_fixture_1490399_reports_multi_endpoint_provider_empty_truth() -> None:

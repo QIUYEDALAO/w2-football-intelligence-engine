@@ -501,7 +501,7 @@ def _evaluation_diagnosis(
         )
         == "BLOCKED_BY_GATE"
     ]
-    if blocked_attempts:
+    if blocked_attempts and status not in {"CANDIDATE", "TECHNICAL_INVALIDATED"}:
         row, _state, evaluated_at = max(blocked_attempts, key=lambda item: item[2])
         gate = _text(row.get("first_failed_gate")) or next(
             iter(_string_list(row.get("blockers"))), "UNKNOWN_GATE"
@@ -603,14 +603,6 @@ def _evaluation_diagnosis(
             "next_step_zh": "检查调度与评估错误证据；不改写既有账本。",
         }
 
-    if no_edge_evaluated:
-        return {
-            **base,
-            "status": "NO_EDGE",
-            "primary_blocker_zh": "已完整评估但无价值差",
-            "missing_detail_zh": _no_edge_detail(evaluated),
-            "next_step_zh": "保留该次完整评估；无需把 NO_EDGE 解释为数据缺失。",
-        }
     if status == "CANDIDATE":
         return {
             **base,
@@ -618,6 +610,14 @@ def _evaluation_diagnosis(
             "primary_blocker_zh": "最终仍为候选",
             "missing_detail_zh": "候选轨道已完成评估并保持有效。",
             "next_step_zh": "等待赛果进入既有结算流程。",
+        }
+    if no_edge_evaluated:
+        return {
+            **base,
+            "status": "NO_EDGE",
+            "primary_blocker_zh": "已完整评估但无价值差",
+            "missing_detail_zh": _no_edge_detail(evaluated),
+            "next_step_zh": "保留该次完整评估；无需把 NO_EDGE 解释为数据缺失。",
         }
     return {
         **base,
