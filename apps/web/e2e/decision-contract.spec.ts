@@ -775,6 +775,8 @@ test("V41 finished match freezes quote age at kickoff and closes prematch planni
   await expect(market.locator(".v41-market-freshness")).toContainText("开球时报价年龄10 分钟");
   await expect(page.locator(".v41-next")).toContainText("采集状态赛前流程已关闭");
   await expect(page.locator(".v41-next")).toContainText("下次评估赛前流程已结束");
+  await expect(page.locator("#factor-checklist-title")).toContainText("赛前未形成正式漏斗评估");
+  await expect(page.locator("#factor-checklist-title")).not.toContainText("尚未评估");
 });
 
 test("V41 keeps not-yet-due lineups out of anomalous missing inputs", async ({ page }) => {

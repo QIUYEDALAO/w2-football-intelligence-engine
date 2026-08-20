@@ -564,13 +564,23 @@ function LedgerFact({ checklist }: { checklist: FixtureFactorChecklist }) {
 
 function FactorChecklist({ match }: { match: WorkspaceMatch }) {
   const checklist = match.factor_checklist;
+  const finishedConclusion = match.evaluation_execution.status === "CANDIDATE"
+    ? "赛前正式漏斗最终仍为候选；下方因子表仅保留赛后审计投影。"
+    : match.evaluation_execution.status === "TECHNICAL_INVALIDATED"
+      ? "赛前曾形成候选，但后续官方检查点技术失效；下方因子表仅保留赛后审计投影。"
+      : match.evaluation_execution.status === "NO_EDGE"
+        ? "赛前正式漏斗最终为无优势；下方因子表仅保留赛后审计投影。"
+        : match.evaluation_execution.status === "BLOCKED"
+          ? "赛前正式漏斗最终被门禁阻断；下方因子表仅保留赛后审计投影。"
+          : "赛前未形成正式漏斗评估；下方因子表仅保留赛后审计投影。";
+  const conclusion = match.outcome.is_finished ? finishedConclusion : checklist.conclusion_zh;
   const modelGates = checklist.factors.filter((factor) => factor.role_model_forecast === "HARD_GATE");
   const candidateGates = checklist.factors.filter((factor) => factor.role_shadow_candidate === "HARD_GATE" && factor.role_model_forecast !== "HARD_GATE");
   const enhancements = checklist.factors
     .filter((factor) => !modelGates.includes(factor) && !candidateGates.includes(factor))
     .sort((left, right) => Number(left.cause === "POLICY_DISABLED") - Number(right.cause === "POLICY_DISABLED"));
   return <section className="v41-factor-checklist" aria-labelledby="factor-checklist-title">
-    <header><div><span className="v41-eyebrow">本场因子体检</span><h2 id="factor-checklist-title">{checklist.conclusion_zh}</h2></div><div className="v41-factor-tracks"><b className={checklist.track_model_forecast.state === "READY" ? "is-ready" : "is-blocked"}>模型账本 {checklist.track_model_forecast.state}</b><b className={checklist.track_shadow_candidate.state === "READY" ? "is-ready" : "is-blocked"}>候选因子投影 {checklist.track_shadow_candidate.state}</b></div></header>
+    <header><div><span className="v41-eyebrow">本场因子体检</span><h2 id="factor-checklist-title">{conclusion}</h2></div><div className="v41-factor-tracks"><b className={checklist.track_model_forecast.state === "READY" ? "is-ready" : "is-blocked"}>模型账本 {checklist.track_model_forecast.state}</b><b className={checklist.track_shadow_candidate.state === "READY" ? "is-ready" : "is-blocked"}>候选因子投影 {checklist.track_shadow_candidate.state}</b></div></header>
     <p>{checklist.market_identity_note_zh} 本区只解释因子投影，不改写上方正式漏斗最终状态。</p>
     <LedgerFact checklist={checklist} />
     <div className="v41-factor-group"><h3>模型预测硬门 <small>决定能否进入验证账本</small></h3><FactorRows factors={modelGates} /></div>
