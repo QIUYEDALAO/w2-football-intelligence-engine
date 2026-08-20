@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { footballDayShanghai, translateCompetition, translateReason } from "../lib/formatters";
 import { PUBLIC_ENUM_LABELS, PUBLIC_REASON_LABELS } from "../lib/labels";
-import { formatAhSideLines } from "../lib/pricingDisplay";
+import { formatAhMarketHandicap } from "../lib/pricingDisplay";
 import { publicPresentation } from "../lib/publicPresentation";
 import type {
   FixtureFactor,
@@ -237,8 +237,7 @@ function price(value: unknown): string {
 
 function marketLineLabel(market: WorkspaceMarket["market"], line: string | null): string {
   if (!line) return "—";
-  const sides = market === "ASIAN_HANDICAP" ? formatAhSideLines(line) : null;
-  return sides ? `${sides.home.replace("主队", "主")} / ${sides.away.replace("客队", "客")}` : line;
+  return market === "ASIAN_HANDICAP" ? formatAhMarketHandicap(line) || "—" : line;
 }
 
 function comparisonSummary(market: WorkspaceMarket): string {
@@ -588,11 +587,16 @@ function FactorChecklist({ match }: { match: WorkspaceMatch }) {
     .sort((left, right) => Number(left.cause === "POLICY_DISABLED") - Number(right.cause === "POLICY_DISABLED"));
   return <section className="v41-factor-checklist" aria-labelledby="factor-checklist-title">
     <header><div><span className="v41-eyebrow">本场因子体检</span><h2 id="factor-checklist-title">{conclusion}</h2></div><div className="v41-factor-tracks"><b className={checklist.track_model_forecast.state === "READY" ? "is-ready" : "is-blocked"}>模型账本 {checklist.track_model_forecast.state}</b><b className={checklist.track_shadow_candidate.state === "READY" ? "is-ready" : "is-blocked"}>候选因子投影 {checklist.track_shadow_candidate.state}</b></div></header>
-    <p>{checklist.market_identity_note_zh} 本区只解释因子投影，不改写上方正式漏斗最终状态。</p>
-    <LedgerFact checklist={checklist} />
-    <div className="v41-factor-group"><h3>模型预测硬门 <small>决定能否进入验证账本</small></h3><FactorRows factors={modelGates} /></div>
-    <div className="v41-factor-group"><h3>候选市场硬门 <small>让球 / 大小球独立显示</small></h3><FactorRows factors={candidateGates} /></div>
-    <div className="v41-factor-group"><h3>增强与解释因子 <small>不影响能否推荐，只影响解释质量</small></h3><FactorRows factors={enhancements} /></div>
+    <details className="v41-factor-audit">
+      <summary>展开因子与模型账本审计</summary>
+      <div className="v41-factor-audit__body">
+        <p>{checklist.market_identity_note_zh} 本区只解释因子投影，不改写上方正式漏斗最终状态。</p>
+        <LedgerFact checklist={checklist} />
+        <div className="v41-factor-group"><h3>模型预测硬门 <small>决定能否进入验证账本</small></h3><FactorRows factors={modelGates} /></div>
+        <div className="v41-factor-group"><h3>候选市场硬门 <small>让球 / 大小球独立显示</small></h3><FactorRows factors={candidateGates} /></div>
+        <div className="v41-factor-group"><h3>增强与解释因子 <small>不影响能否推荐，只影响解释质量</small></h3><FactorRows factors={enhancements} /></div>
+      </div>
+    </details>
   </section>;
 }
 
@@ -635,11 +639,16 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
             <footer>“曾形成”只代表历史事件；只有“最终仍有效”才计入推荐与赛果。</footer>
           </section> : null}
           <div className="v41-diagnostic" data-evaluation-status={match.evaluation_execution.status}><span /><p><b>最终候选状态：{evaluationStatusLabel(match.evaluation_execution.status)}</b>{match.evaluation_execution.summary_zh}</p></div>
-          <div className="v41-diagnostic"><span /><p><b>可比较模型（需已验证校准）：{label(model.status)}</b>{`让球：${label(marketRelations[0]?.status)}；大小球：${label(marketRelations[1]?.status)}。该状态只决定能否绘制模型—市场对比图；${marketRelations.some((relation) => ["COMPARABLE_WITHIN_MARKET_RANGE", "MODEL_OUTSIDE_MARKET_RANGE"].includes(relation?.status || "")) ? "已就绪市场可绘制诊断图。" : "当前暂不绘制。"}优先检查模型校准、特征时效、盘口身份和数据质量。`}</p></div>
-          <RiskSummary generatedAt={generatedAt} match={match} />
-          <Scoreline match={match} />
-          <div className="v41-next"><span>市场输入</span><strong>{candidateAggregateLabel(match.readiness.market_aggregate_status)}</strong><span>最终候选</span><strong>{evaluationStatusLabel(match.evaluation_execution.status)}</strong><span>采集状态</span><strong>{finished ? "赛前流程已关闭" : collectionLabel(match)}</strong><span>计划时刻</span><strong>{finished ? "不适用" : match.market_collection.scheduled_at ? scheduledEvaluation(match.market_collection.scheduled_at, generatedAt) : "暂无后续计划"}</strong><span>宽限结束</span><strong>{finished ? "不适用" : match.market_collection.window_end_at ? localDateTime(match.market_collection.window_end_at) : "不适用"}</strong><span>下次评估</span><strong>{finished ? "赛前流程已结束" : nextEvaluation(match.readiness.next_eval_at, generatedAt)}</strong></div>
-          <details className="v41-details"><summary>技术详情</summary><code>{match.intelligence_state}</code><code>{match.readiness.reason_code || "NO_REASON_CODE"}</code><code>market_aggregate={match.readiness.market_aggregate_status}</code><code>model_source={model.source_status}</code>{markets.map((market) => <span key={market.market}><code>{market.market}:{market.eligibility.model_diagnostic_status}</code>{market.reason_codes.map((reason) => <code key={`${market.market}-${reason}`}>{market.market}:{reason}</code>)}{market.eligibility.blockers.map((blocker) => <code key={`${market.market}-${blocker}`}>{market.market}:{blocker}</code>)}</span>)}</details>
+          <details className="v41-compact-audit">
+            <summary>模型、风险与调度审计</summary>
+            <div className="v41-compact-audit__body">
+              <div className="v41-diagnostic"><span /><p><b>可比较模型（需已验证校准）：{label(model.status)}</b>{`让球：${label(marketRelations[0]?.status)}；大小球：${label(marketRelations[1]?.status)}。该状态只决定能否绘制模型—市场对比图；${marketRelations.some((relation) => ["COMPARABLE_WITHIN_MARKET_RANGE", "MODEL_OUTSIDE_MARKET_RANGE"].includes(relation?.status || "")) ? "已就绪市场可绘制诊断图。" : "当前暂不绘制。"}优先检查模型校准、特征时效、盘口身份和数据质量。`}</p></div>
+              <RiskSummary generatedAt={generatedAt} match={match} />
+              <Scoreline match={match} />
+              <div className="v41-next"><span>市场输入</span><strong>{candidateAggregateLabel(match.readiness.market_aggregate_status)}</strong><span>最终候选</span><strong>{evaluationStatusLabel(match.evaluation_execution.status)}</strong><span>采集状态</span><strong>{finished ? "赛前流程已关闭" : collectionLabel(match)}</strong><span>计划时刻</span><strong>{finished ? "不适用" : match.market_collection.scheduled_at ? scheduledEvaluation(match.market_collection.scheduled_at, generatedAt) : "暂无后续计划"}</strong><span>宽限结束</span><strong>{finished ? "不适用" : match.market_collection.window_end_at ? localDateTime(match.market_collection.window_end_at) : "不适用"}</strong><span>下次评估</span><strong>{finished ? "赛前流程已结束" : nextEvaluation(match.readiness.next_eval_at, generatedAt)}</strong></div>
+              <details className="v41-details"><summary>技术详情</summary><code>{match.intelligence_state}</code><code>{match.readiness.reason_code || "NO_REASON_CODE"}</code><code>market_aggregate={match.readiness.market_aggregate_status}</code><code>model_source={model.source_status}</code>{markets.map((market) => <span key={market.market}><code>{market.market}:{market.eligibility.model_diagnostic_status}</code>{market.reason_codes.map((reason) => <code key={`${market.market}-${reason}`}>{market.market}:{reason}</code>)}{market.eligibility.blockers.map((blocker) => <code key={`${market.market}-${blocker}`}>{market.market}:{blocker}</code>)}</span>)}</details>
+            </div>
+          </details>
         </div>
       </div>
       <FactorChecklist match={match} />

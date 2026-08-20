@@ -36,6 +36,14 @@ export function formatAhSideLines(homeLine: unknown): { home: string; away: stri
   };
 }
 
+export function formatAhMarketHandicap(homeLine: unknown): string | null {
+  const numeric = numericValue(homeLine);
+  if (numeric == null) return null;
+  if (Math.abs(numeric) < 0.005) return "0";
+  const handicap = -numeric;
+  return `${handicap < 0 ? "-" : ""}${formatLine(Math.abs(handicap))}`;
+}
+
 export function ahDisplayContract(homeLine: unknown): {
   display_line_cn: string;
   home_display_line_cn: string;

@@ -494,6 +494,7 @@ test("market depth asymmetry stays inside the existing technical details", async
   const focus = page.locator(".v41-focus");
   const reason = focus.getByText("ASIAN_HANDICAP:MARKET_DEPTH_ASYMMETRY", { exact: true });
   await expect(reason).not.toBeVisible();
+  await focus.locator(".v41-compact-audit > summary").click();
   await focus.locator(".v41-details > summary").click();
   await expect(reason).toBeVisible();
   await expect(focus.locator(".v41-focus-summary")).not.toContainText("MARKET_DEPTH_ASYMMETRY");
@@ -542,7 +543,7 @@ test("V41 separates diagnostic market age from the candidate quote-age hard gate
   await expect(page.locator(".v41-scoreline")).toHaveCount(0);
 });
 
-test("AH market radar anchors the line and prices to both teams", async ({ page }) => {
+test("AH market radar uses the owner main-handicap sign convention", async ({ page }) => {
   const payload = workspace();
   const focused = payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!;
   const handicap = focused.market_radar.markets.ASIAN_HANDICAP;
@@ -556,10 +557,26 @@ test("AH market radar anchors the line and prices to both teams", async ({ page 
   await page.goto("/");
 
   const market = page.locator("[data-market='ASIAN_HANDICAP']");
-  await expect(market.locator(".v41-market-line > strong")).toHaveText("主 +0.5 / 客 -0.5");
-  await expect(market.locator(".v41-snapshots li").last()).toContainText("主 +0.5 / 客 -0.5");
+  await expect(market.locator(".v41-market-line > strong")).toHaveText("-0.5");
+  await expect(market.locator(".v41-snapshots li").last()).toContainText("-0.5");
   await expect(market.locator(".v41-snapshots li").last()).toContainText("主 1.94 / 客 1.80");
-  await expect(page.locator(".v41-three-layer > div").first()).toContainText("主 +0.5 / 客 -0.5");
+  await expect(page.locator(".v41-three-layer > div").first()).toContainText("-0.5");
+
+  handicap.main_line = "-1.5";
+  handicap.timeline_points = handicap.timeline_points.map((point) => ({ ...point, canonical_line: "-1.5" }));
+  await page.reload();
+  await expect(market.locator(".v41-market-line > strong")).toHaveText("1.5");
+  await expect(market.locator(".v41-snapshots li").last()).toContainText("1.5");
+});
+
+test("V41 keeps low-priority diagnostics folded by default", async ({ page }) => {
+  await installWorkspace(page, "deployed");
+  await page.goto("/");
+
+  await expect(page.locator(".v41-compact-audit")).not.toHaveAttribute("open", "");
+  await expect(page.locator(".v41-factor-audit")).not.toHaveAttribute("open", "");
+  await expect(page.locator(".v41-diagnostic[data-evaluation-status]")).toBeVisible();
+  await expect(page.locator(".v41-factor-checklist > header")).toBeVisible();
 });
 
 test("R5 factor checklist keeps model and shadow tracks separate per market", async ({ page }, testInfo) => {
@@ -662,6 +679,7 @@ test("D16 keeps canonical risk codes in technical detail, not public explanation
   await expect(publicCopy).toContainText("数据字段已超过新鲜度边界");
   await expect(publicCopy).not.toContainText("DATA IDENTITY NOT READY");
   await expect(publicCopy).not.toContainText("DATA_IDENTITY_NOT_READY");
+  await page.locator(".v41-compact-audit > summary").click();
   await risks.locator("details summary").first().click();
   await expect(risks).toContainText("DATA_IDENTITY_NOT_READY");
 });
