@@ -1701,3 +1701,115 @@ def test_failed_with_only_a_link_row_stays_pinned() -> None:
         assert normalize_repo_time(row.kickoff_utc) == original
         assert row.status == "FAILED"
         assert session.scalars(select(MatchdayCheckpointPlanRescheduleModel)).all() == []
+
+
+@pytest.mark.parametrize("status", ["PLANNED", "DUE"])
+def test_widened_grace_reaches_unclaimed_open_rows(status: str) -> None:
+    """A grace change has to reach the plans it was written for.
+
+    plan_hash is taken over the plan's own fields, window_end among them, and is
+    rewritten on every regeneration. Pinning the window while the hash moved left
+    each untouched row described by a hash its contents no longer produce, and
+    confined the new grace to fixtures discovered later. T-30m_VALIDATION_LOCK is
+    what made that visible: alone on the ladder it carried 300s where every other
+    slot had 900s or more, and against a sweep that reaches a competition roughly
+    every twelve minutes it captured 9 times against 10247 missed.
+    """
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+
+    def plan(grace: timedelta) -> CheckpointPlan:
+        return CheckpointPlan(
+            competition_id="mls",
+            season="2026",
+            fixture_id="api_football:1490404",
+            checkpoint="T-30m_VALIDATION_LOCK",
+            kickoff_utc=KICKOFF,
+            scheduled_at=KICKOFF - timedelta(minutes=30),
+            window_start=KICKOFF - timedelta(minutes=30),
+            window_end=KICKOFF - timedelta(minutes=30) + grace,
+            endpoints=("odds", "lineups"),
+            status=status,
+            blockers=(),
+        )
+
+    narrow = plan(timedelta(minutes=5))
+    widened = plan(timedelta(minutes=15))
+    repository.upsert_checkpoint_plan(narrow)
+    repository.upsert_checkpoint_plan(widened)
+
+    with Session(engine) as session:
+        row = session.scalars(select(MatchdayCheckpointPlanModel)).one()
+
+    assert row.window_end.replace(tzinfo=UTC) == widened.window_end
+    assert row.plan_hash == widened.plan_hash, "the stored hash describes the stored window"
+
+
+def test_a_claimed_plan_keeps_the_window_its_worker_was_handed() -> None:
+    """Widening must not move the window under a worker already holding the row.
+
+    A claimed plan is mid-flight against the window it was given; the re-date
+    branch releases such a claim for exactly this reason. Rewriting the window in
+    place instead would let a capture be recorded against bounds the worker never
+    saw.
+    """
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    scheduled = KICKOFF - timedelta(minutes=30)
+    active_claim = stable_hash("active-claim")
+
+    def plan(grace: timedelta, status: str) -> CheckpointPlan:
+        return CheckpointPlan(
+            competition_id="mls",
+            season="2026",
+            fixture_id="api_football:1490405",
+            checkpoint="T-30m_VALIDATION_LOCK",
+            kickoff_utc=KICKOFF,
+            scheduled_at=scheduled,
+            window_start=scheduled,
+            window_end=scheduled + grace,
+            endpoints=("odds", "lineups"),
+            status=status,
+            blockers=(),
+        )
+
+    narrow = plan(timedelta(minutes=5), "PLANNED")
+    repository.upsert_checkpoint_plan(narrow)
+    with Session(engine) as session:
+        row = session.scalars(select(MatchdayCheckpointPlanModel)).one()
+        row.status = "DUE"
+        row.claimed_at = scheduled
+        row.claimed_by = "worker-1"
+        row.claim_token = active_claim
+        row.claim_expires_at = scheduled + timedelta(minutes=15)
+        session.commit()
+
+    # An open window projects DUE, which is what the sweep re-offers here.
+    repository.upsert_checkpoint_plan(plan(timedelta(minutes=15), "DUE"))
+
+    with Session(engine) as session:
+        row = session.scalars(select(MatchdayCheckpointPlanModel)).one()
+
+    assert row.window_end.replace(tzinfo=UTC) == scheduled + timedelta(minutes=5)
+    assert row.claim_token == active_claim
+    assert row.plan_hash == narrow.plan_hash
+
+
+def test_t30_validation_grace_meets_t15_at_boundary_for_every_policy() -> None:
+    policies = competition_policies(load_matchday_policy())
+
+    assert len(policies) == 14
+    for policy in policies.values():
+        checkpoints = {item.name: item for item in policy.checkpoints}
+        t30 = checkpoints["T-30m_VALIDATION_LOCK"]
+        t15 = checkpoints["T15_ODDS"]
+
+        assert t30.grace_seconds == 900
+        assert (
+            t30.offset_seconds_before_kickoff - t30.grace_seconds
+            == t15.offset_seconds_before_kickoff
+        )

@@ -179,12 +179,34 @@ class MatchdayRuntimeRepository:
                 return plan_id
             if existing.status in {*_TERMINAL_CHECKPOINT_STATUSES, "FAILED"}:
                 return plan_id
+            # A claimed DUE row is the exact plan a worker is executing.  Keep
+            # its window and hash together until that claim finishes.
+            if existing.status == "DUE" and (
+                existing.claimed_at is not None or existing.claim_token is not None
+            ):
+                return plan_id
             if normalize_repo_time(existing.scheduled_at) != normalize_repo_time(
                 _dt(payload["scheduled_at"])
             ):
                 raise MatchdayRepositoryError("CHECKPOINT_PLAN_CONFLICT")
             if existing.status == "MISSED" and incoming_status == "CAPTURED":
                 raise MatchdayRepositoryError("MISSED_CHECKPOINT_IMMUTABLE")
+            # plan_hash is taken over the plan's own fields, window_end among
+            # them, and is refreshed below on every regeneration.  Leaving the
+            # window pinned while the hash moves would describe each untouched
+            # row by a hash its own contents no longer produce, so a policy that
+            # widens a grace period would land on new fixtures only and leave
+            # every already-planned row silently inconsistent.  Unclaimed DUE
+            # rows are safe to refresh; claimed rows returned above are not.
+            if (
+                existing.status in {"PLANNED", "DUE"}
+                and existing.claimed_at is None
+                and existing.claim_token is None
+                and normalize_repo_time(existing.window_end)
+                != normalize_repo_time(_dt(payload["window_end"]))
+            ):
+                existing.window_start = _dt(payload["window_start"])
+                existing.window_end = _dt(payload["window_end"])
             existing.status = _transition_status(existing.status, incoming_status)
             existing.missed_at = (
                 _dt(payload["missed_at"]) if payload.get("missed_at") else existing.missed_at
