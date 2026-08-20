@@ -112,22 +112,48 @@ def enqueue_attempt_notification_in_session(
     current_state = version.opportunity_state
     if current_state is None:
         return []
+    previous_opportunity = session.scalar(
+        select(DynamicPrematchOpportunityModel)
+        .where(
+            DynamicPrematchOpportunityModel.fixture_id == version.fixture_id,
+            DynamicPrematchOpportunityModel.market == version.market,
+            DynamicPrematchOpportunityModel.model_forecast_capture_identity_hash
+            == version.model_forecast_capture_identity_hash,
+            DynamicPrematchOpportunityModel.evaluation_policy_version
+            == version.evaluation_policy_version,
+            DynamicPrematchOpportunityModel.scheduled_checkpoint_at
+            < version.scheduled_checkpoint_at,
+            DynamicPrematchOpportunityModel.opportunity_identity_hash
+            != version.opportunity_identity_hash,
+        )
+        .order_by(
+            DynamicPrematchOpportunityModel.scheduled_checkpoint_at.desc(),
+            DynamicPrematchOpportunityModel.recorded_at.desc(),
+            DynamicPrematchOpportunityModel.opportunity_identity_hash.desc(),
+        )
+        .limit(1)
+    )
+    previous_state = (
+        previous_opportunity.state
+        if previous_opportunity is not None
+        else _opportunity_state(previous)
+    )
 
-    events: list[tuple[str, DynamicPrematchEvaluationModel | None]] = []
+    events: list[tuple[str, DynamicPrematchEvaluationModel | None, str | None]] = []
     if current_state == OpportunityState.EVALUATED_CANDIDATE:
         if previous_candidate is None:
-            events.append((CANDIDATE_FORMED, None))
-        elif previous is None or _opportunity_state(previous) != "EVALUATED_CANDIDATE":
-            events.append((CANDIDATE_MATERIAL_CHANGE, previous_candidate))
-        elif _materially_changed(previous.payload, version.as_dict()):
-            events.append((CANDIDATE_MATERIAL_CHANGE, previous))
+            events.append((CANDIDATE_FORMED, None, previous_state))
+        elif previous_state != "EVALUATED_CANDIDATE":
+            events.append((CANDIDATE_MATERIAL_CHANGE, previous_candidate, previous_state))
+        elif previous is not None and _materially_changed(previous.payload, version.as_dict()):
+            events.append((CANDIDATE_MATERIAL_CHANGE, previous, previous_state))
         if version.evaluation_slot_id == T30_SLOT and previous_candidate is not None:
-            events.append((CANDIDATE_T30_CONFIRMED, previous_candidate))
-    elif previous is not None and _opportunity_state(previous) == "EVALUATED_CANDIDATE":
-        events.append((CANDIDATE_WITHDRAWN, previous))
+            events.append((CANDIDATE_T30_CONFIRMED, previous_candidate, previous_state))
+    elif previous_state == "EVALUATED_CANDIDATE" and previous_candidate is not None:
+        events.append((CANDIDATE_WITHDRAWN, previous_candidate, previous_state))
 
     inserted: list[str] = []
-    for event_type, comparison in events:
+    for event_type, comparison, event_previous_state in events:
         outbox_created_at = datetime.now(UTC)
         payload = _attempt_payload(
             session,
@@ -136,6 +162,12 @@ def enqueue_attempt_notification_in_session(
             comparison=(comparison.payload if comparison is not None else None),
             outbox_created_at=outbox_created_at,
         )
+        if (
+            event_type == CANDIDATE_MATERIAL_CHANGE
+            and event_previous_state
+            and event_previous_state != "EVALUATED_CANDIDATE"
+        ):
+            payload["reformed_after_state"] = event_previous_state
         event_id = _event_id(version.attempt_identity_hash, event_type)
         if _insert(
             session,
@@ -143,7 +175,7 @@ def enqueue_attempt_notification_in_session(
             opportunity_identity_hash=version.opportunity_identity_hash,
             attempt_identity_hash=version.attempt_identity_hash,
             event_type=event_type,
-            previous_state=_opportunity_state(comparison) if comparison is not None else None,
+            previous_state=event_previous_state,
             current_state=current_state.value,
             payload=payload,
             created_at=outbox_created_at,
@@ -971,34 +1003,37 @@ def render_bark_message(payload: Mapping[str, Any]) -> dict[str, str]:
     if event_type == CANDIDATE_FORMED:
         title = f"[阵容] {teams} {kickoff_hm} {market}{line} {direction} @{odds}"
     elif event_type == CANDIDATE_MATERIAL_CHANGE:
-        change = _as_mapping(payload.get("change"))
-        previous = _as_mapping(change.get("previous"))
-        current = _as_mapping(change.get("current"))
-        material_fields = set(change.get("material_fields") or [])
-        old_line = _format_line(previous.get("exact_line"))
-        new_line = _format_line(current.get("exact_line"))
-        if "exact_line" in material_fields or old_line != new_line:
-            detail = f"{market} {old_line} → {new_line}"
-        elif "selection" in material_fields:
-            detail = (
-                f"{market} {_direction_label(previous.get('selection'))} → "
-                f"{_direction_label(current.get('selection'))}"
-            )
-        elif "bookmaker_id" in material_fields:
-            detail = (
-                f"{market} 机构 {previous.get('bookmaker_id') or '?'} → "
-                f"{current.get('bookmaker_id') or '?'}"
-            )
-        elif "current_ev" in material_fields:
-            detail = (
-                f"{market} EV{_format_ev(previous.get('current_ev'))} → "
-                f"EV{_format_ev(current.get('current_ev'))}"
-            )
+        if payload.get("reformed_after_state"):
+            title = f"[恢复] {teams} {market}{line} {direction} @{odds}"
         else:
-            old_odds = _format_odds(previous.get("decimal_odds"))
-            new_odds = _format_odds(current.get("decimal_odds"))
-            detail = f"{market} @{old_odds} → @{new_odds}"
-        title = f"[变盘] {teams} {detail}"
+            change = _as_mapping(payload.get("change"))
+            previous = _as_mapping(change.get("previous"))
+            current = _as_mapping(change.get("current"))
+            material_fields = set(change.get("material_fields") or [])
+            old_line = _format_line(previous.get("exact_line"))
+            new_line = _format_line(current.get("exact_line"))
+            if "exact_line" in material_fields or old_line != new_line:
+                detail = f"{market} {old_line} → {new_line}"
+            elif "selection" in material_fields:
+                detail = (
+                    f"{market} {_direction_label(previous.get('selection'))} → "
+                    f"{_direction_label(current.get('selection'))}"
+                )
+            elif "bookmaker_id" in material_fields:
+                detail = (
+                    f"{market} 机构 {previous.get('bookmaker_id') or '?'} → "
+                    f"{current.get('bookmaker_id') or '?'}"
+                )
+            elif "current_ev" in material_fields:
+                detail = (
+                    f"{market} EV{_format_ev(previous.get('current_ev'))} → "
+                    f"EV{_format_ev(current.get('current_ev'))}"
+                )
+            else:
+                old_odds = _format_odds(previous.get("decimal_odds"))
+                new_odds = _format_odds(current.get("decimal_odds"))
+                detail = f"{market} @{old_odds} → @{new_odds}"
+            title = f"[变盘] {teams} {detail}"
     elif event_type == CANDIDATE_WITHDRAWN:
         title = f"[撤回] {teams} {market} 原因：{_withdrawal_reason(payload)}"
     elif event_type == CANDIDATE_T30_CONFIRMED:

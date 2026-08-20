@@ -241,6 +241,11 @@ def _model_forecast_progress(raw: Mapping[str, Any]) -> dict[str, Any]:
         "sample_target": max(1, _int(raw.get("sample_target")) or 200),
         "current_flow_candidate_count": max(0, _int(raw.get("current_flow_candidate_count"))),
         "current_flow_settled_count": max(0, _int(raw.get("current_flow_settled_count"))),
+        "ever_formed_candidate_count": max(0, _int(raw.get("ever_formed_candidate_count"))),
+        "final_candidate_count": max(0, _int(raw.get("final_candidate_count"))),
+        "invalidated_candidate_count": max(0, _int(raw.get("invalidated_candidate_count"))),
+        "t30_evaluated_candidate_count": max(0, _int(raw.get("t30_evaluated_candidate_count"))),
+        "t30_confirmed_candidate_count": max(0, _int(raw.get("t30_confirmed_candidate_count"))),
         "min_xg_matches": max(1, _int(raw.get("min_xg_matches")) or 3),
         "xg_ready_team_count": max(0, _int(raw.get("xg_ready_team_count"))),
         "next_7d_xg_ready_fixture_count": max(0, _int(raw.get("next_7d_xg_ready_fixture_count"))),
@@ -368,6 +373,29 @@ def _evaluation_execution(card: Mapping[str, Any]) -> dict[str, Any]:
         if evaluated_at is None:
             continue
         evaluated.append((version, state, evaluated_at))
+    opportunities = _mapping_list(_mapping(card.get("dynamic_prematch")).get("opportunities"))
+    final_by_market: dict[str, Mapping[str, Any]] = {}
+    for opportunity in opportunities:
+        market = _text(opportunity.get("market"))
+        if not market:
+            continue
+        previous = final_by_market.get(market)
+        order = (
+            _text(opportunity.get("scheduled_checkpoint_at")),
+            _text(opportunity.get("recorded_at")),
+            _text(opportunity.get("opportunity_identity_hash")),
+        )
+        previous_order = (
+            (
+                _text(previous.get("scheduled_checkpoint_at")),
+                _text(previous.get("recorded_at")),
+                _text(previous.get("opportunity_identity_hash")),
+            )
+            if previous
+            else ("", "", "")
+        )
+        if previous is None or order > previous_order:
+            final_by_market[market] = opportunity
     checkpoints: dict[str, set[str]] = {}
     ordered = sorted(evaluated, key=lambda item: _text(item[0].get("evaluated_at")))
     for version, _, _ in ordered:
@@ -379,22 +407,84 @@ def _evaluation_execution(card: Mapping[str, Any]) -> dict[str, Any]:
         checkpoints.setdefault(label, set()).add(_text(version.get("market")))
     labels = list(checkpoints)
     market_names = sorted({market for markets in checkpoints.values() for market in markets})
-    status = (
-        "CANDIDATE"
-        if any(state == "ANALYSIS_PICK_ACTIVE" for _, state, _ in evaluated)
-        else "NO_EDGE"
-        if evaluated
-        else "UNASSESSED"
-    )
+    ever_formed_candidate = any(state == "ANALYSIS_PICK_ACTIVE" for _, state, _ in evaluated)
+    final_states = {_text(row.get("state")) for row in final_by_market.values()}
+    if "EVALUATED_CANDIDATE" in final_states:
+        status = "CANDIDATE"
+    elif final_states & {"MISSED_CHECKPOINT", "EVALUATION_ERROR"}:
+        status = "TECHNICAL_INVALIDATED"
+    elif "BLOCKED_BY_GATE" in final_states:
+        status = "BLOCKED"
+    elif "EVALUATED_NO_EDGE" in final_states:
+        status = "NO_EDGE"
+    elif ever_formed_candidate:
+        status = "CANDIDATE"
+    elif evaluated:
+        status = "NO_EDGE"
+    else:
+        status = "UNASSESSED"
+
+    latest_candidates: dict[str, tuple[Mapping[str, Any], datetime]] = {}
+    for version, state, evaluated_at in evaluated:
+        if state != "ANALYSIS_PICK_ACTIVE":
+            continue
+        market = _text(version.get("market"))
+        previous_candidate_row = latest_candidates.get(market)
+        if previous_candidate_row is None or evaluated_at > previous_candidate_row[1]:
+            latest_candidates[market] = (version, evaluated_at)
+    candidate_rows = [
+        {
+            "market": market,
+            "selection": _optional_text(version.get("selection")),
+            "exact_line": _optional_text(version.get("exact_line")),
+            "decimal_odds": _number(version.get("decimal_odds")),
+            "bookmaker_id": _optional_text(version.get("bookmaker_id")),
+            "captured_at": _optional_text(version.get("capture_at")),
+            "evaluated_at": _optional_text(version.get("evaluated_at")),
+            "checkpoint": _EVALUATION_CHECKPOINT_LABELS.get(
+                _text(version.get("evaluation_slot_id"), version.get("checkpoint")),
+                _text(version.get("evaluation_slot_id"), version.get("checkpoint")),
+            ),
+            "final_state": _optional_text(_mapping(final_by_market.get(market)).get("state")),
+            "final_active": _text(_mapping(final_by_market.get(market)).get("state"))
+            == "EVALUATED_CANDIDATE"
+            or (not final_by_market and status == "CANDIDATE"),
+        }
+        for market, (version, _evaluated_at) in sorted(latest_candidates.items())
+    ]
+    final_rows = [
+        {
+            "market": market,
+            "checkpoint": _EVALUATION_CHECKPOINT_LABELS.get(
+                _text(row.get("evaluation_slot_id")),
+                _text(row.get("evaluation_slot_id")),
+            ),
+            "state": _text(row.get("state")),
+            "recorded_at": _optional_text(row.get("recorded_at")),
+            "blocker": _optional_text(row.get("blocker")),
+        }
+        for market, row in sorted(final_by_market.items())
+    ]
     if status == "UNASSESSED":
         summary = "尚无候选评估记录；当前仍处于等待采集或硬门判定阶段。"
+    elif status == "TECHNICAL_INVALIDATED":
+        summary = (
+            "曾形成候选，但后续官方检查点错过或评估失败，最终未保持有效；"
+            "这是技术失效，不代表模型主动撤回。"
+        )
+    elif status == "BLOCKED":
+        summary = (
+            "曾形成候选，最后官方状态已被门禁阻断，不计入正式推荐。"
+            if ever_formed_candidate
+            else "最后官方状态被门禁阻断，未形成有效候选。"
+        )
     else:
         checkpoint_copy = " / ".join(labels)
         market_copy = (
             "两个市场均为 NO_EDGE —— 模型与市场看法一致，无可利用价差。"
             if status == "NO_EDGE"
             and all({"ASIAN_HANDICAP", "TOTALS"} <= markets for markets in checkpoints.values())
-            else "已形成影子候选。"
+            else "最后官方状态仍为候选，计入正式推荐。"
             if status == "CANDIDATE"
             else "已完成市场评估。"
         )
@@ -404,6 +494,9 @@ def _evaluation_execution(card: Mapping[str, Any]) -> dict[str, Any]:
         )
     return {
         "status": status,
+        "ever_formed_candidate": ever_formed_candidate,
+        "final_states": final_rows,
+        "latest_candidates": candidate_rows,
         "checkpoint_count": len(labels),
         "market_evaluation_count": len(evaluated),
         "checkpoints": labels,
@@ -419,6 +512,7 @@ def _match(
     generated_at: Any,
     ledger_fact: Mapping[str, Any],
 ) -> dict[str, Any]:
+    fixture_finished = normalize_match_status(card.get("status")) == "FINISHED"
     radar = _mapping(card.get("market_radar"))
     model_lab = _mapping(card.get("model_lab"))
     data_refresh = _mapping(card.get("data_refresh"))
@@ -428,7 +522,7 @@ def _match(
         name: _market(
             _mapping(_mapping(radar.get("markets")).get(name)),
             name,
-            generated_at=generated_at,
+            generated_at=card.get("kickoff_utc") if fixture_finished else generated_at,
         )
         for name in ("ASIAN_HANDICAP", "TOTALS")
     }
@@ -481,7 +575,9 @@ def _match(
         market_aggregate_status=market_aggregate_status,
         ledger_fact=ledger_fact,
         generated_at=generated_at,
+        fixture_finished=fixture_finished,
     )
+    evaluation_execution = _evaluation_execution(card)
     return {
         "fixture_id": _text(card.get("fixture_id")),
         "competition_id": _optional_text(card.get("competition_id")),
@@ -502,6 +598,8 @@ def _match(
             lineup_collection,
             missing_fields=_string_list(card.get("missing_fields")),
             factor_checklist=factor_checklist,
+            fixture_finished=fixture_finished,
+            evaluation_execution=evaluation_execution,
         ),
         "readiness": {
             "status": _text(card.get("data_status"), "BLOCKED"),
@@ -546,7 +644,7 @@ def _match(
             },
             "model_market_relation": relation,
         },
-        "evaluation_execution": _evaluation_execution(card),
+        "evaluation_execution": evaluation_execution,
         "shadow_candidate": shadow_candidate,
         "factor_checklist": factor_checklist,
         "formal_recommendation": {
@@ -1255,6 +1353,8 @@ def _data_operations(day_view: Mapping[str, Any], freshness: Mapping[str, Any]) 
 
 
 def _priority_reasons(match: Mapping[str, Any]) -> tuple[str | None, list[str]]:
+    if normalize_match_status(match.get("status")) == "FINISHED":
+        return None, []
     reasons: set[str] = set()
     state = _text(match.get("intelligence_state"))
     markets = _mapping(_mapping(match.get("market_radar")).get("markets"))
@@ -1612,6 +1712,8 @@ def _match_risks(
     *,
     missing_fields: Sequence[str],
     factor_checklist: Mapping[str, Any],
+    fixture_finished: bool = False,
+    evaluation_execution: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     result = _risks(source)
     data_risk = result["DATA_RISK"]
@@ -1640,6 +1742,17 @@ def _match_risks(
         if unknown_count:
             missing_copy += ("、" if missing_copy else "") + f"另有 {unknown_count} 项输入"
         data_risk["explanation"] = f"待补齐：{missing_copy}；既有采集或模型投影形成后解除"
+    elif fixture_finished and "lineups" in missing_fields:
+        data_risk.update(
+            {
+                "status": "ATTENTION",
+                "reason_codes": ["LINEUP_COLLECTION_WINDOW_MISSED"],
+                "explanation": "阵容采集窗口已结束且未形成证据；当前不作为模型预测硬门",
+                "assessment_status": "ASSESSED_CURRENT",
+                "evidence_basis": "LINEUP_COLLECTION_WINDOW_MISSED",
+                "source_as_of": lineup_collection.get("window_end_at"),
+            }
+        )
     elif (
         missing_fields
         and not blocking_fields
@@ -1659,7 +1772,28 @@ def _match_risks(
     semantics = _mapping(market_collection.get("public_semantics"))
     cause = _optional_text(semantics.get("cause"))
     source_as_of = market_collection.get("latest_snapshot_at")
-    if cause == "NOT_YET_DUE":
+    execution_status = _text(_mapping(evaluation_execution).get("status"))
+    if fixture_finished and execution_status == "TECHNICAL_INVALIDATED":
+        result["COLLECTION_RISK"] = {
+            "dimension": "COLLECTION_RISK",
+            "status": "INCIDENT",
+            "reason_codes": ["OFFICIAL_CHECKPOINT_CONFIRMATION_FAILED"],
+            "explanation": "赛前快照可审计，但后续官方检查点错过，候选技术失效",
+            "assessment_status": "ASSESSED_INCIDENT",
+            "evidence_basis": "DYNAMIC_PREMATCH_OPPORTUNITY_FINAL_STATE",
+            "source_as_of": source_as_of,
+        }
+    elif fixture_finished:
+        result["COLLECTION_RISK"] = {
+            "dimension": "COLLECTION_RISK",
+            "status": "OK",
+            "reason_codes": [],
+            "explanation": "赛前采集流程已结束；页面保留开球前最后快照供审计",
+            "assessment_status": "ASSESSED_CURRENT",
+            "evidence_basis": "FINISHED_FIXTURE_PREMATCH_SNAPSHOT",
+            "source_as_of": source_as_of,
+        }
+    elif cause == "NOT_YET_DUE":
         result["COLLECTION_RISK"] = {
             "dimension": "COLLECTION_RISK",
             "status": "OK",

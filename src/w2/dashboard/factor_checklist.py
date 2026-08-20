@@ -43,6 +43,7 @@ def build_fixture_factor_checklist(
     market_aggregate_status: str,
     ledger_fact: Mapping[str, Any] | None,
     generated_at: Any,
+    fixture_finished: bool = False,
 ) -> dict[str, Any]:
     inputs = _mapping(card.get("factor_checklist_inputs"))
     readiness = _mapping(inputs.get("data_readiness"))
@@ -61,6 +62,7 @@ def build_fixture_factor_checklist(
                 candidate,
                 market_collection,
                 generated_at,
+                fixture_finished=fixture_finished,
             )
         )
 
@@ -80,7 +82,14 @@ def build_fixture_factor_checklist(
                 identity_ready=home_identity_ready and away_identity_ready,
             )
         )
-    factors.append(_lineup_factor(readiness, lineup_collection, generated_at))
+    factors.append(
+        _lineup_factor(
+            readiness,
+            lineup_collection,
+            generated_at,
+            fixture_finished=fixture_finished,
+        )
+    )
     for market in MARKETS:
         current = _mapping(markets.get(market))
         factors.extend(_market_explanation_factors(market, current, generated_at))
@@ -257,6 +266,8 @@ def _market_gate_factors(
     candidate: Mapping[str, Any],
     collection: Mapping[str, Any],
     as_of: Any,
+    *,
+    fixture_finished: bool = False,
 ) -> list[dict[str, Any]]:
     identity = _mapping(candidate.get("quote_identity"))
     exact_ready = _text(identity.get("identity_status")) == "COMPLETE"
@@ -268,6 +279,9 @@ def _market_gate_factors(
     # page offered 2026-07-11 as the next window for a match moved to 08-18.
     next_window_at = _future_only(collection.get("scheduled_at"), as_of)
     temporal_cause = _collection_cause(collection)
+    if fixture_finished and temporal_cause in {"NOT_YET_DUE", "AWAITING_COLLECTION"}:
+        temporal_cause = "COLLECTION_WINDOW_MISSED"
+        next_window_at = None
     return [
         _factor(
             "MK_EXACT_QUOTE",
@@ -377,10 +391,16 @@ def _contribution_cause(rows: Sequence[Mapping[str, Any]]) -> str:
 
 
 def _lineup_factor(
-    readiness: Mapping[str, Any], collection: Mapping[str, Any], as_of: Any
+    readiness: Mapping[str, Any],
+    collection: Mapping[str, Any],
+    as_of: Any,
+    *,
+    fixture_finished: bool = False,
 ) -> dict[str, Any]:
     ready = readiness.get("lineups") is True or _text(readiness.get("lineups_status")) == "READY"
     cause = None if ready else _collection_cause(collection)
+    if fixture_finished and cause in {"NOT_YET_DUE", "AWAITING_COLLECTION"}:
+        cause = "COLLECTION_WINDOW_MISSED"
     return _factor(
         "F10_LMM_V1",
         state="READY" if ready else "WAITING" if cause == "NOT_YET_DUE" else "MISSING",

@@ -882,10 +882,53 @@ class WorkspaceFixtureFactorChecklist(BaseModel):
     factors: list[WorkspaceFixtureFactor]
 
 
+class WorkspaceEvaluationFinalState(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    market: Literal["ASIAN_HANDICAP", "TOTALS"]
+    checkpoint: str
+    state: Literal[
+        "EVALUATED_NO_EDGE",
+        "EVALUATED_CANDIDATE",
+        "BLOCKED_BY_GATE",
+        "MISSED_CHECKPOINT",
+        "EVALUATION_ERROR",
+    ]
+    recorded_at: datetime | str | None
+    blocker: str | None
+
+
+class WorkspaceEvaluationCandidate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    market: Literal["ASIAN_HANDICAP", "TOTALS"]
+    selection: Literal["HOME", "AWAY", "OVER", "UNDER"] | None
+    exact_line: str | None
+    decimal_odds: float | None
+    bookmaker_id: str | None
+    captured_at: datetime | str | None
+    evaluated_at: datetime | str | None
+    checkpoint: str
+    final_state: (
+        Literal[
+            "EVALUATED_NO_EDGE",
+            "EVALUATED_CANDIDATE",
+            "BLOCKED_BY_GATE",
+            "MISSED_CHECKPOINT",
+            "EVALUATION_ERROR",
+        ]
+        | None
+    )
+    final_active: bool
+
+
 class WorkspaceEvaluationExecution(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    status: Literal["UNASSESSED", "NO_EDGE", "CANDIDATE"]
+    status: Literal["UNASSESSED", "NO_EDGE", "CANDIDATE", "TECHNICAL_INVALIDATED", "BLOCKED"]
+    ever_formed_candidate: bool
+    final_states: list[WorkspaceEvaluationFinalState]
+    latest_candidates: list[WorkspaceEvaluationCandidate]
     checkpoint_count: int = Field(ge=0)
     market_evaluation_count: int = Field(ge=0)
     checkpoints: list[str]
@@ -1368,6 +1411,11 @@ class WorkspaceModelForecastProgress(BaseModel):
     sample_target: int = Field(ge=1)
     current_flow_candidate_count: int = Field(ge=0)
     current_flow_settled_count: int = Field(ge=0)
+    ever_formed_candidate_count: int = Field(ge=0)
+    final_candidate_count: int = Field(ge=0)
+    invalidated_candidate_count: int = Field(ge=0)
+    t30_evaluated_candidate_count: int = Field(ge=0)
+    t30_confirmed_candidate_count: int = Field(ge=0)
     min_xg_matches: int = Field(ge=1)
     xg_ready_team_count: int = Field(ge=0)
     next_7d_xg_ready_fixture_count: int = Field(ge=0)

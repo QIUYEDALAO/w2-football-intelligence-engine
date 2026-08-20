@@ -166,11 +166,43 @@ def test_missed_closeout_withdrawal_uses_opportunity_identity_without_fake_attem
         blocker="CHECKPOINT_WINDOW_MISSED",
     )
 
-    event = _events(engine)[-1]
+    event = next(
+        row for row in _events(engine) if row.event_type == CANDIDATE_WITHDRAWN
+    )
     assert event.event_type == CANDIDATE_WITHDRAWN
     assert event.attempt_identity_hash is None
     assert event.current_state == "MISSED_CHECKPOINT"
     assert event.payload["source_kind"] == "OPPORTUNITY_CLOSEOUT_WITHOUT_ATTEMPT"
+
+
+def test_candidate_reformed_after_missed_closeout_is_not_silenced() -> None:
+    engine = _engine()
+    repository = DynamicPrematchRepository(engine)
+    repository.append_evaluation(_attempt("T3_ODDS", "a"))
+    context = _context("T-30m_VALIDATION_LOCK", "missed")
+    repository.record_opportunity_without_attempt(
+        fixture_id="1523202",
+        market="ASIAN_HANDICAP",
+        context=context,
+        state=OpportunityState.MISSED_CHECKPOINT,
+        recorded_at=NOW + timedelta(minutes=6),
+        blocker="CHECKPOINT_WINDOW_MISSED",
+    )
+
+    repository.append_evaluation(_attempt("T15_ODDS", "laterlater"))
+
+    events = _events(engine)
+    assert sorted(event.event_type for event in events) == sorted(
+        [
+            CANDIDATE_FORMED,
+            CANDIDATE_WITHDRAWN,
+            CANDIDATE_MATERIAL_CHANGE,
+        ]
+    )
+    reformed = next(event for event in events if event.event_type == CANDIDATE_MATERIAL_CHANGE)
+    assert reformed.previous_state == "MISSED_CHECKPOINT"
+    assert reformed.payload["reformed_after_state"] == "MISSED_CHECKPOINT"
+    assert render_bark_message(reformed.payload)["title"].startswith("[恢复]")
 
 
 def test_delivery_health_keeps_failure_distinct_from_zero_candidates() -> None:

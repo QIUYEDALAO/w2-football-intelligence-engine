@@ -462,11 +462,14 @@ def _public_team_label_from_identity(
 
 def _official_funnel_recommendations(
     evaluations: Sequence[DynamicPrematchEvaluationModel],
+    opportunities: Sequence[DynamicPrematchOpportunityModel],
     fixtures: Mapping[str, MatchdayFixtureIdentityModel],
     results: Mapping[str, ResultModel],
     public_team_labels: Mapping[str, Mapping[str, Mapping[str, Any]]],
 ) -> list[dict[str, Any]]:
-    """Project one latest audited pick per fixture and market without writing a ledger."""
+    """Project picks whose last official opportunity is still a candidate."""
+
+    final_opportunities = _final_official_opportunities(opportunities)
 
     latest: dict[tuple[str, str], DynamicPrematchEvaluationModel] = {}
     for row in evaluations:
@@ -478,6 +481,14 @@ def _official_funnel_recommendations(
             continue
         fixture_id = str(row.fixture_id).removeprefix("api_football:")
         key = (fixture_id, str(row.market))
+        final = final_opportunities.get(key)
+        if (
+            final is None
+            or final.state != "EVALUATED_CANDIDATE"
+            or row.opportunity_identity_hash != final.opportunity_identity_hash
+            or row.attempt_identity_hash != final.latest_attempt_identity_hash
+        ):
+            continue
         previous = latest.get(key)
         if previous is None or (row.evaluated_at, row.evaluation_id) > (
             previous.evaluated_at,
@@ -564,6 +575,27 @@ def _official_funnel_recommendations(
             str(item["market"]),
         ),
     )
+
+
+def _final_official_opportunities(
+    opportunities: Sequence[DynamicPrematchOpportunityModel],
+) -> dict[tuple[str, str], DynamicPrematchOpportunityModel]:
+    final_opportunities: dict[tuple[str, str], DynamicPrematchOpportunityModel] = {}
+    for row in opportunities:
+        fixture_id = str(row.fixture_id).removeprefix("api_football:")
+        key = (fixture_id, str(row.market))
+        previous = final_opportunities.get(key)
+        if previous is None or (
+            row.scheduled_checkpoint_at,
+            row.recorded_at,
+            row.opportunity_identity_hash,
+        ) > (
+            previous.scheduled_checkpoint_at,
+            previous.recorded_at,
+            previous.opportunity_identity_hash,
+        ):
+            final_opportunities[key] = row
+    return final_opportunities
 
 
 def _apply_repository_v4_authority(card: dict[str, Any]) -> dict[str, Any]:
@@ -1501,6 +1533,16 @@ class ReadModelRepository:
                         .order_by(DynamicPrematchEvaluationModel.evaluated_at)
                     )
                 )
+                opportunities = list(
+                    session.scalars(
+                        select(DynamicPrematchOpportunityModel)
+                        .where(DynamicPrematchOpportunityModel.fixture_id.in_(all_aliases))
+                        .order_by(
+                            DynamicPrematchOpportunityModel.scheduled_checkpoint_at,
+                            DynamicPrematchOpportunityModel.recorded_at,
+                        )
+                    )
+                )
                 supersessions = {
                     row.superseded_evaluation_id: row
                     for row in session.scalars(
@@ -1512,16 +1554,22 @@ class ReadModelRepository:
         except SQLAlchemyError as exc:
             raise SystemDegradedError("DASHBOARD_DYNAMIC_EVALUATION_QUERY_FAILED") from exc
         by_fixture: dict[str, list[DynamicPrematchEvaluationModel]] = defaultdict(list)
-        for row in rows:
-            by_fixture[row.fixture_id].append(row)
+        for evaluation_row in rows:
+            by_fixture[evaluation_row.fixture_id].append(evaluation_row)
+        opportunities_by_fixture: dict[str, list[DynamicPrematchOpportunityModel]] = defaultdict(
+            list
+        )
+        for opportunity_row in opportunities:
+            opportunities_by_fixture[opportunity_row.fixture_id].append(opportunity_row)
         result: dict[str, dict[str, Any]] = {}
         for fixture_id, fixture_aliases in aliases.items():
             versions = []
+            opportunity_versions = []
             for alias in fixture_aliases:
-                for row in by_fixture[alias]:
-                    payload = dict(row.payload)
-                    payload["original_state"] = row.original_state
-                    supersession = supersessions.get(row.evaluation_id)
+                for evaluation_row in by_fixture[alias]:
+                    payload = dict(evaluation_row.payload)
+                    payload["original_state"] = evaluation_row.original_state
+                    supersession = supersessions.get(evaluation_row.evaluation_id)
                     if supersession is not None:
                         payload["state"] = "SUPERSEDED"
                         payload["superseded_by_evaluation_id"] = (
@@ -1529,13 +1577,41 @@ class ReadModelRepository:
                         )
                         payload["supersession_reason"] = supersession.reason
                     versions.append(payload)
-            if versions:
+                for opportunity_row in opportunities_by_fixture[alias]:
+                    payload = dict(opportunity_row.payload or {})
+                    payload.update(
+                        {
+                            "opportunity_identity_hash": (
+                                opportunity_row.opportunity_identity_hash
+                            ),
+                            "market": opportunity_row.market,
+                            "evaluation_slot_id": opportunity_row.evaluation_slot_id,
+                            "scheduled_checkpoint_at": _iso_or_none(
+                                opportunity_row.scheduled_checkpoint_at
+                            ),
+                            "recorded_at": _iso_or_none(opportunity_row.recorded_at),
+                            "evaluated_at": _iso_or_none(opportunity_row.evaluated_at),
+                            "latest_attempt_identity_hash": (
+                                opportunity_row.latest_attempt_identity_hash
+                            ),
+                            "state": opportunity_row.state,
+                        }
+                    )
+                    opportunity_versions.append(payload)
+            if versions or opportunity_versions:
                 versions.sort(key=lambda item: str(item.get("evaluated_at") or ""))
+                opportunity_versions.sort(
+                    key=lambda item: (
+                        str(item.get("scheduled_checkpoint_at") or ""),
+                        str(item.get("recorded_at") or ""),
+                    )
+                )
                 result[fixture_id] = {
                     "schema_version": "w2.dynamic_quote_ev_lifecycle.v1",
                     "fixture_id": fixture_id,
                     "versions": versions,
                     "current": [row for row in versions if row.get("state") != "SUPERSEDED"],
+                    "opportunities": opportunity_versions,
                 }
         return result
 
@@ -1550,6 +1626,13 @@ class ReadModelRepository:
                 dynamic_evaluations = list(session.scalars(select(DynamicPrematchEvaluationModel)))
                 dynamic_opportunities = list(
                     session.scalars(select(DynamicPrematchOpportunityModel))
+                )
+                t30_plans = list(
+                    session.scalars(
+                        select(MatchdayCheckpointPlanModel).where(
+                            MatchdayCheckpointPlanModel.checkpoint == "T-30m_VALIDATION_LOCK"
+                        )
+                    )
                 )
                 candidate_fixture_ids = {
                     str(row.fixture_id).removeprefix("api_football:")
@@ -1640,9 +1723,40 @@ class ReadModelRepository:
         )
         official_recommendations = _official_funnel_recommendations(
             dynamic_evaluations,
+            dynamic_opportunities,
             {row.provider_fixture_id: row for row in candidate_fixtures},
             {row.fixture_id: row for row in candidate_results},
             candidate_team_labels,
+        )
+        ever_formed_candidate_count = len(
+            {
+                (str(row.fixture_id).removeprefix("api_football:"), str(row.market))
+                for row in dynamic_evaluations
+                if row.official_funnel_eligible is True
+                and isinstance(row.payload, dict)
+                and row.payload.get("state") == "ANALYSIS_PICK_ACTIVE"
+            }
+        )
+        final_candidate_count = len(official_recommendations)
+        t30_candidate_opportunities = [
+            row
+            for row in dynamic_opportunities
+            if row.evaluation_slot_id == "T-30m_VALIDATION_LOCK"
+            and row.state == "EVALUATED_CANDIDATE"
+        ]
+        captured_t30_plan_ids = {row.plan_id for row in t30_plans if row.status == "CAPTURED"}
+        t30_evaluated_candidate_count = len(
+            {
+                (str(row.fixture_id).removeprefix("api_football:"), str(row.market))
+                for row in t30_candidate_opportunities
+            }
+        )
+        t30_confirmed_candidate_count = len(
+            {
+                (str(row.fixture_id).removeprefix("api_football:"), str(row.market))
+                for row in t30_candidate_opportunities
+                if row.checkpoint_plan_identity in captured_t30_plan_ids
+            }
         )
         version_by_capture = {row.capture_identity_hash: row for row in versions}
         version_names = sorted(
@@ -1662,6 +1776,13 @@ class ReadModelRepository:
             "sample_target": SAMPLE_TARGET,
             "current_flow_candidate_count": int(current_flow_candidate_count or 0),
             "current_flow_settled_count": int(current_flow_settled_count or 0),
+            "ever_formed_candidate_count": ever_formed_candidate_count,
+            "final_candidate_count": final_candidate_count,
+            "invalidated_candidate_count": max(
+                ever_formed_candidate_count - final_candidate_count, 0
+            ),
+            "t30_evaluated_candidate_count": t30_evaluated_candidate_count,
+            "t30_confirmed_candidate_count": t30_confirmed_candidate_count,
             "min_xg_matches": MIN_XG_MATCHES,
             "xg_ready_team_count": len(ready_team_ids),
             "next_7d_xg_ready_fixture_count": int(next_7d_ready_fixtures or 0),

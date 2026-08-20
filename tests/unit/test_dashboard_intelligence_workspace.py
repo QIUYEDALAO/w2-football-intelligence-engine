@@ -51,6 +51,8 @@ def test_official_funnel_recommendations_dedupe_and_settle_with_authority() -> N
             selection=selection,
             evaluated_at=base + timedelta(minutes=index),
             official_funnel_eligible=True,
+            opportunity_identity_hash=f"opp-{fixture_id}-{market}",
+            attempt_identity_hash=f"attempt-{fixture_id}-{market}",
             payload={
                 "state": "ANALYSIS_PICK_ACTIVE",
                 "exact_line": line,
@@ -59,6 +61,35 @@ def test_official_funnel_recommendations_dedupe_and_settle_with_authority() -> N
         )
         for index, (fixture_id, market, selection, line, odds, *_rest) in enumerate(picks)
     ]
+    opportunities = [
+        SimpleNamespace(
+            opportunity_identity_hash=row.opportunity_identity_hash,
+            fixture_id=row.fixture_id,
+            market=row.market,
+            state="EVALUATED_CANDIDATE",
+            scheduled_checkpoint_at=row.evaluated_at,
+            recorded_at=row.evaluated_at,
+            latest_attempt_identity_hash=row.attempt_identity_hash,
+        )
+        for row in evaluations
+    ]
+    for fixture_id, market in (
+        ("1490391", "TOTALS"),
+        ("1490392", "ASIAN_HANDICAP"),
+        ("1490394", "TOTALS"),
+        ("1490396", "ASIAN_HANDICAP"),
+    ):
+        opportunities.append(
+            SimpleNamespace(
+                opportunity_identity_hash=f"missed-{fixture_id}-{market}",
+                fixture_id=fixture_id,
+                market=market,
+                state="MISSED_CHECKPOINT",
+                scheduled_checkpoint_at=base + timedelta(hours=1),
+                recorded_at=base + timedelta(hours=1),
+                latest_attempt_identity_hash=None,
+            )
+        )
     # Older attempts, legacy rows, and non-candidates must not inflate the 14 picks.
     evaluations.extend(
         [
@@ -69,6 +100,8 @@ def test_official_funnel_recommendations_dedupe_and_settle_with_authority() -> N
                 selection="AWAY",
                 evaluated_at=base - timedelta(minutes=1),
                 official_funnel_eligible=True,
+                opportunity_identity_hash="older-vancouver-opportunity",
+                attempt_identity_hash="older-vancouver-attempt",
                 payload={
                     "state": "ANALYSIS_PICK_ACTIVE",
                     "exact_line": "1.0",
@@ -126,16 +159,15 @@ def test_official_funnel_recommendations_dedupe_and_settle_with_authority() -> N
     }
 
     rows = repository_module._official_funnel_recommendations(
-        evaluations, fixtures, results, {}
+        evaluations, opportunities, fixtures, results, {}
     )
 
-    assert len(rows) == 14
-    assert len({row["fixture_id"] for row in rows}) == 11
-    assert sum(Decimal(str(row["profit_units"])) for row in rows) == Decimal("2.995")
+    assert len(rows) == 10
+    assert len({row["fixture_id"] for row in rows}) == 7
+    assert sum(Decimal(str(row["profit_units"])) for row in rows) == Decimal("3.74")
     by_pick = {(row["fixture_id"], row["market"]): row for row in rows}
     vancouver = by_pick[("1490404", "ASIAN_HANDICAP")]
     portland = by_pick[("1490405", "TOTALS")]
-    toronto = by_pick[("1490396", "ASIAN_HANDICAP")]
     minnesota = by_pick[("1490399", "TOTALS")]
     assert (vancouver["settlement"], vancouver["profit_units"], vancouver["decimal_odds"]) == (
         "WIN",
@@ -143,11 +175,17 @@ def test_official_funnel_recommendations_dedupe_and_settle_with_authority() -> N
         1.87,
     )
     assert (portland["settlement"], portland["profit_units"]) == ("LOSS", -1.0)
-    assert (toronto["settlement"], toronto["profit_units"]) == ("HALF_WIN", 0.385)
     assert (minnesota["settlement"], minnesota["profit_units"]) == ("PUSH", 0.0)
+    assert {
+        ("1490391", "TOTALS"),
+        ("1490392", "ASIAN_HANDICAP"),
+        ("1490394", "TOTALS"),
+        ("1490396", "ASIAN_HANDICAP"),
+    }.isdisjoint(by_pick)
 
     pending = repository_module._official_funnel_recommendations(
         evaluations,
+        opportunities,
         fixtures,
         {key: value for key, value in results.items() if not key.endswith("1490404")},
         {},
@@ -679,14 +717,18 @@ def test_factor_checklist_separates_model_track_from_stale_quote_gate() -> None:
     day_view["generated_at"] = "2026-08-09T03:00:00Z"
     day_view["cards"] = [_factor_checklist_card()]
 
-    checklist = _workspace(day_view, candidate_enabled=True)["matches"][0]["factor_checklist"]
+    checklist = _workspace(day_view, candidate_enabled=True)["matches"][0][
+        "factor_checklist"
+    ]
 
     assert checklist["track_model_forecast"] == {
         "state": "READY",
         "blocking_factor_ids": [],
     }
     assert checklist["track_shadow_candidate"]["state"] == "BLOCKED"
-    assert checklist["track_shadow_candidate"]["blocking_factor_ids"] == ["MK_QUOTE_AGE"]
+    assert checklist["track_shadow_candidate"]["blocking_factor_ids"] == [
+        "MK_QUOTE_AGE"
+    ]
     quote_rows = [row for row in checklist["factors"] if row["factor_id"] == "MK_QUOTE_AGE"]
     assert {row["market"] for row in quote_rows} == {"ASIAN_HANDICAP", "TOTALS"}
     assert all(row["next_window_at"] == "2026-08-09T14:30:00Z" for row in quote_rows)
@@ -717,9 +759,7 @@ def test_factor_checklist_reports_waiting_quote_before_unassessed_decision() -> 
         "factor_checklist"
     ]
 
-    assert checklist["track_shadow_candidate"]["blocking_factor_ids"] == [
-        "MK_QUOTE_AGE"
-    ]
+    assert checklist["track_shadow_candidate"]["blocking_factor_ids"] == ["MK_QUOTE_AGE"]
     assert "等待中，尚未评估" in checklist["conclusion_zh"]
     assert "最上游待满足：报价时效" in checklist["conclusion_zh"]
     assert "Decision V4" not in checklist["conclusion_zh"]
@@ -744,9 +784,7 @@ def test_factor_checklist_reports_no_edge_as_assessed_not_gate_failed() -> None:
     }
     day_view["cards"] = [card]
 
-    checklist = _workspace(day_view, candidate_enabled=True)["matches"][0][
-        "factor_checklist"
-    ]
+    checklist = _workspace(day_view, candidate_enabled=True)["matches"][0]["factor_checklist"]
 
     assert checklist["track_shadow_candidate"]["blocking_factor_ids"] == ["NO_EDGE"]
     assert "Decision V4 已评估" in checklist["conclusion_zh"]
@@ -1921,6 +1959,9 @@ def test_completed_no_edge_evaluations_take_precedence_over_calibration_gap() ->
 
     assert match["evaluation_execution"] == {
         "status": "NO_EDGE",
+        "ever_formed_candidate": False,
+        "final_states": [],
+        "latest_candidates": [],
         "checkpoint_count": 5,
         "market_evaluation_count": 10,
         "checkpoints": ["T-3h", "T-60m", "T-45m", "T-30m", "T-15m"],
@@ -1944,6 +1985,70 @@ def test_candidate_execution_can_precede_current_shadow_candidate_readiness() ->
 
     assert validated.matches[0].evaluation_execution.status == "CANDIDATE"
     assert validated.matches[0].shadow_candidate.status == "NOT_READY"
+
+
+def test_finished_match_keeps_final_candidate_state_and_kickoff_quote_age() -> None:
+    day_view = _day_view()
+    day_view["generated_at"] = "2026-08-10T20:00:00Z"
+    card = day_view["cards"][0]
+    card["status"] = "FT"
+    market = _market(1)
+    market["timeline"]["points"][0]["captured_at"] = "2026-08-10T09:50:00Z"
+    card["market_radar"]["markets"]["TOTALS"] = market
+    card["dynamic_prematch"] = {
+        "versions": [
+            {
+                "checkpoint": "T45_ODDS",
+                "evaluation_slot_id": "T45_ODDS",
+                "evaluated_at": "2026-08-10T09:15:00Z",
+                "capture_at": "2026-08-10T09:14:00Z",
+                "market": "TOTALS",
+                "selection": "OVER",
+                "exact_line": "3.5",
+                "decimal_odds": "1.87",
+                "state": "ANALYSIS_PICK_ACTIVE",
+                "original_state": "ANALYSIS_PICK_ACTIVE",
+                "official_funnel_eligible": True,
+                "measurement_semantics": "CHECKPOINT_EVALUATION_OPPORTUNITY",
+            }
+        ],
+        "opportunities": [
+            {
+                "opportunity_identity_hash": "candidate",
+                "market": "TOTALS",
+                "evaluation_slot_id": "T45_ODDS",
+                "scheduled_checkpoint_at": "2026-08-10T09:15:00Z",
+                "recorded_at": "2026-08-10T09:15:00Z",
+                "state": "EVALUATED_CANDIDATE",
+            },
+            {
+                "opportunity_identity_hash": "missed",
+                "market": "TOTALS",
+                "evaluation_slot_id": "T15_ODDS",
+                "scheduled_checkpoint_at": "2026-08-10T09:45:00Z",
+                "recorded_at": "2026-08-10T10:00:00Z",
+                "state": "MISSED_CHECKPOINT",
+                "blocker": "CHECKPOINT_WINDOW_MISSED",
+            },
+        ],
+    }
+
+    match = _workspace(day_view)["matches"][0]
+
+    assert match["evaluation_execution"]["status"] == "TECHNICAL_INVALIDATED"
+    assert match["evaluation_execution"]["ever_formed_candidate"] is True
+    assert match["evaluation_execution"]["latest_candidates"][0]["final_active"] is False
+    assert match["market_radar"]["markets"]["TOTALS"]["quote_age_seconds"] == 600
+    quote_age = next(
+        factor
+        for factor in match["factor_checklist"]["factors"]
+        if factor["factor_id"] == "MK_QUOTE_AGE" and factor["market"] == "TOTALS"
+    )
+    assert quote_age["state"] == "READY"
+    assert match["risks"]["COLLECTION_RISK"]["status"] == "INCIDENT"
+    DashboardIntelligenceWorkspaceResponse.model_validate(
+        {"request_id": "finished-candidate-lifecycle", **_workspace(day_view)}
+    )
 
 
 @pytest.mark.parametrize(

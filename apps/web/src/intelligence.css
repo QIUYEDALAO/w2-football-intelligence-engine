@@ -990,7 +990,7 @@ summary {
   display: flex;
   margin: 0;
   padding: 0;
-  overflow: hidden;
+  overflow-x: auto;
   border: 1px solid var(--v41-line-soft);
   border-radius: 3px;
   list-style: none;
@@ -998,7 +998,7 @@ summary {
 
 .v41-snapshots li {
   display: grid;
-  min-width: 0;
+  min-width: 110px;
   flex: 1;
   gap: 2px;
   padding: 9px 11px;
@@ -1088,6 +1088,16 @@ summary {
   display: flex;
   justify-content: space-between;
   gap: 10px;
+}
+
+.v41-candidate--official[data-final-active="false"] {
+  border-color: var(--v41-warning);
+  background: var(--v41-warning-bg);
+}
+
+.v41-candidate--official[data-final-active="false"] header span,
+.v41-candidate--official[data-final-active="false"] header b {
+  color: var(--v41-warning);
 }
 
 .v41-candidate header span,

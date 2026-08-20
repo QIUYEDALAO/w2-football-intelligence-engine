@@ -301,7 +301,27 @@ export interface WorkspaceMatch {
     model_market_relation: Record<string, WorkspaceModelRelation>;
   };
   evaluation_execution: {
-    status: "UNASSESSED" | "NO_EDGE" | "CANDIDATE";
+    status: "UNASSESSED" | "NO_EDGE" | "CANDIDATE" | "TECHNICAL_INVALIDATED" | "BLOCKED";
+    ever_formed_candidate: boolean;
+    final_states: Array<{
+      market: "ASIAN_HANDICAP" | "TOTALS";
+      checkpoint: string;
+      state: "EVALUATED_NO_EDGE" | "EVALUATED_CANDIDATE" | "BLOCKED_BY_GATE" | "MISSED_CHECKPOINT" | "EVALUATION_ERROR";
+      recorded_at: string | null;
+      blocker: string | null;
+    }>;
+    latest_candidates: Array<{
+      market: "ASIAN_HANDICAP" | "TOTALS";
+      selection: string | null;
+      exact_line: string | null;
+      decimal_odds: number | null;
+      bookmaker_id: string | null;
+      captured_at: string | null;
+      evaluated_at: string | null;
+      checkpoint: string;
+      final_state: "EVALUATED_NO_EDGE" | "EVALUATED_CANDIDATE" | "BLOCKED_BY_GATE" | "MISSED_CHECKPOINT" | "EVALUATION_ERROR" | null;
+      final_active: boolean;
+    }>;
     checkpoint_count: number;
     market_evaluation_count: number;
     checkpoints: string[];
@@ -448,6 +468,11 @@ export interface WorkspaceValidation {
     sample_target: number;
     current_flow_candidate_count: number;
     current_flow_settled_count: number;
+    ever_formed_candidate_count: number;
+    final_candidate_count: number;
+    invalidated_candidate_count: number;
+    t30_evaluated_candidate_count: number;
+    t30_confirmed_candidate_count: number;
     min_xg_matches: number;
     xg_ready_team_count: number;
     next_7d_xg_ready_fixture_count: number;

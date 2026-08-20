@@ -67,6 +67,27 @@ function candidateAggregateLabel(value: WorkspaceMatch["readiness"]["market_aggr
   return value === "NOT_READY" ? "均未就绪" : label(value);
 }
 
+function evaluationStatusLabel(value: WorkspaceMatch["evaluation_execution"]["status"]): string {
+  return {
+    UNASSESSED: "尚未评估",
+    NO_EDGE: "最终无优势",
+    CANDIDATE: "最终仍为候选",
+    TECHNICAL_INVALIDATED: "技术失效",
+    BLOCKED: "最终被门禁阻断",
+  }[value];
+}
+
+function opportunityStateLabel(value: WorkspaceMatch["evaluation_execution"]["latest_candidates"][number]["final_state"]): string {
+  if (!value) return "最终状态待确认";
+  return {
+    EVALUATED_CANDIDATE: "最终仍有效",
+    EVALUATED_NO_EDGE: "后续评估为无优势",
+    BLOCKED_BY_GATE: "后续被门禁阻断",
+    MISSED_CHECKPOINT: "后续检查点错过，技术失效",
+    EVALUATION_ERROR: "后续评估错误，技术失效",
+  }[value];
+}
+
 function selectedDaySemantics(workspace: IntelligenceWorkspace) {
   return workspace.date_strip.find((entry) => entry.football_day === workspace.date)?.public_semantics
     || { scope: "SELECTED_DAY" as const, cause: null };
@@ -306,7 +327,7 @@ function TodaySummary({ workspace }: { workspace: IntelligenceWorkspace }) {
     ? marketBlockedCount
     : 0;
   const calmCount = !selectedCause && !workspace.selected_fixture_id ? workspace.today_summary.match_count : 0;
-  const candidateCount = workspace.matches.filter((match) => match.shadow_candidate.status === "ACTIVE").length;
+  const candidateCount = workspace.matches.filter((match) => match.evaluation_execution.status === "CANDIDATE").length;
   return (
     <section className="v41-today" aria-label={`${dayNoun}比赛摘要`}>
       <div className="v41-today-primary">
@@ -316,7 +337,7 @@ function TodaySummary({ workspace }: { workspace: IntelligenceWorkspace }) {
         </p>
       </div>
       {limitedCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{limitedCount} 场可查看赛程；{presentation.label}</b></p></div> : calmCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{calmCount} 场均未触发优先复核</b></p></div> : Object.keys(counts).length ? <div className="v41-today-other"><span>优先复核</span><p>{Object.entries(counts).slice(0, 3).map(([reason, count]) => <b key={reason}>{count} 场{REASON_LABELS[reason] || label(reason)}</b>)}</p></div> : null}
-      <div className="v41-today-day"><strong>共 {workspace.today_summary.match_count} 场 · {candidateCount} 场影子候选 · {workspace.today_summary.competition_count || workspace.runtime.active_whitelist_count} 联赛{workspace.today_summary.pending_owner_review_team_count ? ` · ${workspace.today_summary.pending_owner_review_team_count} 支候选译名待审` : ""}</strong><small>{footballDayWindow(workspace)}</small></div>
+      <div className="v41-today-day"><strong>共 {workspace.today_summary.match_count} 场 · {candidateCount} 场正式漏斗最终候选 · {workspace.today_summary.competition_count || workspace.runtime.active_whitelist_count} 联赛{workspace.today_summary.pending_owner_review_team_count ? ` · ${workspace.today_summary.pending_owner_review_team_count} 支候选译名待审` : ""}</strong><small>{footballDayWindow(workspace)}</small></div>
     </section>
   );
 }
@@ -365,13 +386,18 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
   const row = (match: WorkspaceMatch, kind: "priority" | "attention" | "remaining") => {
     const priorityPosition = kind === "priority" ? allPrioritized.findIndex((item) => item.fixture_id === match.fixture_id) + 1 : 0;
     const stripe = kind === "priority" ? match.priority_reason_primary?.toLowerCase() : kind === "attention" ? "data_incomplete" : limited ? presentation.tone : "fresh_market_evidence";
+    const finishedSummary = match.evaluation_execution.status === "CANDIDATE"
+      ? "已完场 · 最终候选已进入赛后结算"
+      : match.evaluation_execution.ever_formed_candidate
+        ? `已完场 · 曾形成候选，最终${evaluationStatusLabel(match.evaluation_execution.status)}`
+        : "已完场 · 无最终有效候选";
     return (
       <button aria-pressed={selectedId === match.fixture_id} className={`${limited ? "v41-limited-match " : ""}${selectedId === match.fixture_id ? "is-selected" : ""}`.trim() || undefined} data-fixture-id={match.fixture_id} key={match.fixture_id} onClick={() => onSelect(match.fixture_id)} type="button">
         <span className={`v41-stripe v41-stripe--${stripe}`} />
         <span className="v41-shortlist-copy">
           <small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认", match.competition_id)}</small>
           <strong><MatchName match={match} /></strong>
-          {kind === "priority" ? <span className="v41-reason-line"><b>优先 {priorityPosition} · 主因：{REASON_LABELS[match.priority_reason_primary || ""] || label(match.priority_reason_primary)}</b>{match.priority_reason_secondary.length ? <small>次因：{match.priority_reason_secondary.map((reason) => REASON_LABELS[reason] || label(reason)).join("、")}</small> : null}</span> : kind === "attention" ? <span className="v41-reason-line"><small>关注：{match.priority_reason_secondary.map((reason) => REASON_LABELS[reason] || label(reason)).join("、")}</small></span> : limited ? <span><b>{presentation.label}</b> · W2 盘口证据尚未落盘</span> : <span><b>{match.shadow_candidate.status === "ACTIVE" ? "影子候选" : "普通查看"}</b> · 未触发优先复核</span>}
+          {match.outcome.is_finished ? <span><b>{finishedSummary}</b></span> : kind === "priority" ? <span className="v41-reason-line"><b>优先 {priorityPosition} · 主因：{REASON_LABELS[match.priority_reason_primary || ""] || label(match.priority_reason_primary)}</b>{match.priority_reason_secondary.length ? <small>次因：{match.priority_reason_secondary.map((reason) => REASON_LABELS[reason] || label(reason)).join("、")}</small> : null}</span> : kind === "attention" ? <span className="v41-reason-line"><small>关注：{match.priority_reason_secondary.map((reason) => REASON_LABELS[reason] || label(reason)).join("、")}</small></span> : limited ? <span><b>{presentation.label}</b> · W2 盘口证据尚未落盘</span> : <span><b>{match.shadow_candidate.status === "ACTIVE" ? "影子候选" : "普通查看"}</b> · 未触发优先复核</span>}
         </span>
         <time>{kickoffLabel(match.kickoff_utc, workspace.date)}</time>
       </button>
@@ -418,20 +444,20 @@ function Timeline({ kickoff, market }: { kickoff: string | null; market: Workspa
   );
 }
 
-function MarketEvidence({ market, generatedAt, kickoff, latestSnapshotAt, latestSnapshotCheckpoint }: { market: WorkspaceMarket; generatedAt: string | null; kickoff: string | null; latestSnapshotAt: string | null; latestSnapshotCheckpoint: string | null }) {
+function MarketEvidence({ market, generatedAt, kickoff, finished, latestSnapshotAt, latestSnapshotCheckpoint }: { market: WorkspaceMarket; generatedAt: string | null; kickoff: string | null; finished: boolean; latestSnapshotAt: string | null; latestSnapshotCheckpoint: string | null }) {
   const timelineCheckpoint = market.timeline_points[market.timeline_points.length - 1]?.checkpoint;
   const collectionCheckpoint = latestSnapshotCheckpoint && market.latest_snapshot_at && latestSnapshotAt
     && Date.parse(market.latest_snapshot_at) === Date.parse(latestSnapshotAt) ? latestSnapshotCheckpoint : null;
   return (
     <section className="v41-market" data-market={market.market} data-status={market.status}>
       <header><span>市场雷达 · {MARKET_LABELS[market.market]} · 仅绘制已落盘快照</span></header>
-      <div className="v41-market-line"><strong>{market.main_line || "—"}</strong><span className={`v41-status v41-status--${market.status.toLowerCase()}`}>{market.status === "READY" ? `当前可得最新 · ${market.bookmaker_count} 家机构双边报价` : "证据不足"}</span></div>
+      <div className="v41-market-line"><strong>{market.main_line || "—"}</strong><span className={`v41-status v41-status--${market.status.toLowerCase()}`}>{market.status === "READY" ? `${finished ? "开球前最后快照" : "当前可得最新"} · ${market.bookmaker_count} 家机构双边报价` : "证据不足"}</span></div>
       <Timeline kickoff={kickoff} market={market} />
       <p className="v41-market-foot">
         <span>{market.snapshot_count} 个真实快照 · 点间不插值、不推断缺失路径</span>
         <span>最新 {localDateTime(market.latest_snapshot_at)}</span>
       </p>
-      <div className="v41-market-freshness"><span>市场证据</span><strong>{label(market.eligibility.observation_status)}</strong><span>捕获档位</span><strong>{timelineCheckpoint || collectionCheckpoint || "档位待确认"}</strong><span>距最新快照</span><strong>{ageLabel(generatedAt, market.latest_snapshot_at)}</strong></div>
+      <div className="v41-market-freshness"><span>市场证据</span><strong>{label(market.eligibility.observation_status)}</strong><span>快照来源档位</span><strong>{timelineCheckpoint || collectionCheckpoint || "档位待确认"}</strong><span>{finished ? "开球时报价年龄" : "距最新快照"}</span><strong>{ageLabel(finished ? kickoff : generatedAt, market.latest_snapshot_at)}</strong></div>
       <div className="v41-market-semantics"><b>走势证据：{label(market.trend_evidence_status)}</b><span>{comparisonSummary(market)}</span></div>
       <div className="v41-market-semantics"><b>候选输入</b><span>候选报价可锁定：{label(market.eligibility.candidate_quote_lock_status)} · 候选可用模型：{label(market.eligibility.candidate_model_status)}</span></div>
     </section>
@@ -440,6 +466,7 @@ function MarketEvidence({ market, generatedAt, kickoff, latestSnapshotAt, latest
 
 function RiskSummary({ generatedAt, match }: { generatedAt: string | null; match: WorkspaceMatch }) {
   const lineupWaiting = match.readiness.missing_fields.includes("lineups")
+    && !match.outcome.is_finished
     && match.lineup_collection.public_semantics.cause === "NOT_YET_DUE";
   return (
     <div className="v41-risk-list" aria-label="四轴风险">
@@ -543,8 +570,8 @@ function FactorChecklist({ match }: { match: WorkspaceMatch }) {
     .filter((factor) => !modelGates.includes(factor) && !candidateGates.includes(factor))
     .sort((left, right) => Number(left.cause === "POLICY_DISABLED") - Number(right.cause === "POLICY_DISABLED"));
   return <section className="v41-factor-checklist" aria-labelledby="factor-checklist-title">
-    <header><div><span className="v41-eyebrow">本场因子体检</span><h2 id="factor-checklist-title">{checklist.conclusion_zh}</h2></div><div className="v41-factor-tracks"><b className={checklist.track_model_forecast.state === "READY" ? "is-ready" : "is-blocked"}>模型账本 {checklist.track_model_forecast.state}</b><b className={checklist.track_shadow_candidate.state === "READY" ? "is-ready" : "is-blocked"}>影子候选 {checklist.track_shadow_candidate.state}</b></div></header>
-    <p>{checklist.market_identity_note_zh}</p>
+    <header><div><span className="v41-eyebrow">本场因子体检</span><h2 id="factor-checklist-title">{checklist.conclusion_zh}</h2></div><div className="v41-factor-tracks"><b className={checklist.track_model_forecast.state === "READY" ? "is-ready" : "is-blocked"}>模型账本 {checklist.track_model_forecast.state}</b><b className={checklist.track_shadow_candidate.state === "READY" ? "is-ready" : "is-blocked"}>候选因子投影 {checklist.track_shadow_candidate.state}</b></div></header>
+    <p>{checklist.market_identity_note_zh} 本区只解释因子投影，不改写上方正式漏斗最终状态。</p>
     <LedgerFact checklist={checklist} />
     <div className="v41-factor-group"><h3>模型预测硬门 <small>决定能否进入验证账本</small></h3><FactorRows factors={modelGates} /></div>
     <div className="v41-factor-group"><h3>候选市场硬门 <small>让球 / 大小球独立显示</small></h3><FactorRows factors={candidateGates} /></div>
@@ -557,7 +584,8 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
   const primary = markets.find((market) => market.main_line) || markets[0];
   const model = match.w2_analysis.model_view;
   const marketRelations = markets.map((market) => match.w2_analysis.model_market_relation[market.market]);
-  const collectionWarning = match.market_collection.public_semantics.cause === "AWAITING_COLLECTION";
+  const finished = match.outcome.is_finished;
+  const collectionWarning = !finished && match.market_collection.public_semantics.cause === "AWAITING_COLLECTION";
   const candidate = match.shadow_candidate;
   return (
     <article className="v41-focus" data-focus-type="MATCH" data-fixture-id={match.fixture_id}>
@@ -567,25 +595,33 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
       </header>
       <div className={`v41-focus-summary ${collectionWarning ? "is-warning" : ""}`}><b>{collectionWarning ? "采集状态" : "本场摘要"}</b><span>{match.factual_summary}</span></div>
       <div className="v41-focus-body">
-        <div className="v41-focus-markets">{markets.map((market) => <MarketEvidence generatedAt={generatedAt} key={market.market} kickoff={match.kickoff_utc} latestSnapshotAt={match.market_collection.latest_snapshot_at} latestSnapshotCheckpoint={match.market_collection.latest_snapshot_checkpoint} market={market} />)}</div>
+        <div className="v41-focus-markets">{markets.map((market) => <MarketEvidence finished={finished} generatedAt={generatedAt} key={market.market} kickoff={match.kickoff_utc} latestSnapshotAt={match.market_collection.latest_snapshot_at} latestSnapshotCheckpoint={match.market_collection.latest_snapshot_checkpoint} market={market} />)}</div>
         <div className="v41-focus-meaning">
           <span className="v41-eyebrow">{candidate.status === "ACTIVE" ? "四层" : "三层"}语义 · 互不等同</span>
           <div className={`v41-three-layer ${candidate.status === "ACTIVE" ? "v41-three-layer--candidate" : ""}`}>
             <div><span>市场主事实</span><strong>{MARKET_LABELS[primary.market]}</strong><b>{primary.main_line || "—"}</b></div>
-            <div><span>W2 诊断</span><strong>模型—市场比较</strong><b>逐市场 · {candidateAggregateLabel(match.readiness.market_aggregate_status)}</b></div>
+            <div><span>市场输入</span><strong>报价证据</strong><b>逐市场 · {candidateAggregateLabel(match.readiness.market_aggregate_status)}</b></div>
             {candidate.status === "ACTIVE" ? <div><span>影子候选</span><strong>已形成</strong><b>进入赛后验证</b></div> : null}
-            <div><span>正式推荐</span><strong>产品权限</strong><b>未启用</b></div>
+            <div><span>实盘执行</span><strong>产品权限</strong><b>未启用</b></div>
           </div>
           {candidate.status === "ACTIVE" ? <section className="v41-candidate" data-candidate-status={candidate.status}>
             <header><span>影子候选 · 非正式推荐</span><b>验证中</b></header>
             <div><strong>{candidate.market ? MARKET_LABELS[candidate.market] : "市场待确认"} · {SELECTION_LABELS[candidate.selection || ""] || candidate.selection}</strong><span>盘口 {candidate.exact_line} · 赔率 {price(candidate.decimal_odds)}</span><small>已按 V4 身份进入统一前向账本；赛后自动结算并累计验证。</small></div>
             <footer>Formal、Lock、Production 与实盘保持关闭；达到既有证据门槛后另行提交 Owner 审批。</footer>
           </section> : null}
-          <div className="v41-diagnostic" data-evaluation-status={match.evaluation_execution.status}><span /><p><b>评估执行结果：{match.evaluation_execution.status === "UNASSESSED" ? "尚未评估" : match.evaluation_execution.status}</b>{match.evaluation_execution.summary_zh}</p></div>
+          {match.evaluation_execution.latest_candidates.length ? <section className="v41-candidate v41-candidate--official" data-final-active={String(match.evaluation_execution.status === "CANDIDATE")}>
+            <header><span>正式漏斗候选生命周期</span><b>{match.evaluation_execution.ever_formed_candidate ? "曾形成候选" : "未形成候选"}</b></header>
+            {match.evaluation_execution.latest_candidates.map((item) => <div key={item.market}>
+              <strong>{MARKET_LABELS[item.market]} · {item.selection ? SELECTION_LABELS[item.selection] || item.selection : "方向待确认"} {item.exact_line ?? "盘口待确认"} {item.decimal_odds === null ? "" : `@${item.decimal_odds.toFixed(2)}`}</strong>
+              <span>{item.checkpoint} 形成 · {opportunityStateLabel(item.final_state)}</span>
+            </div>)}
+            <footer>“曾形成”只代表历史事件；只有“最终仍有效”才计入推荐与赛果。</footer>
+          </section> : null}
+          <div className="v41-diagnostic" data-evaluation-status={match.evaluation_execution.status}><span /><p><b>最终候选状态：{evaluationStatusLabel(match.evaluation_execution.status)}</b>{match.evaluation_execution.summary_zh}</p></div>
           <div className="v41-diagnostic"><span /><p><b>可比较模型（需已验证校准）：{label(model.status)}</b>{`让球：${label(marketRelations[0]?.status)}；大小球：${label(marketRelations[1]?.status)}。该状态只决定能否绘制模型—市场对比图；${marketRelations.some((relation) => ["COMPARABLE_WITHIN_MARKET_RANGE", "MODEL_OUTSIDE_MARKET_RANGE"].includes(relation?.status || "")) ? "已就绪市场可绘制诊断图。" : "当前暂不绘制。"}优先检查模型校准、特征时效、盘口身份和数据质量。`}</p></div>
           <RiskSummary generatedAt={generatedAt} match={match} />
           <Scoreline match={match} />
-          <div className="v41-next"><span>市场 / 候选就绪</span><strong>{candidateAggregateLabel(match.readiness.market_aggregate_status)}</strong><span>采集状态</span><strong>{collectionLabel(match)}</strong><span>计划时刻</span><strong>{match.market_collection.scheduled_at ? scheduledEvaluation(match.market_collection.scheduled_at, generatedAt) : "暂无后续计划"}</strong><span>宽限结束</span><strong>{match.market_collection.window_end_at ? localDateTime(match.market_collection.window_end_at) : "不适用"}</strong><span>下次评估</span><strong>{nextEvaluation(match.readiness.next_eval_at, generatedAt)}</strong></div>
+          <div className="v41-next"><span>市场输入</span><strong>{candidateAggregateLabel(match.readiness.market_aggregate_status)}</strong><span>最终候选</span><strong>{evaluationStatusLabel(match.evaluation_execution.status)}</strong><span>采集状态</span><strong>{finished ? "赛前流程已关闭" : collectionLabel(match)}</strong><span>计划时刻</span><strong>{finished ? "不适用" : match.market_collection.scheduled_at ? scheduledEvaluation(match.market_collection.scheduled_at, generatedAt) : "暂无后续计划"}</strong><span>宽限结束</span><strong>{finished ? "不适用" : match.market_collection.window_end_at ? localDateTime(match.market_collection.window_end_at) : "不适用"}</strong><span>下次评估</span><strong>{finished ? "赛前流程已结束" : nextEvaluation(match.readiness.next_eval_at, generatedAt)}</strong></div>
           <details className="v41-details"><summary>技术详情</summary><code>{match.intelligence_state}</code><code>{match.readiness.reason_code || "NO_REASON_CODE"}</code><code>market_aggregate={match.readiness.market_aggregate_status}</code><code>model_source={model.source_status}</code>{markets.map((market) => <span key={market.market}><code>{market.market}:{market.eligibility.model_diagnostic_status}</code>{market.reason_codes.map((reason) => <code key={`${market.market}-${reason}`}>{market.market}:{reason}</code>)}{market.eligibility.blockers.map((blocker) => <code key={`${market.market}-${blocker}`}>{market.market}:{blocker}</code>)}</span>)}</details>
         </div>
       </div>
@@ -676,7 +712,8 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
       </header>
       <section className="v41-official-recommendations" aria-labelledby="official-recommendations-title">
         <h3 id="official-recommendations-title">推荐与赛果</h3>
-        <p className="v41-validation-verdict"><strong>正式漏斗已结算 {officialSettledCount} 注，合计 {officialProfit >= 0 ? "+" : ""}{officialProfit.toFixed(3)} 单位。</strong><span>样本量远不足以判断模型好坏。</span></p>
+        <p className="v41-validation-verdict"><strong>开赛前最后状态仍为候选且已结算 {officialSettledCount} 注，合计 {officialProfit >= 0 ? "+" : ""}{officialProfit.toFixed(3)} 单位。</strong><span>样本量远不足以判断模型好坏。</span></p>
+        <ul className="v41-validation-counts"><li><span>曾形成候选</span><strong>{modelForecast.ever_formed_candidate_count}</strong></li><li><span>最终仍有效</span><strong>{modelForecast.final_candidate_count}</strong></li><li><span>后续失效</span><strong>{modelForecast.invalidated_candidate_count}</strong></li></ul>
         {officialRecommendations.length ? <>
           <div className="v41-official-recommendations__head" aria-hidden="true"><span>开球时间</span><span>比赛</span><span>系统推荐</span><span>进场赔率</span><span>比分</span><span>结算结果</span><span>盈亏</span></div>
           <ol>{officialRecommendations.map((row) => {
@@ -691,7 +728,8 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
           })}</ol>
         </> : <p className="v41-validation-empty">当日无正式漏斗推荐。</p>}
       </section>
-      <ul className="v41-validation-counts v41-validation-t30"><li><span>当前 T-30 流程已冻结候选</span><strong>{modelForecast.current_flow_candidate_count}</strong></li></ul>
+      <ul className="v41-validation-counts v41-validation-t30"><li><span>T-30 候选评估</span><strong>{modelForecast.t30_evaluated_candidate_count}</strong></li><li><span>T-30 正式档位成功</span><strong>{modelForecast.t30_confirmed_candidate_count}</strong></li></ul>
+      <p className="v41-validation-context">候选评估与正式档位终态是两层证据；端点明细仍分别保留 CAPTURED / PROVIDER_EMPTY。</p>
       <details className="v41-validation-audit v41-validation-audit--group">
         <summary>审计与历史记账</summary>
         <div className="v41-validation-layout">
