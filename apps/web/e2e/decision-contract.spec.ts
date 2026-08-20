@@ -188,6 +188,7 @@ function match(id: string, options: { rich?: boolean; stale?: boolean; modelWarn
     readiness: { status: options.rich && !options.stale ? "READY" : "BLOCKED", reason_code: options.stale ? "QUOTE_OLDER_THAN_30_MINUTES" : options.rich ? "EVIDENCE_READY" : "DATA_INCOMPLETE", reason_codes: [], missing_fields: options.rich ? [] : ["market"], stale_fields: options.stale ? ["candidate_quote"] : [], action: "WAIT_FOR_NEXT_SCHEDULED_EVALUATION", next_eval_at: "2026-08-09T13:22:00Z", provider_budget_status: "PROTECTED", lineup_status: "AVAILABLE", lineup_expectation: "ADVISORY", market_aggregate_status: options.rich && !options.stale ? "READY" : "NOT_READY", market_evidence_status: options.rich ? "AVAILABLE" : "NOT_READY", candidate_input_status: options.rich && !options.stale ? "READY" : "NOT_READY" },
     market_fact: { status: ah.status, source_status: ah.source_status, main_line: ah.main_line, current_odds: ah.prices, market_probabilities: ah.probabilities, price_reference: "LAST_AVAILABLE_PREMATCH_SNAPSHOT", canonical_close_status: "NOT_OBTAINABLE_FROM_CURRENT_PROVIDER" },
     w2_analysis: { status: "ANALYSIS_REFERENCE", proof_status: "NOT_PROVEN", decision_tier: "WATCH", analysis_state: relationStatus, reason_codes: [], model_view: { status: "READY", source_status: "READY", model_version: "w2-existing-v1", calibration_version: "cal-v1", calibration_status: "AVAILABLE", simulations_completed: 10_000 }, model_market_relation: { ASIAN_HANDICAP: relation("ASIAN_HANDICAP"), TOTALS: relation("TOTALS") } },
+    evaluation_execution: { status: "UNASSESSED", checkpoint_count: 0, market_evaluation_count: 0, checkpoints: [], markets: [], summary_zh: "尚无正式检查点评估" },
     shadow_candidate: options.rich && !options.stale ? { status: "ACTIVE", mode: "SHADOW_ONLY", authority: "RECOMMENDATION_DECISION_V4", decision_tier: "ANALYSIS_PICK", reason_code: "ANALYSIS_ONLY", reason_message: "当前仅提供影子候选", market: "ASIAN_HANDICAP", selection: "HOME", exact_line: "-0.75", decimal_odds: 1.95, captured_at: "2026-08-09T12:11:00Z", decision_hash: "a".repeat(64), recommendation_scope: "VALIDATION", outcome_tracked: true, formal_status: "OFF", lock_status: "OFF", production_action_allowed: false, real_money_allowed: false } : { status: "NOT_READY", mode: "SHADOW_ONLY", authority: "RECOMMENDATION_DECISION_V4", decision_tier: "NOT_READY", reason_code: "EVIDENCE_NOT_READY", reason_message: "当前证据尚未就绪", market: null, selection: null, exact_line: null, decimal_odds: null, captured_at: null, decision_hash: null, recommendation_scope: "NONE", outcome_tracked: false, formal_status: "OFF", lock_status: "OFF", production_action_allowed: false, real_money_allowed: false },
     factor_checklist: factorChecklist(id, options.rich, options.stale),
     formal_recommendation: { status: "OFF", reason: "PRODUCT_AUTHORITY_DISABLED" },
@@ -216,7 +217,9 @@ function modelForecastValidation(): IntelligenceWorkspace["validation"]["model_f
     xg_ready_team_count: 128,
     next_7d_xg_ready_fixture_count: 36,
     capture_policy: "FIRST_ELIGIBLE_FREEZE_IMMUTABLE",
+    market_evaluation_funnel: { scope: "CHECKPOINT_EVALUATION_OPPORTUNITY_V2", denominator_unit: "CHECKPOINT_EVALUATION_OPPORTUNITY_SLOT_X_MARKET", measurement_status: "MEASURABLE", invalid_opportunity_row_count: 0, invalid_opportunity_reasons: {}, opportunity_count: 10, capture_count: 3, fixture_count: 3, market_unit_count: 6, persisted_market_unit_count: 6, recorded_at_count: 10, gate_counts: { model_ready: 10, mainline_parsed: 8, bookmaker_depth: 7, quote_fresh: 6, evaluated: 6, no_edge: 4, candidate: 2 }, gate_rates: { model_ready: 1, mainline_parsed: 0.8, bookmaker_depth: 0.7, quote_fresh: 0.6, evaluated: 0.6, no_edge: 0.4, candidate: 0.2 }, first_failed_gate_counts: { bookmaker_depth: 1, quote_fresh: 1 } },
     lead_time_buckets: buckets,
+    official_recommendations: [],
     data_versions: {
       TEAM_XG_MATCH_ROWS_1868: {
         team_xg_match_count: 1868,
@@ -432,7 +435,7 @@ test("shadow candidate is explicit, tracked and non-production", async ({ page }
   await expect(page.locator(".v41-candidate")).toContainText("让球主盘 · 主队");
   await expect(page.locator(".v41-candidate")).toContainText("盘口 -0.75 · 赔率 1.95");
   await expect(page.locator(".v41-candidate")).toContainText("Formal、Lock、Production 与实盘保持关闭");
-  await expect(page.locator("#secondary-validation")).toContainText("候选：当前四门流程尚未产生任何候选");
+  await expect(page.locator("#secondary-validation .v41-validation-t30")).toContainText("当前 T-30 流程已冻结候选0");
 });
 
 test("V41 presents unassessed model evidence in Chinese and keeps codes technical", async ({ page }) => {
@@ -468,10 +471,11 @@ test("V41 presents unassessed model evidence in Chinese and keeps codes technica
   await expect(page.locator(".v41-focus-summary")).toContainText("可比较模型尚未就绪（需已验证校准），暂不进行模型—市场比较");
   await expect(page.locator(".v41-focus-summary")).not.toContainText("ASIAN_HANDICAP/TOTALS");
   await expect(page.locator(".v41-market-semantics").filter({ hasText: "候选输入" }).first()).toContainText("候选可用模型");
-  await expect(page.locator(".v41-diagnostic")).toContainText("可比较模型（需已验证校准）");
-  await expect(page.locator(".v41-diagnostic")).not.toContainText("当前模型状态");
-  await expect(page.locator(".v41-diagnostic")).not.toContainText("MODEL_NOT_READY");
-  await expect(page.locator(".v41-risk-list")).toContainText("模型风险未评估可比较模型尚无已验证校准证据");
+  const modelDiagnostic = page.locator(".v41-diagnostic").filter({ hasText: "可比较模型（需已验证校准）" });
+  await expect(modelDiagnostic).toContainText("可比较模型（需已验证校准）");
+  await expect(modelDiagnostic).not.toContainText("当前模型状态");
+  await expect(modelDiagnostic).not.toContainText("MODEL_NOT_READY");
+  await expect(page.locator(".v41-risk-list")).toContainText("可比较模型校准尚无已验证校准可比较模型尚无已验证校准证据");
   await expect(page.getByText("MODEL_CALIBRATION_NOT_READY", { exact: true })).not.toBeVisible();
 });
 
@@ -940,22 +944,39 @@ test("V41 exposes a prominent post-match validation center and hides raw codes i
   const payload = workspace();
   payload.validation.forward_validation_records.outcomes = { settled_sample_count: 16 };
   payload.validation.forward_validation_records.eligible_count = 16;
+  payload.validation.model_forecast.current_flow_candidate_count = 3;
+  payload.validation.model_forecast.official_recommendations = [
+    { evaluation_id: "eval-win", fixture_id: "official-win", evaluated_at: "2026-08-10T01:00:00Z", kickoff_utc: "2026-08-10T02:00:00Z", market: "ASIAN_HANDICAP", selection: "AWAY", exact_line: "1.0", decimal_odds: 1.87, home_team_label: payload.matches[0].home_team_label, away_team_label: payload.matches[0].away_team_label, score: "0-1", settlement: "WIN", profit_units: 0.87 },
+    { evaluation_id: "eval-loss", fixture_id: "official-loss", evaluated_at: "2026-08-10T01:01:00Z", kickoff_utc: "2026-08-10T02:01:00Z", market: "TOTALS", selection: "UNDER", exact_line: "3.5", decimal_odds: 1.9, home_team_label: payload.matches[1].home_team_label, away_team_label: payload.matches[1].away_team_label, score: "3-1", settlement: "LOSS", profit_units: -1 },
+    { evaluation_id: "eval-half-win", fixture_id: "official-half-win", evaluated_at: "2026-08-10T01:02:00Z", kickoff_utc: "2026-08-10T02:02:00Z", market: "ASIAN_HANDICAP", selection: "AWAY", exact_line: "0.25", decimal_odds: 1.77, home_team_label: payload.matches[2].home_team_label, away_team_label: payload.matches[2].away_team_label, score: "3-3", settlement: "HALF_WIN", profit_units: 0.385 },
+    { evaluation_id: "eval-push", fixture_id: "official-push", evaluated_at: "2026-08-10T01:03:00Z", kickoff_utc: "2026-08-10T02:03:00Z", market: "TOTALS", selection: "UNDER", exact_line: "3.0", decimal_odds: 1.81, home_team_label: payload.matches[0].home_team_label, away_team_label: payload.matches[0].away_team_label, score: "1-2", settlement: "PUSH", profit_units: 0 },
+  ];
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => { requests += 1; return route.fulfill({ status: 200, json: payload }); });
   await page.goto("/");
   const validation = page.locator("#secondary-validation");
   await expect(validation).toBeVisible();
   await expect(validation).toContainText("赛后验证");
   await expect(validation).toContainText("跨比赛日累计证据");
-  await expect(validation).toContainText("模型验证：已结算 8 场，样本量远不足以判断模型好坏（需 200 场）");
-  await expect(validation).toContainText("候选：当前四门流程尚未产生任何候选");
-  await expect(validation).toContainText("历史已结算 ANALYSIS_PICK16");
-  await expect(validation).toContainText("历史遗留，非当前流程产出");
-  await expect(validation).toContainText("n=16、选择过程尚未审计");
+  await expect(validation.locator(".v41-validation-verdict")).toContainText("正式漏斗已结算 4 注，合计 +0.255 单位");
+  await expect(validation.locator(".v41-validation-verdict")).toContainText("样本量远不足以判断模型好坏");
+  await expect(validation.locator(".v41-validation-verdict")).not.toContainText("200");
+  await expect(validation.locator(".v41-validation-t30")).toContainText("当前 T-30 流程已冻结候选3");
+  await expect(validation.getByText("模型预测验证账本", { exact: true })).not.toBeVisible();
+  await expect(validation.getByText("历史已结算 ANALYSIS_PICK", { exact: true }).first()).not.toBeVisible();
+  await expect(validation.getByText("当前流程逐门覆盖", { exact: false })).not.toBeVisible();
+  await expect(validation.locator(".v41-validation-matches")).toBeVisible();
+  await expect(validation.locator(".v41-official-recommendations b")).toHaveText(["赢", "输", "赢一半", "走盘"]);
+  const recommendationBeforeAudit = await validation.evaluate((node) => {
+    const recommendation = node.querySelector(".v41-official-recommendations");
+    const audit = node.querySelector(".v41-validation-audit--group");
+    return Boolean(recommendation && audit && recommendation.compareDocumentPosition(audit) & Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+  expect(recommendationBeforeAudit).toBe(true);
   await expect(validation).not.toContainText("有效输赢命中率");
-  await expect(validation.getByText("已有 ≥3 场历史的球队")).not.toBeVisible();
-  await validation.locator(".v41-validation-audit summary").first().click();
+  await validation.locator(".v41-validation-audit--group > summary").click();
+  await expect(validation.getByText("历史遗留，非当前流程产出", { exact: false })).toBeVisible();
+  await expect(validation.getByText("n=16、选择过程尚未审计", { exact: false })).toBeVisible();
   await expect(validation.getByText("已有 ≥3 场历史的球队")).toBeVisible();
-  await validation.locator(".v41-validation-audit summary").nth(1).click();
   await expect(validation).toContainText("赛果基表记录36");
   await expect(validation).toContainText("不混入所选比赛日的前向记录与赛果缺口");
   await expect(validation).toContainText("赛果尚未产生");
@@ -966,6 +987,12 @@ test("V41 exposes a prominent post-match validation center and hides raw codes i
   await validation.locator(".v41-validation-technical summary").click();
   await expect(validation.getByText("FORWARD_RECORD", { exact: true })).toBeVisible();
   expect(requests).toBe(initialRequests);
+});
+
+test("official recommendation empty state is explicit", async ({ page }) => {
+  await installWorkspace(page);
+  await page.goto("/");
+  await expect(page.locator(".v41-official-recommendations")).toContainText("当日无正式漏斗推荐");
 });
 
 test("empty selected day never leaks replay gaps into public copy", async ({ page }) => {

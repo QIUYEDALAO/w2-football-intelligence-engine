@@ -1520,6 +1520,11 @@ summary {
   gap: 14px;
 }
 
+.v41-validation-layout--single,
+.v41-validation-audit--group > .v41-validation-layout {
+  grid-template-columns: 1fr;
+}
+
 .v41-model-forecast-buckets {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-top: 6px;
@@ -1593,6 +1598,29 @@ summary {
   margin-top: 6px;
 }
 
+.v41-validation-audit--group {
+  margin-top: 0;
+  padding: 13px 14px;
+  border: 1px solid var(--v41-line-soft);
+  border-radius: 3px;
+}
+
+.v41-validation-audit--group > summary {
+  font-weight: 700;
+}
+
+.v41-validation-audit--group > .v41-validation-layout {
+  margin-top: 10px;
+}
+
+.v41-validation-audit--group h3:not(:first-child) {
+  margin-top: 16px;
+}
+
+.v41-validation-counts.v41-validation-t30 {
+  grid-template-columns: minmax(0, 320px);
+}
+
 .v41-validation-matches {
   display: grid;
   gap: 0;
@@ -1622,7 +1650,6 @@ summary {
 }
 
 .v41-official-recommendations {
-  margin-top: 14px;
   padding: 13px 14px;
   border: 1px solid var(--v41-line-soft);
   border-radius: 3px;
