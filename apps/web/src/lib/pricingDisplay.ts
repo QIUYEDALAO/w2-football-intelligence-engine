@@ -44,6 +44,13 @@ export function formatAhMarketHandicap(homeLine: unknown): string | null {
   return `${handicap < 0 ? "-" : ""}${formatLine(Math.abs(handicap))}`;
 }
 
+export function formatAhRecommendationHandicap(selection: unknown, exactLine: unknown): string | null {
+  const numeric = numericValue(exactLine);
+  if (numeric == null) return null;
+  const homeLine = selection === "HOME" ? numeric : selection === "AWAY" ? -numeric : null;
+  return homeLine == null ? null : formatAhMarketHandicap(homeLine);
+}
+
 export function ahDisplayContract(homeLine: unknown): {
   display_line_cn: string;
   home_display_line_cn: string;

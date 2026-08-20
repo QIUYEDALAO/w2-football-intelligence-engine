@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { footballDayShanghai, translateCompetition, translateReason } from "../lib/formatters";
 import { PUBLIC_ENUM_LABELS, PUBLIC_REASON_LABELS } from "../lib/labels";
-import { formatAhMarketHandicap } from "../lib/pricingDisplay";
+import { formatAhMarketHandicap, formatAhRecommendationHandicap } from "../lib/pricingDisplay";
 import { publicPresentation } from "../lib/publicPresentation";
 import type {
   FixtureFactor,
@@ -240,6 +240,11 @@ function marketLineLabel(market: WorkspaceMarket["market"], line: string | null)
   return market === "ASIAN_HANDICAP" ? formatAhMarketHandicap(line) || "—" : line;
 }
 
+function quoteAgeMaximumSeconds(checklist: FixtureFactorChecklist, market: WorkspaceMarket["market"]): number | null {
+  const factor = checklist.factors.find((item) => item.factor_id === "MK_QUOTE_AGE" && item.market === market);
+  return factor ? evidenceNumber(factor, "maximum_seconds") : null;
+}
+
 function comparisonSummary(market: WorkspaceMarket): string {
   if (market.cross_sectional_comparison_status === "AVAILABLE") return "同一时刻机构双边报价可比较";
   return "当前横截面对比证据不足";
@@ -454,14 +459,30 @@ function Timeline({ kickoff, market }: { kickoff: string | null; market: Workspa
   );
 }
 
-function MarketEvidence({ market, generatedAt, kickoff, finished, latestSnapshotAt, latestSnapshotCheckpoint }: { market: WorkspaceMarket; generatedAt: string | null; kickoff: string | null; finished: boolean; latestSnapshotAt: string | null; latestSnapshotCheckpoint: string | null }) {
+function MarketEvidence({ market, generatedAt, kickoff, finished, latestSnapshotAt, latestSnapshotCheckpoint, quoteMaxAgeSeconds }: { market: WorkspaceMarket; generatedAt: string | null; kickoff: string | null; finished: boolean; latestSnapshotAt: string | null; latestSnapshotCheckpoint: string | null; quoteMaxAgeSeconds: number | null }) {
   const timelineCheckpoint = market.timeline_points[market.timeline_points.length - 1]?.checkpoint;
   const collectionCheckpoint = latestSnapshotCheckpoint && market.latest_snapshot_at && latestSnapshotAt
     && Date.parse(market.latest_snapshot_at) === Date.parse(latestSnapshotAt) ? latestSnapshotCheckpoint : null;
+  const frozenQuoteAgeSeconds = finished && kickoff && market.latest_snapshot_at
+    ? Math.max(0, Math.floor((Date.parse(kickoff) - Date.parse(market.latest_snapshot_at)) / 1000))
+    : null;
+  const quoteAgeSeconds = frozenQuoteAgeSeconds !== null && Number.isFinite(frozenQuoteAgeSeconds)
+    ? frozenQuoteAgeSeconds
+    : market.quote_age_seconds;
+  const quoteAgeState = quoteAgeSeconds === null || quoteMaxAgeSeconds === null
+    ? null
+    : quoteAgeSeconds <= quoteMaxAgeSeconds ? "ready" : "warning";
+  const quoteAgeText = quoteAgeSeconds === null
+    ? ageLabel(finished ? kickoff : generatedAt, market.latest_snapshot_at)
+    : duration(quoteAgeSeconds);
   return (
     <section className="v41-market" data-market={market.market} data-status={market.status}>
-      <header><span>市场雷达 · {MARKET_LABELS[market.market]} · 仅绘制已落盘快照</span></header>
-      <div className="v41-market-line"><strong>{marketLineLabel(market.market, market.main_line)}</strong><span className={`v41-status v41-status--${market.status.toLowerCase()}`}>{market.status === "READY" ? `${finished ? "开球前最后快照" : "当前可得最新"} · ${market.bookmaker_count} 家机构双边报价` : "证据不足"}</span></div>
+      <header><span>市场雷达 · {MARKET_LABELS[market.market]} · 仅绘制已落盘快照</span><span className={`v41-status v41-status--${market.status.toLowerCase()}`}>{market.status === "READY" ? finished ? "开球前最后快照" : "当前可得最新" : "证据不足"}</span></header>
+      <div className="v41-market-summary">
+        <div><span>盘口</span><strong data-market-line>{marketLineLabel(market.market, market.main_line)}</strong></div>
+        <div><span>机构深度</span><strong>{market.bookmaker_count} 家</strong></div>
+        <div data-quote-age-state={quoteAgeState || "unknown"}><span>{finished ? "报价年龄" : "快照年龄"}</span><strong>{quoteAgeText}{quoteAgeState ? <i aria-label={quoteAgeState === "ready" ? "时效达标" : "时效未达标"} className={`v41-quote-age-mark is-${quoteAgeState}`}>{quoteAgeState === "ready" ? "✓" : "✗"}</i> : null}</strong></div>
+      </div>
       <Timeline kickoff={kickoff} market={market} />
       <p className="v41-market-foot">
         <span>{market.snapshot_count} 个真实快照 · 点间不插值、不推断缺失路径</span>
@@ -470,7 +491,6 @@ function MarketEvidence({ market, generatedAt, kickoff, finished, latestSnapshot
       <div className="v41-market-freshness">
         <div><span>市场证据</span><strong>{label(market.eligibility.observation_status)}</strong></div>
         <div><span>快照档位</span><strong>{timelineCheckpoint || collectionCheckpoint || "档位待确认"}</strong></div>
-        <div><span>{finished ? "报价年龄" : "快照年龄"}</span><strong>{ageLabel(finished ? kickoff : generatedAt, market.latest_snapshot_at)}</strong></div>
         <div><span>走势证据</span><strong>{label(market.trend_evidence_status)}</strong></div>
         <div><span>报价锁定</span><strong>{label(market.eligibility.candidate_quote_lock_status)}</strong></div>
         <div><span>可用模型</span><strong>{label(market.eligibility.candidate_model_status)}</strong></div>
@@ -626,7 +646,7 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
       </header>
       <div className={`v41-focus-summary ${collectionWarning ? "is-warning" : ""}`}><b>{collectionWarning ? "采集状态" : "本场摘要"}</b><span>{match.factual_summary}</span></div>
       <div className="v41-focus-body">
-        <div className="v41-focus-markets">{markets.map((market) => <MarketEvidence finished={finished} generatedAt={generatedAt} key={market.market} kickoff={match.kickoff_utc} latestSnapshotAt={match.market_collection.latest_snapshot_at} latestSnapshotCheckpoint={match.market_collection.latest_snapshot_checkpoint} market={market} />)}</div>
+        <div className="v41-focus-markets">{markets.map((market) => <MarketEvidence finished={finished} generatedAt={generatedAt} key={market.market} kickoff={match.kickoff_utc} latestSnapshotAt={match.market_collection.latest_snapshot_at} latestSnapshotCheckpoint={match.market_collection.latest_snapshot_checkpoint} market={market} quoteMaxAgeSeconds={quoteAgeMaximumSeconds(match.factor_checklist, market.market)} />)}</div>
         <div className="v41-focus-meaning">
           {candidate.status === "ACTIVE" ? <section className="v41-candidate" data-candidate-status={candidate.status}>
             <header><span>影子候选 · 非正式推荐</span><b>验证中</b></header>
@@ -759,9 +779,9 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
           <div className="v41-official-recommendations__head" aria-hidden="true"><span>开球时间</span><span>比赛</span><span>系统推荐</span><span>进场赔率</span><span>比分</span><span>结算结果</span><span>盈亏</span></div>
           <ol>{officialRecommendations.map((row) => {
             const recommendation = row.market === "ASIAN_HANDICAP"
-              ? `让球 ${Number(row.exact_line) > 0 ? "+" : ""}${row.exact_line} ${SELECTION_LABELS[row.selection]}`
+              ? `让球 ${formatAhRecommendationHandicap(row.selection, row.exact_line) || row.exact_line} · 推荐${SELECTION_LABELS[row.selection]}`
               : `${SELECTION_LABELS[row.selection]} ${row.exact_line}`;
-            return <li key={`${row.fixture_id}-${row.market}`} data-settlement={row.settlement}>
+            return <li key={`${row.fixture_id}-${row.market}`} data-fixture-id={row.fixture_id} data-market={row.market} data-settlement={row.settlement}>
               <time>{localDateTime(row.kickoff_utc)}</time>
               <strong><span className="v41-match-name"><TeamLabel team={row.home_team_label} /><span className="v41-versus"> vs </span><TeamLabel team={row.away_team_label} /></span></strong>
               <span>{recommendation}</span><span>@{row.decimal_odds.toFixed(2)}</span><span>{row.score ?? "待结算"}</span><b>{row.settlement === "PENDING" ? "待结算" : SETTLEMENT_LABELS[row.settlement]}</b><em>{row.profit_units === null ? "待结算" : `${row.profit_units > 0 ? "+" : ""}${row.profit_units.toFixed(3)}`}</em>

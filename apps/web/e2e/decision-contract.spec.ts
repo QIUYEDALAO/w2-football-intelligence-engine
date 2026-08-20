@@ -557,7 +557,7 @@ test("AH market radar uses the owner main-handicap sign convention", async ({ pa
   await page.goto("/");
 
   const market = page.locator("[data-market='ASIAN_HANDICAP']");
-  await expect(market.locator(".v41-market-line > strong")).toHaveText("-0.5");
+  await expect(market.locator("[data-market-line]")).toHaveText("-0.5");
   await expect(market.locator(".v41-snapshots li").last()).toContainText("-0.5");
   await expect(market.locator(".v41-snapshots li").last()).toContainText("主 1.94 / 客 1.80");
   await expect(page.locator(".v41-three-layer > div").first()).toContainText("-0.5");
@@ -565,8 +565,87 @@ test("AH market radar uses the owner main-handicap sign convention", async ({ pa
   handicap.main_line = "-1.5";
   handicap.timeline_points = handicap.timeline_points.map((point) => ({ ...point, canonical_line: "-1.5" }));
   await page.reload();
-  await expect(market.locator(".v41-market-line > strong")).toHaveText("1.5");
+  await expect(market.locator("[data-market-line]")).toHaveText("1.5");
   await expect(market.locator(".v41-snapshots li").last()).toContainText("1.5");
+});
+
+test("AH recommendation rows share the owner main-handicap sign convention with market radar", async ({ page }) => {
+  const payload = workspace();
+  const focused = payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!;
+  focused.fixture_id = "1490405";
+  focused.market_radar.markets.ASIAN_HANDICAP.main_line = "-0.5";
+  payload.selected_fixture_id = focused.fixture_id;
+  const recommendations = [
+    ["1490398", "AWAY", "-0.5", "让球 -0.5 · 推荐客队"],
+    ["1490400", "HOME", "+0.25", "让球 -0.25 · 推荐主队"],
+    ["1490401", "AWAY", "+0.75", "让球 0.75 · 推荐客队"],
+    ["1490402", "AWAY", "+0.5", "让球 0.5 · 推荐客队"],
+    ["1490404", "AWAY", "+1.0", "让球 1 · 推荐客队"],
+    ["1490405", "HOME", "-0.5", "让球 0.5 · 推荐主队"],
+  ] as const;
+  payload.validation.model_forecast.official_recommendations = recommendations.map(([fixtureId, selection, exactLine], index) => ({
+    evaluation_id: `eval-${fixtureId}`,
+    fixture_id: fixtureId,
+    evaluated_at: `2026-08-10T01:0${index}:00Z`,
+    kickoff_utc: "2026-08-10T02:00:00Z",
+    market: "ASIAN_HANDICAP",
+    selection,
+    exact_line: exactLine,
+    decimal_odds: 1.88,
+    home_team_label: focused.home_team_label,
+    away_team_label: focused.away_team_label,
+    score: null,
+    settlement: "PENDING",
+    profit_units: null,
+  }));
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.goto("/");
+
+  for (const [fixtureId, , , expected] of recommendations) {
+    await expect(page.locator(`.v41-official-recommendations li[data-fixture-id='${fixtureId}'] > span`).first()).toHaveText(expected);
+  }
+  const radarLine = await page.locator("[data-focus-type='MATCH'] [data-market='ASIAN_HANDICAP'] [data-market-line]").textContent();
+  const recommendationText = await page.locator(".v41-official-recommendations li[data-fixture-id='1490405'] > span").first().textContent();
+  expect(recommendationText).toContain(`让球 ${radarLine}`);
+});
+
+test("quote age gate mark reads each market's projected maximum", async ({ page }) => {
+  const payload = workspace();
+  const focused = payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!;
+  focused.market_radar.markets.ASIAN_HANDICAP.quote_age_seconds = 120;
+  focused.market_radar.markets.TOTALS.quote_age_seconds = 121;
+  for (const factor of focused.factor_checklist.factors) {
+    if (factor.factor_id === "MK_QUOTE_AGE") factor.evidence.maximum_seconds = 120;
+  }
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.goto("/");
+
+  const ready = page.locator("[data-market='ASIAN_HANDICAP'] [data-quote-age-state='ready']");
+  const warning = page.locator("[data-market='TOTALS'] [data-quote-age-state='warning']");
+  await expect(ready).toContainText("快照年龄2 分钟✓");
+  await expect(ready.locator(".v41-quote-age-mark")).toHaveCSS("color", "rgb(111, 166, 135)");
+  await expect(warning).toContainText("快照年龄2 分钟✗");
+  await expect(warning.locator(".v41-quote-age-mark")).toHaveCSS("color", "rgb(203, 160, 90)");
+});
+
+test("1440x900 keeps the actionable market chain and final candidate state above the fold", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await installWorkspace(page);
+  await page.goto("/");
+
+  const market = page.locator("[data-focus-type='MATCH'] [data-market='ASIAN_HANDICAP']");
+  const targets = [
+    market.locator("[data-market-line]"),
+    market.locator(".v41-snapshots li.is-latest span"),
+    market.locator(".v41-market-summary > div").nth(1),
+    market.locator("[data-quote-age-state]"),
+    page.locator("[data-focus-type='MATCH'] [data-evaluation-status]"),
+  ];
+  for (const target of targets) {
+    await expect(target).toBeVisible();
+    const bottom = await target.evaluate((node) => node.getBoundingClientRect().bottom);
+    expect(bottom).toBeLessThanOrEqual(900);
+  }
 });
 
 test("V41 keeps low-priority diagnostics folded by default", async ({ page }) => {
@@ -809,6 +888,7 @@ test("V41 derives age across timezone and day boundaries and never labels a past
   payload.generated_at = "2026-08-10T00:30:00+08:00";
   const focused = payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!;
   focused.market_radar.markets.ASIAN_HANDICAP.latest_snapshot_at = "2026-08-09T15:18:00Z";
+  focused.market_radar.markets.ASIAN_HANDICAP.quote_age_seconds = 4320;
   focused.market_radar.markets.ASIAN_HANDICAP.timeline_points.at(-1)!.checkpoint = null;
   focused.market_collection = { latest_snapshot_at: "2026-08-09T15:18:00Z", latest_snapshot_checkpoint: "T24_OPEN_ODDS", target_checkpoint: "T12_OPEN_ODDS", scheduled_at: "2026-08-09T18:30:00Z", window_end_at: "2026-08-09T18:40:00Z", overdue: false, public_semantics: { scope: "MATCH", cause: "NOT_YET_DUE" } };
   focused.readiness.next_eval_at = "2026-08-09T16:30:00Z";
@@ -817,8 +897,9 @@ test("V41 derives age across timezone and day boundaries and never labels a past
   const freshness = page.locator("[data-market='ASIAN_HANDICAP'] .v41-market-freshness");
   await expect(freshness.locator("span").nth(1)).toHaveText("快照档位");
   await expect(freshness.locator("strong").nth(1)).toHaveText("T24_OPEN_ODDS");
-  await expect(freshness.locator("span").nth(2)).toHaveText("快照年龄");
-  await expect(freshness.locator("strong").nth(2)).toHaveText("1 小时 12 分");
+  const quoteAge = page.locator("[data-market='ASIAN_HANDICAP'] [data-quote-age-state='warning']");
+  await expect(quoteAge.locator("span")).toHaveText("快照年龄");
+  await expect(quoteAge.locator("strong")).toContainText("1 小时 12 分");
   await expect(freshness).toHaveCSS("display", "grid");
   const freshnessRows = await freshness.locator(":scope > *").evaluateAll((items) => new Set(items.map((item) => item.getBoundingClientRect().top)).size);
   expect(freshnessRows).toBe(2);
@@ -848,7 +929,7 @@ test("V41 finished match freezes quote age at kickoff and closes prematch planni
 
   const market = page.locator("[data-market='ASIAN_HANDICAP']");
   await expect(market).toContainText("开球前最后快照");
-  await expect(market.locator(".v41-market-freshness")).toContainText("报价年龄10 分钟");
+  await expect(market.locator(".v41-market-summary")).toContainText("报价年龄10 分钟");
   await expect(page.locator(".v41-next")).toContainText("采集状态赛前流程已关闭");
   await expect(page.locator(".v41-next")).toContainText("下次评估赛前流程已结束");
   await expect(page.locator("#factor-checklist-title")).toContainText("赛前未形成正式漏斗评估");
