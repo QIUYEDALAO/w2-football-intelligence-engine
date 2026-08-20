@@ -41,7 +41,7 @@ from w2.dashboard.date_window import (
 )
 from w2.dashboard.factor_checklist import MIN_XG_MATCHES
 from w2.dashboard.performance import dashboard_performance
-from w2.dashboard.results import normalize_match_status
+from w2.dashboard.results import FINISHED_STATUSES, normalize_match_status
 from w2.dashboard.validation_summary import validation_summary
 from w2.domain.decision_card import compute_card_hash
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
@@ -1988,18 +1988,30 @@ class ReadModelRepository:
         ]
 
     def release_counts(self) -> dict[str, int]:
-        fixtures = self.dashboard_latest_fixtures()
+        try:
+            status = func.upper(
+                ReadModelCheckpointModel.payload["analysis_card"]["status"].as_string()
+            )
+            with Session(self._database_engine()) as session:
+                fixture_count, result_count = session.execute(
+                    select(
+                        func.count(ReadModelCheckpointModel.id),
+                        func.count(ReadModelCheckpointModel.id).filter(
+                            status.in_(FINISHED_STATUSES)
+                        ),
+                    ).where(
+                        ReadModelCheckpointModel.checkpoint_key.like(
+                            f"{ANALYSIS_CARD_SHADOW_PREFIX}%"
+                        )
+                    )
+                ).one()
+        except SQLAlchemyError as exc:
+            raise SystemDegradedError("READ_MODEL_CHECKPOINT_QUERY_FAILED") from exc
         return {
-            "read_model_fixture_count": len(fixtures),
-            "matchday_card_count": len(fixtures),
-            "future_fixture_count": len(fixtures),
-            "result_event_count": len(
-                [
-                    item
-                    for item in fixtures
-                    if normalize_match_status(item.get("status")) == "FINISHED"
-                ]
-            ),
+            "read_model_fixture_count": int(fixture_count),
+            "matchday_card_count": int(fixture_count),
+            "future_fixture_count": int(fixture_count),
+            "result_event_count": int(result_count),
         }
 
     def public_release_counts(self, *, limit: int = MAX_PUBLIC_FIXTURES) -> dict[str, int]:

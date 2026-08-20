@@ -24,7 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--timeout",
         type=int,
         default=15,
-        help="Accepted for caller compatibility; verify_release_sync owns request timeouts.",
+        help="Per-request timeout forwarded to verify_release_sync (default: 15 seconds).",
     )
     return parser
 
@@ -42,6 +42,8 @@ def main() -> int:
         args.base_url,
         "--min-fixtures",
         str(args.min_fixtures),
+        "--request-timeout",
+        str(args.timeout),
     ]
     if args.expected_sha:
         command.extend(["--expected-sha", args.expected_sha])

@@ -699,6 +699,37 @@ def test_dashboard_outcome_read_is_one_fixture_scoped_select() -> None:
     assert statements[0].lstrip().upper().startswith("SELECT")
 
 
+def test_release_counts_aggregates_without_materializing_analysis_cards(
+    monkeypatch: Any,
+) -> None:
+    engine = _engine()
+    with Session(engine) as session:
+        for fixture_id, status in (("1", "NS"), ("2", "FT"), ("3", None)):
+            session.add(
+                ReadModelCheckpointModel(
+                    checkpoint_key=(f"{api_repository.ANALYSIS_CARD_SHADOW_PREFIX}{fixture_id}"),
+                    source_hash=fixture_id * 64,
+                    created_at=datetime(2026, 8, 20, tzinfo=UTC),
+                    payload={"analysis_card": {"status": status}},
+                )
+            )
+        session.commit()
+
+    repository = api_repository.ReadModelRepository(engine=engine)
+    monkeypatch.setattr(
+        repository,
+        "dashboard_latest_fixtures",
+        lambda: (_ for _ in ()).throw(AssertionError("analysis cards materialized")),
+    )
+
+    assert repository.release_counts() == {
+        "read_model_fixture_count": 3,
+        "matchday_card_count": 3,
+        "future_fixture_count": 3,
+        "result_event_count": 1,
+    }
+
+
 def test_dashboard_service_consumes_batched_projection_without_per_fixture_reads() -> None:
     class Repository:
         window: tuple[datetime | None, datetime | None] | None = None
