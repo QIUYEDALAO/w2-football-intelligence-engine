@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from w2.ingestion.checkpoint_refresh import (
+    FixtureCheckpointPlan,
     checkpoint_plan_for_fixture,
     line_jump_confirmation_plan,
     lineups_retry_plans,
@@ -209,6 +210,39 @@ def test_checkpoint_batch_reserves_retry_budget(monkeypatch) -> None:
     selected, projected = select_checkpoint_batch(plans, hard_cap=30)
 
     assert (len(selected), projected) == (15, 30)
+
+
+def test_checkpoint_batch_skips_expensive_row_and_keeps_later_zero_increment_row(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "1")
+    common = {
+        "kickoff_utc": NOW + timedelta(hours=1),
+        "due_at_utc": NOW,
+    }
+    first = FixtureCheckpointPlan(
+        fixture_id="fixture-a",
+        checkpoint="T60_ODDS_LINEUPS",
+        endpoints=("odds", "lineups"),
+        **common,
+    )
+    expensive = FixtureCheckpointPlan(
+        fixture_id="fixture-b",
+        checkpoint="T15_ODDS",
+        endpoints=("odds",),
+        **common,
+    )
+    shared_call = FixtureCheckpointPlan(
+        fixture_id="fixture-a",
+        checkpoint="T15_ODDS",
+        endpoints=("odds",),
+        **common,
+    )
+
+    selected, projected = select_checkpoint_batch([first, expensive, shared_call], hard_cap=2)
+
+    assert selected == [first, shared_call]
+    assert projected == 2
 
 
 def test_world_cup_five_fixture_budget_stays_under_100_including_retries() -> None:

@@ -99,6 +99,56 @@ def postmatch_result_checkpoint_plan(
     )
 
 
+def canonical_checkpoint_plans_from_fixture_payloads(
+    fixtures: list[dict[str, Any]],
+    *,
+    now: datetime,
+    policies: dict[str, MatchdayCompetitionPolicy] | None = None,
+) -> list[CheckpointPlan]:
+    """Build persisted plans for the supplied fixture rows without provider work."""
+
+    policy_map = policies or competition_policies(load_matchday_policy())
+    by_league = {str(policy.provider_league_id): policy for policy in policy_map.values()}
+    current = normalize_utc(now)
+    plans: list[CheckpointPlan] = []
+    for item in fixtures:
+        league = item.get("league") if isinstance(item, dict) else None
+        fixture = item.get("fixture") if isinstance(item, dict) else None
+        if not isinstance(league, dict) or not isinstance(fixture, dict):
+            continue
+        policy = by_league.get(str(league.get("id") or ""))
+        fixture_id = str(fixture.get("id") or "")
+        kickoff = parse_utc(fixture.get("date"))
+        if policy is None or not fixture_id or kickoff is None:
+            continue
+        canonical_fixture_id = f"{policy.provider}:{fixture_id}"
+        plans.extend(
+            build_checkpoint_plans(
+                fixture_id=canonical_fixture_id,
+                competition_id=policy.competition_id,
+                season=policy.season,
+                kickoff_utc=kickoff,
+                now=current,
+                policy=policy,
+            )
+        )
+        if (
+            current - timedelta(hours=36)
+            <= kickoff
+            <= current + timedelta(hours=policy.discovery_horizon_hours)
+        ):
+            plans.append(
+                postmatch_result_checkpoint_plan(
+                    fixture_id=canonical_fixture_id,
+                    competition_id=policy.competition_id,
+                    season=policy.season,
+                    kickoff_utc=kickoff,
+                    now=current,
+                )
+            )
+    return plans
+
+
 def checkpoint_plan_for_fixture(
     *,
     fixture_id: str,
@@ -295,7 +345,7 @@ def select_checkpoint_batch(
         candidate = [*selected, plan]
         projected = projected_calls_for_checkpoint_batch(candidate)
         if projected > hard_cap:
-            break
+            continue
         selected = candidate
     return selected, projected_calls_for_checkpoint_batch(selected)
 

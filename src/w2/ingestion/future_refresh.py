@@ -2679,6 +2679,16 @@ class FutureFixtureRefreshService:
                                 payload=fixture_identity,
                             )
                         )
+            if self.config.discovery_date is not None:
+                from w2.ingestion.checkpoint_refresh import (
+                    canonical_checkpoint_plans_from_fixture_payloads,
+                )
+
+                for plan in canonical_checkpoint_plans_from_fixture_payloads(
+                    fixtures,
+                    now=self.now,
+                ):
+                    repository.upsert_checkpoint_plan(plan)
             self._seed_provider_primary_identities(
                 fixture_identities=fixture_identities,
                 captured_at=fixtures_response.captured_at,

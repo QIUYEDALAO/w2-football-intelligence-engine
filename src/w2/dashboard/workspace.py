@@ -49,6 +49,9 @@ ATTENTION_REASON_ORDER = {
 MODEL_QUALITY_MAX_AGE_SECONDS = 86_400
 MARKET_PRICE_ATTENTION_THRESHOLD_RATIO = 0.02
 MARKET_DEPTH_ASYMMETRY_REASON = "MARKET_DEPTH_ASYMMETRY"
+_EVALUATED_OPPORTUNITY_STATES = frozenset(
+    {"EVALUATED_CANDIDATE", "EVALUATED_NO_EDGE", "BLOCKED_BY_GATE"}
+)
 RISK_REASON_LABELS = {
     "DATA_FIELD_STALE": "数据字段已超过新鲜度边界",
     "DATA_IDENTITY_NOT_READY": "比赛或盘口身份尚未完成",
@@ -326,6 +329,13 @@ def _model_forecast_progress(raw: Mapping[str, Any]) -> dict[str, Any]:
                 "score": _optional_text(row.get("score")),
                 "settlement": _text(row.get("settlement"), "PENDING"),
                 "profit_units": _number(row.get("profit_units")),
+                "confirmed_checkpoint": _text(
+                    row.get("confirmed_checkpoint"), "UNKNOWN_CHECKPOINT"
+                ),
+                "later_unassessed_checkpoints": _string_list(
+                    row.get("later_unassessed_checkpoints")
+                ),
+                "lifecycle_note_zh": _optional_text(row.get("lifecycle_note_zh")),
             }
             for row in official_recommendations
         ],
@@ -531,6 +541,40 @@ def _evaluation_diagnosis(
         }
 
     no_edge_evaluated = any(state == "NO_EDGE_CURRENT" for _row, state, _at in evaluated)
+    if status == "CANDIDATE":
+        evaluated_times = [at for _row, _state, at in evaluated]
+        later_unassessed = [
+            row
+            for row in opportunities
+            if _text(row.get("state")) not in _EVALUATED_OPPORTUNITY_STATES
+            and (
+                not evaluated_times
+                or (
+                    _datetime(row.get("scheduled_checkpoint_at"))
+                    or datetime.min.replace(tzinfo=UTC)
+                )
+                > max(evaluated_times)
+            )
+        ]
+        checkpoints = list(
+            dict.fromkeys(
+                _EVALUATION_CHECKPOINT_LABELS.get(
+                    _text(row.get("evaluation_slot_id")), _text(row.get("evaluation_slot_id"))
+                )
+                for row in sorted(later_unassessed, key=_opportunity_order)
+            )
+        )
+        return {
+            **base,
+            "status": "CANDIDATE_ACTIVE",
+            "primary_blocker_zh": "最终仍为候选",
+            "missing_detail_zh": (
+                f"此后 {' / '.join(checkpoints)} 未产出评估，不影响最后一次成功确认。"
+                if checkpoints
+                else "候选轨道已完成评估并保持有效。"
+            ),
+            "next_step_zh": "等待赛果进入既有结算流程。",
+        }
     missed = [row for row in opportunities if _text(row.get("state")) == "MISSED_CHECKPOINT"]
     if missed and (status == "TECHNICAL_INVALIDATED" or not evaluated):
         candidate_times = [
@@ -603,14 +647,6 @@ def _evaluation_diagnosis(
             "next_step_zh": "检查调度与评估错误证据；不改写既有账本。",
         }
 
-    if status == "CANDIDATE":
-        return {
-            **base,
-            "status": "CANDIDATE_ACTIVE",
-            "primary_blocker_zh": "最终仍为候选",
-            "missing_detail_zh": "候选轨道已完成评估并保持有效。",
-            "next_step_zh": "等待赛果进入既有结算流程。",
-        }
     if no_edge_evaluated:
         return {
             **base,
@@ -649,8 +685,26 @@ def _evaluation_execution(
             continue
         evaluated.append((version, state, evaluated_at))
     opportunities = _mapping_list(_mapping(card.get("dynamic_prematch")).get("opportunities"))
+    evaluated_attempts = {
+        (
+            _text(version.get("opportunity_identity_hash")),
+            _text(version.get("attempt_identity_hash")),
+        )
+        for version, _state, _evaluated_at in official_attempts
+        if _text(version.get("opportunity_identity_hash"))
+        and _text(version.get("attempt_identity_hash"))
+    }
     final_by_market: dict[str, Mapping[str, Any]] = {}
     for opportunity in opportunities:
+        if (
+            _text(opportunity.get("state")) not in _EVALUATED_OPPORTUNITY_STATES
+            or (
+                _text(opportunity.get("opportunity_identity_hash")),
+                _text(opportunity.get("latest_attempt_identity_hash")),
+            )
+            not in evaluated_attempts
+        ):
+            continue
         market = _text(opportunity.get("market"))
         if not market:
             continue
@@ -671,6 +725,28 @@ def _evaluation_execution(
         )
         if previous is None or order > previous_order:
             final_by_market[market] = opportunity
+    later_unassessed_by_market: dict[str, list[str]] = {}
+    for market, final in final_by_market.items():
+        final_order = _opportunity_order(final)
+        later_unassessed_by_market[market] = list(
+            dict.fromkeys(
+                _EVALUATION_CHECKPOINT_LABELS.get(
+                    _text(row.get("evaluation_slot_id")),
+                    _text(row.get("evaluation_slot_id")),
+                )
+                for row in sorted(opportunities, key=_opportunity_order)
+                if _text(row.get("market")) == market
+                and (
+                    _text(row.get("state")) not in _EVALUATED_OPPORTUNITY_STATES
+                    or (
+                        _text(row.get("opportunity_identity_hash")),
+                        _text(row.get("latest_attempt_identity_hash")),
+                    )
+                    not in evaluated_attempts
+                )
+                and _opportunity_order(row) > final_order
+            )
+        )
     checkpoints: dict[str, set[str]] = {}
     ordered = sorted(evaluated, key=lambda item: _text(item[0].get("evaluated_at")))
     for version, _, _ in ordered:
@@ -686,8 +762,6 @@ def _evaluation_execution(
     final_states = {_text(row.get("state")) for row in final_by_market.values()}
     if "EVALUATED_CANDIDATE" in final_states:
         status = "CANDIDATE"
-    elif final_states & {"MISSED_CHECKPOINT", "EVALUATION_ERROR"}:
-        status = "TECHNICAL_INVALIDATED" if ever_formed_candidate else "NO_CANDIDATE_FORMED"
     elif "BLOCKED_BY_GATE" in final_states:
         status = "BLOCKED"
     elif "EVALUATED_NO_EDGE" in final_states:
@@ -724,6 +798,7 @@ def _evaluation_execution(
             "final_active": _text(_mapping(final_by_market.get(market)).get("state"))
             == "EVALUATED_CANDIDATE"
             or (not final_by_market and status == "CANDIDATE"),
+            "later_unassessed_checkpoints": later_unassessed_by_market.get(market, []),
         }
         for market, (version, _evaluated_at) in sorted(latest_candidates.items())
     ]
@@ -740,6 +815,18 @@ def _evaluation_execution(
         }
         for market, row in sorted(final_by_market.items())
     ]
+    lifecycle_notes = [
+        (
+            "最终确认于 "
+            f"{_evaluation_checkpoint_label(row.get('evaluation_slot_id'))}；"
+            f"此后 {' / '.join(later_unassessed_by_market.get(market, []))} "
+            "未产出评估，不影响该确认"
+        )
+        for market, row in sorted(final_by_market.items())
+        if _text(row.get("state")) == "EVALUATED_CANDIDATE"
+        and later_unassessed_by_market.get(market)
+    ]
+    lifecycle_note = "；".join(dict.fromkeys(lifecycle_notes)) or None
     if status == "UNASSESSED":
         summary = "尚无候选评估记录；当前仍处于等待采集或硬门判定阶段。"
     elif status == "TECHNICAL_INVALIDATED":
@@ -769,6 +856,8 @@ def _evaluation_execution(
             f"已评估 {len(labels)} 次（{checkpoint_copy}），{market_copy}"
             "模型—市场对比图需已验证校准，暂不绘制。"
         )
+        if lifecycle_note:
+            summary += lifecycle_note + "。"
     return {
         "status": status,
         "ever_formed_candidate": ever_formed_candidate,
@@ -779,6 +868,7 @@ def _evaluation_execution(
         "checkpoints": labels,
         "markets": market_names,
         "summary_zh": summary,
+        "lifecycle_note_zh": lifecycle_note,
         "diagnosis": _evaluation_diagnosis(
             card,
             official_attempts=official_attempts,
@@ -789,6 +879,19 @@ def _evaluation_execution(
             status=status,
         ),
     }
+
+
+def _opportunity_order(row: Mapping[str, Any]) -> tuple[str, str, str]:
+    return (
+        _text(row.get("scheduled_checkpoint_at")),
+        _text(row.get("recorded_at")),
+        _text(row.get("opportunity_identity_hash")),
+    )
+
+
+def _evaluation_checkpoint_label(value: Any) -> str:
+    checkpoint = _text(value)
+    return _EVALUATION_CHECKPOINT_LABELS.get(checkpoint, checkpoint)
 
 
 def _match(

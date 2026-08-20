@@ -4,7 +4,7 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import Engine, case, exists, select
+from sqlalchemy import Engine, case, exists, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -68,8 +68,21 @@ def _checkpoint_priority() -> Any:
             & unsettled_capture,
             0,
         ),
-        (MatchdayCheckpointPlanModel.checkpoint != "POSTMATCH_RESULT", 1),
-        else_=2,
+        (
+            MatchdayCheckpointPlanModel.checkpoint.in_(
+                (
+                    "T60_ODDS_LINEUPS",
+                    "T45_ODDS",
+                    "T45_LINEUPS_RETRY",
+                    "T-30m_VALIDATION_LOCK",
+                    "T30_LINEUPS_RETRY",
+                    "T15_ODDS",
+                )
+            ),
+            1,
+        ),
+        (MatchdayCheckpointPlanModel.checkpoint != "POSTMATCH_RESULT", 2),
+        else_=3,
     )
 
 
@@ -311,7 +324,7 @@ class MatchdayRuntimeRepository:
                     )
                     .order_by(
                         _checkpoint_priority(),
-                        MatchdayCheckpointPlanModel.scheduled_at,
+                        MatchdayCheckpointPlanModel.window_end,
                         MatchdayCheckpointPlanModel.kickoff_utc,
                         MatchdayCheckpointPlanModel.fixture_id,
                         MatchdayCheckpointPlanModel.checkpoint,
@@ -345,7 +358,7 @@ class MatchdayRuntimeRepository:
                 )
                 .order_by(
                     _checkpoint_priority(),
-                    MatchdayCheckpointPlanModel.scheduled_at,
+                    MatchdayCheckpointPlanModel.window_end,
                     MatchdayCheckpointPlanModel.kickoff_utc,
                     MatchdayCheckpointPlanModel.fixture_id,
                 )
@@ -360,6 +373,7 @@ class MatchdayRuntimeRepository:
         now: datetime,
         worker_id: str,
         plan_ids: set[str] | None = None,
+        checkpoint_mode: str | None = None,
         limit: int = 100,
         lease_seconds: int = 900,
     ) -> list[dict[str, Any]]:
@@ -380,7 +394,7 @@ class MatchdayRuntimeRepository:
                 )
                 .order_by(
                     _checkpoint_priority(),
-                    MatchdayCheckpointPlanModel.scheduled_at,
+                    MatchdayCheckpointPlanModel.window_end,
                     MatchdayCheckpointPlanModel.kickoff_utc,
                     MatchdayCheckpointPlanModel.fixture_id,
                     MatchdayCheckpointPlanModel.checkpoint,
@@ -389,6 +403,12 @@ class MatchdayRuntimeRepository:
             )
             if plan_ids is not None:
                 query = query.where(MatchdayCheckpointPlanModel.plan_id.in_(plan_ids))
+            if checkpoint_mode == "PREMATCH":
+                query = query.where(MatchdayCheckpointPlanModel.checkpoint != "POSTMATCH_RESULT")
+            elif checkpoint_mode == "POSTMATCH":
+                query = query.where(MatchdayCheckpointPlanModel.checkpoint == "POSTMATCH_RESULT")
+            elif checkpoint_mode is not None:
+                raise ValueError(f"unsupported checkpoint mode {checkpoint_mode}")
             if self.engine.dialect.name == "postgresql":
                 query = query.with_for_update(skip_locked=True)
             rows = list(session.scalars(query))
@@ -839,47 +859,55 @@ class MatchdayRuntimeRepository:
         }
 
     def _advance_checkpoint_windows(self, session: Session, *, now: datetime) -> None:
-        rows = list(
-            session.scalars(
-                select(MatchdayCheckpointPlanModel).where(
-                    MatchdayCheckpointPlanModel.status.in_(("PLANNED", "DUE"))
-                )
+        expired_query = select(MatchdayCheckpointPlanModel).where(
+            MatchdayCheckpointPlanModel.status.in_(("PLANNED", "DUE")),
+            MatchdayCheckpointPlanModel.window_end < now,
+            ~(
+                (MatchdayCheckpointPlanModel.status == "DUE")
+                & MatchdayCheckpointPlanModel.claim_expires_at.is_not(None)
+                & (MatchdayCheckpointPlanModel.claim_expires_at >= now)
+            ),
+        )
+        if self.engine.dialect.name == "postgresql":
+            expired_query = expired_query.with_for_update(skip_locked=True)
+        for row in session.scalars(expired_query):
+            row.status = "MISSED"
+            row.missed_at = row.missed_at or now
+            missed_blocker = (
+                "RESULT_WINDOW_MISSED"
+                if row.checkpoint == "POSTMATCH_RESULT"
+                else "CHECKPOINT_MISSING"
+            )
+            row.blockers = sorted({*list(row.blockers or []), missed_blocker})
+            row.claimed_at = None
+            row.claimed_by = None
+            row.claim_token = None
+            row.claim_expires_at = None
+            self._record_missed_opportunities_in_session(session, row=row, recorded_at=now)
+
+        session.execute(
+            update(MatchdayCheckpointPlanModel)
+            .where(
+                MatchdayCheckpointPlanModel.status == "DUE",
+                MatchdayCheckpointPlanModel.window_end >= now,
+                MatchdayCheckpointPlanModel.claim_expires_at < now,
+            )
+            .values(
+                claimed_at=None,
+                claimed_by=None,
+                claim_token=None,
+                claim_expires_at=None,
             )
         )
-        for row in rows:
-            window_end = normalize_repo_time(row.window_end)
-            window_start = normalize_repo_time(row.window_start)
-            claim_expires = (
-                normalize_repo_time(row.claim_expires_at) if row.claim_expires_at else None
+        session.execute(
+            update(MatchdayCheckpointPlanModel)
+            .where(
+                MatchdayCheckpointPlanModel.status == "PLANNED",
+                MatchdayCheckpointPlanModel.window_start <= now,
+                MatchdayCheckpointPlanModel.window_end >= now,
             )
-            if (
-                now > window_end
-                and row.status == "DUE"
-                and claim_expires is not None
-                and now <= claim_expires
-            ):
-                continue
-            if now > window_end:
-                row.status = "MISSED"
-                row.missed_at = row.missed_at or now
-                missed_blocker = (
-                    "RESULT_WINDOW_MISSED"
-                    if row.checkpoint == "POSTMATCH_RESULT"
-                    else "CHECKPOINT_MISSING"
-                )
-                row.blockers = sorted({*list(row.blockers or []), missed_blocker})
-                row.claimed_at = None
-                row.claimed_by = None
-                row.claim_token = None
-                row.claim_expires_at = None
-                self._record_missed_opportunities_in_session(session, row=row, recorded_at=now)
-            elif row.status == "DUE" and claim_expires is not None and claim_expires < now:
-                row.claimed_at = None
-                row.claimed_by = None
-                row.claim_token = None
-                row.claim_expires_at = None
-            elif row.status == "PLANNED" and window_start <= now <= window_end:
-                row.status = "DUE"
+            .values(status="DUE")
+        )
 
     def _record_missed_opportunities_in_session(
         self,

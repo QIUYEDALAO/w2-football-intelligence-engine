@@ -317,6 +317,47 @@ def test_prematch_collection_is_claimed_before_ordinary_postmatch_result() -> No
     ]
 
 
+def test_near_checkpoints_use_edf_before_distant_checkpoints() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    shared = {
+        "competition_id": "allsvenskan",
+        "season": "2026",
+        "kickoff_utc": NOW + timedelta(hours=3),
+        "window_start": NOW - timedelta(minutes=1),
+        "status": "DUE",
+        "blockers": (),
+        "endpoints": ("odds",),
+    }
+    for fixture_id, checkpoint, window_end in (
+        ("far", "T3_ODDS", NOW + timedelta(minutes=2)),
+        ("near-later", "T15_ODDS", NOW + timedelta(minutes=12)),
+        ("near-earlier", "T45_ODDS", NOW + timedelta(minutes=7)),
+    ):
+        repository.upsert_checkpoint_plan(
+            CheckpointPlan(
+                **shared,
+                fixture_id=f"api_football:{fixture_id}",
+                checkpoint=checkpoint,
+                scheduled_at=NOW,
+                window_end=window_end,
+            )
+        )
+
+    claimed = repository.claim_due_checkpoint_plans(
+        now=NOW,
+        worker_id="edf-test",
+        checkpoint_mode="PREMATCH",
+    )
+
+    assert [row["fixture_id"] for row in claimed] == [
+        "api_football:near-earlier",
+        "api_football:near-later",
+        "api_football:far",
+    ]
+
+
 def test_unsettled_model_forecast_postmatch_is_claimed_before_other_results() -> None:
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)

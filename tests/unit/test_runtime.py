@@ -127,6 +127,14 @@ def test_scheduler_future_refresh_disabled_by_default(monkeypatch) -> None:
     assert fixture_discovery_tick()["status"] == "DISABLED"
 
 
+def test_checkpoint_dispatch_and_plan_generation_have_independent_cadence(monkeypatch) -> None:
+    monkeypatch.setenv("W2_CHECKPOINT_REFRESH_POLL_SECONDS", "45")
+    monkeypatch.setenv("W2_CHECKPOINT_PLAN_GENERATION_SECONDS", "3600")
+
+    assert scheduler_main.checkpoint_poll_seconds() == 45
+    assert scheduler_main.checkpoint_plan_generation_seconds() == 3600
+
+
 def test_fixture_discovery_enqueues_the_canonical_refresh_task(
     monkeypatch,
 ) -> None:
@@ -233,6 +241,8 @@ def test_scheduler_future_refresh_dispatches_checkpoint_worker_task_without_runn
             "tick_hard_cap": 30,
             "checkpoints": [
                 {
+                    "competition_id": "allsvenskan",
+                    "season": "2026",
                     "fixture_id": "1489404",
                     "checkpoint": "T24",
                     "kickoff_utc": "2026-06-26T12:00:00Z",
@@ -263,12 +273,11 @@ def test_scheduler_future_refresh_dispatches_checkpoint_worker_task_without_runn
     )
     monkeypatch.setattr(celery_app, "send_task", fake_send_task)
 
-    with db_enabled_competitions("allsvenskan"):
-        result = future_fixture_refresh_tick()
+    result = future_fixture_refresh_tick()
 
     assert result["status"] == "QUEUED"
     assert str(result["task_key"]).startswith("checkpoint-refresh:allsvenskan:2026:")
-    assert result["provider_refresh_min_interval_policy"] == ("REPLACED_BY_PER_FIXTURE_CHECKPOINTS")
+    assert result["provider_refresh_min_interval_policy"] == "PERSISTED_PLAN_EDF"
     assert sent[0]["name"] == "w2.future_fixture_refresh"
     assert sent[0]["kwargs"]["task_key"] == result["task_key"]
     assert sent[0]["kwargs"]["checkpoint_fixture_ids"] == ["1489404"]
@@ -282,8 +291,7 @@ def test_scheduler_provider_master_switch_blocks_refresh_enqueue(monkeypatch) ->
     monkeypatch.delenv("W2_PROVIDER_SCHEDULER_ENABLED", raising=False)
     monkeypatch.setattr(celery_app, "send_task", lambda *args, **kwargs: sent.append({}))
 
-    with db_enabled_competitions("allsvenskan"):
-        result = future_fixture_refresh_tick()
+    result = future_fixture_refresh_tick()
 
     assert result["status"] == "SKIPPED_PROVIDER_SCHEDULER_DISABLED"
     assert result["provider_calls"] == 0
@@ -314,6 +322,8 @@ def test_scheduler_suppresses_duplicate_future_refresh_task_key(monkeypatch) -> 
             "tick_hard_cap": 30,
             "checkpoints": [
                 {
+                    "competition_id": "allsvenskan",
+                    "season": "2026",
                     "fixture_id": "1489404",
                     "checkpoint": "T24",
                     "kickoff_utc": "2026-06-26T12:00:00Z",
@@ -346,8 +356,7 @@ def test_scheduler_suppresses_duplicate_future_refresh_task_key(monkeypatch) -> 
         ),
     )
 
-    with db_enabled_competitions("allsvenskan"):
-        result = future_fixture_refresh_tick()
+    result = future_fixture_refresh_tick()
 
     assert result["status"] == "DUPLICATE_TASK_KEY_SUPPRESSED"
     assert result["provider_calls"] == 0
@@ -358,6 +367,8 @@ def test_scheduler_suppresses_duplicate_future_refresh_task_key(monkeypatch) -> 
 def test_scheduler_enqueue_failure_keeps_attempt_for_ambiguous_delivery(monkeypatch) -> None:
     released: list[dict[str, object]] = []
     checkpoint = {
+        "competition_id": "allsvenskan",
+        "season": "2026",
         "fixture_id": "1489404",
         "checkpoint": "T24",
         "endpoints": ["odds"],
@@ -395,9 +406,8 @@ def test_scheduler_enqueue_failure_keeps_attempt_for_ambiguous_delivery(monkeypa
         lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("broker uncertain")),
     )
 
-    with db_enabled_competitions("allsvenskan"):
-        with pytest.raises(RuntimeError, match="broker uncertain"):
-            future_fixture_refresh_tick()
+    with pytest.raises(RuntimeError, match="broker uncertain"):
+        future_fixture_refresh_tick()
 
     assert released == [
         {"checkpoints": [checkpoint], "reason": "CHECKPOINT_ENQUEUE_FAILED"}
@@ -453,6 +463,8 @@ def test_scheduler_future_refresh_uses_checkpoint_task_key_and_dedup(
             "tick_hard_cap": 30,
             "checkpoints": [
                 {
+                    "competition_id": "world_cup_2026",
+                    "season": "2026",
                     "fixture_id": "1489404",
                     "checkpoint": "OPEN",
                     "kickoff_utc": "2026-06-25T17:00:00Z",
@@ -544,21 +556,32 @@ def test_scheduler_future_refresh_accepts_staging_competition_list(monkeypatch) 
         "due_checkpoint_refresh_batch",
         lambda now, **kwargs: {
             "status": "READY",
-            "generated_plan_count": 1,
-            "due_checkpoint_count": 1,
-            "selected_checkpoint_count": 1,
-            "projected_calls": 1,
-            "all_due_projected_calls": 1,
+            "generated_plan_count": 0,
+            "due_checkpoint_count": 4,
+            "selected_checkpoint_count": 4,
+            "projected_calls": 4,
+            "all_due_projected_calls": 4,
             "tick_hard_cap": 30,
             "checkpoints": [
                 {
-                    "fixture_id": "fixture-1",
-                    "checkpoint": "OPEN",
-                    "kickoff_utc": "2026-07-08T12:00:00Z",
-                    "due_at": "2026-07-08T10:00:00Z",
+                    "competition_id": competition_id,
+                    "season": "2026",
+                    "fixture_id": f"fixture-{index}",
+                    "checkpoint": "T15_ODDS",
+                    "kickoff_utc": "2026-07-08T12:15:00Z",
+                    "due_at": "2026-07-08T12:00:00Z",
                     "endpoints": ["odds"],
                     "source": "scheduled",
                 }
+                for index, competition_id in enumerate(
+                    (
+                        "brasileirao_serie_a",
+                        "chinese_super_league",
+                        "allsvenskan",
+                        "eliteserien",
+                    ),
+                    start=1,
+                )
             ],
         },
     )
@@ -577,13 +600,7 @@ def test_scheduler_future_refresh_accepts_staging_competition_list(monkeypatch) 
         lambda name, **kwargs: sent.append({"name": name, **kwargs}),
     )
 
-    with db_enabled_competitions(
-        "brasileirao_serie_a",
-        "chinese_super_league",
-        "allsvenskan",
-        "eliteserien",
-    ):
-        result = future_fixture_refresh_tick()
+    result = future_fixture_refresh_tick()
 
     assert result["status"] == "QUEUED"
     assert result["queued_count"] == 4
@@ -596,7 +613,7 @@ def test_scheduler_future_refresh_accepts_staging_competition_list(monkeypatch) 
     }
 
 
-def test_scheduler_future_refresh_seeds_staging_league_without_local_fixtures(
+def test_scheduler_dispatcher_does_not_seed_provider_refresh_without_due_plans(
     monkeypatch,
 ) -> None:
     sent: list[dict[str, object]] = []
@@ -640,23 +657,63 @@ def test_scheduler_future_refresh_seeds_staging_league_without_local_fixtures(
         lambda: ("brasileirao_serie_a",),
     )
 
-    with db_enabled_competitions("brasileirao_serie_a"):
-        result = future_fixture_refresh_tick()
+    result = future_fixture_refresh_tick()
 
-    assert result["status"] == "QUEUED"
-    assert result["competition_id"] == "brasileirao_serie_a"
-    assert result["provider_refresh_min_interval_policy"] == ("INITIAL_SEED_WHEN_NO_LOCAL_FIXTURES")
-    assert sent == [
-        {
-            "name": "w2.future_fixture_refresh",
-            "kwargs": {
-                "competition_id": "brasileirao_serie_a",
-                "task_key": result["task_key"],
-                "queued_at_utc": result["queued_at_utc"],
-            },
-            "task_id": result["task_id"],
+    assert result["status"] == "NO_CHECKPOINT_DUE"
+    assert result["provider_refresh_min_interval_policy"] == "PERSISTED_PLAN_EDF"
+    assert sent == []
+
+
+def test_scheduler_uses_idle_prematch_tick_for_postmatch_result(monkeypatch) -> None:
+    sent: list[dict[str, object]] = []
+    requested_modes: list[str] = []
+
+    def due_batch(now: datetime, **kwargs: object) -> dict[str, object]:
+        mode = str(kwargs["refresh_mode"])
+        requested_modes.append(mode)
+        checkpoints = (
+            [
+                {
+                    "competition_id": "la_liga",
+                    "season": "2026",
+                    "fixture_id": "api_football:1570351",
+                    "checkpoint": "POSTMATCH_RESULT",
+                    "endpoints": ["fixtures"],
+                    "source": "scheduled",
+                }
+            ]
+            if mode == "POSTMATCH"
+            else []
+        )
+        return {
+            "status": "READY" if checkpoints else "NO_CHECKPOINT_DUE",
+            "checkpoints": checkpoints,
+            "refresh_mode": "POSTMATCH_RESULT" if checkpoints else "PREMATCH",
         }
-    ]
+
+    monkeypatch.setenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", "true")
+    monkeypatch.setenv("W2_PROVIDER_SCHEDULER_ENABLED", "true")
+    monkeypatch.delenv("W2_POSTMATCH_ONLY_ENABLED", raising=False)
+    monkeypatch.setattr(scheduler_main, "due_checkpoint_refresh_batch", due_batch)
+    monkeypatch.setattr(
+        scheduler_main,
+        "provider_task_key_gate",
+        lambda **kwargs: type(
+            "Gate", (), {"allowed": True, "status": "ACQUIRED", "backend": "test"}
+        )(),
+    )
+    monkeypatch.setattr(
+        celery_app,
+        "send_task",
+        lambda name, **kwargs: sent.append({"name": name, **kwargs}),
+    )
+
+    result = future_fixture_refresh_tick()
+
+    assert requested_modes == ["PREMATCH", "POSTMATCH"]
+    assert result["status"] == "QUEUED"
+    assert result["refresh_mode"] == "POSTMATCH_RESULT"
+    assert sent[0]["kwargs"]["refresh_checkpoints"][0]["checkpoint"] == "POSTMATCH_RESULT"
 
 
 def test_scheduler_postmatch_only_never_seeds_prematch_refresh(monkeypatch) -> None:
@@ -688,8 +745,7 @@ def test_scheduler_postmatch_only_never_seeds_prematch_refresh(monkeypatch) -> N
         lambda: ("brasileirao_serie_a",),
     )
 
-    with db_enabled_competitions("brasileirao_serie_a"):
-        result = future_fixture_refresh_tick()
+    result = future_fixture_refresh_tick()
 
     assert result["status"] == "NO_POSTMATCH_RESULT_DUE"
     assert result["provider_calls"] == 0
@@ -731,11 +787,9 @@ def test_scheduler_future_refresh_does_not_seed_when_local_fixtures_exist(
         lambda: ("brasileirao_serie_a",),
     )
 
-    with db_enabled_competitions("brasileirao_serie_a"):
-        result = future_fixture_refresh_tick()
+    result = future_fixture_refresh_tick()
 
     assert result["status"] == "NO_CHECKPOINT_DUE"
-    assert result["competition_id"] == "brasileirao_serie_a"
     assert result["provider_calls"] == 0
     assert sent == []
 
@@ -965,20 +1019,15 @@ def test_worker_future_refresh_uses_allowlisted_live_client(monkeypatch) -> None
     assert result["status"] == "COMPLETED"
 
 
-def test_scheduler_checkpoint_batch_has_no_due_without_pending_plan(monkeypatch) -> None:
+def test_scheduler_checkpoint_batch_queries_persisted_due_plans_directly(monkeypatch) -> None:
     now = datetime(2026, 6, 25, 12, tzinfo=UTC)
+    claims: list[dict[str, object]] = []
 
     class FakeRepository:
-        def upsert_checkpoint_plan(self, plan: object) -> str:
-            return "plan"
-
-        def due_checkpoint_plans(self, **kwargs: object) -> list[dict[str, Any]]:
-            raise AssertionError("must not read global due rows without generated plans")
-
         def claim_due_checkpoint_plans(self, **kwargs: object) -> list[dict[str, Any]]:
-            raise AssertionError("must not claim rows without generated plans")
+            claims.append(kwargs)
+            return []
 
-    monkeypatch.setattr(scheduler_main, "future_refresh_fixture_payloads", lambda **kwargs: [])
     monkeypatch.setattr(
         "w2.matchday.repository.MatchdayRuntimeRepository",
         FakeRepository,
@@ -988,6 +1037,8 @@ def test_scheduler_checkpoint_batch_has_no_due_without_pending_plan(monkeypatch)
 
     assert result["status"] == "NO_CHECKPOINT_DUE"
     assert result["projected_calls"] == 0
+    assert len(claims) == 1
+    assert "plan_ids" not in claims[0]
 
 
 def test_scheduler_postmatch_only_filters_prematch_plans(monkeypatch) -> None:
@@ -999,9 +1050,6 @@ def test_scheduler_postmatch_only_filters_prematch_plans(monkeypatch) -> None:
         def upsert_checkpoint_plan(self, plan: Any) -> str:
             checkpoints.append(plan.checkpoint)
             return stable_hash(plan.natural_identity)
-
-        def claim_due_checkpoint_plans(self, **kwargs: object) -> list[dict[str, Any]]:
-            return []
 
     monkeypatch.setenv("W2_POSTMATCH_ONLY_ENABLED", "true")
     monkeypatch.setattr(
@@ -1016,52 +1064,36 @@ def test_scheduler_postmatch_only_filters_prematch_plans(monkeypatch) -> None:
     )
     monkeypatch.setattr("w2.matchday.repository.MatchdayRuntimeRepository", FakeRepository)
 
-    with db_enabled_competitions("allsvenskan"):
-        result = due_checkpoint_refresh_batch(now, provider_league_id="113")
+    result = scheduler_main.generate_checkpoint_plans(now, provider_league_id="113")
 
-    assert result["status"] == "NO_CHECKPOINT_DUE"
+    assert result["status"] == "PLANS_GENERATED"
     assert result["generated_plan_count"] == 1
     assert checkpoints == ["POSTMATCH_RESULT"]
 
 
-def test_scheduler_checkpoint_batch_ignores_due_rows_outside_current_fixture_set(
+def test_scheduler_checkpoint_batch_claims_persisted_rows_without_fixture_rebuild(
     monkeypatch,
 ) -> None:
     now = datetime(2026, 6, 25, 12, tzinfo=UTC)
-    kickoff = "2026-06-25T19:00:00Z"
-    fixtures = [
-        {
-            "fixture": {
-                "id": 2001,
-                "date": kickoff,
-                "status": {"short": "NS", "elapsed": None},
-            },
-            "league": {"id": 71, "season": 2026},
-            "teams": {
-                "home": {"id": 1, "name": "Home"},
-                "away": {"id": 2, "name": "Away"},
-            },
-        }
-    ]
-
-    claimed_plan_ids: set[str] | None = None
+    claim_kwargs: dict[str, object] = {}
 
     class FakeRepository:
-        def upsert_checkpoint_plan(self, plan: object) -> str:
-            return "plan"
-
         def claim_due_checkpoint_plans(self, **kwargs: object) -> list[dict[str, Any]]:
-            nonlocal claimed_plan_ids
-            claimed_plan_ids = kwargs.get("plan_ids")  # type: ignore[assignment]
+            claim_kwargs.update(kwargs)
             return [
                 {
-                    "id": "checkpoint:9999:open",
-                    "fixture_id": "9999",
-                    "checkpoint": "OPEN",
+                    "id": "checkpoint:9999:t15",
+                    "competition_id": "brasileirao_serie_a",
+                    "season": "2026",
+                    "fixture_id": "api_football:9999",
+                    "checkpoint": "T15_ODDS",
                     "kickoff_utc": "2026-06-25T19:00:00Z",
                     "due_at": "2026-06-25T12:00:00Z",
+                    "window_start": "2026-06-25T12:00:00Z",
+                    "window_end": "2026-06-25T12:15:00Z",
                     "endpoints": ["odds"],
                     "source": "scheduled",
+                    "policy_version": "candidate-eval.v1",
                     "claim_token": "token",
                     "claim_expires_at": "2026-06-25T12:15:00Z",
                 }
@@ -1071,78 +1103,51 @@ def test_scheduler_checkpoint_batch_ignores_due_rows_outside_current_fixture_set
             return True
 
     monkeypatch.setattr(
-        scheduler_main,
-        "future_refresh_fixture_payloads",
-        lambda **kwargs: fixtures,
-    )
-    monkeypatch.setattr(
         "w2.matchday.repository.MatchdayRuntimeRepository",
         FakeRepository,
     )
 
-    with db_enabled_competitions("brasileirao_serie_a"):
-        result = due_checkpoint_refresh_batch(now, provider_league_id="71")
+    result = due_checkpoint_refresh_batch(now)
 
-    assert result["status"] == "NO_CHECKPOINT_DUE"
-    assert result["generated_plan_count"] > 0
-    assert result["due_checkpoint_count"] == 0
-    assert result["selected_checkpoint_count"] == 0
-    assert claimed_plan_ids
-    assert "checkpoint:9999:open" not in claimed_plan_ids
+    assert result["status"] == "READY"
+    assert result["generated_plan_count"] == 0
+    assert result["due_checkpoint_count"] == 1
+    assert result["selected_checkpoint_count"] == 1
+    assert result["checkpoints"][0]["fixture_id"] == "api_football:9999"
+    assert "plan_ids" not in claim_kwargs
 
 
 def test_scheduler_hard_cap_restores_unselected_claim_attempt(monkeypatch) -> None:
     now = datetime(2026, 6, 25, 12, tzinfo=UTC)
-    plans: dict[str, Any] = {}
     released: list[dict[str, object]] = []
 
     class FakeRepository:
-        def upsert_checkpoint_plan(self, plan: Any) -> str:
-            plan_id = stable_hash(plan.natural_identity)
-            plans[plan_id] = plan
-            return plan_id
-
         def claim_due_checkpoint_plans(self, **kwargs: object) -> list[dict[str, Any]]:
-            rows = []
-            for plan_id in sorted(kwargs["plan_ids"]):  # type: ignore[arg-type]
-                plan = plans[plan_id]
-                if plan.status != "DUE":
-                    continue
-                rows.append(
-                    {
-                        "id": plan_id,
-                        "fixture_id": plan.fixture_id,
-                        "checkpoint": plan.checkpoint,
-                        "kickoff_utc": plan.kickoff_utc,
-                        "due_at": plan.scheduled_at,
-                        "window_start": plan.window_start,
-                        "window_end": plan.window_end,
-                        "endpoints": list(plan.endpoints),
-                        "source": "matchday_intake.v2",
-                        "policy_version": plan.policy_version,
-                        "claim_token": f"token:{plan_id}",
-                        "claim_expires_at": now + timedelta(minutes=15),
-                    }
-                )
-            return rows
+            return [
+                {
+                    "id": f"plan-{fixture_id}",
+                    "competition_id": "brasileirao_serie_a",
+                    "season": "2026",
+                    "fixture_id": f"api_football:{fixture_id}",
+                    "checkpoint": "T15_ODDS",
+                    "kickoff_utc": now + timedelta(minutes=15),
+                    "due_at": now,
+                    "window_start": now,
+                    "window_end": now + timedelta(minutes=15),
+                    "endpoints": ["odds"],
+                    "source": "matchday_intake.v2",
+                    "policy_version": "candidate-eval.v1",
+                    "claim_token": f"token:{fixture_id}",
+                    "claim_expires_at": now + timedelta(minutes=15),
+                }
+                for fixture_id in (2001, 2002)
+            ]
 
         def release_checkpoint_claim(self, **kwargs: object) -> bool:
             released.append(kwargs)
             return True
 
-    fixtures = [
-        {
-            "fixture": {"id": fixture_id, "date": "2026-06-25T19:00:00Z"},
-            "league": {"id": 71, "season": 2026},
-        }
-        for fixture_id in (2001, 2002)
-    ]
     monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "1")
-    monkeypatch.setattr(
-        scheduler_main,
-        "future_refresh_fixture_payloads",
-        lambda **kwargs: fixtures,
-    )
     monkeypatch.setattr(
         scheduler_main,
         "provider_refresh_tick_hard_cap",
@@ -1153,8 +1158,7 @@ def test_scheduler_hard_cap_restores_unselected_claim_attempt(monkeypatch) -> No
         FakeRepository,
     )
 
-    with db_enabled_competitions("brasileirao_serie_a"):
-        result = due_checkpoint_refresh_batch(now, provider_league_id="71")
+    result = due_checkpoint_refresh_batch(now)
 
     assert result["due_checkpoint_count"] == 2
     assert result["selected_checkpoint_count"] == 1

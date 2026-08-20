@@ -321,12 +321,14 @@ export interface WorkspaceMatch {
       checkpoint: string;
       final_state: "EVALUATED_NO_EDGE" | "EVALUATED_CANDIDATE" | "BLOCKED_BY_GATE" | "MISSED_CHECKPOINT" | "EVALUATION_ERROR" | null;
       final_active: boolean;
+      later_unassessed_checkpoints: string[];
     }>;
     checkpoint_count: number;
     market_evaluation_count: number;
     checkpoints: string[];
     markets: string[];
     summary_zh: string;
+    lifecycle_note_zh: string | null;
     diagnosis: {
       status: "CHECKPOINT_NOT_DUE" | "XG_INPUT_MISSING" | "GATE_BLOCKED" | "CHECKPOINT_MISSED" | "PROVIDER_EMPTY" | "EVALUATION_ERROR" | "NO_EDGE" | "CANDIDATE_ACTIVE" | "UNASSESSED";
       primary_blocker_zh: string;
@@ -518,6 +520,9 @@ export interface WorkspaceValidation {
       score: string | null;
       settlement: "PENDING" | "WIN" | "HALF_WIN" | "PUSH" | "HALF_LOSS" | "LOSS";
       profit_units: number | null;
+      confirmed_checkpoint: string;
+      later_unassessed_checkpoints: string[];
+      lifecycle_note_zh: string | null;
     }>;
     lead_time_buckets: Record<"LT_6H" | "H6_TO_LT_24H" | "D1_TO_D3" | "GT_3D", {
       capture_count: number;

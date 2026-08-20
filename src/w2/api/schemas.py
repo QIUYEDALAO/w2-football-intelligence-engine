@@ -938,6 +938,7 @@ class WorkspaceEvaluationCandidate(BaseModel):
         | None
     )
     final_active: bool
+    later_unassessed_checkpoints: list[str]
 
 
 class WorkspaceEvaluationDiagnosis(BaseModel):
@@ -982,6 +983,7 @@ class WorkspaceEvaluationExecution(BaseModel):
     checkpoints: list[str]
     markets: list[str]
     summary_zh: str = Field(min_length=1)
+    lifecycle_note_zh: str | None
     diagnosis: WorkspaceEvaluationDiagnosis
 
 
@@ -1435,6 +1437,9 @@ class WorkspaceOfficialRecommendation(BaseModel):
     score: str | None
     settlement: Literal["PENDING", "WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"]
     profit_units: float | None
+    confirmed_checkpoint: str
+    later_unassessed_checkpoints: list[str]
+    lifecycle_note_zh: str | None
 
     @model_validator(mode="after")
     def settlement_fields_are_consistent(self) -> WorkspaceOfficialRecommendation:

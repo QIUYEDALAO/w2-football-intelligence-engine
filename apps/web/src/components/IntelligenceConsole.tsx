@@ -717,7 +717,7 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
                 : item.exact_line;
               return <div key={item.market}>
                 <strong>{MARKET_LABELS[item.market]} · 盘口 {itemLine ?? "待确认"} · 推荐{item.selection ? SELECTION_LABELS[item.selection] || item.selection : "方向待确认"} {item.decimal_odds === null ? "" : `@${item.decimal_odds.toFixed(2)}`}</strong>
-                <span>{item.checkpoint} 形成 · {opportunityStateLabel(item.final_state)}</span>
+                <span>{item.checkpoint} 形成 · {opportunityStateLabel(item.final_state)}{item.later_unassessed_checkpoints.length ? ` · 此后 ${item.later_unassessed_checkpoints.join(" / ")} 未产出评估，不影响确认` : ""}</span>
               </div>;
             })}
             <footer>{match.evaluation_execution.summary_zh}</footer>
@@ -844,7 +844,7 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
             return <li key={`${row.fixture_id}-${row.market}`} data-fixture-id={row.fixture_id} data-market={row.market} data-settlement={row.settlement}>
               <time>{localDateTime(row.kickoff_utc)}</time>
               <strong><span className="v41-match-name"><TeamLabel team={row.home_team_label} /><span className="v41-versus"> vs </span><TeamLabel team={row.away_team_label} /></span></strong>
-              <span>{recommendation}</span><span>@{row.decimal_odds.toFixed(2)}</span><span>{row.score ?? "待结算"}</span><b>{row.settlement === "PENDING" ? "待结算" : SETTLEMENT_LABELS[row.settlement]}</b><em>{row.profit_units === null ? "待结算" : `${row.profit_units > 0 ? "+" : ""}${row.profit_units.toFixed(3)}`}</em>
+              <span>{recommendation}{row.lifecycle_note_zh ? <small>{row.lifecycle_note_zh}</small> : null}</span><span>@{row.decimal_odds.toFixed(2)}</span><span>{row.score ?? "待结算"}</span><b>{row.settlement === "PENDING" ? "待结算" : SETTLEMENT_LABELS[row.settlement]}</b><em>{row.profit_units === null ? "待结算" : `${row.profit_units > 0 ? "+" : ""}${row.profit_units.toFixed(3)}`}</em>
             </li>;
           })}</ol>
         </> : <p className="v41-validation-empty">当日无检查点漏斗候选。</p>}

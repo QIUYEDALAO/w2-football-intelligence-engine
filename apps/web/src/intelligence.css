@@ -1866,6 +1866,13 @@ summary {
 
 .v41-official-recommendations time,
 .v41-official-recommendations span { color: var(--v41-ink-2); }
+.v41-official-recommendations span small {
+  display: block;
+  margin-top: 2px;
+  color: var(--v41-ink-3);
+  font-size: 10px;
+  line-height: 1.3;
+}
 .v41-official-recommendations strong { overflow-wrap: anywhere; }
 .v41-official-recommendations em { color: var(--v41-ink); font-style: normal; font-weight: 700; }
 

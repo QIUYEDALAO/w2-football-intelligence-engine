@@ -421,6 +421,11 @@ def test_discovery_mode_uses_the_canonical_refresh_writer_only(
         observation_count = session.scalar(
             select(func.count()).select_from(MatchdayMarketObservationModel)
         )
+        plan_count = session.scalar(
+            select(func.count())
+            .select_from(MatchdayCheckpointPlanModel)
+            .where(MatchdayCheckpointPlanModel.fixture_id == "api_football:1489404")
+        )
 
     assert client.calls == [("fixtures", {"date": "2026-06-23"})]
     assert audit.status == "COMPLETED"
@@ -445,6 +450,7 @@ def test_discovery_mode_uses_the_canonical_refresh_writer_only(
         }
     ]
     assert observation_count == 0
+    assert plan_count == 14
 
 
 def test_checkpoint_missing_persisted_fixture_fails_without_provider_call(

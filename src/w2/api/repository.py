@@ -117,6 +117,16 @@ MODEL_FORECAST_MARKETS = ("ASIAN_HANDICAP", "TOTALS")
 
 CHECKPOINT_OPPORTUNITY_SCOPE = "CHECKPOINT_EVALUATION_OPPORTUNITY_V2"
 CHECKPOINT_OPPORTUNITY_SEMANTICS = "CHECKPOINT_EVALUATION_OPPORTUNITY"
+EVALUATED_OPPORTUNITY_STATES = frozenset(
+    {"EVALUATED_CANDIDATE", "EVALUATED_NO_EDGE", "BLOCKED_BY_GATE"}
+)
+_CHECKPOINT_LABELS = {
+    "T3_ODDS": "T-3h",
+    "T60_ODDS_LINEUPS": "T-60m",
+    "T45_ODDS": "T-45m",
+    "T-30m_VALIDATION_LOCK": "T-30m",
+    "T15_ODDS": "T-15m",
+}
 
 
 def _opportunity_contract_defect(row: DynamicPrematchEvaluationModel) -> str | None:
@@ -467,9 +477,12 @@ def _official_funnel_recommendations(
     results: Mapping[str, ResultModel],
     public_team_labels: Mapping[str, Mapping[str, Mapping[str, Any]]],
 ) -> list[dict[str, Any]]:
-    """Project picks whose last official opportunity is still a candidate."""
+    """Project picks whose last opportunity with a real evaluation is a candidate."""
 
-    final_opportunities = _final_official_opportunities(opportunities)
+    evaluated_attempts = _evaluated_attempt_identities(evaluations)
+    final_opportunities = _final_official_opportunities(
+        opportunities, evaluated_attempts=evaluated_attempts
+    )
 
     latest: dict[tuple[str, str], DynamicPrematchEvaluationModel] = {}
     for row in evaluations:
@@ -498,6 +511,7 @@ def _official_funnel_recommendations(
 
     projected: list[dict[str, Any]] = []
     for (fixture_id, market), row in latest.items():
+        final = final_opportunities[(fixture_id, market)]
         payload = row.payload
         fixture = fixtures.get(fixture_id)
         canonical_fixture_id = (
@@ -565,7 +579,25 @@ def _official_funnel_recommendations(
                 ),
                 "settlement": outcome or "PENDING",
                 "profit_units": float(profit_units) if profit_units is not None else None,
+                "confirmed_checkpoint": _CHECKPOINT_LABELS.get(
+                    str(getattr(final, "evaluation_slot_id", "UNKNOWN_CHECKPOINT")),
+                    str(getattr(final, "evaluation_slot_id", "UNKNOWN_CHECKPOINT")),
+                ),
+                "later_unassessed_checkpoints": _later_unassessed_checkpoints(
+                    opportunities,
+                    fixture_id=fixture_id,
+                    market=market,
+                    after=final,
+                    evaluated_attempts=evaluated_attempts,
+                ),
             }
+        )
+        later = projected[-1]["later_unassessed_checkpoints"]
+        projected[-1]["lifecycle_note_zh"] = (
+            f"最终确认于 {projected[-1]['confirmed_checkpoint']}；"
+            f"此后 {' / '.join(later)} 未产出评估，不影响该确认"
+            if later
+            else None
         )
     return sorted(
         projected,
@@ -577,11 +609,37 @@ def _official_funnel_recommendations(
     )
 
 
+def _evaluated_attempt_identities(
+    evaluations: Sequence[DynamicPrematchEvaluationModel],
+) -> set[tuple[str, str]]:
+    return {
+        (
+            str(row.opportunity_identity_hash),
+            str(row.attempt_identity_hash),
+        )
+        for row in evaluations
+        if getattr(row, "official_funnel_eligible", None) is True
+        and getattr(row, "opportunity_identity_hash", None)
+        and getattr(row, "attempt_identity_hash", None)
+    }
+
+
 def _final_official_opportunities(
     opportunities: Sequence[DynamicPrematchOpportunityModel],
+    *,
+    evaluated_attempts: set[tuple[str, str]],
 ) -> dict[tuple[str, str], DynamicPrematchOpportunityModel]:
     final_opportunities: dict[tuple[str, str], DynamicPrematchOpportunityModel] = {}
     for row in opportunities:
+        if (
+            str(row.state) not in EVALUATED_OPPORTUNITY_STATES
+            or (
+                str(row.opportunity_identity_hash),
+                str(row.latest_attempt_identity_hash),
+            )
+            not in evaluated_attempts
+        ):
+            continue
         fixture_id = str(row.fixture_id).removeprefix("api_football:")
         key = (fixture_id, str(row.market))
         previous = final_opportunities.get(key)
@@ -596,6 +654,56 @@ def _final_official_opportunities(
         ):
             final_opportunities[key] = row
     return final_opportunities
+
+
+def _later_unassessed_checkpoints(
+    opportunities: Sequence[DynamicPrematchOpportunityModel],
+    *,
+    fixture_id: str,
+    market: str,
+    after: DynamicPrematchOpportunityModel,
+    evaluated_attempts: set[tuple[str, str]],
+) -> list[str]:
+    after_order = (
+        after.scheduled_checkpoint_at,
+        after.recorded_at,
+        after.opportunity_identity_hash,
+    )
+    rows = sorted(
+        (
+            row
+            for row in opportunities
+            if str(row.fixture_id).removeprefix("api_football:") == fixture_id
+            and str(row.market) == market
+            and (
+                str(row.state) not in EVALUATED_OPPORTUNITY_STATES
+                or (
+                    str(row.opportunity_identity_hash),
+                    str(row.latest_attempt_identity_hash),
+                )
+                not in evaluated_attempts
+            )
+            and (
+                row.scheduled_checkpoint_at,
+                row.recorded_at,
+                row.opportunity_identity_hash,
+            )
+            > after_order
+        ),
+        key=lambda row: (
+            row.scheduled_checkpoint_at,
+            row.recorded_at,
+            row.opportunity_identity_hash,
+        ),
+    )
+    return list(
+        dict.fromkeys(
+            _CHECKPOINT_LABELS.get(str(row.evaluation_slot_id), str(row.evaluation_slot_id))
+            if getattr(row, "evaluation_slot_id", None)
+            else "UNKNOWN_CHECKPOINT"
+            for row in rows
+        )
+    )
 
 
 def _apply_repository_v4_authority(card: dict[str, Any]) -> dict[str, Any]:

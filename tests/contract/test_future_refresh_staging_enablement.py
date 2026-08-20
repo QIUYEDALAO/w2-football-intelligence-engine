@@ -255,6 +255,8 @@ def test_scheduler_tick_queues_without_running_provider(monkeypatch) -> None:
             "tick_hard_cap": 30,
             "checkpoints": [
                 {
+                    "competition_id": "allsvenskan",
+                    "season": "2026",
                     "fixture_id": "1489404",
                     "checkpoint": "T24",
                     "kickoff_utc": "2026-06-24T17:00:00Z",

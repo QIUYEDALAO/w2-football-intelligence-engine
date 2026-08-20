@@ -67,6 +67,9 @@ def test_official_funnel_recommendations_dedupe_and_settle_with_authority() -> N
             fixture_id=row.fixture_id,
             market=row.market,
             state="EVALUATED_CANDIDATE",
+            evaluation_slot_id=(
+                "T-30m_VALIDATION_LOCK" if row.fixture_id == "1490399" else "T45_ODDS"
+            ),
             scheduled_checkpoint_at=row.evaluated_at,
             recorded_at=row.evaluated_at,
             latest_attempt_identity_hash=row.attempt_identity_hash,
@@ -85,6 +88,7 @@ def test_official_funnel_recommendations_dedupe_and_settle_with_authority() -> N
                 fixture_id=fixture_id,
                 market=market,
                 state="MISSED_CHECKPOINT",
+                evaluation_slot_id="T15_ODDS",
                 scheduled_checkpoint_at=base + timedelta(hours=1),
                 recorded_at=base + timedelta(hours=1),
                 latest_attempt_identity_hash=None,
@@ -162,9 +166,9 @@ def test_official_funnel_recommendations_dedupe_and_settle_with_authority() -> N
         evaluations, opportunities, fixtures, results, {}
     )
 
-    assert len(rows) == 10
-    assert len({row["fixture_id"] for row in rows}) == 7
-    assert sum(Decimal(str(row["profit_units"])) for row in rows) == Decimal("3.74")
+    assert len(rows) == 14
+    assert len({row["fixture_id"] for row in rows}) == 11
+    assert sum(Decimal(str(row["profit_units"])) for row in rows) == Decimal("2.995")
     by_pick = {(row["fixture_id"], row["market"]): row for row in rows}
     vancouver = by_pick[("1490404", "ASIAN_HANDICAP")]
     portland = by_pick[("1490405", "TOTALS")]
@@ -176,12 +180,17 @@ def test_official_funnel_recommendations_dedupe_and_settle_with_authority() -> N
     )
     assert (portland["settlement"], portland["profit_units"]) == ("LOSS", -1.0)
     assert (minnesota["settlement"], minnesota["profit_units"]) == ("PUSH", 0.0)
-    assert {
+    assert minnesota["confirmed_checkpoint"] == "T-30m"
+    restored = {
         ("1490391", "TOTALS"),
         ("1490392", "ASIAN_HANDICAP"),
         ("1490394", "TOTALS"),
         ("1490396", "ASIAN_HANDICAP"),
-    }.isdisjoint(by_pick)
+    }
+    assert restored <= set(by_pick)
+    assert by_pick[("1490391", "TOTALS")]["lifecycle_note_zh"] == (
+        "最终确认于 T-45m；此后 T-15m 未产出评估，不影响该确认"
+    )
 
     pending = repository_module._official_funnel_recommendations(
         evaluations,
@@ -203,6 +212,106 @@ def test_official_funnel_recommendations_dedupe_and_settle_with_authority() -> N
             {"official_recommendations": [rows[0], pending_vancouver]}
         )
     )
+
+
+def test_official_recommendation_is_removed_by_later_evaluated_no_edge() -> None:
+    base = datetime(2026, 8, 20, tzinfo=UTC)
+    candidate = SimpleNamespace(
+        evaluation_id="candidate",
+        fixture_id="1570351",
+        market="TOTALS",
+        selection="OVER",
+        evaluated_at=base,
+        official_funnel_eligible=True,
+        opportunity_identity_hash="candidate-opportunity",
+        attempt_identity_hash="candidate-attempt",
+        payload={"state": "ANALYSIS_PICK_ACTIVE", "exact_line": "2.0", "decimal_odds": "1.82"},
+    )
+    no_edge = SimpleNamespace(
+        evaluation_id="no-edge",
+        fixture_id="1570351",
+        market="TOTALS",
+        selection="OVER",
+        evaluated_at=base + timedelta(minutes=15),
+        official_funnel_eligible=True,
+        opportunity_identity_hash="no-edge-opportunity",
+        attempt_identity_hash="no-edge-attempt",
+        payload={"state": "NO_EDGE_CURRENT"},
+    )
+    opportunities = [
+        SimpleNamespace(
+            opportunity_identity_hash="candidate-opportunity",
+            fixture_id="1570351",
+            market="TOTALS",
+            state="EVALUATED_CANDIDATE",
+            evaluation_slot_id="T-30m_VALIDATION_LOCK",
+            scheduled_checkpoint_at=base,
+            recorded_at=base,
+            latest_attempt_identity_hash="candidate-attempt",
+        ),
+        SimpleNamespace(
+            opportunity_identity_hash="no-edge-opportunity",
+            fixture_id="1570351",
+            market="TOTALS",
+            state="EVALUATED_NO_EDGE",
+            evaluation_slot_id="T15_ODDS",
+            scheduled_checkpoint_at=base + timedelta(minutes=15),
+            recorded_at=base + timedelta(minutes=15),
+            latest_attempt_identity_hash="no-edge-attempt",
+        ),
+    ]
+
+    assert (
+        repository_module._official_funnel_recommendations(
+            [candidate, no_edge], opportunities, {}, {}, {}
+        )
+        == []
+    )
+
+
+def test_later_opportunity_without_evaluation_does_not_override_candidate() -> None:
+    base = datetime(2026, 8, 20, tzinfo=UTC)
+    candidate = SimpleNamespace(
+        evaluation_id="candidate",
+        fixture_id="1570351",
+        market="TOTALS",
+        selection="OVER",
+        evaluated_at=base,
+        official_funnel_eligible=True,
+        opportunity_identity_hash="candidate-opportunity",
+        attempt_identity_hash="candidate-attempt",
+        payload={"state": "ANALYSIS_PICK_ACTIVE", "exact_line": "2.0", "decimal_odds": "1.82"},
+    )
+    opportunities = [
+        SimpleNamespace(
+            opportunity_identity_hash="candidate-opportunity",
+            fixture_id="1570351",
+            market="TOTALS",
+            state="EVALUATED_CANDIDATE",
+            evaluation_slot_id="T-30m_VALIDATION_LOCK",
+            scheduled_checkpoint_at=base,
+            recorded_at=base,
+            latest_attempt_identity_hash="candidate-attempt",
+        ),
+        SimpleNamespace(
+            opportunity_identity_hash="orphan-opportunity",
+            fixture_id="1570351",
+            market="TOTALS",
+            state="EVALUATED_NO_EDGE",
+            evaluation_slot_id="T15_ODDS",
+            scheduled_checkpoint_at=base + timedelta(minutes=15),
+            recorded_at=base + timedelta(minutes=15),
+            latest_attempt_identity_hash="orphan-attempt",
+        ),
+    ]
+
+    rows = repository_module._official_funnel_recommendations(
+        [candidate], opportunities, {}, {}, {}
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["confirmed_checkpoint"] == "T-30m"
+    assert rows[0]["later_unassessed_checkpoints"] == ["T-15m"]
 
 
 def test_model_forecast_funnel_reports_not_measurable_without_opportunities() -> None:
@@ -1949,9 +2058,7 @@ def test_completed_no_edge_evaluations_take_precedence_over_calibration_gap() ->
     match = _workspace(day_view)["matches"][0]
 
     assert {
-        key: value
-        for key, value in match["evaluation_execution"].items()
-        if key != "diagnosis"
+        key: value for key, value in match["evaluation_execution"].items() if key != "diagnosis"
     } == {
         "status": "NO_EDGE",
         "ever_formed_candidate": False,
@@ -1966,6 +2073,7 @@ def test_completed_no_edge_evaluations_take_precedence_over_calibration_gap() ->
             "两个市场均为 NO_EDGE —— 模型与市场看法一致，无可利用价差。"
             "模型—市场对比图需已验证校准，暂不绘制。"
         ),
+        "lifecycle_note_zh": None,
     }
     assert match["factual_summary"] == match["evaluation_execution"]["summary_zh"]
 
@@ -2005,11 +2113,14 @@ def test_finished_match_keeps_final_candidate_state_and_kickoff_quote_age() -> N
                 "original_state": "ANALYSIS_PICK_ACTIVE",
                 "official_funnel_eligible": True,
                 "measurement_semantics": "CHECKPOINT_EVALUATION_OPPORTUNITY",
+                "opportunity_identity_hash": "candidate",
+                "attempt_identity_hash": "candidate-attempt",
             }
         ],
         "opportunities": [
             {
                 "opportunity_identity_hash": "candidate",
+                "latest_attempt_identity_hash": "candidate-attempt",
                 "market": "TOTALS",
                 "evaluation_slot_id": "T45_ODDS",
                 "scheduled_checkpoint_at": "2026-08-10T09:15:00Z",
@@ -2030,9 +2141,15 @@ def test_finished_match_keeps_final_candidate_state_and_kickoff_quote_age() -> N
 
     match = _workspace(day_view)["matches"][0]
 
-    assert match["evaluation_execution"]["status"] == "TECHNICAL_INVALIDATED"
+    assert match["evaluation_execution"]["status"] == "CANDIDATE"
     assert match["evaluation_execution"]["ever_formed_candidate"] is True
-    assert match["evaluation_execution"]["latest_candidates"][0]["final_active"] is False
+    assert match["evaluation_execution"]["latest_candidates"][0]["final_active"] is True
+    assert match["evaluation_execution"]["latest_candidates"][0][
+        "later_unassessed_checkpoints"
+    ] == ["T-15m"]
+    assert match["evaluation_execution"]["lifecycle_note_zh"] == (
+        "最终确认于 T-45m；此后 T-15m 未产出评估，不影响该确认"
+    )
     assert match["market_radar"]["markets"]["TOTALS"]["quote_age_seconds"] == 600
     quote_age = next(
         factor
@@ -2040,7 +2157,7 @@ def test_finished_match_keeps_final_candidate_state_and_kickoff_quote_age() -> N
         if factor["factor_id"] == "MK_QUOTE_AGE" and factor["market"] == "TOTALS"
     )
     assert quote_age["state"] == "READY"
-    assert match["risks"]["COLLECTION_RISK"]["status"] == "INCIDENT"
+    assert match["risks"]["COLLECTION_RISK"]["status"] == "OK"
     DashboardIntelligenceWorkspaceResponse.model_validate(
         {"request_id": "finished-candidate-lifecycle", **_workspace(day_view)}
     )
@@ -2082,11 +2199,9 @@ def test_missed_checkpoint_without_prior_candidate_does_not_claim_candidate_loss
 
     match = _workspace(day_view)["matches"][0]
 
-    assert match["evaluation_execution"]["status"] == "NO_CANDIDATE_FORMED"
+    assert match["evaluation_execution"]["status"] == "NO_EDGE"
     assert match["evaluation_execution"]["ever_formed_candidate"] is False
-    assert match["evaluation_execution"]["summary_zh"] == (
-        "本场未形成候选；期间有检查点错过，但不影响该结论。"
-    )
+    assert "NO_EDGE" in match["evaluation_execution"]["summary_zh"]
     assert "曾形成候选" not in match["evaluation_execution"]["summary_zh"]
     assert match["factual_summary"] == match["evaluation_execution"]["summary_zh"]
 
@@ -2106,9 +2221,7 @@ def _evaluation_plan(
         "window_end": scheduled_at,
         "status": status,
         "endpoints": (
-            ["odds", "lineups"]
-            if "LINEUPS" in checkpoint or "30m" in checkpoint
-            else ["odds"]
+            ["odds", "lineups"] if "LINEUPS" in checkpoint or "30m" in checkpoint else ["odds"]
         ),
         "attempt_count": 0 if status == "PLANNED" else 1,
         "blockers": [],
@@ -2151,6 +2264,7 @@ def _official_opportunity(
 ) -> dict[str, Any]:
     return {
         "opportunity_identity_hash": f"opp-{fixture_id}-{market}-{checkpoint}",
+        "latest_attempt_identity_hash": f"attempt-{fixture_id}-{market}-{checkpoint}",
         "market": market,
         "evaluation_slot_id": checkpoint,
         "scheduled_checkpoint_at": scheduled_at,
@@ -2237,8 +2351,7 @@ def test_gate_blocker_uses_official_attempt_values_not_readiness_missing_fields(
     assert diagnosis["status"] == "GATE_BLOCKED"
     assert diagnosis["missing_detail_zh"] == "机构深度 2 家 / 需 3 家。"
     assert not any(
-        value in diagnosis["missing_detail_zh"]
-        for value in ("lineups", "ratings", "team_value")
+        value in diagnosis["missing_detail_zh"] for value in ("lineups", "ratings", "team_value")
     )
 
 
@@ -2282,8 +2395,10 @@ def test_fixture_1490391_reports_candidate_then_missed_checkpoints() -> None:
 
     diagnosis = _workspace(day_view)["matches"][0]["evaluation_execution"]["diagnosis"]
 
-    assert diagnosis["status"] == "CHECKPOINT_MISSED"
-    assert diagnosis["missing_detail_zh"] == "未完成档位：T-30m / T-15m。"
+    assert diagnosis["status"] == "CANDIDATE_ACTIVE"
+    assert diagnosis["missing_detail_zh"] == (
+        "此后 T-30m / T-15m 未产出评估，不影响最后一次成功确认。"
+    )
 
 
 def test_mixed_market_candidate_takes_precedence_over_no_edge() -> None:
@@ -2316,7 +2431,7 @@ def test_mixed_market_candidate_takes_precedence_over_no_edge() -> None:
     assert match["evaluation_execution"]["diagnosis"]["status"] == "CANDIDATE_ACTIVE"
 
 
-def test_fixture_1490399_reports_multi_endpoint_provider_empty_truth() -> None:
+def test_fixture_1490399_keeps_candidate_when_lineups_endpoint_is_empty() -> None:
     day_view = _day_view()
     card = _factor_checklist_card()
     card["fixture_id"] = "1490399"
@@ -2355,8 +2470,8 @@ def test_fixture_1490399_reports_multi_endpoint_provider_empty_truth() -> None:
 
     diagnosis = _workspace(day_view)["matches"][0]["evaluation_execution"]["diagnosis"]
 
-    assert diagnosis["status"] == "PROVIDER_EMPTY"
-    assert "赔率已采到，阵容为空" in diagnosis["missing_detail_zh"]
+    assert diagnosis["status"] == "CANDIDATE_ACTIVE"
+    assert diagnosis["primary_blocker_zh"] == "最终仍为候选"
 
 
 def test_fixture_1490393_reports_no_edge_gap_not_incidental_missed_slot() -> None:

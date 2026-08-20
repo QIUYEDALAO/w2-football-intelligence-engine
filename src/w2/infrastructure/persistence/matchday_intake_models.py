@@ -151,6 +151,13 @@ class MatchdayCheckpointPlanModel(Base):
             name="uq_matchday_checkpoint_plan_identity",
         ),
         Index("ix_matchday_checkpoint_plan_status", "status", "scheduled_at"),
+        Index(
+            "ix_matchday_checkpoint_plan_claim",
+            "status",
+            "window_start",
+            "window_end",
+            "claimed_at",
+        ),
         Index("ix_matchday_checkpoint_plan_fixture", "fixture_id"),
     )
 
