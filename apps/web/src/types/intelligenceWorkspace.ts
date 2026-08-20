@@ -327,6 +327,16 @@ export interface WorkspaceMatch {
     checkpoints: string[];
     markets: string[];
     summary_zh: string;
+    diagnosis: {
+      status: "CHECKPOINT_NOT_DUE" | "XG_INPUT_MISSING" | "GATE_BLOCKED" | "CHECKPOINT_MISSED" | "PROVIDER_EMPTY" | "EVALUATION_ERROR" | "NO_EDGE" | "CANDIDATE_ACTIVE" | "UNASSESSED";
+      primary_blocker_zh: string;
+      missing_detail_zh: string;
+      next_step_zh: string;
+      next_checkpoint: string | null;
+      next_checkpoint_at: string | null;
+      non_blocking_missing_zh: string[];
+      evidence_codes: string[];
+    };
   };
   shadow_candidate: {
     status: "ACTIVE" | "NOT_READY" | "OFF";

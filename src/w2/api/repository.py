@@ -1569,6 +1569,12 @@ class ReadModelRepository:
                 for evaluation_row in by_fixture[alias]:
                     payload = dict(evaluation_row.payload)
                     payload["original_state"] = evaluation_row.original_state
+                    payload["bookmaker_count"] = evaluation_row.bookmaker_count
+                    payload["first_failed_gate"] = evaluation_row.first_failed_gate
+                    payload["all_failed_gates"] = list(
+                        evaluation_row.all_failed_gates or []
+                    )
+                    payload["gate_results"] = dict(evaluation_row.gate_results or {})
                     supersession = supersessions.get(evaluation_row.evaluation_id)
                     if supersession is not None:
                         payload["state"] = "SUPERSEDED"
@@ -1613,6 +1619,102 @@ class ReadModelRepository:
                     "current": [row for row in versions if row.get("state") != "SUPERSEDED"],
                     "opportunities": opportunity_versions,
                 }
+        return result
+
+    def dashboard_evaluation_checkpoints_for_fixtures(
+        self,
+        fixture_ids: Sequence[str],
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Read the five registered candidate-evaluation checkpoint plans."""
+
+        requested = list(dict.fromkeys(str(value or "").strip() for value in fixture_ids))
+        requested = [value for value in requested if value]
+        aliases = {value: model_forecast_fixture_aliases(value) for value in requested}
+        all_aliases = tuple({alias for values in aliases.values() for alias in values})
+        evaluation_slots = (
+            "T3_ODDS",
+            "T60_ODDS_LINEUPS",
+            "T45_ODDS",
+            "T-30m_VALIDATION_LOCK",
+            "T15_ODDS",
+        )
+        if not all_aliases:
+            return {}
+        try:
+            with Session(self._database_engine()) as session:
+                plans = list(
+                    session.scalars(
+                        select(MatchdayCheckpointPlanModel).where(
+                            MatchdayCheckpointPlanModel.fixture_id.in_(all_aliases),
+                            MatchdayCheckpointPlanModel.checkpoint.in_(evaluation_slots),
+                            MatchdayCheckpointPlanModel.test_only.is_(False),
+                        )
+                    )
+                )
+                plan_ids = tuple(row.plan_id for row in plans)
+                links = (
+                    list(
+                        session.scalars(
+                            select(MatchdayEndpointCapturePlanModel).where(
+                                MatchdayEndpointCapturePlanModel.plan_id.in_(plan_ids)
+                            )
+                        )
+                    )
+                    if plan_ids
+                    else []
+                )
+                capture_ids = tuple({row.capture_id for row in links})
+                captures = (
+                    list(
+                        session.scalars(
+                            select(MatchdayEndpointCaptureModel).where(
+                                MatchdayEndpointCaptureModel.capture_id.in_(capture_ids)
+                            )
+                        )
+                    )
+                    if capture_ids
+                    else []
+                )
+        except SQLAlchemyError as exc:
+            raise SystemDegradedError("DASHBOARD_EVALUATION_CHECKPOINT_QUERY_FAILED") from exc
+        captures_by_id = {row.capture_id: row for row in captures}
+        endpoints_by_plan: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for link in links:
+            capture = captures_by_id.get(link.capture_id)
+            if capture is None:
+                continue
+            endpoints_by_plan[link.plan_id].append(
+                {
+                    "endpoint": capture.endpoint,
+                    "status": capture.capture_status,
+                    "response_count": capture.response_count,
+                    "status_code": capture.status_code,
+                    "captured_at": _iso_or_none(capture.provider_captured_at),
+                }
+            )
+        result: dict[str, list[dict[str, Any]]] = {}
+        for fixture_id, fixture_aliases in aliases.items():
+            rows = [row for row in plans if row.fixture_id in fixture_aliases]
+            if not rows:
+                continue
+            result[fixture_id] = [
+                {
+                    "plan_id": row.plan_id,
+                    "checkpoint": row.checkpoint,
+                    "scheduled_at": _iso_or_none(row.scheduled_at),
+                    "window_start": _iso_or_none(row.window_start),
+                    "window_end": _iso_or_none(row.window_end),
+                    "status": row.status,
+                    "endpoints": list(row.endpoints or []),
+                    "attempt_count": row.attempt_count,
+                    "blockers": list(row.blockers or []),
+                    "endpoint_results": sorted(
+                        endpoints_by_plan.get(row.plan_id, []),
+                        key=lambda item: (str(item["captured_at"] or ""), item["endpoint"]),
+                    ),
+                }
+                for row in sorted(rows, key=lambda item: (item.scheduled_at, item.checkpoint))
+            ]
         return result
 
     def dashboard_model_forecast_validation_progress(self) -> dict[str, Any]:
@@ -2401,6 +2503,12 @@ class ReadModelService:
         fixture_ids: Sequence[str],
     ) -> dict[str, dict[str, Any]]:
         return self.repository.dashboard_dynamic_evaluations_for_fixtures(fixture_ids)
+
+    def dashboard_evaluation_checkpoints_for_fixtures(
+        self,
+        fixture_ids: Sequence[str],
+    ) -> dict[str, list[dict[str, Any]]]:
+        return self.repository.dashboard_evaluation_checkpoints_for_fixtures(fixture_ids)
 
     def dashboard_model_forecast_validation_progress(self) -> dict[str, Any]:
         return self.repository.dashboard_model_forecast_validation_progress()

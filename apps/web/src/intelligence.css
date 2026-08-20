@@ -1309,6 +1309,47 @@ summary {
   color: var(--v41-ink);
 }
 
+.v41-evaluation-diagnosis {
+  display: flex;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid #5b482d;
+  border-radius: 3px;
+  background: var(--v41-warning-bg);
+}
+
+.v41-evaluation-diagnosis > span {
+  width: 3px;
+  flex: none;
+  border-radius: 2px;
+  background: var(--v41-warning);
+}
+
+.v41-evaluation-diagnosis dl {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 3px 10px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.v41-evaluation-diagnosis dl > div {
+  display: contents;
+}
+
+.v41-evaluation-diagnosis dt {
+  color: var(--v41-ink-3);
+}
+
+.v41-evaluation-diagnosis dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--v41-ink);
+  overflow-wrap: anywhere;
+}
+
 .v41-risk-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

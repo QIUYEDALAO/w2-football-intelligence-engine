@@ -374,7 +374,264 @@ _EVALUATION_CHECKPOINT_LABELS = {
 _OFFICIAL_EVALUATION_SEMANTICS = "CHECKPOINT_EVALUATION_OPPORTUNITY"
 
 
-def _evaluation_execution(card: Mapping[str, Any]) -> dict[str, Any]:
+def _latest_checkpoint_plans(card: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    latest: dict[str, Mapping[str, Any]] = {}
+    for plan in _mapping_list(card.get("evaluation_checkpoints")):
+        checkpoint = _text(plan.get("checkpoint"))
+        if checkpoint not in _EVALUATION_CHECKPOINT_LABELS:
+            continue
+        previous = latest.get(checkpoint)
+        if previous is None or (
+            _text(plan.get("scheduled_at")), _text(plan.get("plan_id"))
+        ) > (_text(previous.get("scheduled_at")), _text(previous.get("plan_id"))):
+            latest[checkpoint] = plan
+    return sorted(latest.values(), key=lambda row: _text(row.get("scheduled_at")))
+
+
+def _percent(value: Any) -> str:
+    number = _number(value)
+    return "待确认" if number is None else f"{number * 100:+.2f}%"
+
+
+def _percentage_points(value: Any) -> str:
+    number = _number(value)
+    return "待确认" if number is None else f"{number * 100:.2f}"
+
+
+def _no_edge_detail(evaluated: Sequence[tuple[Mapping[str, Any], str, datetime]]) -> str:
+    latest: dict[str, tuple[Mapping[str, Any], datetime]] = {}
+    for row, state, evaluated_at in evaluated:
+        if state != "NO_EDGE_CURRENT":
+            continue
+        market = _text(row.get("market"))
+        previous = latest.get(market)
+        if previous is None or evaluated_at > previous[1]:
+            latest[market] = (row, evaluated_at)
+    details = []
+    for market in ("ASIAN_HANDICAP", "TOTALS"):
+        row = _mapping(latest.get(market, ({}, datetime.min.replace(tzinfo=UTC)))[0])
+        if not row:
+            continue
+        shortfall = _mapping(row.get("shortfall"))
+        details.append(
+            f"{'让球' if market == 'ASIAN_HANDICAP' else '大小球'}："
+            f"EV {_percent(row.get('current_ev'))}；"
+            f"delta {_percent(row.get('current_delta'))} / "
+            f"需 ≥{_percent(row.get('required_delta')).lstrip('+')}"
+            f"（差 {_percentage_points(shortfall.get('delta'))} 个点）；"
+            f"EV−SE {_percent(row.get('current_ev_minus_se'))} / 需 >0"
+        )
+    return "；".join(details) or "已完成评估，Decision V4 未发现达到门槛的价值差。"
+
+
+def _evaluation_diagnosis(
+    card: Mapping[str, Any],
+    *,
+    official_attempts: Sequence[tuple[Mapping[str, Any], str, datetime]],
+    evaluated: Sequence[tuple[Mapping[str, Any], str, datetime]],
+    opportunities: Sequence[Mapping[str, Any]],
+    factor_checklist: Mapping[str, Any],
+    ever_formed_candidate: bool,
+    status: str,
+) -> dict[str, Any]:
+    plans = _latest_checkpoint_plans(card)
+    evidence_codes = [
+        f"{_text(plan.get('checkpoint'))}:{_text(plan.get('status'))}" for plan in plans
+    ]
+    enhancements = _mapping(factor_checklist.get("enhancement_quality"))
+    non_blocking = [
+        _text(item.get("display_name_zh"), _text(item.get("factor_id")))
+        for item in _mapping_list(factor_checklist.get("factors"))
+        if _text(item.get("factor_id"))
+        in set(_string_list(enhancements.get("missing_factor_ids")))
+    ]
+    base = {
+        "next_checkpoint": None,
+        "next_checkpoint_at": None,
+        "non_blocking_missing_zh": non_blocking,
+        "evidence_codes": evidence_codes,
+    }
+    if plans and all(_text(plan.get("status")) == "PLANNED" for plan in plans):
+        next_plan = plans[0]
+        return {
+            **base,
+            "status": "CHECKPOINT_NOT_DUE",
+            "primary_blocker_zh": "第一个评估档位尚未到达",
+            "missing_detail_zh": "候选轨道尚未启动；尚未发生门禁判定。",
+            "next_step_zh": "等待最近一个已注册评估档位。",
+            "next_checkpoint": _text(next_plan.get("checkpoint")),
+            "next_checkpoint_at": _optional_text(next_plan.get("scheduled_at")),
+        }
+
+    xg = next(
+        (
+            row
+            for row in _mapping_list(factor_checklist.get("factors"))
+            if _text(row.get("factor_id")) == "F9_TRUE_XG"
+        ),
+        {},
+    )
+    if xg and _text(xg.get("state")) != "READY" and not evaluated:
+        xg_evidence = _mapping(xg.get("evidence"))
+        required = max(1, _int(xg_evidence.get("minimum_required")) or 3)
+        return {
+            **base,
+            "status": "XG_INPUT_MISSING",
+            "primary_blocker_zh": "模型核心输入未就绪",
+            "missing_detail_zh": (
+                f"四字段 xG：主队 {max(0, _int(xg_evidence.get('home_sample_count')))}/{required}，"
+                f"客队 {max(0, _int(xg_evidence.get('away_sample_count')))}/{required}。"
+            ),
+            "next_step_zh": "等待真实历史 xG 达到既有样本门槛。",
+        }
+
+    opportunity_by_identity = {
+        _text(row.get("opportunity_identity_hash")): row
+        for row in opportunities
+        if _text(row.get("opportunity_identity_hash"))
+    }
+    blocked_attempts = [
+        item
+        for item in official_attempts
+        if _text(item[0].get("first_failed_gate"))
+        or _text(
+            _mapping(opportunity_by_identity.get(_text(item[0].get("opportunity_identity_hash")))).get(
+                "state"
+            )
+        )
+        == "BLOCKED_BY_GATE"
+    ]
+    if blocked_attempts:
+        row, _state, evaluated_at = max(blocked_attempts, key=lambda item: item[2])
+        gate = _text(row.get("first_failed_gate")) or next(
+            iter(_string_list(row.get("blockers"))), "UNKNOWN_GATE"
+        )
+        detail = {
+            "MAINLINE_PARSED": "主盘无法解析（MAINLINE_NOT_PARSED）。",
+            "PAIR_COMPLETE": "主盘双边报价不完整（PAIR_INCOMPLETE）。",
+            "SOURCE_OBSERVATIONS_PRESENT": "缺少原始市场观测（SOURCE_OBSERVATIONS_ABSENT）。",
+        }.get(gate)
+        if gate in {"BOOKMAKER_DEPTH", "INSUFFICIENT_BOOKMAKER_DEPTH"}:
+            detail = f"机构深度 {_int(row.get('bookmaker_count'))} 家 / 需 3 家。"
+        elif gate in {"QUOTE_FRESH", "CURRENT_QUOTE_STALE"}:
+            captured_at = _datetime(row.get("capture_at"))
+            age_seconds = int((evaluated_at - captured_at).total_seconds()) if captured_at else None
+            detail = (
+                f"报价年龄 {max(0, age_seconds) // 60} 分钟 / 需 ≤30 分钟。"
+                if age_seconds is not None
+                else "当前报价时效证据缺失。"
+            )
+        return {
+            **base,
+            "status": "GATE_BLOCKED",
+            "primary_blocker_zh": "候选门禁未通过",
+            "missing_detail_zh": detail or f"{gate} 未通过。",
+            "next_step_zh": "等待下一官方检查点使用新证据重新评估。",
+            "evidence_codes": [*evidence_codes, gate],
+        }
+
+    no_edge_evaluated = any(state == "NO_EDGE_CURRENT" for _row, state, _at in evaluated)
+    missed = [row for row in opportunities if _text(row.get("state")) == "MISSED_CHECKPOINT"]
+    if missed and (status == "TECHNICAL_INVALIDATED" or not evaluated):
+        candidate_times = [
+            evaluated_at
+            for _row, state, evaluated_at in evaluated
+            if state == "ANALYSIS_PICK_ACTIVE"
+        ]
+        after_candidate = [
+            row
+            for row in missed
+            if not candidate_times
+            or (_datetime(row.get("scheduled_checkpoint_at")) or datetime.min.replace(tzinfo=UTC))
+            > max(candidate_times)
+        ]
+        causal = after_candidate or missed
+        checkpoints = list(
+            dict.fromkeys(
+                _EVALUATION_CHECKPOINT_LABELS.get(
+                    _text(row.get("evaluation_slot_id")), _text(row.get("evaluation_slot_id"))
+                )
+                for row in causal
+            )
+        )
+        return {
+            **base,
+            "status": "CHECKPOINT_MISSED",
+            "primary_blocker_zh": "官方检查点错过",
+            "missing_detail_zh": f"未完成档位：{' / '.join(checkpoints)}。",
+            "next_step_zh": "赛前流程已结束；保留技术失效记录，不回填历史。",
+        }
+
+    provider_empty = [plan for plan in plans if _text(plan.get("status")) == "PROVIDER_EMPTY"]
+    if provider_empty and (ever_formed_candidate or not no_edge_evaluated):
+        plan = provider_empty[-1]
+        endpoints = {
+            _text(row.get("endpoint")): row
+            for row in _mapping_list(plan.get("endpoint_results"))
+        }
+        if _text(_mapping(endpoints.get("odds")).get("status")) == "CAPTURED" and _text(
+            _mapping(endpoints.get("lineups")).get("status")
+        ) == "PROVIDER_EMPTY":
+            detail = "赔率已采到，阵容为空；多端点档位因此整体为 PROVIDER_EMPTY。"
+        else:
+            detail = "；".join(
+                f"{name}={_text(row.get('status'), 'UNKNOWN')}"
+                for name, row in sorted(endpoints.items())
+            ) or "Provider 返回空结果。"
+        checkpoint = _text(plan.get("checkpoint"))
+        return {
+            **base,
+            "status": "PROVIDER_EMPTY",
+            "primary_blocker_zh": "Provider 空结果",
+            "missing_detail_zh": (
+                f"{_EVALUATION_CHECKPOINT_LABELS.get(checkpoint, checkpoint)}：{detail}"
+            ),
+            "next_step_zh": "保留端点与评估证据供审计；不回填、不改写已有记录。",
+        }
+
+    failed = [plan for plan in plans if _text(plan.get("status")) == "FAILED"]
+    if failed or any(_text(row.get("state")) == "EVALUATION_ERROR" for row in opportunities):
+        plan = failed[-1] if failed else {}
+        checkpoint = _text(plan.get("checkpoint"), "UNKNOWN_CHECKPOINT")
+        return {
+            **base,
+            "status": "EVALUATION_ERROR",
+            "primary_blocker_zh": "评估异常",
+            "missing_detail_zh": (
+                f"{_EVALUATION_CHECKPOINT_LABELS.get(checkpoint, checkpoint)} 执行失败。"
+            ),
+            "next_step_zh": "检查调度与评估错误证据；不改写既有账本。",
+        }
+
+    if no_edge_evaluated:
+        return {
+            **base,
+            "status": "NO_EDGE",
+            "primary_blocker_zh": "已完整评估但无价值差",
+            "missing_detail_zh": _no_edge_detail(evaluated),
+            "next_step_zh": "保留该次完整评估；无需把 NO_EDGE 解释为数据缺失。",
+        }
+    if status == "CANDIDATE":
+        return {
+            **base,
+            "status": "CANDIDATE_ACTIVE",
+            "primary_blocker_zh": "最终仍为候选",
+            "missing_detail_zh": "候选轨道已完成评估并保持有效。",
+            "next_step_zh": "等待赛果进入既有结算流程。",
+        }
+    return {
+        **base,
+        "status": "UNASSESSED",
+        "primary_blocker_zh": "尚无权威评估结论",
+        "missing_detail_zh": "当前没有足够的候选轨道证据定位原因。",
+        "next_step_zh": "查看已注册档位与只读技术证据。",
+    }
+
+
+def _evaluation_execution(
+    card: Mapping[str, Any], factor_checklist: Mapping[str, Any]
+) -> dict[str, Any]:
+    official_attempts = []
     evaluated = []
     for version in _mapping_list(_mapping(card.get("dynamic_prematch")).get("versions")):
         if (
@@ -384,6 +641,8 @@ def _evaluation_execution(card: Mapping[str, Any]) -> dict[str, Any]:
             continue
         state = _text(version.get("state"))
         evaluated_at = _datetime(version.get("evaluated_at"))
+        if evaluated_at is not None:
+            official_attempts.append((version, state, evaluated_at))
         if state not in {"NO_EDGE_CURRENT", "ANALYSIS_PICK_ACTIVE"}:
             continue
         if evaluated_at is None:
@@ -520,6 +779,15 @@ def _evaluation_execution(card: Mapping[str, Any]) -> dict[str, Any]:
         "checkpoints": labels,
         "markets": market_names,
         "summary_zh": summary,
+        "diagnosis": _evaluation_diagnosis(
+            card,
+            official_attempts=official_attempts,
+            evaluated=evaluated,
+            opportunities=opportunities,
+            factor_checklist=factor_checklist,
+            ever_formed_candidate=ever_formed_candidate,
+            status=status,
+        ),
     }
 
 
@@ -595,7 +863,7 @@ def _match(
         generated_at=generated_at,
         fixture_finished=fixture_finished,
     )
-    evaluation_execution = _evaluation_execution(card)
+    evaluation_execution = _evaluation_execution(card, factor_checklist)
     return {
         "fixture_id": _text(card.get("fixture_id")),
         "competition_id": _optional_text(card.get("competition_id")),

@@ -532,6 +532,21 @@ function MarketEvidenceDetails({ markets, latestSnapshotAt, latestSnapshotCheckp
   </div>;
 }
 
+function EvaluationDiagnosis({ match }: { match: WorkspaceMatch }) {
+  const diagnosis = match.evaluation_execution.diagnosis;
+  const nextStep = diagnosis.next_checkpoint && diagnosis.next_checkpoint_at
+    ? `${diagnosis.next_step_zh} ${diagnosis.next_checkpoint} ${localDateTime(diagnosis.next_checkpoint_at)}`
+    : diagnosis.next_step_zh;
+  return <div className="v41-evaluation-diagnosis" data-diagnosis-status={diagnosis.status}>
+    <span />
+    <dl>
+      <div><dt>首要阻断 / 结论</dt><dd>{diagnosis.primary_blocker_zh}</dd></div>
+      <div><dt>缺失明细</dt><dd>{diagnosis.missing_detail_zh}</dd></div>
+      <div><dt>下一步</dt><dd>{nextStep}</dd></div>
+    </dl>
+  </div>;
+}
+
 function RiskSummary({ generatedAt, match }: { generatedAt: string | null; match: WorkspaceMatch }) {
   const lineupWaiting = match.readiness.missing_fields.includes("lineups")
     && !match.outcome.is_finished
@@ -707,7 +722,7 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
             })}
             <footer>{match.evaluation_execution.summary_zh}</footer>
           </section> : null}
-          {!match.evaluation_execution.latest_candidates.length ? <div className="v41-diagnostic" data-evaluation-status={match.evaluation_execution.status}><span /><p><b>最终候选状态：{evaluationStatusLabel(match.evaluation_execution.status)}</b>{match.evaluation_execution.summary_zh}</p></div> : null}
+          {match.evaluation_execution.diagnosis.status !== "CANDIDATE_ACTIVE" ? <EvaluationDiagnosis match={match} /> : null}
           <details className="v41-semantic-audit">
             <summary>语义与生命周期说明</summary>
             <div className="v41-semantic-audit__body">
@@ -726,7 +741,7 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
               <RiskSummary generatedAt={generatedAt} match={match} />
               <Scoreline match={match} />
               <div className="v41-next"><span>市场输入</span><strong>{candidateAggregateLabel(match.readiness.market_aggregate_status)}</strong><span>最终候选</span><strong>{evaluationStatusLabel(match.evaluation_execution.status)}</strong><span>采集状态</span><strong>{finished ? "赛前流程已关闭" : collectionLabel(match)}</strong><span>计划时刻</span><strong>{finished ? "不适用" : match.market_collection.scheduled_at ? scheduledEvaluation(match.market_collection.scheduled_at, generatedAt) : "暂无后续计划"}</strong><span>宽限结束</span><strong>{finished ? "不适用" : match.market_collection.window_end_at ? localDateTime(match.market_collection.window_end_at) : "不适用"}</strong><span>下次评估</span><strong>{finished ? "赛前流程已结束" : nextEvaluation(match.readiness.next_eval_at, generatedAt)}</strong></div>
-              <details className="v41-details"><summary>技术详情</summary><code>{match.intelligence_state}</code><code>{match.readiness.reason_code || "NO_REASON_CODE"}</code><code>market_aggregate={match.readiness.market_aggregate_status}</code><code>model_source={model.source_status}</code>{markets.map((market) => <span key={market.market}><code>{market.market}:{market.eligibility.model_diagnostic_status}</code>{market.reason_codes.map((reason) => <code key={`${market.market}-${reason}`}>{market.market}:{reason}</code>)}{market.eligibility.blockers.map((blocker) => <code key={`${market.market}-${blocker}`}>{market.market}:{blocker}</code>)}</span>)}</details>
+              <details className="v41-details"><summary>技术详情</summary><code>{match.intelligence_state}</code><code>candidate_diagnosis={match.evaluation_execution.diagnosis.status}</code>{match.evaluation_execution.diagnosis.evidence_codes.map((item) => <code key={item}>{item}</code>)}{match.evaluation_execution.diagnosis.non_blocking_missing_zh.length ? <span>不阻断：{match.evaluation_execution.diagnosis.non_blocking_missing_zh.join("、")}</span> : null}<code>{match.readiness.reason_code || "NO_REASON_CODE"}</code><code>market_aggregate={match.readiness.market_aggregate_status}</code><code>model_source={model.source_status}</code>{markets.map((market) => <span key={market.market}><code>{market.market}:{market.eligibility.model_diagnostic_status}</code>{market.reason_codes.map((reason) => <code key={`${market.market}-${reason}`}>{market.market}:{reason}</code>)}{market.eligibility.blockers.map((blocker) => <code key={`${market.market}-${blocker}`}>{market.market}:{blocker}</code>)}</span>)}</details>
             </div>
           </details>
         </div>

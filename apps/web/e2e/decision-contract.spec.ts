@@ -188,7 +188,7 @@ function match(id: string, options: { rich?: boolean; stale?: boolean; modelWarn
     readiness: { status: options.rich && !options.stale ? "READY" : "BLOCKED", reason_code: options.stale ? "QUOTE_OLDER_THAN_30_MINUTES" : options.rich ? "EVIDENCE_READY" : "DATA_INCOMPLETE", reason_codes: [], missing_fields: options.rich ? [] : ["market"], stale_fields: options.stale ? ["candidate_quote"] : [], action: "WAIT_FOR_NEXT_SCHEDULED_EVALUATION", next_eval_at: "2026-08-09T13:22:00Z", provider_budget_status: "PROTECTED", lineup_status: "AVAILABLE", lineup_expectation: "ADVISORY", market_aggregate_status: options.rich && !options.stale ? "READY" : "NOT_READY", market_evidence_status: options.rich ? "AVAILABLE" : "NOT_READY", candidate_input_status: options.rich && !options.stale ? "READY" : "NOT_READY" },
     market_fact: { status: ah.status, source_status: ah.source_status, main_line: ah.main_line, current_odds: ah.prices, market_probabilities: ah.probabilities, price_reference: "LAST_AVAILABLE_PREMATCH_SNAPSHOT", canonical_close_status: "NOT_OBTAINABLE_FROM_CURRENT_PROVIDER" },
     w2_analysis: { status: "ANALYSIS_REFERENCE", proof_status: "NOT_PROVEN", decision_tier: "WATCH", analysis_state: relationStatus, reason_codes: [], model_view: { status: "READY", source_status: "READY", model_version: "w2-existing-v1", calibration_version: "cal-v1", calibration_status: "AVAILABLE", simulations_completed: 10_000 }, model_market_relation: { ASIAN_HANDICAP: relation("ASIAN_HANDICAP"), TOTALS: relation("TOTALS") } },
-    evaluation_execution: { status: "UNASSESSED", ever_formed_candidate: false, final_states: [], latest_candidates: [], checkpoint_count: 0, market_evaluation_count: 0, checkpoints: [], markets: [], summary_zh: "尚无正式检查点评估" },
+    evaluation_execution: { status: "UNASSESSED", ever_formed_candidate: false, final_states: [], latest_candidates: [], checkpoint_count: 0, market_evaluation_count: 0, checkpoints: [], markets: [], summary_zh: "尚无正式检查点评估", diagnosis: { status: "UNASSESSED", primary_blocker_zh: "尚无权威评估结论", missing_detail_zh: "当前没有足够的候选轨道证据定位原因。", next_step_zh: "查看已注册档位与只读技术证据。", next_checkpoint: null, next_checkpoint_at: null, non_blocking_missing_zh: [], evidence_codes: [] } },
     shadow_candidate: options.rich && !options.stale ? { status: "ACTIVE", mode: "SHADOW_ONLY", authority: "RECOMMENDATION_DECISION_V4", decision_tier: "ANALYSIS_PICK", reason_code: "ANALYSIS_ONLY", reason_message: "当前仅提供影子候选", market: "ASIAN_HANDICAP", selection: "HOME", exact_line: "-0.75", decimal_odds: 1.95, captured_at: "2026-08-09T12:11:00Z", decision_hash: "a".repeat(64), recommendation_scope: "VALIDATION", outcome_tracked: true, formal_status: "OFF", lock_status: "OFF", production_action_allowed: false, real_money_allowed: false } : { status: "NOT_READY", mode: "SHADOW_ONLY", authority: "RECOMMENDATION_DECISION_V4", decision_tier: "NOT_READY", reason_code: "EVIDENCE_NOT_READY", reason_message: "当前证据尚未就绪", market: null, selection: null, exact_line: null, decimal_odds: null, captured_at: null, decision_hash: null, recommendation_scope: "NONE", outcome_tracked: false, formal_status: "OFF", lock_status: "OFF", production_action_allowed: false, real_money_allowed: false },
     factor_checklist: factorChecklist(id, options.rich, options.stale),
     formal_recommendation: { status: "OFF", reason: "PRODUCT_AUTHORITY_DISABLED" },
@@ -658,7 +658,7 @@ test("1440x900 keeps the actionable market chain and final candidate state above
     market.locator(".v41-snapshots li.is-latest span"),
     market.locator(".v41-market-summary > div").nth(1),
     market.locator("[data-quote-age-state]"),
-    page.locator("[data-focus-type='MATCH'] [data-evaluation-status]"),
+    page.locator("[data-focus-type='MATCH'] [data-diagnosis-status]"),
   ];
   for (const target of targets) {
     await expect(target).toBeVisible();
@@ -674,7 +674,11 @@ test("V41 keeps low-priority diagnostics folded by default", async ({ page }) =>
   await expect(page.locator(".v41-compact-audit")).not.toHaveAttribute("open", "");
   await expect(page.locator(".v41-semantic-audit")).not.toHaveAttribute("open", "");
   await expect(page.locator(".v41-factor-audit")).not.toHaveAttribute("open", "");
-  await expect(page.locator(".v41-diagnostic[data-evaluation-status]")).toBeVisible();
+  const diagnosis = page.locator(".v41-evaluation-diagnosis[data-diagnosis-status]");
+  await expect(diagnosis).toBeVisible();
+  await expect(diagnosis).toContainText("首要阻断 / 结论尚无权威评估结论");
+  await expect(diagnosis).toContainText("缺失明细当前没有足够的候选轨道证据定位原因");
+  await expect(diagnosis).toContainText("下一步查看已注册档位与只读技术证据");
   await expect(page.locator(".v41-factor-checklist > header")).toBeVisible();
 });
 
@@ -691,6 +695,7 @@ test("V41 makes the final official candidate card authoritative and folds repeat
     checkpoints: ["T3_ODDS", "T15_ODDS"],
     markets: ["ASIAN_HANDICAP"],
     summary_zh: "已评估 2 次（T-3h / T-15m），最终官方状态仍为候选。",
+    diagnosis: { status: "CANDIDATE_ACTIVE", primary_blocker_zh: "最终仍为候选", missing_detail_zh: "候选轨道已完成评估并保持有效。", next_step_zh: "等待赛果进入既有结算流程。", next_checkpoint: null, next_checkpoint_at: null, non_blocking_missing_zh: [], evidence_codes: [] },
   };
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
@@ -700,7 +705,7 @@ test("V41 makes the final official candidate card authoritative and folds repeat
   await expect(official.locator("header")).not.toContainText("产品权限未启用");
   await expect(official).toContainText("让球主盘 · 盘口 -0.5 · 推荐客队 @1.88");
   await expect(official.locator("footer")).toHaveText(focused.evaluation_execution.summary_zh);
-  await expect(page.locator(".v41-diagnostic[data-evaluation-status]")).toHaveCount(0);
+  await expect(page.locator(".v41-evaluation-diagnosis[data-diagnosis-status]")).toHaveCount(0);
   await expect(page.locator(".v41-semantic-audit")).not.toHaveAttribute("open", "");
 });
 

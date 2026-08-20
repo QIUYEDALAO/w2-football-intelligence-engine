@@ -1948,7 +1948,11 @@ def test_completed_no_edge_evaluations_take_precedence_over_calibration_gap() ->
 
     match = _workspace(day_view)["matches"][0]
 
-    assert match["evaluation_execution"] == {
+    assert {
+        key: value
+        for key, value in match["evaluation_execution"].items()
+        if key != "diagnosis"
+    } == {
         "status": "NO_EDGE",
         "ever_formed_candidate": False,
         "final_states": [],
@@ -2085,6 +2089,283 @@ def test_missed_checkpoint_without_prior_candidate_does_not_claim_candidate_loss
     )
     assert "曾形成候选" not in match["evaluation_execution"]["summary_zh"]
     assert match["factual_summary"] == match["evaluation_execution"]["summary_zh"]
+
+
+def _evaluation_plan(
+    checkpoint: str,
+    status: str,
+    scheduled_at: str,
+    *,
+    endpoint_results: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    return {
+        "plan_id": f"plan-{checkpoint}",
+        "checkpoint": checkpoint,
+        "scheduled_at": scheduled_at,
+        "window_start": scheduled_at,
+        "window_end": scheduled_at,
+        "status": status,
+        "endpoints": (
+            ["odds", "lineups"]
+            if "LINEUPS" in checkpoint or "30m" in checkpoint
+            else ["odds"]
+        ),
+        "attempt_count": 0 if status == "PLANNED" else 1,
+        "blockers": [],
+        "endpoint_results": endpoint_results or [],
+    }
+
+
+def _official_evaluation(
+    fixture_id: str,
+    market: str,
+    state: str,
+    checkpoint: str,
+    evaluated_at: str,
+    **values: Any,
+) -> dict[str, Any]:
+    return {
+        "evaluation_id": f"eval-{fixture_id}-{market}-{checkpoint}",
+        "attempt_identity_hash": f"attempt-{fixture_id}-{market}-{checkpoint}",
+        "opportunity_identity_hash": f"opp-{fixture_id}-{market}-{checkpoint}",
+        "checkpoint": checkpoint,
+        "evaluation_slot_id": checkpoint,
+        "evaluated_at": evaluated_at,
+        "market": market,
+        "state": state,
+        "original_state": state,
+        "official_funnel_eligible": True,
+        "measurement_semantics": "CHECKPOINT_EVALUATION_OPPORTUNITY",
+        "blockers": [],
+        "all_failed_gates": [],
+        **values,
+    }
+
+
+def _official_opportunity(
+    fixture_id: str,
+    market: str,
+    state: str,
+    checkpoint: str,
+    scheduled_at: str,
+) -> dict[str, Any]:
+    return {
+        "opportunity_identity_hash": f"opp-{fixture_id}-{market}-{checkpoint}",
+        "market": market,
+        "evaluation_slot_id": checkpoint,
+        "scheduled_checkpoint_at": scheduled_at,
+        "recorded_at": scheduled_at,
+        "state": state,
+    }
+
+
+def test_fixture_1570351_reports_checkpoint_not_due_before_first_slot() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["fixture_id"] = "1570351"
+    card["evaluation_checkpoints"] = [
+        _evaluation_plan(checkpoint, "PLANNED", scheduled_at)
+        for checkpoint, scheduled_at in (
+            ("T3_ODDS", "2026-08-20T16:00:00Z"),
+            ("T60_ODDS_LINEUPS", "2026-08-20T18:00:00Z"),
+            ("T45_ODDS", "2026-08-20T18:15:00Z"),
+            ("T-30m_VALIDATION_LOCK", "2026-08-20T18:30:00Z"),
+            ("T15_ODDS", "2026-08-20T18:45:00Z"),
+        )
+    ]
+    day_view["cards"] = [card]
+
+    diagnosis = _workspace(day_view)["matches"][0]["evaluation_execution"]["diagnosis"]
+
+    assert diagnosis["status"] == "CHECKPOINT_NOT_DUE"
+    assert diagnosis["next_checkpoint"] == "T3_ODDS"
+    assert diagnosis["next_checkpoint_at"] == "2026-08-20T16:00:00Z"
+    assert "输入缺失" not in diagnosis["missing_detail_zh"]
+
+
+def test_fixture_1570334_reports_four_field_xg_hard_gate() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["fixture_id"] = "1570334"
+    card["factor_checklist_inputs"]["data_readiness"].update(
+        {"xg": False, "xg_status": "NO_HISTORY", "xg_home_match_count": 0, "xg_away_match_count": 0}
+    )
+    card["evaluation_checkpoints"] = [
+        _evaluation_plan("T3_ODDS", "CAPTURED", "2026-08-19T16:00:00Z")
+    ]
+    day_view["cards"] = [card]
+
+    diagnosis = _workspace(day_view)["matches"][0]["evaluation_execution"]["diagnosis"]
+
+    assert diagnosis["status"] == "XG_INPUT_MISSING"
+    assert diagnosis["missing_detail_zh"] == "四字段 xG：主队 0/3，客队 0/3。"
+
+
+def test_gate_blocker_uses_official_attempt_values_not_readiness_missing_fields() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["fixture_id"] = "gate-blocked"
+    card["missing_fields"] = ["lineups", "ratings", "team_value"]
+    card["dynamic_prematch"] = {
+        "versions": [
+            _official_evaluation(
+                "gate-blocked",
+                "ASIAN_HANDICAP",
+                "NOT_READY_QUOTE_INCOMPLETE",
+                "T45_ODDS",
+                "2026-08-19T22:52:50Z",
+                bookmaker_count=2,
+                first_failed_gate="BOOKMAKER_DEPTH",
+                blockers=["INSUFFICIENT_BOOKMAKER_DEPTH"],
+                all_failed_gates=["BOOKMAKER_DEPTH"],
+            )
+        ],
+        "opportunities": [
+            _official_opportunity(
+                "gate-blocked",
+                "ASIAN_HANDICAP",
+                "BLOCKED_BY_GATE",
+                "T45_ODDS",
+                "2026-08-19T22:45:00Z",
+            )
+        ],
+    }
+    day_view["cards"] = [card]
+
+    diagnosis = _workspace(day_view)["matches"][0]["evaluation_execution"]["diagnosis"]
+
+    assert diagnosis["status"] == "GATE_BLOCKED"
+    assert diagnosis["missing_detail_zh"] == "机构深度 2 家 / 需 3 家。"
+    assert not any(
+        value in diagnosis["missing_detail_zh"]
+        for value in ("lineups", "ratings", "team_value")
+    )
+
+
+def test_fixture_1490391_reports_candidate_then_missed_checkpoints() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["fixture_id"] = "1490391"
+    card["dynamic_prematch"] = {
+        "versions": [
+            _official_evaluation(
+                "1490391", "TOTALS", "ANALYSIS_PICK_ACTIVE", "T45_ODDS", "2026-08-19T22:52:50Z"
+            )
+        ],
+        "opportunities": [
+            _official_opportunity(
+                "1490391", "TOTALS", "EVALUATED_CANDIDATE", "T45_ODDS", "2026-08-19T22:45:00Z"
+            ),
+            *[
+                _official_opportunity(
+                    "1490391", market, "MISSED_CHECKPOINT", checkpoint, scheduled_at
+                )
+                for checkpoint, scheduled_at in (
+                    ("T-30m_VALIDATION_LOCK", "2026-08-19T23:00:00Z"),
+                    ("T15_ODDS", "2026-08-19T23:15:00Z"),
+                )
+                for market in ("ASIAN_HANDICAP", "TOTALS")
+            ],
+        ],
+    }
+    day_view["cards"] = [card]
+
+    diagnosis = _workspace(day_view)["matches"][0]["evaluation_execution"]["diagnosis"]
+
+    assert diagnosis["status"] == "CHECKPOINT_MISSED"
+    assert diagnosis["missing_detail_zh"] == "未完成档位：T-30m / T-15m。"
+
+
+def test_fixture_1490399_reports_multi_endpoint_provider_empty_truth() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["fixture_id"] = "1490399"
+    card["dynamic_prematch"] = {
+        "versions": [
+            _official_evaluation(
+                "1490399",
+                "TOTALS",
+                "ANALYSIS_PICK_ACTIVE",
+                "T-30m_VALIDATION_LOCK",
+                "2026-08-20T00:04:23Z",
+            )
+        ],
+        "opportunities": [
+            _official_opportunity(
+                "1490399",
+                "TOTALS",
+                "EVALUATED_CANDIDATE",
+                "T-30m_VALIDATION_LOCK",
+                "2026-08-20T00:00:00Z",
+            )
+        ],
+    }
+    card["evaluation_checkpoints"] = [
+        _evaluation_plan(
+            "T-30m_VALIDATION_LOCK",
+            "PROVIDER_EMPTY",
+            "2026-08-20T00:00:00Z",
+            endpoint_results=[
+                {"endpoint": "odds", "status": "CAPTURED"},
+                {"endpoint": "lineups", "status": "PROVIDER_EMPTY"},
+            ],
+        )
+    ]
+    day_view["cards"] = [card]
+
+    diagnosis = _workspace(day_view)["matches"][0]["evaluation_execution"]["diagnosis"]
+
+    assert diagnosis["status"] == "PROVIDER_EMPTY"
+    assert "赔率已采到，阵容为空" in diagnosis["missing_detail_zh"]
+
+
+def test_fixture_1490393_reports_no_edge_gap_not_incidental_missed_slot() -> None:
+    day_view = _day_view()
+    card = _factor_checklist_card()
+    card["fixture_id"] = "1490393"
+    card["dynamic_prematch"] = {
+        "versions": [
+            _official_evaluation(
+                "1490393",
+                market,
+                "NO_EDGE_CURRENT",
+                "T45_ODDS",
+                "2026-08-19T22:52:52Z",
+                current_ev=0.107717 if market == "ASIAN_HANDICAP" else 0.012793,
+                current_delta=0.012982 if market == "ASIAN_HANDICAP" else 0.022439,
+                required_delta=0.05,
+                current_ev_minus_se=0.057611 if market == "ASIAN_HANDICAP" else -0.036147,
+                shortfall={"delta": 0.037018 if market == "ASIAN_HANDICAP" else 0.027561},
+                blockers=["DELTA_BELOW_THRESHOLD"],
+            )
+            for market in ("ASIAN_HANDICAP", "TOTALS")
+        ],
+        "opportunities": [
+            *[
+                _official_opportunity(
+                    "1490393", market, "EVALUATED_NO_EDGE", "T45_ODDS", "2026-08-19T22:45:00Z"
+                )
+                for market in ("ASIAN_HANDICAP", "TOTALS")
+            ],
+            *[
+                _official_opportunity(
+                    "1490393", market, "MISSED_CHECKPOINT", "T15_ODDS", "2026-08-19T23:15:00Z"
+                )
+                for market in ("ASIAN_HANDICAP", "TOTALS")
+            ],
+        ],
+    }
+    card["evaluation_checkpoints"] = [
+        _evaluation_plan("T60_ODDS_LINEUPS", "PROVIDER_EMPTY", "2026-08-19T22:30:00Z"),
+        _evaluation_plan("T15_ODDS", "MISSED", "2026-08-19T23:15:00Z"),
+    ]
+    day_view["cards"] = [card]
+
+    diagnosis = _workspace(day_view)["matches"][0]["evaluation_execution"]["diagnosis"]
+
+    assert diagnosis["status"] == "NO_EDGE"
+    assert "delta +1.30% / 需 ≥5.00%（差 3.70 个点）" in diagnosis["missing_detail_zh"]
+    assert "EV−SE -3.61% / 需 >0" in diagnosis["missing_detail_zh"]
 
 
 @pytest.mark.parametrize(

@@ -940,6 +940,29 @@ class WorkspaceEvaluationCandidate(BaseModel):
     final_active: bool
 
 
+class WorkspaceEvaluationDiagnosis(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal[
+        "CHECKPOINT_NOT_DUE",
+        "XG_INPUT_MISSING",
+        "GATE_BLOCKED",
+        "CHECKPOINT_MISSED",
+        "PROVIDER_EMPTY",
+        "EVALUATION_ERROR",
+        "NO_EDGE",
+        "CANDIDATE_ACTIVE",
+        "UNASSESSED",
+    ]
+    primary_blocker_zh: str = Field(min_length=1)
+    missing_detail_zh: str = Field(min_length=1)
+    next_step_zh: str = Field(min_length=1)
+    next_checkpoint: str | None
+    next_checkpoint_at: datetime | str | None
+    non_blocking_missing_zh: list[str]
+    evidence_codes: list[str]
+
+
 class WorkspaceEvaluationExecution(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -959,6 +982,7 @@ class WorkspaceEvaluationExecution(BaseModel):
     checkpoints: list[str]
     markets: list[str]
     summary_zh: str = Field(min_length=1)
+    diagnosis: WorkspaceEvaluationDiagnosis
 
 
 class WorkspaceMatch(BaseModel):
