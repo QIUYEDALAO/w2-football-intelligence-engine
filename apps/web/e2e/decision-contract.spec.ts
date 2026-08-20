@@ -966,6 +966,22 @@ test("V41 exposes a prominent post-match validation center and hides raw codes i
   await expect(validation.getByText("当前流程逐门覆盖", { exact: false })).not.toBeVisible();
   await expect(validation.locator(".v41-validation-matches")).toBeVisible();
   await expect(validation.locator(".v41-official-recommendations b")).toHaveText(["赢", "输", "赢一半", "走盘"]);
+  const recommendationRows = validation.locator(".v41-official-recommendations li");
+  await expect(recommendationRows).toHaveCount(4);
+  await expect(recommendationRows.nth(0)).toHaveAttribute("data-settlement", "WIN");
+  await expect(recommendationRows.nth(1)).toHaveAttribute("data-settlement", "LOSS");
+  await expect(recommendationRows.nth(2)).toHaveAttribute("data-settlement", "HALF_WIN");
+  await expect(recommendationRows.nth(3)).toHaveAttribute("data-settlement", "PUSH");
+  for (const index of [0, 2]) {
+    await expect(recommendationRows.nth(index).locator("b")).toHaveCSS("color", "rgb(208, 122, 111)");
+    await expect(recommendationRows.nth(index).locator("em")).toHaveCSS("color", "rgb(208, 122, 111)");
+  }
+  for (const index of [1, 3]) {
+    const colors = await recommendationRows.nth(index).locator("b, em").evaluateAll((nodes) =>
+      nodes.map((node) => getComputedStyle(node).color),
+    );
+    expect(colors).not.toContain("rgb(208, 122, 111)");
+  }
   const recommendationBeforeAudit = await validation.evaluate((node) => {
     const recommendation = node.querySelector(".v41-official-recommendations");
     const audit = node.querySelector(".v41-validation-audit--group");

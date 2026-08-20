@@ -13,6 +13,7 @@
   --v41-accent-soft: #16303a;
   --v41-accent-line: #2e6c80;
   --v41-critical: #d07a6f;
+  --v41-pnl-up: #d07a6f;
   --v41-critical-bg: #2e1c19;
   --v41-warning: #cba05a;
   --v41-warning-bg: #2b2317;
@@ -1685,6 +1686,13 @@ summary {
 .v41-official-recommendations span { color: var(--v41-ink-2); }
 .v41-official-recommendations strong { overflow-wrap: anywhere; }
 .v41-official-recommendations em { color: var(--v41-ink); font-style: normal; font-weight: 700; }
+
+.v41-official-recommendations li[data-settlement="WIN"] b,
+.v41-official-recommendations li[data-settlement="WIN"] em,
+.v41-official-recommendations li[data-settlement="HALF_WIN"] b,
+.v41-official-recommendations li[data-settlement="HALF_WIN"] em {
+  color: var(--v41-pnl-up);
+}
 
 .v41-validation-leagues,
 .v41-validation-technical {
