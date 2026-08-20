@@ -829,6 +829,13 @@ class MatchdayRuntimeRepository:
             claim_expires = (
                 normalize_repo_time(row.claim_expires_at) if row.claim_expires_at else None
             )
+            if (
+                now > window_end
+                and row.status == "DUE"
+                and claim_expires is not None
+                and now <= claim_expires
+            ):
+                continue
             if now > window_end:
                 row.status = "MISSED"
                 row.missed_at = row.missed_at or now

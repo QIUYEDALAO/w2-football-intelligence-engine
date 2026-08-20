@@ -504,6 +504,13 @@ def test_stale_checkpoint_claim_does_not_block_valid_plan_in_same_batch(
         session.commit()
     claimed = repository.claim_due_checkpoint_plans(now=NOW, worker_id="batch-test")
     assert len(claimed) == 2
+    with Session(engine) as session:
+        session.execute(
+            update(MatchdayCheckpointPlanModel)
+            .where(MatchdayCheckpointPlanModel.checkpoint == "T-30m_VALIDATION_LOCK")
+            .values(claim_expires_at=NOW + timedelta(minutes=1))
+        )
+        session.commit()
     client = FakeApiFootballClient()
 
     audit = run_future_refresh_task(

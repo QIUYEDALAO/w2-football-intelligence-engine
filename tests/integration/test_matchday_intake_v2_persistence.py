@@ -479,6 +479,55 @@ def test_checkpoint_claim_expiry_releases_due_plan_inside_window() -> None:
     assert second_claim[0]["attempt_count"] == 2
 
 
+def test_active_checkpoint_claim_can_finish_after_its_window_closes() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    repository = MatchdayRuntimeRepository(engine=engine)
+    policy = competition_policies(load_matchday_policy())["allsvenskan"]
+    plan = next(
+        item
+        for item in build_checkpoint_plans(
+            fixture_id="api_football:active-after-window",
+            competition_id="allsvenskan",
+            season="2026",
+            kickoff_utc=KICKOFF,
+            now=KICKOFF - timedelta(hours=25),
+            policy=policy,
+        )
+        if item.checkpoint == "T24_ODDS"
+    )
+
+    repository.upsert_checkpoint_plan(plan)
+    claim = repository.claim_due_checkpoint_plans(
+        now=plan.window_end - timedelta(seconds=1),
+        worker_id="worker-a",
+        limit=1,
+        lease_seconds=60,
+    )[0]
+
+    assert repository.due_checkpoint_plans(
+        now=plan.window_end + timedelta(seconds=1)
+    ) == []
+    repository.transition_checkpoint(
+        fixture_id=plan.fixture_id,
+        competition_id=plan.competition_id,
+        season=plan.season,
+        checkpoint=plan.checkpoint,
+        policy_version=plan.policy_version,
+        status="CAPTURED",
+        capture_id="capture-after-window",
+        now=plan.window_end + timedelta(seconds=2),
+        claim_token=str(claim["claim_token"]),
+    )
+
+    with Session(engine) as session:
+        row = session.get(MatchdayCheckpointPlanModel, str(claim["id"]))
+        assert row is not None
+        assert row.status == "CAPTURED"
+        assert row.capture_id == "capture-after-window"
+        assert row.claim_token is None
+
+
 def test_endpoint_capture_can_link_multiple_checkpoint_plans_explicitly() -> None:
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
