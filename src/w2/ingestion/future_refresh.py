@@ -1826,7 +1826,7 @@ class FutureFixtureRefreshService:
             matching_plans = self._matching_checkpoint_plans(
                 endpoint=endpoint,
                 fixture_id=fixture_id,
-                captured_at=response.captured_at,
+                captured_at=response.requested_at or response.captured_at,
             )
             checkpoint_names = sorted(
                 {

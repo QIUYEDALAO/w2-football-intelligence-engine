@@ -459,6 +459,7 @@ class MatchdayRuntimeRepository:
             capture = session.get(MatchdayEndpointCaptureModel, capture_id)
             if capture is None:
                 raise MatchdayRepositoryError("ENDPOINT_CAPTURE_NOT_FOUND")
+            requested_at = normalize_repo_time(capture.requested_at)
             for plan_id in plan_ids:
                 plan = session.get(MatchdayCheckpointPlanModel, plan_id)
                 if plan is None:
@@ -471,7 +472,7 @@ class MatchdayRuntimeRepository:
                     raise MatchdayRepositoryError("CAPTURE_PLAN_ENDPOINT_MISMATCH")
                 if not (
                     normalize_repo_time(plan.window_start)
-                    <= current
+                    <= requested_at
                     <= normalize_repo_time(plan.window_end)
                 ):
                     raise MatchdayRepositoryError("CAPTURE_PLAN_WINDOW_MISMATCH")

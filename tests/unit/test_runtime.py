@@ -1115,6 +1115,8 @@ def test_scheduler_hard_cap_restores_unselected_claim_attempt(monkeypatch) -> No
                         "checkpoint": plan.checkpoint,
                         "kickoff_utc": plan.kickoff_utc,
                         "due_at": plan.scheduled_at,
+                        "window_start": plan.window_start,
+                        "window_end": plan.window_end,
                         "endpoints": list(plan.endpoints),
                         "source": "matchday_intake.v2",
                         "policy_version": plan.policy_version,
@@ -1156,6 +1158,8 @@ def test_scheduler_hard_cap_restores_unselected_claim_attempt(monkeypatch) -> No
 
     assert result["due_checkpoint_count"] == 2
     assert result["selected_checkpoint_count"] == 1
+    assert result["checkpoints"][0]["window_start"] is not None
+    assert result["checkpoints"][0]["window_end"] is not None
     assert len(released) == 1
     assert released[0]["restore_attempt"] is True
 

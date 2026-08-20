@@ -40,6 +40,8 @@ class ClaimedCheckpointPlan:
     id: str
     claim_token: str | None
     claim_expires_at: str | None
+    window_start: str | None
+    window_end: str | None
 
     @property
     def needs_lineups(self) -> bool:
@@ -407,6 +409,8 @@ def due_checkpoint_refresh_batch(
             id=str(row["id"]),
             claim_token=str(row.get("claim_token") or "") or None,
             claim_expires_at=str(row.get("claim_expires_at") or "") or None,
+            window_start=str(row.get("window_start") or "") or None,
+            window_end=str(row.get("window_end") or "") or None,
         )
         for row in due_rows
     ]
@@ -439,6 +443,8 @@ def due_checkpoint_refresh_batch(
             "id": plan.id,
             "claim_token": plan.claim_token,
             "claim_expires_at": plan.claim_expires_at,
+            "window_start": plan.window_start,
+            "window_end": plan.window_end,
         }
         for plan in selected
     ]

@@ -508,6 +508,26 @@ def test_active_checkpoint_claim_can_finish_after_its_window_closes() -> None:
     assert repository.due_checkpoint_plans(
         now=plan.window_end + timedelta(seconds=1)
     ) == []
+    capture = endpoint_capture_contract(
+        endpoint="odds",
+        params={"fixture": "active-after-window"},
+        requested_at=plan.window_end - timedelta(seconds=1),
+        provider_captured_at=plan.window_end + timedelta(seconds=1),
+        status_code=200,
+        elapsed_ms=2_000,
+        payload=_odds_payload(),
+        fixture_id=plan.fixture_id,
+        competition_id=plan.competition_id,
+        checkpoint=plan.checkpoint,
+        checkpoint_plan_ids=[str(claim["id"])],
+    )
+    repository.insert_endpoint_capture(capture)
+    repository.link_endpoint_capture_plans(
+        capture_id=str(capture["capture_id"]),
+        plan_ids=[str(claim["id"])],
+        endpoint="odds",
+        linked_at=plan.window_end + timedelta(seconds=1),
+    )
     repository.transition_checkpoint(
         fixture_id=plan.fixture_id,
         competition_id=plan.competition_id,
@@ -515,7 +535,7 @@ def test_active_checkpoint_claim_can_finish_after_its_window_closes() -> None:
         checkpoint=plan.checkpoint,
         policy_version=plan.policy_version,
         status="CAPTURED",
-        capture_id="capture-after-window",
+        capture_id=str(capture["capture_id"]),
         now=plan.window_end + timedelta(seconds=2),
         claim_token=str(claim["claim_token"]),
     )
@@ -524,7 +544,7 @@ def test_active_checkpoint_claim_can_finish_after_its_window_closes() -> None:
         row = session.get(MatchdayCheckpointPlanModel, str(claim["id"]))
         assert row is not None
         assert row.status == "CAPTURED"
-        assert row.capture_id == "capture-after-window"
+        assert row.capture_id == capture["capture_id"]
         assert row.claim_token is None
 
 
