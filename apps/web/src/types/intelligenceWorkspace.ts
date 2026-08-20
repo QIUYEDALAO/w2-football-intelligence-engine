@@ -469,6 +469,21 @@ export interface WorkspaceValidation {
       gate_rates: Record<string, number> | null;
       first_failed_gate_counts: Record<string, number>;
     };
+    official_recommendations: Array<{
+      evaluation_id: string;
+      fixture_id: string;
+      evaluated_at: string | null;
+      kickoff_utc: string | null;
+      market: "ASIAN_HANDICAP" | "TOTALS";
+      selection: "HOME" | "AWAY" | "OVER" | "UNDER";
+      exact_line: string;
+      decimal_odds: number;
+      home_team_label: WorkspacePublicTeamLabel;
+      away_team_label: WorkspacePublicTeamLabel;
+      score: string | null;
+      settlement: "PENDING" | "WIN" | "HALF_WIN" | "PUSH" | "HALF_LOSS" | "LOSS";
+      profit_units: number | null;
+    }>;
     lead_time_buckets: Record<"LT_6H" | "H6_TO_LT_24H" | "D1_TO_D3" | "GT_3D", {
       capture_count: number;
       settled_count: number;

@@ -233,6 +233,7 @@ def _model_forecast_progress(raw: Mapping[str, Any]) -> dict[str, Any]:
     buckets = _mapping(raw.get("lead_time_buckets"))
     data_versions = _mapping(raw.get("data_versions"))
     funnel = _mapping(raw.get("market_evaluation_funnel"))
+    official_recommendations = _mapping_list(raw.get("official_recommendations"))
     return {
         "capture_count": max(0, _int(raw.get("capture_count"))),
         "settled_count": max(0, _int(raw.get("settled_count"))),
@@ -288,6 +289,24 @@ def _model_forecast_progress(raw: Mapping[str, Any]) -> dict[str, Any]:
                 for key, value in _mapping(funnel.get("first_failed_gate_counts")).items()
             },
         },
+        "official_recommendations": [
+            {
+                "evaluation_id": _text(row.get("evaluation_id")),
+                "fixture_id": _text(row.get("fixture_id")),
+                "evaluated_at": _optional_text(row.get("evaluated_at")),
+                "kickoff_utc": _optional_text(row.get("kickoff_utc")),
+                "market": _text(row.get("market")),
+                "selection": _text(row.get("selection")),
+                "exact_line": _text(row.get("exact_line")),
+                "decimal_odds": _number(row.get("decimal_odds")),
+                "home_team_label": _public_team_label(row, "home"),
+                "away_team_label": _public_team_label(row, "away"),
+                "score": _optional_text(row.get("score")),
+                "settlement": _text(row.get("settlement"), "PENDING"),
+                "profit_units": _number(row.get("profit_units")),
+            }
+            for row in official_recommendations
+        ],
         "lead_time_buckets": {
             bucket: {
                 "capture_count": max(0, _int(_mapping(buckets.get(bucket)).get("capture_count"))),

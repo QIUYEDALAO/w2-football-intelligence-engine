@@ -414,6 +414,7 @@
         "gate_rates": null,
         "first_failed_gate_counts": {}
       },
+      "official_recommendations": [],
       "lead_time_buckets": {
         "LT_6H": {
           "capture_count": 0,

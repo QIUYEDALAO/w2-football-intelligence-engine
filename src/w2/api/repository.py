@@ -13,6 +13,7 @@ from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from time import monotonic
 from typing import Any, Literal, cast
 
@@ -43,6 +44,7 @@ from w2.dashboard.performance import dashboard_performance
 from w2.dashboard.results import normalize_match_status
 from w2.dashboard.validation_summary import validation_summary
 from w2.domain.decision_card import compute_card_hash
+from w2.domain.odds import settle_asian_handicap, settle_total_goals
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.domain.recommendation_decision_v4 import (
     RecommendationOutcomeV4,
@@ -96,6 +98,7 @@ from w2.prematch.read_model_projection import (
     validate_frozen_analysis_payload,
 )
 from w2.providers.quota import api_football_quota_policy, parse_int
+from w2.settlement.settle import WIN_UNITS
 from w2.tracking.forward_ledger_performance import (
     MIN_DECISIVE_SAMPLES_FOR_RATE,
     SAMPLE_TARGET,
@@ -455,6 +458,112 @@ def _public_team_label_from_identity(
         "provider_team_id": provider_team_id,
         "raw_provider_name": raw_provider_name,
     }
+
+
+def _official_funnel_recommendations(
+    evaluations: Sequence[DynamicPrematchEvaluationModel],
+    fixtures: Mapping[str, MatchdayFixtureIdentityModel],
+    results: Mapping[str, ResultModel],
+    public_team_labels: Mapping[str, Mapping[str, Mapping[str, Any]]],
+) -> list[dict[str, Any]]:
+    """Project one latest audited pick per fixture and market without writing a ledger."""
+
+    latest: dict[tuple[str, str], DynamicPrematchEvaluationModel] = {}
+    for row in evaluations:
+        payload = row.payload if isinstance(row.payload, dict) else {}
+        if (
+            row.official_funnel_eligible is not True
+            or payload.get("state") != "ANALYSIS_PICK_ACTIVE"
+        ):
+            continue
+        fixture_id = str(row.fixture_id).removeprefix("api_football:")
+        key = (fixture_id, str(row.market))
+        previous = latest.get(key)
+        if previous is None or (row.evaluated_at, row.evaluation_id) > (
+            previous.evaluated_at,
+            previous.evaluation_id,
+        ):
+            latest[key] = row
+
+    projected: list[dict[str, Any]] = []
+    for (fixture_id, market), row in latest.items():
+        payload = row.payload
+        fixture = fixtures.get(fixture_id)
+        canonical_fixture_id = (
+            str(fixture.fixture_id) if fixture is not None else f"api_football:{fixture_id}"
+        )
+        result = results.get(canonical_fixture_id)
+        line = str(payload["exact_line"])
+        decimal_odds = Decimal(str(payload["decimal_odds"]))
+        outcome = None
+        profit_units = None
+        if result is not None:
+            if market == "ASIAN_HANDICAP":
+                outcome = settle_asian_handicap(
+                    result.home_goals,
+                    result.away_goals,
+                    str(row.selection),
+                    Decimal(line),
+                ).value
+            elif market == "TOTALS":
+                outcome = settle_total_goals(
+                    result.home_goals + result.away_goals,
+                    str(row.selection),
+                    Decimal(line),
+                ).value
+            else:
+                raise ValueError(f"unsupported official recommendation market {market}")
+            units = WIN_UNITS[outcome]
+            profit_units = units * (decimal_odds - 1) if units > 0 else units
+
+        labels: dict[str, dict[str, Any]] = {}
+        for side in ("home", "away"):
+            team_label = dict(public_team_labels.get(fixture_id, {}).get(side, {}))
+            if not team_label:
+                team_label = {
+                    "display_name": None,
+                    "state": "IDENTITY_UNRESOLVED",
+                    "canonical_team_id": None,
+                    "provider_team_id": None,
+                    "raw_provider_name": None,
+                }
+            teams = (
+                fixture.payload.get("teams")
+                if fixture is not None and isinstance(fixture.payload, dict)
+                else None
+            )
+            team = teams.get(side) if isinstance(teams, dict) else None
+            if not team_label.get("raw_provider_name") and isinstance(team, dict):
+                team_label["raw_provider_name"] = str(team.get("name") or "").strip() or None
+            labels[side] = team_label
+
+        projected.append(
+            {
+                "evaluation_id": row.evaluation_id,
+                "fixture_id": fixture_id,
+                "evaluated_at": _iso_or_none(row.evaluated_at),
+                "kickoff_utc": _iso_or_none(fixture.kickoff_utc) if fixture else None,
+                "market": market,
+                "selection": str(row.selection),
+                "exact_line": line,
+                "decimal_odds": float(decimal_odds),
+                "home_team_label": labels["home"],
+                "away_team_label": labels["away"],
+                "score": (
+                    f"{result.home_goals}-{result.away_goals}" if result is not None else None
+                ),
+                "settlement": outcome or "PENDING",
+                "profit_units": float(profit_units) if profit_units is not None else None,
+            }
+        )
+    return sorted(
+        projected,
+        key=lambda item: (
+            str(item.get("kickoff_utc") or ""),
+            str(item["fixture_id"]),
+            str(item["market"]),
+        ),
+    )
 
 
 def _apply_repository_v4_authority(card: dict[str, Any]) -> dict[str, Any]:
@@ -1442,6 +1551,32 @@ class ReadModelRepository:
                 dynamic_opportunities = list(
                     session.scalars(select(DynamicPrematchOpportunityModel))
                 )
+                candidate_fixture_ids = {
+                    str(row.fixture_id).removeprefix("api_football:")
+                    for row in dynamic_evaluations
+                    if row.official_funnel_eligible is True
+                    and isinstance(row.payload, dict)
+                    and row.payload.get("state") == "ANALYSIS_PICK_ACTIVE"
+                }
+                candidate_fixtures = list(
+                    session.scalars(
+                        select(MatchdayFixtureIdentityModel).where(
+                            MatchdayFixtureIdentityModel.provider == "api_football",
+                            MatchdayFixtureIdentityModel.provider_fixture_id.in_(
+                                candidate_fixture_ids
+                            ),
+                        )
+                    )
+                )
+                candidate_results = list(
+                    session.scalars(
+                        select(ResultModel).where(
+                            ResultModel.fixture_id.in_(
+                                [row.fixture_id for row in candidate_fixtures]
+                            )
+                        )
+                    )
+                )
                 superseded_evaluation_ids = set(
                     session.scalars(
                         select(DynamicPrematchSupersessionModel.superseded_evaluation_id)
@@ -1491,6 +1626,9 @@ class ReadModelRepository:
                         OutcomeLedgerModel.capture_identity_hash.in_(current_flow_capture_hashes),
                     )
                 )
+            candidate_team_labels = self.public_team_labels_for_fixtures(
+                sorted(candidate_fixture_ids)
+            )
         except SQLAlchemyError as exc:
             raise SystemDegradedError("DASHBOARD_MODEL_FORECAST_QUERY_FAILED") from exc
         settled_hashes = {row.capture_identity_hash for row in outcomes}
@@ -1499,6 +1637,12 @@ class ReadModelRepository:
             dynamic_evaluations,
             superseded_evaluation_ids,
             dynamic_opportunities,
+        )
+        official_recommendations = _official_funnel_recommendations(
+            dynamic_evaluations,
+            {row.provider_fixture_id: row for row in candidate_fixtures},
+            {row.fixture_id: row for row in candidate_results},
+            candidate_team_labels,
         )
         version_by_capture = {row.capture_identity_hash: row for row in versions}
         version_names = sorted(
@@ -1523,6 +1667,7 @@ class ReadModelRepository:
             "next_7d_xg_ready_fixture_count": int(next_7d_ready_fixtures or 0),
             "capture_policy": "FIRST_ELIGIBLE_FREEZE_IMMUTABLE",
             "market_evaluation_funnel": market_evaluation_funnel,
+            "official_recommendations": official_recommendations,
             "lead_time_buckets": {
                 bucket: {
                     "capture_count": sum(row.lead_time_bucket == bucket for row in captures),

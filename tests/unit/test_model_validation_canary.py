@@ -157,6 +157,7 @@ def test_dashboard_reads_capture_and_outcome_as_ledger_facts(
             "gate_rates": None,
             "first_failed_gate_counts": {},
         },
+        "official_recommendations": [],
         "lead_time_buckets": {
             "LT_6H": {"capture_count": 1, "settled_count": 1, "pending_count": 0},
             "H6_TO_LT_24H": {"capture_count": 0, "settled_count": 0, "pending_count": 0},

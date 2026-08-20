@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -10,14 +11,160 @@ from typing import Any
 import pytest
 
 from w2.api import repository as repository_module
-from w2.api.schemas import DashboardIntelligenceWorkspaceResponse
+from w2.api.schemas import (
+    DashboardIntelligenceWorkspaceResponse,
+    WorkspaceModelForecastProgress,
+)
 from w2.config import get_settings
+from w2.dashboard import workspace as workspace_module
 from w2.dashboard.results import outcome_public_cause
 from w2.dashboard.workspace import build_dashboard_intelligence_workspace
 from w2.identity.public_team_labels import (
     pending_public_team_labels,
     reviewed_public_team_labels,
 )
+
+
+def test_official_funnel_recommendations_dedupe_and_settle_with_authority() -> None:
+    base = datetime(2026, 8, 20, tzinfo=UTC)
+    picks = [
+        ("1490391", "TOTALS", "OVER", "3.5", "1.87", 2, 2, "WIN", "0.87"),
+        ("1490392", "ASIAN_HANDICAP", "AWAY", "0.5", "1.87", 2, 1, "LOSS", "-1"),
+        ("1490394", "TOTALS", "OVER", "3.0", "1.8", 0, 1, "LOSS", "-1"),
+        ("1490396", "ASIAN_HANDICAP", "AWAY", "0.25", "1.77", 3, 3, "HALF_WIN", "0.385"),
+        ("1490398", "ASIAN_HANDICAP", "AWAY", "-0.5", "1.88", 1, 1, "LOSS", "-1"),
+        ("1490398", "TOTALS", "UNDER", "3.0", "1.95", 1, 1, "WIN", "0.95"),
+        ("1490399", "TOTALS", "UNDER", "3.0", "1.81", 1, 2, "PUSH", "0"),
+        ("1490400", "ASIAN_HANDICAP", "HOME", "0.25", "1.55", 1, 0, "WIN", "0.55"),
+        ("1490401", "ASIAN_HANDICAP", "AWAY", "0.75", "1.75", 1, 2, "WIN", "0.75"),
+        ("1490402", "ASIAN_HANDICAP", "AWAY", "0.5", "1.88", 3, 4, "WIN", "0.88"),
+        ("1490404", "ASIAN_HANDICAP", "AWAY", "1.0", "1.87", 0, 1, "WIN", "0.87"),
+        ("1490404", "TOTALS", "UNDER", "2.75", "1.89", 0, 1, "WIN", "0.89"),
+        ("1490405", "ASIAN_HANDICAP", "HOME", "-0.5", "1.85", 3, 1, "WIN", "0.85"),
+        ("1490405", "TOTALS", "UNDER", "3.5", "1.9", 3, 1, "LOSS", "-1"),
+    ]
+    evaluations = [
+        SimpleNamespace(
+            evaluation_id=f"eval-{fixture_id}-{market}",
+            fixture_id=fixture_id,
+            market=market,
+            selection=selection,
+            evaluated_at=base + timedelta(minutes=index),
+            official_funnel_eligible=True,
+            payload={
+                "state": "ANALYSIS_PICK_ACTIVE",
+                "exact_line": line,
+                "decimal_odds": odds,
+            },
+        )
+        for index, (fixture_id, market, selection, line, odds, *_rest) in enumerate(picks)
+    ]
+    # Older attempts, legacy rows, and non-candidates must not inflate the 14 picks.
+    evaluations.extend(
+        [
+            SimpleNamespace(
+                evaluation_id="older-vancouver-ah",
+                fixture_id="1490404",
+                market="ASIAN_HANDICAP",
+                selection="AWAY",
+                evaluated_at=base - timedelta(minutes=1),
+                official_funnel_eligible=True,
+                payload={
+                    "state": "ANALYSIS_PICK_ACTIVE",
+                    "exact_line": "1.0",
+                    "decimal_odds": "9.99",
+                },
+            ),
+            SimpleNamespace(
+                evaluation_id="legacy",
+                fixture_id="legacy",
+                market="TOTALS",
+                selection="UNDER",
+                evaluated_at=base,
+                official_funnel_eligible=None,
+                payload={
+                    "state": "ANALYSIS_PICK_ACTIVE",
+                    "exact_line": "3.0",
+                    "decimal_odds": "1.90",
+                },
+            ),
+            SimpleNamespace(
+                evaluation_id="no-edge",
+                fixture_id="no-edge",
+                market="TOTALS",
+                selection="UNDER",
+                evaluated_at=base,
+                official_funnel_eligible=True,
+                payload={"state": "NO_EDGE_CURRENT"},
+            ),
+        ]
+    )
+    fixture_ids = {row[0] for row in picks}
+    fixtures = {
+        fixture_id: SimpleNamespace(
+            fixture_id=f"api_football:{fixture_id}",
+            provider_fixture_id=fixture_id,
+            kickoff_utc=base + timedelta(hours=index),
+            home_provider_team_id=f"home-{fixture_id}",
+            away_provider_team_id=f"away-{fixture_id}",
+            home_w2_team_id=None,
+            away_w2_team_id=None,
+            team_identity_status="UNRESOLVED",
+            payload={
+                "teams": {
+                    "home": {"name": f"Home {fixture_id}"},
+                    "away": {"name": f"Away {fixture_id}"},
+                }
+            },
+        )
+        for index, fixture_id in enumerate(sorted(fixture_ids))
+    }
+    scores = {fixture_id: (home, away) for fixture_id, _, _, _, _, home, away, *_ in picks}
+    results = {
+        f"api_football:{fixture_id}": SimpleNamespace(home_goals=home, away_goals=away)
+        for fixture_id, (home, away) in scores.items()
+    }
+
+    rows = repository_module._official_funnel_recommendations(
+        evaluations, fixtures, results, {}
+    )
+
+    assert len(rows) == 14
+    assert len({row["fixture_id"] for row in rows}) == 11
+    assert sum(Decimal(str(row["profit_units"])) for row in rows) == Decimal("2.995")
+    by_pick = {(row["fixture_id"], row["market"]): row for row in rows}
+    vancouver = by_pick[("1490404", "ASIAN_HANDICAP")]
+    portland = by_pick[("1490405", "TOTALS")]
+    toronto = by_pick[("1490396", "ASIAN_HANDICAP")]
+    minnesota = by_pick[("1490399", "TOTALS")]
+    assert (vancouver["settlement"], vancouver["profit_units"], vancouver["decimal_odds"]) == (
+        "WIN",
+        0.87,
+        1.87,
+    )
+    assert (portland["settlement"], portland["profit_units"]) == ("LOSS", -1.0)
+    assert (toronto["settlement"], toronto["profit_units"]) == ("HALF_WIN", 0.385)
+    assert (minnesota["settlement"], minnesota["profit_units"]) == ("PUSH", 0.0)
+
+    pending = repository_module._official_funnel_recommendations(
+        evaluations,
+        fixtures,
+        {key: value for key, value in results.items() if not key.endswith("1490404")},
+        {},
+    )
+    pending_vancouver = next(
+        row
+        for row in pending
+        if row["fixture_id"] == "1490404" and row["market"] == "ASIAN_HANDICAP"
+    )
+    assert pending_vancouver["settlement"] == "PENDING"
+    assert pending_vancouver["score"] is None
+    assert pending_vancouver["profit_units"] is None
+    WorkspaceModelForecastProgress.model_validate(
+        workspace_module._model_forecast_progress(
+            {"official_recommendations": [rows[0], pending_vancouver]}
+        )
+    )
 
 
 def test_model_forecast_funnel_reports_not_measurable_without_opportunities() -> None:

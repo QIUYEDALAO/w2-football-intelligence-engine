@@ -1621,6 +1621,44 @@ summary {
   font-size: 13px;
 }
 
+.v41-official-recommendations {
+  margin-top: 14px;
+  padding: 13px 14px;
+  border: 1px solid var(--v41-line-soft);
+  border-radius: 3px;
+}
+
+.v41-official-recommendations__head,
+.v41-official-recommendations li {
+  display: grid;
+  grid-template-columns: 145px minmax(220px, 1.5fr) minmax(125px, 1fr) 80px 60px 80px 70px;
+  gap: 10px;
+  align-items: center;
+}
+
+.v41-official-recommendations__head {
+  padding: 8px 0;
+  color: var(--v41-ink-3);
+  font-size: 12px;
+}
+
+.v41-official-recommendations ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.v41-official-recommendations li {
+  min-height: 42px;
+  border-top: 1px solid var(--v41-line-faint);
+  font-size: 12px;
+}
+
+.v41-official-recommendations time,
+.v41-official-recommendations span { color: var(--v41-ink-2); }
+.v41-official-recommendations strong { overflow-wrap: anywhere; }
+.v41-official-recommendations em { color: var(--v41-ink); font-style: normal; font-weight: 700; }
+
 .v41-validation-leagues,
 .v41-validation-technical {
   color: var(--v41-ink-2);
@@ -1913,6 +1951,10 @@ summary {
   .v41-validation-matches time {
     grid-column: 1 / -1;
   }
+
+  .v41-official-recommendations { overflow-x: auto; }
+  .v41-official-recommendations__head,
+  .v41-official-recommendations li { min-width: 920px; }
 
   .v41-snapshots li,
   .v41-three-layer > div {

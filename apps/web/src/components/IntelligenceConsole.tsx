@@ -649,6 +649,9 @@ function QualityRail({ workspace }: { workspace: IntelligenceWorkspace }) {
 function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
   const modelForecast = workspace.validation.model_forecast;
   const evaluationFunnel = modelForecast.market_evaluation_funnel;
+  const officialRecommendations = modelForecast.official_recommendations;
+  const officialSettledCount = officialRecommendations.filter((row) => row.settlement !== "PENDING").length;
+  const officialProfit = officialRecommendations.reduce((sum, row) => sum + (row.profit_units ?? 0), 0);
   const records = workspace.validation.forward_validation_records;
   const outcomes = records.outcomes;
   const settledCandidateCount = typeof outcomes.settled_sample_count === "number" ? outcomes.settled_sample_count : 0;
@@ -716,6 +719,23 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
           {workspace.matches.length ? <p className={replayPresentation.tone === "warning" ? "v41-validation-gaps" : "v41-validation-ok"}>{replayPresentation.summary}</p> : null}
         </section>
       </div>
+      <section className="v41-official-recommendations" aria-labelledby="official-recommendations-title">
+        <h3 id="official-recommendations-title">推荐与赛果</h3>
+        <p className="v41-validation-warning"><strong>正式漏斗产出，选择过程已审计；n={officialRecommendations.length}，样本量远不足以判断模型好坏。</strong> 已结算 {officialSettledCount} · 合计 {officialProfit >= 0 ? "+" : ""}{officialProfit.toFixed(3)} 单位。</p>
+        {officialRecommendations.length ? <>
+          <div className="v41-official-recommendations__head" aria-hidden="true"><span>开球时间</span><span>比赛</span><span>系统推荐</span><span>进场赔率</span><span>比分</span><span>结算结果</span><span>盈亏</span></div>
+          <ol>{officialRecommendations.map((row) => {
+            const recommendation = row.market === "ASIAN_HANDICAP"
+              ? `让球 ${Number(row.exact_line) > 0 ? "+" : ""}${row.exact_line} ${SELECTION_LABELS[row.selection]}`
+              : `${SELECTION_LABELS[row.selection]} ${row.exact_line}`;
+            return <li key={`${row.fixture_id}-${row.market}`}>
+              <time>{localDateTime(row.kickoff_utc)}</time>
+              <strong><span className="v41-match-name"><TeamLabel team={row.home_team_label} /><span className="v41-versus"> vs </span><TeamLabel team={row.away_team_label} /></span></strong>
+              <span>{recommendation}</span><span>@{row.decimal_odds.toFixed(2)}</span><span>{row.score ?? "待结算"}</span><b>{row.settlement === "PENDING" ? "待结算" : row.settlement}</b><em>{row.profit_units === null ? "待结算" : `${row.profit_units > 0 ? "+" : ""}${row.profit_units.toFixed(3)}`}</em>
+            </li>;
+          })}</ol>
+        </> : <p className="v41-validation-empty">尚无正式漏斗推荐。</p>}
+      </section>
       {workspace.validation.league_performance.length ? <details className="v41-validation-leagues"><summary>按联赛查看验证状态（{workspace.validation.league_performance.length}）</summary><ul>{workspace.validation.league_performance.slice(0, 13).map((league) => <li key={`${league.competition_id}-${league.source_league}`}><strong>{translateCompetition(league.competition_name || league.league, league.canonical_competition_id || league.competition_id)}</strong><span>{league.only_record_reason === "PROBABILITY_QUALITY_NOT_READY" ? "概率质量待就绪" : league.only_record_reason === "AGGREGATION_CONFLICT" ? "聚合冲突" : league.only_record_reason === "SAMPLE_INSUFFICIENT" ? "样本不足" : "可用"}</span></li>)}</ul></details> : null}
       <details className="v41-validation-technical"><summary>技术证据详情</summary><p>回放状态：<code>{replay.status}</code></p><p>原始缺口：{replay.replay_gaps.map((gap) => <code key={gap}>{gap}</code>)}</p><p>读取合同：<code>provider_calls={workspace.read_contract.provider_calls}</code> <code>db_writes={workspace.read_contract.db_writes}</code> <code>no_call_on_read={String(workspace.read_contract.no_call_on_read)}</code></p></details>
     </section>
