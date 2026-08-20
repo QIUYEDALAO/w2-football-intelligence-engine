@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { footballDayShanghai, translateCompetition, translateReason } from "../lib/formatters";
 import { PUBLIC_ENUM_LABELS, PUBLIC_REASON_LABELS } from "../lib/labels";
+import { formatAhSideLines } from "../lib/pricingDisplay";
 import { publicPresentation } from "../lib/publicPresentation";
 import type {
   FixtureFactor,
@@ -234,6 +235,12 @@ function price(value: unknown): string {
   return raw === null || raw === undefined || raw === "" ? "—" : String(raw);
 }
 
+function marketLineLabel(market: WorkspaceMarket["market"], line: string | null): string {
+  if (!line) return "—";
+  const sides = market === "ASIAN_HANDICAP" ? formatAhSideLines(line) : null;
+  return sides ? `${sides.home.replace("主队", "主")} / ${sides.away.replace("客队", "客")}` : line;
+}
+
 function comparisonSummary(market: WorkspaceMarket): string {
   if (market.cross_sectional_comparison_status === "AVAILABLE") return "同一时刻机构双边报价可比较";
   return "当前横截面对比证据不足";
@@ -436,8 +443,8 @@ function Timeline({ kickoff, market }: { kickoff: string | null; market: Workspa
       {market.timeline_points.map((point, index) => (
         <li className={index === market.timeline_points.length - 1 ? "is-latest" : undefined} key={point.capture_id || `${point.captured_at}-${index}`}>
           <time>{snapshotClock(point.captured_at, kickoff)}</time>
-          <strong>{point.canonical_line || "—"}</strong>
-          <span>{point.bookmaker_count} 家 {price(point.prices.HOME ?? point.prices.OVER)}/{price(point.prices.AWAY ?? point.prices.UNDER)}</span>
+          <strong>{marketLineLabel(market.market, point.canonical_line)}</strong>
+          <span>{point.bookmaker_count} 家 {market.market === "ASIAN_HANDICAP" ? `主 ${price(point.prices.HOME)} / 客 ${price(point.prices.AWAY)}` : `大 ${price(point.prices.OVER)} / 小 ${price(point.prices.UNDER)}`}</span>
         </li>
       ))}
     </ol>
@@ -451,7 +458,7 @@ function MarketEvidence({ market, generatedAt, kickoff, finished, latestSnapshot
   return (
     <section className="v41-market" data-market={market.market} data-status={market.status}>
       <header><span>市场雷达 · {MARKET_LABELS[market.market]} · 仅绘制已落盘快照</span></header>
-      <div className="v41-market-line"><strong>{market.main_line || "—"}</strong><span className={`v41-status v41-status--${market.status.toLowerCase()}`}>{market.status === "READY" ? `${finished ? "开球前最后快照" : "当前可得最新"} · ${market.bookmaker_count} 家机构双边报价` : "证据不足"}</span></div>
+      <div className="v41-market-line"><strong>{marketLineLabel(market.market, market.main_line)}</strong><span className={`v41-status v41-status--${market.status.toLowerCase()}`}>{market.status === "READY" ? `${finished ? "开球前最后快照" : "当前可得最新"} · ${market.bookmaker_count} 家机构双边报价` : "证据不足"}</span></div>
       <Timeline kickoff={kickoff} market={market} />
       <p className="v41-market-foot">
         <span>{market.snapshot_count} 个真实快照 · 点间不插值、不推断缺失路径</span>
@@ -609,7 +616,7 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
         <div className="v41-focus-meaning">
           <span className="v41-eyebrow">{candidate.status === "ACTIVE" ? "四层" : "三层"}语义 · 互不等同</span>
           <div className={`v41-three-layer ${candidate.status === "ACTIVE" ? "v41-three-layer--candidate" : ""}`}>
-            <div><span>市场主事实</span><strong>{MARKET_LABELS[primary.market]}</strong><b>{primary.main_line || "—"}</b></div>
+            <div><span>市场主事实</span><strong>{MARKET_LABELS[primary.market]}</strong><b>{marketLineLabel(primary.market, primary.main_line)}</b></div>
             <div><span>市场输入</span><strong>报价证据</strong><b>逐市场 · {candidateAggregateLabel(match.readiness.market_aggregate_status)}</b></div>
             {candidate.status === "ACTIVE" ? <div><span>影子候选</span><strong>已形成</strong><b>进入赛后验证</b></div> : null}
             <div><span>实盘执行</span><strong>产品权限</strong><b>未启用</b></div>

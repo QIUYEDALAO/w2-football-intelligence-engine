@@ -542,6 +542,26 @@ test("V41 separates diagnostic market age from the candidate quote-age hard gate
   await expect(page.locator(".v41-scoreline")).toHaveCount(0);
 });
 
+test("AH market radar anchors the line and prices to both teams", async ({ page }) => {
+  const payload = workspace();
+  const focused = payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!;
+  const handicap = focused.market_radar.markets.ASIAN_HANDICAP;
+  handicap.main_line = "0.5";
+  handicap.timeline_points = handicap.timeline_points.map((point) => ({
+    ...point,
+    canonical_line: "0.5",
+    prices: { HOME: 1.94, AWAY: 1.80 },
+  }));
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.goto("/");
+
+  const market = page.locator("[data-market='ASIAN_HANDICAP']");
+  await expect(market.locator(".v41-market-line > strong")).toHaveText("主 +0.5 / 客 -0.5");
+  await expect(market.locator(".v41-snapshots li").last()).toContainText("主 +0.5 / 客 -0.5");
+  await expect(market.locator(".v41-snapshots li").last()).toContainText("主 1.94 / 客 1.80");
+  await expect(page.locator(".v41-three-layer > div").first()).toContainText("主 +0.5 / 客 -0.5");
+});
+
 test("R5 factor checklist keeps model and shadow tracks separate per market", async ({ page }, testInfo) => {
   await installWorkspace(page, "stale");
   await page.goto("/");
