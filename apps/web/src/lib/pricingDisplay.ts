@@ -41,7 +41,8 @@ export function formatAhMarketHandicap(homeLine: unknown): string | null {
   if (numeric == null) return null;
   if (Math.abs(numeric) < 0.005) return "0";
   const handicap = -numeric;
-  return `${handicap < 0 ? "-" : ""}${formatLine(Math.abs(handicap))}`;
+  const absolute = Math.abs(handicap);
+  return `${handicap < 0 ? "-" : ""}${Number.isInteger(absolute) ? absolute.toFixed(1) : formatLine(absolute)}`;
 }
 
 export function formatAhRecommendationHandicap(selection: unknown, exactLine: unknown): string | null {

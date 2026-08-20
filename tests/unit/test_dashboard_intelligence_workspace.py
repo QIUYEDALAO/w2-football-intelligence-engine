@@ -717,18 +717,14 @@ def test_factor_checklist_separates_model_track_from_stale_quote_gate() -> None:
     day_view["generated_at"] = "2026-08-09T03:00:00Z"
     day_view["cards"] = [_factor_checklist_card()]
 
-    checklist = _workspace(day_view, candidate_enabled=True)["matches"][0][
-        "factor_checklist"
-    ]
+    checklist = _workspace(day_view, candidate_enabled=True)["matches"][0]["factor_checklist"]
 
     assert checklist["track_model_forecast"] == {
         "state": "READY",
         "blocking_factor_ids": [],
     }
     assert checklist["track_shadow_candidate"]["state"] == "BLOCKED"
-    assert checklist["track_shadow_candidate"]["blocking_factor_ids"] == [
-        "MK_QUOTE_AGE"
-    ]
+    assert checklist["track_shadow_candidate"]["blocking_factor_ids"] == ["MK_QUOTE_AGE"]
     quote_rows = [row for row in checklist["factors"] if row["factor_id"] == "MK_QUOTE_AGE"]
     assert {row["market"] for row in quote_rows} == {"ASIAN_HANDICAP", "TOTALS"}
     assert all(row["next_window_at"] == "2026-08-09T14:30:00Z" for row in quote_rows)
@@ -755,9 +751,7 @@ def test_factor_checklist_reports_waiting_quote_before_unassessed_decision() -> 
         )
     day_view["cards"] = [card]
 
-    checklist = _workspace(day_view, candidate_enabled=True)["matches"][0][
-        "factor_checklist"
-    ]
+    checklist = _workspace(day_view, candidate_enabled=True)["matches"][0]["factor_checklist"]
 
     assert checklist["track_shadow_candidate"]["blocking_factor_ids"] == ["MK_QUOTE_AGE"]
     assert "等待中，尚未评估" in checklist["conclusion_zh"]
@@ -1912,10 +1906,7 @@ def test_market_eligibility_preserves_ah_ou_partial_truth_without_cross_contamin
     assert match["readiness"]["market_evidence_status"] == "AVAILABLE"
     assert match["readiness"]["candidate_input_status"] == "NOT_READY"
     assert match["priority_reason_secondary"] == ["CANDIDATE_INPUT_NOT_READY"]
-    assert (
-        "可比较模型尚未就绪（需已验证校准），暂不进行模型—市场比较"
-        in match["factual_summary"]
-    )
+    assert "可比较模型尚未就绪（需已验证校准），暂不进行模型—市场比较" in match["factual_summary"]
 
 
 def test_completed_no_edge_evaluations_take_precedence_over_calibration_gap() -> None:
@@ -2049,6 +2040,51 @@ def test_finished_match_keeps_final_candidate_state_and_kickoff_quote_age() -> N
     DashboardIntelligenceWorkspaceResponse.model_validate(
         {"request_id": "finished-candidate-lifecycle", **_workspace(day_view)}
     )
+
+
+@pytest.mark.parametrize("fixture_id", ("1490393", "1490395", "1490397"))
+def test_missed_checkpoint_without_prior_candidate_does_not_claim_candidate_loss(
+    fixture_id: str,
+) -> None:
+    day_view = _day_view()
+    card = day_view["cards"][0]
+    card["fixture_id"] = fixture_id
+    card["dynamic_prematch"] = {
+        "versions": [
+            {
+                "checkpoint": "T45_ODDS",
+                "evaluation_slot_id": "T45_ODDS",
+                "evaluated_at": "2026-08-10T09:15:00Z",
+                "market": market,
+                "state": "NO_EDGE_CURRENT",
+                "official_funnel_eligible": True,
+                "measurement_semantics": "CHECKPOINT_EVALUATION_OPPORTUNITY",
+            }
+            for market in ("ASIAN_HANDICAP", "TOTALS")
+        ],
+        "opportunities": [
+            {
+                "opportunity_identity_hash": f"{fixture_id}-{market}",
+                "market": market,
+                "evaluation_slot_id": "T15_ODDS",
+                "scheduled_checkpoint_at": "2026-08-10T09:45:00Z",
+                "recorded_at": "2026-08-10T10:00:00Z",
+                "state": "MISSED_CHECKPOINT",
+                "blocker": "CHECKPOINT_WINDOW_MISSED",
+            }
+            for market in ("ASIAN_HANDICAP", "TOTALS")
+        ],
+    }
+
+    match = _workspace(day_view)["matches"][0]
+
+    assert match["evaluation_execution"]["status"] == "NO_CANDIDATE_FORMED"
+    assert match["evaluation_execution"]["ever_formed_candidate"] is False
+    assert match["evaluation_execution"]["summary_zh"] == (
+        "本场未形成候选；期间有检查点错过，但不影响该结论。"
+    )
+    assert "曾形成候选" not in match["evaluation_execution"]["summary_zh"]
+    assert match["factual_summary"] == match["evaluation_execution"]["summary_zh"]
 
 
 @pytest.mark.parametrize(

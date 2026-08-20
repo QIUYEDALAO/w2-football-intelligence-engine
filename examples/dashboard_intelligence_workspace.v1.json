@@ -59,7 +59,8 @@
     "candidate": "OFF",
     "formal": "OFF",
     "lock": "OFF",
-    "production": "OFF"
+    "production": "OFF",
+    "recommendation_capabilities": {}
   },
   "navigation": {
     "current_date": "2026-08-09"

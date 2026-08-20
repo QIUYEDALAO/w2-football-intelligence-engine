@@ -214,6 +214,23 @@ class WorkspaceReadContract(BaseModel):
     no_call_on_read: Literal[True]
 
 
+class WorkspaceRecommendationCapability(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    implementation: Literal[
+        "NOT_IMPLEMENTED",
+        "CODE_PRESENT",
+        "CONTRACT_VERIFIED",
+        "LOCALLY_VERIFIED",
+        "ISOLATED_RUNTIME_VERIFIED",
+        "STAGING_CANARY_PASSED",
+        "FEATURE_ENABLED",
+        "PUBLICLY_AVAILABLE",
+        "PRODUCTION_ENABLED",
+    ]
+    feature_enabled: bool
+
+
 class WorkspaceRuntime(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -226,6 +243,7 @@ class WorkspaceRuntime(BaseModel):
     formal: Literal["OFF"]
     lock: Literal["OFF"]
     production: Literal["OFF"]
+    recommendation_capabilities: dict[str, WorkspaceRecommendationCapability]
 
 
 class WorkspaceRiskDimension(BaseModel):
@@ -925,7 +943,14 @@ class WorkspaceEvaluationCandidate(BaseModel):
 class WorkspaceEvaluationExecution(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    status: Literal["UNASSESSED", "NO_EDGE", "CANDIDATE", "TECHNICAL_INVALIDATED", "BLOCKED"]
+    status: Literal[
+        "UNASSESSED",
+        "NO_EDGE",
+        "CANDIDATE",
+        "TECHNICAL_INVALIDATED",
+        "NO_CANDIDATE_FORMED",
+        "BLOCKED",
+    ]
     ever_formed_candidate: bool
     final_states: list[WorkspaceEvaluationFinalState]
     latest_candidates: list[WorkspaceEvaluationCandidate]
@@ -1384,9 +1409,7 @@ class WorkspaceOfficialRecommendation(BaseModel):
     home_team_label: WorkspacePublicTeamLabel
     away_team_label: WorkspacePublicTeamLabel
     score: str | None
-    settlement: Literal[
-        "PENDING", "WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"
-    ]
+    settlement: Literal["PENDING", "WIN", "HALF_WIN", "PUSH", "HALF_LOSS", "LOSS"]
     profit_units: float | None
 
     @model_validator(mode="after")
@@ -1395,9 +1418,7 @@ class WorkspaceOfficialRecommendation(BaseModel):
             self.score is not None or self.profit_units is not None
         ):
             raise ValueError("pending settlement must not claim a score or profit")
-        if self.settlement != "PENDING" and (
-            self.score is None or self.profit_units is None
-        ):
+        if self.settlement != "PENDING" and (self.score is None or self.profit_units is None):
             raise ValueError("settled recommendation requires score and profit")
         return self
 
@@ -1421,9 +1442,7 @@ class WorkspaceModelForecastProgress(BaseModel):
     next_7d_xg_ready_fixture_count: int = Field(ge=0)
     capture_policy: Literal["FIRST_ELIGIBLE_FREEZE_IMMUTABLE"]
     market_evaluation_funnel: WorkspaceModelForecastMarketEvaluationFunnel
-    official_recommendations: list[WorkspaceOfficialRecommendation] = Field(
-        default_factory=list
-    )
+    official_recommendations: list[WorkspaceOfficialRecommendation] = Field(default_factory=list)
     lead_time_buckets: dict[
         Literal["LT_6H", "H6_TO_LT_24H", "D1_TO_D3", "GT_3D"],
         WorkspaceModelForecastBucketProgress,

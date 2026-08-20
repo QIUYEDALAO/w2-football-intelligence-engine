@@ -325,7 +325,25 @@ function workspace(scenario: Scenario = "normal"): IntelligenceWorkspace {
     global_focus: globalFocus,
     global_model_quality: { status: "AVAILABLE", checkpoint_key: "performance:cohort:all", checkpoint_generated_at: "2026-08-09T12:00:00Z", freshness_max_age_seconds: 86_400, model_log_loss: .512, market_log_loss: .508, model_brier: .178, market_brier: .174, model_calibration_error: .026, sample_count: 34 },
     read_contract: { provider_calls: 0, db_writes: 0, would_write_checkpoint: false, no_call_on_read: true },
-    runtime: { product: "FOOTBALL_MARKET_INTELLIGENCE_PLUS_MODEL_DIAGNOSTICS", public_dashboard_authority: "NEW_INTELLIGENCE_WORKSPACE_ONLY", active_whitelist_count: 13, free_bridge_mode: "SHADOW_ONLY", market_price_attention_threshold_ratio: 0.02, candidate: "SHADOW_ONLY", formal: "OFF", lock: "OFF", production: "OFF" },
+    runtime: {
+      product: "FOOTBALL_MARKET_INTELLIGENCE_PLUS_MODEL_DIAGNOSTICS",
+      public_dashboard_authority: "NEW_INTELLIGENCE_WORKSPACE_ONLY",
+      active_whitelist_count: 13,
+      free_bridge_mode: "SHADOW_ONLY",
+      market_price_attention_threshold_ratio: 0.02,
+      candidate: "SHADOW_ONLY",
+      formal: "OFF",
+      lock: "OFF",
+      production: "OFF",
+      recommendation_capabilities: {
+        analysis_ah: { implementation: "CODE_PRESENT", feature_enabled: true },
+        analysis_ou: { implementation: "CODE_PRESENT", feature_enabled: true },
+        shadow_candidate: { implementation: "CODE_PRESENT", feature_enabled: true },
+        formal_ah: { implementation: "CODE_PRESENT", feature_enabled: false },
+        formal_ou: { implementation: "NOT_IMPLEMENTED", feature_enabled: false },
+        production_recommendation: { implementation: "CODE_PRESENT", feature_enabled: false },
+      },
+    },
     navigation: { current_date: "2026-08-09", previous_date: "2026-08-08", next_date: "2026-08-10", next_available_date: "2026-08-10" },
     date_strip: strip,
     attention: matches.map((item) => ({ fixture_id: item.fixture_id, kickoff_utc: item.kickoff_utc, intelligence_state: item.intelligence_state, reason_codes: item.intelligence_reason_codes, affected_domains: ["MARKET"], factual_summary: item.intelligence_reason_codes.join("；"), readiness_status: item.readiness.status, readiness_context: { reason_code: item.readiness.reason_code, missing_fields: item.readiness.missing_fields, stale_fields: item.readiness.stale_fields, action: item.readiness.action }, next_eval_at: item.readiness.next_eval_at, risks: item.risks })),
@@ -475,7 +493,8 @@ test("V41 presents unassessed model evidence in Chinese and keeps codes technica
   await expect(page.locator(".v41-three-layer")).not.toContainText("部分就绪");
   await expect(page.locator(".v41-focus-summary")).toContainText("可比较模型尚未就绪（需已验证校准），暂不进行模型—市场比较");
   await expect(page.locator(".v41-focus-summary")).not.toContainText("ASIAN_HANDICAP/TOTALS");
-  await expect(page.locator(".v41-market-freshness").first()).toContainText("可用模型尚未就绪");
+  await expect(page.locator(".v41-market-details")).toContainText("可用模型");
+  await expect(page.locator("[data-market-details='ASIAN_HANDICAP']")).toContainText("尚未就绪");
   const modelDiagnostic = page.locator(".v41-diagnostic").filter({ hasText: "可比较模型（需已验证校准）" });
   await expect(modelDiagnostic).toContainText("可比较模型（需已验证校准）");
   await expect(modelDiagnostic).not.toContainText("当前模型状态");
@@ -534,8 +553,8 @@ test("V41 separates diagnostic market age from the candidate quote-age hard gate
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
   const totals = page.locator("[data-market='TOTALS']");
-  await expect(totals.locator(".v41-market-freshness > div").filter({ hasText: "走势证据" })).toContainText("证据不足");
-  await expect(totals).toContainText("同一时刻机构双边报价可比较");
+  await expect(page.locator("[data-market-details='TOTALS']")).toContainText("证据不足");
+  await expect(page.locator(".v41-market-details")).toContainText("同一时刻机构双边报价可比较");
   await expect(page.locator(".v41-focus-summary")).toContainText("模型—市场诊断");
   await expect(page.locator(".v41-three-layer")).toContainText("市场输入报价证据逐市场 · 均未就绪");
   await expect(page.locator(".v41-candidate")).toHaveCount(0);
@@ -580,7 +599,7 @@ test("AH recommendation rows share the owner main-handicap sign convention with 
     ["1490400", "HOME", "+0.25", "让球 -0.25 · 推荐主队"],
     ["1490401", "AWAY", "+0.75", "让球 0.75 · 推荐客队"],
     ["1490402", "AWAY", "+0.5", "让球 0.5 · 推荐客队"],
-    ["1490404", "AWAY", "+1.0", "让球 1 · 推荐客队"],
+    ["1490404", "AWAY", "+1.0", "让球 1.0 · 推荐客队"],
     ["1490405", "HOME", "-0.5", "让球 0.5 · 推荐主队"],
   ] as const;
   payload.validation.model_forecast.official_recommendations = recommendations.map(([fixtureId, selection, exactLine], index) => ({
@@ -677,11 +696,43 @@ test("V41 makes the final official candidate card authoritative and folds repeat
   await page.goto("/");
 
   const official = page.locator(".v41-candidate--official");
-  await expect(official.locator("header")).toContainText("正式漏斗候选最终仍有效 · 产品权限未启用");
+  await expect(official.locator("header")).toContainText("检查点漏斗候选最终仍有效");
+  await expect(official.locator("header")).not.toContainText("产品权限未启用");
   await expect(official).toContainText("让球主盘 · 盘口 -0.5 · 推荐客队 @1.88");
   await expect(official.locator("footer")).toHaveText(focused.evaluation_execution.summary_zh);
   await expect(page.locator(".v41-diagnostic[data-evaluation-status]")).toHaveCount(0);
   await expect(page.locator(".v41-semantic-audit")).not.toHaveAttribute("open", "");
+});
+
+test("V41 reads global capability state and distinguishes disabled from not implemented", async ({ page }) => {
+  const payload = workspace();
+  payload.runtime.recommendation_capabilities.formal_ah.feature_enabled = true;
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.goto("/");
+
+  const capabilities = page.locator(".v41-capabilities");
+  await expect(capabilities).toContainText("分析选择：让球 开 / 大小球 开");
+  await expect(capabilities).toContainText("影子候选 开");
+  await expect(capabilities).toContainText("正式推荐：让球 开 / 大小球 未实现");
+  await expect(capabilities).toContainText("实盘 关");
+  await expect(page.locator(".v41-focus-meaning")).not.toContainText("产品权限未启用");
+});
+
+test("V41 uses one lifecycle decision for a match that never formed a candidate", async ({ page }) => {
+  const payload = workspace();
+  const focused = payload.matches.find((item) => item.fixture_id === payload.selected_fixture_id)!;
+  focused.status = "FT";
+  focused.outcome.is_finished = true;
+  focused.evaluation_execution.status = "NO_CANDIDATE_FORMED";
+  focused.evaluation_execution.ever_formed_candidate = false;
+  focused.evaluation_execution.summary_zh = "本场未形成候选；期间有检查点错过，但不影响该结论。";
+  focused.factual_summary = focused.evaluation_execution.summary_zh;
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+  await page.goto("/");
+
+  await expect(page.locator(`.v41-shortlist-list [data-fixture-id='${focused.fixture_id}']`)).toContainText("已完场 · 未形成候选");
+  await expect(page.locator(".v41-focus-summary")).toContainText(focused.evaluation_execution.summary_zh);
+  await expect(page.locator(".v41-focus")).not.toContainText("曾形成候选");
 });
 
 test("R5 factor checklist keeps model and shadow tracks separate per market", async ({ page }, testInfo) => {
@@ -706,7 +757,8 @@ test("R6 distinguishes mainline identity from candidate quote lock", async ({ pa
   await expect(checklist).toContainText("候选因子投影 BLOCKED");
   await expect(checklist).toContainText("主盘身份可解析 ≠ 候选报价可锁定");
   await expect(checklist.getByText("主盘身份可解析", { exact: true })).toHaveCount(2);
-  await expect(page.getByText("报价锁定", { exact: true })).toHaveCount(2);
+  await expect(page.getByText("报价锁定", { exact: true })).toHaveCount(1);
+  await expect(page.locator(".v41-market-details__row")).toHaveCount(2);
   await expect(checklist).toContainText("模型预测账本事实");
   await expect(checklist).toContainText("尚未冻结");
 });
@@ -856,6 +908,10 @@ test("V41 match browser exposes all fixtures in priority order and one filter pe
   await expect(list.locator("button[data-fixture-id]").first()).toHaveAttribute("data-fixture-id", "browser-1");
   await expect(list.locator("button[data-fixture-id]").nth(1)).toHaveAttribute("data-fixture-id", "browser-0");
   await expect(list.locator(".v41-shortlist-title").first()).toHaveCSS("display", "flex");
+  const rowHeights = await list.locator("button[data-fixture-id]").evaluateAll((items) => items.map((item) => item.getBoundingClientRect().height));
+  expect(new Set(rowHeights).size).toBe(1);
+  await expect(list.locator(".v41-shortlist-title strong").first()).toHaveCSS("white-space", "nowrap");
+  await expect(list.locator(".v41-shortlist-title").first()).toHaveAttribute("title", / vs /);
   await expect(list.locator("button[data-fixture-id]").first()).toContainText("优先 1");
   const scroll = await list.evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight, overflowY: getComputedStyle(element).overflowY }));
   expect(scroll.overflowY).toBe("auto");
@@ -894,16 +950,13 @@ test("V41 derives age across timezone and day boundaries and never labels a past
   focused.readiness.next_eval_at = "2026-08-09T16:30:00Z";
   await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
   await page.goto("/");
-  const freshness = page.locator("[data-market='ASIAN_HANDICAP'] .v41-market-freshness");
-  await expect(freshness.locator("span").nth(1)).toHaveText("快照档位");
-  await expect(freshness.locator("strong").nth(1)).toHaveText("T24_OPEN_ODDS");
+  const freshness = page.locator("[data-market-details='ASIAN_HANDICAP']");
+  await expect(freshness.locator("span").nth(1)).toHaveText("T24_OPEN_ODDS");
   const quoteAge = page.locator("[data-market='ASIAN_HANDICAP'] [data-quote-age-state='warning']");
   await expect(quoteAge.locator("span")).toHaveText("快照年龄");
   await expect(quoteAge.locator("strong")).toContainText("1 小时 12 分");
   await expect(freshness).toHaveCSS("display", "grid");
-  const freshnessRows = await freshness.locator(":scope > *").evaluateAll((items) => new Set(items.map((item) => item.getBoundingClientRect().top)).size);
-  expect(freshnessRows).toBe(2);
-  await expect(page.locator("[data-market='ASIAN_HANDICAP'] .v41-market-technical")).toContainText("技术说明");
+  await expect(page.locator(".v41-market-details .v41-market-technical")).toContainText("技术说明");
   const schedule = page.locator(".v41-next");
   await expect(schedule.locator("span").nth(2)).toHaveText("采集状态");
   await expect(schedule.locator("strong").nth(2)).toHaveText("未到 T12_OPEN_ODDS 采集时点");
@@ -914,6 +967,20 @@ test("V41 derives age across timezone and day boundaries and never labels a past
   await expect(schedule.locator("span").nth(5)).toHaveText("下次评估");
   await expect(schedule.locator("strong").nth(5)).toHaveText("评估时间已过期");
   await expect(schedule).toHaveCSS("display", "grid");
+});
+
+test("V41 shares market evidence labels across both markets", async ({ page }) => {
+  await installWorkspace(page);
+  await page.goto("/");
+  const details = page.locator(".v41-market-details");
+  await expect(details.locator(".v41-market-details__head").getByText("市场证据", { exact: true })).toHaveCount(1);
+  await expect(details.locator(".v41-market-details__head").getByText("快照档位", { exact: true })).toHaveCount(1);
+  await expect(details.locator(".v41-market-details__head").getByText("走势证据", { exact: true })).toHaveCount(1);
+  await expect(details.locator(".v41-market-details__head").getByText("报价锁定", { exact: true })).toHaveCount(1);
+  await expect(details.locator(".v41-market-details__head").getByText("可用模型", { exact: true })).toHaveCount(1);
+  await expect(details.locator(".v41-market-details__row")).toHaveCount(2);
+  await expect(page.getByText("仅绘制已落盘快照", { exact: false })).toHaveCount(1);
+  await expect(page.getByText("点间不插值、不推断缺失路径", { exact: false })).toHaveCount(1);
 });
 
 test("V41 finished match freezes quote age at kickoff and closes prematch planning", async ({ page }) => {
@@ -932,7 +999,7 @@ test("V41 finished match freezes quote age at kickoff and closes prematch planni
   await expect(market.locator(".v41-market-summary")).toContainText("报价年龄10 分钟");
   await expect(page.locator(".v41-next")).toContainText("采集状态赛前流程已关闭");
   await expect(page.locator(".v41-next")).toContainText("下次评估赛前流程已结束");
-  await expect(page.locator("#factor-checklist-title")).toContainText("赛前未形成正式漏斗评估");
+  await expect(page.locator("#factor-checklist-title")).toContainText("赛前未形成检查点漏斗评估");
   await expect(page.locator("#factor-checklist-title")).not.toContainText("尚未评估");
 });
 
@@ -1197,7 +1264,7 @@ test("V41 exposes a prominent post-match validation center and hides raw codes i
 test("official recommendation empty state is explicit", async ({ page }) => {
   await installWorkspace(page);
   await page.goto("/");
-  await expect(page.locator(".v41-official-recommendations")).toContainText("当日无正式漏斗推荐");
+  await expect(page.locator(".v41-official-recommendations")).toContainText("当日无检查点漏斗候选");
 });
 
 test("empty selected day never leaks replay gaps into public copy", async ({ page }) => {

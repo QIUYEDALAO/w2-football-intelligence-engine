@@ -301,7 +301,7 @@ export interface WorkspaceMatch {
     model_market_relation: Record<string, WorkspaceModelRelation>;
   };
   evaluation_execution: {
-    status: "UNASSESSED" | "NO_EDGE" | "CANDIDATE" | "TECHNICAL_INVALIDATED" | "BLOCKED";
+    status: "UNASSESSED" | "NO_EDGE" | "CANDIDATE" | "TECHNICAL_INVALIDATED" | "NO_CANDIDATE_FORMED" | "BLOCKED";
     ever_formed_candidate: boolean;
     final_states: Array<{
       market: "ASIAN_HANDICAP" | "TOTALS";
@@ -623,6 +623,10 @@ export interface IntelligenceWorkspace {
     formal: "OFF";
     lock: "OFF";
     production: "OFF";
+    recommendation_capabilities: Record<string, {
+      implementation: "NOT_IMPLEMENTED" | "CODE_PRESENT" | "CONTRACT_VERIFIED" | "LOCALLY_VERIFIED" | "ISOLATED_RUNTIME_VERIFIED" | "STAGING_CANARY_PASSED" | "FEATURE_ENABLED" | "PUBLICLY_AVAILABLE" | "PRODUCTION_ENABLED";
+      feature_enabled: boolean;
+    }>;
   };
   navigation: Record<string, unknown>;
   date_strip: WorkspaceDateStripEntry[];

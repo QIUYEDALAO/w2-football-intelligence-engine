@@ -51,6 +51,7 @@ from w2.config import Environment, get_settings
 from w2.dashboard.day_view import build_dashboard_day_view
 from w2.dashboard.workspace import build_dashboard_intelligence_workspace
 from w2.domain.decision_contract import DecisionContractViolation
+from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
 from w2.monitoring.health import HealthPayload, build_health_payload
 from w2.monitoring.readiness import ReadinessPayload, build_readiness_payload
 from w2.prematch.candidate_notifications import notification_health
@@ -231,8 +232,10 @@ def dashboard_intelligence_workspace(
             replay=replay,
             model_forecasts=model_forecasts,
             model_forecast_progress=model_forecast_progress,
-            candidate_enabled=os.environ.get("W2_CANDIDATE_ENABLED", "false").lower()
-            == "true",
+            candidate_enabled=os.environ.get("W2_CANDIDATE_ENABLED", "false").lower() == "true",
+            recommendation_capabilities=load_recommendation_capability_manifest().public_summary()[
+                "capabilities"
+            ],
         ),
     }
 

@@ -78,6 +78,7 @@ def build_dashboard_intelligence_workspace(
     model_forecasts: Mapping[str, Mapping[str, Any]] | None = None,
     model_forecast_progress: Mapping[str, Any] | None = None,
     candidate_enabled: bool = False,
+    recommendation_capabilities: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Adapt existing bounded projections into the one final Dashboard read model."""
     cards = _mapping_list(day_view.get("cards"))
@@ -190,6 +191,22 @@ def build_dashboard_intelligence_workspace(
             "formal": "OFF",
             "lock": "OFF",
             "production": "OFF",
+            "recommendation_capabilities": {
+                name: {
+                    "implementation": _text(_mapping(row).get("implementation")),
+                    "feature_enabled": _mapping(row).get("feature_enabled") is True,
+                }
+                for name, row in _mapping(recommendation_capabilities).items()
+                if name
+                in {
+                    "analysis_ah",
+                    "analysis_ou",
+                    "shadow_candidate",
+                    "formal_ah",
+                    "formal_ou",
+                    "production_recommendation",
+                }
+            },
         },
         "navigation": dict(_mapping(day_view.get("navigation"))),
         "date_strip": date_strip,
@@ -362,8 +379,7 @@ def _evaluation_execution(card: Mapping[str, Any]) -> dict[str, Any]:
     for version in _mapping_list(_mapping(card.get("dynamic_prematch")).get("versions")):
         if (
             version.get("official_funnel_eligible") is not True
-            or _text(version.get("measurement_semantics"))
-            != _OFFICIAL_EVALUATION_SEMANTICS
+            or _text(version.get("measurement_semantics")) != _OFFICIAL_EVALUATION_SEMANTICS
         ):
             continue
         state = _text(version.get("state"))
@@ -412,7 +428,7 @@ def _evaluation_execution(card: Mapping[str, Any]) -> dict[str, Any]:
     if "EVALUATED_CANDIDATE" in final_states:
         status = "CANDIDATE"
     elif final_states & {"MISSED_CHECKPOINT", "EVALUATION_ERROR"}:
-        status = "TECHNICAL_INVALIDATED"
+        status = "TECHNICAL_INVALIDATED" if ever_formed_candidate else "NO_CANDIDATE_FORMED"
     elif "BLOCKED_BY_GATE" in final_states:
         status = "BLOCKED"
     elif "EVALUATED_NO_EDGE" in final_states:
@@ -472,6 +488,8 @@ def _evaluation_execution(card: Mapping[str, Any]) -> dict[str, Any]:
             "曾形成候选，但后续官方检查点错过或评估失败，最终未保持有效；"
             "这是技术失效，不代表模型主动撤回。"
         )
+    elif status == "NO_CANDIDATE_FORMED":
+        summary = "本场未形成候选；期间有检查点错过，但不影响该结论。"
     elif status == "BLOCKED":
         summary = (
             "曾形成候选，最后官方状态已被门禁阻断，不计入正式推荐。"
