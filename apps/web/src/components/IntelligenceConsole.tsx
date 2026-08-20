@@ -638,6 +638,9 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
   const finished = match.outcome.is_finished;
   const collectionWarning = !finished && match.market_collection.public_semantics.cause === "AWAITING_COLLECTION";
   const candidate = match.shadow_candidate;
+  const candidateLine = candidate.market === "ASIAN_HANDICAP"
+    ? formatAhRecommendationHandicap(candidate.selection, candidate.exact_line) || candidate.exact_line
+    : candidate.exact_line;
   return (
     <article className="v41-focus" data-focus-type="MATCH" data-fixture-id={match.fixture_id}>
       <header className="v41-focus-header">
@@ -650,15 +653,20 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
         <div className="v41-focus-meaning">
           {candidate.status === "ACTIVE" ? <section className="v41-candidate" data-candidate-status={candidate.status}>
             <header><span>影子候选 · 非正式推荐</span><b>验证中</b></header>
-            <div><strong>{candidate.market ? MARKET_LABELS[candidate.market] : "市场待确认"} · {SELECTION_LABELS[candidate.selection || ""] || candidate.selection}</strong><span>盘口 {candidate.exact_line} · 赔率 {price(candidate.decimal_odds)}</span><small>已按 V4 身份进入统一前向账本；赛后自动结算并累计验证。</small></div>
+            <div><strong>{candidate.market ? MARKET_LABELS[candidate.market] : "市场待确认"} · 推荐{SELECTION_LABELS[candidate.selection || ""] || candidate.selection}</strong><span>盘口 {candidateLine} · 赔率 {price(candidate.decimal_odds)}</span><small>已按 V4 身份进入统一前向账本；赛后自动结算并累计验证。</small></div>
             <footer>Formal、Lock、Production 与实盘保持关闭；达到既有证据门槛后另行提交 Owner 审批。</footer>
           </section> : null}
           {match.evaluation_execution.latest_candidates.length ? <section className="v41-candidate v41-candidate--official" data-final-active={String(match.evaluation_execution.status === "CANDIDATE")}>
             <header><span>正式漏斗候选</span><b>{match.evaluation_execution.status === "CANDIDATE" ? "最终仍有效" : evaluationStatusLabel(match.evaluation_execution.status)} · 产品权限未启用</b></header>
-            {match.evaluation_execution.latest_candidates.map((item) => <div key={item.market}>
-              <strong>{MARKET_LABELS[item.market]} · {item.selection ? SELECTION_LABELS[item.selection] || item.selection : "方向待确认"} {item.exact_line ?? "盘口待确认"} {item.decimal_odds === null ? "" : `@${item.decimal_odds.toFixed(2)}`}</strong>
-              <span>{item.checkpoint} 形成 · {opportunityStateLabel(item.final_state)}</span>
-            </div>)}
+            {match.evaluation_execution.latest_candidates.map((item) => {
+              const itemLine = item.market === "ASIAN_HANDICAP"
+                ? formatAhRecommendationHandicap(item.selection, item.exact_line) || item.exact_line
+                : item.exact_line;
+              return <div key={item.market}>
+                <strong>{MARKET_LABELS[item.market]} · 盘口 {itemLine ?? "待确认"} · 推荐{item.selection ? SELECTION_LABELS[item.selection] || item.selection : "方向待确认"} {item.decimal_odds === null ? "" : `@${item.decimal_odds.toFixed(2)}`}</strong>
+                <span>{item.checkpoint} 形成 · {opportunityStateLabel(item.final_state)}</span>
+              </div>;
+            })}
             <footer>{match.evaluation_execution.summary_zh}</footer>
           </section> : null}
           {!match.evaluation_execution.latest_candidates.length ? <div className="v41-diagnostic" data-evaluation-status={match.evaluation_execution.status}><span /><p><b>最终候选状态：{evaluationStatusLabel(match.evaluation_execution.status)}</b>{match.evaluation_execution.summary_zh}</p></div> : null}

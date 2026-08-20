@@ -437,8 +437,8 @@ test("shadow candidate is explicit, tracked and non-production", async ({ page }
 
   await expect(page.getByText("影子候选已启用", { exact: true })).toBeVisible();
   await expect(page.locator(".v41-candidate")).toHaveAttribute("data-candidate-status", "ACTIVE");
-  await expect(page.locator(".v41-candidate")).toContainText("让球主盘 · 主队");
-  await expect(page.locator(".v41-candidate")).toContainText("盘口 -0.75 · 赔率 1.95");
+  await expect(page.locator(".v41-candidate")).toContainText("让球主盘 · 推荐主队");
+  await expect(page.locator(".v41-candidate")).toContainText("推荐主队盘口 0.75 · 赔率 1.95");
   await expect(page.locator(".v41-candidate")).toContainText("Formal、Lock、Production 与实盘保持关闭");
   await expect(page.locator("#secondary-validation .v41-validation-t30")).toContainText("T-30 候选评估0");
 });
@@ -678,7 +678,7 @@ test("V41 makes the final official candidate card authoritative and folds repeat
 
   const official = page.locator(".v41-candidate--official");
   await expect(official.locator("header")).toContainText("正式漏斗候选最终仍有效 · 产品权限未启用");
-  await expect(official).toContainText("让球主盘 · 客队 -0.5 @1.88");
+  await expect(official).toContainText("让球主盘 · 盘口 -0.5 · 推荐客队 @1.88");
   await expect(official.locator("footer")).toHaveText(focused.evaluation_execution.summary_zh);
   await expect(page.locator(".v41-diagnostic[data-evaluation-status]")).toHaveCount(0);
   await expect(page.locator(".v41-semantic-audit")).not.toHaveAttribute("open", "");
