@@ -33,7 +33,6 @@ from w2.ingestion.future_refresh_repository import (
     FutureRefreshDbRepository,
     FutureRefreshPersistenceError,
 )
-from w2.ingestion.raw_fixture_scope import RawFixtureScope, raw_fixture_request_identity
 from w2.markets.asian_handicap_scope import canonical_market_from_label
 from w2.operations.gate_a import (
     GATE_A_CANARY_ENDPOINTS,
@@ -2045,18 +2044,6 @@ class FutureFixtureRefreshService:
                     endpoint=endpoint,
                     captured_at=response.captured_at,
                     payload=payload,
-                    fixture_scope=(
-                        RawFixtureScope.LIVE_DISCOVERY
-                        if endpoint == "fixtures" and self.config.discovery_date is not None
-                        else RawFixtureScope.CONTROLLED_AUDIT
-                        if endpoint == "fixtures"
-                        else None
-                    ),
-                    request_identity=(
-                        raw_fixture_request_identity(endpoint=endpoint, params=params)
-                        if endpoint == "fixtures"
-                        else None
-                    ),
                 )
             elif self.config.persistence == "file":
                 file_fixture_id = params.get("fixture")

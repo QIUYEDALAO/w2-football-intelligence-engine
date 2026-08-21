@@ -1,3 +1,5 @@
+"""Reserved item-level scope contract; runtime readers remain kickoff-based."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping

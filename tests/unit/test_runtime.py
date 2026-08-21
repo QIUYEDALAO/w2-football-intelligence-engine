@@ -118,6 +118,16 @@ def test_postmatch_result_checkpoint_is_single_bounded_status_fixture_refresh() 
     assert missed.status == "MISSED"
     assert missed.blockers == ("RESULT_WINDOW_MISSED",)
 
+    boundary = postmatch_result_checkpoint_plan(
+        fixture_id="api_football:1494239",
+        competition_id="allsvenskan",
+        season="2026",
+        kickoff_utc=kickoff,
+        now=kickoff + timedelta(hours=36),
+    )
+    assert boundary.status == "DUE"
+    assert boundary.window_end == kickoff + timedelta(hours=36)
+
 
 def test_scheduler_future_refresh_disabled_by_default(monkeypatch) -> None:
     monkeypatch.delenv("W2_FUTURE_FIXTURE_REFRESH_ENABLED", raising=False)
@@ -1122,7 +1132,7 @@ def test_scheduler_postmatch_only_filters_prematch_plans(monkeypatch) -> None:
     assert checkpoints == ["POSTMATCH_RESULT"]
 
 
-def test_checkpoint_plan_generation_applies_live_horizon_to_scoped_reader(
+def test_checkpoint_plan_generation_applies_live_horizon_to_legacy_reader(
     monkeypatch,
 ) -> None:
     now = datetime(2026, 8, 21, 12, tzinfo=UTC)
@@ -1145,6 +1155,49 @@ def test_checkpoint_plan_generation_applies_live_horizon_to_scoped_reader(
     assert captured["provider_league_id"] == "113"
     assert captured["kickoff_from"] == now - timedelta(hours=36)
     assert captured["kickoff_to"] > now
+
+
+def test_future_refresh_fixture_payloads_filters_legacy_reader_by_kickoff(
+    monkeypatch,
+) -> None:
+    now = datetime(2026, 8, 21, 12, tzinfo=UTC)
+    captured: dict[str, object] = {}
+
+    class FakeRepository:
+        def fixture_payloads(self, **kwargs: object) -> list[dict[str, Any]]:
+            captured.update(kwargs)
+            return [
+                {
+                    "fixture": {
+                        "id": 1,
+                        "date": (now - timedelta(hours=36, seconds=1)).isoformat(),
+                    }
+                },
+                {"fixture": {"id": 2, "date": (now - timedelta(hours=36)).isoformat()}},
+                {"fixture": {"id": 3, "date": (now - timedelta(hours=35)).isoformat()}},
+                {"fixture": {"id": 4, "date": (now + timedelta(hours=2)).isoformat()}},
+                {"fixture": {"id": 5, "date": (now + timedelta(hours=336)).isoformat()}},
+                {
+                    "fixture": {
+                        "id": 6,
+                        "date": (now + timedelta(hours=336, seconds=1)).isoformat(),
+                    }
+                },
+            ]
+
+    monkeypatch.setattr(
+        "w2.ingestion.future_refresh_repository.FutureRefreshDbRepository",
+        FakeRepository,
+    )
+
+    rows = scheduler_main.future_refresh_fixture_payloads(
+        provider_league_id="113",
+        kickoff_from=now - timedelta(hours=36),
+        kickoff_to=now + timedelta(hours=336),
+    )
+
+    assert captured == {"provider_league_id": "113"}
+    assert [row["fixture"]["id"] for row in rows] == [2, 3, 4, 5]
 
 
 def test_scheduler_checkpoint_batch_claims_persisted_rows_without_fixture_rebuild(

@@ -126,17 +126,22 @@ def test_historical_materialization_has_no_provider_capability() -> None:
             self.provider_calls += 1
             raise AssertionError("Provider must not be called")
 
-        def historical_fixture_payloads(self, **_kwargs: Any) -> list[dict[str, Any]]:
-            return [{"fixture": {"id": 1, "date": NOW.isoformat()}}]
+        def fixture_payloads(self, **_kwargs: Any) -> list[dict[str, Any]]:
+            return [
+                {"fixture": {"id": 1, "date": (NOW - timedelta(hours=1)).isoformat()}},
+                {"fixture": {"id": 2, "date": NOW.isoformat()}},
+            ]
 
     repository = Repository()
     batch = materialize_factor_history_from_persisted_raw(
         repository,
         kickoff_from=NOW - timedelta(days=1),
-        kickoff_to=NOW,
+        kickoff_to=NOW + timedelta(days=1),
+        as_of=NOW,
     )
 
     assert len(batch.fixture_payloads) == 1
+    assert batch.source_scope == "KICKOFF_BEFORE_AS_OF"
     assert batch.provider_calls == 0
     assert repository.provider_calls == 0
 

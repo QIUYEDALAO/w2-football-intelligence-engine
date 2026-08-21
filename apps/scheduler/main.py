@@ -285,11 +285,16 @@ def future_refresh_fixture_payloads(
 ) -> list[dict[str, Any]]:
     from w2.ingestion.future_refresh_repository import FutureRefreshDbRepository
 
-    return FutureRefreshDbRepository().live_fixture_payloads(
-        provider_league_id=provider_league_id,
-        kickoff_from=kickoff_from,
-        kickoff_to=kickoff_to,
-    )
+    lower = kickoff_from.astimezone(UTC)
+    upper = kickoff_to.astimezone(UTC)
+    return [
+        item
+        for item in FutureRefreshDbRepository().fixture_payloads(
+            provider_league_id=provider_league_id
+        )
+        if (kickoff := parse_fixture_kickoff(item.get("fixture", {}).get("date"))) is not None
+        and lower <= kickoff <= upper
+    ]
 
 
 def checkpoint_poll_seconds() -> int:

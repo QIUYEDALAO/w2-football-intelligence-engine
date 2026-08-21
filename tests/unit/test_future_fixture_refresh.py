@@ -32,7 +32,6 @@ from w2.ingestion.future_refresh import (
     refresh_progress_status,
     run_future_refresh_task,
 )
-from w2.ingestion.raw_fixture_scope import RawFixtureScope
 from w2.markets.quote_identity import evaluate_quote_freshness, project_quote_identity
 from w2.operations.gate_a import (
     GATE_A_SELECTION_POLICY_VERSION,
@@ -2007,8 +2006,8 @@ def test_fixture_discovery_raw_is_classified_live_at_write_time(
         payload_hash="a" * 64,
         payload={"response": []},
     ) == (True, None)
-    assert captured["fixture_scope"] is RawFixtureScope.LIVE_DISCOVERY
-    assert isinstance(captured["request_identity"], str)
+    assert "fixture_scope" not in captured
+    assert "request_identity" not in captured
 
 
 def test_fixture_change_triggers_projection_before_task_success(

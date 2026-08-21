@@ -2700,7 +2700,7 @@ class FutureRefreshDbRepository:
         kickoff_to: datetime,
         scope_policy_version: str = RAW_FIXTURE_SCOPE_POLICY_VERSION,
     ) -> list[dict[str, Any]]:
-        """Read only positively-authorized live fixture items inside the planner horizon."""
+        """Reserved scoped reader; the active planner still uses fixture_payloads()."""
         return self._fixture_payloads_for_scope(
             source_scope=RawFixtureScope.LIVE_DISCOVERY,
             provider_league_id=provider_league_id,
@@ -2717,7 +2717,7 @@ class FutureRefreshDbRepository:
         provider_league_id: str | None = None,
         scope_policy_version: str = RAW_FIXTURE_SCOPE_POLICY_VERSION,
     ) -> list[dict[str, Any]]:
-        """Read only positively-authorized historical fixture items from persisted raw."""
+        """Reserved scoped reader; Gate 1 history is selected by kickoff time."""
         return self._fixture_payloads_for_scope(
             source_scope=RawFixtureScope.HISTORICAL_TRAINING,
             provider_league_id=provider_league_id,
