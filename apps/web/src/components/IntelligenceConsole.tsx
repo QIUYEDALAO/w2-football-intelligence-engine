@@ -10,6 +10,8 @@ import type {
   RiskAxisName,
   WorkspaceMarket,
   WorkspaceMatch,
+  WorkspaceMatchItem,
+  WorkspaceMatchProjectionError,
   WorkspaceDateStripEntry,
   WorkspacePublicTeamLabel,
 } from "../types/intelligenceWorkspace";
@@ -59,6 +61,14 @@ const PRIORITY_ORDER: Record<string, number> = {
 
 const STATUS_LABELS = PUBLIC_ENUM_LABELS;
 
+function isProjectionError(match: WorkspaceMatchItem): match is WorkspaceMatchProjectionError {
+  return "projection_status" in match && match.projection_status === "ERROR";
+}
+
+function projectedMatches(workspace: IntelligenceWorkspace): WorkspaceMatch[] {
+  return workspace.matches.filter((match): match is WorkspaceMatch => !isProjectionError(match));
+}
+
 function label(value: string | null | undefined, fallback = "暂无"): string {
   if (!value) return fallback;
   return STATUS_LABELS[value] || REASON_LABELS[value] || translateReason(value);
@@ -106,7 +116,7 @@ function selectedDayPublicStatus(workspace: IntelligenceWorkspace) {
     dayNoun: selectedDayNoun(workspace),
     fixtureCount: workspace.today_summary.match_count,
     competitionCount: workspace.today_summary.competition_count,
-    marketReadyCount: workspace.matches.filter((match) => match.readiness.market_evidence_status === "AVAILABLE").length,
+    marketReadyCount: projectedMatches(workspace).filter((match) => match.readiness.market_evidence_status === "AVAILABLE").length,
     marketObservationCount: selectedDay?.market_evidence_fixture_count,
     priorityCount: workspace.today_summary.priority_match_count,
   });
@@ -401,19 +411,21 @@ function RecentDateNav({ date, onDateChange, workspace }: Pick<Props, "date" | "
 }
 
 function TodaySummary({ workspace }: { workspace: IntelligenceWorkspace }) {
+  const matches = projectedMatches(workspace);
+  const projectionErrorCount = workspace.matches.length - matches.length;
   const dayNoun = selectedDayNoun(workspace);
   const selectedCause = selectedDaySemantics(workspace).cause;
   const presentation = selectedDayPublicStatus(workspace);
   const counts = workspace.today_summary.primary_reason_counts;
-  const readyCount = workspace.matches.filter((match) => match.readiness.market_aggregate_status === "READY").length;
-  const partialCount = workspace.matches.filter((match) => match.readiness.market_aggregate_status === "PARTIAL").length;
-  const candidateBlockedCount = workspace.matches.filter((match) => match.readiness.market_aggregate_status === "NOT_READY").length;
-  const marketBlockedCount = workspace.matches.filter((match) => match.readiness.market_evidence_status === "NOT_READY").length;
-  const limitedCount = selectedCause && marketBlockedCount === workspace.today_summary.match_count
+  const readyCount = matches.filter((match) => match.readiness.market_aggregate_status === "READY").length;
+  const partialCount = matches.filter((match) => match.readiness.market_aggregate_status === "PARTIAL").length;
+  const candidateBlockedCount = matches.filter((match) => match.readiness.market_aggregate_status === "NOT_READY").length;
+  const marketBlockedCount = matches.filter((match) => match.readiness.market_evidence_status === "NOT_READY").length;
+  const limitedCount = selectedCause && matches.length > 0 && marketBlockedCount === matches.length
     ? marketBlockedCount
     : 0;
   const calmCount = !selectedCause && !workspace.selected_fixture_id ? workspace.today_summary.match_count : 0;
-  const candidateCount = workspace.matches.filter((match) => match.evaluation_execution.status === "CANDIDATE").length;
+  const candidateCount = matches.filter((match) => match.evaluation_execution.status === "CANDIDATE").length;
   return (
     <section className="v41-today" aria-label={`${dayNoun}比赛摘要`}>
       <div className="v41-today-primary">
@@ -423,7 +435,7 @@ function TodaySummary({ workspace }: { workspace: IntelligenceWorkspace }) {
         </p>
       </div>
       {limitedCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{limitedCount} 场可查看赛程；{presentation.label}</b></p></div> : calmCount ? <div className="v41-today-other"><span>当前口径</span><p><b>{calmCount} 场均未触发优先复核</b></p></div> : Object.keys(counts).length ? <div className="v41-today-other"><span>优先复核</span><p>{Object.entries(counts).slice(0, 3).map(([reason, count]) => <b key={reason}>{count} 场{REASON_LABELS[reason] || label(reason)}</b>)}</p></div> : null}
-      <div className="v41-today-day"><strong>共 {workspace.today_summary.match_count} 场 · {candidateCount} 场检查点漏斗最终候选 · {workspace.today_summary.competition_count || workspace.runtime.active_whitelist_count} 联赛{workspace.today_summary.pending_owner_review_team_count ? ` · ${workspace.today_summary.pending_owner_review_team_count} 支候选译名待审` : ""}</strong><small>{footballDayWindow(workspace)}</small></div>
+      <div className="v41-today-day"><strong>共 {workspace.today_summary.match_count} 场 · {candidateCount} 场检查点漏斗最终候选 · {workspace.today_summary.competition_count || workspace.runtime.active_whitelist_count} 联赛{projectionErrorCount ? ` · ${projectionErrorCount} 场投影异常` : ""}{workspace.today_summary.pending_owner_review_team_count ? ` · ${workspace.today_summary.pending_owner_review_team_count} 支候选译名待审` : ""}</strong><small>{footballDayWindow(workspace)}</small></div>
     </section>
   );
 }
@@ -452,7 +464,9 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
     priorityCount: workspace.today_summary.priority_match_count,
   });
   const matches = workspace.matches.slice().sort((left, right) => {
-    const priority = (PRIORITY_ORDER[left.priority_reason_primary || ""] ?? 99) - (PRIORITY_ORDER[right.priority_reason_primary || ""] ?? 99);
+    const leftPriority = isProjectionError(left) ? null : left.priority_reason_primary;
+    const rightPriority = isProjectionError(right) ? null : right.priority_reason_primary;
+    const priority = (PRIORITY_ORDER[leftPriority || ""] ?? 99) - (PRIORITY_ORDER[rightPriority || ""] ?? 99);
     return priority || String(left.kickoff_utc || "").localeCompare(String(right.kickoff_utc || "")) || left.fixture_id.localeCompare(right.fixture_id);
   });
   const competitions = Array.from(matches.reduce((items, match) => {
@@ -463,14 +477,17 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
   }, new Map<string, { key: string; label: string; count: number }>()).values());
   const activeCompetition = competitionFilter === "ALL" || competitions.some((item) => item.key === competitionFilter) ? competitionFilter : "ALL";
   const filteredMatches = activeCompetition === "ALL" ? matches : matches.filter((match) => (match.competition_id || match.competition_name || "UNKNOWN") === activeCompetition);
-  const marketBlockedCount = matches.filter((match) => match.readiness.market_evidence_status === "NOT_READY").length;
-  const limited = selectedCause !== null && marketBlockedCount === matches.length
+  const validMatches = matches.filter((match): match is WorkspaceMatch => !isProjectionError(match));
+  const marketBlockedCount = validMatches.filter((match) => match.readiness.market_evidence_status === "NOT_READY").length;
+  const limited = selectedCause !== null && validMatches.length > 0 && marketBlockedCount === validMatches.length
     ? workspace.global_focus
     : null;
-  const allPrioritized = matches.filter((match) => match.priority_reason_primary);
-  const prioritized = limited ? [] : filteredMatches.filter((match) => match.priority_reason_primary);
-  const otherAttention = limited ? [] : filteredMatches.filter((match) => !match.priority_reason_primary && match.priority_reason_secondary.length);
-  const remaining = limited ? filteredMatches : filteredMatches.filter((match) => !match.priority_reason_primary && !match.priority_reason_secondary.length);
+  const validFilteredMatches = filteredMatches.filter((match): match is WorkspaceMatch => !isProjectionError(match));
+  const projectionFailures = filteredMatches.filter(isProjectionError);
+  const allPrioritized = validMatches.filter((match) => match.priority_reason_primary);
+  const prioritized = limited ? [] : validFilteredMatches.filter((match) => match.priority_reason_primary);
+  const otherAttention = limited ? [] : validFilteredMatches.filter((match) => !match.priority_reason_primary && match.priority_reason_secondary.length);
+  const remaining = limited ? validFilteredMatches : validFilteredMatches.filter((match) => !match.priority_reason_primary && !match.priority_reason_secondary.length);
   const empty = workspace.today_summary.match_count === 0 && workspace.global_focus;
   const calm = selectedCause === null && workspace.today_summary.match_count > 0 && !workspace.selected_fixture_id ? workspace.global_focus : null;
   const aggregate = limited || calm;
@@ -517,6 +534,16 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
       </button>
     );
   };
+  const projectionErrorRow = (match: WorkspaceMatchProjectionError) => {
+    const matchTitle = `${match.home_team_label.display_name} vs ${match.away_team_label.display_name}`;
+    return <button aria-pressed={selectedId === match.fixture_id} className={selectedId === match.fixture_id ? "is-selected" : undefined} data-fixture-id={match.fixture_id} key={match.fixture_id} onClick={() => onSelect(match.fixture_id)} type="button">
+      <span className="v41-stripe v41-stripe--warning" />
+      <span className="v41-shortlist-copy">
+        <div className="v41-shortlist-title" title={matchTitle}><small>{translateCompetition(match.competition_name || match.competition_id || "赛事待确认", match.competition_id)}</small><strong><span className="v41-match-name"><TeamLabel team={match.home_team_label} /><span className="v41-versus"> vs </span><TeamLabel team={match.away_team_label} /></span></strong><time>{kickoffLabel(match.kickoff_utc, workspace.date)}</time></div>
+        <div className="v41-shortlist-status" title={match.projection_error.detail}><span><b>投影异常 · 该场已隔离，其余比赛正常显示</b></span></div>
+      </span>
+    </button>;
+  };
   return (
     <aside className="v41-shortlist" aria-label={`关注情报 / ${dayNoun}优先查看`} data-ui="attention-feed">
       <header><span>{dayNoun}优先查看 · 按信息价值排序 · <span className="v41-no-break">优先阈值：</span>盘口移动或任一侧赔率相对变化 ≥ {(workspace.runtime.market_price_attention_threshold_ratio * 100).toFixed(0)}%</span><b>{prioritized.length} 场优先 · {filteredMatches.length} 场可滚动查看</b></header>
@@ -524,6 +551,7 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
       <div aria-label={`${activeCompetition === "ALL" ? "全部联赛" : competitions.find((item) => item.key === activeCompetition)?.label || "已选联赛"}比赛列表`} className="v41-shortlist-list" tabIndex={0}>
         {empty ? <div className="v41-shortlist-empty">本比赛日观察池内没有比赛</div> : null}
         {aggregate ? <div className="v41-shortlist-empty">{limited ? presentation.summary : `${dayNoun}无需优先排查；这是有效观测结果。`}</div> : null}
+        {projectionFailures.length ? <><div className="v41-shortlist-group">投影异常 · {projectionFailures.length} 场</div>{projectionFailures.map(projectionErrorRow)}</> : null}
         {limited && !matches.length ? (
           <div className="v41-shortlist-incident">
             <span className={`v41-stripe v41-stripe--${presentation.tone}`} />
@@ -829,6 +857,13 @@ function MatchFocus({ generatedAt, match }: { generatedAt: string | null; match:
   );
 }
 
+function ProjectionErrorFocus({ match }: { match: WorkspaceMatchProjectionError }) {
+  return <article className="v41-focus v41-global is-warning" data-fixture-id={match.fixture_id}>
+    <div className="v41-global-copy"><span className="v41-eyebrow">单场投影已隔离</span><h1><TeamLabel team={match.home_team_label} /> vs <TeamLabel team={match.away_team_label} /></h1><p>{localDateTime(match.kickoff_utc)} · 比赛 {match.fixture_id}</p></div>
+    <section className="v41-global-explanation"><span>投影失败原因</span><strong>{match.projection_error.message}</strong><p>该错误不会阻断同一比赛日的其他比赛。</p><details className="v41-details"><summary>技术详情</summary><code>{match.projection_error.code}</code><code>{match.projection_error.detail}</code></details></section>
+  </article>;
+}
+
 function GlobalFocus({ date, onDateChange, workspace }: Pick<Props, "date" | "onDateChange" | "workspace">) {
   const focus = workspace.global_focus;
   if (!focus) return <article className="v41-focus v41-global"><div className="v41-global-copy"><span className="v41-eyebrow">当前焦点</span><h1>尚未选择比赛</h1><p>请选择具有已持久化证据的比赛；页面不会自动填充其他焦点。</p></div></article>;
@@ -840,7 +875,7 @@ function GlobalFocus({ date, onDateChange, workspace }: Pick<Props, "date" | "on
     dayNoun,
     fixtureCount: workspace.today_summary.match_count,
     competitionCount: workspace.today_summary.competition_count,
-    marketReadyCount: workspace.matches.filter((match) => match.readiness.market_evidence_status === "AVAILABLE").length,
+    marketReadyCount: projectedMatches(workspace).filter((match) => match.readiness.market_evidence_status === "AVAILABLE").length,
     priorityCount: workspace.today_summary.priority_match_count,
   });
   const detail = limited ? `影响 ${focus.affected_fixture_count} 场比赛 · ${focus.affected_competition_count} 个联赛 —— 本足球日全部比赛` : calm ? `${workspace.today_summary.match_count} 场比赛未触发优先复核 —— 这是有效观测结果，不是系统未完成。` : `${workspace.runtime.active_whitelist_count} 个白名单联赛在本足球日均无赛程`;
@@ -890,6 +925,7 @@ function QualityRail({ workspace }: { workspace: IntelligenceWorkspace }) {
 }
 
 function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
+  const matches = projectedMatches(workspace);
   const modelForecast = workspace.validation.model_forecast;
   const evaluationFunnel = modelForecast.market_evaluation_funnel;
   const officialRecommendations = modelForecast.official_recommendations;
@@ -900,8 +936,8 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
   const settledCandidateCount = typeof outcomes.settled_sample_count === "number" ? outcomes.settled_sample_count : 0;
   const legacyAnalysisPickCount = Math.max(0, settledCandidateCount - modelForecast.current_flow_settled_count);
   const replay = workspace.validation.history_replay;
-  const finishedCount = workspace.matches.filter((match) => match.outcome.is_finished).length;
-  const replayPresentation = publicPresentation(replay.public_semantics, { subject: "赛果", fixtureCount: workspace.matches.length, finishedCount, outcomeRecorded: workspace.matches.length > 0 && workspace.matches.every((match) => match.outcome.is_recorded) });
+  const finishedCount = matches.filter((match) => match.outcome.is_finished).length;
+  const replayPresentation = publicPresentation(replay.public_semantics, { subject: "赛果", fixtureCount: matches.length, finishedCount, outcomeRecorded: matches.length > 0 && matches.every((match) => match.outcome.is_recorded) });
   const selectedRecordsLabel = historyRecordLabel(replay.record_kind);
   const outcomePresentation = (match: WorkspaceMatch) => publicPresentation(match.outcome.public_semantics, { subject: "赛果", fixtureCount: 1, finishedCount: match.outcome.is_finished ? 1 : 0, outcomeRecorded: match.outcome.is_recorded });
   return (
@@ -971,8 +1007,8 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
         <section>
           <h3>{workspace.date} {selectedRecordsLabel}</h3>
           <p className="v41-validation-context">所选比赛日 {workspace.today_summary.match_count} 场 · 已形成 {replay.decision_summary.total_cards} 张{selectedRecordsLabel}</p>
-          {workspace.matches.length ? <ol className="v41-validation-matches">{byKickoff(workspace.matches).map((match) => <li key={match.fixture_id}><time>{localDateTime(match.kickoff_utc)}</time><strong><MatchName match={match} /></strong><span>{outcomePresentation(match).label}</span></li>)}</ol> : <p className="v41-validation-empty">所选比赛日没有比赛记录；可使用上方日期浏览历史。</p>}
-          {workspace.matches.length ? <p className={replayPresentation.tone === "warning" ? "v41-validation-gaps" : "v41-validation-ok"}>{replayPresentation.summary}</p> : null}
+          {matches.length ? <ol className="v41-validation-matches">{byKickoff(matches).map((match) => <li key={match.fixture_id}><time>{localDateTime(match.kickoff_utc)}</time><strong><MatchName match={match} /></strong><span>{outcomePresentation(match).label}</span></li>)}</ol> : <p className="v41-validation-empty">所选比赛日没有比赛记录；可使用上方日期浏览历史。</p>}
+          {matches.length ? <p className={replayPresentation.tone === "warning" ? "v41-validation-gaps" : "v41-validation-ok"}>{replayPresentation.summary}</p> : null}
         </section>
       </div>
       {workspace.validation.league_performance.length ? <details className="v41-validation-leagues"><summary>按联赛查看验证状态（{workspace.validation.league_performance.length}）</summary><ul>{workspace.validation.league_performance.slice(0, 13).map((league) => <li key={`${league.competition_id}-${league.source_league}`}><strong>{translateCompetition(league.competition_name || league.league, league.canonical_competition_id || league.competition_id)}</strong><span>{league.only_record_reason === "PROBABILITY_QUALITY_NOT_READY" ? "概率质量待就绪" : league.only_record_reason === "AGGREGATION_CONFLICT" ? "聚合冲突" : league.only_record_reason === "SAMPLE_INSUFFICIENT" ? "样本不足" : "可用"}</span></li>)}</ul></details> : null}
@@ -982,14 +1018,15 @@ function ValidationCenter({ workspace }: { workspace: IntelligenceWorkspace }) {
 }
 
 function SecondaryViews({ workspace }: { workspace: IntelligenceWorkspace }) {
+  const matches = projectedMatches(workspace);
   const replay = workspace.validation.history_replay;
   const recordLabel = historyRecordLabel(replay.record_kind);
-  const finishedCount = workspace.matches.filter((match) => match.outcome.is_finished).length;
-  const replayPresentation = publicPresentation(replay.public_semantics, { subject: "赛果", fixtureCount: workspace.matches.length, finishedCount, outcomeRecorded: workspace.matches.length > 0 && workspace.matches.every((match) => match.outcome.is_recorded) });
+  const finishedCount = matches.filter((match) => match.outcome.is_finished).length;
+  const replayPresentation = publicPresentation(replay.public_semantics, { subject: "赛果", fixtureCount: matches.length, finishedCount, outcomeRecorded: matches.length > 0 && matches.every((match) => match.outcome.is_recorded) });
   const publicStatus = selectedDayPublicStatus(workspace);
   return (
     <section className="v41-secondary" aria-label="数据与系统 / 辅助详情">
-      <details id="all-matches"><summary>全部比赛</summary><ol>{byKickoff(workspace.matches).map((match) => <li key={match.fixture_id}><span>{localDateTime(match.kickoff_utc)}</span><strong><MatchName match={match} /></strong><b>{label(match.readiness.market_aggregate_status)}</b></li>)}</ol></details>
+      <details id="all-matches"><summary>全部比赛</summary><ol>{byKickoff(matches).map((match) => <li key={match.fixture_id}><span>{localDateTime(match.kickoff_utc)}</span><strong><MatchName match={match} /></strong><b>{label(match.readiness.market_aggregate_status)}</b></li>)}</ol></details>
       <details data-contract="HISTORICAL_INCREMENTAL_EDGE=NOT_PROVEN" id="history"><summary>证据审计台 / {recordLabel}</summary><p>{recordLabel} {replay.decision_summary.total_cards} · {replayPresentation.summary}</p><details><summary>技术合同</summary><p>原始状态：<code>{replay.status}</code></p><p>原始缺口：{replay.replay_gaps.map((gap) => <code key={gap}>{gap}</code>)}</p><code>HISTORICAL_INCREMENTAL_EDGE=NOT_PROVEN</code></details></details>
       <details id="system-status"><summary>系统状态与读取合同</summary><p>13 联赛 · 影子候选 {workspace.runtime.candidate === "SHADOW_ONLY" ? "已启用" : "未启用"} · 正式、锁定、生产与实盘均关闭</p><p>所选比赛日公开状态：{publicStatus.label}</p><details><summary>技术字段</summary><p><code>{workspace.data_operations.system_health}</code></p><p><code>provider_calls={workspace.read_contract.provider_calls}</code> · <code>db_writes={workspace.read_contract.db_writes}</code> · <code>would_write_checkpoint={String(workspace.read_contract.would_write_checkpoint)}</code> · <code>no_call_on_read={String(workspace.read_contract.no_call_on_read)}</code></p></details></details>
     </section>
@@ -1025,7 +1062,7 @@ export function IntelligenceConsole(props: Props) {
       <CapabilityStatus workspace={workspace} />
       <div className="v41-main">
         <PriorityShortlist key={workspace.request_id} workspace={workspace} onSelect={setSelectedId} selectedId={selectedId} />
-        {selected ? <MatchFocus generatedAt={workspace.generated_at} match={selected} /> : <GlobalFocus date={props.date} onDateChange={props.onDateChange} workspace={workspace} />}
+        {selected ? isProjectionError(selected) ? <ProjectionErrorFocus match={selected} /> : <MatchFocus generatedAt={workspace.generated_at} match={selected} /> : <GlobalFocus date={props.date} onDateChange={props.onDateChange} workspace={workspace} />}
       </div>
       <ValidationCenter workspace={workspace} />
       <QualityRail workspace={workspace} />

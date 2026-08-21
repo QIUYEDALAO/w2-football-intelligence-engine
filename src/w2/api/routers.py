@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from datetime import datetime
 from typing import Annotated, Any, Literal
@@ -45,10 +46,14 @@ from w2.api.schemas import (
     RetentionStatusResponse,
     ValidationSummaryResponse,
     VersionResponse,
+    WorkspaceMatch,
+    WorkspaceMatchOutcome,
+    WorkspacePublicTeamLabel,
     WorldCupReadinessResponse,
 )
 from w2.config import Environment, get_settings
 from w2.dashboard.day_view import build_dashboard_day_view
+from w2.dashboard.results import normalize_match_status, outcome_public_cause
 from w2.dashboard.workspace import build_dashboard_intelligence_workspace
 from w2.domain.decision_contract import DecisionContractViolation
 from w2.domain.recommendation_capabilities import load_recommendation_capability_manifest
@@ -61,6 +66,7 @@ from w2.tracking.outcome_ledger_runtime import outcome_ledger_runtime_health
 public_router = APIRouter(prefix="/v1", tags=["public-read"])
 ops_router = APIRouter(prefix="/ops", tags=["operations-read"])
 service = ReadModelService()
+logger = logging.getLogger(__name__)
 DASHBOARD_WINDOWS = {"today", "next36", "future", "results", "all"}
 
 
@@ -122,6 +128,115 @@ async def error_handler(request: Request, exc: Exception) -> JSONResponse:
 def ensure_ops_enabled() -> None:
     if get_settings().environment == Environment.PRODUCTION:
         raise HTTPException(status_code=403, detail="operations API disabled in production")
+
+
+def _projection_error_team_label(match: dict[str, Any], side: str) -> dict[str, Any]:
+    raw = match.get(f"{side}_team_label")
+    try:
+        return WorkspacePublicTeamLabel.model_validate(raw).model_dump(mode="json")
+    except ValidationError:
+        name = str(match.get(f"{side}_team_name") or "球队待确认")
+        return {
+            "display_name": name,
+            "state": "IDENTITY_UNRESOLVED",
+            "canonical_team_id": None,
+            "provider_team_id": None,
+            "public_semantics": {"scope": "MATCH", "cause": "IDENTITY_UNRESOLVED"},
+            "technical": {"raw_provider_name": name},
+        }
+
+
+def _projection_error_outcome(
+    match: dict[str, Any], generated_at: Any
+) -> dict[str, Any]:
+    try:
+        return WorkspaceMatchOutcome.model_validate(match.get("outcome")).model_dump(mode="json")
+    except ValidationError:
+        finished = normalize_match_status(match.get("status")) == "FINISHED"
+        return {
+            "is_finished": finished,
+            "is_tracked": False,
+            "is_recorded": False,
+            "public_semantics": {
+                "scope": "MATCH",
+                "cause": outcome_public_cause(
+                    status=match.get("status"),
+                    kickoff_utc=match.get("kickoff_utc"),
+                    as_of=generated_at,
+                    is_tracked=False,
+                    is_recorded=False,
+                ),
+            },
+        }
+
+
+def _isolate_workspace_match_projection_failures(payload: dict[str, Any]) -> dict[str, Any]:
+    matches: list[dict[str, Any]] = []
+    failed_fixture_ids: set[str] = set()
+    for raw in payload.get("matches", []):
+        match = dict(raw)
+        try:
+            WorkspaceMatch.model_validate(match)
+        except ValidationError as exc:
+            fixture_id = str(match.get("fixture_id") or "UNKNOWN_FIXTURE")
+            detail = " | ".join(
+                f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"
+                for error in exc.errors(include_url=False, include_context=False)
+            )
+            logger.error(
+                "dashboard_match_projection_contract_violation fixture_id=%s detail=%s",
+                fixture_id,
+                detail,
+            )
+            failed_fixture_ids.add(fixture_id)
+            matches.append(
+                {
+                    "projection_status": "ERROR",
+                    "fixture_id": fixture_id,
+                    "competition_id": match.get("competition_id"),
+                    "competition_name": match.get("competition_name"),
+                    "kickoff_utc": match.get("kickoff_utc"),
+                    "home_team_name": match.get("home_team_name"),
+                    "away_team_name": match.get("away_team_name"),
+                    "home_team_label": _projection_error_team_label(match, "home"),
+                    "away_team_label": _projection_error_team_label(match, "away"),
+                    "public_semantics": {"scope": "MATCH", "cause": "UNAVAILABLE"},
+                    "status": match.get("status"),
+                    "outcome": _projection_error_outcome(match, payload.get("generated_at")),
+                    "projection_error": {
+                        "code": "MATCH_PROJECTION_CONTRACT_VIOLATION",
+                        "message": "该场投影未通过一致性校验，其余比赛不受影响",
+                        "detail": detail,
+                    },
+                }
+            )
+        else:
+            matches.append(match)
+    if not failed_fixture_ids:
+        return payload
+    isolated = dict(payload)
+    isolated["matches"] = matches
+    isolated["attention"] = [
+        item
+        for item in payload.get("attention", [])
+        if str(item.get("fixture_id") or "") not in failed_fixture_ids
+    ]
+    summary = dict(payload.get("today_summary", {}))
+    summary["match_count"] = len(matches)
+    summary["competition_count"] = len(
+        {match.get("competition_id") for match in matches if match.get("competition_id")}
+    )
+    summary["pending_owner_review_team_count"] = len(
+        {
+            label.get("canonical_team_id")
+            for match in matches
+            for label in (match["home_team_label"], match["away_team_label"])
+            if label.get("state") == "CHINESE_LABEL_PENDING_OWNER_REVIEW"
+            and label.get("canonical_team_id")
+        }
+    )
+    isolated["today_summary"] = summary
+    return isolated
 
 
 @public_router.get("/version", response_model=VersionResponse)
@@ -228,18 +343,19 @@ def dashboard_intelligence_workspace(
         outcomes=outcomes,
         as_of=day_view.get("generated_at"),
     )
+    workspace = build_dashboard_intelligence_workspace(
+        day_view,
+        replay=replay,
+        model_forecasts=model_forecasts,
+        model_forecast_progress=model_forecast_progress,
+        candidate_enabled=os.environ.get("W2_CANDIDATE_ENABLED", "false").lower() == "true",
+        recommendation_capabilities=load_recommendation_capability_manifest().public_summary()[
+            "capabilities"
+        ],
+    )
     return {
         "request_id": request_id(request),
-        **build_dashboard_intelligence_workspace(
-            day_view,
-            replay=replay,
-            model_forecasts=model_forecasts,
-            model_forecast_progress=model_forecast_progress,
-            candidate_enabled=os.environ.get("W2_CANDIDATE_ENABLED", "false").lower() == "true",
-            recommendation_capabilities=load_recommendation_capability_manifest().public_summary()[
-                "capabilities"
-            ],
-        ),
+        **_isolate_workspace_match_projection_failures(workspace),
     }
 
 

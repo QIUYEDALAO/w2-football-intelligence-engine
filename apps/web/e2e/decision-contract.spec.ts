@@ -4,6 +4,7 @@ import type {
   IntelligenceWorkspace,
   WorkspaceMarket,
   WorkspaceMatch,
+  WorkspaceMatchProjectionError,
   WorkspaceRisks,
   WorkspaceDateStripEntry,
 } from "../src/types/intelligenceWorkspace";
@@ -858,6 +859,40 @@ test("V41 keeps the zero-observation market state explicit", async ({ page }, te
   await expect(focus.getByText("0 个真实快照", { exact: false })).toHaveCount(2);
   await expect(focus.getByText("暂无已落盘时间线证据，不推断走势。", { exact: true })).toHaveCount(2);
   await focus.screenshot({ animations: "disabled", path: testInfo.outputPath("actual-market-evidence-zero.png") });
+});
+
+test("one match projection failure remains visible without hiding the selected day", async ({ page }) => {
+  const payload = workspace();
+  const source = payload.matches[0] as WorkspaceMatch;
+  const failed: WorkspaceMatchProjectionError = {
+    projection_status: "ERROR",
+    fixture_id: source.fixture_id,
+    competition_id: source.competition_id,
+    competition_name: source.competition_name,
+    kickoff_utc: source.kickoff_utc,
+    home_team_name: source.home_team_name,
+    away_team_name: source.away_team_name,
+    home_team_label: source.home_team_label,
+    away_team_label: source.away_team_label,
+    public_semantics: { scope: "MATCH", cause: "UNAVAILABLE" },
+    status: source.status,
+    outcome: source.outcome,
+    projection_error: {
+      code: "MATCH_PROJECTION_CONTRACT_VIOLATION",
+      message: "该场投影未通过一致性校验，其余比赛不受影响",
+      detail: "contract mismatch",
+    },
+  };
+  payload.matches[0] = failed;
+  payload.selected_fixture_id = failed.fixture_id;
+  await page.route("**/v1/dashboard/intelligence-workspace?**", (route) => route.fulfill({ status: 200, json: payload }));
+
+  await page.goto("/");
+
+  await expect(page.locator("[data-fixture-id]")).toHaveCount(4);
+  await expect(page.locator(".v41-shortlist")).toContainText("投影异常 · 1 场");
+  await expect(page.locator(".v41-focus")).toContainText("单场投影已隔离");
+  await expect(page.locator(".v41-focus")).toContainText("其余比赛不受影响");
 });
 
 test("V41 scoreline is exact 10,000 existing simulations with unconditional probability and sample count", async ({ page }) => {

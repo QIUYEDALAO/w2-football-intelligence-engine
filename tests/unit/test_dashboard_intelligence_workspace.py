@@ -11,8 +11,10 @@ from typing import Any
 import pytest
 
 from w2.api import repository as repository_module
+from w2.api.routers import _isolate_workspace_match_projection_failures
 from w2.api.schemas import (
     DashboardIntelligenceWorkspaceResponse,
+    WorkspaceMatchProjectionError,
     WorkspaceModelForecastProgress,
 )
 from w2.config import get_settings
@@ -2583,16 +2585,31 @@ def test_data_risk_keeps_lineup_missing_after_collection_is_due() -> None:
 def test_not_yet_due_lineup_alone_is_not_an_abnormal_data_risk() -> None:
     day_view = _day_view()
     card = day_view["cards"][0]
+    card["evaluation_checkpoints"] = [
+        _evaluation_plan(checkpoint, "PLANNED", scheduled_at)
+        for checkpoint, scheduled_at in (
+            ("T3_ODDS", "2026-08-09T05:00:00Z"),
+            ("T60_ODDS_LINEUPS", "2026-08-10T09:00:00Z"),
+            ("T45_ODDS", "2026-08-10T09:15:00Z"),
+            ("T-30m_VALIDATION_LOCK", "2026-08-10T09:30:00Z"),
+            ("T15_ODDS", "2026-08-10T09:45:00Z"),
+        )
+    ]
     card["missing_fields"] = ["lineups"]
     card["risk_dimensions"]["DATA_RISK"] = {
         "dimension": "DATA_RISK",
         "status": "INCIDENT",
-        "reason_codes": ["DATA_REQUIRED_INPUT_MISSING", "DATA_STATUS_BLOCKED"],
+        "reason_codes": [
+            "DATA_MARKET_TIMELINE_INSUFFICIENT",
+            "DATA_REQUIRED_INPUT_MISSING",
+            "DATA_STATUS_BLOCKED",
+        ],
     }
 
     risk = _workspace(day_view)["matches"][0]["risks"]["DATA_RISK"]
 
     assert risk["status"] == "OK"
+    assert risk["reason_codes"] == []
     assert risk["explanation"] == "尚无到期的数据输入缺口"
 
 
@@ -2608,6 +2625,40 @@ def test_schema_rejects_not_yet_due_lineup_as_anomalous_missing_input() -> None:
         DashboardIntelligenceWorkspaceResponse.model_validate(
             {"request_id": "lineup-cross-panel-contradiction", **payload}
         )
+
+
+def test_one_invalid_match_projection_does_not_fail_the_selected_day(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    payload = _workspace(_day_view())
+    failed = payload["matches"][0]
+    failed["readiness"]["missing_fields"] = ["lineups"]
+    failed["lineup_collection"]["public_semantics"]["cause"] = "NOT_YET_DUE"
+    failed["risks"]["DATA_RISK"].update(
+        {
+            "status": "INCIDENT",
+            "reason_codes": ["DATA_REQUIRED_INPUT_MISSING", "DATA_STATUS_BLOCKED"],
+            "explanation": "必需输入尚未齐全",
+        }
+    )
+
+    isolated = _isolate_workspace_match_projection_failures(payload)
+    validated = DashboardIntelligenceWorkspaceResponse.model_validate(
+        {"request_id": "isolated-match-projection", **isolated}
+    )
+
+    assert len(validated.matches) == 3
+    assert validated.matches[0].fixture_id == failed["fixture_id"]
+    assert isinstance(validated.matches[0], WorkspaceMatchProjectionError)
+    assert validated.matches[0].projection_status == "ERROR"
+    assert {match.fixture_id for match in validated.matches[1:]} == {
+        "fixture-one",
+        "fixture-two",
+    }
+    assert failed["fixture_id"] not in {
+        item.fixture_id for item in validated.attention
+    }
+    assert "dashboard_match_projection_contract_violation" in caplog.text
 
 
 @pytest.mark.parametrize(

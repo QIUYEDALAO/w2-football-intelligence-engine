@@ -2075,6 +2075,16 @@ def _match_risks(
     result = _risks(source)
     data_risk = result["DATA_RISK"]
     lineup_cause = _optional_text(_mapping(lineup_collection.get("public_semantics")).get("cause"))
+    market_cause = _optional_text(_mapping(market_collection.get("public_semantics")).get("cause"))
+    diagnosis_status = _text(
+        _mapping(_mapping(evaluation_execution).get("diagnosis")).get("status")
+    )
+    if market_cause == "NOT_YET_DUE" and diagnosis_status == "CHECKPOINT_NOT_DUE":
+        data_risk["reason_codes"] = [
+            reason
+            for reason in _string_list(data_risk.get("reason_codes"))
+            if reason != "DATA_MARKET_TIMELINE_INSUFFICIENT"
+        ]
     hard_gate_factor_ids = {
         _text(factor.get("factor_id"))
         for factor in _mapping_list(factor_checklist.get("factors"))

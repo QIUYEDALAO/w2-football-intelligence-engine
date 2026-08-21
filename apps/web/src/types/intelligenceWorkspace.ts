@@ -412,6 +412,28 @@ export interface WorkspaceMatch {
   };
 }
 
+export interface WorkspaceMatchProjectionError {
+  projection_status: "ERROR";
+  fixture_id: string;
+  competition_id: string | null;
+  competition_name: string | null;
+  kickoff_utc: string | null;
+  home_team_name: string | null;
+  away_team_name: string | null;
+  home_team_label: WorkspacePublicTeamLabel;
+  away_team_label: WorkspacePublicTeamLabel;
+  public_semantics: PublicStatusSemantics;
+  status: string | null;
+  outcome: WorkspaceMatch["outcome"];
+  projection_error: {
+    code: "MATCH_PROJECTION_CONTRACT_VIOLATION";
+    message: string;
+    detail: string;
+  };
+}
+
+export type WorkspaceMatchItem = WorkspaceMatch | WorkspaceMatchProjectionError;
+
 export interface WorkspaceCompetitionPerformance {
   league: string;
   source_league: string;
@@ -646,7 +668,7 @@ export interface IntelligenceWorkspace {
   navigation: Record<string, unknown>;
   date_strip: WorkspaceDateStripEntry[];
   attention: WorkspaceAttentionItem[];
-  matches: WorkspaceMatch[];
+  matches: WorkspaceMatchItem[];
   validation: WorkspaceValidation;
   external_intelligence: Record<string, {
     status: "NOT_CONNECTED";
