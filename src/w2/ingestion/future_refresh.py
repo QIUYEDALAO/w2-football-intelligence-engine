@@ -1615,6 +1615,7 @@ class FutureFixtureRefreshService:
             except Exception as exc:
                 elapsed_ms = int((time.monotonic() - started) * 1000)
                 timeout_error = ApiFootballClient._transport_error(exc) == "PROVIDER_TIMEOUT"
+                transport_error = isinstance(exc, OSError)
                 if self.provider_call_reservation is not None and call_ordinal is not None:
                     self.provider_call_reservation.record_provider_outcome(
                         call_ordinal,
@@ -1653,13 +1654,13 @@ class FutureFixtureRefreshService:
                     ) from exc
                 retry_limit = (
                     min(provider_timeout_max_attempts(), max_attempts)
-                    if timeout_error
+                    if transport_error
                     else min(provider_http_max_attempts(), max_attempts)
                 )
                 if attempt < retry_limit:
                     delay = (
                         provider_timeout_retry_backoff_seconds()
-                        if timeout_error
+                        if transport_error
                         else 0.2
                     )
                     self.sleep(delay * (2 ** (attempt - 1)))

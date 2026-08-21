@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import urllib.error
 from base64 import b64encode
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -1375,6 +1376,42 @@ def test_timeout_retries_once_with_bounded_backoff(
     assert sleeps == [2]
     assert "competition_id=world_cup_2026 endpoint=status" in caplog.text
     assert "attempt=2 retry_number=1 max_attempts=2" in caplog.text
+
+
+def test_url_error_retries_once_without_retrying_http_statuses(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "1")
+    monkeypatch.setenv("W2_PROVIDER_TIMEOUT_MAX_ATTEMPTS", "2")
+    monkeypatch.setenv("W2_PROVIDER_REFRESH_TICK_HARD_CAP", "100")
+    calls = 0
+    sleeps: list[float] = []
+
+    class UrlErrorProvider:
+        def request_live(
+            self,
+            endpoint: str,
+            params: dict[str, str],
+        ) -> LiveApiFootballResponse:
+            nonlocal calls
+            calls += 1
+            raise urllib.error.URLError("connection reset")
+
+    result = FutureFixtureRefreshService(
+        client=UrlErrorProvider(),
+        config=FutureRefreshConfig(
+            runtime_root=tmp_path,
+            persistence="file",
+            request_budget=2,
+        ),
+        now=NOW,
+        sleep=sleeps.append,
+    ).run()
+
+    assert result.blockers == ["URLError"]
+    assert calls == 2
+    assert sleeps == [2]
 
 
 def test_gate_a_uncertain_delivery_reserves_once_and_never_retries(
