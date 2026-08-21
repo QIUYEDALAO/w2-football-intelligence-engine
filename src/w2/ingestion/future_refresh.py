@@ -55,6 +55,9 @@ from w2.providers.control import (
     provider_endpoint_allowlist,
     provider_http_max_attempts,
     provider_refresh_tick_hard_cap,
+    provider_request_max_attempts,
+    provider_timeout_max_attempts,
+    provider_timeout_retry_backoff_seconds,
 )
 from w2.providers.quota import (
     API_FOOTBALL_FREE_DAILY_LIMIT,
@@ -1592,7 +1595,9 @@ class FutureFixtureRefreshService:
         if not self._endpoint_authorized(endpoint):
             raise FutureRefreshError(f"ENDPOINT_NOT_AUTHORIZED:{endpoint}")
         last_error: Exception | None = None
-        max_attempts = provider_http_max_attempts()
+        max_attempts = (
+            1 if self.runtime_authorization is not None else provider_request_max_attempts()
+        )
         for attempt in range(1, max_attempts + 1):
             if self._attempt_count >= self.config.request_budget:
                 raise FutureRefreshError("REQUEST_BUDGET_EXHAUSTED")
@@ -1608,6 +1613,8 @@ class FutureFixtureRefreshService:
             try:
                 response = self.client.request_live(endpoint, params)
             except Exception as exc:
+                elapsed_ms = int((time.monotonic() - started) * 1000)
+                timeout_error = ApiFootballClient._transport_error(exc) == "PROVIDER_TIMEOUT"
                 if self.provider_call_reservation is not None and call_ordinal is not None:
                     self.provider_call_reservation.record_provider_outcome(
                         call_ordinal,
@@ -1621,19 +1628,41 @@ class FutureFixtureRefreshService:
                         "params": sanitize_params(params),
                         "attempt": attempt,
                         "status_code": None,
-                        "elapsed_ms": int((time.monotonic() - started) * 1000),
+                        "elapsed_ms": elapsed_ms,
                         "captured_at_utc": iso(captured_at),
                         "remaining_quota": self._latest_remaining,
                         "payload_sha256": None,
                         "error_code": exc.__class__.__name__,
                     }
                 )
+                if timeout_error:
+                    timeout_max_attempts = min(provider_timeout_max_attempts(), max_attempts)
+                    logger.warning(
+                        "PROVIDER_REQUEST_TIMEOUT competition_id=%s endpoint=%s "
+                        "elapsed_ms=%s attempt=%s retry_number=%s max_attempts=%s",
+                        self.config.competition_id,
+                        endpoint,
+                        elapsed_ms,
+                        attempt,
+                        attempt - 1,
+                        timeout_max_attempts,
+                    )
                 if self.runtime_authorization is not None:
                     raise FutureRefreshError(
                         f"PROVIDER_DELIVERY_UNCERTAIN:{exc.__class__.__name__}"
                     ) from exc
-                if attempt < max_attempts:
-                    self.sleep(0.2 * (2 ** (attempt - 1)))
+                retry_limit = (
+                    min(provider_timeout_max_attempts(), max_attempts)
+                    if timeout_error
+                    else min(provider_http_max_attempts(), max_attempts)
+                )
+                if attempt < retry_limit:
+                    delay = (
+                        provider_timeout_retry_backoff_seconds()
+                        if timeout_error
+                        else 0.2
+                    )
+                    self.sleep(delay * (2 ** (attempt - 1)))
                     continue
                 raise FutureRefreshError(exc.__class__.__name__) from exc
             if self.provider_call_reservation is not None and call_ordinal is not None:
@@ -1754,7 +1783,7 @@ class FutureFixtureRefreshService:
                 raise FutureRefreshError(scope_observation_error)
             if status == 429 and self.runtime_authorization is not None:
                 raise FutureRefreshError("PROVIDER_MINUTE_RATE_LIMIT_EXCEEDED")
-            if status == 429 and attempt < max_attempts:
+            if status == 429 and attempt < min(provider_http_max_attempts(), max_attempts):
                 self.sleep(0.2 * (2 ** (attempt - 1)))
                 continue
             if status >= 400:
@@ -2308,7 +2337,10 @@ class FutureFixtureRefreshService:
         )
 
     def _planned_provider_calls(self) -> int:
-        return self._projected_provider_calls() * provider_http_max_attempts()
+        max_attempts = (
+            1 if self.runtime_authorization is not None else provider_request_max_attempts()
+        )
+        return self._projected_provider_calls() * max_attempts
 
     def _endpoint_authorized(self, endpoint: str) -> bool:
         return endpoint in provider_endpoint_allowlist()
@@ -3456,7 +3488,7 @@ def run_future_fixture_refresh(
             max_odds_requests=0,
             feature_enrichment_enabled=False,
             feature_enrichment_request_budget=0,
-            request_budget=max(config.request_budget, provider_http_max_attempts()),
+            request_budget=max(config.request_budget, provider_request_max_attempts()),
         )
     if checkpoint_fixture_ids or refresh_checkpoints:
         endpoint_sets = [set(item.get("endpoints") or []) for item in refresh_checkpoints]
@@ -3501,7 +3533,7 @@ def run_future_fixture_refresh(
             feature_enrichment_request_budget=lineups_count,
             request_budget=max(
                 config.request_budget,
-                logical_calls * provider_http_max_attempts(),
+                logical_calls * provider_request_max_attempts(),
             ),
         )
     service = FutureFixtureRefreshService(

@@ -13,7 +13,11 @@ from w2.infrastructure.persistence.ingestion_models import (
     ProviderRequestLogModel,
     QuotaUsageModel,
 )
-from w2.providers.ledger import DbProviderRequestLedger, ProviderLedgerError
+from w2.providers.ledger import (
+    DbProviderRequestLedger,
+    ProviderLedgerError,
+    provider_timeout_count_since,
+)
 
 NOW = datetime(2026, 7, 3, 1, 0, tzinfo=UTC)
 
@@ -225,3 +229,39 @@ def test_db_provider_ledger_accepts_only_exact_duplicate(monkeypatch, tmp_path) 
 
     with pytest.raises(ProviderLedgerError, match="PROVIDER_REQUEST_LEDGER_CONFLICT"):
         ledger.record_request(**{**kwargs, "status_code": 503})
+
+
+def test_provider_timeout_count_since_counts_live_api_football_attempts(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'ledger.db'}"
+    monkeypatch.setenv("W2_DATABASE_URL", database_url)
+    get_settings.cache_clear()
+    engine = create_engine(database_url)
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        session.add_all(
+            [
+                ProviderRequestLogModel(
+                    provider="api_football",
+                    endpoint="fixtures",
+                    request_hash=f"{index:064x}",
+                    live=live,
+                    requested_at=requested_at,
+                    completed_at=requested_at,
+                    error=error,
+                )
+                for index, (live, requested_at, error) in enumerate(
+                    (
+                        (True, NOW, "PROVIDER_TIMEOUT"),
+                        (True, NOW - timedelta(days=2), "PROVIDER_TIMEOUT"),
+                        (False, NOW, "PROVIDER_TIMEOUT"),
+                        (True, NOW, "PROVIDER_CONNECTION_ERROR"),
+                    )
+                )
+            ]
+        )
+        session.commit()
+
+    assert provider_timeout_count_since(NOW - timedelta(hours=24)) == 1

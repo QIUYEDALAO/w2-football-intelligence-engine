@@ -1348,7 +1348,40 @@ def test_provider_ingress_defaults_to_fail_closed(tmp_path: Path) -> None:
     assert service.client.allow_live is False
 
 
-def test_gate_a_uncertain_delivery_reserves_once_and_never_retries(tmp_path: Path) -> None:
+def test_timeout_retries_once_with_bounded_backoff(
+    tmp_path: Path,
+    monkeypatch,
+    caplog,
+) -> None:
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "1")
+    monkeypatch.setenv("W2_PROVIDER_TIMEOUT_MAX_ATTEMPTS", "2")
+    monkeypatch.setenv("W2_PROVIDER_REFRESH_TICK_HARD_CAP", "100")
+    client = _FailingProvider()
+    sleeps: list[float] = []
+    result = FutureFixtureRefreshService(
+        client=client,
+        config=FutureRefreshConfig(
+            runtime_root=tmp_path,
+            persistence="file",
+            request_budget=2,
+        ),
+        now=NOW,
+        sleep=sleeps.append,
+    ).run()
+
+    assert result.status == "BLOCKED"
+    assert result.blockers == ["TimeoutError"]
+    assert client.calls == 2
+    assert sleeps == [2]
+    assert "competition_id=world_cup_2026 endpoint=status" in caplog.text
+    assert "attempt=2 retry_number=1 max_attempts=2" in caplog.text
+
+
+def test_gate_a_uncertain_delivery_reserves_once_and_never_retries(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("W2_PROVIDER_HTTP_MAX_ATTEMPTS", "1")
     client = _FailingProvider()
     reservation = _CallReservation()
     result = FutureFixtureRefreshService(
@@ -1662,7 +1695,9 @@ def test_future_refresh_records_401_without_retry(tmp_path: Path) -> None:
     assert "PROVIDER_HTTP_401" in audit
 
 
-def test_future_refresh_records_429_without_tight_retry(tmp_path: Path) -> None:
+def test_future_refresh_records_429_without_tight_retry(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("W2_PROVIDER_TIMEOUT_MAX_ATTEMPTS", "2")
+    monkeypatch.setenv("W2_PROVIDER_REFRESH_TICK_HARD_CAP", "100")
     client = FakeApiFootballClient(status_code=429)
     config = FutureRefreshConfig(runtime_root=tmp_path, persistence="file")
     result = FutureFixtureRefreshService(

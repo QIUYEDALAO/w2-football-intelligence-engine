@@ -14,6 +14,7 @@ PROVIDER_SCHEDULER_DISABLED = "SKIPPED_PROVIDER_SCHEDULER_DISABLED"
 PROVIDER_SCHEDULER_DEDUP_UNAVAILABLE = "PROVIDER_SCHEDULER_DEDUP_UNAVAILABLE"
 DUPLICATE_TASK_KEY_SUPPRESSED = "DUPLICATE_TASK_KEY_SUPPRESSED"
 MAX_PROVIDER_HTTP_ATTEMPTS = 3
+MAX_PROVIDER_REQUEST_TIMEOUT_SECONDS = 60
 
 # Exact fixture scopes observed returning API-Football's Free-plan season-access
 # error on 2026-08-16. Unknown league/season pairs must still be dispatched.
@@ -120,6 +121,28 @@ def provider_http_max_attempts() -> int:
         max(env_int("W2_PROVIDER_HTTP_MAX_ATTEMPTS", default=1), 1),
         MAX_PROVIDER_HTTP_ATTEMPTS,
     )
+
+
+def provider_timeout_max_attempts() -> int:
+    return min(
+        max(env_int("W2_PROVIDER_TIMEOUT_MAX_ATTEMPTS", default=1), 1),
+        MAX_PROVIDER_HTTP_ATTEMPTS,
+    )
+
+
+def provider_request_max_attempts() -> int:
+    return max(provider_http_max_attempts(), provider_timeout_max_attempts())
+
+
+def provider_request_timeout_seconds() -> int:
+    return min(
+        max(env_int("W2_PROVIDER_REQUEST_TIMEOUT_SECONDS", default=45), 1),
+        MAX_PROVIDER_REQUEST_TIMEOUT_SECONDS,
+    )
+
+
+def provider_timeout_retry_backoff_seconds() -> int:
+    return min(max(env_int("W2_PROVIDER_TIMEOUT_RETRY_BACKOFF_SECONDS", default=2), 0), 30)
 
 
 def free_plan_fixture_scope_restriction(params: dict[str, str]) -> dict[str, Any] | None:

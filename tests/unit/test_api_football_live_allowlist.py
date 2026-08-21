@@ -88,6 +88,40 @@ def test_api_football_statistics_uses_fixtures_statistics_http_path(monkeypatch)
     assert captured["url"].endswith("/fixtures/statistics?fixture=1489404")
 
 
+def test_api_football_request_timeout_is_configurable_and_capped(monkeypatch) -> None:
+    captured: dict[str, int] = {}
+
+    class FakeResponse:
+        status = 200
+        headers: dict[str, str] = {}
+
+        def __enter__(self) -> FakeResponse:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b'{"response": []}'
+
+    def fake_urlopen(request: urllib.request.Request, timeout: int) -> FakeResponse:
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setenv("W2_PROVIDER_CALLS_DISABLED", "false")
+    monkeypatch.setenv("W2_PROVIDER_ENDPOINT_ALLOWLIST", "fixtures")
+    monkeypatch.setenv("W2_API_FOOTBALL_API_KEY", "test-key")
+    monkeypatch.setenv("W2_PROVIDER_REQUEST_TIMEOUT_SECONDS", "90")
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+
+    ApiFootballClient(
+        allow_live=True,
+        allowed_live_endpoints=frozenset({"fixtures"}),
+    ).request_live("fixtures", {"league": "128", "season": "2026"})
+
+    assert captured["timeout"] == 60
+
+
 def test_api_football_squads_uses_players_squads_http_path(monkeypatch) -> None:
     captured: dict[str, str] = {}
 

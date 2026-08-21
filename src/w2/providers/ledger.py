@@ -6,7 +6,7 @@ import os
 from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -211,6 +211,23 @@ def provider_request_ledger_from_env() -> ProviderRequestLedger | None:
     if os.environ.get("W2_PROVIDER_REQUEST_LEDGER_ENABLED", "false").lower() != "true":
         return None
     return DbProviderRequestLedger()
+
+
+def provider_timeout_count_since(since: datetime) -> int:
+    with Session(create_engine()) as session:
+        return int(
+            session.scalar(
+                select(func.count())
+                .select_from(ProviderRequestLogModel)
+                .where(
+                    ProviderRequestLogModel.provider == "api_football",
+                    ProviderRequestLogModel.live.is_(True),
+                    ProviderRequestLogModel.error == "PROVIDER_TIMEOUT",
+                    ProviderRequestLogModel.requested_at >= since.astimezone(UTC),
+                )
+            )
+            or 0
+        )
 
 
 def _utc(value: datetime | None) -> datetime | None:

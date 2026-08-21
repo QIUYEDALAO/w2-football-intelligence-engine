@@ -204,6 +204,18 @@ def test_controlled_future_refresh_is_source_controlled_and_deployed_with_schedu
         assert environment["W2_CANDIDATE_ENABLED"] == "true"
         assert environment["W2_FORMAL_RECOMMENDATION_ENABLED"] == "false"
         assert environment["W2_PRODUCTION_RELEASE"] == "false"
+    common = yaml.safe_load(
+        (ROOT / "infra/compose/compose.staging.yml").read_text(encoding="utf-8")
+    )["x-common-env"]
+    assert common["W2_PROVIDER_REQUEST_TIMEOUT_SECONDS"] == (
+        "${W2_PROVIDER_REQUEST_TIMEOUT_SECONDS:-45}"
+    )
+    assert common["W2_PROVIDER_TIMEOUT_MAX_ATTEMPTS"] == (
+        "${W2_PROVIDER_TIMEOUT_MAX_ATTEMPTS:-2}"
+    )
+    assert common["W2_PROVIDER_TIMEOUT_RETRY_BACKOFF_SECONDS"] == (
+        "${W2_PROVIDER_TIMEOUT_RETRY_BACKOFF_SECONDS:-2}"
+    )
     assert scheduler["W2_FUTURE_FIXTURE_REFRESH_ENABLED"] == "true"
     assert scheduler["W2_POSTMATCH_ONLY_ENABLED"] == (
         "${W2_POSTMATCH_ONLY_ENABLED:-false}"
