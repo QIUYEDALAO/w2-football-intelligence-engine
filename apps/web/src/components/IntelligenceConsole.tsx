@@ -514,7 +514,7 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
     const statusCopy = match.outcome.is_finished
       ? finishedSummary
       : kind === "priority"
-        ? `优先 ${priorityPosition} · ${movement || REASON_LABELS[match.priority_reason_primary || ""] || label(match.priority_reason_primary)}${match.evaluation_execution.status === "UNASSESSED" ? ` · 尚未评估：${diagnosis}` : ""}`
+        ? `重点 ${priorityPosition} · ${movement || REASON_LABELS[match.priority_reason_primary || ""] || label(match.priority_reason_primary)}${match.evaluation_execution.status === "UNASSESSED" ? ` · 尚未评估：${diagnosis}` : ""}`
         : kind === "attention"
           ? `关注 · ${diagnosis}`
           : limited ? `${presentation.label} · ${diagnosis}` : diagnosis;
@@ -545,12 +545,12 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
     </button>;
   };
   return (
-    <aside className="v41-shortlist" aria-label={`关注情报 / ${dayNoun}优先查看`} data-ui="attention-feed">
-      <header><span>{dayNoun}优先查看 · 按信息价值排序 · <span className="v41-no-break">优先阈值：</span>盘口移动或任一侧赔率相对变化 ≥ {(workspace.runtime.market_price_attention_threshold_ratio * 100).toFixed(0)}%</span><b>{prioritized.length} 场优先 · {filteredMatches.length} 场可滚动查看</b></header>
+    <aside className="v41-shortlist" aria-label={`关注情报 / ${dayNoun}盘口赔率变化重点观察`} data-ui="attention-feed">
+      <header><span>{dayNoun}盘口/赔率变化重点观察 · 按信息价值排序 · <span className="v41-no-break">观察阈值：</span>盘口移动或任一侧赔率相对变化 ≥ {(workspace.runtime.market_price_attention_threshold_ratio * 100).toFixed(0)}%</span><b>{prioritized.length} 场重点观察 · {filteredMatches.length} 场可滚动查看</b></header>
       {competitions.length > 1 ? <div aria-label="按联赛筛选比赛" className="v41-shortlist-filters" role="toolbar"><button aria-pressed={activeCompetition === "ALL"} onClick={() => selectCompetition("ALL")} type="button">全部 <b>{matches.length}</b></button>{competitions.map((competition) => <button aria-pressed={activeCompetition === competition.key} key={competition.key} onClick={() => selectCompetition(competition.key)} type="button">{competition.label} <b>{competition.count}</b></button>)}</div> : null}
       <div aria-label={`${activeCompetition === "ALL" ? "全部联赛" : competitions.find((item) => item.key === activeCompetition)?.label || "已选联赛"}比赛列表`} className="v41-shortlist-list" tabIndex={0}>
         {empty ? <div className="v41-shortlist-empty">本比赛日观察池内没有比赛</div> : null}
-        {aggregate ? <div className="v41-shortlist-empty">{limited ? presentation.summary : `${dayNoun}无需优先排查；这是有效观测结果。`}</div> : null}
+        {aggregate ? <div className="v41-shortlist-empty">{limited ? presentation.summary : `${dayNoun}无盘口/赔率变化重点观察；这是有效观测结果。`}</div> : null}
         {projectionFailures.length ? <><div className="v41-shortlist-group">投影异常 · {projectionFailures.length} 场</div>{projectionFailures.map(projectionErrorRow)}</> : null}
         {limited && !matches.length ? (
           <div className="v41-shortlist-incident">
@@ -562,8 +562,8 @@ function PriorityShortlist({ workspace, selectedId, onSelect }: { workspace: Int
             </span>
           </div>
         ) : null}
-        {prioritized.length ? <><div className="v41-shortlist-group">优先查看 · {prioritized.length} 场</div>{prioritized.map((match) => row(match, "priority"))}</> : null}
-        {otherAttention.length ? <><div className="v41-shortlist-group">其他关注 · {otherAttention.length} 场（不计入优先）</div>{otherAttention.map((match) => row(match, "attention"))}</> : null}
+        {prioritized.length ? <><div className="v41-shortlist-group">重点观察 · {prioritized.length} 场</div>{prioritized.map((match) => row(match, "priority"))}</> : null}
+        {otherAttention.length ? <><div className="v41-shortlist-group">其他关注 · {otherAttention.length} 场（未触发变化阈值）</div>{otherAttention.map((match) => row(match, "attention"))}</> : null}
         {remaining.length ? <><div className="v41-shortlist-group">{limited ? "盘口证据待采集" : "其他比赛"} · {remaining.length} 场</div>{remaining.map((match) => row(match, "remaining"))}</> : null}
         {!empty && !filteredMatches.length ? <div className="v41-shortlist-empty">所选联赛暂无比赛</div> : null}
       </div>

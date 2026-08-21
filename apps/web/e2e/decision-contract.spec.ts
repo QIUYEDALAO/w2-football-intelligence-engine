@@ -445,7 +445,8 @@ test("V41 uses the selected fixture fact and never falls back to matches[0]", as
   await expect(page.locator(".v41-focus")).toHaveAttribute("data-fixture-id", "1571806");
   await expect(page.locator(".v41-shortlist-list button").first()).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".v41-focus h1")).toContainText("本菲卡");
-  await expect(page.locator(".v41-shortlist > header")).toContainText("赔率相对变化 ≥ 2%");
+  await expect(page.locator(".v41-shortlist > header")).toContainText("盘口/赔率变化重点观察");
+  await expect(page.locator(".v41-shortlist > header")).toContainText("观察阈值：盘口移动或任一侧赔率相对变化 ≥ 2%");
   await expect(page.getByLabel("选择比赛日")).toHaveValue(/^\d{4}-\d{2}-\d{2}$/);
   await expect(page.locator(".v41-today-day")).toContainText("比赛日 2026-08-09 12:00 → 2026-08-10 12:00（不含）");
 });
@@ -527,10 +528,10 @@ test("raw system health cannot override collection windows or candidate quote ag
   await expect(page.locator("header.v41-header")).toContainText("市场证据可用");
   await expect(page.locator("header.v41-header")).not.toContainText("BLOCKED DAY");
   await expect(page.locator(".v41-focus")).toHaveAttribute("data-fixture-id", "1571806");
-  await expect(page.locator(".v41-shortlist > header")).toContainText("0 场优先");
+  await expect(page.locator(".v41-shortlist > header")).toContainText("0 场重点观察");
   await expect(page.locator(".v41-shortlist-list")).not.toContainText("证据已过期");
   await expect(page.locator(".v41-shortlist-list")).toContainText("关注 · 尚无权威评估结论");
-  await expect(page.locator(".v41-shortlist-list")).toContainText("其他关注 · 3 场（不计入优先）");
+  await expect(page.locator(".v41-shortlist-list")).toContainText("其他关注 · 3 场（未触发变化阈值）");
   await expect(page.locator(".v41-focus-summary")).toContainText("尚无权威评估结论");
 });
 
@@ -1007,7 +1008,7 @@ test("V41 match browser exposes all fixtures in priority order and one filter pe
   expect(new Set(rowHeights).size).toBe(1);
   await expect(list.locator(".v41-shortlist-title strong").first()).toHaveCSS("white-space", "nowrap");
   await expect(list.locator(".v41-shortlist-title").first()).toHaveAttribute("title", / vs /);
-  await expect(list.locator("button[data-fixture-id]").first()).toContainText("优先 1");
+  await expect(list.locator("button[data-fixture-id]").first()).toContainText("重点 1");
   const scroll = await list.evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight, overflowY: getComputedStyle(element).overflowY }));
   expect(scroll.overflowY).toBe("auto");
   expect(scroll.scrollHeight).toBeGreaterThan(scroll.clientHeight);
@@ -1024,7 +1025,7 @@ test("V41 match browser exposes all fixtures in priority order and one filter pe
   await shortlist.screenshot({ animations: "disabled", path: testInfo.outputPath("match-browser-all-bottom.png") });
   await filters.getByRole("button", { name: "Browser League 4 1" }).click();
   await expect(list.locator("button[data-fixture-id]")).toHaveCount(1);
-  await expect(shortlist.locator(":scope > header")).toContainText("0 场优先 · 1 场可滚动查看");
+  await expect(shortlist.locator(":scope > header")).toContainText("0 场重点观察 · 1 场可滚动查看");
   await expect(page.locator(".v41-focus")).toHaveAttribute("data-fixture-id", "browser-4");
 });
 
