@@ -46,6 +46,56 @@ class OpportunityState(StrEnum):
     EVALUATION_ERROR = "EVALUATION_ERROR"
 
 
+EVALUATED_OPPORTUNITY_STATES = frozenset(
+    {
+        OpportunityState.EVALUATED_CANDIDATE.value,
+        OpportunityState.EVALUATED_NO_EDGE.value,
+        OpportunityState.BLOCKED_BY_GATE.value,
+    }
+)
+
+
+def evaluated_attempt_identities(rows: Sequence[Any]) -> set[tuple[str, str]]:
+    return {
+        (str(row.opportunity_identity_hash), str(row.attempt_identity_hash))
+        for row in rows
+        if getattr(row, "official_funnel_eligible", None) is True
+        and getattr(row, "opportunity_identity_hash", None)
+        and getattr(row, "attempt_identity_hash", None)
+    }
+
+
+def final_official_opportunities(
+    rows: Sequence[Any],
+    *,
+    evaluated_attempts: set[tuple[str, str]],
+) -> dict[tuple[str, str], Any]:
+    final: dict[tuple[str, str], Any] = {}
+    for row in rows:
+        if (
+            str(row.state) not in EVALUATED_OPPORTUNITY_STATES
+            or (
+                str(row.opportunity_identity_hash),
+                str(row.latest_attempt_identity_hash),
+            )
+            not in evaluated_attempts
+        ):
+            continue
+        key = (str(row.fixture_id).removeprefix("api_football:"), str(row.market))
+        previous = final.get(key)
+        if previous is None or (
+            row.scheduled_checkpoint_at,
+            row.recorded_at,
+            row.opportunity_identity_hash,
+        ) > (
+            previous.scheduled_checkpoint_at,
+            previous.recorded_at,
+            previous.opportunity_identity_hash,
+        ):
+            final[key] = row
+    return final
+
+
 @dataclass(frozen=True, kw_only=True)
 class EvaluationOpportunityContext:
     model_forecast_capture_identity_hash: str

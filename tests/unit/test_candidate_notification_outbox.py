@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
@@ -402,7 +403,11 @@ def test_bark_titles_are_executable_and_keep_fixture_deep_link() -> None:
     formed = render_bark_message({**base, "event_type": CANDIDATE_FORMED})
     assert formed["title"] == "[阵容] 上海海港 vs 大连英博 20:30 让球-0.5 主 @1.92"
     assert formed["url"].endswith("fixture_id=1523202")
-    assert formed["url"] in formed["body"]
+    assert formed["url"] not in formed["body"]
+    assert "报价年龄：1 分 0 秒" in formed["body"]
+    assert "状态：已形成候选" in formed["body"]
+    assert formed["body"].count("2026-08-20T12:45:00Z") == 1
+    assert "有效期" not in formed["body"]
 
     changed = render_bark_message(
         {
@@ -563,13 +568,140 @@ def test_closeout_settles_candidate_direction_without_writing_settlement() -> No
     with Session(engine) as session:
         session.add(result)
         session.commit()
-        recommendations = candidate_notifications._closeout_recommendations(
-            session,
-            fixture_aliases={"1523202", "api_football:1523202"},
-            results_by_fixture={"1523202": result},
-        )
+        recommendations = candidate_notifications._closeout_recommendations(session)
 
     assert len(recommendations) == 1
     assert recommendations[0]["direction"] == "HOME_AH"
     assert recommendations[0]["score"] == "2-1"
     assert recommendations[0]["settlement"] == "WIN"
+    assert recommendations[0]["profit_units"] == 0.91
+
+
+def test_closeout_uses_last_real_evaluation_not_no_attempt_withdrawal() -> None:
+    engine = _engine()
+    repository = DynamicPrematchRepository(engine)
+    repository.append_evaluation(_attempt("T-30m_VALIDATION_LOCK", "candidate"))
+    repository.record_opportunity_without_attempt(
+        fixture_id="1523202",
+        market="ASIAN_HANDICAP",
+        context=_context("T15_ODDS", "missed-later"),
+        state=OpportunityState.MISSED_CHECKPOINT,
+        recorded_at=NOW + timedelta(hours=2),
+        blocker="CHECKPOINT_WINDOW_MISSED",
+    )
+    with Session(engine) as session:
+        recommendations = candidate_notifications._closeout_recommendations(session)
+
+    assert len(recommendations) == 1
+    assert recommendations[0]["final_candidate_status"] == "EVALUATED_CANDIDATE"
+
+
+def test_closeout_excludes_candidate_when_later_real_evaluation_is_no_edge() -> None:
+    engine = _engine()
+    repository = DynamicPrematchRepository(engine)
+    repository.append_evaluation(_attempt("T-30m_VALIDATION_LOCK", "candidate"))
+    repository.append_evaluation(_attempt("T15_ODDS", "later-no-edge", ev=-0.01))
+    with Session(engine) as session:
+        recommendations = candidate_notifications._closeout_recommendations(session)
+
+    assert recommendations == []
+
+
+def test_notification_names_use_reviewed_chinese_then_mark_unresolved_provider_id() -> None:
+    identity = MatchdayFixtureIdentityModel(
+        fixture_id="api_football:1570351",
+        provider="api_football",
+        provider_fixture_id="1570351",
+        competition_id="la_liga",
+        provider_league_id="140",
+        season="2026",
+        kickoff_utc=NOW,
+        fixture_status="NS",
+        home_provider_team_id="728",
+        away_provider_team_id="542",
+        home_w2_team_id="w2:team:api_football:728",
+        away_w2_team_id="w2:team:api_football:542",
+        team_identity_status="CANONICAL",
+        raw_payload_sha256="1" * 64,
+        endpoint_capture_id=None,
+        captured_at=NOW,
+        identity_hash="2" * 64,
+        payload={
+            "teams": {
+                "home": {"name": "Rayo Vallecano"},
+                "away": {"name": "Alaves"},
+            }
+        },
+    )
+    assert candidate_notifications._summary_fixture(identity)["home"] == "巴列卡诺"
+    identity.home_w2_team_id = None
+    identity.payload = {}
+    assert candidate_notifications._summary_fixture(identity)["home"] == (
+        "球队ID 728（身份未解析）"
+    )
+
+
+def test_closeout_waits_for_result_materialization_after_terminal_fixture() -> None:
+    identity = SimpleNamespace(fixture_status="FT", captured_at=NOW)
+    result = SimpleNamespace(confirmed_at=NOW + timedelta(seconds=2))
+
+    assert candidate_notifications._fixture_closeout_time(identity, None) == (
+        NOW
+        + timedelta(seconds=candidate_notifications.CLOSEOUT_RESULT_GRACE_SECONDS)
+    )
+    assert candidate_notifications._fixture_closeout_time(identity, result) == (
+        result.confirmed_at
+    )
+
+
+def test_closeout_copy_prioritizes_recommendations_and_marks_missing_result() -> None:
+    rendered = render_bark_message(
+        {
+            "event_type": DAY_CLOSEOUT_SUMMARY,
+            "operational_football_day": "2026-08-20",
+            "daily_recommendation_count": 1,
+            "daily_settled_count": 0,
+            "daily_profit_units": 0,
+            "cumulative_recommendation_count": 15,
+            "cumulative_settled_count": 14,
+            "cumulative_profit_units": 2.995,
+            "recommendations": [
+                {
+                    "home": "巴列卡诺",
+                    "away": "阿拉维斯",
+                    "market": "TOTALS",
+                    "line": 2.0,
+                    "direction": "OVER",
+                    "decimal_odds": 1.82,
+                    "score": None,
+                    "settlement": "RESULT_NOT_COLLECTED",
+                    "profit_units": None,
+                }
+            ],
+            "formal_opportunity_count": 10,
+            "complete_evaluation_count": 8,
+            "blocked_by_gate_count": 0,
+            "evaluation_error_count": 0,
+            "missed_checkpoint_count": 2,
+            "no_edge_count": 4,
+            "candidate_count": 4,
+            "invalid_count": 0,
+        }
+    )
+    assert rendered["body"].splitlines()[0] == "当日推荐 1 注；已结算 0 注；当日 0.000 单位"
+    assert "巴列卡诺 vs 阿拉维斯 大小球2 大 @1.82：赛果未采集" in rendered["body"]
+    assert "待结算" not in rendered["body"]
+    assert rendered["body"].splitlines()[-1].startswith("漏斗审计：")
+
+
+def test_notification_raw_values_are_humanized() -> None:
+    assert candidate_notifications._format_duration(2024.05) == "33 分钟"
+    assert candidate_notifications._format_duration(149.112) == "2 分 29 秒"
+    assert (
+        candidate_notifications._opportunity_state_label("MISSED_CHECKPOINT")
+        == "检查点错过"
+    )
+    assert (
+        candidate_notifications._opportunity_state_label("EVALUATED_CANDIDATE")
+        == "已形成候选"
+    )

@@ -92,6 +92,11 @@ from w2.matchday.timezone import (
 from w2.operations.leagues import run_top_five_audit
 from w2.operations.release_evidence import build_release_identity
 from w2.prematch.evaluation_slots import EvaluationSlotError, is_evaluation_slot
+from w2.prematch.lifecycle import (
+    EVALUATED_OPPORTUNITY_STATES,
+    evaluated_attempt_identities,
+    final_official_opportunities,
+)
 from w2.prematch.read_model_projection import (
     ANALYSIS_CARD_SHADOW_PREFIX,
     FrozenAnalysisError,
@@ -117,9 +122,6 @@ MODEL_FORECAST_MARKETS = ("ASIAN_HANDICAP", "TOTALS")
 
 CHECKPOINT_OPPORTUNITY_SCOPE = "CHECKPOINT_EVALUATION_OPPORTUNITY_V2"
 CHECKPOINT_OPPORTUNITY_SEMANTICS = "CHECKPOINT_EVALUATION_OPPORTUNITY"
-EVALUATED_OPPORTUNITY_STATES = frozenset(
-    {"EVALUATED_CANDIDATE", "EVALUATED_NO_EDGE", "BLOCKED_BY_GATE"}
-)
 _CHECKPOINT_LABELS = {
     "T3_ODDS": "T-3h",
     "T60_ODDS_LINEUPS": "T-60m",
@@ -479,8 +481,8 @@ def _official_funnel_recommendations(
 ) -> list[dict[str, Any]]:
     """Project picks whose last opportunity with a real evaluation is a candidate."""
 
-    evaluated_attempts = _evaluated_attempt_identities(evaluations)
-    final_opportunities = _final_official_opportunities(
+    evaluated_attempts = evaluated_attempt_identities(evaluations)
+    final_opportunities = final_official_opportunities(
         opportunities, evaluated_attempts=evaluated_attempts
     )
 
@@ -607,53 +609,6 @@ def _official_funnel_recommendations(
             str(item["market"]),
         ),
     )
-
-
-def _evaluated_attempt_identities(
-    evaluations: Sequence[DynamicPrematchEvaluationModel],
-) -> set[tuple[str, str]]:
-    return {
-        (
-            str(row.opportunity_identity_hash),
-            str(row.attempt_identity_hash),
-        )
-        for row in evaluations
-        if getattr(row, "official_funnel_eligible", None) is True
-        and getattr(row, "opportunity_identity_hash", None)
-        and getattr(row, "attempt_identity_hash", None)
-    }
-
-
-def _final_official_opportunities(
-    opportunities: Sequence[DynamicPrematchOpportunityModel],
-    *,
-    evaluated_attempts: set[tuple[str, str]],
-) -> dict[tuple[str, str], DynamicPrematchOpportunityModel]:
-    final_opportunities: dict[tuple[str, str], DynamicPrematchOpportunityModel] = {}
-    for row in opportunities:
-        if (
-            str(row.state) not in EVALUATED_OPPORTUNITY_STATES
-            or (
-                str(row.opportunity_identity_hash),
-                str(row.latest_attempt_identity_hash),
-            )
-            not in evaluated_attempts
-        ):
-            continue
-        fixture_id = str(row.fixture_id).removeprefix("api_football:")
-        key = (fixture_id, str(row.market))
-        previous = final_opportunities.get(key)
-        if previous is None or (
-            row.scheduled_checkpoint_at,
-            row.recorded_at,
-            row.opportunity_identity_hash,
-        ) > (
-            previous.scheduled_checkpoint_at,
-            previous.recorded_at,
-            previous.opportunity_identity_hash,
-        ):
-            final_opportunities[key] = row
-    return final_opportunities
 
 
 def _later_unassessed_checkpoints(

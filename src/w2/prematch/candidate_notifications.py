@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from w2.dashboard.date_window import football_day_for_kickoff
 from w2.dashboard.results import normalize_match_status
 from w2.domain.odds import settle_asian_handicap, settle_total_goals
+from w2.identity.public_team_labels import reviewed_public_team_labels
 from w2.infrastructure.database import create_engine
 from w2.infrastructure.persistence.dynamic_prematch_models import (
     CandidateNotificationOutboxModel,
@@ -40,7 +41,10 @@ from w2.prematch.lifecycle import (
     DynamicEvaluationState,
     DynamicEvaluationVersion,
     OpportunityState,
+    evaluated_attempt_identities,
+    final_official_opportunities,
 )
+from w2.settlement.settle import WIN_UNITS
 
 CANDIDATE_FORMED = "CANDIDATE_FORMED"
 CANDIDATE_MATERIAL_CHANGE = "CANDIDATE_MATERIAL_CHANGE"
@@ -60,6 +64,7 @@ AT_LEAST_ONCE = "AT_LEAST_ONCE"
 MAX_DELIVERY_ATTEMPTS = 4
 RETRY_BACKOFF_SECONDS = (5, 10, 20)
 DELIVERY_TIMEOUT_SECONDS = 8
+CLOSEOUT_RESULT_GRACE_SECONDS = 300
 
 QUOTE_MAX_AGE_SECONDS = 1800
 PRICE_CHANGE_THRESHOLD_RATIO = 0.02
@@ -651,11 +656,12 @@ def enqueue_operational_summaries_in_session(
                 continue
             states[opportunity.state] += 1
         reason_by_market = _zero_candidate_reasons(opportunities, attempts)
-        recommendations = _closeout_recommendations(
-            session,
-            fixture_aliases=fixture_aliases,
-            results_by_fixture=results_by_fixture,
-        )
+        all_recommendations = _closeout_recommendations(session)
+        recommendations = [item for item in all_recommendations if item["fixture_id"] in bare_ids]
+        daily_settled = [item for item in recommendations if item["profit_units"] is not None]
+        cumulative_settled = [
+            item for item in all_recommendations if item["profit_units"] is not None
+        ]
         event_id = _event_id(window.operational_day_key, DAY_CLOSEOUT_SUMMARY)
         if _insert(
             session,
@@ -680,6 +686,16 @@ def enqueue_operational_summaries_in_session(
                 "candidate_count": states["EVALUATED_CANDIDATE"],
                 "invalid_count": invalid,
                 "recommendations": recommendations,
+                "daily_recommendation_count": len(recommendations),
+                "daily_settled_count": len(daily_settled),
+                "daily_profit_units": round(
+                    sum(float(item["profit_units"]) for item in daily_settled), 3
+                ),
+                "cumulative_recommendation_count": len(all_recommendations),
+                "cumulative_settled_count": len(cumulative_settled),
+                "cumulative_profit_units": round(
+                    sum(float(item["profit_units"]) for item in cumulative_settled), 3
+                ),
                 "zero_candidate_reason_by_market": reason_by_market,
                 "zero_candidate_is_not_delivery_health": True,
                 "dashboard_url": _dashboard_day_url(window.operational_day_key),
@@ -740,21 +756,35 @@ def _zero_candidate_reasons(
 
 
 def _summary_fixture(identity: MatchdayFixtureIdentityModel) -> dict[str, Any]:
-    payload = identity.payload if isinstance(identity.payload, dict) else {}
     kickoff = _utc(identity.kickoff_utc)
     fixture_id = identity.provider_fixture_id
     return {
         "fixture_id": fixture_id,
-        "home": payload.get("home_team_name")
-        or payload.get("home_name")
-        or identity.home_provider_team_id,
-        "away": payload.get("away_team_name")
-        or payload.get("away_name")
-        or identity.away_provider_team_id,
+        "home": _team_name(identity, "home"),
+        "away": _team_name(identity, "away"),
         "kickoff_local": kickoff.astimezone(BEIJING).isoformat(),
         "kickoff_local_hm": kickoff.astimezone(BEIJING).strftime("%H:%M"),
         "dashboard_url": _dashboard_fixture_url(fixture_id, kickoff),
     }
+
+
+def _team_name(identity: MatchdayFixtureIdentityModel, side: str) -> str:
+    w2_team_id = str(getattr(identity, f"{side}_w2_team_id") or "")
+    reviewed = reviewed_public_team_labels().get(w2_team_id)
+    if reviewed:
+        return reviewed
+    payload = identity.payload if isinstance(identity.payload, dict) else {}
+    teams = payload.get("teams")
+    team = teams.get(side) if isinstance(teams, dict) else None
+    raw_name = (
+        str(team.get("name") or "").strip()
+        if isinstance(team, dict)
+        else str(payload.get(f"{side}_team_name") or payload.get(f"{side}_name") or "").strip()
+    )
+    if raw_name:
+        return raw_name
+    provider_id = str(getattr(identity, f"{side}_provider_team_id") or "").strip()
+    return f"球队ID {provider_id}（身份未解析）" if provider_id else "球队身份未解析"
 
 
 def _fixture_closeout_time(
@@ -768,89 +798,106 @@ def _fixture_closeout_time(
         "CANCELLED",
         "POSTPONED",
     }:
-        return _utc(identity.captured_at)
+        return _utc(identity.captured_at) + timedelta(seconds=CLOSEOUT_RESULT_GRACE_SECONDS)
     return None
 
 
 def _closeout_recommendations(
     session: Session,
-    *,
-    fixture_aliases: set[str],
-    results_by_fixture: Mapping[str, ResultModel],
 ) -> list[dict[str, Any]]:
-    rows = list(
+    evaluations = list(
         session.scalars(
-            select(CandidateNotificationOutboxModel)
-            .where(
-                CandidateNotificationOutboxModel.event_type.in_(
-                    (
-                        CANDIDATE_FORMED,
-                        CANDIDATE_MATERIAL_CHANGE,
-                        CANDIDATE_WITHDRAWN,
-                        CANDIDATE_T30_CONFIRMED,
-                    )
-                )
+            select(DynamicPrematchEvaluationModel).where(
+                DynamicPrematchEvaluationModel.official_funnel_eligible.is_(True),
+                DynamicPrematchEvaluationModel.measurement_semantics
+                == CHECKPOINT_OPPORTUNITY_SEMANTICS,
             )
-            .order_by(CandidateNotificationOutboxModel.created_at)
         )
     )
-    aliases = {item.removeprefix("api_football:") for item in fixture_aliases}
-    groups: dict[tuple[str, str], list[CandidateNotificationOutboxModel]] = {}
-    for row in rows:
+    opportunities = list(session.scalars(select(DynamicPrematchOpportunityModel)))
+    final = final_official_opportunities(
+        opportunities,
+        evaluated_attempts=evaluated_attempt_identities(evaluations),
+    )
+    latest: dict[tuple[str, str], DynamicPrematchEvaluationModel] = {}
+    for row in evaluations:
         payload = row.payload if isinstance(row.payload, dict) else {}
-        fixture_id = str(payload.get("fixture_id") or "").removeprefix("api_football:")
-        market = str(payload.get("market") or "")
-        if fixture_id in aliases and market:
-            groups.setdefault((fixture_id, market), []).append(row)
+        key = (str(row.fixture_id).removeprefix("api_football:"), str(row.market))
+        opportunity = final.get(key)
+        if (
+            payload.get("state") != DynamicEvaluationState.ANALYSIS_PICK_ACTIVE.value
+            or opportunity is None
+            or opportunity.state != OpportunityState.EVALUATED_CANDIDATE.value
+            or row.opportunity_identity_hash != opportunity.opportunity_identity_hash
+            or row.attempt_identity_hash != opportunity.latest_attempt_identity_hash
+        ):
+            continue
+        previous = latest.get(key)
+        if previous is None or (row.evaluated_at, row.evaluation_id) > (
+            previous.evaluated_at,
+            previous.evaluation_id,
+        ):
+            latest[key] = row
+
+    fixture_ids = {fixture_id for fixture_id, _market in latest}
+    identities = {
+        row.provider_fixture_id: row
+        for row in session.scalars(
+            select(MatchdayFixtureIdentityModel).where(
+                MatchdayFixtureIdentityModel.provider_fixture_id.in_(fixture_ids)
+            )
+        )
+    }
+    canonical_ids = fixture_ids | {f"api_football:{fixture_id}" for fixture_id in fixture_ids}
+    results = {
+        row.fixture_id.removeprefix("api_football:"): row
+        for row in session.scalars(
+            select(ResultModel).where(ResultModel.fixture_id.in_(canonical_ids))
+        )
+    }
 
     recommendations: list[dict[str, Any]] = []
-    for (fixture_id, market), events in sorted(groups.items()):
-        if not any(row.event_type == CANDIDATE_FORMED for row in events):
-            continue
-        signal_events = [row for row in events if row.event_type != CANDIDATE_WITHDRAWN]
-        signal = signal_events[-1].payload
-        last = events[-1]
-        match = _as_mapping(signal.get("match"))
-        result = results_by_fixture.get(fixture_id)
-        settlement = "待结算"
+    for (fixture_id, market), row in sorted(latest.items()):
+        signal = row.payload if isinstance(row.payload, dict) else {}
+        identity = identities.get(fixture_id)
+        result = results.get(fixture_id)
+        settlement = "RESULT_NOT_COLLECTED"
         score = None
+        profit_units = None
         if result is not None:
             score = f"{result.home_goals}-{result.away_goals}"
             try:
                 settlement = _settle_candidate(
                     market=market,
-                    selection=signal.get("direction"),
-                    line=signal.get("line"),
+                    selection=row.selection,
+                    line=signal.get("exact_line"),
                     home_goals=result.home_goals,
                     away_goals=result.away_goals,
                 )
+                units = WIN_UNITS[settlement]
+                odds = Decimal(str(signal.get("decimal_odds")))
+                profit_units = units * (odds - 1) if units > 0 else units
             except ValueError:
-                settlement = "无法结算"
+                settlement = "SETTLEMENT_ERROR"
         recommendations.append(
             {
                 "fixture_id": fixture_id,
-                "home": match.get("home"),
-                "away": match.get("away"),
+                "home": _team_name(identity, "home") if identity else "主队（身份未解析）",
+                "away": _team_name(identity, "away") if identity else "客队（身份未解析）",
                 "market": market,
-                "direction": signal.get("direction"),
-                "line": signal.get("line"),
+                "direction": row.selection,
+                "line": signal.get("exact_line"),
                 "decimal_odds": signal.get("decimal_odds"),
-                "slot": signal.get("slot"),
-                "final_candidate_status": (
-                    "WITHDRAWN"
-                    if last.event_type == CANDIDATE_WITHDRAWN
-                    else "T30_CONFIRMED"
-                    if last.event_type == CANDIDATE_T30_CONFIRMED
-                    else "CANDIDATE"
-                ),
-                "withdrawal_reason": (
-                    _withdrawal_reason(last.payload)
-                    if last.event_type == CANDIDATE_WITHDRAWN
-                    else None
-                ),
+                "slot": row.evaluation_slot_id,
+                "final_candidate_status": OpportunityState.EVALUATED_CANDIDATE.value,
                 "score": score,
                 "settlement": settlement,
-                "dashboard_url": signal.get("dashboard_url"),
+                "profit_units": float(profit_units) if profit_units is not None else None,
+                "dashboard_url": (
+                    _dashboard_fixture_url(fixture_id, _utc(identity.kickoff_utc))
+                    if identity
+                    else None
+                ),
             }
         )
     return recommendations
@@ -916,7 +963,6 @@ def _payload_from_mapping(
 ) -> dict[str, Any]:
     fixture_id = str(value.get("fixture_id") or "").removeprefix("api_football:")
     identity = _fixture_identity(session, fixture_id)
-    identity_payload = identity.payload if identity and isinstance(identity.payload, dict) else {}
     kickoff = _utc(identity.kickoff_utc) if identity is not None else None
     capture_at = _parse_time(value.get("capture_at"))
     next_review = _next_review_at(
@@ -941,12 +987,8 @@ def _payload_from_mapping(
         "event_type": event_type,
         "fixture_id": fixture_id,
         "match": {
-            "home": identity_payload.get("home_team_name")
-            or identity_payload.get("home_name")
-            or (identity.home_provider_team_id if identity else None),
-            "away": identity_payload.get("away_team_name")
-            or identity_payload.get("away_name")
-            or (identity.away_provider_team_id if identity else None),
+            "home": _team_name(identity, "home") if identity else "主队（身份未解析）",
+            "away": _team_name(identity, "away") if identity else "客队（身份未解析）",
         },
         "kickoff_local": kickoff.astimezone(BEIJING).isoformat() if kickoff else None,
         "market": value.get("market"),
@@ -1053,13 +1095,13 @@ def render_bark_message(payload: Mapping[str, Any]) -> dict[str, str]:
     else:
         title = "[W2] 候选通知"
 
-    dashboard_url = str(payload.get("dashboard_url") or "")
     body = _message_body(payload)
-    if dashboard_url:
-        body = f"{body}\n{dashboard_url}" if body else dashboard_url
     result = {"title": title, "body": body}
+    dashboard_url = str(payload.get("dashboard_url") or "")
     if dashboard_url.startswith(("https://", "http://")):
         result["url"] = dashboard_url
+    elif dashboard_url:
+        result["body"] = f"{body}\n{dashboard_url}" if body else dashboard_url
     return result
 
 
@@ -1164,7 +1206,7 @@ def _message_body(payload: Mapping[str, Any]) -> str:
         return "\n".join(lines) or "当日无已就绪候选轨道比赛"
     if event_type == DAY_CLOSEOUT_SUMMARY:
         recommendations = list(payload.get("recommendations") or [])
-        counts = (
+        audit = (
             f"正式机会 {payload.get('formal_opportunity_count', 0)}；"
             f"完整评估 {payload.get('complete_evaluation_count', 0)}；"
             f"门禁阻断 {payload.get('blocked_by_gate_count', 0)}；"
@@ -1174,33 +1216,43 @@ def _message_body(payload: Mapping[str, Any]) -> str:
             f"候选 {payload.get('candidate_count', 0)}；"
             f"INVALID {payload.get('invalid_count', 0)}"
         )
-        lines = [counts] + [
-            f"{item.get('home', '主队')} vs {item.get('away', '客队')} "
-            f"{_market_label(item.get('market'))}{_format_line(item.get('line'))} "
-            f"{_direction_label(item.get('direction'))}："
-            f"{item.get('score') or '待赛果'} {item.get('settlement', '待结算')}"
+        lines = [
+            f"当日推荐 {payload.get('daily_recommendation_count', len(recommendations))} 注；"
+            f"已结算 {payload.get('daily_settled_count', 0)} 注；"
+            f"当日 {_format_units(payload.get('daily_profit_units'))} 单位"
+        ] + [
+            _closeout_recommendation_line(item)
             for item in recommendations
             if isinstance(item, Mapping)
         ]
         if not recommendations:
-            lines.append("当日无候选推荐")
+            lines.append("当日无正式漏斗推荐")
+        lines.extend(
+            (
+                f"累计推荐 {payload.get('cumulative_recommendation_count', 0)} 注；"
+                f"已结算 {payload.get('cumulative_settled_count', 0)} 注；"
+                f"累计 {_format_units(payload.get('cumulative_profit_units'))} 单位",
+                f"漏斗审计：{audit}",
+            )
+        )
         return "\n".join(lines)
     if event_type == TEST_MESSAGE:
         return "W2 Bark 外发通道测试消息"
     bookmaker = _as_mapping(payload.get("bookmaker"))
-    quote_age = (
-        payload.get("quote_age_seconds")
-        if payload.get("quote_age_seconds") is not None
-        else "未知"
+    quote_age = _format_duration(payload.get("quote_age_seconds"))
+    next_review = payload.get("next_review_at")
+    review_line = (
+        f"下次复核：{next_review}"
+        if next_review
+        else f"有效至：{payload.get('valid_until') or '未知'}"
     )
     fields = [
         f"机构：{bookmaker.get('name') or bookmaker.get('id') or '未知'}",
         f"报价时间：{payload.get('quote_captured_at') or '未知'}",
-        f"报价年龄：{quote_age} 秒",
+        f"报价年龄：{quote_age}",
         f"档位：{payload.get('slot') or '未知'}",
-        f"状态：{payload.get('candidate_status') or '未知'}",
-        f"有效期：{payload.get('valid_until') or '未知'}",
-        f"下次复核：{payload.get('next_review_at') or '无'}",
+        f"状态：{_opportunity_state_label(payload.get('candidate_status'))}",
+        review_line,
     ]
     return "\n".join(fields)
 
@@ -1220,6 +1272,69 @@ def _direction_label(value: Any) -> str:
     if raw.startswith("UNDER"):
         return "小"
     return raw or "方向未知"
+
+
+def _opportunity_state_label(value: Any) -> str:
+    raw = str(value or "")
+    return {
+        OpportunityState.EVALUATED_CANDIDATE.value: "已形成候选",
+        OpportunityState.EVALUATED_NO_EDGE.value: "已评估无优势",
+        OpportunityState.BLOCKED_BY_GATE.value: "门禁阻断",
+        OpportunityState.MISSED_CHECKPOINT.value: "检查点错过",
+        OpportunityState.EVALUATION_ERROR.value: "评估错误",
+    }.get(raw, raw or "未知")
+
+
+def _settlement_label(value: Any) -> str:
+    return {
+        "WIN": "赢",
+        "HALF_WIN": "赢一半",
+        "PUSH": "走盘",
+        "HALF_LOSS": "输一半",
+        "LOSS": "输",
+        "VOID": "作废",
+        "RESULT_NOT_COLLECTED": "赛果未采集",
+        "SETTLEMENT_ERROR": "无法结算",
+    }.get(str(value or ""), str(value or "未知"))
+
+
+def _closeout_recommendation_line(item: Mapping[str, Any]) -> str:
+    selection = _direction_label(item.get("direction"))
+    recommendation = (
+        f"{item.get('home', '主队')} vs {item.get('away', '客队')} "
+        f"{_market_label(item.get('market'))}{_format_line(item.get('line'))} "
+        f"{selection} @{_format_odds(item.get('decimal_odds'))}"
+    )
+    if item.get("settlement") == "RESULT_NOT_COLLECTED":
+        return f"{recommendation}：赛果未采集"
+    return (
+        f"{recommendation}：{item.get('score') or '无比分'} · "
+        f"{_settlement_label(item.get('settlement'))} · "
+        f"{_format_units(item.get('profit_units'))} 单位"
+    )
+
+
+def _format_duration(value: Any) -> str:
+    seconds = _float(value)
+    if seconds is None:
+        return "未知"
+    total = max(int(seconds), 0)
+    if total < 60:
+        return f"{total} 秒"
+    minutes, remainder = divmod(total, 60)
+    if minutes < 10:
+        return f"{minutes} 分 {remainder} 秒"
+    if minutes < 60:
+        return f"{minutes} 分钟"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours} 小时 {minutes} 分钟"
+
+
+def _format_units(value: Any) -> str:
+    number = _float(value)
+    if number is None:
+        return "未知"
+    return f"{number:+.3f}" if number else "0.000"
 
 
 def _settlement_selection(market: str, value: Any) -> str:
