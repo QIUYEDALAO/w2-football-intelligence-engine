@@ -317,7 +317,12 @@ class OutcomeLedgerRepository:
             "provider_calls": 0,
         }
 
-    def records(self, record_types: Iterable[str] | None = None) -> list[dict[str, Any]]:
+    def records(
+        self,
+        record_types: Iterable[str] | None = None,
+        *,
+        fixture_ids: Iterable[str] | None = None,
+    ) -> list[dict[str, Any]]:
         with Session(self.engine) as session:
             statement = select(OutcomeLedgerModel)
             if record_types is not None:
@@ -328,6 +333,15 @@ class OutcomeLedgerRepository:
                     return []
                 statement = statement.where(
                     OutcomeLedgerModel.record_type.in_(selected_types)
+                )
+            if fixture_ids is not None:
+                selected_fixture_ids = tuple(
+                    sorted({str(item) for item in fixture_ids if str(item)})
+                )
+                if not selected_fixture_ids:
+                    return []
+                statement = statement.where(
+                    OutcomeLedgerModel.fixture_id.in_(selected_fixture_ids)
                 )
             rows = list(
                 session.scalars(

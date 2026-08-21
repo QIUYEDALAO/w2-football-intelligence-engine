@@ -224,10 +224,13 @@ def backfill_outcomes(
     dry_run: bool = True,
     write_db: bool = False,
     settled_at: datetime | None = None,
+    fixture_ids: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     repo = repository or OutcomeLedgerRepository()
     resolved_settled_at = (settled_at or datetime.now(UTC)).astimezone(UTC)
-    pending_before = _pending_entries(repo.records(CURRENT_FORWARD_RECORD_TYPES))
+    pending_before = _pending_entries(
+        repo.records(CURRENT_FORWARD_RECORD_TYPES, fixture_ids=fixture_ids)
+    )
     results = repo.result_payloads_for_fixtures(
         _text(entry.get("fixture_id")) for entry, _, _ in pending_before.values()
     )
@@ -254,6 +257,13 @@ def backfill_outcomes(
         if fixture_id:
             processed_fixture_counts[fixture_id] = processed_fixture_counts.get(fixture_id, 0) + 1
     unresolved_count = sum(1 for identity in pending_before if identity not in processed_keys)
+    unresolved_fixture_ids = sorted(
+        {
+            _text(entry.get("fixture_id"))
+            for identity, (entry, _, _) in pending_before.items()
+            if identity not in processed_keys and _text(entry.get("fixture_id"))
+        }
+    )
     if not pending_before:
         status = "NO_DUE_WORK"
     elif unresolved_count:
@@ -274,6 +284,7 @@ def backfill_outcomes(
         "result_fixture_count": len(results),
         "pending_count": len(pending_before),
         "unresolved_count": unresolved_count,
+        "unresolved_fixture_ids": unresolved_fixture_ids,
         "record_count": len(outcome_records),
         "processed_fixture_counts": processed_fixture_counts,
         "written": appended["written"],

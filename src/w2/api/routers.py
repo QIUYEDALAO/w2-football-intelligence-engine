@@ -56,6 +56,7 @@ from w2.monitoring.health import HealthPayload, build_health_payload
 from w2.monitoring.readiness import ReadinessPayload, build_readiness_payload
 from w2.prematch.candidate_notifications import notification_health
 from w2.replay.front_door import build_replay_front_door
+from w2.tracking.outcome_ledger_runtime import outcome_ledger_runtime_health
 
 public_router = APIRouter(prefix="/v1", tags=["public-read"])
 ops_router = APIRouter(prefix="/ops", tags=["operations-read"])
@@ -540,15 +541,27 @@ def league_readiness(competition_id: str, request: Request) -> dict[str, Any]:
 
 
 @ops_router.get("/health")
-def ops_health(request: Request) -> dict[str, str]:
+def ops_health(request: Request) -> dict[str, Any]:
     ensure_ops_enabled()
-    return {"request_id": request_id(request), "status": "READY", "mode": "read-only"}
+    outcome_health = outcome_ledger_runtime_health()
+    return {
+        "request_id": request_id(request),
+        "status": "DEGRADED" if outcome_health["status"] == "DEGRADED" else "READY",
+        "mode": "read-only",
+        "outcome_ledger": outcome_health,
+    }
 
 
 @ops_router.get("/notification-outbox-health")
 def notification_outbox_health(request: Request) -> dict[str, Any]:
     ensure_ops_enabled()
     return {"request_id": request_id(request), **notification_health()}
+
+
+@ops_router.get("/outcome-ledger-health")
+def outcome_ledger_health(request: Request) -> dict[str, Any]:
+    ensure_ops_enabled()
+    return {"request_id": request_id(request), **outcome_ledger_runtime_health()}
 
 
 def ops_list(name: str, request: Request) -> dict[str, Any]:

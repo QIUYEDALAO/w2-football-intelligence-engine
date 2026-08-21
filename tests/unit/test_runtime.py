@@ -822,6 +822,8 @@ def test_scheduler_xg_backfill_dispatches_worker_task_without_running_provider(
 
 
 def test_scheduler_forward_outcome_ledger_dispatches_without_provider_calls(monkeypatch) -> None:
+    from w2.tracking.outcome_ledger_runtime import DispatchDecision
+
     sent: list[dict[str, object]] = []
 
     def fake_send_task(name: str, **kwargs: object) -> None:
@@ -830,6 +832,16 @@ def test_scheduler_forward_outcome_ledger_dispatches_without_provider_calls(monk
     monkeypatch.setenv("W2_FORWARD_OUTCOME_LEDGER_ENABLED", "true")
     monkeypatch.setenv("W2_CANDIDATE_ENABLED", "true")
     monkeypatch.setattr(celery_app, "send_task", fake_send_task)
+    monkeypatch.setattr(
+        "w2.tracking.outcome_ledger_runtime.OutcomeLedgerRuntimeRepository.prepare_dispatch",
+        lambda _self, **kwargs: DispatchDecision(
+            status="QUEUED",
+            task_id=str(kwargs["task_id"]),
+            reason=None,
+            consecutive_deferrals=0,
+            pending_settlement_count=0,
+        ),
+    )
 
     result = forward_outcome_ledger_tick()
 
@@ -841,6 +853,31 @@ def test_scheduler_forward_outcome_ledger_dispatches_without_provider_calls(monk
     assert str(result["task_id"]).startswith("forward-outcome-ledger:")
     assert sent[0]["name"] == "w2.forward_outcome_ledger"
     assert sent[0]["kwargs"]["window"] == "next7"
+
+
+def test_scheduler_defers_outcome_ledger_without_enqueuing(monkeypatch) -> None:
+    from w2.tracking.outcome_ledger_runtime import DispatchDecision
+
+    sent: list[dict[str, object]] = []
+    monkeypatch.setenv("W2_FORWARD_OUTCOME_LEDGER_ENABLED", "true")
+    monkeypatch.setattr(celery_app, "send_task", lambda *args, **kwargs: sent.append(kwargs))
+    monkeypatch.setattr(
+        "w2.tracking.outcome_ledger_runtime.OutcomeLedgerRuntimeRepository.prepare_dispatch",
+        lambda _self, **_kwargs: DispatchDecision(
+            status="DEFERRED_FOR_PREMATCH_CHECKPOINT",
+            task_id=None,
+            reason="UNFINISHED_PREMATCH_DUE",
+            consecutive_deferrals=1,
+            pending_settlement_count=2,
+        ),
+    )
+
+    result = forward_outcome_ledger_tick()
+
+    assert result["status"] == "DEFERRED_FOR_PREMATCH_CHECKPOINT"
+    assert result["consecutive_deferrals"] == 1
+    assert result["pending_settlement_count"] == 2
+    assert sent == []
 
 
 def test_worker_xg_backfill_task_reports_false_flags(monkeypatch) -> None:
@@ -871,6 +908,15 @@ def test_worker_xg_backfill_task_reports_false_flags(monkeypatch) -> None:
 
 
 def test_worker_forward_outcome_ledger_task_reports_safety_flags(monkeypatch) -> None:
+    completed: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "w2.tracking.outcome_ledger_runtime.OutcomeLedgerRuntimeRepository.mark_running",
+        lambda _self, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "w2.tracking.outcome_ledger_runtime.OutcomeLedgerRuntimeRepository.mark_succeeded",
+        lambda _self, **kwargs: completed.append(kwargs),
+    )
     monkeypatch.setattr(
         "apps.worker.celery_app._run_forward_outcome_ledger",
         lambda **kwargs: {
@@ -882,6 +928,8 @@ def test_worker_forward_outcome_ledger_task_reports_safety_flags(monkeypatch) ->
             "settlement_write": False,
             "record_count": 1,
             "written": 1,
+            "source_cursor": {"analysis_created_at": "2026-06-29T12:00:00Z"},
+            "pending_settlement_count": 0,
         },
     )
 
@@ -894,6 +942,9 @@ def test_worker_forward_outcome_ledger_task_reports_safety_flags(monkeypatch) ->
     assert result["settlement_write"] is False
     assert result["candidate"] is True
     assert result["formal_recommendation"] is False
+    assert completed[0]["source_cursor"] == {
+        "analysis_created_at": "2026-06-29T12:00:00Z"
+    }
 
 
 def test_model_forecast_projection_refresh_targets_only_not_ready(

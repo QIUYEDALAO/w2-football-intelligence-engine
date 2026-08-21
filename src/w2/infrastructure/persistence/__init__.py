@@ -73,7 +73,10 @@ from w2.infrastructure.persistence.models import (
     TeamValueAsOfArtifactModel,
     VenueModel,
 )
-from w2.infrastructure.persistence.outcome_ledger_models import OutcomeLedgerModel
+from w2.infrastructure.persistence.outcome_ledger_models import (
+    OutcomeLedgerModel,
+    OutcomeLedgerRunStateModel,
+)
 from w2.infrastructure.persistence.recommendation_lock_models import (
     Gate5RecommendationLockEventModel,
 )
@@ -117,6 +120,7 @@ __all__ = [
     "ModelForecastCaptureDataVersionModel",
     "ModelForecastOutcomeModel",
     "OutcomeLedgerModel",
+    "OutcomeLedgerRunStateModel",
     "PlayerClubMembershipObservationModel",
     "PredictionModel",
     "ProviderTeamIdentityCrosswalkModel",

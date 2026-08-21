@@ -686,21 +686,53 @@ def forward_outcome_ledger_tick() -> dict[str, object]:
             "settlement_write": False,
         }
     from apps.worker.celery_app import celery_app
+    from w2.tracking.outcome_ledger_runtime import OutcomeLedgerRuntimeRepository
 
     now = datetime.now(UTC)
     task_id = f"forward-outcome-ledger:{now.strftime('%Y%m%dT%H%M%S')}:{uuid4()}"
-    celery_app.send_task(
-        "w2.forward_outcome_ledger",
-        kwargs={
-            "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
-            "window": os.environ.get("W2_FORWARD_OUTCOME_LEDGER_WINDOW", "next7"),
-        },
+    runtime = OutcomeLedgerRuntimeRepository()
+    decision = runtime.prepare_dispatch(
+        now=now,
         task_id=task_id,
     )
+    if decision.status != "QUEUED":
+        return {
+            "status": decision.status,
+            "task_id": decision.task_id,
+            "reason": decision.reason,
+            "consecutive_deferrals": decision.consecutive_deferrals,
+            "pending_settlement_count": decision.pending_settlement_count,
+            "candidate": False,
+            "formal_recommendation": False,
+            "provider_calls": 0,
+            "db_writes": 0,
+            "lock_capture_write": False,
+            "settlement_write": False,
+        }
+    try:
+        celery_app.send_task(
+            "w2.forward_outcome_ledger",
+            kwargs={
+                "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+                "window": os.environ.get("W2_FORWARD_OUTCOME_LEDGER_WINDOW", "next7"),
+            },
+            task_id=task_id,
+        )
+    except Exception as exc:
+        runtime.mark_queue_failed(
+            task_id=task_id,
+            error=f"{exc.__class__.__name__}:{exc}"[:512],
+            now=datetime.now(UTC),
+        )
+        raise
     return {
         "status": "QUEUED",
         "task_id": task_id,
         "queued_at_utc": now.isoformat().replace("+00:00", "Z"),
+        "forced_after_deferral": decision.forced,
+        "defer_reason": decision.reason,
+        "consecutive_deferrals": decision.consecutive_deferrals,
+        "pending_settlement_count": decision.pending_settlement_count,
         "candidate": os.environ.get("W2_CANDIDATE_ENABLED", "false").lower() == "true",
         "formal_recommendation": False,
         "provider_calls": 0,

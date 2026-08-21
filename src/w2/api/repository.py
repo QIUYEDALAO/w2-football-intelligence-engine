@@ -1360,6 +1360,7 @@ class ReadModelRepository:
         start: datetime | None,
         end: datetime | None,
         limit: int = MAX_PUBLIC_FIXTURES,
+        fixture_ids: Sequence[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Read only checkpoint projections belonging to the requested window."""
 
@@ -1394,6 +1395,13 @@ class ReadModelRepository:
                 if end is not None:
                     projection_query = projection_query.where(
                         MatchdayFixtureIdentityModel.kickoff_utc < end
+                    )
+                if fixture_ids is not None:
+                    requested = tuple(
+                        dict.fromkeys(str(value or "").strip() for value in fixture_ids)
+                    )
+                    projection_query = projection_query.where(
+                        MatchdayFixtureIdentityModel.provider_fixture_id.in_(requested)
                     )
                 projection_rows = list(
                     session.execute(
@@ -2621,6 +2629,32 @@ class ReadModelService:
     def dashboard_model_forecast_validation_progress(self) -> dict[str, Any]:
         return self.repository.dashboard_model_forecast_validation_progress()
 
+    def dashboard_cards_for_fixtures(
+        self,
+        fixture_ids: Sequence[str],
+        *,
+        generated_at: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        requested = tuple(dict.fromkeys(str(value or "").strip() for value in fixture_ids))
+        requested = tuple(value for value in requested if value)
+        if not requested:
+            return []
+        if len(requested) > MAX_PUBLIC_FIXTURES:
+            raise SystemDegradedError("DASHBOARD_FIXTURE_SCOPE_EXCEEDED")
+        fixtures = self.repository.dashboard_fixtures_for_window(
+            start=None,
+            end=None,
+            limit=len(requested),
+            fixture_ids=requested,
+        )
+        cards = [self._project_dashboard_card(item) for item in fixtures]
+        missing = set(requested) - {str(card.get("fixture_id") or "") for card in cards}
+        if missing:
+            raise SystemDegradedError("DASHBOARD_FIXTURE_PROJECTION_MISSING")
+        self._apply_collection_status(cards, generated_at or datetime.now(UTC))
+        by_fixture = {str(card.get("fixture_id") or ""): card for card in cards}
+        return [by_fixture[fixture_id] for fixture_id in requested]
+
     def public_validation_summary(self, **kwargs: Any) -> dict[str, Any]:
         return self.validation_summary(**kwargs)
 
@@ -2872,27 +2906,7 @@ class ReadModelService:
         ]
         selected = self._filter_dashboard_cards(cards, requested_date=requested_date, window=window)
         generated_at = datetime.now(UTC)
-        collection_reader = getattr(
-            self.repository,
-            "market_collection_status_for_fixtures",
-            None,
-        )
-        collection_status = (
-            collection_reader(
-                [str(card.get("fixture_id") or "") for card in selected],
-                now=generated_at,
-            )
-            if callable(collection_reader)
-            else {}
-        )
-        for card in selected:
-            fixture_status = collection_status.get(str(card.get("fixture_id") or ""))
-            if fixture_status:
-                current_refresh = card.get("data_refresh")
-                card["data_refresh"] = {
-                    **(current_refresh if isinstance(current_refresh, dict) else {}),
-                    **fixture_status,
-                }
+        self._apply_collection_status(selected, generated_at)
         recommendations = [
             card
             for card in selected
@@ -2987,6 +3001,33 @@ class ReadModelService:
         }
         self._dashboard_response_cache[cache_key] = (now_tick, deepcopy(payload))
         return payload
+
+    def _apply_collection_status(
+        self,
+        cards: list[dict[str, Any]],
+        generated_at: datetime,
+    ) -> None:
+        collection_reader = getattr(
+            self.repository,
+            "market_collection_status_for_fixtures",
+            None,
+        )
+        collection_status = (
+            collection_reader(
+                [str(card.get("fixture_id") or "") for card in cards],
+                now=generated_at,
+            )
+            if callable(collection_reader)
+            else {}
+        )
+        for card in cards:
+            fixture_status = collection_status.get(str(card.get("fixture_id") or ""))
+            if fixture_status:
+                current_refresh = card.get("data_refresh")
+                card["data_refresh"] = {
+                    **(current_refresh if isinstance(current_refresh, dict) else {}),
+                    **fixture_status,
+                }
 
     def _project_dashboard_card(
         self,

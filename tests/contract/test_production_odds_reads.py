@@ -733,6 +733,7 @@ def test_release_counts_aggregates_without_materializing_analysis_cards(
 def test_dashboard_service_consumes_batched_projection_without_per_fixture_reads() -> None:
     class Repository:
         window: tuple[datetime | None, datetime | None] | None = None
+        fixture_ids: tuple[str, ...] | None = None
 
         def dashboard_fixtures_for_window(
             self,
@@ -740,9 +741,13 @@ def test_dashboard_service_consumes_batched_projection_without_per_fixture_reads
             start: datetime | None,
             end: datetime | None,
             limit: int,
+            fixture_ids: tuple[str, ...] | None = None,
         ) -> list[dict[str, Any]]:
             self.window = (start, end)
-            assert limit == api_repository.MAX_PUBLIC_FIXTURES
+            self.fixture_ids = fixture_ids
+            assert limit == (
+                len(fixture_ids) if fixture_ids else api_repository.MAX_PUBLIC_FIXTURES
+            )
             return [
                 {
                     "fixture_id": "1493049",
@@ -807,6 +812,16 @@ def test_dashboard_service_consumes_batched_projection_without_per_fixture_reads
     assert payload["debug"]["fixture_checkpoint_count"] == 72
     assert "_analysis_card_projection" not in payload["all"][0]
     assert "_public_team_labels" not in payload["all"][0]
+
+    targeted = api_repository.ReadModelService(
+        repository=repository,  # type: ignore[arg-type]
+    ).dashboard_cards_for_fixtures(
+        ["1493049"],
+        generated_at=payload["generated_at"],
+    )
+
+    assert repository.fixture_ids == ("1493049",)
+    assert targeted == payload["all"]
 
 
 def test_api_dashboard_card_keeps_historical_v3_identity_immutable() -> None:

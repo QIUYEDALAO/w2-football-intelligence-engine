@@ -333,13 +333,32 @@ def test_future_refresh_hides_past_ns_fixture_from_default_list(
 
 
 def test_operations_read_only_and_production_disabled(monkeypatch) -> None:
+    monkeypatch.setattr(
+        routers,
+        "outcome_ledger_runtime_health",
+        lambda: {
+            "status": "DEGRADED",
+            "run_status": "DEFERRED_FOR_PREMATCH_CHECKPOINT",
+            "consecutive_deferrals": 2,
+            "seconds_since_last_success": 900,
+            "pending_settlement_count": 1,
+        },
+    )
     client = TestClient(app)
-    assert client.get("/ops/health").status_code == 200
+    ops_health = client.get("/ops/health")
+    assert ops_health.status_code == 200
+    assert ops_health.json()["status"] == "DEGRADED"
+    assert ops_health.json()["outcome_ledger"]["consecutive_deferrals"] == 2
     notification_health = client.get("/ops/notification-outbox-health")
     assert notification_health.status_code == 200
     assert notification_health.json()["pending_backlog"] == 0
     assert notification_health.json()["channel"] == "bark"
     assert notification_health.json()["delivery_mode"] == "AT_LEAST_ONCE"
+    outcome_health = client.get("/ops/outcome-ledger-health")
+    assert outcome_health.status_code == 200
+    assert outcome_health.json()["status"] == "DEGRADED"
+    assert outcome_health.json()["consecutive_deferrals"] == 2
+    assert outcome_health.json()["pending_settlement_count"] == 1
     assert client.get("/ops/quota").json()["items"][0]["key"] == "quota"
     for route in app.routes:
         path = getattr(route, "path", "")

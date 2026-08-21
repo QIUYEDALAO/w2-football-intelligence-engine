@@ -454,7 +454,45 @@ def forward_outcome_ledger(
 ) -> dict[str, object]:
     request = getattr(self, "request", None)
     task_id = str(getattr(request, "id", None) or "forward-outcome-ledger")
-    result = _run_forward_outcome_ledger(window=window)
+    from w2.tracking.outcome_ledger_runtime import OutcomeLedgerRuntimeRepository
+
+    runtime = OutcomeLedgerRuntimeRepository()
+    if not runtime.mark_running(task_id=task_id, now=datetime.now(UTC)):
+        return {
+            "task_id": task_id,
+            "queued_at_utc": queued_at_utc,
+            "status": "ACTIVE_OR_RESERVED",
+            "candidate": False,
+            "formal_recommendation": False,
+            "provider_calls": 0,
+            "db_writes": 0,
+            "lock_capture_write": False,
+            "settlement_write": False,
+        }
+    try:
+        result = _run_forward_outcome_ledger(window=window)
+    except Exception as exc:
+        runtime.mark_failed(
+            task_id=task_id,
+            error=f"{exc.__class__.__name__}:{exc}"[:512],
+            now=datetime.now(UTC),
+        )
+        raise
+    cursor_value = result.pop("source_cursor", {})
+    pending_value = result.get("pending_settlement_count", 0)
+    runtime.mark_succeeded(
+        task_id=task_id,
+        now=datetime.now(UTC),
+        source_cursor=(
+            {str(key): value for key, value in cursor_value.items()}
+            if isinstance(cursor_value, Mapping)
+            else {}
+        ),
+        pending_settlement_count=(
+            pending_value if isinstance(pending_value, int) and not isinstance(pending_value, bool)
+            else 0
+        ),
+    )
     return {
         "task_id": task_id,
         "queued_at_utc": queued_at_utc,
@@ -496,6 +534,7 @@ def result_materialize(
 
 def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
     from w2.api.repository import ReadModelService
+    from w2.dashboard.date_window import default_football_day
     from w2.dashboard.day_view import build_dashboard_day_view
     from w2.tracking.forward_outcome_ledger import (
         backfill_outcomes,
@@ -506,24 +545,26 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
         run_model_forecast_capture,
     )
     from w2.tracking.outcome_ledger_repository import OutcomeLedgerRepository
+    from w2.tracking.outcome_ledger_runtime import OutcomeLedgerRuntimeRepository
     from w2.tracking.outcome_result_refresh import run_outcome_result_refresh
 
-    service = ReadModelService()
     repository = OutcomeLedgerRepository()
     evaluated_at = datetime.now(UTC)
-    initial_dashboard = service.dashboard(window=window, include_debug=False)
-    analysis_refresh = _refresh_model_forecast_analysis_cards(
-        initial_dashboard,
-        evaluated_at=evaluated_at,
+    work = OutcomeLedgerRuntimeRepository(repository.engine).incremental_work(now=evaluated_at)
+    football_day = default_football_day(evaluated_at).isoformat()
+    cards = ReadModelService().dashboard_cards_for_fixtures(
+        work.analysis_fixture_ids,
+        generated_at=evaluated_at,
     )
-    analysis_refresh_writes = analysis_refresh["db_writes"]
-    if not isinstance(analysis_refresh_writes, int):
-        raise RuntimeError("MODEL_FORECAST_PROJECTION_WRITE_COUNT_INVALID")
-    dashboard = ReadModelService().dashboard(window=window, include_debug=False)
-    day_view = build_dashboard_day_view(
-        dashboard,
-        environment=get_settings().environment.value,
-    )
+    dashboard = {
+        "generated_at": evaluated_at.isoformat().replace("+00:00", "Z"),
+        "date": football_day,
+        "selected_football_day": football_day,
+        "timezone": "Asia/Shanghai",
+        "window": window,
+        "all": cards,
+    }
+    day_view = build_dashboard_day_view(dashboard, environment=get_settings().environment.value)
     model_forecast_repository = ModelForecastLedgerRepository(repository.engine)
     model_forecast_capture = run_model_forecast_capture(
         day_view,
@@ -537,16 +578,51 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
         dry_run=False,
         write_db=True,
     )
-    materialization = run_outcome_result_refresh(
-        repository=repository,
-        dry_run=False,
-        write_db=True,
+    materialization = (
+        run_outcome_result_refresh(
+            repository=repository,
+            fixture_ids=list(work.result_fixture_ids),
+            dry_run=False,
+            write_db=True,
+        )
+        if work.result_fixture_ids
+        else {
+            "status": "NO_DUE_WORK",
+            "db_writes": 0,
+            "provider_calls": 0,
+            "confirmed_fixture_ids": [],
+        }
     )
-    settlement = backfill_outcomes(
-        repository=repository,
-        dry_run=False,
-        write_db=True,
+    settlement = (
+        backfill_outcomes(
+            repository=repository,
+            dry_run=False,
+            write_db=True,
+            fixture_ids=list(work.result_fixture_ids),
+        )
+        if work.result_fixture_ids
+        else {
+            "status": "NO_DUE_WORK",
+            "db_writes": 0,
+            "unresolved_count": 0,
+            "unresolved_fixture_ids": [],
+        }
     )
+    pending_count = settlement["unresolved_count"]
+    if not isinstance(pending_count, int) or isinstance(pending_count, bool):
+        raise RuntimeError("OUTCOME_LEDGER_PENDING_COUNT_INVALID")
+    unresolved_fixture_ids = settlement["unresolved_fixture_ids"]
+    if not isinstance(unresolved_fixture_ids, list):
+        raise RuntimeError("OUTCOME_LEDGER_PENDING_FIXTURES_INVALID")
+    source_cursor = {
+        **work.source_cursor,
+        "pending_result_fixture_ids": [str(item) for item in unresolved_fixture_ids],
+    }
+    db_writes = 0
+    for item in (model_forecast_capture, capture, materialization, settlement):
+        value = item.get("db_writes", 0)
+        if isinstance(value, int) and not isinstance(value, bool):
+            db_writes += value
     return {
         **capture,
         "status": ("BLOCKED" if materialization["status"] == "BLOCKED" else capture["status"]),
@@ -555,12 +631,20 @@ def _run_forward_outcome_ledger(*, window: str) -> dict[str, object]:
         "lock": False,
         "production": False,
         "real_money": False,
-        "db_writes": analysis_refresh_writes + sum(
-            int(item.get("db_writes", 0))
-            for item in (model_forecast_capture, capture, materialization, settlement)
-        ),
+        "db_writes": db_writes,
+        "incremental_analysis_card_count": len(work.analysis_fixture_ids),
+        "incremental_result_fixture_count": len(work.result_fixture_ids),
+        "pending_settlement_count": pending_count,
+        "source_cursor": source_cursor,
         "model_forecast_capture": model_forecast_capture,
-        "model_forecast_analysis_refresh": analysis_refresh,
+        "model_forecast_analysis_refresh": {
+            "status": "INCREMENTAL_CURSOR",
+            "provider_calls": 0,
+            "db_writes": 0,
+            "scanned_fixture_count": len(work.analysis_fixture_ids),
+            "targeted_fixture_count": len(work.analysis_fixture_ids),
+            "materialized_fixture_count": 0,
+        },
         "result_materialization": materialization,
         "outcome_settlement": settlement,
     }
