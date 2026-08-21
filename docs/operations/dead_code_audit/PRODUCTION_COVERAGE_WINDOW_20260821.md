@@ -52,8 +52,17 @@ If the canary passes, keep the same instrumented containers for seven continuous
 
 ## Run record
 
-- Status: implementation prepared; production canary not yet recorded.
-- Exact release/image digest: pending.
-- Canary UTC start/end: pending.
-- Seven-day UTC start/end: pending.
-- Final raw-data manifest and report hashes: pending.
+- Status: `ACTIVE`.
+- Exact release: `eab6dca7997a21a215b9929a3ac2a7365cf27631`.
+- Python digest: `sha256:e648c2ddd8efc2898e6905230c19403f37b512b3eaf3b009531ff89dc324a3cf`.
+- Runtime-base lock hash/tag: `b79cee9bde52d8f099b6fdf8e6a733dfc3e321729300b69b8c5c8f8054acfef1` / `b79cee9bde52d8f0`.
+- Runtime-base digest: `sha256:28da7ee884208ff33bb5936a9ced1463db58302a9ae1c20cc85c8cf79307105b`.
+- Image acceptance: `w2-release-preflight` PASS, RootFS `15/20`, image write smoke PASS.
+- Predeploy backup: `/opt/w2/backups/db/20260821T042406Z/w2-20260821T042406Z.dump`, 107,468,216 bytes.
+- Active seven-day window: `2026-08-21T04:37:34Z` through `2026-08-28T04:37:34Z`.
+- Reboot-persistent window record: `/opt/w2/shared/runtime/coverage/window.json`.
+- Release record: `/opt/w2/shared/releases/eab6dca7997a21a215b9929a3ac2a7365cf27631.json`, SHA-256 `6d8df77a41f419e4979e6b4148b361da54e98e30d439e37c7b5ce3370bb88a59`.
+- Failed/paired canary raw files are retained under `failed-canary-20260821T0426Z/` and `canary-control-rollback-20260821T0429Z/`; they are excluded from the active window.
+- Paired busy-stage observation: Scheduler CPU was about 78–82% without coverage and 83–85% with coverage; API `/ready` averaged about 0.111 s without coverage and 0.140 s with coverage. Worker busy spikes returned to idle, all services stayed healthy with zero restarts, and memory remained within configured limits.
+- Activation checks: schema `0069_outcome_ledger_run_state`, workspace HTTP 200, measurement status `MEASURABLE`, opportunity/attempt identity integrity all zero, no active claim or near-term due slot at switch, and no Provider error or 429.
+- Final raw-data manifest and combined report hashes: pending window completion.
