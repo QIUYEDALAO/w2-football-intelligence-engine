@@ -15,7 +15,10 @@ from w2.domain.factor_shadow_v2 import (
     factor_shadow_market_attempt_identity,
     factor_shadow_market_opportunity_identity,
 )
-from w2.factor_model.history import materialize_factor_history_from_persisted_raw
+from w2.factor_model.history import (
+    build_pit_history_manifest,
+    materialize_factor_history_from_persisted_raw,
+)
 
 NOW = datetime(2026, 8, 21, 12, tzinfo=UTC)
 
@@ -154,3 +157,149 @@ def test_v2_migration_revokes_official_table_writes() -> None:
 
     assert "ON ALL TABLES IN SCHEMA public FROM {V2_ROLE}" in migration
     assert "GRANT INSERT, SELECT ON {', '.join(V2_TABLES)}" in migration
+
+
+def _history_pair(
+    fixture_id: str,
+    *,
+    kickoff: datetime,
+    captured_at: datetime,
+    status: str = "FT",
+) -> list[dict[str, Any]]:
+    common = {
+        "fixture_id": fixture_id,
+        "provider": "api_football",
+        "provider_fixture_id": fixture_id.rsplit(":", 1)[-1],
+        "competition_id": "competition:140",
+        "season": "2025",
+        "kickoff_utc": kickoff,
+        "fixture_status": status,
+        "result_identity_hash": f"result:{fixture_id}",
+        "source_raw_hash": f"raw:{fixture_id}",
+        "captured_at": captured_at,
+    }
+    return [
+        {
+            **common,
+            "history_id": f"{fixture_id}:home",
+            "history_hash": f"history:{fixture_id}:home",
+            "team_side": "HOME",
+            "team_w2_id": "team:home",
+            "opponent_w2_id": "team:away",
+            "goals_for": 2,
+            "goals_against": 1,
+        },
+        {
+            **common,
+            "history_id": f"{fixture_id}:away",
+            "history_hash": f"history:{fixture_id}:away",
+            "team_side": "AWAY",
+            "team_w2_id": "team:away",
+            "opponent_w2_id": "team:home",
+            "goals_for": 1,
+            "goals_against": 2,
+        },
+    ]
+
+
+def test_pit_history_manifest_includes_only_results_known_before_target() -> None:
+    prior = _history_pair(
+        "api_football:prior",
+        kickoff=NOW - timedelta(days=2),
+        captured_at=NOW - timedelta(days=1),
+    )
+    same_kickoff = _history_pair(
+        "api_football:same",
+        kickoff=NOW,
+        captured_at=NOW - timedelta(hours=1),
+    )
+    late_result = _history_pair(
+        "api_football:late",
+        kickoff=NOW - timedelta(days=3),
+        captured_at=NOW,
+    )
+    unfinished = _history_pair(
+        "api_football:unfinished",
+        kickoff=NOW - timedelta(days=4),
+        captured_at=NOW - timedelta(days=3),
+        status="NS",
+    )
+
+    manifest = build_pit_history_manifest(
+        prior + same_kickoff + late_result + unfinished,
+        target_fixture_id="api_football:target",
+        target_kickoff=NOW,
+        feature_as_of=NOW,
+    )
+
+    assert [row["fixture_id"] for row in manifest["source_fixtures"]] == [
+        "api_football:prior"
+    ]
+    assert manifest["source_fixture_count"] == 1
+    assert manifest["source_history_row_count"] == 2
+    assert manifest["excluded_fixture_counts"] == {
+        "NOT_BEFORE_TARGET_KICKOFF": 1,
+        "RESULT_NOT_KNOWN_AT_ASOF": 1,
+        "UNFINISHED_FIXTURE": 1,
+    }
+
+
+def test_pit_history_manifest_rejects_incomplete_and_conflicting_identities() -> None:
+    incomplete = _history_pair(
+        "api_football:incomplete",
+        kickoff=NOW - timedelta(days=2),
+        captured_at=NOW - timedelta(days=1),
+    )[:1]
+    conflict = _history_pair(
+        "api_football:conflict",
+        kickoff=NOW - timedelta(days=3),
+        captured_at=NOW - timedelta(days=2),
+    )
+    conflict[1]["opponent_w2_id"] = "team:other"
+
+    manifest = build_pit_history_manifest(
+        incomplete + conflict,
+        target_fixture_id="api_football:target",
+        target_kickoff=NOW,
+        feature_as_of=NOW,
+    )
+
+    assert manifest["source_fixtures"] == []
+    assert manifest["excluded_fixture_counts"] == {
+        "IDENTITY_CONFLICT": 1,
+        "INCOMPLETE_FIXTURE_IDENTITY": 1,
+    }
+
+
+def test_pit_history_manifest_is_order_independent_and_deduplicates_exact_rows() -> None:
+    rows = _history_pair(
+        "api_football:prior",
+        kickoff=NOW - timedelta(days=2),
+        captured_at=NOW - timedelta(days=1),
+    )
+
+    first = build_pit_history_manifest(
+        rows + [dict(rows[0])],
+        target_fixture_id="api_football:target",
+        target_kickoff=NOW,
+        feature_as_of=NOW,
+    )
+    second = build_pit_history_manifest(
+        list(reversed(rows)),
+        target_fixture_id="api_football:target",
+        target_kickoff=NOW,
+        feature_as_of=NOW,
+    )
+
+    assert first == second
+    assert len(first["manifest_sha256"]) == 64
+
+
+def test_pit_history_manifest_forbids_features_after_target_kickoff() -> None:
+    with pytest.raises(ValueError, match="FEATURE_ASOF_AFTER_TARGET_KICKOFF"):
+        build_pit_history_manifest(
+            [],
+            target_fixture_id="api_football:target",
+            target_kickoff=NOW,
+            feature_as_of=NOW + timedelta(seconds=1),
+        )
