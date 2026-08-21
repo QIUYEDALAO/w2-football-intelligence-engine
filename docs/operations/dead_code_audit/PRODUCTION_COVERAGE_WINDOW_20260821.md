@@ -8,7 +8,8 @@ Coverage is evidence of execution, not proof of semantic liveness. A line not ob
 
 ## Implementation
 
-- Standard dependency: `coverage.py` 7.15.x, locked by `uv.lock` and included in the runtime base.
+- Standard dependency: `coverage.py` 7.15.4, locked by `uv.lock` and included in the runtime base.
+- Offline base update: `infra/local-release/Dockerfile.runtime-base-coverage` installs the exact locked Linux wheel on top of the fixed dependency base; it never inherits from a prior release.
 - Configuration: `config/coverage/production.coveragerc`.
 - Compose overlay: `infra/compose/production-coverage.override.yml`.
 - Measured packages: `/app/src/w2` and `/app/apps` only.

@@ -1,0 +1,16 @@
+ARG W2_RUNTIME_BASE_IMAGE
+FROM ${W2_RUNTIME_BASE_IMAGE}
+
+ARG W2_RUNTIME_BASE_LOCK_HASH
+USER root
+COPY pyproject.toml uv.lock README.md /app/
+COPY wheelhouse /tmp/w2-wheelhouse
+RUN uv pip install \
+      --python /app/.venv/bin/python \
+      --no-index \
+      --find-links /tmp/w2-wheelhouse \
+      coverage==7.15.4 \
+ && coverage --version \
+ && rm -rf /tmp/w2-wheelhouse
+LABEL w2.runtime.base.lock-hash="${W2_RUNTIME_BASE_LOCK_HASH}"
+USER w2
