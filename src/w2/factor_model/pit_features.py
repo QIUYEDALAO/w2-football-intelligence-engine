@@ -9,7 +9,7 @@ from w2.domain.canonical_serialization import HashDomain, canonical_sha256
 from w2.domain.factor_registry import load_factor_registry
 from w2.factor_model.history import PIT_HISTORY_MANIFEST_SCHEMA_VERSION
 
-PIT_FEATURE_SNAPSHOT_SCHEMA_VERSION = "w2.factor_model.pit_feature_snapshot.v1"
+PIT_FEATURE_SNAPSHOT_SCHEMA_VERSION = "w2.factor_model.pit_feature_snapshot.v2"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -34,10 +34,13 @@ def build_pit_feature_snapshot(
     *,
     home_team_id: str,
     away_team_id: str,
+    team_identity_namespace: str,
     rating_policy: RecursiveRatingPolicy,
 ) -> dict[str, Any]:
     """Build unadmitted F3/F6/F7 raw features from one verified PIT manifest."""
     fixtures = _verified_fixtures(manifest)
+    if manifest.get("team_identity_namespace") != team_identity_namespace:
+        raise ValueError("PIT_FEATURE_TEAM_IDENTITY_NAMESPACE_MISMATCH")
     target_kickoff = _utc(manifest["target_kickoff"])
     registry = load_factor_registry("factor-model-v2")
     factors = {
@@ -69,6 +72,7 @@ def build_pit_feature_snapshot(
         "feature_as_of": _utc(manifest["feature_as_of"]),
         "home_team_id": str(home_team_id),
         "away_team_id": str(away_team_id),
+        "team_identity_namespace": team_identity_namespace,
         "pit_history_manifest_sha256": str(manifest["manifest_sha256"]),
         "rating_policy": asdict(rating_policy),
         "factors": factors,
@@ -171,7 +175,7 @@ def _h2h(
     meetings = [
         fixture
         for fixture in fixtures
-        if {fixture["home_w2_team_id"], fixture["away_w2_team_id"]}
+        if {fixture["home_team_id"], fixture["away_team_id"]}
         == {home_team_id, away_team_id}
     ]
     common = {
@@ -218,8 +222,8 @@ def _strength_rating(
     for kickoff, batch_iter in groupby(fixtures, key=lambda row: _utc(row["kickoff_utc"])):
         updates: dict[str, float] = {}
         for fixture in batch_iter:
-            home = str(fixture["home_w2_team_id"])
-            away = str(fixture["away_w2_team_id"])
+            home = str(fixture["home_team_id"])
+            away = str(fixture["away_team_id"])
             home_rating = ratings.get(home, policy.initial_rating)
             away_rating = ratings.get(away, policy.initial_rating)
             expected_home = 1.0 / (
@@ -282,12 +286,12 @@ def _team_fixtures(fixtures: list[dict[str, Any]], team_id: str) -> list[dict[st
     return [
         row
         for row in fixtures
-        if team_id in {row["home_w2_team_id"], row["away_w2_team_id"]}
+        if team_id in {row["home_team_id"], row["away_team_id"]}
     ]
 
 
 def _target_home_goal_diff(fixture: dict[str, Any], target_home_team_id: str) -> int:
-    if fixture["home_w2_team_id"] == target_home_team_id:
+    if fixture["home_team_id"] == target_home_team_id:
         return int(fixture["home_goals"]) - int(fixture["away_goals"])
     return int(fixture["away_goals"]) - int(fixture["home_goals"])
 

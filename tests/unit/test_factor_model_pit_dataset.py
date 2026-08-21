@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 
 from w2.domain.canonical_serialization import HashDomain, canonical_sha256
+from w2.factor_model.history import API_FOOTBALL_TEAM_ID_NAMESPACE
 from w2.factor_model.pit_dataset import (
     TemporalSplitPolicy,
     build_temporal_split_manifest,
@@ -33,6 +34,7 @@ def _snapshot(fixture_id: str, kickoff: datetime, f3: float | None) -> dict[str,
         "feature_as_of": kickoff,
         "home_team_id": "home",
         "away_team_id": "away",
+        "team_identity_namespace": API_FOOTBALL_TEAM_ID_NAMESPACE,
         "pit_history_manifest_sha256": "a" * 64,
         "rating_policy": {},
         "factors": {

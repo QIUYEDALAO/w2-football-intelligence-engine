@@ -16,11 +16,13 @@ from w2.domain.factor_shadow_v2 import (
     factor_shadow_market_opportunity_identity,
 )
 from w2.factor_model.history import (
+    API_FOOTBALL_TEAM_ID_NAMESPACE,
     build_pit_history_manifest,
     materialize_factor_history_from_persisted_raw,
 )
 
 NOW = datetime(2026, 8, 21, 12, tzinfo=UTC)
+TEAM_NS = API_FOOTBALL_TEAM_ID_NAMESPACE
 
 
 def _forward_forecast() -> dict[str, Any]:
@@ -129,10 +131,37 @@ def test_historical_materialization_has_no_provider_capability() -> None:
             self.provider_calls += 1
             raise AssertionError("Provider must not be called")
 
-        def fixture_payloads(self, **_kwargs: Any) -> list[dict[str, Any]]:
+        def raw_payloads(self, endpoint: str) -> list[dict[str, Any]]:
+            assert endpoint == "fixtures"
             return [
-                {"fixture": {"id": 1, "date": (NOW - timedelta(hours=1)).isoformat()}},
-                {"fixture": {"id": 2, "date": NOW.isoformat()}},
+                {
+                    "sha256": "a" * 64,
+                    "captured_at": NOW - timedelta(minutes=1),
+                    "payload": {
+                        "response": [
+                            {
+                                "fixture": {
+                                    "id": 1,
+                                    "date": (NOW - timedelta(hours=1)).isoformat(),
+                                    "status": {"short": "FT"},
+                                },
+                                "league": {"id": 140, "season": 2026},
+                                "teams": {"home": {"id": 10}, "away": {"id": 20}},
+                                "goals": {"home": 2, "away": 1},
+                            },
+                            {
+                                "fixture": {
+                                    "id": 2,
+                                    "date": NOW.isoformat(),
+                                    "status": {"short": "NS"},
+                                },
+                                "league": {"id": 140, "season": 2026},
+                                "teams": {"home": {"id": 30}, "away": {"id": 40}},
+                                "goals": {"home": None, "away": None},
+                            },
+                        ]
+                    },
+                }
             ]
 
     repository = Repository()
@@ -143,8 +172,8 @@ def test_historical_materialization_has_no_provider_capability() -> None:
         as_of=NOW,
     )
 
-    assert len(batch.fixture_payloads) == 1
-    assert batch.source_scope == "KICKOFF_BEFORE_AS_OF"
+    assert len(batch.history_rows) == 2
+    assert batch.source_scope == "PERSISTED_RAW_AS_OF"
     assert batch.provider_calls == 0
     assert repository.provider_calls == 0
 
@@ -170,13 +199,14 @@ def _history_pair(
         "fixture_id": fixture_id,
         "provider": "api_football",
         "provider_fixture_id": fixture_id.rsplit(":", 1)[-1],
-        "competition_id": "competition:140",
+        "provider_league_id": "140",
         "season": "2025",
         "kickoff_utc": kickoff,
         "fixture_status": status,
+        "team_identity_namespace": TEAM_NS,
         "result_identity_hash": f"result:{fixture_id}",
-        "source_raw_hash": f"raw:{fixture_id}",
-        "captured_at": captured_at,
+        "raw_payload_sha256": "a" * 64,
+        "raw_captured_at": captured_at,
     }
     return [
         {
@@ -184,8 +214,8 @@ def _history_pair(
             "history_id": f"{fixture_id}:home",
             "history_hash": f"history:{fixture_id}:home",
             "team_side": "HOME",
-            "team_w2_id": "team:home",
-            "opponent_w2_id": "team:away",
+            "team_id": "team:home",
+            "opponent_team_id": "team:away",
             "goals_for": 2,
             "goals_against": 1,
         },
@@ -194,8 +224,8 @@ def _history_pair(
             "history_id": f"{fixture_id}:away",
             "history_hash": f"history:{fixture_id}:away",
             "team_side": "AWAY",
-            "team_w2_id": "team:away",
-            "opponent_w2_id": "team:home",
+            "team_id": "team:away",
+            "opponent_team_id": "team:home",
             "goals_for": 1,
             "goals_against": 2,
         },
@@ -230,6 +260,7 @@ def test_pit_history_manifest_includes_only_results_known_before_target() -> Non
         target_fixture_id="api_football:target",
         target_kickoff=NOW,
         feature_as_of=NOW,
+        team_identity_namespace=TEAM_NS,
     )
 
     assert [row["fixture_id"] for row in manifest["source_fixtures"]] == [
@@ -255,13 +286,14 @@ def test_pit_history_manifest_rejects_incomplete_and_conflicting_identities() ->
         kickoff=NOW - timedelta(days=3),
         captured_at=NOW - timedelta(days=2),
     )
-    conflict[1]["opponent_w2_id"] = "team:other"
+    conflict[1]["opponent_team_id"] = "team:other"
 
     manifest = build_pit_history_manifest(
         incomplete + conflict,
         target_fixture_id="api_football:target",
         target_kickoff=NOW,
         feature_as_of=NOW,
+        team_identity_namespace=TEAM_NS,
     )
 
     assert manifest["source_fixtures"] == []
@@ -283,12 +315,14 @@ def test_pit_history_manifest_is_order_independent_and_deduplicates_exact_rows()
         target_fixture_id="api_football:target",
         target_kickoff=NOW,
         feature_as_of=NOW,
+        team_identity_namespace=TEAM_NS,
     )
     second = build_pit_history_manifest(
         list(reversed(rows)),
         target_fixture_id="api_football:target",
         target_kickoff=NOW,
         feature_as_of=NOW,
+        team_identity_namespace=TEAM_NS,
     )
 
     assert first == second
@@ -302,4 +336,5 @@ def test_pit_history_manifest_forbids_features_after_target_kickoff() -> None:
             target_fixture_id="api_football:target",
             target_kickoff=NOW,
             feature_as_of=NOW + timedelta(seconds=1),
+            team_identity_namespace=TEAM_NS,
         )

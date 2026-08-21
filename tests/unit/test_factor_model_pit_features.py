@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from w2.factor_model.history import build_pit_history_manifest
+from w2.factor_model.history import API_FOOTBALL_TEAM_ID_NAMESPACE, build_pit_history_manifest
 from w2.factor_model.pit_features import RecursiveRatingPolicy, build_pit_feature_snapshot
 
 TARGET = datetime(2026, 8, 21, 12, tzinfo=UTC)
@@ -15,6 +15,7 @@ POLICY = RecursiveRatingPolicy(
     k_factor=20.0,
     home_advantage_rating=60.0,
 )
+TEAM_NS = API_FOOTBALL_TEAM_ID_NAMESPACE
 
 
 def _pair(
@@ -31,21 +32,22 @@ def _pair(
         "fixture_id": fixture_id,
         "provider": "api_football",
         "provider_fixture_id": str(index),
-        "competition_id": "competition:140",
+        "provider_league_id": "140",
         "season": "2025",
         "kickoff_utc": kickoff,
         "fixture_status": "FT",
+        "team_identity_namespace": TEAM_NS,
         "result_identity_hash": f"result:{index}",
-        "source_raw_hash": f"raw:{index}",
-        "captured_at": kickoff + timedelta(hours=3),
+        "raw_payload_sha256": f"{index:064x}",
+        "raw_captured_at": kickoff + timedelta(hours=3),
     }
     return [
         {
             **common,
             "history_hash": f"history:{index}:home",
             "team_side": "HOME",
-            "team_w2_id": home,
-            "opponent_w2_id": away,
+            "team_id": home,
+            "opponent_team_id": away,
             "goals_for": home_goals,
             "goals_against": away_goals,
         },
@@ -53,8 +55,8 @@ def _pair(
             **common,
             "history_hash": f"history:{index}:away",
             "team_side": "AWAY",
-            "team_w2_id": away,
-            "opponent_w2_id": home,
+            "team_id": away,
+            "opponent_team_id": home,
             "goals_for": away_goals,
             "goals_against": home_goals,
         },
@@ -79,6 +81,7 @@ def _manifest() -> dict[str, Any]:
         target_fixture_id="api_football:target",
         target_kickoff=TARGET,
         feature_as_of=TARGET,
+        team_identity_namespace=TEAM_NS,
     )
 
 
@@ -87,6 +90,7 @@ def test_f3_f6_f7_share_verified_pit_manifest_and_remain_unadmitted() -> None:
         _manifest(),
         home_team_id="team:home",
         away_team_id="team:away",
+        team_identity_namespace=TEAM_NS,
         rating_policy=POLICY,
     )
 
@@ -114,6 +118,7 @@ def test_feature_snapshot_rejects_tampered_history_manifest() -> None:
             manifest,
             home_team_id="team:home",
             away_team_id="team:away",
+            team_identity_namespace=TEAM_NS,
             rating_policy=POLICY,
         )
 
@@ -124,12 +129,14 @@ def test_feature_snapshot_keeps_missing_distinct_from_neutral_zero() -> None:
         target_fixture_id="api_football:target",
         target_kickoff=TARGET,
         feature_as_of=TARGET,
+        team_identity_namespace=TEAM_NS,
     )
 
     snapshot = build_pit_feature_snapshot(
         manifest,
         home_team_id="team:home",
         away_team_id="team:away",
+        team_identity_namespace=TEAM_NS,
         rating_policy=POLICY,
     )
 
@@ -149,22 +156,26 @@ def test_recursive_rating_is_order_independent_within_same_kickoff_batch() -> No
         target_fixture_id="api_football:target",
         target_kickoff=TARGET,
         feature_as_of=TARGET,
+        team_identity_namespace=TEAM_NS,
     )
     second = build_pit_history_manifest(
         list(reversed(rows)),
         target_fixture_id="api_football:target",
         target_kickoff=TARGET,
         feature_as_of=TARGET,
+        team_identity_namespace=TEAM_NS,
     )
 
     assert build_pit_feature_snapshot(
         first,
         home_team_id="team:home",
         away_team_id="team:away",
+        team_identity_namespace=TEAM_NS,
         rating_policy=POLICY,
     ) == build_pit_feature_snapshot(
         second,
         home_team_id="team:home",
         away_team_id="team:away",
+        team_identity_namespace=TEAM_NS,
         rating_policy=POLICY,
     )
