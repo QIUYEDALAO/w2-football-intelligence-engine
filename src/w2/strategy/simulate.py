@@ -308,6 +308,24 @@ def score_matrix_from_simulation(simulation: dict[str, Any]) -> dict[tuple[int, 
     )
 
 
+def exact_score_matrix_from_lambdas(
+    *,
+    lambda_home: float,
+    lambda_away: float,
+    rho: float = 0.0,
+    max_goals: int = 12,
+) -> dict[tuple[int, int], float]:
+    """Expose the production exact-matrix engine without scoreline sampling."""
+    if lambda_home <= 0 or lambda_away <= 0 or max_goals < 1:
+        raise ValueError("exact score matrix inputs are invalid")
+    return _exact_score_matrix(
+        float(lambda_home),
+        float(lambda_away),
+        rho=float(rho),
+        max_goals=int(max_goals),
+    )
+
+
 def ah_cover_probability(
     score_counts: Counter[tuple[int, int]] | dict[tuple[int, int], int | float],
     *,

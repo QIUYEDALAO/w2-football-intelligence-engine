@@ -183,6 +183,15 @@ def normalize_pit_feature_snapshot(
     return {**body, "normalized_features_sha256": _hash("NORMALIZED_FEATURES", body)}
 
 
+def verify_normalized_feature_vector(vector: dict[str, Any]) -> dict[str, Any]:
+    if vector.get("schema_version") != NORMALIZED_FEATURE_SCHEMA_VERSION:
+        raise ValueError("NORMALIZED_FEATURES_SCHEMA_INVALID")
+    body = {key: value for key, value in vector.items() if key != "normalized_features_sha256"}
+    if vector.get("normalized_features_sha256") != _hash("NORMALIZED_FEATURES", body):
+        raise ValueError("NORMALIZED_FEATURES_HASH_MISMATCH")
+    return vector
+
+
 def _split(kickoff: datetime, policy: TemporalSplitPolicy) -> str | None:
     if _utc(policy.train_start) <= kickoff < _utc(policy.train_end):
         return "TRAIN"
